@@ -9,7 +9,9 @@ Bosco Tech. It will replace the existing static IDEA site (GitHub Pages) over
 the coming phases. This repo is the new home; the old static repo is separate.
 
 - **Stack:** SvelteKit + Supabase + Vercel
-- **Repo:** https://github.com/mrpina-dev/idea-app
+- **Repo:** https://github.com/pina-hash/idea-app
+  (intended home is the `mrpina-dev` account; transfer or move the remote there
+  when that account is available)
 - **Local path:** `C:\idea-app`
 
 ## Access model
