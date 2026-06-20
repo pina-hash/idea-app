@@ -1,0 +1,23 @@
+.DS_Store
+node_modules
+
+# SvelteKit / Vite build output
+/build
+/.svelte-kit
+/package
+.vercel
+.output
+
+# Environment (never commit real keys)
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor
+.idea
+.vscode/*
+!.vscode/extensions.json
