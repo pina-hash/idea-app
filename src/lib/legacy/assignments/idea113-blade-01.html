@@ -1,0 +1,1586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDEA-BLADE | Assignment 01: Concept Package</title>
+<link rel="icon" type="image/png" sizes="512x512" href="/IDEA/ib-android-chrome-512x512.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg0: #020A04;
+  --bg1: #050F07;
+  --bg2: #081209;
+  --green: #00FF41;
+  --gold: #C8FF00;
+  --cyan: #00F0FF;
+  --amber: #FF8C00;
+  --teal: #00AA88;
+  --violet: #5500AA;
+  --white: #E8FFE8;
+  --dim: #4A7A52;
+  --ice: #88DDFF;
+  --glow-green: 0 0 10px rgba(0,255,65,0.8), 0 0 28px rgba(0,255,65,0.3);
+  --glow-gold: 0 0 10px rgba(200,255,0,0.8), 0 0 28px rgba(200,255,0,0.3);
+  --glow-amber: 0 0 10px rgba(255,140,0,0.8), 0 0 28px rgba(255,140,0,0.3);
+  --glow-cyan: 0 0 10px rgba(0,240,255,0.8), 0 0 28px rgba(0,240,255,0.3);
+  --glow-teal: 0 0 10px rgba(0,170,136,0.8), 0 0 28px rgba(0,170,136,0.3);
+}
+
+body {
+  background: var(--bg0);
+  color: var(--white);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* === SCROLL PROGRESS BAR === */
+#scroll-progress {
+  position: fixed;
+  top: 0; left: 0;
+  width: 0%;
+  height: 2px;
+  background: var(--green);
+  box-shadow: var(--glow-green);
+  z-index: 1001;
+  transition: width 0.08s linear;
+  pointer-events: none;
+}
+
+/* === TOOLBAR === */
+#toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  background: rgba(2, 10, 4, 0.9);
+  border-bottom: 1px solid rgba(0,255,65,0.18);
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tb-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  padding: 7px 14px;
+  border: 1px solid rgba(0,255,65,0.28);
+  background: rgba(0,255,65,0.04);
+  color: var(--green);
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: background 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+.tb-btn:hover { background: rgba(0,255,65,0.12); border-color: rgba(0,255,65,0.6); }
+.tb-btn.danger { border-color: rgba(255,140,0,0.28); color: var(--amber); background: rgba(255,140,0,0.03); }
+.tb-btn.danger:hover { background: rgba(255,140,0,0.1); border-color: rgba(255,140,0,0.6); }
+#tb-score {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 11px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  padding: 6px 12px;
+  border: 1px solid rgba(200,255,0,0.2);
+  background: rgba(200,255,0,0.04);
+  white-space: nowrap;
+}
+#tb-save-status {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: 1px;
+  margin-left: auto;
+  transition: color 0.3s;
+}
+#tb-save-status.flash { color: var(--green); }
+
+/* === BACKGROUND CANVAS === */
+#bg-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+/* === PAGE === */
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 32px 60px;
+}
+
+/* === VERSION WARNING === */
+#version-warning {
+  display: none;
+  background: rgba(255,140,0,0.08);
+  border: 1px solid var(--amber);
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 1px;
+  line-height: 1.6;
+}
+
+/* === HEADER === */
+.header {
+  border: 1px solid rgba(0,255,65,0.28);
+  border-bottom: 3px solid var(--green);
+  background: rgba(5,15,7,0.97);
+  padding: 28px 32px 24px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  break-inside: avoid;
+}
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+}
+.header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  gap: 16px;
+}
+.brand-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 3px; text-transform: uppercase; display: block; margin-bottom: 4px; }
+.brand-title { font-family: 'Orbitron', sans-serif; font-size: 30px; font-weight: 900; color: var(--green); letter-spacing: 4px; text-shadow: var(--glow-green); line-height: 1; display: block; margin-bottom: 4px; }
+.brand-sub { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 2px; display: block; }
+.brand-note { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: rgba(74,122,82,0.55); letter-spacing: 1px; display: block; margin-top: 7px; font-style: italic; }
+.badge-num { font-family: 'Orbitron', sans-serif; font-size: 42px; font-weight: 900; color: rgba(0,255,65,0.12); line-height: 1; text-align: right; display: block; }
+.badge-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 2px; text-align: right; display: block; }
+.header-title { font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700; color: var(--green); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,255,65,0.12); }
+.student-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 0.7fr; gap: 12px; margin-bottom: 14px; }
+.info-field { display: flex; flex-direction: column; gap: 4px; }
+.info-field label, .field-row label { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; display: block; }
+.info-field input, .field-row input[type="text"] {
+  background: var(--bg2);
+  border: 1px solid rgba(0,255,65,0.12);
+  border-bottom: 1px solid var(--dim);
+  color: var(--green);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  padding: 9px 12px;
+  outline: none;
+  width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.info-field input:focus, .field-row input[type="text"]:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 8px rgba(0,255,65,0.1);
+}
+.info-field input[readonly] { color: var(--cyan); cursor: default; border-color: rgba(0,240,255,0.15); }
+.info-field input::placeholder, .field-row input::placeholder { color: var(--dim); font-style: italic; font-size: 13px; }
+.collab-row { display: flex; align-items: center; gap: 16px; padding-top: 14px; border-top: 1px solid rgba(0,255,65,0.08); flex-wrap: wrap; }
+.collab-label { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; white-space: nowrap; }
+.collab-options { display: flex; gap: 16px; }
+.collab-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.collab-opt input[type="radio"] { accent-color: var(--green); width: 14px; height: 14px; cursor: pointer; }
+.collab-opt span { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 1px; }
+.collab-names { flex: 1; min-width: 200px; }
+.collab-names input { background: var(--bg2); border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim); color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 14px; padding: 7px 12px; outline: none; width: 100%; transition: border-color 0.2s; }
+.collab-names input:focus { border-color: var(--green); }
+.collab-names input::placeholder { color: var(--dim); font-style: italic; font-size: 12px; }
+.collab-note { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: rgba(74,122,82,0.5); letter-spacing: 1px; width: 100%; }
+
+/* === SUBMISSION INSTRUCTIONS === */
+.submit-callout { border: 1px solid rgba(255,140,0,0.18); background: rgba(255,140,0,0.03); padding: 12px 16px; margin-bottom: 16px; }
+.submit-callout-title { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 3px; color: var(--amber); text-transform: uppercase; margin-bottom: 8px; }
+.submit-steps { display: flex; gap: 0; flex-wrap: wrap; }
+.submit-step { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 140px; padding: 4px 8px; }
+.step-num { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; color: var(--amber); flex-shrink: 0; line-height: 1.4; }
+.step-text { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 0.5px; line-height: 1.5; }
+.step-text em { color: var(--green); font-style: normal; }
+
+/* === RULEBOOK BLOCK === */
+.rulebook-block {
+  border: 2px solid var(--gold);
+  background: rgba(200,255,0,0.03);
+  margin-bottom: 20px;
+  padding: 20px 24px;
+  position: relative;
+}
+.rulebook-block::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+}
+.rulebook-eyebrow {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--gold);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  display: block;
+}
+.rulebook-link-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.rulebook-link-btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--bg0);
+  background: var(--gold);
+  padding: 12px 24px;
+  text-decoration: none;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  display: inline-block;
+  transition: background 0.15s, box-shadow 0.15s;
+  cursor: pointer;
+}
+.rulebook-link-btn:hover {
+  background: #fff;
+  box-shadow: var(--glow-gold);
+}
+.rulebook-note {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 0.5px;
+  line-height: 1.8;
+}
+.rulebook-note strong { color: var(--white); }
+.rulebook-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid rgba(200,255,0,0.25);
+  background: rgba(200,255,0,0.03);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.rulebook-ack:hover { background: rgba(200,255,0,0.06); }
+.rulebook-ack input[type="checkbox"] { accent-color: var(--gold); width: 18px; height: 18px; flex-shrink: 0; margin-top: 3px; cursor: pointer; }
+.rulebook-ack-text {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--white);
+  letter-spacing: 0.5px;
+  line-height: 1.7;
+}
+.rulebook-ack-text strong { color: var(--gold); }
+
+/* === TOTAL BAR === */
+.total-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(0,255,65,0.04);
+  border: 1px solid rgba(0,255,65,0.18);
+  margin-bottom: 20px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  color: var(--dim);
+  letter-spacing: 2px;
+}
+.total-bar strong {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 13px;
+  color: var(--gold);
+  letter-spacing: 3px;
+  animation: glow-breathe-gold 3s ease-in-out infinite;
+}
+@keyframes glow-breathe-gold {
+  0%, 100% { text-shadow: 0 0 4px rgba(200,255,0,0.2); }
+  50% { text-shadow: var(--glow-gold); }
+}
+
+/* === MODULES === */
+.module {
+  border: 1px solid rgba(0,255,65,0.18);
+  background: var(--bg1);
+  margin-bottom: 20px;
+  position: relative;
+  break-inside: avoid;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.65s ease, transform 0.65s ease;
+  overflow: hidden;
+}
+.module.visible { opacity: 1; transform: translateY(0); }
+.module::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+  background: linear-gradient(180deg, var(--green), rgba(0,255,65,0.05));
+  z-index: 1;
+}
+.module::after {
+  content: '';
+  position: absolute;
+  top: -100%; left: 0; right: 0;
+  height: 100%;
+  background: linear-gradient(180deg, transparent 0%, rgba(0,255,65,0.035) 50%, transparent 100%);
+  pointer-events: none;
+  transition: top 0.55s ease;
+  z-index: 0;
+}
+.module:hover::after { top: 100%; }
+
+.module-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px 12px 24px;
+  border-bottom: 1px solid rgba(0,255,65,0.12);
+  background: rgba(0,255,65,0.03);
+  position: relative;
+  z-index: 1;
+}
+.mod-num { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; color: var(--dim); letter-spacing: 1px; background: rgba(0,255,65,0.07); padding: 3px 8px; border: 1px solid rgba(0,255,65,0.18); }
+.mod-title { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: var(--green); flex: 1; text-transform: uppercase; }
+.mod-pts {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 10px;
+  color: var(--gold);
+  letter-spacing: 2px;
+  background: rgba(200,255,0,0.05);
+  border: 1px solid rgba(200,255,0,0.18);
+  padding: 3px 10px;
+  animation: glow-breathe-pts 4s ease-in-out infinite;
+}
+@keyframes glow-breathe-pts {
+  0%, 100% { text-shadow: 0 0 4px rgba(200,255,0,0.15); }
+  50% { text-shadow: var(--glow-gold); }
+}
+.mod-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: rgba(74,122,82,0.3);
+  border: 1px solid rgba(74,122,82,0.4);
+  flex-shrink: 0;
+  transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+.mod-dot.complete { background: var(--green); border-color: var(--green); box-shadow: 0 0 8px rgba(0,255,65,0.55); }
+.rubric-toggle { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 1px; padding: 3px 10px; border: 1px solid rgba(0,255,65,0.18); background: transparent; color: var(--dim); cursor: pointer; text-transform: uppercase; transition: color 0.2s, background 0.2s; white-space: nowrap; }
+.rubric-toggle:hover { color: var(--green); background: rgba(0,255,65,0.05); }
+.rubric-toggle.open { color: rgba(74,122,82,0.7); }
+.module-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; }
+
+/* === RUBRIC PANEL === */
+.rubric-panel { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }
+.rubric-panel.open { max-height: 700px; border-top: 1px solid rgba(0,255,65,0.1); }
+.rubric-inner { padding: 12px 24px 16px; background: rgba(0,255,65,0.015); }
+.rubric-title-row { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid rgba(0,255,65,0.08); margin-bottom: 2px; display: flex; justify-content: space-between; }
+.rubric-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(0,255,65,0.04); }
+.rubric-row:last-child { border-bottom: none; }
+.rubric-criteria { font-size: 13px; color: var(--dim); line-height: 1.5; flex: 1; }
+.rubric-criteria strong { color: var(--white); font-weight: 600; }
+.rubric-pts { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold); white-space: nowrap; padding-top: 2px; }
+
+/* === FORM FIELDS === */
+.field-row { display: flex; flex-direction: column; gap: 5px; }
+.field-row textarea {
+  background: var(--bg2);
+  border: 1px solid rgba(0,255,65,0.12);
+  border-bottom: 1px solid var(--dim);
+  color: var(--green);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 15px;
+  padding: 10px 12px;
+  outline: none;
+  resize: none;
+  overflow: hidden;
+  width: 100%;
+  min-height: 80px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.field-row textarea:focus { border-color: var(--green); box-shadow: 0 0 8px rgba(0,255,65,0.08), inset 0 0 4px rgba(0,255,65,0.03); }
+.field-row textarea::placeholder { color: var(--dim); font-style: italic; font-size: 13px; }
+.sent-count { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px; padding: 4px 8px; border-left: 2px solid var(--dim); color: var(--dim); transition: color 0.2s, border-color 0.2s; display: flex; align-items: center; gap: 6px; }
+.sent-count.met { color: var(--green); border-left-color: var(--green); }
+.sent-count.unmet.active { color: var(--amber); border-left-color: var(--amber); }
+.sent-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.prompt { font-size: 13px; color: var(--dim); font-style: italic; line-height: 1.7; padding: 10px 14px; border-left: 2px solid rgba(0,255,65,0.1); background: rgba(0,255,65,0.02); }
+.sub-label { font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; color: var(--dim); letter-spacing: 3px; text-transform: uppercase; padding: 6px 0 2px; border-bottom: 1px solid rgba(0,255,65,0.07); margin-bottom: 2px; }
+.working-note { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--amber); letter-spacing: 1px; padding: 4px 10px; border: 1px solid rgba(255,140,0,0.18); background: rgba(255,140,0,0.03); display: inline-block; margin-bottom: 2px; }
+.identity-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* === MFG TABLE === */
+.mfg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mfg-table th { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(0,255,65,0.12); background: rgba(0,255,65,0.03); }
+.mfg-table th:first-child { width: 36px; text-align: center; }
+.mfg-table th:nth-child(2), .mfg-table th:nth-child(3) { width: 22%; }
+.mfg-table td { padding: 3px 4px; border-bottom: 1px solid rgba(74,122,82,0.25); vertical-align: top; }
+.mfg-table td:first-child { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); padding: 10px 10px; text-align: center; }
+.mfg-table tr.extra td { opacity: 0.45; }
+.mfg-table textarea { background: transparent; border: none; border-bottom: 1px solid rgba(0,255,65,0.07); color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 14px; padding: 8px 8px; width: 100%; outline: none; resize: none; overflow: hidden; height: 0; min-height: 36px; display: block; line-height: 1.4; transition: border-color 0.2s, background 0.2s; }
+.mfg-table textarea:focus { border-bottom-color: var(--green); background: rgba(0,255,65,0.03); }
+.mfg-table textarea::placeholder { color: var(--dim); font-style: italic; font-size: 12px; }
+.add-row-btn { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1.5px; padding: 6px 14px; border: 1px dashed rgba(0,255,65,0.2); background: transparent; color: var(--dim); cursor: pointer; text-transform: uppercase; transition: color 0.2s, border-color 0.2s; margin-top: 8px; }
+.add-row-btn:hover { color: var(--green); border-color: rgba(0,255,65,0.4); }
+
+/* === AM DEMO === */
+.am-demo-wrap { border: 1px solid rgba(0,255,65,0.18); background: rgba(2,6,2,0.9); padding: 20px; display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+.am-canvas-col { display: flex; flex-direction: column; align-items: center; gap: 10px; flex-shrink: 0; }
+canvas#am-canvas { border: 1px solid rgba(0,255,65,0.18); background: #020602; display: block; }
+.am-slider-row { display: flex; align-items: center; gap: 8px; width: 200px; }
+.am-slider-row input[type="range"] { flex: 1; accent-color: var(--green); cursor: pointer; }
+.am-slider-label { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: var(--dim); letter-spacing: 1px; }
+.am-spin-btn { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 2px; padding: 7px 14px; border: 1px solid rgba(0,255,65,0.28); background: rgba(0,255,65,0.05); color: var(--green); cursor: pointer; text-transform: uppercase; transition: background 0.2s; width: 100%; }
+.am-spin-btn:hover { background: rgba(0,255,65,0.12); }
+.am-spin-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.am-metrics-col { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 8px; }
+.am-edu { font-family: 'Rajdhani', sans-serif; font-size: 14px; color: var(--dim); line-height: 1.65; border-left: 2px solid rgba(0,255,65,0.1); padding: 8px 14px; background: rgba(0,255,65,0.02); }
+.am-edu strong { color: var(--green); font-weight: 600; }
+.am-metric { display: flex; flex-direction: column; gap: 3px; }
+.am-metric-label { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+.am-metric-bar-wrap { height: 6px; background: rgba(0,255,65,0.07); border: 1px solid rgba(0,255,65,0.12); overflow: hidden; }
+.am-metric-bar { height: 100%; background: var(--green); transition: width 0.4s ease; }
+.am-metric-val { font-family: 'Orbitron', sans-serif; font-size: 11px; color: var(--green); letter-spacing: 1px; }
+.am-status { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 1px; min-height: 18px; text-align: center; }
+
+/* === IMAGE UPLOAD === */
+.drop-zone { border: 1px dashed rgba(0,255,65,0.2); background: var(--bg2); padding: 24px 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; transition: background 0.2s, border-color 0.2s; user-select: none; }
+.drop-zone:hover, .drop-zone.drag-over { background: rgba(0,255,65,0.06); border-color: var(--dim); }
+.drop-icon { font-family: 'Orbitron', sans-serif; font-size: 18px; color: rgba(0,255,65,0.15); letter-spacing: 2px; }
+.drop-label { font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 3px; color: var(--dim); text-transform: uppercase; }
+.drop-sub { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: rgba(74,122,82,0.55); letter-spacing: 1px; }
+.img-count { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px; padding: 4px 8px; border-left: 2px solid var(--dim); color: var(--dim); display: flex; align-items: center; gap: 6px; transition: color 0.2s, border-color 0.2s; }
+.img-count.partial { color: var(--amber); border-left-color: var(--amber); }
+.img-count.met { color: var(--green); border-left-color: var(--green); }
+.sketch-preview { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.preview-item { position: relative; border: 1px solid rgba(0,255,65,0.18); background: #000; display: flex; flex-direction: column; cursor: pointer; }
+.preview-item img { max-height: 130px; max-width: 180px; min-width: 80px; object-fit: contain; display: block; }
+.preview-caption { background: var(--bg2); border: none; border-top: 1px solid rgba(0,255,65,0.08); color: var(--green); font-family: 'Share Tech Mono', monospace; font-size: 9px; padding: 4px 6px; outline: none; width: 100%; max-width: 180px; }
+.preview-caption::placeholder { color: var(--dim); font-style: italic; }
+.remove-img { position: absolute; top: 3px; right: 3px; background: rgba(255,140,0,0.6); border: none; color: #fff; font-size: 12px; width: 18px; height: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+.remove-img:hover { background: rgba(255,140,0,0.9); }
+
+/* === LIGHTBOX === */
+#lightbox { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.92); z-index: 9999; align-items: center; justify-content: center; }
+#lightbox.active { display: flex; }
+#lightbox-img { max-width: 92vw; max-height: 90vh; object-fit: contain; border: 1px solid rgba(0,255,65,0.25); display: block; }
+#lightbox-close { position: absolute; top: 20px; right: 24px; font-family: 'Share Tech Mono', monospace; font-size: 13px; color: var(--dim); cursor: pointer; letter-spacing: 2px; padding: 6px 12px; border: 1px solid rgba(0,255,65,0.18); background: rgba(2,10,4,0.8); transition: color 0.2s; }
+#lightbox-close:hover { color: var(--green); }
+
+/* === PRINT MIRRORS === */
+.print-mirror { display: none; color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 15px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; padding: 10px 12px; border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim); background: var(--bg2); min-height: 34px; width: 100%; }
+.print-mirror.single-line { white-space: normal; overflow: visible; min-height: auto; }
+
+/* === DECLARATION === */
+.declaration-block { border: 1px solid rgba(0,255,65,0.18); background: rgba(0,255,65,0.02); padding: 18px 22px; margin-bottom: 20px; }
+.declaration-title { font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 3px; color: var(--green); text-transform: uppercase; margin-bottom: 10px; }
+.declaration-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); line-height: 1.8; margin-bottom: 14px; }
+.decl-checkbox { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.decl-checkbox input[type="checkbox"] { accent-color: var(--green); width: 16px; height: 16px; margin-top: 2px; cursor: pointer; flex-shrink: 0; }
+.decl-checkbox-label { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--white); letter-spacing: 0.5px; line-height: 1.6; }
+
+/* === SUBMISSION CHECKLIST === */
+.checklist-section { border: 1px solid rgba(0,255,65,0.18); background: var(--bg1); margin-bottom: 20px; }
+.checklist-section-header { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid rgba(0,255,65,0.12); background: rgba(0,255,65,0.03); }
+.checklist-section-title { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 3px; color: var(--green); text-transform: uppercase; }
+.checklist-body { padding: 12px 20px; display: flex; flex-direction: column; gap: 5px; }
+.checklist-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid rgba(0,255,65,0.06); background: rgba(0,255,65,0.01); cursor: pointer; transition: transform 0.15s ease, background 0.15s ease; }
+.checklist-item:hover { transform: translateX(6px); background: rgba(0,255,65,0.04); }
+.checklist-item input[type="checkbox"] { accent-color: var(--green); width: 14px; height: 14px; margin-top: 2px; cursor: pointer; flex-shrink: 0; }
+.checklist-item-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 0.5px; line-height: 1.6; }
+.checklist-item input:checked + .checklist-item-text { color: var(--green); }
+
+/* === INSTRUCTOR TABLE (print only) === */
+.instructor-table { display: none; }
+
+/* === FOOTER === */
+.footer { display: flex; justify-content: space-between; align-items: center; margin-top: 32px; padding: 14px 20px; border: 1px solid rgba(0,255,65,0.12); background: var(--bg1); font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 2px; flex-wrap: wrap; gap: 10px; }
+.footer-pts { font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700; color: var(--gold); letter-spacing: 3px; }
+
+/* === CLEAR DIALOG === */
+#clear-dialog { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.88); z-index: 9998; align-items: center; justify-content: center; }
+#clear-dialog.active { display: flex; }
+.clear-box { border: 2px solid var(--amber); background: var(--bg1); padding: 30px 36px; max-width: 420px; text-align: center; }
+.clear-box-title { font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; color: var(--amber); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
+.clear-box-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); line-height: 1.8; margin-bottom: 22px; }
+.clear-box-btns { display: flex; gap: 12px; justify-content: center; }
+
+/* === PREFLIGHT DIALOG === */
+#preflight-dialog { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.88); z-index: 9997; align-items: center; justify-content: center; }
+#preflight-dialog.active { display: flex; }
+.preflight-box { border: 2px solid var(--amber); background: var(--bg1); padding: 24px 28px; max-width: 520px; width: 90%; max-height: 80vh; overflow-y: auto; }
+.preflight-title { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; color: var(--amber); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 6px; }
+.preflight-subtitle { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 1px; margin-bottom: 14px; }
+.preflight-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.preflight-issue { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--amber); letter-spacing: 0.5px; padding: 5px 0; border-bottom: 1px solid rgba(255,140,0,0.1); display: flex; gap: 8px; }
+.preflight-issue::before { content: '[!]'; color: var(--amber); flex-shrink: 0; }
+.preflight-ok-msg { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--green); letter-spacing: 1px; margin-bottom: 16px; }
+.preflight-btns { display: flex; gap: 12px; }
+
+/* === PREFERS REDUCED MOTION === */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .module { opacity: 1 !important; transform: none !important; }
+  .module::after { display: none !important; }
+}
+
+/* === PRINT === */
+@page { size: letter; margin: 0.75in; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  #bg-canvas, #scroll-progress, #toolbar, .submit-callout, .sent-count, .drop-zone,
+  .remove-img, .am-spin-btn, .am-slider-row, .rubric-toggle, .rubric-panel,
+  #clear-dialog, #preflight-dialog, #lightbox, .img-count, .add-row-btn,
+  .checklist-section { display: none !important; }
+  input[type="text"], textarea { display: none !important; }
+  input[type="checkbox"], input[type="radio"] { display: none !important; }
+  .collab-opt span { display: none; }
+  .print-mirror { display: block !important; }
+  .sketch-preview { display: flex !important; }
+  .module, .header, .declaration-block, .rulebook-block { break-inside: avoid; page-break-inside: avoid; }
+  .page { padding: 16px 0 40px; }
+  .brand-title { text-shadow: none !important; }
+  .module { opacity: 1 !important; transform: none !important; background: var(--bg1) !important; }
+  .module::after { display: none !important; }
+  .instructor-table {
+    display: table !important;
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 24px;
+    page-break-inside: avoid;
+  }
+  .instructor-table th, .instructor-table td {
+    border: 1px solid rgba(0,255,65,0.25);
+    padding: 8px 12px;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px;
+    text-align: left;
+  }
+  .instructor-table th { background: rgba(0,255,65,0.05); color: var(--dim); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+  .instructor-table td { color: var(--white); min-height: 32px; vertical-align: top; }
+  .instructor-table .score-cell { min-width: 60px; }
+  .rulebook-ack, .decl-checkbox { padding: 8px 12px; }
+}
+</style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <button class="tb-btn" onclick="printWithPreflight()">[ Print / Export PDF ]</button>
+  <button class="tb-btn" onclick="saveToStorage()">[ Save Progress ]</button>
+  <button class="tb-btn" onclick="downloadHTML()">[ Download with Data ]</button>
+  <button class="tb-btn danger" onclick="showClearDialog()">[ Clear All ]</button>
+  <span id="tb-score">0 / 50 pts</span>
+  <span id="tb-save-status">Auto-save on</span>
+</div>
+
+<!-- BG CANVAS -->
+<canvas id="bg-canvas"></canvas>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="closeLightbox(event)">
+  <img id="lightbox-img" src="" alt="">
+  <div id="lightbox-close" onclick="closeLightbox()">[ESC / CLOSE]</div>
+</div>
+
+<!-- CLEAR DIALOG -->
+<div id="clear-dialog">
+  <div class="clear-box">
+    <div class="clear-box-title">Clear All Progress?</div>
+    <div class="clear-box-text">This will permanently erase all fields, images, and saved data for this assignment. This cannot be undone.</div>
+    <div class="clear-box-btns">
+      <button class="tb-btn danger" onclick="confirmClear()" style="cursor:pointer">[ Yes, Clear Everything ]</button>
+      <button class="tb-btn" onclick="hideClearDialog()" style="cursor:pointer">[ Cancel ]</button>
+    </div>
+  </div>
+</div>
+
+<!-- PREFLIGHT DIALOG -->
+<div id="preflight-dialog">
+  <div class="preflight-box">
+    <div class="preflight-title">Pre-Print Check</div>
+    <div class="preflight-subtitle">The following items are incomplete. You can go back to fix them or print anyway.</div>
+    <div class="preflight-list" id="preflight-list"></div>
+    <div class="preflight-btns">
+      <button class="tb-btn danger" onclick="proceedPrint()" style="cursor:pointer">[ Print Anyway ]</button>
+      <button class="tb-btn" onclick="hidePreflight()" style="cursor:pointer">[ Go Back ]</button>
+    </div>
+  </div>
+</div>
+
+<!-- VERSION WARNING -->
+<div id="version-warning"></div>
+
+<div class="page">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div>
+      <span class="brand-label">Don Bosco Technical Institute &nbsp;|&nbsp; IDEA-113</span>
+      <span class="brand-title">IDEA-BLADE</span>
+      <span class="brand-sub">Battle-Tops Design and Manufacturing Program</span>
+      <span class="brand-note">* "Blade" in this assignment refers to your complete IDEA-Blade battle-top - not to individual blade-shaped components within your design.</span>
+    </div>
+    <div style="text-align:right">
+      <span class="badge-num">01</span>
+      <span class="badge-label">Assignment</span>
+    </div>
+  </div>
+  <div class="header-title">Concept Package</div>
+  <div class="student-grid">
+    <div class="info-field">
+      <label>Operator (Student Name)</label>
+      <input type="text" id="student-name" data-field="student-name" placeholder="Full name" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="student-name"></div>
+    </div>
+    <div class="info-field">
+      <label>Date</label>
+      <input type="text" id="student-date" data-field="student-date" placeholder="MM / DD / YYYY" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="student-date"></div>
+    </div>
+    <div class="info-field">
+      <label>Version</label>
+      <input type="text" value="v5" readonly>
+    </div>
+    <div class="info-field">
+      <label>Due Date</label>
+      <input type="text" value="05 / 13 / 2026" readonly>
+    </div>
+  </div>
+  <div class="collab-row">
+    <span class="collab-label">Collaboration</span>
+    <div class="collab-options">
+      <label class="collab-opt"><input type="radio" name="collab" value="solo" data-field="collab-status"> <span>Working solo</span></label>
+      <label class="collab-opt"><input type="radio" name="collab" value="collab" data-field="collab-status"> <span>Collaborating</span></label>
+    </div>
+    <div class="collab-names">
+      <input type="text" data-field="collab-names" placeholder="Collaborator name(s) — designs still compete independently" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="collab-names"></div>
+    </div>
+    <span class="collab-note">* Individual grades. Designs compete independently regardless of collaboration.</span>
+  </div>
+</div>
+
+<!-- SUBMISSION INSTRUCTIONS -->
+<div class="submit-callout">
+  <div class="submit-callout-title">Submission Instructions</div>
+  <div class="submit-steps">
+    <div class="submit-step"><div class="step-num">01</div><div class="step-text">Complete all 6 modules below</div></div>
+    <div class="submit-step"><div class="step-num">02</div><div class="step-text">Click <em>Print / Export PDF</em> in the toolbar above</div></div>
+    <div class="submit-step"><div class="step-num">03</div><div class="step-text">Select <em>Save as PDF</em> in the print dialog</div></div>
+    <div class="submit-step"><div class="step-num">04</div><div class="step-text">Enable <em>Background graphics</em> in print options</div></div>
+    <div class="submit-step"><div class="step-num">05</div><div class="step-text">Upload the PDF to <em>Google Classroom</em></div></div>
+  </div>
+</div>
+
+<!-- RULEBOOK LINK -->
+<div class="rulebook-block">
+  <span class="rulebook-eyebrow">Required Reading - IDEA-Blade Rulebook</span>
+  <div class="rulebook-link-row">
+    <a class="rulebook-link-btn" href="https://mrpina-dev.github.io/IDEA/IDEA-Blade_Rulebook_v2_2.html" target="_blank" rel="noopener">
+      Open Rulebook
+    </a>
+    <div class="rulebook-note">
+      All design constraints, blade contact rules, scoring criteria, and competition<br>
+      format are defined in the rulebook. <strong>Read it before starting this assignment.</strong>
+    </div>
+  </div>
+  <label class="rulebook-ack">
+    <input type="checkbox" data-field="rulebook-ack">
+    <div class="rulebook-ack-text">
+      I have opened and read the IDEA-Blade Rulebook. I understand the design constraints,
+      the <strong>blade contact rule</strong>, and the competition format. My concept package reflects these requirements.
+    </div>
+  </label>
+</div>
+
+<!-- TOTAL BAR -->
+<div class="total-bar">
+  <span>Assignment Weight</span>
+  <strong>50 Points</strong>
+  <span>Complete all 6 modules &nbsp;|&nbsp; Click [ Rubric ] in any module header to see grading criteria</span>
+</div>
+
+<!-- MODULE 01: BLADE IDENTITY -->
+<div class="module" id="module-01">
+  <div class="module-header">
+    <span class="mod-num">01</span>
+    <span class="mod-title">Blade Identity</span>
+    <span class="mod-pts">10 pts</span>
+    <span class="mod-dot" id="dot-01"></span>
+    <button class="rubric-toggle" id="rt-01" onclick="toggleRubric(1)">[ Rubric ]</button>
+  </div>
+  <div class="module-body">
+    <div class="working-note">* All fields in this module are working drafts - names, themes, and taglines may evolve as your design develops.</div>
+    <p class="prompt">Start defining who your blade is. Think of this like building a character - it has a name, a personality, a look, and a way it fights. The more thought you put in here, the clearer your design direction will be when you start drawing.</p>
+    <div class="sub-label">Identity</div>
+    <div class="identity-grid">
+      <div class="field-row">
+        <label>Working Blade Name</label>
+        <input type="text" data-field="blade-name" placeholder="What are you considering calling it?" autocomplete="off">
+        <div class="print-mirror single-line" data-mirror="blade-name"></div>
+      </div>
+      <div class="field-row">
+        <label>Working Combat Tagline</label>
+        <input type="text" data-field="blade-tagline" placeholder="A battle cry or motto - can be rough." autocomplete="off">
+        <div class="print-mirror single-line" data-mirror="blade-tagline"></div>
+      </div>
+    </div>
+    <div class="sub-label">Theme</div>
+    <div class="field-row">
+      <label>Working Theme Declaration</label>
+      <input type="text" data-field="blade-theme" placeholder="One sentence: what does this blade represent?" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="blade-theme"></div>
+    </div>
+    <div class="field-row">
+      <label>Theme Inspiration - Where did this idea come from? What drew you to it?</label>
+      <textarea data-field="blade-inspiration" placeholder="Describe where your theme came from. A movie? A feeling? Something from nature? History? What made you choose this over everything else?"></textarea>
+      <div class="print-mirror" data-mirror="blade-inspiration"></div>
+      <div class="sent-count" data-min="2" data-field-ref="blade-inspiration"><span class="sent-dot"></span><span><span class="current">0</span> / 2 sentences minimum</span></div>
+    </div>
+    <div class="sub-label">Visual Mood and Combat Personality</div>
+    <div class="field-row">
+      <label>Visual Mood - Describe the look and feel in 3-5 words</label>
+      <input type="text" data-field="blade-mood" placeholder="e.g. dark, jagged, ancient, burning, mechanical..." autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="blade-mood"></div>
+    </div>
+    <div class="field-row">
+      <label>Combat Style and Personality - How does this blade fight?</label>
+      <textarea data-field="blade-personality" placeholder="Describe the fighting character of your blade. Does it charge forward? Does it wear opponents down? Is it built for brutal impact or evasion and deflection? How does its personality connect to its theme?"></textarea>
+      <div class="print-mirror" data-mirror="blade-personality"></div>
+      <div class="sent-count" data-min="2" data-field-ref="blade-personality"><span class="sent-dot"></span><span><span class="current">0</span> / 2 sentences minimum</span></div>
+    </div>
+  </div>
+  <div class="rubric-panel" id="rubric-01">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria">Name and tagline are <strong>present and considered</strong> - not placeholder text like "Blade 1" or "TBD"</div><div class="rubric-pts">2 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Theme declaration is <strong>specific</strong> - names a clear concept, not vague ("a cool design" earns 0; "an anglerfish from the deep sea" earns full)</div><div class="rubric-pts">2 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Theme inspiration shows <strong>genuine reasoning</strong> for the choice - min 2 sentences met</div><div class="rubric-pts">2 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Visual mood uses <strong>specific descriptive language</strong>, not generic words like "cool" or "good"</div><div class="rubric-pts">1 pt</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Combat personality <strong>describes a fighting style AND connects it to the theme</strong> - min 2 sentences met</div><div class="rubric-pts">3 pts</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODULE 02: DESIGN RATIONALE -->
+<div class="module" id="module-02">
+  <div class="module-header">
+    <span class="mod-num">02</span>
+    <span class="mod-title">Design Rationale</span>
+    <span class="mod-pts">10 pts</span>
+    <span class="mod-dot" id="dot-02"></span>
+    <button class="rubric-toggle" id="rt-02" onclick="toggleRubric(2)">[ Rubric ]</button>
+  </div>
+  <div class="module-body">
+    <p class="prompt">This is where your idea becomes a design. The goal is to translate your theme into actual geometry - specific shapes, silhouettes, edges, and forms. Think beyond color and decals. Anyone can paint something to look like an ocean. But can you design a blade that moves like one?</p>
+    <div class="sub-label">Step 1 - Visual Characteristics</div>
+    <div class="field-row">
+      <label>What are the defining visual and physical characteristics of your theme? Think about shapes, textures, movement, energy, and edges.</label>
+      <textarea data-field="rationale-characteristics" placeholder="List and describe 3-5 visual characteristics that define your theme. For example: if your theme is 'Volcano,' the characteristics might be - jagged irregular edges, a wide heavy base, a narrow violent peak, asymmetric explosive forms, and layered surfaces that suggest built-up pressure."></textarea>
+      <div class="print-mirror" data-mirror="rationale-characteristics"></div>
+      <div class="sent-count" data-min="3" data-field-ref="rationale-characteristics"><span class="sent-dot"></span><span><span class="current">0</span> / 3 sentences minimum</span></div>
+    </div>
+    <div class="sub-label">Step 2 - Form Follows Theme</div>
+    <div class="field-row">
+      <label>For each characteristic above, describe where and how it appears in your blade's geometry. Name the specific parts of the blade this affects.</label>
+      <textarea data-field="rationale-form" placeholder="Be specific. Don't say 'the blade looks aggressive.' Say 'the blade arms angle sharply forward at 45 degrees like claws, and the tips are pointed rather than rounded to create a threatening profile.' Connect each design choice back to a characteristic from Step 1."></textarea>
+      <div class="print-mirror" data-mirror="rationale-form"></div>
+      <div class="sent-count" data-min="4" data-field-ref="rationale-form"><span class="sent-dot"></span><span><span class="current">0</span> / 4 sentences minimum</span></div>
+    </div>
+    <div class="sub-label">Step 3 - The Blind Test</div>
+    <div class="field-row">
+      <label>If someone saw just the shape of your blade - no name, no paint, no labels - would they be able to guess your theme? Explain why or why not.</label>
+      <textarea data-field="rationale-blindtest" placeholder="If they could guess it, what would give it away? If they couldn't, what does that mean for your design - and what might you change?"></textarea>
+      <div class="print-mirror" data-mirror="rationale-blindtest"></div>
+      <div class="sent-count" data-min="2" data-field-ref="rationale-blindtest"><span class="sent-dot"></span><span><span class="current">0</span> / 2 sentences minimum</span></div>
+    </div>
+  </div>
+  <div class="rubric-panel" id="rubric-02">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Step 1:</strong> 3 or more distinct characteristics listed and described with enough detail to be actionable - min 3 sentences met</div><div class="rubric-pts">3 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Step 2:</strong> Specific geometry named (parts, angles, profiles), each choice directly linked to a characteristic from Step 1 - min 4 sentences met</div><div class="rubric-pts">4 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Step 3:</strong> Honest self-assessment with reasoning - identifies what communicates theme and acknowledges what doesn't - min 2 sentences met</div><div class="rubric-pts">3 pts</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODULE 03: ANGULAR MOMENTUM -->
+<div class="module" id="module-03">
+  <div class="module-header">
+    <span class="mod-num">03</span>
+    <span class="mod-title">Angular Momentum Analysis</span>
+    <span class="mod-pts">10 pts</span>
+    <span class="mod-dot" id="dot-03"></span>
+    <button class="rubric-toggle" id="rt-03" onclick="toggleRubric(3)">[ Rubric ]</button>
+  </div>
+  <div class="module-body">
+    <p class="prompt">Before you write your analysis, use the demo below to build an intuition for angular momentum. Interact with it, then answer the questions that follow.</p>
+    <div class="am-demo-wrap">
+      <div class="am-canvas-col">
+        <canvas id="am-canvas" width="200" height="200"></canvas>
+        <div class="am-slider-row">
+          <span class="am-slider-label">CENTER</span>
+          <input type="range" id="am-slider" min="0" max="100" value="30">
+          <span class="am-slider-label">EDGE</span>
+        </div>
+        <button class="am-spin-btn" id="am-spin-btn" onclick="spinDemo()">[ Spin It ]</button>
+        <div class="am-status" id="am-status">Drag the slider to redistribute mass</div>
+      </div>
+      <div class="am-metrics-col">
+        <div class="am-edu">
+          <strong>Angular Momentum</strong> is the spinning power of a rotating object. It depends on how fast it spins and how its mass is spread out.<br><br>
+          <strong>Moment of Inertia (I)</strong> describes how mass is distributed relative to the spin axis. Mass farther from the center contributes more - this is why a figure skater speeds up when pulling their arms in.<br><br>
+          <strong>For your blade:</strong> more mass at the edge means more angular momentum at the same speed - harder to stop, but also harder to spin up. Try both extremes on the demo.
+        </div>
+        <div class="am-metric"><div class="am-metric-label">Moment of Inertia</div><div class="am-metric-bar-wrap"><div class="am-metric-bar" id="bar-inertia" style="width:25%"></div></div><div class="am-metric-val" id="val-inertia">Low</div></div>
+        <div class="am-metric"><div class="am-metric-label">Spin Stability</div><div class="am-metric-bar-wrap"><div class="am-metric-bar" id="bar-stability" style="width:25%"></div></div><div class="am-metric-val" id="val-stability">Low</div></div>
+        <div class="am-metric"><div class="am-metric-label">Impact Resistance</div><div class="am-metric-bar-wrap"><div class="am-metric-bar" id="bar-impact" style="width:25%"></div></div><div class="am-metric-val" id="val-impact">Low</div></div>
+        <div class="am-metric"><div class="am-metric-label">Spin-Up Speed</div><div class="am-metric-bar-wrap"><div class="am-metric-bar" id="bar-spinup" style="width:80%"></div></div><div class="am-metric-val" id="val-spinup">Fast</div></div>
+      </div>
+    </div>
+    <div class="sub-label">Your Analysis</div>
+    <div class="field-row">
+      <label>Mass Distribution Strategy - Where are you concentrating mass and why?</label>
+      <textarea data-field="mass-distribution" placeholder="Describe specifically where most of the mass in your design will be located. Be concrete - is it in a heavy outer ring? A thick central disc? Dense blade arms? Why did you make that choice?"></textarea>
+      <div class="print-mirror" data-mirror="mass-distribution"></div>
+      <div class="sent-count" data-min="3" data-field-ref="mass-distribution"><span class="sent-dot"></span><span><span class="current">0</span> / 3 sentences minimum</span></div>
+    </div>
+    <div class="field-row">
+      <label>Performance Trade-offs - What does your distribution gain and what does it sacrifice?</label>
+      <textarea data-field="mass-effect" placeholder="Using what you learned in the demo, explain the trade-off your design makes. Every choice has a cost - acknowledge both sides."></textarea>
+      <div class="print-mirror" data-mirror="mass-effect"></div>
+      <div class="sent-count" data-min="3" data-field-ref="mass-effect"><span class="sent-dot"></span><span><span class="current">0</span> / 3 sentences minimum</span></div>
+    </div>
+  </div>
+  <div class="rubric-panel" id="rubric-03">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Mass Distribution:</strong> names specific parts or regions of the design, explains the reasoning behind placement - min 3 sentences met</div><div class="rubric-pts">5 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Trade-offs:</strong> addresses both what the distribution gains AND what it costs (e.g. stability vs. spin-up speed) - min 3 sentences met</div><div class="rubric-pts">5 pts</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODULE 04: TECHNICAL SKETCHES -->
+<div class="module" id="module-04">
+  <div class="module-header">
+    <span class="mod-num">04</span>
+    <span class="mod-title">Technical Sketches</span>
+    <span class="mod-pts">10 pts</span>
+    <span class="mod-dot" id="dot-04"></span>
+    <button class="rubric-toggle" id="rt-04" onclick="toggleRubric(4)">[ Rubric ]</button>
+  </div>
+  <div class="module-body">
+    <p class="prompt">Minimum one top view and one side view. These are not CAD drawings but must be more than rough thumbnails - proportion, blade geometry, and overall shape must be clearly readable. Annotate with approximate dimensions. Click to add files or drag and drop. Add captions to identify each view.</p>
+    <div class="drop-zone" id="sketch-drop-zone">
+      <div class="drop-icon">[ + ]</div>
+      <div class="drop-label">Click or Drag to Add Sketches</div>
+      <div class="drop-sub">Top view + Side view required &nbsp;|&nbsp; Add more at any time</div>
+    </div>
+    <input type="file" id="sketch-file-input" accept="image/*" multiple style="display:none">
+    <div class="img-count" id="img-count"><span class="sent-dot"></span><span id="img-count-text">0 images uploaded &nbsp;|&nbsp; 2 minimum required</span></div>
+    <div class="sketch-preview" id="sketch-preview"></div>
+  </div>
+  <div class="rubric-panel" id="rubric-04">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Top view</strong> is present and legible - blade geometry and overall shape are readable, not just an outline</div><div class="rubric-pts">3 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Side view</strong> is present and legible - height profile and proportions are visible</div><div class="rubric-pts">3 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">At least one sketch includes <strong>dimensions or annotations</strong> calling out key measurements or features</div><div class="rubric-pts">2 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Design intent is clear</strong> from sketches alone - a classmate could understand the basic form without reading the other modules</div><div class="rubric-pts">2 pts</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODULE 05: MANUFACTURING PLAN -->
+<div class="module" id="module-05">
+  <div class="module-header">
+    <span class="mod-num">05</span>
+    <span class="mod-title">Manufacturing Plan</span>
+    <span class="mod-pts">5 pts</span>
+    <span class="mod-dot" id="dot-05"></span>
+    <button class="rubric-toggle" id="rt-05" onclick="toggleRubric(5)">[ Rubric ]</button>
+  </div>
+  <div class="module-body">
+    <p class="prompt">Identify at least 3 manufacturing processes you plan to use. For each, list which component(s) it will produce and briefly explain why that process is the right choice. Note: two variations of the same process (e.g. two different print settings) count as one.</p>
+    <table class="mfg-table" id="mfg-table">
+      <thead><tr><th>#</th><th>Process</th><th>Component(s)</th><th>Why This Process?</th></tr></thead>
+      <tbody id="mfg-tbody">
+        <tr data-row="01"><td>01</td><td><textarea data-field="mfg-01-p" placeholder="e.g. FDM 3D Printing" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-01-p"></div></td><td><textarea data-field="mfg-01-c" placeholder="e.g. Top body" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-01-c"></div></td><td><textarea data-field="mfg-01-w" placeholder="Brief justification..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-01-w"></div></td></tr>
+        <tr data-row="02"><td>02</td><td><textarea data-field="mfg-02-p" placeholder="e.g. Plasma Cutting" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-02-p"></div></td><td><textarea data-field="mfg-02-c" placeholder="e.g. Steel blades" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-02-c"></div></td><td><textarea data-field="mfg-02-w" placeholder="Brief justification..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-02-w"></div></td></tr>
+        <tr data-row="03"><td>03</td><td><textarea data-field="mfg-03-p" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-03-p"></div></td><td><textarea data-field="mfg-03-c" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-03-c"></div></td><td><textarea data-field="mfg-03-w" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-03-w"></div></td></tr>
+        <tr data-row="04" class="extra"><td>04</td><td><textarea data-field="mfg-04-p" placeholder="Optional" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-04-p"></div></td><td><textarea data-field="mfg-04-c" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-04-c"></div></td><td><textarea data-field="mfg-04-w" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-04-w"></div></td></tr>
+        <tr data-row="05" class="extra"><td>05</td><td><textarea data-field="mfg-05-p" placeholder="Optional" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-05-p"></div></td><td><textarea data-field="mfg-05-c" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-05-c"></div></td><td><textarea data-field="mfg-05-w" placeholder="..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-05-w"></div></td></tr>
+      </tbody>
+    </table>
+    <button class="add-row-btn" onclick="addMfgRow()">[ + Add Process ]</button>
+  </div>
+  <div class="rubric-panel" id="rubric-05">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>3 or more distinct processes</strong> identified - similar processes (two print profiles, two cut methods) count as one</div><div class="rubric-pts">2 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Each process is <strong>mapped to a specific named component</strong> - not "various parts"</div><div class="rubric-pts">2 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Justifications are <strong>specific and reasonable</strong> - "because it can make complex shapes" is acceptable; "because it is the right process" is not</div><div class="rubric-pts">1 pt</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODULE 06: CONTACT COMPLIANCE -->
+<div class="module" id="module-06">
+  <div class="module-header">
+    <span class="mod-num">06</span>
+    <span class="mod-title">Contact Compliance</span>
+    <span class="mod-pts">5 pts</span>
+    <span class="mod-dot" id="dot-06"></span>
+    <button class="rubric-toggle" id="rt-06" onclick="toggleRubric(6)">[ Rubric ]</button>
+  </div>
+  <div class="module-body">
+    <p class="prompt">The blade contact rule has one purpose: your IDEA-Blade must actually fight. Any surface that makes contact with an opponent's IDEA-Blade must be capable of transferring force into it - disrupting its spin, knocking it off-balance, or driving it toward the boundary. An edge that simply lets an opponent slide past without meaningful force exchange is not legal. Review the contact rule in the rulebook before answering.</p>
+
+    <div class="sub-label">Contact Surfaces</div>
+    <div class="field-row">
+      <label>Which edges or surfaces on your IDEA-Blade will make contact with an opponent? Where are they located on your design and how are they shaped?</label>
+      <textarea data-field="contact-surfaces" placeholder="Identify and describe the specific edges or surfaces that will strike an opponent's IDEA-Blade. Where on your design are they - at the tips of arms, along outer edges, on a raised strike surface? Describe their orientation and shape."></textarea>
+      <div class="print-mirror" data-mirror="contact-surfaces"></div>
+      <div class="sent-count" data-min="2" data-field-ref="contact-surfaces"><span class="sent-dot"></span><span><span class="current">0</span> / 2 sentences minimum</span></div>
+    </div>
+
+    <div class="sub-label">Force Transfer</div>
+    <div class="field-row">
+      <label>How are these surfaces oriented to grip rather than deflect? Explain what happens when your IDEA-Blade makes contact with an opponent's - what force is transferred, and how?</label>
+      <textarea data-field="contact-force" placeholder="Explain why your contact surfaces will grip and transfer force rather than allow an opponent to slide past. Be specific - does the geometry dig in, catch, or brace against an opponent? How does that translate to disrupting their spin, knocking them off-balance, or pushing them toward the boundary?"></textarea>
+      <div class="print-mirror" data-mirror="contact-force"></div>
+      <div class="sent-count" data-min="2" data-field-ref="contact-force"><span class="sent-dot"></span><span><span class="current">0</span> / 2 sentences minimum</span></div>
+    </div>
+  </div>
+  <div class="rubric-panel" id="rubric-06">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria">Contact surfaces are <strong>specifically identified and located</strong> on the design with enough detail to assess compliance - min 2 sentences met</div><div class="rubric-pts">2 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria">Force transfer is explained using the contact rule's standard - student describes how geometry <strong>grips rather than deflects</strong> and what force effect results - min 2 sentences met</div><div class="rubric-pts">3 pts</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ACADEMIC INTEGRITY DECLARATION -->
+<div class="declaration-block">
+  <div class="declaration-title">Academic Integrity Declaration</div>
+  <div class="declaration-text">
+    The work submitted in this assignment represents my own original thinking and effort. Any collaboration is disclosed in the header above.
+    I understand that submitting another student's work as my own, or using AI tools to generate responses without disclosure, constitutes academic dishonesty and will result in a zero on this assignment.
+  </div>
+  <label class="decl-checkbox">
+    <input type="checkbox" data-field="declaration">
+    <span class="decl-checkbox-label">I confirm that all written responses in this assignment are my own work and accurately represent my design thinking at this stage of the project.</span>
+  </label>
+</div>
+
+<!-- INSTRUCTOR SCORING TABLE (print only) -->
+<table class="instructor-table">
+  <thead>
+    <tr>
+      <th>Module</th>
+      <th>Description</th>
+      <th class="score-cell">Pts Possible</th>
+      <th class="score-cell">Pts Earned</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>01</td><td>Blade Identity</td><td>10</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>02</td><td>Design Rationale</td><td>10</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>03</td><td>Angular Momentum Analysis</td><td>10</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>04</td><td>Technical Sketches</td><td>10</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>05</td><td>Manufacturing Plan</td><td>5</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>06</td><td>Contact Compliance</td><td>5</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td colspan="2"><strong>Total</strong></td><td>50</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+
+<!-- SUBMISSION CHECKLIST -->
+<div class="checklist-section">
+  <div class="checklist-section-header">
+    <span class="checklist-section-title">Submission Checklist</span>
+  </div>
+  <div class="checklist-body">
+    <label class="checklist-item"><input type="checkbox" data-field="check-sketches"><span class="checklist-item-text">Technical sketches include a clearly labeled top view and a clearly labeled side view</span></label>
+    <label class="checklist-item"><input type="checkbox" data-field="check-rulebook-done"><span class="checklist-item-text">IDEA-Blade Rulebook has been opened and the acknowledgement checkbox above is checked</span></label>
+    <label class="checklist-item"><input type="checkbox" data-field="check-decl"><span class="checklist-item-text">Academic integrity declaration is checked</span></label>
+    <label class="checklist-item"><input type="checkbox" data-field="check-pdf"><span class="checklist-item-text">PDF exported with "Background graphics" enabled - dark styling preserved in print preview</span></label>
+    <label class="checklist-item"><input type="checkbox" data-field="check-upload"><span class="checklist-item-text">PDF uploaded to Google Classroom before the deadline</span></label>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <span>IDEA-BLADE &nbsp;|&nbsp; Assignment 01 &nbsp;|&nbsp; Don Bosco Technical Institute &nbsp;|&nbsp; IDEA-113 &nbsp;|&nbsp; v5</span>
+  <span class="footer-pts">50 Points Total</span>
+</div>
+
+</div><!-- end .page -->
+
+<script>
+/* ================================================================
+   IDEA-BLADE A01 - v5
+   Storage key: idea113-blade-01
+   ================================================================ */
+
+const BUILD_VERSION = 'v5';
+const STORAGE_KEY = 'idea113-blade-01';
+const TOTAL_PTS = 50;
+const images = [];
+let mfgRowCount = 5;
+let autoSaveInterval = null;
+
+/* -------- BACKGROUND CANVAS (Matrix Rain) -------- */
+(function(){
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  const chars = 'ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ01234567></>+-'.split('');
+  let drops = [], cols = 0, lastTime = 0;
+  const COL_W = 18, FS = 14, FPS = 16;
+  function init(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / COL_W);
+    drops = Array.from({length: cols}, () => Math.random() * -50);
+    ctx.fillStyle = '#020A04';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  function draw(ts){
+    requestAnimationFrame(draw);
+    if (ts - lastTime < 1000 / FPS) return;
+    lastTime = ts;
+    ctx.fillStyle = 'rgba(2,10,4,0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = FS + 'px "Share Tech Mono",monospace';
+    for (let i = 0; i < cols; i++){
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      const y = drops[i] * COL_W;
+      ctx.fillStyle = Math.random() > 0.95 ? 'rgba(180,255,210,0.7)' : 'rgba(0,180,80,0.2)';
+      ctx.fillText(ch, i * COL_W, y);
+      if (y > canvas.height && Math.random() > 0.97) drops[i] = 0;
+      drops[i] += 0.5;
+    }
+  }
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    init();
+    requestAnimationFrame(draw);
+    window.addEventListener('resize', init);
+  }
+})();
+
+/* -------- SCROLL PROGRESS -------- */
+window.addEventListener('scroll', function(){
+  const el = document.getElementById('scroll-progress');
+  const doc = document.documentElement;
+  const pct = doc.scrollTop / (doc.scrollHeight - doc.clientHeight);
+  el.style.width = Math.min(pct * 100, 100) + '%';
+}, {passive: true});
+
+/* -------- AM DEMO -------- */
+(function(){
+  const canvas = document.getElementById('am-canvas');
+  const ctx = canvas.getContext('2d');
+  const slider = document.getElementById('am-slider');
+  const spinBtn = document.getElementById('am-spin-btn');
+  const statusEl = document.getElementById('am-status');
+  const CX = 100, CY = 100, R = 82, DOT_COUNT = 20;
+  let rotAngle = 0, spinning = false;
+
+  function drawDisc(edgePct, rotation){
+    ctx.clearRect(0, 0, 200, 200);
+    ctx.strokeStyle = 'rgba(0,200,80,0.25)'; ctx.lineWidth = 1;
+    for (let ring = 0; ring < 3; ring++){
+      ctx.beginPath(); ctx.arc(CX, CY, (R / 3) * (ring + 1), 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(0,255,65,0.45)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.stroke();
+    const dotR = 8 + (R - 22) * (edgePct / 100);
+    const spread = Math.PI * 2 * (0.05 + 0.2 * (1 - edgePct / 100));
+    for (let i = 0; i < DOT_COUNT; i++){
+      const base = (i / DOT_COUNT) * Math.PI * 2 + rotation;
+      const r = dotR + Math.sin(i * 3.7) * dotR * 0.15 * (1 - edgePct / 100);
+      const x = CX + Math.cos(base + Math.sin(i * 7.3) * spread) * r;
+      const y = CY + Math.sin(base + Math.sin(i * 7.3) * spread) * r;
+      ctx.fillStyle = `rgba(0,255,65,${0.5 + 0.5 * (edgePct / 100)})`;
+      ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(0,255,65,0.55)'; ctx.beginPath(); ctx.arc(CX, CY, 5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  function updateMetrics(edgePct){
+    const t = edgePct / 100;
+    const vals = {inertia: 0.15 + 0.85 * t, stability: 0.12 + 0.88 * t, impact: 0.1 + 0.9 * t, spinup: 1 - 0.75 * t};
+    function lab(v){ return v < 0.4 ? 'Low' : v < 0.7 ? 'Medium' : 'High'; }
+    for (const [k, v] of Object.entries(vals)){
+      const bar = document.getElementById('bar-' + k), val = document.getElementById('val-' + k);
+      if (bar) bar.style.width = Math.round(v * 100) + '%';
+      if (val) val.textContent = k === 'spinup' ? (v < 0.4 ? 'Slow' : v < 0.7 ? 'Moderate' : 'Fast') : lab(v);
+    }
+  }
+
+  function render(){ drawDisc(parseInt(slider.value), rotAngle); updateMetrics(parseInt(slider.value)); }
+  slider.addEventListener('input', () => { if (!spinning) render(); });
+  render();
+
+  window.spinDemo = function(){
+    if (spinning) return;
+    spinning = true; spinBtn.disabled = true; statusEl.textContent = 'Spinning...';
+    const edgePct = parseInt(slider.value), t = edgePct / 100;
+    const duration = 2000 + 5000 * t, start = performance.now();
+    function frame(now){
+      const p = Math.min((now - start) / duration, 1);
+      rotAngle += 0.18 * (1 - p); drawDisc(edgePct, rotAngle);
+      if (p < 1){ requestAnimationFrame(frame); }
+      else {
+        spinning = false; spinBtn.disabled = false;
+        statusEl.textContent = edgePct > 60 ? 'Long spin - high moment of inertia!' : edgePct > 30 ? 'Moderate spin duration.' : 'Short spin - low moment of inertia.';
+        setTimeout(() => { statusEl.textContent = 'Drag the slider to redistribute mass'; }, 2800);
+        render();
+      }
+    }
+    requestAnimationFrame(frame);
+  };
+})();
+
+/* -------- RUBRIC TOGGLES -------- */
+function toggleRubric(n){
+  const panel = document.getElementById('rubric-0' + n);
+  const btn = document.getElementById('rt-0' + n);
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.textContent = open ? '[ Close ]' : '[ Rubric ]';
+}
+
+/* -------- SENTENCE COUNTER -------- */
+function countSentences(text){
+  if (!text.trim()) return 0;
+  const m = text.trim().match(/[^.!?]+[.!?]+/g) || [];
+  const left = text.trim().replace(/[^.!?]+[.!?]+/g, '').trim();
+  return m.length + (left.length > 10 ? 1 : 0);
+}
+
+/* -------- FORM HELPERS -------- */
+function autoResize(ta){ ta.style.height = '0'; ta.style.height = ta.scrollHeight + 'px'; }
+function resizeAll(){ document.querySelectorAll('textarea[data-field]').forEach(autoResize); }
+
+function updateMirror(field, value){
+  document.querySelectorAll(`[data-mirror="${field}"]`).forEach(m => { m.textContent = value; });
+}
+
+function updateCounter(fieldId, text){
+  const counter = document.querySelector(`.sent-count[data-field-ref="${fieldId}"]`);
+  if (!counter) return;
+  const min = parseInt(counter.dataset.min), count = countSentences(text);
+  counter.querySelector('.current').textContent = count;
+  const has = text.trim().length > 0;
+  counter.classList.toggle('met', count >= min);
+  counter.classList.toggle('unmet', has && count < min);
+  counter.classList.toggle('active', has);
+}
+
+/* -------- SCORE & DOTS -------- */
+function getFieldVal(f){ const el = document.querySelector(`[data-field="${f}"]`); return el ? el.value.trim() : ''; }
+function sentOk(f, min){ return countSentences(getFieldVal(f)) >= min; }
+function notEmpty(f){ return getFieldVal(f).length > 0; }
+
+function moduleComplete(n){
+  switch(n){
+    case 1:
+      return notEmpty('blade-name') && notEmpty('blade-tagline') && notEmpty('blade-theme') &&
+             notEmpty('blade-mood') && sentOk('blade-inspiration', 2) && sentOk('blade-personality', 2);
+    case 2:
+      return sentOk('rationale-characteristics', 3) && sentOk('rationale-form', 4) && sentOk('rationale-blindtest', 2);
+    case 3:
+      return sentOk('mass-distribution', 3) && sentOk('mass-effect', 3);
+    case 4:
+      return images.length >= 2;
+    case 5:
+      return notEmpty('mfg-01-p') && notEmpty('mfg-01-c') && notEmpty('mfg-01-w') &&
+             notEmpty('mfg-02-p') && notEmpty('mfg-02-c') && notEmpty('mfg-02-w') &&
+             notEmpty('mfg-03-p') && notEmpty('mfg-03-c') && notEmpty('mfg-03-w');
+    case 6:
+      return sentOk('contact-surfaces', 2) && sentOk('contact-force', 2);
+  }
+  return false;
+}
+
+const MOD_PTS = [0, 10, 10, 10, 10, 5, 5];
+
+function updateScoreAndDots(){
+  let score = 0;
+  for (let i = 1; i <= 6; i++){
+    const complete = moduleComplete(i);
+    const dot = document.getElementById('dot-0' + i);
+    if (dot) dot.classList.toggle('complete', complete);
+    if (complete) score += MOD_PTS[i];
+  }
+  const tbScore = document.getElementById('tb-score');
+  if (tbScore) tbScore.textContent = score + ' / ' + TOTAL_PTS + ' pts';
+}
+
+/* -------- SAVE STATUS -------- */
+let saveTimer = null;
+function flashSave(){
+  const el = document.getElementById('tb-save-status');
+  el.textContent = 'Saved'; el.classList.add('flash');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { el.textContent = 'Auto-save on'; el.classList.remove('flash'); }, 2000);
+}
+
+/* -------- SAVE & LOAD -------- */
+function collectData(){
+  const data = { _version: BUILD_VERSION };
+  document.querySelectorAll('[data-field]').forEach(el => {
+    if (el.type === 'radio'){ if (el.checked) data[el.dataset.field] = el.value; }
+    else if (el.type === 'checkbox') data[el.dataset.field] = el.checked;
+    else data[el.dataset.field] = el.value;
+  });
+  data._images = images.map(i => ({name: i.name, caption: i.caption || '', dataUrl: i.dataUrl}));
+  data._mfgRowCount = mfgRowCount;
+  return data;
+}
+
+function saveToStorage(){
+  const data = collectData();
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    flashSave();
+  } catch(e){
+    document.getElementById('tb-save-status').textContent = 'Storage full - use Download';
+  }
+}
+
+function loadData(data){
+  if (!data) return;
+  if (data._version && data._version !== BUILD_VERSION){
+    const w = document.getElementById('version-warning');
+    w.style.display = 'block';
+    w.textContent = 'Warning: saved data is from version ' + data._version + '. This document is ' + BUILD_VERSION + '. Some fields may not restore correctly.';
+  }
+  // Restore mfg extra rows first
+  if (data._mfgRowCount && data._mfgRowCount > 5){
+    for (let i = 6; i <= data._mfgRowCount; i++) addMfgRow(false);
+  }
+  Object.entries(data).forEach(([key, val]) => {
+    if (key.startsWith('_')) return;
+    const els = document.querySelectorAll(`[data-field="${key}"]`);
+    els.forEach(el => {
+      if (el.type === 'radio'){ el.checked = (el.value === val); }
+      else if (el.type === 'checkbox'){ el.checked = !!val; }
+      else {
+        el.value = val;
+        if (el.tagName === 'TEXTAREA') requestAnimationFrame(() => autoResize(el));
+        updateMirror(key, val);
+        updateCounter(key, val);
+      }
+    });
+  });
+  if (data._images && Array.isArray(data._images)){
+    data._images.forEach(i => { images.push(i); renderImageItem(i.dataUrl, i.name, i.caption || ''); });
+  }
+  updateImageCount();
+  updateScoreAndDots();
+}
+
+function loadFromStorage(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) loadData(JSON.parse(raw));
+  } catch(e){}
+}
+
+/* -------- DOWNLOAD WITH DATA -------- */
+function downloadHTML(){
+  const clone = document.documentElement.cloneNode(true);
+  const old = clone.querySelector('#__ib_data__');
+  if (old) old.remove();
+  const data = collectData();
+  const sc = document.createElement('script');
+  sc.id = '__ib_data__';
+  sc.textContent = 'window.__IB_DATA__=' + JSON.stringify(data) + ';';
+  clone.querySelector('head').appendChild(sc);
+  const name = (document.querySelector('[data-field="student-name"]')?.value || 'Student').trim().replace(/\s+/g,'_') || 'Student';
+  const html = '<!DOCTYPE html>\n' + clone.outerHTML;
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'IDEABLADE_A01_' + name + '.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* -------- CLEAR DIALOG -------- */
+function showClearDialog(){ document.getElementById('clear-dialog').classList.add('active'); }
+function hideClearDialog(){ document.getElementById('clear-dialog').classList.remove('active'); }
+function confirmClear(){
+  hideClearDialog();
+  localStorage.removeItem(STORAGE_KEY);
+  document.querySelectorAll('[data-field]').forEach(el => {
+    if (el.type === 'radio' || el.type === 'checkbox') el.checked = false;
+    else el.value = '';
+  });
+  document.querySelectorAll('[data-mirror]').forEach(el => { el.textContent = ''; });
+  document.querySelectorAll('textarea[data-field]').forEach(ta => { ta.style.height = ''; });
+  document.querySelectorAll('.sent-count').forEach(sc => {
+    sc.querySelector('.current').textContent = '0';
+    sc.classList.remove('met','unmet','active');
+  });
+  images.length = 0;
+  document.getElementById('sketch-preview').innerHTML = '';
+  updateImageCount();
+  updateScoreAndDots();
+}
+
+/* -------- PREFLIGHT + PRINT -------- */
+function runPreflight(){
+  const issues = [];
+  const textFields = [
+    ['blade-name','Blade Name (Module 01)'],
+    ['blade-tagline','Combat Tagline (Module 01)'],
+    ['blade-theme','Theme Declaration (Module 01)'],
+    ['blade-mood','Visual Mood (Module 01)'],
+    ['student-name','Student Name (Header)']
+  ];
+  textFields.forEach(([f, label]) => {
+    if (!notEmpty(f)) issues.push(label + ' is empty');
+  });
+  document.querySelectorAll('[data-min]').forEach(counter => {
+    const fieldId = counter.dataset.fieldRef;
+    const el = document.querySelector(`[data-field="${fieldId}"]`);
+    if (!el) return;
+    const min = parseInt(counter.dataset.min);
+    const count = countSentences(el.value);
+    if (count < min){
+      const modEl = el.closest('.module');
+      const modTitle = modEl ? modEl.querySelector('.mod-title')?.textContent : fieldId;
+      issues.push(modTitle + ': ' + fieldId.replace(/-/g,' ') + ' (' + count + '/' + min + ' sentences)');
+    }
+  });
+  if (images.length < 2) issues.push('Module 04 (Technical Sketches): ' + images.length + '/2 images minimum');
+  const ackBox = document.querySelector('[data-field="rulebook-ack"]');
+  if (!ackBox?.checked) issues.push('Rulebook acknowledgement is not checked');
+  const declBox = document.querySelector('[data-field="declaration"]');
+  if (!declBox?.checked) issues.push('Academic integrity declaration is not checked');
+  return issues;
+}
+
+function printWithPreflight(){
+  const issues = runPreflight();
+  if (issues.length === 0){
+    window.print();
+    return;
+  }
+  const list = document.getElementById('preflight-list');
+  list.innerHTML = '';
+  issues.forEach(issue => {
+    const div = document.createElement('div');
+    div.className = 'preflight-issue';
+    div.textContent = issue;
+    list.appendChild(div);
+  });
+  document.getElementById('preflight-dialog').classList.add('active');
+}
+function hidePreflight(){ document.getElementById('preflight-dialog').classList.remove('active'); }
+function proceedPrint(){ hidePreflight(); window.print(); }
+
+/* -------- IMAGE HANDLING -------- */
+function updateImageCount(){
+  const count = images.length;
+  const el = document.getElementById('img-count');
+  const txt = document.getElementById('img-count-text');
+  txt.textContent = count + ' image' + (count !== 1 ? 's' : '') + ' uploaded' + (count < 2 ? '  |  2 minimum required' : '  |  Minimum met');
+  el.classList.toggle('met', count >= 2);
+  el.classList.toggle('partial', count > 0 && count < 2);
+  updateScoreAndDots();
+}
+
+function renderImageItem(dataUrl, name, caption){
+  const preview = document.getElementById('sketch-preview');
+  const wrapper = document.createElement('div');
+  wrapper.className = 'preview-item';
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.onclick = () => openLightbox(dataUrl);
+  const cap = document.createElement('input');
+  cap.type = 'text';
+  cap.className = 'preview-caption';
+  cap.placeholder = 'Caption (e.g. Top View)';
+  cap.value = caption || '';
+  cap.onclick = e => e.stopPropagation();
+  cap.oninput = () => {
+    const idx = images.findIndex(i => i.dataUrl === dataUrl);
+    if (idx !== -1) images[idx].caption = cap.value;
+    saveToStorage();
+  };
+  const btn = document.createElement('button');
+  btn.className = 'remove-img';
+  btn.textContent = '\u00D7';
+  btn.onclick = e => {
+    e.stopPropagation();
+    const idx = images.findIndex(i => i.dataUrl === dataUrl);
+    if (idx !== -1) images.splice(idx, 1);
+    wrapper.remove();
+    updateImageCount();
+    saveToStorage();
+  };
+  wrapper.appendChild(btn);
+  wrapper.appendChild(img);
+  wrapper.appendChild(cap);
+  preview.appendChild(wrapper);
+}
+
+function addImageFiles(files){
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const imgObj = {name: file.name, caption: '', dataUrl: e.target.result};
+      images.push(imgObj);
+      renderImageItem(imgObj.dataUrl, imgObj.name, '');
+      updateImageCount();
+      saveToStorage();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+/* -------- LIGHTBOX -------- */
+function openLightbox(src){
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.add('active');
+}
+function closeLightbox(e){
+  if (!e || e.target === document.getElementById('lightbox') || e.target === document.getElementById('lightbox-close')){
+    document.getElementById('lightbox').classList.remove('active');
+    document.getElementById('lightbox-img').src = '';
+  }
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
+
+/* -------- MFG ADD ROW -------- */
+function addMfgRow(focus){
+  mfgRowCount++;
+  const n = String(mfgRowCount).padStart(2, '0');
+  const tbody = document.getElementById('mfg-tbody');
+  const tr = document.createElement('tr');
+  tr.dataset.row = n;
+  tr.innerHTML = `<td>${n}</td>
+    <td><textarea data-field="mfg-${n}-p" placeholder="Process" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-${n}-p"></div></td>
+    <td><textarea data-field="mfg-${n}-c" placeholder="Component(s)" rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-${n}-c"></div></td>
+    <td><textarea data-field="mfg-${n}-w" placeholder="Justification..." rows="1"></textarea><div class="print-mirror single-line" data-mirror="mfg-${n}-w"></div></td>`;
+  tbody.appendChild(tr);
+  tr.querySelectorAll('textarea').forEach(ta => {
+    ta.addEventListener('input', () => { autoResize(ta); updateMirror(ta.dataset.field, ta.value); saveToStorage(); updateScoreAndDots(); });
+  });
+  if (focus !== false){ requestAnimationFrame(() => { tr.querySelector('textarea')?.focus(); }); }
+}
+
+/* -------- INTERSECTION OBSERVER -------- */
+function initAnimations(){
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    document.querySelectorAll('.module').forEach(m => m.classList.add('visible'));
+    return;
+  }
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) entry.target.classList.add('visible');
+    });
+  }, {threshold: 0.08});
+  document.querySelectorAll('.module').forEach(m => obs.observe(m));
+}
+
+/* -------- DATE AUTO-POPULATE -------- */
+function autoFillDate(){
+  const dateField = document.querySelector('[data-field="student-date"]');
+  if (!dateField || dateField.value.trim()) return;
+  const now = new Date();
+  const mm = String(now.getMonth() + 1).padStart(2,'0');
+  const dd = String(now.getDate()).padStart(2,'0');
+  const yyyy = now.getFullYear();
+  dateField.value = mm + ' / ' + dd + ' / ' + yyyy;
+  updateMirror('student-date', dateField.value);
+}
+
+/* -------- INIT -------- */
+document.addEventListener('DOMContentLoaded', () => {
+  // Text fields
+  document.querySelectorAll('textarea[data-field]').forEach(ta => {
+    ta.addEventListener('input', () => {
+      autoResize(ta);
+      updateMirror(ta.dataset.field, ta.value);
+      updateCounter(ta.dataset.field, ta.value);
+      updateScoreAndDots();
+      saveToStorage();
+    });
+  });
+  document.querySelectorAll('input[type="text"][data-field]').forEach(inp => {
+    inp.addEventListener('input', () => {
+      updateMirror(inp.dataset.field, inp.value);
+      updateScoreAndDots();
+      saveToStorage();
+    });
+  });
+  document.querySelectorAll('input[type="radio"][data-field], input[type="checkbox"][data-field]').forEach(r => {
+    r.addEventListener('change', () => { updateScoreAndDots(); saveToStorage(); });
+  });
+
+  // Image upload
+  const fileInput = document.getElementById('sketch-file-input');
+  const dropZone = document.getElementById('sketch-drop-zone');
+  dropZone.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => { addImageFiles(fileInput.files); fileInput.value = ''; });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); addImageFiles(e.dataTransfer.files); });
+
+  // Load saved data
+  if (window.__IB_DATA__){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(window.__IB_DATA__));
+  }
+  loadFromStorage();
+  autoFillDate();
+
+  // Auto-save interval
+  autoSaveInterval = setInterval(saveToStorage, 30000);
+
+  // Resize + diagrams
+  window.addEventListener('resize', resizeAll);
+  document.fonts.ready.then(() => { resizeAll(); });
+  requestAnimationFrame(() => { resizeAll(); });
+
+  // Intersection observer
+  initAnimations();
+
+  // Initial score
+  updateScoreAndDots();
+});
+</script>
+</body>
+</html>

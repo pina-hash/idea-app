@@ -21,3 +21,6 @@ npm-debug.log*
 .idea
 .vscode/*
 !.vscode/extensions.json
+
+# Legacy static site clone (temp, never committed)
+.legacy-src/

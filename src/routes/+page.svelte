@@ -30,6 +30,11 @@
 	</p>
 
 	<div class="card">
+		<p>Play VANGUARD, no login required.</p>
+		<a class="btn secondary" href="/vanguard/index.html">Launch VANGUARD</a>
+	</div>
+
+	<div class="card">
 		{#if claims}
 			<p>You are signed in.</p>
 			<button class="btn" onclick={() => goto('/dashboard')}>Go to dashboard</button>

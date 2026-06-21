@@ -65,6 +65,47 @@ See `.env.example`. **Never hardcode keys.** Never commit `.env`.
 - Migrations should be idempotent where practical (`create or replace`,
   `if not exists`, `drop ... if exists` before `create`).
 
+## Carrying over legacy content
+
+Legacy content from the old static IDEA site is brought over without rebuilding
+or modifying its HTML internals. There are two serving patterns. All later
+content must follow one of them.
+
+### Public static pattern (no login)
+
+For content anyone may see (for example the VANGUARD game). Copy the files,
+unchanged, into `static/`. SvelteKit serves `static/` at the site root, so a
+folder copied to `static/vanguard/` is playable at `/vanguard/index.html`.
+Legacy assets that use relative paths (VANGUARD loads `audio/...`) resolve
+correctly under that folder. Link to it from a public page.
+
+- Proven by: `static/vanguard/` served at `/vanguard/index.html`, linked
+  from `/`.
+- Link to the explicit `index.html`: the Vite dev server does not resolve a
+  bare directory (`/vanguard/`) to its `index.html` (404 in dev), though Vercel
+  does in production. Linking to `/vanguard/index.html` works in both.
+
+### Gated raw-import endpoint pattern (login required)
+
+For content only signed-in users may see (for example assignments). The HTML
+must live OUTSIDE `static/` so it is never served publicly. It lives in
+`src/lib/legacy/assignments/` and is pulled in at build time via Vite raw
+imports (`import.meta.glob(..., { query: '?raw' })`), never runtime `fs` reads,
+so it works on Vercel serverless.
+
+A `+server` endpoint is the only way to reach it. It checks the server session
+via `locals.claims`: if not signed in it redirects to `/`; if signed in it
+returns the original HTML, unchanged, with `content-type: text/html`.
+
+- Registry: `src/lib/legacy/index.ts` (`assignmentSlugs`, `loadAssignmentHtml`).
+- Endpoint: `src/routes/assignments/[slug]/+server.ts`, served at
+  `/assignments/<slug>`.
+- Proven by: `idea113-blade-01` listed on `/dashboard`, served only when
+  signed in; hitting the URL while signed out redirects to `/`.
+- Note: legacy HTML is served verbatim, so any absolute asset paths it contains
+  (for example `/IDEA/...` from GitHub Pages) are not rewritten. Handle asset
+  resolution in a later slice if needed; do not edit legacy internals here.
+
 ## Working conventions
 
 - **No em dashes in user-facing copy.** Use commas, periods, or "to" for ranges.
@@ -76,6 +117,11 @@ See `.env.example`. **Never hardcode keys.** Never commit `.env`.
 
 ## Scope guardrails
 
-Current phase is the **foundation only**: Google login, profiles/roles
-backend, and the public-vs-protected route split. No coin economy, no game, no
-assignments yet. Build so those layer on cleanly later.
+Phase 1 (done) was the **foundation**: Google login, profiles/roles backend,
+and the public-vs-protected route split.
+
+Phase 2 is **carrying over legacy content** without rebuilding it. Slice 1
+(done) established and proved the two serving patterns above on VANGUARD
+(public) and one assignment (gated). Later slices fan the remaining inventory
+(all assignments, coin pages, shared assets) through these same patterns. No
+coin economy logic yet. Do not modify legacy HTML internals.

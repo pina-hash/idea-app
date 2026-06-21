@@ -1,0 +1,45 @@
+{
+  "TITLE": [
+    "title_battlethemea.ogg"
+  ],
+  "IDEA": [
+    "idea_blue_dawn.ogg",
+    "idea_hatch.ogg",
+    "idea_marauder.ogg",
+    "idea_nightbreed.ogg",
+    "idea_nomad.ogg",
+    "idea_runner05.ogg",
+    "idea_signals.ogg",
+    "idea_slither.ogg",
+    "idea_tunnels.ogg"
+  ],
+  "ACE": [
+    "ace_battleloop2.ogg",
+    "ace_bosstheme_wo_low.ogg",
+    "ace_determined_pursuit_loop.ogg"
+  ],
+  "BMET": [
+    "bmet_juhani_junkala_epic_boss_battle.ogg",
+    "bmet_last_battle_145bpm.ogg"
+  ],
+  "CSEE": [
+    "csee_dustfall.ogg",
+    "csee_mound.ogg"
+  ],
+  "MAT": [
+    "mat_evil_approach.ogg",
+    "mat_lament_of_the_war.ogg"
+  ],
+  "MSET": [
+    "mset_vehicle_oga_col_legno.ogg",
+    "mset_casualty_loop_1.ogg"
+  ],
+  "BOSS": [
+    "boss_battle_2_metal_loop.ogg"
+  ],
+  "REFIT": [
+    "refit_heaven_69bpm.ogg",
+    "refit_meander.ogg",
+    "refit_casualty_loop_3.ogg"
+  ]
+}

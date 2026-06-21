@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDEA // VANGUARD - SFX AUDITOR v10</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+:root{--green:#00FF41;--gold:#C8FF00;--cyan:#00F0FF;--amber:#FF8C00;--teal:#00AA88;--white:#E8FFE8;--dim:#4A7A52;--bg0:#020A04;--bg1:#050F07;--bg2:#0A160C;--red:#FF3B3B;--mono:'Share Tech Mono',ui-monospace,Menlo,Consolas,monospace;--disp:'Rajdhani',-apple-system,sans-serif;}
+*{box-sizing:border-box}html,body{margin:0;height:100%}
+body{background:var(--bg0);color:var(--white);font-family:var(--mono);font-size:14px;background-image:repeating-linear-gradient(0deg,rgba(0,255,65,.025) 0 1px,transparent 1px 3px);display:flex;flex-direction:column;height:100vh;overflow:hidden;}
+.bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dim);background:linear-gradient(180deg,var(--bg2),var(--bg1));flex-wrap:wrap;}
+.title{font-family:var(--disp);font-weight:700;font-size:18px;letter-spacing:2px;color:var(--green);white-space:nowrap}.title small{color:var(--dim);font-weight:500}
+.spacer{flex:1}
+button,.btn{font-family:var(--mono);font-size:11px;letter-spacing:.5px;cursor:pointer;background:var(--bg2);color:var(--green);border:1px solid var(--dim);padding:6px 9px;text-transform:uppercase;transition:.1s}
+button:hover{border-color:var(--green);box-shadow:0 0 8px rgba(0,255,65,.25)}button.active{background:var(--green);color:var(--bg0);border-color:var(--green)}button.hot{border-color:var(--gold);color:var(--gold)}
+#stopBtn{border-color:var(--red);color:var(--red)}#renderBtn{border-color:var(--gold);color:var(--gold);font-weight:700}
+select,input[type=text],input[type=number]{font-family:var(--mono);font-size:11px;background:var(--bg2);color:var(--white);border:1px solid var(--dim);padding:4px 5px}
+.prog{font-family:var(--disp);font-size:16px;font-weight:700;color:var(--gold)}.prog small{font-family:var(--mono);font-size:11px;color:var(--dim)}
+input[type=range]{accent-color:var(--green)}.vol{display:flex;align-items:center;gap:5px;color:var(--dim);font-size:11px}
+.main{display:flex;flex:1;min-height:0}
+.rail{width:286px;border-right:1px solid var(--dim);overflow-y:auto;background:var(--bg1)}
+.grp{padding:7px 12px 3px;color:var(--amber);font-size:11px;letter-spacing:2px;border-bottom:1px dashed rgba(74,122,82,.4)}
+.slot{padding:7px 12px;border-bottom:1px solid rgba(74,122,82,.25);cursor:pointer;position:relative}
+.slot:hover{background:var(--bg2)}.slot.sel{background:var(--bg2);box-shadow:inset 3px 0 0 var(--green)}
+.slot .nm{font-family:var(--disp);font-weight:700;font-size:14px;letter-spacing:1px;color:var(--white);display:flex;align-items:center;gap:6px}
+.slot .nm .dot{width:8px;height:8px;border-radius:50%;background:var(--dim);flex:none}.slot.has .nm .dot{background:var(--green);box-shadow:0 0 6px var(--green)}
+.slot.weak .nm{color:var(--amber)}
+.slot .tg{color:var(--dim);font-size:10px;margin-top:1px}
+.slot .win{color:var(--gold);font-size:10px;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot .meta{position:absolute;top:7px;right:10px;font-size:11px;color:var(--teal)}
+.pane{flex:1;display:flex;flex-direction:column;min-width:0}
+.phead{padding:9px 14px;border-bottom:1px solid var(--dim);background:var(--bg1)}
+.phead h2{margin:0;font-family:var(--disp);font-weight:700;letter-spacing:1px;color:var(--green);font-size:19px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.phead h2 .tgt{font-family:var(--mono);font-size:12px;font-weight:400;color:var(--gold)}
+.phead .hunt{color:var(--dim);font-size:12px;margin-top:2px}.phead .hunt b{color:var(--cyan)}
+.phead .note{margin-top:5px}.phead .note input{width:100%}
+.phead .svol{margin-top:6px;display:flex;align-items:center;gap:8px;color:var(--teal);font-size:11px;letter-spacing:.5px}.phead .svol input[type=range]{flex:1;max-width:240px;accent-color:var(--teal)}.phead .svol .sv{color:var(--cyan);min-width:54px}.phead .svol button{padding:2px 7px;font-size:11px}.phead .svol .svh{color:var(--dim);font-size:10px;letter-spacing:0;font-weight:400}.phead h2 .vbadge{margin-left:8px;font-size:11px;color:var(--teal);font-weight:600;letter-spacing:.5px;vertical-align:middle}
+.editor{border-bottom:1px solid var(--dim);background:var(--bg2);padding:8px 14px}
+.editor .en{font-size:12px;color:var(--cyan);margin-bottom:5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.editor canvas{width:100%;height:84px;display:block;background:var(--bg0);border:1px solid var(--dim);cursor:crosshair}
+.editor .ctl{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.editor .read{font-family:var(--disp);font-weight:700;font-size:14px;margin-left:auto}
+.read.ok{color:var(--green)}.read.near{color:var(--amber)}.read.off{color:var(--red)}.read.var{color:var(--cyan)}
+.fx{display:flex;gap:9px;flex-wrap:wrap;margin-top:7px;padding-top:7px;border-top:1px solid rgba(74,122,82,.3)}
+.fx .f{display:flex;flex-direction:column;font-size:9px;color:var(--dim);width:78px}
+.fx .f label{margin-bottom:2px;letter-spacing:.5px}.fx .f .v{color:var(--cyan);font-size:10px}
+.fx input[type=range]{width:78px;height:14px}
+.layers{margin-top:7px;padding-top:7px;border-top:1px solid rgba(74,122,82,.3)}
+.layers .lh{font-family:var(--disp);font-weight:700;letter-spacing:1px;color:var(--amber);font-size:12px;margin-bottom:4px;display:flex;gap:8px;align-items:center}
+.lrow{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0}
+.lrow .ln{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--white)}
+.lrow input{width:64px}
+.plist{flex:1;overflow-y:auto;padding:4px 0}
+.tier{padding:6px 14px 2px;font-family:var(--disp);font-weight:700;letter-spacing:2px;font-size:12px;color:var(--amber);border-top:1px solid rgba(74,122,82,.25);margin-top:4px;display:flex;gap:8px;align-items:center}
+.tier.fav{color:var(--gold)}.tier.alt{color:var(--green)}.tier.rest,.tier.rec{cursor:pointer}.tier.rec{color:var(--cyan)}.tier.rest{color:var(--teal)}.tier.cut{color:var(--red)}
+.tier .c{color:var(--dim);font-weight:500}
+.rec-row{display:flex;align-items:center;gap:8px;padding:4px 14px;font-size:12px;color:var(--dim)}.rec-row .st{flex:none;width:60px}.rec-row .st.on{color:var(--green)}.rec-row .yr{flex:none;color:var(--teal);width:38px}.rec-row .rn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cand{display:flex;align-items:center;gap:7px;padding:6px 14px;border-bottom:1px solid rgba(74,122,82,.16);cursor:pointer}
+.cand.foc{background:rgba(0,240,255,.06);box-shadow:inset 3px 0 0 var(--cyan)}.cand.fav{background:rgba(200,255,0,.05)}.cand.cut{opacity:.4}.cand.cut .cn{text-decoration:line-through}
+.cand .pbtn{flex:none;width:30px;height:28px;padding:0;font-size:12px;color:var(--cyan)}.cand .pbtn.playing{background:var(--cyan);color:var(--bg0)}
+.cand .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}.cand .cn .lib{color:var(--dim)}.cand .cn .rec{color:var(--cyan)}
+.cand .du{flex:none;font-size:10px;width:74px;text-align:right;color:var(--dim)}
+.cand .mv{flex:none;max-width:104px}
+.cand .acts{flex:none;display:flex;gap:3px}.cand .acts button{padding:3px 6px;font-size:11px}
+.l.on{background:var(--violet,#5500AA);color:#fff;border-color:#7722cc}.k.on{background:var(--green);color:var(--bg0)}.x.on{background:var(--red);color:var(--bg0)}.w.on{background:var(--gold);color:var(--bg0)}
+.empty{padding:26px 14px;color:var(--dim);text-align:center;line-height:1.7}.empty b{color:var(--green)}
+.bhead{padding:9px 14px;border-bottom:1px solid var(--dim);background:var(--bg1);display:flex;gap:8px;align-items:center;flex-wrap:wrap}.bhead input[type=text]{flex:1;min-width:150px}
+.bcount{color:var(--dim);font-size:11px;padding:4px 14px}
+.cov{padding:10px 14px;overflow-y:auto}
+.cov table{width:100%;border-collapse:collapse;font-size:12px}
+.cov th{text-align:left;color:var(--amber);border-bottom:1px solid var(--dim);padding:5px 6px;font-weight:400;letter-spacing:1px}
+.cov td{padding:5px 6px;border-bottom:1px solid rgba(74,122,82,.16)}
+.cov tr{cursor:pointer}.cov tr:hover td{background:var(--bg2)}
+.cov .ok{color:var(--green)}.cov .no{color:var(--red)}.cov .near{color:var(--amber)}
+#transport{display:flex;align-items:center;gap:11px;padding:7px 14px;border-top:1px solid var(--dim);background:var(--bg2);min-height:40px}#transport.idle{color:var(--dim)}
+#tpName{flex:none;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--cyan);font-size:12px}
+#tpBarWrap{flex:1;height:6px;background:var(--bg0);border:1px solid var(--dim);position:relative}#tpBar{height:100%;width:0;background:var(--cyan);box-shadow:0 0 6px var(--cyan)}
+#tpTime{flex:none;color:var(--dim);font-size:11px;width:94px;text-align:right}
+.help{padding:5px 14px;border-top:1px solid var(--dim);background:var(--bg1);color:var(--dim);font-size:11px;display:flex;gap:12px;flex-wrap:wrap}.help kbd{background:var(--bg2);border:1px solid var(--dim);padding:1px 5px;color:var(--green);border-radius:2px}
+#drop{position:fixed;inset:0;background:rgba(2,10,4,.92);border:3px dashed var(--green);display:none;align-items:center;justify-content:center;z-index:50;pointer-events:none}#drop.show{display:flex}#drop div{font-family:var(--disp);font-weight:700;font-size:26px;color:var(--green);letter-spacing:2px}
+.hidden{display:none}.toast{position:fixed;bottom:52px;left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid var(--green);color:var(--green);padding:9px 16px;z-index:60;font-size:12px;max-width:80%}
+#busy{position:fixed;top:0;left:0;height:3px;background:var(--cyan);width:0;z-index:70;transition:width .2s;box-shadow:0 0 8px var(--cyan)}
+</style>
+</head>
+<body>
+<div id="busy"></div>
+<div class="bar">
+  <div class="title">IDEA<small> // </small>VANGUARD<small> SFX v10</small></div>
+  <button id="folderBtn" class="hot">&#128193; Folder</button><button id="addBtn">+ Files</button>
+  <button id="slotsTab" class="active">Slots</button><button id="browseTab">Browser</button><button id="covTab">Coverage</button>
+  <button id="audBtn">Audition</button><button id="stopBtn">&#9632; Stop</button><button id="lvlBtn" class="active">Level: ON</button>
+  <div class="vol">VOL<input id="vol" type="range" min="0" max="1" step="0.01" value="0.85" style="width:64px"></div>
+  <div class="spacer"></div><div class="prog"><span id="pwin">0</span><small>/<span id="ptot">0</span></small></div>
+  <button id="undoBtn">&#8630; Undo</button><button id="cacheBtn" class="active">Cache: ON</button>
+  <button id="impBtn">Import</button><button id="expBtn">Export JSON</button><button id="renderBtn">&#9889; Render WAVs</button><button id="clrBtn">Reset</button>
+  <input id="fileIn" type="file" accept=".wav,.flac,.aif,.aiff,.ogg,.mp3,audio/*" multiple class="hidden">
+  <input id="dirIn" type="file" webkitdirectory directory multiple class="hidden"><input id="impIn" type="file" accept=".json" class="hidden">
+</div>
+<div class="main"><div class="rail" id="rail"></div><div class="pane" id="pane"></div></div>
+<div id="transport" class="idle"><button id="tpStop">&#9632;</button><div id="tpName">nothing playing</div><div id="tpBarWrap"><div id="tpBar"></div></div><div id="tpTime">--</div></div>
+<div id="drop"><div>DROP FOLDER OR FILES</div></div>
+<script>
+const R=(n,y)=>({n,y});
+const SLOTS=[
+ {g:"FIRE",id:"fire_spread",nm:"fire_spread",folder:"fire",ch:"SPREAD primary fire. Dry kinetic crack.",hunt:"gun, blaster, futuristic",tgt:120,tol:60,dtype:"oneshot",suggest:[R("PM_SFG_VOL1_WEAPON_8_2_GUN_GUNSHOT_FUTURISTIC","2020"),R("Blast Laser 2","2020")]},
+ {g:"FIRE",id:"fire_rapid",nm:"fire_rapid",folder:"fire",ch:"RAPID primary fire. Tight, fires fast.",hunt:"auto, smg, burst",tgt:90,tol:50,dtype:"oneshot",suggest:[R("gun_submachine_auto_shot_00_automatic_preview_01","2018")]},
+ {g:"FIRE",id:"fire_lance",nm:"fire_lance",folder:"fire",ch:"LANCE piercing fire. Sharp, narrow.",hunt:"laser, pierce, beam shot",tgt:130,tol:70,dtype:"oneshot",suggest:[R("Blast Laser 2","2020")]},
+ {g:"FIRE",id:"fire_homing",nm:"fire_homing",folder:"fire",ch:"HOMING fire. Softer, tracking.",hunt:"missile, soft shot",tgt:120,tol:70,dtype:"oneshot",suggest:[R("Laser Rocket 7","2023")]},
+ {g:"FIRE",id:"fire_flak",nm:"fire_flak",folder:"fire",ch:"FLAK primary. Scattered heavy burst.",hunt:"flak, scatter, shotgun, burst",tgt:140,tol:70,dtype:"oneshot",suggest:[R("Blast Laser 2","2020")]},
+ {g:"FIRE",id:"fire_buzzsaw",nm:"fire_buzzsaw",folder:"fire",ch:"BUZZSAW primary. Grinding rapid stream.",hunt:"saw, grind, buzz, whir",tgt:100,tol:60,dtype:"oneshot",suggest:[R("Grinding-Lathe_01_ST_8","2020")]},
+ {g:"FIRE",id:"overheat",nm:"overheat",folder:"fire",ch:"Rapid gun overheats. Steam/lock.",hunt:"overheat, steam, vent",tgt:500,tol:300,dtype:"oneshot",suggest:[R("OverHeating_23","2020")]},
+ {g:"FIRE",id:"overheat_ready",nm:"overheat_ready",folder:"fire",ch:"Cooled, ready. Short ping.",hunt:"ping, ready",tgt:180,tol:120,dtype:"oneshot",suggest:[R("Interface Sci-Fi Ping Down","2026")]},
+ {g:"HEAVY",id:"heavy_charge",nm:"heavy_charge",folder:"heavy",ch:"Heavy spool-up. Shrinks with SPOOL upgrade: LOOPABLE body, trim seamless middle.",hunt:"charge, spool, rise",rng:[400,1500],dtype:"var",suggest:[R("wave_swell_001","2018"),R("Drone_Tonal_Enigmatic_Saw_Shepard_Tone_Pitch_Rising","2020")]},
+ {g:"HEAVY",id:"heavy_ready",nm:"heavy_ready",folder:"heavy",ch:"Heavy recharged/ready. Bright confirm.",hunt:"ready, confirm",tgt:300,tol:150,dtype:"oneshot",suggest:[R("G4F SFX11 - ExoInterface - Action Confirm - Long 05","2018")]},
+ {g:"HEAVY",id:"heavy_switch",nm:"heavy_switch",folder:"heavy",ch:"Switch heavy weapon. Mechanical clunk.",hunt:"switch, latch, clunk",tgt:200,tol:120,dtype:"oneshot",suggest:[R("Bluezone_BC0268_switch_button_click_high_tech_interface_001","2020")]},
+ {g:"HEAVY",id:"beam",nm:"beam",folder:"heavy",ch:"BEAM heavy. Sustained roar.",hunt:"beam, plasma, blast",tgt:700,tol:400,dtype:"oneshot",suggest:[R("CK_Blaster_Shot-226","2016"),R("Big Blast 4","2020")]},
+ {g:"HEAVY",id:"rail",nm:"rail",folder:"heavy",ch:"RAIL heavy. Sharp pierce/crack.",hunt:"railgun, crack, pierce",tgt:500,tol:300,dtype:"oneshot",suggest:[R("Blast Laser 4","2020")]},
+ {g:"HEAVY",id:"tesla",nm:"tesla",folder:"heavy",ch:"TESLA heavy. Electric chain.",hunt:"electric, arc, zap",tgt:600,tol:350,dtype:"oneshot",suggest:[R("Arc Weld Electrical Sparks 3","2018")]},
+ {g:"HEAVY",id:"singularity",nm:"singularity",folder:"heavy",ch:"SINGULARITY heavy. Deep gravity pull.",hunt:"deep, sub, vortex",tgt:800,tol:400,dtype:"oneshot",suggest:[R("Sub Drop 2","2020"),R("AAIA 33 Atmos Deep Low Spaceship Interior Rumble Growl Drone","2020")]},
+ {g:"HEAVY",id:"wave",nm:"wave",folder:"heavy",ch:"WAVE heavy. Big sweeping blast.",hunt:"wave, big blast, sweep",tgt:900,tol:500,dtype:"oneshot",suggest:[R("Big Blast 4","2020")]},
+ {g:"HEAVY",id:"whine",nm:"whine",folder:"heavy",ch:"Heavy charge whine layer.",hunt:"whine, rise, charge",tgt:500,tol:300,dtype:"oneshot",suggest:[R("Drone_Tonal_Enigmatic_Saw_Shepard_Tone_Pitch_Rising","2020")]},
+ {g:"IMPACT",id:"hit",nm:"hit",folder:"impact",ch:"Non-lethal hit (fires constantly). Tight thunk.",hunt:"impact, thud, thump",tgt:110,tol:70,dtype:"oneshot",suggest:[R("IMPACT_LOW_THUD_10","2020")]},
+ {g:"IMPACT",id:"blast",nm:"blast",folder:"impact",ch:"Generic explosion/impact.",hunt:"explosion, blast",tgt:500,tol:300,dtype:"oneshot",suggest:[R("Explosion 8","2018")]},
+ {g:"IMPACT",id:"enemy_fire",nm:"enemy_fire",folder:"impact",ch:"Enemy shooting. Thin, hostile.",hunt:"enemy shot, zap",tgt:180,tol:100,dtype:"oneshot",suggest:[R("Blast Laser 2","2020")]},
+ {g:"IMPACT",id:"bomb",nm:"bomb",folder:"impact",ch:"Screen-clear bomb. Deep boom.",hunt:"explosion, boom, detonation",tgt:800,tol:400,dtype:"oneshot",suggest:[R("Distant Blast 26","2018")]},
+ {g:"IMPACT",id:"thump",nm:"thump",folder:"impact",ch:"Low body thump.",hunt:"thump, sub, low hit",tgt:200,tol:120,dtype:"oneshot",suggest:[R("DSGNImpt_Metal Hit Thud Thump Low Ring Geofon 1_The Noisery_Moaning Metal","2026")]},
+ {g:"IMPACT",id:"wub",nm:"wub",folder:"impact",ch:"Bass wub effect.",hunt:"wub, bass, sub drop",tgt:400,tol:250,dtype:"oneshot",suggest:[R("DSGNBass_Bass Drop & Downer Fast 16_344 Audio_Bass Drops & Downers","2026"),R("DSGNBass_Jump Start Drop 3_344 Audio_Bass Drops and Downers Vol 3","2026")]},
+ {g:"DEATH",id:"kill_ace",nm:"kill_ace",folder:"death",ch:"ACE death. Metal crunch.",hunt:"metal, crush, bulkhead",tgt:400,tol:250,dtype:"oneshot",suggest:[R("dry hard metal impact with rust debris 20","2016")]},
+ {g:"DEATH",id:"kill_bmet",nm:"kill_bmet",folder:"death",ch:"BMET death. Wet organic burst.",hunt:"gore, crunch, splat",tgt:400,tol:250,dtype:"oneshot",suggest:[R("Heavy Body Crunch 02","2023")]},
+ {g:"DEATH",id:"kill_csee",nm:"kill_csee",folder:"death",ch:"CSEE death. Electrical fry.",hunt:"electric, glitch, arc",tgt:400,tol:250,dtype:"oneshot",suggest:[R("Arc Weld Electrical Sparks 3","2018")]},
+ {g:"DEATH",id:"kill_mat",nm:"kill_mat",folder:"death",ch:"MAT death. Optic/energy snap.",hunt:"glass shard, sparkly",weak:1,tgt:350,tol:200,dtype:"oneshot",suggest:[R("TextureGlassDebris_008","2016")]},
+ {g:"DEATH",id:"kill_mset",nm:"kill_mset",folder:"death",ch:"MSET death. Crystalline break.",hunt:"ice, crystal, shatter",tgt:400,tol:250,dtype:"oneshot",suggest:[R("axe_ice_005","2016")]},
+ {g:"DEATH",id:"big",nm:"big",folder:"death",ch:"Big/elite enemy death. Bigger.",hunt:"explosion, big impact",tgt:700,tol:400,dtype:"oneshot",suggest:[R("Explosion 8","2018")]},
+ {g:"DEATH",id:"death",nm:"death",folder:"death",ch:"Player ship destroyed. Boom + downer, long.",hunt:"explosion big, downer",tgt:2000,tol:1200,dtype:"oneshot",suggest:[R("Downer 049","2020"),R("Distant Blast 26","2018")]},
+ {g:"BOSS",id:"boss_death",nm:"boss_death",folder:"boss",ch:"Boss death. LAYER big explosions (use layers).",hunt:"explosion, collapse, rupture",tgt:2500,tol:1500,dtype:"oneshot",suggest:[R("Bluezone_BC0275_building_collapse_debris_falling_rock_rubble_008","2023"),R("Rupture - Bulb_Impact_03","2016"),R("Explosion Warped","2018")]},
+ {g:"BOSS",id:"boss_phase",nm:"boss_phase",folder:"boss",ch:"Boss phase shift. Heavy stinger.",hunt:"stinger, braam, shift",tgt:1200,tol:700,dtype:"oneshot",suggest:[R("Mind Bender Stingers 06","2023")]},
+ {g:"BOSS",id:"boss_warn",nm:"boss_warn",folder:"boss",ch:"Boss warning/arrival. Dread braam.",hunt:"braam, horror, dread",tgt:1800,tol:1000,dtype:"oneshot",suggest:[R("Stinger-High10","2018"),R("Braam 004 (D)","2023")]},
+ {g:"DEFENSE",id:"shield_hit",nm:"shield_hit",folder:"defense",ch:"Shield absorbs hit. Energy ring.",hunt:"shield, force field",tgt:350,tol:200,dtype:"oneshot",suggest:[R("CK_Force_Field_Loop-32","2016")]},
+ {g:"DEFENSE",id:"shield_break",nm:"shield_break",folder:"defense",ch:"Shield destroyed. Shatter.",hunt:"shatter, glass break",tgt:600,tol:300,dtype:"oneshot",suggest:[R("TextureGlassDebris_008","2016")]},
+ {g:"DEFENSE",id:"player_hit",nm:"player_hit",folder:"defense",ch:"Player took damage. Harsh alarm.",hunt:"alarm, warning",tgt:300,tol:200,dtype:"oneshot",suggest:[R("SPACESHIP-INTERIORS-ALARM-7","2023")]},
+ {g:"DEFENSE",id:"parry",nm:"parry",folder:"defense",ch:"Successful parry. Sharp metal ring.",hunt:"metal clash, ring, clang",tgt:180,tol:100,dtype:"oneshot",suggest:[R("METLImpt_METAL SWING HIT","2026")]},
+ {g:"DEFENSE",id:"parry_hit",nm:"parry_hit",folder:"defense",ch:"Parry reflect. Bright ting.",hunt:"ricochet, ping, ting",tgt:150,tol:90,dtype:"oneshot",suggest:[R("Accent,Interface,UI,Alert,Resonant,Waver","2023")]},
+ {g:"PICKUP",id:"coin",nm:"coin",folder:"pickup",ch:"Coin grab (fires constantly). Tiny tick.",hunt:"coin, money",tgt:110,tol:70,dtype:"oneshot",suggest:[R("264604 - Stack Coin Bag 04","2023")]},
+ {g:"PICKUP",id:"life_up",nm:"life_up",folder:"pickup",ch:"Extra life. Positive lift.",hunt:"life up, 1up, reward",tgt:900,tol:500,dtype:"oneshot",suggest:[R("power up_level up-sound 2","2023")]},
+ {g:"PICKUP",id:"shield_up",nm:"shield_up",folder:"pickup",ch:"Shield pickup. Energy up.",hunt:"shield, energy up",tgt:400,tol:250,dtype:"oneshot",suggest:[R("Electric_Energy_Ambient_Warble_Powerup_03","2020")]},
+ {g:"PICKUP",id:"style_up",nm:"style_up",folder:"pickup",ch:"Style rank up. Sharp reward.",hunt:"style, rank up, stinger",tgt:600,tol:350,dtype:"oneshot",suggest:[R("Stinger 8","2020")]},
+ {g:"PICKUP",id:"core",nm:"core",folder:"pickup",ch:"CORE jackpot/life. Reward stinger.",hunt:"reward, jackpot, confirm",tgt:1200,tol:700,dtype:"oneshot",suggest:[R("G4F SFX11 - ExoInterface - Action Confirm - Long 05","2018")]},
+ {g:"PICKUP",id:"powerup",nm:"powerup",folder:"pickup",ch:"Upgrade pickup. Ascending.",hunt:"powerup, collect",tgt:500,tol:300,dtype:"oneshot",suggest:[R("sci-fi_device_item_power_up_flash_01","2020")]},
+ {g:"UI",id:"ui_click",nm:"ui_click",folder:"ui",ch:"Menu select. Thin, very tight.",hunt:"interface, click, beep",tgt:80,tol:50,dtype:"oneshot",suggest:[R("User Interface Click Button 25","2018")]},
+ {g:"UI",id:"weapon_switch",nm:"weapon_switch",folder:"ui",ch:"Primary weapon cycle. Quick switch.",hunt:"switch, cycle, ui",tgt:200,tol:120,dtype:"oneshot",suggest:[R("Bluezone_BC0268_switch_button_click_high_tech_interface_001","2020")]},
+ {g:"UI",id:"refit_open",nm:"refit_open",folder:"ui",ch:"REFIT shop opens. Whoosh/confirm.",hunt:"open, whoosh, panel",tgt:500,tol:300,dtype:"oneshot",suggest:[R("UIMvmt_Resonant Electric Whoosh 01_JSE_FI","2023")]},
+ {g:"UI",id:"buy",nm:"buy",folder:"ui",ch:"REFIT purchase. Cash/confirm.",hunt:"purchase, confirm, cash",tgt:400,tol:250,dtype:"oneshot",suggest:[R("G4F SFX11 - ExoInterface - Process - Short 06","2018")]},
+ {g:"UI",id:"buy_fail",nm:"buy_fail",folder:"ui",ch:"Cannot afford. Deny buzz.",hunt:"deny, error, fail",tgt:350,tol:200,dtype:"oneshot",suggest:[R("ERROR 13","2020"),R("Interface Deny Low Fat Dark","2026")]},
+ {g:"UI",id:"pause",nm:"pause",folder:"ui",ch:"Pause toggle. Soft.",hunt:"pause, soft",tgt:250,tol:150,dtype:"oneshot",suggest:[R("MenuSound_DDM23.1_Wav","2020")]},
+ {g:"EVENT",id:"sector_clear",nm:"sector_clear",folder:"event",ch:"Sector cleared. Transition swell.",hunt:"transition, whoosh, sweep",tgt:1200,tol:700,dtype:"oneshot",suggest:[R("Dark_Sci-Fi_Transition_01","2023")]},
+];
+const SLOTKW={
+ fire_spread:[["gunshot",3],["gun shot",3],["blaster",3],["plasma shot",3],["energy gun",3],["futuristic",2],["scifi",2],["sci-fi",2],["laser",2]],
+ fire_rapid:[["auto-burst",3],["auto burst",3],["machinegun",3],["machine gun",3],["submachine",3],["heavygun",3],["burst",2],["automatic",2]],
+ fire_lance:[["lance",3],["pierce",3],["beam shot",3],["laser shot",2],["blast laser",2]],
+ fire_homing:[["homing",3],["missile",3],["tracking",2],["soft shot",2]],
+ fire_flak:[["flak",3],["scatter",3],["shotgun",3],["buckshot",3],["burst",2]],
+ fire_buzzsaw:[["buzzsaw",3],["saw",3],["grind",3],["whir",2],["drill",2]],
+ overheat:[["overheat",3],["steam vent",3],["vent hiss",3]],
+ overheat_ready:[["sci-fi ping",3],["ping down",3],["cooldown",3],["ready ping",3]],
+ heavy_charge:[["charge",3],["spool",3],["reactor",3],["rise",3],["swell",3],["shepard",3],["pitch rising",3]],
+ heavy_ready:[["action confirm",2],["charge complete",3],["ready",2]],
+ heavy_switch:[["switch_button",3],["mechanism latch",3],["weapon switch",3]],
+ beam:[["big blast",3],["blast laser",3],["beam",2],["plasma",2],["force field",2]],
+ rail:[["railgun",3],["rail",2],["pierce crack",3],["blast laser 4",3]],
+ tesla:[["tesla",3],["arc weld",3],["electric",2],["zap",2],["chain",2]],
+ singularity:[["singularity",3],["vortex",3],["gravity",3],["deep sub",2]],
+ wave:[["wave",3],["big blast",3],["sweep",2]],
+ whine:[["whine",3],["shepard",2],["rising tone",3]],
+ hit:[["impact_low",3],["wet impact",3],["body hit",3],["metal short slam",3],["thud",3],["thump",2]],
+ blast:[["explosion",2],["blast",2],["explosion 8",3]],
+ enemy_fire:[["enemy_fire",3],["enemy shot",3],["laser small",2]],
+ bomb:[["distant blast",3],["explosion",2],["detonat",3],["boom",2]],
+ thump:[["thump",3],["sub hit",3],["low hit",2]],
+ wub:[["wub",3],["bass drop",2],["sub drop",2]],
+ kill_ace:[["rust debris",3],["metal crush",3],["bulkhead",3],["metal debris",3],["scrap metal",3],["metal impact",2]],
+ kill_bmet:[["gore",3],["body crunch",3],["flesh",3],["bones",3],["squelch",3],["splat",3],["blood",3],["beheading",3]],
+ kill_csee:[["arc weld",3],["high voltage",3],["data-corruption",3],["digital_glitch",3],["electric shock",3],["glitch",2]],
+ kill_mat:[["glassdebris",3],["glass break",3],["glass shard",3],["sparkly_short_glitch",3],["shard",3]],
+ kill_mset:[["axe_ice",3],["ice_crack",3],["dry ice",3],["designed ice",3],["chipping ice",3],["crystal",3],["shatter",3]],
+ big:[["explosion 8",3],["deepexplosion",3],["colossal",2],["big explosion",2]],
+ death:[["distant blast",3],["downer",3],["destruction",2]],
+ boss_death:[["building_collapse",3],["building collapse",3],["rupture",3],["explosion warped",3],["large explosion",3]],
+ boss_phase:[["braam",3],["mind bender",3],["stinger",2]],
+ boss_warn:[["cinematic horror",3],["stinger-high",3],["stinger-low",3],["braam",3],["braams",3],["dread",3]],
+ shield_hit:[["force field",3],["forcefield",3],["shield",3],["energy_surge",2]],
+ shield_break:[["glass break",3],["glassdebris",3],["shatter",3]],
+ player_hit:[["spaceship-interiors-alarm",3],["alarm_fast",3],["stall warning",3],["alarm",2],["buzzer",2]],
+ parry:[["metal swing hit",3],["metal clash",3],["clang",3],["sword clash",3]],
+ parry_hit:[["ricochet",3],["resonant,waver",3],["metallic ping",3]],
+ coin:[["coinage",3],["stack coin",3],["coin_",3],["coins_",3],["gold coins",3],["coin",2]],
+ life_up:[["1up",3],["life up",3],["extra life",3],["positive",2]],
+ shield_up:[["shield up",3],["energy up",2],["shield pickup",3]],
+ style_up:[["style",3],["rank up",3],["combo",2]],
+ core:[["action confirm",3],["exointerface",3],["reward",3],["jackpot",3],["fanfare",3]],
+ powerup:[["power_up_flash",3],["power up flash",3],["power_up",3],["powerup",3],["collect",2]],
+ ui_click:[["user interface",3],["interface accent",3],["button click",3],["switch_button_click",3],["interface",2]],
+ weapon_switch:[["weapon switch",3],["switch_button",2],["cycle",2]],
+ refit_open:[["refit",3],["panel open",2],["whoosh ui",2]],
+ buy:[["purchase",3],["process - short",3],["buy",2],["cash register",3]],
+ buy_fail:[["deny",3],["error",2],["buy fail",3],["fail buzz",2]],
+ pause:[["pause",3],["ui soft",2]],
+ sector_clear:[["transition whoosh",3],["sci-fi_transition",3],["sci-fi transition",3],["transition",3],["whoosh",2]],
+};
+const NOAUTO=["retro","8bit","8-bit","8 bit","chiptune","cartoon","guitar","piano","saxophone","walla","baby","coyote","greenhouse","aston","rapide","lada","niva","nissan","windshield","wiper","car_","vehicle","mower","shovel","quadcopter","river","rapids near","snow","dirt","gravel","boulder","brick","wood_impact","tree_","leaf","ghost","lettuce","printer","counting money","money bills","narrator","istanbul","traffic","endurance race"];
+const THRESHOLD=2,TARGET=Math.pow(10,-3/20),LSKEY="vanguard_sfx_auditor_v4",WAVEW=640;
+const FXDEF={drive:0,comp:0,sub:0,lowcut:0,highcut:0,fadeIn:0,fadeOut:0,pitch:0,gain:0,reverse:false,bypass:false};
+let LIB=[],winner={},layers={},notes={},sel=0,mode="slots",restOpen={},recOpen={},edit=null;
+let levelMatch=true,actx=null,master=null,uidc=0,savedMarks={},voices=[],cur=null;
+let bSearch="",bShow="unselected",bFolder="";
+let auditioning=false,abPrev=null,cacheOn=true,idb=null,undoStack=[];
+let zoom=null; // {a,b} seconds view window
+let vols={}; // per-slot target volume overrides (dB), keyed by slot id
+let _lastSel=-1,_lastMode=""; // for scroll-position preservation across render()
+const stripExt=n=>n.toLowerCase().replace(/\.(wav|flac|aif|aiff|ogg|mp3)$/,"").trim();
+const sugSet={};SLOTS.forEach(s=>s.suggest&&s.suggest.forEach(r=>sugSet[stripExt(r.n+".wav")]=true));
+const isSuggested=n=>!!sugSet[stripExt(n)];
+const slotById=id=>SLOTS.find(s=>s.id===id);
+SLOTS.forEach(s=>{restOpen[s.id]=false;recOpen[s.id]=!!(s.suggest&&s.suggest.length);});
+// ---- per-slot target volume (dB, relative to the -3dBFS normalized level) ----
+const VOLGRP={FIRE:0,HEAVY:1,IMPACT:0,DEATH:0,BOSS:2,DEFENSE:0,PICKUP:-5,UI:-6,EVENT:-2};
+const VOLEX={enemy_fire:-3,blast:1,bomb:1,big:1,death:2,boss_death:2,boss_warn:1,boss_phase:1,shield_break:1,core:-2,heavy_switch:-3,heavy_ready:-2,overheat_ready:-3,coin:-6,ui_click:-7,weapon_switch:-5,buy:-4,buy_fail:-4,pause:-5,refit_open:-4};
+function slotVolDefault(id){if(id in VOLEX)return VOLEX[id];const s=slotById(id);return s?(VOLGRP[s.g]||0):0;}
+function slotVol(id){return (vols&&id in vols)?vols[id]:slotVolDefault(id);}
+function fmtDb(v){return (v>0?'+':'')+v+' dB';}
+function revBuf(b){const nb=actx.createBuffer(b.numberOfChannels,b.length,b.sampleRate);for(let ch=0;ch<b.numberOfChannels;ch++){const s=b.getChannelData(ch),d=nb.getChannelData(ch),n=s.length;for(let i=0;i<n;i++)d[i]=s[n-1-i];}return nb;}
+
+function bestSlot(name){const s=name.toLowerCase();if(NOAUTO.some(r=>s.includes(r)))return null;let best=null,bs=0;for(const id in SLOTKW){let sc=0;for(const[t,w]of SLOTKW[id])if(s.includes(t))sc+=w;if(sc>bs){bs=sc;best=id;}}return bs>=THRESHOLD?{slot:best,score:bs}:null;}
+
+// ---- persistence (decisions in localStorage; audio in IndexedDB) ----
+function saveState(){try{const marks={};for(const c of LIB)if(c.slot){(marks[c.slot]=marks[c.slot]||[]).push({name:c.name,mark:c.mark,start:c.start,end:c.end,fx:c.fx});}localStorage.setItem(LSKEY,JSON.stringify({winner,marks,layers,notes,vols}));}catch(e){}}
+function loadState(){try{const r=localStorage.getItem(LSKEY);if(!r)return;const d=JSON.parse(r);winner=d.winner||{};savedMarks=d.marks||{};layers=d.layers||{};notes=d.notes||{};vols=d.vols||{};}catch(e){}}
+function applySaved(slotId,c){const a=savedMarks[slotId]||[];const m=a.find(x=>x.name===c.name);if(m){c.mark=m.mark;if(m.start!=null)c.start=m.start;if(m.end!=null)c.end=m.end;if(m.fx)c.fx=Object.assign({},FXDEF,m.fx);}}
+function openIDB(){return new Promise(res=>{try{const r=indexedDB.open("vanguard_sfx_db",1);r.onupgradeneeded=e=>{e.target.result.createObjectStore("files",{keyPath:"key"});};r.onsuccess=e=>{idb=e.target.result;res();};r.onerror=()=>res();}catch(e){res();}});}
+function idbPut(c){if(!idb||!cacheOn)return;try{idb.transaction("files","readwrite").objectStore("files").put({key:c.key,name:c.name,lib:c.lib,blob:c.blob,slot:c.slot});}catch(e){}}
+function idbDel(key){if(!idb)return;try{idb.transaction("files","readwrite").objectStore("files").delete(key);}catch(e){}}
+function idbClear(){if(!idb)return;try{idb.transaction("files","readwrite").objectStore("files").clear();}catch(e){}}
+function idbAll(){return new Promise(res=>{if(!idb)return res([]);try{const rq=idb.transaction("files","readonly").objectStore("files").getAll();rq.onsuccess=()=>res(rq.result||[]);rq.onerror=()=>res([]);}catch(e){res([]);}});}
+
+// ---- undo ----
+function snapshot(){return JSON.stringify({winner,layers,notes,m:LIB.map(c=>({k:c.key,slot:c.slot,mark:c.mark,start:c.start,end:c.end,fx:c.fx}))});}
+function pushUndo(){undoStack.push(snapshot());if(undoStack.length>40)undoStack.shift();}
+function doUndo(){if(!undoStack.length){toast("nothing to undo");return;}const s=JSON.parse(undoStack.pop());winner=s.winner;layers=s.layers;notes=s.notes;const map={};s.m.forEach(x=>map[x.k]=x);for(const c of LIB){const x=map[c.key];if(x){c.slot=x.slot;c.mark=x.mark;c.start=x.start;c.end=x.end;c.fx=x.fx;}}saveState();render();toast("undid");}
+
+// ---- audio ----
+function ensureCtx(){if(!actx){actx=new(window.AudioContext||window.webkitAudioContext)();master=actx.createGain();master.gain.value=parseFloat(vol.value);master.connect(actx.destination);}if(actx.state==="suspended")actx.resume();}
+function peakOf(b){let p=0;for(let ch=0;ch<b.numberOfChannels;ch++){const d=b.getChannelData(ch);for(let i=0;i<d.length;i+=64){const a=Math.abs(d[i]);if(a>p)p=a;}}return p||1;}
+function buildWave(buf){const ch=buf.getChannelData(0),block=Math.max(1,Math.floor(ch.length/WAVEW)),pk=[];for(let i=0;i<WAVEW;i++){let mn=1,mx=-1;const s=i*block;for(let j=0;j<block;j++){const v=ch[s+j]||0;if(v<mn)mn=v;if(v>mx)mx=v;}pk.push([mn,mx]);}return pk;}
+async function ensureBuf(c){if(c.buffer||c.err)return;ensureCtx();try{const ab=await c.blob.arrayBuffer();c.buffer=await actx.decodeAudioData(ab.slice(0));c.peak=peakOf(c.buffer);c.dur=c.buffer.duration;c.wave=buildWave(c.buffer);}catch(e){c.err=true;}}
+function fxOf(c){return c.fxBypassActive?FXDEF:Object.assign({},FXDEF,c.fx||{});}
+function makeCurve(amount){const k=amount*120,n=1024,curve=new Float32Array(n);for(let i=0;i<n;i++){const x=i*2/n-1;curve[i]=(1+k)*x/(1+k*Math.abs(x));}return curve;}
+function effDur(c){const fx=c.fx||{};const rate=Math.pow(2,(fx.pitch||0)/12);const a=c.start||0,b=(c.end!=null?c.end:c.dur);return((b-a)/rate);}
+function effDurMs(c){return c.dur?Math.round(effDur(c)*1000):0;}
+function buildVoice(ctx,c,opt){
+ const fx=(c.fx&&!c.fx.bypass)?Object.assign({},FXDEF,c.fx):FXDEF;
+ const rate=Math.pow(2,(fx.pitch||0)/12);
+ let buf=c.buffer,off=c.start||0;const endT=(c.end!=null?c.end:c.dur);const regionDur=endT-off,playDur=regionDur/rate;
+ if(fx.reverse){if(!c._rev||c._rev.length!==c.buffer.length)c._rev=revBuf(c.buffer);buf=c._rev;off=c.dur-endT;}
+ const src=ctx.createBufferSource();src.buffer=buf;src.playbackRate.value=rate;let node=src;
+ if(fx.lowcut>20){const f=ctx.createBiquadFilter();f.type="highpass";f.frequency.value=fx.lowcut;node.connect(f);node=f;}
+ if(fx.highcut>20&&fx.highcut<20000){const f=ctx.createBiquadFilter();f.type="lowpass";f.frequency.value=fx.highcut;node.connect(f);node=f;}
+ if(fx.sub>0){const f=ctx.createBiquadFilter();f.type="lowshelf";f.frequency.value=90;f.gain.value=fx.sub;node.connect(f);node=f;}
+ if(fx.drive>0){const w=ctx.createWaveShaper();w.curve=makeCurve(fx.drive);w.oversample="2x";node.connect(w);node=w;}
+ if(fx.comp>0){const cp=ctx.createDynamicsCompressor();cp.threshold.value=-6-24*fx.comp;cp.ratio.value=4+8*fx.comp;cp.attack.value=0.003;cp.release.value=0.12;node.connect(cp);node=cp;}
+ const sv=(levelMatch&&c.slot)?slotVol(c.slot):0;
+ const g=ctx.createGain();const base=(levelMatch&&c.peak>0?Math.min(TARGET/c.peak,24):1)*Math.pow(10,((fx.gain||0)+sv)/20);
+ const t0=opt.when||0,fi=Math.min((fx.fadeIn||0)/1000,playDur),fo=Math.min((fx.fadeOut||0)/1000,playDur);
+ if(fi>0){g.gain.setValueAtTime(0.0001,t0);g.gain.linearRampToValueAtTime(base,t0+fi);}else g.gain.setValueAtTime(base,t0);
+ if(fo>0&&!opt.loop){g.gain.setValueAtTime(base,Math.max(t0+fi,t0+playDur-fo));g.gain.linearRampToValueAtTime(0.0001,t0+playDur);}
+ node.connect(g);g.connect(opt.dest);
+ if(opt.loop){src.loop=true;src.loopStart=off;src.loopEnd=off+regionDur;src.start(t0,off);}else src.start(t0,off,regionDur);
+ return {src,playDur};
+}
+let rafId=null;
+function clearPlayingUI(){document.querySelectorAll(".pbtn.playing").forEach(e=>e.classList.remove("playing"));}
+function transportIdle(){document.getElementById("transport").classList.add("idle");document.getElementById("tpName").textContent="nothing playing";document.getElementById("tpBar").style.width="0";document.getElementById("tpTime").textContent="--";}
+function stopAll(keepAud){voices.forEach(v=>{try{v.src.onended=null;v.src.stop();}catch(e){}});voices=[];cur=null;if(rafId){cancelAnimationFrame(rafId);rafId=null;}clearPlayingUI();transportIdle();drawEditor();if(!keepAud)auditioning=false;updAudBtn();}
+function tick(){if(!cur){return;}let el=actx.currentTime-cur.start;const d=cur.dur||0.01;if(cur.loop)el=el%d;document.getElementById("tpBar").style.width=Math.min(100,(el/d)*100)+"%";document.getElementById("tpTime").textContent=el.toFixed(2)+" / "+d.toFixed(2)+"s";if(edit&&cur.uid===edit.uid)drawEditor((cur.startOff||0)+el);rafId=requestAnimationFrame(tick);}
+async function play(c,opt){opt=opt||{};ensureCtx();const same=cur&&cur.uid===c.uid&&!opt.force&&!opt.loop;if(!opt._aud)stopAll(opt._aud);if(same)return;await ensureBuf(c);if(c.err){toast("decode error");return;}
+ const off=c.start||0;const v=buildVoice(actx,c,{dest:master,when:actx.currentTime,loop:opt.loop});voices.push(v);
+ cur={src:v.src,uid:c.uid,start:actx.currentTime,dur:v.playDur,loop:!!opt.loop,startOff:off};
+ document.querySelectorAll(`.pbtn[data-uid="${c.uid}"]`).forEach(e=>e.classList.add("playing"));
+ const t=document.getElementById("transport");t.classList.remove("idle");document.getElementById("tpName").textContent=c.name+(opt.loop?" (loop)":(off||c.end!=null?" (region)":""));
+ v.src.onended=()=>{if(cur&&cur.uid===c.uid){if(auditioning){auditionNext();}else stopAll();}};tick();}
+function playJitter(c){ensureCtx();stopAll();const n=8;let t=actx.currentTime;const baseStep=effDur(c);const step=Math.min(0.12,Math.max(0.07,baseStep));
+ for(let i=0;i<n;i++){const cc=Object.assign({},c,{fx:Object.assign({},FXDEF,c.fx,{pitch:((c.fx&&c.fx.pitch)||0)+(Math.random()*2-1)*1.3})});const v=buildVoice(actx,cc,{dest:master,when:t});voices.push(v);t+=step;}
+ document.getElementById("transport").classList.remove("idle");document.getElementById("tpName").textContent=c.name+" (jitter x"+n+")";}
+async function playLayers(slotId){ensureCtx();stopAll();const ls=layers[slotId]||[];let any=false,maxT=0;for(const L of ls){const c=LIB.find(x=>x.slot===slotId&&x.name===L.name);if(!c)continue;await ensureBuf(c);if(c.err)continue;any=true;const cc=Object.assign({},c,{fx:Object.assign({},FXDEF,c.fx,{gain:((c.fx&&c.fx.gain)||0)+(L.gainDb||0)})});const v=buildVoice(actx,cc,{dest:master,when:actx.currentTime+(L.offsetMs||0)/1000});voices.push(v);maxT=Math.max(maxT,(L.offsetMs||0)/1000+v.playDur);}
+ if(!any){toast("no layers added");return;}document.getElementById("transport").classList.remove("idle");document.getElementById("tpName").textContent=slotId+" (layered x"+ls.length+")";}
+
+// ---- audition mode ----
+function updAudBtn(){const b=document.getElementById("audBtn");if(b)b.classList.toggle("active",auditioning);}
+function curList(){const s=SLOTS[sel];return LIB.filter(c=>c.slot===s.id).sort((a,b)=>b.score-a.score);}
+function auditionNext(){const list=curList();let i=edit?list.findIndex(c=>c.uid===edit.uid):-1;i++;if(i>=list.length){auditioning=false;updAudBtn();stopAll();toast("audition done");return;}edit={uid:list[i].uid};render();const c=list[i];play(c,{force:true,_aud:true});}
+function startAudition(){const list=curList();if(!list.length){toast("no candidates here");return;}auditioning=true;updAudBtn();edit={uid:list[0].uid};render();play(list[0],{force:true,_aud:true});}
+
+// ---- A/B ----
+function abToggle(){const list=curList();const w=list.find(c=>winner[SLOTS[sel].id]===c.name);const fc=edit&&findUid(edit.uid);if(!fc){toast("focus a track");return;}let target;if(!w){target=fc;}else if(abPrev==="fav"){target=fc;abPrev="foc";}else{target=w;abPrev="fav";}play(target,{force:true});toast("A/B: "+(target===w?"favorite":"focused"));}
+
+async function intake(files){let sorted=0,uns=0;for(const f of [...files]){if(!/\.(wav|flac|aif|aiff|ogg|mp3)$/i.test(f.name))continue;const m=bestSlot(f.name);const folder=(f.webkitRelativePath||"").split("/").slice(-2,-1)[0]||"";const key=f.name+"|"+(f.size||0);if(LIB.some(c=>c.key===key))continue;const c={uid:++uidc,key,name:f.name,lib:folder,blob:f,buffer:null,peak:1,dur:0,mark:"none",slot:m?m.slot:null,score:m?m.score:0,start:null,end:null,fx:Object.assign({},FXDEF)};if(c.slot){applySaved(c.slot,c);sorted++;}else uns++;LIB.push(c);idbPut(c);}saveState();render();toast("Loaded "+(sorted+uns)+": "+sorted+" sorted, "+uns+" unsorted");}
+const findUid=uid=>LIB.find(c=>c.uid===uid);
+function setMark(uid,mk){pushUndo();const c=findUid(uid);if(!c)return;c.mark=(c.mark===mk)?"none":mk;if(c.mark==="cut"&&c.slot&&winner[c.slot]===c.name)delete winner[c.slot];saveState();render();}
+function setWinner(uid){pushUndo();const c=findUid(uid);if(!c||!c.slot)return;winner[c.slot]=(winner[c.slot]===c.name)?undefined:c.name;if(winner[c.slot]===undefined)delete winner[c.slot];else if(c.mark==="cut")c.mark="keep";saveState();render();}
+function toggleLayer(uid){pushUndo();const c=findUid(uid);if(!c||!c.slot)return;const arr=layers[c.slot]=layers[c.slot]||[];const i=arr.findIndex(L=>L.name===c.name);if(i>=0)arr.splice(i,1);else arr.push({name:c.name,offsetMs:arr.length*120,gainDb:0});if(!arr.length)delete layers[c.slot];saveState();render();}
+function moveTo(uid,slotId){pushUndo();const c=findUid(uid);if(!c)return;if(c.slot&&winner[c.slot]===c.name)delete winner[c.slot];c.slot=slotId||null;c.mark="none";if(c.slot)c.score=c.score||1;idbPut(c);saveState();render();}
+function removeCand(uid){pushUndo();const i=LIB.findIndex(c=>c.uid===uid);if(i<0)return;const c=LIB[i];if(c.slot&&winner[c.slot]===c.name)delete winner[c.slot];if(cur&&cur.uid===uid)stopAll();idbDel(c.key);LIB.splice(i,1);saveState();render();}
+
+const rail=document.getElementById("rail"),pane=document.getElementById("pane");
+function esc(s){return(s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function tgtText(s){return s.dtype==="var"?`${s.rng[0]}-${s.rng[1]} ms, loops`:`${s.tgt} ms (\u00B1${s.tol})`;}
+function durClass(c,s){if(!s)return"";if(s.dtype==="var")return"var";const ms=effDurMs(c);if(!ms)return"";const d=Math.abs(ms-s.tgt);if(d<=s.tol)return"ok";if(d<=s.tol*2)return"near";return"off";}
+function slotOpts(cur){return `<option value="">unsorted</option>`+SLOTS.map(s=>`<option value="${s.id}" ${s.id===cur?"selected":""}>${s.nm}</option>`).join("");}
+function candRow(c){const s=slotById(c.slot),isW=c.slot&&winner[c.slot]===c.name,rec=isSuggested(c.name),trimmed=(c.start!=null||c.end!=null),hasfx=c.fx&&!c.fx.bypass&&Object.keys(FXDEF).some(k=>k!=="bypass"&&c.fx[k]);
+ const isL=c.slot&&(layers[c.slot]||[]).some(L=>L.name===c.name);
+ const dc=durClass(c,s),col=dc==='ok'?'green':dc==='near'?'amber':dc==='off'?'red':'cyan';
+ const dlabel=c.dur?`<span style="color:var(--${col})">${effDurMs(c)}ms</span>${trimmed?'\u2702':''}${hasfx?'\u26A1':''}`:'--';
+ return `<div class="cand ${c.mark==='cut'?'cut':''} ${isW?'fav':''} ${edit&&edit.uid===c.uid?'foc':''}" data-uid="${c.uid}">
+  <button class="pbtn" data-act="play" data-uid="${c.uid}">&#9654;</button>
+  <div class="cn" title="${esc(c.name)}">${rec?'<span class="rec">&#9670; </span>':''}${esc(c.name)}${c.lib?` <span class="lib">&middot; ${esc(c.lib)}</span>`:''}${c.err?' [err]':''}</div>
+  <div class="du">${dlabel}</div>
+  <select class="mv" data-act="move">${slotOpts(c.slot)}</select>
+  <div class="acts"><button class="l ${isL?'on':''}" data-act="layer" title="Layer">L</button><button class="k ${c.mark==='keep'?'on':''}" data-act="keep">K</button><button class="x ${c.mark==='cut'?'on':''}" data-act="cut">X</button><button class="w ${isW?'on':''}" data-act="win">&#9733;</button><button data-act="rm">&times;</button></div></div>`;}
+function renderRail(){let html="",lastG=null;SLOTS.forEach((s,i)=>{if(s.g!==lastG){html+=`<div class="grp">${s.g}</div>`;lastG=s.g;}const n=LIB.filter(c=>c.slot===s.id).length,w=winner[s.id],ly=(layers[s.id]||[]).length;html+=`<div class="slot ${i===sel&&mode==='slots'?'sel':''} ${(w||ly)?'has':''} ${s.weak?'weak':''}" data-slot="${i}"><div class="nm"><span class="dot"></span>${s.nm}${s.weak?' &#9888;':''}${ly?` <span style="color:var(--violet,#7722cc)">&#9776;${ly}</span>`:''}</div><div class="tg">&#9201; ${tgtText(s)}</div>${w?`<div class="win">&#9733; ${esc(w)}</div>`:``}<div class="meta">${n||0}</div></div>`;});rail.innerHTML=html;document.getElementById("pwin").textContent=Object.keys(winner).filter(k=>winner[k]).length+Object.keys(layers).filter(k=>layers[k]&&layers[k].length).length;document.getElementById("ptot").textContent=SLOTS.length;}
+
+function drawEditor(playT){const cv=document.getElementById("wave");if(!cv||!edit)return;const c=findUid(edit.uid);if(!c||!c.wave)return;const ctx=cv.getContext("2d"),W=cv.width,H=cv.height,mid=H/2;
+ const va=zoom?zoom.a:0,vb=zoom?zoom.b:c.dur,vspan=vb-va||c.dur;const tx=t=>((t-va)/vspan)*W;
+ ctx.clearRect(0,0,W,H);ctx.fillStyle="#020A04";ctx.fillRect(0,0,W,H);
+ const a=tx(c.start||0),b=tx(c.end!=null?c.end:c.dur);ctx.fillStyle="rgba(0,240,255,0.10)";ctx.fillRect(a,0,b-a,H);
+ ctx.strokeStyle="#1d3a25";ctx.beginPath();ctx.moveTo(0,mid);ctx.lineTo(W,mid);ctx.stroke();
+ ctx.strokeStyle="#00FF41";ctx.beginPath();const startSample=va/c.dur*c.wave.length,endSample=vb/c.dur*c.wave.length;for(let x=0;x<W;x++){const wi=Math.floor(startSample+(x/W)*(endSample-startSample));const p=c.wave[wi];if(!p)continue;ctx.moveTo(x,mid+p[0]*mid);ctx.lineTo(x,mid+p[1]*mid);}ctx.stroke();
+ ctx.strokeStyle="#00F0FF";ctx.lineWidth=2;[a,b].forEach(x=>{ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();});ctx.lineWidth=1;
+ if(playT!=null){const px=tx(playT);ctx.strokeStyle="#C8FF00";ctx.beginPath();ctx.moveTo(px,0);ctx.lineTo(px,H);ctx.stroke();}}
+function setupEditor(){const cv=document.getElementById("wave");if(!cv||!edit)return;const c=findUid(edit.uid);if(!c||!c.dur)return;
+ const va=()=>zoom?zoom.a:0,vb=()=>zoom?zoom.b:c.dur;
+ const xToT=x=>{const r=cv.getBoundingClientRect();return Math.max(0,Math.min(c.dur,va()+(x/r.width)*(vb()-va())));};
+ let drag=null;
+ cv.onpointerdown=e=>{const r=cv.getBoundingClientRect(),px=e.clientX-r.left,W=r.width;const sp=vb()-va();const ax=((c.start||0)-va())/sp*W,bx=((c.end!=null?c.end:c.dur)-va())/sp*W;const t=xToT(px);if(Math.abs(px-ax)<8)drag="start";else if(Math.abs(px-bx)<8)drag="end";else{c.start=t;c.end=t;drag="end";}cv.setPointerCapture(e.pointerId);drawEditor();};
+ cv.onpointermove=e=>{if(!drag)return;const r=cv.getBoundingClientRect();const t=xToT(e.clientX-r.left);if(drag==="start")c.start=t;else c.end=t;drawEditor();updateRead(c);};
+ cv.onpointerup=()=>{if(!drag)return;drag=null;if(c.start!=null&&c.end!=null&&c.start>c.end){const t=c.start;c.start=c.end;c.end=t;}if((c.end-(c.start||0))<0.02)c.end=Math.min(c.dur,(c.start||0)+0.02);pushUndo();saveState();render();};
+ drawEditor();}
+function updateRead(c){const s=slotById(c.slot),el=document.getElementById("eread");if(!el||!s)return;el.className="read "+durClass(c,s);el.textContent=`region ${effDurMs(c)} ms / target ${s.dtype==="var"?tgtText(s):s.tgt+"\u00B1"+s.tol}`;}
+function fxSlider(c,k,label,min,max,step,unit){const v=(c.fx&&c.fx[k])||0;return `<div class="f"><label>${label}</label><input type="range" data-fx="${k}" min="${min}" max="${max}" step="${step}" value="${v}"><span class="v" id="fxv_${k}">${v}${unit||''}</span></div>`;}
+
+function renderSlot(){
+ const s=SLOTS[sel],list=curList();
+ const win=list.find(c=>winner[s.id]===c.name),alts=list.filter(c=>c!==win&&c.mark==="keep"),rest=list.filter(c=>c!==win&&c.mark!=="keep"&&c.mark!=="cut"),cut=list.filter(c=>c.mark==="cut");
+ let foc=null;if(edit)foc=list.find(c=>c.uid===edit.uid)||null;if(!foc&&list.length){foc=win||list[0];edit={uid:foc.uid};}else if(!list.length)edit=null;
+ const ls=layers[s.id]||[];
+ let h=`<div class="phead"><h2>${s.nm}<span class="tgt">&#9201; target ${tgtText(s)}</span><span class="vbadge">&#128266; ${fmtDb(slotVol(s.id))}</span></h2><div class="hunt">${esc(s.ch)} &nbsp; <b>hunt:</b> ${esc(s.hunt)}${s.weak?' <span style="color:var(--amber)">&#9888; thin</span>':''}</div><div class="svol"><label>TARGET VOL</label><input type="range" id="svol" min="-24" max="12" step="0.5" value="${slotVol(s.id)}"><span class="sv" id="svolv">${fmtDb(slotVol(s.id))}</span><button data-act="svolreset">reset</button><span class="svh">game-mix level &bull; bakes into render when Level: ON</span></div><div class="note"><input type="text" id="slotnote" placeholder="notes for this slot..." value="${esc(notes[s.id]||'')}"></div></div>`;
+ if(foc){const c=foc;
+  h+=`<div class="editor"><div class="en">${c.err?'[decode error]':(c.buffer?'EDITING: '+esc(c.name):'analyzing...')}</div>
+   <canvas id="wave" width="${WAVEW}" height="84"></canvas>
+   <div class="ctl"><button data-act="pregion">&#9654; Region</button><button data-act="pfull">&#9654; Full</button><button data-act="ploop">&#10227; Loop</button><button data-act="jitter">&#9889; Jitter</button><button data-act="ab">A/B</button>
+    <button data-act="fit">Fit Target</button><button data-act="resettrim">Reset Trim</button><button data-act="zoomr">Zoom Region</button><button data-act="zoomo">Zoom Out</button>
+    <span id="eread" class="read ${durClass(c,s)}">${c.buffer?`region ${effDurMs(c)} ms / target ${s.dtype==="var"?tgtText(s):s.tgt+"\u00B1"+s.tol}`:''}</span></div>
+   <div class="fx">
+    <div class="f" style="width:auto"><label>PROCESS</label><button data-act="bypass" class="${c.fx&&c.fx.bypass?'':'active'}" style="margin-top:1px">${c.fx&&c.fx.bypass?'BYPASSED':'ON'}</button></div>
+    <div class="f" style="width:auto"><label>REVERSE</label><button data-act="reverse" class="${c.fx&&c.fx.reverse?'active':''}" style="margin-top:1px">${c.fx&&c.fx.reverse?'ON':'OFF'}</button></div>
+    ${fxSlider(c,"drive","DRIVE",0,1,0.01,"")}${fxSlider(c,"comp","COMP",0,1,0.01,"")}${fxSlider(c,"lowcut","LO-CUT",0,2000,10,"hz")}${fxSlider(c,"highcut","HI-CUT",0,20000,100,"hz")}${fxSlider(c,"fadeIn","FADE IN",0,500,5,"ms")}${fxSlider(c,"fadeOut","FADE OUT",0,800,5,"ms")}${fxSlider(c,"pitch","PITCH",-12,12,1,"st")}${fxSlider(c,"gain","GAIN",-12,12,0.5,"db")}${fxSlider(c,"sub","SUB",0,12,0.5,"db")}
+   </div>
+   ${s.id==="boss_death"||ls.length?`<div class="layers"><div class="lh">&#9776; LAYERS <span style="color:var(--dim);font-weight:400">(mark tracks with L, they render mixed into one file)</span> <button data-act="playlayers">&#9654; Play Stack</button></div>${ls.length?ls.map(L=>`<div class="lrow" data-lname="${esc(L.name)}"><span class="ln">${esc(L.name)}</span>offset<input type="number" data-lp="offsetMs" value="${L.offsetMs||0}">ms gain<input type="number" data-lp="gainDb" value="${L.gainDb||0}" step="0.5">db</div>`).join(""):'<div class="lrow" style="color:var(--dim)">no layers yet</div>'}</div>`:''}
+  </div>`;}
+ h+=`<div class="plist">`;
+ if(s.suggest&&s.suggest.length){h+=`<div class="tier rec" data-act="toggleRec">&#9670; RECOMMENDED <span class="c">${s.suggest.length} ${recOpen[s.id]?'&#9660;':'&#9658;'}</span></div>`;if(recOpen[s.id])h+=s.suggest.map(r=>{const loaded=LIB.some(c=>stripExt(c.name)===stripExt(r.n+".wav"));return `<div class="rec-row" data-act="findrec" data-name="${esc(r.n)}" style="cursor:pointer" title="click to find in Browser"><span class="st ${loaded?'on':''}">${loaded?'&#9679; loaded':'&#9675; find it'}</span><span class="yr">${r.y}</span><span class="rn" title="${esc(r.n)}">${esc(r.n)}</span></div>`;}).join("");}
+ if(!list.length)h+=`<div class="empty">Nothing filed here.<br>Use <b>Folder</b> or the <b>Browser</b>.</div>`;
+ else{h+=`<div class="tier fav">&#9733; FAVORITE</div>`+(win?candRow(win):`<div class="empty" style="padding:10px 14px;text-align:left">No favorite yet.</div>`);
+  h+=`<div class="tier alt">ALTERNATES <span class="c">${alts.length}</span></div>`+(alts.length?alts.map(candRow).join(""):`<div class="empty" style="padding:7px 14px;text-align:left">none</div>`);
+  h+=`<div class="tier rest" data-act="toggleRest">EVERYTHING ELSE <span class="c">${rest.length} ${restOpen[s.id]?'&#9660;':'&#9658;'}</span></div>`+(restOpen[s.id]?rest.map(candRow).join(""):"");
+  if(cut.length)h+=`<div class="tier cut">CUT <span class="c">${cut.length}</span></div>`+cut.map(candRow).join("");}
+ h+=`</div><div class="help"><span>drag waveform = region</span><span><kbd>Space</kbd> region</span><span><kbd>F</kbd> full</span><span><kbd>L</kbd> loop</span><span><kbd>J</kbd> jitter</span><span><kbd>C</kbd> A/B</span><span><kbd>Esc</kbd> stop</span><span><kbd>W</kbd> favorite</span></div>`;
+ pane.innerHTML=h;
+ const note=document.getElementById("slotnote");if(note)note.onchange=()=>{notes[s.id]=note.value;saveState();};
+ const svol=document.getElementById("svol");if(svol){svol.oninput=()=>{const v=parseFloat(svol.value);vols[s.id]=v;const rd=document.getElementById("svolv");if(rd)rd.textContent=fmtDb(v);const vb=pane.querySelector(".phead h2 .vbadge");if(vb)vb.innerHTML="&#128266; "+fmtDb(v);saveState();};}
+ if(foc&&!foc.buffer&&!foc.err){ensureBuf(foc).then(()=>{if(SLOTS[sel].id===s.id)render();});}
+ if(foc&&foc.buffer)setupEditor();
+}
+function renderBrowser(){const folders=[...new Set(LIB.map(c=>c.lib).filter(Boolean))].sort();let pool=LIB.slice();
+ if(bShow==="unsorted")pool=pool.filter(c=>!c.slot);else if(bShow==="unselected")pool=pool.filter(c=>!(c.slot&&(winner[c.slot]===c.name||c.mark==="keep")));else if(bShow==="cut")pool=pool.filter(c=>c.mark==="cut");else if(bShow==="thisslot")pool=pool.filter(c=>c.slot===SLOTS[sel].id);else if(bShow==="recommended")pool=pool.filter(c=>isSuggested(c.name));
+ if(bFolder)pool=pool.filter(c=>c.lib===bFolder);if(bSearch){const tr=bSearch.toLowerCase().split(/\s+/).filter(Boolean);pool=pool.filter(c=>{const t=(c.name+" "+c.lib).toLowerCase();return tr.every(x=>t.includes(x));});}
+ const total=pool.length,cap=400,shown=pool.slice(0,cap);
+ let h=`<div class="bhead"><input type="text" id="bs" placeholder="search filename or folder" value="${esc(bSearch)}"><select id="bshow"><option value="all" ${bShow==="all"?"selected":""}>All</option><option value="unselected" ${bShow==="unselected"?"selected":""}>Unselected</option><option value="unsorted" ${bShow==="unsorted"?"selected":""}>Unsorted</option><option value="recommended" ${bShow==="recommended"?"selected":""}>Recommended &#9670;</option><option value="thisslot" ${bShow==="thisslot"?"selected":""}>In: ${SLOTS[sel].nm}</option><option value="cut" ${bShow==="cut"?"selected":""}>Cut</option></select><select id="bfolder"><option value="">All folders</option>${folders.map(f=>`<option value="${esc(f)}" ${f===bFolder?"selected":""}>${esc(f)}</option>`).join("")}</select></div><div class="bcount">${total} match${total===1?'':'es'}${total>cap?` (first ${cap})`:''}</div><div class="plist">`;
+ if(!LIB.length)h+=`<div class="empty">Load a folder first.</div>`;else if(!total)h+=`<div class="empty">No files match.</div>`;else h+=shown.map(candRow).join("");
+ h+=`</div><div class="help"><span>Set <b style="color:var(--gold)">move</b> to file a sound</span><span><kbd>Esc</kbd> stop</span></div>`;pane.innerHTML=h;
+ const bsEl=document.getElementById("bs");if(bsEl){bsEl.oninput=()=>{bSearch=bsEl.value;renderBrowser();};setTimeout(()=>{bsEl.focus();bsEl.setSelectionRange(bsEl.value.length,bsEl.value.length);},0);}
+ const sh=document.getElementById("bshow");if(sh)sh.onchange=()=>{bShow=sh.value;renderBrowser();};const ff=document.getElementById("bfolder");if(ff)ff.onchange=()=>{bFolder=ff.value;renderBrowser();};}
+function renderCoverage(){let done=0;let rows=SLOTS.map((s,i)=>{const ly=(layers[s.id]||[]).length;const w=LIB.find(c=>c.slot===s.id&&c.name===winner[s.id]);const has=!!(w||ly);if(has)done++;let dur="-",cls="no",stat="EMPTY";if(ly){stat="LAYERED ("+ly+")";cls="ok";dur="mix";}else if(w){const dc=durClass(w,s);cls=dc==="ok"?"ok":dc==="off"?"no":"near";stat="SET";dur=effDurMs(w)+"ms"+((w.start!=null||w.end!=null)?" \u2702":"")+((w.fx&&!w.fx.bypass&&Object.keys(FXDEF).some(k=>k!=="bypass"&&w.fx[k]))?" \u26A1":"");}const cnt=LIB.filter(c=>c.slot===s.id).length;return `<tr data-slot="${i}"><td>${s.nm}</td><td class="${has?'ok':'no'}">${has?'&#10003; '+stat:'&#10007; empty'}</td><td class="${cls}">${dur}</td><td style="color:var(--gold)">${tgtText(s)}</td><td style="color:var(--teal)">${cnt}</td><td style="color:var(--cyan)">${fmtDb(slotVol(s.id))}</td></tr>`;}).join("");
+ pane.innerHTML=`<div class="phead"><h2>Coverage <span class="tgt">${done} / ${SLOTS.length} slots filled</span></h2></div><div class="cov"><table><thead><tr><th>slot</th><th>status</th><th>duration</th><th>target</th><th>candidates</th><th>vol</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+ pane.querySelectorAll("tr[data-slot]").forEach(tr=>tr.onclick=()=>{sel=+tr.dataset.slot;mode="slots";edit=null;document.getElementById("slotsTab").classList.add("active");document.getElementById("covTab").classList.remove("active");render();});}
+function render(){
+ const railTop=rail.scrollTop;
+ const pl=pane.querySelector('.plist');const plTop=pl?pl.scrollTop:0;
+ const sameView=(mode===_lastMode&&sel===_lastSel);
+ renderRail();if(mode==="slots")renderSlot();else if(mode==="browser")renderBrowser();else renderCoverage();
+ rail.scrollTop=railTop;
+ const np=pane.querySelector('.plist');
+ if(np){ if(sameView)np.scrollTop=plTop;
+  if(mode==="slots"){const foc=np.querySelector('.cand.foc');if(foc){const ft=foc.offsetTop,fb=ft+foc.offsetHeight;if(ft<np.scrollTop||fb>np.scrollTop+np.clientHeight)foc.scrollIntoView({block:'nearest'});}}
+ }
+ _lastMode=mode;_lastSel=sel;
+}
+
+rail.addEventListener("click",e=>{const sl=e.target.closest(".slot");if(sl){sel=+sl.dataset.slot;edit=null;zoom=null;if(mode!=="slots"){mode="slots";document.getElementById("slotsTab").classList.add("active");document.getElementById("browseTab").classList.remove("active");document.getElementById("covTab").classList.remove("active");}render();}});
+pane.addEventListener("click",e=>{const t=e.target.closest("[data-act]");
+ if(t){const act=t.dataset.act;const c=edit&&findUid(edit.uid);
+  if(act==="toggleRest"){restOpen[SLOTS[sel].id]=!restOpen[SLOTS[sel].id];render();return;}
+  if(act==="toggleRec"){recOpen[SLOTS[sel].id]=!recOpen[SLOTS[sel].id];render();return;}
+  if(act==="findrec"){bSearch=t.dataset.name||"";bShow="all";bFolder="";setTab("browser");return;}
+  if(act==="svolreset"){delete vols[SLOTS[sel].id];saveState();render();return;}
+  if(act==="playlayers"){playLayers(SLOTS[sel].id);return;}
+  if(c&&["pregion","pfull","ploop","jitter","ab","fit","resettrim","zoomr","zoomo","bypass","reverse"].includes(act)){
+   if(act==="pregion")play(c,{force:true});else if(act==="pfull"){const s2=c.start,e2=c.end;c.start=null;c.end=null;play(c,{force:true});c.start=s2;c.end=e2;}
+   else if(act==="ploop")play(c,{loop:true,force:true});else if(act==="jitter")playJitter(c);else if(act==="ab")abToggle();
+   else if(act==="fit"){pushUndo();const s=slotById(c.slot);const tg=(s.dtype==="var"?(s.rng[0]+s.rng[1])/2:s.tgt)/1000;c.start=c.start||0;c.end=Math.min(c.dur,c.start+tg);saveState();render();}
+   else if(act==="resettrim"){pushUndo();c.start=null;c.end=null;zoom=null;saveState();render();}
+   else if(act==="zoomr"){zoom={a:Math.max(0,(c.start||0)-0.05),b:Math.min(c.dur,(c.end!=null?c.end:c.dur)+0.05)};render();}
+   else if(act==="zoomo"){zoom=null;render();}
+   else if(act==="bypass"){pushUndo();c.fx=c.fx||Object.assign({},FXDEF);c.fx.bypass=!c.fx.bypass;saveState();render();}
+   else if(act==="reverse"){pushUndo();c.fx=c.fx||Object.assign({},FXDEF);c.fx.reverse=!c.fx.reverse;saveState();render();}
+   return;}
+  const row=e.target.closest(".cand");if(!row)return;const uid=+row.dataset.uid;
+  if(act==="play")play(findUid(uid));else if(act==="keep")setMark(uid,"keep");else if(act==="cut")setMark(uid,"cut");else if(act==="win")setWinner(uid);else if(act==="layer")toggleLayer(uid);else if(act==="rm")removeCand(uid);return;}
+ const row=e.target.closest(".cand");if(row&&mode==="slots"){edit={uid:+row.dataset.uid};zoom=null;render();}});
+pane.addEventListener("input",e=>{const fx=e.target.closest("input[data-fx]");if(fx){const c=edit&&findUid(edit.uid);if(!c)return;c.fx=c.fx||Object.assign({},FXDEF);c.fx[fx.dataset.fx]=parseFloat(fx.value);const sp=document.getElementById("fxv_"+fx.dataset.fx);if(sp)sp.textContent=fx.value;updateRead(c);}});
+pane.addEventListener("change",e=>{const m=e.target.closest("select[data-act=move]");if(m){const row=e.target.closest(".cand");moveTo(+row.dataset.uid,m.value);return;}
+ const fx=e.target.closest("input[data-fx]");if(fx){pushUndo();saveState();return;}
+ const lp=e.target.closest("input[data-lp]");if(lp){const lrow=e.target.closest(".lrow");const name=lrow.dataset.lname;const arr=layers[SLOTS[sel].id]||[];const L=arr.find(x=>x.name===name);if(L){L[lp.dataset.lp]=parseFloat(lp.value)||0;saveState();}return;}});
+
+document.addEventListener("keydown",e=>{
+ if(e.key==="Escape"){stopAll();return;}
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"){doUndo();e.preventDefault();return;}
+ if(e.target.tagName==="INPUT"||e.target.tagName==="SELECT")return;
+ if(mode!=="slots"){if(e.code==="Space")e.preventDefault();return;}
+ const list=curList(),fc=edit&&findUid(edit.uid);
+ if(e.key==="ArrowLeft"){sel=(sel-1+SLOTS.length)%SLOTS.length;edit=null;zoom=null;render();e.preventDefault();}
+ else if(e.key==="ArrowRight"){sel=(sel+1)%SLOTS.length;edit=null;zoom=null;render();e.preventDefault();}
+ else if(e.key==="ArrowDown"){const i=list.findIndex(c=>edit&&c.uid===edit.uid);const ni=Math.min(list.length-1,(i<0?0:i+1));if(list[ni]){edit={uid:list[ni].uid};zoom=null;render();}e.preventDefault();}
+ else if(e.key==="ArrowUp"){const i=list.findIndex(c=>edit&&c.uid===edit.uid);const ni=Math.max(0,(i<0?0:i-1));if(list[ni]){edit={uid:list[ni].uid};zoom=null;render();}e.preventDefault();}
+ else if(e.code==="Space"){if(fc)play(fc,{force:true});e.preventDefault();}
+ else if(e.key.toLowerCase()==="f"){if(fc){const s2=fc.start,e2=fc.end;fc.start=null;fc.end=null;play(fc,{force:true});fc.start=s2;fc.end=e2;}}
+ else if(e.key.toLowerCase()==="l"){if(fc)play(fc,{loop:true,force:true});}
+ else if(e.key.toLowerCase()==="j"){if(fc)playJitter(fc);}
+ else if(e.key.toLowerCase()==="c"){abToggle();}
+ else if(e.key.toLowerCase()==="k"){if(fc)setMark(fc.uid,"keep");}
+ else if(e.key.toLowerCase()==="x"){if(fc)setMark(fc.uid,"cut");}
+ else if(e.key.toLowerCase()==="w"||e.key==="Enter"){if(fc)setWinner(fc.uid);}
+ else if(e.key==="Delete"){if(fc)removeCand(fc.uid);}
+ else if(e.key.toLowerCase()==="n"){jumpNextEmpty();}
+});
+function jumpNextEmpty(){const n=SLOTS.length;for(let k=1;k<=n;k++){const i=(sel+k)%n;const id=SLOTS[i].id;const hasWin=!!winner[id];const hasLy=!!(layers[id]&&layers[id].length);if(!hasWin&&!hasLy){sel=i;edit=null;zoom=null;if(mode!=="slots")setTab("slots");else render();toast("next empty: "+SLOTS[i].nm);return;}}toast("all slots filled");}
+
+// ---- WAV + ZIP + render ----
+function encodeWAV(buf){const nch=buf.numberOfChannels,sr=buf.sampleRate,len=buf.length,bytes=44+len*nch*2,dv=new DataView(new ArrayBuffer(bytes));let p=0;const ws=s=>{for(let i=0;i<s.length;i++)dv.setUint8(p++,s.charCodeAt(i));};const u32=v=>{dv.setUint32(p,v,true);p+=4;},u16=v=>{dv.setUint16(p,v,true);p+=2;};
+ ws("RIFF");u32(36+len*nch*2);ws("WAVE");ws("fmt ");u32(16);u16(1);u16(nch);u32(sr);u32(sr*nch*2);u16(nch*2);u16(16);ws("data");u32(len*nch*2);
+ const chs=[];for(let c=0;c<nch;c++)chs.push(buf.getChannelData(c));for(let i=0;i<len;i++)for(let c=0;c<nch;c++){let v=Math.max(-1,Math.min(1,chs[c][i]));dv.setInt16(p,v<0?v*0x8000:v*0x7FFF,true);p+=2;}
+ return new Uint8Array(dv.buffer);}
+function crc32(u8){let c=~0;for(let i=0;i<u8.length;i++){c^=u8[i];for(let k=0;k<8;k++)c=(c>>>1)^(0xEDB88320&-(c&1));}return ~c>>>0;}
+function zipStore(files){const chunks=[],cd=[];let offset=0;const enc=new TextEncoder();const le16=v=>[v&255,(v>>8)&255],le32=v=>[v&255,(v>>8)&255,(v>>16)&255,(v>>24)&255];
+ for(const f of files){const nameB=enc.encode(f.name),crc=crc32(f.u8),sz=f.u8.length,start=offset;const local=new Uint8Array([].concat(le32(0x04034b50),le16(20),le16(0),le16(0),le16(0),le16(0),le32(crc),le32(sz),le32(sz),le16(nameB.length),le16(0)));chunks.push(local,nameB,f.u8);offset+=local.length+nameB.length+sz;cd.push({nameB,crc,sz,start});}
+ const cdStart=offset,cdChunks=[];let cdLen=0;for(const e of cd){const c=new Uint8Array([].concat(le32(0x02014b50),le16(20),le16(20),le16(0),le16(0),le16(0),le16(0),le32(e.crc),le32(e.sz),le32(e.sz),le16(e.nameB.length),le16(0),le16(0),le16(0),le16(0),le32(0),le32(e.start)));cdChunks.push(c,e.nameB);cdLen+=c.length+e.nameB.length;}
+ const end=new Uint8Array([].concat(le32(0x06054b50),le16(0),le16(0),le16(cd.length),le16(cd.length),le32(cdLen),le32(cdStart),le16(0)));
+ return new Blob(chunks.concat(cdChunks,[end]),{type:"application/zip"});}
+function dl(blob,name){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;a.click();}
+async function renderBuffer(c){await ensureBuf(c);if(c.err||!c.buffer)return null;const fx=(c.fx&&!c.fx.bypass)?Object.assign({},FXDEF,c.fx):FXDEF;const rate=Math.pow(2,(fx.pitch||0)/12);const off=c.start||0,regionDur=(c.end!=null?c.end:c.dur)-off,playDur=regionDur/rate;const sr=c.buffer.sampleRate;const oc=new OfflineAudioContext(c.buffer.numberOfChannels,Math.max(1,Math.ceil(playDur*sr)),sr);buildVoice(oc,c,{dest:oc.destination,when:0});return await oc.startRendering();}
+async function renderLayers(slotId){const ls=layers[slotId]||[];const items=[];let sr=44100,nch=1,maxT=0;for(const L of ls){const c=LIB.find(x=>x.slot===slotId&&x.name===L.name);if(!c)continue;await ensureBuf(c);if(c.err)continue;sr=c.buffer.sampleRate;nch=Math.max(nch,c.buffer.numberOfChannels);const rate=Math.pow(2,((c.fx&&c.fx.pitch)||0)/12);const dur=((c.end!=null?c.end:c.dur)-(c.start||0))/rate;maxT=Math.max(maxT,(L.offsetMs||0)/1000+dur);items.push({c,L});}
+ if(!items.length)return null;const oc=new OfflineAudioContext(nch,Math.ceil(maxT*sr),sr);for(const {c,L} of items){const cc=Object.assign({},c,{fx:Object.assign({},FXDEF,c.fx,{gain:((c.fx&&c.fx.gain)||0)+(L.gainDb||0)})});buildVoice(oc,cc,{dest:oc.destination,when:(L.offsetMs||0)/1000});}return await oc.startRendering();}
+async function renderAll(){setBusy(5);const files=[];let n=0;for(const s of SLOTS){const fold=s.folder||"sfx";try{if(layers[s.id]&&layers[s.id].length){const b=await renderLayers(s.id);if(b)files.push({name:fold+"/"+s.id+"_1.wav",u8:encodeWAV(b)});}else{const list=LIB.filter(c=>c.slot===s.id);const w=list.find(c=>c.name===winner[s.id]);if(w){const b=await renderBuffer(w);if(b)files.push({name:fold+"/"+s.id+"_1.wav",u8:encodeWAV(b)});}const alt=list.find(c=>c.name!==winner[s.id]&&c.mark==="keep");if(alt){const b2=await renderBuffer(alt);if(b2)files.push({name:fold+"/"+s.id+"_2.wav",u8:encodeWAV(b2)});}}}catch(e){}n++;setBusy(5+90*n/SLOTS.length);}
+ setBusy(100);if(!files.length){toast("No winners or layers to render");return;}dl(zipStore(files),"vanguard_sfx.zip");toast("Rendered "+files.length+" WAVs");}
+
+const fileIn=document.getElementById("fileIn"),dirIn=document.getElementById("dirIn"),impIn=document.getElementById("impIn"),vol=document.getElementById("vol");
+document.getElementById("folderBtn").onclick=()=>dirIn.click();document.getElementById("addBtn").onclick=()=>fileIn.click();
+dirIn.onchange=()=>{intake(dirIn.files);dirIn.value="";};fileIn.onchange=()=>{intake(fileIn.files);fileIn.value="";};
+function setTab(m){mode=m;document.getElementById("slotsTab").classList.toggle("active",m==="slots");document.getElementById("browseTab").classList.toggle("active",m==="browser");document.getElementById("covTab").classList.toggle("active",m==="coverage");render();}
+document.getElementById("slotsTab").onclick=()=>setTab("slots");document.getElementById("browseTab").onclick=()=>setTab("browser");document.getElementById("covTab").onclick=()=>setTab("coverage");
+document.getElementById("audBtn").onclick=()=>{if(auditioning){auditioning=false;updAudBtn();stopAll();}else startAudition();};
+document.getElementById("stopBtn").onclick=()=>stopAll();document.getElementById("tpStop").onclick=()=>stopAll();
+document.getElementById("lvlBtn").onclick=function(){levelMatch=!levelMatch;this.classList.toggle("active",levelMatch);this.textContent="Level: "+(levelMatch?"ON":"OFF");};
+document.getElementById("cacheBtn").onclick=function(){cacheOn=!cacheOn;this.classList.toggle("active",cacheOn);this.textContent="Cache: "+(cacheOn?"ON":"OFF");if(cacheOn){for(const c of LIB)idbPut(c);toast("caching loaded files");}};
+document.getElementById("undoBtn").onclick=doUndo;
+vol.oninput=()=>{if(master)master.gain.value=parseFloat(vol.value);};
+document.getElementById("clrBtn").onclick=()=>{if(!confirm("Clear everything (files, marks, winners, cache)?"))return;stopAll();LIB=[];winner={};savedMarks={};layers={};notes={};edit=null;undoStack=[];idbClear();saveState();render();};
+document.getElementById("impBtn").onclick=()=>impIn.click();
+impIn.onchange=()=>{const f=impIn.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);winner=d.winner||d.winners||{};if(d.layers)layers=d.layers;if(d.notes)notes=d.notes;if(d.vols)vols=d.vols;savedMarks={};if(d.detail){for(const id in d.detail){const dd=d.detail[id];savedMarks[id]=[...(dd.kept||[]).map(n=>({name:n,mark:"keep"})),...(dd.cut||[]).map(n=>({name:n,mark:"cut"}))];}}if(d.trims){for(const id in d.trims){const tr=d.trims[id],w=winner[id];if(w){savedMarks[id]=savedMarks[id]||[];let e2=savedMarks[id].find(x=>x.name===w);if(!e2){e2={name:w,mark:"keep"};savedMarks[id].push(e2);}e2.start=tr.start;e2.end=tr.end;}}}for(const c of LIB){if(c.slot){c.mark="none";c.start=null;c.end=null;c.fx=Object.assign({},FXDEF);applySaved(c.slot,c);}}saveState();render();toast("Imported");}catch(e){toast("Bad JSON");}};r.readAsText(f);impIn.value="";};
+document.getElementById("expBtn").onclick=()=>{const out={generated:new Date().toISOString(),winners:{},targets:{},trims:{},fx:{},layers:{},notes,vols:{}};for(const s of SLOTS){out.winners[s.id]=winner[s.id]||null;out.targets[s.id]=s.dtype==="var"?{type:"var",range_ms:s.rng}:{type:"oneshot",target_ms:s.tgt,tol_ms:s.tol};const list=LIB.filter(c=>c.slot===s.id);const w=list.find(c=>winner[s.id]===c.name);if(w&&(w.start!=null||w.end!=null))out.trims[s.id]={start:+(w.start||0).toFixed(3),end:+((w.end!=null?w.end:w.dur)||0).toFixed(3)};if(w&&w.fx&&!w.fx.bypass)out.fx[s.id]=w.fx;if(layers[s.id]&&layers[s.id].length)out.layers[s.id]=layers[s.id];out.vols[s.id]=slotVol(s.id);}dl(new Blob([JSON.stringify(out,null,2)],{type:"application/json"}),"vanguard_sfx_picks.json");toast("Exported");};
+document.getElementById("renderBtn").onclick=renderAll;
+
+const drop=document.getElementById("drop");let dc=0;function setBusy(p){const b=document.getElementById("busy");b.style.width=(p<=0?0:Math.min(100,p))+"%";if(p>=100)setTimeout(()=>b.style.width=0,500);}
+window.addEventListener("dragenter",e=>{e.preventDefault();dc++;drop.classList.add("show");});window.addEventListener("dragover",e=>e.preventDefault());window.addEventListener("dragleave",e=>{dc--;if(dc<=0){dc=0;drop.classList.remove("show");}});
+window.addEventListener("drop",async e=>{e.preventDefault();dc=0;drop.classList.remove("show");const items=e.dataTransfer.items;if(items&&items.length&&items[0].webkitGetAsEntry){const files=[],ents=[];for(const it of items){const en=it.webkitGetAsEntry&&it.webkitGetAsEntry();if(en)ents.push(en);}async function walk(en){if(en.isFile){await new Promise(r=>en.file(f=>{files.push(f);r();},()=>r()));}else if(en.isDirectory){const rd=en.createReader();while(true){const b=await new Promise(r=>rd.readEntries(r,()=>r([])));if(!b.length)break;for(const x of b)await walk(x);}}}setBusy(10);for(const en of ents)await walk(en);setBusy(100);intake(files);}else if(e.dataTransfer.files.length)intake(e.dataTransfer.files);});
+let toastT=null;function toast(m){let t=document.querySelector(".toast");if(!t){t=document.createElement("div");t.className="toast";document.body.appendChild(t);}t.textContent=m;clearTimeout(toastT);toastT=setTimeout(()=>t.remove(),2600);}
+
+const MIGRATE={shoot:'fire_spread',rapid:'fire_rapid',beam_fire:'beam',enemy_hit:'hit',death_ace:'kill_ace',death_bmet:'kill_bmet',death_csee:'kill_csee',death_mat:'kill_mat',death_mset:'kill_mset',big_kill:'big',shield:'shield_hit',player_death:'death',boss_spawn:'boss_warn'};
+const migId=id=>MIGRATE[id]||id;
+function remapObj(o){const out={};for(const k in (o||{}))out[migId(k)]=o[k];return out;}
+loadState();
+try{ if(!localStorage.getItem('vanguard_sfx_mig_v9')){ winner=remapObj(winner); savedMarks=remapObj(savedMarks); layers=remapObj(layers); notes=remapObj(notes); localStorage.setItem('vanguard_sfx_mig_v9','1'); saveState(); } }catch(e){}
+render();
+openIDB().then(async()=>{const recs=await idbAll();if(!recs.length)return;for(const r of recs){if(LIB.some(c=>c.key===r.key))continue;const m=bestSlot(r.name);const c={uid:++uidc,key:r.key,name:r.name,lib:r.lib||"",blob:r.blob,buffer:null,peak:1,dur:0,mark:"none",slot:(SLOTS.some(function(s){return s.id===migId(r.slot);})?migId(r.slot):(m?m.slot:null)),score:m?m.score:1,start:null,end:null,fx:Object.assign({},FXDEF)};if(c.slot)applySaved(c.slot,c);LIB.push(c);}render();toast("Restored "+recs.length+" cached files");});
+</script>
+</body>
+</html>

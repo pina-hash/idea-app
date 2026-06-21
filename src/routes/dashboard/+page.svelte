@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 
 	let { data } = $props();
-	let { profile, email } = $derived(data);
+	let { profile, email, assignments } = $derived(data);
 </script>
 
 <main>
@@ -22,6 +22,19 @@
 			<span>Role</span>
 			<span>{profile?.role ?? 'visitor'}</span>
 		</div>
+	</div>
+
+	<h2>Assignments</h2>
+	<div class="card">
+		{#if assignments.length > 0}
+			<ul>
+				{#each assignments as slug (slug)}
+					<li><a href="/assignments/{slug}">{slug}</a></li>
+				{/each}
+			</ul>
+		{:else}
+			<p class="lead">No assignments yet.</p>
+		{/if}
 	</div>
 
 	<p class="lead">
