@@ -20,6 +20,8 @@
     "vite": "^8.0.16"
   },
   "dependencies": {
+    "@fontsource/rajdhani": "^5.2.7",
+    "@fontsource/share-tech-mono": "^5.2.7",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2"
   }

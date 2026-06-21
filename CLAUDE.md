@@ -148,6 +148,31 @@ in `profiles`, not the JWT, so the endpoint looks it up via `locals.supabase`.
 - The dashboard link to it renders only when `isTeacher` is true, but the
   endpoint is the real guard (UI gating is convenience, not security).
 
+## Visual theme
+
+The app shell uses the **IDEA Green** program aesthetic. The token set and font
+stack are the source of truth; do not invent colors or swap fonts.
+
+- **Tokens:** defined once as CSS variables in `src/app.css` (`:root`).
+  Backgrounds `--bg0`/`--bg1`/`--bg2`; semantic colors `--green` (primary),
+  `--gold` (special callouts), `--cyan` (metadata: role, timestamps, version),
+  `--amber` (warning), `--teal` (in progress), `--violet` (special, sparingly),
+  `--white` (body text), `--dim` (secondary/placeholder), `--ice` (disabled).
+  The semantic roles are fixed; do not reassign them. Never use pure red, pure
+  white (`#FFFFFF`), or pure yellow.
+- **Fonts:** `Rajdhani` (display headings, body, input values) and
+  `Share Tech Mono` (metadata, button/nav labels, mono chrome), loaded via
+  `@fontsource` imports in `src/routes/+layout.svelte`. Never use Arial, Inter,
+  Roboto, or system fonts.
+- **Shared classes** live in `src/app.css` (`.wordmark`, `.btn`/`.btn.secondary`,
+  `.card`, `.callout`, `.field`/`.key`/`.val.meta`, `.hero`, `.eyebrow`,
+  `.app-header`, `.assignment-list`). Reuse these so new pages stay cohesive.
+- **Wordmark:** no logo mark exists; use the stylized `IDEA.` wordmark (green
+  with a gold accent dot, `--glow-green`) in headers and the landing hero.
+- **Background:** a restrained CSS-only scanline + vignette overlay (`.bg-fx`
+  in the root layout), disabled under `prefers-reduced-motion`. Legibility
+  first; keep ambiance subtle and load light.
+
 ## Working conventions
 
 - **No em dashes in user-facing copy.** Use commas, periods, or "to" for ranges.

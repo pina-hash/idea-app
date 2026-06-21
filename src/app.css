@@ -1,91 +1,437 @@
+/* ==========================================================================
+   IDEA Green program theme. Token set is the source of truth; do not invent
+   colors. Fonts: Rajdhani (display + body), Share Tech Mono (chrome/metadata),
+   loaded via @fontsource in the root layout.
+   ========================================================================== */
+
 :root {
-	--bg: #0f1320;
-	--panel: #181d2e;
-	--text: #e8ecf6;
-	--muted: #9aa3bb;
-	--accent: #4f7cff;
-	font-family:
-		system-ui,
-		-apple-system,
-		'Segoe UI',
-		Roboto,
-		sans-serif;
+	/* Backgrounds */
+	--bg0: #020a04; /* page base */
+	--bg1: #050f07; /* cards and panels */
+	--bg2: #081209; /* header bars and input fields */
+
+	/* Semantic colors (fixed roles) */
+	--green: #00ff41; /* primary: key labels, glows, success, active */
+	--gold: #c8ff00; /* secondary accent: special callouts */
+	--cyan: #00f0ff; /* informational: timestamps, version, role/metadata */
+	--amber: #ff8c00; /* warning */
+	--teal: #00aa88; /* in-progress */
+	--violet: #5500aa; /* special, sparingly */
+	--white: #e8ffe8; /* body text (not pure white) */
+	--dim: #4a7a52; /* dim text, placeholders, secondary labels */
+	--ice: #88ddff; /* disabled / not-yet-started */
+
+	/* Glows */
+	--glow-green: 0 0 10px rgba(0, 255, 65, 0.8), 0 0 28px rgba(0, 255, 65, 0.3);
+	--glow-gold: 0 0 10px rgba(200, 255, 0, 0.8), 0 0 28px rgba(200, 255, 0, 0.3);
+	--glow-cyan: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 28px rgba(0, 240, 255, 0.3);
+
+	/* Hairlines */
+	--line: rgba(0, 255, 65, 0.15);
+	--line-strong: rgba(0, 255, 65, 0.35);
+
+	--font-display: 'Rajdhani', sans-serif;
+	--font-mono: 'Share Tech Mono', monospace;
 }
 
-* {
+*,
+*::before,
+*::after {
 	box-sizing: border-box;
+	margin: 0;
+	padding: 0;
 }
 
-html,
+html {
+	scroll-behavior: smooth;
+}
+
 body {
-	margin: 0;
-	background: var(--bg);
-	color: var(--text);
+	background: var(--bg0);
+	color: var(--white);
+	font-family: var(--font-display);
+	font-weight: 400;
+	font-size: 1.05rem;
+	line-height: 1.6;
+	min-height: 100vh;
+	overflow-x: hidden;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* --- Animated background: restrained scanline + vignette (legibility first) -- */
+.bg-fx {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	background:
+		radial-gradient(ellipse at 50% -10%, rgba(0, 255, 65, 0.06), transparent 60%),
+		radial-gradient(ellipse at 50% 120%, rgba(0, 240, 255, 0.04), transparent 55%);
+}
+.bg-fx::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: repeating-linear-gradient(
+		to bottom,
+		rgba(0, 255, 65, 0.05) 0,
+		rgba(0, 255, 65, 0.05) 1px,
+		transparent 1px,
+		transparent 4px
+	);
+	opacity: 0.5;
+	animation: scan 12s linear infinite;
+}
+@keyframes scan {
+	from {
+		transform: translateY(0);
+	}
+	to {
+		transform: translateY(4px);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.bg-fx::after {
+		animation: none;
+	}
+	html {
+		scroll-behavior: auto;
+	}
+}
+
+/* All page content sits above the background layer. */
+main,
+.app-header {
+	position: relative;
+	z-index: 1;
 }
 
 main {
-	max-width: 720px;
+	max-width: 880px;
 	margin: 0 auto;
-	padding: 4rem 1.5rem;
+	padding: 3rem 1.5rem 5rem;
 }
 
+/* --- Typography --- */
+h1,
+h2,
+h3 {
+	font-family: var(--font-display);
+	font-weight: 700;
+	line-height: 1.15;
+	letter-spacing: 0.01em;
+}
 h1 {
-	font-size: 2.25rem;
-	margin: 0 0 0.5rem;
+	font-size: 2.4rem;
+}
+h2 {
+	font-size: 1.4rem;
+	margin: 2.25rem 0 1rem;
+	color: var(--white);
+}
+h2::before {
+	content: '// ';
+	color: var(--green);
+	font-family: var(--font-mono);
+	font-size: 0.8em;
+	text-shadow: var(--glow-green);
 }
 
 a {
-	color: var(--accent);
+	color: var(--green);
+	text-decoration: none;
+	transition:
+		color 0.2s,
+		text-shadow 0.2s;
+}
+a:hover {
+	text-shadow: var(--glow-green);
 }
 
 .lead {
-	color: var(--muted);
-	font-size: 1.1rem;
-	line-height: 1.6;
+	color: var(--dim);
+	font-size: 1.05rem;
+	line-height: 1.65;
 }
 
+.eyebrow {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.22em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	text-shadow: var(--glow-cyan);
+}
+
+.mono {
+	font-family: var(--font-mono);
+}
+
+/* --- Wordmark (no logo mark exists; stylized IDEA) --- */
+.wordmark {
+	font-family: var(--font-display);
+	font-weight: 700;
+	letter-spacing: 0.28em;
+	text-transform: uppercase;
+	color: var(--green);
+	text-shadow: var(--glow-green);
+	text-decoration: none;
+	white-space: nowrap;
+}
+.wordmark span {
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+}
+.wordmark:hover {
+	text-shadow: var(--glow-green);
+}
+
+/* --- Hero (landing) --- */
+.hero {
+	text-align: center;
+	padding: 4rem 1rem 2.5rem;
+}
+.hero .wordmark {
+	font-size: clamp(3.5rem, 12vw, 7rem);
+	letter-spacing: 0.3em;
+	display: inline-block;
+	margin-bottom: 1rem;
+}
+.hero .eyebrow {
+	display: block;
+	margin-bottom: 1.5rem;
+}
+.hero .lead {
+	max-width: 620px;
+	margin: 1.25rem auto 0;
+	color: var(--white);
+}
+
+/* --- Header bar (dashboard and inner pages) --- */
+.app-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+	background: var(--bg2);
+	border-bottom: 1px solid var(--line);
+	padding: 1rem 1.5rem;
+}
+.app-header .wordmark {
+	font-size: 1.6rem;
+}
+.app-header .header-right {
+	display: flex;
+	align-items: center;
+	gap: 1.25rem;
+	flex-wrap: wrap;
+}
+.user-block {
+	text-align: right;
+	line-height: 1.3;
+}
+.user-name {
+	font-family: var(--font-display);
+	font-weight: 600;
+	color: var(--white);
+}
+.user-role {
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	text-shadow: var(--glow-cyan);
+}
+
+/* --- Buttons --- */
 .btn {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.5rem;
-	background: var(--accent);
-	color: #fff;
-	border: 0;
-	border-radius: 8px;
-	padding: 0.75rem 1.25rem;
-	font-size: 1rem;
+	font-family: var(--font-mono);
+	font-size: 0.82rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--green);
+	background: transparent;
+	border: 1px solid var(--green);
+	border-radius: 3px;
+	padding: 0.7rem 1.3rem;
 	cursor: pointer;
 	text-decoration: none;
+	transition:
+		background 0.2s,
+		color 0.2s,
+		box-shadow 0.2s,
+		border-color 0.2s;
 }
-
 .btn:hover {
-	filter: brightness(1.08);
+	background: var(--green);
+	color: var(--bg0);
+	box-shadow: var(--glow-green);
+	text-shadow: none;
 }
-
-.btn.secondary {
+.btn:disabled {
+	color: var(--ice);
+	border-color: var(--ice);
+	cursor: not-allowed;
+	opacity: 0.7;
+}
+.btn:disabled:hover {
 	background: transparent;
-	border: 1px solid var(--muted);
-	color: var(--text);
+	color: var(--ice);
+	box-shadow: none;
+}
+.btn.secondary {
+	color: var(--white);
+	border-color: var(--dim);
+}
+.btn.secondary:hover {
+	color: var(--green);
+	background: transparent;
+	border-color: var(--green);
+	box-shadow: var(--glow-green);
+	text-shadow: var(--glow-green);
 }
 
+:focus-visible {
+	outline: 2px solid var(--cyan);
+	outline-offset: 2px;
+}
+
+/* --- Cards / panels --- */
 .card {
-	background: var(--panel);
-	border-radius: 12px;
+	background: var(--bg1);
+	border: 1px solid var(--line);
+	border-radius: 4px;
 	padding: 1.5rem;
-	margin: 1.5rem 0;
+	margin: 1.25rem 0;
+}
+.card > p {
+	color: var(--white);
 }
 
+.btn-row {
+	display: flex;
+	gap: 0.85rem;
+	flex-wrap: wrap;
+	margin-top: 1rem;
+}
+
+/* Key/value rows (profile, course headers) */
 .field {
 	display: flex;
 	justify-content: space-between;
+	align-items: baseline;
+	gap: 1rem;
 	padding: 0.6rem 0;
-	border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+	border-bottom: 1px solid var(--line);
 }
-
 .field:last-child {
 	border-bottom: 0;
 }
+.field .key {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--green);
+}
+.field .val {
+	color: var(--white);
+}
+.field .val.meta {
+	font-family: var(--font-mono);
+	color: var(--cyan);
+	text-shadow: var(--glow-cyan);
+}
 
-.field span:first-child {
-	color: var(--muted);
+/* --- Callout cards (public links) --- */
+.callout {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+	flex-wrap: wrap;
+	background: linear-gradient(135deg, rgba(200, 255, 0, 0.07) 0%, rgba(0, 240, 255, 0.05) 100%);
+	border: 1px solid var(--line-strong);
+	border-radius: 4px;
+	padding: 1.2rem 1.6rem;
+	margin: 1rem 0;
+	transition:
+		border-color 0.2s,
+		background 0.2s,
+		box-shadow 0.2s;
+}
+.callout:hover {
+	border-color: rgba(200, 255, 0, 0.7);
+	background: linear-gradient(135deg, rgba(200, 255, 0, 0.12) 0%, rgba(0, 240, 255, 0.08) 100%);
+}
+.callout .callout-title {
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+	margin-bottom: 0.25rem;
+}
+.callout .callout-sub {
+	font-size: 0.9rem;
+	color: var(--dim);
+}
+
+/* --- Course / assignment list --- */
+.course-id {
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	letter-spacing: 0.18em;
+	color: var(--green);
+	text-shadow: var(--glow-green);
+}
+.course-title {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.assignment-list {
+	list-style: none;
+	margin: 0.5rem 0 0;
+}
+.assignment-list li {
+	border-top: 1px solid var(--line);
+}
+.assignment-list li:first-child {
+	border-top: 0;
+}
+.assignment-list a {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.7rem 0.25rem;
+	color: var(--white);
+}
+.assignment-list a::before {
+	content: '>';
+	font-family: var(--font-mono);
+	color: var(--green);
+	font-size: 0.8rem;
+}
+.assignment-list a:hover {
+	color: var(--green);
+	text-shadow: var(--glow-green);
+}
+.course-empty {
+	color: var(--ice);
+	font-family: var(--font-mono);
+	font-size: 0.8rem;
+	letter-spacing: 0.08em;
+}
+
+.warn {
+	color: var(--amber);
 }

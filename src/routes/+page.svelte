@@ -23,29 +23,46 @@
 </script>
 
 <main>
-	<h1>IDEA</h1>
-	<p class="lead">
-		The unified portal for IDEA at Bosco Tech. Sign in with your Bosco Tech account to reach your
-		dashboard. More features are on the way.
-	</p>
-
-	<div class="card">
-		<p>Public, no login required.</p>
-		<a class="btn secondary" href="/vanguard/index.html">Launch VANGUARD</a>
-		<a class="btn secondary" href="/coins/index.html">Coin leaderboard</a>
-	</div>
+	<section class="hero">
+		<span class="eyebrow">Don Bosco Technical Institute // Technology Pathway</span>
+		<a class="wordmark" href="/">IDEA<span>.</span></a>
+		<p class="lead">
+			Integrated Design, Engineering and Art. The unified portal for the IDEA pathway. Sign in
+			with your Bosco Tech account to reach your dashboard.
+		</p>
+	</section>
 
 	<div class="card">
 		{#if claims}
 			<p>You are signed in.</p>
-			<button class="btn" onclick={() => goto('/dashboard')}>Go to dashboard</button>
+			<div class="btn-row">
+				<button class="btn" onclick={() => goto('/dashboard')}>Go to dashboard</button>
+			</div>
 		{:else}
-			<button class="btn" onclick={signInWithGoogle} disabled={loading}>
-				{loading ? 'Redirecting...' : 'Sign in with Google'}
-			</button>
+			<div class="btn-row">
+				<button class="btn" onclick={signInWithGoogle} disabled={loading}>
+					{loading ? 'Redirecting...' : 'Sign in with Google'}
+				</button>
+			</div>
 			{#if errorMessage}
-				<p class="lead" style="color: #ff8a8a; margin-top: 1rem;">{errorMessage}</p>
+				<p class="warn mono" style="margin-top: 1rem;">{errorMessage}</p>
 			{/if}
 		{/if}
 	</div>
+
+	<h2>Public access</h2>
+	<a class="callout" href="/vanguard/index.html">
+		<div>
+			<div class="callout-title">IDEA // VANGUARD</div>
+			<div class="callout-sub">Arcade shooter. Playable now, no login required.</div>
+		</div>
+		<span class="btn secondary">Launch &#9658;</span>
+	</a>
+	<a class="callout" href="/coins/index.html">
+		<div>
+			<div class="callout-title">IDEA Coin Leaderboard</div>
+			<div class="callout-sub">Live balances and rankings across all sections.</div>
+		</div>
+		<span class="btn secondary">View &#9658;</span>
+	</a>
 </main>
