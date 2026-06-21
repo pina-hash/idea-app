@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDEA 403 | Senior Project Progress Update</title>
+<link rel="icon" type="image/png" sizes="512x512" href="/IDEA/sp-android-chrome-512x512.png">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #060c06; --bg-module: #091109; --bg-input: #040804;
+  --green: #00e566; --green-dim: #009944; --green-dark: #003b1a;
+  --green-border: rgba(0,229,102,0.25); --green-border-strong: rgba(0,229,102,0.5);
+  --text: #d4f0dc; --text-dim: #5a8a66; --text-muted: #2a4a32;
+  --accent: #00ff6e; --warn: #ffcc00; --red: #ff4444;
+}
+body { background:var(--bg); color:var(--text); font-family:'Rajdhani',sans-serif; font-size:15px; line-height:1.6; min-height:100vh; overflow-x:hidden; }
+#matrix-canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:0; pointer-events:none; opacity:0.5; }
+
+/* PREFLIGHT OVERLAY */
+#preflight-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.88); z-index:999; align-items:center; justify-content:center; }
+#preflight-overlay.active { display:flex; }
+.preflight-modal { background:#091109; border:1px solid var(--green-border-strong); max-width:500px; width:92%; padding:28px 28px 24px; }
+.preflight-modal h2 { font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700; color:var(--warn); letter-spacing:2px; margin-bottom:14px; }
+.preflight-modal p { font-size:13px; color:var(--text-dim); margin-bottom:12px; line-height:1.6; }
+.preflight-list { list-style:none; display:flex; flex-direction:column; gap:6px; margin-bottom:18px; }
+.preflight-list li { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--red); padding:6px 10px; border:1px solid rgba(255,68,68,0.25); background:rgba(255,68,68,0.05); letter-spacing:0.5px; }
+.preflight-actions { display:flex; gap:10px; }
+.pf-btn { font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px; text-transform:uppercase; padding:8px 18px; cursor:pointer; border:1px solid; }
+.pf-btn.proceed { background:none; color:var(--text-dim); border-color:var(--text-muted); }
+.pf-btn.proceed:hover { color:var(--text); border-color:var(--green-border); }
+.pf-btn.cancel { background:var(--green); color:var(--bg); border-color:var(--green); font-weight:700; }
+
+.page { position:relative; z-index:1; max-width:860px; margin:0 auto; padding:32px 32px 60px; }
+
+/* TOOLBAR */
+.toolbar { background:rgba(9,17,9,0.97); border:1px solid var(--green-border); margin-bottom:16px; padding:14px 16px; display:flex; flex-direction:column; gap:10px; position:sticky; top:0; z-index:100; }
+.progress-row { display:flex; align-items:center; gap:12px; }
+.progress-track { flex:1; height:4px; background:var(--green-dark); position:relative; overflow:hidden; }
+.progress-fill { height:100%; background:var(--green); width:0%; transition:width 0.4s ease; }
+.progress-label { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-dim); letter-spacing:1px; white-space:nowrap; min-width:120px; text-align:right; }
+.btn-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.tool-btn { font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px; text-transform:uppercase; background:none; border:1px solid var(--green-border-strong); color:var(--green-dim); padding:7px 16px; cursor:pointer; transition:all 0.2s; white-space:nowrap; }
+.tool-btn:hover { background:var(--green-dark); color:var(--green); border-color:var(--green); }
+.tool-btn.primary { background:var(--green); color:var(--bg); border-color:var(--green); font-weight:700; }
+.tool-btn.primary:hover { background:var(--accent); }
+.save-status { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-muted); letter-spacing:1px; margin-left:auto; transition:color 0.3s; }
+.save-status.flash { color:var(--green); }
+
+/* HEADER */
+.header { border:1px solid var(--green-border-strong); border-bottom:3px solid var(--green); background:rgba(9,17,9,0.97); padding:28px 32px 24px; margin-bottom:16px; position:relative; overflow:hidden; }
+.header::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--green),transparent); }
+.header-top { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; gap:16px; }
+.brand-label { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--green-dim); letter-spacing:3px; text-transform:uppercase; display:block; margin-bottom:4px; }
+.brand-title { font-family:'Orbitron',sans-serif; font-size:26px; font-weight:900; color:var(--accent); letter-spacing:3px; text-shadow:0 0 20px rgba(0,255,110,0.35); line-height:1; display:block; margin-bottom:4px; }
+.brand-sub { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-dim); letter-spacing:2px; display:block; }
+.badge-sp { font-family:'Orbitron',sans-serif; font-size:15px; font-weight:900; color:var(--bg); background:var(--green); width:64px; height:64px; display:flex; align-items:center; justify-content:center; flex-shrink:0; letter-spacing:1px; line-height:1.1; text-align:center; flex-direction:column; }
+.badge-sp span { font-size:9px; letter-spacing:2px; font-weight:700; }
+.header-fields { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+.field-full { grid-column:1/-1; }
+.field-label { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--green-dim); letter-spacing:2px; text-transform:uppercase; display:block; margin-bottom:4px; }
+.field-input { width:100%; background:var(--bg-input); border:1px solid var(--green-border); color:var(--text); font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:600; padding:8px 12px; outline:none; transition:border-color 0.2s; }
+.field-input:focus { border-color:var(--green); }
+.field-input::placeholder { color:var(--text-muted); font-weight:400; }
+
+/* MODULE */
+.module { background:rgba(9,17,9,0.95); border:1px solid var(--green-border); margin-bottom:16px; position:relative; overflow:hidden; }
+.module::before { content:''; position:absolute; top:0; left:0; right:0; height:1px; background:linear-gradient(90deg,var(--green-dark),var(--green-border-strong),var(--green-dark)); }
+.module-header { padding:14px 20px 10px; border-bottom:1px solid var(--green-border); }
+.module-header-main { display:flex; align-items:center; gap:14px; margin-bottom:5px; }
+.module-num { font-family:'Orbitron',sans-serif; font-size:10px; font-weight:700; color:var(--green); letter-spacing:2px; background:var(--green-dark); padding:4px 8px; flex-shrink:0; }
+.module-title { font-family:'Orbitron',sans-serif; font-size:13px; font-weight:700; color:var(--text); letter-spacing:1px; flex:1; }
+.module-total-pts { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--green); letter-spacing:1px; white-space:nowrap; font-weight:700; }
+.pts-breakdown { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-muted); letter-spacing:0.5px; padding-left:2px; }
+.pts-breakdown span { color:var(--text-dim); }
+.module-body { padding:20px; display:flex; flex-direction:column; gap:16px; }
+
+/* PROMPT BLOCK */
+.prompt { background:var(--bg-input); border:1px solid var(--green-border); padding:12px 14px; border-left:3px solid var(--green); }
+.prompt-q { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--green); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+.prompt-desc { font-size:13px; color:var(--text-dim); line-height:1.5; margin-bottom:10px; }
+.prompt-desc em { color:var(--warn); font-style:normal; font-family:'Share Tech Mono',monospace; font-size:11px; }
+
+/* TEXTAREA */
+.response-area { width:100%; min-height:90px; background:rgba(4,8,4,0.85); border:1px solid var(--green-border); color:var(--text); font-family:'Rajdhani',sans-serif; font-size:14px; line-height:1.6; padding:10px 12px; resize:vertical; outline:none; transition:border-color 0.2s; }
+.response-area:focus { border-color:var(--green); }
+.response-area::placeholder { color:var(--text-muted); }
+.counter-row { display:flex; justify-content:flex-end; margin-top:4px; }
+.sent-counter { font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:1px; }
+.sent-counter.none { color:var(--red); }
+.sent-counter.warn { color:var(--warn); }
+.sent-counter.good { color:var(--green); }
+
+/* STATUS TABLE */
+.status-table { width:100%; border-collapse:collapse; font-size:13px; }
+.status-table th { font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--green-dim); padding:8px 10px; border-bottom:1px solid var(--green-border); text-align:left; background:rgba(0,229,102,0.04); }
+.status-table td { padding:5px 8px; border-bottom:1px solid rgba(0,229,102,0.07); vertical-align:middle; transition:background 0.2s; }
+.status-table td input, .status-table td select { background:transparent; border:none; color:var(--text); font-family:'Rajdhani',sans-serif; font-size:13px; padding:4px 6px; outline:none; width:100%; }
+.status-table td select option { background:#091109; color:var(--text); }
+.status-table tr.s-complete td { background:rgba(0,229,102,0.07); }
+.status-table tr.s-complete td input, .status-table tr.s-complete td select { color:#7ee8a2; }
+.status-table tr.s-progress td { background:rgba(255,204,0,0.07); }
+.status-table tr.s-progress td input, .status-table tr.s-progress td select { color:#ffcc00; }
+.status-table tr.s-blocked td { background:rgba(255,68,68,0.07); }
+.status-table tr.s-blocked td input, .status-table tr.s-blocked td select { color:#ff8888; }
+.add-row-btn { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-muted); background:none; border:1px dashed var(--text-muted); padding:5px 14px; cursor:pointer; width:100%; margin-top:6px; letter-spacing:1px; transition:all 0.2s; }
+.add-row-btn:hover { color:var(--green-dim); border-color:var(--green-border); }
+
+/* IMAGE UPLOAD */
+.upload-zone { border:1px dashed var(--green-border-strong); padding:18px; text-align:center; cursor:pointer; transition:all 0.2s; background:rgba(0,229,102,0.02); }
+.upload-zone:hover { border-color:var(--green); background:rgba(0,229,102,0.05); }
+.upload-zone input { display:none; }
+.upload-zone-label { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--text-dim); letter-spacing:1px; cursor:pointer; display:block; }
+.upload-zone-label span { color:var(--green); }
+.img-count-row { display:flex; justify-content:flex-end; margin-top:6px; }
+.img-count { font-family:'Share Tech Mono',monospace; font-size:10px; letter-spacing:1px; }
+.img-count.none { color:var(--red); }
+.img-count.warn { color:var(--warn); }
+.img-count.good { color:var(--green); }
+.image-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin-top:8px; }
+.image-thumb { position:relative; background:var(--bg-input); border:1px solid var(--green-border); }
+.image-thumb img { width:100%; display:block; max-height:130px; object-fit:cover; }
+.image-thumb .img-remove { position:absolute; top:4px; right:4px; background:rgba(0,0,0,0.85); color:var(--red); border:1px solid var(--red); font-size:10px; cursor:pointer; padding:2px 6px; font-family:'Share Tech Mono',monospace; line-height:1; }
+.image-thumb .img-caption { width:100%; background:var(--bg-input); border:none; border-top:1px solid var(--green-border); color:var(--text-dim); font-family:'Rajdhani',sans-serif; font-size:11px; padding:4px 6px; outline:none; }
+
+/* RUBRIC */
+.rubric-toggle { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--text-muted); letter-spacing:2px; text-transform:uppercase; background:none; border:1px solid var(--text-muted); padding:5px 10px; cursor:pointer; display:block; width:100%; text-align:left; transition:all 0.2s; margin-top:4px; }
+.rubric-toggle:hover { color:var(--green-dim); border-color:var(--green-border); }
+.rubric-panel { display:none; margin-top:8px; border:1px solid var(--green-border); background:rgba(0,229,102,0.02); }
+.rubric-panel.open { display:block; }
+.rubric-panel table { width:100%; border-collapse:collapse; font-size:12px; }
+.rubric-panel th { font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:2px; color:var(--green-dim); padding:7px 12px; border-bottom:1px solid var(--green-border); text-align:left; text-transform:uppercase; }
+.rubric-panel td { padding:7px 12px; border-bottom:1px solid rgba(0,229,102,0.06); color:var(--text-dim); line-height:1.5; vertical-align:top; }
+.rubric-panel td:first-child { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--green); white-space:nowrap; }
+.rubric-panel td:last-child { font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--warn); text-align:right; white-space:nowrap; }
+
+/* DECLARATION */
+.declaration { background:rgba(9,17,9,0.97); border:1px solid var(--green-border-strong); padding:20px 24px; margin-bottom:16px; }
+.section-eyebrow { font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--green-dim); letter-spacing:3px; text-transform:uppercase; margin-bottom:10px; }
+.declaration p { font-size:13px; color:var(--text-dim); line-height:1.7; }
+.sig-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; }
+.sig-field { border-top:1px solid var(--green-border-strong); padding-top:6px; }
+.sig-field label { font-family:'Share Tech Mono',monospace; font-size:9px; color:var(--green-dim); letter-spacing:2px; text-transform:uppercase; display:block; margin-bottom:4px; }
+.sig-field input { width:100%; background:transparent; border:none; color:var(--text); font-family:'Rajdhani',sans-serif; font-size:14px; outline:none; }
+
+/* INSTRUCTOR SECTION - screen hidden, print visible */
+.instructor-section { display:none; }
+
+/* CHECKLIST */
+.module .checklist { list-style:none; display:flex; flex-direction:column; gap:6px; }
+.module .checklist li { display:flex; align-items:flex-start; gap:10px; font-size:13px; color:var(--text-dim); line-height:1.5; }
+.module .checklist li::before { content:'[ ]'; font-family:'Share Tech Mono',monospace; font-size:11px; color:var(--green-dim); flex-shrink:0; margin-top:2px; }
+
+/* PRINT */
+@media print {
+  #matrix-canvas, .toolbar, #preflight-overlay { display:none !important; }
+  body { background:#060c06 !important; color:#d4f0dc !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .page { padding:16px 20px; max-width:100%; }
+  .module, .header, .declaration, .instructor-section { break-inside:avoid; }
+  .rubric-panel, .rubric-toggle, .upload-zone, .add-row-btn { display:none !important; }
+  .image-thumb .img-remove { display:none; }
+  textarea { overflow:hidden; resize:none; }
+
+  .instructor-section {
+    display:block !important;
+    margin:24px 0 16px;
+    border:1px solid rgba(0,229,102,0.4);
+    background:rgba(4,8,4,0.9);
+    padding:18px 22px;
+    break-inside:avoid;
+  }
+  .instructor-section .ins-eyebrow {
+    font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:4px;
+    text-transform:uppercase; color:rgba(0,229,102,0.5); margin-bottom:14px; display:block;
+  }
+  .instructor-section table { width:100%; border-collapse:collapse; font-size:12px; }
+  .instructor-section th {
+    font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:2px;
+    text-transform:uppercase; color:rgba(0,229,102,0.4); padding:5px 10px;
+    border-bottom:1px solid rgba(0,229,102,0.15); text-align:left;
+  }
+  .instructor-section td { padding:7px 10px; border-bottom:1px solid rgba(0,229,102,0.08); color:rgba(212,240,220,0.6); font-size:12px; }
+  .instructor-section td.score-cell {
+    text-align:right; font-family:'Share Tech Mono',monospace;
+    border-bottom:1px solid rgba(0,229,102,0.12); min-width:80px;
+  }
+  .instructor-section .total-row td { border-top:1px solid rgba(0,229,102,0.3); font-weight:600; color:rgba(212,240,220,0.85); padding-top:9px; }
+  .instructor-section .notes-area { margin-top:14px; border-top:1px solid rgba(0,229,102,0.15); padding-top:10px; }
+  .instructor-section .notes-label {
+    font-family:'Share Tech Mono',monospace; font-size:9px; letter-spacing:2px;
+    text-transform:uppercase; color:rgba(0,229,102,0.4); display:block; margin-bottom:28px;
+  }
+  .instructor-section .notes-line {
+    border-bottom:1px solid rgba(0,229,102,0.15); margin-bottom:14px; height:1px;
+  }
+}
+</style>
+</head>
+<body>
+<canvas id="matrix-canvas"></canvas>
+
+<!-- PREFLIGHT MODAL -->
+<div id="preflight-overlay">
+  <div class="preflight-modal">
+    <h2>Incomplete Fields Detected</h2>
+    <p>The following items are missing or below the minimum requirement. You can go back and fix them, or proceed to print anyway.</p>
+    <ul class="preflight-list" id="preflight-list"></ul>
+    <div class="preflight-actions">
+      <button class="pf-btn cancel" onclick="closePreflight()">Go Back &amp; Fix</button>
+      <button class="pf-btn proceed" onclick="closePreflight(); window.print()">Print Anyway</button>
+    </div>
+  </div>
+</div>
+
+<div class="page">
+
+  <!-- TOOLBAR -->
+  <div class="toolbar" id="toolbar">
+    <div class="progress-row">
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <span class="progress-label" id="progress-label">0 of 16 complete</span>
+    </div>
+    <div class="btn-row">
+      <button class="tool-btn primary" onclick="printPreflight()">Print / Export PDF</button>
+      <button class="tool-btn" onclick="saveProgress()">Save Progress</button>
+      <button class="tool-btn" onclick="downloadHTML()">Download with Data</button>
+      <button class="tool-btn" onclick="clearAll()">Clear All</button>
+      <span class="save-status" id="save-status">Not yet saved</span>
+    </div>
+  </div>
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <span class="brand-label">IDEA 403 &nbsp;/&nbsp; Senior Capstone</span>
+        <span class="brand-title">PROGRESS UPDATE</span>
+        <span class="brand-sub">Individual Assignment &nbsp;//&nbsp; Print to PDF &amp; Submit</span>
+      </div>
+      <div class="badge-sp">SP<span>403</span></div>
+    </div>
+    <div class="header-fields">
+      <div class="field-full">
+        <span class="field-label">Project Title</span>
+        <input class="field-input" id="f_project" placeholder="Your project title" autocomplete="off" oninput="updateCompletion()">
+      </div>
+      <div>
+        <span class="field-label">Student Name</span>
+        <input class="field-input" id="f_name" placeholder="Last, First" autocomplete="off" oninput="updateCompletion()">
+      </div>
+      <div>
+        <span class="field-label">Period</span>
+        <input class="field-input" id="f_period" placeholder="e.g. 3" autocomplete="off" oninput="updateCompletion()">
+      </div>
+      <div>
+        <span class="field-label">Date</span>
+        <input class="field-input" id="f_date" placeholder="MM / DD / YYYY" autocomplete="off" oninput="updateCompletion()">
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULE 01 -->
+  <div class="module">
+    <div class="module-header">
+      <div class="module-header-main">
+        <span class="module-num">MOD 01</span>
+        <span class="module-title">Project Summary</span>
+        <span class="module-total-pts">10 pts</span>
+      </div>
+      <div class="pts-breakdown"><span>01-A: 4 pts</span> &nbsp;&middot;&nbsp; <span>01-B: 4 pts</span> &nbsp;&middot;&nbsp; <span>01-C: 2 pts</span></div>
+    </div>
+    <div class="module-body">
+
+      <div class="prompt">
+        <div class="prompt-q">01-A &mdash; What is your project?</div>
+        <div class="prompt-desc">Describe it clearly enough that someone unfamiliar with your work would understand what it is and what it does. No vague language. <em>Min. 2 sentences</em></div>
+        <textarea class="response-area" id="q_01a" placeholder="Describe your project..." oninput="autoResize(this); updateCounter(this,'c_01a',2); updateCompletion()"></textarea>
+        <div class="counter-row"><span class="sent-counter none" id="c_01a">0 / 2 sentences</span></div>
+      </div>
+
+      <div class="prompt">
+        <div class="prompt-q">01-B &mdash; What problem does it solve or what purpose does it serve?</div>
+        <div class="prompt-desc">Explain the need, goal, or outcome your project addresses. Why does this project exist? <em>Min. 2 sentences</em></div>
+        <textarea class="response-area" id="q_01b" placeholder="Describe the purpose or problem..." oninput="autoResize(this); updateCounter(this,'c_01b',2); updateCompletion()"></textarea>
+        <div class="counter-row"><span class="sent-counter none" id="c_01b">0 / 2 sentences</span></div>
+      </div>
+
+      <div class="prompt">
+        <div class="prompt-q">01-C &mdash; Where is this project in its development cycle?</div>
+        <div class="prompt-desc">Choose one stage and justify your choice in 1-2 sentences: <em>concept &nbsp;/&nbsp; early design &nbsp;/&nbsp; active development &nbsp;/&nbsp; testing &amp; refinement &nbsp;/&nbsp; near-complete</em></div>
+        <textarea class="response-area" id="q_01c" placeholder="Stage and justification..." oninput="autoResize(this); updateCounter(this,'c_01c',1); updateCompletion()" style="min-height:64px;"></textarea>
+        <div class="counter-row"><span class="sent-counter none" id="c_01c">0 / 1 sentence</span></div>
+      </div>
+
+      <button class="rubric-toggle" onclick="toggleRubric('r_01')">Full Rubric &darr;</button>
+      <div class="rubric-panel" id="r_01">
+        <table>
+          <tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr>
+          <tr><td>01-A</td><td>Project described specifically; a reader unfamiliar with it understands what it is.</td><td>4</td></tr>
+          <tr><td>01-B</td><td>Purpose or problem articulated clearly. The "why" is credible and present.</td><td>4</td></tr>
+          <tr><td>01-C</td><td>Correct stage identified with a specific, defensible justification.</td><td>2</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULE 02 -->
+  <div class="module">
+    <div class="module-header">
+      <div class="module-header-main">
+        <span class="module-num">MOD 02</span>
+        <span class="module-title">Progress Log</span>
+        <span class="module-total-pts">14 pts</span>
+      </div>
+      <div class="pts-breakdown"><span>02-A: 6 pts</span> &nbsp;&middot;&nbsp; <span>02-B (evidence): 8 pts</span></div>
+    </div>
+    <div class="module-body">
+
+      <div class="prompt">
+        <div class="prompt-q">02-A &mdash; What have you completed since the last check-in?</div>
+        <div class="prompt-desc">Be concrete. "I worked on it" receives no credit. Describe specifically what exists now that did not exist before. <em>Min. 3 sentences</em></div>
+        <textarea class="response-area" id="q_02a" placeholder="List completed work specifically..." oninput="autoResize(this); updateCounter(this,'c_02a',3); updateCompletion()"></textarea>
+        <div class="counter-row"><span class="sent-counter none" id="c_02a">0 / 3 sentences</span></div>
+      </div>
+
+      <div class="prompt">
+        <div class="prompt-q">02-B &mdash; Evidence of Progress</div>
+        <div class="prompt-desc">Upload photos, screenshots, sketches, diagrams, or any documentation showing your project's current state. Add a caption to each. <em>Min. 2 images required</em></div>
+        <div class="upload-zone" onclick="document.getElementById('img_02b').click()">
+          <input type="file" id="img_02b" accept="image/*" multiple onchange="addImages('grid_02b',this)">
+          <label class="upload-zone-label" for="img_02b"><span>+ Add Images</span> &nbsp;&mdash;&nbsp; photos, screenshots, sketches, diagrams</label>
+        </div>
+        <div class="img-count-row"><span class="img-count none" id="img_count">0 / 2 images</span></div>
+        <div class="image-grid" id="grid_02b"></div>
+      </div>
+
+      <button class="rubric-toggle" onclick="toggleRubric('r_02')">Full Rubric &darr;</button>
+      <div class="rubric-panel" id="r_02">
+        <table>
+          <tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr>
+          <tr><td>02-A</td><td>Completed work described with specific, concrete language. Demonstrates meaningful forward movement.</td><td>6</td></tr>
+          <tr><td>02-B</td><td>At least 2 images present, each directly documenting the current state of the project. Captions are present and accurate.</td><td>8</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULE 03 -->
+  <div class="module">
+    <div class="module-header">
+      <div class="module-header-main">
+        <span class="module-num">MOD 03</span>
+        <span class="module-title">Current State Breakdown</span>
+        <span class="module-total-pts">12 pts</span>
+      </div>
+      <div class="pts-breakdown"><span>03-A (table): 7 pts</span> &nbsp;&middot;&nbsp; <span>03-B: 5 pts</span></div>
+    </div>
+    <div class="module-body">
+
+      <div class="prompt">
+        <div class="prompt-q">03-A &mdash; Component / Task Status</div>
+        <div class="prompt-desc">List every major component or task in your project. Be honest with status - inaccuracy is penalized, partial progress is not.</div>
+        <table class="status-table">
+          <thead><tr><th style="width:42%;">Component / Task</th><th style="width:26%;">Status</th><th>Notes</th></tr></thead>
+          <tbody id="status_body">
+            <tr><td><input placeholder="e.g. Housing design"></td><td><select onchange="colorRow(this)"><option value="">-- select --</option><option>Complete</option><option>In Progress</option><option>Not Started</option><option>Blocked</option></select></td><td><input placeholder="Optional"></td></tr>
+            <tr><td><input placeholder="e.g. Material sourcing"></td><td><select onchange="colorRow(this)"><option value="">-- select --</option><option>Complete</option><option>In Progress</option><option>Not Started</option><option>Blocked</option></select></td><td><input placeholder="Optional"></td></tr>
+            <tr><td><input placeholder="e.g. Assembly / build"></td><td><select onchange="colorRow(this)"><option value="">-- select --</option><option>Complete</option><option>In Progress</option><option>Not Started</option><option>Blocked</option></select></td><td><input placeholder="Optional"></td></tr>
+          </tbody>
+        </table>
+        <button class="add-row-btn" onclick="addStatusRow()">+ Add Row</button>
+      </div>
+
+      <div class="prompt">
+        <div class="prompt-q">03-B &mdash; Honest Assessment</div>
+        <div class="prompt-desc">In your own words: where does the project actually stand right now? Be direct. No inflation. <em>Min. 2 sentences</em></div>
+        <textarea class="response-area" id="q_03b" placeholder="Your honest current state..." oninput="autoResize(this); updateCounter(this,'c_03b',2); updateCompletion()" style="min-height:72px;"></textarea>
+        <div class="counter-row"><span class="sent-counter none" id="c_03b">0 / 2 sentences</span></div>
+      </div>
+
+      <button class="rubric-toggle" onclick="toggleRubric('r_03')">Full Rubric &darr;</button>
+      <div class="rubric-panel" id="r_03">
+        <table>
+          <tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr>
+          <tr><td>03-A</td><td>All major components/tasks present. Status selections accurate and match actual project state.</td><td>7</td></tr>
+          <tr><td>03-B</td><td>Written assessment is specific and honest. Matches the table. No vague or inflated claims.</td><td>5</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODULE 04 -->
+  <div class="module">
+    <div class="module-header">
+      <div class="module-header-main">
+        <span class="module-num">MOD 04</span>
+        <span class="module-title">Remaining Work &amp; Planning</span>
+        <span class="module-total-pts">14 pts</span>
+      </div>
+      <div class="pts-breakdown"><span>04-A: 4 pts</span> &nbsp;&middot;&nbsp; <span>04-B (timeline + contingency): 6 pts</span> &nbsp;&middot;&nbsp; <span>04-C: 4 pts</span></div>
+    </div>
+    <div class="module-body">
+
+      <div class="prompt">
+        <div class="prompt-q">04-A &mdash; What still needs to be completed?</div>
+        <div class="prompt-desc">List everything that remains before your project is finished. Be specific about each outstanding task - do not summarize. <em>Min. 3 sentences</em></div>
+        <textarea class="response-area" id="q_04a" placeholder="All remaining work..." oninput="autoResize(this); updateCounter(this,'c_04a',3); updateCompletion()"></textarea>
+        <div class="counter-row"><span class="sent-counter none" id="c_04a">0 / 3 sentences</span></div>
+      </div>
+
+      <div class="prompt">
+        <div class="prompt-q">04-B &mdash; Milestone Timeline &amp; Contingency</div>
+        <div class="prompt-desc">Assign a real target date (MM/DD) to each remaining task. Cross-reference the <a href="https://www.boscotech.edu/student-life/calendar" target="_blank" style="color:var(--green);text-decoration:none;border-bottom:1px solid var(--green-border);">DBTI Academic Calendar</a> for school events, breaks, and deadlines. Then answer: what is your plan if you fall behind? "I will work harder" is not a plan. <em>Min. 2 sentences for contingency</em></div>
+        <table class="status-table" style="margin-bottom:12px;">
+          <thead><tr><th style="width:52%;">Remaining Task</th><th style="width:20%;">Target Date</th><th>Dependencies / Notes</th></tr></thead>
+          <tbody id="timeline_body">
+            <tr><td><input placeholder="Task description"></td><td><input placeholder="MM/DD"></td><td><input placeholder="Optional"></td></tr>
+            <tr><td><input placeholder="Task description"></td><td><input placeholder="MM/DD"></td><td><input placeholder="Optional"></td></tr>
+            <tr><td><input placeholder="Task description"></td><td><input placeholder="MM/DD"></td><td><input placeholder="Optional"></td></tr>
+          </tbody>
+        </table>
+        <button class="add-row-btn" onclick="addTimelineRow()" style="margin-bottom:12px;">+ Add Row</button>
+        <div style="border-top:1px solid var(--green-border); padding-top:12px; margin-top:4px;">
+          <div style="font-family:'Share Tech Mono',monospace; font-size:10px; color:var(--green-dim); letter-spacing:1px; margin-bottom:6px;">CONTINGENCY PLAN &mdash; if your timeline slips</div>
+          <textarea class="response-area" id="q_04b" placeholder="Identify the most likely risk and your specific plan to address it..." oninput="autoResize(this); updateCounter(this,'c_04b',2); updateCompletion()" style="min-height:72px;"></textarea>
+          <div class="counter-row"><span class="sent-counter none" id="c_04b">0 / 2 sentences</span></div>
+        </div>
+      </div>
+
+      <div class="prompt">
+        <div class="prompt-q">04-C &mdash; What do you need?</div>
+        <div class="prompt-desc">Identify any resources, materials, approvals, equipment access, or help you are waiting on or will need before you can finish. If nothing is blocking you, state that explicitly. <em>Min. 2 sentences</em></div>
+        <textarea class="response-area" id="q_04c" placeholder="Resources, approvals, help, or equipment you are waiting on..." oninput="autoResize(this); updateCounter(this,'c_04c',2); updateCompletion()" style="min-height:72px;"></textarea>
+        <div class="counter-row"><span class="sent-counter none" id="c_04c">0 / 2 sentences</span></div>
+      </div>
+
+      <button class="rubric-toggle" onclick="toggleRubric('r_04')">Full Rubric &darr;</button>
+      <div class="rubric-panel" id="r_04">
+        <table>
+          <tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr>
+          <tr><td>04-A</td><td>All remaining work itemized. Specific language. Nothing major omitted.</td><td>4</td></tr>
+          <tr><td>04-B</td><td>Every task has a real date. Timeline is realistic. Contingency plan is actionable and specific.</td><td>6</td></tr>
+          <tr><td>04-C</td><td>Needs are specific and credible. Explicitly stated if none. Not vague ("just time").</td><td>4</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- DECLARATION -->
+  <div class="declaration">
+    <div class="section-eyebrow">Academic Integrity Declaration</div>
+    <p>The work described in this document is my own. All reported progress reflects effort I personally completed. I understand that misrepresenting my project status - including inflating progress, omitting known problems, or copying another student's submission - constitutes academic dishonesty.</p>
+    <div class="sig-row">
+      <div class="sig-field">
+        <label>Student Signature (type full name)</label>
+        <input type="text" id="sig_student" placeholder="Type your full name" oninput="updateCompletion()">
+      </div>
+      <div class="sig-field">
+        <label>Date</label>
+        <input type="text" id="sig_date" placeholder="MM / DD / YYYY">
+      </div>
+    </div>
+  </div>
+
+  <!-- INSTRUCTOR SECTION (print only) -->
+  <div class="instructor-section">
+    <span class="ins-eyebrow">Instructor Use Only</span>
+    <table>
+      <thead><tr><th>Module</th><th>Description</th><th class="score-cell">Score</th></tr></thead>
+      <tbody>
+        <tr><td>MOD 01</td><td>Project Summary</td><td class="score-cell">_____ / 10</td></tr>
+        <tr><td>MOD 02</td><td>Progress Log</td><td class="score-cell">_____ / 14</td></tr>
+        <tr><td>MOD 03</td><td>Current State Breakdown</td><td class="score-cell">_____ / 12</td></tr>
+        <tr><td>MOD 04</td><td>Remaining Work &amp; Planning</td><td class="score-cell">_____ / 14</td></tr>
+      </tbody>
+      <tfoot>
+        <tr class="total-row"><td colspan="2"><strong>Total</strong></td><td class="score-cell"><strong>_____ / 50</strong></td></tr>
+      </tfoot>
+    </table>
+    <div class="notes-area">
+      <span class="notes-label">Comments</span>
+      <div class="notes-line"></div>
+      <div class="notes-line"></div>
+      <div class="notes-line"></div>
+    </div>
+  </div>
+
+  <!-- SUBMISSION CHECKLIST -->
+  <div class="module">
+    <div class="module-header">
+      <div class="module-header-main">
+        <span class="module-num">SUB</span>
+        <span class="module-title">Before You Submit</span>
+      </div>
+    </div>
+    <div class="module-body">
+      <ul class="checklist">
+        <li>Project title, name, period, and date are all filled in the header</li>
+        <li>All text responses meet the minimum sentence counts shown in green</li>
+        <li>At least 2 images are uploaded in Module 02 with captions</li>
+        <li>Module 03 status table includes all major components or tasks</li>
+        <li>Module 04 timeline uses real dates in MM/DD format</li>
+        <li>Contingency plan in Module 04 is specific and actionable</li>
+        <li>Module 04-C explicitly states what you need (or that nothing is blocking you)</li>
+        <li>Academic integrity declaration is signed with your full name</li>
+        <li>Document exported to PDF using the Print / Export PDF button above</li>
+        <li>PDF attached directly to the Google Classroom assignment (not a link)</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+
+<script>
+/* MATRIX RAIN */
+(function(){
+  const c=document.getElementById('matrix-canvas'), ctx=c.getContext('2d');
+  let cols,drops;
+  const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&';
+  function resize(){ c.width=window.innerWidth; c.height=window.innerHeight; cols=Math.floor(c.width/20); drops=Array(cols).fill(1); }
+  function draw(){
+    ctx.fillStyle='rgba(6,12,6,0.05)'; ctx.fillRect(0,0,c.width,c.height);
+    for(let i=0;i<drops.length;i++){
+      ctx.fillStyle=Math.random()>0.98?'#00ff6e':'rgba(0,229,102,0.55)';
+      ctx.font='13px Share Tech Mono,monospace';
+      ctx.fillText(chars[Math.floor(Math.random()*chars.length)],i*20,drops[i]*20);
+      if(drops[i]*20>c.height&&Math.random()>0.975)drops[i]=0;
+      drops[i]++;
+    }
+  }
+  resize(); window.addEventListener('resize',resize); setInterval(draw,50);
+})();
+
+/* AUTO RESIZE */
+function autoResize(el){ el.style.height='auto'; el.style.height=(el.scrollHeight+2)+'px'; }
+
+/* SENTENCE COUNTER */
+function countSentences(text){ return text.trim().length===0?0:(text.match(/[^.!?]*[.!?]+/g)||[]).length; }
+function updateCounter(el,cid,min){
+  const n=countSentences(el.value);
+  const s=document.getElementById(cid);
+  s.textContent=n+' / '+min+(min===1?' sentence':' sentences');
+  s.className='sent-counter '+(n===0?'none':n<min?'warn':'good');
+}
+
+/* RUBRIC TOGGLE */
+function toggleRubric(id){
+  const p=document.getElementById(id), b=p.previousElementSibling;
+  p.classList.toggle('open');
+  b.textContent=p.classList.contains('open')?'Hide Rubric \u2191':'Full Rubric \u2193';
+}
+
+/* STATUS ROW COLOR */
+function colorRow(sel){
+  const tr=sel.closest('tr');
+  tr.className='';
+  if(sel.value==='Complete') tr.className='s-complete';
+  else if(sel.value==='In Progress') tr.className='s-progress';
+  else if(sel.value==='Blocked') tr.className='s-blocked';
+}
+
+/* ADD TABLE ROWS */
+function addStatusRow(){
+  const tb=document.getElementById('status_body'), tr=document.createElement('tr');
+  tr.innerHTML='<td><input placeholder="Component or task"></td><td><select onchange="colorRow(this)"><option value="">-- select --</option><option>Complete</option><option>In Progress</option><option>Not Started</option><option>Blocked</option></select></td><td><input placeholder="Optional"></td>';
+  tb.appendChild(tr);
+}
+function addTimelineRow(){
+  const tb=document.getElementById('timeline_body'), tr=document.createElement('tr');
+  tr.innerHTML='<td><input placeholder="Task description"></td><td><input placeholder="MM/DD"></td><td><input placeholder="Optional"></td>';
+  tb.appendChild(tr);
+}
+
+/* IMAGE UPLOAD */
+function updateImageCount(){
+  const n=document.querySelectorAll('#grid_02b .image-thumb').length;
+  const el=document.getElementById('img_count');
+  el.textContent=n+' / 2 images';
+  el.className='img-count '+(n===0?'none':n<2?'warn':'good');
+  updateCompletion();
+}
+function addImages(gridId,input){
+  const grid=document.getElementById(gridId);
+  Array.from(input.files).forEach(file=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const wrap=document.createElement('div'); wrap.className='image-thumb';
+      const img=document.createElement('img'); img.src=e.target.result;
+      const rm=document.createElement('button'); rm.className='img-remove'; rm.textContent='✕';
+      rm.onclick=()=>{ wrap.remove(); updateImageCount(); };
+      const cap=document.createElement('input'); cap.className='img-caption'; cap.placeholder='Caption...';
+      wrap.appendChild(rm); wrap.appendChild(img); wrap.appendChild(cap);
+      grid.appendChild(wrap);
+      updateImageCount();
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value='';
+}
+
+/* COMPLETION TRACKER */
+const CHECKS = [
+  {id:'f_project', type:'field'}, {id:'f_name', type:'field'},
+  {id:'f_period', type:'field'}, {id:'f_date', type:'field'},
+  {id:'q_01a', type:'sentences', min:2}, {id:'q_01b', type:'sentences', min:2},
+  {id:'q_01c', type:'sentences', min:1}, {id:'q_02a', type:'sentences', min:3},
+  {type:'images', min:2},
+  {id:'q_03b', type:'sentences', min:2},
+  {type:'statustable'},
+  {id:'q_04a', type:'sentences', min:3}, {id:'q_04b', type:'sentences', min:2},
+  {id:'q_04c', type:'sentences', min:2},
+  {type:'timeline'},
+  {id:'sig_student', type:'field'}
+];
+function updateCompletion(){
+  let done=0;
+  CHECKS.forEach(c=>{
+    if(c.type==='field'){ if(document.getElementById(c.id)?.value.trim()) done++; }
+    else if(c.type==='sentences'){ if(countSentences(document.getElementById(c.id)?.value||'')>=c.min) done++; }
+    else if(c.type==='images'){ if(document.querySelectorAll('#grid_02b .image-thumb').length>=c.min) done++; }
+    else if(c.type==='statustable'){ let f=false; document.querySelectorAll('#status_body tr').forEach(r=>{ if(r.querySelector('input')?.value.trim()) f=true; }); if(f) done++; }
+    else if(c.type==='timeline'){ let f=false; document.querySelectorAll('#timeline_body tr').forEach(r=>{ const ins=[...r.querySelectorAll('input')]; if(ins[0]?.value.trim()&&ins[1]?.value.trim()) f=true; }); if(f) done++; }
+  });
+  const total=CHECKS.length, pct=Math.round((done/total)*100);
+  document.getElementById('progress-fill').style.width=pct+'%';
+  document.getElementById('progress-label').textContent=done+' of '+total+' complete';
+}
+
+/* SAVE / RESTORE */
+const SAVE_KEY='idea403_pu_v2';
+let lastSaveTime=null;
+
+function gatherData(){
+  const d={};
+  document.querySelectorAll('input[id^="f_"],textarea[id^="q_"],input[id^="sig_"]').forEach(el=>d[el.id]=el.value);
+  d._status=[...document.querySelectorAll('#status_body tr')].map(tr=>[...tr.querySelectorAll('input,select')].map(i=>i.value));
+  d._timeline=[...document.querySelectorAll('#timeline_body tr')].map(tr=>[...tr.querySelectorAll('input')].map(i=>i.value));
+  d._imgs=[...document.querySelectorAll('#grid_02b .image-thumb')].map(t=>({src:t.querySelector('img').src,cap:t.querySelector('input').value}));
+  return d;
+}
+
+function restoreData(d){
+  Object.keys(d).forEach(k=>{
+    if(k.startsWith('_')) return;
+    const el=document.getElementById(k); if(el){ el.value=d[k]; if(el.tagName==='TEXTAREA') autoResize(el); }
+  });
+  if(d._status){
+    const tb=document.getElementById('status_body');
+    d._status.forEach((row,i)=>{
+      if(i>=tb.rows.length) addStatusRow();
+      const cells=[...tb.rows[i].querySelectorAll('input,select')];
+      row.forEach((v,j)=>{ if(cells[j]){ cells[j].value=v; if(cells[j].tagName==='SELECT') colorRow(cells[j]); }});
+    });
+  }
+  if(d._timeline){
+    const tb=document.getElementById('timeline_body');
+    d._timeline.forEach((row,i)=>{
+      if(i>=tb.rows.length) addTimelineRow();
+      const inputs=[...tb.rows[i].querySelectorAll('input')];
+      row.forEach((v,j)=>{ if(inputs[j]) inputs[j].value=v; });
+    });
+  }
+  if(d._imgs){
+    const grid=document.getElementById('grid_02b'); grid.innerHTML='';
+    d._imgs.forEach(img=>{
+      const wrap=document.createElement('div'); wrap.className='image-thumb';
+      const im=document.createElement('img'); im.src=img.src;
+      const rm=document.createElement('button'); rm.className='img-remove'; rm.textContent='✕';
+      rm.onclick=()=>{ wrap.remove(); updateImageCount(); };
+      const cap=document.createElement('input'); cap.className='img-caption'; cap.placeholder='Caption...'; cap.value=img.cap||'';
+      wrap.appendChild(rm); wrap.appendChild(im); wrap.appendChild(cap);
+      grid.appendChild(wrap);
+    });
+    updateImageCount();
+  }
+  const mins={q_01a:2,q_01b:2,q_01c:1,q_02a:3,q_03b:2,q_04a:3,q_04b:2,q_04c:2};
+  Object.entries(mins).forEach(([id,min])=>{
+    const el=document.getElementById(id);
+    if(el) updateCounter(el,id.replace('q_','c_'),min);
+  });
+  updateCompletion();
+}
+
+function saveProgress(){
+  localStorage.setItem(SAVE_KEY,JSON.stringify(gatherData()));
+  lastSaveTime=Date.now();
+  const s=document.getElementById('save-status');
+  s.textContent='Saved'; s.classList.add('flash');
+  setTimeout(()=>s.classList.remove('flash'),1500);
+}
+function clearAll(){ if(!confirm('Clear all data? This cannot be undone.')) return; localStorage.removeItem(SAVE_KEY); location.reload(); }
+
+/* AUTOSAVE TIMER */
+setInterval(saveProgress,30000);
+setInterval(()=>{
+  if(!lastSaveTime) return;
+  const s=Math.floor((Date.now()-lastSaveTime)/1000);
+  const label=s<5?'just now':s<60?s+'s ago':Math.floor(s/60)+'m ago';
+  if(!document.getElementById('save-status').classList.contains('flash'))
+    document.getElementById('save-status').textContent='Saved '+label;
+},1000);
+
+/* PREFLIGHT */
+function printPreflight(){
+  const issues=[];
+  if(!document.getElementById('f_project').value.trim()) issues.push('Header: Project title is empty');
+  if(!document.getElementById('f_name').value.trim()) issues.push('Header: Student name is empty');
+  if(!document.getElementById('f_date').value.trim()) issues.push('Header: Date is empty');
+  const mins={q_01a:{n:2,label:'01-A'},q_01b:{n:2,label:'01-B'},q_01c:{n:1,label:'01-C'},q_02a:{n:3,label:'02-A'},q_03b:{n:2,label:'03-B'},q_04a:{n:3,label:'04-A'},q_04b:{n:2,label:'04-B (contingency)'},q_04c:{n:2,label:'04-C'}};
+  Object.entries(mins).forEach(([id,{n,label}])=>{
+    const el=document.getElementById(id);
+    if(!el) return;
+    const cnt=countSentences(el.value);
+    if(cnt<n) issues.push('Module '+label+': '+cnt+' of '+n+(n===1?' sentence':' sentences')+' written');
+  });
+  const imgCount=document.querySelectorAll('#grid_02b .image-thumb').length;
+  if(imgCount<2) issues.push('Module 02-B: '+imgCount+' of 2 required images uploaded');
+  if(!document.getElementById('sig_student').value.trim()) issues.push('Declaration: Signature (full name) is missing');
+  if(issues.length===0){ window.print(); return; }
+  const list=document.getElementById('preflight-list');
+  list.innerHTML=issues.map(i=>'<li>'+i+'</li>').join('');
+  document.getElementById('preflight-overlay').classList.add('active');
+}
+function closePreflight(){ document.getElementById('preflight-overlay').classList.remove('active'); }
+
+/* DOWNLOAD WITH DATA */
+function downloadHTML(){
+  const data=gatherData();
+  const dataTag='<script id="__saved__" type="application/json">'+JSON.stringify(data)+'<\/script>';
+  let html=document.documentElement.outerHTML;
+  html=html.replace(/<script id="__saved__"[\s\S]*?<\/script>/g,'');
+  html=html.replace('</body>',dataTag+'</body>');
+  const blob=new Blob(['<!DOCTYPE html>\n'+html],{type:'text/html'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='IDEA403_ProgressUpdate_'+(document.getElementById('f_name').value||'student').replace(/[^a-zA-Z0-9]/g,'_')+'.html';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* INIT */
+window.addEventListener('load',()=>{
+  const saved=document.getElementById('__saved__');
+  if(saved){ try{ restoreData(JSON.parse(saved.textContent)); }catch(e){} }
+  else{
+    const ls=localStorage.getItem(SAVE_KEY);
+    if(ls){ try{ restoreData(JSON.parse(ls)); document.getElementById('save-status').textContent='Restored'; }catch(e){} }
+  }
+  document.querySelectorAll('textarea').forEach(autoResize);
+  updateCompletion();
+});
+</script>
+</body>
+</html>

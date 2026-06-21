@@ -1,0 +1,1832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDEA-BLADE | Assignment 02: Build Strategy & Stackup</title>
+<link rel="icon" type="image/png" sizes="512x512" href="/IDEA/ib-android-chrome-512x512.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg0: #020A04; --bg1: #050F07; --bg2: #081209;
+  --green: #00FF41; --gold: #C8FF00; --cyan: #00F0FF;
+  --amber: #FF8C00; --teal: #00AA88; --violet: #5500AA;
+  --white: #E8FFE8; --dim: #4A7A52; --ice: #88DDFF;
+  --glow-green: 0 0 10px rgba(0,255,65,0.8), 0 0 28px rgba(0,255,65,0.3);
+  --glow-gold: 0 0 10px rgba(200,255,0,0.8), 0 0 28px rgba(200,255,0,0.3);
+  --glow-amber: 0 0 10px rgba(255,140,0,0.8), 0 0 28px rgba(255,140,0,0.3);
+}
+
+body {
+  background: var(--bg0); color: var(--white);
+  font-family: 'Rajdhani', sans-serif; font-size: 15px; line-height: 1.6;
+  min-height: 100vh; overflow-x: hidden;
+}
+
+/* === THEMED SCROLLBARS === */
+::-webkit-scrollbar { height: 8px; width: 8px; }
+::-webkit-scrollbar-track { background: rgba(0, 255, 65, 0.05); border: 1px solid rgba(0,255,65,0.1); }
+::-webkit-scrollbar-thumb { background: rgba(0, 255, 65, 0.3); border: 1px solid rgba(0,255,65,0.5); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0, 255, 65, 0.6); }
+.table-container { scrollbar-width: thin; scrollbar-color: rgba(0,255,65,0.3) rgba(0,255,65,0.05); }
+
+/* === INTERACTIVITY === */
+input, textarea, select { transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease; }
+input:hover:not(:disabled), textarea:hover:not(:disabled), select:hover:not(:disabled) { border-color: rgba(0,255,65,0.4) !important; }
+.tb-btn:active { transform: scale(0.96); }
+
+/* === SCROLL PROGRESS BAR === */
+#scroll-progress {
+  position: fixed; top: 0; left: 0; width: 0%; height: 2px;
+  background: var(--green); box-shadow: var(--glow-green);
+  z-index: 1001; transition: width 0.08s linear; pointer-events: none;
+}
+
+/* === CUSTOM CURSORS === */
+/* Default Cursor (Option 1: The CAD Draftsman) */
+body, html {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' opacity='0.85'%3E%3Cline x1='12' y1='0' x2='12' y2='9' stroke='%2300FF41' stroke-width='1.5'/%3E%3Cline x1='12' y1='15' x2='12' y2='24' stroke='%2300FF41' stroke-width='1.5'/%3E%3Cline x1='0' y1='12' x2='9' y2='12' stroke='%2300FF41' stroke-width='1.5'/%3E%3Cline x1='15' y1='12' x2='24' y2='12' stroke='%2300FF41' stroke-width='1.5'/%3E%3Crect x='11' y='11' width='2' height='2' fill='%2300FF41'/%3E%3C/svg%3E") 12 12, crosshair;
+}
+
+/* Pointer Cursor: Open HUD Bracket for readability (Opacity 75%) */
+a, button, .tb-btn, .action-btn, .rubric-toggle, select, input[type="radio"], input[type="checkbox"], label, th[data-tip] {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' opacity='0.75'%3E%3Cpath d='M7 10V7h3M14 7h3v3M17 14v3h-3M10 17H7v-3' fill='none' stroke='%23C8FF00' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='1.5' fill='%23C8FF00'/%3E%3C/svg%3E") 12 12, pointer !important;
+}
+
+/* Text Cursor: Cyan Digital I-Beam (Opacity 60% to not overpower text) */
+input[type="text"], input[type="number"], textarea, .collab-names input, .mfg-step-input {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' opacity='0.6'%3E%3Cline x1='12' y1='4' x2='12' y2='20' stroke='%2300F0FF' stroke-width='1.5'/%3E%3Cline x1='8' y1='4' x2='16' y2='4' stroke='%2300F0FF' stroke-width='1.5'/%3E%3Cline x1='8' y1='20' x2='16' y2='20' stroke='%2300F0FF' stroke-width='1.5'/%3E%3C/svg%3E") 12 12, text !important;
+}
+
+/* === TOOLBAR === */
+#toolbar {
+  position: sticky; top: 0; z-index: 1000;
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  background: rgba(2, 10, 4, 0.9); border-bottom: 1px solid rgba(0,255,65,0.18);
+  padding: 8px 20px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.tb-btn {
+  font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1.5px;
+  padding: 7px 14px; border: 1px solid rgba(0,255,65,0.28); background: rgba(0,255,65,0.04);
+  color: var(--green); cursor: pointer; text-transform: uppercase; white-space: nowrap;
+}
+.tb-btn:hover { background: rgba(0,255,65,0.12); border-color: rgba(0,255,65,0.6); }
+.tb-btn.danger { border-color: rgba(255,140,0,0.28); color: var(--amber); background: rgba(255,140,0,0.03); }
+.tb-btn.danger:hover { background: rgba(255,140,0,0.1); border-color: rgba(255,140,0,0.6); }
+#tb-score {
+  font-family: 'Orbitron', sans-serif; font-size: 11px; color: var(--gold); letter-spacing: 2px;
+  padding: 6px 12px; border: 1px solid rgba(200,255,0,0.2); background: rgba(200,255,0,0.04); white-space: nowrap;
+}
+#tb-save-status {
+  font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim);
+  letter-spacing: 1px; margin-left: auto; transition: color 0.3s;
+}
+#tb-save-status.flash { color: var(--green); }
+
+/* === BACKGROUND CANVAS === */
+#bg-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; opacity: 0.55; }
+
+/* === PAGE === */
+.page { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 32px 32px 60px; }
+
+/* === VERSION WARNING === */
+#version-warning {
+  display: none; background: rgba(255,140,0,0.08); border: 1px solid var(--amber);
+  padding: 10px 16px; margin-bottom: 16px; font-family: 'Share Tech Mono', monospace;
+  font-size: 11px; color: var(--amber); letter-spacing: 1px; line-height: 1.6;
+}
+
+/* === HEADER === */
+.header {
+  border: 1px solid rgba(0,255,65,0.28); border-bottom: 3px solid var(--green);
+  background: rgba(5,15,7,0.97); padding: 28px 32px 24px; margin-bottom: 20px;
+  position: relative; overflow: hidden; break-inside: avoid;
+}
+.header::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+}
+.header-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+.brand-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 3px; text-transform: uppercase; display: block; margin-bottom: 4px; }
+.brand-title { font-family: 'Orbitron', sans-serif; font-size: 30px; font-weight: 900; color: var(--green); letter-spacing: 4px; text-shadow: var(--glow-green); line-height: 1; display: block; margin-bottom: 4px; }
+.brand-sub { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 2px; display: block; }
+.badge-num { font-family: 'Orbitron', sans-serif; font-size: 42px; font-weight: 900; color: rgba(0,255,65,0.12); line-height: 1; text-align: right; display: block; }
+.badge-label { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 2px; text-align: right; display: block; }
+.header-title { font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700; color: var(--green); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid rgba(0,255,65,0.12); }
+.student-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.info-field { display: flex; flex-direction: column; gap: 4px; }
+.info-field label, .field-row label { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; display: block; }
+.info-field input, .field-row input[type="text"], .field-row input[type="number"], .field-row select {
+  background: var(--bg2); border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim);
+  color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 15px; padding: 9px 12px; outline: none; width: 100%;
+}
+.field-row select { font-family: 'Share Tech Mono', monospace; font-size: 13px; appearance: none; cursor: pointer; }
+.field-row select option { background: var(--bg1); color: var(--white); }
+.info-field input:focus, .field-row input[type="text"]:focus, .field-row input[type="number"]:focus, .field-row select:focus { border-color: var(--green) !important; box-shadow: 0 0 8px rgba(0,255,65,0.1); }
+.info-field input[readonly] { color: var(--cyan); cursor: default; border-color: rgba(0,240,255,0.15); }
+.info-field input::placeholder, .field-row input::placeholder { color: var(--dim); font-style: italic; font-size: 13px; }
+
+/* === COLLABORATION === */
+.collab-row { display: flex; align-items: center; gap: 16px; padding-top: 14px; border-top: 1px solid rgba(0,255,65,0.08); flex-wrap: wrap; }
+.collab-label { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; white-space: nowrap; }
+.collab-options { display: flex; gap: 16px; }
+.collab-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.collab-opt input[type="radio"] { accent-color: var(--green); width: 14px; height: 14px; cursor: pointer; }
+.collab-opt span { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 1px; }
+.collab-names { flex: 1; min-width: 200px; }
+.collab-names input { background: var(--bg2); border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim); color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 14px; padding: 7px 12px; outline: none; width: 100%; transition: border-color 0.2s, opacity 0.2s; }
+.collab-names input:focus { border-color: var(--green) !important; }
+.collab-names input:disabled { background: rgba(0,255,65,0.02) !important; border-color: rgba(0,255,65,0.05) !important; color: var(--dim) !important; }
+.collab-names input::placeholder { color: var(--dim); font-style: italic; font-size: 12px; }
+.collab-note { font-family: 'Share Tech Mono', monospace; font-size: 9px; color: rgba(74,122,82,0.55); letter-spacing: 1px; display: block; margin-top: 7px; font-style: italic; width: 100%; }
+
+.collab-detail-wrap textarea {
+  background: var(--bg2); border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim);
+  color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 15px; padding: 10px 12px;
+  outline: none; resize: none; overflow: hidden; width: 100%; min-height: 50px; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.collab-detail-wrap textarea:focus { border-color: var(--green) !important; box-shadow: 0 0 8px rgba(0,255,65,0.1); }
+.collab-detail-wrap textarea::placeholder { color: var(--dim); font-style: italic; font-size: 13px; }
+
+/* === SUBMISSION INSTRUCTIONS === */
+.submit-callout { border: 1px solid rgba(255,140,0,0.18); background: rgba(255,140,0,0.03); padding: 12px 16px; margin-bottom: 16px; }
+.submit-callout-title { font-family: 'Orbitron', sans-serif; font-size: 9px; letter-spacing: 3px; color: var(--amber); text-transform: uppercase; margin-bottom: 8px; }
+.submit-steps { display: flex; gap: 0; flex-wrap: wrap; }
+.submit-step { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 140px; padding: 4px 8px; }
+.step-num { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; color: var(--amber); flex-shrink: 0; line-height: 1.4; }
+.step-text { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 0.5px; line-height: 1.5; }
+.step-text em { color: var(--green); font-style: normal; }
+
+.rulebook-block { border: 2px solid var(--gold); background: rgba(200,255,0,0.03); margin-bottom: 20px; padding: 20px 24px; position: relative; }
+.rulebook-block::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+.rulebook-eyebrow { font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 3px; color: var(--gold); text-transform: uppercase; margin-bottom: 10px; display: block; }
+.rulebook-link-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.rulebook-link-btn { font-family: 'Orbitron', sans-serif; font-size: 13px; font-weight: 900; color: var(--bg0); background: var(--gold); padding: 12px 24px; text-decoration: none; letter-spacing: 2px; text-transform: uppercase; display: inline-block; transition: background 0.15s, box-shadow 0.15s; cursor: pointer; }
+.rulebook-link-btn:hover { background: #fff; box-shadow: var(--glow-gold); }
+.rulebook-note { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 0.5px; line-height: 1.8; }
+
+/* === TOTAL BAR === */
+.total-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(0,255,65,0.04); border: 1px solid rgba(0,255,65,0.18); margin-bottom: 20px; font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); letter-spacing: 2px; }
+.total-bar strong { font-family: 'Orbitron', sans-serif; font-size: 13px; color: var(--gold); letter-spacing: 3px; animation: glow-breathe-gold 3s ease-in-out infinite; }
+@keyframes glow-breathe-gold { 0%, 100% { text-shadow: 0 0 4px rgba(200,255,0,0.2); } 50% { text-shadow: var(--glow-gold); } }
+
+/* === MODULES === */
+.module {
+  border: 1px solid rgba(0,255,65,0.18); background: var(--bg1); margin-bottom: 20px;
+  position: relative; break-inside: avoid; opacity: 0; transform: translateY(20px);
+  transition: opacity 0.65s ease, transform 0.65s ease; overflow: hidden;
+}
+.module.visible { opacity: 1; transform: translateY(0); }
+.module::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: linear-gradient(180deg, var(--green), rgba(0,255,65,0.05)); z-index: 1; }
+.module::after { content: ''; position: absolute; top: -100%; left: 0; right: 0; height: 100%; background: linear-gradient(180deg, transparent 0%, rgba(0,255,65,0.035) 50%, transparent 100%); pointer-events: none; transition: top 0.55s ease; z-index: 0; }
+.module:hover::after { top: 100%; }
+.module-header { display: flex; align-items: center; gap: 12px; padding: 12px 20px 12px 24px; border-bottom: 1px solid rgba(0,255,65,0.12); background: rgba(0,255,65,0.03); position: relative; z-index: 1; }
+.mod-num { font-family: 'Orbitron', sans-serif; font-size: 10px; font-weight: 700; color: var(--dim); letter-spacing: 1px; background: rgba(0,255,65,0.07); padding: 3px 8px; border: 1px solid rgba(0,255,65,0.18); }
+.mod-title { font-family: 'Orbitron', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 3px; color: var(--green); flex: 1; text-transform: uppercase; }
+.mod-pts { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--gold); letter-spacing: 2px; background: rgba(200,255,0,0.05); border: 1px solid rgba(200,255,0,0.18); padding: 3px 10px; animation: glow-breathe-pts 4s ease-in-out infinite; }
+@keyframes glow-breathe-pts { 0%, 100% { text-shadow: 0 0 4px rgba(200,255,0,0.15); } 50% { text-shadow: var(--glow-gold); } }
+.mod-dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(74,122,82,0.3); border: 1px solid rgba(74,122,82,0.4); flex-shrink: 0; transition: background 0.3s, border-color 0.3s, box-shadow 0.3s; }
+.mod-dot.complete { background: var(--green); border-color: var(--green); box-shadow: 0 0 8px rgba(0,255,65,0.55); }
+.rubric-toggle { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 1px; padding: 3px 10px; border: 1px solid rgba(0,255,65,0.18); background: transparent; color: var(--dim); cursor: pointer; text-transform: uppercase; transition: color 0.2s, background 0.2s; white-space: nowrap; }
+.rubric-toggle:hover { color: var(--green); background: rgba(0,255,65,0.05); }
+.rubric-toggle.open { color: rgba(74,122,82,0.7); }
+.module-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; }
+
+/* === RUBRIC PANEL === */
+.rubric-panel { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; background: rgba(0,255,65,0.015); border-bottom: 0 solid rgba(0,255,65,0.1); }
+.rubric-panel.open { max-height: 700px; border-bottom: 1px solid rgba(0,255,65,0.1); }
+.rubric-inner { padding: 12px 24px 16px; }
+.rubric-title-row { font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid rgba(0,255,65,0.08); margin-bottom: 2px; display: flex; justify-content: space-between; }
+.rubric-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 7px 0; border-bottom: 1px solid rgba(0,255,65,0.04); }
+.rubric-row:last-child { border-bottom: none; }
+.rubric-criteria { font-size: 13px; color: var(--dim); line-height: 1.5; flex: 1; }
+.rubric-criteria strong { color: var(--white); font-weight: 600; }
+.rubric-pts { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--gold); white-space: nowrap; padding-top: 2px; }
+
+/* === FORM FIELDS === */
+.field-row { display: flex; flex-direction: column; gap: 5px; }
+.field-row textarea {
+  background: var(--bg2); border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim);
+  color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 15px; padding: 10px 12px;
+  outline: none; resize: none; overflow: hidden; width: 100%; min-height: 80px;
+}
+.field-row textarea:focus { border-color: var(--green) !important; box-shadow: 0 0 8px rgba(0,255,65,0.08), inset 0 0 4px rgba(0,255,65,0.03); }
+.field-row textarea::placeholder { color: var(--dim); font-style: italic; font-size: 13px; }
+.sent-count { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1px; padding: 4px 8px; border-left: 2px solid var(--dim); color: var(--dim); transition: color 0.2s, border-color 0.2s; display: flex; align-items: center; gap: 6px; }
+.sent-count.met { color: var(--green); border-left-color: var(--green); }
+.sent-count.unmet.active { color: var(--amber); border-left-color: var(--amber); }
+.sent-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.prompt { font-size: 13px; color: var(--dim); font-style: italic; line-height: 1.7; padding: 10px 14px; border-left: 2px solid rgba(0,255,65,0.1); background: rgba(0,255,65,0.02); }
+.sub-label { font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; color: var(--dim); letter-spacing: 3px; text-transform: uppercase; padding: 6px 0 2px; border-bottom: 1px solid rgba(0,255,65,0.07); margin-bottom: 2px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* === CUSTOM TOOLTIP === */
+#custom-tooltip {
+    position: fixed; pointer-events: none; opacity: 0; z-index: 9999;
+    
+    /* Lowered alpha to 0.75 and added a blur for a frosted glass effect */
+    background: rgba(2,10,4,0.75); 
+    backdrop-filter: blur(6px); 
+    -webkit-backdrop-filter: blur(6px);
+    
+    color: var(--green); padding: 10px 14px;
+    border: 1px solid var(--green); box-shadow: var(--glow-green);
+    font-family: 'Share Tech Mono', monospace; font-size: 12px;
+    width: max-content; max-width: 280px; line-height: 1.5;
+    transform: translate(-50%, -100%); margin-top: -15px; margin-left: 10px;
+    transition: opacity 0.05s ease-out;
+}
+#custom-tooltip strong { color: var(--gold); display: block; margin-bottom: 4px; border-bottom: 1px solid rgba(200,255,0,0.3); padding-bottom: 2px;}
+#custom-tooltip.show { opacity: 1; }
+
+/* === VISUALIZER COMPONENT === */
+.table-container { overflow-x: auto; margin-bottom: 20px; border: 1px solid rgba(0,255,65,0.18); background: var(--bg2); padding-bottom: 8px; }
+#comp-table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+#comp-table th { background: rgba(0,255,65,0.05); color: var(--green); font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; text-align: left; padding: 10px; border-bottom: 1px solid rgba(0,255,65,0.18); border-right: 1px solid rgba(0,255,65,0.05); vertical-align: middle; cursor: help; }
+
+#comp-table td { padding: 0; border-bottom: 1px solid rgba(0,255,65,0.05); border-right: 1px solid rgba(0,255,65,0.05); background: var(--bg1); position: relative; vertical-align: top; }
+#comp-table tbody tr { transition: background 0.2s; }
+#comp-table tbody tr:hover { background: rgba(0,255,65,0.03); }
+#comp-table td input, #comp-table td select { width: 100%; background: transparent; border: none; border-bottom: 1px solid transparent; color: var(--white); font-family: 'Share Tech Mono', monospace; padding: 10px; box-sizing: border-box; font-size: 12px; }
+#comp-table td select { appearance: none; cursor: pointer; }
+#comp-table td select option { background: var(--bg2); color: var(--white); font-family: 'Share Tech Mono', monospace; }
+#comp-table td input[type="color"] { height: 35px; padding: 2px; cursor: pointer; }
+#comp-table td input[type="number"] { text-align: center; }
+#comp-table td input:focus, #comp-table td select:focus { outline: none; background: rgba(0,255,65,0.05); border-bottom-color: var(--green); }
+.custom-hidden-input { width: 100%; margin-top: 0; background: rgba(0,255,65,0.05) !important; border-top: 1px dashed rgba(0,255,65,0.3) !important; color: var(--gold) !important; padding: 6px 10px !important; font-size: 11px !important; box-sizing: border-box; }
+.custom-hidden-input:focus { border-bottom-color: var(--gold) !important; }
+.controls-cell { display: flex; align-items: center; justify-content: space-evenly; padding: 8px 0; height: 100%; }
+.drag-handle { cursor: grab; color: var(--dim); font-size: 14px; user-select: none; transition: color 0.2s; }
+.drag-handle:hover { color: var(--white); }
+tr[draggable="true"]:active .drag-handle { cursor: grabbing; }
+.action-btn { cursor: pointer; color: var(--dim); font-size: 14px; user-select: none; transition: color 0.2s; }
+.action-btn:hover { color: var(--green); }
+.action-btn.del:hover { color: var(--amber); }
+tr.drag-over { border-top: 2px solid var(--green) !important; background-color: rgba(0, 255, 65, 0.05) !important; }
+.visualizer-wrapper { background: rgba(0,255,65,0.02); border: 1px solid rgba(0,255,65,0.18); padding: 20px; margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; position: relative; overflow: hidden; }
+.visualizer-label { position: absolute; top: 10px; left: 10px; color: var(--green); font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; }
+.zoom-controls { position: absolute; top: 10px; right: 10px; display: flex; align-items: center; gap: 10px; z-index: 10; }
+.zoom-controls label { color: var(--green); font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+.zoom-controls input[type="range"] { accent-color: var(--green); cursor: pointer; }
+.stack-container { display: flex; justify-content: center; align-items: center; margin-top: 20px; position: relative; width: 100%; overflow-x: auto; overflow-y: visible; padding-bottom: 10px; }
+#height-readout { margin-top: 15px; font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: bold; text-align: center; line-height: 1.4; transition: color .3s; }
+.vis-svg-wrap { overflow: visible; background: var(--bg0); border-radius: 4px; border: 1px solid rgba(0,255,65,0.18); transition: width 0.2s ease, height 0.2s ease; box-shadow: inset 0 0 20px rgba(0,0,0,0.8); }
+.vis-drag-layer { cursor: grab; transition: opacity 0.2s; }
+.vis-drag-layer:active { cursor: grabbing; opacity: 0.8; }
+.drag-handle-od { fill: var(--gold); cursor: ew-resize; stroke: var(--bg0); stroke-width: 1.5; }
+.drag-handle-od:hover { r: 7; }
+.drag-handle-thick { fill: var(--gold); cursor: ns-resize; stroke: var(--bg0); stroke-width: 1.5; }
+.drag-handle-thick:hover { r: 7; }
+.add-row-btn { font-family: 'Share Tech Mono', monospace; font-size: 10px; letter-spacing: 1.5px; padding: 6px 14px; border: 1px dashed rgba(0,255,65,0.2); background: transparent; color: var(--dim); cursor: pointer; text-transform: uppercase; transition: color 0.2s, border-color 0.2s, background 0.2s; margin: 8px 10px 4px; display: inline-block; }
+.add-row-btn:hover { color: var(--green); border-color: rgba(0,255,65,0.4); background: rgba(0,255,65,0.03); }
+.mfg-step-input { background: var(--bg2); border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim); color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 15px; padding: 9px 12px; outline: none; width: 100%; transition: border-color 0.2s; }
+.mfg-step-input:focus { border-color: var(--green) !important; }
+
+/* === PRINT MIRRORS === */
+.print-mirror { display: none; color: var(--green); font-family: 'Rajdhani', sans-serif; font-size: 15px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; padding: 10px 12px; border: 1px solid rgba(0,255,65,0.12); border-bottom: 1px solid var(--dim); background: var(--bg2); min-height: 34px; width: 100%; }
+.print-mirror.single-line { white-space: normal; overflow: visible; min-height: auto; }
+
+/* === DECLARATION === */
+.declaration-block { border: 1px solid rgba(0,255,65,0.18); background: rgba(0,255,65,0.02); padding: 18px 22px; margin-bottom: 20px; }
+.declaration-title { font-family: 'Orbitron', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 3px; color: var(--green); text-transform: uppercase; margin-bottom: 10px; }
+.declaration-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); line-height: 1.8; margin-bottom: 14px; }
+.decl-checkbox { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.decl-checkbox input[type="checkbox"] { accent-color: var(--green); width: 16px; height: 16px; margin-top: 2px; cursor: pointer; flex-shrink: 0; }
+.decl-checkbox-label { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--white); letter-spacing: 0.5px; line-height: 1.6; }
+
+/* === INSTRUCTOR TABLE === */
+.instructor-table { display: none; }
+
+/* === FOOTER === */
+.footer { display: flex; justify-content: space-between; align-items: center; margin-top: 32px; padding: 14px 20px; border: 1px solid rgba(0,255,65,0.12); background: var(--bg1); font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); letter-spacing: 2px; flex-wrap: wrap; gap: 10px; }
+.footer-pts { font-family: 'Orbitron', sans-serif; font-size: 14px; font-weight: 700; color: var(--gold); letter-spacing: 3px; }
+
+/* === DIALOGS === */
+.dialog-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.88); z-index: 9998; align-items: center; justify-content: center; }
+.dialog-overlay.active { display: flex; }
+.dialog-box { border: 2px solid var(--amber); background: var(--bg1); padding: 30px 36px; max-width: 520px; text-align: center; max-height: 80vh; overflow-y: auto; }
+.dialog-title { font-family: 'Orbitron', sans-serif; font-size: 12px; font-weight: 700; color: var(--amber); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; }
+.dialog-text { font-family: 'Share Tech Mono', monospace; font-size: 11px; color: var(--dim); line-height: 1.8; margin-bottom: 22px; }
+.dialog-btns { display: flex; gap: 12px; justify-content: center; }
+.preflight-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; text-align: left; }
+.preflight-issue { font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--amber); letter-spacing: 0.5px; padding: 5px 0; border-bottom: 1px solid rgba(255,140,0,0.1); display: flex; gap: 8px; }
+.preflight-issue::before { content: '[!]'; color: var(--amber); flex-shrink: 0; }
+
+/* === PREFERS REDUCED MOTION === */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+  .module { opacity: 1 !important; transform: none !important; }
+  .module::after { display: none !important; }
+}
+
+/* === PRINT === */
+@page { size: letter; margin: 0.5in; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  #bg-canvas, #scroll-progress, #toolbar, .submit-callout, .sent-count,
+  .add-row-btn, .zoom-controls, .controls-cell, .rubric-toggle, .rubric-panel,
+  .dialog-overlay, #custom-tooltip, .del { display: none !important; }
+  
+  .info-field input, .field-row input[type="text"], .field-row input[type="number"], .field-row textarea, .field-row select, .collab-row input, .mfg-step-input { display: none !important; }
+  input[type="checkbox"], input[type="radio"] { display: none !important; }
+  .collab-opt span { display: none; }
+  .print-mirror { display: block !important; }
+
+  #comp-table input, #comp-table select { border: none !important; background: transparent !important; padding: 4px !important; color: var(--white) !important; text-align: left; }
+  #comp-table select { appearance: none; -webkit-appearance: none; }
+  #comp-table td { border-bottom: 1px solid rgba(0,255,65,0.1) !important; }
+  .custom-hidden-input { border: none !important; padding: 0 !important; color: var(--white) !important; background: transparent !important; }
+  th[data-tip]::after { display: none !important; }
+  
+  .module, .header, .declaration-block, .rulebook-block, .wo-card { break-inside: avoid; page-break-inside: avoid; }
+  .page { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+  .brand-title { text-shadow: none !important; }
+  .module { opacity: 1 !important; transform: none !important; background: var(--bg1) !important; border: 1px solid rgba(0,255,65,0.3) !important; }
+  .module::after { display: none !important; }
+  
+  #wo-process-wrap { display: flex !important; }
+  
+  .instructor-table { display: table !important; width: 100%; border-collapse: collapse; margin-top: 24px; page-break-inside: avoid; }
+  .instructor-table th, .instructor-table td { border: 1px solid rgba(0,255,65,0.25); padding: 8px 12px; font-family: 'Share Tech Mono', monospace; font-size: 10px; text-align: left; }
+  .instructor-table th { background: rgba(0,255,65,0.05); color: var(--dim); font-size: 9px; letter-spacing: 2px; text-transform: uppercase; }
+  .instructor-table td { color: var(--white); min-height: 32px; vertical-align: top; }
+  .instructor-table .score-cell { min-width: 60px; }
+  .decl-checkbox { padding: 8px 12px; }
+}
+</style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+<div id="custom-tooltip"></div>
+
+<div id="toolbar">
+  <button class="tb-btn" onclick="printWithPreflight()">[ Print / Export PDF ]</button>
+  <button class="tb-btn" onclick="saveToStorage()">[ Save Progress ]</button>
+  <button class="tb-btn" onclick="downloadHTML()">[ Download with Data ]</button>
+  <button class="tb-btn" style="border-color: rgba(0, 240, 255, 0.4); color: var(--cyan); background: rgba(0, 240, 255, 0.05);" onclick="showRestoreDialog()">[ Restore Defaults ]</button>
+  <button class="tb-btn danger" onclick="showClearDialog()">[ Clear All ]</button>
+  <span id="tb-score">0 / 63 pts</span>
+  <span id="tb-save-status">Auto-save on</span>
+</div>
+
+<canvas id="bg-canvas"></canvas>
+<style>
+  #mx-toggle-btn {
+    position: fixed; bottom: 20px; right: 20px; z-index: 1001;
+    background: rgba(2,10,4,0.85); border: 1px solid var(--green);
+    color: var(--green); font-family: 'Orbitron', sans-serif; font-size: 10px; letter-spacing: 2px;
+    padding: 8px 16px; cursor: pointer; text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(0,255,65,0.1); transition: all 0.3s;
+  }
+  #mx-toggle-btn:hover { background: rgba(0,255,65,0.1); box-shadow: 0 0 15px rgba(0,255,65,0.4); }
+  #mx-toggle-btn.active { background: var(--green); color: var(--bg0); box-shadow: var(--glow-green); }
+
+  #matrix-controls { 
+    position: fixed; bottom: 60px; right: 20px; width: 300px;
+    background: rgba(2,10,4,0.95); border: 1px solid rgba(0,255,65,0.3); 
+    padding: 16px 20px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); 
+    z-index: 1000; font-family: 'Share Tech Mono', monospace; font-size: 10px; color: var(--dim); 
+    display: flex; flex-direction: column; gap: 12px; 
+    opacity: 0; pointer-events: none; transform: translateY(20px);
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+  }
+  #matrix-controls.open { 
+    opacity: 1; pointer-events: all; transform: translateY(0);
+    border-color: var(--green); box-shadow: 0 0 20px rgba(0,255,65,0.15); 
+  }
+
+  .mx-slider-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .mx-slider-row label { letter-spacing: 1px; text-transform: uppercase; width: 60px; }
+  .mx-slider-row input[type="range"] { flex: 1; accent-color: var(--green); cursor: ew-resize; }
+  .mx-readout { width: 28px; text-align: right; color: var(--gold); font-family: 'Orbitron', sans-serif; font-size: 10px; }
+
+  .mx-group-title { font-family: 'Orbitron', sans-serif; font-size: 9px; color: var(--dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 2px; border-top: 1px dashed rgba(0,255,65,0.2); padding-top: 10px; }
+  .mx-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  
+  .mx-tag { border: 1px solid rgba(0,255,65,0.2); background: rgba(0,255,65,0.02); color: var(--dim); padding: 4px 8px; cursor: pointer; text-transform: uppercase; font-size: 9px; transition: all 0.2s; user-select: none; }
+  .mx-tag:hover { border-color: rgba(0,255,65,0.5); }
+  .mx-tag.active { background: rgba(0,255,65,0.15); color: var(--green); border-color: var(--green); box-shadow: inset 0 0 8px rgba(0,255,65,0.1); }
+
+  .tag-green { --c: #00FF41; --bg: rgba(0,255,65,0.15); }
+  .tag-cyan  { --c: #00F0FF; --bg: rgba(0,240,255,0.15); }
+  .tag-gold  { --c: #C8FF00; --bg: rgba(200,255,0,0.15); }
+  .tag-amber { --c: #FF8C00; --bg: rgba(255,140,0,0.15); }
+  
+  .mx-tag.color-tag { border-color: rgba(255,255,255,0.1); color: rgba(255,255,255,0.4); border-left: 3px solid var(--c); }
+  .mx-tag.color-tag:hover { border-color: var(--c); color: var(--c); }
+  .mx-tag.color-tag.active { background: var(--bg); color: var(--c); border-color: var(--c); box-shadow: inset 0 0 8px var(--bg); }
+</style>
+
+<button id="mx-toggle-btn" class="no-print">[ Canvas Uplink ]</button>
+
+<div id="matrix-controls" class="no-print">
+  <div style="font-family: 'Orbitron', sans-serif; font-size: 12px; letter-spacing: 3px; color: var(--green); border-bottom: 1px solid rgba(0,255,65,0.2); padding-bottom: 8px; margin-bottom: 4px; text-transform: uppercase;">Canvas Uplink</div>
+
+  <div class="mx-slider-row">
+    <label>Size</label>
+    <input type="range" id="mx-size" min="8" max="40" value="14">
+    <span class="mx-readout" id="mx-out-size">14</span>
+  </div>
+  <div class="mx-slider-row">
+    <label>Density</label>
+    <input type="range" id="mx-density" min="1" max="100" value="85">
+    <span class="mx-readout" id="mx-out-density">85</span>
+  </div>
+  <div class="mx-slider-row">
+    <label>Velocity</label>
+    <input type="range" id="mx-speed" min="1" max="100" value="35">
+    <span class="mx-readout" id="mx-out-speed">35</span>
+  </div>
+  <div class="mx-slider-row">
+    <label>Trails</label>
+    <input type="range" id="mx-fade" min="1" max="100" value="70">
+    <span class="mx-readout" id="mx-out-fade">70</span>
+  </div>
+
+  <div class="mx-group-title">Data Types</div>
+  <div class="mx-tags">
+    <div class="mx-tag active" data-type="char" data-val="matrix">Katakana</div>
+    <div class="mx-tag" data-type="char" data-val="binary">Binary</div>
+    <div class="mx-tag" data-type="char" data-val="hex">Hex</div>
+  </div>
+
+  <div class="mx-group-title">Palettes</div>
+  <div class="mx-tags">
+    <div class="mx-tag color-tag tag-green active" data-type="color" data-val="green">Neon Green</div>
+    <div class="mx-tag color-tag tag-cyan" data-type="color" data-val="cyan">Cyan Ice</div>
+    <div class="mx-tag color-tag tag-gold" data-type="color" data-val="gold">Gold Alert</div>
+    <div class="mx-tag color-tag tag-amber" data-type="color" data-val="amber">Warning</div>
+  </div>
+
+  <button id="mx-random-btn" class="tb-btn" style="width:100%; text-align:center; margin-top: 10px;">[ Execute Randomize ]</button>
+</div>
+
+<div class="dialog-overlay" id="clear-dialog">
+  <div class="dialog-box">
+    <div class="dialog-title">Clear All Progress?</div>
+    <div class="dialog-text">This will permanently erase all fields, stackup rows, and saved data for this assignment. This cannot be undone.</div>
+    <div class="dialog-btns">
+      <button class="tb-btn danger" onclick="confirmClear()">[ Yes, Clear Everything ]</button>
+      <button class="tb-btn" onclick="hideClearDialog()">[ Cancel ]</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="restore-dialog">
+  <div class="dialog-box" style="border-color: var(--cyan);">
+    <div class="dialog-title" style="color: var(--cyan);">Restore Defaults?</div>
+    <div class="dialog-text">This will reset the component stackup to its default example state, erase your typed answers, and reset the canvas settings. This cannot be undone.</div>
+    <div class="dialog-btns">
+      <button class="tb-btn" style="border-color: rgba(0,240,255,0.6); color: var(--cyan); background: rgba(0,240,255,0.1);" onclick="confirmRestore()">[ Yes, Restore Defaults ]</button>
+      <button class="tb-btn" onclick="hideRestoreDialog()">[ Cancel ]</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="preflight-dialog">
+  <div class="dialog-box">
+    <div class="dialog-title">Pre-Print Check</div>
+    <div class="dialog-text">The following items are incomplete. You can go back to fix them or print anyway.</div>
+    <div class="preflight-list" id="preflight-list"></div>
+    <div class="dialog-btns">
+      <button class="tb-btn danger" onclick="proceedPrint()">[ Print Anyway ]</button>
+      <button class="tb-btn" onclick="hidePreflight()">[ Go Back ]</button>
+    </div>
+  </div>
+</div>
+
+<div id="version-warning"></div>
+
+<div class="page">
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <span class="brand-label">Don Bosco Technical Institute &nbsp;|&nbsp; IDEA-113</span>
+      <span class="brand-title">IDEA-BLADE</span>
+      <span class="brand-sub">Battle-Tops Design and Manufacturing Project</span>
+    </div>
+    <div style="text-align:right">
+      <span class="badge-num">02</span>
+      <span class="badge-label">Assignment</span>
+    </div>
+  </div>
+  <div class="header-title">Build Strategy & Stackup</div>
+  <div class="student-grid">
+    <div class="info-field">
+      <label>Operator (Student Name)</label>
+      <input type="text" data-field="student-name" placeholder="Full name" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="student-name"></div>
+    </div>
+    <div class="info-field">
+      <label>Date</label>
+      <input type="text" data-field="student-date" placeholder="MM / DD / YYYY" autocomplete="off" readonly>
+      <div class="print-mirror single-line" data-mirror="student-date"></div>
+    </div>
+    <div class="info-field">
+      <label>Due Date</label>
+      <input type="text" value="05 / 14 / 2026" readonly>
+    </div>
+  </div>
+  <div class="collab-row">
+    <span class="collab-label">Collaboration</span>
+    <div class="collab-options">
+      <label class="collab-opt"><input type="radio" name="collab" value="solo" data-field="collab-status"> <span>Working solo</span></label>
+      <label class="collab-opt"><input type="radio" name="collab" value="collab" data-field="collab-status"> <span>Collaborating</span></label>
+    </div>
+    <div class="collab-names">
+      <input type="text" data-field="collab-names" placeholder="Collaborator name(s) — designs still compete independently" autocomplete="off">
+      <div class="print-mirror single-line" data-mirror="collab-names"></div>
+    </div>
+    <div class="collab-detail-wrap" id="collab-detail-wrap" style="display: none; width: 100%; margin-top: 14px; border-top: 1px dashed rgba(0,255,65,0.15); padding-top: 14px;">
+      <label class="collab-label" style="display:block; margin-bottom:6px;">Nature of Collaboration</label>
+      <textarea data-field="collab-detail" placeholder="What specifically are you collaborating on? e.g. sharing material sourcing research, discussing blade geometry tradeoffs, reviewing each other's stackup plan..."></textarea>
+      <div class="print-mirror" data-mirror="collab-detail"></div>
+    </div>
+    <span class="collab-note">* Individual grades. Designs compete independently regardless of collaboration.</span>
+  </div>
+</div>
+
+<div class="submit-callout">
+  <div class="submit-callout-title">Submission Instructions</div>
+  <div class="submit-steps">
+    <div class="submit-step"><div class="step-num">01</div><div class="step-text">Complete all 5 modules below</div></div>
+    <div class="submit-step"><div class="step-num">02</div><div class="step-text">Click <em>Print / Export PDF</em> in the toolbar above</div></div>
+    <div class="submit-step"><div class="step-num">03</div><div class="step-text">Select <em>Save as PDF</em> in the print dialog</div></div>
+    <div class="submit-step"><div class="step-num">04</div><div class="step-text">Enable <em>Background graphics</em> in print options</div></div>
+    <div class="submit-step"><div class="step-num">05</div><div class="step-text">Upload the PDF to <em>Google Classroom</em></div></div>
+  </div>
+</div>
+
+<div class="rulebook-block">
+  <span class="rulebook-eyebrow">Required Reading - IDEA-Blade Rulebook</span>
+  <div class="rulebook-link-row">
+    <a class="rulebook-link-btn" href="https://mrpina-dev.github.io/IDEA/IDEA-Blade_Rulebook_v2_2.html" target="_blank" rel="noopener">
+      Open Rulebook
+    </a>
+    <div class="rulebook-note">
+      All design constraints, blade contact rules, scoring criteria, and competition<br>
+      format are defined in the rulebook.
+    </div>
+  </div>
+</div>
+
+<div class="total-bar">
+  <span>Assignment Weight</span>
+  <strong>63 Points</strong>
+  <span>Complete all 5 modules &nbsp;|&nbsp; Click [ Rubric ] to see grading criteria</span>
+</div>
+
+<div class="module">
+  <div class="module-header">
+    <span class="mod-num">01</span>
+    <span class="mod-title">Design Intent</span>
+    <span class="mod-pts">10 pts</span>
+    <span class="mod-dot" id="dot-01"></span>
+    <button class="rubric-toggle" id="rt-01" onclick="toggleRubric(1)">[ Rubric ]</button>
+  </div>
+  <div class="rubric-panel" id="rubric-01">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Battle Strategy:</strong> 2–3 sentences. Clearly states intended battle behavior and connects that strategy to design philosophy.</div><div class="rubric-pts">5 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Mass Distribution Strategy:</strong> Clearly states where mass is concentrated and explains how that supports the strategy.</div><div class="rubric-pts">5 pts</div></div>
+    </div>
+  </div>
+  <div class="module-body">
+    <p class="prompt">What is this blade designed to do in battle? Attack, outlast, redirect, destabilize? Every component decision you make later should trace back to this statement.</p>
+    <div class="field-row">
+      <label>Battle Strategy & Design Philosophy</label>
+      <textarea data-field="design-intent" placeholder="Example: This blade is designed to deliver aggressive outward strikes that knock opposing blades off-balance early in the match. The high-mass outer ring maximizes angular momentum for sustained spin force at the point of impact. Every component decision prioritizes impact durability and outward mass concentration over stamina."></textarea>
+      <div class="print-mirror" data-mirror="design-intent"></div>
+      <div class="sent-count" data-min="2" data-field-ref="design-intent"><span class="sent-dot"></span><span><span class="current">0</span> / 2 sentences minimum</span></div>
+    </div>
+    
+    <div class="field-row" style="margin-top: 14px;">
+      <label>Mass Distribution Strategy</label>
+      <textarea data-field="mass-distribution" placeholder="Where in your assembly is your mass concentrated, and how does that serve your stated battle strategy? Example: Mass is concentrated at the outer blade ring at maximum OD to maximize moment of inertia for sustained spin force. The inner body is kept light to reduce total mass without sacrificing rotational momentum."></textarea>
+      <div class="print-mirror" data-mirror="mass-distribution"></div>
+      <div class="sent-count" data-min="1" data-max="2" data-field-ref="mass-distribution"><span class="sent-dot"></span><span><span class="current">0</span> / 1 to 2 sentences</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="module">
+  <div class="module-header">
+    <span class="mod-num">02</span>
+    <span class="mod-title">Component Stackup Plan</span>
+    <span class="mod-pts">35 pts</span>
+    <span class="mod-dot" id="dot-02"></span>
+    <button class="rubric-toggle" id="rt-02" onclick="toggleRubric(2)">[ Rubric ]</button>
+  </div>
+  <div class="rubric-panel" id="rubric-02">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Documentation:</strong> All components named and listed in order top-to-bottom.</div><div class="rubric-pts">5 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Material & Process:</strong> Material and manufacturing process specified for each component.</div><div class="rubric-pts">5 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Dimensional Analysis:</strong> Target thickness and target diameter recorded for each component. 0 pts if limits are exceeded.</div><div class="rubric-pts">10 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Interface Method:</strong> How each component connects to or mates with adjacent components is specified.</div><div class="rubric-pts">5 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Hex Shaft Interface:</strong> Engagement depth, interfacing components, and retention method are completely specified.</div><div class="rubric-pts">5 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Manufacturing Sequence:</strong> Sequence clearly documents build order dependencies.</div><div class="rubric-pts">5 pts</div></div>
+    </div>
+  </div>
+  <div class="module-body">
+    <p class="prompt">List every component top to bottom. Hover over column titles for descriptions. Drag the ☰ handle (or drag the polygon layers inside the visualizer directly) to rearrange the stack. Use the visualizer's drag points to tweak height and diameter intuitively. Maximum Height: 3.1". Maximum Diameter: 5.0".</p>
+    
+    <div class="visualizer-wrapper">
+        <div class="visualizer-label">Live Cross-Section Visualizer</div>
+        <div class="zoom-controls">
+            <label for="vis-zoom">Scale</label>
+            <input type="range" id="vis-zoom" min="0.5" max="3" step="0.1" value="1">
+        </div>
+        <div class="stack-container" id="stack-container"></div>
+        <div id="height-readout">Total Height: 0.00 in</div>
+    </div>
+
+    <div class="table-container">
+        <table id="comp-table">
+            <thead>
+                <tr>
+                    <th class="no-print" style="width:70px; text-align:center; border-bottom: none;" data-tip="Controls — Drag to reorder layers. Duplicate or delete with the icons.">Controls</th>
+                    <th style="width:50px;" data-tip="Color — Display color in the cross-section visualizer. Does not affect grading.">Color</th>
+                    <th style="width:160px;" data-tip="Component — Name of this part in your assembly. Be specific — 'Top Body Disc' not 'Part 1'.">Component</th>
+                    <th style="width:160px;" data-tip="Material — Primary material this component is made from. Select the closest match or choose Other.">Material</th>
+                    <th style="width:70px;" data-tip="Thick(in) — Target thickness of this component in inches. This is a design target, not your stock thickness. Total stack must stay within the competition height limit."><div style="line-height:1.2;">Thick<br><span style="font-size:9px; color:var(--cyan); font-weight:normal; letter-spacing:1px; text-transform:lowercase;">in.</span></div></th>
+                    <th style="width:70px;" data-tip="OD(in) — Target outer diameter of this component in inches. Maximum allowed is 5.0 inches."><div style="line-height:1.2;">OD<br><span style="font-size:9px; color:var(--cyan); font-weight:normal; letter-spacing:1px; text-transform:lowercase;">in.</span></div></th>
+                    <th style="width:70px;" data-tip="Taper(°) — Taper angle in degrees from vertical. 0 = straight wall. Higher values create a cone or wedge profile. Leave at 0 if this component has no taper."><div style="line-height:1.2;">Taper<br><span style="font-size:9px; color:var(--cyan); font-weight:normal; letter-spacing:1px; text-transform:lowercase;">deg.</span></div></th>
+                    <th style="width:80px;" data-tip="Taper Dir — Which face the taper applies to. Top = narrows toward top. Bottom = narrows toward bottom. Both = diamond or lens profile. None = no taper."><div style="line-height:1.2;">Taper<br><span style="font-size:9px; color:var(--cyan); font-weight:normal; letter-spacing:1px; text-transform:lowercase;">dir</span></div></th>
+                    <th style="width:150px;" data-tip="Process — Manufacturing process that produces this component. Select the closest match or choose Other.">Process / Hardware</th>
+                    <th style="width:150px;" data-tip="Interface — How this component physically connects to the components above and below it in the stack. Be specific — press fit, bolted, captured between layers, etc.">Interface</th>
+                </tr>
+            </thead>
+            <tbody id="comp-body"></tbody>
+        </table>
+        <button class="add-row-btn" onclick="addTableRow('comp-body')">[ + Add Component Layer ]</button>
+    </div>
+    
+    <div class="sub-label" style="margin-top: 10px;">HEX SHAFT INTERFACE</div>
+    <div class="grid-2">
+        <div class="field-row">
+            <label>Shaft Engagement Depth (in)</label>
+            <input type="number" data-field="shaft-depth" placeholder="0.00" step="0.05" min="0.25" max="3.1">
+            <div class="print-mirror single-line" data-mirror="shaft-depth"></div>
+        </div>
+        <div class="field-row">
+            <label>Bottom Retention Method</label>
+            <textarea data-field="shaft-retention" placeholder="How is the rounded-head tip fastener retained? e.g. threaded, press fit, captured..." style="min-height:45px;"></textarea>
+            <div class="print-mirror" data-mirror="shaft-retention"></div>
+        </div>
+    </div>
+    <div class="field-row" style="margin-top:12px;">
+        <label>Interfacing Components</label>
+        <input type="text" data-field="shaft-components" placeholder="Which component(s) does the shaft engage with? Name them.">
+        <div class="print-mirror single-line" data-mirror="shaft-components"></div>
+    </div>
+    
+    <div class="field-row" style="margin-top: 24px;">
+        <label>Manufacturing Sequence</label>
+        <p class="prompt" style="margin-bottom:8px;">List your components in the order you plan to model and manufacture them. Start with the part that everything else depends on. This is your build sequence — locking this down now prevents dependency problems mid-CAD.</p>
+        <div id="mfg-sequence-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+        <button class="add-row-btn no-print" onclick="addMfgStep()" style="align-self: flex-start; margin-left: 0;">[ + Add Step ]</button>
+    </div>
+  </div>
+</div>
+
+<div class="module">
+  <div class="module-header">
+    <span class="mod-num">03</span>
+    <span class="mod-title">Material Confirmation</span>
+    <span class="mod-pts">10 pts</span>
+    <span class="mod-dot" id="dot-03"></span>
+    <button class="rubric-toggle" id="rt-03" onclick="toggleRubric(3)">[ Rubric ]</button>
+  </div>
+  <div class="rubric-panel" id="rubric-03">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Physical Confirmation:</strong> Student has physically located all materials and hardware, or has a specific sourcing plan.</div><div class="rubric-pts">6 pts</div></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Unresolved Items:</strong> Anything not confirmed is flagged by name with a concrete plan. "I'll look later" does not earn credit.</div><div class="rubric-pts">4 pts</div></div>
+    </div>
+  </div>
+  <div class="module-body">
+    <p class="prompt">List every material and hardware item you physically located. Walk the stock cabinet, hardware drawers, scrap shed. Hold it before you list it. Note where you found it and what form/size you confirmed is available.</p>
+    <div class="field-row">
+      <label>Confirmed Materials & Hardware</label>
+      <textarea data-field="materials-notes" placeholder="Example: 1/2&quot; hex aluminum shaft — confirmed in stock cabinet, multiple lengths. M5 button-head bolts — found in bin C3, alloy steel. 6061 sheet approx. 0.125&quot; thick — confirmed in scrap shed."></textarea>
+      <div class="print-mirror" data-mirror="materials-notes"></div>
+    </div>
+    <div class="field-row">
+      <label>Unresolved Items & Sourcing Plan</label>
+      <textarea data-field="unresolved-notes" placeholder="Anything you could not physically locate goes here with a specific plan. Write 'All confirmed' if nothing is unresolved."></textarea>
+      <div class="print-mirror" data-mirror="unresolved-notes"></div>
+    </div>
+  </div>
+</div>
+
+<div class="module">
+  <div class="module-header">
+    <span class="mod-num">04</span>
+    <span class="mod-title">Manufacturing Notes & Work Orders</span>
+    <span class="mod-pts">3 pts</span>
+    <span class="mod-dot" id="dot-04"></span>
+    <button class="rubric-toggle" id="rt-04" onclick="toggleRubric(4)">[ Rubric ]</button>
+  </div>
+  <div class="rubric-panel" id="rubric-04">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Shared Equipment:</strong> Any process requiring setup time or shared machine access is identified.</div><div class="rubric-pts">3 pts</div></div>
+    </div>
+  </div>
+  <div class="module-body">
+    <p class="prompt">Document your manufacturing needs here to ensure shop availability.</p>
+    <div class="field-row">
+      <label>Shared Equipment & Setup Needs</label>
+      <textarea data-field="shared-equipment" placeholder="Flag any manufacturing step that needs setup time, machine access coordination, or instructor involvement."></textarea>
+      <div class="print-mirror" data-mirror="shared-equipment"></div>
+    </div>
+    
+    <div class="sub-label" style="margin-top: 24px;">WORK ORDER INTENT</div>
+    <div class="collab-options" style="margin-bottom: 12px; gap: 20px; flex-wrap: wrap;">
+      <label class="collab-opt"><input type="radio" name="wo-intent" value="no" data-field="wo-intent"> <span>No — I do not anticipate needing a work order</span></label>
+      <label class="collab-opt"><input type="radio" name="wo-intent" value="unsure" data-field="wo-intent"> <span>Unsure — I may need one</span></label>
+      <label class="collab-opt"><input type="radio" name="wo-intent" value="yes" data-field="wo-intent"> <span>Yes — I plan to request a work order</span></label>
+    </div>
+    <div class="field-row" id="wo-process-wrap" style="display: none; margin-bottom: 12px;">
+      <input type="text" data-field="wo-process" placeholder="Which process do you anticipate needing? e.g. fiber laser cut, CNC router, advanced lathe work...">
+      <div class="print-mirror single-line" data-mirror="wo-process"></div>
+    </div>
+    <p style="color:var(--dim); font-size: 12px; line-height: 1.5; font-family: 'Share Tech Mono', monospace; margin-top: 8px;">Each student receives 2 free work orders. Additional orders cost i¢. Work orders require a complete spec with dimensioned CAD or DXF files and are submitted separately during the manufacturing phase.</p>
+  </div>
+</div>
+
+<div class="module">
+  <div class="module-header">
+    <span class="mod-num">05</span>
+    <span class="mod-title">Open Questions</span>
+    <span class="mod-pts">5 pts</span>
+    <span class="mod-dot" id="dot-05"></span>
+    <button class="rubric-toggle" id="rt-05" onclick="toggleRubric(5)">[ Rubric ]</button>
+  </div>
+  <div class="rubric-panel" id="rubric-05">
+    <div class="rubric-inner">
+      <div class="rubric-title-row"><span>Grading Criteria</span><span>Points</span></div>
+      <div class="rubric-row"><div class="rubric-criteria"><strong>Gap Identification & Resolution Plan:</strong> Knowledge gaps are specific, honest, and have a proposed next step for resolution.</div><div class="rubric-pts">5 pts</div></div>
+    </div>
+  </div>
+  <div class="module-body">
+    <p class="prompt">Be specific and honest. Vague answers earn no credit. For each uncertainty, state what you do not know and how you plan to resolve it before the CAD deadline.</p>
+    <div class="field-row">
+      <label>What do you not know yet?</label>
+      <textarea data-field="open-questions" placeholder="Example: Not sure if my chosen outer ring OD will clear the shaft collar threads at the top — will verify clearance in SolidWorks before committing to print."></textarea>
+      <div class="print-mirror" data-mirror="open-questions"></div>
+      <div class="sent-count" data-min="1" data-field-ref="open-questions"><span class="sent-dot"></span><span><span class="current">0</span> / 1 sentence minimum</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="declaration-block">
+  <div class="declaration-title">Academic Integrity Declaration</div>
+  <div class="declaration-text">
+    I confirm that the build strategy documented here represents my own design decisions and planning. I understand that using AI tools, reference designs, online calculators, and any other available resource is permitted and expected — the decisions are mine. I understand that this plan is a commitment: design choices made here are what I will build, and deviations must be justified.
+  </div>
+  <label class="decl-checkbox">
+    <input type="checkbox" data-field="declaration">
+    <span class="decl-checkbox-label">I understand and agree to the above.</span>
+  </label>
+</div>
+
+<table class="instructor-table">
+  <thead>
+    <tr>
+      <th>Module</th>
+      <th>Description</th>
+      <th class="score-cell">Pts Possible</th>
+      <th class="score-cell">Pts Earned</th>
+      <th>Notes</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>01</td><td>Design Intent</td><td>10</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>02</td><td>Component Stackup Plan</td><td>35</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>03</td><td>Material Confirmation</td><td>10</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>04</td><td>Manufacturing Notes</td><td>3</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td>05</td><td>Open Questions</td><td>5</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+    <tr><td colspan="2"><strong>Total</strong></td><td>63</td><td>&nbsp;</td><td>&nbsp;</td></tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  <span>IDEA-BLADE &nbsp;|&nbsp; Assignment 02 &nbsp;|&nbsp; Don Bosco Technical Institute &nbsp;|&nbsp; IDEA-113 &nbsp;|&nbsp; v1</span>
+  <span class="footer-pts">63 Points Total</span>
+</div>
+
+</div><script>
+/* ================================================================
+   IDEA-BLADE A02 - v1 (Stackup & Build Strategy)
+   Storage key: idea113-blade-02
+   ================================================================ */
+
+const BUILD_VERSION = 'v1';
+const STORAGE_KEY = 'idea113-blade-02';
+const TOTAL_PTS = 63;
+let autoSaveInterval = null;
+
+/* -------- VISUALIZER GLOBALS & ARRAYS -------- */
+const defaultColors = ['#303833', '#1B241D', '#00FF41', '#4A5B4D', '#111813'];
+const matOpts = ['Select...', 'Steel', 'Aluminum', 'Polycarbonate', 'HIPS', 'ABS', 'PLA', 'Wood / MDF', 'Hardware / COTS', 'Brass', 'Acrylic', 'Other'];
+const procOpts = ['Select...', '3D Print (FDM)', 'Laser Cut (Fiber)', 'Laser Cut (Diode)', 'CNC Router', 'Manual Mill', 'Manual Lathe', 'Drill Press', 'Hand Tools', 'Other'];
+const hwOpts = ['Select...', 'Shaft Collar', 'Bolts/Nuts', 'Threaded Inserts', 'Washers/Spacers', 'Bearings', 'Pins/Dowels', 'Other'];
+const ifaceOpts = ['Select...', 'Bolted', 'Press Fit', 'Slip Fit', 'Adhesive', 'Threaded', 'Captured / Sandwiched', 'Interlocking', 'Other'];
+
+let colorIndex = 0;
+let activeDrag = null;
+let activeLayerDrag = null;
+
+/* -------- CUSTOM TOOLTIP LOGIC -------- */
+document.addEventListener('mouseover', e => {
+    let th = e.target.closest('th[data-tip]');
+    if(th) {
+        let tip = document.getElementById('custom-tooltip');
+        let text = th.getAttribute('data-tip');
+        let parts = text.split(' — ');
+        if(parts.length > 1) {
+            tip.innerHTML = `<strong>${parts[0]}</strong>${parts[1]}`;
+        } else {
+            tip.innerHTML = text;
+        }
+        tip.classList.add('show');
+    }
+});
+document.addEventListener('mousemove', e => {
+    let tip = document.getElementById('custom-tooltip');
+    if(tip && tip.classList.contains('show')) {
+        tip.style.left = (e.clientX + 10) + 'px';
+        tip.style.top = (e.clientY + 10) + 'px';
+    }
+});
+document.addEventListener('mouseout', e => {
+    let th = e.target.closest('th[data-tip]');
+    if(th) {
+        let tip = document.getElementById('custom-tooltip');
+        if(tip) tip.classList.remove('show');
+    }
+});
+
+/* -------- BACKGROUND CANVAS (Matrix Rain) -------- */
+(function(){
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let drops = [], cols = 0, lastTime = 0;
+  const FPS = 16;
+  let ripples = [];
+
+  let COL_W = 18; // Now dynamic based on size
+  let config = { size: 14, density: 0.85, speed: 0.5, fade: 0.08, charTypes: ['matrix'], colorTypes: ['green'] };
+  let activeCharsList = [];
+
+  const charSets = {
+    matrix: 'ｦｧｨｩｪｫｬｭｮｯｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ01234567></>+-'.split(''),
+    binary: '01'.split(''),
+    hex: '0123456789ABCDEF'.split('')
+  };
+
+  const palettes = {
+    green: { bright: 'rgba(0, 255, 65, 0.8)', dim: 'rgba(74, 122, 82, 0.3)' },
+    cyan:  { bright: 'rgba(0, 240, 255, 0.9)', dim: 'rgba(0, 100, 120, 0.3)' },
+    gold:  { bright: 'rgba(200, 255, 0, 0.9)', dim: 'rgba(100, 120, 0, 0.3)' },
+    amber: { bright: 'rgba(255, 140, 0, 0.9)', dim: 'rgba(150, 70, 0, 0.3)' }
+  };
+
+  function applySettings() {
+    const szVal = parseInt(document.getElementById('mx-size').value);
+    const dVal = parseInt(document.getElementById('mx-density').value);
+    const sVal = parseInt(document.getElementById('mx-speed').value);
+    const fVal = parseInt(document.getElementById('mx-fade').value);
+
+    // Apply scaling math
+    config.size = szVal;
+    config.density = 1.0 - (dVal / 100) * 0.25;  
+    config.speed = 0.1 + (sVal / 100) * 1.4;       
+    config.fade = 0.30 - (fVal / 100) * 0.28;      
+
+    // Update readouts
+    document.getElementById('mx-out-size').innerText = szVal;
+    document.getElementById('mx-out-density').innerText = dVal;
+    document.getElementById('mx-out-speed').innerText = sVal;
+    document.getElementById('mx-out-fade').innerText = fVal;
+
+    // Recalculate columns based on new size (+ 4px safe padding)
+    let oldColW = COL_W;
+    COL_W = config.size + 4;
+    
+    // If the columns changed size, rebuild the array without wiping the screen
+    if (COL_W !== oldColW) {
+        let newCols = Math.floor(canvas.width / COL_W);
+        if (newCols > cols) {
+            // Add new drops if screen can fit more columns now
+            for(let i = cols; i < newCols; i++) drops[i] = Math.random() * -50;
+        }
+        cols = newCols;
+    }
+
+    config.charTypes = Array.from(document.querySelectorAll('.mx-tag[data-type="char"].active')).map(t => t.dataset.val);
+    config.colorTypes = Array.from(document.querySelectorAll('.mx-tag[data-type="color"].active')).map(t => t.dataset.val);
+    activeCharsList = config.charTypes.map(t => charSets[t]).flat();
+  }
+
+  applySettings();
+
+  ['mx-size', 'mx-density', 'mx-speed', 'mx-fade'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', applySettings);
+  });
+
+  document.querySelectorAll('.mx-tag').forEach(tag => {
+      tag.addEventListener('click', function() {
+          const type = this.dataset.type;
+          this.classList.toggle('active');
+          if (document.querySelectorAll(`.mx-tag[data-type="${type}"].active`).length === 0) {
+              this.classList.add('active'); 
+          }
+          applySettings();
+      });
+  });
+
+  document.getElementById('mx-random-btn')?.addEventListener('click', () => {
+      ['mx-size', 'mx-density', 'mx-speed', 'mx-fade'].forEach(id => {
+          const el = document.getElementById(id);
+          if (id === 'mx-size') el.value = Math.floor(Math.random() * 24) + 10; // Bias size toward 10-34
+          else el.value = Math.floor(Math.random() * 100) + 1;
+      });
+
+      ['char', 'color'].forEach(type => {
+          const tags = document.querySelectorAll(`.mx-tag[data-type="${type}"]`);
+          tags.forEach(t => t.classList.remove('active'));
+          
+          const numToActivate = Math.floor(Math.random() * tags.length) + 1;
+          const shuffled = Array.from(tags).sort(() => 0.5 - Math.random());
+          shuffled.slice(0, numToActivate).forEach(t => t.classList.add('active'));
+      });
+      applySettings();
+  });
+
+  const panel = document.getElementById('matrix-controls');
+  const toggleBtn = document.getElementById('mx-toggle-btn');
+  
+  toggleBtn?.addEventListener('click', () => {
+    toggleBtn.classList.toggle('active');
+    panel.classList.toggle('open');
+  });
+
+  window.addEventListener('mousedown', (e) => {
+    if(panel.classList.contains('open') && !e.target.closest('#matrix-controls') && !e.target.closest('#mx-toggle-btn')) {
+        panel.classList.remove('open');
+        toggleBtn.classList.remove('active');
+    }
+
+    if(!e.target.closest('#matrix-controls') && !e.target.closest('#mx-toggle-btn')) {
+      ripples.push({ x: e.clientX, y: e.clientY, life: 1.0 });
+      const centerCol = Math.floor(e.clientX / COL_W), startRow = Math.floor(e.clientY / COL_W);
+      for(let i = -3; i <= 3; i++) {
+        let c = centerCol + i;
+        if (c >= 0 && c < cols) drops[c] = startRow - Math.abs(i);
+      }
+    }
+  });
+
+  function init(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols = Math.floor(canvas.width / COL_W);
+    drops = Array.from({length: cols}, () => Math.random() * -50);
+    ctx.fillStyle = '#020A04';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function draw(ts){
+    requestAnimationFrame(draw);
+    if (ts - lastTime < 1000 / FPS) return;
+    lastTime = ts;
+    
+    ctx.fillStyle = `rgba(0, 0, 0, ${config.fade})`; 
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.font = config.size + 'px "Share Tech Mono",monospace';
+
+    // The maximum amount a column can wobble left or right
+    const maxWobble = (COL_W - config.size) * 0.8;
+
+    for (let i = 0; i < cols; i++){
+      const ch = activeCharsList[Math.floor(Math.random() * activeCharsList.length)];
+      const y = drops[i] * COL_W;
+      
+      // Calculate smooth organic drift using a sine wave
+      const offsetX = Math.sin(y * 0.02 + ts * 0.002 + i) * maxWobble;
+
+      const activeColor = palettes[config.colorTypes[Math.floor(Math.random() * config.colorTypes.length)]];
+      
+      ctx.fillStyle = Math.random() > 0.95 ? activeColor.bright : activeColor.dim;
+      
+      // Draw character with the wobble offset applied
+      ctx.fillText(ch, (i * COL_W) + offsetX, y);
+      
+      if (y > canvas.height && Math.random() > config.density) drops[i] = 0;
+      drops[i] += config.speed;
+    }
+
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      let r = ripples[i];
+      r.life -= 0.06;
+      if (r.life <= 0) { ripples.splice(i, 1); continue; }
+
+      const primaryColor = palettes[config.colorTypes[0]];
+      
+      const size1 = (1 - r.life) * 80; 
+      ctx.strokeStyle = primaryColor.bright.replace(/[\d\.]+\)$/g, `${r.life})`); 
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(r.x - size1/2, r.y - size1/2, size1, size1);
+
+      const size2 = (1 - r.life) * 120;
+      ctx.strokeStyle = primaryColor.bright.replace(/[\d\.]+\)$/g, `${r.life * 0.4})`);
+      ctx.strokeRect(r.x - size2/2, r.y - size2/2, size2, size2);
+    }
+  }
+
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    init(); requestAnimationFrame(draw); window.addEventListener('resize', init);
+  }
+})();
+
+/* -------- SCROLL PROGRESS -------- */
+window.addEventListener('scroll', function(){
+  const el = document.getElementById('scroll-progress');
+  const doc = document.documentElement;
+  const pct = doc.scrollTop / (doc.scrollHeight - doc.clientHeight);
+  el.style.width = Math.min(pct * 100, 100) + '%';
+}, {passive: true});
+
+/* -------- RUBRIC TOGGLES -------- */
+function toggleRubric(n){
+  const panel = document.getElementById('rubric-0' + n);
+  const btn = document.getElementById('rt-0' + n);
+  const open = panel.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.textContent = open ? '[ Close ]' : '[ Rubric ]';
+}
+
+/* -------- SENTENCE COUNTER -------- */
+function countSentences(text){
+  if (!text.trim()) return 0;
+  const m = text.trim().match(/[^.!?]+[.!?]+/g) || [];
+  const left = text.trim().replace(/[^.!?]+[.!?]+/g, '').trim();
+  return m.length + (left.length > 10 ? 1 : 0);
+}
+
+/* -------- COLLABORATION & WO STATE TOGGLES -------- */
+function updateCollabState() {
+  const soloRadio = document.querySelector('input[name="collab"][value="solo"]');
+  const collabInput = document.querySelector('[data-field="collab-names"]');
+  const detailWrap = document.getElementById('collab-detail-wrap');
+  const detailInput = document.querySelector('[data-field="collab-detail"]');
+  
+  if (soloRadio && collabInput) {
+    if (soloRadio.checked) {
+      collabInput.disabled = true;
+      collabInput.style.opacity = '0.3';
+      collabInput.style.cursor = 'not-allowed';
+      collabInput.value = '';
+      updateMirror('collab-names', '');
+      if(detailWrap) detailWrap.style.display = 'none';
+      if(detailInput) { detailInput.value = ''; updateMirror('collab-detail', ''); }
+    } else {
+      collabInput.disabled = false;
+      collabInput.style.opacity = '1';
+      collabInput.style.cursor = 'text';
+      if(detailWrap) detailWrap.style.display = 'block';
+    }
+  }
+}
+
+function updateWoState() {
+  const yesRadio = document.querySelector('input[name="wo-intent"][value="yes"]');
+  const processWrap = document.getElementById('wo-process-wrap');
+  const processInput = document.querySelector('[data-field="wo-process"]');
+  
+  if (yesRadio && yesRadio.checked) {
+      processWrap.style.display = 'flex';
+  } else {
+      processWrap.style.display = 'none';
+      if (processInput) {
+          processInput.value = '';
+          updateMirror('wo-process', '');
+      }
+  }
+}
+
+/* -------- FORM HELPERS -------- */
+function autoResize(ta){ ta.style.height = '0'; ta.style.height = ta.scrollHeight + 'px'; }
+function resizeAll(){ document.querySelectorAll('textarea[data-field]').forEach(autoResize); }
+function updateMirror(field, value){ document.querySelectorAll(`[data-mirror="${field}"]`).forEach(m => { m.textContent = value; }); }
+function updateCounter(fieldId, text){
+  const counter = document.querySelector(`.sent-count[data-field-ref="${fieldId}"]`);
+  if (!counter) return;
+  const min = parseInt(counter.dataset.min);
+  const max = counter.dataset.max ? parseInt(counter.dataset.max) : Infinity;
+  const count = countSentences(text);
+  
+  const span = counter.querySelector('span:last-child');
+  let suffix = max !== Infinity ? ` to ${max} sentences` : (min === 1 ? ` sentence minimum` : ` sentences minimum`);
+  span.innerHTML = `<span class="current">${count}</span> / ${min}${suffix}`;
+  
+  const has = text.trim().length > 0;
+  counter.classList.toggle('met', count >= min && count <= max);
+  counter.classList.toggle('unmet', has && (count < min || count > max));
+  counter.classList.toggle('active', has);
+}
+function getFieldVal(f){ const el = document.querySelector(`[data-field="${f}"]`); return el ? el.value.trim() : ''; }
+function sentOk(f, min){ return countSentences(getFieldVal(f)) >= min; }
+function notEmpty(f){ return getFieldVal(f).length > 0; }
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* -------- MANUFACTURING SEQUENCE -------- */
+function addMfgStep(val = '') {
+    const container = document.getElementById('mfg-sequence-list');
+    const stepDiv = document.createElement('div');
+    stepDiv.style.display = 'flex'; stepDiv.style.alignItems = 'center'; stepDiv.style.gap = '8px';
+    
+    const num = document.createElement('div');
+    num.className = 'mod-num'; 
+    num.textContent = String(container.children.length + 1).padStart(2, '0');
+    
+    const inp = document.createElement('input');
+    inp.type = 'text'; inp.className = 'mfg-step-input'; inp.value = val;
+    inp.placeholder = 'Describe this step...';
+    inp.style.flex = '1';
+    inp.addEventListener('input', () => { 
+        updateScoreAndDots(); saveToStorage(); 
+        const mirror = stepDiv.querySelector('.print-mirror');
+        if(mirror) mirror.textContent = inp.value;
+    });
+    
+    const mirror = document.createElement('div');
+    mirror.className = 'print-mirror single-line';
+    mirror.style.flex = '1';
+    mirror.textContent = val;
+    
+    const del = document.createElement('button');
+    del.className = 'action-btn del no-print'; del.innerHTML = '✖'; del.style.background='none'; del.style.border='none';
+    del.onclick = () => { stepDiv.remove(); renumberMfgSteps(); updateScoreAndDots(); saveToStorage(); };
+    
+    stepDiv.appendChild(num); stepDiv.appendChild(inp); stepDiv.appendChild(mirror); stepDiv.appendChild(del);
+    container.appendChild(stepDiv);
+    updateScoreAndDots();
+}
+
+function renumberMfgSteps() {
+    const steps = document.getElementById('mfg-sequence-list').children;
+    for(let i=0; i<steps.length; i++) {
+        steps[i].querySelector('.mod-num').textContent = String(i + 1).padStart(2, '0');
+    }
+}
+
+function getMfgSequence() {
+    return Array.from(document.querySelectorAll('.mfg-step-input')).map(inp => inp.value.trim()).filter(v => v !== '');
+}
+
+function loadMfgSequence(arr) {
+    const container = document.getElementById('mfg-sequence-list');
+    container.innerHTML = '';
+    if(arr && arr.length > 0) { arr.forEach(v => addMfgStep(v)); }
+    else { addMfgStep(); addMfgStep(); }
+}
+
+/* -------- VISUALIZER LOGIC -------- */
+
+function buildSelect(cls, opts, val) {
+    let isCustom = val && !opts.includes(val) && val !== 'Select...';
+    let selVal = isCustom ? 'Other' : (val || 'Select...');
+    let h = `<select class="${cls}" onchange="checkCustom(this)">`;
+    opts.forEach(o => h += `<option value="${o}" ${o===selVal?'selected':''}>${o}</option>`);
+    h += `</select><input type="text" class="${cls}-custom custom-hidden-input" style="display:${isCustom?'block':'none'}" value="${isCustom?esc(val):''}" placeholder="Specify..." oninput="updateVisualizer();saveToStorage();updateScoreAndDots();">`;
+    return h;
+}
+
+window.checkCustom = function(sel) {
+    const customInput = sel.nextElementSibling;
+    if(customInput && customInput.classList.contains('custom-hidden-input')) {
+        if(sel.value === 'Other') {
+            customInput.style.display = 'block';
+            customInput.focus();
+        } else {
+            customInput.style.display = 'none';
+        }
+    }
+    
+    if (sel.classList.contains('input-mat')) {
+        window.handleMatChange(sel);
+    } else {
+        updateScoreAndDots(); saveToStorage(); updateVisualizer();
+    }
+};
+
+window.handleMatChange = function(sel) {
+    const tr = sel.closest('tr');
+    const procSelect = tr.querySelector('.input-proc');
+    if (!procSelect) return;
+    
+    const isHw = (sel.value === 'Hardware / COTS');
+    const opts = isHw ? hwOpts : procOpts;
+    
+    let currentVal = extractVal(tr, 'input-proc');
+    if(!opts.includes(currentVal)) currentVal = 'Select...';
+    
+    const td = procSelect.parentElement;
+    td.innerHTML = buildSelect('input-proc', opts, currentVal);
+    
+    td.querySelectorAll('input, select').forEach(el => {
+        if(!el.onchange && !el.oninput) {
+            el.addEventListener('input', () => { updateScoreAndDots(); saveToStorage(); updateVisualizer(); });
+        }
+    });
+    
+    updateScoreAndDots(); saveToStorage(); updateVisualizer();
+};
+
+function extractVal(tr, cls) {
+    let sel = tr.querySelector('.' + cls);
+    if(!sel) return '';
+    if(sel.value === 'Other') {
+        const cust = tr.querySelector('.' + cls + '-custom');
+        return cust ? cust.value.trim() : '';
+    }
+    return sel.value === 'Select...' ? '' : sel.value;
+}
+
+function addTableRow(tbodyId, data = null) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.setAttribute('draggable', 'true');
+    const isString = typeof data === 'string';
+    const d = {
+      color: (!isString && data?.color) ? data.color : defaultColors[colorIndex % defaultColors.length],
+      name: isString ? data : (data?.name || ''), mat: data?.mat || '', thick: data?.thick || '',
+      od: data?.od || '', taper: data?.taper || '', dir: data?.dir || 'none',
+      proc: data?.proc || '', iface: data?.iface || ''
+    };
+    colorIndex++;
+
+    let isHw = (d.mat === 'Hardware / COTS');
+    let currentProcOpts = isHw ? hwOpts : procOpts;
+
+    tr.innerHTML = `
+        <td class="no-print" style="width:70px; text-align:center; vertical-align:middle;">
+            <div style="display:flex; align-items:center; justify-content:space-evenly; height:100%; min-height:40px;">
+                <span class="drag-handle" style="cursor:grab;">☰</span>
+                <span class="action-btn" onclick="duplicateRow(this)">⧉</span>
+                <span class="action-btn del" onclick="deleteRow(this)">✖</span>
+            </div>
+        </td>
+        <td><input type="color" class="input-color" value="${d.color}"></td>
+        <td><input type="text" class="input-name" value="${esc(d.name)}"></td>
+        <td>
+            ${ (() => {
+                let isCustom = d.mat && !matOpts.includes(d.mat) && d.mat !== 'Select...';
+                let selVal = isCustom ? 'Other' : (d.mat || 'Select...');
+                let h = `<select class="input-mat" onchange="checkCustom(this)">`;
+                matOpts.forEach(o => h += `<option value="${o}" ${o===selVal?'selected':''}>${o}</option>`);
+                h += `</select><input type="text" class="input-mat-custom custom-hidden-input" style="display:${isCustom?'block':'none'}" value="${isCustom?esc(d.mat):''}" placeholder="Specify..." oninput="updateVisualizer();saveToStorage();updateScoreAndDots();">`;
+                return h;
+            })() }
+        </td>
+        <td><input type="number" class="input-thick" placeholder="in" step="0.05" min="0.05" max="3.1" value="${d.thick}"></td>
+        <td><input type="number" class="input-od" placeholder="in" step="0.1" min="0.1" max="5.0" value="${d.od}"></td>
+        <td><input type="number" class="input-taper" placeholder="0" step="1" min="0" max="89" value="${d.taper}"></td>
+        <td>
+            <select class="input-taper-dir">
+                <option value="none" ${d.dir==='none'?'selected':''}>None</option><option value="top" ${d.dir==='top'?'selected':''}>Top</option>
+                <option value="bottom" ${d.dir==='bottom'?'selected':''}>Bottom</option><option value="both" ${d.dir==='both'?'selected':''}>Both</option>
+            </select>
+        </td>
+        <td>${buildSelect('input-proc', currentProcOpts, d.proc)}</td>
+        <td>${buildSelect('input-iface', ifaceOpts, d.iface)}</td>
+    `;
+    tr.querySelectorAll('input:not(.custom-hidden-input), select').forEach(el => { 
+        if(!el.onchange && !el.oninput) {
+            el.addEventListener('input', () => { updateScoreAndDots(); updateVisualizer(); }); // Local logic save handles heavy lifting
+        }
+    });
+    tbody.appendChild(tr); attachDragEvents(tr);
+    updateVisualizer(); updateScoreAndDots();
+}
+
+function deleteRow(btn) { btn.closest('tr').remove(); updateVisualizer(); updateScoreAndDots(); saveToStorage(); }
+function duplicateRow(btn) {
+    const tr = btn.closest('tr'); const clone = tr.cloneNode(true);
+    tr.parentNode.insertBefore(clone, tr.nextSibling);
+    const origInputs = tr.querySelectorAll('input, select'), cloneInputs = clone.querySelectorAll('input, select');
+    origInputs.forEach((input, i) => cloneInputs[i].value = input.value);
+    const cp = clone.querySelector('.input-color'); 
+    if(cp) { cp.value = defaultColors[colorIndex % defaultColors.length]; colorIndex++; }
+    clone.querySelectorAll('input:not(.custom-hidden-input), select').forEach(el => { 
+        if(!el.onchange && !el.oninput) { el.addEventListener('input', () => { updateScoreAndDots(); updateVisualizer(); }); }
+    });
+    attachDragEvents(clone); updateVisualizer(); updateScoreAndDots(); saveToStorage();
+}
+
+function attachDragEvents(tr) {
+    tr.addEventListener('dragstart', function(e) {
+        if(e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.classList.contains('action-btn')) { e.preventDefault(); return; }
+        activeLayerDrag = { isTableRow: true, draggedRow: this }; e.dataTransfer.effectAllowed = 'move'; this.style.opacity = '0.4';
+    });
+    tr.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; this.classList.add('drag-over'); });
+    tr.addEventListener('dragleave', function(e) { this.classList.remove('drag-over'); });
+    tr.addEventListener('drop', function(e) {
+        e.preventDefault(); this.classList.remove('drag-over');
+        if (activeLayerDrag && activeLayerDrag.isTableRow && activeLayerDrag.draggedRow !== this) {
+            const tbody = this.parentNode, rect = this.getBoundingClientRect(), next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+            tbody.insertBefore(activeLayerDrag.draggedRow, next ? this.nextSibling : this);
+            updateVisualizer(); updateScoreAndDots(); saveToStorage();
+        }
+    });
+    tr.addEventListener('dragend', function(e) { this.style.opacity = '1'; activeLayerDrag = null; });
+}
+
+function updateVisualizer() {
+    const container = document.getElementById('stack-container'), readout = document.getElementById('height-readout'), zoomInput = document.getElementById('vis-zoom');
+    const rows = document.querySelectorAll('#comp-body tr');
+    let totalThick = 0, maxOD = 0; const items = [];
+    const zoomScale = zoomInput ? parseFloat(zoomInput.value) : 1;
+
+    rows.forEach(tr => {
+        const color = tr.querySelector('.input-color').value, thickVal = parseFloat(tr.querySelector('.input-thick').value) || 0;
+        const odVal = parseFloat(tr.querySelector('.input-od').value) || 0, taperVal = parseFloat(tr.querySelector('.input-taper').value) || 0;
+        const taperDir = tr.querySelector('.input-taper-dir').value || 'none';
+        if(odVal > maxOD) maxOD = odVal; totalThick += thickVal;
+        items.push({ color, thick: thickVal, od: odVal, taper: taperVal, dir: taperDir });
+    });
+
+    if (maxOD === 0 || totalThick === 0) {
+         container.innerHTML = '<div style="color:var(--dim); padding: 50px; text-align:center;">Enter valid Thickness and OD values<br>to generate interactive preview.</div>';
+         readout.innerHTML = 'Total Height: 0.00 in'; readout.style.color = 'var(--dim)'; return;
+    }
+
+    const scale = 60 * zoomScale, svgWidth = Math.max(320, (maxOD * scale) + 40), svgHeight = Math.max(220, (totalThick * scale) + 40); 
+    const cx = svgWidth / 2; let currentY = 20;
+
+    let svgContent = `<svg class="vis-svg-wrap" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}" width="${svgWidth}" height="${svgHeight}">`;
+    svgContent += `<defs>
+        <linearGradient id="shade" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.2)"/>
+            <stop offset="25%" stop-color="rgba(255,255,255,0)"/>
+            <stop offset="70%" stop-color="rgba(0,0,0,0)"/>
+            <stop offset="100%" stop-color="rgba(0,0,0,0.5)"/>
+        </linearGradient>
+    </defs>`;
+    svgContent += `<line x1="${cx}" y1="0" x2="${cx}" y2="${svgHeight}" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="4 4" opacity="0.4" />`;
+
+    items.forEach((item, index) => {
+        if(item.thick <= 0 || item.od <= 0) return;
+        const w = item.od * scale, h = item.thick * scale, taperRad = Math.min(89, item.taper) * Math.PI / 180;
+        let dx = 0;
+        if(item.dir === 'both') dx = (h / 2) * Math.tan(taperRad); else if(item.dir === 'top' || item.dir === 'bottom') dx = h * Math.tan(taperRad);
+        dx = Math.min(dx, w / 2);
+
+        let pts = [];
+        if(item.dir === 'both') {
+            pts.push(`${cx - w/2 + dx},${currentY}`); pts.push(`${cx + w/2 - dx},${currentY}`); pts.push(`${cx + w/2},${currentY + h/2}`);
+            pts.push(`${cx + w/2 - dx},${currentY + h}`); pts.push(`${cx - w/2 + dx},${currentY + h}`); pts.push(`${cx - w/2},${currentY + h/2}`);
+        } else if(item.dir === 'top') {
+            pts.push(`${cx - w/2 + dx},${currentY}`); pts.push(`${cx + w/2 - dx},${currentY}`); pts.push(`${cx + w/2},${currentY + h}`); pts.push(`${cx - w/2},${currentY + h}`);
+        } else if(item.dir === 'bottom') {
+            pts.push(`${cx - w/2},${currentY}`); pts.push(`${cx + w/2},${currentY}`); pts.push(`${cx + w/2 - dx},${currentY + h}`); pts.push(`${cx - w/2 + dx},${currentY + h}`);
+        } else {
+            pts.push(`${cx - w/2},${currentY}`); pts.push(`${cx + w/2},${currentY}`); pts.push(`${cx + w/2},${currentY + h}`); pts.push(`${cx - w/2},${currentY + h}`);
+        }
+        
+        svgContent += `<polygon points="${pts.join(' ')}" fill="${item.color}" stroke="rgba(0,255,65,0.3)" stroke-width="1" class="vis-drag-layer" data-index="${index}" style="transform: translateY(0px);" />`;
+        svgContent += `<polygon points="${pts.join(' ')}" fill="url(#shade)" pointer-events="none" style="transform: translateY(0px);" />`;
+        
+        let handleY = currentY + h/2, handleX = cx + w/2;
+        if(item.dir === 'both') handleX = cx + w/2; else if(item.dir === 'top') handleX = cx + w/2 - dx/2; else if(item.dir === 'bottom') handleX = cx + w/2 - dx/2;
+        
+        svgContent += `<circle cx="${handleX}" cy="${handleY}" r="6" class="drag-handle-od no-print" data-index="${index}" style="cursor:ew-resize;" />`;
+        svgContent += `<circle cx="${cx}" cy="${currentY + h}" r="6" class="drag-handle-thick no-print" data-index="${index}" style="cursor:ns-resize;" />`;
+        currentY += h;
+    });
+
+    svgContent += `</svg>`; container.innerHTML = svgContent;
+    const totalFixed = totalThick.toFixed(2);
+    if (totalThick >= 2.9 && totalThick <= 3.1) {
+        readout.innerHTML = `Total Height: ${totalFixed} in<br><span style="font-size:11px; opacity:0.8; font-weight:400; color:var(--green); display:block; margin-top:4px;">Target 3.0" &plusmn; 0.1" - IN SPEC</span>`;
+        readout.style.color = 'var(--green)';
+    } else {
+        readout.innerHTML = `Total Height: ${totalFixed} in<br><span style="font-size:11px; opacity:0.8; font-weight:400; color:var(--amber); display:block; margin-top:4px;">Target 3.0" &plusmn; 0.1" - OUT OF SPEC</span>`;
+        readout.style.color = 'var(--amber)';
+    }
+}
+
+function setupDragInteractions() {
+    document.addEventListener('mousedown', e => {
+        let isOdHandle = e.target.getAttribute('class') && e.target.getAttribute('class').includes('drag-handle-od');
+        let isThickHandle = e.target.getAttribute('class') && e.target.getAttribute('class').includes('drag-handle-thick');
+        let isLayer = e.target.getAttribute('class') && e.target.getAttribute('class').includes('vis-drag-layer');
+        
+        if (isOdHandle || isThickHandle) {
+            const index = parseInt(e.target.getAttribute('data-index')), row = document.querySelectorAll('#comp-body tr')[index];
+            if(!row) return;
+            activeDrag = { type: isOdHandle ? 'od' : 'thick', index: index, startX: e.clientX, startY: e.clientY, startOD: parseFloat(row.querySelector('.input-od').value) || 0, startThick: parseFloat(row.querySelector('.input-thick').value) || 0 };
+            document.body.style.cursor = activeDrag.type === 'od' ? 'ew-resize' : 'ns-resize'; e.preventDefault();
+        } else if (isLayer) {
+            activeLayerDrag = { isTableRow: false, index: parseInt(e.target.getAttribute('data-index')), startY: e.clientY, element: e.target };
+            document.body.style.cursor = 'grabbing'; e.preventDefault();
+        }
+    });
+    document.addEventListener('mousemove', e => {
+        if (activeDrag) {
+            const row = document.querySelectorAll('#comp-body tr')[activeDrag.index], inputOD = row.querySelector('.input-od'), inputThick = row.querySelector('.input-thick'), zoomScale = parseFloat(document.getElementById('vis-zoom').value) || 1;
+            if (activeDrag.type === 'od') {
+                let newOD = activeDrag.startOD + ((e.clientX - activeDrag.startX) / (30 * zoomScale));
+                inputOD.value = Math.max(0.1, Math.min(5.0, newOD)).toFixed(2);
+            } else if (activeDrag.type === 'thick') {
+                let newThick = activeDrag.startThick + ((e.clientY - activeDrag.startY) / (60 * zoomScale)), otherThick = 0;
+                document.querySelectorAll('#comp-body tr').forEach((tr, i) => { if (i !== activeDrag.index) otherThick += parseFloat(tr.querySelector('.input-thick').value) || 0; });
+                inputThick.value = Math.max(0.05, Math.min(3.1 - otherThick, newThick)).toFixed(2);
+            }
+            updateVisualizer(); // Only visual update during drag (prevents lag)
+        } else if (activeLayerDrag && !activeLayerDrag.isTableRow) {
+            const deltaY = e.clientY - activeLayerDrag.startY, rows = Array.from(document.querySelectorAll('#comp-body tr')), currentIndex = activeLayerDrag.index;
+            activeLayerDrag.element.style.transform = `translateY(${deltaY}px)`; activeLayerDrag.element.style.opacity = '0.7';
+            if (deltaY > 30 && currentIndex < rows.length - 1) {
+                rows[currentIndex].parentNode.insertBefore(rows[currentIndex + 1], rows[currentIndex]); 
+                activeLayerDrag.index++; activeLayerDrag.startY = e.clientY; updateVisualizer();
+                activeLayerDrag.element = document.querySelectorAll('.vis-drag-layer')[activeLayerDrag.index];
+            } else if (deltaY < -30 && currentIndex > 0) {
+                rows[currentIndex].parentNode.insertBefore(rows[currentIndex], rows[currentIndex - 1]); 
+                activeLayerDrag.index--; activeLayerDrag.startY = e.clientY; updateVisualizer();
+                activeLayerDrag.element = document.querySelectorAll('.vis-drag-layer')[activeLayerDrag.index];
+            }
+        }
+    });
+    document.addEventListener('mouseup', () => {
+        if (activeDrag || activeLayerDrag) {
+            if (activeLayerDrag && activeLayerDrag.element) { activeLayerDrag.element.style.transform = `translateY(0px)`; activeLayerDrag.element.style.opacity = '1'; }
+            // Only trigger save/score evaluation when user lets go
+            updateScoreAndDots(); saveToStorage(); 
+            activeDrag = null; activeLayerDrag = null; document.body.style.cursor = ''; updateVisualizer();
+        }
+    });
+}
+if(document.getElementById('vis-zoom')) document.getElementById('vis-zoom').addEventListener('input', updateVisualizer);
+
+function getCompData(){
+  return Array.from(document.querySelectorAll('#comp-body tr')).map(tr => ({
+    color: tr.querySelector('.input-color').value, 
+    name: tr.querySelector('.input-name').value, 
+    mat: extractVal(tr, 'input-mat'),
+    thick: tr.querySelector('.input-thick').value, 
+    od: tr.querySelector('.input-od').value, 
+    taper: tr.querySelector('.input-taper').value,
+    dir: tr.querySelector('.input-taper-dir').value, 
+    proc: extractVal(tr, 'input-proc'),
+    iface: extractVal(tr, 'input-iface')
+  }));
+}
+
+function loadComps(arr, forceEmpty = false){
+  const tbody = document.getElementById('comp-body'); if(!tbody) return;
+  tbody.innerHTML = ''; colorIndex = 0;
+  
+  if (forceEmpty) {
+      // Do nothing, leave the table completely empty
+  } else if(!arr || arr.length === 0) { 
+      const defComps = [
+          {name: '', mat: 'Select...', thick: '0.40', od: '1.00', proc: 'Select...', iface: 'Select...'},
+          {name: '', mat: 'Select...', thick: '0.50', od: '3.50', proc: 'Select...', iface: 'Select...'},
+          {name: '', mat: 'Select...', thick: '0.25', od: '4.50', proc: 'Select...', iface: 'Select...'},
+          {name: '', mat: 'Select...', thick: '0.50', od: '3.50', proc: 'Select...', iface: 'Select...'},
+          {name: '', mat: 'Select...', thick: '0.75', od: '1.50', taper: '45', dir: 'bottom', proc: 'Select...', iface: 'Select...'}
+      ];
+      defComps.forEach(d => addTableRow('comp-body', d)); 
+  } else { 
+      arr.forEach(d => addTableRow('comp-body', d)); 
+  }
+  updateVisualizer();
+}
+
+/* -------- SCORE & DOTS -------- */
+function moduleComplete(n){
+  switch(n){
+    case 1: 
+      return sentOk('design-intent', 2) && sentOk('mass-distribution', 1);
+    case 2: 
+      const comps = getCompData(); let tThick = 0; comps.forEach(c => tThick += parseFloat(c.thick) || 0);
+      const compsOk = comps.length >= 2 && tThick > 0 && tThick <= 3.1 && comps.every(c => c.name.trim() !== '' && c.mat !== '' && c.proc !== '' && c.iface !== '');
+      const shaftOk = notEmpty('shaft-depth') && notEmpty('shaft-components') && notEmpty('shaft-retention');
+      const seqList = getMfgSequence();
+      const mfgOk = seqList.length >= 2;
+      return compsOk && shaftOk && mfgOk;
+    case 3: 
+      return notEmpty('materials-notes') && notEmpty('unresolved-notes');
+    case 4: 
+      const intent = document.querySelector('input[name="wo-intent"]:checked');
+      return notEmpty('shared-equipment') && intent !== null;
+    case 5: 
+      return sentOk('open-questions', 1);
+  }
+  return false;
+}
+
+function updateScoreAndDots(){
+  let score = 0;
+  
+  // M1 (10)
+  const di = countSentences(getFieldVal('design-intent')); if(di>=2) score+=5; else if(di===1) score+=3;
+  const md = countSentences(getFieldVal('mass-distribution')); if(md>=1) score+=5;
+  
+  // M2 (35)
+  const comps = getCompData(); let tThick = 0;
+  if(comps.length>0){
+    comps.forEach(c => tThick += parseFloat(c.thick) || 0);
+    if(tThick > 0 && tThick <= 3.1) {
+        score += Math.round(5 * comps.filter(c=>c.name.trim() !== '').length/comps.length);
+        score += Math.round(5 * comps.filter(c=>c.mat && c.mat !== 'Select...' && c.proc && c.proc !== 'Select...').length/comps.length);
+        score += Math.round(10 * comps.filter(c=>c.name.trim() !== '' && (parseFloat(c.thick)>0||parseFloat(c.od)>0)).length/comps.length);
+        score += Math.round(5 * comps.filter(c=>c.iface && c.iface !== 'Select...').length/comps.length);
+    }
+    // These M2 points can be earned even if thickness fails, as they are separate planning steps
+    if(notEmpty('shaft-depth') && notEmpty('shaft-components') && notEmpty('shaft-retention')) score+=5;
+    if(getMfgSequence().length >= 2) score+=5;
+  }
+
+  // M3 (10)
+  if(notEmpty('materials-notes')) score+=6; if(notEmpty('unresolved-notes')) score+=4;
+  
+  // M4 (3)
+  if(notEmpty('shared-equipment')) score+=3;
+  
+  // M5 (5)
+  const oq = countSentences(getFieldVal('open-questions')); if(oq>=1) score+=5;
+  
+  score = Math.min(Math.max(score, 0), TOTAL_PTS);
+  
+  for (let i = 1; i <= 5; i++){
+    const complete = moduleComplete(i);
+    const dot = document.getElementById('dot-0' + i);
+    if (dot) dot.classList.toggle('complete', complete);
+  }
+  const tbScore = document.getElementById('tb-score');
+  if (tbScore) tbScore.textContent = score + ' / ' + TOTAL_PTS + ' pts';
+}
+
+/* -------- SAVE STATUS -------- */
+let saveTimer = null;
+function flashSave(){
+  const el = document.getElementById('tb-save-status');
+  el.textContent = 'Saved'; el.classList.add('flash');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => { el.textContent = 'Auto-save on'; el.classList.remove('flash'); }, 2000);
+}
+
+/* -------- SAVE & LOAD -------- */
+function collectData(){
+  const data = { _version: BUILD_VERSION };
+  document.querySelectorAll('[data-field]').forEach(el => {
+    if (el.type === 'radio'){ if (el.checked) data[el.dataset.field] = el.value; }
+    else if (el.type === 'checkbox') data[el.dataset.field] = el.checked;
+    else data[el.dataset.field] = el.value;
+  });
+  data._comps = getCompData();
+  data._mfgSequence = getMfgSequence();
+  return data;
+}
+
+function saveToStorage(){
+  const data = collectData();
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); flashSave(); } 
+  catch(e){ document.getElementById('tb-save-status').textContent = 'Storage full - use Download'; }
+}
+
+function loadData(data){
+  if (!data) return;
+  if (data._version && data._version !== BUILD_VERSION){
+    const w = document.getElementById('version-warning'); w.style.display = 'block';
+    w.textContent = 'Warning: saved data is from version ' + data._version + '. This document is ' + BUILD_VERSION + '. Some fields may not restore correctly.';
+  }
+  Object.entries(data).forEach(([key, val]) => {
+    if (key.startsWith('_')) return;
+    const els = document.querySelectorAll(`[data-field="${key}"]`);
+    els.forEach(el => {
+      if (el.type === 'radio'){ el.checked = (el.value === val); }
+      else if (el.type === 'checkbox'){ el.checked = !!val; }
+      else {
+        el.value = val;
+        if (el.tagName === 'TEXTAREA') requestAnimationFrame(() => autoResize(el));
+        updateMirror(key, val); updateCounter(key, val);
+      }
+    });
+  });
+  if(data._comps) loadComps(data._comps); else loadComps([]);
+  loadMfgSequence(data._mfgSequence);
+  updateCollabState();
+  updateWoState();
+  updateScoreAndDots();
+}
+
+function loadFromStorage(){
+  let loaded = false;
+  const scriptTag = document.getElementById('__ib_data__');
+  if (scriptTag && scriptTag.type === 'application/json') {
+      try { const data = JSON.parse(scriptTag.textContent); loadData(data); loaded = true; } 
+      catch (e) { console.error("Error parsing injected JSON", e); }
+  }
+  if (!loaded) {
+      try { const raw = localStorage.getItem(STORAGE_KEY); if (raw) loadData(JSON.parse(raw)); else loadComps([]); } 
+      catch(e){ loadComps([]); }
+  }
+}
+
+/* -------- DOWNLOAD WITH DATA -------- */
+function downloadHTML(){
+  saveToStorage();
+  const data = collectData();
+  const clone = document.documentElement.cloneNode(true);
+  
+  clone.querySelectorAll('input[type="text"], input[type="number"], input[type="color"], textarea, select').forEach(el => {
+      if (el.tagName === 'TEXTAREA') el.textContent = '';
+      else el.removeAttribute('value');
+      if (el.tagName === 'SELECT') el.querySelectorAll('option').forEach(opt => opt.removeAttribute('selected'));
+  });
+  clone.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(el => el.removeAttribute('checked'));
+  
+  const compBody = clone.querySelector('#comp-body');
+  if (compBody) compBody.innerHTML = '';
+  const seqBody = clone.querySelector('#mfg-sequence-list');
+  if (seqBody) seqBody.innerHTML = '';
+  clone.querySelectorAll('#__ib_data__').forEach(el => el.remove());
+  
+  const jsonStr = JSON.stringify(data);
+  const scriptTag = document.createElement('script');
+  scriptTag.id = '__ib_data__'; scriptTag.type = 'application/json'; scriptTag.textContent = jsonStr;
+  clone.querySelector('head').appendChild(scriptTag);
+  
+  const html = '<!DOCTYPE html>\n' + clone.outerHTML;
+  const blob = new Blob([html], {type: 'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const name = (document.querySelector('[data-field="student-name"]')?.value || 'Student').trim().replace(/\s+/g,'_') || 'Student';
+  a.href = url; a.download = 'IDEABLADE_A02_' + name + '.html';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+/* -------- CLEAR & RESTORE DIALOGS -------- */
+function showClearDialog(){ document.getElementById('clear-dialog').classList.add('active'); }
+function hideClearDialog(){ document.getElementById('clear-dialog').classList.remove('active'); }
+
+function confirmClear(){
+  hideClearDialog(); localStorage.removeItem(STORAGE_KEY);
+  resetAllFields();
+  loadComps([], true); // The "true" forces the table to stay empty
+  loadMfgSequence([]); 
+  updateScoreAndDots(); 
+}
+
+function showRestoreDialog(){ document.getElementById('restore-dialog').classList.add('active'); }
+function hideRestoreDialog(){ document.getElementById('restore-dialog').classList.remove('active'); }
+
+function confirmRestore(){
+  hideRestoreDialog(); localStorage.removeItem(STORAGE_KEY);
+  // Reloading the page guarantees the default stackup builds 
+  // and all Matrix variables reset to factory defaults cleanly.
+  setTimeout(() => location.reload(), 50);
+}
+
+function resetAllFields() {
+  document.querySelectorAll('[data-field]').forEach(el => { 
+      if (el.type === 'radio' || el.type === 'checkbox') el.checked = false; else el.value = ''; 
+  });
+  document.querySelectorAll('[data-mirror]').forEach(el => { el.textContent = ''; });
+  document.querySelectorAll('textarea[data-field]').forEach(ta => { ta.style.height = ''; });
+  document.querySelectorAll('.sent-count').forEach(sc => { 
+      sc.querySelector('.current').textContent = '0'; sc.classList.remove('met','unmet','active'); 
+  });
+  updateCollabState(); updateWoState(); 
+  document.querySelector('[data-field="student-date"]').value = ''; autoFillDate();
+}
+
+/* -------- PREFLIGHT + PRINT -------- */
+function runPreflight(){
+  const issues = [];
+  if (!notEmpty('student-name')) issues.push('Student Name (Header) is empty');
+  
+  if(!notEmpty('shaft-depth')) issues.push('Module 02: Shaft Engagement Depth is empty');
+  if(!notEmpty('shaft-retention')) issues.push('Module 02: Bottom Retention Method is empty');
+  if(!notEmpty('shaft-components')) issues.push('Module 02: Interfacing Components is empty');
+  if(getMfgSequence().length < 2) issues.push('Module 02: Manufacturing sequence requires at least 2 steps');
+  
+  document.querySelectorAll('[data-min]').forEach(counter => {
+    const fieldId = counter.dataset.fieldRef, el = document.querySelector(`[data-field="${fieldId}"]`);
+    if (!el) return;
+    const min = parseInt(counter.dataset.min), count = countSentences(el.value);
+    if (count < min){
+      const modEl = el.closest('.module'), modTitle = modEl ? modEl.querySelector('.mod-title')?.textContent : fieldId;
+      issues.push(modTitle + ': ' + fieldId.replace(/-/g,' ') + ' (' + count + '/' + min + ' sentences)');
+    }
+  });
+  
+  const comps = getCompData(); let tThick = 0;
+  if(comps.length === 0) issues.push('Module 02: No components added');
+  else {
+    comps.forEach((c,i) => {
+      if(!c.name) issues.push(`Module 02: Component ${i+1} — missing name`);
+      if(!c.mat || c.mat === 'Select...') issues.push(`Module 02: Component ${i+1} (${c.name||'?'}) — missing material`);
+      if(!c.proc || c.proc === 'Select...') issues.push(`Module 02: Component ${i+1} (${c.name||'?'}) — missing process`);
+      tThick += parseFloat(c.thick) || 0;
+    });
+    if(tThick > 3.1) issues.push(`Module 02: Total height (${tThick.toFixed(2)}") exceeds 3.1 inches limit`);
+  }
+  
+  const woIntent = document.querySelector('input[name="wo-intent"]:checked');
+  if (!woIntent) issues.push('Module 04: Work Order Intent is not selected');
+  
+  if (!document.querySelector('[data-field="declaration"]')?.checked) issues.push('Academic integrity declaration is not checked');
+  return issues;
+}
+
+function printWithPreflight(){
+  const issues = runPreflight();
+  if (issues.length === 0){ window.print(); return; }
+  const list = document.getElementById('preflight-list'); list.innerHTML = '';
+  issues.forEach(issue => { const div = document.createElement('div'); div.className = 'preflight-issue'; div.textContent = issue; list.appendChild(div); });
+  document.getElementById('preflight-dialog').classList.add('active');
+}
+function hidePreflight(){ document.getElementById('preflight-dialog').classList.remove('active'); }
+function proceedPrint(){ hidePreflight(); window.print(); }
+
+/* -------- ENFORCE INPUT LIMITS TABLE -------- */
+document.addEventListener('input', (e) => {
+    if (e.target.classList.contains('input-od')) {
+        let val = parseFloat(e.target.value); if (val > 5.0) e.target.value = '5.00';
+    }
+    if (e.target.classList.contains('input-thick')) {
+        let trs = document.querySelectorAll('#comp-body tr'), total = 0;
+        trs.forEach(tr => total += parseFloat(tr.querySelector('.input-thick').value) || 0);
+        if (total > 3.1) {
+            let val = parseFloat(e.target.value), excess = total - 3.1;
+            e.target.value = Math.max(0.01, val - excess).toFixed(2);
+        }
+    }
+});
+
+/* -------- INTERSECTION OBSERVER -------- */
+function initAnimations(){
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+    document.querySelectorAll('.module').forEach(m => m.classList.add('visible')); return;
+  }
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+  }, {threshold: 0.08});
+  document.querySelectorAll('.module').forEach(m => obs.observe(m));
+}
+
+/* -------- DATE AUTO-POPULATE -------- */
+function autoFillDate(){
+  const dateField = document.querySelector('[data-field="student-date"]');
+  if (!dateField || dateField.value.trim() !== '') return;
+  const now = new Date(), mm = String(now.getMonth() + 1).padStart(2,'0'), dd = String(now.getDate()).padStart(2,'0'), yyyy = now.getFullYear();
+  dateField.value = mm + ' / ' + dd + ' / ' + yyyy; 
+  updateMirror('student-date', dateField.value);
+}
+
+/* -------- INIT -------- */
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('textarea[data-field]').forEach(ta => {
+    ta.addEventListener('input', () => { autoResize(ta); updateMirror(ta.dataset.field, ta.value); updateCounter(ta.dataset.field, ta.value); updateScoreAndDots(); saveToStorage(); });
+  });
+  document.querySelectorAll('input[type="text"][data-field], input[type="number"][data-field], select[data-field]').forEach(inp => {
+    inp.addEventListener('input', () => { updateMirror(inp.dataset.field, inp.value); updateScoreAndDots(); saveToStorage(); });
+  });
+  document.querySelectorAll('input[name="collab"]').forEach(r => {
+    r.addEventListener('change', () => { updateCollabState(); updateScoreAndDots(); saveToStorage(); });
+  });
+  document.querySelectorAll('input[name="wo-intent"]').forEach(r => {
+    r.addEventListener('change', () => { updateWoState(); updateScoreAndDots(); saveToStorage(); });
+  });
+  document.querySelectorAll('input[type="checkbox"][data-field]').forEach(r => {
+    r.addEventListener('change', () => { updateScoreAndDots(); saveToStorage(); });
+  });
+
+  loadFromStorage();
+  autoFillDate(); 
+  setupDragInteractions();
+  
+  autoSaveInterval = setInterval(saveToStorage, 30000);
+  window.addEventListener('resize', resizeAll);
+  document.fonts.ready.then(() => { resizeAll(); updateVisualizer(); });
+  requestAnimationFrame(() => { resizeAll(); });
+  initAnimations();
+});
+</script>
+</body>
+</html>

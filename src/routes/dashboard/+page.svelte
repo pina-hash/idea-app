@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 
 	let { data } = $props();
-	let { profile, email, assignments } = $derived(data);
+	let { profile, email, isTeacher, courses } = $derived(data);
 </script>
 
 <main>
@@ -25,17 +25,31 @@
 	</div>
 
 	<h2>Assignments</h2>
-	<div class="card">
-		{#if assignments.length > 0}
-			<ul>
-				{#each assignments as slug (slug)}
-					<li><a href="/assignments/{slug}">{slug}</a></li>
-				{/each}
-			</ul>
-		{:else}
-			<p class="lead">No assignments yet.</p>
-		{/if}
-	</div>
+	{#each courses as course (course.id)}
+		<div class="card">
+			<div class="field">
+				<span>{course.id}</span>
+				<span>{course.title}</span>
+			</div>
+			{#if course.assignments.length > 0}
+				<ul>
+					{#each course.assignments as a (a.slug)}
+						<li><a href="/assignments/{a.slug}">{a.title}</a></li>
+					{/each}
+				</ul>
+			{:else}
+				<p class="lead">{course.note ?? 'No assignments yet.'}</p>
+			{/if}
+		</div>
+	{/each}
+
+	{#if isTeacher}
+		<h2>Teacher tools</h2>
+		<div class="card">
+			<p>Award coins to students.</p>
+			<a class="btn secondary" href="/coin-entry">Open coin entry</a>
+		</div>
+	{/if}
 
 	<p class="lead">
 		This is the start of your IDEA portal. Saved work and IDEA features will appear here as they

@@ -1,5 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
-import { loadAssignmentHtml } from '$lib/legacy';
+import { loadAssignmentHtml, rewriteLegacyLinks } from '$lib/legacy';
 import type { RequestHandler } from './$types';
 
 /**
@@ -23,7 +23,7 @@ export const GET: RequestHandler = async ({ params, locals: { claims } }) => {
 		error(404, 'Assignment not found');
 	}
 
-	return new Response(html, {
+	return new Response(rewriteLegacyLinks(html), {
 		headers: { 'content-type': 'text/html; charset=utf-8' }
 	});
 };

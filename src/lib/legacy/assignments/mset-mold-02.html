@@ -1,0 +1,1925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDEA — Mold Body Design — Assignment 02</title>
+<link rel="icon" type="image/png" sizes="512x512" href="/IDEA/md-android-chrome-512x512.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;600;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg0:#020A04;--bg1:#050F07;--bg2:#081209;
+  --green:#00FF41;--gold:#C8FF00;--cyan:#00F0FF;
+  --amber:#FF8C00;--teal:#00AA88;--violet:#5500AA;
+  --white:#E8FFE8;--dim:#4A7A52;--ice:#88DDFF;
+  --glow-green:0 0 10px rgba(0,255,65,.8),0 0 28px rgba(0,255,65,.3);
+  --glow-gold:0 0 10px rgba(200,255,0,.8),0 0 28px rgba(200,255,0,.3);
+  --glow-cyan:0 0 10px rgba(0,240,255,.8),0 0 28px rgba(0,240,255,.3);
+  --glow-amber:0 0 10px rgba(255,140,0,.8),0 0 28px rgba(255,140,0,.3);
+  --glow-teal:0 0 10px rgba(0,170,136,.8),0 0 28px rgba(0,170,136,.3);
+  --glow-violet:0 0 10px rgba(85,0,170,.8),0 0 28px rgba(85,0,170,.3);
+  --font-d:'Rajdhani',sans-serif;--font-u:'Exo 2',sans-serif;--font-b:'Share Tech Mono',monospace;
+}
+html{scroll-behavior:smooth}
+body{background:#020A04;color:var(--white);font-family:var(--font-b);font-size:13px;line-height:1.65;min-height:100vh;overflow-x:hidden;position:relative;}
+body.dragging{cursor:grabbing!important}
+#bg-canvas{position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:0;pointer-events:none;display:block}
+#scroll-bar{position:fixed;top:0;left:0;height:2px;width:0%;background:linear-gradient(90deg,var(--green),var(--gold));box-shadow:var(--glow-green);z-index:600;transition:width .08s linear}
+#save-status{font-family:var(--font-u);font-size:10px;color:var(--dim);letter-spacing:.5px;pointer-events:none;transition:color .3s,text-shadow .3s}
+#save-status.saved{color:var(--green);text-shadow:var(--glow-green)}
+#save-status.off,#save-status.warn{color:var(--amber)}
+#ver-warn{display:none;position:fixed;top:48px;left:50%;transform:translateX(-50%);background:rgba(255,140,0,.1);border:1px solid var(--amber);padding:9px 22px;font-family:var(--font-u);font-size:12px;color:var(--amber);z-index:550;text-align:center}
+#toolbar{position:sticky;top:0;z-index:500;background:rgba(2,8,3,.94);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid rgba(0,255,65,.25);padding:7px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.tb-l{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+.tb-r{display:flex;align-items:center;gap:8px;flex-shrink:0}
+#prog-wrap{display:flex;align-items:center;gap:7px}
+#prog-track{width:110px;height:4px;background:rgba(0,255,65,.1);border-radius:2px;overflow:hidden}
+#prog-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--teal),var(--green));border-radius:2px;transition:width .4s ease}
+#prog-pct{font-family:var(--font-u);font-size:10px;color:var(--dim);min-width:28px}
+#score-display{font-family:var(--font-d);font-size:17px;font-weight:700;color:var(--green);letter-spacing:1px;transition:color .4s;animation:glowGreen 4s ease-in-out infinite}
+.tb-btn{font-family:var(--font-u);font-size:11px;font-weight:600;letter-spacing:.5px;padding:5px 13px;border-radius:2px;border:1px solid;background:transparent;cursor:pointer;text-transform:uppercase;transition:all .2s;position:relative;overflow:hidden}
+.tb-btn::after{content:'';position:absolute;top:50%;left:50%;width:0;height:0;border-radius:50%;background:currentColor;opacity:0;transform:translate(-50%,-50%);transition:width .4s,height .4s,opacity .4s}
+.tb-btn:active::after{width:200px;height:200px;opacity:.15;transition:0s}
+.tb-primary{border-color:var(--gold);color:var(--gold)}.tb-primary:hover{background:rgba(200,255,0,.1);box-shadow:var(--glow-gold)}
+.tb-a{border-color:var(--green);color:var(--green)}.tb-a:hover{background:rgba(0,255,65,.1);box-shadow:var(--glow-green)}
+.tb-b{border-color:var(--dim);color:var(--dim)}.tb-b:hover{border-color:var(--white);color:var(--white)}
+.tb-c{border-color:rgba(255,140,0,.3);color:rgba(255,140,0,.5)}.tb-c:hover{border-color:var(--amber);color:var(--amber)}
+#main{position:relative;z-index:2;max-width:980px;margin:0 auto;padding:36px 24px 100px}
+#title-block,#inst-wrap,.module,#gate,#decl,#sub-ck{background:rgba(5,15,7,.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);position:relative}
+#title-block{border:1.5px solid rgba(0,255,65,.35);margin-bottom:28px;font-family:var(--font-d);transition:box-shadow .35s,border-color .35s}
+#title-block:hover{border-color:rgba(0,255,65,.6);box-shadow:0 0 24px rgba(0,255,65,.18)}
+.tbl-top{display:flex;border-bottom:1px solid rgba(0,255,65,.2)}
+.tbl-main{flex:1;padding:22px 26px;border-right:1px solid rgba(0,255,65,.2)}
+.tbl-eyebrow{font-size:10px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
+.tbl-title{font-size:34px;font-weight:700;color:var(--green);letter-spacing:2px;text-transform:uppercase;line-height:1;text-shadow:var(--glow-green)}
+.tbl-sub{font-size:13px;font-weight:500;color:var(--dim);letter-spacing:4px;margin-top:8px;text-transform:uppercase}
+.tbl-meta{width:210px;display:flex;flex-direction:column}
+.tbl-cell{padding:8px 14px;border-bottom:1px solid rgba(0,255,65,.12);display:flex;align-items:center;gap:8px}
+.tbl-cell:last-child{border-bottom:none}
+.tbl-lbl{font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;min-width:32px}
+.tbl-val{font-size:13px;font-weight:600;color:var(--white)}
+.tbl-val.gold{color:var(--gold);animation:glowGold 4s ease-in-out infinite}
+.tbl-val.green{color:var(--green);animation:glowGreen 4s ease-in-out infinite}
+.tbl-fields{display:flex}
+.tbl-fld{flex:1;padding:10px 16px;border-right:1px solid rgba(0,255,65,.12);display:flex;flex-direction:column;gap:4px;transition:background .2s}
+.tbl-fld:hover{background:rgba(0,255,65,.03)}
+.tbl-fld:last-child{border-right:none}
+.tbl-fld label{font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
+.tbl-fld input{background:transparent;border:none;border-bottom:1px solid rgba(0,255,65,.18);color:var(--white);font-family:var(--font-d);font-size:15px;font-weight:600;padding:3px 0;outline:none;width:100%;transition:border-color .2s}
+.tbl-fld input:focus{border-bottom-color:var(--green)}
+.tbl-fld input[readonly]{color:var(--cyan)}
+#inst-wrap{margin-bottom:28px;border:1px solid rgba(0,240,255,.22);transition:box-shadow .35s,border-color .35s}
+#inst-wrap:hover{border-color:rgba(0,240,255,.45);box-shadow:0 0 20px rgba(0,240,255,.1)}
+.inst-head{background:rgba(8,18,9,.7);padding:11px 18px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;border-left:3px solid rgba(0,240,255,.4);transition:background .2s}
+.inst-head:hover{background:rgba(0,240,255,.06)}
+.inst-head-label{font-family:var(--font-d);font-size:14px;font-weight:700;color:var(--cyan);letter-spacing:2px;text-transform:uppercase}
+.inst-arrow{font-family:var(--font-u);font-size:11px;color:var(--dim);transition:transform .25s;display:inline-block}
+.inst-arrow.open{transform:rotate(90deg)}
+#inst-panel{display:none;padding:18px 20px;background:rgba(5,15,7,.6)}
+#inst-panel.open{display:block}
+.inst-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+.inst-card{background:rgba(8,18,9,.7);border:1px solid rgba(0,255,65,.12);padding:12px 14px;transition:transform .25s,border-color .25s,box-shadow .25s;cursor:default}
+.inst-card:hover{transform:translateY(-3px);border-color:rgba(0,255,65,.4);box-shadow:0 6px 16px rgba(0,255,65,.12)}
+.inst-card-title{font-family:var(--font-u);font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--cyan);margin-bottom:7px;border-bottom:1px solid rgba(0,240,255,.1);padding-bottom:5px}
+.inst-card p{font-family:var(--font-u);font-size:11px;color:var(--dim);line-height:1.7}
+.inst-card strong{color:var(--white)}
+#sub-callout{margin-bottom:28px;border:1px solid rgba(200,255,0,.22);background:rgba(200,255,0,.03);padding:14px 18px;font-family:var(--font-u);font-size:12px;color:var(--white);line-height:1.9}
+#sub-callout strong{color:var(--gold)}
+.sc-step{display:flex;align-items:baseline;gap:10px;padding:3px 0}
+.sc-num{color:var(--gold);font-weight:700;min-width:18px}
+.module{border:1px solid rgba(0,255,65,.2);margin-bottom:28px;overflow:hidden;opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s ease,box-shadow .35s,border-color .35s}
+.module.visible{opacity:1;transform:translateY(0)}
+.module:hover{border-color:rgba(0,255,65,.45);box-shadow:0 0 22px rgba(0,255,65,.12)}
+.module::after{content:'';position:absolute;top:-100%;left:0;width:100%;height:100%;background:linear-gradient(to bottom,transparent,rgba(0,255,65,.04) 50%,transparent);pointer-events:none;z-index:0;transition:top .65s ease}
+.module:hover::after{top:100%}
+.mod-hdr{background:rgba(8,18,9,.8);padding:12px 20px;border-bottom:1px solid rgba(0,255,65,.18);display:flex;align-items:center;gap:12px;border-left:3px solid rgba(0,255,65,.5);position:relative;z-index:1;transition:border-left-color .3s;cursor:pointer;user-select:none}
+.module:hover .mod-hdr{border-left-color:var(--green)}
+.mod-num{font-family:var(--font-u);font-size:10px;font-weight:700;letter-spacing:2px;color:var(--dim);text-transform:uppercase;flex-shrink:0}
+.mod-title{font-family:var(--font-d);font-size:18px;font-weight:700;color:var(--green);letter-spacing:1px;text-transform:uppercase;flex:1;text-shadow:0 0 12px rgba(0,255,65,.3)}
+.mod-pts{font-family:var(--font-d);font-size:13px;font-weight:700;color:var(--gold);letter-spacing:1px;animation:glowGold 4s ease-in-out infinite;flex-shrink:0}
+.mod-dot{width:13px;height:13px;border-radius:50%;background:rgba(0,255,65,.06);border:1.5px solid rgba(0,255,65,.22);flex-shrink:0;transition:background .3s,border-color .3s,box-shadow .3s}
+.mod-dot.partial{background:var(--teal);border-color:var(--teal);box-shadow:0 0 8px rgba(0,170,136,.6)}
+.mod-dot.complete{background:var(--green);border-color:var(--green);box-shadow:0 0 10px rgba(0,255,65,.8)}
+.rub-btn{font-family:var(--font-u);font-size:10px;color:var(--dim);cursor:pointer;border:1px solid rgba(0,255,65,.15);padding:2px 9px;border-radius:2px;text-transform:uppercase;letter-spacing:1px;background:transparent;flex-shrink:0;transition:all .2s}
+.rub-btn:hover{color:var(--green);border-color:var(--green);box-shadow:0 0 8px rgba(0,255,65,.3)}
+.mod-chev{font-size:10px;color:var(--dim);transition:transform .3s;flex-shrink:0}
+.module.collapsed .mod-chev{transform:rotate(-90deg)}
+.rub-panel{display:none;background:rgba(2,10,4,.9);border-bottom:1px solid rgba(0,255,65,.1);padding:14px 20px;position:relative;z-index:1}
+.rub-panel.open{display:block}
+.rub-table{width:100%;border-collapse:collapse;font-family:var(--font-u);font-size:11px}
+.rub-table th{color:var(--green);text-align:left;padding:4px 10px;border-bottom:1px solid rgba(0,255,65,.12);text-transform:uppercase;letter-spacing:1px;font-size:10px}
+.rub-table td{padding:5px 10px;border-bottom:1px solid rgba(0,255,65,.05);color:var(--white)}
+.rub-table td:first-child{color:var(--gold);font-weight:700;white-space:nowrap;animation:glowGold 4s ease-in-out infinite}
+.mod-body-wrap{max-height:8000px;overflow:hidden;transition:max-height .5s ease}
+.module.collapsed .mod-body-wrap{max-height:0}
+.mod-body{padding:22px 20px;background:rgba(5,15,7,.7);position:relative;z-index:1}
+.locked-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(2,8,3,.88);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:20;transition:opacity .6s ease;pointer-events:all}
+.locked-overlay.dismissed{opacity:0;pointer-events:none}
+.lock-icon{font-size:28px;color:var(--dim)}
+.lock-label{font-family:var(--font-u);font-size:12px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+.info-btn{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-u);font-size:10px;font-weight:600;color:var(--gold);cursor:pointer;border:1px solid rgba(200,255,0,.3);padding:3px 11px;border-radius:2px;text-transform:uppercase;letter-spacing:1px;background:rgba(200,255,0,.04);transition:all .2s;margin-bottom:8px}
+.info-btn::before{content:'i';display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid currentColor;font-size:9px;font-style:italic;flex-shrink:0;font-family:Georgia,serif}
+.info-btn:hover{background:rgba(200,255,0,.1);border-color:var(--gold);box-shadow:var(--glow-gold)}
+.info-box{display:none;background:rgba(2,10,4,.97);border:1px solid rgba(200,255,0,.22);border-left:2px solid var(--gold);border-radius:2px;padding:14px 16px;margin-bottom:16px;font-family:var(--font-u);font-size:12px;color:var(--white);line-height:1.8}
+.info-box.open{display:block}
+.info-box strong{color:var(--gold)}
+.info-box em{color:var(--cyan);font-style:normal}
+.info-rule{margin-top:10px;padding:8px 12px;background:rgba(200,255,0,.05);border-left:2px solid rgba(200,255,0,.4);font-size:11px;color:var(--gold)}
+.info-link{display:inline-block;margin-top:10px;margin-right:6px;font-family:var(--font-u);font-size:11px;color:var(--cyan);border:1px solid rgba(0,240,255,.3);padding:4px 10px;border-radius:2px;text-decoration:none;transition:all .2s}
+.info-link:hover{background:rgba(0,240,255,.08);border-color:var(--cyan);box-shadow:0 0 10px rgba(0,240,255,.3)}
+.fg{margin-bottom:20px}
+.fl{font-family:var(--font-u);font-size:11px;font-weight:600;letter-spacing:1.5px;color:var(--green);text-transform:uppercase;margin-bottom:5px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.req{color:var(--amber);font-size:9px;letter-spacing:1px}
+.fhint{font-family:var(--font-u);font-size:10px;color:var(--dim);margin-bottom:6px;font-style:italic}
+textarea,input[type="text"],input[type="number"],select{width:100%;background:rgba(8,18,9,.95);border:1px solid rgba(0,255,65,.2);border-radius:2px;color:var(--white);font-family:var(--font-d);font-size:13px;padding:8px 12px;outline:none;transition:border-color .2s,box-shadow .2s;resize:none}
+textarea:focus,input[type="text"]:focus,input[type="number"]:focus,select:focus{border-color:var(--green);box-shadow:0 0 0 1px rgba(0,255,65,.15),0 0 14px rgba(0,255,65,.18)}
+select option{background:var(--bg2);color:var(--white)}
+input[type="number"]{-moz-appearance:textfield}
+input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none}
+.ctr-row{display:flex;align-items:center;gap:8px;margin-top:4px}
+.ctr{font-family:var(--font-u);font-size:10px;transition:color .3s}
+.s-dim{color:var(--dim)}.s-warn{color:var(--amber)}.s-ok{color:var(--green)}
+.ck{display:flex;align-items:center;gap:10px;padding:6px 10px;border-radius:2px;cursor:pointer;transition:background .2s,transform .2s;margin-bottom:3px}
+.ck:hover{background:rgba(0,255,65,.05);transform:translateX(6px)}
+.ck input[type="checkbox"]{width:15px;height:15px;cursor:pointer;accent-color:var(--green);flex-shrink:0}
+.ck label{font-family:var(--font-u);font-size:12px;color:var(--white);cursor:pointer}
+.upload-zone{border:1px dashed rgba(0,255,65,.3);border-radius:2px;padding:20px;cursor:pointer;transition:all .2s;background:rgba(8,18,9,.85);position:relative;overflow:hidden}
+.upload-zone:hover{border-color:var(--green);background:rgba(0,255,65,.05);box-shadow:inset 0 0 20px rgba(0,255,65,.08)}
+.upload-zone.drag-over{border-color:var(--gold);background:rgba(200,255,0,.06)}
+.upload-zone input[type="file"]{display:none}
+.paste-badge{position:absolute;top:6px;right:8px;font-family:var(--font-u);font-size:9px;color:var(--cyan);border:1px solid rgba(0,240,255,.4);padding:1px 7px;border-radius:2px;letter-spacing:1px;text-transform:uppercase;display:none;pointer-events:none}
+.upload-zone.paste-active .paste-badge{display:block}
+.uz-inner{text-align:center}
+.upload-zone.has-image .uz-inner{display:none}
+.uz-lbl{font-family:var(--font-u);font-size:12px;color:var(--dim)}
+.uz-lbl span{color:var(--green)}
+.img-cnt{font-family:var(--font-u);font-size:11px;margin-top:6px;transition:color .3s}
+.img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;margin-top:12px}
+.img-card{background:rgba(8,18,9,.9);border:1px solid rgba(0,255,65,.12);border-radius:2px;overflow:hidden;transition:border-color .25s,transform .25s,box-shadow .25s}
+.img-card:hover{border-color:rgba(0,255,65,.4);transform:translateY(-3px) scale(1.02);box-shadow:0 8px 20px rgba(0,255,65,.15)}
+.img-card img{width:100%;height:140px;object-fit:cover;display:block;cursor:pointer;transition:opacity .2s}
+.img-card img:hover{opacity:.82}
+.img-cap{padding:6px 8px;border-top:1px solid rgba(0,255,65,.07)}
+.img-cap input{background:transparent;border:none;border-bottom:1px solid rgba(0,255,65,.12);color:var(--white);font-family:var(--font-u);font-size:11px;padding:2px 0;width:100%;outline:none}
+.img-rm{display:block;text-align:center;padding:4px;font-family:var(--font-u);font-size:10px;letter-spacing:1px;color:rgba(255,140,0,.4);cursor:pointer;transition:color .2s,background .2s;text-transform:uppercase}
+.img-rm:hover{color:var(--amber);background:rgba(255,140,0,.06)}
+.dt{width:100%;border-collapse:collapse;margin-bottom:8px}
+.dt th{font-family:var(--font-u);font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--green);padding:6px 8px;border-bottom:1px solid rgba(0,255,65,.18);text-align:left;cursor:default}
+.dt td{padding:4px 6px;border-bottom:1px solid rgba(0,255,65,.06);transition:background .2s;vertical-align:middle}
+.dt tr:hover td{background:rgba(0,255,65,.025)}
+.dt td input,.dt td select{background:rgba(8,18,9,.95);border:1px solid rgba(0,255,65,.14);border-radius:1px;color:var(--white);font-family:var(--font-d);font-size:12px;padding:4px 7px;width:100%}
+.dt tr.row-ok td{background:rgba(0,255,65,.04)}
+.dt tr.row-warn td{background:rgba(255,140,0,.04)}
+.drag-handle{cursor:grab;color:var(--dim);padding:0 8px;font-size:14px;user-select:none;display:inline-block}
+.drag-handle:hover{color:var(--green)}
+.drag-over-row{border-top:2px solid var(--green)!important}
+.dup-row,.del-row{cursor:pointer;padding:2px 7px;font-size:11px;border:none;background:transparent;transition:all .2s}
+.dup-row{color:var(--teal)}.dup-row:hover{background:rgba(0,170,136,.1);color:var(--teal)}
+.del-row{color:rgba(255,140,0,.4)}.del-row:hover{color:var(--amber);background:rgba(255,140,0,.08)}
+.add-row{font-family:var(--font-u);font-size:11px;color:var(--teal);background:transparent;cursor:pointer;border:1px dashed rgba(0,170,136,.35);padding:4px 14px;border-radius:2px;text-transform:uppercase;letter-spacing:1px;transition:all .2s}
+.add-row:hover{border-color:var(--teal);background:rgba(0,170,136,.07);box-shadow:0 0 10px rgba(0,170,136,.2)}
+.table-wrap{overflow-x:auto;margin-bottom:6px}
+.expand-btn{font-family:var(--font-u);font-size:10px;color:var(--dim);cursor:pointer;border:1px solid rgba(0,255,65,.12);padding:2px 10px;border-radius:2px;background:transparent;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;display:inline-block;transition:all .2s}
+.expand-btn:hover{color:var(--green);border-color:var(--green)}
+#meas-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(1,5,2,.98);z-index:8000;flex-direction:column}
+#meas-overlay.open{display:flex}
+#meas-ol-close{position:absolute;top:16px;right:20px;font-family:var(--font-u);font-size:11px;color:var(--dim);cursor:pointer;letter-spacing:2px;text-transform:uppercase;transition:color .2s}
+#meas-ol-close:hover{color:var(--green)}
+#meas-ol-inner{flex:1;overflow-y:auto;padding:52px 24px 24px}
+#tip-box{position:fixed;background:rgba(5,15,7,.97);border:1px solid rgba(0,255,65,.3);border-left:2px solid var(--green);padding:8px 12px;font-family:var(--font-u);font-size:11px;color:var(--white);max-width:280px;z-index:9999;pointer-events:none;display:none;line-height:1.6}
+#tip-box strong{color:var(--green);display:block;margin-bottom:2px}
+.du-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.du-field{display:flex;align-items:center;gap:6px;flex:1;min-width:120px}
+.du-field label{font-family:var(--font-u);font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+.du-field input{flex:1}
+.du-sep{color:var(--dim);font-size:11px}
+.off-status{font-family:var(--font-u);font-size:11px;text-align:center;padding:3px 8px;border-radius:2px;min-width:54px}
+.off-status.ok{color:var(--green)}.off-status.fail{color:var(--amber)}.off-status.empty{color:var(--dim)}
+.stat-card{display:inline-flex;align-items:center;gap:10px;padding:8px 14px;border:1px solid;border-radius:2px;font-family:var(--font-u);font-size:11px;margin-top:8px;transition:all .3s}
+.stat-card.ok{border-color:rgba(0,255,65,.35);background:rgba(0,255,65,.04);color:var(--green)}
+.stat-card.fail{border-color:rgba(255,140,0,.35);background:rgba(255,140,0,.04);color:var(--amber)}
+.stat-card.empty{border-color:rgba(0,255,65,.12);background:transparent;color:var(--dim)}
+.spec-block{background:rgba(8,18,9,.9);border:1px solid rgba(200,255,0,.22);border-left:2px solid var(--gold);padding:12px 16px;margin-bottom:14px;font-family:var(--font-u);font-size:12px;line-height:1.9}
+.spec-block strong{color:var(--gold)}
+.spec-val{font-family:var(--font-b);color:var(--white);animation:glowGreen 4s ease-in-out infinite}
+.section-div{font-family:var(--font-u);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--teal);margin:18px 0 10px;padding-bottom:5px;border-bottom:1px solid rgba(0,170,136,.2)}
+.callout{font-family:var(--font-u);font-size:12px;color:var(--dim);line-height:1.75;padding:10px 14px;border:1px solid rgba(0,255,65,.12);background:rgba(0,255,65,.02);margin-bottom:16px}
+.callout strong{color:var(--green)}
+.warn-bar{font-family:var(--font-u);font-size:11px;color:var(--amber);padding:9px 13px;border:1px solid rgba(255,140,0,.22);background:rgba(255,140,0,.05);margin-bottom:16px}
+.step-ol{list-style:none;counter-reset:steps;margin-bottom:16px}
+.step-ol li{counter-increment:steps;display:flex;gap:12px;padding:7px 0;border-bottom:1px solid rgba(0,255,65,.05);font-family:var(--font-u);font-size:12px;color:var(--white);line-height:1.6}
+.step-ol li::before{content:counter(steps);font-family:var(--font-b);font-size:11px;color:var(--teal);min-width:18px;padding-top:1px}
+.step-ol li strong{color:var(--gold)}
+.step-ol li em{color:var(--cyan);font-style:normal}
+#gate{border:1px solid rgba(0,255,65,.25);margin:32px 0;padding:30px;text-align:center;opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s ease,border-color .4s,box-shadow .4s}
+#gate.visible{opacity:1;transform:translateY(0)}
+#gate.approved{border-color:var(--green);box-shadow:var(--glow-green)}
+#gate-title{font-family:var(--font-d);font-size:16px;font-weight:700;color:var(--white);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px}
+#gate-sub{font-family:var(--font-u);font-size:11px;color:var(--dim);margin-bottom:20px;letter-spacing:1px}
+#gate-input-row{display:flex;justify-content:center;gap:10px;align-items:center;flex-wrap:wrap}
+#gate-pw{width:200px;text-align:center;letter-spacing:4px;font-family:var(--font-b);max-width:200px}
+#gate-submit{font-family:var(--font-u);font-size:11px;font-weight:600;padding:8px 20px;border:1px solid var(--green);color:var(--green);background:transparent;cursor:pointer;text-transform:uppercase;letter-spacing:1px;border-radius:2px;transition:all .2s}
+#gate-submit:hover{background:rgba(0,255,65,.1);box-shadow:var(--glow-green)}
+#gate-err{font-family:var(--font-u);font-size:11px;color:var(--amber);margin-top:10px;min-height:16px}
+#gate-approved-state{display:none}
+.ga-icon{font-size:48px;margin-bottom:12px;color:var(--green);text-shadow:var(--glow-green);animation:glowGreen 2s ease-in-out infinite}
+.ga-title{font-family:var(--font-d);font-size:18px;font-weight:700;color:var(--green);letter-spacing:3px;text-transform:uppercase;text-shadow:var(--glow-green)}
+.ga-ts{font-family:var(--font-b);font-size:11px;color:var(--cyan);margin-top:8px;animation:glowCyan 4s ease-in-out infinite}
+.print-mirror{display:none;font-family:var(--font-d);font-size:13px;color:var(--white);padding:4px 0;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+#decl{border:1px solid rgba(0,255,65,.2);padding:16px 20px;margin-bottom:22px;font-family:var(--font-u);font-size:12px;color:var(--white);line-height:1.8;opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s ease,box-shadow .35s,border-color .35s}
+#decl.visible{opacity:1;transform:translateY(0)}
+#decl:hover{border-color:rgba(0,255,65,.4);box-shadow:0 0 18px rgba(0,255,65,.1)}
+#decl strong{color:var(--green)}
+.ai-note{margin-top:10px;padding:8px 12px;background:rgba(0,240,255,.05);border-left:2px solid rgba(0,240,255,.4);color:var(--cyan);font-size:11px}
+#instr-sect{border:1px solid rgba(0,255,65,.12);padding:14px 18px;margin-bottom:22px}
+.instr-lbl{font-family:var(--font-u);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+#sub-ck{border:1px solid rgba(0,255,65,.22);margin-bottom:22px;opacity:0;transform:translateY(20px);transition:opacity .65s ease,transform .65s ease,box-shadow .35s,border-color .35s}
+#sub-ck.visible{opacity:1;transform:translateY(0)}
+#sub-ck:hover{border-color:rgba(0,255,65,.45);box-shadow:0 0 20px rgba(0,255,65,.12)}
+.sub-hdr{background:rgba(8,18,9,.8);padding:10px 16px;border-bottom:1px solid rgba(0,255,65,.18);font-family:var(--font-d);font-size:14px;font-weight:700;color:var(--green);letter-spacing:2px;text-transform:uppercase;text-shadow:0 0 12px rgba(0,255,65,.3)}
+.sub-body{padding:14px 16px;background:rgba(5,15,7,.7)}
+#footer{margin-top:40px;padding:14px 0;border-top:1px solid rgba(0,255,65,.12);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.footer-id{font-family:var(--font-d);font-size:11px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+.footer-school{font-family:var(--font-u);font-size:10px;color:var(--dim)}
+.footer-pts{font-family:var(--font-b);font-size:11px;color:var(--gold)}
+.footer-ver{font-family:var(--font-b);font-size:10px;color:var(--dim)}
+#lightbox{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.93);z-index:9999;justify-content:center;align-items:center}
+#lightbox.open{display:flex}
+#lightbox img{max-width:92vw;max-height:90vh;object-fit:contain;border:1px solid rgba(0,255,65,.3);box-shadow:var(--glow-green)}
+#lb-close{position:absolute;top:20px;right:26px;color:var(--dim);font-family:var(--font-u);font-size:11px;cursor:pointer;letter-spacing:2px;text-transform:uppercase}
+#lb-close:hover{color:var(--green)}
+.dlg{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(1,5,2,.94);z-index:9000;justify-content:center;align-items:center}
+.dlg.open{display:flex}
+.dlg-box{background:var(--bg1);border:1px solid rgba(0,255,65,.3);max-width:520px;width:92%;padding:26px}
+.dlg-title{font-family:var(--font-d);font-size:16px;font-weight:700;color:var(--green);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px;text-shadow:var(--glow-green)}
+.dlg-body{font-family:var(--font-u);font-size:12px;color:var(--dim);margin-bottom:18px;line-height:1.7}
+.dlg-actions{display:flex;gap:10px;flex-wrap:wrap}
+.pf-list{list-style:none;margin-bottom:16px}
+.pf-list li{padding:5px 0;font-family:var(--font-u);font-size:12px;color:var(--amber);border-bottom:1px solid rgba(0,255,65,.05)}
+.pf-list li::before{content:'⚠  '}
+.pf-ok{color:var(--green);font-family:var(--font-u);font-size:13px;margin-bottom:16px}
+.print-only{display:none}
+@keyframes glowGreen{0%,100%{text-shadow:0 0 5px rgba(0,255,65,.2)}50%{text-shadow:var(--glow-green)}}
+@keyframes glowGold{0%,100%{text-shadow:0 0 5px rgba(200,255,0,.2)}50%{text-shadow:var(--glow-gold)}}
+@keyframes glowCyan{0%,100%{text-shadow:0 0 5px rgba(0,240,255,.2)}50%{text-shadow:var(--glow-cyan)}}
+@keyframes gateFlicker{0%,100%{border-color:rgba(0,255,65,.25)}25%{border-color:var(--green)}75%{border-color:rgba(0,255,65,.1)}}
+@keyframes gateBorderFlash{0%,33%,67%,100%{border-color:rgba(0,255,65,.25);box-shadow:none}16%,50%,83%{border-color:var(--green);box-shadow:var(--glow-green)}}
+.gate-flash{animation:gateBorderFlash .6s ease!important}
+#gate-scanline{position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,var(--green),transparent);pointer-events:none;z-index:10;animation:scanlineSweep .65s ease-in-out forwards}
+@keyframes scanlineSweep{from{top:0}to{top:calc(100% - 4px)}}
+#gate-anim-txt{font-family:var(--font-b);font-size:14px;color:var(--green);letter-spacing:3px;margin-top:18px;min-height:36px}
+.gate-anim-lg{font-family:var(--font-d)!important;font-size:30px!important;font-weight:700!important;letter-spacing:5px!important;text-shadow:var(--glow-green)!important;animation:glowGreen 1s ease-in-out infinite!important}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}#bg-canvas{display:none}}
+/* ===== TOOL PANELS ===== */
+.tool-panel{border:1px solid rgba(0,255,65,.2);background:var(--bg1);margin-bottom:28px;position:relative;overflow:hidden}
+.tool-panel.visible{opacity:1;transform:translateY(0)}
+.tool-panel::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(180deg,var(--green),rgba(0,255,65,.05));z-index:1}
+.tool-panel-header{display:flex;align-items:center;gap:12px;padding:12px 20px 12px 24px;border-bottom:1px solid rgba(0,255,65,.12);background:rgba(0,255,65,.03)}
+.tool-panel-icon{font-family:var(--font-u);font-size:10px;font-weight:700;color:var(--dim);letter-spacing:1px;background:rgba(0,255,65,.07);padding:3px 8px;border:1px solid rgba(0,255,65,.18)}
+.tool-panel-title{font-family:var(--font-d);font-size:14px;font-weight:700;letter-spacing:2px;color:var(--green);flex:1;text-transform:uppercase}
+.tool-panel-note{font-family:var(--font-u);font-size:10px;color:var(--dim);letter-spacing:.5px}
+.tool-panel-body{padding:20px 24px;display:flex;flex-direction:column;gap:14px;position:relative;z-index:1}
+.tool-add-btn{font-family:var(--font-u);font-size:10px;letter-spacing:1.5px;padding:7px 16px;border:1px dashed rgba(0,255,65,.3);background:transparent;color:var(--green);cursor:pointer;text-transform:uppercase;transition:all .2s;align-self:flex-start}
+.tool-add-btn:hover{border-color:rgba(0,255,65,.6);background:rgba(0,255,65,.04)}
+.req-card{border:1px solid rgba(0,255,65,.15);background:var(--bg2);margin-bottom:10px}
+.card-header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(0,255,65,.03);border-bottom:1px solid rgba(0,255,65,.1)}
+.card-num{font-family:var(--font-u);font-size:10px;font-weight:700;color:var(--green);letter-spacing:2px}
+.card-name{font-family:var(--font-b);font-size:10px;color:var(--dim);letter-spacing:.5px;flex:1}
+.card-del{font-size:14px;color:var(--dim);cursor:pointer;transition:color .2s}
+.card-del:hover{color:var(--amber)}
+.card-body{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.card-field{display:flex;flex-direction:column;gap:4px}
+.card-field label{font-family:var(--font-u);font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
+.card-field input,.card-field select,.card-field textarea{background:var(--bg1);border:1px solid rgba(0,255,65,.12);border-bottom:1px solid rgba(0,255,65,.25);color:var(--white);font-family:var(--font-d);font-size:14px;padding:8px 10px;outline:none;width:100%;transition:border-color .2s}
+.card-field input:focus,.card-field select:focus,.card-field textarea:focus{border-color:var(--green)!important;background:rgba(0,255,65,.03)}
+.card-field select option{background:var(--bg1);color:var(--white)}
+.card-field textarea{resize:none;min-height:54px;overflow:hidden}
+.card-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px;padding-top:10px;border-top:1px solid rgba(0,255,65,.08)}
+.card-action-btn{font-family:var(--font-u);font-size:10px;font-weight:700;letter-spacing:2px;padding:8px 16px;border:1px solid rgba(0,255,65,.4);background:rgba(0,255,65,.05);color:var(--green);cursor:pointer;text-transform:uppercase;transition:background .2s,box-shadow .2s}
+.card-action-btn:hover{background:rgba(0,255,65,.12);box-shadow:0 0 10px rgba(0,255,65,.2)}
+.copy-flash{font-family:var(--font-b);font-size:9px;color:var(--green);letter-spacing:1px;display:none}
+.copy-flash.show{display:block}
+@page{size:letter;margin:.5in}
+@media print{
+  #scroll-bar,#toolbar,.rub-btn,.rub-panel,.upload-zone,.add-row,.dup-row,.del-row,
+  .drag-handle,.expand-btn,.dlg,#lightbox,#bg-canvas,.img-rm,.ctr-row,
+  .info-btn,.info-box,#inst-wrap,#instr-sect,#gate-input-row,#gate-err,
+  #save-status,#ver-warn,.locked-overlay,#meas-overlay,#tip-box,.tool-panel,.no-print{display:none!important}
+  .print-only{display:block!important}
+  .print-mirror{display:block!important}
+  body{background:#020A04!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #main{padding:12px;z-index:0}
+  #title-block,.module,#gate,#decl,#sub-ck{background:#020A04!important;backdrop-filter:none!important}
+  .module{opacity:1!important;transform:none!important;page-break-inside:avoid;break-inside:avoid;margin-bottom:16px}
+  .mod-body-wrap{max-height:none!important}
+  #decl,#sub-ck,#gate{opacity:1!important;transform:none!important}
+  .img-grid{grid-template-columns:repeat(2,1fr)!important;gap:8px!important}
+  .img-card{page-break-inside:avoid;break-inside:avoid}
+  .img-card img{height:160px!important;object-fit:contain!important;background:#020A04}
+  textarea,input[type="text"],input[type="number"],select{display:none!important}
+}
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<div id="scroll-bar"></div>
+<div id="ver-warn"></div>
+<div id="tip-box"></div>
+<div id="lightbox"><div id="lb-close">[ ESC / CLOSE ]</div><img id="lb-img" src="" alt=""></div>
+<!-- MEASURE EXPAND OVERLAY -->
+<div id="meas-overlay">
+  <div id="meas-ol-close" onclick="collapseMeasTable()">[ CLOSE / COLLAPSE ]</div>
+  <div id="meas-ol-inner"></div>
+</div>
+<!-- DIALOGS -->
+<div class="dlg" id="dlg-c1"><div class="dlg-box"><div class="dlg-title">CLEAR ALL DATA</div><div class="dlg-body">All text, images, and saved progress will be permanently erased. This cannot be undone.</div><div class="dlg-actions"><button class="tb-btn tb-c" onclick="showC2()">YES, CLEAR EVERYTHING</button><button class="tb-btn tb-b" onclick="closeDlg('dlg-c1')">GO BACK</button></div></div></div>
+<div class="dlg" id="dlg-c2"><div class="dlg-box"><div class="dlg-title">ARE YOU SURE?</div><div class="dlg-body">This is final. All data will be erased.</div><div class="dlg-actions"><button class="tb-btn tb-c" onclick="doClear()">CONFIRM — ERASE ALL</button><button class="tb-btn tb-b" onclick="closeDlg('dlg-c2')">CANCEL</button></div></div></div>
+<div class="dlg" id="dlg-rst"><div class="dlg-box"><div class="dlg-title">RESTORE DEFAULTS</div><div class="dlg-body">All fields will be reset to their initial state. All entered data will be cleared.</div><div class="dlg-actions"><button class="tb-btn tb-b" onclick="doRestore()">CONFIRM RESET</button><button class="tb-btn tb-b" onclick="closeDlg('dlg-rst')">CANCEL</button></div></div></div>
+<div class="dlg" id="dlg-pf"><div class="dlg-box"><div class="dlg-title" id="pf-title">PREFLIGHT CHECK</div><div id="pf-content"></div><div class="dlg-actions"><button class="tb-btn tb-a" onclick="proceedAction()">PROCEED ANYWAY</button><button class="tb-btn tb-b" onclick="closeDlg('dlg-pf')">GO BACK</button></div></div></div>
+<!-- TOOLBAR -->
+<div id="toolbar">
+  <div class="tb-l">
+    <div id="prog-wrap"><div id="prog-track"><div id="prog-fill"></div></div><div id="prog-pct">0%</div></div>
+    <div id="score-display">0 / 80 PTS</div>
+    <div id="save-status">AUTO-SAVE ON</div>
+  </div>
+  <div class="tb-r">
+    <button class="tb-btn tb-primary" onclick="runPF('export')">EXPORT HTML</button>
+    <button class="tb-btn tb-a" onclick="runPF('print')">PRINT / PDF</button>
+    <button class="tb-btn tb-b" onclick="saveData()">SAVE PROGRESS</button>
+    <button class="tb-btn tb-b" id="as-btn" onclick="toggleAutoSave()">AUTO-SAVE ON</button>
+    <button class="tb-btn tb-b" onclick="openDlg('dlg-rst')">RESTORE DEFAULTS</button>
+    <button class="tb-btn tb-c" onclick="openDlg('dlg-c1')">CLEAR ALL</button>
+  </div>
+</div>
+<div id="main">
+<!-- TITLE BLOCK -->
+<div id="title-block">
+  <div class="tbl-top">
+    <div class="tbl-main">
+      <div class="tbl-eyebrow">IDEA / MSET Q4 &nbsp;·&nbsp; 2025–26 &nbsp;·&nbsp; DOC: MSET-MOLD-02</div>
+      <div class="tbl-title">MOLD BODY DESIGN</div>
+      <div class="tbl-sub">ASSIGNMENT 02 — NEGATIVE MOLD CONSTRUCTION</div>
+    </div>
+    <div class="tbl-meta">
+      <div class="tbl-cell"><span class="tbl-lbl">DUE</span><span class="tbl-val gold">TBD</span></div>
+      <div class="tbl-cell"><span class="tbl-lbl">REV</span><span class="tbl-val footer-ver"></span></div>
+      <div class="tbl-cell"><span class="tbl-lbl">PTS</span><span class="tbl-val green">80</span></div>
+      <div class="tbl-cell"><span class="tbl-lbl">DOC</span><span class="tbl-val" style="font-size:10px;color:var(--dim)">MSET-MOLD-02</span></div>
+    </div>
+  </div>
+  <div class="tbl-fields">
+    <div class="tbl-fld"><label>DRAWN BY</label><input type="text" id="student-name" placeholder="Last, First" data-save="true" oninput="updMirror('student-name');updateComp()"><div class="print-mirror" data-mirror="student-name"></div></div>
+    <div class="tbl-fld"><label>DATE</label><input type="text" id="date-field" placeholder="MM / DD / YYYY" data-save="true" oninput="updMirror('date-field')"><div class="print-mirror" data-mirror="date-field"></div></div>
+    <div class="tbl-fld"><label>PART FILE</label><input type="text" id="part-file" placeholder="LastnameF_MoldBody.SLDPRT" data-save="true" oninput="updMirror('part-file');updateComp()"><div class="print-mirror" data-mirror="part-file"></div></div>
+    <div class="tbl-fld" style="max-width:80px"><label>SCALE</label><input type="text" value="N/A" readonly></div>
+  </div>
+</div>
+<!-- HOW TO USE -->
+<div id="inst-wrap">
+  <div class="inst-head" onclick="togInst()"><span class="inst-head-label">How to Use This Document</span><span class="inst-arrow" id="inst-arr">&#9658;</span></div>
+  <div id="inst-panel">
+    <div class="inst-grid">
+      <div class="inst-card"><div class="inst-card-title">Submission</div><p>Click <strong>EXPORT HTML</strong> (primary button). Submit the exported file to Google Classroom. Also submit your .SLDPRT file separately.</p></div>
+      <div class="inst-card"><div class="inst-card-title">Saving</div><p>Auto-saves every 30 seconds. Click <strong>SAVE PROGRESS</strong> anytime. Toggle auto-save on/off with the toolbar button. Last save time appears top-right.</p></div>
+      <div class="inst-card"><div class="inst-card-title">Collapse Modules</div><p>Click any <strong>module header</strong> to collapse or expand it. Collapsed state is saved between sessions.</p></div>
+      <div class="inst-card"><div class="inst-card-title">Approval Gate</div><p>Modules 05 and 06 are locked until Mr. Pina enters the approval code. Complete all CAD work in Modules 01–04 first.</p></div>
+      <div class="inst-card"><div class="inst-card-title">Images</div><p>Click upload zones, drag files in, or paste with <strong>Ctrl+V</strong>. The cyan <strong>PASTE TARGET</strong> badge shows where Ctrl+V will land. Click any image for fullscreen.</p></div>
+      <div class="inst-card"><div class="inst-card-title">Dual-Unit Fields</div><p>Dimension fields show <strong>inches and mm side by side</strong>. Enter either — the other auto-fills.</p></div>
+      <div class="inst-card"><div class="inst-card-title">Measurement Table</div><p>In Module 06, document actual vs. designed dimensions. Click <strong>Expand</strong> for fullscreen. Drag rows to reorder. Duplicate rows to copy.</p></div>
+      <div class="inst-card"><div class="inst-card-title">Background</div><p>Move your mouse to illuminate the grid. Panels and images lift on hover.</p></div>
+    </div>
+  </div>
+</div>
+<!-- SUB CALLOUT -->
+<div id="sub-callout">
+  <strong>SUBMISSION INSTRUCTIONS</strong><br>
+  <div class="sc-step"><span class="sc-num">1.</span><span>Complete Modules 01–04 and present your SolidWorks file to Mr. Pina for approval before continuing.</span></div>
+  <div class="sc-step"><span class="sc-num">2.</span><span>After approval, complete Modules 05–06 including physical print documentation.</span></div>
+  <div class="sc-step"><span class="sc-num">3.</span><span>Click <strong>EXPORT HTML</strong>. Submit the exported file to Google Classroom.</span></div>
+  <div class="sc-step"><span class="sc-num">4.</span><span>Submit your SolidWorks multibody part file (.SLDPRT) to Google Classroom separately.</span></div>
+</div>
+<!-- ======= MODULE 01 ======= -->
+<div class="module" id="mod-1">
+  <div class="mod-hdr" onclick="togMod(1)">
+    <div class="mod-num">MODULE 01</div><div class="mod-title">Mold Block Creation</div><div class="mod-pts">12 PTS</div>
+    <div class="mod-dot" id="dot-1"></div><button class="rub-btn" onclick="togRub(event,'rub-1')">RUBRIC</button><span class="mod-chev">&#9660;</span>
+  </div>
+  <div class="rub-panel" id="rub-1"><table class="rub-table">
+    <tr><th>PTS</th><th>DESCRIPTOR</th></tr>
+    <tr><td>12</td><td>Geometry confirmed. All six face offsets documented and meeting minimum 5.00mm / 0.197". Image uploaded. All confirmations checked.</td></tr>
+    <tr><td>8</td><td>Offsets documented but one or more faces below minimum, or image missing.</td></tr>
+    <tr><td>4</td><td>Partial. Several offsets missing or confirmations incomplete.</td></tr>
+    <tr><td>0</td><td>Not submitted.</td></tr>
+  </table></div>
+  <div class="mod-body-wrap"><div class="mod-body">
+    <div class="callout">Starting geometry: your drafted part and its defined parting reference plane must be complete before beginning this module. The parting plane is the sketch plane for the boss extrude and the trimming surface for the split in Module 02.</div>
+    <div class="fg">
+      <div class="fl">STARTING GEOMETRY CONFIRMATION <span class="req">REQUIRED</span></div>
+      <div class="fhint">Confirm your part has correct draft angles on all faces and the parting reference plane is defined. (1–2 sentences)</div>
+      <textarea id="geom-confirm" rows="3" data-min="1" data-max="2" data-save="true" placeholder="e.g., The part has a minimum 2 degrees of draft on all vertical faces and the parting plane is defined at the base of the raised features at the widest cross-section..."></textarea>
+      <div class="ctr-row"><div class="ctr s-dim" id="ctr-geom-confirm">0 / 1–2 sentences</div></div>
+      <div class="print-mirror" data-mirror="geom-confirm"></div>
+    </div>
+    <div class="section-div">Dual-Direction Boss Extrude — Face Offset Documentation</div>
+    <button class="info-btn" onclick="togInfo('inf-boss')">DUAL-DIRECTION BOSS EXTRUDE — HOW IT WORKS</button>
+    <div class="info-box" id="inf-boss">
+      <strong>Three steps:</strong><br>
+      1. Open a sketch on the parting reference plane.<br>
+      2. Sketch a rectangle covering the full footprint of your part with clearance on all sides.<br>
+      3. Extruded Boss/Base — set Direction 1 depth (above parting plane) and Direction 2 depth (below parting plane) so the block encapsulates the part with material on every side.<br><br>
+      <strong>Minimum offset: 5.00mm / 0.197"</strong> from every part surface to the nearest outer mold wall. Walls below this crack, flex, or fail during demolding.
+      <div class="info-rule">Measure from the extremity of your part geometry outward to the outer face of the block — not from the parting plane outward.</div>
+    </div>
+    <div class="callout">Enter your actual offset from part surface to outer mold wall for each face. Inch and mm fields auto-sync. All six faces must show green before continuing.</div>
+    <div class="table-wrap">
+      <table class="dt">
+        <thead><tr>
+          <th data-tip="Face — Which face of the mold block is being measured.">Face</th>
+          <th data-tip="Offset (in) — Distance from part surface to outer mold wall in inches. Minimum: 0.197 in.">Offset (in)</th>
+          <th data-tip="Offset (mm) — Distance from part surface to outer mold wall in mm. Minimum: 5.00 mm.">Offset (mm)</th>
+          <th data-tip="Status — Green if offset meets the 5.00mm / 0.197 in minimum.">Status</th>
+        </tr></thead>
+        <tbody id="off-tbody">
+          <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--dim);padding:4px 8px;white-space:nowrap">Top</td><td><input type="number" id="off-top-in" class="off-in" data-face="top" step="0.001" min="0" placeholder="0.000" data-save="true" oninput="syncOff('top','in')"></td><td><input type="number" id="off-top-mm" class="off-mm" data-face="top" step="0.01" min="0" placeholder="0.00" data-save="true" oninput="syncOff('top','mm')"></td><td><div class="off-status empty" id="st-top">—</div></td></tr>
+          <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--dim);padding:4px 8px;white-space:nowrap">Bottom</td><td><input type="number" id="off-bottom-in" class="off-in" data-face="bottom" step="0.001" min="0" placeholder="0.000" data-save="true" oninput="syncOff('bottom','in')"></td><td><input type="number" id="off-bottom-mm" class="off-mm" data-face="bottom" step="0.01" min="0" placeholder="0.00" data-save="true" oninput="syncOff('bottom','mm')"></td><td><div class="off-status empty" id="st-bottom">—</div></td></tr>
+          <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--dim);padding:4px 8px;white-space:nowrap">Left</td><td><input type="number" id="off-left-in" class="off-in" data-face="left" step="0.001" min="0" placeholder="0.000" data-save="true" oninput="syncOff('left','in')"></td><td><input type="number" id="off-left-mm" class="off-mm" data-face="left" step="0.01" min="0" placeholder="0.00" data-save="true" oninput="syncOff('left','mm')"></td><td><div class="off-status empty" id="st-left">—</div></td></tr>
+          <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--dim);padding:4px 8px;white-space:nowrap">Right</td><td><input type="number" id="off-right-in" class="off-in" data-face="right" step="0.001" min="0" placeholder="0.000" data-save="true" oninput="syncOff('right','in')"></td><td><input type="number" id="off-right-mm" class="off-mm" data-face="right" step="0.01" min="0" placeholder="0.00" data-save="true" oninput="syncOff('right','mm')"></td><td><div class="off-status empty" id="st-right">—</div></td></tr>
+          <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--dim);padding:4px 8px;white-space:nowrap">Front</td><td><input type="number" id="off-front-in" class="off-in" data-face="front" step="0.001" min="0" placeholder="0.000" data-save="true" oninput="syncOff('front','in')"></td><td><input type="number" id="off-front-mm" class="off-mm" data-face="front" step="0.01" min="0" placeholder="0.00" data-save="true" oninput="syncOff('front','mm')"></td><td><div class="off-status empty" id="st-front">—</div></td></tr>
+          <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--dim);padding:4px 8px;white-space:nowrap">Back</td><td><input type="number" id="off-back-in" class="off-in" data-face="back" step="0.001" min="0" placeholder="0.000" data-save="true" oninput="syncOff('back','in')"></td><td><input type="number" id="off-back-mm" class="off-mm" data-face="back" step="0.01" min="0" placeholder="0.00" data-save="true" oninput="syncOff('back','mm')"></td><td><div class="off-status empty" id="st-back">—</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="off-stat" class="stat-card empty">Enter all six face offsets to check compliance.</div>
+    <div class="fg" style="margin-top:16px">
+      <div class="fl">MOLD BLOCK VIEW <span class="req">MIN 1 IMAGE</span></div>
+      <div class="fhint">Use wireframe mode or set the block body to transparent so the encapsulated part is visible inside.</div>
+      <div class="warn-bar">⚠ Screenshots must show internal geometry. Use wireframe mode (View > Display > Wireframe), set bodies to transparent (right-click body > Appearance > Transparency), or hide interfering bodies in the Solid Bodies folder before screenshotting.</div>
+      <div class="upload-zone" id="uz-block_view" data-key="block_view" data-min-images="1">
+        <div class="paste-badge">PASTE TARGET</div>
+        <div class="uz-inner"><div class="uz-lbl">Drop, paste, or <span>click to upload</span></div></div>
+        <input type="file" id="file-block_view" accept="image/*" multiple>
+        <div class="img-cnt s-dim" id="cnt-block_view">0 images — minimum 1 required</div>
+        <div class="img-grid" id="grid-block_view"></div>
+      </div>
+    </div>
+    <div class="fg">
+      <div class="fl">CONFIRMATIONS</div>
+      <div class="ck" onclick="togCk('ck-m1a',event)"><input type="checkbox" id="ck-m1a" data-save="true" onchange="updateComp()"><label>Sketch created on parting reference plane — boss profile drawn to cover full part footprint with clearance</label></div>
+      <div class="ck" onclick="togCk('ck-m1b',event)"><input type="checkbox" id="ck-m1b" data-save="true" onchange="updateComp()"><label>Boss extruded in both directions — part is fully enclosed with material on all six sides</label></div>
+      <div class="ck" onclick="togCk('ck-m1c',event)"><input type="checkbox" id="ck-m1c" data-save="true" onchange="updateComp()"><label>All face offsets meet minimum 5.00mm / 0.197" — all status indicators show green above</label></div>
+    </div>
+  </div></div>
+</div>
+<!-- ======= MODULE 02 ======= -->
+<div class="module" id="mod-2">
+  <div class="mod-hdr" onclick="togMod(2)">
+    <div class="mod-num">MODULE 02</div><div class="mod-title">Subtractive Combine &amp; Split</div><div class="mod-pts">12 PTS</div>
+    <div class="mod-dot" id="dot-2"></div><button class="rub-btn" onclick="togRub(event,'rub-2')">RUBRIC</button><span class="mod-chev">&#9660;</span>
+  </div>
+  <div class="rub-panel" id="rub-2"><table class="rub-table">
+    <tr><th>PTS</th><th>DESCRIPTOR</th></tr>
+    <tr><td>12</td><td>Both operations documented. Cavity confirmed with no geometry errors. Two resulting bodies confirmed. Images uploaded.</td></tr>
+    <tr><td>8</td><td>One operation underdocumented or one image missing.</td></tr>
+    <tr><td>4</td><td>Partial. Key confirmations missing.</td></tr>
+    <tr><td>0</td><td>Not submitted.</td></tr>
+  </table></div>
+  <div class="mod-body-wrap"><div class="mod-body">
+    <div class="section-div">Subtractive Combine</div>
+    <button class="info-btn" onclick="togInfo('inf-combine')">COMBINE — HOW IT WORKS</button>
+    <div class="info-box" id="inf-combine">
+      <strong>Insert &gt; Features &gt; Combine — Operation Type: Subtract</strong><br><br>
+      Main Body: the extruded block (the body you keep).<br>
+      Bodies to Subtract: your drafted part (the shape being carved out).<br><br>
+      Result: the block with the part geometry removed. That negative shape is your mold cavity. The drafted part body is consumed by the operation.
+      <div class="info-rule">Tip: enable "Make main body transparent" in the PropertyManager to make selecting the part body easier when the two bodies overlap.</div>
+      <a class="info-link" href="https://www.youtube.com/shorts/pE7C58YuLq4" target="_blank">&#9654;&nbsp; VIDEO — Subtractive Combine</a>
+    </div>
+    <div class="fg">
+      <div class="fl">COMBINE OPERATION <span class="req">REQUIRED</span></div>
+      <div class="fhint">Identify your Main Body and the body being subtracted. Confirm the result. (1–2 sentences)</div>
+      <textarea id="combine-desc" rows="3" data-min="1" data-max="2" data-save="true" placeholder="e.g., Main Body is the extruded rectangular block and the drafted part body is set as Bodies to Subtract. After the combine the part cavity is visible inside the block with no residual geometry errors or FeatureManager warnings..."></textarea>
+      <div class="ctr-row"><div class="ctr s-dim" id="ctr-combine-desc">0 / 1–2 sentences</div></div>
+      <div class="print-mirror" data-mirror="combine-desc"></div>
+    </div>
+    <div class="fg">
+      <div class="fl">CONFIRMATIONS</div>
+      <div class="ck" onclick="togCk('ck-m2a',event)"><input type="checkbox" id="ck-m2a" data-save="true" onchange="updateComp()"><label>Main Body set to the extruded mold block</label></div>
+      <div class="ck" onclick="togCk('ck-m2b',event)"><input type="checkbox" id="ck-m2b" data-save="true" onchange="updateComp()"><label>Bodies to Subtract set to the drafted part</label></div>
+      <div class="ck" onclick="togCk('ck-m2c',event)"><input type="checkbox" id="ck-m2c" data-save="true" onchange="updateComp()"><label>Cavity confirmed — no residual geometry, no error flags in FeatureManager</label></div>
+    </div>
+    <div class="section-div">Split</div>
+    <button class="info-btn" onclick="togInfo('inf-split')">SPLIT — HOW IT WORKS</button>
+    <div class="info-box" id="inf-split">
+      <strong>Insert &gt; Features &gt; Split</strong><br><br>
+      Trimming Surfaces: select the parting reference plane directly. Planes extend infinitely — no sketch is needed.<br>
+      Click <em>Cut Bodies</em>. Two bodies appear under Resulting Bodies.<br>
+      Select both, assign names (e.g., MoldTop and MoldBottom), and click OK. Both halves remain in the same multibody .SLDPRT file throughout this assignment.
+      <a class="info-link" href="https://www.youtube.com/shorts/VZNkD-LN1PY" target="_blank">&#9654;&nbsp; VIDEO — Split Feature</a>
+    </div>
+    <div class="fg">
+      <div class="fl">SPLIT RESULT <span class="req">REQUIRED</span></div>
+      <div class="fhint">Confirm the split produced two clean named bodies. (1–2 sentences)</div>
+      <textarea id="split-desc" rows="3" data-min="1" data-max="2" data-save="true" placeholder="e.g., The split using the parting reference plane produced two bodies named MoldTop and MoldBottom, both visible in the Solid Bodies folder with no geometry errors after the operation..."></textarea>
+      <div class="ctr-row"><div class="ctr s-dim" id="ctr-split-desc">0 / 1–2 sentences</div></div>
+      <div class="print-mirror" data-mirror="split-desc"></div>
+    </div>
+    <div class="fg">
+      <div class="fl">CONFIRMATIONS</div>
+      <div class="ck" onclick="togCk('ck-m2d',event)"><input type="checkbox" id="ck-m2d" data-save="true" onchange="updateComp()"><label>Reference plane used as trimming surface — no sketch required for the split</label></div>
+      <div class="ck" onclick="togCk('ck-m2e',event)"><input type="checkbox" id="ck-m2e" data-save="true" onchange="updateComp()"><label>Two distinct named bodies visible in Solid Bodies folder</label></div>
+    </div>
+    <div class="fg">
+      <div class="fl">VIEWS <span class="req">MIN 2 IMAGES</span></div>
+      <div class="fhint">Image 1: transparent or cross-section view confirming the cavity. Image 2: both mold halves visible in the part after the split.</div>
+      <div class="warn-bar">⚠ Screenshots must show internal geometry. Use wireframe mode (View > Display > Wireframe), set bodies to transparent (right-click body > Appearance > Transparency), or hide interfering bodies in the Solid Bodies folder before screenshotting.</div>
+      <div class="upload-zone" id="uz-combine_split" data-key="combine_split" data-min-images="2">
+        <div class="paste-badge">PASTE TARGET</div>
+        <div class="uz-inner"><div class="uz-lbl">Drop, paste, or <span>click to upload</span></div></div>
+        <input type="file" id="file-combine_split" accept="image/*" multiple>
+        <div class="img-cnt s-dim" id="cnt-combine_split">0 images — minimum 2 required</div>
+        <div class="img-grid" id="grid-combine_split"></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+<!-- ======= MODULE 03 ======= -->
+<div class="module" id="mod-3">
+  <div class="mod-hdr" onclick="togMod(3)">
+    <div class="mod-num">MODULE 03</div><div class="mod-title">Bolt Holes</div><div class="mod-pts">14 PTS</div>
+    <div class="mod-dot" id="dot-3"></div><button class="rub-btn" onclick="togRub(event,'rub-3')">RUBRIC</button><span class="mod-chev">&#9660;</span>
+  </div>
+  <div class="rub-panel" id="rub-3"><table class="rub-table">
+    <tr><th>PTS</th><th>DESCRIPTOR</th></tr>
+    <tr><td>14</td><td>Bolt size selected and documented. Hole diameter and bolt length match calculator output. Placement rationale written. All confirmations checked. Image uploaded.</td></tr>
+    <tr><td>9</td><td>Bolt size and hole diameter documented but rationale missing or image absent.</td></tr>
+    <tr><td>5</td><td>Partial — bolt size selected but fields largely incomplete.</td></tr>
+    <tr><td>0</td><td>Not submitted.</td></tr>
+  </table></div>
+  <div class="mod-body-wrap"><div class="mod-body">
+    <div class="callout">The bolt hole cut can be performed before or after the Split — both work. If done before, set Feature Scope to All Bodies so both halves receive the hole. If done after the Split, run the cut twice using Feature Scope to target each half body separately. Either way the hole must pierce both bodies completely.</div>
+    <div class="section-div">Standard Close Fit Hole Diameters for 3D Printed HIPS</div>
+    <table class="dt">
+      <thead><tr><th>Bolt Size</th><th>Nominal Shank (in)</th><th>Nominal Shank (mm)</th><th>Design Hole (in)</th><th>Design Hole (mm)</th></tr></thead>
+      <tbody>
+        <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--white)">6-32</td><td style="font-family:var(--font-b);font-size:11px">0.138"</td><td style="font-family:var(--font-b);font-size:11px">3.51mm</td><td style="font-family:var(--font-b);font-size:11px;color:var(--green)">0.150"</td><td style="font-family:var(--font-b);font-size:11px;color:var(--green)">3.81mm</td></tr>
+        <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--white)">8-32</td><td style="font-family:var(--font-b);font-size:11px">0.164"</td><td style="font-family:var(--font-b);font-size:11px">4.17mm</td><td style="font-family:var(--font-b);font-size:11px;color:var(--green)">0.176"</td><td style="font-family:var(--font-b);font-size:11px;color:var(--green)">4.47mm</td></tr>
+        <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--white)">10-32</td><td style="font-family:var(--font-b);font-size:11px">0.190"</td><td style="font-family:var(--font-b);font-size:11px">4.83mm</td><td style="font-family:var(--font-b);font-size:11px;color:var(--green)">0.202"</td><td style="font-family:var(--font-b);font-size:11px;color:var(--green)">5.13mm</td></tr>
+        <tr><td style="font-family:var(--font-u);font-size:11px;color:var(--white)">1/4-20</td><td style="font-family:var(--font-b);font-size:11px">0.250"</td><td style="font-family:var(--font-b);font-size:11px">6.35mm</td><td style="font-family:var(--font-b);font-size:11px;color:var(--green)">0.262"</td><td style="font-family:var(--font-b);font-size:11px;color:var(--green)">6.65mm</td></tr>
+      </tbody>
+    </table>
+    <div class="fhint">Design hole = measured shank + 0.012" / 0.3mm close fit compensation for 3D printed HIPS. Use the calculator below if your bolt measures differently.</div>
+    <button class="info-btn" onclick="togInfo('inf-bolt-wf')">BOLT HOLE CUT — SOLIDWORKS WORKFLOW</button>
+    <div class="info-box" id="inf-bolt-wf">
+      <ol class="step-ol">
+        <li>Confirm you are working <strong>BEFORE</strong> the Split feature in Module 02. Roll back the end of history bar if needed.</li>
+        <li>Create a sketch on the top face of the mold block.</li>
+        <li>Place circles at your chosen bolt hole locations — minimum 2, positioned so bolts clear the cavity and parting features. Keep at least <em>0.315" / 8mm</em> from any outer mold wall edge.</li>
+        <li><strong>Extruded Cut</strong> — set direction to <em>Through All Both Directions</em> so the cut passes completely through the full mold height regardless of body count.</li>
+        <li><strong>Feature Scope</strong> — leave set to <em>All Bodies</em>. Both halves will receive the hole when the Split runs later.</li>
+        <li>After the Split, verify the hole aligns across both parting faces when the halves are mated.</li>
+      </ol>
+    </div>
+    <div class="spec-block">
+      <strong>BOLT HOLE CALCULATOR</strong>
+      <div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <div class="fl" style="margin-bottom:4px">MEASURED SHANK DIA (in)</div>
+          <input type="number" id="calc-shank" step="0.001" placeholder="0.000" oninput="calcBoltHole()" style="width:100%">
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div class="fl" style="margin-bottom:4px">TOTAL MOLD HEIGHT (in)</div>
+          <input type="number" id="calc-height" step="0.001" placeholder="0.000" oninput="calcBoltHole()" style="width:100%">
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap">
+        <div id="calc-hole-out" class="stat-card empty" style="flex:1;min-width:140px">Hole dia: —</div>
+        <div id="calc-len-out" class="stat-card empty" style="flex:1;min-width:140px">Bolt length: —</div>
+      </div>
+      <script>
+      function calcBoltHole(){
+        var shank=parseFloat(document.getElementById('calc-shank').value);
+        var height=parseFloat(document.getElementById('calc-height').value);
+        var holeEl=document.getElementById('calc-hole-out');
+        var lenEl=document.getElementById('calc-len-out');
+        if(isNaN(shank)||isNaN(height)){
+          holeEl.textContent='Hole dia: —';holeEl.className='stat-card empty';
+          lenEl.textContent='Bolt length: —';lenEl.className='stat-card empty';
+          return;
+        }
+        var holeDia=shank+0.012;
+        var boltLen=height+0.118+0.126+0.118;
+        var toMm=function(v){return (v*25.4).toFixed(2);};
+        holeEl.innerHTML='Hole dia: <strong>'+holeDia.toFixed(3)+'"</strong> <span style="color:var(--dim);font-size:10px">/ '+toMm(holeDia)+'mm</span>';
+        holeEl.className='stat-card ok';
+        lenEl.innerHTML='Bolt length: <strong>'+boltLen.toFixed(3)+'"</strong> <span style="color:var(--dim);font-size:10px">/ '+toMm(boltLen)+'mm</span>';
+        lenEl.className='stat-card ok';
+      }
+      </script>
+    </div>
+    <div class="section-div">Documentation</div>
+    <div class="fg">
+      <div class="fl">BOLT SIZE SELECTED <span class="req">REQUIRED</span></div>
+      <select id="bolt-size-sel" data-save="true" oninput="updateComp()" style="max-width:200px">
+        <option value="">Select bolt size...</option>
+        <option value="6-32">6-32</option>
+        <option value="8-32">8-32</option>
+        <option value="10-32">10-32</option>
+        <option value="1/4-20">1/4-20</option>
+      </select>
+    </div>
+    <div class="fg">
+      <div class="fl">DESIGNED HOLE DIAMETER <span class="req">REQUIRED</span></div>
+      <div class="du-row">
+        <div class="du-field"><label>IN</label><input type="number" id="hole-dia-in" step="0.001" placeholder="0.000" data-save="true" oninput="syncDU('hole-dia','in');updateComp()"></div>
+        <div class="du-sep">/</div>
+        <div class="du-field"><label>MM</label><input type="number" id="hole-dia-mm" step="0.01" placeholder="0.00" data-save="true" oninput="syncDU('hole-dia','mm');updateComp()"></div>
+      </div>
+    </div>
+    <div class="fg">
+      <div class="fl">DESIGNED BOLT LENGTH <span class="req">REQUIRED</span></div>
+      <div class="du-row">
+        <div class="du-field"><label>IN</label><input type="number" id="bolt-len-in" step="0.001" placeholder="0.000" data-save="true" oninput="syncDU('bolt-len','in');updateComp()"></div>
+        <div class="du-sep">/</div>
+        <div class="du-field"><label>MM</label><input type="number" id="bolt-len-mm" step="0.01" placeholder="0.00" data-save="true" oninput="syncDU('bolt-len','mm');updateComp()"></div>
+      </div>
+    </div>
+    <div class="fg">
+      <div class="fl">BOLT PLACEMENT RATIONALE <span class="req">REQUIRED</span></div>
+      <div class="fhint">Where are the bolts placed and why does this location clear the cavity and outer walls?</div>
+      <textarea id="bolt-rationale" rows="3" data-min="1" data-max="2" data-save="true" placeholder="Where are the bolts placed and why does this location clear the cavity and outer walls?"></textarea>
+      <div class="ctr-row"><div class="ctr s-dim" id="ctr-bolt-rationale">0 / 1–2 sentences</div></div>
+      <div class="print-mirror" data-mirror="bolt-rationale"></div>
+    </div>
+    <div class="fg">
+      <div class="fl">CONFIRMATIONS</div>
+      <div class="ck" onclick="togCk('ck-m3a',event)"><input type="checkbox" id="ck-m3a" data-save="true" onchange="updateComp()"><label>Bolt hole cut extrude performed BEFORE the Split feature in Module 02</label></div>
+      <div class="ck" onclick="togCk('ck-m3b',event)"><input type="checkbox" id="ck-m3b" data-save="true" onchange="updateComp()"><label>Minimum 2 bolt holes placed — each clears the mold cavity and sits at least 0.315" / 8mm from any outer wall</label></div>
+      <div class="ck" onclick="togCk('ck-m3c',event)"><input type="checkbox" id="ck-m3c" data-save="true" onchange="updateComp()"><label>Cut set to Through All Both Directions — hole passes through full mold height</label></div>
+      <div class="ck" onclick="togCk('ck-m3d',event)"><input type="checkbox" id="ck-m3d" data-save="true" onchange="updateComp()"><label>Feature Scope set to All Bodies</label></div>
+      <div class="ck" onclick="togCk('ck-m3e',event)"><input type="checkbox" id="ck-m3e" data-save="true" onchange="updateComp()"><label>Bolt length verified against calculator recommendation — nut and washers have clearance</label></div>
+    </div>
+    <div class="fg">
+      <div class="fl">BOLT HOLES VIEW <span class="req">MIN 1 IMAGE</span></div>
+      <div class="fhint">Use wireframe mode or set the mold body to transparent. Both the top face hole locations and a cross-section or side view showing the hole passing through the full mold height are recommended.</div>
+      <div class="upload-zone" id="uz-bolt_holes" data-key="bolt_holes" data-min-images="1">
+        <div class="paste-badge">PASTE TARGET</div>
+        <div class="uz-inner"><div class="uz-lbl">Drop, paste, or <span>click to upload</span></div></div>
+        <input type="file" id="file-bolt_holes" accept="image/*" multiple>
+        <div class="img-cnt s-dim" id="cnt-bolt_holes">0 images — minimum 1 required</div>
+        <div class="img-grid" id="grid-bolt_holes"></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+<!-- ======= MODULE 04 ======= -->
+<div class="module" id="mod-4">
+  <div class="mod-hdr" onclick="togMod(4)">
+    <div class="mod-num">MODULE 04</div><div class="mod-title">Pour Spout</div><div class="mod-pts">14 PTS</div>
+    <div class="mod-dot" id="dot-4"></div><button class="rub-btn" onclick="togRub(event,'rub-4')">RUBRIC</button><span class="mod-chev">&#9660;</span>
+  </div>
+  <div class="rub-panel" id="rub-4"><table class="rub-table">
+    <tr><th>PTS</th><th>DESCRIPTOR</th></tr>
+    <tr><td>14</td><td>Pour orientation, highest cavity point, and flat zone rationale all documented with clear reasoning. Spout specs meet minimums. All confirmations checked. Image uploaded.</td></tr>
+    <tr><td>9</td><td>Spout present and plausibly located but rationale fields sparse, or one spec below minimum.</td></tr>
+    <tr><td>5</td><td>Spout created but placement undocumented or reasoning missing.</td></tr>
+    <tr><td>0</td><td>Not submitted.</td></tr>
+  </table></div>
+  <div class="mod-body-wrap"><div class="mod-body">
+    <button class="info-btn" onclick="togInfo('inf-spout')">POUR SPOUT — DESIGN STRATEGY</button>
+    <div class="info-box" id="inf-spout">
+      The spout must satisfy <strong>two constraints simultaneously</strong>:<br><br>
+      <strong>1. Highest cavity point.</strong> When the assembled mold sits in pour orientation (level on a surface), the spout must be at or above the highest point of the cavity. If the cavity rises above the spout, air gets trapped and the cast will be incomplete.<br><br>
+      <strong>2. Flat featureless zone.</strong> The spout must break through a flat area of the upper half's top face with no part detail geometry directly below it. This prevents the sprue (cured material in the channel) from tearing detail off the cast part when removed.<br><br>
+      These two constraints sometimes conflict. Adjust mold orientation or spout position until both are satisfied. Document your reasoning in the fields below.
+      <div class="info-rule">The spout is a cut extrude — Feature Scope set to upper half body only. Apply 1-2 degrees of draft so the spout is slightly wider at the top than at the cavity entrance, enabling clean sprue release on demolding.</div>
+    </div>
+    <div class="fg">
+      <div class="fl">POUR ORIENTATION <span class="req">REQUIRED</span></div>
+      <div class="fhint">Describe how the assembled mold sits during a gravity pour. Which face rests on the surface? (1–2 sentences)</div>
+      <textarea id="pour-orient" rows="3" data-min="1" data-max="2" data-save="true" placeholder="e.g., The assembled mold sits with the bottom half resting flat on a surface. The top half faces upward and the pour spout opening faces vertically up to receive the liquid polyurethane..."></textarea>
+      <div class="ctr-row"><div class="ctr s-dim" id="ctr-pour-orient">0 / 1–2 sentences</div></div>
+      <div class="print-mirror" data-mirror="pour-orient"></div>
+    </div>
+    <div class="fg">
+      <div class="fl">HIGHEST CAVITY POINT <span class="req">REQUIRED</span></div>
+      <div class="fhint">In the pour orientation described above, which area of the cavity is highest? (1–2 sentences)</div>
+      <textarea id="high-point" rows="3" data-min="1" data-max="2" data-save="true" placeholder="e.g., In this orientation the highest point of the cavity is the top of the central raised feature, located near the center of the mold cavity..."></textarea>
+      <div class="ctr-row"><div class="ctr s-dim" id="ctr-high-point">0 / 1–2 sentences</div></div>
+      <div class="print-mirror" data-mirror="high-point"></div>
+    </div>
+    <div class="fg">
+      <div class="fl">FLAT FEATURELESS ZONE RATIONALE <span class="req">REQUIRED</span></div>
+      <div class="fhint">Where on the top face of the upper half is the spout placed, and why does no part detail exist directly below it? (2–3 sentences)</div>
+      <textarea id="flat-zone" rows="4" data-min="2" data-max="3" data-save="true" placeholder="e.g., The spout is located at the perimeter of the top face directly above the outer wall region of the mold cavity where there is no part surface geometry below. This location also corresponds to the highest accessible area of the cavity when the mold is in pour orientation. The sprue stub left after demolding can be trimmed from this marginal area without affecting any cast part surface..."></textarea>
+      <div class="ctr-row"><div class="ctr s-dim" id="ctr-flat-zone">0 / 2–3 sentences</div></div>
+      <div class="print-mirror" data-mirror="flat-zone"></div>
+    </div>
+    <div class="section-div">Pour Spout Specification</div>
+    <div class="callout"><strong>Cut extrude on top face of upper mold half.</strong> Feature Scope = upper half body only. Apply 1–2 degrees of draft to the cut so the channel is slightly wider at the opening than at the cavity entrance.</div>
+    <div class="fg">
+      <div class="fl">SPOUT DIAMETER <span class="req">MINIMUM 10.00mm / 0.394"</span></div>
+      <div class="du-row">
+        <div class="du-field"><label>ACTUAL DIA (IN)</label><input type="number" id="spout-dia-in" step="0.001" min="0" placeholder="0.394 min" data-save="true" oninput="syncDU('spout-dia','in');checkSpout()"></div>
+        <div class="du-sep">/</div>
+        <div class="du-field"><label>ACTUAL DIA (MM)</label><input type="number" id="spout-dia-mm" step="0.01" min="0" placeholder="10.00 min" data-save="true" oninput="syncDU('spout-dia','mm');checkSpout()"></div>
+      </div>
+      <div id="spout-stat" class="stat-card empty">Enter diameter to check compliance.</div>
+    </div>
+    <div class="fg">
+      <div class="fl">DRAFT ANGLE <span class="req">1–2 DEGREES</span></div>
+      <div class="fhint">Draft applied to the spout cut — wider at the top, narrowing toward the cavity. Enables clean sprue release.</div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+        <input type="number" id="spout-draft" step="0.1" min="0" max="10" placeholder="1.0 – 2.0" style="max-width:150px" data-save="true" oninput="checkSpout();updateComp()">
+        <span style="font-family:var(--font-u);font-size:11px;color:var(--dim)">degrees</span>
+        <div id="draft-stat" class="stat-card empty">—</div>
+      </div>
+      <div class="print-mirror" data-mirror="spout-draft"></div>
+    </div>
+    <div class="fg">
+      <div class="fl">CONFIRMATIONS</div>
+      <div class="ck" onclick="togCk('ck-m4a',event)"><input type="checkbox" id="ck-m4a" data-save="true" onchange="updateComp()"><label>Spout sketch created on top face of upper mold half</label></div>
+      <div class="ck" onclick="togCk('ck-m4b',event)"><input type="checkbox" id="ck-m4b" data-save="true" onchange="updateComp()"><label>Spout diameter meets minimum 10.00mm / 0.394"</label></div>
+      <div class="ck" onclick="togCk('ck-m4c',event)"><input type="checkbox" id="ck-m4c" data-save="true" onchange="updateComp()"><label>Draft angle of 1–2 degrees applied to the cut</label></div>
+      <div class="ck" onclick="togCk('ck-m4d',event)"><input type="checkbox" id="ck-m4d" data-save="true" onchange="updateComp()"><label>Feature Scope set to upper half body only</label></div>
+      <div class="ck" onclick="togCk('ck-m4e',event)"><input type="checkbox" id="ck-m4e" data-save="true" onchange="updateComp()"><label>Spout passes through to cavity without intersecting any part detail geometry</label></div>
+    </div>
+    <div class="fg">
+      <div class="fl">POUR SPOUT VIEW <span class="req">MIN 1 IMAGE</span></div>
+      <div class="fhint">Show the spout on the upper half and an assembled mold view illustrating the pour orientation.</div>
+      <div class="warn-bar">⚠ Screenshots must show internal geometry. Use wireframe mode (View > Display > Wireframe), set bodies to transparent (right-click body > Appearance > Transparency), or hide interfering bodies in the Solid Bodies folder before screenshotting.</div>
+      <div class="upload-zone" id="uz-spout_view" data-key="spout_view" data-min-images="1">
+        <div class="paste-badge">PASTE TARGET</div>
+        <div class="uz-inner"><div class="uz-lbl">Drop, paste, or <span>click to upload</span></div></div>
+        <input type="file" id="file-spout_view" accept="image/*" multiple>
+        <div class="img-cnt s-dim" id="cnt-spout_view">0 images — minimum 1 required</div>
+        <div class="img-grid" id="grid-spout_view"></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+<!-- ======= APPROVAL GATE ======= -->
+<div id="gate">
+  <div id="gate-lock-state">
+    <div id="gate-title">INSTRUCTOR APPROVAL REQUIRED</div>
+    <div id="gate-sub">Complete Modules 01–04 and present your SolidWorks file to Mr. Pina before continuing to print settings and physical documentation.</div>
+    <div id="gate-input-row">
+      <input type="password" id="gate-pw" placeholder="APPROVAL CODE" autocomplete="off">
+      <button id="gate-submit" onclick="submitGate()">UNLOCK</button>
+    </div>
+    <div id="gate-err"></div>
+  </div>
+  <div id="gate-approved-state">
+    <div class="ga-icon">&#10003;</div>
+    <div class="ga-title">ACCESS GRANTED</div>
+    <div class="ga-ts" id="gate-ts"></div>
+  </div>
+</div>
+<!-- ======= MODULE 05 ======= -->
+<div class="module" id="mod-5" style="overflow:visible">
+  <div class="locked-overlay" id="lock-5"><span class="lock-icon">&#128274;</span><span class="lock-label">Instructor Approval Required</span></div>
+  <div class="mod-hdr" onclick="togMod(5)">
+    <div class="mod-num">MODULE 05</div><div class="mod-title">Print Settings</div><div class="mod-pts">8 PTS</div>
+    <div class="mod-dot" id="dot-5"></div><button class="rub-btn" onclick="togRub(event,'rub-5')">RUBRIC</button><span class="mod-chev">&#9660;</span>
+  </div>
+  <div class="rub-panel" id="rub-5"><table class="rub-table">
+    <tr><th>PTS</th><th>DESCRIPTOR</th></tr>
+    <tr><td>8</td><td>Machine selected. All settings confirmed. Bambu Studio screenshot uploaded showing sliced mold with settings visible.</td></tr>
+    <tr><td>5</td><td>Settings confirmed but screenshot missing or unclear.</td></tr>
+    <tr><td>2</td><td>Partial. Several settings unconfirmed.</td></tr>
+    <tr><td>0</td><td>Not submitted.</td></tr>
+  </table></div>
+  <div class="mod-body-wrap"><div class="mod-body">
+    <div class="warn-bar">&#9888;&nbsp; These settings are required. Variable layer height on cavity surfaces is critical for mold quality. <strong>There is one print attempt. No reprints.</strong></div>
+    <div class="fg">
+      <div class="fl">PRINTER SELECTION <span class="req">REQUIRED</span></div>
+      <select id="machine-sel" data-save="true" onchange="updateComp()" style="max-width:280px">
+        <option value="">Select printer...</option>
+        <option value="x1c">Bambu Lab X1C</option>
+        <option value="h2d">Bambu Lab H2D</option>
+      </select>
+    </div>
+    <div class="section-div">Required Settings — Confirm Each Before Slicing</div>
+    <div class="fg">
+      <div class="ck" onclick="togCk('ck-m5a',event)"><input type="checkbox" id="ck-m5a" data-save="true" onchange="updateComp()"><label><strong style="color:var(--gold)">Nozzle:</strong> 0.6mm confirmed in printer profile</label></div>
+      <div class="fhint" style="margin-top:4px">Choose one. Variable layer height gives better cavity surface resolution but requires manual setup in the layer height editor. The 0.18mm preset is faster and still produces good results.</div>
+      <div class="ck" onclick="togCkME('ck-m5b-a','ck-m5b-b',event)"><input type="checkbox" id="ck-m5b-a" data-save="true" onchange="ckME('ck-m5b-a','ck-m5b-b');updateComp()"><label><strong style="color:var(--gold)">Layer Height:</strong> 0.18mm Balanced Quality preset — select from the layer height dropdown in Bambu Studio. Applies uniformly to the entire mold.</label></div>
+      <div class="ck" onclick="togCkME('ck-m5b-b','ck-m5b-a',event)"><input type="checkbox" id="ck-m5b-b" data-save="true" onchange="ckME('ck-m5b-b','ck-m5b-a');updateComp()"><label><strong style="color:var(--gold)">Variable Layer Height</strong> — cavity surfaces set to 0.10mm / 0.004", bulk sections set to 0.30mm / 0.012". More time-consuming to set up but produces finer cavity detail.</label></div>
+      <div class="ck" onclick="togCk('ck-m5c',event)"><input type="checkbox" id="ck-m5c" data-save="true" onchange="updateComp()"><label><strong style="color:var(--gold)">Wall Count:</strong> 4 perimeters</label></div>
+      <div class="ck" onclick="togCk('ck-m5d',event)"><input type="checkbox" id="ck-m5d" data-save="true" onchange="updateComp()"><label><strong style="color:var(--gold)">Infill:</strong> 20% Gyroid</label></div>
+      <div class="ck" onclick="togCk('ck-m5e',event)"><input type="checkbox" id="ck-m5e" data-save="true" onchange="updateComp()"><label><strong style="color:var(--gold)">Top/Bottom Shell Layers:</strong> 5</label></div>
+      <div class="ck" onclick="togCk('ck-m5f',event)"><input type="checkbox" id="ck-m5f" data-save="true" onchange="updateComp()"><label><strong style="color:var(--gold)">Outer Wall Speed:</strong> 60mm/s</label></div>
+      <div class="ck" onclick="togCk('ck-m5g',event)"><input type="checkbox" id="ck-m5g" data-save="true" onchange="updateComp()"><label><strong style="color:var(--gold)">Brim:</strong> 8mm applied to both halves</label></div>
+      <div class="ck" onclick="togCk('ck-m5h',event)"><input type="checkbox" id="ck-m5h" data-save="true" onchange="updateComp()"><label><strong style="color:var(--gold)">Both mold halves</strong> loaded as separate objects on the build plate in Bambu Studio</label></div>
+    </div>
+    <button class="info-btn" onclick="togInfo('inf-step-export')">HOW TO EXPORT MOLD HALVES AS STEP AP214 FILES</button>
+    <div class="info-box" id="inf-step-export">
+      Both mold halves must be exported as separate STEP AP214 files from the multibody .SLDPRT for use in Bambu Studio or other software. For each half: (1) In the FeatureManager, expand the Solid Bodies folder. (2) Right-click the body name (e.g. MoldTop). (3) Click Save As. (4) In the Save As dialog, set file type to STEP AP214 (*.step / *.stp). (5) Click Options — ensure <em>Selected Bodies</em> is chosen, not the entire part. (6) Click OK, then Save. Repeat for the second body. You will end up with two separate .step files — one per mold half — ready to import into Bambu Studio as individual objects.
+    </div>
+    <div class="fg">
+      <div class="fl">BAMBU STUDIO SCREENSHOT <span class="req">MIN 1 IMAGE</span></div>
+      <div class="fhint">Show the sliced mold with the settings panel visible. Both halves should appear on the build plate.</div>
+      <div class="upload-zone" id="uz-bambu_ss" data-key="bambu_ss" data-min-images="1">
+        <div class="paste-badge">PASTE TARGET</div>
+        <div class="uz-inner"><div class="uz-lbl">Drop, paste, or <span>click to upload</span></div></div>
+        <input type="file" id="file-bambu_ss" accept="image/*" multiple>
+        <div class="img-cnt s-dim" id="cnt-bambu_ss">0 images — minimum 1 required</div>
+        <div class="img-grid" id="grid-bambu_ss"></div>
+      </div>
+    </div>
+  </div></div>
+</div>
+<!-- ======= MODULE 06 ======= -->
+<div class="module" id="mod-6" style="overflow:visible">
+  <div class="locked-overlay" id="lock-6"><span class="lock-icon">&#128274;</span><span class="lock-label">Instructor Approval Required</span></div>
+  <div class="mod-hdr" onclick="togMod(6)">
+    <div class="mod-num">MODULE 06</div><div class="mod-title">Physical Print Result</div><div class="mod-pts">20 PTS</div>
+    <div class="mod-dot" id="dot-6"></div><button class="rub-btn" onclick="togRub(event,'rub-6')">RUBRIC</button><span class="mod-chev">&#9660;</span>
+  </div>
+  <div class="rub-panel" id="rub-6"><table class="rub-table">
+    <tr><th>PTS</th><th>DESCRIPTOR</th></tr>
+    <tr><td>20</td><td>Photos of both halves and assembled mold uploaded. Minimum 2 dimensions verified. Surface quality documented. All confirmations checked.</td></tr>
+    <tr><td>14</td><td>Photos present but one measurement missing or surface notes sparse.</td></tr>
+    <tr><td>7</td><td>Photos present but documentation largely incomplete.</td></tr>
+    <tr><td>0</td><td>Not printed / not submitted.</td></tr>
+  </table></div>
+  <div class="mod-body-wrap"><div class="mod-body">
+    <div class="fg">
+      <div class="fl">PRINTED MOLD HALVES <span class="req">MIN 1 IMAGE</span></div>
+      <div class="fhint">Both halves visible — cavity faces preferred.</div>
+      <div class="upload-zone" id="uz-print_halves" data-key="print_halves" data-min-images="1">
+        <div class="paste-badge">PASTE TARGET</div>
+        <div class="uz-inner"><div class="uz-lbl">Drop, paste, or <span>click to upload</span></div></div>
+        <input type="file" id="file-print_halves" accept="image/*" multiple>
+        <div class="img-cnt s-dim" id="cnt-print_halves">0 images — minimum 1 required</div>
+        <div class="img-grid" id="grid-print_halves"></div>
+      </div>
+    </div>
+    <div class="fg">
+      <div class="fl">ASSEMBLED MOLD WITH PINS ENGAGED <span class="req">MIN 1 IMAGE</span></div>
+      <div class="upload-zone" id="uz-print_assembled" data-key="print_assembled" data-min-images="1">
+        <div class="paste-badge">PASTE TARGET</div>
+        <div class="uz-inner"><div class="uz-lbl">Drop, paste, or <span>click to upload</span></div></div>
+        <input type="file" id="file-print_assembled" accept="image/*" multiple>
+        <div class="img-cnt s-dim" id="cnt-print_assembled">0 images — minimum 1 required</div>
+        <div class="img-grid" id="grid-print_assembled"></div>
+      </div>
+    </div>
+    <div class="section-div">Dimensional Verification — Minimum 2 Measurements</div>
+    <div class="callout">Measure at least two key dimensions on the printed halves with calipers. Compare to your SolidWorks model. Both unit columns auto-sync.</div>
+    <button class="expand-btn" onclick="expandMeasTable()">&#x26F6; EXPAND TABLE</button>
+    <div class="table-wrap">
+      <table class="dt" id="meas-table" style="min-width:680px">
+        <thead><tr>
+          <th style="width:26px"></th>
+          <th data-tip="Measurement — What dimension is being verified. Be specific: e.g., Overall mold length, Pin boss diameter, Spout opening diameter.">Measurement</th>
+          <th data-tip="Designed (in) — Value from SolidWorks model in inches.">Designed (in)</th>
+          <th data-tip="Designed (mm) — Value from SolidWorks in mm. Auto-syncs with in field.">Designed (mm)</th>
+          <th data-tip="Actual (in) — Caliper measurement in inches.">Actual (in)</th>
+          <th data-tip="Actual (mm) — Caliper measurement in mm. Auto-syncs with in field.">Actual (mm)</th>
+          <th data-tip="Delta (mm) — Absolute difference between designed and actual in mm. Auto-calculated.">Delta (mm)</th>
+          <th data-tip="Status — Select whether this dimension is within acceptable tolerance for your application.">Status</th>
+          <th style="width:60px"></th>
+        </tr></thead>
+        <tbody id="meas-tbody"></tbody>
+      </table>
+    </div>
+    <button class="add-row" onclick="addMeasRow()">+ ADD MEASUREMENT</button>
+    <div class="fg" style="margin-top:18px">
+      <div class="fl">SURFACE QUALITY NOTES <span class="req">REQUIRED</span></div>
+      <div class="fhint">Describe cavity surface quality, alignment pin fit, and overall mold readiness. (1–3 sentences)</div>
+      <textarea id="surface-notes" rows="4" data-min="1" data-max="3" data-save="true" placeholder="e.g., Cavity surfaces show 0.10mm layer lines that are consistent and uniform. Alignment pins engage cleanly without forcing and the parting faces close flush. The pour spout opening is clean with no stringing and the mold is ready for a test pour..."></textarea>
+      <div class="ctr-row"><div class="ctr s-dim" id="ctr-surface-notes">0 / 1–3 sentences</div></div>
+      <div class="print-mirror" data-mirror="surface-notes"></div>
+    </div>
+    <div class="fg">
+      <div class="fl">CONFIRMATIONS</div>
+      <div class="ck" onclick="togCk('ck-m6a',event)"><input type="checkbox" id="ck-m6a" data-save="true" onchange="updateComp()"><label>Both mold halves printed and photographed</label></div>
+      <div class="ck" onclick="togCk('ck-m6b',event)"><input type="checkbox" id="ck-m6b" data-save="true" onchange="updateComp()"><label>Alignment pins engage without forcing — mold closes flush along parting face</label></div>
+      <div class="ck" onclick="togCk('ck-m6c',event)"><input type="checkbox" id="ck-m6c" data-save="true" onchange="updateComp()"><label>Minimum 2 dimensions verified and logged in the table above</label></div>
+    </div>
+  </div></div>
+</div>
+<!-- PRINT QUEUE -->
+<div class="tool-panel no-print" id="pq-panel" style="opacity:1;transform:none">
+  <div class="tool-panel-header">
+    <span class="tool-panel-icon">TOOL</span>
+    <span class="tool-panel-title">Print Queue</span>
+    <span class="tool-panel-note">Submit print jobs to Mr. Pina — attach files before sending</span>
+  </div>
+  <div class="tool-panel-body">
+    <p class="callout">Use this tool to submit your mold half print jobs. Fill in a card for each part you need printed, then use the email button to open a pre-filled message to Mr. Pina. Attach your 3MF or STEP file before sending.</p>
+    <div style="background:rgba(255,140,0,.07);border-left:4px solid var(--amber);border-top:1px solid rgba(255,140,0,.25);border-right:1px solid rgba(255,140,0,.25);border-bottom:1px solid rgba(255,140,0,.25);padding:11px 14px;font-family:var(--font-u);font-size:12px;letter-spacing:.4px;color:var(--amber)">⚠ USE THIS ONLY IF ALL 3D PRINTERS ARE UNAVAILABLE. If any printer is free, print directly. This queue is a last resort for when every machine in the room is occupied.</div>
+    <div id="pq-container"></div>
+    <button class="add-row no-print" onclick="addPrintRequest()" style="margin-top:4px">+ ADD PRINT REQUEST</button>
+  </div>
+</div>
+<!-- DECLARATION -->
+<div id="decl" class="visible">
+  <strong>ACADEMIC INTEGRITY DECLARATION</strong><br><br>
+  By submitting this assignment, I confirm that all written responses, design decisions, and documented values in this file reflect my own work. AI assistance is permitted for research, writing, and workflow guidance. All SolidWorks operations and physical measurements must be performed by me.
+  <div class="ai-note">AI USE NOTE — AI assistance is permitted for all portions of this assignment. Caliper measurements and SolidWorks work must be your own.</div>
+  <div class="fg" style="margin-top:14px">
+    <div class="ck" onclick="togCk('ck-decl',event)"><input type="checkbox" id="ck-decl" data-save="true" onchange="updateComp()"><label>I confirm the above declaration</label></div>
+  </div>
+</div>
+<!-- PRINT-ONLY SCORING TABLE -->
+<div class="print-only">
+  <table style="width:100%;border-collapse:collapse;font-family:'Rajdhani',sans-serif;margin-top:24px">
+    <thead><tr style="background:rgba(0,255,65,.05)">
+      <th style="border:1px solid rgba(0,255,65,.2);padding:7px 10px;text-align:left;font-size:11px;color:#00FF41">MODULE</th>
+      <th style="border:1px solid rgba(0,255,65,.2);padding:7px 10px;text-align:center;font-size:11px;color:#00FF41;width:60px">MAX</th>
+      <th style="border:1px solid rgba(0,255,65,.2);padding:7px 10px;text-align:center;font-size:11px;color:#00FF41;width:60px">EARNED</th>
+      <th style="border:1px solid rgba(0,255,65,.2);padding:7px 10px;text-align:left;font-size:11px;color:#00FF41">NOTES</th>
+    </tr></thead>
+    <tbody>
+      <tr><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;font-size:12px;color:#E8FFE8">01 — Mold Block Creation</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center;color:#E8FFE8">12</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center">___</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px"></td></tr>
+      <tr><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;font-size:12px;color:#E8FFE8">02 — Subtractive Combine &amp; Split</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center;color:#E8FFE8">12</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center">___</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px"></td></tr>
+      <tr><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;font-size:12px;color:#E8FFE8">03 — Bolt Holes</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center;color:#E8FFE8">14</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center">___</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px"></td></tr>
+      <tr><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;font-size:12px;color:#E8FFE8">04 — Pour Spout</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center;color:#E8FFE8">14</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center">___</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px"></td></tr>
+      <tr><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;font-size:12px;color:#E8FFE8">05 — Print Settings</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center;color:#E8FFE8">8</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center">___</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px"></td></tr>
+      <tr><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;font-size:12px;color:#E8FFE8">06 — Physical Print Result</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center;color:#E8FFE8">20</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px;text-align:center">___</td><td style="border:1px solid rgba(0,255,65,.12);padding:6px 10px"></td></tr>
+      <tr style="font-weight:700"><td style="border:1px solid rgba(0,255,65,.25);padding:7px 10px;font-size:13px;color:#00FF41">TOTAL</td><td style="border:1px solid rgba(0,255,65,.25);padding:7px 10px;text-align:center;color:#00FF41">80</td><td style="border:1px solid rgba(0,255,65,.25);padding:7px 10px;text-align:center;color:#00FF41">___</td><td style="border:1px solid rgba(0,255,65,.25);padding:7px 10px"></td></tr>
+    </tbody>
+  </table>
+</div>
+<!-- SUBMISSION CHECKLIST -->
+<div id="sub-ck" class="visible">
+  <div class="sub-hdr">SUBMISSION CHECKLIST</div>
+  <div class="sub-body">
+    <div class="ck" onclick="togCk('sub-1',event)"><input type="checkbox" id="sub-1" data-save="true"><label>All six modules complete — green dots in all module headers</label></div>
+    <div class="ck" onclick="togCk('sub-2',event)"><input type="checkbox" id="sub-2" data-save="true"><label>Instructor approval obtained — gate shows ACCESS GRANTED</label></div>
+    <div class="ck" onclick="togCk('sub-3',event)"><input type="checkbox" id="sub-3" data-save="true"><label>Both mold halves printed and documented in Module 06</label></div>
+    <div class="ck" onclick="togCk('sub-4',event)"><input type="checkbox" id="sub-4" data-save="true"><label>SolidWorks multibody part file (.SLDPRT) submitted to Google Classroom</label></div>
+    <div class="ck" onclick="togCk('sub-5',event)"><input type="checkbox" id="sub-5" data-save="true"><label>Document exported via EXPORT HTML and submitted to Google Classroom</label></div>
+  </div>
+</div>
+<!-- FOOTER -->
+<div id="footer">
+  <span class="footer-id">IDEA — MOLD BODY DESIGN | ASSIGNMENT 02</span>
+  <span class="footer-school">Don Bosco Technical Institute</span>
+  <span class="footer-pts">80 PTS</span>
+  <span class="footer-ver"></span>
+</div>
+</div><!-- end #main -->
+<script>
+'use strict';
+const BUILD_VERSION='v1';
+const PFX='mset-mold-02-';
+const DB_NAME='mset-mold-a02';
+const TOTAL_PTS=80;
+const APPROVAL_HASH='ec929973e52a87f1896dac3036bf607051238d042fef08147b9a78ba6a3a5adf';
+const FACES=['top','bottom','left','right','front','back'];
+const OFF_MIN_MM=5.0;
+const SPOUT_MIN_MM=10.0;
+const ZONES=['block_view','combine_split','bolt_holes','spout_view','bambu_ss','print_halves','print_assembled'];
+const ZONE_MINS={block_view:1,combine_split:2,bolt_holes:1,spout_view:1,bambu_ss:1,print_halves:1,print_assembled:1};
+const CTR_FIELDS=[
+  {id:'geom-confirm',min:1,max:2},
+  {id:'combine-desc',min:1,max:2},
+  {id:'split-desc',min:1,max:2},
+  {id:'bolt-rationale',min:1,max:2},
+  {id:'pour-orient',min:1,max:2},
+  {id:'high-point',min:1,max:2},
+  {id:'flat-zone',min:2,max:3},
+  {id:'surface-notes',min:1,max:3}
+];
+let db=null,imgStore={},autoSaveOn=true,lastSaveTime=null,approved=false,pfMode=null,activePasteKey=null,dragSrcRow=null;
+ZONES.forEach(z=>imgStore[z]=[]);
+
+/* ===== INIT ===== */
+document.addEventListener('DOMContentLoaded',async()=>{
+  document.querySelectorAll('.footer-ver').forEach(el=>el.textContent=BUILD_VERSION);
+  const as=localStorage.getItem(PFX+'autosave');
+  if(as==='false'){autoSaveOn=false;updASBtn();}
+  for(let i=1;i<=6;i++){
+    if(localStorage.getItem(PFX+'collapse-'+i)==='collapsed')
+      document.getElementById('mod-'+i)?.classList.add('collapsed');
+  }
+  setupTooltips();
+  setupUploadZones();
+  document.addEventListener('paste',handleGlobalPaste);
+  setupDragTarget(document.getElementById('meas-tbody'));
+  await initDB();
+  await loadData();
+  const df=document.getElementById('date-field');
+  if(!df.value){const n=new Date();df.value=String(n.getMonth()+1).padStart(2,'0')+' / '+String(n.getDate()).padStart(2,'0')+' / '+n.getFullYear();}
+  document.querySelectorAll('textarea').forEach(ta=>{
+    ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';});
+    ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';
+  });
+  setupCounters();
+  document.querySelectorAll('input:not([type=file]),textarea,select').forEach(el=>el.addEventListener('change',saveData));
+  setInterval(()=>{if(autoSaveOn)saveData();},30000);
+  setInterval(updStatusElapsed,10000);
+  window.addEventListener('scroll',()=>{
+    const d=document.documentElement;
+    document.getElementById('scroll-bar').style.width=Math.min(scrollY/(d.scrollHeight-innerHeight)*100,100)+'%';
+  });
+  const obs=new IntersectionObserver(entries=>{
+    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target);}});
+  },{threshold:.04});
+  document.querySelectorAll('.module,#gate,#decl,#sub-ck').forEach(el=>obs.observe(el));
+  updateComp();
+  updAllMirrors();
+});
+
+/* ===== CANVAS ===== */
+(()=>{
+  const cv=document.getElementById('bg-canvas');if(!cv)return;
+  const ctx=cv.getContext('2d');
+  let W,H,DPR,mx=-9999,my=-9999,tx=-9999,ty=-9999;
+  const MAJ=100,MIN=20;
+  function rsz(){DPR=window.devicePixelRatio||1;W=innerWidth;H=innerHeight;cv.width=Math.floor(W*DPR);cv.height=Math.floor(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+  window.addEventListener('resize',rsz);rsz();
+  window.addEventListener('mousemove',e=>{tx=e.clientX;ty=e.clientY;});
+  function frame(){
+    mx+=(tx-mx)*.15;my+=(ty-my)*.15;
+    ctx.clearRect(0,0,W,H);
+    ctx.lineWidth=1;ctx.strokeStyle='rgba(0,255,65,.04)';
+    ctx.beginPath();
+    for(let x=0;x<=W;x+=MIN){ctx.moveTo(x,0);ctx.lineTo(x,H);}
+    for(let y=0;y<=H;y+=MIN){ctx.moveTo(0,y);ctx.lineTo(W,y);}
+    ctx.stroke();
+    ctx.save();
+    const g=ctx.createRadialGradient(mx,my,0,mx,my,360);
+    g.addColorStop(0,'rgba(0,255,65,.35)');g.addColorStop(1,'rgba(0,255,65,0)');
+    ctx.strokeStyle=g;ctx.globalCompositeOperation='lighter';ctx.lineWidth=1;
+    ctx.beginPath();
+    for(let x=0;x<=W;x+=MIN){ctx.moveTo(x,0);ctx.lineTo(x,H);}
+    for(let y=0;y<=H;y+=MIN){ctx.moveTo(0,y);ctx.lineTo(W,y);}
+    ctx.stroke();
+    ctx.lineWidth=1.5;ctx.beginPath();
+    for(let x=0;x<=W;x+=MAJ)for(let y=0;y<=H;y+=MAJ){ctx.moveTo(x-6,y);ctx.lineTo(x+6,y);ctx.moveTo(x,y-6);ctx.lineTo(x,y+6);}
+    ctx.stroke();ctx.restore();
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ===== POWER SURGE LIGHTNING CLICK EFFECT ===== */
+(()=>{
+  const cv=document.getElementById('bg-canvas');if(!cv)return;
+  const ctx=cv.getContext('2d');
+  const GRID=20; // matches MIN in canvas IIFE above
+  const DDX=[GRID,0,-GRID,0]; // right down left up
+  const DDY=[0,GRID,0,-GRID];
+  const BLOCK='input,textarea,select,button,label,a,.tb-btn,.ck,.mod-hdr,.rub-btn,.info-btn,.upload-zone,.img-card,#gate,#lightbox,.dlg';
+  function r(a,b){return Math.random()*(b-a)+a;}
+  function ri(a,b){return Math.floor(r(a,b+1));}
+  function snap(v){return Math.round(v/GRID)*GRID;}
+  function pickColor(){const x=Math.random();return x<.60?'#00FF41':x<.85?'#00F0FF':'#C8FF00';}
+  const surges=[];
+
+  // Build one bolt branch; splits recurse and push additional bolts into collector
+  function buildBolt(ox,oy,dir,maxSegs,depth,color,bw,spd,glow,birthTime,startMs,collector){
+    const pts=[{x:ox,y:oy}];
+    let cx=ox,cy=oy,cd=dir;
+    for(let s=0;s<maxSegs;s++){
+      const roll=Math.random();
+      if(roll<.65){
+        // continue same direction
+      } else if(roll<.90){
+        cd=(cd+(Math.random()<.5?1:3))%4;
+      } else if(depth<3){
+        const sDir=(cd+(Math.random()<.5?1:3))%4;
+        // sub-bolt appears when parent bolt reaches this segment
+        buildBolt(cx,cy,sDir,ri(4,12),depth+1,color,bw*.65,spd,glow,birthTime,startMs+s*(16.67/spd),collector);
+      }
+      const nx=cx+DDX[cd],ny=cy+DDY[cd];
+      if(nx<0||nx>innerWidth||ny<0||ny>innerHeight)break;
+      cx=nx;cy=ny;pts.push({x:cx,y:cy});
+    }
+    collector.push({pts,color,bw,spd,glow,birthTime,startMs,drawn:0,state:'drawing',alpha:1,flickerCount:ri(3,5),flickerPeriod:55,flickerStart:0,fadeStart:0});
+  }
+
+  function spawnSurge(ex,ey){
+    const now=performance.now();
+    const ox=snap(ex),oy=snap(ey);
+    const bolts=[];
+    const n=ri(3,6);
+    for(let i=0;i<n;i++){
+      buildBolt(ox,oy,Math.floor(Math.random()*4),ri(8,22),0,pickColor(),r(1.5,3.5),r(3,7),r(8,20),now,0,bolts);
+    }
+    surges.push({bolts,burst:{x:ox,y:oy,born:now,dur:80}});
+  }
+
+  document.addEventListener('click',e=>{
+    if(e.target.closest(BLOCK))return;
+    spawnSurge(e.clientX,e.clientY);
+  });
+
+  function drawBolt(b,now){
+    const elapsed=now-b.birthTime-b.startMs;
+    if(elapsed<=0)return true; // not started yet
+    const total=b.pts.length-1;
+    if(total<=0)return false;
+
+    if(b.state==='drawing'){
+      b.drawn=Math.min(total,Math.floor(elapsed/16.67*b.spd));
+      if(b.drawn>=total){b.state='flickering';b.flickerStart=now;}
+    }
+    if(b.state==='flickering'){
+      const fe=now-b.flickerStart;
+      if(fe>=b.flickerCount*2*b.flickerPeriod){b.state='fading';b.fadeStart=now;b.alpha=1;}
+      else b.alpha=Math.floor(fe/b.flickerPeriod)%2===0?.2:1;
+    }
+    if(b.state==='fading'){
+      b.alpha=Math.max(0,1-(now-b.fadeStart)/300);
+      if(b.alpha<=0)return false;
+    }
+
+    const show=b.state==='drawing'?b.drawn:total;
+    if(show<=0)return true;
+
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.globalAlpha=b.alpha;
+    ctx.shadowBlur=b.glow;
+    ctx.shadowColor=b.color;
+    ctx.strokeStyle=b.color;
+    ctx.lineCap='round';
+    for(let i=0;i<show;i++){
+      const t=show>1?i/(show-1):0;
+      ctx.lineWidth=b.bw*(1-t)+.5*t; // taper from bw at origin to 0.5 at tip
+      ctx.beginPath();
+      ctx.moveTo(b.pts[i].x,b.pts[i].y);
+      ctx.lineTo(b.pts[i+1].x,b.pts[i+1].y);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return true;
+  }
+
+  function drawBurst(burst,now){
+    const e=now-burst.born;
+    if(e>=burst.dur)return false;
+    const t=e/burst.dur;
+    const rad=4+10*t;
+    ctx.save();
+    ctx.globalCompositeOperation='lighter';
+    ctx.globalAlpha=1-t;
+    const g=ctx.createRadialGradient(burst.x,burst.y,0,burst.x,burst.y,rad);
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    g.addColorStop(.4,'rgba(0,255,65,.9)');
+    g.addColorStop(1,'rgba(0,255,65,0)');
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    ctx.arc(burst.x,burst.y,rad,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+    return true;
+  }
+
+  function lgFrame(now){
+    for(let i=surges.length-1;i>=0;i--){
+      const s=surges[i];
+      let alive=false;
+      if(s.burst){if(!drawBurst(s.burst,now))s.burst=null;else alive=true;}
+      s.bolts=s.bolts.filter(b=>drawBolt(b,now));
+      if(s.bolts.length)alive=true;
+      if(!alive)surges.splice(i,1);
+    }
+    requestAnimationFrame(lgFrame);
+  }
+  requestAnimationFrame(lgFrame);
+})();
+
+/* ===== INDEXEDDB ===== */
+async function initDB(){
+  return new Promise((res)=>{
+    const req=indexedDB.open(DB_NAME,1);
+    req.onupgradeneeded=e=>e.target.result.createObjectStore('images',{keyPath:'id'});
+    req.onsuccess=e=>{db=e.target.result;res();};
+    req.onerror=()=>res();
+  });
+}
+async function dbPut(key,data){
+  if(!db)return;
+  return new Promise((res,rej)=>{
+    const tx=db.transaction('images','readwrite');
+    tx.objectStore('images').put({id:key,data});
+    tx.oncomplete=res;
+    tx.onerror=()=>{setSS('warn','DB WRITE ERROR');rej();};
+  });
+}
+async function dbGet(key){
+  if(!db)return null;
+  return new Promise(res=>{
+    const req=db.transaction('images','readonly').objectStore('images').get(key);
+    req.onsuccess=()=>res(req.result?.data||null);
+    req.onerror=()=>res(null);
+  });
+}
+async function dbGetAll(){
+  if(!db)return[];
+  return new Promise(res=>{
+    const req=db.transaction('images','readonly').objectStore('images').getAll();
+    req.onsuccess=()=>res(req.result||[]);
+    req.onerror=()=>res([]);
+  });
+}
+async function dbDel(key){
+  if(!db)return;
+  return new Promise(res=>{
+    const tx=db.transaction('images','readwrite');
+    tx.objectStore('images').delete(key);
+    tx.oncomplete=res;tx.onerror=res;
+  });
+}
+async function dbClearAll(){
+  if(!db)return;
+  return new Promise(res=>{
+    const tx=db.transaction('images','readwrite');
+    tx.objectStore('images').clear();
+    tx.oncomplete=res;tx.onerror=res;
+  });
+}
+async function dbSaveZone(key){
+  try{await dbPut('zone-'+key,imgStore[key]);}
+  catch(e){console.error(e);}
+}
+
+/* ===== UPLOAD ZONES ===== */
+function setupUploadZones(){
+  ZONES.forEach(key=>{
+    const zone=document.getElementById('uz-'+key);
+    const fi=document.getElementById('file-'+key);
+    if(!zone||!fi)return;
+    zone.addEventListener('click',e=>{
+      if(e.target.closest('.img-card')||e.target.closest('.img-rm'))return;
+      fi.click();
+    });
+    fi.addEventListener('change',()=>handleUpload(key,fi));
+    zone.addEventListener('mouseenter',()=>setPasteZone(key));
+    zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over');});
+    zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+    zone.addEventListener('drop',e=>{
+      e.preventDefault();zone.classList.remove('drag-over');
+      Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/')).forEach(f=>readFile(f,key));
+    });
+  });
+}
+function setPasteZone(key){
+  if(activePasteKey){
+    const old=document.getElementById('uz-'+activePasteKey);
+    if(old)old.classList.remove('paste-active');
+  }
+  activePasteKey=key;
+  document.getElementById('uz-'+key)?.classList.add('paste-active');
+}
+function handleGlobalPaste(e){
+  if(!activePasteKey)return;
+  const items=e.clipboardData?.items;
+  if(!items)return;
+  for(let i=0;i<items.length;i++){
+    if(items[i].type.indexOf('image')!==-1){readFile(items[i].getAsFile(),activePasteKey);}
+  }
+}
+function handleUpload(key,inp){
+  Array.from(inp.files).forEach(f=>readFile(f,key));
+  inp.value='';
+}
+function readFile(f,key){
+  const r=new FileReader();
+  r.onload=ev=>{imgStore[key].push({src:ev.target.result,caption:''});renderZone(key);dbSaveZone(key);updateComp();};
+  r.readAsDataURL(f);
+}
+function renderZone(key){
+  const grid=document.getElementById('grid-'+key);
+  const cnt=document.getElementById('cnt-'+key);
+  const zone=document.getElementById('uz-'+key);
+  if(!grid||!cnt)return;
+  const min=ZONE_MINS[key]||1,n=imgStore[key].length;
+  grid.innerHTML='';
+  imgStore[key].forEach((img,i)=>{
+    const card=document.createElement('div');card.className='img-card';
+    const cap=(img.caption||'').replace(/"/g,'&quot;');
+    card.innerHTML='<img src="'+img.src+'" alt="" onclick="openLB(\''+key+'\','+i+')">'
+      +'<div class="img-cap"><input type="text" placeholder="Label this view..." value="'+cap+'" onchange="imgStore[\''+key+'\']['+i+'].caption=this.value;dbSaveZone(\''+key+'\')"></div>'
+      +'<span class="img-rm" onclick="rmImg(\''+key+'\','+i+')">REMOVE</span>';
+    grid.appendChild(card);
+  });
+  if(n===0){cnt.textContent='0 images — minimum '+min+' required';cnt.className='img-cnt s-dim';}
+  else if(n<min){cnt.textContent=n+' image'+(n>1?'s':'')+' — '+(min-n)+' more required';cnt.className='img-cnt s-warn';}
+  else{cnt.textContent=n+' image'+(n>1?'s':'')+' uploaded';cnt.className='img-cnt s-ok';}
+  if(zone)zone.classList.toggle('has-image',n>0);
+}
+function rmImg(key,idx){imgStore[key].splice(idx,1);renderZone(key);dbSaveZone(key);updateComp();}
+function openLB(key,idx){document.getElementById('lb-img').src=imgStore[key][idx].src;document.getElementById('lightbox').classList.add('open');}
+document.getElementById('lightbox').addEventListener('click',e=>{if(e.target===e.currentTarget)closeLB();});
+document.getElementById('lb-close').addEventListener('click',closeLB);
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLB();closeDlg('dlg-pf');}});
+function closeLB(){document.getElementById('lightbox').classList.remove('open');}
+
+/* ===== TOOLTIPS ===== */
+function setupTooltips(){
+  const tip=document.getElementById('tip-box');
+  document.querySelectorAll('[data-tip]').forEach(th=>{
+    th.addEventListener('mouseover',()=>{
+      const raw=th.dataset.tip,idx=raw.indexOf(' — ');
+      tip.innerHTML=idx>=0?'<strong>'+raw.slice(0,idx)+'</strong>'+raw.slice(idx+3):raw;
+      tip.style.display='block';
+    });
+    th.addEventListener('mousemove',e=>{
+      tip.style.left=Math.min(e.clientX+12,innerWidth-300)+'px';
+      tip.style.top=(e.clientY+16)+'px';
+    });
+    th.addEventListener('mouseout',()=>{tip.style.display='none';});
+  });
+}
+
+/* ===== COUNTERS ===== */
+function countS(txt){
+  if(!txt||!txt.trim())return 0;
+  const m=txt.trim().match(/[^.!?]*[.!?]+/g);
+  return m?m.length:(txt.trim().length>0?1:0);
+}
+function updCtr(id,min,max){
+  const ta=document.getElementById(id),el=document.getElementById('ctr-'+id);
+  if(!ta||!el)return;
+  const n=countS(ta.value),has=ta.value.trim().length>0;
+  el.textContent=n+' / '+min+(max!==min?'–'+max:'')+(max>1?' sentences':' sentence');
+  el.className='ctr '+(has===false?'s-dim':n>=min&&n<=max?'s-ok':'s-warn');
+}
+function setupCounters(){
+  CTR_FIELDS.forEach(({id,min,max})=>{
+    const ta=document.getElementById(id);
+    if(ta){ta.addEventListener('input',()=>{updCtr(id,min,max);updateComp();updMirror(id);});updCtr(id,min,max);}
+  });
+}
+
+/* ===== MIRRORS ===== */
+function updMirror(id){
+  const src=document.getElementById(id);
+  document.querySelector('.print-mirror[data-mirror="'+id+'"]')?.let?.(m=>m.textContent=src?.value||'');
+  const m=document.querySelector('.print-mirror[data-mirror="'+id+'"]');
+  if(m&&src)m.textContent=src.value||'';
+}
+function updAllMirrors(){
+  document.querySelectorAll('.print-mirror[data-mirror]').forEach(m=>{
+    const src=document.getElementById(m.dataset.mirror);
+    if(src)m.textContent=src.value||'';
+  });
+}
+
+/* ===== DUAL UNIT ===== */
+function inToMm(v){return v*25.4;}
+function mmToIn(v){return v/25.4;}
+function syncDU(base,from){
+  const inEl=document.getElementById(base+'-in'),mmEl=document.getElementById(base+'-mm');
+  if(!inEl||!mmEl)return;
+  if(from==='in'){const v=parseFloat(inEl.value);if(!isNaN(v))mmEl.value=inToMm(v).toFixed(2);}
+  else{const v=parseFloat(mmEl.value);if(!isNaN(v))inEl.value=mmToIn(v).toFixed(3);}
+}
+
+/* ===== OFFSET TABLE ===== */
+function syncOff(face,from){
+  const inEl=document.getElementById('off-'+face+'-in'),mmEl=document.getElementById('off-'+face+'-mm'),stEl=document.getElementById('st-'+face);
+  if(!inEl||!mmEl||!stEl)return;
+  let vmm;
+  if(from==='in'){const v=parseFloat(inEl.value);vmm=isNaN(v)?NaN:inToMm(v);if(!isNaN(vmm))mmEl.value=vmm.toFixed(2);}
+  else{vmm=parseFloat(mmEl.value);if(!isNaN(vmm))inEl.value=mmToIn(vmm).toFixed(3);}
+  if(isNaN(vmm)){stEl.textContent='—';stEl.className='off-status empty';}
+  else if(vmm>=OFF_MIN_MM){stEl.textContent='✓ OK';stEl.className='off-status ok';}
+  else{stEl.textContent='⚠ LOW';stEl.className='off-status fail';}
+  checkOffStat();updateComp();
+}
+function checkOffStat(){
+  const el=document.getElementById('off-stat');if(!el)return;
+  let filled=0,ok=0;
+  FACES.forEach(f=>{const v=parseFloat(document.getElementById('off-'+f+'-mm')?.value);if(!isNaN(v)){filled++;if(v>=OFF_MIN_MM)ok++;}});
+  if(filled===0){el.textContent='Enter all six face offsets to check compliance.';el.className='stat-card empty';}
+  else if(ok===6){el.textContent='✓ All 6 faces meet minimum 5.00mm / 0.197"';el.className='stat-card ok';}
+  else{el.textContent='⚠ '+(6-ok)+' face'+(6-ok>1?'s':'')+' below minimum.';el.className='stat-card fail';}
+}
+function allOffsetsOk(){return FACES.every(f=>{const v=parseFloat(document.getElementById('off-'+f+'-mm')?.value);return!isNaN(v)&&v>=OFF_MIN_MM;});}
+
+/* ===== SPOUT ===== */
+function checkSpout(){
+  const dEl=document.getElementById('spout-dia-mm'),drEl=document.getElementById('spout-draft');
+  const dStat=document.getElementById('spout-stat'),drStat=document.getElementById('draft-stat');
+  if(!dEl||!dStat)return;
+  const dia=parseFloat(dEl.value);
+  if(isNaN(dia)){dStat.textContent='Enter diameter to check compliance.';dStat.className='stat-card empty';}
+  else if(dia>=SPOUT_MIN_MM){dStat.textContent='✓ COMPLIANT — '+dia.toFixed(2)+'mm / '+mmToIn(dia).toFixed(3)+'"';dStat.className='stat-card ok';}
+  else{dStat.textContent='⚠ Below minimum 10.00mm / 0.394"';dStat.className='stat-card fail';}
+  if(drEl&&drStat){
+    const dr=parseFloat(drEl.value);
+    if(isNaN(dr)){drStat.textContent='—';drStat.className='stat-card empty';}
+    else if(dr>=1&&dr<=2){drStat.textContent='✓ '+dr.toFixed(1)+'°';drStat.className='stat-card ok';}
+    else{drStat.textContent='⚠ Must be 1–2°';drStat.className='stat-card fail';}
+  }
+  syncDU('spout-dia','mm');
+  updateComp();
+}
+
+/* ===== MODULE COLLAPSE ===== */
+function togMod(n){
+  const mod=document.getElementById('mod-'+n);if(!mod)return;
+  const c=mod.classList.toggle('collapsed');
+  localStorage.setItem(PFX+'collapse-'+n,c?'collapsed':'expanded');
+}
+
+/* ===== RUBRIC + INFO ===== */
+function togRub(e,id){
+  e.stopPropagation();
+  const panel=document.getElementById(id);if(!panel)return;
+  const modN=id.replace('rub-','');
+  const lock=document.getElementById('lock-'+modN);
+  if(lock&&!lock.classList.contains('dismissed'))return;
+  panel.classList.toggle('open');
+}
+function togInfo(id){document.getElementById(id)?.classList.toggle('open');}
+function togInst(){document.getElementById('inst-panel')?.classList.toggle('open');document.getElementById('inst-arr')?.classList.toggle('open');}
+
+/* ===== CHECKBOXES ===== */
+function togCk(id,e){if(e?.target?.tagName==='INPUT')return;const cb=document.getElementById(id);if(cb){cb.checked=!cb.checked;updateComp();saveData();}}
+function togCkME(id,otherId,e){if(e?.target?.tagName==='INPUT')return;const cb=document.getElementById(id);if(cb){cb.checked=!cb.checked;if(cb.checked){const other=document.getElementById(otherId);if(other)other.checked=false;}updateComp();saveData();}}
+function ckME(id,otherId){const cb=document.getElementById(id);const other=document.getElementById(otherId);if(cb&&cb.checked&&other)other.checked=false;saveData();}
+function getCk(id){return document.getElementById(id)?.checked||false;}
+function getV(id){return document.getElementById(id)?.value?.trim()||'';}
+function cntSf(id){const ta=document.getElementById(id);return ta?countS(ta.value):0;}
+function minSf(id){const cfg=CTR_FIELDS.find(c=>c.id===id);return cfg?.min||1;}
+function maxSf(id){const cfg=CTR_FIELDS.find(c=>c.id===id);return cfg?.max||99;}
+
+/* ===== MEASUREMENT TABLE ===== */
+function genId(){return Math.random().toString(36).slice(2,10);}
+function addMeasRow(data){
+  const tbody=document.getElementById('meas-tbody');
+  const rowId=(data&&data.rowId)||genId();
+  const tr=document.createElement('tr');
+  tr.dataset.rowId=rowId;
+  const n=esc(data?.name||''),di=esc(data?.desIn||''),dm=esc(data?.desMm||''),ai=esc(data?.actIn||''),am=esc(data?.actMm||''),st=data?.status||'';
+  tr.innerHTML='<td><span class="drag-handle" title="Drag to reorder">&#8801;</span></td>'
+    +'<td><input type="text" class="meas-name" value="'+n+'" placeholder="e.g., Overall mold length" oninput="updateComp()"></td>'
+    +'<td><input type="number" class="meas-di" value="'+di+'" step="0.001" placeholder="0.000" oninput="syncMeasRow(this,\'in\',\'des\')"></td>'
+    +'<td><input type="number" class="meas-dm" value="'+dm+'" step="0.01" placeholder="0.00" oninput="syncMeasRow(this,\'mm\',\'des\')"></td>'
+    +'<td><input type="number" class="meas-ai" value="'+ai+'" step="0.001" placeholder="0.000" oninput="syncMeasRow(this,\'in\',\'act\')"></td>'
+    +'<td><input type="number" class="meas-am" value="'+am+'" step="0.01" placeholder="0.00" oninput="syncMeasRow(this,\'mm\',\'act\')"></td>'
+    +'<td class="meas-delta" style="font-family:var(--font-b);font-size:11px;color:var(--dim);text-align:center">—</td>'
+    +'<td><select class="meas-status" onchange="rowStatus(this)">'
+    +'<option value="">Select...</option>'
+    +'<option value="ok"'+(st==='ok'?' selected':'')+'>Acceptable</option>'
+    +'<option value="warn"'+(st==='warn'?' selected':'')+'>Out of Tolerance</option>'
+    +'</select></td>'
+    +'<td style="white-space:nowrap"><button class="dup-row" onclick="dupMeasRow(this)" title="Duplicate">&#10064;</button>'
+    +'<button class="del-row" onclick="delMeasRow(this)" title="Delete">&#x2715;</button></td>';
+  tbody.appendChild(tr);
+  attachDragHandle(tr);
+  if(data){calcDelta(tr);rowStatus(tr.querySelector('.meas-status'));}
+  updateComp();
+}
+function syncMeasRow(inp,unit,side){
+  const tr=inp.closest('tr');
+  if(unit==='in'&&side==='des'){const v=parseFloat(inp.value);if(!isNaN(v))tr.querySelector('.meas-dm').value=inToMm(v).toFixed(2);}
+  else if(unit==='mm'&&side==='des'){const v=parseFloat(inp.value);if(!isNaN(v))tr.querySelector('.meas-di').value=mmToIn(v).toFixed(3);}
+  else if(unit==='in'&&side==='act'){const v=parseFloat(inp.value);if(!isNaN(v))tr.querySelector('.meas-am').value=inToMm(v).toFixed(2);}
+  else if(unit==='mm'&&side==='act'){const v=parseFloat(inp.value);if(!isNaN(v))tr.querySelector('.meas-ai').value=mmToIn(v).toFixed(3);}
+  calcDelta(tr);updateComp();
+}
+function calcDelta(tr){
+  const dm=parseFloat(tr.querySelector('.meas-dm')?.value);
+  const am=parseFloat(tr.querySelector('.meas-am')?.value);
+  const cell=tr.querySelector('.meas-delta');
+  if(!cell)return;
+  if(isNaN(dm)||isNaN(am)){cell.textContent='—';cell.style.color='var(--dim)';}
+  else{const d=Math.abs(am-dm);cell.textContent=d.toFixed(2);cell.style.color=d<0.5?'var(--green)':'var(--amber)';}
+}
+function rowStatus(sel){
+  const tr=sel.closest('tr');
+  tr.className='';
+  if(sel.value==='ok')tr.classList.add('row-ok');
+  else if(sel.value==='warn')tr.classList.add('row-warn');
+}
+function dupMeasRow(btn){
+  const tr=btn.closest('tr');
+  const data={
+    name:tr.querySelector('.meas-name')?.value||'',
+    desIn:tr.querySelector('.meas-di')?.value||'',
+    desMm:tr.querySelector('.meas-dm')?.value||'',
+    actIn:tr.querySelector('.meas-ai')?.value||'',
+    actMm:tr.querySelector('.meas-am')?.value||'',
+    status:tr.querySelector('.meas-status')?.value||''
+  };
+  const newTr=tr.cloneNode(false);
+  tr.after(newTr);
+  addMeasRow(data);
+  tr.after(document.getElementById('meas-tbody').lastElementChild);
+  updateComp();
+}
+function delMeasRow(btn){btn.closest('tr').remove();updateComp();}
+function getMeasRows(){
+  return Array.from(document.querySelectorAll('#meas-tbody tr')).map(tr=>({
+    rowId:tr.dataset.rowId,
+    name:tr.querySelector('.meas-name')?.value||'',
+    desIn:tr.querySelector('.meas-di')?.value||'',
+    desMm:tr.querySelector('.meas-dm')?.value||'',
+    actIn:tr.querySelector('.meas-ai')?.value||'',
+    actMm:tr.querySelector('.meas-am')?.value||'',
+    status:tr.querySelector('.meas-status')?.value||''
+  }));
+}
+function loadMeasRows(rows){
+  const tbody=document.getElementById('meas-tbody');tbody.innerHTML='';
+  rows.forEach(r=>addMeasRow(r));
+}
+function measRowCount(){return document.querySelectorAll('#meas-tbody tr').length;}
+function measFilledCount(){return Array.from(document.querySelectorAll('#meas-tbody tr')).filter(tr=>tr.querySelector('.meas-name')?.value.trim()).length;}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+/* ===== DRAG REORDER ===== */
+function setupDragTarget(tbody){
+  if(!tbody)return;
+  tbody.addEventListener('dragover',e=>{
+    e.preventDefault();
+    const tr=e.target.closest('tr');
+    if(tr&&tr!==dragSrcRow){
+      tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over-row'));
+      tr.classList.add('drag-over-row');
+    }
+  });
+  tbody.addEventListener('drop',e=>{
+    e.preventDefault();
+    const tr=e.target.closest('tr');
+    if(tr&&dragSrcRow&&tr!==dragSrcRow)tbody.insertBefore(dragSrcRow,tr);
+    tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over-row'));
+    dragSrcRow=null;
+  });
+  tbody.addEventListener('dragend',()=>{
+    if(dragSrcRow)dragSrcRow.style.opacity='';
+    document.body.classList.remove('dragging');
+    tbody.querySelectorAll('tr').forEach(r=>r.classList.remove('drag-over-row'));
+    dragSrcRow=null;
+  });
+}
+function attachDragHandle(tr){
+  const h=tr.querySelector('.drag-handle');if(!h)return;
+  h.setAttribute('draggable',true);
+  h.addEventListener('dragstart',()=>{dragSrcRow=tr;tr.style.opacity='.4';document.body.classList.add('dragging');});
+}
+
+/* ===== TABLE EXPAND ===== */
+let measOlParent=null,measOlNext=null;
+function expandMeasTable(){
+  const tbl=document.getElementById('meas-table');if(!tbl)return;
+  const ol=document.getElementById('meas-overlay'),inner=document.getElementById('meas-ol-inner');
+  measOlParent=tbl.parentElement;measOlNext=tbl.nextSibling;
+  inner.appendChild(tbl);ol.classList.add('open');
+}
+function collapseMeasTable(){
+  const tbl=document.getElementById('meas-table');if(!tbl)return;
+  if(measOlParent)measOlParent.insertBefore(tbl,measOlNext);
+  document.getElementById('meas-overlay')?.classList.remove('open');
+}
+
+/* ===== COMPLETION ===== */
+const MOD_PTS=[0,12,12,14,14,8,20];
+function ctrOk(id){const cfg=CTR_FIELDS.find(c=>c.id===id);if(!cfg)return false;const n=cntSf(id);return n>=cfg.min&&n<=cfg.max;}
+function spoutOk(){const d=parseFloat(document.getElementById('spout-dia-mm')?.value),dr=parseFloat(document.getElementById('spout-draft')?.value);return!isNaN(d)&&d>=SPOUT_MIN_MM&&!isNaN(dr)&&dr>=1&&dr<=2;}
+function m1ok(){return getV('student-name')!==''&&ctrOk('geom-confirm')&&allOffsetsOk()&&imgStore.block_view.length>=1&&getCk('ck-m1a')&&getCk('ck-m1b')&&getCk('ck-m1c');}
+function m2ok(){return ctrOk('combine-desc')&&getCk('ck-m2a')&&getCk('ck-m2b')&&getCk('ck-m2c')&&ctrOk('split-desc')&&getCk('ck-m2d')&&getCk('ck-m2e')&&imgStore.combine_split.length>=2;}
+function m3ok(){return getV('bolt-size-sel')!==''&&getV('hole-dia-in')!==''&&getV('bolt-len-in')!==''&&ctrOk('bolt-rationale')&&getCk('ck-m3a')&&getCk('ck-m3b')&&getCk('ck-m3c')&&getCk('ck-m3d')&&getCk('ck-m3e')&&imgStore.bolt_holes.length>=1;}
+function m4ok(){return ctrOk('pour-orient')&&ctrOk('high-point')&&ctrOk('flat-zone')&&spoutOk()&&getCk('ck-m4a')&&getCk('ck-m4b')&&getCk('ck-m4c')&&getCk('ck-m4d')&&getCk('ck-m4e')&&imgStore.spout_view.length>=1;}
+function m5ok(){return getV('machine-sel')!==''&&getCk('ck-m5a')&&(getCk('ck-m5b-a')||getCk('ck-m5b-b'))&&getCk('ck-m5c')&&getCk('ck-m5d')&&getCk('ck-m5e')&&getCk('ck-m5f')&&getCk('ck-m5g')&&getCk('ck-m5h')&&imgStore.bambu_ss.length>=1;}
+function m6ok(){return imgStore.print_halves.length>=1&&imgStore.print_assembled.length>=1&&measFilledCount()>=2&&ctrOk('surface-notes')&&getCk('ck-m6a')&&getCk('ck-m6b')&&getCk('ck-m6c');}
+const MFNS=[null,m1ok,m2ok,m3ok,m4ok,m5ok,m6ok];
+function m1partial(){return getV('student-name')!==''||ctrOk('geom-confirm')||allOffsetsOk();}
+function m2partial(){return ctrOk('combine-desc')||getCk('ck-m2a');}
+function m3partial(){return getV('bolt-size-sel')!==''||getV('hole-dia-in')!==''||getCk('ck-m3a');}
+function m4partial(){return ctrOk('pour-orient')||ctrOk('high-point');}
+function m5partial(){return getV('machine-sel')!==''||getCk('ck-m5a');}
+function m6partial(){return imgStore.print_halves.length>=1||imgStore.print_assembled.length>=1;}
+const MPART=[null,m1partial,m2partial,m3partial,m4partial,m5partial,m6partial];
+function updateComp(){
+  let pts=0,done=0;
+  for(let i=1;i<=6;i++){
+    const ok=MFNS[i](),part=MPART[i](),dot=document.getElementById('dot-'+i);
+    if(dot){dot.classList.toggle('complete',ok);dot.classList.toggle('partial',!ok&&part);}
+    if(ok){pts+=MOD_PTS[i];done++;}
+  }
+  const pct=Math.round(done/6*100);
+  document.getElementById('prog-fill').style.width=pct+'%';
+  document.getElementById('prog-pct').textContent=pct+'%';
+  const sd=document.getElementById('score-display');
+  sd.textContent=pts+' / 80 PTS';
+  sd.style.color=pts===80?'var(--gold)':pts>=48?'var(--green)':'var(--teal)';
+}
+
+/* ===== SAVE / LOAD ===== */
+function gather(){
+  const d={_v:BUILD_VERSION,_approved:approved,_approvedTs:document.getElementById('gate-ts')?.textContent||''};
+  document.querySelectorAll('[data-save="true"]').forEach(el=>{if(!el.id)return;d[el.id]=el.type==='checkbox'?el.checked:el.value;});
+  d._offsets={};FACES.forEach(f=>{d._offsets[f]={in:document.getElementById('off-'+f+'-in')?.value||'',mm:document.getElementById('off-'+f+'-mm')?.value||''};});
+  d._meas=getMeasRows();
+  d._printRequests=getPrintData();
+  return d;
+}
+function apply(d){
+  if(!d)return;
+  if(d._v&&d._v!==BUILD_VERSION){document.getElementById('ver-warn').style.display='block';document.getElementById('ver-warn').textContent='Version mismatch: saved data is '+d._v+', current is '+BUILD_VERSION+'. Restored with caution.';}
+  Object.entries(d).forEach(([k,v])=>{if(k.startsWith('_'))return;const el=document.getElementById(k);if(!el)return;if(el.type==='checkbox')el.checked=v;else el.value=v;});
+  if(d._offsets)FACES.forEach(f=>{const o=d._offsets[f];if(!o)return;const inEl=document.getElementById('off-'+f+'-in'),mmEl=document.getElementById('off-'+f+'-mm');if(inEl&&o.in)inEl.value=o.in;if(mmEl&&o.mm)mmEl.value=o.mm;syncOff(f,'mm');});
+  if(d._meas&&d._meas.length)loadMeasRows(d._meas);else if(!document.querySelector('#meas-tbody tr')){addMeasRow();addMeasRow();}
+  loadPrintData(d._printRequests||[]);
+  if(d._approved){approved=true;showGateApproved(d._approvedTs);}
+  document.querySelectorAll('textarea').forEach(ta=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';ta.dispatchEvent(new Event('input'));});
+  CTR_FIELDS.forEach(({id,min,max})=>updCtr(id,min,max));
+  checkOffStat();checkSpout();updateComp();updAllMirrors();
+}
+async function saveData(){
+  try{
+    localStorage.setItem(PFX+'data',JSON.stringify(gather()));
+    lastSaveTime=Date.now();
+    flashSaved();
+  }catch(e){setSS('warn','STORAGE FULL');}
+}
+async function loadData(){
+  const injTag=document.getElementById('__mset-mold-02_data__');
+  if(injTag){try{const d=JSON.parse(injTag.textContent);apply(d);await loadImgsFromJSON(d);setSS('','loaded from file');return;}catch(e){console.error(e);}}
+  const records=await dbGetAll();
+  records.forEach(r=>{if(r.id.startsWith('zone-')){const key=r.id.slice(5);if(imgStore[key]!==undefined){imgStore[key]=r.data||[];renderZone(key);}}});
+  const raw=localStorage.getItem(PFX+'data');
+  if(raw){try{apply(JSON.parse(raw));setSS('','restored from browser');}catch(e){console.error(e);}}
+  else{if(!document.querySelector('#meas-tbody tr')){addMeasRow();addMeasRow();}loadPrintData([]);}
+}
+function loadImgsFromJSON(d){
+  ZONES.forEach(z=>{if(d['_img_'+z]){imgStore[z]=d['_img_'+z];renderZone(z);}});
+}
+async function downloadHTML(){
+  const d=gather();
+  ZONES.forEach(z=>{d['_img_'+z]=imgStore[z];});
+  const clone=document.documentElement.cloneNode(true);
+  clone.querySelector('#__mset-mold-02_data__')?.remove();
+  const script=document.createElement('script');
+  script.type='application/json';script.id='__mset-mold-02_data__';
+  script.textContent=JSON.stringify(d);
+  clone.querySelector('body').appendChild(script);
+  const name=getV('student-name').replace(/[\s,]+/g,'-')||'student';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['<!DOCTYPE html><html lang="en">'+clone.innerHTML+'</html>'],{type:'text/html'}));
+  a.download='MSET-MoldBody-02-'+name+'.html';
+  a.click();URL.revokeObjectURL(a.href);
+}
+
+/* ===== SAVE STATUS ===== */
+let saveFlashTimer=null;
+function setSS(cls,txt){const el=document.getElementById('save-status');el.textContent=txt;el.className=cls;}
+function flashSaved(){
+  setSS('saved','SAVED');
+  clearTimeout(saveFlashTimer);
+  saveFlashTimer=setTimeout(()=>{setSS('',lastSaveTime?elapsed(lastSaveTime):'AUTO-SAVE ON');},2000);
+}
+function elapsed(ts){const s=Math.round((Date.now()-ts)/1000);return s<60?'Saved '+s+'s ago':'Saved '+Math.round(s/60)+'m ago';}
+function updStatusElapsed(){if(lastSaveTime&&autoSaveOn)setSS('',elapsed(lastSaveTime));}
+function updASBtn(){const btn=document.getElementById('as-btn');if(btn)btn.textContent=autoSaveOn?'AUTO-SAVE ON':'AUTO-SAVE OFF';}
+function toggleAutoSave(){
+  autoSaveOn=!autoSaveOn;
+  localStorage.setItem(PFX+'autosave',autoSaveOn);
+  updASBtn();
+  setSS(autoSaveOn?'':'off',autoSaveOn?'AUTO-SAVE ON':'AUTO-SAVE OFF');
+}
+
+/* ===== PRINT QUEUE ===== */
+const INSTRUCTOR_EMAIL='apina@boscotech.edu';
+let pqCounter=0;
+function addPrintRequest(){
+  pqCounter++;
+  const n=pqCounter;
+  const card=document.createElement('div');
+  card.className='req-card';card.id='pq-card-'+n;
+  card.innerHTML=`<div class="card-header"><span class="card-num">REQUEST #${n}</span><span class="card-name" id="pq-name-${n}">—</span><span class="card-del" onclick="document.getElementById('pq-card-${n}').remove();saveData()" title="Remove">&#x2715;</span></div>
+<div class="card-body">
+<div class="card-grid">
+<div class="card-field"><label>Student Name</label><input type="text" id="pq-student-${n}" placeholder="Last, First" oninput="updateCardName(${n});saveData()"><div class="fhint">If multiple students are printing together (recommended - faster), list all names here.</div></div>
+<div class="card-field"><label>Printer</label><select id="pq-printer-${n}" onchange="saveData()"><option value="">— Select Printer —</option><option>X1C-1 (0.6mm nozzle)</option><option>X1C-2 (0.6mm nozzle)</option><option>X1C-3 (0.6mm nozzle)</option><option>X1C-4 (0.6mm nozzle)</option><option>H2D-3 (0.6mm High Flow nozzle)</option><option>H2D-4 (0.6mm High Flow nozzle)</option></select></div>
+<div class="card-field"><label>Material</label><select id="pq-material-${n}" disabled><option>HIPS (Generic ABS)</option></select></div>
+<div class="card-field"><label>Mold Half</label><select id="pq-half-${n}" onchange="saveData()"><option value="">— Select —</option><option>Half A (Cavity Side)</option><option>Half B (Core Side)</option><option>Both Halves</option></select></div>
+<div class="card-field"><label>Estimated Print Time</label><input type="text" id="pq-time-${n}" placeholder="e.g. 3h 20m" oninput="saveData()"></div>
+</div>
+<div class="card-field"><label>Notes</label><textarea id="pq-notes-${n}" placeholder="Special instructions, support settings, color preference, etc." rows="2" oninput="autoResizePQ(this);saveData()"></textarea></div>
+<div class="card-actions">
+<button class="card-action-btn" onclick="openPQMail(${n})">&#x2709; Open in Gmail</button>
+<button class="card-action-btn" onclick="copyPQEmail(${n})">&#x2398; COPY EMAIL</button>
+<span class="copy-flash" id="pq-flash-${n}">COPIED</span>
+</div>
+</div>`;
+  document.getElementById('pq-container').appendChild(card);
+  const sn=document.getElementById('student-name')?.value.trim();
+  if(sn){const inp=document.getElementById('pq-student-'+n);if(inp){inp.value=sn;updateCardName(n);}}
+}
+function updateCardName(n){
+  const v=document.getElementById('pq-student-'+n)?.value.trim();
+  const el=document.getElementById('pq-name-'+n);
+  if(el)el.textContent=v||'—';
+}
+function autoResizePQ(ta){ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';}
+function buildPQEmail(n){
+  const student=document.getElementById('pq-student-'+n)?.value.trim()||getV('student-name')||'Student';
+  const period=document.getElementById('pq-period-'+n)?.value||'—';
+  const printer=document.getElementById('pq-printer-'+n)?.value||'—';
+  const material=document.getElementById('pq-material-'+n)?.value||'HIPS (Generic ABS)';
+  const half=document.getElementById('pq-half-'+n)?.value||'—';
+  const time=document.getElementById('pq-time-'+n)?.value.trim()||'—';
+  const notes=document.getElementById('pq-notes-'+n)?.value.trim()||'None';
+  const subject=`Print Request — ${student} — MSET-MOLD-02 — ${half}`;
+  const body=`Print Request — MSET-MOLD-02\n\nStudent: ${student}\nPeriod: ${period}\nMold Half: ${half}\nPrinter: ${printer}\nMaterial: ${material}\nEst. Print Time: ${time}\nNotes: ${notes}\n\n⚠ File attached to this email.`;
+  return {subject,body};
+}
+function openPQMail(n){
+  const {subject,body}=buildPQEmail(n);
+  window.open('https://mail.google.com/mail/?view=cm&to='+encodeURIComponent(INSTRUCTOR_EMAIL)+'&su='+encodeURIComponent(subject)+'&body='+encodeURIComponent(body),'_blank');
+}
+function copyPQEmail(n){
+  const {subject,body}=buildPQEmail(n);
+  const text=`To: ${INSTRUCTOR_EMAIL}\nSubject: ${subject}\n\n${body}`;
+  navigator.clipboard.writeText(text).then(()=>{
+    const fl=document.getElementById('pq-flash-'+n);
+    if(!fl)return;fl.classList.add('show');setTimeout(()=>fl.classList.remove('show'),2000);
+  });
+}
+function getPrintData(){
+  const cards=[];
+  document.querySelectorAll('.req-card').forEach(card=>{
+    const id=card.id.replace('pq-card-','');
+    cards.push({
+      student:document.getElementById('pq-student-'+id)?.value||'',
+      period:document.getElementById('pq-period-'+id)?.value||'',
+      printer:document.getElementById('pq-printer-'+id)?.value||'',
+      half:document.getElementById('pq-half-'+id)?.value||'',
+      time:document.getElementById('pq-time-'+id)?.value||'',
+      notes:document.getElementById('pq-notes-'+id)?.value||''
+    });
+  });
+  return cards;
+}
+function loadPrintData(cards){
+  document.getElementById('pq-container').innerHTML='';
+  pqCounter=0;
+  if(!cards||!cards.length){addPrintRequest();return;}
+  cards.forEach(c=>{
+    addPrintRequest();
+    const n=pqCounter;
+    if(document.getElementById('pq-student-'+n))document.getElementById('pq-student-'+n).value=c.student||'';
+    if(document.getElementById('pq-period-'+n))document.getElementById('pq-period-'+n).value=c.period||'';
+    if(document.getElementById('pq-printer-'+n))document.getElementById('pq-printer-'+n).value=c.printer||'';
+    if(document.getElementById('pq-half-'+n))document.getElementById('pq-half-'+n).value=c.half||'';
+    if(document.getElementById('pq-time-'+n))document.getElementById('pq-time-'+n).value=c.time||'';
+    if(document.getElementById('pq-notes-'+n)){document.getElementById('pq-notes-'+n).value=c.notes||'';autoResizePQ(document.getElementById('pq-notes-'+n));}
+    updateCardName(n);
+  });
+}
+
+/* ===== DIALOGS ===== */
+function openDlg(id){document.getElementById(id)?.classList.add('open');}
+function closeDlg(id){document.getElementById(id)?.classList.remove('open');}
+function showC2(){closeDlg('dlg-c1');openDlg('dlg-c2');}
+async function doClear(){
+  closeDlg('dlg-c2');
+  await dbClearAll();
+  localStorage.removeItem(PFX+'data');
+  ZONES.forEach(z=>{imgStore[z]=[];renderZone(z);});
+  document.querySelectorAll('#meas-tbody tr').forEach(tr=>tr.remove());
+  document.querySelectorAll('[data-save="true"]').forEach(el=>{if(el.type==='checkbox')el.checked=false;else if(el.tagName!=='SELECT')el.value='';else el.selectedIndex=0;});
+  approved=false;
+  document.getElementById('gate-lock-state').style.display='';
+  document.getElementById('gate-approved-state').style.display='none';
+  document.getElementById('gate').classList.remove('approved');
+  document.getElementById('lock-5')?.classList.remove('dismissed');
+  document.getElementById('lock-6')?.classList.remove('dismissed');
+  FACES.forEach(f=>syncOff(f,'mm'));
+  checkOffStat();checkSpout();
+  addMeasRow();addMeasRow();
+  document.getElementById('pq-container').innerHTML='';pqCounter=0;addPrintRequest();
+  updateComp();updAllMirrors();
+  setSS('','cleared');
+}
+async function doRestore(){closeDlg('dlg-rst');await doClear();}
+
+/* ===== PREFLIGHT ===== */
+function runPF(mode){pfMode=mode;const issues=runChecks();showPF(issues,mode==='export'?'EXPORT PREFLIGHT':'PRINT PREFLIGHT');}
+function runChecks(){
+  const issues=[];
+  if(!getV('student-name'))issues.push('Header: Student name is empty');
+  CTR_FIELDS.forEach(({id,min})=>{if(cntSf(id)<min){const lbl=id.replace(/-/g,' ');issues.push('Field "'+lbl+'" is below minimum sentence count');}});
+  ZONES.forEach(z=>{const min=ZONE_MINS[z];if(imgStore[z].length<min)issues.push('Image zone "'+z.replace(/_/g,' ')+'" needs '+min+' image(s), has '+imgStore[z].length);});
+  if(!approved)issues.push('Instructor approval not obtained — gate is locked');
+  if(!getCk('ck-decl'))issues.push('Academic integrity declaration not confirmed');
+  if(measFilledCount()<2)issues.push('Module 06: fewer than 2 measurement rows completed');
+  if(!allOffsetsOk())issues.push('Module 01: one or more face offsets below minimum 5.00mm');
+  if(!spoutOk())issues.push('Module 04: spout specs not compliant (diameter or draft)');
+  return issues;
+}
+function showPF(issues,title){
+  document.getElementById('pf-title').textContent=title;
+  const c=document.getElementById('pf-content');
+  c.innerHTML=issues.length===0?'<p class="pf-ok">&#10003; All checks passed. Ready to proceed.</p>'
+    :'<p style="font-family:var(--font-u);font-size:12px;color:var(--amber);margin-bottom:10px;">'+issues.length+' item(s) need attention:</p>'
+    +'<ul class="pf-list">'+issues.map(i=>'<li>'+i+'</li>').join('')+'</ul>';
+  openDlg('dlg-pf');
+}
+function proceedAction(){
+  closeDlg('dlg-pf');
+  setTimeout(()=>{if(pfMode==='print')window.print();else downloadHTML();},120);
+}
+
+/* ===== APPROVAL GATE ===== */
+async function submitGate(){
+  const pw=document.getElementById('gate-pw')?.value||'';
+  const errEl=document.getElementById('gate-err');
+  if(!pw.trim()){if(errEl)errEl.textContent='Enter the approval code.';return;}
+  const enc=new TextEncoder();
+  const buf=await crypto.subtle.digest('SHA-256',enc.encode(pw));
+  const hex=Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  if(hex===APPROVAL_HASH){
+    approved=true;
+    const ts=new Date().toLocaleString();
+    runGateAnimation(ts);
+    saveData();
+  }else{
+    if(errEl){errEl.textContent='Incorrect code.';setTimeout(()=>{errEl.textContent='';},2500);}
+    document.getElementById('gate-pw').value='';
+  }
+}
+function runGateAnimation(ts){
+  const gate=document.getElementById('gate');
+  const lock=document.getElementById('gate-lock-state');
+  const appr=document.getElementById('gate-approved-state');
+
+  // (a) Flash gate border green 3 times fast
+  gate.classList.add('gate-flash');
+  setTimeout(()=>gate.classList.remove('gate-flash'),700);
+
+  // (b) Scanline sweep top-to-bottom
+  const scanline=document.createElement('div');
+  scanline.id='gate-scanline';
+  gate.appendChild(scanline);
+
+  // Fade out lock state during sweep
+  lock.style.transition='opacity .4s';
+  lock.style.opacity='0';
+
+  // After sweep completes (~700ms), begin typewriter
+  setTimeout(()=>{
+    scanline.remove();
+
+    // (c) Typewriter text container
+    const animTxt=document.createElement('div');
+    animTxt.id='gate-anim-txt';
+    gate.appendChild(animTxt);
+
+    const msg1='IDENTITY VERIFIED...';
+    const msg2='ACCESS GRANTED';
+    let idx=0;
+
+    const typeMsg1=()=>{
+      if(idx<msg1.length){animTxt.textContent+=msg1[idx++];setTimeout(typeMsg1,55);}
+      else{
+        // Pause 400ms, then clear and type msg2 in large glowing style
+        setTimeout(()=>{
+          animTxt.textContent='';
+          animTxt.className='gate-anim-lg';
+          idx=0;
+          const typeMsg2=()=>{
+            if(idx<msg2.length){animTxt.textContent+=msg2[idx++];setTimeout(typeMsg2,60);}
+            else{
+              // (d) Clip-path wipe from center revealing approved state
+              setTimeout(()=>{
+                animTxt.remove();
+                lock.style.display='none';
+                appr.style.clipPath='circle(0% at 50% 50%)';
+                appr.style.display='block';
+                void appr.offsetWidth;
+                appr.style.transition='clip-path .5s ease-out';
+                appr.style.clipPath='circle(150% at 50% 50%)';
+                // (e) Finalize after wipe completes
+                setTimeout(()=>showGateApproved(ts),560);
+              },300);
+            }
+          };
+          typeMsg2();
+        },400);
+      }
+    };
+    typeMsg1();
+  },750);
+}
+function showGateApproved(ts){
+  document.getElementById('gate-lock-state').style.display='none';
+  document.getElementById('gate-approved-state').style.display='block';
+  document.getElementById('gate').classList.add('approved');
+  document.getElementById('gate-ts').textContent=ts||'Approved';
+  document.getElementById('lock-5')?.classList.add('dismissed');
+  document.getElementById('lock-6')?.classList.add('dismissed');
+}
+document.getElementById('gate-pw')?.addEventListener('keydown',e=>{if(e.key==='Enter')submitGate();});
+
+/* ===== AUTOSIZE TEXTAREA ===== */
+document.querySelectorAll('textarea').forEach(ta=>{
+  ta.addEventListener('input',()=>{ta.style.height='auto';ta.style.height=ta.scrollHeight+'px';});
+});
+</script>
+</body>
+</html>

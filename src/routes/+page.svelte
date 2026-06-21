@@ -30,8 +30,9 @@
 	</p>
 
 	<div class="card">
-		<p>Play VANGUARD, no login required.</p>
+		<p>Public, no login required.</p>
 		<a class="btn secondary" href="/vanguard/index.html">Launch VANGUARD</a>
+		<a class="btn secondary" href="/coins/index.html">Coin leaderboard</a>
 	</div>
 
 	<div class="card">

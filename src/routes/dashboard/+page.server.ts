@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { assignmentSlugs } from '$lib/legacy';
+import { courses } from '$lib/legacy';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -21,7 +21,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	return {
 		profile,
 		email: claims.email ?? profile?.email ?? null,
-		assignments: assignmentSlugs
+		isTeacher: profile?.role === 'teacher',
+		courses
 	};
 };
 

@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDEA-403 | Senior Final: Project Deliverable Package</title>
+<link rel="icon" href="sp-android-chrome-512x512.png">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+:root{--bg0:#080808;--bg1:#0F0F0F;--bg2:#161616;--green:#00CC55;--gold:#FFB800;--cyan:#00F0FF;--amber:#FF8C00;--teal:#00AA88;--white:#F0F0E8;--dim:#555544;--ice:#88AABB;--border:rgba(255,184,0,0.18);--border-strong:rgba(255,184,0,0.40);--accent-dim:rgba(255,184,0,0.10);--accent-border:rgba(255,184,0,0.40);--glow-green:0 0 10px rgba(0,204,85,0.8),0 0 28px rgba(0,204,85,0.3);--glow-gold:0 0 10px rgba(255,184,0,0.8),0 0 28px rgba(255,184,0,0.3);--glow-cyan:0 0 10px rgba(0,240,255,0.8),0 0 28px rgba(0,240,255,0.3);--glow-amber:0 0 10px rgba(255,140,0,0.8),0 0 28px rgba(255,140,0,0.3);--glow-teal:0 0 10px rgba(0,170,136,0.8),0 0 28px rgba(0,170,136,0.3)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg0);color:var(--white);font-family:"Rajdhani",sans-serif;font-size:15px;line-height:1.6;min-height:100vh;overflow-x:hidden}
+#scroll-bar{position:fixed;top:0;left:0;height:2px;width:0%;background:linear-gradient(90deg,var(--green),var(--gold));z-index:9999;transition:width 0.1s linear;box-shadow:var(--glow-green)}
+#bg-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0.5}
+#toolbar{position:sticky;top:0;z-index:1000;background:rgba(8,8,8,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border-strong);padding:10px 20px;display:flex;flex-direction:column;gap:8px}
+.progress-row{display:flex;align-items:center;gap:12px}
+.progress-track{flex:1;height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--gold));border-radius:2px;transition:width 0.4s ease}
+.progress-label{font-family:"Share Tech Mono",monospace;font-size:10px;color:var(--dim);white-space:nowrap}
+.score-display{font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--green);white-space:nowrap}
+.btn-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tool-btn{font-family:"Share Tech Mono",monospace;font-size:10px;letter-spacing:1px;padding:5px 12px;background:transparent;border:1px solid var(--border-strong);color:var(--white);cursor:pointer;transition:all 0.2s;text-transform:uppercase}
+.tool-btn:hover{border-color:var(--green);color:var(--green)}
+.tool-btn.primary{border-color:var(--green);color:var(--green);background:rgba(255,184,0,0.10)}
+.tool-btn.primary:hover{box-shadow:var(--glow-green)}
+.tool-btn.amber-btn{border-color:var(--amber);color:var(--amber)}
+#save-status{font-family:"Share Tech Mono",monospace;font-size:9px;color:var(--dim);margin-left:auto;transition:color 0.3s}
+#save-status.saved{color:var(--green)}
+#save-status.warn{color:var(--amber)}
+.page{position:relative;z-index:1;max-width:960px;margin:0 auto;padding:32px 24px 60px}
+.dialog-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:5000;display:none;align-items:center;justify-content:center}
+.dialog-overlay.open{display:flex}
+.dialog-box{background:var(--bg1);border:1px solid var(--border-strong);padding:28px 32px;max-width:480px;width:90%}
+.dialog-title{font-family:"Orbitron",sans-serif;font-size:13px;letter-spacing:3px;color:var(--green);text-transform:uppercase;margin-bottom:12px}
+.dialog-body{font-size:14px;color:var(--white);line-height:1.6;margin-bottom:20px}
+.dialog-body ul{padding-left:16px;margin-top:8px}
+.dialog-body ul li{color:var(--amber);font-size:13px;margin:4px 0}
+.dialog-actions{display:flex;gap:10px;justify-content:flex-end}
+.d-btn{font-family:"Share Tech Mono",monospace;font-size:10px;letter-spacing:1px;padding:6px 16px;border:1px solid var(--border-strong);background:transparent;color:var(--white);cursor:pointer;text-transform:uppercase;transition:all 0.2s}
+.d-btn:hover{border-color:var(--green);color:var(--green)}
+.d-btn.danger{border-color:var(--amber);color:var(--amber)}
+.d-btn.confirm{border-color:var(--green);color:var(--green)}
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.93);z-index:8000;display:none;align-items:center;justify-content:center}
+#lightbox.open{display:flex}
+#lightbox img{max-width:92vw;max-height:90vh;object-fit:contain}
+#version-banner{display:none;background:rgba(255,140,0,0.12);border:1px solid var(--amber);padding:12px 20px;margin-bottom:20px;font-size:13px;color:var(--amber)}
+.header{margin-bottom:28px;border:1px solid var(--border-strong);background:linear-gradient(135deg,var(--bg1),var(--bg2));padding:28px 28px 22px;position:relative;overflow:hidden}
+.header::before{content:"";position:absolute;top:0;right:0;width:200px;height:200px;background:radial-gradient(ellipse at top right,rgba(255,184,0,0.08),transparent 70%);pointer-events:none}
+.header-eyebrow{font-family:"Share Tech Mono",monospace;font-size:10px;letter-spacing:4px;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
+.header-title{font-family:"Orbitron",sans-serif;font-size:26px;font-weight:900;color:var(--white);letter-spacing:2px;margin-bottom:4px;text-shadow:var(--glow-green)}
+.header-sub{font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--green);letter-spacing:2px;margin-bottom:20px}
+.header-fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px}
+.header-fields .field-full{grid-column:1/-1}
+.field-label{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;display:block;margin-bottom:4px}
+.field-input{width:100%;background:var(--bg0);border:1px solid var(--border);color:var(--white);font-family:"Rajdhani",sans-serif;font-size:14px;padding:7px 10px;outline:none;transition:border-color 0.2s,box-shadow 0.2s}
+.field-input:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(0,204,85,0.12),0 0 8px rgba(0,204,85,0.08)}
+.field-input[readonly]{color:var(--cyan);cursor:default}
+.callout{position:relative;overflow:hidden;padding:12px 16px 12px 20px;margin-bottom:16px;font-size:13px;line-height:1.6;color:var(--white);border:1px solid var(--border);background:linear-gradient(135deg,rgba(255,255,255,0.015) 0%,transparent 100%)}
+.callout::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.callout.submission{border-color:rgba(0,204,85,0.3)}
+.callout.submission::before{background:linear-gradient(180deg,var(--green),transparent)}
+.callout.info{border-color:rgba(0,240,255,0.25)}
+.callout.info::before{background:linear-gradient(180deg,var(--cyan),transparent)}
+.callout-title{font-family:"Orbitron",sans-serif;font-size:10px;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.callout.submission .callout-title{color:var(--green)}
+.callout.submission .callout-title::before{content:"⬡";font-size:13px;line-height:1}
+.callout.info .callout-title{color:var(--cyan)}
+.callout.info .callout-title::before{content:"◈";font-size:13px;line-height:1}
+.callout ol,.callout ul{padding-left:14px;margin-top:6px}
+.callout li{margin:3px 0;font-size:12px;line-height:1.5}
+.callout a{color:var(--green)}
+.callout p+p{margin-top:6px}
+.points-bar{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border-strong);background:var(--bg1);padding:12px 20px;margin-bottom:24px}
+.points-bar-label{font-family:"Share Tech Mono",monospace;font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+.points-bar-value{font-family:"Orbitron",sans-serif;font-size:20px;font-weight:700;color:var(--green);animation:breathe 3s ease-in-out infinite}
+@keyframes breathe{0%,100%{text-shadow:0 0 8px rgba(255,184,0,0.5)}50%{text-shadow:0 0 20px rgba(255,184,0,0.9),0 0 40px rgba(255,184,0,0.4)}}
+.module{border:1px solid var(--border);background:var(--bg1);margin-bottom:16px;position:relative;overflow:hidden;opacity:0;transform:translateY(28px);transition:opacity 0.7s cubic-bezier(0.25,0.46,0.45,0.94),transform 0.7s cubic-bezier(0.25,0.46,0.45,0.94)}
+.module.visible{opacity:1;transform:translateY(0)}
+.module-header{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--bg2);border-bottom:1px solid var(--border);cursor:pointer;user-select:none;position:relative;overflow:hidden}
+.module-header::after{content:"";position:absolute;top:0;left:100%;width:100%;height:100%;background:linear-gradient(90deg,transparent 0%,rgba(255,184,0,0.09) 50%,transparent 100%);transition:left 0.6s cubic-bezier(0.25,0.46,0.45,0.94);pointer-events:none}
+.module-header:hover::after{left:-100%}
+.mod-num{font-family:"Orbitron",sans-serif;font-size:10px;letter-spacing:2px;color:var(--green);background:rgba(255,184,0,0.10);border:1px solid rgba(255,184,0,0.40);padding:3px 8px;white-space:nowrap}
+.mod-title{font-family:"Rajdhani",sans-serif;font-size:15px;font-weight:700;color:var(--white);flex:1;letter-spacing:0.5px}
+.mod-pts{font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--gold);white-space:nowrap}
+.mod-pts-breakdown{font-family:"Share Tech Mono",monospace;font-size:9px;color:var(--dim);white-space:nowrap}
+.completion-dot{width:10px;height:10px;border-radius:50%;border:1px solid var(--dim);background:transparent;flex-shrink:0;transition:background 0.3s,border-color 0.3s,box-shadow 0.3s}
+.completion-dot.partial{background:var(--teal);border-color:var(--teal)}
+.completion-dot.complete{background:var(--green);border-color:var(--green);box-shadow:var(--glow-green)}
+.rubric-toggle{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:1px;color:var(--dim);background:transparent;border:1px solid var(--border);padding:3px 8px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;white-space:nowrap}
+.rubric-toggle:hover{color:var(--green);border-color:rgba(255,184,0,0.40)}
+.chevron{font-size:10px;color:var(--dim);transition:transform 0.3s;flex-shrink:0}
+.chevron.collapsed{transform:rotate(-90deg)}
+.module-body{padding:20px 20px 16px;display:flex;flex-direction:column;gap:16px;max-height:2000px;overflow:hidden;transition:max-height 0.45s cubic-bezier(0.25,0.46,0.45,0.94),opacity 0.3s ease,padding 0.3s ease}
+.module-body.collapsed{max-height:0!important;padding-top:0;padding-bottom:0;opacity:0}
+.rubric-panel{max-height:0;overflow:hidden;opacity:0;transition:max-height 0.35s cubic-bezier(0.25,0.46,0.45,0.94),opacity 0.3s ease;border:1px solid var(--border);background:rgba(255,184,0,0.04)}
+.rubric-panel.open{max-height:600px;opacity:1}
+.rubric-panel table{width:100%;border-collapse:collapse;font-size:12px}
+.rubric-panel th{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:2px;color:var(--dim);padding:7px 12px;border-bottom:1px solid var(--border);text-align:left;text-transform:uppercase}
+.rubric-panel td{padding:7px 12px;border-bottom:1px solid rgba(255,184,0,0.08);color:var(--dim);line-height:1.5;vertical-align:top}
+.rubric-panel td:first-child{font-family:"Share Tech Mono",monospace;font-size:10px;color:var(--green);white-space:nowrap}
+.rubric-panel td:last-child{font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--gold);text-align:right;white-space:nowrap}
+.prompt{display:flex;flex-direction:column;gap:6px}
+.prompt-q{font-family:"Rajdhani",sans-serif;font-size:14px;font-weight:700;color:var(--white);letter-spacing:0.3px}
+.prompt-desc{font-size:12px;color:var(--dim);line-height:1.6}
+.prompt-desc em{color:var(--gold);font-style:normal}
+.prompt-desc a{color:var(--green)}
+.response-area{width:100%;background:var(--bg0);border:1px solid var(--border);color:var(--white);font-family:"Rajdhani",sans-serif;font-size:14px;padding:10px 12px;resize:none;outline:none;min-height:72px;line-height:1.6;transition:border-color 0.2s,box-shadow 0.2s;overflow:hidden}
+.response-area:focus{border-color:var(--green);box-shadow:0 0 0 2px rgba(0,204,85,0.12),0 0 8px rgba(0,204,85,0.08)}
+.counter-row{display:flex;align-items:center;gap:8px}
+.sent-counter{font-family:"Share Tech Mono",monospace;font-size:10px;transition:color 0.3s}
+.sent-counter.none{color:var(--dim)}
+.sent-counter.warn{color:var(--amber)}
+.sent-counter.ok{color:var(--green)}
+.table-wrap{overflow-x:auto}
+table.data-table{width:100%;border-collapse:collapse;font-size:13px;min-width:500px}
+table.data-table th{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;padding:8px 10px;background:var(--bg2);border:1px solid var(--border);text-align:left;cursor:help;white-space:nowrap}
+table.data-table td{padding:0;border:1px solid var(--border);vertical-align:middle}
+table.data-table td input,table.data-table td select,table.data-table td textarea{width:100%;background:transparent;border:none;color:var(--white);font-family:"Rajdhani",sans-serif;font-size:13px;padding:7px 8px;outline:none;min-height:34px}
+table.data-table td select{cursor:pointer;background:var(--bg0)}
+table.data-table td textarea{resize:none;overflow:hidden;min-height:34px;line-height:1.5}
+table.data-table tbody tr{transition:background 0.2s}
+table.data-table tbody tr:hover{background:rgba(255,184,0,0.06)}
+table.data-table tbody tr.status-complete{background:rgba(0,204,85,0.08);border-left:3px solid var(--green);box-shadow:inset 3px 0 12px rgba(0,204,85,0.06)}
+table.data-table tbody tr.status-inprogress{background:rgba(0,170,136,0.08);border-left:3px solid var(--teal)}
+table.data-table tbody tr.status-blocked{background:rgba(255,140,0,0.06);border-left:3px solid var(--amber)}
+table.data-table tbody tr.status-dropped{background:rgba(255,184,0,0.05);border-left:3px solid var(--dim)}
+.status-dropped td:nth-child(2){text-decoration:line-through;opacity:0.55}
+@keyframes statusFlash{0%{opacity:1}30%{opacity:0.4}100%{opacity:1}}
+.status-flash-anim{animation:statusFlash 0.4s ease forwards}
+.row-actions{display:flex;gap:4px;align-items:center;justify-content:center;padding:4px}
+.row-btn{font-family:"Share Tech Mono",monospace;font-size:9px;padding:3px 6px;border:1px solid var(--border);background:transparent;color:var(--dim);cursor:pointer;transition:all 0.15s}
+.row-btn:hover{color:var(--green);border-color:rgba(255,184,0,0.40)}
+.row-btn.del:hover{color:var(--amber);border-color:var(--amber)}
+.drag-handle{cursor:grab;color:var(--dim);padding:4px 6px;font-size:12px;user-select:none}
+body.dragging{cursor:grabbing !important}
+tr.drag-over{border-top:2px solid var(--green) !important}
+.add-row-btn{font-family:"Share Tech Mono",monospace;font-size:10px;letter-spacing:1px;padding:6px 14px;background:transparent;border:1px dashed var(--border);color:var(--dim);cursor:pointer;width:100%;text-align:center;text-transform:uppercase;transition:all 0.2s;margin-top:4px}
+.add-row-btn:hover{border-color:var(--green);color:var(--green)}
+.upload-zone{border:1px dashed var(--border-strong);background:rgba(255,184,0,0.03);padding:20px;text-align:center;cursor:pointer;transition:border-color 0.2s,background 0.2s;position:relative}
+.upload-zone:hover{border-color:var(--green);background:rgba(255,184,0,0.10)}
+.upload-zone input[type=file]{display:none}
+.upload-zone-label{font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--dim);letter-spacing:1px;text-transform:uppercase}
+.upload-zone-sub{font-size:12px;color:var(--dim);margin-top:4px}
+.paste-badge{display:none;position:absolute;top:6px;right:8px;font-family:"Share Tech Mono",monospace;font-size:8px;letter-spacing:1px;color:var(--cyan);border:1px solid rgba(0,240,255,0.3);padding:2px 6px;background:rgba(0,240,255,0.08);pointer-events:none}
+.upload-zone.paste-active .paste-badge{display:block}
+.img-count{font-family:"Share Tech Mono",monospace;font-size:10px;margin-top:6px;transition:color 0.3s}
+.img-count.none{color:var(--dim)}
+.img-count.warn{color:var(--amber)}
+.img-count.ok{color:var(--green)}
+.img-gallery{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+.img-item{position:relative;width:160px}
+.img-item img{width:100%;height:110px;object-fit:cover;cursor:pointer;border:1px solid var(--border);display:block;transition:border-color 0.2s}
+.img-item img:hover{border-color:var(--green)}
+.img-caption{width:100%;background:var(--bg0);border:1px solid var(--border);border-top:none;color:var(--white);font-family:"Rajdhani",sans-serif;font-size:12px;padding:4px 6px;outline:none;transition:border-color 0.2s}
+.img-caption:focus{border-color:var(--green)}
+.img-remove{position:absolute;top:3px;right:3px;font-size:9px;font-family:"Share Tech Mono",monospace;background:rgba(0,0,0,0.7);border:1px solid var(--amber);color:var(--amber);padding:2px 5px;cursor:pointer;transition:all 0.15s}
+.img-remove:hover{background:rgba(255,140,0,0.2)}
+.approval-gate{border:1px solid var(--border-strong);background:linear-gradient(135deg,var(--bg1),var(--bg2));padding:28px;margin-bottom:16px;opacity:0;transform:translateY(20px);transition:opacity 0.7s cubic-bezier(0.25,0.46,0.45,0.94),transform 0.7s cubic-bezier(0.25,0.46,0.45,0.94)}
+.approval-gate.visible{opacity:1;transform:translateY(0)}
+.approval-gate-title{font-family:"Orbitron",sans-serif;font-size:13px;letter-spacing:3px;color:var(--green);text-transform:uppercase;margin-bottom:8px}
+.approval-gate-desc{font-size:13px;color:var(--dim);margin-bottom:16px;line-height:1.6}
+.approval-input-row{display:flex;gap:10px;align-items:center}
+.approval-input{flex:1;background:var(--bg0);border:1px solid var(--border-strong);color:var(--white);font-family:"Share Tech Mono",monospace;font-size:14px;padding:8px 14px;outline:none;letter-spacing:4px;transition:border-color 0.2s}
+.approval-input:focus{border-color:var(--green)}
+.approval-submit{font-family:"Share Tech Mono",monospace;font-size:10px;letter-spacing:2px;padding:8px 18px;background:rgba(255,184,0,0.10);border:1px solid rgba(255,184,0,0.40);color:var(--green);cursor:pointer;text-transform:uppercase;transition:all 0.2s}
+.approval-submit:hover{box-shadow:var(--glow-green)}
+.approval-error{font-family:"Share Tech Mono",monospace;font-size:10px;color:var(--amber);margin-top:6px;display:none}
+.approval-error.show{display:block}
+.approval-anim{display:none;flex-direction:column;align-items:center;gap:10px;padding:20px;text-align:center}
+.approval-anim.running{display:flex}
+.approval-confirmed{display:none;align-items:center;gap:12px;padding:14px;background:rgba(0,204,85,0.06);border:1px solid rgba(255,184,0,0.40)}
+.approval-confirmed.show{display:flex}
+.approval-confirmed-icon{font-size:20px;color:var(--green)}
+.approval-confirmed-text{font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--green);letter-spacing:2px}
+.approval-confirmed-time{font-size:10px;color:var(--dim);letter-spacing:1px}
+.module-lock-overlay{position:absolute;inset:0;background:rgba(8,8,8,0.88);backdrop-filter:blur(4px);z-index:10;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;transition:opacity 0.5s}
+.module-lock-overlay.unlocked{opacity:0;pointer-events:none}
+.lock-icon{font-size:28px;color:var(--dim)}
+.lock-label{font-family:"Share Tech Mono",monospace;font-size:10px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;text-align:center}
+.declaration{background:rgba(8,8,8,0.97);border:1px solid var(--border-strong);padding:20px 24px;margin-bottom:16px}
+.decl-eyebrow{font-family:"Share Tech Mono",monospace;font-size:10px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px}
+.declaration p{font-size:13px;color:var(--dim);line-height:1.7}
+.decl-check-row{display:flex;align-items:flex-start;gap:10px;margin-top:14px}
+.decl-check-row input[type=checkbox]{margin-top:3px;cursor:pointer;accent-color:var(--green);flex-shrink:0}
+.decl-check-row label{font-size:13px;color:var(--white);cursor:pointer;line-height:1.5}
+.sig-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+.sig-field{border-top:1px solid var(--border-strong);padding-top:6px}
+.sig-field label{font-family:"Share Tech Mono",monospace;font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;display:block;margin-bottom:4px}
+.sig-field input{width:100%;background:transparent;border:none;color:var(--white);font-family:"Rajdhani",sans-serif;font-size:14px;outline:none;border-bottom:1px solid var(--border);padding-bottom:4px;transition:border-color 0.2s}
+.sig-field input:focus{border-color:var(--green)}
+.instructor-section{display:none}
+.checklist-module{border:1px solid var(--border);background:var(--bg1);margin-bottom:16px;padding:20px}
+.checklist-title{font-family:"Orbitron",sans-serif;font-size:10px;letter-spacing:3px;color:var(--dim);text-transform:uppercase;margin-bottom:12px}
+.checklist ul{list-style:none;display:flex;flex-direction:column;gap:6px}
+.checklist li{display:flex;align-items:flex-start;gap:10px;font-size:13px;color:var(--dim);line-height:1.5}
+.checklist li::before{content:"[ ]";font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--dim);flex-shrink:0;margin-top:2px}
+.pres-rubric-card{border:1px solid var(--border-strong);background:rgba(255,184,0,0.04);padding:18px 20px}
+.pres-rubric-title{font-family:"Orbitron",sans-serif;font-size:11px;letter-spacing:3px;color:var(--green);text-transform:uppercase;margin-bottom:14px}
+.pres-rubric-note{font-size:12px;color:var(--dim);margin-bottom:12px;line-height:1.6;border-left:2px solid rgba(255,184,0,0.40);padding-left:10px}
+.pres-rubric-table{width:100%;border-collapse:collapse;font-size:13px}
+.pres-rubric-table th{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase;padding:7px 12px;border:1px solid var(--border);background:var(--bg2);text-align:left}
+.pres-rubric-table td{padding:10px 12px;border:1px solid var(--border);color:var(--white);vertical-align:top;line-height:1.55;font-size:13px}
+.pres-rubric-table td:first-child{color:var(--white);font-weight:600;min-width:140px}
+.pres-rubric-table td:last-child{font-family:"Share Tech Mono",monospace;font-size:12px;color:var(--gold);text-align:right;white-space:nowrap;width:60px}
+.pres-rubric-table td.desc{color:var(--dim);font-size:12px}
+.pres-rubric-table tfoot td{background:var(--bg2);font-weight:700;color:var(--green);font-family:"Orbitron",sans-serif;font-size:11px;letter-spacing:2px}
+.section-divider{font-family:"Share Tech Mono",monospace;font-size:9px;letter-spacing:4px;color:var(--dim);text-transform:uppercase;text-align:center;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin:20px 0;background:var(--bg1);opacity:0;transform:scaleX(0.85);transition:opacity 0.5s ease 0.1s,transform 0.6s cubic-bezier(0.25,0.46,0.45,0.94) 0.1s}
+.section-divider.visible{opacity:1;transform:scaleX(1)}
+.footer{border-top:1px solid var(--border);padding:20px 0 10px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap}
+.footer-block{display:flex;flex-direction:column;gap:4px}
+.footer-label{font-family:"Share Tech Mono",monospace;font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase}
+.footer-value{font-family:"Share Tech Mono",monospace;font-size:11px;color:var(--green)}
+#tooltip{position:fixed;z-index:9990;pointer-events:none;background:var(--bg2);border:1px solid var(--border-strong);padding:8px 12px;max-width:260px;font-size:12px;color:var(--white);line-height:1.5;display:none}
+#tooltip .tip-title{font-weight:700;color:var(--green);font-size:12px;display:block;margin-bottom:2px}
+.print-mirror{display:none}
+@media print{
+  #scroll-bar,#toolbar,#bg-canvas,.rubric-toggle,.rubric-panel,.module-lock-overlay,
+  .add-row-btn,.row-btn,.drag-handle,.upload-zone,.img-remove,.img-count,
+  .dialog-overlay,#lightbox,#version-banner,.chevron,
+  .approval-input-row,.approval-error,.approval-anim,
+  .approval-gate-title,.approval-gate-desc,
+  .sent-counter,.checklist-module,.paste-badge{display:none !important}
+  .instructor-section{display:block !important}
+  .print-mirror{display:block !important}
+  textarea,input[type=text],input[type=number]{display:none !important}
+  .module{border-color:#333;background:#111;page-break-inside:avoid}
+  .module-body.collapsed{max-height:none !important;opacity:1 !important;padding:20px 20px 16px !important}
+  body{background:#000;color:#eee}
+  .page{max-width:100%;padding:0}
+  @page{size:letter;margin:.5in}
+  -webkit-print-color-adjust:exact;print-color-adjust:exact
+}
+@media (prefers-reduced-motion: reduce) {
+  #bg-canvas { display: none; }
+  @keyframes breathe { 0%,100%,50% { text-shadow: none; } }
+  .anim-text { animation: none !important; }
+  .progress-fill { transition: none !important; }
+}
+.table-expand-btn {
+  font-family: "Share Tech Mono", monospace;
+  font-size: 10px; letter-spacing: 1px; padding: 4px 10px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--dim); cursor: pointer; text-transform: uppercase;
+  transition: all 0.2s; margin-bottom: 6px; display: inline-block;
+}
+.table-expand-btn:hover { color: var(--gold); border-color: var(--border-strong); }
+#table-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.96); z-index: 7000;
+  flex-direction: column; padding: 20px;
+}
+#table-overlay.open { display: flex; }
+#table-overlay-inner { flex: 1; overflow: auto; }
+#table-overlay-close {
+  font-family: "Share Tech Mono", monospace; font-size: 10px;
+  letter-spacing: 2px; padding: 6px 16px; background: transparent;
+  border: 1px solid var(--border-strong); color: var(--white);
+  cursor: pointer; text-transform: uppercase; margin-bottom: 12px;
+  align-self: flex-end; transition: all 0.2s;
+}
+#table-overlay-close:hover { color: var(--gold); }
+.row-thumb { width: 40px; height: 40px; object-fit: cover; border: 1px solid var(--border); cursor: pointer; display: none; }
+.row-thumb.has-img { display: block; }
+body {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='4' fill='none' stroke='%23FFB800' stroke-width='1.5'/%3E%3Ccircle cx='10' cy='10' r='1.5' fill='%23FFB800'/%3E%3C/svg%3E") 10 10, crosshair;
+}
+a, button, [role=button], .linked, label[for], select, .drag-handle, .upload-zone, .module-header, .rubric-toggle, .img-item img, .changelog-toggle {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='6' fill='none' stroke='%23FFB800' stroke-width='1.5'/%3E%3Ccircle cx='10' cy='10' r='2' fill='%23FFB800'/%3E%3C/svg%3E") 10 10, pointer;
+}
+@keyframes scanLine{from{top:0}to{top:100%}}
+@keyframes flashPage{0%{opacity:0}20%{opacity:1}100%{opacity:0}}
+@keyframes badgePulse{0%,100%{text-shadow:0 0 10px rgba(0,204,85,0.6)}50%{text-shadow:0 0 24px rgba(0,204,85,1),0 0 48px rgba(0,204,85,0.5)}}
+@keyframes particleFade{0%{transform:translate(0,0) scale(1);opacity:0.9}100%{transform:translate(var(--tx),var(--ty)) scale(0);opacity:0}}
+@keyframes counterPop{0%{transform:scale(1)}50%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes progressFlow{0%{background-position:0% 50%}100%{background-position:100% 50%}}
+@keyframes rippleOut{to{transform:scale(2.5);opacity:0}}
+.approval-gate{position:relative;overflow:hidden}
+#approval-scan-line{position:absolute;left:0;right:0;height:2px;background:var(--green);box-shadow:var(--glow-green);pointer-events:none;display:none;z-index:5}
+#approval-hex-block{display:none;font-family:"Share Tech Mono",monospace;font-size:12px;letter-spacing:3px;color:var(--green);padding:12px 0;text-align:center;line-height:1.8}
+#approval-badge{display:none;text-align:center;padding:16px 0 8px}
+#approval-badge .badge-main{font-family:"Orbitron",sans-serif;font-size:18px;font-weight:900;color:var(--green);letter-spacing:4px;animation:badgePulse 1.5s ease-in-out infinite}
+#approval-badge .badge-sub{font-family:"Share Tech Mono",monospace;font-size:10px;color:var(--dim);letter-spacing:3px;margin-top:6px;text-transform:uppercase}
+.anim-particle{position:absolute;width:6px;height:6px;border-radius:50%;pointer-events:none;animation:particleFade 0.8s ease-out forwards}
+.sent-counter.pop{animation:counterPop 0.3s ease}
+.progress-fill{background-size:200% 100%;animation:progressFlow 3s linear infinite}
+.module{transition:opacity 0.7s cubic-bezier(0.25,0.46,0.45,0.94),transform 0.7s cubic-bezier(0.25,0.46,0.45,0.94),box-shadow 0.3s ease}
+.module:hover{box-shadow:0 0 0 1px rgba(0,204,85,0.2),0 4px 24px rgba(0,204,85,0.06)}
+.tool-btn{position:relative;overflow:hidden}
+@keyframes dotPop{0%{transform:scale(1)}40%{transform:scale(1.6)}70%{transform:scale(0.85)}100%{transform:scale(1)}}
+.completion-dot.pop{animation:dotPop 0.35s cubic-bezier(0.25,0.46,0.45,0.94)}
+</style>
+</head>
+<body>
+<div id="scroll-bar"></div>
+<canvas id="bg-canvas"></canvas>
+<div id="tooltip"><span class="tip-title" id="tip-title"></span><span id="tip-body"></span></div>
+<div id="lightbox" onclick="closeLightbox()"><img id="lightbox-img" src="" alt=""></div>
+<div id="version-banner"></div>
+<div class="dialog-overlay" id="clear-dialog"><div class="dialog-box"><div class="dialog-title">Clear All Data</div><div class="dialog-body">This will permanently erase all entered data, uploaded images, and your approval state. This cannot be undone.</div><div class="dialog-actions"><button class="d-btn" onclick="closeDialog('clear-dialog')">Cancel</button><button class="d-btn danger" onclick="confirmClear()">Yes, Clear Everything</button></div></div></div>
+<div class="dialog-overlay" id="restore-dialog"><div class="dialog-box"><div class="dialog-title">Restore Defaults</div><div class="dialog-body">This will clear all entered data and reset to original state.</div><div class="dialog-actions"><button class="d-btn" onclick="closeDialog('restore-dialog')">Cancel</button><button class="d-btn danger" onclick="confirmRestore()">Yes, Restore</button></div></div></div>
+<div class="dialog-overlay" id="preflight-dialog"><div class="dialog-box"><div class="dialog-title" id="pf-title">Before You Submit</div><div class="dialog-body"><span id="pf-intro">The following items are incomplete:</span><ul id="pf-list" style="margin-top:10px;"></ul></div><div class="dialog-actions"><button class="d-btn" onclick="closeDialog('preflight-dialog')">Go Back &amp; Fix</button><button class="d-btn confirm" id="pf-proceed-btn">Proceed Anyway</button></div></div></div>
+<div id="toolbar">
+  <div class="progress-row"><div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div><span class="progress-label" id="progress-label">0 of 0 complete</span><span class="score-display" id="score-display">0 / 70 pts</span></div>
+  <div class="btn-row">
+    <button class="tool-btn primary" onclick="runPreflight('export')">Export HTML</button>
+    <button class="tool-btn" onclick="runPreflight('print')">Print / Export PDF</button>
+    <button class="tool-btn" onclick="saveProgress()">Save Progress</button>
+    <button class="tool-btn" id="autosave-btn" onclick="toggleAutoSave()">AUTO-SAVE ON</button>
+    <button class="tool-btn" onclick="openDialog('restore-dialog')">Restore Defaults</button>
+    <button class="tool-btn amber-btn" onclick="openDialog('clear-dialog')">Clear All</button>
+    <span id="save-status">AUTO-SAVE ON</span>
+  </div>
+</div>
+<div class="page">
+<div class="header">
+  <div class="header-eyebrow">IDEA-403 &nbsp;|&nbsp; Senior Capstone</div>
+  <div class="header-title">FINAL PROJECT PACKAGE</div>
+  <div class="header-sub">Deliverable Package + Presentation &nbsp;//&nbsp; Export HTML &amp; Submit</div>
+  <div class="header-fields">
+    <div class="field-full"><span class="field-label">Project Title</span><input class="field-input" id="f_project" placeholder="Your project title" autocomplete="off" oninput="saveField('f_project');updateCompletion()"></div>
+    <div><span class="field-label">Student Name</span><input class="field-input" id="f_name" placeholder="Last, First" autocomplete="off" oninput="saveField('f_name');updateCompletion()"></div>
+    <div><span class="field-label">Period</span><input class="field-input" id="f_period" placeholder="4" autocomplete="off" oninput="saveField('f_period')"></div>
+    <div><span class="field-label">Date</span><input class="field-input" id="f_date" placeholder="MM / DD / YYYY" autocomplete="off" oninput="saveField('f_date')"></div>
+    <div><span class="field-label">Due Date</span><input class="field-input" id="f_due" value="05 / 21 / 2026" readonly></div>
+  </div>
+</div>
+<div class="callout submission">
+  <div class="callout-title">Submission Instructions</div>
+  <p style="margin-bottom:8px;">Three required attachments in Google Classroom. <strong>Do not submit</strong> until Mr. Pina enters the approval code at the end of class on 05/21.</p>
+  <ol>
+    <li><strong>This HTML file</strong> - click <strong>[ Export HTML ]</strong> after receiving approval and attach the exported file.</li>
+    <li><strong>Presentation slides</strong> - attach your slide deck as a PDF or .pptx file. Do not link to Google Drive.</li>
+    <li><strong>SolidWorks files (ZIP)</strong> - Pack and Go for every assembly, plus any standalone part files not included in an assembly, all in one ZIP. <a href="https://youtu.be/pjDnke2rENM" target="_blank">Pack and Go tutorial &rarr;</a></li>
+  </ol>
+</div>
+<div class="callout info">
+  <div class="callout-title">Presentation Day - 05/21</div>
+  <p>Presentations are <strong>6-8 minutes each</strong> with a hard stop. Q&amp;A is within that window, not added on top. You are also required to ask <strong>at least one substantive question</strong> during a classmate's presentation - see Module 06. Prepare your question in advance. No question = 5-point deduction from your presentation score.</p>
+  <p style="margin-top:8px;">Note: The live presentation may be delivered with your project partner if your project was a collaboration. The HTML deliverable package must be completed individually - it is a personal reflection and documentation record, not a shared submission.</p>
+</div>
+<div class="points-bar"><span class="points-bar-label">Part A: Deliverable Package</span><span class="points-bar-value">70 pts</span></div>
+<!-- MOD 01 -->
+<div class="module" id="mod01"><div class="module-header" onclick="toggleModule('mod01')"><span class="mod-num">MOD 01</span><span class="mod-title">Project Summary</span><span class="mod-pts">10 pts</span><span class="mod-pts-breakdown">01-A:4 &nbsp;&middot;&nbsp; 01-B:4 &nbsp;&middot;&nbsp; 01-C:2</span><div class="completion-dot" id="dot-mod01"></div><button class="rubric-toggle" onclick="toggleRubric(event,'r_01')">Rubric &#9660;</button><span class="chevron" id="chev-mod01">&#9660;</span></div>
+<div class="module-body" id="body-mod01">
+<div class="rubric-panel" id="r_01"><table><tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr><tr><td>01-A</td><td>Project described specifically; outside reader understands what it is and does.</td><td>4</td></tr><tr><td>01-B</td><td>Purpose or problem clearly articulated. The "why" is credible and present.</td><td>4</td></tr><tr><td>01-C</td><td>Correct stage identified with a specific, defensible justification.</td><td>2</td></tr></table></div>
+<div class="prompt"><div class="prompt-q">01-A - What is your project?</div><div class="prompt-desc">Describe it clearly enough that someone unfamiliar with your work would understand what it is and does. No vague language. <em>Min. 2 sentences</em></div><textarea class="response-area" id="q_01a" data-min="2" placeholder="Describe your project..." oninput="autoResize(this);updateCounter(this,'c_01a',2);saveField('q_01a');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_01a">0 / 2 sentences</span></div><div class="print-mirror" id="pm_q_01a"></div></div>
+<div class="prompt"><div class="prompt-q">01-B - What problem does it solve or what purpose does it serve?</div><div class="prompt-desc">Explain the need, goal, or outcome your project addresses. Why does this project exist? <em>Min. 2 sentences</em></div><textarea class="response-area" id="q_01b" data-min="2" placeholder="Describe the purpose or problem..." oninput="autoResize(this);updateCounter(this,'c_01b',2);saveField('q_01b');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_01b">0 / 2 sentences</span></div><div class="print-mirror" id="pm_q_01b"></div></div>
+<div class="prompt"><div class="prompt-q">01-C - Final Development Stage</div><div class="prompt-desc">Choose one and justify in 1-2 sentences: <em>concept &nbsp;/&nbsp; early design &nbsp;/&nbsp; active development &nbsp;/&nbsp; testing &amp; refinement &nbsp;/&nbsp; near-complete &nbsp;/&nbsp; complete</em></div><textarea class="response-area" id="q_01c" data-min="1" placeholder="Stage and justification..." oninput="autoResize(this);updateCounter(this,'c_01c',1);saveField('q_01c');updateCompletion()" style="min-height:60px;"></textarea><div class="counter-row"><span class="sent-counter none" id="c_01c">0 / 1 sentence</span></div><div class="print-mirror" id="pm_q_01c"></div></div>
+</div></div>
+
+<!-- MOD 02 -->
+<div class="module" id="mod02"><div class="module-header" onclick="toggleModule('mod02')"><span class="mod-num">MOD 02</span><span class="mod-title">Work Log</span><span class="mod-pts">20 pts</span><span class="mod-pts-breakdown">02-A (log):12 &nbsp;&middot;&nbsp; 02-B (evidence):8</span><div class="completion-dot" id="dot-mod02"></div><button class="rubric-toggle" onclick="toggleRubric(event,'r_02')">Rubric &#9660;</button><span class="chevron" id="chev-mod02">&#9660;</span></div>
+<div class="module-body" id="body-mod02">
+<div class="rubric-panel" id="r_02"><table><tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr><tr><td>02-A</td><td>At least 5 entries. Each has a specific date, honest duration, and concrete task description. "Worked on project" earns no credit.</td><td>12</td></tr><tr><td>02-B</td><td>2-4 images uploaded with captions showing actual project work.</td><td>8</td></tr></table></div>
+<div class="prompt"><div class="prompt-q">02-A - Work Session Log</div><div class="prompt-desc">Document your work sessions. <em>Min. 5 entries.</em> Be specific about what was accomplished each session.</div></div>
+<button class="table-expand-btn no-print" onclick="openTableOverlay('worklog-table')">&#x26F6; Expand Table</button>
+<div class="table-wrap"><table class="data-table" id="worklog-table"><thead><tr><th style="width:32px;"></th><th data-tip="Date -- Date of the work session. MM/DD format.">Date</th><th data-tip="Duration -- How long you worked. Be honest.">Duration</th><th data-tip="Tasks Completed -- Specific description of what was accomplished. No vague entries.">Tasks Completed</th><th style="width:80px;" class="no-print"></th></tr></thead><tbody id="worklog-body"></tbody></table></div>
+<button class="add-row-btn no-print" onclick="addWorklogRow()">+ Add Session</button>
+<div class="prompt" style="margin-top:8px;"><div class="prompt-q">02-B - Evidence Images</div><div class="prompt-desc">Upload 2-4 photos showing real project progress. Each image requires a caption. <em>Min. 2 images.</em></div></div>
+<div class="upload-zone" id="zone-evidence" data-min-images="2" onclick="zoneClick('zone-evidence')" onmouseenter="setActivePasteZone('zone-evidence')"><input type="file" id="file-evidence" accept="image/*" multiple onchange="handleFileInput(this,'zone-evidence')"><div class="upload-zone-label">Click to upload or drag &amp; drop</div><div class="upload-zone-sub">Ctrl+V to paste from clipboard &nbsp;&middot;&nbsp; JPG, PNG, GIF</div><span class="paste-badge">PASTE TARGET</span><div class="img-count none" id="count-evidence">0 / 2 minimum</div></div>
+<div class="img-gallery" id="gallery-evidence"></div>
+</div></div>
+
+<!-- MOD 03 -->
+<div class="module" id="mod03"><div class="module-header" onclick="toggleModule('mod03')"><span class="mod-num">MOD 03</span><span class="mod-title">Final State Assessment</span><span class="mod-pts">20 pts</span><span class="mod-pts-breakdown">03-A (table):12 &nbsp;&middot;&nbsp; 03-B (summary):8</span><div class="completion-dot" id="dot-mod03"></div><button class="rubric-toggle" onclick="toggleRubric(event,'r_03')">Rubric &#9660;</button><span class="chevron" id="chev-mod03">&#9660;</span></div>
+<div class="module-body" id="body-mod03">
+<div class="rubric-panel" id="r_03"><table><tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr><tr><td>03-A</td><td>Every major deliverable from original scope is listed with honest status. Nothing planned is omitted, even if dropped.</td><td>12</td></tr><tr><td>03-B</td><td>Completion estimate is specific. Written summary matches the table. No vague or inflated claims.</td><td>8</td></tr></table></div>
+<div class="prompt"><div class="prompt-q">03-A - Component / Feature Status Table</div><div class="prompt-desc">List every major deliverable, component, or feature from your original scope. Assign each an honest status. Do not omit anything planned, even if dropped. <em>Min. 3 entries.</em></div></div>
+<button class="table-expand-btn no-print" onclick="openTableOverlay('status-table')">&#x26F6; Expand Table</button>
+<div class="table-wrap"><table class="data-table" id="status-table"><thead><tr><th style="width:32px;"></th><th data-tip="Item -- Component, feature, or deliverable name.">Item / Deliverable</th><th data-tip="Description -- Brief description of what this item is or does.">Description</th><th data-tip="Status -- Honest current status." style="width:140px;">Status</th><th data-tip="Notes -- Relevant notes, issues, or context.">Notes</th><th class="no-print" style="width:56px;">Img</th><th style="width:80px;" class="no-print"></th></tr></thead><tbody id="status-body"></tbody></table></div>
+<button class="add-row-btn no-print" onclick="addStatusRow()">+ Add Item</button>
+<div class="prompt" style="margin-top:12px;"><div class="prompt-q">03-B - Completion Summary</div><div class="prompt-desc">Estimate your overall completion percentage and give an honest written assessment of what is and is not done. Be specific enough that a reader can verify your estimate from the table above. <em>Min. 3 sentences</em></div><textarea class="response-area" id="q_03b" data-min="3" placeholder="Completion estimate and honest assessment..." oninput="autoResize(this);updateCounter(this,'c_03b',3);saveField('q_03b');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_03b">0 / 3 sentences</span></div><div class="print-mirror" id="pm_q_03b"></div></div>
+</div></div>
+
+<!-- MOD 04 -->
+<div class="module" id="mod04"><div class="module-header" onclick="toggleModule('mod04')"><span class="mod-num">MOD 04</span><span class="mod-title">Reflection</span><span class="mod-pts">10 pts</span><span class="mod-pts-breakdown">04-A:4 &nbsp;&middot;&nbsp; 04-B:3 &nbsp;&middot;&nbsp; 04-C:3</span><div class="completion-dot" id="dot-mod04"></div><button class="rubric-toggle" onclick="toggleRubric(event,'r_04')">Rubric &#9660;</button><span class="chevron" id="chev-mod04">&#9660;</span></div>
+<div class="module-body" id="body-mod04">
+<div class="rubric-panel" id="r_04"><table><tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr><tr><td>04-A</td><td>Specific. Names actual decisions, tools, or outcomes that worked - not "everything went well."</td><td>4</td></tr><tr><td>04-B</td><td>Honest and specific. Identifies a real decision or approach you would change, with reasoning.</td><td>3</td></tr><tr><td>04-C</td><td>Names a concrete skill or concept - not a generic statement like "time management."</td><td>3</td></tr></table></div>
+<div class="prompt"><div class="prompt-q">04-A - What worked well and why?</div><div class="prompt-desc">Name actual decisions, tools, or approaches that produced good results. <em>Min. 2 sentences</em></div><textarea class="response-area" id="q_04a" data-min="2" placeholder="What worked and why..." oninput="autoResize(this);updateCounter(this,'c_04a',2);saveField('q_04a');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_04a">0 / 2 sentences</span></div><div class="print-mirror" id="pm_q_04a"></div></div>
+<div class="prompt"><div class="prompt-q">04-B - What would you do differently if starting over?</div><div class="prompt-desc">Identify a real decision or approach you would change. Explain why. <em>Min. 2 sentences</em></div><textarea class="response-area" id="q_04b" data-min="2" placeholder="What you would change and why..." oninput="autoResize(this);updateCounter(this,'c_04b',2);saveField('q_04b');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_04b">0 / 2 sentences</span></div><div class="print-mirror" id="pm_q_04b"></div></div>
+<div class="prompt"><div class="prompt-q">04-C - What skill or concept will you carry forward?</div><div class="prompt-desc">Name something concrete you learned from this project that you will apply in future work. <em>Min. 2 sentences</em></div><textarea class="response-area" id="q_04c" data-min="2" placeholder="Skill or concept and how you will apply it..." oninput="autoResize(this);updateCounter(this,'c_04c',2);saveField('q_04c');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_04c">0 / 2 sentences</span></div><div class="print-mirror" id="pm_q_04c"></div></div>
+</div></div>
+
+<!-- MOD 05 -->
+<div class="module" id="mod05"><div class="module-header" onclick="toggleModule('mod05')"><span class="mod-num">MOD 05</span><span class="mod-title">Presentation Prep</span><span class="mod-pts">10 pts</span><span class="mod-pts-breakdown">05-A (outline):6 &nbsp;&middot;&nbsp; 05-B (Q&amp;A prep):4</span><div class="completion-dot" id="dot-mod05"></div><button class="rubric-toggle" onclick="toggleRubric(event,'r_05')">Rubric &#9660;</button><span class="chevron" id="chev-mod05">&#9660;</span></div>
+<div class="module-body" id="body-mod05">
+<div class="rubric-panel" id="r_05"><table><tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr><tr><td>05-A</td><td>At least 4 slides outlined. Each has a number, title, and specific description of what it shows. 80/20 rule applies: slides must be predominantly visual.</td><td>6</td></tr><tr><td>05-B</td><td>Question is specific and substantive. Prepared answer demonstrates actual understanding.</td><td>4</td></tr></table></div>
+<div class="prompt"><div class="prompt-q">05-A - Slide Outline</div><div class="prompt-desc">Map out your presentation slide by slide. <em>Min. 4 slides.</em> "Introduction slide" is not a valid description - write what is actually on the slide.</div></div>
+<button class="table-expand-btn no-print" onclick="openTableOverlay('slides-table')">&#x26F6; Expand Table</button>
+<div class="table-wrap"><table class="data-table" id="slides-table"><thead><tr><th style="width:32px;"></th><th data-tip="Slide # -- Slide number in order." style="width:70px;">#</th><th data-tip="Title -- Slide title as it appears.">Slide Title</th><th data-tip="Content -- What this slide specifically shows or communicates.">What It Shows / Communicates</th><th style="width:80px;" class="no-print"></th></tr></thead><tbody id="slides-body"></tbody></table></div>
+<button class="add-row-btn no-print" onclick="addSlidesRow()">+ Add Slide</button>
+<div class="prompt" style="margin-top:12px;"><div class="prompt-q">05-B - Anticipated Question &amp; Prepared Answer</div><div class="prompt-desc">Write one question you think Mr. Pina or a classmate might ask. Then write your prepared answer. <em>Min. 2 sentences each.</em></div>
+<div class="prompt-q" style="font-size:12px;color:var(--dim);margin-top:8px;">The Question:</div><textarea class="response-area" id="q_05b_q" data-min="1" placeholder="What question do you expect?" oninput="autoResize(this);updateCounter(this,'c_05b_q',1);saveField('q_05b_q');updateCompletion()" style="min-height:60px;"></textarea><div class="counter-row"><span class="sent-counter none" id="c_05b_q">0 / 1 sentence</span></div><div class="print-mirror" id="pm_q_05b_q"></div>
+<div class="prompt-q" style="font-size:12px;color:var(--dim);margin-top:8px;">Your Prepared Answer:</div><textarea class="response-area" id="q_05b_a" data-min="2" placeholder="Your prepared answer..." oninput="autoResize(this);updateCounter(this,'c_05b_a',2);saveField('q_05b_a');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_05b_a">0 / 2 sentences</span></div><div class="print-mirror" id="pm_q_05b_a"></div></div>
+</div></div>
+
+<!-- APPROVAL GATE -->
+<div class="approval-gate" id="approval-gate">
+<div class="approval-gate-title">Instructor Approval Required</div>
+<div class="approval-gate-desc">All modules must be complete before requesting approval. Mr. Pina will enter the code at the end of class on 05/21. Do not submit without it.</div>
+<div class="approval-input-row" id="approval-input-row"><input class="approval-input" type="password" id="approval-code" placeholder="Enter approval code" onkeydown="if(event.key==='Enter')submitApproval()"><button class="approval-submit" onclick="submitApproval()">Submit</button></div>
+<div class="approval-error" id="approval-error">Incorrect code. See Mr. Pina.</div>
+<div class="approval-anim" id="approval-anim"><div id="approval-scan-line"></div><div id="approval-hex-block"></div><div id="approval-badge"><div class="badge-main">CLEARANCE GRANTED</div><div class="badge-sub">Module 06 Unlocked &nbsp;//&nbsp; Export Enabled</div></div></div>
+<div class="approval-confirmed" id="approval-confirmed"><div class="approval-confirmed-icon">&#10003;</div><div><div class="approval-confirmed-text">APPROVAL CONFIRMED</div><div class="approval-confirmed-time" id="approval-time"></div></div></div>
+</div>
+
+<!-- MOD 06 LOCKED -->
+<div class="module" id="mod06" style="position:relative;">
+<div class="module-lock-overlay" id="lock-mod06"><div class="lock-icon">&#128274;</div><div class="lock-label">Instructor Approval Required<br>Completed on Presentation Day</div></div>
+<div class="module-header" onclick="toggleModule('mod06')"><span class="mod-num">MOD 06</span><span class="mod-title">Peer Question</span><span class="mod-pts">Required</span><span class="mod-pts-breakdown">Completed on 05/21 &nbsp;&middot;&nbsp; No question = -5 pts from presentation</span><div class="completion-dot" id="dot-mod06"></div><button class="rubric-toggle" onclick="toggleRubric(event,'r_06')">Rubric &#9660;</button><span class="chevron" id="chev-mod06">&#9660;</span></div>
+<div class="module-body" id="body-mod06">
+<div class="rubric-panel" id="r_06"><table><tr><th>Item</th><th>Full Credit</th><th>Pts</th></tr><tr><td>06-A</td><td>Question is specific and substantive. Demonstrates awareness of the classmate's project. "How did it go?" is not acceptable.</td><td>-</td></tr><tr><td>06-B</td><td>Answer field completed during presentations. Not left blank.</td><td>-</td></tr><tr><td>Note</td><td>Failure to ask a question = 5-point deduction from your Part B (Presentation) score.</td><td>-5</td></tr></table></div>
+<div class="callout info" style="margin-bottom:0;"><div class="callout-title">Presentation Day Requirement</div><p>You must ask at least one substantive question during a classmate's presentation. Your question must demonstrate that you understand something about their project. Fill out both fields during class on 05/21.</p></div>
+<div class="prompt"><div class="prompt-q">06-A - Your Prepared Question</div><div class="prompt-desc">Write the question you plan to ask a classmate. Name who it is directed at. The question must be specific enough that it could only apply to their project. <em>Min. 2 sentences</em></div><textarea class="response-area" id="q_06a" data-min="2" placeholder="Your question and who it is directed at..." oninput="autoResize(this);updateCounter(this,'c_06a',2);saveField('q_06a');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_06a">0 / 2 sentences</span></div><div class="print-mirror" id="pm_q_06a"></div></div>
+<div class="prompt"><div class="prompt-q">06-B - Their Answer</div><div class="prompt-desc">After you ask your question during presentations, record what your classmate said. Fill this in during class. <em>Min. 2 sentences</em></div><textarea class="response-area" id="q_06b" data-min="2" placeholder="Record their answer here during presentations..." oninput="autoResize(this);updateCounter(this,'c_06b',2);saveField('q_06b');updateCompletion()"></textarea><div class="counter-row"><span class="sent-counter none" id="c_06b">0 / 2 sentences</span></div><div class="print-mirror" id="pm_q_06b"></div></div>
+</div></div>
+
+<div class="section-divider">Part B &nbsp;&middot;&nbsp; Presentation &nbsp;&middot;&nbsp; 50 pts &nbsp;&middot;&nbsp; Scored Separately by Instructor on 05/21</div>
+
+<!-- PRES RUBRIC -->
+<div class="module" id="mod-pres"><div class="module-header" onclick="toggleModule('mod-pres')"><span class="mod-num">PRES</span><span class="mod-title">Presentation Rubric</span><span class="mod-pts">50 pts</span><span class="mod-pts-breakdown">Scored live by Mr. Pina &nbsp;&middot;&nbsp; 6-8 min per presenter</span><span class="chevron" id="chev-mod-pres">&#9660;</span></div>
+<div class="module-body" id="body-mod-pres">
+<div class="pres-rubric-card">
+<div class="pres-rubric-title">Part B: Presentation Scoring Criteria</div>
+<div class="pres-rubric-note">This rubric is provided so you know exactly what is being evaluated. Scores are entered separately by Mr. Pina - there are no fields for you to fill in here. Presentations are 6-8 minutes with a hard stop. Q&amp;A is included within that window, not added on top.</div>
+<table class="pres-rubric-table"><thead><tr><th>Category</th><th>What Full Credit Looks Like</th><th>Pts</th></tr></thead><tbody>
+<tr><td>Slide Quality</td><td class="desc">Slides follow an 80/20 rule - at minimum 80% of each slide's surface area must be visual content (diagrams, photos, screenshots, data charts, physical mockups). Text may occupy no more than 20% of any slide. Bullet-point slides with no supporting visuals receive zero credit for this category.</td><td>10</td></tr>
+<tr><td>Delivery</td><td class="desc">Clear and confident. You are talking to the room, not reading off the screen. Stays within the 6-8 minute window. Speaks to the work, not around it.</td><td>10</td></tr>
+<tr><td>Technical Depth</td><td class="desc">Explains the decisions behind the design - not just what it looks like, but why it is the way it is. Covers at least one tradeoff or constraint you navigated. Demonstrates actual engineering thinking.</td><td>15</td></tr>
+<tr><td>Q&amp;A</td><td class="desc">Answers questions accurately and honestly. Does not bluff. If you do not know, say so and explain what you do know. A wrong answer delivered confidently is worse than an honest "I am not sure, but here is what I think."</td><td>15</td></tr>
+</tbody><tfoot><tr><td colspan="2">Total</td><td>50</td></tr></tfoot></table>
+</div></div></div>
+
+<!-- DECLARATION -->
+<div class="declaration">
+<div class="decl-eyebrow">Academic Integrity Declaration</div>
+<p>The work described in this document is my own. All reported progress and status reflect effort I personally completed. I understand that misrepresenting my project - including inflating completion, omitting known problems, or copying another student's submission - constitutes academic dishonesty.</p>
+<div class="decl-check-row"><input type="checkbox" id="decl-check" onchange="saveField('decl-check');updateCompletion()"><label for="decl-check">I confirm this submission is my own work and accurately represents my project.</label></div>
+<div class="sig-row">
+<div class="sig-field"><label>Student Signature (type full name)</label><input type="text" id="sig_student" placeholder="Type your full name" oninput="saveField('sig_student');updateCompletion()"><div class="print-mirror" id="pm_sig_student"></div></div>
+<div class="sig-field"><label>Date</label><input type="text" id="sig_date" placeholder="MM / DD / YYYY" oninput="saveField('sig_date')"><div class="print-mirror" id="pm_sig_date"></div></div>
+</div></div>
+
+<!-- INSTRUCTOR TABLE (print only) -->
+<div class="instructor-section">
+<table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:16px;"><thead><tr style="background:#111;"><th style="padding:7px 12px;border:1px solid #333;text-align:left;font-family:monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;">Module</th><th style="padding:7px 12px;border:1px solid #333;text-align:left;font-family:monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;">Description</th><th style="padding:7px 12px;border:1px solid #333;text-align:right;font-family:monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;">Score</th></tr></thead><tbody>
+<tr><td style="padding:7px 12px;border:1px solid #333;">MOD 01</td><td style="padding:7px 12px;border:1px solid #333;">Project Summary</td><td style="padding:7px 12px;border:1px solid #333;text-align:right;">_____ / 10</td></tr>
+<tr><td style="padding:7px 12px;border:1px solid #333;">MOD 02</td><td style="padding:7px 12px;border:1px solid #333;">Work Log</td><td style="padding:7px 12px;border:1px solid #333;text-align:right;">_____ / 20</td></tr>
+<tr><td style="padding:7px 12px;border:1px solid #333;">MOD 03</td><td style="padding:7px 12px;border:1px solid #333;">Final State Assessment</td><td style="padding:7px 12px;border:1px solid #333;text-align:right;">_____ / 20</td></tr>
+<tr><td style="padding:7px 12px;border:1px solid #333;">MOD 04</td><td style="padding:7px 12px;border:1px solid #333;">Reflection</td><td style="padding:7px 12px;border:1px solid #333;text-align:right;">_____ / 10</td></tr>
+<tr><td style="padding:7px 12px;border:1px solid #333;">MOD 05</td><td style="padding:7px 12px;border:1px solid #333;">Presentation Prep</td><td style="padding:7px 12px;border:1px solid #333;text-align:right;">_____ / 10</td></tr>
+<tr style="background:#111;"><td colspan="2" style="padding:7px 12px;border:1px solid #333;font-weight:700;font-family:monospace;">Part A Total</td><td style="padding:7px 12px;border:1px solid #333;text-align:right;font-weight:700;font-family:monospace;">_____ / 70</td></tr>
+<tr><td style="padding:7px 12px;border:1px solid #333;">PRES</td><td style="padding:7px 12px;border:1px solid #333;">Presentation (scored separately)</td><td style="padding:7px 12px;border:1px solid #333;text-align:right;">_____ / 50</td></tr>
+<tr style="background:#111;"><td colspan="2" style="padding:7px 12px;border:1px solid #333;font-weight:700;font-family:monospace;">Assignment Total</td><td style="padding:7px 12px;border:1px solid #333;text-align:right;font-weight:700;font-family:monospace;">_____ / 120</td></tr>
+</tbody></table>
+<div style="border-top:1px solid #333;padding-top:8px;"><div style="font-family:monospace;font-size:9px;color:#555;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;">Comments</div><div style="height:1px;background:#333;margin:8px 0;"></div><div style="height:1px;background:#333;margin:8px 0;"></div><div style="height:1px;background:#333;margin:8px 0;"></div></div>
+</div>
+
+<!-- CHECKLIST -->
+<div class="checklist-module"><div class="checklist-title">Before You Submit</div><div class="checklist"><ul>
+<li>Project title, name, period, and date filled in the header</li>
+<li>All text responses meet minimum sentence counts (shown in green)</li>
+<li>Work log has at least 5 sessions entered</li>
+<li>At least 2 evidence images uploaded with captions in Module 02</li>
+<li>Final state table has at least 3 items in Module 03</li>
+<li>Slide outline has at least 4 slides in Module 05</li>
+<li>Module 06 peer question and answer filled in during presentations on 05/21</li>
+<li>Academic integrity declaration checked and signed</li>
+<li>Instructor approval code entered (from Mr. Pina at end of class)</li>
+<li>Google Classroom: HTML export, slide deck, and SolidWorks ZIP all attached before submitting</li>
+</ul></div></div>
+
+<!-- FOOTER -->
+<div class="footer">
+<div class="footer-block"><span class="footer-label">Assignment</span><span class="footer-value">IDEA-403 | Senior Final: Project Deliverable Package</span><span class="footer-label" style="margin-top:4px;">Build <span class="footer-version-tag"></span></span></div>
+<div class="footer-block"><span class="footer-label">Course</span><span class="footer-value">IDEA-403</span></div>
+<div class="footer-block"><span class="footer-label">School</span><span class="footer-value">Don Bosco Technical Institute</span></div>
+<div class="footer-block"><span class="footer-label">Total Points</span><span class="footer-value">120 pts</span></div>
+</div>
+</div><!-- /page -->
+<div id="table-overlay">
+  <button id="table-overlay-close" onclick="closeTableOverlay()">Close / Collapse &times;</button>
+  <div id="table-overlay-inner"></div>
+</div>
+<script>
+const ASSIGNMENT_ID='idea403-senior-final';
+const BUILD_VERSION='v1';
+
+async function sha256(s){const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s));return Array.from(new Uint8Array(b)).map(x=>x.toString(16).padStart(2,'0')).join('')}
+// hash of 'yrj7' - computed at build time
+const APPROVAL_HASH=(async()=>sha256('yrj7'))();
+
+let autoSaveEnabled=true,autoSaveInterval=null,lastSaveTime=null;
+let approved=false,approvalTimestamp=null,activePasteZone=null;
+let imgStore={evidence:[]},db=null,dragSrc=null;
+
+function initDB(){return new Promise((res,rej)=>{const r=indexedDB.open(ASSIGNMENT_ID,1);r.onupgradeneeded=e=>e.target.result.createObjectStore('images',{keyPath:'id'});r.onsuccess=e=>{db=e.target.result;res()};r.onerror=()=>rej(r.error)})}
+function dbSave(id,data){if(!db)return;try{db.transaction('images','readwrite').objectStore('images').put({id,data})}catch(e){setStatus('DB WRITE ERROR','warn')}}
+function dbLoad(){return new Promise(res=>{if(!db)return res([]);const r=db.transaction('images','readonly').objectStore('images').getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>res([])})}
+function dbClearImgs(){return new Promise(res=>{if(!db)return res();const r=db.transaction('images','readwrite').objectStore('images').clear();r.onsuccess=res;r.onerror=res})}
+
+async function init(){
+  document.querySelectorAll('.footer-version-tag').forEach(el=>el.textContent=BUILD_VERSION);
+  initCanvas();
+  let _modIdx=0;
+  const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){e.target.style.transitionDelay=Math.min(_modIdx*80,400)+'ms';_modIdx++;e.target.classList.add('visible');obs.unobserve(e.target)}})},{threshold:0.05});
+  document.querySelectorAll('.module,.approval-gate,.section-divider').forEach(m=>obs.observe(m));
+  window.addEventListener('scroll',()=>{const p=window.scrollY/(document.documentElement.scrollHeight-window.innerHeight)*100;document.getElementById('scroll-bar').style.width=Math.min(p,100)+'%'});
+  document.addEventListener('paste',handlePaste);
+  document.querySelectorAll('[data-tip]').forEach(th=>{th.addEventListener('mouseover',showTooltip);th.addEventListener('mousemove',moveTooltip);th.addEventListener('mouseout',hideTooltip)});
+  if(localStorage.getItem(ASSIGNMENT_ID+'-autosave')==='off'){autoSaveEnabled=false;updateAutoSaveUI()}else startAutoSave();
+  try{await initDB()}catch(e){console.warn('IDB unavailable')}
+  const emb=document.getElementById('__'+ASSIGNMENT_ID+'_data__');
+  if(emb){try{const d=JSON.parse(emb.textContent);if(d._version&&d._version!==BUILD_VERSION)showVersionWarning(d._version);restoreData(d);if(d._imgs)for(const[z,imgs]of Object.entries(d._imgs)){imgStore[z]=imgs;renderGallery(z)}}catch(e){loadFromStorage()}}
+  else{loadFromStorage();const dbI=await dbLoad();dbI.forEach(rec=>{if(rec.id.startsWith('zone-')){const z=rec.id.replace('zone-','');if(imgStore[z]!==undefined){imgStore[z]=rec.data||[];renderGallery(z)}}})}
+  const df=document.getElementById('f_date');
+  if(!df.value&&!localStorage.getItem(ASSIGNMENT_ID+'-f_date')){const n=new Date();df.value=String(n.getMonth()+1).padStart(2,'0')+' / '+String(n.getDate()).padStart(2,'0')+' / '+n.getFullYear();localStorage.setItem(ASSIGNMENT_ID+'-f_date',df.value)}
+  document.querySelectorAll('.module').forEach(m=>{if(!m.id)return;if(localStorage.getItem(ASSIGNMENT_ID+'-collapse-'+m.id)==='1')collapseModule(m.id,false)});
+  setInterval(updateSaveStatusElapsed,10000);
+  updateCompletion();
+}
+
+document.addEventListener('DOMContentLoaded',()=>{document.querySelectorAll('.tool-btn').forEach(btn=>{btn.addEventListener('click',function(e){const r=document.createElement('span');const rect=btn.getBoundingClientRect();const size=Math.max(rect.width,rect.height);r.style.cssText=`position:absolute;border-radius:50%;background:rgba(0,204,85,0.18);width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px;transform:scale(0);animation:rippleOut 0.4s ease forwards;pointer-events:none;`;btn.appendChild(r);r.addEventListener('animationend',()=>r.remove())})})});
+
+function initCanvas(){
+  const cv=document.getElementById('bg-canvas'),ctx=cv.getContext('2d');
+  let W,H,particles=[];
+  function resize(){W=cv.width=window.innerWidth;H=cv.height=window.innerHeight}
+  resize();window.addEventListener('resize',()=>{resize();build()});
+  function build(){
+    particles=[];
+    const cnt=Math.floor(W*H/3500);
+    for(let i=0;i<cnt;i++){
+      const size=Math.random()*2.2+0.3;
+      const isGold=Math.random()>0.35;
+      particles.push({
+        x:Math.random()*W, y:Math.random()*H,
+        r:size,
+        opacity:Math.random()*0.55+0.08,
+        vx:(Math.random()-0.5)*0.12, vy:(Math.random()-0.5)*0.08-0.04,
+        twinkleSpeed:Math.random()*0.025+0.006,
+        twinklePhase:Math.random()*Math.PI*2,
+        color:isGold
+          ? `rgba(255,${160+Math.floor(Math.random()*60)},0,`
+          : `rgba(0,${180+Math.floor(Math.random()*76)},${60+Math.floor(Math.random()*40)},`
+      });
+    }
+  }
+  build();
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    particles.forEach(p=>{
+      p.twinklePhase+=p.twinkleSpeed;
+      p.x+=p.vx; p.y+=p.vy;
+      if(p.x<0)p.x=W; if(p.x>W)p.x=0;
+      if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+      const o=p.opacity*(0.5+0.5*Math.sin(p.twinklePhase));
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=p.color+o+')';ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+const FIELDS=['f_project','f_name','f_period','f_date','sig_student','sig_date','q_01a','q_01b','q_01c','q_03b','q_04a','q_04b','q_04c','q_05b_q','q_05b_a','q_06a','q_06b'];
+
+function getAllTextData(){
+  const d={_version:BUILD_VERSION};
+  FIELDS.forEach(id=>{const el=document.getElementById(id);if(el)d[id]=el.value});
+  d['decl-check']=document.getElementById('decl-check')?.checked||false;
+  d.worklog=getWorklogData();d.status=getStatusData();d.slides=getSlidesData();
+  d._approved=approved;d._approvalTime=approvalTimestamp;
+  return d;
+}
+
+function saveProgress(){const d=getAllTextData();try{localStorage.setItem(ASSIGNMENT_ID+'-data',JSON.stringify(d));lastSaveTime=Date.now();flashSaved()}catch(e){setStatus('STORAGE FULL','warn')}}
+function saveField(id){const el=document.getElementById(id);if(!el)return;try{localStorage.setItem(ASSIGNMENT_ID+'-'+id,el.type==='checkbox'?String(el.checked):el.value)}catch(e){}}
+function setStatus(t,c){const ss=document.getElementById('save-status');ss.textContent=t;ss.className=c||''}
+
+function loadFromStorage(){
+  const raw=localStorage.getItem(ASSIGNMENT_ID+'-data');
+  if(raw){try{const d=JSON.parse(raw);if(d._version&&d._version!==BUILD_VERSION)showVersionWarning(d._version);restoreData(d)}catch(e){}}
+  else FIELDS.forEach(id=>{const v=localStorage.getItem(ASSIGNMENT_ID+'-'+id);const el=document.getElementById(id);if(v!==null&&el){el.value=v;autoResize(el);updateMirror(id)}});
+}
+
+function restoreData(d){
+  FIELDS.forEach(id=>{const el=document.getElementById(id);if(el&&d[id]!==undefined){el.value=d[id];autoResize(el);updateMirror(id)}});
+  const dc=document.getElementById('decl-check');if(dc&&d['decl-check']!==undefined)dc.checked=d['decl-check'];
+  if(d.worklog)loadWorklog(d.worklog);if(d.status)loadStatus(d.status);if(d.slides)loadSlides(d.slides);
+  if(d._approved){approved=true;approvalTimestamp=d._approvalTime;showApprovalConfirmed()}
+  [['q_01a','c_01a',2],['q_01b','c_01b',2],['q_01c','c_01c',1],['q_03b','c_03b',3],
+   ['q_04a','c_04a',2],['q_04b','c_04b',2],['q_04c','c_04c',2],
+   ['q_05b_q','c_05b_q',1],['q_05b_a','c_05b_a',2],['q_06a','c_06a',2],['q_06b','c_06b',2]
+  ].forEach(([fid,cid,min])=>{const el=document.getElementById(fid);if(el&&el.value)updateCounter(el,cid,min)});
+}
+
+function showVersionWarning(v){const b=document.getElementById('version-banner');b.textContent=`Data saved with ${v} loaded into ${BUILD_VERSION}. Some fields may not restore correctly.`;b.style.display='block'}
+function startAutoSave(){if(autoSaveInterval)clearInterval(autoSaveInterval);autoSaveInterval=setInterval(()=>{if(autoSaveEnabled)saveProgress()},30000)}
+function toggleAutoSave(){autoSaveEnabled=!autoSaveEnabled;localStorage.setItem(ASSIGNMENT_ID+'-autosave',autoSaveEnabled?'on':'off');updateAutoSaveUI();if(autoSaveEnabled)startAutoSave();else{clearInterval(autoSaveInterval);autoSaveInterval=null}}
+function updateAutoSaveUI(){const btn=document.getElementById('autosave-btn');const ss=document.getElementById('save-status');if(autoSaveEnabled){btn.textContent='AUTO-SAVE ON';btn.classList.remove('amber-btn');ss.textContent='AUTO-SAVE ON';ss.className=''}else{btn.textContent='AUTO-SAVE OFF';btn.classList.add('amber-btn');ss.textContent='AUTO-SAVE OFF';ss.className='warn'}}
+function flashSaved(){const ss=document.getElementById('save-status');ss.textContent='SAVED';ss.className='saved';setTimeout(()=>{if(autoSaveEnabled){ss.className='';updateSaveStatusElapsed()}},2000)}
+function updateSaveStatusElapsed(){if(!autoSaveEnabled||!lastSaveTime)return;const ss=document.getElementById('save-status');if(ss.textContent==='SAVED')return;const s=Math.floor((Date.now()-lastSaveTime)/1000);ss.textContent=s<60?`Saved ${s}s ago`:`Saved ${Math.floor(s/60)}m ago`;ss.className=''}
+
+function autoResize(el){el.style.height='0';el.style.height=el.scrollHeight+'px'}
+function countSentences(t){t=t.trim();if(!t)return 0;const m=t.match(/[^.!?]*[.!?]+/g);if(!m)return t.length>10?1:0;return m.filter(s=>s.trim().length>2).length}
+function updateCounter(el,cid,min){const c=document.getElementById(cid);if(!c)return;const prevOk=c.classList.contains('ok');const n=countSentences(el.value);c.textContent=`${n} / ${min} sentence${min>1?'s':''}`;c.className='sent-counter '+((!el.value.trim())?'none':(n<min)?'warn':'ok');if(!prevOk&&c.classList.contains('ok')){c.classList.add('pop');c.addEventListener('animationend',()=>c.classList.remove('pop'),{once:true})}updateMirror(el.id)}
+function updateMirror(id){const m=document.getElementById('pm_'+id);const el=document.getElementById(id);if(m&&el)m.textContent=el.type==='checkbox'?(el.checked?'Confirmed':''):el.value}
+
+function toggleModule(id){const body=document.getElementById('body-'+id);const chev=document.getElementById('chev-'+id);if(!body)return;const isCol=body.classList.contains('collapsed');body.classList.toggle('collapsed',!isCol);if(chev)chev.classList.toggle('collapsed',!isCol);localStorage.setItem(ASSIGNMENT_ID+'-collapse-'+id,isCol?'0':'1')}
+function collapseModule(id,anim=true){const body=document.getElementById('body-'+id);const chev=document.getElementById('chev-'+id);if(!body)return;if(!anim){body.style.transition='none';setTimeout(()=>body.style.transition='',50)}body.classList.add('collapsed');if(chev)chev.classList.add('collapsed')}
+function toggleRubric(e,id){e.stopPropagation();const p=document.getElementById(id);if(!p)return;const m=p.closest('.module');if(m){const ov=m.querySelector('.module-lock-overlay');if(ov&&!ov.classList.contains('unlocked'))return}p.classList.toggle('open')}
+
+function openDialog(id){document.getElementById(id).classList.add('open')}
+function closeDialog(id){document.getElementById(id).classList.remove('open')}
+
+async function confirmClear(){
+  closeDialog('clear-dialog');await dbClearImgs();localStorage.removeItem(ASSIGNMENT_ID+'-data');
+  FIELDS.forEach(id=>{localStorage.removeItem(ASSIGNMENT_ID+'-'+id);const el=document.getElementById(id);if(el){el.value='';autoResize(el);updateMirror(id)}});
+  const dc=document.getElementById('decl-check');if(dc){dc.checked=false;localStorage.removeItem(ASSIGNMENT_ID+'-decl-check');}
+  imgStore={evidence:[]};renderGallery('evidence');
+  loadWorklog([]);loadStatus([]);loadSlides([]);
+  approved=false;approvalTimestamp=null;
+  document.getElementById('approval-confirmed').classList.remove('show');
+  document.getElementById('approval-input-row').style.display='flex';
+  document.getElementById('lock-mod06').classList.remove('unlocked');
+  document.querySelectorAll('.sent-counter').forEach(c=>c.className='sent-counter none');
+  updateCompletion();
+}
+async function confirmRestore(){closeDialog('restore-dialog');await confirmClear()}
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+// WORKLOG
+function makeWorklogRow(date='',dur='',tasks=''){
+  const tr=document.createElement('tr');tr.setAttribute('data-row-id',Math.random().toString(36).substr(2,8));
+  tr.innerHTML=`<td><span class="drag-handle">&#9776;</span></td><td><input type="text" placeholder="05/21" value="${esc(date)}" oninput="saveTableData();updateCompletion()"></td><td><input type="text" placeholder="1.5 hrs" value="${esc(dur)}" oninput="saveTableData()"></td><td><textarea placeholder="Describe what was accomplished..." oninput="autoResize(this);saveTableData();updateCompletion()">${esc(tasks)}</textarea></td><td class="no-print"><div class="row-actions"><button class="row-btn" onclick="dupWorklogRow(this)">&#8645;</button><button class="row-btn del" onclick="this.closest('tr').remove();saveTableData();updateCompletion()">&#10005;</button></div></td>`;
+  addDragHandlers(tr);tr.querySelectorAll('textarea').forEach(t=>setTimeout(()=>autoResize(t),0));return tr;
+}
+function addWorklogRow(d='',u='',t=''){document.getElementById('worklog-body').appendChild(makeWorklogRow(d,u,t));updateCompletion();saveTableData()}
+function dupWorklogRow(btn){const tr=btn.closest('tr');const inp=tr.querySelectorAll('input');const ta=tr.querySelector('textarea');const nr=makeWorklogRow(inp[0]?.value||'',inp[1]?.value||'',ta?.value||'');tr.parentNode.insertBefore(nr,tr.nextSibling);saveTableData();updateCompletion()}
+function loadWorklog(rows){const tb=document.getElementById('worklog-body');tb.innerHTML='';rows.forEach(r=>tb.appendChild(makeWorklogRow(r.date||'',r.dur||'',r.tasks||'')))}
+function getWorklogData(){return Array.from(document.querySelectorAll('#worklog-body tr')).map(tr=>{const inp=tr.querySelectorAll('input');const ta=tr.querySelector('textarea');return{date:inp[0]?.value||'',dur:inp[1]?.value||'',tasks:ta?.value||''}})}
+
+// STATUS TABLE
+const STATUS_OPTS=['Complete','In Progress','Not Started','Dropped'];
+function makeStatusRow(item='',desc='',status='Not Started',notes='',rowId=null){
+  const tr=document.createElement('tr');const rid=rowId||Math.random().toString(36).substr(2,8);tr.setAttribute('data-row-id',rid);
+  const opts=STATUS_OPTS.map(o=>`<option value="${o}" ${o===status?'selected':''}>${o}</option>`).join('');
+  tr.innerHTML=`<td><span class="drag-handle">&#9776;</span></td><td><input type="text" placeholder="Component or feature" value="${esc(item)}" oninput="saveTableData();updateCompletion()"></td><td><textarea placeholder="What is this item?" oninput="autoResize(this);saveTableData()">${esc(desc)}</textarea></td><td><select onchange="colorStatusRow(this);saveTableData();updateCompletion()"><option value="">-- Status --</option>${opts}</select></td><td><textarea placeholder="Notes or issues..." oninput="autoResize(this);saveTableData()">${esc(notes)}</textarea></td><td class="no-print" style="width:56px;vertical-align:middle;"><div style="display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px;"><img class="row-thumb" data-row-thumb="${rid}" id="thumb-${rid}" src="" alt=""><button class="row-btn" onclick="document.getElementById('file-row-${rid}').click()">IMG +</button><input type="file" id="file-row-${rid}" accept="image/*" style="display:none" onchange="handleStatusRowImg('${rid}',this)"></div></td><td class="no-print"><div class="row-actions"><button class="row-btn" onclick="dupStatusRow(this)">&#8645;</button><button class="row-btn del" onclick="dbDelete('row-${rid}-img');this.closest('tr').remove();saveTableData();updateCompletion()">&#10005;</button></div></td>`;
+  addDragHandlers(tr);tr.querySelectorAll('textarea').forEach(t=>setTimeout(()=>autoResize(t),0));colorStatusRow(tr.querySelector('select'));return tr;
+}
+function colorStatusRow(sel){const tr=sel.closest('tr');tr.className='';const v=sel.value;if(v==='Complete')tr.classList.add('status-complete');else if(v==='In Progress')tr.classList.add('status-inprogress');else if(v==='Not Started')tr.classList.add('status-blocked');else if(v==='Dropped')tr.classList.add('status-dropped');tr.classList.add('status-flash-anim');tr.addEventListener('animationend',()=>tr.classList.remove('status-flash-anim'),{once:true})}
+function addStatusRow(){document.getElementById('status-body').appendChild(makeStatusRow());updateCompletion();saveTableData()}
+function dupStatusRow(btn){const tr=btn.closest('tr');const inp=tr.querySelector('input');const tas=tr.querySelectorAll('textarea');const sel=tr.querySelector('select');const nr=makeStatusRow(inp?.value||'',tas[0]?.value||'',sel?.value||'Not Started',tas[1]?.value||'');tr.parentNode.insertBefore(nr,tr.nextSibling);saveTableData();updateCompletion()}
+function loadStatus(rows){const tb=document.getElementById('status-body');tb.innerHTML='';rows.forEach(r=>{const tr=tb.appendChild(makeStatusRow(r.item||'',r.desc||'',r.status||'Not Started',r.notes||'',r.rowId||null));if(r.hasRowImg&&r.rowId&&db){const req=db.transaction('images','readonly').objectStore('images').get('row-'+r.rowId+'-img');req.onsuccess=e=>{if(e.target.result&&e.target.result.data){const src=e.target.result.data;const thumb=tr.querySelector('img[data-row-thumb]');if(thumb){thumb.src=src;thumb.classList.add('has-img');thumb.onclick=()=>openLightbox(src)}}}}})}
+function getStatusData(){return Array.from(document.querySelectorAll('#status-body tr')).map(tr=>{const inp=tr.querySelector('input[type=text]');const tas=tr.querySelectorAll('textarea');const sel=tr.querySelector('select');const rowId=tr.getAttribute('data-row-id');const thumb=rowId?tr.querySelector(`img[data-row-thumb="${rowId}"]`):null;return{item:inp?.value||'',desc:tas[0]?.value||'',status:sel?.value||'',notes:tas[1]?.value||'',rowId,hasRowImg:!!(thumb&&thumb.classList.contains('has-img'))}})}
+
+// SLIDES TABLE
+function makeSlidesRow(num='',title='',content=''){
+  const tr=document.createElement('tr');tr.setAttribute('data-row-id',Math.random().toString(36).substr(2,8));
+  tr.innerHTML=`<td><span class="drag-handle">&#9776;</span></td><td><input type="number" min="1" placeholder="#" value="${esc(num)}" style="width:60px;" oninput="saveTableData();updateCompletion()"></td><td><input type="text" placeholder="Slide title" value="${esc(title)}" oninput="saveTableData();updateCompletion()"></td><td><textarea placeholder="What this slide specifically shows or communicates..." oninput="autoResize(this);saveTableData();updateCompletion()">${esc(content)}</textarea></td><td class="no-print"><div class="row-actions"><button class="row-btn" onclick="dupSlidesRow(this)">&#8645;</button><button class="row-btn del" onclick="this.closest('tr').remove();saveTableData();updateCompletion()">&#10005;</button></div></td>`;
+  addDragHandlers(tr);tr.querySelectorAll('textarea').forEach(t=>setTimeout(()=>autoResize(t),0));return tr;
+}
+function addSlidesRow(n='',t='',c=''){document.getElementById('slides-body').appendChild(makeSlidesRow(n,t,c));updateCompletion();saveTableData()}
+function dupSlidesRow(btn){const tr=btn.closest('tr');const inp=tr.querySelectorAll('input');const ta=tr.querySelector('textarea');const nr=makeSlidesRow(inp[0]?.value||'',inp[1]?.value||'',ta?.value||'');tr.parentNode.insertBefore(nr,tr.nextSibling);saveTableData();updateCompletion()}
+function loadSlides(rows){const tb=document.getElementById('slides-body');tb.innerHTML='';rows.forEach(r=>tb.appendChild(makeSlidesRow(r.num||'',r.title||'',r.content||'')))}
+function getSlidesData(){return Array.from(document.querySelectorAll('#slides-body tr')).map(tr=>{const inp=tr.querySelectorAll('input');const ta=tr.querySelector('textarea');return{num:inp[0]?.value||'',title:inp[1]?.value||'',content:ta?.value||''}})}
+function saveTableData(){const d=getAllTextData();try{localStorage.setItem(ASSIGNMENT_ID+'-data',JSON.stringify(d));lastSaveTime=Date.now()}catch(e){}}
+
+function addDragHandlers(tr){
+  const h=tr.querySelector('.drag-handle');if(!h)return;
+  h.addEventListener('mousedown',()=>tr.setAttribute('draggable','true'));
+  h.addEventListener('mouseup',()=>tr.setAttribute('draggable','false'));
+  tr.addEventListener('dragstart',e=>{dragSrc=tr;document.body.classList.add('dragging');e.dataTransfer.effectAllowed='move'});
+  tr.addEventListener('dragend',()=>{document.body.classList.remove('dragging');document.querySelectorAll('tr.drag-over').forEach(r=>r.classList.remove('drag-over'))});
+  tr.addEventListener('dragover',e=>{e.preventDefault();tr.classList.add('drag-over')});
+  tr.addEventListener('dragleave',()=>tr.classList.remove('drag-over'));
+  tr.addEventListener('drop',e=>{e.preventDefault();tr.classList.remove('drag-over');if(dragSrc&&dragSrc!==tr){const tb=tr.parentNode;const rows=Array.from(tb.children);const si=rows.indexOf(dragSrc);const ti=rows.indexOf(tr);if(si<ti)tb.insertBefore(dragSrc,tr.nextSibling);else tb.insertBefore(dragSrc,tr);saveTableData()}});
+}
+
+function zoneClick(zoneId){const z=document.getElementById(zoneId);const inp=z?.querySelector('input[type=file]');if(inp)inp.click()}
+function setActivePasteZone(zoneId){if(activePasteZone)document.getElementById(activePasteZone)?.classList.remove('paste-active');activePasteZone=zoneId;document.getElementById(zoneId)?.classList.add('paste-active')}
+function handlePaste(e){if(!activePasteZone)return;const items=e.clipboardData?.items;if(!items)return;for(const item of items)if(item.type.startsWith('image/')){const f=item.getAsFile();if(f)readImageFile(f,activePasteZone)}}
+function handleFileInput(input,zoneId){Array.from(input.files).forEach(f=>readImageFile(f,zoneId));input.value=''}
+function readImageFile(file,zoneId){const r=new FileReader();r.onload=e=>{const k=zoneId.replace('zone-','');if(!imgStore[k])imgStore[k]=[];imgStore[k].push({src:e.target.result,caption:''});renderGallery(k);dbSave('zone-'+k,imgStore[k]);updateCompletion()};r.readAsDataURL(file)}
+function renderGallery(zoneId){
+  const gal=document.getElementById('gallery-'+zoneId);const cnt=document.getElementById('count-'+zoneId);const zone=document.getElementById('zone-'+zoneId);if(!gal)return;
+  const imgs=imgStore[zoneId]||[];gal.innerHTML='';
+  imgs.forEach((img,i)=>{const div=document.createElement('div');div.className='img-item';div.innerHTML=`<img src="${img.src}" alt="Evidence ${i+1}" onclick="openLightbox('${img.src}')"><input class="img-caption" type="text" placeholder="Caption..." value="${esc(img.caption||'')}" oninput="imgStore['${zoneId}'][${i}].caption=this.value;dbSave('zone-${zoneId}',imgStore['${zoneId}']);saveTableData()"><button class="img-remove no-print" onclick="removeImg('${zoneId}',${i})">&#10005;</button>`;gal.appendChild(div)});
+  const min=parseInt(zone?.getAttribute('data-min-images')||0);const n=imgs.length;
+  if(cnt){cnt.textContent=`${n} / ${min} minimum`;cnt.className='img-count '+(!n?'none':n<min?'warn':'ok')}
+  if(zone)zone.classList.toggle('has-image',n>0);
+}
+function removeImg(zoneId,idx){imgStore[zoneId].splice(idx,1);renderGallery(zoneId);dbSave('zone-'+zoneId,imgStore[zoneId]);updateCompletion()}
+function openLightbox(src){document.getElementById('lightbox-img').src=src;document.getElementById('lightbox').classList.add('open')}
+function closeLightbox(){document.getElementById('lightbox').classList.remove('open')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeLightbox();closeDialog('preflight-dialog');closeTableOverlay()}});
+
+async function submitApproval(){
+  const input=document.getElementById('approval-code').value;
+  const hash=await sha256(input);
+  const correctHash=await APPROVAL_HASH;
+  if(hash===correctHash){
+    approved=true;approvalTimestamp=new Date().toLocaleString();
+    document.getElementById('approval-error').classList.remove('show');
+    document.getElementById('approval-input-row').style.display='none';
+    runApprovalAnimation();saveProgress();
+  }else document.getElementById('approval-error').classList.add('show');
+}
+function runApprovalAnimation(){
+  const flash=document.createElement('div');
+  flash.style.cssText='position:fixed;inset:0;background:rgba(0,204,85,0.12);z-index:9000;pointer-events:none;animation:flashPage 0.5s ease forwards;';
+  document.body.appendChild(flash);
+  flash.addEventListener('animationend',()=>flash.remove());
+  const scanLine=document.getElementById('approval-scan-line');
+  const anim=document.getElementById('approval-anim');
+  anim.classList.add('running');
+  scanLine.style.display='block';
+  scanLine.style.animation='scanLine 0.7s linear forwards';
+  scanLine.addEventListener('animationend',()=>{scanLine.style.display='none'},{once:true});
+  const hexBlock=document.getElementById('approval-hex-block');
+  hexBlock.style.display='block';
+  const chars='0123456789ABCDEF';
+  const targetLines=['IDENTITY_VERIFIED','ACCESS_GRANTED'];
+  let frame=0;const totalFrames=28;
+  const hexInterval=setInterval(()=>{
+    frame++;
+    if(frame<totalFrames){
+      hexBlock.innerHTML=Array.from({length:2},()=>Array.from({length:16},()=>chars[Math.floor(Math.random()*chars.length)]).join('')).join('<br>');
+    }else{
+      clearInterval(hexInterval);
+      hexBlock.innerHTML=targetLines.map(line=>line.split('').map((ch,i)=>`<span style="display:inline-block;animation:flashPage 0.15s ${i*30}ms ease both;opacity:0;animation-fill-mode:forwards">${ch}</span>`).join('')).join('<br>');
+      setTimeout(()=>{
+        document.getElementById('approval-badge').style.display='block';
+        setTimeout(()=>{
+          spawnApprovalParticles();
+          setTimeout(()=>{
+            anim.classList.remove('running');
+            hexBlock.style.display='none';
+            document.getElementById('approval-badge').style.display='none';
+            showApprovalConfirmed();
+            document.getElementById('lock-mod06').classList.add('unlocked');
+          },900);
+        },1200);
+      },600);
+    }
+  },30);
+}
+function spawnApprovalParticles(){
+  const gate=document.getElementById('approval-gate');
+  const rect=gate.getBoundingClientRect();
+  const cx=rect.width/2;const cy=rect.height/2;
+  for(let i=0;i<22;i++){
+    const p=document.createElement('div');
+    p.className='anim-particle';
+    const angle=(i/22)*Math.PI*2;
+    const dist=60+Math.random()*80;
+    const tx=Math.cos(angle)*dist;const ty=Math.sin(angle)*dist;
+    const isGold=Math.random()>0.5;
+    p.style.cssText=`left:${cx}px;top:${cy}px;background:${isGold?'var(--gold)':'var(--green)'};--tx:${tx}px;--ty:${ty}px;animation-delay:${Math.random()*200}ms;`;
+    gate.appendChild(p);
+    p.addEventListener('animationend',()=>p.remove());
+  }
+}
+function showApprovalConfirmed(){document.getElementById('approval-confirmed').classList.add('show');document.getElementById('approval-input-row').style.display='none';if(approvalTimestamp)document.getElementById('approval-time').textContent='Approved: '+approvalTimestamp;document.getElementById('lock-mod06').classList.add('unlocked')}
+
+function updateCompletion(){
+  const wlCount=document.querySelectorAll('#worklog-body tr').length;
+  const stCount=document.querySelectorAll('#status-body tr').length;
+  const slCount=document.querySelectorAll('#slides-body tr').length;
+  const checks=[
+    !!document.getElementById('f_name')?.value?.trim(),
+    countSentences(document.getElementById('q_01a')?.value||'')>=2,
+    countSentences(document.getElementById('q_01b')?.value||'')>=2,
+    countSentences(document.getElementById('q_01c')?.value||'')>=1,
+    wlCount>=5,(imgStore.evidence||[]).length>=2,
+    stCount>=3,countSentences(document.getElementById('q_03b')?.value||'')>=3,
+    countSentences(document.getElementById('q_04a')?.value||'')>=2,
+    countSentences(document.getElementById('q_04b')?.value||'')>=2,
+    countSentences(document.getElementById('q_04c')?.value||'')>=2,
+    slCount>=4,countSentences(document.getElementById('q_05b_q')?.value||'')>=1,
+    countSentences(document.getElementById('q_05b_a')?.value||'')>=2,
+    countSentences(document.getElementById('q_06a')?.value||'')>=2,
+    countSentences(document.getElementById('q_06b')?.value||'')>=2,
+    !!document.getElementById('decl-check')?.checked,
+    !!document.getElementById('sig_student')?.value?.trim(),
+    approved
+  ];
+  const done=checks.filter(Boolean).length;const total=checks.length;
+  document.getElementById('progress-fill').style.width=Math.round(done/total*100)+'%';
+  document.getElementById('progress-label').textContent=`${done} of ${total} complete`;
+  const m1=[!!document.getElementById('f_name')?.value?.trim(),countSentences(document.getElementById('q_01a')?.value||'')>=2,countSentences(document.getElementById('q_01b')?.value||'')>=2,countSentences(document.getElementById('q_01c')?.value||'')>=1].filter(Boolean).length;
+  const m2=[wlCount>=5,(imgStore.evidence||[]).length>=2].filter(Boolean).length;
+  const m3=[stCount>=3,countSentences(document.getElementById('q_03b')?.value||'')>=3].filter(Boolean).length;
+  const m4=[countSentences(document.getElementById('q_04a')?.value||'')>=2,countSentences(document.getElementById('q_04b')?.value||'')>=2,countSentences(document.getElementById('q_04c')?.value||'')>=2].filter(Boolean).length;
+  const m5=[slCount>=4,countSentences(document.getElementById('q_05b_q')?.value||'')>=1,countSentences(document.getElementById('q_05b_a')?.value||'')>=2].filter(Boolean).length;
+  const pts=Math.round((m1/4)*10+(m2/2)*20+(m3/2)*20+(m4/3)*10+(m5/3)*10);
+  const sd=document.getElementById('score-display');const prev=parseInt(sd.textContent)||0;if(prev!==pts){let st=null;requestAnimationFrame(function tick(t){if(!st)st=t;const pr=Math.min((t-st)/500,1);sd.textContent=`${Math.round(prev+(pts-prev)*pr)} / 70 pts`;if(pr<1)requestAnimationFrame(tick)})}else{sd.textContent=`${pts} / 70 pts`}
+  updateDot('mod01',m1===4,m1>0);updateDot('mod02',m2===2,m2>0);updateDot('mod03',m3===2,m3>0);updateDot('mod04',m4===3,m4>0);updateDot('mod05',m5===3,m5>0);
+  updateDot('mod06',countSentences(document.getElementById('q_06a')?.value||'')>=2&&countSentences(document.getElementById('q_06b')?.value||'')>=2,false);
+}
+function updateDot(id,complete,partial){const dot=document.getElementById('dot-'+id);if(!dot)return;const wasComplete=dot.classList.contains('complete');dot.className='completion-dot'+(complete?' complete':partial?' partial':'');if(complete&&!wasComplete){dot.classList.add('pop');dot.addEventListener('animationend',()=>dot.classList.remove('pop'),{once:true})}}
+
+function runPreflight(action){
+  const issues=[];
+  if(!document.getElementById('f_name')?.value?.trim())issues.push('Student name is empty');
+  [['q_01a','01-A Project description',2],['q_01b','01-B Project purpose',2],['q_01c','01-C Development stage',1],
+   ['q_03b','03-B Completion summary',3],['q_04a','04-A What worked',2],['q_04b','04-B What to change',2],['q_04c','04-C Skill carried forward',2],
+   ['q_05b_q','05-B Anticipated question',1],['q_05b_a','05-B Prepared answer',2],['q_06a','06-A Peer question',2],['q_06b','06-B Their answer',2]
+  ].forEach(([id,label,min])=>{const el=document.getElementById(id);if(!el||countSentences(el.value)<min)issues.push(`${label}: needs ${min} sentence${min>1?'s':''}`)});
+  if(document.querySelectorAll('#worklog-body tr').length<5)issues.push('Work log: needs at least 5 sessions');
+  if(document.querySelectorAll('#status-body tr').length<3)issues.push('Final state table: needs at least 3 items');
+  if(document.querySelectorAll('#slides-body tr').length<4)issues.push('Slide outline: needs at least 4 slides');
+  if((imgStore.evidence||[]).length<2)issues.push('Evidence images: needs at least 2 images with captions');
+  if(!document.getElementById('decl-check')?.checked)issues.push('Academic integrity declaration not checked');
+  if(!document.getElementById('sig_student')?.value?.trim())issues.push('Signature (typed name) is empty');
+  if(!approved)issues.push('Instructor approval code not entered');
+  if(issues.length===0){if(action==='export')doExport();else window.print();return}
+  const list=document.getElementById('pf-list');list.innerHTML='';issues.forEach(i=>{const li=document.createElement('li');li.textContent=i;list.appendChild(li)});
+  document.getElementById('pf-proceed-btn').onclick=()=>{closeDialog('preflight-dialog');if(action==='export')doExport();else window.print()};
+  openDialog('preflight-dialog');
+}
+
+async function doExport(){
+  const clone=document.documentElement.cloneNode(true);
+  const old=clone.querySelector('#__'+ASSIGNMENT_ID+'_data__');if(old)old.remove();
+  const d=getAllTextData();d._imgs={};
+  for(const[k,v]of Object.entries(imgStore))d._imgs[k]=v;
+  const sc=document.createElement('script');sc.type='application/json';sc.id='__'+ASSIGNMENT_ID+'_data__';sc.textContent=JSON.stringify(d);clone.querySelector('body').appendChild(sc);
+  clone.querySelectorAll('.dialog-overlay.open').forEach(el=>el.classList.remove('open'));
+  const html='<!DOCTYPE html>\n'+clone.outerHTML;
+  const blob=new Blob([html],{type:'text/html'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  const name=(document.getElementById('f_name')?.value||'student').replace(/[^a-zA-Z0-9]/g,'_');
+  a.download=`idea403-senior-final_${name}.html`;a.click();URL.revokeObjectURL(a.href);
+}
+
+function showTooltip(e){const tip=e.currentTarget.getAttribute('data-tip');if(!tip)return;const parts=tip.split(' -- ');document.getElementById('tip-title').textContent=parts[0]||'';document.getElementById('tip-body').textContent=parts[1]||'';const t=document.getElementById('tooltip');t.style.display='block';moveTooltip(e)}
+function moveTooltip(e){const t=document.getElementById('tooltip');t.style.left=(e.clientX+14)+'px';t.style.top=(e.clientY+14)+'px'}
+function hideTooltip(){document.getElementById('tooltip').style.display='none'}
+
+function dbDelete(id){if(!db)return;db.transaction('images','readwrite').objectStore('images').delete(id)}
+
+function handleStatusRowImg(rowId,input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const src=e.target.result;
+    const thumb=document.querySelector(`img[data-row-thumb="${rowId}"]`);
+    if(thumb){thumb.src=src;thumb.classList.add('has-img');thumb.onclick=()=>openLightbox(src)}
+    dbSave('row-'+rowId+'-img',src);
+    saveTableData();
+  };
+  reader.readAsDataURL(file);
+}
+
+let _overlayOrigin=null;
+function openTableOverlay(tableId){
+  const wrap=document.getElementById(tableId).closest('.table-wrap');
+  _overlayOrigin=wrap;
+  const clone=wrap.cloneNode(true);
+  clone.style.maxWidth='100%';
+  const inner=document.getElementById('table-overlay-inner');
+  inner.innerHTML='';
+  inner.appendChild(clone);
+  document.getElementById('table-overlay').classList.add('open');
+}
+function closeTableOverlay(){
+  document.getElementById('table-overlay').classList.remove('open');
+  document.getElementById('table-overlay-inner').innerHTML='';
+  _overlayOrigin=null;
+}
+
+document.addEventListener('DOMContentLoaded',init);
+</script>
+</body>
+</html>

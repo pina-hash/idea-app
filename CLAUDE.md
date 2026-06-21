@@ -79,7 +79,8 @@ folder copied to `static/vanguard/` is playable at `/vanguard/index.html`.
 Legacy assets that use relative paths (VANGUARD loads `audio/...`) resolve
 correctly under that folder. Link to it from a public page.
 
-- Proven by: `static/vanguard/` served at `/vanguard/index.html`, linked
+- Proven by: `static/vanguard/` served at `/vanguard/index.html` and
+  `static/coins/` (the coin leaderboard) at `/coins/index.html`, both linked
   from `/`.
 - Link to the explicit `index.html`: the Vite dev server does not resolve a
   bare directory (`/vanguard/`) to its `index.html` (404 in dev), though Vercel
@@ -97,14 +98,44 @@ A `+server` endpoint is the only way to reach it. It checks the server session
 via `locals.claims`: if not signed in it redirects to `/`; if signed in it
 returns the original HTML, unchanged, with `content-type: text/html`.
 
-- Registry: `src/lib/legacy/index.ts` (`assignmentSlugs`, `loadAssignmentHtml`).
+- Registry: `src/lib/legacy/index.ts` (`assignmentSlugs`, `loadAssignmentHtml`,
+  `courses`, `rewriteLegacyLinks`).
 - Endpoint: `src/routes/assignments/[slug]/+server.ts`, served at
-  `/assignments/<slug>`.
-- Proven by: `idea113-blade-01` listed on `/dashboard`, served only when
-  signed in; hitting the URL while signed out redirects to `/`.
-- Note: legacy HTML is served verbatim, so any absolute asset paths it contains
-  (for example `/IDEA/...` from GitHub Pages) are not rewritten. Handle asset
-  resolution in a later slice if needed; do not edit legacy internals here.
+  `/assignments/<slug>`. Slugs are the exact filename without `.html`, case
+  preserved, so legacy cross-links map cleanly.
+- Index: the `/dashboard` Assignments list is grouped by course (`courses` in
+  the registry), mirroring how the legacy `index.html` grouped them. The legacy
+  `index.html` itself is not carried over; this replaces it.
+
+### Asset-path strategy for carried-over HTML
+
+Legacy files are served verbatim, but they assume the old GitHub Pages base
+path `/IDEA/`. Two mechanisms make those references resolve without editing any
+legacy file on disk:
+
+1. **`static/IDEA/` mirror.** The shared root icons (`android-chrome-512x512`,
+   `favicon-32x32`, and the `ib-`/`md-`/`md2-`/`sp-` PNGs) are copied into
+   `static/IDEA/`, so any absolute `/IDEA/<asset>` reference resolves in
+   production. These references are left as-is.
+2. **Serve-time `.html` link rewrite.** `rewriteLegacyLinks()` maps inter-page
+   links `/IDEA/<name>.html` -> `/assignments/<name>` on the served HTML string
+   only (never the source files). It touches `.html` path links only; `/IDEA/`
+   icon PNGs and external links (https://, Google Classroom) are untouched.
+
+When adding more legacy HTML, check its references against this: icons under
+`static/IDEA/` resolve, `.html` cross-links get rewritten, anything else (for
+example a relative favicon, or per-page assets) does not and should be flagged.
+
+### Role-gated endpoint pattern (specific role required)
+
+A variant of the gated pattern that also checks the user's role. The role lives
+in `profiles`, not the JWT, so the endpoint looks it up via `locals.supabase`.
+
+- Example: `src/routes/coin-entry/+server.ts` serves the legacy coin entry tool
+  (`src/lib/legacy/coin-entry.html`) to teachers only. Signed out -> `/`;
+  signed in non-teacher -> `/dashboard`; teacher -> the HTML.
+- The dashboard link to it renders only when `isTeacher` is true, but the
+  endpoint is the real guard (UI gating is convenience, not security).
 
 ## Working conventions
 
@@ -121,7 +152,9 @@ Phase 1 (done) was the **foundation**: Google login, profiles/roles backend,
 and the public-vs-protected route split.
 
 Phase 2 is **carrying over legacy content** without rebuilding it. Slice 1
-(done) established and proved the two serving patterns above on VANGUARD
-(public) and one assignment (gated). Later slices fan the remaining inventory
-(all assignments, coin pages, shared assets) through these same patterns. No
-coin economy logic yet. Do not modify legacy HTML internals.
+(done) established the two serving patterns above. Slice 2 (done) fanned them
+across all remaining content: every assignment and reference HTML is gated, the
+VANGUARD game and coin leaderboard are public, the coin entry tool is gated to
+teachers, and the `/IDEA/` asset paths are handled by the `static/IDEA/` mirror
+plus the serve-time `.html` link rewrite. No coin economy logic yet. Do not
+modify legacy HTML internals.
