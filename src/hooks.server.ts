@@ -5,6 +5,25 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 
 /**
+ * Redirects old GitHub Pages base-path links to their new homes. Scoped to the
+ * exact directory paths only, so the mirrored `static/IDEA/<icon>.png` files
+ * (which are served directly and never reach this hook) are not shadowed.
+ */
+const legacyPaths: Record<string, string> = {
+	'/IDEA/': '/',
+	'/IDEA/coins/': '/coins/',
+	'/IDEA/entry/': '/coin-entry'
+};
+
+const legacyRedirects: Handle = async ({ event, resolve }) => {
+	const target = legacyPaths[event.url.pathname];
+	if (target) {
+		redirect(308, target);
+	}
+	return resolve(event);
+};
+
+/**
  * Creates a request-specific Supabase client that reads the Auth token from
  * the request cookies and writes refreshed cookies back on the response.
  */
@@ -56,4 +75,4 @@ const authGuard: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle: Handle = sequence(supabase, authGuard);
+export const handle: Handle = sequence(legacyRedirects, supabase, authGuard);

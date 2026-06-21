@@ -110,21 +110,32 @@ returns the original HTML, unchanged, with `content-type: text/html`.
 ### Asset-path strategy for carried-over HTML
 
 Legacy files are served verbatim, but they assume the old GitHub Pages base
-path `/IDEA/`. Two mechanisms make those references resolve without editing any
-legacy file on disk:
+path `/IDEA/`. Without editing any legacy file on disk, these mechanisms make
+the references resolve:
 
-1. **`static/IDEA/` mirror.** The shared root icons (`android-chrome-512x512`,
-   `favicon-32x32`, and the `ib-`/`md-`/`md2-`/`sp-` PNGs) are copied into
-   `static/IDEA/`, so any absolute `/IDEA/<asset>` reference resolves in
-   production. These references are left as-is.
-2. **Serve-time `.html` link rewrite.** `rewriteLegacyLinks()` maps inter-page
-   links `/IDEA/<name>.html` -> `/assignments/<name>` on the served HTML string
-   only (never the source files). It touches `.html` path links only; `/IDEA/`
-   icon PNGs and external links (https://, Google Classroom) are untouched.
+1. **`static/IDEA/` mirror.** The shared root icons (`MIRRORED_ICONS` in
+   `src/lib/legacy/index.ts`: `android-chrome-512x512`, `favicon-32x32`, and
+   the `ib-`/`md-`/`md2-`/`sp-` PNGs) are copied into `static/IDEA/`, so any
+   absolute `/IDEA/<icon>` reference resolves in production. Left as-is.
+2. **Serve-time rewrite (`rewriteLegacyLinks()`).** Applied to the served HTML
+   string only, never the source files:
+   - Inter-page links `/IDEA/<name>.html` -> `/assignments/<name>`.
+   - Bare-filename references to a mirrored icon (for example a relative
+     `<link rel="icon" href="sp-android-chrome-512x512.png">`) ->
+     `/IDEA/<icon>`. Only an `href`/`src` value that is exactly a mirrored
+     filename matches, so an already-absolute `/IDEA/...png` is not doubled.
+   - External links (https://, Google Classroom) and other `/IDEA/...` refs are
+     untouched.
+3. **Exact-path legacy redirects (`hooks.server.ts`).** Old base-path
+   directory links that have no home here are redirected (308), scoped to the
+   exact path so they never shadow the mirrored icon files (which are served
+   directly and never reach the hook): `/IDEA/` -> `/`, `/IDEA/coins/` ->
+   `/coins/`, `/IDEA/entry/` -> `/coin-entry`.
 
-When adding more legacy HTML, check its references against this: icons under
-`static/IDEA/` resolve, `.html` cross-links get rewritten, anything else (for
-example a relative favicon, or per-page assets) does not and should be flagged.
+When adding more legacy HTML, check its references against this: mirrored icons
+(absolute or bare) resolve, `.html` cross-links get rewritten, the three base
+paths redirect; anything else (per-page assets, the deferred coin-entry PWA
+manifest) does not and should be flagged.
 
 ### Role-gated endpoint pattern (specific role required)
 

@@ -38,19 +38,44 @@ export async function loadAssignmentHtml(slug: string): Promise<string | null> {
 /** Raw HTML of the teacher-only coin entry tool (legacy `entry/index.html`). */
 export const coinEntryHtml: string = coinEntryHtmlRaw;
 
+/** Shared root icons mirrored into `static/IDEA/`. */
+export const MIRRORED_ICONS = [
+	'android-chrome-512x512.png',
+	'favicon-32x32.png',
+	'ib-android-chrome-512x512.png',
+	'md-android-chrome-512x512.png',
+	'md2-android-chrome-512x512.png',
+	'sp-android-chrome-512x512.png'
+];
+
+// Matches `href`/`src` attribute values that are a BARE mirrored icon filename
+// (quote immediately followed by the filename and the matching quote), e.g.
+// `href="sp-android-chrome-512x512.png"`. A value with any leading path (such
+// as the already-correct `/IDEA/sp-...png`) does not match, so it is not
+// touched twice.
+const BARE_ICON_RE = new RegExp(
+	`((?:href|src)=)("|')(${MIRRORED_ICONS.map((i) => i.replace(/\./g, '\\.')).join('|')})\\2`,
+	'gi'
+);
+
 /**
- * Serve-time asset-path fix.
+ * Serve-time asset-path fix. Applied only to the served HTML string, never to
+ * the source files on disk.
  *
- * Maps inter-page links of the form `/IDEA/<name>.html` to the gated route
- * `/assignments/<name>`. Applied only to the served HTML string, never to the
- * source files on disk.
+ * 1. Maps inter-page links `/IDEA/<name>.html` to the gated route
+ *    `/assignments/<name>`.
+ * 2. Rewrites bare-filename references to a mirrored icon (for example a
+ *    relative `<link rel="icon" href="sp-android-chrome-512x512.png">`) to its
+ *    `/IDEA/<icon>` path so it resolves against the `static/IDEA/` mirror.
  *
- * Other `/IDEA/...` references (icon PNGs) are left untouched: they resolve
- * against the `static/IDEA/` mirror. External links (https://, Google
- * Classroom) contain no leading `/IDEA/` path and are likewise untouched.
+ * Absolute `/IDEA/...` icon references already resolve against the mirror and
+ * are left untouched. External links (https://, Google Classroom) contain no
+ * matching path and are likewise untouched.
  */
 export function rewriteLegacyLinks(html: string): string {
-	return html.replace(/\/IDEA\/([A-Za-z0-9._-]+)\.html/g, '/assignments/$1');
+	return html
+		.replace(/\/IDEA\/([A-Za-z0-9._-]+)\.html/g, '/assignments/$1')
+		.replace(BARE_ICON_RE, '$1$2/IDEA/$3$2');
 }
 
 /** A single gated assignment link. */
