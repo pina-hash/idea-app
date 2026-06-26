@@ -155,12 +155,16 @@ The VANGUARD game is served at `/vanguard/` by
 original); its assets (`audio/`, `dev/`) stay in `static/vanguard/` and resolve
 via the endpoint's `trailingSlash = 'always'`.
 
-- Signed out: the game is served verbatim (saves stay in browser localStorage).
+- Signed out: a minimal "sign in to sync" pill is injected; saves stay in
+  browser localStorage (the game logic is untouched).
 - Signed in: a small bootstrap is injected into `<head>` (the serve-time
   injection convention, like `rewriteLegacyLinks`) that seeds the user's cloud
-  save into the `vanguard_*` localStorage keys before the game reads them, and
+  save into the `vanguard_*` localStorage keys before the game reads them,
   wraps `localStorage.setItem` to push `vanguard_*` changes to
-  `/api/vanguard-save` (debounced + a `sendBeacon` flush on page hide).
+  `/api/vanguard-save` (debounced + a `sendBeacon` flush on page hide), and
+  renders a floating cloud-save widget (status pill + manual Back up / Restore).
+  Back up forces an immediate push; Restore pulls the cloud snapshot over the
+  local `vanguard_*` keys and reloads.
 - Backend: `src/routes/api/vanguard-save/+server.ts` (GET/POST, cookie-auth via
   `locals.supabase`) and the `vanguard_saves` table
   (`supabase/migrations/0002_vanguard_saves.sql`, own-row RLS keyed on
