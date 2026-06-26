@@ -10,6 +10,7 @@
  * demand by the gated endpoint.
  */
 import coinEntryHtmlRaw from './coin-entry.html?raw';
+import vanguardHtmlRaw from './vanguard/index.html?raw';
 
 const modules = import.meta.glob('./assignments/*.html', {
 	query: '?raw',
@@ -37,6 +38,14 @@ export async function loadAssignmentHtml(slug: string): Promise<string | null> {
 
 /** Raw HTML of the teacher-only coin entry tool (legacy `entry/index.html`). */
 export const coinEntryHtml: string = coinEntryHtmlRaw;
+
+/**
+ * Raw HTML of the VANGUARD game. Served verbatim (no `rewriteLegacyLinks`) by
+ * the public `/vanguard/` endpoint, which optionally injects a cloud-save
+ * bootstrap for signed-in users. Its assets (`audio/`, `dev/`) stay in
+ * `static/vanguard/` and resolve via the endpoint's trailing slash.
+ */
+export const vanguardHtml: string = vanguardHtmlRaw;
 
 /** Shared root icons mirrored into `static/IDEA/`. */
 export const MIRRORED_ICONS = [

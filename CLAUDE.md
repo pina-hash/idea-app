@@ -16,11 +16,21 @@ the coming phases. This repo is the new home; the old static repo is separate.
 
 ## Access model
 
-- **Public tier (no login):** open pages anyone can see. Today this is the
-  landing page at `/`. Future public pages slot into this tier.
-- **Gated tier (login required):** identity and any save features. Today this
-  is `/dashboard`. Unauthenticated users hitting a gated route are redirected
-  to `/`.
+The site is **public-first**: signing in is optional and only unlocks extra
+ability, it is not required to browse the portal.
+
+- **Public tier (no login):** almost everything. The landing page at `/` (the
+  restored original IDEA index), every assignment and reference doc
+  (`/assignments/<slug>`), the VANGUARD game (`/vanguard/`), and the coin
+  leaderboard (`/coins/`). Future public pages slot into this tier.
+- **Gated tier (login required):** only the personal account area `/dashboard`
+  and the teacher-only coin entry tool (`/coin-entry`). Unauthenticated users
+  hitting a gated route are redirected to `/`.
+- **Optional sign-in:** the landing page header has a Google sign-in control.
+  Signing in is additive: it unlocks signed-in features (today, VANGUARD cloud
+  saves) and the `/dashboard` account area. After sign-in from `/` the user
+  returns to `/` (`/auth/callback` honors a `next` query param; default
+  `/dashboard`).
 - **Roles:** `student`, `teacher`, `visitor`, derived from the sign-in email
   domain:
   - `@boscotech.edu` -> `teacher`
@@ -68,44 +78,65 @@ See `.env.example`. **Never hardcode keys.** Never commit `.env`.
 ## Carrying over legacy content
 
 Legacy content from the old static IDEA site is brought over without rebuilding
-or modifying its HTML internals. There are two serving patterns. All later
+or modifying its HTML internals. There are a few serving patterns. All later
 content must follow one of them.
 
 ### Public static pattern (no login)
 
-For content anyone may see (for example the VANGUARD game). Copy the files,
-unchanged, into `static/`. SvelteKit serves `static/` at the site root, so a
-folder copied to `static/vanguard/` is playable at `/vanguard/index.html`.
-Legacy assets that use relative paths (VANGUARD loads `audio/...`) resolve
-correctly under that folder. Link to it from a public page.
+For static content anyone may see with no per-request logic (for example the
+coin leaderboard). Copy the files, unchanged, into `static/`. SvelteKit serves
+`static/` at the site root, so `static/coins/` is viewable at
+`/coins/index.html`. Legacy assets that use relative paths resolve correctly
+under that folder.
 
-- Proven by: `static/vanguard/` served at `/vanguard/index.html` and
-  `static/coins/` (the coin leaderboard) at `/coins/index.html`, both linked
-  from `/`.
+- Proven by: `static/coins/` served at `/coins/index.html`, linked from `/`.
 - Link to the explicit `index.html`: the Vite dev server does not resolve a
-  bare directory (`/vanguard/`) to its `index.html` (404 in dev), though Vercel
-  does in production. Linking to `/vanguard/index.html` works in both.
+  bare directory to its `index.html` in dev (404), though Vercel does in
+  production. Linking to `/coins/index.html` works in both.
 
-### Gated raw-import endpoint pattern (login required)
+### Public raw-import endpoint pattern (no login)
 
-For content only signed-in users may see (for example assignments). The HTML
-must live OUTSIDE `static/` so it is never served publicly. It lives in
-`src/lib/legacy/assignments/` and is pulled in at build time via Vite raw
+For content anyone may see that is served through an endpoint (so it can be
+rewritten per request). Assignments use this. The HTML lives OUTSIDE `static/`
+in `src/lib/legacy/assignments/` and is pulled in at build time via Vite raw
 imports (`import.meta.glob(..., { query: '?raw' })`), never runtime `fs` reads,
 so it works on Vercel serverless.
 
-A `+server` endpoint is the only way to reach it. It checks the server session
-via `locals.claims`: if not signed in it redirects to `/`; if signed in it
-returns the original HTML, unchanged, with `content-type: text/html`.
+A `+server` endpoint is the only way to reach it. It returns the original HTML
+(after `rewriteLegacyLinks`), with `content-type: text/html`. No auth check:
+assignments are public.
 
 - Registry: `src/lib/legacy/index.ts` (`assignmentSlugs`, `loadAssignmentHtml`,
   `courses`, `rewriteLegacyLinks`).
 - Endpoint: `src/routes/assignments/[slug]/+server.ts`, served at
   `/assignments/<slug>`. Slugs are the exact filename without `.html`, case
   preserved, so legacy cross-links map cleanly.
-- Index: the `/dashboard` Assignments list is grouped by course (`courses` in
-  the registry), mirroring how the legacy `index.html` grouped them. The legacy
-  `index.html` itself is not carried over; this replaces it.
+- Index: the landing page `/` lists every assignment by course (the restored
+  original IDEA index). The `/dashboard` also groups them via `courses` in the
+  registry. The legacy `index.html` is not carried over verbatim; `/` replaces
+  it.
+
+### VANGUARD endpoint (public, with optional cloud-save injection)
+
+The VANGUARD game is served at `/vanguard/` by
+`src/routes/vanguard/+server.ts`. The game HTML lives in
+`src/lib/legacy/vanguard/index.html` (raw import, byte-identical to the
+original); its assets (`audio/`, `dev/`) stay in `static/vanguard/` and resolve
+via the endpoint's `trailingSlash = 'always'`.
+
+- Signed out: the game is served verbatim (saves stay in browser localStorage).
+- Signed in: a small bootstrap is injected into `<head>` (the serve-time
+  injection convention, like `rewriteLegacyLinks`) that seeds the user's cloud
+  save into the `vanguard_*` localStorage keys before the game reads them, and
+  wraps `localStorage.setItem` to push `vanguard_*` changes to
+  `/api/vanguard-save` (debounced + a `sendBeacon` flush on page hide).
+- Backend: `src/routes/api/vanguard-save/+server.ts` (GET/POST, cookie-auth via
+  `locals.supabase`) and the `vanguard_saves` table
+  (`supabase/migrations/0002_vanguard_saves.sql`, own-row RLS keyed on
+  `auth.uid()`, mirroring `profiles`). The game file itself is never modified.
+- Conflict policy (MVP): on load the cloud snapshot seeds localStorage (cloud
+  wins for the user's own data); on change local pushes to cloud
+  (last-write-wins). Cross-device score-array merging is not done yet.
 
 ### Asset-path strategy for carried-over HTML
 
@@ -163,7 +194,10 @@ stack are the source of truth; do not invent colors or swap fonts.
 - **Fonts:** `Rajdhani` (display headings, body, input values) and
   `Share Tech Mono` (metadata, button/nav labels, mono chrome), loaded via
   `@fontsource` imports in `src/routes/+layout.svelte`. Never use Arial, Inter,
-  Roboto, or system fonts.
+  Roboto, or system fonts. The landing page `/` additionally uses `Orbitron`
+  (also `@fontsource`) for its display type, matching the original IDEA index
+  aesthetic; Orbitron is scoped to that page and the carried-over legacy HTML,
+  not the app shell.
 - **Shared classes** live in `src/app.css` (`.wordmark`, `.btn`/`.btn.secondary`,
   `.card`, `.callout`, `.field`/`.key`/`.val.meta`, `.hero`, `.eyebrow`,
   `.app-header`, `.assignment-list`). Reuse these so new pages stay cohesive.
@@ -187,10 +221,16 @@ stack are the source of truth; do not invent colors or swap fonts.
 Phase 1 (done) was the **foundation**: Google login, profiles/roles backend,
 and the public-vs-protected route split.
 
-Phase 2 is **carrying over legacy content** without rebuilding it. Slice 1
-(done) established the two serving patterns above. Slice 2 (done) fanned them
-across all remaining content: every assignment and reference HTML is gated, the
-VANGUARD game and coin leaderboard are public, the coin entry tool is gated to
-teachers, and the `/IDEA/` asset paths are handled by the `static/IDEA/` mirror
-plus the serve-time `.html` link rewrite. No coin economy logic yet. Do not
-modify legacy HTML internals.
+Phase 2 (done) was **carrying over legacy content** without rebuilding it: the
+serving patterns above, with every assignment/reference HTML carried over, the
+VANGUARD game and coin leaderboard available, the coin entry tool gated to
+teachers, and the `/IDEA/` asset paths handled by the `static/IDEA/` mirror plus
+the serve-time `.html` link rewrite. Do not modify legacy HTML internals.
+
+Phase 3 (current) is the **public-first pivot**: the original IDEA index is
+restored as the public landing page `/`, assignments are now public (the gate
+was removed), sign-in is optional and additive, and the first signed-in feature
+is **VANGUARD cloud saves** (see the VANGUARD endpoint section). Per-user IDEA
+Coin login is deferred: the coin system still lives entirely in Google Sheets /
+Apps Script, with no Supabase coin backend to log into yet. No coin economy
+logic in this repo. Do not modify legacy HTML internals.

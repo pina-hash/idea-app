@@ -56,6 +56,14 @@
 		</div>
 	{/each}
 
+	<h2>VANGUARD</h2>
+	<div class="card">
+		<p>Your VANGUARD progress is synced to your account while signed in.</p>
+		<div class="btn-row">
+			<a class="btn secondary" href="/vanguard/">Play VANGUARD</a>
+		</div>
+	</div>
+
 	{#if isTeacher}
 		<h2>Teacher tools</h2>
 		<div class="card">
