@@ -158,20 +158,33 @@ via the endpoint's `trailingSlash = 'always'`.
 - Signed out: a minimal "sign in to sync" pill is injected; saves stay in
   browser localStorage (the game logic is untouched).
 - Signed in: a small bootstrap is injected into `<head>` (the serve-time
-  injection convention, like `rewriteLegacyLinks`) that seeds the user's cloud
-  save into the `vanguard_*` localStorage keys before the game reads them,
-  wraps `localStorage.setItem` to push `vanguard_*` changes to
-  `/api/vanguard-save` (debounced + a `sendBeacon` flush on page hide), and
-  renders a floating cloud-save widget (status pill + manual Back up / Restore).
-  Back up forces an immediate push; Restore pulls the cloud snapshot over the
-  local `vanguard_*` keys and reloads.
+  injection convention, like `rewriteLegacyLinks`) that **merges** the user's
+  cloud save into the `vanguard_*` localStorage keys before the game reads them,
+  wraps `localStorage.setItem` to push changes to `/api/vanguard-save`
+  (debounced + a `sendBeacon` flush on page hide), and renders a floating
+  cloud-save widget (status pill + device-class tag + manual Back up / Restore).
+  Back up forces an immediate push; Restore re-merges the cloud save into this
+  device and reloads.
 - Backend: `src/routes/api/vanguard-save/+server.ts` (GET/POST, cookie-auth via
   `locals.supabase`) and the `vanguard_saves` table
   (`supabase/migrations/0002_vanguard_saves.sql`, own-row RLS keyed on
   `auth.uid()`, mirroring `profiles`). The game file itself is never modified.
-- Conflict policy (MVP): on load the cloud snapshot seeds localStorage (cloud
-  wins for the user's own data); on change local pushes to cloud
-  (last-write-wins). Cross-device score-array merging is not done yet.
+- **Smart merge** (`src/lib/vanguard-save.ts`, the server-canonical logic;
+  mirrored as compact JS inside the injection because the seed must run
+  synchronously before the game reads localStorage). Saves are a structured v2
+  blob: shared `progression` + per-device-class `prefs` (`mobile`/`desktop`).
+  - PROGRESSION (`vanguard_build`, `vanguard_scores`, `vanguard_games`,
+    `vanguard_tutdone`) merges across all devices: max each upgrade, union
+    unlocked weapons, merge+dedupe+top-10 the score list, max the games counter.
+  - PREFERENCES (settings, keybinds, gfx, mute, mode, sfx levels, ...) are stored
+    per device class, last-write-wins within a class, so mobile and desktop stay
+    separate.
+  - DEVICE-LOCAL (`vanguard_did`) is never synced.
+  - Legacy v1 flat rows normalize to v2 on read (`normalizeStored`); the `data`
+    column is `jsonb` so no migration was needed.
+- True mid-run resume is intentionally NOT supported: a live run lives only in
+  the game's in-memory state and uses non-deterministic RNG, so only between-run
+  progression syncs.
 
 ### Asset-path strategy for carried-over HTML
 

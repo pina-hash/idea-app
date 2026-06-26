@@ -1,4 +1,5 @@
 import { vanguardHtml } from '$lib/legacy';
+import { normalizeStored, type StoredSave } from '$lib/vanguard-save';
 import type { RequestHandler } from './$types';
 
 /**
@@ -6,24 +7,23 @@ import type { RequestHandler } from './$types';
  *
  * The game file is never modified. We inject a small bootstrap into <head> (so
  * it runs before the game's own script reads localStorage):
- *   - Signed in: seed the user's cloud save into the `vanguard_*` localStorage
- *     keys, wrap `localStorage.setItem` to push `vanguard_*` changes to
- *     `/api/vanguard-save` (debounced + a `sendBeacon` flush on page hide), and
- *     render a floating "cloud save" widget (status pill + Back up / Restore).
+ *   - Signed in: synchronously MERGE the user's cloud save into the local
+ *     `vanguard_*` keys (progression is unioned/maxed so nothing is clobbered;
+ *     preferences are adopted from this device's class bucket), wrap
+ *     `localStorage.setItem` to push changes to `/api/vanguard-save`, and render
+ *     a floating cloud-save widget (status pill + device tag + Back up / Restore).
  *   - Signed out: render a minimal "sign in to sync" pill; saves stay local.
  *
+ * The merge logic mirrored below in JS MUST stay aligned with the canonical TS
+ * in `$lib/vanguard-save.ts` (the seed runs synchronously in the browser before
+ * the game reads localStorage, so it cannot import that module).
+ *
  * `trailingSlash = 'always'` keeps the page URL at `/vanguard/`, so the game's
- * relative `audio/...` references resolve against `static/vanguard/audio/...`
- * without needing a <base> tag or editing the game file.
+ * relative `audio/...` references resolve against `static/vanguard/audio/...`.
  */
 export const trailingSlash = 'always';
 
-/**
- * Escape a JSON string so it can be safely embedded inside an inline <script>.
- * `<` is neutralized to prevent a `</script>` break-out; the U+2028/U+2029 line
- * terminators are escaped to their \uXXXX form (JSON.stringify leaves them raw,
- * but they are invalid inside a pre-ES2019 JS string literal).
- */
+/** Escape a JSON string so it can be safely embedded inside an inline <script>. */
 function escapeForScript(jsonStr: string): string {
 	return jsonStr
 		.replace(/</g, '\\u003c')
@@ -33,42 +33,69 @@ function escapeForScript(jsonStr: string): string {
 		.join('\\u2029');
 }
 
-/**
- * Build the <head> bootstrap. When signed in it seeds + syncs the cloud save and
- * shows the full widget; when signed out it shows a "sign in to sync" pill.
- */
-function injectionScript(signedIn: boolean, seed: Record<string, unknown>): string {
-	const seedJson = signedIn ? escapeForScript(JSON.stringify(seed)) : '{}';
-	const seededCount = signedIn ? Object.keys(seed).length : 0;
+/** Build the <head> bootstrap. `cloud` is the normalized v2 save (empty if signed out). */
+function injectionScript(signedIn: boolean, cloud: StoredSave): string {
+	const cloudJson = escapeForScript(JSON.stringify(cloud));
 
 	return `<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
-	var SEEDED = ${seededCount};
+	var CLOUD = ${cloudJson};
 	var PREFIX = 'vanguard_';
 	var native = localStorage.setItem.bind(localStorage);
 
-	// Seed cloud save into localStorage BEFORE the game reads it.
-	if (SIGNED_IN) {
-		try {
-			var seed = ${seedJson};
-			for (var sk in seed) {
-				if (Object.prototype.hasOwnProperty.call(seed, sk) && typeof seed[sk] === 'string') {
-					try { native(sk, seed[sk]); } catch (e) {}
-				}
-			}
-		} catch (e) {}
+	// --- merge logic (keep aligned with src/lib/vanguard-save.ts) ---
+	var PROGRESSION_KEYS = ['vanguard_build', 'vanguard_scores', 'vanguard_games', 'vanguard_tutdone'];
+	var DEVICE_LOCAL_KEYS = ['vanguard_did'];
+	function num(v) { var n = v === true ? 1 : v === false ? 0 : Number(v); return isFinite(n) ? n : 0; }
+	function parseObj(s) { if (typeof s !== 'string') return null; try { var v = JSON.parse(s); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null; } catch (e) { return null; } }
+	function mergeMaxMap(a, b) { var out = {}; a = (a && typeof a === 'object') ? a : {}; b = (b && typeof b === 'object') ? b : {}; var ks = {}; Object.keys(a).forEach(function (k) { ks[k] = 1; }); Object.keys(b).forEach(function (k) { ks[k] = 1; }); Object.keys(ks).forEach(function (k) { out[k] = Math.max(num(a[k]), num(b[k])); }); return out; }
+	function mergeBuild(as, bs) {
+		var a = parseObj(as), b = parseObj(bs);
+		if (!a) return bs; if (!b) return as;
+		var aS = num(a.spent), bS = num(b.spent), dom = bS > aS ? b : a;
+		return JSON.stringify({
+			up: mergeMaxMap(a.up, b.up), unlocked: mergeMaxMap(a.unlocked, b.unlocked), heavyUnlocked: mergeMaxMap(a.heavyUnlocked, b.heavyUnlocked),
+			bombs: Math.max(num(a.bombs), num(b.bombs)), shieldHits: Math.max(num(a.shieldHits), num(b.shieldHits)), spent: Math.max(aS, bS),
+			drone: !!(a.drone || b.drone),
+			heavy: (dom.heavy != null ? dom.heavy : (a.heavy != null ? a.heavy : b.heavy)),
+			wtype: (dom.wtype != null ? dom.wtype : (a.wtype != null ? a.wtype : b.wtype))
+		});
 	}
-
-	function snapshot() {
-		var out = {};
-		for (var i = 0; i < localStorage.length; i++) {
-			var key = localStorage.key(i);
-			if (key && key.indexOf(PREFIX) === 0) out[key] = localStorage.getItem(key);
-		}
+	function parseScores(s) { if (typeof s !== 'string') return []; try { var v = JSON.parse(s); if (!Array.isArray(v)) return []; return v.filter(function (e) { return e && typeof e === 'object' && typeof e.score === 'number'; }).map(function (e) { return { name: String(e.name == null ? '' : e.name), score: Number(e.score) }; }); } catch (e) { return []; } }
+	function mergeScores(as, bs) { if (as == null && bs == null) return undefined; var all = parseScores(as).concat(parseScores(bs)).sort(function (x, y) { return y.score - x.score; }); var seen = {}, out = []; for (var i = 0; i < all.length; i++) { var e = all[i], key = e.name + '|' + e.score; if (seen[key]) continue; seen[key] = 1; out.push(e); if (out.length >= 10) break; } return JSON.stringify(out); }
+	function mergeProgression(a, b) {
+		a = a || {}; b = b || {}; var out = {};
+		var build = mergeBuild(a.vanguard_build, b.vanguard_build); if (build != null) out.vanguard_build = build;
+		var sc = mergeScores(a.vanguard_scores, b.vanguard_scores); if (sc != null) out.vanguard_scores = sc;
+		if (a.vanguard_games != null || b.vanguard_games != null) out.vanguard_games = String(Math.max(num(a.vanguard_games), num(b.vanguard_games)));
+		if (a.vanguard_tutdone === '1' || b.vanguard_tutdone === '1') out.vanguard_tutdone = '1';
+		else if (a.vanguard_tutdone != null || b.vanguard_tutdone != null) out.vanguard_tutdone = (a.vanguard_tutdone != null ? a.vanguard_tutdone : b.vanguard_tutdone);
 		return out;
 	}
+	function deviceClass() {
+		try {
+			var coarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+			var touch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+			var ua = /Mobi|Android|iPhone|iPad|iPod|Tablet/i.test(navigator.userAgent || '');
+			return ((coarse && touch) || ua) ? 'mobile' : 'desktop';
+		} catch (e) { return 'desktop'; }
+	}
+	var DEVICE = deviceClass();
 
+	function localProgression() { var out = {}; for (var i = 0; i < PROGRESSION_KEYS.length; i++) { var k = PROGRESSION_KEYS[i]; var v = localStorage.getItem(k); if (v != null) out[k] = v; } return out; }
+	function snapshot() { var out = {}; for (var i = 0; i < localStorage.length; i++) { var key = localStorage.key(i); if (key && key.indexOf(PREFIX) === 0 && DEVICE_LOCAL_KEYS.indexOf(key) === -1) out[key] = localStorage.getItem(key); } return out; }
+	function applyCloud(cloud) {
+		var merged = mergeProgression((cloud && cloud.progression) || {}, localProgression());
+		for (var mk in merged) { if (Object.prototype.hasOwnProperty.call(merged, mk)) { try { native(mk, merged[mk]); } catch (e) {} } }
+		var pb = cloud && cloud.prefs && cloud.prefs[DEVICE];
+		if (pb) { for (var pk in pb) { if (pk !== '_ts' && Object.prototype.hasOwnProperty.call(pb, pk) && typeof pb[pk] === 'string') { try { native(pk, pb[pk]); } catch (e) {} } } }
+	}
+
+	// 1. Seed: merge the cloud save into localStorage BEFORE the game reads it.
+	if (SIGNED_IN) { try { applyCloud(CLOUD); } catch (e) {} }
+
+	// --- status widget ---
 	var statusEl = null, detailEl = null;
 	function fmtTime() { try { return new Date().toLocaleTimeString(); } catch (e) { return ''; } }
 	function setStatus(state, detail) {
@@ -84,13 +111,10 @@ function injectionScript(signedIn: boolean, seed: Record<string, unknown>): stri
 		if (!SIGNED_IN) return;
 		setStatus('saving', 'saving...');
 		fetch('/api/vanguard-save', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify(snapshot()),
-			keepalive: true
-		}).then(function (r) {
-			setStatus(r.ok ? 'saved' : 'error', r.ok ? fmtTime() : 'try again');
-		}).catch(function () { setStatus('error', 'offline?'); });
+			method: 'POST', headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ deviceClass: DEVICE, snapshot: snapshot() }), keepalive: true
+		}).then(function (r) { setStatus(r.ok ? 'saved' : 'error', r.ok ? fmtTime() : 'try again'); })
+		.catch(function () { setStatus('error', 'offline?'); });
 	}
 
 	var timer = null;
@@ -103,23 +127,11 @@ function injectionScript(signedIn: boolean, seed: Record<string, unknown>): stri
 
 	function doRestore() {
 		if (!SIGNED_IN) return;
-		if (!window.confirm('Restore your cloud save? This replaces the VANGUARD progress saved in THIS browser.')) return;
+		if (!window.confirm('Restore your cloud save? This merges your account progress into this device, then reloads.')) return;
 		setStatus('saving', 'restoring...');
 		fetch('/api/vanguard-save').then(function (r) { return r.json(); }).then(function (j) {
-			var d = (j && j.data) || {};
-			var keys = [];
-			for (var i = 0; i < localStorage.length; i++) {
-				var key = localStorage.key(i);
-				if (key && key.indexOf(PREFIX) === 0) keys.push(key);
-			}
-			keys.forEach(function (key) { try { localStorage.removeItem(key); } catch (e) {} });
-			var n = 0;
-			for (var k in d) {
-				if (Object.prototype.hasOwnProperty.call(d, k) && typeof d[k] === 'string') {
-					try { native(k, d[k]); n++; } catch (e) {}
-				}
-			}
-			setStatus('saved', n + ' keys restored');
+			applyCloud((j && j.data) || { progression: {}, prefs: {} });
+			setStatus('saved', 'restored');
 			location.reload();
 		}).catch(function () { setStatus('error', 'restore failed'); });
 	}
@@ -128,12 +140,12 @@ function injectionScript(signedIn: boolean, seed: Record<string, unknown>): stri
 		try {
 			localStorage.setItem = function (key, value) {
 				native(key, value);
-				if (typeof key === 'string' && key.indexOf(PREFIX) === 0) schedulePush();
+				if (typeof key === 'string' && key.indexOf(PREFIX) === 0 && DEVICE_LOCAL_KEYS.indexOf(key) === -1) schedulePush();
 			};
 			window.addEventListener('pagehide', function () {
 				try {
 					if (navigator.sendBeacon) {
-						var body = new Blob([JSON.stringify(snapshot())], { type: 'application/json' });
+						var body = new Blob([JSON.stringify({ deviceClass: DEVICE, snapshot: snapshot() })], { type: 'application/json' });
 						navigator.sendBeacon('/api/vanguard-save', body);
 					}
 				} catch (e) {}
@@ -164,12 +176,17 @@ function injectionScript(signedIn: boolean, seed: Record<string, unknown>): stri
 		wrap.appendChild(statusEl);
 
 		if (SIGNED_IN) {
+			var tag = document.createElement('span');
+			tag.textContent = DEVICE;
+			tag.style.cssText = 'color:#00F0FF;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;border:1px solid rgba(0,240,255,0.3);border-radius:2px;padding:1px 4px;';
+			wrap.appendChild(tag);
 			detailEl = document.createElement('span');
 			detailEl.style.cssText = 'color:#4A7A52;font-size:10px;white-space:nowrap;';
 			wrap.appendChild(detailEl);
 			wrap.appendChild(mkBtn('Back up', doPush));
 			wrap.appendChild(mkBtn('Restore', doRestore));
-			setStatus(SEEDED > 0 ? 'saved' : 'idle', SEEDED > 0 ? 'restored from cloud' : 'ready');
+			var hasCloud = CLOUD && CLOUD.progression && Object.keys(CLOUD.progression).length > 0;
+			setStatus(hasCloud ? 'saved' : 'idle', hasCloud ? 'synced from cloud' : 'ready');
 		} else {
 			var link = document.createElement('a');
 			link.href = '/';
@@ -180,6 +197,9 @@ function injectionScript(signedIn: boolean, seed: Record<string, unknown>): stri
 		}
 
 		host.appendChild(wrap);
+
+		// Propagate the merged progression + this device's prefs to the cloud.
+		if (SIGNED_IN) schedulePush();
 	}
 
 	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
@@ -189,8 +209,8 @@ function injectionScript(signedIn: boolean, seed: Record<string, unknown>): stri
 }
 
 export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
-	let seed: Record<string, unknown> = {};
 	let signedIn = false;
+	let cloud: StoredSave = { v: 2, progression: {}, prefs: {} };
 
 	if (claims) {
 		signedIn = true;
@@ -199,12 +219,10 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 			.select('data')
 			.eq('user_id', claims.sub)
 			.maybeSingle();
-		if (data?.data && typeof data.data === 'object' && !Array.isArray(data.data)) {
-			seed = data.data as Record<string, unknown>;
-		}
+		cloud = normalizeStored(data?.data);
 	}
 
-	const html = vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, seed)}`);
+	const html = vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud)}`);
 
 	return new Response(html, {
 		headers: { 'content-type': 'text/html; charset=utf-8' }

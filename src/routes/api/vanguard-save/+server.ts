@@ -1,16 +1,21 @@
 import { json } from '@sveltejs/kit';
+import { mergeIntoStored, normalizeStored, type DeviceClass } from '$lib/vanguard-save';
 import type { RequestHandler } from './$types';
 
 /**
  * Per-user VANGUARD cloud-save API. Auth is via the cookie-based server
  * Supabase client (`locals.supabase`); requests without a session are rejected.
  *
- * The save is a single JSON object: a snapshot of the game's `vanguard_*`
- * localStorage keys. The `/vanguard` endpoint seeds these into localStorage on
- * load and an injected sync script POSTs changes back here.
+ * The save is a structured v2 blob (see `$lib/vanguard-save`): shared
+ * `progression` plus per-device-class `prefs`. POST merges an incoming device
+ * snapshot into the stored blob so concurrent devices never clobber each other.
  */
 
-/** GET: return the current user's save blob (`{}` if none yet). */
+function asDeviceClass(v: unknown): DeviceClass {
+	return v === 'mobile' ? 'mobile' : 'desktop';
+}
+
+/** GET: return the current user's normalized v2 save blob. */
 export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
 		return json({ error: 'unauthorized' }, { status: 401 });
@@ -26,31 +31,50 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		return json({ error: error.message }, { status: 500 });
 	}
 
-	return json({ data: data?.data ?? {} });
+	return json({ data: normalizeStored(data?.data) });
 };
 
-/** POST: upsert the current user's save blob. Body is the `vanguard_*` snapshot. */
+/**
+ * POST: merge an incoming device snapshot into the stored blob and persist.
+ * Body: `{ deviceClass: 'mobile'|'desktop', snapshot: { vanguard_*: string } }`.
+ */
 export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
 	if (!claims) {
 		return json({ error: 'unauthorized' }, { status: 401 });
 	}
 
-	let payload: unknown;
+	let payload: { deviceClass?: unknown; snapshot?: unknown };
 	try {
 		payload = await request.json();
 	} catch {
 		return json({ error: 'invalid json' }, { status: 400 });
 	}
 
-	// Expect a plain object map of localStorage key -> string value.
-	if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
-		return json({ error: 'expected an object' }, { status: 400 });
+	const snapshot = payload?.snapshot;
+	if (snapshot === null || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+		return json({ error: 'expected { deviceClass, snapshot }' }, { status: 400 });
 	}
+	const deviceClass = asDeviceClass(payload?.deviceClass);
+
+	// Load current row, merge, upsert. (A rare lost-update under truly
+	// simultaneous writes is acceptable; progression merge is idempotent-ish.)
+	const { data: existing } = await supabase
+		.from('vanguard_saves')
+		.select('data')
+		.eq('user_id', claims.sub)
+		.maybeSingle();
+
+	const merged = mergeIntoStored(
+		existing?.data,
+		snapshot as Record<string, string>,
+		deviceClass,
+		new Date().toISOString()
+	);
 
 	const { error } = await supabase.from('vanguard_saves').upsert(
 		{
 			user_id: claims.sub,
-			data: payload,
+			data: merged,
 			updated_at: new Date().toISOString()
 		},
 		{ onConflict: 'user_id' }
@@ -60,5 +84,5 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: error.message }, { status: 500 });
 	}
 
-	return json({ ok: true });
+	return json({ ok: true, data: merged });
 };
