@@ -435,3 +435,966 @@ a:hover {
 .warn {
 	color: var(--amber);
 }
+
+/* ==========================================================================
+   Legacy-index theme. Shared by the landing page (/) and the archive page
+   (/archive). All rules are scoped under `.legacy-index` so they never affect
+   the app shell (dashboard, etc.). Uses Orbitron for display type.
+   ========================================================================== */
+
+.legacy-index {
+	font-family: 'Share Tech Mono', monospace;
+	position: relative;
+	z-index: 1;
+}
+
+.legacy-index #scroll-bar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 2px;
+	width: 0%;
+	background: var(--green);
+	box-shadow: var(--glow-green);
+	z-index: 1000;
+	transition: width 0.1s linear;
+}
+
+.legacy-index #bg-canvas {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	z-index: 0;
+	pointer-events: none;
+	opacity: 0.35;
+}
+
+/* Header */
+.legacy-index header {
+	position: sticky;
+	top: 0;
+	z-index: 100;
+	background: rgba(2, 10, 4, 0.88);
+	backdrop-filter: blur(12px);
+	-webkit-backdrop-filter: blur(12px);
+	border-bottom: 1px solid rgba(0, 255, 65, 0.15);
+	padding: 0 2rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 64px;
+	gap: 1rem;
+}
+.legacy-index .logo {
+	font-family: 'Orbitron', sans-serif;
+	font-weight: 900;
+	font-size: 1.5rem;
+	color: var(--green);
+	text-shadow: var(--glow-green);
+	letter-spacing: 0.15em;
+	text-decoration: none;
+	white-space: nowrap;
+}
+.legacy-index .header-right {
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+.legacy-index .class-chip {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.6rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--gold);
+	text-decoration: none;
+	border: 1px solid rgba(200, 255, 0, 0.35);
+	background: rgba(200, 255, 0, 0.05);
+	padding: 0.3rem 0.7rem;
+	border-radius: 2px;
+	white-space: nowrap;
+	transition:
+		border-color 0.2s,
+		text-shadow 0.2s;
+}
+.legacy-index .class-chip:hover {
+	border-color: rgba(200, 255, 0, 0.7);
+	text-shadow: var(--glow-gold);
+}
+
+.legacy-index .auth-block {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+.legacy-index .auth-link {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.6rem;
+	font-weight: 600;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	background: none;
+	border: 1px solid rgba(0, 240, 255, 0.3);
+	padding: 0.3rem 0.7rem;
+	border-radius: 2px;
+	cursor: pointer;
+	text-decoration: none;
+	white-space: nowrap;
+	transition:
+		color 0.2s,
+		border-color 0.2s,
+		text-shadow 0.2s;
+}
+.legacy-index .auth-link:hover {
+	color: var(--green);
+	border-color: rgba(0, 255, 65, 0.5);
+	text-shadow: var(--glow-green);
+}
+.legacy-index .auth-link.signin {
+	color: var(--green);
+	border-color: rgba(0, 255, 65, 0.4);
+}
+.legacy-index .auth-link:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+.legacy-index .auth-error {
+	position: relative;
+	z-index: 1;
+	max-width: 1100px;
+	margin: 0.75rem auto 0;
+	padding: 0 2rem;
+	color: var(--amber);
+	font-size: 0.72rem;
+}
+
+/* Hero */
+.legacy-index .hero {
+	position: relative;
+	z-index: 1;
+	padding: 5rem 2rem 3.5rem;
+	max-width: 1100px;
+	margin: 0 auto;
+}
+.legacy-index .hero-eyebrow {
+	font-size: 0.65rem;
+	letter-spacing: 0.25em;
+	color: var(--teal);
+	text-transform: uppercase;
+	margin-bottom: 1rem;
+	font-family: 'Orbitron', sans-serif;
+}
+.legacy-index .hero h1 {
+	font-family: 'Orbitron', sans-serif;
+	font-weight: 900;
+	font-size: clamp(1.8rem, 4.5vw, 3.8rem);
+	line-height: 1.05;
+	color: var(--white);
+	margin-bottom: 0.5rem;
+}
+.legacy-index .hero h1 .accent {
+	color: var(--green);
+	text-shadow: var(--glow-green);
+}
+.legacy-index .hero-sub {
+	font-size: 0.82rem;
+	color: var(--dim);
+	letter-spacing: 0.04em;
+	margin-top: 1rem;
+	max-width: 480px;
+	line-height: 1.7;
+}
+.legacy-index .hero-meta {
+	display: flex;
+	gap: 2.5rem;
+	margin-top: 2.5rem;
+	flex-wrap: wrap;
+}
+.legacy-index .hero-stat {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+.legacy-index .hero-stat .value {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 1.5rem;
+	font-weight: 700;
+	color: var(--green);
+	text-shadow: var(--glow-green);
+	animation: breathe 3s ease-in-out infinite;
+}
+.legacy-index .hero-stat .label {
+	font-size: 0.58rem;
+	color: var(--dim);
+	letter-spacing: 0.15em;
+	text-transform: uppercase;
+}
+
+@keyframes breathe {
+	0%,
+	100% {
+		text-shadow:
+			0 0 8px rgba(0, 255, 65, 0.6),
+			0 0 20px rgba(0, 255, 65, 0.2);
+	}
+	50% {
+		text-shadow:
+			0 0 16px rgba(0, 255, 65, 1),
+			0 0 40px rgba(0, 255, 65, 0.5);
+	}
+}
+
+/* Promo callouts */
+.legacy-index .promo-callout {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+	flex-wrap: wrap;
+	max-width: 1100px;
+	margin: 0 auto 2.5rem;
+	padding: 1.2rem 1.8rem;
+	background: linear-gradient(135deg, rgba(200, 255, 0, 0.07) 0%, rgba(0, 240, 255, 0.05) 100%);
+	border: 1px solid rgba(200, 255, 0, 0.35);
+	border-radius: 4px;
+	text-decoration: none;
+	transition:
+		border-color 0.2s,
+		background 0.2s;
+}
+.legacy-index .promo-callout:hover {
+	border-color: rgba(200, 255, 0, 0.7);
+	background: linear-gradient(135deg, rgba(200, 255, 0, 0.12) 0%, rgba(0, 240, 255, 0.08) 100%);
+}
+.legacy-index .promo-callout.nextlive {
+	border-color: rgba(0, 255, 65, 0.45);
+	background: linear-gradient(135deg, rgba(0, 255, 65, 0.1) 0%, rgba(0, 240, 255, 0.05) 100%);
+}
+.legacy-index .promo-left {
+	display: flex;
+	align-items: center;
+	gap: 1.2rem;
+}
+.legacy-index .promo-icon {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 2rem;
+	font-weight: 900;
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+	line-height: 1;
+	animation: breathe 3s ease-in-out infinite;
+}
+.legacy-index .nextlive .promo-icon {
+	color: var(--green);
+	text-shadow: var(--glow-green);
+}
+.legacy-index .promo-title {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.18em;
+	color: var(--gold);
+	text-shadow: 0 0 8px rgba(200, 255, 0, 0.5);
+	text-transform: uppercase;
+	margin-bottom: 0.3rem;
+}
+.legacy-index .nextlive .promo-title {
+	color: var(--green);
+	text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+}
+.legacy-index .promo-sub {
+	font-size: 0.72rem;
+	color: var(--dim);
+	letter-spacing: 0.04em;
+	line-height: 1.5;
+}
+.legacy-index .promo-cta {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.58rem;
+	letter-spacing: 0.18em;
+	color: var(--gold);
+	border: 1px solid rgba(200, 255, 0, 0.4);
+	padding: 0.35rem 0.9rem;
+	border-radius: 2px;
+	white-space: nowrap;
+	text-transform: uppercase;
+}
+.legacy-index .nextlive .promo-cta {
+	color: var(--green);
+	border-color: rgba(0, 255, 65, 0.4);
+}
+
+/* Submit panel */
+.legacy-index .submit-panel {
+	position: relative;
+	z-index: 1;
+	max-width: 1100px;
+	margin: 0 auto 2.5rem;
+	padding: 0 2rem;
+}
+.legacy-index .submit-inner {
+	background: var(--bg1);
+	border: 1px solid rgba(0, 240, 255, 0.2);
+	border-radius: 4px;
+	padding: 1.2rem 1.5rem;
+}
+.legacy-index #submit-toggle {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.58rem;
+	width: 100%;
+	display: flex;
+	justify-content: space-between;
+	background: none;
+	border: none;
+	color: var(--dim);
+	cursor: pointer;
+	padding-bottom: 0.75rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+}
+.legacy-index #submit-chevron {
+	transition: transform 0.3s;
+}
+.legacy-index #submit-toggle.open #submit-chevron {
+	transform: rotate(180deg);
+}
+.legacy-index .submit-label {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.58rem;
+	letter-spacing: 0.2em;
+	color: var(--cyan);
+	text-transform: uppercase;
+	margin-bottom: 1rem;
+}
+.legacy-index .submit-steps {
+	display: flex;
+	gap: 0;
+}
+.legacy-index .submit-step {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.75rem;
+	flex: 1;
+	padding-right: 1.5rem;
+	border-right: 1px solid rgba(0, 255, 65, 0.1);
+	margin-right: 1.5rem;
+}
+.legacy-index .submit-step:last-child {
+	border-right: none;
+	margin-right: 0;
+	padding-right: 0;
+}
+.legacy-index .step-num {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 1.1rem;
+	font-weight: 700;
+	color: var(--green);
+	text-shadow: var(--glow-green);
+	line-height: 1;
+	flex-shrink: 0;
+	animation: breathe 3s ease-in-out infinite;
+}
+.legacy-index .submit-step:nth-child(2) .step-num {
+	animation-delay: 0.8s;
+}
+.legacy-index .submit-step:nth-child(3) .step-num {
+	animation-delay: 1.6s;
+}
+.legacy-index .step-text {
+	font-size: 0.75rem;
+	color: var(--white);
+	line-height: 1.5;
+}
+.legacy-index .step-text strong {
+	color: var(--gold);
+	font-weight: normal;
+}
+
+/* Divider */
+.legacy-index .divider {
+	position: relative;
+	z-index: 1;
+	max-width: 1100px;
+	margin: 0 auto 2.5rem;
+	padding: 0 2rem;
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+	scroll-margin-top: 80px;
+}
+.legacy-index .divider-line {
+	flex: 1;
+	height: 1px;
+	background: linear-gradient(to right, transparent, rgba(0, 255, 65, 0.3), transparent);
+}
+.legacy-index .divider-label {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.6rem;
+	letter-spacing: 0.2em;
+	color: var(--dim);
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+/* Courses */
+.legacy-index .courses {
+	position: relative;
+	z-index: 1;
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 0 2rem 4rem;
+	display: grid;
+	gap: 1.25rem;
+}
+.legacy-index .year-label {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	text-shadow: var(--glow-cyan);
+	margin: 1.25rem 0 0.25rem;
+}
+.legacy-index .course-card {
+	background: var(--bg1);
+	border: 1px solid rgba(0, 255, 65, 0.12);
+	border-radius: 4px;
+	overflow: hidden;
+	opacity: 0;
+	transform: translateY(20px);
+	transition:
+		opacity 0.65s ease,
+		transform 0.65s ease,
+		border-color 0.3s;
+	position: relative;
+}
+.legacy-index .course-card.visible {
+	opacity: 1;
+	transform: translateY(0);
+}
+.legacy-index .course-card:hover {
+	border-color: rgba(0, 255, 65, 0.35);
+}
+.legacy-index .course-card.pinned {
+	border-color: rgba(200, 255, 0, 0.5);
+	box-shadow: 0 0 0 1px rgba(200, 255, 0, 0.15);
+}
+.legacy-index .course-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	padding: 1.1rem 1.5rem;
+	border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+	background: var(--bg2);
+}
+.legacy-index .course-header.collapsible {
+	cursor: pointer;
+}
+.legacy-index .course-header-left {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+}
+.legacy-index .course-id {
+	font-family: 'Orbitron', sans-serif;
+	font-weight: 700;
+	font-size: 1.05rem;
+	color: var(--green);
+	letter-spacing: 0.1em;
+}
+.legacy-index .course-updated {
+	font-size: 0.7rem;
+	color: var(--white);
+	letter-spacing: 0.04em;
+	font-family: 'Share Tech Mono', monospace;
+}
+.legacy-index .course-meta {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	flex-shrink: 0;
+	margin-left: auto;
+	flex-wrap: wrap;
+}
+.legacy-index .section-meta {
+	font-size: 0.62rem;
+	color: var(--dim);
+	letter-spacing: 0.06em;
+	font-family: 'Share Tech Mono', monospace;
+}
+.legacy-index .course-badge {
+	font-size: 0.58rem;
+	letter-spacing: 0.15em;
+	text-transform: uppercase;
+	padding: 0.22rem 0.55rem;
+	border-radius: 2px;
+	font-family: 'Orbitron', sans-serif;
+}
+.legacy-index .badge-grade {
+	color: var(--gold);
+	border: 1px solid rgba(200, 255, 0, 0.3);
+	background: rgba(200, 255, 0, 0.05);
+}
+.legacy-index .badge-block {
+	color: var(--cyan);
+	border: 1px solid rgba(0, 240, 255, 0.3);
+	background: rgba(0, 240, 255, 0.05);
+}
+.legacy-index .badge-instructor {
+	color: var(--ice);
+	border: 1px solid rgba(136, 221, 255, 0.3);
+	background: rgba(136, 221, 255, 0.05);
+}
+.legacy-index .gc-link {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.55rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--dim);
+	border: 1px solid rgba(74, 122, 82, 0.3);
+	padding: 0.2rem 0.6rem;
+	border-radius: 2px;
+	text-decoration: none;
+	transition:
+		color 0.2s,
+		border-color 0.2s;
+}
+.legacy-index .gc-link:hover {
+	color: var(--green);
+	border-color: rgba(0, 255, 65, 0.4);
+}
+.legacy-index .course-collapse-arrow {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.7rem;
+	color: var(--dim);
+	transition: transform 0.3s;
+	flex-shrink: 0;
+}
+.legacy-index .course-card.collapsed .course-collapse-arrow {
+	transform: rotate(180deg);
+}
+
+.legacy-index .assignment-list {
+	padding: 0.5rem 0;
+	max-height: 1200px;
+	overflow: hidden;
+	transition:
+		max-height 0.35s ease,
+		opacity 0.35s ease;
+	margin: 0;
+	list-style: none;
+}
+.legacy-index .course-card.collapsed .assignment-list {
+	max-height: 0;
+	opacity: 0;
+}
+.legacy-index .assignment-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	padding: 0.8rem 1.5rem;
+	border-bottom: 1px solid rgba(0, 255, 65, 0.05);
+	transition:
+		background 0.2s,
+		padding-left 0.2s;
+	text-decoration: none;
+}
+.legacy-index .assignment-item:last-child {
+	border-bottom: none;
+}
+/* Neutralize the app-shell `.assignment-list a::before` ">" marker here. */
+.legacy-index .assignment-list a::before {
+	content: none;
+}
+.legacy-index .assignment-item.linked {
+	cursor: pointer;
+}
+.legacy-index .assignment-item.linked:hover {
+	background: rgba(0, 255, 65, 0.04);
+	padding-left: 1.8rem;
+}
+.legacy-index .assignment-left {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+}
+.legacy-index .assignment-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	flex-shrink: 0;
+}
+.legacy-index .dot-live {
+	background: var(--green);
+	box-shadow: 0 0 6px rgba(0, 255, 65, 0.8);
+}
+.legacy-index .dot-archived {
+	background: var(--dim);
+}
+.legacy-index .assignment-name {
+	font-size: 0.82rem;
+	color: var(--white);
+	letter-spacing: 0.03em;
+}
+.legacy-index .badge-new {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.5rem;
+	letter-spacing: 0.15em;
+	color: var(--bg0);
+	background: var(--green);
+	padding: 0.15rem 0.4rem;
+	border-radius: 2px;
+	text-transform: uppercase;
+	font-weight: 700;
+	box-shadow: var(--glow-green);
+	flex-shrink: 0;
+}
+.legacy-index .assignment-right {
+	display: flex;
+	align-items: center;
+	gap: 1.2rem;
+	flex-shrink: 0;
+	flex-wrap: wrap;
+}
+.legacy-index .assignment-status {
+	font-size: 0.6rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	font-family: 'Orbitron', sans-serif;
+}
+.legacy-index .status-live {
+	color: var(--green);
+}
+.legacy-index .status-archived {
+	color: var(--dim);
+}
+.legacy-index .empty-state {
+	padding: 1.4rem 1.5rem;
+	display: flex;
+	align-items: center;
+	gap: 1rem;
+}
+.legacy-index .empty-icon {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 1.2rem;
+	color: var(--dim);
+	flex-shrink: 0;
+}
+.legacy-index .empty-text {
+	font-size: 0.72rem;
+	color: var(--dim);
+	line-height: 1.6;
+}
+
+/* Your-class header + pickers + notes */
+.legacy-index .yourclass-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+}
+.legacy-index .yourclass-eyebrow {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.62rem;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+}
+.legacy-index .text-btn {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.7rem;
+	color: var(--cyan);
+	background: none;
+	border: none;
+	cursor: pointer;
+	text-decoration: underline;
+	padding: 0;
+}
+.legacy-index .text-btn:hover {
+	color: var(--green);
+}
+.legacy-index .text-btn.inline {
+	text-transform: none;
+	letter-spacing: 0;
+}
+.legacy-index .course-card.picker-card,
+.legacy-index .course-card.teacher-note,
+.legacy-index .course-card.signin-note {
+	padding: 1.5rem;
+}
+.legacy-index .teacher-note p,
+.legacy-index .signin-note p {
+	color: var(--white);
+	font-size: 0.85rem;
+}
+.legacy-index .picker-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.72rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--green);
+	margin-bottom: 0.5rem;
+}
+.legacy-index .picker-note {
+	font-size: 0.72rem;
+	color: var(--dim);
+	margin-bottom: 1rem;
+}
+.legacy-index .picker-group {
+	margin-bottom: 1rem;
+}
+.legacy-index .picker-group-label {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.62rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	margin-bottom: 0.5rem;
+}
+.legacy-index .picker-options {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+}
+.legacy-index .picker-option {
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+	align-items: flex-start;
+	font-family: 'Share Tech Mono', monospace;
+	background: var(--bg2);
+	border: 1px solid rgba(0, 255, 65, 0.2);
+	border-radius: 3px;
+	padding: 0.6rem 0.9rem;
+	cursor: pointer;
+	transition:
+		border-color 0.2s,
+		background 0.2s;
+}
+.legacy-index .picker-option:hover {
+	border-color: rgba(0, 255, 65, 0.6);
+	background: rgba(0, 255, 65, 0.05);
+}
+.legacy-index .picker-option.selected {
+	border-color: var(--gold);
+	background: rgba(200, 255, 0, 0.06);
+}
+.legacy-index .picker-option:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+.legacy-index .picker-course {
+	color: var(--green);
+	font-size: 0.85rem;
+	letter-spacing: 0.04em;
+}
+.legacy-index .picker-detail {
+	color: var(--dim);
+	font-size: 0.62rem;
+	letter-spacing: 0.06em;
+}
+
+/* Changelog */
+.legacy-index .changelog-wrap {
+	position: relative;
+	z-index: 1;
+	max-width: 1100px;
+	margin: 0 auto;
+	padding: 0 2rem 5rem;
+}
+.legacy-index .changelog-toggle {
+	background: none;
+	border: 1px solid rgba(74, 122, 82, 0.3);
+	color: var(--dim);
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.58rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	padding: 0.5rem 1rem;
+	cursor: pointer;
+	border-radius: 2px;
+	transition:
+		color 0.2s,
+		border-color 0.2s;
+	width: 100%;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+.legacy-index .changelog-toggle:hover {
+	color: var(--green);
+	border-color: rgba(0, 255, 65, 0.3);
+}
+.legacy-index .changelog-arrow {
+	transition: transform 0.3s;
+}
+.legacy-index .changelog-toggle.open .changelog-arrow {
+	transform: rotate(180deg);
+}
+.legacy-index .changelog-body {
+	display: none;
+	margin-top: 1rem;
+	background: var(--bg1);
+	border: 1px solid rgba(74, 122, 82, 0.2);
+	border-radius: 3px;
+	padding: 1rem 1.5rem;
+	max-height: 360px;
+	overflow-y: auto;
+}
+.legacy-index .changelog-body.open {
+	display: block;
+}
+.legacy-index .changelog-entry {
+	display: flex;
+	gap: 1.5rem;
+	align-items: baseline;
+	padding: 0.5rem 0;
+	border-bottom: 1px solid rgba(74, 122, 82, 0.1);
+	font-size: 0.72rem;
+}
+.legacy-index .changelog-entry:last-child {
+	border-bottom: none;
+}
+.legacy-index .changelog-date {
+	color: var(--cyan);
+	letter-spacing: 0.06em;
+	flex-shrink: 0;
+	min-width: 90px;
+}
+.legacy-index .changelog-note {
+	color: var(--dim);
+	line-height: 1.5;
+}
+
+/* Footer */
+.legacy-index footer {
+	position: relative;
+	z-index: 1;
+	border-top: 1px solid rgba(0, 255, 65, 0.1);
+	padding: 2rem;
+	text-align: center;
+}
+.legacy-index .footer-logo {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.72rem;
+	font-weight: 700;
+	color: var(--dim);
+	letter-spacing: 0.2em;
+	margin-bottom: 0.5rem;
+}
+.legacy-index .footer-sub {
+	font-size: 0.58rem;
+	color: rgba(74, 122, 82, 0.6);
+	letter-spacing: 0.1em;
+}
+.legacy-index .footer-archive {
+	display: inline-block;
+	margin-top: 1rem;
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.62rem;
+	letter-spacing: 0.1em;
+	color: var(--dim);
+	text-decoration: none;
+}
+.legacy-index .footer-archive:hover {
+	color: var(--green);
+}
+
+@media (max-width: 768px) {
+	.legacy-index header {
+		min-height: auto;
+		padding: 0.8rem 1rem;
+		flex-wrap: wrap;
+	}
+	.legacy-index .logo {
+		font-size: 1.1rem;
+	}
+	.legacy-index .header-right {
+		gap: 0.6rem;
+	}
+	.legacy-index .hero {
+		padding: 2rem 1rem 1.5rem;
+	}
+	.legacy-index .hero h1 {
+		font-size: clamp(1.4rem, 6vw, 2rem);
+	}
+	.legacy-index .hero-sub {
+		font-size: 0.76rem;
+	}
+	.legacy-index .hero-meta {
+		margin-top: 1.2rem;
+		gap: 1rem;
+	}
+	.legacy-index .hero-stat .value {
+		font-size: 1.1rem;
+	}
+	.legacy-index .promo-callout {
+		margin-left: 1rem;
+		margin-right: 1rem;
+	}
+	.legacy-index .submit-panel {
+		padding: 0 1rem;
+	}
+	.legacy-index .submit-steps {
+		flex-direction: column;
+		gap: 1rem;
+	}
+	.legacy-index .submit-step {
+		border-right: none;
+		margin-right: 0;
+		padding-right: 0;
+		border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+		padding-bottom: 1rem;
+	}
+	.legacy-index .submit-step:last-child {
+		border-bottom: none;
+		padding-bottom: 0;
+	}
+	.legacy-index .divider {
+		padding: 0 1rem;
+	}
+	.legacy-index .courses {
+		padding: 0 1rem 3rem;
+	}
+	.legacy-index .course-header {
+		padding: 0.9rem 1rem;
+	}
+	.legacy-index .assignment-item {
+		padding: 0.75rem 1rem;
+	}
+	.legacy-index .changelog-wrap {
+		padding: 0 1rem 3rem;
+	}
+	.legacy-index footer {
+		padding: 1.5rem 1rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.legacy-index .course-card {
+		opacity: 1;
+		transform: none;
+		transition: none;
+	}
+	.legacy-index .hero-stat .value,
+	.legacy-index .step-num,
+	.legacy-index .promo-icon {
+		animation: none;
+	}
+}

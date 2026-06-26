@@ -1,11 +1,11 @@
 import { redirect } from '@sveltejs/kit';
-import { courses } from '$lib/legacy';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
- * Loads the signed-in user's profile. The route is already guarded in
- * hooks.server.ts, but we re-check here so this is also a dynamic (SSR)
- * route and never leaks a shell to anonymous users.
+ * The dashboard is the teacher-only area; students use the homepage as their
+ * dashboard. We load the profile and redirect anyone who is not a teacher to
+ * `/`. (hooks.server.ts already redirects anonymous users off `/dashboard`; the
+ * role lives in `profiles`, so the teacher check happens here.)
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
@@ -18,11 +18,13 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.eq('id', claims.sub)
 		.single();
 
+	if (profile?.role !== 'teacher') {
+		redirect(303, '/');
+	}
+
 	return {
 		profile,
-		email: claims.email ?? profile?.email ?? null,
-		isTeacher: profile?.role === 'teacher',
-		courses
+		email: claims.email ?? profile?.email ?? null
 	};
 };
 

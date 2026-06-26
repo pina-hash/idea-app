@@ -23,13 +23,19 @@ ability, it is not required to browse the portal.
   restored original IDEA index), every assignment and reference doc
   (`/assignments/<slug>`), the VANGUARD game (`/vanguard/`), and the coin
   leaderboard (`/coins/`). Future public pages slot into this tier.
-- **Gated tier (login required):** only the personal account area `/dashboard`
-  and the teacher-only coin entry tool (`/coin-entry`). Unauthenticated users
-  hitting a gated route are redirected to `/`.
+- **Gated tier (login required):** the **teacher-only** dashboard `/dashboard`
+  and the teacher-only coin entry tool (`/coin-entry`). Anonymous users are
+  redirected off `/dashboard` by `hooks.server.ts`; non-teacher signed-in users
+  are redirected to `/` by `dashboard/+page.server.ts` (the role lives in
+  `profiles`, so the teacher check happens in the load).
+- **Students have no separate dashboard:** the **homepage `/` is the student
+  dashboard**. A signed-in student self-selects their 2026-27 class once; it is
+  stored in `profiles.section_id` and pinned at the top of `/` (and shown as a
+  chip in the header). See "2026-27 curriculum" below.
 - **Optional sign-in:** the landing page header has a Google sign-in control.
-  Signing in is additive: it unlocks signed-in features (today, VANGUARD cloud
-  saves) and the `/dashboard` account area. After sign-in from `/` the user
-  returns to `/` (`/auth/callback` honors a `next` query param; default
+  Signing in is additive: it unlocks signed-in features (VANGUARD cloud saves,
+  pinning your class) and, for teachers, the dashboard. After sign-in from `/`
+  the user returns to `/` (`/auth/callback` honors a `next` query param; default
   `/dashboard`).
 - **Roles:** `student`, `teacher`, `visitor`, derived from the sign-in email
   domain:
@@ -65,6 +71,31 @@ Env vars are read via `$env/static/public`:
 - `PUBLIC_SUPABASE_ANON_KEY`
 
 See `.env.example`. **Never hardcode keys.** Never commit `.env`.
+
+## 2026-27 curriculum
+
+`src/lib/curriculum.ts` is the single source of truth for the live curriculum. It
+is **plain data** (no `?raw`/`$lib/legacy` imports) so it is safe in the client
+bundle.
+
+- `SECTIONS`: every section. Sections of the same course are modeled separately
+  (e.g. `eng1h-sophomore` vs `eng1h-senior`) so a student sees their own. Each has
+  an `id`, `course`, `title`, `year` (1-4), `instructor`, `term`, `status`, and an
+  optional `assignments` list (empty for the new courses until content exists).
+  The **Freshman Summer Program** (`summer-2026`) is the `status: 'live'` "next
+  live course"; its title/dates are placeholders to fill in.
+- Helpers: `sectionsByYear()` (the curriculum grid), `nextLiveCourse()`,
+  `sectionById()`, `selfSelectOptions()` (the picker), `activeCourseCount()`.
+- **Per-student class:** a signed-in student self-selects a section on `/`; the
+  page writes `profiles.section_id` via the browser Supabase client (allowed by
+  the `update own profile` RLS policy) and pins that section. `section_id` is
+  free-form text (a `Section.id`), intentionally not a FK, so the curriculum can
+  change in code without a migration. Column added by `0003_profile_section.sql`.
+- **Archive:** the discontinued 2025-26 courses (IDEA-113/208/303/403) live as
+  `ARCHIVE_COURSES` in the same file and render on `/archive`
+  (`src/routes/archive/+page.svelte`), linked discreetly from the homepage footer.
+  Their assignment bodies are still served by the public `/assignments/<slug>`
+  endpoint; the archive page only links to them.
 
 ## Supabase migration convention
 
@@ -175,9 +206,20 @@ in `profiles`, not the JWT, so the endpoint looks it up via `locals.supabase`.
 
 - Example: `src/routes/coin-entry/+server.ts` serves the legacy coin entry tool
   (`src/lib/legacy/coin-entry.html`) to teachers only. Signed out -> `/`;
-  signed in non-teacher -> `/dashboard`; teacher -> the HTML.
-- The dashboard link to it renders only when `isTeacher` is true, but the
-  endpoint is the real guard (UI gating is convenience, not security).
+  signed in non-teacher -> `/`; teacher -> the HTML.
+- The dashboard link to it renders only for teachers, but the endpoint is the
+  real guard (UI gating is convenience, not security).
+
+## Changelog automation
+
+The site changelog is **auto-generated from git history** and never hand-edited.
+`vite.config.ts` exposes a `virtual:changelog` module: at build / dev-server start
+it runs `git log` and emits `{ date, note }[]` from each commit's date + subject.
+The homepage imports `virtual:changelog` and renders it.
+
+Implication: **commit subjects are user-facing changelog copy.** Write them as
+readable changelog lines (the first line of every commit shows up on `/`). There
+is no changelog file to update; making a commit is the update.
 
 ## Visual theme
 
@@ -194,15 +236,17 @@ stack are the source of truth; do not invent colors or swap fonts.
 - **Fonts:** `Rajdhani` (display headings, body, input values) and
   `Share Tech Mono` (metadata, button/nav labels, mono chrome), loaded via
   `@fontsource` imports in `src/routes/+layout.svelte`. Never use Arial, Inter,
-  Roboto, or system fonts. The landing page `/` additionally uses `Orbitron`
-  (also `@fontsource`) for its display type, matching the original IDEA index
-  aesthetic; Orbitron is scoped to that page and the carried-over legacy HTML,
-  not the app shell.
-- **Shared classes** live in `src/app.css` (`.wordmark`, `.btn`/`.btn.secondary`,
-  `.card`, `.callout`, `.field`/`.key`/`.val.meta`, `.hero`, `.eyebrow`,
-  `.app-header`, `.assignment-list`). Reuse these so new pages stay cohesive.
-- **Wordmark:** no logo mark exists; use the stylized `IDEA.` wordmark (green
-  with a gold accent dot, `--glow-green`) in headers and the landing hero.
+  Roboto, or system fonts. The landing page `/` and `/archive` additionally use
+  `Orbitron` (also `@fontsource`) for display type, matching the original IDEA
+  index aesthetic.
+- **Shared classes** live in `src/app.css`: the app-shell set (`.wordmark`,
+  `.btn`/`.btn.secondary`, `.card`, `.field`, `.hero`, `.eyebrow`, `.app-header`)
+  and the `.legacy-index ...` theme (header/hero/course-card/assignment-item/
+  picker/changelog/footer) shared by `/` and `/archive`. All `.legacy-index`
+  rules are scoped under that wrapper class so they never affect the app shell.
+- **Wordmark:** no logo mark exists; use the plain `IDEA` wordmark (green,
+  `--glow-green`) in headers and the landing hero. No trailing period or accent
+  dot.
 - **Background:** a restrained CSS-only scanline + vignette overlay (`.bg-fx`
   in the root layout), disabled under `prefers-reduced-motion`. Legibility
   first; keep ambiance subtle and load light.
@@ -227,10 +271,16 @@ VANGUARD game and coin leaderboard available, the coin entry tool gated to
 teachers, and the `/IDEA/` asset paths handled by the `static/IDEA/` mirror plus
 the serve-time `.html` link rewrite. Do not modify legacy HTML internals.
 
-Phase 3 (current) is the **public-first pivot**: the original IDEA index is
-restored as the public landing page `/`, assignments are now public (the gate
-was removed), sign-in is optional and additive, and the first signed-in feature
-is **VANGUARD cloud saves** (see the VANGUARD endpoint section). Per-user IDEA
-Coin login is deferred: the coin system still lives entirely in Google Sheets /
-Apps Script, with no Supabase coin backend to log into yet. No coin economy
-logic in this repo. Do not modify legacy HTML internals.
+Phase 3 (done) was the **public-first pivot**: the original IDEA index restored
+as the public landing page `/`, assignments made public, optional sign-in, and
+the first signed-in feature **VANGUARD cloud saves** (see the VANGUARD endpoint
+section).
+
+Phase 4 (current) reshapes the portal around the **2026-27 curriculum**: the
+homepage is the student dashboard (the dashboard is teacher-only), students
+self-select their class (`profiles.section_id`) and see it pinned, the
+discontinued IDEA-113/208/303/403 courses moved to `/archive`, and the changelog
+is auto-generated from git history. Per-user IDEA Coin login is still deferred:
+the coin system lives entirely in Google Sheets / Apps Script, with no Supabase
+coin backend yet. No coin economy logic in this repo. Do not modify legacy HTML
+internals.

@@ -1,7 +1,7 @@
 <main>
 	<section class="hero">
 		<span class="eyebrow warn">Authentication // Error</span>
-		<a class="wordmark" href="/">IDEA<span>.</span></a>
+		<a class="wordmark" href="/">IDEA</a>
 	</section>
 
 	<div class="card">

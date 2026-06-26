@@ -7,7 +7,7 @@ import type { RequestHandler } from './$types';
  *
  * Serves the legacy coin entry tool (`entry/index.html`) only to teachers:
  *   - signed out          -> redirect to /
- *   - signed in, non-teacher -> redirect to /dashboard
+ *   - signed in, non-teacher -> redirect to /
  *   - signed in, teacher  -> the original HTML, unchanged, as text/html.
  *
  * The role lives in `profiles`, not the JWT, so we look it up server-side.
@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		.single();
 
 	if (profile?.role !== 'teacher') {
-		redirect(303, '/dashboard');
+		redirect(303, '/');
 	}
 
 	return new Response(rewriteLegacyLinks(coinEntryHtml), {
