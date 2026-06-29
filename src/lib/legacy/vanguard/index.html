@@ -666,7 +666,7 @@ const START_BUDGET=1000;
 function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
 try{ const _sb=JSON.parse(localStorage.getItem('vanguard_build')||'null'); if(_sb&&_sb.up){ startBuild=freshBuild(); startBuild.up=Object.assign(startBuild.up,_sb.up); startBuild.unlocked=Object.assign(startBuild.unlocked,_sb.unlocked||{}); startBuild.heavyUnlocked=Object.assign(startBuild.heavyUnlocked,_sb.heavyUnlocked||{}); startBuild.heavy=_sb.heavy||'beam'; startBuild.wtype=_sb.wtype||'spread'; startBuild.bombs=_sb.bombs||2; startBuild.shieldHits=_sb.shieldHits||0; startBuild.drone=_sb.drone?{ph:0}:null; startBuild.spent=_sb.spent||0; } }catch(e){}
-const KEYS_DEFAULT={fire:'Mouse0', beam:'Mouse2', beamAlt:'f', bomb:'x', parry:'Space', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
+const KEYS_DEFAULT={fire:'Mouse0', fireKey:'j', beam:'Mouse2', beamAlt:'f', bomb:'x', parry:'Space', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
 let DEVICE_ID=''; try{ DEVICE_ID=localStorage.getItem('vanguard_did')||''; if(!/^[0-9a-f]{8}$/.test(DEVICE_ID)){ DEVICE_ID=Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b=>b.toString(16).padStart(2,'0')).join(''); localStorage.setItem('vanguard_did',DEVICE_ID); } }catch(e){ DEVICE_ID='nodid000'; }
 /* anonymous per-device id for telemetry cohorting. random hex, never linked to a name or initials. */
 let autofire=true; try{ autofire = localStorage.getItem('vanguard_autofire')!=='0'; }catch(e){}
@@ -2159,7 +2159,7 @@ function update(dt){
     pl.x=clamp(pl.x,16,W-16); pl.y=clamp(pl.y,H*0.16,H-40);
     // HEAVY slot operates the heavy energy meter and suppresses primary while engaged
     const heavyBusy=updateHeavy(pl,dt);
-    const wantFire = autofire || !!held[keybinds.fire];
+    const wantFire = autofire || !!held[keybinds.fire] || !!held[keybinds.fireKey];   // manual fire: Mouse0 or the keyboard fire key (hold)
     if(!heavyBusy){
       if(pl.beamCoolT>0) pl.beamCoolT-=dt;
       else if(pl.beamE<pl.beamMax){ pl.beamE=Math.min(pl.beamMax, pl.beamE+dt*(pl.beamRecharge||0.25));
@@ -4112,7 +4112,7 @@ function buildFeedbackComposer(){
 ['fbTitle','fbPause','fbOver'].forEach(id=>{ const c=el(id); if(c) c.appendChild(buildFeedbackComposer()); });
 
 /* keybind remapping */
-const KEY_ACTIONS=[['fire','FIRE (manual)'],['beam','HEAVY FIRE'],['beamAlt','HEAVY FIRE (KEY)'],['heavy','CYCLE HEAVY'],['weapon','CYCLE WEAPON'],['weap1','> SPREAD'],['weap2','> RAILSPIKE'],['weap3','> SWARM'],['weap4','> NAILGUN'],['weap5','> FLAK'],['weap6','> BUZZSAW'],['bomb','BOMB'],['parry','PARRY'],['pause','PAUSE'],['mute','MUTE']];
+const KEY_ACTIONS=[['fire','FIRE (manual)'],['fireKey','FIRE (manual KEY)'],['beam','HEAVY FIRE'],['beamAlt','HEAVY FIRE (KEY)'],['heavy','CYCLE HEAVY'],['weapon','CYCLE WEAPON'],['weap1','> SPREAD'],['weap2','> RAILSPIKE'],['weap3','> SWARM'],['weap4','> NAILGUN'],['weap5','> FLAK'],['weap6','> BUZZSAW'],['bomb','BOMB'],['parry','PARRY'],['pause','PAUSE'],['mute','MUTE']];
 function keyLabel(c){ if(!c)return '—'; if(c==='Space'||c===' ')return 'SPACE';
   if(c.indexOf('Mouse')===0){ return ['L-CLICK','MID-CLICK','R-CLICK','MOUSE4','MOUSE5'][+c.slice(5)]||('MOUSE'+(+c.slice(5)+1)); }
   return c.toUpperCase(); }
@@ -4167,7 +4167,7 @@ function applyPreset(name){ controlPreset=(name==='classic')?'classic':'keyboard
   syncPresetUI(); }
 function refreshControlsHint(){ const p=el('ctrlsPanel'); if(!p)return; const kl=c=>keyLabel(keybinds[c]);
   const mv = controlPreset==='classic' ? ('MOUSE ('+(moveMode_pref==='lock'?'LOCK':'FOLLOW')+') / WASD / ARROWS') : 'WASD / ARROWS (+ MOUSE)';
-  p.innerHTML='<span class="k">PRESET</span> '+(controlPreset==='classic'?'CLASSIC':'KEYBOARD')+' &nbsp; <span class="k">MOVE</span> '+mv+' &nbsp; <span class="k">FIRE</span> '+(autofire?'AUTO':('HOLD '+kl('fire')))+'<br>'+
+  p.innerHTML='<span class="k">PRESET</span> '+(controlPreset==='classic'?'CLASSIC':'KEYBOARD')+' &nbsp; <span class="k">MOVE</span> '+mv+' &nbsp; <span class="k">FIRE</span> '+(autofire?'AUTO':('HOLD '+kl('fireKey')+' / '+kl('fire')))+'<br>'+
     '<span class="k">HEAVY</span> HOLD '+kl('beamAlt')+' / '+kl('beam')+' &nbsp; <span class="k">CYCLE HVY</span> '+kl('heavy')+' &nbsp; <span class="k">BOMB</span> '+kl('bomb')+' &nbsp; <span class="k">PARRY</span> '+kl('parry')+'<br>'+
     '<span class="k">WEAPON</span> '+kl('weapon')+' &nbsp; <span class="k">SELECT</span> '+kl('weap1')+' '+kl('weap2')+' '+kl('weap3')+' '+kl('weap4')+' '+kl('weap5')+' '+kl('weap6')+' &nbsp; <span class="k">PAUSE</span> '+kl('pause')+' / ESC<br>'+
     '<span class="k">REFIT</span> ARROWS SELECT &middot; SPACE BUY &middot; ENTER LAUNCH'; }
