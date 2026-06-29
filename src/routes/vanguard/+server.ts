@@ -95,6 +95,12 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 	// 1. Seed: merge the cloud save into localStorage BEFORE the game reads it.
 	if (SIGNED_IN) { try { applyCloud(CLOUD); } catch (e) {} }
 
+	// 2. Default graphics to LOW. The game falls back to 'full' for non-touch
+	//    devices; we make LOW the portal-wide default so it runs smoothly on
+	//    school hardware. Only seeded when the player (or their cloud prefs)
+	//    has not already chosen a graphics level, so an explicit pick wins.
+	try { if (localStorage.getItem('vanguard_gfx') == null) native('vanguard_gfx', 'low'); } catch (e) {}
+
 	// --- status widget ---
 	var statusEl = null, detailEl = null;
 	function fmtTime() { try { return new Date().toLocaleTimeString(); } catch (e) { return ''; } }
