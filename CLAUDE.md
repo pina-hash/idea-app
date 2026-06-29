@@ -112,6 +112,24 @@ Legacy content from the old static IDEA site is brought over without rebuilding
 or modifying its HTML internals. There are a few serving patterns. All later
 content must follow one of them.
 
+### VANGUARD is unfrozen and editable (standing rule)
+
+The byte-identical "never modify legacy HTML internals" freeze was a
+migration-phase safeguard. It is now **retired for VANGUARD specifically**:
+
+- `src/lib/legacy/vanguard/index.html` is the **editable, canonical** VANGUARD
+  source. Game-feature edits to it (controls, settings UI, etc.) are allowed and
+  expected; idea-app is VANGUARD's home now.
+- Edits must stay **surgical**: change the smallest unique chunk needed, no
+  full-file rewrites, no reformatting or churn in untouched code.
+- The `vanguard_*` localStorage key/pattern remains the state convention; the
+  serve-time cloud-save injection (`src/routes/vanguard/+server.ts`) only depends
+  on those keys, so it keeps working as the game evolves. New input/preset state
+  uses the same pattern (for example `vanguard_preset`).
+- The freeze **still applies to every other carried-over legacy file** (the
+  assignments, coin tools, etc.). Do not modify those internals unless they are
+  likewise explicitly unfrozen here first.
+
 ### Public static pattern (no login)
 
 For static content anyone may see with no per-request logic (for example the
@@ -151,9 +169,10 @@ assignments are public.
 
 The VANGUARD game is served at `/vanguard/` by
 `src/routes/vanguard/+server.ts`. The game HTML lives in
-`src/lib/legacy/vanguard/index.html` (raw import, byte-identical to the
-original); its assets (`audio/`, `dev/`) stay in `static/vanguard/` and resolve
-via the endpoint's `trailingSlash = 'always'`.
+`src/lib/legacy/vanguard/index.html` (raw import). It is the **editable
+canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
+(`audio/`, `dev/`) stay in `static/vanguard/` and resolve via the endpoint's
+`trailingSlash = 'always'`.
 
 - Signed out: a minimal "sign in to sync" pill is injected; saves stay in
   browser localStorage (the game logic is untouched).
@@ -168,7 +187,9 @@ via the endpoint's `trailingSlash = 'always'`.
 - Backend: `src/routes/api/vanguard-save/+server.ts` (GET/POST, cookie-auth via
   `locals.supabase`) and the `vanguard_saves` table
   (`supabase/migrations/0002_vanguard_saves.sql`, own-row RLS keyed on
-  `auth.uid()`, mirroring `profiles`). The game file itself is never modified.
+  `auth.uid()`, mirroring `profiles`). The injection touches only `<head>` and
+  the `vanguard_*` keys, never the game's own logic, so it stays decoupled from
+  game-feature edits to the file.
 - **Smart merge** (`src/lib/vanguard-save.ts`, the server-canonical logic;
   mirrored as compact JS inside the injection because the seed must run
   synchronously before the game reads localStorage). Saves are a structured v2
@@ -286,7 +307,8 @@ Phase 2 (done) was **carrying over legacy content** without rebuilding it: the
 serving patterns above, with every assignment/reference HTML carried over, the
 VANGUARD game and coin leaderboard available, the coin entry tool gated to
 teachers, and the `/IDEA/` asset paths handled by the `static/IDEA/` mirror plus
-the serve-time `.html` link rewrite. Do not modify legacy HTML internals.
+the serve-time `.html` link rewrite. Do not modify legacy HTML internals (except
+VANGUARD, which is now unfrozen, see the standing rule above).
 
 Phase 3 (done) was the **public-first pivot**: the original IDEA index restored
 as the public landing page `/`, assignments made public, optional sign-in, and
@@ -300,4 +322,6 @@ discontinued IDEA-113/208/303/403 courses moved to `/archive`, and the changelog
 is auto-generated from git history. Per-user IDEA Coin login is still deferred:
 the coin system lives entirely in Google Sheets / Apps Script, with no Supabase
 coin backend yet. No coin economy logic in this repo. Do not modify legacy HTML
-internals.
+internals, with the standing exception of VANGUARD's
+`src/lib/legacy/vanguard/index.html`, which is now the editable canonical game
+source (surgical edits only, see "VANGUARD is unfrozen" above).

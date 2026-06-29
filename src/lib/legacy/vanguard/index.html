@@ -182,6 +182,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .card:not(.off):active{transform:scale(.985)}
 .card.off{opacity:.42;cursor:default;filter:saturate(.5)}
 .card.max{opacity:.85}
+.card.kbsel{outline:2px solid var(--cc);outline-offset:1px;transform:translateX(2px);box-shadow:0 0 16px color-mix(in srgb,var(--cc) 50%,transparent),inset 0 0 18px color-mix(in srgb,var(--cc) 12%,transparent)}
 .cic{flex:0 0 34px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;color:var(--cc);
   border:1px solid color-mix(in srgb,var(--cc) 40%,transparent);border-radius:6px;background:color-mix(in srgb,var(--cc) 10%,transparent);box-shadow:0 0 10px color-mix(in srgb,var(--cc) 18%,transparent)}
 .cic svg{width:22px;height:22px}
@@ -390,6 +391,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <div class="setrow"><span>MUSIC VOLUME</span><input type="range" id="setMusic" min="0" max="100" step="1"><span class="setval" id="setMusicV">45</span></div>
     <button class="mini" id="setShake">SCREEN SHAKE: FULL</button>
     <button class="mini" id="setHitFlash">HIT FLASH REDUCTION: OFF</button>
+    <button class="mini" id="setPreset" style="border-color:var(--green);color:var(--green)">CONTROL PRESET: KEYBOARD</button>
     <button class="mini" id="setMove" style="border-color:var(--cyan);color:var(--cyan)">MOVEMENT: POINTER LOCK</button>
     <button class="mini" id="autofireBtn" style="border-color:var(--gold);color:var(--gold)">AUTO-FIRE: ON</button>
     <button class="mini" id="lowfxBtn" style="border-color:var(--gold);color:var(--gold)">GRAPHICS: FULL</button>
@@ -664,11 +666,11 @@ const START_BUDGET=1000;
 function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
 try{ const _sb=JSON.parse(localStorage.getItem('vanguard_build')||'null'); if(_sb&&_sb.up){ startBuild=freshBuild(); startBuild.up=Object.assign(startBuild.up,_sb.up); startBuild.unlocked=Object.assign(startBuild.unlocked,_sb.unlocked||{}); startBuild.heavyUnlocked=Object.assign(startBuild.heavyUnlocked,_sb.heavyUnlocked||{}); startBuild.heavy=_sb.heavy||'beam'; startBuild.wtype=_sb.wtype||'spread'; startBuild.bombs=_sb.bombs||2; startBuild.shieldHits=_sb.shieldHits||0; startBuild.drone=_sb.drone?{ph:0}:null; startBuild.spent=_sb.spent||0; } }catch(e){}
-const KEYS_DEFAULT={fire:'Mouse0', beam:'Mouse2', bomb:'x', parry:'Space', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
+const KEYS_DEFAULT={fire:'Mouse0', beam:'Mouse2', beamAlt:'f', bomb:'x', parry:'Space', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
 let DEVICE_ID=''; try{ DEVICE_ID=localStorage.getItem('vanguard_did')||''; if(!/^[0-9a-f]{8}$/.test(DEVICE_ID)){ DEVICE_ID=Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b=>b.toString(16).padStart(2,'0')).join(''); localStorage.setItem('vanguard_did',DEVICE_ID); } }catch(e){ DEVICE_ID='nodid000'; }
 /* anonymous per-device id for telemetry cohorting. random hex, never linked to a name or initials. */
 let autofire=true; try{ autofire = localStorage.getItem('vanguard_autofire')!=='0'; }catch(e){}
-let moveMode_pref='hold'; try{ const _mm=localStorage.getItem('vanguard_movemode'); const _touch=('ontouchstart' in window)||navigator.maxTouchPoints>0; moveMode_pref = _mm ? (_mm==='lock'?'lock':'hold') : (_touch?'hold':'lock'); }catch(e){}
+let moveMode_pref='hold'; try{ const _mm=localStorage.getItem('vanguard_movemode'); moveMode_pref = _mm ? (_mm==='lock'?'lock':'hold') : 'hold'; }catch(e){}   // default 'hold': keyboard-first movement (no pointer-lock grab); Classic preset opts back into 'lock'
 /* ===== user settings (single localStorage key, applied live) ===== */
 const SETTINGS={ sfxVol:30, musicVol:45, shake:'full', hitFlash:false, showFps:false };   // sfx/music 0-100; shake off/low/full; hitFlash=reduce damage flash
 let SHAKE_MUL=1;
@@ -2908,7 +2910,7 @@ function drawSystemHalt(){ const st=station; if(!st)return; const k=st.beam, g=C
   bg.restore();
 }
 function openRefit(){ state='refit'; try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){} clearInput(); Audio_.play&&Audio_.play('refit_open'); document.getElementById('touch').classList.add('hidden');
-  el('refitNext').textContent=roman(sector+1); buildRefit(); showOverlay('ovlRefit');
+  el('refitNext').textContent=roman(sector+1); refitSel=0; buildRefit(); showOverlay('ovlRefit'); refitHighlight();   // highlight after the overlay is visible (cards have no offsetParent while hidden)
   const w=el('refitWrap'); if(w){ w.classList.remove('warp'); void w.offsetWidth; w.classList.add('warp'); }
   Audio_.power(); Audio_.lane('refit'); }
 function launchFromRefit(){ sector++; waveIdx=0; waveTimer=1.6; bossPending=false; fleet=null;
@@ -3095,7 +3097,22 @@ function buildRefit(){ el('refitBal').textContent=player.coins.toLocaleString();
       if(maxed||!it.can||player.coins<it.cost){ (Audio_.play&&Audio_.play('buy_fail'))||Audio_.hit(); return; }
       player.coins-=it.cost; runCoinsSpent+=it.cost; it.buy(); applyUpgrades(); ((Audio_.play&&Audio_.play('buy'))||Audio_.pickup()); buildRefit(); }
   });
+  refitHighlight();
 }
+/* ---- REFIT keyboard navigation (works alongside clicking) ---- */
+let refitSel=0;
+function refitCardEls(){ const c=el('refitItems'); if(!c)return []; return [...c.querySelectorAll('.card')].filter(b=>b.offsetParent!==null); }
+function refitHighlight(){ const c=el('refitItems'); if(!c)return; [...c.querySelectorAll('.card.kbsel')].forEach(b=>b.classList.remove('kbsel'));
+  const cards=refitCardEls(); if(!cards.length){ refitSel=0; return; } refitSel=clamp(refitSel,0,cards.length-1);
+  const sel=cards[refitSel]; sel.classList.add('kbsel'); try{ sel.scrollIntoView({block:'nearest'}); }catch(e){} }
+function refitMoveSel(d){ const cards=refitCardEls(); if(!cards.length)return; refitSel=clamp(refitSel+d,0,cards.length-1);
+  // landing on a collapsed kit head auto-expands it so its contents become reachable
+  const sel=cards[refitSel], head=sel&&sel.closest('.kithead'), kit=head&&head.closest('.kit');
+  if(kit&&kit.classList.contains('collapsed')){ kit.classList.remove('collapsed'); const tg=head.querySelector('.kittoggle'); if(tg){ refitExpand[tg.dataset.kit]=true; tg.textContent='▾'; } }
+  refitHighlight(); Audio_.hit&&Audio_.hit(); }
+function refitTabStep(d){ const c=el('refitItems'); if(!c)return; const tabs=[...c.querySelectorAll('.shoptab')]; if(tabs.length<2)return;
+  let i=tabs.findIndex(b=>b.classList.contains('on')); if(i<0)i=0; i=(i+d+tabs.length)%tabs.length; refitSel=0; tabs[i].click(); refitHighlight(); Audio_.hit&&Audio_.hit(); }
+function refitBuySel(){ const cards=refitCardEls(); const sel=cards[refitSel]; if(sel){ sel.click(); refitHighlight(); } }
 const _delayed=[];
 function setTimeoutSafe(x,y,c,ms){ _delayed.push({x,y,c,at:performance.now()+ms}); }
 
@@ -3925,6 +3942,7 @@ window.addEventListener('keydown',e=>{ if(typingInField()) return;
   if(state==='play'){
     if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key) || Object.values(keybinds).includes(tk)) e.preventDefault();
     if(tk===keybinds.beam){ if(!player.beamOn){player.beamOn=true;} e.preventDefault(); }
+    if(tk===keybinds.beamAlt){ if(!player.beamOn){player.beamOn=true;} e.preventDefault(); }   // keyboard hold-to-charge beam, parallel to the Mouse2 bind
     if(tk===keybinds.fire){ e.preventDefault(); }
     if(tk===keybinds.bomb){ fireBomb(); }
     if(tk===keybinds.parry){ tryParry(); }
@@ -3939,8 +3957,14 @@ window.addEventListener('keydown',e=>{ if(typingInField()) return;
     if(tk===keybinds.weap6){ selectWeapon('buzzsaw'); }
   } else if(state==='pause'){
     if(k===keybinds.pause||e.key==='Escape'){ pauseToggle(); }
+    else if(k==='r'){ showRestartConfirm(); }   // keyboard path to RESTART RUN (confirm with Enter, cancel with Esc)
   } else if(state==='refit'){
     if(e.key==='Enter'){ launchFromRefit(); }
+    else if(e.key==='ArrowLeft'){ refitMoveSel(-1); e.preventDefault(); }
+    else if(e.key==='ArrowRight'){ refitMoveSel(1); e.preventDefault(); }
+    else if(e.key==='ArrowUp'){ refitTabStep(-1); e.preventDefault(); }
+    else if(e.key==='ArrowDown'){ refitTabStep(1); e.preventDefault(); }
+    else if(e.key===' '){ refitBuySel(); e.preventDefault(); }   // Space buys (parry is play-only, no conflict here)
   } else if(state==='over'){
     if(/^[a-z0-9 .!?_*+\-]$/.test(k)){ curInitials=curInitials.substring(0,selSlot)+k.toUpperCase()+curInitials.substring(selSlot+1); selSlot=Math.min(NAMELEN-1,selSlot+1); refreshInitials(); e.preventDefault(); }
     else if(e.key==='Backspace'){ curInitials=curInitials.substring(0,selSlot)+' '+curInitials.substring(selSlot+1); selSlot=Math.max(0,selSlot-1); refreshInitials(); }
@@ -3953,7 +3977,7 @@ window.addEventListener('keydown',e=>{ if(typingInField()) return;
 window.addEventListener('keyup',e=>{ if(typingInField()) return;
   const k=e.key.length===1?e.key.toLowerCase():e.key; keys[k]=false; keys[e.key]=false;
   const tk=tok(e); held[tk]=false;
-  if(tk===keybinds.beam){ if(player){player.beamOn=false; player.beamLock=false;} } });
+  if(tk===keybinds.beam||tk===keybinds.beamAlt){ if(player){player.beamOn=false; player.beamLock=false;} } });
 
 // touch buttons
 function bindHold(id,onDown,onUp){ const b=el(id);
@@ -4088,7 +4112,7 @@ function buildFeedbackComposer(){
 ['fbTitle','fbPause','fbOver'].forEach(id=>{ const c=el(id); if(c) c.appendChild(buildFeedbackComposer()); });
 
 /* keybind remapping */
-const KEY_ACTIONS=[['fire','FIRE (manual)'],['beam','HEAVY FIRE'],['heavy','CYCLE HEAVY'],['weapon','CYCLE WEAPON'],['weap1','> SPREAD'],['weap2','> RAILSPIKE'],['weap3','> SWARM'],['weap4','> NAILGUN'],['weap5','> FLAK'],['weap6','> BUZZSAW'],['bomb','BOMB'],['parry','PARRY'],['pause','PAUSE'],['mute','MUTE']];
+const KEY_ACTIONS=[['fire','FIRE (manual)'],['beam','HEAVY FIRE'],['beamAlt','HEAVY FIRE (KEY)'],['heavy','CYCLE HEAVY'],['weapon','CYCLE WEAPON'],['weap1','> SPREAD'],['weap2','> RAILSPIKE'],['weap3','> SWARM'],['weap4','> NAILGUN'],['weap5','> FLAK'],['weap6','> BUZZSAW'],['bomb','BOMB'],['parry','PARRY'],['pause','PAUSE'],['mute','MUTE']];
 function keyLabel(c){ if(!c)return '—'; if(c==='Space'||c===' ')return 'SPACE';
   if(c.indexOf('Mouse')===0){ return ['L-CLICK','MID-CLICK','R-CLICK','MOUSE4','MOUSE5'][+c.slice(5)]||('MOUSE'+(+c.slice(5)+1)); }
   return c.toUpperCase(); }
@@ -4110,6 +4134,7 @@ function syncSettingsUI(){
   const hf=el('setHitFlash'); if(hf) hf.textContent='HIT FLASH REDUCTION: '+(SETTINGS.hitFlash?'ON':'OFF');
   const sfp=el('setFps'); if(sfp) sfp.textContent='SHOW FPS: '+(SETTINGS.showFps?'ON':'OFF');
   const mo=el('setMove'); if(mo) mo.textContent='MOVEMENT: '+(moveMode_pref==='lock'?'POINTER LOCK':'DRAG');
+  if(typeof syncPresetUI==='function') syncPresetUI();
 }
 function openSettings(){ el('ovlSettings').classList.remove('hidden'); syncSettingsUI(); }
 function closeSettings(){ el('ovlSettings').classList.add('hidden'); }
@@ -4119,16 +4144,33 @@ function closeSettings(){ el('ovlSettings').classList.add('hidden'); }
   const sh=el('setShake'); if(sh) sh.addEventListener('click',e=>{ e.stopPropagation(); SETTINGS.shake=(SETTINGS.shake==='full'?'low':SETTINGS.shake==='low'?'off':'full'); applySettings(); saveSettings(); syncSettingsUI(); });
   const hf=el('setHitFlash'); if(hf) hf.addEventListener('click',e=>{ e.stopPropagation(); SETTINGS.hitFlash=!SETTINGS.hitFlash; saveSettings(); syncSettingsUI(); });
   const sfp=el('setFps'); if(sfp) sfp.addEventListener('click',e=>{ e.stopPropagation(); SETTINGS.showFps=!SETTINGS.showFps; saveSettings(); syncSettingsUI(); });
-  const mo=el('setMove'); if(mo) mo.addEventListener('click',e=>{ e.stopPropagation(); setMoveMode(moveMode_pref==='lock'?'hold':'lock'); syncSettingsUI(); });
+  const pr=el('setPreset'); if(pr) pr.addEventListener('click',e=>{ e.stopPropagation(); applyPreset(controlPreset==='keyboard'?'classic':'keyboard'); syncSettingsUI(); });
+  const mo=el('setMove'); if(mo) mo.addEventListener('click',e=>{ e.stopPropagation(); setMoveMode(moveMode_pref==='lock'?'hold':'lock'); controlPreset=(moveMode_pref==='lock'?'classic':'keyboard'); try{localStorage.setItem('vanguard_preset',controlPreset);}catch(_){ } syncSettingsUI(); });   // keep preset label honest when movement is toggled directly
   const rk=el('setRemap'); if(rk) rk.addEventListener('click',e=>{ e.stopPropagation(); openKeys(); });
   const dn=el('setDone'); if(dn) dn.addEventListener('click',e=>{ e.stopPropagation(); closeSettings(); });
 })();
 setTimeout(applySettings,0);   // apply saved volumes after the SFX sample layer (next <script>) has initialised
+/* ===== control presets =====
+   A preset is a labeled bundle of the input scheme. Keyboard parity (kb movement,
+   the beamAlt key, REFIT keyboard nav) is always active; the preset chiefly drives
+   whether the mouse uses pointer-lock, and labels the active scheme + start hint. */
+let controlPreset;
+try{ const _cp=localStorage.getItem('vanguard_preset');
+  if(_cp==='keyboard'||_cp==='classic') controlPreset=_cp;
+  else { const _mm=localStorage.getItem('vanguard_movemode'); controlPreset=_mm?(_mm==='lock'?'classic':'keyboard'):(isTouch?'classic':'keyboard'); }
+}catch(e){ controlPreset=isTouch?'classic':'keyboard'; }
+function presetLabel(){ return controlPreset==='classic'?'CLASSIC (MOUSE)':'KEYBOARD'; }
+function syncPresetUI(){ const b=el('setPreset'); if(b) b.textContent='CONTROL PRESET: '+presetLabel(); }
+function applyPreset(name){ controlPreset=(name==='classic')?'classic':'keyboard';
+  try{ localStorage.setItem('vanguard_preset',controlPreset); }catch(e){}
+  setMoveMode(controlPreset==='classic'?'lock':'hold');   // Classic = pointer-lock mouse; Keyboard = no grab. setMoveMode also refreshes the hint.
+  syncPresetUI(); }
 function refreshControlsHint(){ const p=el('ctrlsPanel'); if(!p)return; const kl=c=>keyLabel(keybinds[c]);
-  p.innerHTML='<span class="k">MOVE</span> WASD / ARROWS / MOUSE ('+(moveMode_pref==='lock'?'LOCK':'FOLLOW')+') &nbsp; <span class="k">FIRE</span> '+(autofire?'AUTO':('HOLD '+kl('fire')))+'<br>'+
-    '<span class="k">HEAVY</span> HOLD '+kl('beam')+' &nbsp; <span class="k">CYCLE HVY</span> '+kl('heavy')+' &nbsp; <span class="k">BOMB</span> '+kl('bomb')+' &nbsp; <span class="k">PARRY</span> '+kl('parry')+'<br>'+
-    '<span class="k">WEAPON</span> '+kl('weapon')+' &nbsp; <span class="k">SELECT</span> '+kl('weap1')+' '+kl('weap2')+' '+kl('weap3')+' '+kl('weap4')+' '+kl('weap5')+' '+kl('weap6')+' &nbsp; <span class="k">PAUSE</span> '+kl('pause')+'<br>'+
-    '<span class="k">REMAP KEYS supports mouse buttons and any key</span>'; }
+  const mv = controlPreset==='classic' ? ('MOUSE ('+(moveMode_pref==='lock'?'LOCK':'FOLLOW')+') / WASD / ARROWS') : 'WASD / ARROWS (+ MOUSE)';
+  p.innerHTML='<span class="k">PRESET</span> '+(controlPreset==='classic'?'CLASSIC':'KEYBOARD')+' &nbsp; <span class="k">MOVE</span> '+mv+' &nbsp; <span class="k">FIRE</span> '+(autofire?'AUTO':('HOLD '+kl('fire')))+'<br>'+
+    '<span class="k">HEAVY</span> HOLD '+kl('beamAlt')+' / '+kl('beam')+' &nbsp; <span class="k">CYCLE HVY</span> '+kl('heavy')+' &nbsp; <span class="k">BOMB</span> '+kl('bomb')+' &nbsp; <span class="k">PARRY</span> '+kl('parry')+'<br>'+
+    '<span class="k">WEAPON</span> '+kl('weapon')+' &nbsp; <span class="k">SELECT</span> '+kl('weap1')+' '+kl('weap2')+' '+kl('weap3')+' '+kl('weap4')+' '+kl('weap5')+' '+kl('weap6')+' &nbsp; <span class="k">PAUSE</span> '+kl('pause')+' / ESC<br>'+
+    '<span class="k">REFIT</span> ARROWS SELECT &middot; SPACE BUY &middot; ENTER LAUNCH'; }
 (function(){
   const done=el('keysDone'); if(done) done.addEventListener('click',e=>{e.stopPropagation();closeKeys();});
   const rst=el('keysReset'); if(rst) rst.addEventListener('click',e=>{e.stopPropagation(); keybinds=Object.assign({},KEYS_DEFAULT); saveKeys(); buildKeyList(); refreshControlsHint();});
@@ -4140,6 +4182,7 @@ function refreshControlsHint(){ const p=el('ctrlsPanel'); if(!p)return; const kl
   setMoveMode(moveMode_pref);
   const lf=el('lowfxBtn'); if(lf) lf.addEventListener('click',e=>{e.stopPropagation(); setGfx(GFX==='full'?'med':GFX==='med'?'low':'full');});
   setGfx(GFX);
+  syncPresetUI();
   refreshControlsHint();
 })();
 
