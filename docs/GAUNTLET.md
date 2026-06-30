@@ -303,6 +303,8 @@ landing theme), with a small `.gauntlet`-scoped block in `app.css`.
 - `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
 - `/gauntlet/author`, `/gauntlet/author/new`, `/gauntlet/author/[id]`: the
   teacher-only authoring tool (see "Authoring" below).
+- `/gauntlet/rooms` and `/gauntlet/rooms/[id]`: live synchronized rooms (host +
+  racers/spectators; see "Live Rooms" below).
 
 ## Authoring
 
@@ -354,6 +356,59 @@ the demo placeholders get replaced by real captured parts.
   (`target_volume_mm3` / `surface_area_mm2` / `feature_count` / `mass_g`) into the
   form's paste box. This is the supported path to replace the demo placeholders.
 
+## Live Rooms
+
+Live rooms (`0010_gauntlet_rooms.sql`) are a **synchronized orchestration layer**
+over an existing mode, not a new mode. A room run is an **ordinary submission
+tagged with `room_id`**, graded by the same token path, so it also lands on the
+global per-challenge leaderboard with no special handling. **v1 is Speedrun,
+single round**; the schema is structured so a future multi-round or other modes
+slot in without reworking submissions.
+
+- **Schema.** `gauntlet_rooms` (`host_id`, short unique `join_code`,
+  `current_challenge_id`, `state` of lobby/live/results, `started_at` = the one
+  authoritative clock for the active round) and `gauntlet_room_participants`
+  (`room_id`, `user_id`, `role` racer/spectator, unique per room+user).
+  `submissions` and `gauntlet_run_tokens` gain a nullable `room_id` (solo runs
+  leave it null). The single active round lives on the room; a future rounds
+  table can take over `started_at`/`current_challenge_id` with `room_id` still
+  the submission link.
+- **Host flow (teacher).** `gauntlet_room_create` mints the join code and lands
+  in lobby; `gauntlet_room_set_challenge` (lobby, published Speedrun only);
+  `gauntlet_room_start` and `gauntlet_room_set_state` for live/results. All are
+  host-only, enforced by `host_id` server-side, not just hidden in the UI.
+- **Synchronized reveal + shared clock.** `gauntlet_room_start` (SECURITY
+  DEFINER, host-only) sets `state = live` and one `started_at = now()`, then
+  **bulk-mints one submit token per current racer**, each bound to
+  `(user_id, current_challenge_id, room_id)` with `reveal_at = started_at`, so
+  **every racer shares one authoritative clock**. The drawing stays in the hidden
+  `answer` column and is handed back only by `gauntlet_room_reveal` once the room
+  is live (gated server-side, the same principle as solo reveal-on-start but
+  host-triggered and shared). A later joiner becomes a **spectator** (their join
+  role depends on the room state), which is how the roster "locks" for the round.
+- **Student flow.** Enter a join code (`gauntlet_room_join`), wait in the lobby,
+  and on host Start the drawing + a personal submit code appear. Submit either by
+  the **macro** (`gauntlet_macro_submit`, unchanged except it now copies the
+  token's `room_id` onto the submission) or **manual** mass entry
+  (`gauntlet_room_manual_submit`), which computes elapsed **server-side from the
+  room `started_at`** (not a client timer) and verifies on mass within tolerance,
+  as in solo. **Manual ranks in a room** because the host supervises and the
+  start is server-authoritative. One submission per racer per round (single-use
+  token). End freezes the board by retiring unused room tokens.
+- **Live board + Realtime.** `gauntlet_room_board` (owner-privileged view, like
+  the global leaderboard) ranks the best passing run per racer by the mode metric
+  (Speedrun: lowest elapsed time), counting both sources. Clients subscribe via
+  Supabase Realtime (`postgres_changes`) to the room row (state /
+  `current_challenge_id`), the participants table (roster), and room-filtered
+  submissions (board), with a manual Refresh fallback. **Room state is
+  DB-authoritative**, so a disconnect-and-return rejoins the current state. RLS:
+  members (host + participants) read the room, roster, and the room's submissions
+  (a co-racer's run data, never a hidden answer); writes go only through the
+  SECURITY DEFINER RPCs.
+- **Known limitation.** Per-client render latency at the instant of Start is
+  negligible for minute-scale Speedrun runs, so a shared `started_at` is fair
+  enough for v1; sub-second fairness would need a countdown handshake.
+
 ## Build order
 
 All six modes ship eventually. The sequence:
@@ -372,8 +427,10 @@ All six modes ship eventually. The sequence:
    ship.** See "GD&T and Tolerance and Spot the Error" above.
 6. **The authoring tool** (built): teachers create and manage challenges from the
    browser, replacing hand-edited SQL seeds. See "Authoring" above.
-7. **Live rooms**: synchronous head-to-head play.
+7. **Live rooms** (built): host-controlled synchronized Speedrun sessions. See
+   "Live Rooms" above.
 
 ## Out of scope (later prompts)
 
-Live synchronized rooms, and coin payouts last. Do not build them early.
+Coin payouts (last), multi-round rooms, and rooms for modes other than Speedrun.
+The room schema can accept multi-round and other modes; do not build them early.

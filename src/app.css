@@ -1480,6 +1480,103 @@ a:hover {
 	text-shadow: none;
 }
 
+/* --- Live rooms: join, room header, grid, roster --- */
+.gauntlet .status-lobby {
+	color: var(--amber);
+	border-color: rgba(255, 140, 0, 0.4);
+}
+.gauntlet .status-results {
+	color: var(--cyan);
+	border-color: rgba(0, 240, 255, 0.3);
+}
+.gauntlet .room-join {
+	max-width: 480px;
+}
+.gauntlet .join-row {
+	display: flex;
+	gap: 0.6rem;
+}
+.gauntlet .code-input {
+	font-family: var(--font-mono);
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+}
+.gauntlet .room-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+	background: var(--bg2);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: 0.9rem 1.2rem;
+	margin-bottom: 1rem;
+}
+.gauntlet .room-code-block {
+	display: flex;
+	align-items: baseline;
+	gap: 0.8rem;
+	flex-wrap: wrap;
+}
+.gauntlet .room-code-label {
+	font-family: var(--font-mono);
+	font-size: 0.6rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.gauntlet .room-code {
+	font-family: var(--font-mono);
+	font-size: 1.6rem;
+	letter-spacing: 0.24em;
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+}
+.gauntlet .room-meta {
+	display: flex;
+	align-items: center;
+	gap: 0.8rem;
+}
+.gauntlet .room-grid {
+	display: grid;
+	grid-template-columns: 1fr;
+	gap: 1.5rem;
+}
+@media (min-width: 820px) {
+	.gauntlet .room-grid {
+		grid-template-columns: minmax(0, 1fr) 250px;
+		align-items: start;
+	}
+}
+.gauntlet .room-side h2 {
+	margin-top: 0;
+}
+.gauntlet .roster {
+	display: grid;
+	gap: 1rem;
+}
+.gauntlet .roster-group {
+	display: grid;
+	gap: 0.3rem;
+}
+.gauntlet .roster-label {
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--green);
+}
+.gauntlet .roster-row {
+	color: var(--white);
+	font-size: 0.92rem;
+	padding: 0.15rem 0;
+}
+.gauntlet .host-drawing {
+	margin-top: 0.8rem;
+	max-width: 440px;
+}
+
 /* ==========================================================================
    Legacy-index theme. Shared by the landing page (/) and the archive page
    (/archive). All rules are scoped under `.legacy-index` so they never affect

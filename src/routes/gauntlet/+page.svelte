@@ -42,6 +42,14 @@
 		</div>
 	</section>
 
+	<a class="card author-callout" href="/gauntlet/rooms">
+		<div>
+			<div class="author-title">Live Rooms</div>
+			<div class="author-sub">Race a synchronized Speedrun: one host, one shared clock, a live board.</div>
+		</div>
+		<span class="btn secondary">Enter rooms &rsaquo;</span>
+	</a>
+
 	{#if isTeacher}
 		<a class="card author-callout" href="/gauntlet/author">
 			<div>

@@ -272,6 +272,55 @@ export function formatFeatures(value: number | null | undefined): string {
 	return `${value}`;
 }
 
+// ---------------------------------------------------------------------------
+// Live rooms (synchronized Speedrun sessions; see docs/GAUNTLET.md).
+// ---------------------------------------------------------------------------
+
+export type RoomState = 'lobby' | 'live' | 'results';
+export type RoomRole = 'host' | 'racer' | 'spectator';
+
+export interface GauntletRoom {
+	id: string;
+	host_id: string;
+	join_code: string;
+	current_challenge_id: string | null;
+	state: RoomState;
+	started_at: string | null;
+}
+
+export interface RoomParticipant {
+	user_id: string;
+	role: 'racer' | 'spectator';
+	player: string;
+}
+
+/** A row from the `gauntlet_room_board` view. */
+export interface RoomBoardRow {
+	user_id: string;
+	player: string;
+	is_correct: boolean | null;
+	score_metric: number | null;
+	source: 'manual' | 'macro';
+	rank: number;
+}
+
+/** Payload from `gauntlet_room_reveal` once the host starts the round. */
+export interface RoomReveal {
+	drawing: string | null;
+	code: string | null;
+	started_at: string | null;
+}
+
+const ROOM_STATE_LABELS: Record<RoomState, string> = {
+	lobby: 'Lobby',
+	live: 'Live',
+	results: 'Results'
+};
+
+export function roomStateLabel(state: RoomState): string {
+	return ROOM_STATE_LABELS[state] ?? state;
+}
+
 /** Format a `score_metric` (elapsed seconds, lower better) for display. */
 export function formatTime(seconds: number | null | undefined): string {
 	if (seconds === null || seconds === undefined) return '--';

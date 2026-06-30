@@ -285,6 +285,8 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   - `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
   - `/gauntlet/author` (+ `/new`, `/[id]`): the teacher-only authoring tool, the
     create/edit/publish/delete surface across all six modes. See "Authoring".
+  - `/gauntlet/rooms` (+ `/[id]`): live synchronized Speedrun rooms (host +
+    racers/spectators, Realtime). See "Live Rooms".
   - Shared header: `src/lib/gauntlet/Header.svelte`.
 - **Data model** (`supabase/migrations/0004_gauntlet.sql`), built to serve all
   six modes so later modes need no schema rework:
@@ -383,6 +385,22 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   macro's Author-capture output. Assets upload to a public `gauntlet` Storage
   bucket (gated drawings still live in the hidden `answer`, revealed on Start);
   `Asset.svelte` renders inline SVG or an uploaded `<img>`. See `docs/GAUNTLET.md`.
+- **Live Rooms** (`0010`): a synchronized orchestration layer over Speedrun (v1,
+  single round), not a new mode. A room run is a **normal submission tagged with
+  `room_id`** (added to `submissions` + `gauntlet_run_tokens`), so it also hits
+  the global board. `gauntlet_rooms` / `gauntlet_room_participants` hold the
+  session + roster. Host-only SECURITY DEFINER RPCs (`gauntlet_room_create` /
+  `_set_challenge` / `_start` / `_set_state`, enforced by `host_id`): **Start sets
+  one authoritative `started_at` and bulk-mints a token per racer** with
+  `reveal_at = started_at` (shared clock). The drawing stays gated in `answer`,
+  handed back only by `gauntlet_room_reveal` once live. Students join by code
+  (`gauntlet_room_join`; late join = spectator); they submit by the macro
+  (`gauntlet_macro_submit`, now copies the token's `room_id`) or
+  `gauntlet_room_manual_submit` (elapsed computed server-side from `started_at`,
+  verified on mass). **Manual ranks in a room** (host-supervised). The
+  `gauntlet_room_board` view ranks both sources; clients use Realtime
+  (`postgres_changes`) on the room, roster, and room submissions, with a refresh
+  fallback; room state is DB-authoritative. See `docs/GAUNTLET.md`.
 - **Visuals:** GAUNTLET uses the **app-shell** side of the theme (tokens +
   Rajdhani / Share Tech Mono), with a `.gauntlet`-scoped block in `src/app.css`
   (page content) plus global header-breadcrumb classes. It does not use the
