@@ -1,0 +1,286 @@
+{
+  "mode": "gdt_tolerance",
+  "count": 20,
+  "challenges": [
+    {
+      "slug": "gdt-sym-position",
+      "title": "Symbol ID: Position",
+      "difficulty": "T1",
+      "question": "Identify the geometric characteristic symbol shown.",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "Position",
+        "Concentricity",
+        "Symmetry",
+        "Circular runout"
+      ],
+      "answer": "Position",
+      "explanation": "The crosshair inside a circle is the Position symbol. It locates a feature of size relative to datums.",
+      "asset_svg": "<svg viewBox=\"0 0 88 80\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><circle cx=\"44\" cy=\"40\" r=\"11\" fill=\"none\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"28\" y1=\"40\" x2=\"60\" y2=\"40\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"44\" y1=\"24\" x2=\"44\" y2=\"56\" stroke=\"#00f0ff\" stroke-width=\"2\"/></svg>"
+    },
+    {
+      "slug": "gdt-sym-flatness",
+      "title": "Symbol ID: Flatness",
+      "difficulty": "T1",
+      "question": "Identify the geometric characteristic symbol shown.",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "Flatness",
+        "Profile of a surface",
+        "Parallelism",
+        "Straightness"
+      ],
+      "answer": "Flatness",
+      "explanation": "The parallelogram is Flatness, a form control. Form controls take no datum reference.",
+      "asset_svg": "<svg viewBox=\"0 0 88 80\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><polygon points=\"32,47.2 40.4,32.8 56,32.8 47.6,47.2\" fill=\"none\" stroke=\"#00f0ff\" stroke-width=\"2\"/></svg>"
+    },
+    {
+      "slug": "gdt-sym-perp",
+      "title": "Symbol ID: Perpendicularity",
+      "difficulty": "T1",
+      "question": "Identify the geometric characteristic symbol shown.",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "Perpendicularity",
+        "Angularity",
+        "Parallelism",
+        "Position"
+      ],
+      "answer": "Perpendicularity",
+      "explanation": "The inverted-T symbol is Perpendicularity, an orientation control holding a feature 90 degrees to a datum.",
+      "asset_svg": "<svg viewBox=\"0 0 88 80\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><line x1=\"41.6\" y1=\"28\" x2=\"41.6\" y2=\"52\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"32\" y1=\"52\" x2=\"56\" y2=\"52\" stroke=\"#00f0ff\" stroke-width=\"2\"/></svg>"
+    },
+    {
+      "slug": "gdt-frame-anatomy",
+      "title": "Feature Control Frame Anatomy",
+      "difficulty": "T1",
+      "question": "In a feature control frame, what does the first (leftmost) compartment always contain?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "The geometric characteristic symbol",
+        "The tolerance value",
+        "The primary datum letter",
+        "The basic dimension"
+      ],
+      "answer": "The geometric characteristic symbol",
+      "explanation": "A frame reads left to right: characteristic symbol, then tolerance, then datum references.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-basic-dim",
+      "title": "Basic Dimensions",
+      "difficulty": "T1",
+      "question": "A dimension enclosed in a rectangular box (a basic dimension) represents what?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "A theoretically exact value with no tolerance of its own",
+        "A maximum material limit",
+        "A reference dimension that may be ignored",
+        "A toleranced dimension of plus or minus 0.001"
+      ],
+      "answer": "A theoretically exact value with no tolerance of its own",
+      "explanation": "A basic dimension is exact. The permitted variation comes from the feature control frame, not the dimension.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-tol-max",
+      "title": "Plus/Minus Tolerance: Max Size",
+      "difficulty": "T1",
+      "question": "A dimension is 1.000 +/- 0.005 in. What is the maximum acceptable size?",
+      "answer_type": "numeric",
+      "choices": null,
+      "answer": "1.005",
+      "explanation": "Maximum is the nominal plus the upper tolerance: 1.000 + 0.005 = 1.005.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-zone-shape",
+      "title": "Tolerance Zone Shape",
+      "difficulty": "T2",
+      "question": "The feature control frame shown is applied to a hole. What is the shape and size of its tolerance zone?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "A cylindrical zone 0.010 in diameter",
+        "A square zone 0.010 wide",
+        "Two parallel planes 0.010 apart",
+        "A spherical zone 0.010 in diameter"
+      ],
+      "answer": "A cylindrical zone 0.010 in diameter",
+      "explanation": "The diameter symbol ahead of the tolerance makes the zone cylindrical, 0.010 across.",
+      "asset_svg": "<svg viewBox=\"0 0 251 74\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><rect x=\"16\" y=\"16\" width=\"219\" height=\"42\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"35.0\" cy=\"37.0\" r=\"11\" fill=\"none\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"19.0\" y1=\"37.0\" x2=\"51.0\" y2=\"37.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"35.0\" y1=\"21.0\" x2=\"35.0\" y2=\"53.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"54\" y1=\"16\" x2=\"54\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"68\" cy=\"37.0\" r=\"7\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><line x1=\"59\" y1=\"46.0\" x2=\"77\" y2=\"28.0\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"86\" y=\"37.0\" fill=\"#e8ffe8\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"start\" dominant-baseline=\"central\">0.010</text><line x1=\"145\" y1=\"16\" x2=\"145\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"160\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text><line x1=\"175\" y1=\"16\" x2=\"175\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"190\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">B</text><line x1=\"205\" y1=\"16\" x2=\"205\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"220\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">C</text></svg>"
+    },
+    {
+      "slug": "gdt-primary-datum",
+      "title": "Datum Precedence",
+      "difficulty": "T2",
+      "question": "In the feature control frame shown, which datum is the primary datum?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "A",
+        "B",
+        "C",
+        "They have equal precedence"
+      ],
+      "answer": "A",
+      "explanation": "Datums are listed in order of precedence. The first datum compartment, A, is primary and is contacted first.",
+      "asset_svg": "<svg viewBox=\"0 0 251 74\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><rect x=\"16\" y=\"16\" width=\"219\" height=\"42\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"35.0\" cy=\"37.0\" r=\"11\" fill=\"none\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"19.0\" y1=\"37.0\" x2=\"51.0\" y2=\"37.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"35.0\" y1=\"21.0\" x2=\"35.0\" y2=\"53.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"54\" y1=\"16\" x2=\"54\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"68\" cy=\"37.0\" r=\"7\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><line x1=\"59\" y1=\"46.0\" x2=\"77\" y2=\"28.0\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"86\" y=\"37.0\" fill=\"#e8ffe8\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"start\" dominant-baseline=\"central\">0.010</text><line x1=\"145\" y1=\"16\" x2=\"145\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"160\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text><line x1=\"175\" y1=\"16\" x2=\"175\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"190\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">B</text><line x1=\"205\" y1=\"16\" x2=\"205\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"220\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">C</text></svg>"
+    },
+    {
+      "slug": "gdt-perp-control",
+      "title": "What Perpendicularity Controls",
+      "difficulty": "T2",
+      "question": "What does the feature control frame shown control?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "Orientation of the feature at 90 degrees to datum A within a 0.005 zone",
+        "Location of the feature from datum A",
+        "Roundness of the feature",
+        "Size of the feature"
+      ],
+      "answer": "Orientation of the feature at 90 degrees to datum A within a 0.005 zone",
+      "explanation": "Perpendicularity is an orientation control. It does not locate or size the feature.",
+      "asset_svg": "<svg viewBox=\"0 0 175 74\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><rect x=\"16\" y=\"16\" width=\"143\" height=\"42\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><line x1=\"32.6\" y1=\"25.0\" x2=\"32.6\" y2=\"49.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"23.0\" y1=\"49.0\" x2=\"47.0\" y2=\"49.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"54\" y1=\"16\" x2=\"54\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"68\" y=\"37.0\" fill=\"#e8ffe8\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"start\" dominant-baseline=\"central\">0.005</text><line x1=\"129\" y1=\"16\" x2=\"129\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"144\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text></svg>"
+    },
+    {
+      "slug": "gdt-clearance",
+      "title": "Diametral Clearance",
+      "difficulty": "T2",
+      "question": "A hole is dia 0.510 and the shaft assembled into it is dia 0.500. What is the diametral clearance?",
+      "answer_type": "numeric",
+      "choices": null,
+      "answer": "0.010",
+      "explanation": "Clearance is hole minus shaft: 0.510 - 0.500 = 0.010.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-mmc-hole",
+      "title": "MMC of a Hole",
+      "difficulty": "T2",
+      "question": "A hole is dimensioned dia 0.500 to 0.510. What is its maximum material condition (MMC)?",
+      "answer_type": "numeric",
+      "choices": null,
+      "answer": "0.500",
+      "explanation": "A hole has the most material when it is smallest, so MMC is the 0.500 limit.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-fit-type",
+      "title": "Identify the Fit",
+      "difficulty": "T2",
+      "question": "A hole is dia 0.500 to 0.504 and a shaft is dia 0.495 to 0.498. What type of fit is this?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "Clearance fit",
+        "Interference fit",
+        "Transition fit",
+        "Line fit"
+      ],
+      "answer": "Clearance fit",
+      "explanation": "The hole is always larger than the shaft (min clearance 0.002, max 0.009), so it is always a clearance fit.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-bonus-tol",
+      "title": "Bonus Tolerance",
+      "difficulty": "T3",
+      "question": "A hole dia 0.500 to 0.520 has the position control shown, applied at MMC. The hole is produced at dia 0.515. What is the total position tolerance available (zone diameter)?",
+      "answer_type": "numeric",
+      "choices": null,
+      "answer": "0.025",
+      "explanation": "Bonus = produced size - MMC = 0.515 - 0.500 = 0.015. Total = stated 0.010 + bonus 0.015 = 0.025.",
+      "asset_svg": "<svg viewBox=\"0 0 271 74\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><rect x=\"16\" y=\"16\" width=\"239\" height=\"42\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"35.0\" cy=\"37.0\" r=\"11\" fill=\"none\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"19.0\" y1=\"37.0\" x2=\"51.0\" y2=\"37.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"35.0\" y1=\"21.0\" x2=\"35.0\" y2=\"53.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"54\" y1=\"16\" x2=\"54\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"68\" cy=\"37.0\" r=\"7\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><line x1=\"59\" y1=\"46.0\" x2=\"77\" y2=\"28.0\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"86\" y=\"37.0\" fill=\"#e8ffe8\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"start\" dominant-baseline=\"central\">0.010</text><circle cx=\"143\" cy=\"37.0\" r=\"9\" fill=\"none\" stroke=\"#c8ff00\" stroke-width=\"2\"/><text x=\"143\" y=\"37.0\" fill=\"#c8ff00\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"central\">M</text><line x1=\"165\" y1=\"16\" x2=\"165\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"180\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text><line x1=\"195\" y1=\"16\" x2=\"195\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"210\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">B</text><line x1=\"225\" y1=\"16\" x2=\"225\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"240\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">C</text></svg>"
+    },
+    {
+      "slug": "gdt-total-runout",
+      "title": "Runout Type",
+      "difficulty": "T3",
+      "question": "Which control inspects the entire cylindrical surface as the part rotates, not just individual circular cross sections?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "Total runout",
+        "Circular runout",
+        "Cylindricity",
+        "Concentricity"
+      ],
+      "answer": "Total runout",
+      "explanation": "Circular runout checks one cross section at a time; total runout controls the whole surface at once.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-dof",
+      "title": "Degrees of Freedom",
+      "difficulty": "T3",
+      "question": "A primary planar datum feature, when contacted, removes how many degrees of freedom?",
+      "answer_type": "numeric",
+      "choices": null,
+      "answer": "3",
+      "explanation": "A plane stops one translation (normal to it) and two rotations, removing three of the six degrees of freedom.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-profile-disp",
+      "title": "Profile Disposition",
+      "difficulty": "T3",
+      "question": "A profile of a surface tolerance of 0.020 is shown equally disposed about the true profile. How far may the surface deviate to either side of the true profile?",
+      "answer_type": "numeric",
+      "choices": null,
+      "answer": "0.010",
+      "explanation": "Equally disposed splits the 0.020 zone in half, so 0.010 to each side.",
+      "asset_svg": null
+    },
+    {
+      "slug": "gdt-mmc-why",
+      "title": "Why Use MMC",
+      "difficulty": "T3",
+      "question": "Why does adding the MMC modifier to a position tolerance benefit production?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "It allows bonus tolerance as the feature departs from MMC",
+        "It tightens the tolerance as the hole grows",
+        "It removes the datum requirement",
+        "It changes the zone from round to square"
+      ],
+      "answer": "It allows bonus tolerance as the feature departs from MMC",
+      "explanation": "As the hole grows away from MMC, extra position tolerance becomes available, easing manufacture without hurting assembly.",
+      "asset_svg": "<svg viewBox=\"0 0 271 74\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><rect x=\"16\" y=\"16\" width=\"239\" height=\"42\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"35.0\" cy=\"37.0\" r=\"11\" fill=\"none\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"19.0\" y1=\"37.0\" x2=\"51.0\" y2=\"37.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"35.0\" y1=\"21.0\" x2=\"35.0\" y2=\"53.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"54\" y1=\"16\" x2=\"54\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"68\" cy=\"37.0\" r=\"7\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><line x1=\"59\" y1=\"46.0\" x2=\"77\" y2=\"28.0\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"86\" y=\"37.0\" fill=\"#e8ffe8\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"start\" dominant-baseline=\"central\">0.010</text><circle cx=\"143\" cy=\"37.0\" r=\"9\" fill=\"none\" stroke=\"#c8ff00\" stroke-width=\"2\"/><text x=\"143\" y=\"37.0\" fill=\"#c8ff00\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"central\">M</text><line x1=\"165\" y1=\"16\" x2=\"165\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"180\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text><line x1=\"195\" y1=\"16\" x2=\"195\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"210\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">B</text><line x1=\"225\" y1=\"16\" x2=\"225\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"240\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">C</text></svg>"
+    },
+    {
+      "slug": "gdt-vc-external",
+      "title": "Virtual Condition: Pin",
+      "difficulty": "T4",
+      "question": "A pin (external feature) has an MMC of dia 0.500 and a perpendicularity tolerance of 0.005 applied at MMC. What is its virtual condition?",
+      "answer_type": "numeric",
+      "choices": null,
+      "answer": "0.505",
+      "explanation": "For an external feature, virtual condition = MMC + geometric tolerance = 0.500 + 0.005 = 0.505.",
+      "asset_svg": "<svg viewBox=\"0 0 195 74\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><rect x=\"16\" y=\"16\" width=\"163\" height=\"42\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><line x1=\"32.6\" y1=\"25.0\" x2=\"32.6\" y2=\"49.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"23.0\" y1=\"49.0\" x2=\"47.0\" y2=\"49.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"54\" y1=\"16\" x2=\"54\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"68\" y=\"37.0\" fill=\"#e8ffe8\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"start\" dominant-baseline=\"central\">0.005</text><circle cx=\"125\" cy=\"37.0\" r=\"9\" fill=\"none\" stroke=\"#c8ff00\" stroke-width=\"2\"/><text x=\"125\" y=\"37.0\" fill=\"#c8ff00\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"central\">M</text><line x1=\"149\" y1=\"16\" x2=\"149\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"164\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text></svg>"
+    },
+    {
+      "slug": "gdt-vc-internal",
+      "title": "Virtual Condition: Hole",
+      "difficulty": "T4",
+      "question": "A hole (internal feature) has an MMC of dia 0.510 and a position tolerance of 0.010 applied at MMC. What is its virtual condition?",
+      "answer_type": "numeric",
+      "choices": null,
+      "answer": "0.500",
+      "explanation": "For an internal feature, virtual condition = MMC - geometric tolerance = 0.510 - 0.010 = 0.500.",
+      "asset_svg": "<svg viewBox=\"0 0 271 74\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><rect x=\"16\" y=\"16\" width=\"239\" height=\"42\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"35.0\" cy=\"37.0\" r=\"11\" fill=\"none\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"19.0\" y1=\"37.0\" x2=\"51.0\" y2=\"37.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"35.0\" y1=\"21.0\" x2=\"35.0\" y2=\"53.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"54\" y1=\"16\" x2=\"54\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"68\" cy=\"37.0\" r=\"7\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><line x1=\"59\" y1=\"46.0\" x2=\"77\" y2=\"28.0\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"86\" y=\"37.0\" fill=\"#e8ffe8\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"start\" dominant-baseline=\"central\">0.010</text><circle cx=\"143\" cy=\"37.0\" r=\"9\" fill=\"none\" stroke=\"#c8ff00\" stroke-width=\"2\"/><text x=\"143\" y=\"37.0\" fill=\"#c8ff00\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"central\">M</text><line x1=\"165\" y1=\"16\" x2=\"165\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"180\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text><line x1=\"195\" y1=\"16\" x2=\"195\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"210\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">B</text><line x1=\"225\" y1=\"16\" x2=\"225\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"240\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">C</text></svg>"
+    },
+    {
+      "slug": "gdt-assembly",
+      "title": "Worst-Case Assembly",
+      "difficulty": "T4",
+      "question": "A hole has a virtual condition of dia 0.500 and the pin going into it has a virtual condition of dia 0.500. What does this guarantee?",
+      "answer_type": "multiple_choice",
+      "choices": [
+        "The parts will always just assemble at worst case",
+        "The parts will always have 0.010 clearance",
+        "The parts will always interfere",
+        "Nothing can be determined"
+      ],
+      "answer": "The parts will always just assemble at worst case",
+      "explanation": "Matching virtual conditions define the worst-case mating boundary. Equal VCs mean the pin and hole always just fit.",
+      "asset_svg": "<svg viewBox=\"0 0 271 74\" xmlns=\"http://www.w3.org/2000/svg\" font-family=\"'Share Tech Mono', ui-monospace, monospace\"><rect x=\"16\" y=\"16\" width=\"239\" height=\"42\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"35.0\" cy=\"37.0\" r=\"11\" fill=\"none\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"19.0\" y1=\"37.0\" x2=\"51.0\" y2=\"37.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"35.0\" y1=\"21.0\" x2=\"35.0\" y2=\"53.0\" stroke=\"#00f0ff\" stroke-width=\"2\"/><line x1=\"54\" y1=\"16\" x2=\"54\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><circle cx=\"68\" cy=\"37.0\" r=\"7\" fill=\"none\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><line x1=\"59\" y1=\"46.0\" x2=\"77\" y2=\"28.0\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"86\" y=\"37.0\" fill=\"#e8ffe8\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"start\" dominant-baseline=\"central\">0.010</text><circle cx=\"143\" cy=\"37.0\" r=\"9\" fill=\"none\" stroke=\"#c8ff00\" stroke-width=\"2\"/><text x=\"143\" y=\"37.0\" fill=\"#c8ff00\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"11\" text-anchor=\"middle\" dominant-baseline=\"central\">M</text><line x1=\"165\" y1=\"16\" x2=\"165\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"180\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">A</text><line x1=\"195\" y1=\"16\" x2=\"195\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"210\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">B</text><line x1=\"225\" y1=\"16\" x2=\"225\" y2=\"58\" stroke=\"#e8ffe8\" stroke-width=\"2\"/><text x=\"240\" y=\"37.0\" fill=\"#00ff41\" font-family=\"'Share Tech Mono', ui-monospace, monospace\" font-size=\"16\" text-anchor=\"middle\" dominant-baseline=\"central\">C</text></svg>"
+    }
+  ]
+}

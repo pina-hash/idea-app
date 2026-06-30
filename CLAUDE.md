@@ -382,7 +382,13 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   idempotency key, so re-running never duplicates. `asset_svg` maps to
   `prompt->>'drawing'` (rendered inline by `Asset.svelte`); a null drawing shows
   no art. The source listed every correct choice first, so option order is
-  rotated deterministically to distribute the answer across positions.
+  rotated deterministically to distribute the answer across positions. Drawings
+  use the 0008 palette resolved to **concrete hex** (because `var()` and bare
+  font names are unreliable inside `{@html}`-injected SVG): frame and tolerance
+  text `--white` `#e8ffe8`, characteristic symbol `--cyan` `#00f0ff`, circled M
+  `--gold` `#c8ff00`, datum letters `--green` `#00ff41`, font Share Tech Mono
+  with a `monospace` fallback. The provenance source `gauntlet_gdt_seed.json`
+  lives at the repo root (not `static/`, so it is never publicly served).
 - **Authoring** (`0009`): the teacher-only web tool that replaces hand-edited SQL
   seeds. A `status` column (draft/published/archived) drives a trigger-derived
   `published`, so all existing gating is unchanged and students never see drafts
