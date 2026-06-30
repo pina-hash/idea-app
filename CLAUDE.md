@@ -28,6 +28,13 @@ ability, it is not required to browse the portal.
   redirected off `/dashboard` by `hooks.server.ts`; non-teacher signed-in users
   are redirected to `/` by `dashboard/+page.server.ts` (the role lives in
   `profiles`, so the teacher check happens in the load).
+- **Signed-in tier (any role):** the **GAUNTLET** CAD skills dojo at
+  `/gauntlet` is open to any authenticated user, student or teacher. This is a
+  second gated tier: `hooks.server.ts` redirects anonymous users off
+  `/gauntlet*` (the guard now covers a list of authed prefixes, not just
+  `/dashboard`), but no role is required to enter. Its teacher-only authoring
+  page (`/gauntlet/author`) is gated in that page's load, the same way the
+  dashboard is. See the "IDEA // GAUNTLET" section below.
 - **Students have no separate dashboard:** the **homepage `/` is the student
   dashboard**. A signed-in student self-selects their 2026-27 class once; it is
   stored in `profiles.section_id` and pinned at the top of `/` (and shown as a
@@ -248,6 +255,69 @@ in `profiles`, not the JWT, so the endpoint looks it up via `locals.supabase`.
 - The dashboard link to it renders only for teachers, but the endpoint is the
   real guard (UI gating is convenience, not security).
 
+## IDEA // GAUNTLET (CAD skills dojo)
+
+GAUNTLET is a **container for multiple CAD challenge modes**, not a single game.
+Students enter to train SolidWorks skills, get scored, and level up over time
+("enter weak, leave strong"). The full intent lives in `docs/GAUNTLET.md` (the
+north star, read it before extending GAUNTLET). Summary of what exists:
+
+- **Six modes, two families.** Modeling modes (Speedrun, Reverse Engineer,
+  Feature Golf) read part geometry from a later SolidWorks VBA macro; knowledge
+  modes (Drawing Reading, GD&T and Tolerance, Spot the Error) are web only and
+  answer-graded. The catalog is `src/lib/gauntlet.ts` (plain data, like
+  `curriculum.ts`, client-safe). **Drawing Reading is the only live mode**; the
+  rest render as "coming soon" in the mode grid.
+- **Routes** (all under the signed-in `/gauntlet` tier):
+  - `/gauntlet`: dojo landing + mode-select grid. Teachers also see an
+    authoring entry point.
+  - `/gauntlet/drawing-reading`: challenge list for the first mode.
+  - `/gauntlet/drawing-reading/[id]`: one challenge end to end (drawing +
+    question, answer, server-graded submit, per-challenge leaderboard).
+  - `/gauntlet/author`: teacher-only authoring stub (full UI is a later prompt).
+  - Shared header: `src/lib/gauntlet/Header.svelte`.
+- **Data model** (`supabase/migrations/0004_gauntlet.sql`), built to serve all
+  six modes so later modes need no schema rework:
+  - `gauntlet_mode` enum over the six modes (kept in sync with
+    `GauntletModeId` in `src/lib/gauntlet.ts`).
+  - `challenges`: `id`, `mode`, `title`, `difficulty` (1 to 5), `asset_ref`,
+    `published`, `author_id`, timestamps, and the spec's single JSONB payload
+    **split into two columns**, `prompt` (public) and `answer` (private). The
+    split exists so a column-level `GRANT` can expose the question/drawing to
+    students while withholding the answer entirely. Inline-SVG drawings live in
+    `prompt->>'drawing'`.
+  - `submissions`: `id`, `user_id`, `challenge_id`, `mode`, `value` (JSONB),
+    `is_correct`, `score_metric` (numeric, **lower ranks better**: elapsed
+    seconds for timed/knowledge modes, feature count for Feature Golf),
+    `created_at`.
+  - `gauntlet_leaderboard`: a **view** (not a table), best submission per user
+    per challenge, ranked `is_correct DESC, score_metric ASC, created_at ASC`.
+    It runs with owner privileges (NOT `security_invoker`) so every player sees
+    the whole board, and exposes only board-safe columns (no raw answers).
+- **Security model** (this is the important part to preserve):
+  - Students read published challenge **prompts** and the board, and read their
+    own submissions. They can never read an `answer` column (no client grant),
+    and they cannot insert submissions directly.
+  - **Grading is server-side and authoritative.** Submissions are written only
+    by the `gauntlet_submit(p_challenge_id, p_value, p_elapsed_ms)` SECURITY
+    DEFINER RPC, which reads the hidden answer, grades, and inserts with
+    `user_id = auth.uid()`. Direct client inserts are blocked so a student
+    cannot forge `is_correct` or a zero time. This is the "block direct client
+    inserts where appropriate" guidance applied to grading.
+  - Teachers (the `profiles.role` from 0001, via the reused `is_teacher()`)
+    author challenges, gated by RLS. Any future staff cross-user write (e.g. a
+    teacher entering a student's measured mass) routes through a SECURITY
+    DEFINER RPC, never a direct client write.
+- **Verification principle (modeling modes, for later):** verify on **volume**
+  internally (geometric, material-independent) but present challenges in
+  TooTallToby convention (material, density, target mass). Manual mass entry is
+  the supervised-trust MVP; the macro replaces it for ranked play. Capture
+  surface area and feature count for audit.
+- **Visuals:** GAUNTLET uses the **app-shell** side of the theme (tokens +
+  Rajdhani / Share Tech Mono), with a `.gauntlet`-scoped block in `src/app.css`
+  (page content) plus global header-breadcrumb classes. It does not use the
+  `.legacy-index` landing theme. No new colors or fonts.
+
 ## Changelog automation
 
 The site changelog is **auto-generated from git history** and never hand-edited.
@@ -315,7 +385,7 @@ as the public landing page `/`, assignments made public, optional sign-in, and
 the first signed-in feature **VANGUARD cloud saves** (see the VANGUARD endpoint
 section).
 
-Phase 4 (current) reshapes the portal around the **2026-27 curriculum**: the
+Phase 4 (done) reshaped the portal around the **2026-27 curriculum**: the
 homepage is the student dashboard (the dashboard is teacher-only), students
 self-select their class (`profiles.section_id`) and see it pinned, the
 discontinued IDEA-113/208/303/403 courses moved to `/archive`, and the changelog
@@ -325,3 +395,11 @@ coin backend yet. No coin economy logic in this repo. Do not modify legacy HTML
 internals, with the standing exception of VANGUARD's
 `src/lib/legacy/vanguard/index.html`, which is now the editable canonical game
 source (surgical edits only, see "VANGUARD is unfrozen" above).
+
+Phase 5 (current) is the **IDEA // GAUNTLET** foundation: the CAD skills dojo
+shell, the full data model for all six modes, and the first mode (Drawing
+Reading) end to end with server-side grading and a leaderboard view. See the
+"IDEA // GAUNTLET" section above and `docs/GAUNTLET.md`. Out of scope for this
+phase and deliberately deferred to later prompts: Speedrun, the SolidWorks VBA
+macro, coin payouts, and the full authoring UI. The schema and shell anticipate
+them; do not build them early.

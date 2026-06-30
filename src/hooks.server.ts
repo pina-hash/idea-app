@@ -63,12 +63,22 @@ const supabase: Handle = async ({ event, resolve }) => {
  * asymmetric signing keys) without an extra round-trip to the Auth server,
  * which is both faster and safer than `getSession` for route protection.
  */
+/**
+ * Route prefixes that require a signed-in user. `/dashboard` is additionally
+ * teacher-gated in its own load; `/gauntlet` (the CAD skills dojo) is open to
+ * any authenticated user, with its teacher-only authoring page gated in that
+ * page's load.
+ */
+const authedPrefixes = ['/dashboard', '/gauntlet'];
+
 const authGuard: Handle = async ({ event, resolve }) => {
 	const { data } = await event.locals.supabase.auth.getClaims();
 	event.locals.claims = (data?.claims ?? null) as App.Claims | null;
 
-	// Protected tier: only authenticated users may reach /dashboard.
-	if (!event.locals.claims && event.url.pathname.startsWith('/dashboard')) {
+	// Protected tier: only authenticated users may reach these sections.
+	const { pathname } = event.url;
+	const needsAuth = authedPrefixes.some((p) => pathname === p || pathname.startsWith(p + '/'));
+	if (!event.locals.claims && needsAuth) {
 		redirect(303, '/');
 	}
 

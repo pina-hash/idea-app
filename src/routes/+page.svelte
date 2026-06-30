@@ -28,12 +28,14 @@
 	let savingSection = $state(false);
 	let changing = $state(false);
 
-	const signInWithGoogle = async () => {
+	const signInWithGoogle = async (next = '/') => {
 		loading = true;
 		errorMessage = '';
 		const { error } = await supabase.auth.signInWithOAuth({
 			provider: 'google',
-			options: { redirectTo: `${window.location.origin}/auth/callback?next=/` }
+			options: {
+				redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`
+			}
 		});
 		if (error) {
 			errorMessage = error.message;
@@ -270,7 +272,7 @@
 					{/if}
 					<button class="auth-link" type="button" onclick={signOut}>Sign out</button>
 				{:else}
-					<button class="auth-link signin" type="button" onclick={signInWithGoogle} disabled={loading}>
+					<button class="auth-link signin" type="button" onclick={() => signInWithGoogle()} disabled={loading}>
 						{loading ? '...' : 'Sign in'}
 					</button>
 				{/if}
@@ -344,6 +346,29 @@
 			</div>
 		</div>
 		<div class="promo-cta">Play &#9658;</div>
+	</a>
+
+	<a
+		class="promo-callout"
+		href="/gauntlet"
+		onclick={(e) => {
+			if (!signedIn) {
+				e.preventDefault();
+				signInWithGoogle('/gauntlet');
+			}
+		}}
+	>
+		<div class="promo-left">
+			<div class="promo-icon">&#9678;</div>
+			<div>
+				<div class="promo-title">IDEA // GAUNTLET</div>
+				<div class="promo-sub">
+					CAD skills dojo. Read drawings, model against the clock, and climb the boards.
+					{signedIn ? '' : 'Sign in to enter.'}
+				</div>
+			</div>
+		</div>
+		<div class="promo-cta">{signedIn ? 'Enter' : 'Sign in'} &#9658;</div>
 	</a>
 
 	<div class="submit-panel">
@@ -432,7 +457,7 @@
 		{:else}
 			<div class="course-card signin-note">
 				<p>
-					<button class="text-btn inline" type="button" onclick={signInWithGoogle} disabled={loading}>
+					<button class="text-btn inline" type="button" onclick={() => signInWithGoogle()} disabled={loading}>
 						Sign in
 					</button> to pin your class to the top and save your progress.
 				</p>
