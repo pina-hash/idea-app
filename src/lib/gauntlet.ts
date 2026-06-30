@@ -38,9 +38,7 @@ export interface GauntletMode {
 }
 
 /**
- * Every mode, in build order. Drawing Reading and Speedrun are live; the rest
- * render as "coming soon" until their prompts land. Keep `id` in sync with the
- * `gauntlet_mode` enum.
+ * Every mode, in build order. Keep `id` in sync with the `gauntlet_mode` enum.
  */
 export const MODES: GauntletMode[] = [
 	{
@@ -57,8 +55,9 @@ export const MODES: GauntletMode[] = [
 		name: 'Reverse Engineer',
 		family: 'modeling',
 		tagline: 'Reproduce a part from an object or its views. No clock.',
-		scoring: 'Volume plus surface area',
-		status: 'soon'
+		scoring: 'Closest on volume and area wins',
+		status: 'live',
+		href: '/gauntlet/reverse-engineer'
 	},
 	{
 		id: 'feature_golf',
@@ -66,7 +65,8 @@ export const MODES: GauntletMode[] = [
 		family: 'modeling',
 		tagline: 'Hit the target geometry in the fewest features.',
 		scoring: 'Correct volume, fewest features wins',
-		status: 'soon'
+		status: 'live',
+		href: '/gauntlet/feature-golf'
 	},
 	{
 		id: 'drawing_reading',
@@ -177,12 +177,13 @@ export interface SubmitResult {
 }
 
 /**
- * The public `prompt` framing for a Speedrun challenge. Shown BEFORE Start (the
- * dimensioned drawing is hidden in the `answer` column and revealed by the
- * `gauntlet_speedrun_reveal` RPC). `target_mass` / `tolerance_pct` here are
- * display copies; the authoritative grading values live in `answer`.
+ * The public `prompt` framing for a modeling challenge (Speedrun, Reverse
+ * Engineer, Feature Golf). `target_mass` / `tolerance_pct` here are display
+ * copies; the authoritative grading values live in `answer`. For Speedrun and
+ * Feature Golf the dimensioned drawing is hidden in `answer` and revealed on
+ * Start; Reverse Engineer is untimed, so its `reference` is shown up front.
  */
-export interface SpeedrunFraming {
+export interface ModelingFraming {
 	material?: string;
 	density?: number;
 	density_unit?: string;
@@ -191,9 +192,16 @@ export interface SpeedrunFraming {
 	tolerance_pct?: number;
 	length_unit?: string;
 	note?: string;
+	/** Reverse Engineer: reference views/photo shown up front (inline SVG). */
+	reference?: string;
+	/** Feature Golf: the par feature count, shown for flavor (not graded). */
+	par_features?: number;
 	/** Placeholder demo challenge, to be replaced by a real captured part. */
 	demo?: boolean;
 }
+
+/** Backwards-compatible alias: Speedrun uses the shared modeling framing. */
+export type SpeedrunFraming = ModelingFraming;
 
 /**
  * Payload returned by `gauntlet_speedrun_reveal` when the student clicks Start.
@@ -232,6 +240,18 @@ export function formatMass(value: number | null | undefined, unit = 'g'): string
 	if (value === null || value === undefined || Number.isNaN(value)) return '--';
 	const rounded = Math.round(value * 100) / 100;
 	return `${rounded} ${unit}`;
+}
+
+/** Format a Reverse Engineer deviation metric (percent, lower is better). */
+export function formatDeviation(value: number | null | undefined): string {
+	if (value === null || value === undefined || Number.isNaN(value)) return '--';
+	return `${value}%`;
+}
+
+/** Format a Feature Golf feature count (lower is better). */
+export function formatFeatures(value: number | null | undefined): string {
+	if (value === null || value === undefined || Number.isNaN(value)) return '--';
+	return `${value}`;
 }
 
 /** Format a `score_metric` (elapsed seconds, lower better) for display. */

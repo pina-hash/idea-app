@@ -193,6 +193,53 @@ remains as unranked supervised practice.** The original manual MVP is
   placeholder drawing, marked `demo`. Real challenges are authored from actual
   SolidWorks parts with the macro's Author capture mode.
 
+## Reverse Engineer and Feature Golf
+
+Two more modeling modes (`0007_gauntlet_modeling_modes.sql`) that reuse the macro
+and the machine-verified submit path **unchanged**; only the reveal rule, the
+score metric, and the board differ. `gauntlet_macro_submit` now selects the
+metric by mode and **always verifies pass/fail on volume**;
+`gauntlet_speedrun_reveal` mints the submit token for any modeling mode. Both
+share the `ModelingRun.svelte` play component.
+
+### Reverse Engineer (untimed, scored on form accuracy)
+
+- **Prompt + reveal.** The challenge shows reference material (a photo or
+  reference views) in the **public `prompt`** (`reference`), up front, because the
+  mode is untimed. The student still clicks to mint a submit code (the reveal
+  binds the macro run); there is no hidden drawing.
+- **The Reverse Engineer metric.** Pass/fail is volume within tolerance, as
+  usual. The ranking metric is **closeness of form**: the mean percent deviation
+  of captured volume and surface area from canonical,
+  `score = (|vol - target_vol|/target_vol + |area - target_area|/target_area) / 2 * 100`,
+  rounded, **lower is better**. The `answer` carries `target_volume_mm3` and
+  `target_surface_area_mm2`.
+- **Board.** Ranks passing runs by lowest deviation, not time.
+
+### Feature Golf (fewest features)
+
+- **Prompt + reveal.** The target is a dimensioned drawing, hidden in `answer`
+  and **gated behind Start like Speedrun** (kept gated for consistency even
+  though timing is not the score). `par_features` in the public `prompt` is shown
+  for flavor, not graded.
+- **Scoring.** Pass/fail is volume within tolerance; among passing runs the
+  metric is **feature_count** (the macro's tree count), **lower is better**. A
+  wrong-volume submission does not rank. Time is a tiebreak only.
+- **Known limitation (v1).** `feature_count` is a raw feature-tree count, so it
+  can be gamed by collapsing intent (combining operations, library features). This
+  is acceptable for v1 classroom use; a later prompt can add an intent-aware count
+  or a feature-type rubric.
+
+### Shared
+
+- **One metric column, per-mode direction.** Each mode stores its primary metric
+  as `score_metric` where **lower always ranks better** (time / deviation /
+  feature count), so the single `gauntlet_leaderboard` ordering (`is_correct
+  DESC, score_metric ASC, elapsed tiebreak, created_at`) ranks every mode
+  correctly. The view gained an elapsed-time tiebreak for Feature Golf ties.
+- **Demo seeds.** Two to three placeholders per mode, internally consistent dummy
+  geometry, to be replaced by real author-captured parts.
+
 ## Shell
 
 GAUNTLET is a new **auth-gated section**: any signed-in user (student or
@@ -211,6 +258,10 @@ landing theme), with a small `.gauntlet`-scoped block in `app.css`.
 - `/gauntlet/speedrun/[id]`: a single Speedrun challenge, end to end
   (reveal-on-start drawing + submit code, macro-verified ranked run over
   Realtime, manual practice fallback, board).
+- `/gauntlet/reverse-engineer` and `/.../[id]`: the untimed modeling mode,
+  scored on form deviation (shared `ModelingRun.svelte`).
+- `/gauntlet/feature-golf` and `/.../[id]`: the fewest-features modeling mode
+  (shared `ModelingRun.svelte`).
 - `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
 - `/gauntlet/author`: teacher-only authoring entry point, stubbed.
 
@@ -225,9 +276,11 @@ All six modes ship eventually. The sequence:
 3. **The VBA macro** (built): the SolidWorks capture macro, now the ranked path
    for Speedrun (server-authoritative timing, volume verification). See
    "Speedrun" below.
-4. **The remaining modes**: Reverse Engineer, Feature Golf, GD&T and Tolerance,
-   Spot the Error.
-5. **Live rooms**: synchronous head-to-head play.
+4. **Reverse Engineer and Feature Golf** (built): two more modeling modes on the
+   macro path. See "Reverse Engineer and Feature Golf" above.
+5. **GD&T and Tolerance and Spot the Error**: the last two knowledge modes,
+   web-only and answer-graded like Drawing Reading.
+6. **Live rooms**: synchronous head-to-head play.
 
 ## Out of scope for the first prompt
 

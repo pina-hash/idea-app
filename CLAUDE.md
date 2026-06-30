@@ -266,8 +266,9 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   Feature Golf) read part geometry from a later SolidWorks VBA macro; knowledge
   modes (Drawing Reading, GD&T and Tolerance, Spot the Error) are web only and
   answer-graded. The catalog is `src/lib/gauntlet.ts` (plain data, like
-  `curriculum.ts`, client-safe). **Drawing Reading and Speedrun are live**; the
-  rest render as "coming soon" in the mode grid.
+  `curriculum.ts`, client-safe). **Drawing Reading, Speedrun, Reverse Engineer,
+  and Feature Golf are live**; GD&T and Spot the Error render as "coming soon" in
+  the mode grid.
 - **Routes** (all under the signed-in `/gauntlet` tier):
   - `/gauntlet`: dojo landing + mode-select grid. Teachers also see an
     authoring entry point.
@@ -276,6 +277,9 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   - `/gauntlet/speedrun` and `/.../[id]`: the modeling mode end to end
     (reveal-on-start drawing + submit code, macro-verified ranked run over
     Realtime, manual practice fallback, per-challenge board). See "Speedrun".
+  - `/gauntlet/reverse-engineer` and `/gauntlet/feature-golf` (+ `/.../[id]`):
+    the other two modeling modes, sharing `ModelingRun.svelte`. Reverse Engineer
+    is untimed (scored on form deviation); Feature Golf ranks on feature count.
   - `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
   - `/gauntlet/author`: teacher-only authoring stub (full UI is a later prompt).
   - Shared header: `src/lib/gauntlet/Header.svelte`.
@@ -291,8 +295,9 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     public (`prompt->>'drawing'`); the Speedrun drawing is hidden in
     `answer->>'drawing'` for reveal-on-start (see "Speedrun" below).
   - `submissions`: `id`, `user_id`, `challenge_id`, `mode`, `value` (JSONB),
-    `is_correct`, `score_metric` (numeric, **lower ranks better**: elapsed
-    seconds for timed/knowledge modes, feature count for Feature Golf),
+    `is_correct`, `score_metric` (numeric, **lower always ranks better**; the
+    metric is per-mode: elapsed seconds for Speedrun/knowledge, feature count for
+    Feature Golf, mean percent deviation for Reverse Engineer),
     `source` (`'manual'`|`'macro'`, since 0006), `created_at`.
   - `gauntlet_run_tokens` (since 0006): single-use, expiring Speedrun submit
     codes bound to `(user_id, challenge_id)` with a server-side `reveal_at`. No
@@ -302,9 +307,11 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     It runs with owner privileges (NOT `security_invoker`) so every player sees
     the whole board, and exposes only board-safe columns (no raw answers). It is
     **mode- and source-aware**: modeling modes rank only PASSING **macro**
-    submissions (since 0006), so a Speedrun board is the machine-verified board
-    and manual entries are unranked; knowledge modes keep every attempt, so
-    Drawing Reading is unchanged.
+    submissions (since 0006), so the modeling boards are machine-verified and
+    manual entries are unranked; knowledge modes keep every attempt, so Drawing
+    Reading is unchanged. Each mode stores its own `score_metric` (lower better),
+    so the single ordering works for all; an elapsed-time tiebreak (from
+    `value->>'elapsed_ms'`) was added in 0007 for Feature Golf ties.
 - **Security model** (this is the important part to preserve):
   - Students read published challenge **prompts** and the board, and read their
     own submissions. They can never read an `answer` column (no client grant),
@@ -342,6 +349,15 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   which the leaderboard view does not rank. Demo seeds are placeholders marked
   `demo`. The macro's **Author capture** mode prints canonical geometry for
   seeding real challenges. See `docs/GAUNTLET.md`.
+- **Reverse Engineer + Feature Golf** (`0007`): two more modeling modes reusing
+  the macro unchanged. `gauntlet_macro_submit` now selects `score_metric` by mode
+  (Speedrun time, Feature Golf `feature_count`, Reverse Engineer mean percent
+  deviation of volume + surface area) while verifying pass/fail on volume for
+  all; `gauntlet_speedrun_reveal` mints the token for any modeling mode. Reverse
+  Engineer is untimed and shows its `reference` in the public `prompt`; Feature
+  Golf gates its drawing behind Start like Speedrun (`feature_count` is a raw
+  tree count, gameable, acceptable for v1, see `docs/GAUNTLET.md`). Both use the
+  shared `ModelingRun.svelte`. See `docs/GAUNTLET.md`.
 - **Visuals:** GAUNTLET uses the **app-shell** side of the theme (tokens +
   Rajdhani / Share Tech Mono), with a `.gauntlet`-scoped block in `src/app.css`
   (page content) plus global header-breadcrumb classes. It does not use the
