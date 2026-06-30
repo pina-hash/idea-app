@@ -403,6 +403,9 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `spot_error`, but the migration uses the real enum value `spot_the_error`.
   `slug` is the idempotency key; the provenance source `gauntlet_spot_seed.json`
   lives at the repo root (not `static/`, so the answer key is never served).
+  `0013` patches one stale explanation on `spot-undefined-datum` (the rebalance
+  renumbered the answer to callout 4 but the prose still said "Callout 1");
+  `jsonb_set` touches only `answer.explanation`, grading was unaffected.
 - **Authoring** (`0009`): the teacher-only web tool that replaces hand-edited SQL
   seeds. A `status` column (draft/published/archived) drives a trigger-derived
   `published`, so all existing gating is unchanged and students never see drafts
