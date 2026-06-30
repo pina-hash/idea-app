@@ -38,7 +38,7 @@ export interface GauntletMode {
 }
 
 /**
- * Every mode, in build order. Drawing Reading is the first live mode; the rest
+ * Every mode, in build order. Drawing Reading and Speedrun are live; the rest
  * render as "coming soon" until their prompts land. Keep `id` in sync with the
  * `gauntlet_mode` enum.
  */
@@ -48,8 +48,9 @@ export const MODES: GauntletMode[] = [
 		name: 'Speedrun',
 		family: 'modeling',
 		tagline: 'Model a dimensioned part as fast as you can.',
-		scoring: 'Volume match plus time',
-		status: 'soon'
+		scoring: 'Hit the mass, fastest time wins',
+		status: 'live',
+		href: '/gauntlet/speedrun'
 	},
 	{
 		id: 'reverse_engineer',
@@ -167,12 +168,54 @@ export interface LeaderboardRow {
 	created_at: string;
 }
 
-/** The grading result returned by the `gauntlet_submit` RPC. */
+/** The grading result returned by the `gauntlet_submit` RPC (knowledge modes). */
 export interface SubmitResult {
 	is_correct: boolean;
 	correct: string | null;
 	explanation: string | null;
 	score_metric: number | null;
+}
+
+/**
+ * The public `prompt` framing for a Speedrun challenge. Shown BEFORE Start (the
+ * dimensioned drawing is hidden in the `answer` column and revealed by the
+ * `gauntlet_speedrun_reveal` RPC). `target_mass` / `tolerance_pct` here are
+ * display copies; the authoritative grading values live in `answer`.
+ */
+export interface SpeedrunFraming {
+	material?: string;
+	density?: number;
+	density_unit?: string;
+	target_mass?: number;
+	mass_unit?: string;
+	tolerance_pct?: number;
+	length_unit?: string;
+	note?: string;
+	/** Placeholder demo challenge, to be replaced by a real captured part. */
+	demo?: boolean;
+}
+
+/** Payload returned by `gauntlet_speedrun_reveal` when the student clicks Start. */
+export interface SpeedrunReveal {
+	drawing: string | null;
+	asset_ref: string | null;
+}
+
+/** The grading result returned by `gauntlet_submit` for a Speedrun challenge. */
+export interface SpeedrunResult {
+	mode: 'speedrun';
+	is_correct: boolean;
+	your_mass: number | null;
+	target_mass: number | null;
+	tolerance_pct: number | null;
+	score_metric: number | null;
+}
+
+/** Format a mass value with its unit for display (e.g. "270 g"). */
+export function formatMass(value: number | null | undefined, unit = 'g'): string {
+	if (value === null || value === undefined || Number.isNaN(value)) return '--';
+	const rounded = Math.round(value * 100) / 100;
+	return `${rounded} ${unit}`;
 }
 
 /** Format a `score_metric` (elapsed seconds, lower better) for display. */

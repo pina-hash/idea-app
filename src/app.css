@@ -1033,6 +1033,132 @@ a:hover {
 	color: var(--dim);
 }
 
+/* --- Speedrun: demo badge, supervised note, reveal-on-start gate, timer,
+   mass entry. Reuses .play-grid / .drawing-panel / .result-banner / .board. --- */
+.gauntlet .demo-badge {
+	font-family: var(--font-mono);
+	font-size: 0.56rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--gold);
+	border: 1px solid rgba(200, 255, 0, 0.4);
+	background: rgba(200, 255, 0, 0.06);
+	padding: 0.15rem 0.5rem;
+	border-radius: 2px;
+	white-space: nowrap;
+}
+.gauntlet .supervised-note p {
+	color: var(--dim);
+	font-size: 0.82rem;
+	line-height: 1.55;
+}
+.gauntlet .start-gate {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.7rem;
+	text-align: center;
+	padding: 1rem;
+}
+.gauntlet .gate-lock {
+	font-size: 1.6rem;
+	color: var(--dim);
+	line-height: 1;
+}
+.gauntlet .gate-title {
+	font-family: var(--font-mono);
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	font-size: 0.78rem;
+}
+.gauntlet .gate-sub {
+	color: var(--dim);
+	font-size: 0.82rem;
+	line-height: 1.5;
+	max-width: 320px;
+}
+.gauntlet .start-gate .btn {
+	margin-top: 0.4rem;
+}
+.gauntlet .spec {
+	margin: 0;
+}
+.gauntlet .run-bar {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+	background: var(--bg2);
+	border: 1px solid var(--line-strong);
+	border-radius: 3px;
+	padding: 0.7rem 1rem;
+}
+.gauntlet .run-label {
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.gauntlet .timer {
+	font-family: var(--font-mono);
+	font-size: 1.6rem;
+	color: var(--green);
+	text-shadow: var(--glow-green);
+	font-variant-numeric: tabular-nums;
+}
+.gauntlet .mass-field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+.gauntlet .mass-label {
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--green);
+}
+.gauntlet .mass-input-wrap {
+	display: flex;
+	align-items: stretch;
+	border: 1px solid var(--line-strong);
+	border-radius: 3px;
+	background: var(--bg2);
+	overflow: hidden;
+}
+.gauntlet .mass-input-wrap:focus-within {
+	border-color: var(--cyan);
+	box-shadow: var(--glow-cyan);
+}
+.gauntlet .mass-input {
+	flex: 1;
+	min-width: 0;
+	background: transparent;
+	border: 0;
+	color: var(--white);
+	font-family: var(--font-display);
+	font-size: 1.3rem;
+	padding: 0.6rem 0.8rem;
+}
+.gauntlet .mass-input:focus {
+	outline: none;
+}
+.gauntlet .mass-unit {
+	display: flex;
+	align-items: center;
+	padding: 0 0.9rem;
+	background: var(--bg1);
+	border-left: 1px solid var(--line);
+	font-family: var(--font-mono);
+	color: var(--cyan);
+	font-size: 0.85rem;
+}
+.gauntlet .result-detail {
+	margin-top: 0.5rem;
+}
+
 /* ==========================================================================
    Legacy-index theme. Shared by the landing page (/) and the archive page
    (/archive). All rules are scoped under `.legacy-index` so they never affect

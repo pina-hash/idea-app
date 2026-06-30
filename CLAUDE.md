@@ -266,14 +266,16 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   Feature Golf) read part geometry from a later SolidWorks VBA macro; knowledge
   modes (Drawing Reading, GD&T and Tolerance, Spot the Error) are web only and
   answer-graded. The catalog is `src/lib/gauntlet.ts` (plain data, like
-  `curriculum.ts`, client-safe). **Drawing Reading is the only live mode**; the
+  `curriculum.ts`, client-safe). **Drawing Reading and Speedrun are live**; the
   rest render as "coming soon" in the mode grid.
 - **Routes** (all under the signed-in `/gauntlet` tier):
   - `/gauntlet`: dojo landing + mode-select grid. Teachers also see an
     authoring entry point.
-  - `/gauntlet/drawing-reading`: challenge list for the first mode.
-  - `/gauntlet/drawing-reading/[id]`: one challenge end to end (drawing +
-    question, answer, server-graded submit, per-challenge leaderboard).
+  - `/gauntlet/drawing-reading` and `/.../[id]`: the knowledge mode end to end
+    (drawing + question, answer, server-graded submit, per-challenge board).
+  - `/gauntlet/speedrun` and `/.../[id]`: the modeling mode end to end
+    (reveal-on-start drawing, client timer, manual mass entry, server-graded,
+    per-challenge board). See "Speedrun" below.
   - `/gauntlet/author`: teacher-only authoring stub (full UI is a later prompt).
   - Shared header: `src/lib/gauntlet/Header.svelte`.
 - **Data model** (`supabase/migrations/0004_gauntlet.sql`), built to serve all
@@ -283,9 +285,10 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   - `challenges`: `id`, `mode`, `title`, `difficulty` (1 to 5), `asset_ref`,
     `published`, `author_id`, timestamps, and the spec's single JSONB payload
     **split into two columns**, `prompt` (public) and `answer` (private). The
-    split exists so a column-level `GRANT` can expose the question/drawing to
-    students while withholding the answer entirely. Inline-SVG drawings live in
-    `prompt->>'drawing'`.
+    split exists so a column-level `GRANT` can expose the public framing to
+    students while withholding the answer entirely. Knowledge-mode drawings are
+    public (`prompt->>'drawing'`); the Speedrun drawing is hidden in
+    `answer->>'drawing'` for reveal-on-start (see "Speedrun" below).
   - `submissions`: `id`, `user_id`, `challenge_id`, `mode`, `value` (JSONB),
     `is_correct`, `score_metric` (numeric, **lower ranks better**: elapsed
     seconds for timed/knowledge modes, feature count for Feature Golf),
@@ -293,7 +296,10 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   - `gauntlet_leaderboard`: a **view** (not a table), best submission per user
     per challenge, ranked `is_correct DESC, score_metric ASC, created_at ASC`.
     It runs with owner privileges (NOT `security_invoker`) so every player sees
-    the whole board, and exposes only board-safe columns (no raw answers).
+    the whole board, and exposes only board-safe columns (no raw answers). It is
+    **mode-aware** (since 0005): modeling modes rank only PASSING submissions (by
+    time), so a Speedrun board omits failed runs; knowledge modes keep every
+    attempt, so Drawing Reading is unchanged.
 - **Security model** (this is the important part to preserve):
   - Students read published challenge **prompts** and the board, and read their
     own submissions. They can never read an `answer` column (no client grant),
@@ -308,11 +314,22 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     author challenges, gated by RLS. Any future staff cross-user write (e.g. a
     teacher entering a student's measured mass) routes through a SECURITY
     DEFINER RPC, never a direct client write.
-- **Verification principle (modeling modes, for later):** verify on **volume**
-  internally (geometric, material-independent) but present challenges in
-  TooTallToby convention (material, density, target mass). Manual mass entry is
-  the supervised-trust MVP; the macro replaces it for ranked play. Capture
-  surface area and feature count for audit.
+- **Verification principle (modeling modes):** verify on **volume** internally
+  (geometric, material-independent) but present challenges in TooTallToby
+  convention (material, density, target mass). Manual mass entry is the
+  supervised-trust MVP; the macro replaces it for ranked play. Capture surface
+  area and feature count for audit.
+- **Speedrun** (`supabase/migrations/0005_gauntlet_speedrun.sql`, no table DDL):
+  the first modeling mode, on manual mass entry. The dimensioned **drawing is
+  stored in the hidden `answer` column** (not `prompt`) and is never in the page
+  load, so it is unfetchable before Start. `gauntlet_speedrun_reveal(id)` (a
+  SECURITY DEFINER RPC) hands it back the instant the student clicks Start,
+  which is when the **client-side** timer begins (machine-authoritative timing
+  arrives with the macro). `gauntlet_submit` now grades Speedrun by verifying
+  the typed mass within `tolerance_pct` of `target_mass`; `value` records the
+  mass and elapsed ms, `score_metric` is the elapsed time, and failed attempts
+  are recorded but do not rank. Demo seeds are placeholders marked `demo`. See
+  `docs/GAUNTLET.md`.
 - **Visuals:** GAUNTLET uses the **app-shell** side of the theme (tokens +
   Rajdhani / Share Tech Mono), with a `.gauntlet`-scoped block in `src/app.css`
   (page content) plus global header-breadcrumb classes. It does not use the

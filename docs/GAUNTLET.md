@@ -118,6 +118,54 @@ RPC reveals the correct answer after an attempt (good for learning). For
 strictly ranked play, restrict to the first attempt or withhold the answer until
 the challenge is cleared. Out of scope for the MVP.
 
+## Speedrun (manual mass entry MVP)
+
+Speedrun is the first modeling mode. The student models a dimensioned part in
+SolidWorks as fast as they can, reads its mass, and types it in. It ships on the
+supervised-trust manual path; the macro replaces manual entry for ranked play
+in a later prompt. Implementation (migration `0005_gauntlet_speedrun.sql`, no
+table DDL, it only adds RPC/view behavior the 0004 schema already anticipated):
+
+- **Payload split.** The Speedrun `prompt` (public) carries only the framing
+  shown *before* Start: material, density, target mass, tolerance, units, note,
+  and a `demo` flag. The dimensioned **drawing lives in the hidden `answer`
+  column**, alongside the authoritative grading values (target volume, target
+  mass, density, tolerance) and audit values (surface area, feature count). The
+  `target_mass` / `tolerance_pct` in `prompt` are display copies; the `answer`
+  copies are the source of truth used by grading.
+- **Reveal on start (the anti-cheat).** The drawing must not be fetchable or
+  visible before Start. Because it is in `answer` (no client grant) and never in
+  the page load, a normal challenge query cannot return it. It is handed back
+  only by the `gauntlet_speedrun_reveal(challenge_id)` SECURITY DEFINER RPC,
+  called client-side the instant the student clicks Start, which is also when
+  the client timer begins. There is no separate preview path, so seeing the
+  drawing means starting your clock.
+- **Verify on mass.** Volume is the canonical correctness property, but manual
+  entry only yields a mass number, so the manual MVP verifies on mass: a
+  submission passes when `|typed_mass - target_mass| <= target_mass *
+  tolerance_pct / 100`. The macro will verify on volume directly later. Grading
+  is in `gauntlet_submit` (the same authoritative, forge-proof writer); it now
+  handles Speedrun instead of raising "cannot be scored yet".
+- **Submissions and scoring.** Every attempt is recorded: `value` holds the
+  typed mass and elapsed milliseconds, `is_correct` is the pass/fail, and
+  `score_metric` is the elapsed time (seconds, lower ranks better). A failed
+  attempt is recorded but does not rank.
+- **Mode-aware leaderboard.** The `gauntlet_leaderboard` view is now mode-aware:
+  for modeling modes it ranks only PASSING submissions (by time ascending), so a
+  Speedrun board shows each student's best passing time and omits failed runs.
+  Knowledge modes are unchanged (all attempts, correct-first), so Drawing
+  Reading behaves exactly as before. A student may retry; each run is its own
+  reveal-on-start attempt and its own submission, and the board keeps their best
+  passing time.
+- **Timing is client-side** for now, which is acceptable under supervised-trust
+  manual entry. **Machine-authoritative timing (and submit tokens) arrive with
+  the macro.**
+- **Demo seeds.** Two to three placeholder Speedrun challenges are seeded with
+  internally consistent dummy values (`target_mass = target_volume x density`)
+  and a clearly-labeled placeholder drawing, not a real dimensioned part. They
+  are marked `demo` in the UI. Real challenges are authored from actual
+  SolidWorks parts once the capture macro ships.
+
 ## Shell
 
 GAUNTLET is a new **auth-gated section**: any signed-in user (student or
@@ -132,15 +180,19 @@ landing theme), with a small `.gauntlet`-scoped block in `app.css`.
 - `/gauntlet/drawing-reading`: the challenge list for the first mode.
 - `/gauntlet/drawing-reading/[id]`: a single challenge, end to end (drawing +
   question, answer, submit, score, per-challenge leaderboard).
+- `/gauntlet/speedrun`: the challenge list for the Speedrun mode.
+- `/gauntlet/speedrun/[id]`: a single Speedrun challenge, end to end
+  (reveal-on-start drawing, client timer, manual mass entry, scored, board).
 - `/gauntlet/author`: teacher-only authoring entry point, stubbed.
 
 ## Build order
 
 All six modes ship eventually. The sequence:
 
-1. **Drawing Reading** (this prompt): the first end-to-end mode, plus the shell,
+1. **Drawing Reading** (built): the first end-to-end mode, plus the shell,
    the full data model, and the leaderboard mechanism.
-2. **Speedrun**: the flagship modeling mode, on manual mass entry first.
+2. **Speedrun** (built): the flagship modeling mode, on manual mass entry first.
+   See "Speedrun" below.
 3. **The VBA macro**: replaces manual entry for ranked modeling play.
 4. **The remaining modes**: Reverse Engineer, Feature Golf, GD&T and Tolerance,
    Spot the Error.
