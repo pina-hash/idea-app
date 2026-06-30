@@ -1,9 +1,45 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import Header from '$lib/gauntlet/Header.svelte';
-	import { MODES, familyLabel } from '$lib/gauntlet';
+	import { MODES, familyLabel, difficultyLabel, modeById } from '$lib/gauntlet';
 
 	let { data } = $props();
-	let { supabase, userName, userRole, counts } = $derived(data);
+	let { supabase, userName, userRole, challenges } = $derived(data);
+
+	let busy = $state('');
+	let actionError = $state('');
+
+	const byMode = $derived.by(() => {
+		const map = new Map<string, typeof challenges>();
+		for (const c of challenges) {
+			const list = map.get(c.mode) ?? [];
+			list.push(c);
+			map.set(c.mode, list);
+		}
+		return map;
+	});
+
+	const setStatus = async (id: string, status: 'draft' | 'published' | 'archived') => {
+		busy = id;
+		actionError = '';
+		const { error } = await supabase.rpc('gauntlet_author_set_status', {
+			p_id: id,
+			p_status: status
+		});
+		if (error) actionError = error.message;
+		else await invalidateAll();
+		busy = '';
+	};
+
+	const remove = async (id: string, title: string) => {
+		if (!confirm(`Delete "${title}"? Challenges with submissions are archived instead.`)) return;
+		busy = id;
+		actionError = '';
+		const { error } = await supabase.rpc('gauntlet_author_delete', { p_id: id });
+		if (error) actionError = error.message;
+		else await invalidateAll();
+		busy = '';
+	};
 </script>
 
 <svelte:head>
@@ -17,29 +53,58 @@
 		<span class="eyebrow">Teacher Tools</span>
 		<h1>Challenge Authoring</h1>
 		<p class="lead">
-			Author and manage challenges across every mode. The full authoring UI is a later prompt,
-			so this is a preview: challenges are seeded and edited in the database for now.
+			Create and manage challenges across every mode. New challenges start as drafts, visible only
+			to teachers for testing; publish to release them to students. For modeling modes, capture the
+			geometry with the macro's Author capture and paste it in.
 		</p>
 	</section>
 
-	<div class="card">
-		<p>
-			Each challenge stores a public prompt (question, drawing, options) and a private answer that
-			students never receive. Grading runs server-side. See the dojo design doc for the data model.
-		</p>
-	</div>
-
-	<h2>Challenges by mode</h2>
-	<div class="card">
-		{#each MODES as mode (mode.id)}
-			<div class="field">
-				<span class="key">{mode.name} <span class="mono dim">{familyLabel(mode.family)}</span></span>
-				<span class="val meta">{(counts as Record<string, number>)[mode.id] ?? 0} authored</span>
-			</div>
-		{/each}
-	</div>
-
 	<div class="btn-row">
-		<a class="btn secondary" href="/gauntlet">&lsaquo; Back to dojo</a>
+		<a class="btn" href="/gauntlet/author/new">+ New challenge</a>
+		<a class="btn secondary" href="/gauntlet/tools">Macro &amp; tools</a>
+		<a class="btn secondary" href="/gauntlet">Back to dojo</a>
 	</div>
+
+	{#if actionError}<p class="warn">{actionError}</p>{/if}
+
+	{#each MODES as mode (mode.id)}
+		{@const list = byMode.get(mode.id) ?? []}
+		<h2>{mode.name} <span class="mono dim">{familyLabel(mode.family)}</span></h2>
+		{#if list.length === 0}
+			<p class="dim author-empty">
+				No challenges yet. <a href="/gauntlet/author/new?mode={mode.id}">Create one</a>.
+			</p>
+		{:else}
+			<ul class="author-list">
+				{#each list as c (c.id)}
+					<li class="author-row">
+						<a class="author-main" href="/gauntlet/author/{c.id}">
+							<span class="author-title">{c.title}</span>
+							<span class="author-sub">
+								<span class="diff diff-{c.difficulty}">{difficultyLabel(c.difficulty)}</span>
+								<span class="status-badge status-{c.status}">{c.status}</span>
+							</span>
+						</a>
+						<span class="author-actions">
+							<a class="text-act" href="/gauntlet/author/{c.id}">Edit</a>
+							{#if c.status === 'published'}
+								<button class="text-act" type="button" disabled={busy === c.id} onclick={() => setStatus(c.id, 'draft')}>Unpublish</button>
+							{:else if c.status === 'draft'}
+								<button class="text-act go" type="button" disabled={busy === c.id} onclick={() => setStatus(c.id, 'published')}>Publish</button>
+							{:else}
+								<button class="text-act" type="button" disabled={busy === c.id} onclick={() => setStatus(c.id, 'draft')}>Restore</button>
+							{/if}
+							<button class="text-act danger" type="button" disabled={busy === c.id} onclick={() => remove(c.id, c.title)}>Delete</button>
+						</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	{/each}
+
+	<p class="dim author-note">
+		Modes shown: {MODES.length}. The demo placeholder challenges are seeded; replace them with real
+		captured parts using the macro's Author capture and the paste box on the
+		{modeById('speedrun')?.name} form.
+	</p>
 </main>

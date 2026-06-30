@@ -3,6 +3,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { onMount } from 'svelte';
 	import { difficultyLabel, formatTime, type KnowledgePrompt, type SubmitResult } from '$lib/gauntlet';
+	import Asset from '$lib/gauntlet/Asset.svelte';
 
 	/**
 	 * Shared play flow for the web-only knowledge modes (Drawing Reading is its
@@ -107,8 +108,7 @@
 	<div class="play-grid">
 		<div class="drawing-panel">
 			{#if prompt.drawing}
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html prompt.drawing}
+				<Asset value={prompt.drawing} />
 			{:else}
 				<p class="dim">No drawing for this question.</p>
 			{/if}

@@ -1,11 +1,12 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
+import type { GauntletModeId } from '$lib/gauntlet';
 
 /**
- * Teacher-only authoring entry point, stubbed for now (the full authoring UI is
- * a later prompt). Anonymous users are already redirected off /gauntlet* by
- * hooks.server.ts; here we additionally redirect non-teachers back to the dojo,
- * since the role lives in `profiles` (same pattern as /dashboard).
+ * Teacher-only authoring: the challenge management list. Teachers see ALL
+ * challenges (drafts, published, archived) via the teacher RLS read policy;
+ * students never reach this route. The role check is server-side, mirroring the
+ * dashboard (hooks.server.ts already blocks anonymous users off /gauntlet*).
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
@@ -22,16 +23,23 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		redirect(303, '/gauntlet');
 	}
 
-	// Challenge counts per mode (published + drafts), for the authoring overview.
-	const { data: challenges } = await supabase.from('challenges').select('mode');
-	const counts: Record<string, number> = {};
-	for (const c of challenges ?? []) {
-		counts[c.mode] = (counts[c.mode] ?? 0) + 1;
-	}
+	const { data: challenges } = await supabase
+		.from('challenges')
+		.select('id, mode, title, difficulty, status, updated_at')
+		.order('mode', { ascending: true })
+		.order('difficulty', { ascending: true })
+		.order('title', { ascending: true });
 
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Teacher',
 		userRole: profile?.role ?? 'teacher',
-		counts
+		challenges: (challenges ?? []) as Array<{
+			id: string;
+			mode: GauntletModeId;
+			title: string;
+			difficulty: number;
+			status: 'draft' | 'published' | 'archived';
+			updated_at: string;
+		}>
 	};
 };

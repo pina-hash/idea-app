@@ -4,6 +4,7 @@
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import Header from '$lib/gauntlet/Header.svelte';
+	import Asset from '$lib/gauntlet/Asset.svelte';
 	import {
 		difficultyLabel,
 		formatTime,
@@ -210,8 +211,7 @@
 					{#if revealError}<p class="warn">{revealError}</p>{/if}
 				</div>
 			{:else if drawing}
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html drawing}
+				<Asset value={drawing} />
 			{:else}
 				<p class="dim">No drawing provided.</p>
 			{/if}

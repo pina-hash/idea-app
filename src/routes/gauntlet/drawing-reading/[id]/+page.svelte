@@ -3,6 +3,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { onMount } from 'svelte';
 	import Header from '$lib/gauntlet/Header.svelte';
+	import Asset from '$lib/gauntlet/Asset.svelte';
 	import { difficultyLabel, formatTime, type SubmitResult } from '$lib/gauntlet';
 
 	let { data } = $props();
@@ -85,8 +86,7 @@
 	<div class="play-grid">
 		<div class="drawing-panel">
 			{#if challenge.prompt.drawing}
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html challenge.prompt.drawing}
+				<Asset value={challenge.prompt.drawing} />
 			{:else if challenge.assetRef}
 				<img src={challenge.assetRef} alt="Challenge drawing" />
 			{:else}

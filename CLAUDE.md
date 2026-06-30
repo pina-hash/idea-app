@@ -283,14 +283,17 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     the two web-only knowledge modes, sharing `KnowledgePlay.svelte`, graded
     through `gauntlet_submit` like Drawing Reading.
   - `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
-  - `/gauntlet/author`: teacher-only authoring stub (full UI is a later prompt).
+  - `/gauntlet/author` (+ `/new`, `/[id]`): the teacher-only authoring tool, the
+    create/edit/publish/delete surface across all six modes. See "Authoring".
   - Shared header: `src/lib/gauntlet/Header.svelte`.
 - **Data model** (`supabase/migrations/0004_gauntlet.sql`), built to serve all
   six modes so later modes need no schema rework:
   - `gauntlet_mode` enum over the six modes (kept in sync with
     `GauntletModeId` in `src/lib/gauntlet.ts`).
   - `challenges`: `id`, `mode`, `title`, `difficulty` (1 to 5), `asset_ref`,
-    `published`, `author_id`, timestamps, and the spec's single JSONB payload
+    `status` (`draft`|`published`|`archived`, since 0009; `published` is now a
+    trigger-derived boolean from it, so all existing published-based gating is
+    unchanged), `author_id`, timestamps, and the spec's single JSONB payload
     **split into two columns**, `prompt` (public) and `answer` (private). The
     split exists so a column-level `GRANT` can expose the public framing to
     students while withholding the answer entirely. Knowledge-mode drawings are
@@ -368,6 +371,18 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   (multiple choice) or an `input` (text/numeric). Both share `KnowledgePlay.svelte`.
   Single answer per challenge for v1; Spot the Error is pick-the-numbered-callout
   (click-to-locate is a v2). See `docs/GAUNTLET.md`.
+- **Authoring** (`0009`): the teacher-only web tool that replaces hand-edited SQL
+  seeds. A `status` column (draft/published/archived) drives a trigger-derived
+  `published`, so all existing gating is unchanged and students never see drafts
+  (default draft). Direct client DML on `challenges` is **revoked**; all writes go
+  through SECURITY DEFINER RPCs (`gauntlet_author_upsert` / `_set_status` /
+  `_delete` / `_get`) that re-check `is_teacher()` and validate required fields
+  **per mode** before publish (`gauntlet_publish_blocker`). Delete soft-deletes
+  (archives) when submissions exist. The mode-aware `ChallengeForm.svelte` writes
+  the exact existing payload shapes; modeling modes have a paste box for the
+  macro's Author-capture output. Assets upload to a public `gauntlet` Storage
+  bucket (gated drawings still live in the hidden `answer`, revealed on Start);
+  `Asset.svelte` renders inline SVG or an uploaded `<img>`. See `docs/GAUNTLET.md`.
 - **Visuals:** GAUNTLET uses the **app-shell** side of the theme (tokens +
   Rajdhani / Share Tech Mono), with a `.gauntlet`-scoped block in `src/app.css`
   (page content) plus global header-breadcrumb classes. It does not use the

@@ -65,7 +65,9 @@ One schema serves all six modes from day one so later modes need no rework. See
 
 `id`, `mode` (enum over the six modes), `title`, `difficulty` (1 to 5),
 `asset_ref` (optional pointer to an external drawing/asset), `author_id`,
-`published`, `created_at`, `updated_at`, and the mode-specific JSONB payload.
+`status` (`draft`|`published`|`archived`, since 0009; `published` is now a
+trigger-derived boolean from it), `created_at`, `updated_at`, and the
+mode-specific JSONB payload.
 
 The spec calls for a single JSONB payload holding both prompt and answer data.
 We realize that as **two JSONB columns, `prompt` and `answer`**, for one
@@ -284,8 +286,7 @@ uses the app-shell side of the IDEA Green design system (not the legacy-index
 landing theme), with a small `.gauntlet`-scoped block in `app.css`.
 
 - `/gauntlet`: the dojo landing (identity + progression) and a mode-select grid
-  of all six modes. Built modes link in; unbuilt modes render as "coming soon."
-  Role-aware: teachers see an authoring entry point (stubbed for now).
+  of all six modes. Role-aware: teachers see the authoring entry point.
 - `/gauntlet/drawing-reading`: the challenge list for the first mode.
 - `/gauntlet/drawing-reading/[id]`: a single challenge, end to end (drawing +
   question, answer, submit, score, per-challenge leaderboard).
@@ -300,7 +301,58 @@ landing theme), with a small `.gauntlet`-scoped block in `app.css`.
 - `/gauntlet/gdt-tolerance` and `/gauntlet/spot-the-error` (+ `/.../[id]`): the
   two remaining knowledge modes (shared `KnowledgePlay.svelte`).
 - `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
-- `/gauntlet/author`: teacher-only authoring entry point, stubbed.
+- `/gauntlet/author`, `/gauntlet/author/new`, `/gauntlet/author/[id]`: the
+  teacher-only authoring tool (see "Authoring" below).
+
+## Authoring
+
+The web authoring tool (`0009_gauntlet_authoring.sql`) replaces hand-edited SQL
+seeds: teachers create, edit, publish, and delete challenges across all six
+modes from the browser. The seeds still work; this supplements them and is how
+the demo placeholders get replaced by real captured parts.
+
+- **Status lifecycle.** A `status` column (`draft` | `published` | `archived`)
+  is the authoring source of truth; new challenges default to **draft**. The
+  existing `published` boolean is now a **trigger-derived** column
+  (`published = status = 'published'`), so every existing RLS policy, the
+  leaderboard view, the play RPCs, and the published-filtered list queries keep
+  working unchanged. **Students only ever see published** (drafts and archived
+  have `published = false`); teachers see and can test drafts via the teacher RLS
+  read policy.
+- **Server-side writes only.** Direct client INSERT/UPDATE/DELETE on
+  `challenges` is revoked. All writes go through SECURITY DEFINER RPCs that
+  re-check `is_teacher()`: `gauntlet_author_upsert` (create/edit),
+  `gauntlet_author_set_status` (publish/unpublish/archive),
+  `gauntlet_author_delete`, and `gauntlet_author_get` (returns the full
+  challenge, including the hidden `answer`, for the edit form). Publishing runs
+  `gauntlet_publish_blocker`, which validates the required fields **per mode**
+  server-side, so an incomplete challenge cannot publish (drafts may be saved
+  incomplete).
+- **Soft-delete.** Deleting a challenge that has submissions **archives** it
+  (status `archived`) so board history is never orphaned; only a challenge with
+  no submissions is hard-deleted. (idea-app had no prior soft-delete precedent.)
+- **Mode-aware form.** One form (`ChallengeForm.svelte`) whose fields switch by
+  mode and write the **exact existing payload shapes** (it does not change the
+  payload contract, see the per-mode sections above): modeling modes get the
+  geometry/material/tolerance fields plus a **paste-capture box** that parses the
+  macro's Author-capture output, and a client-side `mass = volume x density`
+  mismatch warning; knowledge modes get the question, answer type (choice / exact
+  text / numeric), options, correct answer, and explanation. Spot the Error is a
+  multiple-choice challenge (the enumerated callouts are the options).
+- **Assets.** A public Storage bucket `gauntlet` holds uploaded drawings and
+  reference images (teachers upload; everyone reads via the public URL). The
+  asset can also be pasted inline SVG. It is written into the same payload slot
+  the play screens already read (`prompt.drawing` for knowledge,
+  `prompt.reference` for Reverse Engineer, the hidden `answer.drawing` for
+  Speedrun / Feature Golf). Gated drawings keep their reveal-on-start property:
+  the URL lives in the hidden `answer` column on a random, unguessable path, so
+  only the reveal RPC hands it back. A shared `Asset.svelte` renders an asset as
+  inline SVG or an `<img>` by sniffing the leading `<`.
+- **The capture workflow.** Modeling challenges get real geometry from the
+  macro's **Author capture** mode: a teacher models the canonical part, runs the
+  macro in Author mode, and pastes the printed values
+  (`target_volume_mm3` / `surface_area_mm2` / `feature_count` / `mass_g`) into the
+  form's paste box. This is the supported path to replace the demo placeholders.
 
 ## Build order
 
@@ -318,9 +370,10 @@ All six modes ship eventually. The sequence:
 5. **GD&T and Tolerance and Spot the Error** (built): the last two knowledge
    modes, web-only and answer-graded like Drawing Reading. **All six modes now
    ship.** See "GD&T and Tolerance and Spot the Error" above.
-6. **Live rooms**: synchronous head-to-head play.
+6. **The authoring tool** (built): teachers create and manage challenges from the
+   browser, replacing hand-edited SQL seeds. See "Authoring" above.
+7. **Live rooms**: synchronous head-to-head play.
 
-## Out of scope for the first prompt
+## Out of scope (later prompts)
 
-Speedrun, the VBA macro, coin payouts, and the full authoring UI. The schema and
-shell anticipate them, but they are later prompts. Do not build them early.
+Live synchronized rooms, and coin payouts last. Do not build them early.

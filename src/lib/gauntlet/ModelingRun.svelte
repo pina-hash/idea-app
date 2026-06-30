@@ -8,6 +8,7 @@
 		type ModelingFraming,
 		type SpeedrunReveal
 	} from '$lib/gauntlet';
+	import Asset from '$lib/gauntlet/Asset.svelte';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 
 	/**
@@ -169,14 +170,12 @@
 						{#if revealError}<p class="warn">{revealError}</p>{/if}
 					</div>
 				{:else if drawing}
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-					{@html drawing}
+					<Asset value={drawing} />
 				{:else}
 					<p class="dim">No drawing provided.</p>
 				{/if}
 			{:else if framing.reference}
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-				{@html framing.reference}
+				<Asset value={framing.reference} alt="Reference" />
 			{:else}
 				<p class="dim">No reference provided.</p>
 			{/if}
