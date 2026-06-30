@@ -389,6 +389,20 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `--gold` `#c8ff00`, datum letters `--green` `#00ff41`, font Share Tech Mono
   with a `monospace` fallback. The provenance source `gauntlet_gdt_seed.json`
   lives at the repo root (not `static/`, so it is never publicly served).
+- **Spot the Error content seed** (`0012`): 15 real Spot the Error challenges
+  seeded as **drafts** for teacher review and publish, mirroring the 0011 GD&T
+  seed in mechanism. Same knowledge contract, no grading/route/component change:
+  the 0008 knowledge branch already grades `spot_the_error` by option id and
+  returns the explanation, and the mode already routes through `KnowledgePlay`.
+  Two question shapes, both multiple choice: pick-the-flawed-callout (options
+  `'1'..'4'`, the option id IS the callout number) and identify-the-problem
+  (descriptive options, lettered ids). Option order is preserved **verbatim, no
+  rotation** (numbered callouts must read in order; descriptive answers are
+  already distributed). Drawings are author-styled to the program palette and
+  inserted as-is into `prompt->>'drawing'`. The source file labels the mode
+  `spot_error`, but the migration uses the real enum value `spot_the_error`.
+  `slug` is the idempotency key; the provenance source `gauntlet_spot_seed.json`
+  lives at the repo root (not `static/`, so the answer key is never served).
 - **Authoring** (`0009`): the teacher-only web tool that replaces hand-edited SQL
   seeds. A `status` column (draft/published/archived) drives a trigger-derived
   `published`, so all existing gating is unchanged and students never see drafts
