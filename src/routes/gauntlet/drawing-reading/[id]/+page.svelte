@@ -102,7 +102,7 @@
 
 			<form method="POST" action="?/submit" use:enhance={submitEnhance}>
 				<fieldset class="options" disabled={answered || submitting}>
-					{#each challenge.prompt.options as opt (opt.id)}
+					{#each challenge.prompt.options ?? [] as opt (opt.id)}
 						<label class="opt {optionClass(opt.id)}">
 							<input
 								type="radio"

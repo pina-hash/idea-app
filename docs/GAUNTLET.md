@@ -240,6 +240,41 @@ share the `ModelingRun.svelte` play component.
 - **Demo seeds.** Two to three placeholders per mode, internally consistent dummy
   geometry, to be replaced by real author-captured parts.
 
+## GD&T and Tolerance and Spot the Error (knowledge modes)
+
+The last two modes (`0008_gauntlet_knowledge_modes.sql`) are web-only and
+answer-graded **exactly like Drawing Reading**: no macro, no submit token, no
+geometry capture. They complete all six modes. Both use the shared
+`KnowledgePlay.svelte` component and grade through `gauntlet_submit`.
+
+- **Generalized answer grading.** `gauntlet_submit`'s knowledge branch now grades
+  by an answer `type` in the hidden `answer` payload: `'choice'` (exact option-id
+  match, the default, so **Drawing Reading is preserved exactly**), `'text'`
+  (case/space-insensitive exact match), and `'numeric'` (a number within an
+  optional `tolerance`). The prompt renders multiple-choice options or a
+  text/numeric input depending on whether it carries `options` or an `input`.
+  **Single answer per challenge for v1.** Multi-part questions (several blanks
+  graded together) are a possible later enhancement.
+- **Boards** rank by correctness with elapsed time as a tiebreak, identical to
+  Drawing Reading (the leaderboard view already covers knowledge modes, so no
+  view change was needed).
+
+### GD&T and Tolerance
+
+Reading feature control frames (symbol, tolerance zone, datum references),
+identifying datums, and interpreting fits and tolerance conditions (clearance
+vs interference, MMC and LMC). Symbol and concept questions are multiple choice;
+tolerance and fit computations are numeric. This mode reinforces the **GD&T
+vocabulary the UC course descriptions lean on**, so it doubles as exam prep.
+
+### Spot the Error
+
+Each drawing numbers candidate callouts (1-4) and the student picks the flawed
+one. The seed set spans the error categories: missing/redundant dimension,
+misaligned/wrong projection view, impossible/inconsistent geometry, and violated
+drawing convention. **Answer-based for v1** (pick the number). A **click-to-locate
+canvas** (click the flawed spot on the drawing) is logged as a v2 enhancement.
+
 ## Shell
 
 GAUNTLET is a new **auth-gated section**: any signed-in user (student or
@@ -262,6 +297,8 @@ landing theme), with a small `.gauntlet`-scoped block in `app.css`.
   scored on form deviation (shared `ModelingRun.svelte`).
 - `/gauntlet/feature-golf` and `/.../[id]`: the fewest-features modeling mode
   (shared `ModelingRun.svelte`).
+- `/gauntlet/gdt-tolerance` and `/gauntlet/spot-the-error` (+ `/.../[id]`): the
+  two remaining knowledge modes (shared `KnowledgePlay.svelte`).
 - `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
 - `/gauntlet/author`: teacher-only authoring entry point, stubbed.
 
@@ -278,8 +315,9 @@ All six modes ship eventually. The sequence:
    "Speedrun" below.
 4. **Reverse Engineer and Feature Golf** (built): two more modeling modes on the
    macro path. See "Reverse Engineer and Feature Golf" above.
-5. **GD&T and Tolerance and Spot the Error**: the last two knowledge modes,
-   web-only and answer-graded like Drawing Reading.
+5. **GD&T and Tolerance and Spot the Error** (built): the last two knowledge
+   modes, web-only and answer-graded like Drawing Reading. **All six modes now
+   ship.** See "GD&T and Tolerance and Spot the Error" above.
 6. **Live rooms**: synchronous head-to-head play.
 
 ## Out of scope for the first prompt

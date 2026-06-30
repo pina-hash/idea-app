@@ -266,9 +266,8 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   Feature Golf) read part geometry from a later SolidWorks VBA macro; knowledge
   modes (Drawing Reading, GD&T and Tolerance, Spot the Error) are web only and
   answer-graded. The catalog is `src/lib/gauntlet.ts` (plain data, like
-  `curriculum.ts`, client-safe). **Drawing Reading, Speedrun, Reverse Engineer,
-  and Feature Golf are live**; GD&T and Spot the Error render as "coming soon" in
-  the mode grid.
+  `curriculum.ts`, client-safe). **All six modes are live** (Drawing Reading,
+  Speedrun, Reverse Engineer, Feature Golf, GD&T and Tolerance, Spot the Error).
 - **Routes** (all under the signed-in `/gauntlet` tier):
   - `/gauntlet`: dojo landing + mode-select grid. Teachers also see an
     authoring entry point.
@@ -280,6 +279,9 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   - `/gauntlet/reverse-engineer` and `/gauntlet/feature-golf` (+ `/.../[id]`):
     the other two modeling modes, sharing `ModelingRun.svelte`. Reverse Engineer
     is untimed (scored on form deviation); Feature Golf ranks on feature count.
+  - `/gauntlet/gdt-tolerance` and `/gauntlet/spot-the-error` (+ `/.../[id]`):
+    the two web-only knowledge modes, sharing `KnowledgePlay.svelte`, graded
+    through `gauntlet_submit` like Drawing Reading.
   - `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
   - `/gauntlet/author`: teacher-only authoring stub (full UI is a later prompt).
   - Shared header: `src/lib/gauntlet/Header.svelte`.
@@ -358,6 +360,14 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   Golf gates its drawing behind Start like Speedrun (`feature_count` is a raw
   tree count, gameable, acceptable for v1, see `docs/GAUNTLET.md`). Both use the
   shared `ModelingRun.svelte`. See `docs/GAUNTLET.md`.
+- **GD&T and Tolerance + Spot the Error** (`0008`): the last two knowledge modes,
+  web-only and graded like Drawing Reading through `gauntlet_submit`. Its
+  knowledge branch now grades by answer `type`: `choice` (exact id, the default,
+  so Drawing Reading is unchanged), `text` (case/space-insensitive), and
+  `numeric` (within an optional `tolerance`). The prompt carries either `options`
+  (multiple choice) or an `input` (text/numeric). Both share `KnowledgePlay.svelte`.
+  Single answer per challenge for v1; Spot the Error is pick-the-numbered-callout
+  (click-to-locate is a v2). See `docs/GAUNTLET.md`.
 - **Visuals:** GAUNTLET uses the **app-shell** side of the theme (tokens +
   Rajdhani / Share Tech Mono), with a `.gauntlet`-scoped block in `src/app.css`
   (page content) plus global header-breadcrumb classes. It does not use the

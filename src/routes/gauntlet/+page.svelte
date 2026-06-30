@@ -88,8 +88,8 @@
 	</div>
 
 	<p class="dojo-note">
-		More modes unlock as they ship. Build order: Drawing Reading, then Speedrun, then the rest.
-		Speedrun runs are machine verified by the
-		<a href="/gauntlet/tools">SolidWorks capture macro</a>.
+		All six modes are live. The modeling modes are machine verified by the
+		<a href="/gauntlet/tools">SolidWorks capture macro</a>; the knowledge modes are answered in the
+		browser.
 	</p>
 </main>

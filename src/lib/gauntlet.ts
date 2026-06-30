@@ -83,15 +83,17 @@ export const MODES: GauntletMode[] = [
 		family: 'knowledge',
 		tagline: 'Interpret geometric callouts, datums, and fits.',
 		scoring: 'Correctness, time breaks ties',
-		status: 'soon'
+		status: 'live',
+		href: '/gauntlet/gdt-tolerance'
 	},
 	{
 		id: 'spot_the_error',
 		name: 'Spot the Error',
 		family: 'knowledge',
-		tagline: 'Find the mistake in a drawing or model.',
+		tagline: 'Find the mistake in a drawing.',
 		scoring: 'Correctness, time breaks ties',
-		status: 'soon'
+		status: 'live',
+		href: '/gauntlet/spot-the-error'
 	}
 ];
 
@@ -134,12 +136,28 @@ export interface ChallengeOption {
 	svg?: string;
 }
 
-/** The public `prompt` payload for a knowledge-mode (e.g. Drawing Reading) challenge. */
+/** A free-entry answer field (short text or a number), as an alternative to options. */
+export interface KnowledgeInput {
+	/** 'text' is exact-match (case/space-insensitive); 'numeric' grades with a tolerance. */
+	type: 'text' | 'numeric';
+	unit?: string;
+	placeholder?: string;
+}
+
+/**
+ * The public `prompt` payload for a knowledge-mode challenge (Drawing Reading,
+ * GD&T and Tolerance, Spot the Error). A challenge is either multiple choice
+ * (`options`) or free entry (`input`); the server grades by the answer `type` in
+ * the hidden `answer` payload. The correct answer never appears here.
+ */
 export interface KnowledgePrompt {
 	/** Inline SVG of the drawing/views, when the challenge ships its own art. */
 	drawing?: string;
 	question: string;
-	options: ChallengeOption[];
+	/** Multiple-choice options; omit for a free-entry answer. */
+	options?: ChallengeOption[];
+	/** Free-entry answer field; omit for multiple choice. */
+	input?: KnowledgeInput;
 	/** Optional reading instructions shown above the question. */
 	instructions?: string;
 }
