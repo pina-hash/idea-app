@@ -151,6 +151,11 @@ export interface KnowledgeInput {
  * the hidden `answer` payload. The correct answer never appears here.
  */
 export interface KnowledgePrompt {
+	/**
+	 * Stable challenge identity slug (seed/authoring metadata). Harmless to expose
+	 * and used as the idempotency key for content seeds; not read by the play UI.
+	 */
+	slug?: string;
 	/** Inline SVG of the drawing/views, when the challenge ships its own art. */
 	drawing?: string;
 	question: string;

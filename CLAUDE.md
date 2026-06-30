@@ -373,6 +373,16 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   (multiple choice) or an `input` (text/numeric). Both share `KnowledgePlay.svelte`.
   Single answer per challenge for v1; Spot the Error is pick-the-numbered-callout
   (click-to-locate is a v2). See `docs/GAUNTLET.md`.
+- **GD&T content seed** (`0011`): 20 real GD&T and Tolerance challenges (symbol
+  ID, frame anatomy, datum precedence, fits, MMC/LMC, bonus/virtual condition)
+  seeded as **drafts** for teacher review and publish in the authoring UI. They
+  reuse the existing knowledge contract unchanged (no grading or component
+  change): multiple choice grades by option id, numeric by numeric value. Each
+  carries a `slug` in the public `prompt` (harmless to expose) which is the
+  idempotency key, so re-running never duplicates. `asset_svg` maps to
+  `prompt->>'drawing'` (rendered inline by `Asset.svelte`); a null drawing shows
+  no art. The source listed every correct choice first, so option order is
+  rotated deterministically to distribute the answer across positions.
 - **Authoring** (`0009`): the teacher-only web tool that replaces hand-edited SQL
   seeds. A `status` column (draft/published/archived) drives a trigger-derived
   `published`, so all existing gating is unchanged and students never see drafts
