@@ -30,9 +30,10 @@
 
 	<div class="card supervised-note">
 		<p>
-			Manual mass entry runs on supervised trust: you type the mass from Mass Properties and the
-			timer is client-side. Machine-authoritative capture and timing arrive with the SolidWorks
-			macro. The seeded challenges below are labeled demos with placeholder drawings.
+			Ranked runs are machine verified: the GAUNTLET SolidWorks macro reads your part and posts it
+			with a one-time submit code, and the server times the run from the moment you hit Start. Manual
+			mass entry stays as unranked practice. <a href="/gauntlet/tools">Get the macro and setup</a>.
+			The seeded challenges below are labeled demos with placeholder drawings.
 		</p>
 	</div>
 
@@ -74,5 +75,6 @@
 
 	<div class="btn-row">
 		<a class="btn secondary" href="/gauntlet">&lsaquo; All modes</a>
+		<a class="btn secondary" href="/gauntlet/tools">Macro &amp; tools</a>
 	</div>
 </main>

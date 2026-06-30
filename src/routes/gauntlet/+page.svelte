@@ -89,6 +89,7 @@
 
 	<p class="dojo-note">
 		More modes unlock as they ship. Build order: Drawing Reading, then Speedrun, then the rest.
-		See the dojo design doc for the full plan.
+		Speedrun runs are machine verified by the
+		<a href="/gauntlet/tools">SolidWorks capture macro</a>.
 	</p>
 </main>

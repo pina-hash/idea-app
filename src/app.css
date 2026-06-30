@@ -1159,6 +1159,133 @@ a:hover {
 	margin-top: 0.5rem;
 }
 
+/* --- Speedrun macro path: submit code, waiting bar, practice, tools setup --- */
+.gauntlet .code-box {
+	border: 1px solid var(--line-strong);
+	border-radius: 4px;
+	background: var(--bg2);
+	padding: 0.9rem 1rem;
+}
+.gauntlet .code-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 1rem;
+}
+.gauntlet .code-label {
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--green);
+}
+.gauntlet .text-copy {
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	letter-spacing: 0.08em;
+	color: var(--cyan);
+	background: none;
+	border: none;
+	cursor: pointer;
+	text-decoration: underline;
+	padding: 0;
+}
+.gauntlet .text-copy:hover {
+	color: var(--green);
+}
+.gauntlet .code-value {
+	font-family: var(--font-mono);
+	font-size: 1.9rem;
+	letter-spacing: 0.28em;
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+	margin: 0.3rem 0 0.5rem;
+	word-break: break-all;
+}
+.gauntlet .code-instr {
+	font-size: 0.8rem;
+	color: var(--dim);
+	line-height: 1.55;
+}
+.gauntlet .code-instr strong {
+	color: var(--cyan);
+	font-weight: 600;
+}
+.gauntlet .waiting {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	flex-wrap: wrap;
+}
+.gauntlet .practice {
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: 0.6rem 1rem;
+	background: var(--bg1);
+}
+.gauntlet .practice > summary {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	cursor: pointer;
+	padding: 0.2rem 0;
+}
+.gauntlet .practice[open] > summary {
+	margin-bottom: 0.5rem;
+}
+.gauntlet .result-banner.small {
+	margin-top: 0.6rem;
+	padding: 0.55rem 0.8rem;
+}
+.gauntlet .result-banner.small .result-verdict {
+	font-size: 0.78rem;
+}
+.gauntlet .text-btn {
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.06em;
+	color: var(--dim);
+	background: none;
+	border: none;
+	cursor: pointer;
+	text-decoration: underline;
+	padding: 0;
+	align-self: flex-start;
+}
+.gauntlet .text-btn:hover {
+	color: var(--green);
+}
+.gauntlet .setup-steps {
+	margin: 0.5rem 0 1rem 1.2rem;
+	display: grid;
+	gap: 0.7rem;
+}
+.gauntlet .setup-steps li {
+	color: var(--white);
+	font-size: 0.9rem;
+	line-height: 1.6;
+	padding-left: 0.3rem;
+}
+.gauntlet .setup-steps li::marker {
+	color: var(--green);
+	font-family: var(--font-mono);
+}
+.gauntlet .endpoint {
+	display: block;
+	font-family: var(--font-mono);
+	font-size: 0.78rem;
+	color: var(--cyan);
+	background: var(--bg2);
+	border: 1px solid var(--line);
+	border-radius: 3px;
+	padding: 0.4rem 0.6rem;
+	margin: 0.4rem 0;
+	word-break: break-all;
+}
+
 /* ==========================================================================
    Legacy-index theme. Shared by the landing page (/) and the archive page
    (/archive). All rules are scoped under `.legacy-index` so they never affect

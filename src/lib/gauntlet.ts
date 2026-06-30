@@ -195,11 +195,27 @@ export interface SpeedrunFraming {
 	demo?: boolean;
 }
 
-/** Payload returned by `gauntlet_speedrun_reveal` when the student clicks Start. */
+/**
+ * Payload returned by `gauntlet_speedrun_reveal` when the student clicks Start.
+ * `code` is the single-use submit code the macro posts; `reveal_at` is the
+ * server-authoritative clock start (the macro times against it, not the client).
+ */
 export interface SpeedrunReveal {
 	drawing: string | null;
 	asset_ref: string | null;
+	code: string | null;
+	reveal_at: string | null;
+	expires_at: string | null;
 }
+
+/** The grading result the macro posts back via `gauntlet_macro_submit`. */
+export interface MacroResult {
+	is_correct: boolean;
+	score_metric: number | null;
+}
+
+/** Path to the downloadable SolidWorks capture macro (served from static/). */
+export const MACRO_PATH = '/gauntlet/idea-gauntlet-speedrun.bas';
 
 /** The grading result returned by `gauntlet_submit` for a Speedrun challenge. */
 export interface SpeedrunResult {

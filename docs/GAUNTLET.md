@@ -118,53 +118,80 @@ RPC reveals the correct answer after an attempt (good for learning). For
 strictly ranked play, restrict to the first attempt or withhold the answer until
 the challenge is cleared. Out of scope for the MVP.
 
-## Speedrun (manual mass entry MVP)
+## Speedrun (machine-verified, with manual practice)
 
 Speedrun is the first modeling mode. The student models a dimensioned part in
-SolidWorks as fast as they can, reads its mass, and types it in. It ships on the
-supervised-trust manual path; the macro replaces manual entry for ranked play
-in a later prompt. Implementation (migration `0005_gauntlet_speedrun.sql`, no
-table DDL, it only adds RPC/view behavior the 0004 schema already anticipated):
+SolidWorks as fast as they can. The **ranked path is the SolidWorks VBA capture
+macro** (`0006_gauntlet_macro.sql`): it reads the part geometry and posts a
+machine-verified run, with server-authoritative timing. **Manual mass entry
+remains as unranked supervised practice.** The original manual MVP is
+`0005_gauntlet_speedrun.sql`.
 
 - **Payload split.** The Speedrun `prompt` (public) carries only the framing
   shown *before* Start: material, density, target mass, tolerance, units, note,
   and a `demo` flag. The dimensioned **drawing lives in the hidden `answer`
-  column**, alongside the authoritative grading values (target volume, target
-  mass, density, tolerance) and audit values (surface area, feature count). The
-  `target_mass` / `tolerance_pct` in `prompt` are display copies; the `answer`
-  copies are the source of truth used by grading.
-- **Reveal on start (the anti-cheat).** The drawing must not be fetchable or
-  visible before Start. Because it is in `answer` (no client grant) and never in
-  the page load, a normal challenge query cannot return it. It is handed back
-  only by the `gauntlet_speedrun_reveal(challenge_id)` SECURITY DEFINER RPC,
-  called client-side the instant the student clicks Start, which is also when
-  the client timer begins. There is no separate preview path, so seeing the
-  drawing means starting your clock.
-- **Verify on mass.** Volume is the canonical correctness property, but manual
-  entry only yields a mass number, so the manual MVP verifies on mass: a
-  submission passes when `|typed_mass - target_mass| <= target_mass *
-  tolerance_pct / 100`. The macro will verify on volume directly later. Grading
-  is in `gauntlet_submit` (the same authoritative, forge-proof writer); it now
-  handles Speedrun instead of raising "cannot be scored yet".
-- **Submissions and scoring.** Every attempt is recorded: `value` holds the
-  typed mass and elapsed milliseconds, `is_correct` is the pass/fail, and
-  `score_metric` is the elapsed time (seconds, lower ranks better). A failed
-  attempt is recorded but does not rank.
-- **Mode-aware leaderboard.** The `gauntlet_leaderboard` view is now mode-aware:
-  for modeling modes it ranks only PASSING submissions (by time ascending), so a
-  Speedrun board shows each student's best passing time and omits failed runs.
-  Knowledge modes are unchanged (all attempts, correct-first), so Drawing
-  Reading behaves exactly as before. A student may retry; each run is its own
-  reveal-on-start attempt and its own submission, and the board keeps their best
-  passing time.
-- **Timing is client-side** for now, which is acceptable under supervised-trust
-  manual entry. **Machine-authoritative timing (and submit tokens) arrive with
-  the macro.**
+  column**, alongside the authoritative grading values (target volume in mm3
+  `target_volume_mm3`, target mass, density, tolerance) and audit values
+  (surface area, feature count). The `target_mass` / `tolerance_pct` in `prompt`
+  are display copies; the `answer` copies are the source of truth.
+- **Reveal on start mints a submit token.** The drawing is in `answer` (no
+  client grant), never in the page load, so it cannot be fetched before Start.
+  `gauntlet_speedrun_reveal(challenge_id)` (SECURITY DEFINER) hands back the
+  drawing **and mints a single-use, ~30-minute, `(user_id, challenge_id)`-bound
+  submit code** stamped with a server-side `reveal_at` in `gauntlet_run_tokens`.
+  `reveal_at` is the server-stamped clock start (no client timer to tamper with).
+  Re-revealing retires the prior unused code and mints a fresh one, a new run with
+  a fresh clock. See **Residual trust** below for the supervised-trust caveat on
+  re-reveal.
+- **Machine submit (ranked).** `gauntlet_macro_submit(code, volume_mm3,
+  surface_area_mm2, feature_count, mass_g)` is a SECURITY DEFINER RPC the macro
+  posts to via PostgREST with the **public anon key** (not a user session); the
+  submit code is the credential, so it is granted to `anon`. It validates the
+  code (exists, unused, unexpired), resolves user/challenge/`reveal_at`, computes
+  **elapsed = now() - reveal_at** (server-stamped, so there is no client clock to
+  tamper with), verifies correctness **on volume**
+  against `target_volume_mm3` within tolerance (never a client correctness flag),
+  marks the code used, and records a submission with `source = 'macro'`,
+  `score_metric` = elapsed, and volume/area/feature_count/mass in `value`.
+  Returns pass/fail, elapsed, and rank.
+- **Manual practice (unranked).** `gauntlet_submit` still grades a typed mass
+  within tolerance and records `source = 'manual'` (the default). It is a quick
+  self-check; it does not rank.
+- **Source-tagged, machine-ranked board.** `submissions.source` is `'manual'` or
+  `'macro'`. The `gauntlet_leaderboard` view ranks modeling modes only on
+  **passing + macro** runs, so manual speedrun entries never appear on the board.
+  Knowledge modes ignore `source` and keep every attempt, so Drawing Reading is
+  unchanged.
+- **Live result.** The play screen shows the submit code prominently with a link
+  to the macro, and subscribes via Supabase **Realtime** to submissions for the
+  challenge, reacting to the user's own macro row (RLS scopes students to their
+  own rows; the handler also checks `user_id` because teachers can read all), so
+  the macro's result and the updated board appear automatically. A manual Refresh
+  is the fallback.
+- **The macro doubles as the authoring capture tool.** `static/gauntlet/`
+  `idea-gauntlet-speedrun.bas` reads mass properties in SI (`UseSystemUnits =
+  True`), normalizes to mm3 / mm2 / g, and reads the feature count. **Student
+  submit** posts a run; **Author capture** prints canonical
+  `target_volume_mm3` / `surface_area_mm2` / `feature_count` / `mass_g` (from a
+  prompted density) for seeding real challenges. The endpoint URL + public anon
+  key are clearly-marked constants at the top (not secrets). It is linked from
+  the Speedrun screen and `/gauntlet/tools`.
+- **Residual trust.** The submit token moves the clock server-side (no client
+  timer to tamper with) and is single-use. Two trust assumptions remain,
+  consistent with the supervised model: (1) the posted *geometry* is trusted from
+  the sanctioned macro (forging it means bypassing the macro with a crafted
+  request, detectable by an implausibly fast pass), and (2) the captured geometry
+  is not cryptographically bound to the reveal that timed it, so a student could
+  re-reveal *after* modeling to shorten the measured time; honest timing relies on
+  supervision (run the macro once per genuine attempt). Deeper macro attestation
+  (for example proving the model was saved after `reveal_at`) is future work. Note
+  this only affects time-scored Speedrun; Reverse Engineer is untimed and Feature
+  Golf scores on feature count.
 - **Demo seeds.** Two to three placeholder Speedrun challenges are seeded with
-  internally consistent dummy values (`target_mass = target_volume x density`)
-  and a clearly-labeled placeholder drawing, not a real dimensioned part. They
-  are marked `demo` in the UI. Real challenges are authored from actual
-  SolidWorks parts once the capture macro ships.
+  internally consistent dummy values (`target_mass = target_volume x density`,
+  `target_volume_mm3 = target_volume_cm3 x 1000`) and a clearly-labeled
+  placeholder drawing, marked `demo`. Real challenges are authored from actual
+  SolidWorks parts with the macro's Author capture mode.
 
 ## Shell
 
@@ -182,7 +209,9 @@ landing theme), with a small `.gauntlet`-scoped block in `app.css`.
   question, answer, submit, score, per-challenge leaderboard).
 - `/gauntlet/speedrun`: the challenge list for the Speedrun mode.
 - `/gauntlet/speedrun/[id]`: a single Speedrun challenge, end to end
-  (reveal-on-start drawing, client timer, manual mass entry, scored, board).
+  (reveal-on-start drawing + submit code, macro-verified ranked run over
+  Realtime, manual practice fallback, board).
+- `/gauntlet/tools`: download + setup for the SolidWorks capture macro.
 - `/gauntlet/author`: teacher-only authoring entry point, stubbed.
 
 ## Build order
@@ -193,7 +222,9 @@ All six modes ship eventually. The sequence:
    the full data model, and the leaderboard mechanism.
 2. **Speedrun** (built): the flagship modeling mode, on manual mass entry first.
    See "Speedrun" below.
-3. **The VBA macro**: replaces manual entry for ranked modeling play.
+3. **The VBA macro** (built): the SolidWorks capture macro, now the ranked path
+   for Speedrun (server-authoritative timing, volume verification). See
+   "Speedrun" below.
 4. **The remaining modes**: Reverse Engineer, Feature Golf, GD&T and Tolerance,
    Spot the Error.
 5. **Live rooms**: synchronous head-to-head play.
