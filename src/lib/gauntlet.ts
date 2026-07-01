@@ -282,6 +282,9 @@ export interface MacroResult {
 	score_metric: number | null;
 }
 
+/** Path to the run-start SolidWorks macro (served from static/). */
+export const START_MACRO_PATH = '/gauntlet/idea-gauntlet-start.bas';
+
 /** Path to the student-submit SolidWorks macro (served from static/). */
 export const SUBMIT_MACRO_PATH = '/gauntlet/idea-gauntlet-submit.bas';
 

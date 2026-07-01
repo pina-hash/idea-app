@@ -3,30 +3,30 @@ Attribute VB_Name = "IdeaGauntletSubmit"
 ' IDEA // GAUNTLET, Speedrun STUDENT SUBMIT macro (SolidWorks VBA)
 '==============================================================================
 ' What it does
-'   Reads the active PART's mass properties (SI, via UseSystemUnits = True) and
-'   feature count, prompts for the 8-char submit code shown on the GAUNTLET
-'   Speedrun play screen, posts the captured geometry to the
-'   gauntlet_macro_submit endpoint, and shows pass/fail, your time, and rank.
-'   The server measures time from when you hit Start, so model first, submit
-'   after.
+'   Reads the run_id written into this part by the Start macro, reads the
+'   part's mass properties (SI, via UseSystemUnits = True) and feature count,
+'   prompts for the 8-char code shown on the GAUNTLET Speedrun screen, and
+'   posts everything to the gauntlet_macro_submit endpoint. The server times
+'   your run from the Start event to this submit (both stamped server-side),
+'   checks your geometry, and returns pass/fail, your time, and your rank.
 '
-' Setup (once): in SolidWorks, Tools > Macro > New, Import File this .bas,
-' delete the leftover blank module, save as a .swp. Run the "main" sub. The two
-' constants below are already filled in with this project's PUBLIC values (the
-' same ones the website ships to every browser, not secrets), so no editing is
-' needed.
+'   You must run the Start macro on a blank part first. If this part has no
+'   run_id, this macro will tell you to start a run.
 '
-' Rules: ORIGINAL parts only. The submit code is single use and expires ~30
-' min after you hit Start; re-reveal in GAUNTLET for a fresh run.
+' Setup (once): paste your project values into the two constants below. They
+' are the same PUBLIC values the website uses, not secrets. Import this .bas as
+' a new SolidWorks macro and bind it to a keyboard shortcut (Ctrl+Shift+G).
+'
+' Rules: ORIGINAL parts only. The code is single use and expires ~30 min after
+' you reveal the challenge; re-reveal in GAUNTLET for a fresh run.
 '==============================================================================
 
 Option Explicit
 
-' ===== PROJECT VALUES (public, not secret) ===================================
+' ===== EDIT THESE TWO CONSTANTS ONCE (they are NOT secret) ====================
 Private Const GAUNTLET_ENDPOINT As String = _
     "https://ifxbufvugkzfxhwcwqhf.supabase.co/rest/v1/rpc/gauntlet_macro_submit"
-Private Const SUPABASE_ANON_KEY As String = _
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmeGJ1ZnZ1Z2t6Znhod2N3cWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTgyNzIsImV4cCI6MjA5NzQ5NDI3Mn0.0fdEON2B7NNsHjqavVJEvTXqAB9I7e3O0cS0V68asjg"
+Private Const SUPABASE_ANON_KEY As String = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmeGJ1ZnZ1Z2t6Znhod2N3cWhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5MTgyNzIsImV4cCI6MjA5NzQ5NDI3Mn0.0fdEON2B7NNsHjqavVJEvTXqAB9I7e3O0cS0V68asjg"
 ' =============================================================================
 
 Private Const swDocPART As Long = 1
@@ -56,6 +56,24 @@ Sub main()
         Exit Sub
     End If
 
+    ' --- Read the run_id the Start macro wrote into this part -----------------
+    Dim runId As String, resolvedId As String
+    On Error Resume Next
+    Dim cpm As Object
+    Set cpm = swModel.Extension.CustomPropertyManager("")
+    cpm.Get4 "GAUNTLET_RUN_ID", False, runId, resolvedId
+    On Error GoTo 0
+    If Len(runId) = 0 Then
+        MsgBox "No run has been started for this part. Start a run first:" & vbCrLf & vbCrLf & _
+               "1. Start a new, blank part." & vbCrLf & _
+               "2. Run the Start macro (Ctrl+Shift+B) and enter your code." & vbCrLf & _
+               "3. Build your part." & vbCrLf & _
+               "4. Run Submit again.", _
+               vbExclamation, "GAUNTLET, no run started"
+        Exit Sub
+    End If
+
+    ' --- Read mass properties in SI, then normalize to mm3 / mm2 / g ----------
     Set swMass = swModel.Extension.CreateMassProperty
     swMass.UseSystemUnits = True   ' SI: m^3, m^2, kg
 
@@ -67,11 +85,12 @@ Sub main()
     Dim featureCount As Long
     featureCount = swModel.GetFeatureCount
 
-    StudentSubmit volumeMm3, areaMm2, featureCount, massG
+    StudentSubmit volumeMm3, areaMm2, featureCount, massG, runId
 End Sub
 
 Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
-                          ByVal featureCount As Long, ByVal massG As Double)
+                          ByVal featureCount As Long, ByVal massG As Double, _
+                          ByVal runId As String)
     If InStr(GAUNTLET_ENDPOINT, "YOUR-PROJECT-REF") > 0 _
        Or InStr(SUPABASE_ANON_KEY, "PASTE-YOUR") > 0 Then
         MsgBox "This macro is not configured yet. Edit GAUNTLET_ENDPOINT and " & _
@@ -88,6 +107,7 @@ Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
 
     Dim body As String
     body = "{""p_code"":""" & JsonEsc(UCase(code)) & """" & _
+           ",""p_run_id"":""" & JsonEsc(runId) & """" & _
            ",""p_volume_mm3"":" & JNum(volumeMm3) & _
            ",""p_surface_area_mm2"":" & JNum(areaMm2) & _
            ",""p_feature_count"":" & CStr(featureCount) & _
@@ -134,7 +154,8 @@ Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
         If Len(rankS) > 0 And rankS <> "null" Then out = out & "  -  rank #" & rankS
     Else
         out = "OUTSIDE TOLERANCE in " & secs & " s" & vbCrLf & _
-              "Recorded, but it does not rank. Adjust your model and re-reveal for a new run."
+              "Recorded, but it does not rank. Fix your model and submit again with the " & _
+              "same code (your time keeps counting), or re-reveal for a new run."
     End If
     out = out & vbCrLf & vbCrLf & "Volume: " & JNum(volumeMm3) & " mm3" & _
           "   Area: " & JNum(areaMm2) & " mm2" & "   Features: " & featureCount
@@ -146,6 +167,9 @@ HttpError:
            "connection." & vbCrLf & vbCrLf & Err.Description, vbExclamation, "GAUNTLET"
 End Sub
 
+'------------------------------------------------------------------------------
+' Helpers
+'------------------------------------------------------------------------------
 Private Function JNum(ByVal d As Double) As String
     Dim s As String
     s = Format$(d, "0.0##########")

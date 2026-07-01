@@ -10,6 +10,7 @@
 		difficultyLabel,
 		formatTime,
 		formatMass,
+		START_MACRO_PATH,
 		SUBMIT_MACRO_PATH,
 		DRAWINGS_BUCKET,
 		type SpeedrunReveal,
@@ -217,8 +218,9 @@
 						<div class="gate-lock" aria-hidden="true">&#9632;</div>
 						<p class="gate-title">Drawing hidden</p>
 						<p class="gate-sub">
-							Start reveals the dimensioned drawing and mints your submit code. The clock starts on
-							the server the instant you hit Start. Have SolidWorks ready.
+							This reveals the dimensioned drawing and your run code. Your time is measured on the
+							server from when you run the Start macro (Ctrl + Shift + B) on a blank part to when you
+							submit (Ctrl + Shift + G). Have SolidWorks ready with a new blank part.
 						</p>
 						<button class="btn" type="button" onclick={start} disabled={revealing}>
 							{revealing ? 'Revealing...' : 'Start run'}
@@ -315,18 +317,23 @@
 					</div>
 					<div class="code-value">{code ?? '--------'}</div>
 					<p class="code-instr">
-						In SolidWorks, run the GAUNTLET <strong>submit</strong> macro and paste this code.
-						<a href={SUBMIT_MACRO_PATH} download>Download submit macro</a> &middot;
+						In SolidWorks, start a blank part and run the GAUNTLET <strong>start</strong> macro (Ctrl +
+						Shift + B), build it, then run <strong>submit</strong> (Ctrl + Shift + G). Paste this code
+						when either macro asks. <a href={START_MACRO_PATH} download>Start macro</a> &middot;
+						<a href={SUBMIT_MACRO_PATH} download>Submit macro</a> &middot;
 						<a href="/gauntlet/tools">Setup</a>
 					</p>
 				</div>
 
 				<div class="run-bar">
-					<span class="run-label">Your clock</span>
+					<span class="run-label">Since reveal</span>
 					<span class="timer">{formatTime(elapsedMs / 1000)}</span>
 				</div>
 				<div class="waiting">
-					<span class="dim">Waiting for your macro submission. It appears here automatically.</span>
+					<span class="dim">
+						Your ranked time is measured on the server from the Start macro to your submit, not this
+						timer. Waiting for your macro submission. It appears here automatically.
+					</span>
 					<button class="btn secondary" type="button" onclick={refresh} disabled={refreshing}>
 						{refreshing ? 'Refreshing...' : 'Refresh'}
 					</button>

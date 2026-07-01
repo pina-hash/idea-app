@@ -4,6 +4,7 @@
 	import {
 		difficultyLabel,
 		formatMass,
+		START_MACRO_PATH,
 		SUBMIT_MACRO_PATH,
 		type ModelingFraming,
 		type SpeedrunReveal
@@ -237,8 +238,10 @@
 					</div>
 					<div class="code-value">{code ?? '--------'}</div>
 					<p class="code-instr">
-						In SolidWorks, run the GAUNTLET <strong>submit</strong> macro and paste this code.
-						<a href={SUBMIT_MACRO_PATH} download>Download submit macro</a> &middot;
+						In SolidWorks, start a blank part and run the GAUNTLET <strong>start</strong> macro (Ctrl +
+						Shift + B), build it, then run <strong>submit</strong> (Ctrl + Shift + G). Paste this code
+						when either macro asks. <a href={START_MACRO_PATH} download>Start macro</a> &middot;
+						<a href={SUBMIT_MACRO_PATH} download>Submit macro</a> &middot;
 						<a href="/gauntlet/tools">Setup</a>
 					</p>
 				</div>
