@@ -6,6 +6,7 @@
 	import Header from '$lib/gauntlet/Header.svelte';
 	import Asset from '$lib/gauntlet/Asset.svelte';
 	import StlViewer from '$lib/gauntlet/StlViewer.svelte';
+	import SpeedrunClock from '$lib/gauntlet/SpeedrunClock.svelte';
 	import {
 		difficultyLabel,
 		formatTime,
@@ -45,9 +46,14 @@
 	let revealError = $state('');
 	let copied = $state(false);
 
-	let startTime = 0;
-	let elapsedMs = $state(0);
-	let ticker: ReturnType<typeof setInterval> | null = null;
+	// Server-authoritative-ish start reference: a performance.now() origin captured
+	// when the run begins. The clock component derives elapsed from it via rAF, so
+	// nothing here re-renders per frame. It is $state so the component re-arms on a
+	// new run.
+	let startTime = $state(0);
+
+	// Click-to-zoom lightbox for the drawing.
+	let zoomOpen = $state(false);
 
 	// The macro result (ranked) arrives via Realtime; the manual practice result
 	// is an inline, unranked self-check that never ends or blocks the run.
@@ -58,13 +64,6 @@
 	let submitError = $state('');
 	let showPractice = $state(false);
 	let refreshing = $state(false);
-
-	const stopTicker = () => {
-		if (ticker) {
-			clearInterval(ticker);
-			ticker = null;
-		}
-	};
 
 	const start = async () => {
 		revealing = true;
@@ -95,11 +94,6 @@
 		mass = null;
 		submitError = '';
 		startTime = performance.now();
-		elapsedMs = 0;
-		stopTicker();
-		ticker = setInterval(() => {
-			elapsedMs = performance.now() - startTime;
-		}, 250);
 		revealing = false;
 	};
 
@@ -146,7 +140,6 @@
 
 	// A retry is a fresh reveal-on-start run: re-hide everything and reset.
 	const reset = () => {
-		stopTicker();
 		phase = 'framing';
 		drawing = null;
 		drawingUrl = null;
@@ -156,7 +149,6 @@
 		mass = null;
 		submitError = '';
 		revealError = '';
-		elapsedMs = 0;
 	};
 
 	onMount(() => {
@@ -176,7 +168,6 @@
 					};
 					// Teachers can read all submissions (RLS), so scope to our own run.
 					if (row.source === 'macro' && row.user_id === myUserId) {
-						stopTicker();
 						result = { is_correct: !!row.is_correct, score_metric: row.score_metric ?? null };
 						phase = 'done';
 						invalidateAll();
@@ -187,14 +178,20 @@
 
 		return () => {
 			supabase.removeChannel(channel);
-			stopTicker();
 		};
 	});
+
+	const closeZoom = () => (zoomOpen = false);
+	const onKeydown = (e: KeyboardEvent) => {
+		if (e.key === 'Escape' && zoomOpen) closeZoom();
+	};
 </script>
 
 <svelte:head>
 	<title>{challenge.title} // GAUNTLET</title>
 </svelte:head>
+
+<svelte:window onkeydown={onKeydown} />
 
 <Header
 	{supabase}
@@ -228,16 +225,25 @@
 						{#if revealError}<p class="warn">{revealError}</p>{/if}
 					</div>
 				{:else if drawingUrl}
-					<img class="drawing-png" src={drawingUrl} alt="Dimensioned drawing" />
+					<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
+						<img class="drawing-png" src={drawingUrl} alt="Dimensioned drawing" />
+						<span class="zoom-hint">Click to zoom</span>
+					</button>
 				{:else if drawing}
-					<Asset value={drawing} />
+					<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
+						<Asset value={drawing} />
+						<span class="zoom-hint">Click to zoom</span>
+					</button>
 				{:else}
 					<p class="dim">No drawing provided.</p>
 				{/if}
 			</div>
 
 			{#if modelUrl}
-				<StlViewer url={modelUrl} />
+				<details class="preview-toggle">
+					<summary>3D preview (shape only)</summary>
+					<StlViewer url={modelUrl} height={220} />
+				</details>
 			{/if}
 		</div>
 
@@ -325,9 +331,8 @@
 					</p>
 				</div>
 
-				<div class="run-bar">
-					<span class="run-label">Since reveal</span>
-					<span class="timer">{formatTime(elapsedMs / 1000)}</span>
+				<div class="clock-wrap">
+					<SpeedrunClock {startTime} running={phase === 'running'} />
 				</div>
 				<div class="waiting">
 					<span class="dim">
@@ -344,6 +349,14 @@
 					<p class="instructions">
 						A quick self-check without the macro. It does not rank; only macro-verified runs do.
 					</p>
+					<div class="clock-wrap">
+						<SpeedrunClock
+							{startTime}
+							running={phase === 'running' && showPractice}
+							ranked={false}
+							compact
+						/>
+					</div>
 					<form method="POST" action="?/submit" use:enhance={practiceEnhance}>
 						<label class="mass-field">
 							<span class="mass-label">Mass from Mass Properties</span>
@@ -425,3 +438,23 @@
 		<p class="dim board-note">Your best verified run: rank #{myBest.rank}, {formatTime(myBest.score_metric)}.</p>
 	{/if}
 </main>
+
+{#if zoomOpen && (drawingUrl || drawing)}
+	<!-- Click-to-zoom lightbox: enlarged, pannable/scrollable drawing. The backdrop
+	     is a real button (dismiss on click; Esc handled on svelte:window) so the
+	     dialog above it stays clean. -->
+	<div class="lightbox">
+		<button class="lightbox-backdrop" type="button" aria-label="Close enlarged drawing" onclick={closeZoom}
+		></button>
+		<div class="lightbox-inner" role="dialog" aria-modal="true" aria-label="Dimensioned drawing">
+			<button class="lightbox-close btn secondary" type="button" onclick={closeZoom}>Close &times;</button>
+			<div class="lightbox-scroll">
+				{#if drawingUrl}
+					<img class="lightbox-img" src={drawingUrl} alt="Dimensioned drawing, enlarged" />
+				{:else if drawing}
+					<div class="lightbox-svg"><Asset value={drawing} /></div>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}

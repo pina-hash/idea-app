@@ -807,7 +807,8 @@ a:hover {
 }
 @media (min-width: 760px) {
 	.gauntlet .play-grid {
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+		/* Drawing is the primary reference, so give the left column more room. */
+		grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
 		align-items: start;
 	}
 }
@@ -1094,15 +1095,103 @@ a:hover {
 	align-items: stretch;
 	gap: 1rem;
 }
+/* Keep the drawing (the reference students model from) in view while the right
+   column scrolls. */
+@media (min-width: 760px) {
+	.gauntlet .drawing-panel:has(.drawing-frame) {
+		position: sticky;
+		top: 1rem;
+		align-self: start;
+	}
+}
+/* Paper-white panel framed by the concrete-hex white border, so black dimension
+   linework reads at full contrast (no invert, no filter). Landscape aspect for a
+   long, thin part. */
 .gauntlet .drawing-frame {
 	width: 100%;
+	aspect-ratio: 16 / 9;
+	background: #f4f2ec;
+	border: 2px solid var(--white);
+	border-radius: 3px;
+	padding: 0.9rem;
+	display: grid;
+	place-items: center;
+	overflow: hidden;
+}
+/* The start-gate lives inside the frame before reveal; it keeps the dark shell,
+   not the paper, and must not be clipped by the landscape aspect ratio. */
+.gauntlet .drawing-frame:has(.start-gate) {
+	aspect-ratio: auto;
+	overflow: visible;
+	background: var(--bg1);
+	border-color: var(--line);
+	padding: 1.25rem;
+}
+.gauntlet .drawing-zoom {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	padding: 0;
+	border: none;
+	background: none;
+	cursor: zoom-in;
 	display: grid;
 	place-items: center;
 }
-.gauntlet .drawing-png {
-	width: 100%;
+.gauntlet .drawing-zoom :is(svg, img) {
+	max-width: 100%;
+	max-height: 100%;
+	width: auto;
 	height: auto;
-	max-width: 440px;
+}
+.gauntlet .drawing-png {
+	max-width: 100%;
+	max-height: 100%;
+	width: auto;
+	height: auto;
+	object-fit: contain;
+}
+.gauntlet .zoom-hint {
+	position: absolute;
+	right: 0.4rem;
+	bottom: 0.3rem;
+	font-family: var(--font-mono);
+	font-size: 0.55rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: #55503f;
+	background: rgba(244, 242, 236, 0.85);
+	padding: 0.1rem 0.35rem;
+	border-radius: 2px;
+	opacity: 0;
+	transition: opacity 0.12s;
+	pointer-events: none;
+}
+.gauntlet .drawing-zoom:hover .zoom-hint,
+.gauntlet .drawing-zoom:focus-visible .zoom-hint {
+	opacity: 1;
+}
+/* The 3D preview is shape-only decoration, demoted to a collapsible toggle. */
+.gauntlet .preview-toggle {
+	border: 1px solid var(--line);
+	border-radius: 3px;
+	background: var(--bg1);
+}
+.gauntlet .preview-toggle > summary {
+	cursor: pointer;
+	list-style: none;
+	padding: 0.5rem 0.8rem;
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--cyan);
+}
+.gauntlet .preview-toggle > summary::-webkit-details-marker {
+	display: none;
+}
+.gauntlet .preview-toggle[open] > summary {
+	border-bottom: 1px solid var(--line);
 }
 .gauntlet .stl-viewer {
 	position: relative;
@@ -1177,29 +1266,67 @@ a:hover {
 	left: 0;
 	color: var(--line-strong);
 }
-.gauntlet .run-bar {
+/* The run clock is its own component (SpeedrunClock.svelte); this just centers it. */
+.gauntlet .clock-wrap {
 	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 1rem;
-	background: var(--bg2);
-	border: 1px solid var(--line-strong);
+	justify-content: center;
+	margin: 0.2rem 0;
+}
+
+/* Drawing lightbox. Rendered as a sibling of <main>, so these are unscoped
+   (like the other app-shell classes). Backdrop is a real button (dismiss). */
+.lightbox {
+	position: fixed;
+	inset: 0;
+	z-index: 100;
+	display: grid;
+	place-items: center;
+	padding: 2rem;
+}
+.lightbox-backdrop {
+	position: absolute;
+	inset: 0;
+	border: none;
+	background: rgba(2, 6, 3, 0.86);
+	-webkit-backdrop-filter: blur(2px);
+	backdrop-filter: blur(2px);
+	cursor: zoom-out;
+}
+.lightbox-inner {
+	position: relative;
+	z-index: 1;
+	width: min(1100px, 92vw);
+	max-height: 90vh;
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+.lightbox-close {
+	align-self: flex-end;
+}
+.lightbox-scroll {
+	overflow: auto;
+	max-height: 82vh;
+	background: #f4f2ec;
+	border: 2px solid var(--white);
 	border-radius: 3px;
-	padding: 0.7rem 1rem;
+	padding: 1rem;
+	display: grid;
+	place-items: center;
 }
-.gauntlet .run-label {
-	font-family: var(--font-mono);
-	font-size: 0.62rem;
-	letter-spacing: 0.16em;
-	text-transform: uppercase;
-	color: var(--dim);
+/* Native resolution so dimension callouts stay legible; pan via overflow. */
+.lightbox-img {
+	max-width: none;
+	image-rendering: auto;
 }
-.gauntlet .timer {
-	font-family: var(--font-mono);
-	font-size: 1.6rem;
-	color: var(--green);
-	text-shadow: var(--glow-green);
-	font-variant-numeric: tabular-nums;
+/* SVG stays crisp at any size; render it large and let it pan. */
+.lightbox-svg {
+	width: 1200px;
+	max-width: none;
+}
+.lightbox-svg svg {
+	width: 100%;
+	height: auto;
 }
 .gauntlet .mass-field {
 	display: flex;
