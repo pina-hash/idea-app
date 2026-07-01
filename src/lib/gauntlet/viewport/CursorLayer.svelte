@@ -16,7 +16,10 @@
 		'a, button, input, select, textarea, summary, label, [role="button"], .mode-card, .challenge-row, .tree-leaf';
 
 	let wrap: HTMLDivElement;
+	let reticleEl = $state<HTMLDivElement>();
+	let labelEl = $state<HTMLDivElement>();
 	let active = $state(false);
+	let armed = $state(false);
 	let hovering = $state(false);
 	let readout = $state('X 0.0 Y 0.0 mm');
 
@@ -24,31 +27,39 @@
 		if (isCoarsePointer() || prefersReducedMotion()) return;
 		active = true;
 		const root = wrap.closest('.gt-root');
-		root?.classList.add('gt-cursor-on');
 
-		let mx = window.innerWidth / 2;
-		let my = window.innerHeight / 2;
-		let x = mx;
-		let y = my;
+		let mx = 0;
+		let my = 0;
+		let x = 0;
+		let y = 0;
 		let raf = 0;
-
-		const reticle = wrap.querySelector<HTMLElement>('.gt-reticle');
-		const label = wrap.querySelector<HTMLElement>('.gt-readout');
+		let seeded = false;
 
 		const onMove = (e: MouseEvent) => {
 			mx = e.clientX;
 			my = e.clientY;
+			if (!seeded) {
+				// Snap to the real cursor position on the first move instead of
+				// easing in from an arbitrary seed point, and only hide the native
+				// cursor once the reticle actually has somewhere real to be, so
+				// there is never a gap where neither cursor is visible.
+				x = mx;
+				y = my;
+				seeded = true;
+				armed = true;
+				root?.classList.add('gt-cursor-on');
+			}
 		};
 		const onOver = (e: MouseEvent) => {
 			hovering = !!(e.target instanceof Element && e.target.closest(INTERACTIVE));
 		};
 
 		const loop = () => {
-			x += (mx - x) * 0.22;
-			y += (my - y) * 0.22;
-			if (reticle) reticle.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-			if (label) {
-				label.style.transform = `translate3d(${x + 18}px, ${y + 22}px, 0)`;
+			if (seeded && reticleEl && labelEl) {
+				x += (mx - x) * 0.22;
+				y += (my - y) * 0.22;
+				reticleEl.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+				labelEl.style.transform = `translate3d(${x + 18}px, ${y + 22}px, 0)`;
 				const xmm = (x * MM_PER_PX).toFixed(1);
 				const ymm = ((window.innerHeight - y) * MM_PER_PX).toFixed(1);
 				readout = `X ${xmm} Y ${ymm} mm`;
@@ -71,13 +82,13 @@
 
 <div class="gt-cursor-layer" bind:this={wrap} aria-hidden="true">
 	{#if active}
-		<div class="gt-reticle" class:hovering>
+		<div class="gt-reticle" class:hovering class:armed bind:this={reticleEl}>
 			<span class="ring"></span>
 			<span class="dot"></span>
 			<span class="cross v"></span>
 			<span class="cross h"></span>
 		</div>
-		<div class="gt-readout">{readout}</div>
+		<div class="gt-readout" class:armed bind:this={labelEl}>{readout}</div>
 	{/if}
 </div>
 
@@ -94,7 +105,14 @@
 		left: 0;
 		width: 0;
 		height: 0;
+		opacity: 0;
 		will-change: transform;
+	}
+	/* Hidden until the first real mousemove seeds a position, so it never
+	   flashes at the origin (and the native cursor stays hidden together with
+	   it, since both gate on the same JS-known-position moment). */
+	.gt-reticle.armed {
+		opacity: 1;
 	}
 	.ring {
 		position: absolute;
@@ -153,8 +171,11 @@
 		font-size: 0.58rem;
 		letter-spacing: 0.08em;
 		color: var(--ice);
-		opacity: 0.7;
+		opacity: 0;
 		white-space: nowrap;
 		will-change: transform;
+	}
+	.gt-readout.armed {
+		opacity: 0.7;
 	}
 </style>
