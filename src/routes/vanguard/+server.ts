@@ -136,6 +136,21 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 		});
 	}
 
+	// Run history: signed-in players append one row per finished run. The game
+	// calls window.__ideaRecordRun(summary); we keep the injection the sole owner
+	// of cloud I/O. Fire-and-forget, swallow errors. Left undefined when signed
+	// out so the game's optional call no-ops.
+	if (SIGNED_IN) {
+		window.__ideaRecordRun = function (summary) {
+			try {
+				fetch('/api/vanguard-run', {
+					method: 'POST', headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(summary || {}), keepalive: true
+				}).catch(function () {});
+			} catch (e) {}
+		};
+	}
+
 	var timer = null;
 	function schedulePush() {
 		if (!SIGNED_IN) return;

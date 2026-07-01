@@ -492,7 +492,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='149';
+const W=630,H=840; const VERSION='150';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -3813,8 +3813,8 @@ function startGameOver(){
 }
 function endRun(){
   if(gameMode==='calib'){ if(window.CALIB)window.CALIB.finish(); return; }
-  { const _dc = killerInfo ? (killerInfo.fk ? (/BOSS/.test(killerInfo.label||'') ? killerInfo.fk+'_boss' : killerInfo.fk+(killerInfo.variant!=null?String(killerInfo.variant):'')) : 'hazard') : 'none';
-    sendTelemetry(_dc); }
+  const _dc = killerInfo ? (killerInfo.fk ? (/BOSS/.test(killerInfo.label||'') ? killerInfo.fk+'_boss' : killerInfo.fk+(killerInfo.variant!=null?String(killerInfo.variant):'')) : 'hazard') : 'none';
+  sendTelemetry(_dc);
   try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){}
   state='over'; player.dead=true; Audio_.lane(null); if(Audio_.stopAllLoops)Audio_.stopAllLoops();
   document.getElementById('touch').classList.add('hidden');
@@ -3845,6 +3845,9 @@ function endRun(){
       else if(kg){ kg.style.display='none'; }
     } else { if(fb)fb.textContent='-'; if(kg)kg.style.display='none'; }
     pendingScore={score:window.scoreT,sector:sector,acc:acc};
+    if(gameMode!=='dev'&&gameMode!=='tune'&&gameMode!=='calib'){
+      window.__ideaRecordRun?.({ mode:gameMode, version:VERSION, score:window.scoreT, sector:sector, accuracy:acc, time_s:Math.round(runTime), kills:runKills, bosses:runBosses, coins_earned:runCoinsEarned, primary_weapon:player.wtype, heavy_weapon:player.heavy, death_cause:_dc });
+    }
   }catch(err){ console.error('VANGUARD endRun error:',err); pendingScore={score:window.scoreT,sector:sector,acc:0}; }
 }
 /* telemetry beacon - anonymous per-run gameplay metrics, no name or identifier.
