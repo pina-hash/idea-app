@@ -62,7 +62,16 @@ inputs; display chrome (the header wordmark, headings, `.stat-value`) reads
 The GAUNTLET header (`Header.svelte`) brand block is a mono "Trains SOLIDWORKS
 skills" eyebrow over an Orbitron-900 `IDEA // GAUNTLET` wordmark that clips the
 green -> lime -> cyan gradient (IDEA -> `/`, GAUNTLET -> `/gauntlet`, dim `//`),
-with the breadcrumb trailing in mono.
+with the breadcrumb trailing in mono. The header is **sticky** (`.gt-root
+.app-header`, scoped so the dashboard's shared `.app-header` is untouched),
+pinned to the top of the viewport with a blurred void backdrop as the page
+scrolls beneath it.
+
+Each page supplies exactly one real `<h1>` (a11y). Where a page's h1 text
+would otherwise repeat the header's wordmark (the dojo landing's motto), it is
+styled back down to the calm mono/cyan eyebrow treatment
+(`.dojo-hero h1.dojo-tagline`) rather than the generic Orbitron h1 skin, so it
+reads as a subtitle, not a second brand line.
 
 The scope block also re-points the app-shell tokens the pre-existing
 `.gauntlet` styles consume (`--bg1 -> --panel`, `--gold -> --lime`,
@@ -128,6 +137,33 @@ Under `prefers-reduced-motion: reduce`:
 Always: visible keyboard focus (lime outline) on all interactive elements;
 overlay layers are `pointer-events: none` and never block interaction; body
 text stays readable on the dark base (`--white` on `--void`/`--panel`).
+
+## Narrow-viewport refinement
+
+Most layout already holds up at any width (flex-wrap, grid auto-fill). A
+dedicated block at the end of `viewport.css` handles the exceptions: the
+leaderboard (`.board`) scrolls horizontally instead of squeezing columns; wide
+letter-spacing mono codes (`.code-value`, `.room-code`) shrink fluidly via
+`clamp()` with `word-break: break-all` as a last resort; and a `max-width:
+720px` query trims header/main padding, hides the decorative header clock,
+tightens the mode grid's minimum column, and further reduces code letter-
+spacing. Verified by injecting the real stylesheet and reading computed
+styles at 375px and 320px viewports (no overflow at either).
+
+## Live Rooms formatting parity
+
+A room's racer/host/spectator views reuse the exact same visual language as
+the solo Speedrun page (`/gauntlet/speedrun/[id]`), not a simplified variant:
+the blueprint `.drawing-frame` with click-to-zoom and a sheet title block, the
+`.spec`/`.ruleset-panel` cards (via `{#snippet specCard()}` /
+`{#snippet rulesetCard()}` in the room page, since the same markup repeats
+across host/lobby/racer/spectator states), the STL `.preview-toggle`, and a
+live `SpeedrunClock` anchored to the room's single authoritative
+`started_at` (display-only; scoring still comes from the server-computed
+elapsed time in `gauntlet_room_manual_submit` / `gauntlet_macro_submit`,
+unchanged). The room's server load fetches the same `ruleset` and signed STL
+`modelUrl` the solo page fetches, both read-only display data with no
+scoring/auth/timing implications.
 
 ## SOLIDWORKS branding (compliance-critical)
 

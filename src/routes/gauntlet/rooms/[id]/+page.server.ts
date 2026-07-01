@@ -1,6 +1,14 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { GauntletRoom, ModelingFraming, RoomBoardRow, RoomParticipant } from '$lib/gauntlet';
+import {
+	DEFAULT_SPEEDRUN_RULESET,
+	MODELS_BUCKET,
+	type GauntletRoom,
+	type ModelingFraming,
+	type RoomBoardRow,
+	type RoomParticipant,
+	type SpeedrunRuleset
+} from '$lib/gauntlet';
 
 /**
  * One live room. RLS only lets members (host + participants) read the room, so a
@@ -56,6 +64,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 		.order('rank', { ascending: true });
 
 	let framing: (ModelingFraming & { title: string; difficulty: number }) | null = null;
+	// Shape-only STL preview (public framing), same signed-URL pattern as the
+	// solo Speedrun page, for the same room-formatting parity.
+	let modelUrl: string | null = null;
 	if (room.current_challenge_id) {
 		const { data: ch } = await supabase
 			.from('challenges')
@@ -68,8 +79,21 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 				title: ch.title as string,
 				difficulty: ch.difficulty as number
 			};
+			if (framing.model_path) {
+				const { data: signed } = await supabase.storage
+					.from(MODELS_BUCKET)
+					.createSignedUrl(framing.model_path, 60 * 60);
+				modelUrl = signed?.signedUrl ?? null;
+			}
 		}
 	}
+
+	// The one global ruleset, same as the solo Speedrun page (rooms are always
+	// Speedrun mode, so it always applies once a challenge exists).
+	const { data: rules } = await supabase
+		.from('gauntlet_speedrun_ruleset')
+		.select('units_label, projection, rule_lines')
+		.maybeSingle();
 
 	let speedrunChallenges: Array<{ id: string; title: string; difficulty: number }> = [];
 	if (amHost && room.state === 'lobby') {
@@ -93,6 +117,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 		roster: (roster ?? []) as RoomParticipant[],
 		board: (board ?? []) as RoomBoardRow[],
 		framing,
+		modelUrl,
+		ruleset: (rules ?? DEFAULT_SPEEDRUN_RULESET) as SpeedrunRuleset,
 		speedrunChallenges
 	};
 };

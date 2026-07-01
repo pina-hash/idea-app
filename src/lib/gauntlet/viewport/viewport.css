@@ -76,12 +76,24 @@
 		radial-gradient(140% 120% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
 }
 
+/* Pin the GAUNTLET header to the top of the viewport while the page scrolls,
+   like the landing page's sticky header. Scoped to .gt-root so the dashboard's
+   shared .app-header (position: relative, app.css) is untouched. */
+.gt-root .app-header {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+	background: rgba(4, 7, 10, 0.86);
+	-webkit-backdrop-filter: blur(12px);
+	backdrop-filter: blur(12px);
+}
+
 /* ==========================================================================
    Re-skin layer: retune the existing shared .gauntlet classes to the system.
    ========================================================================== */
 
 /* --- Type: Orbitron display headings, mono data --- */
-.gt-root .gauntlet :is(h1, h2, h3.mode-name, .dojo-title, .gate-title) {
+.gt-root .gauntlet :is(h1, h2, h3.mode-name, .gate-title) {
 	font-family: var(--font-head);
 	font-weight: 700;
 	letter-spacing: 0.05em;
@@ -93,22 +105,16 @@
 	font-family: var(--font-head);
 }
 
-/* Gradient wordmark: the dojo hero title clips a green -> lime -> cyan sweep. */
-.gt-root .gauntlet .dojo-title {
-	font-weight: 900;
-	letter-spacing: 0.04em;
-	background: linear-gradient(92deg, var(--green), var(--lime) 60%, var(--cyan));
-	-webkit-background-clip: text;
-	background-clip: text;
-	color: transparent;
-	-webkit-text-fill-color: transparent;
-	text-shadow: none;
-	filter: drop-shadow(0 0 14px rgba(0, 255, 65, 0.28));
-}
-.gt-root .gauntlet .dojo-title span {
-	color: transparent;
-	-webkit-text-fill-color: transparent;
-	text-shadow: none;
+/* The dojo-hero motto is the page's real <h1> (a11y: one per page), but the
+   header already carries the big IDEA // GAUNTLET wordmark, so this stays the
+   calm mono/cyan eyebrow-style treatment instead of the generic h1 skin above. */
+.gt-root .gauntlet .dojo-hero h1.dojo-tagline {
+	font-family: var(--font-data);
+	font-weight: 400;
+	font-size: 0.8rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--cyan);
 }
 
 /* Mono kicker over a section (the mockup's "Select challenge" lede). */
@@ -441,5 +447,59 @@
 	.gt-root .gt-pre {
 		opacity: 1;
 		transform: none;
+	}
+}
+
+/* ==========================================================================
+   Narrow-viewport refinement. Most of the system already holds up on its own
+   (flex-wrap, grid auto-fill), but a handful of fixed-size display elements
+   (the wide-letter-spacing mono codes, the header wordmark, the leaderboard
+   table) need to shrink or scroll explicitly instead of overflowing.
+   ========================================================================== */
+
+/* The leaderboard scrolls horizontally rather than squeezing its columns;
+   harmless at any width since overflow-x:auto only engages when needed. */
+.gt-root .gauntlet .board {
+	display: block;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+}
+/* Wide-tracking mono codes (submit codes, room codes) never overflow their
+   panel: they shrink fluidly and, as a last resort, break mid-string. */
+.gt-root .gauntlet :is(.code-value, .room-code) {
+	font-size: clamp(1.1rem, 7vw, 1.9rem);
+	word-break: break-all;
+}
+/* Belt-and-braces: let the mode-card header wrap if a family label ever runs
+   long next to a status badge. */
+.gt-root .gauntlet .mode-top {
+	flex-wrap: wrap;
+}
+
+@media (max-width: 720px) {
+	.gt-root main {
+		padding: 2rem 1rem 3.5rem;
+	}
+	.gt-root .app-header {
+		padding: 0.85rem 1rem;
+	}
+	.gt-root .gt-wordmark {
+		font-size: 1.35rem;
+	}
+	.gt-root .gt-eyebrow {
+		letter-spacing: 0.22em;
+	}
+	/* Decorative chrome, first to go when space is tight. */
+	.gt-root .gt-clock {
+		display: none;
+	}
+	.gt-root .gauntlet .dojo-stats {
+		gap: 1.5rem;
+	}
+	.gt-root .gauntlet .mode-grid {
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	}
+	.gt-root .gauntlet :is(.code-value, .room-code) {
+		letter-spacing: 0.14em;
 	}
 }

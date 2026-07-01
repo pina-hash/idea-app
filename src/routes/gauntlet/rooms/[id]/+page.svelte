@@ -3,6 +3,8 @@
 	import { invalidateAll } from '$app/navigation';
 	import Header from '$lib/gauntlet/Header.svelte';
 	import Asset from '$lib/gauntlet/Asset.svelte';
+	import StlViewer from '$lib/gauntlet/StlViewer.svelte';
+	import SpeedrunClock from '$lib/gauntlet/SpeedrunClock.svelte';
 	import CountdownOverlay from '$lib/gauntlet/viewport/CountdownOverlay.svelte';
 	import {
 		difficultyLabel,
@@ -25,12 +27,33 @@
 		roster,
 		board,
 		framing,
+		modelUrl,
+		ruleset,
 		speedrunChallenges
 	} = $derived(data);
 
 	const racers = $derived(roster.filter((r) => r.role === 'racer'));
 	const spectators = $derived(roster.filter((r) => r.role === 'spectator'));
 	const unit = $derived(framing?.mass_unit ?? 'g');
+	const band = $derived(
+		framing?.target_mass != null && framing?.tolerance_pct != null
+			? {
+					lo: framing.target_mass - (framing.target_mass * framing.tolerance_pct) / 100,
+					hi: framing.target_mass + (framing.target_mass * framing.tolerance_pct) / 100
+				}
+			: null
+	);
+	// The room's single authoritative clock: every racer's token shares this
+	// reveal_at, so one clock (fed to SpeedrunClock, display-only) is correct
+	// for the whole room, not just "my" run.
+	const roomStartMs = $derived(room.started_at ? Date.parse(room.started_at) : null);
+
+	// Click-to-zoom lightbox for the drawing, matching the solo Speedrun page.
+	let zoomOpen = $state(false);
+	const closeZoom = () => (zoomOpen = false);
+	const onKeydown = (e: KeyboardEvent) => {
+		if (e.key === 'Escape' && zoomOpen) closeZoom();
+	};
 
 	// Reveal (drawing + this racer's submit code) is fetched once the host starts.
 	let revealed = $state<RoomReveal | null>(null);
@@ -168,9 +191,52 @@
 	};
 </script>
 
+{#snippet specCard()}
+	{#if framing}
+		<div class="spec card">
+			{#if framing.tier}
+				<div class="field"><span class="key">Tier</span><span class="val meta">{framing.tier}</span></div>
+			{/if}
+			<div class="field"><span class="key">Material</span><span class="val">{framing.material ?? 'TBD'}</span></div>
+			<div class="field"><span class="key">Density</span><span class="val meta">{framing.density ?? '--'} {framing.density_unit ?? ''}</span></div>
+			<div class="field"><span class="key">Target mass</span><span class="val meta">{formatMass(framing.target_mass, unit)}</span></div>
+			<div class="field">
+				<span class="key">Tolerance</span>
+				<span class="val meta">
+					&plusmn;{framing.tolerance_pct ?? '--'}%
+					{#if band}<span class="dim"> ({formatMass(band.lo, unit)} to {formatMass(band.hi, unit)})</span>{/if}
+				</span>
+			</div>
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet rulesetCard()}
+	<div class="ruleset-panel card">
+		<span class="ruleset-title">Speedrun rules</span>
+		<div class="field">
+			<span class="key">Units</span>
+			<span class="val meta">{ruleset.units_label}</span>
+		</div>
+		<div class="field">
+			<span class="key">Projection</span>
+			<span class="val meta">{ruleset.projection}</span>
+		</div>
+		{#if ruleset.rule_lines.length}
+			<ul class="rule-lines">
+				{#each ruleset.rule_lines as line (line)}
+					<li>{line}</li>
+				{/each}
+			</ul>
+		{/if}
+	</div>
+{/snippet}
+
 <svelte:head>
 	<title>Room {room.join_code} // GAUNTLET</title>
 </svelte:head>
+
+<svelte:window onkeydown={onKeydown} />
 
 <Header
 	{supabase}
@@ -237,12 +303,24 @@
 					<p class="dim">Racers in the lobby get the drawing and a submit code the instant you Start.</p>
 				{:else if room.state === 'live'}
 					<h2>Round is live</h2>
-					<div class="card">
-						<p>Started {room.started_at ? new Date(room.started_at).toLocaleTimeString() : ''}. Racers are modeling and submitting.</p>
-						{#if revealed?.drawing}
-							<div class="drawing-panel host-drawing"><Asset value={revealed.drawing} /></div>
-						{/if}
+					<p class="dim">Started {room.started_at ? new Date(room.started_at).toLocaleTimeString() : ''}. Racers are modeling and submitting.</p>
+					<div class="clock-wrap">
+						<SpeedrunClock serverStartMs={roomStartMs} clockOffsetMs={0} running={room.state === 'live'} compact />
 					</div>
+					{#if revealed?.drawing}
+						<div class="drawing-panel">
+							<div class="drawing-frame">
+								<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
+									<Asset value={revealed.drawing} />
+									<span class="zoom-hint">Click to zoom</span>
+								</button>
+								<div class="sheet-titleblock" aria-hidden="true">
+									<span class="tb-brand">IDEA // GAUNTLET</span>
+									<span class="tb-meta">Room {room.join_code}</span>
+								</div>
+							</div>
+						</div>
+					{/if}
 					<div class="btn-row">
 						<button class="btn danger-btn" type="button" disabled={busy !== ''} onclick={() => setState('results')}>
 							{busy === 'results' ? 'Ending...' : 'End and reveal results'}
@@ -256,37 +334,57 @@
 			{:else if room.state === 'lobby'}
 				<!-- Student lobby -->
 				<h2>Waiting for the host</h2>
-				<div class="card">
-					{#if framing}
-						<div class="field"><span class="key">Challenge</span><span class="val">{framing.title}</span></div>
-						<div class="field"><span class="key">Material</span><span class="val meta">{framing.material ?? 'TBD'}</span></div>
-						<div class="field"><span class="key">Target mass</span><span class="val meta">{formatMass(framing.target_mass, unit)}</span></div>
-						<div class="field"><span class="key">Tolerance</span><span class="val meta">&plusmn;{framing.tolerance_pct ?? '--'}%</span></div>
-					{:else}
-						<p class="dim">The host is choosing a challenge. Have SolidWorks ready.</p>
-					{/if}
-					<p class="dim">When the host starts, the drawing and your submit code appear here.</p>
-				</div>
+				{#if framing}
+					<div class="field"><span class="key">Challenge</span><span class="val">{framing.title}</span></div>
+					{@render specCard()}
+					{@render rulesetCard()}
+				{:else}
+					<div class="card"><p class="dim">The host is choosing a challenge. Have SolidWorks ready.</p></div>
+				{/if}
+				<p class="dim">When the host starts, the drawing and your submit code appear here.</p>
 			{:else if myRole === 'racer'}
 				<!-- Student racing (live or results) -->
 				<h2>Race</h2>
 				<div class="play-grid">
 					<div class="drawing-panel">
-						{#if revealing}
-							<p class="dim">Revealing...</p>
-						{:else if revealed?.drawing}
-							<Asset value={revealed.drawing} />
-						{:else}
-							<p class="dim">No drawing.</p>
+						<div class="drawing-frame">
+							{#if revealing}
+								<p class="dim">Revealing...</p>
+							{:else if revealed?.drawing}
+								<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
+									<Asset value={revealed.drawing} />
+									<span class="zoom-hint">Click to zoom</span>
+								</button>
+							{:else}
+								<p class="dim">No drawing.</p>
+							{/if}
+							{#if revealed?.drawing}
+								<div class="sheet-titleblock" aria-hidden="true">
+									<span class="tb-brand">IDEA // GAUNTLET</span>
+									<span class="tb-meta">Room {room.join_code}</span>
+								</div>
+							{/if}
+						</div>
+
+						{#if modelUrl}
+							<details class="preview-toggle">
+								<summary>3D preview (shape only)</summary>
+								<StlViewer url={modelUrl} height={220} />
+							</details>
 						{/if}
 					</div>
 					<div class="question-panel">
-						{#if framing}
-							<div class="spec card">
-								<div class="field"><span class="key">Material</span><span class="val">{framing.material ?? 'TBD'}</span></div>
-								<div class="field"><span class="key">Target mass</span><span class="val meta">{formatMass(framing.target_mass, unit)}</span></div>
-								<div class="field"><span class="key">Tolerance</span><span class="val meta">&plusmn;{framing.tolerance_pct ?? '--'}%</span></div>
-							</div>
+						{@render specCard()}
+						{@render rulesetCard()}
+
+						<div class="clock-wrap">
+							<SpeedrunClock serverStartMs={roomStartMs} clockOffsetMs={0} running={room.state === 'live'} />
+						</div>
+						{#if room.state === 'live'}
+							<p class="instructions">
+								Live, timed from the moment the host started the round, server-authoritative. Build your
+								part, then submit.
+							</p>
 						{/if}
 
 						{#if myResult}
@@ -336,12 +434,26 @@
 			{:else}
 				<!-- Spectator -->
 				<h2>Spectating</h2>
-				<div class="card">
-					<p>You joined after the round started, so you are spectating this round. Watch the board below.</p>
-					{#if revealed?.drawing}
-						<div class="drawing-panel host-drawing"><Asset value={revealed.drawing} /></div>
-					{/if}
-				</div>
+				<p class="dim">You joined after the round started, so you are spectating this round. Watch the board below.</p>
+				{#if room.state === 'live'}
+					<div class="clock-wrap">
+						<SpeedrunClock serverStartMs={roomStartMs} clockOffsetMs={0} running={room.state === 'live'} compact />
+					</div>
+				{/if}
+				{#if revealed?.drawing}
+					<div class="drawing-panel">
+						<div class="drawing-frame">
+							<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
+								<Asset value={revealed.drawing} />
+								<span class="zoom-hint">Click to zoom</span>
+							</button>
+							<div class="sheet-titleblock" aria-hidden="true">
+								<span class="tb-brand">IDEA // GAUNTLET</span>
+								<span class="tb-meta">Room {room.join_code}</span>
+							</div>
+						</div>
+					</div>
+				{/if}
 			{/if}
 
 			<h2>Board</h2>
@@ -391,3 +503,18 @@
 		</aside>
 	</div>
 </main>
+
+{#if zoomOpen && revealed?.drawing}
+	<!-- Click-to-zoom lightbox, matching the solo Speedrun page: the drawing
+	     scaled to fit the screen, fully visible, no scrolling. -->
+	<div class="lightbox">
+		<button class="lightbox-backdrop" type="button" aria-label="Close enlarged drawing" onclick={closeZoom}
+		></button>
+		<div class="lightbox-inner" role="dialog" aria-modal="true" aria-label="Dimensioned drawing">
+			<button class="lightbox-close btn secondary" type="button" onclick={closeZoom}>Close &times;</button>
+			<div class="lightbox-scroll">
+				<div class="lightbox-svg"><Asset value={revealed.drawing} /></div>
+			</div>
+		</div>
+	</div>
+{/if}

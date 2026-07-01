@@ -29,8 +29,7 @@
 <main class="gauntlet">
 	<section class="dojo-hero">
 		<span class="eyebrow">CAD Skills Dojo</span>
-		<h1 class="dojo-title">IDEA <span>// GAUNTLET</span></h1>
-		<p class="dojo-tagline">Enter weak. Leave strong.</p>
+		<h1 class="dojo-tagline">Enter weak. Leave strong.</h1>
 		<p class="lead">
 			Train your SolidWorks skills across challenge modes. Read drawings, model against the
 			clock, reverse engineer parts, and climb the boards. Every run is scored and tracked.
