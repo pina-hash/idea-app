@@ -1,6 +1,6 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
-	import { MODES, familyLabel } from '$lib/gauntlet';
+	import { MODES, familyLabel, modeStatusLabel } from '$lib/gauntlet';
 
 	let { data } = $props();
 	let { supabase, userName, userRole, isTeacher, modeStats } = $derived(data);
@@ -82,13 +82,13 @@
 				<div class="mode-card locked" aria-disabled="true">
 					<div class="mode-top">
 						<span class="mode-family {mode.family}">{familyLabel(mode.family)}</span>
-						<span class="mode-status status-soon">Coming soon</span>
+						<span class="mode-status status-{mode.status}">{modeStatusLabel(mode.status)}</span>
 					</div>
 					<h3 class="mode-name">{mode.name}</h3>
 					<p class="mode-tagline">{mode.tagline}</p>
 					<div class="mode-foot">
 						<span class="mode-scoring">{mode.scoring}</span>
-						<span class="mode-progress">Locked</span>
+						<span class="mode-progress">{mode.status === 'construction' ? 'In progress' : 'Locked'}</span>
 					</div>
 				</div>
 			{/if}
@@ -96,8 +96,8 @@
 	</div>
 
 	<p class="dojo-note">
-		All six modes are live. The modeling modes are machine verified by the
-		<a href="/gauntlet/tools">SolidWorks capture macro</a>; the knowledge modes are answered in the
-		browser.
+		Speedrun is live now, machine verified by the
+		<a href="/gauntlet/tools">SolidWorks capture macro</a>. The other modes are under construction and
+		will open as they are finished.
 	</p>
 </main>

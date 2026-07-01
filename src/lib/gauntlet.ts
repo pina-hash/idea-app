@@ -21,8 +21,12 @@ export type GauntletModeId =
 /** Modeling modes read geometry from SolidWorks; knowledge modes are web only. */
 export type ModeFamily = 'modeling' | 'knowledge';
 
-/** Build status surfaced in the mode grid. `live` modes are playable. */
-export type ModeStatus = 'live' | 'soon';
+/**
+ * Build status surfaced in the mode grid. `live` modes are playable;
+ * `construction` modes exist but are being reworked, so they are shown but not
+ * enterable; `soon` modes are not built yet.
+ */
+export type ModeStatus = 'live' | 'soon' | 'construction';
 
 export interface GauntletMode {
 	id: GauntletModeId;
@@ -56,7 +60,7 @@ export const MODES: GauntletMode[] = [
 		family: 'modeling',
 		tagline: 'Reproduce a part from an object or its views. No clock.',
 		scoring: 'Closest on volume and area wins',
-		status: 'live',
+		status: 'construction',
 		href: '/gauntlet/reverse-engineer'
 	},
 	{
@@ -65,7 +69,7 @@ export const MODES: GauntletMode[] = [
 		family: 'modeling',
 		tagline: 'Hit the target geometry in the fewest features.',
 		scoring: 'Correct volume, fewest features wins',
-		status: 'live',
+		status: 'construction',
 		href: '/gauntlet/feature-golf'
 	},
 	{
@@ -74,7 +78,7 @@ export const MODES: GauntletMode[] = [
 		family: 'knowledge',
 		tagline: 'Read orthographic views and match them to the 3D part.',
 		scoring: 'Correctness, time breaks ties',
-		status: 'live',
+		status: 'construction',
 		href: '/gauntlet/drawing-reading'
 	},
 	{
@@ -83,7 +87,7 @@ export const MODES: GauntletMode[] = [
 		family: 'knowledge',
 		tagline: 'Interpret geometric callouts, datums, and fits.',
 		scoring: 'Correctness, time breaks ties',
-		status: 'live',
+		status: 'construction',
 		href: '/gauntlet/gdt-tolerance'
 	},
 	{
@@ -92,7 +96,7 @@ export const MODES: GauntletMode[] = [
 		family: 'knowledge',
 		tagline: 'Find the mistake in a drawing.',
 		scoring: 'Correctness, time breaks ties',
-		status: 'live',
+		status: 'construction',
 		href: '/gauntlet/spot-the-error'
 	}
 ];
@@ -109,6 +113,16 @@ const FAMILY_LABELS: Record<ModeFamily, string> = {
 
 export function familyLabel(family: ModeFamily): string {
 	return FAMILY_LABELS[family];
+}
+
+const MODE_STATUS_LABELS: Record<ModeStatus, string> = {
+	live: 'Live',
+	construction: 'Under construction',
+	soon: 'Coming soon'
+};
+
+export function modeStatusLabel(status: ModeStatus): string {
+	return MODE_STATUS_LABELS[status];
 }
 
 /** Difficulty is stored as 1 to 5; these are the human labels for the chips. */

@@ -626,6 +626,10 @@ a:hover {
 	color: var(--ice);
 	border: 1px solid rgba(136, 221, 255, 0.25);
 }
+.gauntlet .status-construction {
+	color: var(--amber);
+	border: 1px solid rgba(255, 140, 0, 0.3);
+}
 .gauntlet .mode-name {
 	font-size: 1.2rem;
 	color: var(--white);
@@ -810,6 +814,11 @@ a:hover {
 		/* Drawing is the primary reference, so give the left column more room. */
 		grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
 		align-items: start;
+	}
+	/* Speedrun: the dimensioned drawing is the whole reference, so let it span the
+	   full width with the spec/run panel stacked beneath it (single column). */
+	.gauntlet .play-grid:has(.drawing-frame) {
+		grid-template-columns: 1fr;
 	}
 }
 .gauntlet .drawing-panel {
@@ -1095,21 +1104,15 @@ a:hover {
 	align-items: stretch;
 	gap: 1rem;
 }
-/* Keep the drawing (the reference students model from) in view while the right
-   column scrolls. */
-@media (min-width: 760px) {
-	.gauntlet .drawing-panel:has(.drawing-frame) {
-		position: sticky;
-		top: 1rem;
-		align-self: start;
-	}
-}
 /* Paper-white panel framed by the concrete-hex white border, so black dimension
    linework reads at full contrast (no invert, no filter). Landscape aspect for a
    long, thin part. */
 .gauntlet .drawing-frame {
 	width: 100%;
 	aspect-ratio: 16 / 9;
+	/* Full-width landscape reference; cap the height so it never runs past the
+	   viewport (the image is object-fit: contain, so it letterboxes when capped). */
+	max-height: 70vh;
 	background: #f4f2ec;
 	border: 2px solid var(--white);
 	border-radius: 3px;
@@ -1305,7 +1308,7 @@ a:hover {
 	align-self: flex-end;
 }
 .lightbox-scroll {
-	overflow: auto;
+	overflow: hidden;
 	max-height: 82vh;
 	background: #f4f2ec;
 	border: 2px solid var(--white);
@@ -1314,15 +1317,19 @@ a:hover {
 	display: grid;
 	place-items: center;
 }
-/* Native resolution so dimension callouts stay legible; pan via overflow. */
+/* Fit the drawing to the screen so the whole thing is visible at once, no
+   scrolling. It is already full-width on the page; this is the roomier view. */
 .lightbox-img {
-	max-width: none;
+	max-width: 100%;
+	max-height: 78vh;
+	width: auto;
+	height: auto;
+	object-fit: contain;
 	image-rendering: auto;
 }
-/* SVG stays crisp at any size; render it large and let it pan. */
 .lightbox-svg {
-	width: 1200px;
-	max-width: none;
+	width: 100%;
+	max-width: 1000px;
 }
 .lightbox-svg svg {
 	width: 100%;

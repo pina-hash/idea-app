@@ -522,9 +522,9 @@
 </main>
 
 {#if zoomOpen && (drawingUrl || drawing)}
-	<!-- Click-to-zoom lightbox: enlarged, pannable/scrollable drawing. The backdrop
-	     is a real button (dismiss on click; Esc handled on svelte:window) so the
-	     dialog above it stays clean. -->
+	<!-- Click-to-zoom lightbox: the drawing scaled to fit the screen (fully visible,
+	     no scrolling). The backdrop is a real button (dismiss on click; Esc handled
+	     on svelte:window) so the dialog above it stays clean. -->
 	<div class="lightbox">
 		<button class="lightbox-backdrop" type="button" aria-label="Close enlarged drawing" onclick={closeZoom}
 		></button>
