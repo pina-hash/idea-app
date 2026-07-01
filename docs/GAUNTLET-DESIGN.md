@@ -52,8 +52,17 @@ Glows: `--glow-green`, `--glow-cyan`, `--glow-lime`, `--glow-crimson`
 
 Geometry: `--radius-card 14px`, `--radius-ctl 10px`.
 
-Fonts: `--font-head` (Orbitron), `--font-body` (Rajdhani), `--font-data`
-(Share Tech Mono).
+Fonts: `--font-head` (Orbitron, display + headings + wordmark + stat numerals),
+`--font-body` (Rajdhani, body/UI/inputs), `--font-data` (Share Tech Mono, all
+data/labels/coords). This matches the landing page (Orbitron display type) and
+the VIEWPORT sample. The app-shell `--font-display` stays Rajdhani for body and
+inputs; display chrome (the header wordmark, headings, `.stat-value`) reads
+`--font-head` explicitly so it is Orbitron, not Rajdhani.
+
+The GAUNTLET header (`Header.svelte`) brand block is a mono "Trains SOLIDWORKS
+skills" eyebrow over an Orbitron-900 `IDEA // GAUNTLET` wordmark that clips the
+green -> lime -> cyan gradient (IDEA -> `/`, GAUNTLET -> `/gauntlet`, dim `//`),
+with the breadcrumb trailing in mono.
 
 The scope block also re-points the app-shell tokens the pre-existing
 `.gauntlet` styles consume (`--bg1 -> --panel`, `--gold -> --lime`,

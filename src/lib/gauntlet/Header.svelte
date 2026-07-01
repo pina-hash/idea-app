@@ -40,13 +40,15 @@
 	};
 </script>
 
-<header class="app-header">
-	<div class="gauntlet-brand">
-		<a class="wordmark" href="/">IDEA</a>
-		<nav class="gauntlet-crumbs" aria-label="Breadcrumb">
-			<a class="crumb crumb-root" href="/gauntlet">// GAUNTLET</a>
+<header class="app-header gt-header">
+	<div class="gt-brand">
+		<span class="gt-eyebrow">Trains SOLIDWORKS skills</span>
+		<nav class="gt-brandline" aria-label="Breadcrumb">
+			<span class="gt-wordmark">
+				<a href="/">IDEA</a><span class="sl" aria-hidden="true">//</span><a href="/gauntlet">GAUNTLET</a>
+			</span>
 			{#each crumbs as crumb (crumb.label)}
-				<span class="crumb-sep" aria-hidden="true">/</span>
+				<span class="crumb-sep" aria-hidden="true">&rsaquo;</span>
 				{#if crumb.href}
 					<a class="crumb" href={crumb.href}>{crumb.label}</a>
 				{:else}
@@ -66,6 +68,75 @@
 </header>
 
 <style>
+	/* Sample-matched brand block: mono eyebrow over an Orbitron gradient wordmark
+	   (green -> lime -> cyan), with the breadcrumb trailing in mono. */
+	.gt-brand {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+	.gt-eyebrow {
+		font-family: var(--font-data, 'Share Tech Mono', monospace);
+		font-size: 0.6rem;
+		letter-spacing: 0.34em;
+		text-transform: uppercase;
+		color: var(--dim);
+	}
+	.gt-brandline {
+		display: flex;
+		align-items: baseline;
+		gap: 0.55rem;
+		flex-wrap: wrap;
+	}
+	.gt-wordmark {
+		font-family: var(--font-head, 'Orbitron', sans-serif);
+		font-weight: 900;
+		font-size: 1.7rem;
+		letter-spacing: 0.02em;
+		line-height: 1;
+		background: linear-gradient(92deg, var(--green), var(--lime) 60%, var(--cyan));
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		color: transparent;
+		filter: drop-shadow(0 0 14px rgba(0, 255, 65, 0.28));
+		transition: filter 0.25s ease;
+	}
+	/* The two links share the wordmark's clipped gradient (transparent fill lets
+	   the parent's gradient show through their glyphs). */
+	.gt-wordmark a {
+		-webkit-text-fill-color: transparent;
+		color: transparent;
+		text-decoration: none;
+	}
+	.gt-wordmark .sl {
+		-webkit-text-fill-color: var(--dim);
+		color: var(--dim);
+		font-weight: 500;
+		margin: 0 0.18em;
+	}
+	.gt-wordmark:hover {
+		filter: drop-shadow(0 0 18px rgba(0, 255, 65, 0.5)) brightness(1.06);
+	}
+	/* Breadcrumb trail after the wordmark. */
+	.crumb-sep {
+		font-family: var(--font-data, 'Share Tech Mono', monospace);
+		color: var(--dim);
+	}
+	.crumb {
+		font-family: var(--font-data, 'Share Tech Mono', monospace);
+		font-size: 0.8rem;
+		letter-spacing: 0.06em;
+		color: var(--dim);
+		text-decoration: none;
+		transition: color 0.2s ease;
+	}
+	a.crumb:hover {
+		color: var(--green);
+	}
+	.crumb-current {
+		color: var(--cyan);
+	}
 	.gt-clock {
 		font-family: var(--font-data, var(--font-mono));
 		font-size: 0.78rem;

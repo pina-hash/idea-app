@@ -87,6 +87,11 @@
 	letter-spacing: 0.05em;
 	text-transform: uppercase;
 }
+/* Big display numerals (dojo stat counters) render in Orbitron, matching the
+   landing page's hero stats, not the app-shell's Rajdhani --font-display. */
+.gt-root .gauntlet .stat-value {
+	font-family: var(--font-head);
+}
 
 /* Gradient wordmark: the dojo hero title clips a green -> lime -> cyan sweep. */
 .gt-root .gauntlet .dojo-title {
