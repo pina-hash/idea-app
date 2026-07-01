@@ -1,27 +1,41 @@
 <script lang="ts">
 	/**
-	 * Race timer for a Speedrun run. Elapsed is derived from a server-authoritative
-	 * start reference (`startTime`, a performance.now() origin captured when the run
-	 * began): each frame computes now - startTime.
+	 * Race timer for a Speedrun run, anchored to the SERVER-stamped start.
 	 *
-	 * Performance note: the readout is driven by a SINGLE requestAnimationFrame loop
-	 * that writes the formatted string straight to bound DOM nodes via textContent.
-	 * It never touches reactive `$state`, so a running clock does not re-render the
-	 * rest of the page. Each frame touches only these nodes.
+	 * `serverStartMs` is the run's server `started_at` in epoch ms (null until the
+	 * SolidWorks Start macro fires and the browser learns of it over Realtime).
+	 * `clockOffsetMs` is the browser-to-server clock offset (Date.now() - serverNow),
+	 * measured once at reveal. Displayed elapsed is (Date.now() - offset) - start, so
+	 * the readout tracks the same clock the server scores with, independent of the
+	 * student's machine clock.
 	 *
-	 * `ranked` (default) shows the redline REC treatment (orange glow + blinking REC
-	 * dot); `ranked={false}` is the calmer UNRANKED variant reused by manual practice.
+	 * Performance: a SINGLE requestAnimationFrame loop writes the formatted mm:ss.cc
+	 * straight to bound DOM nodes via textContent, never through reactive `$state`,
+	 * so a running clock does not re-render the rest of the page.
+	 *
+	 * Before the macro fires (`running` but no `serverStartMs`) the clock sits at
+	 * 00:00.00 in a STANDBY treatment; the instant the start arrives it goes live
+	 * (redline REC when `ranked`). `ranked={false}` is the calmer UNRANKED variant.
 	 */
 	let {
-		startTime,
+		serverStartMs,
+		clockOffsetMs = 0,
 		running,
 		ranked = true,
 		compact = false
-	}: { startTime: number; running: boolean; ranked?: boolean; compact?: boolean } = $props();
+	}: {
+		serverStartMs: number | null;
+		clockOffsetMs?: number;
+		running: boolean;
+		ranked?: boolean;
+		compact?: boolean;
+	} = $props();
 
 	let clockEl: HTMLDivElement | null = $state(null);
 	let mainEl: HTMLSpanElement | null = $state(null);
 	let ccEl: HTMLSpanElement | null = $state(null);
+
+	const live = $derived(running && serverStartMs != null);
 
 	let raf = 0;
 	let lastMain = '';
@@ -52,7 +66,8 @@
 	}
 
 	function paint() {
-		const { main, cc, sec } = parts(performance.now() - startTime);
+		const elapsed = Date.now() - clockOffsetMs - (serverStartMs ?? Date.now());
+		const { main, cc, sec } = parts(elapsed);
 		if (main !== lastMain && mainEl) {
 			mainEl.textContent = main;
 			lastMain = main;
@@ -77,12 +92,9 @@
 	}
 
 	$effect(() => {
-		// Track running + startTime: (re)start the loop on a new run, stop otherwise.
-		if (running) {
+		// Track live + serverStartMs: run the loop only once the server start is known.
+		if (live) {
 			reset();
-			lastMain = '';
-			lastCc = '';
-			lastSec = -1;
 			cancelAnimationFrame(raf);
 			const loop = () => {
 				paint();
@@ -96,7 +108,14 @@
 	});
 </script>
 
-<div class="sr-clock" class:ranked class:unranked={!ranked} class:compact bind:this={clockEl}>
+<div
+	class="sr-clock"
+	class:ranked
+	class:unranked={!ranked}
+	class:compact
+	class:standby={running && !live}
+	bind:this={clockEl}
+>
 	<span class="reticle tl" aria-hidden="true"></span>
 	<span class="reticle tr" aria-hidden="true"></span>
 	<span class="reticle bl" aria-hidden="true"></span>
@@ -115,7 +134,11 @@
 	</div>
 
 	{#if ranked}
-		<div class="sr-rec"><span class="sr-dot"></span>REC . RANKED</div>
+		{#if live}
+			<div class="sr-rec"><span class="sr-dot"></span>REC . RANKED</div>
+		{:else}
+			<div class="sr-rec standby-label"><span class="sr-dot static"></span>STANDBY</div>
+		{/if}
 	{:else}
 		<div class="sr-rec label-only">UNRANKED</div>
 	{/if}
@@ -165,6 +188,9 @@
 	}
 	.sr-clock.ranked .reticle {
 		border-color: rgba(255, 90, 43, 0.55);
+	}
+	.sr-clock.ranked.standby .reticle {
+		border-color: rgba(255, 90, 43, 0.28);
 	}
 
 	.sr-readout {
@@ -226,6 +252,15 @@
 	.sr-clock.unranked .sr-live .sr-cc {
 		color: var(--dim);
 	}
+	/* Standby: armed but not started; dim the digits, drop the glow. */
+	.sr-clock.standby .sr-live .sr-main {
+		color: #7a3320;
+		text-shadow: none;
+	}
+	.sr-clock.standby .sr-live .sr-sep,
+	.sr-clock.standby .sr-live .sr-cc {
+		color: #6a4a1a;
+	}
 
 	.sr-rec {
 		font-family: var(--font-mono);
@@ -240,6 +275,9 @@
 	.sr-rec.label-only {
 		color: var(--dim);
 	}
+	.sr-rec.standby-label {
+		color: #9a5a3a;
+	}
 	.sr-dot {
 		width: 7px;
 		height: 7px;
@@ -247,6 +285,11 @@
 		background: #ff2b2b;
 		box-shadow: 0 0 8px rgba(255, 40, 20, 0.85);
 		animation: sr-blink 1.1s steps(1, end) infinite;
+	}
+	.sr-dot.static {
+		background: #7a3320;
+		box-shadow: none;
+		animation: none;
 	}
 
 	/* One-shot horizontal kick on each whole-second change (ranked only). `kick` is

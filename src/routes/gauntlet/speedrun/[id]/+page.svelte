@@ -46,11 +46,56 @@
 	let revealError = $state('');
 	let copied = $state(false);
 
-	// Server-authoritative-ish start reference: a performance.now() origin captured
-	// when the run begins. The clock component derives elapsed from it via rAF, so
-	// nothing here re-renders per frame. It is $state so the component re-arms on a
-	// new run.
-	let startTime = $state(0);
+	// Server-anchored clock. `serverStartMs` is the run's server-stamped started_at
+	// (epoch ms), learned the instant the SolidWorks Start macro fires via a Realtime
+	// update on gauntlet_run_status (with a poll fallback). `clockOffsetMs` is the
+	// browser-to-server clock offset measured once at reveal, so the on-screen timer
+	// matches the time the server will score. Null until the macro fires (standby).
+	let serverStartMs = $state<number | null>(null);
+	let clockOffsetMs = $state(0);
+	// Server time of the current reveal; a started_at older than this is a stale run
+	// from a previous attempt and is ignored (both are server clocks, so comparable).
+	let revealServerMs = 0;
+	let statusPoll: ReturnType<typeof setInterval> | null = null;
+
+	// Server-anchored elapsed ms right now (for the manual-practice self-check).
+	const currentElapsedMs = () =>
+		serverStartMs == null ? 0 : Math.max(0, Date.now() - clockOffsetMs - serverStartMs);
+
+	// Accept a server started_at only if it belongs to this reveal's run (not a
+	// stale one), then arm the live clock.
+	const applyStartedAt = (startedAtIso: string | null | undefined) => {
+		if (!startedAtIso) return;
+		const ms = Date.parse(startedAtIso);
+		if (!Number.isFinite(ms) || ms < revealServerMs - 1000) return;
+		serverStartMs = ms;
+		stopStatusPoll();
+	};
+
+	const stopStatusPoll = () => {
+		if (statusPoll) {
+			clearInterval(statusPoll);
+			statusPoll = null;
+		}
+	};
+
+	// Realtime is the primary signal; this poll is a belt-and-braces fallback in
+	// case an event is missed. It stops as soon as the start is known.
+	const startStatusPoll = () => {
+		stopStatusPoll();
+		statusPoll = setInterval(async () => {
+			if (serverStartMs != null || phase !== 'running') {
+				stopStatusPoll();
+				return;
+			}
+			const { data: row } = await supabase
+				.from('gauntlet_run_status')
+				.select('started_at')
+				.eq('challenge_id', challenge.id)
+				.maybeSingle();
+			applyStartedAt(row?.started_at);
+		}, 2500);
+	};
 
 	// Click-to-zoom lightbox for the drawing.
 	let zoomOpen = $state(false);
@@ -68,9 +113,13 @@
 	const start = async () => {
 		revealing = true;
 		revealError = '';
+		// Bracket the reveal call to measure the browser-to-server clock offset from
+		// the server-stamped reveal_at (NTP-style midpoint).
+		const t0 = Date.now();
 		const { data: rev, error } = await supabase.rpc('gauntlet_speedrun_reveal', {
 			p_challenge_id: challenge.id
 		});
+		const t1 = Date.now();
 		if (error) {
 			revealError = error.message;
 			revealing = false;
@@ -88,12 +137,25 @@
 				.createSignedUrl(payload.drawing_image_path, 60 * 60);
 			drawingUrl = signed?.signedUrl ?? null;
 		}
+
+		// Clock offset + this reveal's server time (for staleness filtering).
+		const revealAtMs = payload?.reveal_at ? Date.parse(payload.reveal_at) : NaN;
+		if (Number.isFinite(revealAtMs)) {
+			clockOffsetMs = (t0 + t1) / 2 - revealAtMs;
+			revealServerMs = revealAtMs;
+		} else {
+			clockOffsetMs = 0;
+			revealServerMs = t0;
+		}
+
 		phase = 'running';
 		result = null;
 		practice = null;
 		mass = null;
 		submitError = '';
-		startTime = performance.now();
+		// Standby until the Start macro fires; Realtime (or the poll fallback) arms it.
+		serverStartMs = null;
+		startStatusPoll();
 		revealing = false;
 	};
 
@@ -116,7 +178,7 @@
 			cancel();
 			return;
 		}
-		formData.set('elapsed_ms', String(Math.round(performance.now() - startTime)));
+		formData.set('elapsed_ms', String(Math.round(currentElapsedMs())));
 		submitting = true;
 		return async ({ result: r, update }) => {
 			if (r.type === 'success' && r.data?.result) {
@@ -140,6 +202,7 @@
 
 	// A retry is a fresh reveal-on-start run: re-hide everything and reset.
 	const reset = () => {
+		stopStatusPoll();
 		phase = 'framing';
 		drawing = null;
 		drawingUrl = null;
@@ -149,6 +212,7 @@
 		mass = null;
 		submitError = '';
 		revealError = '';
+		serverStartMs = null;
 	};
 
 	onMount(() => {
@@ -174,10 +238,22 @@
 					}
 				}
 			)
+			// The Start macro fires from SolidWorks; the server publishes started_at to
+			// gauntlet_run_status, and this arms the race timer the instant it lands.
+			// RLS scopes the stream to our own row (own challenges only).
+			.on(
+				'postgres_changes',
+				{ event: '*', schema: 'public', table: 'gauntlet_run_status', filter: `challenge_id=eq.${challenge.id}` },
+				(payload) => {
+					const row = payload.new as { user_id?: string; started_at?: string | null };
+					if (row?.user_id === myUserId) applyStartedAt(row.started_at);
+				}
+			)
 			.subscribe();
 
 		return () => {
 			supabase.removeChannel(channel);
+			stopStatusPoll();
 		};
 	});
 
@@ -332,12 +408,17 @@
 				</div>
 
 				<div class="clock-wrap">
-					<SpeedrunClock {startTime} running={phase === 'running'} />
+					<SpeedrunClock {serverStartMs} {clockOffsetMs} running={phase === 'running'} />
 				</div>
 				<div class="waiting">
 					<span class="dim">
-						Your ranked time is measured on the server from the Start macro to your submit, not this
-						timer. Waiting for your macro submission. It appears here automatically.
+						{#if serverStartMs == null}
+							Standby. Run the Start macro (Ctrl + Shift + B) on a blank part in SolidWorks. The clock
+							starts the instant you do, timed on the server.
+						{:else}
+							Run live, timed on the server. Build your part, then submit (Ctrl + Shift + G). Your
+							result appears here automatically.
+						{/if}
 					</span>
 					<button class="btn secondary" type="button" onclick={refresh} disabled={refreshing}>
 						{refreshing ? 'Refreshing...' : 'Refresh'}
@@ -351,7 +432,8 @@
 					</p>
 					<div class="clock-wrap">
 						<SpeedrunClock
-							{startTime}
+							{serverStartMs}
+							{clockOffsetMs}
 							running={phase === 'running' && showPractice}
 							ranked={false}
 							compact
