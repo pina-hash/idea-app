@@ -449,6 +449,16 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     </div>
   </div>
 
+  <!-- CALIBRATION COMPLETE PROMPT -->
+  <div class="ovl hidden" id="ovlCalibDone" style="background:rgba(2,10,4,.96);z-index:14;gap:16px">
+    <h2 class="ovh">CALIBRATION COMPLETE</h2>
+    <div class="panel" style="max-width:300px;text-align:center">You are ready, pilot. Jump into a run now, or head back to the title to set a loadout in CONFIGURE BUILD first.</div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="obtn" id="calibDoneRun">START A RUN</button>
+      <button class="mini" id="calibDoneTitle">RETURN TO TITLE</button>
+    </div>
+  </div>
+
   <!-- UPDATE LOG -->
   <div class="ovl hidden" id="ovlLog" style="background:rgba(2,10,4,.96);z-index:13;gap:12px">
     <h2 class="ovh">UPDATE LOG</h2>
@@ -482,7 +492,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='148';
+const W=630,H=840; const VERSION='149';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4265,6 +4275,8 @@ function closeTut(){ el('ovlTut').classList.add('hidden'); try{localStorage.setI
 { const s=el('tutSkip'); if(s) s.addEventListener('click',e=>{ e.stopPropagation(); closeTut(); }); }
 { const b=el('howtoBtn'); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); startCalib(); }); }
 { const rb=document.getElementById('calibAskRun'); if(rb) rb.addEventListener('click',ev=>{ ev.stopPropagation(); const a=document.getElementById('ovlCalibAsk'); if(a)a.classList.add('hidden'); startCalib(); }); }
+{ const dr=document.getElementById('calibDoneRun'); if(dr) dr.addEventListener('click',ev=>{ ev.stopPropagation(); const d=document.getElementById('ovlCalibDone'); if(d)d.classList.add('hidden'); gameMode='normal'; startGame(); }); }
+{ const dt2=document.getElementById('calibDoneTitle'); if(dt2) dt2.addEventListener('click',ev=>{ ev.stopPropagation(); const d=document.getElementById('ovlCalibDone'); if(d)d.classList.add('hidden'); if(typeof toTitle==='function') toTitle(); gameMode='normal'; }); }
 { const sb=document.getElementById('calibAskSkip'); if(sb) sb.addEventListener('click',ev=>{ ev.stopPropagation(); const a=document.getElementById('ovlCalibAsk'); if(a)a.classList.add('hidden'); try{localStorage.setItem('vanguard_tutdone','1');}catch(e){} }); }
 
 /* ===== CALIBRATION: hands-on demo tutorial (Stage 1) ===== */
@@ -4283,7 +4295,7 @@ window.CALIB=(function(){
   function pinDummies(){ for(const e of enemies){ if(e.calib&&!e.dead){ e.x=e.hx; e.y=e.hy; e.vy=0; e.fire=999; } } }
   function pushThreat(){ const sx=W/2+rnd(-120,120); ebul.push({x:sx,y:80,vx:(player.x-sx)*0.4,vy:200,c:COL.amber,r:4,owner:null,calib:true}); rings.push({x:sx,y:80,r:6,vr:260,life:.3,max:.3,c:COL.amber}); Audio_.blast&&Audio_.blast(); }
   function pushParryBolt(){ const sx=clamp(player.x+rnd(-60,60),40,W-40); ebul.push({x:sx,y:70,vx:(player.x-sx)*0.2,vy:130,c:COL.white,r:8,parryBolt:true,shape:'bolt',owner:null,calib:true}); rings.push({x:sx,y:70,r:8,vr:200,life:.35,max:.35,c:COL.white}); Audio_.whine&&Audio_.whine(); }
-  function clearCalib(){ for(let q=ebul.length-1;q>=0;q--){ if(ebul[q].calib) ebul.splice(q,1); } for(let q=enemies.length-1;q>=0;q--){ if(enemies[q].calib) enemies.splice(q,1); } }
+  function clearCalib(){ for(let q=ebul.length-1;q>=0;q--){ if(ebul[q].calib) ebul.splice(q,1); } for(let q=enemies.length-1;q>=0;q--){ if(enemies[q].calib||enemies[q].calibWave) enemies.splice(q,1); } }
   function glow(id,on){ const el2=document.getElementById(id); if(el2) el2.style.boxShadow = on ? '0 0 0 2px '+COL.cyan+', 0 0 14px '+COL.cyan : ''; }
   function card(fx,title,obj,keys,prog){
     const w=440,h=100,x=(W-w)/2,y=H-146; fx.save();
@@ -4314,20 +4326,22 @@ window.CALIB=(function(){
       {name:'PARRY', obj:'Tap parry as the white bolt lands. A clean CATCH gives full invulnerability and mends your hull. Do not mash, it JAMS.', keys:[keybinds.parry], setup(){ boltT=0.6; this.base=runParries; glow('hull',true); }, check(){ boltT-=1/60; if(calibBolts()===0 && boltT<=0){ pushParryBolt(); boltT=2.6; } if(runParries>this.base){ player.armor=Math.min(player.maxArmor,player.armor+1); pops.push({x:player.x,y:player.y-34,txt:'+HULL',c:COL.green,life:.9,max:.9}); rings.push({x:player.x,y:player.y,r:12,vr:400,life:.4,max:.4,c:COL.cyan}); return true; } return false; }},
       {name:'HEAVY WEAPON', obj:'Hold heavy to fire the PRISM BEAM. It burns through grunt fire.', keys:[keybinds.beam,keybinds.beamAlt], setup(){ player.beamE=player.beamMax; player.beamLock=false; player.beamDrained=false; spawnDummy(W/2,150); this.base=runHeavyUse.beam||0; this.st=0; }, check(){ this.st=(this.st||0)+1/60; if(this.st>0.5){ this.st=0; const d=enemies.find(e=>e.calib&&!e.dead); if(d) ebul.push({x:d.x,y:d.y+12,vx:0,vy:150,c:d.c,r:3,owner:d,calib:true}); } this.p=Math.min(((runHeavyUse.beam||0)-this.base)/0.25,1); return (runHeavyUse.beam||0) > this.base+0.25; }},
       {name:'IDEA COIN', obj:'Kills earn i¢. Grab the CORE for a jackpot. Spend it at REFIT after each boss.', keys:[], setup(){ this.base=player.coins; spawnDummy(W/2-70,170); spawnDummy(W/2+70,170); this.cored=false; glow('coins',true); }, check(){ const a=enemies.filter(e=>e.calib&&!e.dead).length; this.p=1-a/3; if(a===0 && !this.cored){ this.cored=true; pods.push({x:W/2,y:120,vy:42,type:'core',fk:'ace',c:COL.gold,bob:rnd(0,6.28),r:16,spin:0}); } else if(this.cored && player.coins<=this.base+50 && !pods.some(p=>p.type==='core')){ pods.push({x:W/2,y:120,vy:42,type:'core',fk:'ace',c:COL.gold,bob:rnd(0,6.28),r:16,spin:0}); } return this.cored && player.coins>this.base+50 && bt>2.4; }},
-      {name:'CALIBRATION COMPLETE', obj:'Calibration complete. Good hunting, pilot.', keys:[], setup(){ clearCalib(); }, check(){ return bt>2.8; }}
+      {name:'THE SYSTEM', obj:'The system never stops. Clear the wave. Chain kills without a hit to raise STYLE.', keys:[], setup(){ this.total=4; for(let k=0;k<4;k++){ const e=makeEnemy(FKEYS[k%FKEYS.length],0, W/2+(k-1.5)*88, -30-k*34, 'free'); e.calibWave=true; e.hp=Math.max(6,Math.round(e.maxhp*0.5)); e.maxhp=e.hp; enemies.push(e); } }, check(){ const a=enemies.filter(e=>e.calibWave&&!e.dead).length; this.p=1-a/this.total; return a===0; }},
+      {name:'CALIBRATION COMPLETE', obj:'Calibration complete. Good hunting, pilot.', keys:[], setup(){ clearCalib(); ebul.length=0; }, check(){ return bt>2.8; }}
     ];
     beats[0].setup();
     const sk=document.getElementById('calibSkip'); if(sk && !sk._wired){ sk._wired=1; sk.addEventListener('click',ev=>{ ev.stopPropagation(); finish(); }); }
   }
   function next(){ i++; bt=0; glow('hull',false); glow('coins',false); (beats[i].setup||function(){}).call(beats[i]); Audio_.play&&Audio_.play('heavy_ready'); }
-  function finish(){ active=false; clearCalib(); glow('hull',false); glow('coins',false); try{localStorage.setItem('vanguard_tutdone','1');}catch(e){} const sk=document.getElementById('calibSkip'); if(sk) sk.classList.add('hidden'); if(typeof toTitle==='function') toTitle(); gameMode='normal'; }
+  function finish(natural){ active=false; clearCalib(); glow('hull',false); glow('coins',false); try{localStorage.setItem('vanguard_tutdone','1');}catch(e){} const sk=document.getElementById('calibSkip'); if(sk) sk.classList.add('hidden'); if(natural){ const d=document.getElementById('ovlCalibDone'); if(d) d.classList.remove('hidden'); } else { gameMode='normal'; if(typeof toTitle==='function') toTitle(); } }
   function update(dt){ if(!active||state!=='play') return; t+=dt; bt+=dt; pinDummies(); const b=beats[i]; if(!b) return;
-    if((b.check||function(){return false;}).call(b)){ if(i>=beats.length-1) finish(); else next(); } }
+    if((b.check||function(){return false;}).call(b)){ if(i>=beats.length-1) finish(true); else next(); } }
   function draw(fx){ if(!active) return; const b=beats[i]; if(!b) return; card(fx,b.name,b.obj,b.keys||[],b.p); }
   return { begin, update, draw, finish, get active(){ return active; } };
 })();
 
 const CHANGELOG=[
+ {ver:'149',date:'2026',items:['CALIBRATION now ends with a live combat wave, then lets you jump straight into a run or head back to the title']},
  {ver:'148',date:'2026',items:['CALIBRATION now asks before it begins, so your sound is on from the first shot','CALIBRATION now also teaches your HEAVY weapon and how i¢ and CORE pickups work']},
  {ver:'147',date:'2026',items:['New CALIBRATION training: a hands-on tutorial that teaches movement, firing, dodging, and parry by doing instead of by reading. Launches on your first run and replayable any time from the title']},
  {ver:'146',date:'2026',items:['New DEFENSE upgrade: DEFENSE PROBE, a satellite that shoots down incoming grunt fire near you - but only while your ship is moving','Level 2 makes it fire faster. Buyable in REFIT and CONFIGURE BUILD']},
