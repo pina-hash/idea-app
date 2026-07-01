@@ -282,8 +282,11 @@ export interface MacroResult {
 	score_metric: number | null;
 }
 
-/** Path to the downloadable SolidWorks capture macro (served from static/). */
-export const MACRO_PATH = '/gauntlet/idea-gauntlet-speedrun.bas';
+/** Path to the student-submit SolidWorks macro (served from static/). */
+export const SUBMIT_MACRO_PATH = '/gauntlet/idea-gauntlet-submit.bas';
+
+/** Path to the author-capture SolidWorks macro (served from static/). */
+export const AUTHOR_MACRO_PATH = '/gauntlet/idea-gauntlet-author.bas';
 
 /** The grading result returned by `gauntlet_submit` for a Speedrun challenge. */
 export interface SpeedrunResult {

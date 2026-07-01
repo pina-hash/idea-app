@@ -8,7 +8,7 @@
 		formatTime,
 		formatMass,
 		roomStateLabel,
-		MACRO_PATH,
+		SUBMIT_MACRO_PATH,
 		type RoomReveal
 	} from '$lib/gauntlet';
 
@@ -297,8 +297,8 @@
 								</div>
 								<div class="code-value">{revealed.code}</div>
 								<p class="code-instr">
-									Model the part, then run the GAUNTLET macro (<strong>Student submit</strong>) and paste this code.
-									<a href={MACRO_PATH} download>Download macro</a> &middot; <a href="/gauntlet/tools">Setup</a>
+									Model the part, then run the GAUNTLET <strong>submit</strong> macro and paste this code.
+									<a href={SUBMIT_MACRO_PATH} download>Download submit macro</a> &middot; <a href="/gauntlet/tools">Setup</a>
 								</p>
 							</div>
 							<details class="practice">

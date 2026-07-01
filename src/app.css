@@ -1366,19 +1366,6 @@ a:hover {
 	color: var(--green);
 	font-family: var(--font-mono);
 }
-.gauntlet .endpoint {
-	display: block;
-	font-family: var(--font-mono);
-	font-size: 0.78rem;
-	color: var(--cyan);
-	background: var(--bg2);
-	border: 1px solid var(--line);
-	border-radius: 3px;
-	padding: 0.4rem 0.6rem;
-	margin: 0.4rem 0;
-	word-break: break-all;
-}
-
 /* --- Authoring: status badges, management list, mode-aware form --- */
 .gauntlet .status-badge {
 	font-family: var(--font-mono);
