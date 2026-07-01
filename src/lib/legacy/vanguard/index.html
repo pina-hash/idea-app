@@ -471,7 +471,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='144';
+const W=630,H=840; const VERSION='145';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -1935,6 +1935,10 @@ function cycleHeavy(){ if(!player)return; const list=HEAVIES.filter(h=>player.he
   ((Audio_.play&&Audio_.play('heavy_switch'))||Audio_.hit()); }
 function beamColumnDamage(pl,dt){ const bx=pl.x; const _bhk=(pl.hks&&pl.hks.beam)||0;
   const np=pl.beamPierce;
+  // heavy burn-through: the beam vaporizes grunt fire in its column; boss + scripted fire immune
+  for(let _qi=ebul.length-1;_qi>=0;_qi--){ const _eb=ebul[_qi];
+    if(_eb.owner && _eb.owner!==boss && !_eb.parryBolt && _eb.y<pl.y-18 && Math.abs(_eb.x-bx)<22){
+      parts.push({x:_eb.x,y:_eb.y,vx:0,vy:-70,life:.12,max:.12,c:COL.cyan,sz:2}); ebul.splice(_qi,1); } }
   if(_bhk==='lens'){
     const offsets=[-24,0,24]; pl.beamEndY=-20;
     offsets.forEach(ox=>{ const cx=bx+ox; const col=enemies.filter(e=>!e.dead && Math.abs(e.x-cx)<24 && e.y<pl.y-18).sort((a,b)=>b.y-a.y);
@@ -2376,6 +2380,9 @@ function update(dt){
 
   /* ----- bullets ----- */
   for(let i=pbul.length-1;i>=0;i--){const b=pbul[i];
+    if(b.rail){ for(let _qi=ebul.length-1;_qi>=0;_qi--){ const _eb=ebul[_qi];
+      if(_eb.owner && _eb.owner!==boss && !_eb.parryBolt && Math.abs(_eb.x-b.x)<15 && Math.abs(_eb.y-b.y)<44){
+        parts.push({x:_eb.x,y:_eb.y,vx:0,vy:-70,life:.12,max:.12,c:COL.cyan,sz:2}); ebul.splice(_qi,1); } } }
     if(b.homing){ let best=null,bd=1e9; for(const e of enemies){if(e.dead)continue;const d=dist2(e.x,e.y,b.x,b.y);if(d<bd){bd=d;best=e;}}
       if(boss){const d=dist2(boss.x,boss.y,b.x,b.y); if(d<bd){bd=d;best=boss;}}
       if(best){ const ang=Math.atan2(best.y-b.y,best.x-b.x); const cur=Math.atan2(b.vy,b.vx);
@@ -4222,6 +4229,7 @@ function closeTut(){ el('ovlTut').classList.add('hidden'); try{localStorage.setI
 { const b=el('howtoBtn'); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); openTut(); }); }
 
 const CHANGELOG=[
+ {ver:'145',date:'2026',items:['PRISM BEAM and RAILGUN now burn through incoming grunt fire caught in their path - boss fire and heavy shots still punch through']},
  {ver:'144',date:'2026',items:['PARRY now shows a ring under your ship: pulsing when ready, sweeping while it recharges, amber when you jam or whiff it','Hull starts one point tougher','Fewer enemy bullets on screen in the early sectors','Sector bosses arrive a little sooner','Kills pay out more, so your first REFIT comes faster']},
  {ver:'143',date:'2026',items:['PRISM SPOOL removed - HEAVY SPOOL now also governs beam spin-up and cooldown','SPREAD now shows as its own weapon card in CONFIGURE BUILD']},
  {ver:'142',date:'2026',items:['Fixed HEAVY shop grouping: all PRISM BEAM upgrades now collapse into one kit; HEAVY POWER moves to its own standalone card']},
