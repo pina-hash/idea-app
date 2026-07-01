@@ -1,8 +1,15 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
 	import TiltCard from '$lib/gauntlet/viewport/TiltCard.svelte';
+	import ModeArt from '$lib/gauntlet/viewport/ModeArt.svelte';
 	import { countUp } from '$lib/gauntlet/viewport/motion';
 	import { MODES, familyLabel, modeStatusLabel } from '$lib/gauntlet';
+
+	/** Family sublabels for the card header (mockup: how each family verifies). */
+	const FAMILY_SUB: Record<string, string> = {
+		modeling: 'verified by mass',
+		knowledge: 'read the print'
+	};
 
 	let { data } = $props();
 	let { supabase, userName, userRole, isTeacher, modeStats } = $derived(data);
@@ -44,12 +51,13 @@
 		</div>
 	</section>
 
-	<a class="card author-callout" href="/gauntlet/rooms">
+	<a class="roomstrip" href="/gauntlet/rooms">
 		<div>
-			<div class="author-title">Live Rooms</div>
-			<div class="author-sub">Race a synchronized Speedrun: one host, one shared clock, a live board.</div>
+			<div class="rs-label">Live rooms</div>
+			<div class="rs-title">Race a synchronized Speedrun</div>
+			<div class="rs-meta">One host &middot; one shared server clock &middot; a live board</div>
 		</div>
-		<span class="btn secondary">Enter rooms &rsaquo;</span>
+		<span class="btn">Enter rooms</span>
 	</a>
 
 	{#if isTeacher}
@@ -62,37 +70,55 @@
 		</a>
 	{/if}
 
-	<h2>Choose your mode</h2>
+	<div class="grid-lede">
+		<span class="gt-kicker">Select challenge</span>
+		<h2>Six ways to sharpen the same skill</h2>
+		<p>
+			Modeling modes verify your part by mass. Knowledge modes test the print. Pick one, or drop
+			into a live room and race the class.
+		</p>
+	</div>
 	<div class="mode-grid">
 		{#each MODES as mode (mode.id)}
 			{@const total = (modeStats.totals as Record<string, number>)[mode.id] ?? 0}
 			{@const cleared = (modeStats.cleared as Record<string, number>)[mode.id] ?? 0}
 			{#if mode.status === 'live' && mode.href}
 				<TiltCard family={mode.family}>
-					<a class="mode-card live" href={mode.href}>
+					<a class="mode-card live {mode.family}" href={mode.href}>
 						<div class="mode-top">
-							<span class="mode-family {mode.family}">{familyLabel(mode.family)}</span>
+							<span class="mode-family {mode.family}">
+								{familyLabel(mode.family)} &middot; {FAMILY_SUB[mode.family]}
+							</span>
 							<span class="mode-status status-live">Live</span>
 						</div>
+						<div class="mode-art"><ModeArt id={mode.id} /></div>
 						<h3 class="mode-name">{mode.name}</h3>
 						<p class="mode-tagline">{mode.tagline}</p>
 						<div class="mode-foot">
-							<span class="mode-scoring">{mode.scoring}</span>
-							<span class="mode-progress">{cleared} / {total} cleared</span>
+							<span class="gt-chip">
+								<span class="chip-l">Cleared</span>
+								<span class="chip-v">{cleared} / {total}</span>
+							</span>
+							<span class="mode-play">ENTER &#9656;</span>
 						</div>
 					</a>
 				</TiltCard>
 			{:else}
-				<div class="mode-card locked" aria-disabled="true">
+				<div class="mode-card locked {mode.family}" aria-disabled="true">
 					<div class="mode-top">
-						<span class="mode-family {mode.family}">{familyLabel(mode.family)}</span>
+						<span class="mode-family {mode.family}">
+							{familyLabel(mode.family)} &middot; {FAMILY_SUB[mode.family]}
+						</span>
 						<span class="mode-status status-{mode.status}">{modeStatusLabel(mode.status)}</span>
 					</div>
+					<div class="mode-art"><ModeArt id={mode.id} /></div>
 					<h3 class="mode-name">{mode.name}</h3>
 					<p class="mode-tagline">{mode.tagline}</p>
 					<div class="mode-foot">
-						<span class="mode-scoring">{mode.scoring}</span>
-						<span class="mode-progress">{mode.status === 'construction' ? 'In progress' : 'Locked'}</span>
+						<span class="gt-chip">
+							<span class="chip-l">Status</span>
+							<span class="chip-v">{mode.status === 'construction' ? 'In progress' : 'Locked'}</span>
+						</span>
 					</div>
 				</div>
 			{/if}

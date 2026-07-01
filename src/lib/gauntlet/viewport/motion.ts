@@ -57,9 +57,12 @@ export function entrance(node: HTMLElement, opts: EntranceOptions = {}) {
  */
 export function entranceSweep(container: HTMLElement, stepMs = 55) {
 	if (prefersReducedMotion() || typeof IntersectionObserver === 'undefined') return;
-	const children = Array.from(container.children).filter(
-		(el): el is HTMLElement => el instanceof HTMLElement && !el.classList.contains('gt-in')
-	);
+	const children = Array.from(container.children)
+		// Stagger grid children individually (each mode card), not the grid block.
+		.flatMap((el) => (el.classList.contains('mode-grid') ? Array.from(el.children) : [el]))
+		.filter(
+			(el): el is HTMLElement => el instanceof HTMLElement && !el.classList.contains('gt-in')
+		);
 	const io = new IntersectionObserver(
 		(entries) => {
 			for (const entry of entries) {

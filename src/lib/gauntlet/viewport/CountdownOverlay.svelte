@@ -59,7 +59,9 @@
 		display: grid;
 		place-items: center;
 		pointer-events: none;
-		background: rgba(4, 7, 10, 0.55);
+		background: rgba(4, 7, 10, 0.75);
+		-webkit-backdrop-filter: blur(3px);
+		backdrop-filter: blur(3px);
 	}
 	.numeral {
 		grid-area: 1 / 1;
@@ -72,7 +74,7 @@
 		background-clip: text;
 		color: transparent;
 		filter: drop-shadow(0 0 24px rgba(0, 255, 65, 0.45));
-		animation: gt-pop 0.75s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+		animation: gt-pop 0.8s cubic-bezier(0.18, 1.1, 0.3, 1) both;
 	}
 	.numeral.build {
 		font-size: clamp(3.4rem, 13vw, 8rem);
@@ -87,17 +89,23 @@
 		opacity: 0;
 		animation: gt-ring 0.8s ease-out both;
 	}
+	/* Each numeral pops in, holds, then dissolves before the next lands. */
 	@keyframes gt-pop {
-		from {
-			transform: scale(0.55);
+		0% {
+			transform: scale(0.4);
 			opacity: 0;
 		}
 		30% {
-			opacity: 1;
-		}
-		to {
 			transform: scale(1);
 			opacity: 1;
+		}
+		75% {
+			transform: scale(1.05);
+			opacity: 1;
+		}
+		100% {
+			transform: scale(1.25);
+			opacity: 0;
 		}
 	}
 	@keyframes gt-ring {

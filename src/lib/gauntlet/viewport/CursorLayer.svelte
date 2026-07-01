@@ -60,9 +60,12 @@
 				y += (my - y) * 0.22;
 				reticleEl.style.transform = `translate3d(${x}px, ${y}px, 0)`;
 				labelEl.style.transform = `translate3d(${x + 18}px, ${y + 22}px, 0)`;
-				const xmm = (x * MM_PER_PX).toFixed(1);
-				const ymm = ((window.innerHeight - y) * MM_PER_PX).toFixed(1);
-				readout = `X ${xmm} Y ${ymm} mm`;
+				// Signed, screen-centered coordinates at 3 decimals, matching the
+				// tree rail's "UNITS IPS . 3DP" readout convention.
+				const xmm = (x - window.innerWidth / 2) * MM_PER_PX;
+				const ymm = (window.innerHeight / 2 - y) * MM_PER_PX;
+				const fmt = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(3)}`;
+				readout = `X ${fmt(xmm)}  Y ${fmt(ymm)}`;
 			}
 			raf = requestAnimationFrame(loop);
 		};
@@ -120,8 +123,9 @@
 		height: 26px;
 		top: -13px;
 		left: -13px;
-		border: 1px solid var(--green);
+		border: 1px solid rgba(0, 255, 65, 0.55);
 		border-radius: 50%;
+		box-shadow: var(--glow-green);
 		opacity: 0.85;
 		transition:
 			transform 0.18s ease,
@@ -136,6 +140,7 @@
 		left: -1.5px;
 		border-radius: 50%;
 		background: var(--green);
+		box-shadow: var(--glow-green);
 		transition: background-color 0.18s ease;
 	}
 	.cross {
@@ -158,10 +163,11 @@
 	.gt-reticle.hovering .ring {
 		transform: scale(1.55);
 		border-color: var(--lime);
-		box-shadow: 0 0 10px rgba(200, 255, 0, 0.45);
+		box-shadow: var(--glow-lime);
 	}
 	.gt-reticle.hovering .dot {
 		background: var(--lime);
+		box-shadow: var(--glow-lime);
 	}
 	.gt-readout {
 		position: absolute;
@@ -171,6 +177,7 @@
 		font-size: 0.58rem;
 		letter-spacing: 0.08em;
 		color: var(--ice);
+		text-shadow: 0 0 8px rgba(136, 221, 255, 0.5);
 		opacity: 0;
 		white-space: nowrap;
 		will-change: transform;

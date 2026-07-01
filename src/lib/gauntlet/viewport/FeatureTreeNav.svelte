@@ -18,7 +18,9 @@
 </script>
 
 <nav class="gt-tree" aria-label="GAUNTLET modes">
+	<div class="tree-hdr" aria-hidden="true">FeatureManager</div>
 	<a class="tree-root" href="/gauntlet" class:active={current === '/gauntlet'}>
+		<span class="car" aria-hidden="true">&#9662;</span>
 		<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 12V5l5-3 5 3v7H8V8H6v4z" fill="none" stroke="currentColor" /></svg>
 		GAUNTLET
 	</a>
@@ -26,6 +28,7 @@
 	{#each [{ label: 'Modeling modes', family: 'modeling', modes: modeling }, { label: 'Knowledge modes', family: 'knowledge', modes: knowledge }] as group (group.family)}
 		<div class="tree-group">
 			<span class="tree-group-label {group.family}">
+				<span class="car" aria-hidden="true">&#9662;</span>
 				<svg viewBox="0 0 14 14" aria-hidden="true">
 					{#if group.family === 'modeling'}
 						<path d="M7 1l5 3v6l-5 3-5-3V4z M7 7V13 M2 4l5 3 5-3" fill="none" stroke="currentColor" />
@@ -58,6 +61,7 @@
 
 	<div class="tree-group">
 		<span class="tree-group-label modeling">
+			<span class="car" aria-hidden="true">&#9662;</span>
 			<svg viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" /><path d="M7 4v3l2 2" fill="none" stroke="currentColor" /></svg>
 			Sessions
 		</span>
@@ -87,10 +91,34 @@
 			left: 1rem;
 			width: 232px;
 			padding: 0.9rem 0.9rem 0.7rem;
-			background: var(--panel);
+			background: linear-gradient(180deg, var(--panel), var(--void));
 			border: 1px solid var(--line);
 			border-radius: var(--radius-card);
+			overflow: hidden;
 		}
+	}
+	/* Faint green light falling from the panel top. */
+	.gt-tree::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(180deg, rgba(0, 255, 65, 0.05), transparent 40%);
+		pointer-events: none;
+	}
+	.tree-hdr {
+		font-family: var(--font-data);
+		font-size: 0.55rem;
+		letter-spacing: 0.24em;
+		text-transform: uppercase;
+		color: var(--dim);
+		padding-bottom: 0.5rem;
+	}
+	.car {
+		font-family: var(--font-data);
+		font-size: 0.55rem;
+		color: var(--dim);
+		width: 9px;
+		flex: none;
 	}
 	svg {
 		width: 13px;
@@ -190,11 +218,13 @@
 	}
 	a.tree-leaf.modeling:hover,
 	a.tree-leaf.modeling.active {
+		background: rgba(0, 255, 65, 0.08);
 		color: var(--green);
 		text-shadow: 0 0 8px rgba(0, 255, 65, 0.55);
 	}
 	a.tree-leaf.knowledge:hover,
 	a.tree-leaf.knowledge.active {
+		background: rgba(0, 240, 255, 0.08);
 		color: var(--cyan);
 		text-shadow: 0 0 8px rgba(0, 240, 255, 0.55);
 	}

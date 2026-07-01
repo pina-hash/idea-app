@@ -29,6 +29,7 @@
 
 <div class="gt-root">
 	<ViewportBackground />
+	<div class="gt-vignette" aria-hidden="true"></div>
 	<CursorLayer />
 	<FeatureTreeNav />
 	<div class="gt-content">

@@ -74,13 +74,17 @@
 			const sinT = Math.sin(theta);
 			const cosF = Math.cos(tilt);
 			const sinF = Math.sin(tilt);
-			const pts: { x: number; y: number; z: number }[][] = [[], []];
-			for (let ring = 0; ring < 2; ring++) {
-				const y0 = ring === 0 ? -h / 2 : h / 2;
+			// Outer hex rings [0,1] plus an inner bore [2,3] so the part reads as
+			// machined, not a solid extrusion.
+			const RADII = [r, r, r * 0.42, r * 0.42];
+			const pts: { x: number; y: number; z: number }[][] = [[], [], [], []];
+			for (let ring = 0; ring < 4; ring++) {
+				const y0 = ring % 2 === 0 ? -h / 2 : h / 2;
+				const rr = RADII[ring];
 				for (let i = 0; i < 6; i++) {
 					const a = (i * Math.PI) / 3;
-					const x0 = r * Math.cos(a);
-					const z0 = r * Math.sin(a);
+					const x0 = rr * Math.cos(a);
+					const z0 = rr * Math.sin(a);
 					// Rotate around Y (orbit), then around X (viewing tilt).
 					const x1 = x0 * cosT + z0 * sinT;
 					const z1 = -x0 * sinT + z0 * cosT;
@@ -113,9 +117,13 @@
 				edge(proj[0][i], proj[0][j], depthAlpha((proj[0][i].z + proj[0][j].z) / 2));
 				edge(proj[1][i], proj[1][j], depthAlpha((proj[1][i].z + proj[1][j].z) / 2));
 				edge(proj[0][i], proj[1][i], depthAlpha(proj[0][i].z));
+				// Bore edges, fainter than the outer body.
+				edge(proj[2][i], proj[2][j], depthAlpha((proj[2][i].z + proj[2][j].z) / 2) * 0.6);
+				edge(proj[3][i], proj[3][j], depthAlpha((proj[3][i].z + proj[3][j].z) / 2) * 0.6);
+				edge(proj[2][i], proj[3][i], depthAlpha(proj[2][i].z) * 0.6);
 			}
-			// Lime vertices, brighter toward the viewer.
-			for (const ring of proj) {
+			// Lime vertices on the outer body, brighter toward the viewer.
+			for (const ring of [proj[0], proj[1]]) {
 				for (const p of ring) {
 					ctx.fillStyle = LIME;
 					ctx.globalAlpha = Math.max(0.15, 0.75 - (p.z / r) * 0.4);

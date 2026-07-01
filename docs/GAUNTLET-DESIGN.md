@@ -78,6 +78,8 @@ Mounted once in the layout (ambient):
   (rooms, tools), and an origin/units/view footer block. Fixed rail on
   viewports >= 1440px. Leaves glow in their family color.
 - **TrademarkFooter** - the Dassault Systemes disclaimer, on every page.
+- **Vignette** (`.gt-vignette`, a layout div styled in viewport.css) - steel
+  light pooling upper-right, a green wash lower-left, darkened corners.
 
 Used per page:
 
@@ -87,6 +89,8 @@ Used per page:
 - **CountdownOverlay** `active`, `onDone` - the 3-2-1-BUILD flourish on
   live-room start. Trigger it from observed state transitions only; the
   server-authoritative timing is never altered.
+- **ModeArt** `id: GauntletModeId` - wireframe line-art icon per mode;
+  strokes inherit `currentColor` so the family color comes from the card.
 - **motion.ts** - `entrance` (IntersectionObserver fade/slide action),
   `entranceSweep` (staggered entrance for a container's children; the layout
   runs it on `main.gauntlet` after every navigation), `countUp` (numeric stat

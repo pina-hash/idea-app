@@ -63,6 +63,19 @@
 	z-index: 1;
 }
 
+/* Ambient vignette over the canvas: steel light pooling upper-right (around
+   the wireframe part), a green wash lower-left, darkened corners for depth. */
+.gt-root .gt-vignette {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	background:
+		radial-gradient(120% 90% at 78% 8%, rgba(59, 110, 143, 0.16), transparent 55%),
+		radial-gradient(110% 80% at 12% 100%, rgba(0, 255, 65, 0.1), transparent 55%),
+		radial-gradient(140% 120% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+
 /* ==========================================================================
    Re-skin layer: retune the existing shared .gauntlet classes to the system.
    ========================================================================== */
@@ -73,6 +86,46 @@
 	font-weight: 700;
 	letter-spacing: 0.05em;
 	text-transform: uppercase;
+}
+
+/* Gradient wordmark: the dojo hero title clips a green -> lime -> cyan sweep. */
+.gt-root .gauntlet .dojo-title {
+	font-weight: 900;
+	letter-spacing: 0.04em;
+	background: linear-gradient(92deg, var(--green), var(--lime) 60%, var(--cyan));
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	-webkit-text-fill-color: transparent;
+	text-shadow: none;
+	filter: drop-shadow(0 0 14px rgba(0, 255, 65, 0.28));
+}
+.gt-root .gauntlet .dojo-title span {
+	color: transparent;
+	-webkit-text-fill-color: transparent;
+	text-shadow: none;
+}
+
+/* Mono kicker over a section (the mockup's "Select challenge" lede). */
+.gt-root .gauntlet .gt-kicker {
+	display: block;
+	font-family: var(--font-data);
+	font-size: 0.66rem;
+	letter-spacing: 0.28em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	text-shadow: 0 0 8px rgba(0, 240, 255, 0.35);
+}
+.gt-root .gauntlet .grid-lede {
+	margin: 2rem 0 0.25rem;
+}
+.gt-root .gauntlet .grid-lede h2 {
+	margin: 0.4rem 0 0.2rem;
+}
+.gt-root .gauntlet .grid-lede p {
+	color: var(--dim);
+	font-size: 0.9rem;
+	max-width: 60ch;
 }
 .gt-root .gauntlet h1 {
 	font-size: 1.7rem;
@@ -119,16 +172,22 @@
 		transform 0.18s ease;
 }
 
-/* --- Buttons: green->lime fill, glow, tactile press --- */
+/* --- Buttons: Orbitron labels, green->lime fill, glow, tactile press --- */
+.gt-root .gauntlet .btn {
+	font-family: var(--font-head);
+	letter-spacing: 0.08em;
+}
 .gt-root .gauntlet .btn:not(.secondary) {
-	background: linear-gradient(135deg, var(--green), var(--lime));
+	background: linear-gradient(92deg, var(--green), var(--lime));
 	border: none;
-	color: #041008;
+	color: var(--void);
 	font-weight: 700;
-	box-shadow: 0 0 14px rgba(0, 255, 65, 0.35);
+	box-shadow: 0 0 22px rgba(0, 255, 65, 0.4);
 }
 .gt-root .gauntlet .btn:not(.secondary):hover {
-	box-shadow: var(--glow-lime);
+	transform: translateY(-2px);
+	box-shadow: 0 0 34px rgba(0, 255, 65, 0.7);
+	filter: brightness(1.08);
 }
 .gt-root .gauntlet .btn:active {
 	transform: scale(0.965);
@@ -204,6 +263,138 @@
 /* --- Mode grid gets a perspective stage for TiltCard children --- */
 .gt-root .gauntlet .mode-grid {
 	perspective: 1200px;
+}
+
+/* --- Mode cards: gradient panel, wireframe art, chips, ENTER affordance --- */
+.gt-root .gauntlet .mode-card {
+	background: linear-gradient(155deg, var(--panel-2), var(--panel));
+	transform-style: preserve-3d; /* per-element depth under TiltCard */
+}
+.gt-root .gauntlet .mode-art {
+	height: 72px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin: 0.1rem 0;
+	transform: translateZ(26px);
+}
+.gt-root .gauntlet .mode-art svg {
+	transition: transform 0.5s ease;
+}
+.gt-root .gauntlet .mode-card.modeling .mode-art {
+	color: var(--green);
+	filter: drop-shadow(0 0 8px rgba(0, 255, 65, 0.4));
+}
+.gt-root .gauntlet .mode-card.knowledge .mode-art {
+	color: var(--cyan);
+	filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.4));
+}
+.gt-root .gauntlet .mode-card.live:hover .mode-art svg {
+	transform: rotate(-8deg) scale(1.06);
+}
+.gt-root .gauntlet .mode-card.locked .mode-art {
+	color: var(--dim);
+	filter: none;
+}
+.gt-root .gauntlet .mode-card :is(h3.mode-name, .mode-tagline) {
+	transform: translateZ(18px);
+}
+.gt-root .gauntlet .mode-foot {
+	transform: translateZ(20px);
+}
+.gt-root .gauntlet .gt-chip {
+	background: rgba(4, 7, 10, 0.6);
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	padding: 0.3rem 0.55rem;
+	font-family: var(--font-data);
+	display: inline-flex;
+	flex-direction: column;
+	gap: 0.05rem;
+}
+.gt-root .gauntlet .gt-chip .chip-l {
+	font-size: 0.5rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.gt-root .gauntlet .gt-chip .chip-v {
+	font-size: 0.85rem;
+	color: var(--lime);
+	text-shadow: 0 0 8px rgba(200, 255, 0, 0.45);
+}
+.gt-root .gauntlet .mode-card.knowledge .gt-chip .chip-v {
+	color: var(--ice);
+	text-shadow: 0 0 8px rgba(136, 221, 255, 0.5);
+}
+.gt-root .gauntlet .mode-card.locked .gt-chip .chip-v {
+	color: var(--dim);
+	text-shadow: none;
+}
+.gt-root .gauntlet .mode-play {
+	margin-left: auto;
+	align-self: flex-end;
+	font-family: var(--font-data);
+	font-size: 0.6rem;
+	letter-spacing: 0.16em;
+	color: var(--dim);
+	transition: color 0.25s ease;
+}
+.gt-root .gauntlet .mode-card.modeling:hover .mode-play {
+	color: var(--green);
+}
+.gt-root .gauntlet .mode-card.knowledge:hover .mode-play {
+	color: var(--cyan);
+}
+
+/* --- Live-rooms strip: crimson-edged banner with a big CTA --- */
+.gt-root .gauntlet .roomstrip {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.25rem;
+	flex-wrap: wrap;
+	background: linear-gradient(120deg, var(--panel), var(--void));
+	border: 1px solid var(--line);
+	border-radius: var(--radius-card);
+	padding: 1.1rem 1.4rem;
+	margin: 1rem 0;
+	overflow: hidden;
+	text-decoration: none;
+}
+.gt-root .gauntlet .roomstrip::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0;
+	bottom: 0;
+	width: 3px;
+	background: var(--crimson);
+	box-shadow: var(--glow-crimson);
+}
+.gt-root .gauntlet .roomstrip:hover {
+	border-color: rgba(255, 51, 85, 0.35);
+}
+.gt-root .gauntlet .rs-label {
+	font-family: var(--font-data);
+	font-size: 0.6rem;
+	letter-spacing: 0.24em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.gt-root .gauntlet .rs-title {
+	font-family: var(--font-head);
+	font-weight: 700;
+	font-size: 1.1rem;
+	color: var(--white);
+	margin-top: 0.2rem;
+}
+.gt-root .gauntlet .rs-meta {
+	font-family: var(--font-data);
+	font-size: 0.72rem;
+	color: var(--dim);
+	margin-top: 0.25rem;
 }
 
 /* --- Entrance choreography (classes driven by motion.ts / the layout sweep) --- */
