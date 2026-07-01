@@ -471,7 +471,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='143';
+const W=630,H=840; const VERSION='144';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -490,15 +490,15 @@ const BAL_DEFAULTS = {
   enemyHpLin:0.50,                    // enemy HP linear sector scaling
   enemyHpComp:1.06, enemyHpCompFrom:6,// enemy HP compounding factor + sector it starts
   fireCadenceScale:0.16,              // enemy fire-interval sector scaling (higher = faster fire)
-  ebulCapBase:30, ebulCapPer:9,       // global enemy-bullet budget base + per sector
+  ebulCapBase:24, ebulCapPer:9,       // global enemy-bullet budget base + per sector
   // boss
   bossBase:95, bossQuad:27,           // boss HP = bossBase + sector^2 * bossQuad
   // economy + pacing
-  coinCoef:0.10,                      // kill coin coefficient (master income dial)
+  coinCoef:0.12,                      // kill coin coefficient (master income dial)
   styleCoinScale:1.0,                 // multiplier on STYLE coin bonus
   coreBase:70, corePer:16,            // CORE jackpot base + per sector
   bossCoinPods:3,                     // coin pods dropped on boss kill
-  killsBase:48, killsPer:14           // kills to trigger boss = killsBase + sector * killsPer
+  killsBase:42, killsPer:14           // kills to trigger boss = killsBase + sector * killsPer
 };
 /* registry metadata drives the phase-2 tuning panel; min/max/step are tuning ranges, not hard caps */
 const BAL_META = [
@@ -1524,8 +1524,8 @@ function resetPlayer(full){
     fireCd:0, beamOn:false, beamLock:false, beamActive:false, beamE:1, beamMax:1, beamDps:46, beamWind:0, beamCoolT:0, heat:0, overheatT:0,
     heavy:'beam', heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, heavyCharge:0, waveT:0, teslaArc:null,
     speed:184, wlevel:1, pdmg:1, bombs:2, shieldHits:0, drone:null,
-    inv:1.4, armor:4, maxArmor:4, dmgFlash:0, lives:3, dead:false, respawn:0, coins:0, repair:0,
-    parryT:0, parryCd:0, guardUsed:false, purgeCd:0,
+    inv:1.4, armor:5, maxArmor:5, dmgFlash:0, lives:3, dead:false, respawn:0, coins:0, repair:0,
+    parryT:0, parryCd:0, parryCdMax:0, guardUsed:false, purgeCd:0,
     buffs:{overdrive:0,scatter:0,magnet:0}};
     applyUpgrades(); player.beamE=player.beamMax; }
   else { player.x=W/2; player.y=H-130; player.armor=player.maxArmor; player.inv=1.6; player.dead=false;
@@ -1544,7 +1544,7 @@ function applyUpgrades(){ const u=player.up;
   player.beamCool    = Math.max(0.35, 0.95 - (u.heavyChg||1)*0.09);   // HEAVY SPOOL governs beam post-fire lockout
   player.beamRecharge= 0.16 + u.beamCap*0.06;                          // CELL: recharge rate
   player.heavyMult   = 1 + ((u.heavyPow||1)-1)*0.30;   // rail/tesla/singularity/wave damage
-  player.maxArmor    = 4 + (u.armor||0);
+  player.maxArmor    = 5 + (u.armor||0);
   if((player.ks&&player.ks.hull)==='phalanx') player.maxArmor+=1;
   player.shieldCap   = ((player.ks&&player.ks.shield)==='capacitor')?4:3;
   // ---- ship modules (Tier 3, in-run; see player.modules) ----
@@ -2032,9 +2032,9 @@ function drawHoles(){ for(const hh of holes){ const x=hh.x,y=hh.y,r=Math.max(0,h
   for(let k=0;k<3;k++){ bg.beginPath(); bg.arc(0,0,r*(0.5+0.16*k),hh.core+k*1.7,hh.core+k*1.7+4.2); bg.stroke(); }
   bg.shadowBlur=0; bg.restore(); } }
 function tryParry(){ if(state!=='play'||!player||player.dead)return;
-  if(player.parryCd>0&&player.parryT<=0){ player.parryCd=Math.min(2.0,player.parryCd+0.35); pops.push({x:player.x,y:player.y-30,txt:'JAM',c:COL.dim,life:.5,max:.5}); Audio_.hit&&Audio_.hit(); return; }
+  if(player.parryCd>0&&player.parryT<=0){ player.parryCd=Math.min(2.0,player.parryCd+0.35); player.parryCdMax=player.parryCd; pops.push({x:player.x,y:player.y-30,txt:'JAM',c:COL.dim,life:.5,max:.5}); Audio_.hit&&Audio_.hit(); return; }
   if(player.parryCd>0||player.parryT>0)return;
-  { const _pg=(player.ks&&player.ks.parry)==='guard'; player.parryT=(0.22+(_pg?0.06:0))*(player.modVamp?0.75:1); player.parryCd=(_pg?0.75:0.95); } player.parryHit=false; player.parryArmed=true; runParryAtt++; Audio_.parry(); player.inv=Math.max(player.inv,0.10);
+  { const _pg=(player.ks&&player.ks.parry)==='guard'; player.parryT=(0.22+(_pg?0.06:0))*(player.modVamp?0.75:1); player.parryCd=(_pg?0.75:0.95); player.parryCdMax=player.parryCd; } player.parryHit=false; player.parryArmed=true; runParryAtt++; Audio_.parry(); player.inv=Math.max(player.inv,0.10);
   rings.push({x:player.x,y:player.y,r:10,vr:150,life:.3,max:.3,c:COL.cyan}); shake=Math.max(shake,3);
 }
 function fireBomb(){
@@ -2141,7 +2141,7 @@ function update(dt){
         pl.armor=Math.min(pl.maxArmor,pl.armor+(gotBolt?1:0)); const _mp=(pl.up&&pl.up.mParry)||0; if(_mp>0){ pl.repair=Math.min(1,(pl.repair||0)+(0.10+0.10*_mp)*(pl.modVamp?1.5:1)); if(pl.repair>=1&&pl.armor<pl.maxArmor){ pl.repair=0; pl.armor++; } } if(pl.modVamp){ pl.repair=Math.min(1,(pl.repair||0)+(gotBolt?0.4:0.2)); if(pl.repair>=1&&pl.armor<pl.maxArmor){ pl.repair=0; pl.armor++; } } if(gotBolt) pl.parryCd*=0.5; if((pl.ks&&pl.ks.parry)==='riposte'){ const _rn=6; for(let _r=0;_r<_rn;_r++){ const _a=-1.5708+(_r-(_rn-1)/2)*0.42; pbul.push({x:pl.x,y:pl.y-8,vx:Math.cos(_a)*560,vy:Math.sin(_a)*560,c:COL.cyan,r:3,dmg:3,reflected:true}); } if(gotBolt) pl.parryCd=0; }
         addStyle(gotBolt?20:Math.min(18,6*caught));
         pops.push({x:player.x,y:player.y-30,txt:gotBolt?'PERFECT PARRY':'PARRY',c:gotBolt?COL.white:COL.cyan,life:.9,max:.9}); Audio_.parryHit(); } }
-    if(pl.parryT<=0 && pl.parryArmed && !pl.parryHit){ pl.parryArmed=false; pl.parryCd=Math.max(pl.parryCd,1.2); pops.push({x:player.x,y:player.y-30,txt:'WHIFF',c:COL.dim,life:.5,max:.5}); }
+    if(pl.parryT<=0 && pl.parryArmed && !pl.parryHit){ pl.parryArmed=false; pl.parryCd=Math.max(pl.parryCd,1.2); pl.parryCdMax=pl.parryCd; pops.push({x:player.x,y:player.y-30,txt:'WHIFF',c:COL.dim,life:.5,max:.5}); }
     // GLINT: clean-play damage bonus, re-arms 3s after a hit
     pl.noHitT=(pl.noHitT||0)+dt; { const _g=(pl.modGlint && pl.noHitT>=3); if(_g!==!!pl.glintOn){ pl.glintOn=_g; applyUpgrades(); } }
     // movement (slowed while the beam is firing)
@@ -3518,6 +3518,20 @@ function drawShip(){
   if(inv||pl.shieldHits>0){ bg.save(); bg.translate(x,y); bg.beginPath(); bg.arc(0,2,24,0,6.28);
     bg.strokeStyle='rgba(0,240,255,'+(0.4+0.3*Math.sin(t*14))+')'; bg.shadowColor=COL.cyan; bg.shadowBlur=12; bg.lineWidth=1.5; bg.stroke(); bg.shadowBlur=0; bg.restore(); }
   if(pl.parryT>0){ const k=clamp(pl.parryT/0.22,0,1); bg.save(); bg.translate(x,y); bg.globalAlpha=0.5+0.5*k; bg.strokeStyle=COL.cyan; bg.shadowColor=COL.cyan; bg.shadowBlur=16; bg.lineWidth=2.5+2*k; bg.beginPath(); bg.arc(0,2,26-8*(1-k),0,6.28); bg.stroke(); bg.globalAlpha=0.3*k; bg.lineWidth=1; bg.beginPath(); bg.arc(0,2,40-20*k,0,6.28); bg.stroke(); bg.globalAlpha=1; bg.shadowBlur=0; bg.restore(); }
+  // PARRY state ring: ready (pulsing) / recharging (sweep) / jammed-whiffed (amber)
+  if(pl.parryT<=0){
+    bg.save(); bg.translate(x,y+2);
+    if(pl.parryCd>0){
+      const mx=pl.parryCdMax||0.95, frac=clamp(1-pl.parryCd/mx,0,1), jam=mx>1.0, col=jam?COL.amber:COL.cyan;
+      bg.strokeStyle='rgba(74,122,82,0.45)'; bg.lineWidth=2; bg.beginPath(); bg.arc(0,0,20,0,6.2832); bg.stroke();
+      bg.strokeStyle=col; bg.shadowColor=col; bg.shadowBlur=jam?12:6; bg.lineWidth=2.5;
+      bg.beginPath(); bg.arc(0,0,20,-1.5708,-1.5708+6.2832*frac); bg.stroke(); bg.shadowBlur=0;
+    } else {
+      bg.globalAlpha=0.35+0.15*Math.sin(t*6); bg.strokeStyle=COL.cyan; bg.shadowColor=COL.cyan; bg.shadowBlur=5; bg.lineWidth=1.5;
+      bg.beginPath(); bg.arc(0,0,20,0,6.2832); bg.stroke(); bg.globalAlpha=1; bg.shadowBlur=0;
+    }
+    bg.restore();
+  }
   if(pl.beamLock && pl.beamOn){ bg.save(); bg.globalAlpha=0.55+0.45*Math.sin(t*12); bg.fillStyle=COL.ace; bg.shadowColor=COL.ace; bg.shadowBlur=8; bg.font="700 9px 'Share Tech Mono',monospace"; bg.textAlign='center'; bg.fillText('↻ RELEASE',x,y-36); bg.globalAlpha=1; bg.shadowBlur=0; bg.textAlign='start'; bg.restore(); }
 }
 function drawDrone(){ if(!player.drone)return; const x=player.x+58,y=player.y+24;
@@ -4208,6 +4222,7 @@ function closeTut(){ el('ovlTut').classList.add('hidden'); try{localStorage.setI
 { const b=el('howtoBtn'); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); openTut(); }); }
 
 const CHANGELOG=[
+ {ver:'144',date:'2026',items:['PARRY now shows a ring under your ship: pulsing when ready, sweeping while it recharges, amber when you jam or whiff it','Hull starts one point tougher','Fewer enemy bullets on screen in the early sectors','Sector bosses arrive a little sooner','Kills pay out more, so your first REFIT comes faster']},
  {ver:'143',date:'2026',items:['PRISM SPOOL removed - HEAVY SPOOL now also governs beam spin-up and cooldown','SPREAD now shows as its own weapon card in CONFIGURE BUILD']},
  {ver:'142',date:'2026',items:['Fixed HEAVY shop grouping: all PRISM BEAM upgrades now collapse into one kit; HEAVY POWER moves to its own standalone card']},
  {ver:'141',date:'2026',items:['CONFIGURE BUILD now lists PRISM BEAM alongside the other heavies; ENERGY CELL moved to the shared heavy tier']},
