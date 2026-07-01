@@ -57,6 +57,10 @@ export interface AuthorFormState {
 	difficulty: number;
 	status: 'draft' | 'published' | 'archived';
 	// modeling
+	/** Stable, url-safe challenge slug (Speedrun site data). */
+	slug: string;
+	/** Challenge tier T1 to T4 (site data, distinct from difficulty). */
+	tier: string;
 	material: string;
 	density: number | null;
 	target_volume_mm3: number | null;
@@ -64,10 +68,16 @@ export interface AuthorFormState {
 	feature_count: number | null;
 	target_mass: number | null;
 	tolerance_pct: number | null;
+	/** Par time in seconds (Speedrun benchmark). */
+	par_time: number | null;
 	par_features: number | null;
 	note: string;
 	/** Drawing (gated modes) or reference (Reverse Engineer): inline SVG or URL. */
 	asset: string;
+	/** Storage path of the dimensioned drawing PNG (gated, `gauntlet-drawings`). */
+	drawing_image_path: string;
+	/** Storage path of the STL model (preview, `gauntlet-models`). */
+	model_path: string;
 	// knowledge
 	question: string;
 	instructions: string;
@@ -87,16 +97,21 @@ export function emptyForm(mode: GauntletModeId): AuthorFormState {
 		title: '',
 		difficulty: 2,
 		status: 'draft',
+		slug: '',
+		tier: 'T1',
 		material: '',
 		density: null,
 		target_volume_mm3: null,
 		surface_area_mm2: null,
 		feature_count: null,
 		target_mass: null,
-		tolerance_pct: 1,
+		tolerance_pct: 0.5,
+		par_time: null,
 		par_features: null,
 		note: '',
 		asset: '',
+		drawing_image_path: '',
+		model_path: '',
 		question: '',
 		instructions: '',
 		answerType: 'choice',
@@ -140,6 +155,16 @@ export function buildPayload(s: AuthorFormState): { prompt: object; answer: obje
 			tolerance_pct: s.tolerance_pct,
 			length_unit: 'mm',
 			note: s.note,
+			// Speedrun site data: stable slug, tier, par time, and the STL preview
+			// path (shape only, public and shown before Start).
+			...(s.mode === 'speedrun'
+				? {
+						slug: s.slug.trim(),
+						tier: s.tier,
+						par_time: s.par_time,
+						model_path: s.model_path
+					}
+				: {}),
 			// Reverse Engineer shows its reference up front (public, untimed).
 			...(s.mode === 'reverse_engineer' ? { reference: s.asset } : {}),
 			...(s.mode === 'feature_golf' ? { par_features: s.par_features } : {})
@@ -147,6 +172,8 @@ export function buildPayload(s: AuthorFormState): { prompt: object; answer: obje
 		const answer = clean({
 			// Gated drawing for Speedrun / Feature Golf (hidden, revealed on Start).
 			...(s.mode === 'speedrun' || s.mode === 'feature_golf' ? { drawing: s.asset } : {}),
+			// Gated dimensioned drawing PNG path (Speedrun), revealed on Start.
+			...(s.mode === 'speedrun' ? { drawing_image_path: s.drawing_image_path } : {}),
 			target_volume_mm3: s.target_volume_mm3,
 			// Reverse Engineer scores on surface-area accuracy too.
 			...(s.mode === 'reverse_engineer'
@@ -207,6 +234,8 @@ export function formFromChallenge(c: ChallengeFull): AuthorFormState {
 			title: c.title,
 			difficulty: c.difficulty,
 			status: c.status,
+			slug: (p.slug as string) ?? '',
+			tier: (p.tier as string) ?? base.tier,
 			material: (p.material as string) ?? '',
 			density: numOr(a.density ?? p.density),
 			target_volume_mm3: numOr(a.target_volume_mm3),
@@ -214,12 +243,15 @@ export function formFromChallenge(c: ChallengeFull): AuthorFormState {
 			feature_count: numOr(a.feature_count),
 			target_mass: numOr(a.target_mass ?? p.target_mass),
 			tolerance_pct: numOr(a.tolerance_pct ?? p.tolerance_pct),
+			par_time: numOr(p.par_time),
 			par_features: numOr(p.par_features),
 			note: (p.note as string) ?? '',
 			asset:
 				c.mode === 'reverse_engineer'
 					? ((p.reference as string) ?? '')
-					: ((a.drawing as string) ?? '')
+					: ((a.drawing as string) ?? ''),
+			drawing_image_path: (a.drawing_image_path as string) ?? '',
+			model_path: (p.model_path as string) ?? ''
 		};
 	}
 

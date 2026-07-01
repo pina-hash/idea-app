@@ -1084,6 +1084,99 @@ a:hover {
 .gauntlet .spec {
 	margin: 0;
 }
+
+/* --- Speedrun formalized view: drawing + STL 3D preview + global ruleset. --- */
+/* Only the Speedrun page stacks a drawing frame over the STL viewer; scope the
+   column layout to that structure so the shared ModelingRun panel is untouched. */
+.gauntlet .drawing-panel:has(.drawing-frame) {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 1rem;
+}
+.gauntlet .drawing-frame {
+	width: 100%;
+	display: grid;
+	place-items: center;
+}
+.gauntlet .drawing-png {
+	width: 100%;
+	height: auto;
+	max-width: 440px;
+}
+.gauntlet .stl-viewer {
+	position: relative;
+	width: 100%;
+	background: var(--bg2);
+	border: 1px solid var(--line);
+	border-radius: 3px;
+	overflow: hidden;
+}
+.gauntlet .stl-canvas {
+	width: 100%;
+	height: 100%;
+}
+.gauntlet .stl-canvas canvas {
+	display: block;
+	cursor: grab;
+}
+.gauntlet .stl-canvas canvas:active {
+	cursor: grabbing;
+}
+.gauntlet .stl-overlay {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	text-align: center;
+	padding: 1rem;
+	pointer-events: none;
+}
+.gauntlet .stl-tag {
+	position: absolute;
+	left: 0.6rem;
+	bottom: 0.5rem;
+	font-family: var(--font-mono);
+	font-size: 0.58rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--dim);
+	pointer-events: none;
+}
+.gauntlet .ruleset-panel {
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+}
+.gauntlet .ruleset-title {
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	margin-bottom: 0.5rem;
+}
+.gauntlet .rule-lines {
+	list-style: none;
+	margin: 0.5rem 0 0;
+	padding: 0;
+	display: grid;
+	gap: 0.3rem;
+}
+.gauntlet .rule-lines li {
+	color: var(--dim);
+	font-size: 0.82rem;
+	line-height: 1.4;
+	padding-left: 0.9rem;
+	position: relative;
+}
+.gauntlet .rule-lines li::before {
+	content: '\2022';
+	position: absolute;
+	left: 0;
+	color: var(--line-strong);
+}
 .gauntlet .run-bar {
 	display: flex;
 	align-items: baseline;

@@ -434,6 +434,28 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `gauntlet_room_board` view ranks both sources; clients use Realtime
   (`postgres_changes`) on the room, roster, and room submissions, with a refresh
   fallback; room state is DB-authoritative. See `docs/GAUNTLET.md`.
+- **Speedrun formalization + 3D preview** (`0015`): formalizes the Speedrun
+  challenge record and adds a three.js part preview. Governing principle: the
+  drawing (PNG) and the 3D model (STL) are pure-geometry artifacts with no
+  identity/metadata; everything else is site data. New site-data fields live in
+  the existing `prompt`/`answer` JSONB (no new columns): `slug` (stable, url-safe,
+  a partial unique index enforces it for Speedrun), `tier` (T1 to T4, distinct
+  from the 1 to 5 `difficulty`), `par_time` (seconds), plus the two Storage
+  references `model_path` (STL, public in `prompt`, shown as a shape-only preview
+  before Start) and `drawing_image_path` (dimensioned PNG, gated in `answer`,
+  handed back by the reveal RPC on Start like the SVG `drawing`). A single
+  **global ruleset** (`gauntlet_speedrun_ruleset`, one singleton row: units label,
+  projection, rule lines) is shared across every Speedrun challenge, teacher-
+  editable via a plain teacher-gated RLS update policy, and edited on the
+  authoring landing page. Two **private** Storage buckets `gauntlet-drawings` and
+  `gauntlet-models` hold the artifacts (authenticated read, teacher write; reads
+  are short-lived signed URLs), tightening the 0009 public-`gauntlet`-bucket
+  pattern to authenticated read. `StlViewer.svelte` is a reusable three.js +
+  STLLoader viewer (orbit controls, neutral material, auto-fit to the bounding
+  box, shape only, no measurement/download) and replaces the isometric view that
+  used to live on the drawing. `three` is a runtime dependency, imported
+  dynamically (browser-only, SSR-safe). The macro/reveal/token/leaderboard flow is
+  unchanged; reveal-on-start still gates the dimensioned drawing.
 - **Visuals:** GAUNTLET uses the **app-shell** side of the theme (tokens +
   Rajdhani / Share Tech Mono), with a `.gauntlet`-scoped block in `src/app.css`
   (page content) plus global header-breadcrumb classes. It does not use the

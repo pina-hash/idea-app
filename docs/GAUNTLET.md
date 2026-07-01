@@ -83,6 +83,20 @@ entirely from clients. The answer is read only server-side by the grading RPC.
   key plus an explanation; for modeling modes the canonical volume, surface
   area, feature count, and tolerances.
 
+Speedrun site data was formalized in `0015`: the record also holds `slug`
+(stable, url-safe; a partial unique index enforces it), `tier` (T1 to T4,
+distinct from `difficulty`), `par_time` (seconds), and two Storage references,
+`model_path` (STL, in `prompt`, a shape-only preview) and `drawing_image_path`
+(dimensioned PNG, in `answer`, gated and revealed on Start). The drawing (PNG)
+and 3D model (STL) are pure-geometry artifacts with no identity/metadata; they
+live in the private `gauntlet-drawings` / `gauntlet-models` buckets (authenticated
+read, teacher write), served as short-lived signed URLs. One **global ruleset**
+(`gauntlet_speedrun_ruleset`, a singleton row: units label, projection, rule
+lines) is shared across every Speedrun challenge, not repeated per record.
+`StlViewer.svelte` (three.js + STLLoader, orbit controls, auto-fit, shape only)
+renders the model and replaces the isometric view that used to live on the
+drawing.
+
 ### `submissions`
 
 `id`, `user_id`, `challenge_id`, `mode`, `value` (JSONB, what the student

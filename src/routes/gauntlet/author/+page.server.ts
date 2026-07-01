@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { GauntletModeId } from '$lib/gauntlet';
+import { DEFAULT_SPEEDRUN_RULESET, type GauntletModeId, type SpeedrunRuleset } from '$lib/gauntlet';
 
 /**
  * Teacher-only authoring: the challenge management list. Teachers see ALL
@@ -30,6 +30,12 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.order('difficulty', { ascending: true })
 		.order('title', { ascending: true });
 
+	// The one global Speedrun ruleset (shared across every challenge, not per row).
+	const { data: rules } = await supabase
+		.from('gauntlet_speedrun_ruleset')
+		.select('units_label, projection, rule_lines')
+		.maybeSingle();
+
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Teacher',
 		userRole: profile?.role ?? 'teacher',
@@ -40,6 +46,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			difficulty: number;
 			status: 'draft' | 'published' | 'archived';
 			updated_at: string;
-		}>
+		}>,
+		ruleset: (rules ?? DEFAULT_SPEEDRUN_RULESET) as SpeedrunRuleset
 	};
 };

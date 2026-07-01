@@ -1,6 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import type { SpeedrunFraming } from '$lib/gauntlet';
+import { DEFAULT_SPEEDRUN_RULESET, MODELS_BUCKET, type SpeedrunFraming, type SpeedrunRuleset } from '$lib/gauntlet';
 
 /**
  * One Speedrun challenge, end to end. The load returns ONLY the public framing
@@ -45,6 +45,24 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 		.eq('user_id', claims.sub)
 		.maybeSingle();
 
+	const framing = (challenge.prompt ?? {}) as SpeedrunFraming;
+
+	// The STL model is a shape-only preview (public framing), shown before Start.
+	// The bucket is private, so hand the page a short-lived signed URL.
+	let modelUrl: string | null = null;
+	if (framing.model_path) {
+		const { data: signed } = await supabase.storage
+			.from(MODELS_BUCKET)
+			.createSignedUrl(framing.model_path, 60 * 60);
+		modelUrl = signed?.signedUrl ?? null;
+	}
+
+	// The one global ruleset, shown next to every Speedrun challenge.
+	const { data: rules } = await supabase
+		.from('gauntlet_speedrun_ruleset')
+		.select('units_label, projection, rule_lines')
+		.maybeSingle();
+
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
@@ -52,8 +70,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 			id: challenge.id as string,
 			title: challenge.title as string,
 			difficulty: challenge.difficulty as number,
-			framing: (challenge.prompt ?? {}) as SpeedrunFraming
+			framing
 		},
+		modelUrl,
+		ruleset: (rules ?? DEFAULT_SPEEDRUN_RULESET) as SpeedrunRuleset,
 		board: (board ?? []) as Array<{
 			user_id: string;
 			player: string;

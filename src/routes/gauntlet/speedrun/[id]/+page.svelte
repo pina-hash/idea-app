@@ -5,17 +5,20 @@
 	import { invalidateAll } from '$app/navigation';
 	import Header from '$lib/gauntlet/Header.svelte';
 	import Asset from '$lib/gauntlet/Asset.svelte';
+	import StlViewer from '$lib/gauntlet/StlViewer.svelte';
 	import {
 		difficultyLabel,
 		formatTime,
 		formatMass,
 		MACRO_PATH,
+		DRAWINGS_BUCKET,
 		type SpeedrunReveal,
 		type SpeedrunResult
 	} from '$lib/gauntlet';
 
 	let { data } = $props();
-	let { supabase, userName, userRole, challenge, board, myUserId, myBest } = $derived(data);
+	let { supabase, userName, userRole, challenge, board, myUserId, myBest, modelUrl, ruleset } =
+		$derived(data);
 
 	const framing = $derived(challenge.framing);
 	const unit = $derived(framing.mass_unit ?? 'g');
@@ -35,6 +38,7 @@
 	type Phase = 'framing' | 'running' | 'done';
 	let phase = $state<Phase>('framing');
 	let drawing = $state<string | null>(null);
+	let drawingUrl = $state<string | null>(null);
 	let code = $state<string | null>(null);
 	let revealing = $state(false);
 	let revealError = $state('');
@@ -75,6 +79,15 @@
 		const payload = rev as SpeedrunReveal | null;
 		drawing = payload?.drawing ?? null;
 		code = payload?.code ?? null;
+		// The dimensioned PNG lives in a private bucket; its path is handed back only
+		// on Start, so sign it now for display (shape STL preview stays separate).
+		drawingUrl = null;
+		if (payload?.drawing_image_path) {
+			const { data: signed } = await supabase.storage
+				.from(DRAWINGS_BUCKET)
+				.createSignedUrl(payload.drawing_image_path, 60 * 60);
+			drawingUrl = signed?.signedUrl ?? null;
+		}
 		phase = 'running';
 		result = null;
 		practice = null;
@@ -135,6 +148,7 @@
 		stopTicker();
 		phase = 'framing';
 		drawing = null;
+		drawingUrl = null;
 		code = null;
 		result = null;
 		practice = null;
@@ -197,28 +211,42 @@
 
 	<div class="play-grid">
 		<div class="drawing-panel">
-			{#if phase === 'framing'}
-				<div class="start-gate">
-					<div class="gate-lock" aria-hidden="true">&#9632;</div>
-					<p class="gate-title">Drawing hidden</p>
-					<p class="gate-sub">
-						Start reveals the dimensioned drawing and mints your submit code. The clock starts on
-						the server the instant you hit Start. Have SolidWorks ready.
-					</p>
-					<button class="btn" type="button" onclick={start} disabled={revealing}>
-						{revealing ? 'Revealing...' : 'Start run'}
-					</button>
-					{#if revealError}<p class="warn">{revealError}</p>{/if}
-				</div>
-			{:else if drawing}
-				<Asset value={drawing} />
-			{:else}
-				<p class="dim">No drawing provided.</p>
+			<div class="drawing-frame">
+				{#if phase === 'framing'}
+					<div class="start-gate">
+						<div class="gate-lock" aria-hidden="true">&#9632;</div>
+						<p class="gate-title">Drawing hidden</p>
+						<p class="gate-sub">
+							Start reveals the dimensioned drawing and mints your submit code. The clock starts on
+							the server the instant you hit Start. Have SolidWorks ready.
+						</p>
+						<button class="btn" type="button" onclick={start} disabled={revealing}>
+							{revealing ? 'Revealing...' : 'Start run'}
+						</button>
+						{#if revealError}<p class="warn">{revealError}</p>{/if}
+					</div>
+				{:else if drawingUrl}
+					<img class="drawing-png" src={drawingUrl} alt="Dimensioned drawing" />
+				{:else if drawing}
+					<Asset value={drawing} />
+				{:else}
+					<p class="dim">No drawing provided.</p>
+				{/if}
+			</div>
+
+			{#if modelUrl}
+				<StlViewer url={modelUrl} />
 			{/if}
 		</div>
 
 		<div class="question-panel">
 			<div class="spec card">
+				{#if framing.tier}
+					<div class="field">
+						<span class="key">Tier</span>
+						<span class="val meta">{framing.tier}</span>
+					</div>
+				{/if}
 				<div class="field">
 					<span class="key">Material</span>
 					<span class="val">{framing.material ?? 'TBD'}</span>
@@ -238,6 +266,31 @@
 						{#if band}<span class="dim"> ({formatMass(band.lo, unit)} to {formatMass(band.hi, unit)})</span>{/if}
 					</span>
 				</div>
+				{#if framing.par_time != null}
+					<div class="field">
+						<span class="key">Par time</span>
+						<span class="val meta">{formatTime(framing.par_time)}</span>
+					</div>
+				{/if}
+			</div>
+
+			<div class="ruleset-panel card">
+				<span class="ruleset-title">Speedrun rules</span>
+				<div class="field">
+					<span class="key">Units</span>
+					<span class="val meta">{ruleset.units_label}</span>
+				</div>
+				<div class="field">
+					<span class="key">Projection</span>
+					<span class="val meta">{ruleset.projection}</span>
+				</div>
+				{#if ruleset.rule_lines.length}
+					<ul class="rule-lines">
+						{#each ruleset.rule_lines as line (line)}
+							<li>{line}</li>
+						{/each}
+					</ul>
+				{/if}
 			</div>
 
 			{#if phase === 'framing'}

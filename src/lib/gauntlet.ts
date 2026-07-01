@@ -124,6 +124,9 @@ export function difficultyLabel(d: number): string {
 	return DIFFICULTY_LABELS[d] ?? `Level ${d}`;
 }
 
+/** Speedrun tiers T1 to T4 (site data, distinct from the 1 to 5 difficulty). */
+export const TIERS = ['T1', 'T2', 'T3', 'T4'] as const;
+
 // ---------------------------------------------------------------------------
 // JSONB shapes. These mirror the `prompt` column written by the seed migration.
 // The `answer` column is never sent to the client, so it has no type here.
@@ -207,6 +210,10 @@ export interface SubmitResult {
  * Start; Reverse Engineer is untimed, so its `reference` is shown up front.
  */
 export interface ModelingFraming {
+	/** Stable, url-safe challenge slug (site data). Harmless to expose. */
+	slug?: string;
+	/** Challenge tier T1 to T4 (site data, distinct from the 1 to 5 difficulty). */
+	tier?: string;
 	material?: string;
 	density?: number;
 	density_unit?: string;
@@ -214,6 +221,13 @@ export interface ModelingFraming {
 	mass_unit?: string;
 	tolerance_pct?: number;
 	length_unit?: string;
+	/** Par time in seconds (Speedrun benchmark, shown next to the challenge). */
+	par_time?: number;
+	/**
+	 * Storage path of the STL model in the `gauntlet-models` bucket. Shape only
+	 * (no dimensions), so it is public framing and previewed before Start.
+	 */
+	model_path?: string;
 	note?: string;
 	/** Reverse Engineer: reference views/photo shown up front (inline SVG). */
 	reference?: string;
@@ -233,11 +247,34 @@ export type SpeedrunFraming = ModelingFraming;
  */
 export interface SpeedrunReveal {
 	drawing: string | null;
+	/** Storage path of the dimensioned drawing PNG (gated; signed on the client). */
+	drawing_image_path: string | null;
 	asset_ref: string | null;
 	code: string | null;
 	reveal_at: string | null;
 	expires_at: string | null;
 }
+
+/**
+ * The one global Speedrun ruleset (a single shared record, not per-challenge).
+ * Teacher-editable; shown next to every Speedrun challenge.
+ */
+export interface SpeedrunRuleset {
+	units_label: string;
+	projection: string;
+	rule_lines: string[];
+}
+
+/** The default ruleset, used when the row has not been seeded/loaded yet. */
+export const DEFAULT_SPEEDRUN_RULESET: SpeedrunRuleset = {
+	units_label: 'inch, 3-place decimal',
+	projection: 'third angle',
+	rule_lines: ['Unless noted, all edges sharp', 'Do not scale drawing']
+};
+
+/** The Storage buckets holding the Speedrun geometry artifacts (private). */
+export const DRAWINGS_BUCKET = 'gauntlet-drawings';
+export const MODELS_BUCKET = 'gauntlet-models';
 
 /** The grading result the macro posts back via `gauntlet_macro_submit`. */
 export interface MacroResult {

@@ -9,6 +9,34 @@
 	let busy = $state('');
 	let actionError = $state('');
 
+	// Global Speedrun ruleset editor (one shared record, not per challenge).
+	let unitsLabel = $state(data.ruleset.units_label);
+	let projection = $state(data.ruleset.projection);
+	let ruleText = $state(data.ruleset.rule_lines.join('\n'));
+	let ruleSaving = $state(false);
+	let ruleSaved = $state(false);
+	let ruleError = $state('');
+
+	const saveRuleset = async () => {
+		ruleSaving = true;
+		ruleSaved = false;
+		ruleError = '';
+		const rule_lines = ruleText
+			.split('\n')
+			.map((l) => l.trim())
+			.filter((l) => l !== '');
+		const { error } = await supabase
+			.from('gauntlet_speedrun_ruleset')
+			.update({ units_label: unitsLabel.trim(), projection: projection.trim(), rule_lines })
+			.eq('id', true);
+		if (error) ruleError = error.message;
+		else {
+			ruleSaved = true;
+			await invalidateAll();
+		}
+		ruleSaving = false;
+	};
+
 	const byMode = $derived.by(() => {
 		const map = new Map<string, typeof challenges>();
 		for (const c of challenges) {
@@ -66,6 +94,33 @@
 	</div>
 
 	{#if actionError}<p class="warn">{actionError}</p>{/if}
+
+	<h2>Speedrun ruleset <span class="mono dim">global, shared</span></h2>
+	<div class="card ruleset-editor">
+		<p class="ff-help">
+			One shared ruleset shown next to every Speedrun challenge. Editing it here changes it
+			everywhere; it is not stored per challenge.
+		</p>
+		<label class="ff">
+			<span class="ff-label">Units label</span>
+			<input class="ff-input" type="text" bind:value={unitsLabel} placeholder="inch, 3-place decimal" />
+		</label>
+		<label class="ff">
+			<span class="ff-label">Projection</span>
+			<input class="ff-input" type="text" bind:value={projection} placeholder="third angle" />
+		</label>
+		<label class="ff">
+			<span class="ff-label">Rule lines (one per line)</span>
+			<textarea class="ff-input ff-area" bind:value={ruleText} rows="3"></textarea>
+		</label>
+		{#if ruleError}<p class="warn">{ruleError}</p>{/if}
+		<div class="btn-row">
+			<button class="btn secondary" type="button" disabled={ruleSaving} onclick={saveRuleset}>
+				{ruleSaving ? 'Saving...' : 'Save ruleset'}
+			</button>
+			{#if ruleSaved}<span class="dim">Saved.</span>{/if}
+		</div>
+	</div>
 
 	{#each MODES as mode (mode.id)}
 		{@const list = byMode.get(mode.id) ?? []}

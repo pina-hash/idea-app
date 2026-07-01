@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import { MODES, modeById, DIFFICULTY_LABELS } from '$lib/gauntlet';
+	import { MODES, modeById, DIFFICULTY_LABELS, TIERS, DRAWINGS_BUCKET, MODELS_BUCKET } from '$lib/gauntlet';
 	import {
 		buildPayload,
 		massFromGeometry,
@@ -15,11 +15,16 @@
 	let form = $state<AuthorFormState>({ ...initial, options: initial.options.map((o) => ({ ...o })) });
 	let file = $state<File | null>(null);
 	let fileName = $state('');
+	let pngFile = $state<File | null>(null);
+	let pngName = $state('');
+	let stlFile = $state<File | null>(null);
+	let stlName = $state('');
 	let pasteText = $state('');
 	let saving = $state('');
 	let error = $state('');
 
 	const modeling = $derived(isModeling(form.mode));
+	const speedrun = $derived(form.mode === 'speedrun');
 	const gatedAsset = $derived(form.mode === 'speedrun' || form.mode === 'feature_golf');
 	const computedMass = $derived(massFromGeometry(form.target_volume_mm3, form.density));
 	const massMismatch = $derived(
@@ -43,6 +48,18 @@
 		fileName = f?.name ?? '';
 	};
 
+	const onPng = (e: Event) => {
+		const f = (e.currentTarget as HTMLInputElement).files?.[0] ?? null;
+		pngFile = f;
+		pngName = f?.name ?? '';
+	};
+
+	const onStl = (e: Event) => {
+		const f = (e.currentTarget as HTMLInputElement).files?.[0] ?? null;
+		stlFile = f;
+		stlName = f?.name ?? '';
+	};
+
 	const addOption = () => {
 		const next = String.fromCharCode(97 + form.options.length); // a, b, c, ...
 		form.options = [...form.options, { id: next, label: '' }];
@@ -62,6 +79,19 @@
 		return supabase.storage.from('gauntlet').getPublicUrl(path).data.publicUrl;
 	}
 
+	// Upload a Speedrun artifact to a PRIVATE bucket and return the stored path
+	// (not a public URL): reads go through the authenticated-read policy, so the
+	// student view / reveal RPC turns the path into a short-lived signed URL.
+	async function uploadArtifact(bucket: string, f: File, fallbackExt: string): Promise<string> {
+		const ext = (f.name.split('.').pop() || fallbackExt).toLowerCase();
+		const path = `${crypto.randomUUID()}.${ext}`;
+		const { error: upErr } = await supabase.storage
+			.from(bucket)
+			.upload(path, f, { contentType: f.type || undefined });
+		if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
+		return path;
+	}
+
 	async function save(status: 'draft' | 'published') {
 		saving = status;
 		error = '';
@@ -70,6 +100,16 @@
 				form.asset = await uploadAsset();
 				file = null;
 				fileName = '';
+			}
+			if (pngFile) {
+				form.drawing_image_path = await uploadArtifact(DRAWINGS_BUCKET, pngFile, 'png');
+				pngFile = null;
+				pngName = '';
+			}
+			if (stlFile) {
+				form.model_path = await uploadArtifact(MODELS_BUCKET, stlFile, 'stl');
+				stlFile = null;
+				stlName = '';
 			}
 			const { prompt, answer } = buildPayload(form);
 			const { data: id, error: rpcErr } = await supabase.rpc('gauntlet_author_upsert', {
@@ -188,6 +228,24 @@
 				<span class="ff-label">Tolerance band (%)</span>
 				<input class="ff-input" type="number" step="any" bind:value={form.tolerance_pct} />
 			</label>
+			{#if speedrun}
+				<label class="ff">
+					<span class="ff-label">Slug (stable, url-safe)</span>
+					<input class="ff-input" type="text" bind:value={form.slug} placeholder="aluminum-bracket-t2" />
+				</label>
+				<label class="ff">
+					<span class="ff-label">Tier</span>
+					<select class="ff-input" bind:value={form.tier}>
+						{#each TIERS as t (t)}
+							<option value={t}>{t}</option>
+						{/each}
+					</select>
+				</label>
+				<label class="ff">
+					<span class="ff-label">Par time (seconds)</span>
+					<input class="ff-input" type="number" step="1" min="0" bind:value={form.par_time} />
+				</label>
+			{/if}
 			{#if form.mode === 'feature_golf'}
 				<label class="ff">
 					<span class="ff-label">Par features (shown, not graded)</span>
@@ -280,6 +338,34 @@
 			<textarea class="ff-input ff-area" bind:value={form.asset} rows="3" placeholder="<svg ...> or https://..."></textarea>
 		</label>
 	</div>
+
+	{#if speedrun}
+		<h2>Geometry artifacts (PNG drawing + STL model)</h2>
+		<div class="card">
+			<p class="ff-help">
+				The drawing (PNG) and 3D model (STL) are pure-geometry files. The dimensioned PNG is hidden
+				and revealed on Start, like the drawing above; the STL is a shape-only preview shown up front.
+			</p>
+			<label class="ff">
+				<span class="ff-label">Dimensioned drawing (PNG)</span>
+				<input class="ff-input" type="file" accept="image/png,image/*" onchange={onPng} />
+			</label>
+			{#if pngName}
+				<p class="ff-help">Selected: {pngName} (uploads on save)</p>
+			{:else if form.drawing_image_path}
+				<p class="ff-help">Current: {form.drawing_image_path}</p>
+			{/if}
+			<label class="ff">
+				<span class="ff-label">3D model (STL)</span>
+				<input class="ff-input" type="file" accept=".stl,model/stl,application/octet-stream" onchange={onStl} />
+			</label>
+			{#if stlName}
+				<p class="ff-help">Selected: {stlName} (uploads on save)</p>
+			{:else if form.model_path}
+				<p class="ff-help">Current: {form.model_path}</p>
+			{/if}
+		</div>
+	{/if}
 
 	{#if error}<p class="warn">{error}</p>{/if}
 
