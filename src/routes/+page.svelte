@@ -45,6 +45,17 @@
 
 	const signOut = async () => {
 		await supabase.auth.signOut();
+		// Shared/lab machines: wipe this account's local VANGUARD state so the next
+		// user does not inherit it. Keep vanguard_did (anonymous telemetry cohort
+		// id, never tied to an account) stable across users of the device.
+		try {
+			for (let i = localStorage.length - 1; i >= 0; i--) {
+				const k = localStorage.key(i);
+				if (k && k.indexOf('vanguard_') === 0 && k !== 'vanguard_did') localStorage.removeItem(k);
+			}
+		} catch {
+			/* localStorage unavailable; nothing to clear */
+		}
 		await invalidateAll();
 	};
 

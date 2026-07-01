@@ -36,7 +36,8 @@ export const PROGRESSION_KEYS = [
 	'vanguard_build',
 	'vanguard_scores',
 	'vanguard_games',
-	'vanguard_tutdone'
+	'vanguard_tutdone',
+	'vanguard_lastInitials'
 ];
 
 /** Telemetry / device identity: stays local, never synced. */
@@ -153,6 +154,11 @@ export function mergeProgression(
 		out.vanguard_tutdone = a.vanguard_tutdone ?? b.vanguard_tutdone!;
 	}
 
+	// Last-used initials: cross-device, last writer to cloud wins (b = incoming).
+	if (b.vanguard_lastInitials != null || a.vanguard_lastInitials != null) {
+		out.vanguard_lastInitials = b.vanguard_lastInitials ?? a.vanguard_lastInitials;
+	}
+
 	return out;
 }
 
@@ -220,6 +226,10 @@ export function mergeIntoStored(
 	const { progression, prefs } = splitSnapshot(snapshot);
 	stored.progression = mergeProgression(stored.progression, progression);
 	stored.prefs[deviceClass] = { ...prefs, _ts: nowIso };
+	// lastInitials is progression now; evict any stale copy older builds left in
+	// a pref bucket so the per-device pref can never shadow the synced value.
+	if (stored.prefs.mobile) delete stored.prefs.mobile.vanguard_lastInitials;
+	if (stored.prefs.desktop) delete stored.prefs.desktop.vanguard_lastInitials;
 	return stored;
 }
 

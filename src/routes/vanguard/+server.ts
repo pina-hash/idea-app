@@ -45,7 +45,7 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 	var native = localStorage.setItem.bind(localStorage);
 
 	// --- merge logic (keep aligned with src/lib/vanguard-save.ts) ---
-	var PROGRESSION_KEYS = ['vanguard_build', 'vanguard_scores', 'vanguard_games', 'vanguard_tutdone'];
+	var PROGRESSION_KEYS = ['vanguard_build', 'vanguard_scores', 'vanguard_games', 'vanguard_tutdone', 'vanguard_lastInitials'];
 	var DEVICE_LOCAL_KEYS = ['vanguard_did'];
 	function num(v) { var n = v === true ? 1 : v === false ? 0 : Number(v); return isFinite(n) ? n : 0; }
 	function parseObj(s) { if (typeof s !== 'string') return null; try { var v = JSON.parse(s); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null; } catch (e) { return null; } }
@@ -71,6 +71,7 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 		if (a.vanguard_games != null || b.vanguard_games != null) out.vanguard_games = String(Math.max(num(a.vanguard_games), num(b.vanguard_games)));
 		if (a.vanguard_tutdone === '1' || b.vanguard_tutdone === '1') out.vanguard_tutdone = '1';
 		else if (a.vanguard_tutdone != null || b.vanguard_tutdone != null) out.vanguard_tutdone = (a.vanguard_tutdone != null ? a.vanguard_tutdone : b.vanguard_tutdone);
+		if (b.vanguard_lastInitials != null || a.vanguard_lastInitials != null) out.vanguard_lastInitials = (b.vanguard_lastInitials != null ? b.vanguard_lastInitials : a.vanguard_lastInitials);
 		return out;
 	}
 	function deviceClass() {
@@ -87,9 +88,13 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 	function snapshot() { var out = {}; for (var i = 0; i < localStorage.length; i++) { var key = localStorage.key(i); if (key && key.indexOf(PREFIX) === 0 && DEVICE_LOCAL_KEYS.indexOf(key) === -1) out[key] = localStorage.getItem(key); } return out; }
 	function applyCloud(cloud) {
 		var merged = mergeProgression((cloud && cloud.progression) || {}, localProgression());
+		// lastInitials follows the account across devices: the cloud value wins on
+		// seed so any device shows the most recently used initials.
+		var _ci = cloud && cloud.progression && cloud.progression.vanguard_lastInitials;
+		if (_ci != null) merged.vanguard_lastInitials = _ci;
 		for (var mk in merged) { if (Object.prototype.hasOwnProperty.call(merged, mk)) { try { native(mk, merged[mk]); } catch (e) {} } }
 		var pb = cloud && cloud.prefs && cloud.prefs[DEVICE];
-		if (pb) { for (var pk in pb) { if (pk !== '_ts' && Object.prototype.hasOwnProperty.call(pb, pk) && typeof pb[pk] === 'string') { try { native(pk, pb[pk]); } catch (e) {} } } }
+		if (pb) { for (var pk in pb) { if (pk !== '_ts' && pk !== 'vanguard_lastInitials' && Object.prototype.hasOwnProperty.call(pb, pk) && typeof pb[pk] === 'string') { try { native(pk, pb[pk]); } catch (e) {} } } }
 	}
 
 	// 1. Seed: merge the cloud save into localStorage BEFORE the game reads it.
@@ -113,14 +118,22 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 		if (detailEl && typeof detail === 'string') detailEl.textContent = detail;
 	}
 
+	var _retried = false;
 	function doPush() {
 		if (!SIGNED_IN) return;
 		setStatus('saving', 'saving...');
 		fetch('/api/vanguard-save', {
 			method: 'POST', headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ deviceClass: DEVICE, snapshot: snapshot() }), keepalive: true
-		}).then(function (r) { setStatus(r.ok ? 'saved' : 'error', r.ok ? fmtTime() : 'try again'); })
-		.catch(function () { setStatus('error', 'offline?'); });
+		}).then(function (r) {
+			if (r.ok) { _retried = false; setStatus('saved', fmtTime()); return; }
+			if (!_retried) { _retried = true; setStatus('saving', 'retrying...'); setTimeout(doPush, 4000); }
+			else { _retried = false; setStatus('error', 'try again'); }
+		})
+		.catch(function () {
+			if (!_retried) { _retried = true; setStatus('saving', 'retrying...'); setTimeout(doPush, 4000); }
+			else { _retried = false; setStatus('error', 'offline?'); }
+		});
 	}
 
 	var timer = null;
