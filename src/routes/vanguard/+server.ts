@@ -141,6 +141,7 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 	// of cloud I/O. Fire-and-forget, swallow errors. Left undefined when signed
 	// out so the game's optional call no-ops.
 	if (SIGNED_IN) {
+		window.__ideaSignedIn = true;
 		window.__ideaRecordRun = function (summary) {
 			try {
 				fetch('/api/vanguard-run', {
@@ -148,6 +149,14 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 					body: JSON.stringify(summary || {}), keepalive: true
 				}).catch(function () {});
 			} catch (e) {}
+		};
+		// Read history for the in-game overlay. Resolves to { runs, summary };
+		// never throws into game code (errors normalize to an empty result).
+		window.__ideaGetHistory = function () {
+			return fetch('/api/vanguard-run', { headers: { 'accept': 'application/json' } })
+				.then(function (r) { if (!r.ok) throw new Error('history ' + r.status); return r.json(); })
+				.then(function (j) { return { runs: (j && j.runs) || [], summary: (j && j.summary) || null }; })
+				.catch(function () { return { runs: [], summary: null }; });
 		};
 	}
 

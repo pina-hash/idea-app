@@ -333,6 +333,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <button class="mini" id="titleKeys">SETTINGS</button>
     <button class="mini" id="howtoBtn" style="border-color:var(--cyan);color:var(--cyan)">CALIBRATION</button>
     <button class="mini" id="logBtn">UPDATE LOG</button>
+    <button class="mini" id="histBtn" style="border-color:var(--gold);color:var(--gold)">RUN HISTORY</button>
     <div class="tag" style="color:var(--cyan);letter-spacing:.12em;margin-top:2px">FOUND A BUG OR HAVE AN IDEA?</div>
     <div class="fbslot" id="fbTitle"></div>
   </div>
@@ -372,6 +373,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <div class="tag" id="enterHint">ENTER INITIALS</div>
     <div class="initials" id="initials"></div>
     <button class="obtn sub" id="submitBtn">SUBMIT</button>
+    <button class="mini" id="histBtnOver" style="border-color:var(--gold);color:var(--gold)">RUN HISTORY</button>
     <div class="tag" style="color:var(--cyan);letter-spacing:.12em;margin-top:2px">FOUND A BUG OR HAVE AN IDEA?</div>
     <div class="fbslot" id="fbOver"></div>
   </div>
@@ -465,6 +467,13 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <div id="logBody" class="board" style="max-width:320px;max-height:60vh;overflow-y:auto;text-align:left"></div>
     <button class="obtn" id="logClose">CLOSE</button>
   </div>
+
+  <!-- RUN HISTORY -->
+  <div class="ovl hidden" id="ovlHist" style="background:rgba(2,10,4,.96);z-index:13;gap:12px">
+    <h2 class="ovh">RUN HISTORY</h2>
+    <div id="histBody" class="board" style="max-width:340px;max-height:60vh;overflow-y:auto;text-align:left"></div>
+    <button class="obtn" id="histClose">CLOSE</button>
+  </div>
   <button class="mini hidden" id="calibSkip" style="position:absolute;bottom:14px;right:14px;z-index:14;border-color:var(--dim);color:var(--dim)">SKIP CALIBRATION ›</button>
   </div><!-- /stage -->
 
@@ -492,7 +501,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='150';
+const W=630,H=840; const VERSION='151';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -3958,7 +3967,7 @@ function moveStickKnob(){ const k=document.getElementById('stickknob'); if(k)k.s
   deck.addEventListener('pointerdown',e=>{ if(state!=='play')return; if(e.target.closest('.tbtn'))return; if(e.pointerType==='mouse')return; const r=deck.getBoundingClientRect(); const lx=e.clientX-r.left, ly=e.clientY-r.top; if(lx>r.width*0.5)return; try{e.preventDefault();}catch(_){ } try{deck.setPointerCapture(e.pointerId);}catch(_){ } stick.on=true; stick.id=e.pointerId; stick.ox=lx; stick.oy=ly; stick.dx=0; stick.dy=0; showStick(lx,ly); },{passive:false});
   deck.addEventListener('pointermove',e=>{ if(!stick.on||e.pointerId!==stick.id)return; const r=deck.getBoundingClientRect(); const lx=e.clientX-r.left, ly=e.clientY-r.top; const vx=lx-stick.ox, vy=ly-stick.oy, d=Math.hypot(vx,vy); const DZ=5, MR=92; if(d<DZ){ stick.dx=0; stick.dy=0; } else { const m=Math.min(1,(d-DZ)/(MR-DZ)), mc=m*m; stick.dx=vx/d*mc; stick.dy=vy/d*mc; } moveStickKnob(); },{passive:false});
 })();
-function uiBlocked(){ const ids=['ovlOutfit','ovlSettings','ovlKeys','ovlBoard','ovlTut','ovlLog','ovlConfirm','ovlCalibAsk']; for(const id of ids){ const el2=document.getElementById(id); if(el2 && !el2.classList.contains('hidden')) return true; } return false; }
+function uiBlocked(){ const ids=['ovlOutfit','ovlSettings','ovlKeys','ovlBoard','ovlTut','ovlLog','ovlHist','ovlConfirm','ovlCalibAsk']; for(const id of ids){ const el2=document.getElementById(id); if(el2 && !el2.classList.contains('hidden')) return true; } return false; }
 function typingInField(){ const a=document.activeElement; return !!a && ((window.__devInput&&a===window.__devInput) || (a.classList&&a.classList.contains('fbinline'))); }
 stage.addEventListener('pointerdown',e=>{ Audio_.init(); Audio_.resume();
   if(e.target.closest('.tbtn')||e.target.closest('.ovl')||e.target.closest('.mini')||e.target.closest('.fbovl'))return;
@@ -4006,6 +4015,7 @@ window.addEventListener('keydown',e=>{ if(typingInField()) return;
   if(!document.getElementById('ovlOutfit').classList.contains('hidden')) return;
   if(!document.getElementById('ovlTut').classList.contains('hidden')){ if(e.key==='Escape')closeTut(); e.preventDefault(); return; }
   if(!document.getElementById('ovlLog').classList.contains('hidden')){ if(e.key==='Escape')closeLog(); e.preventDefault(); return; }
+  if(!document.getElementById('ovlHist').classList.contains('hidden')){ if(e.key==='Escape')closeHist(); e.preventDefault(); return; }
   if(!document.getElementById('ovlConfirm').classList.contains('hidden')){
     if(e.key==='Enter') doRestart(); else if(e.key==='Escape') cancelRestart();
     e.preventDefault(); return; }
@@ -4344,6 +4354,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'151',date:'2026',items:['RUN HISTORY: view your past runs and lifetime stats when signed in.']},
  {ver:'149',date:'2026',items:['CALIBRATION now ends with a live combat wave, then lets you jump straight into a run or head back to the title']},
  {ver:'148',date:'2026',items:['CALIBRATION now asks before it begins, so your sound is on from the first shot','CALIBRATION now also teaches your HEAVY weapon and how i¢ and CORE pickups work']},
  {ver:'147',date:'2026',items:['New CALIBRATION training: a hands-on tutorial that teaches movement, firing, dodging, and parry by doing instead of by reading. Launches on your first run and replayable any time from the title']},
@@ -4399,6 +4410,50 @@ function closeLog(){ el('ovlLog').classList.add('hidden'); }
 { const c=el('logClose'); if(c) c.addEventListener('click',e=>{ e.stopPropagation(); closeLog(); }); }
 { const b=el('logBtn'); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); openLog(); }); }
 { const cv=el('cabVer'); if(cv){ cv.style.cursor='pointer'; cv.title='View update log'; cv.addEventListener('click',e=>{ e.stopPropagation(); openLog(); }); } }
+
+/* RUN HISTORY overlay: reads the signed-in player's runs via the injected
+   window.__ideaGetHistory helper. Degrades gracefully when the helper is
+   absent (signed out, or served without the injection on any other host). */
+function _hEsc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function _hHuman(v){ return (v&&String(v).length)?_hEsc(String(v).replace(/_/g,' ').toUpperCase()):'—'; }
+function _hNum(v){ return (typeof v==='number'&&isFinite(v))?v.toLocaleString():'0'; }
+function _hTime(s){ s=Math.max(0,Math.round(typeof s==='number'?s:0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function _hWhen(iso){ try{ const d=new Date(iso); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }catch(e){ return _hEsc(iso); } }
+function renderHist(){ const box=el('histBody'); if(!box)return;
+  if(typeof window.__ideaGetHistory!=='function'){
+    box.innerHTML='<div style="color:var(--white);line-height:1.5">Sign in to track your run history.</div>'
+      +'<div style="margin-top:8px"><a href="/" style="color:var(--gold);text-decoration:none">SIGN IN ›</a></div>';
+    return; }
+  box.innerHTML='<div style="color:var(--dim)">Loading your runs…</div>';
+  window.__ideaGetHistory().then(function(res){
+    const runs=(res&&res.runs)||[], sm=(res&&res.summary)||null;
+    if(!sm || !runs.length){ box.innerHTML='<div style="color:var(--white);line-height:1.5">No runs recorded yet. Go play a run and it will show up here.</div>'; return; }
+    let h='<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:9px">'
+      +'<span style="color:var(--dim);font-size:10px">RUNS <b style="color:var(--white)">'+_hNum(sm.totalRuns)+'</b></span>'
+      +'<span style="color:var(--dim);font-size:10px">BEST <b style="color:var(--gold)">'+_hNum(sm.bestScore)+'</b></span>'
+      +'<span style="color:var(--dim);font-size:10px">SECTOR <b style="color:var(--white)">'+_hNum(sm.highestSector)+'</b></span>'
+      +'<span style="color:var(--dim);font-size:10px">WEAPON <b style="color:var(--cyan)">'+_hHuman(sm.favoriteWeapon)+'</b></span>'
+      +'</div>';
+    h+='<div style="display:flex;flex-direction:column;gap:3px">';
+    runs.slice(0,10).forEach(function(r){
+      const md=_hHuman(r.mode), mc=(r.mode==='hardcore')?'var(--amber)':(r.mode==='arcade')?'var(--dim)':'var(--green)';
+      h+='<div style="font-size:10.5px;line-height:1.5;color:var(--white);border-bottom:1px solid rgba(74,122,82,0.2);padding:1px 0">'
+        +'<span style="color:var(--dim)">'+_hWhen(r.created_at)+'</span> · '
+        +'<span style="color:'+mc+'">'+md+'</span> · '
+        +'<b style="color:var(--gold)">'+_hNum(r.score)+'</b> · '
+        +'S'+_hNum(r.sector)+' · '+_hNum(r.accuracy)+'% · '+_hTime(r.time_s)
+        +' · <span style="color:var(--dim)">'+_hHuman(r.death_cause)+'</span></div>';
+    });
+    h+='</div>';
+    h+='<div style="margin-top:9px"><a href="/vanguard/history" style="color:var(--gold);text-decoration:none">FULL HISTORY ›</a></div>';
+    box.innerHTML=h;
+  }).catch(function(){ box.innerHTML='<div style="color:var(--amber)">Could not load run history. Try again later.</div>'; });
+}
+function openHist(){ el('ovlHist').classList.remove('hidden'); renderHist(); }
+function closeHist(){ el('ovlHist').classList.add('hidden'); }
+{ const c=el('histClose'); if(c) c.addEventListener('click',e=>{ e.stopPropagation(); closeHist(); }); }
+{ const b=el('histBtn'); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); openHist(); }); }
+{ const bo=el('histBtnOver'); if(bo) bo.addEventListener('click',e=>{ e.stopPropagation(); openHist(); }); }
 try{ if(!localStorage.getItem('vanguard_tutdone')){ const _ca=document.getElementById('ovlCalibAsk'); if(_ca) _ca.classList.remove('hidden'); } }catch(e){}
 
 /* board mode tabs */

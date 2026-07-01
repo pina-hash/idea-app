@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { summarizeRuns, type VanguardRun } from '$lib/vanguard-history';
 import type { RequestHandler } from './$types';
 
 /**
@@ -10,10 +11,39 @@ import type { RequestHandler } from './$types';
  * `src/routes/vanguard/+server.ts`), so it stays lightweight: whitelist and
  * coerce the incoming fields, insert one row, return `{ ok: true }`. No
  * read-back, no merge.
+ *
+ * GET returns the signed-in user's own runs (RLS restricts to their rows): the
+ * 25 most recent (newest first) plus a `summary` (see `summarizeRuns`) computed
+ * over ALL of their runs. The in-game overlay uses this via the injected helper.
  */
 
 const MODES = new Set(['normal', 'hardcore', 'arcade']);
 const TEXT_MAX = 40;
+
+/** Columns of `vanguard_runs`, in the order the history helper expects. */
+const RUN_COLUMNS =
+	'id, user_id, created_at, mode, version, score, sector, accuracy, time_s, kills, bosses, coins_earned, primary_weapon, heavy_weapon, death_cause';
+
+const RECENT_LIMIT = 25;
+
+export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
+	if (!claims) {
+		return json({ error: 'unauthorized' }, { status: 401 });
+	}
+
+	const { data, error } = await supabase
+		.from('vanguard_runs')
+		.select(RUN_COLUMNS)
+		.eq('user_id', claims.sub)
+		.order('created_at', { ascending: false });
+
+	if (error) {
+		return json({ error: error.message }, { status: 500 });
+	}
+
+	const all = (data ?? []) as unknown as VanguardRun[];
+	return json({ runs: all.slice(0, RECENT_LIMIT), summary: summarizeRuns(all) });
+};
 
 /** Coerce to a bounded integer, or null when absent/non-finite. */
 function intOr(v: unknown, min: number, max: number): number | null {
