@@ -1,5 +1,7 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
+	import TiltCard from '$lib/gauntlet/viewport/TiltCard.svelte';
+	import { countUp } from '$lib/gauntlet/viewport/motion';
 	import { MODES, familyLabel, modeStatusLabel } from '$lib/gauntlet';
 
 	let { data } = $props();
@@ -28,11 +30,11 @@
 		</p>
 		<div class="dojo-stats">
 			<div class="dojo-stat">
-				<span class="stat-value">{liveCount}<span class="stat-of">/ {MODES.length}</span></span>
+				<span class="stat-value"><span use:countUp={liveCount}>{liveCount}</span><span class="stat-of">/ {MODES.length}</span></span>
 				<span class="stat-label">Modes live</span>
 			</div>
 			<div class="dojo-stat">
-				<span class="stat-value">{totalCleared}</span>
+				<span class="stat-value" use:countUp={totalCleared}>{totalCleared}</span>
 				<span class="stat-label">Challenges cleared</span>
 			</div>
 			<div class="dojo-stat">
@@ -66,18 +68,20 @@
 			{@const total = (modeStats.totals as Record<string, number>)[mode.id] ?? 0}
 			{@const cleared = (modeStats.cleared as Record<string, number>)[mode.id] ?? 0}
 			{#if mode.status === 'live' && mode.href}
-				<a class="mode-card live" href={mode.href}>
-					<div class="mode-top">
-						<span class="mode-family {mode.family}">{familyLabel(mode.family)}</span>
-						<span class="mode-status status-live">Live</span>
-					</div>
-					<h3 class="mode-name">{mode.name}</h3>
-					<p class="mode-tagline">{mode.tagline}</p>
-					<div class="mode-foot">
-						<span class="mode-scoring">{mode.scoring}</span>
-						<span class="mode-progress">{cleared} / {total} cleared</span>
-					</div>
-				</a>
+				<TiltCard family={mode.family}>
+					<a class="mode-card live" href={mode.href}>
+						<div class="mode-top">
+							<span class="mode-family {mode.family}">{familyLabel(mode.family)}</span>
+							<span class="mode-status status-live">Live</span>
+						</div>
+						<h3 class="mode-name">{mode.name}</h3>
+						<p class="mode-tagline">{mode.tagline}</p>
+						<div class="mode-foot">
+							<span class="mode-scoring">{mode.scoring}</span>
+							<span class="mode-progress">{cleared} / {total} cleared</span>
+						</div>
+					</a>
+				</TiltCard>
 			{:else}
 				<div class="mode-card locked" aria-disabled="true">
 					<div class="mode-top">

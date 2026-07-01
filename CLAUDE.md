@@ -456,10 +456,23 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   used to live on the drawing. `three` is a runtime dependency, imported
   dynamically (browser-only, SSR-safe). The macro/reveal/token/leaderboard flow is
   unchanged; reveal-on-start still gates the dimensioned drawing.
-- **Visuals:** GAUNTLET uses the **app-shell** side of the theme (tokens +
-  Rajdhani / Share Tech Mono), with a `.gauntlet`-scoped block in `src/app.css`
-  (page content) plus global header-breadcrumb classes. It does not use the
-  `.legacy-index` landing theme. No new colors or fonts.
+- **Visuals (standing directive):** all GAUNTLET UI, current and new, must
+  conform to the **VIEWPORT design system** documented in
+  `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in
+  `src/lib/gauntlet/viewport/viewport.css` (scoped to `.gt-root`, the
+  `/gauntlet` layout wrapper); ambient components (canvas background, CAD
+  cursor, feature-tree nav, trademark footer, entrance choreography) mount
+  once in `src/routes/gauntlet/+layout.svelte` so every page inherits them.
+  Read tokens and reuse the viewport components rather than writing one-off
+  styles. `--crimson` is reserved for live/rec/error states only, never a
+  general accent. Modeling modes are green, knowledge modes cyan. Everything
+  animated is gated behind `prefers-reduced-motion`. SOLIDWORKS branding is
+  nominative text only: never the logo, a lookalike, or its red-on-white
+  scheme; the Dassault Systemes disclaimer footer stays on every page. The
+  VIEWPORT layer is visual/interaction only, it never touches data flow,
+  auth, scoring, or room timing. The older `.gauntlet` block in `src/app.css`
+  remains but is re-themed by the scoped token overrides; new styles go in
+  the viewport system, not there.
 
 ## Changelog automation
 

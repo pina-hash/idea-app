@@ -1,0 +1,249 @@
+/* ==========================================================================
+   IDEA // GAUNTLET "VIEWPORT" design system.
+   Single source of truth for every aesthetic value in the GAUNTLET section:
+   colors, glows, radii, and fonts all live here as tokens scoped to .gt-root
+   (the /gauntlet layout wrapper), so they never leak into the rest of the app.
+   Documentation: docs/GAUNTLET-DESIGN.md. Do not hardcode aesthetic values in
+   GAUNTLET page or component files; read these tokens.
+   ========================================================================== */
+
+.gt-root {
+	/* --- Surfaces --- */
+	--void: #04070a; /* page base: cooled graphite-black (canvas paints it) */
+	--panel: #0a1014; /* cards and panels */
+	--panel-2: #0e161b; /* inputs, header bars, inset chrome */
+
+	/* --- Accents --- */
+	--green: #00ff41; /* primary; MODELING family */
+	--cyan: #00f0ff; /* KNOWLEDGE family */
+	--lime: #c8ff00; /* gold-green accent: hover shift, callouts */
+	--steel: #3b6e8f; /* ambient viewport light (grid floor, fog) */
+	--crimson: #ff3355; /* RESERVED: live/rec/error states ONLY */
+
+	/* --- Origin triad --- */
+	--ax-x: #ff4d57;
+	--ax-y: #00ff41;
+	--ax-z: #3f8cff;
+
+	/* --- Text --- */
+	--white: #e8fff0; /* body text */
+	--dim: #5f8a78; /* secondary */
+	--ice: #88ddff; /* data readouts */
+
+	/* --- Glows --- */
+	--glow-green: 0 0 10px rgba(0, 255, 65, 0.75), 0 0 30px rgba(0, 255, 65, 0.28);
+	--glow-cyan: 0 0 10px rgba(0, 240, 255, 0.75), 0 0 30px rgba(0, 240, 255, 0.28);
+	--glow-lime: 0 0 10px rgba(200, 255, 0, 0.75), 0 0 30px rgba(200, 255, 0, 0.28);
+	--glow-crimson: 0 0 10px rgba(255, 51, 85, 0.75), 0 0 30px rgba(255, 51, 85, 0.28);
+
+	/* --- Geometry --- */
+	--radius-card: 14px;
+	--radius-ctl: 10px;
+
+	/* --- Fonts (loaded once in the root layout via @fontsource) --- */
+	--font-head: 'Orbitron', sans-serif; /* display / headings */
+	--font-body: 'Rajdhani', sans-serif; /* body / UI */
+	--font-data: 'Share Tech Mono', monospace; /* data, timers, coords, metadata */
+
+	/* --- Re-point the app-shell tokens the existing .gauntlet styles consume,
+	       so every legacy rule inherits the VIEWPORT palette for free. --- */
+	--bg0: var(--void);
+	--bg1: var(--panel);
+	--bg2: var(--panel-2);
+	--gold: var(--lime);
+	--line: #16242c; /* steel hairline */
+	--line-strong: rgba(0, 255, 65, 0.4);
+	--font-display: var(--font-body);
+	--font-mono: var(--font-data);
+}
+
+/* Page content paints above the ViewportBackground canvas (z 0). */
+.gt-root .gt-content {
+	position: relative;
+	z-index: 1;
+}
+
+/* ==========================================================================
+   Re-skin layer: retune the existing shared .gauntlet classes to the system.
+   ========================================================================== */
+
+/* --- Type: Orbitron display headings, mono data --- */
+.gt-root .gauntlet :is(h1, h2, h3.mode-name, .dojo-title, .gate-title) {
+	font-family: var(--font-head);
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+}
+.gt-root .gauntlet h1 {
+	font-size: 1.7rem;
+}
+.gt-root .gauntlet h2 {
+	font-size: 1.05rem;
+	color: var(--white);
+}
+.gt-root .gauntlet h3.mode-name {
+	font-size: 0.95rem;
+	font-weight: 500;
+}
+
+/* --- Radii --- */
+.gt-root .gauntlet
+	:is(
+		.card,
+		.mode-card,
+		.code-box,
+		.result-banner,
+		.drawing-frame,
+		.preview-toggle,
+		.practice,
+		.challenge-row,
+		.supervised-note,
+		.author-callout,
+		.roster
+	) {
+	border-radius: var(--radius-card);
+}
+.gt-root .gauntlet :is(.btn, .ff-input, .mass-input-wrap, select, input, textarea) {
+	border-radius: var(--radius-ctl);
+}
+
+/* --- Smooth state changes everywhere (never instant) --- */
+.gt-root .gauntlet
+	:is(a, button, .card, .mode-card, .challenge-row, .result-banner, .status-badge, .diff, input, select, summary) {
+	transition:
+		color 0.25s ease,
+		background-color 0.25s ease,
+		border-color 0.25s ease,
+		box-shadow 0.3s ease,
+		opacity 0.25s ease,
+		transform 0.18s ease;
+}
+
+/* --- Buttons: green->lime fill, glow, tactile press --- */
+.gt-root .gauntlet .btn:not(.secondary) {
+	background: linear-gradient(135deg, var(--green), var(--lime));
+	border: none;
+	color: #041008;
+	font-weight: 700;
+	box-shadow: 0 0 14px rgba(0, 255, 65, 0.35);
+}
+.gt-root .gauntlet .btn:not(.secondary):hover {
+	box-shadow: var(--glow-lime);
+}
+.gt-root .gauntlet .btn:active {
+	transform: scale(0.965);
+}
+.gt-root .gauntlet .btn.secondary:hover {
+	box-shadow: 0 0 12px rgba(0, 255, 65, 0.25);
+}
+
+/* --- Crimson is reserved: error text and the room LIVE state --- */
+.gt-root .gauntlet .warn {
+	color: var(--crimson);
+	text-shadow: 0 0 8px rgba(255, 51, 85, 0.4);
+}
+.gt-root .gauntlet .danger-btn {
+	background: transparent;
+	border: 1px solid var(--crimson);
+	color: var(--crimson);
+	box-shadow: none;
+}
+.gt-root .gauntlet .danger-btn:hover {
+	box-shadow: var(--glow-crimson);
+}
+/* Live room badge: REC treatment with a pulsing record dot. */
+.gt-root .gauntlet .status-badge.status-live {
+	color: var(--crimson);
+	border-color: rgba(255, 51, 85, 0.5);
+	text-shadow: 0 0 8px rgba(255, 51, 85, 0.5);
+}
+.gt-root .gauntlet .status-badge.status-live::before {
+	content: '';
+	display: inline-block;
+	width: 7px;
+	height: 7px;
+	margin-right: 0.4em;
+	border-radius: 50%;
+	background: var(--crimson);
+	box-shadow: 0 0 6px rgba(255, 51, 85, 0.8);
+	animation: gt-rec 1.4s ease-in-out infinite;
+	vertical-align: 1px;
+}
+@keyframes gt-rec {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.25;
+	}
+}
+
+/* --- Glow-breathe on key numeric readouts (spec values, submit codes) --- */
+.gt-root .gauntlet :is(.spec .val.meta, .code-value, .stat-value) {
+	animation: gt-breathe 3.4s ease-in-out infinite;
+}
+@keyframes gt-breathe {
+	0%,
+	100% {
+		text-shadow: 0 0 6px rgba(136, 221, 255, 0.25);
+	}
+	50% {
+		text-shadow: 0 0 14px rgba(136, 221, 255, 0.6);
+	}
+}
+
+/* --- Family color-coding: modeling green, knowledge cyan --- */
+.gt-root .gauntlet .mode-family.modeling {
+	color: var(--green);
+}
+.gt-root .gauntlet .mode-family.knowledge {
+	color: var(--cyan);
+}
+
+/* --- Mode grid gets a perspective stage for TiltCard children --- */
+.gt-root .gauntlet .mode-grid {
+	perspective: 1200px;
+}
+
+/* --- Entrance choreography (classes driven by motion.ts / the layout sweep) --- */
+.gt-root .gt-pre {
+	opacity: 0;
+	transform: translateY(14px);
+}
+.gt-root .gt-in {
+	opacity: 1;
+	transform: none;
+	transition:
+		opacity 0.6s ease,
+		transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/* --- Keyboard focus stays visible on everything interactive --- */
+.gt-root :focus-visible {
+	outline: 2px solid var(--lime);
+	outline-offset: 2px;
+}
+
+/* --- Custom cursor active (CursorLayer adds/removes this class) --- */
+.gt-root.gt-cursor-on,
+.gt-root.gt-cursor-on * {
+	cursor: none !important;
+}
+
+/* ==========================================================================
+   Accessibility floor: under reduced motion the whole system goes still.
+   Canvas/cursor/tilt/count-up self-disable in JS; this kills the CSS side.
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+	.gt-root *,
+	.gt-root *::before,
+	.gt-root *::after {
+		animation: none !important;
+		transition: none !important;
+	}
+	.gt-root .gt-pre {
+		opacity: 1;
+		transform: none;
+	}
+}

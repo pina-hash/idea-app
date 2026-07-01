@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import Header from '$lib/gauntlet/Header.svelte';
 	import Asset from '$lib/gauntlet/Asset.svelte';
+	import CountdownOverlay from '$lib/gauntlet/viewport/CountdownOverlay.svelte';
 	import {
 		difficultyLabel,
 		formatTime,
@@ -47,11 +48,19 @@
 	// live, so the racer retries on the shared room clock.
 	const submitted = $derived(!!myResult && myResult.is_correct);
 
+	// VIEWPORT flourish: 3-2-1-BUILD when the round goes live in front of us.
+	// Purely visual; the authoritative clock stays the server's started_at.
+	// null until the first effect run, so a page opened mid-round never fires it.
+	let countdown = $state(false);
+	let prevRoomState: string | null = null;
+
 	// The drawing is gated server-side: only revealed once the room is live. A
 	// plain (non-reactive) guard so the effect only fires the RPC once per round.
 	let revealRequested = false;
 	$effect(() => {
 		const state = room.state;
+		if (prevRoomState === 'lobby' && state === 'live') countdown = true;
+		prevRoomState = state;
 		if (state === 'lobby') {
 			// Reset for a (future) re-opened round.
 			revealRequested = false;
@@ -169,6 +178,8 @@
 	{userRole}
 	crumbs={[{ label: 'Live Rooms', href: '/gauntlet/rooms' }, { label: `Room ${room.join_code}` }]}
 />
+
+<CountdownOverlay active={countdown} onDone={() => (countdown = false)} />
 
 <main class="gauntlet">
 	<div class="room-head">
