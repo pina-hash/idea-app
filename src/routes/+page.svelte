@@ -100,11 +100,30 @@
 			},
 			{ threshold: 0.08 }
 		);
-		document.querySelectorAll('.course-card').forEach((el, i) => {
+		const observeCard = (el: Element, i = 0) => {
 			(el as HTMLElement).style.transitionDelay = i * 0.08 + 's';
 			observer.observe(el);
-		});
+		};
+		document.querySelectorAll('.course-card').forEach(observeCard);
 		cleanups.push(() => observer.disconnect());
+
+		// Cards swapped in later (the pinned "Your class" summary, the picker
+		// reappearing on "Change class") never hit the querySelectorAll above,
+		// so they'd sit at opacity:0 forever without ever being observed.
+		const coursesEl = document.querySelector('.courses');
+		if (coursesEl) {
+			const cardWatcher = new MutationObserver((mutations) => {
+				for (const m of mutations) {
+					m.addedNodes.forEach((node) => {
+						if (!(node instanceof HTMLElement)) return;
+						if (node.classList.contains('course-card')) observeCard(node);
+						node.querySelectorAll?.('.course-card').forEach((el) => observeCard(el));
+					});
+				}
+			});
+			cardWatcher.observe(coursesEl, { childList: true, subtree: true });
+			cleanups.push(() => cardWatcher.disconnect());
+		}
 
 		const changelogBtn = document.getElementById('changelog-btn');
 		const changelogBody = document.getElementById('changelog-body');
@@ -133,15 +152,15 @@
 			cleanups.push(() => submitToggle.removeEventListener('click', onSubmitToggle));
 		}
 
-		document.querySelectorAll('.course-header.collapsible').forEach((header) => {
-			const arrow = document.createElement('span');
-			arrow.className = 'course-collapse-arrow';
-			arrow.textContent = '▾';
-			header.appendChild(arrow);
-			const onToggle = () => header.closest('.course-card')?.classList.toggle('collapsed');
-			header.addEventListener('click', onToggle);
-			cleanups.push(() => header.removeEventListener('click', onToggle));
-		});
+		// Delegated (not per-node) so it still works on cards that mount later,
+		// like the pinned "Your class" card that only appears once a signed-in
+		// student picks a section.
+		const onCollapsibleClick = (e: MouseEvent) => {
+			const header = (e.target as HTMLElement).closest('.course-header.collapsible');
+			header?.closest('.course-card')?.classList.toggle('collapsed');
+		};
+		document.addEventListener('click', onCollapsibleClick);
+		cleanups.push(() => document.removeEventListener('click', onCollapsibleClick));
 
 		const canvas = document.getElementById('bg-canvas') as HTMLCanvasElement | null;
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -236,6 +255,7 @@
 				{/if}
 				{#if s.isNew}<span class="badge-new">New</span>{/if}
 			</div>
+			<span class="course-collapse-arrow">&#9662;</span>
 		</div>
 		<div class="assignment-list">
 			{#if s.assignments && s.assignments.length}

@@ -48,6 +48,8 @@
 	const onEnter = () => {
 		if (!enabled) return;
 		rect = el.getBoundingClientRect();
+		// Track the cursor 1:1 in real time; only the leave settle eases.
+		el.style.transition = 'none';
 	};
 
 	const onMove = (e: MouseEvent) => {
@@ -65,6 +67,7 @@
 		}
 		rect = null;
 		if (!enabled) return;
+		el.style.transition = 'transform 0.18s ease-out';
 		el.style.setProperty('--rx', '0deg');
 		el.style.setProperty('--ry', '0deg');
 	};
