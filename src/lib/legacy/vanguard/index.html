@@ -471,7 +471,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='145';
+const W=630,H=840; const VERSION='146';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -663,7 +663,7 @@ let runFactionSeq=[], waveFk=null;
 let hybridTimer=0;
 let gameMode='normal';
 const START_BUDGET=1000;
-function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
+function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
 try{ const _sb=JSON.parse(localStorage.getItem('vanguard_build')||'null'); if(_sb&&_sb.up){ startBuild=freshBuild(); startBuild.up=Object.assign(startBuild.up,_sb.up); startBuild.unlocked=Object.assign(startBuild.unlocked,_sb.unlocked||{}); startBuild.heavyUnlocked=Object.assign(startBuild.heavyUnlocked,_sb.heavyUnlocked||{}); startBuild.heavy=_sb.heavy||'beam'; startBuild.wtype=_sb.wtype||'spread'; startBuild.bombs=_sb.bombs||2; startBuild.shieldHits=_sb.shieldHits||0; startBuild.drone=_sb.drone?{ph:0}:null; startBuild.spent=_sb.spent||0; } }catch(e){}
 const KEYS_DEFAULT={fire:'Mouse0', fireKey:'j', beam:'Mouse2', beamAlt:'f', bomb:'x', parry:'Space', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
@@ -1777,6 +1777,7 @@ function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.
   ...(hu.wave?[{grp:'HEAVY',name:'WAVE AMP',icon:'wave',desc:'Wave Motion beam hits harder and covers more screen width.',delta:'+power/width',lv:u.wavePow||1,mx:4,cost:400+((u.wavePow||1)-1)*260,can:(u.wavePow||1)<4,buy:()=>{u.wavePow=(u.wavePow||1)+1;}}]:[]),
   ...(hu.beam?[{grp:'HEAVY',name:'PRISM AMP',icon:'beampow',desc:'Increases the beam weapon\'s damage per second.',delta:'+11 dps',lv:u.beamPow,mx:8,cost:320+(u.beamPow-1)*220,can:u.beamPow<8,buy:()=>u.beamPow++},{grp:'HEAVY',name:'PRISM PIERCE',icon:'beampow',desc:'Beam passes through more enemies. Levels: 1 > 2 > 3 > 5 > all.',delta:'more pierce',lv:u.beamPierce,mx:5,cost:400+(u.beamPierce-1)*280,can:u.beamPierce<5,buy:()=>u.beamPierce++}]:[]),
   {grp:'DEFENSE',name:'HULL ARMOR',icon:'hull',desc:'Raises max hull per life. Each upgrade costs more.',delta:'+1 max hull',lv:u.armor,mx:4,cost:400+u.armor*250,can:u.armor<4,buy:()=>u.armor++},
+  {grp:'DEFENSE',name:'DEFENSE PROBE',icon:'shield',desc:'A satellite that shoots down nearby grunt fire, but only while your ship is moving. Level 2 fires faster.',delta:'point defense',lv:u.probe||0,mx:2,cost:500+(u.probe||0)*350,can:(u.probe||0)<2,buy:()=>{u.probe=(u.probe||0)+1;}},
   {grp:'DEFENSE',name:'SHIELD +1',icon:'shield',desc:'Adds one shield. Each shield absorbs one hit before disappearing.',delta:'+1 shield',lv:b.shieldHits,mx:3,cost:350,can:b.shieldHits<3,buy:()=>b.shieldHits++},
   {grp:'DEFENSE',name:'CHARGE COILS',icon:'shield',desc:'Spent shields recharge as you rack up kills, up to your shield count.',delta:'kill-fed regen',lv:u.shieldChg||0,mx:3,cost:350+(u.shieldChg||0)*220,can:(u.shieldChg||0)<3,buy:()=>{u.shieldChg=(u.shieldChg||0)+1;}},
   {grp:'DEFENSE',name:'REPAIR FIELD',icon:'repair',desc:'Point-blank kills mend the hull faster.',delta:'+33% mend',lv:u.bArmor||0,mx:3,cost:380+(u.bArmor||0)*230,can:(u.bArmor||0)<3,buy:()=>{u.bArmor=(u.bArmor||0)+1;}},
@@ -2191,6 +2192,19 @@ function update(dt){
         if(_twin) pbul.push({x:pl.x+ox+6,y:pl.y+24-9,vx:aim,vy:-560,c:COL.green,r:1.4,dmg:ddmg});
         if(_dk==='wingmate'&&g>=4) pbul.push({x:pl.x+ox-6,y:pl.y+24-9,vx:aim,vy:-560,c:COL.green,r:1.4,dmg:ddmg}); }
       if(_dk==='sentinel'&&(pl.drone.itc||0)<=0){ let _bi=-1,_bd2=120*120; for(let qi=0;qi<ebul.length;qi++){ const _d=dist2(ebul[qi].x,ebul[qi].y,pl.x+ox,pl.y); if(_d<_bd2){_bd2=_d;_bi=qi;} } if(_bi>=0){ ebul.splice(_bi,1); pl.drone.itc=3; rings.push({x:pl.x+ox,y:pl.y+24,r:4,vr:220,life:.25,max:.25,c:COL.cyan}); } } }
+    // DEFENSE PROBE: movement-gated point defense vs grunt fire
+    { const _plv=(pl.up&&pl.up.probe)||0;
+      if(_plv>0){ pl.probePh=(pl.probePh||0)+dt*3.2;
+        const _pmv=Math.hypot(pl.x-(pl._ppx==null?pl.x:pl._ppx), pl.y-(pl._ppy==null?pl.y:pl._ppy)); pl._ppx=pl.x; pl._ppy=pl.y; pl.probeOn=(_pmv>1.2);
+        pl.probeCd=(pl.probeCd||0)-dt;
+        if(pl.probeOn && pl.probeCd<=0){ let _bi=-1,_bd2=155*155;
+          for(let qi=0;qi<ebul.length;qi++){ const _b=ebul[qi]; if(_b.owner && _b.owner!==boss && !_b.parryBolt){ const _d=dist2(_b.x,_b.y,pl.x,pl.y); if(_d<_bd2){_bd2=_d;_bi=qi;} } }
+          if(_bi>=0){ const _b=ebul[_bi], _px=pl.x+Math.cos(pl.probePh)*32, _py=pl.y+Math.sin(pl.probePh)*32;
+            rings.push({x:_px,y:_py,r:2,vr:180,life:.18,max:.18,c:COL.cyan});
+            rings.push({x:_b.x,y:_b.y,r:3,vr:220,life:.22,max:.22,c:COL.cyan});
+            parts.push({x:_b.x,y:_b.y,vx:0,vy:-70,life:.14,max:.14,c:COL.cyan,sz:2});
+            ebul.splice(_bi,1); pl.probeCd=(_plv>=2?0.9:1.3); } }
+      } }
   }
 
   /* ----- formation director ----- */
@@ -3058,6 +3072,7 @@ function refitItems(){ const u=player.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), p
     {grp:'DEFENSE',name:'CHARGE COILS',icon:'shield',desc:'Spent shields recharge as you rack up kills, up to your shield count.',delta:'kill-fed regen',lv:u.shieldChg||0,mx:3,cost:350+(u.shieldChg||0)*220,can:(u.shieldChg||0)<3,buy:()=>{u.shieldChg=(u.shieldChg||0)+1;}},
     ...(sector>=3&&((player.shieldHits||0)+(u.shieldChg||0))>=2?[dksCard('DEFENSE','shield','DEFLECTOR','shield','KEYSTONE: a breaking shield emits a shockwave that clears nearby fire. Locks out CAPACITOR BANK.','deflector'),dksCard('DEFENSE','shield','CAPACITOR BANK','shield','KEYSTONE: +1 max shield, and CHARGE COILS fills toward it. Locks out DEFLECTOR.','capacitor')]:[]),
     {grp:'DEFENSE',name:'HULL ARMOR',icon:'hull',desc:'Raises max hull per life. Each upgrade costs more.',delta:'+1 max hull',lv:u.armor||0,mx:4,cost:400+(u.armor||0)*250,can:(u.armor||0)<4,buy:()=>{ u.armor=(u.armor||0)+1; player.armor++; }},
+    {grp:'DEFENSE',name:'DEFENSE PROBE',icon:'shield',desc:'A satellite that shoots down nearby grunt fire, but only while your ship is moving. Level 2 fires faster.',delta:'point defense',lv:u.probe||0,mx:2,cost:500+(u.probe||0)*350,can:(u.probe||0)<2,buy:()=>{u.probe=(u.probe||0)+1;}},
     {grp:'DEFENSE',name:'REPAIR FIELD',icon:'repair',desc:'Point-blank kills mend the hull faster.',delta:'+33% mend',lv:u.bArmor||0,mx:3,cost:380+(u.bArmor||0)*230,can:(u.bArmor||0)<3,buy:()=>{u.bArmor=(u.bArmor||0)+1;}},
     ...(sector>=3&&((u.armor||0)+(u.bArmor||0))>=2?[dksCard('DEFENSE','hull','PHALANX','hull','KEYSTONE: +1 max hull and the first hit each life is absorbed free. Locks out PURGE PLATING.','phalanx'),dksCard('DEFENSE','hull','PURGE PLATING','hull','KEYSTONE: taking a hit emits a bullet-clearing shock and brief i-frames. Locks out PHALANX.','purge')]:[]),
     {grp:'PARRY',name:'REPAIR PROTOCOL',icon:'repair',desc:'Successful parries mend the hull. Higher levels mend more.',delta:'parry heals',lv:u.mParry||0,mx:3,cost:350+(u.mParry||0)*230,can:(u.mParry||0)<3,buy:()=>{u.mParry=(u.mParry||0)+1;}},
@@ -3258,7 +3273,7 @@ function drawBG(){
   // SYSTEM HALT overlay (post-boss root-access / patch sequence)
   if(station) drawSystemHalt();
   // player
-  if((state==='play'||(state==='refit'&&station)) && player && !player.dead){ drawDrone(); drawShip(); }
+  if((state==='play'||(state==='refit'&&station)) && player && !player.dead){ drawProbe(); drawDrone(); drawShip(); }
 
   // score pops
   bg.font="700 14px 'Chakra Petch',system-ui,sans-serif"; bg.textAlign='center';
@@ -3546,6 +3561,14 @@ function drawDrone(){ if(!player.drone)return; const x=player.x+58,y=player.y+24
   bg.beginPath();bg.moveTo(0,-9);bg.lineTo(7,4);bg.lineTo(0,9);bg.lineTo(-7,4);bg.closePath();
   bg.fillStyle='rgba(0,255,65,0.10)';bg.fill(); bg.lineWidth=1.2;bg.strokeStyle=COL.green;bg.shadowColor=COL.green;bg.shadowBlur=9;bg.stroke();
   bg.beginPath();bg.arc(0,0,1.6,0,6.28);bg.fillStyle=COL.green;bg.shadowBlur=8;bg.fill(); bg.shadowBlur=0; bg.restore(); }
+function drawProbe(){ if(!player || ((player.up&&player.up.probe)||0)<1) return;
+  const ph=player.probePh||0, x=player.x+Math.cos(ph)*32, y=player.y+Math.sin(ph)*32, on=!!player.probeOn;
+  bg.save(); bg.translate(x,y); bg.globalAlpha=on?0.9:0.4;
+  bg.beginPath(); bg.moveTo(0,-5); bg.lineTo(5,0); bg.lineTo(0,5); bg.lineTo(-5,0); bg.closePath();
+  bg.fillStyle='rgba(0,240,255,0.14)'; bg.fill();
+  bg.lineWidth=1.1; bg.strokeStyle=COL.cyan; bg.shadowColor=COL.cyan; bg.shadowBlur=on?9:3; bg.stroke();
+  bg.beginPath(); bg.arc(0,0,1.3,0,6.28); bg.fillStyle=COL.cyan; bg.fill();
+  bg.globalAlpha=1; bg.shadowBlur=0; bg.restore(); }
 
 function drawFX(){
   fx.save();
@@ -4229,6 +4252,7 @@ function closeTut(){ el('ovlTut').classList.add('hidden'); try{localStorage.setI
 { const b=el('howtoBtn'); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); openTut(); }); }
 
 const CHANGELOG=[
+ {ver:'146',date:'2026',items:['New DEFENSE upgrade: DEFENSE PROBE, a satellite that shoots down incoming grunt fire near you - but only while your ship is moving','Level 2 makes it fire faster. Buyable in REFIT and CONFIGURE BUILD']},
  {ver:'145',date:'2026',items:['PRISM BEAM and RAILGUN now burn through incoming grunt fire caught in their path - boss fire and heavy shots still punch through']},
  {ver:'144',date:'2026',items:['PARRY now shows a ring under your ship: pulsing when ready, sweeping while it recharges, amber when you jam or whiff it','Hull starts one point tougher','Fewer enemy bullets on screen in the early sectors','Sector bosses arrive a little sooner','Kills pay out more, so your first REFIT comes faster']},
  {ver:'143',date:'2026',items:['PRISM SPOOL removed - HEAVY SPOOL now also governs beam spin-up and cooldown','SPREAD now shows as its own weapon card in CONFIGURE BUILD']},
