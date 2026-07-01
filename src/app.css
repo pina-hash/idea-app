@@ -1108,18 +1108,78 @@ a:hover {
    linework reads at full contrast (no invert, no filter). Landscape aspect for a
    long, thin part. */
 .gauntlet .drawing-frame {
+	position: relative;
 	width: 100%;
 	aspect-ratio: 16 / 9;
 	/* Full-width landscape reference; cap the height so it never runs past the
 	   viewport (the image is object-fit: contain, so it letterboxes when capped). */
 	max-height: 70vh;
-	background: #f4f2ec;
-	border: 2px solid var(--white);
+	background: var(--bg1);
+	border: 2px solid var(--line);
 	border-radius: 3px;
 	padding: 0.9rem;
 	display: grid;
 	place-items: center;
 	overflow: hidden;
+}
+/* Blueprint sheet: once revealed, the drawing reads as a CAD viewport that belongs
+   to the dark UI, not a pasted paper scan. A faint green grid backs it and cyan
+   corner ticks frame it; the linework itself is recolored below. */
+.gauntlet .drawing-frame:has(.drawing-zoom) {
+	background-color: #04130c;
+	background-image:
+		linear-gradient(rgba(0, 255, 65, 0.07) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(0, 255, 65, 0.07) 1px, transparent 1px);
+	background-size: 24px 24px;
+	border-color: var(--line-strong);
+	box-shadow:
+		inset 0 0 0 1px rgba(0, 255, 65, 0.12),
+		inset 0 0 40px rgba(0, 255, 65, 0.05);
+}
+/* Cyan corner registration ticks: one pseudo-element paints four L-brackets. */
+.gauntlet .drawing-frame:has(.drawing-zoom)::after {
+	content: '';
+	position: absolute;
+	inset: 8px;
+	pointer-events: none;
+	--tick: rgba(0, 240, 255, 0.55);
+	background:
+		linear-gradient(var(--tick), var(--tick)) top left / 16px 2px no-repeat,
+		linear-gradient(var(--tick), var(--tick)) top left / 2px 16px no-repeat,
+		linear-gradient(var(--tick), var(--tick)) top right / 16px 2px no-repeat,
+		linear-gradient(var(--tick), var(--tick)) top right / 2px 16px no-repeat,
+		linear-gradient(var(--tick), var(--tick)) bottom left / 16px 2px no-repeat,
+		linear-gradient(var(--tick), var(--tick)) bottom left / 2px 16px no-repeat,
+		linear-gradient(var(--tick), var(--tick)) bottom right / 16px 2px no-repeat,
+		linear-gradient(var(--tick), var(--tick)) bottom right / 2px 16px no-repeat;
+}
+/* Bottom-right title block, the way a real drawing sheet is framed. */
+.gauntlet .sheet-titleblock {
+	position: absolute;
+	right: 10px;
+	bottom: 10px;
+	z-index: 2;
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.1rem;
+	padding: 0.3rem 0.55rem;
+	background: rgba(4, 19, 12, 0.9);
+	border: 1px solid var(--line-strong);
+	border-radius: 2px;
+	font-family: var(--font-mono);
+	pointer-events: none;
+}
+.gauntlet .tb-brand {
+	font-size: 0.62rem;
+	letter-spacing: 0.12em;
+	color: var(--green);
+}
+.gauntlet .tb-meta {
+	font-size: 0.55rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--cyan);
 }
 /* The start-gate lives inside the frame before reveal; it keeps the dark shell,
    not the paper, and must not be clipped by the landscape aspect ratio. */
@@ -1146,6 +1206,11 @@ a:hover {
 	max-height: 100%;
 	width: auto;
 	height: auto;
+	/* Drop the paper, keep the linework: invert to light-on-dark, then screen the
+	   former white field into the blueprint grid behind it. Works for both a
+	   black-on-white PNG and an inline SVG drawing. */
+	filter: invert(1) drop-shadow(0 0 1px rgba(0, 255, 65, 0.5));
+	mix-blend-mode: screen;
 }
 .gauntlet .drawing-png {
 	max-width: 100%;
@@ -1162,8 +1227,9 @@ a:hover {
 	font-size: 0.55rem;
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
-	color: #55503f;
-	background: rgba(244, 242, 236, 0.85);
+	color: var(--cyan);
+	background: rgba(4, 19, 12, 0.85);
+	border: 1px solid rgba(0, 240, 255, 0.3);
 	padding: 0.1rem 0.35rem;
 	border-radius: 2px;
 	opacity: 0;
@@ -1310,15 +1376,20 @@ a:hover {
 .lightbox-scroll {
 	overflow: hidden;
 	max-height: 82vh;
-	background: #f4f2ec;
-	border: 2px solid var(--white);
+	background-color: #04130c;
+	background-image:
+		linear-gradient(rgba(0, 255, 65, 0.07) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(0, 255, 65, 0.07) 1px, transparent 1px);
+	background-size: 26px 26px;
+	border: 1px solid var(--line-strong);
+	box-shadow: inset 0 0 0 1px rgba(0, 255, 65, 0.12);
 	border-radius: 3px;
 	padding: 1rem;
 	display: grid;
 	place-items: center;
 }
 /* Fit the drawing to the screen so the whole thing is visible at once, no
-   scrolling. It is already full-width on the page; this is the roomier view. */
+   scrolling. Same blueprint recolor as the inline frame (invert + screen). */
 .lightbox-img {
 	max-width: 100%;
 	max-height: 78vh;
@@ -1326,6 +1397,8 @@ a:hover {
 	height: auto;
 	object-fit: contain;
 	image-rendering: auto;
+	filter: invert(1) drop-shadow(0 0 1px rgba(0, 255, 65, 0.5));
+	mix-blend-mode: screen;
 }
 .lightbox-svg {
 	width: 100%;
@@ -1334,6 +1407,8 @@ a:hover {
 .lightbox-svg svg {
 	width: 100%;
 	height: auto;
+	filter: invert(1) drop-shadow(0 0 1px rgba(0, 255, 65, 0.5));
+	mix-blend-mode: screen;
 }
 .gauntlet .mass-field {
 	display: flex;

@@ -313,6 +313,13 @@
 				{:else}
 					<p class="dim">No drawing provided.</p>
 				{/if}
+
+				{#if phase === 'running' && (drawingUrl || drawing)}
+					<div class="sheet-titleblock" aria-hidden="true">
+						<span class="tb-brand">IDEA // GAUNTLET</span>
+						<span class="tb-meta">Speedrun{#if framing.tier} &middot; {framing.tier}{/if}</span>
+					</div>
+				{/if}
 			</div>
 
 			{#if modelUrl}
