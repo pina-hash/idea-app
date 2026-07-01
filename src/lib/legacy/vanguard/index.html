@@ -474,7 +474,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <div id="histBody" class="board" style="max-width:340px;max-height:60vh;overflow-y:auto;text-align:left"></div>
     <button class="obtn" id="histClose">CLOSE</button>
   </div>
-  <button class="mini hidden" id="calibSkip" style="position:absolute;bottom:14px;right:14px;z-index:14;border-color:var(--dim);color:var(--dim)">SKIP CALIBRATION ›</button>
+  <button class="mini hidden" id="calibSkip" style="position:absolute;top:78px;right:14px;z-index:14;border-color:var(--dim);color:var(--dim)">SKIP CALIBRATION ›</button>
   </div><!-- /stage -->
 
   <div class="touch hidden" id="touch">
@@ -4311,7 +4311,7 @@ window.CALIB=(function(){
   function clearCalib(){ for(let q=ebul.length-1;q>=0;q--){ if(ebul[q].calib) ebul.splice(q,1); } for(let q=enemies.length-1;q>=0;q--){ if(enemies[q].calib||enemies[q].calibWave) enemies.splice(q,1); } }
   function glow(id,on){ const el2=document.getElementById(id); if(el2) el2.style.boxShadow = on ? '0 0 0 2px '+COL.cyan+', 0 0 14px '+COL.cyan : ''; }
   function card(fx,title,obj,keys,prog){
-    const w=440,h=100,x=(W-w)/2,y=H-146; fx.save();
+    const w=440,h=100,x=(W-w)/2,y=H-206; fx.save();
     const jx=(bt<0.28)?(Math.random()*4-2):0; fx.translate(jx,0);
     fx.globalAlpha=0.92; fx.fillStyle='rgba(2,10,4,0.9)'; fx.fillRect(x,y,w,h);
     fx.strokeStyle=COL.green; fx.lineWidth=1.5; fx.shadowColor=COL.green; fx.shadowBlur=10; fx.strokeRect(x,y,w,h); fx.shadowBlur=0;

@@ -23,15 +23,20 @@
 	let el: HTMLDivElement;
 	let enabled = $state(false);
 
+	let rect: DOMRect | null = null;
+	let pendingX = 0;
+	let pendingY = 0;
+	let rafId = 0;
+
 	onMount(() => {
 		enabled = !isCoarsePointer() && !prefersReducedMotion();
 	});
 
-	const onMove = (e: MouseEvent) => {
-		if (!enabled) return;
-		const r = el.getBoundingClientRect();
-		const px = (e.clientX - r.left) / r.width; // 0..1
-		const py = (e.clientY - r.top) / r.height;
+	const applyTilt = () => {
+		rafId = 0;
+		if (!rect) return;
+		const px = (pendingX - rect.left) / rect.width; // 0..1
+		const py = (pendingY - rect.top) / rect.height;
 		const ry = (px - 0.5) * 2 * MAX_DEG;
 		const rx = (0.5 - py) * 2 * MAX_DEG;
 		el.style.setProperty('--rx', `${rx.toFixed(2)}deg`);
@@ -40,7 +45,25 @@
 		el.style.setProperty('--my', `${(py * 100).toFixed(1)}%`);
 	};
 
+	const onEnter = () => {
+		if (!enabled) return;
+		rect = el.getBoundingClientRect();
+	};
+
+	const onMove = (e: MouseEvent) => {
+		if (!enabled) return;
+		if (!rect) rect = el.getBoundingClientRect();
+		pendingX = e.clientX;
+		pendingY = e.clientY;
+		if (!rafId) rafId = requestAnimationFrame(applyTilt);
+	};
+
 	const onLeave = () => {
+		if (rafId) {
+			cancelAnimationFrame(rafId);
+			rafId = 0;
+		}
+		rect = null;
 		if (!enabled) return;
 		el.style.setProperty('--rx', '0deg');
 		el.style.setProperty('--ry', '0deg');
@@ -51,6 +74,7 @@
 	class="gt-tilt {family}"
 	class:enabled
 	bind:this={el}
+	onmouseenter={onEnter}
 	onmousemove={onMove}
 	onmouseleave={onLeave}
 	role="presentation"

@@ -50,7 +50,7 @@ export interface Section {
 export const SECTIONS: Section[] = [
 	{
 		id: 'summer-2026',
-		course: 'IDEA Summer',
+		course: 'IDEA FSP',
 		title: 'Freshman Summer Program',
 		year: 1,
 		yearLabel: 'Incoming Freshman',
