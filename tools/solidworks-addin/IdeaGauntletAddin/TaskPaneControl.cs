@@ -184,10 +184,14 @@ namespace IdeaGauntlet
             txtCode.Font = new Font("Consolas", 12f, FontStyle.Bold);
             txtCode.TextAlign = HorizontalAlignment.Center;
             AddRow(txtCode, 6);
-            btnStart = MakeButton("START RUN (blank part)", Green);
+            // The & gives each button a standard WinForms access key (UseMnemonic
+            // defaults to true), so Alt+S starts and Alt+D submits when the pane has
+            // focus. Submit is captioned "(DONE)" so its mnemonic can be Alt+D,
+            // mirroring the site's Ctrl+Shift+D. No global/SolidWorks key hooks.
+            btnStart = MakeButton("&START RUN (blank part)", Green);
             btnStart.Click += OnStartClick;
             AddRow(btnStart, 4);
-            btnSubmit = MakeButton("SUBMIT RUN", GreenBright);
+            btnSubmit = MakeButton("SUBMIT RUN (&DONE)", GreenBright);
             btnSubmit.Font = new Font("Consolas", 9.5f, FontStyle.Bold);
             btnSubmit.Click += OnSubmitClick;
             AddRow(btnSubmit, 6);
