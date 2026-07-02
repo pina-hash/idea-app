@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import { displayName, type UserProfile } from '$lib/profile';
 
 	/**
 	 * Shared header for the GAUNTLET section. Mirrors the app-shell `.app-header`
 	 * used by the dashboard: the IDEA wordmark, a breadcrumb into the dojo, the
-	 * signed-in user block, and a client-side sign out (matching the homepage).
+	 * signed-in user block, and the global profile menu (which owns sign out).
 	 * A live mono clock rounds out the VIEWPORT chrome (see GAUNTLET-DESIGN.md).
 	 */
 	interface Crumb {
@@ -15,16 +17,23 @@
 	}
 
 	let {
-		supabase,
 		userName,
 		userRole,
 		crumbs = []
 	}: {
-		supabase: SupabaseClient;
+		/** Kept for call-site compatibility; sign out now lives in ProfileMenu. */
+		supabase?: SupabaseClient;
 		userName: string;
 		userRole: string;
 		crumbs?: Crumb[];
 	} = $props();
+
+	// Prefer the user's chosen display name (global profile) over the page's
+	// full_name-derived prop, so a rename shows everywhere at once.
+	const shownName = $derived.by(() => {
+		const p = page.data.userProfile as UserProfile | null | undefined;
+		return p ? displayName(p) : userName;
+	});
 
 	let clock = $state('--:--:--');
 	onMount(() => {
@@ -33,11 +42,6 @@
 		const id = setInterval(tick, 1000);
 		return () => clearInterval(id);
 	});
-
-	const signOut = async () => {
-		await supabase.auth.signOut();
-		await invalidateAll();
-	};
 </script>
 
 <header class="app-header gt-header">
@@ -60,10 +64,10 @@
 	<div class="header-right">
 		<span class="gt-clock" aria-hidden="true">{clock}</span>
 		<div class="user-block">
-			<div class="user-name">{userName}</div>
+			<div class="user-name">{shownName}</div>
 			<div class="user-role">{userRole}</div>
 		</div>
-		<button class="btn secondary" type="button" onclick={signOut}>Sign out</button>
+		<ProfileMenu />
 	</div>
 </header>
 

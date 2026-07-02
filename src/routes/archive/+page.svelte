@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ARCHIVE_COURSES } from '$lib/curriculum';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
 </script>
 
 <svelte:head>
@@ -12,6 +13,7 @@
 		<a class="logo" href="/">IDEA</a>
 		<div class="header-right">
 			<a class="auth-link" href="/">&lsaquo; Home</a>
+			<ProfileMenu />
 		</div>
 	</header>
 

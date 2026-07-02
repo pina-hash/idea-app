@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
 
 	let { data } = $props();
 
@@ -39,11 +39,6 @@
 		}
 	};
 
-	const signOut = async () => {
-		await data.supabase.auth.signOut();
-		await invalidateAll();
-	};
-
 	const summary = $derived(data.signedIn ? data.summary : null);
 	const runs = $derived(data.signedIn ? data.runs : []);
 	const userLabel = $derived(data.claims?.email ?? 'Signed in');
@@ -68,7 +63,7 @@
 				<div class="user-name">{userLabel}</div>
 				<div class="user-role">pilot</div>
 			</div>
-			<button class="btn secondary" type="button" onclick={signOut}>Sign out</button>
+			<ProfileMenu />
 		</div>
 	{:else}
 		<div class="header-right">

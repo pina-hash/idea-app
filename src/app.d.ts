@@ -19,6 +19,8 @@ declare global {
 		}
 		interface PageData {
 			claims?: Claims | null;
+			supabase?: SupabaseClient;
+			userProfile?: import('$lib/profile').UserProfile | null;
 		}
 		// interface PageState {}
 		// interface Platform {}

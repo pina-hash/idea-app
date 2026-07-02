@@ -1,6 +1,7 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import { displayName } from '$lib/profile';
 
 	let { data } = $props();
 	let { profile, email } = $derived(data);
@@ -10,12 +11,10 @@
 	<a class="wordmark" href="/">IDEA</a>
 	<div class="header-right">
 		<div class="user-block">
-			<div class="user-name">{profile?.full_name ?? email ?? 'Signed in'}</div>
+			<div class="user-name">{data.userProfile ? displayName(data.userProfile) : (profile?.full_name ?? email ?? 'Signed in')}</div>
 			<div class="user-role">{profile?.role ?? 'teacher'}</div>
 		</div>
-		<form method="POST" action="?/signout" use:enhance>
-			<button class="btn secondary" type="submit">Sign out</button>
-		</form>
+		<ProfileMenu />
 	</div>
 </header>
 

@@ -4,6 +4,7 @@
 	import { entries as changelog } from 'virtual:site-versions';
 	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import {
 		sectionsByYear,
 		nextLiveCourse,
@@ -14,7 +15,7 @@
 	} from '$lib/curriculum';
 
 	let { data } = $props();
-	let { supabase, claims, profile } = $derived(data);
+	let { supabase, claims, userProfile: profile } = $derived(data);
 
 	const signedIn = $derived(!!claims);
 	const isTeacher = $derived(profile?.role === 'teacher');
@@ -67,22 +68,6 @@
 			errorMessage = error.message;
 			loading = false;
 		}
-	};
-
-	const signOut = async () => {
-		await supabase.auth.signOut();
-		// Shared/lab machines: wipe this account's local VANGUARD state so the next
-		// user does not inherit it. Keep vanguard_did (anonymous telemetry cohort
-		// id, never tied to an account) stable across users of the device.
-		try {
-			for (let i = localStorage.length - 1; i >= 0; i--) {
-				const k = localStorage.key(i);
-				if (k && k.indexOf('vanguard_') === 0 && k !== 'vanguard_did') localStorage.removeItem(k);
-			}
-		} catch {
-			/* localStorage unavailable; nothing to clear */
-		}
-		await invalidateAll();
 	};
 
 	const chooseSection = async (id: string) => {
@@ -327,7 +312,7 @@
 					{#if isTeacher}
 						<a class="auth-link" href="/dashboard">Dashboard</a>
 					{/if}
-					<button class="auth-link" type="button" onclick={signOut}>Sign out</button>
+					<ProfileMenu />
 				{:else}
 					<button class="auth-link signin" type="button" onclick={() => signInWithGoogle()} disabled={loading}>
 						{loading ? '...' : 'Sign in'}

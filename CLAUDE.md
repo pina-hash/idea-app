@@ -52,6 +52,20 @@ ability, it is not required to browse the portal.
 - **Role editing:** teachers can change other users' roles. No one can change
   their own role. This is enforced server-side (a guard trigger plus RLS), not
   in client code.
+- **Global profiles (0020):** `profiles` also carries `display_name` (user
+  editable), `avatar` (`preset:<id>` from `AVATAR_PRESETS` in
+  `src/lib/profile.ts`, `upload:<path>` in the public `avatars` Storage bucket,
+  or null to fall back to the Google `avatar_url`, then initials), and
+  `preferences` (free-form JSONB: homepage layout, theme, ...). The root
+  `+layout.server.ts` loads the signed-in profile once as `userProfile` (a key
+  no page load shadows) so it is in `page.data` everywhere;
+  `src/lib/ProfileMenu.svelte` (mounted in every page header: homepage,
+  archive, dashboard, GAUNTLET Header, VANGUARD history) is self-contained,
+  reads it from `$app/state`, and inline-edits name/picture through the
+  browser client under the existing "update own profile" RLS policy. Uploads
+  write only to the user's own `<uid>/` folder (Storage RLS). Role assignment
+  is untouched. Shared sign-out (including the lab-machine VANGUARD wipe)
+  lives in `signOutEverywhere()` in `src/lib/profile.ts`.
 - **Extensible:** roles are intentionally open-ended. Adding a future role
   (for example `parent`) means extending the CHECK constraint and the
   `role_for_email` logic, not a rebuild.
