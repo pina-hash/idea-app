@@ -31,8 +31,7 @@
 	<div class="card supervised-note">
 		<p>
 			Runs are machine verified by the GAUNTLET SolidWorks macro, which captures volume and surface
-			area. <a href="/gauntlet/tools">Get the macro and setup</a>. The seeded challenges below are
-			labeled demos with placeholder references.
+			area. <a href="/gauntlet/tools">Get the macro and setup</a>.
 		</p>
 	</div>
 

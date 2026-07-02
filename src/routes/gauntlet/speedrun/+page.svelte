@@ -33,7 +33,6 @@
 			Ranked runs are machine verified: the GAUNTLET SolidWorks macro reads your part and posts it
 			with a one-time submit code, and the server times the run from the moment you hit Start. Manual
 			mass entry stays as unranked practice. <a href="/gauntlet/tools">Get the macro and setup</a>.
-			The seeded challenges below are labeled demos with placeholder drawings.
 		</p>
 	</div>
 

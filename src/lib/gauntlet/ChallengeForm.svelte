@@ -1,7 +1,16 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import { MODES, modeById, DIFFICULTY_LABELS, TIERS, DRAWINGS_BUCKET, MODELS_BUCKET } from '$lib/gauntlet';
+	import {
+		MODES,
+		modeById,
+		DIFFICULTY_LABELS,
+		TIERS,
+		UNIT_SYSTEMS,
+		UNIT_SYSTEM_UNITS,
+		DRAWINGS_BUCKET,
+		MODELS_BUCKET
+	} from '$lib/gauntlet';
 	import {
 		buildPayload,
 		massFromGeometry,
@@ -26,7 +35,13 @@
 	const modeling = $derived(isModeling(form.mode));
 	const speedrun = $derived(form.mode === 'speedrun');
 	const gatedAsset = $derived(form.mode === 'speedrun' || form.mode === 'feature_golf');
-	const computedMass = $derived(massFromGeometry(form.target_volume_mm3, form.density));
+	// Speedrun's density/mass labels follow its unit_system; Reverse Engineer and
+	// Feature Golf keep the original fixed g/cm3 convention (no unit_system field).
+	const densityUnit = $derived(speedrun ? UNIT_SYSTEM_UNITS[form.unit_system].density : 'g/cm3');
+	const massUnit = $derived(speedrun ? UNIT_SYSTEM_UNITS[form.unit_system].mass : 'g');
+	const computedMass = $derived(
+		massFromGeometry(form.target_volume_mm3, form.density, speedrun ? form.unit_system : 'MMGS')
+	);
 	const massMismatch = $derived(
 		computedMass != null && form.target_mass != null && form.target_mass > 0
 			? Math.abs(form.target_mass - computedMass) / computedMass > 0.005
@@ -206,22 +221,32 @@
 				<span class="ff-label">Feature count</span>
 				<input class="ff-input" type="number" step="1" bind:value={form.feature_count} />
 			</label>
+			{#if speedrun}
+				<label class="ff">
+					<span class="ff-label">Unit system</span>
+					<select class="ff-input" bind:value={form.unit_system}>
+						{#each UNIT_SYSTEMS as u (u)}
+							<option value={u}>{u}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
 			<label class="ff">
 				<span class="ff-label">Material</span>
 				<input class="ff-input" type="text" bind:value={form.material} placeholder="Aluminum 6061" />
 			</label>
 			<label class="ff">
-				<span class="ff-label">Density (g/cm3)</span>
+				<span class="ff-label">Density ({densityUnit})</span>
 				<input class="ff-input" type="number" step="any" bind:value={form.density} />
 			</label>
 			<label class="ff">
-				<span class="ff-label">Target mass (g)</span>
+				<span class="ff-label">Target mass ({massUnit})</span>
 				<input class="ff-input" type="number" step="any" bind:value={form.target_mass} />
 			</label>
 			{#if massMismatch}
 				<p class="warn ff-warn">
-					Target mass {form.target_mass} g does not match volume x density ({computedMass} g).
-					Check the values.
+					Target mass {form.target_mass} {massUnit} does not match volume x density ({computedMass}
+					{massUnit}). Check the values.
 				</p>
 			{/if}
 			<label class="ff">
@@ -234,7 +259,9 @@
 					<input class="ff-input" type="text" bind:value={form.slug} placeholder="aluminum-bracket-t2" />
 				</label>
 				<label class="ff">
-					<span class="ff-label">Tier</span>
+					<span class="ff-label" title="Pacing benchmark (par-time class), separate from Difficulty above.">
+						Speed tier
+					</span>
 					<select class="ff-input" bind:value={form.tier}>
 						{#each TIERS as t (t)}
 							<option value={t}>{t}</option>

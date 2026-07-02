@@ -57,10 +57,14 @@
 	--font-mono: var(--font-data);
 }
 
-/* Page content paints above the ViewportBackground canvas (z 0). */
+/* Page content paints above the ViewportBackground canvas (z 0), and above the
+   fixed FeatureManager rail (z 2, FeatureTreeNav.svelte): .gt-content and
+   .gt-tree are sibling stacking contexts under .gt-root, so a lower z-index
+   here traps everything inside .gt-content behind the rail regardless of any
+   z-index used inside it (e.g. a full-viewport drawing-expand lightbox). */
 .gt-root .gt-content {
 	position: relative;
-	z-index: 1;
+	z-index: 3;
 }
 
 /* Ambient vignette over the canvas: steel light pooling upper-right (around

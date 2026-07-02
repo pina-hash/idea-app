@@ -6,7 +6,7 @@
  * shapes in lock-step with the seeds in supabase/migrations/0004..0008.
  */
 
-import { modeById, type GauntletModeId } from '$lib/gauntlet';
+import { modeById, UNIT_SYSTEM_UNITS, type GauntletModeId, type UnitSystem } from '$lib/gauntlet';
 
 /** Geometry parsed out of the macro's Author-capture message-box text. */
 export interface CapturedGeometry {
@@ -38,13 +38,21 @@ export function parseAuthorCapture(text: string): CapturedGeometry {
 	};
 }
 
-/** Mass (g) implied by a volume (mm3) and density (g/cm3): vol_cm3 * density. */
+/**
+ * Mass implied by a volume (mm3) and density, in whichever unit system the
+ * challenge is authored in (MMGS: g from vol_cm3 * density in g/cm3; IPS: lb
+ * from vol_in3 * density in lb/in3). Defaults to MMGS for Reverse Engineer and
+ * Feature Golf, which have no unit_system field and keep the original g/cm3
+ * convention.
+ */
 export function massFromGeometry(
 	volumeMm3: number | null,
-	density: number | null
+	density: number | null,
+	system: UnitSystem = 'MMGS'
 ): number | null {
 	if (volumeMm3 == null || density == null || volumeMm3 <= 0 || density <= 0) return null;
-	return Math.round((volumeMm3 / 1000) * density * 1000) / 1000;
+	const volume = system === 'IPS' ? volumeMm3 / 16387.064 : volumeMm3 / 1000;
+	return Math.round(volume * density * 1000) / 1000;
 }
 
 export type AnswerType = 'choice' | 'text' | 'numeric';
@@ -61,6 +69,8 @@ export interface AuthorFormState {
 	slug: string;
 	/** Challenge tier T1 to T4 (site data, distinct from difficulty). */
 	tier: string;
+	/** Speedrun only: the unit system every presented property follows. */
+	unit_system: UnitSystem;
 	material: string;
 	density: number | null;
 	target_volume_mm3: number | null;
@@ -99,6 +109,7 @@ export function emptyForm(mode: GauntletModeId): AuthorFormState {
 		status: 'draft',
 		slug: '',
 		tier: 'T1',
+		unit_system: 'IPS',
 		material: '',
 		density: null,
 		target_volume_mm3: null,
@@ -146,21 +157,25 @@ function clean<T extends Record<string, unknown>>(obj: T): T {
  */
 export function buildPayload(s: AuthorFormState): { prompt: object; answer: object } {
 	if (isModeling(s.mode)) {
+		// Speedrun's density/mass/length units follow its unit_system, never mixed;
+		// Reverse Engineer and Feature Golf keep the original fixed convention.
+		const units = s.mode === 'speedrun' ? UNIT_SYSTEM_UNITS[s.unit_system] : null;
 		const prompt = clean({
 			material: s.material,
 			density: s.density,
-			density_unit: 'g/cm³',
+			density_unit: units ? units.density : 'g/cm³',
 			target_mass: s.target_mass,
-			mass_unit: 'g',
+			mass_unit: units ? units.mass : 'g',
 			tolerance_pct: s.tolerance_pct,
-			length_unit: 'mm',
+			length_unit: units ? units.length : 'mm',
 			note: s.note,
-			// Speedrun site data: stable slug, tier, par time, and the STL preview
-			// path (shape only, public and shown before Start).
+			// Speedrun site data: stable slug, tier, unit system, par time, and the
+			// STL preview path (shape only, public and shown before Start).
 			...(s.mode === 'speedrun'
 				? {
 						slug: s.slug.trim(),
 						tier: s.tier,
+						unit_system: s.unit_system,
 						par_time: s.par_time,
 						model_path: s.model_path
 					}
@@ -236,6 +251,7 @@ export function formFromChallenge(c: ChallengeFull): AuthorFormState {
 			status: c.status,
 			slug: (p.slug as string) ?? '',
 			tier: (p.tier as string) ?? base.tier,
+			unit_system: (p.unit_system as UnitSystem) ?? base.unit_system,
 			material: (p.material as string) ?? '',
 			density: numOr(a.density ?? p.density),
 			target_volume_mm3: numOr(a.target_volume_mm3),

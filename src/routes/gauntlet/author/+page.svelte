@@ -106,10 +106,6 @@
 			<input class="ff-input" type="text" bind:value={unitsLabel} placeholder="inch, 3-place decimal" />
 		</label>
 		<label class="ff">
-			<span class="ff-label">Projection</span>
-			<input class="ff-input" type="text" bind:value={projection} placeholder="third angle" />
-		</label>
-		<label class="ff">
 			<span class="ff-label">Rule lines (one per line)</span>
 			<textarea class="ff-input ff-area" bind:value={ruleText} rows="3"></textarea>
 		</label>

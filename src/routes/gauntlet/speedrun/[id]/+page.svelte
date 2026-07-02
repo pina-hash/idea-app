@@ -14,6 +14,7 @@
 		START_MACRO_PATH,
 		SUBMIT_MACRO_PATH,
 		DRAWINGS_BUCKET,
+		UNIT_SYSTEM_UNITS,
 		type SpeedrunReveal,
 		type SpeedrunResult
 	} from '$lib/gauntlet';
@@ -24,6 +25,12 @@
 
 	const framing = $derived(challenge.framing);
 	const unit = $derived(framing.mass_unit ?? 'g');
+	// The per-challenge unit system, when set, is authoritative over the global
+	// ruleset's generic dimension-reading convention, so a challenge authored in
+	// IPS never shows a metric "Units" line (and vice versa).
+	const dimensionLabel = $derived(
+		framing.unit_system ? UNIT_SYSTEM_UNITS[framing.unit_system].dimensionLabel : ruleset.units_label
+	);
 	const band = $derived(
 		framing.target_mass != null && framing.tolerance_pct != null
 			? {
@@ -334,7 +341,9 @@
 			<div class="spec card">
 				{#if framing.tier}
 					<div class="field">
-						<span class="key">Tier</span>
+						<span class="key" title="Pacing benchmark (par-time class), separate from the skill difficulty above.">
+							Speed tier
+						</span>
 						<span class="val meta">{framing.tier}</span>
 					</div>
 				{/if}
@@ -369,11 +378,7 @@
 				<span class="ruleset-title">Speedrun rules</span>
 				<div class="field">
 					<span class="key">Units</span>
-					<span class="val meta">{ruleset.units_label}</span>
-				</div>
-				<div class="field">
-					<span class="key">Projection</span>
-					<span class="val meta">{ruleset.projection}</span>
+					<span class="val meta">{dimensionLabel}</span>
 				</div>
 				{#if ruleset.rule_lines.length}
 					<ul class="rule-lines">

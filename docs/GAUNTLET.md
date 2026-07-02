@@ -97,6 +97,28 @@ lines) is shared across every Speedrun challenge, not repeated per record.
 renders the model and replaces the isometric view that used to live on the
 drawing.
 
+`0018` adds `unit_system` (`IPS` or `MMGS`, also pure site data in `prompt`,
+required by `gauntlet_publish_blocker`): every presented property (density,
+target mass, the drawing's dimension-reading convention) follows the selected
+system, never mixed within one challenge. The authoring form derives
+`density_unit` / `mass_unit` / `length_unit` from it instead of teachers typing
+them; Reverse Engineer and Feature Golf keep their original fixed g/cm3
+convention (no `unit_system` field). The play/room pages show the
+per-challenge system's dimension label in place of the global ruleset's
+generic one when a challenge sets it. The ruleset's `projection` field is
+still stored (teacher-editable via the same singleton row) but no longer
+rendered anywhere; it was a confusing, unused "rule line" in the ruleset panel.
+
+`0019` fixes a real "cannot be deleted" bug: `gauntlet_author_delete` archives
+a challenge instead of removing it once it has submissions (so board history
+is never orphaned), but the seeded `demo`-flagged placeholders (three each for
+Speedrun, Reverse Engineer, Feature Golf) are test content, not board history,
+and the author list has no status filter, so an archived demo row (like
+"Demo Speedrun: ABS Spacer") just sat there forever looking stuck. The RPC now
+hard-deletes any challenge flagged `demo` outright, cascading to its
+submissions/tokens; the migration also purges every demo row that existed at
+the time. Non-demo challenges are unaffected.
+
 ### `submissions`
 
 `id`, `user_id`, `challenge_id`, `mode`, `value` (JSONB, what the student
@@ -203,11 +225,15 @@ remains as unranked supervised practice.** The original manual MVP is
   (for example proving the model was saved after `reveal_at`) is future work. Note
   this only affects time-scored Speedrun; Reverse Engineer is untimed and Feature
   Golf scores on feature count.
-- **Demo seeds.** Two to three placeholder Speedrun challenges are seeded with
-  internally consistent dummy values (`target_mass = target_volume x density`,
+- **Demo seeds (purged in `0019`).** The original three placeholder Speedrun
+  challenges were seeded with internally consistent dummy values
+  (`target_mass = target_volume x density`,
   `target_volume_mm3 = target_volume_cm3 x 1000`) and a clearly-labeled
-  placeholder drawing, marked `demo`. Real challenges are authored from actual
-  SolidWorks parts with the macro's Author capture mode.
+  placeholder drawing, marked `demo`. They served their purpose (exercising the
+  flow end to end) and were removed once real content authoring existed; see
+  "Speedrun unit system + demo cleanup" in CLAUDE.md. Real challenges are
+  authored from actual SolidWorks parts with the macro's Author capture mode,
+  via the authoring tool.
 
 ## Reverse Engineer and Feature Golf
 

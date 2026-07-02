@@ -2016,9 +2016,10 @@ a:hover {
 	font-size: 0.82rem;
 	color: var(--dim);
 	letter-spacing: 0.04em;
-	margin-top: 1rem;
+	margin: 1rem auto 0;
 	max-width: 480px;
 	line-height: 1.7;
+	text-align: left;
 }
 .legacy-index .hero-meta {
 	display: flex;

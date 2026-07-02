@@ -18,8 +18,8 @@
 		<div class="hero-eyebrow">Archive &middot; 2025-26</div>
 		<h1>Course Archive</h1>
 		<p class="hero-sub">
-			Discontinued 2025-26 courses (IDEA-113 / 208 / 303 / 403). Kept for reference, the assignments
-			still open.
+			Discontinued 2025-26 courses (IDEA-113 / 208 / 303 / 403). Kept for reference; the assignments
+			remain open.
 		</p>
 	</section>
 

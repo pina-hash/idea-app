@@ -161,7 +161,7 @@
 		left: -22px;
 	}
 	.gt-reticle.hovering .ring {
-		transform: scale(1.55);
+		transform: scale(1.25);
 		border-color: var(--lime);
 		box-shadow: var(--glow-lime);
 	}

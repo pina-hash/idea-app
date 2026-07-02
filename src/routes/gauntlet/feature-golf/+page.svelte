@@ -30,8 +30,7 @@
 	<div class="card supervised-note">
 		<p>
 			Runs are machine verified by the GAUNTLET SolidWorks macro, which reads your feature tree.
-			<a href="/gauntlet/tools">Get the macro and setup</a>. The seeded challenges below are labeled
-			demos with placeholder drawings.
+			<a href="/gauntlet/tools">Get the macro and setup</a>.
 		</p>
 	</div>
 

@@ -141,6 +141,29 @@ export function difficultyLabel(d: number): string {
 /** Speedrun tiers T1 to T4 (site data, distinct from the 1 to 5 difficulty). */
 export const TIERS = ['T1', 'T2', 'T3', 'T4'] as const;
 
+/**
+ * Speedrun's per-challenge unit system: IPS (inch, pound, second) or MMGS
+ * (millimeter, gram, second). Every presented property (density, target mass,
+ * dimensions) follows whichever system the challenge is authored in; a
+ * challenge never mixes systems. Reverse Engineer and Feature Golf are
+ * unaffected (they keep the existing fixed g / cm3 / mm convention).
+ */
+export const UNIT_SYSTEMS = ['IPS', 'MMGS'] as const;
+export type UnitSystem = (typeof UNIT_SYSTEMS)[number];
+
+export interface UnitSystemUnits {
+	length: string;
+	mass: string;
+	density: string;
+	/** How dimensions read on the drawing, shown as the ruleset's "Units" line. */
+	dimensionLabel: string;
+}
+
+export const UNIT_SYSTEM_UNITS: Record<UnitSystem, UnitSystemUnits> = {
+	IPS: { length: 'in', mass: 'lb', density: 'lb/in³', dimensionLabel: 'Inch, 3-place decimal' },
+	MMGS: { length: 'mm', mass: 'g', density: 'g/cm³', dimensionLabel: 'Millimeter, 2-place decimal' }
+};
+
 // ---------------------------------------------------------------------------
 // JSONB shapes. These mirror the `prompt` column written by the seed migration.
 // The `answer` column is never sent to the client, so it has no type here.
@@ -228,6 +251,8 @@ export interface ModelingFraming {
 	slug?: string;
 	/** Challenge tier T1 to T4 (site data, distinct from the 1 to 5 difficulty). */
 	tier?: string;
+	/** Speedrun only: the unit system every presented property follows. */
+	unit_system?: UnitSystem;
 	material?: string;
 	density?: number;
 	density_unit?: string;

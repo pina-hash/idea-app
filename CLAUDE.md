@@ -456,6 +456,24 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   used to live on the drawing. `three` is a runtime dependency, imported
   dynamically (browser-only, SSR-safe). The macro/reveal/token/leaderboard flow is
   unchanged; reveal-on-start still gates the dimensioned drawing.
+- **Speedrun unit system + demo cleanup** (`0018`, `0019`): Speedrun challenges
+  now carry a per-challenge `unit_system` (`IPS` or `MMGS`, site data in
+  `prompt`, like `tier`/`slug`/`par_time`) so a challenge's density, target
+  mass, and dimension-reading convention are never mixed across systems: IPS is
+  inch/lb/lb-in3, MMGS is mm/g/g-cm3. The authoring form derives `density_unit`
+  / `mass_unit` / `length_unit` from the selected system (Reverse Engineer and
+  Feature Golf are unaffected, unchanged fixed g/cm3 convention); the Speedrun
+  and room play pages show the per-challenge system's dimension label instead
+  of the global ruleset's generic one when a challenge specifies it;
+  `gauntlet_publish_blocker` requires it before publish. `0019` also fixes
+  `gauntlet_author_delete`: a challenge flagged `demo` (the placeholder seeds
+  from `0005`/`0007`) now hard-deletes outright, cascading to its submissions
+  and run tokens, instead of archiving forever once it has test submissions
+  attached (the author page has no status filter, so an archived-forever demo
+  row looked "stuck"); the migration also purges every currently-seeded demo
+  row once. Non-demo challenges keep the existing archive-if-submissions-exist
+  safety net unchanged. The Speedrun ruleset's "Projection" line was removed
+  from both the student-facing panel and the author's ruleset editor.
 - **Visuals (standing directive):** all GAUNTLET UI, current and new, must
   conform to the **VIEWPORT design system** documented in
   `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in
