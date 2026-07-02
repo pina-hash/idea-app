@@ -2026,7 +2026,7 @@ a:hover {
 	margin: 1rem auto 0;
 	max-width: 480px;
 	line-height: 1.7;
-	text-align: left;
+	text-align: center;
 }
 .legacy-index .hero-meta {
 	display: flex;
@@ -3323,4 +3323,80 @@ a:hover {
 }
 .gauntlet .region-num {
 	text-align: center;
+}
+
+/* ==========================================================================
+   Speedrun run HUD: a sticky bar (below the header) that keeps the server-timed
+   clock and the copyable submit code visible for the whole run, so neither is
+   lost while scrolling the drawing. Sits above page content, below the header.
+   ========================================================================== */
+.gauntlet .run-bar {
+	position: sticky;
+	top: 4.75rem;
+	z-index: 20;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem 1.25rem;
+	flex-wrap: wrap;
+	margin: 0 0 1.25rem;
+	padding: 0.6rem 1rem;
+	background: rgba(4, 7, 10, 0.94);
+	border: 1px solid var(--line-strong);
+	border-radius: var(--radius-card);
+	box-shadow: 0 8px 26px rgba(0, 0, 0, 0.5);
+	-webkit-backdrop-filter: blur(8px);
+	backdrop-filter: blur(8px);
+}
+.gauntlet .run-bar-clock {
+	display: flex;
+	align-items: center;
+}
+.gauntlet .run-bar-code {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.15rem;
+	min-width: 0;
+}
+.gauntlet .rh-label {
+	font-family: var(--font-mono);
+	font-size: 0.55rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--green);
+}
+.gauntlet .rh-code {
+	font-family: var(--font-mono);
+	font-size: clamp(1.2rem, 5vw, 1.7rem);
+	letter-spacing: 0.24em;
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+	background: none;
+	border: 1px dashed rgba(200, 255, 0, 0.35);
+	border-radius: 6px;
+	padding: 0.1rem 0.5rem;
+	cursor: pointer;
+	word-break: break-all;
+	line-height: 1.15;
+}
+.gauntlet .rh-code:hover {
+	border-color: var(--gold);
+}
+.gauntlet .rh-copy-state {
+	font-family: var(--font-mono);
+	font-size: 0.58rem;
+	letter-spacing: 0.08em;
+	color: var(--dim);
+}
+.gauntlet .rh-copy-state.ok {
+	color: var(--green);
+}
+@media (max-width: 720px) {
+	.gauntlet .run-bar {
+		top: 4rem;
+	}
+	.gauntlet .run-bar-code {
+		align-items: flex-start;
+	}
 }

@@ -4,6 +4,7 @@
 	import type { UserProfile } from '$lib/profile';
 	import GauntletMark from '$lib/marks/GauntletMark.svelte';
 	import VanguardMark from '$lib/marks/VanguardMark.svelte';
+	import CoinMark from '$lib/marks/CoinMark.svelte';
 	import {
 		APP_GROUPS,
 		orderedGroupApps,
@@ -97,12 +98,15 @@
 		<VanguardMark />
 	{:else if id === 'gauntlet'}
 		<GauntletMark />
+	{:else if id === 'coins'}
+		<CoinMark />
 	{:else}
 	<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		{#if id === 'coins'}
-			<circle cx="16" cy="16" r="10" /><circle cx="16" cy="16" r="6.5" /><path d="M16 9.5v13" />
-		{:else if id === 'coin-entry'}
-			<circle cx="13" cy="16" r="9" /><path d="M13 12v8m-4-4h8" /><path d="M25 8v6m3-3h-6" />
+		{#if id === 'coin-entry'}
+			<!-- IDEA Coin (i¢) with an award "+", so it reads as awarding coins. -->
+			<circle cx="13" cy="17" r="9.5" />
+			<text x="13" y="17.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 9px 'Share Tech Mono', monospace">i&#162;</text>
+			<path d="M25 8v6m3-3h-6" />
 		{:else if id === 'dashboard'}
 			<path d="M5 24a11 11 0 1122 0z" /><path d="M16 24l5.5-7" /><circle cx="16" cy="24" r="1.6" />
 		{:else if id === 'courses'}
@@ -352,6 +356,15 @@
 	}
 	.app-card.compact {
 		padding: 0.6rem 0.8rem;
+	}
+	/* Compact cards are icon + title only: drop the CTA pill so a long title
+	   ("Courses & Assignments", "IDEA Coin Ledger") has the full row and never
+	   collides with the pill or the neighboring tile. */
+	.app-card.compact .app-cta {
+		display: none;
+	}
+	.app-title {
+		overflow-wrap: anywhere;
 	}
 	.app-icon {
 		width: 34px;

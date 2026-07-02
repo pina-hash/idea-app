@@ -273,15 +273,39 @@
 		revealing = false;
 	};
 
+	let copyTimer: ReturnType<typeof setTimeout> | null = null;
 	const copyCode = async () => {
 		if (!code) return;
+		let ok = false;
 		try {
-			await navigator.clipboard.writeText(code);
-			copied = true;
-			setTimeout(() => (copied = false), 1500);
+			if (navigator.clipboard?.writeText) {
+				await navigator.clipboard.writeText(code);
+				ok = true;
+			}
 		} catch {
-			copied = false;
+			ok = false;
 		}
+		if (!ok) {
+			// Fallback for non-secure contexts / older browsers where the async
+			// Clipboard API is unavailable or blocked.
+			try {
+				const ta = document.createElement('textarea');
+				ta.value = code;
+				ta.setAttribute('readonly', '');
+				ta.style.position = 'fixed';
+				ta.style.top = '-1000px';
+				ta.style.opacity = '0';
+				document.body.appendChild(ta);
+				ta.select();
+				ok = document.execCommand('copy');
+				document.body.removeChild(ta);
+			} catch {
+				ok = false;
+			}
+		}
+		copied = ok;
+		if (copyTimer) clearTimeout(copyTimer);
+		if (ok) copyTimer = setTimeout(() => (copied = false), 1800);
 	};
 
 	// Manual practice: an unranked self-check. It posts a 'manual' submission
@@ -402,6 +426,22 @@
 		<h1>{challenge.title}</h1>
 		{#if framing.demo}<span class="demo-badge">Demo placeholder</span>{/if}
 	</div>
+
+	{#if phase === 'running'}
+		<!-- Always-visible run HUD: the server-timed clock and the submit code stay
+		     pinned below the header while a run is active, so neither the timer nor
+		     the code is lost while scrolling the drawing. -->
+		<div class="run-bar" role="group" aria-label="Active run">
+			<div class="run-bar-clock">
+				<SpeedrunClock {serverStartMs} {clockOffsetMs} running={phase === 'running'} compact />
+			</div>
+			<div class="run-bar-code">
+				<span class="rh-label">Submit code</span>
+				<button class="rh-code" type="button" onclick={copyCode} title="Click to copy">{code ?? '--------'}</button>
+				<span class="rh-copy-state" class:ok={copied} aria-live="polite">{copied ? '✓ Copied' : 'Tap to copy'}</span>
+			</div>
+		</div>
+	{/if}
 
 	<div class="play-grid">
 		<div class="drawing-panel">
@@ -569,9 +609,6 @@
 					</p>
 				</div>
 
-				<div class="clock-wrap">
-					<SpeedrunClock {serverStartMs} {clockOffsetMs} running={phase === 'running'} />
-				</div>
 				<div class="waiting">
 					<span class="dim">
 						{#if serverStartMs == null}

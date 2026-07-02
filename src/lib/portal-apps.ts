@@ -56,7 +56,7 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'coins',
-		title: 'IDEA Coin Leaderboard',
+		title: 'IDEA Coin Ledger',
 		sub: 'Live balances, transaction log, and rankings across all sections.',
 		icon: 'coins',
 		href: '/coins/index.html',

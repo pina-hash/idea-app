@@ -49,9 +49,19 @@
 		if (!claims) return;
 		busy = true;
 		errorMsg = '';
-		const { error } = await supabase.from('profiles').update(patch).eq('id', claims.sub);
+		// Select the updated row back so we actually confirm it was written. Without
+		// this, supabase-js sends `return=minimal` and a zero-row result (e.g. the
+		// write blocked by RLS / no matching row) comes back as `error: null`, so the
+		// edit would silently appear to save and the value would never persist.
+		const { data, error } = await supabase
+			.from('profiles')
+			.update(patch)
+			.eq('id', claims.sub)
+			.select('id');
 		if (error) {
 			errorMsg = error.message;
+		} else if (!data || data.length === 0) {
+			errorMsg = 'Could not save your profile. Try signing out and back in.';
 		} else {
 			await invalidateAll();
 		}

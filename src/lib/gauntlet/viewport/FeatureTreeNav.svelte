@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
 	import { MODES } from '$lib/gauntlet';
 
 	/**
@@ -15,10 +16,40 @@
 
 	const current = $derived($page.url.pathname);
 	const isActive = (href?: string) => !!href && (current === href || current.startsWith(href + '/'));
+
+	// The rail reads as clutter during a run, so it starts hidden; a small tab
+	// reveals it and the choice persists per browser. Wide-viewport only (the rail
+	// is display:none below 1440px, so the tab is too).
+	let collapsed = $state(true);
+	onMount(() => {
+		try {
+			collapsed = localStorage.getItem('gt-tree-open') !== '1';
+		} catch {
+			/* storage unavailable; stay collapsed */
+		}
+	});
+	const toggle = () => {
+		collapsed = !collapsed;
+		try {
+			localStorage.setItem('gt-tree-open', collapsed ? '0' : '1');
+		} catch {
+			/* storage unavailable */
+		}
+	};
 </script>
 
-<nav class="gt-tree" aria-label="GAUNTLET modes">
-	<div class="tree-hdr" aria-hidden="true">FeatureManager</div>
+{#if collapsed}
+	<button class="gt-tree-tab" type="button" onclick={toggle} aria-label="Show the FeatureManager">
+		<span class="tab-icon" aria-hidden="true">&#9776;</span>
+		<span class="tab-txt">FeatureManager</span>
+	</button>
+{/if}
+
+<nav class="gt-tree" class:collapsed aria-label="GAUNTLET modes" aria-hidden={collapsed}>
+	<div class="tree-hdr">
+		<span aria-hidden="true">FeatureManager</span>
+		<button class="tree-hide" type="button" onclick={toggle} aria-label="Hide the FeatureManager">&#8249;</button>
+	</div>
 	<a class="tree-root" href="/gauntlet" class:active={current === '/gauntlet'}>
 		<span class="car" aria-hidden="true">&#9662;</span>
 		<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 12V5l5-3 5 3v7H8V8H6v4z" fill="none" stroke="currentColor" /></svg>
@@ -82,6 +113,10 @@
 	.gt-tree {
 		display: none;
 	}
+	/* The reveal tab and the rail only exist on wide viewports. */
+	.gt-tree-tab {
+		display: none;
+	}
 	@media (min-width: 1440px) {
 		.gt-tree {
 			display: block;
@@ -95,6 +130,62 @@
 			border: 1px solid var(--line);
 			border-radius: var(--radius-card);
 			overflow: hidden;
+			transition: transform 0.3s ease;
+		}
+		/* Hidden by default: slide the rail off the left edge, out of interaction. */
+		.gt-tree.collapsed {
+			transform: translateX(calc(-100% - 1.5rem));
+			pointer-events: none;
+		}
+		.gt-tree-tab {
+			display: inline-flex;
+			align-items: center;
+			gap: 0.4rem;
+			position: fixed;
+			z-index: 2;
+			top: 6.5rem;
+			left: 0;
+			padding: 0.5rem 0.6rem;
+			background: linear-gradient(180deg, var(--panel), var(--void));
+			border: 1px solid var(--line);
+			border-left: none;
+			border-radius: 0 var(--radius-ctl) var(--radius-ctl) 0;
+			color: var(--dim);
+			cursor: pointer;
+			font-family: var(--font-data);
+			font-size: 0.55rem;
+			letter-spacing: 0.16em;
+			text-transform: uppercase;
+			transition:
+				color 0.2s ease,
+				border-color 0.2s ease;
+		}
+		.gt-tree-tab:hover {
+			color: var(--green);
+			border-color: var(--line-strong);
+		}
+		.gt-tree-tab .tab-icon {
+			font-size: 0.8rem;
+			line-height: 1;
+		}
+	}
+	.tree-hide {
+		background: none;
+		border: none;
+		color: var(--dim);
+		cursor: pointer;
+		font-family: var(--font-data);
+		font-size: 0.9rem;
+		line-height: 1;
+		padding: 0 0.15rem;
+	}
+	.tree-hide:hover {
+		color: var(--green);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.gt-tree,
+		.gt-tree-tab {
+			transition: none;
 		}
 	}
 	/* Faint green light falling from the panel top. */
@@ -106,6 +197,9 @@
 		pointer-events: none;
 	}
 	.tree-hdr {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
 		font-family: var(--font-data);
 		font-size: 0.55rem;
 		letter-spacing: 0.24em;
