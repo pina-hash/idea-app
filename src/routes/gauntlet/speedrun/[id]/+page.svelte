@@ -4,10 +4,11 @@
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import Header from '$lib/gauntlet/Header.svelte';
-	import Asset from '$lib/gauntlet/Asset.svelte';
 	import StlViewer from '$lib/gauntlet/StlViewer.svelte';
+	import DrawingViewer from '$lib/gauntlet/DrawingViewer.svelte';
 	import SpeedrunClock from '$lib/gauntlet/SpeedrunClock.svelte';
 	import RunResults from '$lib/gauntlet/RunResults.svelte';
+	import { supportsDocumentPip, openPipWindow, openDrawingWindow } from '$lib/gauntlet/popout';
 	import {
 		difficultyLabel,
 		formatTime,
@@ -16,6 +17,7 @@
 		SUBMIT_MACRO_PATH,
 		DRAWINGS_BUCKET,
 		UNIT_SYSTEM_UNITS,
+		type FocusRegion,
 		type SpeedrunReveal,
 		type SpeedrunResult
 	} from '$lib/gauntlet';
@@ -54,6 +56,7 @@
 	let phase = $state<Phase>('framing');
 	let drawing = $state<string | null>(null);
 	let drawingUrl = $state<string | null>(null);
+	let focusRegions = $state<FocusRegion[]>([]);
 	let code = $state<string | null>(null);
 	let revealing = $state(false);
 	let revealError = $state('');
@@ -110,8 +113,104 @@
 		}, 2500);
 	};
 
-	// Click-to-zoom lightbox for the drawing.
+	// Click-to-zoom lightbox for the drawing (expanded, renders over the
+	// FeatureManager because the lightbox lives inside .gt-content, z above .gt-tree).
 	let zoomOpen = $state(false);
+
+	// Pop-out / picture-in-picture (feature 2). The live viewer node is MOVED into
+	// a Document PiP window (so its pan/zoom carries), else a detached window.open,
+	// else an in-app draggable/resizable floating panel. hostSlot is where the
+	// inline viewer lives; viewerHost is the node we relocate and restore.
+	let hostSlot = $state<HTMLDivElement | null>(null);
+	let viewerHost = $state<HTMLDivElement | null>(null);
+	let popMode = $state<'none' | 'pip' | 'window' | 'float'>('none');
+	let popWindow: Window | null = null;
+	let popWatch: ReturnType<typeof setInterval> | null = null;
+	// Floating-panel position (baseline pop-out); dragged by its header.
+	let floatX = $state(120);
+	let floatY = $state(120);
+
+	const popContent = () => ({
+		src: drawingUrl,
+		svg: drawingUrl ? null : drawing,
+		title: challenge.title
+	});
+
+	async function popOut() {
+		if (popMode !== 'none' || !(drawingUrl || drawing)) return;
+		// Primary: Document Picture-in-Picture (the school Chrome/Windows target).
+		if (supportsDocumentPip()) {
+			const pip = await openPipWindow(560, 440);
+			if (pip && viewerHost) {
+				pip.document.body.appendChild(viewerHost);
+				popWindow = pip;
+				popMode = 'pip';
+				pip.addEventListener('pagehide', bringBack, { once: true });
+				return;
+			}
+		}
+		// Fallback: a detached, minimal drawing-only window.
+		const w = openDrawingWindow(popContent());
+		if (w) {
+			popWindow = w;
+			popMode = 'window';
+			popWatch = setInterval(() => {
+				if (w.closed) {
+					if (popWatch) clearInterval(popWatch);
+					popWatch = null;
+					if (popMode === 'window') popMode = 'none';
+					popWindow = null;
+				}
+			}, 700);
+			return;
+		}
+		// Baseline: the in-app floating panel.
+		popMode = 'float';
+	}
+
+	// Restore the popped-out drawing: move the node back inline and/or close the
+	// window. Safe to call from anywhere (navigation, retry, result arrival).
+	function bringBack() {
+		if (popMode === 'pip' && viewerHost && hostSlot && viewerHost.parentNode !== hostSlot) {
+			hostSlot.appendChild(viewerHost);
+		}
+		if (popWatch) {
+			clearInterval(popWatch);
+			popWatch = null;
+		}
+		if (popWindow) {
+			try {
+				popWindow.close();
+			} catch {
+				/* already gone */
+			}
+		}
+		popWindow = null;
+		popMode = 'none';
+	}
+
+	const startFloatDrag = (e: PointerEvent) => {
+		const el = e.currentTarget as HTMLElement;
+		el.setPointerCapture(e.pointerId);
+		const ox = e.clientX - floatX;
+		const oy = e.clientY - floatY;
+		const move = (ev: PointerEvent) => {
+			floatX = Math.max(0, ev.clientX - ox);
+			floatY = Math.max(0, ev.clientY - oy);
+		};
+		const up = (ev: PointerEvent) => {
+			el.releasePointerCapture(ev.pointerId);
+			el.removeEventListener('pointermove', move);
+			el.removeEventListener('pointerup', up);
+		};
+		el.addEventListener('pointermove', move);
+		el.addEventListener('pointerup', up);
+	};
+
+	// Tutorial video (feature 4): only rendered when the author set one; the iframe
+	// loads lazily on open so it never touches the network during a timed run.
+	const tutorialId = $derived(framing.tutorial_video_id ?? null);
+	let tutorialOpen = $state(false);
 
 	// The macro result (ranked) arrives via Realtime; the manual practice result
 	// is an inline, unranked self-check that never ends or blocks the run.
@@ -141,6 +240,7 @@
 		}
 		const payload = rev as SpeedrunReveal | null;
 		drawing = payload?.drawing ?? null;
+		focusRegions = Array.isArray(payload?.focus_regions) ? payload.focus_regions : [];
 		code = payload?.code ?? null;
 		// The dimensioned PNG lives in a private bucket; its path is handed back only
 		// on Start, so sign it now for display (shape STL preview stays separate).
@@ -216,10 +316,12 @@
 
 	// A retry is a fresh reveal-on-start run: re-hide everything and reset.
 	const reset = () => {
+		bringBack();
 		stopStatusPoll();
 		phase = 'framing';
 		drawing = null;
 		drawingUrl = null;
+		focusRegions = [];
 		code = null;
 		result = null;
 		practice = null;
@@ -246,6 +348,8 @@
 					};
 					// Teachers can read all submissions (RLS), so scope to our own run.
 					if (row.source === 'macro' && row.user_id === myUserId) {
+						// Restore any popped-out drawing before the running view unmounts.
+						bringBack();
 						result = { is_correct: !!row.is_correct, score_metric: row.score_metric ?? null };
 						phase = 'done';
 						invalidateAll();
@@ -268,6 +372,8 @@
 		return () => {
 			supabase.removeChannel(channel);
 			stopStatusPoll();
+			// Return the drawing node inline before the component tears down.
+			bringBack();
 		};
 	});
 
@@ -314,16 +420,23 @@
 						</button>
 						{#if revealError}<p class="warn">{revealError}</p>{/if}
 					</div>
-				{:else if drawingUrl}
-					<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
-						<img class="drawing-png" src={drawingUrl} alt="Dimensioned drawing" />
-						<span class="zoom-hint">Click to zoom</span>
-					</button>
-				{:else if drawing}
-					<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
-						<Asset value={drawing} />
-						<span class="zoom-hint">Click to zoom</span>
-					</button>
+				{:else if drawingUrl || drawing}
+					<div class="viewer-slot" bind:this={hostSlot}>
+						<div class="viewer-host" bind:this={viewerHost}>
+							<DrawingViewer
+								src={drawingUrl}
+								svg={drawingUrl ? null : drawing}
+								regions={focusRegions}
+								alt="Dimensioned drawing"
+							/>
+						</div>
+					</div>
+					{#if popMode === 'pip' || popMode === 'window'}
+						<div class="drawing-popped">
+							<p class="dim">Drawing opened in a separate window, positioned over SolidWorks.</p>
+							<button class="btn secondary" type="button" onclick={bringBack}>Bring it back</button>
+						</div>
+					{/if}
 				{:else}
 					<p class="dim">No drawing provided.</p>
 				{/if}
@@ -335,6 +448,17 @@
 					</div>
 				{/if}
 			</div>
+
+			{#if phase === 'running' && (drawingUrl || drawing)}
+				<div class="drawing-tools">
+					<button class="dtool" type="button" onclick={() => (zoomOpen = true)}>⤢ Expand</button>
+					<button class="dtool" type="button" onclick={popOut} disabled={popMode !== 'none'}>
+						{popMode === 'none' ? 'Pop out ▸' : 'Popped out'}
+					</button>
+					<span class="dtool-hint dim">Float the drawing over SolidWorks so you never alt-tab mid-run.</span>
+				</div>
+			{/if}
+
 
 			{#if modelUrl}
 				<details class="preview-toggle">
@@ -395,6 +519,26 @@
 					</ul>
 				{/if}
 			</div>
+
+			{#if tutorialId}
+				<details class="tutorial" bind:open={tutorialOpen}>
+					<summary>Tutorial video</summary>
+					<p class="instructions">A walkthrough for this drawing. It stays closed by default so it never distracts during a timed run.</p>
+					{#if tutorialOpen}
+						<div class="tutorial-embed">
+							<iframe
+								src={`https://www.youtube-nocookie.com/embed/${tutorialId}`}
+								title="Tutorial video"
+								loading="lazy"
+								allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+								referrerpolicy="strict-origin-when-cross-origin"
+								allowfullscreen
+							></iframe>
+						</div>
+					{/if}
+				</details>
+			{/if}
+
 
 			{#if phase === 'framing'}
 				{#if framing.note}<p class="instructions">{framing.note}</p>{/if}
@@ -550,21 +694,43 @@
 </main>
 
 {#if zoomOpen && (drawingUrl || drawing)}
-	<!-- Click-to-zoom lightbox: the drawing scaled to fit the screen (fully visible,
-	     no scrolling). The backdrop is a real button (dismiss on click; Esc handled
-	     on svelte:window) so the dialog above it stays clean. -->
+	<!-- Expanded view: a full-screen interactive DrawingViewer (pan / zoom / minimap
+	     / focus regions carry over here too). It lives inside .gt-content, whose
+	     z-index sits above the FeatureManager rail, so it renders on top of it. The
+	     backdrop is a real button (dismiss on click; Esc handled on svelte:window). -->
 	<div class="lightbox">
 		<button class="lightbox-backdrop" type="button" aria-label="Close enlarged drawing" onclick={closeZoom}
 		></button>
 		<div class="lightbox-inner" role="dialog" aria-modal="true" aria-label="Dimensioned drawing">
 			<button class="lightbox-close btn secondary" type="button" onclick={closeZoom}>Close &times;</button>
-			<div class="lightbox-scroll">
-				{#if drawingUrl}
-					<img class="lightbox-img" src={drawingUrl} alt="Dimensioned drawing, enlarged" />
-				{:else if drawing}
-					<div class="lightbox-svg"><Asset value={drawing} /></div>
-				{/if}
+			<div class="lightbox-viewer">
+				<DrawingViewer
+					src={drawingUrl}
+					svg={drawingUrl ? null : drawing}
+					regions={focusRegions}
+					alt="Dimensioned drawing, enlarged"
+				/>
 			</div>
+		</div>
+	</div>
+{/if}
+
+{#if popMode === 'float' && (drawingUrl || drawing)}
+	<!-- Baseline pop-out: an in-app draggable (by the header) and resizable (CSS
+	     resize handle) floating panel, used when Document PiP and window.open are
+	     both unavailable. It hosts its own DrawingViewer so pan/zoom is independent. -->
+	<div class="float-panel" style="left:{floatX}px;top:{floatY}px;">
+		<div class="float-head" role="toolbar" tabindex="-1" aria-label="Drawing panel, drag to move" onpointerdown={startFloatDrag}>
+			<span class="float-title">Drawing</span>
+			<button class="float-close" type="button" onclick={bringBack} aria-label="Close floating drawing">&times;</button>
+		</div>
+		<div class="float-body">
+			<DrawingViewer
+				src={drawingUrl}
+				svg={drawingUrl ? null : drawing}
+				regions={focusRegions}
+				alt="Dimensioned drawing"
+			/>
 		</div>
 	</div>
 {/if}

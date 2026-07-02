@@ -522,6 +522,51 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   homepage renders a signed-in "continue / next best" nudge card from
   `+page.server.ts`. No pressure timers, no dark patterns, and no coin
   payouts (coins stay deferred).
+- **Speedrun drawing UX + series + tutorial (`0022`, `0023`):** four additive
+  Speedrun improvements, all layered on the existing reveal-on-start / gated
+  drawing model without touching scoring or timing.
+  - **Interactive drawing viewer.** `src/lib/gauntlet/DrawingViewer.svelte` is a
+    reusable pan (drag) / zoom (wheel, pinch, +/- controls) / fit-to-view viewer
+    with a corner minimap position indicator and an optional focus-region jump
+    strip. It is self-contained (owns its chrome and the blueprint recolor in
+    scoped styles) so it also works when relocated into a pop-out window. It
+    replaces the old click-to-zoom `<img>` on the Speedrun play page, both inline
+    and in the expanded lightbox (which still renders over the FeatureManager
+    because the lightbox lives inside `.gt-content`). All motion is gated behind
+    `prefers-reduced-motion`.
+  - **Focus regions.** Author-defined labelled rectangles (normalized 0-to-1
+    `FocusRegion` fractions) that describe positions on the hidden dimensioned
+    drawing, so they live in the gated `answer.focus_regions` and are handed back
+    only by `gauntlet_speedrun_reveal` on Start (0023 adds them to that RPC's
+    return, nothing else changes). Authored on the Speedrun form as percent rows;
+    degrade to plain pan/zoom when none exist. A visual region picker is a v2.
+  - **Picture-in-picture / pop-out** (`src/lib/gauntlet/popout.ts`). A "Pop out"
+    control floats the drawing over SolidWorks so students don't alt-tab mid-run.
+    Tiered by capability: primary is the Document Picture-in-Picture API (the
+    school Chrome target), which MOVES the live viewer node into an always-on-top
+    OS window so its pan/zoom carries; fallback is a detached `window.open`
+    drawing-only window (self-contained HTML with its own pan/zoom); baseline is
+    an in-app draggable + resizable floating panel. The moved node is always
+    restored inline on close / retry / result / unmount.
+  - **Drawing series / collections (`0022`).** A first-class organizing unit:
+    `gauntlet_series` (name, description, sort_order; plain teacher-gated RLS like
+    the ruleset, no private data) plus `series_id` / `series_order` columns on
+    `challenges` (a challenge belongs to one series or none). Membership is a
+    real relation in real columns, deliberately NOT prompt JSONB, so a content
+    edit through `gauntlet_author_upsert` never clobbers it; assignment / move /
+    reorder route through the `gauntlet_series_assign` SECURITY DEFINER RPC
+    because direct DML on `challenges` is revoked (0009). Students browse and
+    filter Speedruns by series on `/gauntlet/speedrun`; teachers create / rename /
+    reorder / delete series and assign / order drawings on `/gauntlet/author`.
+  - **Per-drawing YouTube tutorial.** An optional `prompt.tutorial_video_id`
+    (Speedrun site data, normalized from any YouTube URL/id by
+    `normalizeYouTubeId`); rendered as a collapsible Tutorial panel on the play
+    page, collapsed by default with the iframe lazily mounted on open so it never
+    touches the network during a timed run. No migration (free-form JSONB).
+  - **Migrations to apply:** `0022_gauntlet_drawing_series.sql` (required before
+    deploy: the Speedrun and author loads now select `series_id`/`series_order`)
+    and `0023_gauntlet_reveal_focus_regions.sql`. Both are manual per the
+    convention; the reveal change fails soft (missing field -> no regions).
 - **SolidWorks add-in (`tools/solidworks-addin/`):** a .NET Framework 4.8
   SOLIDWORKS COM add-in (C#, `ISwAddin`, WinForms task pane) that replaces the
   two VBA capture macros with a persistent in-SOLIDWORKS panel: live mass /

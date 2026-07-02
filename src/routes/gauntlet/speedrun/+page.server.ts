@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import type { SpeedrunFraming } from '$lib/gauntlet';
+import type { GauntletSeries, SpeedrunFraming } from '$lib/gauntlet';
 
 /**
  * Speedrun challenge list. Loads published Speedrun challenges (framing only,
@@ -21,11 +21,18 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 
 	const { data: challenges } = await supabase
 		.from('challenges')
-		.select('id, title, difficulty, prompt')
+		.select('id, title, difficulty, prompt, series_id, series_order')
 		.eq('mode', 'speedrun')
 		.eq('published', true)
 		.order('difficulty', { ascending: true })
 		.order('created_at', { ascending: true });
+
+	// Series definitions for the browse-by-series UI (0022).
+	const { data: series } = await supabase
+		.from('gauntlet_series')
+		.select('id, name, description, sort_order')
+		.order('sort_order', { ascending: true })
+		.order('name', { ascending: true });
 
 	const { data: mine } = await supabase
 		.from('gauntlet_leaderboard')
@@ -46,6 +53,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			targetMass: framing.target_mass ?? null,
 			massUnit: framing.mass_unit ?? 'g',
 			demo: framing.demo === true,
+			seriesId: (c.series_id ?? null) as string | null,
+			seriesOrder: (c.series_order ?? null) as number | null,
 			cleared: best !== undefined,
 			bestTime: (best?.score_metric ?? null) as number | null,
 			rank: (best?.rank ?? null) as number | null
@@ -55,6 +64,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
-		challenges: list
+		challenges: list,
+		series: (series ?? []) as GauntletSeries[]
 	};
 };

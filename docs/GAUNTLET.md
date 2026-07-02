@@ -235,6 +235,29 @@ remains as unranked supervised practice.** The original manual MVP is
   authored from actual SolidWorks parts with the macro's Author capture mode,
   via the authoring tool.
 
+### Drawing UX, series, and tutorials (`0022`, `0023`)
+
+Four additive Speedrun improvements that layer on the reveal-on-start model
+without touching scoring, timing, or the token flow (full detail in CLAUDE.md):
+
+- **Interactive drawing viewer** (`DrawingViewer.svelte`): pan / zoom / fit with a
+  minimap and an optional focus-region jump strip, replacing the click-to-zoom
+  image inline and in the expanded lightbox. Reading fine detail on a complex
+  drawing no longer means fighting the UI.
+- **Focus regions**: author-defined labelled rectangles on the drawing. Because
+  they describe the gated dimensioned drawing they live in `answer.focus_regions`
+  and are revealed on Start by `gauntlet_speedrun_reveal` (0023), preserving the
+  "nothing about the drawing leaks before Start" rule. Degrade to plain pan/zoom.
+- **Picture-in-picture / pop-out**: float the drawing over SolidWorks so students
+  don't alt-tab mid-run. Document PiP (primary, carries pan/zoom by moving the
+  live node), `window.open` (fallback), in-app floating panel (baseline).
+- **Series / collections (`0022`)**: `gauntlet_series` + `series_id`/`series_order`
+  on `challenges`, a first-class organizing unit so authors group drawings (an
+  FRC parts series) and students browse by series. Membership is a real relation
+  (not prompt JSONB) written by `gauntlet_series_assign`, so content edits never
+  clobber it. Optional per-drawing YouTube tutorial lives in
+  `prompt.tutorial_video_id` (collapsed panel, lazy iframe; no migration).
+
 ## Reverse Engineer and Feature Golf
 
 Two more modeling modes (`0007_gauntlet_modeling_modes.sql`) that reuse the macro

@@ -2993,3 +2993,320 @@ a:hover {
 		animation: none;
 	}
 }
+
+/* ==========================================================================
+   GAUNTLET Speedrun UX batch: interactive drawing viewer host, pop-out tools,
+   the floating baseline panel, the tutorial panel, and drawing series (student
+   browse + author management). The DrawingViewer owns its own chrome/blueprint
+   recolor (scoped in its component), so these are layout/host rules only.
+   ========================================================================== */
+
+/* The inline viewer fills the drawing frame edge-to-edge (the frame keeps the
+   border; the viewer paints the blueprint field itself). */
+.gauntlet .drawing-frame:has(.viewer-slot) {
+	padding: 0;
+	border-color: var(--line-strong);
+}
+.gauntlet .viewer-slot,
+.gauntlet .viewer-host {
+	width: 100%;
+	height: 100%;
+}
+/* Message shown in the frame when the drawing has been moved into a PiP window. */
+.gauntlet .drawing-popped {
+	position: absolute;
+	inset: 0;
+	z-index: 4;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.7rem;
+	text-align: center;
+	padding: 1rem;
+	background: rgba(4, 7, 10, 0.82);
+}
+
+/* Expand / Pop out control row under the drawing. */
+.gauntlet .drawing-tools {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+.gauntlet .dtool {
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	background: var(--bg2);
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	padding: 0.35rem 0.7rem;
+	cursor: pointer;
+}
+.gauntlet .dtool:hover {
+	border-color: var(--cyan);
+}
+.gauntlet .dtool:disabled {
+	opacity: 0.6;
+	cursor: default;
+	color: var(--dim);
+}
+.gauntlet .dtool-hint {
+	font-size: 0.72rem;
+}
+
+/* Expanded lightbox now hosts a full DrawingViewer (sized container). */
+.lightbox-viewer {
+	width: 100%;
+	height: 78vh;
+	background-color: #04130c;
+	border: 1px solid var(--line-strong);
+	box-shadow: inset 0 0 0 1px rgba(0, 255, 65, 0.12);
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+/* Baseline pop-out: in-app draggable (header) + resizable (CSS handle) panel.
+   Unscoped like the lightbox; tokens resolve through the enclosing .gt-root. */
+.float-panel {
+	position: fixed;
+	z-index: 120;
+	width: 380px;
+	height: 320px;
+	min-width: 220px;
+	min-height: 180px;
+	background: var(--panel, #0a1014);
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6);
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+	resize: both;
+}
+.float-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.3rem 0.55rem;
+	background: var(--panel-2, #0e161b);
+	border-bottom: 1px solid var(--line);
+	cursor: move;
+	user-select: none;
+	touch-action: none;
+}
+.float-title {
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--cyan);
+}
+.float-close {
+	background: none;
+	border: none;
+	color: var(--dim);
+	font-size: 1.05rem;
+	line-height: 1;
+	cursor: pointer;
+}
+.float-close:hover {
+	color: var(--crimson, #ff3355);
+}
+.float-body {
+	flex: 1;
+	min-height: 0;
+	position: relative;
+}
+
+/* Tutorial panel (feature 4): collapsed by default; iframe loads only on open. */
+.gauntlet .tutorial {
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	padding: 0.6rem 1rem;
+	background: var(--bg1);
+}
+.gauntlet .tutorial > summary {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	cursor: pointer;
+	padding: 0.2rem 0;
+}
+.gauntlet .tutorial[open] > summary {
+	margin-bottom: 0.5rem;
+}
+.gauntlet .tutorial-embed {
+	position: relative;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	border: 1px solid var(--line);
+	border-radius: 4px;
+	overflow: hidden;
+}
+.gauntlet .tutorial-embed iframe {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	border: 0;
+}
+
+/* Series browse (student, Speedrun list). */
+.gauntlet .series-filter {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0.25rem 0 1.25rem;
+}
+.gauntlet .series-chip {
+	font-family: var(--font-mono);
+	font-size: 0.68rem;
+	letter-spacing: 0.06em;
+	color: var(--dim);
+	background: var(--bg2);
+	border: 1px solid var(--line);
+	border-radius: 20px;
+	padding: 0.3rem 0.8rem;
+	cursor: pointer;
+}
+.gauntlet .series-chip:hover {
+	border-color: var(--line-strong);
+	color: var(--white);
+}
+.gauntlet .series-chip.active {
+	color: var(--bg0);
+	background: var(--cyan);
+	border-color: var(--cyan);
+}
+.gauntlet .series-chip .chip-n {
+	opacity: 0.7;
+}
+.gauntlet .series-section {
+	margin-bottom: 1.5rem;
+}
+.gauntlet .series-head {
+	margin: 0.5rem 0;
+}
+.gauntlet .series-head h2 {
+	margin: 0;
+}
+.gauntlet .series-desc {
+	font-size: 0.85rem;
+	margin: 0.15rem 0 0;
+}
+
+/* Series management (author). */
+.gauntlet .series-new {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+	margin: 0.5rem 0 1rem;
+}
+.gauntlet .series-new .ff-input {
+	flex: 1;
+	min-width: 140px;
+}
+.gauntlet .series-editor {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+.gauntlet .series-item {
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	padding: 0.7rem;
+	background: var(--bg2);
+}
+.gauntlet .series-item-head {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.gauntlet .series-item-head .ff-input {
+	flex: 1;
+	min-width: 120px;
+}
+.gauntlet .series-order {
+	flex: 0 0 64px;
+	min-width: 0;
+	text-align: center;
+}
+.gauntlet .series-members {
+	list-style: none;
+	margin: 0.6rem 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+.gauntlet .series-member {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0.35rem 0.55rem;
+	background: var(--bg1);
+	border: 1px solid var(--line);
+	border-radius: 4px;
+}
+.gauntlet .member-title {
+	flex: 1;
+	color: var(--white);
+}
+.gauntlet .member-actions {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+.gauntlet .member-empty {
+	font-size: 0.82rem;
+	padding: 0.3rem 0.55rem;
+}
+.gauntlet .series-add {
+	display: flex;
+	gap: 0.5rem;
+	margin-top: 0.6rem;
+}
+.gauntlet .series-add .ff-input {
+	flex: 1;
+}
+
+/* Focus-region editor rows (ChallengeForm, Speedrun). */
+.gauntlet .region-heading {
+	display: block;
+	margin-top: 1rem;
+}
+.gauntlet .region-head,
+.gauntlet .region-row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) repeat(4, 58px) auto;
+	gap: 0.4rem;
+	align-items: center;
+}
+.gauntlet .region-head {
+	font-family: var(--font-mono);
+	font-size: 0.56rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--dim);
+	margin: 0.4rem 0 0.2rem;
+	text-align: center;
+}
+.gauntlet .region-head span:first-child {
+	text-align: left;
+}
+.gauntlet .region-row {
+	margin-bottom: 0.4rem;
+}
+.gauntlet .region-num {
+	text-align: center;
+}

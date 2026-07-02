@@ -6,7 +6,50 @@
  * shapes in lock-step with the seeds in supabase/migrations/0004..0008.
  */
 
-import { modeById, UNIT_SYSTEM_UNITS, type GauntletModeId, type UnitSystem } from '$lib/gauntlet';
+import {
+	modeById,
+	UNIT_SYSTEM_UNITS,
+	type FocusRegion,
+	type GauntletModeId,
+	type UnitSystem
+} from '$lib/gauntlet';
+
+/**
+ * Extract a bare YouTube video id from a URL or an already-bare id (feature 4).
+ * Returns '' when nothing valid is found, so the form can flag bad input and
+ * `buildPayload` simply omits an empty tutorial. Accepts watch, youtu.be, embed,
+ * shorts, and live URL shapes.
+ */
+export function normalizeYouTubeId(input: string): string {
+	const s = (input ?? '').trim();
+	if (!s) return '';
+	if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+	const patterns = [
+		/[?&]v=([A-Za-z0-9_-]{11})/,
+		/youtu\.be\/([A-Za-z0-9_-]{11})/,
+		/\/embed\/([A-Za-z0-9_-]{11})/,
+		/\/shorts\/([A-Za-z0-9_-]{11})/,
+		/\/live\/([A-Za-z0-9_-]{11})/
+	];
+	for (const re of patterns) {
+		const m = s.match(re);
+		if (m) return m[1];
+	}
+	return '';
+}
+
+/**
+ * A focus region as edited in the form: percent (0 to 100) of the drawing,
+ * top-left origin. Converted to the canonical 0-to-1 `FocusRegion` fractions in
+ * `buildPayload`, and back in `formFromChallenge`.
+ */
+export interface FocusRegionInput {
+	label: string;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
 
 /** Geometry parsed out of the macro's Author-capture message-box text. */
 export interface CapturedGeometry {
@@ -82,6 +125,10 @@ export interface AuthorFormState {
 	par_time: number | null;
 	par_features: number | null;
 	note: string;
+	/** Speedrun only: optional per-drawing YouTube walkthrough (URL or id). */
+	tutorialVideoId: string;
+	/** Speedrun only: optional focus regions (percent), gated with the drawing. */
+	focusRegions: FocusRegionInput[];
 	/** Drawing (gated modes) or reference (Reverse Engineer): inline SVG or URL. */
 	asset: string;
 	/** Storage path of the dimensioned drawing PNG (gated, `gauntlet-drawings`). */
@@ -120,6 +167,8 @@ export function emptyForm(mode: GauntletModeId): AuthorFormState {
 		par_time: null,
 		par_features: null,
 		note: '',
+		tutorialVideoId: '',
+		focusRegions: [],
 		asset: '',
 		drawing_image_path: '',
 		model_path: '',
@@ -177,18 +226,37 @@ export function buildPayload(s: AuthorFormState): { prompt: object; answer: obje
 						tier: s.tier,
 						unit_system: s.unit_system,
 						par_time: s.par_time,
-						model_path: s.model_path
+						model_path: s.model_path,
+						// Optional per-drawing walkthrough; normalized to a bare id (or '',
+						// which clean() then drops so no field is written).
+						tutorial_video_id: normalizeYouTubeId(s.tutorialVideoId)
 					}
 				: {}),
 			// Reverse Engineer shows its reference up front (public, untimed).
 			...(s.mode === 'reverse_engineer' ? { reference: s.asset } : {}),
 			...(s.mode === 'feature_golf' ? { par_features: s.par_features } : {})
 		});
+		// Focus regions (Speedrun) are gated with the drawing: convert the form's
+		// percents to 0-to-1 fractions and drop empty/degenerate ones.
+		const regions =
+			s.mode === 'speedrun'
+				? s.focusRegions
+						.map((r) => ({
+							label: r.label.trim(),
+							x: (r.x ?? 0) / 100,
+							y: (r.y ?? 0) / 100,
+							w: (r.w ?? 0) / 100,
+							h: (r.h ?? 0) / 100
+						}))
+						.filter((r) => r.w > 0 && r.h > 0)
+				: [];
 		const answer = clean({
 			// Gated drawing for Speedrun / Feature Golf (hidden, revealed on Start).
 			...(s.mode === 'speedrun' || s.mode === 'feature_golf' ? { drawing: s.asset } : {}),
 			// Gated dimensioned drawing PNG path (Speedrun), revealed on Start.
 			...(s.mode === 'speedrun' ? { drawing_image_path: s.drawing_image_path } : {}),
+			// Gated focus regions (Speedrun), handed back by the reveal RPC on Start.
+			...(regions.length ? { focus_regions: regions } : {}),
 			target_volume_mm3: s.target_volume_mm3,
 			// Reverse Engineer scores on surface-area accuracy too.
 			...(s.mode === 'reverse_engineer'
@@ -262,6 +330,16 @@ export function formFromChallenge(c: ChallengeFull): AuthorFormState {
 			par_time: numOr(p.par_time),
 			par_features: numOr(p.par_features),
 			note: (p.note as string) ?? '',
+			tutorialVideoId: (p.tutorial_video_id as string) ?? '',
+			focusRegions: Array.isArray(a.focus_regions)
+				? (a.focus_regions as FocusRegion[]).map((r) => ({
+						label: r.label ?? '',
+						x: (r.x ?? 0) * 100,
+						y: (r.y ?? 0) * 100,
+						w: (r.w ?? 0) * 100,
+						h: (r.h ?? 0) * 100
+					}))
+				: [],
 			asset:
 				c.mode === 'reverse_engineer'
 					? ((p.reference as string) ?? '')

@@ -15,6 +15,7 @@
 		buildPayload,
 		massFromGeometry,
 		parseAuthorCapture,
+		normalizeYouTubeId,
 		isModeling,
 		type AuthorFormState
 	} from '$lib/gauntlet/authoring';
@@ -47,6 +48,17 @@
 			? Math.abs(form.target_mass - computedMass) / computedMass > 0.005
 			: false
 	);
+
+	// Feature 4: live preview of the parsed video id (empty when input is invalid).
+	const tutorialId = $derived(normalizeYouTubeId(form.tutorialVideoId));
+
+	// Feature 1: focus-region rows (percent). New regions default to a centered box.
+	const addRegion = () => {
+		form.focusRegions = [...form.focusRegions, { label: '', x: 30, y: 30, w: 25, h: 25 }];
+	};
+	const removeRegion = (i: number) => {
+		form.focusRegions = form.focusRegions.filter((_, idx) => idx !== i);
+	};
 
 	const applyPaste = () => {
 		const g = parseAuthorCapture(pasteText);
@@ -391,6 +403,57 @@
 			{:else if form.model_path}
 				<p class="ff-help">Current: {form.model_path}</p>
 			{/if}
+		</div>
+	{/if}
+
+	{#if speedrun}
+		<h2>Drawing viewer (tutorial + focus regions)</h2>
+		<div class="card">
+			<label class="ff">
+				<span class="ff-label">Tutorial video (YouTube URL or id, optional)</span>
+				<input
+					class="ff-input"
+					type="text"
+					bind:value={form.tutorialVideoId}
+					placeholder="https://youtu.be/... or dQw4w9WgXcQ"
+				/>
+			</label>
+			{#if form.tutorialVideoId.trim() && !tutorialId}
+				<p class="warn ff-warn">
+					Could not read a YouTube video id from that. Paste a full watch/share URL or the
+					11-character id.
+				</p>
+			{:else if tutorialId}
+				<p class="ff-help">
+					Video id <strong>{tutorialId}</strong>. Students get a collapsible Tutorial panel, closed
+					by default so it never distracts during a run.
+				</p>
+			{/if}
+
+			<span class="ff-label region-heading">Focus regions (optional jump targets)</span>
+			<p class="ff-help">
+				Author-defined detail areas a student can jump to at high zoom. Values are percent of the
+				drawing (0 to 100), measured from the top-left. Leave empty for none; the viewer degrades to
+				plain pan and zoom.
+			</p>
+			{#if form.focusRegions.length}
+				<div class="region-head">
+					<span>Label</span><span>X%</span><span>Y%</span><span>W%</span><span>H%</span><span></span>
+				</div>
+			{/if}
+			{#each form.focusRegions as r, i (i)}
+				<div class="region-row">
+					<input class="ff-input" type="text" bind:value={r.label} placeholder="Detail {i + 1}" />
+					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.x} />
+					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.y} />
+					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.w} />
+					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.h} />
+					<button class="text-act danger" type="button" onclick={() => removeRegion(i)}>Remove</button>
+				</div>
+			{/each}
+			<div class="btn-row">
+				<button class="btn secondary" type="button" onclick={addRegion}>Add focus region</button>
+			</div>
 		</div>
 	{/if}
 

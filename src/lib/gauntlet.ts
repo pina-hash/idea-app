@@ -268,12 +268,46 @@ export interface ModelingFraming {
 	 */
 	model_path?: string;
 	note?: string;
+	/**
+	 * Optional YouTube video id for a per-drawing walkthrough. Normalized to the
+	 * bare id at author time (see `normalizeYouTubeId`); public framing, rendered
+	 * as a collapsible Tutorial panel in the play view (collapsed by default).
+	 */
+	tutorial_video_id?: string;
 	/** Reverse Engineer: reference views/photo shown up front (inline SVG). */
 	reference?: string;
 	/** Feature Golf: the par feature count, shown for flavor (not graded). */
 	par_features?: number;
 	/** Placeholder demo challenge, to be replaced by a real captured part. */
 	demo?: boolean;
+}
+
+/**
+ * An author-defined focus region on a Speedrun drawing: a labelled rectangle the
+ * student can jump to at high zoom. Coordinates are FRACTIONS of the rendered
+ * drawing (0 to 1, top-left origin), so they are resolution independent. Regions
+ * describe the hidden dimensioned drawing, so they live in the gated `answer`
+ * (answer.focus_regions) and arrive with the drawing on Start.
+ */
+export interface FocusRegion {
+	label: string;
+	x: number;
+	y: number;
+	w: number;
+	h: number;
+}
+
+/**
+ * A drawing series / collection (0022). A first-class organizing unit: authors
+ * group challenges (a challenge belongs to one series or none) and students
+ * browse by series. Membership lives in real challenge columns
+ * (series_id / series_order), never clobbered by a content edit.
+ */
+export interface GauntletSeries {
+	id: string;
+	name: string;
+	description: string | null;
+	sort_order: number;
 }
 
 /** Backwards-compatible alias: Speedrun uses the shared modeling framing. */
@@ -288,6 +322,8 @@ export interface SpeedrunReveal {
 	drawing: string | null;
 	/** Storage path of the dimensioned drawing PNG (gated; signed on the client). */
 	drawing_image_path: string | null;
+	/** Author-defined focus regions on the drawing (gated with it; may be null). */
+	focus_regions: FocusRegion[] | null;
 	asset_ref: string | null;
 	code: string | null;
 	reveal_at: string | null;
