@@ -531,12 +531,21 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   - **Interactive drawing viewer.** `src/lib/gauntlet/DrawingViewer.svelte` is a
     reusable pan (drag) / zoom (wheel, pinch, +/- controls) / fit-to-view viewer
     with a corner minimap position indicator and an optional focus-region jump
-    strip. It is self-contained (owns its chrome and the blueprint recolor in
-    scoped styles) so it also works when relocated into a pop-out window. It
-    replaces the old click-to-zoom `<img>` on the Speedrun play page, both inline
-    and in the expanded lightbox (which still renders over the FeatureManager
-    because the lightbox lives inside `.gt-content`). All motion is gated behind
-    `prefers-reduced-motion`.
+    strip. It presents the drawing on a clean white sheet (padding + shadow)
+    floating in the graphite viewport, and stays CRISP by sizing the sheet to the
+    display size (the raster/SVG is re-rasterized from source at the shown
+    resolution, device-pixel-ratio aware) and only `translate`-panning, never
+    CSS-scaling a bitmap; zoom is capped at native resolution. Interaction
+    listeners are attached with `addEventListener` (NOT Svelte's delegated `on:`),
+    and the controls are siblings of the pan surface (not children), so a click on
+    a control never trips pan AND everything keeps working after the live node is
+    relocated into a Document PiP window. It replaces the old click-to-zoom `<img>`
+    on the Speedrun play page, both inline and in the expanded lightbox (which
+    still renders over the FeatureManager because the lightbox lives inside
+    `.gt-content`). All motion is gated behind `prefers-reduced-motion`. A dev-only
+    harness at `/dev/viewer` (`src/routes/dev/viewer`, 404 in production, no auth /
+    Supabase) mounts it with a generated high-res black-on-white sample + focus
+    regions + a pop-out, for verifying interactions in a browser.
   - **Focus regions.** Author-defined labelled rectangles (normalized 0-to-1
     `FocusRegion` fractions) that describe positions on the hidden dimensioned
     drawing, so they live in the gated `answer.focus_regions` and are handed back
@@ -547,7 +556,7 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     zoom) or the numeric percent rows; both bind to the same
     `form.focusRegions` so they stay two-way synced, and region order is the
     student "Jump to" order. The picker renders the same PNG / inline-SVG cases the
-    student viewer does, with the blueprint recolor, and changes no storage.
+    student viewer handles, and changes no storage.
   - **Picture-in-picture / pop-out** (`src/lib/gauntlet/popout.ts`). A "Pop out"
     control floats the drawing over SolidWorks so students don't alt-tab mid-run.
     Tiered by capability: primary is the Document Picture-in-Picture API (the

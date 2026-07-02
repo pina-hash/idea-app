@@ -81,41 +81,41 @@ export function drawingWindowHtml(opts: { src?: string | null; svg?: string | nu
 	const media = opts.src
 		? `<img id="d" alt="${escapeHtml(title)}" src="${escapeAttr(opts.src)}" draggable="false" />`
 		: (opts.svg ?? '<p style="color:#5f8a78">No drawing.</p>');
-	// Blueprint recolor + a tiny pan/zoom controller. Kept inline so the window is
+	// The drawing on a clean white sheet floating in the graphite viewport (matching
+	// DrawingViewer), plus a tiny pan/zoom controller. Kept inline so the window is
 	// fully detached and needs nothing from the opener.
 	return `<!doctype html><html><head><meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(title)}</title>
 <style>
-  html,body{margin:0;height:100%;background:#04070a;overflow:hidden;font-family:'Share Tech Mono',monospace}
+  html,body{margin:0;height:100%;background:#05080a;overflow:hidden;font-family:'Share Tech Mono',monospace}
   #stage{position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;
-    background-color:#04130c;
-    background-image:linear-gradient(rgba(0,255,65,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,65,.07) 1px,transparent 1px);
-    background-size:24px 24px}
+    background:radial-gradient(130% 120% at 50% 38%,#0c1310,#05080a 80%)}
   #stage:active{cursor:grabbing}
-  #wrap{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
-  #wrap>*{display:block;max-width:none}
-  #d,#wrap svg{filter:invert(1) drop-shadow(0 0 1px rgba(0,255,65,.5));mix-blend-mode:screen}
+  #sheet{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform;
+    background:#fbfbf6;padding:24px;border:1px solid rgba(0,0,0,.18);box-shadow:0 10px 34px rgba(0,0,0,.55)}
+  #sheet>*{display:block;max-width:none}
   #bar{position:absolute;top:8px;right:8px;display:flex;gap:4px;z-index:2}
   #bar button{width:28px;height:28px;border:1px solid rgba(0,240,255,.3);border-radius:6px;
     background:rgba(14,22,27,.9);color:#00f0ff;font:inherit;font-size:.95rem;cursor:pointer}
 </style></head>
 <body>
-  <div id="stage"><div id="wrap">${media}</div></div>
+  <div id="stage"><div id="sheet">${media}</div></div>
   <div id="bar"><button id="in" title="Zoom in">+</button><button id="out" title="Zoom out">&minus;</button><button id="fit" title="Fit" style="width:auto;padding:0 8px;font-size:.62rem">FIT</button></div>
   <script>
     (function(){
-      var stage=document.getElementById('stage'),wrap=document.getElementById('wrap');
+      var stage=document.getElementById('stage'),sheet=document.getElementById('sheet');
       var s=1,tx=0,ty=0,drag=false,lx=0,ly=0;
-      function apply(){wrap.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';}
-      function fit(){var r=stage.getBoundingClientRect();var b=wrap.getBoundingClientRect();
+      function apply(){sheet.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';}
+      function fit(){var r=stage.getBoundingClientRect();var b=sheet.getBoundingClientRect();
         var cw=b.width/s,ch=b.height/s;if(!cw||!ch){s=1;tx=0;ty=0;apply();return;}
-        s=Math.min(r.width/cw,r.height/ch)||1;tx=(r.width-cw*s)/2;ty=(r.height-ch*s)/2;apply();}
+        s=(Math.min(r.width/cw,r.height/ch)||1)*0.94;tx=(r.width-cw*s)/2;ty=(r.height-ch*s)/2;apply();}
       function zoom(f,px,py){var ns=Math.min(10,Math.max(.2,s*f));tx=px-(px-tx)*(ns/s);ty=py-(py-ty)*(ns/s);s=ns;apply();}
       stage.addEventListener('wheel',function(e){e.preventDefault();var r=stage.getBoundingClientRect();zoom(Math.exp(-e.deltaY*0.0015),e.clientX-r.left,e.clientY-r.top);},{passive:false});
       stage.addEventListener('pointerdown',function(e){drag=true;lx=e.clientX;ly=e.clientY;stage.setPointerCapture(e.pointerId);});
       stage.addEventListener('pointermove',function(e){if(!drag)return;tx+=e.clientX-lx;ty+=e.clientY-ly;lx=e.clientX;ly=e.clientY;apply();});
       stage.addEventListener('pointerup',function(){drag=false;});
+      stage.addEventListener('pointercancel',function(){drag=false;});
       document.getElementById('in').onclick=function(){var r=stage.getBoundingClientRect();zoom(1.4,r.width/2,r.height/2);};
       document.getElementById('out').onclick=function(){var r=stage.getBoundingClientRect();zoom(1/1.4,r.width/2,r.height/2);};
       document.getElementById('fit').onclick=fit;
