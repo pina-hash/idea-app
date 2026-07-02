@@ -10,6 +10,8 @@
 		type SpeedrunReveal
 	} from '$lib/gauntlet';
 	import Asset from '$lib/gauntlet/Asset.svelte';
+	import RunResults from '$lib/gauntlet/RunResults.svelte';
+	import type { NextChallenge } from '$lib/gauntlet/next-challenge';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 
 	/**
@@ -42,7 +44,8 @@
 		gated,
 		metricLabel,
 		formatMetric,
-		backHref
+		backHref,
+		next = null
 	}: {
 		supabase: SupabaseClient;
 		challenge: Challenge;
@@ -53,6 +56,7 @@
 		metricLabel: string;
 		formatMetric: (n: number | null | undefined) => string;
 		backHref: string;
+		next?: NextChallenge | null;
 	} = $props();
 
 	const framing = $derived(challenge.framing);
@@ -77,9 +81,14 @@
 	let refreshing = $state(false);
 	let result = $state<{ is_correct: boolean; score_metric: number | null } | null>(null);
 
+	// PB context frozen at reveal time: the realtime result triggers
+	// invalidateAll(), which folds the new run into myBest.
+	let bestBeforeRun = $state<{ score_metric: number | null; rank: number } | null>(null);
+
 	const start = async () => {
 		revealing = true;
 		revealError = '';
+		bestBeforeRun = myBest ?? null;
 		const { data: rev, error } = await supabase.rpc('gauntlet_speedrun_reveal', {
 			p_challenge_id: challenge.id
 		});
@@ -255,19 +264,28 @@
 			{/if}
 
 			{#if phase === 'done' && result}
-				<div class="result-banner" class:ok={result.is_correct} class:no={!result.is_correct}>
-					<span class="result-verdict">{result.is_correct ? 'Pass, verified' : 'Outside tolerance'}</span>
-					<span class="result-time">{metricLabel} {formatMetric(result.score_metric)}</span>
-				</div>
+				<RunResults
+					correct={result.is_correct}
+					{metricLabel}
+					metricValue={result.score_metric}
+					formatMetric={(v) => formatMetric(v)}
+					accuracyLabel="Verification"
+					accuracyText={result.is_correct
+						? 'Machine verified on volume, in tolerance'
+						: 'Machine verified, outside tolerance'}
+					prevBest={bestBeforeRun?.score_metric ?? null}
+					hadCleared={bestBeforeRun != null}
+					hadAttempted={bestBeforeRun != null}
+					verdictText={result.is_correct ? 'Pass, verified' : 'Outside tolerance'}
+					{next}
+					{backHref}
+					onRetry={reset}
+				/>
 				{#if result.is_correct && myBest}
 					<p class="instructions">Ranked <strong>#{myBest.rank}</strong> on the board.</p>
 				{:else if !result.is_correct}
 					<p class="instructions">A miss is recorded but does not rank. Adjust your model and run again.</p>
 				{/if}
-				<div class="btn-row">
-					<button class="btn secondary" type="button" onclick={reset}>Run again</button>
-					<a class="btn secondary" href={backHref}>Back to list</a>
-				</div>
 			{/if}
 		</div>
 	</div>

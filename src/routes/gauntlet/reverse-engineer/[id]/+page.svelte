@@ -27,6 +27,7 @@
 	{board}
 	{myUserId}
 	{myBest}
+	next={data.next}
 	gated={false}
 	metricLabel="Deviation"
 	formatMetric={formatDeviation}

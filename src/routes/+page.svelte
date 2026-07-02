@@ -7,6 +7,16 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
 	import {
+		computeStreak,
+		levelFromXp,
+		modeHref,
+		suggestNext,
+		xpFromProgression,
+		type ProgressionPayload,
+		type SuggestibleChallenge
+	} from '$lib/gauntlet/progression';
+	import { modeById } from '$lib/gauntlet';
+	import {
 		sectionsByYear,
 		nextLiveCourse,
 		sectionById,
@@ -21,6 +31,23 @@
 	const signedIn = $derived(!!claims);
 	const isTeacher = $derived(profile?.role === 'teacher');
 	const mySection = $derived(sectionById(profile?.section_id));
+
+	// GAUNTLET "continue / next best" nudge (signed-in only; null pre-0021).
+	const nudge = $derived.by(() => {
+		const raw = data.gauntletNudge as {
+			progression: ProgressionPayload;
+			challenges: SuggestibleChallenge[];
+		} | null;
+		if (!raw) return null;
+		const p = raw.progression;
+		const level = levelFromXp(xpFromProgression(p));
+		const streak = computeStreak(p.practice_days, p.today);
+		const nextUp = suggestNext(raw.challenges, p.cleared_ids);
+		// Nothing to say to someone who has never entered the dojo and has
+		// nothing published to try; the launcher card covers discovery.
+		if (!p.attempted_ids.length && !nextUp) return null;
+		return { level, streak, nextUp };
+	});
 
 	const yearGroups = sectionsByYear();
 	const nextLive = nextLiveCourse();
@@ -368,6 +395,46 @@
 	{/if}
 
 	<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
+
+	{#if nudge}
+		<div class="nudge-card">
+			<div class="nudge-left">
+				<span class="nudge-eyebrow">IDEA // GAUNTLET</span>
+				<div class="nudge-stats">
+					<span class="nudge-stat">
+						<span class="nudge-value">LVL {nudge.level.level}</span>
+						<span class="nudge-label">{nudge.level.name} &middot; {nudge.level.xp} XP</span>
+					</span>
+					<span class="nudge-stat">
+						<span class="nudge-value" class:live={nudge.streak.state === 'active'}>
+							{nudge.streak.current} day{nudge.streak.current === 1 ? '' : 's'}
+						</span>
+						<span class="nudge-label">
+							{nudge.streak.state === 'restore'
+								? 'Practice today to keep your streak'
+								: nudge.streak.state === 'alive'
+									? 'Practice today to extend it'
+									: 'Practice streak'}
+						</span>
+					</span>
+				</div>
+			</div>
+			{#if nudge.nextUp}
+				<a class="nudge-cta" href="{modeHref(nudge.nextUp.mode)}/{nudge.nextUp.id}">
+					<span class="nudge-cta-label">
+						{nudge.streak.state === 'active' ? 'Keep going' : 'Continue'} &middot;
+						{modeById(nudge.nextUp.mode)?.name}
+					</span>
+					<span class="nudge-cta-title">{nudge.nextUp.title} &#9658;</span>
+				</a>
+			{:else}
+				<a class="nudge-cta" href="/gauntlet">
+					<span class="nudge-cta-label">All published challenges cleared</span>
+					<span class="nudge-cta-title">Enter the dojo &#9658;</span>
+				</a>
+			{/if}
+		</div>
+	{/if}
 
 	<div class="submit-panel">
 		<div class="submit-inner">

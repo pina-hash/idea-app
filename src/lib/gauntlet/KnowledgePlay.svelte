@@ -4,6 +4,8 @@
 	import { onMount } from 'svelte';
 	import { difficultyLabel, formatTime, type KnowledgePrompt, type SubmitResult } from '$lib/gauntlet';
 	import Asset from '$lib/gauntlet/Asset.svelte';
+	import RunResults from '$lib/gauntlet/RunResults.svelte';
+	import type { NextChallenge } from '$lib/gauntlet/next-challenge';
 
 	/**
 	 * Shared play flow for the web-only knowledge modes (Drawing Reading is its
@@ -31,13 +33,15 @@
 		board,
 		myUserId,
 		myBest,
-		backHref
+		backHref,
+		next = null
 	}: {
 		challenge: Challenge;
 		board: BoardRow[];
 		myUserId: string;
 		myBest: { is_correct: boolean | null; score_metric: number | null; rank: number } | null;
 		backHref: string;
+		next?: NextChallenge | null;
 	} = $props();
 
 	const prompt = $derived(challenge.prompt);
@@ -51,6 +55,9 @@
 	let localResult = $state<SubmitResult | null>(null);
 	let localAnswered = $state<string | null>(null);
 	let localError = $state('');
+	// PB context frozen at submit time: the post-submit invalidate folds this
+	// run into myBest, so the results screen compares against the snapshot.
+	let bestBeforeRun = $state<typeof myBest>(null);
 
 	const answerValue = $derived(isChoice ? selected : typed.trim());
 	const answered = $derived(!!localResult);
@@ -66,6 +73,7 @@
 		}
 		formData.set('answer', answerValue);
 		formData.set('elapsed_ms', String(Math.round(performance.now() - startTime)));
+		bestBeforeRun = myBest ?? null;
 		submitting = true;
 		return async ({ result, update }) => {
 			if (result.type === 'success' && result.data?.result) {
@@ -171,29 +179,28 @@
 			</form>
 
 			{#if localResult}
-				<div class="result-banner" class:ok={localResult.is_correct} class:no={!localResult.is_correct}>
-					<span class="result-verdict">{localResult.is_correct ? 'Correct' : 'Not quite'}</span>
-					<span class="result-time">Your time {formatTime(localResult.score_metric)}</span>
-				</div>
-				{#if !isChoice && localResult.correct != null}
-					<div class="card result-detail">
-						<div class="field">
-							<span class="key">Your answer</span>
-							<span class="val">{localAnswered}</span>
-						</div>
-						<div class="field">
-							<span class="key">Correct answer</span>
-							<span class="val meta">{localResult.correct}</span>
-						</div>
-					</div>
-				{/if}
+				<RunResults
+					correct={localResult.is_correct}
+					metricLabel="Time"
+					metricValue={localResult.score_metric}
+					formatMetric={formatTime}
+					accuracyLabel="Answer"
+					accuracyText={localResult.is_correct
+						? 'Correct'
+						: !isChoice && localResult.correct != null
+							? `You said ${localAnswered}, correct is ${localResult.correct}`
+							: 'Not quite'}
+					prevBest={bestBeforeRun?.is_correct ? bestBeforeRun.score_metric : null}
+					hadCleared={!!bestBeforeRun?.is_correct}
+					hadAttempted={bestBeforeRun != null}
+					verdictText={localResult.is_correct ? 'Correct' : 'Not quite'}
+					{next}
+					{backHref}
+					onRetry={tryAgain}
+				/>
 				{#if localResult.explanation}
 					<p class="explanation">{localResult.explanation}</p>
 				{/if}
-				<div class="btn-row">
-					<button class="btn secondary" type="button" onclick={tryAgain}>Try again</button>
-					<a class="btn secondary" href={backHref}>Back to list</a>
-				</div>
 			{/if}
 		</div>
 	</div>

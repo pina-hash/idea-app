@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import type { ModelingFraming } from '$lib/gauntlet';
+import { nextUncleared } from '$lib/gauntlet/next-challenge';
 
 /**
  * One Feature Golf challenge. Macro-only: the dimensioned drawing is hidden in
@@ -45,6 +46,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
+		next: await nextUncleared(supabase, claims.sub, 'feature_golf', '/gauntlet/feature-golf', params.id),
 		userRole: profile?.role ?? 'student',
 		challenge: {
 			id: challenge.id as string,

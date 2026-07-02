@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { KnowledgePrompt } from '$lib/gauntlet';
+import { nextUncleared } from '$lib/gauntlet/next-challenge';
 
 /**
  * One Drawing Reading challenge, end to end. The load returns the public prompt
@@ -47,6 +48,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
+		next: await nextUncleared(supabase, claims.sub, 'drawing_reading', '/gauntlet/drawing-reading', params.id),
 		challenge: {
 			id: challenge.id as string,
 			title: challenge.title as string,

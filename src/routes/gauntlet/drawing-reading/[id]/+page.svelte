@@ -4,10 +4,15 @@
 	import { onMount } from 'svelte';
 	import Header from '$lib/gauntlet/Header.svelte';
 	import Asset from '$lib/gauntlet/Asset.svelte';
+	import RunResults from '$lib/gauntlet/RunResults.svelte';
 	import { difficultyLabel, formatTime, type SubmitResult } from '$lib/gauntlet';
 
 	let { data } = $props();
 	let { supabase, userName, userRole, challenge, board, myUserId, myBest } = $derived(data);
+
+	// PB context frozen at submit time: the post-submit invalidate folds this
+	// run into myBest, so the results screen compares against the snapshot.
+	let bestBeforeRun = $state<typeof myBest>(null);
 
 	// Drawings and option thumbnails are inline SVG authored by teachers/seeds
 	// (trusted content), so {@html} is intentional here.
@@ -29,6 +34,7 @@
 		}
 		formData.set('answer', selected);
 		formData.set('elapsed_ms', String(Math.round(performance.now() - startTime)));
+		bestBeforeRun = myBest ?? null;
 		submitting = true;
 		return async ({ result, update }) => {
 			if (result.type === 'success' && result.data?.result) {
@@ -135,17 +141,24 @@
 			</form>
 
 			{#if localResult}
-				<div class="result-banner" class:ok={localResult.is_correct} class:no={!localResult.is_correct}>
-					<span class="result-verdict">{localResult.is_correct ? 'Correct' : 'Not quite'}</span>
-					<span class="result-time">Your time {formatTime(localResult.score_metric)}</span>
-				</div>
+				<RunResults
+					correct={localResult.is_correct}
+					metricLabel="Time"
+					metricValue={localResult.score_metric}
+					formatMetric={formatTime}
+					accuracyLabel="Answer"
+					accuracyText={localResult.is_correct ? 'Correct' : 'Not quite'}
+					prevBest={bestBeforeRun?.is_correct ? bestBeforeRun.score_metric : null}
+					hadCleared={!!bestBeforeRun?.is_correct}
+					hadAttempted={bestBeforeRun != null}
+					verdictText={localResult.is_correct ? 'Correct' : 'Not quite'}
+					next={data.next}
+					backHref="/gauntlet/drawing-reading"
+					onRetry={tryAgain}
+				/>
 				{#if localResult.explanation}
 					<p class="explanation">{localResult.explanation}</p>
 				{/if}
-				<div class="btn-row">
-					<button class="btn secondary" type="button" onclick={tryAgain}>Try again</button>
-					<a class="btn secondary" href="/gauntlet/drawing-reading">Back to list</a>
-				</div>
 			{/if}
 		</div>
 	</div>

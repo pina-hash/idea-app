@@ -500,6 +500,28 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   row once. Non-demo challenges keep the existing archive-if-submissions-exist
   safety net unchanged. The Speedrun ruleset's "Projection" line was removed
   from both the student-facing panel and the author's ruleset editor.
+- **Progression layer** (`0021`): XP, levels, streaks, personal bests, badges,
+  post-run results, and the homepage nudge, all **derived read-only from
+  submissions**, never stored: the `gauntlet_progression()` SECURITY DEFINER
+  RPC returns the caller's aggregates (distinct attempted/cleared ids,
+  per-mode counts vs published totals, distinct practice days in
+  America/Los_Angeles, macro clears, sub-par clears, a within-half-tolerance
+  "dead on" flag; only booleans/counters derived from `answer`, never its
+  contents). The model lives in `src/lib/gauntlet/progression.ts` (pure TS,
+  client-safe): distinct-based XP (15/attempt, 120/clear, 20/practice day, so
+  re-submitting farms nothing), quadratic level curve with dojo rank names, a
+  streak walk with a **one-missed-day grace** ("gentle restore window": one
+  missed day survives, two consecutive kills it), the badge catalog, and the
+  next-best suggestion. Surfaces: the dojo landing shows level + XP bar,
+  streak (with restore hint), per-mode progress rings + per-challenge
+  completion dots on mode cards, and the badge strip;
+  `src/lib/gauntlet/RunResults.svelte` is the shared post-run results screen
+  (metric, accuracy, PB delta vs a pre-run snapshot, XP gained, suggested
+  next drawing from `src/lib/gauntlet/next-challenge.ts`) mounted in all six
+  modes, with a green/gold PB-beat flourish (crimson stays reserved); the
+  homepage renders a signed-in "continue / next best" nudge card from
+  `+page.server.ts`. No pressure timers, no dark patterns, and no coin
+  payouts (coins stay deferred).
 - **Visuals (standing directive):** all GAUNTLET UI, current and new, must
   conform to the **VIEWPORT design system** documented in
   `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in

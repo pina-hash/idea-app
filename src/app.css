@@ -2150,6 +2150,97 @@ a:hover {
 	border-color: rgba(0, 255, 65, 0.4);
 }
 
+/* GAUNTLET continue / next-best nudge card (signed-in retention hook). */
+.legacy-index .nudge-card {
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1.5rem;
+	flex-wrap: wrap;
+	max-width: 1100px;
+	margin: 0 auto 2.5rem;
+	padding: 1.1rem 1.8rem;
+	background: linear-gradient(120deg, rgba(0, 255, 65, 0.06), rgba(0, 240, 255, 0.04));
+	border: 1px solid rgba(0, 255, 65, 0.3);
+	border-radius: 4px;
+}
+.legacy-index .nudge-eyebrow {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.56rem;
+	font-weight: 700;
+	letter-spacing: 0.2em;
+	color: var(--green);
+	text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+}
+.legacy-index .nudge-stats {
+	display: flex;
+	gap: 2rem;
+	flex-wrap: wrap;
+	margin-top: 0.5rem;
+}
+.legacy-index .nudge-stat {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+}
+.legacy-index .nudge-value {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 1rem;
+	font-weight: 700;
+	color: var(--green);
+	text-shadow: var(--glow-green);
+}
+.legacy-index .nudge-value.live {
+	color: var(--gold);
+	text-shadow: var(--glow-gold);
+}
+.legacy-index .nudge-label {
+	font-size: 0.6rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.legacy-index .nudge-cta {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 0.25rem;
+	text-decoration: none;
+	border: 1px solid rgba(0, 255, 65, 0.35);
+	border-radius: 3px;
+	padding: 0.7rem 1.1rem;
+	transition: border-color 0.2s, background 0.2s;
+}
+.legacy-index .nudge-cta:hover {
+	border-color: rgba(0, 255, 65, 0.7);
+	background: rgba(0, 255, 65, 0.05);
+}
+.legacy-index .nudge-cta-label {
+	font-size: 0.58rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.legacy-index .nudge-cta-title {
+	font-family: 'Orbitron', sans-serif;
+	font-size: 0.7rem;
+	font-weight: 700;
+	letter-spacing: 0.1em;
+	color: var(--green);
+	text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+}
+@media (max-width: 768px) {
+	.legacy-index .nudge-card {
+		margin-left: 1rem;
+		margin-right: 1rem;
+	}
+	.legacy-index .nudge-cta {
+		align-items: flex-start;
+	}
+}
+
 /* Submit panel */
 .legacy-index .submit-panel {
 	position: relative;

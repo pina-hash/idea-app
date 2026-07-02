@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import type { KnowledgePrompt } from '$lib/gauntlet';
+import { nextUncleared } from '$lib/gauntlet/next-challenge';
 
 /**
  * One Spot the Error challenge. Same shape as Drawing Reading: the load returns
@@ -45,6 +46,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
+		next: await nextUncleared(supabase, claims.sub, 'spot_the_error', '/gauntlet/spot-the-error', params.id),
 		challenge: {
 			id: challenge.id as string,
 			title: challenge.title as string,

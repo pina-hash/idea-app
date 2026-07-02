@@ -17,4 +17,4 @@
 	crumbs={[{ label: 'Spot the Error', href: '/gauntlet/spot-the-error' }, { label: challenge.title }]}
 />
 
-<KnowledgePlay {challenge} {board} {myUserId} {myBest} backHref="/gauntlet/spot-the-error" />
+<KnowledgePlay {challenge} {board} {myUserId} {myBest} next={data.next} backHref="/gauntlet/spot-the-error" />

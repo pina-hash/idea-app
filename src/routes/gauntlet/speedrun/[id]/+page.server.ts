@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { DEFAULT_SPEEDRUN_RULESET, MODELS_BUCKET, type SpeedrunFraming, type SpeedrunRuleset } from '$lib/gauntlet';
+import { nextUncleared } from '$lib/gauntlet/next-challenge';
 
 /**
  * One Speedrun challenge, end to end. The load returns ONLY the public framing
@@ -63,7 +64,11 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 		.select('units_label, projection, rule_lines')
 		.maybeSingle();
 
+	// The suggested next drawing for the post-run results screen.
+	const next = await nextUncleared(supabase, claims.sub, 'speedrun', '/gauntlet/speedrun', params.id);
+
 	return {
+		next,
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
 		challenge: {

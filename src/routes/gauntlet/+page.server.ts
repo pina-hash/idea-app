@@ -13,27 +13,28 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		redirect(303, '/');
 	}
 
-	const { data: profile } = await supabase
-		.from('profiles')
-		.select('full_name, role')
-		.eq('id', claims.sub)
-		.single();
-
-	// Published challenge counts per mode.
-	const { data: challenges } = await supabase
-		.from('challenges')
-		.select('id, mode')
-		.eq('published', true);
-
-	// The user's best result per challenge (one row each) to count clears.
-	const { data: mine } = await supabase
-		.from('gauntlet_leaderboard')
-		.select('mode, is_correct')
-		.eq('user_id', claims.sub);
+	const [{ data: profile }, { data: challenges }, { data: mine }, { data: progression }] =
+		await Promise.all([
+			supabase.from('profiles').select('full_name, role').eq('id', claims.sub).single(),
+			// Published challenges per mode (counts + ids for the completion dots).
+			supabase
+				.from('challenges')
+				.select('id, mode, difficulty, created_at')
+				.eq('published', true)
+				.order('difficulty', { ascending: true })
+				.order('created_at', { ascending: true }),
+			// The user's best result per challenge (one row each) to count clears.
+			supabase.from('gauntlet_leaderboard').select('mode, is_correct').eq('user_id', claims.sub),
+			// Progression aggregates (XP, streak days, badges), derived read-only
+			// from submissions by the 0021 RPC. Fails soft to null pre-migration.
+			supabase.rpc('gauntlet_progression')
+		]);
 
 	const totals: Record<string, number> = {};
+	const idsByMode: Record<string, string[]> = {};
 	for (const c of challenges ?? []) {
 		totals[c.mode] = (totals[c.mode] ?? 0) + 1;
+		(idsByMode[c.mode] ??= []).push(c.id);
 	}
 	const cleared: Record<string, number> = {};
 	for (const row of mine ?? []) {
@@ -44,6 +45,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
 		isTeacher: profile?.role === 'teacher',
-		modeStats: { totals, cleared }
+		modeStats: { totals, cleared, idsByMode },
+		progression: progression ?? null
 	};
 };

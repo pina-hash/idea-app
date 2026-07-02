@@ -24,6 +24,7 @@
 	{board}
 	{myUserId}
 	{myBest}
+	next={data.next}
 	gated={true}
 	metricLabel="Features"
 	formatMetric={formatFeatures}
