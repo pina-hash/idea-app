@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using SolidWorks.Interop.sldworks;
@@ -54,7 +55,19 @@ namespace IdeaGauntlet
         private void CreateTaskPane()
         {
             paneControl = new TaskPaneControl(swApp);
-            taskpaneView = (TaskpaneView)swApp.CreateTaskpaneView2(string.Empty, AddinTitle);
+            // Task pane tab icon (16x18 BMP path): the hex-boss mark, generated
+            // at runtime (AddinIcons). Icon trouble must never block the pane.
+            string icon = string.Empty;
+            try
+            {
+                icon = AddinIcons.Save(
+                    Path.Combine(Path.GetTempPath(), "idea-gauntlet-taskpane.bmp"), 16, 18);
+            }
+            catch
+            {
+                icon = string.Empty;
+            }
+            taskpaneView = (TaskpaneView)swApp.CreateTaskpaneView2(icon, AddinTitle);
             taskpaneView.DisplayWindowFromHandlex64(paneControl.Handle.ToInt64());
         }
 
@@ -100,6 +113,18 @@ namespace IdeaGauntlet
                 key.SetValue(null, 0);
                 key.SetValue("Title", AddinTitle);
                 key.SetValue("Description", AddinDescription);
+                // Add-Ins dialog icon: the hex-boss mark, generated next to the
+                // DLL at registration time. Never let icon trouble fail regasm.
+                try
+                {
+                    string dir = Path.GetDirectoryName(t.Assembly.Location);
+                    if (!string.IsNullOrEmpty(dir))
+                    {
+                        key.SetValue("Icon Path",
+                            AddinIcons.Save(Path.Combine(dir, "idea-gauntlet-addin.bmp"), 16, 16));
+                    }
+                }
+                catch { }
             }
 
             // Load at startup for the current user (toggleable in Tools > Add-Ins).

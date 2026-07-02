@@ -4,11 +4,13 @@ Attribute VB_Name = "IdeaGauntletSubmit"
 '==============================================================================
 ' What it does
 '   Reads the run_id written into this part by the Start macro, reads the
-'   part's mass properties (SI, via UseSystemUnits = True) and feature count,
-'   prompts for the 8-char code shown on the GAUNTLET Speedrun screen, and
-'   posts everything to the gauntlet_macro_submit endpoint. The server times
-'   your run from the Start event to this submit (both stamped server-side),
-'   checks your geometry, and returns pass/fail, your time, and your rank.
+'   part's mass properties (SI, via UseSystemUnits = True), feature count,
+'   and APPLIED MATERIAL, prompts for the 8-char code shown on the GAUNTLET
+'   Speedrun screen, and posts everything to the gauntlet_macro_submit
+'   endpoint. The server times your run from the Start event to this submit
+'   (both stamped server-side), checks your geometry, requires your applied
+'   material to match the challenge's material, and returns pass/fail, your
+'   time, and your rank.
 '
 '   You must run the Start macro on a blank part first. If this part has no
 '   run_id, this macro will tell you to start a run.
@@ -85,12 +87,20 @@ Sub main()
     Dim featureCount As Long
     featureCount = swModel.GetFeatureCount
 
-    StudentSubmit volumeMm3, areaMm2, featureCount, massG, runId
+    ' --- Applied material: the server requires it to match the challenge ------
+    Dim matName As String, matDb As String
+    matName = ""
+    On Error Resume Next
+    matName = swModel.GetMaterialPropertyName2("", matDb)
+    On Error GoTo 0
+    matName = Trim$(matName)
+
+    StudentSubmit volumeMm3, areaMm2, featureCount, massG, runId, matName
 End Sub
 
 Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
                           ByVal featureCount As Long, ByVal massG As Double, _
-                          ByVal runId As String)
+                          ByVal runId As String, ByVal matName As String)
     If InStr(GAUNTLET_ENDPOINT, "YOUR-PROJECT-REF") > 0 _
        Or InStr(SUPABASE_ANON_KEY, "PASTE-YOUR") > 0 Then
         MsgBox "This macro is not configured yet. Edit GAUNTLET_ENDPOINT and " & _
@@ -111,7 +121,8 @@ Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
            ",""p_volume_mm3"":" & JNum(volumeMm3) & _
            ",""p_surface_area_mm2"":" & JNum(areaMm2) & _
            ",""p_feature_count"":" & CStr(featureCount) & _
-           ",""p_mass_g"":" & JNum(massG) & "}"
+           ",""p_mass_g"":" & JNum(massG) & _
+           ",""p_material"":" & JStrOrNull(matName) & "}"
 
     Dim http As Object
     On Error Resume Next
@@ -159,6 +170,7 @@ Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
     End If
     out = out & vbCrLf & vbCrLf & "Volume: " & JNum(volumeMm3) & " mm3" & _
           "   Area: " & JNum(areaMm2) & " mm2" & "   Features: " & featureCount
+    If Len(matName) > 0 Then out = out & vbCrLf & "Material: " & matName
     MsgBox out, vbInformation, "GAUNTLET result"
     Exit Sub
 
@@ -180,6 +192,15 @@ Private Function JsonEsc(ByVal s As String) As String
     s = Replace(s, "\", "\\")
     s = Replace(s, """", "\""")
     JsonEsc = s
+End Function
+
+' A JSON string, or null when empty (so "no material applied" posts as null).
+Private Function JStrOrNull(ByVal s As String) As String
+    If Len(Trim$(s)) = 0 Then
+        JStrOrNull = "null"
+    Else
+        JStrOrNull = """" & JsonEsc(Trim$(s)) & """"
+    End If
 End Function
 
 Private Function JsonField(ByVal json As String, ByVal key As String) As String

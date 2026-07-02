@@ -54,6 +54,10 @@
 				Model the part to hit the target mass. The pane shows your live mass and how far you are from
 				the target.
 			</li>
+			<li>
+				Apply the challenge's material to your part (right-click Material in the tree). A submit
+				with no material, or the wrong one, is rejected.
+			</li>
 			<li>Click Submit. You get PASS or OUTSIDE TOLERANCE, plus your time and rank.</li>
 		</ol>
 	</div>

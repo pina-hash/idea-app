@@ -615,12 +615,19 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   volume / surface area / feature count honoring the part's unit system (IPS
   reads in lb, MMGS in g, both always shown), a target-mass comparison field,
   and the Start / Submit run flow. It speaks the EXACT macro contract from
-  0016/0017, `gauntlet_macro_start(p_code, p_volume_mm3)` then
-  `gauntlet_macro_submit(p_code, p_volume_mm3, p_run_id, ...)` via PostgREST
-  with the public anon key, and stores the run id in the same
+  0016/0017/0026, `gauntlet_macro_start(p_code, p_volume_mm3)` then
+  `gauntlet_macro_submit(p_code, p_volume_mm3, p_run_id, ..., p_material)` via
+  PostgREST with the public anon key, and stores the run id in the same
   `GAUNTLET_RUN_ID` part custom property, so the add-in and the `.bas` macros
   are interchangeable mid-run. If a migration changes those RPCs, update
-  `GauntletClient.cs` in the same change. It references the locally installed
+  `GauntletClient.cs` in the same change. The pane's live readout goes through
+  the status-checked `GetMassProperties2` (a one-shot `IMassProperty` created
+  mid-command reads zeros, the old live-zeros bug; `PartReader.cs` documents
+  it), it surfaces the applied material continuously, and it is styled as a
+  neutral host-matched panel (SOLIDWORKS 2025 light theme, restrained IDEA
+  green) with a runtime-generated hex-boss icon (`AddinIcons.cs`, task pane
+  tab + Add-Ins dialog; never a SolidWorks-like mark). It references the
+  locally installed
   SOLIDWORKS interops (no version hardcoded; the running version is detected
   at runtime) and is not part of the SvelteKit build; build + regasm steps are
   in its README (sources stay C# 5-compatible so the no-Visual-Studio
@@ -628,6 +635,21 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `register.bat` / `unregister.bat` (self-locating, self-elevating wrappers
   around the 64-bit `RegAsm /codebase`) are the primary install path; the manual
   regasm command is the documented fallback.
+- **Material gate (`0026`):** a modeling run passes only if the part's applied
+  material matches the challenge's material. The required name is the existing
+  public framing field `prompt->>'material'` (no new schema field; it is what
+  students already see in the spec card and teachers already author).
+  `gauntlet_macro_submit` gains `p_material` (the applied material's library
+  name, read via `GetMaterialPropertyName2` by the add-in and the Submit
+  macro) and REJECTS the submit, recording nothing and consuming nothing,
+  when the challenge names a material and none is applied ("No material
+  applied...") or the wrong one is ("Wrong material ..., expected ..."),
+  case-insensitive and trimmed; challenges with no material skip the gate.
+  Volume tolerance stays the geometry check; material is a gate on top. The
+  Author capture macro now prints the exact library `material :` line and the
+  authoring form parses it into the Material field, so authored names match
+  what SolidWorks reports. Manual practice and host-supervised room manual
+  submits cannot read the part and are unchanged.
 - **Visuals (standing directive):** all GAUNTLET UI, current and new, must
   conform to the **VIEWPORT design system** documented in
   `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in

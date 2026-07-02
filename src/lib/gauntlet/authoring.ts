@@ -58,6 +58,8 @@ export interface CapturedGeometry {
 	feature_count?: number;
 	density?: number;
 	target_mass?: number;
+	/** Exact SolidWorks library material name; student submits must match it (0026). */
+	material?: string;
 }
 
 /**
@@ -72,12 +74,15 @@ export function parseAuthorCapture(text: string): CapturedGeometry {
 		const n = Number(m[1]);
 		return Number.isFinite(n) ? n : undefined;
 	};
+	const materialMatch = text.match(/^\s*material\s*:\s*(.+)$/im);
+	const material = materialMatch ? materialMatch[1].trim() : undefined;
 	return {
 		target_volume_mm3: num(/target_volume_mm3\s*:?\s*([0-9.eE+-]+)/i),
 		surface_area_mm2: num(/surface_area_mm2\s*:?\s*([0-9.eE+-]+)/i),
 		feature_count: num(/feature_count\s*:?\s*([0-9]+)/i),
 		density: num(/density[^:\n]*:?\s*([0-9.eE+-]+)/i),
-		target_mass: num(/target_mass[^:\n]*:?\s*([0-9.eE+-]+)/i)
+		target_mass: num(/target_mass[^:\n]*:?\s*([0-9.eE+-]+)/i),
+		material: material && material.length > 0 ? material : undefined
 	};
 }
 

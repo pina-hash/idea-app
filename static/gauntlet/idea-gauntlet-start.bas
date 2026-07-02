@@ -140,10 +140,22 @@ Sub main()
     cpm.Add3 "GAUNTLET_RUN_ID", swCustomInfoText, runId, swCustomPropertyReplaceValue
     On Error GoTo 0
 
-    MsgBox "Run started. The clock is running." & vbCrLf & vbCrLf & _
-           "Build your part now, then run Submit (Ctrl+Shift+G)." & vbCrLf & _
-           "Do not close this part, or your run is lost.", _
-           vbInformation, "GAUNTLET, run started"
+    ' --- Material reminder: Submit is rejected without the challenge's material
+    Dim matName As String, matDb As String
+    matName = ""
+    On Error Resume Next
+    matName = swModel.GetMaterialPropertyName2("", matDb)
+    On Error GoTo 0
+
+    Dim doneMsg As String
+    doneMsg = "Run started. The clock is running." & vbCrLf & vbCrLf & _
+              "Build your part now, then run Submit (Ctrl+Shift+G)." & vbCrLf & _
+              "Do not close this part, or your run is lost."
+    If Len(Trim$(matName)) = 0 Then
+        doneMsg = doneMsg & vbCrLf & vbCrLf & _
+                  "Apply the challenge's material while you model; a submit without it is rejected."
+    End If
+    MsgBox doneMsg, vbInformation, "GAUNTLET, run started"
     Exit Sub
 
 HttpError:

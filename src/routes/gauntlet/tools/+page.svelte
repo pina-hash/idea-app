@@ -67,6 +67,10 @@
 			</li>
 			<li>Build your part. Do not close it while you work. Closing it ends your run.</li>
 			<li>
+				Apply the challenge's material to your part (right-click Material in the tree). A submit
+				with no material, or the wrong one, is rejected until you fix it.
+			</li>
+			<li>
 				When your part is finished, press Ctrl + Shift + G to submit. Type your code again and click
 				OK.
 			</li>

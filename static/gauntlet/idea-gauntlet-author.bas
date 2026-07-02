@@ -52,11 +52,20 @@ Sub main()
     Dim featureCount As Long
     featureCount = swModel.GetFeatureCount
 
-    AuthorCapture volumeMm3, areaMm2, featureCount
+    ' Applied material's exact library name: the challenge should carry this
+    ' verbatim, because student submits must match it (0026 material gate).
+    Dim matName As String, matDb As String
+    matName = ""
+    On Error Resume Next
+    matName = swModel.GetMaterialPropertyName2("", matDb)
+    On Error GoTo 0
+    matName = Trim$(matName)
+
+    AuthorCapture volumeMm3, areaMm2, featureCount, matName
 End Sub
 
 Private Sub AuthorCapture(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
-                          ByVal featureCount As Long)
+                          ByVal featureCount As Long, ByVal matName As String)
     Dim densStr As String
     densStr = Trim(InputBox( _
         "Density for this material, in g/cm3 (e.g. 2.70 for Aluminum 6061):", _
@@ -77,6 +86,10 @@ Private Sub AuthorCapture(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
           "feature_count     : " & featureCount & vbCrLf & _
           "density (g/cm3)    : " & JNum(density) & vbCrLf & _
           "target_mass (g)    : " & JNum(massG)
+    If Len(matName) > 0 Then
+        ' The exact SolidWorks library name; student submits must match it.
+        out = out & vbCrLf & "material           : " & matName
+    End If
 
     On Error Resume Next
     Dim clip As Object

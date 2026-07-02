@@ -18,17 +18,22 @@ namespace IdeaGauntlet
     /// </summary>
     public class TaskPaneControl : UserControl
     {
-        // IDEA Green program palette, approximated for WinForms (the web app's
-        // token set lives in src/app.css; this is its desktop echo).
-        private static readonly Color Bg = Color.FromArgb(11, 15, 13);
-        private static readonly Color BgPanel = Color.FromArgb(18, 24, 21);
-        private static readonly Color Green = Color.FromArgb(0, 214, 60);
-        private static readonly Color GreenBright = Color.FromArgb(0, 255, 65);
-        private static readonly Color Cyan = Color.FromArgb(0, 200, 214);
-        private static readonly Color Amber = Color.FromArgb(255, 176, 0);
-        private static readonly Color Crimson = Color.FromArgb(226, 61, 72);
-        private static readonly Color Body = Color.FromArgb(224, 240, 226);
-        private static readonly Color Dim = Color.FromArgb(128, 145, 136);
+        // Neutral, host-matched surface (SOLIDWORKS 2025 light theme) with a
+        // restrained IDEA-green accent for identity. The web app's neon-on-void
+        // palette stays on the web (src/app.css); docked inside the host it
+        // clashed hard, so the pane reads as a native panel instead. The field
+        // names keep their semantic roles: Green/GreenBright are the IDEA
+        // accent, Cyan is the section/metadata tint, Body is ink.
+        private static readonly Color Bg = Color.FromArgb(246, 247, 248);
+        private static readonly Color BgPanel = Color.White;
+        private static readonly Color Green = Color.FromArgb(0, 122, 61);
+        private static readonly Color GreenBright = Color.FromArgb(0, 145, 70);
+        private static readonly Color Cyan = Color.FromArgb(0, 103, 122);
+        private static readonly Color Amber = Color.FromArgb(158, 100, 0);
+        private static readonly Color Crimson = Color.FromArgb(180, 42, 30);
+        private static readonly Color Body = Color.FromArgb(33, 40, 38);
+        private static readonly Color Dim = Color.FromArgb(108, 117, 113);
+        private static readonly Color HoverTint = Color.FromArgb(232, 243, 237);
 
         private readonly ISldWorks swApp;
 
@@ -37,6 +42,7 @@ namespace IdeaGauntlet
 
         private Label lblDoc;
         private Label lblUnits;
+        private Label lblMaterial;
         private Label lblMassPrimary;
         private Label lblMassSecondary;
         private Label lblGeometry;
@@ -119,10 +125,12 @@ namespace IdeaGauntlet
             lblDoc = MakeLabel("-", Body, null);
             AddRow(lblDoc, 0);
             lblUnits = MakeLabel("Units: -", Dim, null);
-            AddRow(lblUnits, 8);
+            AddRow(lblUnits, 0);
+            lblMaterial = MakeLabel("Material: -", Dim, null);
+            AddRow(lblMaterial, 8);
 
             AddRow(MakeSection("MASS"), 2);
-            lblMassPrimary = MakeLabel("-", GreenBright, new Font("Consolas", 15f, FontStyle.Bold));
+            lblMassPrimary = MakeLabel("-", Body, new Font("Consolas", 15f, FontStyle.Bold));
             AddRow(lblMassPrimary, 0);
             lblMassSecondary = MakeLabel("", Dim, new Font("Consolas", 9f));
             AddRow(lblMassSecondary, 2);
@@ -192,7 +200,8 @@ namespace IdeaGauntlet
             btnStart.Click += OnStartClick;
             AddRow(btnStart, 4);
             btnSubmit = MakeButton("SUBMIT RUN (&DONE)", GreenBright);
-            btnSubmit.Font = new Font("Consolas", 9.5f, FontStyle.Bold);
+            MakePrimary(btnSubmit);
+            btnSubmit.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             btnSubmit.Click += OnSubmitClick;
             AddRow(btnSubmit, 6);
             lblRun = MakeLabel("No run started on this part.", Dim, new Font("Consolas", 8.25f));
@@ -255,20 +264,30 @@ namespace IdeaGauntlet
 
         private Button MakeButton(string text, Color accent)
         {
+            // Outline button on the neutral surface; the accent carries identity.
             Button button = new Button();
             button.Text = text;
             button.FlatStyle = FlatStyle.Flat;
             button.FlatAppearance.BorderColor = accent;
             button.FlatAppearance.BorderSize = 1;
-            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(26, 36, 30);
+            button.FlatAppearance.MouseOverBackColor = HoverTint;
             button.BackColor = BgPanel;
             button.ForeColor = accent;
-            button.Font = new Font("Consolas", 8.5f, FontStyle.Bold);
+            button.Font = new Font("Segoe UI", 8.5f, FontStyle.Bold);
             button.Height = 30;
             button.Dock = DockStyle.Fill;
             button.Margin = new Padding(0);
             button.Cursor = Cursors.Hand;
             return button;
+        }
+
+        /// <summary>The one solid (primary) button: Submit.</summary>
+        private void MakePrimary(Button button)
+        {
+            button.BackColor = Green;
+            button.ForeColor = Color.White;
+            button.FlatAppearance.BorderColor = Color.FromArgb(0, 92, 46);
+            button.FlatAppearance.MouseOverBackColor = GreenBright;
         }
 
         private void AddRow(Control control, int bottomGap)
@@ -337,6 +356,24 @@ namespace IdeaGauntlet
             last = snap;
             lblDoc.Text = snap.Title;
             lblUnits.Text = snap.IsPart ? "Units: " + snap.UnitSystemLabel : "Units: -";
+
+            // The server rejects a submit without the challenge's material
+            // (0026), so surface the applied material continuously.
+            if (!snap.IsPart)
+            {
+                lblMaterial.Text = "Material: -";
+                lblMaterial.ForeColor = Dim;
+            }
+            else if (string.IsNullOrEmpty(snap.MaterialName))
+            {
+                lblMaterial.Text = "Material: none applied (required to pass)";
+                lblMaterial.ForeColor = Amber;
+            }
+            else
+            {
+                lblMaterial.Text = "Material: " + snap.MaterialName;
+                lblMaterial.ForeColor = Body;
+            }
 
             if (!snap.IsPart || !snap.HasMass)
             {
@@ -492,6 +529,11 @@ namespace IdeaGauntlet
                 string message = "RUN STARTED. The clock is running." + Environment.NewLine +
                     "Build your part, then press SUBMIT RUN." + Environment.NewLine +
                     "Do not close this part; the run id lives in the open document.";
+                if (last == null || string.IsNullOrEmpty(last.MaterialName))
+                {
+                    message = message + Environment.NewLine +
+                        "Apply the challenge's material while you model; a submit without it is rejected.";
+                }
                 if (!wrote)
                 {
                     message = message + Environment.NewLine + Environment.NewLine +
@@ -551,7 +593,8 @@ namespace IdeaGauntlet
             try
             {
                 result = await GauntletClient.SubmitRunAsync(
-                    code, runId, snap.VolumeMm3, snap.SurfaceAreaMm2, snap.FeatureCount, snap.MassG);
+                    code, runId, snap.VolumeMm3, snap.SurfaceAreaMm2, snap.FeatureCount, snap.MassG,
+                    snap.MaterialName);
             }
             catch (Exception ex)
             {
@@ -600,6 +643,10 @@ namespace IdeaGauntlet
                 text = text + Environment.NewLine +
                     Inv("Mass {0:0.00} g / {1:0.0000} lb · Area {2:0.00} mm2 · Features {3}",
                         snap.MassG, snap.MassLb, snap.SurfaceAreaMm2, snap.FeatureCount);
+                if (!string.IsNullOrEmpty(snap.MaterialName))
+                {
+                    text = text + Environment.NewLine + "Material " + snap.MaterialName;
+                }
 
                 SetStatus(text, result.IsCorrect ? GreenBright : Amber);
             }
@@ -647,7 +694,7 @@ namespace IdeaGauntlet
                 }
             }
             catch { }
-            lblVersion.Text = text + " · add-in v1.0";
+            lblVersion.Text = text + " · add-in v1.1";
         }
 
         private void SetBusy(bool value)

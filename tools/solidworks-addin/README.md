@@ -9,17 +9,26 @@ even mid-run.
 
 ## What the task pane shows
 
-- **Active part** name and its **unit system** (IPS, MMGS, CGS, MKS, or
-  Custom, detected from the document).
+- **Active part** name, its **unit system** (IPS, MMGS, CGS, MKS, or
+  Custom, detected from the document), and its **applied material** (amber
+  "none applied (required to pass)" until one is).
 - **Live mass**, primary readout in the part's own convention: **lb for IPS,
   g for MMGS/metric**, with the other unit always shown alongside. This
   resolves the "modeled in IPS but the challenge asks for grams" mismatch
   natively. Volume (mm3), surface area (mm2), and feature count are shown too.
+  The live poll reads through `GetMassProperties2` (status-checked, computes
+  from current geometry) rather than a one-shot `IMassProperty` object, which
+  returns zeros when created mid-command; see `PartReader.cs`.
 - A **target mass** field (typed from the challenge screen, unit selectable
   g/lb) with a live delta, so students can sanity-check before submitting.
 - The **code field** (the 8-character single-use code from the GAUNTLET
   Speedrun screen), **START RUN** and **SUBMIT RUN** buttons, and a status box
   with the server's verdict (pass/fail, server-timed seconds, rank).
+
+The pane is styled as a neutral, host-matched panel (SOLIDWORKS 2025 light
+theme) with a restrained IDEA-green accent; the icon (task pane tab and the
+Add-Ins dialog) is an original hex-boss-with-bore mark generated at runtime by
+`AddinIcons.cs`, so no binary image ships in the repo.
 
 ## The run flow (identical to the macros)
 
@@ -31,12 +40,16 @@ even mid-run.
    the start event; the server stamps `started_at` and returns a `run_id`,
    which is written into the part as the `GAUNTLET_RUN_ID` custom property
    (the same property the Start macro writes).
-3. Model the part. Do not close it; the run id lives in the open document.
+3. Model the part, and **apply the challenge's material**. Do not close the
+   part; the run id lives in the open document.
 4. Press **SUBMIT RUN**. The add-in reads mass properties in system (SI)
-   units, normalizes to mm3 / mm2 / g, and POSTs them with the code and run
-   id. The server computes elapsed time from its own start stamp, verifies
-   correctness **on volume** within the challenge tolerance, and returns the
-   result, which the pane displays.
+   units, normalizes to mm3 / mm2 / g, reads the applied material name, and
+   POSTs them with the code and run id. The server computes elapsed time from
+   its own start stamp, verifies correctness **on volume** within the
+   challenge tolerance, and **requires the material to match the challenge's
+   material** (case-insensitive; a missing or wrong material is rejected
+   outright with a clear message and nothing recorded, so fix it and submit
+   again on the same clock). The result is displayed in the pane.
 
 Solo runs may submit repeatedly with the same code (each re-times from the
 start event; only correct runs rank). The code is single-use per reveal and
@@ -46,8 +59,8 @@ expires about 30 minutes after reveal.
 
 Both calls are PostgREST RPC POSTs to the same Supabase project the website
 uses, authenticated with the **public anon key** (not a secret; the code is
-the credential). Defined in `supabase/migrations/0016_gauntlet_speedrun_start.sql`
-and `0017_gauntlet_run_status.sql`.
+the credential). Defined in `supabase/migrations/0016_gauntlet_speedrun_start.sql`,
+`0017_gauntlet_run_status.sql`, and `0026_gauntlet_material_gate.sql`.
 
 ```
 POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_start
@@ -58,7 +71,8 @@ POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_start
 POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_submit
   body:    { "p_code": "...", "p_run_id": "<uuid from GAUNTLET_RUN_ID>",
              "p_volume_mm3": n, "p_surface_area_mm2": n,
-             "p_feature_count": n, "p_mass_g": n }
+             "p_feature_count": n, "p_mass_g": n,
+             "p_material": "<applied material name, or null>" }
   returns: { "is_correct", "mode", "elapsed_ms", "score_metric", "rank",
              "target_volume_mm3", "your_volume_mm3", "tolerance_pct" }
 ```
@@ -149,6 +163,10 @@ SOLIDWORKS.
   `*.supabase.co` (TLS 1.2, enabled explicitly by the add-in).
 - **"This part is not blank" on start:** the server (and the pane) require a
   truly empty part, zero solid volume, so all modeling happens on the clock.
+- **"No material applied" / "Wrong material" on submit:** apply the
+  challenge's material (right-click Material in the FeatureManager tree) with
+  the exact library name the challenge states, then submit again; the clock
+  keeps running, nothing was recorded.
 
 SOLIDWORKS is a registered trademark of Dassault Systemes SolidWorks Corp.
 This project is not affiliated with or endorsed by Dassault Systemes; the name

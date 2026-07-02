@@ -91,11 +91,14 @@ namespace IdeaGauntlet
 
         /// <summary>
         /// gauntlet_macro_submit(p_code, p_volume_mm3, p_run_id, p_surface_area_mm2,
-        /// p_feature_count, p_mass_g): the graded submit. Elapsed time is computed
-        /// server-side from the start event; correctness is verified on volume.
+        /// p_feature_count, p_mass_g, p_material): the graded submit. Elapsed time
+        /// is computed server-side from the start event; correctness is verified on
+        /// volume, and since 0026 the applied material must match the challenge's
+        /// material (the server rejects a missing or wrong material outright).
         /// </summary>
         public static async Task<SubmitResult> SubmitRunAsync(
-            string code, string runId, double volumeMm3, double surfaceAreaMm2, int featureCount, double massG)
+            string code, string runId, double volumeMm3, double surfaceAreaMm2, int featureCount,
+            double massG, string materialName)
         {
             Dictionary<string, object> body = new Dictionary<string, object>();
             body["p_code"] = code;
@@ -104,6 +107,7 @@ namespace IdeaGauntlet
             body["p_surface_area_mm2"] = surfaceAreaMm2;
             body["p_feature_count"] = featureCount;
             body["p_mass_g"] = massG;
+            body["p_material"] = string.IsNullOrEmpty(materialName) ? null : materialName;
 
             Dictionary<string, object> resp = await PostRpcAsync("gauntlet_macro_submit", body).ConfigureAwait(false);
 

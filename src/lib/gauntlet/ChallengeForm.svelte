@@ -133,6 +133,7 @@
 		if (g.feature_count != null) form.feature_count = g.feature_count;
 		if (g.density != null) form.density = g.density;
 		if (g.target_mass != null) form.target_mass = g.target_mass;
+		if (g.material) form.material = g.material;
 	};
 
 	const onFile = (e: Event) => {
@@ -311,7 +312,11 @@
 			{/if}
 			<label class="ff">
 				<span class="ff-label">Material</span>
-				<input class="ff-input" type="text" bind:value={form.material} placeholder="Aluminum 6061" />
+				<input class="ff-input" type="text" bind:value={form.material} placeholder="Exact SolidWorks name, e.g. 6061 Alloy" />
+				<span class="ff-help">
+					Must match the applied material's SolidWorks library name (case-insensitive): submits
+					with no material or a different one are rejected. The Author capture macro prints it.
+				</span>
 			</label>
 			<label class="ff">
 				<span class="ff-label">Density ({densityUnit})</span>

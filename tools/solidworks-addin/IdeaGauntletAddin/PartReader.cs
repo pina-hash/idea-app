@@ -25,6 +25,9 @@ namespace IdeaGauntlet
         public double MassG;
         public double MassLb;
         public int FeatureCount;
+        /// <summary>Applied material name (empty when none is applied). Sent on
+        /// Submit; the server requires it to match the challenge's material.</summary>
+        public string MaterialName = "";
         /// <summary>GAUNTLET_RUN_ID custom property, written by Start (add-in or Start macro).</summary>
         public string RunId;
     }
@@ -66,6 +69,7 @@ namespace IdeaGauntlet
 
             ReadUnitSystem(model, snap);
             ReadMassProperties(model, snap);
+            ReadMaterial(model, snap);
 
             try { snap.FeatureCount = model.GetFeatureCount(); }
             catch { snap.FeatureCount = 0; }
@@ -170,26 +174,91 @@ namespace IdeaGauntlet
 
         private static void ReadMassProperties(IModelDoc2 model, PartSnapshot snap)
         {
-            // Mirrors the macros: UseSystemUnits = true reads SI (m3 / m2 / kg)
-            // regardless of the document's display units, so the payload is
-            // identical whether the student models in IPS or MMGS. An empty
-            // part throws or returns null here; that reads as zero volume,
-            // which is exactly the blank state the start check wants.
+            // THE LIVE-READOUT FIX. The macros read a one-shot IMassProperty
+            // object, which works for them because running a macro commits the
+            // active command first. This pane polls MID-SESSION: an
+            // IMassProperty created while a command/sketch is open (or before
+            // the model has been re-evaluated) returns ZEROS without throwing,
+            // which is exactly the "0.0000 lb with a real part open" bug.
+            //
+            // Primary read is therefore GetMassProperties2, which computes
+            // directly from the current geometry and reports an explicit
+            // status, so "genuinely blank part" (NoBody -> zeros are truth,
+            // the blank state the start check wants) is distinguishable from
+            // "could not evaluate right now" (fall back, else show "-" rather
+            // than fake zeros). Values are MKS (m3 / m2 / kg), normalized to
+            // the same canonical mm3 / mm2 / g payload as the macros.
+            try
+            {
+                int status = (int)swMassPropertiesStatus_e.swMassPropertiesStatus_UnknownError;
+                double[] props = model.Extension.GetMassProperties2(1, out status, false) as double[];
+                if (status == (int)swMassPropertiesStatus_e.swMassPropertiesStatus_OK
+                    && props != null && props.Length > 5)
+                {
+                    // [0..2] center of mass, [3] volume m3, [4] area m2, [5] mass kg.
+                    FillMass(snap, props[3], props[4], props[5]);
+                    return;
+                }
+                if (status == (int)swMassPropertiesStatus_e.swMassPropertiesStatus_NoBody)
+                {
+                    FillMass(snap, 0.0, 0.0, 0.0); // truly blank part
+                    return;
+                }
+            }
+            catch
+            {
+                // Fall through to the one-shot object below.
+            }
+
+            // Fallback: the macros' one-shot object (kept for parity; can still
+            // read zeros mid-command, but the primary path above covers that).
             try
             {
                 IMassProperty mass = (IMassProperty)model.Extension.CreateMassProperty();
                 if (mass == null) return;
-                mass.UseSystemUnits = true;
-                snap.VolumeMm3 = mass.Volume * 1000000000.0;   // m3 -> mm3
-                snap.SurfaceAreaMm2 = mass.SurfaceArea * 1000000.0; // m2 -> mm2
-                double kg = mass.Mass;
-                snap.MassG = kg * 1000.0;                      // kg -> g
-                snap.MassLb = kg * KgToLb;                     // kg -> lb
-                snap.HasMass = true;
+                mass.UseSystemUnits = true; // SI: m3 / m2 / kg
+                FillMass(snap, mass.Volume, mass.SurfaceArea, mass.Mass);
             }
             catch
             {
                 snap.HasMass = false;
+            }
+        }
+
+        private static void FillMass(PartSnapshot snap, double volumeM3, double areaM2, double massKg)
+        {
+            snap.VolumeMm3 = volumeM3 * 1000000000.0;    // m3 -> mm3
+            snap.SurfaceAreaMm2 = areaM2 * 1000000.0;    // m2 -> mm2
+            snap.MassG = massKg * 1000.0;                // kg -> g
+            snap.MassLb = massKg * KgToLb;               // kg -> lb
+            snap.HasMass = true;
+        }
+
+        /// <summary>
+        /// The applied material's library name (for example "6061 Alloy"),
+        /// empty when no material is applied. Read from the active
+        /// configuration, falling back to the empty (current) config name.
+        /// </summary>
+        private static void ReadMaterial(IModelDoc2 model, PartSnapshot snap)
+        {
+            try
+            {
+                IPartDoc part = model as IPartDoc;
+                if (part == null) return;
+                string config = "";
+                try { config = model.ConfigurationManager.ActiveConfiguration.Name; }
+                catch { config = ""; }
+                string database;
+                string name = part.GetMaterialPropertyName2(config, out database);
+                if (string.IsNullOrEmpty(name) && config.Length > 0)
+                {
+                    name = part.GetMaterialPropertyName2("", out database);
+                }
+                snap.MaterialName = name == null ? "" : name.Trim();
+            }
+            catch
+            {
+                snap.MaterialName = "";
             }
         }
     }
