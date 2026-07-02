@@ -34,14 +34,22 @@ function escapeForScript(jsonStr: string): string {
 		.join('\\u2029');
 }
 
+/** The signed-in player's identity shown in-game (empty when signed out). */
+interface PlayerProfile {
+	name: string;
+	avatarUrl: string;
+}
+
 /** Build the <head> bootstrap. `cloud` is the normalized v2 save (empty if signed out). */
-function injectionScript(signedIn: boolean, cloud: StoredSave): string {
+function injectionScript(signedIn: boolean, cloud: StoredSave, profile: PlayerProfile): string {
 	const cloudJson = escapeForScript(JSON.stringify(cloud));
+	const profileJson = escapeForScript(JSON.stringify(profile));
 
 	return `<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
 	var CLOUD = ${cloudJson};
+	var PROFILE = ${profileJson};
 	var PREFIX = 'vanguard_';
 	var native = localStorage.setItem.bind(localStorage);
 
@@ -206,6 +214,62 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 		return b;
 	}
 
+	// --- top nav: return to the IDEA home page + signed-in identity, so a player
+	//     can leave the game and confirm their account. Matches the IDEA green /
+	//     cyan Share Tech Mono chrome; fixed top-right, above the game canvas.
+	function buildNav() {
+		if (document.getElementById('idea-vanguard-nav')) return;
+		var host = document.body || document.documentElement;
+		if (!host) return;
+
+		var nav = document.createElement('div');
+		nav.id = 'idea-vanguard-nav';
+		nav.style.cssText = 'position:fixed;top:10px;right:10px;z-index:2147483647;display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(2,10,4,0.82);border:1px solid rgba(0,255,65,0.3);border-radius:4px;font-family:"Share Tech Mono",ui-monospace,monospace;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);';
+
+		var home = document.createElement('a');
+		home.href = '/';
+		home.textContent = '\\u2039 IDEA';
+		home.title = 'Back to the IDEA home page';
+		home.style.cssText = 'font-size:11px;letter-spacing:0.1em;text-transform:uppercase;color:#00FF41;text-decoration:none;text-shadow:0 0 8px rgba(0,255,65,0.5);white-space:nowrap;';
+		nav.appendChild(home);
+
+		if (SIGNED_IN && PROFILE && PROFILE.name) {
+			var sep = document.createElement('span');
+			sep.style.cssText = 'width:1px;height:14px;background:rgba(0,255,65,0.25);';
+			nav.appendChild(sep);
+
+			var chip = document.createElement('span');
+			chip.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+			if (PROFILE.avatarUrl) {
+				var img = document.createElement('img');
+				img.src = PROFILE.avatarUrl;
+				img.alt = '';
+				img.referrerPolicy = 'no-referrer';
+				img.style.cssText = 'width:20px;height:20px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,240,255,0.4);';
+				chip.appendChild(img);
+			} else {
+				var dot = document.createElement('span');
+				dot.textContent = (PROFILE.name.charAt(0) || '?').toUpperCase();
+				dot.style.cssText = 'width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(0,240,255,0.12);border:1px solid rgba(0,240,255,0.4);color:#00F0FF;font-size:10px;font-weight:700;';
+				chip.appendChild(dot);
+			}
+			var nm = document.createElement('span');
+			nm.textContent = PROFILE.name;
+			nm.style.cssText = 'font-size:11px;color:#E8FFE8;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+			chip.appendChild(nm);
+			nav.appendChild(chip);
+		} else {
+			var link = document.createElement('a');
+			link.href = '/';
+			link.textContent = 'Sign in';
+			link.style.cssText = 'font-size:10px;letter-spacing:0.08em;text-transform:uppercase;color:#00F0FF;text-decoration:none;border:1px solid rgba(0,240,255,0.35);border-radius:2px;padding:2px 6px;';
+			nav.appendChild(link);
+		}
+
+		host.appendChild(nav);
+	}
+
 	function build() {
 		if (document.getElementById('idea-cloud-save')) return;
 		var host = document.body || document.documentElement;
@@ -246,8 +310,9 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 		if (SIGNED_IN) schedulePush();
 	}
 
-	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build);
-	else build();
+	function init() { buildNav(); build(); }
+	if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+	else init();
 })();
 </script>`;
 }
@@ -255,19 +320,28 @@ function injectionScript(signedIn: boolean, cloud: StoredSave): string {
 export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	let signedIn = false;
 	let cloud: StoredSave = { v: 2, progression: {}, prefs: {} };
+	let profile: PlayerProfile = { name: '', avatarUrl: '' };
 
 	if (claims) {
 		signedIn = true;
-		const { data } = await supabase
-			.from('vanguard_saves')
-			.select('data')
-			.eq('user_id', claims.sub)
-			.maybeSingle();
-		cloud = normalizeStored(data?.data);
+		const [saveRes, profileRes] = await Promise.all([
+			supabase.from('vanguard_saves').select('data').eq('user_id', claims.sub).maybeSingle(),
+			supabase
+				.from('profiles')
+				.select('full_name, display_name, avatar_url')
+				.eq('id', claims.sub)
+				.maybeSingle()
+		]);
+		cloud = normalizeStored(saveRes.data?.data);
+		const p = profileRes.data;
+		profile = {
+			name: p?.display_name || p?.full_name || claims.email || 'Signed in',
+			avatarUrl: p?.avatar_url || ''
+		};
 	}
 
 	const html = injectVersionBadge(
-		vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud)}`),
+		vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile)}`),
 		'vanguard'
 	);
 
