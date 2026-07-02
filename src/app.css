@@ -3039,6 +3039,60 @@ a:hover {
 	width: 100%;
 	height: 100%;
 }
+/* Two clearly separated tool paths (add-in vs VBA macros) on the play screen. */
+.gauntlet .tool-paths {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 0.8rem;
+	margin: 0.8rem 0 0.4rem;
+}
+.gauntlet .tool-path {
+	border: 1px solid var(--line, #16242c);
+	border-radius: 8px;
+	padding: 0.9rem 1rem 1rem;
+	background: var(--panel-2, #0e161b);
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+.gauntlet .tool-path.recommended {
+	border-color: var(--green, #00ff41);
+	box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.18) inset;
+}
+.gauntlet .tool-path-head {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+.gauntlet .tool-path-head h3 {
+	font-family: var(--font-head, 'Orbitron', sans-serif);
+	font-size: 0.82rem;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	margin: 0;
+	color: var(--white, #e8fff0);
+}
+.gauntlet .tool-path-tag {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.56rem;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--bg0, #05080a);
+	background: var(--green, #00ff41);
+	border-radius: 4px;
+	padding: 0.12rem 0.4rem;
+}
+.gauntlet .tool-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	margin-top: auto;
+}
+.gauntlet .tool-actions .btn {
+	font-size: 0.72rem;
+	padding: 0.4rem 0.7rem;
+}
 /* Message shown in the frame when the drawing has been moved into a PiP window. */
 .gauntlet .drawing-popped {
 	position: absolute;

@@ -361,6 +361,22 @@ export const SUBMIT_MACRO_PATH = '/gauntlet/idea-gauntlet-submit.bas';
 /** Path to the author-capture SolidWorks macro (served from static/). */
 export const AUTHOR_MACRO_PATH = '/gauntlet/idea-gauntlet-author.bas';
 
+/**
+ * The built SolidWorks add-in ships as a zip in the PUBLIC `gauntlet-tools`
+ * Storage bucket (created in migration 0031). We store only the bucket + object
+ * PATH here, not a provider URL; `addinDownloadUrl()` builds the public URL from
+ * `PUBLIC_SUPABASE_URL` at call time. The teacher builds it with
+ * `tools/solidworks-addin/build.ps1` and uploads the zip to that path once; the
+ * .bas macros above download immediately since they are served from static/.
+ */
+export const TOOLS_BUCKET = 'gauntlet-tools';
+export const ADDIN_ZIP_PATH = 'idea-gauntlet-addin.zip';
+
+/** Public URL of the built add-in zip, from the stored bucket + path. */
+export function addinDownloadUrl(supabaseUrl: string): string {
+	return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${TOOLS_BUCKET}/${ADDIN_ZIP_PATH}`;
+}
+
 /** The grading result returned by `gauntlet_submit` for a Speedrun challenge. */
 export interface SpeedrunResult {
 	mode: 'speedrun';

@@ -1,9 +1,16 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
-	import { START_MACRO_PATH, SUBMIT_MACRO_PATH, AUTHOR_MACRO_PATH } from '$lib/gauntlet';
+	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
+	import {
+		START_MACRO_PATH,
+		SUBMIT_MACRO_PATH,
+		AUTHOR_MACRO_PATH,
+		addinDownloadUrl
+	} from '$lib/gauntlet';
 
 	let { data } = $props();
 	let { supabase, userName, userRole, isTeacher } = $derived(data);
+	const addinUrl = addinDownloadUrl(PUBLIC_SUPABASE_URL);
 </script>
 
 <svelte:head>
@@ -15,13 +22,42 @@
 <main class="gauntlet">
 	<section class="mode-hero">
 		<span class="eyebrow">GAUNTLET Tools</span>
-		<h1>SolidWorks capture macros</h1>
+		<h1>SolidWorks tools</h1>
 		<p class="lead">
-			A Speedrun run is two steps: the start macro begins your run on a blank part, and the submit
-			macro posts your finished part. Your time is measured on the server from start to submit. The
-			author macro reads a finished part's numbers for building a challenge.
+			Two ways to run ranked Speedruns, pick one: the <strong>add-in</strong> (a docked task pane,
+			recommended) or the <strong>VBA macros</strong>. Either one starts your run on a blank part and
+			posts your finished part; your time is measured on the server from start to submit. The author
+			macro reads a finished part's numbers for building a challenge.
 		</p>
 	</section>
+
+	<div class="tool-paths">
+		<div class="tool-path recommended">
+			<div class="tool-path-head">
+				<span class="tool-path-tag">Recommended</span>
+				<h3>SolidWorks add-in</h3>
+			</div>
+			<p class="dim">
+				A docked task pane with live mass and Start / Submit buttons, no keyboard shortcuts to
+				configure. Download, unzip, and run register.bat (see the add-in README).
+			</p>
+			<div class="tool-actions">
+				<a class="btn" href={addinUrl} download>Download add-in (.zip)</a>
+				<a class="btn secondary" href="/gauntlet/speedrun/quickstart">Quick-start</a>
+			</div>
+		</div>
+		<div class="tool-path">
+			<div class="tool-path-head"><h3>VBA macros</h3></div>
+			<p class="dim">
+				Two importable .bas macros. Bind <span class="mono">Ctrl+Shift+S</span> (Start) and
+				<span class="mono">Ctrl+Shift+D</span> (Submit); full setup is below.
+			</p>
+			<div class="tool-actions">
+				<a class="btn secondary" href={START_MACRO_PATH} download>Start macro</a>
+				<a class="btn secondary" href={SUBMIT_MACRO_PATH} download>Submit macro</a>
+			</div>
+		</div>
+	</div>
 
 	<a class="card author-callout" href={START_MACRO_PATH} download>
 		<div>

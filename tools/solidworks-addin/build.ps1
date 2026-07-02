@@ -11,7 +11,13 @@
 
 param(
     [string]$SolidWorksApiDir = "C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist",
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    # -Package also zips the build into idea-gauntlet-addin.zip for students to
+    # download. Upload that zip to the public Supabase Storage bucket
+    # `gauntlet-tools` at object path idea-gauntlet-addin.zip (see migration 0031
+    # and TOOLS_BUCKET / ADDIN_ZIP_PATH in src/lib/gauntlet.ts); the site's
+    # "Download add-in" buttons point there.
+    [switch]$Package
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,3 +73,25 @@ Write-Host "Built $dll"
 Write-Host "Next: double-click register.bat and choose Run as administrator."
 Write-Host "Or manually, from an elevated prompt:"
 Write-Host "  $env:windir\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe /codebase `"$dll`""
+
+if ($Package) {
+    # Bundle the DLL + interops + the install wrappers + README into the zip that
+    # students download. register.bat / unregister.bat self-locate and self-elevate,
+    # so unzip-and-run is the whole student install.
+    $zip = Join-Path $root "idea-gauntlet-addin.zip"
+    $staging = Join-Path $out "_pkg"
+    if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
+    New-Item -ItemType Directory -Force $staging | Out-Null
+    Get-ChildItem $out -Filter *.dll | Copy-Item -Destination $staging -Force
+    foreach ($f in "register.bat", "unregister.bat", "README.md") {
+        $p = Join-Path $root $f
+        if (Test-Path $p) { Copy-Item $p $staging -Force }
+    }
+    if (Test-Path $zip) { Remove-Item -Force $zip }
+    Compress-Archive -Path (Join-Path $staging '*') -DestinationPath $zip -Force
+    Remove-Item -Recurse -Force $staging
+    Write-Host ""
+    Write-Host "Packaged $zip"
+    Write-Host "Upload it to the public 'gauntlet-tools' bucket as idea-gauntlet-addin.zip"
+    Write-Host "(Supabase Storage). The site's Download add-in buttons point there."
+}
