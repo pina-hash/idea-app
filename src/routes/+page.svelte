@@ -5,6 +5,7 @@
 	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import AppLauncher from '$lib/AppLauncher.svelte';
 	import {
 		sectionsByYear,
 		nextLiveCourse,
@@ -366,52 +367,7 @@
 		</div>
 	{/if}
 
-	<a class="promo-callout" href="/coins/index.html">
-		<div class="promo-left">
-			<div class="promo-icon">i¢</div>
-			<div>
-				<div class="promo-title">IDEA Coin Leaderboard</div>
-				<div class="promo-sub">Live balances, transaction log, and rankings across all sections.</div>
-			</div>
-		</div>
-		<div class="promo-cta">View Live &#9658;</div>
-	</a>
-
-	<a class="promo-callout" href="/vanguard/">
-		<div class="promo-left">
-			<div class="promo-icon">&#9658;</div>
-			<div>
-				<div class="promo-title">IDEA // VANGUARD</div>
-				<div class="promo-sub">
-					Top-down arcade shooter. Clear the sectors, chain your combos, and chase the high score.
-				</div>
-			</div>
-		</div>
-		<div class="promo-cta">Play &#9658;</div>
-	</a>
-
-	<a
-		class="promo-callout"
-		href="/gauntlet"
-		onclick={(e) => {
-			if (!signedIn) {
-				e.preventDefault();
-				signInWithGoogle('/gauntlet');
-			}
-		}}
-	>
-		<div class="promo-left">
-			<div class="promo-icon">&#9678;</div>
-			<div>
-				<div class="promo-title">IDEA // GAUNTLET</div>
-				<div class="promo-sub">
-					CAD skills dojo. Read drawings, model against the clock, and climb the boards.
-					{signedIn ? '' : 'Sign in to enter.'}
-				</div>
-			</div>
-		</div>
-		<div class="promo-cta">{signedIn ? 'Enter' : 'Sign in'} &#9658;</div>
-	</a>
+	<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
 
 	<div class="submit-panel">
 		<div class="submit-inner">

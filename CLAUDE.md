@@ -39,6 +39,15 @@ ability, it is not required to browse the portal.
   dashboard**. A signed-in student self-selects their 2026-27 class once; it is
   stored in `profiles.section_id` and pinned at the top of `/` (and shown as a
   chip in the header). See "2026-27 curriculum" below.
+- **Homepage app launcher:** the old stacked promo callouts are replaced by a
+  curated app grid (`src/lib/AppLauncher.svelte`, registry + layout helpers in
+  `src/lib/portal-apps.ts`): groups Games / Tools / Class, teacher-only tools
+  filtered by role, the GAUNTLET card offering sign-in when anonymous. The
+  default (unconfigured) view is the clean curated grouping; signed-in users
+  can pin favorites, reorder within groups, collapse groups, and toggle a
+  compact view, persisted to `profiles.preferences.homepage` (anonymous
+  visitors can collapse/compact for the session only, unsaved). The "next
+  live course" promo callout stays above the launcher.
 - **Optional sign-in:** the landing page header has a Google sign-in control.
   Signing in is additive: it unlocks signed-in features (VANGUARD cloud saves,
   pinning your class) and, for teachers, the dashboard. After sign-in from `/`
