@@ -474,9 +474,12 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `gauntlet-models` hold the artifacts (authenticated read, teacher write; reads
   are short-lived signed URLs), tightening the 0009 public-`gauntlet`-bucket
   pattern to authenticated read. `StlViewer.svelte` is a reusable three.js +
-  STLLoader viewer (orbit controls, neutral material, auto-fit to the bounding
-  box, shape only, no measurement/download) and replaces the isometric view that
-  used to live on the drawing. `three` is a runtime dependency, imported
+  STLLoader viewer (orbit controls, machined-metal material under a
+  RoomEnvironment studio map with ACES tone mapping, soft contact shadow on a
+  faint steel grid pedestal, slow auto-orbit that stops on first interaction
+  and is disabled under reduced motion, auto-fit to the bounding box, shape
+  only, no measurement/download) and replaces the isometric view that used to
+  live on the drawing. `three` is a runtime dependency, imported
   dynamically (browser-only, SSR-safe). The macro/reveal/token/leaderboard flow is
   unchanged; reveal-on-start still gates the dimensioned drawing.
 - **Speedrun unit system + demo cleanup** (`0018`, `0019`): Speedrun challenges

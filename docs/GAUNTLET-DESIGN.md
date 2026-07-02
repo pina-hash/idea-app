@@ -84,9 +84,15 @@ Mounted once in the layout (ambient):
 
 - **ViewportBackground** - fixed full-viewport canvas (z 0, pointer-events
   none): receding isometric grid floor in steel with fog fade, a slowly
-  orbiting wireframe hex-prism (green edges, lime vertices) upper-right, an
-  origin triad bottom-left, and mouse parallax. DPR capped at 2, single rAF
-  loop, paused on `document.hidden`, cleaned up on destroy.
+  orbiting wireframe part upper-right (green edges, lime vertices; three
+  machined geometries, hex boss / stepped flange / L-bracket, cycle with a
+  ~26s fade for variety), an origin triad bottom-left, and mouse parallax
+  (the part moves more than the grid, which reads as depth). Depth cues:
+  nearer edges draw brighter and wider, far edges thin into fog, a steel
+  halo pools behind the part, and a center content scrim quiets the scene
+  under the page column so it never competes with foreground text. DPR
+  capped at 2, single rAF loop, paused on `document.hidden`, cleaned up on
+  destroy.
 - **CursorLayer** - CAD crosshair cursor (reticle ring + dot + cross lines)
   easing after the mouse with a trailing mono X/Y mm readout; the ring
   enlarges and shifts lime over interactive elements. Pointer-events none.
@@ -109,6 +115,9 @@ Used per page:
   server-authoritative timing is never altered.
 - **ModeArt** `id: GauntletModeId` - wireframe line-art icon per mode;
   strokes inherit `currentColor` so the family color comes from the card.
+  Speedrun's art is animated (a stopwatch dial whose hand sweeps, a hex part
+  inside, pulsing fast-forward chevrons); the scoped viewport.css
+  reduced-motion block stills it automatically.
 - **motion.ts** - `entrance` (IntersectionObserver fade/slide action),
   `entranceSweep` (staggered entrance for a container's children; the layout
   runs it on `main.gauntlet` after every navigation), `countUp` (numeric stat

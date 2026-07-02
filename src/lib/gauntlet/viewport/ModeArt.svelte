@@ -11,8 +11,27 @@
 </script>
 
 {#if id === 'speedrun'}
+	<!-- Stopwatch fused with a CAD part racing to target: dial + sweeping hand,
+	     a hex part inside, split ticks, and fast-forward chevrons. -->
 	<svg width="72" height="60" viewBox="0 0 72 60" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
-		<path d="M22 14l14-8 14 8v20l-14 8-14-8V14Z" /><path d="M22 14l14 8 14-8M36 22v20" /><circle cx="36" cy="26" r="4" />
+		<!-- Crown + shoulders -->
+		<path d="M26 8h8M30 8v4M43 12l3-3M17 12l-3-3" />
+		<!-- Dial -->
+		<circle cx="30" cy="32" r="17" />
+		<!-- Split ticks (12 / 3 / 6 / 9) -->
+		<path d="M30 17v3.5M30 43.5V47M15 32h3.5M41.5 32H45" opacity="0.7" />
+		<!-- The part being raced: a small hex boss inside the dial -->
+		<path d="M30 25.5l5 3v6l-5 3-5-3v-6z" opacity="0.8" />
+		<!-- Sweeping hand (animated) -->
+		<g class="sr-hand">
+			<path d="M30 32V21.5" stroke="var(--lime)" stroke-width="1.6" />
+		</g>
+		<circle cx="30" cy="32" r="1.6" fill="var(--lime)" stroke="none" />
+		<!-- Fast-forward chevrons -->
+		<g class="sr-ff" stroke="var(--lime)" stroke-width="1.7">
+			<path class="c1" d="M52 24l6 8-6 8" />
+			<path class="c2" d="M59 24l6 8-6 8" />
+		</g>
 	</svg>
 {:else if id === 'reverse_engineer'}
 	<svg width="72" height="60" viewBox="0 0 72 60" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
@@ -39,3 +58,35 @@
 		<circle cx="46" cy="40" r="8" stroke="var(--crimson)" /><path d="M52 46l7 7" stroke="var(--crimson)" /><path d="M43 40h6M46 37v6" stroke="var(--crimson)" />
 	</svg>
 {/if}
+
+<style>
+	/* Speedrun art animation: the hand sweeps the dial, the chevrons pulse
+	   forward. viewport.css force-disables all animation in .gt-root under
+	   prefers-reduced-motion, so no extra guard is needed here. */
+	.sr-hand {
+		transform-origin: 30px 32px;
+		animation: sr-sweep 4s linear infinite;
+	}
+	.sr-ff .c1 {
+		animation: sr-ff 1.6s ease-in-out infinite;
+	}
+	.sr-ff .c2 {
+		animation: sr-ff 1.6s ease-in-out infinite 0.25s;
+	}
+	@keyframes sr-sweep {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@keyframes sr-ff {
+		0%,
+		100% {
+			opacity: 0.25;
+			transform: translateX(0);
+		}
+		45% {
+			opacity: 1;
+			transform: translateX(2.5px);
+		}
+	}
+</style>

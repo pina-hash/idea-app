@@ -5,10 +5,13 @@
 	/**
 	 * VIEWPORT ambient scene: a fixed full-viewport canvas behind all GAUNTLET
 	 * content. Receding isometric grid floor (steel, fog fade), a slowly
-	 * orbiting wireframe hex-prism upper-right, an origin triad bottom-left,
-	 * and a gentle parallax ease toward the mouse. Purely decorative:
-	 * pointer-events none, aria-hidden, single rAF loop paused when the tab is
-	 * hidden, one static frame under reduced motion.
+	 * orbiting wireframe part upper-right (three machined geometries cycle with
+	 * a fade for variety: hex boss, stepped flange, L-bracket), an origin triad
+	 * bottom-left, gentle mouse parallax (the part moves more than the grid,
+	 * which reads as depth), and a center scrim so the scene never fights the
+	 * foreground content. Purely decorative: pointer-events none, aria-hidden,
+	 * single rAF loop paused when the tab is hidden, one static frame under
+	 * reduced motion.
 	 */
 
 	let canvas: HTMLCanvasElement;
@@ -25,7 +28,7 @@
 		const AX_X = token('--ax-x', '#ff4d57');
 		const AX_Y = token('--ax-y', '#00ff41');
 		const AX_Z = token('--ax-z', '#3f8cff');
-		// --steel as rgb components for alpha-composed strokes.
+		// --steel / --green as rgb components for alpha-composed strokes.
 		const STEEL_RGB = '59, 110, 143';
 		const GREEN_RGB = '0, 255, 65';
 
@@ -63,74 +66,199 @@
 			return { x: cx + x * s, y: cy + y * s, s, z };
 		};
 
-		const hexPrism = (time: number) => {
-			const cx = W * 0.78 + ox * 10;
-			const cy = H * 0.24 + oy * 8;
-			const r = Math.min(W, H) * 0.105;
-			const h = r * 1.15;
+		// -------------------------------------------------------------------
+		// Wireframe part library. Unit-space geometry (roughly -1..1), scaled
+		// at draw time. `edges` carry a weight so bores/details read fainter;
+		// `dots` are the lime vertex indices.
+		// -------------------------------------------------------------------
+		type V3 = [number, number, number];
+		interface PartGeo {
+			verts: V3[];
+			edges: [number, number, number][]; // [a, b, weight]
+			dots: number[];
+		}
+
+		const ngon = (n: number, r: number, y: number, out: V3[]): number[] => {
+			const idx: number[] = [];
+			for (let i = 0; i < n; i++) {
+				const a = (i * 2 * Math.PI) / n;
+				idx.push(out.length);
+				out.push([r * Math.cos(a), y, r * Math.sin(a)]);
+			}
+			return idx;
+		};
+		const ring = (
+			idx: number[],
+			w: number,
+			edges: [number, number, number][]
+		) => {
+			for (let i = 0; i < idx.length; i++) edges.push([idx[i], idx[(i + 1) % idx.length], w]);
+		};
+		const struts = (
+			a: number[],
+			b: number[],
+			w: number,
+			edges: [number, number, number][],
+			every = 1
+		) => {
+			for (let i = 0; i < a.length; i += every) edges.push([a[i], b[i], w]);
+		};
+
+		/** Machined hex boss with a center bore (the original part). */
+		const hexBoss = (): PartGeo => {
+			const verts: V3[] = [];
+			const edges: [number, number, number][] = [];
+			const top = ngon(6, 1, -0.58, verts);
+			const bot = ngon(6, 1, 0.58, verts);
+			const boreT = ngon(6, 0.42, -0.58, verts);
+			const boreB = ngon(6, 0.42, 0.58, verts);
+			ring(top, 1, edges);
+			ring(bot, 1, edges);
+			struts(top, bot, 1, edges);
+			ring(boreT, 0.55, edges);
+			ring(boreB, 0.55, edges);
+			struts(boreT, boreB, 0.55, edges);
+			return { verts, edges, dots: [...top, ...bot] };
+		};
+
+		/** Stepped flange: wide disc, narrower shaft, small top bore. */
+		const steppedFlange = (): PartGeo => {
+			const verts: V3[] = [];
+			const edges: [number, number, number][] = [];
+			const discB = ngon(12, 1, 0.55, verts);
+			const discT = ngon(12, 1, 0.18, verts);
+			const shaftB = ngon(10, 0.45, 0.18, verts);
+			const shaftT = ngon(10, 0.45, -0.62, verts);
+			const bore = ngon(8, 0.2, -0.62, verts);
+			ring(discB, 1, edges);
+			ring(discT, 1, edges);
+			struts(discB, discT, 0.8, edges, 2);
+			ring(shaftB, 0.85, edges);
+			ring(shaftT, 1, edges);
+			struts(shaftB, shaftT, 0.7, edges, 2);
+			ring(bore, 0.5, edges);
+			return { verts, edges, dots: [...discT, ...shaftT] };
+		};
+
+		/** L-bracket: an L profile extruded through z. */
+		const lBracket = (): PartGeo => {
+			const profile: [number, number][] = [
+				[-0.95, 0.7],
+				[0.95, 0.7],
+				[0.95, 0.25],
+				[-0.15, 0.25],
+				[-0.15, -0.85],
+				[-0.95, -0.85]
+			];
+			const verts: V3[] = [];
+			const edges: [number, number, number][] = [];
+			const front: number[] = [];
+			const back: number[] = [];
+			for (const [x, y] of profile) {
+				front.push(verts.length);
+				verts.push([x, y, -0.42]);
+			}
+			for (const [x, y] of profile) {
+				back.push(verts.length);
+				verts.push([x, y, 0.42]);
+			}
+			ring(front, 1, edges);
+			ring(back, 1, edges);
+			struts(front, back, 0.8, edges);
+			// Bolt slot on the base plate (a faint rectangle detail).
+			const slot: V3[] = [
+				[0.25, 0.7, -0.18],
+				[0.7, 0.7, -0.18],
+				[0.7, 0.7, 0.18],
+				[0.25, 0.7, 0.18]
+			];
+			const slotIdx = slot.map((v) => {
+				verts.push(v);
+				return verts.length - 1;
+			});
+			ring(slotIdx, 0.45, edges);
+			return { verts, edges, dots: front };
+		};
+
+		const PARTS: PartGeo[] = [hexBoss(), steppedFlange(), lBracket()];
+		const CYCLE = 26000; // ms per part
+		const FADE = 2200; // fade in/out at each end of a cycle
+		const easeInOut = (t: number) => t * t * (3 - 2 * t);
+
+		const wirePart = (time: number) => {
+			// Which part, and its fade envelope inside this cycle.
+			const idx = still ? 0 : Math.floor(time / CYCLE) % PARTS.length;
+			const phase = still ? CYCLE / 2 : time % CYCLE;
+			const envelope = still
+				? 1
+				: phase < FADE
+					? easeInOut(phase / FADE)
+					: phase > CYCLE - FADE
+						? easeInOut((CYCLE - phase) / FADE)
+						: 1;
+			if (envelope <= 0.01) return;
+			const part = PARTS[idx];
+
+			// Part parallax is stronger than the grid's: reads as the nearest layer.
+			const cx = W * 0.78 + ox * 22;
+			const cy = H * 0.24 + oy * 16;
+			const r = Math.min(W, H) * 0.115;
 			const theta = still ? 0.6 : time * 0.00022;
 			const tilt = -0.5;
 			const cosT = Math.cos(theta);
 			const sinT = Math.sin(theta);
 			const cosF = Math.cos(tilt);
 			const sinF = Math.sin(tilt);
-			// Outer hex rings [0,1] plus an inner bore [2,3] so the part reads as
-			// machined, not a solid extrusion.
-			const RADII = [r, r, r * 0.42, r * 0.42];
-			const pts: { x: number; y: number; z: number }[][] = [[], [], [], []];
-			for (let ring = 0; ring < 4; ring++) {
-				const y0 = ring % 2 === 0 ? -h / 2 : h / 2;
-				const rr = RADII[ring];
-				for (let i = 0; i < 6; i++) {
-					const a = (i * Math.PI) / 3;
-					const x0 = rr * Math.cos(a);
-					const z0 = rr * Math.sin(a);
-					// Rotate around Y (orbit), then around X (viewing tilt).
-					const x1 = x0 * cosT + z0 * sinT;
-					const z1 = -x0 * sinT + z0 * cosT;
-					const y1 = y0 * cosF - z1 * sinF;
-					const z2 = y0 * sinF + z1 * cosF;
-					pts[ring].push({ x: x1, y: y1, z: z2 });
-				}
-			}
-			const proj = pts.map((ring) => ring.map((p) => project(p.x, p.y, p.z, cx, cy)));
 
-			const edge = (a: { x: number; y: number }, b: { x: number; y: number }, alpha: number) => {
+			const proj = part.verts.map(([px, py, pz]) => {
+				const x0 = px * r;
+				const y0 = py * r;
+				const z0 = pz * r;
+				// Rotate around Y (orbit), then around X (viewing tilt).
+				const x1 = x0 * cosT + z0 * sinT;
+				const z1 = -x0 * sinT + z0 * cosT;
+				const y1 = y0 * cosF - z1 * sinF;
+				const z2 = y0 * sinF + z1 * cosF;
+				return project(x1, y1, z2, cx, cy);
+			});
+
+			// Ambient halo behind the part: a pool of light it appears to sit in.
+			const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.6);
+			halo.addColorStop(0, `rgba(${STEEL_RGB}, ${0.09 * envelope})`);
+			halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+			ctx.fillStyle = halo;
+			ctx.fillRect(cx - r * 3, cy - r * 3, r * 6, r * 6);
+
+			// Depth cue: nearer edges brighter AND wider; far edges thin + faint.
+			const depthAlpha = (z: number) => Math.max(0.06, 0.5 - (z / r) * 0.3);
+			for (const [a, b, w] of part.edges) {
+				const pa = proj[a];
+				const pb = proj[b];
+				const zAvg = (pa.z + pb.z) / 2;
+				const alpha = depthAlpha(zAvg) * w * envelope;
+				const near = 1 - Math.min(1, Math.max(0, (zAvg / r + 1) / 2)); // 1 near, 0 far
 				// Two-pass stroke: a wide faint pass reads as glow without shadowBlur.
 				ctx.strokeStyle = `rgba(${GREEN_RGB}, ${alpha * 0.14})`;
-				ctx.lineWidth = 4;
+				ctx.lineWidth = 3 + near * 2;
 				ctx.beginPath();
-				ctx.moveTo(a.x, a.y);
-				ctx.lineTo(b.x, b.y);
+				ctx.moveTo(pa.x, pa.y);
+				ctx.lineTo(pb.x, pb.y);
 				ctx.stroke();
 				ctx.strokeStyle = `rgba(${GREEN_RGB}, ${alpha})`;
-				ctx.lineWidth = 1.2;
+				ctx.lineWidth = 0.8 + near * 0.8;
 				ctx.beginPath();
-				ctx.moveTo(a.x, a.y);
-				ctx.lineTo(b.x, b.y);
+				ctx.moveTo(pa.x, pa.y);
+				ctx.lineTo(pb.x, pb.y);
 				ctx.stroke();
-			};
-			const depthAlpha = (z: number) => 0.5 - (z / r) * 0.28;
-
-			for (let i = 0; i < 6; i++) {
-				const j = (i + 1) % 6;
-				edge(proj[0][i], proj[0][j], depthAlpha((proj[0][i].z + proj[0][j].z) / 2));
-				edge(proj[1][i], proj[1][j], depthAlpha((proj[1][i].z + proj[1][j].z) / 2));
-				edge(proj[0][i], proj[1][i], depthAlpha(proj[0][i].z));
-				// Bore edges, fainter than the outer body.
-				edge(proj[2][i], proj[2][j], depthAlpha((proj[2][i].z + proj[2][j].z) / 2) * 0.6);
-				edge(proj[3][i], proj[3][j], depthAlpha((proj[3][i].z + proj[3][j].z) / 2) * 0.6);
-				edge(proj[2][i], proj[3][i], depthAlpha(proj[2][i].z) * 0.6);
 			}
-			// Lime vertices on the outer body, brighter toward the viewer.
-			for (const ring of [proj[0], proj[1]]) {
-				for (const p of ring) {
-					ctx.fillStyle = LIME;
-					ctx.globalAlpha = Math.max(0.15, 0.75 - (p.z / r) * 0.4);
-					ctx.beginPath();
-					ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
-					ctx.fill();
-				}
+			// Lime vertices, brighter toward the viewer.
+			for (const di of part.dots) {
+				const p = proj[di];
+				ctx.fillStyle = LIME;
+				ctx.globalAlpha = Math.max(0.1, (0.7 - (p.z / r) * 0.4) * envelope);
+				ctx.beginPath();
+				ctx.arc(p.x, p.y, 1.6 + (1 - p.z / r) * 0.5, 0, Math.PI * 2);
+				ctx.fill();
 			}
 			ctx.globalAlpha = 1;
 		};
@@ -199,11 +327,32 @@
 			ctx.fill();
 		};
 
+		/**
+		 * Content scrim: quiet the scene where the page column sits so the
+		 * background never competes with foreground text. Painted into the
+		 * canvas itself (behind the CSS vignette), centered on the content.
+		 */
+		const contentScrim = () => {
+			const grad = ctx.createRadialGradient(
+				W * 0.5,
+				H * 0.58,
+				0,
+				W * 0.5,
+				H * 0.58,
+				Math.max(W, H) * 0.55
+			);
+			grad.addColorStop(0, 'rgba(4, 7, 10, 0.5)');
+			grad.addColorStop(1, 'rgba(4, 7, 10, 0)');
+			ctx.fillStyle = grad;
+			ctx.fillRect(0, 0, W, H);
+		};
+
 		const draw = (time: number) => {
 			ctx.fillStyle = VOID;
 			ctx.fillRect(0, 0, W, H);
 			gridFloor(time);
-			hexPrism(time);
+			wirePart(time);
+			contentScrim();
 			originTriad();
 		};
 

@@ -362,6 +362,34 @@
 	color: var(--cyan);
 }
 
+/* --- State completeness polish: locked hover, disabled, press, loading --- */
+/* A locked mode card acknowledges the pointer without pretending to be live. */
+.gt-root .gauntlet .mode-card.locked:hover {
+	opacity: 0.8;
+	border-color: var(--line);
+	transform: none;
+}
+/* Disabled primary buttons drop the gradient and glow entirely. */
+.gt-root .gauntlet .btn:disabled,
+.gt-root .gauntlet .btn[aria-disabled='true'] {
+	background: var(--panel-2);
+	color: var(--dim);
+	border: 1px solid var(--line);
+	box-shadow: none;
+	cursor: not-allowed;
+	transform: none;
+	filter: none;
+}
+/* Tactile press on list rows, matching the button press. */
+.gt-root .gauntlet .challenge-row:active,
+.gt-root .gauntlet .author-row:active {
+	transform: scale(0.995);
+}
+/* Loading copy breathes like the key readouts, so waits read as alive. */
+.gt-root .gauntlet .stl-overlay .dim {
+	animation: gt-breathe 2.6s ease-in-out infinite;
+}
+
 /* --- Live-rooms strip: crimson-edged banner with a big CTA --- */
 .gt-root .gauntlet .roomstrip {
 	position: relative;

@@ -2,6 +2,8 @@
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { UserProfile } from '$lib/profile';
+	import GauntletMark from '$lib/marks/GauntletMark.svelte';
+	import VanguardMark from '$lib/marks/VanguardMark.svelte';
 	import {
 		APP_GROUPS,
 		orderedGroupApps,
@@ -91,12 +93,13 @@
 </script>
 
 {#snippet appIcon(id: string)}
+	{#if id === 'vanguard'}
+		<VanguardMark />
+	{:else if id === 'gauntlet'}
+		<GauntletMark />
+	{:else}
 	<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		{#if id === 'vanguard'}
-			<path d="M16 4l9 20-9-4.5L7 24z" /><path d="M16 4v15.5" /><path d="M12.5 27.5l1.5-3m5.5 3l-1.5-3" />
-		{:else if id === 'gauntlet'}
-			<path d="M16 4l9.5 5.5v11L16 26l-9.5-5.5v-11z" /><path d="M16 4v11m0 0l9.5 5.5M16 15l-9.5 5.5" /><circle cx="16" cy="15" r="2.2" />
-		{:else if id === 'coins'}
+		{#if id === 'coins'}
 			<circle cx="16" cy="16" r="10" /><circle cx="16" cy="16" r="6.5" /><path d="M16 9.5v13" />
 		{:else if id === 'coin-entry'}
 			<circle cx="13" cy="16" r="9" /><path d="M13 12v8m-4-4h8" /><path d="M25 8v6m3-3h-6" />
@@ -108,6 +111,7 @@
 			<path d="M5 7h22v6H5z" /><path d="M7 13v12h18V13" /><path d="M13 18h6" />
 		{/if}
 	</svg>
+	{/if}
 {/snippet}
 
 {#snippet appCard(app: PortalApp, group: AppGroupId | null)}
