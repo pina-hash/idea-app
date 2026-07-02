@@ -42,6 +42,10 @@ namespace IdeaGauntlet
         public double? ExpectedDensity;
         public double? DensityTolerancePct;
         public string DetectedMaterial;
+        // Unit system (0030): the level's system and the measured mass in it.
+        public string UnitSystem;
+        public double? MassLevel;
+        public string MassUnit;
     }
 
     /// <summary>
@@ -109,7 +113,7 @@ namespace IdeaGauntlet
         /// </summary>
         public static async Task<SubmitResult> SubmitRunAsync(
             string code, string runId, double volumeMm3, double surfaceAreaMm2, int featureCount,
-            double massG, string materialName)
+            double massG, string materialName, string unitSystem)
         {
             Dictionary<string, object> body = new Dictionary<string, object>();
             body["p_code"] = code;
@@ -119,6 +123,7 @@ namespace IdeaGauntlet
             body["p_feature_count"] = featureCount;
             body["p_mass_g"] = massG;
             body["p_material"] = string.IsNullOrEmpty(materialName) ? null : materialName;
+            body["p_unit_system"] = string.IsNullOrEmpty(unitSystem) ? null : unitSystem;
 
             Dictionary<string, object> resp = await PostRpcAsync("gauntlet_macro_submit", body).ConfigureAwait(false);
 
@@ -137,6 +142,9 @@ namespace IdeaGauntlet
             result.ExpectedDensity = AsDouble(resp, "expected_density_g_cm3");
             result.DensityTolerancePct = AsDouble(resp, "density_tolerance_pct");
             result.DetectedMaterial = AsString(resp, "detected_material");
+            result.UnitSystem = AsString(resp, "unit_system");
+            result.MassLevel = AsDouble(resp, "mass_level");
+            result.MassUnit = AsString(resp, "mass_unit");
             return result;
         }
 

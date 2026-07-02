@@ -9,7 +9,8 @@
 		UNIT_SYSTEMS,
 		UNIT_SYSTEM_UNITS,
 		DRAWINGS_BUCKET,
-		MODELS_BUCKET
+		MODELS_BUCKET,
+		type UnitSystem
 	} from '$lib/gauntlet';
 	import {
 		buildPayload,
@@ -48,6 +49,31 @@
 			? Math.abs(form.target_mass - computedMass) / computedMass > 0.005
 			: false
 	);
+
+	// Exact unit-conversion factors for the Speedrun unit-system toggle
+	// (1 in = 25.4 mm, 1 lb = 453.59237 g; density factor = 453.59237 / 16.387064).
+	const LB_IN3_TO_G_CM3 = 27.679904653;
+	const LB_TO_G = 453.59237;
+	const roundTo = (v: number, n: number) => {
+		const f = 10 ** n;
+		return Math.round(v * f) / f;
+	};
+	// Toggling the unit system auto-converts every unit-carrying value (density and
+	// target mass) with the exact factors, so nothing is silently reinterpreted in
+	// the new system. The canonical volume (mm3), tolerance (%), and par time (s)
+	// are unit-independent and stay put.
+	function changeUnitSystem(next: UnitSystem) {
+		const prev = form.unit_system;
+		if (next === prev) return;
+		const toMetric = next === 'MMGS';
+		if (form.density != null && Number.isFinite(form.density)) {
+			form.density = roundTo(toMetric ? form.density * LB_IN3_TO_G_CM3 : form.density / LB_IN3_TO_G_CM3, 5);
+		}
+		if (form.target_mass != null && Number.isFinite(form.target_mass)) {
+			form.target_mass = roundTo(toMetric ? form.target_mass * LB_TO_G : form.target_mass / LB_TO_G, 4);
+		}
+		form.unit_system = next;
+	}
 
 	// Feature 4: live preview of the parsed video id (empty when input is invalid).
 	const tutorialId = $derived(normalizeYouTubeId(form.tutorialVideoId));
@@ -302,11 +328,19 @@
 			{#if speedrun}
 				<label class="ff">
 					<span class="ff-label">Unit system</span>
-					<select class="ff-input" bind:value={form.unit_system}>
+					<select
+						class="ff-input"
+						value={form.unit_system}
+						onchange={(e) => changeUnitSystem(e.currentTarget.value as UnitSystem)}
+					>
 						{#each UNIT_SYSTEMS as u (u)}
 							<option value={u}>{u}</option>
 						{/each}
 					</select>
+					<span class="ff-help">
+						Switching auto-converts density and target mass with exact factors (1 in = 25.4 mm,
+						1 lb = 453.59237 g). IPS reads lb / in3, MMGS reads g / cm3.
+					</span>
 				</label>
 			{/if}
 			<label class="ff">

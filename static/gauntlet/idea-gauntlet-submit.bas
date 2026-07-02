@@ -108,12 +108,30 @@ Sub main()
     On Error GoTo 0
     matName = Trim$(matName)
 
-    StudentSubmit volumeMm3, areaMm2, featureCount, massG, runId, matName
+    ' --- Document unit system (IPS or MMGS): the server requires it to match the
+    '     challenge's, so you read the drawing's dimensions in the right system.
+    '     swUserPreferenceIntegerValue swUnitSystem = 125; 4 = IPS, 3 = MMGS.
+    '     Anything else (MKS/CGS/custom) is left blank so the server skips the
+    '     check rather than false-blocking. On Error keeps a bad read harmless.
+    Dim unitSys As String
+    unitSys = ""
+    On Error Resume Next
+    Dim usVal As Long
+    usVal = swModel.GetUserPreferenceIntegerValue(125)
+    If usVal = 4 Then
+        unitSys = "IPS"
+    ElseIf usVal = 3 Then
+        unitSys = "MMGS"
+    End If
+    On Error GoTo 0
+
+    StudentSubmit volumeMm3, areaMm2, featureCount, massG, runId, matName, unitSys
 End Sub
 
 Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
                           ByVal featureCount As Long, ByVal massG As Double, _
-                          ByVal runId As String, ByVal matName As String)
+                          ByVal runId As String, ByVal matName As String, _
+                          ByVal unitSys As String)
     If InStr(GAUNTLET_ENDPOINT, "YOUR-PROJECT-REF") > 0 _
        Or InStr(SUPABASE_ANON_KEY, "PASTE-YOUR") > 0 Then
         MsgBox "This macro is not configured yet. Edit GAUNTLET_ENDPOINT and " & _
@@ -135,7 +153,8 @@ Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
            ",""p_surface_area_mm2"":" & JNum(areaMm2) & _
            ",""p_feature_count"":" & CStr(featureCount) & _
            ",""p_mass_g"":" & JNum(massG) & _
-           ",""p_material"":" & JStrOrNull(matName) & "}"
+           ",""p_material"":" & JStrOrNull(matName) & _
+           ",""p_unit_system"":" & JStrOrNull(unitSys) & "}"
 
     Dim http As Object
     On Error Resume Next
@@ -178,6 +197,12 @@ Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
     measDens = JsonField(resp, "measured_density_g_cm3")
     expDens = JsonField(resp, "expected_density_g_cm3")
 
+    ' Unit system + mass in the level's unit (lb for IPS, g for MMGS).
+    Dim lvlUnitSys As String, massLevel As String, massUnit As String
+    lvlUnitSys = JsonField(resp, "unit_system")
+    massLevel = JsonField(resp, "mass_level")
+    massUnit = JsonField(resp, "mass_unit")
+
     Dim out As String
     If isCorrect = "true" Then
         out = "PASS in " & secs & " s"
@@ -201,6 +226,10 @@ Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
     If Len(measDens) > 0 And measDens <> "null" Then
         out = out & vbCrLf & "Density: " & measDens & " g/cm3"
         If Len(expDens) > 0 And expDens <> "null" Then out = out & " (expected " & expDens & ")"
+    End If
+    If Len(massLevel) > 0 And massLevel <> "null" Then
+        out = out & vbCrLf & "Mass: " & massLevel & " " & massUnit
+        If Len(lvlUnitSys) > 0 Then out = out & "   Units: " & lvlUnitSys
     End If
     MsgBox out, vbInformation, "GAUNTLET result"
     Exit Sub

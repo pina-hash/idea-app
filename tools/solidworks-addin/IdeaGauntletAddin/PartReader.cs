@@ -16,6 +16,9 @@ namespace IdeaGauntlet
         public bool IsPart;
         /// <summary>Human label for the part's unit system, e.g. "IPS (in / lb)".</summary>
         public string UnitSystemLabel = "";
+        /// <summary>Normalized document unit system for the submit gate: "IPS",
+        /// "MMGS", or "" (unknown/custom, so the server skips the unit check).</summary>
+        public string UnitSystemCode = "";
         /// <summary>True when the part's units are inch-family, so mass reads in lb first.</summary>
         public bool PrimaryIsImperial;
         /// <summary>True when mass properties were readable (an empty part reads as zeros).</summary>
@@ -135,19 +138,24 @@ namespace IdeaGauntlet
                 case swUnitSystem_e.swUnitSystem_IPS:
                     snap.UnitSystemLabel = "IPS (in / lb)";
                     snap.PrimaryIsImperial = true;
+                    snap.UnitSystemCode = "IPS";
                     break;
                 case swUnitSystem_e.swUnitSystem_MMGS:
                     snap.UnitSystemLabel = "MMGS (mm / g)";
+                    snap.UnitSystemCode = "MMGS";
                     break;
                 case swUnitSystem_e.swUnitSystem_CGS:
                     snap.UnitSystemLabel = "CGS (cm / g)";
+                    // Metric, but not the level's MMGS/IPS enum, so leave the code
+                    // blank and let the server skip the unit check.
                     break;
                 case swUnitSystem_e.swUnitSystem_MKS:
                     snap.UnitSystemLabel = "MKS (m / kg)";
                     break;
                 default:
                     // Custom system: decide the primary mass display from the
-                    // length unit family. Either way both lb and g are shown.
+                    // length unit family. Either way both lb and g are shown. The
+                    // unit-system code stays blank (server skips the check).
                     snap.PrimaryIsImperial = IsImperialLength(model);
                     snap.UnitSystemLabel = snap.PrimaryIsImperial ? "Custom (inch family)" : "Custom (metric)";
                     break;

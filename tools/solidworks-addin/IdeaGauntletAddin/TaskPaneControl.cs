@@ -613,7 +613,7 @@ namespace IdeaGauntlet
             {
                 result = await GauntletClient.SubmitRunAsync(
                     code, runId, snap.VolumeMm3, snap.SurfaceAreaMm2, snap.FeatureCount, snap.MassG,
-                    snap.MaterialName);
+                    snap.MaterialName, snap.UnitSystemCode);
             }
             catch (Exception ex)
             {
@@ -682,6 +682,12 @@ namespace IdeaGauntlet
                         density = density + ")";
                     }
                     text = text + Environment.NewLine + density;
+                }
+                if (result.MassLevel.HasValue)
+                {
+                    text = text + Environment.NewLine +
+                        Inv("Mass {0:0.####} {1}", result.MassLevel.Value, result.MassUnit ?? "")
+                        + (string.IsNullOrEmpty(result.UnitSystem) ? "" : "  ·  units " + result.UnitSystem);
                 }
 
                 SetStatus(text, result.IsCorrect ? GreenBright : Amber);

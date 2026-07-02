@@ -60,7 +60,9 @@ expires about 30 minutes after reveal.
 Both calls are PostgREST RPC POSTs to the same Supabase project the website
 uses, authenticated with the **public anon key** (not a secret; the code is
 the credential). Defined in `supabase/migrations/0016_gauntlet_speedrun_start.sql`,
-`0017_gauntlet_run_status.sql`, and `0026_gauntlet_material_gate.sql`.
+`0017_gauntlet_run_status.sql`, `0027_gauntlet_material_density_gate.sql`
+(material verified by density, not name), and `0030_gauntlet_unit_system.sql`
+(document unit-system gate + mass reported in the level's unit).
 
 ```
 POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_start
@@ -72,9 +74,12 @@ POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_submit
   body:    { "p_code": "...", "p_run_id": "<uuid from GAUNTLET_RUN_ID>",
              "p_volume_mm3": n, "p_surface_area_mm2": n,
              "p_feature_count": n, "p_mass_g": n,
-             "p_material": "<applied material name, or null>" }
+             "p_material": "<applied material name, or null>",
+             "p_unit_system": "IPS" | "MMGS" | null }
   returns: { "is_correct", "mode", "elapsed_ms", "score_metric", "rank",
-             "target_volume_mm3", "your_volume_mm3", "tolerance_pct" }
+             "target_volume_mm3", "your_volume_mm3", "tolerance_pct",
+             "density_ok", "measured_density_g_cm3", "expected_density_g_cm3",
+             "unit_system", "mass_level", "mass_unit" }
 ```
 
 Timing and grading are entirely server-side; the add-in never sends a clock or

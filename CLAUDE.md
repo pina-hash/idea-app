@@ -622,8 +622,9 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   volume / surface area / feature count honoring the part's unit system (IPS
   reads in lb, MMGS in g, both always shown), a target-mass comparison field,
   and the Start / Submit run flow. It speaks the EXACT macro contract from
-  0016/0017/0026, `gauntlet_macro_start(p_code, p_volume_mm3)` then
-  `gauntlet_macro_submit(p_code, p_volume_mm3, p_run_id, ..., p_material)` via
+  0016/0017/0027/0030, `gauntlet_macro_start(p_code, p_volume_mm3)` then
+  `gauntlet_macro_submit(p_code, p_volume_mm3, p_run_id, ..., p_material,
+  p_unit_system)` via
   PostgREST with the public anon key, and stores the run id in the same
   `GAUNTLET_RUN_ID` part custom property, so the add-in and the `.bas` macros
   are interchangeable mid-run. If a migration changes those RPCs, update
@@ -657,6 +658,39 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   authoring form parses it into the Material field, so authored names match
   what SolidWorks reports. Manual practice and host-supervised room manual
   submits cannot read the part and are unchanged.
+- **Material by density (`0027`, supersedes the 0026 name match):** the 0026
+  exact-name gate false-blocked correct runs (a custom-library name like
+  "6061-T6 (SS)" never matched an authored "6061 Alloy", and an unread name read
+  as "no material"). `gauntlet_macro_submit` now verifies material by DENSITY:
+  measured density = `mass / volume` vs the challenge's expected density
+  (`answer->>'density'`, normalized to g/cm3 from its unit system) within a
+  tolerance (`answer->>'density_tolerance_pct'`, default 1%). A material counts
+  as present from a non-empty name OR a real density; the server BLOCKS only when
+  there is genuinely none (empty name AND ~1.0/zero density). A present-but-wrong
+  material grades `is_correct = false` (unranked, retry on the clock), never a
+  hard block. The block message and result carry the detected material and
+  measured/expected density. The Submit macro reads material from the ACTIVE
+  config via `PartDoc` and its `JsonField` now unescapes so a quoted server
+  message is not truncated.
+- **Live rooms: short code + host plays (`0028`):** room join codes are 4 upper
+  chars over the unambiguous alphabet (no O/0/I/1/L) via `gauntlet_gen_room_code`
+  (submit codes stay 8-char credentials). The host is enrolled as a racer at
+  create and `gauntlet_room_start` mints the host a token too, so the host races;
+  the room page shows the host the full racing panel (shared `racePanel` snippet)
+  beside their End-round control.
+- **Tiers removed (`0029`):** the T1..T4 Speedrun `tier` (prompt JSONB, dup of
+  difficulty) is gone from the editor, player, room, and leaderboard (Speedrun
+  records list flat by difficulty then title; standings stay XP-only).
+  `gauntlet_leaderboards()` no longer returns/orders by tier; the dead
+  `prompt->>'tier'` key is stripped from existing challenges.
+- **Unit system gate (`0030`):** `unit_system` (IPS/MMGS) is a first-class
+  per-challenge attribute (Speedrun prompt, backfilled to IPS; RE/FG read as
+  MMGS). The authoring toggle auto-converts density and target mass with exact
+  factors (1 in = 25.4 mm, 1 lb = 453.59237 g). `gauntlet_macro_submit` gains
+  `p_unit_system` (the SolidWorks DOCUMENT unit system reported by the macro /
+  add-in) and blocks a submit whose document units differ from the level's,
+  showing both; it also reports the measured mass in the level's unit (lb/g).
+  Built on the 0027 density gate (not a revert).
 - **Visuals (standing directive):** all GAUNTLET UI, current and new, must
   conform to the **VIEWPORT design system** documented in
   `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in
