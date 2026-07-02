@@ -233,9 +233,24 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   - DEVICE-LOCAL (`vanguard_did`) is never synced.
   - Legacy v1 flat rows normalize to v2 on read (`normalizeStored`); the `data`
     column is `jsonb` so no migration was needed.
-- True mid-run resume is intentionally NOT supported: a live run lives only in
-  the game's in-memory state and uses non-deterministic RNG, so only between-run
-  progression syncs.
+- **In-game nav + identity:** the endpoint injects a fixed top-right nav chip
+  (a "IDEA" home link, plus the signed-in player's avatar + name) so a player can
+  leave the game and confirm their account, styled like the existing cloud-save
+  widget.
+- **Cross-device run save/resume (`0032`):** distinct from the between-run
+  progression sync above, a signed-in player can quit an in-progress run on one
+  device and resume it on another. The game captures a MINIMAL sector-boundary
+  checkpoint (loadout + sector + score + coins/lives) via `window.__ideaCaptureRun`
+  when it launches into a new sector (`launchFromRefit`), and clears it at run end
+  (`endRun`); the injection persists it to the owner-scoped `vanguard_run_state`
+  table through `/api/vanguard-run-state` (GET/POST/DELETE) and offers a gold
+  "Resume S<n>" button that calls `window.__ideaRestoreRun` to rebuild a valid
+  play state. It is a checkpoint, not a per-frame snapshot (enemies/bullets are
+  transient and rebuild for the sector); both game hooks are guarded so a bad
+  payload can never break normal play, and the checkpoint I/O is signed-in only.
+  (This supersedes the earlier decision to omit mid-run resume; the checkpoint
+  approach sidesteps the non-deterministic-RNG problem by restarting the sector
+  rather than replaying it.)
 
 ### Asset-path strategy for carried-over HTML
 
