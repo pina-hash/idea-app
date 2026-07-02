@@ -545,7 +545,15 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     floating in the graphite viewport, and stays CRISP by sizing the sheet to the
     display size (the raster/SVG is re-rasterized from source at the shown
     resolution, device-pixel-ratio aware) and only `translate`-panning, never
-    CSS-scaling a bitmap; zoom is capped at native resolution. Interaction
+    CSS-scaling a bitmap. The default view fits the drawing's INK content, not
+    the paper: the raster is probed once for its ink bounding box (a separate
+    crossOrigin image so a blocked read degrades to full-sheet fit), because
+    real exports often park the linework in one corner of a mostly empty
+    sheet. Zoom is allowed PAST native resolution (up to 6x the content fit,
+    browser upsampling accepted); a hard native cap used to make min == max
+    zoom for any raster smaller than the stage, which locked zoom AND region
+    jumps entirely (the "drawing view is broken" bug). Zooming out still
+    reaches the whole sheet. Interaction
     listeners are attached with `addEventListener` (NOT Svelte's delegated `on:`),
     and the controls are siblings of the pan surface (not children), so a click on
     a control never trips pan AND everything keeps working after the live node is

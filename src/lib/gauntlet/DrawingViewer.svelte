@@ -10,8 +10,16 @@
 	 * Crispness: the sheet's pixel size IS the display size (content = nW*s x nH*s),
 	 * so the browser re-rasterizes the raster/SVG from source at whatever size it is
 	 * shown, at the device pixel ratio, and only `translate` moves it. We never
-	 * CSS-`scale` a raster (that upsamples an already-downsampled bitmap and blurs),
-	 * and we never magnify past native resolution. Result: sharp at every zoom level.
+	 * CSS-`scale` a raster (that upsamples an already-downsampled bitmap and blurs).
+	 * Magnification past native IS allowed (up to 6x the fit): real drawings are
+	 * often exported small, and a hard native cap used to lock zoom (and region
+	 * jumps) entirely whenever the raster fit at >= 100%.
+	 *
+	 * Content fit: exports frequently carry large empty paper margins (the part in
+	 * one corner of the sheet). The viewer probes the raster once for its INK
+	 * bounding box (a separate crossOrigin probe, so a blocked read just degrades
+	 * to full-sheet fit) and fits the default view to the CONTENT; zooming out
+	 * still reaches the whole sheet. Regions stay fractions of the full image.
 	 *
 	 * Layout: `.dv-controls` / `.dv-minimap` are SIBLINGS of `.dv-stage` (not its
 	 * children), so a click on a control never trips the stage's pointer-capture pan.
@@ -58,17 +66,30 @@
 	let highlightIdx = $state(-1);
 	let highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
+	// Ink content bounding box, fractions of the image (full until probed).
+	let ink = $state({ x: 0, y: 0, w: 1, h: 1 });
+	// True once the user pans/zooms/jumps; a late ink probe then leaves the view alone.
+	let interacted = false;
+
 	// White margin around the linework so it reads as a sheet (intrinsic units).
 	const padN = $derived(nW && nH ? Math.max(Math.round(Math.max(nW, nH) * 0.06), 8) : 0);
 	// Sheet outer size (drawing + margin), intrinsic units.
 	const SW = $derived(nW + 2 * padN);
 	const SH = $derived(nH + 2 * padN);
-	// Fit scale: whole sheet inside the stage with a little breathing room.
-	const sFit = $derived(W && H && SW && SH ? Math.min(W / SW, H / SH) * 0.94 : 1);
-	// Never magnify a raster past native (s = 1); SVG could go further but 1 is plenty.
-	const maxS = $derived(Math.max(sFit, 1));
+	// Zoom-out floor: the whole sheet inside the stage with breathing room.
+	const sSheet = $derived(W && H && SW && SH ? Math.min(W / SW, H / SH) * 0.94 : 1);
+	// Fit scale: the INK content inside the stage (equals sSheet for tight exports).
+	const sFit = $derived(
+		W && H && nW && nH
+			? Math.min(W / Math.max(1, ink.w * nW), H / Math.max(1, ink.h * nH)) * 0.94
+			: 1
+	);
+	// Allow real magnification: small exports need to zoom PAST native. (A hard
+	// native cap used to make min == max zoom for any raster that fit at >= 100%,
+	// which locked zoom and region jumps entirely.)
+	const maxS = $derived(Math.max(sFit * 6, 1));
 
-	const clampScale = (v: number) => Math.min(maxS, Math.max(sFit, v));
+	const clampScale = (v: number) => Math.min(maxS, Math.max(Math.min(sSheet, sFit), v));
 
 	// Keep the sheet pinned: centered on an axis it fits, edge-locked when it overflows.
 	function clampPan() {
@@ -79,9 +100,13 @@
 	}
 
 	function fitView() {
+		// Frame the ink content (the whole sheet when no ink box is known).
 		s = sFit;
-		tx = (W - SW * s) / 2;
-		ty = (H - SH * s) / 2;
+		const cx = padN + (ink.x + ink.w / 2) * nW;
+		const cy = padN + (ink.y + ink.h / 2) * nH;
+		tx = W / 2 - cx * s;
+		ty = H / 2 - cy * s;
+		clampPan();
 	}
 
 	function zoomAt(factor: number, px: number, py: number) {
@@ -94,11 +119,18 @@
 		clampPan();
 	}
 
-	const zoomButton = (factor: number) => zoomAt(factor, W / 2, H / 2);
-	const reset = () => fitView();
+	const zoomButton = (factor: number) => {
+		interacted = true;
+		zoomAt(factor, W / 2, H / 2);
+	};
+	const reset = () => {
+		interacted = true;
+		fitView();
+	};
 
 	function jumpTo(r: FocusRegion, i: number) {
 		if (!nW || !nH || r.w <= 0 || r.h <= 0) return;
+		interacted = true;
 		// Region -> sheet-space center (drawing sits inset by padN inside the sheet).
 		const cx = padN + (r.x + r.w / 2) * nW;
 		const cy = padN + (r.y + r.h / 2) * nH;
@@ -121,6 +153,7 @@
 
 	function onPointerDown(e: PointerEvent) {
 		if (!stageEl) return;
+		interacted = true;
 		// Capture so the drag keeps tracking outside the stage and can never stick;
 		// guarded because setPointerCapture can throw for a non-active pointer.
 		try {
@@ -180,6 +213,7 @@
 
 	function onWheel(e: WheelEvent) {
 		if (!stageEl) return;
+		interacted = true;
 		e.preventDefault();
 		const rect = stageEl.getBoundingClientRect();
 		zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - rect.left, e.clientY - rect.top);
@@ -218,6 +252,64 @@
 		}
 	}
 
+	/**
+	 * Probe the raster for its ink bounding box, so fit frames the CONTENT of
+	 * margin-heavy exports. Runs on a separate crossOrigin image (the display
+	 * img stays untouched; a CORS-blocked read or any failure just keeps the
+	 * full-sheet fit). Scans a downsampled copy; "ink" = any visibly non-white
+	 * pixel. Applies only while this src is still current and the user has not
+	 * taken over the view.
+	 */
+	function probeInk(url: string) {
+		const probe = new Image();
+		probe.crossOrigin = 'anonymous';
+		probe.onload = () => {
+			if (url !== src) return;
+			try {
+				const k = Math.min(1, 640 / (probe.naturalWidth || 1));
+				const cw = Math.max(1, Math.round(probe.naturalWidth * k));
+				const ch = Math.max(1, Math.round(probe.naturalHeight * k));
+				const c = document.createElement('canvas');
+				c.width = cw;
+				c.height = ch;
+				const g = c.getContext('2d', { willReadFrequently: true });
+				if (!g) return;
+				g.drawImage(probe, 0, 0, cw, ch);
+				const d = g.getImageData(0, 0, cw, ch).data;
+				let x0 = cw;
+				let y0 = ch;
+				let x1 = -1;
+				let y1 = -1;
+				for (let y = 0; y < ch; y++) {
+					for (let x = 0; x < cw; x++) {
+						const i = (y * cw + x) * 4;
+						if (d[i + 3] > 32 && Math.min(d[i], d[i + 1], d[i + 2]) < 240) {
+							if (x < x0) x0 = x;
+							if (x > x1) x1 = x;
+							if (y < y0) y0 = y;
+							if (y > y1) y1 = y;
+						}
+					}
+				}
+				if (x1 < 0) return; // blank image: keep full-sheet fit
+				// Small breathing margin around the ink, clamped to the image.
+				const mx = cw * 0.015;
+				const my = ch * 0.015;
+				const bx = Math.max(0, x0 - mx) / cw;
+				const by = Math.max(0, y0 - my) / ch;
+				const bw = Math.min(cw, x1 + 1 + mx) / cw - bx;
+				const bh = Math.min(ch, y1 + 1 + my) / ch - by;
+				// A speck-sized bbox is more likely an artifact than a drawing.
+				if (bw * bh < 0.005) return;
+				ink = { x: bx, y: by, w: bw, h: bh };
+				if (!interacted && nW && nH && W && H) fitView();
+			} catch {
+				/* tainted canvas or read failure: full-sheet fit stands */
+			}
+		};
+		probe.src = url;
+	}
+
 	function measureSvg() {
 		const el = drawingEl?.querySelector('svg');
 		if (!el) return;
@@ -240,12 +332,16 @@
 		}
 	}
 
-	// New drawing: forget the old size, re-measure, snap to fit once known.
+	// New drawing: forget the old size and ink box, re-measure, snap to fit
+	// once known, and probe the new raster's content extent.
 	$effect(() => {
-		void src;
+		const currentSrc = src;
 		void svg;
 		nW = 0;
 		nH = 0;
+		ink = { x: 0, y: 0, w: 1, h: 1 };
+		interacted = false;
+		if (currentSrc) probeInk(currentSrc);
 		queueMicrotask(() => {
 			measureStage();
 			if (svg) measureSvg();

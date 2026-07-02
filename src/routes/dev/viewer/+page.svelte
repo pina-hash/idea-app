@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import DrawingViewer from '$lib/gauntlet/DrawingViewer.svelte';
+	import RegionEditor from '$lib/gauntlet/RegionEditor.svelte';
 	import { supportsDocumentPip, openPipWindow, openDrawingWindow } from '$lib/gauntlet/popout';
 	import '$lib/gauntlet/viewport/viewport.css';
 	import type { FocusRegion } from '$lib/gauntlet';
+	import type { FocusRegionInput } from '$lib/gauntlet/authoring';
 
 	/**
 	 * Manual verification harness for DrawingViewer (dev-only route). Mounts the
@@ -164,8 +166,111 @@
 		popMode = 'none';
 	}
 
+	// --- Authoring -> viewing pipeline (the real-drawing failure case) --------
+	// A SMALL raster (smaller than the stage, so the old native-resolution zoom
+	// cap would lock zoom entirely) whose linework sits in the upper-left of a
+	// mostly EMPTY paper (like a real SolidWorks export), shared by RegionEditor
+	// and DrawingViewer with two-way-bound regions. Verifies: content (ink) fit,
+	// zoom past native, region alignment, and region jumps, without Supabase.
+	let sheetSrc = $state<string | null>(null);
+	let edRegions = $state<FocusRegionInput[]>([
+		{ label: 'FRONT', x: 3, y: 22, w: 57, h: 65 },
+		{ label: 'RIGHT', x: 59, y: 8, w: 22, h: 65 }
+	]);
+	let edSelected = $state(-1);
+	const edFractions = $derived<FocusRegion[]>(
+		edRegions.map((r) => ({ label: r.label, x: r.x / 100, y: r.y / 100, w: r.w / 100, h: r.h / 100 }))
+	);
+
+	function makeSheetSample(): string {
+		const W = 800;
+		const H = 300;
+		const c = document.createElement('canvas');
+		c.width = W;
+		c.height = H;
+		const g = c.getContext('2d');
+		if (!g) return '';
+		g.fillStyle = '#ffffff';
+		g.fillRect(0, 0, W, H);
+		g.strokeStyle = '#111';
+		g.fillStyle = '#111';
+
+		// Front view: thin bar upper-left, with dim above and callout below.
+		g.lineWidth = 2;
+		g.strokeRect(30, 110, 430, 30);
+		g.lineWidth = 1;
+		g.setLineDash([10, 4, 2, 4]);
+		g.beginPath();
+		g.moveTo(30, 125);
+		g.lineTo(460, 125);
+		g.stroke();
+		g.setLineDash([]);
+		g.beginPath();
+		g.moveTo(30, 90);
+		g.lineTo(460, 90);
+		g.moveTo(30, 82);
+		g.lineTo(30, 110);
+		g.moveTo(460, 82);
+		g.lineTo(460, 110);
+		g.stroke();
+		g.font = '14px monospace';
+		g.fillText('6.000', 225, 84);
+		g.beginPath();
+		g.moveTo(250, 140);
+		g.lineTo(300, 240);
+		g.stroke();
+		g.fillText('2X R.125', 305, 250);
+
+		// Right view: hex in a frame, right of the front view.
+		g.lineWidth = 2;
+		g.strokeRect(490, 35, 140, 155);
+		g.beginPath();
+		for (let i = 0; i < 6; i++) {
+			const a = (i * Math.PI) / 3;
+			const x = 560 + 45 * Math.cos(a);
+			const y = 110 + 45 * Math.sin(a);
+			if (i === 0) g.moveTo(x, y);
+			else g.lineTo(x, y);
+		}
+		g.closePath();
+		g.stroke();
+		g.beginPath();
+		g.arc(560, 110, 16, 0, Math.PI * 2);
+		g.stroke();
+		g.font = '13px monospace';
+		g.fillText('0.5 HEX', 495, 215);
+		// The rest of the paper (right ~20%, bottom ~15%) stays empty on purpose.
+
+		return c.toDataURL('image/png');
+	}
+
 	onMount(() => {
 		sampleSrc = makeRasterSample();
+		sheetSrc = makeSheetSample();
+
+		// Headless verification hooks (?auto=zoom|out|jump): drive the pipeline
+		// viewer's controls after mount, so a one-shot --screenshot run captures
+		// the post-interaction state.
+		const auto = new URLSearchParams(location.search).get('auto');
+		if (auto) {
+			setTimeout(() => {
+				const dv = document.querySelector('.pipeline .dv');
+				if (!dv) return;
+				const click = (sel: string) => (dv.querySelector(sel) as HTMLElement | null)?.click();
+				if (auto === 'zoom') {
+					click('[data-act="in"]');
+					click('[data-act="in"]');
+					click('[data-act="in"]');
+				} else if (auto === 'out') {
+					click('[data-act="out"]');
+					click('[data-act="out"]');
+					click('[data-act="out"]');
+					click('[data-act="out"]');
+				} else if (auto === 'jump') {
+					click('[data-act="jump"]');
+				}
+			}, 900);
+		}
 	});
 </script>
 
@@ -210,6 +315,19 @@
 			</div>
 		{/if}
 	</div>
+
+	<h2>Authoring &rarr; viewing pipeline (sheet-like small raster)</h2>
+	<p class="note">
+		Same 1400x500 image and the same regions in both. The boxes must wrap the SAME features in the
+		editor (top) and the student viewer (bottom); zoom must work even though the raster is smaller
+		than the stage.
+	</p>
+	{#if sheetSrc}
+		<RegionEditor bind:regions={edRegions} bind:selected={edSelected} src={sheetSrc} />
+		<div class="frame pipeline">
+			<DrawingViewer src={sheetSrc} regions={edFractions} alt="Sheet-like sample drawing" />
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -225,6 +343,18 @@
 		font-size: 1.2rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
+	}
+	.harness h2 {
+		font-family: var(--font-head, 'Orbitron', sans-serif);
+		font-size: 0.85rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		margin-top: 2.2rem;
+	}
+	.frame.pipeline {
+		margin-top: 0.8rem;
+		aspect-ratio: auto;
+		height: 460px;
 	}
 	.note {
 		color: var(--dim, #5f8a78);
