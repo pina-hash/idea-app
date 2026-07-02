@@ -1036,6 +1036,61 @@ a:hover {
 	color: var(--dim);
 }
 
+/* --- Overall leaderboard: XP standings + per-tier Speedrun records --- */
+.gauntlet .board .num-col {
+	width: 5.5rem;
+	text-align: right;
+	white-space: nowrap;
+}
+.gauntlet .board td.num-col {
+	font-family: var(--font-mono);
+	color: var(--cyan);
+}
+.gauntlet .board .lvl-col {
+	width: 10rem;
+}
+.gauntlet .lb-player {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+}
+.gauntlet .lb-name {
+	color: var(--white);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.gauntlet .lb-level {
+	font-family: var(--font-mono);
+	font-size: 0.72rem;
+	letter-spacing: 0.06em;
+	color: var(--gold);
+}
+.gauntlet .lb-level-name {
+	font-size: 0.72rem;
+	margin-left: 0.4rem;
+}
+.gauntlet .lb-tier {
+	margin: 1.4rem 0 0.1rem;
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--cyan);
+}
+.gauntlet .lb-drawing {
+	color: var(--white);
+	text-decoration: none;
+	border-bottom: 1px solid transparent;
+}
+.gauntlet .lb-drawing:hover {
+	color: var(--green);
+	border-bottom-color: var(--line-strong);
+}
+.gauntlet .confirm-q {
+	font-size: 0.8rem;
+}
+
 /* --- Speedrun: demo badge, supervised note, reveal-on-start gate, timer,
    mass entry. Reuses .play-grid / .drawing-panel / .result-banner / .board. --- */
 .gauntlet .demo-badge {

@@ -106,6 +106,14 @@
 		<span class="btn">Enter rooms</span>
 	</a>
 
+	<a class="card author-callout" href="/gauntlet/leaderboard">
+		<div>
+			<div class="author-title">Leaderboard</div>
+			<div class="author-sub">Overall XP standings and Speedrun records across the dojo.</div>
+		</div>
+		<span class="btn secondary">View board &rsaquo;</span>
+	</a>
+
 	{#if isTeacher}
 		<a class="card author-callout" href="/gauntlet/author">
 			<div>

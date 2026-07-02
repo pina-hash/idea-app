@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import Header from '$lib/gauntlet/Header.svelte';
 	import { roomStateLabel } from '$lib/gauntlet';
 
@@ -9,6 +9,29 @@
 	let joinCode = $state('');
 	let busy = $state(false);
 	let error = $state('');
+
+	// Two-step teacher-only delete: the first click arms the confirm, the second
+	// calls the host-enforced gauntlet_room_delete RPC (0025). Students never see
+	// this (hosted rooms are teacher-only) and the RPC blocks non-host callers.
+	let confirmDelete = $state('');
+	let deleting = $state('');
+	const armDelete = (id: string) => {
+		confirmDelete = id;
+		error = '';
+	};
+	const cancelDelete = () => (confirmDelete = '');
+	const deleteRoom = async (id: string) => {
+		deleting = id;
+		error = '';
+		const { error: e } = await supabase.rpc('gauntlet_room_delete', { p_room_id: id });
+		deleting = '';
+		confirmDelete = '';
+		if (e) {
+			error = e.message;
+			return;
+		}
+		await invalidateAll();
+	};
 
 	const createRoom = async () => {
 		busy = true;
@@ -87,7 +110,18 @@
 							<span class="author-title">Room {r.join_code}</span>
 							<span class="author-sub"><span class="status-badge status-{r.state}">{roomStateLabel(r.state)}</span></span>
 						</a>
-						<span class="author-actions"><a class="text-act" href="/gauntlet/rooms/{r.id}">Open</a></span>
+						<span class="author-actions">
+							<a class="text-act" href="/gauntlet/rooms/{r.id}">Open</a>
+							{#if confirmDelete === r.id}
+								<span class="dim confirm-q">Delete room {r.join_code}?</span>
+								<button class="text-act danger" type="button" disabled={deleting === r.id} onclick={() => deleteRoom(r.id)}>
+									{deleting === r.id ? 'Deleting...' : 'Confirm'}
+								</button>
+								<button class="text-act" type="button" disabled={deleting === r.id} onclick={cancelDelete}>Cancel</button>
+							{:else}
+								<button class="text-act danger" type="button" onclick={() => armDelete(r.id)}>Delete</button>
+							{/if}
+						</span>
 					</li>
 				{/each}
 			</ul>

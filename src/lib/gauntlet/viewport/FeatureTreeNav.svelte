@@ -97,6 +97,7 @@
 			Sessions
 		</span>
 		<ul class="tree-branch">
+			<li><a class="tree-leaf modeling" href="/gauntlet/leaderboard" class:active={isActive('/gauntlet/leaderboard')}><span class="leaf-tick" aria-hidden="true"></span>Leaderboard</a></li>
 			<li><a class="tree-leaf modeling" href="/gauntlet/rooms" class:active={isActive('/gauntlet/rooms')}><span class="leaf-tick" aria-hidden="true"></span>Live Rooms</a></li>
 			<li><a class="tree-leaf modeling" href="/gauntlet/tools" class:active={isActive('/gauntlet/tools')}><span class="leaf-tick" aria-hidden="true"></span>Macro &amp; Tools</a></li>
 		</ul>

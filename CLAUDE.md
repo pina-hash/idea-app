@@ -313,6 +313,8 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     create/edit/publish/delete surface across all six modes. See "Authoring".
   - `/gauntlet/rooms` (+ `/[id]`): live synchronized Speedrun rooms (host +
     racers/spectators, Realtime). See "Live Rooms".
+  - `/gauntlet/leaderboard`: the overall standings, reachable from the dojo
+    landing and the FeatureManager nav. See "Leaderboards".
   - Shared header: `src/lib/gauntlet/Header.svelte`.
 - **Data model** (`supabase/migrations/0004_gauntlet.sql`), built to serve all
   six modes so later modes need no schema rework:
@@ -460,6 +462,12 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `gauntlet_room_board` view ranks both sources; clients use Realtime
   (`postgres_changes`) on the room, roster, and room submissions, with a refresh
   fallback; room state is DB-authoritative. See `docs/GAUNTLET.md`.
+  **Delete (`0025`):** the hosting teacher can delete a room from the rooms list
+  (teacher-only UI, two-step inline confirm) via the `gauntlet_room_delete`
+  SECURITY DEFINER RPC, enforced by `host_id` + `is_teacher()` server-side so
+  students never see or can call it. It removes the room's session rows (tokens,
+  participants, the room) and **un-tags** its submissions (`room_id -> NULL`) so
+  graded records stay on the global board rather than being erased.
 - **Speedrun formalization + 3D preview** (`0015`): formalizes the Speedrun
   challenge record and adds a three.js part preview. Governing principle: the
   drawing (PNG) and the 3D model (STL) are pure-geometry artifacts with no
@@ -584,6 +592,21 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     deploy: the Speedrun and author loads now select `series_id`/`series_order`)
     and `0023_gauntlet_reveal_focus_regions.sql`. Both are manual per the
     convention; the reveal change fails soft (missing field -> no regions).
+- **Leaderboards (`0024`):** the overall standings at `/gauntlet/leaderboard`
+  (route + a dojo-landing callout + a FeatureManager leaf). One read-only
+  SECURITY DEFINER RPC `gauntlet_leaderboards(p_limit)`, in the spirit of
+  `gauntlet_progression`: everything is derived from graded submissions (nothing
+  forgeable), and it returns two boards in one payload. **Overall** ranks every
+  player by total XP computed the SAME way the dojo's own progression does
+  (distinct attempted + cleared + practice days; the XP constants mirror
+  `progression.ts` and the client derives the level/name via `levelFromXp`), ties
+  sharing a rank. **Speedrun** returns one row per published Speedrun drawing with
+  its record holder (fastest passing run, read from the `gauntlet_leaderboard`
+  view so ties go to the earliest holder), left-joined so drawings with no record
+  come back with a null holder (clean empty state); the client groups them by
+  tier. Board-safe columns only (display name + avatar, never email/answers);
+  readable by any signed-in user (same visibility as the per-challenge board).
+  Migration is manual; fails soft to empty boards pre-migration.
 - **SolidWorks add-in (`tools/solidworks-addin/`):** a .NET Framework 4.8
   SOLIDWORKS COM add-in (C#, `ISwAddin`, WinForms task pane) that replaces the
   two VBA capture macros with a persistent in-SOLIDWORKS panel: live mass /
