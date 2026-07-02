@@ -93,8 +93,8 @@ entirely from clients. The answer is read only server-side by the grading RPC.
   area, feature count, and tolerances.
 
 Speedrun site data was formalized in `0015`: the record also holds `slug`
-(stable, url-safe; a partial unique index enforces it), `tier` (T1 to T4,
-distinct from `difficulty`), `par_time` (seconds), and two Storage references,
+(stable, url-safe; a partial unique index enforces it), `par_time` (seconds),
+and two Storage references,
 `model_path` (STL, in `prompt`, a shape-only preview) and `drawing_image_path`
 (dimensioned PNG, in `answer`, gated and revealed on Start). The drawing (PNG)
 and 3D model (STL) are pure-geometry artifacts with no identity/metadata; they

@@ -200,14 +200,6 @@
 {#snippet specCard()}
 	{#if framing}
 		<div class="spec card">
-			{#if framing.tier}
-				<div class="field">
-					<span class="key" title="Pacing benchmark (par-time class), separate from the skill difficulty above.">
-						Speed tier
-					</span>
-					<span class="val meta">{framing.tier}</span>
-				</div>
-			{/if}
 			<div class="field"><span class="key">Material</span><span class="val">{framing.material ?? 'TBD'}</span></div>
 			<div class="field"><span class="key">Density</span><span class="val meta">{framing.density ?? '--'} {framing.density_unit ?? ''}</span></div>
 			<div class="field"><span class="key">Target mass</span><span class="val meta">{formatMass(framing.target_mass, unit)}</span></div>

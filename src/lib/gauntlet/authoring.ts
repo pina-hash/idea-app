@@ -115,8 +115,6 @@ export interface AuthorFormState {
 	// modeling
 	/** Stable, url-safe challenge slug (Speedrun site data). */
 	slug: string;
-	/** Challenge tier T1 to T4 (site data, distinct from difficulty). */
-	tier: string;
 	/** Speedrun only: the unit system every presented property follows. */
 	unit_system: UnitSystem;
 	material: string;
@@ -160,7 +158,6 @@ export function emptyForm(mode: GauntletModeId): AuthorFormState {
 		difficulty: 2,
 		status: 'draft',
 		slug: '',
-		tier: 'T1',
 		unit_system: 'IPS',
 		material: '',
 		density: null,
@@ -223,12 +220,11 @@ export function buildPayload(s: AuthorFormState): { prompt: object; answer: obje
 			tolerance_pct: s.tolerance_pct,
 			length_unit: units ? units.length : 'mm',
 			note: s.note,
-			// Speedrun site data: stable slug, tier, unit system, par time, and the
+			// Speedrun site data: stable slug, unit system, par time, and the
 			// STL preview path (shape only, public and shown before Start).
 			...(s.mode === 'speedrun'
 				? {
 						slug: s.slug.trim(),
-						tier: s.tier,
 						unit_system: s.unit_system,
 						par_time: s.par_time,
 						model_path: s.model_path,
@@ -323,7 +319,6 @@ export function formFromChallenge(c: ChallengeFull): AuthorFormState {
 			difficulty: c.difficulty,
 			status: c.status,
 			slug: (p.slug as string) ?? '',
-			tier: (p.tier as string) ?? base.tier,
 			unit_system: (p.unit_system as UnitSystem) ?? base.unit_system,
 			material: (p.material as string) ?? '',
 			density: numOr(a.density ?? p.density),

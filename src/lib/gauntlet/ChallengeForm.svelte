@@ -6,7 +6,6 @@
 		MODES,
 		modeById,
 		DIFFICULTY_LABELS,
-		TIERS,
 		UNIT_SYSTEMS,
 		UNIT_SYSTEM_UNITS,
 		DRAWINGS_BUCKET,
@@ -339,17 +338,7 @@
 			{#if speedrun}
 				<label class="ff">
 					<span class="ff-label">Slug (stable, url-safe)</span>
-					<input class="ff-input" type="text" bind:value={form.slug} placeholder="aluminum-bracket-t2" />
-				</label>
-				<label class="ff">
-					<span class="ff-label" title="Pacing benchmark (par-time class), separate from Difficulty above.">
-						Speed tier
-					</span>
-					<select class="ff-input" bind:value={form.tier}>
-						{#each TIERS as t (t)}
-							<option value={t}>{t}</option>
-						{/each}
-					</select>
+					<input class="ff-input" type="text" bind:value={form.slug} placeholder="aluminum-bracket" />
 				</label>
 				<label class="ff">
 					<span class="ff-label">Par time (seconds)</span>

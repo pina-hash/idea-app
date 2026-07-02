@@ -473,8 +473,7 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   drawing (PNG) and the 3D model (STL) are pure-geometry artifacts with no
   identity/metadata; everything else is site data. New site-data fields live in
   the existing `prompt`/`answer` JSONB (no new columns): `slug` (stable, url-safe,
-  a partial unique index enforces it for Speedrun), `tier` (T1 to T4, distinct
-  from the 1 to 5 `difficulty`), `par_time` (seconds), plus the two Storage
+  a partial unique index enforces it for Speedrun), `par_time` (seconds), plus the two Storage
   references `model_path` (STL, public in `prompt`, shown as a shape-only preview
   before Start) and `drawing_image_path` (dimensioned PNG, gated in `answer`,
   handed back by the reveal RPC on Start like the SVG `drawing`). A single
@@ -497,7 +496,7 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   unchanged; reveal-on-start still gates the dimensioned drawing.
 - **Speedrun unit system + demo cleanup** (`0018`, `0019`): Speedrun challenges
   now carry a per-challenge `unit_system` (`IPS` or `MMGS`, site data in
-  `prompt`, like `tier`/`slug`/`par_time`) so a challenge's density, target
+  `prompt`, like `slug`/`par_time`) so a challenge's density, target
   mass, and dimension-reading convention are never mixed across systems: IPS is
   inch/lb/lb-in3, MMGS is mm/g/g-cm3. The authoring form derives `density_unit`
   / `mass_unit` / `length_unit` from the selected system (Reverse Engineer and
@@ -613,8 +612,8 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   sharing a rank. **Speedrun** returns one row per published Speedrun drawing with
   its record holder (fastest passing run, read from the `gauntlet_leaderboard`
   view so ties go to the earliest holder), left-joined so drawings with no record
-  come back with a null holder (clean empty state); the client groups them by
-  tier. Board-safe columns only (display name + avatar, never email/answers);
+  come back with a null holder (clean empty state), listed flat by difficulty then
+  title. Board-safe columns only (display name + avatar, never email/answers);
   readable by any signed-in user (same visibility as the per-challenge board).
   Migration is manual; fails soft to empty boards pre-migration.
 - **SolidWorks add-in (`tools/solidworks-addin/`):** a .NET Framework 4.8

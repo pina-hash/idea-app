@@ -138,9 +138,6 @@ export function difficultyLabel(d: number): string {
 	return DIFFICULTY_LABELS[d] ?? `Level ${d}`;
 }
 
-/** Speedrun tiers T1 to T4 (site data, distinct from the 1 to 5 difficulty). */
-export const TIERS = ['T1', 'T2', 'T3', 'T4'] as const;
-
 /**
  * Speedrun's per-challenge unit system: IPS (inch, pound, second) or MMGS
  * (millimeter, gram, second). Every presented property (density, target mass,
@@ -249,8 +246,6 @@ export interface SubmitResult {
 export interface ModelingFraming {
 	/** Stable, url-safe challenge slug (site data). Harmless to expose. */
 	slug?: string;
-	/** Challenge tier T1 to T4 (site data, distinct from the 1 to 5 difficulty). */
-	tier?: string;
 	/** Speedrun only: the unit system every presented property follows. */
 	unit_system?: UnitSystem;
 	material?: string;

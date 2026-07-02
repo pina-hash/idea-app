@@ -484,7 +484,7 @@
 				{#if phase === 'running' && (drawingUrl || drawing)}
 					<div class="sheet-titleblock" aria-hidden="true">
 						<span class="tb-brand">IDEA // GAUNTLET</span>
-						<span class="tb-meta">Speedrun{#if framing.tier} &middot; {framing.tier}{/if}</span>
+						<span class="tb-meta">Speedrun</span>
 					</div>
 				{/if}
 			</div>
@@ -507,14 +507,6 @@
 
 		<div class="question-panel">
 			<div class="spec card">
-				{#if framing.tier}
-					<div class="field">
-						<span class="key" title="Pacing benchmark (par-time class), separate from the skill difficulty above.">
-							Speed tier
-						</span>
-						<span class="val meta">{framing.tier}</span>
-					</div>
-				{/if}
 				<div class="field">
 					<span class="key">Material</span>
 					<span class="val">{framing.material ?? 'TBD'}</span>

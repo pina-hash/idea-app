@@ -46,7 +46,6 @@ export interface SpeedrunRecordRow {
 	challenge_id: string;
 	title: string;
 	difficulty: number;
-	tier: string | null;
 	par_time: number | null;
 	best_time: number | null;
 	user_id: string | null;

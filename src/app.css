@@ -1036,7 +1036,7 @@ a:hover {
 	color: var(--dim);
 }
 
-/* --- Overall leaderboard: XP standings + per-tier Speedrun records --- */
+/* --- Overall leaderboard: XP standings + per-drawing Speedrun records --- */
 .gauntlet .board .num-col {
 	width: 5.5rem;
 	text-align: right;
@@ -1069,14 +1069,6 @@ a:hover {
 .gauntlet .lb-level-name {
 	font-size: 0.72rem;
 	margin-left: 0.4rem;
-}
-.gauntlet .lb-tier {
-	margin: 1.4rem 0 0.1rem;
-	font-family: var(--font-mono);
-	font-size: 0.7rem;
-	letter-spacing: 0.16em;
-	text-transform: uppercase;
-	color: var(--cyan);
 }
 .gauntlet .lb-drawing {
 	color: var(--white);

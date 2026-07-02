@@ -29,28 +29,6 @@
 		preferences: {}
 	});
 
-	const TIER_LABELS: Record<string, string> = {
-		T1: 'Tier 1',
-		T2: 'Tier 2',
-		T3: 'Tier 3',
-		T4: 'Tier 4',
-		Other: 'Other drawings'
-	};
-
-	// Group the per-drawing Speedrun records into one board per tier (T1..T4, then
-	// untiered), preserving the RPC's within-tier ordering (difficulty, title).
-	const tierGroups = $derived.by(() => {
-		const order = ['T1', 'T2', 'T3', 'T4', 'Other'];
-		const map = new Map<string, typeof boards.speedrun>();
-		for (const r of boards.speedrun) {
-			const key = r.tier && ['T1', 'T2', 'T3', 'T4'].includes(r.tier) ? r.tier : 'Other';
-			if (!map.has(key)) map.set(key, []);
-			map.get(key)!.push(r);
-		}
-		return order
-			.filter((k) => map.has(k))
-			.map((k) => ({ tier: k, label: TIER_LABELS[k] ?? k, rows: map.get(k)! }));
-	});
 </script>
 
 <svelte:head>
@@ -112,41 +90,38 @@
 	<p class="dim board-note">
 		Fastest machine-verified passing time on each drawing. A tie goes to whoever set it first.
 	</p>
-	{#if tierGroups.length === 0}
+	{#if boards.speedrun.length === 0}
 		<div class="card"><p>No Speedrun drawings are published yet.</p></div>
 	{:else}
-		{#each tierGroups as g (g.tier)}
-			<h3 class="lb-tier">{g.label}</h3>
-			<table class="board lb-board">
-				<thead>
-					<tr>
-						<th>Drawing</th>
-						<th>Record holder</th>
-						<th class="num-col">Best</th>
-						<th class="num-col">Par</th>
+		<table class="board lb-board">
+			<thead>
+				<tr>
+					<th>Drawing</th>
+					<th>Record holder</th>
+					<th class="num-col">Best</th>
+					<th class="num-col">Par</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each boards.speedrun as r (r.challenge_id)}
+					<tr class:me={r.user_id != null && r.user_id === myUserId}>
+						<td><a class="lb-drawing" href="/gauntlet/speedrun/{r.challenge_id}">{r.title}</a></td>
+						<td>
+							{#if r.user_id}
+								<span class="lb-player">
+									<Avatar profile={toProfile(r)} size={24} />
+									<span class="lb-name">{displayName(toProfile(r))}</span>
+								</span>
+							{:else}
+								<span class="dim">No record yet</span>
+							{/if}
+						</td>
+						<td class="num-col">{r.best_time != null ? formatTime(r.best_time) : '--'}</td>
+						<td class="num-col dim">{r.par_time != null ? formatTime(r.par_time) : '--'}</td>
 					</tr>
-				</thead>
-				<tbody>
-					{#each g.rows as r (r.challenge_id)}
-						<tr class:me={r.user_id != null && r.user_id === myUserId}>
-							<td><a class="lb-drawing" href="/gauntlet/speedrun/{r.challenge_id}">{r.title}</a></td>
-							<td>
-								{#if r.user_id}
-									<span class="lb-player">
-										<Avatar profile={toProfile(r)} size={24} />
-										<span class="lb-name">{displayName(toProfile(r))}</span>
-									</span>
-								{:else}
-									<span class="dim">No record yet</span>
-								{/if}
-							</td>
-							<td class="num-col">{r.best_time != null ? formatTime(r.best_time) : '--'}</td>
-							<td class="num-col dim">{r.par_time != null ? formatTime(r.par_time) : '--'}</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		{/each}
+				{/each}
+			</tbody>
+		</table>
 	{/if}
 
 	<div class="btn-row">
