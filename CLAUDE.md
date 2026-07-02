@@ -590,7 +590,10 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   SOLIDWORKS interops (no version hardcoded; the running version is detected
   at runtime) and is not part of the SvelteKit build; build + regasm steps are
   in its README (sources stay C# 5-compatible so the no-Visual-Studio
-  `build.ps1` path keeps working).
+  `build.ps1` path keeps working). After building, the double-click
+  `register.bat` / `unregister.bat` (self-locating, self-elevating wrappers
+  around the 64-bit `RegAsm /codebase`) are the primary install path; the manual
+  regasm command is the documented fallback.
 - **Visuals (standing directive):** all GAUNTLET UI, current and new, must
   conform to the **VIEWPORT design system** documented in
   `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in

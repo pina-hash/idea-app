@@ -64,5 +64,6 @@ if ($LASTEXITCODE -ne 0) { throw "csc failed with exit code $LASTEXITCODE" }
 
 Write-Host ""
 Write-Host "Built $dll"
-Write-Host "Next: register it (elevated prompt) with:"
+Write-Host "Next: double-click register.bat and choose Run as administrator."
+Write-Host "Or manually, from an elevated prompt:"
 Write-Host "  $env:windir\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe /codebase `"$dll`""

@@ -104,7 +104,17 @@ built against one version loads in that version and newer.
 
 ## Registering (COM) and loading in SOLIDWORKS
 
-From an **elevated** (administrator) prompt, using the **64-bit** regasm:
+**Easiest, double-click:** after building (above), use the scripts in this
+folder. Right-click **`register.bat`** and choose **Run as administrator** (a
+plain double-click works too: it requests elevation itself). It locates the
+built DLL next to itself (no path to type), registers it with the 64-bit RegAsm
+using `/codebase`, and prints a clear success or failure message, then pauses so
+you can read it. **`unregister.bat`** reverses it the same way. If the DLL has
+not been built yet, the script tells you to run `build.ps1` first. The RA0000
+"not signed" warning is expected and harmless.
+
+**Manual, fallback:** from an **elevated** (administrator) prompt, using the
+**64-bit** regasm:
 
 ```
 C:\Windows\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe /codebase "<full path>\IdeaGauntletAddin\bin\Release\IdeaGauntletAddin.dll"
@@ -120,7 +130,7 @@ Start SOLIDWORKS, open **Tools > Add-Ins**, and check **IDEA // GAUNTLET**
 (both columns to load now and at startup). The pane appears in the task pane
 tab strip on the right.
 
-To unregister:
+To unregister, run **`unregister.bat`** (as above), or manually:
 
 ```
 C:\Windows\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe /u "<full path>\IdeaGauntletAddin.dll"
