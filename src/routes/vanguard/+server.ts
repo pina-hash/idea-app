@@ -41,15 +41,22 @@ interface PlayerProfile {
 }
 
 /** Build the <head> bootstrap. `cloud` is the normalized v2 save (empty if signed out). */
-function injectionScript(signedIn: boolean, cloud: StoredSave, profile: PlayerProfile): string {
+function injectionScript(
+	signedIn: boolean,
+	cloud: StoredSave,
+	profile: PlayerProfile,
+	runState: unknown
+): string {
 	const cloudJson = escapeForScript(JSON.stringify(cloud));
 	const profileJson = escapeForScript(JSON.stringify(profile));
+	const runStateJson = escapeForScript(JSON.stringify(runState ?? null));
 
 	return `<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
 	var CLOUD = ${cloudJson};
 	var PROFILE = ${profileJson};
+	var RUNSTATE = ${runStateJson};
 	var PREFIX = 'vanguard_';
 	var native = localStorage.setItem.bind(localStorage);
 
@@ -167,6 +174,28 @@ function injectionScript(signedIn: boolean, cloud: StoredSave, profile: PlayerPr
 				.then(function (j) { return { runs: (j && j.runs) || [], summary: (j && j.summary) || null }; })
 				.catch(function () { return { runs: [], summary: null }; });
 		};
+		// Cross-device run checkpoint (0032). The game calls these at a sector
+		// boundary (save) and at run end (clear); we persist / clear the minimal
+		// snapshot the game captures. Fire-and-forget, errors swallowed.
+		window.__ideaVanguardSaveCheckpoint = function () {
+			try {
+				var snap = window.__ideaCaptureRun && window.__ideaCaptureRun();
+				if (!snap) return;
+				RUNSTATE = snap;
+				fetch('/api/vanguard-run-state', {
+					method: 'POST', headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(snap), keepalive: true
+				}).catch(function () {});
+			} catch (e) {}
+		};
+		window.__ideaVanguardClearCheckpoint = function () {
+			try {
+				RUNSTATE = null;
+				var b = document.getElementById('idea-vanguard-resume');
+				if (b) b.parentNode.removeChild(b);
+				fetch('/api/vanguard-run-state', { method: 'DELETE', keepalive: true }).catch(function () {});
+			} catch (e) {}
+		};
 	}
 
 	var timer = null;
@@ -225,6 +254,27 @@ function injectionScript(signedIn: boolean, cloud: StoredSave, profile: PlayerPr
 		var nav = document.createElement('div');
 		nav.id = 'idea-vanguard-nav';
 		nav.style.cssText = 'position:fixed;top:10px;right:10px;z-index:2147483647;display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(2,10,4,0.82);border:1px solid rgba(0,255,65,0.3);border-radius:4px;font-family:"Share Tech Mono",ui-monospace,monospace;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);';
+
+		// Resume a saved in-progress run (0032), offered when a signed-in player has
+		// a checkpoint from Sector 2+. Restoring is an explicit click; the game's
+		// __ideaRestoreRun rebuilds a valid play state from the snapshot.
+		if (SIGNED_IN && RUNSTATE && RUNSTATE.player && (RUNSTATE.sector || 0) >= 2) {
+			var resume = document.createElement('button');
+			resume.id = 'idea-vanguard-resume';
+			resume.type = 'button';
+			resume.textContent = 'Resume S' + RUNSTATE.sector;
+			resume.title = 'Resume your saved run (Sector ' + RUNSTATE.sector + ')';
+			resume.style.cssText = 'font-family:inherit;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#020A04;background:#C8FF00;border:none;border-radius:3px;padding:3px 8px;cursor:pointer;font-weight:700;white-space:nowrap;';
+			resume.addEventListener('click', function () {
+				if (window.__ideaRestoreRun && window.__ideaRestoreRun(RUNSTATE) && resume.parentNode) {
+					resume.parentNode.removeChild(resume);
+				}
+			});
+			nav.appendChild(resume);
+			var rsep = document.createElement('span');
+			rsep.style.cssText = 'width:1px;height:14px;background:rgba(0,255,65,0.25);';
+			nav.appendChild(rsep);
+		}
 
 		var home = document.createElement('a');
 		home.href = '/';
@@ -321,16 +371,18 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	let signedIn = false;
 	let cloud: StoredSave = { v: 2, progression: {}, prefs: {} };
 	let profile: PlayerProfile = { name: '', avatarUrl: '' };
+	let runState: unknown = null;
 
 	if (claims) {
 		signedIn = true;
-		const [saveRes, profileRes] = await Promise.all([
+		const [saveRes, profileRes, runRes] = await Promise.all([
 			supabase.from('vanguard_saves').select('data').eq('user_id', claims.sub).maybeSingle(),
 			supabase
 				.from('profiles')
 				.select('full_name, display_name, avatar_url')
 				.eq('id', claims.sub)
-				.maybeSingle()
+				.maybeSingle(),
+			supabase.from('vanguard_run_state').select('data').eq('user_id', claims.sub).maybeSingle()
 		]);
 		cloud = normalizeStored(saveRes.data?.data);
 		const p = profileRes.data;
@@ -338,10 +390,11 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 			name: p?.display_name || p?.full_name || claims.email || 'Signed in',
 			avatarUrl: p?.avatar_url || ''
 		};
+		runState = runRes.data?.data ?? null;
 	}
 
 	const html = injectVersionBadge(
-		vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile)}`),
+		vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile, runState)}`),
 		'vanguard'
 	);
 

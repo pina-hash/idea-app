@@ -2970,7 +2970,9 @@ function launchFromRefit(){ sector++; waveIdx=0; waveTimer=1.6; bossPending=fals
   sectorKills=0; killsForBoss=killsForBossN(); sector1up=0; hybridTimer=rnd(6,10);
   if(station){ station.phase='depart'; station.vy=-60; }
   player.beamE=player.beamMax; triggerBanner(); state='play'; showOverlay(null); Audio_.lane(sectorTheme().fk||'idea');
-  document.getElementById('touch').classList.toggle('hidden', !isTouch); }
+  document.getElementById('touch').classList.toggle('hidden', !isTouch);
+  // Cross-device checkpoint: a new sector just began (clean loadout, coins spent).
+  if(gameMode!=='dev'&&gameMode!=='tune'&&gameMode!=='calib'){ try{ window.__ideaVanguardSaveCheckpoint&&window.__ideaVanguardSaveCheckpoint(); }catch(e){} } }
 /* ---- shared shop rendering (icons + cards + previews) ---- */
 function svgI(p){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
 const SHOP_ICONS={
@@ -3858,7 +3860,50 @@ function endRun(){
       window.__ideaRecordRun?.({ mode:gameMode, version:VERSION, score:window.scoreT, sector:sector, accuracy:acc, time_s:Math.round(runTime), kills:runKills, bosses:runBosses, coins_earned:runCoinsEarned, primary_weapon:player.wtype, heavy_weapon:player.heavy, death_cause:_dc });
     }
   }catch(err){ console.error('VANGUARD endRun error:',err); pendingScore={score:window.scoreT,sector:sector,acc:0}; }
+  try{ window.__ideaVanguardClearCheckpoint&&window.__ideaVanguardClearCheckpoint(); }catch(e){}
 }
+
+/* ---- cross-device run checkpoint (IDEA save/resume, 0032) ----
+   The /vanguard injection persists whatever __ideaCaptureRun() returns and calls
+   __ideaRestoreRun() to resume. This is a minimal SECTOR-boundary checkpoint
+   (loadout + sector + score), captured when a player launches into a new sector,
+   not a per-frame snapshot; enemies/bullets are transient and rebuild for the
+   sector. Both are wrapped so a bad payload can never break normal play. */
+window.__ideaCaptureRun=function(){
+  try{
+    if(!player || !(state==='play'||state==='pause'||state==='refit')) return null;
+    return { v:1, ts:Date.now(), gameMode:gameMode, sector:sector, score:(window.scoreT||0),
+      player:{ up:Object.assign({},player.up||{}), unlocked:Object.assign({},player.unlocked||{}),
+        wtype:player.wtype, heavy:player.heavy, heavyUnlocked:Object.assign({},player.heavyUnlocked||{}),
+        bombs:player.bombs, shieldHits:player.shieldHits, coins:player.coins, lives:player.lives,
+        modules:(player.modules||[]).slice(), ks:Object.assign({},player.ks||{}) } };
+  }catch(e){ return null; }
+};
+window.__ideaRestoreRun=function(snap){
+  try{
+    if(!snap || !snap.player) return false;
+    if(snap.gameMode) gameMode=snap.gameMode;
+    startGame();                                   // valid, fully-initialized play state
+    sector=Math.max(1, snap.sector||1); waveIdx=0; waveTimer=1.6; bossPending=false; fleet=null;
+    sectorKills=0; killsForBoss=killsForBossN(); sector1up=0; hybridTimer=rnd(6,10);
+    window.scoreT=snap.score||0;
+    var sp=snap.player;
+    Object.assign(player.up, sp.up||{});
+    if(sp.unlocked) player.unlocked=Object.assign({},sp.unlocked);
+    if(sp.wtype) player.wtype=sp.wtype;
+    if(sp.heavy) player.heavy=sp.heavy;
+    if(sp.heavyUnlocked) player.heavyUnlocked=Object.assign({},sp.heavyUnlocked);
+    if(sp.bombs!=null) player.bombs=sp.bombs;
+    if(sp.shieldHits!=null){ player.shieldHits=sp.shieldHits; player.shieldMax=sp.shieldHits; }
+    if(sp.coins!=null) player.coins=sp.coins;
+    if(sp.lives!=null) player.lives=sp.lives;
+    if(sp.modules) player.modules=sp.modules.slice();
+    if(sp.ks) player.ks=Object.assign({},sp.ks);
+    applyUpgrades(); player.beamE=player.beamMax;
+    triggerBanner&&triggerBanner();
+    return true;
+  }catch(e){ console.error('VANGUARD restore error:',e); return false; }
+};
 /* telemetry beacon - anonymous per-run gameplay metrics, no name or identifier.
    Fires once per run on any termination: death, quit, restart, or page abandon. */
 function inActiveRun(){ return state==='play'||state==='pause'||state==='refit'; }
