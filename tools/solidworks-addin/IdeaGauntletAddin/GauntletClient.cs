@@ -34,6 +34,14 @@ namespace IdeaGauntlet
         public double? TargetVolumeMm3;
         public double? YourVolumeMm3;
         public double? TolerancePct;
+        // Material-by-density verdict (0027). Correctness now requires the applied
+        // material's density to match the challenge within DensityTolerancePct.
+        public bool VolumeOk;
+        public bool DensityOk;
+        public double? MeasuredDensity;
+        public double? ExpectedDensity;
+        public double? DensityTolerancePct;
+        public string DetectedMaterial;
     }
 
     /// <summary>
@@ -93,8 +101,11 @@ namespace IdeaGauntlet
         /// gauntlet_macro_submit(p_code, p_volume_mm3, p_run_id, p_surface_area_mm2,
         /// p_feature_count, p_mass_g, p_material): the graded submit. Elapsed time
         /// is computed server-side from the start event; correctness is verified on
-        /// volume, and since 0026 the applied material must match the challenge's
-        /// material (the server rejects a missing or wrong material outright).
+        /// volume AND (since 0027) on the applied material's DENSITY (mass / volume)
+        /// against the challenge's expected density. The server blocks only when
+        /// there is genuinely no material; a present-but-wrong material grades as
+        /// not-correct (unranked), so p_material is sent for audit/display, not as
+        /// the gate. The measured density is derived server-side from p_mass_g.
         /// </summary>
         public static async Task<SubmitResult> SubmitRunAsync(
             string code, string runId, double volumeMm3, double surfaceAreaMm2, int featureCount,
@@ -120,6 +131,12 @@ namespace IdeaGauntlet
             result.TargetVolumeMm3 = AsDouble(resp, "target_volume_mm3");
             result.YourVolumeMm3 = AsDouble(resp, "your_volume_mm3");
             result.TolerancePct = AsDouble(resp, "tolerance_pct");
+            result.VolumeOk = AsBool(resp, "volume_ok");
+            result.DensityOk = AsBool(resp, "density_ok");
+            result.MeasuredDensity = AsDouble(resp, "measured_density_g_cm3");
+            result.ExpectedDensity = AsDouble(resp, "expected_density_g_cm3");
+            result.DensityTolerancePct = AsDouble(resp, "density_tolerance_pct");
+            result.DetectedMaterial = AsString(resp, "detected_material");
             return result;
         }
 

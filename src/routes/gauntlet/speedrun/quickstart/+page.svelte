@@ -55,8 +55,9 @@
 				the target.
 			</li>
 			<li>
-				Apply the challenge's material to your part (right-click Material in the tree). A submit
-				with no material, or the wrong one, is rejected.
+				Apply the challenge's material to your part (right-click Material in the tree). The material
+				is checked by density: no material is rejected, the wrong material will not pass, and any
+				close-enough material works (the exact library name does not matter).
 			</li>
 			<li>Click Submit. You get PASS or OUTSIDE TOLERANCE, plus your time and rank.</li>
 		</ol>

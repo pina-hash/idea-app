@@ -67,8 +67,9 @@
 			</li>
 			<li>Build your part. Do not close it while you work. Closing it ends your run.</li>
 			<li>
-				Apply the challenge's material to your part (right-click Material in the tree). A submit
-				with no material, or the wrong one, is rejected until you fix it.
+				Apply the challenge's material to your part (right-click Material in the tree). The material
+				is checked by density: a part with no material is rejected, and the wrong material will not
+				pass. Any close-enough material works (the exact library name does not matter).
 			</li>
 			<li>
 				When your part is finished, press Ctrl + Shift + G to submit. Type your code again and click

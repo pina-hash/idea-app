@@ -235,9 +235,13 @@ namespace IdeaGauntlet
         }
 
         /// <summary>
-        /// The applied material's library name (for example "6061 Alloy"),
-        /// empty when no material is applied. Read from the active
-        /// configuration, falling back to the empty (current) config name.
+        /// The applied material's library name (for example "6061 Alloy" or a
+        /// custom-library "6061-T6 (SS)"), empty when no material is applied.
+        /// Read from the ACTIVE configuration via IPartDoc (a custom-library
+        /// material can read empty against the "" config), falling back to "".
+        /// The name is for display/audit only: the server verifies the material
+        /// by DENSITY (mass / volume), not by this name (migration 0027), so a
+        /// name that fails to read no longer blocks a correctly-materialed part.
         /// </summary>
         private static void ReadMaterial(IModelDoc2 model, PartSnapshot snap)
         {

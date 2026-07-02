@@ -357,21 +357,28 @@ namespace IdeaGauntlet
             lblDoc.Text = snap.Title;
             lblUnits.Text = snap.IsPart ? "Units: " + snap.UnitSystemLabel : "Units: -";
 
-            // The server rejects a submit without the challenge's material
-            // (0026), so surface the applied material continuously.
+            // The server verifies the material by DENSITY (0027), so surface the
+            // applied material AND its measured density continuously. A material
+            // reads as "present" from a real (non-default ~1.0 g/cm3) density even
+            // when the library name does not read, matching the server's gate.
+            double? density = MeasuredDensity(snap);
+            bool hasRealDensity = density.HasValue && density.Value > 0 && Math.Abs(density.Value - 1.0) > 0.05;
             if (!snap.IsPart)
             {
                 lblMaterial.Text = "Material: -";
                 lblMaterial.ForeColor = Dim;
             }
-            else if (string.IsNullOrEmpty(snap.MaterialName))
+            else if (string.IsNullOrEmpty(snap.MaterialName) && !hasRealDensity)
             {
                 lblMaterial.Text = "Material: none applied (required to pass)";
                 lblMaterial.ForeColor = Amber;
             }
             else
             {
-                lblMaterial.Text = "Material: " + snap.MaterialName;
+                string name = string.IsNullOrEmpty(snap.MaterialName) ? "(name not read)" : snap.MaterialName;
+                lblMaterial.Text = density.HasValue
+                    ? Inv("Material: {0} · {1:0.000} g/cm3", name, density.Value)
+                    : "Material: " + name;
                 lblMaterial.ForeColor = Body;
             }
 
@@ -409,6 +416,17 @@ namespace IdeaGauntlet
         {
             return Inv("Vol {0:0.00} mm3\r\nArea {1:0.00} mm2 · Features {2}",
                 snap.VolumeMm3, snap.SurfaceAreaMm2, snap.FeatureCount);
+        }
+
+        /// <summary>
+        /// The part's density in g/cm3 (mass / volume), mirroring what the server
+        /// derives from the submitted mass and volume. Null when there is no solid
+        /// geometry to divide by.
+        /// </summary>
+        private static double? MeasuredDensity(PartSnapshot snap)
+        {
+            if (snap == null || !snap.HasMass || snap.VolumeMm3 <= 0.0) return null;
+            return snap.MassG / (snap.VolumeMm3 / 1000.0);
         }
 
         private void UpdateDelta()
@@ -626,7 +644,12 @@ namespace IdeaGauntlet
                 }
                 else
                 {
-                    text = Inv("OUTSIDE TOLERANCE in {0:0.00} s", elapsedSeconds) + Environment.NewLine +
+                    text = Inv("OUTSIDE TOLERANCE in {0:0.00} s", elapsedSeconds);
+                    if (!result.DensityOk)
+                    {
+                        text = text + Environment.NewLine + "Wrong material: the part's density does not match the challenge.";
+                    }
+                    text = text + Environment.NewLine +
                         "Recorded, but it does not rank. Fix your model and submit again with the same code (your time keeps counting), or re-reveal for a new run.";
                 }
 
@@ -643,9 +666,21 @@ namespace IdeaGauntlet
                 text = text + Environment.NewLine +
                     Inv("Mass {0:0.00} g / {1:0.0000} lb · Area {2:0.00} mm2 · Features {3}",
                         snap.MassG, snap.MassLb, snap.SurfaceAreaMm2, snap.FeatureCount);
-                if (!string.IsNullOrEmpty(snap.MaterialName))
+                text = text + Environment.NewLine + "Material " +
+                    (string.IsNullOrEmpty(snap.MaterialName) ? "(name not read; verified by density)" : snap.MaterialName);
+                if (result.MeasuredDensity.HasValue)
                 {
-                    text = text + Environment.NewLine + "Material " + snap.MaterialName;
+                    string density = Inv("Density {0:0.0000} g/cm3", result.MeasuredDensity.Value);
+                    if (result.ExpectedDensity.HasValue)
+                    {
+                        density = density + Inv(" (expected {0:0.0000}", result.ExpectedDensity.Value);
+                        if (result.DensityTolerancePct.HasValue)
+                        {
+                            density = density + Inv(" +/-{0:0.##}%", result.DensityTolerancePct.Value);
+                        }
+                        density = density + ")";
+                    }
+                    text = text + Environment.NewLine + density;
                 }
 
                 SetStatus(text, result.IsCorrect ? GreenBright : Amber);
@@ -694,7 +729,7 @@ namespace IdeaGauntlet
                 }
             }
             catch { }
-            lblVersion.Text = text + " · add-in v1.1";
+            lblVersion.Text = text + " · add-in v1.2";
         }
 
         private void SetBusy(bool value)

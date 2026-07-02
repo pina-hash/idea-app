@@ -8,9 +8,11 @@ Attribute VB_Name = "IdeaGauntletSubmit"
 '   and APPLIED MATERIAL, prompts for the 8-char code shown on the GAUNTLET
 '   Speedrun screen, and posts everything to the gauntlet_macro_submit
 '   endpoint. The server times your run from the Start event to this submit
-'   (both stamped server-side), checks your geometry, requires your applied
-'   material to match the challenge's material, and returns pass/fail, your
-'   time, and your rank.
+'   (both stamped server-side), checks your geometry, and verifies your applied
+'   material by its DENSITY (mass / volume) against the challenge's material,
+'   then returns pass/fail, your time, and your rank. Material is checked by
+'   density, not name, so a custom-library material (e.g. "6061-T6 (SS)") is
+'   accepted as long as its density matches.
 '
 '   You must run the Start macro on a blank part first. If this part has no
 '   run_id, this macro will tell you to start a run.
@@ -87,11 +89,22 @@ Sub main()
     Dim featureCount As Long
     featureCount = swModel.GetFeatureCount
 
-    ' --- Applied material: the server requires it to match the challenge ------
+    ' --- Applied material: read the ACTIVE configuration through PartDoc, so a
+    '     custom-library material (e.g. "6061-T6 (SS)") reads correctly. Reading
+    '     via ModelDoc, or against the "" (default) config, can return empty for a
+    '     custom-library material, which the old code then mistook for "no
+    '     material." The server verifies the material by DENSITY (mass / volume),
+    '     not by name, so an empty name here no longer blocks a materialed part.
     Dim matName As String, matDb As String
     matName = ""
     On Error Resume Next
-    matName = swModel.GetMaterialPropertyName2("", matDb)
+    Dim swPart As Object
+    Set swPart = swModel
+    Dim activeCfg As String
+    activeCfg = ""
+    activeCfg = swModel.ConfigurationManager.ActiveConfiguration.Name
+    matName = swPart.GetMaterialPropertyName2(activeCfg, matDb)
+    If Len(Trim$(matName)) = 0 Then matName = swPart.GetMaterialPropertyName2("", matDb)
     On Error GoTo 0
     matName = Trim$(matName)
 
@@ -159,18 +172,36 @@ Private Sub StudentSubmit(ByVal volumeMm3 As Double, ByVal areaMm2 As Double, _
     secs = JsonField(resp, "score_metric")
     rankS = JsonField(resp, "rank")
 
+    ' Material / density verdict from the server, for a debuggable result.
+    Dim densOk As String, measDens As String, expDens As String
+    densOk = LCase(JsonField(resp, "density_ok"))
+    measDens = JsonField(resp, "measured_density_g_cm3")
+    expDens = JsonField(resp, "expected_density_g_cm3")
+
     Dim out As String
     If isCorrect = "true" Then
         out = "PASS in " & secs & " s"
         If Len(rankS) > 0 And rankS <> "null" Then out = out & "  -  rank #" & rankS
     Else
-        out = "OUTSIDE TOLERANCE in " & secs & " s" & vbCrLf & _
+        out = "OUTSIDE TOLERANCE in " & secs & " s"
+        If densOk = "false" Then
+            out = out & vbCrLf & "Wrong material: density does not match the challenge."
+        End If
+        out = out & vbCrLf & _
               "Recorded, but it does not rank. Fix your model and submit again with the " & _
               "same code (your time keeps counting), or re-reveal for a new run."
     End If
     out = out & vbCrLf & vbCrLf & "Volume: " & JNum(volumeMm3) & " mm3" & _
           "   Area: " & JNum(areaMm2) & " mm2" & "   Features: " & featureCount
-    If Len(matName) > 0 Then out = out & vbCrLf & "Material: " & matName
+    If Len(matName) > 0 Then
+        out = out & vbCrLf & "Material: " & matName
+    Else
+        out = out & vbCrLf & "Material: (name not read; verified by density)"
+    End If
+    If Len(measDens) > 0 And measDens <> "null" Then
+        out = out & vbCrLf & "Density: " & measDens & " g/cm3"
+        If Len(expDens) > 0 And expDens <> "null" Then out = out & " (expected " & expDens & ")"
+    End If
     MsgBox out, vbInformation, "GAUNTLET result"
     Exit Sub
 
@@ -217,9 +248,42 @@ Private Function JsonField(ByVal json As String, ByVal key As String) As String
     Loop
     If p > Len(json) Then JsonField = "": Exit Function
     If Mid(json, p, 1) = """" Then
-        q = InStr(p + 1, json, """")
-        If q = 0 Then JsonField = "": Exit Function
-        JsonField = Mid(json, p + 1, q - p - 1)
+        ' Walk the string honoring backslash escapes, so a server message that
+        ' itself contains an escaped quote (e.g. a material name in double
+        ' quotes) is returned whole instead of being truncated at the first \".
+        Dim out As String, ch As String
+        out = ""
+        q = p + 1
+        Do While q <= Len(json)
+            ch = Mid(json, q, 1)
+            If ch = "\" And q < Len(json) Then
+                Dim esc As String
+                esc = Mid(json, q + 1, 1)
+                Select Case esc
+                    Case """": out = out & """"
+                    Case "\": out = out & "\"
+                    Case "/": out = out & "/"
+                    Case "n": out = out & vbLf
+                    Case "r": out = out & vbCr
+                    Case "t": out = out & vbTab
+                    Case "b": out = out & Chr(8)
+                    Case "f": out = out & Chr(12)
+                    Case "u"
+                        If q + 5 <= Len(json) Then
+                            out = out & ChrW(CLng("&H" & Mid(json, q + 2, 4)))
+                            q = q + 4
+                        End If
+                    Case Else: out = out & esc
+                End Select
+                q = q + 2
+            ElseIf ch = """" Then
+                Exit Do
+            Else
+                out = out & ch
+                q = q + 1
+            End If
+        Loop
+        JsonField = out
     Else
         q = p
         Do While q <= Len(json)

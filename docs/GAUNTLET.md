@@ -51,6 +51,15 @@ These never touch SolidWorks. They are answer-graded in the browser/server.
   density, and a target mass, the way real practice problems are stated. Mass is
   presentation; volume is the truth we check against (mass = volume x density,
   so a correct volume in the stated material yields the target mass).
+- **Verify the material by DENSITY, not by name (0027).** The applied material's
+  density is `mass / volume`, geometry independent, so the macro submit checks
+  the measured density against the challenge's expected density (normalized to
+  g/cm3 from its unit system) within a tolerance (default 1%). This replaced the
+  brittle exact-name match of 0026, which rejected correct parts whenever a
+  custom-library name (e.g. `6061-T6 (SS)`) differed from the authored name or
+  failed to read. The server blocks a submit only when there is genuinely no
+  material (no name AND a default/zero density); a present-but-wrong material
+  grades as not-correct (unranked, retry on the same clock), never a hard block.
 - **Capture surface area and feature count for audit**, even when they are not
   the ranking metric, so a submission can be inspected later.
 - **Manual mass entry is the supervised-trust MVP.** A student types the mass
