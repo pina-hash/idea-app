@@ -714,6 +714,15 @@ stack are the source of truth; do not invent colors or swap fonts.
 - **Keep this file current.** When the app gains routes, tiers, roles, env
   vars, or conventions, update CLAUDE.md in the same change. This
   self-maintenance is part of the job.
+- **Interactive/visual verification:** when a task involves interactive or
+  visual UI (custom viewers, canvas or three.js/3D, animations, drag/pan/zoom,
+  pop-out/PiP, complex forms, or anything whose correctness is not visible to
+  type-checking), you must (1) add or reuse a dev-guarded harness route that
+  renders only when `dev` is true, returns 404 in production, and needs no auth
+  or Supabase, mounting the component with representative sample data, and (2)
+  verify every interaction and visual in a real browser via that harness before
+  finishing. Report what you verified. svelte-check passing is necessary but not
+  sufficient. Harness routes stay in the repo as regression tools.
 
 ## Scope guardrails
 
