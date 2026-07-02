@@ -3291,6 +3291,9 @@ a:hover {
 	grid-template-columns: minmax(0, 1fr) repeat(4, 58px) auto;
 	gap: 0.4rem;
 	align-items: center;
+	padding: 0.2rem 0.3rem;
+	border: 1px solid transparent;
+	border-radius: 4px;
 }
 .gauntlet .region-head {
 	font-family: var(--font-mono);
@@ -3306,6 +3309,17 @@ a:hover {
 }
 .gauntlet .region-row {
 	margin-bottom: 0.4rem;
+}
+/* The row matching the box selected in the visual picker (two-way linked). */
+.gauntlet .region-row.sel {
+	border-color: var(--line-strong);
+	background: rgba(0, 240, 255, 0.06);
+}
+.gauntlet .region-acts {
+	display: flex;
+	gap: 0.45rem;
+	align-items: center;
+	justify-content: flex-end;
 }
 .gauntlet .region-num {
 	text-align: center;

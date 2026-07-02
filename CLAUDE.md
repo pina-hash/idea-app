@@ -541,8 +541,13 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     `FocusRegion` fractions) that describe positions on the hidden dimensioned
     drawing, so they live in the gated `answer.focus_regions` and are handed back
     only by `gauntlet_speedrun_reveal` on Start (0023 adds them to that RPC's
-    return, nothing else changes). Authored on the Speedrun form as percent rows;
-    degrade to plain pan/zoom when none exist. A visual region picker is a v2.
+    return, nothing else changes). Degrade to plain pan/zoom when none exist.
+    Authored either by a **visual picker** (`src/lib/gauntlet/RegionEditor.svelte`:
+    drag-to-draw on the drawing, move / corner-and-edge resize, select, reorder,
+    zoom) or the numeric percent rows; both bind to the same
+    `form.focusRegions` so they stay two-way synced, and region order is the
+    student "Jump to" order. The picker renders the same PNG / inline-SVG cases the
+    student viewer does, with the blueprint recolor, and changes no storage.
   - **Picture-in-picture / pop-out** (`src/lib/gauntlet/popout.ts`). A "Pop out"
     control floats the drawing over SolidWorks so students don't alt-tab mid-run.
     Tiered by capability: primary is the Document Picture-in-Picture API (the

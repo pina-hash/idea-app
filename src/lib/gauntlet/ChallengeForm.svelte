@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import RegionEditor from '$lib/gauntlet/RegionEditor.svelte';
 	import {
 		MODES,
 		modeById,
@@ -52,13 +53,78 @@
 	// Feature 4: live preview of the parsed video id (empty when input is invalid).
 	const tutorialId = $derived(normalizeYouTubeId(form.tutorialVideoId));
 
-	// Feature 1: focus-region rows (percent). New regions default to a centered box.
+	// Feature 1: focus-region rows (percent). Shared between the visual picker
+	// (RegionEditor) and the numeric inputs, both bound to form.focusRegions.
+	let selectedRegion = $state(-1);
+
 	const addRegion = () => {
 		form.focusRegions = [...form.focusRegions, { label: '', x: 30, y: 30, w: 25, h: 25 }];
+		selectedRegion = form.focusRegions.length - 1;
 	};
 	const removeRegion = (i: number) => {
 		form.focusRegions = form.focusRegions.filter((_, idx) => idx !== i);
+		if (selectedRegion === i) selectedRegion = -1;
+		else if (selectedRegion > i) selectedRegion -= 1;
 	};
+	const moveRegion = (i: number, dir: number) => {
+		const j = i + dir;
+		if (j < 0 || j >= form.focusRegions.length) return;
+		const next = [...form.focusRegions];
+		[next[i], next[j]] = [next[j], next[i]];
+		form.focusRegions = next;
+		selectedRegion = j;
+	};
+
+	// Resolve the drawing the picker draws on, mirroring the student viewer's
+	// preference: the PNG (uploaded or pending) wins over the inline-SVG / URL asset.
+	let signedDrawingUrl = $state<string | null>(null);
+	let pngObjUrl = $state<string | null>(null);
+	let assetObjUrl = $state<string | null>(null);
+
+	$effect(() => {
+		if (!pngFile) {
+			pngObjUrl = null;
+			return;
+		}
+		const u = URL.createObjectURL(pngFile);
+		pngObjUrl = u;
+		return () => URL.revokeObjectURL(u);
+	});
+	$effect(() => {
+		if (!file) {
+			assetObjUrl = null;
+			return;
+		}
+		const u = URL.createObjectURL(file);
+		assetObjUrl = u;
+		return () => URL.revokeObjectURL(u);
+	});
+	// Sign the existing private PNG path (skip when a fresh PNG is pending).
+	$effect(() => {
+		const path = form.drawing_image_path;
+		if (pngFile || !path) {
+			signedDrawingUrl = null;
+			return;
+		}
+		let cancelled = false;
+		supabase.storage
+			.from(DRAWINGS_BUCKET)
+			.createSignedUrl(path, 3600)
+			.then(({ data }) => {
+				if (!cancelled) signedDrawingUrl = data?.signedUrl ?? null;
+			});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	const assetIsInline = $derived(form.asset.trimStart().startsWith('<'));
+	const drawSrc = $derived(
+		pngObjUrl ?? signedDrawingUrl ?? assetObjUrl ?? (form.asset && !assetIsInline ? form.asset : null)
+	);
+	const drawSvg = $derived(
+		!pngObjUrl && !signedDrawingUrl && !assetObjUrl && assetIsInline ? form.asset : null
+	);
 
 	const applyPaste = () => {
 		const g = parseAuthorCapture(pasteText);
@@ -436,19 +502,25 @@
 				drawing (0 to 100), measured from the top-left. Leave empty for none; the viewer degrades to
 				plain pan and zoom.
 			</p>
+			<RegionEditor bind:regions={form.focusRegions} bind:selected={selectedRegion} src={drawSrc} svg={drawSvg} />
+
 			{#if form.focusRegions.length}
 				<div class="region-head">
 					<span>Label</span><span>X%</span><span>Y%</span><span>W%</span><span>H%</span><span></span>
 				</div>
 			{/if}
 			{#each form.focusRegions as r, i (i)}
-				<div class="region-row">
+				<div class="region-row" class:sel={selectedRegion === i} onfocusin={() => (selectedRegion = i)}>
 					<input class="ff-input" type="text" bind:value={r.label} placeholder="Detail {i + 1}" />
 					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.x} />
 					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.y} />
 					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.w} />
 					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.h} />
-					<button class="text-act danger" type="button" onclick={() => removeRegion(i)}>Remove</button>
+					<span class="region-acts">
+						<button class="text-act" type="button" disabled={i === 0} onclick={() => moveRegion(i, -1)} aria-label="Move up">↑</button>
+						<button class="text-act" type="button" disabled={i === form.focusRegions.length - 1} onclick={() => moveRegion(i, 1)} aria-label="Move down">↓</button>
+						<button class="text-act danger" type="button" onclick={() => removeRegion(i)}>Remove</button>
+					</span>
 				</div>
 			{/each}
 			<div class="btn-row">
