@@ -15,6 +15,7 @@
 	import '@fontsource/orbitron/700.css';
 	import '@fontsource/orbitron/900.css';
 	import '../app.css';
+	import InstallPrompt from '$lib/InstallPrompt.svelte';
 
 	let { data, children } = $props();
 	let { claims, supabase } = $derived(data);
@@ -32,3 +33,4 @@
 
 <div class="bg-fx" aria-hidden="true"></div>
 {@render children()}
+<InstallPrompt />

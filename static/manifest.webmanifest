@@ -1,0 +1,22 @@
+{
+	"name": "IDEA",
+	"short_name": "IDEA",
+	"start_url": "/",
+	"scope": "/",
+	"display": "standalone",
+	"background_color": "#020a04",
+	"theme_color": "#020a04",
+	"icons": [
+		{
+			"src": "/IDEA/favicon-32x32.png",
+			"sizes": "32x32",
+			"type": "image/png"
+		},
+		{
+			"src": "/IDEA/android-chrome-512x512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any maskable"
+		}
+	]
+}
