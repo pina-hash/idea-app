@@ -239,6 +239,92 @@
 	</div>
 {/snippet}
 
+{#snippet racePanel()}
+	<div class="play-grid">
+		<div class="drawing-panel">
+			<div class="drawing-frame">
+				{#if revealing}
+					<p class="dim">Revealing...</p>
+				{:else if revealed?.drawing}
+					<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
+						<Asset value={revealed.drawing} />
+						<span class="zoom-hint">Click to zoom</span>
+					</button>
+				{:else}
+					<p class="dim">No drawing.</p>
+				{/if}
+				{#if revealed?.drawing}
+					<div class="sheet-titleblock" aria-hidden="true">
+						<span class="tb-brand">IDEA // GAUNTLET</span>
+						<span class="tb-meta">Room {room.join_code}</span>
+					</div>
+				{/if}
+			</div>
+
+			{#if modelUrl}
+				<StlViewer url={modelUrl} height={320} />
+			{/if}
+		</div>
+		<div class="question-panel">
+			{@render specCard()}
+			{@render rulesetCard()}
+
+			<div class="clock-wrap">
+				<SpeedrunClock serverStartMs={roomStartMs} clockOffsetMs={0} running={room.state === 'live'} />
+			</div>
+			{#if room.state === 'live'}
+				<p class="instructions">
+					Live, timed from the moment the host started the round, server-authoritative. Build your
+					part, then submit.
+				</p>
+			{/if}
+
+			{#if myResult}
+				<div class="result-banner" class:ok={myResult.is_correct} class:no={!myResult.is_correct}>
+					<span class="result-verdict">{myResult.is_correct ? 'Pass, verified' : 'Outside tolerance'}</span>
+					<span class="result-time">Time {formatTime(myResult.score_metric)}</span>
+				</div>
+				{#if myResult.is_correct}
+					<p class="dim">Your run is in. See the board below.</p>
+				{:else}
+					<p class="warn">Outside tolerance. The clock is still running, adjust your model and submit again.</p>
+				{/if}
+			{/if}
+			{#if !submitted && room.state === 'live' && revealed?.code}
+				<div class="code-box">
+					<div class="code-head">
+						<span class="code-label">Your submit code</span>
+						<button class="text-copy" type="button" onclick={() => copyCode(revealed?.code ?? '')}>{copied ? 'Copied' : 'Copy'}</button>
+					</div>
+					<div class="code-value">{revealed.code}</div>
+					<p class="code-instr">
+						Model the part, then run the GAUNTLET <strong>submit</strong> macro and paste this code.
+						<a href={SUBMIT_MACRO_PATH} download>Download submit macro</a> &middot; <a href="/gauntlet/tools">Setup</a>
+					</p>
+				</div>
+				<details class="practice">
+					<summary>Submit mass manually (supervised)</summary>
+					<p class="instructions">In a room the host supervises, so manual entry ranks. The clock is the room start.</p>
+					<label class="mass-field">
+						<span class="mass-label">Mass from Mass Properties</span>
+						<span class="mass-input-wrap">
+							<input class="mass-input" type="number" step="any" min="0" inputmode="decimal" placeholder="0.0" bind:value={mass} />
+							<span class="mass-unit">{unit}</span>
+						</span>
+					</label>
+					{#if submitError}<p class="warn">{submitError}</p>{/if}
+					<button class="btn" type="button" disabled={mass === null || submitting} onclick={submitManual}>
+						{submitting ? 'Submitting...' : 'Submit mass'}
+					</button>
+				</details>
+			{/if}
+			{#if room.state === 'results' && !myResult}
+				<p class="dim">The round has ended. Final board below.</p>
+			{/if}
+		</div>
+	</div>
+{/snippet}
+
 <svelte:head>
 	<title>Room {room.join_code} // GAUNTLET</title>
 </svelte:head>
@@ -309,34 +395,23 @@
 					</div>
 					<p class="dim">Racers in the lobby get the drawing and a submit code the instant you Start.</p>
 				{:else if room.state === 'live'}
-					<h2>Round is live</h2>
-					<p class="dim">Started {room.started_at ? new Date(room.started_at).toLocaleTimeString() : ''}. Racers are modeling and submitting.</p>
-					<div class="clock-wrap">
-						<SpeedrunClock serverStartMs={roomStartMs} clockOffsetMs={0} running={room.state === 'live'} compact />
-					</div>
-					{#if revealed?.drawing}
-						<div class="drawing-panel">
-							<div class="drawing-frame">
-								<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
-									<Asset value={revealed.drawing} />
-									<span class="zoom-hint">Click to zoom</span>
-								</button>
-								<div class="sheet-titleblock" aria-hidden="true">
-									<span class="tb-brand">IDEA // GAUNTLET</span>
-									<span class="tb-meta">Room {room.join_code}</span>
-								</div>
-							</div>
-						</div>
-					{/if}
-					<div class="btn-row">
+					<h2>Round is live &mdash; you are racing too</h2>
+					<p class="dim">
+						Started {room.started_at ? new Date(room.started_at).toLocaleTimeString() : ''}. You are a
+						competitor on the same clock: build your part and submit like everyone else, and end the
+						round when you are ready.
+					</p>
+					<div class="btn-row host-controls">
 						<button class="btn danger-btn" type="button" disabled={busy !== ''} onclick={() => setState('results')}>
 							{busy === 'results' ? 'Ending...' : 'End and reveal results'}
 						</button>
 						<button class="btn secondary" type="button" disabled={busy !== ''} onclick={() => invalidateAll()}>Refresh</button>
 					</div>
+					{@render racePanel()}
 				{:else}
 					<h2>Round complete</h2>
 					<div class="card"><p>The round is over and the board is frozen below. Host a new room to race again.</p></div>
+					{@render racePanel()}
 				{/if}
 			{:else if room.state === 'lobby'}
 				<!-- Student lobby -->
@@ -352,89 +427,7 @@
 			{:else if myRole === 'racer'}
 				<!-- Student racing (live or results) -->
 				<h2>Race</h2>
-				<div class="play-grid">
-					<div class="drawing-panel">
-						<div class="drawing-frame">
-							{#if revealing}
-								<p class="dim">Revealing...</p>
-							{:else if revealed?.drawing}
-								<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
-									<Asset value={revealed.drawing} />
-									<span class="zoom-hint">Click to zoom</span>
-								</button>
-							{:else}
-								<p class="dim">No drawing.</p>
-							{/if}
-							{#if revealed?.drawing}
-								<div class="sheet-titleblock" aria-hidden="true">
-									<span class="tb-brand">IDEA // GAUNTLET</span>
-									<span class="tb-meta">Room {room.join_code}</span>
-								</div>
-							{/if}
-						</div>
-
-						{#if modelUrl}
-							<StlViewer url={modelUrl} height={320} />
-						{/if}
-					</div>
-					<div class="question-panel">
-						{@render specCard()}
-						{@render rulesetCard()}
-
-						<div class="clock-wrap">
-							<SpeedrunClock serverStartMs={roomStartMs} clockOffsetMs={0} running={room.state === 'live'} />
-						</div>
-						{#if room.state === 'live'}
-							<p class="instructions">
-								Live, timed from the moment the host started the round, server-authoritative. Build your
-								part, then submit.
-							</p>
-						{/if}
-
-						{#if myResult}
-							<div class="result-banner" class:ok={myResult.is_correct} class:no={!myResult.is_correct}>
-								<span class="result-verdict">{myResult.is_correct ? 'Pass, verified' : 'Outside tolerance'}</span>
-								<span class="result-time">Time {formatTime(myResult.score_metric)}</span>
-							</div>
-							{#if myResult.is_correct}
-								<p class="dim">Your run is in. See the board below.</p>
-							{:else}
-								<p class="warn">Outside tolerance. The clock is still running, adjust your model and submit again.</p>
-							{/if}
-						{/if}
-						{#if !submitted && room.state === 'live' && revealed?.code}
-							<div class="code-box">
-								<div class="code-head">
-									<span class="code-label">Your submit code</span>
-									<button class="text-copy" type="button" onclick={() => copyCode(revealed?.code ?? '')}>{copied ? 'Copied' : 'Copy'}</button>
-								</div>
-								<div class="code-value">{revealed.code}</div>
-								<p class="code-instr">
-									Model the part, then run the GAUNTLET <strong>submit</strong> macro and paste this code.
-									<a href={SUBMIT_MACRO_PATH} download>Download submit macro</a> &middot; <a href="/gauntlet/tools">Setup</a>
-								</p>
-							</div>
-							<details class="practice">
-								<summary>Submit mass manually (supervised)</summary>
-								<p class="instructions">In a room the host supervises, so manual entry ranks. The clock is the room start.</p>
-								<label class="mass-field">
-									<span class="mass-label">Mass from Mass Properties</span>
-									<span class="mass-input-wrap">
-										<input class="mass-input" type="number" step="any" min="0" inputmode="decimal" placeholder="0.0" bind:value={mass} />
-										<span class="mass-unit">{unit}</span>
-									</span>
-								</label>
-								{#if submitError}<p class="warn">{submitError}</p>{/if}
-								<button class="btn" type="button" disabled={mass === null || submitting} onclick={submitManual}>
-									{submitting ? 'Submitting...' : 'Submit mass'}
-								</button>
-							</details>
-						{/if}
-						{#if room.state === 'results' && !myResult}
-							<p class="dim">The round has ended. Final board below.</p>
-						{/if}
-					</div>
-				</div>
+				{@render racePanel()}
 			{:else}
 				<!-- Spectator -->
 				<h2>Spectating</h2>

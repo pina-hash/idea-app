@@ -86,8 +86,12 @@
 					class="ff-input code-input"
 					type="text"
 					bind:value={joinCode}
-					placeholder="Join code"
-					maxlength="8"
+					placeholder="ABCD"
+					maxlength="4"
+					autocapitalize="characters"
+					autocomplete="off"
+					spellcheck="false"
+					oninput={(e) => (joinCode = e.currentTarget.value.toUpperCase().replace(/[^A-Z2-9]/g, ''))}
 					onkeydown={(e) => e.key === 'Enter' && joinRoom()}
 				/>
 				<button class="btn" type="button" disabled={busy || !joinCode.trim()} onclick={joinRoom}>Join</button>
