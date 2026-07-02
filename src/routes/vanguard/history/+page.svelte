@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import VersionBadge from '$lib/VersionBadge.svelte';
 
 	let { data } = $props();
 
@@ -137,6 +138,8 @@
 			{/each}
 		</div>
 	{/if}
+
+	<p class="page-version"><VersionBadge app="vanguard" /></p>
 </main>
 
 <style>

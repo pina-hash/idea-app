@@ -492,12 +492,33 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   remains but is re-themed by the scoped token overrides; new styles go in
   the viewport system, not there.
 
-## Changelog automation
+## Version + changelog substrate
 
-The site changelog is **auto-generated from git history** and never hand-edited.
-`vite.config.ts` exposes a `virtual:changelog` module: at build / dev-server start
-it runs `git log` and emits `{ date, note }[]` from each commit's date + subject.
-The homepage imports `virtual:changelog` and renders it.
+The site changelog AND every page's version are **auto-generated from git
+history** and never hand-edited. `vite.config.ts` exposes a
+`virtual:site-versions` module: at build / dev-server start it runs `git log
+--name-only` over the **full history** and, using the route-to-path manifest in
+`src/lib/site-manifest.ts` (the `APPS` list: gauntlet, vanguard, coins,
+assignments, archive, dashboard, portal as catch-all), maps each commit to the
+app(s) it touched and classifies a change type from its subject
+(feature/fix/visual/content/docs/update).
+
+- **Per-app versions:** `v1.N` where N is the count of commits touching that
+  app's paths, so a version bumps automatically whenever a deploy includes
+  commits for that app. `src/lib/VersionBadge.svelte` renders the chip
+  (`<label> v1.N · <deploy short SHA> · <deploy date>`) on every SvelteKit page
+  (homepage/archive footers, dashboard, auth error, the GAUNTLET layout,
+  VANGUARD history). Endpoint-served legacy HTML (assignments, VANGUARD, coin
+  entry) gets the same chip injected at serve time by
+  `src/lib/version-badge.ts` (the established serve-time injection convention;
+  legacy sources on disk stay untouched). Known gap: `static/coins/index.html`
+  is served straight from `static/` (never through an endpoint), so it cannot
+  show a badge without editing frozen legacy internals.
+- **Homepage changelog:** newest-first over the full history, with filters by
+  page/app, change type, and date range. Renders from `virtual:site-versions`.
+- **Vercel:** set `VERCEL_DEEP_CLONE=true` in the project env so builds clone
+  the full git history (otherwise versions derive from the shallow-clone
+  depth; everything fails soft).
 
 Implication: **commit subjects are user-facing changelog copy.** Write them as
 readable changelog lines (the first line of every commit shows up on `/`). There

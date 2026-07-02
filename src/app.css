@@ -436,6 +436,13 @@ a:hover {
 	color: var(--amber);
 }
 
+/* Auto-derived per-page version line (VersionBadge.svelte), app-shell pages. */
+.page-version {
+	margin-top: 2.5rem;
+	text-align: center;
+	opacity: 0.85;
+}
+
 /* ==========================================================================
    IDEA // GAUNTLET, the CAD skills dojo. Uses the app-shell side of the theme
    (tokens + Rajdhani/Share Tech Mono). Page-content rules are scoped under
@@ -2693,6 +2700,87 @@ a:hover {
 .legacy-index .changelog-note {
 	color: var(--dim);
 	line-height: 1.5;
+	flex: 1;
+	min-width: 200px;
+}
+
+/* Changelog filters: page/app, change type, date range. */
+.legacy-index .changelog-filters {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	flex-wrap: wrap;
+	padding-bottom: 0.75rem;
+	margin-bottom: 0.5rem;
+	border-bottom: 1px solid rgba(74, 122, 82, 0.25);
+}
+.legacy-index .cl-select,
+.legacy-index .cl-date input {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.66rem;
+	letter-spacing: 0.06em;
+	color: var(--cyan);
+	background: var(--bg2);
+	border: 1px solid rgba(0, 240, 255, 0.25);
+	border-radius: 2px;
+	padding: 0.3rem 0.5rem;
+}
+.legacy-index .cl-select:focus-visible,
+.legacy-index .cl-date input:focus-visible {
+	outline: 1px solid var(--green);
+	outline-offset: 1px;
+}
+.legacy-index .cl-date {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-size: 0.6rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.legacy-index .cl-date input::-webkit-calendar-picker-indicator {
+	filter: invert(0.7) sepia(1) hue-rotate(80deg);
+	cursor: pointer;
+}
+.legacy-index .cl-count {
+	margin-left: auto;
+	font-size: 0.62rem;
+	letter-spacing: 0.08em;
+	color: var(--dim);
+}
+.legacy-index .cl-tags {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	flex-wrap: wrap;
+	flex-shrink: 0;
+}
+.legacy-index .cl-tag {
+	font-size: 0.55rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	color: var(--dim);
+	border: 1px solid rgba(74, 122, 82, 0.35);
+	border-radius: 2px;
+	padding: 0.08rem 0.35rem;
+	white-space: nowrap;
+}
+.legacy-index .cl-tag.cl-type {
+	color: var(--cyan);
+	border-color: rgba(0, 240, 255, 0.3);
+}
+.legacy-index .cl-tag.cl-type-feature {
+	color: var(--green);
+	border-color: rgba(0, 255, 65, 0.35);
+}
+.legacy-index .cl-tag.cl-type-fix {
+	color: var(--amber);
+	border-color: rgba(255, 140, 0, 0.35);
+}
+.legacy-index .cl-tag.cl-type-visual {
+	color: var(--gold);
+	border-color: rgba(200, 255, 0, 0.35);
 }
 
 /* Footer */
@@ -2727,6 +2815,9 @@ a:hover {
 }
 .legacy-index .footer-archive:hover {
 	color: var(--green);
+}
+.legacy-index .footer-version {
+	margin-top: 0.75rem;
 }
 
 @media (max-width: 768px) {

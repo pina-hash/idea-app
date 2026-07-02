@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import changelog from 'virtual:changelog';
+	import { entries as changelog } from 'virtual:site-versions';
+	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
+	import VersionBadge from '$lib/VersionBadge.svelte';
 	import {
 		sectionsByYear,
 		nextLiveCourse,
@@ -27,6 +29,30 @@
 	let errorMessage = $state('');
 	let savingSection = $state(false);
 	let changing = $state(false);
+
+	// Changelog filters: by page/app, by change type, by date range.
+	let filterApp = $state('all');
+	let filterType = $state('all');
+	let filterFrom = $state('');
+	let filterTo = $state('');
+	const filtersActive = $derived(
+		filterApp !== 'all' || filterType !== 'all' || filterFrom !== '' || filterTo !== ''
+	);
+	const filteredLog = $derived(
+		changelog.filter(
+			(e) =>
+				(filterApp === 'all' || e.apps.includes(filterApp)) &&
+				(filterType === 'all' || e.type === filterType) &&
+				(filterFrom === '' || e.iso >= filterFrom) &&
+				(filterTo === '' || e.iso <= filterTo)
+		)
+	);
+	const clearFilters = () => {
+		filterApp = 'all';
+		filterType = 'all';
+		filterFrom = '';
+		filterTo = '';
+	};
 
 	const signInWithGoogle = async (next = '/') => {
 		loading = true;
@@ -517,10 +543,46 @@
 		</button>
 		<div class="changelog-body" id="changelog-body">
 			{#if changelog.length}
-				{#each changelog as entry, i (i)}
+				<div class="changelog-filters">
+					<select class="cl-select" bind:value={filterApp} aria-label="Filter by page or app">
+						<option value="all">All pages</option>
+						{#each APPS as a (a.id)}
+							<option value={a.id}>{a.label}</option>
+						{/each}
+					</select>
+					<select class="cl-select" bind:value={filterType} aria-label="Filter by change type">
+						<option value="all">All types</option>
+						{#each CHANGE_TYPES as t (t.id)}
+							<option value={t.id}>{t.label}</option>
+						{/each}
+					</select>
+					<label class="cl-date">
+						<span>From</span>
+						<input type="date" bind:value={filterFrom} />
+					</label>
+					<label class="cl-date">
+						<span>To</span>
+						<input type="date" bind:value={filterTo} />
+					</label>
+					{#if filtersActive}
+						<button class="text-btn" type="button" onclick={clearFilters}>Clear</button>
+					{/if}
+					<span class="cl-count">{filteredLog.length} / {changelog.length}</span>
+				</div>
+				{#each filteredLog as entry (entry.sha)}
 					<div class="changelog-entry">
 						<span class="changelog-date">{entry.date}</span>
 						<span class="changelog-note">{entry.note}</span>
+						<span class="cl-tags">
+							{#each entry.apps as a (a)}
+								<span class="cl-tag">{appLabel(a)}</span>
+							{/each}
+							<span class="cl-tag cl-type cl-type-{entry.type}">{changeTypeLabel(entry.type)}</span>
+						</span>
+					</div>
+				{:else}
+					<div class="changelog-entry">
+						<span class="changelog-note">No updates match these filters.</span>
 					</div>
 				{/each}
 			{:else}
@@ -535,6 +597,7 @@
 		<div class="footer-logo">IDEA - Integrated Design, Engineering &amp; Art</div>
 		<div class="footer-sub">Don Bosco Technical Institute &bull; Rosemead, CA</div>
 		<a class="footer-archive" href="/archive">Course archive (2025-26) &rsaquo;</a>
+		<div class="footer-version"><VersionBadge app="portal" /></div>
 	</footer>
 </div>
 

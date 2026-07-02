@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import VersionBadge from '$lib/VersionBadge.svelte';
 
 	let { data } = $props();
 	let { profile, email } = $derived(data);
@@ -53,4 +54,6 @@
 			<a class="btn secondary" href="/archive">Course archive</a>
 		</div>
 	</div>
+
+	<p class="page-version"><VersionBadge app="dashboard" /></p>
 </main>

@@ -1,3 +1,7 @@
+<script lang="ts">
+	import VersionBadge from '$lib/VersionBadge.svelte';
+</script>
+
 <main>
 	<section class="hero">
 		<span class="eyebrow warn">Authentication // Error</span>
@@ -11,4 +15,6 @@
 			<a class="btn" href="/">Back to home</a>
 		</div>
 	</div>
+
+	<p class="page-version"><VersionBadge app="portal" /></p>
 </main>

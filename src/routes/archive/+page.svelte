@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { ARCHIVE_COURSES } from '$lib/curriculum';
+	import VersionBadge from '$lib/VersionBadge.svelte';
 </script>
 
 <svelte:head>
@@ -68,5 +69,6 @@
 	<footer>
 		<div class="footer-logo">IDEA - Integrated Design, Engineering &amp; Art</div>
 		<a class="footer-archive" href="/">&lsaquo; Back to home</a>
+		<div class="footer-version"><VersionBadge app="archive" /></div>
 	</footer>
 </div>

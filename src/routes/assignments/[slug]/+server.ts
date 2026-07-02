@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { loadAssignmentHtml, rewriteLegacyLinks } from '$lib/legacy';
+import { injectVersionBadge } from '$lib/version-badge';
 import type { RequestHandler } from './$types';
 
 /**
@@ -16,7 +17,7 @@ export const GET: RequestHandler = async ({ params }) => {
 		error(404, 'Assignment not found');
 	}
 
-	return new Response(rewriteLegacyLinks(html), {
+	return new Response(injectVersionBadge(rewriteLegacyLinks(html), 'assignments'), {
 		headers: { 'content-type': 'text/html; charset=utf-8' }
 	});
 };

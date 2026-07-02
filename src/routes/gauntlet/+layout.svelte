@@ -6,6 +6,7 @@
 	import CursorLayer from '$lib/gauntlet/viewport/CursorLayer.svelte';
 	import FeatureTreeNav from '$lib/gauntlet/viewport/FeatureTreeNav.svelte';
 	import TrademarkFooter from '$lib/gauntlet/viewport/TrademarkFooter.svelte';
+	import VersionBadge from '$lib/VersionBadge.svelte';
 	import { entranceSweep } from '$lib/gauntlet/viewport/motion';
 
 	/**
@@ -35,5 +36,14 @@
 	<div class="gt-content">
 		{@render children()}
 		<TrademarkFooter />
+		<p class="gt-version"><VersionBadge app="gauntlet" /></p>
 	</div>
 </div>
+
+<style>
+	.gt-version {
+		text-align: center;
+		padding: 0 1.5rem 1.5rem;
+		margin: 0;
+	}
+</style>

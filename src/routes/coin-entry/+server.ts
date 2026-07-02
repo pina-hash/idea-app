@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { coinEntryHtml, rewriteLegacyLinks } from '$lib/legacy';
+import { injectVersionBadge } from '$lib/version-badge';
 import type { RequestHandler } from './$types';
 
 /**
@@ -27,7 +28,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		redirect(303, '/');
 	}
 
-	return new Response(rewriteLegacyLinks(coinEntryHtml), {
+	return new Response(injectVersionBadge(rewriteLegacyLinks(coinEntryHtml), 'coins'), {
 		headers: { 'content-type': 'text/html; charset=utf-8' }
 	});
 };

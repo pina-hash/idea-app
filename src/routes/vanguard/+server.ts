@@ -1,5 +1,6 @@
 import { vanguardHtml } from '$lib/legacy';
 import { normalizeStored, type StoredSave } from '$lib/vanguard-save';
+import { injectVersionBadge } from '$lib/version-badge';
 import type { RequestHandler } from './$types';
 
 /**
@@ -265,7 +266,10 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		cloud = normalizeStored(data?.data);
 	}
 
-	const html = vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud)}`);
+	const html = injectVersionBadge(
+		vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud)}`),
+		'vanguard'
+	);
 
 	return new Response(html, {
 		headers: { 'content-type': 'text/html; charset=utf-8' }
