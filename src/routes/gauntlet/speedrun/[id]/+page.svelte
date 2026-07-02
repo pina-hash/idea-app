@@ -8,7 +8,13 @@
 	import DrawingViewer from '$lib/gauntlet/DrawingViewer.svelte';
 	import SpeedrunClock from '$lib/gauntlet/SpeedrunClock.svelte';
 	import RunResults from '$lib/gauntlet/RunResults.svelte';
-	import { supportsDocumentPip, openPipWindow, openDrawingWindow } from '$lib/gauntlet/popout';
+	import {
+		supportsDocumentPip,
+		openPipWindow,
+		openDrawingWindow,
+		mountPipNode,
+		restorePipNode
+	} from '$lib/gauntlet/popout';
 	import {
 		difficultyLabel,
 		formatTime,
@@ -142,7 +148,7 @@
 		if (supportsDocumentPip()) {
 			const pip = await openPipWindow(560, 440);
 			if (pip && viewerHost) {
-				pip.document.body.appendChild(viewerHost);
+				mountPipNode(pip, viewerHost);
 				popWindow = pip;
 				popMode = 'pip';
 				pip.addEventListener('pagehide', bringBack, { once: true });
@@ -172,7 +178,7 @@
 	// window. Safe to call from anywhere (navigation, retry, result arrival).
 	function bringBack() {
 		if (popMode === 'pip' && viewerHost && hostSlot && viewerHost.parentNode !== hostSlot) {
-			hostSlot.appendChild(viewerHost);
+			restorePipNode(hostSlot, viewerHost);
 		}
 		if (popWatch) {
 			clearInterval(popWatch);

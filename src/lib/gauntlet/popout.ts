@@ -72,6 +72,29 @@ export async function openPipWindow(width = 520, height = 380): Promise<Window |
 }
 
 /**
+ * Move a live viewer node into a Document PiP window so it fills the window.
+ *
+ * The moved node keeps its Svelte-scoped styles (copyStyles inlined them), but
+ * its HEIGHT often comes from an app-level rule scoped to a page wrapper (e.g.
+ * `.gauntlet .viewer-host { height: 100% }`) that no longer matches inside the
+ * PiP body. Without a height the viewport collapses to zero and the PiP shows
+ * only the (flex-shrink:0) jump-to strip on a black field. Forcing the node to
+ * fill via inline styles fixes that independently of any class-scoped CSS.
+ */
+export function mountPipNode(pip: Window, node: HTMLElement): void {
+	pip.document.body.appendChild(node);
+	node.style.width = '100%';
+	node.style.height = '100%';
+}
+
+/** Restore a node moved by mountPipNode back into its inline slot. */
+export function restorePipNode(slot: HTMLElement, node: HTMLElement): void {
+	node.style.width = '';
+	node.style.height = '';
+	slot.appendChild(node);
+}
+
+/**
  * Self-contained drawing-only HTML for the window.open fallback: the drawing
  * (PNG src or inline SVG) on the blueprint field, with minimal drag-pan +
  * wheel-zoom and a Fit button so it is usable without any shared context.

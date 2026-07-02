@@ -2,7 +2,13 @@
 	import { onMount } from 'svelte';
 	import DrawingViewer from '$lib/gauntlet/DrawingViewer.svelte';
 	import RegionEditor from '$lib/gauntlet/RegionEditor.svelte';
-	import { supportsDocumentPip, openPipWindow, openDrawingWindow } from '$lib/gauntlet/popout';
+	import {
+		supportsDocumentPip,
+		openPipWindow,
+		openDrawingWindow,
+		mountPipNode,
+		restorePipNode
+	} from '$lib/gauntlet/popout';
 	import '$lib/gauntlet/viewport/viewport.css';
 	import type { FocusRegion } from '$lib/gauntlet';
 	import type { FocusRegionInput } from '$lib/gauntlet/authoring';
@@ -135,7 +141,7 @@
 		if (supportsDocumentPip()) {
 			const pip = await openPipWindow(600, 460);
 			if (pip && hostEl) {
-				pip.document.body.appendChild(hostEl);
+				mountPipNode(pip, hostEl);
 				popWin = pip;
 				popMode = 'pip';
 				pip.addEventListener('pagehide', bringBack, { once: true });
@@ -153,7 +159,7 @@
 
 	function bringBack() {
 		if (popMode === 'pip' && hostEl && slotEl && hostEl.parentNode !== slotEl) {
-			slotEl.appendChild(hostEl);
+			restorePipNode(slotEl, hostEl);
 		}
 		if (popWin) {
 			try {
