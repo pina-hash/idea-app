@@ -522,6 +522,22 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   homepage renders a signed-in "continue / next best" nudge card from
   `+page.server.ts`. No pressure timers, no dark patterns, and no coin
   payouts (coins stay deferred).
+- **SolidWorks add-in (`tools/solidworks-addin/`):** a .NET Framework 4.8
+  SOLIDWORKS COM add-in (C#, `ISwAddin`, WinForms task pane) that replaces the
+  two VBA capture macros with a persistent in-SOLIDWORKS panel: live mass /
+  volume / surface area / feature count honoring the part's unit system (IPS
+  reads in lb, MMGS in g, both always shown), a target-mass comparison field,
+  and the Start / Submit run flow. It speaks the EXACT macro contract from
+  0016/0017, `gauntlet_macro_start(p_code, p_volume_mm3)` then
+  `gauntlet_macro_submit(p_code, p_volume_mm3, p_run_id, ...)` via PostgREST
+  with the public anon key, and stores the run id in the same
+  `GAUNTLET_RUN_ID` part custom property, so the add-in and the `.bas` macros
+  are interchangeable mid-run. If a migration changes those RPCs, update
+  `GauntletClient.cs` in the same change. It references the locally installed
+  SOLIDWORKS interops (no version hardcoded; the running version is detected
+  at runtime) and is not part of the SvelteKit build; build + regasm steps are
+  in its README (sources stay C# 5-compatible so the no-Visual-Studio
+  `build.ps1` path keeps working).
 - **Visuals (standing directive):** all GAUNTLET UI, current and new, must
   conform to the **VIEWPORT design system** documented in
   `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in
