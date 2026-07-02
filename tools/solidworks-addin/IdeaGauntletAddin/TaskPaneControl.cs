@@ -195,7 +195,8 @@ namespace IdeaGauntlet
             // The & gives each button a standard WinForms access key (UseMnemonic
             // defaults to true), so Alt+S starts and Alt+D submits when the pane has
             // focus. Submit is captioned "(DONE)" so its mnemonic can be Alt+D,
-            // mirroring the site's Ctrl+Shift+D. No global/SolidWorks key hooks.
+            // mirroring the .bas macro shortcuts (Start = Ctrl+Shift+S, Submit =
+            // Ctrl+Shift+D, Author = Ctrl+Shift+A). No global/SolidWorks key hooks.
             btnStart = MakeButton("&START RUN (blank part)", Green);
             btnStart.Click += OnStartClick;
             AddRow(btnStart, 4);

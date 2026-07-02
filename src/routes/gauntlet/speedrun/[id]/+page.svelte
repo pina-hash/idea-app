@@ -452,8 +452,8 @@
 						<p class="gate-title">Drawing hidden</p>
 						<p class="gate-sub">
 							This reveals the dimensioned drawing and your run code. Your time is measured on the
-							server from when you run the Start macro (Ctrl + Shift + B) on a blank part to when you
-							submit (Ctrl + Shift + G). Have SolidWorks ready with a new blank part.
+							server from when you run the Start macro (Ctrl + Shift + S) on a blank part to when you
+							submit (Ctrl + Shift + D). Have SolidWorks ready with a new blank part.
 						</p>
 						<button class="btn" type="button" onclick={start} disabled={revealing}>
 							{revealing ? 'Revealing...' : 'Start run'}
@@ -599,7 +599,7 @@
 					<div class="code-value">{code ?? '--------'}</div>
 					<p class="code-instr">
 						In SolidWorks, start a blank part and run the GAUNTLET <strong>start</strong> macro (Ctrl +
-						Shift + B), build it, then run <strong>submit</strong> (Ctrl + Shift + G). Paste this code
+						Shift + S), build it, then run <strong>submit</strong> (Ctrl + Shift + D). Paste this code
 						when either macro asks. <a href={START_MACRO_PATH} download>Start macro</a> &middot;
 						<a href={SUBMIT_MACRO_PATH} download>Submit macro</a> &middot;
 						<a href="/gauntlet/tools">Setup</a>
@@ -609,10 +609,10 @@
 				<div class="waiting">
 					<span class="dim">
 						{#if serverStartMs == null}
-							Standby. Run the Start macro (Ctrl + Shift + B) on a blank part in SolidWorks. The clock
+							Standby. Run the Start macro (Ctrl + Shift + S) on a blank part in SolidWorks. The clock
 							starts the instant you do, timed on the server.
 						{:else}
-							Run live, timed on the server. Build your part, then submit (Ctrl + Shift + G). Your
+							Run live, timed on the server. Build your part, then submit (Ctrl + Shift + D). Your
 							result appears here automatically.
 						{/if}
 					</span>

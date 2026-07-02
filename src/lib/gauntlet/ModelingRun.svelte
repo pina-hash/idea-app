@@ -248,7 +248,7 @@
 					<div class="code-value">{code ?? '--------'}</div>
 					<p class="code-instr">
 						In SolidWorks, start a blank part and run the GAUNTLET <strong>start</strong> macro (Ctrl +
-						Shift + B), build it, then run <strong>submit</strong> (Ctrl + Shift + G). Paste this code
+						Shift + S), build it, then run <strong>submit</strong> (Ctrl + Shift + D). Paste this code
 						when either macro asks. <a href={START_MACRO_PATH} download>Start macro</a> &middot;
 						<a href={SUBMIT_MACRO_PATH} download>Submit macro</a> &middot;
 						<a href="/gauntlet/tools">Setup</a>

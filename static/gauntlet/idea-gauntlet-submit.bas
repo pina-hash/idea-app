@@ -19,7 +19,7 @@ Attribute VB_Name = "IdeaGauntletSubmit"
 '
 ' Setup (once): paste your project values into the two constants below. They
 ' are the same PUBLIC values the website uses, not secrets. Import this .bas as
-' a new SolidWorks macro and bind it to a keyboard shortcut (Ctrl+Shift+G).
+' a new SolidWorks macro and bind it to a keyboard shortcut (Ctrl+Shift+D).
 '
 ' Rules: ORIGINAL parts only. The code is single use and expires ~30 min after
 ' you reveal the challenge; re-reveal in GAUNTLET for a fresh run.
@@ -70,7 +70,7 @@ Sub main()
     If Len(runId) = 0 Then
         MsgBox "No run has been started for this part. Start a run first:" & vbCrLf & vbCrLf & _
                "1. Start a new, blank part." & vbCrLf & _
-               "2. Run the Start macro (Ctrl+Shift+B) and enter your code." & vbCrLf & _
+               "2. Run the Start macro (Ctrl+Shift+S) and enter your code." & vbCrLf & _
                "3. Build your part." & vbCrLf & _
                "4. Run Submit again.", _
                vbExclamation, "GAUNTLET, no run started"

@@ -17,7 +17,7 @@ Attribute VB_Name = "IdeaGauntletStart"
 '
 ' Setup (once): paste your project values into the two constants below. They
 ' are the same PUBLIC values the website uses, not secrets. Import this .bas as
-' a new SolidWorks macro and bind it to a keyboard shortcut (Ctrl+Shift+B).
+' a new SolidWorks macro and bind it to a keyboard shortcut (Ctrl+Shift+S).
 '==============================================================================
 
 Option Explicit
@@ -149,7 +149,7 @@ Sub main()
 
     Dim doneMsg As String
     doneMsg = "Run started. The clock is running." & vbCrLf & vbCrLf & _
-              "Build your part now, then run Submit (Ctrl+Shift+G)." & vbCrLf & _
+              "Build your part now, then run Submit (Ctrl+Shift+D)." & vbCrLf & _
               "Do not close this part, or your run is lost."
     If Len(Trim$(matName)) = 0 Then
         doneMsg = doneMsg & vbCrLf & vbCrLf & _

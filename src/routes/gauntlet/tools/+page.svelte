@@ -62,7 +62,7 @@
 				like ABCD1234. Keep that tab open.
 			</li>
 			<li>
-				Click once on your SolidWorks window so it is in front. Press Ctrl + Shift + B to start your
+				Click once on your SolidWorks window so it is in front. Press Ctrl + Shift + S to start your
 				run. Type your code and click OK. A box confirms the run started and the clock is now running.
 			</li>
 			<li>Build your part. Do not close it while you work. Closing it ends your run.</li>
@@ -72,7 +72,7 @@
 				pass. Any close-enough material works (the exact library name does not matter).
 			</li>
 			<li>
-				When your part is finished, press Ctrl + Shift + G to submit. Type your code again and click
+				When your part is finished, press Ctrl + Shift + D to submit. Type your code again and click
 				OK.
 			</li>
 			<li>
@@ -81,7 +81,7 @@
 			</li>
 		</ol>
 		<p class="section-note">
-			If you got OUTSIDE TOLERANCE, fix your model and press Ctrl + Shift + G to submit again with the
+			If you got OUTSIDE TOLERANCE, fix your model and press Ctrl + Shift + D to submit again with the
 			same code. Your time keeps counting while you fix it. To start over completely, reveal the
 			challenge again in GAUNTLET for a new code, then start a new blank run.
 		</p>
@@ -100,11 +100,11 @@
 				</li>
 				<li>
 					The box says "This part is not blank" -&gt; you already modeled something. Start a brand new
-					empty part and press Ctrl + Shift + B again.
+					empty part and press Ctrl + Shift + S again.
 				</li>
 				<li>
 					The box says "No run has been started" when you submit -&gt; you skipped the start step or
-					closed the part. Start a new blank part, press Ctrl + Shift + B, build, then submit.
+					closed the part. Start a new blank part, press Ctrl + Shift + S, build, then submit.
 				</li>
 				<li>The box says "not configured" -&gt; tell Mr. Pina. This computer needs setup.</li>
 				<li>
@@ -122,7 +122,7 @@
 			<p class="section-intro">
 				Do this once on each computer. Students do not do this. Every lab machine needs two macros
 				installed and bound: Start and Submit. Install each one the same way below, then give it its
-				shortcut. Bind Start to Ctrl + Shift + B and Submit to Ctrl + Shift + G. The Author Capture
+				shortcut. Bind Start to Ctrl + Shift + S and Submit to Ctrl + Shift + D. The Author Capture
 				macro is for teacher machines only, not lab machines (see the author section below).
 			</p>
 
@@ -158,12 +158,12 @@
 				</li>
 				<li>Click the Keyboard tab. Set Category to Macros so both macros show.</li>
 				<li>
-					Click in the Shortcut column next to GAUNTLET Start and press Ctrl + Shift + B. Click in the
-					Shortcut column next to GAUNTLET Submit and press Ctrl + Shift + G. Click OK.
+					Click in the Shortcut column next to GAUNTLET Start and press Ctrl + Shift + S. Click in the
+					Shortcut column next to GAUNTLET Submit and press Ctrl + Shift + D. Click OK.
 				</li>
 				<li>
-					Test both: open a new blank part, press Ctrl + Shift + B and confirm the start box appears,
-					then press Ctrl + Shift + G and confirm the submit box appears.
+					Test both: open a new blank part, press Ctrl + Shift + S and confirm the start box appears,
+					then press Ctrl + Shift + D and confirm the submit box appears.
 				</li>
 			</ol>
 
