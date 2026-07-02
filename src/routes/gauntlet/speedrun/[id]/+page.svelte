@@ -543,8 +543,7 @@
 			{#if phase === 'framing'}
 				{#if framing.note}<p class="instructions">{framing.note}</p>{/if}
 				<p class="instructions">
-					Ranked runs are machine verified by the GAUNTLET macro: it reads your part geometry and
-					posts it with your submit code. <a href="/gauntlet/tools">Get the macro and setup</a>.
+					Ranked runs are machine verified by the GAUNTLET SolidWorks add-in (or the macros): it reads your part geometry and posts it with your submit code. New to the add-in? <a href="/gauntlet/speedrun/quickstart">Add-in quick-start</a>. <a href="/gauntlet/tools">Get the tools</a>.
 				</p>
 				{#if framing.demo}
 					<p class="instructions warn">

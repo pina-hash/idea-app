@@ -299,6 +299,9 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   - `/gauntlet/speedrun` and `/.../[id]`: the modeling mode end to end
     (reveal-on-start drawing + submit code, macro-verified ranked run over
     Realtime, manual practice fallback, per-challenge board). See "Speedrun".
+  - `/gauntlet/speedrun/quickstart`: student-facing quick-start for the
+    SolidWorks "IDEA // GAUNTLET" add-in (VIEWPORT-styled reference page, one tap
+    from the Speedrun list and the play-screen framing).
   - `/gauntlet/reverse-engineer` and `/gauntlet/feature-golf` (+ `/.../[id]`):
     the other two modeling modes, sharing `ModelingRun.svelte`. Reverse Engineer
     is untimed (scored on form deviation); Feature Golf ranks on feature count.

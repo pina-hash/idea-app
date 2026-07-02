@@ -69,9 +69,11 @@
 		<span class="eyebrow">Modeling Mode</span>
 		<h1>Speedrun</h1>
 		<p class="lead">
-			Model a dimensioned part in SolidWorks as fast as you can, then enter its mass. The drawing
-			is hidden until you hit Start, and the clock starts the instant it appears. Pass within the
-			tolerance band and your time ranks on the board.
+			Model a blank part up to a target, given as a material, density, and target mass. Grading is on
+			geometry, shown to you as mass. It is two steps: Start on an empty part begins the clock, then
+			Submit checks your result and ranks you. The clock starts at Start, not when the drawing is
+			revealed, so you can study the drawing first. Model in IPS or MMGS, whichever you prefer; every
+			property follows your chosen system.
 		</p>
 		<div class="mode-hero-meta">
 			<span class="mono">{cleared} / {challenges.length} cleared</span>
@@ -80,9 +82,11 @@
 
 	<div class="card supervised-note">
 		<p>
-			Ranked runs are machine verified: the GAUNTLET SolidWorks macro reads your part and posts it
-			with a one-time submit code, and the server times the run from the moment you hit Start. Manual
-			mass entry stays as unranked practice. <a href="/gauntlet/tools">Get the macro and setup</a>.
+			Ranked runs are machine verified: the GAUNTLET SolidWorks add-in (or the macros) reads your
+			part and posts it with a one-time submit code, and the server times the run from the moment you
+			hit Start. Manual mass entry stays as unranked practice. New to the add-in?
+			<a href="/gauntlet/speedrun/quickstart">Add-in quick-start</a>.
+			<a href="/gauntlet/tools">Get the tools</a>.
 		</p>
 	</div>
 
@@ -135,6 +139,7 @@
 
 	<div class="btn-row">
 		<a class="btn secondary" href="/gauntlet">&lsaquo; All modes</a>
+		<a class="btn secondary" href="/gauntlet/speedrun/quickstart">Add-in quick-start</a>
 		<a class="btn secondary" href="/gauntlet/tools">Macro &amp; tools</a>
 	</div>
 </main>
