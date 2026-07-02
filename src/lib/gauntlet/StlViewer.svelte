@@ -2,13 +2,15 @@
 	/**
 	 * Reusable 3D part preview. Loads an STL straight from its Storage URL with
 	 * three.js + STLLoader (no model-viewer, no GLB conversion), orbit controls
-	 * on. Shape only: a neutral machined-metal material under a studio
-	 * environment map (RoomEnvironment via PMREM), ACES tone mapping, a soft
-	 * contact shadow on a faint steel grid, and a slow auto-orbit that stops on
-	 * first interaction (disabled under reduced motion). Camera auto-fits the
-	 * model bounding box on load. Intentionally has NO measurement, dimension
-	 * readout, or download control. This replaces the isometric view that used
-	 * to live on the drawing.
+	 * on. Shape only: a machined-metal physical material (clearcoat over brushed
+	 * steel) under a pushed studio rig, image-based lighting (RoomEnvironment
+	 * via PMREM) + ACES tone mapping, supersampled render resolution for crisp
+	 * edges, a soft contact shadow on a clean deep backdrop (no pedestal grid),
+	 * and a slow auto-orbit that stops on first interaction (disabled under
+	 * reduced motion). Camera auto-fits the model bounding box on load in a 3/4
+	 * hero framing. Intentionally has NO measurement, dimension readout, or
+	 * download control. This replaces the isometric view that used to live on
+	 * the drawing.
 	 *
 	 * three is browser-only, so every import is dynamic inside onMount (SSR-safe).
 	 */
@@ -41,30 +43,40 @@
 				const scene = new THREE.Scene();
 
 				const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-				renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+				// Supersample: never below 1.5x even on 1x displays, so edges and
+				// machined silhouettes stay crisp instead of shimmering.
+				renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2.5));
 				renderer.setSize(width, height);
 				renderer.outputColorSpace = THREE.SRGBColorSpace;
 				renderer.toneMapping = THREE.ACESFilmicToneMapping;
-				renderer.toneMappingExposure = 1.05;
+				renderer.toneMappingExposure = 1.12;
 				renderer.shadowMap.enabled = true;
-				renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+				renderer.shadowMap.type = THREE.PCFShadowMap;
 				host.appendChild(renderer.domElement);
 
-				const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100000);
+				// Longer lens (less perspective distortion) so the part reads like a
+				// product shot, not a wide-angle snapshot.
+				const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100000);
 
-				// Studio environment (image-based lighting) + a shadow-casting key
-				// light and a cool rim so machined surfaces read crisp, not flat.
+				// Studio rig, pushed: image-based lighting (RoomEnvironment) under a
+				// strong shadow-casting key, a bright steel-cyan rim wrapping the
+				// silhouette from behind, and a low fill so shadows stay readable.
 				const pmrem = new THREE.PMREMGenerator(renderer);
 				const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 				scene.environment = envTex;
-				const key = new THREE.DirectionalLight(0xffffff, 1.4);
+				scene.environmentRotation.set(0, Math.PI / 4, 0);
+				const key = new THREE.DirectionalLight(0xf2f6fa, 2.0);
 				key.castShadow = true;
-				key.shadow.mapSize.set(1024, 1024);
+				key.shadow.mapSize.set(2048, 2048);
+				key.shadow.radius = 4;
 				scene.add(key);
-				const rim = new THREE.DirectionalLight(0x88ddff, 0.35);
-				rim.position.set(-1, -0.4, -1);
+				const rim = new THREE.DirectionalLight(0x88ddff, 1.1);
+				rim.position.set(-1, 0.35, -1.2);
 				scene.add(rim);
-				scene.add(new THREE.HemisphereLight(0xdfeaf2, 0x0a1014, 0.35));
+				const fill = new THREE.DirectionalLight(0x9fb6c9, 0.4);
+				fill.position.set(-0.8, -0.5, 1);
+				scene.add(fill);
+				scene.add(new THREE.HemisphereLight(0xdfeaf2, 0x0a1014, 0.22));
 
 				const controls = new OrbitControls(camera, renderer.domElement);
 				controls.enableDamping = true;
@@ -87,11 +99,15 @@
 				}
 
 				geometry.computeVertexNormals();
-				const material = new THREE.MeshStandardMaterial({
-					color: 0xaab4bd,
-					metalness: 0.35,
-					roughness: 0.42,
-					envMapIntensity: 0.9,
+				// Machined metal: high metalness with a soft clearcoat, so faces
+				// pick up real environment reflections and edges catch the rim.
+				const material = new THREE.MeshPhysicalMaterial({
+					color: 0xb0bcc7,
+					metalness: 0.88,
+					roughness: 0.3,
+					clearcoat: 0.3,
+					clearcoatRoughness: 0.35,
+					envMapIntensity: 1.25,
 					flatShading: false
 				});
 				const mesh = new THREE.Mesh(geometry, material);
@@ -110,8 +126,10 @@
 
 				const radius = (geometry.boundingSphere as any)?.radius || 1;
 				const fov = (camera.fov * Math.PI) / 180;
-				const dist = (radius / Math.sin(fov / 2)) * 1.15;
-				camera.position.set(dist * 0.7, dist * 0.5, dist * 0.9);
+				const dist = (radius / Math.sin(fov / 2)) * 1.06;
+				// 3/4 hero framing: a touch above eye level, tight in the frame.
+				const dir = new THREE.Vector3(1, 0.72, 1.15).normalize();
+				camera.position.copy(dir.multiplyScalar(dist));
 				camera.near = Math.max(dist / 1000, 0.01);
 				camera.far = dist * 1000;
 				camera.updateProjectionMatrix();
@@ -129,22 +147,17 @@
 				key.shadow.camera.far = radius * 8;
 				key.shadow.camera.updateProjectionMatrix();
 
-				// Soft contact shadow + a faint steel reference grid under the part
-				// (pedestal presentation; the part itself stays untouched).
+				// Soft contact shadow on a clean backdrop (the CSS pool-of-light
+				// stage). No pedestal grid: the part is the only geometry in frame.
 				const floorY = box.min.y - center.y - radius * 0.02;
 				const ground = new THREE.Mesh(
 					new THREE.PlaneGeometry(radius * 10, radius * 10),
-					new THREE.ShadowMaterial({ opacity: 0.26 })
+					new THREE.ShadowMaterial({ opacity: 0.32 })
 				);
 				ground.rotation.x = -Math.PI / 2;
 				ground.position.y = floorY;
 				ground.receiveShadow = true;
 				scene.add(ground);
-				const grid = new THREE.GridHelper(radius * 6, 18, 0x3b6e8f, 0x3b6e8f);
-				(grid.material as any).transparent = true;
-				(grid.material as any).opacity = 0.14;
-				grid.position.y = floorY;
-				scene.add(grid);
 
 				loading = false;
 
@@ -174,8 +187,6 @@
 					material.dispose();
 					ground.geometry.dispose();
 					(ground.material as any).dispose();
-					grid.geometry.dispose();
-					(grid.material as any).dispose();
 					envTex.dispose();
 					pmrem.dispose();
 					renderer.dispose();

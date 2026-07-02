@@ -9,7 +9,7 @@
 
 .gt-root {
 	/* --- Surfaces --- */
-	--void: #04070a; /* page base: cooled graphite-black (canvas paints it) */
+	--void: #04070a; /* page base: cooled graphite-black (also the WebGL clear color) */
 	--panel: #0a1014; /* cards and panels */
 	--panel-2: #0e161b; /* inputs, header bars, inset chrome */
 
@@ -17,7 +17,7 @@
 	--green: #00ff41; /* primary; MODELING family */
 	--cyan: #00f0ff; /* KNOWLEDGE family */
 	--lime: #c8ff00; /* gold-green accent: hover shift, callouts */
-	--steel: #3b6e8f; /* ambient viewport light (grid floor, fog) */
+	--steel: #3b6e8f; /* ambient viewport light (fog, particulate) */
 	--crimson: #ff3355; /* RESERVED: live/rec/error states ONLY */
 
 	/* --- Origin triad --- */
@@ -55,6 +55,10 @@
 	--line-strong: rgba(0, 255, 65, 0.4);
 	--font-display: var(--font-body);
 	--font-mono: var(--font-data);
+
+	/* Solid void base: stands alone while the volumetric scene loads (and if
+	   WebGL is unavailable, when the canvas stays empty). */
+	background: var(--void);
 }
 
 /* Page content paints above the ViewportBackground canvas (z 0), and above the
@@ -68,7 +72,8 @@
 }
 
 /* Ambient vignette over the canvas: steel light pooling upper-right (around
-   the wireframe part), a green wash lower-left, darkened corners for depth. */
+   the hero part), a green wash lower-left, a center content scrim that quiets
+   the volumetric scene under the page column, darkened corners for depth. */
 .gt-root .gt-vignette {
 	position: fixed;
 	inset: 0;
@@ -77,6 +82,7 @@
 	background:
 		radial-gradient(120% 90% at 78% 8%, rgba(59, 110, 143, 0.16), transparent 55%),
 		radial-gradient(110% 80% at 12% 100%, rgba(0, 255, 65, 0.1), transparent 55%),
+		radial-gradient(90% 100% at 50% 58%, rgba(4, 7, 10, 0.5), transparent 60%),
 		radial-gradient(140% 120% at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
 }
 
@@ -162,7 +168,7 @@
 		.code-box,
 		.result-banner,
 		.drawing-frame,
-		.preview-toggle,
+		.stl-viewer,
 		.practice,
 		.challenge-row,
 		.supervised-note,
@@ -388,6 +394,14 @@
 /* Loading copy breathes like the key readouts, so waits read as alive. */
 .gt-root .gauntlet .stl-overlay .dim {
 	animation: gt-breathe 2.6s ease-in-out infinite;
+}
+/* The 3D preview stage: a deep pool of steel light behind the machined part,
+   so the metal reads against depth rather than a flat panel. */
+.gt-root .gauntlet .stl-viewer {
+	background:
+		radial-gradient(110% 90% at 50% 0%, rgba(59, 110, 143, 0.18), transparent 62%),
+		linear-gradient(180deg, #0c141a, var(--void) 85%);
+	border-color: var(--line);
 }
 
 /* --- Progression layer: XP bar, streak, rings, dots, badges, PB flourish --- */

@@ -3,402 +3,371 @@
 	import { prefersReducedMotion, isCoarsePointer } from './motion';
 
 	/**
-	 * VIEWPORT ambient scene: a fixed full-viewport canvas behind all GAUNTLET
-	 * content. Receding isometric grid floor (steel, fog fade), a slowly
-	 * orbiting wireframe part upper-right (three machined geometries cycle with
-	 * a fade for variety: hex boss, stepped flange, L-bracket), an origin triad
-	 * bottom-left, gentle mouse parallax (the part moves more than the grid,
-	 * which reads as depth), and a center scrim so the scene never fights the
-	 * foreground content. Purely decorative: pointer-events none, aria-hidden,
-	 * single rAF loop paused when the tab is hidden, one static frame under
-	 * reduced motion.
+	 * VIEWPORT ambient scene: a volumetric CAD space behind all GAUNTLET content.
+	 * A real three.js scene on the graphite-black base: a floating hero machined
+	 * part (solid PBR metal with a faint green tessellation-edge overlay; three
+	 * geometries from hero-parts.ts cycle with ~26s fades), studio-ish key/rim
+	 * lighting over a RoomEnvironment map, exponential fog for depth falloff,
+	 * fine drifting particulate at several depths plus a few oversized soft
+	 * bokeh motes near the lens, gentle mouse parallax via camera offset, and a
+	 * slight CSS soft-focus on the canvas so the whole scene reads as a
+	 * defocused backdrop that never competes with foreground text (the content
+	 * scrim lives in .gt-vignette). The old scrolling isometric grid is retired;
+	 * do not reintroduce it.
+	 *
+	 * Purely decorative: pointer-events none, aria-hidden, single rAF loop
+	 * paused when the tab is hidden, one static frame under reduced motion, and
+	 * a silent fallback to the flat void base if WebGL is unavailable. three is
+	 * browser-only, so every import is dynamic inside onMount (SSR-safe).
 	 */
 
 	let canvas: HTMLCanvasElement;
 
 	onMount(() => {
-		const ctx = canvas.getContext('2d');
-		if (!ctx) return;
+		let disposed = false;
+		let cleanup: (() => void) | null = null;
 
-		const styles = getComputedStyle(canvas);
-		const token = (name: string, fallback: string) =>
-			styles.getPropertyValue(name).trim() || fallback;
-		const VOID = token('--void', '#04070a');
-		const LIME = token('--lime', '#c8ff00');
-		const AX_X = token('--ax-x', '#ff4d57');
-		const AX_Y = token('--ax-y', '#00ff41');
-		const AX_Z = token('--ax-z', '#3f8cff');
-		// --steel / --green as rgb components for alpha-composed strokes.
-		const STEEL_RGB = '59, 110, 143';
-		const GREEN_RGB = '0, 255, 65';
-
-		const reduced = prefersReducedMotion();
-		const still = reduced; // one static frame, no loop, no parallax
-
-		let W = 0;
-		let H = 0;
-		let raf = 0;
-		// Parallax: target from the mouse, eased actual offset.
-		let tx = 0;
-		let ty = 0;
-		let ox = 0;
-		let oy = 0;
-
-		const resize = () => {
-			const dpr = Math.min(window.devicePixelRatio || 1, 2);
-			W = window.innerWidth;
-			H = window.innerHeight;
-			canvas.width = Math.round(W * dpr);
-			canvas.height = Math.round(H * dpr);
-			ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-			if (still) draw(6000);
-		};
-
-		const onMouse = (e: MouseEvent) => {
-			tx = (e.clientX / W - 0.5) * 2;
-			ty = (e.clientY / H - 0.5) * 2;
-		};
-
-		/** Project a 3D point (already rotated) with weak perspective. */
-		const project = (x: number, y: number, z: number, cx: number, cy: number) => {
-			const f = 520;
-			const s = f / (f + z);
-			return { x: cx + x * s, y: cy + y * s, s, z };
-		};
-
-		// -------------------------------------------------------------------
-		// Wireframe part library. Unit-space geometry (roughly -1..1), scaled
-		// at draw time. `edges` carry a weight so bores/details read fainter;
-		// `dots` are the lime vertex indices.
-		// -------------------------------------------------------------------
-		type V3 = [number, number, number];
-		interface PartGeo {
-			verts: V3[];
-			edges: [number, number, number][]; // [a, b, weight]
-			dots: number[];
-		}
-
-		const ngon = (n: number, r: number, y: number, out: V3[]): number[] => {
-			const idx: number[] = [];
-			for (let i = 0; i < n; i++) {
-				const a = (i * 2 * Math.PI) / n;
-				idx.push(out.length);
-				out.push([r * Math.cos(a), y, r * Math.sin(a)]);
+		(async () => {
+			let THREE: typeof import('three');
+			let renderer: import('three').WebGLRenderer;
+			try {
+				THREE = await import('three');
+				if (disposed || !canvas) return;
+				renderer = new THREE.WebGLRenderer({
+					canvas,
+					antialias: true,
+					alpha: false,
+					powerPreference: 'low-power'
+				});
+			} catch {
+				// No WebGL (or three failed to load): the CSS void base + vignette
+				// stand alone as the background.
+				return;
 			}
-			return idx;
-		};
-		const ring = (
-			idx: number[],
-			w: number,
-			edges: [number, number, number][]
-		) => {
-			for (let i = 0; i < idx.length; i++) edges.push([idx[i], idx[(i + 1) % idx.length], w]);
-		};
-		const struts = (
-			a: number[],
-			b: number[],
-			w: number,
-			edges: [number, number, number][],
-			every = 1
-		) => {
-			for (let i = 0; i < a.length; i += every) edges.push([a[i], b[i], w]);
-		};
-
-		/** Machined hex boss with a center bore (the original part). */
-		const hexBoss = (): PartGeo => {
-			const verts: V3[] = [];
-			const edges: [number, number, number][] = [];
-			const top = ngon(6, 1, -0.58, verts);
-			const bot = ngon(6, 1, 0.58, verts);
-			const boreT = ngon(6, 0.42, -0.58, verts);
-			const boreB = ngon(6, 0.42, 0.58, verts);
-			ring(top, 1, edges);
-			ring(bot, 1, edges);
-			struts(top, bot, 1, edges);
-			ring(boreT, 0.55, edges);
-			ring(boreB, 0.55, edges);
-			struts(boreT, boreB, 0.55, edges);
-			return { verts, edges, dots: [...top, ...bot] };
-		};
-
-		/** Stepped flange: wide disc, narrower shaft, small top bore. */
-		const steppedFlange = (): PartGeo => {
-			const verts: V3[] = [];
-			const edges: [number, number, number][] = [];
-			const discB = ngon(12, 1, 0.55, verts);
-			const discT = ngon(12, 1, 0.18, verts);
-			const shaftB = ngon(10, 0.45, 0.18, verts);
-			const shaftT = ngon(10, 0.45, -0.62, verts);
-			const bore = ngon(8, 0.2, -0.62, verts);
-			ring(discB, 1, edges);
-			ring(discT, 1, edges);
-			struts(discB, discT, 0.8, edges, 2);
-			ring(shaftB, 0.85, edges);
-			ring(shaftT, 1, edges);
-			struts(shaftB, shaftT, 0.7, edges, 2);
-			ring(bore, 0.5, edges);
-			return { verts, edges, dots: [...discT, ...shaftT] };
-		};
-
-		/** L-bracket: an L profile extruded through z. */
-		const lBracket = (): PartGeo => {
-			const profile: [number, number][] = [
-				[-0.95, 0.7],
-				[0.95, 0.7],
-				[0.95, 0.25],
-				[-0.15, 0.25],
-				[-0.15, -0.85],
-				[-0.95, -0.85]
-			];
-			const verts: V3[] = [];
-			const edges: [number, number, number][] = [];
-			const front: number[] = [];
-			const back: number[] = [];
-			for (const [x, y] of profile) {
-				front.push(verts.length);
-				verts.push([x, y, -0.42]);
+			const { mergeGeometries } = await import('three/examples/jsm/utils/BufferGeometryUtils.js');
+			const { RoomEnvironment } = await import('three/examples/jsm/environments/RoomEnvironment.js');
+			const { heroPartGeometries } = await import('./hero-parts');
+			if (disposed) {
+				renderer.dispose();
+				return;
 			}
-			for (const [x, y] of profile) {
-				back.push(verts.length);
-				verts.push([x, y, 0.42]);
-			}
-			ring(front, 1, edges);
-			ring(back, 1, edges);
-			struts(front, back, 0.8, edges);
-			// Bolt slot on the base plate (a faint rectangle detail).
-			const slot: V3[] = [
-				[0.25, 0.7, -0.18],
-				[0.7, 0.7, -0.18],
-				[0.7, 0.7, 0.18],
-				[0.25, 0.7, 0.18]
-			];
-			const slotIdx = slot.map((v) => {
-				verts.push(v);
-				return verts.length - 1;
+
+			const styles = getComputedStyle(canvas);
+			const token = (name: string, fallback: string) =>
+				styles.getPropertyValue(name).trim() || fallback;
+			const VOID = new THREE.Color(token('--void', '#04070a'));
+			const GREEN = new THREE.Color(token('--green', '#00ff41'));
+
+			const reduced = prefersReducedMotion();
+
+			renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+			renderer.outputColorSpace = THREE.SRGBColorSpace;
+			renderer.toneMapping = THREE.ACESFilmicToneMapping;
+			renderer.toneMappingExposure = 0.95;
+			renderer.setClearColor(VOID, 1);
+
+			const scene = new THREE.Scene();
+			// Exponential fog: the depth falloff that makes the space read as deep.
+			scene.fog = new THREE.FogExp2(VOID, 0.045);
+
+			const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 80);
+			camera.position.set(0, 0, 10);
+
+			// Studio-ish rig: cool key, steel-cyan rim, a faint green brand wash
+			// from below, over an environment map so the metal actually reflects.
+			const pmrem = new THREE.PMREMGenerator(renderer);
+			const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+			scene.environment = envTex;
+			const key = new THREE.DirectionalLight(0xdfeaf2, 1.15);
+			key.position.set(3, 6, 4);
+			scene.add(key);
+			const rim = new THREE.DirectionalLight(0x88ddff, 0.9);
+			rim.position.set(-4, 1, -6);
+			scene.add(rim);
+			const wash = new THREE.DirectionalLight(GREEN, 0.22);
+			wash.position.set(-2, -3, 2);
+			scene.add(wash);
+
+			// ---------------------------------------------------------------
+			// Hero parts: solid machined metal + a faint green edge overlay.
+			// One group per part; the active one fades via material opacity.
+			// ---------------------------------------------------------------
+			const metal = new THREE.MeshStandardMaterial({
+				color: 0x8fa3b0,
+				metalness: 0.85,
+				roughness: 0.35,
+				envMapIntensity: 0.9,
+				transparent: true,
+				opacity: 0,
+				// Push faces back a hair so the coplanar green edge overlay wins
+				// the depth test instead of z-fighting into invisibility.
+				polygonOffset: true,
+				polygonOffsetFactor: 1,
+				polygonOffsetUnits: 1
 			});
-			ring(slotIdx, 0.45, edges);
-			return { verts, edges, dots: front };
-		};
-
-		const PARTS: PartGeo[] = [hexBoss(), steppedFlange(), lBracket()];
-		const CYCLE = 26000; // ms per part
-		const FADE = 2200; // fade in/out at each end of a cycle
-		const easeInOut = (t: number) => t * t * (3 - 2 * t);
-
-		const wirePart = (time: number) => {
-			// Which part, and its fade envelope inside this cycle.
-			const idx = still ? 0 : Math.floor(time / CYCLE) % PARTS.length;
-			const phase = still ? CYCLE / 2 : time % CYCLE;
-			const envelope = still
-				? 1
-				: phase < FADE
-					? easeInOut(phase / FADE)
-					: phase > CYCLE - FADE
-						? easeInOut((CYCLE - phase) / FADE)
-						: 1;
-			if (envelope <= 0.01) return;
-			const part = PARTS[idx];
-
-			// Part parallax is stronger than the grid's: reads as the nearest layer.
-			const cx = W * 0.78 + ox * 22;
-			const cy = H * 0.24 + oy * 16;
-			const r = Math.min(W, H) * 0.115;
-			const theta = still ? 0.6 : time * 0.00022;
-			const tilt = -0.5;
-			const cosT = Math.cos(theta);
-			const sinT = Math.sin(theta);
-			const cosF = Math.cos(tilt);
-			const sinF = Math.sin(tilt);
-
-			const proj = part.verts.map(([px, py, pz]) => {
-				const x0 = px * r;
-				const y0 = py * r;
-				const z0 = pz * r;
-				// Rotate around Y (orbit), then around X (viewing tilt).
-				const x1 = x0 * cosT + z0 * sinT;
-				const z1 = -x0 * sinT + z0 * cosT;
-				const y1 = y0 * cosF - z1 * sinF;
-				const z2 = y0 * sinF + z1 * cosF;
-				return project(x1, y1, z2, cx, cy);
+			const edgeMat = new THREE.LineBasicMaterial({
+				color: GREEN,
+				transparent: true,
+				opacity: 0
+			});
+			const geos = heroPartGeometries(THREE, mergeGeometries);
+			const anchor = new THREE.Group();
+			scene.add(anchor);
+			const groups = geos.map((geo) => {
+				const g = new THREE.Group();
+				const mesh = new THREE.Mesh(geo, metal);
+				g.add(mesh);
+				const edges = new THREE.EdgesGeometry(geo, 28);
+				g.add(new THREE.LineSegments(edges, edgeMat));
+				g.visible = false;
+				anchor.add(g);
+				return { group: g, edges };
 			});
 
-			// Ambient halo behind the part: a pool of light it appears to sit in.
-			const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.6);
-			halo.addColorStop(0, `rgba(${STEEL_RGB}, ${0.09 * envelope})`);
-			halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
-			ctx.fillStyle = halo;
-			ctx.fillRect(cx - r * 3, cy - r * 3, r * 6, r * 6);
+			// ---------------------------------------------------------------
+			// Particulate: fine dust across the volume (fog fades the deep
+			// layer), plus a few oversized soft motes near the lens that read
+			// as out-of-focus bokeh, selling the depth of field.
+			// ---------------------------------------------------------------
+			const softTex = (() => {
+				const c = document.createElement('canvas');
+				c.width = c.height = 64;
+				const g = c.getContext('2d')!;
+				const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+				grad.addColorStop(0, 'rgba(255,255,255,1)');
+				grad.addColorStop(0.4, 'rgba(255,255,255,0.5)');
+				grad.addColorStop(1, 'rgba(255,255,255,0)');
+				g.fillStyle = grad;
+				g.fillRect(0, 0, 64, 64);
+				return new THREE.CanvasTexture(c);
+			})();
 
-			// Depth cue: nearer edges brighter AND wider; far edges thin + faint.
-			const depthAlpha = (z: number) => Math.max(0.06, 0.5 - (z / r) * 0.3);
-			for (const [a, b, w] of part.edges) {
-				const pa = proj[a];
-				const pb = proj[b];
-				const zAvg = (pa.z + pb.z) / 2;
-				const alpha = depthAlpha(zAvg) * w * envelope;
-				const near = 1 - Math.min(1, Math.max(0, (zAvg / r + 1) / 2)); // 1 near, 0 far
-				// Two-pass stroke: a wide faint pass reads as glow without shadowBlur.
-				ctx.strokeStyle = `rgba(${GREEN_RGB}, ${alpha * 0.14})`;
-				ctx.lineWidth = 3 + near * 2;
-				ctx.beginPath();
-				ctx.moveTo(pa.x, pa.y);
-				ctx.lineTo(pb.x, pb.y);
-				ctx.stroke();
-				ctx.strokeStyle = `rgba(${GREEN_RGB}, ${alpha})`;
-				ctx.lineWidth = 0.8 + near * 0.8;
-				ctx.beginPath();
-				ctx.moveTo(pa.x, pa.y);
-				ctx.lineTo(pb.x, pb.y);
-				ctx.stroke();
-			}
-			// Lime vertices, brighter toward the viewer.
-			for (const di of part.dots) {
-				const p = proj[di];
-				ctx.fillStyle = LIME;
-				ctx.globalAlpha = Math.max(0.1, (0.7 - (p.z / r) * 0.4) * envelope);
-				ctx.beginPath();
-				ctx.arc(p.x, p.y, 1.6 + (1 - p.z / r) * 0.5, 0, Math.PI * 2);
-				ctx.fill();
-			}
-			ctx.globalAlpha = 1;
-		};
-
-		const gridFloor = (time: number) => {
-			const horizon = H * 0.42 + oy * 6;
-			const vpx = W / 2 + ox * 26;
-			// Ambient steel light pooling at the horizon.
-			const glow = ctx.createRadialGradient(vpx, horizon, 0, vpx, horizon, W * 0.55);
-			glow.addColorStop(0, `rgba(${STEEL_RGB}, 0.10)`);
-			glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
-			ctx.fillStyle = glow;
-			ctx.fillRect(0, 0, W, H);
-
-			// Transverse lines, drifting slowly toward the viewer.
-			const drift = still ? 0 : (time * 0.00006) % (1 / 14);
-			for (let i = 0; i <= 14; i++) {
-				const t = i / 14 + drift;
-				if (t > 1.02) continue;
-				const y = horizon + (H - horizon) * Math.pow(t, 2.4);
-				const alpha = 0.04 + 0.22 * t; // fog fade near the horizon
-				ctx.strokeStyle = `rgba(${STEEL_RGB}, ${alpha})`;
-				ctx.lineWidth = 1;
-				ctx.beginPath();
-				ctx.moveTo(0, y);
-				ctx.lineTo(W, y);
-				ctx.stroke();
-			}
-			// Radial lines fanning from the vanishing point.
-			for (let k = -10; k <= 10; k++) {
-				const xb = W / 2 + k * (W / 8);
-				const grad = ctx.createLinearGradient(vpx, horizon, xb, H);
-				grad.addColorStop(0, `rgba(${STEEL_RGB}, 0)`);
-				grad.addColorStop(1, `rgba(${STEEL_RGB}, 0.22)`);
-				ctx.strokeStyle = grad;
-				ctx.lineWidth = 1;
-				ctx.beginPath();
-				ctx.moveTo(vpx, horizon);
-				ctx.lineTo(xb, H);
-				ctx.stroke();
-			}
-		};
-
-		const originTriad = () => {
-			const bx = 74 + ox * 4;
-			const by = H - 78 + oy * 4;
-			ctx.lineWidth = 1.6;
-			ctx.font = '10px "Share Tech Mono", monospace';
-			const axis = (dx: number, dy: number, color: string, label: string) => {
-				ctx.strokeStyle = color;
-				ctx.fillStyle = color;
-				ctx.globalAlpha = 0.85;
-				ctx.beginPath();
-				ctx.moveTo(bx, by);
-				ctx.lineTo(bx + dx, by + dy);
-				ctx.stroke();
-				ctx.fillText(label, bx + dx * 1.28 - 3, by + dy * 1.28 + 3);
-				ctx.globalAlpha = 1;
+			const makeCloud = (
+				count: number,
+				range: { x: number; y: number; z: [number, number] },
+				size: number,
+				color: number,
+				opacity: number
+			) => {
+				const pos = new Float32Array(count * 3);
+				const vel = new Float32Array(count);
+				for (let i = 0; i < count; i++) {
+					pos[i * 3] = (Math.random() * 2 - 1) * range.x;
+					pos[i * 3 + 1] = (Math.random() * 2 - 1) * range.y;
+					pos[i * 3 + 2] = range.z[0] + Math.random() * (range.z[1] - range.z[0]);
+					vel[i] = 0.05 + Math.random() * 0.12;
+				}
+				const geo = new THREE.BufferGeometry();
+				geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+				const mat = new THREE.PointsMaterial({
+					color,
+					size,
+					map: softTex,
+					transparent: true,
+					opacity,
+					sizeAttenuation: true,
+					depthWrite: false,
+					blending: THREE.AdditiveBlending
+				});
+				const pts = new THREE.Points(geo, mat);
+				scene.add(pts);
+				return { geo, mat, pos, vel, count, yRange: range.y };
 			};
-			axis(40, 15, AX_X, 'X');
-			axis(0, -44, AX_Y, 'Y');
-			axis(-30, 18, AX_Z, 'Z');
-			ctx.fillStyle = `rgba(${GREEN_RGB}, 0.9)`;
-			ctx.beginPath();
-			ctx.arc(bx, by, 2.4, 0, Math.PI * 2);
-			ctx.fill();
-		};
+			const dust = makeCloud(420, { x: 14, y: 7, z: [-18, 4] }, 0.11, 0x9fd8ff, 0.55);
+			const motes = makeCloud(14, { x: 9, y: 5, z: [4, 7.5] }, 2.4, 0x88ddff, 0.07);
+			const clouds = [dust, motes];
 
-		/**
-		 * Content scrim: quiet the scene where the page column sits so the
-		 * background never competes with foreground text. Painted into the
-		 * canvas itself (behind the CSS vignette), centered on the content.
-		 */
-		const contentScrim = () => {
-			const grad = ctx.createRadialGradient(
-				W * 0.5,
-				H * 0.58,
-				0,
-				W * 0.5,
-				H * 0.58,
-				Math.max(W, H) * 0.55
-			);
-			grad.addColorStop(0, 'rgba(4, 7, 10, 0.5)');
-			grad.addColorStop(1, 'rgba(4, 7, 10, 0)');
-			ctx.fillStyle = grad;
-			ctx.fillRect(0, 0, W, H);
-		};
+			// ---------------------------------------------------------------
+			// Layout + loop.
+			// ---------------------------------------------------------------
+			const CYCLE = 26000; // ms per part
+			const FADE = 2200; // fade in/out at each end of a cycle
+			const easeInOut = (t: number) => t * t * (3 - 2 * t);
 
-		const draw = (time: number) => {
-			ctx.fillStyle = VOID;
-			ctx.fillRect(0, 0, W, H);
-			gridFloor(time);
-			wirePart(time);
-			contentScrim();
-			originTriad();
-		};
+			let W = 0;
+			let H = 0;
+			let raf = 0;
+			// Parallax: target from the mouse, eased actual offset.
+			let tx = 0;
+			let ty = 0;
+			let ox = 0;
+			let oy = 0;
+			let last = 0;
 
-		const loop = (time: number) => {
-			ox += (tx - ox) * 0.04;
-			oy += (ty - oy) * 0.04;
-			draw(time);
-			raf = requestAnimationFrame(loop);
-		};
+			const layout = () => {
+				W = window.innerWidth;
+				H = window.innerHeight;
+				renderer.setSize(W, H, false);
+				camera.aspect = W / H;
+				camera.updateProjectionMatrix();
+				// Anchor the part upper-right (out of the content column), sized
+				// like the old wireframe: a modest presence, not a centerpiece.
+				const halfH = Math.tan((camera.fov * Math.PI) / 360) * 11.5; // at part depth
+				const halfW = halfH * camera.aspect;
+				anchor.position.set(halfW * 0.56, halfH * 0.5, -1.5);
+				const s = Math.min(halfH, halfW) * 0.3;
+				anchor.scale.setScalar(s);
+			};
 
-		const onVisibility = () => {
-			if (still) return;
-			if (document.hidden) {
+			const onMouse = (e: MouseEvent) => {
+				tx = (e.clientX / W - 0.5) * 2;
+				ty = (e.clientY / H - 0.5) * 2;
+			};
+
+			const draw = (time: number) => {
+				// Which part, and its fade envelope inside this cycle.
+				const idx = reduced ? 0 : Math.floor(time / CYCLE) % groups.length;
+				const phase = reduced ? CYCLE / 2 : time % CYCLE;
+				const envelope = reduced
+					? 1
+					: phase < FADE
+						? easeInOut(phase / FADE)
+						: phase > CYCLE - FADE
+							? easeInOut((CYCLE - phase) / FADE)
+							: 1;
+				groups.forEach((g, i) => (g.group.visible = i === idx && envelope > 0.01));
+				metal.opacity = envelope;
+				edgeMat.opacity = 0.5 * envelope;
+
+				const active = groups[idx].group;
+				active.rotation.y = reduced ? 0.7 : time * 0.00022;
+				active.rotation.x = -0.28;
+				active.position.y = reduced ? 0 : Math.sin(time * 0.0004) * 0.06;
+
+				camera.position.x = ox * 0.5;
+				camera.position.y = -oy * 0.32;
+				camera.lookAt(0, 0, 0);
+
+				renderer.render(scene, camera);
+			};
+
+			const drift = (dt: number) => {
+				for (const c of clouds) {
+					for (let i = 0; i < c.count; i++) {
+						let y = c.pos[i * 3 + 1] + c.vel[i] * dt * 0.001;
+						if (y > c.yRange) y = -c.yRange;
+						c.pos[i * 3 + 1] = y;
+					}
+					c.geo.attributes.position.needsUpdate = true;
+				}
+			};
+
+			const loop = (time: number) => {
+				const dt = last ? Math.min(time - last, 100) : 16;
+				last = time;
+				ox += (tx - ox) * 0.04;
+				oy += (ty - oy) * 0.04;
+				drift(dt);
+				draw(time);
+				raf = requestAnimationFrame(loop);
+			};
+
+			const onVisibility = () => {
+				if (reduced) return;
+				if (document.hidden) {
+					cancelAnimationFrame(raf);
+					raf = 0;
+				} else if (!raf) {
+					last = 0;
+					raf = requestAnimationFrame(loop);
+				}
+			};
+
+			const onResize = () => {
+				layout();
+				if (reduced) draw(0);
+			};
+
+			// If the GPU context is lost, stop; resume drawing when it returns.
+			const onLost = (e: Event) => {
+				e.preventDefault();
 				cancelAnimationFrame(raf);
 				raf = 0;
-			} else if (!raf) {
+			};
+			const onRestored = () => {
+				if (!reduced && !raf) raf = requestAnimationFrame(loop);
+				else if (reduced) draw(0);
+			};
+
+			layout();
+			window.addEventListener('resize', onResize);
+			canvas.addEventListener('webglcontextlost', onLost);
+			canvas.addEventListener('webglcontextrestored', onRestored);
+			if (reduced) {
+				draw(0); // one static frame: no loop, no parallax, no drift
+			} else {
+				if (!isCoarsePointer()) window.addEventListener('mousemove', onMouse);
+				document.addEventListener('visibilitychange', onVisibility);
 				raf = requestAnimationFrame(loop);
 			}
-		};
 
-		resize();
-		window.addEventListener('resize', resize);
-		if (!still) {
-			if (!isCoarsePointer()) window.addEventListener('mousemove', onMouse);
-			document.addEventListener('visibilitychange', onVisibility);
-			raf = requestAnimationFrame(loop);
-		}
+			cleanup = () => {
+				cancelAnimationFrame(raf);
+				window.removeEventListener('resize', onResize);
+				window.removeEventListener('mousemove', onMouse);
+				document.removeEventListener('visibilitychange', onVisibility);
+				canvas.removeEventListener('webglcontextlost', onLost);
+				canvas.removeEventListener('webglcontextrestored', onRestored);
+				geos.forEach((g) => g.dispose());
+				groups.forEach((g) => g.edges.dispose());
+				clouds.forEach((c) => {
+					c.geo.dispose();
+					c.mat.dispose();
+				});
+				softTex.dispose();
+				metal.dispose();
+				edgeMat.dispose();
+				envTex.dispose();
+				pmrem.dispose();
+				renderer.dispose();
+			};
+		})();
 
 		return () => {
-			cancelAnimationFrame(raf);
-			window.removeEventListener('resize', resize);
-			window.removeEventListener('mousemove', onMouse);
-			document.removeEventListener('visibilitychange', onVisibility);
+			disposed = true;
+			cleanup?.();
 		};
 	});
 </script>
 
-<canvas class="gt-viewport-bg" bind:this={canvas} aria-hidden="true"></canvas>
+<div class="gt-viewport-bg" aria-hidden="true">
+	<canvas bind:this={canvas}></canvas>
+	<!-- Origin triad: crisp SVG overlay, outside the canvas soft-focus. -->
+	<svg class="gt-triad" viewBox="0 0 120 110" width="120" height="110">
+		<g stroke-width="1.6" font-family="'Share Tech Mono', monospace" font-size="10">
+			<line x1="44" y1="72" x2="84" y2="87" stroke="var(--ax-x, #ff4d57)" />
+			<text x="90" y="93" fill="var(--ax-x, #ff4d57)">X</text>
+			<line x1="44" y1="72" x2="44" y2="28" stroke="var(--ax-y, #00ff41)" />
+			<text x="41" y="20" fill="var(--ax-y, #00ff41)">Y</text>
+			<line x1="44" y1="72" x2="14" y2="90" stroke="var(--ax-z, #3f8cff)" />
+			<text x="4" y="99" fill="var(--ax-z, #3f8cff)">Z</text>
+			<circle cx="44" cy="72" r="2.4" fill="var(--green, #00ff41)" stroke="none" />
+		</g>
+	</svg>
+</div>
 
 <style>
 	.gt-viewport-bg {
 		position: fixed;
 		inset: 0;
 		z-index: 0;
-		width: 100vw;
-		height: 100vh;
 		pointer-events: none;
+		overflow: hidden;
+	}
+	.gt-viewport-bg canvas {
+		display: block;
+		width: 100%;
+		height: 100%;
+		/* Gentle depth of field: the whole backdrop sits just out of focus, so
+		   foreground content always reads sharper than the space behind it.
+		   Slightly oversized so the blur never bleeds a bright edge. */
+		filter: blur(1.5px) saturate(1.05);
+		transform: scale(1.02);
+	}
+	.gt-triad {
+		position: absolute;
+		left: 30px;
+		bottom: 30px;
+		opacity: 0.85;
 	}
 </style>

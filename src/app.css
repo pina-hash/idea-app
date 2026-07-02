@@ -1288,28 +1288,8 @@ a:hover {
 .gauntlet .drawing-zoom:focus-visible .zoom-hint {
 	opacity: 1;
 }
-/* The 3D preview is shape-only decoration, demoted to a collapsible toggle. */
-.gauntlet .preview-toggle {
-	border: 1px solid var(--line);
-	border-radius: 3px;
-	background: var(--bg1);
-}
-.gauntlet .preview-toggle > summary {
-	cursor: pointer;
-	list-style: none;
-	padding: 0.5rem 0.8rem;
-	font-family: var(--font-mono);
-	font-size: 0.62rem;
-	letter-spacing: 0.14em;
-	text-transform: uppercase;
-	color: var(--cyan);
-}
-.gauntlet .preview-toggle > summary::-webkit-details-marker {
-	display: none;
-}
-.gauntlet .preview-toggle[open] > summary {
-	border-bottom: 1px solid var(--line);
-}
+/* The 3D preview is always visible (no toggle): shape-only, so it gives away
+   nothing, and it makes the part instantly readable before Start. */
 .gauntlet .stl-viewer {
 	position: relative;
 	width: 100%;

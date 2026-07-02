@@ -53,6 +53,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			targetMass: framing.target_mass ?? null,
 			massUnit: framing.mass_unit ?? 'g',
 			demo: framing.demo === true,
+			// Storage path of the shape-only STL: the client renders (and caches)
+			// the tile's isometric thumbnail from it, signing a URL only on miss.
+			modelPath: framing.model_path ?? null,
 			seriesId: (c.series_id ?? null) as string | null,
 			seriesOrder: (c.series_order ?? null) as number | null,
 			cleared: best !== undefined,

@@ -40,7 +40,7 @@ Accents:
 | `--green` | `#00FF41` | primary; the MODELING family color |
 | `--cyan` | `#00F0FF` | the KNOWLEDGE family color |
 | `--lime` | `#C8FF00` | gold-green accent: hover shift, callouts |
-| `--steel` | `#3B6E8F` | ambient viewport light (grid floor, fog) |
+| `--steel` | `#3B6E8F` | ambient viewport light (fog, particulate) |
 | `--crimson` | `#FF3355` | **RESERVED: live/rec/error states ONLY.** Never a general accent. |
 | `--ax-x` / `--ax-y` / `--ax-z` | `#FF4D57` / `#00FF41` / `#3F8CFF` | origin triad |
 
@@ -82,17 +82,22 @@ VIEWPORT palette without a rewrite.
 
 Mounted once in the layout (ambient):
 
-- **ViewportBackground** - fixed full-viewport canvas (z 0, pointer-events
-  none): receding isometric grid floor in steel with fog fade, a slowly
-  orbiting wireframe part upper-right (green edges, lime vertices; three
-  machined geometries, hex boss / stepped flange / L-bracket, cycle with a
-  ~26s fade for variety), an origin triad bottom-left, and mouse parallax
-  (the part moves more than the grid, which reads as depth). Depth cues:
-  nearer edges draw brighter and wider, far edges thin into fog, a steel
-  halo pools behind the part, and a center content scrim quiets the scene
-  under the page column so it never competes with foreground text. DPR
-  capped at 2, single rAF loop, paused on `document.hidden`, cleaned up on
-  destroy.
+- **ViewportBackground** - fixed full-viewport WebGL canvas (z 0,
+  pointer-events none): a **volumetric CAD space**, not a flat pattern. A
+  floating hero machined part upper-right (solid PBR metal with a faint green
+  tessellation-edge overlay; three procedural geometries from
+  `hero-parts.ts`, hex boss / stepped flange / L-bracket, cycle with a ~26s
+  fade), studio key/rim lighting over a RoomEnvironment map with ACES,
+  exponential fog for depth falloff, fine drifting particulate at several
+  depths plus a few oversized soft bokeh motes near the lens, gentle mouse
+  parallax via camera offset, and a slight CSS soft-focus on the canvas
+  (gentle depth of field) so foreground content always reads sharper than
+  the space behind it. The center content scrim lives in `.gt-vignette`; a
+  crisp origin-triad SVG sits bottom-left outside the blur. **The old
+  scrolling isometric grid floor is retired; do not reintroduce it.** DPR
+  capped at 1.5, single rAF loop, paused on `document.hidden`, one static
+  frame under reduced motion, silent fallback to the flat void base if
+  WebGL is unavailable, cleaned up on destroy.
 - **CursorLayer** - CAD crosshair cursor (reticle ring + dot + cross lines)
   easing after the mouse with a trailing mono X/Y mm readout; the ring
   enlarges and shifts lime over interactive elements. Pointer-events none.
@@ -100,7 +105,10 @@ Mounted once in the layout (ambient):
 - **FeatureTreeNav** - FeatureManager-style rail: root node, Modeling and
   Knowledge groups with line icons and tree connectors, a Sessions group
   (rooms, tools), and an origin/units/view footer block. Fixed rail on
-  viewports >= 1440px. Leaves glow in their family color.
+  viewports >= 1440px. Leaves glow in their family color. **Hidden by
+  default** (the rail reads as clutter during a run): a small edge tab
+  reveals it, the choice persists per browser (`gt-tree-open`). Do not make
+  it visible by default.
 - **TrademarkFooter** - the Dassault Systemes disclaimer, on every page.
 - **Vignette** (`.gt-vignette`, a layout div styled in viewport.css) - steel
   light pooling upper-right, a green wash lower-left, darkened corners.
@@ -118,6 +126,17 @@ Used per page:
   Speedrun's art is animated (a stopwatch dial whose hand sweeps, a hex part
   inside, pulsing fast-forward chevrons); the scoped viewport.css
   reduced-motion block stills it automatically.
+- **PartThumb** (`src/lib/gauntlet/PartThumb.svelte`) - a level tile's
+  isometric 3D thumbnail: each Speedrun level's STL renders once per browser
+  to a small transparent PNG (fixed true-iso orthographic camera, the
+  StlViewer machined-metal + studio-light family, contact shadow) through the
+  shared queued offscreen renderer in `part-thumbs.ts`, then is cached in
+  IndexedDB keyed by `model_path` + a style version (bump STYLE_VERSION after
+  a look change to invalidate). Signed Storage URLs are resolved only on a
+  cache miss. Levels with no model get a quiet wireframe glyph placeholder.
+  Verify all of this at `/dev/visuals` (dev-only harness, 404 in production,
+  no auth or Supabase), which also mounts the volumetric background and the
+  StlViewer with a generated sample STL.
 - **motion.ts** - `entrance` (IntersectionObserver fade/slide action),
   `entranceSweep` (staggered entrance for a container's children; the layout
   runs it on `main.gauntlet` after every navigation), `countUp` (numeric stat
@@ -166,7 +185,8 @@ the solo Speedrun page (`/gauntlet/speedrun/[id]`), not a simplified variant:
 the blueprint `.drawing-frame` with click-to-zoom and a sheet title block, the
 `.spec`/`.ruleset-panel` cards (via `{#snippet specCard()}` /
 `{#snippet rulesetCard()}` in the room page, since the same markup repeats
-across host/lobby/racer/spectator states), the STL `.preview-toggle`, and a
+across host/lobby/racer/spectator states), the always-visible STL preview
+(`StlViewer`, no toggle), and a
 live `SpeedrunClock` anchored to the room's single authoritative
 `started_at` (display-only; scoring still comes from the server-computed
 elapsed time in `gauntlet_room_manual_submit` / `gauntlet_macro_submit`,

@@ -1,11 +1,19 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
-	import { difficultyLabel, formatTime, formatMass } from '$lib/gauntlet';
+	import PartThumb from '$lib/gauntlet/PartThumb.svelte';
+	import { difficultyLabel, formatTime, formatMass, MODELS_BUCKET } from '$lib/gauntlet';
 
 	let { data } = $props();
 	let { supabase, userName, userRole, challenges, series } = $derived(data);
 
 	const cleared = $derived(challenges.filter((c) => c.cleared).length);
+
+	// Signed model URL for a tile's thumbnail render; called only on a
+	// thumbnail cache miss (see part-thumbs.ts), so a warm cache never signs.
+	const signModel = async (path: string) => {
+		const { data: signed } = await supabase.storage.from(MODELS_BUCKET).createSignedUrl(path, 600);
+		return signed?.signedUrl ?? null;
+	};
 
 	// Browse by series (0022). 'all' shows every group; a series id or 'none'
 	// (the unfiled drawings) narrows to one.
@@ -39,6 +47,7 @@
 {#snippet row(c: (typeof challenges)[number])}
 	<li>
 		<a class="challenge-row" href="/gauntlet/speedrun/{c.id}">
+			<PartThumb modelPath={c.modelPath} resolveUrl={signModel} />
 			<span class="challenge-state" class:done={c.cleared}>
 				{#if c.cleared}✓{/if}
 			</span>

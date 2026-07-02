@@ -501,10 +501,7 @@
 
 
 			{#if modelUrl}
-				<details class="preview-toggle">
-					<summary>3D preview (shape only)</summary>
-					<StlViewer url={modelUrl} height={220} />
-				</details>
+				<StlViewer url={modelUrl} height={320} />
 			{/if}
 		</div>
 

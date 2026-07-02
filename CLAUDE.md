@@ -485,12 +485,14 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `gauntlet-models` hold the artifacts (authenticated read, teacher write; reads
   are short-lived signed URLs), tightening the 0009 public-`gauntlet`-bucket
   pattern to authenticated read. `StlViewer.svelte` is a reusable three.js +
-  STLLoader viewer (orbit controls, machined-metal material under a
-  RoomEnvironment studio map with ACES tone mapping, soft contact shadow on a
-  faint steel grid pedestal, slow auto-orbit that stops on first interaction
-  and is disabled under reduced motion, auto-fit to the bounding box, shape
-  only, no measurement/download) and replaces the isometric view that used to
-  live on the drawing. `three` is a runtime dependency, imported
+  STLLoader viewer (orbit controls, machined-metal physical material under a
+  pushed studio rig, RoomEnvironment IBL with ACES tone mapping, supersampled
+  render resolution, soft contact shadow on a clean deep backdrop, slow
+  auto-orbit that stops on first interaction and is disabled under reduced
+  motion, auto-fit 3/4 framing, shape only, no measurement/download) and
+  replaces the isometric view that used to live on the drawing. It is shown
+  **by default** on the Speedrun and room play pages (no toggle).
+  `three` is a runtime dependency, imported
   dynamically (browser-only, SSR-safe). The macro/reveal/token/leaderboard flow is
   unchanged; reveal-on-start still gates the dimensioned drawing.
 - **Speedrun unit system + demo cleanup** (`0018`, `0019`): Speedrun challenges
@@ -630,9 +632,22 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   conform to the **VIEWPORT design system** documented in
   `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in
   `src/lib/gauntlet/viewport/viewport.css` (scoped to `.gt-root`, the
-  `/gauntlet` layout wrapper); ambient components (canvas background, CAD
+  `/gauntlet` layout wrapper); ambient components (volumetric background, CAD
   cursor, feature-tree nav, trademark footer, entrance choreography) mount
   once in `src/routes/gauntlet/+layout.svelte` so every page inherits them.
+  The background is a **volumetric CAD space** (`ViewportBackground.svelte`:
+  a real three.js scene, floating hero machined parts cycling with fades,
+  fog depth falloff, drifting particulate, mouse parallax, soft focus); the
+  old scrolling isometric grid is **retired, never reintroduce it**. The
+  FeatureManager tree rail is **hidden by default** behind its edge tab (a
+  per-browser choice); do not make it visible by default. Speedrun level
+  tiles carry cached isometric 3D thumbnails (`PartThumb.svelte` +
+  `part-thumbs.ts`: rendered once per browser from the level's STL, cached
+  in IndexedDB by `model_path` + style version, signed URL only on miss,
+  wireframe-glyph placeholder when a level has no model). The dev-only
+  harness `/dev/visuals` (404 in production, no auth/Supabase) mounts the
+  background, StlViewer, and thumbnail pipeline with a generated sample STL
+  for browser verification.
   Read tokens and reuse the viewport components rather than writing one-off
   styles. `--crimson` is reserved for live/rec/error states only, never a
   general accent. Modeling modes are green, knowledge modes cyan. Everything
