@@ -515,7 +515,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='159';
+const W=630,H=840; const VERSION='160';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -3086,8 +3086,13 @@ function renderShopGrid(container, items, ctx){ if(!container)return;
   const _col=shopGroupColor(refitTab);
   let body='<div class="shopbody">';
   if(refitTab==='MODULES' && player && player.modules){ const filled=player.modules.filter(m=>m).length; let sl=''; for(let s=0;s<player.modules.length;s++) sl+='<i class="modslot'+(player.modules[s]?' on':'')+'"></i>'; body+='<div class="modslots">SLOTS '+sl+' <span style="color:var(--teal)">'+filled+'/'+player.modules.length+'</span></div>'; }
-  groups.forEach(g=>{
-    if(g.length===1){ body+=_rc(g[0]); return; }
+  let _skipNext=false;
+  groups.forEach((g,gi)=>{
+    if(g.length===1){
+      if(_skipNext){ _skipNext=false; return; }   // already emitted as the second half of a CHOOSE ONE pair
+      if(!_kitTab && g[0][0].fork==='pick' && groups[gi+1] && groups[gi+1].length===1 && groups[gi+1][0][0].fork==='pick'){   // flat tabs: pair adjacent mutually-exclusive keystones (no kit wrapper, no collapse)
+        body+='<div class="forkpair"><span class="forklbl">CHOOSE ONE</span><div class="forkrow">'+_rc(g[0])+_rc(groups[gi+1][0])+'</div></div>'; _skipNext=true; return; }
+      body+=_rc(g[0]); return; }
     const _ic=(g[0][0].icon||'_'), _kk=refitTab+'|'+_ic, _open=!!refitExpand[_kk];
     body+='<div class="kit'+(_open?'':' collapsed')+'" style="--cc:'+_col+'"><div class="kithead"><button class="kittoggle" data-kit="'+_kk+'">'+(_open?'▾':'▸')+'</button>'+_rc(g[0])+'</div><div class="kitbody">';
     for(let k=1;k<g.length;k++){ const p=g[k];
@@ -4510,6 +4515,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'160',date:'2026',items:['Restored the CHOOSE ONE pairing on defense, parry, and systems keystones.']},
  {ver:'159',date:'2026',items:['REFIT no longer jumps to the top when you buy an upgrade, and defense upgrades are no longer hidden under DEFENSE PROBE.']},
  {ver:'158',date:'2026',items:['Late sectors hit harder: deeper enemies scale tankier and bullet curtains thicken.']},
  {ver:'157',date:'2026',items:['Hardcore early sectors ease in; full enemy fire pressure now returns by sector 3.']},
