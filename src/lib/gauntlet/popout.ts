@@ -14,6 +14,8 @@
  * This module is pure browser glue (no Svelte) so it stays testable and reusable.
  */
 
+import { isPdfRef } from '$lib/gauntlet/pdf';
+
 /** True when the Document Picture-in-Picture API is available. */
 export function supportsDocumentPip(): boolean {
 	return typeof window !== 'undefined' && 'documentPictureInPicture' in window;
@@ -98,9 +100,18 @@ export function restorePipNode(slot: HTMLElement, node: HTMLElement): void {
  * Self-contained drawing-only HTML for the window.open fallback: the drawing
  * (PNG src or inline SVG) on the blueprint field, with minimal drag-pan +
  * wheel-zoom and a Fit button so it is usable without any shared context.
+ * A PDF drawing embeds the browser's own PDF viewer instead (paging and zoom
+ * come with it), full-bleed on the same dark field.
  */
 export function drawingWindowHtml(opts: { src?: string | null; svg?: string | null; title?: string }): string {
 	const title = opts.title ?? 'GAUNTLET drawing';
+	if (opts.src && isPdfRef(opts.src)) {
+		return `<!doctype html><html><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(title)}</title>
+<style>html,body{margin:0;height:100%;background:#05080a;overflow:hidden}embed{display:block;width:100%;height:100%;border:0}</style>
+</head><body><embed src="${escapeAttr(opts.src)}" type="application/pdf" /></body></html>`;
+	}
 	const media = opts.src
 		? `<img id="d" alt="${escapeHtml(title)}" src="${escapeAttr(opts.src)}" draggable="false" />`
 		: (opts.svg ?? '<p style="color:#5f8a78">No drawing.</p>');

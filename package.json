@@ -27,6 +27,7 @@
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
     "@types/three": "^0.185.0",
+    "pdfjs-dist": "^6.1.200",
     "three": "^0.185.0"
   }
 }

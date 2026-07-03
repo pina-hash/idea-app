@@ -3376,6 +3376,11 @@ a:hover {
 	border: 1px solid transparent;
 	border-radius: 4px;
 }
+/* Multi-page PDF drawings add a page column to each region row. */
+.gauntlet .region-head.paged,
+.gauntlet .region-row.paged {
+	grid-template-columns: minmax(0, 1fr) repeat(5, 58px) auto;
+}
 .gauntlet .region-head {
 	font-family: var(--font-mono);
 	font-size: 0.56rem;

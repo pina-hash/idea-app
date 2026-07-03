@@ -285,10 +285,12 @@ export interface ModelingFraming {
 
 /**
  * An author-defined focus region on a Speedrun drawing: a labelled rectangle the
- * student can jump to at high zoom. Coordinates are FRACTIONS of the rendered
- * drawing (0 to 1, top-left origin), so they are resolution independent. Regions
- * describe the hidden dimensioned drawing, so they live in the gated `answer`
- * (answer.focus_regions) and arrive with the drawing on Start.
+ * student can jump to at high zoom. Coordinates are FRACTIONS of the page
+ * (0 to 1, top-left origin), so they live in the drawing's own page coordinate
+ * space and scale with it under pan and zoom. `page` is the 0-based page index
+ * for multi-page PDF drawings; omitted means page 0 (every pre-PDF region).
+ * Regions describe the hidden dimensioned drawing, so they live in the gated
+ * `answer` (answer.focus_regions) and arrive with the drawing on Start.
  */
 export interface FocusRegion {
 	label: string;
@@ -296,6 +298,8 @@ export interface FocusRegion {
 	y: number;
 	w: number;
 	h: number;
+	/** 0-based page index (multi-page PDF drawings); missing = page 0. */
+	page?: number;
 }
 
 /**

@@ -7,26 +7,38 @@
 	 * overlays editable region boxes.
 	 *
 	 * Storage contract is unchanged: `regions` are the form's FocusRegionInput rows
-	 * in PERCENT of the drawing (0 to 100, top-left origin), the exact shape the
-	 * numeric inputs bind to and that buildPayload turns into answer.focus_regions.
-	 * Because the picker mutates those same objects, the numeric fields and the
-	 * boxes stay two-way synced for free. Region order is the student "Jump to"
-	 * order.
+	 * in PERCENT of the page (0 to 100, top-left origin) plus a 0-based `page`
+	 * index, the exact shape the numeric inputs bind to and that buildPayload turns
+	 * into answer.focus_regions. Because the picker mutates those same objects, the
+	 * numeric fields and the boxes stay two-way synced for free. Region order is
+	 * the student "Jump to" order.
+	 *
+	 * PDF drawings render through pdf.js one page at a time (a page stepper appears
+	 * for multi-page sheets); a region drawn on the shown page is stamped with that
+	 * page index, and only the active page's regions are shown/edited.
 	 *
 	 * All motion is gated behind prefers-reduced-motion (drag itself is instant).
 	 */
 	import type { FocusRegionInput } from '$lib/gauntlet/authoring';
+	import { loadPdfjs, isPdfRef } from '$lib/gauntlet/pdf';
+	import type { PDFDocumentProxy } from 'pdfjs-dist';
 
 	let {
 		regions = $bindable([]),
 		selected = $bindable(-1),
 		src = null,
-		svg = null
+		svg = null,
+		pdf = null,
+		pageCount = $bindable(1)
 	}: {
 		regions?: FocusRegionInput[];
 		selected?: number;
 		src?: string | null;
 		svg?: string | null;
+		/** Force PDF handling for a `src` with no sniffable extension; null = sniff. */
+		pdf?: boolean | null;
+		/** Out: page count of the loaded drawing (1 for raster/SVG), for the form. */
+		pageCount?: number;
 	} = $props();
 
 	const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
@@ -88,13 +100,86 @@
 		if (r.width && r.height) aspect = r.width / r.height;
 	}
 
+	// --- PDF drawing: render the active page via pdf.js into a data URL that the
+	// existing <img> path displays (same recolor filter, same hit-testing box).
+	const srcIsPdf = $derived(!!src && (pdf ?? isPdfRef(src)));
+	let activePage = $state(0);
+	let pdfPageUrl = $state<string | null>(null);
+	let pdfDoc: PDFDocumentProxy | null = null;
+	let pdfSeq = 0;
+
+	async function loadPdfDoc(ref: string) {
+		const seq = ++pdfSeq;
+		try {
+			const pdfjs = await loadPdfjs();
+			const doc = await pdfjs.getDocument({ url: ref }).promise;
+			if (seq !== pdfSeq) {
+				doc.loadingTask.destroy().catch(() => {});
+				return;
+			}
+			pdfDoc = doc;
+			pageCount = doc.numPages;
+			await renderPdfPage(seq);
+		} catch {
+			pdfPageUrl = null;
+		}
+	}
+
+	async function renderPdfPage(seq: number) {
+		if (!pdfDoc) return;
+		const page = await pdfDoc.getPage(Math.min(activePage, pdfDoc.numPages - 1) + 1);
+		if (seq !== pdfSeq) return;
+		const base = page.getViewport({ scale: 1 });
+		const k = Math.min(2200 / base.width, 2200 / base.height, 4);
+		const vp = page.getViewport({ scale: k });
+		const c = document.createElement('canvas');
+		c.width = Math.ceil(vp.width);
+		c.height = Math.ceil(vp.height);
+		// intent 'print': no rAF pacing, so the render completes even in a
+		// backgrounded tab (see DrawingViewer.renderPages).
+		await page.render({ canvas: c, viewport: vp, background: '#ffffff', intent: 'print' }).promise;
+		if (seq !== pdfSeq) return;
+		aspect = base.width / base.height;
+		pdfPageUrl = c.toDataURL('image/png');
+	}
+
+	const setPage = (dir: number) => {
+		const next = Math.max(0, Math.min(pageCount - 1, activePage + dir));
+		if (next === activePage) return;
+		activePage = next;
+		selected = -1;
+		renderPdfPage(pdfSeq);
+	};
+
 	$effect(() => {
 		void src;
 		void svg;
+		const isPdf = srcIsPdf;
+		const ref = src;
 		aspect = 0;
-		queueMicrotask(() => {
-			if (svg) measureSvg();
-		});
+		pdfSeq++;
+		if (pdfDoc) {
+			pdfDoc.loadingTask.destroy().catch(() => {});
+			pdfDoc = null;
+		}
+		pdfPageUrl = null;
+		activePage = 0;
+		pageCount = 1;
+		if (isPdf && ref) loadPdfDoc(ref);
+		else
+			queueMicrotask(() => {
+				if (svg) measureSvg();
+			});
+	});
+
+	$effect(() => {
+		return () => {
+			pdfSeq++;
+			if (pdfDoc) {
+				pdfDoc.loadingTask.destroy().catch(() => {});
+				pdfDoc = null;
+			}
+		};
 	});
 
 	$effect(() => {
@@ -198,7 +283,14 @@
 			if (d.w >= MIN && d.h >= MIN) {
 				regions = [
 					...regions,
-					{ label: '', x: r1(d.x), y: r1(d.y), w: r1(Math.min(d.w, 100 - d.x)), h: r1(Math.min(d.h, 100 - d.y)) }
+					{
+						label: '',
+						x: r1(d.x),
+						y: r1(d.y),
+						w: r1(Math.min(d.w, 100 - d.x)),
+						h: r1(Math.min(d.h, 100 - d.y)),
+						page: activePage
+					}
 				];
 				selected = regions.length - 1;
 			}
@@ -223,6 +315,13 @@
 	<div class="re-toolbar">
 		<span class="re-hint">Drag on the drawing to add a region. Drag a box to move it, or its handles to resize.</span>
 		<span class="re-spacer"></span>
+		{#if pageCount > 1}
+			<div class="re-zoom" role="group" aria-label="Drawing page">
+				<button type="button" class="re-zbtn" title="Previous page" aria-label="Previous page" disabled={activePage === 0} onclick={() => setPage(-1)}>&lsaquo;</button>
+				<span class="re-pct re-page">p.{activePage + 1}/{pageCount}</span>
+				<button type="button" class="re-zbtn" title="Next page" aria-label="Next page" disabled={activePage === pageCount - 1} onclick={() => setPage(1)}>&rsaquo;</button>
+			</div>
+		{/if}
 		<div class="re-zoom">
 			<button type="button" class="re-zbtn" title="Zoom out" aria-label="Zoom out" onclick={() => zoomBy(1 / 1.4)}>&minus;</button>
 			<span class="re-pct" aria-hidden="true">{pct}%</span>
@@ -249,7 +348,11 @@
 					role="application"
 					aria-label="Draw focus regions on the drawing"
 				>
-					{#if src}
+					{#if srcIsPdf}
+						{#if pdfPageUrl}
+							<img class="re-media" src={pdfPageUrl} alt="Drawing page {activePage + 1}" draggable="false" />
+						{/if}
+					{:else if src}
 						<img class="re-media" {src} alt="Drawing" draggable="false" onload={onImgLoad} />
 					{:else if svg}
 						<!-- eslint-disable-next-line svelte/no-at-html-tags -->
@@ -257,19 +360,21 @@
 					{/if}
 
 					{#each regions as rg, i (i)}
-						<div
-							class="re-region"
-							class:selected={selected === i}
-							data-idx={i}
-							style="left:{rg.x}%;top:{rg.y}%;width:{rg.w}%;height:{rg.h}%;"
-						>
-							<span class="re-label">{rg.label || `Detail ${i + 1}`}</span>
-							{#if selected === i}
-								{#each HANDLES as h (h)}
-									<span class="re-handle re-h-{h}" data-handle={h}></span>
-								{/each}
-							{/if}
-						</div>
+						{#if (rg.page ?? 0) === activePage}
+							<div
+								class="re-region"
+								class:selected={selected === i}
+								data-idx={i}
+								style="left:{rg.x}%;top:{rg.y}%;width:{rg.w}%;height:{rg.h}%;"
+							>
+								<span class="re-label">{rg.label || `Detail ${i + 1}`}</span>
+								{#if selected === i}
+									{#each HANDLES as h (h)}
+										<span class="re-handle re-h-{h}" data-handle={h}></span>
+									{/each}
+								{/if}
+							</div>
+						{/if}
 					{/each}
 
 					{#if drawPreview}

@@ -39,9 +39,10 @@ export function normalizeYouTubeId(input: string): string {
 }
 
 /**
- * A focus region as edited in the form: percent (0 to 100) of the drawing,
- * top-left origin. Converted to the canonical 0-to-1 `FocusRegion` fractions in
- * `buildPayload`, and back in `formFromChallenge`.
+ * A focus region as edited in the form: percent (0 to 100) of the page,
+ * top-left origin, plus the 0-based page index for multi-page PDF drawings.
+ * Converted to the canonical 0-to-1 `FocusRegion` fractions in `buildPayload`,
+ * and back in `formFromChallenge`.
  */
 export interface FocusRegionInput {
 	label: string;
@@ -49,6 +50,8 @@ export interface FocusRegionInput {
 	y: number;
 	w: number;
 	h: number;
+	/** 0-based page index (multi-page PDF drawings); 0 for single-page/raster/SVG. */
+	page: number;
 }
 
 /** Geometry parsed out of the macro's Author-capture message-box text. */
@@ -247,7 +250,8 @@ export function buildPayload(s: AuthorFormState): { prompt: object; answer: obje
 							x: (r.x ?? 0) / 100,
 							y: (r.y ?? 0) / 100,
 							w: (r.w ?? 0) / 100,
-							h: (r.h ?? 0) / 100
+							h: (r.h ?? 0) / 100,
+							page: Math.max(0, Math.round(r.page ?? 0))
 						}))
 						.filter((r) => r.w > 0 && r.h > 0)
 				: [];
@@ -337,7 +341,8 @@ export function formFromChallenge(c: ChallengeFull): AuthorFormState {
 						x: (r.x ?? 0) * 100,
 						y: (r.y ?? 0) * 100,
 						w: (r.w ?? 0) * 100,
-						h: (r.h ?? 0) * 100
+						h: (r.h ?? 0) * 100,
+						page: Math.max(0, Math.round(r.page ?? 0))
 					}))
 				: [],
 			asset:

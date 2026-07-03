@@ -571,50 +571,80 @@ north star, read it before extending GAUNTLET). Summary of what exists:
 - **Speedrun drawing UX + series + tutorial (`0022`, `0023`):** four additive
   Speedrun improvements, all layered on the existing reveal-on-start / gated
   drawing model without touching scoring or timing.
-  - **Interactive drawing viewer.** `src/lib/gauntlet/DrawingViewer.svelte` is a
-    reusable pan (drag) / zoom (wheel, pinch, +/- controls) / fit-to-view viewer
-    with a corner minimap position indicator and an optional focus-region jump
-    strip. It presents the drawing on a clean white sheet (padding + shadow)
-    floating in the graphite viewport, and stays CRISP by sizing the sheet to the
-    display size (the raster/SVG is re-rasterized from source at the shown
-    resolution, device-pixel-ratio aware) and only `translate`-panning, never
-    CSS-scaling a bitmap. The default view fits the drawing's INK content, not
-    the paper: the raster is probed once for its ink bounding box (a separate
-    crossOrigin image so a blocked read degrades to full-sheet fit), because
-    real exports often park the linework in one corner of a mostly empty
-    sheet. Zoom is allowed PAST native resolution (up to 6x the content fit,
-    browser upsampling accepted); a hard native cap used to make min == max
-    zoom for any raster smaller than the stage, which locked zoom AND region
-    jumps entirely (the "drawing view is broken" bug). Zooming out still
-    reaches the whole sheet. Interaction
-    listeners are attached with `addEventListener` (NOT Svelte's delegated `on:`),
-    and the controls are siblings of the pan surface (not children), so a click on
-    a control never trips pan AND everything keeps working after the live node is
-    relocated into a Document PiP window. It replaces the old click-to-zoom `<img>`
-    on the Speedrun play page, both inline and in the expanded lightbox (which
-    still renders over the FeatureManager because the lightbox lives inside
-    `.gt-content`). All motion is gated behind `prefers-reduced-motion`. A dev-only
-    harness at `/dev/viewer` (`src/routes/dev/viewer`, 404 in production, no auth /
-    Supabase) mounts it with a generated high-res black-on-white sample + focus
-    regions + a pop-out, for verifying interactions in a browser.
-  - **Focus regions.** Author-defined labelled rectangles (normalized 0-to-1
-    `FocusRegion` fractions) that describe positions on the hidden dimensioned
-    drawing, so they live in the gated `answer.focus_regions` and are handed back
-    only by `gauntlet_speedrun_reveal` on Start (0023 adds them to that RPC's
-    return, nothing else changes). Degrade to plain pan/zoom when none exist.
-    Authored either by a **visual picker** (`src/lib/gauntlet/RegionEditor.svelte`:
-    drag-to-draw on the drawing, move / corner-and-edge resize, select, reorder,
-    zoom) or the numeric percent rows; both bind to the same
-    `form.focusRegions` so they stay two-way synced, and region order is the
-    student "Jump to" order. The picker renders the same PNG / inline-SVG cases the
-    student viewer handles, and changes no storage.
+  - **Interactive drawing viewer (rebuilt on the PDF contract).**
+    `src/lib/gauntlet/DrawingViewer.svelte` is the reusable pan (drag) / zoom
+    (wheel, pinch, +/- controls, numeric readout) / fit viewer with a corner
+    minimap position indicator and a focus-region "Jump to" strip (one chip per
+    region plus an always-present "Whole drawing" chip). Its primary input is a
+    **full-sheet PDF** rendered with pdf.js (`pdfjs-dist`, loaded lazily and
+    browser-only via `src/lib/gauntlet/pdf.ts`, which also owns `isPdfRef`);
+    multi-page PDFs render one sheet per page, stacked. Legacy raster (PNG) and
+    inline-SVG drawings still render (a hidden measure element bootstraps their
+    intrinsic size). Architecture rules learned from the old viewer's layout bug,
+    keep these invariants:
+    - **One shared transform.** The rendered sheets AND the region hotspots live
+      inside a single `.dv-world` wrapper laid out at intrinsic size (the pdf.js
+      page viewport, the raster's natural size, or the SVG viewBox); every
+      pan/zoom is ONE `translate(tx,ty) scale(s)` on that wrapper, so
+      drawing-to-region alignment holds at every zoom by construction. Never
+      position the overlay layer independently of the drawing.
+    - **Fit after measure.** The fit is computed only once the stage has settled
+      non-zero dimensions (ResizeObserver-fed) AND the content dimensions are
+      known; the world stays hidden until then, and the reveal animation is
+      triggered off the same gate so it can never race the fit. The ink-probe
+      content-fit hack is retired; PDFs are full sheets, fit frames the page.
+    - **Crisp PDF zoom.** Page canvases re-render on zoom settle at the display
+      scale (DPR-aware, offscreen render + blit so the sheet never blanks) while
+      their CSS boxes stay in intrinsic units inside the shared transform.
+      Renders use pdf.js `intent: 'print'`: display intent paces on
+      requestAnimationFrame, which a backgrounded tab or throttled window never
+      ticks, hanging the render forever. Do not pass a transparent `background`
+      (pdf.js normalizes it through an alpha-dropping parser to opaque black);
+      the paper knock-down overlay does that job.
+    - **Seated compositing + reveal.** The sheet is seated into the frame, not
+      stark white: off-white paper, inset bezel + inner shadow, phosphor edge
+      glow, a low-opacity `.dv-tone` veil, and a frame-fixed (never transformed)
+      `.dv-crt` scanline/grain/vignette overlay. On `reveal` (the Speedrun/room
+      play pages pass it) a deterministic sub-second CRT plotter scan-in plays:
+      power-up line, phosphor bar sweeping a stage-space clip mask, one settle
+      pulse. Presentation only, it never touches run timing or the
+      server-authoritative clock; `prefers-reduced-motion` gets an instant fade.
+    - **PiP-safe.** Interaction listeners are attached with `addEventListener`
+      (NOT Svelte's delegated `on:`), controls are siblings of the pan surface,
+      styles are scoped with hardcoded token fallbacks, and the transform tween
+      ticks on rAF-or-timeout so jumps complete even in a throttled window.
+    The dev harness `/dev/viewer` (404 in production, no auth / Supabase) mounts
+    it with a runtime-generated two-page vector PDF fixture (FRONT / RIGHT
+    regions on page 1, SECTION on page 2), the legacy raster/SVG samples, a
+    reveal replay, and the pop-out, for verifying every interaction in a browser.
+  - **Focus regions (normalized page coordinates).** Author-defined labelled
+    rectangles in FRACTIONS of the page (0 to 1, top-left origin) plus a 0-based
+    `page` index for multi-page PDFs (`FocusRegion.page`; missing = page 0, so
+    every pre-PDF region reads unchanged, no migration). They describe the hidden
+    dimensioned drawing, so they live in the gated `answer.focus_regions` and are
+    handed back only by `gauntlet_speedrun_reveal` on Start (0023; the JSONB
+    passes through verbatim, so page indices needed no RPC change). Degrade to
+    plain pan/zoom when none exist. Authored either by the **visual picker**
+    (`src/lib/gauntlet/RegionEditor.svelte`: drag-to-draw, move / resize, select,
+    reorder, zoom; renders PDFs through pdf.js one page at a time with a page
+    stepper, stamping new regions with the shown page) or the numeric percent
+    rows (which grow a "Pg" column for multi-page PDFs); both bind the same
+    `form.focusRegions`, and region order is the student "Jump to" order.
+  - **Drawing storage.** `answer.drawing` holds inline SVG markup, a full URL, or
+    a bare path in the private `gauntlet-drawings` bucket (signed per read).
+    **PDF uploads in the authoring form go to `gauntlet-drawings` as a bare
+    path** (never the public `gauntlet` bucket), so the gated sheet is never at a
+    public URL; image uploads keep the legacy public-bucket behavior. No schema
+    change was needed for the PDF contract: the reference and the regions are
+    free-form JSONB and the buckets carry no mime allowlist.
   - **Picture-in-picture / pop-out** (`src/lib/gauntlet/popout.ts`). A "Pop out"
     control floats the drawing over SolidWorks so students don't alt-tab mid-run.
     Tiered by capability: primary is the Document Picture-in-Picture API (the
     school Chrome target), which MOVES the live viewer node into an always-on-top
     OS window so its pan/zoom carries; fallback is a detached `window.open`
-    drawing-only window (self-contained HTML with its own pan/zoom); baseline is
-    an in-app draggable + resizable floating panel. The moved node is always
+    drawing-only window (self-contained HTML with its own pan/zoom; a PDF drawing
+    embeds the browser's own PDF viewer full-bleed instead); baseline is an
+    in-app draggable + resizable floating panel. The moved node is always
     restored inline on close / retry / result / unmount.
   - **Drawing series / collections (`0022`).** A first-class organizing unit:
     `gauntlet_series` (name, description, sort_order; plain teacher-gated RLS like

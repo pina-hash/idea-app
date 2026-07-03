@@ -252,10 +252,17 @@ without touching scoring, timing, or the token flow (full detail in CLAUDE.md):
 - **Interactive drawing viewer** (`DrawingViewer.svelte`): pan / zoom / fit with a
   minimap and an optional focus-region jump strip, replacing the click-to-zoom
   image inline and in the expanded lightbox. Reading fine detail on a complex
-  drawing no longer means fighting the UI.
-- **Focus regions**: author-defined labelled rectangles on the drawing. Because
-  they describe the gated dimensioned drawing they live in `answer.focus_regions`
-  and are revealed on Start by `gauntlet_speedrun_reveal` (0023), preserving the
+  drawing no longer means fighting the UI. Rebuilt around a **full-sheet PDF
+  contract** (see "PDF drawing contract" in CLAUDE.md): pdf.js renders one sheet
+  per page (multi-page supported), the drawing and the region hotspots share ONE
+  pan/zoom transform so alignment holds at every zoom, and a sub-second CRT
+  plotter scan-in plays on reveal (presentation only; reduced motion gets an
+  instant fade). Legacy PNG and inline-SVG drawings still render.
+- **Focus regions**: author-defined labelled rectangles in normalized PAGE
+  coordinates (0 to 1 plus a 0-based `page` index for multi-page PDFs; missing
+  page means page 0, so every pre-PDF region is unchanged). Because they describe
+  the gated dimensioned drawing they live in `answer.focus_regions` and are
+  revealed on Start by `gauntlet_speedrun_reveal` (0023), preserving the
   "nothing about the drawing leaks before Start" rule. Degrade to plain pan/zoom.
 - **Picture-in-picture / pop-out**: float the drawing over SolidWorks so students
   don't alt-tab mid-run. Document PiP (primary, carries pan/zoom by moving the

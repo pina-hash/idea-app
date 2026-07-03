@@ -552,11 +552,15 @@
 				{:else if drawingUrl || drawing}
 					<div class="viewer-slot" bind:this={hostSlot}>
 						<div class="viewer-host" bind:this={viewerHost}>
+							<!-- reveal: the CRT scan-in plays once the drawing is ready and
+							     fitted. Presentation only; the run clock is server-stamped at
+							     reveal_at and none of this touches it. -->
 							<DrawingViewer
 								src={drawingUrl}
 								svg={drawingUrl ? null : drawing}
 								regions={focusRegions}
 								alt="Dimensioned drawing"
+								reveal
 							/>
 						</div>
 					</div>

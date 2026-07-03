@@ -14,20 +14,112 @@
 	import type { FocusRegionInput } from '$lib/gauntlet/authoring';
 
 	/**
-	 * Manual verification harness for DrawingViewer (dev-only route). Mounts the
-	 * viewer with a bundled high-resolution black-on-white raster (drawn to a
-	 * canvas at 2400x1600 so crispness / native-resolution zoom is testable) plus
-	 * a couple of focus regions, and a pop-out button that exercises popout.ts.
+	 * Manual verification harness for DrawingViewer (dev-only route). Primary
+	 * fixture: a runtime-generated two-page full-sheet vector PDF (hand-assembled
+	 * PDF bytes, letter-landscape, real drawing content) with FRONT / RIGHT focus
+	 * regions as normalized page coordinates plus a page-2 SECTION region, driven
+	 * through pdf.js exactly like a real drawing. Legacy raster (2400x1600 canvas)
+	 * and inline-SVG fixtures remain, plus a pop-out button exercising popout.ts
+	 * and a reveal replay for the CRT scan-in.
 	 */
 
-	let mode = $state<'raster' | 'svg'>('raster');
+	let mode = $state<'pdf' | 'raster' | 'svg'>('pdf');
 	let sampleSrc = $state<string | null>(null);
+	let pdfSrc = $state<string | null>(null);
+	// Remount the viewer to replay the reveal scan-in deterministically.
+	let revealKey = $state(0);
 
-	// Focus regions as fractions of the drawing (both samples share this layout).
+	// Focus regions as fractions of the drawing (raster/SVG samples share this).
 	const regions: FocusRegion[] = [
 		{ label: 'Holes', x: 0.1, y: 0.22, w: 0.34, h: 0.34 },
 		{ label: 'Title block', x: 0.6, y: 0.82, w: 0.36, h: 0.14 }
 	];
+
+	// PDF fixture regions: normalized coordinates of each PAGE + a page index,
+	// matched to where makeSamplePdf draws the views.
+	const pdfRegions: FocusRegion[] = [
+		{ label: 'FRONT', x: 0.07, y: 0.15, w: 0.44, h: 0.5, page: 0 },
+		{ label: 'RIGHT', x: 0.55, y: 0.15, w: 0.24, h: 0.5, page: 0 },
+		{ label: 'SECTION A-A', x: 0.28, y: 0.2, w: 0.45, h: 0.48, page: 1 }
+	];
+
+	/**
+	 * Hand-assemble a small, valid two-page vector PDF (letter landscape,
+	 * 792x612pt): sheet borders, a FRONT view with three bezier-circle holes and
+	 * a dimension line, a RIGHT view, title blocks, and a hatched SECTION on
+	 * page 2. Deterministic ASCII bytes with a correct xref, served as a blob URL
+	 * so nothing ships in static/ and production never sees it.
+	 */
+	function makeSamplePdf(): string {
+		const K = 0.5523;
+		const n = (v: number) => Math.round(v * 100) / 100;
+		const circle = (cx: number, cy: number, r: number) =>
+			`${n(cx + r)} ${cy} m ` +
+			`${n(cx + r)} ${n(cy + K * r)} ${n(cx + K * r)} ${n(cy + r)} ${cx} ${n(cy + r)} c ` +
+			`${n(cx - K * r)} ${n(cy + r)} ${n(cx - r)} ${n(cy + K * r)} ${n(cx - r)} ${cy} c ` +
+			`${n(cx - r)} ${n(cy - K * r)} ${n(cx - K * r)} ${n(cy - r)} ${cx} ${n(cy - r)} c ` +
+			`${n(cx + K * r)} ${n(cy - r)} ${n(cx + r)} ${n(cy - K * r)} ${n(cx + r)} ${cy} c S\n`;
+		const text = (x: number, y: number, size: number, s: string) =>
+			`BT /F1 ${size} Tf ${x} ${y} Td (${s}) Tj ET\n`;
+		const line = (x1: number, y1: number, x2: number, y2: number) =>
+			`${x1} ${y1} m ${x2} ${y2} l S\n`;
+		const titleBlock = (sheet: string) =>
+			'1.5 w\n500 30 272 80 re S\n' +
+			line(500, 80, 772, 80) +
+			line(640, 30, 640, 110) +
+			text(508, 92, 10, 'IDEA // GAUNTLET') +
+			text(508, 56, 8, 'SPEEDRUN SAMPLE PDF') +
+			text(648, 92, 8, 'SCALE 1:1') +
+			text(648, 56, 8, sheet);
+
+		let c1 = '0 0 0 RG 0 0 0 rg\n2 w\n20 20 752 572 re S\n';
+		// FRONT view: plate with three holes, dimension line above, callout below.
+		c1 += '1.5 w\n70 250 320 220 re S\n1 w\n';
+		c1 += circle(150, 360, 36) + circle(230, 360, 36) + circle(310, 360, 36);
+		c1 += '0.75 w\n' + line(70, 500, 390, 500) + line(70, 470, 70, 510) + line(390, 470, 390, 510);
+		c1 += text(215, 505, 12, '320');
+		c1 += line(250, 250, 300, 225) + text(150, 212, 10, '3X DIA 12 THRU');
+		// RIGHT view: framed profile with a slot.
+		c1 += '1.5 w\n450 250 160 220 re S\n1 w\n';
+		c1 += line(450, 395, 610, 395) + line(450, 325, 610, 325);
+		c1 += '500 340 60 40 re S\n';
+		c1 += text(475, 212, 10, 'R 8 TYP');
+		c1 += titleBlock('SHEET 1/2');
+		c1 += text(70, 140, 7, 'UNLESS NOTED: BREAK SHARP EDGES 0.3, TOL +/-0.2');
+
+		let c2 = '0 0 0 RG 0 0 0 rg\n2 w\n20 20 752 572 re S\n';
+		// SECTION A-A: hatched cut face (45-degree lines clipped to the face) with a bore.
+		c2 += '1.5 w\n250 250 300 200 re S\n';
+		c2 += 'q 250 250 300 200 re W n 0.5 w\n';
+		for (let i = -5; i < 8; i++) {
+			const o = 250 + i * 40;
+			c2 += line(o, 250, o + 200, 450);
+		}
+		c2 += 'Q\n1 w\n' + circle(400, 350, 50);
+		c2 += text(330, 215, 12, 'SECTION A-A');
+		c2 += titleBlock('SHEET 2/2');
+
+		const objs: Record<number, string> = {
+			1: '<< /Type /Catalog /Pages 2 0 R >>',
+			2: '<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>',
+			3: '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Contents 4 0 R /Resources << /Font << /F1 7 0 R >> >> >>',
+			4: `<< /Length ${c1.length} >>\nstream\n${c1}\nendstream`,
+			5: '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 792 612] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>',
+			6: `<< /Length ${c2.length} >>\nstream\n${c2}\nendstream`,
+			7: '<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>'
+		};
+		let out = '%PDF-1.4\n';
+		const offsets: number[] = [0];
+		for (let i = 1; i <= 7; i++) {
+			offsets[i] = out.length;
+			out += `${i} 0 obj\n${objs[i]}\nendobj\n`;
+		}
+		const xref = out.length;
+		out += 'xref\n0 8\n0000000000 65535 f \n';
+		for (let i = 1; i <= 7; i++) out += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+		out += `trailer\n<< /Size 8 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+		return URL.createObjectURL(new Blob([out], { type: 'application/pdf' }));
+	}
 
 	const SAMPLE_SVG = `<svg viewBox="0 0 800 520" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#111" stroke-width="3">
 		<rect x="60" y="100" width="380" height="220"/>
@@ -131,7 +223,7 @@
 	let popWin: Window | null = null;
 
 	const content = () => ({
-		src: mode === 'raster' ? sampleSrc : null,
+		src: mode === 'pdf' ? pdfSrc : mode === 'raster' ? sampleSrc : null,
 		svg: mode === 'svg' ? SAMPLE_SVG : null,
 		title: 'Sample drawing'
 	});
@@ -180,12 +272,19 @@
 	// zoom past native, region alignment, and region jumps, without Supabase.
 	let sheetSrc = $state<string | null>(null);
 	let edRegions = $state<FocusRegionInput[]>([
-		{ label: 'FRONT', x: 3, y: 22, w: 57, h: 65 },
-		{ label: 'RIGHT', x: 59, y: 8, w: 22, h: 65 }
+		{ label: 'FRONT', x: 3, y: 22, w: 57, h: 65, page: 0 },
+		{ label: 'RIGHT', x: 59, y: 8, w: 22, h: 65, page: 0 }
 	]);
 	let edSelected = $state(-1);
 	const edFractions = $derived<FocusRegion[]>(
-		edRegions.map((r) => ({ label: r.label, x: r.x / 100, y: r.y / 100, w: r.w / 100, h: r.h / 100 }))
+		edRegions.map((r) => ({
+			label: r.label,
+			x: r.x / 100,
+			y: r.y / 100,
+			w: r.w / 100,
+			h: r.h / 100,
+			page: r.page
+		}))
 	);
 
 	function makeSheetSample(): string {
@@ -253,6 +352,7 @@
 	onMount(() => {
 		sampleSrc = makeRasterSample();
 		sheetSrc = makeSheetSample();
+		pdfSrc = makeSamplePdf();
 
 		// Headless verification hooks (?auto=zoom|out|jump): drive the pipeline
 		// viewer's controls after mount, so a one-shot --screenshot run captures
@@ -285,14 +385,19 @@
 <div class="gt-root harness">
 	<h1>DrawingViewer verification harness</h1>
 	<p class="note">
-		Dev-only route (404 in production). No login / Supabase. Sample: a
-		{mode === 'raster' ? '2400x1600 black-on-white raster (canvas)' : 'inline SVG'} with two focus
-		regions. Verify: crispness at zoom, Fit, +/-, drag-pan, pop-out, minimap, and the Jump-to strip.
+		Dev-only route (404 in production). No login / Supabase. Primary fixture: a generated two-page
+		full-sheet vector PDF (rendered by pdf.js) with FRONT / RIGHT regions on page 1 and a SECTION
+		region on page 2, all normalized page coordinates. Verify: fit on reveal, FIT, region chips at
+		multiple zooms, pan/zoom overlay lock, seated-in-frame compositing, crisp linework, the CRT
+		reveal scan-in (Replay), and reduced-motion fallback. Legacy raster / SVG fixtures below the
+		same bar.
 	</p>
 
 	<div class="bar">
+		<button type="button" class:on={mode === 'pdf'} onclick={() => (mode = 'pdf')}>PDF sample</button>
 		<button type="button" class:on={mode === 'raster'} onclick={() => (mode = 'raster')}>Raster sample</button>
 		<button type="button" class:on={mode === 'svg'} onclick={() => (mode = 'svg')}>SVG sample</button>
+		<button type="button" onclick={() => (revealKey += 1)}>Replay reveal</button>
 		<button type="button" class="pop" onclick={popOut} disabled={popMode !== 'none'}>
 			{popMode === 'none' ? 'Pop out' : 'Popped out'}
 		</button>
@@ -303,15 +408,23 @@
 	<div class="frame">
 		<div class="slot" bind:this={slotEl}>
 			<div class="host" bind:this={hostEl}>
-				{#if mode === 'raster'}
-					{#if sampleSrc}
-						<DrawingViewer src={sampleSrc} {regions} alt="Sample raster drawing" />
+				{#key revealKey}
+					{#if mode === 'pdf'}
+						{#if pdfSrc}
+							<DrawingViewer src={pdfSrc} pdf={true} regions={pdfRegions} alt="Sample PDF drawing" reveal />
+						{:else}
+							<p class="note">Generating sample...</p>
+						{/if}
+					{:else if mode === 'raster'}
+						{#if sampleSrc}
+							<DrawingViewer src={sampleSrc} {regions} alt="Sample raster drawing" reveal />
+						{:else}
+							<p class="note">Generating sample...</p>
+						{/if}
 					{:else}
-						<p class="note">Generating sample...</p>
+						<DrawingViewer svg={SAMPLE_SVG} {regions} alt="Sample SVG drawing" reveal />
 					{/if}
-				{:else}
-					<DrawingViewer svg={SAMPLE_SVG} {regions} alt="Sample SVG drawing" />
-				{/if}
+				{/key}
 			</div>
 		</div>
 		{#if popMode === 'pip' || popMode === 'window'}

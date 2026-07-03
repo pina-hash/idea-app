@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import Header from '$lib/gauntlet/Header.svelte';
-	import Asset from '$lib/gauntlet/Asset.svelte';
 	import StlViewer from '$lib/gauntlet/StlViewer.svelte';
 	import DrawingViewer from '$lib/gauntlet/DrawingViewer.svelte';
 	import RoomClocks from '$lib/gauntlet/RoomClocks.svelte';
@@ -12,6 +11,7 @@
 		formatTime,
 		formatMass,
 		roomStateLabel,
+		DRAWINGS_BUCKET,
 		SUBMIT_MACRO_PATH,
 		UNIT_SYSTEM_UNITS,
 		type RoomReveal
@@ -57,19 +57,38 @@
 	// The ROOM session timer counts from the server-stamped room open time.
 	const roomOpenedMs = $derived(room.created_at ? Date.parse(room.created_at) : null);
 
-	// Click-to-zoom lightbox for the drawing, matching the solo Speedrun page.
-	let zoomOpen = $state(false);
-	const closeZoom = () => (zoomOpen = false);
-	const onKeydown = (e: KeyboardEvent) => {
-		if (e.key === 'Escape' && zoomOpen) closeZoom();
-	};
-
 	// Reveal (drawing + this racer's submit code) is fetched once the host starts.
 	let revealed = $state<RoomReveal | null>(null);
 	let revealing = $state(false);
-	// SVG drawings render in the interactive pan/zoom viewer (parity with the solo
-	// Speedrun page); a non-SVG value falls back to the Asset renderer.
-	const drawingIsSvg = $derived(!!revealed?.drawing && revealed.drawing.trimStart().startsWith('<'));
+	// Resolve the revealed drawing exactly like the solo Speedrun page: inline SVG
+	// renders as-is, a full URL (or PDF) renders directly, and a bare storage path
+	// is signed against the private drawings bucket. Everything goes through the
+	// interactive DrawingViewer (pan / zoom / PDF sheets), full parity with solo.
+	let roomDrawingSvg = $state<string | null>(null);
+	let roomDrawingUrl = $state<string | null>(null);
+	$effect(() => {
+		const ref = (revealed?.drawing ?? '').trim();
+		roomDrawingSvg = null;
+		roomDrawingUrl = null;
+		if (!ref) return;
+		if (ref.startsWith('<')) {
+			roomDrawingSvg = ref;
+		} else if (/^(https?:|data:|blob:)/.test(ref)) {
+			roomDrawingUrl = ref;
+		} else {
+			let cancelled = false;
+			supabase.storage
+				.from(DRAWINGS_BUCKET)
+				.createSignedUrl(ref, 60 * 60)
+				.then(({ data: signed }: { data: { signedUrl: string } | null }) => {
+					if (!cancelled) roomDrawingUrl = signed?.signedUrl ?? null;
+				});
+			return () => {
+				cancelled = true;
+			};
+		}
+	});
+	const hasDrawing = $derived(!!(roomDrawingSvg || roomDrawingUrl));
 	// This racer's own result (from the manual RPC or a Realtime submission).
 	let myResult = $state<{ is_correct: boolean; score_metric: number | null } | null>(null);
 	let mass = $state<number | null>(null);
@@ -243,21 +262,23 @@
 			<div class="drawing-frame">
 				{#if revealing}
 					<p class="dim">Revealing...</p>
-				{:else if revealed?.drawing && drawingIsSvg}
+				{:else if hasDrawing}
 					<div class="viewer-slot">
 						<div class="viewer-host">
-							<DrawingViewer svg={revealed.drawing} alt="Dimensioned drawing" />
+							<!-- reveal: presentation-only scan-in; the room clock stays the
+							     server-stamped started_at and is untouched by this. -->
+							<DrawingViewer
+								src={roomDrawingUrl}
+								svg={roomDrawingUrl ? null : roomDrawingSvg}
+								alt="Dimensioned drawing"
+								reveal
+							/>
 						</div>
 					</div>
-				{:else if revealed?.drawing}
-					<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
-						<Asset value={revealed.drawing} />
-						<span class="zoom-hint">Click to zoom</span>
-					</button>
 				{:else}
 					<p class="dim">No drawing.</p>
 				{/if}
-				{#if revealed?.drawing && !drawingIsSvg}
+				{#if hasDrawing}
 					<div class="sheet-titleblock" aria-hidden="true">
 						<span class="tb-brand">IDEA // GAUNTLET</span>
 						<span class="tb-meta">Room {room.join_code}</span>
@@ -338,8 +359,6 @@
 <svelte:head>
 	<title>Room {room.join_code} // GAUNTLET</title>
 </svelte:head>
-
-<svelte:window onkeydown={onKeydown} />
 
 <Header
 	{supabase}
@@ -447,13 +466,18 @@
 						<RoomClocks {roomOpenedMs} runStartMs={roomStartMs} live={room.state === 'live'} />
 					</div>
 				{/if}
-				{#if revealed?.drawing}
+				{#if hasDrawing}
 					<div class="drawing-panel">
 						<div class="drawing-frame">
-							<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
-								<Asset value={revealed.drawing} />
-								<span class="zoom-hint">Click to zoom</span>
-							</button>
+							<div class="viewer-slot">
+								<div class="viewer-host">
+									<DrawingViewer
+										src={roomDrawingUrl}
+										svg={roomDrawingUrl ? null : roomDrawingSvg}
+										alt="Dimensioned drawing"
+									/>
+								</div>
+							</div>
 							<div class="sheet-titleblock" aria-hidden="true">
 								<span class="tb-brand">IDEA // GAUNTLET</span>
 								<span class="tb-meta">Room {room.join_code}</span>
@@ -511,17 +535,3 @@
 	</div>
 </main>
 
-{#if zoomOpen && revealed?.drawing}
-	<!-- Click-to-zoom lightbox, matching the solo Speedrun page: the drawing
-	     scaled to fit the screen, fully visible, no scrolling. -->
-	<div class="lightbox">
-		<button class="lightbox-backdrop" type="button" aria-label="Close enlarged drawing" onclick={closeZoom}
-		></button>
-		<div class="lightbox-inner" role="dialog" aria-modal="true" aria-label="Dimensioned drawing">
-			<button class="lightbox-close btn secondary" type="button" onclick={closeZoom}>Close &times;</button>
-			<div class="lightbox-scroll">
-				<div class="lightbox-svg"><Asset value={revealed.drawing} /></div>
-			</div>
-		</div>
-	</div>
-{/if}

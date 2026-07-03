@@ -20,6 +20,7 @@
 		isModeling,
 		type AuthorFormState
 	} from '$lib/gauntlet/authoring';
+	import { isPdfRef } from '$lib/gauntlet/pdf';
 
 	let { supabase, initial }: { supabase: SupabaseClient; initial: AuthorFormState } = $props();
 
@@ -81,7 +82,7 @@
 	let selectedRegion = $state(-1);
 
 	const addRegion = () => {
-		form.focusRegions = [...form.focusRegions, { label: '', x: 30, y: 30, w: 25, h: 25 }];
+		form.focusRegions = [...form.focusRegions, { label: '', x: 30, y: 30, w: 25, h: 25, page: 0 }];
 		selectedRegion = form.focusRegions.length - 1;
 	};
 	const removeRegion = (i: number) => {
@@ -143,6 +144,14 @@
 
 	const drawSrc = $derived(assetObjUrl ?? (assetIsUrl ? assetTrim : null) ?? signedPathUrl);
 	const drawSvg = $derived(!assetObjUrl && assetIsInline ? form.asset : null);
+	// PDF hint for the picker: a pending upload's blob URL has no extension, so
+	// sniff the FILE (type/name); otherwise sniff the resolved reference.
+	const fileIsPdf = $derived(
+		!!file && (file.type === 'application/pdf' || /\.pdf$/i.test(file.name))
+	);
+	const drawIsPdf = $derived(file ? fileIsPdf : isPdfRef(assetTrim || form.drawing_image_path));
+	// Page count reported back by the picker (1 for raster/SVG drawings).
+	let drawingPageCount = $state(1);
 
 	const applyPaste = () => {
 		const g = parseAuthorCapture(pasteText);
@@ -176,6 +185,11 @@
 
 	async function uploadAsset(): Promise<string> {
 		if (!file) return form.asset;
+		// Full-sheet PDF drawings (the Speedrun contract) go to the PRIVATE
+		// drawings bucket as a bare path: the reveal path signs it per read, so the
+		// gated sheet is never at a public URL. Images keep the existing public
+		// `gauntlet` bucket behavior (random unguessable path).
+		if (fileIsPdf) return uploadArtifact(DRAWINGS_BUCKET, file, 'pdf');
 		const ext = (file.name.split('.').pop() || 'png').toLowerCase();
 		const path = `${crypto.randomUUID()}.${ext}`;
 		const { error: upErr } = await supabase.storage
@@ -442,13 +456,14 @@
 		{#if gatedAsset}
 			<p class="ff-help">
 				The single dimensioned drawing. Kept in the hidden answer and revealed only when a student
-				clicks Start. Upload a PNG or SVG, or paste inline SVG below; the preview and the student's
-				reveal render this exact source.
+				clicks Start. Upload a full-sheet PDF (preferred; multi-page supported, one sheet per page),
+				a PNG, or an SVG, or paste inline SVG below; the preview and the student's reveal render
+				this exact source. PDFs upload to the private drawings bucket and are signed per read.
 			</p>
 		{/if}
 		<label class="ff">
-			<span class="ff-label">Upload drawing (PNG or SVG)</span>
-			<input class="ff-input" type="file" accept="image/*,.svg" onchange={onFile} />
+			<span class="ff-label">Upload drawing (PDF, PNG, or SVG)</span>
+			<input class="ff-input" type="file" accept="application/pdf,.pdf,image/*,.svg" onchange={onFile} />
 		</label>
 		{#if fileName}<p class="ff-help">Selected: {fileName} (uploads on save)</p>{/if}
 		<label class="ff">
@@ -503,23 +518,33 @@
 			<span class="ff-label region-heading">Focus regions (optional jump targets)</span>
 			<p class="ff-help">
 				Author-defined detail areas a student can jump to at high zoom. Values are percent of the
-				drawing (0 to 100), measured from the top-left. Leave empty for none; the viewer degrades to
-				plain pan and zoom.
+				page (0 to 100), measured from the top-left; on a multi-page PDF each region also carries
+				its page. Leave empty for none; the viewer degrades to plain pan and zoom.
 			</p>
-			<RegionEditor bind:regions={form.focusRegions} bind:selected={selectedRegion} src={drawSrc} svg={drawSvg} />
+			<RegionEditor
+				bind:regions={form.focusRegions}
+				bind:selected={selectedRegion}
+				bind:pageCount={drawingPageCount}
+				src={drawSrc}
+				svg={drawSvg}
+				pdf={drawIsPdf}
+			/>
 
 			{#if form.focusRegions.length}
-				<div class="region-head">
-					<span>Label</span><span>X%</span><span>Y%</span><span>W%</span><span>H%</span><span></span>
+				<div class="region-head" class:paged={drawingPageCount > 1}>
+					<span>Label</span><span>X%</span><span>Y%</span><span>W%</span><span>H%</span>{#if drawingPageCount > 1}<span>Pg</span>{/if}<span></span>
 				</div>
 			{/if}
 			{#each form.focusRegions as r, i (i)}
-				<div class="region-row" class:sel={selectedRegion === i} onfocusin={() => (selectedRegion = i)}>
+				<div class="region-row" class:sel={selectedRegion === i} class:paged={drawingPageCount > 1} onfocusin={() => (selectedRegion = i)}>
 					<input class="ff-input" type="text" bind:value={r.label} placeholder="Detail {i + 1}" />
 					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.x} />
 					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.y} />
 					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.w} />
 					<input class="ff-input region-num" type="number" min="0" max="100" bind:value={r.h} />
+					{#if drawingPageCount > 1}
+						<input class="ff-input region-num" type="number" min="1" max={drawingPageCount} value={(r.page ?? 0) + 1} onchange={(e) => (r.page = Math.max(0, Math.min(drawingPageCount - 1, Number((e.currentTarget as HTMLInputElement).value) - 1)))} />
+					{/if}
 					<span class="region-acts">
 						<button class="text-act" type="button" disabled={i === 0} onclick={() => moveRegion(i, -1)} aria-label="Move up">↑</button>
 						<button class="text-act" type="button" disabled={i === form.focusRegions.length - 1} onclick={() => moveRegion(i, 1)} aria-label="Move down">↓</button>
