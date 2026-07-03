@@ -515,7 +515,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='154';
+const W=630,H=840; const VERSION='155';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -710,7 +710,40 @@ let runContinued=false;   // true once the current run was resumed from a saved 
 const START_BUDGET=1000;
 function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
-try{ const _sb=JSON.parse(localStorage.getItem('vanguard_build')||'null'); if(_sb&&_sb.up){ startBuild=freshBuild(); startBuild.up=Object.assign(startBuild.up,_sb.up); startBuild.unlocked=Object.assign(startBuild.unlocked,_sb.unlocked||{}); startBuild.heavyUnlocked=Object.assign(startBuild.heavyUnlocked,_sb.heavyUnlocked||{}); startBuild.heavy=_sb.heavy||'beam'; startBuild.wtype=_sb.wtype||'spread'; startBuild.bombs=_sb.bombs||2; startBuild.shieldHits=_sb.shieldHits||0; startBuild.drone=_sb.drone?{ph:0}:null; startBuild.spent=_sb.spent||0; } }catch(e){}
+/* True i¢ cost of a build, derived from the SAME per-item costs CONFIGURE BUILD
+   and REFIT use (outfitOffers), so cost has a single source of truth and cannot
+   drift. Replays the build from freshBuild(): weapon/heavy unlocks are free and
+   only expose that line's upgrade offers, then priced upgrades (incl. DRONE) are
+   bought up to the build's own levels, summing each offer's cost. freshBuild()
+   computes to 0; a legit maxed build computes to its real spent (<=START_BUDGET),
+   so it is never falsely reset. Runs in DEV so every offer is available; the
+   global startBuild/gameMode are saved and restored. */
+function buildCost(build){
+  var saved=startBuild, savedMode=gameMode, total=0;
+  try{
+    gameMode='dev';
+    startBuild=build||freshBuild();
+    var want={}; outfitOffers().forEach(function(o){ want[o.name]=o.lv; });   // target level per offer name
+    var sim=freshBuild(); startBuild=sim; var guard=0;
+    for(;;){
+      if(++guard>2000) break;
+      var offers=outfitOffers(), acted=false;
+      for(var i=0;i<offers.length;i++){ var o=offers[i];
+        if(!o.can) continue;
+        if(o.cost===0){ o.buy(); acted=true; continue; }                       // free unlock -> take it (exposes that line's upgrades)
+        var wl=want[o.name];
+        if(wl!=null && o.lv<wl){ total+=o.cost; o.buy(); acted=true; }          // priced upgrade (incl. DRONE) -> buy toward target
+      }
+      if(!acted) break;
+    }
+  }catch(e){ total=0; }
+  finally{ startBuild=saved; gameMode=savedMode; }
+  return total;
+}
+try{ const _sb=JSON.parse(localStorage.getItem('vanguard_build')||'null'); if(_sb&&_sb.up){ startBuild=freshBuild(); startBuild.up=Object.assign(startBuild.up,_sb.up); startBuild.unlocked=Object.assign(startBuild.unlocked,_sb.unlocked||{}); startBuild.heavyUnlocked=Object.assign(startBuild.heavyUnlocked,_sb.heavyUnlocked||{}); startBuild.heavy=_sb.heavy||'beam'; startBuild.wtype=_sb.wtype||'spread'; startBuild.bombs=_sb.bombs||2; startBuild.shieldHits=_sb.shieldHits||0; startBuild.drone=_sb.drone?{ph:0}:null;
+  startBuild.spent=buildCost(startBuild);                                        // enforce budget by TRUE cost, ignoring the stored scalar
+  if(startBuild.spent>START_BUDGET){ startBuild=freshBuild(); saveBuild(); }     // over-budget (leaked / cloud-ratcheted) -> reset to clean and persist so the fix propagates to the cloud
+} }catch(e){}
 const KEYS_DEFAULT={fire:'Mouse0', fireKey:'j', beam:'Mouse2', beamAlt:'f', bomb:'x', parry:'Space', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
 let DEVICE_ID=''; try{ DEVICE_ID=localStorage.getItem('vanguard_did')||''; if(!/^[0-9a-f]{8}$/.test(DEVICE_ID)){ DEVICE_ID=Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b=>b.toString(16).padStart(2,'0')).join(''); localStorage.setItem('vanguard_did',DEVICE_ID); } }catch(e){ DEVICE_ID='nodid000'; }
 /* anonymous per-device id for telemetry cohorting. random hex, never linked to a name or initials. */
@@ -1632,7 +1665,7 @@ function startGame(){
   resetPlayer(true);
   { let b=startBuild;
     if(gameMode==='calib') b=freshBuild();   // calibration always runs the clean baseline loadout
-    if(gameMode!=='dev' && (startBuild.spent||0)>START_BUDGET) b=freshBuild();   // over-budget DEV build must not leak into ranked
+    if(gameMode!=='dev' && buildCost(startBuild)>START_BUDGET) b=freshBuild();   // over-budget build (by TRUE cost) must not leak into ranked
     player.up=Object.assign(player.up,b.up);
     if(gameMode==='dev'){ player.unlocked=Object.assign({spread:1},b.unlocked); player.wtype=(b.unlocked&&b.unlocked[b.wtype])?b.wtype:'spread'; player.heavyUnlocked=Object.assign(player.heavyUnlocked,b.heavyUnlocked||{}); }
     else { player.unlocked={spread:1,lance:0,homing:0,rapid:0}; player.wtype='spread'; player.heavyUnlocked={beam:1,rail:0,tesla:0,singularity:0,wave:0}; }   // ranked: SPREAD-only start, no leaked unlocks
@@ -4256,7 +4289,7 @@ try{ if(localStorage.getItem('vanguard_mute')==='1'){Audio_.muted=true;const pmb
 })();
 
 /* starting build (outfit) */
-function saveBuild(){ try{ const b=startBuild; localStorage.setItem('vanguard_build',JSON.stringify({up:b.up,unlocked:b.unlocked,heavyUnlocked:b.heavyUnlocked,heavy:b.heavy,wtype:b.wtype,bombs:b.bombs,shieldHits:b.shieldHits,drone:!!b.drone,spent:b.spent})); }catch(e){} }
+function saveBuild(){ try{ const b=startBuild; localStorage.setItem('vanguard_build',JSON.stringify({up:b.up,unlocked:b.unlocked,heavyUnlocked:b.heavyUnlocked,heavy:b.heavy,wtype:b.wtype,bombs:b.bombs,shieldHits:b.shieldHits,drone:!!b.drone,spent:b.spent,_bts:Date.now()})); }catch(e){} }   // _bts: recency marker so the cloud merge keeps the LATEST build; spent is display-only
 function refreshBuildSummary(){ const s=el('buildSummary'); if(!s)return; const n=buildCount(); const left=Math.max(0,START_BUDGET-(startBuild.spent||0));
   if(gameMode==='dev'){ s.textContent=n>0?(n+' upgrade'+(n>1?'s':'')+' · DEV (unlimited)'):'DEV build · unlimited budget, all unlocks apply.'; return; }
   s.textContent=n>0?(n+' upgrade'+(n>1?'s':'')+' · '+startBuild.spent.toLocaleString()+' spent · '+left.toLocaleString()+' i¢ carried in'):('Full '+START_BUDGET.toLocaleString()+' i¢ carries into the run.'); }
@@ -4469,6 +4502,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'155',date:'2026',items:['CONFIGURE BUILD now enforces the 1,000 i¢ budget against the real cost of your build, and cross-device sync keeps your latest build instead of merging saves together. A few over-budget builds will reset to a clean baseline.']},
  {ver:'154',date:'2026',items:['Leaderboard now separates single-session runs from continued (resumed) runs, so a run you picked up on another device no longer competes with unbroken runs.']},
  {ver:'153',date:'2026',items:['Your in-progress run now saves automatically when you leave, so you can pick it up on another device without backing up manually.']},
  {ver:'152',date:'2026',items:['Cross-device RESUME: pick up an in-progress run on any device from the title screen, with a separate saved run for NORMAL and HARDCORE. Dying clears that run.']},

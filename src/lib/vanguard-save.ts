@@ -61,38 +61,39 @@ function num(v: unknown): number {
 	return Number.isFinite(n) ? n : 0;
 }
 
-/** Union two flat maps, taking the max numeric value for each key. */
-function mergeMaxMap(a: unknown, b: unknown): Record<string, number> {
-	const out: Record<string, number> = {};
-	const ao = (a && typeof a === 'object' ? a : {}) as Record<string, unknown>;
-	const bo = (b && typeof b === 'object' ? b : {}) as Record<string, unknown>;
-	for (const k of new Set([...Object.keys(ao), ...Object.keys(bo)])) {
-		out[k] = Math.max(num(ao[k]), num(bo[k]));
-	}
-	return out;
-}
-
-/** Merge two `vanguard_build` JSON strings: keep the strongest of everything. */
+/**
+ * Merge two `vanguard_build` JSON strings by picking the LATEST build as a
+ * coherent whole (NOT a max-union, which ratcheted over-budget builds up and
+ * re-inflated them across devices). Pick the greater `_bts` recency marker; a
+ * missing marker counts as oldest so any freshly saved build beats a legacy one;
+ * ties break by greater `spent`, then keep `a`. The winner's own fields are
+ * returned together so an over-budget map can never be assembled from two saves.
+ * The mirror in `src/routes/vanguard/+server.ts` must stay byte-identical.
+ */
 function mergeBuild(aStr?: string, bStr?: string): string | undefined {
 	const a = parseObj(aStr);
 	const b = parseObj(bStr);
 	if (!a) return bStr ?? undefined;
 	if (!b) return aStr ?? undefined;
 
-	const aSpent = num(a.spent);
-	const bSpent = num(b.spent);
-	const dom = bSpent > aSpent ? b : a;
+	const aTs = num(a._bts);
+	const bTs = num(b._bts);
+	let pick: Record<string, unknown>;
+	if (aTs !== bTs) pick = aTs > bTs ? a : b;
+	else if (num(a.spent) !== num(b.spent)) pick = num(a.spent) > num(b.spent) ? a : b;
+	else pick = a;
 
 	const out: Record<string, unknown> = {
-		up: mergeMaxMap(a.up, b.up),
-		unlocked: mergeMaxMap(a.unlocked, b.unlocked),
-		heavyUnlocked: mergeMaxMap(a.heavyUnlocked, b.heavyUnlocked),
-		bombs: Math.max(num(a.bombs), num(b.bombs)),
-		shieldHits: Math.max(num(a.shieldHits), num(b.shieldHits)),
-		spent: Math.max(aSpent, bSpent),
-		drone: Boolean(a.drone) || Boolean(b.drone),
-		heavy: dom.heavy ?? a.heavy ?? b.heavy,
-		wtype: dom.wtype ?? a.wtype ?? b.wtype
+		up: pick.up,
+		unlocked: pick.unlocked,
+		heavyUnlocked: pick.heavyUnlocked,
+		bombs: pick.bombs,
+		shieldHits: pick.shieldHits,
+		spent: pick.spent,
+		drone: Boolean(pick.drone),
+		heavy: pick.heavy,
+		wtype: pick.wtype,
+		_bts: pick._bts
 	};
 	return JSON.stringify(out);
 }

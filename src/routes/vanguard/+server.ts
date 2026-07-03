@@ -70,17 +70,20 @@ function injectionScript(
 	var DEVICE_LOCAL_KEYS = ['vanguard_did'];
 	function num(v) { var n = v === true ? 1 : v === false ? 0 : Number(v); return isFinite(n) ? n : 0; }
 	function parseObj(s) { if (typeof s !== 'string') return null; try { var v = JSON.parse(s); return (v && typeof v === 'object' && !Array.isArray(v)) ? v : null; } catch (e) { return null; } }
-	function mergeMaxMap(a, b) { var out = {}; a = (a && typeof a === 'object') ? a : {}; b = (b && typeof b === 'object') ? b : {}; var ks = {}; Object.keys(a).forEach(function (k) { ks[k] = 1; }); Object.keys(b).forEach(function (k) { ks[k] = 1; }); Object.keys(ks).forEach(function (k) { out[k] = Math.max(num(a[k]), num(b[k])); }); return out; }
+	// Latest-wins on the WHOLE build (no max-union, which ratcheted over-budget
+	// builds up across devices): greater _bts recency marker (missing = oldest),
+	// then greater spent, then keep a. Byte-identical to mergeBuild in vanguard-save.ts.
 	function mergeBuild(as, bs) {
 		var a = parseObj(as), b = parseObj(bs);
 		if (!a) return bs; if (!b) return as;
-		var aS = num(a.spent), bS = num(b.spent), dom = bS > aS ? b : a;
+		var aTs = num(a._bts), bTs = num(b._bts), pick;
+		if (aTs !== bTs) pick = aTs > bTs ? a : b;
+		else if (num(a.spent) !== num(b.spent)) pick = num(a.spent) > num(b.spent) ? a : b;
+		else pick = a;
 		return JSON.stringify({
-			up: mergeMaxMap(a.up, b.up), unlocked: mergeMaxMap(a.unlocked, b.unlocked), heavyUnlocked: mergeMaxMap(a.heavyUnlocked, b.heavyUnlocked),
-			bombs: Math.max(num(a.bombs), num(b.bombs)), shieldHits: Math.max(num(a.shieldHits), num(b.shieldHits)), spent: Math.max(aS, bS),
-			drone: !!(a.drone || b.drone),
-			heavy: (dom.heavy != null ? dom.heavy : (a.heavy != null ? a.heavy : b.heavy)),
-			wtype: (dom.wtype != null ? dom.wtype : (a.wtype != null ? a.wtype : b.wtype))
+			up: pick.up, unlocked: pick.unlocked, heavyUnlocked: pick.heavyUnlocked,
+			bombs: pick.bombs, shieldHits: pick.shieldHits, spent: pick.spent,
+			drone: !!pick.drone, heavy: pick.heavy, wtype: pick.wtype, _bts: pick._bts
 		});
 	}
 	function parseScores(s) { if (typeof s !== 'string') return []; try { var v = JSON.parse(s); if (!Array.isArray(v)) return []; return v.filter(function (e) { return e && typeof e === 'object' && typeof e.score === 'number'; }).map(function (e) { return { name: String(e.name == null ? '' : e.name), score: Number(e.score) }; }); } catch (e) { return []; } }
