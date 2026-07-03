@@ -27,7 +27,7 @@ namespace IdeaGauntlet
     public static class AddinUpdate
     {
         /// <summary>The version this build reports (shown in the pane footer).</summary>
-        public const string CurrentVersion = "1.4";
+        public const string CurrentVersion = "1.5";
 
         // Empty by design: the check no-ops until a deployed manifest URL is set.
         private const string ManifestUrl = "";

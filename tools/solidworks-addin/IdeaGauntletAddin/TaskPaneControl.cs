@@ -62,6 +62,7 @@ namespace IdeaGauntlet
 
         private PartSnapshot last;
         private LevelTargets level;      // the loaded level's constants (density, target mass, ...)
+        private readonly TelemetryRecorder telemetry = new TelemetryRecorder();  // fail-safe, best-effort
         private DateTime? runStartedUtc;
         private string sessionRunId;
         private bool busy;
@@ -83,6 +84,7 @@ namespace IdeaGauntlet
 
         public void ShutDown()
         {
+            try { telemetry.Flush(); telemetry.Stop(); } catch { }
             try
             {
                 if (timer != null)
@@ -373,6 +375,9 @@ namespace IdeaGauntlet
             UpdateMass();
             UpdateAdvisory();
             UpdateRunLabel();
+
+            // Best-effort telemetry snapshot; guarded, never affects the run.
+            try { telemetry.OnTick(snap); } catch { }
         }
 
         /// <summary>
@@ -585,6 +590,15 @@ namespace IdeaGauntlet
                 runStartedUtc = DateTime.UtcNow;
                 sessionRunId = result.RunId;
 
+                // Begin best-effort telemetry for this run (guarded).
+                try
+                {
+                    IModelDoc2 m = swApp.ActiveDoc as IModelDoc2;
+                    string c = txtCode.Text == null ? "" : txtCode.Text.Trim().ToUpperInvariant();
+                    if (m != null && c.Length == 8) telemetry.Start(swApp, m, c, result.RunId);
+                }
+                catch { }
+
                 string message = "RUN STARTED. The clock is running." + Environment.NewLine +
                     "Build your part, then press SUBMIT RUN." + Environment.NewLine +
                     "Verification is on geometry (volume); no material is required.";
@@ -714,6 +728,9 @@ namespace IdeaGauntlet
                 }
 
                 SetStatus(text, result.IsCorrect ? GreenBright : Amber);
+
+                // Final telemetry flush + summary (guarded, best-effort).
+                try { telemetry.Stop(snap, result); } catch { }
             }
             finally
             {

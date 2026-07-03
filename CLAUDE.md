@@ -751,6 +751,41 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   - The add-in fetches the level via `gauntlet_run_targets`; the failing
     `p_mass_g` / material-density read is gone from `PartReader` (geometry only).
     Add-in is v1.4.
+- **Speedrun telemetry (`0035`): fail-safe modeling-process capture + live and
+  post-run analysis.** Append-only `gauntlet_run_events` (run_id, seq, t_ms,
+  event_type, payload) is the raw stream, keyed to the run; a materialized
+  `gauntlet_run_analysis` summary is upserted at submit for fast reads. Writes go
+  through SECURITY DEFINER RPCs (`gauntlet_run_events_insert` batch,
+  `gauntlet_run_analysis_upsert`) with the CODE + run_id as the credential (owner
+  resolved from the token, anon-granted like the macro RPCs); Realtime is enabled
+  on the events table; RLS scopes reads to own rows (teachers all).
+  - **HARD RULE, fail-safe:** telemetry is best-effort and NEVER affects a run.
+    Capture is decoupled from verification; every add-in path is guarded so an
+    exception in capture/batching/network can neither crash the add-in nor abort
+    a run.
+  - **Capture is add-in only** (`TelemetryRecorder.cs`); the .bas macros keep
+    start/submit snapshots only. Minor-appropriate scope: modeling-process and
+    integrity signals for the ACTIVE part only, NO keylogging, screenshots, or
+    filesystem scraping. The reliable core is a per-tick model-state SNAPSHOT
+    (volume/features/area) from the pane refresh; native SOLIDWORKS events
+    (feature add/delete, undo, redo, rebuild, command behind a flag) enrich it
+    and are bound best-effort. Events buffer and flush to the batch RPC
+    periodically with a guaranteed final flush + summary at submit. Add-in v1.5.
+  - **Live in-run analysis** (`src/lib/gauntlet/LiveTelemetry.svelte`, mounted on
+    the Speedrun play page): subscribes to the run's `gauntlet_run_events` over
+    Realtime and renders volume-vs-target, computed mass (level density) vs
+    target, feature count, a live activity feed, rebuild health, and pace vs par.
+    Crimson LIVE badge, Share Tech Mono numerics, motion behind reduced-motion.
+  - **Post-run critical analysis** (`src/lib/gauntlet/PostRunAnalysis.svelte`,
+    mounted on the results): a coaching read of the full stream, dependency-light
+    inline-SVG charts (volume-over-time, time-per-feature with the stuck point
+    highlighted), command usage, active/idle, undo/redo, vs-par, vs-class-median
+    and self learning-curve comparisons, integrity, and plain-language coaching
+    callouts.
+  - **Level config:** optional `prompt.par_feature_count` (Speedrun) feeds the
+    vs-par / stuck-point views; `par_time` is reused. Degrades gracefully unset.
+  - **Dev harnesses (no SW / Supabase):** `/dev/run-telemetry` (live replay),
+    `/dev/run-analysis` (saved sample run).
 - **Speedrun tooling, attempts, series, room timers (batch):** a set of
   additive Speedrun improvements.
   - **Unified Tools page + static hosting.** All run tooling lives on ONE page

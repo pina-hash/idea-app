@@ -192,6 +192,46 @@ namespace IdeaGauntlet
             return t;
         }
 
+        /// <summary>
+        /// Best-effort append of a batch of telemetry events (gauntlet_run_events_insert).
+        /// Never throws: telemetry must not affect a run, so all failures are swallowed.
+        /// </summary>
+        public static async Task PostEventsAsync(string code, string runId, List<object> events)
+        {
+            try
+            {
+                Dictionary<string, object> body = new Dictionary<string, object>();
+                body["p_code"] = code;
+                body["p_run_id"] = runId;
+                body["p_events"] = events;
+                await PostRpcAsync("gauntlet_run_events_insert", body).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Fail-safe: telemetry transport errors are ignored.
+            }
+        }
+
+        /// <summary>
+        /// Best-effort upsert of the per-run summary (gauntlet_run_analysis_upsert).
+        /// Never throws.
+        /// </summary>
+        public static async Task PostAnalysisAsync(string code, string runId, Dictionary<string, object> summary)
+        {
+            try
+            {
+                Dictionary<string, object> body = new Dictionary<string, object>();
+                body["p_code"] = code;
+                body["p_run_id"] = runId;
+                body["p_summary"] = summary;
+                await PostRpcAsync("gauntlet_run_analysis_upsert", body).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Fail-safe.
+            }
+        }
+
         private static async Task<Dictionary<string, object>> PostRpcAsync(string function, Dictionary<string, object> body)
         {
             string url = SupabaseUrl + "/rest/v1/rpc/" + function;

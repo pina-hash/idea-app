@@ -8,6 +8,8 @@
 	import DrawingViewer from '$lib/gauntlet/DrawingViewer.svelte';
 	import SpeedrunClock from '$lib/gauntlet/SpeedrunClock.svelte';
 	import RunResults from '$lib/gauntlet/RunResults.svelte';
+	import LiveTelemetry from '$lib/gauntlet/LiveTelemetry.svelte';
+	import PostRunAnalysis from '$lib/gauntlet/PostRunAnalysis.svelte';
 	import {
 		supportsDocumentPip,
 		openPipWindow,
@@ -23,7 +25,9 @@
 		DRAWINGS_BUCKET,
 		type FocusRegion,
 		type SpeedrunReveal,
-		type SpeedrunResult
+		type SpeedrunResult,
+		type RunEvent,
+		type TelemetryTargets
 	} from '$lib/gauntlet';
 
 	let { data } = $props();
@@ -78,6 +82,50 @@
 	let revealServerMs = 0;
 	let statusPoll: ReturnType<typeof setInterval> | null = null;
 
+	// Live in-run telemetry (0035): the run's append-only event stream, rendered
+	// as live analysis. Best-effort and display-only; if telemetry never arrives
+	// the run is unaffected. run_id is learned from gauntlet_run_status; targets
+	// (level constants) from gauntlet_run_targets at reveal.
+	let liveRunId = $state<string | null>(null);
+	let telemetryEvents = $state<RunEvent[]>([]);
+	let telemetryTargets = $state<TelemetryTargets | null>(null);
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	let telemetryChannel: any = null;
+
+	const maybeSubscribeTelemetry = (runId: string | null | undefined) => {
+		if (!runId || runId === liveRunId) return;
+		liveRunId = runId;
+		supabase
+			.from('gauntlet_run_events')
+			.select('seq, t_ms, event_type, payload')
+			.eq('run_id', runId)
+			.order('seq', { ascending: true })
+			.then(({ data }: { data: RunEvent[] | null }) => {
+				if (data && data.length) telemetryEvents = data;
+			});
+		if (telemetryChannel) supabase.removeChannel(telemetryChannel);
+		telemetryChannel = supabase
+			.channel(`run-events-${runId}`)
+			.on(
+				'postgres_changes',
+				{ event: 'INSERT', schema: 'public', table: 'gauntlet_run_events', filter: `run_id=eq.${runId}` },
+				(payload: { new: RunEvent }) => {
+					telemetryEvents = [...telemetryEvents, payload.new].sort((a, b) => a.seq - b.seq);
+				}
+			)
+			.subscribe();
+	};
+
+	const clearTelemetry = () => {
+		if (telemetryChannel) {
+			supabase.removeChannel(telemetryChannel);
+			telemetryChannel = null;
+		}
+		liveRunId = null;
+		telemetryEvents = [];
+		telemetryTargets = null;
+	};
+
 	// Server-anchored elapsed ms right now (for the manual-practice self-check).
 	const currentElapsedMs = () =>
 		serverStartMs == null ? 0 : Math.max(0, Date.now() - clockOffsetMs - serverStartMs);
@@ -110,10 +158,11 @@
 			}
 			const { data: row } = await supabase
 				.from('gauntlet_run_status')
-				.select('started_at')
+				.select('started_at, run_id')
 				.eq('challenge_id', challenge.id)
 				.maybeSingle();
 			applyStartedAt(row?.started_at);
+			maybeSubscribeTelemetry(row?.run_id);
 		}, 2500);
 	};
 
@@ -274,6 +323,26 @@
 		// Standby until the Start macro fires; Realtime (or the poll fallback) arms it.
 		serverStartMs = null;
 		startStatusPoll();
+
+		// Live telemetry targets (level constants) for the in-run analysis. The
+		// code is the credential; degrade silently if this read fails.
+		clearTelemetry();
+		if (code) {
+			supabase.rpc('gauntlet_run_targets', { p_code: code }).then(
+				({ data: tg }: { data: Record<string, number | string | null> | null }) => {
+					if (!tg) return;
+					telemetryTargets = {
+						targetVolumeMm3: (tg.target_volume_mm3 as number) ?? null,
+						densityGcm3: (tg.expected_density_g_cm3 as number) ?? null,
+						targetMassLevel: (tg.target_mass_level as number) ?? null,
+						massUnit: (tg.mass_unit as string) ?? 'g',
+						unitSystem: (tg.unit_system as string) ?? 'MMGS',
+						parTime: framing.par_time ?? null,
+						parFeatures: framing.par_feature_count ?? framing.par_features ?? null
+					};
+				}
+			);
+		}
 		revealing = false;
 	};
 
@@ -357,6 +426,7 @@
 		submitError = '';
 		revealError = '';
 		serverStartMs = null;
+		clearTelemetry();
 	};
 
 	onMount(() => {
@@ -391,8 +461,11 @@
 				'postgres_changes',
 				{ event: '*', schema: 'public', table: 'gauntlet_run_status', filter: `challenge_id=eq.${challenge.id}` },
 				(payload) => {
-					const row = payload.new as { user_id?: string; started_at?: string | null };
-					if (row?.user_id === myUserId) applyStartedAt(row.started_at);
+					const row = payload.new as { user_id?: string; started_at?: string | null; run_id?: string | null };
+					if (row?.user_id === myUserId) {
+						applyStartedAt(row.started_at);
+						maybeSubscribeTelemetry(row.run_id);
+					}
 				}
 			)
 			.subscribe();
@@ -400,6 +473,7 @@
 		return () => {
 			supabase.removeChannel(channel);
 			stopStatusPoll();
+			clearTelemetry();
 			// Return the drawing node inline before the component tears down.
 			bringBack();
 		};
@@ -622,6 +696,15 @@
 					</button>
 				</div>
 
+				{#if telemetryTargets && (telemetryEvents.length > 0 || serverStartMs != null)}
+					<LiveTelemetry
+						events={telemetryEvents}
+						targets={telemetryTargets}
+						elapsedMs={serverStartMs != null ? currentElapsedMs() : null}
+						live={phase === 'running'}
+					/>
+				{/if}
+
 				<details class="practice" bind:open={showPractice}>
 					<summary>Practice manually (unranked)</summary>
 					<p class="instructions">
@@ -692,6 +775,9 @@
 					<p class="instructions">Ranked <strong>#{myBest.rank}</strong> on the board.</p>
 				{:else if !result.is_correct}
 					<p class="instructions">A miss is recorded but does not rank. Adjust your model and run again.</p>
+				{/if}
+				{#if telemetryTargets && telemetryEvents.length > 1}
+					<PostRunAnalysis events={telemetryEvents} targets={telemetryTargets} />
 				{/if}
 			{/if}
 		</div>

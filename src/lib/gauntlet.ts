@@ -273,6 +273,12 @@ export interface ModelingFraming {
 	reference?: string;
 	/** Feature Golf: the par feature count, shown for flavor (not graded). */
 	par_features?: number;
+	/**
+	 * Speedrun: optional expected feature count for the telemetry "vs par" and
+	 * stuck-point views (0035). Degrades gracefully when unset; distinct from
+	 * Feature Golf's `par_features`.
+	 */
+	par_feature_count?: number;
 	/** Placeholder demo challenge, to be replaced by a real captured part. */
 	demo?: boolean;
 }
@@ -464,6 +470,37 @@ const ROOM_STATE_LABELS: Record<RoomState, string> = {
 
 export function roomStateLabel(state: RoomState): string {
 	return ROOM_STATE_LABELS[state] ?? state;
+}
+
+// ---------------------------------------------------------------------------
+// Speedrun telemetry (0035). Append-only run events + derived analysis.
+// ---------------------------------------------------------------------------
+
+/** One raw telemetry event from `gauntlet_run_events` (append-only stream). */
+export interface RunEvent {
+	seq: number;
+	t_ms: number;
+	event_type: string;
+	payload: Record<string, unknown>;
+}
+
+/** The level constants a telemetry view needs to size gauges (from the load). */
+export interface TelemetryTargets {
+	targetVolumeMm3: number | null;
+	densityGcm3: number | null;
+	targetMassLevel: number | null;
+	massUnit: string;
+	unitSystem: string;
+	parTime: number | null;
+	parFeatures: number | null;
+}
+
+/** Read a numeric field from an event payload (tolerant of string encodings). */
+export function eventNum(payload: Record<string, unknown>, key: string): number | null {
+	const v = payload?.[key];
+	if (v === null || v === undefined) return null;
+	const n = typeof v === 'number' ? v : Number(v);
+	return Number.isFinite(n) ? n : null;
 }
 
 /** Format a `score_metric` (elapsed seconds, lower better) for display. */

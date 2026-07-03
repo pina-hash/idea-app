@@ -15,13 +15,14 @@
 		]
 	},
 	"addin": {
-		"version": "1.4",
+		"version": "1.5",
 		"updated": "2026-07-02",
 		"path": "/tools/idea-gauntlet-addin.zip",
 		"changelog": [
 			"Ranked verification is geometry (volume) only; material never gates.",
 			"Mass computed from the level's density (Load level), not your part's material.",
-			"Added a practice mass check, a reference-cube self-check, and an optional material advisory."
+			"Practice mass check, reference-cube self-check, and an optional material advisory.",
+			"Fail-safe modeling telemetry: live in-run analysis and a post-run coaching report."
 		]
 	}
 }
