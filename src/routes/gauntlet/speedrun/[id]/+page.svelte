@@ -292,13 +292,24 @@
 			return;
 		}
 		const payload = rev as SpeedrunReveal | null;
-		drawing = payload?.drawing ?? null;
 		focusRegions = Array.isArray(payload?.focus_regions) ? payload.focus_regions : [];
 		code = payload?.code ?? null;
-		// The dimensioned PNG lives in a private bucket; its path is handed back only
-		// on Start, so sign it now for display (shape STL preview stays separate).
+		// ONE drawing source (answer.drawing), resolved exactly like the authoring
+		// editor previews it, so what a teacher authors is what the student sees:
+		// inline SVG renders as-is; a full URL (the uploaded drawing) renders directly;
+		// a bare storage path is signed. The legacy private `drawing_image_path` is a
+		// FALLBACK only, so a challenge carrying both shows the authored `drawing`.
+		const ref = (payload?.drawing ?? '').trim();
+		drawing = null;
 		drawingUrl = null;
-		if (payload?.drawing_image_path) {
+		if (ref.startsWith('<')) {
+			drawing = ref;
+		} else if (/^(https?:|data:|blob:)/.test(ref)) {
+			drawingUrl = ref;
+		} else if (ref) {
+			const { data: signed } = await supabase.storage.from(DRAWINGS_BUCKET).createSignedUrl(ref, 60 * 60);
+			drawingUrl = signed?.signedUrl ?? null;
+		} else if (payload?.drawing_image_path) {
 			const { data: signed } = await supabase.storage
 				.from(DRAWINGS_BUCKET)
 				.createSignedUrl(payload.drawing_image_path, 60 * 60);

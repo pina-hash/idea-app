@@ -26,8 +26,6 @@
 	let form = $state<AuthorFormState>({ ...initial, options: initial.options.map((o) => ({ ...o })) });
 	let file = $state<File | null>(null);
 	let fileName = $state('');
-	let pngFile = $state<File | null>(null);
-	let pngName = $state('');
 	let stlFile = $state<File | null>(null);
 	let stlName = $state('');
 	let pasteText = $state('');
@@ -100,21 +98,13 @@
 		selectedRegion = j;
 	};
 
-	// Resolve the drawing the picker draws on, mirroring the student viewer's
-	// preference: the PNG (uploaded or pending) wins over the inline-SVG / URL asset.
-	let signedDrawingUrl = $state<string | null>(null);
-	let pngObjUrl = $state<string | null>(null);
+	// Preview the picker on the SAME single drawing the student sees, resolved with
+	// the SAME precedence as the reveal page (speedrun/[id]): a pending upload, else
+	// inline SVG as-is, else a full URL, else a signed storage path (answer.drawing,
+	// or the legacy drawing_image_path only when answer.drawing is empty). One source,
+	// so what a teacher authors is exactly what the student's reveal shows.
 	let assetObjUrl = $state<string | null>(null);
-
-	$effect(() => {
-		if (!pngFile) {
-			pngObjUrl = null;
-			return;
-		}
-		const u = URL.createObjectURL(pngFile);
-		pngObjUrl = u;
-		return () => URL.revokeObjectURL(u);
-	});
+	let signedPathUrl = $state<string | null>(null);
 	$effect(() => {
 		if (!file) {
 			assetObjUrl = null;
@@ -124,11 +114,19 @@
 		assetObjUrl = u;
 		return () => URL.revokeObjectURL(u);
 	});
-	// Sign the existing private PNG path (skip when a fresh PNG is pending).
+
+	const assetTrim = $derived(form.asset.trim());
+	const assetIsInline = $derived(assetTrim.startsWith('<'));
+	const assetIsUrl = $derived(/^(https?:|data:|blob:)/.test(assetTrim));
+	// A bare storage path to sign: answer.drawing when it is neither SVG nor a URL,
+	// else the legacy drawing_image_path when answer.drawing is empty.
+	const pathToSign = $derived(
+		assetTrim && !assetIsInline && !assetIsUrl ? assetTrim : !assetTrim ? form.drawing_image_path : ''
+	);
 	$effect(() => {
-		const path = form.drawing_image_path;
-		if (pngFile || !path) {
-			signedDrawingUrl = null;
+		const path = pathToSign;
+		if (file || !path) {
+			signedPathUrl = null;
 			return;
 		}
 		let cancelled = false;
@@ -136,20 +134,15 @@
 			.from(DRAWINGS_BUCKET)
 			.createSignedUrl(path, 3600)
 			.then(({ data }) => {
-				if (!cancelled) signedDrawingUrl = data?.signedUrl ?? null;
+				if (!cancelled) signedPathUrl = data?.signedUrl ?? null;
 			});
 		return () => {
 			cancelled = true;
 		};
 	});
 
-	const assetIsInline = $derived(form.asset.trimStart().startsWith('<'));
-	const drawSrc = $derived(
-		pngObjUrl ?? signedDrawingUrl ?? assetObjUrl ?? (form.asset && !assetIsInline ? form.asset : null)
-	);
-	const drawSvg = $derived(
-		!pngObjUrl && !signedDrawingUrl && !assetObjUrl && assetIsInline ? form.asset : null
-	);
+	const drawSrc = $derived(assetObjUrl ?? (assetIsUrl ? assetTrim : null) ?? signedPathUrl);
+	const drawSvg = $derived(!assetObjUrl && assetIsInline ? form.asset : null);
 
 	const applyPaste = () => {
 		const g = parseAuthorCapture(pasteText);
@@ -165,12 +158,6 @@
 		const f = (e.currentTarget as HTMLInputElement).files?.[0] ?? null;
 		file = f;
 		fileName = f?.name ?? '';
-	};
-
-	const onPng = (e: Event) => {
-		const f = (e.currentTarget as HTMLInputElement).files?.[0] ?? null;
-		pngFile = f;
-		pngName = f?.name ?? '';
 	};
 
 	const onStl = (e: Event) => {
@@ -219,11 +206,6 @@
 				form.asset = await uploadAsset();
 				file = null;
 				fileName = '';
-			}
-			if (pngFile) {
-				form.drawing_image_path = await uploadArtifact(DRAWINGS_BUCKET, pngFile, 'png');
-				pngFile = null;
-				pngName = '';
 			}
 			if (stlFile) {
 				form.model_path = await uploadArtifact(MODELS_BUCKET, stlFile, 'stl');
@@ -459,11 +441,13 @@
 	<div class="card">
 		{#if gatedAsset}
 			<p class="ff-help">
-				This drawing is stored in the hidden answer and revealed only when a student clicks Start.
+				The single dimensioned drawing. Kept in the hidden answer and revealed only when a student
+				clicks Start. Upload a PNG or SVG, or paste inline SVG below; the preview and the student's
+				reveal render this exact source.
 			</p>
 		{/if}
 		<label class="ff">
-			<span class="ff-label">Upload image</span>
+			<span class="ff-label">Upload drawing (PNG or SVG)</span>
 			<input class="ff-input" type="file" accept="image/*,.svg" onchange={onFile} />
 		</label>
 		{#if fileName}<p class="ff-help">Selected: {fileName} (uploads on save)</p>{/if}
@@ -474,21 +458,12 @@
 	</div>
 
 	{#if speedrun}
-		<h2>Geometry artifacts (PNG drawing + STL model)</h2>
+		<h2>3D model (STL preview, optional)</h2>
 		<div class="card">
 			<p class="ff-help">
-				The drawing (PNG) and 3D model (STL) are pure-geometry files. The dimensioned PNG is hidden
-				and revealed on Start, like the drawing above; the STL is a shape-only preview shown up front.
+				A shape-only STL, shown up front as a rotating preview before Start (pure geometry, no
+				dimensions). The drawing above is the single dimensioned source students read on Start.
 			</p>
-			<label class="ff">
-				<span class="ff-label">Dimensioned drawing (PNG)</span>
-				<input class="ff-input" type="file" accept="image/png,image/*" onchange={onPng} />
-			</label>
-			{#if pngName}
-				<p class="ff-help">Selected: {pngName} (uploads on save)</p>
-			{:else if form.drawing_image_path}
-				<p class="ff-help">Current: {form.drawing_image_path}</p>
-			{/if}
 			<label class="ff">
 				<span class="ff-label">3D model (STL)</span>
 				<input class="ff-input" type="file" accept=".stl,model/stl,application/octet-stream" onchange={onStl} />

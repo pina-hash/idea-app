@@ -76,17 +76,21 @@
 	// True once the user pans/zooms/jumps; a late ink probe then leaves the view alone.
 	let interacted = false;
 
-	// White margin around the linework so it reads as a sheet (intrinsic units).
-	const padN = $derived(nW && nH ? Math.max(Math.round(Math.max(nW, nH) * 0.06), 8) : 0);
+	// Thin white paper border around the linework so the card reads as a sheet but
+	// never swells into a big white slab (intrinsic units).
+	const padN = $derived(nW && nH ? Math.max(Math.round(Math.max(nW, nH) * 0.025), 8) : 0);
 	// Sheet outer size (drawing + margin), intrinsic units.
 	const SW = $derived(nW + 2 * padN);
 	const SH = $derived(nH + 2 * padN);
+	// Breathing room at the default fit, so the light card always floats inside a
+	// dark margin instead of bleeding to the viewport edges (framed, not full-bleed).
+	const FIT = 0.88;
 	// Zoom-out floor: the whole sheet inside the stage with breathing room.
-	const sSheet = $derived(W && H && SW && SH ? Math.min(W / SW, H / SH) * 0.94 : 1);
+	const sSheet = $derived(W && H && SW && SH ? Math.min(W / SW, H / SH) * FIT : 1);
 	// Fit scale: the INK content inside the stage (equals sSheet for tight exports).
 	const sFit = $derived(
 		W && H && nW && nH
-			? Math.min(W / Math.max(1, ink.w * nW), H / Math.max(1, ink.h * nH)) * 0.94
+			? Math.min(W / Math.max(1, ink.w * nW), H / Math.max(1, ink.h * nH)) * FIT
 			: 1
 	);
 	// Allow real magnification: small exports need to zoom PAST native so students
@@ -594,9 +598,15 @@
 		left: 0;
 		box-sizing: content-box;
 		transform-origin: 0 0;
-		background: #fbfbf6;
-		border: 1px solid rgba(0, 0, 0, 0.18);
-		box-shadow: 0 10px 34px rgba(0, 0, 0, 0.55);
+		/* Framed light sheet: a warm near-white drawing card, kept legible (black
+		   linework on light paper) but lifted off the dark viewport by a shadow and a
+		   faint on-theme green hairline, so it reads as a framed drawing, not a white
+		   slab. The default fit leaves a dark margin all around it. */
+		background: #f5f4ee;
+		border: 1px solid rgba(0, 0, 0, 0.32);
+		box-shadow:
+			0 8px 30px rgba(0, 0, 0, 0.62),
+			0 0 0 1px rgba(0, 255, 65, 0.14);
 		will-change: transform;
 	}
 	.dv-drawing {
