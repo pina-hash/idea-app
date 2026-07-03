@@ -515,7 +515,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='158';
+const W=630,H=840; const VERSION='159';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -3019,7 +3019,7 @@ function drawSystemHalt(){ const st=station; if(!st)return; const k=st.beam, g=C
   bg.restore();
 }
 function openRefit(){ state='refit'; try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){} clearInput(); Audio_.play&&Audio_.play('refit_open'); document.getElementById('touch').classList.add('hidden');
-  el('refitNext').textContent=roman(sector+1); refitSel=0; buildRefit(); showOverlay('ovlRefit'); refitHighlight();   // highlight after the overlay is visible (cards have no offsetParent while hidden)
+  el('refitNext').textContent=roman(sector+1); refitSel=0; buildRefit(); showOverlay('ovlRefit'); refitHighlight(true);   // highlight after the overlay is visible (cards have no offsetParent while hidden)
   const w=el('refitWrap'); if(w){ w.classList.remove('warp'); void w.offsetWidth; w.classList.add('warp'); }
   Audio_.power(); Audio_.lane('refit'); }
 function launchFromRefit(){ sector++; waveIdx=0; waveTimer=1.6; bossPending=false; fleet=null;
@@ -3081,7 +3081,8 @@ function renderShopGrid(container, items, ctx){ if(!container)return;
   const rows=items.map((it,i)=>[it,i]).filter(p=>grpOf(p[0])===refitTab);
   const _rc=p=>{ const it=p[0],i=p[1]; const maxed=(it.mx>0&&it.lv>=it.mx)||!it.can; return shopCardHTML(it,i,ctx.afford(it),maxed,refitTab); };
   const groups=[], gmap={};
-  rows.forEach(p=>{ const key=(p[0].icon||'_'); if(!(key in gmap)){ gmap[key]=groups.length; groups.push([]); } groups[gmap[key]].push(p); });
+  const _kitTab=(refitTab==='WEAPONS'||refitTab==='HEAVY');   // kit-collapse by shared icon only for weapon/heavy families; every other tab renders flat
+  rows.forEach(p=>{ const key=_kitTab?(p[0].icon||'_'):('_flat_'+p[1]); if(!(key in gmap)){ gmap[key]=groups.length; groups.push([]); } groups[gmap[key]].push(p); });
   const _col=shopGroupColor(refitTab);
   let body='<div class="shopbody">';
   if(refitTab==='MODULES' && player && player.modules){ const filled=player.modules.filter(m=>m).length; let sl=''; for(let s=0;s<player.modules.length;s++) sl+='<i class="modslot'+(player.modules[s]?' on':'')+'"></i>'; body+='<div class="modslots">SLOTS '+sl+' <span style="color:var(--teal)">'+filled+'/'+player.modules.length+'</span></div>'; }
@@ -3209,22 +3210,22 @@ function buildRefit(){ el('refitBal').textContent=player.coins.toLocaleString();
       if(maxed||!it.can||player.coins<it.cost){ (Audio_.play&&Audio_.play('buy_fail'))||Audio_.hit(); return; }
       player.coins-=it.cost; runCoinsSpent+=it.cost; it.buy(); applyUpgrades(); ((Audio_.play&&Audio_.play('buy'))||Audio_.pickup()); buildRefit(); }
   });
-  refitHighlight();
+  refitHighlight(false);
 }
 /* ---- REFIT keyboard navigation (works alongside clicking) ---- */
 let refitSel=0;
 function refitCardEls(){ const c=el('refitItems'); if(!c)return []; return [...c.querySelectorAll('.card')].filter(b=>b.offsetParent!==null); }
-function refitHighlight(){ const c=el('refitItems'); if(!c)return; [...c.querySelectorAll('.card.kbsel')].forEach(b=>b.classList.remove('kbsel'));
+function refitHighlight(scrollToSel){ const c=el('refitItems'); if(!c)return; [...c.querySelectorAll('.card.kbsel')].forEach(b=>b.classList.remove('kbsel'));
   const cards=refitCardEls(); if(!cards.length){ refitSel=0; return; } refitSel=clamp(refitSel,0,cards.length-1);
-  const sel=cards[refitSel]; sel.classList.add('kbsel'); try{ sel.scrollIntoView({block:'nearest'}); }catch(e){} }
+  const sel=cards[refitSel]; sel.classList.add('kbsel'); if(scrollToSel){ try{ sel.scrollIntoView({block:'nearest'}); }catch(e){} } }
 function refitMoveSel(d){ const cards=refitCardEls(); if(!cards.length)return; refitSel=clamp(refitSel+d,0,cards.length-1);
   // landing on a collapsed kit head auto-expands it so its contents become reachable
   const sel=cards[refitSel], head=sel&&sel.closest('.kithead'), kit=head&&head.closest('.kit');
   if(kit&&kit.classList.contains('collapsed')){ kit.classList.remove('collapsed'); const tg=head.querySelector('.kittoggle'); if(tg){ refitExpand[tg.dataset.kit]=true; tg.textContent='▾'; } }
-  refitHighlight(); Audio_.hit&&Audio_.hit(); }
+  refitHighlight(true); Audio_.hit&&Audio_.hit(); }
 function refitTabStep(d){ const c=el('refitItems'); if(!c)return; const tabs=[...c.querySelectorAll('.shoptab')]; if(tabs.length<2)return;
-  let i=tabs.findIndex(b=>b.classList.contains('on')); if(i<0)i=0; i=(i+d+tabs.length)%tabs.length; refitSel=0; tabs[i].click(); refitHighlight(); Audio_.hit&&Audio_.hit(); }
-function refitBuySel(){ const cards=refitCardEls(); const sel=cards[refitSel]; if(sel){ sel.click(); refitHighlight(); } }
+  let i=tabs.findIndex(b=>b.classList.contains('on')); if(i<0)i=0; i=(i+d+tabs.length)%tabs.length; refitSel=0; tabs[i].click(); refitHighlight(true); Audio_.hit&&Audio_.hit(); }
+function refitBuySel(){ const cards=refitCardEls(); const sel=cards[refitSel]; if(sel){ sel.click(); refitHighlight(true); } }
 const _delayed=[];
 function setTimeoutSafe(x,y,c,ms){ _delayed.push({x,y,c,at:performance.now()+ms}); }
 
@@ -4509,6 +4510,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'159',date:'2026',items:['REFIT no longer jumps to the top when you buy an upgrade, and defense upgrades are no longer hidden under DEFENSE PROBE.']},
  {ver:'158',date:'2026',items:['Late sectors hit harder: deeper enemies scale tankier and bullet curtains thicken.']},
  {ver:'157',date:'2026',items:['Hardcore early sectors ease in; full enemy fire pressure now returns by sector 3.']},
  {ver:'155',date:'2026',items:['CONFIGURE BUILD now enforces the 1,000 i¢ budget against the real cost of your build, and cross-device sync keeps your latest build instead of merging saves together. A few over-budget builds will reset to a clean baseline.']},
