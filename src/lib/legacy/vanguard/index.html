@@ -117,6 +117,7 @@ body.touchdev #touch{position:relative;inset:auto;z-index:auto;width:100%;flex:1
 .board .sc{font-family:'Chakra Petch',sans-serif;font-weight:700}
 .board .scwrap{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}
 .board .bst{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--dim);letter-spacing:.06em;margin-top:1px}
+.board .bcont{font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--cyan);letter-spacing:.1em;text-transform:uppercase;border:1px solid rgba(0,240,255,.4);border-radius:2px;padding:0 3px;margin-top:1px}
 .btabs{display:flex;gap:6px;justify-content:center;margin-bottom:2px}
 .btab{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.14em;background:none;border:1px solid var(--dim);color:var(--dim);padding:3px 10px;border-radius:4px;cursor:pointer;pointer-events:auto}
 .btab.sel{border-color:var(--green);color:var(--green);text-shadow:0 0 8px rgba(0,255,65,.5)}
@@ -334,6 +335,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <button class="fbbtn" id="outfitBtn" style="border-color:var(--gold);color:var(--gold);background:rgba(200,255,0,.12);text-shadow:0 0 8px rgba(200,255,0,.5);box-shadow:0 0 12px rgba(200,255,0,.2)">CONFIGURE BUILD</button>
     <div class="tag" id="buildSummary" style="min-height:12px">No upgrades selected.</div>
     <div class="btabs" id="titleBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button></div>
+    <div class="btabs" id="titleContTabs"><button class="btab sel" data-bc="0">SINGLE-SESSION</button><button class="btab" data-bc="1">CONTINUED</button></div>
     <div class="board" id="titleBoard"></div>
     <div class="cta" id="startCta">PRESS ENTER / TAP TO LAUNCH</div>
     <div class="legend" id="legend"></div>
@@ -435,6 +437,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
   <div class="ovl hidden" id="ovlBoard">
     <h2 class="ovh">LEADERBOARD</h2>
     <div class="btabs" id="bigBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button></div>
+    <div class="btabs" id="bigContTabs"><button class="btab sel" data-bc="0">SINGLE-SESSION</button><button class="btab" data-bc="1">CONTINUED</button></div>
     <div class="board" id="bigBoard"></div>
     <button class="obtn" id="againBtn">PLAY AGAIN</button>
     <button class="mini" id="menuBtn">MAIN MENU</button>
@@ -512,7 +515,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='153';
+const W=630,H=840; const VERSION='154';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -3974,6 +3977,7 @@ function sendTelemetry(dc){
 const API_URL='https://script.google.com/macros/s/AKfycbxFMp3q3BcQ4Lpwl_c4hqwzrDw0zi4AYhjxY0ieoZXWYYG1vb8nO6lZ0hoS18Co5o9_kA/exec';
 let onlineBoard=null, boardRetries=0;
 let boardMode='normal';
+let boardCont='0';   // '0' single-session (ranked), '1' continued/resumed runs (shown separately, out of the ranking)
 function jsonp(url,cb,fail){ const id='vcb_'+Math.random().toString(36).slice(2); let done=false;
   const s=document.createElement('script');
   function cleanup(){ try{delete window[id];}catch(e){window[id]=undefined;} if(s.parentNode)s.parentNode.removeChild(s); }
@@ -3981,7 +3985,7 @@ function jsonp(url,cb,fail){ const id='vcb_'+Math.random().toString(36).slice(2)
   s.src=url.replace('callback=?','callback='+id); s.onerror=()=>{ cleanup(); fail&&fail(); }; document.head.appendChild(s);
   setTimeout(()=>{ if(!done){ cleanup(); fail&&fail(); } },6000); }
 function fetchOnline(then,fail){ if(!API_URL){ then&&then(); return; }
-  jsonp(API_URL+'?action=top&n=100&mode='+boardMode+'&callback=?&cb='+Date.now(), rows=>{ if(Array.isArray(rows))onlineBoard=rows; then&&then(); }, fail); }
+  jsonp(API_URL+'?action=top&n=100&mode='+boardMode+'&cont='+boardCont+'&callback=?&cb='+Date.now(), rows=>{ if(Array.isArray(rows))onlineBoard=rows; then&&then(); }, fail); }
 function refreshBoard(target){
   fetchOnline(
     ()=>{ if(onlineBoard){ boardRetries=0; renderBoard(target); }
@@ -3998,6 +4002,8 @@ function boardRows(){ return (API_URL && onlineBoard)? onlineBoard : localBoard(
 function submitToServer(score,sec,acc){ if(!API_URL)return; try{ const img=new Image();
   img.src=API_URL+'?action=submit&name='+encodeURIComponent(curInitials)+'&score='+score+'&sector='+sec+'&acc='+acc+'&t='+Math.round(runTime)+'&mode='+gameMode+'&ver='+encodeURIComponent(VERSION)+'&cont='+(runContinued?1:0)+'&cb='+Date.now(); }catch(e){} }   // cont=1 flags a resumed run; leaderboard ignores it for now, this only establishes the data flow
 function escHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+/* CONTINUED badge for a resumed run. A missing cont field degrades to single-session (no badge) so nothing disappears if the backend is not yet updated. */
+function contBadge(r){ return (r && Number(r.cont)===1) ? '<span class="bcont">CONTINUED</span>' : ''; }
 function renderBoard(target,highlightName,highlightScore){
   const box=el(target); if(!box)return;
   if(API_URL && !onlineBoard){ box.innerHTML='<div class="row"><span class="nm" style="color:var(--dim)">LOADING LEADERBOARD...</span></div>'; return; }
@@ -4007,13 +4013,13 @@ function renderBoard(target,highlightName,highlightScore){
   const top=b.slice(0,10);
   let html=top.map((r,i)=>{ const me=(hl&&r.name===highlightName&&r.score===highlightScore);
     const st=(r.sector!=null)?('<span class="bst">S'+r.sector+(r.acc!=null?' · '+r.acc+'%':'')+(r.ver?' · v'+r.ver:'')+'</span>'):'';
-    return '<div class="row'+(me?' me':'')+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+escHTML(r.name)+'</span><span class="scwrap"><span class="sc">'+(r.score).toLocaleString()+'</span>'+st+'</span></div>'; }).join('');
+    return '<div class="row'+(me?' me':'')+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+escHTML(r.name)+'</span><span class="scwrap"><span class="sc">'+(r.score).toLocaleString()+'</span>'+contBadge(r)+st+'</span></div>'; }).join('');
   if(hl && !top.some(r=>r.name===highlightName&&r.score===highlightScore)){
     let rank=1; for(const r of b){ if(r.score>highlightScore) rank++; }
     html+='<div class="row" style="color:var(--dim);justify-content:center;letter-spacing:.3em;padding:1px 0">···</div>';
     const mr=b.find(r=>r.name===highlightName&&r.score===highlightScore)||{};
     const mst=(mr.sector!=null)?('<span class="bst">S'+mr.sector+(mr.acc!=null?' · '+mr.acc+'%':'')+(mr.ver?' · v'+mr.ver:'')+'</span>'):'';
-    html+='<div class="row me"><span class="rk">'+rank+'</span><span class="nm">'+escHTML(highlightName)+'</span><span class="scwrap"><span class="sc">'+(highlightScore).toLocaleString()+'</span>'+mst+'</span></div>';
+    html+='<div class="row me"><span class="rk">'+rank+'</span><span class="nm">'+escHTML(highlightName)+'</span><span class="scwrap"><span class="sc">'+(highlightScore).toLocaleString()+'</span>'+contBadge(mr)+mst+'</span></div>';
   }
   box.innerHTML=html;
 }
@@ -4205,8 +4211,9 @@ function mergeScore(name,score){ const b=(onlineBoard?onlineBoard.slice():[]);
   if(!b.some(r=>r.name===name&&r.score===score)) b.push({name,score});
   b.sort((a,c)=>c.score-a.score); onlineBoard=b.slice(0,100); }
 function submitScore(){ if(gameMode==='dev'||gameMode==='tune'){ toTitle(); return; } const sc=pendingScore?pendingScore.score:window.scoreT; const nm=trimName(curInitials); curInitials=nm;
-  boardMode=(gameMode==='hardcore')?'hardcore':'normal'; onlineBoard=null; boardRetries=0;
-  document.querySelectorAll('.btab').forEach(b=>b.classList.toggle('sel',b.dataset.bm===boardMode));
+  boardMode=(gameMode==='hardcore')?'hardcore':'normal'; boardCont='0'; onlineBoard=null; boardRetries=0;   // post-run board defaults to the ranked single-session view
+  document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===boardMode));
+  document.querySelectorAll('.btab[data-bc]').forEach(b=>b.classList.toggle('sel',b.dataset.bc===boardCont));
   saveLocal(nm, sc); try{localStorage.setItem('vanguard_lastInitials',nm);}catch(e){}
   submitToServer(sc, pendingScore?pendingScore.sector:sector, pendingScore?pendingScore.acc:0);
   mergeScore(nm,sc);
@@ -4462,6 +4469,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'154',date:'2026',items:['Leaderboard now separates single-session runs from continued (resumed) runs, so a run you picked up on another device no longer competes with unbroken runs.']},
  {ver:'153',date:'2026',items:['Your in-progress run now saves automatically when you leave, so you can pick it up on another device without backing up manually.']},
  {ver:'152',date:'2026',items:['Cross-device RESUME: pick up an in-progress run on any device from the title screen, with a separate saved run for NORMAL and HARDCORE. Dying clears that run.']},
  {ver:'151',date:'2026',items:['RUN HISTORY: view your past runs and lifetime stats when signed in.']},
@@ -4566,14 +4574,22 @@ function closeHist(){ el('ovlHist').classList.add('hidden'); }
 { const bo=el('histBtnOver'); if(bo) bo.addEventListener('click',e=>{ e.stopPropagation(); openHist(); }); }
 try{ if(!localStorage.getItem('vanguard_tutdone')){ const _ca=document.getElementById('ovlCalibAsk'); if(_ca) _ca.classList.remove('hidden'); } }catch(e){}
 
-/* board mode tabs */
+/* board mode tabs (NORMAL / HARDCORE) and run-type tabs (SINGLE-SESSION / CONTINUED).
+   The two toggles are orthogonal, so each only touches its own tab group ([data-bm]
+   vs [data-bc]) to avoid clobbering the other's selected state. */
 function setBoardMode(m,target){ boardMode=m; onlineBoard=null; boardRetries=0;
-  document.querySelectorAll('.btab').forEach(b=>b.classList.toggle('sel',b.dataset.bm===m));
+  document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===m));
+  renderBoard(target); refreshBoard(target); }
+function setBoardCont(c,target){ boardCont=c; onlineBoard=null; boardRetries=0;
+  document.querySelectorAll('.btab[data-bc]').forEach(b=>b.classList.toggle('sel',b.dataset.bc===c));
   renderBoard(target); refreshBoard(target); }
 (function(){
   function bind(row,target){ if(!row)return; row.querySelectorAll('.btab').forEach(b=>b.addEventListener('click',ev=>{ ev.stopPropagation(); setBoardMode(b.dataset.bm,target); Audio_.hit(); })); }
+  function bindCont(row,target){ if(!row)return; row.querySelectorAll('.btab').forEach(b=>b.addEventListener('click',ev=>{ ev.stopPropagation(); setBoardCont(b.dataset.bc,target); Audio_.hit(); })); }
   bind(document.getElementById('bigBoardTabs'),'bigBoard');
   bind(document.getElementById('titleBoardTabs'),'titleBoard');
+  bindCont(document.getElementById('bigContTabs'),'bigBoard');
+  bindCont(document.getElementById('titleContTabs'),'titleBoard');
 })();
 
 /* ============================= loop ============================= */
