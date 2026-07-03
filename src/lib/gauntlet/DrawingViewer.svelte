@@ -257,62 +257,106 @@
 		}
 	}
 
+	// Monotonic guard so a slow probe for a previous drawing can never apply late.
+	let loadSeq = 0;
+
+	/** Release an ImageBitmap; a no-op for the HTMLImageElement fallback. */
+	function closeBitmap(x: ImageBitmap | HTMLImageElement | null) {
+		if (x && 'close' in x && typeof x.close === 'function') x.close();
+	}
+
+	/** Decode a blob to something drawable, tolerant of a missing createImageBitmap. */
+	function decodeBlob(blob: Blob): Promise<ImageBitmap | HTMLImageElement | null> {
+		if (typeof createImageBitmap === 'function') {
+			return createImageBitmap(blob).catch(() => decodeViaObjectUrl(blob));
+		}
+		return decodeViaObjectUrl(blob);
+	}
+	function decodeViaObjectUrl(blob: Blob): Promise<HTMLImageElement | null> {
+		return new Promise((resolve) => {
+			const obj = URL.createObjectURL(blob);
+			const img = new Image();
+			img.onload = () => {
+				resolve(img);
+				setTimeout(() => URL.revokeObjectURL(obj), 0);
+			};
+			img.onerror = () => {
+				URL.revokeObjectURL(obj);
+				resolve(null);
+			};
+			img.src = obj;
+		});
+	}
+
 	/**
-	 * Probe the raster for its ink bounding box, so fit frames the CONTENT of
-	 * margin-heavy exports. Runs on a separate crossOrigin image (the display
-	 * img stays untouched; a CORS-blocked read or any failure just keeps the
-	 * full-sheet fit). Scans a downsampled copy; "ink" = any visibly non-white
-	 * pixel. Applies only while this src is still current and the user has not
-	 * taken over the view.
+	 * Probe the raster for its INK bounding box so Fit frames the CONTENT of a
+	 * margin-heavy export (a real SolidWorks PNG parks the linework in one corner
+	 * of a mostly empty sheet). The bytes are fetched ONCE as a blob and decoded
+	 * from that same-origin blob, so the pixel read can never taint.
+	 *
+	 * Why not a second crossOrigin <img> (the old path)? The display <img> had
+	 * already cached the same signed URL in no-cors mode, so the probe reused a
+	 * tainted response and getImageData() threw. That silently killed content-fit
+	 * in production (the drawing shrank into a corner of the whole empty sheet)
+	 * while the data-URL dev harness, which never taints, always looked fine.
+	 * Any failure here just keeps the full-sheet fit, so display never regresses.
 	 */
-	function probeInk(url: string) {
-		const probe = new Image();
-		probe.crossOrigin = 'anonymous';
-		probe.onload = () => {
-			if (url !== src) return;
-			try {
-				const k = Math.min(1, 640 / (probe.naturalWidth || 1));
-				const cw = Math.max(1, Math.round(probe.naturalWidth * k));
-				const ch = Math.max(1, Math.round(probe.naturalHeight * k));
-				const c = document.createElement('canvas');
-				c.width = cw;
-				c.height = ch;
-				const g = c.getContext('2d', { willReadFrequently: true });
-				if (!g) return;
-				g.drawImage(probe, 0, 0, cw, ch);
-				const d = g.getImageData(0, 0, cw, ch).data;
-				let x0 = cw;
-				let y0 = ch;
-				let x1 = -1;
-				let y1 = -1;
-				for (let y = 0; y < ch; y++) {
-					for (let x = 0; x < cw; x++) {
-						const i = (y * cw + x) * 4;
-						if (d[i + 3] > 32 && Math.min(d[i], d[i + 1], d[i + 2]) < 240) {
-							if (x < x0) x0 = x;
-							if (x > x1) x1 = x;
-							if (y < y0) y0 = y;
-							if (y > y1) y1 = y;
-						}
+	async function probeInk(url: string) {
+		const seq = ++loadSeq;
+		try {
+			const res = await fetch(url, { mode: 'cors', credentials: 'omit' });
+			if (!res.ok || seq !== loadSeq) return;
+			const bmp = await decodeBlob(await res.blob());
+			if (!bmp || seq !== loadSeq) {
+				closeBitmap(bmp);
+				return;
+			}
+			const bw0 = (bmp as HTMLImageElement).naturalWidth || bmp.width;
+			const bh0 = (bmp as HTMLImageElement).naturalHeight || bmp.height;
+			const k = Math.min(1, 640 / (bw0 || 1));
+			const cw = Math.max(1, Math.round(bw0 * k));
+			const ch = Math.max(1, Math.round(bh0 * k));
+			const c = document.createElement('canvas');
+			c.width = cw;
+			c.height = ch;
+			const g = c.getContext('2d', { willReadFrequently: true });
+			if (!g) {
+				closeBitmap(bmp);
+				return;
+			}
+			g.drawImage(bmp as CanvasImageSource, 0, 0, cw, ch);
+			closeBitmap(bmp);
+			const d = g.getImageData(0, 0, cw, ch).data;
+			let x0 = cw;
+			let y0 = ch;
+			let x1 = -1;
+			let y1 = -1;
+			for (let y = 0; y < ch; y++) {
+				for (let x = 0; x < cw; x++) {
+					const i = (y * cw + x) * 4;
+					if (d[i + 3] > 32 && Math.min(d[i], d[i + 1], d[i + 2]) < 240) {
+						if (x < x0) x0 = x;
+						if (x > x1) x1 = x;
+						if (y < y0) y0 = y;
+						if (y > y1) y1 = y;
 					}
 				}
-				if (x1 < 0) return; // blank image: keep full-sheet fit
-				// Small breathing margin around the ink, clamped to the image.
-				const mx = cw * 0.015;
-				const my = ch * 0.015;
-				const bx = Math.max(0, x0 - mx) / cw;
-				const by = Math.max(0, y0 - my) / ch;
-				const bw = Math.min(cw, x1 + 1 + mx) / cw - bx;
-				const bh = Math.min(ch, y1 + 1 + my) / ch - by;
-				// A speck-sized bbox is more likely an artifact than a drawing.
-				if (bw * bh < 0.005) return;
-				ink = { x: bx, y: by, w: bw, h: bh };
-				if (!interacted && nW && nH && W && H) fitView();
-			} catch {
-				/* tainted canvas or read failure: full-sheet fit stands */
 			}
-		};
-		probe.src = url;
+			if (x1 < 0) return; // blank image: keep full-sheet fit
+			// Small breathing margin around the ink, clamped to the image.
+			const mx = cw * 0.015;
+			const my = ch * 0.015;
+			const bx = Math.max(0, x0 - mx) / cw;
+			const by = Math.max(0, y0 - my) / ch;
+			const bw = Math.min(cw, x1 + 1 + mx) / cw - bx;
+			const bh = Math.min(ch, y1 + 1 + my) / ch - by;
+			// A speck-sized bbox is more likely an artifact than a drawing.
+			if (bw * bh < 0.005 || seq !== loadSeq) return;
+			ink = { x: bx, y: by, w: bw, h: bh };
+			if (!interacted && nW && nH && W && H) fitView();
+		} catch {
+			/* network / CORS / decode failure: full-sheet fit stands */
+		}
 	}
 
 	function measureSvg() {
