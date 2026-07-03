@@ -1,7 +1,7 @@
 # IDEA // GAUNTLET SolidWorks Add-in
 
 A .NET Framework 4.8 SOLIDWORKS COM add-in (C#, `ISwAddin`) that replaces the
-two VBA capture macros (`static/gauntlet/idea-gauntlet-start.bas` and
+two VBA capture macros (`static/tools/idea-gauntlet-start.bas` and
 `idea-gauntlet-submit.bas`) with a persistent task pane. It reads the active
 part, verifies Speedrun runs, and submits them to the IDEA portal using the
 exact same server contract as the macros, so the two stay interchangeable,

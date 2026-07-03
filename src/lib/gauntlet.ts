@@ -352,29 +352,38 @@ export interface MacroResult {
 	score_metric: number | null;
 }
 
-/** Path to the run-start SolidWorks macro (served from static/). */
-export const START_MACRO_PATH = '/gauntlet/idea-gauntlet-start.bas';
-
-/** Path to the student-submit SolidWorks macro (served from static/). */
-export const SUBMIT_MACRO_PATH = '/gauntlet/idea-gauntlet-submit.bas';
-
-/** Path to the author-capture SolidWorks macro (served from static/). */
-export const AUTHOR_MACRO_PATH = '/gauntlet/idea-gauntlet-author.bas';
-
 /**
- * The built SolidWorks add-in ships as a zip in the PUBLIC `gauntlet-tools`
- * Storage bucket (created in migration 0031). We store only the bucket + object
- * PATH here, not a provider URL; `addinDownloadUrl()` builds the public URL from
- * `PUBLIC_SUPABASE_URL` at call time. The teacher builds it with
- * `tools/solidworks-addin/build.ps1` and uploads the zip to that path once; the
- * .bas macros above download immediately since they are served from static/.
+ * Every downloadable tool is served DIRECTLY from `static/tools/`, so the site
+ * hands them out itself (no Supabase Storage bucket, no signed URL, no
+ * storage-404 class of bug). The teacher rebuilds the add-in zip with
+ * `tools/solidworks-addin/build.ps1 -Package` and drops it at
+ * `static/tools/idea-gauntlet-addin.zip`; the macros are plain source files.
  */
-export const TOOLS_BUCKET = 'gauntlet-tools';
-export const ADDIN_ZIP_PATH = 'idea-gauntlet-addin.zip';
+export const START_MACRO_PATH = '/tools/idea-gauntlet-start.bas';
+export const SUBMIT_MACRO_PATH = '/tools/idea-gauntlet-submit.bas';
+export const AUTHOR_MACRO_PATH = '/tools/idea-gauntlet-author.bas';
 
-/** Public URL of the built add-in zip, from the stored bucket + path. */
-export function addinDownloadUrl(supabaseUrl: string): string {
-	return `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${TOOLS_BUCKET}/${ADDIN_ZIP_PATH}`;
+/** Static path to the built SolidWorks add-in zip (DLL + interops + installers). */
+export const ADDIN_DOWNLOAD_PATH = '/tools/idea-gauntlet-addin.zip';
+
+/** Static path to the tools manifest (versions, dates, changelog). */
+export const TOOLS_MANIFEST_PATH = '/tools/tools-manifest.json';
+
+/** One tool track (macros or the add-in) in `tools-manifest.json`. */
+export interface ToolTrack {
+	version: string;
+	updated: string;
+	changelog: string[];
+	/** The add-in track's download path; macros list their files instead. */
+	path?: string;
+	files?: { name: string; path: string }[];
+}
+
+/** The shape of `static/tools/tools-manifest.json`. */
+export interface ToolsManifest {
+	generated: string;
+	macros: ToolTrack;
+	addin: ToolTrack;
 }
 
 /** The grading result returned by `gauntlet_submit` for a Speedrun challenge. */
@@ -420,6 +429,8 @@ export interface GauntletRoom {
 	current_challenge_id: string | null;
 	state: RoomState;
 	started_at: string | null;
+	/** Server-stamped room open time; the ROOM session timer counts from here. */
+	created_at: string | null;
 }
 
 export interface RoomParticipant {

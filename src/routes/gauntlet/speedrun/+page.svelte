@@ -1,6 +1,8 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Header from '$lib/gauntlet/Header.svelte';
 	import PartThumb from '$lib/gauntlet/PartThumb.svelte';
+	import SeriesThumbRotator from '$lib/gauntlet/SeriesThumbRotator.svelte';
 	import { difficultyLabel, formatTime, formatMass, MODELS_BUCKET } from '$lib/gauntlet';
 
 	let { data } = $props();
@@ -13,6 +15,29 @@
 	const signModel = async (path: string) => {
 		const { data: signed } = await supabase.storage.from(MODELS_BUCKET).createSignedUrl(path, 600);
 		return signed?.signedUrl ?? null;
+	};
+
+	// Per-browser collapsed state per series (localStorage). A collapsed series
+	// hides its list and shows one slot that slowly cross-fades through its
+	// levels' isometric thumbnails (SeriesThumbRotator); expanded shows the list.
+	// SSR renders expanded, then onMount restores the saved state (brief settle).
+	const COLLAPSE_KEY = 'gauntlet_speedrun_series_collapsed';
+	let collapsed = $state<Record<string, boolean>>({});
+	onMount(() => {
+		try {
+			const raw = localStorage.getItem(COLLAPSE_KEY);
+			if (raw) collapsed = JSON.parse(raw);
+		} catch {
+			/* no stored state */
+		}
+	});
+	const toggleSeries = (id: string) => {
+		collapsed = { ...collapsed, [id]: !collapsed[id] };
+		try {
+			localStorage.setItem(COLLAPSE_KEY, JSON.stringify(collapsed));
+		} catch {
+			/* storage unavailable */
+		}
 	};
 
 	// Browse by series (0022). 'all' shows every group; a series id or 'none'
@@ -93,9 +118,8 @@
 		<p>
 			Ranked runs are machine verified: the GAUNTLET SolidWorks add-in (or the macros) reads your
 			part and posts it with a one-time submit code, and the server times the run from the moment you
-			hit Start. Manual mass entry stays as unranked practice. New to the add-in?
-			<a href="/gauntlet/speedrun/quickstart">Add-in quick-start</a>.
-			<a href="/gauntlet/tools">Get the tools</a>.
+			hit Start. Manual mass entry stays as unranked practice.
+			<a href="/gauntlet/tools">Get the run tools</a>.
 		</p>
 	</div>
 
@@ -125,13 +149,31 @@
 		{#each groups as g (g.series.id)}
 			{#if showGroup(g.series.id)}
 				<section class="series-section">
-					<div class="series-head">
-						<h2>{g.series.name}</h2>
-						{#if g.series.description}<p class="dim series-desc">{g.series.description}</p>{/if}
-					</div>
-					<ul class="challenge-list">
-						{#each g.items as c (c.id)}{@render row(c)}{/each}
-					</ul>
+					<button
+						class="series-head series-toggle"
+						type="button"
+						aria-expanded={!collapsed[g.series.id]}
+						onclick={() => toggleSeries(g.series.id)}
+					>
+						<span class="series-caret" class:open={!collapsed[g.series.id]} aria-hidden="true">&rsaquo;</span>
+						<span class="series-head-text">
+							<h2>{g.series.name}</h2>
+							{#if g.series.description}<span class="dim series-desc">{g.series.description}</span>{/if}
+						</span>
+						<span class="series-count">{g.items.length}</span>
+					</button>
+					{#if collapsed[g.series.id]}
+						<div class="series-collapsed-body">
+							<SeriesThumbRotator models={g.items.map((c) => c.modelPath)} resolveUrl={signModel} />
+							<p class="dim series-collapsed-hint">
+								{g.items.length} drawing{g.items.length === 1 ? '' : 's'}. Expand to run them.
+							</p>
+						</div>
+					{:else}
+						<ul class="challenge-list">
+							{#each g.items as c (c.id)}{@render row(c)}{/each}
+						</ul>
+					{/if}
 				</section>
 			{/if}
 		{/each}
@@ -148,7 +190,67 @@
 
 	<div class="btn-row">
 		<a class="btn secondary" href="/gauntlet">&lsaquo; All modes</a>
-		<a class="btn secondary" href="/gauntlet/speedrun/quickstart">Add-in quick-start</a>
-		<a class="btn secondary" href="/gauntlet/tools">Macro &amp; tools</a>
+		<a class="btn secondary" href="/gauntlet/speedrun/history">My attempts</a>
+		<a class="btn secondary" href="/gauntlet/tools">Tools</a>
 	</div>
 </main>
+
+<style>
+	/* Collapsible series header: the existing .series-head, made a button. */
+	.series-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+		width: 100%;
+		background: none;
+		border: none;
+		padding: 0.35rem 0;
+		cursor: pointer;
+		text-align: left;
+		color: inherit;
+	}
+	.series-caret {
+		flex: none;
+		color: var(--green);
+		font-size: 1.3rem;
+		line-height: 1;
+		transition: transform 0.2s ease;
+	}
+	.series-caret.open {
+		transform: rotate(90deg);
+	}
+	.series-head-text {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+	}
+	.series-count {
+		flex: none;
+		font-family: var(--font-mono);
+		font-size: 0.72rem;
+		color: var(--cyan);
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 0.1rem 0.45rem;
+	}
+	.series-toggle:hover .series-count {
+		border-color: var(--line-strong);
+	}
+	.series-collapsed-body {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 0.5rem 0 0.7rem 1.7rem;
+	}
+	.series-collapsed-hint {
+		font-size: 0.9rem;
+		margin: 0;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.series-caret {
+			transition: none;
+		}
+	}
+</style>

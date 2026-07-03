@@ -12,11 +12,11 @@
 param(
     [string]$SolidWorksApiDir = "C:\Program Files\SOLIDWORKS Corp\SOLIDWORKS\api\redist",
     [string]$Configuration = "Release",
-    # -Package also zips the build into idea-gauntlet-addin.zip for students to
-    # download. Upload that zip to the public Supabase Storage bucket
-    # `gauntlet-tools` at object path idea-gauntlet-addin.zip (see migration 0031
-    # and TOOLS_BUCKET / ADDIN_ZIP_PATH in src/lib/gauntlet.ts); the site's
-    # "Download add-in" buttons point there.
+    # -Package also zips the build into the repo at
+    # static/tools/idea-gauntlet-addin.zip, which the site serves DIRECTLY (no
+    # Supabase Storage bucket; see ADDIN_DOWNLOAD_PATH in src/lib/gauntlet.ts).
+    # Commit the updated zip and bump the "addin" version in
+    # static/tools/tools-manifest.json so the Tools page shows the new version.
     [switch]$Package
 )
 
@@ -77,8 +77,11 @@ Write-Host "  $env:windir\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe /codeb
 if ($Package) {
     # Bundle the DLL + interops + the install wrappers + README into the zip that
     # students download. register.bat / unregister.bat self-locate and self-elevate,
-    # so unzip-and-run is the whole student install.
-    $zip = Join-Path $root "idea-gauntlet-addin.zip"
+    # so unzip-and-run is the whole student install. The zip is written straight to
+    # static/tools/ so the site serves it directly (no upload step).
+    $staticTools = Join-Path $root "..\..\static\tools"
+    New-Item -ItemType Directory -Force $staticTools | Out-Null
+    $zip = Join-Path $staticTools "idea-gauntlet-addin.zip"
     $staging = Join-Path $out "_pkg"
     if (Test-Path $staging) { Remove-Item -Recurse -Force $staging }
     New-Item -ItemType Directory -Force $staging | Out-Null
@@ -92,6 +95,6 @@ if ($Package) {
     Remove-Item -Recurse -Force $staging
     Write-Host ""
     Write-Host "Packaged $zip"
-    Write-Host "Upload it to the public 'gauntlet-tools' bucket as idea-gauntlet-addin.zip"
-    Write-Host "(Supabase Storage). The site's Download add-in buttons point there."
+    Write-Host "It is already in static/tools, served directly by the site."
+    Write-Host "Commit it and bump the 'addin' version in static/tools/tools-manifest.json."
 }

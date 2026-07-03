@@ -73,6 +73,7 @@ namespace IdeaGauntlet
             BuildUi();
             ShowSwVersion();
             FullRefreshQuiet();
+            KickUpdateCheck();
 
             timer = new System.Windows.Forms.Timer();
             timer.Interval = 1000;
@@ -736,7 +737,20 @@ namespace IdeaGauntlet
                 }
             }
             catch { }
-            lblVersion.Text = text + " · add-in v1.2";
+            lblVersion.Text = text + " · add-in v" + AddinUpdate.CurrentVersion;
+        }
+
+        // Fire-and-forget, fully defensive: appends an "update available" note to the
+        // footer if the site manifest lists a newer add-in. No-ops (no network) until
+        // AddinUpdate.ManifestUrl is set, so it never blocks or fails the pane load.
+        private async void KickUpdateCheck()
+        {
+            string notice = await AddinUpdate.CheckAsync();
+            if (string.IsNullOrEmpty(notice)) return;
+            RunOnUi(delegate
+            {
+                if (lblVersion != null) lblVersion.Text = lblVersion.Text + " · " + notice;
+            });
         }
 
         private void SetBusy(bool value)

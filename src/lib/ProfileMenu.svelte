@@ -38,8 +38,19 @@
 		errorMsg = '';
 	};
 
-	const onDocClick = (e: MouseEvent) => {
-		if (open && root && !root.contains(e.target as Node)) close();
+	// Outside-dismiss runs on pointerdown, NOT click. The bug: clicking "Edit"
+	// swaps the name label (with the Edit button) for the inline form in the same
+	// click; a click-based outside handler then evaluates against a target that has
+	// been detached (or is caught by another document click handler on the page),
+	// reads it as "outside" root, and closes the whole popup. On pointerdown no DOM
+	// has changed yet, so the containment check is reliable, and the click that
+	// opens the editor is never seen by this handler at all. The detached-target
+	// guard is belt-and-braces for any node removed mid-gesture.
+	const onDocPointerDown = (e: Event) => {
+		const t = e.target;
+		if (!open || !root || !(t instanceof Node)) return;
+		if (!document.contains(t)) return;
+		if (!root.contains(t)) close();
 	};
 	const onKeydown = (e: KeyboardEvent) => {
 		if (e.key === 'Escape') close();
@@ -121,7 +132,7 @@
 	);
 </script>
 
-<svelte:document onclick={onDocClick} onkeydown={onKeydown} />
+<svelte:document onpointerdown={onDocPointerDown} onkeydown={onKeydown} />
 
 {#if claims}
 	<div class="pm-root" bind:this={root}>

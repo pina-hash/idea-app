@@ -706,6 +706,64 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   add-in) and blocks a submit whose document units differ from the level's,
   showing both; it also reports the measured mass in the level's unit (lb/g).
   Built on the 0027 density gate (not a revert).
+- **Speedrun tooling, attempts, series, room timers (batch):** a set of
+  additive Speedrun improvements.
+  - **Unified Tools page + static hosting.** All run tooling lives on ONE page
+    (`/gauntlet/tools`): a "which should I use" comparison plus two columns
+    (SolidWorks add-in, VBA macros), each with a single download, version and
+    last-updated date, install steps, and usage steps, and a teacher-only author
+    section. The scattered tool entry points on the Speedrun list and play pages
+    collapse to a single "Tools" link. Every download is now served DIRECTLY from
+    `static/tools/` (the three `.bas` macros, the built add-in
+    `idea-gauntlet-addin.zip`, and `tools-manifest.json`), which removes the
+    Supabase-Storage add-in-download 404 class of bug entirely. Paths are the
+    `*_MACRO_PATH` / `ADDIN_DOWNLOAD_PATH` / `TOOLS_MANIFEST_PATH` constants in
+    `src/lib/gauntlet.ts` (the old `gauntlet-tools` bucket helper is gone). The
+    add-in zip is (re)built by `tools/solidworks-addin/build.ps1 -Package`, which
+    now writes straight into `static/tools/`.
+  - **Update mechanism.** `static/tools/tools-manifest.json` lists the current
+    macro and add-in versions, dates, and a short changelog; the Tools page reads
+    it (the load fetches the static file, fails soft). Downloads always serve the
+    latest. The add-in has a fully defensive, non-blocking startup version check
+    (`AddinUpdate.cs`, appends an "update available" note to the pane footer);
+    it no-ops until `ManifestUrl` is set (clear TODO), so the shipped build makes
+    no unverified network call. Add-in version is `1.3`.
+  - **All attempts logged (0033).** Every Speedrun attempt is persisted
+    server-side in `gauntlet_speedrun_attempts` (run_id, user_id, challenge_id,
+    series_id, room_id, elapsed_ms, result, created_at) by two EXCEPTION-SAFE
+    triggers: the run token gaining a run_id/started_at logs the START
+    (`in_progress`); a graded submission (macro or manual) reconciles it to
+    `passed`/`failed`; a started run whose token expired with no finish reads as
+    `abandoned` in the `gauntlet_speedrun_attempt_history` view (no cron). The
+    triggers swallow all exceptions so logging can never break grading. A
+    definer RPC `gauntlet_log_speedrun_attempt` is available for explicit client
+    logging. The per-user history is at `/gauntlet/speedrun/history` (linked from
+    the Speedrun list), RLS-scoped to own rows (teachers read all).
+  - **Collapsible series + rotating thumbnail.** Speedrun series are collapsible,
+    the collapsed state persisted per browser in `localStorage`
+    (`gauntlet_speedrun_series_collapsed`). A collapsed series shows one
+    `SeriesThumbRotator` slot that cross-fades (~3.5s) through its levels'
+    isometric thumbnails (reusing `part-thumbs.ts`), degrades to one static
+    thumbnail under `prefers-reduced-motion`, and to a VIEWPORT wireframe
+    placeholder when no model renders.
+  - **Live-room parity + two timers.** The room race screen reuses the same
+    interactive `DrawingViewer` (pan/zoom) as the solo page for SVG drawings, and
+    renders `RoomClocks`: two server-anchored timers in Share Tech Mono, a ROOM
+    session timer (from `gauntlet_rooms.created_at`) and a per-RUN timer (from the
+    round `started_at`, frozen on the racer's scored time at submit), with a
+    crimson LIVE badge. No scoring or room-timing change.
+  - **DrawingViewer rebuilt on one transform matrix.** `DrawingViewer.svelte`
+    pan/zoom is a single `translate()+scale()` on one wrapper (GPU-composited),
+    replacing the per-step box-resize model that re-decoded the raster on every
+    wheel tick and made real-drawing zoom stutter. Wheel zoom is cursor-anchored,
+    drag pans via pointer capture, Fit frames the ink content, scale clamped to
+    sane min/max. Verified in `/dev/viewer`.
+  - **ProfileMenu display-name edit fix.** The outside-dismiss handler now runs on
+    `pointerdown` (not `click`) and ignores detached targets, so clicking Edit no
+    longer closes the whole popup (the click that opened the inline editor is
+    never seen by the dismiss handler).
+  - **Dev harnesses (regression tools, 404 in prod, no auth):** `/dev/viewer`,
+    `/dev/series`, `/dev/room-clocks`, `/dev/profile-menu`, `/dev/tools-preview`.
 - **Visuals (standing directive):** all GAUNTLET UI, current and new, must
   conform to the **VIEWPORT design system** documented in
   `docs/GAUNTLET-DESIGN.md`. Tokens and the re-skin layer live in

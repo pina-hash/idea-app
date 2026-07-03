@@ -4,7 +4,8 @@
 	import Header from '$lib/gauntlet/Header.svelte';
 	import Asset from '$lib/gauntlet/Asset.svelte';
 	import StlViewer from '$lib/gauntlet/StlViewer.svelte';
-	import SpeedrunClock from '$lib/gauntlet/SpeedrunClock.svelte';
+	import DrawingViewer from '$lib/gauntlet/DrawingViewer.svelte';
+	import RoomClocks from '$lib/gauntlet/RoomClocks.svelte';
 	import CountdownOverlay from '$lib/gauntlet/viewport/CountdownOverlay.svelte';
 	import {
 		difficultyLabel,
@@ -53,6 +54,8 @@
 	// reveal_at, so one clock (fed to SpeedrunClock, display-only) is correct
 	// for the whole room, not just "my" run.
 	const roomStartMs = $derived(room.started_at ? Date.parse(room.started_at) : null);
+	// The ROOM session timer counts from the server-stamped room open time.
+	const roomOpenedMs = $derived(room.created_at ? Date.parse(room.created_at) : null);
 
 	// Click-to-zoom lightbox for the drawing, matching the solo Speedrun page.
 	let zoomOpen = $state(false);
@@ -64,6 +67,9 @@
 	// Reveal (drawing + this racer's submit code) is fetched once the host starts.
 	let revealed = $state<RoomReveal | null>(null);
 	let revealing = $state(false);
+	// SVG drawings render in the interactive pan/zoom viewer (parity with the solo
+	// Speedrun page); a non-SVG value falls back to the Asset renderer.
+	const drawingIsSvg = $derived(!!revealed?.drawing && revealed.drawing.trimStart().startsWith('<'));
 	// This racer's own result (from the manual RPC or a Realtime submission).
 	let myResult = $state<{ is_correct: boolean; score_metric: number | null } | null>(null);
 	let mass = $state<number | null>(null);
@@ -237,6 +243,12 @@
 			<div class="drawing-frame">
 				{#if revealing}
 					<p class="dim">Revealing...</p>
+				{:else if revealed?.drawing && drawingIsSvg}
+					<div class="viewer-slot">
+						<div class="viewer-host">
+							<DrawingViewer svg={revealed.drawing} alt="Dimensioned drawing" />
+						</div>
+					</div>
 				{:else if revealed?.drawing}
 					<button type="button" class="drawing-zoom" onclick={() => (zoomOpen = true)}>
 						<Asset value={revealed.drawing} />
@@ -245,7 +257,7 @@
 				{:else}
 					<p class="dim">No drawing.</p>
 				{/if}
-				{#if revealed?.drawing}
+				{#if revealed?.drawing && !drawingIsSvg}
 					<div class="sheet-titleblock" aria-hidden="true">
 						<span class="tb-brand">IDEA // GAUNTLET</span>
 						<span class="tb-meta">Room {room.join_code}</span>
@@ -262,12 +274,18 @@
 			{@render rulesetCard()}
 
 			<div class="clock-wrap">
-				<SpeedrunClock serverStartMs={roomStartMs} clockOffsetMs={0} running={room.state === 'live'} />
+				<RoomClocks
+					{roomOpenedMs}
+					runStartMs={roomStartMs}
+					live={room.state === 'live'}
+					runStopped={submitted}
+					runResultMs={submitted && myResult ? (myResult.score_metric ?? 0) * 1000 : null}
+				/>
 			</div>
 			{#if room.state === 'live'}
 				<p class="instructions">
-					Live, timed from the moment the host started the round, server-authoritative. Build your
-					part, then submit.
+					Two clocks, both server-authoritative: ROOM is the session since the room opened, RUN is
+					your current attempt from the round start until you submit. Build your part, then submit.
 				</p>
 			{/if}
 
@@ -426,7 +444,7 @@
 				<p class="dim">You joined after the round started, so you are spectating this round. Watch the board below.</p>
 				{#if room.state === 'live'}
 					<div class="clock-wrap">
-						<SpeedrunClock serverStartMs={roomStartMs} clockOffsetMs={0} running={room.state === 'live'} compact />
+						<RoomClocks {roomOpenedMs} runStartMs={roomStartMs} live={room.state === 'live'} />
 					</div>
 				{/if}
 				{#if revealed?.drawing}

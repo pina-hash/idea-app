@@ -24,7 +24,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, param
 
 	const { data: room } = await supabase
 		.from('gauntlet_rooms')
-		.select('id, host_id, join_code, current_challenge_id, state, started_at')
+		.select('id, host_id, join_code, current_challenge_id, state, started_at, created_at')
 		.eq('id', params.id)
 		.maybeSingle();
 

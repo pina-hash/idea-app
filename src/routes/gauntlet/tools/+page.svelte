@@ -1,16 +1,21 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
-	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 	import {
 		START_MACRO_PATH,
 		SUBMIT_MACRO_PATH,
 		AUTHOR_MACRO_PATH,
-		addinDownloadUrl
+		ADDIN_DOWNLOAD_PATH,
+		type ToolTrack
 	} from '$lib/gauntlet';
 
 	let { data } = $props();
-	let { supabase, userName, userRole, isTeacher } = $derived(data);
-	const addinUrl = addinDownloadUrl(PUBLIC_SUPABASE_URL);
+	let { supabase, userName, userRole, isTeacher, manifest } = $derived(data);
+
+	const addin = $derived(manifest?.addin ?? null);
+	const macros = $derived(manifest?.macros ?? null);
+
+	const fmtVer = (t: ToolTrack | null) =>
+		t ? `v${t.version} · updated ${t.updated}` : 'version unknown';
 </script>
 
 <svelte:head>
@@ -22,290 +27,321 @@
 <main class="gauntlet">
 	<section class="mode-hero">
 		<span class="eyebrow">GAUNTLET Tools</span>
-		<h1>SolidWorks tools</h1>
+		<h1>SolidWorks run tools</h1>
 		<p class="lead">
-			Two ways to run ranked Speedruns, pick one: the <strong>add-in</strong> (a docked task pane,
-			recommended) or the <strong>VBA macros</strong>. Either one starts your run on a blank part and
-			posts your finished part; your time is measured on the server from start to submit. The author
-			macro reads a finished part's numbers for building a challenge.
+			Everything for a ranked Speedrun in one place. Pick <strong>one</strong> tool: the
+			<strong>add-in</strong> (a docked task pane, recommended) or the <strong>VBA macros</strong>.
+			Both do the same job. They start your run on a blank part and post your finished part; your time
+			is measured on the server from Start to Submit.
 		</p>
 	</section>
 
-	<div class="tool-paths">
-		<div class="tool-path recommended">
-			<div class="tool-path-head">
-				<span class="tool-path-tag">Recommended</span>
-				<h3>SolidWorks add-in</h3>
+	<!-- Which should I use? -->
+	<section class="which-tool card">
+		<h2 class="which-title">Which should I use?</h2>
+		<div class="which-grid">
+			<div class="which-col">
+				<span class="which-pick recommended">Add-in &middot; recommended</span>
+				<ul class="which-list">
+					<li>Docked task pane with live mass and Start / Submit buttons.</li>
+					<li>No keyboard shortcuts to configure.</li>
+					<li>One-time install per computer (unzip, run register.bat).</li>
+					<li>Best for the class computers and anyone new.</li>
+				</ul>
 			</div>
-			<p class="dim">
-				A docked task pane with live mass and Start / Submit buttons, no keyboard shortcuts to
-				configure. Download, unzip, and run register.bat (see the add-in README).
-			</p>
-			<div class="tool-actions">
-				<a class="btn" href={addinUrl} download>Download add-in (.zip)</a>
-				<a class="btn secondary" href="/gauntlet/speedrun/quickstart">Quick-start</a>
+			<div class="which-col">
+				<span class="which-pick">VBA macros</span>
+				<ul class="which-list">
+					<li>Two importable .bas files, no install package.</li>
+					<li>Run from a keyboard shortcut you bind once.</li>
+					<li>Good if you cannot register a COM add-in.</li>
+					<li>Same server contract, same result.</li>
+				</ul>
 			</div>
 		</div>
-		<div class="tool-path">
-			<div class="tool-path-head"><h3>VBA macros</h3></div>
-			<p class="dim">
-				Two importable .bas macros. Bind <span class="mono">Ctrl+Shift+S</span> (Start) and
-				<span class="mono">Ctrl+Shift+D</span> (Submit); full setup is below.
-			</p>
+	</section>
+
+	<!-- The two tool tracks, side by side. -->
+	<div class="tools-two-col">
+		<!-- SolidWorks add-in -->
+		<section class="tool-col recommended">
+			<div class="tool-col-head">
+				<div>
+					<span class="tool-col-tag">Recommended</span>
+					<h2>SolidWorks add-in</h2>
+				</div>
+				<span class="ver-chip">{fmtVer(addin)}</span>
+			</div>
+			<div class="tool-actions">
+				<a class="btn" href={ADDIN_DOWNLOAD_PATH} download>Download add-in (.zip)</a>
+			</div>
+
+			<h3 class="sub-heading">Install (once per computer)</h3>
+			<ol class="setup-steps">
+				<li>Download the zip above and unzip it to a folder you keep (not a temp folder).</li>
+				<li>Right-click <span class="mono">register.bat</span> and choose Run as administrator.</li>
+				<li>Open SolidWorks, then Tools &rarr; Add-Ins, and check IDEA // GAUNTLET (both columns).</li>
+				<li>The task pane appears on the right tab strip. Full notes are in the README inside the zip.</li>
+			</ol>
+
+			<h3 class="sub-heading">Use it</h3>
+			<ol class="setup-steps">
+				<li>On the GAUNTLET Speedrun screen, press Start to reveal the drawing and your 8-character code.</li>
+				<li>On a new blank part, type the code into the pane and press START RUN.</li>
+				<li>Model the part and apply the challenge's material.</li>
+				<li>Press SUBMIT RUN. The pane shows PASS with your time and rank, or OUTSIDE TOLERANCE.</li>
+			</ol>
+
+			{#if addin?.changelog?.length}
+				<details class="changelog">
+					<summary>What's new in v{addin.version}</summary>
+					<ul class="changelog-list">
+						{#each addin.changelog as line (line)}<li>{line}</li>{/each}
+					</ul>
+				</details>
+			{/if}
+		</section>
+
+		<!-- VBA macros -->
+		<section class="tool-col">
+			<div class="tool-col-head">
+				<div><h2>VBA macros</h2></div>
+				<span class="ver-chip">{fmtVer(macros)}</span>
+			</div>
 			<div class="tool-actions">
 				<a class="btn secondary" href={START_MACRO_PATH} download>Start macro</a>
 				<a class="btn secondary" href={SUBMIT_MACRO_PATH} download>Submit macro</a>
 			</div>
-		</div>
+
+			<h3 class="sub-heading">Install (once per computer)</h3>
+			<ol class="setup-steps">
+				<li>In SolidWorks, Tools &rarr; Macro &rarr; New. Save a .swp for each macro (Start, Submit).</li>
+				<li>In the macro editor, File &rarr; Import File and pick the matching .bas you downloaded.</li>
+				<li>Remove the empty Module1 (choose No when it offers to export), then File &rarr; Save.</li>
+				<li>
+					Tools &rarr; Customize &rarr; Keyboard: bind Start to <span class="mono">Ctrl+Shift+S</span>
+					and Submit to <span class="mono">Ctrl+Shift+D</span>.
+				</li>
+			</ol>
+
+			<h3 class="sub-heading">Use it</h3>
+			<ol class="setup-steps">
+				<li>Reveal the challenge on the Speedrun screen to get your 8-character code.</li>
+				<li>On a new blank part, press <span class="mono">Ctrl+Shift+S</span>, enter the code to start.</li>
+				<li>Model the part and apply the challenge's material.</li>
+				<li>Press <span class="mono">Ctrl+Shift+D</span> to submit and see PASS or OUTSIDE TOLERANCE.</li>
+			</ol>
+
+			{#if macros?.changelog?.length}
+				<details class="changelog">
+					<summary>What's new in v{macros.version}</summary>
+					<ul class="changelog-list">
+						{#each macros.changelog as line (line)}<li>{line}</li>{/each}
+					</ul>
+				</details>
+			{/if}
+		</section>
 	</div>
 
-	<a class="card author-callout" href={START_MACRO_PATH} download>
-		<div>
-			<div class="author-title">Start Macro</div>
-			<div class="author-sub">
-				idea-gauntlet-start.bas. Begins your run on a blank part and starts the clock. Already
-				configured for this project.
-			</div>
-		</div>
-		<span class="btn">Download &darr;</span>
-	</a>
-
-	<a class="card author-callout" href={SUBMIT_MACRO_PATH} download>
-		<div>
-			<div class="author-title">Student Submit Macro</div>
-			<div class="author-sub">
-				idea-gauntlet-submit.bas. Posts your finished part and ends the run. Already configured for
-				this project.
-			</div>
-		</div>
-		<span class="btn">Download &darr;</span>
-	</a>
-
-	<!-- SECTION 1: students -->
+	<!-- Shared run notes + troubleshooting (applies to both tools). -->
 	<section class="tool-section">
-		<h2>Submit your Speedrun</h2>
+		<h2>During a run</h2>
 		<p class="section-intro">
-			On the class computers this is already set up. You start a run on a blank part, build it, then
-			submit. Your time is measured from when you start to when you submit.
-		</p>
-		<ol class="setup-steps">
-			<li>
-				Open SolidWorks and start a new part. Do not model anything yet. Your run must begin on a
-				blank part.
-			</li>
-			<li>
-				Go to the GAUNTLET Speedrun screen in your browser and find your 8-character code. It looks
-				like ABCD1234. Keep that tab open.
-			</li>
-			<li>
-				Click once on your SolidWorks window so it is in front. Press Ctrl + Shift + S to start your
-				run. Type your code and click OK. A box confirms the run started and the clock is now running.
-			</li>
-			<li>Build your part. Do not close it while you work. Closing it ends your run.</li>
-			<li>
-				Apply the challenge's material to your part (right-click Material in the tree). The material
-				is checked by density: a part with no material is rejected, and the wrong material will not
-				pass. Any close-enough material works (the exact library name does not matter).
-			</li>
-			<li>
-				When your part is finished, press Ctrl + Shift + D to submit. Type your code again and click
-				OK.
-			</li>
-			<li>
-				Wait a moment. A result box shows PASS with your time and rank, or OUTSIDE TOLERANCE. Click
-				OK.
-			</li>
-		</ol>
-		<p class="section-note">
-			If you got OUTSIDE TOLERANCE, fix your model and press Ctrl + Shift + D to submit again with the
-			same code. Your time keeps counting while you fix it. To start over completely, reveal the
-			challenge again in GAUNTLET for a new code, then start a new blank run.
+			Your run must begin on a blank part; the clock starts at Start, not when the drawing is
+			revealed, so study the drawing first. Do not close the part while you work. If you get OUTSIDE
+			TOLERANCE, fix your model and submit again with the same code, your time keeps counting. To
+			start over completely, reveal the challenge again for a fresh code and start a new blank run.
 		</p>
 		<div class="callout">
 			<h4 class="callout-title">If something goes wrong</h4>
 			<ul class="callout-list">
+				<li>"Could not connect to SolidWorks" &rarr; SolidWorks is not open. Open it first.</li>
+				<li>"No document is open" / "not a part" &rarr; open your part (not a drawing or assembly).</li>
+				<li>"This part is not blank" &rarr; start a brand new empty part, then Start again.</li>
 				<li>
-					The box says "Could not connect to SolidWorks" -&gt; SolidWorks is not open. Open it first.
+					"No run has been started" on submit &rarr; you skipped Start or closed the part. Start a new
+					blank part, Start, build, then submit.
 				</li>
-				<li>
-					The box says "No document is open" -&gt; you do not have a part open. Open your part.
-				</li>
-				<li>
-					The box says "not a part" -&gt; you are looking at a drawing or an assembly. Switch to your
-					part.
-				</li>
-				<li>
-					The box says "This part is not blank" -&gt; you already modeled something. Start a brand new
-					empty part and press Ctrl + Shift + S again.
-				</li>
-				<li>
-					The box says "No run has been started" when you submit -&gt; you skipped the start step or
-					closed the part. Start a new blank part, press Ctrl + Shift + S, build, then submit.
-				</li>
-				<li>The box says "not configured" -&gt; tell Mr. Pina. This computer needs setup.</li>
-				<li>
-					Nothing happens when you press the keys -&gt; click on your part first, then press the keys
-					again. If still nothing, tell Mr. Pina, the shortcut is not set on this computer.
-				</li>
+				<li>Wrong material &rarr; apply the challenge's material (checked by density), then submit again.</li>
+				<li>"not configured" or nothing happens &rarr; tell Mr. Pina; this computer needs setup.</li>
 			</ul>
 		</div>
 	</section>
 
 	{#if isTeacher}
-		<!-- SECTION 2: one-time setup (teacher) -->
+		<!-- Teacher-only: author capture macro. -->
 		<section class="tool-section">
-			<h2>One-time setup on a new computer</h2>
+			<div class="tool-col-head">
+				<div><h2>Author capture macro (teachers)</h2></div>
+				{#if macros}<span class="ver-chip">{fmtVer(macros)}</span>{/if}
+			</div>
 			<p class="section-intro">
-				Do this once on each computer. Students do not do this. Every lab machine needs two macros
-				installed and bound: Start and Submit. Install each one the same way below, then give it its
-				shortcut. Bind Start to Ctrl + Shift + S and Submit to Ctrl + Shift + D. The Author Capture
-				macro is for teacher machines only, not lab machines (see the author section below).
+				The Author Capture macro reads a finished reference part and gives you the numbers that become
+				a challenge's answer key. It runs on your machine only, never on student computers, and never
+				talks to the server.
 			</p>
+			<div class="tool-actions">
+				<a class="btn secondary" href={AUTHOR_MACRO_PATH} download>Author capture macro</a>
+			</div>
 
-			<h3 class="sub-heading">Install a macro (do this for both Start and Submit)</h3>
+			<h3 class="sub-heading">Install and use</h3>
 			<ol class="setup-steps">
-				<li>Download both the Start and Submit macros above. They save to your Downloads folder.</li>
-				<li>Open SolidWorks.</li>
-				<li>In the top menu, click Tools, then Macro, then New.</li>
 				<li>
-					A Save window opens. Give it a clear name, GAUNTLET Start or GAUNTLET Submit, pick a folder
-					you will remember, and click Save. This creates a .swp file and opens the macro code editor.
+					Install <span class="mono">idea-gauntlet-author.bas</span> the same way as the Start / Submit
+					macros. Bind it to <span class="mono">Ctrl+Shift+A</span>, or run it from the menu.
+				</li>
+				<li>Open your finished reference part (the correct final version that defines the answer).</li>
+				<li>Run the macro and type the material density in g/cm3 (for example 2.70 for Aluminum 6061).</li>
+				<li>
+					It prints target_volume_mm3, surface_area_mm2, feature_count, density, and target_mass, and
+					copies them to your clipboard.
 				</li>
 				<li>
-					In the code editor's top menu, click File, then Import File. Pick the matching .bas file you
-					downloaded and click Open.
-				</li>
-				<li>
-					In the left-hand panel you will see an empty item named Module1. Right click it, choose
-					Remove Module1, and click No when it asks to export.
-				</li>
-				<li>
-					In the top menu click File, then Save. Close the code editor window. Now repeat steps 3 to 7
-					for the other macro, so both Start and Submit are installed.
-				</li>
-			</ol>
-
-			<h3 class="sub-heading">Assign each keyboard shortcut</h3>
-			<ol class="setup-steps" start="8">
-				<li>Back in SolidWorks, click Tools, then Customize.</li>
-				<li>
-					Click the Macros tab. Click Browse and pick a .swp file. Set the method to main. Name it
-					GAUNTLET Start or GAUNTLET Submit to match the file. Add it. Do this for both .swp files.
-				</li>
-				<li>Click the Keyboard tab. Set Category to Macros so both macros show.</li>
-				<li>
-					Click in the Shortcut column next to GAUNTLET Start and press Ctrl + Shift + S. Click in the
-					Shortcut column next to GAUNTLET Submit and press Ctrl + Shift + D. Click OK.
-				</li>
-				<li>
-					Test both: open a new blank part, press Ctrl + Shift + S and confirm the start box appears,
-					then press Ctrl + Shift + D and confirm the submit box appears.
-				</li>
-			</ol>
-
-			<h3 class="sub-heading">Copy the setup to every other computer</h3>
-			<ol class="setup-steps" start="13">
-				<li>
-					On the computer you just set up, open the SolidWorks Copy Settings Wizard from the Windows
-					Start menu. Choose Save Settings and save the settings file to the G: drive with the other
-					GAUNTLET files.
-				</li>
-				<li>
-					On each other computer, run the Copy Settings Wizard, choose Restore Settings, and pick that
-					saved file. This copies both macro shortcuts over without redoing steps 1 through 12.
+					Fill the challenge answer with these values, save it as a draft, run Submit against the same
+					part with a test code to confirm a pass, then publish.
 				</li>
 			</ol>
 		</section>
 
-		<a class="card author-callout" href={AUTHOR_MACRO_PATH} download>
-			<div>
-				<div class="author-title">Author Capture Macro</div>
-				<div class="author-sub">
-					idea-gauntlet-author.bas. Reads a finished part's numbers for building a challenge. Teacher
-					machines only.
-				</div>
-			</div>
-			<span class="btn">Download &darr;</span>
-		</a>
-
-		<!-- SECTION 3: author capture (teacher) -->
+		<!-- Teacher-only: rolling the macro shortcuts out to every machine. -->
 		<section class="tool-section">
-			<h2>Capture a part to build a challenge</h2>
+			<h2>Copy the macro setup to every computer</h2>
 			<p class="section-intro">
-				The Author Capture macro reads a finished part and gives you the numbers that become a
-				challenge's answer key. It only runs on your own machine, never on student computers. It does
-				not talk to the server and needs no setup beyond installing it.
+				After binding the Start and Submit shortcuts on one machine, use the SolidWorks Copy Settings
+				Wizard (Windows Start menu) to Save Settings to the G: drive, then Restore Settings on each
+				other computer. That copies both shortcuts without redoing the install. The add-in has its own
+				per-computer install (run register.bat), so lab machines can use either tool.
 			</p>
-
-			<h3 class="sub-heading">Install it</h3>
-			<p class="section-body">
-				Install idea-gauntlet-author.bas exactly like the Start and Submit macros. Follow the same
-				install steps in the setup section above, using idea-gauntlet-author.bas. When you assign its
-				keyboard shortcut, use Ctrl + Shift + A so it does not collide with the start or submit
-				shortcuts. You can skip the shortcut and run it from the menu instead if you prefer.
-			</p>
-
-			<h3 class="sub-heading">Use it</h3>
-			<ol class="setup-steps">
-				<li>
-					Open your finished reference part in SolidWorks. This is the correct, final version of the
-					part, the one that defines the right answer.
-				</li>
-				<li>Make sure you are looking at the part, not a drawing and not an assembly.</li>
-				<li>
-					Run the Author Capture macro. Press Ctrl + Shift + A, or click Tools, then Macro, then Run,
-					and pick idea-gauntlet-author.swp.
-				</li>
-				<li>
-					A box asks for the material density in g/cm3. Type the density of the material you want
-					students to model in, for example 2.70 for Aluminum 6061. Click OK.
-				</li>
-				<li>
-					A box appears with the captured values: target_volume_mm3, surface_area_mm2, feature_count,
-					density, and target_mass. The same values are copied to your clipboard automatically.
-				</li>
-				<li>
-					Open the GAUNTLET challenge you are authoring and use these values to fill in the challenge
-					answer. The target mass is what students see as their goal. The volume is the real check
-					behind it.
-				</li>
-				<li>
-					Save the challenge as a draft. Before you publish, run the Submit macro against this same
-					part with a test code to confirm it passes, then publish.
-				</li>
-			</ol>
-
-			<div class="callout">
-				<h4 class="callout-title">If something goes wrong</h4>
-				<ul class="callout-list">
-					<li>
-						The box says "Could not connect to SolidWorks" -&gt; SolidWorks is not open. Open it
-						first.
-					</li>
-					<li>
-						The box says "No document is open" -&gt; you do not have a part open. Open your reference
-						part.
-					</li>
-					<li>
-						The box says "not a part" -&gt; you are looking at a drawing or an assembly. Switch to the
-						part.
-					</li>
-					<li>
-						The target mass looks wrong -&gt; check the density you typed. Mass is volume times
-						density, so a wrong density gives a wrong mass.
-					</li>
-				</ul>
-			</div>
 		</section>
 	{/if}
 
 	<div class="btn-row">
 		<a class="btn secondary" href="/gauntlet/speedrun">&lsaquo; Speedrun</a>
+		<a class="btn secondary" href="/gauntlet/speedrun/quickstart">Add-in quick-start</a>
 		<a class="btn secondary" href="/gauntlet">All modes</a>
 	</div>
 </main>
 
 <style>
+	.which-tool {
+		margin: 1rem 0 0.4rem;
+	}
+	.which-title {
+		margin: 0 0 0.8rem;
+		font-size: 1.05rem;
+	}
+	.which-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: 1rem;
+	}
+	.which-pick {
+		display: inline-block;
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--cyan);
+		border: 1px solid var(--line-strong);
+		border-radius: 999px;
+		padding: 0.2rem 0.6rem;
+		margin-bottom: 0.5rem;
+	}
+	.which-pick.recommended {
+		color: var(--green);
+		border-color: var(--green);
+	}
+	.which-list {
+		margin: 0;
+		padding-left: 1.05rem;
+		display: grid;
+		gap: 0.35rem;
+	}
+	.which-list li {
+		color: var(--white);
+		font-size: 0.88rem;
+		line-height: 1.5;
+	}
+
+	.tools-two-col {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1rem;
+		margin: 1rem 0 0.5rem;
+	}
+	@media (min-width: 820px) {
+		.tools-two-col {
+			grid-template-columns: 1fr 1fr;
+			align-items: start;
+		}
+	}
+	.tool-col {
+		background: var(--bg1);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		padding: 1.1rem 1.2rem 1.3rem;
+	}
+	.tool-col.recommended {
+		border-color: var(--green);
+		box-shadow: inset 0 0 0 1px rgba(0, 255, 65, 0.08);
+	}
+	.tool-col-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+	}
+	.tool-col-head h2 {
+		margin: 0.15rem 0 0;
+		font-size: 1.05rem;
+	}
+	.tool-col-tag {
+		font-family: var(--font-mono);
+		font-size: 0.56rem;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: var(--green);
+	}
+	.ver-chip {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		letter-spacing: 0.04em;
+		color: var(--cyan);
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 0.2rem 0.5rem;
+		white-space: nowrap;
+	}
+	.tool-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+		margin: 0.8rem 0 0.4rem;
+	}
+	.changelog {
+		margin-top: 0.9rem;
+	}
+	.changelog summary {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--cyan);
+		cursor: pointer;
+	}
+	.changelog-list {
+		margin: 0.5rem 0 0;
+		padding-left: 1.05rem;
+		display: grid;
+		gap: 0.3rem;
+	}
+	.changelog-list li {
+		color: var(--white);
+		font-size: 0.85rem;
+		line-height: 1.45;
+	}
+
 	.tool-section {
 		margin-top: 2rem;
 		padding-top: 1.5rem;
@@ -317,27 +353,13 @@
 		line-height: 1.6;
 		margin: 0.4rem 0 0.8rem;
 	}
-	.section-body {
-		color: var(--white);
-		font-size: 0.9rem;
-		line-height: 1.65;
-		margin: 0.4rem 0 0.8rem;
-	}
-	.section-note {
-		color: var(--cyan);
-		font-size: 0.88rem;
-		line-height: 1.6;
-		margin: 0.9rem 0;
-		padding-left: 0.8rem;
-		border-left: 2px solid var(--line-strong);
-	}
 	.sub-heading {
 		color: var(--green);
 		font-family: var(--font-display);
 		font-size: 1rem;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
-		margin: 1.3rem 0 0.2rem;
+		margin: 1.2rem 0 0.2rem;
 	}
 	.callout {
 		margin: 1.1rem 0 0.5rem;

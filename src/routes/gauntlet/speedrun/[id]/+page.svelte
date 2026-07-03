@@ -15,22 +15,16 @@
 		mountPipNode,
 		restorePipNode
 	} from '$lib/gauntlet/popout';
-	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 	import {
 		difficultyLabel,
 		formatTime,
 		formatMass,
-		START_MACRO_PATH,
-		SUBMIT_MACRO_PATH,
-		addinDownloadUrl,
 		UNIT_SYSTEM_UNITS,
 		DRAWINGS_BUCKET,
 		type FocusRegion,
 		type SpeedrunReveal,
 		type SpeedrunResult
 	} from '$lib/gauntlet';
-
-	const addinUrl = addinDownloadUrl(PUBLIC_SUPABASE_URL);
 
 	let { data } = $props();
 	let { supabase, userName, userRole, challenge, board, myUserId, myBest, modelUrl, ruleset, next } =
@@ -583,39 +577,11 @@
 				{#if framing.note}<p class="instructions">{framing.note}</p>{/if}
 				<p class="instructions">
 					Ranked runs are machine verified: a SolidWorks tool reads your part geometry and posts it
-					with your submit code. Pick <strong>one</strong> tool below. Both do the same thing.
+					with your submit code. Get the add-in (recommended) or the VBA macros, with install and
+					usage steps, all on one Tools page.
 				</p>
-
-				<div class="tool-paths">
-					<div class="tool-path recommended">
-						<div class="tool-path-head">
-							<span class="tool-path-tag">Recommended</span>
-							<h3>Path A &middot; SolidWorks add-in</h3>
-						</div>
-						<p class="dim">
-							A docked task pane inside SolidWorks with live mass and Start / Submit buttons. Install
-							once; no keyboard shortcuts to set up.
-						</p>
-						<div class="tool-actions">
-							<a class="btn" href={addinUrl} download>Download add-in</a>
-							<a class="btn secondary" href="/gauntlet/speedrun/quickstart">Add-in quick-start</a>
-						</div>
-					</div>
-
-					<div class="tool-path">
-						<div class="tool-path-head">
-							<h3>Path B &middot; VBA macros</h3>
-						</div>
-						<p class="dim">
-							Two importable macros. Bind <span class="mono">Ctrl+Shift+S</span> to Start and
-							<span class="mono">Ctrl+Shift+D</span> to Submit, then run them from SolidWorks.
-						</p>
-						<div class="tool-actions">
-							<a class="btn secondary" href={START_MACRO_PATH} download>Start macro</a>
-							<a class="btn secondary" href={SUBMIT_MACRO_PATH} download>Submit macro</a>
-							<a class="btn secondary" href="/gauntlet/tools">Macro setup</a>
-						</div>
-					</div>
+				<div class="tool-actions">
+					<a class="btn" href="/gauntlet/tools">Get the run tools &rsaquo;</a>
 				</div>
 
 				{#if framing.demo}
@@ -637,10 +603,7 @@
 						On a blank part, <strong>Start</strong> (add-in pane button, or the Start macro
 						<span class="mono">Ctrl+Shift+S</span>), build it, then <strong>Submit</strong> (add-in
 						button, or the Submit macro <span class="mono">Ctrl+Shift+D</span>). Paste this code when
-						asked. <a href={addinUrl} download>Add-in</a> &middot;
-						<a href={START_MACRO_PATH} download>Start macro</a> &middot;
-						<a href={SUBMIT_MACRO_PATH} download>Submit macro</a> &middot;
-						<a href="/gauntlet/tools">Setup</a>
+						asked. <a href="/gauntlet/tools">Run tools &amp; setup</a>
 					</p>
 				</div>
 

@@ -7,13 +7,18 @@
 	 * window at high zoom, and author-defined focus regions (normalized 0..1 rects of
 	 * the drawing) become a "Jump to" strip.
 	 *
-	 * Crispness: the sheet's pixel size IS the display size (content = nW*s x nH*s),
-	 * so the browser re-rasterizes the raster/SVG from source at whatever size it is
-	 * shown, at the device pixel ratio, and only `translate` moves it. We never
-	 * CSS-`scale` a raster (that upsamples an already-downsampled bitmap and blurs).
-	 * Magnification past native IS allowed (up to 6x the fit): real drawings are
-	 * often exported small, and a hard native cap used to lock zoom (and region
-	 * jumps) entirely whenever the raster fit at >= 100%.
+	 * Transform model (ONE matrix): the sheet is laid out ONCE at its natural size
+	 * (nW x nH plus a paper margin) and all pan/zoom is a single CSS transform on
+	 * that one wrapper, `translate(tx,ty) scale(s)` with transform-origin 0 0.
+	 * `tx`/`ty` are the sheet's top-left in stage px and `s` is display px per
+	 * intrinsic unit, so one coherent matrix drives everything: wheel zoom anchors
+	 * at the pointer, drag pans, Fit frames the content. Because it is a pure
+	 * GPU-composited transform, a zoom never re-lays-out the page or re-decodes the
+	 * drawing. (The previous model instead resized the sheet BOX every step, which
+	 * re-decoded a large drawing PNG on every wheel tick, blanking/blurring the
+	 * image mid-gesture so real-drawing zoom stuttered and looked broken.)
+	 * Magnification past native IS allowed (up to 8x the fit): real drawings are
+	 * often exported small and students need to read fine dimensions.
 	 *
 	 * Content fit: exports frequently carry large empty paper margins (the part in
 	 * one corner of the sheet). The viewer probes the raster once for its INK
@@ -84,10 +89,10 @@
 			? Math.min(W / Math.max(1, ink.w * nW), H / Math.max(1, ink.h * nH)) * 0.94
 			: 1
 	);
-	// Allow real magnification: small exports need to zoom PAST native. (A hard
-	// native cap used to make min == max zoom for any raster that fit at >= 100%,
-	// which locked zoom and region jumps entirely.)
-	const maxS = $derived(Math.max(sFit * 6, 1));
+	// Allow real magnification: small exports need to zoom PAST native so students
+	// can read fine dimensions. (A hard native cap used to make min == max zoom for
+	// any raster that fit at >= 100%, which locked zoom and region jumps entirely.)
+	const maxS = $derived(Math.max(sFit * 8, 3));
 
 	const clampScale = (v: number) => Math.min(maxS, Math.max(Math.min(sSheet, sFit), v));
 
@@ -445,7 +450,7 @@
 		>
 			<div
 				class="dv-sheet"
-				style="width:{nW * s}px;height:{nH * s}px;padding:{padN * s}px;transform:translate({tx}px,{ty}px);"
+				style="width:{nW}px;height:{nH}px;padding:{padN}px;transform:translate({tx}px,{ty}px) scale({s});"
 			>
 				<div class="dv-drawing" bind:this={drawingEl}>
 					{#if src}
@@ -536,8 +541,9 @@
 	.dv-stage:active {
 		cursor: grabbing;
 	}
-	/* The white drawing sheet. Its box size IS the on-screen size, so the raster is
-	   re-rasterized from source at display resolution (crisp), never CSS-upscaled. */
+	/* The white drawing sheet. Laid out ONCE at natural size (content nW x nH plus a
+	   padN paper margin); pan/zoom is the single translate()+scale() matrix on this
+	   one element, GPU-composited, so a zoom never re-lays-out or re-decodes it. */
 	.dv-sheet {
 		position: absolute;
 		top: 0;
