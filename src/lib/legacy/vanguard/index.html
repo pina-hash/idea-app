@@ -515,7 +515,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='156';
+const W=630,H=840; const VERSION='157';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -534,6 +534,9 @@ const BAL_DEFAULTS = {
   enemyHpLin:0.50,                    // enemy HP linear sector scaling
   enemyHpComp:1.06, enemyHpCompFrom:6,// enemy HP compounding factor + sector it starts
   fireCadenceScale:0.16,              // enemy fire-interval sector scaling (higher = faster fire)
+  hcFireMulEarly:1.08,                // HARDCORE enemy-fire multiplier at sector 1 (eases the sector-1 wall)
+  hcFireMul:1.25,                     // HARDCORE enemy-fire multiplier at full pressure
+  hcFireMulFrom:3,                    // sector at which the HARDCORE multiplier reaches hcFireMul
   ebulCapBase:24, ebulCapPer:9,       // global enemy-bullet budget base + per sector
   // boss
   bossBase:95, bossQuad:27,           // boss HP = bossBase + sector^2 * bossQuad
@@ -559,6 +562,9 @@ const BAL_META = [
   {key:'enemyHpComp',label:'Enemy HP compound',group:'ENEMY',min:1.00,max:1.15,step:0.01},
   {key:'enemyHpCompFrom',label:'Compound from sector',group:'ENEMY',min:0,max:12,step:1},
   {key:'fireCadenceScale',label:'Enemy fire rate scale',group:'ENEMY',min:0.05,max:0.35,step:0.01},
+  {key:'hcFireMulEarly',label:'HC fire mul early',group:'ENEMY',min:1.00,max:1.30,step:0.01},
+  {key:'hcFireMul',label:'HC fire mul full',group:'ENEMY',min:1.00,max:1.50,step:0.01},
+  {key:'hcFireMulFrom',label:'HC fire full from sector',group:'ENEMY',min:1,max:6,step:1},
   {key:'ebulCapBase',label:'Bullet cap base',group:'ENEMY',min:12,max:60,step:1},
   {key:'ebulCapPer',label:'Bullet cap /sector',group:'ENEMY',min:0,max:20,step:1},
   {key:'bossBase',label:'Boss HP base',group:'BOSS',min:50,max:200,step:5},
@@ -1455,7 +1461,7 @@ function triggerBanner(){ sectorBanner=2.4; bannerSec=sector; warpT=0.8; buildCe
 /* threat dials: enemy durability and global enemy-bullet budget (see DESIGN_DIRECTION.md Pillar 5) */
 function enemyHpMul(){ return (1+sector*BAL.enemyHpLin)*Math.pow(BAL.enemyHpComp,Math.max(0,sector-BAL.enemyHpCompFrom)); }
 function ebulCap(){ return BAL.ebulCapBase+sector*BAL.ebulCapPer; }
-function enemyFireScale(){ return (1+sector*BAL.fireCadenceScale)*(gameMode==='hardcore'?1.25:1); }
+function enemyFireScale(){ let hcMul=1; if(gameMode==='hardcore'){ const t=clamp((sector-1)/Math.max(1,(BAL.hcFireMulFrom-1)),0,1); hcMul=BAL.hcFireMulEarly+(BAL.hcFireMul-BAL.hcFireMulEarly)*t; } return (1+sector*BAL.fireCadenceScale)*hcMul; }
 function ebulSpeedMul(){ return 1+Math.min(0.45,sector*0.015); }
 function killsForBossN(){ return BAL.killsBase+sector*BAL.killsPer; }
 function makeEnemy(fk,variant,x,y,behavior){
@@ -4503,6 +4509,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'157',date:'2026',items:['Hardcore early sectors ease in; full enemy fire pressure now returns by sector 3.']},
  {ver:'155',date:'2026',items:['CONFIGURE BUILD now enforces the 1,000 i¢ budget against the real cost of your build, and cross-device sync keeps your latest build instead of merging saves together. A few over-budget builds will reset to a clean baseline.']},
  {ver:'154',date:'2026',items:['Leaderboard now separates single-session runs from continued (resumed) runs, so a run you picked up on another device no longer competes with unbroken runs.']},
  {ver:'153',date:'2026',items:['Your in-progress run now saves automatically when you leave, so you can pick it up on another device without backing up manually.']},
