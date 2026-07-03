@@ -150,6 +150,15 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .modebtn.sel{border-color:var(--green);color:var(--green);box-shadow:0 0 10px rgba(0,255,65,.4);text-shadow:0 0 8px rgba(0,255,65,.6)}
 .modebtn[data-m=hardcore].sel{border-color:var(--mset);color:var(--mset);box-shadow:0 0 10px rgba(255,46,46,.4);text-shadow:0 0 8px rgba(255,46,46,.6)}
 .modebtn[data-m=dev].sel{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 10px rgba(0,240,255,.4);text-shadow:0 0 8px rgba(0,240,255,.6)}
+.resumeCards{display:flex;flex-direction:column;gap:6px;width:min(340px,86vw);margin:6px auto 2px}
+.resumeCard{font-family:'Chakra Petch',sans-serif;display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;background:rgba(200,255,0,.1);border:1px solid var(--gold);color:var(--white);padding:9px 14px;border-radius:6px;cursor:pointer;pointer-events:auto;box-shadow:0 0 14px rgba(200,255,0,.22)}
+.resumeCard:active{background:rgba(200,255,0,.2)}
+.resumeCard .rc-lead{font-weight:700;font-size:10px;letter-spacing:.16em;color:var(--gold);text-shadow:0 0 8px rgba(200,255,0,.6)}
+.resumeCard .rc-mode{font-weight:700;font-size:13px;letter-spacing:.08em}
+.resumeCard.rc-normal .rc-mode{color:var(--green);text-shadow:0 0 8px rgba(0,255,65,.5)}
+.resumeCard.rc-hardcore .rc-mode{color:var(--cyan);text-shadow:0 0 8px rgba(0,240,255,.5)}
+.resumeCard .rc-sec{font-weight:700;font-size:13px;letter-spacing:.06em;color:var(--white)}
+.resumeCard .rc-meta{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--dim)}
 
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;max-width:320px;font-size:10px;letter-spacing:.04em}
 .legend span{display:inline-flex;align-items:center;gap:5px;color:var(--white)}
@@ -319,6 +328,8 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
       <button class="modebtn" data-m="hardcore">HARDCORE</button>
       <button class="modebtn" data-m="dev">DEV</button>
     </div>
+    <!-- Cross-device RESUME cards (0037): one per saved in-progress run (NORMAL / HARDCORE), populated from window.__ideaRunStates -->
+    <div class="resumeCards" id="resumeCards" style="display:none"></div>
     <div class="lbl" style="color:var(--dim);letter-spacing:.22em">STARTING BUILD</div>
     <button class="fbbtn" id="outfitBtn" style="border-color:var(--gold);color:var(--gold);background:rgba(200,255,0,.12);text-shadow:0 0 8px rgba(200,255,0,.5);box-shadow:0 0 12px rgba(200,255,0,.2)">CONFIGURE BUILD</button>
     <div class="tag" id="buildSummary" style="min-height:12px">No upgrades selected.</div>
@@ -501,7 +512,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='151';
+const W=630,H=840; const VERSION='152';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -692,6 +703,7 @@ let sector1up=0;
 let runFactionSeq=[], waveFk=null;
 let hybridTimer=0;
 let gameMode='normal';
+let runContinued=false;   // true once the current run was resumed from a saved checkpoint (0037); rides every later checkpoint + the score submit
 const START_BUDGET=1000;
 function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
@@ -1599,6 +1611,7 @@ function getGames(){ try{ return parseInt(localStorage.getItem('vanguard_games')
 function updateGamesPlayed(){ const g=el('gamesPlayed'); if(g) g.textContent='RUNS: '+getGames().toLocaleString(); }
 function startGame(){
   state='play';
+  runContinued=false;   // a fresh run is not a resume; __ideaRestoreRun re-flags it true after this
   BAL = (gameMode==='tune') ? loadTuneBAL() : freshBAL();
   try{ if(gameMode!=='calib') localStorage.setItem('vanguard_games', getGames()+1); }catch(e){}
   enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossCard=null;
@@ -3860,7 +3873,7 @@ function endRun(){
       window.__ideaRecordRun?.({ mode:gameMode, version:VERSION, score:window.scoreT, sector:sector, accuracy:acc, time_s:Math.round(runTime), kills:runKills, bosses:runBosses, coins_earned:runCoinsEarned, primary_weapon:player.wtype, heavy_weapon:player.heavy, death_cause:_dc });
     }
   }catch(err){ console.error('VANGUARD endRun error:',err); pendingScore={score:window.scoreT,sector:sector,acc:0}; }
-  try{ window.__ideaVanguardClearCheckpoint&&window.__ideaVanguardClearCheckpoint(); }catch(e){}
+  try{ window.__ideaVanguardClearCheckpoint&&window.__ideaVanguardClearCheckpoint(gameMode); }catch(e){}   // clear ONLY this mode's saved run
 }
 
 /* ---- cross-device run checkpoint (IDEA save/resume, 0032) ----
@@ -3872,7 +3885,7 @@ function endRun(){
 window.__ideaCaptureRun=function(){
   try{
     if(!player || !(state==='play'||state==='pause'||state==='refit')) return null;
-    return { v:1, ts:Date.now(), gameMode:gameMode, sector:sector, score:(window.scoreT||0),
+    return { v:1, ts:Date.now(), gameMode:gameMode, sector:sector, score:(window.scoreT||0), continued:runContinued,
       player:{ up:Object.assign({},player.up||{}), unlocked:Object.assign({},player.unlocked||{}),
         wtype:player.wtype, heavy:player.heavy, heavyUnlocked:Object.assign({},player.heavyUnlocked||{}),
         bombs:player.bombs, shieldHits:player.shieldHits, coins:player.coins, lives:player.lives,
@@ -3883,7 +3896,8 @@ window.__ideaRestoreRun=function(snap){
   try{
     if(!snap || !snap.player) return false;
     if(snap.gameMode) gameMode=snap.gameMode;
-    startGame();                                   // valid, fully-initialized play state
+    startGame();                                   // valid, fully-initialized play state (resets runContinued)
+    runContinued=true;                             // this run is a resume; rides every later checkpoint + score submit as cont=1
     sector=Math.max(1, snap.sector||1); waveIdx=0; waveTimer=1.6; bossPending=false; fleet=null;
     sectorKills=0; killsForBoss=killsForBossN(); sector1up=0; hybridTimer=rnd(6,10);
     window.scoreT=snap.score||0;
@@ -3965,7 +3979,7 @@ function saveLocal(name,score){ const b=localBoard(); b.push({name,score}); b.so
   const top=b.slice(0,10); try{localStorage.setItem('vanguard_scores',JSON.stringify(top));}catch(e){} return top; }
 function boardRows(){ return (API_URL && onlineBoard)? onlineBoard : localBoard(); }
 function submitToServer(score,sec,acc){ if(!API_URL)return; try{ const img=new Image();
-  img.src=API_URL+'?action=submit&name='+encodeURIComponent(curInitials)+'&score='+score+'&sector='+sec+'&acc='+acc+'&t='+Math.round(runTime)+'&mode='+gameMode+'&ver='+encodeURIComponent(VERSION)+'&cb='+Date.now(); }catch(e){} }
+  img.src=API_URL+'?action=submit&name='+encodeURIComponent(curInitials)+'&score='+score+'&sector='+sec+'&acc='+acc+'&t='+Math.round(runTime)+'&mode='+gameMode+'&ver='+encodeURIComponent(VERSION)+'&cont='+(runContinued?1:0)+'&cb='+Date.now(); }catch(e){} }   // cont=1 flags a resumed run; leaderboard ignores it for now, this only establishes the data flow
 function escHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function renderBoard(target,highlightName,highlightScore){
   const box=el(target); if(!box)return;
@@ -4130,9 +4144,41 @@ function doRestart(){ sendTelemetry('restart'); document.getElementById('ovlConf
 el('restartBtn').addEventListener('click',e=>{ e.stopPropagation(); showRestartConfirm(); });
 el('confirmRestartBtn').addEventListener('click',e=>{ e.stopPropagation(); doRestart(); });
 el('cancelRestartBtn').addEventListener('click',e=>{ e.stopPropagation(); cancelRestart(); });
+/* Cross-device RESUME cards (0037): one card per saved in-progress run, read from
+   window.__ideaRunStates (populated by the /vanguard injection). Clicking a card
+   resumes that mode's run via __ideaRestoreRun. Only NORMAL / HARDCORE runs at
+   Sector 2+ qualify; no saved runs means no cards. Colors stay on the IDEA system
+   (gold RESUME callout, green NORMAL, cyan HARDCORE) - never the hardcore red. */
+function renderResumeCards(){
+  const box=el('resumeCards'); if(!box)return;
+  const states=(Array.isArray(window.__ideaRunStates)?window.__ideaRunStates:[])
+    .filter(s=>s&&s.player&&(s.gameMode==='normal'||s.gameMode==='hardcore')&&(s.sector||0)>=2);
+  states.sort((a,b)=> a.gameMode===b.gameMode?0:(a.gameMode==='normal'?-1:1));   // NORMAL before HARDCORE
+  box.innerHTML='';
+  if(!states.length){ box.style.display='none'; return; }
+  box.style.display='';
+  states.forEach(s=>{ const hc=(s.gameMode==='hardcore');
+    const card=document.createElement('button'); card.type='button';
+    card.className='resumeCard '+(hc?'rc-hardcore':'rc-normal');
+    card.title='Resume your saved '+(hc?'HARDCORE':'NORMAL')+' run at Sector '+s.sector;
+    const meta=(typeof s.score==='number'&&s.score>0)?('<span class="rc-meta">'+s.score.toLocaleString()+'</span>'):'';
+    card.innerHTML='<span class="rc-lead">RESUME</span><span class="rc-mode">'+(hc?'HARDCORE':'NORMAL')+'</span><span class="rc-sec">SECTOR '+s.sector+'</span>'+meta;
+    card.addEventListener('click',ev=>{ ev.stopPropagation(); if(window.__ideaRestoreRun) window.__ideaRestoreRun(s); });
+    box.appendChild(card); });
+}
+window.__ideaRenderResumeCards=renderResumeCards;
+/* Dev-only mock so the RESUME cards can be eyeballed without a live checkpoint.
+   Opt-in via ?mockresume=1; a normal production load never populates this. */
+try{ if(/[?&]mockresume=1\b/.test(location.search)){
+  window.__ideaRunStates=[
+    {v:1,ts:Date.now(),gameMode:'normal',sector:5,score:48200,continued:false,player:{up:{gun:3,speed:2},unlocked:{spread:1,lance:1},wtype:'spread',heavy:'beam',heavyUnlocked:{beam:1},bombs:2,shieldHits:0,coins:1200,lives:2,modules:[0,0,0],ks:{}}},
+    {v:1,ts:Date.now(),gameMode:'hardcore',sector:3,score:15600,continued:true,player:{up:{gun:2},unlocked:{spread:1},wtype:'spread',heavy:'beam',heavyUnlocked:{beam:1},bombs:1,shieldHits:0,coins:400,lives:0,modules:[0,0,0],ks:{}}}
+  ];
+} }catch(e){}
 function toTitle(){ sendTelemetry('quit'); if(Audio_.stopAllLoops)Audio_.stopAllLoops(); state='title'; showOverlay('ovlTitle'); Audio_.lane('title');
   document.getElementById('bossname').style.display='none'; document.getElementById('bossbar').style.display='none';
-  document.getElementById('touch').classList.add('hidden'); boardRetries=0; renderBoard('titleBoard'); refreshBoard('titleBoard'); updateGamesPlayed(); }
+  document.getElementById('touch').classList.add('hidden'); boardRetries=0; renderBoard('titleBoard'); refreshBoard('titleBoard'); updateGamesPlayed(); renderResumeCards(); }
+renderResumeCards();   // initial paint: the title is the default overlay at boot, not reached through toTitle()
 el('quitBtn').addEventListener('click',toTitle);
 el('menuBtn').addEventListener('click',toTitle);
 el('startCta').addEventListener('click',()=>{ if(state==='title' && !uiBlocked())startGame(); });
@@ -4399,6 +4445,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'152',date:'2026',items:['Cross-device RESUME: pick up an in-progress run on any device from the title screen, with a separate saved run for NORMAL and HARDCORE. Dying clears that run.']},
  {ver:'151',date:'2026',items:['RUN HISTORY: view your past runs and lifetime stats when signed in.']},
  {ver:'149',date:'2026',items:['CALIBRATION now ends with a live combat wave, then lets you jump straight into a run or head back to the title']},
  {ver:'148',date:'2026',items:['CALIBRATION now asks before it begins, so your sound is on from the first shot','CALIBRATION now also teaches your HEAVY weapon and how i¢ and CORE pickups work']},

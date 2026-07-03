@@ -237,20 +237,40 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   (a "IDEA" home link, plus the signed-in player's avatar + name) so a player can
   leave the game and confirm their account, styled like the existing cloud-save
   widget.
-- **Cross-device run save/resume (`0032`):** distinct from the between-run
-  progression sync above, a signed-in player can quit an in-progress run on one
-  device and resume it on another. The game captures a MINIMAL sector-boundary
-  checkpoint (loadout + sector + score + coins/lives) via `window.__ideaCaptureRun`
-  when it launches into a new sector (`launchFromRefit`), and clears it at run end
+- **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
+  `0037`):** distinct from the between-run progression sync above, a signed-in
+  player can quit an in-progress run on one device and resume it on another. The
+  game captures a MINIMAL sector-boundary checkpoint (loadout + sector + score +
+  coins/lives + a `continued` flag) via `window.__ideaCaptureRun` when it
+  launches into a new sector (`launchFromRefit`), and clears it at run end
   (`endRun`); the injection persists it to the owner-scoped `vanguard_run_state`
-  table through `/api/vanguard-run-state` (GET/POST/DELETE) and offers a gold
-  "Resume S<n>" button that calls `window.__ideaRestoreRun` to rebuild a valid
-  play state. It is a checkpoint, not a per-frame snapshot (enemies/bullets are
-  transient and rebuild for the sector); both game hooks are guarded so a bad
-  payload can never break normal play, and the checkpoint I/O is signed-in only.
-  (This supersedes the earlier decision to omit mid-run resume; the checkpoint
-  approach sidesteps the non-deterministic-RNG problem by restarting the sector
-  rather than replaying it.)
+  table through `/api/vanguard-run-state` (GET/POST/DELETE) and calls
+  `window.__ideaRestoreRun` to rebuild a valid play state. It is a checkpoint,
+  not a per-frame snapshot (enemies/bullets are transient and rebuild for the
+  sector); both game hooks are guarded so a bad payload can never break normal
+  play, and the checkpoint I/O is signed-in only. (This supersedes the earlier
+  decision to omit mid-run resume; the checkpoint approach sidesteps the
+  non-deterministic-RNG problem by restarting the sector rather than replaying
+  it.)
+  - **One saved run PER MODE (`0037`).** `vanguard_run_state` was rebuilt with a
+    COMPOSITE primary key `(user_id, mode)` (dropped + recreated; the checkpoint
+    is ephemeral, so no data was preserved), so a player holds one in-progress
+    run for NORMAL and a separate one for HARDCORE. Only rankable modes
+    (`normal`/`hardcore`) own a slot; dev/tune/calib are rejected. The API upserts
+    on `(user_id, mode)` with the mode derived from `snapshot.gameMode`, DELETEs
+    only the caller's given mode (query param), and GET returns the ARRAY of a
+    user's saved runs. Death/run-end threads `gameMode` into the clear so a
+    HARDCORE death never wipes a saved NORMAL run and vice versa.
+  - **Title-screen entry point.** The old top-right "Resume S<n>" nav button is
+    retired. The page load selects ALL of the user's rows and injects them as
+    `window.__ideaRunStates`; the game's title screen renders a prominent per-mode
+    RESUME card (gold callout, green NORMAL / cyan HARDCORE, never the hardcore
+    red) for each saved run at Sector 2+, and clicking one calls
+    `__ideaRestoreRun` with that mode's snapshot. A resumed run sets the
+    `continued` flag true (rides every later checkpoint and the score submit as
+    `cont=1`; a clean run submits `cont=0` — the leaderboard ignores it for now,
+    this only establishes the data flow). A dev-only `?mockresume=1` flag seeds
+    sample run states so the cards can be eyeballed without a live checkpoint.
 
 ### Asset-path strategy for carried-over HTML
 

@@ -45,18 +45,23 @@ function injectionScript(
 	signedIn: boolean,
 	cloud: StoredSave,
 	profile: PlayerProfile,
-	runState: unknown
+	runStates: unknown
 ): string {
 	const cloudJson = escapeForScript(JSON.stringify(cloud));
 	const profileJson = escapeForScript(JSON.stringify(profile));
-	const runStateJson = escapeForScript(JSON.stringify(runState ?? null));
+	const runStatesJson = escapeForScript(JSON.stringify(Array.isArray(runStates) ? runStates : []));
 
 	return `<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
 	var CLOUD = ${cloudJson};
 	var PROFILE = ${profileJson};
-	var RUNSTATE = ${runStateJson};
+	// Cross-device run resume (0032/0037): the saved in-progress runs, one per
+	// game mode. Exposed to the game so its title screen renders a per-mode RESUME
+	// card and calls __ideaRestoreRun with the chosen mode's snapshot. Always set
+	// (empty when signed out) so the game can read it unconditionally.
+	var RUNSTATES = ${runStatesJson};
+	window.__ideaRunStates = Array.isArray(RUNSTATES) ? RUNSTATES : [];
 	var PREFIX = 'vanguard_';
 	var native = localStorage.setItem.bind(localStorage);
 
@@ -174,26 +179,44 @@ function injectionScript(
 				.then(function (j) { return { runs: (j && j.runs) || [], summary: (j && j.summary) || null }; })
 				.catch(function () { return { runs: [], summary: null }; });
 		};
-		// Cross-device run checkpoint (0032). The game calls these at a sector
+		// Cross-device run checkpoint (0032/0037). The game calls these at a sector
 		// boundary (save) and at run end (clear); we persist / clear the minimal
-		// snapshot the game captures. Fire-and-forget, errors swallowed.
+		// snapshot the game captures, PER MODE. Fire-and-forget, errors swallowed.
+		var RANKABLE = { normal: 1, hardcore: 1 };
+		function upsertRunState(snap) {
+			var list = window.__ideaRunStates || (window.__ideaRunStates = []);
+			for (var i = 0; i < list.length; i++) {
+				if (list[i] && list[i].gameMode === snap.gameMode) { list[i] = snap; return; }
+			}
+			list.push(snap);
+		}
+		function dropRunState(mode) {
+			var list = window.__ideaRunStates || [];
+			var out = [];
+			for (var i = 0; i < list.length; i++) { if (!(list[i] && list[i].gameMode === mode)) out.push(list[i]); }
+			window.__ideaRunStates = out;
+		}
 		window.__ideaVanguardSaveCheckpoint = function () {
 			try {
 				var snap = window.__ideaCaptureRun && window.__ideaCaptureRun();
-				if (!snap) return;
-				RUNSTATE = snap;
+				if (!snap || !RANKABLE[snap.gameMode]) return;
+				upsertRunState(snap);
 				fetch('/api/vanguard-run-state', {
 					method: 'POST', headers: { 'content-type': 'application/json' },
 					body: JSON.stringify(snap), keepalive: true
 				}).catch(function () {});
 			} catch (e) {}
 		};
-		window.__ideaVanguardClearCheckpoint = function () {
+		// Clears only the given mode's checkpoint, so a HARDCORE death never wipes
+		// a saved NORMAL run and vice versa. The game threads its gameMode through.
+		window.__ideaVanguardClearCheckpoint = function (mode) {
 			try {
-				RUNSTATE = null;
-				var b = document.getElementById('idea-vanguard-resume');
-				if (b) b.parentNode.removeChild(b);
-				fetch('/api/vanguard-run-state', { method: 'DELETE', keepalive: true }).catch(function () {});
+				if (!RANKABLE[mode]) return;
+				dropRunState(mode);
+				if (typeof window.__ideaRenderResumeCards === 'function') {
+					try { window.__ideaRenderResumeCards(); } catch (e) {}
+				}
+				fetch('/api/vanguard-run-state?mode=' + encodeURIComponent(mode), { method: 'DELETE', keepalive: true }).catch(function () {});
 			} catch (e) {}
 		};
 	}
@@ -255,26 +278,8 @@ function injectionScript(
 		nav.id = 'idea-vanguard-nav';
 		nav.style.cssText = 'position:fixed;top:10px;right:10px;z-index:2147483647;display:flex;align-items:center;gap:8px;padding:5px 8px;background:rgba(2,10,4,0.82);border:1px solid rgba(0,255,65,0.3);border-radius:4px;font-family:"Share Tech Mono",ui-monospace,monospace;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);';
 
-		// Resume a saved in-progress run (0032), offered when a signed-in player has
-		// a checkpoint from Sector 2+. Restoring is an explicit click; the game's
-		// __ideaRestoreRun rebuilds a valid play state from the snapshot.
-		if (SIGNED_IN && RUNSTATE && RUNSTATE.player && (RUNSTATE.sector || 0) >= 2) {
-			var resume = document.createElement('button');
-			resume.id = 'idea-vanguard-resume';
-			resume.type = 'button';
-			resume.textContent = 'Resume S' + RUNSTATE.sector;
-			resume.title = 'Resume your saved run (Sector ' + RUNSTATE.sector + ')';
-			resume.style.cssText = 'font-family:inherit;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#020A04;background:#C8FF00;border:none;border-radius:3px;padding:3px 8px;cursor:pointer;font-weight:700;white-space:nowrap;';
-			resume.addEventListener('click', function () {
-				if (window.__ideaRestoreRun && window.__ideaRestoreRun(RUNSTATE) && resume.parentNode) {
-					resume.parentNode.removeChild(resume);
-				}
-			});
-			nav.appendChild(resume);
-			var rsep = document.createElement('span');
-			rsep.style.cssText = 'width:1px;height:14px;background:rgba(0,255,65,0.25);';
-			nav.appendChild(rsep);
-		}
+		// (The old top-right "Resume S{n}" button is retired: the resume entry point
+		// now lives on the game's own title screen as a per-mode RESUME card, 0037.)
 
 		var home = document.createElement('a');
 		home.href = '/';
@@ -371,7 +376,9 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	let signedIn = false;
 	let cloud: StoredSave = { v: 2, progression: {}, prefs: {} };
 	let profile: PlayerProfile = { name: '', avatarUrl: '' };
-	let runState: unknown = null;
+	// One saved in-progress run per mode (0037). We inject the snapshots so the
+	// game's title screen can render a RESUME card for each.
+	let runStates: unknown[] = [];
 
 	if (claims) {
 		signedIn = true;
@@ -382,7 +389,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 				.select('full_name, display_name, avatar_url')
 				.eq('id', claims.sub)
 				.maybeSingle(),
-			supabase.from('vanguard_run_state').select('data').eq('user_id', claims.sub).maybeSingle()
+			supabase.from('vanguard_run_state').select('data').eq('user_id', claims.sub)
 		]);
 		cloud = normalizeStored(saveRes.data?.data);
 		const p = profileRes.data;
@@ -390,11 +397,11 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 			name: p?.display_name || p?.full_name || claims.email || 'Signed in',
 			avatarUrl: p?.avatar_url || ''
 		};
-		runState = runRes.data?.data ?? null;
+		runStates = (runRes.data ?? []).map((r) => r.data).filter((d) => d != null);
 	}
 
 	const html = injectVersionBadge(
-		vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile, runState)}`),
+		vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile, runStates)}`),
 		'vanguard'
 	);
 
