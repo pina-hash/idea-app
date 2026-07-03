@@ -68,7 +68,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AddinIcons.cs" />
+    <Compile Include="AddinUpdate.cs" />
     <Compile Include="GauntletClient.cs" />
+    <Compile Include="GauntletMath.cs" />
     <Compile Include="PartReader.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SwAddin.cs" />

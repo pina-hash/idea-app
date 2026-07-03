@@ -48,18 +48,15 @@
 				In SolidWorks, open a NEW blank part. It must be empty. The add-in and the server both check
 				for zero volume before letting you start.
 			</li>
-			<li>In the add-in pane, enter your code and confirm the target mass and unit system.</li>
+			<li>In the add-in pane, enter your code and click Load level to see the target mass and units.</li>
 			<li>Click Start. Your timer begins now, so only click Start when you are ready to model.</li>
 			<li>
-				Model the part to hit the target mass. The pane shows your live mass and how far you are from
-				the target.
+				Model the part to hit the target geometry. The pane shows your live volume and your mass,
+				computed from the level's density, versus the target. You do NOT need to apply a material:
+				ranked verification is on geometry (volume) only, so a missing or different material never
+				blocks you and never fails a run.
 			</li>
-			<li>
-				Apply the challenge's material to your part (right-click Material in the tree). The material
-				is checked by density: no material is rejected, the wrong material will not pass, and any
-				close-enough material works (the exact library name does not matter).
-			</li>
-			<li>Click Submit. You get PASS or OUTSIDE TOLERANCE, plus your time and rank.</li>
+			<li>Click Submit. You get PASS or OUTSIDE TOLERANCE (on volume), plus your time and rank.</li>
 		</ol>
 	</div>
 

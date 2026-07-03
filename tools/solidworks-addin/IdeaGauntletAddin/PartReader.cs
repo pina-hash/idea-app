@@ -5,31 +5,33 @@ using SolidWorks.Interop.swconst;
 namespace IdeaGauntlet
 {
     /// <summary>
-    /// A point-in-time reading of the active document. Mass properties are
-    /// captured in system (SI) units exactly like the VBA macros
-    /// (UseSystemUnits = true: m3 / m2 / kg) and normalized to the canonical
-    /// payload units mm3 / mm2 / g, plus lb for the IPS-facing display.
+    /// A point-in-time reading of the active document. GEOMETRY ONLY on the
+    /// verification path: volume and surface area are captured on an explicit SI
+    /// basis (UseSystemUnits = true -> m3 / m2) and converted ONCE to canonical
+    /// mm3 / mm2 (GauntletMath). The part's assigned material and its
+    /// material-derived mass are NOT read for verification or mass display: mass
+    /// is computed from the LEVEL's density (see TaskPaneControl). The material
+    /// NAME is read only when explicitly requested for the optional, non-gating
+    /// material advisory.
     /// </summary>
     public class PartSnapshot
     {
         public string Title = "";
         public bool IsPart;
-        /// <summary>Human label for the part's unit system, e.g. "IPS (in / lb)".</summary>
+        /// <summary>Human label for the document's unit system, e.g. "IPS (in / lb)".</summary>
         public string UnitSystemLabel = "";
-        /// <summary>Normalized document unit system for the submit gate: "IPS",
-        /// "MMGS", or "" (unknown/custom, so the server skips the unit check).</summary>
+        /// <summary>Document unit system, informational only: "IPS", "MMGS", or "".
+        /// The verification/mass path never branches on it.</summary>
         public string UnitSystemCode = "";
-        /// <summary>True when the part's units are inch-family, so mass reads in lb first.</summary>
+        /// <summary>True when the document's length unit is inch-family (display only).</summary>
         public bool PrimaryIsImperial;
-        /// <summary>True when mass properties were readable (an empty part reads as zeros).</summary>
-        public bool HasMass;
+        /// <summary>True when a solid volume was readable (an empty part reads as zero).</summary>
+        public bool HasVolume;
         public double VolumeMm3;
         public double SurfaceAreaMm2;
-        public double MassG;
-        public double MassLb;
         public int FeatureCount;
-        /// <summary>Applied material name (empty when none is applied). Sent on
-        /// Submit; the server requires it to match the challenge's material.</summary>
+        /// <summary>Applied material name, read ONLY for the optional advisory
+        /// (empty otherwise). Never used to verify or to compute mass.</summary>
         public string MaterialName = "";
         /// <summary>GAUNTLET_RUN_ID custom property, written by Start (add-in or Start macro).</summary>
         public string RunId;
@@ -37,14 +39,14 @@ namespace IdeaGauntlet
 
     public static class PartReader
     {
-        /// <summary>Exact NIST conversion; the payload itself always stays in grams.</summary>
-        private const double KgToLb = 2.20462262184878;
-
         /// <summary>Custom property the Start macro also uses, so mid-run the
         /// .bas macros and this add-in are interchangeable.</summary>
         public const string RunIdProperty = "GAUNTLET_RUN_ID";
 
-        public static PartSnapshot Read(ISldWorks app)
+        /// <param name="includeMaterial">Read the applied material NAME for the
+        /// optional advisory. Off by default so the normal path never touches the
+        /// part's material.</param>
+        public static PartSnapshot Read(ISldWorks app, bool includeMaterial = false)
         {
             PartSnapshot snap = new PartSnapshot();
             if (app == null)
@@ -71,8 +73,8 @@ namespace IdeaGauntlet
             snap.IsPart = true;
 
             ReadUnitSystem(model, snap);
-            ReadMassProperties(model, snap);
-            ReadMaterial(model, snap);
+            ReadGeometry(model, snap);
+            if (includeMaterial) ReadMaterial(model, snap);
 
             try { snap.FeatureCount = model.GetFeatureCount(); }
             catch { snap.FeatureCount = 0; }
@@ -146,16 +148,11 @@ namespace IdeaGauntlet
                     break;
                 case swUnitSystem_e.swUnitSystem_CGS:
                     snap.UnitSystemLabel = "CGS (cm / g)";
-                    // Metric, but not the level's MMGS/IPS enum, so leave the code
-                    // blank and let the server skip the unit check.
                     break;
                 case swUnitSystem_e.swUnitSystem_MKS:
                     snap.UnitSystemLabel = "MKS (m / kg)";
                     break;
                 default:
-                    // Custom system: decide the primary mass display from the
-                    // length unit family. Either way both lb and g are shown. The
-                    // unit-system code stays blank (server skips the check).
                     snap.PrimaryIsImperial = IsImperialLength(model);
                     snap.UnitSystemLabel = snap.PrimaryIsImperial ? "Custom (inch family)" : "Custom (metric)";
                     break;
@@ -180,22 +177,13 @@ namespace IdeaGauntlet
             }
         }
 
-        private static void ReadMassProperties(IModelDoc2 model, PartSnapshot snap)
+        private static void ReadGeometry(IModelDoc2 model, PartSnapshot snap)
         {
-            // THE LIVE-READOUT FIX. The macros read a one-shot IMassProperty
-            // object, which works for them because running a macro commits the
-            // active command first. This pane polls MID-SESSION: an
-            // IMassProperty created while a command/sketch is open (or before
-            // the model has been re-evaluated) returns ZEROS without throwing,
-            // which is exactly the "0.0000 lb with a real part open" bug.
-            //
-            // Primary read is therefore GetMassProperties2, which computes
-            // directly from the current geometry and reports an explicit
-            // status, so "genuinely blank part" (NoBody -> zeros are truth,
-            // the blank state the start check wants) is distinguishable from
-            // "could not evaluate right now" (fall back, else show "-" rather
-            // than fake zeros). Values are MKS (m3 / m2 / kg), normalized to
-            // the same canonical mm3 / mm2 / g payload as the macros.
+            // Primary read is GetMassProperties2, which computes directly from the
+            // current geometry and reports an explicit status, so a genuinely blank
+            // part (NoBody -> zeros are truth) is distinguishable from "could not
+            // evaluate right now". Values are SI (m3 / m2), converted once to
+            // canonical mm3 / mm2. No branch on the document display unit system.
             try
             {
                 int status = (int)swMassPropertiesStatus_e.swMassPropertiesStatus_UnknownError;
@@ -204,12 +192,12 @@ namespace IdeaGauntlet
                     && props != null && props.Length > 5)
                 {
                     // [0..2] center of mass, [3] volume m3, [4] area m2, [5] mass kg.
-                    FillMass(snap, props[3], props[4], props[5]);
+                    FillGeometry(snap, props[3], props[4]);
                     return;
                 }
                 if (status == (int)swMassPropertiesStatus_e.swMassPropertiesStatus_NoBody)
                 {
-                    FillMass(snap, 0.0, 0.0, 0.0); // truly blank part
+                    FillGeometry(snap, 0.0, 0.0); // truly blank part
                     return;
                 }
             }
@@ -218,38 +206,30 @@ namespace IdeaGauntlet
                 // Fall through to the one-shot object below.
             }
 
-            // Fallback: the macros' one-shot object (kept for parity; can still
-            // read zeros mid-command, but the primary path above covers that).
             try
             {
                 IMassProperty mass = (IMassProperty)model.Extension.CreateMassProperty();
                 if (mass == null) return;
                 mass.UseSystemUnits = true; // SI: m3 / m2 / kg
-                FillMass(snap, mass.Volume, mass.SurfaceArea, mass.Mass);
+                FillGeometry(snap, mass.Volume, mass.SurfaceArea);
             }
             catch
             {
-                snap.HasMass = false;
+                snap.HasVolume = false;
             }
         }
 
-        private static void FillMass(PartSnapshot snap, double volumeM3, double areaM2, double massKg)
+        private static void FillGeometry(PartSnapshot snap, double volumeM3, double areaM2)
         {
-            snap.VolumeMm3 = volumeM3 * 1000000000.0;    // m3 -> mm3
-            snap.SurfaceAreaMm2 = areaM2 * 1000000.0;    // m2 -> mm2
-            snap.MassG = massKg * 1000.0;                // kg -> g
-            snap.MassLb = massKg * KgToLb;               // kg -> lb
-            snap.HasMass = true;
+            snap.VolumeMm3 = volumeM3 * GauntletMath.CubicMToCubicMm;    // m3 -> canonical mm3
+            snap.SurfaceAreaMm2 = areaM2 * GauntletMath.SquareMToSquareMm; // m2 -> mm2
+            snap.HasVolume = true;
         }
 
         /// <summary>
-        /// The applied material's library name (for example "6061 Alloy" or a
-        /// custom-library "6061-T6 (SS)"), empty when no material is applied.
-        /// Read from the ACTIVE configuration via IPartDoc (a custom-library
-        /// material can read empty against the "" config), falling back to "".
-        /// The name is for display/audit only: the server verifies the material
-        /// by DENSITY (mass / volume), not by this name (migration 0027), so a
-        /// name that fails to read no longer blocks a correctly-materialed part.
+        /// The applied material's library name, read ONLY for the optional
+        /// non-gating advisory (never to verify or to compute mass). Read from the
+        /// active configuration via IPartDoc; empty when none is applied.
         /// </summary>
         private static void ReadMaterial(IModelDoc2 model, PartSnapshot snap)
         {

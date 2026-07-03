@@ -32,6 +32,8 @@ Private Const SUPABASE_ANON_KEY As String = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ
 Private Const swDocPART As Long = 1
 Private Const swCustomInfoText As Long = 30
 Private Const swCustomPropertyReplaceValue As Long = 2
+' 1 m^3 = 1e9 canonical mm^3 (SI extraction, converted once). KEEP IN SYNC.
+Private Const M3_TO_MM3 As Double = 1000000000#
 
 Sub main()
     Dim swApp As Object
@@ -65,7 +67,7 @@ Sub main()
     Dim swMass As Object
     Set swMass = swModel.Extension.CreateMassProperty
     swMass.UseSystemUnits = True
-    volumeMm3 = swMass.Volume * 1000000000#      ' m^3 -> mm^3
+    volumeMm3 = swMass.Volume * M3_TO_MM3         ' m^3 -> canonical mm^3
     On Error GoTo 0
 
     If volumeMm3 > 0# Then
@@ -140,21 +142,14 @@ Sub main()
     cpm.Add3 "GAUNTLET_RUN_ID", swCustomInfoText, runId, swCustomPropertyReplaceValue
     On Error GoTo 0
 
-    ' --- Material reminder: Submit is rejected without the challenge's material
-    Dim matName As String, matDb As String
-    matName = ""
-    On Error Resume Next
-    matName = swModel.GetMaterialPropertyName2("", matDb)
-    On Error GoTo 0
-
+    ' Ranked verification is VOLUME ONLY, so no material is needed to pass. Model
+    ' to the target geometry; mass is computed from the level's density for
+    ' reference. (No material read here.)
     Dim doneMsg As String
     doneMsg = "Run started. The clock is running." & vbCrLf & vbCrLf & _
               "Build your part now, then run Submit (Ctrl+Shift+D)." & vbCrLf & _
-              "Do not close this part, or your run is lost."
-    If Len(Trim$(matName)) = 0 Then
-        doneMsg = doneMsg & vbCrLf & vbCrLf & _
-                  "Apply the challenge's material while you model; a submit without it is rejected."
-    End If
+              "Do not close this part, or your run is lost." & vbCrLf & vbCrLf & _
+              "You do not need to apply a material: verification is on geometry (volume)."
     MsgBox doneMsg, vbInformation, "GAUNTLET, run started"
     Exit Sub
 

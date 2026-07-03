@@ -706,6 +706,51 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   add-in) and blocks a submit whose document units differ from the level's,
   showing both; it also reports the measured mass in the level's unit (lb/g).
   Built on the 0027 density gate (not a revert).
+- **Verification model: geometry-only, mass from level density (`0034`,
+  SUPERSEDES the 0026/0027 material gates and the 0030 document-unit gate).**
+  The single rule, enforced everywhere (server, VBA macros, C# add-in, web):
+  density and target mass are ALWAYS sourced from the level record, NEVER from
+  the part's assigned material. No verification or mass path reads the part's
+  material or its material density.
+  - **Ranked = volume-as-checksum.** `gauntlet_macro_submit` grades on measured
+    geometric volume vs the level's stored `answer.target_volume_mm3` within
+    tolerance, only. It no longer reads/requires an assigned material and never
+    blocks on material or document units. `p_material` is a non-gating advisory,
+    `p_unit_system` is informational, `p_mass_g` is ignored. (Restores the 0016
+    volume-only path.)
+  - **Mass = measured volume x level density**, computed server-side and shown as
+    both the level's target mass and the student's computed mass, in the level's
+    unit system (TooTallToby: IPS shows lb / in3, MMGS shows g / mm3; presentation
+    is driven by the level's `unit_system`, not the student's document units).
+    Because density is a fixed level constant, hitting target mass == hitting
+    target volume, so ranked stays volume-only.
+  - **Tolerance constant** `GAUNTLET_VOLUME_TOL_PCT = 0.5` (relative percent) is
+    the shared default across layers: server `gauntlet_macro_submit`
+    `c_volume_tol_pct`, VBA `GAUNTLET_VOLUME_TOL_PCT`, C#
+    `GauntletMath.VolumeTolPct`. A level may override via `answer.tolerance_pct`.
+  - **Canonical volume:** extract on an explicit SI basis (mass properties
+    `UseSystemUnits = true` -> m3) and convert ONCE via `1 m3 = 1e9 mm3`
+    (`M3_TO_MM3` / `GauntletMath.CubicMToCubicMm`). NO layer branches on the
+    document display unit system to read volume, so an IPS part and an MMGS part
+    of identical geometry verify identically. Author values are converted at
+    author time (the author macro/form emit canonical mm3 + density in the
+    level's unit).
+  - **Practice mass verify (unranked, non-blocking):** the macro
+    (`PracticeMassVerify`) and the add-in ("Practice mass check") compute mass
+    from the level density (fetched via the read-only `gauntlet_run_targets(code)`
+    RPC) and report closeness to the level's target mass. They write nothing and
+    never affect ranked state.
+  - **Reference-cube self-check:** the macro (`ReferenceCubeSelfCheck`) and the
+    add-in ("Reference-cube self-check") read a 100 mm cube, assert 1,000,000
+    canonical mm3 within tolerance, and print the measured volume (and mass at a
+    level density if a code is given). Proves the unit path in any document unit
+    system.
+  - **Material advisory (optional, OFF by default):** the add-in can show whether
+    the applied material name matches the level's, as an informational note only;
+    it never gates ranked or practice. The macros omit it entirely.
+  - The add-in fetches the level via `gauntlet_run_targets`; the failing
+    `p_mass_g` / material-density read is gone from `PartReader` (geometry only).
+    Add-in is v1.4.
 - **Speedrun tooling, attempts, series, room timers (batch):** a set of
   additive Speedrun improvements.
   - **Unified Tools page + static hosting.** All run tooling lives on ONE page

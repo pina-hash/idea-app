@@ -344,11 +344,12 @@
 				</label>
 			{/if}
 			<label class="ff">
-				<span class="ff-label">Material</span>
-				<input class="ff-input" type="text" bind:value={form.material} placeholder="Exact SolidWorks name, e.g. 6061 Alloy" />
+				<span class="ff-label">Material (optional)</span>
+				<input class="ff-input" type="text" bind:value={form.material} placeholder="Display name, e.g. 6061 Alloy" />
 				<span class="ff-help">
-					Must match the applied material's SolidWorks library name (case-insensitive): submits
-					with no material or a different one are rejected. The Author capture macro prints it.
+					Display / advisory label only. Ranked verification is geometry (volume) only and mass is
+					computed from the density below, so a student's applied material never gates a run. Not
+					required to publish.
 				</span>
 			</label>
 			<label class="ff">

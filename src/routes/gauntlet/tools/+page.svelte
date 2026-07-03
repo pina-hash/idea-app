@@ -87,9 +87,9 @@
 			<h3 class="sub-heading">Use it</h3>
 			<ol class="setup-steps">
 				<li>On the GAUNTLET Speedrun screen, press Start to reveal the drawing and your 8-character code.</li>
-				<li>On a new blank part, type the code into the pane and press START RUN.</li>
-				<li>Model the part and apply the challenge's material.</li>
-				<li>Press SUBMIT RUN. The pane shows PASS with your time and rank, or OUTSIDE TOLERANCE.</li>
+				<li>On a new blank part, type the code, Load level, and press START RUN.</li>
+				<li>Model the part to the target geometry. No material is needed; mass is computed from the level's density.</li>
+				<li>Press SUBMIT RUN. The pane shows PASS with your time and rank, or OUTSIDE TOLERANCE (on volume).</li>
 			</ol>
 
 			{#if addin?.changelog?.length}
@@ -128,8 +128,8 @@
 			<ol class="setup-steps">
 				<li>Reveal the challenge on the Speedrun screen to get your 8-character code.</li>
 				<li>On a new blank part, press <span class="mono">Ctrl+Shift+S</span>, enter the code to start.</li>
-				<li>Model the part and apply the challenge's material.</li>
-				<li>Press <span class="mono">Ctrl+Shift+D</span> to submit and see PASS or OUTSIDE TOLERANCE.</li>
+				<li>Model the part to the target geometry (no material needed; mass uses the level's density).</li>
+				<li>Press <span class="mono">Ctrl+Shift+D</span> to submit and see PASS or OUTSIDE TOLERANCE (on volume).</li>
 			</ol>
 
 			{#if macros?.changelog?.length}
@@ -162,7 +162,7 @@
 					"No run has been started" on submit &rarr; you skipped Start or closed the part. Start a new
 					blank part, Start, build, then submit.
 				</li>
-				<li>Wrong material &rarr; apply the challenge's material (checked by density), then submit again.</li>
+				<li>OUTSIDE TOLERANCE &rarr; your volume is off the target; adjust the geometry and submit again (same code, the clock keeps running). Material is never checked.</li>
 				<li>"not configured" or nothing happens &rarr; tell Mr. Pina; this computer needs setup.</li>
 			</ul>
 		</div>

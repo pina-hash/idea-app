@@ -26,7 +26,7 @@ namespace IdeaGauntlet
 
     public class SubmitResult
     {
-        public bool IsCorrect;
+        public bool IsCorrect;      // VOLUME within tolerance (geometry only)
         public string Mode;
         public long ElapsedMs;
         public double? ScoreMetric;
@@ -34,18 +34,37 @@ namespace IdeaGauntlet
         public double? TargetVolumeMm3;
         public double? YourVolumeMm3;
         public double? TolerancePct;
-        // Material-by-density verdict (0027). Correctness now requires the applied
-        // material's density to match the challenge within DensityTolerancePct.
-        public bool VolumeOk;
-        public bool DensityOk;
-        public double? MeasuredDensity;
-        public double? ExpectedDensity;
-        public double? DensityTolerancePct;
-        public string DetectedMaterial;
-        // Unit system (0030): the level's system and the measured mass in it.
-        public string UnitSystem;
-        public double? MassLevel;
+        // Mass computed by the server from the LEVEL's density (never the part's
+        // assigned material), in the level's unit system.
+        public double? YourMassLevel;
+        public double? TargetMassLevel;
         public string MassUnit;
+        public string UnitSystem;
+        // Non-gating material advisory: true/false when both names are known,
+        // null otherwise. Never affects IsCorrect.
+        public bool? MaterialMatches;
+        public string DetectedMaterial;
+    }
+
+    /// <summary>
+    /// The level's stored constants for a valid code (gauntlet_run_targets):
+    /// density and target mass come from the LEVEL record, so the add-in can show
+    /// target-vs-computed mass and run the unranked practice check without ever
+    /// reading the part's assigned material.
+    /// </summary>
+    public class LevelTargets
+    {
+        public string ChallengeId;
+        public string Title;
+        public double? TargetVolumeMm3;
+        public double? TolerancePct;
+        public double? ExpectedDensityGcm3;
+        public double? DensityLevel;
+        public string UnitSystem;
+        public string MassUnit;
+        public string LengthUnit;
+        public double? TargetMassLevel;
+        public string Material;
     }
 
     /// <summary>
@@ -102,18 +121,19 @@ namespace IdeaGauntlet
         }
 
         /// <summary>
-        /// gauntlet_macro_submit(p_code, p_volume_mm3, p_run_id, p_surface_area_mm2,
-        /// p_feature_count, p_mass_g, p_material): the graded submit. Elapsed time
-        /// is computed server-side from the start event; correctness is verified on
-        /// volume AND (since 0027) on the applied material's DENSITY (mass / volume)
-        /// against the challenge's expected density. The server blocks only when
-        /// there is genuinely no material; a present-but-wrong material grades as
-        /// not-correct (unranked), so p_material is sent for audit/display, not as
-        /// the gate. The measured density is derived server-side from p_mass_g.
+        /// gauntlet_macro_submit: the graded submit. Ranked correctness is VOLUME
+        /// ONLY (measured volume vs the level's stored expected volume within
+        /// tolerance); it never reads the part's assigned material or its density
+        /// and never blocks on material or document units. Mass is computed
+        /// server-side from the LEVEL's density and returned for display.
+        /// p_material is sent ONLY when the (off-by-default) advisory is on, purely
+        /// for the non-gating "does your material name match" note; p_unit_system
+        /// is informational. p_mass_g is not sent (the part's material mass is never
+        /// used).
         /// </summary>
         public static async Task<SubmitResult> SubmitRunAsync(
             string code, string runId, double volumeMm3, double surfaceAreaMm2, int featureCount,
-            double massG, string materialName, string unitSystem)
+            string docUnitSystem, string materialAdvisory)
         {
             Dictionary<string, object> body = new Dictionary<string, object>();
             body["p_code"] = code;
@@ -121,9 +141,8 @@ namespace IdeaGauntlet
             body["p_volume_mm3"] = volumeMm3;
             body["p_surface_area_mm2"] = surfaceAreaMm2;
             body["p_feature_count"] = featureCount;
-            body["p_mass_g"] = massG;
-            body["p_material"] = string.IsNullOrEmpty(materialName) ? null : materialName;
-            body["p_unit_system"] = string.IsNullOrEmpty(unitSystem) ? null : unitSystem;
+            body["p_unit_system"] = string.IsNullOrEmpty(docUnitSystem) ? null : docUnitSystem;
+            body["p_material"] = string.IsNullOrEmpty(materialAdvisory) ? null : materialAdvisory;
 
             Dictionary<string, object> resp = await PostRpcAsync("gauntlet_macro_submit", body).ConfigureAwait(false);
 
@@ -136,16 +155,41 @@ namespace IdeaGauntlet
             result.TargetVolumeMm3 = AsDouble(resp, "target_volume_mm3");
             result.YourVolumeMm3 = AsDouble(resp, "your_volume_mm3");
             result.TolerancePct = AsDouble(resp, "tolerance_pct");
-            result.VolumeOk = AsBool(resp, "volume_ok");
-            result.DensityOk = AsBool(resp, "density_ok");
-            result.MeasuredDensity = AsDouble(resp, "measured_density_g_cm3");
-            result.ExpectedDensity = AsDouble(resp, "expected_density_g_cm3");
-            result.DensityTolerancePct = AsDouble(resp, "density_tolerance_pct");
-            result.DetectedMaterial = AsString(resp, "detected_material");
-            result.UnitSystem = AsString(resp, "unit_system");
-            result.MassLevel = AsDouble(resp, "mass_level");
+            result.YourMassLevel = AsDouble(resp, "your_mass_level");
+            result.TargetMassLevel = AsDouble(resp, "target_mass_level");
             result.MassUnit = AsString(resp, "mass_unit");
+            result.UnitSystem = AsString(resp, "unit_system");
+            result.MaterialMatches = AsNullableBool(resp, "material_matches");
+            result.DetectedMaterial = AsString(resp, "detected_material");
             return result;
+        }
+
+        /// <summary>
+        /// gauntlet_run_targets(p_code): the level's stored density / target mass /
+        /// tolerance / unit system for a valid code. Read-only; writes nothing and
+        /// never affects ranked state. Used for the live target-vs-computed mass
+        /// display and the unranked practice check.
+        /// </summary>
+        public static async Task<LevelTargets> GetTargetsAsync(string code)
+        {
+            Dictionary<string, object> body = new Dictionary<string, object>();
+            body["p_code"] = code;
+
+            Dictionary<string, object> resp = await PostRpcAsync("gauntlet_run_targets", body).ConfigureAwait(false);
+
+            LevelTargets t = new LevelTargets();
+            t.ChallengeId = AsString(resp, "challenge_id");
+            t.Title = AsString(resp, "title");
+            t.TargetVolumeMm3 = AsDouble(resp, "target_volume_mm3");
+            t.TolerancePct = AsDouble(resp, "tolerance_pct");
+            t.ExpectedDensityGcm3 = AsDouble(resp, "expected_density_g_cm3");
+            t.DensityLevel = AsDouble(resp, "density_level");
+            t.UnitSystem = AsString(resp, "unit_system");
+            t.MassUnit = AsString(resp, "mass_unit");
+            t.LengthUnit = AsString(resp, "length_unit");
+            t.TargetMassLevel = AsDouble(resp, "target_mass_level");
+            t.Material = AsString(resp, "material");
+            return t;
         }
 
         private static async Task<Dictionary<string, object>> PostRpcAsync(string function, Dictionary<string, object> body)
@@ -197,6 +241,17 @@ namespace IdeaGauntlet
             if (value is bool) return (bool)value;
             string s = Convert.ToString(value, CultureInfo.InvariantCulture);
             return string.Equals(s, "true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool? AsNullableBool(Dictionary<string, object> dict, string key)
+        {
+            object value;
+            if (dict == null || !dict.TryGetValue(key, out value) || value == null) return null;
+            if (value is bool) return (bool)value;
+            string s = Convert.ToString(value, CultureInfo.InvariantCulture);
+            if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) return false;
+            return null;
         }
 
         private static long AsLong(Dictionary<string, object> dict, string key)

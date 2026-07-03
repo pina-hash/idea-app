@@ -1,7 +1,7 @@
 {
 	"generated": "2026-07-02",
 	"macros": {
-		"version": "1.1",
+		"version": "1.2",
 		"updated": "2026-07-02",
 		"files": [
 			{ "name": "Start", "path": "/tools/idea-gauntlet-start.bas" },
@@ -9,19 +9,19 @@
 			{ "name": "Author capture", "path": "/tools/idea-gauntlet-author.bas" }
 		],
 		"changelog": [
-			"Submit verifies the applied material by density, not name.",
-			"Reports the challenge's unit system (IPS / MMGS) with the run.",
-			"Now served straight from the site, no storage dependency."
+			"Ranked verification is geometry (volume) only; no material needed.",
+			"Mass is computed from the level's density and shown in its units.",
+			"Added an unranked practice mass check and a reference-cube self-check."
 		]
 	},
 	"addin": {
-		"version": "1.3",
+		"version": "1.4",
 		"updated": "2026-07-02",
 		"path": "/tools/idea-gauntlet-addin.zip",
 		"changelog": [
-			"Download is now static-hosted on the site (fixes the 404).",
-			"Non-blocking startup check for a newer add-in version.",
-			"Live mass in the part's own unit system with a target delta."
+			"Ranked verification is geometry (volume) only; material never gates.",
+			"Mass computed from the level's density (Load level), not your part's material.",
+			"Added a practice mass check, a reference-cube self-check, and an optional material advisory."
 		]
 	}
 }

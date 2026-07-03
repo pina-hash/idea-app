@@ -10,20 +10,18 @@ using Environment = System.Environment;
 namespace IdeaGauntlet
 {
     /// <summary>
-    /// The persistent GAUNTLET task pane: live current-vs-target mass with the
-    /// part's unit system surfaced (IPS reads in lb, MMGS in g; both always
-    /// shown), the submit-code field, Start/Submit, and status feedback.
-    /// All SOLIDWORKS COM access happens on the pane's owning (main) thread;
-    /// HTTP runs async and results are marshaled back with Invoke.
+    /// The persistent GAUNTLET task pane. Verification is GEOMETRY (volume) ONLY:
+    /// the pane reads the part's canonical volume on an SI basis and the server
+    /// ranks it against the level's stored volume. Mass is first-class but
+    /// COMPUTED FROM THE LEVEL'S DENSITY (loaded by code via gauntlet_run_targets),
+    /// never from the part's assigned material. It surfaces target vs computed
+    /// mass, an unranked practice mass check, a reference-cube self-check, and an
+    /// off-by-default, non-gating material advisory.
+    /// All SOLIDWORKS COM access is on the pane's owning (main) thread; HTTP runs
+    /// async and results are marshaled back with Invoke.
     /// </summary>
     public class TaskPaneControl : UserControl
     {
-        // Neutral, host-matched surface (SOLIDWORKS 2025 light theme) with a
-        // restrained IDEA-green accent for identity. The web app's neon-on-void
-        // palette stays on the web (src/app.css); docked inside the host it
-        // clashed hard, so the pane reads as a native panel instead. The field
-        // names keep their semantic roles: Green/GreenBright are the IDEA
-        // accent, Cyan is the section/metadata tint, Body is ink.
         private static readonly Color Bg = Color.FromArgb(246, 247, 248);
         private static readonly Color BgPanel = Color.White;
         private static readonly Color Green = Color.FromArgb(0, 122, 61);
@@ -42,28 +40,30 @@ namespace IdeaGauntlet
 
         private Label lblDoc;
         private Label lblUnits;
-        private Label lblMaterial;
-        private Label lblMassPrimary;
-        private Label lblMassSecondary;
+        private Label lblVolumePrimary;
         private Label lblGeometry;
-        private TextBox txtTarget;
-        private ComboBox cmbTargetUnit;
+        private TextBox txtCode;
+        private Button btnLoad;
+        private Label lblLevel;
+        private Label lblMass;
         private Label lblDelta;
+        private CheckBox chkAdvisory;
+        private Label lblAdvisory;
         private CheckBox chkLive;
         private Button btnRefresh;
-        private TextBox txtCode;
         private Button btnStart;
         private Button btnSubmit;
+        private Button btnPractice;
+        private Button btnSelfCheck;
         private Label lblRun;
         private TextBox txtStatus;
         private Label lblVersion;
         private System.Windows.Forms.Timer timer;
 
         private PartSnapshot last;
+        private LevelTargets level;      // the loaded level's constants (density, target mass, ...)
         private DateTime? runStartedUtc;
         private string sessionRunId;
-        private bool targetUnitTouched;
-        private bool suppressUnitEvent;
         private bool busy;
         private int tick;
 
@@ -81,7 +81,6 @@ namespace IdeaGauntlet
             timer.Start();
         }
 
-        /// <summary>Called by the add-in on DisconnectFromSW, before Dispose.</summary>
         public void ShutDown()
         {
             try
@@ -126,45 +125,50 @@ namespace IdeaGauntlet
             lblDoc = MakeLabel("-", Body, null);
             AddRow(lblDoc, 0);
             lblUnits = MakeLabel("Units: -", Dim, null);
-            AddRow(lblUnits, 0);
-            lblMaterial = MakeLabel("Material: -", Dim, null);
-            AddRow(lblMaterial, 8);
+            AddRow(lblUnits, 8);
 
-            AddRow(MakeSection("MASS"), 2);
-            lblMassPrimary = MakeLabel("-", Body, new Font("Consolas", 15f, FontStyle.Bold));
-            AddRow(lblMassPrimary, 0);
-            lblMassSecondary = MakeLabel("", Dim, new Font("Consolas", 9f));
-            AddRow(lblMassSecondary, 2);
+            AddRow(MakeSection("GEOMETRY (what is verified)"), 2);
+            lblVolumePrimary = MakeLabel("-", Body, new Font("Consolas", 14f, FontStyle.Bold));
+            AddRow(lblVolumePrimary, 0);
             lblGeometry = MakeLabel("", Dim, new Font("Consolas", 8f));
             AddRow(lblGeometry, 8);
 
-            AddRow(MakeSection("TARGET MASS (from the challenge)"), 2);
-            TableLayoutPanel targetRow = new TableLayoutPanel();
-            targetRow.ColumnCount = 2;
-            targetRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62f));
-            targetRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38f));
-            targetRow.AutoSize = true;
-            targetRow.Dock = DockStyle.Fill;
-            targetRow.Margin = new Padding(0);
-            txtTarget = MakeTextBox();
-            txtTarget.TextChanged += delegate { UpdateDelta(); };
-            targetRow.Controls.Add(txtTarget, 0, 0);
-            cmbTargetUnit = new ComboBox();
-            cmbTargetUnit.DropDownStyle = ComboBoxStyle.DropDownList;
-            cmbTargetUnit.Items.Add("g");
-            cmbTargetUnit.Items.Add("lb");
-            cmbTargetUnit.SelectedIndex = 0;
-            cmbTargetUnit.FlatStyle = FlatStyle.Flat;
-            cmbTargetUnit.BackColor = BgPanel;
-            cmbTargetUnit.ForeColor = Body;
-            cmbTargetUnit.Font = new Font("Consolas", 9f);
-            cmbTargetUnit.Dock = DockStyle.Fill;
-            cmbTargetUnit.Margin = new Padding(6, 0, 0, 0);
-            cmbTargetUnit.SelectedIndexChanged += OnTargetUnitChanged;
-            targetRow.Controls.Add(cmbTargetUnit, 1, 0);
-            AddRow(targetRow, 2);
+            AddRow(MakeSection("LEVEL (target from the challenge, not your material)"), 2);
+            AddRow(MakeLabel("Code from the GAUNTLET Speedrun screen:", Dim, null), 2);
+            TableLayoutPanel codeRow = new TableLayoutPanel();
+            codeRow.ColumnCount = 2;
+            codeRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62f));
+            codeRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38f));
+            codeRow.AutoSize = true;
+            codeRow.Dock = DockStyle.Fill;
+            codeRow.Margin = new Padding(0);
+            txtCode = MakeTextBox();
+            txtCode.CharacterCasing = CharacterCasing.Upper;
+            txtCode.MaxLength = 8;
+            txtCode.Font = new Font("Consolas", 12f, FontStyle.Bold);
+            txtCode.TextAlign = HorizontalAlignment.Center;
+            codeRow.Controls.Add(txtCode, 0, 0);
+            btnLoad = MakeButton("LOAD LEVEL", Cyan);
+            btnLoad.Click += OnLoadLevelClick;
+            codeRow.Controls.Add(btnLoad, 1, 0);
+            AddRow(codeRow, 4);
+            lblLevel = MakeLabel("Enter your code and Load level to see the target mass.", Dim, new Font("Consolas", 8.25f));
+            AddRow(lblLevel, 2);
+            lblMass = MakeLabel("", Body, new Font("Consolas", 11f, FontStyle.Bold));
+            AddRow(lblMass, 0);
             lblDelta = MakeLabel("", Dim, new Font("Consolas", 8.25f));
-            AddRow(lblDelta, 8);
+            AddRow(lblDelta, 6);
+
+            chkAdvisory = new CheckBox();
+            chkAdvisory.Text = "Material advisory (optional, never affects pass/fail)";
+            chkAdvisory.Checked = false; // OFF by default
+            chkAdvisory.AutoSize = true;
+            chkAdvisory.ForeColor = Dim;
+            chkAdvisory.Margin = new Padding(0);
+            chkAdvisory.CheckedChanged += delegate { FullRefreshQuiet(); };
+            AddRow(chkAdvisory, 2);
+            lblAdvisory = MakeLabel("", Dim, new Font("Consolas", 8f));
+            AddRow(lblAdvisory, 8);
 
             TableLayoutPanel liveRow = new TableLayoutPanel();
             liveRow.ColumnCount = 2;
@@ -186,18 +190,6 @@ namespace IdeaGauntlet
             AddRow(liveRow, 10);
 
             AddRow(MakeSection("RUN"), 2);
-            AddRow(MakeLabel("Code from the GAUNTLET Speedrun screen:", Dim, null), 2);
-            txtCode = MakeTextBox();
-            txtCode.CharacterCasing = CharacterCasing.Upper;
-            txtCode.MaxLength = 8;
-            txtCode.Font = new Font("Consolas", 12f, FontStyle.Bold);
-            txtCode.TextAlign = HorizontalAlignment.Center;
-            AddRow(txtCode, 6);
-            // The & gives each button a standard WinForms access key (UseMnemonic
-            // defaults to true), so Alt+S starts and Alt+D submits when the pane has
-            // focus. Submit is captioned "(DONE)" so its mnemonic can be Alt+D,
-            // mirroring the .bas macro shortcuts (Start = Ctrl+Shift+S, Submit =
-            // Ctrl+Shift+D, Author = Ctrl+Shift+A). No global/SolidWorks key hooks.
             btnStart = MakeButton("&START RUN (blank part)", Green);
             btnStart.Click += OnStartClick;
             AddRow(btnStart, 4);
@@ -206,6 +198,14 @@ namespace IdeaGauntlet
             btnSubmit.Font = new Font("Segoe UI", 9.5f, FontStyle.Bold);
             btnSubmit.Click += OnSubmitClick;
             AddRow(btnSubmit, 6);
+
+            btnPractice = MakeButton("PRACTICE MASS CHECK (unranked)", Cyan);
+            btnPractice.Click += OnPracticeClick;
+            AddRow(btnPractice, 4);
+            btnSelfCheck = MakeButton("REFERENCE-CUBE SELF-CHECK", Cyan);
+            btnSelfCheck.Click += OnSelfCheckClick;
+            AddRow(btnSelfCheck, 6);
+
             lblRun = MakeLabel("No run started on this part.", Dim, new Font("Consolas", 8.25f));
             AddRow(lblRun, 8);
 
@@ -222,10 +222,10 @@ namespace IdeaGauntlet
             txtStatus.Height = 150;
             txtStatus.Dock = DockStyle.Fill;
             txtStatus.Margin = new Padding(0);
-            txtStatus.Text = "Reveal a Speedrun challenge on the GAUNTLET site to get your code." + Environment.NewLine +
-                "1. START here on a new, blank part (the server clock starts)." + Environment.NewLine +
-                "2. Model the part." + Environment.NewLine +
-                "3. SUBMIT. Timing and grading are server-side.";
+            txtStatus.Text = "Verification is on GEOMETRY (volume). You do not need a material." + Environment.NewLine +
+                "1. On a blank part, START (server clock starts)." + Environment.NewLine +
+                "2. Model to the target geometry." + Environment.NewLine +
+                "3. SUBMIT. Mass shown is computed from the level's density.";
             AddRow(txtStatus, 8);
 
             lblVersion = MakeLabel("", Dim, new Font("Consolas", 7.5f));
@@ -266,7 +266,6 @@ namespace IdeaGauntlet
 
         private Button MakeButton(string text, Color accent)
         {
-            // Outline button on the neutral surface; the accent carries identity.
             Button button = new Button();
             button.Text = text;
             button.FlatStyle = FlatStyle.Flat;
@@ -283,7 +282,6 @@ namespace IdeaGauntlet
             return button;
         }
 
-        /// <summary>The one solid (primary) button: Submit.</summary>
         private void MakePrimary(Button button)
         {
             button.BackColor = Green;
@@ -344,7 +342,9 @@ namespace IdeaGauntlet
         {
             try
             {
-                PartSnapshot snap = PartReader.Read(swApp);
+                // Read the material ONLY when the advisory is on, so the normal path
+                // never touches the part's assigned material.
+                PartSnapshot snap = PartReader.Read(swApp, chkAdvisory != null && chkAdvisory.Checked);
                 ApplySnapshot(snap);
             }
             catch
@@ -357,103 +357,101 @@ namespace IdeaGauntlet
         {
             last = snap;
             lblDoc.Text = snap.Title;
-            lblUnits.Text = snap.IsPart ? "Units: " + snap.UnitSystemLabel : "Units: -";
+            lblUnits.Text = snap.IsPart ? "Units: " + snap.UnitSystemLabel + "  (display only)" : "Units: -";
 
-            // The server verifies the material by DENSITY (0027), so surface the
-            // applied material AND its measured density continuously. A material
-            // reads as "present" from a real (non-default ~1.0 g/cm3) density even
-            // when the library name does not read, matching the server's gate.
-            double? density = MeasuredDensity(snap);
-            bool hasRealDensity = density.HasValue && density.Value > 0 && Math.Abs(density.Value - 1.0) > 0.05;
-            if (!snap.IsPart)
+            if (!snap.IsPart || !snap.HasVolume)
             {
-                lblMaterial.Text = "Material: -";
-                lblMaterial.ForeColor = Dim;
-            }
-            else if (string.IsNullOrEmpty(snap.MaterialName) && !hasRealDensity)
-            {
-                lblMaterial.Text = "Material: none applied (required to pass)";
-                lblMaterial.ForeColor = Amber;
+                lblVolumePrimary.Text = "-";
+                lblGeometry.Text = snap.IsPart ? "(empty part reads as zero volume)" : "";
             }
             else
             {
-                string name = string.IsNullOrEmpty(snap.MaterialName) ? "(name not read)" : snap.MaterialName;
-                lblMaterial.Text = density.HasValue
-                    ? Inv("Material: {0} · {1:0.000} g/cm3", name, density.Value)
-                    : "Material: " + name;
-                lblMaterial.ForeColor = Body;
+                lblVolumePrimary.Text = Inv("{0:0.00} mm3", snap.VolumeMm3);
+                lblGeometry.Text = Inv("Area {0:0.00} mm2 · Features {1}", snap.SurfaceAreaMm2, snap.FeatureCount);
             }
 
-            if (!snap.IsPart || !snap.HasMass)
-            {
-                lblMassPrimary.Text = "-";
-                lblMassSecondary.Text = snap.IsPart ? "(empty part reads as zero)" : "";
-                lblGeometry.Text = "";
-            }
-            else if (snap.PrimaryIsImperial)
-            {
-                lblMassPrimary.Text = Inv("{0:0.0000} lb", snap.MassLb);
-                lblMassSecondary.Text = Inv("= {0:0.00} g", snap.MassG);
-                lblGeometry.Text = GeometryLine(snap);
-            }
-            else
-            {
-                lblMassPrimary.Text = Inv("{0:0.00} g", snap.MassG);
-                lblMassSecondary.Text = Inv("= {0:0.0000} lb", snap.MassLb);
-                lblGeometry.Text = GeometryLine(snap);
-            }
-
-            if (!targetUnitTouched)
-            {
-                suppressUnitEvent = true;
-                cmbTargetUnit.SelectedIndex = snap.PrimaryIsImperial ? 1 : 0;
-                suppressUnitEvent = false;
-            }
-
-            UpdateDelta();
+            UpdateMass();
+            UpdateAdvisory();
             UpdateRunLabel();
         }
 
-        private static string GeometryLine(PartSnapshot snap)
-        {
-            return Inv("Vol {0:0.00} mm3\r\nArea {1:0.00} mm2 · Features {2}",
-                snap.VolumeMm3, snap.SurfaceAreaMm2, snap.FeatureCount);
-        }
-
         /// <summary>
-        /// The part's density in g/cm3 (mass / volume), mirroring what the server
-        /// derives from the submitted mass and volume. Null when there is no solid
-        /// geometry to divide by.
+        /// Computed mass = measured volume x the LEVEL's density (never the part's
+        /// assigned material), shown in the level's unit with the delta to target.
         /// </summary>
-        private static double? MeasuredDensity(PartSnapshot snap)
+        private void UpdateMass()
         {
-            if (snap == null || !snap.HasMass || snap.VolumeMm3 <= 0.0) return null;
-            return snap.MassG / (snap.VolumeMm3 / 1000.0);
-        }
-
-        private void UpdateDelta()
-        {
-            if (last == null || !last.IsPart || !last.HasMass)
+            if (level == null || !level.ExpectedDensityGcm3.HasValue)
             {
+                lblMass.Text = "";
                 lblDelta.Text = "";
                 return;
             }
-            double target;
-            if (!TryParseNumber(txtTarget.Text, out target) || target <= 0)
+            if (last == null || !last.IsPart || !last.HasVolume || last.VolumeMm3 <= 0.0)
             {
-                lblDelta.Text = "Enter the challenge's target mass to compare.";
-                lblDelta.ForeColor = Dim;
+                lblMass.Text = "Model a solid body to see your mass.";
+                lblMass.ForeColor = Dim;
+                lblDelta.Text = "";
                 return;
             }
-            bool inPounds = cmbTargetUnit.SelectedIndex == 1;
-            double current = inPounds ? last.MassLb : last.MassG;
-            double delta = current - target;
-            double pct = delta / target * 100.0;
-            lblDelta.Text = Inv("{0}{1:0.0000} {2} vs target ({3}{4:0.00}%)",
-                delta >= 0 ? "+" : "-", Math.Abs(delta), inPounds ? "lb" : "g",
-                pct >= 0 ? "+" : "-", Math.Abs(pct));
-            // Rough guide only; the actual pass band is the challenge's server-side tolerance.
-            lblDelta.ForeColor = Math.Abs(pct) <= 1.0 ? Green : Amber;
+
+            double density = level.ExpectedDensityGcm3.Value;      // g/cm3
+            double massG = (last.VolumeMm3 / 1000.0) * density;     // cm3 x g/cm3 = g
+            bool ips = string.Equals(level.UnitSystem, "IPS", StringComparison.OrdinalIgnoreCase);
+            double massLevel = ips ? massG / GauntletMath.LbToG : massG;
+            string unit = string.IsNullOrEmpty(level.MassUnit) ? (ips ? "lb" : "g") : level.MassUnit;
+
+            lblMass.Text = ips
+                ? Inv("Your mass: {0:0.0000} {1}", massLevel, unit)
+                : Inv("Your mass: {0:0.00} {1}", massLevel, unit);
+            lblMass.ForeColor = Body;
+
+            if (level.TargetMassLevel.HasValue && level.TargetMassLevel.Value != 0)
+            {
+                double target = level.TargetMassLevel.Value;
+                double devPct = (massLevel - target) / target * 100.0;
+                double tol = level.TolerancePct.HasValue && level.TolerancePct.Value > 0
+                    ? level.TolerancePct.Value : GauntletMath.VolumeTolPct;
+                lblDelta.Text = Inv("Target {0} {1}  ·  {2}{3:0.000}% (tol {4:0.##}%)",
+                    ips ? Inv("{0:0.0000}", target) : Inv("{0:0.00}", target), unit,
+                    devPct >= 0 ? "+" : "-", Math.Abs(devPct), tol);
+                lblDelta.ForeColor = Math.Abs(devPct) <= tol ? Green : Amber;
+            }
+            else
+            {
+                lblDelta.Text = "";
+            }
+        }
+
+        private void UpdateAdvisory()
+        {
+            if (chkAdvisory == null || !chkAdvisory.Checked)
+            {
+                if (lblAdvisory != null) lblAdvisory.Text = "";
+                return;
+            }
+            string applied = last != null ? (last.MaterialName ?? "") : "";
+            string required = level != null ? (level.Material ?? "") : "";
+            if (applied.Length == 0)
+            {
+                lblAdvisory.Text = "Advisory: no material name read (this never affects pass/fail).";
+                lblAdvisory.ForeColor = Dim;
+            }
+            else if (required.Length == 0)
+            {
+                lblAdvisory.Text = "Advisory: applied \"" + applied + "\" (level has no named material).";
+                lblAdvisory.ForeColor = Dim;
+            }
+            else if (string.Equals(applied, required, StringComparison.OrdinalIgnoreCase))
+            {
+                lblAdvisory.Text = "Advisory: material matches the level (\"" + required + "\").";
+                lblAdvisory.ForeColor = Green;
+            }
+            else
+            {
+                lblAdvisory.Text = "Advisory: applied \"" + applied + "\" differs from the level's \"" + required + "\" (still fine to submit).";
+                lblAdvisory.ForeColor = Amber;
+            }
         }
 
         private void UpdateRunLabel()
@@ -478,11 +476,52 @@ namespace IdeaGauntlet
             lblRun.ForeColor = Green;
         }
 
-        private void OnTargetUnitChanged(object sender, EventArgs e)
+        // ---------------------------------------------------------------------
+        // Load level (fetch the level's target constants for a code)
+        // ---------------------------------------------------------------------
+
+        private async void OnLoadLevelClick(object sender, EventArgs e)
         {
-            if (suppressUnitEvent) return;
-            targetUnitTouched = true;
-            UpdateDelta();
+            if (busy) return;
+            string code = CodeFromField();
+            if (code == null) return;
+            SetBusy(true);
+            SetStatus("Loading the level target...", Dim);
+            LevelTargets t = null;
+            Exception error = null;
+            try { t = await GauntletClient.GetTargetsAsync(code); }
+            catch (Exception ex) { error = ex; }
+            RunOnUi(delegate { FinishLoadLevel(t, error); });
+        }
+
+        private void FinishLoadLevel(LevelTargets t, Exception error)
+        {
+            try
+            {
+                if (error != null)
+                {
+                    SetStatus(FriendlyError(error), error is GauntletServerException ? Amber : Crimson);
+                    return;
+                }
+                level = t;
+                string name = string.IsNullOrEmpty(t.Title) ? "Level" : t.Title;
+                if (t.TargetMassLevel.HasValue)
+                {
+                    lblLevel.Text = Inv("{0}: target {1} {2}  ·  units {3}",
+                        name, FormatMass(t.TargetMassLevel.Value, t.UnitSystem), t.MassUnit ?? "", t.UnitSystem ?? "");
+                }
+                else
+                {
+                    lblLevel.Text = name + " loaded (no target mass stored).";
+                }
+                lblLevel.ForeColor = Body;
+                SetStatus("Level loaded. Your mass is computed from the level's density.", Green);
+            }
+            finally
+            {
+                SetBusy(false);
+                FullRefreshQuiet();
+            }
         }
 
         // ---------------------------------------------------------------------
@@ -511,7 +550,7 @@ namespace IdeaGauntlet
             }
             if (snap.VolumeMm3 > 0.0)
             {
-                SetStatus("This part is not blank. Your run must start on a new, empty part so that all of your modeling happens on the clock." +
+                SetStatus("This part is not blank. Your run must start on a new, empty part so all modeling happens on the clock." +
                     Environment.NewLine + Environment.NewLine +
                     "Start a brand new part with nothing modeled yet, then press START again.", Amber);
                 return;
@@ -548,12 +587,7 @@ namespace IdeaGauntlet
 
                 string message = "RUN STARTED. The clock is running." + Environment.NewLine +
                     "Build your part, then press SUBMIT RUN." + Environment.NewLine +
-                    "Do not close this part; the run id lives in the open document.";
-                if (last == null || string.IsNullOrEmpty(last.MaterialName))
-                {
-                    message = message + Environment.NewLine +
-                        "Apply the challenge's material while you model; a submit without it is rejected.";
-                }
+                    "Verification is on geometry (volume); no material is required.";
                 if (!wrote)
                 {
                     message = message + Environment.NewLine + Environment.NewLine +
@@ -575,7 +609,7 @@ namespace IdeaGauntlet
             if (code == null) return;
 
             PartSnapshot snap;
-            try { snap = PartReader.Read(swApp); }
+            try { snap = PartReader.Read(swApp, chkAdvisory != null && chkAdvisory.Checked); }
             catch (Exception ex)
             {
                 SetStatus("Could not read the active document: " + ex.Message, Crimson);
@@ -600,21 +634,25 @@ namespace IdeaGauntlet
                     "4. Press SUBMIT RUN.", Amber);
                 return;
             }
-            if (!snap.HasMass || snap.VolumeMm3 <= 0.0)
+            if (!snap.HasVolume || snap.VolumeMm3 <= 0.0)
             {
                 SetStatus("This part has no solid geometry to submit yet.", Amber);
                 return;
             }
 
+            // Material is sent ONLY as the non-gating advisory, and only when the
+            // advisory is enabled.
+            string advisoryMaterial = (chkAdvisory != null && chkAdvisory.Checked) ? snap.MaterialName : null;
+
             SetBusy(true);
-            SetStatus("Submitting, the server is grading your part...", Dim);
+            SetStatus("Submitting, the server is verifying your geometry...", Dim);
             SubmitResult result = null;
             Exception error = null;
             try
             {
                 result = await GauntletClient.SubmitRunAsync(
-                    code, runId, snap.VolumeMm3, snap.SurfaceAreaMm2, snap.FeatureCount, snap.MassG,
-                    snap.MaterialName, snap.UnitSystemCode);
+                    code, runId, snap.VolumeMm3, snap.SurfaceAreaMm2, snap.FeatureCount,
+                    snap.UnitSystemCode, advisoryMaterial);
             }
             catch (Exception ex)
             {
@@ -639,20 +677,12 @@ namespace IdeaGauntlet
                 if (result.IsCorrect)
                 {
                     text = Inv("PASS in {0:0.00} s", elapsedSeconds);
-                    if (result.Rank.HasValue)
-                    {
-                        text = text + Inv("  ·  rank #{0}", result.Rank.Value);
-                    }
+                    if (result.Rank.HasValue) text = text + Inv("  ·  rank #{0}", result.Rank.Value);
                 }
                 else
                 {
-                    text = Inv("OUTSIDE TOLERANCE in {0:0.00} s", elapsedSeconds);
-                    if (!result.DensityOk)
-                    {
-                        text = text + Environment.NewLine + "Wrong material: the part's density does not match the challenge.";
-                    }
-                    text = text + Environment.NewLine +
-                        "Recorded, but it does not rank. Fix your model and submit again with the same code (your time keeps counting), or re-reveal for a new run.";
+                    text = Inv("OUTSIDE TOLERANCE in {0:0.00} s", elapsedSeconds) + Environment.NewLine +
+                        "Recorded, but it does not rank. Fix your geometry and submit again with the same code (your time keeps counting), or re-reveal for a new run.";
                 }
 
                 if (result.TargetVolumeMm3.HasValue && result.TolerancePct.HasValue)
@@ -665,30 +695,22 @@ namespace IdeaGauntlet
                 {
                     text = text + Environment.NewLine + Environment.NewLine + Inv("Volume {0:0.00} mm3", snap.VolumeMm3);
                 }
-                text = text + Environment.NewLine +
-                    Inv("Mass {0:0.00} g / {1:0.0000} lb · Area {2:0.00} mm2 · Features {3}",
-                        snap.MassG, snap.MassLb, snap.SurfaceAreaMm2, snap.FeatureCount);
-                text = text + Environment.NewLine + "Material " +
-                    (string.IsNullOrEmpty(snap.MaterialName) ? "(name not read; verified by density)" : snap.MaterialName);
-                if (result.MeasuredDensity.HasValue)
+                text = text + Inv("  ·  Features {0}", snap.FeatureCount);
+
+                if (result.YourMassLevel.HasValue)
                 {
-                    string density = Inv("Density {0:0.0000} g/cm3", result.MeasuredDensity.Value);
-                    if (result.ExpectedDensity.HasValue)
-                    {
-                        density = density + Inv(" (expected {0:0.0000}", result.ExpectedDensity.Value);
-                        if (result.DensityTolerancePct.HasValue)
-                        {
-                            density = density + Inv(" +/-{0:0.##}%", result.DensityTolerancePct.Value);
-                        }
-                        density = density + ")";
-                    }
-                    text = text + Environment.NewLine + density;
-                }
-                if (result.MassLevel.HasValue)
-                {
+                    string unit = result.MassUnit ?? "";
                     text = text + Environment.NewLine +
-                        Inv("Mass {0:0.####} {1}", result.MassLevel.Value, result.MassUnit ?? "")
-                        + (string.IsNullOrEmpty(result.UnitSystem) ? "" : "  ·  units " + result.UnitSystem);
+                        "Mass " + FormatMass(result.YourMassLevel.Value, result.UnitSystem) + " " + unit;
+                    if (result.TargetMassLevel.HasValue)
+                        text = text + " (target " + FormatMass(result.TargetMassLevel.Value, result.UnitSystem) + " " + unit + ")";
+                    text = text + Environment.NewLine + "Mass is computed from the level's density, not your part's material.";
+                }
+
+                if (result.MaterialMatches.HasValue)
+                {
+                    text = text + Environment.NewLine + "Advisory: material " +
+                        (result.MaterialMatches.Value ? "matches" : "differs from") + " the level (not graded).";
                 }
 
                 SetStatus(text, result.IsCorrect ? GreenBright : Amber);
@@ -698,6 +720,113 @@ namespace IdeaGauntlet
                 SetBusy(false);
                 FullRefreshQuiet();
             }
+        }
+
+        // ---------------------------------------------------------------------
+        // Practice mass check (unranked) + reference-cube self-check
+        // ---------------------------------------------------------------------
+
+        private async void OnPracticeClick(object sender, EventArgs e)
+        {
+            if (busy) return;
+            PartSnapshot snap;
+            try { snap = PartReader.Read(swApp); }
+            catch (Exception ex) { SetStatus("Could not read the part: " + ex.Message, Crimson); return; }
+            if (!snap.IsPart || !snap.HasVolume || snap.VolumeMm3 <= 0.0)
+            {
+                SetStatus("Model a solid body first, then run the practice check.", Amber);
+                return;
+            }
+
+            // Ensure the level is loaded (practice needs the level's density).
+            if (level == null || !level.ExpectedDensityGcm3.HasValue)
+            {
+                string code = CodeFromField();
+                if (code == null) return;
+                SetBusy(true);
+                SetStatus("Loading the level target for the practice check...", Dim);
+                LevelTargets t = null;
+                Exception error = null;
+                try { t = await GauntletClient.GetTargetsAsync(code); }
+                catch (Exception ex) { error = ex; }
+                RunOnUi(delegate
+                {
+                    if (error != null) { SetStatus(FriendlyError(error), error is GauntletServerException ? Amber : Crimson); SetBusy(false); return; }
+                    level = t;
+                    SetBusy(false);
+                    RunPractice(snap);
+                });
+                return;
+            }
+            RunPractice(snap);
+        }
+
+        private void RunPractice(PartSnapshot snap)
+        {
+            if (level == null || !level.ExpectedDensityGcm3.HasValue)
+            {
+                SetStatus("This level has no stored density, so a mass check is not available. Ranked verification is volume-only, so you can still submit.", Dim);
+                return;
+            }
+            double density = level.ExpectedDensityGcm3.Value;
+            double massG = (snap.VolumeMm3 / 1000.0) * density;
+            bool ips = string.Equals(level.UnitSystem, "IPS", StringComparison.OrdinalIgnoreCase);
+            double massLevel = ips ? massG / GauntletMath.LbToG : massG;
+            string unit = string.IsNullOrEmpty(level.MassUnit) ? (ips ? "lb" : "g") : level.MassUnit;
+            double tol = level.TolerancePct.HasValue && level.TolerancePct.Value > 0 ? level.TolerancePct.Value : GauntletMath.VolumeTolPct;
+
+            string text = "PRACTICE (unranked, nothing recorded)" + Environment.NewLine + Environment.NewLine +
+                "Your mass:   " + FormatMass(massLevel, level.UnitSystem) + " " + unit + Environment.NewLine;
+            if (level.TargetMassLevel.HasValue && level.TargetMassLevel.Value != 0)
+            {
+                double target = level.TargetMassLevel.Value;
+                double devPct = Math.Abs(massLevel - target) / target * 100.0;
+                text = text + "Target mass: " + FormatMass(target, level.UnitSystem) + " " + unit + Environment.NewLine +
+                    Inv("Difference:  {0:0.000}%  (tolerance {1:0.##}%)", devPct, tol) + Environment.NewLine + Environment.NewLine +
+                    (devPct <= tol ? "WITHIN TOLERANCE. Run a ranked submit when ready." : "OUTSIDE TOLERANCE. Adjust your geometry and check again.");
+                SetStatus(text, devPct <= tol ? GreenBright : Amber);
+            }
+            else
+            {
+                text = text + "This level has no stored target mass.";
+                SetStatus(text, Dim);
+            }
+        }
+
+        private void OnSelfCheckClick(object sender, EventArgs e)
+        {
+            if (busy) return;
+            PartSnapshot snap;
+            try { snap = PartReader.Read(swApp); }
+            catch (Exception ex) { SetStatus("Could not read the part: " + ex.Message, Crimson); return; }
+            if (!snap.IsPart || !snap.HasVolume || snap.VolumeMm3 <= 0.0)
+            {
+                SetStatus("Open a 100 mm cube part, then run the self-check.", Amber);
+                return;
+            }
+
+            const double expected = 1000000.0; // 100 mm cube = 1,000,000 canonical mm3
+            double devPct = Math.Abs(snap.VolumeMm3 - expected) / expected * 100.0;
+            bool pass = devPct <= GauntletMath.VolumeTolPct;
+            string unit = string.IsNullOrEmpty(snap.UnitSystemCode) ? "(other)" : snap.UnitSystemCode;
+
+            string text = "REFERENCE CUBE SELF-CHECK" + Environment.NewLine + Environment.NewLine +
+                "Document units:  " + unit + Environment.NewLine +
+                Inv("Measured volume: {0:0.00} canonical mm3", snap.VolumeMm3) + Environment.NewLine +
+                "Expected:        1000000 mm3 (100 mm cube)" + Environment.NewLine +
+                Inv("Deviation:       {0:0.000}%  (tolerance {1:0.##}%)", devPct, GauntletMath.VolumeTolPct) + Environment.NewLine + Environment.NewLine +
+                (pass ? "PASS. The SI -> canonical mm3 path is correct in this unit system."
+                      : "FAIL. The measured volume does not match; the unit path or model is off.");
+
+            if (level != null && level.ExpectedDensityGcm3.HasValue)
+            {
+                double massG = (snap.VolumeMm3 / 1000.0) * level.ExpectedDensityGcm3.Value;
+                bool ips = string.Equals(level.UnitSystem, "IPS", StringComparison.OrdinalIgnoreCase);
+                double massLevel = ips ? massG / GauntletMath.LbToG : massG;
+                text = text + Environment.NewLine + Environment.NewLine +
+                    "Computed mass at level density: " + FormatMass(massLevel, level.UnitSystem) + " " + (level.MassUnit ?? "");
+            }
+            SetStatus(text, pass ? GreenBright : Crimson);
         }
 
         private string CodeFromField()
@@ -727,7 +856,6 @@ namespace IdeaGauntlet
                     : revision;
                 if (int.TryParse(majorPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out major))
                 {
-                    // Revision majors map to model years: 30 -> 2022, 32 -> 2024, ...
                     text = "SOLIDWORKS " + (major + 1992).ToString(CultureInfo.InvariantCulture) +
                         " (rev " + revision + ")";
                 }
@@ -740,9 +868,6 @@ namespace IdeaGauntlet
             lblVersion.Text = text + " · add-in v" + AddinUpdate.CurrentVersion;
         }
 
-        // Fire-and-forget, fully defensive: appends an "update available" note to the
-        // footer if the site manifest lists a newer add-in. No-ops (no network) until
-        // AddinUpdate.ManifestUrl is set, so it never blocks or fails the pane load.
         private async void KickUpdateCheck()
         {
             string notice = await AddinUpdate.CheckAsync();
@@ -759,6 +884,9 @@ namespace IdeaGauntlet
             btnStart.Enabled = !value;
             btnSubmit.Enabled = !value;
             btnRefresh.Enabled = !value;
+            btnLoad.Enabled = !value;
+            btnPractice.Enabled = !value;
+            btnSelfCheck.Enabled = !value;
         }
 
         private void SetStatus(string text, Color color)
@@ -772,14 +900,8 @@ namespace IdeaGauntlet
             try
             {
                 if (IsDisposed) return;
-                if (InvokeRequired)
-                {
-                    Invoke(action);
-                }
-                else
-                {
-                    action();
-                }
+                if (InvokeRequired) Invoke(action);
+                else action();
             }
             catch { }
         }
@@ -793,12 +915,12 @@ namespace IdeaGauntlet
                 Environment.NewLine + Environment.NewLine + inner.Message;
         }
 
-        private static bool TryParseNumber(string text, out double value)
+        // Present mass with IPS to 4 dp (lb), metric to 2 dp (g), per TooTallToby.
+        private static string FormatMass(double value, string unitSystem)
         {
-            value = 0;
-            if (string.IsNullOrEmpty(text)) return false;
-            string normalized = text.Trim().Replace(",", ".");
-            return double.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+            bool ips = string.Equals(unitSystem, "IPS", StringComparison.OrdinalIgnoreCase);
+            return ips ? value.ToString("0.0000", CultureInfo.InvariantCulture)
+                       : value.ToString("0.00", CultureInfo.InvariantCulture);
         }
 
         private static string Shorten(string id)
