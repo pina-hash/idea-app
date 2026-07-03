@@ -515,7 +515,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='157';
+const W=630,H=840; const VERSION='158';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -532,12 +532,12 @@ const BAL_DEFAULTS = {
   beamBase:14, beamPer:11,            // PRISM BEAM dps base + per BEAM POWER level
   // enemy threat
   enemyHpLin:0.50,                    // enemy HP linear sector scaling
-  enemyHpComp:1.06, enemyHpCompFrom:6,// enemy HP compounding factor + sector it starts
+  enemyHpComp:1.08, enemyHpCompFrom:5,// enemy HP compounding factor + sector it starts
   fireCadenceScale:0.16,              // enemy fire-interval sector scaling (higher = faster fire)
   hcFireMulEarly:1.08,                // HARDCORE enemy-fire multiplier at sector 1 (eases the sector-1 wall)
   hcFireMul:1.25,                     // HARDCORE enemy-fire multiplier at full pressure
   hcFireMulFrom:3,                    // sector at which the HARDCORE multiplier reaches hcFireMul
-  ebulCapBase:24, ebulCapPer:9,       // global enemy-bullet budget base + per sector
+  ebulCapBase:24, ebulCapPer:11,      // global enemy-bullet budget base + per sector
   // boss
   bossBase:95, bossQuad:27,           // boss HP = bossBase + sector^2 * bossQuad
   // economy + pacing
@@ -4509,6 +4509,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'158',date:'2026',items:['Late sectors hit harder: deeper enemies scale tankier and bullet curtains thicken.']},
  {ver:'157',date:'2026',items:['Hardcore early sectors ease in; full enemy fire pressure now returns by sector 3.']},
  {ver:'155',date:'2026',items:['CONFIGURE BUILD now enforces the 1,000 i¢ budget against the real cost of your build, and cross-device sync keeps your latest build instead of merging saves together. A few over-budget builds will reset to a clean baseline.']},
  {ver:'154',date:'2026',items:['Leaderboard now separates single-session runs from continued (resumed) runs, so a run you picked up on another device no longer competes with unbroken runs.']},
