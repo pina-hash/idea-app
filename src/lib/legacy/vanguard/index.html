@@ -512,7 +512,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='152';
+const W=630,H=840; const VERSION='153';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -3953,6 +3953,23 @@ function sendTelemetry(dc){
   window.addEventListener('pagehide', abandon);
   document.addEventListener('visibilitychange', ()=>{ if(document.hidden) abandon(); }); })();
 
+/* page-leave flush for the cross-device run checkpoint (0032/0037): the
+   sector-boundary save (launchFromRefit) only fires between sectors, so leaving
+   mid-sector would not persist the run. Mirror the telemetry abandon handler and
+   flush the current checkpoint via sendBeacon (injection beacon path), which
+   survives unload where a keepalive fetch may be dropped. Rankable modes only,
+   active run at sector 2+. Never throws into game code; the upsert is idempotent
+   so firing on both pagehide and visibilitychange is harmless. */
+(function(){ function flushCheckpoint(){
+    try{
+      if(gameMode==='dev'||gameMode==='tune'||gameMode==='calib') return;
+      if(!inActiveRun() || (sector||0)<2) return;
+      window.__ideaVanguardSaveCheckpoint && window.__ideaVanguardSaveCheckpoint({beacon:true});
+    }catch(e){}
+  }
+  window.addEventListener('pagehide', flushCheckpoint);
+  document.addEventListener('visibilitychange', function(){ if(document.hidden) flushCheckpoint(); }); })();
+
 /* leaderboard (local fallback + shared online board via Apps Script) */
 const API_URL='https://script.google.com/macros/s/AKfycbxFMp3q3BcQ4Lpwl_c4hqwzrDw0zi4AYhjxY0ieoZXWYYG1vb8nO6lZ0hoS18Co5o9_kA/exec';
 let onlineBoard=null, boardRetries=0;
@@ -4445,6 +4462,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'153',date:'2026',items:['Your in-progress run now saves automatically when you leave, so you can pick it up on another device without backing up manually.']},
  {ver:'152',date:'2026',items:['Cross-device RESUME: pick up an in-progress run on any device from the title screen, with a separate saved run for NORMAL and HARDCORE. Dying clears that run.']},
  {ver:'151',date:'2026',items:['RUN HISTORY: view your past runs and lifetime stats when signed in.']},
  {ver:'149',date:'2026',items:['CALIBRATION now ends with a live combat wave, then lets you jump straight into a run or head back to the title']},

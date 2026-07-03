@@ -196,14 +196,26 @@ function injectionScript(
 			for (var i = 0; i < list.length; i++) { if (!(list[i] && list[i].gameMode === mode)) out.push(list[i]); }
 			window.__ideaRunStates = out;
 		}
-		window.__ideaVanguardSaveCheckpoint = function () {
+		// opts.beacon: called from the page-leave flush. A keepalive fetch can be
+		// dropped mid-navigation, so send via navigator.sendBeacon (which survives
+		// unload) as an application/json Blob. Same snapshot JSON either way, so the
+		// API still derives the mode from snapshot.gameMode. Falls back to fetch if
+		// the beacon is unavailable or refused.
+		window.__ideaVanguardSaveCheckpoint = function (opts) {
 			try {
 				var snap = window.__ideaCaptureRun && window.__ideaCaptureRun();
 				if (!snap || !RANKABLE[snap.gameMode]) return;
 				upsertRunState(snap);
+				var body = JSON.stringify(snap);
+				if (opts && opts.beacon && navigator.sendBeacon) {
+					try {
+						var blob = new Blob([body], { type: 'application/json' });
+						if (navigator.sendBeacon('/api/vanguard-run-state', blob)) return;
+					} catch (e) {}
+				}
 				fetch('/api/vanguard-run-state', {
 					method: 'POST', headers: { 'content-type': 'application/json' },
-					body: JSON.stringify(snap), keepalive: true
+					body: body, keepalive: true
 				}).catch(function () {});
 			} catch (e) {}
 		};
