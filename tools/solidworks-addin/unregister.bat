@@ -7,9 +7,10 @@ REM
 REM  Right-click this file and choose "Run as administrator" (or just
 REM  double-click it: it re-launches itself elevated). This reverses register.bat.
 REM
-REM  It finds the built add-in DLL relative to this folder (build.ps1 output),
-REM  so nothing is hardcoded, and unregisters it with the 64-bit .NET Framework
-REM  RegAsm using /unregister.
+REM  It finds the add-in DLL relative to this folder - either flat next to this
+REM  script (the downloaded zip layout) or under IdeaGauntletAddin\bin\Release
+REM  (the build.ps1 source-tree output) - so nothing is hardcoded, and
+REM  unregisters it with the 64-bit .NET Framework RegAsm using /unregister.
 REM ============================================================================
 
 title IDEA // GAUNTLET add-in - Unregister
@@ -27,7 +28,10 @@ powershell -NoProfile -Command "Start-Process -FilePath '%~f0' -ArgumentList '/e
 exit /b
 
 :main
-set "DLL=%~dp0IdeaGauntletAddin\bin\Release\IdeaGauntletAddin.dll"
+REM Prefer the downloaded-zip layout (DLL flat beside this script); fall back to
+REM the source-tree build output (build.ps1 -> IdeaGauntletAddin\bin\Release).
+set "DLL=%~dp0IdeaGauntletAddin.dll"
+if not exist "%DLL%" set "DLL=%~dp0IdeaGauntletAddin\bin\Release\IdeaGauntletAddin.dll"
 set "REGASM=%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\RegAsm.exe"
 
 echo ============================================================
