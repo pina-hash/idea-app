@@ -1,7 +1,7 @@
 {
 	"generated": "2026-07-02",
 	"macros": {
-		"version": "1.2",
+		"version": "1.3",
 		"updated": "2026-07-02",
 		"files": [
 			{ "name": "Start", "path": "/tools/idea-gauntlet-start.bas" },
@@ -9,16 +9,18 @@
 			{ "name": "Author capture", "path": "/tools/idea-gauntlet-author.bas" }
 		],
 		"changelog": [
+			"Tighter volume tolerance: preview checks now use a 0.1% default (was 0.5%).",
 			"Ranked verification is geometry (volume) only; no material needed.",
 			"Mass is computed from the level's density and shown in its units.",
 			"Added an unranked practice mass check and a reference-cube self-check."
 		]
 	},
 	"addin": {
-		"version": "1.5",
+		"version": "1.6",
 		"updated": "2026-07-02",
 		"path": "/tools/idea-gauntlet-addin.zip",
 		"changelog": [
+			"Tighter volume tolerance: default checksum band is now 0.1% (was 0.5%).",
 			"Ranked verification is geometry (volume) only; material never gates.",
 			"Mass computed from the level's density (Load level), not your part's material.",
 			"Practice mass check, reference-cube self-check, and an optional material advisory.",

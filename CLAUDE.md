@@ -724,10 +724,14 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     is driven by the level's `unit_system`, not the student's document units).
     Because density is a fixed level constant, hitting target mass == hitting
     target volume, so ranked stays volume-only.
-  - **Tolerance constant** `GAUNTLET_VOLUME_TOL_PCT = 0.5` (relative percent) is
-    the shared default across layers: server `gauntlet_macro_submit`
-    `c_volume_tol_pct`, VBA `GAUNTLET_VOLUME_TOL_PCT`, C#
-    `GauntletMath.VolumeTolPct`. A level may override via `answer.tolerance_pct`.
+  - **Tolerance constant** `GAUNTLET_VOLUME_TOL_PCT = 0.1` (relative percent, was
+    0.5; tightened in migration `0036`) is the shared DEFAULT across layers. The
+    SERVER copy governs ranked pass/fail: `gauntlet_macro_submit.c_volume_tol_pct`
+    (and the preview/practice display copy `gauntlet_run_targets.c_volume_tol_pct`).
+    The VBA `GAUNTLET_VOLUME_TOL_PCT` and C# `GauntletMath.VolumeTolPct` copies are
+    PREVIEW-ONLY (the practice check + reference-cube self-check), kept in sync. A
+    level's `answer.tolerance_pct` still takes precedence when set (both server
+    functions coalesce to the constant only when it is absent).
   - **Canonical volume:** extract on an explicit SI basis (mass properties
     `UseSystemUnits = true` -> m3) and convert ONCE via `1 m3 = 1e9 mm3`
     (`M3_TO_MM3` / `GauntletMath.CubicMToCubicMm`). NO layer branches on the

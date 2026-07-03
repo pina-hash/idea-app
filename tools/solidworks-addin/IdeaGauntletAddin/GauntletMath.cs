@@ -15,12 +15,13 @@ namespace IdeaGauntlet
         public const double SquareMToSquareMm = 1000000.0;
 
         /// <summary>
-        /// Shared RELATIVE volume tolerance, percent. Ranked verification passes
-        /// when |measured - target| &lt;= target * VolumeTolPct / 100 (a level may
-        /// override server-side via answer.tolerance_pct). Keep in sync across
-        /// layers.
+        /// Shared RELATIVE volume tolerance DEFAULT, percent. Preview-only here
+        /// (the practice mass check + the reference-cube self-check); the SERVER
+        /// constant (gauntlet_macro_submit c_volume_tol_pct) governs ranked
+        /// pass/fail. A level may override server-side via answer.tolerance_pct.
+        /// Keep in sync across layers.
         /// </summary>
-        public const double VolumeTolPct = 0.5;
+        public const double VolumeTolPct = 0.1;
 
         /// <summary>Exact NIST pound-to-gram, for displaying mass in IPS levels.</summary>
         public const double LbToG = 453.59237;

@@ -41,8 +41,9 @@ Private Const SUPABASE_ANON_KEY As String = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ
 
 ' Relative volume tolerance (percent). KEEP IN SYNC with the server
 ' (gauntlet_macro_submit c_volume_tol_pct) and the C# add-in
-' (GauntletMath.VolumeTolPct). Used here for practice + the cube self-check.
-Private Const GAUNTLET_VOLUME_TOL_PCT As Double = 0.5
+' (GauntletMath.VolumeTolPct). Preview-only here (practice + the cube
+' self-check); the server constant governs ranked pass/fail.
+Private Const GAUNTLET_VOLUME_TOL_PCT As Double = 0.1
 
 ' Canonical unit conversion: extract on an SI basis and convert ONCE.
 Private Const M3_TO_MM3 As Double = 1000000000#   ' 1 m^3  = 1e9 mm^3
