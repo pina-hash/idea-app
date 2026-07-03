@@ -509,6 +509,25 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `three` is a runtime dependency, imported
   dynamically (browser-only, SSR-safe). The macro/reveal/token/leaderboard flow is
   unchanged; reveal-on-start still gates the dimensioned drawing.
+- **Speedrun single drawing source + framed viewer** (batch, supersedes the
+  0015 dual-field drawing storage): the Speedrun drawing is now ONE field,
+  `answer.drawing` (inline SVG, a full URL, or a `gauntlet-drawings` storage path
+  signed on reveal). The 0015 `answer.drawing_image_path` is a READ-ONLY
+  fallback only, so a challenge carrying both renders `answer.drawing`. The
+  reveal page (`speedrun/[id]`), the room reveal (which always read only
+  `answer.drawing`), and the authoring editor preview all resolve and render the
+  IDENTICAL single image with the same precedence (SVG as-is, URL direct, bare
+  path signed, else the legacy path), so what a teacher authors is exactly what
+  the student sees. The authoring form has ONE drawing upload (the duplicate
+  "dimensioned drawing (PNG)" picker is gone; the STL preview stays). This
+  removed a class of bug where a challenge's two drawing fields diverged (good
+  content-cropped image in one, raw full-sheet export in the other) and the
+  reveal rendered the raw export tiny in a corner with the focus regions on
+  blank paper. `DrawingViewer` now presents the drawing as a **framed light
+  sheet**: a bounded black-on-white card (kept light for dimension legibility)
+  floating in the dark viewport with a dark margin at the default fit, a clearer
+  card frame (shadow + faint on-theme green hairline), still ink-cropped to
+  content. No migration or re-upload was needed; the change is code-only.
 - **Speedrun unit system + demo cleanup** (`0018`, `0019`): Speedrun challenges
   now carry a per-challenge `unit_system` (`IPS` or `MMGS`, site data in
   `prompt`, like `slug`/`par_time`) so a challenge's density, target
