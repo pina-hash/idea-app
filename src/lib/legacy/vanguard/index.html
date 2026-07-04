@@ -537,7 +537,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='169';
+const W=630,H=840; const VERSION='170';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2196,12 +2196,27 @@ function drawHoles(){ for(const hh of holes){ const x=hh.x,y=hh.y,r=Math.max(0,h
     bg.shadowColor=COL.white; bg.shadowBlur=14; bg.fillStyle=COL.white; bg.beginPath(); bg.arc(0,0,3+Math.sin(hh.core*6),0,6.28); bg.fill();
     bg.shadowBlur=0; bg.globalCompositeOperation='source-over'; bg.restore(); continue; }
   bg.save(); bg.translate(x,y); bg.globalCompositeOperation='lighter';
+  // 1. ambient gravitational glow
   const g=bg.createRadialGradient(0,0,0,0,0,r*1.6); g.addColorStop(0,'rgba(178,77,255,0)'); g.addColorStop(.7,'rgba(178,77,255,.22)'); g.addColorStop(1,'rgba(178,77,255,0)');
-  bg.fillStyle=g; bg.beginPath(); bg.arc(0,0,r*1.6,0,6.28); bg.fill(); bg.globalCompositeOperation='source-over';
-  bg.beginPath(); bg.arc(0,0,r*0.5,0,6.28); bg.fillStyle='#050008'; bg.fill();
-  bg.strokeStyle=COL.bmet; bg.shadowColor=COL.bmet; bg.shadowBlur=18; bg.lineWidth=2;
-  for(let k=0;k<3;k++){ bg.beginPath(); bg.arc(0,0,r*(0.5+0.16*k),hh.core+k*1.7,hh.core+k*1.7+4.2); bg.stroke(); }
-  bg.shadowBlur=0; bg.restore(); } }
+  bg.fillStyle=g; bg.beginPath(); bg.arc(0,0,r*1.6,0,6.28); bg.fill();
+  // 2. BACK of the disk: a portrait lensing ellipse, narrower than the horizon at its equator (x=0,y) and taller than it at its poles (y=0,x); drawing the opaque horizon over this hides the equatorial ends and leaves only the humps that poke above/below visible - the classic wrap-around look
+  const backRx=r*0.42, backRy=r*1.05;
+  bg.lineWidth=Math.max(1.2,r*0.07); bg.shadowColor=COL.white; bg.shadowBlur=14;
+  bg.strokeStyle='rgba(240,225,255,.92)'; bg.beginPath(); bg.ellipse(0,0,backRx,backRy,0,Math.PI,Math.PI*2); bg.stroke();
+  bg.shadowBlur=8; bg.strokeStyle='rgba(178,77,255,.4)'; bg.beginPath(); bg.ellipse(0,0,backRx,backRy,0,0,Math.PI); bg.stroke();
+  bg.globalCompositeOperation='source-over';
+  // 3. event-horizon sphere: opaque, occludes the back disk's equatorial ends
+  bg.shadowBlur=0; bg.beginPath(); bg.arc(0,0,r*0.5,0,6.28); bg.fillStyle='#050008'; bg.fill();
+  // 4. photon ring, brighter than the disk itself
+  bg.globalCompositeOperation='lighter';
+  bg.beginPath(); bg.arc(0,0,r*0.5,0,6.28); bg.strokeStyle='rgba(238,220,255,.95)'; bg.shadowColor=COL.white; bg.shadowBlur=24; bg.lineWidth=1.8; bg.stroke();
+  // 5. FRONT of the disk: wide horizontal ellipse, Doppler-beamed (bright approaching side, dim receding side), subtle shimmer
+  const frontRx=r*1.15, frontRy=frontRx*0.34, shim=0.5+0.5*Math.sin(hh.core*1.6);
+  const fg=bg.createLinearGradient(-frontRx,0,frontRx,0);
+  fg.addColorStop(0,'rgba(178,77,255,'+(0.35+0.12*shim).toFixed(2)+')'); fg.addColorStop(.5,'rgba(255,255,255,'+(0.55+0.12*shim).toFixed(2)+')'); fg.addColorStop(1,'rgba(255,255,255,.95)');
+  bg.fillStyle=fg; bg.beginPath(); bg.ellipse(0,0,frontRx,frontRy,0,0,6.28); bg.fill();
+  bg.strokeStyle=COL.bmet; bg.shadowColor=COL.bmet; bg.shadowBlur=16*(0.8+0.2*shim); bg.lineWidth=1.6; bg.stroke();
+  bg.shadowBlur=0; bg.globalCompositeOperation='source-over'; bg.restore(); } }
 function tryParry(){ if(state!=='play'||!player||player.dead)return;
   if(player.parryCd>0&&player.parryT<=0){ player.parryCd=Math.min(2.0,player.parryCd+0.35); player.parryCdMax=player.parryCd; pops.push({x:player.x,y:player.y-30,txt:'JAM',c:COL.dim,life:.5,max:.5}); Audio_.hit&&Audio_.hit(); return; }
   if(player.parryCd>0||player.parryT>0)return;
@@ -4679,6 +4694,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'170',date:'2026',items:['SINGULARITY reworked into an interstellar-style black hole with an accretion disk, photon ring, and lensing arc.']},
  {ver:'169',date:'2026',items:['Grace overhaul: a hit now grants only a brief invulnerability by default in both modes. Buy PHASE BUFFER in DEFENSE to extend your recovery window. Boss and parry timing unchanged.']},
  {ver:'168',date:'2026',items:['Score milestones now trigger an escalating on-screen celebration.']},
  {ver:'167',date:'2026',items:['Name entry now supports symbols and a set of emoji, on both tap and keyboard.']},
