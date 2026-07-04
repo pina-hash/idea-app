@@ -548,7 +548,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='171';
+const W=630,H=840; const VERSION='172';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2195,6 +2195,110 @@ function updateHoles(dt){
         if(boss && !boss.dying && !boss.entering && dist2(boss.x,boss.y,hh.x,hh.y)<(hh.maxr*1.4)*(hh.maxr*1.4)) damageBoss(hh.dmg*6*(hh.crush||1));
         Audio_.phase(); if(player) player.beamCoolT=Math.max(player.beamCoolT||0,2.0); shake=Math.max(shake,12); bossFlash=Math.max(bossFlash,0.3); } }
     else { hh.r-=dt*600; if(hh.r<=0) holes.splice(i,1); } } }
+/* ---- SINGULARITY: cinematic interstellar black-hole render (visual only) ----
+   Layered to sell gravitational lensing: halo -> far-disk humps behind the
+   void -> pure-black horizon -> lensed wrap (filled top arch + thin bottom
+   arc) hugging it -> photon ring -> turbulent near disk crossing in front ->
+   orbiting hot spots -> infalling wisps. ONE shared Doppler gradient (white-
+   hot approaching left, gold core, violet receding right) paints humps, wrap
+   and disk alike so the equator joints stay seamless and the whole thing
+   reads as one continuous ring of light bent around a sphere. Everything
+   scales off r; hh.core is the clock; stateless, no retained allocations. */
+function drawSingularity(hh,x,y,r){
+  if(r<1) return;
+  const T=hh.core, R=r*0.5, Rd=r*1.35, f=0.30, lo=(typeof LOWFX!=='undefined'&&LOWFX);
+  const breathe=0.85+0.15*Math.sin(T*0.9);
+  bg.save(); bg.translate(x,y); bg.globalCompositeOperation='lighter';
+  const dop=bg.createLinearGradient(-Rd,0,Rd,0);   // shared Doppler ramp
+  dop.addColorStop(0,'rgba(255,255,255,0.95)'); dop.addColorStop(0.28,'rgba(255,234,186,0.85)');
+  dop.addColorStop(0.55,'rgba(255,176,64,0.60)'); dop.addColorStop(0.80,'rgba(214,120,255,0.42)');
+  dop.addColorStop(1,'rgba(178,77,255,0.30)');
+  // outer halo, breathing
+  let g=bg.createRadialGradient(0,0,R*0.6,0,0,r*2.05);
+  g.addColorStop(0,'rgba(178,77,255,0.15)'); g.addColorStop(0.45,'rgba(178,77,255,'+(0.11*breathe).toFixed(3)+')'); g.addColorStop(1,'rgba(178,77,255,0)');
+  bg.fillStyle=g; bg.beginPath(); bg.arc(0,0,r*2.05,0,6.2832); bg.fill();
+  // far-disk humps: portrait ellipse whose equator hides behind the horizon;
+  // the light poking past the poles feeds the arch so the wrap reads continuous
+  bg.lineWidth=Math.max(1,R*0.34); bg.strokeStyle=dop; bg.globalAlpha=0.6;
+  bg.beginPath(); bg.ellipse(0,0,R*0.72,R*1.30,0,0,6.2832); bg.stroke(); bg.globalAlpha=1;
+  // EVENT HORIZON: the pure-black void
+  bg.globalCompositeOperation='source-over';
+  bg.beginPath(); bg.arc(0,0,R,0,6.2832); bg.fillStyle='#000'; bg.fill();
+  bg.globalCompositeOperation='lighter';
+  // lensed wrap: filled top arch (primary far-disk image), blazing at the
+  // horizon, fading out, dipping just past the equator to melt into the disk
+  const Ro=R*(1.52+0.05*Math.sin(T*0.7));
+  g=bg.createRadialGradient(0,0,Math.max(0.5,R*0.98),0,0,Ro);
+  g.addColorStop(0,'rgba(255,244,212,0.85)'); g.addColorStop(0.35,'rgba(255,196,110,0.48)');
+  g.addColorStop(0.75,'rgba(205,110,255,0.24)'); g.addColorStop(1,'rgba(178,77,255,0)');
+  bg.fillStyle=g; bg.beginPath();
+  bg.arc(0,0,Ro,Math.PI*0.96,Math.PI*2.04,false); bg.arc(0,0,R*0.99,Math.PI*2.04,Math.PI*0.96,true);
+  bg.closePath(); bg.fill();
+  // thin bottom arc: the fainter secondary lensed image under the void
+  const Rb=R*1.18;
+  g=bg.createRadialGradient(0,0,Math.max(0.5,R*0.98),0,0,Rb);
+  g.addColorStop(0,'rgba(255,240,205,0.55)'); g.addColorStop(1,'rgba(178,77,255,0)');
+  bg.fillStyle=g; bg.beginPath();
+  bg.arc(0,0,Rb,Math.PI*0.04,Math.PI*0.96,false); bg.arc(0,0,R*0.99,Math.PI*0.96,Math.PI*0.04,true);
+  bg.closePath(); bg.fill();
+  // Doppler tint over the wrap (same gradient -> seamless with the disk)
+  bg.globalAlpha=0.5; bg.lineWidth=Math.max(1,Ro-R);
+  bg.strokeStyle=dop; bg.beginPath(); bg.arc(0,0,(Ro+R)/2,Math.PI*0.96,Math.PI*2.04); bg.stroke(); bg.globalAlpha=1;
+  // turbulent streamers riding the arch, drifting at differential speeds
+  if(!lo){ for(let k=0;k<3;k++){ const ar=R*(1.10+k*0.13), wob=Math.sin(T*(1.5-k*0.35)+k*2.1);
+    const mid=Math.PI*1.5+wob*0.75, len=0.5+0.22*Math.sin(T*1.9+k*1.7);
+    bg.globalAlpha=0.22+0.16*Math.sin(T*2.3+k*2.4);
+    bg.lineWidth=Math.max(0.8,r*(0.035-k*0.007)); bg.strokeStyle=k===0?'rgba(255,248,225,1)':'rgba(230,170,255,1)';
+    bg.beginPath(); bg.arc(0,0,ar,mid-len,mid+len); bg.stroke(); } bg.globalAlpha=1; }
+  // PHOTON RING: razor-thin, blinding on the approaching limb
+  bg.lineWidth=Math.max(0.8,r*0.022);
+  bg.strokeStyle='rgba(255,250,236,0.55)'; bg.beginPath(); bg.arc(0,0,R*1.02,0,6.2832); bg.stroke();
+  bg.shadowColor='#FFF6E0'; bg.shadowBlur=Math.max(6,r*0.22);
+  bg.strokeStyle='rgba(255,255,255,0.95)'; bg.beginPath(); bg.arc(0,0,R*1.02,Math.PI*0.62,Math.PI*1.38); bg.stroke();
+  bg.shadowBlur=0;
+  // NEAR DISK: layered front-half ellipses, inner rings orbiting faster
+  const R0=R*1.14, nr=6;
+  for(let k=0;k<nr;k++){ const rr=R0+(Rd-R0)*k/(nr-1), om=1.5*Math.pow(R0/rr,1.5);
+    bg.globalAlpha=0.42-k*0.045; bg.lineWidth=Math.max(1,r*(0.085-k*0.009));
+    bg.strokeStyle=dop; bg.beginPath(); bg.ellipse(0,0,rr,rr*f,0,0,Math.PI); bg.stroke();
+    const nd=lo?1:2;
+    for(let j=0;j<nd;j++){ let a0=(T*om+j*2.7+k*1.33)%Math.PI; if(a0<0)a0+=Math.PI;
+      let len=0.38+0.24*Math.sin(T*1.3+k*2.1+j*3.3); if(a0+len>Math.PI)len=Math.PI-a0; if(len<0.06)continue;
+      bg.globalAlpha=0.20+0.16*Math.sin(T*2.1+k*1.9+j*2.2);
+      bg.lineWidth=Math.max(0.8,r*(0.05-k*0.005));
+      bg.strokeStyle='rgba(255,246,222,1)';
+      bg.beginPath(); bg.ellipse(0,0,rr,rr*f,0,a0,a0+len); bg.stroke(); } }
+  bg.globalAlpha=1;
+  // Doppler overexposure bloom where the near disk sweeps toward the viewer
+  g=bg.createRadialGradient(-R*1.05,0,0,-R*1.05,0,r*0.52);
+  g.addColorStop(0,'rgba(255,255,255,'+(0.40+0.14*Math.sin(T*1.1)).toFixed(3)+')');
+  g.addColorStop(0.4,'rgba(255,226,160,0.16)'); g.addColorStop(1,'rgba(255,226,160,0)');
+  bg.fillStyle=g; bg.beginPath(); bg.arc(-R*1.05,0,r*0.52,0,6.2832); bg.fill();
+  // orbiting hot spots on the near disk, flaring and fading
+  bg.shadowColor='#FFEEC8';
+  for(let i=0;i<3;i++){ const rs=R0+(Rd-R0)*(0.18+0.3*i), ang=T*1.5*Math.pow(R0/rs,1.5)+i*2.1;
+    const sy=Math.sin(ang); if(sy<=0.05)continue;
+    const al=0.30+0.30*Math.sin(T*2.6+i*2.4); if(al<=0.05)continue;
+    bg.globalAlpha=al; bg.shadowBlur=Math.max(4,r*0.12);
+    bg.fillStyle=i===2?'rgba(224,160,255,1)':'rgba(255,244,214,1)';
+    bg.beginPath(); bg.arc(Math.cos(ang)*rs,sy*rs*f,Math.max(1,r*0.028),0,6.2832); bg.fill(); }
+  bg.globalAlpha=1; bg.shadowBlur=0;
+  // infalling matter: wisps spiralling off the disk edge down into the horizon
+  const nw=lo?6:12; bg.shadowColor='#E6D4FF'; bg.shadowBlur=5; bg.lineCap='round';
+  for(let i=0;i<nw;i++){ const q=Math.abs(Math.sin(i*12.9898)*43758.5453)%1;
+    const p=((T*(0.05+0.06*q)+q*9)%1+1)%1;
+    const rad=Rd*1.02-(Rd*1.02-R*1.02)*p, fl=0.9-(0.9-f)*p;   // swoops from puffy halo onto the disk plane
+    const ang=q*6.2832+T*(0.45+0.7*q)+p*5.0, sy=Math.sin(ang);
+    const px=Math.cos(ang)*rad, py=sy*rad*fl;
+    if(sy<0 && Math.hypot(px,py)<R) continue;                  // swallowed behind the void
+    const rad2=rad-r*0.06, ang2=ang+0.16;
+    let al=(p<0.15?p/0.15:(p>0.82?(1-p)/0.18:1))*0.5; if(sy<0)al*=0.45;
+    bg.globalAlpha=al; bg.strokeStyle='rgba('+Math.round(255-77*p)+','+Math.round(255-178*p)+',255,1)';
+    bg.lineWidth=Math.max(0.8,r*0.014*(1+q));
+    bg.beginPath(); bg.moveTo(px,py); bg.lineTo(Math.cos(ang2)*rad2,Math.sin(ang2)*rad2*fl); bg.stroke(); }
+  bg.lineCap='butt'; bg.shadowBlur=0; bg.globalAlpha=1;
+  bg.globalCompositeOperation='source-over'; bg.restore();
+}
 function drawHoles(){ for(const hh of holes){ const x=hh.x,y=hh.y,r=Math.max(0,hh.r);
   if(hh.state==='travel'){ bg.save();
     bg.globalAlpha=.45; bg.strokeStyle=COL.bmet; bg.lineWidth=1; bg.setLineDash([5,7]);
@@ -2206,28 +2310,7 @@ function drawHoles(){ for(const hh of holes){ const x=hh.x,y=hh.y,r=Math.max(0,h
     for(let k=0;k<6;k++){ const a=hh.core*1.6+k*1.047, rr=11+5*Math.sin(hh.core*3+k); bg.beginPath(); bg.moveTo(Math.cos(a)*rr,Math.sin(a)*rr); bg.lineTo(Math.cos(a)*3,Math.sin(a)*3); bg.stroke(); }
     bg.shadowColor=COL.white; bg.shadowBlur=14; bg.fillStyle=COL.white; bg.beginPath(); bg.arc(0,0,3+Math.sin(hh.core*6),0,6.28); bg.fill();
     bg.shadowBlur=0; bg.globalCompositeOperation='source-over'; bg.restore(); continue; }
-  bg.save(); bg.translate(x,y); bg.globalCompositeOperation='lighter';
-  // 1. ambient gravitational glow
-  const g=bg.createRadialGradient(0,0,0,0,0,r*1.6); g.addColorStop(0,'rgba(178,77,255,0)'); g.addColorStop(.7,'rgba(178,77,255,.22)'); g.addColorStop(1,'rgba(178,77,255,0)');
-  bg.fillStyle=g; bg.beginPath(); bg.arc(0,0,r*1.6,0,6.28); bg.fill();
-  // 2. BACK of the disk: a portrait lensing ellipse, narrower than the horizon at its equator (x=0,y) and taller than it at its poles (y=0,x); drawing the opaque horizon over this hides the equatorial ends and leaves only the humps that poke above/below visible - the classic wrap-around look
-  const backRx=r*0.42, backRy=r*1.05;
-  bg.lineWidth=Math.max(1.2,r*0.07); bg.shadowColor=COL.white; bg.shadowBlur=14;
-  bg.strokeStyle='rgba(240,225,255,.92)'; bg.beginPath(); bg.ellipse(0,0,backRx,backRy,0,Math.PI,Math.PI*2); bg.stroke();
-  bg.shadowBlur=8; bg.strokeStyle='rgba(178,77,255,.4)'; bg.beginPath(); bg.ellipse(0,0,backRx,backRy,0,0,Math.PI); bg.stroke();
-  bg.globalCompositeOperation='source-over';
-  // 3. event-horizon sphere: opaque, occludes the back disk's equatorial ends
-  bg.shadowBlur=0; bg.beginPath(); bg.arc(0,0,r*0.5,0,6.28); bg.fillStyle='#050008'; bg.fill();
-  // 4. photon ring, brighter than the disk itself
-  bg.globalCompositeOperation='lighter';
-  bg.beginPath(); bg.arc(0,0,r*0.5,0,6.28); bg.strokeStyle='rgba(238,220,255,.95)'; bg.shadowColor=COL.white; bg.shadowBlur=24; bg.lineWidth=1.8; bg.stroke();
-  // 5. FRONT of the disk: wide horizontal ellipse, Doppler-beamed (bright approaching side, dim receding side), subtle shimmer
-  const frontRx=r*1.15, frontRy=frontRx*0.34, shim=0.5+0.5*Math.sin(hh.core*1.6);
-  const fg=bg.createLinearGradient(-frontRx,0,frontRx,0);
-  fg.addColorStop(0,'rgba(178,77,255,'+(0.35+0.12*shim).toFixed(2)+')'); fg.addColorStop(.5,'rgba(255,255,255,'+(0.55+0.12*shim).toFixed(2)+')'); fg.addColorStop(1,'rgba(255,255,255,.95)');
-  bg.fillStyle=fg; bg.beginPath(); bg.ellipse(0,0,frontRx,frontRy,0,0,6.28); bg.fill();
-  bg.strokeStyle=COL.bmet; bg.shadowColor=COL.bmet; bg.shadowBlur=16*(0.8+0.2*shim); bg.lineWidth=1.6; bg.stroke();
-  bg.shadowBlur=0; bg.globalCompositeOperation='source-over'; bg.restore(); } }
+  drawSingularity(hh,x,y,r); } }
 function tryParry(){ if(state!=='play'||!player||player.dead)return;
   if(player.parryCd>0&&player.parryT<=0){ player.parryCd=Math.min(2.0,player.parryCd+0.35); player.parryCdMax=player.parryCd; pops.push({x:player.x,y:player.y-30,txt:'JAM',c:COL.dim,life:.5,max:.5}); Audio_.hit&&Audio_.hit(); return; }
   if(player.parryCd>0||player.parryT>0)return;
@@ -4735,6 +4818,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'172',date:'2026',items:['SINGULARITY black hole fully reworked: a turbulent lensed accretion disk, photon ring, Doppler beaming, and infalling matter.']},
  {ver:'171',date:'2026',items:['Death screen reworked: killer faction and tier breakdown, more run stats, count-up numbers, and a more dramatic reveal.']},
  {ver:'170',date:'2026',items:['SINGULARITY reworked into an interstellar-style black hole with an accretion disk, photon ring, and lensing arc.']},
  {ver:'169',date:'2026',items:['Grace overhaul: a hit now grants only a brief invulnerability by default in both modes. Buy PHASE BUFFER in DEFENSE to extend your recovery window. Boss and parry timing unchanged.']},
