@@ -49,7 +49,7 @@ body{background:#000;display:flex;align-items:center;justify-content:center;min-
 .pbar{display:inline-flex;gap:2px;vertical-align:middle;margin-left:5px}
 .seg{width:7px;height:7px;background:rgba(0,255,65,.12);border:1px solid rgba(0,255,65,.25)}
 .seg.on{background:var(--green);box-shadow:0 0 6px rgba(0,255,65,.9)}
-.chwrap{width:92px}
+.chwrap{width:104px}
 .chlbl{font-size:9px;color:var(--dim);letter-spacing:.2em;text-align:right;margin-bottom:3px}
 .charge{height:6px;width:100%;background:rgba(200,255,0,.10);border:1px solid rgba(200,255,0,.3);position:relative;overflow:hidden}
 .charge i{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--gold);box-shadow:0 0 10px rgba(200,255,0,.9)}
@@ -57,6 +57,21 @@ body{background:#000;display:flex;align-items:center;justify-content:center;min-
 .charge.locked{border-color:var(--ace);animation:lockpulse .5s steps(2,start) infinite}
 .charge.locked i{background:var(--ace);box-shadow:0 0 9px var(--ace)}
 @keyframes lockpulse{50%{opacity:.4}}
+/* weapon/heavy rotation preview strips: compact prev/current/next, current bright, neighbors dim */
+.wrot{display:flex;align-items:center;gap:4px;margin:3px 0 5px;min-height:16px}
+.hrot{display:flex;align-items:center;justify-content:flex-end;gap:3px;margin-bottom:3px;min-height:14px}
+.rslot{display:flex;align-items:center;gap:2px;opacity:.4;transform:scale(.8);transition:opacity .15s,transform .15s}
+.rslot svg{width:11px;height:11px;flex:none;color:var(--dim)}
+.rslot i{font:600 8px 'Share Tech Mono',monospace;font-style:normal;letter-spacing:.03em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34px}
+.rslot.rcur{opacity:1;transform:scale(1)}
+.rslot.rcur svg{width:15px;height:15px;color:var(--green)}
+.rslot.rcur i{color:var(--green);font-size:9px}
+@keyframes rotNext{0%{transform:translateX(5px)}100%{transform:translateX(0)}}
+@keyframes rotPrev{0%{transform:translateX(-5px)}100%{transform:translateX(0)}}
+.wrot.rot-next,.hrot.rot-next{animation:rotNext .18s ease-out}
+.wrot.rot-prev,.hrot.rot-prev{animation:rotPrev .18s ease-out}
+@keyframes rotFlash{0%{filter:brightness(2.4)}100%{filter:brightness(1)}}
+.rslot.rcur.flash{animation:rotFlash .3s ease-out}
 /* #bossbar is now only a visibility/state hook; the bar itself is rendered on the fx canvas (drawBossBar) */
 #bossbar{position:absolute;top:96px;left:40px;right:40px;height:7px;border:none;background:none;box-shadow:none;display:none;z-index:5}
 #bossbar i{display:none}
@@ -310,6 +325,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
       <div>
         <div class="read"><span class="k">GUN</span> <span id="wname">SPREAD</span>
           <span class="pbar" id="pbar"></span> <span class="v" id="wlvl">Lv.1</span></div>
+        <div class="wrot" id="wrot"></div>
         <div class="read"><span class="k">BOMB</span> <span class="v" id="bombs">x3</span></div>
         <div class="read"><span class="k">DRONE</span> <span class="t" id="dronest">OFFLINE</span></div>
         <div class="read"><span class="k">PARRY</span> <span class="t" id="parryst">READY</span></div>
@@ -318,6 +334,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
       </div>
       <div class="chwrap">
         <div class="chlbl" id="beamLbl">BEAM</div>
+        <div class="hrot" id="hrot"></div>
         <div class="charge" id="charge"><i></i></div>
       </div>
     </div>
@@ -520,7 +537,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='162';
+const W=630,H=840; const VERSION='163';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -1897,6 +1914,8 @@ function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.
 function buildCount(){ const u=startBuild.up,b=startBuild; const hu=b.heavyUnlocked||{}; return (u.gun-1)+(u.beamPow-1)+(u.beamCap-1)+(u.beamPierce-1)+(u.beamSpool-1)+(u.speed-1)+u.flank+u.armor+b.shieldHits+(b.bombs-2)+(b.drone?1:0)+b.unlocked.lance+b.unlocked.homing+b.unlocked.rapid+((u.heavyPow||1)-1)+((u.heavyChg||1)-1)+((u.teslaJump||1)-1)+((u.singAmp||1)-1)+((u.wavePow||1)-1)+((u.railPow||1)-1)+((u.railCap||1)-1)+((u.teslaDps||1)-1)+((u.singCrush||1)-1)+(u.mSpread||0)+(u.mRapid||0)+(u.mLance||0)+(u.mHoming||0)+(u.bSpread||0)+(u.bRapid||0)+(u.bLance||0)+(u.bHoming||0)+(u.mFlak||0)+(u.bFlak||0)+(u.mBuzz||0)+(u.bBuzz||0)+((u.bombPow||1)-1)+(u.bArmor||0)+(u.shieldChg||0)+(u.droneLv||0)+(u.mParry||0)+(u.bParry||0)+(hu.rail?1:0)+(hu.tesla?1:0)+(hu.singularity?1:0)+(hu.wave?1:0); }
 const WCOL={spread:COL.green,lance:COL.cyan,homing:COL.gold,rapid:COL.mat,flak:FLAK_COL,buzzsaw:COL.green};
 const WDISP={spread:'SPREAD',lance:'RAILSPIKE',homing:'SWARM',rapid:'NAILGUN',flak:'FLAK',buzzsaw:'BUZZSAW'};
+const WROT_ICON={spread:'w_spread',lance:'w_lance',homing:'w_homing',rapid:'w_rapid',flak:'w_flak',buzzsaw:'w_buzz'};   // rotation-strip icon+short label maps (compact HUD only, WDISP unchanged elsewhere)
+const WROT_LABEL={spread:'SPRD',lance:'SPIKE',homing:'SWRM',rapid:'NAIL',flak:'FLAK',buzzsaw:'SAW'};
 function applyPod(p){
   if(player&&player.modGreed&&(p.type==='coin'||p.type==='core')){ player.greed=Math.min(10,(player.greed||0)+1); player.greedT=4; }
   if(p.type==='core'){ const jack=Math.round((BAL.coreBase+sector*BAL.corePer)*((player&&player.coinMult)||1)); player.coins+=jack; runCoinsEarned+=jack; addScore(jack,p.x,p.y,p.c);
@@ -2035,6 +2054,8 @@ function updateBuzzsaw(pl,dt){
 /* ============================= HEAVY slot ============================= */
 const HEAVIES=['beam','rail','tesla','singularity','wave'];
 const HEAVYNAME={beam:'PRISM BEAM',rail:'RAILGUN',tesla:'TESLA',singularity:'SINGULARITY',wave:'WAVE MOTION'};
+const HROT_ICON={beam:'beampow',rail:'rail',tesla:'tesla',singularity:'singularity',wave:'wave'};   // rotation-strip icon+short label maps (compact HUD only, HEAVYNAME unchanged elsewhere)
+const HROT_LABEL={beam:'BEAM',rail:'RAIL',tesla:'TESLA',singularity:'SING',wave:'WAVE'};
 function heavyChargeTime(h){ const base=h==='wave'?1.2:h==='rail'?0.7:h==='singularity'?0.5:0.4; const lv=(player&&player.up&&player.up.heavyChg)||1; return base*(1-(lv-1)*0.13)*((player&&player.modChargeMult)||1); }
 function heavyCost(h){ return h==='wave'?1.0 : h==='rail'?0.5 : h==='singularity'?0.85 : 0; }
 function cycleHeavy(){ if(!player)return; const list=HEAVIES.filter(h=>player.heavyUnlocked&&player.heavyUnlocked[h]); if(list.length<2)return;
@@ -3237,8 +3258,8 @@ function nextWeapon(){ const i=WEAPONS.indexOf(player.wtype); return WEAPONS[(i+
 function nextWeaponName(){ const w=nextWeapon(); return (WDISP[w]||w.toUpperCase())+(player.unlocked[w]?'':' *'); }
 function weaponCost(){ return player.unlocked[nextWeapon()]?0:350; }
 function buyWeapon(){ const w=nextWeapon(); player.unlocked[w]=1; player.wtype=w; }
-function switchWeapon(){ const list=WEAPONS.filter(w=>player.unlocked[w]); if(list.length<2)return;
-  const i=list.indexOf(player.wtype); player.wtype=list[(i+1)%list.length]; ((Audio_.play&&Audio_.play('weapon_switch'))||Audio_.hit()); }
+function switchWeapon(dir){ dir=(dir===-1)?-1:1; const list=WEAPONS.filter(w=>player.unlocked[w]); if(list.length<2)return;   // dir: +1 next (default, matches prior behavior), -1 prev (wheel-down)
+  const i=list.indexOf(player.wtype); player.wtype=list[(i+dir+list.length)%list.length]; ((Audio_.play&&Audio_.play('weapon_switch'))||Audio_.hit()); }
 function selectWeapon(w){ if(state!=='play'||!player||!player.unlocked||!player.unlocked[w]||player.wtype===w)return; player.wtype=w; (Audio_.play&&Audio_.play('weapon_switch'))||Audio_.hit(); }
 function setAutofire(v){ autofire=v; try{localStorage.setItem('vanguard_autofire',v?'1':'0');}catch(e){} const b=el('autofireBtn'); if(b)b.textContent='AUTO-FIRE: '+(v?'ON':'OFF'); }
 function setGfx(v){ GFX=(v==='med'||v==='low')?v:'full'; LOWFX=(GFX==='low'); try{localStorage.setItem('vanguard_gfx',GFX);}catch(e){} const b=el('lowfxBtn'); if(b)b.textContent='GRAPHICS: '+GFX.toUpperCase(); }
@@ -3864,6 +3885,17 @@ function drawFX(){
 const el=id=>document.getElementById(id);
 const shipGlyph='<svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 1 L14 14 L8 11 L2 14 Z" fill="none" stroke="#00FF41" stroke-width="1.4"/></svg>';
 let lastLives=-1,lastTarget=0,lastCombo=-1,lastWname='',lastWlvl=-1,lastBombs=-1,lastDrone=null,lastCoins=-1,lastHull=-1,lastMaxHull=-1,lastRepair=-1;
+let lastWRotSig='',lastWRotWtype='',lastHRotSig='',lastHRotWtype='';
+/* rotation-preview strip: prev/current/next of an owned cycle, current bright, neighbors dim (weapon HUD + heavy HUD) */
+function rotSlotHTML(w,cls,iconMap,labelMap){ return '<span class="rslot '+cls+'">'+shopIcon(iconMap[w])+'<i>'+(labelMap[w]||w.toUpperCase())+'</i></span>'; }
+function rotStripHTML(list,cur,iconMap,labelMap){ if(!list.length)return '';
+  if(list.length===1) return rotSlotHTML(cur,'rcur',iconMap,labelMap);
+  const i=list.indexOf(cur), n=list.length, prev=list[(i-1+n)%n], next=list[(i+1)%n];
+  return rotSlotHTML(prev,'rprev',iconMap,labelMap)+rotSlotHTML(cur,'rcur',iconMap,labelMap)+rotSlotHTML(next,'rnext',iconMap,labelMap); }
+function paintRotStrip(elId,list,cur,iconMap,labelMap,dir,animate){ const box=el(elId); if(!box)return;
+  box.innerHTML=rotStripHTML(list,cur,iconMap,labelMap);
+  if(animate){ box.classList.remove('rot-next','rot-prev'); void box.offsetWidth; box.classList.add(dir==='prev'?'rot-prev':'rot-next');
+    const cs=box.querySelector('.rcur'); if(cs){ cs.classList.remove('flash'); void cs.offsetWidth; cs.classList.add('flash'); } } }
 function hud(dt){
   if(state!=='play'){ return; }
   window.scoreD += (window.scoreT-window.scoreD)*Math.min(1,dt*7); if(window.scoreT-window.scoreD<1)window.scoreD=window.scoreT;
@@ -3884,6 +3916,12 @@ function hud(dt){
     const bl=el('beamLbl'); if(bl){ const nm=(typeof HEAVYNAME!=='undefined'&&HEAVYNAME[player.heavy])||'BEAM';
       bl.textContent=locked?'COOLDOWN':((player.heavyCharge>0.02)?(nm+' '+Math.round(player.heavyCharge*100)+'%'):nm);
       bl.style.color=locked?'var(--ace)':((player.heavyCharge>=1)?'var(--cyan)':''); } }
+  { const hlist=HEAVIES.filter(h=>player.heavyUnlocked&&player.heavyUnlocked[h]); const hsig=player.heavy+'|'+hlist.join(',');
+    if(hsig!==lastHRotSig){ const hchanged=lastHRotWtype!==''&&player.heavy!==lastHRotWtype; let hdir='next';   // suppress the switch animation on the first paint of a run
+      if(hchanged && lastHRotWtype && hlist.length>1){ const oi=hlist.indexOf(lastHRotWtype), ni=hlist.indexOf(player.heavy);
+        if(oi>=0){ if(ni===(oi+1)%hlist.length) hdir='next'; else if(ni===(oi-1+hlist.length)%hlist.length) hdir='prev'; } }
+      paintRotStrip('hrot',hlist,player.heavy,HROT_ICON,HROT_LABEL,hdir,hchanged);
+      lastHRotSig=hsig; lastHRotWtype=player.heavy; } }
   el('secNum').textContent=roman(sector); el('secName').textContent=SECTORS[(sector-1)%SECTORS.length];
   if(sector!==lastSec){ lastSec=sector; const acc=sectorTheme().accent;
     el('secNum').style.color=acc; el('secName').style.color=acc; el('secNum').style.textShadow='0 0 10px '+acc; }
@@ -3900,6 +3938,12 @@ function hud(dt){
       s+='<span class="hseg'+(on?' on':'')+(rep?' rep':'')+'"'+(on?(' style="background:'+col+';box-shadow:0 0 7px '+col+'"'):'')+'>'+(rep?('<i style="width:'+Math.round(player.repair*100)+'%"></i>'):'')+'</span>'; }
     el('hull').innerHTML=s; }
   if(player.wtype!==lastWname){ lastWname=player.wtype; const oc=WEAPONS.filter(w=>player.unlocked[w]).length; el('wname').textContent=(WDISP[player.wtype]||player.wtype.toUpperCase())+(oc>1?'  ⇄Q':''); }
+  { const wlist=WEAPONS.filter(w=>player.unlocked[w]); const wsig=player.wtype+'|'+wlist.join(',');
+    if(wsig!==lastWRotSig){ const wchanged=lastWRotWtype!==''&&player.wtype!==lastWRotWtype; let wdir='next';   // suppress the switch animation on the first paint of a run
+      if(wchanged && lastWRotWtype && wlist.length>1){ const oi=wlist.indexOf(lastWRotWtype), ni=wlist.indexOf(player.wtype);
+        if(oi>=0){ if(ni===(oi+1)%wlist.length) wdir='next'; else if(ni===(oi-1+wlist.length)%wlist.length) wdir='prev'; } }
+      paintRotStrip('wrot',wlist,player.wtype,WROT_ICON,WROT_LABEL,wdir,wchanged);
+      lastWRotSig=wsig; lastWRotWtype=player.wtype; } }
   if(player.wlevel!==lastWlvl){ lastWlvl=player.wlevel; el('wlvl').textContent='Lv.'+player.wlevel;
     let s=''; for(let i=0;i<5;i++) s+='<i class="seg'+(i<player.wlevel?' on':'')+'"></i>'; el('pbar').innerHTML=s; }
   if(player.bombs!==lastBombs){ lastBombs=player.bombs; el('bombs').textContent='x'+player.bombs; }
@@ -4176,6 +4220,9 @@ stage.addEventListener('mousedown',e=>{ const tk='Mouse'+e.button;
     if(tk===keybinds.weap5) selectWeapon('flak');
     if(tk===keybinds.weap6) selectWeapon('buzzsaw');
   } });
+stage.addEventListener('wheel',e=>{ if(state!=='play')return;   // scroll-to-switch: primary only, heavy stays keybind/button-only
+  if(e.target.closest('.tbtn')||e.target.closest('.ovl')||e.target.closest('.mini')||e.target.closest('.fbovl'))return;
+  e.preventDefault(); switchWeapon(e.deltaY<0?1:-1); },{passive:false});
 window.addEventListener('mouseup',e=>{ const tk='Mouse'+e.button; held[tk]=false;
   if(tk===keybinds.beam){ if(player){player.beamOn=false; player.beamLock=false;} } });
 
@@ -4565,6 +4612,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'163',date:'2026',items:['Weapon and heavy HUD now previews the next and previous in your rotation, and you can scroll to switch primaries.']},
  {ver:'162',date:'2026',items:['New endgame ability MELTDOWN: overload your active weapon to fire at a blistering rate. Unlock it deep in a run, recharge it by racking up kills.']},
  {ver:'161',date:'2026',items:['BUZZSAW is pure melee again: flank guns no longer fire while it is equipped.']},
  {ver:'160',date:'2026',items:['Restored the CHOOSE ONE pairing on defense, parry, and systems keystones.']},
