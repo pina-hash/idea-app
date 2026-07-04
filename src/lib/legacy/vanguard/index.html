@@ -44,6 +44,8 @@ body{background:#000;display:flex;align-items:center;justify-content:center;min-
 .read{font-size:10px;color:var(--white);letter-spacing:.08em;margin-bottom:5px;text-shadow:0 0 6px rgba(0,255,65,.4)}
 .read .k{color:var(--dim)} .read .v{color:var(--cyan);text-shadow:0 0 8px rgba(0,240,255,.5)}
 .read .t{color:var(--green)}
+.mtrack{display:inline-block;width:54px;height:5px;border:1px solid rgba(255,176,32,.45);background:rgba(255,176,32,.08);vertical-align:middle;margin:0 4px}
+.mtrack i{display:block;height:100%;width:0%;background:#FFB020}
 .pbar{display:inline-flex;gap:2px;vertical-align:middle;margin-left:5px}
 .seg{width:7px;height:7px;background:rgba(0,255,65,.12);border:1px solid rgba(0,255,65,.25)}
 .seg.on{background:var(--green);box-shadow:0 0 6px rgba(0,255,65,.9)}
@@ -91,6 +93,7 @@ body{background:#000;display:flex;align-items:center;justify-content:center;min-
 #btnBomb{right:22px;bottom:116px;width:56px;height:56px;border-color:rgba(200,255,0,.5);color:var(--gold)}
 #btnWpn{right:118px;bottom:124px;width:50px;height:50px;font-size:10px;border-color:rgba(0,240,255,.4);color:var(--cyan)}
 #btnHeavy{right:58px;bottom:174px;width:52px;height:52px;font-size:10px;border-color:rgba(178,77,255,.5);color:#B24DFF}
+#btnMelt{right:4px;bottom:182px;width:52px;height:52px;font-size:10px;border-color:rgba(255,176,32,.55);color:#FFB020}
 #btnPause{top:14px;left:50%;transform:translateX(-50%);width:44px;height:44px;font-size:13px;border-color:rgba(0,255,65,.55);color:var(--green)}
 body.touchdev #cabinet{flex-direction:column;justify-content:flex-start;align-items:center;gap:0}
 body.touchdev #stage{width:min(100vw, calc((100dvh - 238px) * 3 / 4));max-height:none;flex:0 0 auto}
@@ -310,6 +313,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
         <div class="read"><span class="k">BOMB</span> <span class="v" id="bombs">x3</span></div>
         <div class="read"><span class="k">DRONE</span> <span class="t" id="dronest">OFFLINE</span></div>
         <div class="read"><span class="k">PARRY</span> <span class="t" id="parryst">READY</span></div>
+        <div class="read" id="meltRow" style="display:none"><span class="k">MELT</span> <span class="mtrack"><i id="meltFill"></i></span> <span class="t" id="meltst">0%</span></div>
         <div id="buffhud" style="display:flex;gap:5px;margin-top:3px;flex-wrap:wrap"></div>
       </div>
       <div class="chwrap">
@@ -496,6 +500,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <div class="tbtn" id="btnBomb">BOMB</div>
     <div class="tbtn" id="btnCharge">HEAVY</div>
     <div class="tbtn" id="btnParry">PARRY</div>
+    <div class="tbtn" id="btnMelt">MELT</div>
     <div class="tbtn" id="btnWpn">WPN</div>
     <div class="tbtn" id="btnHeavy">SWAP</div>
     <div class="tbtn" id="btnPause">| |</div>
@@ -515,7 +520,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='161';
+const W=630,H=840; const VERSION='162';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -707,7 +712,7 @@ let state='title', t=0, last=performance.now();
 const keys={};
 let player=null, enemies=[], pbul=[], ebul=[], pods=[], parts=[], shards=[], rings=[], pops=[], boss=null, barriers=[], hazards=[], holes=[], flakClouds=[];
 let fleet=null, slots=[], refill=[], reconfTimer=0, volleyTimer=0, diveTimer=0;
-let sector, waveIdx, wavesPerSector, waveTimer, bossPending, sectorClearT, bossSpoils=0, bossFlash=0, sectorKills=0, killsForBoss=21, gameOverT=0, killer=null, lastHitBy=null;
+let sector, waveIdx, wavesPerSector, waveTimer, bossPending, sectorClearT, bossSpoils=0, bossFlash=0, meltFlash=0, sectorKills=0, killsForBoss=21, gameOverT=0, killer=null, lastHitBy=null;
 let sector1up=0;
 let runFactionSeq=[], waveFk=null;
 let hybridTimer=0;
@@ -750,7 +755,7 @@ try{ const _sb=JSON.parse(localStorage.getItem('vanguard_build')||'null'); if(_s
   startBuild.spent=buildCost(startBuild);                                        // enforce budget by TRUE cost, ignoring the stored scalar
   if(startBuild.spent>START_BUDGET){ startBuild=freshBuild(); saveBuild(); }     // over-budget (leaked / cloud-ratcheted) -> reset to clean and persist so the fix propagates to the cloud
 } }catch(e){}
-const KEYS_DEFAULT={fire:'Mouse0', fireKey:'j', beam:'Mouse2', beamAlt:'f', bomb:'x', parry:'Space', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
+const KEYS_DEFAULT={fire:'Mouse0', fireKey:'j', beam:'Mouse2', beamAlt:'f', bomb:'x', parry:'Space', meltdown:'v', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
 let DEVICE_ID=''; try{ DEVICE_ID=localStorage.getItem('vanguard_did')||''; if(!/^[0-9a-f]{8}$/.test(DEVICE_ID)){ DEVICE_ID=Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b=>b.toString(16).padStart(2,'0')).join(''); localStorage.setItem('vanguard_did',DEVICE_ID); } }catch(e){ DEVICE_ID='nodid000'; }
 /* anonymous per-device id for telemetry cohorting. random hex, never linked to a name or initials. */
 let autofire=true; try{ autofire = localStorage.getItem('vanguard_autofire')!=='0'; }catch(e){}
@@ -777,7 +782,7 @@ let keybinds=Object.assign({},KEYS_DEFAULT);
 try{ const _sk=JSON.parse(localStorage.getItem('vanguard_keys')||'null'); if(_sk) keybinds=Object.assign({},KEYS_DEFAULT,_sk); }catch(e){}
 let rebindAction=null;
 let shotsFired, shotsHit, runTime, runKills=0, runBosses=0, deathSlow=0, killerInfo=null, hitStop=0;
-let runCoinsEarned=0, runCoinsSpent=0, runParryAtt=0, runParries=0, runPerfect=0, runHits=0, runBombs=0, runOverheats=0, runLivesUsed=0, runDwell={spread:0,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0};
+let runCoinsEarned=0, runCoinsSpent=0, runParryAtt=0, runParries=0, runPerfect=0, runHits=0, runBombs=0, runOverheats=0, runLivesUsed=0, runMeltdownUses=0, runDwell={spread:0,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0};
 let runHeavyUse={beam:0,tesla:0,rail:0,singularity:0,wave:0}, runBossTTK=[];
 let balDmgAccum=0, balEbulPrev=0, balEbulSpawned=0;   // TUNE meters: damage dealt + enemy bullets born
 let bgScroll=0; const stars=[
@@ -1610,11 +1615,13 @@ function resetPlayer(full){
     speed:184, wlevel:1, pdmg:1, bombs:2, shieldHits:0, drone:null,
     inv:1.4, armor:5, maxArmor:5, dmgFlash:0, lives:3, dead:false, respawn:0, coins:0, repair:0,
     parryT:0, parryCd:0, parryCdMax:0, guardUsed:false, purgeCd:0,
+    meltdownUnlocked:false, meltdownCharge:0, meltdownActive:0, meltdownCd:0,
     buffs:{overdrive:0,scatter:0,magnet:0}};
     applyUpgrades(); player.beamE=player.beamMax; }
   else { player.x=W/2; player.y=H-130; player.armor=player.maxArmor; player.inv=1.6; player.dead=false;
     player.beamOn=false; player.beamLock=false; player.beamActive=false; player.beamE=player.beamMax; player.beamWind=0; player.beamDrained=false;
     player.parryT=0; player.parryCd=0; player.heat=0; player.overheatT=0; player.guardUsed=false; player.purgeCd=0;
+    player.meltdownActive=0; player.meltdownCd=0;   // unlock + charge persist across lives (kill-earned, like bombs)
     player.buffs={overdrive:0,scatter:0,magnet:0}; }
 }
 function applyUpgrades(){ const u=player.up;
@@ -1656,7 +1663,7 @@ function startGame(){
   runContinued=false;   // a fresh run is not a resume; __ideaRestoreRun re-flags it true after this
   BAL = (gameMode==='tune') ? loadTuneBAL() : freshBAL();
   try{ if(gameMode!=='calib') localStorage.setItem('vanguard_games', getGames()+1); }catch(e){}
-  enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossCard=null;
+  enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; meltFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossCard=null;
   runFactionSeq=[...FKEYS]; for(let _i=runFactionSeq.length-1;_i>0;_i--){const _j=Math.random()*_i|0;[runFactionSeq[_i],runFactionSeq[_j]]=[runFactionSeq[_j],runFactionSeq[_i]];} waveFk=null;
   hybridTimer=rnd(6,10);
   fleet=null; slots=[]; refill=[]; reconfTimer=0; volleyTimer=2; diveTimer=2.6;
@@ -1665,7 +1672,7 @@ function startGame(){
   shotsFired=0; shotsHit=0; runTime=0; window.scoreT=0; window.scoreD=0; window.mult=1;
   window.style=0; window.styleGrace=0; window.styleRepeat=0; window.lastKillWpn=''; window.maxStyle=0; window.killSrc=null; window.styleSum=0; window.styleTime=0;
   runKills=0; runBosses=0; deathSlow=0; killerInfo=null;
-  runCoinsEarned=0; runCoinsSpent=0; runParryAtt=0; runParries=0; runPerfect=0; runHits=0; runBombs=0; runOverheats=0; runLivesUsed=0; runDwell={spread:0,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0};
+  runCoinsEarned=0; runCoinsSpent=0; runParryAtt=0; runParries=0; runPerfect=0; runHits=0; runBombs=0; runOverheats=0; runLivesUsed=0; runMeltdownUses=0; runDwell={spread:0,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0};
   runHeavyUse={beam:0,tesla:0,rail:0,singularity:0,wave:0}; runBossTTK=[]; window.__bossT0=0;
   balDmgAccum=0; balEbulPrev=0; balEbulSpawned=0;
   resetPlayer(true);
@@ -1749,7 +1756,9 @@ function styleKill(e,wpn){ let base=3+(e.variant||0)*2;
   window.lastKillWpn=wpn||window.lastKillWpn;
   if(player && dist2(e.x,e.y,player.x,player.y)<80*80) base+=3;
   addStyle(base); }
-function onKill(e){ (Audio_.play&&Audio_.play('kill_'+(e&&e.fk)))||Audio_.kill(); }
+function onKill(e){ (Audio_.play&&Audio_.play('kill_'+(e&&e.fk)))||Audio_.kill();
+  if(player&&player.meltdownUnlocked){ const g=1+(((window.style||0)>=meltdownStyleGate())?MELTDOWN_STYLE_BONUS:0);
+    player.meltdownCharge=Math.min(MELTDOWN_QUOTA,(player.meltdownCharge||0)+g); } }
 function playerHit(){
   if(window.__devGod)return;
   if(player.inv>0||player.dead)return;
@@ -1831,6 +1840,16 @@ const SPREAD_FULL_RANGE=260, SPREAD_FAR_FLOOR=0.60;                 // 100% to 2
 const FLAK_BAND_MIN=240, FLAK_BAND_MAX=360, FLAK_CLOUD_R=46, FLAK_CLOUD_LIFE=0.45, FLAK_CLOUD_DPS=13, FLAK_EARLY=0.6, FLAK_COL='#FFB000';
 const BUZZSAW_ORBIT=54;                                            // BALANCE DIAL - do not expose as an upgrade
 const BUZZSAW_BLADE_R=10, BUZZSAW_SPEED=3.2, BUZZSAW_DPS_PER_BLADE=9.5, BUZZSAW_FWD_DMG=0.42;
+/* MELTDOWN (endgame active): fire-RATE overload only, kill-recharged. Phase 1 core; upgrade tree is Phase 2. */
+const MELTDOWN_DURATION=2.5;        // seconds the overload lasts
+const MELTDOWN_RATE_MULT=0.18;      // multiplies the active weapon's fireCd (lower = faster); ~5.5x fire rate
+const MELTDOWN_FIRECD_FLOOR=0.02;   // hard floor on fireCd while active, for perf and balance
+const MELTDOWN_QUOTA=45;            // kills to fully charge the meter
+const MELTDOWN_STYLE_BONUS=1;       // extra charge granted by a kill made at high STYLE
+const MELTDOWN_COOLDOWN=2.0;        // seconds lockout after the window ends before it can fire again
+const MELTDOWN_COST=1800;           // REFIT unlock price
+const MELTDOWN_MELEE_MULT=1.6;      // buzzsaw blade-speed and blade-DPS multiplier while active (melee has no fireCd projectile to speed up)
+function meltdownStyleGate(){ const r=STYLE_RANKS.find(k=>k.g==='SS')||STYLE_RANKS[STYLE_RANKS.length-1]; return r.min; }   // SS threshold (fallback: highest rank)
 function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), pdX=(1+u.gun*BAL.gunCoef); const hu=b.heavyUnlocked||{}; const dev=(gameMode==='dev'); return [
   ...(dev?[
     {grp:'WEAPONS',name:'UNLOCK RAILSPIKE',icon:'w_lance',desc:'DEV: start with RAILSPIKE available.',lv:0,mx:0,meta:b.unlocked.lance?'OWNED':'DEV',cost:0,can:!b.unlocked.lance,buy:()=>{b.unlocked.lance=1;b.wtype='lance';}},
@@ -1926,7 +1945,7 @@ function firePrimary(){
     for(let i=0;i<streams;i++){ const ox=(i-(streams-1)/2)*sp+rnd(-1.5,1.5);
       pbul.push({x:x+ox,y,vx:rnd(-12,12),vy:-820,c:hotC,r:1.4+heat*0.8,dmg,wt:'nail',gl,hot:heat}); }
     player.fireCd=Math.max(.042,.062*(1-heat*0.30)*(1-mr*0.1));
-    player.heat=heat+(0.052-mr*0.004)*(kR==='redline'?1.5:1);
+    if(player.meltdownActive<=0) player.heat=heat+(0.052-mr*0.004)*(kR==='redline'?1.5:1);   // MELTDOWN: no heat accrual, the stream fires freely for the window
     if(kR==='coolant') player.heat=Math.min(0.86,player.heat);
     muzzle(x,y,hotC,gl*(0.7+heat),streams);
     if(player.heat>=1){
@@ -1952,6 +1971,7 @@ function firePrimary(){
   (Audio_.play&&Audio_.play('fire_'+player.wtype))||Audio_.fire(player.wtype);
   if(player.buffs && player.buffs.overdrive>0){ pbul.slice(prevLen).forEach(b=>{ if(b.dmg) b.dmg*=1.3; }); player.fireCd*=0.6; }
   if(player.modFireCd&&player.modFireCd!==1) player.fireCd*=player.modFireCd;
+  if(player.meltdownActive>0) player.fireCd=Math.max(MELTDOWN_FIRECD_FLOOR, player.fireCd*MELTDOWN_RATE_MULT);   // MELTDOWN: fire-rate overload only, never a damage boost
   if(player.buffs && player.buffs.scatter>0){ [-0.4,-0.8,0.4,0.8].forEach(a=>pbul.push({x:player.x,y:player.y-20,vx:Math.sin(a)*480,vy:-Math.cos(a)*480,c:COL.green,r:1.5,dmg:0.6*pm,wt:'scrap',gl})); }
   if(player.up.flank>0 && player.wtype!=='buzzsaw'){   // BUZZSAW is pure melee: no flank projectiles while it is equipped
     const _fk=(player.ks&&player.ks.flank)||0; const fa=[];
@@ -1986,7 +2006,8 @@ function updateFlakClouds(dt){
 }
 /* BUZZSAW: two contact blades orbit the ship; they damage enemies only, never block/destroy enemy bullets */
 function updateBuzzsaw(pl,dt){
-  const kB=(pl.ks&&pl.ks.buzzsaw)||0; const _bu=(pl.up||{}); const ang=t*BUZZSAW_SPEED*(1+0.18*(_bu.bBuzz||0))*(kB==='ripper'?1.4:1), pm=pl.pdmg||1; const _bdps=BUZZSAW_DPS_PER_BLADE*(1+0.20*(_bu.mBuzz||0))*(kB==='ripper'?1.4:1), _br=BUZZSAW_BLADE_R+2*(_bu.bBuzz||0);
+  const kB=(pl.ks&&pl.ks.buzzsaw)||0; const _bu=(pl.up||{}); const _mm=(pl.meltdownActive>0)?MELTDOWN_MELEE_MULT:1;   // MELTDOWN melee: faster, harder blades (no fake projectiles)
+  const ang=t*BUZZSAW_SPEED*(1+0.18*(_bu.bBuzz||0))*(kB==='ripper'?1.4:1)*_mm, pm=pl.pdmg||1; const _bdps=BUZZSAW_DPS_PER_BLADE*(1+0.20*(_bu.mBuzz||0))*(kB==='ripper'?1.4:1)*_mm, _br=BUZZSAW_BLADE_R+2*(_bu.bBuzz||0);
   for(let bi=0;bi<2;bi++){ const a=ang+bi*Math.PI, bx=pl.x+Math.cos(a)*BUZZSAW_ORBIT, by=pl.y+Math.sin(a)*BUZZSAW_ORBIT;
     for(const e of enemies){ if(e.dead)continue; if(dist2(e.x,e.y,bx,by)<(_br+e.r)*(_br+e.r)){
       e.hp-=_bdps*pm*dt; e.flash=.08;
@@ -1996,7 +2017,7 @@ function updateBuzzsaw(pl,dt){
   }
   // BLADE LAUNCHER: boomerang throw
   if(pl.sawThrow){ const sw=pl.sawThrow; const _throwDmg=(kB==='shrike'?1.3:1.0);
-    if(!sw.returning){ sw.y+=sw.vy*dt; sw.dist+=Math.abs(sw.vy)*dt;
+    if(!sw.returning){ sw.y+=sw.vy*_mm*dt; sw.dist+=Math.abs(sw.vy)*_mm*dt;
       if(sw.dist>=380){ sw.returning=true; sw.vy=0;
         if(kB==='shrike'&&!sw.seekers){ sw.seekers=[{x:sw.x-12,y:sw.y,tx:null,ty:null},{x:sw.x+12,y:sw.y,tx:null,ty:null}]; } } }
     else if(sw.seekers){ // SHRIKE: seekers home on nearest enemies
@@ -2006,7 +2027,7 @@ function updateBuzzsaw(pl,dt){
           if(sd<12){ sk.target.hp-=_bdps*_throwDmg*pm*0.5; if(sk.target.hp<=0){ window.killSrc='buzzsaw'; killEnemy(sk.target); } sk.target=null; } }
         else { const dx2=pl.x-sk.x, dy2=pl.y-sk.y, d2=Math.hypot(dx2,dy2)||1; sk.x+=dx2/d2*480*dt; sk.y+=dy2/d2*480*dt; } });
       if(sw.seekers.every(sk=>!sk.target&&Math.hypot(sk.x-pl.x,sk.y-pl.y)<20)) pl.sawThrow=null;
-    } else { const dx2=pl.x-sw.x, dy2=pl.y-sw.y, d2=Math.hypot(dx2,dy2)||1; const spd2=520; sw.x+=dx2/d2*spd2*dt; sw.y+=dy2/d2*spd2*dt; if(d2<20){ pl.sawThrow=null; } }
+    } else { const dx2=pl.x-sw.x, dy2=pl.y-sw.y, d2=Math.hypot(dx2,dy2)||1; const spd2=520*_mm; sw.x+=dx2/d2*spd2*dt; sw.y+=dy2/d2*spd2*dt; if(d2<20){ pl.sawThrow=null; } }
     if(sw&&!sw.seekers){ const throwDps=_bdps*1.6*_throwDmg*pm;
       for(const e of enemies){ if(e.dead)continue; if(dist2(e.x,e.y,sw.x,sw.y)<(_br+e.r)*(_br+e.r)){ e.hp-=throwDps*dt; e.flash=.08; if(e.hp<=0){ window.killSrc='buzzsaw'; killEnemy(e); } } }
       if(boss && !boss.dying && !boss.entering && dist2(boss.x,boss.y,sw.x,sw.y)<(_br+boss.r)*(_br+boss.r)) damageBoss(throwDps*dt); } }
@@ -2158,6 +2179,16 @@ function fireBomb(){
     parts.push({x:player.x,y:player.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rnd(.4,.7),max:.7,c:Math.random()<0.4?COL.white:COL.green,sz:rnd(1.6,3)});}
   pops.push({x:player.x,y:player.y-30,txt:'PURGE',c:COL.green,life:.8,max:.8});
 }
+/* MELTDOWN activation: fire-rate overload window, kill-recharged (see MELTDOWN_* dials) */
+function tryMeltdown(){ if(state!=='play'||!player||player.dead)return;
+  if(!player.meltdownUnlocked||player.meltdownCharge<MELTDOWN_QUOTA||player.meltdownActive>0||player.meltdownCd>0){ (Audio_.play&&Audio_.play('buy_fail'))||Audio_.hit(); return; }
+  player.meltdownActive=MELTDOWN_DURATION; player.meltdownCharge=0; runMeltdownUses++;
+  player.overheatT=0;   // an in-flight NAILGUN lockout would eat the window
+  meltFlash=0.5; shake=Math.max(shake,10);
+  rings.push({x:player.x,y:player.y,r:8,vr:420,life:.35,max:.35,c:COL.amber});
+  pops.push({x:player.x,y:player.y-30,txt:'MELTDOWN',c:COL.amber,life:.8,max:.8});
+  ((Audio_.play&&Audio_.play('wave'))||Audio_.big());
+}
 function killEnemy(e,silent){ if(e.dead)return; runKills++; e.dead=true; e.dt=0; explode(e.x,e.y,e.c,e.variant>=2);
   shake=Math.max(shake, 2.5+(e.variant||0)*3.5);
   if(player&&player.modPurge&&!player._purge&&!player.dead){ player.purgeKills=(player.purgeKills||0)+1;
@@ -2260,6 +2291,8 @@ function update(dt){
     }
     if(pl.wtype==='buzzsaw') updateBuzzsaw(pl,dt);   // blades orbit and bite passively
     if(pl.overheatT>0){ pl.overheatT-=dt; if(pl.overheatT<=0){ pl.overheatT=0; Audio_.play&&Audio_.play('overheat_ready'); } }
+    if(pl.meltdownActive>0){ pl.meltdownActive-=dt; if(pl.meltdownActive<=0){ pl.meltdownActive=0; pl.meltdownCd=MELTDOWN_COOLDOWN; } }
+    else if(pl.meltdownCd>0) pl.meltdownCd=Math.max(0,pl.meltdownCd-dt);
     const firingRapid = wantFire && !heavyBusy && pl.overheatT<=0 && pl.wtype==='rapid';
     if(pl.heat>0 && !firingRapid) pl.heat=Math.max(0,pl.heat-dt*0.8);
     // damage embers
@@ -2476,6 +2509,7 @@ function update(dt){
   if(holes.length) updateHoles(dt);
   if(station) updateStation(dt);
   if(bossFlash>0) bossFlash-=dt*1.8;
+  if(meltFlash>0) meltFlash-=dt*2.4;
   if(bossSpoils>0){ bossSpoils-=dt; if(bossSpoils<=0){ for(let i=pods.length-1;i>=0;i--) applyPod(pods[i]); pods.length=0; if(gameOverT<=0) openRefit(); } }
 
   /* ----- bullets ----- */
@@ -3058,7 +3092,7 @@ const SHOP_ICONS={
   default: svgI('<circle cx="12" cy="12" r="7"/>')
 };
 function shopIcon(id){ return SHOP_ICONS[id]||SHOP_ICONS.default; }
-function shopGroupColor(grp){ return ({WEAPONS:COL.green,HEAVY:COL.bmet,DEFENSE:COL.gold,PARRY:COL.cyan,SYSTEMS:COL.mat,MODULES:COL.teal})[grp]||COL.green; }
+function shopGroupColor(grp){ return ({WEAPONS:COL.green,HEAVY:COL.bmet,DEFENSE:COL.gold,PARRY:COL.cyan,SYSTEMS:COL.mat,ABILITY:COL.amber,MODULES:COL.teal})[grp]||COL.green; }
 function shopCardHTML(it,i,aff,maxed,grp){ const col=shopGroupColor(grp); const nm=it.name||it.label||'';
   let pips=''; if(it.mx>0){ for(let k=0;k<it.mx;k++) pips+='<i class="pip'+(k<it.lv?' on':'')+'"></i>'; }
   const meta=(it.meta!==undefined)?it.meta:(maxed?'MAX':(it.cost>0?('i¢'+it.cost):'FREE'));
@@ -3071,7 +3105,7 @@ function shopCardHTML(it,i,aff,maxed,grp){ const col=shopGroupColor(grp); const 
     +'</span><span class="ccost">'+meta+'</span></button>'; }
 let refitTab=null, refitExpand={}, _refitLastTab=null;
 function renderShopGrid(container, items, ctx){ if(!container)return;
-  const order=['WEAPONS','HEAVY','DEFENSE','PARRY','SYSTEMS','MODULES']; const grpOf=it=>it.grp||'SYSTEMS';
+  const order=['WEAPONS','HEAVY','DEFENSE','PARRY','SYSTEMS','ABILITY','MODULES']; const grpOf=it=>it.grp||'SYSTEMS';
   const present=order.filter(g=>items.some(it=>grpOf(it)===g));
   if(!present.length){ container.innerHTML=''; return; }
   if(!refitTab || present.indexOf(refitTab)<0) refitTab=present[0];
@@ -3183,6 +3217,8 @@ function refitItems(){ const u=player.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), p
     {grp:'SYSTEMS',name:player.drone?'DRONE READY':'DRONE',icon:'drone',desc:'Auto-targeting wingman. Damage scales with GUN POWER; twins at high power.',delta:player.drone?'':'wingman',lv:0,mx:0,meta:player.drone?'OWNED':'i¢600',cost:600,can:!player.drone,buy:()=>{player.drone={ph:0};}},
     ...(player.drone?[{grp:'SYSTEMS',name:'DRONE ARMS',icon:'drone',desc:'Increases DRONE damage. Requires a DRONE.',delta:'+35% dmg',lv:u.droneLv||0,mx:3,cost:400+(u.droneLv||0)*240,can:(u.droneLv||0)<3,buy:()=>{u.droneLv=(u.droneLv||0)+1;}}]:[]),
     ...((player.drone&&sector>=3&&(u.droneLv||0)>=1)?[dksCard('SYSTEMS','drone','WINGMATE','drone','KEYSTONE: the DRONE always twins and flanks both sides, lighter fire each. Locks out SENTINEL.','wingmate'),dksCard('SYSTEMS','drone','SENTINEL','drone','KEYSTONE: one heavy DRONE that focuses bosses and intercepts a shot every few seconds. Locks out WINGMATE.','sentinel')]:[]),
+    (()=>{ const gated=sector>=5&&(window.maxStyle||0)>=meltdownStyleGate();   // MELTDOWN: endgame active, sector 5+ and a STYLE SS run
+      return {grp:'ABILITY',name:'MELTDOWN',icon:'beampow',desc:'ACTIVE: overload your primary weapon to fire at a blistering rate for '+MELTDOWN_DURATION+'s. Recharges by racking up kills. Press its key when the meter is full.',lv:0,mx:0,meta:player.meltdownUnlocked?'OWNED':(gated?('i¢'+MELTDOWN_COST):'SECTOR 5 / STYLE SS'),cost:MELTDOWN_COST,can:!player.meltdownUnlocked&&gated,buy:()=>{player.meltdownUnlocked=true;}}; })(),
     modCard('glass','GLASS REACTOR','beampow','MODULE: +30% to all weapon damage, but -1 max hull. Pick up to 3 modules per run.',1200),
     modCard('overcharge','OVERCHARGE CAP','beamspool','MODULE: heavy weapons charge 40% faster, but primary fire rate -10%.',1100),
     modCard('scavenger','SCAVENGER','beamcell','MODULE: +35% coins from kills and CORE, but -15% score.',900),
@@ -3380,6 +3416,10 @@ function drawBG(){
   const tf=bg.createLinearGradient(0,0,0,72); tf.addColorStop(0,'rgba(2,10,4,0.92)'); tf.addColorStop(1,'rgba(2,10,4,0)');
   bg.fillStyle=tf; bg.fillRect(0,0,W,72);
   if(bossFlash>0){ bg.globalAlpha=Math.min(0.7,bossFlash); bg.fillStyle='#fff'; bg.fillRect(0,0,W,H); bg.globalAlpha=1; }
+  if(meltFlash>0){ bg.globalAlpha=Math.min(0.4,meltFlash); bg.fillStyle=COL.green; bg.fillRect(0,0,W,H); bg.globalAlpha=1; }   // MELTDOWN activation pulse
+  if(player&&player.meltdownActive>0&&state==='play'){ const vg=bg.createRadialGradient(W/2,H/2,H*0.36,W/2,H/2,H*0.74);   // edge-only vignette; playfield center stays clear
+    vg.addColorStop(0,'rgba(0,255,65,0)'); vg.addColorStop(1,'rgba(0,255,65,'+(0.09+0.05*Math.sin(t*10)).toFixed(3)+')');
+    bg.fillStyle=vg; bg.fillRect(0,0,W,H); }
   if(sectorBanner>0) drawBanner();
   if(bossCard) drawBossCard();
   // Low-hull warning: pulsing red edge vignette when one hit from going down
@@ -3693,6 +3733,8 @@ function drawFX(){
   }
   // bullets
   pbul.forEach(b=>{ const gl=b.gl||1, wt=b.wt; fx.save(); fx.shadowColor=b.c; fx.shadowBlur=7*gl; fx.fillStyle=b.c;
+    if(player&&player.meltdownActive>0&&(b.vx||b.vy)){ fx.globalAlpha=0.45; fx.strokeStyle=b.c; fx.lineWidth=Math.max(1,(b.r||2)*0.9);   // MELTDOWN streak: dense cadence + streaks paint continuous lines
+      fx.beginPath(); fx.moveTo(b.x,b.y); fx.lineTo(b.x-b.vx*0.05,b.y-b.vy*0.05); fx.stroke(); fx.globalAlpha=1; }
     if(wt==='rail'){ const L=b.len||20; fx.shadowBlur=15*gl;
       const g=fx.createLinearGradient(b.x,b.y-L*1.6,b.x,b.y+L); g.addColorStop(0,b.c+'00'); g.addColorStop(.55,b.c); g.addColorStop(1,b.c+'00');
       fx.fillStyle=g; fx.fillRect(b.x-b.r,b.y-L*1.6,b.r*2,L*2.6);
@@ -3723,7 +3765,7 @@ function drawFX(){
   if(state==='play' && player && !player.dead){
     if(player.wtype==='flak'){ const r0=(FLAK_BAND_MIN+FLAK_BAND_MAX)/2; fx.save(); fx.globalAlpha=0.10; fx.strokeStyle=FLAK_COL; fx.lineWidth=1; fx.setLineDash([5,9]);
       fx.beginPath(); fx.arc(player.x,player.y,r0,-Math.PI*0.85,-Math.PI*0.15); fx.stroke(); fx.setLineDash([]); fx.restore(); }
-    if(player.wtype==='buzzsaw'){ const _bbu=player.up||{}; const ang=t*BUZZSAW_SPEED*(1+0.18*(_bbu.bBuzz||0)); fx.save(); fx.globalCompositeOperation='lighter';
+    if(player.wtype==='buzzsaw'){ const _bbu=player.up||{}; const ang=t*BUZZSAW_SPEED*(1+0.18*(_bbu.bBuzz||0))*((player.meltdownActive>0)?MELTDOWN_MELEE_MULT:1); fx.save(); fx.globalCompositeOperation='lighter';
       // afterimage ghosts
       for(let g=1;g<=3;g++){ const ga=0.10*(1-g/4);
         for(let bi=0;bi<2;bi++){ const a=(ang-g*0.35)+bi*Math.PI; const gx=player.x+Math.cos(a)*BUZZSAW_ORBIT, gy=player.y+Math.sin(a)*BUZZSAW_ORBIT;
@@ -3864,6 +3906,11 @@ function hud(dt){
   if(player.coins!==lastCoins){ lastCoins=player.coins; el('coins').textContent=player.coins.toLocaleString(); }
   const dOn=!!player.drone; if(dOn!==lastDrone){ lastDrone=dOn; el('dronest').textContent=dOn?'ONLINE':'OFFLINE'; el('dronest').style.color=dOn?COL.green:COL.dim; }
   { const ready=player.parryCd<=0; const ps=el('parryst'); if(ps){ ps.textContent=ready?'READY':'…'; ps.style.color=ready?COL.cyan:COL.dim; } }
+  { const mr=el('meltRow'); if(mr){ const un=!!player.meltdownUnlocked; mr.style.display=un?'':'none';
+    if(un){ const act=player.meltdownActive>0, rdy=!act&&player.meltdownCd<=0&&player.meltdownCharge>=MELTDOWN_QUOTA;
+      const frac=act?clamp(player.meltdownActive/MELTDOWN_DURATION,0,1):clamp(player.meltdownCharge/MELTDOWN_QUOTA,0,1);
+      const mf=el('meltFill'); if(mf){ mf.style.width=Math.round(frac*100)+'%'; mf.style.background=act?COL.green:COL.amber; mf.style.boxShadow=(rdy||act)?('0 0 8px '+(act?COL.green:COL.amber)):'none'; }
+      const ms=el('meltst'); if(ms){ ms.textContent=act?(player.meltdownActive.toFixed(1)+'s'):(rdy?'READY':(player.meltdownCd>0?'…':(Math.round(frac*100)+'%'))); ms.style.color=act?COL.green:(rdy?COL.amber:COL.dim); } } } }
   if(player.buffs){ const bh=el('buffhud'); const bmap={overdrive:[COL.gold,'OVD'],scatter:[COL.mat,'SCT'],magnet:[COL.cyan,'MGT']};
     let html=''; for(const bk of ['overdrive','scatter','magnet']){ const v=player.buffs[bk]; if(v>0){
       const [col,lbl]=bmap[bk]; const pct=Math.max(0,v/8).toFixed(2);
@@ -4119,6 +4166,7 @@ stage.addEventListener('mousedown',e=>{ const tk='Mouse'+e.button;
     if(tk===keybinds.beam){ if(!player.beamOn){player.beamOn=true;} }
     if(tk===keybinds.bomb) fireBomb();
     if(tk===keybinds.parry) tryParry();
+    if(tk===keybinds.meltdown) tryMeltdown();
     if(tk===keybinds.weapon) switchWeapon();
     if(tk===keybinds.heavy) cycleHeavy();
     if(tk===keybinds.weap1) selectWeapon('spread');
@@ -4155,6 +4203,7 @@ window.addEventListener('keydown',e=>{ if(typingInField()) return;
     if(tk===keybinds.fire){ e.preventDefault(); }
     if(tk===keybinds.bomb){ fireBomb(); }
     if(tk===keybinds.parry){ tryParry(); }
+    if(tk===keybinds.meltdown){ tryMeltdown(); }
     if(tk===keybinds.pause||e.key==='Escape'){ pauseToggle(); }
     if(tk===keybinds.weapon){ switchWeapon(); }
     if(tk===keybinds.heavy){ cycleHeavy(); }
@@ -4198,6 +4247,7 @@ el('btnBomb').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropag
 el('btnWpn').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(state==='play')switchWeapon();},{passive:false});
 el('btnHeavy').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(state==='play')cycleHeavy();},{passive:false});
 el('btnParry').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(state==='play')tryParry();},{passive:false});
+el('btnMelt').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(state==='play')tryMeltdown();},{passive:false});
 el('btnPause').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();pauseToggle();},{passive:false});
 el('launchBtn').addEventListener('click',()=>{ if(state==='refit')launchFromRefit(); });
 
@@ -4354,7 +4404,7 @@ function buildFeedbackComposer(){
 ['fbTitle','fbPause','fbOver'].forEach(id=>{ const c=el(id); if(c) c.appendChild(buildFeedbackComposer()); });
 
 /* keybind remapping */
-const KEY_ACTIONS=[['fire','FIRE (manual)'],['fireKey','FIRE (manual KEY)'],['beam','HEAVY FIRE'],['beamAlt','HEAVY FIRE (KEY)'],['heavy','CYCLE HEAVY'],['weapon','CYCLE WEAPON'],['weap1','> SPREAD'],['weap2','> RAILSPIKE'],['weap3','> SWARM'],['weap4','> NAILGUN'],['weap5','> FLAK'],['weap6','> BUZZSAW'],['bomb','BOMB'],['parry','PARRY'],['pause','PAUSE'],['mute','MUTE']];
+const KEY_ACTIONS=[['fire','FIRE (manual)'],['fireKey','FIRE (manual KEY)'],['beam','HEAVY FIRE'],['beamAlt','HEAVY FIRE (KEY)'],['heavy','CYCLE HEAVY'],['weapon','CYCLE WEAPON'],['weap1','> SPREAD'],['weap2','> RAILSPIKE'],['weap3','> SWARM'],['weap4','> NAILGUN'],['weap5','> FLAK'],['weap6','> BUZZSAW'],['bomb','BOMB'],['parry','PARRY'],['meltdown','MELTDOWN'],['pause','PAUSE'],['mute','MUTE']];
 function keyLabel(c){ if(!c)return '—'; if(c==='Space'||c===' ')return 'SPACE';
   if(c.indexOf('Mouse')===0){ return ['L-CLICK','MID-CLICK','R-CLICK','MOUSE4','MOUSE5'][+c.slice(5)]||('MOUSE'+(+c.slice(5)+1)); }
   return c.toUpperCase(); }
@@ -4515,6 +4565,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'162',date:'2026',items:['New endgame ability MELTDOWN: overload your active weapon to fire at a blistering rate. Unlock it deep in a run, recharge it by racking up kills.']},
  {ver:'161',date:'2026',items:['BUZZSAW is pure melee again: flank guns no longer fire while it is equipped.']},
  {ver:'160',date:'2026',items:['Restored the CHOOSE ONE pairing on defense, parry, and systems keystones.']},
  {ver:'159',date:'2026',items:['REFIT no longer jumps to the top when you buy an upgrade, and defense upgrades are no longer hidden under DEFENSE PROBE.']},
