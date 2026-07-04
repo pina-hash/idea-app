@@ -385,6 +385,25 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .setrow>span:first-child{flex:0 0 108px;text-align:left;color:var(--cyan);letter-spacing:.06em}
 .setrow input[type=range]{flex:1;accent-color:var(--green);height:4px;cursor:pointer;pointer-events:auto}
 .setrow .setval{flex:0 0 30px;text-align:right;color:var(--gold);font-family:'Chakra Petch',sans-serif;font-weight:700}
+/* ---- SETTINGS: grouped cabinet-panel sections ---- */
+#setBody{display:flex;flex-direction:column;gap:10px;width:100%;max-width:320px;max-height:58vh;overflow-y:auto;padding:2px 4px 4px}
+#setBody::-webkit-scrollbar{width:5px}#setBody::-webkit-scrollbar-thumb{background:rgba(0,255,65,.3);border-radius:3px}
+#setBody .cab-panel{width:100%;max-width:none;flex:none}
+#setBody .setrow{max-width:none}
+.setline{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;font-family:'Share Tech Mono',monospace;font-size:10.5px;color:var(--white);letter-spacing:.04em}
+.setlbl{flex:1;text-align:left;color:var(--cyan);letter-spacing:.06em}
+.setpill{flex:0 0 auto;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--white);
+  border:1px solid rgba(0,255,65,.4);border-radius:12px;padding:4px 12px;background:rgba(0,255,65,.06);
+  cursor:pointer;pointer-events:auto;box-shadow:0 0 6px rgba(0,255,65,.1);white-space:nowrap}
+.setpill:active{background:rgba(0,255,65,.18)}
+.toggle{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;pointer-events:auto;padding:2px 0}
+.toggle .tg-track{width:30px;height:16px;border-radius:9px;border:1px solid rgba(122,180,130,.4);background:rgba(0,0,0,.35);position:relative;transition:background .15s,border-color .15s}
+.toggle .tg-knob{position:absolute;top:1px;left:1px;width:12px;height:12px;border-radius:50%;background:var(--dim);transition:transform .15s,background .15s}
+.toggle.on .tg-track{border-color:var(--green);background:rgba(0,255,65,.18);box-shadow:0 0 8px rgba(0,255,65,.25)}
+.toggle.on .tg-knob{transform:translateX(14px);background:var(--green);box-shadow:0 0 6px rgba(0,255,65,.6)}
+.toggle .tg-label{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--dim);min-width:22px;text-align:left}
+.toggle.on .tg-label{color:var(--green);text-shadow:0 0 6px rgba(0,255,65,.5)}
+.setremap{width:100%;margin-top:2px}
 
 /* desktop cabinet */
 #cabinet{display:flex;align-items:center;justify-content:center;gap:18px;width:100%;height:100%}
@@ -578,16 +597,27 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
   <!-- SETTINGS -->
   <div class="fbovl hidden" id="ovlSettings">
     <h2 class="ovh">SETTINGS</h2>
-    <div class="setrow"><span>SFX VOLUME</span><input type="range" id="setSfx" min="0" max="100" step="1"><span class="setval" id="setSfxV">30</span></div>
-    <div class="setrow"><span>MUSIC VOLUME</span><input type="range" id="setMusic" min="0" max="100" step="1"><span class="setval" id="setMusicV">45</span></div>
-    <button class="mini" id="setShake">SCREEN SHAKE: FULL</button>
-    <button class="mini" id="setHitFlash">HIT FLASH REDUCTION: OFF</button>
-    <button class="mini" id="setPreset" style="border-color:var(--green);color:var(--green)">CONTROL PRESET: KEYBOARD</button>
-    <button class="mini" id="setMove" style="border-color:var(--cyan);color:var(--cyan)">MOVEMENT: POINTER LOCK</button>
-    <button class="mini" id="autofireBtn" style="border-color:var(--gold);color:var(--gold)">AUTO-FIRE: ON</button>
-    <button class="mini" id="lowfxBtn" style="border-color:var(--gold);color:var(--gold)">GRAPHICS: FULL</button>
-    <button class="mini" id="setFps">SHOW FPS: OFF</button>
-    <button class="mini" id="setRemap" style="border-color:var(--gold);color:var(--gold)">REMAP KEYS</button>
+    <div id="setBody">
+      <div class="cab-panel">
+        <div class="cab-ptitle">AUDIO</div>
+        <div class="setrow"><span>SFX VOLUME</span><input type="range" id="setSfx" min="0" max="100" step="1"><span class="setval" id="setSfxV">30</span></div>
+        <div class="setrow"><span>MUSIC VOLUME</span><input type="range" id="setMusic" min="0" max="100" step="1"><span class="setval" id="setMusicV">45</span></div>
+      </div>
+      <div class="cab-panel">
+        <div class="cab-ptitle">VISUAL</div>
+        <div class="setline"><span class="setlbl">GRAPHICS</span><button class="setpill" id="lowfxBtn">FULL</button></div>
+        <div class="setline"><span class="setlbl">SCREEN SHAKE</span><button class="setpill" id="setShake">FULL</button></div>
+        <div class="setline"><span class="setlbl">HIT FLASH REDUCTION</span><button class="toggle" id="setHitFlash"></button></div>
+        <div class="setline"><span class="setlbl">SHOW FPS</span><button class="toggle" id="setFps"></button></div>
+      </div>
+      <div class="cab-panel">
+        <div class="cab-ptitle">CONTROLS</div>
+        <div class="setline"><span class="setlbl">CONTROL PRESET</span><button class="setpill" id="setPreset" style="border-color:var(--green);color:var(--green)">KEYBOARD</button></div>
+        <div class="setline"><span class="setlbl">MOVEMENT</span><button class="setpill" id="setMove" style="border-color:var(--cyan);color:var(--cyan)">POINTER LOCK</button></div>
+        <div class="setline"><span class="setlbl">AUTO-FIRE</span><button class="toggle" id="autofireBtn"></button></div>
+        <button class="mini setremap" id="setRemap" style="border-color:var(--gold);color:var(--gold)">REMAP KEYS ›</button>
+      </div>
+    </div>
     <button class="obtn" id="setDone">DONE</button>
   </div>
 
@@ -698,7 +728,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='180';
+const W=630,H=840; const VERSION='181';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4945,14 +4975,25 @@ function buildKeyList(){ const box=el('keyList'); if(!box)return; box.innerHTML=
 function openKeys(){ rebindAction=null; el('ovlKeys').classList.remove('hidden'); buildKeyList(); }
 function closeKeys(){ rebindAction=null; el('ovlKeys').classList.add('hidden'); }   // settings stays open behind, so closing returns to it
 /* ===== settings panel ===== */
+/* toggle rendering is self-healing: it (re)builds its own track/knob/label the first time
+   it sees a bare button, so it survives being called before or after any other code path
+   that might otherwise have written plain text into the same element. */
+function _setToggle(btn,on,label){ if(!btn) return;
+  if(!btn.querySelector('.tg-label')) btn.innerHTML='<span class="tg-track"><span class="tg-knob"></span></span><span class="tg-label"></span>';
+  btn.classList.toggle('on',!!on); btn.classList.toggle('off',!on);
+  btn.setAttribute('aria-pressed',on?'true':'false');
+  if(label) btn.setAttribute('aria-label',label+': '+(on?'ON':'OFF'));
+  btn.querySelector('.tg-label').textContent=on?'ON':'OFF'; }
 function syncSettingsUI(){
   const sv=el('setSfx'), mv=el('setMusic');
   if(sv){ sv.value=SETTINGS.sfxVol; el('setSfxV').textContent=SETTINGS.sfxVol; }
   if(mv){ mv.value=SETTINGS.musicVol; el('setMusicV').textContent=SETTINGS.musicVol; }
-  const sh=el('setShake'); if(sh) sh.textContent='SCREEN SHAKE: '+SETTINGS.shake.toUpperCase();
-  const hf=el('setHitFlash'); if(hf) hf.textContent='HIT FLASH REDUCTION: '+(SETTINGS.hitFlash?'ON':'OFF');
-  const sfp=el('setFps'); if(sfp) sfp.textContent='SHOW FPS: '+(SETTINGS.showFps?'ON':'OFF');
-  const mo=el('setMove'); if(mo) mo.textContent='MOVEMENT: '+(moveMode_pref==='lock'?'POINTER LOCK':'DRAG');
+  const sh=el('setShake'); if(sh) sh.textContent=SETTINGS.shake.toUpperCase();
+  _setToggle(el('setHitFlash'),SETTINGS.hitFlash,'Hit flash reduction');
+  _setToggle(el('setFps'),SETTINGS.showFps,'Show FPS');
+  const mo=el('setMove'); if(mo) mo.textContent=moveMode_pref==='lock'?'POINTER LOCK':'DRAG';
+  _setToggle(el('autofireBtn'),autofire,'Auto-fire');
+  const lf=el('lowfxBtn'); if(lf) lf.textContent=GFX.toUpperCase();
   if(typeof syncPresetUI==='function') syncPresetUI();
 }
 function openSettings(){ el('ovlSettings').classList.remove('hidden'); syncSettingsUI(); }
@@ -4979,7 +5020,7 @@ try{ const _cp=localStorage.getItem('vanguard_preset');
   else { const _mm=localStorage.getItem('vanguard_movemode'); controlPreset=_mm?(_mm==='lock'?'classic':'keyboard'):(isTouch?'classic':'keyboard'); }
 }catch(e){ controlPreset=isTouch?'classic':'keyboard'; }
 function presetLabel(){ return controlPreset==='classic'?'CLASSIC (MOUSE)':'KEYBOARD'; }
-function syncPresetUI(){ const b=el('setPreset'); if(b) b.textContent='CONTROL PRESET: '+presetLabel(); }
+function syncPresetUI(){ const b=el('setPreset'); if(b) b.textContent=presetLabel(); }
 function applyPreset(name){ controlPreset=(name==='classic')?'classic':'keyboard';
   try{ localStorage.setItem('vanguard_preset',controlPreset); }catch(e){}
   setMoveMode(controlPreset==='classic'?'lock':'hold');   // Classic = pointer-lock mouse; Keyboard = no grab. setMoveMode also refreshes the hint.
@@ -4998,12 +5039,13 @@ function refreshControlsHint(){ const p=el('ctrlsPanel'); if(!p)return; const kl
   const rst=el('keysReset'); if(rst) rst.addEventListener('click',e=>{e.stopPropagation(); keybinds=Object.assign({},KEYS_DEFAULT); saveKeys(); buildKeyList(); refreshControlsHint();});
   const tk=el('titleKeys'); if(tk) tk.addEventListener('click',e=>{e.stopPropagation();openSettings();});
   const pk=el('pauseKeys'); if(pk) pk.addEventListener('click',e=>{e.stopPropagation();openSettings();});
-  const af=el('autofireBtn'); if(af) af.addEventListener('click',e=>{e.stopPropagation(); setAutofire(!autofire);});
+  const af=el('autofireBtn'); if(af) af.addEventListener('click',e=>{e.stopPropagation(); setAutofire(!autofire); syncSettingsUI();});
   setAutofire(autofire);
   const mm=el('moveModeBtn'); if(mm) mm.addEventListener('click',e=>{e.stopPropagation(); setMoveMode(moveMode_pref==='lock'?'hold':'lock');});
   setMoveMode(moveMode_pref);
-  const lf=el('lowfxBtn'); if(lf) lf.addEventListener('click',e=>{e.stopPropagation(); setGfx(GFX==='full'?'med':GFX==='med'?'low':'full');});
+  const lf=el('lowfxBtn'); if(lf) lf.addEventListener('click',e=>{e.stopPropagation(); setGfx(GFX==='full'?'med':GFX==='med'?'low':'full'); syncSettingsUI();});
   setGfx(GFX);
+  syncSettingsUI();   // (re)builds the AUTO-FIRE toggle's track/knob markup, which setAutofire()'s own plain-text write just overwrote above
   syncPresetUI();
   refreshControlsHint();
 })();
@@ -5095,6 +5137,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'181',date:'2026',items:['Settings menu redesigned: grouped into Audio, Visual, and Controls with cleaner toggles and sliders.']},
  {ver:'180',date:'2026',items:['The STARTING BUILD panel now lists each purchased upgrade with its icon and level under CONFIGURE BUILD.']},
  {ver:'179',date:'2026',items:['Achievements tuned and expanded: harder Marksman and Meltdown Master, sector-10 hardcore, 500 and 1000 run milestones with anti-farm vetting, and a hidden style achievement.']},
  {ver:'178',date:'2026',items:['Fixed a build exploit where reloading refunded the budget while keeping purchased upgrades.']},
