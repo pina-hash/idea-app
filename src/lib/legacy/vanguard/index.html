@@ -143,6 +143,13 @@ body.touchdev #touch{position:relative;inset:auto;z-index:auto;width:100%;flex:1
 h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;letter-spacing:.1em;color:var(--green);text-shadow:0 0 14px rgba(0,255,65,.6)}
 .go-stat{font-size:12px;color:var(--white);letter-spacing:.06em}
 .go-stat b{font-family:'Chakra Petch',sans-serif;color:var(--gold)}
+/* death-screen staged reveal: presentation only, initials/buttons never animate */
+@keyframes goGlyphIn{0%{transform:scale(2.4);opacity:0;filter:brightness(3)}55%{transform:scale(.9);opacity:1}100%{transform:scale(1);filter:brightness(1)}}
+@keyframes goStatIn{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes goFlash{0%{opacity:.5}100%{opacity:0}}
+#ovlOver.reveal #killerGlyph{animation:goGlyphIn .55s cubic-bezier(.2,1.4,.4,1) both}
+#ovlOver.reveal .go-in{animation:goStatIn .38s ease-out both}
+#goFlash{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:0}
 .initials{display:flex;gap:3px;margin:6px 0;flex-wrap:nowrap;justify-content:center;max-width:100%}
 .slot{width:22px;height:32px;flex:0 0 auto;border:1.5px solid rgba(0,255,65,.45);display:flex;align-items:center;justify-content:center;
   font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:18px;color:var(--green);text-shadow:0 0 12px rgba(0,255,65,.6);
@@ -397,13 +404,17 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 
   <!-- GAME OVER / ENTER -->
   <div class="ovl hidden" id="ovlOver">
+    <div id="goFlash"></div>
     <h2 class="ovh" id="overTitle">MISSION END</h2>
     <canvas id="killerGlyph" width="64" height="64" style="margin:2px auto;display:block;position:relative;width:64px;height:64px;pointer-events:none"></canvas>
-    <div class="tag">FELLED BY <span id="felledBy" style="color:var(--white)">-</span></div>
-    <div class="go-stat">SCORE <b id="finalScore">0</b></div>
-    <div class="go-stat">REACHED SECTOR <b id="finalSector">I</b> &nbsp; ACCURACY <b id="finalAcc">0%</b></div>
-    <div class="go-stat">TIME <b id="finalTime">0:00</b> &nbsp; ENEMIES <b id="finalKills">0</b></div>
-    <div class="go-stat">BOSSES <b id="finalBosses">0</b> &nbsp; BEST STYLE <b id="finalCombo">D</b> &nbsp; AVG STYLE <b id="finalAvg">D</b></div>
+    <div class="tag go-in">FELLED BY <span id="felledBy" style="color:var(--white)">-</span></div>
+    <div class="tag go-in" id="felledByDetail" style="display:none">-</div>
+    <div class="go-stat go-in">SCORE <b id="finalScore">0</b></div>
+    <div class="go-stat go-in">REACHED SECTOR <b id="finalSector">I</b> &nbsp; ACCURACY <b id="finalAcc">0%</b></div>
+    <div class="go-stat go-in">TIME <b id="finalTime">0:00</b> &nbsp; ENEMIES <b id="finalKills">0</b></div>
+    <div class="go-stat go-in">BOSSES <b id="finalBosses">0</b> &nbsp; BEST STYLE <b id="finalCombo">D</b> &nbsp; AVG STYLE <b id="finalAvg">D</b></div>
+    <div class="go-stat go-in">PARRIES <b id="finalParries">0</b><span id="finalPerfect"></span> &nbsp; COINS <b id="finalCoins">0</b></div>
+    <div class="go-stat go-in" id="goMelt" style="display:none">MELTDOWN <b id="finalMelt">0</b></div>
     <div class="tag" id="enterHint">ENTER INITIALS</div>
     <div class="initials" id="initials"></div>
     <button class="obtn sub" id="submitBtn">SUBMIT</button>
@@ -537,7 +548,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='170';
+const W=630,H=840; const VERSION='171';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4038,6 +4049,25 @@ function hud(dt){
 const OVS=['ovlTitle','ovlPause','ovlRefit','ovlOver','ovlBoard'];
 function showOverlay(id){ OVS.forEach(o=>el(o).classList.toggle('hidden',o!==id)); el('hud').style.opacity=(id===null||id==='ovlPause')?1:0.25; }
 function fmtTime(s){ s=Math.max(0,Math.round(s)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+/* ---- death-screen presentation helpers (count-up + staged reveal), visual only ---- */
+function countUp(id,target,opts){ const e=el(id); if(!e)return; opts=opts||{}; const fmt=opts.fmt||(v=>String(v));
+  if(e._cu){ cancelAnimationFrame(e._cu); e._cu=null; }   // cancel a prior run if the screen shows twice
+  if(REDUCED){ e.textContent=fmt(target); return; }
+  const dur=900, t0=performance.now()+(opts.delay||0);
+  const tick=now=>{ if(now<t0){ e.textContent=fmt(0); e._cu=requestAnimationFrame(tick); return; }
+    const p=Math.min(1,(now-t0)/dur), k=1-Math.pow(1-p,3);   // ease-out cubic
+    e.textContent=fmt(Math.round(target*k));
+    e._cu=(p<1)?requestAnimationFrame(tick):null; };
+  e._cu=requestAnimationFrame(tick); }
+function revealOver(){ const ov=el('ovlOver'), fl=el('goFlash'); if(!ov)return;
+  ov.classList.remove('reveal'); if(fl){ fl.style.animation='none'; }
+  if(REDUCED)return;   // values land instantly, no motion
+  void ov.offsetWidth;   // restart CSS animations cleanly on a second death
+  ov.querySelectorAll('.go-in').forEach((n,i)=>{ n.style.animationDelay=(120+i*70)+'ms'; });
+  if(fl){ const c=(killerInfo&&killerInfo.c)||COL.dim;
+    fl.style.background='radial-gradient(ellipse at center, rgba(0,0,0,0) 42%, '+c+'55 100%)';   // edge tint, center clear
+    void fl.offsetWidth; fl.style.animation='goFlash .55s ease-out both'; }
+  ov.classList.add('reveal'); }
 function startGameOver(){
   let k=(lastHitBy && lastHitBy.draw && !lastHitBy.dead && enemies.indexOf(lastHitBy)>=0)?lastHitBy:null;
   if(!k){ let bd=1e9; for(const e of enemies){ if(e.dead)continue; const d=dist2(e.x,e.y,player.x,player.y); if(d<bd){bd=d;k=e;} } }
@@ -4063,15 +4093,25 @@ function endRun(){
     el('overTitle').textContent=(gameMode==='hardcore')?'HARDCORE END':'MISSION END'; }
   try{
     const acc=shotsFired>0?clamp(Math.round(100*shotsHit/shotsFired),0,100):0;
-    el('finalScore').textContent=window.scoreT.toLocaleString();
+    countUp('finalScore',window.scoreT,{fmt:v=>v.toLocaleString(),delay:0});
     el('finalSector').textContent=roman(sector);
     el('finalAcc').textContent=acc+'%';
     el('finalTime').textContent=fmtTime(runTime);
-    el('finalKills').textContent=runKills;
-    el('finalBosses').textContent=runBosses;
+    countUp('finalKills',runKills,{delay:80});
+    countUp('finalBosses',runBosses,{delay:160});
+    countUp('finalCoins',runCoinsEarned,{fmt:v=>v.toLocaleString(),delay:240});
+    countUp('finalParries',runParries,{delay:320});
+    { const pf=el('finalPerfect'); if(pf) pf.textContent=(runPerfect>0)?(' ('+runPerfect+' PERFECT)'):'';
+      const gm=el('goMelt'); if(gm){ gm.style.display=(runMeltdownUses>0)?'':'none'; const fm=el('finalMelt'); if(fm)fm.textContent=runMeltdownUses; } }
     { let br=STYLE_RANKS[0]; for(const k of STYLE_RANKS){ if((window.maxStyle||0)>=k.min)br=k; } el('finalCombo').textContent=br.g;
       const _avg=(window.styleTime>0)?(window.styleSum/window.styleTime):0; let ar=STYLE_RANKS[0]; for(const k of STYLE_RANKS){ if(_avg>=k.min)ar=k; } const _fa=el('finalAvg'); if(_fa){ _fa.textContent=ar.g; _fa.style.color=ar.c; } }
     const fb=el('felledBy'); const kg=document.getElementById('killerGlyph');
+    { const fd=el('felledByDetail');
+      if(fd){ if(killerInfo&&killerInfo.fk){ const F=FACTIONS[killerInfo.fk];
+          const tier=/BOSS/.test(killerInfo.label||'')?'BOSS':(killerInfo.variant===2?'HEAVY':killerInfo.variant===1?'ELITE':'GRUNT');
+          fd.textContent=(F?F.name:String(killerInfo.fk).toUpperCase())+' // '+tier; fd.style.color=killerInfo.c; fd.style.display='block'; }
+        else if(killerInfo){ fd.textContent='ENVIRONMENTAL'; fd.style.color=killerInfo.c; fd.style.display='block'; }
+        else fd.style.display='none'; } }
     if(killerInfo){ fb.textContent=killerInfo.label; fb.style.color=killerInfo.c;
       if(killerInfo.draw&&kg){ const kctx=kg.getContext('2d'); kctx.clearRect(0,0,64,64);
         kctx.save(); kctx.translate(32,32); kctx.strokeStyle=killerInfo.c; kctx.lineWidth=2;
@@ -4080,6 +4120,7 @@ function endRun(){
         kctx.restore(); kg.style.display='block'; }
       else if(kg){ kg.style.display='none'; }
     } else { if(fb)fb.textContent='-'; if(kg)kg.style.display='none'; }
+    revealOver();   // staged reveal: presentation only, initials/submit stay immediately usable
     pendingScore={score:window.scoreT,sector:sector,acc:acc};
     if(gameMode!=='dev'&&gameMode!=='tune'&&gameMode!=='calib'){
       window.__ideaRecordRun?.({ mode:gameMode, version:VERSION, score:window.scoreT, sector:sector, accuracy:acc, time_s:Math.round(runTime), kills:runKills, bosses:runBosses, coins_earned:runCoinsEarned, primary_weapon:player.wtype, heavy_weapon:player.heavy, death_cause:_dc });
@@ -4694,6 +4735,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'171',date:'2026',items:['Death screen reworked: killer faction and tier breakdown, more run stats, count-up numbers, and a more dramatic reveal.']},
  {ver:'170',date:'2026',items:['SINGULARITY reworked into an interstellar-style black hole with an accretion disk, photon ring, and lensing arc.']},
  {ver:'169',date:'2026',items:['Grace overhaul: a hit now grants only a brief invulnerability by default in both modes. Buy PHASE BUFFER in DEFENSE to extend your recovery window. Boss and parry timing unchanged.']},
  {ver:'168',date:'2026',items:['Score milestones now trigger an escalating on-screen celebration.']},
