@@ -127,8 +127,12 @@ body.touchdev #touch{position:relative;inset:auto;z-index:auto;width:100%;flex:1
 @keyframes blink{50%{opacity:.25}}
 .panel{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--white);line-height:1.7;max-width:300px}
 .panel .k{color:var(--dim)}
-.board{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--white);min-width:230px}
-.board .row{display:flex;justify-content:space-between;padding:2px 0;letter-spacing:.06em}
+.board{font-family:'Share Tech Mono',monospace;font-size:12px;color:var(--white);min-width:230px;width:100%;max-width:340px;max-height:min(46vh,380px);overflow-y:auto;padding-right:3px}
+.board::-webkit-scrollbar{width:5px}.board::-webkit-scrollbar-thumb{background:rgba(0,255,65,.3);border-radius:3px}
+.board .row{display:flex;justify-content:space-between;align-items:center;padding:2px 3px;letter-spacing:.06em;cursor:pointer;pointer-events:auto;border-radius:3px}
+.board .row:hover{background:rgba(0,255,65,.06)}
+.board .row.sep{cursor:default;pointer-events:none}
+.board .row.sep:hover{background:none}
 .board .row.me{color:var(--gold);text-shadow:0 0 8px rgba(200,255,0,.6)}
 .board .rk{color:var(--dim);width:30px;text-align:left}
 .board .nm{flex:1;text-align:left;padding-left:8px}
@@ -454,7 +458,6 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
       <div class="cab-panel">
         <div class="cab-ptitle">LEADERBOARD</div>
         <div class="btabs" id="titleBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button></div>
-        <div class="btabs" id="titleContTabs"><button class="btab sel" data-bc="0">SINGLE-SESSION</button><button class="btab" data-bc="1">CONTINUED</button></div>
         <div class="board" id="titleBoard"></div>
       </div>
       <div class="cab-panel">
@@ -569,7 +572,6 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
   <div class="ovl hidden" id="ovlBoard">
     <h2 class="ovh">LEADERBOARD</h2>
     <div class="btabs" id="bigBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button></div>
-    <div class="btabs" id="bigContTabs"><button class="btab sel" data-bc="0">SINGLE-SESSION</button><button class="btab" data-bc="1">CONTINUED</button></div>
     <div class="board" id="bigBoard"></div>
     <button class="obtn" id="againBtn">PLAY AGAIN</button>
     <button class="mini" id="menuBtn">MAIN MENU</button>
@@ -648,7 +650,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='175';
+const W=630,H=840; const VERSION='176';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4448,15 +4450,27 @@ function sendTelemetry(dc){
 const API_URL='https://script.google.com/macros/s/AKfycbxFMp3q3BcQ4Lpwl_c4hqwzrDw0zi4AYhjxY0ieoZXWYYG1vb8nO6lZ0hoS18Co5o9_kA/exec';
 let onlineBoard=null, boardRetries=0;
 let boardMode='normal';
-let boardCont='0';   // '0' single-session (ranked), '1' continued/resumed runs (shown separately, out of the ranking)
+const BOARD_N=250;   // merged batch size per mode (single-session + continued folded together)
 function jsonp(url,cb,fail){ const id='vcb_'+Math.random().toString(36).slice(2); let done=false;
   const s=document.createElement('script');
   function cleanup(){ try{delete window[id];}catch(e){window[id]=undefined;} if(s.parentNode)s.parentNode.removeChild(s); }
   window[id]=d=>{ done=true; try{cb(d);}catch(e){} cleanup(); };
   s.src=url.replace('callback=?','callback='+id); s.onerror=()=>{ cleanup(); fail&&fail(); }; document.head.appendChild(s);
   setTimeout(()=>{ if(!done){ cleanup(); fail&&fail(); } },6000); }
+/* Merged board: fetch single-session (cont=0) and continued (cont=1) for this mode
+   in parallel, merge, sort by score desc, cap at BOARD_N. Continued runs stay tagged
+   by contBadge. If one call fails we use whatever returned; only a total failure
+   triggers the caller's retry/fallback path. No backend/contract change. */
 function fetchOnline(then,fail){ if(!API_URL){ then&&then(); return; }
-  jsonp(API_URL+'?action=top&n=100&mode='+boardMode+'&cont='+boardCont+'&callback=?&cb='+Date.now(), rows=>{ if(Array.isArray(rows))onlineBoard=rows; then&&then(); }, fail); }
+  const mode=boardMode; let pending=2, got0=null, got1=null, anyOk=false;
+  function settle(){ if(--pending>0)return;
+    if(anyOk){ const merged=(got0||[]).concat(got1||[]);
+      merged.sort((a,c)=>(Number(c.score)||0)-(Number(a.score)||0));
+      onlineBoard=merged.slice(0,BOARD_N); then&&then(); }
+    else { fail&&fail(); } }
+  const q=c=>API_URL+'?action=top&n='+BOARD_N+'&mode='+mode+'&cont='+c+'&callback=?&cb='+Date.now();
+  jsonp(q(0), rows=>{ if(Array.isArray(rows)){ got0=rows; anyOk=true; } settle(); }, ()=>settle());
+  jsonp(q(1), rows=>{ if(Array.isArray(rows)){ got1=rows; anyOk=true; } settle(); }, ()=>settle()); }
 function refreshBoard(target){
   fetchOnline(
     ()=>{ if(onlineBoard){ boardRetries=0; renderBoard(target); }
@@ -4475,24 +4489,38 @@ function submitToServer(score,sec,acc){ if(!API_URL)return; try{ const img=new I
 function escHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 /* CONTINUED badge for a resumed run. A missing cont field degrades to single-session (no badge) so nothing disappears if the backend is not yet updated. */
 function contBadge(r){ return (r && Number(r.cont)===1) ? '<span class="bcont">CONTINUED</span>' : ''; }
+let _boardShown={};   // target -> [{run,rank}] backing each rendered row for click-to-detail
+function _boardRowHTML(r,rank,me,idx){
+  const st=(r.sector!=null)?('<span class="bst">S'+r.sector+(r.acc!=null?' · '+r.acc+'%':'')+(r.ver?' · v'+r.ver:'')+'</span>'):'';
+  return '<div class="row'+(me?' me':'')+'" data-i="'+idx+'"><span class="rk">'+rank+'</span><span class="nm">'+escHTML(r.name)+'</span><span class="scwrap"><span class="sc">'+(Number(r.score)||0).toLocaleString()+'</span>'+contBadge(r)+st+'</span></div>';
+}
+/* inline run detail from the fields the row already carries (styled like run-history .hs-det) */
+function _boardDetail(r,rank){ const p=[]; const add=(l,v)=>p.push('<span>'+l+' <b>'+v+'</b></span>');
+  add('RANK','#'+rank); add('NAME',escHTML(r.name)); add('SCORE',(Number(r.score)||0).toLocaleString());
+  add('MODE',escHTML(String(r.mode||boardMode).toUpperCase()));
+  if(r.sector!=null) add('SECTOR',escHTML(r.sector));
+  if(r.acc!=null) add('ACCURACY',escHTML(r.acc)+'%');
+  const tv=(r.t!=null?r.t:(r.time_s!=null?r.time_s:r.time)); if(tv!=null&&isFinite(+tv)) add('TIME',_hTime(+tv));
+  if(r.ver!=null) add('VERSION','v'+escHTML(r.ver));
+  add('CONTINUED', Number(r.cont)===1?'YES':'NO');
+  return p.join(''); }
 function renderBoard(target,highlightName,highlightScore){
   const box=el(target); if(!box)return;
-  if(API_URL && !onlineBoard){ box.innerHTML='<div class="row"><span class="nm" style="color:var(--dim)">LOADING LEADERBOARD...</span></div>'; return; }
+  if(API_URL && !onlineBoard){ box.innerHTML='<div class="row sep"><span class="nm" style="color:var(--dim)">LOADING LEADERBOARD...</span></div>'; return; }
   const b=boardRows();
-  if(!b||!b.length){ box.innerHTML='<div class="row"><span class="nm" style="color:var(--dim)">NO SCORES YET - BE THE FIRST</span></div>'; return; }
+  if(!b||!b.length){ box.innerHTML='<div class="row sep"><span class="nm" style="color:var(--dim)">NO SCORES YET - BE THE FIRST</span></div>'; return; }
   const hl=(highlightName!=null&&highlightScore!=null);
-  const top=b.slice(0,10);
-  let html=top.map((r,i)=>{ const me=(hl&&r.name===highlightName&&r.score===highlightScore);
-    const st=(r.sector!=null)?('<span class="bst">S'+r.sector+(r.acc!=null?' · '+r.acc+'%':'')+(r.ver?' · v'+r.ver:'')+'</span>'):'';
-    return '<div class="row'+(me?' me':'')+'"><span class="rk">'+(i+1)+'</span><span class="nm">'+escHTML(r.name)+'</span><span class="scwrap"><span class="sc">'+(r.score).toLocaleString()+'</span>'+contBadge(r)+st+'</span></div>'; }).join('');
-  if(hl && !top.some(r=>r.name===highlightName&&r.score===highlightScore)){
+  const rows=b.slice(0,BOARD_N), shown=[]; let html='';
+  rows.forEach((r,i)=>{ const me=(hl&&r.name===highlightName&&r.score===highlightScore);
+    html+=_boardRowHTML(r,i+1,me,shown.length); shown.push({run:r,rank:i+1}); });
+  if(hl && !rows.some(r=>r.name===highlightName&&r.score===highlightScore)){
     let rank=1; for(const r of b){ if(r.score>highlightScore) rank++; }
-    html+='<div class="row" style="color:var(--dim);justify-content:center;letter-spacing:.3em;padding:1px 0">···</div>';
+    html+='<div class="row sep" style="color:var(--dim);justify-content:center;letter-spacing:.3em;padding:1px 0">···</div>';
     const mr=b.find(r=>r.name===highlightName&&r.score===highlightScore)||{};
-    const mst=(mr.sector!=null)?('<span class="bst">S'+mr.sector+(mr.acc!=null?' · '+mr.acc+'%':'')+(mr.ver?' · v'+mr.ver:'')+'</span>'):'';
-    html+='<div class="row me"><span class="rk">'+rank+'</span><span class="nm">'+escHTML(highlightName)+'</span><span class="scwrap"><span class="sc">'+(highlightScore).toLocaleString()+'</span>'+contBadge(mr)+mst+'</span></div>';
+    const meRun=Object.assign({name:highlightName,score:highlightScore},mr);
+    html+=_boardRowHTML(meRun,rank,true,shown.length); shown.push({run:meRun,rank:rank});
   }
-  box.innerHTML=html;
+  _boardShown[target]=shown; box.innerHTML=html;
 }
 
 /* initials entry */
@@ -4691,11 +4719,10 @@ el('submitBtn').addEventListener('click',submitScore);
 el('againBtn').addEventListener('click',()=>{ startGame(); });
 function mergeScore(name,score){ const b=(onlineBoard?onlineBoard.slice():[]);
   if(!b.some(r=>r.name===name&&r.score===score)) b.push({name,score});
-  b.sort((a,c)=>c.score-a.score); onlineBoard=b.slice(0,100); }
+  b.sort((a,c)=>c.score-a.score); onlineBoard=b.slice(0,BOARD_N); }
 function submitScore(){ if(gameMode==='dev'||gameMode==='tune'){ toTitle(); return; } const sc=pendingScore?pendingScore.score:window.scoreT; const nm=trimName(curInitials); curInitials=nm;
-  boardMode=(gameMode==='hardcore')?'hardcore':'normal'; boardCont='0'; onlineBoard=null; boardRetries=0;   // post-run board defaults to the ranked single-session view
+  boardMode=(gameMode==='hardcore')?'hardcore':'normal'; onlineBoard=null; boardRetries=0;   // post-run board reflects the run's mode (continued folded in)
   document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===boardMode));
-  document.querySelectorAll('.btab[data-bc]').forEach(b=>b.classList.toggle('sel',b.dataset.bc===boardCont));
   saveLocal(nm, sc); try{localStorage.setItem('vanguard_lastInitials',nm);}catch(e){}
   submitToServer(sc, pendingScore?pendingScore.sector:sector, pendingScore?pendingScore.acc:0);
   mergeScore(nm,sc);
@@ -4958,6 +4985,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'176',date:'2026',items:['Leaderboard reworked: one board per mode with continued runs folded in and badged, top 250 browsable, and click any score for its run detail.']},
  {ver:'175',date:'2026',items:['Run history rebuilt into one visual page: stat cards, score and sector graphs, weapon and death breakdowns, count-up numbers, and every run browsable.']},
  {ver:'174',date:'2026',items:['Home screen redesigned as an arcade cabinet: a neon marquee, a clear LAUNCH deck, framed leaderboard and build panels, and a tidy controls legend.']},
  {ver:'173',date:'2026',items:['SINGULARITY reworked for presence: tighter and more alive, space bends into it, and enemies stretch and get devoured at the horizon.']},
@@ -5168,22 +5196,24 @@ function closeHist(){ el('ovlHist').classList.add('hidden'); }
 { const bo=el('histBtnOver'); if(bo) bo.addEventListener('click',e=>{ e.stopPropagation(); openHist(); }); }
 try{ if(!localStorage.getItem('vanguard_tutdone')){ const _ca=document.getElementById('ovlCalibAsk'); if(_ca) _ca.classList.remove('hidden'); } }catch(e){}
 
-/* board mode tabs (NORMAL / HARDCORE) and run-type tabs (SINGLE-SESSION / CONTINUED).
-   The two toggles are orthogonal, so each only touches its own tab group ([data-bm]
-   vs [data-bc]) to avoid clobbering the other's selected state. */
+/* board mode tabs (NORMAL / HARDCORE). These also drive the title play-mode sync
+   (see mode-select), so they stay exactly as-is. Continued runs are folded into the
+   one board per mode by fetchOnline, so there is no separate run-type tab group. */
 function setBoardMode(m,target){ boardMode=m; onlineBoard=null; boardRetries=0;
   document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===m));
   renderBoard(target); refreshBoard(target); }
-function setBoardCont(c,target){ boardCont=c; onlineBoard=null; boardRetries=0;
-  document.querySelectorAll('.btab[data-bc]').forEach(b=>b.classList.toggle('sel',b.dataset.bc===c));
-  renderBoard(target); refreshBoard(target); }
+/* click any row to toggle an inline run detail; one delegated listener per board */
+function bindBoardDetail(target){ const box=document.getElementById(target); if(!box||box._detailBound)return; box._detailBound=true;
+  box.addEventListener('click',ev=>{ const row=ev.target.closest('.row'); if(!row||row.classList.contains('sep')||row.dataset.i==null)return;
+    const nxt=row.nextElementSibling;
+    if(nxt&&nxt.classList.contains('hs-det')){ nxt.remove(); Audio_.hit&&Audio_.hit(); return; }   // collapse
+    const ent=(_boardShown[target]||[])[+row.dataset.i]; if(!ent)return;
+    const d=document.createElement('div'); d.className='hs-det'; d.innerHTML=_boardDetail(ent.run,ent.rank); row.after(d); Audio_.hit&&Audio_.hit(); }); }
 (function(){
   function bind(row,target){ if(!row)return; row.querySelectorAll('.btab').forEach(b=>b.addEventListener('click',ev=>{ ev.stopPropagation(); setBoardMode(b.dataset.bm,target); Audio_.hit(); })); }
-  function bindCont(row,target){ if(!row)return; row.querySelectorAll('.btab').forEach(b=>b.addEventListener('click',ev=>{ ev.stopPropagation(); setBoardCont(b.dataset.bc,target); Audio_.hit(); })); }
   bind(document.getElementById('bigBoardTabs'),'bigBoard');
   bind(document.getElementById('titleBoardTabs'),'titleBoard');
-  bindCont(document.getElementById('bigContTabs'),'bigBoard');
-  bindCont(document.getElementById('titleContTabs'),'titleBoard');
+  bindBoardDetail('bigBoard'); bindBoardDetail('titleBoard');
 })();
 
 /* ============================= loop ============================= */
