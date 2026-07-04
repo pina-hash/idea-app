@@ -537,7 +537,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='163';
+const W=630,H=840; const VERSION='164';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4389,10 +4389,14 @@ try{ if(localStorage.getItem('vanguard_mute')==='1'){Audio_.muted=true;const pmb
   /* ?tune=1 forces TUNE (hidden dev balancing mode); it is not a title button */
   try{ if(/[?&]tune=1\b/.test(location.search)) m='tune'; }catch(e){}
   gameMode=m;
+  if(gameMode==='normal'||gameMode==='hardcore'){ boardMode=gameMode;   // arm the title board to match the restored mode before the initial renderBoard('titleBoard') runs (below, no extra fetch here)
+    document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===boardMode)); }
   const wrap=document.getElementById('modeSel'); if(!wrap)return;
   const btns=[...wrap.querySelectorAll('.modebtn')];
   function apply(){ btns.forEach(b=>b.classList.toggle('sel',b.dataset.m===gameMode)); }
-  btns.forEach(b=>b.addEventListener('click',ev=>{ ev.stopPropagation(); gameMode=b.dataset.m; try{localStorage.setItem('vanguard_mode',gameMode);}catch(e){} apply(); Audio_.hit(); }));
+  btns.forEach(b=>b.addEventListener('click',ev=>{ ev.stopPropagation(); gameMode=b.dataset.m; try{localStorage.setItem('vanguard_mode',gameMode);}catch(e){} apply();
+    if(gameMode==='normal'||gameMode==='hardcore') setBoardMode(gameMode,'titleBoard');   // play-mode drives the title board; board tabs stay one-directional (do not touch gameMode)
+    Audio_.hit(); }));
   apply();
   /* TUNE is entered only via ?tune=1; the title shows a small indicator when active */
   if(gameMode==='tune'){ try{ const ti=document.createElement('div'); ti.id='tuneTag'; ti.textContent='TUNE MODE'; ti.style.cssText='position:fixed;top:8px;left:8px;z-index:40;font:700 10px "Chakra Petch",sans-serif;letter-spacing:.12em;color:var(--gold);background:rgba(200,255,0,.1);border:1px solid var(--gold);border-radius:4px;padding:3px 8px;pointer-events:none'; document.body.appendChild(ti); }catch(e){} }
@@ -4612,6 +4616,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'164',date:'2026',items:['Picking your mode on the title screen now shows that mode\'s leaderboard automatically.']},
  {ver:'163',date:'2026',items:['Weapon and heavy HUD now previews the next and previous in your rotation, and you can scroll to switch primaries.']},
  {ver:'162',date:'2026',items:['New endgame ability MELTDOWN: overload your active weapon to fire at a blistering rate. Unlock it deep in a run, recharge it by racking up kills.']},
  {ver:'161',date:'2026',items:['BUZZSAW is pure melee again: flank guns no longer fire while it is equipped.']},
