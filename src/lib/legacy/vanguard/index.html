@@ -537,7 +537,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='168';
+const W=630,H=840; const VERSION='169';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -736,7 +736,7 @@ let hybridTimer=0;
 let gameMode='normal';
 let runContinued=false;   // true once the current run was resumed from a saved checkpoint (0037); rides every later checkpoint + the score submit
 const START_BUDGET=1000;
-function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
+function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0,grace:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
 /* True i¢ cost of a build, derived from the SAME per-item costs CONFIGURE BUILD
    and REFIT use (outfitOffers), so cost has a single source of truth and cannot
@@ -1639,7 +1639,7 @@ function spawnBoss(forceFk){
 /* ============================= player ============================= */
 function resetPlayer(full){
   if(!player||full){ player={x:W/2,y:H-130, vx:0,vy:0,
-    up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1},
+    up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,grace:0},
     wtype:'spread', unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0},
     fireCd:0, beamOn:false, beamLock:false, beamActive:false, beamE:1, beamMax:1, beamDps:46, beamWind:0, beamCoolT:0, heat:0, overheatT:0,
     heavy:'beam', heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, heavyCharge:0, waveT:0, teslaArc:null,
@@ -1815,12 +1815,12 @@ function playerHit(){
   runHits++;
   player.noHitT=0; if(player.glintOn){ player.glintOn=false; applyUpgrades(); }
   player.greed=0;
-  if(player.shieldHits>0){ player.shieldHits--; player.dmgFlash=.18; player.inv=(gameMode==='hardcore'?0.25:0.4);
+  if(player.shieldHits>0){ player.shieldHits--; player.dmgFlash=.18; player.inv=graceWindow();
     if(player.shieldHits<=0){ (Audio_.play&&Audio_.play('shield_break'))||Audio_.hit();
       if((player.ks&&player.ks.shield)==='deflector'){ rings.push({x:player.x,y:player.y,r:10,vr:900,life:.4,max:.4,c:COL.cyan}); for(let qi=ebul.length-1;qi>=0;qi--){ if(dist2(ebul[qi].x,ebul[qi].y,player.x,player.y)<150*150) ebul.splice(qi,1); } shake=Math.max(shake,7); pops.push({x:player.x,y:player.y-30,txt:'DEFLECT',c:COL.cyan,life:.7,max:.7}); } }
     else { (Audio_.play&&Audio_.play('shield_hit'))||Audio_.hit(); } return; }
   if((player.ks&&player.ks.hull)==='phalanx' && !player.guardUsed){ player.guardUsed=true; player.dmgFlash=.18; player.inv=(gameMode==='hardcore'?0.4:0.6); rings.push({x:player.x,y:player.y,r:12,vr:300,life:.4,max:.4,c:COL.gold}); pops.push({x:player.x,y:player.y-30,txt:'PHALANX',c:COL.gold,life:.8,max:.8}); (Audio_.play&&Audio_.play('shield_hit'))||Audio_.hit(); return; }
-  player.armor--; player.inv=(gameMode==='hardcore'?0.40:0.6); player.dmgFlash=.2; styleHit(); (Audio_.play&&Audio_.play('player_hit'))||Audio_.hit();
+  player.armor--; player.inv=graceWindow(); player.dmgFlash=.2; styleHit(); (Audio_.play&&Audio_.play('player_hit'))||Audio_.hit();
   if((player.ks&&player.ks.hull)==='purge' && (player.purgeCd||0)<=0){ player.purgeCd=2; player.inv=Math.max(player.inv,0.5); rings.push({x:player.x,y:player.y,r:10,vr:800,life:.4,max:.4,c:COL.amber}); for(let qi=ebul.length-1;qi>=0;qi--){ if(dist2(ebul[qi].x,ebul[qi].y,player.x,player.y)<140*140) ebul.splice(qi,1); } shake=Math.max(shake,8); }
   for(let k=0;k<10;k++) parts.push({x:player.x,y:player.y,vx:rnd(-80,80),vy:rnd(-80,80),life:.25,max:.25,c:COL.green,sz:1.8});
   shake=Math.max(shake,6);
@@ -1899,6 +1899,10 @@ const MELTDOWN_STYLE_BONUS=1;       // extra charge granted by a kill made at hi
 const MELTDOWN_COOLDOWN=2.0;        // seconds lockout after the window ends before it can fire again
 const MELTDOWN_COST=1800;           // REFIT unlock price
 const MELTDOWN_MELEE_MULT=1.6;      // buzzsaw blade-speed and blade-DPS multiplier while active (melee has no fireCd projectile to speed up)
+const GRACE_FLOOR=0.18;             // always-on post-hit invulnerability, both modes; the anti-cluster minimum
+const GRACE_PER_LEVEL=0.10;         // each PHASE BUFFER level adds this much recovery
+const GRACE_MAX=4;                  // max PHASE BUFFER level; max window = 0.18 + 4*0.10 = 0.58s (~ old normal grace)
+function graceWindow(){ return GRACE_FLOOR + ((player.up.grace||0)*GRACE_PER_LEVEL); }
 function meltdownStyleGate(){ const r=STYLE_RANKS.find(k=>k.g==='SS')||STYLE_RANKS[STYLE_RANKS.length-1]; return r.min; }   // SS threshold (fallback: highest rank)
 function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), pdX=(1+u.gun*BAL.gunCoef); const hu=b.heavyUnlocked||{}; const dev=(gameMode==='dev'); return [
   ...(dev?[
@@ -1932,6 +1936,7 @@ function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.
   ...(hu.wave?[{grp:'HEAVY',name:'WAVE AMP',icon:'wave',desc:'Wave Motion beam hits harder and covers more screen width.',delta:'+power/width',lv:u.wavePow||1,mx:4,cost:400+((u.wavePow||1)-1)*260,can:(u.wavePow||1)<4,buy:()=>{u.wavePow=(u.wavePow||1)+1;}}]:[]),
   ...(hu.beam?[{grp:'HEAVY',name:'PRISM AMP',icon:'beampow',desc:'Increases the beam weapon\'s damage per second.',delta:'+11 dps',lv:u.beamPow,mx:8,cost:320+(u.beamPow-1)*220,can:u.beamPow<8,buy:()=>u.beamPow++},{grp:'HEAVY',name:'PRISM PIERCE',icon:'beampow',desc:'Beam passes through more enemies. Levels: 1 > 2 > 3 > 5 > all.',delta:'more pierce',lv:u.beamPierce,mx:5,cost:400+(u.beamPierce-1)*280,can:u.beamPierce<5,buy:()=>u.beamPierce++}]:[]),
   {grp:'DEFENSE',name:'HULL ARMOR',icon:'hull',desc:'Raises max hull per life. Each upgrade costs more.',delta:'+1 max hull',lv:u.armor,mx:4,cost:400+u.armor*250,can:u.armor<4,buy:()=>u.armor++},
+  {grp:'DEFENSE',name:'PHASE BUFFER',icon:'shield',desc:'Extends the brief invulnerability window after you take a hit.',delta:'+recovery',lv:u.grace||0,mx:GRACE_MAX,cost:280+(u.grace||0)*180,can:(u.grace||0)<GRACE_MAX,buy:()=>u.grace=(u.grace||0)+1},
   {grp:'DEFENSE',name:'DEFENSE PROBE',icon:'shield',desc:'A satellite that shoots down nearby grunt fire, but only while your ship is moving. Level 2 fires faster.',delta:'point defense',lv:u.probe||0,mx:2,cost:500+(u.probe||0)*350,can:(u.probe||0)<2,buy:()=>{u.probe=(u.probe||0)+1;}},
   {grp:'DEFENSE',name:'SHIELD +1',icon:'shield',desc:'Adds one shield. Each shield absorbs one hit before disappearing.',delta:'+1 shield',lv:b.shieldHits,mx:3,cost:350,can:b.shieldHits<3,buy:()=>b.shieldHits++},
   {grp:'DEFENSE',name:'CHARGE COILS',icon:'shield',desc:'Spent shields recharge as you rack up kills, up to your shield count.',delta:'kill-fed regen',lv:u.shieldChg||0,mx:3,cost:350+(u.shieldChg||0)*220,can:(u.shieldChg||0)<3,buy:()=>{u.shieldChg=(u.shieldChg||0)+1;}},
@@ -1944,7 +1949,7 @@ function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.
   {grp:'SYSTEMS',name:'DRONE',icon:'drone',desc:'Auto-targeting wingman. Damage scales with GUN POWER; twins at high power.',lv:b.drone?1:0,mx:0,meta:b.drone?'OWNED':'i¢600',cost:600,can:!b.drone,buy:()=>{b.drone={ph:0};}},
   ...(b.drone?[{grp:'SYSTEMS',name:'DRONE ARMS',icon:'drone',desc:'Increases DRONE damage. Requires a DRONE.',delta:'+35% dmg',lv:u.droneLv||0,mx:3,cost:400+(u.droneLv||0)*240,can:(u.droneLv||0)<3,buy:()=>{u.droneLv=(u.droneLv||0)+1;}}]:[])
 ];}
-function buildCount(){ const u=startBuild.up,b=startBuild; const hu=b.heavyUnlocked||{}; return (u.gun-1)+(u.beamPow-1)+(u.beamCap-1)+(u.beamPierce-1)+(u.beamSpool-1)+(u.speed-1)+u.flank+u.armor+b.shieldHits+(b.bombs-2)+(b.drone?1:0)+b.unlocked.lance+b.unlocked.homing+b.unlocked.rapid+((u.heavyPow||1)-1)+((u.heavyChg||1)-1)+((u.teslaJump||1)-1)+((u.singAmp||1)-1)+((u.wavePow||1)-1)+((u.railPow||1)-1)+((u.railCap||1)-1)+((u.teslaDps||1)-1)+((u.singCrush||1)-1)+(u.mSpread||0)+(u.mRapid||0)+(u.mLance||0)+(u.mHoming||0)+(u.bSpread||0)+(u.bRapid||0)+(u.bLance||0)+(u.bHoming||0)+(u.mFlak||0)+(u.bFlak||0)+(u.mBuzz||0)+(u.bBuzz||0)+((u.bombPow||1)-1)+(u.bArmor||0)+(u.shieldChg||0)+(u.droneLv||0)+(u.mParry||0)+(u.bParry||0)+(hu.rail?1:0)+(hu.tesla?1:0)+(hu.singularity?1:0)+(hu.wave?1:0); }
+function buildCount(){ const u=startBuild.up,b=startBuild; const hu=b.heavyUnlocked||{}; return (u.gun-1)+(u.beamPow-1)+(u.beamCap-1)+(u.beamPierce-1)+(u.beamSpool-1)+(u.speed-1)+u.flank+u.armor+b.shieldHits+(b.bombs-2)+(b.drone?1:0)+b.unlocked.lance+b.unlocked.homing+b.unlocked.rapid+((u.heavyPow||1)-1)+((u.heavyChg||1)-1)+((u.teslaJump||1)-1)+((u.singAmp||1)-1)+((u.wavePow||1)-1)+((u.railPow||1)-1)+((u.railCap||1)-1)+((u.teslaDps||1)-1)+((u.singCrush||1)-1)+(u.mSpread||0)+(u.mRapid||0)+(u.mLance||0)+(u.mHoming||0)+(u.bSpread||0)+(u.bRapid||0)+(u.bLance||0)+(u.bHoming||0)+(u.mFlak||0)+(u.bFlak||0)+(u.mBuzz||0)+(u.bBuzz||0)+((u.bombPow||1)-1)+(u.bArmor||0)+(u.grace||0)+(u.shieldChg||0)+(u.droneLv||0)+(u.mParry||0)+(u.bParry||0)+(hu.rail?1:0)+(hu.tesla?1:0)+(hu.singularity?1:0)+(hu.wave?1:0); }
 const WCOL={spread:COL.green,lance:COL.cyan,homing:COL.gold,rapid:COL.mat,flak:FLAK_COL,buzzsaw:COL.green};
 const WDISP={spread:'SPREAD',lance:'RAILSPIKE',homing:'SWARM',rapid:'NAILGUN',flak:'FLAK',buzzsaw:'BUZZSAW'};
 const WROT_ICON={spread:'w_spread',lance:'w_lance',homing:'w_homing',rapid:'w_rapid',flak:'w_flak',buzzsaw:'w_buzz'};   // rotation-strip icon+short label maps (compact HUD only, WDISP unchanged elsewhere)
@@ -3258,6 +3263,7 @@ function refitItems(){ const u=player.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), p
     {grp:'DEFENSE',name:'CHARGE COILS',icon:'shield',desc:'Spent shields recharge as you rack up kills, up to your shield count.',delta:'kill-fed regen',lv:u.shieldChg||0,mx:3,cost:350+(u.shieldChg||0)*220,can:(u.shieldChg||0)<3,buy:()=>{u.shieldChg=(u.shieldChg||0)+1;}},
     ...(sector>=3&&((player.shieldHits||0)+(u.shieldChg||0))>=2?[dksCard('DEFENSE','shield','DEFLECTOR','shield','KEYSTONE: a breaking shield emits a shockwave that clears nearby fire. Locks out CAPACITOR BANK.','deflector'),dksCard('DEFENSE','shield','CAPACITOR BANK','shield','KEYSTONE: +1 max shield, and CHARGE COILS fills toward it. Locks out DEFLECTOR.','capacitor')]:[]),
     {grp:'DEFENSE',name:'HULL ARMOR',icon:'hull',desc:'Raises max hull per life. Each upgrade costs more.',delta:'+1 max hull',lv:u.armor||0,mx:4,cost:400+(u.armor||0)*250,can:(u.armor||0)<4,buy:()=>{ u.armor=(u.armor||0)+1; player.armor++; }},
+    {grp:'DEFENSE',name:'PHASE BUFFER',icon:'shield',desc:'Extends the brief invulnerability window after you take a hit.',delta:'+recovery',lv:u.grace||0,mx:GRACE_MAX,cost:280+(u.grace||0)*180,can:(u.grace||0)<GRACE_MAX,buy:()=>u.grace=(u.grace||0)+1},
     {grp:'DEFENSE',name:'DEFENSE PROBE',icon:'shield',desc:'A satellite that shoots down nearby grunt fire, but only while your ship is moving. Level 2 fires faster.',delta:'point defense',lv:u.probe||0,mx:2,cost:500+(u.probe||0)*350,can:(u.probe||0)<2,buy:()=>{u.probe=(u.probe||0)+1;}},
     {grp:'DEFENSE',name:'REPAIR FIELD',icon:'repair',desc:'Point-blank kills mend the hull faster.',delta:'+33% mend',lv:u.bArmor||0,mx:3,cost:380+(u.bArmor||0)*230,can:(u.bArmor||0)<3,buy:()=>{u.bArmor=(u.bArmor||0)+1;}},
     ...(sector>=3&&((u.armor||0)+(u.bArmor||0))>=2?[dksCard('DEFENSE','hull','PHALANX','hull','KEYSTONE: +1 max hull and the first hit each life is absorbed free. Locks out PURGE PLATING.','phalanx'),dksCard('DEFENSE','hull','PURGE PLATING','hull','KEYSTONE: taking a hit emits a bullet-clearing shock and brief i-frames. Locks out PHALANX.','purge')]:[]),
@@ -4673,6 +4679,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'169',date:'2026',items:['Grace overhaul: a hit now grants only a brief invulnerability by default in both modes. Buy PHASE BUFFER in DEFENSE to extend your recovery window. Boss and parry timing unchanged.']},
  {ver:'168',date:'2026',items:['Score milestones now trigger an escalating on-screen celebration.']},
  {ver:'167',date:'2026',items:['Name entry now supports symbols and a set of emoji, on both tap and keyboard.']},
  {ver:'166',date:'2026',items:['Clearer heavy-upgrade descriptions: HEAVY SPOOL is spin-up and recovery, ENERGY CELL is reserve and refill.']},
