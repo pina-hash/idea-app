@@ -186,6 +186,44 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .resumeCard .rc-sec{font-weight:700;font-size:13px;letter-spacing:.06em;color:var(--white)}
 .resumeCard .rc-meta{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--dim)}
 
+/* ---- TITLE: arcade cabinet marquee ---- */
+#ovlTitle{justify-content:flex-start;gap:12px;padding:18px 14px 24px}
+.cab-marquee{position:relative;width:min(440px,96%);flex:0 0 auto;padding:16px 14px 11px;border:1px solid rgba(0,255,65,.55);border-radius:12px;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px),
+    radial-gradient(ellipse at 50% -10%,rgba(0,255,65,.20),transparent 72%),
+    linear-gradient(180deg,rgba(0,30,12,.88),rgba(0,10,5,.92));
+  box-shadow:0 0 28px rgba(0,255,65,.22),inset 0 0 34px rgba(0,255,65,.06);animation:mqGlow 3.4s ease-in-out infinite}
+.cab-marquee::before,.cab-marquee::after{content:'';position:absolute;left:7%;right:7%;height:2px;border-radius:2px;background:var(--green);box-shadow:0 0 10px rgba(0,255,65,.8);opacity:.75;pointer-events:none}
+.cab-marquee::before{top:-1px;animation:mqFlick 7s linear infinite}
+.cab-marquee::after{bottom:-1px}
+#ovlTitle .title-wm .a{font-size:46px;letter-spacing:.16em;animation:mqPulse 3.4s ease-in-out infinite}
+#ovlTitle .title-wm .b{font-size:14px;color:var(--cyan);text-shadow:0 0 10px rgba(0,240,255,.5);letter-spacing:.52em;margin-top:2px}
+.cab-mq-sub{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:8px;flex-wrap:wrap}
+.cab-runs{color:var(--gold)!important;border:1px solid rgba(200,255,0,.4);border-radius:4px;padding:2px 8px;letter-spacing:.18em!important;background:rgba(200,255,0,.07);box-shadow:0 0 8px rgba(200,255,0,.15)}
+@keyframes mqPulse{0%,100%{text-shadow:0 0 20px rgba(0,255,65,.7)}50%{text-shadow:0 0 32px rgba(0,255,65,1),0 0 60px rgba(0,255,65,.45)}}
+@keyframes mqGlow{0%,100%{box-shadow:0 0 24px rgba(0,255,65,.18),inset 0 0 34px rgba(0,255,65,.06)}50%{box-shadow:0 0 34px rgba(0,255,65,.30),inset 0 0 34px rgba(0,255,65,.09)}}
+@keyframes mqFlick{0%,91%,94%,100%{opacity:.75}92.5%{opacity:.25}96%{opacity:.55}97.5%{opacity:.8}}
+.cab-deck{display:flex;flex-direction:column;align-items:center;gap:9px;width:min(440px,96%);flex:0 0 auto}
+#startCta{display:flex;flex-direction:column;align-items:center;gap:2px;width:100%;padding:12px 10px;cursor:pointer;pointer-events:auto;border:1.5px solid var(--gold);border-radius:11px;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.12) 0 1px,transparent 1px 3px),linear-gradient(180deg,rgba(200,255,0,.17),rgba(200,255,0,.04));
+  box-shadow:0 0 20px rgba(200,255,0,.28),inset 0 0 20px rgba(200,255,0,.07);animation:deckPulse 1.7s ease-in-out infinite;transition:filter .12s}
+#startCta:hover{filter:brightness(1.2)}
+#startCta:active{transform:scale(.985)}
+#startCta .cta-big{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:24px;letter-spacing:.3em;text-indent:.3em;color:var(--gold);text-shadow:0 0 16px rgba(200,255,0,.8)}
+#startCta .cta-sub{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.26em;text-indent:.26em;color:var(--dim)}
+@keyframes deckPulse{0%,100%{box-shadow:0 0 14px rgba(200,255,0,.22),inset 0 0 20px rgba(200,255,0,.05)}50%{box-shadow:0 0 30px rgba(200,255,0,.45),inset 0 0 24px rgba(200,255,0,.10)}}
+#ovlTitle .modebtn{font-size:11px;padding:8px 16px}
+#ovlTitle .modebtn[data-m=dev]{font-size:9px;padding:8px 10px;opacity:.8}
+.cab-panels{display:flex;flex-wrap:wrap;justify-content:center;align-items:stretch;gap:10px;width:min(600px,96%)}
+.cab-panel{position:relative;flex:1 1 250px;max-width:440px;display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 12px 12px;border:1px solid rgba(0,255,65,.32);border-radius:10px;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0 1px,transparent 1px 3px),linear-gradient(180deg,rgba(0,22,9,.78),rgba(0,10,5,.82));
+  box-shadow:0 0 14px rgba(0,255,65,.10),inset 0 0 22px rgba(0,255,65,.045)}
+.cab-ptitle{width:100%;display:flex;align-items:center;gap:8px;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.3em;text-indent:.3em;color:var(--green);text-shadow:0 0 8px rgba(0,255,65,.5)}
+.cab-ptitle::before,.cab-ptitle::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,65,.45))}
+.cab-ptitle::after{background:linear-gradient(90deg,rgba(0,255,65,.45),transparent)}
+.cab-ctoggle{padding:3px 9px;font-size:8.5px}
+.cab-foot{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:min(440px,96%)}
+@media (prefers-reduced-motion: reduce){ .cab-marquee,.cab-marquee::before,#ovlTitle .title-wm .a,#startCta{animation:none} }
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;max-width:320px;font-size:10px;letter-spacing:.04em}
 .legend span{display:inline-flex;align-items:center;gap:5px;color:var(--white)}
 .legend i{width:9px;height:9px;display:inline-block;border-radius:2px}
@@ -241,8 +279,11 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .shopbtn .sd{font-size:9px;color:var(--dim);line-height:1.3;margin-top:1px}
 .shophdr{grid-column:1/-1;font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.24em;color:var(--dim);text-align:left;border-bottom:1px solid rgba(74,122,82,.35);padding:5px 2px 3px;margin-top:4px}
 .shophdr:first-child{margin-top:0}
-.ctrlsp{background:rgba(2,10,4,.85);border:1px solid rgba(0,255,65,.2);border-radius:4px;padding:8px 12px;font-size:10px;line-height:1.9;letter-spacing:.04em;color:var(--white);text-align:left;max-width:290px}
-.ctrlsp .k{color:var(--cyan);letter-spacing:.08em}
+.ctrlsp{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 12px;width:100%;max-width:420px;padding:2px 0 0;text-align:left}
+.ctrlsp .kv{display:flex;align-items:center;gap:6px;min-width:0}
+.ctrlsp .kk{flex:0 0 auto;font-family:'Share Tech Mono',monospace;font-size:8.5px;letter-spacing:.06em;color:var(--green);border:1px solid rgba(0,255,65,.4);border-radius:3px;padding:2px 5px;background:rgba(0,255,65,.07);box-shadow:0 0 6px rgba(0,255,65,.12);white-space:nowrap}
+.ctrlsp .ka{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctrlsp .knote{grid-column:1 / -1;font-family:'Share Tech Mono',monospace;font-size:8.5px;letter-spacing:.14em;color:var(--gold);text-align:center;margin-top:2px}
 .fbovl{position:absolute;inset:0;z-index:12;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;gap:8px;background:rgba(2,10,4,.94)}
 .fbovl.hidden{display:none!important}
 .fbsel,.fbtxt{background:rgba(5,15,7,.9);border:1px solid rgba(0,255,65,.3);color:var(--white);font-family:'Share Tech Mono',monospace;font-size:11px;padding:6px 10px;border-radius:3px;width:100%;max-width:280px;box-sizing:border-box}
@@ -347,34 +388,50 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     </div>
   </div>
 
-  <!-- TITLE -->
+  <!-- TITLE: arcade cabinet marquee (marquee / play deck / lit panels / legend / footer) -->
   <div class="ovl" id="ovlTitle">
-    <div class="title-wm"><div class="a">VANGUARD</div><div class="b">I D E A</div></div>
-    <div class="tag">A BOSCO TECH ARCADE</div>
-    <div class="tag" id="gamesPlayed" style="color:var(--gold);letter-spacing:.18em">RUNS: 0</div>
-    <div class="modes" id="modeSel">
-      <button class="modebtn sel" data-m="normal">NORMAL</button>
-      <button class="modebtn" data-m="hardcore">HARDCORE</button>
-      <button class="modebtn" data-m="dev">DEV</button>
+    <div class="cab-marquee">
+      <div class="title-wm"><div class="a">VANGUARD</div><div class="b">I D E A</div></div>
+      <div class="cab-mq-sub">
+        <span class="tag">A BOSCO TECH ARCADE</span>
+        <span class="tag cab-runs" id="gamesPlayed">RUNS: 0</span>
+      </div>
     </div>
-    <!-- Cross-device RESUME cards (0037): one per saved in-progress run (NORMAL / HARDCORE), populated from window.__ideaRunStates -->
-    <div class="resumeCards" id="resumeCards" style="display:none"></div>
-    <div class="lbl" style="color:var(--dim);letter-spacing:.22em">STARTING BUILD</div>
-    <button class="fbbtn" id="outfitBtn" style="border-color:var(--gold);color:var(--gold);background:rgba(200,255,0,.12);text-shadow:0 0 8px rgba(200,255,0,.5);box-shadow:0 0 12px rgba(200,255,0,.2)">CONFIGURE BUILD</button>
-    <div class="tag" id="buildSummary" style="min-height:12px">No upgrades selected.</div>
-    <div class="btabs" id="titleBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button></div>
-    <div class="btabs" id="titleContTabs"><button class="btab sel" data-bc="0">SINGLE-SESSION</button><button class="btab" data-bc="1">CONTINUED</button></div>
-    <div class="board" id="titleBoard"></div>
-    <div class="cta" id="startCta">PRESS ENTER / TAP TO LAUNCH</div>
-    <div class="legend" id="legend"></div>
-    <div class="ctrlsp" id="ctrlsPanel"><span class="k">MOVE</span> WASD / ARROWS / DRAG &nbsp; <span class="k">FIRE</span> AUTO<br>
-      <span class="k">BEAM</span> HOLD C/SPACE &nbsp; <span class="k">BOMB</span> X/SHIFT &nbsp; <span class="k">PARRY</span> Z &nbsp; <span class="k">SWITCH WEAPON</span> Q<br>
-      <span class="k">PAUSE</span> P/ESC &nbsp; <span class="k">MUTE</span> M &nbsp; <span class="k">earn i¢ at REFIT after each boss</span></div>
-    <button class="mini" id="ctrlsToggle">CONTROLS: ON</button>
-    <button class="mini" id="titleKeys">SETTINGS</button>
-    <button class="mini" id="howtoBtn" style="border-color:var(--cyan);color:var(--cyan)">CALIBRATION</button>
-    <button class="mini" id="logBtn">UPDATE LOG</button>
-    <button class="mini" id="histBtn" style="border-color:var(--gold);color:var(--gold)">RUN HISTORY</button>
+    <div class="cab-deck">
+      <!-- Cross-device RESUME cards (0037): one per saved in-progress run (NORMAL / HARDCORE), populated from window.__ideaRunStates -->
+      <div class="resumeCards" id="resumeCards" style="display:none"></div>
+      <div id="startCta"><span class="cta-big">LAUNCH</span><span class="cta-sub">PRESS ENTER / TAP</span></div>
+      <div class="modes" id="modeSel">
+        <button class="modebtn sel" data-m="normal">NORMAL</button>
+        <button class="modebtn" data-m="hardcore">HARDCORE</button>
+        <button class="modebtn" data-m="dev">DEV</button>
+      </div>
+    </div>
+    <div class="cab-panels">
+      <div class="cab-panel">
+        <div class="cab-ptitle">LEADERBOARD</div>
+        <div class="btabs" id="titleBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button></div>
+        <div class="btabs" id="titleContTabs"><button class="btab sel" data-bc="0">SINGLE-SESSION</button><button class="btab" data-bc="1">CONTINUED</button></div>
+        <div class="board" id="titleBoard"></div>
+      </div>
+      <div class="cab-panel">
+        <div class="cab-ptitle">STARTING BUILD</div>
+        <button class="fbbtn" id="outfitBtn" style="border-color:var(--gold);color:var(--gold);background:rgba(200,255,0,.12);text-shadow:0 0 8px rgba(200,255,0,.5);box-shadow:0 0 12px rgba(200,255,0,.2)">CONFIGURE BUILD</button>
+        <div class="tag" id="buildSummary" style="min-height:12px">No upgrades selected.</div>
+      </div>
+      <div class="cab-panel">
+        <div class="cab-ptitle">CONTROLS</div>
+        <button class="mini cab-ctoggle" id="ctrlsToggle">HIDE CONTROLS</button>
+        <div class="ctrlsp" id="ctrlsPanel"></div>
+        <div class="legend" id="legend"></div>
+      </div>
+    </div>
+    <div class="cab-foot">
+      <button class="mini" id="titleKeys">SETTINGS</button>
+      <button class="mini" id="howtoBtn" style="border-color:var(--cyan);color:var(--cyan)">CALIBRATION</button>
+      <button class="mini" id="logBtn">UPDATE LOG</button>
+      <button class="mini" id="histBtn" style="border-color:var(--gold);color:var(--gold)">RUN HISTORY</button>
+    </div>
     <div class="tag" style="color:var(--cyan);letter-spacing:.12em;margin-top:2px">FOUND A BUG OR HAVE AN IDEA?</div>
     <div class="fbslot" id="fbTitle"></div>
   </div>
@@ -548,7 +605,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='173';
+const W=630,H=840; const VERSION='174';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4748,11 +4805,14 @@ function applyPreset(name){ controlPreset=(name==='classic')?'classic':'keyboard
   setMoveMode(controlPreset==='classic'?'lock':'hold');   // Classic = pointer-lock mouse; Keyboard = no grab. setMoveMode also refreshes the hint.
   syncPresetUI(); }
 function refreshControlsHint(){ const p=el('ctrlsPanel'); if(!p)return; const kl=c=>keyLabel(keybinds[c]);
-  const mv = controlPreset==='classic' ? ('MOUSE ('+(moveMode_pref==='lock'?'LOCK':'FOLLOW')+') / WASD / ARROWS') : 'WASD / ARROWS (+ MOUSE)';
-  p.innerHTML='<span class="k">PRESET</span> '+(controlPreset==='classic'?'CLASSIC':'KEYBOARD')+' &nbsp; <span class="k">MOVE</span> '+mv+' &nbsp; <span class="k">FIRE</span> '+(autofire?'AUTO':('HOLD '+kl('fireKey')+' / '+kl('fire')))+'<br>'+
-    '<span class="k">HEAVY</span> HOLD '+kl('beamAlt')+' / '+kl('beam')+' &nbsp; <span class="k">CYCLE HVY</span> '+kl('heavy')+' &nbsp; <span class="k">BOMB</span> '+kl('bomb')+' &nbsp; <span class="k">PARRY</span> '+kl('parry')+'<br>'+
-    '<span class="k">WEAPON</span> '+kl('weapon')+' &nbsp; <span class="k">SELECT</span> '+kl('weap1')+' '+kl('weap2')+' '+kl('weap3')+' '+kl('weap4')+' '+kl('weap5')+' '+kl('weap6')+' &nbsp; <span class="k">PAUSE</span> '+kl('pause')+' / ESC<br>'+
-    '<span class="k">REFIT</span> ARROWS SELECT &middot; SPACE BUY &middot; ENTER LAUNCH'; }
+  const mv = controlPreset==='classic' ? ('MOUSE ('+(moveMode_pref==='lock'?'LOCK':'FOLLOW')+') / WASD') : 'WASD / ARROWS';
+  const rows=[ [mv,'MOVE'], [autofire?'AUTO':('HOLD '+kl('fireKey')+' / '+kl('fire')),'FIRE'],
+    ['HOLD '+kl('beamAlt')+' / '+kl('beam'),'HEAVY'], [kl('heavy'),'CYCLE HEAVY'],
+    [kl('weapon')+' / SCROLL','SWITCH WEAPON'], [kl('bomb'),'BOMB'],
+    [kl('parry'),'PARRY'], [kl('meltdown'),'MELTDOWN'],
+    [kl('pause')+' / ESC','PAUSE'], [kl('mute'),'MUTE'] ];
+  p.innerHTML=rows.map(r=>'<span class="kv"><span class="kk">'+r[0]+'</span><span class="ka">'+r[1]+'</span></span>').join('')+
+    '<span class="knote">EARN i¢ AT REFIT AFTER EACH BOSS</span>'; }
 (function(){
   const done=el('keysDone'); if(done) done.addEventListener('click',e=>{e.stopPropagation();closeKeys();});
   const rst=el('keysReset'); if(rst) rst.addEventListener('click',e=>{e.stopPropagation(); keybinds=Object.assign({},KEYS_DEFAULT); saveKeys(); buildKeyList(); refreshControlsHint();});
@@ -4855,6 +4915,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'174',date:'2026',items:['Home screen redesigned as an arcade cabinet: a neon marquee, a clear LAUNCH deck, framed leaderboard and build panels, and a tidy controls legend.']},
  {ver:'173',date:'2026',items:['SINGULARITY reworked for presence: tighter and more alive, space bends into it, and enemies stretch and get devoured at the horizon.']},
  {ver:'172',date:'2026',items:['SINGULARITY black hole fully reworked: a turbulent lensed accretion disk, photon ring, Doppler beaming, and infalling matter.']},
  {ver:'171',date:'2026',items:['Death screen reworked: killer faction and tier breakdown, more run stats, count-up numbers, and a more dramatic reveal.']},
