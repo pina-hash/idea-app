@@ -537,7 +537,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='164';
+const W=630,H=840; const VERSION='165';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -731,7 +731,7 @@ let player=null, enemies=[], pbul=[], ebul=[], pods=[], parts=[], shards=[], rin
 let fleet=null, slots=[], refill=[], reconfTimer=0, volleyTimer=0, diveTimer=0;
 let sector, waveIdx, wavesPerSector, waveTimer, bossPending, sectorClearT, bossSpoils=0, bossFlash=0, meltFlash=0, sectorKills=0, killsForBoss=21, gameOverT=0, killer=null, lastHitBy=null;
 let sector1up=0;
-let runFactionSeq=[], waveFk=null;
+let runFactionSeq=[], waveFk=null, bossesSeen=[];
 let hybridTimer=0;
 let gameMode='normal';
 let runContinued=false;   // true once the current run was resumed from a saved checkpoint (0037); rides every later checkpoint + the score submit
@@ -1601,7 +1601,13 @@ function startSweepWave(){
 }
 
 function spawnBoss(forceFk){
-  const fk=forceFk || sectorTheme().fk || factionForSector(); const F=FACTIONS[fk];
+  let fk;
+  if(forceFk){ fk=forceFk; }
+  else{ const themed=sectorTheme().fk, unseen=FKEYS.filter(k=>bossesSeen.indexOf(k)<0);
+    if(unseen.length>0){ fk=(themed&&unseen.indexOf(themed)>=0)?themed:unseen[(Math.random()*unseen.length)|0]; }
+    else{ fk=themed||factionForSector(); } }
+  if(bossesSeen.indexOf(fk)<0) bossesSeen.push(fk);
+  const F=FACTIONS[fk];
   const hp=BAL.bossBase + sector*sector*BAL.bossQuad;
   boss={fk,c:F.c,draw:drawBoss,variant:2, x:W/2, y:-90, ty:128, r:60, name:F.name,
     hp:hp, maxhp:hp, core:0, phase:0, lastPhase:0, ph:0, fire:Math.max(0.18,gameMode==='hardcore'?0.3:1.0/(1+sector*0.13)), sweep:0, entering:true,
@@ -1681,7 +1687,7 @@ function startGame(){
   BAL = (gameMode==='tune') ? loadTuneBAL() : freshBAL();
   try{ if(gameMode!=='calib') localStorage.setItem('vanguard_games', getGames()+1); }catch(e){}
   enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; meltFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossCard=null;
-  runFactionSeq=[...FKEYS]; for(let _i=runFactionSeq.length-1;_i>0;_i--){const _j=Math.random()*_i|0;[runFactionSeq[_i],runFactionSeq[_j]]=[runFactionSeq[_j],runFactionSeq[_i]];} waveFk=null;
+  runFactionSeq=[...FKEYS]; for(let _i=runFactionSeq.length-1;_i>0;_i--){const _j=Math.random()*_i|0;[runFactionSeq[_i],runFactionSeq[_j]]=[runFactionSeq[_j],runFactionSeq[_i]];} waveFk=null; bossesSeen=[];
   hybridTimer=rnd(6,10);
   fleet=null; slots=[]; refill=[]; reconfTimer=0; volleyTimer=2; diveTimer=2.6;
   sector=1; waveIdx=0; wavesPerSector=3; waveTimer=1.6; bossPending=false; sectorClearT=0;
@@ -4616,6 +4622,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'165',date:'2026',items:['Bosses no longer repeat within a run until you have fought all five at least once.']},
  {ver:'164',date:'2026',items:['Picking your mode on the title screen now shows that mode\'s leaderboard automatically.']},
  {ver:'163',date:'2026',items:['Weapon and heavy HUD now previews the next and previous in your rotation, and you can scroll to switch primaries.']},
  {ver:'162',date:'2026',items:['New endgame ability MELTDOWN: overload your active weapon to fire at a blistering rate. Unlock it deep in a run, recharge it by racking up kills.']},
