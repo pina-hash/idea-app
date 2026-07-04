@@ -290,6 +290,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .ach-ds{font-family:'Share Tech Mono',monospace;font-size:8.5px;color:var(--dim);letter-spacing:.04em}
 .ach-row.locked .ach-ds{opacity:.75}
 .ach-ttag{font-style:normal;font-size:7px;letter-spacing:.14em;color:var(--bg0,#020A04);background:var(--gold);border-radius:2px;padding:0 4px;margin-left:5px;vertical-align:middle}
+.ach-ttag.secret{background:var(--cyan)}
 .ach-dt{flex:0 0 auto;font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--dim)}
 .ach-pb{display:block;height:6px;border:1px solid rgba(0,255,65,.25);border-radius:3px;background:rgba(0,0,0,.3);overflow:hidden;margin-top:3px}
 .ach-pb i{display:block;height:100%;background:var(--green);box-shadow:0 0 8px rgba(0,255,65,.5);border-radius:2px}
@@ -688,7 +689,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='178';
+const W=630,H=840; const VERSION='179';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -1852,6 +1853,8 @@ function applyUpgrades(){ const u=player.up;
 
 /* ============================= start / waves ============================= */
 function getGames(){ try{ return parseInt(localStorage.getItem('vanguard_games')||'0',10)||0; }catch(e){ return 0; } }
+function getQualRuns(){ try{ return parseInt(localStorage.getItem('vanguard_qualruns')||'0',10)||0; }catch(e){ return 0; } }
+try{ if(localStorage.getItem('vanguard_qualruns')==null) localStorage.setItem('vanguard_qualruns', String(getGames())); }catch(e){}   // one-time seed (guarded on the key never being set): grandfather all past runs as qualifying so existing players keep their progress
 function updateGamesPlayed(){ const g=el('gamesPlayed'); if(g) g.textContent='RUNS: '+getGames().toLocaleString(); }
 function startGame(){
   state='play';
@@ -4394,10 +4397,13 @@ function endRun(){
     } else { if(fb)fb.textContent='-'; if(kg)kg.style.display='none'; }
     { // achievements: evaluate once per ranked run (dev/tune are sandbox, not eligible); cosmetic only
       let _newAch=[]; achNewRun=[];
-      if(gameMode==='normal'||gameMode==='hardcore')
+      if(gameMode==='normal'||gameMode==='hardcore'){
+        // vetted qualifying-run counter: only a run that reached sector 2+ or got 20+ kills advances run-count achievements, so instant-death farming cannot inflate them
+        if((sector||0)>=2 || (runKills||0)>=20){ try{ localStorage.setItem('vanguard_qualruns', String(getQualRuns()+1)); }catch(e){} }
         _newAch=achEvalRun({ score:window.scoreT||0, sector:sector||0, hardcore:gameMode==='hardcore',
           kills:runKills||0, bosses:runBosses||0, bossKinds:(bossesSeen||[]).length, maxStyle:window.maxStyle||0,
-          parries:runParries||0, perfect:runPerfect||0, melt:runMeltdownUses||0, acc:acc, time:runTime||0, games:getGames() });
+          parries:runParries||0, perfect:runPerfect||0, melt:runMeltdownUses||0, acc:acc, time:runTime||0, games:getGames(), qualgames:getQualRuns() });
+      }
       const ga=el('goAch');
       if(ga){ if(_newAch.length){ ga.style.display='flex';
           ga.innerHTML='<span class="ga-t">ACHIEVEMENT UNLOCKED</span>'+_newAch.map(id=>{ const a=ACH.find(x=>x.id===id);
@@ -5052,6 +5058,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'179',date:'2026',items:['Achievements tuned and expanded: harder Marksman and Meltdown Master, sector-10 hardcore, 500 and 1000 run milestones with anti-farm vetting, and a hidden style achievement.']},
  {ver:'178',date:'2026',items:['Fixed a build exploit where reloading refunded the budget while keeping purchased upgrades.']},
  {ver:'177',date:'2026',items:['Achievements added: earn them across progression, mastery, style, MELTDOWN, hardcore, and playtime, track them in a new panel, and wear one as a title.']},
  {ver:'176',date:'2026',items:['Leaderboard reworked: one board per mode with continued runs folded in and badged, top 250 browsable, and click any score for its run detail.']},
@@ -5279,27 +5286,31 @@ const ACH=[
  {id:'score100k',group:'MASTERY',name:'SIX FIGURES',desc:'Score 100,000 in a run.',check:c=>c.score>=1e5,progress:b=>({cur:Math.min(b.bestScore||0,1e5),max:1e5})},
  {id:'score1m',group:'MASTERY',name:'MILLIONAIRE',desc:'Score 1,000,000 in a run.',check:c=>c.score>=1e6,progress:b=>({cur:Math.min(b.bestScore||0,1e6),max:1e6})},
  {id:'score10m',group:'MASTERY',name:'LEGEND',desc:'Score 10,000,000 in a run.',check:c=>c.score>=1e7,progress:b=>({cur:Math.min(b.bestScore||0,1e7),max:1e7})},
- {id:'marksman',group:'MASTERY',name:'MARKSMAN',desc:'Finish a run at 80%+ accuracy with 30+ kills.',check:c=>c.acc>=80&&c.kills>=30},
+ {id:'marksman',group:'MASTERY',name:'MARKSMAN',desc:'Finish a run at 90%+ accuracy with 100+ kills.',check:c=>c.acc>=90&&c.kills>=100},
  {id:'style_s',group:'STYLE',name:'IN THE ZONE',desc:'Reach S-rank style.',check:c=>c.maxStyle>=_achRankMin('S')},
  {id:'style_ss',group:'STYLE',name:'APEX',desc:'Reach SS-rank style.',check:c=>c.maxStyle>=_achRankMin('SS')},
+ {id:'style_sss',group:'STYLE',name:'TRANSCENDENT',secret:true,desc:'Reach SSS-rank style.',check:c=>c.maxStyle>=_achRankMin('SSS')},
  {id:'parries50',group:'STYLE',name:'DUELIST',desc:'Land 50 parries in one run.',check:c=>c.parries>=50,progress:b=>({cur:Math.min(b.bestParries||0,50),max:50})},
  {id:'perfect10',group:'STYLE',name:'FLAWLESS',desc:'Land 10 perfect parries in one run.',check:c=>c.perfect>=10,progress:b=>({cur:Math.min(b.bestPerfect||0,10),max:10})},
  {id:'meltdown_use',group:'MELTDOWN',name:'OVERLOAD',desc:'Use MELTDOWN.',check:c=>c.melt>=1},
- {id:'meltdown5',group:'MELTDOWN',name:'MELTDOWN MASTER',desc:'Use MELTDOWN 5 times in one run.',check:c=>c.melt>=5,progress:b=>({cur:Math.min(b.bestMeltUses||0,5),max:5})},
+ {id:'meltdown5',group:'MELTDOWN',name:'MELTDOWN MASTER',desc:'Use MELTDOWN 10 times in one run.',check:c=>c.melt>=10,progress:b=>({cur:Math.min(b.bestMeltUses||0,10),max:10})},
  {id:'hc_sector3',group:'GRIT',name:'NO SAFETY NET',desc:'Reach sector 3 in HARDCORE.',check:c=>c.hardcore&&c.sector>=3},
  {id:'hc_sector5',group:'GRIT',name:'IRONCLAD',desc:'Reach sector 5 in HARDCORE.',check:c=>c.hardcore&&c.sector>=5},
- {id:'runs25',group:'META',name:'REGULAR',desc:'Play 25 total runs.',check:c=>c.games>=25,progress:b=>({cur:Math.min(b.totalGames||0,25),max:25})},
- {id:'runs100',group:'META',name:'VETERAN',desc:'Play 100 total runs.',check:c=>c.games>=100,progress:b=>({cur:Math.min(b.totalGames||0,100),max:100})}
+ {id:'hc_sector10',group:'GRIT',name:'UNBREAKABLE',desc:'Reach sector 10 in HARDCORE.',check:c=>c.hardcore&&c.sector>=10},
+ {id:'runs25',group:'META',name:'REGULAR',desc:'Play 25 qualifying runs.',check:c=>c.qualgames>=25,progress:b=>({cur:Math.min(b.qualGames||0,25),max:25})},
+ {id:'runs100',group:'META',name:'VETERAN',desc:'Play 100 qualifying runs.',check:c=>c.qualgames>=100,progress:b=>({cur:Math.min(b.qualGames||0,100),max:100})},
+ {id:'runs500',group:'META',name:'RELENTLESS',desc:'Play 500 qualifying runs.',check:c=>c.qualgames>=500,progress:b=>({cur:Math.min(b.qualGames||0,500),max:500})},
+ {id:'runs1000',group:'META',name:'IMMORTAL',desc:'Play 1,000 qualifying runs.',check:c=>c.qualgames>=1000,progress:b=>({cur:Math.min(b.qualGames||0,1000),max:1000})}
 ];
 let achUnlocked={}; try{ achUnlocked=JSON.parse(localStorage.getItem('vanguard_ach')||'{}')||{}; }catch(e){ achUnlocked={}; }
-let achBest={bestScore:0,bestSector:0,bestParries:0,bestPerfect:0,bestMeltUses:0,bestBosses:0,totalGames:0};
+let achBest={bestScore:0,bestSector:0,bestParries:0,bestPerfect:0,bestMeltUses:0,bestBosses:0,totalGames:0,qualGames:0};
 try{ Object.assign(achBest, JSON.parse(localStorage.getItem('vanguard_ach_best')||'{}')||{}); }catch(e){}
 let achNewRun=[];   // ids unlocked at the last endRun, for the game-over reveal
 function achEvalRun(ctx){ achNewRun=[];
   achBest.bestScore=Math.max(achBest.bestScore||0,ctx.score); achBest.bestSector=Math.max(achBest.bestSector||0,ctx.sector);
   achBest.bestParries=Math.max(achBest.bestParries||0,ctx.parries); achBest.bestPerfect=Math.max(achBest.bestPerfect||0,ctx.perfect);
   achBest.bestMeltUses=Math.max(achBest.bestMeltUses||0,ctx.melt); achBest.bestBosses=Math.max(achBest.bestBosses||0,ctx.bossKinds);
-  achBest.totalGames=Math.max(achBest.totalGames||0,ctx.games);
+  achBest.totalGames=Math.max(achBest.totalGames||0,ctx.games); achBest.qualGames=Math.max(achBest.qualGames||0,ctx.qualgames||0);
   try{ localStorage.setItem('vanguard_ach_best',JSON.stringify(achBest)); }catch(e){}
   for(const a of ACH){ if(achUnlocked[a.id]) continue;   // idempotent: earned never re-fires
     let ok=false; try{ ok=!!a.check(ctx); }catch(e){}
@@ -5310,14 +5321,16 @@ function achGetTitle(){ try{ const t=localStorage.getItem('vanguard_ach_title')|
 function _achTitleChip(){ const t=achGetTitle(); if(!t)return ''; const a=ACH.find(x=>x.id===t); return a?' <span class="ach-mechip">'+a.name+'</span>':''; }
 function renderAch(){ const box=el('achBody'); if(!box)return;
   const groups=['PROGRESSION','MASTERY','STYLE','MELTDOWN','GRIT','META'], title=achGetTitle();
-  let earned=0; ACH.forEach(a=>{ if(achUnlocked[a.id])earned++; });
-  let h='<div class="ach-head"><span class="ach-count"><b id="achCountNum">0</b> / '+ACH.length+'</span><span class="ach-hint">TAP AN EARNED ACHIEVEMENT TO WEAR IT AS YOUR TITLE · TAP AGAIN TO REMOVE IT</span></div>';
+  // secret achievements never inflate the total (or appear) until earned; the reveal IS earning them
+  let earned=0, total=0; ACH.forEach(a=>{ const un=!!achUnlocked[a.id]; if(un)earned++; if(!a.secret||un)total++; });
+  let h='<div class="ach-head"><span class="ach-count"><b id="achCountNum">0</b> / '+total+'</span><span class="ach-hint">TAP AN EARNED ACHIEVEMENT TO WEAR IT AS YOUR TITLE · TAP AGAIN TO REMOVE IT</span></div>';
   for(const g of groups){ h+='<div class="cab-panel"><div class="cab-ptitle">'+g+'</div><div class="ach-list">';
     for(const a of ACH){ if(a.group!==g)continue;
       const un=achUnlocked[a.id];
+      if(a.secret && !un) continue;   // hidden entirely (not even dimmed) until earned
       if(un){ const isT=(title===a.id); let ds='';
         try{ ds=new Date(un).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); }catch(e){}
-        h+='<div class="ach-row earned'+(isT?' titled':'')+'" data-id="'+a.id+'"><span class="ach-bdg">'+ACH_BADGE+'</span><span class="ach-tx"><span class="ach-nm">'+a.name+(isT?'<i class="ach-ttag">TITLE</i>':'')+'</span><span class="ach-ds">'+a.desc+'</span></span><span class="ach-dt">'+ds+'</span></div>'; }
+        h+='<div class="ach-row earned'+(isT?' titled':'')+'" data-id="'+a.id+'"><span class="ach-bdg">'+ACH_BADGE+'</span><span class="ach-tx"><span class="ach-nm">'+a.name+(a.secret?'<i class="ach-ttag secret">SECRET</i>':'')+(isT?'<i class="ach-ttag">TITLE</i>':'')+'</span><span class="ach-ds">'+a.desc+'</span></span><span class="ach-dt">'+ds+'</span></div>'; }
       else{ let pb='';
         if(a.progress){ try{ const p=a.progress(achBest); if(p&&p.max>0){ const pc=Math.max(0,Math.min(100,Math.round(100*(p.cur||0)/p.max)));
           pb='<span class="ach-pb"><i style="width:'+pc+'%"></i></span><span class="ach-pn">'+(p.cur||0).toLocaleString()+' / '+p.max.toLocaleString()+'</span>'; } }catch(e){} }
