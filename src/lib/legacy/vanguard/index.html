@@ -226,6 +226,14 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .cab-ptitle::before,.cab-ptitle::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,65,.45))}
 .cab-ptitle::after{background:linear-gradient(90deg,rgba(0,255,65,.45),transparent)}
 .cab-ctoggle{padding:3px 9px;font-size:8.5px}
+#buildItems{display:flex;flex-wrap:wrap;justify-content:center;gap:5px;width:100%;max-height:118px;overflow-y:auto;margin-top:-2px}
+#buildItems:empty{display:none;margin:0}
+#buildItems::-webkit-scrollbar{width:5px}#buildItems::-webkit-scrollbar-thumb{background:rgba(0,255,65,.3);border-radius:3px}
+.bi-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 6px;border:1px solid rgba(0,255,65,.35);border-radius:12px;background:rgba(0,255,65,.06);
+  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.03em;color:var(--white);white-space:nowrap;box-shadow:0 0 6px rgba(0,255,65,.08)}
+.bi-chip .ic{flex:0 0 13px;width:13px;height:13px;color:var(--green)}
+.bi-chip .ic svg{width:13px;height:13px}
+.bi-chip .lv{color:var(--gold);font-family:'Chakra Petch',sans-serif;font-weight:700;margin-left:1px}
 .cab-foot{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:min(440px,96%)}
 @media (prefers-reduced-motion: reduce){ .cab-marquee,.cab-marquee::before,#ovlTitle .title-wm .a,#startCta{animation:none} }
 /* ---- RUN HISTORY: visual stats page ---- */
@@ -493,6 +501,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
         <div class="cab-ptitle">STARTING BUILD</div>
         <button class="fbbtn" id="outfitBtn" style="border-color:var(--gold);color:var(--gold);background:rgba(200,255,0,.12);text-shadow:0 0 8px rgba(200,255,0,.5);box-shadow:0 0 12px rgba(200,255,0,.2)">CONFIGURE BUILD</button>
         <div class="tag" id="buildSummary" style="min-height:12px">No upgrades selected.</div>
+        <div id="buildItems"></div>
       </div>
       <div class="cab-panel">
         <div class="cab-ptitle">CONTROLS</div>
@@ -689,7 +698,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='179';
+const W=630,H=840; const VERSION='180';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4843,9 +4852,37 @@ try{ if(localStorage.getItem('vanguard_mute')==='1'){Audio_.muted=true;const pmb
 
 /* starting build (outfit) */
 function saveBuild(){ try{ const b=startBuild; localStorage.setItem('vanguard_build',JSON.stringify({up:b.up,unlocked:b.unlocked,heavyUnlocked:b.heavyUnlocked,heavy:b.heavy,wtype:b.wtype,bombs:b.bombs,shieldHits:b.shieldHits,drone:!!b.drone,spent:b.spent,_bts:Date.now()})); }catch(e){} }   // _bts: recency marker so the cloud merge keeps the LATEST build; spent is display-only
+/* up-key -> its shop offer NAME (outfitOffers), so icon and level are read live off the
+   real offer object every time (no duplicated icon/cost/level table). Mirrors exactly the
+   set buildCount() tallies; base levels come from freshBuild(), the existing canonical base. */
+const BUILDITEM_OFFER={ gun:'GUN POWER', flank:'FLANK GUNS', armor:'HULL ARMOR', grace:'PHASE BUFFER',
+  heavyPow:'HEAVY POWER', heavyChg:'HEAVY SPOOL', beamCap:'ENERGY CELL', beamPow:'PRISM AMP', beamPierce:'PRISM PIERCE',
+  railPow:'OVERCHARGE SLUG', railCap:'CAPACITOR', teslaJump:'ARC CHAIN', teslaDps:'HIGH VOLTAGE',
+  singAmp:'EVENT HORIZON', singCrush:'COLLAPSE CORE', wavePow:'WAVE AMP',
+  mSpread:'SCATTER CHOKE', bSpread:'SLUG LOAD', mRapid:'OVERCLOCK', bRapid:'THERMAL LOAD',
+  mLance:'HIGH-VELOCITY', bLance:'AUTO-RACK', mHoming:'SWARM CTRL', bHoming:'WARHEAD',
+  mFlak:'DENSE PAYLOAD', bFlak:'FAST FEED', mBuzz:'HARDENED EDGE', bBuzz:'ROTOR DRIVE',
+  bombPow:'BOMB CORE', bArmor:'REPAIR FIELD', shieldChg:'CHARGE COILS', droneLv:'DRONE ARMS',
+  mParry:'REPAIR PROTOCOL', bParry:'BACKLASH', speed:'ENGINE' };
+function buildItemChips(){
+  const b=startBuild, u=b.up, hu=b.heavyUnlocked||{}, base=freshBuild().up;
+  const byName={}; outfitOffers().forEach(o=>{ byName[o.name]=o; });
+  const chips=[];
+  for(const k in BUILDITEM_OFFER){ if((u[k]||0)>(base[k]||0)){ const o=byName[BUILDITEM_OFFER[k]]; if(o) chips.push({icon:o.icon,name:o.name,lv:o.lv}); } }
+  if(b.shieldHits>0){ const o=byName['SHIELD +1']; if(o) chips.push({icon:o.icon,name:o.name,lv:b.shieldHits}); }
+  if(b.bombs>2){ const o=byName['BOMB +1']; if(o) chips.push({icon:o.icon,name:o.name,lv:b.bombs}); }
+  if(b.drone){ const o=byName['DRONE']; if(o) chips.push({icon:o.icon,name:o.name}); }
+  ['lance','homing','rapid','flak','buzzsaw'].forEach(w=>{ if(b.unlocked&&b.unlocked[w]) chips.push({icon:shopIcon(WROT_ICON[w]),name:'UNLOCK '+(WDISP[w]||w.toUpperCase())}); });
+  ['rail','tesla','singularity','wave'].forEach(h=>{ if(hu[h]) chips.push({icon:shopIcon(HROT_ICON[h]),name:'UNLOCK '+(HEAVYNAME[h]||h.toUpperCase())}); });
+  if(b.wtype && b.wtype!=='spread') chips.push({icon:shopIcon(WROT_ICON[b.wtype]),name:'PRIMARY: '+(WDISP[b.wtype]||b.wtype.toUpperCase())});
+  if(b.heavy && b.heavy!=='beam') chips.push({icon:shopIcon(HROT_ICON[b.heavy]),name:'HEAVY: '+(HEAVYNAME[b.heavy]||b.heavy.toUpperCase())});
+  return chips;
+}
 function refreshBuildSummary(){ const s=el('buildSummary'); if(!s)return; const n=buildCount(); const left=Math.max(0,START_BUDGET-(startBuild.spent||0));
-  if(gameMode==='dev'){ s.textContent=n>0?(n+' upgrade'+(n>1?'s':'')+' · DEV (unlimited)'):'DEV build · unlimited budget, all unlocks apply.'; return; }
-  s.textContent=n>0?(n+' upgrade'+(n>1?'s':'')+' · '+startBuild.spent.toLocaleString()+' spent · '+left.toLocaleString()+' i¢ carried in'):('Full '+START_BUDGET.toLocaleString()+' i¢ carries into the run.'); }
+  if(gameMode==='dev'){ s.textContent=n>0?(n+' upgrade'+(n>1?'s':'')+' · DEV (unlimited)'):'DEV build · unlimited budget, all unlocks apply.'; }
+  else { s.textContent=n>0?(n+' upgrade'+(n>1?'s':'')+' · '+startBuild.spent.toLocaleString()+' spent · '+left.toLocaleString()+' i¢ carried in'):('Full '+START_BUDGET.toLocaleString()+' i¢ carries into the run.'); }
+  const bi=el('buildItems'); if(bi){ const chips=buildItemChips();
+    bi.innerHTML=chips.map(c=>'<span class="bi-chip"><span class="ic">'+c.icon+'</span>'+escHTML(c.name)+(c.lv!=null?' <span class="lv">'+c.lv+'</span>':'')+'</span>').join(''); } }
 function buildOutfit(){ const box=el('outfitItems'); if(!box)return; const dev=(gameMode==='dev'); const rem=START_BUDGET-startBuild.spent;
   const bd=el('outfitBudget'); if(bd) bd.textContent=dev?'∞':rem.toLocaleString();
   renderShopGrid(box, outfitOffers(), {
@@ -5058,6 +5095,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'180',date:'2026',items:['The STARTING BUILD panel now lists each purchased upgrade with its icon and level under CONFIGURE BUILD.']},
  {ver:'179',date:'2026',items:['Achievements tuned and expanded: harder Marksman and Meltdown Master, sector-10 hardcore, 500 and 1000 run milestones with anti-farm vetting, and a hidden style achievement.']},
  {ver:'178',date:'2026',items:['Fixed a build exploit where reloading refunded the budget while keeping purchased upgrades.']},
  {ver:'177',date:'2026',items:['Achievements added: earn them across progression, mastery, style, MELTDOWN, hardcore, and playtime, track them in a new panel, and wear one as a title.']},
