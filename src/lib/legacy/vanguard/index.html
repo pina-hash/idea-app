@@ -728,7 +728,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='181';
+const W=630,H=840; const VERSION='182';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -925,7 +925,7 @@ let sector1up=0;
 let runFactionSeq=[], waveFk=null, bossesSeen=[];
 let hybridTimer=0;
 let gameMode='normal';
-let runContinued=false;   // true once the current run was resumed from a saved checkpoint (0037); rides every later checkpoint + the score submit
+let runContinued=0;   // integer count of how many times THIS run was resumed from a saved checkpoint (0037); rides every later checkpoint + the score submit as cont=<count>
 const START_BUDGET=1000;
 function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0,grace:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
@@ -1897,7 +1897,7 @@ try{ if(localStorage.getItem('vanguard_qualruns')==null) localStorage.setItem('v
 function updateGamesPlayed(){ const g=el('gamesPlayed'); if(g) g.textContent='RUNS: '+getGames().toLocaleString(); }
 function startGame(){
   state='play';
-  runContinued=false;   // a fresh run is not a resume; __ideaRestoreRun re-flags it true after this
+  runContinued=0;   // a fresh run is not a resume; __ideaRestoreRun increments this after this
   BAL = (gameMode==='tune') ? loadTuneBAL() : freshBAL();
   try{ if(gameMode!=='calib') localStorage.setItem('vanguard_games', getGames()+1); }catch(e){}
   enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; meltFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossCard=null; lastMilestone=0; milestoneCard=null; scoreFlash=0;
@@ -4481,8 +4481,8 @@ window.__ideaRestoreRun=function(snap){
   try{
     if(!snap || !snap.player) return false;
     if(snap.gameMode) gameMode=snap.gameMode;
-    startGame();                                   // valid, fully-initialized play state (resets runContinued)
-    runContinued=true;                             // this run is a resume; rides every later checkpoint + score submit as cont=1
+    startGame();                                   // valid, fully-initialized play state (resets runContinued to 0)
+    runContinued=(Number(snap.continued)||0)+1;    // carry the prior continue-count from the checkpoint and add this resume; rides every later checkpoint + score submit as cont=<count> (legacy boolean true reads as 1)
     sector=Math.max(1, snap.sector||1); waveIdx=0; waveTimer=1.6; bossPending=false; fleet=null;
     sectorKills=0; killsForBoss=killsForBossN(); sector1up=0; hybridTimer=rnd(6,10);
     window.scoreT=snap.score||0;
@@ -4567,20 +4567,16 @@ function jsonp(url,cb,fail){ const id='vcb_'+Math.random().toString(36).slice(2)
   window[id]=d=>{ done=true; try{cb(d);}catch(e){} cleanup(); };
   s.src=url.replace('callback=?','callback='+id); s.onerror=()=>{ cleanup(); fail&&fail(); }; document.head.appendChild(s);
   setTimeout(()=>{ if(!done){ cleanup(); fail&&fail(); } },6000); }
-/* Merged board: fetch single-session (cont=0) and continued (cont=1) for this mode
-   in parallel, merge, sort by score desc, cap at BOARD_N. Continued runs stay tagged
-   by contBadge. If one call fails we use whatever returned; only a total failure
-   triggers the caller's retry/fallback path. No backend/contract change. */
-function fetchOnline(then,fail){ if(!API_URL){ then&&then(); return; }
-  const mode=boardMode; let pending=2, got0=null, got1=null, anyOk=false;
-  function settle(){ if(--pending>0)return;
-    if(anyOk){ const merged=(got0||[]).concat(got1||[]);
-      merged.sort((a,c)=>(Number(c.score)||0)-(Number(a.score)||0));
-      onlineBoard=merged.slice(0,BOARD_N); then&&then(); }
-    else { fail&&fail(); } }
-  const q=c=>API_URL+'?action=top&n='+BOARD_N+'&mode='+mode+'&cont='+c+'&callback=?&cb='+Date.now();
-  jsonp(q(0), rows=>{ if(Array.isArray(rows)){ got0=rows; anyOk=true; } settle(); }, ()=>settle());
-  jsonp(q(1), rows=>{ if(Array.isArray(rows)){ got1=rows; anyOk=true; } settle(); }, ()=>settle()); }
+/* Single-call board: ONE request per mode with the cont param OMITTED, so the
+   backend returns every run for that mode (continued folded in, each row carrying
+   its own numeric cont count / kills / bosses) already sorted and capped to n.
+   The old two-call cont=0/cont=1 merge is gone. `offset` is threaded through for
+   future pagination (0 today; no load-more UI yet). Non-array/error => fail, which
+   the caller (refreshBoard) turns into a retry then a localBoard fallback. */
+function fetchOnline(then,fail,offset){ if(!API_URL){ then&&then(); return; }
+  const off=offset||0;
+  const q=API_URL+'?action=top&mode='+boardMode+'&n='+BOARD_N+(off?'&offset='+off:'')+'&callback=?&cb='+Date.now();
+  jsonp(q, rows=>{ if(Array.isArray(rows)){ onlineBoard=rows.slice(0,BOARD_N); then&&then(); } else { fail&&fail(); } }, fail); }
 function refreshBoard(target){
   fetchOnline(
     ()=>{ if(onlineBoard){ boardRetries=0; renderBoard(target); }
@@ -4595,10 +4591,11 @@ function saveLocal(name,score){ const b=localBoard(); b.push({name,score}); b.so
   const top=b.slice(0,10); try{localStorage.setItem('vanguard_scores',JSON.stringify(top));}catch(e){} return top; }
 function boardRows(){ return (API_URL && onlineBoard)? onlineBoard : localBoard(); }
 function submitToServer(score,sec,acc){ if(!API_URL)return; try{ const img=new Image();
-  img.src=API_URL+'?action=submit&name='+encodeURIComponent(curInitials)+'&score='+score+'&sector='+sec+'&acc='+acc+'&t='+Math.round(runTime)+'&mode='+gameMode+'&ver='+encodeURIComponent(VERSION)+'&cont='+(runContinued?1:0)+'&cb='+Date.now(); }catch(e){} }   // cont=1 flags a resumed run; leaderboard ignores it for now, this only establishes the data flow
+  img.src=API_URL+'?action=submit&name='+encodeURIComponent(curInitials)+'&score='+score+'&sector='+sec+'&acc='+acc+'&t='+Math.round(runTime)+'&mode='+gameMode+'&ver='+encodeURIComponent(VERSION)+'&cont='+(runContinued||0)+'&k='+(runKills||0)+'&bk='+(runBosses||0)+'&cb='+Date.now(); }catch(e){} }   // cont=<count> resumes; k/bk are the run's kills/bosses (same values telemetry sends), now recorded on the board too
 function escHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-/* CONTINUED badge for a resumed run. A missing cont field degrades to single-session (no badge) so nothing disappears if the backend is not yet updated. */
-function contBadge(r){ return (r && Number(r.cont)===1) ? '<span class="bcont">CONTINUED</span>' : ''; }
+/* CONTINUED badge reflecting the numeric continue-count: "CONTINUED x2" for a run
+   resumed twice, nothing for cont 0 / missing (pre-update rows degrade to no badge). */
+function contBadge(r){ const c=r?Number(r.cont)||0:0; return c>0 ? '<span class="bcont">CONTINUED x'+c+'</span>' : ''; }
 let _boardShown={};   // target -> [{run,rank}] backing each rendered row for click-to-detail
 function _boardRowHTML(r,rank,me,idx){
   const st=(r.sector!=null)?('<span class="bst">S'+r.sector+(r.acc!=null?' · '+r.acc+'%':'')+(r.ver?' · v'+r.ver:'')+'</span>'):'';
@@ -4612,8 +4609,11 @@ function _boardDetail(r,rank){ const p=[]; const add=(l,v)=>p.push('<span>'+l+' 
   if(r.sector!=null) add('SECTOR',escHTML(r.sector));
   if(r.acc!=null) add('ACCURACY',escHTML(r.acc)+'%');
   const tv=(r.t!=null?r.t:(r.time_s!=null?r.time_s:r.time)); if(tv!=null&&isFinite(+tv)) add('TIME',_hTime(+tv));
+  const kills=(r.kills!=null?r.kills:r.k), bosses=(r.bosses!=null?r.bosses:(r.bk!=null?r.bk:r.boss));   // backend field names, tolerant of the submit-side k/bk too; pre-update rows carry neither
+  if(Number(kills)>0) add('KILLS',(Number(kills)||0).toLocaleString());
+  if(Number(bosses)>0) add('BOSSES',(Number(bosses)||0));
   if(r.ver!=null) add('VERSION','v'+escHTML(r.ver));
-  add('CONTINUED', Number(r.cont)===1?'YES':'NO');
+  const cc=Number(r.cont)||0; if(cc>0) add('CONTINUED','x'+cc);
   return p.join(''); }
 function renderBoard(target,highlightName,highlightScore){
   const box=el(target); if(!box)return;
@@ -5137,6 +5137,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'182',date:'2026',items:['Leaderboard detail now shows kills, bosses, and how many times a run was continued.']},
  {ver:'181',date:'2026',items:['Settings menu redesigned: grouped into Audio, Visual, and Controls with cleaner toggles and sliders.']},
  {ver:'180',date:'2026',items:['The STARTING BUILD panel now lists each purchased upgrade with its icon and level under CONFIGURE BUILD.']},
  {ver:'179',date:'2026',items:['Achievements tuned and expanded: harder Marksman and Meltdown Master, sector-10 hardcore, 500 and 1000 run milestones with anti-farm vetting, and a hidden style achievement.']},
