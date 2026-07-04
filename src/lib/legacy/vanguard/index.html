@@ -224,6 +224,49 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .cab-ctoggle{padding:3px 9px;font-size:8.5px}
 .cab-foot{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:min(440px,96%)}
 @media (prefers-reduced-motion: reduce){ .cab-marquee,.cab-marquee::before,#ovlTitle .title-wm .a,#startCta{animation:none} }
+/* ---- RUN HISTORY: visual stats page ---- */
+.histwrap{width:min(560px,96%);max-height:72vh;overflow-y:auto;display:flex;flex-direction:column;gap:10px;text-align:left;padding:2px 4px 6px}
+.histwrap::-webkit-scrollbar{width:5px}.histwrap::-webkit-scrollbar-thumb{background:rgba(0,255,65,.3);border-radius:3px}
+.histwrap .cab-panel{flex:none;width:100%;max-width:none}
+.hs-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px}
+.hs-card{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 6px 7px;border:1px solid rgba(0,255,65,.32);border-radius:9px;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.13) 0 1px,transparent 1px 3px),linear-gradient(180deg,rgba(0,22,9,.78),rgba(0,10,5,.82));
+  box-shadow:0 0 12px rgba(0,255,65,.08),inset 0 0 18px rgba(0,255,65,.04)}
+.hs-card .ic{width:20px;height:20px;color:var(--green);opacity:.9}
+.hs-card .ic svg{width:20px;height:20px}
+.hs-card .v{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:16px;color:var(--white);text-shadow:0 0 10px rgba(0,255,65,.35);line-height:1.1;white-space:nowrap}
+.hs-card .l{font-family:'Share Tech Mono',monospace;font-size:7.5px;letter-spacing:.22em;color:var(--dim)}
+.hs-card.gold .v{color:var(--gold);text-shadow:0 0 10px rgba(200,255,0,.45)}.hs-card.gold .ic{color:var(--gold)}
+.hs-card.cyan .v{color:var(--cyan);text-shadow:0 0 10px rgba(0,240,255,.4)}.hs-card.cyan .ic{color:var(--cyan)}
+.hs-card.violet .v{color:var(--bmet);text-shadow:0 0 10px rgba(178,77,255,.4)}.hs-card.violet .ic{color:var(--bmet)}
+.hs-chart{width:100%;display:block}
+.hs-cols{display:flex;flex-wrap:wrap;gap:12px;width:100%}
+.hs-col{flex:1 1 150px;display:flex;flex-direction:column;gap:5px;min-width:0}
+.hs-col .hs-ct{font-family:'Share Tech Mono',monospace;font-size:8px;letter-spacing:.24em;color:var(--dim);margin-bottom:1px}
+.hs-brow{display:flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--white)}
+.hs-brow .bic{flex:0 0 16px;width:16px;height:16px;color:var(--cc,var(--green))}
+.hs-brow .bic svg{width:16px;height:16px}
+.hs-brow .bdot{flex:0 0 10px;width:10px;height:10px;border-radius:3px;background:var(--cc);box-shadow:0 0 7px var(--cc);margin:0 3px}
+.hs-brow .bl{flex:0 0 66px;letter-spacing:.05em;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hs-brow .bbar{flex:1;height:7px;border:1px solid rgba(255,255,255,.14);border-radius:3px;overflow:hidden;background:rgba(0,0,0,.3)}
+.hs-brow .bbar i{display:block;height:100%;background:var(--cc,var(--green));box-shadow:0 0 8px var(--cc,var(--green));border-radius:2px}
+.hs-brow .bn{flex:0 0 auto;color:var(--white)}
+.hs-mode{display:flex;align-items:center;gap:10px}
+.hs-list{display:flex;flex-direction:column;width:100%;max-height:240px;overflow-y:auto;padding-right:3px}
+.hs-list::-webkit-scrollbar{width:5px}.hs-list::-webkit-scrollbar-thumb{background:rgba(0,255,65,.3);border-radius:3px}
+.hs-row{display:flex;align-items:center;gap:7px;padding:4px;border-bottom:1px solid rgba(74,122,82,.18);cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:9.5px;color:var(--white)}
+.hs-row:hover{background:rgba(0,255,65,.05)}
+.hs-row .rw{flex:0 0 76px;color:var(--dim);font-size:8.5px}
+.hs-row .rm{flex:0 0 auto;font-size:7.5px;letter-spacing:.1em;border:1px solid;border-radius:3px;padding:1px 4px}
+.hs-row .rs{flex:1;text-align:right;font-family:'Chakra Petch',sans-serif;font-weight:700;color:var(--gold);font-size:11px}
+.hs-row .rx{flex:0 0 auto;color:var(--dim);font-size:8.5px;white-space:nowrap}
+.hs-row .rd{flex:0 0 9px;width:9px;height:9px;border-radius:50%;box-shadow:0 0 6px currentColor;background:currentColor}
+.hs-det{display:flex;flex-wrap:wrap;gap:5px 14px;padding:6px 6px 8px;border-bottom:1px solid rgba(74,122,82,.25);background:rgba(0,255,65,.035);font-family:'Share Tech Mono',monospace;font-size:8.5px;color:var(--dim)}
+.hs-det b{color:var(--white);font-weight:400}
+@keyframes hsIn{0%{opacity:0;transform:translateY(7px)}100%{opacity:1;transform:translateY(0)}}
+.histwrap>*{animation:hsIn .35s ease-out both}
+.histwrap>*:nth-child(2){animation-delay:.06s}.histwrap>*:nth-child(3){animation-delay:.12s}.histwrap>*:nth-child(4){animation-delay:.18s}.histwrap>*:nth-child(5){animation-delay:.24s}.histwrap>*:nth-child(6){animation-delay:.3s}
+@media (prefers-reduced-motion: reduce){ .histwrap>*{animation:none} }
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;max-width:320px;font-size:10px;letter-spacing:.04em}
 .legend span{display:inline-flex;align-items:center;gap:5px;color:var(--white)}
 .legend i{width:9px;height:9px;display:inline-block;border-radius:2px}
@@ -571,10 +614,10 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <button class="obtn" id="logClose">CLOSE</button>
   </div>
 
-  <!-- RUN HISTORY -->
-  <div class="ovl hidden" id="ovlHist" style="background:rgba(2,10,4,.96);z-index:13;gap:12px">
+  <!-- RUN HISTORY: full visual stats page (cards + charts + breakdowns + all runs) -->
+  <div class="ovl hidden" id="ovlHist" style="background:rgba(2,10,4,.96);z-index:13;gap:10px">
     <h2 class="ovh">RUN HISTORY</h2>
-    <div id="histBody" class="board" style="max-width:340px;max-height:60vh;overflow-y:auto;text-align:left"></div>
+    <div id="histBody" class="histwrap"></div>
     <button class="obtn" id="histClose">CLOSE</button>
   </div>
   <button class="mini hidden" id="calibSkip" style="position:absolute;top:78px;right:14px;z-index:14;border-color:var(--dim);color:var(--dim)">SKIP CALIBRATION ›</button>
@@ -605,7 +648,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='174';
+const W=630,H=840; const VERSION='175';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4915,6 +4958,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'175',date:'2026',items:['Run history rebuilt into one visual page: stat cards, score and sector graphs, weapon and death breakdowns, count-up numbers, and every run browsable.']},
  {ver:'174',date:'2026',items:['Home screen redesigned as an arcade cabinet: a neon marquee, a clear LAUNCH deck, framed leaderboard and build panels, and a tidy controls legend.']},
  {ver:'173',date:'2026',items:['SINGULARITY reworked for presence: tighter and more alive, space bends into it, and enemies stretch and get devoured at the horizon.']},
  {ver:'172',date:'2026',items:['SINGULARITY black hole fully reworked: a turbulent lensed accretion disk, photon ring, Doppler beaming, and infalling matter.']},
@@ -5002,6 +5046,52 @@ function _hHuman(v){ return (v&&String(v).length)?_hEsc(String(v).replace(/_/g,'
 function _hNum(v){ return (typeof v==='number'&&isFinite(v))?v.toLocaleString():'0'; }
 function _hTime(s){ s=Math.max(0,Math.round(typeof s==='number'?s:0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
 function _hWhen(iso){ try{ const d=new Date(iso); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }catch(e){ return _hEsc(iso); } }
+function _hsFk(dc){ dc=String(dc||''); const m=dc.match(/^(ace|bmet|csee|mat|mset)/);
+  if(m) return {boss:/_boss$/.test(dc), c:COL[m[1]], name:(FACTIONS[m[1]]?FACTIONS[m[1]].name.split(' ')[0]:m[1].toUpperCase())};
+  if(dc==='hazard') return {boss:false,c:COL.amber,name:'ENVIRONMENT'};
+  return {boss:false,c:'#4A7A52',name:dc?String(dc).replace(/_/g,' ').toUpperCase():'UNKNOWN'}; }
+function _hsWIcon(w){ return shopIcon(WROT_ICON[w]||'gun'); }
+function _hsAbbr(v){ v=Math.round(v); if(v>=1e6)return (v/1e6).toFixed(1)+'M'; if(v>=1e3)return (v/1e3).toFixed(v>=1e4?0:1)+'K'; return String(v); }
+/* one-shot neon chart onto a canvas: line+area (default) or per-value bars */
+function _hsChart(cv,vals,color,opts){ opts=opts||{}; const n=vals.length; if(!cv||!n)return;
+  const dpr=Math.min(2,window.devicePixelRatio||1), w=Math.max(200,cv.clientWidth||460), hh=opts.h||110;
+  cv.width=Math.round(w*dpr); cv.height=Math.round(hh*dpr); cv.style.width='100%'; cv.style.height=hh+'px';
+  const c=cv.getContext('2d'); c.scale(dpr,dpr);
+  const pad={l:34,r:8,t:10,b:6}, iw=w-pad.l-pad.r, ih=hh-pad.t-pad.b;
+  let mx=Math.max.apply(null,vals), mn=opts.zero?0:Math.min.apply(null,vals); if(mx===mn)mx=mn+1;
+  c.font="8px 'Share Tech Mono',monospace"; c.textBaseline='middle';
+  for(let g=0;g<=2;g++){ const gy=pad.t+ih*g/2, gv=mx-(mx-mn)*g/2;
+    c.strokeStyle='rgba(0,255,65,.13)'; c.beginPath(); c.moveTo(pad.l,gy); c.lineTo(w-pad.r,gy); c.stroke();
+    c.fillStyle='rgba(122,180,130,.8)'; c.textAlign='right'; c.fillText(_hsAbbr(gv),pad.l-4,gy); }
+  const X=i=>pad.l+(n===1?iw/2:iw*i/(n-1)), Y=v=>pad.t+ih*(1-(v-mn)/(mx-mn));
+  if(opts.bars){ const bw=Math.max(2,Math.min(16,iw/n*0.6));
+    for(let i=0;i<n;i++){ const col=(opts.colors&&opts.colors[i])||color;
+      c.fillStyle=col; c.shadowColor=col; c.shadowBlur=6; c.fillRect(X(i)-bw/2,Y(vals[i]),bw,pad.t+ih-Y(vals[i])); }
+    c.shadowBlur=0; }
+  else{ c.beginPath(); for(let i=0;i<n;i++){ i?c.lineTo(X(i),Y(vals[i])):c.moveTo(X(i),Y(vals[i])); }
+    c.strokeStyle=color; c.lineWidth=1.6; c.shadowColor=color; c.shadowBlur=8; c.stroke(); c.shadowBlur=0;
+    const grd=c.createLinearGradient(0,pad.t,0,pad.t+ih); grd.addColorStop(0,color+'33'); grd.addColorStop(1,color+'00');
+    c.lineTo(X(n-1),pad.t+ih); c.lineTo(X(0),pad.t+ih); c.closePath(); c.fillStyle=grd; c.fill();
+    const bi=vals.indexOf(mx);
+    if(bi>=0){ c.fillStyle=COL.gold; c.shadowColor=COL.gold; c.shadowBlur=8; c.beginPath(); c.arc(X(bi),Y(vals[bi]),2.6,0,6.2832); c.fill(); c.shadowBlur=0; } } }
+function _hsDonut(nrm,hc,oth){ const tot=Math.max(1,nrm+hc+oth), C=2*Math.PI*20; let off=0;
+  const seg=function(nv,col){ if(!nv)return ''; const len=C*nv/tot;
+    const s='<circle cx="27" cy="27" r="20" fill="none" stroke="'+col+'" stroke-width="6" stroke-dasharray="'+len.toFixed(1)+' '+(C-len).toFixed(1)+'" stroke-dashoffset="'+(-off).toFixed(1)+'" transform="rotate(-90 27 27)"/>'; off+=len; return s; };
+  return '<svg width="54" height="54" viewBox="0 0 54 54">'+seg(nrm,COL.green)+seg(hc,COL.mset)+seg(oth,'#4A7A52')+'</svg>'; }
+function _hsBrow(icon,label,count,max,cc){ const pct=Math.round(100*count/Math.max(1,max));
+  return '<div class="hs-brow" style="--cc:'+cc+'">'+icon+'<span class="bl">'+label+'</span><span class="bbar"><i style="width:'+pct+'%"></i></span><span class="bn">'+count+'</span></div>'; }
+function _hsDetail(r){ const parts=[], skip={created_at:1,mode:1,score:1,sector:1,accuracy:1,time_s:1,death_cause:1,id:1,user_id:1,kills:1,bosses:1,coins_earned:1,primary_weapon:1,heavy_weapon:1,version:1};
+  const add=function(l,v){ parts.push('<span>'+l+' <b>'+v+'</b></span>'); };
+  try{ add('DATE',_hEsc(new Date(r.created_at).toLocaleString())); }catch(e){}
+  if(r.kills!=null) add('KILLS',_hNum(+r.kills));
+  if(r.bosses!=null) add('BOSSES',_hNum(+r.bosses));
+  if(r.coins_earned!=null) add('i¢ EARNED',_hNum(+r.coins_earned));
+  if(r.primary_weapon) add('PRIMARY',_hHuman(WDISP[r.primary_weapon]||r.primary_weapon));
+  if(r.heavy_weapon) add('HEAVY',_hHuman(r.heavy_weapon));
+  if(r.version!=null) add('BUILD','v'+_hEsc(r.version));
+  add('FELLED BY',_hEsc(_hsFk(r.death_cause).name+(_hsFk(r.death_cause).boss?' BOSS':'')));
+  for(const k in r){ if(!skip[k] && r[k]!=null && typeof r[k]!=='object') add(_hHuman(k),_hEsc(String(r[k]))); }
+  return parts.join(''); }
 function renderHist(){ const box=el('histBody'); if(!box)return;
   if(typeof window.__ideaGetHistory!=='function'){
     box.innerHTML='<div style="color:var(--white);line-height:1.5">Sign in to track your run history.</div>'
@@ -5011,25 +5101,64 @@ function renderHist(){ const box=el('histBody'); if(!box)return;
   window.__ideaGetHistory().then(function(res){
     const runs=(res&&res.runs)||[], sm=(res&&res.summary)||null;
     if(!sm || !runs.length){ box.innerHTML='<div style="color:var(--white);line-height:1.5">No runs recorded yet. Go play a run and it will show up here.</div>'; return; }
-    let h='<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:9px">'
-      +'<span style="color:var(--dim);font-size:10px">RUNS <b style="color:var(--white)">'+_hNum(sm.totalRuns)+'</b></span>'
-      +'<span style="color:var(--dim);font-size:10px">BEST <b style="color:var(--gold)">'+_hNum(sm.bestScore)+'</b></span>'
-      +'<span style="color:var(--dim);font-size:10px">SECTOR <b style="color:var(--white)">'+_hNum(sm.highestSector)+'</b></span>'
-      +'<span style="color:var(--dim);font-size:10px">WEAPON <b style="color:var(--cyan)">'+_hHuman(sm.favoriteWeapon)+'</b></span>'
+    const chron=runs.slice().sort(function(a,b){ return new Date(a.created_at)-new Date(b.created_at); });
+    const list=chron.slice().reverse();   // newest first for the browsable list
+    const accs=runs.map(function(r){return +r.accuracy;}).filter(isFinite);
+    const avgAcc=accs.length?Math.round(accs.reduce(function(a,b){return a+b;},0)/accs.length):0;
+    const totalMin=Math.round(runs.reduce(function(a,r){return a+(+r.time_s||0);},0)/60);
+    const wc={}, dcs={}, mc={normal:0,hardcore:0,other:0};
+    runs.forEach(function(r){ if(r.primary_weapon) wc[r.primary_weapon]=(wc[r.primary_weapon]||0)+1;
+      const f=_hsFk(r.death_cause), k=f.name+(f.boss?' BOSS':''); (dcs[k]=dcs[k]||{n:0,c:f.c}).n++;
+      mc[r.mode==='hardcore'?'hardcore':r.mode==='normal'?'normal':'other']++; });
+    const wArr=Object.keys(wc).sort(function(a,b){return wc[b]-wc[a];});
+    const dArr=Object.keys(dcs).sort(function(a,b){return dcs[b].n-dcs[a].n;}).slice(0,6);
+    const wMax=wArr.length?wc[wArr[0]]:1, dMax=dArr.length?dcs[dArr[0]].n:1;
+    let h='<div class="hs-cards">'
+      +'<div class="hs-card"><span class="ic">'+shopIcon('drone')+'</span><span class="v" id="hsV0">0</span><span class="l">RUNS</span></div>'
+      +'<div class="hs-card gold"><span class="ic">'+shopIcon('beampow')+'</span><span class="v" id="hsV1">0</span><span class="l">BEST SCORE</span></div>'
+      +'<div class="hs-card"><span class="ic">'+shopIcon('w_lance')+'</span><span class="v" id="hsV2">0</span><span class="l">TOP SECTOR</span></div>'
+      +'<div class="hs-card cyan"><span class="ic">'+_hsWIcon(sm.favoriteWeapon)+'</span><span class="v" style="font-size:13px">'+_hHuman(WDISP[sm.favoriteWeapon]||sm.favoriteWeapon)+'</span><span class="l">FAV WEAPON</span></div>'
+      +'<div class="hs-card cyan"><span class="ic">'+shopIcon('repair')+'</span><span class="v" id="hsV3">0%</span><span class="l">AVG ACCURACY</span></div>'
+      +'<div class="hs-card violet"><span class="ic">'+shopIcon('beamspool')+'</span><span class="v" id="hsV4">0</span><span class="l">TIME PLAYED</span></div>'
       +'</div>';
-    h+='<div style="display:flex;flex-direction:column;gap:3px">';
-    runs.slice(0,10).forEach(function(r){
-      const md=_hHuman(r.mode), mc=(r.mode==='hardcore')?'var(--amber)':(r.mode==='arcade')?'var(--dim)':'var(--green)';
-      h+='<div style="font-size:10.5px;line-height:1.5;color:var(--white);border-bottom:1px solid rgba(74,122,82,0.2);padding:1px 0">'
-        +'<span style="color:var(--dim)">'+_hWhen(r.created_at)+'</span> · '
-        +'<span style="color:'+mc+'">'+md+'</span> · '
-        +'<b style="color:var(--gold)">'+_hNum(r.score)+'</b> · '
-        +'S'+_hNum(r.sector)+' · '+_hNum(r.accuracy)+'% · '+_hTime(r.time_s)
-        +' · <span style="color:var(--dim)">'+_hHuman(r.death_cause)+'</span></div>';
-    });
-    h+='</div>';
-    h+='<div style="margin-top:9px"><a href="/vanguard/history" style="color:var(--gold);text-decoration:none">FULL HISTORY ›</a></div>';
+    h+='<div class="cab-panel"><div class="cab-ptitle">SCORE OVER RUNS</div><canvas class="hs-chart" id="hsChS"></canvas></div>';
+    h+='<div class="cab-panel"><div class="cab-ptitle">SECTOR REACHED</div><canvas class="hs-chart" id="hsChT"></canvas></div>';
+    if(chron.length>=3) h+='<div class="cab-panel"><div class="cab-ptitle">ACCURACY TREND</div><canvas class="hs-chart" id="hsChA"></canvas></div>';
+    h+='<div class="cab-panel"><div class="cab-ptitle">BREAKDOWN</div><div class="hs-cols">';
+    h+='<div class="hs-col"><div class="hs-ct">ARSENAL</div>'+(wArr.length?wArr.map(function(w){ return _hsBrow('<span class="bic">'+_hsWIcon(w)+'</span>',_hEsc(WDISP[w]||String(w).toUpperCase()),wc[w],wMax,COL.green); }).join(''):'<div class="hs-brow" style="color:var(--dim)">NO DATA</div>')+'</div>';
+    h+='<div class="hs-col"><div class="hs-ct">FELLED BY</div>'+dArr.map(function(k){ return _hsBrow('<span class="bdot" style="--cc:'+dcs[k].c+'"></span>',_hEsc(k),dcs[k].n,dMax,dcs[k].c); }).join('')+'</div>';
+    h+='<div class="hs-col"><div class="hs-ct">MODE</div><div class="hs-mode">'+_hsDonut(mc.normal,mc.hardcore,mc.other)+'<div style="display:flex;flex-direction:column;gap:3px">'
+      +'<span class="hs-brow" style="--cc:'+COL.green+'"><span class="bdot"></span><span class="bl">NORMAL</span><span class="bn">'+mc.normal+'</span></span>'
+      +'<span class="hs-brow" style="--cc:'+COL.mset+'"><span class="bdot"></span><span class="bl">HARDCORE</span><span class="bn">'+mc.hardcore+'</span></span>'
+      +(mc.other?'<span class="hs-brow" style="--cc:#4A7A52"><span class="bdot"></span><span class="bl">OTHER</span><span class="bn">'+mc.other+'</span></span>':'')
+      +'</div></div></div>';
+    h+='</div></div>';
+    h+='<div class="cab-panel"><div class="cab-ptitle">ALL RUNS ('+list.length+')</div><div class="hs-list" id="hsList">'
+      +list.map(function(r,i){ const hc=r.mode==='hardcore', fk=_hsFk(r.death_cause);
+        const mcc=hc?'var(--mset)':r.mode==='normal'?'var(--green)':'var(--dim)';
+        return '<div class="hs-row" data-i="'+i+'"><span class="rw">'+_hWhen(r.created_at)+'</span>'
+          +'<span class="rm" style="color:'+mcc+';border-color:'+mcc+'">'+(hc?'HC':r.mode==='normal'?'NM':_hEsc(String(r.mode||'?').slice(0,2).toUpperCase()))+'</span>'
+          +'<span class="rs">'+_hNum(r.score)+'</span>'
+          +'<span class="rx">S'+_hNum(r.sector)+' · '+_hNum(r.accuracy)+'% · '+_hTime(r.time_s)+'</span>'
+          +'<span class="rd" style="color:'+fk.c+'" title="'+_hEsc(fk.name)+'"></span></div>'; }).join('')
+      +'</div></div>';
     box.innerHTML=h;
+    countUp('hsV0',+sm.totalRuns||0,{delay:0});
+    countUp('hsV1',+sm.bestScore||0,{fmt:function(v){return v.toLocaleString();},delay:90});
+    countUp('hsV2',+sm.highestSector||0,{delay:180});
+    countUp('hsV3',avgAcc,{fmt:function(v){return v+'%';},delay:270});
+    countUp('hsV4',totalMin,{fmt:function(v){return v+'m';},delay:360});
+    requestAnimationFrame(function(){   // draw once, after layout settles
+      _hsChart(el('hsChS'),chron.map(function(r){return +r.score||0;}),COL.green,{h:110,zero:true});
+      _hsChart(el('hsChT'),chron.map(function(r){return +r.sector||0;}),COL.green,{h:84,zero:true,bars:true,colors:chron.map(function(r){return r.mode==='hardcore'?COL.mset:COL.green;})});
+      const ca=el('hsChA'); if(ca) _hsChart(ca,chron.map(function(r){return +r.accuracy||0;}),COL.cyan,{h:70,zero:true});
+    });
+    const lst=el('hsList');
+    if(lst) lst.addEventListener('click',function(ev){ const row=ev.target.closest('.hs-row'); if(!row)return;
+      const nxt=row.nextElementSibling;
+      if(nxt && nxt.classList.contains('hs-det')){ nxt.remove(); return; }   // collapse
+      const r=list[+row.dataset.i]; if(!r)return;
+      const d=document.createElement('div'); d.className='hs-det'; d.innerHTML=_hsDetail(r); row.after(d); });
   }).catch(function(){ box.innerHTML='<div style="color:var(--amber)">Could not load run history. Try again later.</div>'; });
 }
 function openHist(){ el('ovlHist').classList.remove('hidden'); renderHist(); }
