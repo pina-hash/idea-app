@@ -537,7 +537,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='166';
+const W=630,H=840; const VERSION='167';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -4169,14 +4169,19 @@ function renderBoard(target,highlightName,highlightScore){
 
 /* initials entry */
 let curInitials='AAA', selSlot=0, pendingScore=null; const NAMELEN=12;
-function padName(s){ return ((s||'AAA')+' '.repeat(NAMELEN)).slice(0,NAMELEN); }
-function trimName(s){ return ((s||'').replace(/^\s+|\s+$/g,'')||'AAA').slice(0,NAMELEN); }
+// NAME ENTRY works on grapheme CELLS (Array.from code points) so a single-code-point emoji fills exactly one of NAMELEN slots; curInitials stays cells.join('') for storage/submit so the rest of the pipeline is unchanged.
+const NAMECHARS=[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .-_*+!?#@%=~^$','⚡','🔥','💀','👾','🚀','⭐','💥','🎯','👑','🤖','🐍','💚'];
+function nameCells(s){ const c=Array.from(s||''); while(c.length<NAMELEN)c.push(' '); return c.slice(0,NAMELEN); }
+function getCells(){ return nameCells(curInitials); }
+function setCell(i,ch){ const c=getCells(); c[i]=ch; curInitials=c.join(''); }
+function padName(s){ return nameCells(s).join(''); }
+function trimName(s){ const t=(s||'').replace(/^\s+|\s+$/g,'')||'AAA'; return Array.from(t).slice(0,NAMELEN).join(''); }
 function buildInitials(){ let s='AAA'; try{ s=localStorage.getItem('vanguard_lastInitials')||'AAA'; }catch(e){}
   curInitials=padName(s); selSlot=0; const box=el('initials'); box.innerHTML='';
   for(let i=0;i<NAMELEN;i++){ const d=document.createElement('div'); d.className='slot'+(i===0?' sel':''); d.dataset.i=i;
     d.addEventListener('pointerdown',ev=>{ev.preventDefault(); selSlot=i; cycleSlot(i); refreshInitials();}); box.appendChild(d); } refreshInitials(); }
-function cycleSlot(i){ const A='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 '; const cur=curInitials[i]||' '; let idx=A.indexOf(cur); if(idx<0)idx=A.length-1; idx=(idx+1)%A.length; curInitials=curInitials.substring(0,i)+A[idx]+curInitials.substring(i+1); }
-function refreshInitials(){ const box=el('initials'); [...box.children].forEach((d,i)=>{ const c=curInitials[i]; d.textContent=(c===' '||c===undefined)?'_':c; d.classList.toggle('blank',c===' '||c===undefined); d.classList.toggle('sel',i===selSlot); }); }
+function cycleSlot(i){ const c=getCells(); const cur=c[i]||' '; let idx=NAMECHARS.indexOf(cur); if(idx<0)idx=NAMECHARS.length-1; idx=(idx+1)%NAMECHARS.length; c[i]=NAMECHARS[idx]; curInitials=c.join(''); }
+function refreshInitials(){ const box=el('initials'); const c=getCells(); [...box.children].forEach((d,i)=>{ const ch=c[i]; d.textContent=(ch===' '||ch===undefined||ch==='')?'_':ch; d.classList.toggle('blank',ch===' '||ch===undefined||ch===''); d.classList.toggle('sel',i===selSlot); }); }
 
 /* ============================= input ============================= */
 const ptr={x:W/2,y:H-130,active:false,id:null,touch:false,dlx:null,dly:null,lx:null,ly:null};
@@ -4277,8 +4282,8 @@ window.addEventListener('keydown',e=>{ if(typingInField()) return;
     else if(e.key==='ArrowDown'){ refitTabStep(1); e.preventDefault(); }
     else if(e.key===' '){ refitBuySel(); e.preventDefault(); }   // Space buys (parry is play-only, no conflict here)
   } else if(state==='over'){
-    if(/^[a-z0-9 .!?_*+\-]$/.test(k)){ curInitials=curInitials.substring(0,selSlot)+k.toUpperCase()+curInitials.substring(selSlot+1); selSlot=Math.min(NAMELEN-1,selSlot+1); refreshInitials(); e.preventDefault(); }
-    else if(e.key==='Backspace'){ curInitials=curInitials.substring(0,selSlot)+' '+curInitials.substring(selSlot+1); selSlot=Math.max(0,selSlot-1); refreshInitials(); }
+    if(Array.from(e.key).length===1){ const ch=/^[a-z]$/.test(e.key)?e.key.toUpperCase():e.key; setCell(selSlot,ch); selSlot=Math.min(NAMELEN-1,selSlot+1); refreshInitials(); e.preventDefault(); }
+    else if(e.key==='Backspace'){ setCell(selSlot,' '); selSlot=Math.max(0,selSlot-1); refreshInitials(); }
     else if(e.key==='Enter'){ submitScore(); }
     else if(e.key==='ArrowLeft'){ selSlot=Math.max(0,selSlot-1); refreshInitials(); }
     else if(e.key==='ArrowRight'){ selSlot=Math.min(NAMELEN-1,selSlot+1); refreshInitials(); }
@@ -4622,6 +4627,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'167',date:'2026',items:['Name entry now supports symbols and a set of emoji, on both tap and keyboard.']},
  {ver:'166',date:'2026',items:['Clearer heavy-upgrade descriptions: HEAVY SPOOL is spin-up and recovery, ENERGY CELL is reserve and refill.']},
  {ver:'165',date:'2026',items:['Bosses no longer repeat within a run until you have fought all five at least once.']},
  {ver:'164',date:'2026',items:['Picking your mode on the title screen now shows that mode\'s leaderboard automatically.']},
