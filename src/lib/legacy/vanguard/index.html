@@ -688,7 +688,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 (function(){
 "use strict";
 /* ============================= setup ============================= */
-const W=630,H=840; const VERSION='177';
+const W=630,H=840; const VERSION='178';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -889,6 +889,16 @@ let runContinued=false;   // true once the current run was resumed from a saved 
 const START_BUDGET=1000;
 function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0,grace:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
+/* PHASE BUFFER / grace caps. Declared here (not with the other grace dials far
+   below) because outfitOffers() references GRACE_MAX, and buildCost() calls
+   outfitOffers() at load time (below). A const declared after that call sits in
+   the temporal dead zone, so outfitOffers() would throw, buildCost()'s catch
+   would return 0, and a saved build's spent would reset to 0 while its upgrades
+   were kept -> the full budget refunded for free. Keeping GRACE_MAX initialized
+   before the load path closes that exploit. */
+const GRACE_FLOOR=0.18;             // always-on post-hit invulnerability, both modes; the anti-cluster minimum
+const GRACE_PER_LEVEL=0.10;         // each PHASE BUFFER level adds this much recovery
+const GRACE_MAX=4;                  // max PHASE BUFFER level; max window = 0.18 + 4*0.10 = 0.58s (~ old normal grace)
 /* True i¢ cost of a build, derived from the SAME per-item costs CONFIGURE BUILD
    and REFIT use (outfitOffers), so cost has a single source of truth and cannot
    drift. Replays the build from freshBuild(): weapon/heavy unlocks are free and
@@ -915,13 +925,16 @@ function buildCost(build){
       }
       if(!acted) break;
     }
-  }catch(e){ total=0; }
+  }catch(e){ total=START_BUDGET+1e9; }   // FAIL-CLOSED: a cost that cannot be trusted must never read as cheap/free; signal over-budget so the loader resets the build
   finally{ startBuild=saved; gameMode=savedMode; }
   return total;
 }
 try{ const _sb=JSON.parse(localStorage.getItem('vanguard_build')||'null'); if(_sb&&_sb.up){ startBuild=freshBuild(); startBuild.up=Object.assign(startBuild.up,_sb.up); startBuild.unlocked=Object.assign(startBuild.unlocked,_sb.unlocked||{}); startBuild.heavyUnlocked=Object.assign(startBuild.heavyUnlocked,_sb.heavyUnlocked||{}); startBuild.heavy=_sb.heavy||'beam'; startBuild.wtype=_sb.wtype||'spread'; startBuild.bombs=_sb.bombs||2; startBuild.shieldHits=_sb.shieldHits||0; startBuild.drone=_sb.drone?{ph:0}:null;
   startBuild.spent=buildCost(startBuild);                                        // enforce budget by TRUE cost, ignoring the stored scalar
-  if(startBuild.spent>START_BUDGET){ startBuild=freshBuild(); saveBuild(); }     // over-budget (leaked / cloud-ratcheted) -> reset to clean and persist so the fix propagates to the cloud
+  // Reset any build we cannot certify as legitimately in-budget: over budget (leaked/cloud-ratcheted OR a fail-closed cost),
+  // or upgrades present while the computed cost is 0 (impossible for a real build -> undercount/failed cost). A build must
+  // never load with spent below its true cost, so an untrustworthy cost forces a clean reset (re-saved to propagate the fix).
+  if(startBuild.spent>START_BUDGET || (buildCount()>0 && startBuild.spent<=0)){ startBuild=freshBuild(); saveBuild(); }
 } }catch(e){}
 const KEYS_DEFAULT={fire:'Mouse0', fireKey:'j', beam:'Mouse2', beamAlt:'f', bomb:'x', parry:'Space', meltdown:'v', weapon:'q', heavy:'e', pause:'p', mute:'m', weap1:'1', weap2:'2', weap3:'3', weap4:'4', weap5:'5', weap6:'6'};
 let DEVICE_ID=''; try{ DEVICE_ID=localStorage.getItem('vanguard_did')||''; if(!/^[0-9a-f]{8}$/.test(DEVICE_ID)){ DEVICE_ID=Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b=>b.toString(16).padStart(2,'0')).join(''); localStorage.setItem('vanguard_did',DEVICE_ID); } }catch(e){ DEVICE_ID='nodid000'; }
@@ -2050,9 +2063,8 @@ const MELTDOWN_STYLE_BONUS=1;       // extra charge granted by a kill made at hi
 const MELTDOWN_COOLDOWN=2.0;        // seconds lockout after the window ends before it can fire again
 const MELTDOWN_COST=1800;           // REFIT unlock price
 const MELTDOWN_MELEE_MULT=1.6;      // buzzsaw blade-speed and blade-DPS multiplier while active (melee has no fireCd projectile to speed up)
-const GRACE_FLOOR=0.18;             // always-on post-hit invulnerability, both modes; the anti-cluster minimum
-const GRACE_PER_LEVEL=0.10;         // each PHASE BUFFER level adds this much recovery
-const GRACE_MAX=4;                  // max PHASE BUFFER level; max window = 0.18 + 4*0.10 = 0.58s (~ old normal grace)
+/* GRACE_FLOOR / GRACE_PER_LEVEL / GRACE_MAX are declared up near freshBuild(), before
+   buildCost()'s load-time call to outfitOffers(), to avoid a temporal-dead-zone throw. */
 function graceWindow(){ return GRACE_FLOOR + ((player.up.grace||0)*GRACE_PER_LEVEL); }
 function meltdownStyleGate(){ const r=STYLE_RANKS.find(k=>k.g==='SS')||STYLE_RANKS[STYLE_RANKS.length-1]; return r.min; }   // SS threshold (fallback: highest rank)
 function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), pdX=(1+u.gun*BAL.gunCoef); const hu=b.heavyUnlocked||{}; const dev=(gameMode==='dev'); return [
@@ -5040,6 +5052,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'178',date:'2026',items:['Fixed a build exploit where reloading refunded the budget while keeping purchased upgrades.']},
  {ver:'177',date:'2026',items:['Achievements added: earn them across progression, mastery, style, MELTDOWN, hardcore, and playtime, track them in a new panel, and wear one as a title.']},
  {ver:'176',date:'2026',items:['Leaderboard reworked: one board per mode with continued runs folded in and badged, top 250 browsable, and click any score for its run detail.']},
  {ver:'175',date:'2026',items:['Run history rebuilt into one visual page: stat cards, score and sector graphs, weapon and death breakdowns, count-up numbers, and every run browsable.']},
