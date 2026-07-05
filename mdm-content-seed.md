@@ -33,9 +33,9 @@ Worked example, an intake roller mount. Define: hold a one-half inch hex roller 
 
 ## Drill
 
-1. A shuffled list of the eight steps. Put them in order.
+1. Put these design-process steps in the correct order: manufacture, define the problem, prototype, select a concept, generate concepts, test, detail the design, research.
 2. A teammate says the arm should reach six feet and ideally weigh under three pounds. Which part is a demand and which is a goal?
-3. You just built a cardboard mockup and it works. What is the next step, and what is not the next step?
+3. You just built a cardboard mockup and it works. What is the correct next step?
 4. Why set constraints before sketching geometry?
 5. Two bracket concepts both meet every demand. What decides between them?
 
@@ -79,7 +79,7 @@ Worked example, a simple bracket. Read the front view for overall length and hei
 2. What does a callout of 0.266 diameter THRU tell a machinist?
 3. A hole has a diameter callout but no dimensions to any edge. What is missing and why does it matter?
 4. Where do you find the material and the default tolerance?
-5. Match three given views to the correct 3D part from four options.
+5. How do you decide which 3D part matches a given set of front, top, and side views?
 
 Answers: 1. A hole, a circle from the top and hidden lines from the front. 2. Drill a 0.266 inch hole all the way through, the 1/4-20 clearance size. 3. Its locating dimensions; without them the hole position is undefined and the part cannot be made correctly. 4. The title block. 5. The part whose front, top, and side profiles match all three views.
 
