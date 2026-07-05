@@ -72,9 +72,13 @@ export async function startQuiz(
 }
 
 /**
- * Submit an attempt: grade server-side, run `onPass` (markUnitComplete) on a
- * pass, and on a fail return the missed TOPIC NAMES plus the fresh cooldown.
- * Never returns correct answers.
+ * Submit an attempt: grade server-side, run `onPass` on a pass, and on a fail
+ * return the missed TOPIC NAMES plus the fresh cooldown. Never returns correct
+ * answers. `onPass` is a caller-supplied hook only; the real (DB-backed) store
+ * already records completion inline inside its `gradeAttempt` (the
+ * `frc_quiz_grade` RPC, see 0041_frc_progress_lockdown.sql), so the real
+ * endpoint's `onPass` is a no-op — the hook exists for the dev mock and any
+ * future non-DB store.
  */
 export async function submitQuiz(
 	store: QuizStore,

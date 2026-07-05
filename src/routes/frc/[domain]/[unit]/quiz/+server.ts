@@ -3,7 +3,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getQuizBank, type AttemptRecord, type SealedItem } from '$lib/server/frc/quiz-engine';
 import { startQuiz, submitQuiz, type QuizStore } from '$lib/server/frc/quiz-service';
 import { cooldownSecondsForFailStreak } from '$lib/frc/track';
-import { markUnitComplete } from '$lib/frc/progression';
 import { mdmUnitByNumber } from '$lib/frc/mdm-content';
 import type { RequestHandler } from './$types';
 
@@ -11,10 +10,16 @@ import type { RequestHandler } from './$types';
  * Server-authoritative knowledge-gate quiz for a unit (currently MDM-1).
  * POST { action:'start' } -> serves stems + shuffled options (NO answer key),
  * enforcing the escalating cooldown. POST { action:'submit', attemptId, answers }
- * -> grades against the server-held key, records the attempt, and on a pass
- * calls markUnitComplete. The answer key never leaves the server.
+ * -> grades against the server-held key and records the attempt. The answer
+ * key never leaves the server.
  *
- * Fails soft: if migration 0040 is unapplied, the store errors surface as
+ * Completion recording: the `frc_quiz_grade` RPC (0041) records a pass into
+ * `frc_user_progress` ITSELF, inline, scoped to the caller's own `auth.uid()`.
+ * This endpoint does not call `markUnitComplete` (that seam is teacher-only as
+ * of 0041 and would simply be refused for a student); the `onPass` hook below
+ * is a deliberate no-op.
+ *
+ * Fails soft: if migration 0040/0041 is unapplied, the store errors surface as
  * `unavailable` and the unit page falls back to its description-only Gate.
  */
 
@@ -98,10 +103,10 @@ export const POST: RequestHandler = async ({ request, params, locals: { supabase
 			answers,
 			cooldownSecondsForFailStreak,
 			now,
-			async () => {
-				// The single completion seam. Fails soft (progression migration).
-				await markUnitComplete(supabase, claims.sub, unitId);
-			}
+			// No-op: frc_quiz_grade (called from gradeAttempt above) already
+			// recorded the completion inline as part of grading, scoped to the
+			// caller's own auth.uid(). Nothing left for the endpoint to do.
+			async () => {}
 		);
 		const status = result.ok ? 200 : result.reason === 'no_attempt' ? 409 : 503;
 		return json(result, { status });

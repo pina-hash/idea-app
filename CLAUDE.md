@@ -1004,32 +1004,34 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   Rookie 0, Technician 3, Builder 6, Engineer 10 completed CAD units, tune the
   thresholds here). A domain may declare `contentSet: 'mdm'` to mark that its
   units resolve to real per-unit pages.
-- **Progression backbone (0039):** per-user unit completion in
-  `frc_user_progress` (`(user_id, unit_id)` PK + `completed_at`), keyed by the
-  registry unit ids. RLS mirrors the pathway pattern: students read their own
-  rows; teachers read all and may mark/unmark ANY student's completion
-  (`is_teacher()`); writes also allow a user's own rows so a future auto-gate
-  can record the signed-in student. `src/lib/frc/progression.ts` is the
-  client seam: `markUnitComplete(supabase, userId, unitId)` is the SINGLE
-  completion seam (idempotent upsert; the interim teacher override calls it now
-  and the future quiz / GAUNTLET gate engines will call the same function),
-  `clearUnitComplete` is the teacher unmark, and `loadUserProgress` /
-  `loadProgressForUsers` read (fail-soft to empty / `ready:false` if the
-  migration is unapplied, like the pathway migration). The MDM-1 quiz gate now
-  calls this seam on a pass (see the quiz bullet below).
-  `/frc/+layout.server.ts` loads the student's completed set + rank once
-  for every /frc page; `FrcRankBadge.svelte` shows the rank on the track view
-  hero (`size=lg`) and beside the profile in the shell header (`size=sm`);
+- **Progression backbone (0039, locked down in 0041):** per-user unit
+  completion in `frc_user_progress` (`(user_id, unit_id)` PK + `completed_at`),
+  keyed by the registry unit ids. Students and teachers keep the 0039 SELECT
+  policies (own rows / all rows via `is_teacher()`); **direct client writes are
+  revoked entirely** (0041 drops the old insert/delete policies and revokes
+  `insert, update, delete` from `authenticated`), so a student has no write
+  path of their own, full stop. `src/lib/frc/progression.ts` is the client
+  seam: `markUnitComplete(supabase, userId, unitId)` / `clearUnitComplete` are
+  now THIN CALLERS of the `frc_mark_complete` / `frc_unmark_complete` SECURITY
+  DEFINER RPCs (0041), and those RPCs enforce `is_teacher()` INSIDE the
+  function body regardless of whose id is passed — so these two functions are
+  the teacher-override seam only; calling them as a student (even for your own
+  id) returns `{"error":"forbidden"}` and writes nothing. `loadUserProgress` /
+  `loadProgressForUsers` still read directly (fail-soft to empty /
+  `ready:false` if a migration is unapplied, like the pathway migration).
+  `/frc/+layout.server.ts` loads the student's completed set + rank once for
+  every /frc page; `FrcRankBadge.svelte` shows the rank on the track view hero
+  (`size=lg`) and beside the profile in the shell header (`size=sm`);
   `DomainLanding` takes the `completed` set and renders real locked (muted,
   non-clickable) / available / complete states.
 - **Teacher completion override:** the dashboard (`/dashboard`) roster gains a
   per-student "FRC completion" disclosure (`FrcUnitOverride.svelte`, a
   presentation-only toggle grid driven by one callback so it is harness-
   testable) that marks/unmarks the CAD content units via markUnitComplete /
-  clearUnitComplete + `invalidateAll`, riding the existing teachers-update-any
-  access. This is the interim, mentor-verified completion path until auto-gates
-  land. Fails soft with an "apply migration 0039" note when the table is
-  absent.
+  clearUnitComplete + `invalidateAll`. UI gating (the dashboard route is
+  teacher-only) is convenience; the real authority is `is_teacher()` inside the
+  RPCs themselves (0041). Fails soft with an "apply migration 0039" note when
+  the table is absent.
 - **Knowledge-gate quiz (0040, MDM-1):** the first auto-gate, built
   SERVER-AUTHORITATIVE so the answer key never reaches the client. The item
   bank is a server-only module (`src/lib/server/frc/mdm-1-quiz-bank.json`, under
@@ -1048,18 +1050,29 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   The unit endpoint `POST /frc/[domain]/[unit]/quiz` (start | submit) enforces
   the ESCALATING cooldown (schedule `FRC_QUIZ_COOLDOWNS_SEC` /
   `cooldownSecondsForFailStreak` in track.ts, tunable; a pass clears the streak)
-  before issuing an attempt, serves only stems + shuffled options on start,
-  grades on submit, and on a PASS calls `markUnitComplete` for MDM-1; on a FAIL
-  returns only the missed TOPIC names + the cooldown remaining, never answers.
+  before issuing an attempt, serves only stems + shuffled options on start, and
+  grades on submit; on a FAIL it returns only the missed TOPIC names + the
+  cooldown remaining, never answers. **Completion recording (0041):** on a PASS,
+  `frc_quiz_grade` records the completion ITSELF, inline, in the same SQL
+  transaction as grading — it derives the unit id from the attempt row it just
+  graded and the user id from `auth.uid()` (never a client-supplied parameter),
+  so the only way a student reaches a `frc_user_progress` row is by actually
+  passing the held answer key; it does not call `frc_mark_complete` (that RPC
+  is teacher-only), it writes directly as its own SECURITY DEFINER owner. The
+  SvelteKit endpoint's `onPass` hook is therefore a deliberate no-op.
   `FrcQuizGate.svelte` is the unit-page UI (Start -> questions -> submit ->
   pass/next-unlocked or fail/missed-topics/cooldown), FRC-themed; UnitPage shows
   it when the server load reports `gate.enabled` (only MDM-1; other units keep
   the description-only Gate). `+page.server.ts` computes the gate state
   (readiness, unit-complete, cooldown remaining) and fails soft to the
-  description-only Gate if 0040 is unapplied. Integrity caveat: this closes the
-  answer-leak / server-grading threat the feature targets; a student can still
-  self-insert `frc_user_progress` directly (the 0039 own-row write grant), an
-  independent pre-existing hole to tighten if hard gating is ever required.
+  description-only Gate if 0040 is unapplied.
+- **Progress lockdown (0041):** closes the self-mark hole the 0039/0040 caveat
+  flagged: a student could previously insert their own `frc_user_progress` row
+  directly via PostgREST (the 0039 own-row write grant), bypassing every gate.
+  0041 revokes that grant, drops the old student-write policies, adds the
+  teacher-only `frc_mark_complete` / `frc_unmark_complete` RPCs described above,
+  and recreates `frc_quiz_grade` to write completion inline. See the SQL file's
+  header comment for the full before/after.
 - **Unit content (CAD and Mechanical Design):** the ten authored units MDM-1
   through MDM-10 live in the repo-root seed `mdm-content-seed.md` (the single
   source of truth: plain `key: value` frontmatter + `## Brief`/`## Drill`/
