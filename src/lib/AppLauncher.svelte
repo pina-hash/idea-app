@@ -5,8 +5,9 @@
 	import GauntletMark from '$lib/marks/GauntletMark.svelte';
 	import VanguardMark from '$lib/marks/VanguardMark.svelte';
 	import CoinMark from '$lib/marks/CoinMark.svelte';
-	// Official FRC logo, reverse (white-wordmark) variant for the dark card.
-	import frcLogoReverse from '$lib/frc/assets/frc-logo-horizontal-reverse.png';
+	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
+	// compact mark that fits the launcher's square icon slot.
+	import frcIcon from '$lib/frc/assets/frc-icon.png';
 	import {
 		APP_GROUPS,
 		orderedGroupApps,
@@ -103,10 +104,10 @@
 	{:else if id === 'coins'}
 		<CoinMark />
 	{:else if id === 'frc'}
-		<!-- Official FRC logo (reverse variant), used unmodified: intrinsic
+		<!-- Official FIRST icon (emblem only), used unmodified: intrinsic
 		     dimensions set so width:auto preserves the exact aspect (no crop or
-		     distortion) while it composites onto the dark card. -->
-		<img class="frc-logo-img" src={frcLogoReverse} width="804" height="190" alt="FIRST Robotics Competition" />
+		     distortion) while it fills the icon slot like every other app mark. -->
+		<img class="frc-icon-img" src={frcIcon} width="516" height="309" alt="FIRST Robotics Competition" />
 	{:else}
 	<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 		{#if id === 'coin-entry'}
@@ -388,24 +389,31 @@
 		width: 100%;
 		height: 100%;
 	}
-	/* FRC card: the official logo replaces the glyph. Auto width preserves the
-	   exact aspect (no distortion); no green glow (it is a full-color logo). A
-	   faint FIRST-Blue underglow ties it to FRC on the dark card. */
+	/* FRC card: the official FIRST icon replaces the glyph, sized to the same
+	   height as every other app-icon so the card reads consistently; width
+	   follows the icon's own aspect (auto), never stretched or cropped. No
+	   green glow (it is a full-color mark); a faint FIRST-Blue underglow ties
+	   it to FRC on the dark card. */
 	.app-icon.frc-icon {
 		width: auto;
-		height: 26px;
+		height: 34px;
 		filter: none;
 		display: inline-flex;
 		align-items: center;
 	}
 	.app-card.compact .app-icon.frc-icon {
-		height: 18px;
+		/* Restate width:auto: `.app-card.compact .app-icon` (3 classes) otherwise
+		   outranks `.app-icon.frc-icon` (2 classes) on specificity and would
+		   clip this span back to a fixed 24px, letting the image silently
+		   overflow its box. */
+		width: auto;
+		height: 24px;
 	}
-	.app-icon.frc-icon :global(.frc-logo-img) {
+	.app-icon.frc-icon :global(.frc-icon-img) {
 		height: 100%;
 		width: auto;
 		display: block;
-		filter: drop-shadow(0 0 7px rgba(0, 102, 179, 0.55));
+		filter: drop-shadow(0 0 5px rgba(0, 102, 179, 0.45));
 	}
 	/* Restrained FIRST-Blue accent for the FRC card, so it reads as FRC without
 	   breaking the green/gold VIEWPORT look. */

@@ -1115,13 +1115,14 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   list (8) of recent entries, each a date + commit summary, styled to the FRC
   theme.
 - **Entry points:** the homepage launcher card (`portal-apps.ts`, Class
-  group, `requiresAuth`); its icon is the official FRC logo (the reverse /
-  white-wordmark variant `frc-logo-horizontal-reverse.png`) composited onto the
-  dark VIEWPORT card unmodified (`width:auto` keeps the aspect, a faint FIRST-
-  Blue underglow + hover border read as FRC without breaking the green/gold
-  look, card size + layout unchanged). Also the `frc` app in `site-manifest.ts`
-  (own version badge + changelog filter; also claims `mdm-content-seed.md`),
-  and the `/frc` prefix in `authedPrefixes`.
+  group, `requiresAuth`); its icon is the official FIRST icon (emblem only, no
+  wordmark; `frc-icon.png`) composited onto the dark VIEWPORT card unmodified
+  (`width:auto` keeps the aspect, sized to the same height as every other
+  app-icon so the card's form factor matches its neighbors; a faint FIRST-Blue
+  underglow + hover border read as FRC without breaking the green/gold look,
+  card size + layout unchanged). Also the `frc` app in `site-manifest.ts` (own
+  version badge + changelog filter; also claims `mdm-content-seed.md`), and the
+  `/frc` prefix in `authedPrefixes`.
 - **Dev harness:** `/dev/frc` (404 in production, no auth / Supabase) mounts
   the real FrcShell with a view switcher. The Progression view is interactive:
   it simulates a student completing units in-memory (toggle grid + quick
