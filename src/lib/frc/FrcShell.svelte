@@ -10,6 +10,7 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ChangelogFooter from '$lib/frc/ChangelogFooter.svelte';
+	import FrcRankBadge from '$lib/frc/FrcRankBadge.svelte';
 	import { FRC_TEAM } from '$lib/frc/track';
 
 	/**
@@ -27,12 +28,20 @@
 	 * circle / square icon is FIRST's; it appears here only within the full logo.
 	 */
 
-	let { children } = $props();
+	// `rankCount` is an optional override for the dev harness; in the real track
+	// it falls back to the /frc layout's frcCompletedCount (page data).
+	let { children, rankCount }: { children: import('svelte').Snippet; rankCount?: number } = $props();
 
 	const path = $derived(page.url.pathname);
 	const onHome = $derived(path === '/frc');
 	const onRefs = $derived(path.startsWith('/frc/references'));
+
+	// The rank chip appears for a signed-in user (student's profile surface within
+	// the track), or whenever the harness supplies a count.
+	const showRank = $derived(rankCount != null || !!page.data.claims);
+	const rank = $derived(rankCount ?? (page.data.frcCompletedCount as number | undefined) ?? 0);
 </script>
+
 
 <div class="frc-root">
 	<header class="frc-header">
@@ -56,6 +65,7 @@
 			<a href="/frc" class:active={onHome}>Track home</a>
 			<a href="/frc/references" class:active={onRefs}>References</a>
 			<a href="/" class="portal">IDEA Portal</a>
+			{#if showRank}<FrcRankBadge count={rank} size="sm" />{/if}
 			<ProfileMenu />
 		</nav>
 	</header>

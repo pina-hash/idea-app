@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { loadProgressForUsers } from '$lib/frc/progression';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -32,11 +33,20 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.eq('role', 'student')
 		.order('full_name', { ascending: true });
 
+	// FRC unit completions for the roster (teacher override). Fails soft to an
+	// empty map with frcProgressReady=false until migration 0039 is applied.
+	const { ready: frcProgressReady, byUser: frcProgress } = await loadProgressForUsers(
+		supabase,
+		(students ?? []).map((s) => s.id)
+	);
+
 	return {
 		profile,
 		email: claims.email ?? profile?.email ?? null,
 		students: students ?? [],
-		rosterReady: !rosterError
+		rosterReady: !rosterError,
+		frcProgress,
+		frcProgressReady
 	};
 };
 

@@ -5,6 +5,8 @@
 	import GauntletMark from '$lib/marks/GauntletMark.svelte';
 	import VanguardMark from '$lib/marks/VanguardMark.svelte';
 	import CoinMark from '$lib/marks/CoinMark.svelte';
+	// Official FRC logo, reverse (white-wordmark) variant for the dark card.
+	import frcLogoReverse from '$lib/frc/assets/frc-logo-horizontal-reverse.png';
 	import {
 		APP_GROUPS,
 		orderedGroupApps,
@@ -100,6 +102,11 @@
 		<GauntletMark />
 	{:else if id === 'coins'}
 		<CoinMark />
+	{:else if id === 'frc'}
+		<!-- Official FRC logo (reverse variant), used unmodified: intrinsic
+		     dimensions set so width:auto preserves the exact aspect (no crop or
+		     distortion) while it composites onto the dark card. -->
+		<img class="frc-logo-img" src={frcLogoReverse} width="804" height="190" alt="FIRST Robotics Competition" />
 	{:else}
 	<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
 		{#if id === 'coin-entry'}
@@ -113,9 +120,6 @@
 			<path d="M7 6h18v20H7z" /><path d="M11 12h10M11 16h10M11 20h6" />
 		{:else if id === 'archive'}
 			<path d="M5 7h22v6H5z" /><path d="M7 13v12h18V13" /><path d="M13 18h6" />
-		{:else if id === 'frc'}
-			<!-- FRC Training: the track's own interlock accent (triangle / circle / square). -->
-			<path d="M9 10L15 21H3z" /><circle cx="16" cy="16" r="6" /><path d="M19 11h10v10H19z" />
 		{/if}
 	</svg>
 	{/if}
@@ -123,8 +127,8 @@
 
 {#snippet appCard(app: PortalApp, group: AppGroupId | null)}
 	{#if customizing}
-		<div class="app-card static" class:compact>
-			<span class="app-icon">{@render appIcon(app.icon)}</span>
+		<div class="app-card static" class:compact class:frc={app.id === 'frc'}>
+			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title">{app.title}</span>
 				{#if !compact}<span class="app-sub">{app.sub}</span>{/if}
@@ -145,8 +149,8 @@
 			</span>
 		</div>
 	{:else}
-		<a class="app-card" class:compact href={app.href} onclick={(e) => appClick(e, app)}>
-			<span class="app-icon">{@render appIcon(app.icon)}</span>
+		<a class="app-card" class:compact class:frc={app.id === 'frc'} href={app.href} onclick={(e) => appClick(e, app)}>
+			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title">{app.title}</span>
 				{#if !compact}
@@ -383,6 +387,34 @@
 	.app-icon svg {
 		width: 100%;
 		height: 100%;
+	}
+	/* FRC card: the official logo replaces the glyph. Auto width preserves the
+	   exact aspect (no distortion); no green glow (it is a full-color logo). A
+	   faint FIRST-Blue underglow ties it to FRC on the dark card. */
+	.app-icon.frc-icon {
+		width: auto;
+		height: 26px;
+		filter: none;
+		display: inline-flex;
+		align-items: center;
+	}
+	.app-card.compact .app-icon.frc-icon {
+		height: 18px;
+	}
+	.app-icon.frc-icon :global(.frc-logo-img) {
+		height: 100%;
+		width: auto;
+		display: block;
+		filter: drop-shadow(0 0 7px rgba(0, 102, 179, 0.55));
+	}
+	/* Restrained FIRST-Blue accent for the FRC card, so it reads as FRC without
+	   breaking the green/gold VIEWPORT look. */
+	.app-card.frc {
+		border-color: rgba(0, 102, 179, 0.3);
+	}
+	a.app-card.frc:hover {
+		border-color: rgba(0, 102, 179, 0.55);
+		background: rgba(0, 102, 179, 0.06);
 	}
 	.app-text {
 		display: flex;

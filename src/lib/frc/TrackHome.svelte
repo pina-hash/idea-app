@@ -1,24 +1,32 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { FRC_DOMAINS, FRC_TEAM } from '$lib/frc/track';
+	import FrcRankBadge from '$lib/frc/FrcRankBadge.svelte';
 
 	/**
 	 * FRC Training track home: one card per domain, each linking to its domain
-	 * landing page, plus the reference shelf callout. Structure only; unit
-	 * progress and gating land later.
+	 * landing page, plus the reference shelf callout and the student's rank.
+	 * `count` (completed CAD units) is a prop for the dev harness; in the real
+	 * track it falls back to the /frc layout's frcCompletedCount.
 	 */
+	let { count }: { count?: number } = $props();
+	const rankCount = $derived(count ?? (page.data.frcCompletedCount as number | undefined) ?? 0);
 
 	// The accent language rotates the three outline shapes across the cards.
 	const shapeFor = (i: number) => (['tri', 'circle', 'square'] as const)[i % 3];
 </script>
 
 <section class="track-hero">
-	<span class="frc-eyebrow">{FRC_TEAM.name} &middot; {FRC_TEAM.org}</span>
-	<h1>FRC Training</h1>
-	<p class="lead">
-		The {FRC_TEAM.name} training track: work through the domains below to go from new member to a
-		trusted contributor on a competition robot. Open to every signed-in student, whatever your
-		pathway.
-	</p>
+	<div class="hero-copy">
+		<span class="frc-eyebrow">{FRC_TEAM.name} &middot; {FRC_TEAM.org}</span>
+		<h1>FRC Training</h1>
+		<p class="lead">
+			The {FRC_TEAM.name} training track: work through the domains below to go from new member to a
+			trusted contributor on a competition robot. Open to every signed-in student, whatever your
+			pathway.
+		</p>
+	</div>
+	<FrcRankBadge count={rankCount} size="lg" />
 </section>
 
 <h2 class="section-head">Domains</h2>
@@ -65,9 +73,18 @@
 	/* Named track-hero, NOT .hero: the app shell has a global centered .hero. */
 	.track-hero {
 		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1.5rem;
+		flex-wrap: wrap;
+		padding: 1.2rem 0 2rem;
+	}
+	.hero-copy {
+		display: flex;
 		flex-direction: column;
 		gap: 0.55rem;
-		padding: 1.2rem 0 2rem;
+		flex: 1;
+		min-width: 260px;
 	}
 	.track-hero h1 {
 		font-size: clamp(2rem, 5vw, 2.9rem);

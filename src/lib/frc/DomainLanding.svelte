@@ -1,19 +1,21 @@
 <script lang="ts">
-	import { placeholderUnitState, type FrcDomain, type UnitState } from '$lib/frc/track';
+	import { unitState, type FrcDomain, type FrcUnit, type UnitState } from '$lib/frc/track';
 	import { mdmUnitByNumber } from '$lib/frc/mdm-content';
 
 	/**
 	 * Reusable domain landing page: the domain's units as cards, or a clean
 	 * "content in development" placeholder for a domain with no units yet.
 	 *
-	 * A unit backed by authored content (domain.contentSet resolves it) links to
-	 * its per-unit page and shows a placeholder progression state (complete /
-	 * available; the locked style is reserved for the real gating layer, which
-	 * is not built yet). A unit with no authored content renders as a
-	 * non-clickable "In development" placeholder.
+	 * Real per-user progression (`completed`, the set of completed unit ids):
+	 * an available or complete unit that has authored content links to its
+	 * per-unit page; a locked unit shows the lock and is not clickable; a unit
+	 * with no authored content renders as an "In development" placeholder
+	 * regardless of state.
 	 */
 
-	let { domain }: { domain: FrcDomain } = $props();
+	let { domain, completed = [] }: { domain: FrcDomain; completed?: string[] } = $props();
+
+	const completedSet = $derived(new Set(completed));
 
 	const STATE_LABEL: Record<UnitState, string> = {
 		locked: 'Locked',
@@ -21,19 +23,9 @@
 		complete: 'Complete'
 	};
 
-	/** The per-unit page href for a unit that has authored content, else null. */
-	function unitHref(n: number): string | null {
-		if (domain.contentSet === 'mdm' && mdmUnitByNumber(n)) return `/frc/${domain.id}/${n}`;
-		return null;
-	}
-
-	/**
-	 * Placeholder display state for a content-backed unit. Since gating is not
-	 * built and the content is openable, a clickable card never reads "locked":
-	 * the placeholder mix collapses to complete (demo) or available.
-	 */
-	function displayState(n: number): UnitState {
-		return placeholderUnitState(n) === 'complete' ? 'complete' : 'available';
+	/** Whether a unit has an authored per-unit page. */
+	function hasContent(u: FrcUnit): boolean {
+		return domain.contentSet === 'mdm' && !!mdmUnitByNumber(u.n);
 	}
 </script>
 
@@ -52,30 +44,43 @@
 {#if domain.units.length}
 	<ol class="units">
 		{#each domain.units as u (u.n)}
-			{@const href = unitHref(u.n)}
-			{#if href}
-				{@const state = displayState(u.n)}
-				<li>
-					<a class="frc-card unit unit-{state}" {href}>
-						<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
-						<span class="unit-title">{u.title}</span>
-						<span class="frc-state {state}">
-							{#if state === 'available'}
-								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-									<path d="M5 12h13M13 6.5L18.5 12 13 17.5" />
-								</svg>
-							{:else}
-								<!-- Completion marker: filled IDEA-green disc, ink check (achievement only). -->
-								<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-									<circle cx="12" cy="12" r="10" fill="#00ff41" />
-									<path d="M7.5 12.5l3 3 6-6.5" stroke="#231f20" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-								</svg>
-							{/if}
-							{STATE_LABEL[state]}
-						</span>
-						<span class="unit-go" aria-hidden="true">&rsaquo;</span>
-					</a>
-				</li>
+			{#if hasContent(u)}
+				{@const state = unitState(u, completedSet)}
+				{#snippet body()}
+					<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
+					<span class="unit-title">{u.title}</span>
+					<span class="frc-state {state}">
+						{#if state === 'locked'}
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+								<rect x="5" y="11" width="14" height="9" rx="1.5" />
+								<path d="M8 11V7.5a4 4 0 018 0V11" />
+							</svg>
+						{:else if state === 'available'}
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+								<path d="M5 12h13M13 6.5L18.5 12 13 17.5" />
+							</svg>
+						{:else}
+							<!-- Completion marker: filled IDEA-green disc, ink check (achievement only). -->
+							<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+								<circle cx="12" cy="12" r="10" fill="#00ff41" />
+								<path d="M7.5 12.5l3 3 6-6.5" stroke="#231f20" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+							</svg>
+						{/if}
+						{STATE_LABEL[state]}
+					</span>
+				{/snippet}
+				{#if state === 'locked'}
+					<li class="frc-card unit unit-locked">
+						{@render body()}
+					</li>
+				{:else}
+					<li>
+						<a class="frc-card unit unit-{state}" href="/frc/{domain.id}/{u.n}">
+							{@render body()}
+							<span class="unit-go" aria-hidden="true">&rsaquo;</span>
+						</a>
+					</li>
+				{/if}
 			{:else}
 				<li class="frc-card unit unit-dev">
 					<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
@@ -215,6 +220,15 @@
 	/* Completed unit card: the achievement state, trimmed in IDEA green. */
 	.unit-complete {
 		border-left-color: var(--frc-achieve, #00ff41);
+	}
+	/* Locked unit: prerequisite not complete. Muted, not clickable. */
+	.unit-locked {
+		background: #f5f6f8;
+		border-left-color: rgba(154, 152, 154, 0.5);
+	}
+	.unit-locked .unit-n,
+	.unit-locked .unit-title {
+		color: #9a989a;
 	}
 	/* In-development unit: authored content not published yet. */
 	.unit-dev {

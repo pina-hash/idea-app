@@ -986,17 +986,48 @@ north star, read it before extending GAUNTLET). Summary of what exists:
 
 The Team 5669 FRC training track at `/frc`. Signed-in tier, any role; the
 whole track is open access and **pathway is identity, never a gate**, nothing
-in the track may wall off content by pathway. Structure + theme + the first
-domain's unit content are live; real gating/progression is still deferred.
+in the track may wall off content by pathway. Structure, theme, the first
+domain's unit content, and a real per-user progression backbone are live; the
+auto-gate ENGINES (quiz / GAUNTLET) that record completions are still deferred.
 
 - **Registry:** `src/lib/frc/track.ts` (plain data, client-safe, like
   `curriculum.ts`): `FRC_TEAM`, the seven domains (Foundation, CAD and
   Mechanical Design with its sixteen units, Mechanisms and Prototyping,
   Programming and Controls, Strategy and Scouting, Drive Team, Capstone), the
-  grouped reference shelf (`FRC_REFERENCES`), and `placeholderUnitState()`,
-  the PLACEHOLDER progression that the real gating layer will replace. A
-  domain may declare `contentSet: 'mdm'` to mark that its units resolve to
-  real per-unit pages.
+  grouped reference shelf (`FRC_REFERENCES`), and the progression RULES kept in
+  this one place: each unit's stable `id` (e.g. `MDM-1`) and `prerequisite`
+  (the sequential unlock chain), the pure `unitState(unit, completedSet)`
+  (locked until its prerequisite is complete, available once it is / for the
+  first unit, complete when its own id is in the set), and the rank ladder
+  (`FRC_RANKS` thresholds + `rankForCount` / `completedCadCount` / `frcRank`:
+  Rookie 0, Technician 3, Builder 6, Engineer 10 completed CAD units, tune the
+  thresholds here). A domain may declare `contentSet: 'mdm'` to mark that its
+  units resolve to real per-unit pages.
+- **Progression backbone (0039):** per-user unit completion in
+  `frc_user_progress` (`(user_id, unit_id)` PK + `completed_at`), keyed by the
+  registry unit ids. RLS mirrors the pathway pattern: students read their own
+  rows; teachers read all and may mark/unmark ANY student's completion
+  (`is_teacher()`); writes also allow a user's own rows so a future auto-gate
+  can record the signed-in student. `src/lib/frc/progression.ts` is the
+  client seam: `markUnitComplete(supabase, userId, unitId)` is the SINGLE
+  completion seam (idempotent upsert; the interim teacher override calls it now
+  and the future quiz / GAUNTLET gate engines will call the same function),
+  `clearUnitComplete` is the teacher unmark, and `loadUserProgress` /
+  `loadProgressForUsers` read (fail-soft to empty / `ready:false` if the
+  migration is unapplied, like the pathway migration). NO gate execution is
+  built. `/frc/+layout.server.ts` loads the student's completed set + rank once
+  for every /frc page; `FrcRankBadge.svelte` shows the rank on the track view
+  hero (`size=lg`) and beside the profile in the shell header (`size=sm`);
+  `DomainLanding` takes the `completed` set and renders real locked (muted,
+  non-clickable) / available / complete states.
+- **Teacher completion override:** the dashboard (`/dashboard`) roster gains a
+  per-student "FRC completion" disclosure (`FrcUnitOverride.svelte`, a
+  presentation-only toggle grid driven by one callback so it is harness-
+  testable) that marks/unmarks the CAD content units via markUnitComplete /
+  clearUnitComplete + `invalidateAll`, riding the existing teachers-update-any
+  access. This is the interim, mentor-verified completion path until auto-gates
+  land. Fails soft with an "apply migration 0039" note when the table is
+  absent.
 - **Unit content (CAD and Mechanical Design):** the ten authored units MDM-1
   through MDM-10 live in the repo-root seed `mdm-content-seed.md` (the single
   source of truth: plain `key: value` frontmatter + `## Brief`/`## Drill`/
@@ -1009,15 +1040,15 @@ domain's unit content are live; real gating/progression is still deferred.
   progression are NOT built (a "gate attempts not enabled yet" note says so).
   Units MDM-11 through MDM-16 have no seed content yet and render as
   non-clickable "In development" placeholders on the domain page.
-- **Routes:** `/frc` (track home, one card per domain), `/frc/[domain]`
-  (reusable domain landing: content-backed units link to their unit page and
-  show a placeholder progression state, units without content read "In
-  development"; unit-less domains show a "content in development" block;
-  unknown slugs 404), `/frc/[domain]/[unit]` (the per-unit page; only
-  `contentSet: 'mdm'` domains and unit numbers with authored content resolve,
-  else 404), `/frc/references` (the shelf, external links only).
+- **Routes:** `/frc` (track home, one card per domain + the student's rank),
+  `/frc/[domain]` (reusable domain landing: content-backed units show their
+  real locked/available/complete state and link when unlocked, units without
+  content read "In development"; unit-less domains show a "content in
+  development" block; unknown slugs 404), `/frc/[domain]/[unit]` (the per-unit
+  page; only `contentSet: 'mdm'` domains and unit numbers with authored content
+  resolve, else 404), `/frc/references` (the shelf, external links only).
   `src/routes/frc/+layout.svelte` wraps everything in `FrcShell.svelte`
-  (header + nav + footer).
+  (header + nav + footer); `+layout.server.ts` supplies the progression data.
 - **Branding: the official FRC logo (not a derivative mark).** The RGB
   FIRST Robotics Competition logo is shown UNMODIFIED: horizontal
   (`src/lib/frc/assets/frc-logo-horizontal.png`) in the header, compact
@@ -1052,13 +1083,20 @@ domain's unit content are live; real gating/progression is still deferred.
   list (8) of recent entries, each a date + commit summary, styled to the FRC
   theme.
 - **Entry points:** the homepage launcher card (`portal-apps.ts`, Class
-  group, `requiresAuth`), the `frc` app in `site-manifest.ts` (own version
-  badge + changelog filter; also claims `mdm-content-seed.md`), and the
-  `/frc` prefix in `authedPrefixes`.
+  group, `requiresAuth`); its icon is the official FRC logo (the reverse /
+  white-wordmark variant `frc-logo-horizontal-reverse.png`) composited onto the
+  dark VIEWPORT card unmodified (`width:auto` keeps the aspect, a faint FIRST-
+  Blue underglow + hover border read as FRC without breaking the green/gold
+  look, card size + layout unchanged). Also the `frc` app in `site-manifest.ts`
+  (own version badge + changelog filter; also claims `mdm-content-seed.md`),
+  and the `/frc` prefix in `authedPrefixes`.
 - **Dev harness:** `/dev/frc` (404 in production, no auth / Supabase) mounts
-  the real FrcShell with a view switcher across the track home, the CAD
-  domain (units 1-10 linked, 11-16 in development), a real per-unit page
-  (MDM-1), a placeholder domain, and the reference shelf.
+  the real FrcShell with a view switcher. The Progression view is interactive:
+  it simulates a student completing units in-memory (toggle grid + quick
+  rank-threshold buttons), so the domain landing's unlock states, the rank
+  badge, and the teacher-override component all update live without a DB. Other
+  views: track home, CAD domain, a per-unit page (MDM-1), a placeholder domain,
+  and the reference shelf.
 
 ## Version + changelog substrate
 

@@ -1,11 +1,14 @@
 /**
- * FRC Training track registry: domains, units, and the reference shelf.
+ * FRC Training track registry: domains, units, ranks, and the reference shelf.
  * PLAIN DATA + pure helpers (client-safe, like curriculum.ts / gauntlet.ts).
  *
- * This is the STRUCTURE of the track only. Unit content and real gating come
- * later; until then `placeholderUnitState()` supplies a representative mix of
- * the three visual states so the shell can be built and verified. The track is
- * open to every signed-in student (route guard in hooks.server.ts); pathway is
+ * The registry owns the STRUCTURE and the RULES: each unit's stable id and
+ * prerequisite (the unlock chain), and the rank ladder thresholds. The
+ * per-user completion set lives in the `frc_user_progress` table
+ * (0039_frc_user_progress.sql, loaded in src/lib/frc/progression.ts); the pure
+ * `unitState()` and `rankForCount()` here turn that set into UI state, so the
+ * unlock + rank logic stays in ONE place and is easy to tune. The track is open
+ * to every signed-in student (route guard in hooks.server.ts); pathway is
  * identity, never a gate, and nothing here may be used to wall off content.
  */
 
@@ -20,7 +23,15 @@ export type UnitState = 'locked' | 'available' | 'complete';
 export interface FrcUnit {
 	/** 1-based unit number within its domain (display + ordering). */
 	n: number;
+	/** Stable id used as the progression key, e.g. "MDM-1". */
+	id: string;
 	title: string;
+	/**
+	 * Id of the unit that must be complete before this one unlocks, or null for
+	 * the first unit (which starts available). The unlock chain lives here in the
+	 * registry, not in per-user data.
+	 */
+	prerequisite: string | null;
 }
 
 export interface FrcDomain {
@@ -69,7 +80,12 @@ export const FRC_DOMAINS: FrcDomain[] = [
 		id: 'cad-mechanical',
 		title: 'CAD and Mechanical Design',
 		blurb: 'From your first sketch to real, manufacturable robot parts.',
-		units: CAD_UNIT_TITLES.map((title, i) => ({ n: i + 1, title })),
+		// Sequential unlock chain: MDM-1 starts available (no prerequisite), each
+		// later unit unlocks when the one before it is complete.
+		units: CAD_UNIT_TITLES.map((title, i) => {
+			const n = i + 1;
+			return { n, id: `MDM-${n}`, title, prerequisite: n === 1 ? null : `MDM-${n - 1}` };
+		}),
 		contentSet: 'mdm'
 	},
 	{
@@ -110,15 +126,61 @@ export function domainById(id: string | null | undefined): FrcDomain | undefined
 }
 
 /**
- * PLACEHOLDER unit state until real gating exists: the first three units read
- * complete, the next two available, the rest locked, so every domain page
- * shows a representative mix of all three visual states. The real progression
- * layer will replace this single call site in DomainLanding.svelte.
+ * Real per-user unit state, given the set of completed unit ids:
+ *   complete  - this unit's own completion is recorded.
+ *   available - its prerequisite is complete (or it has none), not yet complete.
+ *   locked    - its prerequisite is not complete.
+ * The first unit (no prerequisite) starts available. Pure over the completed
+ * set; the set is loaded from `frc_user_progress` (see progression.ts).
  */
-export function placeholderUnitState(n: number): UnitState {
-	if (n <= 3) return 'complete';
-	if (n <= 5) return 'available';
+export function unitState(unit: FrcUnit, completed: ReadonlySet<string>): UnitState {
+	if (completed.has(unit.id)) return 'complete';
+	if (unit.prerequisite === null || completed.has(unit.prerequisite)) return 'available';
 	return 'locked';
+}
+
+// ---------------------------------------------------------------------------
+// Rank ladder: a student's rank is computed from the number of completed
+// CAD-track units. Thresholds live here in the registry so they are easy to
+// tune, and the rank logic stays in this one place.
+// ---------------------------------------------------------------------------
+
+export interface FrcRank {
+	name: string;
+	/** This rank applies once completed CAD units reach this count. */
+	minComplete: number;
+}
+
+/** Ascending by threshold; the highest rank whose threshold is met wins. */
+export const FRC_RANKS: FrcRank[] = [
+	{ name: 'Rookie', minComplete: 0 },
+	{ name: 'Technician', minComplete: 3 },
+	{ name: 'Builder', minComplete: 6 },
+	{ name: 'Engineer', minComplete: 10 }
+];
+
+/** The rank for a given completed-unit count (highest threshold reached). */
+export function rankForCount(count: number): FrcRank {
+	let rank = FRC_RANKS[0];
+	for (const r of FRC_RANKS) if (count >= r.minComplete) rank = r;
+	return rank;
+}
+
+/** The next rank above the given count, or null if already at the top. */
+export function nextRank(count: number): FrcRank | null {
+	return FRC_RANKS.find((r) => r.minComplete > count) ?? null;
+}
+
+/** Count of completed units that belong to the CAD and Mechanical Design domain. */
+export function completedCadCount(completed: ReadonlySet<string>): number {
+	const cad = domainById('cad-mechanical');
+	if (!cad) return 0;
+	return cad.units.reduce((acc, u) => acc + (completed.has(u.id) ? 1 : 0), 0);
+}
+
+/** A student's rank, computed from their completed CAD-track units. */
+export function frcRank(completed: ReadonlySet<string>): FrcRank {
+	return rankForCount(completedCadCount(completed));
 }
 
 // ---------------------------------------------------------------------------

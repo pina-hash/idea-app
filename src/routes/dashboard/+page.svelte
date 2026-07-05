@@ -4,8 +4,12 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import Avatar from '$lib/Avatar.svelte';
 	import PathwayChip from '$lib/PathwayChip.svelte';
+	import FrcUnitOverride from '$lib/frc/FrcUnitOverride.svelte';
 	import { PATHWAY_IDS, pathwayColor } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
+	import { domainById, rankForCount } from '$lib/frc/track';
+	import { mdmUnitByNumber } from '$lib/frc/mdm-content';
+	import { markUnitComplete, clearUnitComplete } from '$lib/frc/progression';
 
 	let { data } = $props();
 	let { profile, email, students, rosterReady } = $derived(data);
@@ -65,6 +69,31 @@
 			await invalidateAll();
 		}
 		savingId = '';
+	};
+
+	// ------ FRC completion override: mark/unmark any student's units. ------
+	// The completable CAD units (those with authored content); the override
+	// covers exactly the units a mentor can verify a gate for.
+	const cadUnits = (domainById('cad-mechanical')?.units ?? []).filter((u) => mdmUnitByNumber(u.n));
+
+	let frcBusy = $state(''); // "<userId>:<unitId>" while a toggle is in flight
+	let frcError = $state('');
+
+	const completedFor = (userId: string): string[] => data.frcProgress?.[userId] ?? [];
+	const cadDoneCount = (userId: string) => {
+		const done = new Set(completedFor(userId));
+		return cadUnits.reduce((acc, u) => acc + (done.has(u.id) ? 1 : 0), 0);
+	};
+
+	const toggleUnit = async (userId: string, unitId: string, next: boolean) => {
+		frcBusy = `${userId}:${unitId}`;
+		frcError = '';
+		const { error } = next
+			? await markUnitComplete(data.supabase, userId, unitId)
+			: await clearUnitComplete(data.supabase, userId, unitId);
+		if (error) frcError = error;
+		else await invalidateAll();
+		frcBusy = '';
 	};
 </script>
 
@@ -181,36 +210,62 @@
 			{:else}
 				<div class="roster">
 					{#each filteredStudents as s (s.id)}
-						<div class="roster-row" class:saving={savingId === s.id}>
-							<div class="roster-id">
-								<Avatar profile={toProfile(s)} size={28} />
-								<PathwayChip pathway={s.pathway} size="sm" />
-								<div class="roster-names">
-									<span
-										class="roster-name"
-										style={pathwayColor(s.pathway) ? `color:${pathwayColor(s.pathway)}` : ''}
-									>
-										{displayName(toProfile(s))}
-									</span>
-									{#if s.email}<span class="roster-email">{s.email}</span>{/if}
+						{@const done = cadDoneCount(s.id)}
+						{@const rank = rankForCount(done)}
+						<div class="roster-entry">
+							<div class="roster-row" class:saving={savingId === s.id}>
+								<div class="roster-id">
+									<Avatar profile={toProfile(s)} size={28} />
+									<PathwayChip pathway={s.pathway} size="sm" />
+									<div class="roster-names">
+										<span
+											class="roster-name"
+											style={pathwayColor(s.pathway) ? `color:${pathwayColor(s.pathway)}` : ''}
+										>
+											{displayName(toProfile(s))}
+										</span>
+										{#if s.email}<span class="roster-email">{s.email}</span>{/if}
+									</div>
 								</div>
+								<label class="roster-set">
+									<span class="roster-set-label">Pathway</span>
+									<select
+										value={s.pathway ?? ''}
+										disabled={savingId === s.id}
+										onchange={(e) => setPathway(s, e.currentTarget.value)}
+									>
+										<option value="">Not set</option>
+										{#each PATHWAY_IDS as id (id)}
+											<option value={id}>{id}</option>
+										{/each}
+									</select>
+								</label>
 							</div>
-							<label class="roster-set">
-								<span class="roster-set-label">Pathway</span>
-								<select
-									value={s.pathway ?? ''}
-									disabled={savingId === s.id}
-									onchange={(e) => setPathway(s, e.currentTarget.value)}
-								>
-									<option value="">Not set</option>
-									{#each PATHWAY_IDS as id (id)}
-										<option value={id}>{id}</option>
-									{/each}
-								</select>
-							</label>
+							{#if data.frcProgressReady && cadUnits.length}
+								<details class="roster-frc">
+									<summary>
+										<span class="frc-sum-label">FRC completion</span>
+										<span class="frc-sum-meta">{rank.name} &middot; {done}/{cadUnits.length} CAD units</span>
+										<span class="frc-sum-chev" aria-hidden="true">&#9662;</span>
+									</summary>
+									<FrcUnitOverride
+										units={cadUnits}
+										completed={completedFor(s.id)}
+										busyId={frcBusy.startsWith(s.id + ':') ? frcBusy.slice(s.id.length + 1) : ''}
+										onToggle={(unitId, next) => toggleUnit(s.id, unitId, next)}
+									/>
+								</details>
+							{/if}
 						</div>
 					{/each}
 				</div>
+				{#if !data.frcProgressReady}
+					<p class="roster-note">
+						FRC unit completion is not available yet. Apply migration
+						0039_frc_user_progress.sql in the Supabase SQL editor.
+					</p>
+				{/if}
+				{#if frcError}<p class="roster-error">{frcError}</p>{/if}
 			{/if}
 			{#if rosterError}
 				<p class="roster-error">{rosterError}</p>
@@ -359,6 +414,47 @@
 		font-size: 0.7rem;
 		padding: 0.3rem 0.4rem;
 		cursor: pointer;
+	}
+	.roster-entry {
+		border-top: 1px solid var(--line, rgba(0, 255, 65, 0.12));
+	}
+	.roster-entry .roster-row {
+		border-top: none;
+	}
+	.roster-frc {
+		padding: 0 1.2rem 0.6rem;
+	}
+	.roster-frc summary {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		cursor: pointer;
+		list-style: none;
+		padding: 0.2rem 0;
+	}
+	.roster-frc summary::-webkit-details-marker {
+		display: none;
+	}
+	.frc-sum-label {
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.6rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--cyan, #00f0ff);
+	}
+	.frc-sum-meta {
+		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+		font-size: 0.66rem;
+		color: var(--dim, #4a7a52);
+	}
+	.frc-sum-chev {
+		margin-left: auto;
+		font-size: 0.6rem;
+		color: var(--dim, #4a7a52);
+		transition: transform 0.15s ease;
+	}
+	.roster-frc[open] .frc-sum-chev {
+		transform: rotate(180deg);
 	}
 	@media (max-width: 560px) {
 		.roster-row {
