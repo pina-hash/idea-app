@@ -113,6 +113,9 @@
 			<path d="M7 6h18v20H7z" /><path d="M11 12h10M11 16h10M11 20h6" />
 		{:else if id === 'archive'}
 			<path d="M5 7h22v6H5z" /><path d="M7 13v12h18V13" /><path d="M13 18h6" />
+		{:else if id === 'frc'}
+			<!-- FRC Training: the track's own interlock accent (triangle / circle / square). -->
+			<path d="M9 10L15 21H3z" /><circle cx="16" cy="16" r="6" /><path d="M19 11h10v10H19z" />
 		{/if}
 	</svg>
 	{/if}

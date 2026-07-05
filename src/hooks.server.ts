@@ -65,11 +65,11 @@ const supabase: Handle = async ({ event, resolve }) => {
  */
 /**
  * Route prefixes that require a signed-in user. `/dashboard` is additionally
- * teacher-gated in its own load; `/gauntlet` (the CAD skills dojo) is open to
- * any authenticated user, with its teacher-only authoring page gated in that
- * page's load.
+ * teacher-gated in its own load; `/gauntlet` (the CAD skills dojo) and `/frc`
+ * (the FRC Training track) are open to any authenticated user, with GAUNTLET's
+ * teacher-only authoring page gated in that page's load.
  */
-const authedPrefixes = ['/dashboard', '/gauntlet'];
+const authedPrefixes = ['/dashboard', '/gauntlet', '/frc'];
 
 const authGuard: Handle = async ({ event, resolve }) => {
 	const { data } = await event.locals.supabase.auth.getClaims();

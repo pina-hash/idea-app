@@ -66,6 +66,11 @@ export const APPS: SiteApp[] = [
 		prefixes: ['src/routes/dashboard/']
 	},
 	{
+		id: 'frc',
+		label: 'FRC Training',
+		prefixes: ['src/routes/frc/', 'src/lib/frc/', 'src/routes/dev/frc/']
+	},
+	{
 		id: 'portal',
 		label: 'IDEA Portal',
 		// Catch-all: the homepage, shell, auth, config, and anything unclaimed.

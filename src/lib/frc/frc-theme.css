@@ -1,0 +1,163 @@
+/*
+ * FRC Training theme: the FRC-derivative skin, scoped ENTIRELY under
+ * .frc-root (the FrcShell wrapper) so it can never leak into the IDEA shell,
+ * the legacy index, or GAUNTLET's VIEWPORT system. Deliberately distinct from
+ * VIEWPORT: clean light surfaces, FIRST Blue chrome, Roboto type.
+ *
+ * Palette (fixed, do not invent colors here):
+ *   --frc-blue  #0066B3  primary chrome, links, structure
+ *   --frc-red   #ED1C24  action and emphasis, used SPARINGLY
+ *   --frc-ink   #231F20  near-black text
+ *   --frc-gray  #9A989A  muted text and locked states
+ *   --frc-achieve #00FF41  IDEA green, ACHIEVEMENT STATE ONLY (complete unit
+ *     cards and completion markers, plus the "An IDEA program" footer mark);
+ *     never primary chrome.
+ *
+ * Type: Roboto, with Bold Italic (700 italic) for headers. The accent
+ * language is an original interlocking triangle / circle / square outline
+ * (FrcMark.svelte); never the actual FIRST icon or logo.
+ *
+ * New token names on purpose: shared portal components mounted inside the
+ * track (ProfileMenu, VersionBadge, PathwayChip) keep reading the global
+ * dark-theme tokens and stay as-is.
+ */
+
+.frc-root {
+	--frc-blue: #0066b3;
+	--frc-blue-deep: #004f8a;
+	--frc-blue-tint: rgba(0, 102, 179, 0.08);
+	--frc-blue-line: rgba(0, 102, 179, 0.35);
+	--frc-red: #ed1c24;
+	--frc-ink: #231f20;
+	--frc-gray: #9a989a;
+	--frc-bg: #eef1f5;
+	--frc-surface: #fafbfd;
+	--frc-line: #dde1e8;
+	--frc-achieve: #00ff41;
+	--frc-achieve-tint: rgba(0, 255, 65, 0.14);
+	--frc-achieve-line: rgba(0, 200, 60, 0.55);
+	--frc-font: 'Roboto', sans-serif;
+
+	position: relative;
+	/* Above the portal's fixed .bg-fx overlay (z-index 0), and opaque, so the
+	   dark scanline ambiance never shows through the light surfaces. */
+	z-index: 1;
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	background: var(--frc-bg);
+	color: var(--frc-ink);
+	font-family: var(--frc-font);
+	font-size: 1rem;
+	line-height: 1.55;
+	-webkit-font-smoothing: auto;
+}
+
+/* Headers are Roboto Bold Italic per the derivative spec. */
+.frc-root h1,
+.frc-root h2,
+.frc-root h3 {
+	font-family: var(--frc-font);
+	font-weight: 700;
+	font-style: italic;
+	color: var(--frc-ink);
+	line-height: 1.15;
+	margin: 0;
+	letter-spacing: -0.01em;
+}
+
+.frc-root a {
+	color: var(--frc-blue);
+}
+
+/* Neutralize app-shell globals that would leak IDEA styling into the track:
+   the green '// ' h2 prefix and the green link-hover glow (IDEA green is
+   reserved for the achievement state here, never chrome). */
+.frc-root h2::before {
+	content: none;
+}
+.frc-root a:hover {
+	text-shadow: none;
+}
+
+/* Content column shared by every track page. */
+.frc-root .frc-main {
+	width: 100%;
+	max-width: 1060px;
+	margin: 0 auto;
+	padding: 2.2rem 1.5rem 4rem;
+	flex: 1;
+}
+
+/* Small uppercase kicker line above headings. */
+.frc-root .frc-eyebrow {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-weight: 700;
+	font-style: italic;
+	font-size: 0.78rem;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--frc-blue);
+}
+/* The eyebrow's red tick: one of the few sanctioned red accents. */
+.frc-root .frc-eyebrow::before {
+	content: '';
+	width: 0.55rem;
+	height: 0.55rem;
+	background: var(--frc-red);
+	clip-path: polygon(0 100%, 50% 0, 100% 100%);
+}
+
+.frc-root .frc-card {
+	background: var(--frc-surface);
+	border: 1px solid var(--frc-line);
+	border-radius: 10px;
+	box-shadow: 0 1px 2px rgba(35, 31, 32, 0.06);
+}
+
+/* State chips (unit cards): color is always paired with an icon + label. */
+.frc-root .frc-state {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.32em;
+	font-size: 0.66rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	border-radius: 999px;
+	padding: 0.18rem 0.6rem;
+	border: 1px solid;
+	white-space: nowrap;
+}
+.frc-root .frc-state svg {
+	width: 0.85rem;
+	height: 0.85rem;
+	flex-shrink: 0;
+}
+.frc-root .frc-state.locked {
+	color: #6d6b6d;
+	border-color: rgba(154, 152, 154, 0.6);
+	background: rgba(154, 152, 154, 0.12);
+}
+.frc-root .frc-state.available {
+	color: var(--frc-blue);
+	border-color: var(--frc-blue-line);
+	background: var(--frc-blue-tint);
+}
+/* Achievement state: the ONLY place IDEA green appears in the track chrome.
+   On light surfaces the green is used as a filled marker (disc / strip) with
+   ink strokes on top, never as text color, so it stays readable AND stays
+   unmistakably IDEA green. */
+.frc-root .frc-state.complete {
+	color: var(--frc-ink);
+	border-color: var(--frc-achieve-line);
+	background: var(--frc-achieve-tint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.frc-root * {
+		transition: none !important;
+	}
+}

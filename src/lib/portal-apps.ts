@@ -93,6 +93,16 @@ export const PORTAL_APPS: PortalApp[] = [
 		cta: 'Browse'
 	},
 	{
+		id: 'frc',
+		title: 'FRC Training',
+		sub: 'The Team 5669 training track: CAD, mechanisms, controls, strategy, and drive team.',
+		icon: 'frc',
+		href: '/frc',
+		group: 'class',
+		cta: 'Enter',
+		requiresAuth: true
+	},
+	{
 		id: 'archive',
 		title: 'Course Archive',
 		sub: 'Discontinued 2025-26 courses, kept for reference.',

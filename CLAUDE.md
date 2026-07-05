@@ -32,12 +32,14 @@ ability, it is not required to browse the portal.
   are redirected to `/` by `dashboard/+page.server.ts` (the role lives in
   `profiles`, so the teacher check happens in the load).
 - **Signed-in tier (any role):** the **GAUNTLET** CAD skills dojo at
-  `/gauntlet` is open to any authenticated user, student or teacher. This is a
-  second gated tier: `hooks.server.ts` redirects anonymous users off
-  `/gauntlet*` (the guard now covers a list of authed prefixes, not just
-  `/dashboard`), but no role is required to enter. Its teacher-only authoring
-  page (`/gauntlet/author`) is gated in that page's load, the same way the
-  dashboard is. See the "IDEA // GAUNTLET" section below.
+  `/gauntlet` and the **FRC Training** track at `/frc` are open to any
+  authenticated user, student or teacher. This is a second gated tier:
+  `hooks.server.ts` redirects anonymous users off these prefixes (the guard
+  covers a list of authed prefixes, not just `/dashboard`), but no role is
+  required to enter. GAUNTLET's teacher-only authoring page
+  (`/gauntlet/author`) is gated in that page's load, the same way the
+  dashboard is. See the "IDEA // GAUNTLET" and "FRC Training track" sections
+  below.
 - **Students have no separate dashboard:** the **homepage `/` is the student
   dashboard**. A signed-in student self-selects their 2026-27 class once; it is
   stored in `profiles.section_id` and pinned at the top of `/` (and shown as a
@@ -979,6 +981,55 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   auth, scoring, or room timing. The older `.gauntlet` block in `src/app.css`
   remains but is re-themed by the scoped token overrides; new styles go in
   the viewport system, not there.
+
+## FRC Training track
+
+The Team 5669 FRC training track at `/frc`: structure and theme shell only so
+far (unit content and real gating come later). Signed-in tier, any role; the
+whole track is open access and **pathway is identity, never a gate**, nothing
+in the track may wall off content by pathway.
+
+- **Registry:** `src/lib/frc/track.ts` (plain data, client-safe, like
+  `curriculum.ts`): `FRC_TEAM`, the seven domains (Foundation, CAD and
+  Mechanical Design with its sixteen units, Mechanisms and Prototyping,
+  Programming and Controls, Strategy and Scouting, Drive Team, Capstone), the
+  grouped reference shelf (`FRC_REFERENCES`), and `placeholderUnitState()`,
+  the PLACEHOLDER progression (units 1-3 complete, 4-5 available, rest
+  locked) that the real gating layer will replace at its single call site in
+  `DomainLanding.svelte`.
+- **Routes:** `/frc` (track home, one card per domain), `/frc/[domain]`
+  (reusable domain landing: unit cards in locked / available / complete
+  states, or a "content in development" placeholder for unit-less domains;
+  unknown slugs 404 in the universal load), `/frc/references` (the shelf,
+  external links only). `src/routes/frc/+layout.svelte` wraps everything in
+  `FrcShell.svelte` (header lockup + nav + footer). Unit cards are
+  deliberately not links yet.
+- **Theme (the FRC derivative), scoped to the track only:**
+  `src/lib/frc/frc-theme.css`, everything under `.frc-root` (the FrcShell
+  wrapper), deliberately distinct from VIEWPORT: clean light surfaces, FIRST
+  Blue `#0066B3` primary chrome, FIRST Red `#ED1C24` for action/emphasis used
+  sparingly, near-black `#231F20` ink, gray `#9A989A` muted. Type is Roboto
+  (`@fontsource/roboto`), headers Roboto Bold Italic. The accent language is
+  an ORIGINAL interlocking triangle / circle / square outline
+  (`FrcMark.svelte`); never use, imitate, or recolor the actual FIRST icon or
+  logo (FIRST is referenced by name only, with the trademark disclaimer in
+  the footer). Team 5669's own identity is the primary mark. **IDEA green
+  `#00FF41` appears ONLY for the achievement state** (complete unit cards and
+  completion markers, used as filled markers with ink strokes on the light
+  surfaces) **plus the "An IDEA program" footer mark** on the dark footer
+  strip; never in primary chrome. The `.frc-root` block also neutralizes
+  app-shell globals that would leak (the green `// ` h2 prefix, the green
+  link-hover glow), and sits opaque at z-index 1 so the portal's `.bg-fx`
+  scanlines never show through. New token names (`--frc-*`) on purpose:
+  shared components mounted inside (ProfileMenu, VersionBadge) keep their
+  global dark-theme tokens (the version badge lives on the dark strip).
+- **Entry points:** the homepage launcher card (`portal-apps.ts`, Class
+  group, `requiresAuth`), the `frc` app in `site-manifest.ts` (own version
+  badge + changelog filter), and the `/frc` prefix in `authedPrefixes`.
+- **Dev harness:** `/dev/frc` (404 in production, no auth / Supabase) mounts
+  the real FrcShell with a view switcher across the track home, the CAD
+  domain (16 units, mixed states), a placeholder domain, and the reference
+  shelf.
 
 ## Version + changelog substrate
 
