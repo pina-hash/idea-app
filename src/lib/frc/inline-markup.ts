@@ -1,7 +1,10 @@
 /**
  * Minimal inline-markdown renderer for FRC unit content (Brief paragraphs from
- * mdm-content.ts). Supports exactly three things, all produced by the parser:
+ * mdm-content.ts). Supports exactly four things, all produced by the parser:
  *   - `**bold**` -> `<strong>`, for a paragraph's short lead phrase.
+ *   - `[label](url)` -> an external link, styled and handled the same way as
+ *     the reference shelf's external links (opens in a new tab, `rel=
+ *     "noopener noreferrer"`; see `ReferenceShelf.svelte`).
  *   - A leading `> ` marker -> render the paragraph as a blockquote callout
  *     (the "Worked example" paragraph in each unit).
  *   - A `[[diagram:KEY|caption]]` token on its own paragraph -> a concept
@@ -17,6 +20,9 @@ function escapeHtml(s: string): string {
 	return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/** Matches `[label](https://...)` after escaping; http(s) only, on purpose. */
+const LINK_RE = /\[([^[\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+
 /** True when a Brief paragraph carries the parser's blockquote marker. */
 export function isBlockquote(paragraph: string): boolean {
 	return paragraph.startsWith('> ');
@@ -27,9 +33,14 @@ export function stripBlockquote(paragraph: string): string {
 	return paragraph.startsWith('> ') ? paragraph.slice(2) : paragraph;
 }
 
-/** Escape the text, then turn `**bold**` spans into `<strong>` tags. */
+/**
+ * Escape the text, then turn `**bold**` spans into `<strong>` tags and
+ * `[label](url)` spans into external links (new tab, `rel="noopener
+ * noreferrer"`, matching the reference shelf).
+ */
 export function renderInline(text: string): string {
-	return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+	const bolded = escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+	return bolded.replace(LINK_RE, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 }
 
 export interface DiagramToken {

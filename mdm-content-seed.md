@@ -69,7 +69,7 @@ Views. Most FRC parts are drawn in orthographic views, usually front, top, and r
 
 Dimensions. Linear dimensions give distances, a diameter is marked with the diameter symbol, and a radius is marked with R. Every dimension either sizes a feature or locates it from an edge or another feature. If a hole has no locating dimensions, its position is undefined, which is a real error, not a detail.
 
-Callouts. A hole callout packs the manufacturing information into one note. A note reading 0.172 diameter THRU means a 0.172 inch hole all the way through. That number is the standard clearance for an 8-32 screw, which is why reading callouts and knowing hardware go together.
+Callouts. A hole callout packs the manufacturing information into one note. A note reading 0.172 diameter THRU means a 0.172 inch hole all the way through. That number is the standard clearance for an 8-32 screw, which is why reading callouts and knowing hardware go together. (See a [real three-view drawing](https://docs.wcproducts.com/).)
 
 Title block. The corner block carries material, scale, units, and the default tolerance that applies to any dimension without its own tolerance. Miss the title block and you can machine a correct shape out of the wrong material.
 
@@ -120,6 +120,8 @@ Motors and control. Brushless is the standard. The high-performance choices are 
 Why standardize. A team that limits itself to a few screw sizes and one shaft standard carries fewer spares, needs fewer tools, and repairs faster in the pit. Variety is a cost, not a feature.
 
 Worked example, name the stackup. In a gearbox section a hex shaft rides in a flanged bearing pressed into a plate, a gear sits on the hex, spacers set its position, and a retaining ring holds it axially. Being able to say that sentence about a real assembly is the target for this unit.
+
+See the real hardware: [ThunderHex](https://wcproducts.com/collections/shafts), [flanged bearings](https://www.andymark.com/collections/bearings), [Kraken X60](https://wcproducts.com/products/kraken-x60), and an [SDS swerve module](https://www.swervedrivespecialties.com/collections/modules).
 
 ## Drill
 
@@ -279,7 +281,7 @@ The fastest way to lose a season is to hand-design something you could have boug
 
 Getting the CAD. Vendors publish 3D models, usually as a universal STEP file or a native SolidWorks part. Download every part you need into one organized project folder. A disorganized folder is how assemblies break and work gets lost, so this habit matters more than it looks.
 
-The current ecosystem. A modern drivetrain is a purchased swerve module, such as an SDS MK5i or a REV MAXSwerve, driven by a Kraken X60 or a NEO Vortex. A mechanism often uses a cartridge gearbox like the REV MAXPlanetary sized for NEO-class motors. Wheels, bearings, and gears come from WCP, REV, and AndyMark. You rarely build these, you integrate them.
+The current ecosystem. A modern drivetrain is a purchased swerve module, such as an SDS MK5i or a REV MAXSwerve, driven by a Kraken X60 or a NEO Vortex. A mechanism often uses a cartridge gearbox like the REV MAXPlanetary sized for NEO-class motors. Wheels, bearings, and gears come from WCP, REV, and AndyMark. You rarely build these, you integrate them. (Browse current COTS: [Swerve Drive Specialties](https://www.swervedrivespecialties.com/) and [REV Robotics](https://www.revrobotics.com/).)
 
 The workflow. Identify the COTS parts, download their CAD, insert them into an assembly, then design your custom parts, the plates and brackets, around them. Your custom geometry should be driven by the COTS part's real features, its bolt pattern and bore sizes, so the parts actually line up when built.
 
@@ -325,7 +327,7 @@ Two kinds of constraint. Bearings support the shaft radially, carrying the side 
 
 Shaft profiles. A hex or ThunderHex profile transmits torque, because a gear with a matching hex bore locks to it and turns with it. A bearing, though, needs a round surface to ride on. So a torque-carrying shaft is often hex through the gear and turned down to round where it passes through the bearings.
 
-Retention is a design decision, not one default. There are three common methods, and a strong designer picks the right one for the job. Retaining rings and E-clips clip into a machined groove and are the lightest and most compact option, so for weight and size nothing beats them; the cost is that you must cut a groove in the exact location on a lathe, and the part cannot be repositioned. Clamping shaft collars slide on and clamp with bolts, spreading force evenly around the shaft; they are close to bulletproof and adjustable with no shaft machining, but bulkier and pricier, and you must use the clamping type, not a set-screw type that digs a burr into the shaft. A tapped shaft end with a bolt and a washer retains a component from the end; it is clean and needs no external groove, and many current COTS hex shafts ship with tapped ends, but it relies on threadlocker so the bolt does not vibrate loose.
+Retention is a design decision, not one default. There are three common methods, and a strong designer picks the right one for the job. Retaining rings and E-clips clip into a machined groove and are the lightest and most compact option, so for weight and size nothing beats them; the cost is that you must cut a groove in the exact location on a lathe, and the part cannot be repositioned. Clamping shaft collars slide on and clamp with bolts, spreading force evenly around the shaft; they are close to bulletproof and adjustable with no shaft machining, but bulkier and pricier, and you must use the clamping type, not a set-screw type that digs a burr into the shaft. A tapped shaft end with a bolt and a washer retains a component from the end; it is clean and needs no external groove, and many current COTS hex shafts ship with tapped ends, but it relies on threadlocker so the bolt does not vibrate loose. (See a [real gearbox and dead-axle build](https://docs.wcproducts.com/wcp-gearboxes).)
 
 The judgment underneath all three: an engineered solution that cannot be assembled wrong beats one that depends on an operator following a procedure. A retaining ring or a clamping collar is hard to get wrong. A tapped end depends on someone remembering the threadlocker, so if you use it, treat that step as non-negotiable.
 
@@ -374,7 +376,7 @@ Clearance versus tapped. A clearance hole lets a screw pass through freely and i
 
 The Hole Wizard. In SolidWorks, place fastener holes with the Hole Wizard, never a sketched circle. It sizes the clearance or tapped hole for the exact screw and carries the callout into the drawing automatically, which saves time and prevents errors downstream. A sketched circle is only for a plain round opening that is not a fastener.
 
-Sizes worth knowing. An 8-32 clearance hole is 0.172 inch, a 10-24 is 0.203 inch, and a 1/4-20 is 0.266 inch. Tapped holes use a smaller tap drill, and McMaster-Carr lists the exact values.
+Sizes worth knowing. An 8-32 clearance hole is 0.172 inch, a 10-24 is 0.203 inch, and a 1/4-20 is 0.266 inch. Tapped holes use a smaller tap drill, and McMaster-Carr lists the exact values. (Fastener reference: [McMaster-Carr](https://www.mcmaster.com/).)
 
 Nut selection. Nyloc has a nylon insert that resists vibration and belongs on pivots and anything that shakes. Keps has a built-in biting washer. A pem nut presses into material too thin to tap. Rivets join parts fast from one side.
 

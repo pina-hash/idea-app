@@ -34,10 +34,14 @@ export interface MdmUnit {
 	 * "Worked example" paragraph is prefixed `> ` (a blockquote marker, so the
 	 * renderer can show it as a distinct callout), a `[[diagram:KEY|caption]]`
 	 * paragraph is passed through verbatim (a concept-diagram token, see
-	 * `parseDiagram`), and any other paragraph whose opening sentence reads as
+	 * `parseDiagram`), any other paragraph whose opening sentence reads as
 	 * a short label (see `markupBriefParagraph`) has that sentence wrapped
-	 * `**like this**`. Render with `renderInline` / `isBlockquote` /
-	 * `parseDiagram` from `$lib/frc/inline-markup`.
+	 * `**like this**`, and an author may write inline `[label](url)` links
+	 * (external "see it" references) anywhere in a paragraph. Render with
+	 * `renderInline` / `isBlockquote` / `parseDiagram` from
+	 * `$lib/frc/inline-markup`; `renderInline` turns the links into external
+	 * anchors (new tab, `rel="noopener noreferrer"`), same as the reference
+	 * shelf.
 	 */
 	brief: string[];
 	/** Drill prompts (leading "N. " stripped). */

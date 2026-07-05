@@ -1115,9 +1115,15 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   short lead sentences like "Define the problem." and its longer intro/closing
   prose) and prefixes the "Worked example" paragraph with a `> ` blockquote
   marker; `src/lib/frc/inline-markup.ts` is the renderer (`renderInline` turns
-  `**bold**` into `<strong>` after escaping, `isBlockquote`/`stripBlockquote`
-  detect the marker), used by `UnitPage.svelte` to show the worked example as
-  a distinct FRC-themed callout. `drillAnswers` is an array aligned to `drill`
+  `**bold**` into `<strong>` and inline `[label](url)` spans into external
+  links after escaping, matching the reference shelf's external-link handling
+  exactly: opens in a new tab, `rel="noopener noreferrer"`;
+  `isBlockquote`/`stripBlockquote` detect the blockquote marker), used by
+  `UnitPage.svelte` to show the worked example as a distinct FRC-themed
+  callout. A handful of Briefs (MDM-2, MDM-3, MDM-7, MDM-8, MDM-9) carry an
+  inline `[label](url)` "see it" reference to a real vendor page, written
+  directly into the seed prose (no separate token or component, unlike the
+  `[[diagram:...]]` token). `drillAnswers` is an array aligned to `drill`
   (not a single consolidated string): `splitConsolidatedAnswers` splits a
   trailing "Answers: 1. ... 2. ..." block per question (all ten authored
   units, MDM-1 through MDM-10, have one). **Drill is active-retrieval
