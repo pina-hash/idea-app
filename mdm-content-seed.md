@@ -49,7 +49,7 @@ Ten scenario multiple choice items. Each presents a design situation and asks fo
 
 ## Apply
 
-Pick one subsystem on the practice robot. Write a short define-the-problem statement for it: the one-sentence job, the demands, and the goals. Submit as a notebook entry. AI-graded against a rubric that checks for a clear job statement and a correct demand versus goal split, with instructor spot-audit.
+Pick one subsystem on the practice robot. Write a short define-the-problem statement for it: the one-sentence job, the demands, and the goals. Save it as a notebook entry for your instructor to review.
 
 ===
 
@@ -64,8 +64,6 @@ gatePass: 90
 ## Brief
 
 A 3D model shows intent. A drawing removes all doubt about how to actually make the part. A machinist should be able to fabricate from the drawing alone without asking a single question. To read one, you need four things.
-
-[[diagram:orthographic-views|Third-angle views. The same hole is a circle in the top view and hidden lines in the front and right.]]
 
 Views. Most FRC parts are drawn in orthographic views, usually front, top, and right, each looking straight at one face. A feature that is a circle in one view and a pair of hidden lines in another is the same hole seen from two directions. Learning to hold the part in your head across views is the core skill.
 
@@ -93,7 +91,7 @@ GAUNTLET Drawing Reading mode, already built. Students answer interpretation que
 
 ## Apply
 
-Open a real FRC part drawing from a vendor, such as a gearbox plate or a bearing block. Identify its overall size, its material, and what the part is for. Submit the three answers. Auto-checked against the known values for that drawing.
+Open a real FRC part drawing from a vendor, such as a gearbox plate or a bearing block. Identify its overall size, its material, and what the part is for. Save your three answers for your instructor to review.
 
 ===
 
@@ -139,7 +137,7 @@ Identification and matching quiz, roughly 15 items, image-based where useful. Co
 
 ## Apply
 
-Inventory one section of the practice robot. Photograph it and label the COTS hardware you can name: the structure, the fasteners, and any rotating parts. Peer-reviewed against a checklist, with instructor spot-audit.
+Inventory one section of the practice robot. Photograph it and label the COTS hardware you can name: the structure, the fasteners, and any rotating parts. Save your photos and labels for your instructor to review.
 
 ===
 
@@ -322,8 +320,6 @@ gatePass: 90
 ## Brief
 
 A stackup is the sequence of parts along a shaft between two support plates, arranged so everything is located, spins freely, and cannot slide off. Getting a stackup right is a signature mechanical skill, and it is where a lot of first robots fail.
-
-[[diagram:shaft-stackup|A shaft stackup: located, free to spin, and held from sliding.]]
 
 Two kinds of constraint. Bearings support the shaft radially, carrying the side loads. Something must also stop the shaft and its parts from sliding along the axis. You need both, and confusing them is a common mistake.
 
