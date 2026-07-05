@@ -35,6 +35,8 @@ export interface OverallRow {
 	full_name: string | null;
 	avatar: string | null;
 	avatar_url: string | null;
+	/** Pathway attribution (0038); absent pre-migration, so keep it optional. */
+	pathway?: string | null;
 	attempted: number;
 	cleared: number;
 	practice_days: number;
@@ -53,4 +55,6 @@ export interface SpeedrunRecordRow {
 	full_name: string | null;
 	avatar: string | null;
 	avatar_url: string | null;
+	/** Pathway attribution (0038); absent pre-migration, so keep it optional. */
+	pathway?: string | null;
 }

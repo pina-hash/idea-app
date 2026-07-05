@@ -5,8 +5,11 @@ Guidance for Claude (and humans) working in this repository.
 ## What this is
 
 `idea-app` is the authenticated foundation for the unified **IDEA portal** at
-Bosco Tech. It will replace the existing static IDEA site (GitHub Pages) over
-the coming phases. This repo is the new home; the old static repo is separate.
+Bosco Tech, and beyond that the foundation of the **Bosco Tech student
+platform**: any Bosco Tech student can sign in, and every student is identified
+by their pathway (see "Pathways (0038)" below). It will replace the existing
+static IDEA site (GitHub Pages) over the coming phases. This repo is the new
+home; the old static repo is separate.
 
 - **Stack:** SvelteKit + Supabase + Vercel
 - **Repo:** https://github.com/pina-hash/idea-app
@@ -54,7 +57,8 @@ ability, it is not required to browse the portal.
   the user returns to `/` (`/auth/callback` honors a `next` query param; default
   `/dashboard`).
 - **Roles:** `student`, `teacher`, `visitor`, derived from the sign-in email
-  domain:
+  domain (`role_for_email` in 0001; any `@boscotech.net` account is a student
+  regardless of pathway):
   - `@boscotech.edu` -> `teacher`
   - `@boscotech.net` -> `student`
   - anything else -> `visitor`
@@ -75,6 +79,34 @@ ability, it is not required to browse the portal.
   write only to the user's own `<uid>/` folder (Storage RLS). Role assignment
   is untouched. Shared sign-out (including the lab-machine VANGUARD wipe)
   lives in `signOutEverywhere()` in `src/lib/profile.ts`.
+- **Pathways (0038):** every Bosco Tech student is identified by their pathway,
+  one of six: IDEA, ACE, BMET, CSEE, MSET, MAT. Stored in `profiles.pathway`
+  (text + CHECK like `role`, nullable; `0038_profile_pathway.sql`), unset until
+  the student chooses it. **Identity and attribution ONLY, never an access
+  gate:** no route, policy, or feature may branch access on pathway, and it is
+  independent of the email-domain role. No new RLS: students set their own via
+  the existing "update own profile" policy; teachers see and change any
+  student's via the existing "teachers select/update any profile" policies
+  (the "Students & Pathways" roster on `/dashboard`, with filter and per-row
+  editor). The registry `src/lib/pathways.ts` (plain data, client-safe) owns
+  the fixed identity palette and inlined lucide icons: IDEA green `#00FF41`
+  box, ACE orange `#FF8C00` building-2, BMET purple `#B47CFF` dna, CSEE blue
+  `#3D7DFF` cpu, MSET red `#FF2E2E` hexagon, MAT yellow `#FFE600` aperture.
+  **Display rule:** `src/lib/PathwayChip.svelte` is the colored pill (icon +
+  short label, color never alone) shown BESIDE the profile image, never
+  replacing it, and the display name tints in the pathway color. Applied in
+  ProfileMenu (trigger + panel, so every header shows it) and the GAUNTLET
+  leaderboard boards (`gauntlet_leaderboards()` returns `pathway` since 0038;
+  the web side treats it as optional so it fails soft pre-migration, as does
+  the root layout's profile select). `src/lib/PathwayPicker.svelte` is the
+  one-time first-login picker, mounted once in the root layout: it renders
+  only for a signed-in STUDENT with no pathway, persists the choice, and never
+  prompts again ("Choose later" hides it for the browser session only).
+  **Color discipline:** MSET red `#FF2E2E` is identity only, never a status
+  color; the reserved status crimson `#FF3355` (LIVE / REC / error) is never
+  an identity color. Dev harness: `/dev/pathways` (404 in production) renders
+  chips, tinted identity rows, the discipline strip, and the REAL root-layout
+  picker against a stubbed student profile.
 - **Extensible:** roles are intentionally open-ended. Adding a future role
   (for example `parent`) means extending the CHECK constraint and the
   `role_for_email` logic, not a rebuild.

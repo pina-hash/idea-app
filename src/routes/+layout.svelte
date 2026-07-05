@@ -16,6 +16,7 @@
 	import '@fontsource/orbitron/900.css';
 	import '../app.css';
 	import InstallPrompt from '$lib/InstallPrompt.svelte';
+	import PathwayPicker from '$lib/PathwayPicker.svelte';
 
 	let { data, children } = $props();
 	let { claims, supabase } = $derived(data);
@@ -33,4 +34,7 @@
 
 <div class="bg-fx" aria-hidden="true"></div>
 {@render children()}
+<!-- First-login pathway picker: renders only for a signed-in student with no
+     pathway set (self-contained, reads page data like ProfileMenu). -->
+<PathwayPicker />
 <InstallPrompt />

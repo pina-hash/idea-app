@@ -1,6 +1,8 @@
 <script lang="ts">
 	import Header from '$lib/gauntlet/Header.svelte';
 	import Avatar from '$lib/Avatar.svelte';
+	import PathwayChip from '$lib/PathwayChip.svelte';
+	import { pathwayColor } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
 	import { levelFromXp } from '$lib/gauntlet/progression';
 	import { formatTime } from '$lib/gauntlet';
@@ -16,6 +18,7 @@
 		full_name: string | null;
 		avatar: string | null;
 		avatar_url: string | null;
+		pathway?: string | null;
 	};
 	const toProfile = (r: NameRow): UserProfile => ({
 		id: r.user_id ?? '',
@@ -26,8 +29,16 @@
 		avatar: r.avatar,
 		role: 'student',
 		section_id: null,
+		pathway: r.pathway ?? null,
 		preferences: {}
 	});
+
+	// Pathway identity: tint the player's name in their pathway color (the chip
+	// beside the avatar carries the icon + label, so color is never alone).
+	const tintStyle = (r: NameRow) => {
+		const c = pathwayColor(r.pathway);
+		return c ? `color:${c}` : '';
+	};
 
 </script>
 
@@ -69,7 +80,8 @@
 						<td>
 							<span class="lb-player">
 								<Avatar profile={toProfile(row)} size={28} />
-								<span class="lb-name"
+								<PathwayChip pathway={row.pathway} size="sm" />
+								<span class="lb-name" style={tintStyle(row)}
 									>{displayName(toProfile(row))}{#if row.user_id === myUserId}<span class="you">you</span>{/if}</span
 								>
 							</span>
@@ -110,7 +122,8 @@
 							{#if r.user_id}
 								<span class="lb-player">
 									<Avatar profile={toProfile(r)} size={24} />
-									<span class="lb-name">{displayName(toProfile(r))}</span>
+									<PathwayChip pathway={r.pathway} size="sm" />
+									<span class="lb-name" style={tintStyle(r)}>{displayName(toProfile(r))}</span>
 								</span>
 							{:else}
 								<span class="dim">No record yet</span>

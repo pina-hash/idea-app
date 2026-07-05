@@ -3,6 +3,8 @@
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import Avatar from '$lib/Avatar.svelte';
+	import PathwayChip from '$lib/PathwayChip.svelte';
+	import { pathwayColor } from '$lib/pathways';
 	import {
 		AVATAR_PRESETS,
 		displayName,
@@ -130,6 +132,10 @@
 	const currentPreset = $derived(
 		profile?.avatar?.startsWith('preset:') ? profile.avatar.slice('preset:'.length) : null
 	);
+
+	// Pathway identity (identity only, never an access gate): the chip sits
+	// beside the avatar, and the display name is tinted in the pathway color.
+	const nameTint = $derived(pathwayColor(profile?.pathway));
 </script>
 
 <svelte:document onpointerdown={onDocPointerDown} onkeydown={onKeydown} />
@@ -145,6 +151,7 @@
 			onclick={() => (open ? close() : (open = true))}
 		>
 			<Avatar {profile} size={30} />
+			<PathwayChip pathway={profile?.pathway} size="sm" />
 			<span class="pm-caret" class:up={open} aria-hidden="true">&#9662;</span>
 		</button>
 
@@ -174,12 +181,13 @@
 								<button type="button" onclick={() => (editingName = false)}>Cancel</button>
 							</form>
 						{:else}
-							<div class="pm-name">
+							<div class="pm-name" style={nameTint ? `color:${nameTint}` : ''}>
 								{displayName(profile)}
 								<button class="pm-edit" type="button" onclick={startNameEdit}>Edit</button>
 							</div>
 						{/if}
 						<div class="pm-meta">
+							<PathwayChip pathway={profile?.pathway} size="sm" />
 							<span class="pm-role">{profile?.role ?? 'signed in'}</span>
 							{#if claims.email}<span class="pm-email">{claims.email}</span>{/if}
 						</div>

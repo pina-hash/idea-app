@@ -10,11 +10,26 @@ import type { LayoutServerLoad } from './$types';
 export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, cookies }) => {
 	let userProfile = null;
 	if (claims) {
-		const { data } = await supabase
+		let { data } = await supabase
 			.from('profiles')
-			.select('id, email, full_name, display_name, avatar_url, avatar, role, section_id, preferences')
+			.select(
+				'id, email, full_name, display_name, avatar_url, avatar, role, section_id, pathway, preferences'
+			)
 			.eq('id', claims.sub)
 			.single();
+		if (!data) {
+			// Pre-0038 fallback (pathway column not applied yet): a select naming a
+			// missing column errors, which would sign everyone out of the profile
+			// system. Retry without it so the portal degrades to "no pathway".
+			({ data } = await supabase
+				.from('profiles')
+				.select(
+					'id, email, full_name, display_name, avatar_url, avatar, role, section_id, preferences'
+				)
+				.eq('id', claims.sub)
+				.single());
+			if (data) (data as Record<string, unknown>).pathway = null;
+		}
 		userProfile = data ?? null;
 	}
 

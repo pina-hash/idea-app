@@ -22,9 +22,21 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		redirect(303, '/');
 	}
 
+	// Student roster for the pathway admin view. Teachers read every profile
+	// via the "teachers select all profiles" RLS policy; pathway edits go
+	// through the "teachers update any profile" policy from the client. Fails
+	// soft to an empty roster until migration 0038 adds the pathway column.
+	const { data: students, error: rosterError } = await supabase
+		.from('profiles')
+		.select('id, email, full_name, display_name, avatar, avatar_url, pathway')
+		.eq('role', 'student')
+		.order('full_name', { ascending: true });
+
 	return {
 		profile,
-		email: claims.email ?? profile?.email ?? null
+		email: claims.email ?? profile?.email ?? null,
+		students: students ?? [],
+		rosterReady: !rosterError
 	};
 };
 

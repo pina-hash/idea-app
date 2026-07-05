@@ -19,6 +19,8 @@ export interface UserProfile {
 	avatar: string | null;
 	role: string;
 	section_id: string | null;
+	/** Bosco Tech pathway code (src/lib/pathways.ts) or null until chosen. */
+	pathway: string | null;
 	/** Free-form per-user portal settings (theme, homepage layout, ...). */
 	preferences: Record<string, unknown>;
 }

@@ -25,6 +25,10 @@ const store = {
 		avatar: 'preset:hex' as string | null,
 		role: 'student',
 		section_id: null as string | null,
+		// Set so this harness shows the pathway chip AND the root layout's
+		// first-login PathwayPicker never overlays this page (it targets
+		// students with no pathway; /dev/pathways is its harness).
+		pathway: 'IDEA' as string | null,
 		preferences: {} as Record<string, unknown>
 	}
 };
