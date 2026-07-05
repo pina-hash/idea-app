@@ -984,52 +984,81 @@ north star, read it before extending GAUNTLET). Summary of what exists:
 
 ## FRC Training track
 
-The Team 5669 FRC training track at `/frc`: structure and theme shell only so
-far (unit content and real gating come later). Signed-in tier, any role; the
+The Team 5669 FRC training track at `/frc`. Signed-in tier, any role; the
 whole track is open access and **pathway is identity, never a gate**, nothing
-in the track may wall off content by pathway.
+in the track may wall off content by pathway. Structure + theme + the first
+domain's unit content are live; real gating/progression is still deferred.
 
 - **Registry:** `src/lib/frc/track.ts` (plain data, client-safe, like
   `curriculum.ts`): `FRC_TEAM`, the seven domains (Foundation, CAD and
   Mechanical Design with its sixteen units, Mechanisms and Prototyping,
   Programming and Controls, Strategy and Scouting, Drive Team, Capstone), the
   grouped reference shelf (`FRC_REFERENCES`), and `placeholderUnitState()`,
-  the PLACEHOLDER progression (units 1-3 complete, 4-5 available, rest
-  locked) that the real gating layer will replace at its single call site in
-  `DomainLanding.svelte`.
+  the PLACEHOLDER progression that the real gating layer will replace. A
+  domain may declare `contentSet: 'mdm'` to mark that its units resolve to
+  real per-unit pages.
+- **Unit content (CAD and Mechanical Design):** the ten authored units MDM-1
+  through MDM-10 live in the repo-root seed `mdm-content-seed.md` (the single
+  source of truth: plain `key: value` frontmatter + `## Brief`/`## Drill`/
+  `## Gate`/`## Apply` sections, units split by `===`). `src/lib/frc/mdm-content.ts`
+  parses it at build time via a `?raw` import (the established legacy-loader
+  convention) into a typed `MdmUnit[]`; edit the markdown, never the parsed
+  module. `UnitPage.svelte` renders a unit's Brief, Drill (with an optional
+  collapsible answer key), Gate DESCRIPTION only, and Apply, plus prev/next
+  nav. The Gate section is description text only: gate execution and
+  progression are NOT built (a "gate attempts not enabled yet" note says so).
+  Units MDM-11 through MDM-16 have no seed content yet and render as
+  non-clickable "In development" placeholders on the domain page.
 - **Routes:** `/frc` (track home, one card per domain), `/frc/[domain]`
-  (reusable domain landing: unit cards in locked / available / complete
-  states, or a "content in development" placeholder for unit-less domains;
-  unknown slugs 404 in the universal load), `/frc/references` (the shelf,
-  external links only). `src/routes/frc/+layout.svelte` wraps everything in
-  `FrcShell.svelte` (header lockup + nav + footer). Unit cards are
-  deliberately not links yet.
+  (reusable domain landing: content-backed units link to their unit page and
+  show a placeholder progression state, units without content read "In
+  development"; unit-less domains show a "content in development" block;
+  unknown slugs 404), `/frc/[domain]/[unit]` (the per-unit page; only
+  `contentSet: 'mdm'` domains and unit numbers with authored content resolve,
+  else 404), `/frc/references` (the shelf, external links only).
+  `src/routes/frc/+layout.svelte` wraps everything in `FrcShell.svelte`
+  (header + nav + footer).
+- **Branding: the official FRC logo (not a derivative mark).** The RGB
+  FIRST Robotics Competition logo is shown UNMODIFIED: horizontal
+  (`src/lib/frc/assets/frc-logo-horizontal.png`) in the header, compact
+  vertical (`frc-logo-vertical.png`) in the footer, both alongside Team 5669's
+  own identity (never replacing it). Brand rules are honored: never recolor /
+  distort / stretch / crop (`width:auto` preserves the intrinsic aspect), and
+  each logo carries transparent clear space at least the height of its icon so
+  nothing crowds it. The old geometric derivative mark (`FrcMark.svelte`) is
+  REMOVED. Single triangle / circle / square outlines may still appear as a
+  light per-card accent (the full FRC logo is on the page), but never
+  recomposed into a FIRST-logo lookalike. The footer carries the exact
+  trademark line: "FIRST and FIRST Robotics Competition are trademarks of For
+  Inspiration and Recognition of Science and Technology (FIRST)."
 - **Theme (the FRC derivative), scoped to the track only:**
   `src/lib/frc/frc-theme.css`, everything under `.frc-root` (the FrcShell
   wrapper), deliberately distinct from VIEWPORT: clean light surfaces, FIRST
   Blue `#0066B3` primary chrome, FIRST Red `#ED1C24` for action/emphasis used
   sparingly, near-black `#231F20` ink, gray `#9A989A` muted. Type is Roboto
-  (`@fontsource/roboto`), headers Roboto Bold Italic. The accent language is
-  an ORIGINAL interlocking triangle / circle / square outline
-  (`FrcMark.svelte`); never use, imitate, or recolor the actual FIRST icon or
-  logo (FIRST is referenced by name only, with the trademark disclaimer in
-  the footer). Team 5669's own identity is the primary mark. **IDEA green
-  `#00FF41` appears ONLY for the achievement state** (complete unit cards and
-  completion markers, used as filled markers with ink strokes on the light
-  surfaces) **plus the "An IDEA program" footer mark** on the dark footer
-  strip; never in primary chrome. The `.frc-root` block also neutralizes
-  app-shell globals that would leak (the green `// ` h2 prefix, the green
-  link-hover glow), and sits opaque at z-index 1 so the portal's `.bg-fx`
-  scanlines never show through. New token names (`--frc-*`) on purpose:
-  shared components mounted inside (ProfileMenu, VersionBadge) keep their
-  global dark-theme tokens (the version badge lives on the dark strip).
+  (`@fontsource/roboto`), headers Roboto Bold Italic. **IDEA green `#00FF41`
+  appears ONLY for the achievement state** (complete unit cards and completion
+  markers, used as filled markers with ink strokes on the light surfaces)
+  **plus the "An IDEA program" footer mark** on the dark footer strip; never
+  in primary chrome. The `.frc-root` block also neutralizes app-shell globals
+  that would leak (the green `// ` h2 prefix, the green link-hover glow), and
+  sits opaque at z-index 1 so the portal's `.bg-fx` scanlines never show
+  through. New token names (`--frc-*`) on purpose: shared components mounted
+  inside (ProfileMenu, VersionBadge) keep their global dark-theme tokens.
+- **Footer changelog:** `src/lib/frc/ChangelogFooter.svelte` reuses the
+  existing build-time git substrate (`virtual:site-versions`), so it
+  auto-populates from commit history with no manual upkeep. It is an
+  unobtrusive `<details>` disclosure ("Changelog") that opens a short capped
+  list (8) of recent entries, each a date + commit summary, styled to the FRC
+  theme.
 - **Entry points:** the homepage launcher card (`portal-apps.ts`, Class
   group, `requiresAuth`), the `frc` app in `site-manifest.ts` (own version
-  badge + changelog filter), and the `/frc` prefix in `authedPrefixes`.
+  badge + changelog filter; also claims `mdm-content-seed.md`), and the
+  `/frc` prefix in `authedPrefixes`.
 - **Dev harness:** `/dev/frc` (404 in production, no auth / Supabase) mounts
   the real FrcShell with a view switcher across the track home, the CAD
-  domain (16 units, mixed states), a placeholder domain, and the reference
-  shelf.
+  domain (units 1-10 linked, 11-16 in development), a real per-unit page
+  (MDM-1), a placeholder domain, and the reference shelf.
 
 ## Version + changelog substrate
 

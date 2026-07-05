@@ -30,6 +30,13 @@ export interface FrcDomain {
 	blurb: string;
 	/** Ordered units; empty = domain renders the "content in development" placeholder. */
 	units: FrcUnit[];
+	/**
+	 * Which authored content set backs this domain's units, if any. 'mdm' means
+	 * the CAD/Mechanical units resolve to real per-unit pages (mdm-content.ts);
+	 * units with no matching content render as in-development placeholders.
+	 * Absent = no unit pages yet (whole domain is the placeholder block).
+	 */
+	contentSet?: 'mdm';
 }
 
 const CAD_UNIT_TITLES = [
@@ -62,7 +69,8 @@ export const FRC_DOMAINS: FrcDomain[] = [
 		id: 'cad-mechanical',
 		title: 'CAD and Mechanical Design',
 		blurb: 'From your first sketch to real, manufacturable robot parts.',
-		units: CAD_UNIT_TITLES.map((title, i) => ({ n: i + 1, title }))
+		units: CAD_UNIT_TITLES.map((title, i) => ({ n: i + 1, title })),
+		contentSet: 'mdm'
 	},
 	{
 		id: 'mechanisms-prototyping',

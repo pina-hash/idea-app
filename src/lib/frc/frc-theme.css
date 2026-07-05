@@ -13,9 +13,11 @@
  *     cards and completion markers, plus the "An IDEA program" footer mark);
  *     never primary chrome.
  *
- * Type: Roboto, with Bold Italic (700 italic) for headers. The accent
- * language is an original interlocking triangle / circle / square outline
- * (FrcMark.svelte); never the actual FIRST icon or logo.
+ * Type: Roboto, with Bold Italic (700 italic) for headers. The primary mark is
+ * the official FIRST Robotics Competition logo (FrcShell header + footer), shown
+ * unmodified alongside Team 5669's own identity; single triangle / circle /
+ * square outlines may appear as a light per-card accent, never recomposed into a
+ * FIRST-logo lookalike.
  *
  * New token names on purpose: shared portal components mounted inside the
  * track (ProfileMenu, VersionBadge, PathwayChip) keep reading the global
@@ -154,6 +156,13 @@
 	color: var(--frc-ink);
 	border-color: var(--frc-achieve-line);
 	background: var(--frc-achieve-tint);
+}
+/* In-development state: authored content not published yet (muted, no
+   progression meaning). */
+.frc-root .frc-state.dev {
+	color: #6d6b6d;
+	border-color: rgba(154, 152, 154, 0.55);
+	background: rgba(154, 152, 154, 0.1);
 }
 
 @media (prefers-reduced-motion: reduce) {

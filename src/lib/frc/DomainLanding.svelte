@@ -1,22 +1,40 @@
 <script lang="ts">
 	import { placeholderUnitState, type FrcDomain, type UnitState } from '$lib/frc/track';
+	import { mdmUnitByNumber } from '$lib/frc/mdm-content';
 
 	/**
-	 * Reusable domain landing page: the domain's units as cards, each in one of
-	 * three visual states (locked / available / complete), or a clean "content
-	 * in development" placeholder for a domain with no units yet. States come
-	 * from placeholderUnitState() until the real gating layer lands; cards are
-	 * intentionally not links yet (unit content comes later).
+	 * Reusable domain landing page: the domain's units as cards, or a clean
+	 * "content in development" placeholder for a domain with no units yet.
+	 *
+	 * A unit backed by authored content (domain.contentSet resolves it) links to
+	 * its per-unit page and shows a placeholder progression state (complete /
+	 * available; the locked style is reserved for the real gating layer, which
+	 * is not built yet). A unit with no authored content renders as a
+	 * non-clickable "In development" placeholder.
 	 */
 
 	let { domain }: { domain: FrcDomain } = $props();
 
-	const stateOf = (n: number): UnitState => placeholderUnitState(n);
 	const STATE_LABEL: Record<UnitState, string> = {
 		locked: 'Locked',
 		available: 'Available',
 		complete: 'Complete'
 	};
+
+	/** The per-unit page href for a unit that has authored content, else null. */
+	function unitHref(n: number): string | null {
+		if (domain.contentSet === 'mdm' && mdmUnitByNumber(n)) return `/frc/${domain.id}/${n}`;
+		return null;
+	}
+
+	/**
+	 * Placeholder display state for a content-backed unit. Since gating is not
+	 * built and the content is openable, a clickable card never reads "locked":
+	 * the placeholder mix collapses to complete (demo) or available.
+	 */
+	function displayState(n: number): UnitState {
+		return placeholderUnitState(n) === 'complete' ? 'complete' : 'available';
+	}
 </script>
 
 <nav class="crumb" aria-label="Breadcrumb">
@@ -34,39 +52,51 @@
 {#if domain.units.length}
 	<ol class="units">
 		{#each domain.units as u (u.n)}
-			{@const state = stateOf(u.n)}
-			<li class="frc-card unit unit-{state}">
-				<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
-				<span class="unit-title">{u.title}</span>
-				<span class="frc-state {state}">
-					{#if state === 'locked'}
+			{@const href = unitHref(u.n)}
+			{#if href}
+				{@const state = displayState(u.n)}
+				<li>
+					<a class="frc-card unit unit-{state}" {href}>
+						<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
+						<span class="unit-title">{u.title}</span>
+						<span class="frc-state {state}">
+							{#if state === 'available'}
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+									<path d="M5 12h13M13 6.5L18.5 12 13 17.5" />
+								</svg>
+							{:else}
+								<!-- Completion marker: filled IDEA-green disc, ink check (achievement only). -->
+								<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+									<circle cx="12" cy="12" r="10" fill="#00ff41" />
+									<path d="M7.5 12.5l3 3 6-6.5" stroke="#231f20" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
+							{/if}
+							{STATE_LABEL[state]}
+						</span>
+						<span class="unit-go" aria-hidden="true">&rsaquo;</span>
+					</a>
+				</li>
+			{:else}
+				<li class="frc-card unit unit-dev">
+					<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
+					<span class="unit-title">{u.title}</span>
+					<span class="frc-state dev">
 						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-							<rect x="5" y="11" width="14" height="9" rx="1.5" />
-							<path d="M8 11V7.5a4 4 0 018 0V11" />
+							<circle cx="12" cy="12" r="9" />
+							<path d="M12 7v5l3 2" />
 						</svg>
-					{:else if state === 'available'}
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-							<path d="M5 12h13M13 6.5L18.5 12 13 17.5" />
-						</svg>
-					{:else}
-						<!-- Completion marker: filled IDEA-green disc, ink check (achievement only). -->
-						<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-							<circle cx="12" cy="12" r="10" fill="#00ff41" />
-							<path d="M7.5 12.5l3 3 6-6.5" stroke="#231f20" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-						</svg>
-					{/if}
-					{STATE_LABEL[state]}
-				</span>
-			</li>
+						In development
+					</span>
+				</li>
+			{/if}
 		{/each}
 	</ol>
 {:else}
 	<div class="frc-card in-dev">
 		<span class="in-dev-glyphs" aria-hidden="true">
-			<svg viewBox="0 0 64 30" fill="none" stroke-width="2.4" stroke-linejoin="round">
-				<path d="M12.5 5.5L22.5 24H2.5z" stroke="#9a989a" />
-				<circle cx="31" cy="15" r="9.8" stroke="#9a989a" />
-				<path d="M42 5.5h19v19H42z" stroke="#9a989a" />
+			<svg viewBox="0 0 48 48" fill="none" stroke="#9a989a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+				<circle cx="24" cy="24" r="18" />
+				<path d="M24 14v10l7 4" />
 			</svg>
 		</span>
 		<h2>Content in development</h2>
@@ -127,12 +157,29 @@
 			grid-template-columns: 1fr;
 		}
 	}
+	.units li {
+		display: flex;
+	}
+	.units li,
+	.units .unit {
+		width: 100%;
+	}
 	.unit {
 		display: flex;
 		align-items: center;
 		gap: 0.85rem;
 		padding: 0.8rem 1rem;
 		border-left: 4px solid var(--frc-line, #dde1e8);
+	}
+	/* Content-backed units are links. */
+	a.unit {
+		text-decoration: none;
+		color: inherit;
+		transition: box-shadow 0.15s ease, transform 0.15s ease;
+	}
+	a.unit:hover {
+		box-shadow: 0 4px 14px rgba(35, 31, 32, 0.12);
+		transform: translateY(-1px);
 	}
 	.unit-n {
 		font-weight: 700;
@@ -150,6 +197,15 @@
 	.frc-state {
 		margin-left: auto;
 	}
+	.unit-go {
+		font-weight: 700;
+		font-size: 1.25rem;
+		line-height: 1;
+		color: var(--frc-blue, #0066b3);
+	}
+	a.unit:hover .unit-go {
+		color: var(--frc-red, #ed1c24);
+	}
 	.unit-available {
 		border-left-color: var(--frc-blue, #0066b3);
 	}
@@ -160,10 +216,11 @@
 	.unit-complete {
 		border-left-color: var(--frc-achieve, #00ff41);
 	}
-	.unit-locked {
+	/* In-development unit: authored content not published yet. */
+	.unit-dev {
 		background: #f3f4f6;
 	}
-	.unit-locked .unit-title {
+	.unit-dev .unit-title {
 		color: #6d6b6d;
 	}
 	.in-dev {
@@ -175,8 +232,8 @@
 		padding: 2.6rem 1.5rem;
 	}
 	.in-dev-glyphs svg {
-		width: 96px;
-		height: 45px;
+		width: 52px;
+		height: 52px;
 	}
 	.in-dev h2 {
 		font-size: 1.3rem;

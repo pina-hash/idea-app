@@ -3,26 +3,30 @@
 	import TrackHome from '$lib/frc/TrackHome.svelte';
 	import DomainLanding from '$lib/frc/DomainLanding.svelte';
 	import ReferenceShelf from '$lib/frc/ReferenceShelf.svelte';
+	import UnitPage from '$lib/frc/UnitPage.svelte';
 	import { domainById } from '$lib/frc/track';
+	import { MDM_UNITS, mdmUnitByNumber } from '$lib/frc/mdm-content';
 
 	/**
 	 * Manual verification harness for the FRC Training shell (dev-only).
 	 * Switch between the real page bodies inside the real FrcShell chrome:
-	 * track home (7 domain cards), the CAD and Mechanical Design landing (16
-	 * units in a locked / available / complete mix), a placeholder domain
-	 * ("content in development"), and the reference shelf. In-shell links
-	 * point at the real gated /frc routes, so use these buttons to switch.
+	 * track home (7 domain cards), the CAD and Mechanical Design landing (units
+	 * 1-10 linked, 11-16 in development), a real per-unit page (MDM-1), a
+	 * placeholder domain, and the reference shelf. In-shell links point at the
+	 * real gated /frc routes, so use these buttons to switch.
 	 */
 
-	type View = 'home' | 'cad' | 'placeholder' | 'refs';
+	type View = 'home' | 'cad' | 'unit' | 'placeholder' | 'refs';
 	let view: View = $state('home');
 
 	const cad = domainById('cad-mechanical')!;
 	const foundation = domainById('foundation')!;
+	const unit1 = mdmUnitByNumber(1)!;
 
 	const VIEWS: { id: View; label: string }[] = [
 		{ id: 'home', label: 'Track home' },
 		{ id: 'cad', label: 'CAD & Mechanical (16 units)' },
+		{ id: 'unit', label: 'Unit page (MDM-1)' },
 		{ id: 'placeholder', label: 'Placeholder domain' },
 		{ id: 'refs', label: 'Reference shelf' }
 	];
@@ -44,6 +48,8 @@
 		<TrackHome />
 	{:else if view === 'cad'}
 		<DomainLanding domain={cad} />
+	{:else if view === 'unit'}
+		<UnitPage domain={cad} unit={unit1} prev={null} next={MDM_UNITS[1] ?? null} />
 	{:else if view === 'placeholder'}
 		<DomainLanding domain={foundation} />
 	{:else}

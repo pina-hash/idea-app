@@ -5,18 +5,26 @@
 	import '@fontsource/roboto/700.css';
 	import '@fontsource/roboto/700-italic.css';
 	import '$lib/frc/frc-theme.css';
-	import FrcMark from '$lib/frc/FrcMark.svelte';
+	import logoHorizontal from '$lib/frc/assets/frc-logo-horizontal.png';
+	import logoVertical from '$lib/frc/assets/frc-logo-vertical.png';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ChangelogFooter from '$lib/frc/ChangelogFooter.svelte';
 	import { FRC_TEAM } from '$lib/frc/track';
 
 	/**
-	 * The FRC Training chrome: Team 5669 header, track nav, and footer, wrapping
-	 * every track page in the scoped .frc-root theme (frc-theme.css). Used by
-	 * the /frc layout AND mounted directly by the /dev/frc harness, so it must
-	 * not assume auth (ProfileMenu renders nothing when signed out).
-	 * Team 5669's own identity is the primary mark; FIRST is referenced by name
-	 * only, never by logo.
+	 * The FRC Training chrome: the official FIRST Robotics Competition logo
+	 * (horizontal in the header, compact vertical in the footer) shown ALONGSIDE
+	 * Team 5669's own identity, wrapping every track page in the scoped .frc-root
+	 * theme (frc-theme.css). Used by the /frc layout AND the /dev/frc harness, so
+	 * it must not assume auth (ProfileMenu renders nothing when signed out).
+	 *
+	 * FRC logo brand rules honored here: the RGB logos are used unmodified (never
+	 * recolored, distorted, stretched, or cropped: `width:auto` preserves the
+	 * exact aspect from the intrinsic attributes), and each is given clear space
+	 * (transparent padding) at least the height of its icon so nothing crowds it.
+	 * Team 5669 identity sits outside that clear space. The FIRST triangle /
+	 * circle / square icon is FIRST's; it appears here only within the full logo.
 	 */
 
 	let { children } = $props();
@@ -28,13 +36,22 @@
 
 <div class="frc-root">
 	<header class="frc-header">
-		<a class="frc-lockup" href="/frc">
-			<FrcMark height={24} />
-			<span class="frc-lockup-text">
+		<div class="frc-brand">
+			<a class="frc-logo-link" href="/frc" aria-label="FRC Training home">
+				<img
+					class="frc-logo"
+					src={logoHorizontal}
+					width="804"
+					height="190"
+					alt="FIRST Robotics Competition"
+				/>
+			</a>
+			<span class="frc-brand-div" aria-hidden="true"></span>
+			<span class="frc-team-id">
 				<span class="frc-team">TEAM {FRC_TEAM.number}</span>
-				<span class="frc-track">FRC TRAINING &middot; {FRC_TEAM.org}</span>
+				<span class="frc-track">FRC Training &middot; {FRC_TEAM.org}</span>
 			</span>
-		</a>
+		</div>
 		<nav class="frc-nav" aria-label="FRC Training">
 			<a href="/frc" class:active={onHome}>Track home</a>
 			<a href="/frc/references" class:active={onRefs}>References</a>
@@ -48,16 +65,30 @@
 	</main>
 
 	<footer class="frc-footer">
-		<div class="frc-footer-top">
-			<span class="frc-footer-id">
-				<FrcMark height={16} />
-				<span>{FRC_TEAM.name} &middot; {FRC_TEAM.org} &middot; FRC Training</span>
-			</span>
-			<p class="frc-disclaimer">
-				FIRST&reg; and FIRST&reg; Robotics Competition are trademarks of For Inspiration and
-				Recognition of Science and Technology (FIRST), which does not sponsor or endorse this
-				training track. This is an original {FRC_TEAM.name} program.
-			</p>
+		<div class="frc-footer-main">
+			<div class="frc-footer-brand">
+				<img
+					class="frc-footer-logo"
+					src={logoVertical}
+					width="699"
+					height="479"
+					alt="FIRST Robotics Competition"
+				/>
+				<span class="frc-footer-id">
+					<span class="frc-footer-team">{FRC_TEAM.name}</span>
+					<span class="frc-footer-org">{FRC_TEAM.org} &middot; FRC Training</span>
+				</span>
+			</div>
+			<div class="frc-footer-meta">
+				<ChangelogFooter />
+				<p class="frc-trademark">
+					FIRST and FIRST Robotics Competition are trademarks of For Inspiration and Recognition of
+					Science and Technology (FIRST).
+				</p>
+				<p class="frc-disclaimer">
+					Not sponsored or endorsed by FIRST. An original {FRC_TEAM.name} program.
+				</p>
+			</div>
 		</div>
 		<div class="frc-footer-strip">
 			<span class="frc-idea-mark">An IDEA program</span>
@@ -67,38 +98,57 @@
 </div>
 
 <style>
+	/* Clear space = the height of the logo's icon, kept as transparent padding
+	   so no element crowds the mark (FRC brand rule). */
 	.frc-header {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
 		gap: 1rem;
 		flex-wrap: wrap;
-		padding: 0.85rem 1.5rem;
+		padding: 0.5rem 1.5rem;
 		background: var(--frc-surface, #fafbfd);
 		border-bottom: 3px solid var(--frc-blue, #0066b3);
 	}
-	.frc-lockup {
+	.frc-brand {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.7rem;
-		text-decoration: none;
 	}
-	.frc-lockup-text {
+	.frc-logo-link {
+		display: inline-flex;
+		/* Horizontal logo icon height == full logo height, so clear space == the
+		   rendered logo height. */
+		padding: 30px;
+	}
+	.frc-logo {
+		height: 30px;
+		width: auto;
+		display: block;
+	}
+	/* Divider + team identity sit OUTSIDE the logo's clear space. */
+	.frc-brand-div {
+		width: 1px;
+		align-self: stretch;
+		margin: 0.5rem 0;
+		background: var(--frc-line, #dde1e8);
+	}
+	.frc-team-id {
 		display: flex;
 		flex-direction: column;
 		line-height: 1.15;
+		padding-left: 1rem;
 	}
 	.frc-team {
 		font-weight: 700;
 		font-style: italic;
-		font-size: 1.15rem;
+		font-size: 1.1rem;
 		letter-spacing: 0.02em;
 		color: var(--frc-ink, #231f20);
 	}
 	.frc-track {
 		font-weight: 700;
-		font-size: 0.6rem;
-		letter-spacing: 0.18em;
+		font-size: 0.58rem;
+		letter-spacing: 0.16em;
 		text-transform: uppercase;
 		color: var(--frc-blue, #0066b3);
 	}
@@ -135,29 +185,61 @@
 	.frc-footer {
 		margin-top: auto;
 	}
-	.frc-footer-top {
+	.frc-footer-main {
 		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 2rem;
+		flex-wrap: wrap;
 		padding: 1.4rem 1.5rem;
 		background: var(--frc-surface, #fafbfd);
 		border-top: 1px solid var(--frc-line, #dde1e8);
 	}
-	.frc-footer-id {
+	.frc-footer-brand {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.55rem;
+		gap: 1rem;
+	}
+	.frc-footer-logo {
+		/* Compact vertical logo; its icon is ~40% of the height, so this padding
+		   preserves at least an icon-height of clear space. */
+		height: 66px;
+		width: auto;
+		display: block;
+		padding: 22px;
+	}
+	.frc-footer-id {
+		display: flex;
+		flex-direction: column;
+		line-height: 1.2;
+	}
+	.frc-footer-team {
 		font-weight: 700;
 		font-style: italic;
-		font-size: 0.8rem;
+		font-size: 0.95rem;
 		color: var(--frc-ink, #231f20);
+	}
+	.frc-footer-org {
+		font-size: 0.72rem;
+		color: var(--frc-gray, #9a989a);
+	}
+	.frc-footer-meta {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+		max-width: 60ch;
+	}
+	.frc-trademark {
+		margin: 0;
+		font-size: 0.68rem;
+		line-height: 1.5;
+		color: var(--frc-gray, #9a989a);
 	}
 	.frc-disclaimer {
 		margin: 0;
-		font-size: 0.72rem;
+		font-size: 0.68rem;
 		line-height: 1.5;
 		color: var(--frc-gray, #9a989a);
-		max-width: 72ch;
 	}
 	/* Dark base strip: home of the IDEA-green program mark and the version
 	   badge (both designed for dark ground). */
@@ -178,7 +260,13 @@
 		color: var(--frc-achieve, #00ff41);
 	}
 
-	@media (max-width: 560px) {
+	@media (max-width: 640px) {
+		.frc-logo-link {
+			padding: 22px;
+		}
+		.frc-logo {
+			height: 24px;
+		}
 		.frc-nav {
 			gap: 0.75rem;
 		}

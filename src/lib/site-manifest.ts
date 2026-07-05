@@ -68,7 +68,12 @@ export const APPS: SiteApp[] = [
 	{
 		id: 'frc',
 		label: 'FRC Training',
-		prefixes: ['src/routes/frc/', 'src/lib/frc/', 'src/routes/dev/frc/']
+		prefixes: [
+			'src/routes/frc/',
+			'src/lib/frc/',
+			'src/routes/dev/frc/',
+			'mdm-content-seed.md'
+		]
 	},
 	{
 		id: 'portal',
