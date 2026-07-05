@@ -15,6 +15,10 @@
 	 * (in-memory, no DB): toggling a unit updates the completed set, so the
 	 * domain landing's unlock states and the rank badge update live. This also
 	 * exercises the teacher-override component (FrcUnitOverride) mark/unmark.
+	 * The Unit page view has its own MDM-1..10 picker, so the Brief markdown
+	 * (bold leads, worked-example blockquote) and the Drill per-question reveal
+	 * — including the "not yet added" state on units with no authored answer
+	 * key, e.g. MDM-2 — can be checked on any unit, not just MDM-1.
 	 */
 
 	type View = 'progression' | 'home' | 'cad' | 'unit' | 'quiz' | 'placeholder' | 'refs';
@@ -25,6 +29,12 @@
 	const unit1 = mdmUnitByNumber(1)!;
 	const unit2 = mdmUnitByNumber(2)!;
 	const cadUnits = cad.units.filter((u) => mdmUnitByNumber(u.n));
+
+	// "Unit page" view: pick which authored unit to inspect (e.g. MDM-2, which
+	// has no answer key, to verify the Drill "not yet added" state).
+	let unitPageN = $state(1);
+	const unitPageUnit = $derived(mdmUnitByNumber(unitPageN) ?? unit1);
+	const unitPageIdx = $derived(MDM_UNITS.findIndex((u) => u.n === unitPageN));
 
 	// The simulated completion set.
 	let completed = $state<string[]>([]);
@@ -59,7 +69,7 @@
 		{ id: 'progression', label: 'Progression (interactive)' },
 		{ id: 'home', label: 'Track home' },
 		{ id: 'cad', label: 'CAD domain' },
-		{ id: 'unit', label: 'Unit page (MDM-1)' },
+		{ id: 'unit', label: 'Unit page' },
 		{ id: 'quiz', label: 'Quiz gate (MDM-1)' },
 		{ id: 'placeholder', label: 'Placeholder domain' },
 		{ id: 'refs', label: 'Reference shelf' }
@@ -99,6 +109,20 @@
 			<span class="sim-count">MDM-1 complete: {completed.includes('MDM-1') ? 'yes' : 'no'}</span>
 		</div>
 	</div>
+{:else if view === 'unit'}
+	<div class="sim-panel">
+		<div class="sim-row">
+			<strong>Inspect unit:</strong>
+			{#each MDM_UNITS as u (u.id)}
+				<button type="button" class:active={unitPageN === u.n} onclick={() => (unitPageN = u.n)}>
+					{u.id}
+				</button>
+			{/each}
+			<span class="sim-count">
+				{unitPageUnit.drillAnswers.some(Boolean) ? 'has answer key' : 'no answer key'}
+			</span>
+		</div>
+	</div>
 {/if}
 
 <FrcShell rankCount={count}>
@@ -110,7 +134,12 @@
 	{:else if view === 'cad'}
 		<DomainLanding domain={cad} {completed} />
 	{:else if view === 'unit'}
-		<UnitPage domain={cad} unit={unit1} prev={null} next={MDM_UNITS[1] ?? null} />
+		<UnitPage
+			domain={cad}
+			unit={unitPageUnit}
+			prev={unitPageIdx > 0 ? MDM_UNITS[unitPageIdx - 1] : null}
+			next={unitPageIdx >= 0 && unitPageIdx < MDM_UNITS.length - 1 ? MDM_UNITS[unitPageIdx + 1] : null}
+		/>
 	{:else if view === 'quiz'}
 		{#key quizNonce}
 			<UnitPage

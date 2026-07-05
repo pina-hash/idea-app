@@ -1079,12 +1079,25 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   `## Gate`/`## Apply` sections, units split by `===`). `src/lib/frc/mdm-content.ts`
   parses it at build time via a `?raw` import (the established legacy-loader
   convention) into a typed `MdmUnit[]`; edit the markdown, never the parsed
-  module. `UnitPage.svelte` renders a unit's Brief, Drill (with an optional
-  collapsible answer key), Gate DESCRIPTION only, and Apply, plus prev/next
-  nav. The Gate section is description text only: gate execution and
-  progression are NOT built (a "gate attempts not enabled yet" note says so).
-  Units MDM-11 through MDM-16 have no seed content yet and render as
-  non-clickable "In development" placeholders on the domain page.
+  module. The parser adds LIGHT MARKDOWN to each Brief paragraph:
+  `markupBriefParagraph` bolds a paragraph's opening sentence when it reads as
+  a short label (8 words or fewer, empirically the line between the seed's
+  short lead sentences like "Define the problem." and its longer intro/closing
+  prose) and prefixes the "Worked example" paragraph with a `> ` blockquote
+  marker; `src/lib/frc/inline-markup.ts` is the renderer (`renderInline` turns
+  `**bold**` into `<strong>` after escaping, `isBlockquote`/`stripBlockquote`
+  detect the marker), used by `UnitPage.svelte` to show the worked example as
+  a distinct FRC-themed callout. `drillAnswers` is an array aligned to `drill`
+  (not a single consolidated string): `splitConsolidatedAnswers` splits a
+  trailing "Answers: 1. ... 2. ..." block per question (only MDM-1 has one
+  today); `UnitPage.svelte` gives each question its OWN reveal control
+  (`<details>`), and a question with no parsed answer shows a plain "Answer
+  key not yet added" label instead of a reveal control, never a fabricated
+  answer. Gate stays description text only for units without a live gate:
+  gate execution and progression are handled elsewhere (see the quiz-gate
+  bullet above); Apply and prev/next nav are unchanged. Units MDM-11 through
+  MDM-16 have no seed content yet and render as non-clickable
+  "In development" placeholders on the domain page.
 - **Routes:** `/frc` (track home, one card per domain + the student's rank),
   `/frc/[domain]` (reusable domain landing: content-backed units show their
   real locked/available/complete state and link when unlocked, units without
@@ -1144,9 +1157,11 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   Quiz-gate view mounts the real UnitPage + FrcQuizGate against a dev-only mock
   endpoint (`/dev/frc-quiz`, 404 in prod) that runs the REAL engine + service
   over an in-memory store with a short cooldown, so the full flow and the
-  no-answer-key network contract are verifiable without a live DB. Other views:
-  track home, CAD domain, a per-unit page (MDM-1), a placeholder domain, and the
-  reference shelf.
+  no-answer-key network contract are verifiable without a live DB. The Unit
+  page view has its own MDM-1..10 picker, so the Brief markdown and the Drill
+  per-question reveal (including the "not yet added" state on units with no
+  authored answer key) can be checked on any unit. Other views: track home,
+  CAD domain, a placeholder domain, and the reference shelf.
 
 ## Version + changelog substrate
 

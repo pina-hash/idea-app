@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { gateLabel, mdmUnitById, type MdmUnit } from '$lib/frc/mdm-content';
+	import { isBlockquote, renderInline, stripBlockquote } from '$lib/frc/inline-markup';
 	import type { FrcDomain } from '$lib/frc/track';
 	import FrcQuizGate from '$lib/frc/FrcQuizGate.svelte';
 
@@ -83,23 +84,32 @@
 	<section class="sec">
 		<h2>Brief</h2>
 		{#each unit.brief as p (p)}
-			<p>{p}</p>
+			{#if isBlockquote(p)}
+				<blockquote class="worked-example">{@html renderInline(stripBlockquote(p))}</blockquote>
+			{:else}
+				<p>{@html renderInline(p)}</p>
+			{/if}
 		{/each}
 	</section>
 
 	<section class="sec">
 		<h2>Drill</h2>
 		<ol class="drill">
-			{#each unit.drill as d (d)}
-				<li>{d}</li>
+			{#each unit.drill as d, i (d)}
+				{@const answer = unit.drillAnswers[i]}
+				<li class="drill-item">
+					<span class="drill-q">{d}</span>
+					{#if answer}
+						<details class="drill-reveal">
+							<summary>Show answer</summary>
+							<p class="drill-a">{answer}</p>
+						</details>
+					{:else}
+						<span class="drill-missing">Answer key not yet added</span>
+					{/if}
+				</li>
 			{/each}
 		</ol>
-		{#if unit.drillAnswers}
-			<details class="answers">
-				<summary>Show answer key</summary>
-				<p>{unit.drillAnswers}</p>
-			</details>
-		{/if}
 	</section>
 
 	<section class="sec">
@@ -249,42 +259,84 @@
 	.sec p:last-child {
 		margin-bottom: 0;
 	}
+	/* Worked-example callout: a Brief paragraph marked by the parser as a
+	   blockquote, styled distinct from plain body copy (tinted panel, blue
+	   accent bar) per the FRC theme. */
+	.worked-example {
+		margin: 0 0 0.85rem;
+		padding: 0.85rem 1.1rem;
+		border-left: 4px solid var(--frc-blue, #0066b3);
+		background: var(--frc-blue-tint, rgba(0, 102, 179, 0.08));
+		border-radius: 0 8px 8px 0;
+		color: var(--frc-ink, #231f20);
+		line-height: 1.6;
+	}
+	.worked-example:last-child {
+		margin-bottom: 0;
+	}
+	.sec :global(strong) {
+		font-weight: 700;
+		color: var(--frc-ink, #231f20);
+	}
 	.drill {
 		margin: 0;
 		padding-left: 1.4rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.55rem;
+		gap: 0.7rem;
 	}
-	.drill li {
+	.drill-item {
 		color: #333133;
 		line-height: 1.55;
 		padding-left: 0.3rem;
 	}
-	.drill li::marker {
+	.drill-item::marker {
 		font-weight: 700;
 		font-style: italic;
 		color: var(--frc-blue, #0066b3);
 	}
-	.answers {
-		margin-top: 0.9rem;
-		border: 1px solid var(--frc-line, #dde1e8);
-		border-radius: 8px;
-		background: var(--frc-surface, #fafbfd);
-		padding: 0.4rem 0.9rem;
+	.drill-q {
+		display: block;
 	}
-	.answers summary {
+	/* Per-question reveal: each question gets its own control, so only that
+	   answer shows on click. */
+	.drill-reveal {
+		margin-top: 0.35rem;
+	}
+	.drill-reveal summary {
+		display: inline-block;
 		font-weight: 700;
-		font-size: 0.82rem;
+		font-size: 0.78rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
 		color: var(--frc-blue, #0066b3);
 		cursor: pointer;
-		padding: 0.35rem 0;
+		padding: 0.15rem 0;
 	}
-	.answers p {
-		margin: 0.3rem 0 0.6rem;
+	.drill-reveal summary:hover {
+		color: var(--frc-red, #ed1c24);
+	}
+	.drill-a {
+		margin: 0.3rem 0 0;
+		padding: 0.5rem 0.75rem;
+		border: 1px solid var(--frc-line, #dde1e8);
+		border-radius: 6px;
+		background: var(--frc-surface, #fafbfd);
 		font-size: 0.9rem;
 		color: #5c5a5c;
 		line-height: 1.55;
+	}
+	/* Visibly incomplete, not silently broken: units without an authored
+	   answer key show this on every question instead of a dead control. */
+	.drill-missing {
+		display: inline-block;
+		margin-top: 0.35rem;
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		font-style: italic;
+		color: var(--frc-gray, #9a989a);
 	}
 	.gate-card {
 		padding: 1rem 1.1rem;
