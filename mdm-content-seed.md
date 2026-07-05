@@ -17,6 +17,8 @@ gatePass: 90
 
 Mechanical design in FRC is not modeling for its own sake. You design a part or a mechanism to do one scoped job, under hard constraints, and you get there by iterating. The eight steps from Foundation still apply. Here is what each one means when the thing you are making is a bracket or a gearbox.
 
+[[diagram:design-process-loop|The design process is a loop, not a line. Test feeds back into the next iteration.]]
+
 Define the problem. State the job in one sentence, then split demands from goals. "The mount must hold the intake roller and bolt to the frame" is a demand, pass or fail. "Keep it under four ounces" is a goal, used to choose between options that already pass.
 
 Set constraints before geometry. Space available, weight budget, what it bolts to, which COTS parts it must accept. Constraints shrink the design space so you are not staring at a blank sketch.
@@ -62,6 +64,8 @@ gatePass: 90
 ## Brief
 
 A 3D model shows intent. A drawing removes all doubt about how to actually make the part. A machinist should be able to fabricate from the drawing alone without asking a single question. To read one, you need four things.
+
+[[diagram:orthographic-views|Third-angle views. The same hole is a circle in the top view and hidden lines in the front and right.]]
 
 Views. Most FRC parts are drawn in orthographic views, usually front, top, and right, each looking straight at one face. A feature that is a circle in one view and a pair of hidden lines in another is the same hole seen from two directions. Learning to hold the part in your head across views is the core skill.
 
@@ -319,6 +323,8 @@ gatePass: 90
 
 A stackup is the sequence of parts along a shaft between two support plates, arranged so everything is located, spins freely, and cannot slide off. Getting a stackup right is a signature mechanical skill, and it is where a lot of first robots fail.
 
+[[diagram:shaft-stackup|A shaft stackup: located, free to spin, and held from sliding.]]
+
 Two kinds of constraint. Bearings support the shaft radially, carrying the side loads. Something must also stop the shaft and its parts from sliding along the axis. You need both, and confusing them is a common mistake.
 
 Shaft profiles. A hex or ThunderHex profile transmits torque, because a gear with a matching hex bore locks to it and turns with it. A bearing, though, needs a round surface to ride on. So a torque-carrying shaft is often hex through the gear and turned down to round where it passes through the bearings.
@@ -366,6 +372,8 @@ gatePass: 90
 
 A robot is held together by its fasteners, and a single wrong hole causes rework under time pressure. This unit is about putting the right hole in the right place in SolidWorks.
 
+[[diagram:clearance-vs-tapped|A clearance hole passes the screw through to a nut; a tapped hole threads the screw straight into the part.]]
+
 Clearance versus tapped. A clearance hole lets a screw pass through freely and is slightly larger than the screw, used when a nut or the far part takes the thread. A tapped hole has threads cut into the part so the screw fastens directly into it, and its drill is smaller than the screw. Choose tapped when you are fastening into a thick part with no room for a nut.
 
 The Hole Wizard. In SolidWorks, place fastener holes with the Hole Wizard, never a sketched circle. It sizes the clearance or tapped hole for the exact screw and carries the callout into the drawing automatically, which saves time and prevents errors downstream. A sketched circle is only for a plain round opening that is not a fastener.
@@ -411,6 +419,8 @@ gatePass: 90
 ## Brief
 
 No part is made perfectly, so a tolerance is the allowed variation on a dimension. Tolerancing is what lets parts fit and function in the real world, and knowing where to apply it, and where not to, separates a designer from a modeler.
+
+[[diagram:clearance-vs-interference|A clearance fit slides, an interference fit is pressed in and stays put.]]
 
 Why it matters. A dimension without a stated tolerance falls back to the title-block default, so leaving it off does not mean perfect, it means whatever the shop default is. Tolerances let mating parts work despite manufacturing variation.
 

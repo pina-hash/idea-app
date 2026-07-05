@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 300" font-family="Roboto, Arial, sans-serif">
+  <title>The mechanical design process loop</title>
+  <desc>Eight steps in order around a loop: define, research, generate concepts, prototype, select, detail, manufacture, test, with an iterate feedback edge from test back to define.</desc>
+  <defs>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#0066B3"/></marker>
+    <marker id="ahr" markerWidth="10" markerHeight="10" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ED1C24"/></marker>
+  </defs>
+  <style>
+    .box{fill:#e8eff8;stroke:#0066B3;stroke-width:2;}
+    .lbl{fill:#231F20;font-size:13px;font-weight:600;}
+    .flow{stroke:#0066B3;stroke-width:2.2;fill:none;}
+    .center{fill:#231F20;}
+  </style>
+
+  <!-- top row -->
+  <g>
+    <rect class="box" x="40"  y="44" width="128" height="52" rx="8"/>
+    <rect class="box" x="190" y="44" width="128" height="52" rx="8"/>
+    <rect class="box" x="340" y="44" width="128" height="52" rx="8"/>
+    <rect class="box" x="490" y="44" width="128" height="52" rx="8"/>
+    <text class="lbl" x="104" y="74" text-anchor="middle">1 · Define</text>
+    <text class="lbl" x="254" y="74" text-anchor="middle">2 · Research</text>
+    <text class="lbl" x="404" y="70" text-anchor="middle">3 · Generate</text>
+    <text class="lbl" x="404" y="86" text-anchor="middle">concepts</text>
+    <text class="lbl" x="554" y="74" text-anchor="middle">4 · Prototype</text>
+  </g>
+  <!-- bottom row -->
+  <g>
+    <rect class="box" x="40"  y="224" width="128" height="52" rx="8"/>
+    <rect class="box" x="190" y="224" width="128" height="52" rx="8"/>
+    <rect class="box" x="340" y="224" width="128" height="52" rx="8"/>
+    <rect class="box" x="490" y="224" width="128" height="52" rx="8"/>
+    <text class="lbl" x="104" y="254" text-anchor="middle">8 · Test</text>
+    <text class="lbl" x="254" y="254" text-anchor="middle">7 · Manufacture</text>
+    <text class="lbl" x="404" y="250" text-anchor="middle">6 · Detail</text>
+    <text class="lbl" x="404" y="266" text-anchor="middle">design</text>
+    <text class="lbl" x="554" y="250" text-anchor="middle">5 · Select</text>
+    <text class="lbl" x="554" y="266" text-anchor="middle">concept</text>
+  </g>
+
+  <!-- top flow rightward -->
+  <line class="flow" x1="168" y1="70" x2="188" y2="70" marker-end="url(#ah)"/>
+  <line class="flow" x1="318" y1="70" x2="338" y2="70" marker-end="url(#ah)"/>
+  <line class="flow" x1="468" y1="70" x2="488" y2="70" marker-end="url(#ah)"/>
+  <!-- right side down -->
+  <line class="flow" x1="554" y1="98" x2="554" y2="222" marker-end="url(#ah)"/>
+  <!-- bottom flow leftward -->
+  <line class="flow" x1="490" y1="250" x2="470" y2="250" marker-end="url(#ah)"/>
+  <line class="flow" x1="340" y1="250" x2="320" y2="250" marker-end="url(#ah)"/>
+  <line class="flow" x1="190" y1="250" x2="170" y2="250" marker-end="url(#ah)"/>
+  <!-- left side up: iterate -->
+  <line stroke="#ED1C24" stroke-width="2.4" stroke-dasharray="7 5" fill="none" x1="104" y1="222" x2="104" y2="98" marker-end="url(#ahr)"/>
+  <text x="116" y="164" fill="#ED1C24" font-size="12px" font-weight="700">iterate</text>
+
+  <!-- center -->
+  <text class="center" x="345" y="152" text-anchor="middle" font-size="15px" font-weight="700">The design loop</text>
+  <text x="345" y="172" text-anchor="middle" font-size="11px" fill="#5b6470" font-style="italic">the first version is never the last</text>
+</svg>

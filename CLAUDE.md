@@ -1129,6 +1129,26 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   bullet above); Apply and prev/next nav are unchanged. Units MDM-11 through
   MDM-16 have no seed content yet and render as non-clickable
   "In development" placeholders on the domain page.
+- **Brief concept diagrams:** a Brief paragraph that is exactly a
+  `[[diagram:KEY|caption text]]` token (its own paragraph, blank lines on
+  both sides in the seed) renders as a centered, captioned figure instead of
+  prose. `parseDiagram` (`inline-markup.ts`) matches the token; the five SVGs
+  live in `src/lib/frc/assets/diagrams/` and are imported the same way
+  `FrcShell` imports the FRC logo PNGs (plain `import x from '...svg'`, so
+  Vite serves them as fingerprinted/inlined production assets, never a raw
+  file reference), collected into the `DIAGRAMS` key->asset map in
+  `src/lib/frc/diagrams.ts`. `markupBriefParagraph` (`mdm-content.ts`) passes
+  a diagram token through untouched (never bolded or mistaken for a "Worked
+  example" lead); `UnitPage.svelte` checks `parseDiagram(p)` before the
+  blockquote/plain-paragraph branches and looks the key up in `DIAGRAMS`,
+  rendering nothing (not an error) for an unknown key. The figure is a capped
+  max-width `.frc-card`-style frame (thin border, light shadow) with the SVG
+  scaling responsively to full width inside it, and the caption below in the
+  same muted italic note style as `.gate-note`. Five diagrams are seeded:
+  `design-process-loop` (MDM-1), `orthographic-views` (MDM-2),
+  `shaft-stackup` (MDM-8), `clearance-vs-tapped` (MDM-9), and
+  `clearance-vs-interference` (MDM-10), each placed right after the unit's
+  first Brief paragraph.
 - **Routes:** `/frc` (track home, one card per domain + the student's rank),
   `/frc/[domain]` (reusable domain landing: every content-backed unit links
   regardless of state, complete/available/"suggested later" is a badge only;

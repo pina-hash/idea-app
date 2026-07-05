@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { gateLabel, mdmUnitById, type MdmUnit } from '$lib/frc/mdm-content';
-	import { isBlockquote, renderInline, stripBlockquote } from '$lib/frc/inline-markup';
+	import { isBlockquote, parseDiagram, renderInline, stripBlockquote } from '$lib/frc/inline-markup';
+	import { DIAGRAMS } from '$lib/frc/diagrams';
 	import type { FrcDomain } from '$lib/frc/track';
 	import FrcQuizGate from '$lib/frc/FrcQuizGate.svelte';
 
@@ -84,7 +85,18 @@
 	<section class="sec">
 		<h2>Brief</h2>
 		{#each unit.brief as p (p)}
-			{#if isBlockquote(p)}
+			{@const diagram = parseDiagram(p)}
+			{#if diagram}
+				{@const src = DIAGRAMS[diagram.key]}
+				{#if src}
+					<figure class="brief-diagram">
+						<div class="diagram-frame">
+							<img src={src} alt={diagram.caption} loading="lazy" />
+						</div>
+						<figcaption>{@html renderInline(diagram.caption)}</figcaption>
+					</figure>
+				{/if}
+			{:else if isBlockquote(p)}
 				<blockquote class="worked-example">{@html renderInline(stripBlockquote(p))}</blockquote>
 			{:else}
 				<p>{@html renderInline(p)}</p>
@@ -273,6 +285,45 @@
 	}
 	.worked-example:last-child {
 		margin-bottom: 0;
+	}
+	/* Concept diagram: a `[[diagram:KEY|caption]]` Brief paragraph, rendered as
+	   a centered figure. The SVG scales responsively inside a capped-width,
+	   thin FRC-themed frame (reusing the shared .frc-card look); the caption
+	   sits below in the same muted, italic note style as .gate-note. */
+	.brief-diagram {
+		margin: 0 0 0.85rem;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.brief-diagram:last-child {
+		margin-bottom: 0;
+	}
+	.diagram-frame {
+		width: 100%;
+		max-width: 480px;
+		box-sizing: border-box;
+		padding: 1rem;
+		display: flex;
+		justify-content: center;
+		background: var(--frc-surface, #fafbfd);
+		border: 1px solid var(--frc-line, #dde1e8);
+		border-radius: 10px;
+		box-shadow: 0 1px 2px rgba(35, 31, 32, 0.06);
+	}
+	.diagram-frame img {
+		width: 100%;
+		height: auto;
+		display: block;
+	}
+	.brief-diagram figcaption {
+		max-width: 480px;
+		text-align: center;
+		font-size: 0.82rem;
+		font-style: italic;
+		color: var(--frc-gray, #9a989a);
+		line-height: 1.5;
 	}
 	.sec :global(strong) {
 		font-weight: 700;

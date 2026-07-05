@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" font-family="Roboto, Arial, sans-serif">
+  <title>Clearance hole versus tapped hole</title>
+  <desc>Left: a clearance hole where the screw passes through freely with a nut on the back and a small clearance gap. Right: a tapped hole where threads are cut into the part and the screw fastens directly with no nut.</desc>
+  <defs>
+    <pattern id="hatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+      <line x1="0" y1="0" x2="0" y2="8" stroke="#b7c0cd" stroke-width="1.3"/>
+    </pattern>
+    <marker id="rr" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#ED1C24"/></marker>
+  </defs>
+  <style>
+    .plate{fill:url(#hatch);stroke:#0066B3;stroke-width:2;}
+    .metal{fill:#dbe6f4;stroke:#0066B3;stroke-width:2;}
+    .title{fill:#231F20;font-size:15px;font-weight:700;}
+    .note{fill:#5b6470;font-size:12px;}
+    .red{fill:#ED1C24;font-size:11.5px;font-weight:700;}
+    .thread{stroke:#0066B3;stroke-width:1.3;}
+  </style>
+
+  <!-- ===== PANEL A: CLEARANCE ===== -->
+  <text class="title" x="60" y="44">Clearance hole</text>
+  <text class="note" x="60" y="66">Screw passes through freely. A nut takes the thread on the back.</text>
+
+  <!-- plate, split by the hole -->
+  <rect class="plate" x="60"  y="150" width="80" height="56"/>
+  <rect class="plate" x="180" y="150" width="80" height="56"/>
+  <!-- nut on the back -->
+  <rect class="metal" x="120" y="206" width="80" height="26"/>
+  <text class="note" x="204" y="224">nut</text>
+  <!-- screw: head + shank (narrower than the hole) -->
+  <rect class="metal" x="132" y="120" width="56" height="30"/>
+  <rect class="metal" x="148" y="150" width="24" height="96"/>
+  <text class="note" x="196" y="138">screw</text>
+
+  <!-- clearance gap callouts -->
+  <line stroke="#ED1C24" stroke-width="1.6" x1="96" y1="176" x2="139" y2="176" marker-end="url(#rr)"/>
+  <line stroke="#ED1C24" stroke-width="1.6" x1="224" y1="176" x2="181" y2="176" marker-end="url(#rr)"/>
+  <text class="red" x="160" y="300" text-anchor="middle">clearance gap</text>
+  <text class="note" x="160" y="318" text-anchor="middle">hole slightly larger than the screw</text>
+
+  <!-- ===== PANEL B: TAPPED ===== -->
+  <text class="title" x="380" y="44">Tapped hole</text>
+  <text class="note" x="380" y="66">Threads are cut into the part. The screw fastens directly, no nut.</text>
+
+  <!-- plate, one solid block -->
+  <rect class="plate" x="380" y="150" width="200" height="56"/>
+  <!-- screw head + shank threaded into the plate -->
+  <rect class="metal" x="452" y="120" width="56" height="30"/>
+  <rect class="metal" x="468" y="150" width="24" height="52"/>
+  <text class="note" x="516" y="138">screw</text>
+  <!-- thread ticks along the engagement -->
+  <g class="thread">
+    <line x1="464" y1="158" x2="472" y2="164"/>
+    <line x1="464" y1="170" x2="472" y2="176"/>
+    <line x1="464" y1="182" x2="472" y2="188"/>
+    <line x1="464" y1="194" x2="472" y2="200"/>
+    <line x1="496" y1="158" x2="488" y2="164"/>
+    <line x1="496" y1="170" x2="488" y2="176"/>
+    <line x1="496" y1="182" x2="488" y2="188"/>
+    <line x1="496" y1="194" x2="488" y2="200"/>
+  </g>
+  <line stroke="#ED1C24" stroke-width="1.6" x1="560" y1="188" x2="498" y2="188" marker-end="url(#rr)"/>
+  <text class="red" x="480" y="300" text-anchor="middle">threads cut into the part</text>
+  <text class="note" x="480" y="318" text-anchor="middle">no nut needed</text>
+
+  <!-- divider -->
+  <line x1="320" y1="30" x2="320" y2="330" stroke="#dbe1e8" stroke-width="1.5"/>
+</svg>

@@ -14,6 +14,7 @@
 // The seed lives at the repo root (provenance), imported raw. The relative
 // hop out of src is deliberate so there is exactly one copy of the content.
 import seedRaw from '../../../mdm-content-seed.md?raw';
+import { parseDiagram } from '$lib/frc/inline-markup';
 
 export interface MdmUnit {
 	/** Seed id, e.g. "MDM-1". */
@@ -31,10 +32,12 @@ export interface MdmUnit {
 	/**
 	 * Brief section, one string per paragraph, with light markdown added: the
 	 * "Worked example" paragraph is prefixed `> ` (a blockquote marker, so the
-	 * renderer can show it as a distinct callout), and any other paragraph
-	 * whose opening sentence reads as a short label (see `markupBriefParagraph`)
-	 * has that sentence wrapped `**like this**`. Render with `renderInline` /
-	 * `isBlockquote` from `$lib/frc/inline-markup`.
+	 * renderer can show it as a distinct callout), a `[[diagram:KEY|caption]]`
+	 * paragraph is passed through verbatim (a concept-diagram token, see
+	 * `parseDiagram`), and any other paragraph whose opening sentence reads as
+	 * a short label (see `markupBriefParagraph`) has that sentence wrapped
+	 * `**like this**`. Render with `renderInline` / `isBlockquote` /
+	 * `parseDiagram` from `$lib/frc/inline-markup`.
 	 */
 	brief: string[];
 	/** Drill prompts (leading "N. " stripped). */
@@ -73,6 +76,9 @@ const MAX_LEAD_WORDS = 8;
 
 /**
  * Add light markdown to one Brief paragraph:
+ *  - A `[[diagram:KEY|caption]]` paragraph passes through untouched: it is a
+ *    structured token, not prose, so it must never be bolded or misread as a
+ *    "Worked example" lead.
  *  - The "Worked example" paragraph becomes a markdown blockquote (a leading
  *    `> `), so UnitPage can render it as a distinct callout.
  *  - Otherwise, if the paragraph opens with a short label sentence followed by
@@ -83,6 +89,7 @@ const MAX_LEAD_WORDS = 8;
  * through unchanged.
  */
 function markupBriefParagraph(p: string): string {
+	if (parseDiagram(p)) return p;
 	if (/^worked example\b/i.test(p)) return `> ${p}`;
 
 	// The opening sentence: up to the first '.', '!', or '?' that is followed
