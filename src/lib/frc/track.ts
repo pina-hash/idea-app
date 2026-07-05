@@ -184,6 +184,27 @@ export function frcRank(completed: ReadonlySet<string>): FrcRank {
 }
 
 // ---------------------------------------------------------------------------
+// Knowledge-gate quiz: the escalating cooldown after a failed attempt. The
+// schedule lives here so it is tunable in one place; the server enforces it
+// (src/lib/server/frc/quiz-engine.ts + the unit quiz endpoint). A pass clears
+// the fail streak.
+// ---------------------------------------------------------------------------
+
+/**
+ * Cooldown seconds indexed by consecutive-fail count: the 1st fail waits
+ * FRC_QUIZ_COOLDOWNS_SEC[0], the 2nd the next, and so on, clamping to the last
+ * entry for further fails (so it grows then plateaus).
+ */
+export const FRC_QUIZ_COOLDOWNS_SEC = [60, 300, 900, 3600];
+
+/** Cooldown (seconds) required after reaching `failStreak` consecutive fails. */
+export function cooldownSecondsForFailStreak(failStreak: number): number {
+	if (failStreak <= 0) return 0;
+	const i = Math.min(failStreak, FRC_QUIZ_COOLDOWNS_SEC.length) - 1;
+	return FRC_QUIZ_COOLDOWNS_SEC[i];
+}
+
+// ---------------------------------------------------------------------------
 // Reference shelf: cross-cutting external references, grouped.
 // ---------------------------------------------------------------------------
 

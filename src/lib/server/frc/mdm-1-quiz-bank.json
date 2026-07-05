@@ -1,0 +1,243 @@
+{
+  "unit": "MDM-1",
+  "title": "The Mechanical Design Process",
+  "testLength": 10,
+  "passPercent": 90,
+  "delivery": "SERVER-SIDE ONLY. This file, and especially every answer index, must never be sent to the client. The server selects and shuffles items, sends only stems and options, and grades submissions server-side.",
+  "objectives": {
+    "demand-vs-goal": "Classify a requirement as a demand (pass or fail) or a goal (preferred).",
+    "sequence": "Know the order of the design-process steps.",
+    "next-step": "Given a situation, identify the correct next step.",
+    "constraints-first": "Understand why constraints are set before geometry.",
+    "select-why": "Understand selecting with a documented reason.",
+    "prototype-purpose": "Understand what a prototype is for.",
+    "iteration": "Understand that the first version is never the last.",
+    "scenario-apply": "Apply the whole process to a described situation."
+  },
+  "items": [
+    {
+      "id": "m1-001",
+      "objective": "demand-vs-goal",
+      "stem": "The intake must fit within the frame perimeter or the robot is illegal. Is this a demand or a goal?",
+      "options": ["A demand, because it must be true or the design fails", "A goal, because smaller is preferred", "Neither, because it depends on the game", "A goal, because size is flexible"],
+      "answer": 0
+    },
+    {
+      "id": "m1-002",
+      "objective": "demand-vs-goal",
+      "stem": "We would like the arm to weigh under three pounds if we can manage it. Is this a demand or a goal?",
+      "options": ["A demand", "A goal", "A constraint that cannot be classified", "Both at once"],
+      "answer": 1
+    },
+    {
+      "id": "m1-003",
+      "objective": "demand-vs-goal",
+      "stem": "The climber must hold the robot's full weight at the end of the match. Demand or goal?",
+      "options": ["A goal, because it is only at the end", "A demand", "A goal, because weight varies", "Cannot be determined"],
+      "answer": 1
+    },
+    {
+      "id": "m1-004",
+      "objective": "demand-vs-goal",
+      "stem": "Ideally the shooter reaches the far zone, but hitting the near zone is acceptable. Demand or goal?",
+      "options": ["A demand", "A goal", "Two demands", "Neither"],
+      "answer": 1
+    },
+    {
+      "id": "m1-005",
+      "objective": "demand-vs-goal",
+      "stem": "Which of these is a goal rather than a demand?",
+      "options": ["The gearbox must bolt to the existing frame rail", "The mechanism must fit in the allowed volume", "It would be nice if the mechanism were under four ounces", "The part must not break under match loads"],
+      "answer": 2
+    },
+    {
+      "id": "m1-006",
+      "objective": "demand-vs-goal",
+      "stem": "A demand is usually written with the word must. Goals are often signaled by which kind of wording?",
+      "options": ["Prefer, ideally, or would like", "Must, shall, or required", "Never or always", "None, goals are not written down"],
+      "answer": 0
+    },
+    {
+      "id": "m1-007",
+      "objective": "demand-vs-goal",
+      "stem": "Why does separating demands from goals matter before you design?",
+      "options": ["It does not matter, both are optional", "Demands are pass or fail while goals only decide between options that already pass", "Goals are more important than demands", "Demands can be ignored if goals are met"],
+      "answer": 1
+    },
+    {
+      "id": "m1-008",
+      "objective": "sequence",
+      "stem": "In the design process, which happens first?",
+      "options": ["Detailing the design in CAD", "Prototyping a concept", "Selecting the final concept", "Manufacturing the part"],
+      "answer": 1
+    },
+    {
+      "id": "m1-009",
+      "objective": "sequence",
+      "stem": "Which step immediately follows generating concepts?",
+      "options": ["Research", "Prototyping", "Manufacturing", "Testing"],
+      "answer": 1
+    },
+    {
+      "id": "m1-010",
+      "objective": "sequence",
+      "stem": "The design process ends with which activity?",
+      "options": ["Defining the problem", "Generating concepts", "Testing and iterating", "Selecting a concept"],
+      "answer": 2
+    },
+    {
+      "id": "m1-011",
+      "objective": "sequence",
+      "stem": "Which step comes immediately before detailing the design in CAD?",
+      "options": ["Selecting a concept", "Manufacturing", "Testing", "Defining the problem"],
+      "answer": 0
+    },
+    {
+      "id": "m1-012",
+      "objective": "sequence",
+      "stem": "Where does defining the problem fall in the process?",
+      "options": ["In the middle, after prototyping", "First", "Last, once the part is built", "It is optional"],
+      "answer": 1
+    },
+    {
+      "id": "m1-013",
+      "objective": "sequence",
+      "stem": "Which ordering reflects the design process?",
+      "options": ["Detail, define, prototype, test", "Define, generate concepts, prototype, select, detail, make, test", "Prototype, define, manufacture, select", "Make, test, define, concept"],
+      "answer": 1
+    },
+    {
+      "id": "m1-014",
+      "objective": "next-step",
+      "stem": "You have three sketched bracket concepts and no data on which one works. What is the next step?",
+      "options": ["Detail the best-looking one in CAD", "Build a quick prototype to test the concepts", "Order the material for all three", "Pick one at random and manufacture it"],
+      "answer": 1
+    },
+    {
+      "id": "m1-015",
+      "objective": "next-step",
+      "stem": "Your cardboard mockup answered its question and one concept clearly won. What is next?",
+      "options": ["Build more cardboard mockups", "Select that concept, record why, then detail it", "Skip straight to manufacturing", "Start over with new concepts"],
+      "answer": 1
+    },
+    {
+      "id": "m1-016",
+      "objective": "next-step",
+      "stem": "You have written the one-sentence job and listed the constraints. What is next?",
+      "options": ["Manufacture the part", "Generate concepts", "Detail the final CAD", "Test the robot"],
+      "answer": 1
+    },
+    {
+      "id": "m1-017",
+      "objective": "next-step",
+      "stem": "A concept is selected and the reason is documented. What is the next step?",
+      "options": ["Detail the design into a clean CAD model", "Generate more concepts", "Define the problem again", "Prototype a different idea"],
+      "answer": 0
+    },
+    {
+      "id": "m1-018",
+      "objective": "next-step",
+      "stem": "You have finished a clean CAD model of the chosen bracket. What is next?",
+      "options": ["Redefine the problem", "Manufacture it and then test it", "Generate new concepts", "Delete it and restart"],
+      "answer": 1
+    },
+    {
+      "id": "m1-019",
+      "objective": "constraints-first",
+      "stem": "Why set constraints before sketching geometry?",
+      "options": ["To make the drawing look neater", "Constraints shrink the design space so the geometry has something to satisfy", "Because CAD requires it", "To slow the process down on purpose"],
+      "answer": 1
+    },
+    {
+      "id": "m1-020",
+      "objective": "constraints-first",
+      "stem": "A designer opens CAD and starts extruding with no constraints defined. What is the main risk?",
+      "options": ["The file will be too large", "The part may not fit, mount, or meet weight because nothing bounded the design", "The colors will be wrong", "Nothing, this is the correct approach"],
+      "answer": 1
+    },
+    {
+      "id": "m1-021",
+      "objective": "constraints-first",
+      "stem": "Which of these is a real constraint to set before designing an intake mount?",
+      "options": ["The team's favorite color", "The space available and the tube it bolts to", "The driver's name", "The event date"],
+      "answer": 1
+    },
+    {
+      "id": "m1-022",
+      "objective": "select-why",
+      "stem": "Why document the reason a concept was chosen?",
+      "options": ["To fill pages in the notebook", "It records design intent and stops the team from re-arguing the decision", "It is required by the game manual", "It is not useful"],
+      "answer": 1
+    },
+    {
+      "id": "m1-023",
+      "objective": "select-why",
+      "stem": "Two concepts both meet every demand. What decides between them?",
+      "options": ["The goals", "A coin flip", "Whichever was sketched first", "The demands again"],
+      "answer": 0
+    },
+    {
+      "id": "m1-024",
+      "objective": "select-why",
+      "stem": "Where is the reasoning behind a design choice recorded?",
+      "options": ["Nowhere, it is remembered", "The engineering notebook", "The CAD file name", "The team roster"],
+      "answer": 1
+    },
+    {
+      "id": "m1-025",
+      "objective": "prototype-purpose",
+      "stem": "What is the purpose of a crude prototype?",
+      "options": ["To be the final competition part", "To answer a specific question and test an assumption", "To look impressive to judges", "To use up spare material"],
+      "answer": 1
+    },
+    {
+      "id": "m1-026",
+      "objective": "prototype-purpose",
+      "stem": "A team spends a week building a beautiful, final-quality prototype before testing the concept at all. What is wrong?",
+      "options": ["Nothing, more polish is always better", "A prototype should be fast and crude to answer a question, so polishing before proving the concept wastes time", "The prototype should have been skipped entirely", "They should have manufactured the real part first"],
+      "answer": 1
+    },
+    {
+      "id": "m1-027",
+      "objective": "prototype-purpose",
+      "stem": "A good early prototype is best described as which of these?",
+      "options": ["Fast, crude, and focused on one question", "Polished, final, and permanent", "Expensive and highly detailed", "Identical to the finished part"],
+      "answer": 0
+    },
+    {
+      "id": "m1-028",
+      "objective": "iteration",
+      "stem": "Your printed bracket works but the bearing bore came out loose. What does the design process say to do?",
+      "options": ["Ship it as is", "Tighten the dimension and reprint, since iteration is expected", "Abandon the whole design", "Blame the printer and move on"],
+      "answer": 1
+    },
+    {
+      "id": "m1-029",
+      "objective": "iteration",
+      "stem": "The idea that the first version is never the last means what?",
+      "options": ["You should only ever build one version", "Expect to test, learn, and improve rather than treating version one as final", "The first version is always a failure", "Iteration is a waste of time"],
+      "answer": 1
+    },
+    {
+      "id": "m1-030",
+      "objective": "iteration",
+      "stem": "A mechanism fails its first test. What is the healthy response within the design process?",
+      "options": ["Hide the failure", "Analyze what failed, improve the design, and iterate", "Keep the design unchanged and hope", "Restart the entire robot"],
+      "answer": 1
+    },
+    {
+      "id": "m1-031",
+      "objective": "scenario-apply",
+      "stem": "A team jumps straight from defining the problem to detailing the design in CAD, skipping concepts and prototyping. What is the most likely consequence?",
+      "options": ["They save time with no downside", "They commit to an unproven idea and may waste manufacturing time on a design that does not work", "The robot will automatically be better", "Nothing changes"],
+      "answer": 1
+    },
+    {
+      "id": "m1-032",
+      "objective": "scenario-apply",
+      "stem": "Which situation best shows the design process working rather than failing?",
+      "options": ["A part is built once and never revisited", "A prototype reveals a flaw, the design is changed, and the next version is better", "A concept is chosen with no reason recorded", "CAD is started before any constraints exist"],
+      "answer": 1
+    }
+  ]
+}

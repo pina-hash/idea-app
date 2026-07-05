@@ -987,8 +987,9 @@ north star, read it before extending GAUNTLET). Summary of what exists:
 The Team 5669 FRC training track at `/frc`. Signed-in tier, any role; the
 whole track is open access and **pathway is identity, never a gate**, nothing
 in the track may wall off content by pathway. Structure, theme, the first
-domain's unit content, and a real per-user progression backbone are live; the
-auto-gate ENGINES (quiz / GAUNTLET) that record completions are still deferred.
+domain's unit content, a real per-user progression backbone, and the first
+auto-gate (MDM-1's server-authoritative knowledge quiz) are live; the remaining
+gate engines (the other units' quizzes / GAUNTLET) are still deferred.
 
 - **Registry:** `src/lib/frc/track.ts` (plain data, client-safe, like
   `curriculum.ts`): `FRC_TEAM`, the seven domains (Foundation, CAD and
@@ -1014,8 +1015,9 @@ auto-gate ENGINES (quiz / GAUNTLET) that record completions are still deferred.
   and the future quiz / GAUNTLET gate engines will call the same function),
   `clearUnitComplete` is the teacher unmark, and `loadUserProgress` /
   `loadProgressForUsers` read (fail-soft to empty / `ready:false` if the
-  migration is unapplied, like the pathway migration). NO gate execution is
-  built. `/frc/+layout.server.ts` loads the student's completed set + rank once
+  migration is unapplied, like the pathway migration). The MDM-1 quiz gate now
+  calls this seam on a pass (see the quiz bullet below).
+  `/frc/+layout.server.ts` loads the student's completed set + rank once
   for every /frc page; `FrcRankBadge.svelte` shows the rank on the track view
   hero (`size=lg`) and beside the profile in the shell header (`size=sm`);
   `DomainLanding` takes the `completed` set and renders real locked (muted,
@@ -1028,6 +1030,36 @@ auto-gate ENGINES (quiz / GAUNTLET) that record completions are still deferred.
   access. This is the interim, mentor-verified completion path until auto-gates
   land. Fails soft with an "apply migration 0039" note when the table is
   absent.
+- **Knowledge-gate quiz (0040, MDM-1):** the first auto-gate, built
+  SERVER-AUTHORITATIVE so the answer key never reaches the client. The item
+  bank is a server-only module (`src/lib/server/frc/mdm-1-quiz-bank.json`, under
+  `$lib/server` so SvelteKit never bundles it client-side; a pool larger than
+  `testLength` with per-item options + answer index, plus `passPercent` 90).
+  `src/lib/server/frc/quiz-engine.ts` holds the pure logic (select `testLength`
+  at random, shuffle each item's options, split the correct index into a
+  server-held `sealed` key, `gradeAttempt` as the CANONICAL grader mirrored by
+  the SQL RPC, `cooldownState`, and objective-tag -> short topic-name mapping);
+  `quiz-service.ts` orchestrates start/submit over a `QuizStore` interface.
+  The `frc_quiz_attempts` table (0040) is the attempt LOG + in-flight state:
+  the `sealed` key column has NO client SELECT grant, and grading runs inside
+  the `frc_quiz_grade` SECURITY DEFINER RPC (mirrors `gradeAttempt`) so answers
+  never leave the server; `frc_quiz_start` persists an attempt. RLS mirrors the
+  pattern (student reads/inserts own via the definer RPCs, teachers read all).
+  The unit endpoint `POST /frc/[domain]/[unit]/quiz` (start | submit) enforces
+  the ESCALATING cooldown (schedule `FRC_QUIZ_COOLDOWNS_SEC` /
+  `cooldownSecondsForFailStreak` in track.ts, tunable; a pass clears the streak)
+  before issuing an attempt, serves only stems + shuffled options on start,
+  grades on submit, and on a PASS calls `markUnitComplete` for MDM-1; on a FAIL
+  returns only the missed TOPIC names + the cooldown remaining, never answers.
+  `FrcQuizGate.svelte` is the unit-page UI (Start -> questions -> submit ->
+  pass/next-unlocked or fail/missed-topics/cooldown), FRC-themed; UnitPage shows
+  it when the server load reports `gate.enabled` (only MDM-1; other units keep
+  the description-only Gate). `+page.server.ts` computes the gate state
+  (readiness, unit-complete, cooldown remaining) and fails soft to the
+  description-only Gate if 0040 is unapplied. Integrity caveat: this closes the
+  answer-leak / server-grading threat the feature targets; a student can still
+  self-insert `frc_user_progress` directly (the 0039 own-row write grant), an
+  independent pre-existing hole to tighten if hard gating is ever required.
 - **Unit content (CAD and Mechanical Design):** the ten authored units MDM-1
   through MDM-10 live in the repo-root seed `mdm-content-seed.md` (the single
   source of truth: plain `key: value` frontmatter + `## Brief`/`## Drill`/
@@ -1094,9 +1126,13 @@ auto-gate ENGINES (quiz / GAUNTLET) that record completions are still deferred.
   the real FrcShell with a view switcher. The Progression view is interactive:
   it simulates a student completing units in-memory (toggle grid + quick
   rank-threshold buttons), so the domain landing's unlock states, the rank
-  badge, and the teacher-override component all update live without a DB. Other
-  views: track home, CAD domain, a per-unit page (MDM-1), a placeholder domain,
-  and the reference shelf.
+  badge, and the teacher-override component all update live without a DB. The
+  Quiz-gate view mounts the real UnitPage + FrcQuizGate against a dev-only mock
+  endpoint (`/dev/frc-quiz`, 404 in prod) that runs the REAL engine + service
+  over an in-memory store with a short cooldown, so the full flow and the
+  no-answer-key network contract are verifiable without a live DB. Other views:
+  track home, CAD domain, a per-unit page (MDM-1), a placeholder domain, and the
+  reference shelf.
 
 ## Version + changelog substrate
 

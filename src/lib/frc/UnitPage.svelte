@@ -1,24 +1,41 @@
 <script lang="ts">
 	import { gateLabel, mdmUnitById, type MdmUnit } from '$lib/frc/mdm-content';
 	import type { FrcDomain } from '$lib/frc/track';
+	import FrcQuizGate from '$lib/frc/FrcQuizGate.svelte';
 
 	/**
-	 * A single CAD/Mechanical unit: its Brief, Drill, Gate description, and Apply
-	 * task. Content only, rendered from the parsed seed (mdm-content.ts). The
-	 * Gate section is shown as its DESCRIPTION text; gate execution and
-	 * progression are not built here.
+	 * A single CAD/Mechanical unit: its Brief, Drill, Gate, and Apply task. When
+	 * a unit has a live knowledge-gate quiz (`gate.enabled`, currently MDM-1) the
+	 * Gate section becomes the interactive attempt flow (FrcQuizGate); otherwise
+	 * it shows the Gate DESCRIPTION only.
 	 */
 	let {
 		domain,
 		unit,
 		prev,
-		next
+		next,
+		gate = null,
+		quizEndpoint,
+		onQuizPass
 	}: {
 		domain: FrcDomain;
 		unit: MdmUnit;
 		prev: MdmUnit | null;
 		next: MdmUnit | null;
+		gate?: {
+			enabled: true;
+			testLength: number;
+			passPercent: number;
+			unitComplete: boolean;
+			cooldownRemainingSec: number;
+		} | null;
+		/** Override the quiz POST target (dev harness); defaults to the real route. */
+		quizEndpoint?: string;
+		/** Optional pass hook (dev harness). */
+		onQuizPass?: () => void;
 	} = $props();
+
+	const resolvedEndpoint = $derived(quizEndpoint ?? `/frc/${domain.id}/${unit.n}/quiz`);
 
 	const num = $derived(String(unit.n).padStart(2, '0'));
 	// Prerequisite title (the seed stores its id, e.g. "MDM-1").
@@ -87,19 +104,34 @@
 
 	<section class="sec">
 		<h2>Gate</h2>
-		<div class="frc-card gate-card">
-			<div class="gate-head">
-				<span class="frc-state available">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-						<path d="M12 3l7.5 3.5v5c0 4.6-3.2 7.8-7.5 9-4.3-1.2-7.5-4.4-7.5-9v-5z" />
-					</svg>
-					{gateLabel(unit.gate)}
-				</span>
-				<span class="gate-pass">Pass at {unit.gatePass}%</span>
+		{#if gate?.enabled}
+			<FrcQuizGate
+				endpoint={resolvedEndpoint}
+				domainId={domain.id}
+				nextUnit={next ? { n: next.n, title: next.title } : null}
+				initial={{
+					testLength: gate.testLength,
+					passPercent: gate.passPercent,
+					unitComplete: gate.unitComplete,
+					cooldownRemainingSec: gate.cooldownRemainingSec
+				}}
+				onPass={onQuizPass}
+			/>
+		{:else}
+			<div class="frc-card gate-card">
+				<div class="gate-head">
+					<span class="frc-state available">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<path d="M12 3l7.5 3.5v5c0 4.6-3.2 7.8-7.5 9-4.3-1.2-7.5-4.4-7.5-9v-5z" />
+						</svg>
+						{gateLabel(unit.gate)}
+					</span>
+					<span class="gate-pass">Pass at {unit.gatePass}%</span>
+				</div>
+				<p>{unit.gateDescription}</p>
+				<p class="gate-note">Gate attempts are not enabled yet. This describes how the unit will be checked.</p>
 			</div>
-			<p>{unit.gateDescription}</p>
-			<p class="gate-note">Gate attempts are not enabled yet. This describes how the unit will be checked.</p>
-		</div>
+		{/if}
 	</section>
 
 	<section class="sec">

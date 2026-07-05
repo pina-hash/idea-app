@@ -17,12 +17,13 @@
 	 * exercises the teacher-override component (FrcUnitOverride) mark/unmark.
 	 */
 
-	type View = 'progression' | 'home' | 'cad' | 'unit' | 'placeholder' | 'refs';
+	type View = 'progression' | 'home' | 'cad' | 'unit' | 'quiz' | 'placeholder' | 'refs';
 	let view: View = $state('progression');
 
 	const cad = domainById('cad-mechanical')!;
 	const foundation = domainById('foundation')!;
 	const unit1 = mdmUnitByNumber(1)!;
+	const unit2 = mdmUnitByNumber(2)!;
 	const cadUnits = cad.units.filter((u) => mdmUnitByNumber(u.n));
 
 	// The simulated completion set.
@@ -37,11 +38,29 @@
 	};
 	const reset = () => (completed = []);
 
+	// Quiz-gate view: mounts the REAL UnitPage + FrcQuizGate against the dev mock
+	// endpoint (real engine, in-memory store). A pass marks MDM-1 complete here so
+	// the domain landing below shows MDM-2 unlock.
+	let quizNonce = $state(0);
+	const onQuizPass = () => {
+		if (!completed.includes('MDM-1')) completed = [...completed, 'MDM-1'];
+	};
+	const resetGate = async () => {
+		await fetch('/dev/frc-quiz', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ action: 'reset' })
+		});
+		completed = completed.filter((id) => id !== 'MDM-1');
+		quizNonce++;
+	};
+
 	const VIEWS: { id: View; label: string }[] = [
 		{ id: 'progression', label: 'Progression (interactive)' },
 		{ id: 'home', label: 'Track home' },
 		{ id: 'cad', label: 'CAD domain' },
 		{ id: 'unit', label: 'Unit page (MDM-1)' },
+		{ id: 'quiz', label: 'Quiz gate (MDM-1)' },
 		{ id: 'placeholder', label: 'Placeholder domain' },
 		{ id: 'refs', label: 'Reference shelf' }
 	];
@@ -72,6 +91,14 @@
 		</div>
 		<FrcUnitOverride units={cadUnits} {completed} onToggle={toggle} />
 	</div>
+{:else if view === 'quiz'}
+	<div class="sim-panel">
+		<div class="sim-row">
+			<strong>Quiz gate (mock backend, real engine):</strong>
+			<button type="button" onclick={resetGate}>Reset gate state</button>
+			<span class="sim-count">MDM-1 complete: {completed.includes('MDM-1') ? 'yes' : 'no'}</span>
+		</div>
+	</div>
 {/if}
 
 <FrcShell rankCount={count}>
@@ -84,6 +111,25 @@
 		<DomainLanding domain={cad} {completed} />
 	{:else if view === 'unit'}
 		<UnitPage domain={cad} unit={unit1} prev={null} next={MDM_UNITS[1] ?? null} />
+	{:else if view === 'quiz'}
+		{#key quizNonce}
+			<UnitPage
+				domain={cad}
+				unit={unit1}
+				prev={null}
+				next={unit2}
+				quizEndpoint="/dev/frc-quiz"
+				{onQuizPass}
+				gate={{
+					enabled: true,
+					testLength: 10,
+					passPercent: 90,
+					unitComplete: completed.includes('MDM-1'),
+					cooldownRemainingSec: 0
+				}}
+			/>
+		{/key}
+		<DomainLanding domain={cad} {completed} />
 	{:else if view === 'placeholder'}
 		<DomainLanding domain={foundation} />
 	{:else}
