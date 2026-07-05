@@ -1,24 +1,56 @@
 <script lang="ts">
-	import { unitState, type FrcDomain, type FrcUnit, type UnitState } from '$lib/frc/track';
+	import { getContext } from 'svelte';
+	import {
+		unitState,
+		FRC_VIEW_CONTEXT_KEY,
+		type FrcDomain,
+		type FrcUnit,
+		type FrcViewContext,
+		type UnitState
+	} from '$lib/frc/track';
 	import { mdmUnitByNumber } from '$lib/frc/mdm-content';
+	import FrcUnitOverride from '$lib/frc/FrcUnitOverride.svelte';
 
 	/**
 	 * Reusable domain landing page: the domain's units as cards, or a clean
 	 * "content in development" placeholder for a domain with no units yet.
 	 *
-	 * Real per-user progression (`completed`, the set of completed unit ids):
-	 * an available or complete unit that has authored content links to its
-	 * per-unit page; a locked unit shows the lock and is not clickable; a unit
-	 * with no authored content renders as an "In development" placeholder
-	 * regardless of state.
+	 * OPEN ACCESS: every content-backed unit is a live link regardless of its
+	 * `unitState` (complete / available / locked). The prerequisite chain is
+	 * shown as a SUGGESTED order only (a hint under the title), never a block
+	 * on reading; only a unit with no authored content is unclickable (nothing
+	 * to open yet). Real per-user progression (`completed`, the set of
+	 * completed unit ids) still drives the Complete/Suggested badge.
+	 *
+	 * `showOverride` renders the teacher-only completion override
+	 * (FrcUnitOverride) for the caller's own account, scoped to this domain's
+	 * content-backed units. Defaults to FrcShell's `FrcViewContext` (true only
+	 * for a teacher not previewing "as a student"); an explicit prop overrides
+	 * it, the same optional-override pattern FrcShell uses for `rankCount`.
 	 */
 
-	let { domain, completed = [] }: { domain: FrcDomain; completed?: string[] } = $props();
+	let {
+		domain,
+		completed = [],
+		showOverride,
+		overrideBusyId = '',
+		onToggleComplete
+	}: {
+		domain: FrcDomain;
+		completed?: string[];
+		showOverride?: boolean;
+		overrideBusyId?: string;
+		onToggleComplete?: (unitId: string, next: boolean) => void;
+	} = $props();
+
+	const frcView = getContext<FrcViewContext>(FRC_VIEW_CONTEXT_KEY);
+	const resolvedShowOverride = $derived(showOverride ?? frcView?.showOverride ?? false);
 
 	const completedSet = $derived(new Set(completed));
+	const overrideUnits = $derived(domain.units.filter((u) => hasContent(u)));
 
 	const STATE_LABEL: Record<UnitState, string> = {
-		locked: 'Locked',
+		locked: 'Suggested later',
 		available: 'Available',
 		complete: 'Complete'
 	};
@@ -26,6 +58,11 @@
 	/** Whether a unit has an authored per-unit page. */
 	function hasContent(u: FrcUnit): boolean {
 		return domain.contentSet === 'mdm' && !!mdmUnitByNumber(u.n);
+	}
+
+	/** The suggested-order hint for a unit whose prerequisite isn't complete yet. */
+	function prereqTitle(u: FrcUnit): string | undefined {
+		return domain.units.find((x) => x.id === u.prerequisite)?.title;
 	}
 </script>
 
@@ -41,46 +78,55 @@
 	<p class="lead">{domain.blurb}</p>
 </section>
 
+{#if resolvedShowOverride && domain.contentSet === 'mdm' && overrideUnits.length}
+	<div class="teacher-override">
+		<div class="teacher-override-head">
+			<span class="teacher-override-label">Teacher tools &middot; your account</span>
+			<span class="teacher-override-hint">
+				Mark or clear your own completion to preview progress states. Hidden in "View as student".
+			</span>
+		</div>
+		<FrcUnitOverride
+			units={overrideUnits}
+			{completed}
+			busyId={overrideBusyId}
+			onToggle={onToggleComplete ?? (() => {})}
+		/>
+	</div>
+{/if}
+
 {#if domain.units.length}
 	<ol class="units">
 		{#each domain.units as u (u.n)}
 			{#if hasContent(u)}
 				{@const state = unitState(u, completedSet)}
-				{#snippet body()}
-					<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
-					<span class="unit-title">{u.title}</span>
-					<span class="frc-state {state}">
-						{#if state === 'locked'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-								<rect x="5" y="11" width="14" height="9" rx="1.5" />
-								<path d="M8 11V7.5a4 4 0 018 0V11" />
-							</svg>
-						{:else if state === 'available'}
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-								<path d="M5 12h13M13 6.5L18.5 12 13 17.5" />
-							</svg>
-						{:else}
-							<!-- Completion marker: filled IDEA-green disc, ink check (achievement only). -->
-							<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-								<circle cx="12" cy="12" r="10" fill="#00ff41" />
-								<path d="M7.5 12.5l3 3 6-6.5" stroke="#231f20" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
-							</svg>
-						{/if}
-						{STATE_LABEL[state]}
-					</span>
-				{/snippet}
-				{#if state === 'locked'}
-					<li class="frc-card unit unit-locked">
-						{@render body()}
-					</li>
-				{:else}
-					<li>
-						<a class="frc-card unit unit-{state}" href="/frc/{domain.id}/{u.n}">
-							{@render body()}
-							<span class="unit-go" aria-hidden="true">&rsaquo;</span>
-						</a>
-					</li>
-				{/if}
+				{@const suggestedAfter = state === 'locked' ? prereqTitle(u) : undefined}
+				<li>
+					<a class="frc-card unit unit-{state}" href="/frc/{domain.id}/{u.n}">
+						<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
+						<span class="unit-title-wrap">
+							<span class="unit-title">{u.title}</span>
+							{#if suggestedAfter}
+								<span class="unit-hint">Suggested after {suggestedAfter}</span>
+							{/if}
+						</span>
+						<span class="frc-state {state}">
+							{#if state === 'locked' || state === 'available'}
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+									<path d="M5 12h13M13 6.5L18.5 12 13 17.5" />
+								</svg>
+							{:else}
+								<!-- Completion marker: filled IDEA-green disc, ink check (achievement only). -->
+								<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+									<circle cx="12" cy="12" r="10" fill="#00ff41" />
+									<path d="M7.5 12.5l3 3 6-6.5" stroke="#231f20" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" />
+								</svg>
+							{/if}
+							{STATE_LABEL[state]}
+						</span>
+						<span class="unit-go" aria-hidden="true">&rsaquo;</span>
+					</a>
+				</li>
 			{:else}
 				<li class="frc-card unit unit-dev">
 					<span class="unit-n" aria-hidden="true">{String(u.n).padStart(2, '0')}</span>
@@ -149,6 +195,37 @@
 		max-width: 62ch;
 		color: #5c5a5c;
 	}
+	/* Teacher-only override panel: a deliberately dark "tool" surface (the
+	   shared IDEA dark-theme tokens FrcUnitOverride is styled for) contrasting
+	   against the light FRC page, so it reads unmistakably as a non-student
+	   control, never confused with the student-facing chrome. */
+	.teacher-override {
+		background: var(--bg1, #050f07);
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
+		border-radius: 10px;
+		padding: 0.85rem 1rem 1rem;
+		margin-bottom: 1.1rem;
+	}
+	.teacher-override-head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.6rem;
+		margin-bottom: 0.2rem;
+	}
+	.teacher-override-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--cyan, #00f0ff);
+	}
+	.teacher-override-hint {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		color: var(--dim, #4a7a52);
+	}
 	.units {
 		list-style: none;
 		margin: 0;
@@ -193,11 +270,23 @@
 		color: var(--frc-gray, #9a989a);
 		min-width: 2ch;
 	}
+	.unit-title-wrap {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		flex: 1;
+		min-width: 0;
+	}
 	.unit-title {
 		font-weight: 500;
 		font-size: 0.95rem;
 		color: var(--frc-ink, #231f20);
-		flex: 1;
+	}
+	/* Suggested-order hint: informational only, never a block on reading. */
+	.unit-hint {
+		font-size: 0.72rem;
+		font-style: italic;
+		color: var(--frc-gray, #9a989a);
 	}
 	.frc-state {
 		margin-left: auto;
@@ -221,7 +310,8 @@
 	.unit-complete {
 		border-left-color: var(--frc-achieve, #00ff41);
 	}
-	/* Locked unit: prerequisite not complete. Muted, not clickable. */
+	/* "Suggested later" unit: prerequisite not complete yet. Still a live link,
+	   just visually de-emphasized relative to the recommended next unit. */
 	.unit-locked {
 		background: #f5f6f8;
 		border-left-color: rgba(154, 152, 154, 0.5);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { setContext } from 'svelte';
 	import { page } from '$app/state';
 	import '@fontsource/roboto/400.css';
 	import '@fontsource/roboto/500.css';
@@ -11,7 +12,7 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ChangelogFooter from '$lib/frc/ChangelogFooter.svelte';
 	import FrcRankBadge from '$lib/frc/FrcRankBadge.svelte';
-	import { FRC_TEAM } from '$lib/frc/track';
+	import { FRC_TEAM, FRC_VIEW_CONTEXT_KEY, type FrcViewContext } from '$lib/frc/track';
 
 	/**
 	 * The FRC Training chrome: the official FIRST Robotics Competition logo
@@ -30,7 +31,15 @@
 
 	// `rankCount` is an optional override for the dev harness; in the real track
 	// it falls back to the /frc layout's frcCompletedCount (page data).
-	let { children, rankCount }: { children: import('svelte').Snippet; rankCount?: number } = $props();
+	// `teacherOverride` likewise lets the dev harness simulate a teacher without
+	// a real Supabase session; the real track derives it from the signed-in
+	// profile's role.
+	let {
+		children,
+		rankCount,
+		teacherOverride
+	}: { children: import('svelte').Snippet; rankCount?: number; teacherOverride?: boolean } =
+		$props();
 
 	const path = $derived(page.url.pathname);
 	const onHome = $derived(path === '/frc');
@@ -40,6 +49,28 @@
 	// the track), or whenever the harness supplies a count.
 	const showRank = $derived(rankCount != null || !!page.data.claims);
 	const rank = $derived(rankCount ?? (page.data.frcCompletedCount as number | undefined) ?? 0);
+
+	// ------ Teacher "view as student" ------
+	// A teacher can preview the track exactly as a student sees it: real
+	// per-account progress states and a working gate, with teacher-only
+	// override controls hidden. Any page under /frc reads this via
+	// getContext(FRC_VIEW_CONTEXT_KEY); FrcShell is the sole owner of the
+	// toggle so it survives navigation between /frc pages (this layout
+	// component stays mounted while its child pages change).
+	const isTeacher = $derived(teacherOverride ?? page.data.userProfile?.role === 'teacher');
+	let viewAsStudent = $state(false);
+
+	setContext<FrcViewContext>(FRC_VIEW_CONTEXT_KEY, {
+		get isTeacher() {
+			return isTeacher;
+		},
+		get viewAsStudent() {
+			return viewAsStudent;
+		},
+		get showOverride() {
+			return isTeacher && !viewAsStudent;
+		}
+	});
 </script>
 
 
@@ -65,10 +96,27 @@
 			<a href="/frc" class:active={onHome}>Track home</a>
 			<a href="/frc/references" class:active={onRefs}>References</a>
 			<a href="/" class="portal">IDEA Portal</a>
+			{#if isTeacher}
+				<button
+					type="button"
+					class="frc-view-toggle"
+					class:active={viewAsStudent}
+					aria-pressed={viewAsStudent}
+					onclick={() => (viewAsStudent = !viewAsStudent)}
+				>
+					{viewAsStudent ? 'Viewing as student' : 'View as student'}
+				</button>
+			{/if}
 			{#if showRank}<FrcRankBadge count={rank} size="sm" />{/if}
 			<ProfileMenu />
 		</nav>
 	</header>
+
+	{#if isTeacher && viewAsStudent}
+		<div class="frc-preview-banner" role="status">
+			Previewing the track as a student sees it. Teacher tools are hidden.
+		</div>
+	{/if}
 
 	<main class="frc-main">
 		{@render children()}
@@ -190,6 +238,37 @@
 	}
 	.frc-nav a.portal:hover {
 		color: var(--frc-blue, #0066b3);
+	}
+	.frc-view-toggle {
+		font-family: inherit;
+		font-weight: 700;
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--frc-blue, #0066b3);
+		background: var(--frc-surface, #fafbfd);
+		border: 1px solid var(--frc-blue-line, rgba(0, 102, 179, 0.35));
+		border-radius: 999px;
+		padding: 0.3rem 0.7rem;
+		cursor: pointer;
+	}
+	.frc-view-toggle:hover {
+		border-color: var(--frc-blue, #0066b3);
+	}
+	.frc-view-toggle.active {
+		color: #fff;
+		background: var(--frc-blue, #0066b3);
+		border-color: var(--frc-blue, #0066b3);
+	}
+	.frc-preview-banner {
+		text-align: center;
+		font-size: 0.76rem;
+		font-weight: 700;
+		letter-spacing: 0.04em;
+		color: var(--frc-blue-deep, #004f8a);
+		background: var(--frc-blue-tint, rgba(0, 102, 179, 0.08));
+		border-bottom: 1px solid var(--frc-blue-line, rgba(0, 102, 179, 0.35));
+		padding: 0.4rem 1rem;
 	}
 
 	.frc-footer {

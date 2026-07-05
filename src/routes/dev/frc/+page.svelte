@@ -18,11 +18,20 @@
 	 * The Unit page view has its own MDM-1..10 picker, so the Brief markdown
 	 * (bold leads, worked-example blockquote) and the Drill per-question reveal
 	 * — including the "not yet added" state on units with no authored answer
-	 * key, e.g. MDM-2 — can be checked on any unit, not just MDM-1.
+	 * key — can be checked on any unit, not just MDM-1.
+	 *
+	 * "Simulate teacher" drives FrcShell's `teacherOverride` prop, standing in
+	 * for a real signed-in teacher profile so the "View as student" toggle (the
+	 * real header button, rendered by FrcShell itself) and the in-track
+	 * teacher-override strip on the CAD domain landing can be verified without
+	 * Supabase. DomainLanding reads FrcShell's FrcViewContext itself, so no
+	 * separate simulated toggle is needed here; this harness just supplies the
+	 * in-memory mark/unmark handler real pages point at the RPC-backed one.
 	 */
 
 	type View = 'progression' | 'home' | 'cad' | 'unit' | 'quiz' | 'placeholder' | 'refs';
 	let view: View = $state('progression');
+	let simulateTeacher = $state(true);
 
 	const cad = domainById('cad-mechanical')!;
 	const foundation = domainById('foundation')!;
@@ -85,6 +94,10 @@
 			{v.label}
 		</button>
 	{/each}
+	<label class="sim-teacher">
+		<input type="checkbox" bind:checked={simulateTeacher} />
+		Simulate teacher
+	</label>
 </div>
 
 {#if view === 'progression'}
@@ -125,14 +138,14 @@
 	</div>
 {/if}
 
-<FrcShell rankCount={count}>
+<FrcShell rankCount={count} teacherOverride={simulateTeacher}>
 	{#if view === 'progression'}
 		<TrackHome {count} />
-		<DomainLanding domain={cad} {completed} />
+		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
 	{:else if view === 'home'}
 		<TrackHome {count} />
 	{:else if view === 'cad'}
-		<DomainLanding domain={cad} {completed} />
+		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
 	{:else if view === 'unit'}
 		<UnitPage
 			domain={cad}
@@ -158,7 +171,7 @@
 				}}
 			/>
 		{/key}
-		<DomainLanding domain={cad} {completed} />
+		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
 	{:else if view === 'placeholder'}
 		<DomainLanding domain={foundation} />
 	{:else}
@@ -200,6 +213,18 @@
 	.harness-bar button.active {
 		border-color: var(--green, #00ff41);
 		box-shadow: 0 0 8px rgba(0, 255, 65, 0.35);
+	}
+	.sim-teacher {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		margin-left: auto;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--cyan, #00f0ff);
+		cursor: pointer;
 	}
 	.sim-panel {
 		position: relative;

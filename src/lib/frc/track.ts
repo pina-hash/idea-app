@@ -129,14 +129,34 @@ export function domainById(id: string | null | undefined): FrcDomain | undefined
  * Real per-user unit state, given the set of completed unit ids:
  *   complete  - this unit's own completion is recorded.
  *   available - its prerequisite is complete (or it has none), not yet complete.
- *   locked    - its prerequisite is not complete.
- * The first unit (no prerequisite) starts available. Pure over the completed
- * set; the set is loaded from `frc_user_progress` (see progression.ts).
+ *   locked    - its prerequisite is not complete yet.
+ * DISPLAY / ORDERING ONLY. No unit is ever read-locked: a student may open and
+ * read any unit's Brief, Drill, Gate, and Apply regardless of prerequisite
+ * completion (the prerequisite chain is a SUGGESTED order, never a block on
+ * reading; see DomainLanding, which links every content-backed unit
+ * regardless of this state). Gates still record real completion for rank.
+ * Pure over the completed set; the set is loaded from `frc_user_progress`
+ * (see progression.ts).
  */
 export function unitState(unit: FrcUnit, completed: ReadonlySet<string>): UnitState {
 	if (completed.has(unit.id)) return 'complete';
 	if (unit.prerequisite === null || completed.has(unit.prerequisite)) return 'available';
 	return 'locked';
+}
+
+// ---------------------------------------------------------------------------
+// Teacher "view as student" context (FrcShell sets it, DomainLanding /
+// per-page loads consume it): lets a teacher preview the track exactly as a
+// student would, with the working gate and no teacher-override controls.
+// ---------------------------------------------------------------------------
+
+export const FRC_VIEW_CONTEXT_KEY = 'frc-view';
+
+export interface FrcViewContext {
+	readonly isTeacher: boolean;
+	readonly viewAsStudent: boolean;
+	/** True only for a teacher NOT currently previewing as a student. */
+	readonly showOverride: boolean;
 }
 
 // ---------------------------------------------------------------------------

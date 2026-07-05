@@ -102,5 +102,8 @@ function siteVersionsPlugin(): Plugin {
 }
 
 export default defineConfig({
-	plugins: [siteVersionsPlugin(), sveltekit()]
+	plugins: [siteVersionsPlugin(), sveltekit()],
+	server: {
+		port: process.env.PORT ? Number(process.env.PORT) : 5173
+	}
 });

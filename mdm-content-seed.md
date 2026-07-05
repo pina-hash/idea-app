@@ -81,6 +81,8 @@ Worked example, a simple bracket. Read the front view for overall length and hei
 4. Where do you find the material and the default tolerance?
 5. Match three given views to the correct 3D part from four options.
 
+Answers: 1. A hole, a circle from the top and hidden lines from the front. 2. Drill a 0.266 inch hole all the way through, the 1/4-20 clearance size. 3. Its locating dimensions; without them the hole position is undefined and the part cannot be made correctly. 4. The title block. 5. The part whose front, top, and side profiles match all three views.
+
 ## Gate
 
 GAUNTLET Drawing Reading mode, already built. Students answer interpretation questions against real full-sheet drawings. Threshold set in the mode. Auto-graded.
@@ -125,6 +127,8 @@ Worked example, name the stackup. In a gearbox section a hex shaft rides in a fl
 4. Two meshing 20 diametral pitch gears have 24 and 60 teeth. What is their center distance? (Answer: (24 plus 60) divided by (2 times 20), which is 2.1 inches.)
 5. Name the current high-performance brushless motor options, and name one obsolete motor you would not design around.
 
+Answers: 1. A spacer with a through-bolt, because the bolt goes into tension and the spacer into compression for a stiffer preloaded joint. 2. The number 10 sizes; 10-32 is common because most current COTS parts are threaded 10-32. 3. Nyloc. 4. (24 plus 60) divided by (2 times 20), which is 2.1 inches. 5. Current: Kraken X60 or X44 and the REV NEO family including NEO Vortex. Obsolete: the CIM.
+
 ## Gate
 
 Identification and matching quiz, roughly 15 items, image-based where useful. Covers vendor to part, fastener selection, structure terms, rotating hardware, and current versus obsolete motors. Auto-graded, pass at 90 percent, test-out allowed.
@@ -164,6 +168,8 @@ Worked example, a simple plate. Sketch a rectangle on the Front plane, add a hor
 3. You want a plate that stays 0.25 inch thick no matter how long it gets. How do you dimension it so length and thickness do not interfere?
 4. Why choose the plane a part is sketched on deliberately rather than at random?
 5. Convert 3/8 inch and 5/8 inch to the decimals you would type into a dimension.
+
+Answers: 1. It is under-defined; add relations and dimensions until it turns black. 2. Extrude Boss adds material, Extrude Cut removes it. 3. Make thickness one dimension and length a separate dimension so changing one does not affect the other. 4. So the part sits in the right orientation and later features and assemblies line up. 5. 0.375 and 0.625.
 
 ## Gate
 
@@ -205,6 +211,8 @@ Worked example, a box-tube segment. Start from a tube profile, cut a row of ligh
 4. What is the difference between a fillet and a chamfer, and give one reason to use each?
 5. Your part has thirty scattered features doing simple work. Why is that a problem?
 
+Answers: 1. The Hole Wizard, because it sizes the hole for the screw and carries the callout onto the drawing. 2. A linear pattern; editing the pattern edits every hole at once. 3. Later features depend on earlier ones, so a change ripples down; a sensible order keeps edits predictable. 4. A fillet rounds an edge for strength or finish, a chamfer bevels it for clearance or a lead-in. 5. A messy tree is hard to read and edit; a clean part uses a few well-chosen features.
+
 ## Gate
 
 GAUNTLET Feature Golf. Model a target part in an efficient feature tree, scored on feature count and correctness. Passes on a correct model within the feature budget.
@@ -242,6 +250,8 @@ Worked example, move a hole. Open a bracket, find the sketch dimension that loca
 3. You need to move a hole in an existing part. What do you edit, and what do you not do?
 4. What does a gear mate add that concentric and coincident mates do not?
 5. You changed a driving dimension and three other features broke. What does that tell you about the part, and how would you avoid it next time?
+
+Answers: 1. It is fixed, or grounded, giving everything else a stable reference. 2. Concentric for the shaft in the bore, coincident for the face. 3. Edit the sketch dimension that locates the hole; do not remodel from scratch or drag geometry. 4. It makes two gears turn together at their tooth ratio so the assembly moves like the real mechanism. 5. The part depends on that dimension fragilely; build with clean deliberate design intent so edits rebuild predictably.
 
 ## Gate
 
@@ -284,6 +294,8 @@ Worked example. To mount a Kraken-powered MAXPlanetary gearbox to a 2 by 1 tube,
 3. Live axle versus dead axle: which one spins, and give one benefit of each.
 4. You are modeling a plate to mount a COTS gearbox. What should drive your hole positions?
 5. Why does folder organization matter for a COTS assembly?
+
+Answers: 1. To spend limited engineering hours on the game-specific mechanism that wins, not on reinventing reliable systems. 2. (18 plus 54) divided by (2 times 20), which is 1.8 inches; add about 0.002 inch so the gears do not bind. 3. The live axle spins and is simpler; the dead axle stays still with the wheel spinning around it and can be structural. 4. The gearbox's real mounting bolt pattern. 5. Disorganized files break assemblies and lose references and work.
 
 ## Gate
 
@@ -330,6 +342,8 @@ Worked example. A half-inch ThunderHex shaft crosses two 1/8 inch plates 2.500 i
 5. You retain a wheel with a bolt into a tapped shaft end. What single step is non-negotiable, and why?
 6. Why put a washer between the retainer and the bearing's inner race?
 
+Answers: 1. The bearing constrains it radially; retention constrains it axially so it cannot slide. 2. Bearings need a round surface to ride on, while the hex carries torque through the gear. 3. Retaining rings or E-clips, because they are the lightest and most compact. 4. A clamping collar spreads force evenly and does not mar the shaft, while a set screw digs a burr that ruins it for reuse. 5. Threadlocker, so the bolt does not vibrate loose. 6. So it only pushes on the bearing's inner race; rubbing the outer race makes the bearing fight itself and waste energy.
+
 ## Gate
 
 GAUNTLET modeling. Model a custom shaft with hex and turned-down round sections to spec, designed for one of the three retention methods, verified by volume. Passes on correct geometry.
@@ -374,6 +388,8 @@ Worked example. A bracket bolts to a tube through two 10-32 clearance holes and 
 4. A pivot vibrates every match. Which nut type?
 5. What does a callout of 0.203 diameter THRU tell a machinist?
 
+Answers: 1. Tapped, so the screw threads directly into the part. 2. It sizes the hole for the exact screw and carries the callout onto the drawing automatically. 3. 0.172 inch. 4. Nyloc. 5. Drill a 0.203 inch hole all the way through, the 10-24 clearance size.
+
 ## Gate
 
 GAUNTLET modeling with a hole check. Model a plate with correctly sized clearance and tapped holes placed by the Hole Wizard, verified by hole geometry and position, plus a 90 percent knowledge quiz on fastener and nut selection. Passes on a correct model and a passing quiz.
@@ -417,6 +433,8 @@ Worked example. A bearing bore carries a tight tolerance for a press fit and a p
 3. For a laser-cut slot-and-tab joint, how do you adjust the slot and the tab for a good fit?
 4. What does a feature control frame specify beyond a plus-or-minus size?
 5. Why not put a tight tolerance on every dimension?
+
+Answers: 1. The allowed variation on a dimension; without one it falls back to the title-block default. 2. The bearing into the bore is an interference or press fit; the shaft through the bearing is a clearance fit. 3. Open the slot about 0.005 inch and shrink the tab about 0.005 inch. 4. A geometric control such as position, flatness, or perpendicularity, a tolerance zone, and the datums it references. 5. Tight tolerances waste shop time, so tolerance only what needs it.
 
 ## Gate
 

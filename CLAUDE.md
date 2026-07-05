@@ -1022,8 +1022,9 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   `/frc/+layout.server.ts` loads the student's completed set + rank once for
   every /frc page; `FrcRankBadge.svelte` shows the rank on the track view hero
   (`size=lg`) and beside the profile in the shell header (`size=sm`);
-  `DomainLanding` takes the `completed` set and renders real locked (muted,
-  non-clickable) / available / complete states.
+  `DomainLanding` takes the `completed` set and renders the real available /
+  complete state (plus a "suggested later" hint, see "Open learning access"
+  below).
 - **Teacher completion override:** the dashboard (`/dashboard`) roster gains a
   per-student "FRC completion" disclosure (`FrcUnitOverride.svelte`, a
   presentation-only toggle grid driven by one callback so it is harness-
@@ -1032,6 +1033,35 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   teacher-only) is convenience; the real authority is `is_teacher()` inside the
   RPCs themselves (0041). Fails soft with an "apply migration 0039" note when
   the table is absent.
+- **Open learning access + teacher "view as student" (batch):** no unit is
+  ever read-locked. `unitState()` (`track.ts`) still computes
+  locked/available/complete, but it is DISPLAY/ORDERING ONLY now: a "locked"
+  unit renders as a "Suggested later" badge with a "Suggested after &lt;prior
+  unit&gt;" hint, never a non-link card, so `DomainLanding` links every
+  content-backed unit regardless of prerequisite completion (nothing in
+  `[unit]/+page.server.ts` ever gated reading either; the old block was
+  discoverability only, in `DomainLanding`). Gates still record real
+  completion for rank exactly as before. A teacher gets a "View as student"
+  toggle in `FrcShell`'s header (visible only when the signed-in profile's
+  role is `teacher`; the dev harness simulates it via a `teacherOverride` prop,
+  mirroring the existing `rankCount` override pattern), backed by
+  `FrcViewContext` (`track.ts`: `FRC_VIEW_CONTEXT_KEY`, `isTeacher` /
+  `viewAsStudent` / `showOverride`) set once in `FrcShell` via Svelte context
+  (so the toggle survives navigation between /frc pages, since the layout
+  stays mounted) and read by any descendant page. When on, a banner reads
+  "Previewing the track as a student sees it" and all teacher-only chrome
+  hides. `DomainLanding` self-derives `showOverride` from that context (an
+  explicit prop still overrides it, again the `rankCount` pattern) and, when
+  true, renders a dark "Teacher tools · your account" panel above the CAD
+  unit list: `FrcUnitOverride` reused in-track (not just the dashboard) so a
+  teacher can mark/unmark their OWN completion to preview progress states
+  without leaving the track; the real route wires it to
+  `markUnitComplete`/`clearUnitComplete` against `claims.sub`. The quiz gate
+  itself (`gate?.enabled`) was never role-gated, so it already worked for a
+  teacher's own account; this batch only ensures `DomainLanding` never hides
+  the path to it. The `/dev/frc` harness's "Simulate teacher" checkbox drives
+  `FrcShell`'s `teacherOverride` prop end to end (real context, real toggle,
+  fake completion handler) so this is verifiable without Supabase.
 - **Knowledge-gate quiz (0040, MDM-1):** the first auto-gate, built
   SERVER-AUTHORITATIVE so the answer key never reaches the client. The item
   bank is a server-only module (`src/lib/server/frc/mdm-1-quiz-bank.json`, under
@@ -1089,8 +1119,9 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   detect the marker), used by `UnitPage.svelte` to show the worked example as
   a distinct FRC-themed callout. `drillAnswers` is an array aligned to `drill`
   (not a single consolidated string): `splitConsolidatedAnswers` splits a
-  trailing "Answers: 1. ... 2. ..." block per question (only MDM-1 has one
-  today); `UnitPage.svelte` gives each question its OWN reveal control
+  trailing "Answers: 1. ... 2. ..." block per question (all ten authored
+  units, MDM-1 through MDM-10, have one); `UnitPage.svelte` gives each
+  question its OWN reveal control
   (`<details>`), and a question with no parsed answer shows a plain "Answer
   key not yet added" label instead of a reveal control, never a fabricated
   answer. Gate stays description text only for units without a live gate:
@@ -1099,10 +1130,11 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   MDM-16 have no seed content yet and render as non-clickable
   "In development" placeholders on the domain page.
 - **Routes:** `/frc` (track home, one card per domain + the student's rank),
-  `/frc/[domain]` (reusable domain landing: content-backed units show their
-  real locked/available/complete state and link when unlocked, units without
-  content read "In development"; unit-less domains show a "content in
-  development" block; unknown slugs 404), `/frc/[domain]/[unit]` (the per-unit
+  `/frc/[domain]` (reusable domain landing: every content-backed unit links
+  regardless of state, complete/available/"suggested later" is a badge only;
+  units without content read "In development"; unit-less domains show a
+  "content in development" block; unknown slugs 404), `/frc/[domain]/[unit]`
+  (the per-unit
   page; only `contentSet: 'mdm'` domains and unit numbers with authored content
   resolve, else 404), `/frc/references` (the shelf, external links only).
   `src/routes/frc/+layout.svelte` wraps everything in `FrcShell.svelte`
