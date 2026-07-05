@@ -46,6 +46,29 @@
 			? mdmUnitById(unit.prerequisite)
 			: undefined
 	);
+
+	/**
+	 * Drill retrieval-practice state: per-question typed attempt, whether it has
+	 * been checked (revealing the model answer), and an optional self-mark.
+	 * Entirely client-side and per-page, never persisted; MDM_UNITS is a stable
+	 * module-level array (parsed once from the seed), so `unit` keeps the same
+	 * object reference across re-renders of the SAME unit and only changes
+	 * reference on a real navigation to a different unit, which is exactly when
+	 * this state should reset.
+	 */
+	type Mark = 'had-it' | 'review' | null;
+	let attempts = $state<string[]>([]);
+	let checked = $state<boolean[]>([]);
+	let marks = $state<Mark[]>([]);
+
+	$effect(() => {
+		const count = unit.drill.length;
+		attempts = Array(count).fill('');
+		checked = Array(count).fill(false);
+		marks = Array(count).fill(null) as Mark[];
+	});
+
+	const checkedCount = $derived(checked.filter(Boolean).length);
 </script>
 
 <nav class="crumb" aria-label="Breadcrumb">
@@ -106,18 +129,65 @@
 
 	<section class="sec">
 		<h2>Drill</h2>
+		<p class="drill-progress">{checkedCount} of {unit.drill.length} checked</p>
 		<ol class="drill">
 			{#each unit.drill as d, i (d)}
 				{@const answer = unit.drillAnswers[i]}
+				{@const attempted = !!attempts[i]?.trim()}
 				<li class="drill-item">
 					<span class="drill-q">{d}</span>
-					{#if answer}
-						<details class="drill-reveal">
-							<summary>Show answer</summary>
-							<p class="drill-a">{answer}</p>
-						</details>
-					{:else}
-						<span class="drill-missing">Answer key not yet added</span>
+					<div class="drill-attempt">
+						<label class="drill-label" for="drill-{unit.id}-{i}">Write your answer from memory.</label>
+						<textarea
+							id="drill-{unit.id}-{i}"
+							class="drill-input"
+							rows="2"
+							placeholder="Type what you remember, then check it."
+							value={attempts[i] ?? ''}
+							oninput={(e) => (attempts[i] = e.currentTarget.value)}
+						></textarea>
+						{#if !checked[i]}
+							<button
+								type="button"
+								class="drill-check"
+								disabled={!attempted}
+								onclick={() => (checked[i] = true)}
+							>
+								Check answer
+							</button>
+						{/if}
+					</div>
+					{#if checked[i]}
+						{#if answer}
+							<div class="drill-model">
+								<span class="drill-model-label">Model answer</span>
+								<p class="drill-model-text">{answer}</p>
+								<div class="drill-mark">
+									<button
+										type="button"
+										class="mark-btn had-it"
+										class:active={marks[i] === 'had-it'}
+										aria-pressed={marks[i] === 'had-it'}
+										onclick={() => (marks[i] = 'had-it')}
+									>
+										I had it
+									</button>
+									<button
+										type="button"
+										class="mark-btn review"
+										class:active={marks[i] === 'review'}
+										aria-pressed={marks[i] === 'review'}
+										onclick={() => (marks[i] = 'review')}
+									>
+										Review this
+									</button>
+								</div>
+							</div>
+						{:else}
+							<div class="drill-model">
+								<span class="drill-missing">Model answer not yet added</span>
+							</div>
+						{/if}
 					{/if}
 				</li>
 			{/each}
@@ -329,12 +399,21 @@
 		font-weight: 700;
 		color: var(--frc-ink, #231f20);
 	}
+	/* Progress line: "N of M checked", the only cross-question state on the page. */
+	.drill-progress {
+		margin: -0.3rem 0 0.9rem;
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--frc-gray, #9a989a);
+	}
 	.drill {
 		margin: 0;
 		padding-left: 1.4rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.7rem;
+		gap: 1.1rem;
 	}
 	.drill-item {
 		color: #333133;
@@ -348,40 +427,126 @@
 	}
 	.drill-q {
 		display: block;
+		margin-bottom: 0.5rem;
 	}
-	/* Per-question reveal: each question gets its own control, so only that
-	   answer shows on click. */
-	.drill-reveal {
-		margin-top: 0.35rem;
+	/* Active-retrieval attempt box: the student must type something here
+	   before the model answer can be checked. */
+	.drill-attempt {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
 	}
-	.drill-reveal summary {
-		display: inline-block;
+	.drill-label {
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--frc-gray, #9a989a);
+	}
+	.drill-input {
+		width: 100%;
+		box-sizing: border-box;
+		resize: vertical;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--frc-line, #dde1e8);
+		border-radius: 6px;
+		background: var(--frc-surface, #fafbfd);
+		color: var(--frc-ink, #231f20);
+		font-family: inherit;
+		font-size: 0.9rem;
+		line-height: 1.5;
+	}
+	.drill-input:focus-visible {
+		outline: none;
+		border-color: var(--frc-blue, #0066b3);
+	}
+	.drill-check {
+		align-self: flex-start;
+		font-family: inherit;
 		font-weight: 700;
 		font-size: 0.78rem;
 		letter-spacing: 0.04em;
 		text-transform: uppercase;
-		color: var(--frc-blue, #0066b3);
-		cursor: pointer;
-		padding: 0.15rem 0;
-	}
-	.drill-reveal summary:hover {
-		color: var(--frc-red, #ed1c24);
-	}
-	.drill-a {
-		margin: 0.3rem 0 0;
-		padding: 0.5rem 0.75rem;
-		border: 1px solid var(--frc-line, #dde1e8);
+		color: #fff;
+		background: var(--frc-blue, #0066b3);
+		border: 1px solid var(--frc-blue, #0066b3);
 		border-radius: 6px;
-		background: var(--frc-surface, #fafbfd);
+		padding: 0.4rem 0.85rem;
+		cursor: pointer;
+	}
+	.drill-check:hover:not(:disabled) {
+		background: var(--frc-blue-deep, #004f8a);
+	}
+	/* Disabled until an attempt is typed: the model answer cannot be seen
+	   before the student has tried, on purpose. */
+	.drill-check:disabled {
+		background: none;
+		color: var(--frc-gray, #9a989a);
+		border-color: var(--frc-line, #dde1e8);
+		cursor: not-allowed;
+	}
+	/* Model-answer panel: distinct FRC-themed callout directly below the
+	   student's own attempt, so the two sit side by side for comparison. */
+	.drill-model {
+		margin-top: 0.6rem;
+		padding: 0.75rem 0.9rem;
+		border-left: 4px solid var(--frc-blue, #0066b3);
+		background: var(--frc-blue-tint, rgba(0, 102, 179, 0.08));
+		border-radius: 0 8px 8px 0;
+	}
+	.drill-model-label {
+		display: block;
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--frc-blue, #0066b3);
+		margin-bottom: 0.3rem;
+	}
+	.drill-model-text {
+		margin: 0 0 0.6rem;
+		color: var(--frc-ink, #231f20);
 		font-size: 0.9rem;
-		color: #5c5a5c;
 		line-height: 1.55;
 	}
-	/* Visibly incomplete, not silently broken: units without an authored
-	   answer key show this on every question instead of a dead control. */
+	.drill-mark {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.mark-btn {
+		font-family: inherit;
+		font-weight: 700;
+		font-size: 0.72rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
+		background: var(--frc-surface, #fafbfd);
+		border-radius: 999px;
+		padding: 0.32rem 0.75rem;
+		cursor: pointer;
+	}
+	.mark-btn.had-it {
+		color: var(--frc-blue, #0066b3);
+		border: 1px solid var(--frc-blue-line, rgba(0, 102, 179, 0.35));
+	}
+	.mark-btn.had-it:hover,
+	.mark-btn.had-it.active {
+		color: #fff;
+		background: var(--frc-blue, #0066b3);
+	}
+	.mark-btn.review {
+		color: var(--frc-red, #ed1c24);
+		border: 1px solid rgba(237, 28, 36, 0.4);
+	}
+	.mark-btn.review:hover,
+	.mark-btn.review.active {
+		color: #fff;
+		background: var(--frc-red, #ed1c24);
+	}
+	/* Visibly incomplete, not silently broken: a question with no authored
+	   answer key shows this once checked, instead of a fabricated answer. */
 	.drill-missing {
 		display: inline-block;
-		margin-top: 0.35rem;
 		font-size: 0.72rem;
 		font-weight: 700;
 		letter-spacing: 0.06em;

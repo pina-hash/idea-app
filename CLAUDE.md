@@ -1120,11 +1120,21 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   a distinct FRC-themed callout. `drillAnswers` is an array aligned to `drill`
   (not a single consolidated string): `splitConsolidatedAnswers` splits a
   trailing "Answers: 1. ... 2. ..." block per question (all ten authored
-  units, MDM-1 through MDM-10, have one); `UnitPage.svelte` gives each
-  question its OWN reveal control
-  (`<details>`), and a question with no parsed answer shows a plain "Answer
-  key not yet added" label instead of a reveal control, never a fabricated
-  answer. Gate stays description text only for units without a live gate:
+  units, MDM-1 through MDM-10, have one). **Drill is active-retrieval
+  practice, not a passive reveal** (`UnitPage.svelte`, client-side only, no
+  persistence): each question is a typed attempt box ("Write your answer
+  from memory") with a "Check answer" button disabled until the student has
+  typed a non-empty response, so the model answer cannot be seen before an
+  attempt; checking reveals the model answer in a distinct FRC-themed panel
+  directly below the attempt, with "I had it" / "Review this" self-mark
+  buttons. A "N of M checked" progress line sits above the question list. All
+  of this is local `$state` (attempts/checked/marks arrays) reset by an
+  `$effect` keyed off the `unit` prop reference (`MDM_UNITS` is a stable
+  module-level array, so `unit` only changes reference on a real navigation
+  to a different unit, which is exactly when the practice state should
+  clear). A question with no parsed answer still shows the attempt box, and
+  once checked shows a plain "Model answer not yet added" note instead of a
+  fabricated answer. Gate stays description text only for units without a live gate:
   gate execution and progression are handled elsewhere (see the quiz-gate
   bullet above); Apply and prev/next nav are unchanged. Units MDM-11 through
   MDM-16 have no seed content yet and render as non-clickable
@@ -1211,8 +1221,9 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   over an in-memory store with a short cooldown, so the full flow and the
   no-answer-key network contract are verifiable without a live DB. The Unit
   page view has its own MDM-1..10 picker, so the Brief markdown and the Drill
-  per-question reveal (including the "not yet added" state on units with no
-  authored answer key) can be checked on any unit. Other views: track home,
+  retrieval-practice flow (attempt, check, model answer, self-mark, and the
+  "not yet added" state on a question with no authored answer key) can be
+  checked on any unit. Other views: track home,
   CAD domain, a placeholder domain, and the reference shelf.
 
 ## Version + changelog substrate
