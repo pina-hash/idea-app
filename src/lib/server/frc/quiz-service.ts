@@ -107,7 +107,8 @@ export async function submitQuiz(
 		ok: true,
 		passed: graded.passed,
 		score: graded.score,
-		missedTopics: graded.passed ? [] : missedTopics(graded.missed),
+		// Name the missed objectives from THIS unit's bank (fallback inside).
+		missedTopics: graded.passed ? [] : missedTopics(graded.missed, getQuizBank(unitId)?.objectives),
 		cooldownRemainingSec
 	};
 }

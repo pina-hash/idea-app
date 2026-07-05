@@ -7,10 +7,11 @@ import type { PageServerLoad } from './$types';
 /**
  * A single unit page under a domain, e.g. /frc/cad-mechanical/1. Resolves the
  * unit (404 for unknown / non-content domains) and, for a unit with a quiz gate
- * (currently MDM-1), computes the server-authoritative gate state: whether the
- * quiz backend is available, whether the unit is already complete, and the
- * current cooldown remaining. Fails soft to a null gate (description-only Gate)
- * if migration 0040 is unapplied.
+ * (any unit with a bank: MDM-1, 2, 3, 9, 10), computes the server-authoritative
+ * gate state from that unit's bank: whether the quiz backend is available,
+ * whether the unit is already complete, and the current cooldown remaining.
+ * Fails soft to a null gate (description-only Gate) if migration 0040 is
+ * unapplied.
  */
 export const load: PageServerLoad = async ({ params, parent, locals: { supabase, claims } }) => {
 	const domain = domainById(params.domain);

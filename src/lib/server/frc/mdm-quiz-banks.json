@@ -1,0 +1,117 @@
+{
+  "delivery": "SERVER-SIDE ONLY. Answer indices must never be sent to the client. The server selects, shuffles, and grades. One bank per unit id.",
+  "banks": {
+    "MDM-2": {
+      "title": "Reading Technical Drawings",
+      "testLength": 6,
+      "passPercent": 90,
+      "objectives": {
+        "views": "Read orthographic views and their layout.",
+        "callouts": "Interpret dimensions and hole callouts.",
+        "lines": "Recognize hidden and center lines.",
+        "titleblock": "Know what the title block carries.",
+        "purpose": "Understand why drawings exist."
+      },
+      "items": [
+        {"id":"m2-01","objective":"lines","stem":"A circle in the top view and a pair of dashed lines in the front view represent what?","options":["A hole","A chamfer","A surface finish note","A weld"],"answer":0},
+        {"id":"m2-02","objective":"callouts","stem":"A hole callout of 0.266 diameter THRU tells a machinist to make what?","options":["A 0.266 inch blind hole","A 0.266 inch hole all the way through","A 0.266 inch radius","A counterbore 0.266 deep"],"answer":1},
+        {"id":"m2-03","objective":"callouts","stem":"A hole shows a size callout but no dimensions to any edge. What is wrong?","options":["Nothing, size is enough","Its position is undefined and cannot be made correctly","The diameter is too small","It needs a radius"],"answer":1},
+        {"id":"m2-04","objective":"titleblock","stem":"Where do you find the part's material and the default tolerance?","options":["The title block","The top view","A hole callout","The center line"],"answer":0},
+        {"id":"m2-05","objective":"lines","stem":"Dashed lines on a drawing represent what?","options":["Center axes","Edges hidden from that view","Dimensions","The cutting plane only"],"answer":1},
+        {"id":"m2-06","objective":"lines","stem":"A thin long-short-long chain line through a hole marks what?","options":["A hidden edge","The center or axis","The material boundary","A section cut"],"answer":1},
+        {"id":"m2-07","objective":"views","stem":"In third-angle projection, where is the top view placed?","options":["Below the front view","Above the front view","To the left of the front view","Inside the front view"],"answer":1},
+        {"id":"m2-08","objective":"views","stem":"In third-angle projection, where is the right-side view placed?","options":["To the right of the front view","Above the top view","Below the front view","To the left of the front view"],"answer":0},
+        {"id":"m2-09","objective":"purpose","stem":"Why does a part need a 2D drawing when a 3D model exists?","options":["Drawings look more professional","To define the part unambiguously for manufacturing","Models cannot show holes","It is only tradition"],"answer":1},
+        {"id":"m2-10","objective":"callouts","stem":"A dimension preceded by the diameter symbol specifies what?","options":["A radius","A diameter","A thickness","An angle"],"answer":1},
+        {"id":"m2-11","objective":"callouts","stem":"A note reading R0.25 specifies what?","options":["A 0.25 diameter hole","A 0.25 radius","A 0.25 thick wall","A 0.25 chamfer"],"answer":1},
+        {"id":"m2-12","objective":"views","stem":"To confirm a hole is fully defined on a drawing, you check that it has what?","options":["Only a diameter","A size callout and locating dimensions","A hidden line only","A center line only"],"answer":1},
+        {"id":"m2-13","objective":"views","stem":"How do features relate across aligned orthographic views?","options":["They are drawn at random positions","They line up, so front and top share width and front and side share height","Only the front view matters","Each view uses a different scale"],"answer":1},
+        {"id":"m2-14","objective":"callouts","stem":"The word THRU in a hole callout means what?","options":["The hole is threaded","The hole goes completely through the material","The hole is countersunk","The hole is optional"],"answer":1}
+      ]
+    },
+    "MDM-3": {
+      "title": "FRC Hardware Vocabulary",
+      "testLength": 6,
+      "passPercent": 90,
+      "objectives": {
+        "structure": "Structure and plate separation.",
+        "fasteners": "Fastener and nut selection.",
+        "rotating": "Shafts, bearings, and gears.",
+        "current": "Current versus obsolete hardware.",
+        "vendors": "Where parts come from."
+      },
+      "items": [
+        {"id":"m3-01","objective":"structure","stem":"You want the stiffest way to hold two plates apart. What do you use, and why?","options":["A spacer with a through-bolt, since the bolt is preloaded in tension","A single tack weld","A threaded standoff, since threads add stiffness","Tape"],"answer":0},
+        {"id":"m3-02","objective":"fasteners","stem":"Which fastener family is the structural workhorse of FRC?","options":["4-40","The number 10 sizes","2-56","3/8-16"],"answer":1},
+        {"id":"m3-03","objective":"fasteners","stem":"Why has the 10-32 fine thread become so common?","options":["It is the cheapest","Most current COTS parts are threaded 10-32","It is the largest available","It never loosens"],"answer":1},
+        {"id":"m3-04","objective":"fasteners","stem":"A joint on a pivot vibrates every match. Which nut resists loosening?","options":["A plain nut","A nyloc nut","A wing nut","No nut"],"answer":1},
+        {"id":"m3-05","objective":"rotating","stem":"Two meshing 20 diametral pitch gears have 24 and 60 teeth. What is their center distance?","options":["2.1 inches","4.2 inches","1.05 inches","84 inches"],"answer":0},
+        {"id":"m3-06","objective":"current","stem":"Which is a current high-performance FRC motor?","options":["The CIM","The Kraken X60","The 775pro","The Mini CIM"],"answer":1},
+        {"id":"m3-07","objective":"current","stem":"Which motor is obsolete and not used on new designs?","options":["The NEO Vortex","The Kraken X44","The CIM","The NEO"],"answer":2},
+        {"id":"m3-08","objective":"rotating","stem":"A gear locks to a shaft and turns with it. What shaft profile does that?","options":["A round shaft","A hex or ThunderHex shaft","A tapered shaft","A smooth rod"],"answer":1},
+        {"id":"m3-09","objective":"rotating","stem":"What surface does a bearing need to ride on?","options":["A hex surface","A round surface","A square surface","A threaded surface"],"answer":1},
+        {"id":"m3-10","objective":"rotating","stem":"A gear is described by which two properties?","options":["Color and weight","Tooth count and diametral pitch","Length and width","Voltage and current"],"answer":1},
+        {"id":"m3-11","objective":"vendors","stem":"Which vendor is the go-to for raw fasteners, bearings, and stock?","options":["McMaster-Carr","YouTube","A hardware store brand only","The game manual"],"answer":0},
+        {"id":"m3-12","objective":"fasteners","stem":"You must fasten to material too thin to tap. Which nut presses into the part?","options":["A keps nut","A pem nut","A nyloc nut","A wing nut"],"answer":1},
+        {"id":"m3-13","objective":"current","stem":"Which is the current FRC radio?","options":["The old OpenMesh radio","The Vivid-Hosting VH-109","A home Wi-Fi router","No radio is used"],"answer":1},
+        {"id":"m3-14","objective":"structure","stem":"Why standardize on a few screw sizes and one shaft standard?","options":["It looks neater","Fewer spares and tools, and faster pit repairs","It is required by the rules","It makes the robot heavier"],"answer":1}
+      ]
+    },
+    "MDM-9": {
+      "title": "Fasteners and Joints in CAD",
+      "testLength": 6,
+      "passPercent": 90,
+      "objectives": {
+        "holetype": "Clearance versus tapped holes.",
+        "wizard": "The Hole Wizard and callouts.",
+        "sizes": "Fastener sizes.",
+        "nuts": "Nut and rivet selection.",
+        "joint": "Joint quality."
+      },
+      "items": [
+        {"id":"m9-01","objective":"holetype","stem":"You are fastening into a 1/2 inch aluminum block with no room for a nut. Which hole?","options":["A clearance hole","A tapped hole","No hole","A counterbore"],"answer":1},
+        {"id":"m9-02","objective":"holetype","stem":"A clearance hole is sized how relative to the screw?","options":["Slightly larger than the screw","Slightly smaller than the screw","Exactly the screw size","Twice the screw size"],"answer":0},
+        {"id":"m9-03","objective":"holetype","stem":"A tapped hole's drill is sized how relative to the screw?","options":["Larger than the screw","Smaller than the screw","The same as the screw","It has no drill"],"answer":1},
+        {"id":"m9-04","objective":"sizes","stem":"What diameter is an 8-32 clearance hole?","options":["0.172 inch","0.089 inch","0.266 inch","0.500 inch"],"answer":0},
+        {"id":"m9-05","objective":"wizard","stem":"What does the Hole Wizard do that a sketched circle does not?","options":["Nothing, they are identical","Sizes the hole for the screw and carries the callout to the drawing","Makes the part lighter","Adds threads to any part automatically"],"answer":1},
+        {"id":"m9-06","objective":"nuts","stem":"A pivot vibrates every match. Which nut type belongs there?","options":["A plain nut","A nyloc nut","A wing nut","No nut"],"answer":1},
+        {"id":"m9-07","objective":"nuts","stem":"A keps nut has what feature?","options":["A nylon insert","A built-in biting washer","A press-in body","Left-hand threads"],"answer":1},
+        {"id":"m9-08","objective":"nuts","stem":"Rivets are used to join parts how?","options":["Quickly from one side","Only with a nut on the back","Only in tapped holes","Only for pivots"],"answer":0},
+        {"id":"m9-09","objective":"sizes","stem":"When is a 1/4-20 fastener used?","options":["For the lightest panels","For the highest structural loads","Only for motors","Never in FRC"],"answer":1},
+        {"id":"m9-10","objective":"wizard","stem":"A callout of 0.203 diameter THRU describes what?","options":["A 10-24 clearance hole through the part","A tapped 1/4-20 hole","A blind hole","A chamfer"],"answer":0},
+        {"id":"m9-11","objective":"joint","stem":"Which makes a stiffer, preloaded joint?","options":["A short screw into thin material","A through-bolt with a spacer in compression","A single rivet","Tape"],"answer":1},
+        {"id":"m9-12","objective":"joint","stem":"Why keep enough material around a hole (edge distance)?","options":["To save weight","To prevent the edge from tearing out under load","To make it look better","It does not matter"],"answer":1},
+        {"id":"m9-13","objective":"nuts","stem":"A pem nut is used when the material is what?","options":["Too thin to tap","Too thick to drill","Already threaded","Made of plastic only"],"answer":0},
+        {"id":"m9-14","objective":"holetype","stem":"A clearance hole lets the screw do what?","options":["Thread directly into the part","Pass through freely to a nut or the far part's threads","Stay permanently stuck","Cut its own threads"],"answer":1}
+      ]
+    },
+    "MDM-10": {
+      "title": "Tolerancing and GD and T Basics",
+      "testLength": 6,
+      "passPercent": 90,
+      "objectives": {
+        "tolerance": "What tolerances are and why.",
+        "fits": "Clearance, interference, transition fits.",
+        "practical": "Practical FRC tolerancing numbers.",
+        "gdt": "GD and T controls and datums.",
+        "judgment": "Where to apply tolerance."
+      },
+      "items": [
+        {"id":"m10-01","objective":"tolerance","stem":"A tolerance is what?","options":["A type of fastener","The allowed variation on a dimension","A drawing view","A material grade"],"answer":1},
+        {"id":"m10-02","objective":"tolerance","stem":"What happens to a dimension with no stated tolerance?","options":["It must be perfect","It falls back to the title-block default","It is ignored","It becomes a reference only"],"answer":1},
+        {"id":"m10-03","objective":"fits","stem":"A bearing is pressed into a plate bore. Which fit is that?","options":["A clearance fit","An interference or press fit","A loose fit","No fit"],"answer":1},
+        {"id":"m10-04","objective":"fits","stem":"A shaft slides and spins inside a bearing. Which fit is that?","options":["A clearance fit","An interference fit","A press fit","A welded fit"],"answer":0},
+        {"id":"m10-05","objective":"practical","stem":"For a laser-cut slot-and-tab joint, how do you adjust for a good fit?","options":["Shrink the slot and grow the tab","Open the slot about 0.005 and shrink the tab about 0.005","Make both exactly nominal","Grow both by 0.010"],"answer":1},
+        {"id":"m10-06","objective":"gdt","stem":"A feature control frame specifies what?","options":["Only a diameter","A geometric control, a tolerance zone, and datums","The material","The part number"],"answer":1},
+        {"id":"m10-07","objective":"gdt","stem":"Datums are what?","options":["Extra holes","The reference features everything else is measured from","Hidden lines","Title-block notes"],"answer":1},
+        {"id":"m10-08","objective":"gdt","stem":"Which of these are GD and T geometric controls?","options":["Position, flatness, and perpendicularity","Red, green, and blue","Steel, aluminum, and plastic","Front, top, and side"],"answer":0},
+        {"id":"m10-09","objective":"judgment","stem":"Why not put a tight tolerance on every dimension?","options":["It is against the rules","Tight tolerances waste shop time, so tolerance only what needs it","Loose is always better","It changes the material"],"answer":1},
+        {"id":"m10-10","objective":"fits","stem":"A transition fit is what?","options":["Always loose","Between a clearance and an interference fit","Always pressed","The same as a clearance fit"],"answer":1},
+        {"id":"m10-11","objective":"practical","stem":"A torque-carrying shaft section is often made slightly long by about how much, and why?","options":["1 inch, to save material","About 0.01 inch, to absorb part-width and manufacturing variation","1 foot, for safety","Nothing is added"],"answer":1},
+        {"id":"m10-12","objective":"judgment","stem":"Where does tight tolerancing and GD and T belong in FRC?","options":["On every edge","On precision interfaces like bearing bores and bolt patterns","Only on the drawing border","Nowhere"],"answer":1},
+        {"id":"m10-13","objective":"gdt","stem":"GD and T controls what beyond size?","options":["Color and finish","Form, orientation, and position","Weight and cost","Vendor and price"],"answer":1},
+        {"id":"m10-14","objective":"fits","stem":"Why does a press fit stay put?","options":["Glue holds it","The part is slightly larger than the bore and is pressed in","A nut holds it","Gravity holds it"],"answer":1}
+      ]
+    }
+  }
+}

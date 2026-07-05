@@ -36,7 +36,6 @@
 	const cad = domainById('cad-mechanical')!;
 	const foundation = domainById('foundation')!;
 	const unit1 = mdmUnitByNumber(1)!;
-	const unit2 = mdmUnitByNumber(2)!;
 	const cadUnits = cad.units.filter((u) => mdmUnitByNumber(u.n));
 
 	// "Unit page" view: pick which authored unit to inspect (e.g. MDM-2, which
@@ -58,20 +57,43 @@
 	const reset = () => (completed = []);
 
 	// Quiz-gate view: mounts the REAL UnitPage + FrcQuizGate against the dev mock
-	// endpoint (real engine, in-memory store). A pass marks MDM-1 complete here so
-	// the domain landing below shows MDM-2 unlock.
+	// endpoint (real engine, in-memory store), for ANY quiz unit. The picker
+	// drives the `?unit=` query param the mock reads, so each unit's own bank is
+	// served. A pass marks that unit complete here so the domain landing below
+	// reflects the unlock. `testLength`/`passPercent` mirror the server banks
+	// (dev-only display values; the actual questions come from the start
+	// response). MDM-1's bank is 10 questions, the others are 6.
+	const QUIZ_UNIT_NS = [1, 2, 3, 9, 10];
+	const QUIZ_GATE_META: Record<string, { testLength: number; passPercent: number }> = {
+		'MDM-1': { testLength: 10, passPercent: 90 },
+		'MDM-2': { testLength: 6, passPercent: 90 },
+		'MDM-3': { testLength: 6, passPercent: 90 },
+		'MDM-9': { testLength: 6, passPercent: 90 },
+		'MDM-10': { testLength: 6, passPercent: 90 }
+	};
+	let quizUnitN = $state(1);
 	let quizNonce = $state(0);
+	const quizUnit = $derived(mdmUnitByNumber(quizUnitN) ?? unit1);
+	const quizIdx = $derived(MDM_UNITS.findIndex((u) => u.n === quizUnitN));
+	const quizNext = $derived(
+		quizIdx >= 0 && quizIdx < MDM_UNITS.length - 1 ? MDM_UNITS[quizIdx + 1] : null
+	);
+	const quizMeta = $derived(QUIZ_GATE_META[quizUnit.id] ?? { testLength: 6, passPercent: 90 });
 	const onQuizPass = () => {
-		if (!completed.includes('MDM-1')) completed = [...completed, 'MDM-1'];
+		if (!completed.includes(quizUnit.id)) completed = [...completed, quizUnit.id];
 	};
 	const resetGate = async () => {
-		await fetch('/dev/frc-quiz', {
+		await fetch(`/dev/frc-quiz?unit=${quizUnit.id}`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ action: 'reset' })
 		});
-		completed = completed.filter((id) => id !== 'MDM-1');
+		completed = completed.filter((id) => id !== quizUnit.id);
 		quizNonce++;
+	};
+	const pickQuizUnit = (n: number) => {
+		quizUnitN = n;
+		quizNonce++; // remount the gate fresh for the newly-selected unit
 	};
 
 	const VIEWS: { id: View; label: string }[] = [
@@ -79,7 +101,7 @@
 		{ id: 'home', label: 'Track home' },
 		{ id: 'cad', label: 'CAD domain' },
 		{ id: 'unit', label: 'Unit page' },
-		{ id: 'quiz', label: 'Quiz gate (MDM-1)' },
+		{ id: 'quiz', label: 'Quiz gate' },
 		{ id: 'placeholder', label: 'Placeholder domain' },
 		{ id: 'refs', label: 'Reference shelf' }
 	];
@@ -118,8 +140,13 @@
 	<div class="sim-panel">
 		<div class="sim-row">
 			<strong>Quiz gate (mock backend, real engine):</strong>
+			{#each QUIZ_UNIT_NS as n (n)}
+				<button type="button" class:active={quizUnitN === n} onclick={() => pickQuizUnit(n)}>
+					{`MDM-${n}`}
+				</button>
+			{/each}
 			<button type="button" onclick={resetGate}>Reset gate state</button>
-			<span class="sim-count">MDM-1 complete: {completed.includes('MDM-1') ? 'yes' : 'no'}</span>
+			<span class="sim-count">{quizUnit.id} complete: {completed.includes(quizUnit.id) ? 'yes' : 'no'}</span>
 		</div>
 	</div>
 {:else if view === 'unit'}
@@ -154,19 +181,19 @@
 			next={unitPageIdx >= 0 && unitPageIdx < MDM_UNITS.length - 1 ? MDM_UNITS[unitPageIdx + 1] : null}
 		/>
 	{:else if view === 'quiz'}
-		{#key quizNonce}
+		{#key `${quizUnitN}-${quizNonce}`}
 			<UnitPage
 				domain={cad}
-				unit={unit1}
+				unit={quizUnit}
 				prev={null}
-				next={unit2}
-				quizEndpoint="/dev/frc-quiz"
+				next={quizNext}
+				quizEndpoint={`/dev/frc-quiz?unit=${quizUnit.id}`}
 				{onQuizPass}
 				gate={{
 					enabled: true,
-					testLength: 10,
-					passPercent: 90,
-					unitComplete: completed.includes('MDM-1'),
+					testLength: quizMeta.testLength,
+					passPercent: quizMeta.passPercent,
+					unitComplete: completed.includes(quizUnit.id),
 					cooldownRemainingSec: 0
 				}}
 			/>

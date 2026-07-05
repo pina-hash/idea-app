@@ -1,6 +1,6 @@
 import { dev } from '$app/environment';
 import { json, error } from '@sveltejs/kit';
-import { gradeAttempt, type AttemptRecord, type SealedItem } from '$lib/server/frc/quiz-engine';
+import { getQuizBank, gradeAttempt, type AttemptRecord, type SealedItem } from '$lib/server/frc/quiz-engine';
 import { startQuiz, submitQuiz, type QuizStore } from '$lib/server/frc/quiz-service';
 import type { RequestHandler } from './$types';
 
@@ -11,9 +11,11 @@ import type { RequestHandler } from './$types';
  * verified without a live Supabase/DB. Only the storage backend and the cooldown
  * schedule (short, for fast verification) differ from production. The answer key
  * still never appears in a response.
+ *
+ * The served unit is chosen by the `?unit=` query param (default MDM-1), so the
+ * harness can exercise every quiz unit's bank (MDM-1, 2, 3, 9, 10). The
+ * in-memory cooldown log is keyed by unit id, so the units are independent.
  */
-
-const UNIT_ID = 'MDM-1';
 
 // In-memory store (module-level, persists across requests in the dev process).
 const sealedById = new Map<string, { sealed: SealedItem[]; passPercent: number; unitId: string }>();
@@ -49,8 +51,10 @@ function memStore(): QuizStore {
 	};
 }
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, url }) => {
 	if (!dev) error(404, 'Not found');
+
+	const unitId = url.searchParams.get('unit') ?? 'MDM-1';
 
 	let body: { action?: string; attemptId?: string; answers?: unknown };
 	try {
@@ -68,8 +72,13 @@ export const POST: RequestHandler = async ({ request }) => {
 		return json({ ok: true });
 	}
 
+	// Reject a unit that has no quiz bank, the same way the real endpoint 404s.
+	if (!getQuizBank(unitId)) {
+		return json({ ok: false, reason: 'unavailable' }, { status: 404 });
+	}
+
 	if (body.action === 'start') {
-		const result = await startQuiz(store, 'dev-user', UNIT_ID, devCooldown, now);
+		const result = await startQuiz(store, 'dev-user', unitId, devCooldown, now);
 		const status = result.ok ? 200 : result.reason === 'cooldown' ? 429 : 503;
 		return json(result, { status });
 	}
@@ -80,7 +89,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		const result = await submitQuiz(
 			store,
 			'dev-user',
-			UNIT_ID,
+			unitId,
 			body.attemptId,
 			answers,
 			devCooldown,

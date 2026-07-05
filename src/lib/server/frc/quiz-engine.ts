@@ -1,7 +1,13 @@
 /**
  * FRC knowledge-gate quiz engine. SERVER-ONLY (under `$lib/server`, which
  * SvelteKit refuses to bundle to the client): it imports the answer-bearing
- * item bank, so it must never be reachable from client code.
+ * item banks, so it must never be reachable from client code.
+ *
+ * It serves a PER-UNIT item bank: MDM-1 from its own file, and MDM-2 / MDM-3 /
+ * MDM-9 / MDM-10 from the `banks` map in `mdm-quiz-banks.json`. Every path
+ * keys off the unit id (`getQuizBank`) and uses that unit's own items,
+ * `testLength`, and `passPercent`, so the selection, sealing, cooldown, and
+ * grading are all per unit.
  *
  * Responsibilities, all pure and testable:
  *   - `pickAttempt` selects `testLength` items at random and shuffles each
@@ -18,7 +24,8 @@
  * The bank's answer indices are NEVER placed in any value returned toward the
  * client: `pickAttempt` splits them into `sealed`, which stays server-side.
  */
-import bank from './mdm-1-quiz-bank.json';
+import mdm1Bank from './mdm-1-quiz-bank.json';
+import extraBanks from './mdm-quiz-banks.json';
 
 interface BankItem {
 	id: string;
@@ -28,7 +35,8 @@ interface BankItem {
 	answer: number;
 }
 interface QuizBank {
-	unit: string;
+	/** Informational; not read by any grading path. Absent in the shared map. */
+	unit?: string;
 	title: string;
 	testLength: number;
 	passPercent: number;
@@ -36,10 +44,13 @@ interface QuizBank {
 	items: BankItem[];
 }
 
-const MDM1_BANK = bank as QuizBank;
+const MDM1_BANK = mdm1Bank as QuizBank;
+// The additional per-unit banks (MDM-2, MDM-3, MDM-9, MDM-10) share one file, a
+// `banks` map keyed by unit id; each carries its own items/testLength/passPercent.
+const SHARED_BANKS = (extraBanks as unknown as { banks: Record<string, QuizBank> }).banks;
 
-/** Unit id -> its quiz bank. Only MDM-1 is wired for now. */
-const BANKS: Record<string, QuizBank> = { 'MDM-1': MDM1_BANK };
+/** Unit id -> its quiz bank. */
+const BANKS: Record<string, QuizBank> = { 'MDM-1': MDM1_BANK, ...SHARED_BANKS };
 
 /** The quiz bank for a unit, or undefined if the unit has no quiz gate. */
 export function getQuizBank(unitId: string): QuizBank | undefined {
@@ -113,7 +124,12 @@ export function gradeAttempt(
 	return { score, passed: score >= passPercent, missed: [...missed] };
 }
 
-/** Short, human-readable topic name per objective tag (never leaks the answer). */
+/**
+ * Short, human-readable topic name per objective tag (never leaks the answer).
+ * MDM-1's curated names; other units fall back to their own bank's `objectives`
+ * descriptions (passed to `missedTopics`), so topic naming stays co-located
+ * with each bank's content.
+ */
 const TOPIC_NAMES: Record<string, string> = {
 	'demand-vs-goal': 'Demands vs goals',
 	sequence: 'Design-process order',
@@ -125,9 +141,14 @@ const TOPIC_NAMES: Record<string, string> = {
 	'scenario-apply': 'Applying the whole process'
 };
 
-/** Map objective tags to short topic names (dedup-preserving order). */
-export function missedTopics(tags: string[]): string[] {
-	return tags.map((t) => TOPIC_NAMES[t] ?? t.replace(/-/g, ' '));
+/**
+ * Map objective tags to human-readable topic names (dedup-preserving order),
+ * never leaking answers. Prefers the curated `TOPIC_NAMES`, then the serving
+ * bank's own `objectives` description (pass `bank.objectives`), then a plain
+ * de-hyphenated tag.
+ */
+export function missedTopics(tags: string[], objectives?: Record<string, string>): string[] {
+	return tags.map((t) => TOPIC_NAMES[t] ?? objectives?.[t] ?? t.replace(/-/g, ' '));
 }
 
 /** A finalized attempt as the cooldown walk needs it. */

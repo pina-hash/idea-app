@@ -1062,23 +1062,34 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   the path to it. The `/dev/frc` harness's "Simulate teacher" checkbox drives
   `FrcShell`'s `teacherOverride` prop end to end (real context, real toggle,
   fake completion handler) so this is verifiable without Supabase.
-- **Knowledge-gate quiz (0040, MDM-1):** the first auto-gate, built
-  SERVER-AUTHORITATIVE so the answer key never reaches the client. The item
-  bank is a server-only module (`src/lib/server/frc/mdm-1-quiz-bank.json`, under
-  `$lib/server` so SvelteKit never bundles it client-side; a pool larger than
-  `testLength` with per-item options + answer index, plus `passPercent` 90).
-  `src/lib/server/frc/quiz-engine.ts` holds the pure logic (select `testLength`
-  at random, shuffle each item's options, split the correct index into a
-  server-held `sealed` key, `gradeAttempt` as the CANONICAL grader mirrored by
-  the SQL RPC, `cooldownState`, and objective-tag -> short topic-name mapping);
-  `quiz-service.ts` orchestrates start/submit over a `QuizStore` interface.
-  The `frc_quiz_attempts` table (0040) is the attempt LOG + in-flight state:
-  the `sealed` key column has NO client SELECT grant, and grading runs inside
-  the `frc_quiz_grade` SECURITY DEFINER RPC (mirrors `gradeAttempt`) so answers
-  never leave the server; `frc_quiz_start` persists an attempt. RLS mirrors the
-  pattern (student reads/inserts own via the definer RPCs, teachers read all).
-  The unit endpoint `POST /frc/[domain]/[unit]/quiz` (start | submit) enforces
-  the ESCALATING cooldown (schedule `FRC_QUIZ_COOLDOWNS_SEC` /
+- **Knowledge-gate quiz (0040; MDM-1, 2, 3, 9, 10):** the auto-gate, built
+  SERVER-AUTHORITATIVE so the answer key never reaches the client. It serves a
+  PER-UNIT item bank: MDM-1 from `src/lib/server/frc/mdm-1-quiz-bank.json`, and
+  MDM-2 / MDM-3 / MDM-9 / MDM-10 from the `banks` map in
+  `src/lib/server/frc/mdm-quiz-banks.json` (both under `$lib/server`, so
+  SvelteKit never bundles them client-side; each bank is a pool larger than its
+  `testLength` with per-item options + answer index, plus its own `passPercent`,
+  90 across the board; MDM-1 draws 10 questions, the others 6).
+  `src/lib/server/frc/quiz-engine.ts` holds the pure logic: `getQuizBank(unitId)`
+  resolves the unit's bank (MDM-1 + the shared map spread into one `BANKS`
+  record), then `pickAttempt` selects that bank's `testLength` items at random,
+  shuffles each item's options, splits the correct index into a server-held
+  `sealed` key, `gradeAttempt` is the CANONICAL grader mirrored by the SQL RPC,
+  `cooldownState` derives the cooldown, and `missedTopics(tags, objectives)`
+  names missed objectives (MDM-1's curated `TOPIC_NAMES` first, then the serving
+  bank's own `objectives` descriptions, so the naming stays co-located with each
+  bank). `quiz-service.ts` orchestrates start/submit over a `QuizStore`
+  interface, keyed by unit id throughout. The `frc_quiz_attempts` table (0040)
+  is ALREADY per-unit (each row carries `unit_id`, `sealed`, `pass_percent`), so
+  no migration change was needed to add units: `frc_quiz_start(p_unit_id,
+  p_sealed, p_pass_percent)` persists the attempt, and `frc_quiz_grade` reads the
+  unit/key/threshold off the attempt row it grades. The `sealed` key column has
+  NO client SELECT grant, and grading runs inside the `frc_quiz_grade` SECURITY
+  DEFINER RPC (mirrors `gradeAttempt`) so answers never leave the server. RLS
+  mirrors the pattern (student reads/inserts own via the definer RPCs, teachers
+  read all). The unit endpoint `POST /frc/[domain]/[unit]/quiz` (start | submit)
+  takes the unit from the route (`params.unit` -> `getQuizBank`), enforces the
+  ESCALATING cooldown (schedule `FRC_QUIZ_COOLDOWNS_SEC` /
   `cooldownSecondsForFailStreak` in track.ts, tunable; a pass clears the streak)
   before issuing an attempt, serves only stems + shuffled options on start, and
   grades on submit; on a FAIL it returns only the missed TOPIC names + the
@@ -1091,11 +1102,17 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   is teacher-only), it writes directly as its own SECURITY DEFINER owner. The
   SvelteKit endpoint's `onPass` hook is therefore a deliberate no-op.
   `FrcQuizGate.svelte` is the unit-page UI (Start -> questions -> submit ->
-  pass/next-unlocked or fail/missed-topics/cooldown), FRC-themed; UnitPage shows
-  it when the server load reports `gate.enabled` (only MDM-1; other units keep
-  the description-only Gate). `+page.server.ts` computes the gate state
-  (readiness, unit-complete, cooldown remaining) and fails soft to the
-  description-only Gate if 0040 is unapplied.
+  pass/next-unlocked or fail/missed-topics/cooldown), FRC-themed; it needs no
+  unit id of its own because the endpoint URL encodes the unit. UnitPage shows
+  it when the server load reports `gate.enabled` — true for any unit with a bank
+  (MDM-1, 2, 3, 9, 10); the modeling-gate units (MDM-4 through MDM-8) have no
+  bank, so `getQuizBank` returns undefined and they keep the description-only
+  Gate. The unit seed metadata sets `gate: quiz` for MDM-1/2/3/9/10 (display
+  label only; the real enable is `getQuizBank`). `+page.server.ts` computes the
+  gate state from that unit's bank (readiness, unit-complete, cooldown
+  remaining) and fails soft to the description-only Gate if 0040 is unapplied.
+  The dev mock endpoint `/dev/frc-quiz` takes `?unit=` (default MDM-1) so the
+  `/dev/frc` harness can exercise every quiz unit's bank without a live DB.
 - **Progress lockdown (0041):** closes the self-mark hole the 0039/0040 caveat
   flagged: a student could previously insert their own `frc_user_progress` row
   directly via PostgREST (the 0039 own-row write grant), bypassing every gate.

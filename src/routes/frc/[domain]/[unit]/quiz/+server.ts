@@ -7,7 +7,9 @@ import { mdmUnitByNumber } from '$lib/frc/mdm-content';
 import type { RequestHandler } from './$types';
 
 /**
- * Server-authoritative knowledge-gate quiz for a unit (currently MDM-1).
+ * Server-authoritative knowledge-gate quiz for a unit (any unit with a bank:
+ * MDM-1, 2, 3, 9, 10). The unit is taken from the route (`params.unit`), so its
+ * own bank, testLength, and passPercent are resolved via `getQuizBank`.
  * POST { action:'start' } -> serves stems + shuffled options (NO answer key),
  * enforcing the escalating cooldown. POST { action:'submit', attemptId, answers }
  * -> grades against the server-held key and records the attempt. The answer

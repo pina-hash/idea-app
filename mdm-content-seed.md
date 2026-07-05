@@ -58,7 +58,7 @@ title: Reading Technical Drawings
 domain: CAD and Mechanical Design
 order: 2
 prerequisite: MDM-1
-gate: gauntlet:drawing-reading
+gate: quiz
 gatePass: 90
 
 ## Brief
@@ -363,7 +363,7 @@ title: Fasteners and Joints in CAD
 domain: CAD and Mechanical Design
 order: 9
 prerequisite: MDM-8
-gate: gauntlet:modeling
+gate: quiz
 gatePass: 90
 
 ## Brief
@@ -411,7 +411,7 @@ title: Tolerancing and GD and T Basics
 domain: CAD and Mechanical Design
 order: 10
 prerequisite: MDM-9
-gate: gauntlet:gd-t
+gate: quiz
 gatePass: 90
 
 ## Brief
