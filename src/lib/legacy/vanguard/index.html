@@ -761,7 +761,7 @@ const BAL_DEFAULTS = {
   hcFireMulFrom:3,                    // sector at which the HARDCORE multiplier reaches hcFireMul
   ebulCapBase:24, ebulCapPer:11,      // global enemy-bullet budget base + per sector
   // boss
-  bossBase:95, bossQuad:27,           // boss HP = bossBase + sector^2 * bossQuad
+  bossBase:95, bossLin:40, bossQuad:15,           // boss HP = bossBase + sector * bossLin + sector^2 * bossQuad
   // economy + pacing
   coinCoef:0.12,                      // kill coin coefficient (master income dial)
   styleCoinScale:1.0,                 // multiplier on STYLE coin bonus
@@ -790,6 +790,7 @@ const BAL_META = [
   {key:'ebulCapBase',label:'Bullet cap base',group:'ENEMY',min:12,max:60,step:1},
   {key:'ebulCapPer',label:'Bullet cap /sector',group:'ENEMY',min:0,max:20,step:1},
   {key:'bossBase',label:'Boss HP base',group:'BOSS',min:50,max:200,step:5},
+  {key:'bossLin',label:'Boss HP linear',group:'BOSS',min:0,max:100,step:5},
   {key:'bossQuad',label:'Boss HP /sector^2',group:'BOSS',min:10,max:50,step:1},
   {key:'coinCoef',label:'Kill coin coef',group:'ECONOMY',min:0.04,max:0.20,step:0.01},
   {key:'styleCoinScale',label:'STYLE coin scale',group:'ECONOMY',min:0.50,max:2.00,step:0.05},
@@ -1829,7 +1830,7 @@ function spawnBoss(forceFk){
     else{ fk=themed||factionForSector(); } }
   if(bossesSeen.indexOf(fk)<0) bossesSeen.push(fk);
   const F=FACTIONS[fk];
-  const hp=BAL.bossBase + sector*sector*BAL.bossQuad;
+  const hp=BAL.bossBase + sector*BAL.bossLin + sector*sector*BAL.bossQuad;
   boss={fk,c:F.c,draw:drawBoss,variant:2, x:W/2, y:-90, ty:128, r:60, name:F.name,
     hp:hp, maxhp:hp, core:0, phase:0, lastPhase:0, ph:0, fire:Math.max(0.18,gameMode==='hardcore'?0.3:1.0/(1+sector*0.13)), sweep:0, entering:true,
     flash:0, dead:false, dying:false, deathT:0, salvo:0,
@@ -2102,7 +2103,7 @@ const WEAPONS=['spread','lance','homing','rapid','flak','buzzsaw'];
 const BOSS_COLLATERAL=6;   // boss friendly-fire chip damage to its own grunts (Pillar 3); kills give the player no reward (Pillar 4/5)
 /* ===== weapon balance, all relative to measured SPREAD baseline DPS = 7.0 (gun1: 4 pellets x 0.7 dmg x 5/s x ~2 hits @150px) ===== */
 const SPREAD_FULL_RANGE=260, SPREAD_FAR_FLOOR=0.60;                 // 100% to 260px, hard 60% floor beyond (no fade-to-nothing)
-const FLAK_BAND_MIN=240, FLAK_BAND_MAX=360, FLAK_CLOUD_R=46, FLAK_CLOUD_LIFE=0.45, FLAK_CLOUD_DPS=13, FLAK_EARLY=0.6, FLAK_COL='#FFB000';
+const FLAK_BAND_MIN=190, FLAK_BAND_MAX=360, FLAK_CLOUD_R=46, FLAK_CLOUD_LIFE=0.45, FLAK_CLOUD_DPS=13, FLAK_EARLY=0.75, FLAK_COL='#FFB000';
 const BUZZSAW_ORBIT=54;                                            // BALANCE DIAL - do not expose as an upgrade
 const BUZZSAW_BLADE_R=10, BUZZSAW_SPEED=3.2, BUZZSAW_DPS_PER_BLADE=9.5, BUZZSAW_FWD_DMG=0.42;
 /* MELTDOWN (endgame active): fire-RATE overload only, kill-recharged. Phase 1 core; upgrade tree is Phase 2. */
@@ -2222,7 +2223,8 @@ function firePrimary(){
     if(player.heat>=1){
       if(autofire){ player.heat=0; player.overheatT=0.6; player.fireCd=0.6; rings.push({x,y,r:5,vr:220,life:.28,max:.28,c:COL.gold});
         pops.push({x:player.x,y:player.y-30,txt:'VENT',c:COL.gold,life:.6,max:.6}); Audio_.hit(); }
-      else { player.heat=0; player.overheatT=1.2*(kR==='redline'?1.4:1); runOverheats++; styleHit();
+      else { player.heat=0; player.overheatT=0.9*(kR==='redline'?1.4:1); runOverheats++;
+        window.style=(window.style||0)*0.85; window.styleRepeat=0; window.styleGrace=0.2; window.mult=styleRankObj().mult;
         shake=Math.max(shake,7); player.dmgFlash=Math.max(player.dmgFlash,0.12);
         rings.push({x,y,r:6,vr:300,life:.35,max:.35,c:COL.mset});
         pops.push({x:player.x,y:player.y-30,txt:'OVERHEAT',c:COL.mset,life:.9,max:.9}); (Audio_.play&&Audio_.play('overheat'))||Audio_.hit(); } }
@@ -2285,6 +2287,11 @@ function updateBuzzsaw(pl,dt){
       if(Math.random()<dt*(12+4*(_bu.bBuzz||0))) impactFX(bx,by,e.c,bx-e.x,by-e.y);   // reuse the directional spark fan, throttled per tick
       if(e.hp<=0){ window.killSrc='buzzsaw'; killEnemy(e); } } }
     if(boss && !boss.dying && !boss.entering && dist2(boss.x,boss.y,bx,by)<(_br+boss.r)*(_br+boss.r)) damageBoss(_bdps*pm*dt);
+    // 15% chance to deflect/graze enemy bullets contacting the blades
+    for(let i=ebul.length-1;i>=0;i--){ const eb=ebul[i];
+      if(dist2(eb.x,eb.y,bx,by)<(_br+4)*(_br+4)){
+        if(Math.random()<0.15){ ebul.splice(i,1); rings.push({x:bx,y:by,r:4,vr:120,life:.18,max:.18,c:COL.green});
+          for(let k=0;k<3;k++) parts.push({x:bx,y:by,vx:rnd(-40,40),vy:rnd(-40,40),life:.15,max:.15,c:COL.green,sz:1.0}); } } }
   }
   // BLADE LAUNCHER: boomerang throw
   if(pl.sawThrow){ const sw=pl.sawThrow; const _throwDmg=(kB==='shrike'?1.3:1.0);
