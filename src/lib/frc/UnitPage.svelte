@@ -9,6 +9,8 @@
 	import FrcModelGate from '$lib/frc/FrcModelGate.svelte';
 	import FrcPhaseStepper from '$lib/frc/FrcPhaseStepper.svelte';
 	import FrcDrillPhase from '$lib/frc/FrcDrillPhase.svelte';
+	import FrcInteractiveDrill from '$lib/frc/FrcInteractiveDrill.svelte';
+	import { getDrillBank } from '$lib/frc/drill-banks';
 
 	/**
 	 * A single CAD/Mechanical unit, restructured into four SEQUENTIAL, GATED
@@ -68,6 +70,10 @@
 			? mdmUnitById(unit.prerequisite)
 			: undefined
 	);
+
+	// Units with a drill bank (MDM-1, 2, 3, 9, 10) get the interactive scored
+	// drill; the rest keep the write-from-memory FrcDrillPhase unchanged.
+	const drillBank = $derived(getDrillBank(unit.id));
 
 	const PHASES = [
 		{ key: 'brief', label: 'Brief' },
@@ -194,7 +200,11 @@
 	{:else if currentPhase === 1}
 		<section class="sec">
 			<h2>Drill</h2>
-			<FrcDrillPhase {unit} onContinue={continueToQuiz} onReviewBrief={reviewBrief} />
+			{#if drillBank}
+				<FrcInteractiveDrill {unit} bank={drillBank} onContinue={continueToQuiz} onReviewBrief={reviewBrief} />
+			{:else}
+				<FrcDrillPhase {unit} onContinue={continueToQuiz} onReviewBrief={reviewBrief} />
+			{/if}
 		</section>
 	{:else if currentPhase === 2}
 		<section class="sec">

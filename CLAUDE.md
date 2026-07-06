@@ -1190,33 +1190,68 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   to a different unit, which is exactly when the practice state should
   clear). A question with no parsed answer still shows the attempt box, and
   once checked shows a plain "Model answer not yet added" note instead of a
-  fabricated answer. Units MDM-11 through MDM-16 have no seed content yet and
-  render as non-clickable "In development" placeholders on the domain page.
+  fabricated answer. This is now the FALLBACK drill for units with no
+  interactive drill bank (MDM-4 through MDM-8; see the interactive-drill
+  bullet below for MDM-1/2/3/9/10). Units MDM-11 through MDM-16 have no seed
+  content yet and render as non-clickable "In development" placeholders on
+  the domain page.
+- **Interactive scored drill (MDM-1, 2, 3, 9, 10):** the repo-root
+  `mdm-drill-banks.json` (a `banks` map keyed by unit id, parallel to but
+  distinct from the server-only quiz banks) holds `order` (arrange a shuffled
+  sequence), `match` (pair a shuffled right column to the left column), and
+  `pick` (scenario multiple choice with feedback) items, plus a
+  `readinessPass` percent. `src/lib/frc/drill-banks.ts` imports it directly
+  (a plain JSON import, no `?raw`; unlike the quiz banks this content is
+  MEANT to be visible client-side — it is coached practice, not a graded
+  gate) and exposes `getDrillBank(unitId)` + a `shuffled()` Fisher-Yates
+  helper; `UnitPage.svelte` picks `FrcInteractiveDrill.svelte` over
+  `FrcDrillPhase.svelte` for any unit `getDrillBank` resolves. Every item type
+  supports check -> see right/wrong -> retry (editing invalidates the last
+  check, so re-checking is the retry, no separate button): `order` shows the
+  sequence shuffled with up/down move controls per row, highlighting each row
+  correct/incorrect on check; `match` shows the right column shuffled as a
+  `<select>` per left row, highlighting each pairing on check; `pick` reveals
+  correct/incorrect AND the authored `feedback` text the instant an option is
+  selected, and also highlights the true correct option once any pick is
+  made. Readiness is scored on FIRST-TRY correctness ONLY: each item's
+  `firstTryCorrect` locks in on its first check/selection in the run and
+  retries afterward never raise it, they only help the student learn. Once
+  every item has been attempted, a readiness percent shows; at or above
+  `readinessPass` a "Continue to quiz" unlocks the Quiz phase (there is
+  deliberately no "continue anyway" bypass for these five units, unlike
+  `FrcDrillPhase`'s write-from-memory drill); below it, the Quiz stays locked
+  and the student gets "Review the Brief" (goes back, does not unlock) and
+  "Redo the drill" (`resetDrill`, reshuffles order/match content and clears
+  all scoring for a fresh run). All state is local `$state`, client-side and
+  per-mount, reset by an `$effect` keyed on `unit.id`/`bank` — no schema, no
+  persistence, no server.
 - **Unit page: four sequential, gated phases (Brief, Drill, Quiz, Apply).**
   `UnitPage.svelte` no longer shows every section at once; `FrcPhaseStepper.svelte`
   renders the four phases as done / current / locked and is the only way to
   move between them (a locked phase's button is disabled; an unlocked one can
-  always be reopened to review). Brief -> Drill and (optionally) Drill -> Quiz
-  are the STUDENT'S OWN CHOICE, never a graded gate: Brief ends with a
-  "Continue to drills" button, and `FrcDrillPhase.svelte` (the extracted Drill
-  component above) shows a readiness summary once every question is checked,
-  reading the self-marks — a clear majority "I had it" offers "Continue to
-  quiz"; otherwise it recommends "Review the Brief" (goes back, does not
-  unlock) alongside "Continue to quiz anyway" (unlocks regardless, the student
-  can always insist). The Quiz phase is the Gate section alone, no Brief/Drill
-  visible: FrcQuizGate for the five knowledge units, FrcModelGate for the five
-  modeling units, unchanged grading/review/completion. Apply is locked (a
-  padlock card, "Pass the quiz to unlock Apply") until the gate clears; a
-  cleared unit's Apply then reads its normal content. State: `manualUnlock`
-  (the student's own advance through Brief/Drill/Quiz) and `currentPhase`
-  (which screen is open) are local `$state`, both client-side and
-  per-mount — `unlockedThrough` is `3` the moment `gate.unitComplete` or
-  `modelGate.unitComplete` is true, REACTIVELY (so the Apply tab lights up the
-  instant a pass/approval lands), but `currentPhase` deliberately does NOT
-  auto-jump to Apply on that same live transition, so the student stays on the
-  Quiz screen to see FrcQuizGate's "Passed" or FrcModelGate's "Approved" result
-  and opens Apply themselves. It DOES jump straight to Apply on a fresh mount
-  of an already-cleared unit (a `$effect` keyed on `unit.id` alone, reading
+  always be reopened to review — reopening a phase remounts its component
+  fresh, since each phase is a separate `{#if}` branch, so a unit's own Drill
+  or Quiz progress does not survive navigating away and back within the same
+  visit; this is a pre-existing property of the phase system, not specific to
+  either drill). Brief -> Drill is the STUDENT'S OWN CHOICE, never a graded
+  gate: Brief ends with a "Continue to drills" button. Drill -> Quiz is
+  either that same free choice (`FrcDrillPhase`'s self-marked readiness
+  summary, MDM-4 through MDM-8) or an earned unlock (`FrcInteractiveDrill`'s
+  scored readiness gate, MDM-1/2/3/9/10; see above). The Quiz phase is the
+  Gate section alone, no Brief/Drill visible: FrcQuizGate for the five
+  knowledge units, FrcModelGate for the five modeling units, unchanged
+  grading/review/completion. Apply is locked (a padlock card, "Pass the quiz
+  to unlock Apply") until the gate clears; a cleared unit's Apply then reads
+  its normal content. State: `manualUnlock` (the student's own advance
+  through Brief/Drill/Quiz) and `currentPhase` (which screen is open) are
+  local `$state`, both client-side and per-mount — `unlockedThrough` is `3`
+  the moment `gate.unitComplete` or `modelGate.unitComplete` is true,
+  REACTIVELY (so the Apply tab lights up the instant a pass/approval lands),
+  but `currentPhase` deliberately does NOT auto-jump to Apply on that same
+  live transition, so the student stays on the Quiz screen to see
+  FrcQuizGate's "Passed" or FrcModelGate's "Approved" result and opens Apply
+  themselves. It DOES jump straight to Apply on a fresh mount of an
+  already-cleared unit (a `$effect` keyed on `unit.id` alone, reading
   `gate`/`modelGate` through Svelte's `untrack` so a live pass/approval within
   the same mount can never re-trigger it), so revisiting a finished unit never
   makes the student re-click through phases already done.

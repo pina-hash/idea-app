@@ -1,0 +1,55 @@
+{
+  "note": "Interactive drill banks. Client-side is fine: drills are coached practice and answers/feedback are meant to be shown. Distinct from the quiz banks. Types: order (arrange in sequence), match (pair left to right), pick (scenario choice with feedback). Readiness is scored on first-try correctness; below readinessPass the quiz stays locked.",
+  "banks": {
+    "MDM-1": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"dr1-1","type":"order","prompt":"Drag the design process into the correct order.","sequence":["Define the problem","Research","Generate concepts","Prototype","Select a concept","Detail the design","Manufacture","Test"]},
+        {"id":"dr1-2","type":"match","prompt":"Match each step to its job.","left":["Define","Prototype","Select","Detail"],"right":["State the job in one sentence","Build something crude to answer a question","Choose an option and write down why","Turn the choice into a clean CAD model"]},
+        {"id":"dr1-3","type":"pick","prompt":"\"The mount must bolt to the frame.\" Is this a demand or a goal?","options":["A demand, it must be true or the design fails","A goal, it would be nice to have"],"answer":0,"feedback":"A demand is pass or fail. \"Must\" is the tell."},
+        {"id":"dr1-4","type":"pick","prompt":"You just built a cardboard mockup and it works. What is next?","options":["Detail the final CAD","Select the concept and record why","Manufacture the real part"],"answer":1,"feedback":"Prototyping answers a question, then you select with a reason before detailing."},
+        {"id":"dr1-5","type":"pick","prompt":"Two concepts both meet every demand. What decides between them?","options":["The goals","A coin flip","Whichever was drawn first"],"answer":0,"feedback":"Demands are pass/fail; goals break the tie between options that already pass."}
+      ]
+    },
+    "MDM-2": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"dr2-1","type":"match","prompt":"Match each line to what it means.","left":["Solid line","Dashed line","Chain line (long-short)"],"right":["A visible edge","A hidden edge","A center or axis"]},
+        {"id":"dr2-2","type":"match","prompt":"Third-angle layout: match each view to where it sits.","left":["Top view","Right-side view"],"right":["Above the front view","To the right of the front view"]},
+        {"id":"dr2-3","type":"pick","prompt":"A callout reads 0.266 diameter THRU. What is it?","options":["A hole 0.266 across, all the way through","A 0.266 radius","A 0.266 deep pocket"],"answer":0,"feedback":"Diameter symbol means across; THRU means all the way through."},
+        {"id":"dr2-4","type":"pick","prompt":"A hole has a size callout but no dimensions to any edge. What is wrong?","options":["Nothing","Its position is undefined, so it cannot be made right"],"answer":1,"feedback":"Every feature needs both a size and a location."},
+        {"id":"dr2-5","type":"pick","prompt":"Where do you find the part's material?","options":["The title block","The top view","A hole callout"],"answer":0,"feedback":"Material, scale, units, and default tolerance all live in the title block."}
+      ]
+    },
+    "MDM-3": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"dr3-1","type":"match","prompt":"Match each nut to its job.","left":["Nyloc","Keps","Pem"],"right":["Resists vibration on pivots","Has a built-in biting washer","Presses into material too thin to tap"]},
+        {"id":"dr3-2","type":"match","prompt":"Match each part to why it is that way.","left":["Hex shaft","Round shaft section","Spacer with a through-bolt"],"right":["Locks a gear so it turns with the shaft","Lets a bearing ride on it","Preloads the joint for stiffness"]},
+        {"id":"dr3-3","type":"pick","prompt":"Which is a current high-performance motor?","options":["The Kraken X60","The CIM","The Mini CIM"],"answer":0,"feedback":"Brushless is the standard now. The CIM is obsolete."},
+        {"id":"dr3-4","type":"pick","prompt":"Which fastener family is the structural workhorse?","options":["The number 10 sizes","4-40","3/8-16"],"answer":0,"feedback":"And 10-32 especially, since most COTS parts are threaded 10-32."},
+        {"id":"dr3-5","type":"pick","prompt":"Two 20 DP gears have 24 and 60 teeth. Center distance?","options":["2.1 inches","4.2 inches","1.05 inches"],"answer":0,"feedback":"(24 + 60) / (2 x 20) = 2.1 inches."}
+      ]
+    },
+    "MDM-9": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"dr9-1","type":"match","prompt":"Match each hole type to when you use it.","left":["Clearance hole","Tapped hole"],"right":["Screw passes through to a nut","Screw threads straight into the part"]},
+        {"id":"dr9-2","type":"match","prompt":"Match each fastener choice to its use.","left":["Nyloc nut","Rivet","1/4-20"],"right":["A vibrating pivot","A fast one-sided joint","The highest structural loads"]},
+        {"id":"dr9-3","type":"pick","prompt":"You fasten into a thick block with no room for a nut. Which hole?","options":["Tapped","Clearance"],"answer":0,"feedback":"No nut, so the threads must live in the part."},
+        {"id":"dr9-4","type":"pick","prompt":"What does the Hole Wizard do that a sketched circle does not?","options":["Sizes the hole and carries the callout to the drawing","Makes the part lighter","Nothing, they are the same"],"answer":0,"feedback":"Always use the Hole Wizard for real fastener holes."},
+        {"id":"dr9-5","type":"pick","prompt":"An 8-32 clearance hole is what size?","options":["0.172 inch","0.089 inch","0.266 inch"],"answer":0,"feedback":"Clearance is slightly larger than the screw so it passes freely."}
+      ]
+    },
+    "MDM-10": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"dr10-1","type":"match","prompt":"Match each fit to a real example.","left":["Clearance fit","Interference / press fit"],"right":["A shaft spinning in a bearing","A bearing pressed into a plate"]},
+        {"id":"dr10-2","type":"match","prompt":"Match each GD and T idea to what it means.","left":["Feature control frame","Datum","Position control"],"right":["Sets a geometric control, a zone, and datums","A reference feature others are measured from","Where a hole must sit"]},
+        {"id":"dr10-3","type":"pick","prompt":"A dimension with no stated tolerance is...","options":["Held to the title-block default","Required to be perfect","Ignored"],"answer":0,"feedback":"No tolerance does not mean perfect, it means the default applies."},
+        {"id":"dr10-4","type":"pick","prompt":"Why not put a tight tolerance on every dimension?","options":["Tight tolerances waste shop time, so tolerance only what needs it","Loose is always better","It changes the material"],"answer":0,"feedback":"Tolerance the interfaces that matter, leave the rest at default."},
+        {"id":"dr10-5","type":"pick","prompt":"For a laser-cut slot and tab, how do you get a good fit?","options":["Open the slot ~0.005 and shrink the tab ~0.005","Make both exactly nominal","Grow both by 0.010"],"answer":0,"feedback":"A little clearance lets the parts actually assemble."}
+      ]
+    }
+  }
+}
