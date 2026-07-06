@@ -982,6 +982,27 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   remains but is re-themed by the scoped token overrides; new styles go in
   the viewport system, not there.
 
+## GREENLINE (prototype)
+
+GREENLINE is a 3D combat racing game in its earliest exploration phase. The
+only artifact so far is the movement-feel prototype at
+`/dev/greenline-movement` (dev-only harness, 404 in production, no auth or
+Supabase): a flat gridded plane with pylon distance markers, a placeholder box
+car driven by a cannon-es `RaycastVehicle` (`cannon-es` is a runtime
+dependency; three.js is reused, not duplicated), a smoothed chase camera,
+WASD/arrow + gamepad (standard mapping) input, Space handbrake, R reset, and
+an on-screen live tuning panel (engine/brake/handbrake force, handbrake grip
+cut, aero drag, max steer + speed-sensitive steering falloff, mass, gravity,
+suspension, tire friction, camera) so driving feel can be hand-tuned without a
+redeploy. Deliberately throwaway and iterative: it exists to validate
+acceleration, steering, and drift feel before any track, combat, or art gets
+built, and will be rebuilt as the design solidifies. One hard-won cannon-es
+lesson lives as a code comment in the route: a body's cached world AABB is
+computed while its quaternion is still identity and static bodies never
+refresh it, and raycasts (unlike contacts) are AABB-culled, so a rotated
+ground plane must call `updateAABB()` after its quaternion is set or the
+wheel rays only find ground on one side of the world.
+
 ## FRC Training track
 
 The Team 5669 FRC training track at `/frc`. Signed-in tier, any role; the

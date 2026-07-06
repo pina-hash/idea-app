@@ -43,6 +43,7 @@ interface PlayerProfile {
 /** Build the <head> bootstrap. `cloud` is the normalized v2 save (empty if signed out). */
 function injectionScript(
 	signedIn: boolean,
+	isTeacher: boolean,
 	cloud: StoredSave,
 	profile: PlayerProfile,
 	runStates: unknown
@@ -54,6 +55,8 @@ function injectionScript(
 	return `<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
+	var IS_TEACHER = ${isTeacher ? 'true' : 'false'};
+	window.__ideaIsTeacher = IS_TEACHER;
 	var CLOUD = ${cloudJson};
 	var PROFILE = ${profileJson};
 	// Cross-device run resume (0032/0037): the saved in-progress runs, one per
@@ -439,7 +442,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	}
 
 	const html = injectVersionBadge(
-		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile, runStates)}`),
+		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, isTeacher, cloud, profile, runStates)}`),
 		'vanguard'
 	);
 

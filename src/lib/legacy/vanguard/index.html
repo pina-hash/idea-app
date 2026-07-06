@@ -5812,6 +5812,37 @@ requestAnimationFrame(frame);
   document.body.appendChild(panel); document.body.appendChild(tab);
   let shown=true;
 
+  // Persistent floating TUNE button (visible only to teacher role)
+  const btn=document.createElement('button'); btn.id='teachTuneBtn'; btn.textContent='🛠️ TUNE';
+  btn.style.cssText='position:fixed;top:8px;right:8px;z-index:99;font:700 11px "Chakra Petch",sans-serif;color:var(--gold);background:rgba(200,255,0,0.18);border:1px solid var(--gold);border-radius:4px;padding:5px 10px;cursor:pointer;box-shadow:0 0 10px rgba(200,255,0,0.3);letter-spacing:0.08em;pointer-events:auto;';
+  btn.addEventListener('pointerdown',function(ev){
+    ev.preventDefault(); ev.stopPropagation();
+    if(gameMode==='tune'){
+      shown=!shown;
+    } else {
+      gameMode='tune';
+      shown=true;
+      BAL=loadTuneBAL();
+      if(typeof applyUpgrades==='function'&&player) applyUpgrades();
+      if(typeof window.__ideaVanguardClearCheckpoint==='function'){
+        window.__ideaVanguardClearCheckpoint('normal');
+        window.__ideaVanguardClearCheckpoint('hardcore');
+      }
+      try{
+        if(!document.getElementById('tuneTag')){
+          const ti=document.createElement('div'); ti.id='tuneTag'; ti.textContent='TUNE MODE';
+          ti.style.cssText='position:fixed;top:8px;left:8px;z-index:40;font:700 10px "Chakra Petch",sans-serif;letter-spacing:.12em;color:var(--gold);background:rgba(200,255,0,.1);border:1px solid var(--gold);border-radius:4px;padding:3px 8px;pointer-events:none';
+          document.body.appendChild(ti);
+        }
+      }catch(e){}
+    }
+    panel.style.display=shown?'block':'none';
+    tab.style.display=!shown?'block':'none';
+    refreshVals();
+    if(Audio_.play) Audio_.play('heavy_switch');
+  });
+  document.body.appendChild(btn);
+
   const TIMING={PLAYER:'recalc now',ENEMY:'next spawn',BOSS:'next boss',ECONOMY:'instant',PACING:'next boss'};
 
   function persist(){ const diff={}; for(const k in BAL_DEFAULTS){ if(JSON.stringify(BAL[k])!==JSON.stringify(BAL_DEFAULTS[k])) diff[k]=BAL[k]; } try{ localStorage.setItem('vanguard_baltune',JSON.stringify(diff)); }catch(e){} }
