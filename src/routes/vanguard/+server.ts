@@ -389,6 +389,7 @@ function injectionScript(
 
 export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	let signedIn = false;
+	let isTeacher = false;
 	let cloud: StoredSave = { v: 2, progression: {}, prefs: {} };
 	let profile: PlayerProfile = { name: '', avatarUrl: '' };
 	// One saved in-progress run per mode (0037). We inject the snapshots so the
@@ -401,13 +402,14 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 			supabase.from('vanguard_saves').select('data').eq('user_id', claims.sub).maybeSingle(),
 			supabase
 				.from('profiles')
-				.select('full_name, display_name, avatar_url')
+				.select('full_name, display_name, avatar_url, role')
 				.eq('id', claims.sub)
 				.maybeSingle(),
 			supabase.from('vanguard_run_state').select('data').eq('user_id', claims.sub)
 		]);
 		cloud = normalizeStored(saveRes.data?.data);
 		const p = profileRes.data;
+		isTeacher = p?.role === 'teacher';
 		profile = {
 			name: p?.display_name || p?.full_name || claims.email || 'Signed in',
 			avatarUrl: p?.avatar_url || ''
@@ -415,8 +417,29 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		runStates = (runRes.data ?? []).map((r) => r.data).filter((d) => d != null);
 	}
 
+	let htmlContent = vanguardHtml;
+	if (!isTeacher) {
+		// Strip the query param check that forces tune mode
+		htmlContent = htmlContent
+			.replace(
+				"if(m!=='normal'&&m!=='hardcore'&&m!=='dev'&&m!=='tune') m='normal';",
+				"if(m!=='normal'&&m!=='hardcore'&&m!=='dev') m='normal';"
+			)
+			.replace(
+				"try{ if(/[?&]tune=1\\b/.test(location.search)) m='tune'; }catch(e){}",
+				"/* tune mode disabled */"
+			);
+
+		// Completely slice out the TUNE balancing panel script block
+		const tuneStart = htmlContent.indexOf('/* ============================= TUNE balancing panel ============================= */');
+		const tuneEnd = htmlContent.indexOf('/* VANGUARD SFX sample layer */');
+		if (tuneStart !== -1 && tuneEnd !== -1) {
+			htmlContent = htmlContent.slice(0, tuneStart) + htmlContent.slice(tuneEnd);
+		}
+	}
+
 	const html = injectVersionBadge(
-		vanguardHtml.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile, runStates)}`),
+		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, cloud, profile, runStates)}`),
 		'vanguard'
 	);
 
