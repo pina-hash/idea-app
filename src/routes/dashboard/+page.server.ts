@@ -1,5 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { loadProgressForUsers } from '$lib/frc/progression';
+import { loadPendingSubmissions } from '$lib/frc/gate-submissions';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -40,13 +41,20 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		(students ?? []).map((s) => s.id)
 	);
 
+	// FRC modeling-gate submissions awaiting review (the teacher queue). Fails
+	// soft to an empty queue with frcReviewReady=false until migration 0042 is
+	// applied. Student display data is joined client-side from the roster above.
+	const { ready: frcReviewReady, rows: frcReviewQueue } = await loadPendingSubmissions(supabase);
+
 	return {
 		profile,
 		email: claims.email ?? profile?.email ?? null,
 		students: students ?? [],
 		rosterReady: !rosterError,
 		frcProgress,
-		frcProgressReady
+		frcProgressReady,
+		frcReviewQueue,
+		frcReviewReady
 	};
 };
 

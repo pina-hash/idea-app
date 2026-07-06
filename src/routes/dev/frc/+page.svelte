@@ -6,8 +6,10 @@
 	import UnitPage from '$lib/frc/UnitPage.svelte';
 	import FrcRankBadge from '$lib/frc/FrcRankBadge.svelte';
 	import FrcUnitOverride from '$lib/frc/FrcUnitOverride.svelte';
+	import FrcReviewQueue from '$lib/frc/FrcReviewQueue.svelte';
+	import type { GateSubmission } from '$lib/frc/gate-submissions';
 	import { domainById, completedCadCount, rankForCount, FRC_RANKS } from '$lib/frc/track';
-	import { MDM_UNITS, mdmUnitByNumber } from '$lib/frc/mdm-content';
+	import { MDM_UNITS, mdmUnitByNumber, mdmUnitById } from '$lib/frc/mdm-content';
 
 	/**
 	 * Manual verification harness for the FRC Training shell + progression
@@ -29,7 +31,7 @@
 	 * in-memory mark/unmark handler real pages point at the RPC-backed one.
 	 */
 
-	type View = 'progression' | 'home' | 'cad' | 'unit' | 'quiz' | 'placeholder' | 'refs';
+	type View = 'progression' | 'home' | 'cad' | 'unit' | 'quiz' | 'model' | 'placeholder' | 'refs';
 	let view: View = $state('progression');
 	let simulateTeacher = $state(true);
 
@@ -96,12 +98,90 @@
 		quizNonce++; // remount the gate fresh for the newly-selected unit
 	};
 
+	// Model-gate view (MDM-4..8): the student submission panel (UnitPage
+	// modelGate) and the teacher review queue (FrcReviewQueue) both operate on
+	// one in-memory store, so the full submit -> review -> approve/complete loop
+	// is verifiable without Supabase. Approving mirrors frc_mark_complete by
+	// marking the unit complete in `completed`. A "migration applied" toggle
+	// exercises the fail-soft apply-migration note.
+	const MODEL_UNIT_NS = [4, 5, 6, 7, 8];
+	const MODEL_UNIT_IDS = MODEL_UNIT_NS.map((n) => `MDM-${n}`);
+	let modelUnitN = $state(6);
+	let modelReady = $state(true);
+	let modelSubs = $state<Record<string, GateSubmission>>({});
+	const modelUnit = $derived(mdmUnitByNumber(modelUnitN) ?? unit1);
+	const modelIdx = $derived(MDM_UNITS.findIndex((u) => u.n === modelUnitN));
+	const modelNext = $derived(
+		modelIdx >= 0 && modelIdx < MDM_UNITS.length - 1 ? MDM_UNITS[modelIdx + 1] : null
+	);
+	const modelGate = $derived({
+		enabled: true as const,
+		ready: modelReady,
+		submission: modelSubs[modelUnit.id] ?? null,
+		unitComplete: completed.includes(modelUnit.id)
+	});
+	const onModelSubmit = async (link: string, notes: string) => {
+		modelSubs = {
+			...modelSubs,
+			[modelUnit.id]: {
+				status: 'submitted',
+				link,
+				notes,
+				feedback: modelSubs[modelUnit.id]?.feedback ?? '',
+				submittedAt: new Date().toISOString(),
+				reviewedAt: null
+			}
+		};
+		return { error: null };
+	};
+	const reviewItems = $derived(
+		Object.entries(modelSubs)
+			.filter(([, s]) => s.status === 'submitted')
+			.map(([unitId, s]) => {
+				const u = mdmUnitById(unitId);
+				return {
+					userId: 'dev-student',
+					unitId,
+					unitLabel: u ? `${u.id} · ${u.title}` : unitId,
+					studentName: 'Dev Student',
+					studentEmail: 'student@boscotech.net',
+					link: s.link,
+					notes: s.notes,
+					submittedAt: s.submittedAt
+				};
+			})
+	);
+	// Approve mirrors the real teacher path: frc_mark_complete (here `completed`)
+	// plus the submission row flipping to 'approved'.
+	const approveModel = (_userId: string, unitId: string) => {
+		if (!completed.includes(unitId)) completed = [...completed, unitId];
+		const cur = modelSubs[unitId];
+		if (cur)
+			modelSubs = {
+				...modelSubs,
+				[unitId]: { ...cur, status: 'approved', reviewedAt: new Date().toISOString() }
+			};
+	};
+	const reviseModel = (_userId: string, unitId: string, feedback: string) => {
+		const cur = modelSubs[unitId];
+		if (cur)
+			modelSubs = {
+				...modelSubs,
+				[unitId]: { ...cur, status: 'needs_revision', feedback, reviewedAt: new Date().toISOString() }
+			};
+	};
+	const resetModel = () => {
+		modelSubs = {};
+		completed = completed.filter((id) => !MODEL_UNIT_IDS.includes(id));
+	};
+
 	const VIEWS: { id: View; label: string }[] = [
 		{ id: 'progression', label: 'Progression (interactive)' },
 		{ id: 'home', label: 'Track home' },
 		{ id: 'cad', label: 'CAD domain' },
 		{ id: 'unit', label: 'Unit page' },
 		{ id: 'quiz', label: 'Quiz gate' },
+		{ id: 'model', label: 'Model gate' },
 		{ id: 'placeholder', label: 'Placeholder domain' },
 		{ id: 'refs', label: 'Reference shelf' }
 	];
@@ -163,6 +243,23 @@
 			</span>
 		</div>
 	</div>
+{:else if view === 'model'}
+	<div class="sim-panel">
+		<div class="sim-row">
+			<strong>Model gate (in-memory):</strong>
+			{#each MODEL_UNIT_NS as n (n)}
+				<button type="button" class:active={modelUnitN === n} onclick={() => (modelUnitN = n)}>
+					{`MDM-${n}`}
+				</button>
+			{/each}
+			<button type="button" onclick={resetModel}>Reset</button>
+			<label class="sim-teacher"><input type="checkbox" bind:checked={modelReady} /> migration applied</label>
+			<span class="sim-count">
+				{modelUnit.id}: {modelSubs[modelUnit.id]?.status ?? 'none'} &middot;
+				{completed.includes(modelUnit.id) ? 'complete' : 'incomplete'}
+			</span>
+		</div>
+	</div>
 {/if}
 
 <FrcShell rankCount={count} teacherOverride={simulateTeacher}>
@@ -198,6 +295,15 @@
 				}}
 			/>
 		{/key}
+		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
+	{:else if view === 'model'}
+		{#key modelUnitN}
+			<UnitPage domain={cad} unit={modelUnit} prev={null} next={modelNext} {modelGate} {onModelSubmit} />
+		{/key}
+		<div class="teacher-review-demo">
+			<h3>Teacher review queue (dashboard)</h3>
+			<FrcReviewQueue items={reviewItems} onApprove={approveModel} onRequestRevision={reviseModel} />
+		</div>
 		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
 	{:else if view === 'placeholder'}
 		<DomainLanding domain={foundation} />
@@ -277,5 +383,24 @@
 		font-size: 0.68rem;
 		color: var(--cyan, #00f0ff);
 		margin-left: auto;
+	}
+	/* Dark panel so the dashboard-themed FrcReviewQueue is readable inside the
+	   light FRC shell (harness only; on the real dashboard it sits on dark). */
+	.teacher-review-demo {
+		margin: 1.6rem 0;
+		padding: 0.8rem 1rem 1rem;
+		background: var(--bg1, #050f07);
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.2));
+		border-radius: 8px;
+	}
+	.teacher-review-demo h3 {
+		font-family: 'Share Tech Mono', monospace;
+		font-style: normal;
+		font-weight: 700;
+		font-size: 0.7rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--cyan, #00f0ff);
+		margin: 0 0 0.4rem;
 	}
 </style>

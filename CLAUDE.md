@@ -1120,6 +1120,39 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   teacher-only `frc_mark_complete` / `frc_unmark_complete` RPCs described above,
   and recreates `frc_quiz_grade` to write completion inline. See the SQL file's
   header comment for the full before/after.
+- **Modeling-gate submissions + review queue (0042; MDM-4 through MDM-8):** the
+  auto-gate for the five MODELING units (the counterpart to the knowledge quiz
+  gate). A student submits a link to their pack-and-go / model plus notes; a
+  teacher reviews it on the dashboard and, on approval, completes the unit
+  through the EXISTING `frc_mark_complete` RPC. **The table never writes
+  completion itself** (no trigger, no completion RPC): approval completion is a
+  separate teacher call to `frc_mark_complete`, the single completion-write
+  path. `frc_gate_submissions` is keyed `(user_id, unit_id)` with `link`,
+  `notes`, `status` (`submitted` | `approved` | `needs_revision`),
+  `reviewer_feedback`, and submitted/reviewed timestamps. Personal-data RLS on
+  the own-row pattern (0039/0040): a student reads + writes their OWN row, but
+  the INSERT/UPDATE `with check` pins their `status` to `'submitted'` (so a
+  student can never self-approve) and the UPDATE `using` requires
+  `status <> 'approved'` (so they may resubmit only while not yet approved);
+  teachers read all and update status + feedback. `src/lib/frc/gate-submissions.ts`
+  is the client seam (`loadSubmission`, `loadPendingSubmissions`, `submitGate`
+  as an RLS-guarded upsert, `approveSubmission` = `markUnitComplete` THEN row
+  update, `requestRevision`), all fail-soft (`ready:false` if 0042 is
+  unapplied). The unit page's `+page.server.ts` computes a `modelGate` (own
+  submission + unit-complete) for any unit whose gate is `gauntlet:*` and which
+  has no quiz bank; `FrcModelGate.svelte` renders the submit form / awaiting /
+  needs-revision (with mentor feedback + resubmit) / approved-complete states,
+  with an apply-migration note when `ready` is false. `FrcQuizGate` and the five
+  quiz gates (MDM-1/2/3/9/10) are unchanged. The dashboard shows the pending
+  queue (`FrcReviewQueue.svelte`, presentation + callbacks like
+  `FrcUnitOverride`): student, unit, link, notes, submitted time, with Approve
+  (→ `frc_mark_complete` + next unlocks) and Request-revision (feedback)
+  actions; the per-student completion override stays as the manual fallback
+  (and the sole path when 0042 is unapplied). The `/dev/frc` harness "Model
+  gate" view drives the whole submit → review → approve/revision loop over an
+  in-memory store (student panel + teacher queue on one page), with a
+  "migration applied" toggle for the fail-soft note. **Migration 0042 must be
+  applied manually in Supabase** (after 0039/0040/0041).
 - **Unit content (CAD and Mechanical Design):** the ten authored units MDM-1
   through MDM-10 live in the repo-root seed `mdm-content-seed.md` (the single
   source of truth: plain `key: value` frontmatter + `## Brief`/`## Drill`/

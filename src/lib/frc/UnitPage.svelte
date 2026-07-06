@@ -3,13 +3,18 @@
 	import { isBlockquote, parseDiagram, renderInline, stripBlockquote } from '$lib/frc/inline-markup';
 	import { DIAGRAMS } from '$lib/frc/diagrams';
 	import type { FrcDomain } from '$lib/frc/track';
+	import type { GateSubmission } from '$lib/frc/gate-submissions';
 	import FrcQuizGate from '$lib/frc/FrcQuizGate.svelte';
+	import FrcModelGate from '$lib/frc/FrcModelGate.svelte';
 
 	/**
-	 * A single CAD/Mechanical unit: its Brief, Drill, Gate, and Apply task. When
-	 * a unit has a live knowledge-gate quiz (`gate.enabled`, currently MDM-1) the
-	 * Gate section becomes the interactive attempt flow (FrcQuizGate); otherwise
-	 * it shows the Gate DESCRIPTION only.
+	 * A single CAD/Mechanical unit: its Brief, Drill, Gate, and Apply task. The
+	 * Gate section renders per gate type:
+	 *   - knowledge units (`gate.enabled`, MDM-1/2/3/9/10): the interactive quiz
+	 *     flow (FrcQuizGate);
+	 *   - modeling units (`modelGate.enabled`, MDM-4 through MDM-8): the model
+	 *     submission panel (FrcModelGate);
+	 *   - otherwise: the Gate DESCRIPTION only.
 	 */
 	let {
 		domain,
@@ -17,8 +22,10 @@
 		prev,
 		next,
 		gate = null,
+		modelGate = null,
 		quizEndpoint,
-		onQuizPass
+		onQuizPass,
+		onModelSubmit
 	}: {
 		domain: FrcDomain;
 		unit: MdmUnit;
@@ -31,10 +38,18 @@
 			unitComplete: boolean;
 			cooldownRemainingSec: number;
 		} | null;
+		modelGate?: {
+			enabled: true;
+			ready: boolean;
+			submission: GateSubmission | null;
+			unitComplete: boolean;
+		} | null;
 		/** Override the quiz POST target (dev harness); defaults to the real route. */
 		quizEndpoint?: string;
 		/** Optional pass hook (dev harness). */
 		onQuizPass?: () => void;
+		/** Model-gate submit handler (real page wires it to an RLS upsert). */
+		onModelSubmit?: (link: string, notes: string) => Promise<{ error: string | null }>;
 	} = $props();
 
 	const resolvedEndpoint = $derived(quizEndpoint ?? `/frc/${domain.id}/${unit.n}/quiz`);
@@ -208,6 +223,16 @@
 					cooldownRemainingSec: gate.cooldownRemainingSec
 				}}
 				onPass={onQuizPass}
+			/>
+		{:else if modelGate?.enabled}
+			<FrcModelGate
+				ready={modelGate.ready}
+				submission={modelGate.submission}
+				unitComplete={modelGate.unitComplete}
+				nextUnit={next ? { n: next.n, title: next.title } : null}
+				domainId={domain.id}
+				gateName={gateLabel(unit.gate)}
+				onSubmit={onModelSubmit ?? (async () => ({ error: 'Submitting is not available here.' }))}
 			/>
 		{:else}
 			<div class="frc-card gate-card">

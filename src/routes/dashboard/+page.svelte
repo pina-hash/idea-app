@@ -5,11 +5,13 @@
 	import Avatar from '$lib/Avatar.svelte';
 	import PathwayChip from '$lib/PathwayChip.svelte';
 	import FrcUnitOverride from '$lib/frc/FrcUnitOverride.svelte';
+	import FrcReviewQueue from '$lib/frc/FrcReviewQueue.svelte';
 	import { PATHWAY_IDS, pathwayColor } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
 	import { domainById, rankForCount } from '$lib/frc/track';
-	import { mdmUnitByNumber } from '$lib/frc/mdm-content';
+	import { mdmUnitByNumber, mdmUnitById } from '$lib/frc/mdm-content';
 	import { markUnitComplete, clearUnitComplete } from '$lib/frc/progression';
+	import { approveSubmission, requestRevision } from '$lib/frc/gate-submissions';
 
 	let { data } = $props();
 	let { profile, email, students, rosterReady } = $derived(data);
@@ -95,6 +97,62 @@
 		else await invalidateAll();
 		frcBusy = '';
 	};
+
+	// ------ FRC modeling-gate review queue (MDM-4 through MDM-8). ------
+	// Maps each pending submission to its student (from the roster) and unit
+	// (from the registry) for display. Approving records completion through
+	// frc_mark_complete (inside approveSubmission), the single completion path.
+	let reviewBusy = $state(''); // "<userId>:<unitId>" in flight
+	let reviewError = $state('');
+
+	const studentById = $derived(
+		new Map(((students ?? []) as StudentRow[]).map((s) => [s.id, s]))
+	);
+	const reviewItems = $derived(
+		(data.frcReviewQueue ?? []).map((r) => {
+			const s = studentById.get(r.userId);
+			const unit = mdmUnitById(r.unitId);
+			return {
+				userId: r.userId,
+				unitId: r.unitId,
+				unitLabel: unit ? `${unit.id} · ${unit.title}` : r.unitId,
+				studentName: s ? displayName(toProfile(s)) : 'Unknown student',
+				studentEmail: s?.email ?? null,
+				link: r.link,
+				notes: r.notes,
+				submittedAt: r.submittedAt
+			};
+		})
+	);
+
+	const approveReview = async (userId: string, unitId: string) => {
+		reviewBusy = `${userId}:${unitId}`;
+		reviewError = '';
+		const { error } = await approveSubmission(
+			data.supabase,
+			userId,
+			unitId,
+			new Date().toISOString()
+		);
+		if (error) reviewError = error;
+		else await invalidateAll();
+		reviewBusy = '';
+	};
+
+	const requestReview = async (userId: string, unitId: string, feedback: string) => {
+		reviewBusy = `${userId}:${unitId}`;
+		reviewError = '';
+		const { error } = await requestRevision(
+			data.supabase,
+			userId,
+			unitId,
+			feedback,
+			new Date().toISOString()
+		);
+		if (error) reviewError = error;
+		else await invalidateAll();
+		reviewBusy = '';
+	};
 </script>
 
 <div class="legacy-index">
@@ -167,6 +225,46 @@
 					</div>
 				</div>
 			</div>
+		</div>
+	</div>
+
+	<div class="divider" style="margin-top:2.5rem">
+		<div class="divider-line"></div>
+		<div class="divider-label">FRC Model Reviews</div>
+		<div class="divider-line"></div>
+	</div>
+
+	<div class="courses">
+		<div class="course-card visible">
+			<div class="course-header">
+				<div class="course-header-left">
+					<div class="course-id">Review Queue</div>
+					<div class="course-updated">
+						Modeling-gate submissions (MDM-4 to MDM-8) awaiting review. Approving completes the
+						unit and unlocks the next.
+					</div>
+				</div>
+				<div class="course-meta">
+					<span class="section-meta">{reviewItems.length} pending</span>
+				</div>
+			</div>
+			{#if !data.frcReviewReady}
+				<div class="roster-note">
+					Model submissions are not available yet. Apply migration
+					0042_frc_gate_submissions.sql in the Supabase SQL editor. The per-student completion
+					override below still works.
+				</div>
+			{:else}
+				<div style="padding:0.6rem 1rem 1rem">
+					<FrcReviewQueue
+						items={reviewItems}
+						busyKey={reviewBusy}
+						onApprove={approveReview}
+						onRequestRevision={requestReview}
+					/>
+					{#if reviewError}<p class="roster-error">{reviewError}</p>{/if}
+				</div>
+			{/if}
 		</div>
 	</div>
 
