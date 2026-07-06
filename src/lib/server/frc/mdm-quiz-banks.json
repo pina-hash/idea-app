@@ -1,6 +1,31 @@
 {
-  "delivery": "SERVER-SIDE ONLY. Answer indices must never be sent to the client. The server selects, shuffles, and grades. One bank per unit id.",
+  "delivery": "SERVER-SIDE ONLY. Answer indices must never be sent to the client. The server selects, shuffles, and grades. One bank per unit id. Not MDM-exclusive: F1 (Foundation domain) shares this same map.",
   "banks": {
+    "F1": {
+      "title": "Welcome to FRC",
+      "testLength": 8,
+      "passPercent": 90,
+      "objectives": {
+        "whatisfrc": "What FRC is and what a match looks like.",
+        "season": "How a season runs.",
+        "roles": "The many roles on a team.",
+        "training": "How this track works."
+      },
+      "items": [
+        {"id":"qf1-01","objective":"whatisfrc","stem":"What is FRC?","options":["A contest where high school teams build a robot to play a game","A video game","A class about writing essays","A type of computer"],"answer":0},
+        {"id":"qf1-02","objective":"whatisfrc","stem":"About how long is one match?","options":["Two and a half minutes","Two and a half hours","Ten seconds","A full day"],"answer":0},
+        {"id":"qf1-03","objective":"whatisfrc","stem":"How many teams join together as one alliance?","options":["Three","One","Six","Ten"],"answer":0},
+        {"id":"qf1-04","objective":"whatisfrc","stem":"What is autonomous?","options":["The part where the robot drives itself using code","The part where a driver controls the robot","The lunch break","The score at the end"],"answer":0},
+        {"id":"qf1-05","objective":"season","stem":"What happens at Kickoff?","options":["The new game is revealed","The season ends","The robot is shipped","The team is picked"],"answer":0},
+        {"id":"qf1-06","objective":"season","stem":"About how long is build season?","options":["About six weeks","About one week","About six months","About one day"],"answer":0},
+        {"id":"qf1-07","objective":"roles","stem":"Who does the work on an FRC team?","options":["Only the drivers","Many people in many roles, like design, build, code, strategy, and scouting","Only the coach","Only one student"],"answer":1},
+        {"id":"qf1-08","objective":"training","stem":"What is the correct order of the four steps in a unit?","options":["Brief, Drill, Quiz, Apply","Quiz, Apply, Brief, Drill","Apply, Quiz, Drill, Brief","Drill, Brief, Apply, Quiz"],"answer":0},
+        {"id":"qf1-09","objective":"training","stem":"What score do you need to pass a quiz?","options":["90 percent","50 percent","70 percent","100 percent"],"answer":0},
+        {"id":"qf1-10","objective":"training","stem":"How fast do you move through the track?","options":["At your own speed","Everyone must finish on the same day","Only during matches","You cannot control it"],"answer":0},
+        {"id":"qf1-11","objective":"training","stem":"What is the Drill step for?","options":["To practice and get ready before the quiz","To prove you already learned it","To end the unit","To pick the drivers"],"answer":0},
+        {"id":"qf1-12","objective":"training","stem":"Do you need experience before you start this track?","options":["No, everyone starts as a beginner","Yes, two years of robotics","Yes, you must already drive the robot","Yes, you must know how to weld"],"answer":0}
+      ]
+    },
     "MDM-2": {
       "title": "Reading Technical Drawings",
       "testLength": 6,

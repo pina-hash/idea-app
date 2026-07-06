@@ -42,13 +42,23 @@ export interface FrcDomain {
 	/** Ordered units; empty = domain renders the "content in development" placeholder. */
 	units: FrcUnit[];
 	/**
-	 * Which authored content set backs this domain's units, if any. 'mdm' means
-	 * the CAD/Mechanical units resolve to real per-unit pages (mdm-content.ts);
-	 * units with no matching content render as in-development placeholders.
-	 * Absent = no unit pages yet (whole domain is the placeholder block).
+	 * Which authored content set backs this domain's units, if any: 'mdm' for
+	 * the CAD/Mechanical units (mdm-content.ts) and 'foundation' for the
+	 * Foundation units (foundation-content.ts), each resolving to real
+	 * per-unit pages; units with no matching content in their domain's set
+	 * render as in-development placeholders. Absent = no unit pages yet (whole
+	 * domain is the placeholder block).
 	 */
-	contentSet?: 'mdm';
+	contentSet?: 'mdm' | 'foundation';
 }
+
+const FOUNDATION_UNIT_TITLES = [
+	'Welcome to FRC',
+	'How a Season Runs',
+	'Safety in the Shop',
+	'The Engineering Design Process',
+	'The Engineering Notebook'
+];
 
 const CAD_UNIT_TITLES = [
 	'Mechanical Design Process',
@@ -74,7 +84,14 @@ export const FRC_DOMAINS: FrcDomain[] = [
 		id: 'foundation',
 		title: 'Foundation',
 		blurb: 'What FRC is, how a season runs, and the habits of a useful team member.',
-		units: []
+		// Sequential unlock chain, same convention as CAD: F1 starts available (no
+		// prerequisite); F2-F5 have no authored content yet, so they render as
+		// in-development placeholders on the domain page regardless of this state.
+		units: FOUNDATION_UNIT_TITLES.map((title, i) => {
+			const n = i + 1;
+			return { n, id: `F${n}`, title, prerequisite: n === 1 ? null : `F${n - 1}` };
+		}),
+		contentSet: 'foundation'
 	},
 	{
 		id: 'cad-mechanical',

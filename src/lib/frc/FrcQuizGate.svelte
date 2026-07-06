@@ -230,7 +230,7 @@
 							Next unlocked: {nextUnit.title} &rsaquo;
 						</a>
 					{:else}
-						<span>All CAD units cleared.</span>
+						<span>All units in this domain cleared.</span>
 					{/if}
 				</div>
 			</div>

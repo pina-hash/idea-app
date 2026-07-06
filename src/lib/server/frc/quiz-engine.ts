@@ -4,10 +4,11 @@
  * item banks, so it must never be reachable from client code.
  *
  * It serves a PER-UNIT item bank: MDM-1 from its own file, and MDM-2 / MDM-3 /
- * MDM-9 / MDM-10 from the `banks` map in `mdm-quiz-banks.json`. Every path
- * keys off the unit id (`getQuizBank`) and uses that unit's own items,
- * `testLength`, and `passPercent`, so the selection, sealing, cooldown, and
- * grading are all per unit.
+ * MDM-9 / MDM-10 / F1 (Foundation domain) from the `banks` map in
+ * `mdm-quiz-banks.json` (the name predates F1; it is not MDM-exclusive).
+ * Every path keys off the unit id (`getQuizBank`) and uses that unit's own
+ * items, `testLength`, and `passPercent`, so the selection, sealing, cooldown,
+ * and grading are all per unit.
  *
  * Responsibilities, all pure and testable:
  *   - `pickAttempt` selects `testLength` items at random and shuffles each
@@ -45,8 +46,9 @@ interface QuizBank {
 }
 
 const MDM1_BANK = mdm1Bank as QuizBank;
-// The additional per-unit banks (MDM-2, MDM-3, MDM-9, MDM-10) share one file, a
-// `banks` map keyed by unit id; each carries its own items/testLength/passPercent.
+// The additional per-unit banks (MDM-2, MDM-3, MDM-9, MDM-10, and F1 from the
+// Foundation domain) share one file, a `banks` map keyed by unit id; each
+// carries its own items/testLength/passPercent.
 const SHARED_BANKS = (extraBanks as unknown as { banks: Record<string, QuizBank> }).banks;
 
 /** Unit id -> its quiz bank. */

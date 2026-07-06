@@ -9,6 +9,7 @@
 		type UnitState
 	} from '$lib/frc/track';
 	import { mdmUnitByNumber } from '$lib/frc/mdm-content';
+	import { foundationUnitByNumber } from '$lib/frc/foundation-content';
 	import FrcUnitOverride from '$lib/frc/FrcUnitOverride.svelte';
 
 	/**
@@ -55,9 +56,11 @@
 		complete: 'Complete'
 	};
 
-	/** Whether a unit has an authored per-unit page. */
+	/** Whether a unit has an authored per-unit page, in whichever content set its domain uses. */
 	function hasContent(u: FrcUnit): boolean {
-		return domain.contentSet === 'mdm' && !!mdmUnitByNumber(u.n);
+		if (domain.contentSet === 'mdm') return !!mdmUnitByNumber(u.n);
+		if (domain.contentSet === 'foundation') return !!foundationUnitByNumber(u.n);
+		return false;
 	}
 
 	/** The suggested-order hint for a unit whose prerequisite isn't complete yet. */
@@ -78,7 +81,7 @@
 	<p class="lead">{domain.blurb}</p>
 </section>
 
-{#if resolvedShowOverride && domain.contentSet === 'mdm' && overrideUnits.length}
+{#if resolvedShowOverride && domain.contentSet && overrideUnits.length}
 	<div class="teacher-override">
 		<div class="teacher-override-head">
 			<span class="teacher-override-label">Teacher tools &middot; your account</span>

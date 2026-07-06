@@ -234,7 +234,13 @@ function parseUnit(chunk: string): MdmUnit | null {
 	};
 }
 
-function parseSeed(raw: string): MdmUnit[] {
+/**
+ * Parse a seed in this format (frontmatter + `## ` sections, chunks split by
+ * `===`) into a typed unit list. Exported so other domains' content (e.g.
+ * `foundation-content.ts`) can reuse the exact same parser and model, rather
+ * than re-implementing it, as long as their seed follows the same convention.
+ */
+export function parseSeed(raw: string): MdmUnit[] {
 	// Drop the leading `--- ... ---` header/comment block, then split on `===`.
 	const withoutHeader = raw.replace(/^---[\s\S]*?---\s*/, '');
 	return withoutHeader

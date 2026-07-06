@@ -9,7 +9,8 @@
 	import FrcReviewQueue from '$lib/frc/FrcReviewQueue.svelte';
 	import type { GateSubmission } from '$lib/frc/gate-submissions';
 	import { domainById, completedCadCount, rankForCount, FRC_RANKS } from '$lib/frc/track';
-	import { MDM_UNITS, mdmUnitByNumber, mdmUnitById } from '$lib/frc/mdm-content';
+	import { MDM_UNITS, mdmUnitByNumber, mdmUnitById, type MdmUnit } from '$lib/frc/mdm-content';
+	import { FOUNDATION_UNITS, foundationUnitById } from '$lib/frc/foundation-content';
 
 	/**
 	 * Manual verification harness for the FRC Training shell + progression
@@ -37,6 +38,9 @@
 
 	const cad = domainById('cad-mechanical')!;
 	const foundation = domainById('foundation')!;
+	// Still a genuinely EMPTY domain (unlike foundation, which now has F1), so
+	// the "content in development" placeholder block stays exercisable.
+	const emptyDomain = domainById('mechanisms-prototyping')!;
 	const unit1 = mdmUnitByNumber(1)!;
 	const cadUnits = cad.units.filter((u) => mdmUnitByNumber(u.n));
 
@@ -59,26 +63,36 @@
 	const reset = () => (completed = []);
 
 	// Quiz-gate view: mounts the REAL UnitPage + FrcQuizGate against the dev mock
-	// endpoint (real engine, in-memory store), for ANY quiz unit. The picker
-	// drives the `?unit=` query param the mock reads, so each unit's own bank is
-	// served. A pass marks that unit complete here so the domain landing below
-	// reflects the unlock. `testLength`/`passPercent` mirror the server banks
-	// (dev-only display values; the actual questions come from the start
-	// response). MDM-1's bank is 10 questions, the others are 6.
-	const QUIZ_UNIT_NS = [1, 2, 3, 9, 10];
+	// endpoint (real engine, in-memory store), for ANY quiz unit ACROSS DOMAINS
+	// (the five MDM knowledge units, plus F1 in Foundation). The picker keys off
+	// the unit id (not a bare number, since F1 and MDM-1 would otherwise collide
+	// on n=1) and drives the `?unit=` query param the mock reads, so each unit's
+	// own bank is served. A pass marks that unit complete here so the domain
+	// landing below reflects the unlock. `testLength`/`passPercent` mirror the
+	// server banks (dev-only display values; the actual questions come from the
+	// start response).
+	const QUIZ_UNIT_IDS = ['MDM-1', 'MDM-2', 'MDM-3', 'MDM-9', 'MDM-10', 'F1'];
 	const QUIZ_GATE_META: Record<string, { testLength: number; passPercent: number }> = {
 		'MDM-1': { testLength: 10, passPercent: 90 },
 		'MDM-2': { testLength: 6, passPercent: 90 },
 		'MDM-3': { testLength: 6, passPercent: 90 },
 		'MDM-9': { testLength: 6, passPercent: 90 },
-		'MDM-10': { testLength: 6, passPercent: 90 }
+		'MDM-10': { testLength: 6, passPercent: 90 },
+		'F1': { testLength: 8, passPercent: 90 }
 	};
-	let quizUnitN = $state(1);
+	let quizUnitId = $state('MDM-1');
 	let quizNonce = $state(0);
-	const quizUnit = $derived(mdmUnitByNumber(quizUnitN) ?? unit1);
-	const quizIdx = $derived(MDM_UNITS.findIndex((u) => u.n === quizUnitN));
+	function resolveUnit(id: string): MdmUnit {
+		return mdmUnitById(id) ?? foundationUnitById(id) ?? unit1;
+	}
+	const quizUnit = $derived(resolveUnit(quizUnitId));
+	// Which domain owns the selected unit, so the mounted DomainLanding below
+	// matches (Foundation for F1, CAD for the rest).
+	const quizDomain = $derived(foundationUnitById(quizUnitId) ? foundation : cad);
+	const quizUnitsList = $derived(foundationUnitById(quizUnitId) ? FOUNDATION_UNITS : MDM_UNITS);
+	const quizIdx = $derived(quizUnitsList.findIndex((u) => u.id === quizUnit.id));
 	const quizNext = $derived(
-		quizIdx >= 0 && quizIdx < MDM_UNITS.length - 1 ? MDM_UNITS[quizIdx + 1] : null
+		quizIdx >= 0 && quizIdx < quizUnitsList.length - 1 ? quizUnitsList[quizIdx + 1] : null
 	);
 	const quizMeta = $derived(QUIZ_GATE_META[quizUnit.id] ?? { testLength: 6, passPercent: 90 });
 	const onQuizPass = () => {
@@ -93,8 +107,8 @@
 		completed = completed.filter((id) => id !== quizUnit.id);
 		quizNonce++;
 	};
-	const pickQuizUnit = (n: number) => {
-		quizUnitN = n;
+	const pickQuizUnit = (id: string) => {
+		quizUnitId = id;
 		quizNonce++; // remount the gate fresh for the newly-selected unit
 	};
 
@@ -220,9 +234,9 @@
 	<div class="sim-panel">
 		<div class="sim-row">
 			<strong>Quiz gate (mock backend, real engine):</strong>
-			{#each QUIZ_UNIT_NS as n (n)}
-				<button type="button" class:active={quizUnitN === n} onclick={() => pickQuizUnit(n)}>
-					{`MDM-${n}`}
+			{#each QUIZ_UNIT_IDS as id (id)}
+				<button type="button" class:active={quizUnitId === id} onclick={() => pickQuizUnit(id)}>
+					{id}
 				</button>
 			{/each}
 			<button type="button" onclick={resetGate}>Reset gate state</button>
@@ -278,9 +292,9 @@
 			next={unitPageIdx >= 0 && unitPageIdx < MDM_UNITS.length - 1 ? MDM_UNITS[unitPageIdx + 1] : null}
 		/>
 	{:else if view === 'quiz'}
-		{#key `${quizUnitN}-${quizNonce}`}
+		{#key `${quizUnitId}-${quizNonce}`}
 			<UnitPage
-				domain={cad}
+				domain={quizDomain}
 				unit={quizUnit}
 				prev={null}
 				next={quizNext}
@@ -295,7 +309,7 @@
 				}}
 			/>
 		{/key}
-		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
+		<DomainLanding domain={quizDomain} {completed} onToggleComplete={toggle} />
 	{:else if view === 'model'}
 		{#key modelUnitN}
 			<UnitPage domain={cad} unit={modelUnit} prev={null} next={modelNext} {modelGate} {onModelSubmit} />
@@ -306,7 +320,7 @@
 		</div>
 		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />
 	{:else if view === 'placeholder'}
-		<DomainLanding domain={foundation} />
+		<DomainLanding domain={emptyDomain} />
 	{:else}
 		<ReferenceShelf />
 	{/if}

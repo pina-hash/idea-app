@@ -1,6 +1,16 @@
 {
-  "note": "Interactive drill banks. Client-side is fine: drills are coached practice and answers/feedback are meant to be shown. Distinct from the quiz banks. Types: order (arrange in sequence), match (pair left to right), pick (scenario choice with feedback). Readiness is scored on first-try correctness; below readinessPass the quiz stays locked.",
+  "note": "Interactive drill banks. Client-side is fine: drills are coached practice and answers/feedback are meant to be shown. Distinct from the quiz banks. Types: order (arrange in sequence), match (pair left to right), pick (scenario choice with feedback). Readiness is scored on first-try correctness; below readinessPass the quiz stays locked. Not MDM-exclusive: F1 (Foundation domain) shares this same map.",
   "banks": {
+    "F1": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"drf1-1","type":"order","prompt":"Put the FRC season in order, from first to last.","sequence":["Kickoff, the new game is revealed","Build season, design and build the robot","Competition events","Championship"]},
+        {"id":"drf1-2","type":"match","prompt":"Match each word to what it means.","left":["Autonomous","Alliance","Match"],"right":["The part where the robot drives itself with code","A group of teams playing together","One short game, about two and a half minutes"]},
+        {"id":"drf1-3","type":"match","prompt":"Match each training step to what you do in it.","left":["Brief","Drill","Quiz","Apply"],"right":["Read and learn the topic","Practice like a game until you are ready","Prove you learned it at 90 percent","Use the skill for real"]},
+        {"id":"drf1-4","type":"pick","prompt":"About how long is build season?","options":["About six weeks","About one day","About six months"],"answer":0,"feedback":"You get roughly six weeks to design, build, and program the robot."},
+        {"id":"drf1-5","type":"pick","prompt":"What score do you need to pass a quiz in this track?","options":["90 percent","50 percent","100 percent"],"answer":0,"feedback":"You need 90 percent, so the quiz really shows you learned it."}
+      ]
+    },
     "MDM-1": {
       "readinessPass": 80,
       "items": [

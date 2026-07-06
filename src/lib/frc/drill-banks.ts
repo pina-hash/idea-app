@@ -1,13 +1,13 @@
 /**
- * Interactive drill banks for the five units that have one (MDM-1, 2, 3, 9,
- * 10): order (arrange a sequence), match (pair left items to right items),
- * and pick (a scenario multiple choice with feedback). Client-side only, on
- * purpose: unlike the quiz banks (`$lib/server/frc`), these are coached
- * practice, not a graded gate, so the content is meant to be shown, and there
- * is no server round trip, no persistence, and no schema. Units without a
- * bank (MDM-4 through MDM-8) keep the write-from-memory drill
- * (`FrcDrillPhase.svelte`); `UnitPage.svelte` picks between them via
- * `getDrillBank`.
+ * Interactive drill banks for the units that have one (MDM-1, 2, 3, 9, 10, and
+ * F1 from the Foundation domain): order (arrange a sequence), match (pair
+ * left items to right items), and pick (a scenario multiple choice with
+ * feedback). Client-side only, on purpose: unlike the quiz banks
+ * (`$lib/server/frc`), these are coached practice, not a graded gate, so the
+ * content is meant to be shown, and there is no server round trip, no
+ * persistence, and no schema. Units without a bank (MDM-4 through MDM-8) keep
+ * the write-from-memory drill (`FrcDrillPhase.svelte`); `UnitPage.svelte`
+ * picks between them via `getDrillBank`.
  */
 import raw from '../../../mdm-drill-banks.json';
 

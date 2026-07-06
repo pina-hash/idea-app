@@ -986,10 +986,11 @@ north star, read it before extending GAUNTLET). Summary of what exists:
 
 The Team 5669 FRC training track at `/frc`. Signed-in tier, any role; the
 whole track is open access and **pathway is identity, never a gate**, nothing
-in the track may wall off content by pathway. Structure, theme, the first
-domain's unit content, a real per-user progression backbone, and the first
-auto-gate (MDM-1's server-authoritative knowledge quiz) are live; the remaining
-gate engines (the other units' quizzes / GAUNTLET) are still deferred.
+in the track may wall off content by pathway. Structure, theme, two domains'
+unit content (CAD and Mechanical Design's sixteen units, Foundation's F1), a
+real per-user progression backbone, and the knowledge-quiz auto-gate are live;
+the remaining gate engines (GAUNTLET) and the rest of Foundation's units are
+still deferred.
 
 - **Registry:** `src/lib/frc/track.ts` (plain data, client-safe, like
   `curriculum.ts`): `FRC_TEAM`, the seven domains (Foundation, CAD and
@@ -1002,8 +1003,11 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   first unit, complete when its own id is in the set), and the rank ladder
   (`FRC_RANKS` thresholds + `rankForCount` / `completedCadCount` / `frcRank`:
   Rookie 0, Technician 3, Builder 6, Engineer 10 completed CAD units, tune the
-  thresholds here). A domain may declare `contentSet: 'mdm'` to mark that its
-  units resolve to real per-unit pages.
+  thresholds here). A domain may declare `contentSet: 'mdm'` or
+  `'foundation'` to mark that its units resolve to real per-unit pages (each
+  content set is its own authored seed + parsed unit list; see the Foundation
+  bullet below for how a second content set was added without introducing any
+  cross-domain coupling).
 - **Progression backbone (0039, locked down in 0041):** per-user unit
   completion in `frc_user_progress` (`(user_id, unit_id)` PK + `completed_at`),
   keyed by the registry unit ids. Students and teachers keep the 0039 SELECT
@@ -1195,6 +1199,38 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   bullet below for MDM-1/2/3/9/10). Units MDM-11 through MDM-16 have no seed
   content yet and render as non-clickable "In development" placeholders on
   the domain page.
+- **Foundation domain + F1 ("Welcome to FRC"):** the second content set,
+  proving the whole system (content model, phase machinery, both bank maps,
+  the unit route) generalizes to more than one domain with NO cross-domain
+  coupling introduced. `foundation-content.ts` parses the repo-root
+  `foundation-content-seed.md` with the EXACT SAME `parseSeed` parser as the
+  CAD content (exported from `mdm-content.ts` for reuse), into `FOUNDATION_UNITS`
+  (currently just F1) plus `foundationUnitByNumber` / `foundationUnitById`.
+  F1's quiz bank lives under key `F1` in the shared server
+  `mdm-quiz-banks.json` (the filename predates F1; it is not MDM-exclusive)
+  and its interactive drill bank under key `F1` in the shared client
+  `mdm-drill-banks.json`, so `getQuizBank('F1')` and `getDrillBank('F1')`
+  resolve exactly like any MDM knowledge unit and F1 runs the identical
+  four-phase flow (interactive scored drill gates a server-graded quiz at
+  90 percent, which unlocks Apply). The registry (`track.ts`) gives Foundation
+  `contentSet: 'foundation'` and five units, F1 real (`prerequisite: null`)
+  and F2 through F5 ("How a Season Runs", "Safety in the Shop", "The
+  Engineering Design Process", "The Engineering Notebook") as registry-only
+  placeholders with no seed content yet, rendering "In development" on the
+  domain page exactly like MDM-11 through MDM-16. Two call sites that used to
+  hardcode `contentSet === 'mdm'` were generalized to resolve by domain:
+  `DomainLanding`'s `hasContent()` (now checks `mdm` or `foundation`) and the
+  unit route's `[domain]/[unit]/+page.server.ts` (a small `CONTENT_SETS` map
+  from `contentSet` to `{ units, byNumber }`, so `prev`/`next` stay scoped
+  within the resolved domain's own unit list — no cross-domain prerequisite
+  or navigation was added). `FrcQuizGate`'s "all cleared" copy was generalized
+  from "All CAD units cleared" to "All units in this domain cleared" since it
+  is a shared component now genuinely reached from two domains. The `/dev/frc`
+  harness's "Quiz gate" view keys its picker on unit id (not a bare number,
+  since F1 and MDM-1 both have `n: 1`) and resolves the right domain/unit list
+  per id, so F1's full flow is verifiable without Supabase; the "Placeholder
+  domain" view now points at `mechanisms-prototyping` (still genuinely empty)
+  since Foundation itself is no longer a pure placeholder.
 - **Interactive scored drill (MDM-1, 2, 3, 9, 10):** the repo-root
   `mdm-drill-banks.json` (a `banks` map keyed by unit id, parallel to but
   distinct from the server-only quiz banks) holds `order` (arrange a shuffled

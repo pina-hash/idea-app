@@ -1,16 +1,30 @@
 import { error } from '@sveltejs/kit';
 import { cooldownSecondsForFailStreak, domainById } from '$lib/frc/track';
-import { MDM_UNITS, mdmUnitByNumber } from '$lib/frc/mdm-content';
+import { MDM_UNITS, mdmUnitByNumber, type MdmUnit } from '$lib/frc/mdm-content';
+import { FOUNDATION_UNITS, foundationUnitByNumber } from '$lib/frc/foundation-content';
 import { cooldownState, getQuizBank } from '$lib/server/frc/quiz-engine';
 import { loadSubmission, type GateSubmission } from '$lib/frc/gate-submissions';
 import type { PageServerLoad } from './$types';
 
 /**
- * A single unit page under a domain, e.g. /frc/cad-mechanical/1. Resolves the
- * unit (404 for unknown / non-content domains) and computes the Gate state per
- * gate type:
- *   - knowledge units with a bank (MDM-1, 2, 3, 9, 10): the server-authoritative
- *     quiz `gate` (readiness, unit-complete, cooldown), from that unit's bank;
+ * Each domain's content set supplies its own ordered unit list (for prev/next,
+ * scoped within that domain only) and a by-number lookup. Adding a domain's
+ * content here is the only change needed for this route to serve it; no
+ * cross-domain unlock logic is introduced by having two content sets.
+ */
+const CONTENT_SETS: Record<string, { units: MdmUnit[]; byNumber: (n: number) => MdmUnit | undefined }> = {
+	mdm: { units: MDM_UNITS, byNumber: mdmUnitByNumber },
+	foundation: { units: FOUNDATION_UNITS, byNumber: foundationUnitByNumber }
+};
+
+/**
+ * A single unit page under a domain, e.g. /frc/cad-mechanical/1 or
+ * /frc/foundation/1. Resolves the unit against its domain's content set
+ * (404 for unknown domains, non-content domains, or unknown unit numbers) and
+ * computes the Gate state per gate type:
+ *   - knowledge units with a bank (MDM-1, 2, 3, 9, 10, and F1 in Foundation):
+ *     the server-authoritative quiz `gate` (readiness, unit-complete,
+ *     cooldown), from that unit's bank;
  *   - modeling units (a `gauntlet:*` gate, MDM-4 through MDM-8): the model
  *     submission `modelGate` (the student's own submission + unit-complete).
  * Both fail soft to null (description-only Gate) if their migration (0040 /
@@ -18,13 +32,14 @@ import type { PageServerLoad } from './$types';
  */
 export const load: PageServerLoad = async ({ params, parent, locals: { supabase, claims } }) => {
 	const domain = domainById(params.domain);
-	if (!domain || domain.contentSet !== 'mdm') error(404, 'Unknown training unit');
+	const contentSet = domain?.contentSet ? CONTENT_SETS[domain.contentSet] : undefined;
+	if (!domain || !contentSet) error(404, 'Unknown training unit');
 
 	const n = Number(params.unit);
-	const unit = Number.isFinite(n) ? mdmUnitByNumber(n) : undefined;
+	const unit = Number.isFinite(n) ? contentSet.byNumber(n) : undefined;
 	if (!unit) error(404, 'Unknown training unit');
 
-	const idx = MDM_UNITS.findIndex((u) => u.n === unit.n);
+	const idx = contentSet.units.findIndex((u) => u.n === unit.n);
 
 	let gate: {
 		enabled: true;
@@ -86,8 +101,8 @@ export const load: PageServerLoad = async ({ params, parent, locals: { supabase,
 	return {
 		domain,
 		unit,
-		prev: idx > 0 ? MDM_UNITS[idx - 1] : null,
-		next: idx < MDM_UNITS.length - 1 ? MDM_UNITS[idx + 1] : null,
+		prev: idx > 0 ? contentSet.units[idx - 1] : null,
+		next: idx < contentSet.units.length - 1 ? contentSet.units[idx + 1] : null,
 		gate,
 		modelGate
 	};
