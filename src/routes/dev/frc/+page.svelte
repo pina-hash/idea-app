@@ -64,21 +64,25 @@
 
 	// Quiz-gate view: mounts the REAL UnitPage + FrcQuizGate against the dev mock
 	// endpoint (real engine, in-memory store), for ANY quiz unit ACROSS DOMAINS
-	// (the five MDM knowledge units, plus F1 in Foundation). The picker keys off
-	// the unit id (not a bare number, since F1 and MDM-1 would otherwise collide
-	// on n=1) and drives the `?unit=` query param the mock reads, so each unit's
-	// own bank is served. A pass marks that unit complete here so the domain
-	// landing below reflects the unlock. `testLength`/`passPercent` mirror the
-	// server banks (dev-only display values; the actual questions come from the
-	// start response).
-	const QUIZ_UNIT_IDS = ['MDM-1', 'MDM-2', 'MDM-3', 'MDM-9', 'MDM-10', 'F1'];
+	// (the five MDM knowledge units, plus F1-F5 in Foundation). The picker keys
+	// off the unit id (not a bare number, since e.g. F1 and MDM-1 would otherwise
+	// collide on n=1) and drives the `?unit=` query param the mock reads, so
+	// each unit's own bank is served. A pass marks that unit complete here so
+	// the domain landing below reflects the unlock. `testLength`/`passPercent`
+	// mirror the server banks (dev-only display values; the actual questions
+	// come from the start response).
+	const QUIZ_UNIT_IDS = ['MDM-1', 'MDM-2', 'MDM-3', 'MDM-9', 'MDM-10', 'F1', 'F2', 'F3', 'F4', 'F5'];
 	const QUIZ_GATE_META: Record<string, { testLength: number; passPercent: number }> = {
 		'MDM-1': { testLength: 10, passPercent: 90 },
 		'MDM-2': { testLength: 6, passPercent: 90 },
 		'MDM-3': { testLength: 6, passPercent: 90 },
 		'MDM-9': { testLength: 6, passPercent: 90 },
 		'MDM-10': { testLength: 6, passPercent: 90 },
-		'F1': { testLength: 8, passPercent: 90 }
+		'F1': { testLength: 8, passPercent: 90 },
+		'F2': { testLength: 6, passPercent: 90 },
+		'F3': { testLength: 6, passPercent: 90 },
+		'F4': { testLength: 6, passPercent: 90 },
+		'F5': { testLength: 6, passPercent: 90 }
 	};
 	let quizUnitId = $state('MDM-1');
 	let quizNonce = $state(0);
@@ -87,7 +91,7 @@
 	}
 	const quizUnit = $derived(resolveUnit(quizUnitId));
 	// Which domain owns the selected unit, so the mounted DomainLanding below
-	// matches (Foundation for F1, CAD for the rest).
+	// matches (Foundation for F1-F5, CAD for the rest).
 	const quizDomain = $derived(foundationUnitById(quizUnitId) ? foundation : cad);
 	const quizUnitsList = $derived(foundationUnitById(quizUnitId) ? FOUNDATION_UNITS : MDM_UNITS);
 	const quizIdx = $derived(quizUnitsList.findIndex((u) => u.id === quizUnit.id));

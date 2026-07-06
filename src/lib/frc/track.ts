@@ -85,8 +85,10 @@ export const FRC_DOMAINS: FrcDomain[] = [
 		title: 'Foundation',
 		blurb: 'What FRC is, how a season runs, and the habits of a useful team member.',
 		// Sequential unlock chain, same convention as CAD: F1 starts available (no
-		// prerequisite); F2-F5 have no authored content yet, so they render as
-		// in-development placeholders on the domain page regardless of this state.
+		// prerequisite), each later unit's suggested order is the one before it.
+		// All five (F1 through F5) now have authored content (foundation-content.ts)
+		// and resolve to real per-unit pages; this state is display/ordering only,
+		// per the open-access model (see unitState below), never a read gate.
 		units: FOUNDATION_UNIT_TITLES.map((title, i) => {
 			const n = i + 1;
 			return { n, id: `F${n}`, title, prerequisite: n === 1 ? null : `F${n - 1}` };

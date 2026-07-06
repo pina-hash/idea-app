@@ -1,5 +1,5 @@
 {
-  "note": "Interactive drill banks. Client-side is fine: drills are coached practice and answers/feedback are meant to be shown. Distinct from the quiz banks. Types: order (arrange in sequence), match (pair left to right), pick (scenario choice with feedback). Readiness is scored on first-try correctness; below readinessPass the quiz stays locked. Not MDM-exclusive: F1 (Foundation domain) shares this same map.",
+  "note": "Interactive drill banks. Client-side is fine: drills are coached practice and answers/feedback are meant to be shown. Distinct from the quiz banks. Types: order (arrange in sequence), match (pair left to right), pick (scenario choice with feedback). Readiness is scored on first-try correctness; below readinessPass the quiz stays locked. Not MDM-exclusive: F1-F5 (Foundation domain) share this same map.",
   "banks": {
     "F1": {
       "readinessPass": 80,
@@ -9,6 +9,46 @@
         {"id":"drf1-3","type":"match","prompt":"Match each training step to what you do in it.","left":["Brief","Drill","Quiz","Apply"],"right":["Read and learn the topic","Practice like a game until you are ready","Prove you learned it at 90 percent","Use the skill for real"]},
         {"id":"drf1-4","type":"pick","prompt":"About how long is build season?","options":["About six weeks","About one day","About six months"],"answer":0,"feedback":"You get roughly six weeks to design, build, and program the robot."},
         {"id":"drf1-5","type":"pick","prompt":"What score do you need to pass a quiz in this track?","options":["90 percent","50 percent","100 percent"],"answer":0,"feedback":"You need 90 percent, so the quiz really shows you learned it."}
+      ]
+    },
+    "F2": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"drf2-1","type":"order","prompt":"Put the season in order, from first to last.","sequence":["Kickoff","Build season","Qualification matches","Alliance selection","Playoffs"]},
+        {"id":"drf2-2","type":"match","prompt":"Match each part of a competition to what it is.","left":["Qualification matches","Alliance selection","Playoffs"],"right":["Matches that set your ranking","The top teams pick partners","Elimination rounds to decide the winner"]},
+        {"id":"drf2-3","type":"pick","prompt":"Right after Kickoff, what should the team do first?","options":["Read the manual and understand the game","Start welding the robot","Pick the drivers"],"answer":0,"feedback":"You have to understand the game before you build anything."},
+        {"id":"drf2-4","type":"pick","prompt":"What is build season mostly about?","options":["Build, test, find problems, and fix them, over and over","Getting it perfect on the first try","Watching other teams"],"answer":0,"feedback":"It is an iterate loop, not a one-shot build."},
+        {"id":"drf2-5","type":"pick","prompt":"About how long is build season?","options":["About six weeks","About one weekend","About six months"],"answer":0,"feedback":"Roughly six weeks, which is why time management matters."}
+      ]
+    },
+    "F3": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"drf3-1","type":"match","prompt":"Match each situation to the safe habit.","left":["Tools are running","Long hair near a machine","A machine you have never used","A mess on the floor"],"right":["Wear safety glasses","Tie it back","Get trained or ask a mentor first","Clean it up so no one trips"]},
+        {"id":"drf3-2","type":"pick","prompt":"When do you wear safety glasses?","options":["Any time tools are running, even when watching","Only when you feel like it","Only for the biggest machines"],"answer":0,"feedback":"Your eyes cannot be replaced, so glasses go on whenever tools run."},
+        {"id":"drf3-3","type":"pick","prompt":"You want to use a machine you have never used. What do you do?","options":["Get trained or ask a mentor first","Just try it and see","Watch one video and start"],"answer":0,"feedback":"There is real danger in guessing. Ask first."},
+        {"id":"drf3-4","type":"pick","prompt":"You notice a tool is broken. What do you do?","options":["Tell a mentor","Use it carefully anyway","Hide it"],"answer":0,"feedback":"Report broken tools so no one gets hurt using them."},
+        {"id":"drf3-5","type":"pick","prompt":"Why tie back hair and remove loose sleeves near machines?","options":["They can get caught in moving parts","It looks more professional","It keeps you warm"],"answer":0,"feedback":"Loose things getting caught is a common way people get hurt."}
+      ]
+    },
+    "F4": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"drf4-1","type":"order","prompt":"Put the design process loop in order.","sequence":["Understand the problem","Come up with ideas","Pick one and try it","Test it","Improve and repeat"]},
+        {"id":"drf4-2","type":"match","prompt":"Match each step to what you do.","left":["Understand the problem","Test it","Improve"],"right":["Say what you are solving and the limits","See what works and be honest about it","Use what you learned to make it better"]},
+        {"id":"drf4-3","type":"pick","prompt":"You skipped understanding the problem. What is the risk?","options":["You might build the wrong thing perfectly","Nothing, it saves time","The robot gets heavier"],"answer":0,"feedback":"Define the problem first, or you may solve the wrong one."},
+        {"id":"drf4-4","type":"pick","prompt":"A test just failed. What does that mean?","options":["You learned what to fix, which is normal","You should quit","The process does not work"],"answer":0,"feedback":"Failing a test is how you learn. The first version is never the last."},
+        {"id":"drf4-5","type":"pick","prompt":"Does this process only work for robot parts?","options":["No, it works for any problem","Yes, only mechanical parts","Only for code"],"answer":0,"feedback":"The same loop solves code, strategy, and design problems."}
+      ]
+    },
+    "F5": {
+      "readinessPass": 80,
+      "items": [
+        {"id":"drf5-1","type":"match","prompt":"Match each person to how they use the notebook.","left":["A new member","The team facing a choice","A judge at a competition"],"right":["Picks up where someone left off","Looks back at what happened before","Reads it to understand the team's work"]},
+        {"id":"drf5-2","type":"pick","prompt":"Should you write down a failure?","options":["Yes, the whole team learns from it","No, only successes","Only if a mentor asks"],"answer":0,"feedback":"Hiding a failure just means someone repeats it later."},
+        {"id":"drf5-3","type":"pick","prompt":"Who contributes to the notebook?","options":["Everyone who works on the robot","Only the team captain","Only the notebook person"],"answer":0,"feedback":"If you worked today, you have something to add."},
+        {"id":"drf5-4","type":"pick","prompt":"What is a good test of a notebook entry?","options":["Could someone else continue your work using only what you wrote","Is it long","Does it have neat handwriting"],"answer":0,"feedback":"Write so your work can be picked up by anyone."},
+        {"id":"drf5-5","type":"pick","prompt":"What should each entry include?","options":["What you did, why, the results, the date, and your name","Just the date","Only what went well"],"answer":0,"feedback":"Clear, honest, dated, and signed."}
       ]
     },
     "MDM-1": {

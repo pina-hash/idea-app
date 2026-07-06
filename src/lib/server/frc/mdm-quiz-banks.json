@@ -1,5 +1,5 @@
 {
-  "delivery": "SERVER-SIDE ONLY. Answer indices must never be sent to the client. The server selects, shuffles, and grades. One bank per unit id. Not MDM-exclusive: F1 (Foundation domain) shares this same map.",
+  "delivery": "SERVER-SIDE ONLY. Answer indices must never be sent to the client. The server selects, shuffles, and grades. One bank per unit id. Not MDM-exclusive: F1-F5 (Foundation domain) share this same map.",
   "banks": {
     "F1": {
       "title": "Welcome to FRC",
@@ -24,6 +24,78 @@
         {"id":"qf1-10","objective":"training","stem":"How fast do you move through the track?","options":["At your own speed","Everyone must finish on the same day","Only during matches","You cannot control it"],"answer":0},
         {"id":"qf1-11","objective":"training","stem":"What is the Drill step for?","options":["To practice and get ready before the quiz","To prove you already learned it","To end the unit","To pick the drivers"],"answer":0},
         {"id":"qf1-12","objective":"training","stem":"Do you need experience before you start this track?","options":["No, everyone starts as a beginner","Yes, two years of robotics","Yes, you must already drive the robot","Yes, you must know how to weld"],"answer":0}
+      ]
+    },
+    "F2": {
+      "title": "How a Season Runs",
+      "testLength": 6,
+      "passPercent": 90,
+      "objectives": {"kickoff":"Kickoff and understanding the game.","build":"Build season.","events":"Competition events.","after":"After the season."},
+      "items": [
+        {"id":"qf2-01","objective":"kickoff","stem":"What happens at Kickoff?","options":["The new game is revealed","The season ends","The robot ships","Drivers are chosen"],"answer":0},
+        {"id":"qf2-02","objective":"kickoff","stem":"What must the team do before building anything?","options":["Understand the game and its rules","Paint the robot","Order pizza","Pick a team name"],"answer":0},
+        {"id":"qf2-03","objective":"build","stem":"About how long is build season?","options":["About six weeks","About one day","About six months","About a year"],"answer":0},
+        {"id":"qf2-04","objective":"build","stem":"Which best describes build season?","options":["Design, build, test, and fix, over and over","Building it perfectly the first time","Only writing code","Only watching videos"],"answer":0},
+        {"id":"qf2-05","objective":"events","stem":"What do qualification matches decide?","options":["Your ranking at the event","The final winner","The team name","The game rules"],"answer":0},
+        {"id":"qf2-06","objective":"events","stem":"What happens in alliance selection?","options":["The top-ranked teams pick partners","The event ends","Everyone goes home","The robot is weighed"],"answer":0},
+        {"id":"qf2-07","objective":"events","stem":"What are the playoffs?","options":["Elimination rounds that decide the winner","Practice matches","The lunch break","The awards only"],"answer":0},
+        {"id":"qf2-08","objective":"after","stem":"What is the off-season for?","options":["Learning skills, training new members, and preparing","Nothing happens","Taking apart the shop","Ending the team"],"answer":0},
+        {"id":"qf2-09","objective":"after","stem":"What can teams that do well move on to?","options":["A Championship","Nothing bigger","A different sport","Summer break only"],"answer":0},
+        {"id":"qf2-10","objective":"build","stem":"The season is best described as what?","options":["A sprint where everyone has a part to play","A slow, quiet year","A one-person job","Only for drivers"],"answer":0}
+      ]
+    },
+    "F3": {
+      "title": "Safety in the Shop",
+      "testLength": 6,
+      "passPercent": 90,
+      "objectives": {"ppe":"Protective gear.","machines":"Working around machines.","habits":"Safe shop habits."},
+      "items": [
+        {"id":"qf3-01","objective":"ppe","stem":"What comes first in the shop, always?","options":["Safety","Speed","Winning","Cleaning"],"answer":0},
+        {"id":"qf3-02","objective":"ppe","stem":"When do you wear safety glasses?","options":["Any time tools are running, even when watching","Only on Fridays","Only for painting","Never"],"answer":0},
+        {"id":"qf3-03","objective":"machines","stem":"You have long hair and loose sleeves near a spinning machine. What do you do?","options":["Tie back hair and remove loose sleeves","Nothing, it is fine","Work faster","Stand closer"],"answer":0},
+        {"id":"qf3-04","objective":"machines","stem":"You have never used a certain machine. What should you do?","options":["Get trained or ask a mentor before using it","Just try it","Guess how it works","Use it while no one is looking"],"answer":0},
+        {"id":"qf3-05","objective":"machines","stem":"You are not sure how a tool works. What is the right move?","options":["Stop and ask a mentor","Keep guessing","Take it apart","Use it anyway"],"answer":0},
+        {"id":"qf3-06","objective":"habits","stem":"You get a small cut. What do you do?","options":["Report it","Ignore it","Hide it","Keep working and say nothing"],"answer":0},
+        {"id":"qf3-07","objective":"habits","stem":"You find a broken tool. What do you do?","options":["Tell a mentor","Use it carefully","Throw it in a drawer","Say nothing"],"answer":0},
+        {"id":"qf3-08","objective":"habits","stem":"Why clean up messes on the floor?","options":["So no one trips or slips","To look busy","It is not needed","To hide tools"],"answer":0},
+        {"id":"qf3-09","objective":"machines","stem":"On the most dangerous machines, you should...","options":["Not work alone","Work as fast as possible","Turn off the lights","Skip the guards"],"answer":0},
+        {"id":"qf3-10","objective":"ppe","stem":"Is a robot ever worth an injury?","options":["No, never","Yes, if it wins","Sometimes","Only at competition"],"answer":0}
+      ]
+    },
+    "F4": {
+      "title": "The Engineering Design Process",
+      "testLength": 6,
+      "passPercent": 90,
+      "objectives": {"loop":"The process is a loop.","steps":"The steps of the process.","mindset":"The mindset of iterating."},
+      "items": [
+        {"id":"qf4-01","objective":"loop","stem":"The design process is best described as what?","options":["A loop you repeat","A straight line with one pass","A single guess","A list you do once"],"answer":0},
+        {"id":"qf4-02","objective":"steps","stem":"What do you do first?","options":["Understand the problem","Build the final version","Test something","Write the notebook"],"answer":0},
+        {"id":"qf4-03","objective":"steps","stem":"Why come up with several ideas instead of one?","options":["A better chance of finding a good one","It wastes time","It is required by rules","To confuse people"],"answer":0},
+        {"id":"qf4-04","objective":"steps","stem":"What is a quick, rough first version for?","options":["To learn whether the idea works","To be the final part","To show judges","To sell"],"answer":0},
+        {"id":"qf4-05","objective":"steps","stem":"What does testing do?","options":["Shows what works and what to fix","Ends the project","Proves you are done","Nothing useful"],"answer":0},
+        {"id":"qf4-06","objective":"mindset","stem":"A test failed. What is the healthy response?","options":["Learn what to fix and try again","Quit","Hide it","Blame the tools"],"answer":0},
+        {"id":"qf4-07","objective":"mindset","stem":"\"The first version is never the last\" means what?","options":["Expect to improve and repeat","Build once and stop","Only experts iterate","Failure is not allowed"],"answer":0},
+        {"id":"qf4-08","objective":"loop","stem":"Does this process only work for robot parts?","options":["No, it works for any problem","Yes, only mechanical parts","Only for code","Only for strategy"],"answer":0},
+        {"id":"qf4-09","objective":"steps","stem":"What happens after you improve a version?","options":["You test it again and repeat the loop","You are finished for good","You start a new team","You skip testing"],"answer":0},
+        {"id":"qf4-10","objective":"steps","stem":"If you skip understanding the problem, what can happen?","options":["You build the wrong thing well","You always succeed","The robot gets lighter","Nothing changes"],"answer":0}
+      ]
+    },
+    "F5": {
+      "title": "The Engineering Notebook",
+      "testLength": 6,
+      "passPercent": 90,
+      "objectives": {"purpose":"Why the notebook matters.","content":"What to write.","habits":"Notebook habits."},
+      "items": [
+        {"id":"qf5-01","objective":"purpose","stem":"What is the engineering notebook?","options":["The team's written record of what it did, why, and what it learned","A list of team members","A rulebook","A scorecard"],"answer":0},
+        {"id":"qf5-02","objective":"purpose","stem":"Why does the notebook matter?","options":["New members can pick up work and the team avoids repeating mistakes","It is just for looks","Only judges care","It is required to be long"],"answer":0},
+        {"id":"qf5-03","objective":"content","stem":"What should an entry include?","options":["What you did, why, results, the date, and your name","Only the date","Only what went well","Just a drawing"],"answer":0},
+        {"id":"qf5-04","objective":"content","stem":"Should you record failures?","options":["Yes, the team learns from them","No, only successes","Only big ones","Never"],"answer":0},
+        {"id":"qf5-05","objective":"habits","stem":"Who contributes to the notebook?","options":["Everyone who works on the robot","Only the captain","Only mentors","Only drivers"],"answer":0},
+        {"id":"qf5-06","objective":"content","stem":"What is a good test of an entry?","options":["Could someone else continue your work from it","Is it colorful","Is it short","Does it rhyme"],"answer":0},
+        {"id":"qf5-07","objective":"content","stem":"Why write down why you chose something?","options":["So the team remembers the reason and does not re-argue it","To fill space","It is not needed","To confuse judges"],"answer":0},
+        {"id":"qf5-08","objective":"purpose","stem":"What does hiding a failure lead to?","options":["Someone repeating it later","A better robot","Nothing","A prize"],"answer":0},
+        {"id":"qf5-09","objective":"purpose","stem":"Judges use the notebook to do what?","options":["Understand your team's work","Score the match","Pick the drivers","Set the rules"],"answer":0},
+        {"id":"qf5-10","objective":"habits","stem":"Notebook entries should be what?","options":["Clear and honest","Vague","Secret","As long as possible"],"answer":0}
       ]
     },
     "MDM-2": {
