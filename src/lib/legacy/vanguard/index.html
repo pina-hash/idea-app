@@ -226,14 +226,23 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .cab-ptitle::before,.cab-ptitle::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,65,.45))}
 .cab-ptitle::after{background:linear-gradient(90deg,rgba(0,255,65,.45),transparent)}
 .cab-ctoggle{padding:3px 9px;font-size:8.5px}
-#buildItems{display:flex;flex-wrap:wrap;justify-content:center;gap:5px;width:100%;max-height:118px;overflow-y:auto;margin-top:-2px}
+#buildItems{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;width:100%;max-height:220px;overflow-y:auto;margin-top:2px}
 #buildItems:empty{display:none;margin:0}
 #buildItems::-webkit-scrollbar{width:5px}#buildItems::-webkit-scrollbar-thumb{background:rgba(0,255,65,.3);border-radius:3px}
-.bi-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px 3px 6px;border:1px solid rgba(0,255,65,.35);border-radius:12px;background:rgba(0,255,65,.06);
-  font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.03em;color:var(--white);white-space:nowrap;box-shadow:0 0 6px rgba(0,255,65,.08)}
-.bi-chip .ic{flex:0 0 13px;width:13px;height:13px;color:var(--green)}
-.bi-chip .ic svg{width:13px;height:13px}
-.bi-chip .lv{color:var(--gold);font-family:'Chakra Petch',sans-serif;font-weight:700;margin-left:1px}
+.bi-card{--cc:var(--green);display:flex;align-items:center;gap:6px;padding:4px 6px;
+  background:linear-gradient(100deg,rgba(0,20,8,.65),rgba(0,12,6,.5));
+  border:1px solid color-mix(in srgb,var(--cc) 40%,transparent);border-left:3px solid var(--cc);border-radius:6px;
+  font-family:'Share Tech Mono',monospace;color:var(--white);position:relative;width:100%}
+.bi-card .cic{flex:0 0 24px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--cc);
+  border:1px solid color-mix(in srgb,var(--cc) 35%,transparent);border-radius:4px;background:color-mix(in srgb,var(--cc) 8%,transparent);box-shadow:0 0 5px color-mix(in srgb,var(--cc) 12%,transparent)}
+.bi-card .cic svg{width:16px;height:16px}
+.bi-card .cbody{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.bi-card .cname{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:9.5px;letter-spacing:.02em;color:var(--cc);
+  text-shadow:0 0 5px color-mix(in srgb,var(--cc) 35%,transparent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bi-card .cpips{display:flex;gap:2px;margin:1px 0 0}
+.bi-card .cpips .pip{width:5px;height:3px;border-radius:0.5px;background:rgba(255,255,255,.12);border:1px solid color-mix(in srgb,var(--cc) 25%,transparent)}
+.bi-card .cpips .pip.on{background:var(--cc);border-color:var(--cc);box-shadow:0 0 3px var(--cc)}
+.bi-card .clv-text{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--gold)}
 .cab-foot{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;width:min(440px,96%)}
 @media (prefers-reduced-motion: reduce){ .cab-marquee,.cab-marquee::before,#ovlTitle .title-wm .a,#startCta{animation:none} }
 /* ---- RUN HISTORY: visual stats page ---- */
@@ -4898,21 +4907,31 @@ function buildItemChips(){
   const b=startBuild, u=b.up, hu=b.heavyUnlocked||{}, base=freshBuild().up;
   const byName={}; outfitOffers().forEach(o=>{ byName[o.name]=o; });
   const chips=[];
-  for(const k in BUILDITEM_OFFER){ if((u[k]||0)>(base[k]||0)){ const o=byName[BUILDITEM_OFFER[k]]; if(o) chips.push({icon:o.icon,name:o.name,lv:o.lv}); } }
-  if(b.shieldHits>0){ const o=byName['SHIELD +1']; if(o) chips.push({icon:o.icon,name:o.name,lv:b.shieldHits}); }
-  if(b.bombs>2){ const o=byName['BOMB +1']; if(o) chips.push({icon:o.icon,name:o.name,lv:b.bombs}); }
-  if(b.drone){ const o=byName['DRONE']; if(o) chips.push({icon:o.icon,name:o.name}); }
-  ['lance','homing','rapid','flak','buzzsaw'].forEach(w=>{ if(b.unlocked&&b.unlocked[w]) chips.push({icon:shopIcon(WROT_ICON[w]),name:'UNLOCK '+(WDISP[w]||w.toUpperCase())}); });
-  ['rail','tesla','singularity','wave'].forEach(h=>{ if(hu[h]) chips.push({icon:shopIcon(HROT_ICON[h]),name:'UNLOCK '+(HEAVYNAME[h]||h.toUpperCase())}); });
-  if(b.wtype && b.wtype!=='spread') chips.push({icon:shopIcon(WROT_ICON[b.wtype]),name:'PRIMARY: '+(WDISP[b.wtype]||b.wtype.toUpperCase())});
-  if(b.heavy && b.heavy!=='beam') chips.push({icon:shopIcon(HROT_ICON[b.heavy]),name:'HEAVY: '+(HEAVYNAME[b.heavy]||b.heavy.toUpperCase())});
+  for(const k in BUILDITEM_OFFER){ if((u[k]||0)>(base[k]||0)){ const o=byName[BUILDITEM_OFFER[k]]; if(o) chips.push({icon:o.icon,name:o.name,lv:u[k],mx:o.mx,grp:o.grp}); } }
+  if(b.shieldHits>0){ const o=byName['SHIELD +1']; if(o) chips.push({icon:o.icon,name:o.name,lv:b.shieldHits,mx:o.mx,grp:o.grp}); }
+  if(b.bombs>2){ const o=byName['BOMB +1']; if(o) chips.push({icon:o.icon,name:o.name,lv:b.bombs,mx:o.mx,grp:o.grp}); }
+  if(b.drone){ const o=byName['DRONE']; if(o) chips.push({icon:o.icon,name:o.name,lv:undefined,mx:o.mx,grp:o.grp}); }
+  ['lance','homing','rapid','flak','buzzsaw'].forEach(w=>{ if(b.unlocked&&b.unlocked[w]) chips.push({icon:WROT_ICON[w],name:'UNLOCK '+(WDISP[w]||w.toUpperCase()),lv:undefined,mx:0,grp:'WEAPONS'}); });
+  ['rail','tesla','singularity','wave'].forEach(h=>{ if(hu[h]) chips.push({icon:HROT_ICON[h],name:'UNLOCK '+(HEAVYNAME[h]||h.toUpperCase()),lv:undefined,mx:0,grp:'HEAVY'}); });
+  if(b.wtype && b.wtype!=='spread') chips.push({icon:WROT_ICON[b.wtype],name:'PRIMARY: '+(WDISP[b.wtype]||b.wtype.toUpperCase()),lv:undefined,mx:0,grp:'WEAPONS'});
+  if(b.heavy && b.heavy!=='beam') chips.push({icon:HROT_ICON[b.heavy],name:'HEAVY: '+(HEAVYNAME[b.heavy]||b.heavy.toUpperCase()),lv:undefined,mx:0,grp:'HEAVY'});
   return chips;
 }
 function refreshBuildSummary(){ const s=el('buildSummary'); if(!s)return; const n=buildCount(); const left=Math.max(0,START_BUDGET-(startBuild.spent||0));
   if(gameMode==='dev'){ s.textContent=n>0?(n+' upgrade'+(n>1?'s':'')+' · DEV (unlimited)'):'DEV build · unlimited budget, all unlocks apply.'; }
   else { s.textContent=n>0?(n+' upgrade'+(n>1?'s':'')+' · '+startBuild.spent.toLocaleString()+' spent · '+left.toLocaleString()+' i¢ carried in'):('Full '+START_BUDGET.toLocaleString()+' i¢ carries into the run.'); }
   const bi=el('buildItems'); if(bi){ const chips=buildItemChips();
-    bi.innerHTML=chips.map(c=>'<span class="bi-chip"><span class="ic">'+c.icon+'</span>'+escHTML(c.name)+(c.lv!=null?' <span class="lv">'+c.lv+'</span>':'')+'</span>').join(''); } }
+    bi.innerHTML=chips.map(c=>{
+      const col=shopGroupColor(c.grp);
+      let pips=''; if(c.mx>0 && c.lv!=null){ for(let k=0;k<c.mx;k++) pips+='<i class="pip'+(k<c.lv?' on':'')+'"></i>'; }
+      return '<div class="bi-card" style="--cc:'+col+'">'
+        +'<span class="cic">'+shopIcon(c.icon)+'</span>'
+        +'<span class="cbody"><span class="cname">'+escHTML(c.name)+'</span>'
+        +(pips?('<span class="cpips">'+pips+'</span>'):'')
+        +'</span>'
+        +(c.lv!=null && !pips?('<span class="clv-text">Lv '+c.lv+'</span>'):'')
+        +'</div>';
+    }).join(''); } }
 function buildOutfit(){ const box=el('outfitItems'); if(!box)return; const dev=(gameMode==='dev'); const rem=START_BUDGET-startBuild.spent;
   const bd=el('outfitBudget'); if(bd) bd.textContent=dev?'∞':rem.toLocaleString();
   renderShopGrid(box, outfitOffers(), {
