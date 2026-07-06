@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { gateLabel, mdmUnitById, type MdmUnit } from '$lib/frc/mdm-content';
 	import { isBlockquote, parseDiagram, renderInline, stripBlockquote } from '$lib/frc/inline-markup';
 	import { DIAGRAMS } from '$lib/frc/diagrams';
@@ -6,15 +7,21 @@
 	import type { GateSubmission } from '$lib/frc/gate-submissions';
 	import FrcQuizGate from '$lib/frc/FrcQuizGate.svelte';
 	import FrcModelGate from '$lib/frc/FrcModelGate.svelte';
+	import FrcPhaseStepper from '$lib/frc/FrcPhaseStepper.svelte';
+	import FrcDrillPhase from '$lib/frc/FrcDrillPhase.svelte';
 
 	/**
-	 * A single CAD/Mechanical unit: its Brief, Drill, Gate, and Apply task. The
-	 * Gate section renders per gate type:
+	 * A single CAD/Mechanical unit, restructured into four SEQUENTIAL, GATED
+	 * phases: Brief -> Drill -> Quiz -> Apply. Each phase unlocks the next; the
+	 * student can always click back to an already-unlocked phase to review it,
+	 * but cannot open a locked one. The Quiz phase renders per gate type:
 	 *   - knowledge units (`gate.enabled`, MDM-1/2/3/9/10): the interactive quiz
 	 *     flow (FrcQuizGate);
 	 *   - modeling units (`modelGate.enabled`, MDM-4 through MDM-8): the model
 	 *     submission panel (FrcModelGate);
 	 *   - otherwise: the Gate DESCRIPTION only.
+	 * Grading, review, and completion-writing are unchanged; this component only
+	 * changes when each section is shown.
 	 */
 	let {
 		domain,
@@ -62,28 +69,63 @@
 			: undefined
 	);
 
+	const PHASES = [
+		{ key: 'brief', label: 'Brief' },
+		{ key: 'drill', label: 'Drill' },
+		{ key: 'quiz', label: 'Quiz' },
+		{ key: 'apply', label: 'Apply' }
+	];
+
 	/**
-	 * Drill retrieval-practice state: per-question typed attempt, whether it has
-	 * been checked (revealing the model answer), and an optional self-mark.
-	 * Entirely client-side and per-page, never persisted; MDM_UNITS is a stable
-	 * module-level array (parsed once from the seed), so `unit` keeps the same
-	 * object reference across re-renders of the SAME unit and only changes
-	 * reference on a real navigation to a different unit, which is exactly when
-	 * this state should reset.
+	 * Phase progression. `gateCleared` is the server-authoritative truth (quiz
+	 * passed or submission approved) and drives `unlockedThrough` REACTIVELY, so
+	 * the Apply tab unlocks the moment a pass/approval lands, with no extra
+	 * click. `manualUnlock` is the student's own forward progress through
+	 * Brief/Drill/Quiz, which is NOT graded — advancing Brief and (optionally)
+	 * Drill is the student's choice, not a checked gate.
+	 *
+	 * `currentPhase` (which screen is OPEN) is intentionally NOT force-advanced
+	 * by a live pass/approval: the student stays on the Quiz screen to see the
+	 * result (FrcQuizGate's "Passed" state, or FrcModelGate's "Approved") and
+	 * clicks into Apply themselves. It only jumps straight to Apply on a FRESH
+	 * mount of an ALREADY-cleared unit (returning to one passed in a prior
+	 * session), so re-visiting never makes the student re-click through phases
+	 * that are already done.
+	 *
+	 * Both are client-side, per-mount state (like the Drill practice state).
+	 * The effect resets them on a real navigation to a different unit only
+	 * (`unit.id` is its sole tracked dependency; the initial-cleared check reads
+	 * `gate`/`modelGate` via `untrack` so a live pass/approval on the SAME unit
+	 * never re-triggers this reset and yanks the student off the result screen).
 	 */
-	type Mark = 'had-it' | 'review' | null;
-	let attempts = $state<string[]>([]);
-	let checked = $state<boolean[]>([]);
-	let marks = $state<Mark[]>([]);
+	const initialCleared = !!(gate?.unitComplete || modelGate?.unitComplete);
+	let manualUnlock = $state(initialCleared ? 3 : 0);
+	let currentPhase = $state(initialCleared ? 3 : 0);
 
 	$effect(() => {
-		const count = unit.drill.length;
-		attempts = Array(count).fill('');
-		checked = Array(count).fill(false);
-		marks = Array(count).fill(null) as Mark[];
+		unit.id; // sole dependency: reset on a real navigation to a different unit
+		const cleared = untrack(() => !!(gate?.unitComplete || modelGate?.unitComplete));
+		manualUnlock = cleared ? 3 : 0;
+		currentPhase = cleared ? 3 : 0;
 	});
 
-	const checkedCount = $derived(checked.filter(Boolean).length);
+	const gateCleared = $derived(!!(gate?.unitComplete || modelGate?.unitComplete));
+	const unlockedThrough = $derived(gateCleared ? 3 : manualUnlock);
+
+	function goToPhase(i: number) {
+		if (i <= unlockedThrough) currentPhase = i;
+	}
+	function continueToDrill() {
+		manualUnlock = Math.max(manualUnlock, 1);
+		currentPhase = 1;
+	}
+	function continueToQuiz() {
+		manualUnlock = Math.max(manualUnlock, 2);
+		currentPhase = 2;
+	}
+	function reviewBrief() {
+		currentPhase = 0;
+	}
 </script>
 
 <nav class="crumb" aria-label="Breadcrumb">
@@ -119,144 +161,104 @@
 	</div>
 </section>
 
+<FrcPhaseStepper phases={PHASES} currentIndex={currentPhase} {unlockedThrough} onSelect={goToPhase} />
+
 <article class="unit-body">
-	<section class="sec">
-		<h2>Brief</h2>
-		{#each unit.brief as p (p)}
-			{@const diagram = parseDiagram(p)}
-			{#if diagram}
-				{@const src = DIAGRAMS[diagram.key]}
-				{#if src}
-					<figure class="brief-diagram">
-						<div class="diagram-frame">
-							<img src={src} alt={diagram.caption} loading="lazy" />
-						</div>
-						<figcaption>{@html renderInline(diagram.caption)}</figcaption>
-					</figure>
-				{/if}
-			{:else if isBlockquote(p)}
-				<blockquote class="worked-example">{@html renderInline(stripBlockquote(p))}</blockquote>
-			{:else}
-				<p>{@html renderInline(p)}</p>
-			{/if}
-		{/each}
-	</section>
-
-	<section class="sec">
-		<h2>Drill</h2>
-		<p class="drill-progress">{checkedCount} of {unit.drill.length} checked</p>
-		<ol class="drill">
-			{#each unit.drill as d, i (d)}
-				{@const answer = unit.drillAnswers[i]}
-				{@const attempted = !!attempts[i]?.trim()}
-				<li class="drill-item">
-					<span class="drill-q">{d}</span>
-					<div class="drill-attempt">
-						<label class="drill-label" for="drill-{unit.id}-{i}">Write your answer from memory.</label>
-						<textarea
-							id="drill-{unit.id}-{i}"
-							class="drill-input"
-							rows="2"
-							placeholder="Type what you remember, then check it."
-							value={attempts[i] ?? ''}
-							oninput={(e) => (attempts[i] = e.currentTarget.value)}
-						></textarea>
-						{#if !checked[i]}
-							<button
-								type="button"
-								class="drill-check"
-								disabled={!attempted}
-								onclick={() => (checked[i] = true)}
-							>
-								Check answer
-							</button>
-						{/if}
-					</div>
-					{#if checked[i]}
-						{#if answer}
-							<div class="drill-model">
-								<span class="drill-model-label">Model answer</span>
-								<p class="drill-model-text">{answer}</p>
-								<div class="drill-mark">
-									<button
-										type="button"
-										class="mark-btn had-it"
-										class:active={marks[i] === 'had-it'}
-										aria-pressed={marks[i] === 'had-it'}
-										onclick={() => (marks[i] = 'had-it')}
-									>
-										I had it
-									</button>
-									<button
-										type="button"
-										class="mark-btn review"
-										class:active={marks[i] === 'review'}
-										aria-pressed={marks[i] === 'review'}
-										onclick={() => (marks[i] = 'review')}
-									>
-										Review this
-									</button>
-								</div>
+	{#if currentPhase === 0}
+		<section class="sec">
+			<h2>Brief</h2>
+			{#each unit.brief as p (p)}
+				{@const diagram = parseDiagram(p)}
+				{#if diagram}
+					{@const src = DIAGRAMS[diagram.key]}
+					{#if src}
+						<figure class="brief-diagram">
+							<div class="diagram-frame">
+								<img src={src} alt={diagram.caption} loading="lazy" />
 							</div>
-						{:else}
-							<div class="drill-model">
-								<span class="drill-missing">Model answer not yet added</span>
-							</div>
-						{/if}
+							<figcaption>{@html renderInline(diagram.caption)}</figcaption>
+						</figure>
 					{/if}
-				</li>
+				{:else if isBlockquote(p)}
+					<blockquote class="worked-example">{@html renderInline(stripBlockquote(p))}</blockquote>
+				{:else}
+					<p>{@html renderInline(p)}</p>
+				{/if}
 			{/each}
-		</ol>
-	</section>
-
-	<section class="sec">
-		<h2>Gate</h2>
-		{#if gate?.enabled}
-			<FrcQuizGate
-				endpoint={resolvedEndpoint}
-				domainId={domain.id}
-				nextUnit={next ? { n: next.n, title: next.title } : null}
-				initial={{
-					testLength: gate.testLength,
-					passPercent: gate.passPercent,
-					unitComplete: gate.unitComplete,
-					cooldownRemainingSec: gate.cooldownRemainingSec
-				}}
-				onPass={onQuizPass}
-			/>
-		{:else if modelGate?.enabled}
-			<FrcModelGate
-				ready={modelGate.ready}
-				submission={modelGate.submission}
-				unitComplete={modelGate.unitComplete}
-				nextUnit={next ? { n: next.n, title: next.title } : null}
-				domainId={domain.id}
-				gateName={gateLabel(unit.gate)}
-				onSubmit={onModelSubmit ?? (async () => ({ error: 'Submitting is not available here.' }))}
-			/>
-		{:else}
-			<div class="frc-card gate-card">
-				<div class="gate-head">
-					<span class="frc-state available">
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-							<path d="M12 3l7.5 3.5v5c0 4.6-3.2 7.8-7.5 9-4.3-1.2-7.5-4.4-7.5-9v-5z" />
-						</svg>
-						{gateLabel(unit.gate)}
-					</span>
-					<span class="gate-pass">Pass at {unit.gatePass}%</span>
-				</div>
-				<p>{unit.gateDescription}</p>
-				<p class="gate-note">Gate attempts are not enabled yet. This describes how the unit will be checked.</p>
+			<div class="phase-actions">
+				<button class="phase-continue primary" type="button" onclick={continueToDrill}>
+					Continue to drills &rsaquo;
+				</button>
 			</div>
-		{/if}
-	</section>
-
-	<section class="sec">
-		<h2>Apply</h2>
-		{#each unit.apply as p (p)}
-			<p>{p}</p>
-		{/each}
-	</section>
+		</section>
+	{:else if currentPhase === 1}
+		<section class="sec">
+			<h2>Drill</h2>
+			<FrcDrillPhase {unit} onContinue={continueToQuiz} onReviewBrief={reviewBrief} />
+		</section>
+	{:else if currentPhase === 2}
+		<section class="sec">
+			<h2>Gate</h2>
+			{#if gate?.enabled}
+				<FrcQuizGate
+					endpoint={resolvedEndpoint}
+					domainId={domain.id}
+					nextUnit={next ? { n: next.n, title: next.title } : null}
+					initial={{
+						testLength: gate.testLength,
+						passPercent: gate.passPercent,
+						unitComplete: gate.unitComplete,
+						cooldownRemainingSec: gate.cooldownRemainingSec
+					}}
+					onPass={onQuizPass}
+				/>
+			{:else if modelGate?.enabled}
+				<FrcModelGate
+					ready={modelGate.ready}
+					submission={modelGate.submission}
+					unitComplete={modelGate.unitComplete}
+					nextUnit={next ? { n: next.n, title: next.title } : null}
+					domainId={domain.id}
+					gateName={gateLabel(unit.gate)}
+					onSubmit={onModelSubmit ?? (async () => ({ error: 'Submitting is not available here.' }))}
+				/>
+			{:else}
+				<div class="frc-card gate-card">
+					<div class="gate-head">
+						<span class="frc-state available">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+								<path d="M12 3l7.5 3.5v5c0 4.6-3.2 7.8-7.5 9-4.3-1.2-7.5-4.4-7.5-9v-5z" />
+							</svg>
+							{gateLabel(unit.gate)}
+						</span>
+						<span class="gate-pass">Pass at {unit.gatePass}%</span>
+					</div>
+					<p>{unit.gateDescription}</p>
+					<p class="gate-note">Gate attempts are not enabled yet. This describes how the unit will be checked.</p>
+				</div>
+			{/if}
+		</section>
+	{:else}
+		<section class="sec">
+			<h2>Apply</h2>
+			{#if unlockedThrough >= 3}
+				{#each unit.apply as p (p)}
+					<p>{p}</p>
+				{/each}
+			{:else}
+				<div class="frc-card apply-locked">
+					<span class="frc-state locked">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+							<rect x="5" y="11" width="14" height="9" rx="1.5" />
+							<path d="M8 11V7.5a4 4 0 018 0V11" />
+						</svg>
+						Locked
+					</span>
+					<p class="gate-note">Pass the quiz to unlock Apply.</p>
+				</div>
+			{/if}
+		</section>
+	{/if}
 </article>
 
 <nav class="unit-nav" aria-label="Unit navigation">
@@ -347,7 +349,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 2rem;
-		padding: 1.8rem 0 1rem;
+		padding: 0.8rem 0 1rem;
 		max-width: 72ch;
 	}
 	.sec h2 {
@@ -424,160 +426,25 @@
 		font-weight: 700;
 		color: var(--frc-ink, #231f20);
 	}
-	/* Progress line: "N of M checked", the only cross-question state on the page. */
-	.drill-progress {
-		margin: -0.3rem 0 0.9rem;
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--frc-gray, #9a989a);
+	/* Brief -> Drill: the student's own choice, never a graded gate. */
+	.phase-actions {
+		margin-top: 1.3rem;
 	}
-	.drill {
-		margin: 0;
-		padding-left: 1.4rem;
-		display: flex;
-		flex-direction: column;
-		gap: 1.1rem;
-	}
-	.drill-item {
-		color: #333133;
-		line-height: 1.55;
-		padding-left: 0.3rem;
-	}
-	.drill-item::marker {
-		font-weight: 700;
-		font-style: italic;
-		color: var(--frc-blue, #0066b3);
-	}
-	.drill-q {
-		display: block;
-		margin-bottom: 0.5rem;
-	}
-	/* Active-retrieval attempt box: the student must type something here
-	   before the model answer can be checked. */
-	.drill-attempt {
-		display: flex;
-		flex-direction: column;
-		gap: 0.4rem;
-	}
-	.drill-label {
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.05em;
-		text-transform: uppercase;
-		color: var(--frc-gray, #9a989a);
-	}
-	.drill-input {
-		width: 100%;
-		box-sizing: border-box;
-		resize: vertical;
-		padding: 0.55rem 0.7rem;
-		border: 1px solid var(--frc-line, #dde1e8);
-		border-radius: 6px;
-		background: var(--frc-surface, #fafbfd);
-		color: var(--frc-ink, #231f20);
-		font-family: inherit;
-		font-size: 0.9rem;
-		line-height: 1.5;
-	}
-	.drill-input:focus-visible {
-		outline: none;
-		border-color: var(--frc-blue, #0066b3);
-	}
-	.drill-check {
-		align-self: flex-start;
+	.phase-continue {
+		display: inline-block;
 		font-family: inherit;
 		font-weight: 700;
-		font-size: 0.78rem;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
+		font-size: 0.82rem;
+		letter-spacing: 0.02em;
 		color: #fff;
 		background: var(--frc-blue, #0066b3);
 		border: 1px solid var(--frc-blue, #0066b3);
 		border-radius: 6px;
-		padding: 0.4rem 0.85rem;
+		padding: 0.55rem 1rem;
 		cursor: pointer;
 	}
-	.drill-check:hover:not(:disabled) {
+	.phase-continue:hover {
 		background: var(--frc-blue-deep, #004f8a);
-	}
-	/* Disabled until an attempt is typed: the model answer cannot be seen
-	   before the student has tried, on purpose. */
-	.drill-check:disabled {
-		background: none;
-		color: var(--frc-gray, #9a989a);
-		border-color: var(--frc-line, #dde1e8);
-		cursor: not-allowed;
-	}
-	/* Model-answer panel: distinct FRC-themed callout directly below the
-	   student's own attempt, so the two sit side by side for comparison. */
-	.drill-model {
-		margin-top: 0.6rem;
-		padding: 0.75rem 0.9rem;
-		border-left: 4px solid var(--frc-blue, #0066b3);
-		background: var(--frc-blue-tint, rgba(0, 102, 179, 0.08));
-		border-radius: 0 8px 8px 0;
-	}
-	.drill-model-label {
-		display: block;
-		font-size: 0.68rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--frc-blue, #0066b3);
-		margin-bottom: 0.3rem;
-	}
-	.drill-model-text {
-		margin: 0 0 0.6rem;
-		color: var(--frc-ink, #231f20);
-		font-size: 0.9rem;
-		line-height: 1.55;
-	}
-	.drill-mark {
-		display: flex;
-		gap: 0.5rem;
-		flex-wrap: wrap;
-	}
-	.mark-btn {
-		font-family: inherit;
-		font-weight: 700;
-		font-size: 0.72rem;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		background: var(--frc-surface, #fafbfd);
-		border-radius: 999px;
-		padding: 0.32rem 0.75rem;
-		cursor: pointer;
-	}
-	.mark-btn.had-it {
-		color: var(--frc-blue, #0066b3);
-		border: 1px solid var(--frc-blue-line, rgba(0, 102, 179, 0.35));
-	}
-	.mark-btn.had-it:hover,
-	.mark-btn.had-it.active {
-		color: #fff;
-		background: var(--frc-blue, #0066b3);
-	}
-	.mark-btn.review {
-		color: var(--frc-red, #ed1c24);
-		border: 1px solid rgba(237, 28, 36, 0.4);
-	}
-	.mark-btn.review:hover,
-	.mark-btn.review.active {
-		color: #fff;
-		background: var(--frc-red, #ed1c24);
-	}
-	/* Visibly incomplete, not silently broken: a question with no authored
-	   answer key shows this once checked, instead of a fabricated answer. */
-	.drill-missing {
-		display: inline-block;
-		font-size: 0.72rem;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		font-style: italic;
-		color: var(--frc-gray, #9a989a);
 	}
 	.gate-card {
 		padding: 1rem 1.1rem;
@@ -607,6 +474,15 @@
 		font-style: italic;
 		color: var(--frc-gray, #9a989a) !important;
 		margin-bottom: 0 !important;
+	}
+	/* Apply, locked: shown until the Quiz phase's gate is passed/approved. */
+	.apply-locked {
+		padding: 1rem 1.1rem;
+		border-left: 4px solid var(--frc-gray, #9a989a);
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.6rem;
 	}
 	.unit-nav {
 		display: flex;

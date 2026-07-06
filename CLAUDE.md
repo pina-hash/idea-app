@@ -1177,8 +1177,8 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   (not a single consolidated string): `splitConsolidatedAnswers` splits a
   trailing "Answers: 1. ... 2. ..." block per question (all ten authored
   units, MDM-1 through MDM-10, have one). **Drill is active-retrieval
-  practice, not a passive reveal** (`UnitPage.svelte`, client-side only, no
-  persistence): each question is a typed attempt box ("Write your answer
+  practice, not a passive reveal** (`FrcDrillPhase.svelte`, client-side only,
+  no persistence): each question is a typed attempt box ("Write your answer
   from memory") with a "Check answer" button disabled until the student has
   typed a non-empty response, so the model answer cannot be seen before an
   attempt; checking reveals the model answer in a distinct FRC-themed panel
@@ -1190,11 +1190,36 @@ gate engines (the other units' quizzes / GAUNTLET) are still deferred.
   to a different unit, which is exactly when the practice state should
   clear). A question with no parsed answer still shows the attempt box, and
   once checked shows a plain "Model answer not yet added" note instead of a
-  fabricated answer. Gate stays description text only for units without a live gate:
-  gate execution and progression are handled elsewhere (see the quiz-gate
-  bullet above); Apply and prev/next nav are unchanged. Units MDM-11 through
-  MDM-16 have no seed content yet and render as non-clickable
-  "In development" placeholders on the domain page.
+  fabricated answer. Units MDM-11 through MDM-16 have no seed content yet and
+  render as non-clickable "In development" placeholders on the domain page.
+- **Unit page: four sequential, gated phases (Brief, Drill, Quiz, Apply).**
+  `UnitPage.svelte` no longer shows every section at once; `FrcPhaseStepper.svelte`
+  renders the four phases as done / current / locked and is the only way to
+  move between them (a locked phase's button is disabled; an unlocked one can
+  always be reopened to review). Brief -> Drill and (optionally) Drill -> Quiz
+  are the STUDENT'S OWN CHOICE, never a graded gate: Brief ends with a
+  "Continue to drills" button, and `FrcDrillPhase.svelte` (the extracted Drill
+  component above) shows a readiness summary once every question is checked,
+  reading the self-marks — a clear majority "I had it" offers "Continue to
+  quiz"; otherwise it recommends "Review the Brief" (goes back, does not
+  unlock) alongside "Continue to quiz anyway" (unlocks regardless, the student
+  can always insist). The Quiz phase is the Gate section alone, no Brief/Drill
+  visible: FrcQuizGate for the five knowledge units, FrcModelGate for the five
+  modeling units, unchanged grading/review/completion. Apply is locked (a
+  padlock card, "Pass the quiz to unlock Apply") until the gate clears; a
+  cleared unit's Apply then reads its normal content. State: `manualUnlock`
+  (the student's own advance through Brief/Drill/Quiz) and `currentPhase`
+  (which screen is open) are local `$state`, both client-side and
+  per-mount — `unlockedThrough` is `3` the moment `gate.unitComplete` or
+  `modelGate.unitComplete` is true, REACTIVELY (so the Apply tab lights up the
+  instant a pass/approval lands), but `currentPhase` deliberately does NOT
+  auto-jump to Apply on that same live transition, so the student stays on the
+  Quiz screen to see FrcQuizGate's "Passed" or FrcModelGate's "Approved" result
+  and opens Apply themselves. It DOES jump straight to Apply on a fresh mount
+  of an already-cleared unit (a `$effect` keyed on `unit.id` alone, reading
+  `gate`/`modelGate` through Svelte's `untrack` so a live pass/approval within
+  the same mount can never re-trigger it), so revisiting a finished unit never
+  makes the student re-click through phases already done.
 - **Brief concept diagrams:** a Brief paragraph that is exactly a
   `[[diagram:KEY|caption text]]` token (its own paragraph, blank lines on
   both sides in the seed) renders as a centered, captioned figure instead of
