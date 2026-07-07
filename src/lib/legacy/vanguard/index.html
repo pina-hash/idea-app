@@ -3645,31 +3645,99 @@ function modCard(id,name,icon,desc,cost){ const eq=hasMod(id), slots=(player&&pl
   if(!eq && !g.open) return {grp:'MODULES',name:name,icon:icon,desc:desc,lv:0,mx:0,meta:'LOCK '+g.label,cost:0,can:false};
   if(eq) return {grp:'MODULES',name:name,icon:icon,desc:desc,lv:0,mx:0,meta:'UNINSTALL i¢250',cost:250,can:!!(player&&player.coins>=250),buy:()=>{ if(player&&player.coins>=250){ player.coins-=250; const s=player.modules; const fi=s.indexOf(id); if(fi>=0) s[fi]=0; if(typeof applyUpgrades==='function') applyUpgrades(); } }};
   return {grp:'MODULES',name:name,icon:icon,desc:desc,lv:0,mx:0,meta:free?('i¢'+cost):'NO SLOT',cost:cost,can:(!eq&&free),buy:()=>{ if(!hasMod(id)){ const s=player.modules; const fi=s.indexOf(0); if(fi>=0){ s[fi]=id; if(id==='munitions') player.bombs+=2; } } }}; }
+function weaponKsUnlocked(w){
+  const u=player.up||{};
+  const keys = {
+    spread: {m:'mSpread', b:'bSpread', d:'spread'},
+    rapid: {m:'mRapid', b:'bRapid', d:'rapid'},
+    lance: {m:'mLance', b:'bLance', d:'lance'},
+    homing: {m:'mHoming', b:'bHoming', d:'homing'},
+    flak: {m:'mFlak', b:'bFlak', d:'flak'},
+    buzzsaw: {m:'mBuzz', b:'bBuzz', d:'buzzsaw'}
+  }[w];
+  if(!keys) return true;
+  return sector>=3 && (u[keys.m]||0)>=3 && (u[keys.b]||0)>=3 && (runDwell[keys.d]||0)>=45;
+}
+function heavyKsUnlocked(h){
+  const u=player.up||{};
+  if(sector<3) return false;
+  if(h==='rail') return (u.railPow||1)>=4 && (u.railCap||1)>=4;
+  if(h==='tesla') return (u.teslaJump||1)>=4 && (u.teslaDps||1)>=4;
+  if(h==='singularity') return (u.singAmp||1)>=4 && (u.singCrush||1)>=4;
+  if(h==='wave') return (u.wavePow||1)>=4;
+  if(h==='beam') return (u.beamPow||0)>=8 && (u.beamPierce||0)>=5;
+  return true;
+}
+function heavyKsReqsText(h){
+  if(h==='rail') return "Sector 3, Railgun Power lvl 4, Capacity lvl 4";
+  if(h==='tesla') return "Sector 3, Tesla Jump lvl 4, DPS lvl 4";
+  if(h==='singularity') return "Sector 3, Singularity Amp lvl 4, Crush lvl 4";
+  if(h==='wave') return "Sector 3, Wave Power lvl 4";
+  if(h==='beam') return "Sector 3, Beam Power lvl 8, Pierce lvl 5";
+  return "";
+}
+function subKsUnlocked(key){
+  const u=player.up||{};
+  if(sector<3) return false;
+  if(key==='flank') return (u.flank||0)>=3;
+  if(key==='shield') return player.shieldHits>=(player.shieldCap||3) && (u.shieldChg||0)>=3;
+  if(key==='hull') return (u.armor||0)>=4 && (u.bArmor||0)>=3;
+  if(key==='parry') return (u.mParry||0)>=3 && (u.bParry||0)>=3;
+  if(key==='bomb') return player.bombs>=6 && (u.bombPow||1)>=5;
+  if(key==='drone') return (u.droneLv||0)>=3;
+  if(key==='meltdown') return (u.meltCap||1)>=3 && (u.meltCd||1)>=3;
+  return true;
+}
+function subKsReqsText(key){
+  if(key==='flank') return "Sector 3, Flank Guns lvl 3";
+  if(key==='shield') return "Sector 3, Max Shield (lvl 3) & Shield Charge lvl 3";
+  if(key==='hull') return "Sector 3, Hull Armor lvl 4 & Plating lvl 3";
+  if(key==='parry') return "Sector 3, Parry Window lvl 3 & Feedback lvl 3";
+  if(key==='bomb') return "Sector 3, 6 Bomb capacity & Bomb Power lvl 5";
+  if(key==='drone') return "Sector 3, Drone lvl 3";
+  if(key==='meltdown') return "Sector 3, Melt Duration lvl 3 & Cooldown lvl 3";
+  return "";
+}
 function ksCard(w,name,icon,desc,id){ const cur=(player.ks&&player.ks[w])||0, picked=(cur===id), taken=(cur&&!picked);
-  return {grp:'WEAPONS',name:name,icon:icon,desc:desc,lv:0,mx:0,fork:'pick',meta:picked?'ACTIVE':taken?'LOCKED':'i¢900',cost:(picked||taken)?0:900,can:!cur,buy:()=>{ if(!(player.ks&&player.ks[w])){ (player.ks=player.ks||{})[w]=id; } }}; }
+  const ok = weaponKsUnlocked(w) || picked;
+  let finalDesc = desc;
+  if(!ok && !taken){
+    finalDesc += '<br><span style="color:var(--dim);font-size:9px;display:block;margin-top:3px;font-style:italic">Requires: Sector 3, Level 3 upgrades, and 45s weapon use (Current: ' + Math.round(runDwell[w]||0) + 's/45s)</span>';
+  }
+  return {grp:'WEAPONS',name:name,icon:icon,desc:finalDesc,lv:0,mx:0,fork:'pick',meta:picked?'ACTIVE':taken?'LOCKED':(!ok?'LOCKED':'i¢900'),cost:(picked||taken||!ok)?0:900,can:ok&&!cur,buy:()=>{ if(ok && !(player.ks&&player.ks[w])){ (player.ks=player.ks||{})[w]=id; } }}; }
 function hksCard(h,name,icon,desc,id){ const cur=(player.hks&&player.hks[h])||0, picked=(cur===id), taken=(cur&&!picked);
-  return {grp:'HEAVY',name:name,icon:icon,desc:desc,lv:0,mx:0,fork:'pick',meta:picked?'ACTIVE':taken?'LOCKED':'i¢900',cost:(picked||taken)?0:900,can:!cur,buy:()=>{ if(!(player.hks&&player.hks[h])){ (player.hks=player.hks||{})[h]=id; } }}; }
+  const ok = heavyKsUnlocked(h) || picked;
+  let finalDesc = desc;
+  if(!ok && !taken){
+    finalDesc += '<br><span style="color:var(--dim);font-size:9px;display:block;margin-top:3px;font-style:italic">Requires: ' + heavyKsReqsText(h) + '</span>';
+  }
+  return {grp:'HEAVY',name:name,icon:icon,desc:finalDesc,lv:0,mx:0,fork:'pick',meta:picked?'ACTIVE':taken?'LOCKED':(!ok?'LOCKED':'i¢900'),cost:(picked||taken||!ok)?0:900,can:ok&&!cur,buy:()=>{ if(ok && !(player.hks&&player.hks[h])){ (player.hks=player.hks||{})[h]=id; } }}; }
 function dksCard(grp,key,name,icon,desc,id){ const cur=(player.ks&&player.ks[key])||0, picked=(cur===id), taken=(cur&&!picked);
-  return {grp:grp,name:name,icon:icon,desc:desc,lv:0,mx:0,fork:'pick',meta:picked?'ACTIVE':taken?'LOCKED':'i¢900',cost:(picked||taken)?0:900,can:!cur,buy:()=>{ if(!(player.ks&&player.ks[key])){ (player.ks=player.ks||{})[key]=id; } }}; }
+  const ok = subKsUnlocked(key) || picked;
+  let finalDesc = desc;
+  if(!ok && !taken){
+    finalDesc += '<br><span style="color:var(--dim);font-size:9px;display:block;margin-top:3px;font-style:italic">Requires: ' + subKsReqsText(key) + '</span>';
+  }
+  return {grp:grp,name:name,icon:icon,desc:finalDesc,lv:0,mx:0,fork:'pick',meta:picked?'ACTIVE':taken?'LOCKED':(!ok?'LOCKED':'i¢900'),cost:(picked||taken||!ok)?0:900,can:ok&&!cur,buy:()=>{ if(ok && !(player.ks&&player.ks[key])){ (player.ks=player.ks||{})[key]=id; } }}; }
 function refitItems(){ const u=player.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), pdX=(1+u.gun*BAL.gunCoef); const hu=player.heavyUnlocked||{};
-  const showSpreadKeystone = !!((player.ks && player.ks.spread) || (sector>=3 && (u.mSpread||0)>=3 && (u.bSpread||0)>=3 && (runDwell.spread||0)>=45));
-  const showRapidKeystone = !!((player.ks && player.ks.rapid) || (sector>=3 && (u.mRapid||0)>=3 && (u.bRapid||0)>=3 && (runDwell.rapid||0)>=45));
-  const showLanceKeystone = !!((player.ks && player.ks.lance) || (sector>=3 && (u.mLance||0)>=3 && (u.bLance||0)>=3 && (runDwell.lance||0)>=45));
-  const showHomingKeystone = !!((player.ks && player.ks.homing) || (sector>=3 && (u.mHoming||0)>=3 && (u.bHoming||0)>=3 && (runDwell.homing||0)>=45));
-  const showFlakKeystone = !!((player.ks && player.ks.flak) || (sector>=3 && (u.mFlak||0)>=3 && (u.bFlak||0)>=3 && (runDwell.flak||0)>=45));
-  const showBuzzKeystone = !!((player.ks && player.ks.buzzsaw) || (sector>=3 && (u.mBuzz||0)>=3 && (u.bBuzz||0)>=3 && (runDwell.buzzsaw||0)>=45));
-  const showFlankKeystone = !!((player.ks && player.ks.flank) || (sector>=3 && (u.flank||0)>=3));
-  const showShieldKeystone = !!((player.ks && player.ks.shield) || (sector>=3 && player.shieldHits>=(player.shieldCap||3) && (u.shieldChg||0)>=3));
-  const showHullKeystone = !!((player.ks && player.ks.hull) || (sector>=3 && (u.armor||0)>=4 && (u.bArmor||0)>=3));
-  const showParryKeystone = !!((player.ks && player.ks.parry) || (sector>=3 && (u.mParry||0)>=3 && (u.bParry||0)>=3));
-  const showBombKeystone = !!((player.ks && player.ks.bomb) || (sector>=3 && player.bombs>=6 && (u.bombPow||1)>=5));
-  const showDroneKeystone = !!((player.ks && player.ks.drone) || (player.drone && sector>=3 && (u.droneLv||0)>=3));
-  const showRailKeystone = !!((player.hks && player.hks.rail) || (sector>=3 && (u.railPow||1)>=4 && (u.railCap||1)>=4));
-  const showTeslaKeystone = !!((player.hks && player.hks.tesla) || (sector>=3 && (u.teslaJump||1)>=4 && (u.teslaDps||1)>=4));
-  const showSingKeystone = !!((player.hks && player.hks.singularity) || (sector>=3 && (u.singAmp||1)>=4 && (u.singCrush||1)>=4));
-  const showWaveKeystone = !!((player.hks && player.hks.wave) || (sector>=3 && (u.wavePow||1)>=4));
-  const showBeamKeystone = !!((player.hks && player.hks.beam) || (sector>=3 && u.beamPow>=8 && u.beamPierce>=5));
-  const showMeltKeystone = !!((player.ks && player.ks.meltdown) || (sector>=3 && (u.meltCap||1)>=3 && (u.meltCd||1)>=3));
+  const showSpreadKeystone = !!((player.ks && player.ks.spread) || player.unlocked.spread);
+  const showRapidKeystone = !!((player.ks && player.ks.rapid) || player.unlocked.rapid);
+  const showLanceKeystone = !!((player.ks && player.ks.lance) || player.unlocked.lance);
+  const showHomingKeystone = !!((player.ks && player.ks.homing) || player.unlocked.homing);
+  const showFlakKeystone = !!((player.ks && player.ks.flak) || player.unlocked.flak);
+  const showBuzzKeystone = !!((player.ks && player.ks.buzzsaw) || player.unlocked.buzzsaw);
+  const showFlankKeystone = !!((player.ks && player.ks.flank) || (u.flank||0)>0);
+  const showShieldKeystone = true;
+  const showHullKeystone = true;
+  const showParryKeystone = true;
+  const showBombKeystone = true;
+  const showDroneKeystone = !!((player.ks && player.ks.drone) || player.drone);
+  const showRailKeystone = !!((player.hks && player.hks.rail) || hu.rail);
+  const showTeslaKeystone = !!((player.hks && player.hks.tesla) || hu.tesla);
+  const showSingKeystone = !!((player.hks && player.hks.singularity) || hu.singularity);
+  const showWaveKeystone = !!((player.hks && player.hks.wave) || hu.wave);
+  const showBeamKeystone = !!((player.hks && player.hks.beam) || hu.beam || true);
+  const showMeltKeystone = !!((player.ks && player.ks.meltdown) || player.meltdownUnlocked);
   return [
     {grp:'WEAPONS',name:'GUN POWER',icon:'gun',desc:'Boosts damage on all primary weapons.',delta:'x'+pdN.toFixed(2)+' -> x'+pdX.toFixed(2),lv:u.gun,mx:8,cost:400+(u.gun-1)*250,can:u.gun<8,buy:()=>u.gun++},
     {grp:'WEAPONS',name:'FLANK GUNS',icon:'flank',desc:'Forward side guns that scale with GUN POWER. Lv 2 widens, Lv 3 adds rear coverage.',delta:'+ side guns',lv:u.flank||0,mx:3,cost:[450,700,1000][Math.min(u.flank||0,2)],can:(u.flank||0)<3,buy:()=>{u.flank=(u.flank||0)+1;}},
