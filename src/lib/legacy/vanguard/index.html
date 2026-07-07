@@ -2105,7 +2105,7 @@ const BOSS_COLLATERAL=6;   // boss friendly-fire chip damage to its own grunts (
 const SPREAD_FULL_RANGE=260, SPREAD_FAR_FLOOR=0.60;                 // 100% to 260px, hard 60% floor beyond (no fade-to-nothing)
 const FLAK_BAND_MIN=190, FLAK_BAND_MAX=360, FLAK_CLOUD_R=46, FLAK_CLOUD_LIFE=0.45, FLAK_CLOUD_DPS=13, FLAK_EARLY=0.75, FLAK_COL='#FFB000';
 const BUZZSAW_ORBIT=54;                                            // BALANCE DIAL - do not expose as an upgrade
-const BUZZSAW_BLADE_R=10, BUZZSAW_SPEED=3.2, BUZZSAW_DPS_PER_BLADE=9.5, BUZZSAW_FWD_DMG=0.42;
+const BUZZSAW_BLADE_R=13, BUZZSAW_SPEED=3.2, BUZZSAW_DPS_PER_BLADE=24.0, BUZZSAW_FWD_DMG=0.42;
 /* MELTDOWN (endgame active): fire-RATE overload only, kill-recharged. Phase 1 core; upgrade tree is Phase 2. */
 const MELTDOWN_DURATION=2.5;        // seconds the overload lasts
 const MELTDOWN_RATE_MULT=0.18;      // multiplies the active weapon's fireCd (lower = faster); ~5.5x fire rate
@@ -3010,7 +3010,7 @@ function update(dt){
           hit=true; break; }
         { const _dd=dmgEff*((player.modDuelist)?(((e.variant||0)>=2||e.fk==='foreman'||e.fk==='vector')?1.25:0.85):1); if(gameMode==='tune') balDmgAccum+=_dd; e.hp-=_dd; } e.flash=.1; impactFX(b.x,b.y,e.c,b.vx,b.vy);
         if(b.wt==='nail'&&b.hot>0.7&&e.hp<=0){ explode(e.x,e.y,COL.amber,true); for(const e2 of enemies){ if(e2.dead||e2===e)continue; if(dist2(e2.x,e2.y,e.x,e.y)<1600){ e2.hp-=(b.dmg0||b.dmg)*1.5; if(e2.hp<=0){ window.killSrc='nail'; killEnemy(e2); } } } }
-        if(b.wt==='swarm' && ((player.ks&&player.ks.homing) || (u.mHoming>=3&&u.bHoming>=3))){
+        if(b.wt==='swarm' && ((player.ks&&player.ks.homing) || ((player.up&&player.up.mHoming||0)>=3&&(player.up&&player.up.bHoming||0)>=3))){
           const chainDmg = b.dmg * 0.45;
           const nearby = enemies.filter(e2=>!e2.dead && e2!==e && dist2(e2.x,e2.y,b.x,b.y)<2500);
           if(nearby.length > 0){ const target = nearby[0]; target.hp -= chainDmg; target.flash = 0.08;
@@ -4297,9 +4297,11 @@ function drawFX(){
     else if(wt==='scrap'){ const a=Math.atan2(b.vy,b.vx); fx.translate(b.x,b.y); fx.rotate(a);
       fx.beginPath(); fx.moveTo(b.r*2.3,0); fx.lineTo(-b.r,b.r); fx.lineTo(-b.r*0.4,0); fx.lineTo(-b.r,-b.r); fx.closePath(); fx.fill();
       fx.fillStyle=COL.white; fx.beginPath(); fx.arc(b.r*0.6,0,b.r*0.5,0,6.28); fx.fill(); }
-    else if(wt==='swarm'){ fx.beginPath(); fx.ellipse(b.x,b.y,b.r,b.r*2,0,0,6.28); fx.fill();
-      fx.globalAlpha=0.5; fx.fillRect(b.x-b.r*0.5,b.y,b.r,9); fx.globalAlpha=1;
-      fx.fillStyle=COL.white; fx.beginPath(); fx.arc(b.x,b.y,b.r*0.5,0,6.28); fx.fill(); }
+    else if(wt==='swarm'){
+      if(GFX==='low'){ fx.beginPath(); fx.arc(b.x,b.y,b.r,0,6.28); fx.fill(); }
+      else { fx.beginPath(); fx.ellipse(b.x,b.y,b.r,b.r*2,0,0,6.28); fx.fill();
+        fx.globalAlpha=0.5; fx.fillRect(b.x-b.r*0.5,b.y,b.r,9); fx.globalAlpha=1;
+        fx.fillStyle=COL.white; fx.beginPath(); fx.arc(b.x,b.y,b.r*0.5,0,6.28); fx.fill(); } }
     else if(wt==='flak'){ fx.fillStyle=b.c; fx.beginPath(); fx.ellipse(b.x,b.y,b.r*1.05,b.r*1.7,0,0,6.28); fx.fill();   // stubby amber bolt
       fx.fillStyle=COL.white; fx.beginPath(); fx.arc(b.x,b.y-b.r*0.6,b.r*0.5,0,6.28); fx.fill(); }
     else if(b.rail){ fx.shadowBlur=16; fx.fillRect(b.x-b.r/2,b.y-(b.len||20),b.r,(b.len||20)*2);
@@ -4328,6 +4330,20 @@ function drawFX(){
         fx.globalAlpha=0.9; fx.fillStyle=COL.green; fx.shadowColor=COL.green; fx.shadowBlur=10; fx.beginPath(); fx.arc(bx,by,BUZZSAW_BLADE_R,0,6.28); fx.fill();
         fx.globalAlpha=0.85; fx.fillStyle=COL.white; fx.beginPath(); fx.arc(bx,by,BUZZSAW_BLADE_R*0.4,0,6.28); fx.fill(); }
       fx.globalAlpha=1; fx.shadowBlur=0; fx.restore(); }
+    if(player.sawThrow){
+      const sw=player.sawThrow; fx.save(); fx.globalCompositeOperation='lighter';
+      if(sw.seekers){
+        sw.seekers.forEach(sk=>{
+          fx.globalAlpha=0.9; fx.fillStyle=COL.green; fx.beginPath(); fx.arc(sk.x,sk.y,BUZZSAW_BLADE_R*0.75,0,6.28); fx.fill();
+          fx.globalAlpha=0.85; fx.fillStyle=COL.white; fx.beginPath(); fx.arc(sk.x,sk.y,BUZZSAW_BLADE_R*0.3,0,6.28); fx.fill();
+        });
+      } else {
+        fx.globalAlpha=0.95; fx.fillStyle=COL.green; fx.shadowColor=COL.green; fx.shadowBlur=10;
+        fx.beginPath(); fx.arc(sw.x,sw.y,BUZZSAW_BLADE_R*1.2,0,6.28); fx.fill();
+        fx.globalAlpha=0.85; fx.fillStyle=COL.white; fx.beginPath(); fx.arc(sw.x,sw.y,BUZZSAW_BLADE_R*0.5,0,6.28); fx.fill();
+      }
+      fx.restore();
+    }
   }
   ebul.forEach(b=>{ fx.save(); fx.shadowColor=b.c; fx.shadowBlur=12; fx.fillStyle=b.c; fx.strokeStyle=b.c;
     const sh=b.shape||EBSHAPE[b.c]||'orb';
