@@ -2,6 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 
+// 0. Recursion guard: exit silently if this script is already running in a parent process
+if (process.env.VANGUARD_UPDATER_RUNNING === '1') {
+  process.exit(0);
+}
+
 const indexHtmlPath = path.resolve('src/lib/legacy/vanguard/index.html');
 
 try {
@@ -47,6 +52,9 @@ try {
         fs.writeFileSync(indexHtmlPath, content, 'utf-8');
 
         console.log(`[vanguard-updater] Upticked VERSION to ${newVersion} and added CHANGELOG entry: "${firstLine}"`);
+
+        // Set the environment variable to prevent recursion in the nested commit
+        process.env.VANGUARD_UPDATER_RUNNING = '1';
 
         // Stage and amend the commit
         execSync(`git add "${indexHtmlPath}"`);
