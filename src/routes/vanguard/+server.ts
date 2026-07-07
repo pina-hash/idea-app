@@ -433,12 +433,11 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 				"/* tune mode disabled */"
 			);
 
-		// Completely slice out the TUNE balancing panel script block
-		const tuneStart = htmlContent.indexOf('/* ============================= TUNE balancing panel ============================= */');
-		const tuneEnd = htmlContent.indexOf('/* VANGUARD SFX sample layer */');
-		if (tuneStart !== -1 && tuneEnd !== -1) {
-			htmlContent = htmlContent.slice(0, tuneStart) + htmlContent.slice(tuneEnd);
-		}
+		// Completely slice out the TUNE balancing panel script block (keeps closing IIFE brace/paren)
+		htmlContent = htmlContent.replace(
+			/\/\* ============================= TUNE balancing panel ============================= \*\/[\s\S]*?requestAnimationFrame\(loop\);\s*\}\)\(\);\s*\}\)\(\);/,
+			'/* TUNE balancing panel removed */'
+		);
 	}
 
 	const html = injectVersionBadge(
