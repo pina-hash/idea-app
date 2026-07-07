@@ -18,21 +18,23 @@
 		type CombatTuning,
 		type GreenlineMode
 	} from '$lib/greenline/combat';
+	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
 	import Minimap from '$lib/greenline/Minimap.svelte';
 	import testLoopJson from '$lib/greenline/tracks/test-loop.json';
 
 	/**
-	 * GREENLINE movement + track + combat prototype (dev-only harness).
+	 * GREENLINE movement + track + combat + AI prototype (dev-only harness).
 	 *
 	 * Vehicle-feel testbed on the v1 track format: cannon-es RaycastVehicle
-	 * cars (the player and a scripted dummy run through the IDENTICAL
-	 * per-vehicle pipeline: controls -> combat drive modifiers -> physics ->
-	 * meshes), the test-loop track with ordered-checkpoint lap timing and soft
-	 * boundaries, health + the forward EMP disruption weapon, and the
-	 * RACE / ELIMINATION mode flag. Combat rules live in
-	 * $lib/greenline/combat.ts (pure, vehicle-agnostic); the zero-health mode
-	 * branch is VehicleCombat.applyDamage. Everything numeric is in the live
-	 * tuning panel. No art; throwaway while the design solidifies.
+	 * cars where the player and every AI opponent run through the IDENTICAL
+	 * per-vehicle pipeline (controls -> combat drive modifiers -> physics ->
+	 * meshes). AI drivers ($lib/greenline/ai.ts, pure) follow the centerline
+	 * racing line derived from the track data, slow for corners, recover when
+	 * knocked off, and fire the shared disruption weapon with restraint. Each
+	 * vehicle tracks its own laps, checkpoints, and health; RACE resolves by
+	 * finishing order, ELIMINATION by last vehicle running. The zero-health
+	 * mode branch is VehicleCombat.applyDamage. Everything numeric is in the
+	 * live tuning panel. No art; throwaway while the design solidifies.
 	 *
 	 * Controls: W/S throttle+brake (reverse from standstill), A/D steer,
 	 * Space handbrake, F fire EMP, R reset round. Gamepad: left stick steer,
@@ -63,7 +65,11 @@
 		camHeight: 3.5,
 		camStiffness: 5,
 		...COMBAT_DEFAULTS,
-		lapTarget: 3
+		lapTarget: 3,
+		aiCount: 3,
+		aiTopSpeed: AI_DEFAULTS.topSpeed,
+		aiCorner: AI_DEFAULTS.cornerAccel,
+		aiAggression: AI_DEFAULTS.aggression
 	};
 
 	const tuning = $state({ ...DEFAULTS });
@@ -80,7 +86,16 @@
 	let resetRound: () => void = () => {};
 
 	const pose = $state({ x: track.spawn.x, z: track.spawn.z, hx: 1, hz: 0 });
-	const dummyPose = $state({ x: 0, z: 0, hx: 1, hz: 0, out: false });
+	const aiPoses = $state<{ x: number; z: number; hx: number; hz: number; out: boolean }[]>([]);
+	interface StandRow {
+		pos: number;
+		label: string;
+		laps: number;
+		cp: number;
+		hp: number;
+		note: string;
+	}
+	let standings = $state<StandRow[]>([]);
 	const hud = $state({
 		timing: false,
 		lap: 1,
@@ -96,9 +111,7 @@
 		max: COMBAT_DEFAULTS.maxHealth,
 		status: '' as '' | 'DISRUPTED' | 'DOWN' | 'ELIMINATED',
 		downLeft: 0,
-		ready: 0,
-		dummyHp: COMBAT_DEFAULTS.maxHealth,
-		dummyStatus: '' as '' | 'DISRUPTED' | 'DOWN' | 'ELIMINATED'
+		ready: 0
 	});
 	let lapFlash = $state('');
 
@@ -283,8 +296,16 @@
 					[-1.25, -0.1, -0.95]
 				];
 
+				interface RigSpawn {
+					x: number;
+					z: number;
+					headingDeg: number;
+					warmIdx: number;
+				}
+
 				interface Rig {
 					id: string;
+					label: string;
 					body: InstanceType<typeof CANNON.Body>;
 					vehicle: InstanceType<typeof CANNON.RaycastVehicle>;
 					carGroup: InstanceType<typeof THREE.Group>;
@@ -292,12 +313,24 @@
 					baseColor: number;
 					wheelMeshes: InstanceType<typeof THREE.Mesh>[];
 					combat: VehicleCombat;
+					tracker: LapTracker;
+					ai: AiDriver | null;
+					bar: {
+						group: InstanceType<typeof THREE.Group>;
+						fg: InstanceType<typeof THREE.Mesh>;
+						fgMat: InstanceType<typeof THREE.MeshBasicMaterial>;
+					} | null;
 					warmIdx: number;
+					lastOnRibbon: boolean;
 					steerCurrent: number;
 					hx: number;
 					hz: number;
+					prevX: number;
+					prevZ: number;
 					flashUntil: number;
-					spawn: { x: number; z: number; headingDeg: number };
+					finished: boolean;
+					finishPos: number;
+					spawn: RigSpawn;
 				}
 
 				const quatFor = (headingDeg: number) => {
@@ -306,11 +339,41 @@
 					return q;
 				};
 
-				const makeRig = (
-					id: string,
-					baseColor: number,
-					spawn: { x: number; z: number; headingDeg: number }
-				): Rig => {
+				// Starting grid: slot 0 is the track spawn (player); later slots sit
+				// further behind the line, alternating left/right of the centerline.
+				const slotPose = (k: number): RigSpawn => {
+					if (k === 0) return { ...track.spawn, warmIdx: 0 };
+					const idx = (((nC - Math.round((10 + 7 * k) / 4)) % nC) + nC) % nC;
+					const p = rt.center[idx];
+					const p2 = rt.center[(idx + 1) % nC];
+					const tx = p2.x - p.x;
+					const tz = p2.z - p.z;
+					const tl = Math.hypot(tx, tz) || 1;
+					const lat = k % 2 === 1 ? 2.4 : -2.4;
+					return {
+						x: p.x + (-tz / tl) * lat,
+						z: p.z + (tx / tl) * lat,
+						headingDeg: (Math.atan2(-tz, tx) * 180) / Math.PI,
+						warmIdx: idx
+					};
+				};
+
+				const makeBar = () => {
+					const group = new THREE.Group();
+					const bg = new THREE.Mesh(
+						new THREE.PlaneGeometry(2.4, 0.28),
+						new THREE.MeshBasicMaterial({ color: 0x0a1410, transparent: true, opacity: 0.8 })
+					);
+					const fgMat = new THREE.MeshBasicMaterial({ color: 0x00ff41 });
+					const fg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.18), fgMat);
+					fg.position.z = 0.01;
+					group.add(bg);
+					group.add(fg);
+					scene.add(group);
+					return { group, fg, fgMat };
+				};
+
+				const makeRig = (id: string, label: string, baseColor: number, spawn: RigSpawn): Rig => {
 					const body = new CANNON.Body({ mass: tuning.chassisMass });
 					body.addShape(
 						new CANNON.Box(new CANNON.Vec3(1.9, 0.4, 0.85)),
@@ -380,6 +443,7 @@
 
 					return {
 						id,
+						label,
 						body,
 						vehicle,
 						carGroup,
@@ -387,42 +451,49 @@
 						baseColor,
 						wheelMeshes,
 						combat: new VehicleCombat(id, num(tuning.maxHealth, DEFAULTS.maxHealth)),
-						warmIdx: 0,
+						tracker: new LapTracker(),
+						ai: null,
+						bar: null,
+						warmIdx: spawn.warmIdx,
+						lastOnRibbon: true,
 						steerCurrent: 0,
 						hx: 1,
 						hz: 0,
+						prevX: spawn.x,
+						prevZ: spawn.z,
 						flashUntil: 0,
+						finished: false,
+						finishPos: 0,
 						spawn
 					};
 				};
 
-				// Player at the track spawn; dummy parked on the racing line ahead.
-				const dummyIdx = 30;
-				const dTan = rt.center[(dummyIdx + 1) % nC];
-				const dummySpawn = {
-					x: rt.center[dummyIdx].x,
-					z: rt.center[dummyIdx].z,
-					headingDeg:
-						(Math.atan2(-(dTan.z - rt.center[dummyIdx].z), dTan.x - rt.center[dummyIdx].x) * 180) /
-						Math.PI
-				};
-				const player = makeRig('player', 0x0e6b2f, { ...track.spawn });
-				const dummy = makeRig('dummy', 0x8a6d1c, dummySpawn);
-				dummy.warmIdx = dummyIdx;
-				const rigs: Rig[] = [player, dummy];
+				const player = makeRig('player', 'YOU', 0x0e6b2f, slotPose(0));
+				const AI_COLORS = [0x2f5f8f, 0x6f3f8f, 0x2f8f7f, 0x8f5f2f, 0x4f4f8f, 0x3f6f4f];
+				let ais: Rig[] = [];
+				const rigsAll = () => [player, ...ais];
 
-				// Dummy overhead health bar (camera-facing, no-art)
-				const barGroup = new THREE.Group();
-				const barBg = new THREE.Mesh(
-					new THREE.PlaneGeometry(2.4, 0.28),
-					new THREE.MeshBasicMaterial({ color: 0x0a1410, transparent: true, opacity: 0.8 })
-				);
-				const barFgMat = new THREE.MeshBasicMaterial({ color: 0x00ff41 });
-				const barFg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.18), barFgMat);
-				barFg.position.z = 0.01;
-				barGroup.add(barBg);
-				barGroup.add(barFg);
-				scene.add(barGroup);
+				const disposeRig = (r: Rig) => {
+					r.vehicle.removeFromWorld(world);
+					scene.remove(r.carGroup);
+					r.wheelMeshes.forEach((m) => scene.remove(m));
+					if (r.bar) scene.remove(r.bar.group);
+				};
+
+				const buildAis = (count: number) => {
+					ais.forEach(disposeRig);
+					ais = [];
+					aiPoses.length = 0;
+					const n = Math.max(1, Math.min(6, Math.round(count)));
+					for (let k = 1; k <= n; k++) {
+						const rig = makeRig(`ai-${k}`, `AI-${k}`, AI_COLORS[(k - 1) % AI_COLORS.length], slotPose(k));
+						rig.ai = new AiDriver(rt);
+						rig.bar = makeBar();
+						ais.push(rig);
+						aiPoses.push({ x: rig.spawn.x, z: rig.spawn.z, hx: 1, hz: 0, out: false });
+					}
+				};
+				buildAis(num(tuning.aiCount, DEFAULTS.aiCount));
 
 				// ---- EMP burst effect pool (visual only) ----
 				const fxList: { mesh: InstanceType<typeof THREE.Mesh>; born: number }[] = [];
@@ -444,7 +515,7 @@
 					fxList.push({ mesh, born: performance.now() });
 				};
 
-				// ---- Combat wiring (shared by player input and any scripted shooter) ----
+				// ---- Combat wiring (shared by player input and AI shooters) ----
 				const combatTuning = (): CombatTuning => ({
 					maxHealth: num(tuning.maxHealth, DEFAULTS.maxHealth),
 					empDamage: num(tuning.empDamage, DEFAULTS.empDamage),
@@ -457,6 +528,13 @@
 					spinKick: num(tuning.spinKick, DEFAULTS.spinKick),
 					downSec: num(tuning.downSec, DEFAULTS.downSec)
 				});
+				const aiTuning = (): AiTuning => ({
+					topSpeed: num(tuning.aiTopSpeed, DEFAULTS.aiTopSpeed),
+					cornerAccel: num(tuning.aiCorner, DEFAULTS.aiCorner),
+					brakeAccel: AI_DEFAULTS.brakeAccel,
+					steerGain: AI_DEFAULTS.steerGain,
+					aggression: num(tuning.aiAggression, DEFAULTS.aiAggression)
+				});
 
 				const combatantOf = (r: Rig): Combatant => ({
 					id: r.id,
@@ -467,50 +545,61 @@
 					combat: r.combat
 				});
 
+				let roundOver = false;
+
+				const checkLastStanding = () => {
+					if (mode !== 'elimination' || roundOver) return;
+					const alive = rigsAll().filter((r) => !r.combat.eliminated);
+					if (alive.length === 1) {
+						roundOver = true;
+						banner =
+							alive[0] === player
+								? 'YOU WIN — LAST VEHICLE RUNNING'
+								: `${alive[0].label} WINS — LAST VEHICLE RUNNING`;
+					}
+				};
+
 				const performFire = (shooter: Rig) => {
 					const ct = combatTuning();
 					const now = performance.now();
-					const result = tryFire(
-						combatantOf(shooter),
-						rigs.map(combatantOf),
-						mode,
-						ct,
-						now
-					);
+					const result = tryFire(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
 					if (!result.fired) return result;
 					spawnFx(shooter.body.position.x, shooter.body.position.z);
 					for (const hit of result.hits) {
-						const target = rigs.find((r) => r.id === hit.targetId);
+						const target = rigsAll().find((r) => r.id === hit.targetId);
 						if (!target) continue;
 						target.body.angularVelocity.y += ct.spinKick * hit.spinSign;
 						target.flashUntil = now + 180;
 						if (hit.outcome === 'eliminated') {
-							banner =
-								target === player
-									? 'YOU ARE ELIMINATED — press R to reset the round'
-									: 'DUMMY ELIMINATED — last vehicle running: YOU WIN';
+							if (target === player) {
+								banner = 'YOU ARE ELIMINATED — press R to reset the round';
+							} else {
+								flash(`${target.label} ELIMINATED by ${shooter.label}`);
+							}
+							checkLastStanding();
 						} else if (hit.outcome === 'down') {
-							flash(`${hit.targetId.toUpperCase()} DOWN — recovering`);
-						} else {
-							flash(`HIT ${hit.targetId.toUpperCase()} -${hit.damage}`);
+							flash(`${target.label} DOWN — recovering`);
+						} else if (target === player || shooter === player) {
+							flash(
+								shooter === player
+									? `HIT ${target.label} -${hit.damage}`
+									: `${shooter.label} HIT YOU -${hit.damage}`
+							);
 						}
 					}
 					return result;
 				};
 
-				// ---- Lap + surface tracking (player only) ----
-				const tracker = new LapTracker();
-				let prevX = track.spawn.x;
-				let prevZ = track.spawn.z;
+				// ---- Round state ----
+				let finishOrder: Rig[] = [];
 				let prevMs = performance.now();
-				let raceDone = false;
 
 				const syncHud = () => {
-					hud.timing = tracker.timing;
-					hud.lap = tracker.lapsCompleted + 1;
-					hud.cp = tracker.nextCheckpoint;
-					hud.lastMs = tracker.lastLapMs;
-					hud.bestMs = tracker.bestLapMs;
+					hud.timing = player.tracker.timing;
+					hud.lap = player.tracker.lapsCompleted + 1;
+					hud.cp = player.tracker.nextCheckpoint;
+					hud.lastMs = player.tracker.lastLapMs;
+					hud.bestMs = player.tracker.bestLapMs;
 				};
 
 				// ---- Input state ----
@@ -530,23 +619,28 @@
 				let prevPadFire = false;
 
 				resetRound = () => {
+					const wantAis = Math.max(1, Math.min(6, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
+					if (wantAis !== ais.length) buildAis(wantAis);
 					const maxHp = num(tuning.maxHealth, DEFAULTS.maxHealth);
-					for (const r of rigs) {
+					for (const r of rigsAll()) {
 						r.combat.reset(maxHp);
+						r.tracker.reset();
 						r.body.position.set(r.spawn.x, SPAWN_Y, r.spawn.z);
 						r.body.quaternion.copy(quatFor(r.spawn.headingDeg));
 						r.body.velocity.setZero();
 						r.body.angularVelocity.setZero();
 						r.steerCurrent = 0;
 						r.flashUntil = 0;
+						r.warmIdx = r.spawn.warmIdx;
+						r.lastOnRibbon = true;
+						r.prevX = r.spawn.x;
+						r.prevZ = r.spawn.z;
+						r.finished = false;
+						r.finishPos = 0;
 					}
-					player.warmIdx = 0;
-					dummy.warmIdx = dummyIdx;
-					tracker.reset();
-					raceDone = false;
+					finishOrder = [];
+					roundOver = false;
 					banner = '';
-					prevX = track.spawn.x;
-					prevZ = track.spawn.z;
 					styleGates(0);
 					syncHud();
 					hud.currentMs = null;
@@ -598,34 +692,45 @@
 				const tmpQuat = new THREE.Quaternion();
 
 				let lastT = performance.now();
+				let frame = 0;
 
 				// Dev-only debug handle for poking the sim from the console.
-				const teleport = (x: number, z: number, headingDeg: number, speed = 0) => {
+				const teleportRig = (rig: Rig, x: number, z: number, headingDeg: number, speed = 0) => {
 					const d = headingToDir(headingDeg);
-					player.body.position.set(x, SPAWN_Y, z);
-					player.body.quaternion.copy(quatFor(headingDeg));
-					player.body.velocity.set(d.x * speed, 0, d.z * speed);
-					player.body.angularVelocity.setZero();
+					rig.body.position.set(x, SPAWN_Y, z);
+					rig.body.quaternion.copy(quatFor(headingDeg));
+					rig.body.velocity.set(d.x * speed, 0, d.z * speed);
+					rig.body.angularVelocity.setZero();
 				};
 				(window as unknown as Record<string, unknown>).__greenline = {
 					world,
-					rigs,
 					player,
-					dummy,
+					getAis: () => ais,
+					getRigs: () => rigsAll(),
 					rt,
-					tracker,
-					teleport,
+					teleport: (x: number, z: number, h: number, v = 0) => teleportRig(player, x, z, h, v),
+					teleportRig: (id: string, x: number, z: number, h: number, v = 0) => {
+						const r = rigsAll().find((q) => q.id === id);
+						if (r) teleportRig(r, x, z, h, v);
+					},
 					resetRound: () => resetRound(),
-					fire: (rigId: 'player' | 'dummy' = 'player') =>
-						performFire(rigId === 'player' ? player : dummy),
-					getMode: () => mode
+					fire: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						return r ? performFire(r) : null;
+					},
+					getMode: () => mode,
+					getFinishOrder: () => finishOrder.map((r) => r.id),
+					isRoundOver: () => roundOver
 				};
 
 				const tick = () => {
 					const now = performance.now();
 					const dt = Math.min((now - lastT) / 1000, 0.05);
 					lastT = now;
+					frame++;
 					const ct = combatTuning();
+					const aiT = aiTuning();
+					const all = rigsAll();
 
 					// -- Player input (keyboard + first connected gamepad) --
 					let steerInput =
@@ -656,12 +761,12 @@
 					// -- Global physics tuning --
 					world.gravity.set(0, -num(tuning.gravity, DEFAULTS.gravity), 0);
 
-					// -- Per-vehicle pipeline: identical for player and dummy --
-					for (const rig of rigs) {
+					// -- Per-vehicle pipeline: identical for player and AI --
+					for (const rig of all) {
 						const body = rig.body;
 						const recovered = rig.combat.tick(ct, now);
-						if (recovered === 'recovered') {
-							flash(`${rig.id.toUpperCase()} BACK IN — health restored`);
+						if (recovered === 'recovered' && rig === player) {
+							flash('BACK IN — health restored');
 						}
 
 						const mass = num(tuning.chassisMass, DEFAULTS.chassisMass);
@@ -698,8 +803,7 @@
 						const forwardSpeed = vel.x * fwdWorld.x + vel.y * fwdWorld.y + vel.z * fwdWorld.z;
 						const rawSpeed = Math.hypot(vel.x, vel.y, vel.z);
 
-						// Controls: the player from input, the dummy from its follow
-						// script (steer at a point a little way down the centerline).
+						// Controls: player from input, AI from its driver.
 						let sIn: number;
 						let thr: number;
 						let brk: number;
@@ -710,15 +814,23 @@
 							brk = brakeInput;
 							hbk = handbrake;
 						} else {
-							const target = rt.center[(rig.warmIdx + 4) % nC];
-							const dx = target.x - body.position.x;
-							const dz = target.z - body.position.z;
-							const cross = rig.hx * dz - rig.hz * dx;
-							const dot = rig.hx * dx + rig.hz * dz;
-							// Positive steer turns left (-z of heading); aim at the target.
-							sIn = Math.max(-1, Math.min(1, -Math.atan2(cross, Math.max(dot, 0.001)) * 1.2));
-							thr = 0.4;
-							brk = 0;
+							const c = rig.ai!.drive(
+								{
+									x: body.position.x,
+									z: body.position.z,
+									hx: rig.hx,
+									hz: rig.hz,
+									speed: rawSpeed,
+									warmIdx: rig.warmIdx,
+									onRibbon: rig.lastOnRibbon,
+									nowMs: now,
+									dtMs: dt * 1000
+								},
+								aiT
+							);
+							sIn = c.steer;
+							thr = c.throttle;
+							brk = c.brake;
 						}
 
 						// Combat drive modifiers: disruption / down / eliminated scale
@@ -726,7 +838,7 @@
 						const mods = driveMods(rig.combat, ct, now);
 						thr *= mods.engineScale;
 						sIn *= mods.steerScale;
-						if (rig.combat.isOut(now)) brk = 0;
+						if (rig.combat.isOut(now) && rig === player) brk = 0;
 
 						const falloff = num(tuning.steerSpeedFalloff, DEFAULTS.steerSpeedFalloff);
 						const effSteer =
@@ -740,7 +852,7 @@
 						let brake = 0;
 						const engineMax = num(tuning.engineForce, DEFAULTS.engineForce);
 						if (thr > 0) engine = thr * engineMax;
-						if (brk > 0) {
+						if (brk > 0 && !rig.combat.isOut(now)) {
 							if (forwardSpeed > 0.5) brake = brk * num(tuning.brakeForce, DEFAULTS.brakeForce);
 							else engine = -brk * engineMax * 0.55;
 						}
@@ -776,6 +888,7 @@
 						// drag off the ribbon, capped spring + damper past a wall.
 						const surf = surfaceState(rt, body.position.x, body.position.z, rig.warmIdx);
 						rig.warmIdx = surf.warmIndex;
+						rig.lastOnRibbon = surf.state.onRibbon;
 						if (rig === player) hud.offTrack = !surf.state.onRibbon;
 						if (!surf.state.onRibbon && rawSpeed > 0.1) {
 							const gd = num(tuning.grassDrag, DEFAULTS.grassDrag);
@@ -817,41 +930,74 @@
 						}
 					}
 
-					// -- Firing (player trigger; scripted shooters use the same path) --
+					// -- Firing: player trigger + AI decisions, one shared path --
 					if (fireQueued) {
 						fireQueued = false;
 						performFire(player);
 					}
+					const combatants = all.map(combatantOf);
+					for (const rig of ais) {
+						if (!rig.ai || rig.combat.isOut(now)) continue;
+						if (rig.ai.wantsFire(combatants[all.indexOf(rig)], combatants, ct, aiT, now)) {
+							const res = performFire(rig);
+							if (res.fired) rig.ai.scheduleNextFire(now, ct, aiT);
+						}
+					}
 
 					world.step(1 / 60, dt, 4);
 
-					// -- Lap logic (player) --
-					const px = player.body.position.x;
-					const pz = player.body.position.z;
-					const events = tracker.update(rt, { x: prevX, z: prevZ }, { x: px, z: pz }, prevMs, now);
-					for (const ev of events) {
-						if (ev.type === 'timing-started') flash('LAP TIMER STARTED');
-						else if (ev.type === 'lap') {
-							flash(ev.best ? `NEW BEST ${formatLapMs(ev.lapMs)}` : `LAP ${formatLapMs(ev.lapMs)}`);
-							const target = Math.max(1, Math.round(num(tuning.lapTarget, DEFAULTS.lapTarget)));
-							if (mode === 'race' && !raceDone && tracker.lapsCompleted >= target) {
-								raceDone = true;
-								banner = `RACE COMPLETE — ${tracker.lapsCompleted} laps, best ${formatLapMs(tracker.bestLapMs)}`;
+					// -- Lap logic: every rig tracks its own laps and checkpoints --
+					const lapTarget = Math.max(1, Math.round(num(tuning.lapTarget, DEFAULTS.lapTarget)));
+					for (const rig of all) {
+						const rx = rig.body.position.x;
+						const rz = rig.body.position.z;
+						const events = rig.tracker.update(
+							rt,
+							{ x: rig.prevX, z: rig.prevZ },
+							{ x: rx, z: rz },
+							prevMs,
+							now
+						);
+						rig.prevX = rx;
+						rig.prevZ = rz;
+						for (const ev of events) {
+							if (rig === player) {
+								if (ev.type === 'timing-started') flash('LAP TIMER STARTED');
+								else if (ev.type === 'lap')
+									flash(
+										ev.best ? `NEW BEST ${formatLapMs(ev.lapMs)}` : `LAP ${formatLapMs(ev.lapMs)}`
+									);
+								else if (ev.type === 'rejected' && ev.reason === 'out-of-order')
+									flash(`${ev.gateId.toUpperCase()} IGNORED (out of order)`);
 							}
-						} else if (ev.type === 'rejected' && ev.reason === 'out-of-order')
-							flash(`${ev.gateId.toUpperCase()} IGNORED (out of order)`);
+							// RACE finishing order: first to complete the lap target.
+							if (
+								ev.type === 'lap' &&
+								mode === 'race' &&
+								!rig.finished &&
+								rig.tracker.lapsCompleted >= lapTarget
+							) {
+								rig.finished = true;
+								finishOrder.push(rig);
+								rig.finishPos = finishOrder.length;
+								if (rig === player) {
+									roundOver = true;
+									banner = `YOU FINISHED P${rig.finishPos}/${all.length}`;
+								} else {
+									flash(`${rig.label} FINISHED P${rig.finishPos}`);
+								}
+							}
+						}
+						if (rig === player && events.length) {
+							syncHud();
+							styleGates(player.tracker.nextCheckpoint);
+						}
 					}
-					if (events.length) {
-						syncHud();
-						styleGates(tracker.nextCheckpoint);
-					}
-					hud.currentMs = tracker.currentLapMs(now);
-					prevX = px;
-					prevZ = pz;
+					hud.currentMs = player.tracker.currentLapMs(now);
 					prevMs = now;
 
 					// -- Sync meshes --
-					for (const rig of rigs) {
+					for (const rig of all) {
 						rig.carGroup.position.set(rig.body.position.x, rig.body.position.y, rig.body.position.z);
 						rig.carGroup.quaternion.set(
 							rig.body.quaternion.x,
@@ -870,17 +1016,22 @@
 								t.quaternion.w
 							);
 						}
+						// Overhead health bar (AI only): follow, face camera, fill.
+						if (rig.bar) {
+							rig.bar.group.position.set(
+								rig.body.position.x,
+								rig.body.position.y + 2.2,
+								rig.body.position.z
+							);
+							rig.bar.group.lookAt(camera.position);
+							const frac = Math.max(0, rig.combat.health / Math.max(1, ct.maxHealth));
+							rig.bar.fg.scale.x = Math.max(0.001, frac);
+							rig.bar.fg.position.x = -(1 - frac) * 1.2;
+							rig.bar.fgMat.color.setHex(
+								rig.combat.eliminated ? 0x4a4f4a : frac > 0.35 ? 0x00ff41 : 0xffb347
+							);
+						}
 					}
-
-					// Dummy overhead bar: follow + face camera + fill by health
-					barGroup.position.set(dummy.body.position.x, dummy.body.position.y + 2.2, dummy.body.position.z);
-					barGroup.lookAt(camera.position);
-					const dummyFrac = Math.max(0, dummy.combat.health / Math.max(1, ct.maxHealth));
-					barFg.scale.x = Math.max(0.001, dummyFrac);
-					barFg.position.x = -(1 - dummyFrac) * 1.2;
-					barFgMat.color.setHex(
-						dummy.combat.eliminated ? 0x4a4f4a : dummyFrac > 0.35 ? 0x00ff41 : 0xffb347
-					);
 
 					// -- EMP effects --
 					for (let i = fxList.length - 1; i >= 0; i--) {
@@ -920,33 +1071,79 @@
 					camera.lookAt(camLook);
 
 					// -- HUD state --
-					pose.x = px;
-					pose.z = pz;
+					pose.x = player.body.position.x;
+					pose.z = player.body.position.z;
 					pose.hx = player.hx;
 					pose.hz = player.hz;
-					dummyPose.x = dummy.body.position.x;
-					dummyPose.z = dummy.body.position.z;
-					dummyPose.hx = dummy.hx;
-					dummyPose.hz = dummy.hz;
-					dummyPose.out = dummy.combat.isOut(now);
+					for (let i = 0; i < ais.length; i++) {
+						const p = aiPoses[i];
+						if (!p) continue;
+						p.x = ais[i].body.position.x;
+						p.z = ais[i].body.position.z;
+						p.hx = ais[i].hx;
+						p.hz = ais[i].hz;
+						p.out = ais[i].combat.isOut(now);
+					}
 
-					const statusOf = (c: VehicleCombat): '' | 'DISRUPTED' | 'DOWN' | 'ELIMINATED' =>
-						c.eliminated ? 'ELIMINATED' : c.isDown(now) ? 'DOWN' : c.isDisrupted(now) ? 'DISRUPTED' : '';
 					chud.hp = Math.round(player.combat.health);
 					chud.max = ct.maxHealth;
-					chud.status = statusOf(player.combat);
+					chud.status = player.combat.eliminated
+						? 'ELIMINATED'
+						: player.combat.isDown(now)
+							? 'DOWN'
+							: player.combat.isDisrupted(now)
+								? 'DISRUPTED'
+								: '';
 					chud.downLeft = player.combat.isDown(now)
 						? Math.max(0, (player.combat.downUntilMs - now) / 1000)
 						: 0;
 					chud.ready = cooldownRemaining(player.combat, ct.weaponCooldownSec, now);
-					chud.dummyHp = Math.round(dummy.combat.health);
-					chud.dummyStatus = statusOf(dummy.combat);
 					if (
 						mode === 'elimination' &&
 						player.combat.eliminated &&
+						!roundOver &&
 						!banner.startsWith('YOU ARE ELIMINATED')
 					) {
 						banner = 'YOU ARE ELIMINATED — press R to reset the round';
+					}
+
+					// Standings (~5 Hz): laps > checkpoints > distance to next gate;
+					// finished vehicles hold their finishing position, eliminated sink.
+					if (frame % 12 === 0) {
+						const score = (r: Rig) => {
+							if (r.combat.eliminated) return -1e12 + r.tracker.lapsCompleted;
+							if (r.finished) return 1e12 - r.finishPos;
+							const g =
+								r.tracker.nextCheckpoint < rt.checkpoints.length
+									? rt.checkpoints[r.tracker.nextCheckpoint]
+									: rt.startFinish;
+							const d = Math.hypot(
+								g.gate.x - r.body.position.x,
+								g.gate.z - r.body.position.z
+							);
+							return (
+								(r.tracker.timing ? 1e9 : 0) +
+								r.tracker.lapsCompleted * 1e7 +
+								r.tracker.nextCheckpoint * 1e5 -
+								d
+							);
+						};
+						standings = [...all]
+							.sort((a, b) => score(b) - score(a))
+							.map((r, i) => ({
+								pos: i + 1,
+								label: r.label,
+								laps: r.tracker.lapsCompleted,
+								cp: r.tracker.nextCheckpoint,
+								hp: Math.max(0, Math.round(r.combat.health)),
+								note: r.combat.eliminated
+									? 'OUT'
+									: r.finished
+										? `FIN P${r.finishPos}`
+										: r.combat.isDown(now)
+											? 'DOWN'
+											: ''
+							}));
 					}
 
 					renderer.render(scene, camera);
@@ -1015,7 +1212,6 @@
 			</div>
 			<div class="gl-health-line dim2">
 				EMP {chud.ready <= 0 ? 'READY (F / RB)' : `${chud.ready.toFixed(1)}s`}
-				· dummy {chud.dummyHp} hp{chud.dummyStatus ? ` · ${chud.dummyStatus}` : ''}
 			</div>
 		</div>
 
@@ -1031,6 +1227,17 @@
 				<div class="gl-lap-flash">{lapFlash}</div>
 			{/if}
 		</div>
+
+		{#if standings.length}
+			<div class="gl-standings">
+				{#each standings as s (s.label)}
+					<div class="gl-stand-row" class:me={s.label === 'YOU'}>
+						P{s.pos} {s.label} · {s.note || `L${s.laps} CP${s.cp}`} · {s.hp}hp
+					</div>
+				{/each}
+			</div>
+		{/if}
+
 		<div class="gl-pad">{padName ? `pad: ${padName}` : 'pad: none (keyboard)'}</div>
 		<div class="gl-keys">
 			W/S throttle+brake · A/D steer · Space handbrake · F fire · R reset round
@@ -1038,7 +1245,7 @@
 	</div>
 
 	<div class="gl-map">
-		<Minimap runtime={rt} {pose} nextCheckpoint={hud.cp} others={[dummyPose]} />
+		<Minimap runtime={rt} {pose} nextCheckpoint={hud.cp} others={aiPoses} />
 	</div>
 
 	<div class="gl-panel">
@@ -1053,6 +1260,14 @@
 			</select></label
 		>
 		<label>lap target (race) <input type="number" step="1" bind:value={tuning.lapTarget} /></label>
+
+		<div class="gl-section">ai</div>
+		<label>count (on reset) <input type="number" step="1" bind:value={tuning.aiCount} /></label>
+		<label>top speed (m/s) <input type="number" step="0.5" bind:value={tuning.aiTopSpeed} /></label>
+		<label>corner accel <input type="number" step="0.5" bind:value={tuning.aiCorner} /></label>
+		<label
+			>aggression (0-1) <input type="number" step="0.1" bind:value={tuning.aiAggression} /></label
+		>
 
 		<div class="gl-section">combat</div>
 		<label>max health <input type="number" step="10" bind:value={tuning.maxHealth} /></label>
@@ -1254,6 +1469,19 @@
 		color: #c8ff00;
 		font-size: 0.95rem;
 		margin-top: 0.3rem;
+	}
+	.gl-standings {
+		margin-top: 0.6rem;
+		border-left: 2px solid rgba(0, 240, 255, 0.3);
+		padding-left: 0.6rem;
+	}
+	.gl-stand-row {
+		font-size: 0.78rem;
+		color: #7fbf8f;
+		margin-top: 0.1rem;
+	}
+	.gl-stand-row.me {
+		color: #00ff41;
 	}
 	.gl-pad {
 		margin-top: 0.6rem;

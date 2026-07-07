@@ -1045,6 +1045,23 @@ on one side of the world.
   disruption cuts, spin kick, down time, lap target) in the tuning panel. The
   dummy can fire the same weapon at the player through the same code path
   (proven in the harness), so AI reuses it later without rework.
+- **AI opponents:** `src/lib/greenline/ai.ts` (pure, like combat/runtime): one
+  `AiDriver` per vehicle. The racing line is DERIVED from the track data (no
+  hand-authored path): centerline pure-pursuit with speed-scaled lookahead,
+  per-point curvature -> corner speeds, and a braking-distance sweep over
+  upcoming points for brake-early behavior; off-ribbon it aims at the nearest
+  centerline point to rejoin, and a stuck timer backs it out of walls.
+  `wantsFire` decides weapon use with restraint (aggression scales usable
+  range and a post-cooldown delay; a disrupted AI never fires); shots route
+  through the harness's shared fire path. The harness (superseding the
+  scripted dummy) runs the player plus N AI rigs (default 3, up to 6, count
+  applies on round reset) each with its OWN LapTracker, health, and combat
+  state, spawned on a staggered grid behind the start line. RACE resolves by
+  finishing order (banner with the player's position, standings row FIN Pn);
+  ELIMINATION by last vehicle running (checked after every elimination). A
+  live standings list (laps > checkpoints > distance to next gate) sits in
+  the HUD; AI tunables (count, top speed, corner accel, aggression) are in
+  the panel's ai section.
 
 ## FRC Training track
 
