@@ -123,6 +123,17 @@
 
 	const resetTuning = () => Object.assign(tuning, DEFAULTS);
 
+	let copied = $state(false);
+	let copyTimer: ReturnType<typeof setTimeout>;
+	const copyTuning = () => {
+		const json = JSON.stringify(tuning, null, 2);
+		navigator.clipboard.writeText(json).then(() => {
+			copied = true;
+			clearTimeout(copyTimer);
+			copyTimer = setTimeout(() => (copied = false), 2000);
+		});
+	};
+
 	onMount(() => {
 		let disposed = false;
 		let cleanup: (() => void) | null = null;
@@ -1345,6 +1356,11 @@
 		<div class="gl-actions">
 			<button onclick={() => resetRound()}>reset round (R)</button>
 			<button onclick={resetTuning}>reset tuning</button>
+		</div>
+		<div class="gl-actions" style="margin-top: 0.4rem;">
+			<button onclick={copyTuning} style="background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.4); color: #00f0ff;">
+				{copied ? 'copied!' : 'copy tuning parameters'}
+			</button>
 		</div>
 	</div>
 </div>
