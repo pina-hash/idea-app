@@ -113,7 +113,7 @@ body{background:#000;display:flex;align-items:center;justify-content:center;min-
 body.touchdev{overflow:hidden}
 body.touchdev #cabinet{display:block;width:100%;height:100%}
 body.touchdev #stage{width:100vw;height:100dvh;max-height:none;max-width:none;flex:none;position:absolute;inset:0;box-shadow:none;border:none}
-body.touchdev #touch{position:absolute;inset:0;z-index:10;pointer-events:none;background:none;border-top:none;width:100%;height:100%}
+body.touchdev #touch{position:absolute;inset:0;z-index:10;pointer-events:auto;background:none;border-top:none;width:100%;height:100%}
 body.touchdev #stick{display:none!important}
 body.touchdev .crt{display:none!important}
 body.touchdev #btnParry{right:20px;bottom:30px;width:82px;height:82px;font-size:13px;border-color:rgba(0,240,255,.75);color:var(--cyan);box-shadow:0 0 16px rgba(0,240,255,.3)}
@@ -5013,7 +5013,7 @@ function moveStickKnob(){ const k=document.getElementById('stickknob'); if(k)k.s
   deck.addEventListener('pointerdown',e=>{
     if(state!=='play')return;
     if(e.target.closest('.tbtn'))return;
-    if(e.pointerType!=='touch')return;
+    if(e.pointerType==='mouse')return;
     try{e.preventDefault();}catch(_){ }
     try{deck.setPointerCapture(e.pointerId);}catch(_){ }
     const p=toLogical(e.clientX,e.clientY);
