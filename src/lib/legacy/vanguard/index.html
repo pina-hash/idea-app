@@ -2887,7 +2887,7 @@ function update(dt){
           e.fireFlash=0.12; e.tell=0; }
       } else if(e.sigCd<=0){ const sf=1/(1+sector*0.10);
         if(!e.altMove){ e.lockX=player.x; e.lockY=player.y; e.lockT=0.7; e.tell=0; }
-        else { spawnBarrier(); e.tell=0; e.fireFlash=0.12; }
+        else { enemyAimShot(e); e.tell=0; e.fireFlash=0.12; }
         e.altMove=!e.altMove; e.sigCd=Math.max(1.4,(2.2+rnd(-0.3,0.3))*sf);
       } else { e.tell=0; }
     } else if(e.state==='vector'){
