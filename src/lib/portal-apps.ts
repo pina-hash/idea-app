@@ -55,6 +55,15 @@ export const PORTAL_APPS: PortalApp[] = [
 		requiresAuth: true
 	},
 	{
+		id: 'greenline',
+		title: 'IDEA // GREENLINE',
+		sub: 'Pre-alpha vector racing simulator. Test vehicle physics, tire slip, and centerline AI drivers.',
+		icon: 'greenline',
+		href: '/dev/greenline-movement',
+		group: 'games',
+		cta: 'Test'
+	},
+	{
 		id: 'coins',
 		title: 'IDEA Coin Ledger',
 		sub: 'Live balances, transaction log, and rankings across all sections.',
