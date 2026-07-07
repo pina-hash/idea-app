@@ -2963,30 +2963,96 @@ function update(dt){
     if(bDmg > 0.05 && b.wt !== 'flak'){ // skip flak shells since they detonate in mid-air
       for(let j=ebul.length-1;j>=0;j--){
         const eb=ebul[j];
-        if(dist2(b.x,b.y,eb.x,eb.y) < (b.r+eb.r+3)*(b.r+eb.r+3)){
+        if(dist2(b.x,b.y,eb.x,eb.y) < (b.r+eb.r+3.5)*(b.r+eb.r+3.5)){
+          // 1. Simulated 3D Depth alignment check: only collide by chance (22% probability)
+          if(b.depthOffset === undefined) b.depthOffset = Math.random();
+          if(eb.depthOffset === undefined) eb.depthOffset = Math.random();
+          if(Math.abs(b.depthOffset - eb.depthOffset) > 0.22) continue; // pass above/below
+          
           const ebDmg = eb.dmg || eb.r || 3.0;
-          const diff = Math.abs(bDmg - ebDmg);
-          const maxD = Math.max(bDmg, ebDmg);
+          const rand = Math.random();
           
-          // Visual sparks
-          for(let k=0;k<3;k++) parts.push({x:(b.x+eb.x)/2, y:(b.y+eb.y)/2, vx:rnd(-60,60), vy:rnd(-60,60), life:.18, max:.18, c:Math.random()<0.5?b.c:eb.c, sz:1.4});
-          
-          if(diff <= 0.28 * maxD){ // about equal in damage -> cancel both
-            ebul.splice(j,1);
-            pbul.splice(i,1);
-            hit=true; // mark as hit to skip normal hit logic
-            break;
-          } else if(bDmg > ebDmg){ // player bullet punches through
-            bDmg -= ebDmg;
-            b.dmg = bDmg;
-            if(b.dmg0) b.dmg0 -= ebDmg;
-            ebul.splice(j,1);
-          } else { // enemy bullet punches through
-            eb.dmg = ebDmg - bDmg;
-            eb.r = Math.max(1.8, eb.r * (eb.dmg / ebDmg));
-            pbul.splice(i,1);
-            hit=true;
-            break;
+          if(rand < 0.40){
+            // 2. DEFLECTION (RICOCHET)
+            // Player bullet ricochets
+            const speedB = Math.hypot(b.vx, b.vy);
+            const angleB = Math.atan2(b.vy, b.vx) + rnd(0.4, 1.1) * (Math.random() < 0.5 ? 1 : -1);
+            b.vx = Math.cos(angleB) * speedB;
+            b.vy = Math.sin(angleB) * speedB;
+            b.dmg = bDmg * 0.75;
+            if(b.dmg0) b.dmg0 *= 0.75;
+            
+            // Enemy bullet ricochets
+            const speedEb = Math.hypot(eb.vx, eb.vy);
+            const angleEb = Math.atan2(eb.vy, eb.vx) + rnd(0.4, 1.1) * (Math.random() < 0.5 ? 1 : -1);
+            eb.vx = Math.cos(angleEb) * speedEb;
+            eb.vy = Math.sin(angleEb) * speedEb;
+            eb.dmg = ebDmg * 0.75;
+            eb.r = Math.max(1.5, eb.r * 0.85);
+            
+            // Shift simulated depths to prevent immediate re-collision
+            b.depthOffset = Math.random();
+            eb.depthOffset = Math.random();
+            
+            // Bright deflection sparks
+            for(let k=0;k<4;k++) parts.push({x:(b.x+eb.x)/2, y:(b.y+eb.y)/2, vx:rnd(-80,80), vy:rnd(-80,80), life:.24, max:.24, c:Math.random()<0.5?'#ffb347':'#c8ff00', sz:1.5});
+            
+            if(b.dmg <= 0.05){
+              pbul.splice(i,1);
+              hit=true;
+              break;
+            }
+            continue;
+          } else {
+            // 3. SOLID IMPACT (Cancel Out or Punch-Through)
+            const diff = Math.abs(bDmg - ebDmg);
+            const maxD = Math.max(bDmg, ebDmg);
+            
+            if(diff <= 0.25 * maxD){ // about equal in damage -> cancel both
+              ebul.splice(j,1);
+              pbul.splice(i,1);
+              hit=true; // mark as hit to skip normal hit logic
+              
+              // Big cancel-out burst
+              for(let k=0;k<8;k++) parts.push({x:(b.x+eb.x)/2, y:(b.y+eb.y)/2, vx:rnd(-90,90), vy:rnd(-90,90), life:.28, max:.28, c:Math.random()<0.5?b.c:eb.c, sz:1.8});
+              break;
+            } else if(bDmg > ebDmg){ // player bullet punches through
+              bDmg -= ebDmg;
+              b.dmg = bDmg;
+              if(b.dmg0) b.dmg0 -= ebDmg;
+              
+              // Nudge player bullet direction slightly due to impact momentum
+              const speedB = Math.hypot(b.vx, b.vy);
+              const angleB = Math.atan2(b.vy, b.vx) + rnd(0.08, 0.22) * (Math.random() < 0.5 ? 1 : -1);
+              b.vx = Math.cos(angleB) * speedB;
+              b.vy = Math.sin(angleB) * speedB;
+              
+              // Impact sparks
+              for(let k=0;k<3;k++) parts.push({x:eb.x, y:eb.y, vx:b.vx*0.35+rnd(-35,35), vy:b.vy*0.35+rnd(-35,35), life:.2, max:.2, c:eb.c, sz:1.3});
+              
+              ebul.splice(j,1);
+              if(b.dmg <= 0.05){
+                pbul.splice(i,1);
+                hit=true;
+                break;
+              }
+            } else { // enemy bullet punches through
+              eb.dmg = ebDmg - bDmg;
+              eb.r = Math.max(1.8, eb.r * (eb.dmg / ebDmg));
+              
+              // Nudge enemy bullet direction slightly due to impact momentum
+              const speedEb = Math.hypot(eb.vx, eb.vy);
+              const angleEb = Math.atan2(eb.vy, eb.vx) + rnd(0.08, 0.22) * (Math.random() < 0.5 ? 1 : -1);
+              eb.vx = Math.cos(angleEb) * speedEb;
+              eb.vy = Math.sin(angleEb) * speedEb;
+              
+              // Impact sparks
+              for(let k=0;k<3;k++) parts.push({x:b.x, y:b.y, vx:eb.vx*0.35+rnd(-35,35), vy:eb.vy*0.35+rnd(-35,35), life:.2, max:.2, c:b.c, sz:1.3});
+              
+              pbul.splice(i,1);
+              hit=true;
+              break;
+            }
           }
         }
       }
