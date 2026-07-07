@@ -2,13 +2,12 @@
 	import type { TrackRuntime } from './track-runtime';
 
 	/**
-	 * Top-down SVG minimap for the GREENLINE harness: boundary outlines,
+	 * Top-down rotating SVG minimap for the GREENLINE harness: boundary outlines,
 	 * checkpoint gates (next one highlighted), start/finish line, and the
 	 * vehicle as a heading triangle. Pure presentation; all geometry comes
 	 * from the track runtime, the pose from the physics loop.
 	 *
-	 * Mapping: world x -> map x, world z -> map -y, so a car turning left on
-	 * screen turns left on the map.
+	 * Now rotates dynamically so that the player vehicle's heading is always pointing UP.
 	 */
 	const {
 		runtime,
@@ -25,18 +24,20 @@
 
 	const PAD = 12;
 	const W = 210;
+	const H = 210;
 
 	const view = $derived.by(() => {
 		const { minX, maxX, minZ, maxZ } = runtime.bbox;
 		const spanX = maxX - minX || 1;
 		const spanZ = maxZ - minZ || 1;
-		const scale = (W - PAD * 2) / spanX;
-		const H = Math.round(spanZ * scale + PAD * 2);
-		return { minX, maxZ, scale, H };
+		const scale = (W - PAD * 2) / Math.max(spanX, spanZ);
+		const cx = (minX + maxX) / 2;
+		const cz = (minZ + maxZ) / 2;
+		return { scale, cx, cz };
 	});
 
-	const mx = (x: number) => PAD + (x - view.minX) * view.scale;
-	const my = (z: number) => PAD + (view.maxZ - z) * view.scale;
+	const mx = (x: number) => 105 + (x - view.cx) * view.scale;
+	const my = (z: number) => 105 + (z - view.cz) * view.scale;
 
 	const loopPath = (pts: { x: number; z: number }[]) =>
 		pts.map((p, i) => `${i ? 'L' : 'M'}${mx(p.x).toFixed(1)} ${my(p.z).toFixed(1)}`).join('') + 'Z';
@@ -61,7 +62,7 @@
 		const cx = mx(p.x);
 		const cy = my(p.z);
 		const fx = p.hx;
-		const fy = -p.hz;
+		const fy = p.hz;
 		const px = -fy;
 		const py = fx;
 		const tip = `${cx + fx * s},${cy + fy * s}`;
@@ -69,41 +70,47 @@
 		const b = `${cx - fx * s * 0.6 - px * s * 0.55},${cy - fy * s * 0.6 - py * s * 0.55}`;
 		return `${tip} ${a} ${b}`;
 	};
-	const marker = $derived(triangle(pose, 7));
+
+	// Player position & angle calculations for map rotation
+	const playerCx = $derived(mx(pose.x));
+	const playerCy = $derived(my(pose.z));
+	const rotAngle = $derived((Math.atan2(pose.hz, pose.hx) * 180) / Math.PI);
 </script>
 
 <svg
 	class="gl-minimap"
 	width={W}
-	height={view.H}
-	viewBox="0 0 {W} {view.H}"
+	height={H}
+	viewBox="0 0 {W} {H}"
 	aria-label="Track minimap"
 >
-	<path d={ribbonPath} fill="rgba(0,255,65,0.10)" fill-rule="evenodd" stroke="none" />
-	{#each boundaryPaths as d (d)}
-		<path {d} fill="none" stroke="rgba(0,255,65,0.45)" stroke-width="1" />
-	{/each}
-	{#each runtime.checkpoints as g, i (g.gate.id)}
-		{@const l = gateLine(g)}
-		<line
-			x1={l.x1}
-			y1={l.y1}
-			x2={l.x2}
-			y2={l.y2}
-			stroke={i === nextCheckpoint ? '#00f0ff' : i < nextCheckpoint ? '#2a5f43' : '#5f8f74'}
-			stroke-width={i === nextCheckpoint ? 2.5 : 1.5}
-		/>
-	{/each}
-	<line x1={sfLine.x1} y1={sfLine.y1} x2={sfLine.x2} y2={sfLine.y2} stroke="#c8ff00" stroke-width="2.5" />
-	{#each others as o, i (i)}
-		<polygon
-			points={triangle(o, 5)}
-			fill={o.out ? '#4a4f4a' : '#ffb347'}
-			stroke="#052"
-			stroke-width="0.6"
-		/>
-	{/each}
-	<polygon points={marker} fill="#00ff41" stroke="#052" stroke-width="0.8" />
+	<g transform="translate(105, 105) rotate({-rotAngle - 90}) translate({-playerCx}, {-playerCy})">
+		<path d={ribbonPath} fill="rgba(0,255,65,0.10)" fill-rule="evenodd" stroke="none" />
+		{#each boundaryPaths as d (d)}
+			<path {d} fill="none" stroke="rgba(0,255,65,0.45)" stroke-width="1" />
+		{/each}
+		{#each runtime.checkpoints as g, i (g.gate.id)}
+			{@const l = gateLine(g)}
+			<line
+				x1={l.x1}
+				y1={l.y1}
+				x2={l.x2}
+				y2={l.y2}
+				stroke={i === nextCheckpoint ? '#00f0ff' : i < nextCheckpoint ? '#2a5f43' : '#5f8f74'}
+				stroke-width={i === nextCheckpoint ? 2.5 : 1.5}
+			/>
+		{/each}
+		<line x1={sfLine.x1} y1={sfLine.y1} x2={sfLine.x2} y2={sfLine.y2} stroke="#c8ff00" stroke-width="2.5" />
+		{#each others as o, i (i)}
+			<polygon
+				points={triangle(o, 5)}
+				fill={o.out ? '#4a4f4a' : '#ffb347'}
+				stroke="#052"
+				stroke-width="0.6"
+			/>
+		{/each}
+		<polygon points={triangle(pose, 7)} fill="#00ff41" stroke="#052" stroke-width="0.8" />
+	</g>
 </svg>
 
 <style>
