@@ -2287,7 +2287,7 @@ function updateFlakClouds(dt){
 /* BUZZSAW: two contact blades orbit the ship; they damage enemies only, never block/destroy enemy bullets */
 function updateBuzzsaw(pl,dt){
   const kB=(pl.ks&&pl.ks.buzzsaw)||0; const _bu=(pl.up||{}); const _mm=(pl.meltdownActive>0)?MELTDOWN_MELEE_MULT:1;   // MELTDOWN melee: faster, harder blades (no fake projectiles)
-  const ang=t*BUZZSAW_SPEED*(1+0.18*(_bu.bBuzz||0))*(kB==='ripper'?1.4:1)*_mm, pm=(pl.pdmg||1) * (pl.meltdownActive > 0 && (pl.ks && pl.ks.meltdown) === 'neutron' ? 1.30 : 1.0); const _bdps=BUZZSAW_DPS_PER_BLADE*(1+0.20*(_bu.mBuzz||0))*(kB==='ripper'?1.4:1)*_mm, _br=BUZZSAW_BLADE_R+2*(_bu.bBuzz||0)+(u.mBuzz>=3?4:0);
+  const ang=t*BUZZSAW_SPEED*(1+0.18*(_bu.bBuzz||0))*(kB==='ripper'?1.4:1)*_mm, pm=(pl.pdmg||1) * (pl.meltdownActive > 0 && (pl.ks && pl.ks.meltdown) === 'neutron' ? 1.30 : 1.0); const _bdps=BUZZSAW_DPS_PER_BLADE*(1+0.20*(_bu.mBuzz||0))*(kB==='ripper'?1.4:1)*_mm, _br=BUZZSAW_BLADE_R+2*(_bu.bBuzz||0)+((_bu.mBuzz||0)>=3?4:0);
   for(let bi=0;bi<2;bi++){ const a=ang+bi*Math.PI, bx=pl.x+Math.cos(a)*BUZZSAW_ORBIT, by=pl.y+Math.sin(a)*BUZZSAW_ORBIT;
     for(const e of enemies){ if(e.dead)continue; if(dist2(e.x,e.y,bx,by)<(_br+e.r)*(_br+e.r)){
       e.hp-=_bdps*pm*dt; e.flash=.08;
@@ -2944,8 +2944,14 @@ function update(dt){
     if(b.rail){ for(let _qi=ebul.length-1;_qi>=0;_qi--){ const _eb=ebul[_qi];
       if(!_eb.parryBolt && Math.abs(_eb.x-b.x)<20 && Math.abs(_eb.y-b.y)<44){
         parts.push({x:_eb.x,y:_eb.y,vx:0,vy:-70,life:.12,max:.12,c:COL.cyan,sz:2}); ebul.splice(_qi,1); } } }
-    if(b.homing){ let best=null,bd=1e9; for(const e of enemies){if(e.dead)continue;const d=dist2(e.x,e.y,b.x,b.y);if(d<bd){bd=d;best=e;}}
-      if(boss){const d=dist2(boss.x,boss.y,b.x,b.y); if(d<bd){bd=d;best=boss;}}
+    if(b.homing){
+      let best=b.target;
+      if(!best || best.dead || (best===boss && (boss.dying||boss.entering))){
+        best=null; let bd=1e9;
+        for(const e of enemies){if(e.dead)continue;const d=dist2(e.x,e.y,b.x,b.y);if(d<bd){bd=d;best=e;}}
+        if(boss && !boss.dying && !boss.entering){const d=dist2(boss.x,boss.y,b.x,b.y); if(d<bd){bd=d;best=boss;}}
+        b.target=best;
+      }
       if(best){ const ang=Math.atan2(best.y-b.y,best.x-b.x); const cur=Math.atan2(b.vy,b.vx);
         let na=cur+clamp(((ang-cur+Math.PI*3)%(Math.PI*2))-Math.PI,-(b.turn||3)*dt,(b.turn||3)*dt);
         const sp=Math.hypot(b.vx,b.vy); b.vx=Math.cos(na)*sp; b.vy=Math.sin(na)*sp; } }
