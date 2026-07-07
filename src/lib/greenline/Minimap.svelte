@@ -13,11 +13,14 @@
 	const {
 		runtime,
 		pose,
-		nextCheckpoint = 0
+		nextCheckpoint = 0,
+		others = []
 	}: {
 		runtime: TrackRuntime;
 		pose: { x: number; z: number; hx: number; hz: number };
 		nextCheckpoint?: number;
+		/** Non-player vehicles, drawn as smaller amber markers. */
+		others?: { x: number; z: number; hx: number; hz: number; out?: boolean }[];
 	} = $props();
 
 	const PAD = 12;
@@ -54,19 +57,19 @@
 	const sfLine = $derived(gateLine(runtime.startFinish));
 
 	// Vehicle triangle from position + heading vector (hx, hz)
-	const marker = $derived.by(() => {
-		const cx = mx(pose.x);
-		const cy = my(pose.z);
-		const fx = pose.hx;
-		const fy = -pose.hz;
-		const s = 7;
+	const triangle = (p: { x: number; z: number; hx: number; hz: number }, s: number) => {
+		const cx = mx(p.x);
+		const cy = my(p.z);
+		const fx = p.hx;
+		const fy = -p.hz;
 		const px = -fy;
 		const py = fx;
 		const tip = `${cx + fx * s},${cy + fy * s}`;
 		const a = `${cx - fx * s * 0.6 + px * s * 0.55},${cy - fy * s * 0.6 + py * s * 0.55}`;
 		const b = `${cx - fx * s * 0.6 - px * s * 0.55},${cy - fy * s * 0.6 - py * s * 0.55}`;
 		return `${tip} ${a} ${b}`;
-	});
+	};
+	const marker = $derived(triangle(pose, 7));
 </script>
 
 <svg
@@ -92,6 +95,14 @@
 		/>
 	{/each}
 	<line x1={sfLine.x1} y1={sfLine.y1} x2={sfLine.x2} y2={sfLine.y2} stroke="#c8ff00" stroke-width="2.5" />
+	{#each others as o, i (i)}
+		<polygon
+			points={triangle(o, 5)}
+			fill={o.out ? '#4a4f4a' : '#ffb347'}
+			stroke="#052"
+			stroke-width="0.6"
+		/>
+	{/each}
 	<polygon points={marker} fill="#00ff41" stroke="#052" stroke-width="0.8" />
 </svg>
 

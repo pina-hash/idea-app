@@ -1027,7 +1027,24 @@ on one side of the world.
   hard collision.
 - **Minimap:** `src/lib/greenline/Minimap.svelte`, a top-down SVG of the
   boundaries, ribbon, gates (next checkpoint highlighted, start/finish gold)
-  and a vehicle heading triangle fed by the physics loop.
+  and a vehicle heading triangle fed by the physics loop (plus smaller amber
+  markers for non-player vehicles).
+- **Combat scaffold:** `src/lib/greenline/combat.ts` is pure, vehicle-agnostic
+  logic (like the track runtime): `VehicleCombat` holds health / disruption /
+  down / eliminated state for ANY vehicle, `tryFire` is the forward EMP
+  disruption burst (range + cone + cooldown; hits damage and apply the
+  disruption state, callers apply the spin kick via `spinSign`), `driveMods`
+  turns combat state into engine/steer scaling. **The RACE vs ELIMINATION
+  zero-health branch lives in exactly one place, `VehicleCombat.applyDamage`:**
+  RACE = temporary down window then full-heal (`tick` recovers), ELIMINATION =
+  permanent removal. The harness runs the player and a scripted centerline-
+  following dummy through one identical per-vehicle pipeline (controls ->
+  driveMods -> physics), fires with F / gamepad RB, shows a health bar +
+  DISRUPTED/DOWN/ELIMINATED HUD and an overhead bar on the dummy, and has a
+  MODE select + every combat number (damage, range, cone, cooldown,
+  disruption cuts, spin kick, down time, lap target) in the tuning panel. The
+  dummy can fire the same weapon at the player through the same code path
+  (proven in the harness), so AI reuses it later without rework.
 
 ## FRC Training track
 
