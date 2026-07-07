@@ -8,7 +8,3 @@ import { error } from '@sveltejs/kit';
  * track, combat, or art gets built. Throwaway and iterative by design.
  */
 export const prerender = false;
-
-export const load = () => {
-	if (!dev) error(404, 'Not found');
-};
