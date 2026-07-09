@@ -1,3 +1,4 @@
+import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from '$env/static/public';
 import { vanguardHtml } from '$lib/legacy';
 import { normalizeStored, type StoredSave } from '$lib/vanguard-save';
 import { injectVersionBadge } from '$lib/version-badge';
@@ -52,6 +53,9 @@ function injectionScript(
 	const profileJson = escapeForScript(JSON.stringify(profile));
 	const runStatesJson = escapeForScript(JSON.stringify(Array.isArray(runStates) ? runStates : []));
 
+	const coopUrlJson = escapeForScript(JSON.stringify(PUBLIC_SUPABASE_URL ?? ''));
+	const coopKeyJson = escapeForScript(JSON.stringify(PUBLIC_SUPABASE_ANON_KEY ?? ''));
+
 	return `<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
@@ -59,6 +63,37 @@ function injectionScript(
 	window.__ideaIsTeacher = IS_TEACHER;
 	var CLOUD = ${cloudJson};
 	var PROFILE = ${profileJson};
+	// --- CO-OP (Phase 1): Supabase Realtime access for the game -----------------
+	// The game is served as raw HTML outside the SvelteKit component tree, so it
+	// cannot reach the app's browser client. We hand it the PUBLIC url/anon key
+	// (both already shipped in the app bundle; broadcast channels need no auth,
+	// so co-op never requires sign-in) plus a lazy loader that pulls the
+	// supabase-js UMD build from CDN only when the player actually opens CO-OP.
+	// The game consumes this as window.__ideaCoop.load() -> Promise<SupabaseClient>.
+	window.__ideaCoopName = (PROFILE && PROFILE.name) || '';
+	window.__ideaCoop = (function () {
+		var URL_ = ${coopUrlJson}, KEY_ = ${coopKeyJson};
+		var clientP = null;
+		function load() {
+			if (clientP) return clientP;
+			clientP = new Promise(function (resolve, reject) {
+				if (!URL_ || !KEY_) { reject(new Error('co-op is not configured')); return; }
+				function make() {
+					try { resolve(window.supabase.createClient(URL_, KEY_)); }
+					catch (e) { reject(e); }
+				}
+				if (window.supabase && window.supabase.createClient) { make(); return; }
+				var s = document.createElement('script');
+				s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+				s.async = true;
+				s.onload = make;
+				s.onerror = function () { clientP = null; reject(new Error('could not load the realtime client')); };
+				document.head.appendChild(s);
+			});
+			return clientP;
+		}
+		return { load: load };
+	})();
 	// Cross-device run resume (0032/0037): the saved in-progress runs, one per
 	// game mode. Exposed to the game so its title screen renders a per-mode RESUME
 	// card and calls __ideaRestoreRun with the chosen mode's snapshot. Always set

@@ -277,6 +277,37 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   (a "IDEA" home link, plus the signed-in player's avatar + name) so a player can
   leave the game and confirm their account, styled like the existing cloud-save
   widget.
+- **Co-op Phase 1 (beta, game v188):** shared-field 2-player co-op over Supabase
+  Realtime broadcast, no sign-in required (broadcast only, nothing persisted).
+  The serve-time injection exposes `window.__ideaCoop` (public URL + anon key
+  plus a lazy loader that pulls the supabase-js UMD from jsdelivr only when the
+  player opens CO-OP) and `window.__ideaCoopName`. The title screen gains a
+  CO-OP entry (a separate flow, not a mode value) opening a lobby overlay:
+  create room (4-char code, `vgcoop:<CODE>` channel, distinct from the netcheck
+  `coopnet:` namespace) or join by code, presence roster (P1 host = IDEA green,
+  P2 guest = cyan, per the identity doctrine), host-only START. **Per-player
+  refactor:** ship state lives in a `players` array (players[0] host,
+  players[1] guest) with the old `player` variable kept as the ALIAS for
+  `players[localIndex]`, so all local input/fire/upgrade code is unchanged; a
+  solo run is a 1-element array with identical behavior (the hard invariant).
+  Combat/draw/HUD paths that must see both ships were widened (contact +
+  bullet + ring/hazard collisions, pods, kill attribution via bullet `pi`,
+  enemy/boss aiming via `nearestPlayer()`, both ships drawn with identity
+  colors); coins are a shared wallet on players[0]. **Host-authoritative:**
+  the host runs the full sim (guest held-input applied to players[1], one-shot
+  actions relayed as events) and broadcasts ~15Hz compact snapshots; the guest
+  sends ~25Hz input heartbeats and renders snapshots (no prediction in Phase 1,
+  steppy guest render accepted). Match ends only when BOTH ships are out of
+  lives; the end screen is the adapted game-over labeled CO-OP // UNRANKED with
+  NO leaderboard submit, NO telemetry, NO achievements, NO checkpoint; REFIT is
+  skipped in co-op (sectors chain directly) and both ships run the clean
+  baseline build. Partner/host disconnect shows a modal and ends the match
+  cleanly. Difficulty is the unscaled solo curve (accepted Phase 1 gap).
+  `?coopstub=1` (opt-in, like `?mockresume=1`) swaps the transport for a
+  same-origin BroadcastChannel stub so the whole flow is regression-testable
+  with two tabs/iframes and no live backend. Deferred to later phases: guest
+  prediction, difficulty scaling, revive/down-states, synced REFIT, co-op
+  boards, reconnect.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The
