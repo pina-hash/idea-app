@@ -11,7 +11,18 @@
 	 * FSP, reached cold from a QR code. Reuses the existing Google OAuth flow,
 	 * restricted to @boscotech.net. Writes DIRECTLY to the Apps Script endpoint
 	 * (no Supabase). Neutral Bosco Tech branding, scoped under `.fsp-root`.
+	 *
+	 * PROTOTYPE/TESTING PHASE ONLY: @boscotech.edu (staff) is temporarily also
+	 * accepted alongside @boscotech.net (students) so staff can sign in and test
+	 * the flow before FSP. This must revert to @boscotech.net only before real
+	 * FSP use; the on-page banner below says so. Google's `hd` OAuth hint can only
+	 * express one domain (or the `*` wildcard for "any Workspace domain"), so it
+	 * cannot literally carry two allowed domains, it uses `*` as a UX hint only.
+	 * The real, enforced check is always ALLOWED_DOMAINS/domainOk below.
 	 */
+
+	// PROTOTYPE: remove @boscotech.edu before real FSP use (see banner + note above).
+	const ALLOWED_DOMAINS = ['@boscotech.net', '@boscotech.edu'] as const;
 
 	let { data } = $props();
 	const supabase = $derived(data.supabase as SupabaseClient);
@@ -19,7 +30,9 @@
 
 	const email = $derived((claims?.email ?? '').toString());
 	const signedIn = $derived(!!claims);
-	const domainOk = $derived(email.toLowerCase().endsWith('@boscotech.net'));
+	const domainOk = $derived(
+		ALLOWED_DOMAINS.some((d) => email.toLowerCase().endsWith(d))
+	);
 
 	const url = execUrl();
 
@@ -37,8 +50,11 @@
 			provider: 'google',
 			options: {
 				redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/fsp-tech-selection')}`,
-				// Hint Google to the school domain (UX only; the real check is below).
-				queryParams: { hd: 'boscotech.net', prompt: 'select_account' }
+				// Hint Google to a Bosco Tech Workspace account (UX only; the real
+				// check is domainOk above). `hd` can only carry ONE domain, and we
+				// PROTOTYPE-accept two (@boscotech.net + @boscotech.edu), so `*`
+				// (any Workspace domain) is used instead of hard-coding just one.
+				queryParams: { hd: '*', prompt: 'select_account' }
 			}
 		});
 		if (error) {
@@ -70,6 +86,10 @@
 </svelte:head>
 
 <div class="fsp-root">
+	<div class="proto-note">
+		<strong>Prototype phase.</strong> Staff accounts (<code>@boscotech.edu</code>) can sign in for
+		testing. This will be restricted to students only before FSP.
+	</div>
 	{#if !signedIn}
 		<div class="gate">
 			<div class="gate-card">
@@ -108,6 +128,27 @@
 </div>
 
 <style>
+	.proto-note {
+		max-width: 640px;
+		margin: 0.9rem auto 0;
+		padding: 0.55rem 0.9rem;
+		background: color-mix(in srgb, var(--fsp-gold) 14%, #fff);
+		border: 1px solid color-mix(in srgb, var(--fsp-gold) 55%, transparent);
+		border-radius: 8px;
+		font-size: 0.8rem;
+		line-height: 1.4;
+		color: var(--fsp-navy);
+		text-align: center;
+	}
+	.proto-note strong {
+		color: var(--fsp-navy);
+	}
+	.proto-note code {
+		font-size: 0.78rem;
+		background: color-mix(in srgb, var(--fsp-navy) 8%, #fff);
+		border-radius: 4px;
+		padding: 0.05rem 0.3rem;
+	}
 	.gate {
 		min-height: 70vh;
 		display: grid;
