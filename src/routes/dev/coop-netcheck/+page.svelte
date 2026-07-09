@@ -3,231 +3,326 @@
 	import type { RealtimeChannel } from '@supabase/supabase-js';
 
 	/**
-	 * Dev-only diagnostic: joins two clients to the same Supabase Realtime
-	 * broadcast channel (namespaced by room code) and measures RTT, jitter,
-	 * loss, and throughput under an optional synthetic co-op payload load.
-	 * No auth, no schema, no game code.
+	 * VANGUARD co-op Phase 0 spike: measures whether Supabase Realtime
+	 * broadcast can carry game-frame-rate (20-30Hz) position/input traffic
+	 * on the school network, before any co-op game code is written.
+	 * Dev-only. No auth beyond the existing browser client, no schema,
+	 * no game code touched. Broadcast + presence only, nothing persisted.
 	 */
 	let { data } = $props();
 	const supabase = data.supabase;
 
-	const RATE_PRESETS = [10, 20, 30, 60] as const;
-	const STRESS_PRESETS = {
-		LIGHT: { enemies: 20, bullets: 50 },
-		HEAVY: { enemies: 60, bullets: 300 }
-	} as const;
-	const PING_TIMEOUT_MS = 500;
-	const RTT_HISTORY_MAX = 300;
-	const LOSS_WINDOW = 100;
-	const FIELD_SIZE = 1000;
+	const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no O/0/I/1/L
+	const PING_INTERVAL_MS = 40; // 25Hz
+	const TEST_DURATION_MS = 60_000;
+	const PONG_TIMEOUT_MS = 2000;
+	const DRAIN_TIMEOUT_MS = 2500;
+	const SPARK_SAMPLES = 80;
 
 	const myId = crypto.randomUUID().slice(0, 8);
 
+	type Phase = 'setup' | 'connecting' | 'connected';
+	type Role = 'idle' | 'pinger' | 'echoer';
+	type Verdict = 'GOOD' | 'MARGINAL' | 'POOR';
+
+	type Summary = {
+		min: number;
+		median: number;
+		p95: number;
+		max: number;
+		sent: number;
+		lost: number;
+		lossPct: number;
+		verdict: Verdict;
+		roomCode: string;
+		completedAt: number;
+		perspective: 'pinger' | 'echoer';
+	};
+
+	let phase = $state<Phase>('setup');
+	let roomCodeInput = $state('');
 	let roomCode = $state('');
-	let connected = $state(false);
-	let connecting = $state(false);
-	let peerCount = $state(1);
 	let statusMsg = $state('');
+	let peerCount = $state(0);
 
-	let rateHz = $state(20);
-	let stressOn = $state(false);
-	let stressPreset = $state<'LIGHT' | 'HEAVY'>('LIGHT');
+	let role = $state<Role>('idle');
+	let testRunning = $state(false);
+	let testPhaseLabel = $state<'' | 'running' | 'draining'>('');
+	let elapsedMs = $state(0);
+	let echoCount = $state(0);
 
-	let rttHistory = $state<number[]>([]);
 	let currentRtt = $state<number | null>(null);
-	let lossHistory = $state<boolean[]>([]);
+	let rttHistory = $state<number[]>([]);
+	let sentCount = $state(0);
+	let lostCount = $state(0);
 
-	let sendRateActual = $state(0);
-	let recvRateActual = $state(0);
-	let sendBytesPerSec = $state(0);
-	let recvBytesPerSec = $state(0);
+	let summary = $state<Summary | null>(null);
 
 	let channel: RealtimeChannel | null = null;
 	let seqCounter = 0;
-	const pendingPings = new Map<number, { t0: number; timeoutId: ReturnType<typeof setTimeout> }>();
+	let testStartedAt = 0;
+	let currentTestId = '';
+	let rttSamples: number[] = [];
+	const pendingPings = new Map<number, ReturnType<typeof setTimeout>>();
+	let sendIntervalId: ReturnType<typeof setInterval> | null = null;
+	let elapsedIntervalId: ReturnType<typeof setInterval> | null = null;
+	let drainPollId: ReturnType<typeof setInterval> | null = null;
 
-	let sentCountWindow = 0;
-	let recvCountWindow = 0;
-	let sentBytesWindow = 0;
-	let recvBytesWindow = 0;
-
-	let entities: number[] = [];
-	let entityCount = $state(0);
-
-	const encoder = new TextEncoder();
-	function byteSize(payload: unknown) {
-		return encoder.encode(JSON.stringify(payload)).length;
+	function randomCode() {
+		let s = '';
+		for (let i = 0; i < 4; i++) s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+		return s;
 	}
 
-	function buildEntities(preset: 'LIGHT' | 'HEAVY') {
-		const { enemies, bullets } = STRESS_PRESETS[preset];
-		entityCount = enemies + bullets;
-		entities = [];
-		for (let i = 0; i < entityCount; i++) {
-			const kind = i < enemies ? 0 : 1;
-			entities.push(
-				i,
-				Math.random() * FIELD_SIZE,
-				Math.random() * FIELD_SIZE,
-				(Math.random() - 0.5) * 80,
-				(Math.random() - 0.5) * 80,
-				kind
-			);
-		}
-	}
-
-	function stepEntities(dt: number) {
-		for (let i = 0; i < entityCount; i++) {
-			const base = i * 6;
-			let x = entities[base + 1] + entities[base + 3] * dt;
-			let y = entities[base + 2] + entities[base + 4] * dt;
-			if (x < 0 || x > FIELD_SIZE) entities[base + 3] *= -1;
-			if (y < 0 || y > FIELD_SIZE) entities[base + 4] *= -1;
-			entities[base + 1] = Math.max(0, Math.min(FIELD_SIZE, x));
-			entities[base + 2] = Math.max(0, Math.min(FIELD_SIZE, y));
-		}
-	}
-
-	function percentile(sorted: number[], p: number) {
-		if (!sorted.length) return 0;
-		const idx = Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length));
-		return sorted[idx];
-	}
-
-	const rttStats = $derived.by(() => {
-		if (rttHistory.length === 0) return { avg: null, min: null, max: null, jitter: null };
-		const sorted = [...rttHistory].sort((a, b) => a - b);
-		const avg = rttHistory.reduce((s, v) => s + v, 0) / rttHistory.length;
-		const p50 = percentile(sorted, 50);
-		const p95 = percentile(sorted, 95);
-		return { avg, min: sorted[0], max: sorted[sorted.length - 1], jitter: p95 - p50 };
-	});
-
-	const lossPct = $derived(
-		lossHistory.length ? (100 * lossHistory.filter((ok) => !ok).length) / lossHistory.length : null
-	);
-
-	const targetMsgsPerSec = $derived(rateHz * (stressOn ? 2 : 1));
-
-	function rttVerdict(rtt: number | null) {
-		if (rtt == null) return { label: 'n/a', cls: '' };
-		if (rtt < 80) return { label: 'GOOD', cls: 'good' };
-		if (rtt <= 150) return { label: 'MARGINAL', cls: 'marginal' };
-		return { label: 'PROBLEMATIC', cls: 'bad' };
-	}
-
-	function lossVerdict(pct: number | null) {
-		if (pct == null) return { label: 'n/a', cls: '' };
-		return pct < 1 ? { label: 'GOOD', cls: 'good' } : { label: 'PROBLEMATIC', cls: 'bad' };
-	}
-
-	function tick() {
-		if (!channel) return;
-		const seq = seqCounter++;
-		const t0 = performance.now();
-		const pingPayload = { seq, t0 };
-		channel.send({ type: 'broadcast', event: 'ping', payload: pingPayload });
-		sentCountWindow += 1;
-		sentBytesWindow += byteSize(pingPayload);
-
-		const timeoutId = setTimeout(() => {
-			pendingPings.delete(seq);
-			lossHistory = [...lossHistory, false].slice(-LOSS_WINDOW);
-		}, PING_TIMEOUT_MS);
-		pendingPings.set(seq, { t0, timeoutId });
-
-		if (stressOn && entityCount) {
-			stepEntities(1 / rateHz);
-			const statePayload = { seq, entities: entities.slice() };
-			channel.send({ type: 'broadcast', event: 'state', payload: statePayload });
-			sentCountWindow += 1;
-			sentBytesWindow += byteSize(statePayload);
-		}
-	}
-
-	$effect(() => {
-		if (stressOn) buildEntities(stressPreset);
-	});
-
-	$effect(() => {
-		if (!connected) return;
-		const intervalMs = 1000 / rateHz;
-		const id = setInterval(tick, intervalMs);
-		return () => clearInterval(id);
-	});
-
-	$effect(() => {
-		if (!connected) return;
-		const id = setInterval(() => {
-			sendRateActual = sentCountWindow;
-			recvRateActual = recvCountWindow;
-			sendBytesPerSec = sentBytesWindow;
-			recvBytesPerSec = recvBytesWindow;
-			sentCountWindow = 0;
-			recvCountWindow = 0;
-			sentBytesWindow = 0;
-			recvBytesWindow = 0;
-		}, 1000);
-		return () => clearInterval(id);
-	});
-
-	function connect() {
-		const code = roomCode.trim().toUpperCase();
-		if (!code || connecting || connected) return;
-		connecting = true;
+	function connectToChannel(code: string) {
+		phase = 'connecting';
 		statusMsg = 'Connecting...';
 
-		const ch = supabase.channel(`coop-net:${code}`, {
+		const ch = supabase.channel(`coopnet:${code}`, {
 			config: { broadcast: { self: false, ack: false }, presence: { key: myId } }
 		});
 
-		ch.on('broadcast', { event: 'ping' }, ({ payload }) => {
-			ch.send({ type: 'broadcast', event: 'pong', payload });
-			recvCountWindow += 1;
-			recvBytesWindow += byteSize(payload);
+		ch.on('broadcast', { event: 'ping' }, ({ payload }: { payload: any }) => {
+			if (role !== 'echoer' || payload.testId !== currentTestId) return;
+			echoCount += 1;
+			ch.send({
+				type: 'broadcast',
+				event: 'pong',
+				payload: { seq: payload.seq, t0: payload.t0, testId: payload.testId }
+			});
 		});
 
-		ch.on('broadcast', { event: 'pong' }, ({ payload }) => {
-			const pending = pendingPings.get(payload.seq);
-			recvCountWindow += 1;
-			recvBytesWindow += byteSize(payload);
-			if (!pending) return;
-			clearTimeout(pending.timeoutId);
-			pendingPings.delete(payload.seq);
-			const rtt = performance.now() - pending.t0;
-			currentRtt = rtt;
-			rttHistory = [...rttHistory, rtt].slice(-RTT_HISTORY_MAX);
-			lossHistory = [...lossHistory, true].slice(-LOSS_WINDOW);
+		ch.on('broadcast', { event: 'pong' }, ({ payload }: { payload: any }) => {
+			if (role !== 'pinger' || payload.testId !== currentTestId) return;
+			handlePong(payload.seq, payload.t0);
 		});
 
-		ch.on('broadcast', { event: 'state' }, ({ payload }) => {
-			recvCountWindow += 1;
-			recvBytesWindow += byteSize(payload);
+		ch.on('broadcast', { event: 'start-test' }, ({ payload }: { payload: any }) => {
+			if (payload.pingerId === myId) return; // this client already set its own role locally
+			beginTestAsEchoer(payload.testId);
+		});
+
+		ch.on('broadcast', { event: 'stop-test' }, ({ payload }: { payload: any }) => {
+			if (payload.testId !== currentTestId || role !== 'echoer') return;
+			role = 'idle';
+			testRunning = false;
+			testPhaseLabel = '';
+		});
+
+		ch.on('broadcast', { event: 'test-summary' }, ({ payload }: { payload: Summary }) => {
+			if (role !== 'echoer') return;
+			testRunning = false;
+			testPhaseLabel = '';
+			role = 'idle';
+			summary = { ...payload, perspective: 'echoer' };
 		});
 
 		ch.on('presence', { event: 'sync' }, () => {
 			peerCount = Object.keys(ch.presenceState()).length;
 		});
 
-		ch.subscribe(async (status) => {
+		ch.subscribe(async (status: string) => {
 			if (status === 'SUBSCRIBED') {
-				await ch.track({ id: myId, joined_at: Date.now() });
-				connected = true;
-				connecting = false;
-				statusMsg = `Connected as ${myId}`;
+				await ch.track({ id: myId, joinedAt: Date.now() });
+				roomCode = code;
+				phase = 'connected';
+				statusMsg = '';
 			} else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
 				statusMsg = `Channel error: ${status}`;
-				connecting = false;
+				phase = 'setup';
 			} else if (status === 'CLOSED') {
-				connected = false;
+				phase = 'setup';
 			}
 		});
 
 		channel = ch;
 	}
 
-	function cleanupResources() {
-		pendingPings.forEach((p) => clearTimeout(p.timeoutId));
+	function createRoom() {
+		connectToChannel(randomCode());
+	}
+
+	function joinRoom() {
+		const code = roomCodeInput.trim().toUpperCase();
+		if (code.length !== 4) {
+			statusMsg = 'Enter the 4-character room code.';
+			return;
+		}
+		connectToChannel(code);
+	}
+
+	function resetTestState() {
+		pendingPings.forEach((t) => clearTimeout(t));
+		pendingPings.clear();
+		rttSamples = [];
+		rttHistory = [];
+		currentRtt = null;
+		sentCount = 0;
+		lostCount = 0;
+		echoCount = 0;
+		elapsedMs = 0;
+		summary = null;
+	}
+
+	function startTest() {
+		if (!channel || peerCount < 2 || testRunning) return;
+		const testId = crypto.randomUUID();
+		currentTestId = testId;
+		role = 'pinger';
+		channel.send({ type: 'broadcast', event: 'start-test', payload: { pingerId: myId, testId } });
+		beginTestAsPinger(testId);
+	}
+
+	function beginTestAsPinger(testId: string) {
+		resetTestState();
+		testRunning = true;
+		testPhaseLabel = 'running';
+		testStartedAt = performance.now();
+		seqCounter = 0;
+
+		sendIntervalId = setInterval(() => sendPing(testId), PING_INTERVAL_MS);
+		elapsedIntervalId = setInterval(() => {
+			elapsedMs = performance.now() - testStartedAt;
+			if (elapsedMs >= TEST_DURATION_MS) finishSending(testId);
+		}, 100);
+	}
+
+	function beginTestAsEchoer(testId: string) {
+		resetTestState();
+		currentTestId = testId;
+		role = 'echoer';
+		testRunning = true;
+		testPhaseLabel = 'running';
+		testStartedAt = performance.now();
+	}
+
+	function sendPing(testId: string) {
+		if (!channel) return;
+		const seq = seqCounter++;
+		const t0 = performance.now();
+		channel.send({ type: 'broadcast', event: 'ping', payload: { seq, t0, testId } });
+		sentCount += 1;
+		const timeoutId = setTimeout(() => {
+			if (pendingPings.has(seq)) {
+				pendingPings.delete(seq);
+				lostCount += 1;
+			}
+		}, PONG_TIMEOUT_MS);
+		pendingPings.set(seq, timeoutId);
+	}
+
+	function handlePong(seq: number, t0: number) {
+		const timeoutId = pendingPings.get(seq);
+		if (timeoutId == null) return; // already timed out, or a stray duplicate
+		clearTimeout(timeoutId);
+		pendingPings.delete(seq);
+		const rtt = performance.now() - t0;
+		currentRtt = rtt;
+		rttSamples.push(rtt);
+		rttHistory = [...rttHistory, rtt].slice(-SPARK_SAMPLES);
+	}
+
+	function finishSending(testId: string) {
+		if (sendIntervalId) {
+			clearInterval(sendIntervalId);
+			sendIntervalId = null;
+		}
+		if (elapsedIntervalId) {
+			clearInterval(elapsedIntervalId);
+			elapsedIntervalId = null;
+		}
+		testPhaseLabel = 'draining';
+		const drainStart = performance.now();
+		drainPollId = setInterval(() => {
+			const drained = pendingPings.size === 0;
+			const timedOut = performance.now() - drainStart >= DRAIN_TIMEOUT_MS;
+			if (drained || timedOut) {
+				if (drainPollId) clearInterval(drainPollId);
+				drainPollId = null;
+				finalizeTest(testId);
+			}
+		}, 100);
+	}
+
+	function stopTestManually() {
+		if (!testRunning || role !== 'pinger') return;
+		channel?.send({ type: 'broadcast', event: 'stop-test', payload: { testId: currentTestId } });
+		finishSending(currentTestId);
+	}
+
+	function percentile(sorted: number[], p: number) {
+		if (!sorted.length) return 0;
+		const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+		return sorted[idx];
+	}
+
+	function computeVerdict(median: number, p95: number, lossPct: number): Verdict {
+		if (median < 60 && p95 < 120 && lossPct < 2) return 'GOOD';
+		if (median < 120 && p95 < 250 && lossPct < 5) return 'MARGINAL';
+		return 'POOR';
+	}
+
+	function finalizeTest(testId: string) {
+		testRunning = false;
+		testPhaseLabel = '';
+		pendingPings.forEach((t) => clearTimeout(t));
+		const stillPending = pendingPings.size;
+		pendingPings.clear();
+
+		const sorted = [...rttSamples].sort((a, b) => a - b);
+		const min = sorted[0] ?? 0;
+		const max = sorted[sorted.length - 1] ?? 0;
+		const median = percentile(sorted, 50);
+		const p95 = percentile(sorted, 95);
+		const sent = sentCount;
+		const lost = lostCount + stillPending;
+		const lossPct = sent > 0 ? (100 * lost) / sent : 0;
+		const verdict = computeVerdict(median, p95, lossPct);
+
+		const result: Summary = {
+			min,
+			median,
+			p95,
+			max,
+			sent,
+			lost,
+			lossPct,
+			verdict,
+			roomCode,
+			completedAt: Date.now(),
+			perspective: 'pinger'
+		};
+		summary = result;
+		channel?.send({ type: 'broadcast', event: 'test-summary', payload: result });
+		role = 'idle';
+	}
+
+	function runAgain() {
+		summary = null;
+		startTest();
+	}
+
+	function disconnect() {
+		cleanupAll();
+		phase = 'setup';
+		roomCode = '';
+		roomCodeInput = '';
+		peerCount = 0;
+		role = 'idle';
+		testRunning = false;
+		testPhaseLabel = '';
+		summary = null;
+		statusMsg = 'Disconnected';
+	}
+
+	function cleanupAll() {
+		if (sendIntervalId) clearInterval(sendIntervalId);
+		if (elapsedIntervalId) clearInterval(elapsedIntervalId);
+		if (drainPollId) clearInterval(drainPollId);
+		sendIntervalId = null;
+		elapsedIntervalId = null;
+		drainPollId = null;
+		pendingPings.forEach((t) => clearTimeout(t));
 		pendingPings.clear();
 		if (channel) {
 			supabase.removeChannel(channel);
@@ -235,148 +330,147 @@
 		}
 	}
 
-	function disconnect() {
-		cleanupResources();
-		connected = false;
-		connecting = false;
-		peerCount = 1;
-		statusMsg = 'Disconnected';
-		rttHistory = [];
-		lossHistory = [];
-		currentRtt = null;
-		sendRateActual = 0;
-		recvRateActual = 0;
-		sendBytesPerSec = 0;
-		recvBytesPerSec = 0;
-	}
+	onMount(() => cleanupAll);
 
-	onMount(() => cleanupResources);
+	const sparkPoints = $derived.by(() => {
+		const h = rttHistory;
+		if (h.length < 2) return '';
+		const w = 320;
+		const hgt = 56;
+		const maxRtt = Math.max(150, ...h);
+		const stepX = w / (h.length - 1);
+		return h.map((v, i) => `${(i * stepX).toFixed(1)},${(hgt - Math.min(v, maxRtt) * (hgt / maxRtt)).toFixed(1)}`).join(' ');
+	});
 
-	function fmt(n: number | null, digits = 0) {
+	function fmt(n: number | null | undefined, digits = 0) {
 		return n == null ? '--' : n.toFixed(digits);
 	}
-	function kb(bytes: number) {
-		return (bytes / 1024).toFixed(2);
+	function verdictClass(v: Verdict | null | undefined) {
+		if (v === 'GOOD') return 'good';
+		if (v === 'MARGINAL') return 'marginal';
+		if (v === 'POOR') return 'poor';
+		return '';
 	}
 </script>
 
 <svelte:head><title>Co-op netcheck (dev)</title></svelte:head>
 
 <div class="wrap">
-	<h1>Co-op netcode latency spike</h1>
+	<h1>VANGUARD co-op // network spike</h1>
 	<p class="note">
-		Dev-only. Joins two clients to a Supabase Realtime broadcast channel (<code>coop-net:&lt;CODE&gt;</code>)
-		and measures whether it can carry VANGUARD co-op traffic. No login, no schema, no game code touched.
+		Phase 0: measures whether Supabase Realtime <code>broadcast</code> can carry 20-30Hz co-op
+		position/input traffic on the school network, before any co-op game code exists. Two devices
+		join the same room code and ping each other over a broadcast channel (<code>coopnet:&lt;CODE&gt;</code>).
+		No login required beyond the site's existing session, no data is stored.
 	</p>
 
-	<div class="panel">
-		<div class="row">
-			<input
-				type="text"
-				placeholder="ROOM CODE"
-				bind:value={roomCode}
-				disabled={connected || connecting}
-				onkeydown={(e) => e.key === 'Enter' && connect()}
-			/>
-			{#if !connected}
-				<button type="button" onclick={connect} disabled={connecting || !roomCode.trim()}>
-					{connecting ? 'Connecting...' : 'Connect'}
-				</button>
-			{:else}
+	{#if phase === 'setup'}
+		<div class="panel">
+			<div class="row">
+				<button type="button" class="primary" onclick={createRoom}>Create room</button>
+				<span class="or">or</span>
+				<input
+					type="text"
+					placeholder="ROOM CODE"
+					maxlength="4"
+					bind:value={roomCodeInput}
+					onkeydown={(e) => e.key === 'Enter' && joinRoom()}
+				/>
+				<button type="button" onclick={joinRoom}>Join</button>
+			</div>
+			{#if statusMsg}<p class="status-msg">{statusMsg}</p>{/if}
+		</div>
+	{:else}
+		<div class="panel">
+			<div class="row">
+				<span class="room-code">Room <strong>{roomCode}</strong></span>
+				<span class="peers" class:ready={peerCount >= 2}>
+					{#if phase === 'connecting'}
+						Connecting...
+					{:else if peerCount >= 2}
+						CONNECTED - {peerCount} clients
+					{:else}
+						Waiting for second device... ({peerCount}/2)
+					{/if}
+				</span>
 				<button type="button" class="danger" onclick={disconnect}>Disconnect</button>
-			{/if}
-			<span class="status">{statusMsg || 'idle'}</span>
+			</div>
 		</div>
 
-		<div class="row">
-			<label>
-				Rate
-				<select bind:value={rateHz}>
-					{#each RATE_PRESETS as r (r)}
-						<option value={r}>{r} Hz</option>
-					{/each}
-				</select>
-			</label>
-			<label class="checkbox">
-				<input type="checkbox" bind:checked={stressOn} />
-				Payload stress test
-			</label>
-			<select bind:value={stressPreset} disabled={!stressOn}>
-				<option value="LIGHT">LIGHT (~20 enemies / 50 bullets)</option>
-				<option value="HEAVY">HEAVY (~60 enemies / 300 bullets)</option>
-			</select>
-			<span class="peers">peers: {connected ? peerCount : '--'}</span>
-		</div>
-	</div>
-
-	<div class="grid">
-		<div class="card">
-			<h2>RTT</h2>
-			<div class="big {rttVerdict(currentRtt).cls}">{fmt(currentRtt, 1)} ms</div>
-			<div class="verdict {rttVerdict(currentRtt).cls}">{rttVerdict(currentRtt).label}</div>
-			<dl>
-				<dt>avg</dt>
-				<dd>{fmt(rttStats.avg, 1)} ms</dd>
-				<dt>min</dt>
-				<dd>{fmt(rttStats.min, 1)} ms</dd>
-				<dt>max</dt>
-				<dd>{fmt(rttStats.max, 1)} ms</dd>
-				<dt>jitter (p95-p50)</dt>
-				<dd>{fmt(rttStats.jitter, 1)} ms</dd>
-			</dl>
-		</div>
-
-		<div class="card">
-			<h2>Packet loss</h2>
-			<div class="big {lossVerdict(lossPct).cls}">{fmt(lossPct, 2)}%</div>
-			<div class="verdict {lossVerdict(lossPct).cls}">{lossVerdict(lossPct).label}</div>
-			<dl>
-				<dt>window</dt>
-				<dd>{lossHistory.length} / {LOSS_WINDOW} pings</dd>
-				<dt>timeout</dt>
-				<dd>{PING_TIMEOUT_MS} ms</dd>
-			</dl>
-		</div>
-
-		<div class="card">
-			<h2>Throughput</h2>
-			<dl>
-				<dt>send rate</dt>
-				<dd>{sendRateActual} / {targetMsgsPerSec} msg/s</dd>
-				<dt>recv rate</dt>
-				<dd>{recvRateActual} / {targetMsgsPerSec} msg/s</dd>
-				<dt>send</dt>
-				<dd>{kb(sendBytesPerSec)} KB/s</dd>
-				<dt>recv</dt>
-				<dd>{kb(recvBytesPerSec)} KB/s</dd>
-			</dl>
-		</div>
-
-		<div class="card">
-			<h2>Stress payload</h2>
-			<dl>
-				<dt>state</dt>
-				<dd>{stressOn ? 'ON' : 'off'}</dd>
-				<dt>preset</dt>
-				<dd>{stressPreset}</dd>
-				<dt>entities</dt>
-				<dd>{stressOn ? entityCount : '--'}</dd>
-			</dl>
+		{#if peerCount < 2}
 			<p class="hint">
-				Watch RTT/loss above while this is ON to see whether the payload load degrades ping timing.
+				Share the room code <strong>{roomCode}</strong> with the second device. Open
+				<code>/dev/coop-netcheck</code> there and join with this code.
 			</p>
-		</div>
-	</div>
+		{:else if testRunning}
+			<div class="grid">
+				<div class="card wide">
+					<h2>{role === 'pinger' ? 'Running test (you are pinging)' : 'Echoing pings from peer'}</h2>
+					{#if role === 'pinger'}
+						<div class="big">{fmt(currentRtt, 1)} ms</div>
+						<p class="sub">
+							{testPhaseLabel === 'draining' ? 'Finishing up, waiting on last packets...' : `${fmt(elapsedMs / 1000, 1)}s / 60s`}
+							&middot; sent {sentCount} &middot; lost {lostCount}
+						</p>
+						<svg class="spark" viewBox="0 0 320 56" preserveAspectRatio="none">
+							<polyline points={sparkPoints} />
+						</svg>
+					{:else}
+						<div class="big">{echoCount}</div>
+						<p class="sub">pings echoed back so far. Watch the other device for live results.</p>
+					{/if}
+					{#if role === 'pinger'}
+						<button type="button" class="danger" onclick={stopTestManually}>Stop test</button>
+					{/if}
+				</div>
+			</div>
+		{:else if summary}
+			<div class="summary-panel {verdictClass(summary.verdict)}">
+				<div class="summary-head">
+					<span>Room {summary.roomCode}</span>
+					<span>{new Date(summary.completedAt).toLocaleString()}</span>
+				</div>
+				<div class="verdict-big {verdictClass(summary.verdict)}">{summary.verdict}</div>
+				<p class="perspective">
+					This device was the {summary.perspective === 'pinger' ? 'PINGER (sender)' : 'ECHOER (reflector)'}
+					for this run.
+				</p>
+				<div class="stat-grid">
+					<div class="stat"><span class="label">Min RTT</span><span class="value">{fmt(summary.min, 1)} ms</span></div>
+					<div class="stat"><span class="label">Median RTT</span><span class="value">{fmt(summary.median, 1)} ms</span></div>
+					<div class="stat"><span class="label">p95 RTT</span><span class="value">{fmt(summary.p95, 1)} ms</span></div>
+					<div class="stat"><span class="label">Max RTT</span><span class="value">{fmt(summary.max, 1)} ms</span></div>
+					<div class="stat"><span class="label">Sent</span><span class="value">{summary.sent}</span></div>
+					<div class="stat"><span class="label">Lost</span><span class="value">{summary.lost}</span></div>
+					<div class="stat"><span class="label">Loss %</span><span class="value">{fmt(summary.lossPct, 2)}%</span></div>
+				</div>
+				<button type="button" class="primary" onclick={runAgain}>Run again</button>
+				<p class="hint">
+					To test the other direction, click <strong>Run again</strong> on the OTHER device instead
+					so roles swap.
+				</p>
+			</div>
+		{:else}
+			<div class="grid">
+				<div class="card wide">
+					<h2>Ready</h2>
+					<p class="sub">Either device can start. The starter sends pings for 60 seconds at 25Hz; the other echoes them back.</p>
+					<button type="button" class="primary" onclick={startTest}>Start test</button>
+				</div>
+			</div>
+		{/if}
+	{/if}
 
 	<p class="thresholds">
-		Thresholds: RTT &lt;80ms good, 80-150ms marginal, &gt;150ms problematic for host-authoritative feel.
-		Loss &lt;1% good.
+		Verdict thresholds (20-30Hz co-op sync target): <strong class="good">GOOD</strong> = median
+		&lt;60ms, p95 &lt;120ms, loss &lt;2%. <strong class="marginal">MARGINAL</strong> = median
+		&lt;120ms, p95 &lt;250ms, loss &lt;5%. <strong class="poor">POOR</strong> = worse than that.
 	</p>
 </div>
 
 <style>
 	.wrap {
-		max-width: 900px;
+		max-width: 760px;
 		margin: 0 auto;
 		padding: 2rem 1.25rem 4rem;
 		font-family: 'Share Tech Mono', monospace;
@@ -394,7 +488,7 @@
 	.note {
 		color: var(--dim, #4a7a52);
 		font-size: 0.78rem;
-		line-height: 1.5;
+		line-height: 1.55;
 		margin: 0 0 1.25rem;
 	}
 	code {
@@ -405,17 +499,17 @@
 		border: 1px solid var(--dim, #4a7a52);
 		border-radius: 6px;
 		padding: 0.9rem 1rem;
-		margin-bottom: 1.25rem;
+		margin-bottom: 1rem;
 	}
 	.row {
 		display: flex;
 		align-items: center;
 		gap: 0.6rem;
 		flex-wrap: wrap;
-		margin-bottom: 0.6rem;
 	}
-	.row:last-child {
-		margin-bottom: 0;
+	.or {
+		color: var(--dim, #4a7a52);
+		font-size: 0.72rem;
 	}
 	input[type='text'] {
 		font-family: 'Share Tech Mono', monospace;
@@ -424,124 +518,171 @@
 		color: var(--white, #e8ffe8);
 		border-radius: 4px;
 		padding: 0.4rem 0.6rem;
-		font-size: 0.8rem;
+		font-size: 0.85rem;
 		text-transform: uppercase;
-		width: 10rem;
-	}
-	select {
-		font-family: 'Share Tech Mono', monospace;
-		background: var(--bg2, #081209);
-		border: 1px solid var(--dim, #4a7a52);
-		color: var(--white, #e8ffe8);
-		border-radius: 4px;
-		padding: 0.35rem 0.5rem;
-		font-size: 0.75rem;
-	}
-	label {
-		display: flex;
-		align-items: center;
-		gap: 0.35rem;
-		font-size: 0.75rem;
-		color: var(--dim, #4a7a52);
-	}
-	.checkbox {
-		color: var(--white, #e8ffe8);
+		width: 7rem;
+		letter-spacing: 0.1em;
 	}
 	button {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.75rem;
-		color: var(--green, #00ff41);
+		color: var(--white, #e8ffe8);
 		background: var(--bg2, #081209);
-		border: 1px solid var(--green, #00ff41);
+		border: 1px solid var(--dim, #4a7a52);
 		border-radius: 4px;
-		padding: 0.4rem 0.9rem;
+		padding: 0.45rem 1rem;
 		cursor: pointer;
 		text-transform: uppercase;
 	}
-	button:disabled {
-		color: var(--ice, #88ddff);
-		border-color: var(--ice, #88ddff);
-		cursor: default;
+	button.primary {
+		color: var(--green, #00ff41);
+		border-color: var(--green, #00ff41);
 	}
 	button.danger {
 		color: var(--amber, #ff8c00);
 		border-color: var(--amber, #ff8c00);
+		margin-left: auto;
 	}
-	.status {
+	.status-msg {
 		font-size: 0.72rem;
+		color: var(--amber, #ff8c00);
+		margin: 0.6rem 0 0;
+	}
+	.room-code {
+		font-size: 0.85rem;
+	}
+	.room-code strong {
 		color: var(--cyan, #00f0ff);
+		letter-spacing: 0.15em;
 	}
 	.peers {
 		font-size: 0.72rem;
-		color: var(--cyan, #00f0ff);
-		margin-left: auto;
+		color: var(--dim, #4a7a52);
+	}
+	.peers.ready {
+		color: var(--green, #00ff41);
+	}
+	.hint {
+		font-size: 0.75rem;
+		color: var(--dim, #4a7a52);
+		line-height: 1.5;
 	}
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
 		gap: 0.8rem;
 	}
 	.card {
 		background: var(--bg1, #050f07);
 		border: 1px solid var(--dim, #4a7a52);
 		border-radius: 6px;
-		padding: 0.85rem 1rem;
+		padding: 1rem 1.15rem;
 	}
 	.card h2 {
-		font-size: 0.72rem;
+		font-size: 0.75rem;
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 		color: var(--dim, #4a7a52);
-		margin: 0 0 0.5rem;
+		margin: 0 0 0.6rem;
+	}
+	.card .sub {
+		font-size: 0.75rem;
+		color: var(--dim, #4a7a52);
+		margin: 0.3rem 0 0.8rem;
+		line-height: 1.5;
 	}
 	.big {
-		font-size: 1.6rem;
+		font-size: 2.4rem;
 		font-weight: 700;
 		color: var(--white, #e8ffe8);
+		line-height: 1;
 	}
-	.big.good,
-	.verdict.good {
+	.spark {
+		width: 100%;
+		height: 56px;
+		margin: 0.8rem 0;
+		display: block;
+	}
+	.spark polyline {
+		fill: none;
+		stroke: var(--green, #00ff41);
+		stroke-width: 1.5;
+	}
+	.summary-panel {
+		background: var(--bg1, #050f07);
+		border: 1px solid var(--dim, #4a7a52);
+		border-radius: 8px;
+		padding: 1.5rem;
+		text-align: center;
+	}
+	.summary-panel.good {
+		border-color: var(--green, #00ff41);
+	}
+	.summary-panel.marginal,
+	.summary-panel.poor {
+		border-color: var(--amber, #ff8c00);
+	}
+	.summary-head {
+		display: flex;
+		justify-content: space-between;
+		font-size: 0.72rem;
+		color: var(--dim, #4a7a52);
+		margin-bottom: 0.9rem;
+	}
+	.verdict-big {
+		font-size: 2.8rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		margin-bottom: 0.4rem;
+	}
+	.verdict-big.good,
+	strong.good {
 		color: var(--green, #00ff41);
 	}
-	.big.marginal,
-	.verdict.marginal {
+	.verdict-big.marginal,
+	strong.marginal {
 		color: var(--amber, #ff8c00);
 	}
-	.big.bad,
-	.verdict.bad {
+	.verdict-big.poor,
+	strong.poor {
 		color: var(--amber, #ff8c00);
 		font-weight: 700;
 	}
-	.verdict {
-		font-size: 0.7rem;
-		letter-spacing: 0.06em;
-		margin-bottom: 0.5rem;
+	.perspective {
+		font-size: 0.75rem;
+		color: var(--dim, #4a7a52);
+		margin: 0 0 1.2rem;
 	}
-	dl {
+	.stat-grid {
 		display: grid;
-		grid-template-columns: auto auto;
-		gap: 0.15rem 0.6rem;
-		margin: 0;
-		font-size: 0.72rem;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0.9rem;
+		margin-bottom: 1.4rem;
 	}
-	dt {
+	.stat {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.stat .label {
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
 		color: var(--dim, #4a7a52);
 	}
-	dd {
-		margin: 0;
+	.stat .value {
+		font-size: 1.15rem;
+		font-weight: 700;
 		color: var(--white, #e8ffe8);
-		text-align: right;
-	}
-	.hint {
-		font-size: 0.68rem;
-		color: var(--dim, #4a7a52);
-		margin: 0.6rem 0 0;
-		line-height: 1.4;
 	}
 	.thresholds {
 		font-size: 0.68rem;
 		color: var(--dim, #4a7a52);
-		margin-top: 1.25rem;
-		line-height: 1.5;
+		margin-top: 1.5rem;
+		line-height: 1.6;
+	}
+	@media (max-width: 480px) {
+		.stat-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
 	}
 </style>
