@@ -8,16 +8,19 @@
  * Contract the deployed Apps Script must honor (upsert keyed by email, current
  * state only, no history):
  *   GET  <exec>?email=<email>
- *        -> JSON { ok: true, lastName, firstName, studentId, choices }, where
- *           `choices` is the ordered tech-id array (1..4) or null when the
- *           student has no row yet. (An `ok: false` or missing row reads as "no
+ *        -> JSON { ok: true, lastName, firstName, studentId, choices, complete },
+ *           where `choices` is the ordered tech-id array (1..4) or null when the
+ *           student has no row yet, and `complete` is the server's verdict on
+ *           whether all 4 slots are filled (used only to seed the ranked-count
+ *           indicator's first paint for a returning student; see
+ *           FspTechSelection.svelte). (An `ok: false` or missing row reads as "no
  *           prior selection".)
  *   POST <exec>   body: JSON { email, lastName, firstName, studentId, choices }
- *        -> 2xx on success. `choices` may hold 1 to 4 entries: a partial ranking
- *           (a student only considering one or two pathways) is a valid save, a
- *           full 4-pick ranking is never required. The script UPSERTS on email so
- *           a returning student over FSP days 1-3 overwrites their own row; only
- *           current state is kept.
+ *        -> JSON { ok: true, complete } on success (2xx). `choices` may hold 1 to
+ *           4 entries: a partial ranking (a student only considering one or two
+ *           pathways) is a valid save, a full 4-pick ranking is never required.
+ *           The script UPSERTS on email so a returning student over FSP days 1-3
+ *           overwrites their own row; only current state is kept.
  *
  * POST uses Content-Type text/plain to stay a CORS "simple request" (no
  * preflight against the Apps Script origin); Apps Script reads the raw body via
@@ -33,6 +36,13 @@ export interface FspSelection {
 	studentId: string;
 	/** Ordered tech ids, 1st choice first. 1 to 4 entries; a partial ranking is valid. */
 	choices: string[];
+	/**
+	 * The server's verdict on whether all 4 slots are filled, from the GET
+	 * prefill. Undefined when unknown (e.g. no prior row). Used only to seed the
+	 * ranked-count indicator's very first paint for a returning student; every
+	 * live edit afterward is computed from the actual `choices` array instead.
+	 */
+	complete?: boolean;
 }
 
 export interface FspPayload extends FspSelection {
@@ -75,7 +85,8 @@ export async function fetchSelection(
 		lastName: typeof data.lastName === 'string' ? data.lastName : '',
 		firstName: typeof data.firstName === 'string' ? data.firstName : '',
 		studentId: typeof data.studentId === 'string' ? data.studentId : '',
-		choices
+		choices,
+		complete: typeof data.complete === 'boolean' ? data.complete : undefined
 	};
 }
 

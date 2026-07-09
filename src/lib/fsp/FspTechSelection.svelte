@@ -76,6 +76,19 @@
 	const readyToSave = $derived(namesReady && hasPicks);
 	const availableCount = $derived(FSP_TECHS.length - choices.length);
 
+	// Persistent "N of 4 ranked" indicator, separate from the saving/saved/error
+	// pill: it always shows the count, regardless of save status. The count
+	// itself is always live off `choices`. `pickTouched` becomes true on the
+	// first client-side add/remove; until then, for a returning student, we
+	// prefer the server's `complete` verdict from the GET prefill (rather than
+	// recomputing it ourselves) for the very first paint, as requested.
+	// Afterward it always tracks the live `choices` array.
+	let pickTouched = $state(false);
+	const rankedCount = $derived(choices.length);
+	const isComplete = $derived(
+		!pickTouched && initial?.complete !== undefined ? initial.complete : rankedCount >= 4
+	);
+
 	let dragIndex = $state<number | null>(null);
 	let dragOverIndex = $state<number | null>(null);
 
@@ -106,6 +119,7 @@
 	};
 
 	function toggleTech(id: FspTechId) {
+		pickTouched = true;
 		const i = choices.indexOf(id);
 		if (i !== -1) {
 			choices = choices.filter((c) => c !== id); // remove (renumbers the rest)
@@ -124,6 +138,7 @@
 	}
 
 	function removeAt(i: number) {
+		pickTouched = true;
 		choices = choices.filter((_, k) => k !== i);
 	}
 
@@ -326,6 +341,15 @@
 
 	<div class="signed-as">
 		Signed in as <strong>{email}</strong>
+	</div>
+
+	<div class="rank-status" class:complete={isComplete} role="status">
+		{#if isComplete}
+			<span class="rank-status-icon" aria-hidden="true">&checkmark;</span> All 4 ranked
+		{:else}
+			<span class="rank-status-icon" aria-hidden="true">{rankedCount}/4</span>
+			{rankedCount} of 4 ranked &middot; come back before FSP ends
+		{/if}
 	</div>
 
 	<form method="POST" action={execUrl ?? ''} onsubmit={onFormSubmit} class="fsp-form">
@@ -565,6 +589,44 @@
 	}
 	.signed-as strong {
 		color: var(--fsp-ink);
+	}
+
+	/* Persistent ranked-count indicator: always navy/gold, never red, since an
+	   incomplete ranking mid-program is expected, not an error. Distinct from
+	   the transient saving/saved/error pill below the form. */
+	.rank-status {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0.7rem 0 0;
+		padding: 0.4rem 0.85rem;
+		border-radius: 999px;
+		font-size: 0.82rem;
+		font-weight: 700;
+		border: 1px solid var(--fsp-line);
+		background: var(--fsp-surface-2);
+		color: var(--fsp-navy);
+	}
+	.rank-status.complete {
+		border-color: color-mix(in srgb, var(--fsp-gold) 55%, transparent);
+		background: color-mix(in srgb, var(--fsp-gold) 16%, #fff);
+	}
+	.rank-status-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 1.4rem;
+		height: 1.4rem;
+		padding: 0 0.3rem;
+		border-radius: 999px;
+		font-size: 0.7rem;
+		font-weight: 800;
+		background: var(--fsp-navy);
+		color: #fff;
+	}
+	.rank-status.complete .rank-status-icon {
+		background: var(--fsp-gold);
+		color: var(--fsp-navy-deep);
 	}
 
 	.fsp-form {

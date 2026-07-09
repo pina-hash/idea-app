@@ -30,21 +30,24 @@
 		first: string;
 		studentId: string;
 		email: string;
-		choices: [string, string, string, string];
+		/** 1 to 4 entries, 1st choice first. Fewer than 4 is a valid, saved partial ranking. */
+		choices: string[];
 		updated: string;
 	}
 
-	// Sample data only — illustrative placeholders, not real students.
+	// Sample data only — illustrative placeholders, not real students. A couple
+	// of rows are deliberately partial (still considering their options), so the
+	// Complete? column below shows both states, matching what staff will see live.
 	const rows: Row[] = [
 		{ last: 'Alvarado', first: 'Marcus', studentId: '24-1103', email: 'malvarado26@boscotech.net', choices: ['IDEA', 'MSET', 'ACE', 'BMET'], updated: '10:14 AM' },
 		{ last: 'Bautista', first: 'Ryan', studentId: '24-1117', email: 'rbautista26@boscotech.net', choices: ['MSET', 'MAT', 'IDEA', 'CSEE'], updated: '10:22 AM' },
 		{ last: 'Chen', first: 'Nathaniel', studentId: '24-1129', email: 'nchen26@boscotech.net', choices: ['BMET', 'IDEA', 'CSEE', 'ACE'], updated: '10:31 AM' },
 		{ last: 'Dominguez', first: 'Isaac', studentId: '24-1134', email: 'idominguez26@boscotech.net', choices: ['ACE', 'IDEA', 'MSET', 'MAT'], updated: '10:33 AM' },
-		{ last: 'Esparza', first: 'Diego', studentId: '24-1140', email: 'desparza26@boscotech.net', choices: ['IDEA', 'ACE', 'BMET', 'MSET'], updated: '10:40 AM' },
+		{ last: 'Esparza', first: 'Diego', studentId: '24-1140', email: 'desparza26@boscotech.net', choices: ['IDEA', 'ACE'], updated: '10:40 AM' },
 		{ last: 'Franco', first: 'Owen', studentId: '24-1152', email: 'ofranco26@boscotech.net', choices: ['CSEE', 'MSET', 'MAT', 'IDEA'], updated: '10:47 AM' },
-		{ last: 'Guerrero', first: 'Liam', studentId: '24-1159', email: 'lguerrero26@boscotech.net', choices: ['MSET', 'IDEA', 'ACE', 'CSEE'], updated: '10:52 AM' },
+		{ last: 'Guerrero', first: 'Liam', studentId: '24-1159', email: 'lguerrero26@boscotech.net', choices: ['MSET'], updated: '10:52 AM' },
 		{ last: 'Huerta', first: 'Adrian', studentId: '24-1166', email: 'ahuerta26@boscotech.net', choices: ['IDEA', 'BMET', 'MSET', 'MAT'], updated: '11:01 AM' },
-		{ last: 'Ibarra', first: 'Xavier', studentId: '24-1171', email: 'xibarra26@boscotech.net', choices: ['MAT', 'CSEE', 'IDEA', 'ACE'], updated: '11:05 AM' },
+		{ last: 'Ibarra', first: 'Xavier', studentId: '24-1171', email: 'xibarra26@boscotech.net', choices: ['MAT', 'CSEE', 'IDEA'], updated: '11:05 AM' },
 		{ last: 'Juarez', first: 'Sebastian', studentId: '24-1180', email: 'sjuarez26@boscotech.net', choices: ['ACE', 'MSET', 'BMET', 'IDEA'], updated: '11:12 AM' }
 	];
 </script>
@@ -103,6 +106,7 @@
 				<th class="colhead">G</th>
 				<th class="colhead">H</th>
 				<th class="colhead">I</th>
+				<th class="colhead">J</th>
 			</tr>
 			<tr class="headerrow">
 				<th class="rowlabel">1</th>
@@ -114,21 +118,35 @@
 				<th>Choice 2<span class="sort-arrows">&#9650;&#9660;</span></th>
 				<th>Choice 3<span class="sort-arrows">&#9650;&#9660;</span></th>
 				<th>Choice 4<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>Complete?<span class="sort-arrows">&#9650;&#9660;</span></th>
 				<th>Updated At<span class="sort-arrows">&#9650;&#9660;</span></th>
 			</tr>
 		</thead>
 		<tbody>
 			{#each rows as r, i (r.email)}
+				{@const complete = r.choices.length >= 4}
 				<tr>
 					<td class="rowlabel">{i + 2}</td>
 					<td>{r.last}</td>
 					<td>{r.first}</td>
 					<td class="studentid-cell">{r.studentId}</td>
 					<td>{r.email}</td>
-					{#each r.choices as choice (choice)}
-						{@const c = TECH_COLORS[choice]}
-						<td class="col-choice" style="background:{c.bg}; color:{c.fg}">{choice}</td>
+					{#each [0, 1, 2, 3] as slot (slot)}
+						{@const choice = r.choices[slot]}
+						{@const c = choice ? TECH_COLORS[choice] : undefined}
+						{#if c}
+							<td class="col-choice" style="background:{c.bg}; color:{c.fg}">{choice}</td>
+						{:else}
+							<td class="col-choice-empty"></td>
+						{/if}
 					{/each}
+					<td class="complete-cell">
+						{#if complete}
+							<span class="complete-pill complete-yes">&#10003; Complete</span>
+						{:else}
+							<span class="complete-pill complete-no">&#10007; {r.choices.length} of 4</span>
+						{/if}
+					</td>
 					<td class="updated-cell">{r.updated}</td>
 				</tr>
 			{/each}
@@ -157,9 +175,10 @@
 	that student's existing row instead of adding a duplicate. The header row stays frozen while scrolling.
 	Filter arrows let staff sort or filter by any column, for example last name alphabetically, or all
 	students with IDEA as Choice 1, on the fly during FSP. Cell color is driven by <code>Conditional formatting</code>
-	keyed to each tech name, so the pattern holds no matter how the sheet gets sorted. Student ID is unverified
-	until it is matched against the master roster, once that's available it will pull instead of relying on
-	what the student typed.
+	keyed to each tech name, so the pattern holds no matter how the sheet gets sorted. A student can save a
+	partial ranking (as few as 1 pick) and come back to add more, so the <code>Complete?</code> column flags who
+	still needs a nudge before FSP wraps up. Student ID is unverified until it is matched against the master
+	roster, once that's available it will pull instead of relying on what the student typed.
 </div>
 
 <style>
@@ -332,6 +351,39 @@
 		text-align: center;
 		font-weight: 600;
 		border-radius: 0;
+	}
+	.col-choice-empty {
+		background: #fafafa;
+	}
+
+	/* Complete? column: standard Sheets-style conditional-formatting green/red,
+	   matching how this would render in the real tracking sheet. This preview
+	   page intentionally uses its own Sheets palette throughout (see the header
+	   comment), distinct from the live tool's navy/gold-only indicator, which
+	   avoids red for an incomplete ranking since that's expected mid-program,
+	   not an error, for a student actively using the tool. Here, staff are
+	   scanning a roster to see who still needs a nudge, so a red flag is the
+	   right signal. */
+	.complete-cell {
+		text-align: center;
+	}
+	.complete-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 4px;
+		padding: 3px 8px;
+		border-radius: 4px;
+		font-size: 11px;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+	.complete-yes {
+		background: #e6f4ea;
+		color: #188038;
+	}
+	.complete-no {
+		background: #fce8e6;
+		color: #c5221f;
 	}
 
 	.updated-cell {

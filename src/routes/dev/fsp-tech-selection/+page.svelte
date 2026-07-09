@@ -60,7 +60,18 @@
 			lastName: 'Rivera',
 			firstName: 'Alex',
 			studentId: '20344',
-			choices: ['IDEA', 'CSEE', 'MAT', 'ACE']
+			choices: ['IDEA', 'CSEE', 'MAT', 'ACE'],
+			complete: true
+		};
+		reset();
+	}
+	function loadReturningPartial() {
+		initial = {
+			lastName: 'Nguyen',
+			firstName: 'Kai',
+			studentId: '',
+			choices: ['BMET', 'MSET'],
+			complete: false
 		};
 		reset();
 	}
@@ -80,16 +91,19 @@
 	<p class="note">
 		Dev-only (no auth / real network). The panel on the right is the REAL
 		<code>FspTechSelection</code> component with a mock signed-in student and a fake save endpoint.
-		Verify: duplicate-pick guard (a chosen chip cannot be re-added), removing/reordering, the 800ms
-		debounce (rapid edits collapse to one POST), the saving → saved indicator, and error + retry
-		with backoff (set "endpoint down" or queue failures).
+		Verify: duplicate-pick guard (a chosen chip cannot be re-added), removing/reordering, drag to
+		reorder, the 800ms debounce (rapid edits collapse to one POST), the saving → saved indicator,
+		error + retry with backoff (set "endpoint down" or queue failures), and the persistent "N of 4
+		ranked" indicator, including that "Returning (partial, 2/4)" seeds it correctly from the mock
+		GET's <code>complete: false</code> before any local edit.
 	</p>
 
 	<div class="controls">
 		<fieldset>
 			<legend>Entry state</legend>
 			<button type="button" onclick={loadFirstTime}>First-time (empty)</button>
-			<button type="button" onclick={loadReturning}>Returning (prefilled)</button>
+			<button type="button" onclick={loadReturning}>Returning (complete, 4/4)</button>
+			<button type="button" onclick={loadReturningPartial}>Returning (partial, 2/4)</button>
 		</fieldset>
 		<fieldset>
 			<legend>Fake endpoint</legend>
