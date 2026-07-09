@@ -1,0 +1,54 @@
+/* ==========================================================================
+   FSP tech-selection theme. Neutral, schoolwide Bosco Tech identity (navy /
+   gold, standard sans), deliberately NOT the IDEA-green / Orbitron / VIEWPORT
+   aesthetic used elsewhere in this app. Everything is scoped under `.fsp-root`
+   so it never leaks into the app shell, and `.fsp-root` sits opaque above the
+   root layout's `.bg-fx` scanlines (like `.frc-root` does for the FRC theme).
+
+   Fonts are a standard system sans stack on purpose: this tool is not IDEA
+   branded, and the brief calls for standard sans fonts. This is the one place
+   the app's Rajdhani/Share Tech Mono convention is intentionally not used.
+   ========================================================================== */
+
+.fsp-root {
+	/* Bosco Tech neutral palette */
+	--fsp-navy: #0a2540; /* primary chrome */
+	--fsp-navy-deep: #06182b; /* headers / footer */
+	--fsp-navy-2: #123a5e; /* secondary chrome */
+	--fsp-gold: #f5b300; /* accent / emphasis */
+	--fsp-gold-soft: #ffcf4d;
+	--fsp-ink: #16202b; /* body text on light */
+	--fsp-muted: #5b6b7a; /* secondary text */
+	--fsp-line: #d7dee6; /* hairlines */
+	--fsp-surface: #ffffff; /* cards */
+	--fsp-surface-2: #f2f5f8; /* page base */
+	--fsp-ok: #1a7f4b; /* saved */
+	--fsp-warn: #b23b0e; /* error */
+
+	--fsp-font: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+	position: relative;
+	z-index: 1;
+	min-height: 100vh;
+	background: var(--fsp-surface-2);
+	color: var(--fsp-ink);
+	font-family: var(--fsp-font);
+	font-size: 16px;
+	line-height: 1.5;
+}
+
+/* Neutralize app-shell globals that would otherwise bleed into this theme. */
+.fsp-root h1,
+.fsp-root h2,
+.fsp-root h3 {
+	font-family: var(--fsp-font);
+	color: var(--fsp-ink);
+	letter-spacing: normal;
+	text-transform: none;
+}
+.fsp-root h2::before {
+	content: none; /* app shell prepends a green "// " to h2; suppress it here */
+}
+.fsp-root a {
+	color: var(--fsp-navy-2);
+}
