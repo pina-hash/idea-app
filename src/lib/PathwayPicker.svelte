@@ -14,11 +14,20 @@
 	 * hides it for this browser session only; it returns next session until a
 	 * pathway is chosen. Pathway is identity only, never an access gate, so the
 	 * picker never blocks navigation.
+	 *
+	 * Suppressed on the FSP tech-selection tool (the neutral, non-IDEA-branded
+	 * schoolwide route reached cold via QR code) and its static staff preview:
+	 * the picker's IDEA-green modal has no place popping over that neutral
+	 * surface. This is a route-path check on the exact two paths only, so every
+	 * other route keeps the exact existing behavior.
 	 */
 
 	const supabase = $derived(page.data.supabase as SupabaseClient);
 	const claims = $derived(page.data.claims);
 	const profile = $derived((page.data.userProfile ?? null) as UserProfile | null);
+
+	const SUPPRESSED_ROUTES = ['/fsp-tech-selection', '/fsp-tech-selection/preview'];
+	const suppressed = $derived(SUPPRESSED_ROUTES.includes(page.url.pathname));
 
 	const DISMISS_KEY = 'pathway-picker-dismissed';
 	let dismissed = $state(false);
@@ -33,7 +42,7 @@
 	let errorMsg = $state('');
 
 	const show = $derived(
-		!dismissed && !!claims && profile?.role === 'student' && !profile.pathway
+		!suppressed && !dismissed && !!claims && profile?.role === 'student' && !profile.pathway
 	);
 
 	const later = () => {
