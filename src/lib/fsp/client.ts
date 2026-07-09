@@ -13,8 +13,11 @@
  *           student has no row yet. (An `ok: false` or missing row reads as "no
  *           prior selection".)
  *   POST <exec>   body: JSON { email, lastName, firstName, studentId, choices }
- *        -> 2xx on success. The script UPSERTS on email so a returning student
- *           over FSP days 1-3 overwrites their own row; only current state is kept.
+ *        -> 2xx on success. `choices` may hold 1 to 4 entries: a partial ranking
+ *           (a student only considering one or two pathways) is a valid save, a
+ *           full 4-pick ranking is never required. The script UPSERTS on email so
+ *           a returning student over FSP days 1-3 overwrites their own row; only
+ *           current state is kept.
  *
  * POST uses Content-Type text/plain to stay a CORS "simple request" (no
  * preflight against the Apps Script origin); Apps Script reads the raw body via
@@ -28,7 +31,7 @@ export interface FspSelection {
 	lastName: string;
 	firstName: string;
 	studentId: string;
-	/** Ordered tech ids, 1st through 4th choice. */
+	/** Ordered tech ids, 1st choice first. 1 to 4 entries; a partial ranking is valid. */
 	choices: string[];
 }
 

@@ -9,10 +9,18 @@
 	 * signed-in student and an injected save primitive (no real OAuth / network).
 	 *
 	 * The caller (the real route) does the sign-in gate and the prefill GET, then
-	 * hands us `email` + `initial`. We own: the ordered picker (exactly 4, no
-	 * duplicates, removable/reorderable), an 800ms debounce, retry-with-backoff,
-	 * the persistent saving/saved/error indicator, a sendBeacon flush on page
-	 * hide, and a native <form> fallback that works with JS disabled.
+	 * hands us `email` + `initial`. We own: the ordered picker (up to 4, no
+	 * duplicates, removable and reorderable by drag or by up/down buttons), an
+	 * 800ms debounce, retry-with-backoff, the persistent saving/saved/error
+	 * indicator, a sendBeacon flush on page hide, and a native <form> fallback
+	 * that works with JS disabled.
+	 *
+	 * A ranking autosaves as soon as a name is entered and AT LEAST ONE pathway
+	 * is picked — a full 4-pick ranking is never required to save. A student who
+	 * is only considering two options can rank just those two and it persists;
+	 * they can add more later. See `readyToSave` below (deliberately not called
+	 * "complete": a partial ranking is a valid, saved state, not an incomplete
+	 * one).
 	 */
 
 	interface Props {
@@ -62,8 +70,14 @@
 	let lastSavedSerial = '';
 
 	const namesReady = $derived(lastName.trim().length > 0 && firstName.trim().length > 0);
-	const complete = $derived(choices.length === 4 && namesReady);
+	const hasPicks = $derived(choices.length > 0);
+	// A ranking is saveable once a name is entered and at least one pathway is
+	// picked; it does not need to reach 4. See the header note above.
+	const readyToSave = $derived(namesReady && hasPicks);
 	const availableCount = $derived(FSP_TECHS.length - choices.length);
+
+	let dragIndex = $state<number | null>(null);
+	let dragOverIndex = $state<number | null>(null);
 
 	function snapshot(): FspPayload {
 		return {
@@ -75,7 +89,7 @@
 		};
 	}
 
-	const serial = $derived(complete ? JSON.stringify(snapshot()) : '');
+	const serial = $derived(readyToSave ? JSON.stringify(snapshot()) : '');
 
 	// Baseline: if the prefill is already a complete, on-file selection, treat it
 	// as saved so we do not immediately re-POST an unchanged row on load.
@@ -113,6 +127,44 @@
 		choices = choices.filter((_, k) => k !== i);
 	}
 
+	function reorder(from: number, to: number) {
+		if (from === to || from < 0 || from >= choices.length || to < 0 || to >= choices.length) return;
+		const next = [...choices];
+		const [moved] = next.splice(from, 1);
+		next.splice(to, 0, moved);
+		choices = next;
+	}
+
+	// Drag-to-reorder (mouse/touch pointer path). The up/down buttons stay the
+	// primary keyboard/screen-reader-accessible way to reorder; drag is an
+	// additional, not a replacement, interaction.
+	function onDragStart(e: DragEvent, index: number) {
+		dragIndex = index;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			e.dataTransfer.setData('text/plain', String(index));
+		}
+	}
+	function onDragEnter(index: number) {
+		if (dragIndex === null || index >= choices.length) return;
+		dragOverIndex = index;
+	}
+	function onDragOver(e: DragEvent) {
+		e.preventDefault(); // required to allow a drop
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+	}
+	function onDrop(e: DragEvent, index: number) {
+		e.preventDefault();
+		const from = dragIndex;
+		dragIndex = null;
+		dragOverIndex = null;
+		if (from !== null) reorder(from, index);
+	}
+	function onDragEnd() {
+		dragIndex = null;
+		dragOverIndex = null;
+	}
+
 	function backoffMs(attempt: number) {
 		return Math.min(DEBOUNCE_MS * 2 ** (attempt - 1), 8000);
 	}
@@ -132,7 +184,7 @@
 	 * coalesced into one more run when the current one settles.
 	 */
 	async function persist() {
-		if (!complete) return;
+		if (!readyToSave) return;
 		if (!saveOnce && !execUrl) {
 			status = 'error';
 			errorDetail = 'Saving is not configured yet (endpoint URL not set).';
@@ -178,12 +230,13 @@
 		// Only when it actually differs from what saved, so we never re-POST an
 		// identical row. On failure we do NOT loop here: the debounce effect (and
 		// the manual Retry) re-drive the slow background retry instead.
-		if (saved && complete && serial !== lastSavedSerial) {
+		if (saved && readyToSave && serial !== lastSavedSerial) {
 			void persist();
 		}
 	}
 
-	// Debounced auto-save: any change to a complete selection schedules a save.
+	// Debounced auto-save: any change to a saveable selection (name entered,
+	// at least 1 pick, need not reach 4) schedules a save.
 	$effect(() => {
 		const s = serial;
 		if (!s || s === lastSavedSerial) return;
@@ -221,7 +274,7 @@
 	// changes, fire one sendBeacon so the latest state still lands.
 	function flushBeacon() {
 		if (!execUrl || saveOnce) return;
-		if (!complete || serial === lastSavedSerial) return;
+		if (!readyToSave || serial === lastSavedSerial) return;
 		try {
 			const blob = new Blob([JSON.stringify(snapshot())], { type: 'text/plain;charset=utf-8' });
 			navigator.sendBeacon?.(execUrl, blob);
@@ -244,17 +297,12 @@
 		};
 	});
 
-	// What the persistent status pill shows. Incomplete overrides transient
-	// states so the student always knows a save is pending on 4 picks.
+	// What the persistent status pill shows. Not-yet-saveable (no name, or no
+	// picks yet) overrides the transient saving/saved/error states; once at
+	// least 1 pick exists it tracks the real save status, same as a full 4.
 	const pill = $derived.by(() => {
-		if (!complete) {
-			const remaining = 4 - choices.length;
-			if (!namesReady) return { kind: 'idle', text: 'Enter your name to begin' };
-			return {
-				kind: 'idle',
-				text: remaining === 4 ? 'Rank your top 4 techs' : `Pick ${remaining} more to save`
-			};
-		}
+		if (!namesReady) return { kind: 'idle', text: 'Enter your name to begin' };
+		if (!hasPicks) return { kind: 'idle', text: 'Pick at least 1 pathway to save' };
 		if (status === 'saving') return { kind: 'saving', text: 'Saving…' };
 		if (status === 'saved') return { kind: 'saved', text: 'Saved' };
 		if (status === 'error') return { kind: 'error', text: 'Not saved' };
@@ -270,8 +318,9 @@
 	<header class="tool-head">
 		<h1>Tech Selection</h1>
 		<p class="lede">
-			Rank your top four Bosco Tech pathways. You can come back and change your ranking any time
-			during FSP, only your latest choice is kept.
+			Rank up to four Bosco Tech pathways in order of preference. Even a partial ranking, just one
+			or two, saves automatically, so you can start now and add more later. You can come back and
+			change your ranking any time during FSP; only your latest ranking is kept.
 		</p>
 	</header>
 
@@ -348,13 +397,25 @@
 				{/each}
 			</div>
 
-			<ol class="ranked" aria-label="Your ranked choices">
+			<ol class="ranked" aria-label="Your ranked choices, drag to reorder or use the up/down buttons">
 				{#each [0, 1, 2, 3] as slot (slot)}
 					{@const id = choices[slot]}
 					{@const tech = id ? fspTechById(id) : undefined}
-					<li class="slot" class:empty={!tech}>
-						<span class="slot-num">{slot + 1}</span>
+					<li
+						class="slot"
+						class:empty={!tech}
+						class:dragging={dragIndex === slot}
+						class:drag-over={dragOverIndex === slot && dragIndex !== slot}
+						draggable={tech ? 'true' : 'false'}
+						ondragstart={tech ? (e) => onDragStart(e, slot) : undefined}
+						ondragenter={tech ? () => onDragEnter(slot) : undefined}
+						ondragover={tech ? onDragOver : undefined}
+						ondrop={tech ? (e) => onDrop(e, slot) : undefined}
+						ondragend={tech ? onDragEnd : undefined}
+					>
 						{#if tech}
+							<span class="drag-handle" aria-hidden="true" title="Drag to reorder">&#8942;&#8942;</span>
+							<span class="slot-num">{slot + 1}</span>
 							<span class="slot-dot" style="background:{tech.color}"></span>
 							<span class="slot-label">{tech.label}</span>
 							<span class="slot-actions">
@@ -383,6 +444,7 @@
 								>
 							</span>
 						{:else}
+							<span class="slot-num">{slot + 1}</span>
 							<span class="slot-empty">Tap a pathway above</span>
 						{/if}
 					</li>
@@ -390,10 +452,13 @@
 			</ol>
 
 			<p class="pick-hint">
-				{#if choices.length < 4}
-					{choices.length} of 4 chosen &middot; {availableCount} pathways left
+				{#if choices.length === 0}
+					Pick at least 1 pathway to save your ranking. Rank up to 4 if you can.
+				{:else if choices.length < 4}
+					{choices.length} of 4 chosen &middot; saved automatically &middot; {availableCount} more
+					you could add
 				{:else}
-					All 4 chosen. Reorder or swap any time, your latest ranking auto-saves.
+					All 4 chosen. Drag to reorder, or swap any time, your latest ranking auto-saves.
 				{/if}
 			</p>
 		</div>
@@ -412,11 +477,11 @@
 				{#if pill.kind === 'error'}<span class="bang" aria-hidden="true">!</span>{/if}
 				<span class="status-text">{pill.text}</span>
 			</div>
-			{#if status === 'error' && complete}
+			{#if status === 'error' && readyToSave}
 				<button type="button" class="retry" onclick={retry}>Retry</button>
 			{/if}
 			{#if mounted}
-				<button type="submit" class="save-now" disabled={!complete}>Save now</button>
+				<button type="submit" class="save-now" disabled={!readyToSave}>Save now</button>
 			{/if}
 		</div>
 		{#if errorDetail}
@@ -435,7 +500,8 @@
 			<div class="nojs">
 				<p class="nojs-note">
 					JavaScript is off, so the tap-to-rank picker is unavailable. Enter your Bosco Tech email
-					and pick your four choices below, then press Save.
+					and at least your 1st choice below, then press Save. You can leave the rest blank and
+					come back to add more later.
 				</p>
 				<label class="field">
 					<span>Bosco Tech email</span>
@@ -443,9 +509,11 @@
 				</label>
 				{#each [1, 2, 3, 4] as n (n)}
 					<label class="field">
-						<span>{n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : '4th'} choice</span>
-						<select name={`choice${n}`} required>
-							<option value="" disabled selected>Choose a pathway</option>
+						<span>{n === 1 ? '1st' : n === 2 ? '2nd' : n === 3 ? '3rd' : '4th'} choice{n > 1
+								? ' (optional)'
+								: ''}</span>
+						<select name={`choice${n}`} required={n === 1}>
+							<option value="" disabled={n === 1} selected>{n === 1 ? 'Choose a pathway' : 'None'}</option>
 							{#each FSP_TECHS as tech (tech.id)}
 								<option value={tech.id}>{tech.label}</option>
 							{/each}
@@ -662,10 +730,38 @@
 		border: 1px solid var(--fsp-line);
 		border-radius: 8px;
 		background: var(--fsp-surface-2);
+		transition:
+			opacity 0.12s,
+			border-color 0.12s,
+			background 0.12s;
 	}
 	.slot.empty {
 		border-style: dashed;
 		background: transparent;
+	}
+	.slot[draggable='true'] {
+		cursor: grab;
+	}
+	.slot.dragging {
+		opacity: 0.45;
+	}
+	.slot.drag-over {
+		border-color: var(--fsp-gold);
+		background: color-mix(in srgb, var(--fsp-gold) 14%, var(--fsp-surface-2));
+	}
+	.drag-handle {
+		flex: none;
+		color: var(--fsp-muted);
+		font-size: 0.95rem;
+		line-height: 1;
+		padding: 0 0.1rem;
+		cursor: grab;
+		user-select: none;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.slot {
+			transition: none;
+		}
 	}
 	.slot-num {
 		width: 22px;
