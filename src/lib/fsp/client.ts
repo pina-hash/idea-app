@@ -8,8 +8,10 @@
  * Contract the deployed Apps Script must honor (upsert keyed by email, current
  * state only, no history):
  *   GET  <exec>?email=<email>
- *        -> JSON { found: boolean, lastName, firstName, studentId,
- *                  choices: string[] }   (choices are tech ids, ordered 1..4)
+ *        -> JSON { ok: true, lastName, firstName, studentId, choices }, where
+ *           `choices` is the ordered tech-id array (1..4) or null when the
+ *           student has no row yet. (An `ok: false` or missing row reads as "no
+ *           prior selection".)
  *   POST <exec>   body: JSON { email, lastName, firstName, studentId, choices }
  *        -> 2xx on success. The script UPSERTS on email so a returning student
  *           over FSP days 1-3 overwrites their own row; only current state is kept.
@@ -55,13 +57,22 @@ export async function fetchSelection(
 		redirect: 'follow'
 	});
 	if (!res.ok) return null;
-	const data = (await res.json()) as Partial<FspSelection> & { found?: boolean };
-	if (!data || data.found === false) return null;
+	const data = (await res.json()) as Partial<FspSelection> & {
+		ok?: boolean;
+		found?: boolean;
+	};
+	// No row / explicit failure reads as "no prior selection" (start fresh).
+	if (!data || data.ok === false || data.found === false) return null;
+	const choices = Array.isArray(data.choices)
+		? data.choices.filter((c) => typeof c === 'string')
+		: [];
+	// Nothing on file at all: let the caller treat it as a first-time student.
+	if (!choices.length && !data.lastName && !data.firstName && !data.studentId) return null;
 	return {
 		lastName: typeof data.lastName === 'string' ? data.lastName : '',
 		firstName: typeof data.firstName === 'string' ? data.firstName : '',
 		studentId: typeof data.studentId === 'string' ? data.studentId : '',
-		choices: Array.isArray(data.choices) ? data.choices.filter((c) => typeof c === 'string') : []
+		choices
 	};
 }
 
