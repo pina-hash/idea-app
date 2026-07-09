@@ -1,391 +1,410 @@
 <script lang="ts">
-	import '$lib/fsp/fsp-theme.css';
-	import { FSP_TECHS } from '$lib/fsp/techs';
-
 	/**
 	 * /fsp-tech-selection/preview — STATIC, no-auth demo of the live tracking
 	 * sheet for staff (e.g. Mr. Garza). It touches NO real data and NEVER calls
-	 * the Apps Script endpoint. This is a Google Sheets-style mockup ported to a
-	 * Svelte page; swap the sample rows / layout below for the exact standalone
-	 * HTML mockup when it is ready (same visual fidelity, no backend).
+	 * the Apps Script endpoint. Ported as-is from the standalone HTML mockup
+	 * (Google Sheets look: header bar, toolbar, frozen sort-arrow header row,
+	 * conditional-formatting-style tech-color cells, tabs, legend), adapted only
+	 * enough to become a Svelte page. This page intentionally uses its own
+	 * self-contained styling (Google Sans, Sheets palette), not the fsp-theme
+	 * navy/gold tokens used by the live tool at /fsp-tech-selection: the mockup
+	 * IS the demo, its look is the point.
 	 */
 
-	interface Row {
-		ts: string;
-		last: string;
-		first: string;
-		id: string;
-		/** Map of tech id -> rank (1-4). Missing = unranked. */
-		ranks: Record<string, number>;
+	interface TechColor {
+		bg: string;
+		fg: string;
 	}
 
-	// Sample data only — illustrative, not real students.
-	const rows: Row[] = [
-		{ ts: '6/16 09:02', last: 'Alvarez', first: 'Mateo', id: '20301', ranks: { CSEE: 1, IDEA: 2, MAT: 3, ACE: 4 } },
-		{ ts: '6/16 09:05', last: 'Nguyen', first: 'Kayla', id: '20488', ranks: { BMET: 1, CSEE: 2, IDEA: 3, MSET: 4 } },
-		{ ts: '6/16 09:07', last: 'Okafor', first: 'David', id: '', ranks: { MSET: 1, MAT: 2, ACE: 3, CSEE: 4 } },
-		{ ts: '6/16 09:11', last: 'Ramirez', first: 'Sofia', id: '20512', ranks: { IDEA: 1, ACE: 2, BMET: 3, MAT: 4 } },
-		{ ts: '6/16 09:14', last: 'Chen', first: 'Lucas', id: '20377', ranks: { CSEE: 1, MAT: 2, MSET: 3, IDEA: 4 } },
-		{ ts: '6/16 09:19', last: 'Delgado', first: 'Isabella', id: '20455', ranks: { ACE: 1, IDEA: 2, CSEE: 3, BMET: 4 } },
-		{ ts: '6/16 09:23', last: 'Patel', first: 'Aarav', id: '20390', ranks: { BMET: 1, IDEA: 2, MSET: 3, MAT: 4 } },
-		{ ts: '6/17 08:58', last: 'Johnson', first: 'Maya', id: '20501', ranks: { MAT: 1, ACE: 2, MSET: 3, CSEE: 4 } },
-		{ ts: '6/17 09:04', last: 'Kowalski', first: 'Adam', id: '', ranks: { MSET: 1, CSEE: 2, IDEA: 3, ACE: 4 } },
-		{ ts: '6/17 09:12', last: 'Torres', first: 'Elena', id: '20467', ranks: { IDEA: 1, BMET: 2, MAT: 3, MSET: 4 } }
-	];
+	const TECH_COLORS: Record<string, TechColor> = {
+		ACE: { bg: '#FF8C00', fg: '#ffffff' },
+		BMET: { bg: '#8B5CF6', fg: '#ffffff' },
+		CSEE: { bg: '#1E90FF', fg: '#ffffff' },
+		IDEA: { bg: '#00FF41', fg: '#0a1f0f' },
+		MAT: { bg: '#FFE600', fg: '#3a3200' },
+		MSET: { bg: '#FF2E2E', fg: '#ffffff' }
+	};
 
-	// Tally of 1st-choice picks per tech, for the summary strip.
-	const firstChoiceTally = FSP_TECHS.map((t) => ({
-		tech: t,
-		count: rows.filter((r) => r.ranks[t.id] === 1).length
-	}));
+	interface Row {
+		last: string;
+		first: string;
+		studentId: string;
+		email: string;
+		choices: [string, string, string, string];
+		updated: string;
+	}
+
+	// Sample data only — illustrative placeholders, not real students.
+	const rows: Row[] = [
+		{ last: 'Alvarado', first: 'Marcus', studentId: '24-1103', email: 'malvarado26@boscotech.net', choices: ['IDEA', 'MSET', 'ACE', 'BMET'], updated: '10:14 AM' },
+		{ last: 'Bautista', first: 'Ryan', studentId: '24-1117', email: 'rbautista26@boscotech.net', choices: ['MSET', 'MAT', 'IDEA', 'CSEE'], updated: '10:22 AM' },
+		{ last: 'Chen', first: 'Nathaniel', studentId: '24-1129', email: 'nchen26@boscotech.net', choices: ['BMET', 'IDEA', 'CSEE', 'ACE'], updated: '10:31 AM' },
+		{ last: 'Dominguez', first: 'Isaac', studentId: '24-1134', email: 'idominguez26@boscotech.net', choices: ['ACE', 'IDEA', 'MSET', 'MAT'], updated: '10:33 AM' },
+		{ last: 'Esparza', first: 'Diego', studentId: '24-1140', email: 'desparza26@boscotech.net', choices: ['IDEA', 'ACE', 'BMET', 'MSET'], updated: '10:40 AM' },
+		{ last: 'Franco', first: 'Owen', studentId: '24-1152', email: 'ofranco26@boscotech.net', choices: ['CSEE', 'MSET', 'MAT', 'IDEA'], updated: '10:47 AM' },
+		{ last: 'Guerrero', first: 'Liam', studentId: '24-1159', email: 'lguerrero26@boscotech.net', choices: ['MSET', 'IDEA', 'ACE', 'CSEE'], updated: '10:52 AM' },
+		{ last: 'Huerta', first: 'Adrian', studentId: '24-1166', email: 'ahuerta26@boscotech.net', choices: ['IDEA', 'BMET', 'MSET', 'MAT'], updated: '11:01 AM' },
+		{ last: 'Ibarra', first: 'Xavier', studentId: '24-1171', email: 'xibarra26@boscotech.net', choices: ['MAT', 'CSEE', 'IDEA', 'ACE'], updated: '11:05 AM' },
+		{ last: 'Juarez', first: 'Sebastian', studentId: '24-1180', email: 'sjuarez26@boscotech.net', choices: ['ACE', 'MSET', 'BMET', 'IDEA'], updated: '11:12 AM' }
+	];
 </script>
 
 <svelte:head>
-	<title>Bosco Tech — Tech Selection (staff preview)</title>
+	<title>FSP Tech Selections 2026 - Sheet Demo</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="fsp-root">
-	<div class="preview-wrap">
-		<div class="banner">
-			<strong>Preview only.</strong> Sample data for staff. This page never touches live student
-			data.
-		</div>
+<div class="demo-banner">
+	<strong>Demo only.</strong> Names and student IDs below are placeholder data to show layout, color
+	coding, and sorting. No real freshman data is in this file.
+</div>
 
-		<!-- Google Sheets-style app frame -->
-		<div class="sheet-app">
-			<div class="app-bar">
-				<span class="doc-icon">▦</span>
-				<div class="doc-titles">
-					<div class="doc-name">FSP Tech Selection — Live Tracker</div>
-					<div class="doc-menu">
-						<span>File</span><span>Edit</span><span>View</span><span>Insert</span><span>Format</span
-						><span>Data</span><span>Tools</span>
-					</div>
-				</div>
-				<button class="share-btn" type="button" disabled>🔒 Share</button>
-			</div>
-
-			<div class="toolbar">
-				<span class="tb-btn">↶</span><span class="tb-btn">↷</span><span class="tb-sep"></span>
-				<span class="tb-btn">100%</span><span class="tb-sep"></span>
-				<span class="tb-btn bold">B</span><span class="tb-btn ital">I</span><span class="tb-sep"
-				></span>
-				<span class="tb-btn">Filter ▾</span><span class="tb-btn">Sort ▾</span>
-				<span class="tb-live">● Live</span>
-			</div>
-
-			<div class="grid-scroll">
-				<table class="sheet">
-					<thead>
-						<tr class="col-letters">
-							<th class="rownum"></th>
-							<th>A</th><th>B</th><th>C</th><th>D</th>
-							{#each FSP_TECHS as t (t.id)}<th>{String.fromCharCode(69 + FSP_TECHS.indexOf(t))}</th>{/each}
-						</tr>
-						<tr class="head-row">
-							<th class="rownum">1</th>
-							<th class="sortable">Timestamp <span class="arrows">▲▼</span></th>
-							<th class="sortable">Last Name <span class="arrows">▲▼</span></th>
-							<th class="sortable">First Name <span class="arrows">▲▼</span></th>
-							<th class="sortable">Student ID <span class="arrows">▲▼</span></th>
-							{#each FSP_TECHS as t (t.id)}
-								<th class="tech-col sortable" style="--tc:{t.color}">
-									<span class="tech-swatch"></span>{t.label} <span class="arrows">▲▼</span>
-								</th>
-							{/each}
-						</tr>
-					</thead>
-					<tbody>
-						{#each rows as r, i (r.last + r.first + i)}
-							<tr>
-								<td class="rownum">{i + 2}</td>
-								<td class="mono">{r.ts}</td>
-								<td>{r.last}</td>
-								<td>{r.first}</td>
-								<td class="mono">{r.id || '—'}</td>
-								{#each FSP_TECHS as t (t.id)}
-									{@const rank = r.ranks[t.id]}
-									<td class="tech-cell" style="--tc:{t.color}" class:filled={!!rank}>
-										{rank ?? ''}
-									</td>
-								{/each}
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
-
-			<div class="tabs">
-				<span class="tab active">Responses</span>
-				<span class="tab">Summary</span>
-				<span class="tab plus">＋</span>
-			</div>
-		</div>
-
-		<div class="summary">
-			<h2>1st-choice tally (sample)</h2>
-			<div class="tally">
-				{#each firstChoiceTally as row (row.tech.id)}
-					<div class="tally-row">
-						<span class="tally-swatch" style="background:{row.tech.color}"></span>
-						<span class="tally-label">{row.tech.label}</span>
-						<span class="tally-bar-wrap">
-							<span
-								class="tally-bar"
-								style="width:{(row.count / rows.length) * 100}%; background:{row.tech.color}"
-							></span>
-						</span>
-						<span class="tally-count">{row.count}</span>
-					</div>
-				{/each}
-			</div>
-		</div>
+<div class="sheets-header">
+	<div class="sheets-logo">
+		<svg viewBox="0 0 48 48">
+			<path
+				fill="#0F9D58"
+				d="M28.8 4H9.6C7.6 4 6 5.6 6 7.6v32.8C6 42.4 7.6 44 9.6 44h28.8c2 0 3.6-1.6 3.6-3.6V15.2z"
+			/>
+			<path fill="#87CEAC" d="M28.8 4v9.6c0 1.7 1.4 3.1 3.1 3.1H42z" opacity="0.7" />
+			<path fill="#fff" d="M14 22h20v2H14zm0 5h20v2H14zm0 5h20v2H14zm0 5h12v2H14z" />
+		</svg>
+	</div>
+	<div>
+		<div class="doc-title">FSP Tech Selections - 2026</div>
+		<div class="doc-sub">Selections sheet &middot; live via Apps Script &middot; last edit a few seconds ago</div>
 	</div>
 </div>
 
+<div class="toolbar">
+	<div class="toolbar-btn">File</div>
+	<div class="toolbar-btn">Edit</div>
+	<div class="toolbar-btn">View</div>
+	<div class="toolbar-btn">Insert</div>
+	<div class="toolbar-btn">Format</div>
+	<div class="toolbar-btn">Data</div>
+	<div class="toolbar-sep"></div>
+	<div class="toolbar-btn">&#9662; Filter view</div>
+	<div class="toolbar-btn">&#8862; Conditional formatting</div>
+	<div class="filter-status"><span class="dot"></span> Live &middot; 6 responses today</div>
+</div>
+
+<div class="sheet-wrap">
+	<table>
+		<thead>
+			<tr>
+				<th class="colhead rowlabel"></th>
+				<th class="colhead">A</th>
+				<th class="colhead">B</th>
+				<th class="colhead">C</th>
+				<th class="colhead">D</th>
+				<th class="colhead">E</th>
+				<th class="colhead">F</th>
+				<th class="colhead">G</th>
+				<th class="colhead">H</th>
+				<th class="colhead">I</th>
+			</tr>
+			<tr class="headerrow">
+				<th class="rowlabel">1</th>
+				<th>Last Name<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>First Name<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>Student ID (unverified)<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>Email<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>Choice 1<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>Choice 2<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>Choice 3<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>Choice 4<span class="sort-arrows">&#9650;&#9660;</span></th>
+				<th>Updated At<span class="sort-arrows">&#9650;&#9660;</span></th>
+			</tr>
+		</thead>
+		<tbody>
+			{#each rows as r, i (r.email)}
+				<tr>
+					<td class="rowlabel">{i + 2}</td>
+					<td>{r.last}</td>
+					<td>{r.first}</td>
+					<td class="studentid-cell">{r.studentId}</td>
+					<td>{r.email}</td>
+					{#each r.choices as choice (choice)}
+						{@const c = TECH_COLORS[choice]}
+						<td class="col-choice" style="background:{c.bg}; color:{c.fg}">{choice}</td>
+					{/each}
+					<td class="updated-cell">{r.updated}</td>
+				</tr>
+			{/each}
+		</tbody>
+	</table>
+</div>
+
+<div class="legend">
+	<span class="legend-title">Tech color key</span>
+	<span class="legend-item"><span class="legend-swatch" style="background:#FF8C00"></span>ACE</span>
+	<span class="legend-item"><span class="legend-swatch" style="background:#8B5CF6"></span>BMET</span>
+	<span class="legend-item"><span class="legend-swatch" style="background:#1E90FF"></span>CSEE</span>
+	<span class="legend-item"><span class="legend-swatch" style="background:#00FF41"></span>IDEA</span>
+	<span class="legend-item"><span class="legend-swatch" style="background:#FFE600"></span>MAT</span>
+	<span class="legend-item"><span class="legend-swatch" style="background:#FF2E2E"></span>MSET</span>
+</div>
+
+<div class="tab-bar">
+	<div class="tab active">Selections</div>
+	<div class="tab">Roster (pending)</div>
+	<div class="tab">Summary</div>
+</div>
+
+<div class="footer-note">
+	<strong>How this behaves live:</strong> each row is one student, matched by email. Resubmitting updates
+	that student's existing row instead of adding a duplicate. The header row stays frozen while scrolling.
+	Filter arrows let staff sort or filter by any column, for example last name alphabetically, or all
+	students with IDEA as Choice 1, on the fly during FSP. Cell color is driven by <code>Conditional formatting</code>
+	keyed to each tech name, so the pattern holds no matter how the sheet gets sorted. Student ID is unverified
+	until it is matched against the master roster, once that's available it will pull instead of relying on
+	what the student typed.
+</div>
+
 <style>
-	.preview-wrap {
-		max-width: 1000px;
-		margin: 0 auto;
-		padding: 1.25rem 1rem 4rem;
-	}
-	.banner {
-		background: color-mix(in srgb, var(--fsp-gold) 22%, #fff);
-		border: 1px solid var(--fsp-gold);
-		border-radius: 8px;
-		padding: 0.6rem 0.9rem;
-		font-size: 0.9rem;
-		color: var(--fsp-ink);
-		margin-bottom: 1rem;
+	/* body margin and box-sizing are already zeroed/reset globally in app.css. */
+
+	.demo-banner,
+	.sheets-header,
+	.toolbar,
+	.sheet-wrap,
+	table,
+	.legend,
+	.footer-note,
+	.tab-bar {
+		font-family: 'Google Sans', Arial, sans-serif;
+		color: #202124;
 	}
 
-	.sheet-app {
-		border: 1px solid var(--fsp-line);
-		border-radius: 10px;
-		overflow: hidden;
-		background: #fff;
-		box-shadow: 0 6px 24px rgba(10, 37, 64, 0.08);
+	.demo-banner {
+		background: #fef7e0;
+		border-bottom: 1px solid #f9e8b0;
+		color: #614a19;
+		font-size: 13px;
+		padding: 8px 16px;
+		text-align: center;
 	}
-	.app-bar {
+	.demo-banner strong {
+		font-weight: 600;
+	}
+
+	.sheets-header {
 		display: flex;
 		align-items: center;
-		gap: 0.7rem;
-		padding: 0.6rem 0.9rem;
+		gap: 10px;
+		padding: 8px 16px 4px 16px;
+		border-bottom: 1px solid #e0e0e0;
 		background: #fff;
-		border-bottom: 1px solid var(--fsp-line);
 	}
-	.doc-icon {
-		color: #188038;
-		font-size: 1.4rem;
-	}
-	.doc-name {
-		font-size: 1rem;
-		font-weight: 600;
-		color: var(--fsp-ink);
-	}
-	.doc-menu {
+	.sheets-logo {
+		width: 36px;
+		height: 36px;
 		display: flex;
-		gap: 0.8rem;
-		font-size: 0.78rem;
-		color: var(--fsp-muted);
-		margin-top: 0.1rem;
+		align-items: center;
+		justify-content: center;
 	}
-	.share-btn {
-		margin-left: auto;
-		background: #0b57d0;
-		color: #fff;
-		border: none;
-		border-radius: 999px;
-		padding: 0.5rem 1.1rem;
-		font: inherit;
-		font-weight: 600;
-		font-size: 0.85rem;
-		opacity: 0.9;
+	.sheets-logo svg {
+		width: 32px;
+		height: 32px;
 	}
+	.doc-title {
+		font-size: 18px;
+		font-weight: 400;
+	}
+	.doc-sub {
+		font-size: 12px;
+		color: #5f6368;
+		margin-top: -2px;
+	}
+
 	.toolbar {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.4rem 0.9rem;
-		background: #f0f4f9;
-		border-bottom: 1px solid var(--fsp-line);
-		font-size: 0.82rem;
-		color: var(--fsp-ink);
+		gap: 4px;
+		padding: 6px 16px;
+		background: #fff;
+		border-bottom: 1px solid #e0e0e0;
+		font-size: 12px;
+		color: #444;
 	}
-	.tb-btn {
-		padding: 0.15rem 0.45rem;
-		border-radius: 5px;
+	.toolbar-btn {
+		padding: 5px 10px;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		gap: 4px;
 		cursor: default;
+		user-select: none;
 	}
-	.tb-btn.bold {
-		font-weight: 800;
+	.toolbar-btn:hover {
+		background: #f1f3f4;
 	}
-	.tb-btn.ital {
-		font-style: italic;
-	}
-	.tb-sep {
+	.toolbar-sep {
 		width: 1px;
-		height: 18px;
-		background: var(--fsp-line);
-		margin: 0 0.2rem;
-	}
-	.tb-live {
-		margin-left: auto;
-		color: #188038;
-		font-weight: 700;
-		font-size: 0.78rem;
+		height: 20px;
+		background: #e0e0e0;
+		margin: 0 6px;
 	}
 
-	.grid-scroll {
-		overflow-x: auto;
+	.filter-status {
+		margin-left: auto;
+		font-size: 12px;
+		color: #1a73e8;
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
-	.sheet {
+	.filter-status .dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: #1a73e8;
+	}
+
+	.sheet-wrap {
+		overflow-x: auto;
+		background: #fff;
+	}
+
+	table {
 		border-collapse: collapse;
 		width: 100%;
-		font-size: 0.85rem;
-		white-space: nowrap;
+		font-size: 13px;
+		table-layout: fixed;
 	}
-	.sheet th,
-	.sheet td {
-		border: 1px solid #e2e7ee;
-		padding: 0.4rem 0.6rem;
-		text-align: left;
-	}
-	.col-letters th {
-		background: #f0f4f9;
-		color: var(--fsp-muted);
+
+	.colhead {
+		background: #f8f9fa;
+		color: #5f6368;
+		font-weight: 400;
 		text-align: center;
-		font-weight: 500;
-		font-size: 0.72rem;
-		padding: 0.15rem;
-	}
-	.head-row th {
+		border: 1px solid #e0e0e0;
+		padding: 2px 4px;
 		position: sticky;
 		top: 0;
-		background: #f6f9fc;
-		color: var(--fsp-navy);
-		font-weight: 700;
-		z-index: 1;
+		font-size: 11px;
+		height: 20px;
 	}
-	.rownum {
-		background: #f0f4f9;
-		color: var(--fsp-muted);
+
+	th.rowlabel,
+	td.rowlabel {
+		background: #f8f9fa;
+		color: #5f6368;
 		text-align: center;
-		font-size: 0.72rem;
-		font-weight: 500;
+		border: 1px solid #e0e0e0;
+		font-size: 11px;
 		width: 34px;
+		min-width: 34px;
 	}
-	.sortable .arrows {
-		color: #b7c1cd;
-		font-size: 0.6rem;
-		margin-left: 0.2rem;
+
+	thead tr.headerrow th {
+		background: #f1f5f9;
+		border: 1px solid #d7dbe0;
+		padding: 8px 10px;
+		text-align: left;
+		font-weight: 600;
+		color: #1a1a2e;
+		white-space: nowrap;
+		position: relative;
 	}
-	.tech-col {
-		text-align: center;
+
+	thead tr.headerrow th .sort-arrows {
+		float: right;
+		color: #9aa0a6;
+		font-size: 10px;
+		cursor: default;
 	}
-	.tech-swatch {
-		display: inline-block;
-		width: 9px;
-		height: 9px;
-		border-radius: 2px;
-		background: var(--tc);
-		margin-right: 0.35rem;
-		vertical-align: middle;
+
+	tbody td {
+		border: 1px solid #e6e6e6;
+		padding: 7px 10px;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
-	.mono {
-		font-variant-numeric: tabular-nums;
-		color: var(--fsp-muted);
-	}
-	.tech-cell {
-		text-align: center;
-		font-weight: 700;
-		color: var(--fsp-muted);
-	}
-	.tech-cell.filled {
-		color: var(--fsp-ink);
-		background: color-mix(in srgb, var(--tc) 16%, #fff);
-	}
+
 	tbody tr:hover td {
-		background: #fafcff;
-	}
-	tbody tr:hover .tech-cell.filled {
-		background: color-mix(in srgb, var(--tc) 24%, #fff);
+		background-color: #f8fafd;
 	}
 
-	.tabs {
+	.col-choice {
+		text-align: center;
+		font-weight: 600;
+		border-radius: 0;
+	}
+
+	.updated-cell {
+		color: #5f6368;
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.studentid-cell {
+		font-variant-numeric: tabular-nums;
+		color: #3c4043;
+	}
+
+	.legend {
 		display: flex;
-		align-items: center;
-		gap: 0.3rem;
-		padding: 0.35rem 0.7rem;
-		background: #f0f4f9;
-		border-top: 1px solid var(--fsp-line);
-		font-size: 0.8rem;
-	}
-	.tab {
-		padding: 0.3rem 0.8rem;
-		border-radius: 6px 6px 0 0;
-		color: var(--fsp-muted);
-	}
-	.tab.active {
+		flex-wrap: wrap;
+		gap: 14px;
+		padding: 14px 16px;
 		background: #fff;
-		color: #188038;
-		font-weight: 700;
-		box-shadow: 0 -2px 0 #188038 inset;
-	}
-	.tab.plus {
-		color: var(--fsp-muted);
-	}
-
-	.summary {
-		margin-top: 1.5rem;
-		background: var(--fsp-surface);
-		border: 1px solid var(--fsp-line);
-		border-radius: 10px;
-		padding: 1.1rem 1.2rem 1.3rem;
-	}
-	.summary h2 {
-		font-size: 1.05rem;
-		font-weight: 700;
-		color: var(--fsp-navy);
-		margin-bottom: 0.8rem;
-	}
-	.tally {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-	.tally-row {
-		display: grid;
-		grid-template-columns: 16px 60px 1fr 28px;
+		border-top: 1px solid #e0e0e0;
+		font-size: 12px;
 		align-items: center;
-		gap: 0.6rem;
 	}
-	.tally-swatch {
+	.legend-title {
+		font-weight: 600;
+		color: #3c4043;
+		margin-right: 4px;
+	}
+	.legend-item {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+	}
+	.legend-swatch {
 		width: 14px;
 		height: 14px;
 		border-radius: 3px;
 	}
-	.tally-label {
-		font-weight: 700;
-		font-size: 0.85rem;
+
+	.footer-note {
+		padding: 14px 16px 28px 16px;
+		background: #f8f9fa;
+		font-size: 12px;
+		color: #5f6368;
+		line-height: 1.6;
 	}
-	.tally-bar-wrap {
-		background: var(--fsp-surface-2);
-		border-radius: 999px;
-		height: 12px;
-		overflow: hidden;
+	.footer-note :global(code) {
+		background: #eef0f2;
+		padding: 1px 5px;
+		border-radius: 3px;
+		font-size: 11px;
 	}
-	.tally-bar {
-		display: block;
-		height: 100%;
-		border-radius: 999px;
-		min-width: 2px;
+
+	.tab-bar {
+		display: flex;
+		align-items: center;
+		gap: 2px;
+		padding: 4px 16px;
+		background: #f8f9fa;
+		border-top: 1px solid #e0e0e0;
+		font-size: 12px;
 	}
-	.tally-count {
-		text-align: right;
-		font-weight: 700;
-		font-size: 0.85rem;
-		color: var(--fsp-muted);
+	.tab {
+		padding: 6px 14px;
+		border-radius: 4px 4px 0 0;
+		color: #5f6368;
+		cursor: default;
+	}
+	.tab.active {
+		background: #fff;
+		color: #188038;
+		font-weight: 600;
+		border: 1px solid #e0e0e0;
+		border-bottom: 2px solid #188038;
 	}
 </style>
