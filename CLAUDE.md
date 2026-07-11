@@ -1559,16 +1559,21 @@ Tech navy/gold with a standard system-sans stack, all scoped under `.fsp-root`
   it; four interops referenced, `swcommands` added because the Revolve
   RunCommand id lives there, not in `swconst`). It replaces the FSP 13-step
   paper guide with a five-phase wizard for freshmen with no CAD experience:
-  copy/rename/open the classroom template from
-  `%USERPROFILE%\Desktop\IDEA_FSP\` (OneDrive-redirected Desktop fallback),
-  one-click open of the `Pawn_Profile` sketch, a 2 s closed-loop poll
+  Phase 0 BUILDS the starting part itself (no classroom template file) via
+  `NewDocument`/`NewPart`, sets it to IPS with a SINGLE
+  `swUnitSystem = swUnitSystem_IPS` call (setting `swUnitsLinear` as well flips
+  the system to "Custom", verified against live SOLIDWORKS), sketches a Y-axis
+  construction centerline on the front plane, renames that sketch feature to
+  `Pawn_Profile`, and saves it as `[name]_pawnN.sldprt` into an `IDEA_FSP`
+  Desktop folder it creates if missing (OneDrive-redirected Desktop honored);
+  then one-click open of the `Pawn_Profile` sketch, a 2 s closed-loop poll
   (`ISketch.GetSketchContours`, which returns only closed contours) gating the
   REVOLVE button, auto-launched Revolved Boss/Base with the construction
   centerline pre-selected and a 1 s feature-count poll detecting completion,
   then auto-save + STEP AP214 export + a pre-filled Gmail compose to the
   teacher. AP214 is forced via the `swStepAP` system preference (the shipped
   interops have no `IExportStepData`). Classroom values (teacher email,
-  subject/body, folder/template/sketch names) are constants at the top of
+  subject/body, folder/sketch names) are constants at the top of
   `PawnWizardPanel.cs`, each overridable WITHOUT a recompile by a
   `pawn-wizard-config.txt` dropped next to the DLL. Not part of the SvelteKit
   build; install/registration (self-elevating `register.bat` around 64-bit

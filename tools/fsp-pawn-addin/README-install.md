@@ -3,11 +3,13 @@
 A .NET Framework 4.8 SOLIDWORKS COM add-in (C#, `ISwAddin`, WinForms task
 pane) that walks incoming FSP freshmen through building and submitting a
 chess pawn. It replaces the 13-step paper guide with a five-phase wizard in
-a persistent "PAWN BUILD" task pane: copy + rename + open the classroom
-template, one-click open of the `Pawn_Profile` sketch, live closed-loop
-detection while the student draws, an auto-launched Revolve with the axis
-pre-selected, then auto-save, STEP AP214 export, and a pre-filled Gmail
-compose for submission to the teacher.
+a persistent "PAWN BUILD" task pane: it creates the student's starting part
+from scratch (a new **IPS** part carrying a `Pawn_Profile` sketch with a
+Y-axis construction centerline, so no classroom template file is needed),
+one-click open of that sketch, live closed-loop detection while the student
+draws, an auto-launched Revolve with the axis pre-selected, then auto-save,
+STEP AP214 export, and a pre-filled Gmail compose for submission to the
+teacher.
 
 Same structure and build conventions as the GAUNTLET add-in
 (`tools/solidworks-addin/`), with its own identity:
@@ -83,31 +85,32 @@ they can still enable the startup column themselves once in Tools > Add-Ins.
 
 ## Classroom folder setup (per machine / per student account)
 
-The wizard expects, on the **Desktop** of the signed-in student:
+**Nothing to pre-place.** The wizard builds the starting part itself when the
+student clicks BEGIN: a new part set to **IPS** units, carrying a
+`Pawn_Profile` sketch whose single vertical Y-axis **construction centerline**
+is the revolve axis (the "vertical orange line" the on-screen copy refers to).
+It also creates the output folder if it is missing, so there is no template
+file and no folder to stage ahead of time. This removes the old
+"template missing" / "folder not found" failures entirely.
+
+Output lands on the student's **Desktop** in an `IDEA_FSP` folder:
 
 ```
-%USERPROFILE%\Desktop\IDEA_FSP\
-    COPY ME - CHESS PAWN TEMPLATE.sldprt
+<Desktop>\IDEA_FSP\
+    [name]_pawn1.sldprt   (numbered up automatically if it already exists)
+    [name]_pawn1.stp      (the STEP AP214 export)
 ```
 
-The template part must already contain a sketch feature named
-**`Pawn_Profile`** with a **vertical construction centerline** on the Y axis
-(that centerline is what the wizard pre-selects as the revolve axis, and it
-is the "vertical orange line" the on-screen copy refers to).
-
-If the machine's Desktop is OneDrive-redirected, the wizard checks
-`%USERPROFILE%\Desktop\IDEA_FSP` first and then the redirected Desktop, so
-either location works.
-
-Students' output stays in the same folder: `[name]_pawn1.sldprt` (numbered
-up automatically if it exists) plus the exported `[name]_pawn1.stp`.
+If an `IDEA_FSP` folder already exists (either at `%USERPROFILE%\Desktop` or
+the OneDrive-redirected Desktop) the wizard reuses it; otherwise it creates
+one under the real Desktop.
 
 ## Changing the recipient, subject, folder, etc. WITHOUT a recompile
 
 All classroom-facing values live as constants at the top of
 `PawnWizardPanel.cs` (`DefaultTeacherEmail`, `DefaultEmailSubject`,
-`DefaultEmailBody`, `DefaultFspFolderName`, `DefaultTemplateFileName`,
-`DefaultProfileSketchName`) - those are the compiled-in defaults.
+`DefaultEmailBody`, `DefaultFspFolderName`, `DefaultProfileSketchName`) -
+those are the compiled-in defaults.
 
 To override any of them **without rebuilding**, drop a plain-text file named
 **`pawn-wizard-config.txt`** next to `FspPawnAddin.dll` on the classroom
@@ -120,7 +123,6 @@ TeacherEmail=someone.else@boscotech.edu
 EmailSubject=pawn
 EmailBody=Hi, here is my pawn file.
 FspFolderName=IDEA_FSP
-TemplateFileName=COPY ME - CHESS PAWN TEMPLATE.sldprt
 ProfileSketchName=Pawn_Profile
 ```
 
@@ -148,12 +150,15 @@ anyway.
   elevation.
 - **"Could not load file or assembly SolidWorks.Interop..."**: the interop
   DLLs are not next to `FspPawnAddin.dll`; rebuild or copy them beside it.
-- **"IDEA_FSP ... not found on Desktop":** the folder is missing for that
-  student account, or named differently; create it (or set `FspFolderName`
-  in the config file).
-- **"Pawn_Profile sketch not found":** the template on that machine is stale
-  or was re-saved without the sketch; restore the correct template (or set
-  `ProfileSketchName` in the config file).
+- **"Could not create a new SOLIDWORKS part":** the machine has no usable
+  part template and the built-in `NewPart` fallback also failed; open
+  SOLIDWORKS once and confirm a part template is configured under Tools >
+  Options > File Locations > Document Templates.
+- **"Pawn_Profile sketch not found" (Phase 1):** rare, since the wizard now
+  creates that sketch itself in Phase 0; it means the created sketch was
+  renamed or deleted in SOLIDWORKS before Phase 1. Restart the wizard (BEGIN
+  makes a fresh part). If `ProfileSketchName` is overridden in the config
+  file, make sure it was not changed mid-session.
 - **Status stuck on "Keep drawing":** the profile has a gap. The wizard's
   STUCK? panel tells the student to reconnect the last point to the first
   and zoom out to check for gaps.

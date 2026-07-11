@@ -32,11 +32,9 @@ namespace IdeaFspPawn
         // WITHOUT a recompile by dropping a plain-text file named
         // "pawn-wizard-config.txt" next to FspPawnAddin.dll, one KEY=VALUE
         // per line (see README-install.md). Keys: FspFolderName,
-        // TemplateFileName, ProfileSketchName, TeacherEmail, EmailSubject,
-        // EmailBody.
+        // ProfileSketchName, TeacherEmail, EmailSubject, EmailBody.
         // ==================================================================
         private const string DefaultFspFolderName = "IDEA_FSP";
-        private const string DefaultTemplateFileName = "COPY ME - CHESS PAWN TEMPLATE.sldprt";
         private const string DefaultProfileSketchName = "Pawn_Profile";
         private const string DefaultTeacherEmail = "apina@boscotech.edu";
         private const string DefaultEmailSubject = "pawn";
@@ -79,7 +77,6 @@ namespace IdeaFspPawn
 
         // Effective configuration (defaults, possibly overridden by the config file).
         private string cfgFolderName;
-        private string cfgTemplateName;
         private string cfgSketchName;
         private string cfgTeacherEmail;
         private string cfgEmailSubject;
@@ -161,7 +158,6 @@ namespace IdeaFspPawn
         private void LoadConfig()
         {
             cfgFolderName = DefaultFspFolderName;
-            cfgTemplateName = DefaultTemplateFileName;
             cfgSketchName = DefaultProfileSketchName;
             cfgTeacherEmail = DefaultTeacherEmail;
             cfgEmailSubject = DefaultEmailSubject;
@@ -183,7 +179,6 @@ namespace IdeaFspPawn
                     string value = line.Substring(eq + 1).Trim();
                     if (value.Length == 0) continue;
                     if (key.Equals("FspFolderName", StringComparison.OrdinalIgnoreCase)) cfgFolderName = value;
-                    else if (key.Equals("TemplateFileName", StringComparison.OrdinalIgnoreCase)) cfgTemplateName = value;
                     else if (key.Equals("ProfileSketchName", StringComparison.OrdinalIgnoreCase)) cfgSketchName = value;
                     else if (key.Equals("TeacherEmail", StringComparison.OrdinalIgnoreCase)) cfgTeacherEmail = value;
                     else if (key.Equals("EmailSubject", StringComparison.OrdinalIgnoreCase)) cfgEmailSubject = value;
@@ -286,31 +281,14 @@ namespace IdeaFspPawn
                 }
                 lblNameError.Visible = false;
 
-                // Locate the classroom folder on the Desktop.
-                string folder = Path.Combine(
-                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop"),
-                    cfgFolderName);
-                if (!Directory.Exists(folder))
-                {
-                    // OneDrive-redirected desktops keep the real Desktop elsewhere.
-                    string alt = Path.Combine(
-                        Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), cfgFolderName);
-                    if (Directory.Exists(alt)) folder = alt;
-                    else
-                    {
-                        ShowError(folder + " not found on Desktop. Raise your hand.");
-                        return;
-                    }
-                }
+                // Output folder on the Desktop. No classroom template is needed
+                // anymore: the wizard BUILDS the starting part itself, so it also
+                // creates the IDEA_FSP folder if it is missing (removing the
+                // "folder not found" / "template missing" failures entirely).
+                string folder = FindOrCreateFspFolder();
 
-                string template = Path.Combine(folder, cfgTemplateName);
-                if (!File.Exists(template))
-                {
-                    ShowError("Template file not found. Raise your hand.");
-                    return;
-                }
-
-                // First free [name]_pawnN.sldprt in the same folder.
+                // First free [name]_pawnN.sldprt in that folder (the file does not
+                // exist yet; it is written by the SaveAs below).
                 string outPath = null;
                 for (int i = 1; i < 1000; i++)
                 {
@@ -324,15 +302,26 @@ namespace IdeaFspPawn
                     return;
                 }
 
-                File.Copy(template, outPath);
-
-                int errs = 0;
-                int warns = 0;
-                IModelDoc2 doc = swApp.OpenDoc6(outPath, (int)swDocumentTypes_e.swDocPART,
-                    (int)swOpenDocOptions_e.swOpenDocOptions_Silent, "", ref errs, ref warns) as IModelDoc2;
+                // Create a fresh IPS part carrying the Pawn_Profile sketch (with
+                // its Y-axis construction centerline) the rest of the wizard drives.
+                string buildError;
+                IModelDoc2 doc = CreatePawnPart(out buildError);
                 if (doc == null)
                 {
-                    ShowError("Could not open your pawn file. Error: "
+                    ShowError(buildError + " Raise your hand.");
+                    return;
+                }
+
+                // Save it to the target name so Phase 4's in-place save is silent
+                // and the student sees a titled document from the start.
+                int errs = 0;
+                int warns = 0;
+                bool saved = doc.Extension.SaveAs(outPath,
+                    (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                    (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errs, ref warns);
+                if (!saved)
+                {
+                    ShowError("Could not save your new pawn file. Error: "
                         + errs.ToString(CultureInfo.InvariantCulture) + ". Raise your hand.");
                     return;
                 }
@@ -353,6 +342,148 @@ namespace IdeaFspPawn
         {
             lblNameError.Text = text;
             lblNameError.Visible = true;
+        }
+
+        /// <summary>
+        /// The IDEA_FSP output folder on the Desktop, created if it does not
+        /// exist. Prefers an already-present folder (in case a teacher made one)
+        /// at either the profile Desktop or the real, possibly OneDrive-redirected
+        /// Desktop; otherwise creates it under the real Desktop.
+        /// </summary>
+        private string FindOrCreateFspFolder()
+        {
+            string profileDesktop = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop");
+            string realDesktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+
+            string atProfile = Path.Combine(profileDesktop, cfgFolderName);
+            if (Directory.Exists(atProfile)) return atProfile;
+            string atReal = Path.Combine(realDesktop, cfgFolderName);
+            if (Directory.Exists(atReal)) return atReal;
+
+            Directory.CreateDirectory(atReal); // idempotent; no-op if a race created it
+            return atReal;
+        }
+
+        /// <summary>
+        /// Builds the starting part from scratch: a new part set to IPS units, a
+        /// sketch on the front plane holding a single vertical Y-axis construction
+        /// centerline (the revolve axis, the "vertical orange line" the student
+        /// sees), with the sketch feature renamed to Pawn_Profile. Returns the
+        /// open document, or null with a student-facing reason in <paramref
+        /// name="error"/>. Everything downstream keys off the sketch NAME and the
+        /// construction line, exactly as it did with the copied template.
+        /// </summary>
+        private IModelDoc2 CreatePawnPart(out string error)
+        {
+            error = "";
+            IModelDoc2 model = NewPartDocument();
+            if (model == null)
+            {
+                error = "Could not create a new SOLIDWORKS part.";
+                return null;
+            }
+
+            try
+            {
+                // IPS units (inch / lb). Setting the canned IPS SYSTEM alone
+                // cascades the linear unit to inches and leaves the system
+                // reading as IPS; setting swUnitsLinear separately would instead
+                // flip the system to "Custom" (verified against live SOLIDWORKS),
+                // so it is deliberately not touched here.
+                model.SetUserPreferenceIntegerValue(
+                    (int)swUserPreferenceIntegerValue_e.swUnitSystem, (int)swUnitSystem_e.swUnitSystem_IPS);
+            }
+            catch { /* unit set is best-effort; the sketch still builds */ }
+
+            try
+            {
+                IFeature plane = FirstPlane(model); // the front plane (first default plane)
+                if (plane == null)
+                {
+                    error = "Could not find the front plane to start the sketch on.";
+                    return null;
+                }
+                plane.Select2(false, 0);
+
+                ISketchManager sm = model.SketchManager;
+                sm.InsertSketch(true);                       // enter sketch mode on the plane
+                // Construction centerline up the Y axis from the origin (SI meters);
+                // CreateCenterLine yields construction geometry by definition.
+                sm.CreateCenterLine(0.0, 0.0, 0.0, 0.0, 0.1, 0.0);
+                sm.InsertSketch(true);                        // exit sketch mode, rebuild
+                model.ClearSelection2(true);
+
+                // Rename the just-created sketch feature to the name every later
+                // phase looks up.
+                IFeature sketchFeat = model.FeatureByPositionReverse(0) as IFeature;
+                if (sketchFeat != null)
+                {
+                    try { sketchFeat.Name = cfgSketchName; } catch { }
+                }
+            }
+            catch (Exception ex)
+            {
+                error = "Could not build the pawn sketch. Error: " + ex.Message + ".";
+                return null;
+            }
+
+            return model;
+        }
+
+        /// <summary>
+        /// Creates a new blank part. Uses the configured default part template
+        /// when one is set, falls back to any part template SOLIDWORKS can find,
+        /// and finally to the built-in NewPart so a machine with no default
+        /// template still works.
+        /// </summary>
+        private IModelDoc2 NewPartDocument()
+        {
+            try
+            {
+                string tpl = swApp.GetUserPreferenceStringValue(
+                    (int)swUserPreferenceStringValue_e.swDefaultTemplatePart);
+                if (!string.IsNullOrEmpty(tpl) && File.Exists(tpl))
+                {
+                    IModelDoc2 m = swApp.NewDocument(tpl, 0, 0.0, 0.0) as IModelDoc2;
+                    if (m != null) return m;
+                }
+            }
+            catch { }
+
+            try
+            {
+                string tpl = swApp.GetDocumentTemplate(
+                    (int)swDocTemplateTypes_e.swDocTemplateTypePART, "", 0, 0.0, 0.0);
+                if (!string.IsNullOrEmpty(tpl) && File.Exists(tpl))
+                {
+                    IModelDoc2 m = swApp.NewDocument(tpl, 0, 0.0, 0.0) as IModelDoc2;
+                    if (m != null) return m;
+                }
+            }
+            catch { }
+
+            try { return swApp.NewPart() as IModelDoc2; }
+            catch { return null; }
+        }
+
+        /// <summary>The first reference-plane feature (the front plane), found by
+        /// type so it works regardless of the UI language.</summary>
+        private static IFeature FirstPlane(IModelDoc2 model)
+        {
+            try
+            {
+                IFeature f = model.FirstFeature() as IFeature;
+                while (f != null)
+                {
+                    string tn = "";
+                    try { tn = f.GetTypeName2(); } catch { }
+                    if (string.Equals(tn, "RefPlane", StringComparison.OrdinalIgnoreCase)) return f;
+                    f = f.GetNextFeature() as IFeature;
+                }
+            }
+            catch { }
+            return null;
         }
 
         // ------------------------------------------------------------------

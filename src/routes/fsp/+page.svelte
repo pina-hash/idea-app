@@ -68,9 +68,8 @@
 					<h3>Classroom setup</h3>
 					<div class="callout">
 						<p>
-							Before FSP: place <strong>COPY ME - CHESS PAWN TEMPLATE.sldprt</strong> inside a folder
-							named <strong>IDEA_FSP</strong> on each classroom computer's Desktop. The plugin reads
-							from this location at startup.
+							No template setup needed. The plugin creates each student's starting part (in inches)
+							and saves their work to an <strong>IDEA_FSP</strong> folder it makes on the Desktop.
 						</p>
 					</div>
 				</div>
