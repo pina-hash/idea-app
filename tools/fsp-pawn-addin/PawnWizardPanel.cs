@@ -42,6 +42,12 @@ namespace IdeaFspPawn
         private const string DefaultEmailBody = "Hi Mr. Pina, here is my pawn file.";
         private const string ConfigFileName = "pawn-wizard-config.txt";
 
+        // DOGTAG mode classroom config (also overridable via the same config file;
+        // keys dogtag_email_to and dogtag_email_subject; see README-install.md).
+        private const string DefaultDogtagEmailTo = "apina@boscotech.edu";
+        private const string DefaultDogtagEmailSubject = "dogtag";
+        private const string DogtagEmailBody = "Hi Mr. Pina, here is my dogtag file.";
+
         // Starting-sketch geometry (SI meters, since the sketch API is metric
         // regardless of the document's IPS display units).
         // A finished pawn should read like a real chess pawn, so the revolve
@@ -49,6 +55,30 @@ namespace IdeaFspPawn
         private const double PawnHeightMeters = 0.0508;   // 2 in
         private const double BaseGuideMeters = 0.01905;   // 0.75 in
         private const double CloseTolMeters = 1e-4;        // 0.1 mm endpoint snap tolerance
+
+        // DOGTAG geometry (US military standard, IPS; the sketch API is metric so
+        // every inch value is converted to meters via InchToM).
+        private const double InchToM = 0.0254;
+        private const double DogBodyHalfW = 0.5625 * InchToM;  // 1.125 in wide  -> half
+        private const double DogBodyHalfH = 1.0 * InchToM;     // 2.0 in tall    -> half
+        private const double DogCornerMil = 0.125 * InchToM;   // MILITARY corner radius
+        private const double DogCornerRect = 0.0625 * InchToM; // RECT corner radius
+        private const double DogRoundR = 0.6875 * InchToM;     // 1.375 in dia   -> radius
+        private const double DogHoleR = 0.09375 * InchToM;     // 0.1875 in dia  -> radius
+        private const double DogHoleFromTop = 0.15 * InchToM;  // hole center below top edge
+        private const double DogDepth = 0.037 * InchToM;       // extrusion (part thickness)
+        private const double DogNameH = 0.175 * InchToM;       // name text height
+        private const double DogDateH = 0.1 * InchToM;         // "IDEA FSP <year>" text height
+        private const double DogDateGap = 0.25 * InchToM;      // gap below the name
+
+        private const string DogtagBodySketch = "Dogtag_Body";
+        private const string DogtagEngraveSketch = "Dogtag_Engrave";
+
+        // Dogtag shape choices.
+        private const int ShapeMilitary = 0;
+        private const int ShapeRound = 1;
+        private const int ShapeRect = 2;
+        private const int ShapeCustom = 3;
 
         // UI spec palette.
         private static readonly Color Bg = Color.FromArgb(0x1A, 0x1A, 0x1A);
@@ -84,6 +114,14 @@ namespace IdeaFspPawn
         private string cfgTeacherEmail;
         private string cfgEmailSubject;
         private string cfgEmailBody;
+        private string cfgDogtagEmailTo;
+        private string cfgDogtagEmailSubject;
+
+        // Which activity is running: 0 = mode selector (the first screen), 1 = the
+        // PAWN BUILD flow, 2 = the DOGTAG DESIGNER flow. Both flows share this
+        // panel, the chrome (BACK / START OVER / progress dots), and the design
+        // language; each has its own phases keyed off `phase`.
+        private int mode;
 
         // Wizard state, filled by Phase 0.
         private int phase;
@@ -95,6 +133,24 @@ namespace IdeaFspPawn
         // Phase 0 controls.
         private TextBox txtFirstName;
         private Label lblNameError;
+
+        // DOGTAG state + controls.
+        private int dogtagShape = ShapeMilitary;
+        private string dogtagImagePath = "";      // uploaded reference image (optional)
+        private string dogtagImageDest = "";      // where it was copied on export
+        private bool dogtagImageHasColor;
+        private string dxfPath = "";
+        private string dogtagStem = "";           // sanitized name stem for filenames
+        private bool dogtagExportDone;
+        private TextBox txtDogName;
+        private Label lblDogNameError;
+        private Button[] shapeButtons;
+        private PictureBox imgThumb;
+        private Bitmap imgThumbBmp;
+        private Label lblImgName;
+        private Label lblImgWarn;
+        private TableLayoutPanel imgPreviewRow;
+        private bool dogtagEditing;      // Phase 2 EDIT: watching for the sketch to close
 
         // Phase 2 controls + state.
         private Panel statusCircle;
@@ -155,7 +211,7 @@ namespace IdeaFspPawn
             emailMoveTimer.Interval = 1200;   // let the browser window appear first
             emailMoveTimer.Tick += OnEmailMoveTick;
 
-            ShowPhase(0);
+            ShowModeSelect();
         }
 
         /// <summary>Called by the add-in on disconnect; stops all timers.</summary>
@@ -179,6 +235,8 @@ namespace IdeaFspPawn
             cfgTeacherEmail = DefaultTeacherEmail;
             cfgEmailSubject = DefaultEmailSubject;
             cfgEmailBody = DefaultEmailBody;
+            cfgDogtagEmailTo = DefaultDogtagEmailTo;
+            cfgDogtagEmailSubject = DefaultDogtagEmailSubject;
             try
             {
                 string dir = Path.GetDirectoryName(GetType().Assembly.Location);
@@ -200,6 +258,8 @@ namespace IdeaFspPawn
                     else if (key.Equals("TeacherEmail", StringComparison.OrdinalIgnoreCase)) cfgTeacherEmail = value;
                     else if (key.Equals("EmailSubject", StringComparison.OrdinalIgnoreCase)) cfgEmailSubject = value;
                     else if (key.Equals("EmailBody", StringComparison.OrdinalIgnoreCase)) cfgEmailBody = value;
+                    else if (key.Equals("dogtag_email_to", StringComparison.OrdinalIgnoreCase)) cfgDogtagEmailTo = value;
+                    else if (key.Equals("dogtag_email_subject", StringComparison.OrdinalIgnoreCase)) cfgDogtagEmailSubject = value;
                 }
             }
             catch
@@ -212,15 +272,17 @@ namespace IdeaFspPawn
         // Phase switching
         // ------------------------------------------------------------------
 
-        private void ShowPhase(int n)
+        /// <summary>Shared teardown: stop timers, clear the content host, dispose
+        /// the step image. Both ShowPhase and ShowModeSelect start here.</summary>
+        private void PrepContent()
         {
-            phase = n;
             if (sketchTimer != null) sketchTimer.Stop();
             if (revolveTimer != null) revolveTimer.Stop();
             StopPulse();
             HideErrorBanner();
             wrapLabels.Clear();
             DisposeStepImage();
+            DisposeDogtagThumb();
 
             contentHost.SuspendLayout();
             while (contentHost.Controls.Count > 0)
@@ -229,36 +291,93 @@ namespace IdeaFspPawn
                 contentHost.Controls.RemoveAt(0);
                 old.Dispose();
             }
+        }
 
-            TableLayoutPanel table = NewPhaseTable();
-            switch (n)
-            {
-                case 0: BuildPhase0(table); break;
-                case 1: BuildPhase1(table); break;
-                case 2: BuildPhase2(table); break;
-                case 3: BuildPhase3(table); break;
-                case 4: BuildPhase4(table); break;
-            }
+        /// <summary>Shared finish: mount the table, refresh the chrome.</summary>
+        private void FinishContent(TableLayoutPanel table)
+        {
             contentHost.Controls.Add(table);
             contentHost.ResumeLayout();
-
-            // START OVER and BACK are available from the first real step onward;
-            // START OVER is the escape hatch if the student closes the file or
-            // gets stuck, BACK steps one page at a time.
-            if (restartButton != null)
-            {
-                restartButton.Visible = n >= 1;
-                restartButton.BringToFront();
-            }
-            if (backButton != null)
-            {
-                backButton.Visible = n >= 1;
-                backButton.BringToFront();
-            }
+            UpdateChrome();
             progressStrip.Invalidate();
             ApplyWrapWidths();
+        }
+
+        /// <summary>
+        /// BACK and START OVER show once a mode is chosen (not on the selector).
+        /// The dots are painted by OnProgressStripPaint using `mode` + `phase`.
+        /// </summary>
+        private void UpdateChrome()
+        {
+            bool inMode = mode != 0;
+            if (restartButton != null) { restartButton.Visible = inMode; restartButton.BringToFront(); }
+            if (backButton != null) { backButton.Visible = inMode; backButton.BringToFront(); }
+        }
+
+        /// <summary>
+        /// The first screen: choose PAWN BUILD or DOGTAG DESIGNER. Both live in
+        /// this same panel; picking one sets `mode` and enters its Phase 0.
+        /// </summary>
+        private void ShowModeSelect()
+        {
+            mode = 0;
+            phase = 0;
+            PrepContent();
+            TableLayoutPanel t = NewPhaseTable();
+            BuildModeSelect(t);
+            FinishContent(t);
+        }
+
+        private void ShowPhase(int n)
+        {
+            phase = n;
+            PrepContent();
+
+            TableLayoutPanel table = NewPhaseTable();
+            if (mode == 2)
+            {
+                switch (n)
+                {
+                    case 0: BuildDogtagPhase0(table); break;
+                    case 1: BuildDogtagPhase1(table); break;
+                    case 2: BuildDogtagPhase2(table); break;
+                    case 3: BuildDogtagPhase3(table); break;
+                }
+            }
+            else
+            {
+                switch (n)
+                {
+                    case 0: BuildPhase0(table); break;
+                    case 1: BuildPhase1(table); break;
+                    case 2: BuildPhase2(table); break;
+                    case 3: BuildPhase3(table); break;
+                    case 4: BuildPhase4(table); break;
+                }
+            }
+            FinishContent(table);
 
             // Kick off the phase's automatic behavior.
+            if (mode == 2)
+            {
+                if (n == 1)
+                {
+                    // Custom-outline drawing page: keep the body sketch open so the
+                    // student can draw (and so BACK into this page works).
+                    EnsureBodySketchOpen(DogtagBodySketch);
+                    sketchState = -1;
+                    PollSketchOnce();
+                    sketchTimer.Start();
+                }
+                else if (n == 3)
+                {
+                    // Export runs automatically on entry (guarded so re-entry via
+                    // BACK never re-opens Gmail or re-writes files needlessly).
+                    RunDogtagExport();
+                }
+                return;
+            }
+
             if (n == 2)
             {
                 // Re-open the profile sketch if it is not already being edited
@@ -286,28 +405,47 @@ namespace IdeaFspPawn
         /// </summary>
         private void OnBackClick(object sender, EventArgs e)
         {
-            if (phase <= 0) return;
+            // Close any half-open sketch so the previous page is clean (except the
+            // drawing pages, which want to keep their sketch open).
+            bool keepSketch = (mode == 1 && phase == 2) || (mode == 2 && phase == 1);
             try
             {
                 IModelDoc2 model = ActiveModel();
-                // Close any half-open command/sketch so the previous page is clean.
-                if (model != null && model.GetActiveSketch2() != null && phase != 2)
+                if (model != null && model.GetActiveSketch2() != null && !keepSketch)
                     model.InsertSketch2(true);
             }
             catch { }
+
+            if (mode == 2)
+            {
+                // Dogtag: Phase 1 (custom outline) is skipped for the built-in
+                // shapes, so BACK from Phase 2 lands on Phase 0 for those.
+                if (phase == 2 && dogtagShape != ShapeCustom) { ShowPhase(0); return; }
+                if (phase <= 0) { ShowModeSelect(); return; }
+                ShowPhase(phase - 1);
+                return;
+            }
+
+            if (phase <= 0) { ShowModeSelect(); return; }
             ShowPhase(phase - 1);
         }
 
-        /// <summary>Opens the profile sketch for editing if it is not already
-        /// the active sketch. Safe to call repeatedly.</summary>
+        /// <summary>Opens the pawn profile sketch for editing if needed.</summary>
         private void EnsureProfileSketchOpen()
+        {
+            EnsureBodySketchOpen(cfgSketchName);
+        }
+
+        /// <summary>Opens the named sketch for editing if it is not already the
+        /// active sketch. Safe to call repeatedly.</summary>
+        private void EnsureBodySketchOpen(string sketchName)
         {
             try
             {
                 IModelDoc2 model = ActiveModel();
                 if (model == null) return;
                 if (model.GetActiveSketch2() != null) return;   // already editing a sketch
-                IFeature feat = FindFeature(model, cfgSketchName);
+                IFeature feat = FindFeature(model, sketchName);
                 if (feat == null) return;
                 feat.Select2(false, 0);
                 model.EditSketch();
@@ -316,23 +454,24 @@ namespace IdeaFspPawn
         }
 
         /// <summary>
-        /// Full reset from anywhere: clears the per-file state and returns to
-        /// Phase 0 so a new pawn (or a new student) can start clean. Confirmed
-        /// first so an accidental tap does not throw away in-progress work.
+        /// Full reset from anywhere: clears the per-file state and returns to the
+        /// mode selector so a new design (or a new student) can start clean.
+        /// Confirmed first so an accidental tap does not throw away work.
         /// </summary>
         private void OnRestartClick(object sender, EventArgs e)
         {
             DialogResult r = MessageBox.Show(
-                "Start over with a brand-new design?\r\n\r\n"
-                + "Any pawn you already saved and exported stays safe on the Desktop.",
+                "Start over from the beginning?\r\n\r\n"
+                + "Anything you already saved and exported stays safe on the Desktop.",
                 "Start over",
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
             if (r != DialogResult.Yes) return;
             partPath = "";
             stepPath = "";
+            dxfPath = "";
             fspFolder = "";
-            ShowPhase(0);
-            if (txtFirstName != null) txtFirstName.Text = studentName;
+            dogtagExportDone = false;
+            ShowModeSelect();
         }
 
         // ------------------------------------------------------------------
@@ -909,7 +1048,25 @@ namespace IdeaFspPawn
 
         private void OnSketchPollTick(object sender, EventArgs e)
         {
-            if (phase == 2) PollSketchOnce();
+            // Dogtag Phase 2 EDIT: wait for the student to leave the sketch, then
+            // refresh the review page.
+            if (dogtagEditing)
+            {
+                try
+                {
+                    IModelDoc2 model = ActiveModel();
+                    if (model != null && model.GetActiveSketch2() == null)
+                    {
+                        dogtagEditing = false;
+                        sketchTimer.Stop();
+                        if (mode == 2 && phase == 2) ShowPhase(2);
+                    }
+                }
+                catch { }
+                return;
+            }
+            // The drawing page is pawn Phase 2 and dogtag Phase 1.
+            if ((mode == 1 && phase == 2) || (mode == 2 && phase == 1)) PollSketchOnce();
         }
 
         private void PollSketchOnce()
@@ -929,10 +1086,12 @@ namespace IdeaFspPawn
                     int segCount;
                     bool closed, crossesAxis;
                     bool hasProfile = AnalyzeSketch(sketch, out segCount, out closed, out crossesAxis);
-                    if (!hasProfile) next = 0;          // only the axis / base guide
-                    else if (crossesAxis) next = 3;     // straddles the spin axis
+                    if (!hasProfile) next = 0;          // only construction geometry
+                    else if (mode == 1 && crossesAxis) next = 3;  // pawn: straddles the spin axis
                     else if (closed) next = 2;          // a clean closed loop
                     else next = 1;                      // still open
+                    // The dogtag outline is centered on the origin, so it legitimately
+                    // spans both sides of x=0; the axis-cross state (3) is pawn-only.
                 }
             }
             catch
@@ -1081,11 +1240,17 @@ namespace IdeaFspPawn
         {
             if (next == sketchState) return;
             sketchState = next;
+            bool dog = mode == 2;
             if (next == 2)
             {
-                lblSketchStatus.Text = traceConfirmed
-                    ? "Closed shape - ready to spin!"
-                    : "Closed shape! Now tick the box below.";
+                if (dog)
+                    lblSketchStatus.Text = traceConfirmed
+                        ? "Closed shape detected! Ready when you are."
+                        : "Closed shape detected! Now tick the box below.";
+                else
+                    lblSketchStatus.Text = traceConfirmed
+                        ? "Closed shape - ready to spin!"
+                        : "Closed shape! Now tick the box below.";
                 lblSketchStatus.ForeColor = Green;
                 StartPulse(6);  // 3 brightness pulses, then hold
             }
@@ -1097,17 +1262,19 @@ namespace IdeaFspPawn
             }
             else if (next == 1)
             {
-                lblSketchStatus.Text = "Keep going - connect your last point back to your first point.";
+                lblSketchStatus.Text = dog
+                    ? "Keep drawing - shape is not closed yet."
+                    : "Keep going - connect your last point back to your first point.";
                 lblSketchStatus.ForeColor = ErrorRed;
                 StopPulse();
             }
             else
             {
-                lblSketchStatus.Text = "Waiting for your drawing...";
+                lblSketchStatus.Text = "Waiting for sketch...";
                 lblSketchStatus.ForeColor = TextSecondary;
                 StopPulse();
             }
-            // Arming depends on BOTH the closed loop and the trace confirmation.
+            // Arming depends on BOTH the closed loop and the confirmation checkbox.
             RefreshRevolveGate();
             if (statusCircle != null) statusCircle.Invalidate();
         }
@@ -1594,9 +1761,14 @@ namespace IdeaFspPawn
 
         private string GmailComposeUrl()
         {
-            return "https://mail.google.com/mail/?view=cm&to=" + Uri.EscapeDataString(cfgTeacherEmail)
-                + "&su=" + Uri.EscapeDataString(cfgEmailSubject)
-                + "&body=" + Uri.EscapeDataString(cfgEmailBody);
+            return ComposeUrl(cfgTeacherEmail, cfgEmailSubject, cfgEmailBody);
+        }
+
+        private static string ComposeUrl(string to, string subject, string body)
+        {
+            return "https://mail.google.com/mail/?view=cm&to=" + Uri.EscapeDataString(to ?? "")
+                + "&su=" + Uri.EscapeDataString(subject ?? "")
+                + "&body=" + Uri.EscapeDataString(body ?? "");
         }
 
         // ------------------------------------------------------------------
@@ -1647,6 +1819,878 @@ namespace IdeaFspPawn
                 MoveWindow(h, wa.Left, wa.Top, wa.Width / 2, wa.Height, true);
             }
             catch { /* window nudge is a nicety; never let it matter */ }
+        }
+
+        // ==================================================================
+        // MODE SELECTOR
+        // ==================================================================
+
+        private void BuildModeSelect(TableLayoutPanel t)
+        {
+            AddRow(t, MakeLabel("IDEA FSP", Green, TitleFont), 4);
+            AddRow(t, MakeLabel("Pick what you want to make today.", TextPrimary, BodyFont), 18);
+
+            Button pawnBtn = MakePrimaryButton("PAWN BUILD", 52);
+            pawnBtn.Click += OnPickPawnMode;
+            AddRow(t, pawnBtn, 2);
+            AddRow(t, MakeLabel("Design and 3D-model your own chess pawn.", TextSecondary, SmallFont), 18);
+
+            Button dogBtn = MakePrimaryButton("DOGTAG DESIGNER", 52);
+            dogBtn.Click += OnPickDogtagMode;
+            AddRow(t, dogBtn, 2);
+            AddRow(t, MakeLabel("Design a custom dogtag. Gets laser cut tonight.",
+                TextSecondary, SmallFont), 0);
+        }
+
+        private void OnPickPawnMode(object sender, EventArgs e)
+        {
+            mode = 1;
+            ShowPhase(0);
+            if (txtFirstName != null) txtFirstName.Text = studentName;
+        }
+
+        private void OnPickDogtagMode(object sender, EventArgs e)
+        {
+            mode = 2;
+            ShowPhase(0);
+        }
+
+        // ==================================================================
+        // DOGTAG // PHASE 0 - SETUP
+        // ==================================================================
+
+        private void BuildDogtagPhase0(TableLayoutPanel t)
+        {
+            AddRow(t, MakeLabel("DOGTAG DESIGNER", Green, TitleFont), 4);
+            AddRow(t, MakeLabel("Design your own custom dogtag. Gets laser cut tonight.",
+                TextPrimary, BodyFont), 12);
+
+            AddDogtagStepImage(t, 0, 14);
+
+            AddRow(t, MakeLabel("First Name", TextSecondary, SmallFont), 4);
+            txtDogName = MakeTextBox(BodyFont);
+            txtDogName.Text = studentName;
+            AddRow(t, txtDogName, 4);
+            lblDogNameError = MakeLabel("", ErrorRed, SmallFont);
+            lblDogNameError.Visible = false;
+            AddRow(t, lblDogNameError, 14);
+
+            // Shape picker: 2x2 grid of toggle buttons, one selected at a time.
+            AddRow(t, MakeLabel("Pick your shape:", TextPrimary, BodyBoldFont), 6);
+            TableLayoutPanel grid = new TableLayoutPanel();
+            grid.ColumnCount = 2;
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
+            grid.RowCount = 2;
+            grid.Dock = DockStyle.Fill;
+            grid.AutoSize = true;
+            grid.Margin = new Padding(0);
+            grid.BackColor = Bg;
+            shapeButtons = new Button[4];
+            shapeButtons[0] = MakeShapeButton("MILITARY", ShapeMilitary);
+            shapeButtons[1] = MakeShapeButton("ROUND", ShapeRound);
+            shapeButtons[2] = MakeShapeButton("RECT", ShapeRect);
+            shapeButtons[3] = MakeShapeButton("CUSTOM", ShapeCustom);
+            grid.Controls.Add(shapeButtons[0], 0, 0);
+            grid.Controls.Add(shapeButtons[1], 1, 0);
+            grid.Controls.Add(shapeButtons[2], 0, 1);
+            grid.Controls.Add(shapeButtons[3], 1, 1);
+            AddRow(t, grid, 4);
+            AddRow(t, MakeLabel("MILITARY is the classic tag. CUSTOM lets you draw your "
+                + "own outline.", TextSecondary, SmallFont), 14);
+            RefreshShapeButtons();
+
+            // Optional image upload.
+            AddRow(t, MakeLabel("Add a picture (optional)", TextPrimary, BodyBoldFont), 4);
+            Button upload = MakeSecondaryButton("UPLOAD IMAGE", 38);
+            upload.Click += OnUploadImageClick;
+            AddRow(t, upload, 6);
+
+            // Thumbnail + filename + CLEAR (shown only once an image is picked).
+            TableLayoutPanel imgRow = new TableLayoutPanel();
+            imgRow.ColumnCount = 2;
+            imgRow.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 88f));
+            imgRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            imgRow.RowCount = 1;
+            imgRow.Dock = DockStyle.Fill;
+            imgRow.AutoSize = true;
+            imgRow.Margin = new Padding(0);
+            imgRow.BackColor = Bg;
+            imgThumb = new PictureBox();
+            imgThumb.Size = new Size(80, 80);
+            imgThumb.SizeMode = PictureBoxSizeMode.Zoom;
+            imgThumb.BackColor = BgPanel;
+            imgThumb.BorderStyle = BorderStyle.FixedSingle;
+            imgThumb.Margin = new Padding(0, 0, 8, 0);
+            imgRow.Controls.Add(imgThumb, 0, 0);
+            TableLayoutPanel imgRight = new TableLayoutPanel();
+            imgRight.ColumnCount = 1;
+            imgRight.Dock = DockStyle.Fill;
+            imgRight.AutoSize = true;
+            imgRight.Margin = new Padding(0);
+            imgRight.BackColor = Bg;
+            lblImgName = MakeLabel("", TextPrimary, SmallFont);
+            imgRight.Controls.Add(lblImgName, 0, 0);
+            Button clearImg = MakeSecondaryButton("CLEAR", 28);
+            clearImg.Click += OnClearImageClick;
+            imgRight.Controls.Add(clearImg, 0, 1);
+            imgRow.Controls.Add(imgRight, 1, 0);
+            AddRow(t, imgRow, 4);
+            lblImgWarn = MakeLabel("", Amber, SmallFont);
+            lblImgWarn.Visible = false;
+            AddRow(t, lblImgWarn, 14);
+            imgPreviewRow = imgRow;
+            RefreshImagePreview();
+
+            Button create = MakePrimaryButton("CREATE MY DOGTAG", 48);
+            create.Click += OnCreateDogtagClick;
+            AddRow(t, create, 0);
+        }
+
+        private Button MakeShapeButton(string text, int shape)
+        {
+            Button b = MakeSecondaryButton(text, 40);
+            b.Tag = shape;
+            b.Margin = new Padding(0, 0, (shape % 2 == 0 ? 6 : 0), 6);
+            b.Click += OnShapePick;
+            return b;
+        }
+
+        private void OnShapePick(object sender, EventArgs e)
+        {
+            Button b = sender as Button;
+            if (b == null || !(b.Tag is int)) return;
+            dogtagShape = (int)b.Tag;
+            RefreshShapeButtons();
+        }
+
+        /// <summary>Highlights the selected shape button in the program green.</summary>
+        private void RefreshShapeButtons()
+        {
+            if (shapeButtons == null) return;
+            foreach (Button b in shapeButtons)
+            {
+                if (b == null || !(b.Tag is int)) continue;
+                bool sel = (int)b.Tag == dogtagShape;
+                b.BackColor = sel ? Green : BtnSecondaryBg;
+                b.ForeColor = sel ? Color.Black : TextPrimary;
+                b.FlatAppearance.MouseOverBackColor = sel
+                    ? Color.FromArgb(0x00, 0xDD, 0x38) : Color.FromArgb(0x3F, 0x3F, 0x3F);
+            }
+        }
+
+        private void OnUploadImageClick(object sender, EventArgs e)
+        {
+            try
+            {
+                using (OpenFileDialog dlg = new OpenFileDialog())
+                {
+                    dlg.Title = "Pick a picture for your dogtag";
+                    dlg.Filter = "Images (PNG, JPG, BMP)|*.png;*.jpg;*.jpeg;*.bmp";
+                    if (dlg.ShowDialog() != DialogResult.OK) return;
+                    dogtagImagePath = dlg.FileName;
+                    dogtagImageHasColor = SampleHasColor(dogtagImagePath);
+                    RefreshImagePreview();
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError("Could not open that picture. " + ex.Message);
+            }
+        }
+
+        private void OnClearImageClick(object sender, EventArgs e)
+        {
+            dogtagImagePath = "";
+            dogtagImageHasColor = false;
+            RefreshImagePreview();
+        }
+
+        /// <summary>Shows or hides the thumbnail row and the color warning to
+        /// match the current image selection.</summary>
+        private void RefreshImagePreview()
+        {
+            DisposeDogtagThumb();
+            bool has = !string.IsNullOrEmpty(dogtagImagePath) && File.Exists(dogtagImagePath);
+            if (imgPreviewRow != null) imgPreviewRow.Visible = has;
+            if (has)
+            {
+                if (lblImgName != null) lblImgName.Text = Path.GetFileName(dogtagImagePath);
+                try
+                {
+                    imgThumbBmp = LoadUnlockedBitmap(dogtagImagePath, 160);
+                    if (imgThumb != null) imgThumb.Image = imgThumbBmp;
+                }
+                catch { }
+                if (lblImgWarn != null)
+                {
+                    lblImgWarn.Visible = dogtagImageHasColor;
+                    lblImgWarn.Text = dogtagImageHasColor
+                        ? "Use a black-and-white image for the cleanest laser engrave."
+                        : "";
+                }
+            }
+            else if (lblImgWarn != null)
+            {
+                lblImgWarn.Visible = false;
+            }
+        }
+
+        private void DisposeDogtagThumb()
+        {
+            if (imgThumb != null) imgThumb.Image = null;
+            if (imgThumbBmp != null) { try { imgThumbBmp.Dispose(); } catch { } imgThumbBmp = null; }
+        }
+
+        /// <summary>Loads an image into memory (so the source file is NOT locked,
+        /// which matters because it is copied later), downscaled to fit `max`.</summary>
+        private static Bitmap LoadUnlockedBitmap(string path, int max)
+        {
+            using (Bitmap src = new Bitmap(path))
+            {
+                int w = src.Width, h = src.Height;
+                double s = Math.Min(1.0, (double)max / Math.Max(w, h));
+                int nw = Math.Max(1, (int)(w * s));
+                int nh = Math.Max(1, (int)(h * s));
+                return new Bitmap(src, new Size(nw, nh));
+            }
+        }
+
+        /// <summary>True if the image has noticeable color (chroma), so the student
+        /// can be nudged toward a cleaner black-and-white engrave.</summary>
+        private static bool SampleHasColor(string path)
+        {
+            try
+            {
+                using (Bitmap src = new Bitmap(path))
+                using (Bitmap small = new Bitmap(src, new Size(32, 32)))
+                {
+                    for (int y = 0; y < small.Height; y++)
+                        for (int x = 0; x < small.Width; x++)
+                        {
+                            Color c = small.GetPixel(x, y);
+                            int mx = Math.Max(c.R, Math.Max(c.G, c.B));
+                            int mn = Math.Min(c.R, Math.Min(c.G, c.B));
+                            if (mx - mn > 40) return true;   // chroma beyond a grey tolerance
+                        }
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private void OnCreateDogtagClick(object sender, EventArgs e)
+        {
+            try
+            {
+                string name = txtDogName.Text == null ? "" : txtDogName.Text.Trim();
+                if (name.Length == 0)
+                {
+                    lblDogNameError.Text = "Type your first name first.";
+                    lblDogNameError.Visible = true;
+                    return;
+                }
+                string safe = SanitizeForFileName(name);
+                if (safe.Length == 0)
+                {
+                    lblDogNameError.Text = "That name cannot go in a file name. Try letters only.";
+                    lblDogNameError.Visible = true;
+                    return;
+                }
+                lblDogNameError.Visible = false;
+
+                string folder = FindOrCreateFspFolder();
+                string outPath = null;
+                for (int i = 1; i < 1000; i++)
+                {
+                    string suffix = i == 1 ? "_dogtag" : "_dogtag" + i.ToString(CultureInfo.InvariantCulture);
+                    string candidate = Path.Combine(folder, safe + suffix + ".sldprt");
+                    if (!File.Exists(candidate)) { outPath = candidate; break; }
+                }
+                if (outPath == null)
+                {
+                    ShowError("Could not find a free file name in " + folder + ". Raise your hand.");
+                    return;
+                }
+
+                studentName = name;
+                dogtagStem = Path.GetFileNameWithoutExtension(outPath);
+
+                string buildError;
+                bool imageFailed;
+                IModelDoc2 doc = NewDogtagPart(dogtagShape, out buildError, out imageFailed);
+                if (doc == null)
+                {
+                    ShowError(buildError + " Raise your hand.");
+                    return;
+                }
+
+                int errs = 0, warns = 0;
+                bool saved = doc.Extension.SaveAs(outPath,
+                    (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                    (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref errs, ref warns);
+                if (!saved)
+                {
+                    ShowError("Could not save your new dogtag file. Error: "
+                        + errs.ToString(CultureInfo.InvariantCulture) + ". Raise your hand.");
+                    return;
+                }
+
+                fspFolder = folder;
+                partPath = outPath;
+                dxfPath = Path.ChangeExtension(outPath, ".dxf");
+                dogtagExportDone = false;
+
+                if (imageFailed)
+                    ShowError("Image preview unavailable - your image file will still be submitted separately.");
+
+                if (dogtagShape == ShapeCustom)
+                {
+                    // Leave the outer boundary to the student: keep the body sketch
+                    // open and go to the custom-outline page.
+                    EnsureBodySketchOpen(DogtagBodySketch);
+                    ShowPhase(1);
+                }
+                else
+                {
+                    string exErr;
+                    if (!ExtrudeDogtagBody(out exErr))
+                        ShowError(exErr + " You can still review and export.");
+                    ShowPhase(2);
+                }
+            }
+            catch (Exception ex)
+            {
+                ShowError(ex.Message + " Raise your hand.");
+            }
+        }
+
+        /// <summary>
+        /// Builds a fresh IPS dogtag part: a Front-Plane body sketch (the outer
+        /// shape for the built-in shapes, or just the chain hole for CUSTOM) plus
+        /// a SEPARATE engrave sketch carrying the name/date text and optional
+        /// image. The text lives in its own sketch, never extruded, so the body
+        /// extrude can never fail on letter islands.
+        /// </summary>
+        private IModelDoc2 NewDogtagPart(int shape, out string error, out bool imageFailed)
+        {
+            error = "";
+            imageFailed = false;
+            IModelDoc2 model = NewPartDocument();
+            if (model == null)
+            {
+                error = "Could not create a new SOLIDWORKS part.";
+                return null;
+            }
+            try
+            {
+                model.SetUserPreferenceIntegerValue(
+                    (int)swUserPreferenceIntegerValue_e.swUnitSystem, (int)swUnitSystem_e.swUnitSystem_IPS);
+            }
+            catch { }
+
+            // Body sketch.
+            try
+            {
+                IFeature plane = FirstPlane(model);
+                if (plane == null) { error = "Could not find the front plane to start the sketch on."; return null; }
+                plane.Select2(false, 0);
+
+                ISketchManager sm = model.SketchManager;
+                bool prevAdd = false;
+                try { prevAdd = sm.AddToDB; sm.AddToDB = true; } catch { }
+                sm.InsertSketch(true);
+
+                double holeY;
+                if (shape == ShapeMilitary || shape == ShapeRect)
+                {
+                    CreateRoundedRect(sm, DogBodyHalfW, DogBodyHalfH,
+                        shape == ShapeRect ? DogCornerRect : DogCornerMil);
+                    holeY = DogBodyHalfH - DogHoleFromTop;
+                }
+                else if (shape == ShapeRound)
+                {
+                    sm.CreateCircleByRadius(0.0, 0.0, 0.0, DogRoundR);
+                    holeY = DogRoundR - DogHoleFromTop;
+                }
+                else
+                {
+                    holeY = DogBodyHalfH - DogHoleFromTop;   // CUSTOM: default hole placement
+                }
+
+                // Chain hole: CONSTRUCTION for now so the CUSTOM outline detector
+                // ignores it; flipped to solid right before the extrude so it cuts
+                // a real hole.
+                ISketchSegment hole = sm.CreateCircleByRadius(0.0, holeY, 0.0, DogHoleR) as ISketchSegment;
+                if (hole != null) { try { hole.ConstructionGeometry = true; } catch { } }
+
+                sm.InsertSketch(true);
+                try { sm.AddToDB = prevAdd; } catch { }
+                model.ClearSelection2(true);
+                IFeature bodyFeat = model.FeatureByPositionReverse(0) as IFeature;
+                if (bodyFeat != null) { try { bodyFeat.Name = DogtagBodySketch; } catch { } }
+            }
+            catch (Exception ex)
+            {
+                error = "Could not build the dogtag shape. Error: " + ex.Message + ".";
+                return null;
+            }
+
+            // Engrave sketch (reference only).
+            try { BuildEngraveSketch(model, out imageFailed); }
+            catch { imageFailed = imageFailed || !string.IsNullOrEmpty(dogtagImagePath); }
+
+            return model;
+        }
+
+        /// <summary>Draws a rounded rectangle centered on the origin from four
+        /// lines and four convex corner arcs (all swept clockwise around the
+        /// perimeter, so the arc direction is a constant -1).</summary>
+        private static void CreateRoundedRect(ISketchManager sm, double W, double H, double r)
+        {
+            const short cw = -1;   // clockwise minor arc (SolidWorks: +1 = CCW)
+            sm.CreateLine(-W + r, H, 0, W - r, H, 0);                       // top
+            sm.CreateArc(W - r, H - r, 0, W - r, H, 0, W, H - r, 0, cw);    // top-right
+            sm.CreateLine(W, H - r, 0, W, -H + r, 0);                       // right
+            sm.CreateArc(W - r, -H + r, 0, W, -H + r, 0, W - r, -H, 0, cw); // bottom-right
+            sm.CreateLine(W - r, -H, 0, -W + r, -H, 0);                     // bottom
+            sm.CreateArc(-W + r, -H + r, 0, -W + r, -H, 0, -W, -H + r, 0, cw); // bottom-left
+            sm.CreateLine(-W, -H + r, 0, -W, H - r, 0);                     // left
+            sm.CreateArc(-W + r, H - r, 0, -W, H - r, 0, -W + r, H, 0, cw); // top-left
+        }
+
+        private void BuildEngraveSketch(IModelDoc2 model, out bool imageFailed)
+        {
+            imageFailed = false;
+            IFeature plane = FirstPlane(model);
+            if (plane == null) return;
+            plane.Select2(false, 0);
+            ISketchManager sm = model.SketchManager;
+            sm.InsertSketch(true);
+
+            // Name, centered slightly above the middle; date a set gap below it.
+            InsertCenteredText(model, studentName, 0.0, DogNameH * 0.2, DogNameH);
+            int year = DateTime.Now.Year;
+            InsertCenteredText(model, "IDEA FSP " + year.ToString(CultureInfo.InvariantCulture),
+                0.0, -(DogNameH + DogDateGap), DogDateH);
+
+            // Optional reference image, centered below the text. Best-effort.
+            if (!string.IsNullOrEmpty(dogtagImagePath) && File.Exists(dogtagImagePath))
+            {
+                try
+                {
+                    ISketchPicture pic = sm.InsertSketchPicture(dogtagImagePath) as ISketchPicture;
+                    if (pic == null) { imageFailed = true; }
+                    else
+                    {
+                        double side = 0.5 * InchToM;
+                        try { pic.SetSize(side, side, true); } catch { }
+                        try { pic.SetOrigin(-side / 2.0, -(DogNameH + DogDateGap + side + 0.05 * InchToM)); } catch { }
+                    }
+                }
+                catch { imageFailed = true; }
+            }
+
+            sm.InsertSketch(true);
+            model.ClearSelection2(true);
+            IFeature f = model.FeatureByPositionReverse(0) as IFeature;
+            if (f != null) { try { f.Name = DogtagEngraveSketch; } catch { } }
+        }
+
+        /// <summary>Inserts centered sketch text at (x,y) with a set character
+        /// height (meters). Height is applied through the text format.</summary>
+        private void InsertCenteredText(IModelDoc2 model, string text, double x, double y, double height)
+        {
+            if (string.IsNullOrEmpty(text)) return;
+            try
+            {
+                ISketchText st = model.IInsertSketchText(x, y, 0.0, text,
+                    (int)swTextJustification_e.swTextJustificationCenter, 0, 0, 100, 100);
+                if (st == null) return;
+                ITextFormat tf = st.GetTextFormat() as ITextFormat;
+                if (tf != null)
+                {
+                    tf.CharHeight = height;
+                    st.SetTextFormat(false, tf);
+                }
+            }
+            catch { /* text is reference-only; never fail the build over it */ }
+        }
+
+        /// <summary>Exits the body sketch (flipping its construction chain hole to
+        /// solid first) and extrudes it 0.037 in into the dogtag body.</summary>
+        private bool ExtrudeDogtagBody(out string error)
+        {
+            error = "";
+            try
+            {
+                IModelDoc2 model = ActiveModel();
+                if (model == null) { error = "Your dogtag file is not open."; return false; }
+
+                // Make sure we are in the body sketch, flip the hole to solid.
+                EnsureBodySketchOpen(DogtagBodySketch);
+                FlipConstructionToSolidInActiveSketch(model);
+                if (model.GetActiveSketch2() != null) model.InsertSketch2(true);
+
+                IFeature f = FindFeature(model, DogtagBodySketch);
+                if (f == null) { error = "Could not find the dogtag sketch."; return false; }
+                model.ClearSelection2(true);
+                f.Select2(false, 0);
+
+                object feat = model.FeatureManager.FeatureExtrusion3(
+                    true, false, false,
+                    (int)swEndConditions_e.swEndCondBlind, 0, DogDepth, 0.0,
+                    false, false, false, false, 0.0, 0.0,
+                    false, false, false, false,
+                    true, true, true,
+                    (int)swStartConditions_e.swStartSketchPlane, 0.0, false);
+                model.ClearSelection2(true);
+                if (feat == null) { error = "Could not make the dogtag 3D."; return false; }
+                try { model.ShowNamedView2("*Trimetric", -1); model.ViewZoomtofit2(); } catch { }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "Could not make the dogtag 3D. Error: " + ex.Message + ".";
+                return false;
+            }
+        }
+
+        private static void FlipConstructionToSolidInActiveSketch(IModelDoc2 model)
+        {
+            try
+            {
+                ISketch sk = model.GetActiveSketch2() as ISketch;
+                if (sk == null) return;
+                object[] segs = sk.GetSketchSegments() as object[];
+                if (segs == null) return;
+                foreach (object o in segs)
+                {
+                    ISketchSegment seg = o as ISketchSegment;
+                    if (seg == null) continue;
+                    bool c = false;
+                    try { c = seg.ConstructionGeometry; } catch { }
+                    if (c) { try { seg.ConstructionGeometry = false; } catch { } }
+                }
+            }
+            catch { }
+        }
+
+        // ==================================================================
+        // DOGTAG // PHASE 1 - CUSTOM OUTLINE
+        // ==================================================================
+
+        private void BuildDogtagPhase1(TableLayoutPanel t)
+        {
+            AddRow(t, MakeLabel("DRAW YOUR OUTLINE", Green, TitleFont), 6);
+
+            AddDogtagStepImage(t, 1, 10);
+
+            AddRow(t, MakeLabel("Draw your dogtag outline around the text and hole.",
+                Green, BodyBoldFont), 6);
+            AddRow(t, MakeLabel("Your line must form a CLOSED shape - connect back to "
+                + "where you started.", Amber, BodyBoldFont), 6);
+            AddRow(t, MakeLabel("Use LINE, ARC, or SPLINE. Ctrl+Z to undo.", TextPrimary, BodyFont), 12);
+
+            // One-tap sketch tools.
+            AddRow(t, MakeLabel("Drawing tools:", TextSecondary, SmallFont), 4);
+            TableLayoutPanel tools = new TableLayoutPanel();
+            tools.ColumnCount = 3;
+            for (int i = 0; i < 3; i++) tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+            tools.RowCount = 1;
+            tools.Dock = DockStyle.Fill;
+            tools.AutoSize = true;
+            tools.Margin = new Padding(0);
+            tools.BackColor = Bg;
+            tools.Controls.Add(MakeToolButton("LINE", (int)swCommands_e.swCommands_Line), 0, 0);
+            tools.Controls.Add(MakeToolButton("ARC", (int)swCommands_e.swCommands_3PointArc), 1, 0);
+            tools.Controls.Add(MakeToolButton("SPLINE", (int)swCommands_e.swCommands_Spline), 2, 0);
+            AddRow(t, tools, 14);
+
+            // Live status: circle + label.
+            TableLayoutPanel statusRow = NewInnerRow();
+            statusCircle = new Panel();
+            statusCircle.Size = new Size(40, 40);
+            statusCircle.Margin = new Padding(0);
+            statusCircle.BackColor = Bg;
+            statusCircle.Paint += OnStatusCirclePaint;
+            statusRow.Controls.Add(statusCircle, 0, 0);
+            lblSketchStatus = MakeLabel("Waiting for sketch...", TextSecondary, BodyBoldFont);
+            lblSketchStatus.Margin = new Padding(8, 9, 0, 0);
+            statusRow.Controls.Add(lblSketchStatus, 1, 0);
+            AddRow(t, statusRow, 12);
+
+            // Required confirmation before advancing.
+            chkTrace = new CheckBox();
+            chkTrace.Text = "My outline goes all the way around the text and the chain hole.";
+            chkTrace.ForeColor = TextPrimary;
+            chkTrace.BackColor = Color.Transparent;
+            chkTrace.Font = SmallFont;
+            chkTrace.AutoSize = false;
+            chkTrace.Dock = DockStyle.Fill;
+            chkTrace.Height = 44;
+            chkTrace.Margin = new Padding(0);
+            chkTrace.Checked = false;
+            traceConfirmed = false;
+            chkTrace.CheckedChanged += OnTraceConfirmChanged;
+            AddRow(t, chkTrace, 12);
+
+            btnRevolve = MakePrimaryButton("MY OUTLINE IS DONE", 48);
+            revolveArmed = false;
+            StyleGatedButton(btnRevolve, false);
+            btnRevolve.Click += OnDogtagOutlineDoneClick;
+            AddRow(t, btnRevolve, 0);
+
+            RefreshRevolveGate();
+        }
+
+        private void OnDogtagOutlineDoneClick(object sender, EventArgs e)
+        {
+            if (!revolveArmed) return;
+            string err;
+            if (!ExtrudeDogtagBody(out err))
+            {
+                ShowError(err + " Raise your hand.");
+                return;
+            }
+            ShowPhase(2);
+        }
+
+        // ==================================================================
+        // DOGTAG // PHASE 2 - REVIEW
+        // ==================================================================
+
+        private void BuildDogtagPhase2(TableLayoutPanel t)
+        {
+            AddRow(t, MakeLabel("REVIEW YOUR DOGTAG", Green, TitleFont), 6);
+            AddRow(t, MakeLabel("Your dogtag looks great. Ready to export?",
+                TextPrimary, BodyFont), 12);
+
+            AddDogtagStepImage(t, 2, 14);
+
+            Button edit = MakeSecondaryButton("EDIT MY DESIGN", 44);
+            edit.Click += OnDogtagEditClick;
+            AddRow(t, edit, 10);
+
+            Button export = MakePrimaryButton("EXPORT AND SUBMIT", 48);
+            export.Click += OnDogtagExportClick;
+            AddRow(t, export, 0);
+        }
+
+        private void OnDogtagEditClick(object sender, EventArgs e)
+        {
+            try
+            {
+                EnsureBodySketchOpen(DogtagBodySketch);
+                dogtagEditing = true;
+                sketchTimer.Start();   // watch for the student to exit the sketch
+            }
+            catch (Exception ex)
+            {
+                ShowError("Could not open your design to edit. " + ex.Message);
+            }
+        }
+
+        private void OnDogtagExportClick(object sender, EventArgs e)
+        {
+            ShowPhase(3);
+        }
+
+        // ==================================================================
+        // DOGTAG // PHASE 3 - EXPORT AND SUBMIT
+        // ==================================================================
+
+        private void BuildDogtagPhase3(TableLayoutPanel t)
+        {
+            AddRow(t, MakeLabel("EXPORT + SUBMIT", Green, TitleFont), 8);
+            AddRow(t, MakeLabel("Saving your dogtag and getting your files ready...",
+                TextPrimary, BodyFont), 0);
+        }
+
+        /// <summary>
+        /// Runs the whole export on entering Phase 3: save the part, export the
+        /// DXF of the front face, copy the image, open Gmail, then show the
+        /// post-export panel. Guarded so a BACK/forward re-entry never re-opens
+        /// Gmail or re-writes files.
+        /// </summary>
+        private void RunDogtagExport()
+        {
+            if (dogtagExportDone) { BuildDogtagPostExport(); return; }
+
+            IModelDoc2 model = ActiveModel();
+            if (model == null)
+            {
+                ShowError("Your dogtag file is not open in SOLIDWORKS. Raise your hand.");
+                return;
+            }
+
+            // 1. Save the part.
+            int e = 0, w = 0;
+            try { model.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref e, ref w); }
+            catch { }
+
+            // 2. DXF export of the front face.
+            int dxfErr;
+            bool dxfOk = ExportDogtagDxf(out dxfErr);
+            if (!dxfOk)
+                ShowError("DXF export failed " + dxfErr.ToString(CultureInfo.InvariantCulture)
+                    + ". Save manually: File > Save As > DXF, select the front face.");
+
+            // 3. Copy the reference image into the folder for separate submission.
+            dogtagImageDest = "";
+            if (!string.IsNullOrEmpty(dogtagImagePath) && File.Exists(dogtagImagePath))
+            {
+                try
+                {
+                    string ext = Path.GetExtension(dogtagImagePath);
+                    string dest = Path.Combine(fspFolder, dogtagStem + "_image" + ext);
+                    File.Copy(dogtagImagePath, dest, true);
+                    dogtagImageDest = dest;
+                }
+                catch { dogtagImageDest = ""; }
+            }
+
+            // 4. Open Gmail compose.
+            bool hasImage = !string.IsNullOrEmpty(dogtagImageDest);
+            string body = DogtagEmailBody + (hasImage ? " I also attached the image file." : "");
+            try
+            {
+                Process.Start(ComposeUrl(cfgDogtagEmailTo, cfgDogtagEmailSubject, body));
+                if (emailMoveTimer != null) { emailMoveTimer.Stop(); emailMoveTimer.Start(); }
+            }
+            catch
+            {
+                ShowError("Could not open the browser. Open Gmail yourself and email the file to "
+                    + cfgDogtagEmailTo + " with the subject \"" + cfgDogtagEmailSubject + "\".");
+            }
+
+            dogtagExportDone = true;
+
+            // 5. Post-export panel.
+            BuildDogtagPostExport();
+        }
+
+        private bool ExportDogtagDxf(out int errCode)
+        {
+            errCode = 0;
+            try
+            {
+                IModelDoc2 model = ActiveModel();
+                if (model == null) { errCode = -1; return false; }
+                if (!SelectLargestPlanarFace(model)) { errCode = -2; return false; }
+                int e = 0, w = 0;
+                bool ok;
+                try
+                {
+                    ok = model.Extension.SaveAs(dxfPath,
+                        (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
+                        (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref e, ref w);
+                }
+                catch { ok = false; }
+                model.ClearSelection2(true);
+                errCode = e;
+                return ok && File.Exists(dxfPath);
+            }
+            catch { return false; }
+        }
+
+        /// <summary>Selects the largest planar face of the part - the flat front
+        /// face of the thin plate - so a face DXF gives the cut outline + hole.</summary>
+        private bool SelectLargestPlanarFace(IModelDoc2 model)
+        {
+            try
+            {
+                IPartDoc part = model as IPartDoc;
+                if (part == null) return false;
+                object[] bodies = part.GetBodies2((int)swBodyType_e.swSolidBody, true) as object[];
+                if (bodies == null || bodies.Length == 0) return false;
+                IBody2 body = bodies[0] as IBody2;
+                if (body == null) return false;
+                object[] faces = body.GetFaces() as object[];
+                if (faces == null) return false;
+
+                IFace2 best = null;
+                double bestArea = -1;
+                foreach (object o in faces)
+                {
+                    IFace2 face = o as IFace2;
+                    if (face == null) continue;
+                    ISurface surf = face.GetSurface() as ISurface;
+                    if (surf == null || !surf.IsPlane()) continue;
+                    double area = 0;
+                    try { area = face.GetArea(); } catch { }
+                    if (area > bestArea) { bestArea = area; best = face; }
+                }
+                if (best == null) return false;
+                model.ClearSelection2(true);
+                IEntity ent = best as IEntity;
+                if (ent == null) return false;
+                return ent.Select4(false, null);
+            }
+            catch { return false; }
+        }
+
+        private void BuildDogtagPostExport()
+        {
+            wrapLabels.Clear();
+            DisposeStepImage();
+            contentHost.SuspendLayout();
+            while (contentHost.Controls.Count > 0)
+            {
+                Control old = contentHost.Controls[0];
+                contentHost.Controls.RemoveAt(0);
+                old.Dispose();
+            }
+
+            TableLayoutPanel t = NewPhaseTable();
+            AddRow(t, MakeLabel("DOGTAG COMPLETE!", Green, TitleFont), 8);
+            AddRow(t, MakeLabel("Files saved. Drag them into the email and click Send.",
+                TextPrimary, BodyFont), 12);
+
+            AddRow(t, MakeLabel("Your dogtag cut file (.dxf):", TextPrimary, BodyBoldFont), 4);
+            TextBox dxfBox = MakeTextBox(PathFont);
+            dxfBox.ReadOnly = true;
+            dxfBox.Text = dxfPath;
+            dxfBox.ForeColor = Green;
+            AddRow(t, dxfBox, 12);
+
+            if (!string.IsNullOrEmpty(dogtagImageDest))
+            {
+                AddRow(t, MakeLabel("IMAGE (attach this too):", Amber, BodyBoldFont), 4);
+                TextBox imgBox = MakeTextBox(PathFont);
+                imgBox.ReadOnly = true;
+                imgBox.Text = dogtagImageDest;
+                AddRow(t, imgBox, 12);
+            }
+
+            Button openFolder = MakePrimaryButton("OPEN FILE FOLDER", 44);
+            openFolder.Click += OnOpenFolderClick;
+            AddRow(t, openFolder, 8);
+
+            Button another = MakeSecondaryButton("BUILD ANOTHER DOGTAG", 40);
+            another.Click += OnBuildAnotherDogtagClick;
+            AddRow(t, another, 16);
+
+            AddRow(t, MakeLabel(studentName + "'s dogtag is ready. It will be cut tonight.",
+                Green, BodyBoldFont), 0);
+
+            contentHost.Controls.Add(t);
+            contentHost.ResumeLayout();
+            ApplyWrapWidths();
+        }
+
+        private void OnBuildAnotherDogtagClick(object sender, EventArgs e)
+        {
+            partPath = "";
+            stepPath = "";
+            dxfPath = "";
+            fspFolder = "";
+            dogtagImagePath = "";
+            dogtagImageDest = "";
+            dogtagImageHasColor = false;
+            dogtagExportDone = false;
+            dogtagShape = ShapeMilitary;
+            ShowPhase(0);
         }
 
         // ------------------------------------------------------------------
@@ -1827,10 +2871,14 @@ namespace IdeaFspPawn
 
         private void OnProgressStripPaint(object sender, PaintEventArgs e)
         {
+            // No dots on the mode selector; pawn has 5 phases, dogtag has 4.
+            int dots = mode == 0 ? 0 : (mode == 2 ? 4 : 5);
+            if (dots == 0) return;
+
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             int d = 12;
             int gap = 12;
-            int total = 5 * d + 4 * gap;
+            int total = dots * d + (dots - 1) * gap;
             // Center the dots in the space between the BACK and START OVER buttons.
             int left = (backButton != null && backButton.Visible) ? backButton.Width : 0;
             int right = (restartButton != null && restartButton.Visible) ? restartButton.Width : 0;
@@ -1838,7 +2886,7 @@ namespace IdeaFspPawn
             int x = left + (avail - total) / 2;
             if (x < left + 6) x = left + 6;
             int y = (progressStrip.ClientSize.Height - d) / 2;
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < dots; i++)
             {
                 Color c = i == phase ? Green : (i < phase ? GreenDone : DotUpcoming);
                 using (SolidBrush b = new SolidBrush(c))
@@ -1906,17 +2954,29 @@ namespace IdeaFspPawn
         /// </summary>
         private void AddStepImage(TableLayoutPanel t, int phaseForArt, int bottomGap)
         {
-            int w = WrapWidth();
-            const int h = 168;
-            try { stepImage = PawnStepArt.Render(phaseForArt, Math.Max(240, w), h); }
-            catch { stepImage = null; }
-            if (stepImage == null) return;
+            Bitmap bmp = null;
+            try { bmp = PawnStepArt.Render(phaseForArt, Math.Max(240, WrapWidth()), 168); }
+            catch { bmp = null; }
+            MountStepImage(t, bmp, bottomGap);
+        }
 
+        private void AddDogtagStepImage(TableLayoutPanel t, int artKind, int bottomGap)
+        {
+            Bitmap bmp = null;
+            try { bmp = DotagStepArt.Render(artKind, Math.Max(240, WrapWidth()), 168); }
+            catch { bmp = null; }
+            MountStepImage(t, bmp, bottomGap);
+        }
+
+        private void MountStepImage(TableLayoutPanel t, Bitmap bmp, int bottomGap)
+        {
+            if (bmp == null) return;
+            stepImage = bmp;
             stepPictureBox = new PictureBox();
             stepPictureBox.Image = stepImage;
             stepPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
             stepPictureBox.BackColor = BgPanel;
-            stepPictureBox.Height = h;
+            stepPictureBox.Height = 168;
             stepPictureBox.Dock = DockStyle.Fill;
             stepPictureBox.Margin = new Padding(0);
             AddRow(t, stepPictureBox, bottomGap);
@@ -2025,10 +3085,11 @@ namespace IdeaFspPawn
             try
             {
                 IModelDoc2 model = ActiveModel();
-                // Make sure the profile sketch is active so the tool draws in it.
+                // Make sure the right drawing sketch is active so the tool draws in it.
                 if (model != null && model.GetActiveSketch2() == null)
                 {
-                    IFeature feat = FindFeature(model, cfgSketchName);
+                    string sketchName = mode == 2 ? DogtagBodySketch : cfgSketchName;
+                    IFeature feat = FindFeature(model, sketchName);
                     if (feat != null) { feat.Select2(false, 0); model.EditSketch(); }
                 }
                 swApp.RunCommand((int)b.Tag, "");
@@ -2274,6 +3335,116 @@ namespace IdeaFspPawn
         private static void Label(Graphics g, string text, Color c, Font f, float x, float y)
         {
             using (SolidBrush b = new SolidBrush(c)) g.DrawString(text, f, b, x, y);
+        }
+    }
+
+    /// <summary>
+    /// Runtime "this is what it should look like" illustrations for the DOGTAG
+    /// flow, matching PawnStepArt's approach. kind 0 = the starting tag, 1 = an
+    /// outline being drawn around the text + hole, 2 = the finished dogtag.
+    /// </summary>
+    internal static class DotagStepArt
+    {
+        private static readonly Color Bg = Color.FromArgb(0x24, 0x24, 0x24);
+        private static readonly Color Frame = Color.FromArgb(0x3A, 0x3A, 0x3A);
+        private static readonly Color Amber = Color.FromArgb(0xFF, 0xB0, 0x00);
+        private static readonly Color Green = Color.FromArgb(0x00, 0xFF, 0x41);
+        private static readonly Color GreenFill = Color.FromArgb(0x22, 0x00, 0xFF, 0x41);
+        private static readonly Color Ink = Color.FromArgb(0xC8, 0xC8, 0xC8);
+        private static readonly Color Dim = Color.FromArgb(0x88, 0x88, 0x88);
+
+        public static Bitmap Render(int kind, int w, int h)
+        {
+            Bitmap bmp = new Bitmap(w, h);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                using (SolidBrush bg = new SolidBrush(Bg)) g.FillRectangle(bg, 0, 0, w, h);
+                using (Pen fp = new Pen(Frame, 1f)) g.DrawRectangle(fp, 0, 0, w - 1, h - 1);
+
+                float cx = w * 0.5f, cy = h * 0.45f;
+                float tagH = h * 0.60f;
+                float tagW = tagH * (1.125f / 2.0f);
+                float corner = tagW * 0.16f;
+
+                // The text + chain hole live on the tag in every state.
+                DrawHole(g, cx, cy, tagW, tagH);
+                DrawTextLines(g, cx, cy, tagW, tagH, kind);
+
+                if (kind == 1)
+                {
+                    // Outline being drawn: dashed, three-quarters closed.
+                    DrawOutline(g, cx, cy, tagW, tagH, corner, true, false);
+                    Caption(g, w, h, "Draw your outline around it");
+                }
+                else
+                {
+                    DrawOutline(g, cx, cy, tagW, tagH, corner, false, true);
+                    Caption(g, w, h, kind == 0 ? "Your dogtag starts here" : "Your finished dogtag");
+                }
+            }
+            return bmp;
+        }
+
+        private static GraphicsPath RoundedRect(float cx, float cy, float tw, float th, float r)
+        {
+            RectangleF rc = new RectangleF(cx - tw / 2f, cy - th / 2f, tw, th);
+            float d = r * 2f;
+            GraphicsPath p = new GraphicsPath();
+            p.AddArc(rc.Left, rc.Top, d, d, 180, 90);
+            p.AddArc(rc.Right - d, rc.Top, d, d, 270, 90);
+            p.AddArc(rc.Right - d, rc.Bottom - d, d, d, 0, 90);
+            p.AddArc(rc.Left, rc.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+
+        private static void DrawOutline(Graphics g, float cx, float cy, float tw, float th,
+            float r, bool dashed, bool fill)
+        {
+            using (GraphicsPath p = RoundedRect(cx, cy, tw, th, r))
+            {
+                if (fill) using (SolidBrush b = new SolidBrush(GreenFill)) g.FillPath(b, p);
+                using (Pen pen = new Pen(Green, 2.4f))
+                {
+                    if (dashed) { pen.DashStyle = DashStyle.Dash; pen.DashPattern = new float[] { 4f, 3f }; }
+                    g.DrawPath(pen, p);
+                }
+            }
+        }
+
+        private static void DrawHole(Graphics g, float cx, float cy, float tw, float th)
+        {
+            float hr = tw * 0.09f;
+            float hy = cy - th / 2f + th * 0.11f;
+            using (Pen pen = new Pen(Ink, 2f)) g.DrawEllipse(pen, cx - hr, hy - hr, hr * 2f, hr * 2f);
+        }
+
+        private static void DrawTextLines(Graphics g, float cx, float cy, float tw, float th, int kind)
+        {
+            string name = kind == 0 ? "NAME" : "ALEX";
+            using (Font nf = new Font("Segoe UI", th * 0.09f, FontStyle.Bold))
+            using (Font df = new Font("Segoe UI", th * 0.055f, FontStyle.Bold))
+            using (SolidBrush nb = new SolidBrush(Ink))
+            using (SolidBrush db = new SolidBrush(Dim))
+            using (StringFormat sf = new StringFormat())
+            {
+                sf.Alignment = StringAlignment.Center;
+                g.DrawString(name, nf, nb, new RectangleF(cx - tw / 2f, cy - th * 0.06f, tw, th * 0.2f), sf);
+                g.DrawString("IDEA FSP", df, db, new RectangleF(cx - tw / 2f, cy + th * 0.14f, tw, th * 0.12f), sf);
+            }
+        }
+
+        private static void Caption(Graphics g, int w, int h, string text)
+        {
+            using (Font f = new Font("Segoe UI", 8.5f, FontStyle.Bold))
+            using (SolidBrush b = new SolidBrush(Dim))
+            using (StringFormat sf = new StringFormat())
+            {
+                sf.Alignment = StringAlignment.Center;
+                g.DrawString(text, f, b, new RectangleF(4, h - 20, w - 8, 16), sf);
+            }
         }
     }
 }

@@ -1,15 +1,24 @@
-# IDEA FSP Pawn Build - SolidWorks Add-in
+# IDEA FSP - SolidWorks Add-in
 
 A .NET Framework 4.8 SOLIDWORKS COM add-in (C#, `ISwAddin`, WinForms task
 pane) that walks incoming FSP freshmen through building and submitting a
-chess pawn. It replaces the 13-step paper guide with a five-phase wizard in
-a persistent "PAWN BUILD" task pane: it creates the student's starting part
-from scratch (a new **IPS** part carrying a `Pawn_Profile` sketch with a
-Y-axis construction centerline, so no classroom template file is needed),
-one-click open of that sketch, live closed-loop detection while the student
-draws, an auto-launched Revolve with the axis pre-selected, then auto-save,
-STEP AP214 export, and a pre-filled Gmail compose for submission to the
-teacher.
+SolidWorks part. On open it shows a **mode selector** with two activities that
+share the same "PAWN BUILD" task pane, chrome (BACK / START OVER / progress
+dots), and design language:
+
+- **PAWN BUILD** - a five-phase wizard that builds the student's starting part
+  from scratch (a new **IPS** part carrying a `Pawn_Profile` sketch with a
+  Y-axis construction centerline, so no classroom template file is needed),
+  one-click open of that sketch, live closed-loop detection while the student
+  draws, a one-click or manual Revolve, then auto-save, STEP AP214 export, and
+  a pre-filled Gmail compose for submission to the teacher.
+- **DOGTAG DESIGNER** - designs a US-standard dogtag (2.0 x 1.125 in, 0.037 in
+  thick) in one of four shapes (MILITARY / ROUND / RECT / CUSTOM), adds the
+  student's name + `IDEA FSP <year>` as engraved sketch text and an optional
+  reference image, extrudes the body, and exports the front face to **DXF** for
+  laser cutting plus a pre-filled Gmail compose. CUSTOM lets the student draw
+  their own outline (same live closed-loop detection as the pawn). Its email
+  recipient/subject are configurable (see below).
 
 Same structure and build conventions as the GAUNTLET add-in
 (`tools/solidworks-addin/`), with its own identity:
@@ -109,8 +118,9 @@ one under the real Desktop.
 
 All classroom-facing values live as constants at the top of
 `PawnWizardPanel.cs` (`DefaultTeacherEmail`, `DefaultEmailSubject`,
-`DefaultEmailBody`, `DefaultFspFolderName`, `DefaultProfileSketchName`) -
-those are the compiled-in defaults.
+`DefaultEmailBody`, `DefaultFspFolderName`, `DefaultProfileSketchName`,
+`DefaultDogtagEmailTo`, `DefaultDogtagEmailSubject`) - those are the
+compiled-in defaults.
 
 To override any of them **without rebuilding**, drop a plain-text file named
 **`pawn-wizard-config.txt`** next to `FspPawnAddin.dll` on the classroom
@@ -118,13 +128,21 @@ machine, one `KEY=VALUE` per line (`#` starts a comment; keys are
 case-insensitive; missing keys keep their defaults):
 
 ```
-# IDEA FSP Pawn Build overrides
+# IDEA FSP add-in overrides
+# --- PAWN BUILD mode ---
 TeacherEmail=someone.else@boscotech.edu
 EmailSubject=pawn
 EmailBody=Hi, here is my pawn file.
 FspFolderName=IDEA_FSP
 ProfileSketchName=Pawn_Profile
+# --- DOGTAG DESIGNER mode ---
+dogtag_email_to=someone.else@boscotech.edu
+dogtag_email_subject=dogtag
 ```
+
+`dogtag_email_to` and `dogtag_email_subject` set the recipient and subject of
+the DOGTAG mode's submission email (defaults: `apina@boscotech.edu` /
+`dogtag`); the pawn keys are unchanged.
 
 The file is read once when the task pane loads (restart SOLIDWORKS after
 editing it). A malformed or missing file is ignored and the defaults stand.
