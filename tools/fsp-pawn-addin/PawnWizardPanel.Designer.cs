@@ -11,6 +11,8 @@ namespace IdeaFspPawn
         private System.Windows.Forms.Label errorLabel;
         private System.Windows.Forms.Button errorDismissButton;
         private System.Windows.Forms.Panel progressStrip;
+        private System.Windows.Forms.Button restartButton;
+        private System.Windows.Forms.Button backButton;
         private System.Windows.Forms.Panel contentHost;
 
         /// <summary>Clean up any resources being used.</summary>
@@ -36,6 +38,8 @@ namespace IdeaFspPawn
             this.errorLabel = new System.Windows.Forms.Label();
             this.errorDismissButton = new System.Windows.Forms.Button();
             this.progressStrip = new System.Windows.Forms.Panel();
+            this.restartButton = new System.Windows.Forms.Button();
+            this.backButton = new System.Windows.Forms.Button();
             this.contentHost = new System.Windows.Forms.Panel();
             this.errorBanner.SuspendLayout();
             this.SuspendLayout();
@@ -77,8 +81,48 @@ namespace IdeaFspPawn
             this.progressStrip.BackColor = System.Drawing.Color.FromArgb(26, 26, 26);
             this.progressStrip.Dock = System.Windows.Forms.DockStyle.Top;
             this.progressStrip.Height = 34;
+            this.progressStrip.Controls.Add(this.restartButton);
+            this.progressStrip.Controls.Add(this.backButton);
             this.progressStrip.Paint += new System.Windows.Forms.PaintEventHandler(this.OnProgressStripPaint);
             this.progressStrip.Resize += new System.EventHandler(this.OnProgressStripResize);
+            //
+            // backButton (go back one page; works on every step)
+            //
+            this.backButton.Dock = System.Windows.Forms.DockStyle.Left;
+            this.backButton.Width = 76;
+            this.backButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.backButton.FlatAppearance.BorderSize = 1;
+            this.backButton.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(85, 85, 85);
+            this.backButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(63, 63, 63);
+            this.backButton.BackColor = System.Drawing.Color.FromArgb(38, 38, 38);
+            this.backButton.ForeColor = System.Drawing.Color.FromArgb(200, 200, 200);
+            this.backButton.Font = new System.Drawing.Font("Segoe UI", 8.5F, System.Drawing.FontStyle.Bold);
+            this.backButton.Text = "‹ BACK";
+            this.backButton.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.backButton.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.backButton.Margin = new System.Windows.Forms.Padding(0);
+            this.backButton.TabStop = false;
+            this.backButton.Visible = false;
+            this.backButton.Click += new System.EventHandler(this.OnBackClick);
+            //
+            // restartButton (always-available "start over"; fixes a stuck pane)
+            //
+            this.restartButton.Dock = System.Windows.Forms.DockStyle.Right;
+            this.restartButton.Width = 104;
+            this.restartButton.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.restartButton.FlatAppearance.BorderSize = 1;
+            this.restartButton.FlatAppearance.BorderColor = System.Drawing.Color.FromArgb(85, 85, 85);
+            this.restartButton.FlatAppearance.MouseOverBackColor = System.Drawing.Color.FromArgb(63, 63, 63);
+            this.restartButton.BackColor = System.Drawing.Color.FromArgb(38, 38, 38);
+            this.restartButton.ForeColor = System.Drawing.Color.FromArgb(200, 200, 200);
+            this.restartButton.Font = new System.Drawing.Font("Segoe UI", 8.5F, System.Drawing.FontStyle.Bold);
+            this.restartButton.Text = "↺ START OVER";
+            this.restartButton.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
+            this.restartButton.Cursor = System.Windows.Forms.Cursors.Hand;
+            this.restartButton.Margin = new System.Windows.Forms.Padding(0);
+            this.restartButton.TabStop = false;
+            this.restartButton.Visible = false;
+            this.restartButton.Click += new System.EventHandler(this.OnRestartClick);
             //
             // contentHost (the current phase's screen)
             //

@@ -1,0 +1,3 @@
+# RegAsm generates this add-in icon next to the DLL at registration time.
+# It is a runtime artifact, not source; never commit it.
+idea-fsp-pawn-addin.bmp

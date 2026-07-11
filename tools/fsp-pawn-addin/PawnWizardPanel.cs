@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Forms;
 using SolidWorks.Interop.sldworks;
@@ -41,12 +42,21 @@ namespace IdeaFspPawn
         private const string DefaultEmailBody = "Hi Mr. Pina, here is my pawn file.";
         private const string ConfigFileName = "pawn-wizard-config.txt";
 
+        // Starting-sketch geometry (SI meters, since the sketch API is metric
+        // regardless of the document's IPS display units).
+        // A finished pawn should read like a real chess pawn, so the revolve
+        // axis is ~2 in tall and the base guide ~0.75 in wide.
+        private const double PawnHeightMeters = 0.0508;   // 2 in
+        private const double BaseGuideMeters = 0.01905;   // 0.75 in
+        private const double CloseTolMeters = 1e-4;        // 0.1 mm endpoint snap tolerance
+
         // UI spec palette.
         private static readonly Color Bg = Color.FromArgb(0x1A, 0x1A, 0x1A);
         private static readonly Color BgPanel = Color.FromArgb(0x24, 0x24, 0x24);
         private static readonly Color Green = Color.FromArgb(0x00, 0xFF, 0x41);
         private static readonly Color GreenDone = Color.FromArgb(0x00, 0x7A, 0x1F);
         private static readonly Color ErrorRed = Color.FromArgb(0xFF, 0x33, 0x55);
+        private static readonly Color Amber = Color.FromArgb(0xFF, 0xB0, 0x00);
         private static readonly Color TextPrimary = Color.White;
         private static readonly Color TextSecondary = Color.FromArgb(0x88, 0x88, 0x88);
         private static readonly Color BtnSecondaryBg = Color.FromArgb(0x33, 0x33, 0x33);
@@ -61,13 +71,6 @@ namespace IdeaFspPawn
         private static readonly Font ButtonFont = new Font("Segoe UI", 11f, FontStyle.Bold);
         private static readonly Font PathFont = new Font("Consolas", 10f);
         private static readonly Font SmallFont = new Font("Segoe UI", 9f);
-
-        private const string DrawInstructions =
-            "Draw the side profile of your pawn using the sketch tools at the top of the screen.\r\n\r\n" +
-            "- Line, Spline, or Arc: select a tool, then left-click to start drawing\r\n" +
-            "- Ctrl+Z to undo a mistake\r\n" +
-            "- Your line must connect back to where it started\r\n\r\n" +
-            "The vertical orange line is your spin axis. Draw around it, not on top of it.";
 
         private const string StuckHelp =
             "Try connecting your last point back to your first point. Zoom out to check for gaps. " +
@@ -97,9 +100,12 @@ namespace IdeaFspPawn
         private Panel statusCircle;
         private Label lblSketchStatus;
         private Panel stuckPanel;
+        private Panel advPanel;         // ADVANCED TOOLS (relations + trim) drawer
         private Button btnRevolve;
-        private int sketchState;        // 0 = grey (no sketch), 1 = red (open), 2 = green (closed)
+        private CheckBox chkTrace;      // "I traced along the dotted floor line"
+        private int sketchState;        // 0 = grey (none), 1 = red (open), 2 = green (closed), 3 = amber (crosses axis)
         private bool revolveArmed;
+        private bool traceConfirmed;
 
         // Phase 3 controls + state.
         private Label lblRevolveHint;
@@ -111,11 +117,17 @@ namespace IdeaFspPawn
         private System.Windows.Forms.Timer revolveTimer;  // Phase 3: 1 s feature poll
         private System.Windows.Forms.Timer pulseTimer;    // indicator pulse animation
         private System.Windows.Forms.Timer bannerTimer;   // error banner slide-in
+        private System.Windows.Forms.Timer emailMoveTimer; // one-shot: nudge the email window aside
         private bool pulseOn = true;
         private int pulseRemaining;                       // >0 finite half-toggles, -1 continuous
         private int bannerTargetHeight;
 
         private readonly List<Label> wrapLabels = new List<Label>();
+
+        // The "what this step should look like" illustration for the current
+        // phase, drawn at runtime by PawnStepArt and disposed on phase change.
+        private Bitmap stepImage;
+        private PictureBox stepPictureBox;
 
         public PawnWizardPanel(ISldWorks app)
         {
@@ -139,6 +151,10 @@ namespace IdeaFspPawn
             bannerTimer.Interval = 15;
             bannerTimer.Tick += OnBannerTick;
 
+            emailMoveTimer = new System.Windows.Forms.Timer();
+            emailMoveTimer.Interval = 1200;   // let the browser window appear first
+            emailMoveTimer.Tick += OnEmailMoveTick;
+
             ShowPhase(0);
         }
 
@@ -149,6 +165,7 @@ namespace IdeaFspPawn
             try { if (revolveTimer != null) { revolveTimer.Stop(); revolveTimer.Dispose(); revolveTimer = null; } } catch { }
             try { if (pulseTimer != null) { pulseTimer.Stop(); pulseTimer.Dispose(); pulseTimer = null; } } catch { }
             try { if (bannerTimer != null) { bannerTimer.Stop(); bannerTimer.Dispose(); bannerTimer = null; } } catch { }
+            try { if (emailMoveTimer != null) { emailMoveTimer.Stop(); emailMoveTimer.Dispose(); emailMoveTimer = null; } } catch { }
         }
 
         // ------------------------------------------------------------------
@@ -203,6 +220,7 @@ namespace IdeaFspPawn
             StopPulse();
             HideErrorBanner();
             wrapLabels.Clear();
+            DisposeStepImage();
 
             contentHost.SuspendLayout();
             while (contentHost.Controls.Count > 0)
@@ -223,23 +241,98 @@ namespace IdeaFspPawn
             }
             contentHost.Controls.Add(table);
             contentHost.ResumeLayout();
+
+            // START OVER and BACK are available from the first real step onward;
+            // START OVER is the escape hatch if the student closes the file or
+            // gets stuck, BACK steps one page at a time.
+            if (restartButton != null)
+            {
+                restartButton.Visible = n >= 1;
+                restartButton.BringToFront();
+            }
+            if (backButton != null)
+            {
+                backButton.Visible = n >= 1;
+                backButton.BringToFront();
+            }
             progressStrip.Invalidate();
             ApplyWrapWidths();
 
             // Kick off the phase's automatic behavior.
             if (n == 2)
             {
+                // Re-open the profile sketch if it is not already being edited
+                // (this is what makes BACK into this page work: the drawing pad
+                // is ready to keep editing).
+                EnsureProfileSketchOpen();
                 sketchState = -1;   // force the first poll to paint a state
                 PollSketchOnce();
                 sketchTimer.Start();
             }
             else if (n == 3)
             {
+                // Phase 3 no longer auto-opens the Revolve tool; the student
+                // chooses the one-click path or the do-it-yourself path. The
+                // poll still watches so the manual path advances on its own.
                 baselineFeatureCount = SafeFeatureCount();
-                StartRevolveCommand();
-                StartContinuousPulse();
                 revolveTimer.Start();
             }
+        }
+
+        /// <summary>
+        /// Steps back exactly one page. Works on every page (hidden only on the
+        /// first). Navigation only; the drawing itself is never deleted, so a
+        /// student can back up to fix something and move forward again.
+        /// </summary>
+        private void OnBackClick(object sender, EventArgs e)
+        {
+            if (phase <= 0) return;
+            try
+            {
+                IModelDoc2 model = ActiveModel();
+                // Close any half-open command/sketch so the previous page is clean.
+                if (model != null && model.GetActiveSketch2() != null && phase != 2)
+                    model.InsertSketch2(true);
+            }
+            catch { }
+            ShowPhase(phase - 1);
+        }
+
+        /// <summary>Opens the profile sketch for editing if it is not already
+        /// the active sketch. Safe to call repeatedly.</summary>
+        private void EnsureProfileSketchOpen()
+        {
+            try
+            {
+                IModelDoc2 model = ActiveModel();
+                if (model == null) return;
+                if (model.GetActiveSketch2() != null) return;   // already editing a sketch
+                IFeature feat = FindFeature(model, cfgSketchName);
+                if (feat == null) return;
+                feat.Select2(false, 0);
+                model.EditSketch();
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Full reset from anywhere: clears the per-file state and returns to
+        /// Phase 0 so a new pawn (or a new student) can start clean. Confirmed
+        /// first so an accidental tap does not throw away in-progress work.
+        /// </summary>
+        private void OnRestartClick(object sender, EventArgs e)
+        {
+            DialogResult r = MessageBox.Show(
+                "Start over with a brand-new design?\r\n\r\n"
+                + "Any pawn you already saved and exported stays safe on the Desktop.",
+                "Start over",
+                MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2);
+            if (r != DialogResult.Yes) return;
+            partPath = "";
+            stepPath = "";
+            fspFolder = "";
+            ShowPhase(0);
+            if (txtFirstName != null) txtFirstName.Text = studentName;
         }
 
         // ------------------------------------------------------------------
@@ -249,7 +342,10 @@ namespace IdeaFspPawn
         private void BuildPhase0(TableLayoutPanel t)
         {
             AddRow(t, MakeLabel("IDEA FSP // PAWN BUILD", Green, TitleFont), 4);
-            AddRow(t, MakeLabel("Let's build your pawn.", TextSecondary, BodyFont), 20);
+            AddRow(t, MakeLabel("Design and build your own 3D chess pawn, "
+                + "step by step. No CAD experience needed.", TextPrimary, BodyFont), 12);
+
+            AddStepImage(t, 0, 14);
 
             AddRow(t, MakeLabel("First Name", TextSecondary, SmallFont), 4);
             txtFirstName = MakeTextBox(BodyFont);
@@ -258,7 +354,7 @@ namespace IdeaFspPawn
             lblNameError.Visible = false;
             AddRow(t, lblNameError, 14);
 
-            Button begin = MakePrimaryButton("BEGIN", 48);
+            Button begin = MakePrimaryButton("LET'S GO", 48);
             begin.Click += OnBeginClick;
             AddRow(t, begin, 0);
         }
@@ -348,21 +444,54 @@ namespace IdeaFspPawn
         /// The IDEA_FSP output folder on the Desktop, created if it does not
         /// exist. Prefers an already-present folder (in case a teacher made one)
         /// at either the profile Desktop or the real, possibly OneDrive-redirected
-        /// Desktop; otherwise creates it under the real Desktop.
+        /// Desktop; otherwise creates it, CREATING THE DESKTOP FOLDER ITSELF if
+        /// the profile somehow has none, and falling back through the profile
+        /// Desktop and the user profile so the wizard never dead-ends.
         /// </summary>
         private string FindOrCreateFspFolder()
         {
-            string profileDesktop = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Desktop");
+            string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            string profileDesktop = string.IsNullOrEmpty(userProfile)
+                ? "" : Path.Combine(userProfile, "Desktop");
             string realDesktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
 
-            string atProfile = Path.Combine(profileDesktop, cfgFolderName);
-            if (Directory.Exists(atProfile)) return atProfile;
-            string atReal = Path.Combine(realDesktop, cfgFolderName);
-            if (Directory.Exists(atReal)) return atReal;
+            // Reuse an FSP folder that already exists at either Desktop.
+            if (!string.IsNullOrEmpty(profileDesktop))
+            {
+                string atProfile = Path.Combine(profileDesktop, cfgFolderName);
+                if (Directory.Exists(atProfile)) return atProfile;
+            }
+            if (!string.IsNullOrEmpty(realDesktop))
+            {
+                string atReal = Path.Combine(realDesktop, cfgFolderName);
+                if (Directory.Exists(atReal)) return atReal;
+            }
 
-            Directory.CreateDirectory(atReal); // idempotent; no-op if a race created it
-            return atReal;
+            // None yet: choose a Desktop to build under, creating the Desktop
+            // folder itself if it is missing.
+            string baseDesktop = FirstUsableDir(realDesktop, profileDesktop, userProfile);
+            string target = Path.Combine(baseDesktop, cfgFolderName);
+            Directory.CreateDirectory(target); // creates any missing parent (Desktop) too
+            return target;
+        }
+
+        /// <summary>
+        /// Returns the first candidate directory that exists or can be created
+        /// (creating it if needed), so the caller always gets a writable folder.
+        /// </summary>
+        private static string FirstUsableDir(params string[] candidates)
+        {
+            foreach (string c in candidates)
+            {
+                if (string.IsNullOrEmpty(c)) continue;
+                try
+                {
+                    if (!Directory.Exists(c)) Directory.CreateDirectory(c);
+                    return c;
+                }
+                catch { }
+            }
+            return Path.GetTempPath(); // always exists
         }
 
         /// <summary>
@@ -408,9 +537,58 @@ namespace IdeaFspPawn
 
                 ISketchManager sm = model.SketchManager;
                 sm.InsertSketch(true);                       // enter sketch mode on the plane
-                // Construction centerline up the Y axis from the origin (SI meters);
-                // CreateCenterLine yields construction geometry by definition.
-                sm.CreateCenterLine(0.0, 0.0, 0.0, 0.0, 0.1, 0.0);
+
+                // Vertical revolve axis (construction) up the Y axis from the
+                // origin. This is the pawn's full height and the "vertical orange
+                // line" the student draws beside. ~2 in so the finished pawn is
+                // the size of a real chess pawn. CreateCenterLine yields
+                // construction geometry by definition.
+                ISketchSegment axis = sm.CreateCenterLine(
+                    0.0, 0.0, 0.0, 0.0, PawnHeightMeters, 0.0) as ISketchSegment;
+
+                // Horizontal base guide (construction) from the origin to the
+                // right, so the student rests the bottom of the profile on it and
+                // the finished pawn sits flat on a level base.
+                sm.CreateCenterLine(0.0, 0.0, 0.0, BaseGuideMeters, 0.0, 0.0);
+
+                // Dimension the axis so its 2 in height reads on the drawing.
+                // Suppress the on-create Modify dialog so nothing blocks the pane,
+                // then restore the student's setting.
+                bool restoreInputDim = false;
+                bool prevInputDim = false;
+                try
+                {
+                    prevInputDim = swApp.GetUserPreferenceToggle(
+                        (int)swUserPreferenceToggle_e.swInputDimValOnCreate);
+                    swApp.SetUserPreferenceToggle(
+                        (int)swUserPreferenceToggle_e.swInputDimValOnCreate, false);
+                    restoreInputDim = true;
+                }
+                catch { }
+                try
+                {
+                    if (axis != null)
+                    {
+                        model.ClearSelection2(true);
+                        axis.Select4(false, null);
+                        model.AddDimension2(-0.012, PawnHeightMeters / 2.0, 0.0);
+                        model.ClearSelection2(true);
+                    }
+                }
+                catch { /* the dimension is a nicety; never fail the build over it */ }
+                finally
+                {
+                    if (restoreInputDim)
+                    {
+                        try
+                        {
+                            swApp.SetUserPreferenceToggle(
+                                (int)swUserPreferenceToggle_e.swInputDimValOnCreate, prevInputDim);
+                        }
+                        catch { }
+                    }
+                }
+
                 sm.InsertSketch(true);                        // exit sketch mode, rebuild
                 model.ClearSelection2(true);
 
@@ -492,10 +670,18 @@ namespace IdeaFspPawn
 
         private void BuildPhase1(TableLayoutPanel t)
         {
-            AddRow(t, MakeLabel(studentName + "'s file is open.", Green, TitleFont), 10);
-            AddRow(t, MakeLabel("Click the button below to open your sketch.", TextPrimary, BodyFont), 18);
+            AddRow(t, MakeLabel("STEP 1: OPEN YOUR SKETCH", Green, TitleFont), 6);
+            AddRow(t, MakeLabel(studentName + ", your file is ready.", Green, BodyBoldFont), 12);
 
-            Button open = MakePrimaryButton("OPEN SKETCH", 48);
+            AddStepImage(t, 1, 12);
+
+            AddRow(t, MakeLabel("A sketch is your flat drawing pad. Your file already has two "
+                + "amber DOTTED guide lines waiting for you:", TextPrimary, BodyFont), 8);
+            AddRow(t, MakeLabel("  •  a tall SPIN line (up-and-down)", Amber, BodyBoldFont), 2);
+            AddRow(t, MakeLabel("  •  a short FLOOR line (side-to-side)", Amber, BodyBoldFont), 12);
+            AddRow(t, MakeLabel("Tap the button to open the pad and start drawing.", TextPrimary, BodyFont), 16);
+
+            Button open = MakePrimaryButton("OPEN MY SKETCH", 48);
             open.Click += OnOpenSketchClick;
             AddRow(t, open, 0);
         }
@@ -537,10 +723,44 @@ namespace IdeaFspPawn
 
         private void BuildPhase2(TableLayoutPanel t)
         {
-            AddRow(t, MakeLabel("DESIGN YOUR PAWN", Green, TitleFont), 10);
-            AddRow(t, MakeLabel(DrawInstructions, TextPrimary, BodyFont), 14);
+            AddRow(t, MakeLabel("STEP 2: DRAW YOUR SHAPE", Green, TitleFont), 6);
 
-            // Live status: 32 px circle + label.
+            AddStepImage(t, 2, 10);
+
+            // The big idea, up front and encouraging.
+            AddRow(t, MakeLabel("Design it however you want! It does NOT have to look "
+                + "like a pawn. Make any cool shape you can dream up.", Green, BodyBoldFont), 12);
+
+            // Color-coded, one rule per line, in the order they do them.
+            AddRow(t, MakeLabel("How to draw it:", TextPrimary, BodyBoldFont), 4);
+            AddRow(t, MakeLabel("1.  Pick a tool below (Line, Arc, or Spline).", TextPrimary, BodyFont), 2);
+            AddRow(t, MakeLabel("2.  Left-click in the drawing to place points.", TextPrimary, BodyFont), 2);
+            AddRow(t, MakeLabel("3.  Stay to the RIGHT of the tall dotted spin line.", Amber, BodyBoldFont), 2);
+            AddRow(t, MakeLabel("4.  Start on the dotted FLOOR line so it sits flat.", Amber, BodyBoldFont), 2);
+            AddRow(t, MakeLabel("5.  Connect your last point back to your FIRST point.", Green, BodyBoldFont), 2);
+            AddRow(t, MakeLabel("Do NOT draw on top of the dotted spin line. Ctrl+Z undoes a mistake.",
+                ErrorRed, SmallFont), 12);
+
+            // One-tap sketch tools (they still click in the drawing to place points).
+            AddRow(t, MakeLabel("Drawing tools:", TextSecondary, SmallFont), 4);
+            TableLayoutPanel tools = new TableLayoutPanel();
+            tools.ColumnCount = 3;
+            for (int i = 0; i < 3; i++) tools.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+            tools.RowCount = 1;
+            tools.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            tools.Dock = DockStyle.Fill;
+            tools.AutoSize = true;
+            tools.Margin = new Padding(0);
+            tools.BackColor = Bg;
+            tools.Controls.Add(MakeToolButton("LINE",
+                (int)swCommands_e.swCommands_Line), 0, 0);
+            tools.Controls.Add(MakeToolButton("ARC",
+                (int)swCommands_e.swCommands_3PointArc), 1, 0);
+            tools.Controls.Add(MakeToolButton("SPLINE",
+                (int)swCommands_e.swCommands_Spline), 2, 0);
+            AddRow(t, tools, 14);
+
+            // Live status: circle + label.
             TableLayoutPanel statusRow = NewInnerRow();
             statusCircle = new Panel();
             statusCircle.Size = new Size(40, 40);
@@ -551,7 +771,23 @@ namespace IdeaFspPawn
             lblSketchStatus = MakeLabel("Waiting for sketch...", TextSecondary, BodyBoldFont);
             lblSketchStatus.Margin = new Padding(8, 9, 0, 0);
             statusRow.Controls.Add(lblSketchStatus, 1, 0);
-            AddRow(t, statusRow, 14);
+            AddRow(t, statusRow, 12);
+
+            // Required confirmation: they must trace the floor line for a flat base.
+            chkTrace = new CheckBox();
+            chkTrace.Text = "I traced the bottom of my shape along the dotted FLOOR line "
+                + "so my pawn sits flat.";
+            chkTrace.ForeColor = TextPrimary;
+            chkTrace.BackColor = Color.Transparent;
+            chkTrace.Font = SmallFont;
+            chkTrace.AutoSize = false;
+            chkTrace.Dock = DockStyle.Fill;
+            chkTrace.Height = 44;
+            chkTrace.Margin = new Padding(0);
+            chkTrace.Checked = false;
+            traceConfirmed = false;
+            chkTrace.CheckedChanged += OnTraceConfirmChanged;
+            AddRow(t, chkTrace, 12);
 
             // STUCK? collapsible help.
             Button stuck = MakeSecondaryButton("STUCK?", 34);
@@ -568,18 +804,107 @@ namespace IdeaFspPawn
             Label help = MakeLabel(StuckHelp, TextPrimary, SmallFont);
             help.Dock = DockStyle.Top;
             stuckPanel.Controls.Add(help);
-            AddRow(t, stuckPanel, 14);
+            AddRow(t, stuckPanel, 10);
 
-            btnRevolve = MakePrimaryButton("REVOLVE MY PAWN", 48);
+            // ADVANCED (optional): fine-edit tools with full explanations.
+            Button adv = MakeSecondaryButton("ADVANCED TOOLS (optional)", 34);
+            adv.Click += OnAdvancedToggleClick;
+            AddRow(t, adv, 4);
+            advPanel = BuildAdvancedDrawer();
+            AddRow(t, advPanel, 14);
+
+            btnRevolve = MakePrimaryButton("SPIN MY SHAPE INTO 3D", 48);
             revolveArmed = false;
             StyleGatedButton(btnRevolve, false);
             btnRevolve.Click += OnRevolveClick;
             AddRow(t, btnRevolve, 0);
+
+            // Re-evaluate the gate now that the checkbox exists.
+            RefreshRevolveGate();
+        }
+
+        private void OnTraceConfirmChanged(object sender, EventArgs e)
+        {
+            traceConfirmed = chkTrace != null && chkTrace.Checked;
+            RefreshRevolveGate();
+        }
+
+        /// <summary>
+        /// The SPIN button arms only when the profile is a clean closed loop AND
+        /// the student has confirmed they traced the floor line.
+        /// </summary>
+        private void RefreshRevolveGate()
+        {
+            bool ready = (sketchState == 2) && traceConfirmed;
+            if (ready == revolveArmed) return;
+            revolveArmed = ready;
+            if (btnRevolve != null) StyleGatedButton(btnRevolve, ready);
         }
 
         private void OnStuckToggleClick(object sender, EventArgs e)
         {
             if (stuckPanel != null) stuckPanel.Visible = !stuckPanel.Visible;
+        }
+
+        private void OnAdvancedToggleClick(object sender, EventArgs e)
+        {
+            if (advPanel != null) advPanel.Visible = !advPanel.Visible;
+        }
+
+        /// <summary>
+        /// The collapsible ADVANCED drawer: the two fine-edit tools (Add Relation
+        /// and Trim) with everything a student needs to use them, so no outside
+        /// help is required. Hidden until opened.
+        /// </summary>
+        private Panel BuildAdvancedDrawer()
+        {
+            Panel panel = new Panel();
+            panel.BackColor = BgPanel;
+            panel.Padding = new Padding(10);
+            panel.AutoSize = true;
+            panel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            panel.Dock = DockStyle.Fill;
+            panel.Margin = new Padding(0);
+            panel.Visible = false;
+
+            TableLayoutPanel a = new TableLayoutPanel();
+            a.ColumnCount = 1;
+            a.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            a.Dock = DockStyle.Top;
+            a.AutoSize = true;
+            a.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            a.BackColor = BgPanel;
+            a.Margin = new Padding(0);
+
+            AddRow(a, MakeLabel("These are optional power tools for cleaning up your "
+                + "shape. You do not need them, but they help you make neat, exact edits.",
+                TextSecondary, SmallFont), 12);
+
+            // --- Add Relation ---
+            AddRow(a, MakeLabel("ADD RELATION", Green, BodyBoldFont), 2);
+            AddRow(a, MakeLabel("Lock two lines together so your shape stays neat: make "
+                + "them the same length, parallel, equal, horizontal, or vertical.",
+                TextPrimary, SmallFont), 4);
+            AddRow(a, MakeLabel("How: tap ADD RELATION, click one line, click a second "
+                + "line, then pick a relation (like Equal or Parallel) from the panel "
+                + "on the left. Press Esc when done.", TextPrimary, SmallFont), 6);
+            Button rel = MakeToolButton("ADD RELATION", (int)swCommands_e.swCommands_AddRelation);
+            rel.Margin = new Padding(0);
+            AddRow(a, rel, 12);
+
+            // --- Trim ---
+            AddRow(a, MakeLabel("TRIM", Green, BodyBoldFont), 2);
+            AddRow(a, MakeLabel("Erase the leftover bits where two lines cross, so only "
+                + "the outline you want is left.", TextPrimary, SmallFont), 4);
+            AddRow(a, MakeLabel("How: tap TRIM, then click any line piece you want to "
+                + "erase. Keep clicking to erase more. Press Esc when done.",
+                TextPrimary, SmallFont), 6);
+            Button trim = MakeToolButton("TRIM", (int)swCommands_e.swCommands_TrimEntities);
+            trim.Margin = new Padding(0);
+            AddRow(a, trim, 0);
+
+            panel.Controls.Add(a);
+            return panel;
         }
 
         private void OnSketchPollTick(object sender, EventArgs e)
@@ -601,10 +926,13 @@ namespace IdeaFspPawn
                 else
                 {
                     ISketch sketch = (ISketch)sk;
-                    // GetSketchContours returns only CLOSED contours, so any
-                    // result at all means the profile forms a closed loop.
-                    object[] contours = sketch.GetSketchContours() as object[];
-                    next = (contours != null && contours.Length > 0) ? 2 : 1;
+                    int segCount;
+                    bool closed, crossesAxis;
+                    bool hasProfile = AnalyzeSketch(sketch, out segCount, out closed, out crossesAxis);
+                    if (!hasProfile) next = 0;          // only the axis / base guide
+                    else if (crossesAxis) next = 3;     // straddles the spin axis
+                    else if (closed) next = 2;          // a clean closed loop
+                    else next = 1;                      // still open
                 }
             }
             catch
@@ -615,48 +943,181 @@ namespace IdeaFspPawn
             ApplySketchState(next);
         }
 
+        /// <summary>
+        /// Inspects the active sketch's NON-construction geometry (the student's
+        /// profile; the axis and base guide are construction and are ignored).
+        /// Reports whether any profile exists, whether every endpoint meets
+        /// another one (a closed loop, the real fix for the old detector that
+        /// called any single stray line "closed"), and whether the profile
+        /// straddles the revolve axis at x = 0 (which makes the revolve fail).
+        /// </summary>
+        private bool AnalyzeSketch(ISketch sketch, out int segCount, out bool closed, out bool crossesAxis)
+        {
+            segCount = 0;
+            closed = false;
+            crossesAxis = false;
+
+            object[] segs = sketch.GetSketchSegments() as object[];
+            if (segs == null) return false;
+
+            List<double[]> ends = new List<double[]>();
+            double minX = double.MaxValue;
+            double maxX = double.MinValue;
+            bool anyUnknown = false;
+
+            foreach (object o in segs)
+            {
+                ISketchSegment seg = o as ISketchSegment;
+                if (seg == null) continue;
+                bool construction = false;
+                try { construction = seg.ConstructionGeometry; } catch { }
+                if (construction) continue;              // skip the axis and base guide
+
+                double[] a, b;
+                if (!TryGetSegmentEnds(seg, out a, out b))
+                {
+                    anyUnknown = true;                   // present but endpoints unknown
+                    segCount++;
+                    continue;
+                }
+                segCount++;
+                ends.Add(a);
+                ends.Add(b);
+                minX = Math.Min(minX, Math.Min(a[0], b[0]));
+                maxX = Math.Max(maxX, Math.Max(a[0], b[0]));
+            }
+
+            if (segCount == 0) return false;             // nothing drawn yet
+
+            crossesAxis = (minX < -CloseTolMeters && maxX > CloseTolMeters);
+
+            // Closed when no endpoint is left dangling: every endpoint instance
+            // must coincide with at least one other endpoint. A single open line
+            // leaves two dangling ends; a finished loop leaves none.
+            if (anyUnknown || ends.Count == 0)
+            {
+                closed = false;                          // cannot confirm; stay conservative
+            }
+            else
+            {
+                closed = true;
+                for (int i = 0; i < ends.Count && closed; i++)
+                {
+                    bool met = false;
+                    for (int j = 0; j < ends.Count; j++)
+                    {
+                        if (i == j) continue;
+                        if (Near(ends[i], ends[j])) { met = true; break; }
+                    }
+                    if (!met) closed = false;
+                }
+            }
+            return true;
+        }
+
+        private static bool Near(double[] p, double[] q)
+        {
+            return Math.Abs(p[0] - q[0]) < CloseTolMeters
+                && Math.Abs(p[1] - q[1]) < CloseTolMeters;
+        }
+
+        /// <summary>
+        /// The 2D endpoints of a sketch segment, handling the segment types a
+        /// freshman actually draws (line, arc, ellipse via their start/end
+        /// points; spline via its first and last through-points). Returns false
+        /// for any type whose endpoints cannot be read, so the caller stays
+        /// conservative rather than false-reporting a closed loop.
+        /// </summary>
+        private static bool TryGetSegmentEnds(ISketchSegment seg, out double[] a, out double[] b)
+        {
+            a = null;
+            b = null;
+            try
+            {
+                int type = seg.GetType();
+                if (type == (int)swSketchSegments_e.swSketchLINE)
+                {
+                    ISketchLine ln = seg as ISketchLine;
+                    if (ln == null) return false;
+                    return PointXY(ln.GetStartPoint2(), out a) && PointXY(ln.GetEndPoint2(), out b);
+                }
+                if (type == (int)swSketchSegments_e.swSketchARC)
+                {
+                    ISketchArc ar = seg as ISketchArc;
+                    if (ar == null) return false;
+                    return PointXY(ar.GetStartPoint2(), out a) && PointXY(ar.GetEndPoint2(), out b);
+                }
+                if (type == (int)swSketchSegments_e.swSketchELLIPSE)
+                {
+                    ISketchEllipse el = seg as ISketchEllipse;
+                    if (el == null) return false;
+                    return PointXY(el.GetStartPoint2(), out a) && PointXY(el.GetEndPoint2(), out b);
+                }
+                if (type == (int)swSketchSegments_e.swSketchSPLINE)
+                {
+                    ISketchSpline sp = seg as ISketchSpline;
+                    if (sp == null) return false;
+                    double[] pts = sp.GetPoints() as double[];
+                    if (pts == null || pts.Length < 6) return false;
+                    a = new double[] { pts[0], pts[1] };
+                    b = new double[] { pts[pts.Length - 3], pts[pts.Length - 2] };
+                    return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private static bool PointXY(object skPoint, out double[] xy)
+        {
+            xy = null;
+            ISketchPoint p = skPoint as ISketchPoint;
+            if (p == null) return false;
+            xy = new double[] { p.X, p.Y };
+            return true;
+        }
+
         private void ApplySketchState(int next)
         {
             if (next == sketchState) return;
             sketchState = next;
             if (next == 2)
             {
-                lblSketchStatus.Text = "Closed loop - ready to revolve!";
+                lblSketchStatus.Text = traceConfirmed
+                    ? "Closed shape - ready to spin!"
+                    : "Closed shape! Now tick the box below.";
                 lblSketchStatus.ForeColor = Green;
-                if (!revolveArmed)
-                {
-                    revolveArmed = true;
-                    StyleGatedButton(btnRevolve, true);
-                }
                 StartPulse(6);  // 3 brightness pulses, then hold
+            }
+            else if (next == 3)
+            {
+                lblSketchStatus.Text = "Move your drawing to the RIGHT of the tall dotted line.";
+                lblSketchStatus.ForeColor = Amber;
+                StopPulse();
             }
             else if (next == 1)
             {
-                lblSketchStatus.Text = "Keep drawing - profile is not closed yet";
+                lblSketchStatus.Text = "Keep going - connect your last point back to your first point.";
                 lblSketchStatus.ForeColor = ErrorRed;
-                // A previously-closed profile was broken open again; disarm so
-                // the revolve cannot be launched on a profile that will fail.
-                if (revolveArmed)
-                {
-                    revolveArmed = false;
-                    StyleGatedButton(btnRevolve, false);
-                }
                 StopPulse();
             }
             else
             {
-                // No active sketch. If the loop was already confirmed the
-                // student may simply have exited the sketch; stay armed.
-                lblSketchStatus.Text = "Waiting for sketch...";
+                lblSketchStatus.Text = "Waiting for your drawing...";
                 lblSketchStatus.ForeColor = TextSecondary;
                 StopPulse();
             }
+            // Arming depends on BOTH the closed loop and the trace confirmation.
+            RefreshRevolveGate();
             if (statusCircle != null) statusCircle.Invalidate();
         }
 
         private void OnStatusCirclePaint(object sender, PaintEventArgs e)
         {
-            Color c = sketchState == 2 ? Green : (sketchState == 1 ? ErrorRed : TextSecondary);
+            Color c = sketchState == 2 ? Green
+                : sketchState == 3 ? Amber
+                : sketchState == 1 ? ErrorRed
+                : TextSecondary;
             if (!pulseOn) c = Dimmed(c);
             e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
             using (SolidBrush b = new SolidBrush(c))
@@ -690,9 +1151,29 @@ namespace IdeaFspPawn
 
         private void BuildPhase3(TableLayoutPanel t)
         {
-            AddRow(t, MakeLabel("REVOLVE YOUR PAWN", Green, TitleFont), 10);
-            lblRevolveHint = MakeLabel("", TextPrimary, BodyFont);
-            AddRow(t, lblRevolveHint, 14);
+            AddRow(t, MakeLabel("STEP 3: SPIN IT INTO 3D", Green, TitleFont), 6);
+
+            AddStepImage(t, 3, 10);
+
+            AddRow(t, MakeLabel("This is the magic step. It spins your flat drawing all "
+                + "the way around the dotted spin line to make a solid 3D shape.",
+                TextPrimary, BodyFont), 14);
+
+            // The easy one-click path.
+            Button spin = MakePrimaryButton("SPIN IT FOR ME", 48);
+            spin.Click += OnSpinItForMeClick;
+            AddRow(t, spin, 12);
+
+            // The learn-it-yourself path.
+            AddRow(t, MakeLabel("Or do it the real CAD way:", TextSecondary, SmallFont), 4);
+            Button openTool = MakeSecondaryButton("OPEN THE REVOLVE TOOL", 40);
+            openTool.Click += OnOpenRevolveToolClick;
+            AddRow(t, openTool, 8);
+
+            lblRevolveHint = MakeLabel(
+                "After you open the tool, click the GREEN CHECKMARK in the panel on the "
+                + "left side of the screen to finish.", Green, SmallFont);
+            AddRow(t, lblRevolveHint, 12);
 
             TableLayoutPanel waitRow = NewInnerRow();
             waitCircle = new Panel();
@@ -701,14 +1182,11 @@ namespace IdeaFspPawn
             waitCircle.BackColor = Bg;
             waitCircle.Paint += OnWaitCirclePaint;
             waitRow.Controls.Add(waitCircle, 0, 0);
-            Label waiting = MakeLabel("Waiting for revolve to complete...", Green, BodyBoldFont);
+            Label waiting = MakeLabel("Waiting... this jumps ahead automatically when your pawn is 3D.",
+                TextSecondary, SmallFont);
             waiting.Margin = new Padding(8, 9, 0, 0);
             waitRow.Controls.Add(waiting, 1, 0);
-            AddRow(t, waitRow, 16);
-
-            Button retry = MakeSecondaryButton("RE-OPEN THE REVOLVE TOOL", 38);
-            retry.Click += OnRetryRevolveClick;
-            AddRow(t, retry, 0);
+            AddRow(t, waitRow, 0);
         }
 
         private void OnWaitCirclePaint(object sender, PaintEventArgs e)
@@ -721,15 +1199,78 @@ namespace IdeaFspPawn
             }
         }
 
-        private void OnRetryRevolveClick(object sender, EventArgs e)
+        /// <summary>
+        /// The one-click path: builds the 360-degree revolve directly through the
+        /// API (no PropertyManager, no green checkmark needed) from the profile
+        /// sketch and its vertical spin axis. Falls back to a friendly message
+        /// pointing at the manual tool if anything is not ready.
+        /// </summary>
+        private void OnSpinItForMeClick(object sender, EventArgs e)
+        {
+            try
+            {
+                IModelDoc2 model = ActiveModel();
+                if (model == null)
+                {
+                    ShowError("Your pawn file is not open in SOLIDWORKS. Raise your hand.");
+                    return;
+                }
+                // Leave the sketch first; a revolve reads a closed, exited sketch.
+                if (model.GetActiveSketch2() != null) model.InsertSketch2(true);
+
+                // Already 3D (e.g. the student backed into this page)? Don't
+                // revolve twice; just move on.
+                if (HasRevolveFeature(model)) { revolveTimer.Stop(); ShowPhase(4); return; }
+
+                if (!SelectProfileAndAxis(model))
+                {
+                    ShowError("Could not find your drawing to spin. Use OPEN THE REVOLVE TOOL instead.");
+                    return;
+                }
+
+                object feat = model.FeatureManager.FeatureRevolve2(
+                    true,   // SingleDir
+                    true,   // IsSolid
+                    false,  // IsThin
+                    false,  // IsCut
+                    false,  // ReverseDir
+                    false,  // BothDirectionUpToSameEntity
+                    (int)swEndConditions_e.swEndCondBlind, // Dir1Type
+                    0,      // Dir2Type
+                    2.0 * Math.PI, 0.0,   // full 360-degree revolve
+                    false, false, 0.0, 0.0,
+                    0, 0.0, 0.0,          // not a thin feature
+                    true,   // Merge
+                    true,   // UseFeatScope
+                    false); // UseAutoSelect (we selected the profile + axis ourselves)
+
+                model.ClearSelection2(true);
+                if (feat == null)
+                {
+                    ShowError("The spin did not work. Make sure your shape is fully closed, "
+                        + "then try OPEN THE REVOLVE TOOL.");
+                    return;
+                }
+                try { model.ShowNamedView2("*Isometric", -1); model.ViewZoomtofit2(); } catch { }
+                revolveTimer.Stop();
+                ShowPhase(4);
+            }
+            catch (Exception ex)
+            {
+                ShowError("The spin did not work. Error: " + ex.Message
+                    + ". Try OPEN THE REVOLVE TOOL.");
+            }
+        }
+
+        private void OnOpenRevolveToolClick(object sender, EventArgs e)
         {
             StartRevolveCommand();
         }
 
         /// <summary>
-        /// Pre-selects the profile sketch's construction centerline (the spin
-        /// axis) when possible, then launches the Revolved Boss/Base command.
-        /// Sets the contextual instruction either way.
+        /// The manual path: pre-selects the vertical spin axis, launches the
+        /// Revolved Boss/Base command, and points the student at the green
+        /// checkmark. The poll advances the wizard once the feature exists.
         /// </summary>
         private void StartRevolveCommand()
         {
@@ -739,6 +1280,9 @@ namespace IdeaFspPawn
                 IModelDoc2 model = ActiveModel();
                 if (model != null)
                 {
+                    if (model.GetActiveSketch2() != null) model.InsertSketch2(true);
+                    // Already 3D? Skip straight ahead instead of revolving twice.
+                    if (HasRevolveFeature(model)) { revolveTimer.Stop(); ShowPhase(4); return; }
                     axisSelected = TryPreselectCenterline(model);
                     swApp.RunCommand((int)swCommands_e.swCommands_RevolvedBossBase, "");
                 }
@@ -750,9 +1294,45 @@ namespace IdeaFspPawn
             if (lblRevolveHint != null)
             {
                 lblRevolveHint.Text = axisSelected
-                    ? "The axis is already selected. Click the green checkmark in the panel on the left to finish."
-                    : "Click the vertical orange line in your sketch. Then click the green checkmark.";
+                    ? "Almost done! Click the GREEN CHECKMARK in the panel on the left to finish."
+                    : "Click the tall dotted line in your sketch, then click the GREEN CHECKMARK on the left.";
+                lblRevolveHint.ForeColor = Green;
             }
+            StartContinuousPulse();
+        }
+
+        private ISketchSegment FindVerticalConstructionLine(ISketch sketch)
+        {
+            if (sketch == null) return null;
+            try
+            {
+                object[] segs = sketch.GetSketchSegments() as object[];
+                if (segs == null) return null;
+                ISketchSegment anyConstruction = null;
+                foreach (object o in segs)
+                {
+                    ISketchSegment seg = o as ISketchSegment;
+                    if (seg == null) continue;
+                    bool construction = false;
+                    try { construction = seg.ConstructionGeometry; } catch { }
+                    if (!construction) continue;
+                    if (anyConstruction == null) anyConstruction = seg;
+                    // The spin axis is the VERTICAL construction line, never the
+                    // horizontal floor guide.
+                    if (seg.GetType() == (int)swSketchSegments_e.swSketchLINE)
+                    {
+                        double[] a, b;
+                        if (TryGetSegmentEnds(seg, out a, out b))
+                        {
+                            double dx = Math.Abs(a[0] - b[0]);
+                            double dy = Math.Abs(a[1] - b[1]);
+                            if (dy > dx) return seg;
+                        }
+                    }
+                }
+                return anyConstruction;
+            }
+            catch { return null; }
         }
 
         private bool TryPreselectCenterline(IModelDoc2 model)
@@ -762,27 +1342,40 @@ namespace IdeaFspPawn
                 IFeature feat = FindFeature(model, cfgSketchName);
                 if (feat == null) return false;
                 ISketch sketch = feat.GetSpecificFeature2() as ISketch;
-                if (sketch == null) return false;
-                object[] segs = sketch.GetSketchSegments() as object[];
-                if (segs == null) return false;
-
-                ISketchSegment best = null;
-                foreach (object o in segs)
-                {
-                    ISketchSegment seg = o as ISketchSegment;
-                    if (seg == null) continue;
-                    bool construction = false;
-                    try { construction = seg.ConstructionGeometry; } catch { }
-                    if (!construction) continue;
-                    // Prefer a construction LINE (the template's centerline);
-                    // fall back to any construction segment.
-                    if (seg.GetType() == (int)swSketchSegments_e.swSketchLINE) { best = seg; break; }
-                    if (best == null) best = seg;
-                }
-                if (best == null) return false;
-
+                ISketchSegment axis = FindVerticalConstructionLine(sketch);
+                if (axis == null) return false;
                 model.ClearSelection2(true);
-                return best.Select4(false, null);
+                return axis.Select4(false, null);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Selects the profile sketch (mark 0) and its vertical spin axis
+        /// (mark 4) for a programmatic FeatureRevolve2.
+        /// </summary>
+        private bool SelectProfileAndAxis(IModelDoc2 model)
+        {
+            try
+            {
+                IFeature feat = FindFeature(model, cfgSketchName);
+                if (feat == null) return false;
+                model.ClearSelection2(true);
+                bool okSketch = feat.Select2(false, 0);
+
+                ISketch sketch = feat.GetSpecificFeature2() as ISketch;
+                ISketchSegment axis = FindVerticalConstructionLine(sketch);
+                ISelectionMgr selmgr = model.SelectionManager as ISelectionMgr;
+                if (axis != null && selmgr != null)
+                {
+                    SelectData sd = selmgr.CreateSelectData();
+                    sd.Mark = 4;
+                    axis.Select4(true, sd);
+                }
+                return okSketch;
             }
             catch
             {
@@ -825,11 +1418,16 @@ namespace IdeaFspPawn
 
         private void BuildPhase4(TableLayoutPanel t)
         {
-            AddRow(t, MakeLabel("PAWN COMPLETE!", Green, TitleFont), 8);
-            AddRow(t, MakeLabel(studentName + ", your pawn is done. Let's send it to Mr. Pina.",
-                TextPrimary, BodyFont), 18);
+            AddRow(t, MakeLabel("STEP 4: SAVE + SEND", Green, TitleFont), 6);
+            AddRow(t, MakeLabel("Nice work, " + studentName + "! Your 3D pawn is done.",
+                Green, BodyBoldFont), 10);
 
-            Button save = MakePrimaryButton("SAVE + EXPORT", 48);
+            AddStepImage(t, 4, 12);
+
+            AddRow(t, MakeLabel("Last step: tap the button to save your pawn and open "
+                + "an email to Mr. Pina.", TextPrimary, BodyFont), 16);
+
+            Button save = MakePrimaryButton("SAVE + SEND TO MR. PINA", 48);
             save.Click += OnSaveExportClick;
             AddRow(t, save, 0);
         }
@@ -887,10 +1485,12 @@ namespace IdeaFspPawn
                     return;
                 }
 
-                // 4. Open Gmail compose in the default browser.
+                // 4. Open Gmail compose in the default browser, then nudge that
+                // window to the left so it does not cover the pane instructions.
                 try
                 {
                     Process.Start(GmailComposeUrl());
+                    if (emailMoveTimer != null) { emailMoveTimer.Stop(); emailMoveTimer.Start(); }
                 }
                 catch
                 {
@@ -911,6 +1511,7 @@ namespace IdeaFspPawn
         private void BuildPostExportPanel()
         {
             wrapLabels.Clear();
+            DisposeStepImage();
             contentHost.SuspendLayout();
             while (contentHost.Controls.Count > 0)
             {
@@ -919,26 +1520,64 @@ namespace IdeaFspPawn
                 old.Dispose();
             }
 
+            string stepName = "";
+            try { stepName = Path.GetFileName(stepPath); } catch { stepName = stepPath; }
+
             TableLayoutPanel t = NewPhaseTable();
             AddRow(t, MakeLabel("PAWN COMPLETE!", Green, TitleFont), 8);
-            AddRow(t, MakeLabel("Your file has been saved and exported.", TextPrimary, BodyFont), 8);
-            AddRow(t, MakeLabel("Gmail just opened. Drag your file into the email and click Send.",
-                TextPrimary, BodyFont), 14);
+            AddRow(t, MakeLabel("Your pawn is saved and an email to Mr. Pina just opened.",
+                TextPrimary, BodyFont), 12);
 
+            AddRow(t, MakeLabel("Finish in 4 steps:", TextPrimary, BodyBoldFont), 6);
+            AddRow(t, MakeLabel("1.  Tap OPEN FILE FOLDER below.", TextPrimary, BodyFont), 3);
+            AddRow(t, MakeLabel("2.  Find this exact file (it ends in .stp):", TextPrimary, BodyFont), 4);
+
+            // The exact .stp file name, highlighted, so they drag the right one.
+            TextBox nameBox = MakeTextBox(PathFont);
+            nameBox.ReadOnly = true;
+            nameBox.Text = stepName;
+            nameBox.ForeColor = Green;
+            AddRow(t, nameBox, 4);
+            AddRow(t, MakeLabel("Do NOT drag the blue .SLDPRT file. It must be the "
+                + ".stp (STEP) file shown above.", Amber, SmallFont), 8);
+
+            AddRow(t, MakeLabel("3.  Drag that .stp file into the email window.", TextPrimary, BodyFont), 3);
+            AddRow(t, MakeLabel("4.  Click Send.", TextPrimary, BodyFont), 12);
+
+            Button openFolder = MakePrimaryButton("OPEN FILE FOLDER", 44);
+            openFolder.Click += OnOpenFolderClick;
+            AddRow(t, openFolder, 8);
+
+            // Full path for reference / raising a hand.
             TextBox pathBox = MakeTextBox(PathFont);
             pathBox.ReadOnly = true;
             pathBox.Text = stepPath;
             AddRow(t, pathBox, 14);
 
-            Button openFolder = MakeSecondaryButton("OPEN FILE FOLDER", 38);
-            openFolder.Click += OnOpenFolderClick;
-            AddRow(t, openFolder, 20);
+            Button another = MakeSecondaryButton("BUILD ANOTHER PAWN", 40);
+            another.Click += OnBuildAnotherClick;
+            AddRow(t, another, 16);
 
             AddRow(t, MakeLabel(studentName + "'s pawn is ready. See you tomorrow.", Green, BodyBoldFont), 0);
 
             contentHost.Controls.Add(t);
             contentHost.ResumeLayout();
             ApplyWrapWidths();
+        }
+
+        /// <summary>
+        /// Starts a fresh pawn from the completion screen: clears the per-file
+        /// state and returns to Phase 0, pre-filling the name for convenience.
+        /// Phase 0's BEGIN builds a brand-new part, so the finished pawn stays
+        /// open and untouched.
+        /// </summary>
+        private void OnBuildAnotherClick(object sender, EventArgs e)
+        {
+            partPath = "";
+            stepPath = "";
+            fspFolder = "";
+            ShowPhase(0);
+            if (txtFirstName != null) txtFirstName.Text = studentName;
         }
 
         private void OnOpenFolderClick(object sender, EventArgs e)
@@ -958,6 +1597,56 @@ namespace IdeaFspPawn
             return "https://mail.google.com/mail/?view=cm&to=" + Uri.EscapeDataString(cfgTeacherEmail)
                 + "&su=" + Uri.EscapeDataString(cfgEmailSubject)
                 + "&body=" + Uri.EscapeDataString(cfgEmailBody);
+        }
+
+        // ------------------------------------------------------------------
+        // Email window nudge (best-effort; never fails the flow)
+        // ------------------------------------------------------------------
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
+        [DllImport("user32.dll")]
+        private static extern bool MoveWindow(IntPtr hWnd, int x, int y, int w, int h, bool repaint);
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        private void OnEmailMoveTick(object sender, EventArgs e)
+        {
+            if (emailMoveTimer != null) emailMoveTimer.Stop();   // one-shot
+            TryMoveEmailWindowLeft();
+        }
+
+        /// <summary>
+        /// Moves the just-opened browser (email) window to the LEFT half of the
+        /// screen so it stops covering the pane. Only touches a window that
+        /// really belongs to a known browser, so it can never grab SOLIDWORKS or
+        /// anything else; any failure is swallowed.
+        /// </summary>
+        private static void TryMoveEmailWindowLeft()
+        {
+            try
+            {
+                IntPtr h = GetForegroundWindow();
+                if (h == IntPtr.Zero) return;
+                uint pid;
+                GetWindowThreadProcessId(h, out pid);
+                string pname = "";
+                try { pname = Process.GetProcessById((int)pid).ProcessName.ToLowerInvariant(); }
+                catch { return; }
+
+                string[] browsers = { "chrome", "msedge", "firefox", "brave", "opera",
+                    "vivaldi", "iexplore", "arc", "chromium" };
+                bool isBrowser = false;
+                foreach (string b in browsers) { if (pname == b) { isBrowser = true; break; } }
+                if (!isBrowser) return;
+
+                Rectangle wa = Screen.PrimaryScreen.WorkingArea;
+                ShowWindow(h, 9);   // SW_RESTORE (un-maximize so a move takes effect)
+                MoveWindow(h, wa.Left, wa.Top, wa.Width / 2, wa.Height, true);
+            }
+            catch { /* window nudge is a nicety; never let it matter */ }
         }
 
         // ------------------------------------------------------------------
@@ -1010,6 +1699,28 @@ namespace IdeaFspPawn
             {
                 return 0;
             }
+        }
+
+        /// <summary>True if the part already has a revolve/boss feature, so the
+        /// pawn is already 3D and should not be revolved again.</summary>
+        private static bool HasRevolveFeature(IModelDoc2 model)
+        {
+            try
+            {
+                IFeature f = model.FirstFeature() as IFeature;
+                while (f != null)
+                {
+                    string typeName = "";
+                    try { typeName = f.GetTypeName2(); } catch { }
+                    if (string.Equals(typeName, "Revolution", StringComparison.OrdinalIgnoreCase))
+                        return true;
+                    string name = (f.Name ?? "").ToLowerInvariant();
+                    if (name.IndexOf("revolve") >= 0) return true;
+                    f = f.GetNextFeature() as IFeature;
+                }
+            }
+            catch { }
+            return false;
         }
 
         private static string SanitizeForFileName(string name)
@@ -1120,8 +1831,12 @@ namespace IdeaFspPawn
             int d = 12;
             int gap = 12;
             int total = 5 * d + 4 * gap;
-            int x = (progressStrip.ClientSize.Width - total) / 2;
-            if (x < 8) x = 8;
+            // Center the dots in the space between the BACK and START OVER buttons.
+            int left = (backButton != null && backButton.Visible) ? backButton.Width : 0;
+            int right = (restartButton != null && restartButton.Visible) ? restartButton.Width : 0;
+            int avail = progressStrip.ClientSize.Width - left - right;
+            int x = left + (avail - total) / 2;
+            if (x < left + 6) x = left + 6;
             int y = (progressStrip.ClientSize.Height - d) / 2;
             for (int i = 0; i < 5; i++)
             {
@@ -1185,6 +1900,39 @@ namespace IdeaFspPawn
             t.Controls.Add(control, 0, row);
         }
 
+        /// <summary>
+        /// Adds the "what this step should look like" illustration for a phase,
+        /// drawn at runtime so no image files ship in the repo.
+        /// </summary>
+        private void AddStepImage(TableLayoutPanel t, int phaseForArt, int bottomGap)
+        {
+            int w = WrapWidth();
+            const int h = 168;
+            try { stepImage = PawnStepArt.Render(phaseForArt, Math.Max(240, w), h); }
+            catch { stepImage = null; }
+            if (stepImage == null) return;
+
+            stepPictureBox = new PictureBox();
+            stepPictureBox.Image = stepImage;
+            stepPictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+            stepPictureBox.BackColor = BgPanel;
+            stepPictureBox.Height = h;
+            stepPictureBox.Dock = DockStyle.Fill;
+            stepPictureBox.Margin = new Padding(0);
+            AddRow(t, stepPictureBox, bottomGap);
+        }
+
+        private void DisposeStepImage()
+        {
+            if (stepPictureBox != null) stepPictureBox.Image = null;   // don't let control dispose it
+            stepPictureBox = null;                                      // disposed with contentHost
+            if (stepImage != null)
+            {
+                try { stepImage.Dispose(); } catch { }
+                stepImage = null;
+            }
+        }
+
         private Label MakeLabel(string text, Color color, Font font)
         {
             Label label = new Label();
@@ -1246,7 +1994,50 @@ namespace IdeaFspPawn
         }
 
         /// <summary>
-        /// The gated (REVOLVE) button keeps Enabled=true so the custom disabled
+        /// A small outlined "drawing tool" button (Line / Arc / Spline). Clicking
+        /// it activates the matching SOLIDWORKS sketch tool; the student then
+        /// clicks in the drawing to place points.
+        /// </summary>
+        private Button MakeToolButton(string text, int commandId)
+        {
+            Button b = new Button();
+            b.Text = text;
+            b.FlatStyle = FlatStyle.Flat;
+            b.FlatAppearance.BorderSize = 1;
+            b.FlatAppearance.BorderColor = GreenDone;
+            b.FlatAppearance.MouseOverBackColor = Color.FromArgb(0x00, 0x3A, 0x14);
+            b.BackColor = BtnSecondaryBg;
+            b.ForeColor = Green;
+            b.Font = ButtonFont;
+            b.Height = 40;
+            b.Dock = DockStyle.Fill;
+            b.Margin = new Padding(0, 0, 6, 0);
+            b.Cursor = Cursors.Hand;
+            b.Tag = commandId;
+            b.Click += OnSketchToolClick;
+            return b;
+        }
+
+        private void OnSketchToolClick(object sender, EventArgs e)
+        {
+            Button b = sender as Button;
+            if (b == null || !(b.Tag is int)) return;
+            try
+            {
+                IModelDoc2 model = ActiveModel();
+                // Make sure the profile sketch is active so the tool draws in it.
+                if (model != null && model.GetActiveSketch2() == null)
+                {
+                    IFeature feat = FindFeature(model, cfgSketchName);
+                    if (feat != null) { feat.Select2(false, 0); model.EditSketch(); }
+                }
+                swApp.RunCommand((int)b.Tag, "");
+            }
+            catch { /* tool activation is best-effort */ }
+        }
+
+        /// <summary>
+        /// The gated (SPIN) button keeps Enabled=true so the custom disabled
         /// palette renders exactly per spec; the Click handler checks the armed
         /// flag instead.
         /// </summary>
@@ -1287,6 +2078,202 @@ namespace IdeaFspPawn
         {
             base.OnResize(e);
             if (wrapLabels != null) ApplyWrapWidths();
+        }
+    }
+
+    /// <summary>
+    /// Draws the per-step "this is what it should look like" illustrations at
+    /// runtime (no image files in the repo). Everything is schematic and
+    /// color-coded to the pane: amber DOTTED lines are the guides, bright GREEN
+    /// is the student's own drawing / finished pawn, cyan is motion.
+    /// </summary>
+    internal static class PawnStepArt
+    {
+        private static readonly Color Bg = Color.FromArgb(0x24, 0x24, 0x24);
+        private static readonly Color Frame = Color.FromArgb(0x3A, 0x3A, 0x3A);
+        private static readonly Color Amber = Color.FromArgb(0xFF, 0xB0, 0x00);
+        private static readonly Color Green = Color.FromArgb(0x00, 0xFF, 0x41);
+        private static readonly Color GreenSoft = Color.FromArgb(0x60, 0x00, 0xFF, 0x41);
+        private static readonly Color GreenFill = Color.FromArgb(0x33, 0x00, 0xFF, 0x41);
+        private static readonly Color Cyan = Color.FromArgb(0x35, 0xE0, 0xFF);
+        private static readonly Color Ink = Color.FromArgb(0xC8, 0xC8, 0xC8);
+        private static readonly Color Dim = Color.FromArgb(0x88, 0x88, 0x88);
+
+        public static Bitmap Render(int phase, int w, int h)
+        {
+            Bitmap bmp = new Bitmap(w, h);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+                using (SolidBrush bg = new SolidBrush(Bg)) g.FillRectangle(bg, 0, 0, w, h);
+                using (Pen fp = new Pen(Frame, 1f)) g.DrawRectangle(fp, 0, 0, w - 1, h - 1);
+
+                switch (phase)
+                {
+                    case 1: DrawGuidesStep(g, w, h); break;
+                    case 2: DrawProfileStep(g, w, h); break;
+                    case 3: DrawRevolveStep(g, w, h); break;
+                    default: DrawFinishedStep(g, w, h); break;   // 0 and 4
+                }
+            }
+            return bmp;
+        }
+
+        // Phase 1: the two dotted guide lines the student starts with.
+        private static void DrawGuidesStep(Graphics g, int w, int h)
+        {
+            float ox = w * 0.34f, by = h * 0.78f, top = h * 0.16f, right = w * 0.66f;
+            DrawGuides(g, ox, by, top, right);
+            Caption(g, w, h, "Your two dotted guide lines");
+            using (Font f = new Font("Segoe UI", 8f, FontStyle.Bold))
+            {
+                Label(g, "spin line", Amber, f, ox - 62f, (top + by) / 2f - 8f);
+                Label(g, "floor line", Amber, f, right + 4f, by - 6f);
+            }
+        }
+
+        // Phase 2: a green profile traced onto the guides (only half a pawn).
+        private static void DrawProfileStep(Graphics g, int w, int h)
+        {
+            float ox = w * 0.34f, by = h * 0.78f, top = h * 0.16f, right = w * 0.66f;
+            DrawGuides(g, ox, by, top, right);
+            using (GraphicsPath p = HalfProfile(ox, by, top))
+            {
+                using (SolidBrush fill = new SolidBrush(GreenFill)) g.FillPath(fill, p);
+                using (Pen pen = new Pen(Green, 2.4f)) g.DrawPath(pen, p);
+            }
+            Caption(g, w, h, "Trace ANY shape you want");
+        }
+
+        // Phase 3: flat profile spins into a 3D solid.
+        private static void DrawRevolveStep(Graphics g, int w, int h)
+        {
+            float leftCx = w * 0.24f, by = h * 0.74f, top = h * 0.20f;
+            using (GraphicsPath p = HalfProfile(leftCx - w * 0.06f, by, top))
+            {
+                using (Pen pen = new Pen(Green, 2.2f)) g.DrawPath(pen, p);
+            }
+            // Spin arrow.
+            using (Pen ap = new Pen(Cyan, 2.4f))
+            {
+                ap.CustomEndCap = new AdjustableArrowCap(4f, 4f);
+                g.DrawArc(ap, w * 0.40f, h * 0.34f, w * 0.16f, h * 0.30f, 120, 300);
+            }
+            DrawPawn3D(g, w * 0.74f, by, (by - top));
+            Caption(g, w, h, "Spin it into a 3D pawn");
+        }
+
+        // Phase 0 / 4: the finished 3D pawn.
+        private static void DrawFinishedStep(Graphics g, int w, int h)
+        {
+            float by = h * 0.80f, top = h * 0.16f;
+            DrawPawn3D(g, w * 0.5f, by, (by - top));
+            // A friendly done-check.
+            using (Pen cp = new Pen(Green, 3.5f))
+            {
+                cp.StartCap = LineCap.Round; cp.EndCap = LineCap.Round;
+                float cx = w * 0.74f, cy = h * 0.30f;
+                g.DrawLine(cp, cx - 10f, cy, cx - 3f, cy + 8f);
+                g.DrawLine(cp, cx - 3f, cy + 8f, cx + 11f, cy - 9f);
+            }
+            Caption(g, w, h, "Your finished pawn");
+        }
+
+        // ---- shared pieces ------------------------------------------------
+
+        private static void DrawGuides(Graphics g, float ox, float by, float top, float right)
+        {
+            using (Pen pen = new Pen(Amber, 2f))
+            {
+                pen.DashStyle = DashStyle.Dash;
+                pen.DashPattern = new float[] { 4f, 3f };
+                g.DrawLine(pen, ox, by, ox, top);       // vertical spin line
+                g.DrawLine(pen, ox, by, right, by);     // horizontal floor line
+            }
+            // origin dot
+            using (SolidBrush b = new SolidBrush(Amber)) g.FillEllipse(b, ox - 3f, by - 3f, 6f, 6f);
+        }
+
+        // A half pawn silhouette: left edge ON the spin line, bottom ON the
+        // floor line, curvy right side. This is what a student actually draws.
+        private static GraphicsPath HalfProfile(float ox, float by, float top)
+        {
+            float hgt = by - top;
+            GraphicsPath p = new GraphicsPath();
+            PointF pBaseIn = new PointF(ox, by);
+            PointF pBaseOut = new PointF(ox + hgt * 0.42f, by);
+            PointF pRingTop = new PointF(ox + hgt * 0.30f, by - hgt * 0.16f);
+            PointF pNeck = new PointF(ox + hgt * 0.12f, by - hgt * 0.48f);
+            PointF pCollar = new PointF(ox + hgt * 0.24f, by - hgt * 0.60f);
+            PointF pHeadTop = new PointF(ox, top);
+            p.AddLine(pBaseIn, pBaseOut);                                   // along the floor
+            p.AddLine(pBaseOut, pRingTop);                                  // up the base ring
+            p.AddBezier(pRingTop, new PointF(ox + hgt * 0.02f, by - hgt * 0.30f),
+                        new PointF(ox + hgt * 0.02f, by - hgt * 0.40f), pNeck);   // waist in
+            p.AddBezier(pNeck, new PointF(ox + hgt * 0.30f, by - hgt * 0.54f),
+                        new PointF(ox + hgt * 0.30f, by - hgt * 0.58f), pCollar); // collar out
+            p.AddBezier(pCollar, new PointF(ox + hgt * 0.22f, top + hgt * 0.02f),
+                        new PointF(ox + hgt * 0.16f, top), pHeadTop);            // head bump to axis
+            p.AddLine(pHeadTop, pBaseIn);                                   // down the spin line
+            p.CloseFigure();
+            return p;
+        }
+
+        // A simple shaded 3D pawn (stacked ellipses) to suggest the solid.
+        private static void DrawPawn3D(Graphics g, float cx, float by, float hgt)
+        {
+            float r = hgt * 0.30f;
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(0x1E, 0x7A, 0x33)))
+            using (SolidBrush lite = new SolidBrush(Color.FromArgb(0x2E, 0xC0, 0x50)))
+            using (Pen edge = new Pen(Green, 1.6f))
+            {
+                // base disc
+                g.FillEllipse(body, cx - r, by - hgt * 0.10f, r * 2f, hgt * 0.16f);
+                g.DrawEllipse(edge, cx - r, by - hgt * 0.10f, r * 2f, hgt * 0.16f);
+                // tapered body
+                using (GraphicsPath bp = new GraphicsPath())
+                {
+                    bp.AddBezier(new PointF(cx - r * 0.9f, by - hgt * 0.04f),
+                                 new PointF(cx - r * 0.35f, by - hgt * 0.45f),
+                                 new PointF(cx - r * 0.30f, by - hgt * 0.52f),
+                                 new PointF(cx - r * 0.42f, by - hgt * 0.60f));
+                    bp.AddLine(new PointF(cx - r * 0.42f, by - hgt * 0.60f),
+                               new PointF(cx + r * 0.42f, by - hgt * 0.60f));
+                    bp.AddBezier(new PointF(cx + r * 0.42f, by - hgt * 0.60f),
+                                 new PointF(cx + r * 0.30f, by - hgt * 0.52f),
+                                 new PointF(cx + r * 0.35f, by - hgt * 0.45f),
+                                 new PointF(cx + r * 0.9f, by - hgt * 0.04f));
+                    bp.CloseFigure();
+                    g.FillPath(body, bp);
+                    g.DrawPath(edge, bp);
+                }
+                // collar
+                g.FillEllipse(body, cx - r * 0.5f, by - hgt * 0.66f, r, hgt * 0.10f);
+                g.DrawEllipse(edge, cx - r * 0.5f, by - hgt * 0.66f, r, hgt * 0.10f);
+                // head
+                float hr = hgt * 0.20f;
+                g.FillEllipse(body, cx - hr, by - hgt * 0.94f, hr * 2f, hr * 2f);
+                g.DrawEllipse(edge, cx - hr, by - hgt * 0.94f, hr * 2f, hr * 2f);
+                // highlight
+                g.FillEllipse(lite, cx - hr * 0.5f, by - hgt * 0.90f, hr * 0.6f, hr * 0.7f);
+            }
+        }
+
+        private static void Caption(Graphics g, int w, int h, string text)
+        {
+            using (Font f = new Font("Segoe UI", 8.5f, FontStyle.Bold))
+            using (SolidBrush b = new SolidBrush(Dim))
+            using (StringFormat sf = new StringFormat())
+            {
+                sf.Alignment = StringAlignment.Center;
+                g.DrawString(text, f, b, new RectangleF(4, h - 20, w - 8, 16), sf);
+            }
+        }
+
+        private static void Label(Graphics g, string text, Color c, Font f, float x, float y)
+        {
+            using (SolidBrush b = new SolidBrush(c)) g.DrawString(text, f, b, x, y);
         }
     }
 }
