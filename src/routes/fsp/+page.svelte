@@ -7,14 +7,18 @@
 	 * `.fsp-root` (see src/lib/fsp/fsp-theme.css). Currently two entries: the
 	 * Pawn Build Wizard SolidWorks plugin download (first section, per spec)
 	 * and a link through to the live /fsp-tech-selection ranking tool.
+	 *
+	 * Install steps mirror tools/fsp-pawn-addin/README-install.md exactly:
+	 * SOLIDWORKS discovers COM add-ins through the Windows registry, not a
+	 * browsable manifest file, so registration is register.bat (self-elevating
+	 * RegAsm /codebase), not a "Tools > Add-ins > Browse" flow.
 	 */
 
 	const installSteps = [
 		'Extract the zip to C:\\SolidWorks Addins\\IDEA\\FspPawnAddin\\',
+		'Right-click register.bat in that folder and choose Run as administrator (a plain double-click also works: it requests elevation itself)',
 		'Open SolidWorks 2025',
-		'Go to Tools > Add-ins',
-		'Click Browse and open FspPawnAddin.addin from that folder',
-		'Check the box next to IDEA FSP Pawn Build and click OK',
+		'Go to Tools > Add-ins and check the box next to IDEA FSP Pawn Build (both columns, to load now and at startup)',
 		'The Pawn Build panel will appear in the SolidWorks task pane'
 	];
 </script>
