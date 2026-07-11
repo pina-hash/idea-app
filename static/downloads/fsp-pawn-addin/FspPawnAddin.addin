@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  IDEA FSP Pawn Build - SolidWorks add-in manifest (DISTRIBUTION copy).
+
+  This is a deployment descriptor, not something SOLIDWORKS reads directly:
+  SOLIDWORKS discovers classic COM add-ins (this one included) through the
+  Windows registry, not by browsing to a manifest file. Run register.bat
+  (included in this download, right-click > Run as administrator) to
+  register the add-in; that writes the registry keys listed below via the
+  add-in's own [ComRegisterFunction], and SOLIDWORKS then lists and loads it
+  automatically. See the install steps on the FSP hub page / README-install.md
+  in the source tree (tools/fsp-pawn-addin/).
+
+  The Library path below is the fixed classroom install location this
+  download is meant to be extracted to.
+-->
+<SolidWorksAddin>
+  <Title>IDEA FSP Pawn Build</Title>
+  <Description>Pawn build wizard for FSP students</Description>
+  <TaskPaneTitle>PAWN BUILD</TaskPaneTitle>
+  <ClassId>{4D61B045-40AC-4FE7-9B65-51C2CD1CA138}</ClassId>
+  <ProgId>IdeaFspPawn.FspPawnAddin</ProgId>
+  <Library>C:\SolidWorks Addins\IDEA\FspPawnAddin\FspPawnAddin.dll</Library>
+  <TargetFramework>.NETFramework,Version=v4.8</TargetFramework>
+  <LoadAtStartup>true</LoadAtStartup>
+  <RegistryKeys>
+    <Key hive="HKLM">SOFTWARE\SolidWorks\Addins\{4D61B045-40AC-4FE7-9B65-51C2CD1CA138}</Key>
+    <Key hive="HKCU">Software\SolidWorks\AddInsStartup\{4D61B045-40AC-4FE7-9B65-51C2CD1CA138}</Key>
+  </RegistryKeys>
+</SolidWorksAddin>
