@@ -1552,6 +1552,27 @@ Tech navy/gold with a standard system-sans stack, all scoped under `.fsp-root`
   failures"), plus an on-screen endpoint log, so the ranking interaction, the
   duplicate guard, the debounce collapsing, and the error/retry/backoff are
   browser-verifiable end to end without OAuth or the live sheet.
+- **FSP Pawn Build Wizard (SolidWorks add-in, `tools/fsp-pawn-addin/`):** a
+  second .NET Framework 4.8 SOLIDWORKS COM add-in (own GUID, task pane "PAWN
+  BUILD"), structurally mirroring the GAUNTLET add-in (C# 5 sources so the
+  no-VS `build.ps1` framework-csc path works; framework MSBuild also builds
+  it; four interops referenced, `swcommands` added because the Revolve
+  RunCommand id lives there, not in `swconst`). It replaces the FSP 13-step
+  paper guide with a five-phase wizard for freshmen with no CAD experience:
+  copy/rename/open the classroom template from
+  `%USERPROFILE%\Desktop\IDEA_FSP\` (OneDrive-redirected Desktop fallback),
+  one-click open of the `Pawn_Profile` sketch, a 2 s closed-loop poll
+  (`ISketch.GetSketchContours`, which returns only closed contours) gating the
+  REVOLVE button, auto-launched Revolved Boss/Base with the construction
+  centerline pre-selected and a 1 s feature-count poll detecting completion,
+  then auto-save + STEP AP214 export + a pre-filled Gmail compose to the
+  teacher. AP214 is forced via the `swStepAP` system preference (the shipped
+  interops have no `IExportStepData`). Classroom values (teacher email,
+  subject/body, folder/template/sketch names) are constants at the top of
+  `PawnWizardPanel.cs`, each overridable WITHOUT a recompile by a
+  `pawn-wizard-config.txt` dropped next to the DLL. Not part of the SvelteKit
+  build; install/registration (self-elevating `register.bat` around 64-bit
+  RegAsm) is in its `README-install.md`.
 
 ## Version + changelog substrate
 
