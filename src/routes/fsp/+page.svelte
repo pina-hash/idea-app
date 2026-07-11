@@ -1,12 +1,15 @@
 <script lang="ts">
-	import '$lib/fsp/fsp-theme.css';
+	import VersionBadge from '$lib/VersionBadge.svelte';
 
 	/**
-	 * /fsp — the FSP (Freshman Summer Program) hub. Public, no auth gate (like
-	 * every other FSP surface). Neutral Bosco Tech theme, scoped under
-	 * `.fsp-root` (see src/lib/fsp/fsp-theme.css). Currently two entries: the
-	 * Pawn Build Wizard SolidWorks plugin download (first section, per spec)
-	 * and a link through to the live /fsp-tech-selection ranking tool.
+	 * /fsp — the FSP (Freshman Summer Program) hub. Public, no auth gate. FSP is
+	 * an IDEA pathway activity, so this page follows the standard IDEA-green /
+	 * Rajdhani / Share Tech Mono app-shell design system (tokens + classes in
+	 * app.css), NOT the neutral Bosco Tech theme used by /fsp-tech-selection
+	 * (that tool is deliberately schoolwide-branded, per its own header comment;
+	 * this hub is not, so it does not import fsp-theme.css). Two sections: the
+	 * Pawn Build Wizard SolidWorks plugin download (first, per spec) and a link
+	 * through to the live /fsp-tech-selection ranking tool.
 	 *
 	 * Install steps mirror tools/fsp-pawn-addin/README-install.md exactly:
 	 * SOLIDWORKS discovers COM add-ins through the Windows registry, not a
@@ -15,114 +18,96 @@
 	 */
 
 	const installSteps = [
-		'Extract the zip to C:\\SolidWorks Addins\\IDEA\\FspPawnAddin\\',
+		'Extract the zip to a folder you keep (not a temp folder), e.g. C:\\SolidWorks Addins\\IDEA\\FspPawnAddin\\',
 		'Right-click register.bat in that folder and choose Run as administrator (a plain double-click also works: it requests elevation itself)',
 		'Open SolidWorks 2025',
 		'Go to Tools > Add-ins and check the box next to IDEA FSP Pawn Build (both columns, to load now and at startup)',
-		'The Pawn Build panel will appear in the SolidWorks task pane'
+		'The PAWN BUILD panel appears in the task pane strip on the right'
 	];
 </script>
 
 <svelte:head>
-	<title>Bosco Tech — FSP</title>
+	<title>FSP // IDEA</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="fsp-root">
-	<div class="hub">
-		<header class="hub-header">
-			<p class="eyebrow">Freshman Summer Program</p>
-			<h1>FSP Tools</h1>
-		</header>
+<main>
+	<section class="hero">
+		<span class="eyebrow">Freshman Summer Program</span>
+		<a class="wordmark" href="/">IDEA</a>
+		<p class="lead">Tools for incoming freshmen during FSP.</p>
+	</section>
 
-		<section class="plugin-card" aria-labelledby="plugin-title">
-			<div class="plugin-head">
-				<div>
-					<h2 id="plugin-title">PAWN BUILD PLUGIN</h2>
-					<p class="plugin-subtitle">SolidWorks 2025 Add-in</p>
-				</div>
-				<a class="btn-download" href="/downloads/fsp-pawn-addin.zip">DOWNLOAD</a>
-			</div>
-
-			<p class="plugin-desc">
-				Guides incoming students through the Day 1 chess pawn build. Automates file setup, sketch
-				entry, and STEP export. Replaces the paper guide.
-			</p>
-
-			<dl class="requirements">
-				<dt>Requires</dt>
-				<dd>SolidWorks 2025, Windows 10 or later</dd>
-			</dl>
-
-			<div class="plugin-grid">
-				<div class="plugin-col">
-					<h3>Installation</h3>
-					<ol class="steps">
-						{#each installSteps as step (step)}
-							<li>{step}</li>
-						{/each}
-					</ol>
-				</div>
-
-				<div class="plugin-col">
-					<h3>Classroom setup</h3>
-					<div class="callout">
-						<p>
-							No template setup needed. The plugin creates each student's starting part (in inches)
-							and saves their work to an <strong>IDEA_FSP</strong> folder it makes on the Desktop.
-						</p>
-					</div>
-				</div>
-			</div>
-		</section>
-
-		<section class="link-card">
+	<section class="card plugin-card" aria-labelledby="plugin-title">
+		<div class="plugin-head">
 			<div>
-				<h2>Tech Selection</h2>
-				<p>Rank your top four Bosco Tech pathways during FSP.</p>
+				<h2 id="plugin-title">PAWN BUILD PLUGIN</h2>
+				<p class="plugin-subtitle">SolidWorks 2025 Add-in</p>
 			</div>
-			<a class="btn-secondary" href="/fsp-tech-selection">Open Tech Selection &rarr;</a>
-		</section>
-	</div>
-</div>
+			<a class="btn" href="/downloads/fsp-pawn-addin.zip" download>Download</a>
+		</div>
+
+		<p class="lead">
+			Guided wizard for the Day 1 chess pawn build. Automates file setup, sketch entry, and STEP
+			export.
+		</p>
+
+		<p class="requires">
+			<span class="requires-key">Requires</span>
+			<span class="mono requires-val">SolidWorks 2025, Windows 10 or later</span>
+		</p>
+
+		<div class="plugin-grid">
+			<div>
+				<h3 class="sub-heading">Installation</h3>
+				<ol class="setup-steps">
+					{#each installSteps as step (step)}
+						<li>{step}</li>
+					{/each}
+				</ol>
+			</div>
+
+			<div>
+				<h3 class="sub-heading">Classroom setup</h3>
+				<div class="note">
+					<p>
+						No template setup needed. The plugin creates each student's starting part (in
+						inches) and saves their work to an <strong>IDEA_FSP</strong> folder it makes on the
+						Desktop.
+					</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<a class="card link-card" href="/fsp-tech-selection">
+		<div>
+			<h2>Tech Selection</h2>
+			<p class="lead">Rank your top four Bosco Tech pathways during FSP.</p>
+		</div>
+		<span class="btn secondary" aria-hidden="true">Open &rarr;</span>
+	</a>
+
+	<p class="page-version"><VersionBadge app="portal" /></p>
+</main>
 
 <style>
-	.hub {
+	main {
 		max-width: 760px;
-		margin: 0 auto;
-		padding: 2.25rem 1.25rem 4rem;
 	}
-	.hub-header {
-		margin-bottom: 1.75rem;
+	.hero {
+		text-align: left;
+		padding: 1rem 0 2rem;
 	}
-	.eyebrow {
-		margin: 0 0 0.2rem;
-		font-size: 0.78rem;
-		font-weight: 700;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--fsp-gold);
-	}
-	.hub-header h1 {
-		margin: 0;
-		font-size: 2rem;
-		font-weight: 800;
-		color: var(--fsp-navy);
-	}
-
-	.plugin-card,
-	.link-card {
-		background: var(--fsp-surface);
-		border: 1px solid var(--fsp-line);
-		border-radius: 14px;
-		box-shadow: 0 8px 30px rgba(10, 37, 64, 0.08);
+	.hero .wordmark {
+		display: block;
+		font-size: clamp(2.4rem, 8vw, 3.4rem);
+		margin: 0.3rem 0 0.6rem;
 	}
 
 	.plugin-card {
 		padding: 1.75rem 1.75rem 2rem;
-		margin-bottom: 1.5rem;
 	}
-
 	.plugin-head {
 		display: flex;
 		align-items: flex-start;
@@ -132,64 +117,36 @@
 	}
 	.plugin-head h2 {
 		margin: 0;
-		font-size: 1.35rem;
-		font-weight: 800;
-		letter-spacing: 0.02em;
-		color: var(--fsp-navy);
 	}
 	.plugin-subtitle {
-		margin: 0.15rem 0 0;
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: var(--fsp-muted);
+		margin: 0.3rem 0 0;
+		font-family: var(--font-mono);
+		font-size: 0.78rem;
+		letter-spacing: 0.06em;
+		color: var(--cyan);
 	}
 
-	.btn-download {
-		flex: 0 0 auto;
-		display: inline-block;
-		font: inherit;
-		font-weight: 800;
-		font-size: 0.88rem;
-		letter-spacing: 0.03em;
-		padding: 0.7rem 1.4rem;
-		border-radius: 9px;
-		background: var(--fsp-gold);
-		color: var(--fsp-navy-deep);
-		text-decoration: none;
-		white-space: nowrap;
-	}
-	.btn-download:hover {
-		background: var(--fsp-gold-soft);
-	}
-
-	.plugin-desc {
-		margin: 1.1rem 0 1.4rem;
-		color: var(--fsp-ink);
-		line-height: 1.55;
-	}
-
-	.requirements {
-		margin: 0 0 1.5rem;
-		padding: 0.65rem 0.9rem;
-		background: var(--fsp-surface-2);
-		border: 1px solid var(--fsp-line);
-		border-radius: 8px;
+	.requires {
 		display: flex;
-		gap: 0.5rem;
 		align-items: baseline;
+		gap: 0.6rem;
 		flex-wrap: wrap;
+		margin: 1rem 0 1.5rem;
+		padding: 0.6rem 0.9rem;
+		background: var(--bg2);
+		border: 1px solid var(--line);
+		border-radius: 3px;
 	}
-	.requirements dt {
-		font-size: 0.75rem;
-		font-weight: 700;
+	.requires-key {
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		letter-spacing: 0.12em;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--fsp-muted);
+		color: var(--green);
 	}
-	.requirements dd {
-		margin: 0;
-		font-size: 0.88rem;
-		color: var(--fsp-ink);
+	.requires-val {
+		font-size: 0.85rem;
+		color: var(--cyan);
 	}
 
 	.plugin-grid {
@@ -203,63 +160,68 @@
 		}
 	}
 
-	.plugin-col h3 {
+	.sub-heading {
+		color: var(--green);
+		font-family: var(--font-display);
+		font-size: 1rem;
+		letter-spacing: 0.04em;
+		text-transform: uppercase;
 		margin: 0 0 0.6rem;
-		font-size: 0.95rem;
-		font-weight: 800;
-		color: var(--fsp-navy);
 	}
 
-	.steps {
+	.setup-steps {
 		margin: 0;
-		padding-left: 1.25rem;
-		color: var(--fsp-ink);
-		font-size: 0.9rem;
-		line-height: 1.65;
+		padding-left: 1.2rem;
+		display: grid;
+		gap: 0.6rem;
 	}
-	.steps li {
-		margin-bottom: 0.25rem;
+	.setup-steps li {
+		color: var(--white);
+		font-size: 0.88rem;
+		line-height: 1.6;
+	}
+	.setup-steps li::marker {
+		color: var(--green);
+		font-family: var(--font-mono);
 	}
 
-	.callout {
-		background: color-mix(in srgb, var(--fsp-gold) 12%, #fff);
-		border: 1px solid color-mix(in srgb, var(--fsp-gold) 50%, transparent);
-		border-radius: 8px;
+	.note {
+		background: var(--bg2);
+		border: 1px solid var(--line-strong);
+		border-left-width: 3px;
+		border-radius: 3px;
 		padding: 0.85rem 1rem;
 	}
-	.callout p {
+	.note p {
 		margin: 0;
 		font-size: 0.88rem;
 		line-height: 1.55;
-		color: var(--fsp-navy);
+		color: var(--white);
+	}
+	.note strong {
+		color: var(--green);
 	}
 
 	.link-card {
-		padding: 1.4rem 1.75rem;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: 1.25rem;
 		flex-wrap: wrap;
+		text-decoration: none;
+		transition:
+			border-color 0.2s,
+			box-shadow 0.2s;
+	}
+	.link-card:hover {
+		border-color: var(--line-strong);
+		box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.15);
 	}
 	.link-card h2 {
-		margin: 0 0 0.2rem;
-		font-size: 1.15rem;
-		font-weight: 800;
-		color: var(--fsp-navy);
+		margin: 0 0 0.3rem;
 	}
-	.link-card p {
+	.link-card .lead {
 		margin: 0;
-		font-size: 0.88rem;
-		color: var(--fsp-muted);
-	}
-	.btn-secondary {
-		flex: 0 0 auto;
-		font-size: 0.88rem;
-		font-weight: 700;
-		color: var(--fsp-navy-2);
-		text-decoration: none;
-		border-bottom: 1px dotted currentColor;
-		white-space: nowrap;
+		font-size: 0.9rem;
 	}
 </style>
