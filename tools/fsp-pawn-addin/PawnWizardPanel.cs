@@ -62,23 +62,39 @@ namespace IdeaFspPawn
         private const double DogBodyHalfW = 0.5625 * InchToM;  // 1.125 in wide  -> half
         private const double DogBodyHalfH = 1.0 * InchToM;     // 2.0 in tall    -> half
         private const double DogCornerMil = 0.125 * InchToM;   // MILITARY corner radius
-        private const double DogCornerRect = 0.0625 * InchToM; // RECT corner radius
         private const double DogRoundR = 0.6875 * InchToM;     // 1.375 in dia   -> radius
         private const double DogHoleR = 0.09375 * InchToM;     // 0.1875 in dia  -> radius
         private const double DogHoleFromTop = 0.15 * InchToM;  // hole center below top edge
         private const double DogDepth = 0.037 * InchToM;       // extrusion (part thickness)
-        private const double DogNameH = 0.175 * InchToM;       // name text height
+        private const double DogNameH = 0.175 * InchToM;       // name text height (max, auto-scaled)
         private const double DogDateH = 0.1 * InchToM;         // "IDEA FSP <year>" text height
-        private const double DogDateGap = 0.25 * InchToM;      // gap below the name
+        private const double DogDateGap = 0.18 * InchToM;      // gap below the name
+        private const double DogTextMaxWidthFrac = 0.82;       // text must fit this fraction of tag width
+        // Glyph flatten tolerance in the 256px em space (bigger = fewer, coarser
+        // line segments). ~1.2 keeps the model sketch light while staying smooth
+        // at the final ~4mm text size (well under laser resolution).
+        private const float GlyphFlattenPx = 2.0f;
 
         private const string DogtagBodySketch = "Dogtag_Body";
         private const string DogtagEngraveSketch = "Dogtag_Engrave";
+        private const string DogtagImageFeature = "Dogtag_Image";
 
-        // Dogtag shape choices.
+        // Dogtag shape choices (RECT removed: it duplicated MILITARY).
         private const int ShapeMilitary = 0;
         private const int ShapeRound = 1;
-        private const int ShapeRect = 2;
-        private const int ShapeCustom = 3;
+        private const int ShapeCustom = 2;
+
+        // Text placement presets (name vertical position on the tag).
+        private const int PosCenter = 0;
+        private const int PosUpper = 1;
+        private const int PosLower = 2;
+
+        // Text direction: across the tag (normal) or along its long axis (90deg).
+        private const int DirAcross = 0;
+        private const int DirAlong = 1;
+
+        // Laser-friendly font choices offered in the picker (first is default).
+        private static readonly string[] DogtagFonts = { "Arial", "Century Gothic", "Verdana", "Consolas" };
 
         // UI spec palette.
         private static readonly Color Bg = Color.FromArgb(0x1A, 0x1A, 0x1A);
@@ -136,6 +152,9 @@ namespace IdeaFspPawn
 
         // DOGTAG state + controls.
         private int dogtagShape = ShapeMilitary;
+        private int dogtagTextPos = PosCenter;
+        private int dogtagTextDir = DirAcross;
+        private string dogtagFont = "Arial";
         private string dogtagImagePath = "";      // uploaded reference image (optional)
         private string dogtagImageDest = "";      // where it was copied on export
         private bool dogtagImageHasColor;
@@ -145,6 +164,9 @@ namespace IdeaFspPawn
         private TextBox txtDogName;
         private Label lblDogNameError;
         private Button[] shapeButtons;
+        private ComboBox cmbFont;
+        private ComboBox cmbTextPos;
+        private ComboBox cmbTextDir;
         private PictureBox imgThumb;
         private Bitmap imgThumbBmp;
         private Label lblImgName;
@@ -1723,7 +1745,10 @@ namespace IdeaFspPawn
 
             Button another = MakeSecondaryButton("BUILD ANOTHER PAWN", 40);
             another.Click += OnBuildAnotherClick;
-            AddRow(t, another, 16);
+            AddRow(t, another, 6);
+            Button toDogtag = MakeSecondaryButton("DESIGN A DOGTAG INSTEAD", 40);
+            toDogtag.Click += OnSwitchToDogtag;
+            AddRow(t, toDogtag, 16);
 
             AddRow(t, MakeLabel(studentName + "'s pawn is ready. See you tomorrow.", Green, BodyBoldFont), 0);
 
@@ -1743,6 +1768,25 @@ namespace IdeaFspPawn
             partPath = "";
             stepPath = "";
             fspFolder = "";
+            ShowPhase(0);
+            if (txtFirstName != null) txtFirstName.Text = studentName;
+        }
+
+        /// <summary>Switch to the DOGTAG flow from the pawn finish screen.</summary>
+        private void OnSwitchToDogtag(object sender, EventArgs e)
+        {
+            mode = 2;
+            partPath = ""; stepPath = ""; dxfPath = ""; fspFolder = "";
+            dogtagImagePath = ""; dogtagImageDest = ""; dogtagImageHasColor = false;
+            dogtagExportDone = false; dogtagShape = ShapeMilitary;
+            ShowPhase(0);
+        }
+
+        /// <summary>Switch to the PAWN flow from the dogtag finish screen.</summary>
+        private void OnSwitchToPawn(object sender, EventArgs e)
+        {
+            mode = 1;
+            partPath = ""; stepPath = ""; dxfPath = ""; fspFolder = "";
             ShowPhase(0);
             if (txtFirstName != null) txtFirstName.Text = studentName;
         }
@@ -1875,30 +1919,46 @@ namespace IdeaFspPawn
             lblDogNameError.Visible = false;
             AddRow(t, lblDogNameError, 14);
 
-            // Shape picker: 2x2 grid of toggle buttons, one selected at a time.
+            // Shape picker: three toggle buttons in a row, one selected at a time.
             AddRow(t, MakeLabel("Pick your shape:", TextPrimary, BodyBoldFont), 6);
             TableLayoutPanel grid = new TableLayoutPanel();
-            grid.ColumnCount = 2;
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
-            grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50f));
-            grid.RowCount = 2;
+            grid.ColumnCount = 3;
+            for (int i = 0; i < 3; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+            grid.RowCount = 1;
             grid.Dock = DockStyle.Fill;
             grid.AutoSize = true;
             grid.Margin = new Padding(0);
             grid.BackColor = Bg;
-            shapeButtons = new Button[4];
+            shapeButtons = new Button[3];
             shapeButtons[0] = MakeShapeButton("MILITARY", ShapeMilitary);
             shapeButtons[1] = MakeShapeButton("ROUND", ShapeRound);
-            shapeButtons[2] = MakeShapeButton("RECT", ShapeRect);
-            shapeButtons[3] = MakeShapeButton("CUSTOM", ShapeCustom);
+            shapeButtons[2] = MakeShapeButton("CUSTOM", ShapeCustom);
             grid.Controls.Add(shapeButtons[0], 0, 0);
             grid.Controls.Add(shapeButtons[1], 1, 0);
-            grid.Controls.Add(shapeButtons[2], 0, 1);
-            grid.Controls.Add(shapeButtons[3], 1, 1);
+            grid.Controls.Add(shapeButtons[2], 2, 0);
             AddRow(t, grid, 4);
             AddRow(t, MakeLabel("MILITARY is the classic tag. CUSTOM lets you draw your "
                 + "own outline.", TextSecondary, SmallFont), 14);
             RefreshShapeButtons();
+
+            // Text style: font + placement.
+            AddRow(t, MakeLabel("Text style", TextPrimary, BodyBoldFont), 6);
+            AddRow(t, MakeLabel("Font", TextSecondary, SmallFont), 2);
+            cmbFont = MakeCombo(DogtagFonts);
+            cmbFont.SelectedItem = dogtagFont;
+            if (cmbFont.SelectedIndex < 0) cmbFont.SelectedIndex = 0;
+            cmbFont.SelectedIndexChanged += OnFontChanged;
+            AddRow(t, cmbFont, 8);
+            AddRow(t, MakeLabel("Name position", TextSecondary, SmallFont), 2);
+            cmbTextPos = MakeCombo(new[] { "Centered", "Upper half", "Lower half" });
+            cmbTextPos.SelectedIndex = dogtagTextPos;
+            cmbTextPos.SelectedIndexChanged += OnTextPosChanged;
+            AddRow(t, cmbTextPos, 8);
+            AddRow(t, MakeLabel("Text direction", TextSecondary, SmallFont), 2);
+            cmbTextDir = MakeCombo(new[] { "Across the tag", "Along the tag (sideways)" });
+            cmbTextDir.SelectedIndex = dogtagTextDir;
+            cmbTextDir.SelectedIndexChanged += OnTextDirChanged;
+            AddRow(t, cmbTextDir, 14);
 
             // Optional image upload.
             AddRow(t, MakeLabel("Add a picture (optional)", TextPrimary, BodyBoldFont), 4);
@@ -1951,7 +2011,7 @@ namespace IdeaFspPawn
         {
             Button b = MakeSecondaryButton(text, 40);
             b.Tag = shape;
-            b.Margin = new Padding(0, 0, (shape % 2 == 0 ? 6 : 0), 6);
+            b.Margin = new Padding(0, 0, (shape < ShapeCustom ? 6 : 0), 0);
             b.Click += OnShapePick;
             return b;
         }
@@ -1977,6 +2037,36 @@ namespace IdeaFspPawn
                 b.FlatAppearance.MouseOverBackColor = sel
                     ? Color.FromArgb(0x00, 0xDD, 0x38) : Color.FromArgb(0x3F, 0x3F, 0x3F);
             }
+        }
+
+        private ComboBox MakeCombo(string[] items)
+        {
+            ComboBox c = new ComboBox();
+            c.DropDownStyle = ComboBoxStyle.DropDownList;
+            c.FlatStyle = FlatStyle.Flat;
+            c.BackColor = BgPanel;
+            c.ForeColor = TextPrimary;
+            c.Font = BodyFont;
+            c.Dock = DockStyle.Fill;
+            c.Margin = new Padding(0);
+            c.Items.AddRange(items);
+            return c;
+        }
+
+        private void OnFontChanged(object sender, EventArgs e)
+        {
+            if (cmbFont != null && cmbFont.SelectedItem != null)
+                dogtagFont = cmbFont.SelectedItem.ToString();
+        }
+
+        private void OnTextPosChanged(object sender, EventArgs e)
+        {
+            if (cmbTextPos != null) dogtagTextPos = cmbTextPos.SelectedIndex;
+        }
+
+        private void OnTextDirChanged(object sender, EventArgs e)
+        {
+            if (cmbTextDir != null) dogtagTextDir = cmbTextDir.SelectedIndex;
         }
 
         private void OnUploadImageClick(object sender, EventArgs e)
@@ -2154,7 +2244,7 @@ namespace IdeaFspPawn
                 else
                 {
                     string exErr;
-                    if (!ExtrudeDogtagBody(out exErr))
+                    if (!ExtrudeThenEngrave(out exErr))
                         ShowError(exErr + " You can still review and export.");
                     ShowPhase(2);
                 }
@@ -2163,6 +2253,22 @@ namespace IdeaFspPawn
             {
                 ShowError(ex.Message + " Raise your hand.");
             }
+        }
+
+        /// <summary>Extrudes the body, THEN builds the engrave sketch on top, so the
+        /// engrave sketch is the last feature and editing it never hides the body.</summary>
+        private bool ExtrudeThenEngrave(out string error)
+        {
+            if (!ExtrudeDogtagBody(out error)) return false;
+            IModelDoc2 model = ActiveModel();
+            if (model != null)
+            {
+                bool imgFail = false;
+                try { BuildEngraveSketch(model, out imgFail); } catch { }
+                if (imgFail)
+                    ShowError("Image preview unavailable - your image file will still be submitted separately.");
+            }
+            return true;
         }
 
         /// <summary>
@@ -2202,10 +2308,9 @@ namespace IdeaFspPawn
                 sm.InsertSketch(true);
 
                 double holeY;
-                if (shape == ShapeMilitary || shape == ShapeRect)
+                if (shape == ShapeMilitary)
                 {
-                    CreateRoundedRect(sm, DogBodyHalfW, DogBodyHalfH,
-                        shape == ShapeRect ? DogCornerRect : DogCornerMil);
+                    CreateRoundedRect(sm, DogBodyHalfW, DogBodyHalfH, DogCornerMil);
                     holeY = DogBodyHalfH - DogHoleFromTop;
                 }
                 else if (shape == ShapeRound)
@@ -2236,10 +2341,10 @@ namespace IdeaFspPawn
                 return null;
             }
 
-            // Engrave sketch (reference only).
-            try { BuildEngraveSketch(model, out imageFailed); }
-            catch { imageFailed = imageFailed || !string.IsNullOrEmpty(dogtagImagePath); }
-
+            // NOTE: the engrave sketch is built AFTER the extrude (see
+            // ExtrudeThenEngrave), so it is the LAST feature in the tree. That way
+            // editing it (EDIT TEXT / ARRANGE BY HAND) does not roll the model back
+            // and hide the tag body.
             return model;
         }
 
@@ -2266,13 +2371,22 @@ namespace IdeaFspPawn
             if (plane == null) return;
             plane.Select2(false, 0);
             ISketchManager sm = model.SketchManager;
-            sm.InsertSketch(true);
 
-            // Name, centered slightly above the middle; date a set gap below it.
-            InsertCenteredText(model, studentName, 0.0, DogNameH * 0.2, DogNameH);
-            int year = DateTime.Now.Year;
-            InsertCenteredText(model, "IDEA FSP " + year.ToString(CultureInfo.InvariantCulture),
-                0.0, -(DogNameH + DogDateGap), DogDateH);
+            double nameH, dateH, nameCX, nameCY, dateCX, dateCY, angleDeg;
+            string dateText;
+            DogtagTextLayout(out nameH, out dateH, out nameCX, out nameCY,
+                out dateCX, out dateCY, out angleDeg, out dateText);
+
+            // Text is drawn as real glyph-OUTLINE geometry (line segments), never
+            // SolidWorks sketch-text (whose sizing/rotation proved unreliable).
+            // The model then shows exactly what the DXF engraves, at the right
+            // size and rotation, and the student can box-select + drag it.
+            bool prevAdd = false;
+            try { prevAdd = sm.AddToDB; sm.AddToDB = true; } catch { }
+            sm.InsertSketch(true);
+            CreateGlyphSketchLines(sm, studentName, dogtagFont, nameH, nameCX, nameCY, angleDeg);
+            CreateGlyphSketchLines(sm, dateText, dogtagFont, dateH, dateCX, dateCY, angleDeg);
+            try { sm.AddToDB = prevAdd; } catch { }
 
             // Optional reference image, centered below the text. Best-effort.
             if (!string.IsNullOrEmpty(dogtagImagePath) && File.Exists(dogtagImagePath))
@@ -2284,8 +2398,12 @@ namespace IdeaFspPawn
                     else
                     {
                         double side = 0.5 * InchToM;
+                        double imgY = (angleDeg == 0.0)
+                            ? Math.Min(dateCY, nameCY) - dateH - side - 0.03 * InchToM
+                            : -DogBodyHalfH * 0.55;
                         try { pic.SetSize(side, side, true); } catch { }
-                        try { pic.SetOrigin(-side / 2.0, -(DogNameH + DogDateGap + side + 0.05 * InchToM)); } catch { }
+                        try { pic.SetOrigin(-side / 2.0, imgY); } catch { }
+                        try { IFeature pf = pic.GetFeature() as IFeature; if (pf != null) pf.Name = DogtagImageFeature; } catch { }
                     }
                 }
                 catch { imageFailed = true; }
@@ -2297,24 +2415,114 @@ namespace IdeaFspPawn
             if (f != null) { try { f.Name = DogtagEngraveSketch; } catch { } }
         }
 
-        /// <summary>Inserts centered sketch text at (x,y) with a set character
-        /// height (meters). Height is applied through the text format.</summary>
-        private void InsertCenteredText(IModelDoc2 model, string text, double x, double y, double height)
+        /// <summary>
+        /// The shared name/date text layout: heights auto-scaled to fit the axis
+        /// the text runs along, plus the CENTER point of each string and the
+        /// rotation angle (0 = across the tag, 90 = along it). Used by the model
+        /// text and the DXF fallback so they match.
+        /// </summary>
+        private void DogtagTextLayout(out double nameH, out double dateH,
+            out double nameCX, out double nameCY, out double dateCX, out double dateCY,
+            out double angleDeg, out string dateText)
         {
-            if (string.IsNullOrEmpty(text)) return;
+            bool along = dogtagTextDir == DirAlong;
+            angleDeg = along ? 90.0 : 0.0;
+            bool half = dogtagTextPos == PosUpper || dogtagTextPos == PosLower;
+
+            // The text runs along the tag's width (across) or its length (along).
+            // Auto-scale against whichever axis it spans; for a sideways UPPER/LOWER
+            // choice the text must fit within HALF the length, so it stays inside
+            // that half instead of running off the end.
+            double runFull = along ? 2.0 * DogBodyHalfH : 2.0 * DogBodyHalfW;
+            double maxRun = runFull * DogTextMaxWidthFrac * ((along && half) ? 0.5 : 1.0);
+            nameH = FitTextHeight(studentName, DogNameH, maxRun, dogtagFont);
+            dateText = "IDEA FSP " + DateTime.Now.Year.ToString(CultureInfo.InvariantCulture);
+            dateH = FitTextHeight(dateText, DogDateH, maxRun, dogtagFont);
+
+            if (!along)
+            {
+                // Across: text is short (fits the width) and shifts up/down the
+                // long axis for upper/lower.
+                double nameCenter = dogtagTextPos == PosUpper ? 0.50 * DogBodyHalfH
+                                  : dogtagTextPos == PosLower ? -0.50 * DogBodyHalfH
+                                  : 0.10 * DogBodyHalfH;
+                nameCX = 0.0; nameCY = nameCenter;
+                dateCX = 0.0; dateCY = nameCenter - (nameH * 0.65 + dateH * 0.65 + 0.02 * InchToM);
+            }
+            else
+            {
+                // Sideways: name + date run UP the tag, side by side across the
+                // width. Upper/lower now shifts them into the top/bottom HALF of
+                // the length (accounting for the rotation), where they fit.
+                double runCenter = dogtagTextPos == PosUpper ? 0.50 * DogBodyHalfH
+                                 : dogtagTextPos == PosLower ? -0.50 * DogBodyHalfH
+                                 : 0.0;
+                nameCX = 0.13 * InchToM; nameCY = runCenter;
+                dateCX = -0.13 * InchToM; dateCY = runCenter;
+            }
+        }
+
+        /// <summary>Scales a text height DOWN so the string fits within maxWidth.
+        /// Measures the TIGHT glyph-path bounds (the metric the glyph outlines use).</summary>
+        private static double FitTextHeight(string text, double nominalH, double maxWidth, string fontName)
+        {
+            if (string.IsNullOrEmpty(text) || maxWidth <= 0) return nominalH;
             try
             {
-                ISketchText st = model.IInsertSketchText(x, y, 0.0, text,
-                    (int)swTextJustification_e.swTextJustificationCenter, 0, 0, 100, 100);
-                if (st == null) return;
-                ITextFormat tf = st.GetTextFormat() as ITextFormat;
-                if (tf != null)
+                double aspect = TextAspect(text, fontName);
+                if (aspect <= 0) return nominalH;
+                double widthAtNominal = aspect * nominalH;
+                if (widthAtNominal <= maxWidth) return nominalH;
+                double fit = maxWidth / aspect;
+                return fit > 0 ? fit : nominalH;
+            }
+            catch { return nominalH; }
+        }
+
+        /// <summary>The width/height aspect of a string's tight glyph bounds.</summary>
+        private static double TextAspect(string text, string fontName)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+            try
+            {
+                using (GraphicsPath gp = new GraphicsPath())
                 {
-                    tf.CharHeight = height;
-                    st.SetTextFormat(false, tf);
+                    using (FontFamily fam = SafeFontFamily(fontName))
+                        gp.AddString(text, fam, (int)FontStyle.Bold, 256f,
+                            new PointF(0, 0), StringFormat.GenericDefault);
+                    RectangleF b = gp.GetBounds();
+                    return (b.Height > 0) ? b.Width / b.Height : 0;
                 }
             }
-            catch { /* text is reference-only; never fail the build over it */ }
+            catch { return 0; }
+        }
+
+        /// <summary>
+        /// Draws a string as glyph-outline SKETCH GEOMETRY (line segments)
+        /// centered on (cxM, cyM), at heightM meters, rotated angleDeg. This is the
+        /// reliable replacement for SolidWorks sketch text: exact size, exact
+        /// rotation, and it matches the DXF byte-for-byte because both come from
+        /// the same glyph outlines.
+        /// </summary>
+        private void CreateGlyphSketchLines(ISketchManager sm, string text, string fontName,
+            double heightM, double cxM, double cyM, double angleDeg)
+        {
+            if (sm == null || string.IsNullOrEmpty(text) || heightM <= 0) return;
+            List<double[]> polys = new List<double[]>();
+            AppendGlyphOutlinesMm(polys, text, fontName, heightM * 1000.0,
+                cxM * 1000.0, cyM * 1000.0, angleDeg, true);
+            foreach (double[] poly in polys)
+            {
+                int n = poly.Length / 2;
+                for (int i = 0; i + 1 < n; i++)
+                {
+                    double x1 = poly[i * 2] / 1000.0, y1 = poly[i * 2 + 1] / 1000.0;
+                    double x2 = poly[(i + 1) * 2] / 1000.0, y2 = poly[(i + 1) * 2 + 1] / 1000.0;
+                    // Skip zero-length segments (SolidWorks rejects them).
+                    if (Math.Abs(x2 - x1) < 1e-7 && Math.Abs(y2 - y1) < 1e-7) continue;
+                    try { sm.CreateLine(x1, y1, 0.0, x2, y2, 0.0); } catch { }
+                }
+            }
         }
 
         /// <summary>Exits the body sketch (flipping its construction chain hole to
@@ -2337,8 +2545,13 @@ namespace IdeaFspPawn
                 model.ClearSelection2(true);
                 f.Select2(false, 0);
 
+                // Dir = true reverses the extrude so the body grows AWAY from the
+                // Front Plane (z=0). That keeps z=0 - where the engrave sketch and
+                // its reference PICTURE live - on the visible front face, so the
+                // student can see and DRAG the image (a raster picture, unlike
+                // sketch-line text, does not show through an opaque body).
                 object feat = model.FeatureManager.FeatureExtrusion3(
-                    true, false, false,
+                    true, false, true,
                     (int)swEndConditions_e.swEndCondBlind, 0, DogDepth, 0.0,
                     false, false, false, false, 0.0, 0.0,
                     false, false, false, false,
@@ -2448,7 +2661,7 @@ namespace IdeaFspPawn
         {
             if (!revolveArmed) return;
             string err;
-            if (!ExtrudeDogtagBody(out err))
+            if (!ExtrudeThenEngrave(out err))
             {
                 ShowError(err + " Raise your hand.");
                 return;
@@ -2468,26 +2681,192 @@ namespace IdeaFspPawn
 
             AddDogtagStepImage(t, 2, 14);
 
-            Button edit = MakeSecondaryButton("EDIT MY DESIGN", 44);
-            edit.Click += OnDogtagEditClick;
-            AddRow(t, edit, 10);
+            AddRow(t, MakeLabel("Want to change something?", TextSecondary, SmallFont), 4);
+            Button editOutline = MakeSecondaryButton("EDIT OUTLINE", 40);
+            editOutline.Click += OnEditOutlineClick;
+            AddRow(t, editOutline, 6);
+            Button editText = MakeSecondaryButton("EDIT TEXT", 40);
+            editText.Click += OnEditTextClick;
+            AddRow(t, editText, 6);
+            Button replaceImg = MakeSecondaryButton("REPLACE IMAGE", 40);
+            replaceImg.Click += OnReplaceImageClick;
+            AddRow(t, replaceImg, 6);
+            Button arrange = MakeSecondaryButton("ARRANGE BY HAND", 40);
+            arrange.Click += OnArrangeByHandClick;
+            AddRow(t, arrange, 14);
 
             Button export = MakePrimaryButton("EXPORT AND SUBMIT", 48);
             export.Click += OnDogtagExportClick;
             AddRow(t, export, 0);
         }
 
-        private void OnDogtagEditClick(object sender, EventArgs e)
+        /// <summary>
+        /// Opens the engrave sketch so the student can drag the text and image
+        /// into custom positions by hand. Walks them through it first. Whatever
+        /// they arrange is read back into the DXF at export, so it is exactly what
+        /// gets cut.
+        /// </summary>
+        private void OnArrangeByHandClick(object sender, EventArgs e)
+        {
+            MessageBox.Show(
+                "You can move your text and picture anywhere on the tag.\r\n\r\n"
+                + "1. Your sketch opens (you'll see your name, the date, and your picture).\r\n"
+                + "2. To move your NAME: drag a box around all of it with the mouse, "
+                + "then drag the highlighted letters to a new spot.\r\n"
+                + "3. To move the PICTURE: click it and drag; drag a corner dot to resize it.\r\n"
+                + "4. When it looks good, click EXIT SKETCH (the corner icon at the "
+                + "top-right of the drawing area).\r\n\r\n"
+                + "Whatever you arrange here is exactly what gets laser cut.",
+                "Arrange by hand", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                EnsureBodySketchOpen(DogtagEngraveSketch);
+                dogtagEditing = true;
+                sketchTimer.Start();   // return to review when the student exits
+            }
+            catch (Exception ex)
+            {
+                ShowError("Could not open the sketch to arrange. " + ex.Message);
+            }
+        }
+
+        /// <summary>Edit the outline in SolidWorks: open the body sketch and watch
+        /// for the student to leave it, then refresh the review.</summary>
+        private void OnEditOutlineClick(object sender, EventArgs e)
         {
             try
             {
                 EnsureBodySketchOpen(DogtagBodySketch);
                 dogtagEditing = true;
-                sketchTimer.Start();   // watch for the student to exit the sketch
+                sketchTimer.Start();
             }
             catch (Exception ex)
             {
-                ShowError("Could not open your design to edit. " + ex.Message);
+                ShowError("Could not open your outline to edit. " + ex.Message);
+            }
+        }
+
+        /// <summary>Edit the text WITHOUT SolidWorks: an in-pane editor for name,
+        /// font, and placement that rebuilds the engrave sketch on apply.</summary>
+        private void OnEditTextClick(object sender, EventArgs e)
+        {
+            ShowDogtagTextEditor();
+        }
+
+        private void OnReplaceImageClick(object sender, EventArgs e)
+        {
+            try
+            {
+                using (OpenFileDialog dlg = new OpenFileDialog())
+                {
+                    dlg.Title = "Pick a new picture for your dogtag";
+                    dlg.Filter = "Images (PNG, JPG, BMP)|*.png;*.jpg;*.jpeg;*.bmp";
+                    if (dlg.ShowDialog() != DialogResult.OK) return;
+                    dogtagImagePath = dlg.FileName;
+                    dogtagImageHasColor = SampleHasColor(dogtagImagePath);
+                }
+                IModelDoc2 model = ActiveModel();
+                if (model != null) RebuildEngraveSketch(model);
+                ShowPhase(2);
+            }
+            catch (Exception ex)
+            {
+                ShowError("Could not replace the image. " + ex.Message);
+            }
+        }
+
+        /// <summary>In-pane text editor (name / font / placement), mounted over the
+        /// review screen; APPLY rebuilds the engrave sketch, CANCEL returns.</summary>
+        private void ShowDogtagTextEditor()
+        {
+            wrapLabels.Clear();
+            DisposeStepImage();
+            contentHost.SuspendLayout();
+            while (contentHost.Controls.Count > 0)
+            {
+                Control old = contentHost.Controls[0];
+                contentHost.Controls.RemoveAt(0);
+                old.Dispose();
+            }
+
+            TableLayoutPanel t = NewPhaseTable();
+            AddRow(t, MakeLabel("EDIT YOUR TEXT", Green, TitleFont), 10);
+
+            AddRow(t, MakeLabel("Name", TextSecondary, SmallFont), 4);
+            txtDogName = MakeTextBox(BodyFont);
+            txtDogName.Text = studentName;
+            AddRow(t, txtDogName, 12);
+
+            AddRow(t, MakeLabel("Font", TextSecondary, SmallFont), 2);
+            cmbFont = MakeCombo(DogtagFonts);
+            cmbFont.SelectedItem = dogtagFont;
+            if (cmbFont.SelectedIndex < 0) cmbFont.SelectedIndex = 0;
+            cmbFont.SelectedIndexChanged += OnFontChanged;
+            AddRow(t, cmbFont, 8);
+
+            AddRow(t, MakeLabel("Name position", TextSecondary, SmallFont), 2);
+            cmbTextPos = MakeCombo(new[] { "Centered", "Upper half", "Lower half" });
+            cmbTextPos.SelectedIndex = dogtagTextPos;
+            cmbTextPos.SelectedIndexChanged += OnTextPosChanged;
+            AddRow(t, cmbTextPos, 8);
+
+            AddRow(t, MakeLabel("Text direction", TextSecondary, SmallFont), 2);
+            cmbTextDir = MakeCombo(new[] { "Across the tag", "Along the tag (sideways)" });
+            cmbTextDir.SelectedIndex = dogtagTextDir;
+            cmbTextDir.SelectedIndexChanged += OnTextDirChanged;
+            AddRow(t, cmbTextDir, 16);
+
+            Button apply = MakePrimaryButton("APPLY", 48);
+            apply.Click += OnApplyTextEditClick;
+            AddRow(t, apply, 8);
+            Button cancel = MakeSecondaryButton("CANCEL", 40);
+            cancel.Click += delegate { ShowPhase(2); };
+            AddRow(t, cancel, 0);
+
+            contentHost.Controls.Add(t);
+            contentHost.ResumeLayout();
+            ApplyWrapWidths();
+        }
+
+        private void OnApplyTextEditClick(object sender, EventArgs e)
+        {
+            string name = txtDogName.Text == null ? "" : txtDogName.Text.Trim();
+            if (name.Length == 0 || SanitizeForFileName(name).Length == 0)
+            {
+                ShowError("Type a name (letters).");
+                return;
+            }
+            studentName = name;
+            if (cmbFont != null && cmbFont.SelectedItem != null) dogtagFont = cmbFont.SelectedItem.ToString();
+            if (cmbTextPos != null) dogtagTextPos = cmbTextPos.SelectedIndex;
+            if (cmbTextDir != null) dogtagTextDir = cmbTextDir.SelectedIndex;
+            IModelDoc2 model = ActiveModel();
+            if (model != null) RebuildEngraveSketch(model);
+            ShowPhase(2);
+        }
+
+        /// <summary>Deletes and rebuilds the engrave sketch from the current name /
+        /// font / placement / image state, so both the model and the DXF update.</summary>
+        private void RebuildEngraveSketch(IModelDoc2 model)
+        {
+            try
+            {
+                IFeature f = FindFeature(model, DogtagEngraveSketch);
+                if (f != null)
+                {
+                    model.ClearSelection2(true);
+                    f.Select2(false, 0);
+                    model.EditDelete();
+                }
+                bool imgFail;
+                BuildEngraveSketch(model, out imgFail);
+                try { model.EditRebuild3(); } catch { }
+                if (imgFail)
+                    ShowError("Image preview unavailable - your image file will still be submitted separately.");
+            }
+            catch (Exception ex)
+            {
+                ShowError("Could not update your design. " + ex.Message);
             }
         }
 
@@ -2529,12 +2908,13 @@ namespace IdeaFspPawn
             try { model.Save3((int)swSaveAsOptions_e.swSaveAsOptions_Silent, ref e, ref w); }
             catch { }
 
-            // 2. DXF export of the front face.
-            int dxfErr;
-            bool dxfOk = ExportDogtagDxf(out dxfErr);
+            // 2. DXF: written directly (two layers CUT + ENGRAVE, mm units) from
+            // the tag geometry and glyph outlines, so xTool gets exactly what it
+            // needs regardless of SolidWorks' own DXF export.
+            string dxfErr;
+            bool dxfOk = WriteDogtagDxf(out dxfErr);
             if (!dxfOk)
-                ShowError("DXF export failed " + dxfErr.ToString(CultureInfo.InvariantCulture)
-                    + ". Save manually: File > Save As > DXF, select the front face.");
+                ShowError("DXF export failed. " + dxfErr + " Raise your hand.");
 
             // 3. Copy the reference image into the folder for separate submission.
             dogtagImageDest = "";
@@ -2570,64 +2950,307 @@ namespace IdeaFspPawn
             BuildDogtagPostExport();
         }
 
-        private bool ExportDogtagDxf(out int errCode)
+        /// <summary>
+        /// Writes the laser DXF directly (no SolidWorks DXF export): a CUT layer
+        /// (the tag outline + chain hole, read from the body sketch and tessellated
+        /// through ICurve) and an ENGRAVE layer (the name + date as exploded glyph
+        /// outlines from GDI+). All coordinates are millimeters (xTool expects mm),
+        /// so SolidWorks' meters are scaled x1000. Text is real curves, never DXF
+        /// text entities, so the laser renders it reliably.
+        /// </summary>
+        private bool WriteDogtagDxf(out string error)
         {
-            errCode = 0;
+            error = "";
             try
             {
                 IModelDoc2 model = ActiveModel();
-                if (model == null) { errCode = -1; return false; }
-                if (!SelectLargestPlanarFace(model)) { errCode = -2; return false; }
-                int e = 0, w = 0;
-                bool ok;
-                try
+                if (model == null) { error = "Your dogtag file is not open."; return false; }
+
+                List<double[]> cutPolys = new List<double[]>();   // each: x0,y0,x1,y1,... (mm)
+                List<double[]> cutCircles = new List<double[]>(); // each: cx,cy,r (mm)
+                ReadSketchCurvesMm(model, DogtagBodySketch, cutPolys, cutCircles);
+                if (cutPolys.Count == 0 && cutCircles.Count == 0)
                 {
-                    ok = model.Extension.SaveAs(dxfPath,
-                        (int)swSaveAsVersion_e.swSaveAsCurrentVersion,
-                        (int)swSaveAsOptions_e.swSaveAsOptions_Silent, null, ref e, ref w);
+                    error = "Could not read the dogtag outline.";
+                    return false;
                 }
-                catch { ok = false; }
-                model.ClearSelection2(true);
-                errCode = e;
-                return ok && File.Exists(dxfPath);
+
+                // ENGRAVE: the name + date are real glyph-outline GEOMETRY in the
+                // engrave sketch, so just read that sketch back (it already carries
+                // the exact size, rotation, and any hand-dragged position). Fall
+                // back to regenerating from the app layout only if the read yields
+                // nothing or is clearly out of bounds, so the cut file is robust.
+                List<double[]> engravePolys = new List<double[]>();
+                List<double[]> engraveCircles = new List<double[]>();
+                double tagSpanMm = 2.0 * Math.Max(DogBodyHalfW, DogBodyHalfH) * 1000.0;
+                ReadSketchCurvesMm(model, DogtagEngraveSketch, engravePolys, engraveCircles);
+                if (engravePolys.Count == 0 || !EngraveWithinBounds(engravePolys, tagSpanMm * 1.5))
+                {
+                    engravePolys.Clear();
+                    double nameH, dateH, nameCX, nameCY, dateCX, dateCY, angle;
+                    string dateText;
+                    DogtagTextLayout(out nameH, out dateH, out nameCX, out nameCY,
+                        out dateCX, out dateCY, out angle, out dateText);
+                    AppendGlyphOutlinesMm(engravePolys, studentName, dogtagFont, nameH * 1000.0,
+                        nameCX * 1000.0, nameCY * 1000.0, angle, true);
+                    AppendGlyphOutlinesMm(engravePolys, dateText, dogtagFont, dateH * 1000.0,
+                        dateCX * 1000.0, dateCY * 1000.0, angle, true);
+                }
+
+                WriteDxfFile(dxfPath, cutPolys, cutCircles, engravePolys);
+                return File.Exists(dxfPath);
             }
-            catch { return false; }
+            catch (Exception ex)
+            {
+                error = "Error: " + ex.Message + ".";
+                return false;
+            }
         }
 
-        /// <summary>Selects the largest planar face of the part - the flat front
-        /// face of the thin plate - so a face DXF gives the cut outline + hole.</summary>
-        private bool SelectLargestPlanarFace(IModelDoc2 model)
+        /// <summary>
+        /// Reads a sketch's non-construction geometry and returns it in MILLIMETERS:
+        /// full circles as (cx,cy,r), everything else tessellated to polylines
+        /// (x0,y0,x1,y1,...). Works on an absorbed sketch (read after the extrude).
+        /// </summary>
+        private void ReadSketchCurvesMm(IModelDoc2 model, string sketchName,
+            List<double[]> polys, List<double[]> circles)
         {
+            IFeature feat = FindFeature(model, sketchName);
+            if (feat == null) return;
+            ISketch sketch = feat.GetSpecificFeature2() as ISketch;
+            if (sketch == null) return;
+            object[] segs = sketch.GetSketchSegments() as object[];
+            if (segs == null) return;
+
+            const double M2MM = 1000.0;
+            foreach (object o in segs)
+            {
+                ISketchSegment seg = o as ISketchSegment;
+                if (seg == null) continue;
+                bool constr = false;
+                try { constr = seg.ConstructionGeometry; } catch { }
+                if (constr) continue;
+
+                double[] a, b;
+                bool haveEnds = TryGetSegmentEnds(seg, out a, out b);
+
+                // Fast path for straight lines (the engrave glyphs are all lines):
+                // use the endpoints directly, no curve tessellation.
+                bool isLine = false;
+                try { isLine = seg.GetType() == (int)swSketchSegments_e.swSketchLINE; } catch { }
+                if (isLine && haveEnds)
+                {
+                    polys.Add(new double[] { a[0] * M2MM, a[1] * M2MM, b[0] * M2MM, b[1] * M2MM });
+                    continue;
+                }
+
+                ICurve curve = null;
+                try { curve = seg.IGetCurve(); } catch { }
+
+                // Full circle -> DXF CIRCLE.
+                if (curve != null)
+                {
+                    bool isCircle = false;
+                    try { isCircle = curve.IsCircle(); } catch { }
+                    bool closed = haveEnds && Near(a, b);
+                    if (isCircle && closed)
+                    {
+                        try
+                        {
+                            double[] cp = curve.CircleParams as double[];
+                            if (cp != null && cp.Length >= 7)
+                            {
+                                circles.Add(new double[] { cp[0] * M2MM, cp[1] * M2MM, cp[6] * M2MM });
+                                continue;
+                            }
+                        }
+                        catch { }
+                    }
+                }
+
+                // Everything else -> tessellated polyline.
+                double[] poly = TessellatePolyMm(curve, a, b, haveEnds);
+                if (poly != null && poly.Length >= 4) polys.Add(poly);
+            }
+        }
+
+        /// <summary>Tessellates a curve between its endpoints into a millimeter
+        /// polyline. Falls back to a straight chord if the curve cannot tessellate.</summary>
+        private static double[] TessellatePolyMm(ICurve curve, double[] a, double[] b, bool haveEnds)
+        {
+            const double M2MM = 1000.0;
+            const double chordTol = 2e-5;   // 0.02 mm chord deviation
+            if (curve != null && haveEnds)
+            {
+                try
+                {
+                    object startPt = new double[] { a[0], a[1], 0.0 };
+                    object endPt = new double[] { b[0], b[1], 0.0 };
+                    double[] pts = curve.GetTessPts(chordTol, chordTol, startPt, endPt) as double[];
+                    if (pts != null && pts.Length >= 6)
+                    {
+                        int n = pts.Length / 3;
+                        double[] poly = new double[n * 2];
+                        for (int i = 0; i < n; i++)
+                        {
+                            poly[i * 2] = pts[i * 3] * M2MM;
+                            poly[i * 2 + 1] = pts[i * 3 + 1] * M2MM;
+                        }
+                        return poly;
+                    }
+                }
+                catch { }
+            }
+            if (haveEnds)
+                return new double[] { a[0] * M2MM, a[1] * M2MM, b[0] * M2MM, b[1] * M2MM };
+            return null;
+        }
+
+        /// <summary>True if every engrave point is within maxAbsMm of the origin,
+        /// so an oversized/broken model text can never reach the DXF.</summary>
+        private static bool EngraveWithinBounds(List<double[]> polys, double maxAbsMm)
+        {
+            if (polys == null || polys.Count == 0) return false;
+            foreach (double[] p in polys)
+                for (int i = 0; i < p.Length; i++)
+                    if (Math.Abs(p[i]) > maxAbsMm) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Appends a string's glyph OUTLINES (from GDI+, flattened to line
+        /// segments) as millimeter polylines at the given height, rotated by
+        /// angleDeg. When <paramref name="centered"/> the glyph block is centered
+        /// on (xMm, yMm); otherwise its bottom-left is anchored there (matching
+        /// SolidWorks sketch-text anchoring). This puts real curve text on ENGRAVE.
+        /// </summary>
+        private static void AppendGlyphOutlinesMm(List<double[]> polys, string text, string fontName,
+            double charHeightMm, double xMm, double yMm, double angleDeg, bool centered)
+        {
+            if (string.IsNullOrEmpty(text) || charHeightMm <= 0) return;
             try
             {
-                IPartDoc part = model as IPartDoc;
-                if (part == null) return false;
-                object[] bodies = part.GetBodies2((int)swBodyType_e.swSolidBody, true) as object[];
-                if (bodies == null || bodies.Length == 0) return false;
-                IBody2 body = bodies[0] as IBody2;
-                if (body == null) return false;
-                object[] faces = body.GetFaces() as object[];
-                if (faces == null) return false;
-
-                IFace2 best = null;
-                double bestArea = -1;
-                foreach (object o in faces)
+                using (GraphicsPath gp = new GraphicsPath())
                 {
-                    IFace2 face = o as IFace2;
-                    if (face == null) continue;
-                    ISurface surf = face.GetSurface() as ISurface;
-                    if (surf == null || !surf.IsPlane()) continue;
-                    double area = 0;
-                    try { area = face.GetArea(); } catch { }
-                    if (area > bestArea) { bestArea = area; best = face; }
+                    using (FontFamily fam = SafeFontFamily(fontName))
+                    {
+                        gp.AddString(text, fam, (int)FontStyle.Bold, 256f,
+                            new PointF(0, 0), StringFormat.GenericDefault);
+                    }
+                    gp.Flatten(null, GlyphFlattenPx);   // beziers -> short line segments
+                    if (gp.PointCount < 2) return;
+
+                    PointF[] pts = gp.PathPoints;
+                    byte[] types = gp.PathTypes;
+                    RectangleF bnds = gp.GetBounds();
+                    if (bnds.Height <= 0) return;
+
+                    double s = charHeightMm / bnds.Height;   // scale to requested height
+                    double wMm = bnds.Width * s;
+                    double refX = centered ? wMm / 2.0 : 0.0;        // origin within the glyph (y-up mm)
+                    double refY = centered ? charHeightMm / 2.0 : 0.0;
+                    double ar = angleDeg * Math.PI / 180.0;
+                    double ca = Math.Cos(ar), sa = Math.Sin(ar);
+
+                    List<double> cur = new List<double>();
+                    for (int i = 0; i < pts.Length; i++)
+                    {
+                        bool isStart = (types[i] & 0x07) == 0;   // PathPointTypeStart
+                        if (isStart)
+                        {
+                            if (cur.Count >= 4) polys.Add(cur.ToArray());
+                            cur = new List<double>();
+                        }
+
+                        // Glyph-local, y-up, in mm, relative to the reference origin.
+                        double lx = (pts[i].X - bnds.Left) * s - refX;
+                        double ly = (bnds.Bottom - pts[i].Y) * s - refY;
+                        // Rotate then translate to the placement point.
+                        double x = xMm + (lx * ca - ly * sa);
+                        double y = yMm + (lx * sa + ly * ca);
+                        cur.Add(x); cur.Add(y);
+
+                        bool closeSub = (types[i] & 0x80) != 0;   // PathPointTypeCloseSubpath
+                        if (closeSub)
+                        {
+                            if (cur.Count >= 4)
+                            {
+                                cur.Add(cur[0]); cur.Add(cur[1]);   // close the loop
+                                polys.Add(cur.ToArray());
+                            }
+                            cur = new List<double>();
+                        }
+                    }
+                    if (cur.Count >= 4) polys.Add(cur.ToArray());
                 }
-                if (best == null) return false;
-                model.ClearSelection2(true);
-                IEntity ent = best as IEntity;
-                if (ent == null) return false;
-                return ent.Select4(false, null);
             }
-            catch { return false; }
+            catch { /* engraving text is best-effort; cut geometry still exports */ }
+        }
+
+        private static FontFamily SafeFontFamily(string name)
+        {
+            try { return new FontFamily(name); }
+            catch { return new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif); }
+        }
+
+        /// <summary>Writes a minimal, widely-compatible DXF (R12-style) with CUT
+        /// and ENGRAVE layers, LINE runs for polylines and CIRCLE for the hole.</summary>
+        private static void WriteDxfFile(string path, List<double[]> cutPolys,
+            List<double[]> cutCircles, List<double[]> engravePolys)
+        {
+            StringBuilder sb = new StringBuilder(64 * 1024);
+            // HEADER: millimeters.
+            sb.Append("0\nSECTION\n2\nHEADER\n");
+            sb.Append("9\n$INSUNITS\n70\n4\n");        // 4 = millimeters
+            sb.Append("9\n$MEASUREMENT\n70\n1\n");     // 1 = metric
+            sb.Append("0\nENDSEC\n");
+            // TABLES: the two layers.
+            sb.Append("0\nSECTION\n2\nTABLES\n");
+            sb.Append("0\nTABLE\n2\nLAYER\n70\n2\n");
+            AppendLayer(sb, "CUT", 1);        // red
+            AppendLayer(sb, "ENGRAVE", 5);    // blue
+            sb.Append("0\nENDTAB\n0\nENDSEC\n");
+            // ENTITIES.
+            sb.Append("0\nSECTION\n2\nENTITIES\n");
+            foreach (double[] poly in cutPolys) AppendPolyAsLines(sb, poly, "CUT");
+            foreach (double[] c in cutCircles) AppendCircle(sb, c[0], c[1], c[2], "CUT");
+            foreach (double[] poly in engravePolys) AppendPolyAsLines(sb, poly, "ENGRAVE");
+            sb.Append("0\nENDSEC\n0\nEOF\n");
+            File.WriteAllText(path, sb.ToString());
+        }
+
+        private static void AppendLayer(StringBuilder sb, string name, int color)
+        {
+            sb.Append("0\nLAYER\n2\n").Append(name).Append("\n70\n0\n62\n")
+              .Append(color.ToString(CultureInfo.InvariantCulture)).Append("\n6\nCONTINUOUS\n");
+        }
+
+        private static void AppendPolyAsLines(StringBuilder sb, double[] poly, string layer)
+        {
+            int n = poly.Length / 2;
+            for (int i = 0; i + 1 < n; i++)
+            {
+                AppendLine(sb, poly[i * 2], poly[i * 2 + 1], poly[(i + 1) * 2], poly[(i + 1) * 2 + 1], layer);
+            }
+        }
+
+        private static void AppendLine(StringBuilder sb, double x1, double y1, double x2, double y2, string layer)
+        {
+            sb.Append("0\nLINE\n8\n").Append(layer).Append("\n");
+            sb.Append("10\n").Append(F(x1)).Append("\n20\n").Append(F(y1)).Append("\n30\n0.0\n");
+            sb.Append("11\n").Append(F(x2)).Append("\n21\n").Append(F(y2)).Append("\n31\n0.0\n");
+        }
+
+        private static void AppendCircle(StringBuilder sb, double cx, double cy, double r, string layer)
+        {
+            sb.Append("0\nCIRCLE\n8\n").Append(layer).Append("\n");
+            sb.Append("10\n").Append(F(cx)).Append("\n20\n").Append(F(cy)).Append("\n30\n0.0\n");
+            sb.Append("40\n").Append(F(r)).Append("\n");
+        }
+
+        private static string F(double v)
+        {
+            return v.ToString("0.######", CultureInfo.InvariantCulture);
         }
 
         private void BuildDogtagPostExport()
@@ -2669,7 +3292,10 @@ namespace IdeaFspPawn
 
             Button another = MakeSecondaryButton("BUILD ANOTHER DOGTAG", 40);
             another.Click += OnBuildAnotherDogtagClick;
-            AddRow(t, another, 16);
+            AddRow(t, another, 6);
+            Button toPawn = MakeSecondaryButton("DESIGN A PAWN INSTEAD", 40);
+            toPawn.Click += OnSwitchToPawn;
+            AddRow(t, toPawn, 16);
 
             AddRow(t, MakeLabel(studentName + "'s dogtag is ready. It will be cut tonight.",
                 Green, BodyBoldFont), 0);

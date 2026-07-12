@@ -13,12 +13,21 @@ dots), and design language:
   draws, a one-click or manual Revolve, then auto-save, STEP AP214 export, and
   a pre-filled Gmail compose for submission to the teacher.
 - **DOGTAG DESIGNER** - designs a US-standard dogtag (2.0 x 1.125 in, 0.037 in
-  thick) in one of four shapes (MILITARY / ROUND / RECT / CUSTOM), adds the
-  student's name + `IDEA FSP <year>` as engraved sketch text and an optional
-  reference image, extrudes the body, and exports the front face to **DXF** for
-  laser cutting plus a pre-filled Gmail compose. CUSTOM lets the student draw
-  their own outline (same live closed-loop detection as the pawn). Its email
-  recipient/subject are configurable (see below).
+  thick) in one of three shapes (MILITARY / ROUND / CUSTOM), adds the student's
+  name + `IDEA FSP <year>` as engraved text (with a font + placement picker; the
+  name auto-scales down to fit the tag width) and an optional reference image,
+  extrudes the body, and writes a **laser DXF** plus a pre-filled Gmail compose.
+  CUSTOM lets the student draw their own outline (same live closed-loop
+  detection as the pawn). On the review screen the design is editable without
+  SolidWorks knowledge: edit the outline, edit the text (name / font /
+  placement), or replace the image. Its email recipient/subject are
+  configurable (see below).
+  - **DXF is written directly** (not via SolidWorks' exporter) so it is exactly
+    what an xTool laser needs: **millimeters**, two layers - `CUT` (outline +
+    chain hole) and `ENGRAVE` (name + date) - and the text is **exploded curve
+    outlines** (glyphs flattened to line segments), never DXF text entities.
+    CUT geometry is read from the part sketch and tessellated; ENGRAVE glyphs
+    are generated to match the model's font, size, and placement.
 
 Same structure and build conventions as the GAUNTLET add-in
 (`tools/solidworks-addin/`), with its own identity:
