@@ -13,6 +13,13 @@
 	 * mid-session switch by staff on /fsp/live lands in the right feed. On success
 	 * the form is replaced by a confirmation (no reload); "Ask another question"
 	 * brings the form back for a second question.
+	 *
+	 * Anonymous submission: a lightweight toggle below the textarea, default
+	 * unchecked. Unchecked shows the student's own name (read-only, from the
+	 * auth session: user_metadata.full_name, falling back to email) and passes it
+	 * as p_submitter_name. Checked hides the name line and passes
+	 * p_is_anonymous = true (the RPC forces submitter_name to null server-side
+	 * regardless of what's passed, so there's nothing to strip client-side).
 	 */
 
 	const ALLOWED_DOMAIN = '@boscotech.net';
@@ -24,11 +31,15 @@
 	const email = $derived((claims?.email ?? '').toString());
 	const signedIn = $derived(!!claims);
 	const domainOk = $derived(email.toLowerCase().endsWith(ALLOWED_DOMAIN));
+	const displayName = $derived(
+		((claims?.user_metadata as { full_name?: string } | undefined)?.full_name || email) as string
+	);
 
 	let loading = $state(false);
 	let authError = $state('');
 
 	let question = $state('');
+	let anonymous = $state(false);
 	let submitting = $state(false);
 	let submitted = $state(false);
 	let submitError = $state('');
@@ -79,7 +90,9 @@
 			}
 			const { error } = await supabase.rpc('submit_fsp_question', {
 				p_question: text,
-				p_session_id: session
+				p_session_id: session,
+				p_is_anonymous: anonymous,
+				p_submitter_name: anonymous ? null : displayName
 			});
 			if (error) throw error;
 			submitted = true;
@@ -149,11 +162,19 @@
 					autocomplete="off"
 					disabled={submitting}
 				></textarea>
+
+				<label class="anon-toggle">
+					<input type="checkbox" bind:checked={anonymous} disabled={submitting} />
+					<span>Submit anonymously</span>
+				</label>
+				{#if !anonymous}
+					<p class="who">Asking as {displayName}</p>
+				{/if}
+
 				<button class="primary" type="submit" disabled={submitting || !question.trim()}>
 					{submitting ? 'Sending…' : 'Submit question'}
 				</button>
 				{#if submitError}<p class="err">{submitError}</p>{/if}
-				<p class="who">Signed in as {email}</p>
 			</form>
 		</div>
 	{/if}
@@ -244,6 +265,22 @@
 	.primary:hover:not(:disabled) {
 		background: rgba(0, 255, 65, 0.22);
 		box-shadow: 0 0 18px rgba(0, 255, 65, 0.35);
+	}
+	.anon-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.85rem;
+		color: #a9c9ad;
+		cursor: pointer;
+		user-select: none;
+	}
+	.anon-toggle input {
+		accent-color: var(--green, #00ff41);
+		width: 16px;
+		height: 16px;
+		cursor: pointer;
 	}
 	.primary:disabled {
 		opacity: 0.5;

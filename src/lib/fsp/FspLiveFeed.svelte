@@ -5,6 +5,8 @@
 		session_id: string;
 		created_at: string;
 		answered: boolean;
+		is_anonymous: boolean;
+		submitter_name: string | null;
 	}
 </script>
 
@@ -70,7 +72,7 @@
 		if (!supabase) return;
 		const { data: rows, error } = await supabase
 			.from('fsp_questions')
-			.select('id, question, session_id, created_at, answered')
+			.select('id, question, session_id, created_at, answered, is_anonymous, submitter_name')
 			.eq('session_id', s)
 			.eq('answered', false)
 			.order('created_at', { ascending: false });
@@ -193,7 +195,10 @@
 			{#each questions as q (q.id)}
 				<article class="qcard" in:fly={{ y: reduced ? 0 : -14, duration: reduced ? 0 : 260 }}>
 					<p class="qtext">{q.question}</p>
-					<span class="qtime">{relTime(q.created_at)}</span>
+					<div class="qmeta">
+						<span class="qwho">{q.is_anonymous || !q.submitter_name ? 'Anonymous' : q.submitter_name}</span>
+						<span class="qtime">{relTime(q.created_at)}</span>
+					</div>
 				</article>
 			{/each}
 		</div>
@@ -249,10 +254,21 @@
 		white-space: pre-wrap;
 		word-break: break-word;
 	}
+	.qmeta {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.8rem;
+	}
+	.qwho {
+		font-family: 'Share Tech Mono', monospace;
+		color: var(--gold, #c8ff00);
+		opacity: 0.85;
+	}
 	.qtime {
 		font-family: 'Share Tech Mono', monospace;
 		color: var(--cyan, #00f0ff);
-		align-self: flex-end;
+		white-space: nowrap;
 	}
 
 	/* --- console variant (the /fsp/live presenter page) --- */
@@ -264,6 +280,9 @@
 	}
 	.console .qtext {
 		font-size: 1.4rem;
+	}
+	.console .qwho {
+		font-size: 0.85rem;
 	}
 	.console .qtime {
 		font-size: 0.78rem;
@@ -298,6 +317,9 @@
 	.slide .qtext {
 		font-size: 34px;
 		line-height: 1.28;
+	}
+	.slide .qwho {
+		font-size: 20px;
 	}
 	.slide .qtime {
 		font-size: 20px;

@@ -2,29 +2,29 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import FspLiveFeed from '$lib/fsp/FspLiveFeed.svelte';
 	import FspStudentPreview from '$lib/fsp/FspStudentPreview.svelte';
 
 	/**
-	 * /fsp/day1 — the FSP Day 1 presentation deck. The canonical slides are the
-	 * standalone Claude Design export, hosted verbatim as a static file and shown
-	 * in a full-viewport iframe (src="/fsp/day1-slides.html"); the deck owns its
-	 * own keyboard navigation (arrows / PageUp / PageDown / space), so a
-	 * presentation clicker drives it natively. We do NOT reimplement the slides.
+	 * /fsp/day1 — the FSP Day 1 deck, now an ARCHIVE VIEWER. Presentations run
+	 * live from Claude Design (external tool) with /fsp/live opened separately
+	 * for Q&A; this route just hosts the canonical exported slides
+	 * (day1-slides.html, a standalone Claude Design export shown verbatim in a
+	 * full-viewport iframe) for later review. We do NOT reimplement the slides,
+	 * and the deck owns its own keyboard navigation (arrows / PageUp / PageDown
+	 * / space).
 	 *
-	 * The one wire between the deck and this page: the hosted HTML re-emits the
-	 * deck's slide-change broadcast to us as { type:'FSP_SLIDE', slide }. When the
-	 * presenter reaches slide 13 ("Live Questions") we overlay the REAL live Q&A
-	 * feed (FspLiveFeed, the same component /fsp/live uses) over the deck; leaving
-	 * slide 13 removes it.
+	 * The deck no longer broadcasts slide-change events to this page (the
+	 * FSP_SLIDE postMessage bridge and the live-feed overlay it drove were
+	 * removed from both day1-slides.html and here, since Q&A now happens on
+	 * /fsp/live in its own window, not embedded in the deck).
 	 *
-	 * Staff only (@boscotech.edu), gated in-page like /fsp/live (this route is not
-	 * in authedPrefixes, since the deck itself is otherwise harmless — the real
-	 * boundary is that the feed reads fsp_questions under RLS for a signed-in
-	 * presenter).
+	 * Open to any authenticated Bosco Tech user (@boscotech.net students or
+	 * @boscotech.edu staff), not staff-only: students should be able to review
+	 * the archived deck. This route is not in authedPrefixes (hooks.server.ts),
+	 * so the gate is in-page like the rest of the /fsp/* live-session routes.
 	 */
 
-	const ALLOWED_DOMAIN = '@boscotech.edu';
+	const ALLOWED_DOMAINS = ['@boscotech.net', '@boscotech.edu'];
 	const SLIDES_SRC = '/fsp/day1-slides.html';
 
 	let { data } = $props();
@@ -33,15 +33,13 @@
 
 	const email = $derived((claims?.email ?? '').toString());
 	const signedIn = $derived(!!claims);
-	const domainOk = $derived(email.toLowerCase().endsWith(ALLOWED_DOMAIN));
+	const domainOk = $derived(ALLOWED_DOMAINS.some((d) => email.toLowerCase().endsWith(d)));
 
 	let loading = $state(false);
 	let authError = $state('');
 
 	let rootEl: HTMLElement;
 	let iframeEl: HTMLIFrameElement | undefined = $state();
-	let liveActive = $state(false);
-	let count = $state(0);
 	let studentOpen = $state(false);
 	let isFullscreen = $state(false);
 
@@ -52,7 +50,7 @@
 			provider: 'google',
 			options: {
 				redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/fsp/day1')}`,
-				queryParams: { hd: 'boscotech.edu', prompt: 'select_account' }
+				queryParams: { prompt: 'select_account' }
 			}
 		});
 		if (error) {
@@ -64,17 +62,6 @@
 	async function signOut() {
 		await supabase.auth.signOut();
 		await invalidateAll();
-	}
-
-	function onMessage(e: MessageEvent) {
-		const d = e.data;
-		if (!d || d.type !== 'FSP_SLIDE') return;
-		liveActive = d.slide === 13;
-		// Keep the clicker alive: after any slide-change message, hand keyboard
-		// focus back to the deck iframe so arrow / PageUp / PageDown keep working
-		// (the overlay is a plain div and never steals focus on its own, but a
-		// presenter clicking the feed would — this restores it on the next nav).
-		iframeEl?.contentWindow?.focus();
 	}
 
 	function onKeydown(e: KeyboardEvent) {
@@ -116,9 +103,9 @@
 
 	/**
 	 * Present: hide the deck's thumbnail rail, then fullscreen the deck iframe
-	 * DIRECTLY (not the page root), so all page chrome — the presenter toolbar
-	 * included — falls away and only the current slide fills the screen. Escape
-	 * exits fullscreen natively; the rail and toolbar return on fullscreenchange.
+	 * DIRECTLY (not the page root), so all page chrome — the toolbar included —
+	 * falls away and only the current slide fills the screen. Escape exits
+	 * fullscreen natively; the rail and toolbar return on fullscreenchange.
 	 */
 	function presentDeck() {
 		setDeckRailHidden(true);
@@ -137,14 +124,12 @@
 	}
 
 	onMount(() => {
-		window.addEventListener('message', onMessage);
 		window.addEventListener('keydown', onKeydown);
 		document.addEventListener('fullscreenchange', onFullscreenChange);
 	});
 
 	onDestroy(() => {
 		if (typeof window !== 'undefined') {
-			window.removeEventListener('message', onMessage);
 			window.removeEventListener('keydown', onKeydown);
 		}
 		if (typeof document !== 'undefined') {
@@ -163,21 +148,21 @@
 		<div class="center">
 			<div class="card">
 				<h1>FSP Day 1</h1>
-				<p>Sign in with your Bosco Tech staff account to run the Day 1 deck.</p>
+				<p>Sign in with your Bosco Tech account to view the Day 1 deck archive.</p>
 				<button class="primary" onclick={signIn} disabled={loading}>
 					{loading ? 'Redirecting…' : 'Sign in with Google'}
 				</button>
 				{#if authError}<p class="err">{authError}</p>{/if}
-				<p class="fine">Staff only (<strong>@boscotech.edu</strong>).</p>
+				<p class="fine">Use your <strong>@boscotech.net</strong> or <strong>@boscotech.edu</strong> account.</p>
 			</div>
 		</div>
 	{:else if !domainOk}
 		<div class="center">
 			<div class="card">
-				<h1>Staff only</h1>
+				<h1>Wrong account</h1>
 				<p>
-					You are signed in as <strong>{email || 'an unknown account'}</strong>. The Day 1 deck is
-					for Bosco Tech staff (<strong>@boscotech.edu</strong>).
+					You are signed in as <strong>{email || 'an unknown account'}</strong>. This deck is for
+					Bosco Tech accounts (<strong>@boscotech.net</strong> or <strong>@boscotech.edu</strong>).
 				</p>
 				<button class="primary" onclick={signOut}>Sign out and switch account</button>
 			</div>
@@ -192,23 +177,6 @@
 			allow="fullscreen"
 			onload={focusDeck}
 		></iframe>
-
-		{#if liveActive}
-			<!-- Slide 13: overlay the real live Q&A feed over the deck. -->
-			<div class="live-overlay">
-				<header class="live-head">
-					<h2>Your Questions.</h2>
-					<span class="live-badge">
-						<span class="dot"></span>
-						<span class="lbl">LIVE</span>
-						{#if count > 0}<span class="cnt">{count}</span>{/if}
-					</span>
-				</header>
-				<div class="live-body">
-					<FspLiveFeed variant="slide" {supabase} bind:count />
-				</div>
-			</div>
-		{/if}
 
 		<!-- Presenter toolbar: floats bottom-center, hidden once fullscreen. -->
 		{#if !isFullscreen}
@@ -282,80 +250,6 @@
 	.toolbar .ico {
 		font-size: 0.9rem;
 		line-height: 1;
-	}
-
-	/* --- Live Q&A overlay (slide 13) --- */
-	.live-overlay {
-		position: absolute;
-		inset: 0;
-		z-index: 2;
-		background: #0a0a0a;
-		display: flex;
-		flex-direction: column;
-		padding: 40px 56px 44px;
-		color: var(--white, #e8ffe8);
-		font-family: 'Rajdhani', system-ui, sans-serif;
-	}
-	.live-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		padding-bottom: 22px;
-	}
-	.live-head h2 {
-		margin: 0;
-		font-size: clamp(2.4rem, 5vw, 4.4rem);
-		font-weight: 700;
-		line-height: 1;
-		color: var(--green, #00ff41);
-		text-shadow: var(--glow-green, 0 0 18px rgba(0, 255, 65, 0.5));
-	}
-	.live-badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 14px;
-		padding: 10px 22px;
-		border: 1px solid rgba(255, 51, 85, 0.5);
-		border-radius: 2px;
-		font-family: 'Share Tech Mono', monospace;
-	}
-	.live-badge .dot {
-		width: 12px;
-		height: 12px;
-		border-radius: 50%;
-		background: var(--crimson, #ff3355);
-		animation: overlay-pulse 1.6s ease-in-out infinite;
-	}
-	.live-badge .lbl {
-		font-size: clamp(1rem, 1.8vw, 1.6rem);
-		letter-spacing: 0.2em;
-		color: var(--crimson, #ff3355);
-	}
-	.live-badge .cnt {
-		font-size: clamp(1rem, 1.8vw, 1.6rem);
-		letter-spacing: 0.08em;
-		color: var(--cyan, #00f0ff);
-	}
-	.live-body {
-		flex: 1;
-		min-height: 0;
-		display: flex;
-		flex-direction: column;
-	}
-	@keyframes overlay-pulse {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.3;
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.live-badge .dot {
-			animation: none;
-		}
 	}
 
 	/* --- Auth gate cards (mirrors /fsp/live) --- */

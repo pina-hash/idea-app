@@ -1767,25 +1767,43 @@ app (that entry was removed), and the old role-routing hub page
 ## FSP live Q&A
 
 `/fsp/ask` + `/fsp/live` are the FSP live audience Q&A: students submit
-questions from their phones and Mr. Pina runs the feed on a projector.
-**Phase 1** is the live feed itself; **Phase 2** (done) is the `/fsp/day1`
-presentation deck, which embeds the SAME feed on its final slide (see "FSP Day 1
-deck" below). Unlike `/fsp-tech-selection` (neutral navy/gold, Apps
-Script), this pair is **Supabase-backed** and uses the **IDEA green `#00FF41` on
-near-black `#0a0a0a`** aesthetic (Rajdhani + Share Tech Mono), scoped under its
-own opaque root so the shell `.bg-fx` never shows through.
+questions from their phones and Mr. Pina runs the feed on a projected display.
 
-- **Data model (`0043_fsp_qa.sql`, apply manually):**
-  - `fsp_questions` (`id`, `question`, `session_id`, `created_at`, `answered`).
-    Signed-in users READ all rows (RLS `using (true)`); there is **no direct
-    write grant**. The ONLY insert path is the SECURITY DEFINER RPC
-    `submit_fsp_question(p_question, p_session_id)` (returns the new id, stamps
-    `created_at`/`answered=false` server-side), granted to `authenticated`, so a
-    client can never forge those or target another session by raw insert.
+**Presentation workflow (current):** Mr. Pina runs the slide deck itself
+directly from **Claude Design** (an external tool, not this portal) during a
+live session, then switches to `/fsp/live` — opened as a **separate window** —
+for the Q&A segment. `/fsp/live` and the deck are no longer wired together: the
+former slide-13 embed (Phase 2's postMessage bridge into the deck) is gone (see
+"FSP Day 1 deck" below, now an archive viewer). Always open `/fsp/live` in its
+own window/tab when running an FSP session; it is a standalone display, not an
+overlay.
+
+Unlike `/fsp-tech-selection` (neutral navy/gold, Apps Script), this pair is
+**Supabase-backed** and uses the **IDEA green `#00FF41` on near-black
+`#0a0a0a`** aesthetic (Rajdhani + Share Tech Mono), scoped under its own opaque
+root so the shell `.bg-fx` never shows through.
+
+- **Data model (`0043_fsp_qa.sql` + `0044_fsp_qa_anon.sql`, apply manually, in
+  order):**
+  - `fsp_questions` (`id`, `question`, `session_id`, `created_at`, `answered`,
+    `is_anonymous`, `submitter_name`). Signed-in users READ all rows (RLS
+    `using (true)`); there is **no direct write grant**. The ONLY insert path is
+    the SECURITY DEFINER RPC `submit_fsp_question(p_question, p_session_id,
+    p_is_anonymous default false, p_submitter_name default null)` (returns the
+    new id, stamps `created_at`/`answered=false` server-side), granted to
+    `authenticated`, so a client can never forge those or target another
+    session by raw insert. `p_is_anonymous = true` forces `submitter_name` to
+    `null` server-side regardless of what the client passes; `false` stores
+    `p_submitter_name` as given. Every pre-0044 row backfills to
+    `is_anonymous = false` / `submitter_name = null` (unattributed, matching
+    what those rows meant before the column existed).
   - `fsp_config` (`key` PK, `value`), seeded `active_session = 'Day1-A'`. All
     authenticated users read; only `@boscotech.edu` (staff) may UPDATE (RLS on
     the JWT email domain). This one row is the session the ask picker submits to
-    and the live feed filters on.
+    and the live feed filters on. **Six fixed session slots** are used in
+    practice, one per FSP day/session: `Day1-A`, `Day1-B`, `Day2-A`, `Day2-B`,
+    `Day3-A`, `Day3-B` (two sessions per day); these are UI presets on
+    `/fsp/live`; the column itself stays free-form text.
   - Soft clear is the staff-only SECURITY DEFINER RPC
     `clear_fsp_session(p_session_id)` (gated to `@boscotech.edu`): sets
     `answered = true` on that session's unanswered rows (never deletes) and
@@ -1795,32 +1813,57 @@ own opaque root so the shell `.bg-fx` never shows through.
     applies to the stream.
 - **`/fsp/ask` (students, `@boscotech.net`):** mobile-first. In-page Google
   sign-in gate (no hooks redirect, like `/fsp-tech-selection`, since it is
-  reached cold from a QR code) + client domain check. A single textarea + submit
-  that reads the current `active_session` fresh from `fsp_config` then calls
-  `submit_fsp_question`. On success the form is replaced (no reload) by
-  "Your question was submitted. You earned 1 IDEA Coin." with an "Ask another
-  question" button that restores the form. (Coins are still display-only; no coin
-  economy exists in this repo, see the scope guardrails.)
-- **`/fsp/live` (staff, `@boscotech.edu`):** the presenter console. In-page
-  sign-in + staff domain gate, a full-screen toggle, and a top control bar:
-  a session-name input, **Set Session** (updates `fsp_config.active_session`,
-  RLS-gated, then reloads + re-subscribes the feed) and **Clear Session** (calls
-  `clear_fsp_session`, empties the feed, repopulates as new questions arrive).
+  reached cold from a QR code) + client domain check. A single textarea, a
+  lightweight **"Submit anonymously" toggle** below it (default unchecked, a
+  plain checkbox line, not a callout box), and submit. Unchecked shows a
+  read-only "Asking as `<name>`" line (`user_metadata.full_name` from the auth
+  session, falling back to `email`) and that name is sent as
+  `p_submitter_name`; checked hides the name line and sends
+  `p_is_anonymous = true` (with `p_submitter_name` omitted — the RPC would null
+  it anyway). Submit reads the current `active_session` fresh from `fsp_config`
+  then calls `submit_fsp_question`. On success the form is replaced (no reload)
+  by "Your question was submitted. You earned 1 IDEA Coin." with an "Ask
+  another question" button that restores the form. (Coins are still
+  display-only; no coin economy exists in this repo, see the scope
+  guardrails.)
+- **`/fsp/live` (staff, `@boscotech.edu`):** the standalone Q&A display,
+  redesigned for projection (a widescreen session panel + feed layout, session
+  panel stacking above the feed on narrow viewports). In-page sign-in + staff
+  domain gate, a full-screen toggle, and:
+  - **Session panel:** six preset buttons (`Day1-A` through `Day3-B`, see
+    above) replace the old free-text session input; clicking one writes that
+    value to `fsp_config.active_session` (same RLS-gated write path as before)
+    and the currently-active preset is highlighted. The active session name is
+    shown large above the panel. **Clear Feed** (renamed from "Clear Session")
+    still calls `clear_fsp_session(session_id)` on the CURRENT session only, a
+    manual soft-delete for edge cases (e.g. clearing chatter without switching
+    slots); switching presets itself does not delete anything, it just points
+    the feed at a session_id that starts empty until new questions arrive for
+    it, which reads as "cleared" on screen.
+  - **QR code:** a static `api.qrserver.com` generated PNG (dark green-on-black
+    to match the palette) linking to `https://ideabosco.com/fsp/ask`, labelled
+    "ideabosco.com/fsp/ask" underneath, docked at the bottom of the session
+    panel so students can scan it straight off the projected display.
+  - **Feed:** each card shows the question, the submitter (or "Anonymous" when
+    `is_anonymous` or a null `submitter_name`), and a relative timestamp;
+    newest-at-top, animated in, generous padding sized for reading from across
+    a room.
   The **feed itself** (Realtime subscription filtered by the active session,
-  loading unanswered rows newest-first, question cards with a relative timestamp
-  that animate in, soft-clear UPDATE removing a card, `prefers-reduced-motion`)
-  is factored into `src/lib/fsp/FspLiveFeed.svelte` so the Day 1 deck embeds the
-  SAME feed without rebuilding it; the page keeps only the chrome (auth gate,
-  Set/Clear controls, a **Student View** control, count via a bound prop,
-  full-screen toggle). The component
-  takes an optional `session` (undefined = self-resolve `active_session` from
-  `fsp_config`), a `variant` (`console` on this page, `slide` in the deck), and
-  `sampleQuestions` for the no-Supabase harness path.
+  loading unanswered rows newest-first, question cards, soft-clear UPDATE
+  removing a card, `prefers-reduced-motion`) is factored into
+  `src/lib/fsp/FspLiveFeed.svelte`, still shared with the dead-code
+  `FspDeck.svelte` and the dev harnesses; the page keeps only the chrome (auth
+  gate, session panel, QR, a **Student View** control, count via a bound prop,
+  full-screen toggle). The component's `select()` now includes `is_anonymous` /
+  `submitter_name`, and takes an optional `session` (undefined = self-resolve
+  `active_session` from `fsp_config`), a `variant` (`console` on this page,
+  `slide` for the now-unused deck-embed path kept alive only by dead code /
+  harnesses), and `sampleQuestions` for the no-Supabase harness path.
   - **Student View** (staff-only surface, so no extra gate) opens
     `src/lib/fsp/FspStudentPreview.svelte`: a modal that shows `/fsp/ask` inside
     a ~390px mobile phone frame, so the presenter sees exactly what students see
     on their phones. X or Escape closes it (Escape only when not in native
-    fullscreen). The SAME component is mounted on `/fsp/day1` (see below).
+    fullscreen). The SAME component is mounted on `/fsp/day1`.
 - **Neither `/fsp/ask` nor `/fsp/live` is in `authedPrefixes`** (`hooks.server.ts`):
   auth is handled by the in-page gates, and the real boundary is RLS + the
   RPC/`fsp_config` grants, so anonymous/QR-cold visitors see a friendly sign-in
@@ -1829,15 +1872,22 @@ own opaque root so the shell `.bg-fx` never shows through.
 - **Dev harness `/dev/fsp-qa`** (404 in production): mounts the REAL `/fsp/ask`
   and `/fsp/live` in side-by-side iframes for the submit-appears-live check. This
   flow uses real auth + Realtime and is deliberately NOT mockable; verifying it
-  needs 0043 applied and both accounts signed in (same-origin cookies flow into
-  the frames).
+  needs 0043 + 0044 applied and both accounts signed in (same-origin cookies
+  flow into the frames).
 
-## FSP Day 1 deck
+## FSP Day 1 deck (archive)
 
-`/fsp/day1` is the **FSP Day 1 presentation deck** (Phase 2 of the live Q&A).
-The canonical slides are the **standalone Claude Design export**, hosted
-verbatim and shown in a full-viewport iframe — NOT rebuilt. 13 slides, IDEA
-green `#00FF41` on near-black `#0a0a0a`.
+`/fsp/day1` is now an **archive viewer** for the FSP Day 1 slides, not a live
+presentation controller. Presentations run live from **Claude Design**
+externally (see "FSP live Q&A" above); this route just hosts the exported deck
+for later review by staff or students. The canonical slides are the
+**standalone Claude Design export**, hosted verbatim and shown in a
+full-viewport iframe — NOT rebuilt. 13 slides, IDEA green `#00FF41` on
+near-black `#0a0a0a`. A parallel `/fsp/day2` and `/fsp/day3` archive route are
+expected later, once those days' decks are exported the same way; there is no
+shared "day archive" component yet, so the next one should factor
+`src/routes/fsp/day1/+page.svelte` into something reusable rather than
+duplicating it a third time.
 
 - **The slides live at `static/fsp/day1-slides.html`** — the Claude Design
   standalone export ("IDEA FSP Deck (standalone).html"), copied in as-is (a
@@ -1846,53 +1896,42 @@ green `#00FF41` on near-black `#0a0a0a`.
   app whose `deck-stage` custom element is the slide player). It is served
   straight from `static/` at `/fsp/day1-slides.html`, fully self-contained (no
   CDN, CSP-safe). **Do not rebuild or re-theme the slides**; if the source deck
-  changes, re-export and re-copy the file, then re-apply the one injection below.
-- **The ONE modification to the export** (`day1-slides.html`, one surgical
-  place): a tiny forwarder `<script>` added just before the `__bundler/manifest`
-  tag. `deck-stage` already broadcasts `{ slideIndexChanged: <0-based index>,
-  deckTotal }` to its own window on every navigation (init / keyboard / click);
-  the forwarder re-emits it to the embedding page as
-  `window.parent.postMessage({ type: 'FSP_SLIDE', slide }, '*')`, mapping index
-  12 (slide 13, the "Live Questions" slide) to `slide: 13` and every other index
-  to `slide: null`, deduped so 13 fires once on enter and null once on leave. It
-  touches no slide content, styles, layout, or assets, and registers on `window`
-  (which survives the bundler's `documentElement.replaceWith`).
-- **`src/routes/fsp/day1/+page.svelte`** is the host. Staff only
-  (`@boscotech.edu`), gated **in-page** exactly like `/fsp/live` (this route is
-  NOT in `authedPrefixes`; signed-out sees a sign-in card, wrong-domain sees a
+  changes, re-export and re-copy the file. **The deck export is now UNMODIFIED**
+  — the earlier `FSP_SLIDE` postMessage forwarder (a small `<script>` that
+  re-emitted `deck-stage`'s slide-change broadcast to the embedding page, so
+  slide 13 could overlay the live feed) was removed along with the overlay it
+  drove; there is no injection to re-apply on a re-export anymore.
+- **`src/routes/fsp/day1/+page.svelte`** is the host, open to **any
+  authenticated Bosco Tech account** (`@boscotech.net` students or
+  `@boscotech.edu` staff, not staff-only — students should be able to review
+  the archive), gated **in-page** like the rest of `/fsp/*` (this route is NOT
+  in `authedPrefixes`; signed-out sees a sign-in card, wrong-domain sees a
   switch-account card). When gated in it renders a full-viewport `<iframe
   src="/fsp/day1-slides.html" allow="fullscreen">` (the deck owns its own arrow /
   PageUp / PageDown / space keyboard nav, so a presentation clicker drives it
-  natively; the iframe is focused on load so the clicker works immediately). It
-  listens for the `FSP_SLIDE` message: on `slide === 13` it overlays the REAL
-  `FspLiveFeed` (`variant="slide"`, live `supabase`, self-resolving the active
-  session) full-viewport over the deck on `#0a0a0a` with a "Your Questions." /
-  LIVE header; on `null` it removes the overlay. A page-level **`F`** key toggles
-  native fullscreen on the deck root. The live feed populates for a signed-in
-  presenter (feed reads are RLS-gated to authenticated users).
-  - **Presenter toolbar** (floats bottom-center, minimal/dark, hidden the moment
+  natively; the iframe is focused on load so the clicker works immediately). A
+  page-level **`F`** key toggles native fullscreen on the deck root. The page no
+  longer listens for any postMessage from the deck and has no live-feed overlay
+  — Q&A lives entirely on `/fsp/live`, opened separately.
+  - **Toolbar** (floats bottom-center, minimal/dark, hidden the moment
     fullscreen is active via a `fullscreenchange` listener): **Present**
     fullscreens the deck **iframe directly** (`iframeEl.requestFullscreen()`), so
     every bit of page chrome — the toolbar included — falls away and only the
     slides fill the screen; Escape exits fullscreen natively and the toolbar
     returns. **Student View** opens the shared `FspStudentPreview` phone-frame
-    modal of `/fsp/ask` (same component as `/fsp/live`). Distinct from the `F`
-    key, which fullscreens the deck ROOT (so the slide-13 live overlay stays
-    visible) rather than the bare iframe.
+    modal of `/fsp/ask`. Distinct from the `F` key, which fullscreens the deck
+    ROOT rather than the bare iframe.
 - **Superseded native rebuild:** `src/lib/fsp/FspDeck.svelte` +
   `src/lib/fsp/day1-slides.ts` were an earlier native-SvelteKit rebuild of the
-  deck. They are no longer wired to any route (the iframe-hosting approach above
-  replaced them) and remain in the tree only as dead code; do not extend them.
+  deck (and, later, of the slide-13 live embed). They are no longer wired to
+  any route and remain in the tree only as dead code; do not extend them.
 - **Slide 12 QR** inside the export points at the `/fsp/ask` submission page
   (the standalone deck embeds its own QR; the separate committed
   `static/fsp/fsp-ask-qr.svg` remains available for other uses).
 - **Dev harness `/dev/fsp-day1`** (404 in production, no auth / Supabase): shows
-  the hosted deck iframe plus a floating strip with a "Simulate slide 13" button
-  (fakes the `FSP_SLIDE` postMessage) and a populate toggle, so the live-feed
-  overlay's empty ("waiting for submissions") and populated states are
-  browser-verifiable without clicking through all 13 slides or a live DB. It also
-  listens for the REAL `FSP_SLIDE` messages, so driving the deck to slide 13 in
-  the browser flips the overlay too.
+  the hosted deck iframe with the real toolbar (Present + Student View),
+  matching the real page now that it is an archive viewer with no live-feed
+  overlay or postMessage bridge to simulate.
 
 ## Version + changelog substrate
 

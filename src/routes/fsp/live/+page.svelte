@@ -6,15 +6,31 @@
 	import FspStudentPreview from '$lib/fsp/FspStudentPreview.svelte';
 
 	/**
-	 * /fsp/live — Mr. Pina's live presenter console for FSP Q&A. Staff only
-	 * (@boscotech.edu). The actual question feed (Realtime subscription + cards)
-	 * lives in $lib/fsp/FspLiveFeed.svelte so the Day 1 deck (/fsp/day1 slide 13)
-	 * embeds the SAME feed without rebuilding it. This page owns the chrome: the
-	 * staff auth gate, the active-session controls (Set / Clear), the count, and
-	 * the full-screen toggle.
+	 * /fsp/live — the standalone Q&A display, projected during FSP live sessions.
+	 * Staff only (@boscotech.edu). Presentations now run from Claude Design
+	 * externally; this page is always opened separately (its own window/tab) for
+	 * Q&A, never embedded in a deck. The actual question feed (Realtime
+	 * subscription + cards) lives in $lib/fsp/FspLiveFeed.svelte, shared with the
+	 * dead-code FspDeck.svelte and the dev harnesses. This page owns the chrome:
+	 * the staff auth gate, the session preset panel, the QR code, and the
+	 * full-screen toggle.
+	 *
+	 * Session selection is now six fixed presets (Day1-A/B, Day2-A/B, Day3-A/B),
+	 * not free text — one FSP still runs three days, two sessions each. Clicking
+	 * a preset writes it to fsp_config.active_session (same RLS-gated write path
+	 * as before); the feed reacts because `session` is passed to FspLiveFeed and
+	 * it re-subscribes whenever that prop changes. Switching presets naturally
+	 * "clears" what's on screen since a new session_id starts with no rows for
+	 * it; Clear Feed remains as an explicit soft-delete of the CURRENT session's
+	 * questions for edge cases (e.g. clearing chatter mid-session without
+	 * switching to a new slot).
 	 */
 
 	const ALLOWED_DOMAIN = '@boscotech.edu';
+	const SESSION_PRESETS = ['Day1-A', 'Day1-B', 'Day2-A', 'Day2-B', 'Day3-A', 'Day3-B'];
+	const ASK_URL = 'https://ideabosco.com/fsp/ask';
+	const QR_SRC =
+		'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https%3A%2F%2Fideabosco.com%2Ffsp%2Fask&bgcolor=0a0a0a&color=00FF41&format=png';
 
 	let { data } = $props();
 	const supabase = $derived(data.supabase as SupabaseClient);
@@ -28,7 +44,6 @@
 	let authError = $state('');
 
 	let activeSession = $state('');
-	let sessionInput = $state('');
 	let count = $state(0);
 	let feedError = $state('');
 	let busy = $state(''); // 'set' | 'clear' | ''
@@ -58,9 +73,8 @@
 		await invalidateAll();
 	}
 
-	async function setSession() {
-		const s = sessionInput.trim();
-		if (!s || busy) return;
+	async function selectSession(s: string) {
+		if (busy || s === activeSession) return;
 		busy = 'set';
 		feedError = '';
 		try {
@@ -71,7 +85,6 @@
 			if (error) throw error;
 			// The feed reacts to the `session` prop changing.
 			activeSession = s;
-			sessionInput = s;
 		} catch (err) {
 			feedError = err instanceof Error ? err.message : 'Could not set the session.';
 		} finally {
@@ -79,7 +92,7 @@
 		}
 	}
 
-	async function clearSession() {
+	async function clearFeed() {
 		if (!activeSession || busy) return;
 		busy = 'clear';
 		feedError = '';
@@ -89,7 +102,7 @@
 			// Soft clear: the feed's Realtime UPDATE handler removes the cleared
 			// cards on its own; new questions repopulate it.
 		} catch (err) {
-			feedError = err instanceof Error ? err.message : 'Could not clear the session.';
+			feedError = err instanceof Error ? err.message : 'Could not clear the feed.';
 		} finally {
 			busy = '';
 		}
@@ -115,9 +128,7 @@
 				.select('value')
 				.eq('key', 'active_session')
 				.maybeSingle();
-			const session = cfg?.value ?? 'Day1-A';
-			activeSession = session;
-			sessionInput = session;
+			activeSession = cfg?.value ?? 'Day1-A';
 		}
 	});
 
@@ -138,7 +149,7 @@
 		<div class="center">
 			<div class="card">
 				<h1>FSP Live Q&amp;A</h1>
-				<p>Sign in with your Bosco Tech staff account to run the live feed.</p>
+				<p>Sign in with your Bosco Tech staff account to run the live display.</p>
 				<button class="primary" onclick={signIn} disabled={loading}>
 					{loading ? 'Redirecting…' : 'Sign in with Google'}
 				</button>
@@ -151,7 +162,7 @@
 			<div class="card">
 				<h1>Staff only</h1>
 				<p>
-					You are signed in as <strong>{email || 'an unknown account'}</strong>. The live console is
+					You are signed in as <strong>{email || 'an unknown account'}</strong>. The live display is
 					for Bosco Tech staff (<strong>@boscotech.edu</strong>).
 				</p>
 				<button class="primary" onclick={signOut}>Sign out and switch account</button>
@@ -164,21 +175,6 @@
 				<span class="title">FSP LIVE</span>
 			</div>
 			<div class="controls">
-				<label class="sesslabel" for="sess">Session</label>
-				<input
-					id="sess"
-					class="sess"
-					type="text"
-					bind:value={sessionInput}
-					placeholder="Day1-A"
-					onkeydown={(e) => e.key === 'Enter' && setSession()}
-				/>
-				<button class="ghost" onclick={setSession} disabled={busy !== '' || !sessionInput.trim()}>
-					{busy === 'set' ? 'Setting…' : 'Set Session'}
-				</button>
-				<button class="ghost danger" onclick={clearSession} disabled={busy !== '' || !activeSession}>
-					{busy === 'clear' ? 'Clearing…' : 'Clear Session'}
-				</button>
 				<button class="ghost" onclick={() => (studentOpen = true)} title="Preview the student phone view">
 					Student View
 				</button>
@@ -188,16 +184,43 @@
 			</div>
 		</header>
 
-		<div class="meta">
-			<span>Active session: <strong>{activeSession || '—'}</strong></span>
-			<span class="count">{count} question{count === 1 ? '' : 's'}</span>
-		</div>
-
 		{#if feedError}<p class="err bannErr">{feedError}</p>{/if}
 
-		<main class="feed">
-			<FspLiveFeed variant="console" {supabase} session={activeSession} bind:count />
-		</main>
+		<div class="layout">
+			<aside class="panel">
+				<div class="active-session">
+					<span class="active-label">Active session</span>
+					<span class="active-name">{activeSession || '—'}</span>
+					<span class="count">{count} question{count === 1 ? '' : 's'}</span>
+				</div>
+
+				<div class="presets">
+					{#each SESSION_PRESETS as preset (preset)}
+						<button
+							class="preset"
+							class:active={preset === activeSession}
+							onclick={() => selectSession(preset)}
+							disabled={busy !== ''}
+						>
+							{preset}
+						</button>
+					{/each}
+				</div>
+
+				<button class="ghost danger clear" onclick={clearFeed} disabled={busy !== '' || !activeSession}>
+					{busy === 'clear' ? 'Clearing…' : 'Clear Feed'}
+				</button>
+
+				<div class="qr-block">
+					<img class="qr" src={QR_SRC} width="200" height="200" alt="QR code linking to {ASK_URL}" />
+					<span class="qr-label">ideabosco.com/fsp/ask</span>
+				</div>
+			</aside>
+
+			<main class="feed">
+				<FspLiveFeed variant="console" {supabase} session={activeSession} bind:count />
+			</main>
+		</div>
 
 		<FspStudentPreview bind:open={studentOpen} />
 	{/if}
@@ -273,7 +296,7 @@
 		font-size: 0.9rem;
 	}
 
-	/* ---- Console ---- */
+	/* ---- Top bar ---- */
 	.bar {
 		position: sticky;
 		top: 0;
@@ -324,27 +347,6 @@
 		align-items: center;
 		gap: 0.5rem;
 	}
-	.sesslabel {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		color: #4a7a52;
-		text-transform: uppercase;
-	}
-	.sess {
-		font: inherit;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.95rem;
-		width: 8.5rem;
-		color: var(--white, #e8ffe8);
-		background: #0a0f0a;
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
-		border-radius: 7px;
-		padding: 0.45rem 0.6rem;
-	}
-	.sess:focus {
-		outline: none;
-		border-color: var(--green, #00ff41);
-	}
 	.ghost {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.82rem;
@@ -371,21 +373,124 @@
 	.ghost.danger:hover:not(:disabled) {
 		background: rgba(200, 255, 0, 0.1);
 	}
-	.meta {
-		display: flex;
-		justify-content: space-between;
-		gap: 1rem;
-		padding: 0.6rem 1.2rem 0;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.82rem;
-		color: #7fae86;
-	}
-	.meta strong {
-		color: var(--cyan, #00f0ff);
-	}
 	.bannErr {
 		padding: 0.4rem 1.2rem;
 	}
+
+	/* ---- Widescreen layout: session panel + feed ---- */
+	.layout {
+		flex: 1;
+		min-height: 0;
+		display: flex;
+		flex-direction: row;
+	}
+	@media (max-width: 860px) {
+		.layout {
+			flex-direction: column;
+		}
+	}
+
+	.panel {
+		flex: 0 0 300px;
+		display: flex;
+		flex-direction: column;
+		gap: 1.1rem;
+		padding: 1.1rem 1rem 1.4rem;
+		border-right: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+		background: #0c110c;
+		overflow-y: auto;
+	}
+	@media (max-width: 860px) {
+		.panel {
+			flex: 0 0 auto;
+			border-right: 0;
+			border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+		}
+	}
+
+	.active-session {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.active-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #4a7a52;
+	}
+	.active-name {
+		font-size: 2rem;
+		font-weight: 700;
+		line-height: 1.1;
+		color: var(--green, #00ff41);
+		text-shadow: 0 0 14px rgba(0, 255, 65, 0.4);
+	}
+	.count {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.85rem;
+		color: var(--cyan, #00f0ff);
+	}
+
+	.presets {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+	}
+	.preset {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.9rem;
+		letter-spacing: 0.02em;
+		padding: 0.6rem 0.5rem;
+		border-radius: 8px;
+		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.25));
+		background: #0a0f0a;
+		color: #a9c9ad;
+		cursor: pointer;
+	}
+	.preset:hover:not(:disabled) {
+		background: rgba(0, 255, 65, 0.1);
+		color: var(--green, #00ff41);
+	}
+	.preset:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.preset.active {
+		background: rgba(0, 255, 65, 0.16);
+		border-color: var(--green, #00ff41);
+		color: var(--green, #00ff41);
+		box-shadow: 0 0 14px rgba(0, 255, 65, 0.2);
+	}
+
+	.clear {
+		align-self: flex-start;
+	}
+
+	.qr-block {
+		margin-top: auto;
+		padding-top: 0.8rem;
+		border-top: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.qr {
+		width: 140px;
+		height: 140px;
+		border-radius: 8px;
+		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.3));
+		background: #0a0a0a;
+	}
+	.qr-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.75rem;
+		color: #6fae77;
+		text-align: center;
+	}
+
 	.feed {
 		flex: 1;
 		min-height: 0;

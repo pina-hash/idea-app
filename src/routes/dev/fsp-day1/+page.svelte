@@ -1,61 +1,22 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import FspLiveFeed, { type FspQuestion } from '$lib/fsp/FspLiveFeed.svelte';
 	import FspStudentPreview from '$lib/fsp/FspStudentPreview.svelte';
 
 	/**
 	 * Dev harness for /fsp/day1. No auth, no Supabase. Shows the hosted standalone
-	 * deck in the iframe and a button that fakes the slide-13 postMessage so the
-	 * live-feed overlay is verifiable without clicking through all 13 slides. It
-	 * also listens for the REAL FSP_SLIDE messages the deck re-emits, so driving
-	 * the deck to slide 13 also flips the overlay. The overlay renders the real
-	 * FspLiveFeed with sample questions (supabase = null) so no network is needed.
-	 *
-	 * It also mounts the REAL presenter toolbar (Present + Student View) and the
-	 * REAL FspStudentPreview phone-frame modal so both are browser-verifiable
-	 * without Google auth. "Present" fullscreens the deck iframe directly (the
-	 * toolbar hides while fullscreen, like the real page); "Student View" opens
-	 * the /fsp/ask phone-frame modal.
+	 * deck in the iframe with the real toolbar (Present + Student View), matching
+	 * the real page now that /fsp/day1 is an archive viewer (presentations run
+	 * live from Claude Design externally; Q&A happens on /fsp/live in its own
+	 * window). The deck no longer broadcasts slide-change events here — the
+	 * FSP_SLIDE bridge and the slide-13 live overlay it drove were removed from
+	 * both day1-slides.html and the real page.
 	 */
 
 	const SLIDES_SRC = '/fsp/day1-slides.html';
 
-	const SAMPLE: FspQuestion[] = [
-		{
-			id: 's1',
-			session_id: 'Day1-A',
-			answered: false,
-			created_at: new Date(Date.now() - 8000).toISOString(),
-			question: 'How long does the pawn take to 3D print overnight?'
-		},
-		{
-			id: 's2',
-			session_id: 'Day1-A',
-			answered: false,
-			created_at: new Date(Date.now() - 64000).toISOString(),
-			question: 'Can I do both the chess pawn and the dog tag?'
-		},
-		{
-			id: 's3',
-			session_id: 'Day1-A',
-			answered: false,
-			created_at: new Date(Date.now() - 200000).toISOString(),
-			question: 'Do we get to actually drive the FRC robot on day 2?'
-		}
-	];
-
-	let liveActive = $state(false);
-	let populated = $state(true);
-	let count = $state(0);
 	let studentOpen = $state(false);
 	let isFullscreen = $state(false);
 	let iframeEl: HTMLIFrameElement | undefined = $state();
-
-	function onMessage(e: MessageEvent) {
-		const d = e.data;
-		if (!d || d.type !== 'FSP_SLIDE') return;
-		liveActive = d.slide === 13;
-	}
 
 	// The deck shows a thumbnail rail by default; its <deck-stage> `no-rail`
 	// attribute hides it and refits the current slide to fill (present layout).
@@ -79,11 +40,9 @@
 	}
 
 	onMount(() => {
-		window.addEventListener('message', onMessage);
 		document.addEventListener('fullscreenchange', onFullscreenChange);
 	});
 	onDestroy(() => {
-		if (typeof window !== 'undefined') window.removeEventListener('message', onMessage);
 		if (typeof document !== 'undefined')
 			document.removeEventListener('fullscreenchange', onFullscreenChange);
 	});
@@ -94,13 +53,8 @@
 </svelte:head>
 
 <div class="harness-bar">
-	<strong>Day 1 deck harness</strong>
+	<strong>Day 1 deck harness (archive viewer)</strong>
 	<span>no auth / Supabase</span>
-	<button onclick={() => (liveActive = !liveActive)}>
-		{liveActive ? 'Hide slide-13 overlay' : 'Simulate slide 13'}
-	</button>
-	<label><input type="checkbox" bind:checked={populated} /> populate feed</label>
-	<span class="hint">drive the real deck to slide 13 to trigger the overlay too</span>
 </div>
 
 <div class="deck-root">
@@ -124,31 +78,6 @@
 	{/if}
 
 	<FspStudentPreview bind:open={studentOpen} />
-
-	{#if liveActive}
-		<div class="live-overlay">
-			<header class="live-head">
-				<h2>Your Questions.</h2>
-				<span class="live-badge">
-					<span class="dot"></span>
-					<span class="lbl">LIVE</span>
-					{#if count > 0}<span class="cnt">{count}</span>{/if}
-				</span>
-			</header>
-			<div class="live-body">
-				<!-- Key on `populated` so toggling it remounts the feed (FspLiveFeed
-				     reads sampleQuestions once on mount) and both states show live. -->
-				{#key populated}
-					<FspLiveFeed
-						variant="slide"
-						supabase={null}
-						sampleQuestions={populated ? SAMPLE : []}
-						bind:count
-					/>
-				{/key}
-			</div>
-		</div>
-	{/if}
 </div>
 
 <style>
@@ -174,27 +103,6 @@
 	}
 	.harness-bar span {
 		color: #4a7a52;
-	}
-	.harness-bar .hint {
-		color: #00f0ff;
-	}
-	.harness-bar button {
-		font: inherit;
-		padding: 4px 8px;
-		border-radius: 6px;
-		border: 1px solid rgba(0, 255, 65, 0.35);
-		background: transparent;
-		color: #00ff41;
-		cursor: pointer;
-	}
-	.harness-bar button:hover {
-		background: rgba(0, 255, 65, 0.14);
-	}
-	.harness-bar label {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		color: #e8ffe8;
 	}
 
 	.deck-root {
@@ -250,62 +158,5 @@
 	.toolbar .ico {
 		font-size: 0.9rem;
 		line-height: 1;
-	}
-	.live-overlay {
-		position: absolute;
-		inset: 0;
-		z-index: 2;
-		background: #0a0a0a;
-		display: flex;
-		flex-direction: column;
-		padding: 40px 56px 44px;
-		color: #e8ffe8;
-		font-family: 'Rajdhani', system-ui, sans-serif;
-	}
-	.live-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 1rem;
-		padding-bottom: 22px;
-	}
-	.live-head h2 {
-		margin: 0;
-		font-size: clamp(2.4rem, 5vw, 4.4rem);
-		font-weight: 700;
-		line-height: 1;
-		color: var(--green, #00ff41);
-		text-shadow: var(--glow-green, 0 0 18px rgba(0, 255, 65, 0.5));
-	}
-	.live-badge {
-		display: inline-flex;
-		align-items: center;
-		gap: 14px;
-		padding: 10px 22px;
-		border: 1px solid rgba(255, 51, 85, 0.5);
-		border-radius: 2px;
-		font-family: 'Share Tech Mono', monospace;
-	}
-	.live-badge .dot {
-		width: 12px;
-		height: 12px;
-		border-radius: 50%;
-		background: var(--crimson, #ff3355);
-	}
-	.live-badge .lbl {
-		font-size: clamp(1rem, 1.8vw, 1.6rem);
-		letter-spacing: 0.2em;
-		color: var(--crimson, #ff3355);
-	}
-	.live-badge .cnt {
-		font-size: clamp(1rem, 1.8vw, 1.6rem);
-		letter-spacing: 0.08em;
-		color: var(--cyan, #00f0ff);
-	}
-	.live-body {
-		flex: 1;
-		min-height: 0;
-		display: flex;
-		flex-direction: column;
 	}
 </style>
