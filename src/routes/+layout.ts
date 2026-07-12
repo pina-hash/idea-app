@@ -22,8 +22,11 @@ export const load: LayoutLoad = async ({ fetch, data, depends }) => {
 				}
 			});
 
-	const { data: claimsData, error } = await supabase.auth.getClaims();
-	const claims = error ? null : (claimsData?.claims ?? null);
-
-	return { supabase, claims, userProfile: data?.userProfile ?? null };
+	// `claims` were already validated once in hooks.server.ts (which is what
+	// +layout.server.ts's `userProfile` fetch is keyed on); re-validating here
+	// on a second, independent client instance would be redundant and, for
+	// projects still on legacy HS256 signing, an extra network round trip
+	// (getClaims falls back to a live getUser() call in that case). Just
+	// forward the already-verified value.
+	return { supabase, claims: data?.claims ?? null, userProfile: data?.userProfile ?? null };
 };

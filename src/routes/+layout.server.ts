@@ -12,19 +12,17 @@ const PROFILE_COLUMNS_NO_PATHWAY =
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Every signed-in user is guaranteed a profiles row: the 0001 signup trigger
- * creates it in the same transaction as their auth.users row, before a
- * session is ever issued to them. So a query that comes back empty right
- * after sign-in (immediately following the OAuth callback redirect) is a
- * transient read-after-write hiccup, not a real "no profile" account. This
- * retries a few times, with a short backoff, INSIDE this same server load
- * call so the row is always in hand before the page renders, rather than
- * rendering once with nothing and patching it up client-side later.
+ * Every signed-in user is guaranteed a profiles row (the 0001 signup
+ * trigger), and `/auth/callback` already blocks its redirect until that row
+ * is confirmed visible, so this should succeed on the first try for any
+ * session that came through our sign-in flow. The short retry here is only
+ * a backstop for sessions that didn't (an existing cookie from before this
+ * fix shipped, a magic link, etc.) — it is not the primary guarantee.
  */
 async function loadProfile(supabase: SupabaseClient, userId: string) {
 	let lastError: unknown = null;
-	for (let attempt = 0; attempt < 3; attempt++) {
-		if (attempt > 0) await sleep(attempt * 150);
+	for (let attempt = 0; attempt < 2; attempt++) {
+		if (attempt > 0) await sleep(200);
 
 		let { data, error } = await supabase
 			.from('profiles')
@@ -47,7 +45,7 @@ async function loadProfile(supabase: SupabaseClient, userId: string) {
 	}
 
 	if (lastError) {
-		console.error('Failed to load profile for signed-in user after retries:', lastError);
+		console.error(`Failed to load profile for user ${userId}:`, lastError);
 	}
 	return null;
 }
@@ -57,7 +55,7 @@ async function loadProfile(supabase: SupabaseClient, userId: string) {
  * layout load, so the browser client can be created with the same session.
  * Also loads the signed-in user's profile once here (as `userProfile`, a key
  * no page load shadows) so the global ProfileMenu and per-user preferences
- * are available on every page, on the FIRST render (see loadProfile above).
+ * are available on every page, on the first render.
  */
 export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, cookies }) => {
 	const userProfile = claims ? await loadProfile(supabase, claims.sub) : null;
