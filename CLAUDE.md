@@ -1579,6 +1579,62 @@ Tech navy/gold with a standard system-sans stack, all scoped under `.fsp-root`
   build; install/registration (self-elevating `register.bat` around 64-bit
   RegAsm) is in its `README-install.md`.
 
+## FSP live Q&A
+
+`/fsp/ask` + `/fsp/live` are the FSP live audience Q&A: students submit
+questions from their phones and Mr. Pina runs the feed on a projector. This is
+**Phase 1** (the live feed only); Phase 2 will embed `/fsp/live` into a full
+slide presentation route. Unlike `/fsp-tech-selection` (neutral navy/gold, Apps
+Script), this pair is **Supabase-backed** and uses the **IDEA green `#00FF41` on
+near-black `#0a0a0a`** aesthetic (Rajdhani + Share Tech Mono), scoped under its
+own opaque root so the shell `.bg-fx` never shows through.
+
+- **Data model (`0043_fsp_qa.sql`, apply manually):**
+  - `fsp_questions` (`id`, `question`, `session_id`, `created_at`, `answered`).
+    Signed-in users READ all rows (RLS `using (true)`); there is **no direct
+    write grant**. The ONLY insert path is the SECURITY DEFINER RPC
+    `submit_fsp_question(p_question, p_session_id)` (returns the new id, stamps
+    `created_at`/`answered=false` server-side), granted to `authenticated`, so a
+    client can never forge those or target another session by raw insert.
+  - `fsp_config` (`key` PK, `value`), seeded `active_session = 'Day1-A'`. All
+    authenticated users read; only `@boscotech.edu` (staff) may UPDATE (RLS on
+    the JWT email domain). This one row is the session the ask picker submits to
+    and the live feed filters on.
+  - Soft clear is the staff-only SECURITY DEFINER RPC
+    `clear_fsp_session(p_session_id)` (gated to `@boscotech.edu`): sets
+    `answered = true` on that session's unanswered rows (never deletes) and
+    returns the count. Keeps `fsp_questions` with no client update grant.
+  - `fsp_questions` is added to the `supabase_realtime` publication so the live
+    feed gets INSERT (new question) and UPDATE (soft clear) events; RLS still
+    applies to the stream.
+- **`/fsp/ask` (students, `@boscotech.net`):** mobile-first. In-page Google
+  sign-in gate (no hooks redirect, like `/fsp-tech-selection`, since it is
+  reached cold from a QR code) + client domain check. A single textarea + submit
+  that reads the current `active_session` fresh from `fsp_config` then calls
+  `submit_fsp_question`. On success the form is replaced (no reload) by
+  "Your question was submitted. You earned 1 IDEA Coin." with an "Ask another
+  question" button that restores the form. (Coins are still display-only; no coin
+  economy exists in this repo, see the scope guardrails.)
+- **`/fsp/live` (staff, `@boscotech.edu`):** the presenter console. In-page
+  sign-in + staff domain gate, a full-screen toggle, and a top control bar:
+  a session-name input, **Set Session** (updates `fsp_config.active_session`,
+  RLS-gated, then reloads + re-subscribes the feed) and **Clear Session** (calls
+  `clear_fsp_session`, empties the feed, repopulates as new questions arrive).
+  Subscribes to `fsp_questions` over Realtime filtered by the active session,
+  loads current unanswered rows newest-first, and renders question cards
+  (text + relative timestamp) that animate in; a soft-clear UPDATE removes a
+  card. Animations respect `prefers-reduced-motion`.
+- **Neither `/fsp/ask` nor `/fsp/live` is in `authedPrefixes`** (`hooks.server.ts`):
+  auth is handled by the in-page gates, and the real boundary is RLS + the
+  RPC/`fsp_config` grants, so anonymous/QR-cold visitors see a friendly sign-in
+  rather than a bounce to `/`. (The `/fsp` prefix does not shadow
+  `/fsp-tech-selection`, which is a sibling path, not `/fsp/...`.)
+- **Dev harness `/dev/fsp-qa`** (404 in production): mounts the REAL `/fsp/ask`
+  and `/fsp/live` in side-by-side iframes for the submit-appears-live check. This
+  flow uses real auth + Realtime and is deliberately NOT mockable; verifying it
+  needs 0043 applied and both accounts signed in (same-origin cookies flow into
+  the frames).
+
 ## Version + changelog substrate
 
 The site changelog AND every page's version are **auto-generated from git
