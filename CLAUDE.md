@@ -1643,42 +1643,56 @@ own opaque root so the shell `.bg-fx` never shows through.
 
 ## FSP Day 1 deck
 
-`/fsp/day1` is the **FSP Day 1 presentation deck** (Phase 2 of the live Q&A),
-a native SvelteKit rebuild of the Claude Design deck "IDEA FSP Deck.dc.html".
-It is a public route (NOT in `authedPrefixes`) the presenter drives full-screen;
-13 slides, IDEA green `#00FF41` on near-black `#0a0a0a`, Rajdhani + Share Tech
-Mono + Orbitron (the IDEA wordmark).
+`/fsp/day1` is the **FSP Day 1 presentation deck** (Phase 2 of the live Q&A).
+The canonical slides are the **standalone Claude Design export**, hosted
+verbatim and shown in a full-viewport iframe — NOT rebuilt. 13 slides, IDEA
+green `#00FF41` on near-black `#0a0a0a`.
 
-- **`src/lib/fsp/FspDeck.svelte`** is the deck. The stage is a fixed **1440x1080
-  (4:3)** canvas scaled with one `transform: scale()` to fit any viewport and
-  letterboxed on black; the deck is `position: fixed; inset: 0` so it covers the
-  shell. Keyboard: `←/→`, `↑/↓`, `PageUp/PageDown`, `Space`, `Home/End`, digits
-  `1-9` navigate; `F` toggles full screen (`requestFullscreen` on the deck root);
-  `R` resets to slide 1. A fading presenter HUD (slide count + label + prev/next
-  + full-screen) shows on pointer move / key and auto-hides. All 13 slides stay
-  mounted (so the embedded feed keeps its subscription); only the active slide
-  animates (`animation-play-state: paused` on the rest) and replays its entrance
-  on becoming active. Everything animated respects `prefers-reduced-motion`.
-- **Slides 1-12 are the design's own markup**, generated into
-  `src/lib/fsp/day1-slides.ts` (`DAY1_SLIDES`, rendered via `{@html}`) by a
-  one-off transform of the source deck: the machined-mint palette recolored to
-  the pinned green, and the Claude Design custom elements swapped for native
-  equivalents — `AnimatedLogo` -> an Orbitron `IDEA` wordmark, `image-slot` ->
-  styled CAD-viewport placeholders (photos are drop-in later), the CDN
-  `qrcodejs` box -> a committed static QR. **Regenerate the .ts, never hand-edit
-  it**, if the source deck changes.
-- **Slide 13 ("Live Questions") is native** so it embeds the real
-  `FspLiveFeed` (`variant="slide"`) inside the deck's framed panel, rather than a
-  mock — the questions populate live for a signed-in presenter (feed reads are
-  RLS-gated to authenticated users).
-- **Slide 12 QR** is `static/fsp/fsp-ask-qr.svg` (committed, generated once,
-  error-correction H) pointing at `https://ideabosco.com/fsp/ask`. No runtime QR
-  dependency and no CDN script (CSP-safe), unlike the source deck.
-- **Dev harness `/dev/fsp-day1`** (404 in production, no auth / Supabase): mounts
-  the REAL `FspDeck` with `supabase=null` and sample questions; a floating strip
-  jumps to the first / live slide and toggles slide 13 between its empty
-  ("waiting for submissions") and populated states, so the whole deck (nav,
-  scaling, full screen, the slide-13 embed) is browser-verifiable without a DB.
+- **The slides live at `static/fsp/day1-slides.html`** — the Claude Design
+  standalone export ("IDEA FSP Deck (standalone).html"), copied in as-is (a
+  ~28MB self-contained bundle: a small "bundler" wrapper that unpacks a
+  gzip+base64 asset manifest into blob URLs, then renders a React/Babel-standalone
+  app whose `deck-stage` custom element is the slide player). It is served
+  straight from `static/` at `/fsp/day1-slides.html`, fully self-contained (no
+  CDN, CSP-safe). **Do not rebuild or re-theme the slides**; if the source deck
+  changes, re-export and re-copy the file, then re-apply the one injection below.
+- **The ONE modification to the export** (`day1-slides.html`, one surgical
+  place): a tiny forwarder `<script>` added just before the `__bundler/manifest`
+  tag. `deck-stage` already broadcasts `{ slideIndexChanged: <0-based index>,
+  deckTotal }` to its own window on every navigation (init / keyboard / click);
+  the forwarder re-emits it to the embedding page as
+  `window.parent.postMessage({ type: 'FSP_SLIDE', slide }, '*')`, mapping index
+  12 (slide 13, the "Live Questions" slide) to `slide: 13` and every other index
+  to `slide: null`, deduped so 13 fires once on enter and null once on leave. It
+  touches no slide content, styles, layout, or assets, and registers on `window`
+  (which survives the bundler's `documentElement.replaceWith`).
+- **`src/routes/fsp/day1/+page.svelte`** is the host. Staff only
+  (`@boscotech.edu`), gated **in-page** exactly like `/fsp/live` (this route is
+  NOT in `authedPrefixes`; signed-out sees a sign-in card, wrong-domain sees a
+  switch-account card). When gated in it renders a full-viewport `<iframe
+  src="/fsp/day1-slides.html" allow="fullscreen">` (the deck owns its own arrow /
+  PageUp / PageDown / space keyboard nav, so a presentation clicker drives it
+  natively; the iframe is focused on load so the clicker works immediately). It
+  listens for the `FSP_SLIDE` message: on `slide === 13` it overlays the REAL
+  `FspLiveFeed` (`variant="slide"`, live `supabase`, self-resolving the active
+  session) full-viewport over the deck on `#0a0a0a` with a "Your Questions." /
+  LIVE header; on `null` it removes the overlay. A page-level **`F`** key toggles
+  native fullscreen on the deck root. The live feed populates for a signed-in
+  presenter (feed reads are RLS-gated to authenticated users).
+- **Superseded native rebuild:** `src/lib/fsp/FspDeck.svelte` +
+  `src/lib/fsp/day1-slides.ts` were an earlier native-SvelteKit rebuild of the
+  deck. They are no longer wired to any route (the iframe-hosting approach above
+  replaced them) and remain in the tree only as dead code; do not extend them.
+- **Slide 12 QR** inside the export points at the `/fsp/ask` submission page
+  (the standalone deck embeds its own QR; the separate committed
+  `static/fsp/fsp-ask-qr.svg` remains available for other uses).
+- **Dev harness `/dev/fsp-day1`** (404 in production, no auth / Supabase): shows
+  the hosted deck iframe plus a floating strip with a "Simulate slide 13" button
+  (fakes the `FSP_SLIDE` postMessage) and a populate toggle, so the live-feed
+  overlay's empty ("waiting for submissions") and populated states are
+  browser-verifiable without clicking through all 13 slides or a live DB. It also
+  listens for the REAL `FSP_SLIDE` messages, so driving the deck to slide 13 in
+  the browser flips the overlay too.
 
 ## Version + changelog substrate
 
