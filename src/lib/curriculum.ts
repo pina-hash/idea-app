@@ -38,6 +38,8 @@ export interface Section {
 	note?: string;
 	/** Assignments for this section. Empty until content is added. */
 	assignments?: Assignment[];
+	/** Optional link to a dedicated class hub page (e.g. FSP's plugin + project page). */
+	href?: string;
 }
 
 /**
@@ -58,7 +60,8 @@ export const SECTIONS: Section[] = [
 		term: 'Summer',
 		isNew: true,
 		status: 'live',
-		note: '3-day intensive. The next live course.'
+		note: '3-day intensive. The next live course.',
+		href: '/fsp'
 	},
 	{
 		id: 'intro-100-1',

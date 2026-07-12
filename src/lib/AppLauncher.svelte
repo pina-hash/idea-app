@@ -124,6 +124,12 @@
 			<path d="M 6,22 C 6,10 14,6 20,12 C 26,18 26,24 20,26" stroke-dasharray="2,3" />
 		{:else if id === 'archive'}
 			<path d="M5 7h22v6H5z" /><path d="M7 13v12h18V13" /><path d="M13 18h6" />
+		{:else if id === 'fsp'}
+			<!-- Chess pawn silhouette (FSP builds a pawn on day 1). -->
+			<circle cx="16" cy="9" r="3" />
+			<path d="M12.5 16.5c1-2.5 6-2.5 7 0" />
+			<path d="M12 21c0-2.5 1.5-3.5 1.5-5h5c0 1.5 1.5 2.5 1.5 5z" />
+			<path d="M9.5 26h13" />
 		{/if}
 	</svg>
 	{/if}

@@ -93,6 +93,15 @@ export const PORTAL_APPS: PortalApp[] = [
 		teacherOnly: true
 	},
 	{
+		id: 'fsp',
+		title: 'IDEA FSP',
+		sub: 'Freshman Summer Program hub: the pawn/dogtag plugin, project days, and tech selection.',
+		icon: 'fsp',
+		href: '/fsp',
+		group: 'class',
+		cta: 'Open'
+	},
+	{
 		id: 'courses',
 		title: 'Courses & Assignments',
 		sub: 'The 2026-27 curriculum, your pinned class, and every open assignment.',

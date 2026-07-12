@@ -330,6 +330,9 @@
 					<div class="empty-text">
 						{#if s.status === 'live'}
 							{s.note ?? 'Live now.'}
+							{#if s.href}
+								<a class="text-btn inline" href={s.href}>View class hub &rsaquo;</a>
+							{/if}
 						{:else}
 							Assignments will appear here when posted.
 						{/if}
@@ -397,7 +400,7 @@
 	</section>
 
 	{#if nextLive}
-		<div class="promo-callout nextlive">
+		<svelte:element this={nextLive.href ? 'a' : 'div'} class="promo-callout nextlive" href={nextLive.href}>
 			<div class="promo-left">
 				<div class="promo-icon">&#9650;</div>
 				<div>
@@ -405,8 +408,8 @@
 					<div class="promo-sub">{nextLive.title}. {nextLive.note ?? ''}</div>
 				</div>
 			</div>
-			<div class="promo-cta">{nextLive.term}</div>
-		</div>
+			<div class="promo-cta">{nextLive.href ? 'Open →' : nextLive.term}</div>
+		</svelte:element>
 	{/if}
 
 	<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
