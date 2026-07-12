@@ -130,8 +130,12 @@
 {/snippet}
 
 {#snippet appCard(app: PortalApp, group: AppGroupId | null)}
+	{@const primary = app.theme?.primary ?? 'var(--green)'}
+	{@const secondary = app.theme?.secondary ?? 'var(--gold)'}
+	{@const accStyle = `--acc-primary:${primary};--acc-secondary:${secondary};`}
 	{#if customizing}
-		<div class="app-card static" class:compact>
+		<div class="app-card static" class:compact style={accStyle}>
+			<span class="app-strip"></span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title">{app.title}</span>
@@ -153,7 +157,8 @@
 			</span>
 		</div>
 	{:else}
-		<a class="app-card" class:compact href={app.href} onclick={(e) => appClick(e, app)}>
+		<a class="app-card" class:compact href={app.href} onclick={(e) => appClick(e, app)} style={accStyle}>
+			<span class="app-strip"></span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title">{app.title}</span>
@@ -350,17 +355,20 @@
 		gap: 0.6rem;
 	}
 	.app-card {
-		/* One uniform, token-only accent for every card (brass/gold). Cards are
-		   differentiated by name, tagline, status, and group — never by a
-		   per-card color. The `--acc*` vars keep the card's icon, edges, title,
-		   and CTA on a single design-system scheme; the rgba values are the
-		   --gold token (200,168,72) at the working opacities. */
-		--acc: var(--gold);
+		/* Per-card accent, set inline from PortalApp.theme (primary/secondary);
+		   falls back to the shared brass/gold scheme when a card has no theme.
+		   The `--acc*` vars keep the card's icon, edges, title, and CTA tied to
+		   its own two-color scheme. */
+		--acc-primary: var(--gold);
+		--acc-secondary: var(--green);
+		--acc: var(--acc-primary);
 		--acc-title: var(--acc);
-		--acc-glow: rgba(200, 168, 72, 0.4);
-		--acc-line: rgba(200, 168, 72, 0.2);
-		--acc-line-strong: rgba(200, 168, 72, 0.5);
-		--acc-wash: rgba(200, 168, 72, 0.05);
+		--acc-glow: color-mix(in srgb, var(--acc-primary) 30%, transparent);
+		--acc-line: color-mix(in srgb, var(--acc-primary) 20%, transparent);
+		--acc-line-strong: color-mix(in srgb, var(--acc-primary) 50%, transparent);
+		--acc-wash: color-mix(in srgb, var(--acc-primary) 5%, transparent);
+		--acc-hover-glow: color-mix(in srgb, var(--acc-primary) 20%, transparent);
+		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 0.9rem;
@@ -370,12 +378,24 @@
 		box-shadow: var(--bevel-raised);
 		padding: 0.85rem 1rem;
 		text-decoration: none;
+		overflow: hidden;
 		transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
+	}
+	.app-strip {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 2px;
+		border-radius: var(--radius-card) var(--radius-card) 0 0;
+		background: linear-gradient(to right, var(--acc-primary), var(--acc-secondary));
+		pointer-events: none;
 	}
 	a.app-card:hover {
 		border-color: var(--acc-line-strong);
 		background: var(--acc-wash);
 		transform: translateY(-2px);
+		box-shadow: var(--bevel-raised), 0 0 16px var(--acc-hover-glow);
 	}
 	a.app-card:active {
 		transform: translateY(0);
@@ -472,6 +492,7 @@
 	}
 	a.app-card:hover .app-cta {
 		border-color: var(--acc-line-strong);
+		background: color-mix(in srgb, var(--acc-primary) 12%, transparent);
 		box-shadow: 0 0 10px var(--acc-wash);
 	}
 	.app-tools {

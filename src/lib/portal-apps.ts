@@ -26,6 +26,8 @@ export interface PortalApp {
 	requiresAuth?: boolean;
 	/** Only rendered for teachers. */
 	teacherOnly?: boolean;
+	/** Per-card accent colors. Falls back to the shared brass/gold scheme when unset. */
+	theme?: { primary: string; secondary: string };
 }
 
 export const APP_GROUPS: { id: AppGroupId; label: string }[] = [
@@ -42,7 +44,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'vanguard',
 		href: '/vanguard/',
 		group: 'games',
-		cta: 'Play'
+		cta: 'Play',
+		theme: { primary: '#00FF41', secondary: '#C8FF00' }
 	},
 	{
 		id: 'gauntlet',
@@ -52,7 +55,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		href: '/gauntlet',
 		group: 'games',
 		cta: 'Enter',
-		requiresAuth: true
+		requiresAuth: true,
+		theme: { primary: '#00FF41', secondary: '#00F0FF' }
 	},
 	{
 		id: 'greenline',
@@ -61,7 +65,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'greenline',
 		href: '/dev/greenline-movement',
 		group: 'games',
-		cta: 'Test'
+		cta: 'Test',
+		theme: { primary: '#78B870', secondary: '#C8A848' }
 	},
 	{
 		id: 'coins',
@@ -70,7 +75,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'coins',
 		href: '/coins/index.html',
 		group: 'tools',
-		cta: 'View live'
+		cta: 'View live',
+		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
 	{
 		id: 'coin-entry',
@@ -80,7 +86,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		href: '/coin-entry',
 		group: 'tools',
 		cta: 'Open',
-		teacherOnly: true
+		teacherOnly: true,
+		theme: { primary: '#C8A848', secondary: '#D08030' }
 	},
 	{
 		id: 'dashboard',
@@ -90,7 +97,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		href: '/dashboard',
 		group: 'tools',
 		cta: 'Open',
-		teacherOnly: true
+		teacherOnly: true,
+		theme: { primary: '#78B870', secondary: '#5ABDA8' }
 	},
 	{
 		id: 'courses',
@@ -99,7 +107,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'courses',
 		href: '#your-class',
 		group: 'class',
-		cta: 'Browse'
+		cta: 'Browse',
+		theme: { primary: '#78B870', secondary: '#C8A848' }
 	},
 	{
 		id: 'frc',
@@ -109,7 +118,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		href: '/frc',
 		group: 'class',
 		cta: 'Enter',
-		requiresAuth: true
+		requiresAuth: true,
+		theme: { primary: '#ED1C24', secondary: '#0066B3' }
 	},
 	{
 		id: 'archive',
@@ -118,7 +128,8 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'archive',
 		href: '/archive',
 		group: 'class',
-		cta: 'Open'
+		cta: 'Open',
+		theme: { primary: '#849080', secondary: '#78B870' }
 	}
 ];
 
