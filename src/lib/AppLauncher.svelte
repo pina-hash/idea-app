@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import type { UserProfile } from '$lib/profile';
@@ -94,6 +95,92 @@
 			onRequireSignIn(app.href);
 		}
 	};
+
+	/**
+	 * Per-theme card interior texture (background-image), keyed off the card's
+	 * primary/secondary accent. Kept at <=3% opacity so it never touches text
+	 * readability. Returns the image string plus a background-size (only the
+	 * blueprint grid needs a fixed tile; the rest are repeating gradients).
+	 */
+	const cardTexture = (primary: string, secondary: string): { image: string; size: string } => {
+		const p = primary.toUpperCase();
+		const s = secondary.toUpperCase();
+		// VANGUARD (green + chartreuse): horizontal scanlines.
+		if (p === '#00FF41' && s === '#C8FF00')
+			return {
+				image:
+					'repeating-linear-gradient(0deg, rgba(0,255,65,0.03) 0px, rgba(0,255,65,0.03) 1px, transparent 1px, transparent 4px)',
+				size: 'auto'
+			};
+		// GAUNTLET (green + cyan): 24px blueprint grid.
+		if (p === '#00FF41' && s === '#00F0FF')
+			return {
+				image:
+					'linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px)',
+				size: '24px 24px'
+			};
+		// FRC (red primary): diagonal stripes.
+		if (p === '#ED1C24')
+			return {
+				image:
+					'repeating-linear-gradient(45deg, rgba(237,28,36,0.025) 0px, rgba(237,28,36,0.025) 1px, transparent 1px, transparent 16px)',
+				size: 'auto'
+			};
+		// Everything else: the design-system brushed-metal token.
+		return { image: 'var(--texture-brushed)', size: 'auto' };
+	};
+
+	/**
+	 * Card entrance: cards rise in as they scroll into view. Initial hidden state
+	 * is stamped inline on mount (before the observer fires) so there is no flash;
+	 * a per-group stagger walks them in; inline styles are cleared on transitionend
+	 * so the CSS hover/active transforms take over again. Skipped entirely under
+	 * prefers-reduced-motion (cards stay immediately visible).
+	 */
+	onMount(() => {
+		if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+		// Clear the inline entrance styles once a card has risen in, so the CSS
+		// hover/active transforms (which inline transform would otherwise beat on
+		// specificity) take over again. transitionend is the normal trigger; a
+		// timeout fallback guarantees cleanup even if no transition fired.
+		const clearCard = (el: HTMLElement) => {
+			el.style.opacity = '';
+			el.style.transform = '';
+			el.style.transition = '';
+			el.style.transitionDelay = '';
+		};
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				for (const entry of entries) {
+					if (!entry.isIntersecting) continue;
+					const el = entry.target as HTMLElement;
+					el.style.opacity = '1';
+					el.style.transform = 'translateY(0)';
+					observer.unobserve(el);
+					el.addEventListener('transitionend', () => clearCard(el), { once: true });
+					const delayMs = parseFloat(el.style.transitionDelay) || 0;
+					setTimeout(() => clearCard(el), delayMs + 600);
+				}
+			},
+			{ threshold: 0.15 }
+		);
+
+		// Stagger is per section group (each .app-grid), so a card's delay is its
+		// index within its own group, not a global running count.
+		document.querySelectorAll<HTMLElement>('.launcher .app-grid').forEach((grid) => {
+			grid.querySelectorAll<HTMLElement>('.app-card').forEach((card, i) => {
+				card.style.opacity = '0';
+				card.style.transform = 'translateY(18px)';
+				card.style.transition = 'opacity 0.45s ease-out, transform 0.45s ease-out';
+				card.style.transitionDelay = i * 60 + 'ms';
+				observer.observe(card);
+			});
+		});
+
+		return () => observer.disconnect();
+	});
 </script>
 
 {#snippet appIcon(id: string)}
@@ -132,7 +219,8 @@
 {#snippet appCard(app: PortalApp, group: AppGroupId | null)}
 	{@const primary = app.theme?.primary ?? 'var(--green)'}
 	{@const secondary = app.theme?.secondary ?? 'var(--gold)'}
-	{@const accStyle = `--acc-primary:${primary};--acc-secondary:${secondary};`}
+	{@const tex = cardTexture(primary, secondary)}
+	{@const accStyle = `--acc-primary:${primary};--acc-secondary:${secondary};--card-texture:${tex.image};--card-texture-size:${tex.size};`}
 	{#if customizing}
 		<div class="app-card static" class:compact style={accStyle}>
 			<span class="app-strip"></span>
@@ -216,11 +304,12 @@
 					aria-expanded={!isCollapsed}
 					onclick={() => toggleCollapse(group.id)}
 				>
+					<span class="group-slash" aria-hidden="true">//</span>
 					<span class="group-label">{group.label}</span>
+					<span class="group-line"></span>
 					<span class="group-count">{groupApps.length}</span>
 					<span class="group-chev" class:closed={isCollapsed} aria-hidden="true">&#9662;</span>
 				</button>
-				<span class="group-line"></span>
 			</div>
 			{#if !isCollapsed}
 				<div class="app-grid" class:compact>
@@ -304,19 +393,27 @@
 		margin: 1.1rem 0 0.7rem;
 	}
 	.group-toggle {
-		display: inline-flex;
-		align-items: baseline;
-		gap: 0.5rem;
+		display: flex;
+		align-items: center;
+		width: 100%;
+		gap: 0.45rem;
 		background: none;
 		border: none;
 		padding: 0;
 		cursor: pointer;
 	}
+	/* House `//` motif leading each section label, in dimmed cyan. */
+	.group-slash {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.65rem;
+		letter-spacing: 0.1em;
+		color: var(--cyan);
+		opacity: 0.7;
+	}
 	.group-label {
-		font-family: 'Orbitron', sans-serif;
-		font-size: 0.62rem;
-		font-weight: 700;
-		letter-spacing: 0.2em;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.65rem;
+		letter-spacing: 0.18em;
 		text-transform: uppercase;
 		color: var(--dim);
 	}
@@ -343,7 +440,9 @@
 	.group-line {
 		flex: 1;
 		height: 1px;
-		background: linear-gradient(to right, rgba(0, 255, 65, 0.25), transparent);
+		background: var(--line);
+		margin: 0 0.75rem;
+		align-self: center;
 	}
 	.app-grid {
 		display: grid;
@@ -372,7 +471,12 @@
 		display: flex;
 		align-items: center;
 		gap: 0.9rem;
-		background: var(--bg1);
+		/* Base surface + a subtle per-theme interior texture (<=3% opacity) layered
+		   as a background-image behind content. Kept off ::before so the accent
+		   strip is untouched. Both vars are set inline per card by cardTexture(). */
+		background-color: var(--bg1);
+		background-image: var(--card-texture, none);
+		background-size: var(--card-texture-size, auto);
 		border: 1px solid var(--acc-line);
 		border-radius: var(--radius-card);
 		box-shadow: var(--bevel-raised);
@@ -393,7 +497,9 @@
 	}
 	a.app-card:hover {
 		border-color: var(--acc-line-strong);
-		background: var(--acc-wash);
+		/* background-color (not the shorthand) so the interior texture image
+		   survives the hover wash. */
+		background-color: var(--acc-wash);
 		transform: translateY(-2px);
 		box-shadow: var(--bevel-raised), 0 0 16px var(--acc-hover-glow);
 	}

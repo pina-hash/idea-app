@@ -362,28 +362,36 @@
 	{/if}
 
 	<section class="hero">
-		<div class="hero-eyebrow">Don Bosco Technical Institute - Technology Pathway</div>
-		<h1>Integrated Design, Engineering <span class="accent">&amp;</span> Art</h1>
-		<p class="hero-sub">
-			The IDEA pathway portal. Browse the 2026-27 curriculum below. Sign in to pin your class and
-			save your progress.
-		</p>
-		<div class="hero-meta">
-			<div class="hero-stat">
-				<span class="value">{courseCount}</span>
-				<span class="label">Active Courses</span>
+		<div class="hero-inner">
+			<div class="hero-text">
+				<div class="hero-eyebrow">Don Bosco Technical Institute - Technology Pathway</div>
+				<h1>Integrated Design, Engineering <span class="accent">&amp;</span> Art</h1>
+				<p class="hero-sub">
+					The IDEA pathway portal. Browse the 2026-27 curriculum below. Sign in to pin your class and
+					save your progress.
+				</p>
+				<div class="hero-meta">
+					<div class="hero-stat">
+						<span class="value">{courseCount}</span>
+						<span class="label">Active Courses</span>
+					</div>
+					<div class="hero-stat">
+						<span class="value" style="color:var(--gold);text-shadow:var(--glow-gold);animation-delay:0.8s">2026-27</span>
+						<span class="label">School Year</span>
+					</div>
+					<div class="hero-stat">
+						<span class="value">
+							<span style="color:var(--cyan); text-shadow:var(--glow-cyan)">Mr. Pina</span>
+							<span style="color:var(--dim); margin: 0 0.4rem; font-size:0.9em">/</span>
+							<span style="color:var(--ice); text-shadow: 0 0 6px rgba(169,188,171,0.45), 0 0 18px rgba(169,188,171,0.2)">Mr. Cosso</span>
+						</span>
+						<span class="label">Instructors</span>
+					</div>
+				</div>
 			</div>
-			<div class="hero-stat">
-				<span class="value" style="color:var(--gold);text-shadow:var(--glow-gold);animation-delay:0.8s">2026-27</span>
-				<span class="label">School Year</span>
-			</div>
-			<div class="hero-stat">
-				<span class="value">
-					<span style="color:var(--cyan); text-shadow:var(--glow-cyan)">Mr. Pina</span>
-					<span style="color:var(--dim); margin: 0 0.4rem; font-size:0.9em">/</span>
-					<span style="color:var(--ice); text-shadow: 0 0 6px rgba(169,188,171,0.45), 0 0 18px rgba(169,188,171,0.2)">Mr. Cosso</span>
-				</span>
-				<span class="label">Instructors</span>
+			<div class="hero-logo">
+				<span class="hero-logo-glow" aria-hidden="true"></span>
+				<AnimatedLogo width="100%" />
 			</div>
 		</div>
 	</section>
@@ -393,7 +401,11 @@
 			<div class="promo-left">
 				<div class="promo-icon">&#9650;</div>
 				<div>
-					<div class="promo-title">Next Live Course &middot; {nextLive.course}</div>
+					<div class="promo-title">
+						<span class="promo-eyebrow">Next Live Course</span>
+						<span class="promo-sep">&middot;</span>
+						<span class="promo-course">{nextLive.course}</span>
+					</div>
 					<div class="promo-sub">{nextLive.title}. {nextLive.note ?? ''}</div>
 				</div>
 			</div>

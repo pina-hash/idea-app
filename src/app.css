@@ -2018,6 +2018,45 @@ a:hover {
 	max-width: 1100px;
 	margin: 0 auto;
 }
+/* Mobile-first single column: logo pulled above the heading, text centered.
+   At md+ this flips to a two-column split (text left, logo right) in the media
+   query below. */
+.legacy-index .hero-inner {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 2rem;
+}
+.legacy-index .hero-text {
+	text-align: center;
+}
+.legacy-index .hero-logo {
+	order: -1;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 180px;
+	flex-shrink: 0;
+}
+/* Faint radial glow anchoring the emblem; larger than the logo so it never
+   clips it. Sits behind the lockup (which is raised to z-index 1). */
+.legacy-index .hero-logo-glow {
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 420px;
+	height: 420px;
+	max-width: 150%;
+	transform: translate(-50%, -50%);
+	background: radial-gradient(circle, rgba(120, 184, 112, 0.06) 0%, transparent 65%);
+	pointer-events: none;
+	z-index: 0;
+}
+.legacy-index .hero-logo .idea-logo {
+	position: relative;
+	z-index: 1;
+}
 .legacy-index .hero-eyebrow {
 	font-size: 0.65rem;
 	letter-spacing: 0.25em;
@@ -2047,16 +2086,46 @@ a:hover {
 	line-height: 1.7;
 	text-align: center;
 }
+/* Stats plate: the three stat blocks seated in a bordered, chamfered panel
+   (octagonal clip echoes the IDEA emblem plate). inline-flex + fit-content so it
+   hugs its content and left-aligns with the hero text column. */
 .legacy-index .hero-meta {
-	display: flex;
-	gap: 2.5rem;
+	display: inline-flex;
+	width: fit-content;
+	max-width: 100%;
+	align-items: center;
+	gap: 2rem;
 	margin-top: 2.5rem;
-	flex-wrap: wrap;
+	padding: 1.25rem 2rem;
+	background: var(--bg2);
+	border: 1px solid var(--line);
+	box-shadow: var(--bevel-raised);
+	clip-path: polygon(
+		8px 0%,
+		calc(100% - 8px) 0%,
+		100% 8px,
+		100% calc(100% - 8px),
+		calc(100% - 8px) 100%,
+		8px 100%,
+		0% calc(100% - 8px),
+		0% 8px
+	);
 }
 .legacy-index .hero-stat {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	gap: 0.2rem;
+}
+/* 1px vertical divider between each stat pair, 60% panel height, centered. */
+.legacy-index .hero-stat:not(:last-child)::after {
+	content: '';
+	position: absolute;
+	right: -1rem;
+	top: 20%;
+	height: 60%;
+	width: 1px;
+	background: var(--line);
 }
 .legacy-index .hero-stat .value {
 	font-family: 'Orbitron', sans-serif;
@@ -2087,6 +2156,30 @@ a:hover {
 	}
 }
 
+/* md+ : two-column hero — text on the left, emblem on the right. */
+@media (min-width: 768px) {
+	.legacy-index .hero-inner {
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		gap: 3rem;
+	}
+	.legacy-index .hero-text {
+		flex: 1;
+		min-width: 0;
+		text-align: left;
+	}
+	.legacy-index .hero-text .hero-sub {
+		margin-left: 0;
+		margin-right: 0;
+		text-align: left;
+	}
+	.legacy-index .hero-logo {
+		order: 0;
+		width: clamp(280px, 26vw, 360px);
+	}
+}
+
 /* Promo callouts */
 .legacy-index .promo-callout {
 	position: relative;
@@ -2112,8 +2205,20 @@ a:hover {
 	background: linear-gradient(135deg, rgba(211, 198, 142, 0.12) 0%, rgba(147, 214, 200, 0.08) 100%);
 }
 .legacy-index .promo-callout.nextlive {
-	border-color: rgba(143, 224, 138, 0.45);
-	background: linear-gradient(135deg, rgba(143, 224, 138, 0.1) 0%, rgba(147, 214, 200, 0.05) 100%);
+	border-color: rgba(143, 224, 138, 0.25);
+	/* Full-height green rail on the left + a subtle green gradient wash layered
+	   over the existing tint. */
+	border-left: 3px solid var(--green);
+	background:
+		linear-gradient(to right, rgba(120, 184, 112, 0.04), transparent 45%),
+		linear-gradient(135deg, rgba(143, 224, 138, 0.1) 0%, rgba(147, 214, 200, 0.05) 100%);
+}
+.legacy-index .promo-callout.nextlive:hover {
+	border-color: rgba(143, 224, 138, 0.5);
+	border-left-color: var(--green);
+	background:
+		linear-gradient(to right, rgba(120, 184, 112, 0.07), transparent 45%),
+		linear-gradient(135deg, rgba(143, 224, 138, 0.16) 0%, rgba(147, 214, 200, 0.08) 100%);
 }
 .legacy-index .promo-left {
 	display: flex;
@@ -2144,8 +2249,28 @@ a:hover {
 	margin-bottom: 0.3rem;
 }
 .legacy-index .nextlive .promo-title {
+	display: flex;
+	align-items: baseline;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+	text-shadow: none;
+}
+.legacy-index .nextlive .promo-eyebrow {
+	font-family: var(--font-mono);
+	font-size: 0.65rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--cyan);
+}
+.legacy-index .nextlive .promo-sep {
+	color: var(--dim);
+}
+.legacy-index .nextlive .promo-course {
+	font-size: 0.95rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
 	color: var(--green);
-	text-shadow: 0 0 8px rgba(143, 224, 138, 0.5);
+	text-shadow: var(--glow-green);
 }
 .legacy-index .promo-sub {
 	font-size: 0.72rem;
@@ -2166,7 +2291,11 @@ a:hover {
 }
 .legacy-index .nextlive .promo-cta {
 	color: var(--green);
-	border-color: rgba(143, 224, 138, 0.4);
+	border-color: var(--green);
+	transition: background 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.legacy-index .nextlive:hover .promo-cta {
+	background: color-mix(in srgb, var(--green) 12%, transparent);
 }
 
 /* GAUNTLET continue / next-best nudge card (signed-in retention hook). */
@@ -2876,7 +3005,14 @@ a:hover {
 	}
 	.legacy-index .hero-meta {
 		margin-top: 1.2rem;
-		gap: 1rem;
+		gap: 1.25rem;
+		flex-wrap: wrap;
+		justify-content: center;
+		padding: 1rem 1.25rem;
+	}
+	/* Dividers only read in a single row; hide them once stats can wrap. */
+	.legacy-index .hero-stat:not(:last-child)::after {
+		display: none;
 	}
 	.legacy-index .hero-stat .value {
 		font-size: 1.1rem;
