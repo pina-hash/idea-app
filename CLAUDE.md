@@ -1582,9 +1582,10 @@ Tech navy/gold with a standard system-sans stack, all scoped under `.fsp-root`
 ## FSP live Q&A
 
 `/fsp/ask` + `/fsp/live` are the FSP live audience Q&A: students submit
-questions from their phones and Mr. Pina runs the feed on a projector. This is
-**Phase 1** (the live feed only); Phase 2 will embed `/fsp/live` into a full
-slide presentation route. Unlike `/fsp-tech-selection` (neutral navy/gold, Apps
+questions from their phones and Mr. Pina runs the feed on a projector.
+**Phase 1** is the live feed itself; **Phase 2** (done) is the `/fsp/day1`
+presentation deck, which embeds the SAME feed on its final slide (see "FSP Day 1
+deck" below). Unlike `/fsp-tech-selection` (neutral navy/gold, Apps
 Script), this pair is **Supabase-backed** and uses the **IDEA green `#00FF41` on
 near-black `#0a0a0a`** aesthetic (Rajdhani + Share Tech Mono), scoped under its
 own opaque root so the shell `.bg-fx` never shows through.
@@ -1620,10 +1621,15 @@ own opaque root so the shell `.bg-fx` never shows through.
   a session-name input, **Set Session** (updates `fsp_config.active_session`,
   RLS-gated, then reloads + re-subscribes the feed) and **Clear Session** (calls
   `clear_fsp_session`, empties the feed, repopulates as new questions arrive).
-  Subscribes to `fsp_questions` over Realtime filtered by the active session,
-  loads current unanswered rows newest-first, and renders question cards
-  (text + relative timestamp) that animate in; a soft-clear UPDATE removes a
-  card. Animations respect `prefers-reduced-motion`.
+  The **feed itself** (Realtime subscription filtered by the active session,
+  loading unanswered rows newest-first, question cards with a relative timestamp
+  that animate in, soft-clear UPDATE removing a card, `prefers-reduced-motion`)
+  is factored into `src/lib/fsp/FspLiveFeed.svelte` so the Day 1 deck embeds the
+  SAME feed without rebuilding it; the page keeps only the chrome (auth gate,
+  Set/Clear controls, count via a bound prop, full-screen toggle). The component
+  takes an optional `session` (undefined = self-resolve `active_session` from
+  `fsp_config`), a `variant` (`console` on this page, `slide` in the deck), and
+  `sampleQuestions` for the no-Supabase harness path.
 - **Neither `/fsp/ask` nor `/fsp/live` is in `authedPrefixes`** (`hooks.server.ts`):
   auth is handled by the in-page gates, and the real boundary is RLS + the
   RPC/`fsp_config` grants, so anonymous/QR-cold visitors see a friendly sign-in
@@ -1634,6 +1640,45 @@ own opaque root so the shell `.bg-fx` never shows through.
   flow uses real auth + Realtime and is deliberately NOT mockable; verifying it
   needs 0043 applied and both accounts signed in (same-origin cookies flow into
   the frames).
+
+## FSP Day 1 deck
+
+`/fsp/day1` is the **FSP Day 1 presentation deck** (Phase 2 of the live Q&A),
+a native SvelteKit rebuild of the Claude Design deck "IDEA FSP Deck.dc.html".
+It is a public route (NOT in `authedPrefixes`) the presenter drives full-screen;
+13 slides, IDEA green `#00FF41` on near-black `#0a0a0a`, Rajdhani + Share Tech
+Mono + Orbitron (the IDEA wordmark).
+
+- **`src/lib/fsp/FspDeck.svelte`** is the deck. The stage is a fixed **1440x1080
+  (4:3)** canvas scaled with one `transform: scale()` to fit any viewport and
+  letterboxed on black; the deck is `position: fixed; inset: 0` so it covers the
+  shell. Keyboard: `←/→`, `↑/↓`, `PageUp/PageDown`, `Space`, `Home/End`, digits
+  `1-9` navigate; `F` toggles full screen (`requestFullscreen` on the deck root);
+  `R` resets to slide 1. A fading presenter HUD (slide count + label + prev/next
+  + full-screen) shows on pointer move / key and auto-hides. All 13 slides stay
+  mounted (so the embedded feed keeps its subscription); only the active slide
+  animates (`animation-play-state: paused` on the rest) and replays its entrance
+  on becoming active. Everything animated respects `prefers-reduced-motion`.
+- **Slides 1-12 are the design's own markup**, generated into
+  `src/lib/fsp/day1-slides.ts` (`DAY1_SLIDES`, rendered via `{@html}`) by a
+  one-off transform of the source deck: the machined-mint palette recolored to
+  the pinned green, and the Claude Design custom elements swapped for native
+  equivalents — `AnimatedLogo` -> an Orbitron `IDEA` wordmark, `image-slot` ->
+  styled CAD-viewport placeholders (photos are drop-in later), the CDN
+  `qrcodejs` box -> a committed static QR. **Regenerate the .ts, never hand-edit
+  it**, if the source deck changes.
+- **Slide 13 ("Live Questions") is native** so it embeds the real
+  `FspLiveFeed` (`variant="slide"`) inside the deck's framed panel, rather than a
+  mock — the questions populate live for a signed-in presenter (feed reads are
+  RLS-gated to authenticated users).
+- **Slide 12 QR** is `static/fsp/fsp-ask-qr.svg` (committed, generated once,
+  error-correction H) pointing at `https://ideabosco.com/fsp/ask`. No runtime QR
+  dependency and no CDN script (CSP-safe), unlike the source deck.
+- **Dev harness `/dev/fsp-day1`** (404 in production, no auth / Supabase): mounts
+  the REAL `FspDeck` with `supabase=null` and sample questions; a floating strip
+  jumps to the first / live slide and toggles slide 13 between its empty
+  ("waiting for submissions") and populated states, so the whole deck (nav,
+  scaling, full screen, the slide-13 embed) is browser-verifiable without a DB.
 
 ## Version + changelog substrate
 
