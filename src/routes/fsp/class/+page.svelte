@@ -45,7 +45,7 @@
 	<header>
 		<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 		<div class="header-right">
-			<a class="auth-link" href="/fsp">&lsaquo; FSP hub</a>
+			<a class="auth-link" href="/">&lsaquo; Home</a>
 			<ProfileMenu />
 		</div>
 	</header>

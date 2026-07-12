@@ -12,15 +12,6 @@
 
 export type AppGroupId = 'games' | 'tools' | 'class';
 
-/**
- * Per-card accent identity, so each launcher tile themes to its own content.
- * Every value maps (in AppLauncher's `.acc-*` classes) to a color drawn from the
- * design-system token palette — no invented colors — plus the established FRC
- * FIRST-Blue for the FRC card. `blue` is FRC only; `crimson` stays reserved for
- * status and is intentionally absent.
- */
-export type AppAccent = 'green' | 'gold' | 'cyan' | 'teal' | 'amber' | 'violet' | 'blue' | 'muted';
-
 export interface PortalApp {
 	id: string;
 	title: string;
@@ -31,8 +22,6 @@ export interface PortalApp {
 	group: AppGroupId;
 	/** Card CTA label. */
 	cta: string;
-	/** Content-matched accent color (defaults to brass/gold when unset). */
-	accent?: AppAccent;
 	/** Needs a session to enter (the card offers sign-in when anonymous). */
 	requiresAuth?: boolean;
 	/** Only rendered for teachers. */
@@ -53,8 +42,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'vanguard',
 		href: '/vanguard/',
 		group: 'games',
-		cta: 'Play',
-		accent: 'cyan'
+		cta: 'Play'
 	},
 	{
 		id: 'gauntlet',
@@ -64,7 +52,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		href: '/gauntlet',
 		group: 'games',
 		cta: 'Enter',
-		accent: 'green',
 		requiresAuth: true
 	},
 	{
@@ -74,8 +61,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'greenline',
 		href: '/dev/greenline-movement',
 		group: 'games',
-		cta: 'Test',
-		accent: 'teal'
+		cta: 'Test'
 	},
 	{
 		id: 'coins',
@@ -84,8 +70,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'coins',
 		href: '/coins/index.html',
 		group: 'tools',
-		cta: 'View live',
-		accent: 'gold'
+		cta: 'View live'
 	},
 	{
 		id: 'coin-entry',
@@ -95,7 +80,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		href: '/coin-entry',
 		group: 'tools',
 		cta: 'Open',
-		accent: 'gold',
 		teacherOnly: true
 	},
 	{
@@ -106,18 +90,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		href: '/dashboard',
 		group: 'tools',
 		cta: 'Open',
-		accent: 'violet',
 		teacherOnly: true
-	},
-	{
-		id: 'fsp',
-		title: 'Freshman Summer Program',
-		sub: 'FSP hub: run the Day 1 presentation and live Q&A feed, or submit a question during a session.',
-		icon: 'fsp',
-		href: '/fsp',
-		group: 'class',
-		cta: 'Open',
-		accent: 'amber'
 	},
 	{
 		id: 'courses',
@@ -126,8 +99,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'courses',
 		href: '#your-class',
 		group: 'class',
-		cta: 'Browse',
-		accent: 'green'
+		cta: 'Browse'
 	},
 	{
 		id: 'frc',
@@ -137,7 +109,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		href: '/frc',
 		group: 'class',
 		cta: 'Enter',
-		accent: 'blue',
 		requiresAuth: true
 	},
 	{
@@ -147,8 +118,7 @@ export const PORTAL_APPS: PortalApp[] = [
 		icon: 'archive',
 		href: '/archive',
 		group: 'class',
-		cta: 'Open',
-		accent: 'muted'
+		cta: 'Open'
 	}
 ];
 
