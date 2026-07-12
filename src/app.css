@@ -2018,45 +2018,6 @@ a:hover {
 	max-width: 1100px;
 	margin: 0 auto;
 }
-/* Mobile-first single column: logo pulled above the heading, text centered.
-   At md+ this flips to a two-column split (text left, logo right) in the media
-   query below. */
-.legacy-index .hero-inner {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 2rem;
-}
-.legacy-index .hero-text {
-	text-align: center;
-}
-.legacy-index .hero-logo {
-	order: -1;
-	position: relative;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 180px;
-	flex-shrink: 0;
-}
-/* Faint radial glow anchoring the emblem; larger than the logo so it never
-   clips it. Sits behind the lockup (which is raised to z-index 1). */
-.legacy-index .hero-logo-glow {
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	width: 420px;
-	height: 420px;
-	max-width: 150%;
-	transform: translate(-50%, -50%);
-	background: radial-gradient(circle, rgba(120, 184, 112, 0.06) 0%, transparent 65%);
-	pointer-events: none;
-	z-index: 0;
-}
-.legacy-index .hero-logo .idea-logo {
-	position: relative;
-	z-index: 1;
-}
 .legacy-index .hero-eyebrow {
 	font-size: 0.65rem;
 	letter-spacing: 0.25em;
@@ -2081,10 +2042,10 @@ a:hover {
 	font-size: 0.82rem;
 	color: var(--dim);
 	letter-spacing: 0.04em;
-	margin: 1rem auto 0;
+	margin: 1rem 0 0;
 	max-width: 480px;
 	line-height: 1.7;
-	text-align: center;
+	text-align: left;
 }
 /* Stats plate: the three stat blocks seated in a bordered, chamfered panel
    (octagonal clip echoes the IDEA emblem plate). inline-flex + fit-content so it
@@ -2153,30 +2114,6 @@ a:hover {
 		text-shadow:
 			0 0 16px rgba(143, 224, 138, 1),
 			0 0 40px rgba(143, 224, 138, 0.5);
-	}
-}
-
-/* md+ : two-column hero — text on the left, emblem on the right. */
-@media (min-width: 768px) {
-	.legacy-index .hero-inner {
-		flex-direction: row;
-		align-items: center;
-		justify-content: space-between;
-		gap: 3rem;
-	}
-	.legacy-index .hero-text {
-		flex: 1;
-		min-width: 0;
-		text-align: left;
-	}
-	.legacy-index .hero-text .hero-sub {
-		margin-left: 0;
-		margin-right: 0;
-		text-align: left;
-	}
-	.legacy-index .hero-logo {
-		order: 0;
-		width: clamp(280px, 26vw, 360px);
 	}
 }
 
