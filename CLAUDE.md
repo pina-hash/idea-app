@@ -1579,12 +1579,60 @@ Tech navy/gold with a standard system-sans stack, all scoped under `.fsp-root`
   build; install/registration (self-elevating `register.bat` around 64-bit
   RegAsm) is in its `README-install.md`.
 
+## FSP Pulse Check
+
+`/fsp-pulse` is a **separate, later tool from `/fsp-tech-selection` above**.
+The earlier tool's specific proposal (a 4-of-6 ranking framed as tech
+selection) was rejected; `/fsp-pulse` is NOT a revival of it and never uses the
+"Tech Selection" name or framing. It is a **non-binding interest pulse**: a
+snapshot to help staff plan FSP outreach and support, with **no bearing on
+official pathway assignment** (said explicitly in-component, both as a
+prominent banner above the form and a short reminder near the save status).
+`/fsp-tech-selection` and its `$lib/fsp/*` code are untouched and unlinked (no
+longer referenced from `/fsp`); do not delete them, they just have no more
+entry points.
+
+- **Forked, not shared**, into its own `src/lib/fsp-pulse/` directory (own
+  `client.ts`, `FspPulse.svelte`), except the six-pathway data, which is
+  re-exported from `$lib/fsp/techs.ts` (`src/lib/fsp-pulse/techs.ts`) rather
+  than duplicated. Reuses `$lib/fsp/fsp-theme.css` (the neutral Bosco Tech
+  navy/gold theme) as-is.
+- **Two differences from the original tool's ranking:** all **six** pathways
+  are rankable (`MAX_PICKS = FSP_TECHS.length`, was capped at 4), and ranking
+  is only one of two independent questions now.
+- **FRC interest, a second independent question.** A single-select segmented
+  control (Yes / Maybe / Not sure yet / No) stored as `frcInterest` in the same
+  payload. **Neither question gates the other**: autosave fires once a name is
+  entered AND at least one of (a pathway is picked, FRC interest is answered)
+  is true, so a student who only answers the FRC question (no ranking at all)
+  still saves, and vice versa. See `hasAnswered` in `FspPulse.svelte`.
+- **Not Supabase, separate Apps Script deployment.** Writes directly to
+  `PUBLIC_FSP_PULSE_APPS_SCRIPT_URL` (its own env var, read at RUNTIME via
+  `$env/dynamic/public`, distinct from `PUBLIC_FSP_APPS_SCRIPT_URL`). Same
+  upsert-by-email, current-state-only contract as the original tool, documented
+  at the top of `src/lib/fsp-pulse/client.ts`; GET/POST payloads additionally
+  carry `frcInterest`.
+- **Auth** mirrors the original tool exactly: reuses Google OAuth restricted to
+  `@boscotech.net`, with the same prototype-phase `@boscotech.edu` allowance
+  (must revert before real FSP use, per the on-page banner).
+- **`/fsp-pulse/preview`** is the same static, no-auth Sheets-style staff demo
+  pattern, extended with an FRC Interest column (leftmost data column,
+  color-coded Yes/Maybe/Not sure yet/No) and six ranked-choice columns instead
+  of four.
+- **Dev harness** `/dev/fsp-pulse` (404 in production, no auth/network) mounts
+  the real `FspPulse` with a mock signed-in student and an injected fake save
+  endpoint, following the same pattern as `/dev/fsp-tech-selection`, plus entry
+  states for an FRC-only partial save.
+- **`/fsp`** links to this tool (not the old one) under a "Pulse Check" divider,
+  card id "Pathway Pulse".
+
 ## FSP live Q&A
 
 `/fsp/ask` + `/fsp/live` are the FSP live audience Q&A: students submit
-questions from their phones and Mr. Pina runs the feed on a projector. This is
-**Phase 1** (the live feed only); Phase 2 will embed `/fsp/live` into a full
-slide presentation route. Unlike `/fsp-tech-selection` (neutral navy/gold, Apps
+questions from their phones and Mr. Pina runs the feed on a projector.
+**Phase 1** is the live feed itself; **Phase 2** (done) is the `/fsp/day1`
+presentation deck, which embeds the SAME feed on its final slide (see "FSP Day 1
+deck" below). Unlike `/fsp-tech-selection` (neutral navy/gold, Apps
 Script), this pair is **Supabase-backed** and uses the **IDEA green `#00FF41` on
 near-black `#0a0a0a`** aesthetic (Rajdhani + Share Tech Mono), scoped under its
 own opaque root so the shell `.bg-fx` never shows through.
@@ -1620,10 +1668,15 @@ own opaque root so the shell `.bg-fx` never shows through.
   a session-name input, **Set Session** (updates `fsp_config.active_session`,
   RLS-gated, then reloads + re-subscribes the feed) and **Clear Session** (calls
   `clear_fsp_session`, empties the feed, repopulates as new questions arrive).
-  Subscribes to `fsp_questions` over Realtime filtered by the active session,
-  loads current unanswered rows newest-first, and renders question cards
-  (text + relative timestamp) that animate in; a soft-clear UPDATE removes a
-  card. Animations respect `prefers-reduced-motion`.
+  The **feed itself** (Realtime subscription filtered by the active session,
+  loading unanswered rows newest-first, question cards with a relative timestamp
+  that animate in, soft-clear UPDATE removing a card, `prefers-reduced-motion`)
+  is factored into `src/lib/fsp/FspLiveFeed.svelte` so the Day 1 deck embeds the
+  SAME feed without rebuilding it; the page keeps only the chrome (auth gate,
+  Set/Clear controls, count via a bound prop, full-screen toggle). The component
+  takes an optional `session` (undefined = self-resolve `active_session` from
+  `fsp_config`), a `variant` (`console` on this page, `slide` in the deck), and
+  `sampleQuestions` for the no-Supabase harness path.
 - **Neither `/fsp/ask` nor `/fsp/live` is in `authedPrefixes`** (`hooks.server.ts`):
   auth is handled by the in-page gates, and the real boundary is RLS + the
   RPC/`fsp_config` grants, so anonymous/QR-cold visitors see a friendly sign-in
@@ -1634,6 +1687,59 @@ own opaque root so the shell `.bg-fx` never shows through.
   flow uses real auth + Realtime and is deliberately NOT mockable; verifying it
   needs 0043 applied and both accounts signed in (same-origin cookies flow into
   the frames).
+
+## FSP Day 1 deck
+
+`/fsp/day1` is the **FSP Day 1 presentation deck** (Phase 2 of the live Q&A).
+The canonical slides are the **standalone Claude Design export**, hosted
+verbatim and shown in a full-viewport iframe — NOT rebuilt. 13 slides, IDEA
+green `#00FF41` on near-black `#0a0a0a`.
+
+- **The slides live at `static/fsp/day1-slides.html`** — the Claude Design
+  standalone export ("IDEA FSP Deck (standalone).html"), copied in as-is (a
+  ~28MB self-contained bundle: a small "bundler" wrapper that unpacks a
+  gzip+base64 asset manifest into blob URLs, then renders a React/Babel-standalone
+  app whose `deck-stage` custom element is the slide player). It is served
+  straight from `static/` at `/fsp/day1-slides.html`, fully self-contained (no
+  CDN, CSP-safe). **Do not rebuild or re-theme the slides**; if the source deck
+  changes, re-export and re-copy the file, then re-apply the one injection below.
+- **The ONE modification to the export** (`day1-slides.html`, one surgical
+  place): a tiny forwarder `<script>` added just before the `__bundler/manifest`
+  tag. `deck-stage` already broadcasts `{ slideIndexChanged: <0-based index>,
+  deckTotal }` to its own window on every navigation (init / keyboard / click);
+  the forwarder re-emits it to the embedding page as
+  `window.parent.postMessage({ type: 'FSP_SLIDE', slide }, '*')`, mapping index
+  12 (slide 13, the "Live Questions" slide) to `slide: 13` and every other index
+  to `slide: null`, deduped so 13 fires once on enter and null once on leave. It
+  touches no slide content, styles, layout, or assets, and registers on `window`
+  (which survives the bundler's `documentElement.replaceWith`).
+- **`src/routes/fsp/day1/+page.svelte`** is the host. Staff only
+  (`@boscotech.edu`), gated **in-page** exactly like `/fsp/live` (this route is
+  NOT in `authedPrefixes`; signed-out sees a sign-in card, wrong-domain sees a
+  switch-account card). When gated in it renders a full-viewport `<iframe
+  src="/fsp/day1-slides.html" allow="fullscreen">` (the deck owns its own arrow /
+  PageUp / PageDown / space keyboard nav, so a presentation clicker drives it
+  natively; the iframe is focused on load so the clicker works immediately). It
+  listens for the `FSP_SLIDE` message: on `slide === 13` it overlays the REAL
+  `FspLiveFeed` (`variant="slide"`, live `supabase`, self-resolving the active
+  session) full-viewport over the deck on `#0a0a0a` with a "Your Questions." /
+  LIVE header; on `null` it removes the overlay. A page-level **`F`** key toggles
+  native fullscreen on the deck root. The live feed populates for a signed-in
+  presenter (feed reads are RLS-gated to authenticated users).
+- **Superseded native rebuild:** `src/lib/fsp/FspDeck.svelte` +
+  `src/lib/fsp/day1-slides.ts` were an earlier native-SvelteKit rebuild of the
+  deck. They are no longer wired to any route (the iframe-hosting approach above
+  replaced them) and remain in the tree only as dead code; do not extend them.
+- **Slide 12 QR** inside the export points at the `/fsp/ask` submission page
+  (the standalone deck embeds its own QR; the separate committed
+  `static/fsp/fsp-ask-qr.svg` remains available for other uses).
+- **Dev harness `/dev/fsp-day1`** (404 in production, no auth / Supabase): shows
+  the hosted deck iframe plus a floating strip with a "Simulate slide 13" button
+  (fakes the `FSP_SLIDE` postMessage) and a populate toggle, so the live-feed
+  overlay's empty ("waiting for submissions") and populated states are
+  browser-verifiable without clicking through all 13 slides or a live DB. It also
+  listens for the REAL `FSP_SLIDE` messages, so driving the deck to slide 13 in
+  the browser flips the overlay too.
 
 ## Version + changelog substrate
 
