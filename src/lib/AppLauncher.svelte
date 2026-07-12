@@ -137,7 +137,7 @@
 
 {#snippet appCard(app: PortalApp, group: AppGroupId | null)}
 	{#if customizing}
-		<div class="app-card static" class:compact class:frc={app.id === 'frc'}>
+		<div class="app-card static acc-{app.accent ?? 'gold'}" class:compact>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title">{app.title}</span>
@@ -159,7 +159,7 @@
 			</span>
 		</div>
 	{:else}
-		<a class="app-card" class:compact class:frc={app.id === 'frc'} href={app.href} onclick={(e) => appClick(e, app)}>
+		<a class="app-card acc-{app.accent ?? 'gold'}" class:compact href={app.href} onclick={(e) => appClick(e, app)}>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title">{app.title}</span>
@@ -356,20 +356,90 @@
 		gap: 0.6rem;
 	}
 	.app-card {
+		/* Per-card accent identity (see the `.acc-*` blocks below). Every card
+		   themes its icon, edges, title, and CTA from these vars; the default is
+		   brass/gold. `--acc-title` splits out so a low-contrast accent (FRC blue)
+		   can keep a legible title while still theming its chrome. */
+		--acc: var(--gold);
+		--acc-title: var(--acc);
+		--acc-glow: rgba(211, 198, 142, 0.4);
+		--acc-line: rgba(211, 198, 142, 0.2);
+		--acc-line-strong: rgba(211, 198, 142, 0.5);
+		--acc-wash: rgba(211, 198, 142, 0.05);
 		display: flex;
 		align-items: center;
 		gap: 0.9rem;
 		background: var(--bg1);
-		border: 1px solid rgba(0, 255, 65, 0.14);
-		border-radius: 4px;
+		border: 1px solid var(--acc-line);
+		border-radius: var(--radius-card);
+		box-shadow: var(--bevel-raised);
 		padding: 0.85rem 1rem;
 		text-decoration: none;
-		transition: border-color 0.2s, background 0.2s, transform 0.2s;
+		transition: border-color 0.2s, background 0.2s, transform 0.2s, box-shadow 0.2s;
 	}
 	a.app-card:hover {
-		border-color: rgba(0, 255, 65, 0.4);
-		background: rgba(0, 255, 65, 0.04);
+		border-color: var(--acc-line-strong);
+		background: var(--acc-wash);
 		transform: translateY(-2px);
+	}
+	a.app-card:active {
+		transform: translateY(0);
+		box-shadow: var(--bevel-inset);
+	}
+
+	/* --- Content-matched accents (design-system tokens + FRC FIRST-Blue) --- */
+	.acc-green {
+		--acc: var(--green);
+		--acc-glow: rgba(143, 224, 138, 0.4);
+		--acc-line: rgba(143, 224, 138, 0.18);
+		--acc-line-strong: rgba(143, 224, 138, 0.5);
+		--acc-wash: rgba(143, 224, 138, 0.05);
+	}
+	.acc-cyan {
+		--acc: var(--cyan);
+		--acc-glow: rgba(147, 214, 200, 0.4);
+		--acc-line: rgba(147, 214, 200, 0.18);
+		--acc-line-strong: rgba(147, 214, 200, 0.5);
+		--acc-wash: rgba(147, 214, 200, 0.05);
+	}
+	.acc-teal {
+		--acc: var(--teal);
+		--acc-glow: rgba(111, 174, 145, 0.42);
+		--acc-line: rgba(111, 174, 145, 0.22);
+		--acc-line-strong: rgba(111, 174, 145, 0.5);
+		--acc-wash: rgba(111, 174, 145, 0.06);
+	}
+	.acc-amber {
+		--acc: var(--amber);
+		--acc-glow: rgba(217, 154, 85, 0.42);
+		--acc-line: rgba(217, 154, 85, 0.22);
+		--acc-line-strong: rgba(217, 154, 85, 0.5);
+		--acc-wash: rgba(217, 154, 85, 0.06);
+	}
+	.acc-violet {
+		--acc: var(--violet);
+		--acc-glow: rgba(133, 119, 166, 0.45);
+		--acc-line: rgba(133, 119, 166, 0.24);
+		--acc-line-strong: rgba(133, 119, 166, 0.55);
+		--acc-wash: rgba(133, 119, 166, 0.07);
+	}
+	/* FRC: FIRST Blue chrome, but the title falls back to brass so it stays
+	   legible on the dark card (blue #0066B3 is too low-contrast for text). */
+	.acc-blue {
+		--acc: #0066b3;
+		--acc-title: var(--gold);
+		--acc-glow: rgba(0, 102, 179, 0.45);
+		--acc-line: rgba(0, 102, 179, 0.32);
+		--acc-line-strong: rgba(0, 102, 179, 0.6);
+		--acc-wash: rgba(0, 102, 179, 0.07);
+	}
+	/* Archive: retired courses read muted (gear sage), de-emphasized on purpose. */
+	.acc-muted {
+		--acc: var(--ice);
+		--acc-glow: rgba(169, 188, 171, 0.24);
+		--acc-line: rgba(151, 164, 140, 0.22);
+		--acc-line-strong: rgba(169, 188, 171, 0.42);
+		--acc-wash: rgba(169, 188, 171, 0.05);
 	}
 	.app-card.compact {
 		padding: 0.6rem 0.8rem;
@@ -387,8 +457,8 @@
 		width: 34px;
 		height: 34px;
 		flex-shrink: 0;
-		color: var(--green);
-		filter: drop-shadow(0 0 6px rgba(0, 255, 65, 0.35));
+		color: var(--acc);
+		filter: drop-shadow(0 0 6px var(--acc-glow));
 	}
 	.app-card.compact .app-icon {
 		width: 24px;
@@ -422,16 +492,7 @@
 		height: 100%;
 		width: auto;
 		display: block;
-		filter: drop-shadow(0 0 5px rgba(0, 102, 179, 0.45));
-	}
-	/* Restrained FIRST-Blue accent for the FRC card, so it reads as FRC without
-	   breaking the green/gold VIEWPORT look. */
-	.app-card.frc {
-		border-color: rgba(0, 102, 179, 0.3);
-	}
-	a.app-card.frc:hover {
-		border-color: rgba(0, 102, 179, 0.55);
-		background: rgba(0, 102, 179, 0.06);
+		filter: drop-shadow(0 0 5px var(--acc-glow));
 	}
 	.app-text {
 		display: flex;
@@ -446,8 +507,8 @@
 		font-weight: 700;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: var(--gold);
-		text-shadow: 0 0 8px rgba(200, 255, 0, 0.4);
+		color: var(--acc-title);
+		text-shadow: 0 0 8px var(--acc-glow);
 	}
 	.app-sub {
 		font-family: 'Share Tech Mono', monospace;
@@ -460,16 +521,17 @@
 		font-size: 0.52rem;
 		letter-spacing: 0.16em;
 		text-transform: uppercase;
-		color: var(--gold);
-		border: 1px solid rgba(200, 255, 0, 0.35);
-		border-radius: 2px;
+		color: var(--acc);
+		border: 1px solid var(--acc-line);
+		border-radius: var(--radius-chip);
 		padding: 0.3rem 0.6rem;
 		white-space: nowrap;
 		flex-shrink: 0;
+		transition: color 0.2s, border-color 0.2s, box-shadow 0.2s;
 	}
 	a.app-card:hover .app-cta {
-		color: var(--green);
-		border-color: rgba(0, 255, 65, 0.4);
+		border-color: var(--acc-line-strong);
+		box-shadow: 0 0 10px var(--acc-wash);
 	}
 	.app-tools {
 		display: inline-flex;

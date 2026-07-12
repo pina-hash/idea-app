@@ -58,7 +58,19 @@ ability, it is not required to browse the portal.
   can pin favorites, reorder within groups, collapse groups, and toggle a
   compact view, persisted to `profiles.preferences.homepage` (anonymous
   visitors can collapse/compact for the session only, unsaved). The "next
-  live course" promo callout stays above the launcher.
+  live course" promo callout stays above the launcher. **Per-card accent
+  identity:** each app carries an `accent` (`AppAccent` in `portal-apps.ts`)
+  so its launcher tile themes to its own content — the icon, border, hover
+  wash, CTA, and title all draw from that accent via `--acc*` CSS vars set by
+  the `.acc-*` classes in `AppLauncher.svelte`. Accents map ONLY to
+  design-system tokens (no invented colors) plus the established FRC
+  FIRST-Blue: VANGUARD cyan, GAUNTLET green, GREENLINE teal (pre-alpha),
+  Coin Ledger/Coin Entry brass gold, Dashboard violet, FSP amber, Courses
+  green, FRC `blue` (FIRST Blue chrome, but its `--acc-title` falls back to
+  brass so the title stays legible on the dark card), Archive muted (retired).
+  Unset defaults to gold. `--crimson` stays reserved for status, never an
+  accent. Cards also carry the machined `var(--bevel-raised)` and press on
+  `:active`.
 - **Optional sign-in:** the landing page header has a Google sign-in control.
   Signing in is additive: it unlocks signed-in features (VANGUARD cloud saves,
   pinning your class) and, for teachers, the dashboard. After sign-in from `/`
