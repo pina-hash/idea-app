@@ -401,6 +401,30 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   `__vgStubHazard`, `__vgStubBarrier`, `__vgStubScore`, `__vgStubBossNow`,
   `__vgStubBossHp`. Known gaps deferred to pass 2: FLAK cloud visuals and
   enemy telegraph/state fidelity.
+- **Co-op visual parity pass 2 (game v195): enemy telegraph fidelity + FLAK
+  clouds.** Closes both pass-1 gaps with the same transmit-compactly /
+  mirror-render-only pattern. (1) Enemy telegraphs: `buildSnap`'s enemy rows
+  gain state (index into the `ESTL` enum, the `FKL` pattern), aim angle, buff
+  glow, and a packed static kind (mutator elite 0-3 | anchor +4), plus the
+  FOREMAN lock telegraph (`lockT`/`lockX`/`lockY`) as three trailing slots
+  only while a lock is charging; the guest stamps them onto its shadow objects
+  (`stampEnemyTele`, replacing the pass-1 hardcoded `guestEnemyDefaults`
+  values) so the SAME draw code renders real behavior poses, aim tilt, buff
+  auras, elite mutator rings, the anchor halo/field/tethers (`buffR` fixed 150
+  from the sole anchor spawn site), and the foreman lock line. `barrageGlow`
+  is deliberately NOT transmitted (no draw reads it; it only feeds `e.tell`,
+  already in the snapshot) and `spin` is NOT transmitted (it only scales the
+  core clock; the guest advances `core` locally at the base 1.1 rad/s between
+  snapshot restamps, the holes-core pattern). The fleet-level converge
+  set-piece telegraph stays host-only (it reads the untransmitted `fleet`
+  object, a known remaining gap). (2) FLAK clouds: a compact `fc` snapshot
+  field (`[id,x,y,r,t,life]`, cap 12, `0` when empty) mirrors into the
+  id-keyed `guestFlak` map repopulating `flakClouds` for the existing draw;
+  guest shadows carry `dps:0`, `updateFlakClouds` never runs guest-side
+  (damage stays host-authoritative), and the fade clock ticks locally in the
+  cosmetics block. Stub additions: the `__vgStubTele` sampler plus
+  `__vgStubForeman` / `__vgStubVector` / `__vgStubMut` / `__vgStubAnchor` /
+  `__vgStubBuffAll` / `__vgStubFlak` injectors.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The

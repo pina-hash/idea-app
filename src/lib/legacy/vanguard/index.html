@@ -785,7 +785,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='194';
+const VERSION='195';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -5686,6 +5686,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'195',date:'2026',items:['CO-OP visual parity pass 2: enemies now telegraph and animate correctly for the guest, and FLAK clouds are visible.']},
  {ver:'194',date:'2026',items:['Fixed a bug where CO-OP guest movement did not respond at all in pointer-lock/mouse-follow control mode.']},
  {ver:'192',date:'2026',items:['CO-OP visual parity pass: guests now see hazards, score popups and milestones, boss phase-transition effects, and the partner\'s fire and parry cues.']},
  {ver:'191',date:'2026',items:['CO-OP responsiveness pass: firing and parrying now give instant feedback for the guest, and everything else renders through a small delay buffer to smooth out network jitter.']},
@@ -6082,6 +6083,17 @@ try{ if(/[?&]coopstub=1\b/.test(location.search)){
   window.__vgStubHazard=function(){ hazards.push({x:Math.round(W/2),y:Math.round(H*0.5),r:26,life:3.0,max:3.0,c:COL.ace}); return hazards.length; };
   window.__vgStubBarrier=function(){ barriers.push({x:Math.round(W/2),y:Math.round(H*0.4),w:180,h:12,life:4.2,max:4.2,c:COL.ace}); return barriers.length; };
   window.__vgStubBossHp=function(frac){ if(!boss) return 'no boss'; boss.hp=Math.max(1,Math.round(boss.maxhp*(+frac||0.5))); return boss.hp+'/'+boss.maxhp; };
+  // pass 2 drive: sample the telegraph/FLAK fields on either side, and force
+  // real host-side states (real spawn/update code paths) so guest parity is
+  // scriptable with two tabs.
+  window.__vgStubTele=function(){ return { en:enemies.filter(e=>!e.dead).slice(0,48).map(e=>({id:e._eid||0,fk:e.fk,st:e.state,aim:+(e.aimAng==null?0:e.aimAng).toFixed(2),bf:+(e.buffed||0).toFixed(2),mut:e.mut||0,anc:e.role==='anchor'?1:0,lt:+(e.lockT||0).toFixed(2),core:+(e.core||0).toFixed(2),hp:e.hp})),
+    flak:flakClouds.map(c=>({id:c._eid||0,x:Math.round(c.x),y:Math.round(c.y),r:Math.round(c.r),t:+(c.t||0).toFixed(2),life:+(c.life||0).toFixed(2),dps:c.dps||0})) }; };
+  window.__vgStubForeman=function(){ const p=players[0]||player; const e=makeEnemy('foreman',0,rnd(W*0.3,W*0.7),140,'foreman'); e.hold=160; e.sigCd=9; e.lockT=0.7; e.lockX=p?p.x:W/2; e.lockY=p?p.y:H*0.8; e.buffR=190; e.altMove=false; enemies.push(e); return 'foreman'; };
+  window.__vgStubVector=function(){ const e=makeEnemy('vector',0,rnd(W*0.3,W*0.7),150,'vector'); e.hold=160; e.sigCd=2; e.buffR=190; e.altMove=false; enemies.push(e); return 'vector'; };
+  window.__vgStubMut=function(){ for(const e of enemies){ if(!e.dead&&!e.mut){ e.mut='vet'; return e._eid||1; } } return 'none'; };
+  window.__vgStubAnchor=function(){ for(const e of enemies){ if(!e.dead&&e.role!=='anchor'){ e.role='anchor'; e.buffR=150; return e._eid||1; } } return 'none'; };
+  window.__vgStubBuffAll=function(){ let n=0; for(const e of enemies){ if(!e.dead){ e.buffed=0.35; n++; } } return n; };
+  window.__vgStubFlak=function(){ const p=players[0]||player; if(!p) return 'no ship'; detonateFlak({x:p.x,y:p.y-120,pi:0},1); return flakClouds.length; };
 } }catch(e){}
 
 /* ?vgheadless=1 - dev-only rAF pump (opt-in like ?coopstub=1): drives
@@ -6117,6 +6129,11 @@ const COOP=(function(){
   const ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no O/0/I/1/L (matches the netcheck tool)
   const SNAP_MS=66, INPUT_MS=40, INPUT_STALE_MS=3000;
   const FKL=['ace','bmet','csee','mat','mset','foreman','vector'];
+  // telegraph fidelity (visual parity pass 2): enemy behavior-state enum for
+  // snapshots (index 0 'free' is the fallback) + mutator-elite enum, both the
+  // FKL.indexOf pattern. Render-only on the guest: the state never drives AI.
+  const ESTL=['free','form','reenter','dive','climb','weave','strafe','retreat','foreman','vector','celebrate'];
+  const MUTL=[0,'vet','mar','gun'];
   let client=null, channel=null, code='', role=null, phase='idle';
   let prevMode='normal';
   let remoteCtrl={mx:0,my:0,fire:false,beam:false};
@@ -6124,6 +6141,7 @@ const COOP=(function(){
   let latestSnap=null, lastInputAt=0, lastSnapAt=0, lastInputSendAt=0, lastInputSig='';
   let eidSeq=1; const guestEnemies=new Map();
   const guestHoles=new Map(), guestHazards=new Map(), guestBarriers=new Map();   // visual parity: render-only mirrors of the host's environmental hazards, keyed by host id like guestEnemies
+  const guestFlak=new Map();   // visual parity pass 2: render-only FLAK cloud mirror, same id-keyed pattern (no damage tick ever runs guest-side)
   /* Phase 2/2.5 guest smoothing: the host-owned world (partner, enemies, boss,
      bullets, HUD) renders RENDER_DELAY_MS in the past through a small rolling
      buffer of received snapshots (snapBuf, arrival-stamped), so a late or
@@ -6213,7 +6231,7 @@ const COOP=(function(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(gameMode==='coop') gameMode=prevMode||'normal';
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
-    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear();
+    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear();
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
@@ -6227,7 +6245,7 @@ const COOP=(function(){
     phase='match';
     prevMode=(gameMode==='coop')?prevMode:gameMode;
     coopMatch=true; localIndex=(role==='host')?0:1;
-    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; actQueue.length=0;
+    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; actQueue.length=0;
     remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now();
     gameMode='coop';
     startGame();                                   // builds players[localIndex] (baseline loadout)
@@ -6319,7 +6337,16 @@ const COOP=(function(){
       co:Math.round((players[0]&&players[0].coins)||0), rt:Math.round(runTime||0), kl:runKills||0,
       pl:[shipSnap(players[0]),shipSnap(players[1])],
       en:enemies.filter(e=>!e.dead).slice(0,48).map(e=>{ if(!e._eid)e._eid=eidSeq++;
-        return [e._eid,Math.max(0,FKL.indexOf(e.fk)),e.variant|0,Math.round(e.x),Math.round(e.y),Math.round(e.r),+(e.core||0).toFixed(2),Math.round(e.bank||0),+(e.tell||0).toFixed(2),+(e.fireFlash||0).toFixed(2)]; }),
+        // telegraph fidelity (visual parity pass 2), slots 10-13: state (ESTL
+        // index), aim angle, buff glow, packed static kind (mut 0-3 | anchor
+        // +4). barrageGlow is deliberately NOT sent (it only ever feeds e.tell,
+        // slot 8); spin only scales the core clock, which the guest advances
+        // locally. The FOREMAN lock telegraph rides as three trailing slots
+        // only while it is actually charging (foremen are rare).
+        const row=[e._eid,Math.max(0,FKL.indexOf(e.fk)),e.variant|0,Math.round(e.x),Math.round(e.y),Math.round(e.r),+(e.core||0).toFixed(2),Math.round(e.bank||0),+(e.tell||0).toFixed(2),+(e.fireFlash||0).toFixed(2),
+          Math.max(0,ESTL.indexOf(e.state)),+(e.aimAng==null?Math.PI/2:e.aimAng).toFixed(2),+(e.buffed||0).toFixed(2),Math.max(0,MUTL.indexOf(e.mut))|(e.role==='anchor'?4:0)];
+        if(e.state==='foreman'&&e.lockT>0) row.push(+e.lockT.toFixed(2),Math.round(e.lockX||0),Math.round(e.lockY||0));
+        return row; }),
       eb:ebul.slice(0,110).map(b=>[Math.round(b.x),Math.round(b.y),+(b.r||3).toFixed(1),b.c,(b.shape||(b.parryBolt?'bolt':0)),Math.round(b.vx||0),Math.round(b.vy||0)]),
       pb:pbul.slice(0,70).map(b=>[Math.round(b.x),Math.round(b.y),+(b.r||2).toFixed(1),b.c,(b.wt||0),Math.round(b.vx||0),Math.round(b.vy||0),(b.len||0),+(b.hot||0).toFixed(2)]),
       // environmental hazards (visual parity): only the fields the draw code
@@ -6330,10 +6357,28 @@ const COOP=(function(){
         return [h._eid,Math.round(h.x),Math.round(h.y),Math.round(h.r),+(h.life||0).toFixed(2),+(h.max||1).toFixed(2),h.c]; }):0,
       br:barriers.length?barriers.slice(0,6).map(w2=>{ if(!w2._eid)w2._eid=eidSeq++;
         return [w2._eid,Math.round(w2.x),Math.round(w2.y),Math.round(w2.w),+(w2.life||0).toFixed(2),w2.c]; }):0,
+      // FLAK damage clouds (visual parity pass 2): only what the draw reads
+      // (position, radius, life fraction via t/life; color is the FLAK_COL
+      // constant). dps/pi stay host-only - damage never ticks on the guest.
+      fc:flakClouds.length?flakClouds.slice(0,12).map(c=>{ if(!c._eid)c._eid=eidSeq++;
+        return [c._eid,Math.round(c.x),Math.round(c.y),Math.round(c.r),+(c.t||0).toFixed(2),+(c.life||1).toFixed(2)]; }):0,
       bo:boss?{fk:boss.fk,x:Math.round(boss.x),y:Math.round(boss.y),r:Math.round(boss.r),core:+(boss.core||0).toFixed(2),hp:Math.max(0,Math.round(boss.hp)),mh:Math.round(boss.maxhp),en:boss.entering?1:0,dy:boss.dying?1:0,ph:boss.phase|0,nm:boss.name||'',tl:+(boss.tell||0).toFixed(2)}:0
     };
   }
-  function guestEnemyDefaults(){ return {bob:0,flash:0,dead:false,dt:0,hp:1,maxhp:1,state:'free',slot:-1,vx:0,vy:0,fire:9,t:0,spin:0,aimAng:Math.PI/2,buffed:0,barrageGlow:0}; }
+  function guestEnemyDefaults(){ return {bob:0,flash:0,dead:false,dt:0,hp:1,maxhp:1,state:'free',slot:-1,vx:0,vy:0,fire:9,t:0,spin:0,aimAng:Math.PI/2,buffed:0,barrageGlow:0,lockT:0,lockX:0,lockY:0}; }
+  /* telegraph fidelity (visual parity pass 2): stamp the transmitted behavior
+     fields onto the render shadow so the SAME draw code shows the real
+     telegraph (aim tilt, buff auras, elite mutator rings, anchor halo +
+     tethers, the FOREMAN lock line). Render-only: the guest runs zero enemy
+     AI, so these fields only ever reach draw calls. anchor buffR is the fixed
+     150 from the sole anchor spawn site (spawnFormationOccupant). */
+  function stampEnemyTele(e,a){
+    e.state=ESTL[a[10]|0]||'free';
+    e.aimAng=(a[11]==null?Math.PI/2:a[11]); e.buffed=a[12]||0;
+    const fg=a[13]|0; e.mut=MUTL[fg&3]||undefined;
+    if(fg&4){ e.role='anchor'; e.buffR=150; }
+    e.lockT=a[14]||0; e.lockX=a[15]||0; e.lockY=a[16]||0;
+  }
   /* Phase 2.5 split: the NEWEST snapshot reconciles ONLY our own predicted
      ship the moment it lands (staleness here is prediction error, so it must
      never sit in the delay buffer); everything host-owned applies from the
@@ -6382,7 +6427,8 @@ const COOP=(function(){
       if(!e){ const fk=FKL[a[1]]||'ace', F=FACTIONS[fk]||FACTIONS.ace;
         e=Object.assign(guestEnemyDefaults(),{_eid:a[0],fk:fk,c:F.c,draw:F.draw,variant:a[2]||0,x:a[3],y:a[4],r:a[5]||16,core:a[6]||0,bank:a[7]||0,tell:a[8]||0,fireFlash:a[9]||0,pts:0});
         bufPos(e,a[3],a[4]); guestEnemies.set(a[0],e); }
-      else { bufPos(e,a[3],a[4]); e.r=a[5]||e.r; e.core=a[6]||0; e.bank=a[7]||0; e.tell=a[8]||0; e.fireFlash=a[9]||0; } });
+      else { bufPos(e,a[3],a[4]); e.r=a[5]||e.r; e.core=a[6]||0; e.bank=a[7]||0; e.tell=a[8]||0; e.fireFlash=a[9]||0; }
+      stampEnemyTele(e,a); });
     guestEnemies.forEach((e,id)=>{ if(!seen.has(id)){ try{ explode(e.x,e.y,e.c,e.variant>=2); factionDeathLayer(e); }catch(err){} guestEnemies.delete(id); } });
     enemies.length=0; guestEnemies.forEach(e=>enemies.push(e));
     // bullets: render-only copies; _age lets interpFrame advance each one on
@@ -6417,6 +6463,16 @@ const COOP=(function(){
         else { w2.x=a[1]; w2.y=a[2]; w2.w=a[3]; w2.life=a[4]; } });
       guestBarriers.forEach((w2,id)=>{ if(!seenB.has(id)) guestBarriers.delete(id); });
       barriers.length=0; guestBarriers.forEach(w2=>barriers.push(w2)); }
+    // FLAK clouds (visual parity pass 2): same id-keyed render-only mirror.
+    // Clouds are static once spawned (no lerp needed); dps:0 so no code path
+    // could ever tick damage from these shadows - removal is host-authoritative
+    // via vanished ids, and the guest only advances the fade clock (cosmetics).
+    { const seenF=new Set();
+      (s.fc||[]).forEach(a=>{ seenF.add(a[0]); let c=guestFlak.get(a[0]);
+        if(!c){ c={_eid:a[0],x:a[1],y:a[2],r:a[3],t:a[4],life:a[5]||1,dps:0,pi:0,c:FLAK_COL}; guestFlak.set(a[0],c); }
+        else { c.x=a[1]; c.y=a[2]; c.r=a[3]; c.t=a[4]; c.life=a[5]||c.life; } });
+      guestFlak.forEach((c,id)=>{ if(!seenF.has(id)) guestFlak.delete(id); });
+      flakClouds.length=0; guestFlak.forEach(c=>flakClouds.push(c)); }
     // boss: a light render shell driven by host fields
     if(s.bo){ const bo=s.bo;
       if(!boss||boss.fk!==bo.fk){ const F=FACTIONS[bo.fk]||FACTIONS.ace;
@@ -6561,6 +6617,12 @@ const COOP=(function(){
       if(boss._phaseFlick>0)boss._phaseFlick=Math.max(0,boss._phaseFlick-dt);
       if(boss._litNotchT>0)boss._litNotchT=Math.max(0,boss._litNotchT-dt); }
     for(let i=0;i<holes.length;i++) holes[i].core+=dt*4;
+    // pass 2: enemy pulse/hover clock at the base host rate (host runs
+    // 1.1+spin; snapshots restamp core every ~66ms, so the +/-0.4 per-enemy
+    // spin drift never accumulates - spin itself is not worth transmitting)
+    // and the FLAK cloud fade clock (removal stays host-authoritative)
+    for(let i=0;i<enemies.length;i++) enemies[i].core+=dt*1.1;
+    for(let i=0;i<flakClouds.length;i++) flakClouds[i].t-=dt;
   }
   /* ---- match end (unranked ARCADE screen; nothing submitted) ---- */
   function finishMatch(){
