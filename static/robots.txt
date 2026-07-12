@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Allow: /vanguard/
+Disallow: /dev/
+Disallow: /api/
+Disallow: /auth/
+
+Sitemap: https://ideabosco.com/sitemap.xml

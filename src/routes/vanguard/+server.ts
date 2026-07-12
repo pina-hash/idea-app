@@ -56,7 +56,18 @@ function injectionScript(
 	const coopUrlJson = escapeForScript(JSON.stringify(PUBLIC_SUPABASE_URL ?? ''));
 	const coopKeyJson = escapeForScript(JSON.stringify(PUBLIC_SUPABASE_ANON_KEY ?? ''));
 
-	return `<script>
+	// SEO: injected first in <head> so this <title> wins over the game's own
+	// (browsers and crawlers use the first title in document order) and the
+	// meta/open-graph tags give crawlers a description of the public page.
+	const seoHead = `<title>IDEA // VANGUARD | Bosco Tech</title>
+<meta name="description" content="Browser-based arcade shoot-em-up built by the IDEA pathway at Don Bosco Technical Institute. Pilot the IDEA ship against five rival factions." />
+<meta property="og:title" content="IDEA // VANGUARD | Bosco Tech" />
+<meta property="og:description" content="Browser-based arcade shoot-em-up built by the IDEA pathway at Don Bosco Technical Institute. Pilot the IDEA ship against five rival factions." />
+<meta property="og:url" content="https://ideabosco.com/vanguard/" />
+<meta property="og:type" content="website" />
+`;
+
+	return `${seoHead}<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
 	var IS_TEACHER = ${isTeacher ? 'true' : 'false'};

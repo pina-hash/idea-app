@@ -278,6 +278,21 @@
 	});
 </script>
 
+<svelte:head>
+	<title>IDEA Pathway | Don Bosco Technical Institute</title>
+	<meta
+		name="description"
+		content="The IDEA pathway at Bosco Tech - engineering design, digital fabrication, and product development for high school students in Rosemead, CA."
+	/>
+	<meta property="og:title" content="IDEA Pathway | Don Bosco Technical Institute" />
+	<meta
+		property="og:description"
+		content="The IDEA pathway at Bosco Tech - engineering design, digital fabrication, and product development for high school students in Rosemead, CA."
+	/>
+	<meta property="og:url" content="https://ideabosco.com/" />
+	<meta property="og:type" content="website" />
+</svelte:head>
+
 {#snippet sectionCard(s: Section, pinned: boolean)}
 	<div class="course-card section-card" class:pinned>
 		<div class="course-header collapsible">
