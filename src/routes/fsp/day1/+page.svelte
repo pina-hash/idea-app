@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import FspLiveFeed from '$lib/fsp/FspLiveFeed.svelte';
+	import FspStudentPreview from '$lib/fsp/FspStudentPreview.svelte';
 
 	/**
 	 * /fsp/day1 — the FSP Day 1 presentation deck. The canonical slides are the
@@ -41,6 +42,8 @@
 	let iframeEl: HTMLIFrameElement | undefined = $state();
 	let liveActive = $state(false);
 	let count = $state(0);
+	let studentOpen = $state(false);
+	let isFullscreen = $state(false);
 
 	async function signIn() {
 		loading = true;
@@ -90,6 +93,20 @@
 		}
 	}
 
+	/**
+	 * Present: fullscreen the deck iframe DIRECTLY (not the page root), so all
+	 * page chrome — including this presenter toolbar — falls away and only the
+	 * slides fill the screen. Escape exits fullscreen natively; the toolbar
+	 * returns on the fullscreenchange event.
+	 */
+	function presentDeck() {
+		iframeEl?.requestFullscreen?.().catch(() => {});
+	}
+
+	function onFullscreenChange() {
+		isFullscreen = !!document.fullscreenElement;
+	}
+
 	function focusDeck() {
 		iframeEl?.contentWindow?.focus();
 	}
@@ -97,12 +114,16 @@
 	onMount(() => {
 		window.addEventListener('message', onMessage);
 		window.addEventListener('keydown', onKeydown);
+		document.addEventListener('fullscreenchange', onFullscreenChange);
 	});
 
 	onDestroy(() => {
 		if (typeof window !== 'undefined') {
 			window.removeEventListener('message', onMessage);
 			window.removeEventListener('keydown', onKeydown);
+		}
+		if (typeof document !== 'undefined') {
+			document.removeEventListener('fullscreenchange', onFullscreenChange);
 		}
 	});
 </script>
@@ -163,6 +184,20 @@
 				</div>
 			</div>
 		{/if}
+
+		<!-- Presenter toolbar: floats bottom-center, hidden once fullscreen. -->
+		{#if !isFullscreen}
+			<div class="toolbar">
+				<button class="tb" onclick={presentDeck} title="Fullscreen the deck">
+					<span class="ico" aria-hidden="true">⛶</span> Present
+				</button>
+				<button class="tb" onclick={() => (studentOpen = true)} title="Preview the student phone view">
+					<span class="ico" aria-hidden="true">▢</span> Student View
+				</button>
+			</div>
+		{/if}
+
+		<FspStudentPreview bind:open={studentOpen} />
 	{/if}
 </div>
 
@@ -181,6 +216,47 @@
 		height: 100%;
 		border: 0;
 		display: block;
+	}
+
+	/* --- Presenter toolbar (bottom center, minimal & dark) --- */
+	.toolbar {
+		position: fixed;
+		left: 50%;
+		bottom: 20px;
+		transform: translateX(-50%);
+		z-index: 20;
+		display: flex;
+		gap: 0.4rem;
+		padding: 0.4rem;
+		border-radius: 12px;
+		background: rgba(10, 12, 10, 0.82);
+		border: 1px solid rgba(0, 255, 65, 0.28);
+		box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55);
+		backdrop-filter: blur(6px);
+	}
+	.toolbar .tb {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.82rem;
+		letter-spacing: 0.03em;
+		text-transform: uppercase;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.5rem 0.85rem;
+		border-radius: 8px;
+		border: 1px solid transparent;
+		background: transparent;
+		color: #b7d4bb;
+		cursor: pointer;
+	}
+	.toolbar .tb:hover {
+		background: rgba(0, 255, 65, 0.12);
+		border-color: rgba(0, 255, 65, 0.3);
+		color: var(--green, #00ff41);
+	}
+	.toolbar .ico {
+		font-size: 0.9rem;
+		line-height: 1;
 	}
 
 	/* --- Live Q&A overlay (slide 13) --- */

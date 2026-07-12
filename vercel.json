@@ -1,0 +1,11 @@
+{
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"redirects": [
+		{
+			"source": "/(.*)",
+			"destination": "https://ideabosco.com/$1",
+			"permanent": true,
+			"has": [{ "type": "host", "value": "idea-app-sage.vercel.app" }]
+		}
+	]
+}

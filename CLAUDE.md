@@ -16,6 +16,12 @@ home; the old static repo is separate.
   (intended home is the `mrpina-dev` account; transfer or move the remote there
   when that account is available)
 - **Local path:** `C:\idea-app`
+- **Production domain:** `ideabosco.com` is the **canonical** production domain.
+  The Vercel default `idea-app-sage.vercel.app` is not canonical: `vercel.json`
+  adds a platform-level 308 redirect from that host to the same path on
+  `ideabosco.com` (host-matched, so it only fires for the vercel.app hostname).
+  Any hardcoded absolute URL (OG tags, sitemap, robots) must use
+  `https://ideabosco.com`, never the vercel.app host.
 
 ## Access model
 
@@ -1623,8 +1629,34 @@ entry points.
   the real `FspPulse` with a mock signed-in student and an injected fake save
   endpoint, following the same pattern as `/dev/fsp-tech-selection`, plus entry
   states for an FRC-only partial save.
-- **`/fsp`** links to this tool (not the old one) under a "Pulse Check" divider,
-  card id "Pathway Pulse".
+- **`/fsp/class`** (the FSP class-materials page) links to this tool under a
+  "Pulse Check" divider, card id "Pathway Pulse".
+
+## FSP hub
+
+`/fsp` is the **FSP navigation hub** that ties the presentation, live feed, and
+ask page together. **Auth required (Google OAuth), gated in-page** exactly like
+`/fsp/day1` / `/fsp/live` / `/fsp/ask` — the `/fsp` prefix is NOT in
+`authedPrefixes`, so a cold/QR visitor gets a friendly sign-in rather than a
+bounce to `/`. IDEA green on near-black, same aesthetic as the live Q&A pair.
+
+- **Routes by account domain** (from the signed-in email):
+  - `@boscotech.edu` (staff): two link cards — **Day 1 Presentation**
+    (`/fsp/day1`) and **Live Q&A Feed** (`/fsp/live`) — plus an inline
+    **active-session shortcut** that shows the current
+    `fsp_config.active_session` and a **Set Session** input, so Mr. Pina can set
+    the session (RLS-gated `fsp_config` update, the same write `/fsp/live` does)
+    without opening `/fsp/live` first.
+  - `@boscotech.net` (student): one card — **Submit a Question** (`/fsp/ask`) —
+    plus the note "Questions appear live during the presentation."
+  - Any other signed-in account: a "Bosco Tech account required" card with a
+    switch-account button.
+- **The former `/fsp` class page moved to `/fsp/class`** (the pawn/dogtag add-in
+  download, install steps, project cards, 3-day overview, and the Pulse Check
+  link). The hub links to it as "Class materials & SolidWorks add-in", and the
+  curriculum `summer-2026` section's `href` now points at `/fsp/class`. The
+  homepage portal launcher's FSP card (`portal-apps.ts`) still points at `/fsp`
+  (the hub), visible to both account types.
 
 ## FSP live Q&A
 
@@ -1673,10 +1705,16 @@ own opaque root so the shell `.bg-fx` never shows through.
   that animate in, soft-clear UPDATE removing a card, `prefers-reduced-motion`)
   is factored into `src/lib/fsp/FspLiveFeed.svelte` so the Day 1 deck embeds the
   SAME feed without rebuilding it; the page keeps only the chrome (auth gate,
-  Set/Clear controls, count via a bound prop, full-screen toggle). The component
+  Set/Clear controls, a **Student View** control, count via a bound prop,
+  full-screen toggle). The component
   takes an optional `session` (undefined = self-resolve `active_session` from
   `fsp_config`), a `variant` (`console` on this page, `slide` in the deck), and
   `sampleQuestions` for the no-Supabase harness path.
+  - **Student View** (staff-only surface, so no extra gate) opens
+    `src/lib/fsp/FspStudentPreview.svelte`: a modal that shows `/fsp/ask` inside
+    a ~390px mobile phone frame, so the presenter sees exactly what students see
+    on their phones. X or Escape closes it (Escape only when not in native
+    fullscreen). The SAME component is mounted on `/fsp/day1` (see below).
 - **Neither `/fsp/ask` nor `/fsp/live` is in `authedPrefixes`** (`hooks.server.ts`):
   auth is handled by the in-page gates, and the real boundary is RLS + the
   RPC/`fsp_config` grants, so anonymous/QR-cold visitors see a friendly sign-in
@@ -1726,6 +1764,15 @@ green `#00FF41` on near-black `#0a0a0a`.
   LIVE header; on `null` it removes the overlay. A page-level **`F`** key toggles
   native fullscreen on the deck root. The live feed populates for a signed-in
   presenter (feed reads are RLS-gated to authenticated users).
+  - **Presenter toolbar** (floats bottom-center, minimal/dark, hidden the moment
+    fullscreen is active via a `fullscreenchange` listener): **Present**
+    fullscreens the deck **iframe directly** (`iframeEl.requestFullscreen()`), so
+    every bit of page chrome — the toolbar included — falls away and only the
+    slides fill the screen; Escape exits fullscreen natively and the toolbar
+    returns. **Student View** opens the shared `FspStudentPreview` phone-frame
+    modal of `/fsp/ask` (same component as `/fsp/live`). Distinct from the `F`
+    key, which fullscreens the deck ROOT (so the slide-13 live overlay stays
+    visible) rather than the bare iframe.
 - **Superseded native rebuild:** `src/lib/fsp/FspDeck.svelte` +
   `src/lib/fsp/day1-slides.ts` were an earlier native-SvelteKit rebuild of the
   deck. They are no longer wired to any route (the iframe-hosting approach above

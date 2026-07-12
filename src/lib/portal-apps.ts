@@ -94,8 +94,8 @@ export const PORTAL_APPS: PortalApp[] = [
 	},
 	{
 		id: 'fsp',
-		title: 'IDEA FSP',
-		sub: 'Freshman Summer Program hub: the pawn/dogtag plugin, project days, and tech selection.',
+		title: 'Freshman Summer Program',
+		sub: 'FSP hub: run the Day 1 presentation and live Q&A feed, or submit a question during a session.',
 		icon: 'fsp',
 		href: '/fsp',
 		group: 'class',
