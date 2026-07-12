@@ -205,6 +205,10 @@
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
 		if (canvas && !mq.matches) {
 			const ctx = canvas.getContext('2d')!;
+			// Pull the particle color from the design-system --green token so the
+			// field tracks the theme instead of hardcoding a palette value.
+			const particleColor =
+				getComputedStyle(document.documentElement).getPropertyValue('--green').trim() || '#8fe08a';
 			let W = 0;
 			let H = 0;
 			const resize = () => {
@@ -248,9 +252,9 @@
 				draw() {
 					ctx.save();
 					ctx.globalAlpha = Math.max(0, this.opacity);
-					ctx.fillStyle = '#00FF41';
+					ctx.fillStyle = particleColor;
 					ctx.shadowBlur = 4;
-					ctx.shadowColor = '#00FF41';
+					ctx.shadowColor = particleColor;
 					ctx.beginPath();
 					ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
 					ctx.fill();
@@ -343,7 +347,7 @@
 	</div>
 {/snippet}
 
-<div class="legacy-index">
+<div class="legacy-index surface-machined">
 	<div id="scroll-bar"></div>
 	<canvas id="bg-canvas"></canvas>
 
@@ -392,7 +396,7 @@
 				<span class="value">
 					<span style="color:var(--cyan); text-shadow:var(--glow-cyan)">Mr. Pina</span>
 					<span style="color:var(--dim); margin: 0 0.4rem; font-size:0.9em">/</span>
-					<span style="color:var(--ice); text-shadow: 0 0 10px rgba(136,221,255,0.8), 0 0 28px rgba(136,221,255,0.3)">Mr. Cosso</span>
+					<span style="color:var(--ice); text-shadow: 0 0 6px rgba(169,188,171,0.45), 0 0 18px rgba(169,188,171,0.2)">Mr. Cosso</span>
 				</span>
 				<span class="label">Instructors</span>
 			</div>

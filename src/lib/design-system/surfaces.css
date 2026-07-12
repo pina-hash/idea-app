@@ -1,0 +1,85 @@
+/* ==========================================================================
+   IDEA surfaces & backdrops. Texture and depth for large background areas.
+   Layered CSS gradients only — no image binaries. Use ONE backdrop per zone.
+   ========================================================================== */
+
+:root {
+	/* Brushed metal: fine horizontal strokes, barely-there. */
+	--texture-brushed:
+		repeating-linear-gradient(
+			0deg,
+			rgba(234, 230, 216, 0.016) 0px,
+			rgba(234, 230, 216, 0.016) 1px,
+			transparent 1px,
+			transparent 3px
+		); /* @kind other */
+
+	/* Vignette: darkened edges + a faint mint bloom top-center. */
+	--texture-vignette:
+		radial-gradient(ellipse at 50% -20%, rgba(143, 224, 138, 0.05), transparent 55%),
+		radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.4) 100%); /* @kind other */
+}
+
+/* --- Machined page surface: brushed metal + vignette over --bg0. -------- */
+.surface-machined {
+	background-color: var(--bg0);
+	background-image: var(--texture-vignette), var(--texture-brushed);
+}
+
+/* --- Backdrop: blueprint (the classic CAD grid — see --blueprint-*). ---- */
+.backdrop-blueprint {
+	background-color: var(--blueprint-bg);
+	background-image: var(--blueprint-grid);
+	background-size: var(--blueprint-grid-size);
+	box-shadow: inset 0 0 0 1px rgba(151, 164, 140, 0.15), inset 0 0 40px rgba(143, 224, 138, 0.04);
+}
+
+/* --- Backdrop: toolpath — concentric CNC passes, off-center. ------------ */
+.backdrop-toolpath {
+	background-color: var(--blueprint-bg);
+	background-image:
+		repeating-radial-gradient(
+			circle at 70% 30%,
+			transparent 0px,
+			transparent 22px,
+			rgba(143, 224, 138, 0.06) 22px,
+			rgba(143, 224, 138, 0.06) 23px
+		);
+	box-shadow: inset 0 0 0 1px rgba(151, 164, 140, 0.15), inset 0 0 40px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Backdrop: tread plate — diagonal machined ridges. ------------------ */
+.backdrop-tread {
+	background-color: var(--bg1);
+	background-image:
+		repeating-linear-gradient(
+			45deg,
+			rgba(234, 230, 216, 0.02) 0px,
+			rgba(234, 230, 216, 0.02) 2px,
+			transparent 2px,
+			transparent 14px
+		),
+		repeating-linear-gradient(
+			-45deg,
+			rgba(13, 18, 12, 0.5) 0px,
+			rgba(13, 18, 12, 0.5) 1px,
+			transparent 1px,
+			transparent 14px
+		);
+	box-shadow: var(--bevel-inset);
+}
+
+/* --- Backdrop: hatch — engineering section-cut hatching, one corner. ---- */
+.backdrop-hatch {
+	background-color: var(--bg1);
+	background-image:
+		linear-gradient(115deg, rgba(19, 26, 19, 0) 60%, rgba(13, 18, 12, 0.55) 100%),
+		repeating-linear-gradient(
+			115deg,
+			transparent 0px,
+			transparent 9px,
+			rgba(151, 164, 140, 0.07) 9px,
+			rgba(151, 164, 140, 0.07) 10px
+		);
+	box-shadow: inset 0 0 0 1px rgba(151, 164, 140, 0.15);
+}

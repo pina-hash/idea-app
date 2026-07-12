@@ -1,0 +1,41 @@
+/* ==========================================================================
+   IDEA effects: machined bevels + soft rim-light glows, radii, spacing,
+   blueprint motif. The bevel is the signature move (surfaces read as pressed
+   or raised metal); glow is a soft halo, never neon-hot.
+   ========================================================================== */
+
+:root {
+	/* --- Rim-light glows (soft halo: tight core + gentle bloom) --- */
+	--glow-green: 0 0 6px rgba(143, 224, 138, 0.45), 0 0 18px rgba(143, 224, 138, 0.2);
+	--glow-gold: 0 0 6px rgba(211, 198, 142, 0.45), 0 0 18px rgba(211, 198, 142, 0.2);
+	--glow-cyan: 0 0 6px rgba(147, 214, 200, 0.45), 0 0 18px rgba(147, 214, 200, 0.2);
+
+	/* --- Machined bevels (the emblem's 3D press) --- */
+	--bevel-raised: inset 0 1px 0 rgba(255, 255, 255, 0.14), inset 0 -1px 0 rgba(0, 0, 0, 0.45), 0 2px 3px rgba(0, 0, 0, 0.45); /* @kind other */
+	--bevel-inset: inset 0 2px 4px rgba(0, 0, 0, 0.5), inset 0 -1px 0 rgba(255, 255, 255, 0.07); /* @kind other */
+
+	/* --- Corner radii (small; technical, not soft) --- */
+	--radius-chip: 2px; /* badges, chips, status pills */
+	--radius-control: 3px; /* buttons, inputs */
+	--radius-card: 4px; /* cards, panels, callouts */
+
+	/* --- Spacing scale (rem) --- */
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.5rem;
+	--space-6: 2rem;
+	--space-7: 2.5rem;
+	--space-8: 3.5rem;
+
+	/* --- Blueprint grid backdrop (CAD viewport / drawing sheets) --- */
+	--blueprint-bg: #171f15;
+	--blueprint-grid:
+		linear-gradient(rgba(151, 164, 140, 0.1) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(151, 164, 140, 0.1) 1px, transparent 1px); /* @kind other */
+	--blueprint-grid-size: 24px 24px;
+
+	/* --- Transitions --- */
+	--ease: 0.2s ease; /* @kind other */
+}

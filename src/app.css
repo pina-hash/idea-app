@@ -1,38 +1,13 @@
 /* ==========================================================================
-   IDEA Green program theme. Token set is the source of truth; do not invent
-   colors. Fonts: Rajdhani (display + body), Share Tech Mono (chrome/metadata),
-   loaded via @fontsource in the root layout.
+   IDEA Design System v2 (machined palette). The token layer is the single
+   source of truth for colors, type, effects, surfaces, and motion; it lives in
+   src/lib/design-system/ and is imported here. Do not invent colors or redefine
+   tokens in this file — design against the custom properties the import defines.
+   Fonts are loaded by the token layer (fonts.css) plus @fontsource in the root
+   layout (Rajdhani, Share Tech Mono, Orbitron).
    ========================================================================== */
 
-:root {
-	/* Backgrounds */
-	--bg0: #020a04; /* page base */
-	--bg1: #050f07; /* cards and panels */
-	--bg2: #081209; /* header bars and input fields */
-
-	/* Semantic colors (fixed roles) */
-	--green: #00ff41; /* primary: key labels, glows, success, active */
-	--gold: #c8ff00; /* secondary accent: special callouts */
-	--cyan: #00f0ff; /* informational: timestamps, version, role/metadata */
-	--amber: #ff8c00; /* warning */
-	--teal: #00aa88; /* in-progress */
-	--violet: #5500aa; /* special, sparingly */
-	--white: #e8ffe8; /* body text (not pure white) */
-	--dim: #4a7a52; /* dim text, placeholders, secondary labels */
-	--ice: #88ddff; /* disabled / not-yet-started */
-
-	/* Glows */
-	--glow-green: 0 0 10px rgba(0, 255, 65, 0.8), 0 0 28px rgba(0, 255, 65, 0.3);
-	--glow-gold: 0 0 10px rgba(200, 255, 0, 0.8), 0 0 28px rgba(200, 255, 0, 0.3);
-	--glow-cyan: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 28px rgba(0, 240, 255, 0.3);
-
-	/* Hairlines */
-	--line: rgba(0, 255, 65, 0.15);
-	--line-strong: rgba(0, 255, 65, 0.35);
-
-	--font-display: 'Rajdhani', sans-serif;
-	--font-mono: 'Share Tech Mono', monospace;
-}
+@import './lib/design-system/index.css';
 
 *,
 *::before,
@@ -65,8 +40,8 @@ body {
 	z-index: 0;
 	pointer-events: none;
 	background:
-		radial-gradient(ellipse at 50% -10%, rgba(0, 255, 65, 0.06), transparent 60%),
-		radial-gradient(ellipse at 50% 120%, rgba(0, 240, 255, 0.04), transparent 55%);
+		radial-gradient(ellipse at 50% -10%, rgba(143, 224, 138, 0.06), transparent 60%),
+		radial-gradient(ellipse at 50% 120%, rgba(147, 214, 200, 0.04), transparent 55%);
 }
 .bg-fx::after {
 	content: '';
@@ -74,8 +49,8 @@ body {
 	inset: 0;
 	background: repeating-linear-gradient(
 		to bottom,
-		rgba(0, 255, 65, 0.05) 0,
-		rgba(0, 255, 65, 0.05) 1px,
+		rgba(143, 224, 138, 0.05) 0,
+		rgba(143, 224, 138, 0.05) 1px,
 		transparent 1px,
 		transparent 4px
 	);
@@ -355,7 +330,7 @@ a:hover {
 	justify-content: space-between;
 	gap: 1.5rem;
 	flex-wrap: wrap;
-	background: linear-gradient(135deg, rgba(200, 255, 0, 0.07) 0%, rgba(0, 240, 255, 0.05) 100%);
+	background: linear-gradient(135deg, rgba(211, 198, 142, 0.07) 0%, rgba(147, 214, 200, 0.05) 100%);
 	border: 1px solid var(--line-strong);
 	border-radius: 4px;
 	padding: 1.2rem 1.6rem;
@@ -366,8 +341,8 @@ a:hover {
 		box-shadow 0.2s;
 }
 .callout:hover {
-	border-color: rgba(200, 255, 0, 0.7);
-	background: linear-gradient(135deg, rgba(200, 255, 0, 0.12) 0%, rgba(0, 240, 255, 0.08) 100%);
+	border-color: rgba(211, 198, 142, 0.7);
+	background: linear-gradient(135deg, rgba(211, 198, 142, 0.12) 0%, rgba(147, 214, 200, 0.08) 100%);
 }
 .callout .callout-title {
 	font-family: var(--font-mono);
@@ -1922,10 +1897,10 @@ a:hover {
 	position: sticky;
 	top: 0;
 	z-index: 100;
-	background: rgba(2, 10, 4, 0.88);
+	background: rgba(19, 26, 19, 0.88);
 	backdrop-filter: blur(12px);
 	-webkit-backdrop-filter: blur(12px);
-	border-bottom: 1px solid rgba(0, 255, 65, 0.15);
+	border-bottom: 1px solid rgba(143, 224, 138, 0.15);
 	padding: 0 2rem;
 	display: flex;
 	align-items: center;
@@ -1957,8 +1932,8 @@ a:hover {
 	text-transform: uppercase;
 	color: var(--gold);
 	text-decoration: none;
-	border: 1px solid rgba(200, 255, 0, 0.35);
-	background: rgba(200, 255, 0, 0.05);
+	border: 1px solid rgba(211, 198, 142, 0.35);
+	background: rgba(211, 198, 142, 0.05);
 	padding: 0.3rem 0.7rem;
 	border-radius: 2px;
 	white-space: nowrap;
@@ -1967,7 +1942,7 @@ a:hover {
 		text-shadow 0.2s;
 }
 .legacy-index .class-chip:hover {
-	border-color: rgba(200, 255, 0, 0.7);
+	border-color: rgba(211, 198, 142, 0.7);
 	text-shadow: var(--glow-gold);
 }
 
@@ -1984,7 +1959,7 @@ a:hover {
 	text-transform: uppercase;
 	color: var(--cyan);
 	background: none;
-	border: 1px solid rgba(0, 240, 255, 0.3);
+	border: 1px solid rgba(147, 214, 200, 0.3);
 	padding: 0.3rem 0.7rem;
 	border-radius: 2px;
 	cursor: pointer;
@@ -1997,12 +1972,12 @@ a:hover {
 }
 .legacy-index .auth-link:hover {
 	color: var(--green);
-	border-color: rgba(0, 255, 65, 0.5);
+	border-color: rgba(143, 224, 138, 0.5);
 	text-shadow: var(--glow-green);
 }
 .legacy-index .auth-link.signin {
 	color: var(--green);
-	border-color: rgba(0, 255, 65, 0.4);
+	border-color: rgba(143, 224, 138, 0.4);
 }
 .legacy-index .auth-link:disabled {
 	opacity: 0.6;
@@ -2085,13 +2060,13 @@ a:hover {
 	0%,
 	100% {
 		text-shadow:
-			0 0 8px rgba(0, 255, 65, 0.6),
-			0 0 20px rgba(0, 255, 65, 0.2);
+			0 0 8px rgba(143, 224, 138, 0.6),
+			0 0 20px rgba(143, 224, 138, 0.2);
 	}
 	50% {
 		text-shadow:
-			0 0 16px rgba(0, 255, 65, 1),
-			0 0 40px rgba(0, 255, 65, 0.5);
+			0 0 16px rgba(143, 224, 138, 1),
+			0 0 40px rgba(143, 224, 138, 0.5);
 	}
 }
 
@@ -2107,8 +2082,8 @@ a:hover {
 	max-width: 1100px;
 	margin: 0 auto 2.5rem;
 	padding: 1.2rem 1.8rem;
-	background: linear-gradient(135deg, rgba(200, 255, 0, 0.07) 0%, rgba(0, 240, 255, 0.05) 100%);
-	border: 1px solid rgba(200, 255, 0, 0.35);
+	background: linear-gradient(135deg, rgba(211, 198, 142, 0.07) 0%, rgba(147, 214, 200, 0.05) 100%);
+	border: 1px solid rgba(211, 198, 142, 0.35);
 	border-radius: 4px;
 	text-decoration: none;
 	transition:
@@ -2116,12 +2091,12 @@ a:hover {
 		background 0.2s;
 }
 .legacy-index .promo-callout:hover {
-	border-color: rgba(200, 255, 0, 0.7);
-	background: linear-gradient(135deg, rgba(200, 255, 0, 0.12) 0%, rgba(0, 240, 255, 0.08) 100%);
+	border-color: rgba(211, 198, 142, 0.7);
+	background: linear-gradient(135deg, rgba(211, 198, 142, 0.12) 0%, rgba(147, 214, 200, 0.08) 100%);
 }
 .legacy-index .promo-callout.nextlive {
-	border-color: rgba(0, 255, 65, 0.45);
-	background: linear-gradient(135deg, rgba(0, 255, 65, 0.1) 0%, rgba(0, 240, 255, 0.05) 100%);
+	border-color: rgba(143, 224, 138, 0.45);
+	background: linear-gradient(135deg, rgba(143, 224, 138, 0.1) 0%, rgba(147, 214, 200, 0.05) 100%);
 }
 .legacy-index .promo-left {
 	display: flex;
@@ -2147,13 +2122,13 @@ a:hover {
 	font-weight: 700;
 	letter-spacing: 0.18em;
 	color: var(--gold);
-	text-shadow: 0 0 8px rgba(200, 255, 0, 0.5);
+	text-shadow: 0 0 8px rgba(211, 198, 142, 0.5);
 	text-transform: uppercase;
 	margin-bottom: 0.3rem;
 }
 .legacy-index .nextlive .promo-title {
 	color: var(--green);
-	text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+	text-shadow: 0 0 8px rgba(143, 224, 138, 0.5);
 }
 .legacy-index .promo-sub {
 	font-size: 0.72rem;
@@ -2166,7 +2141,7 @@ a:hover {
 	font-size: 0.58rem;
 	letter-spacing: 0.18em;
 	color: var(--gold);
-	border: 1px solid rgba(200, 255, 0, 0.4);
+	border: 1px solid rgba(211, 198, 142, 0.4);
 	padding: 0.35rem 0.9rem;
 	border-radius: 2px;
 	white-space: nowrap;
@@ -2174,7 +2149,7 @@ a:hover {
 }
 .legacy-index .nextlive .promo-cta {
 	color: var(--green);
-	border-color: rgba(0, 255, 65, 0.4);
+	border-color: rgba(143, 224, 138, 0.4);
 }
 
 /* GAUNTLET continue / next-best nudge card (signed-in retention hook). */
@@ -2189,8 +2164,8 @@ a:hover {
 	max-width: 1100px;
 	margin: 0 auto 2.5rem;
 	padding: 1.1rem 1.8rem;
-	background: linear-gradient(120deg, rgba(0, 255, 65, 0.06), rgba(0, 240, 255, 0.04));
-	border: 1px solid rgba(0, 255, 65, 0.3);
+	background: linear-gradient(120deg, rgba(143, 224, 138, 0.06), rgba(147, 214, 200, 0.04));
+	border: 1px solid rgba(143, 224, 138, 0.3);
 	border-radius: 4px;
 }
 .legacy-index .nudge-eyebrow {
@@ -2199,7 +2174,7 @@ a:hover {
 	font-weight: 700;
 	letter-spacing: 0.2em;
 	color: var(--green);
-	text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
+	text-shadow: 0 0 8px rgba(143, 224, 138, 0.5);
 }
 .legacy-index .nudge-stats {
 	display: flex;
@@ -2235,14 +2210,14 @@ a:hover {
 	align-items: flex-end;
 	gap: 0.25rem;
 	text-decoration: none;
-	border: 1px solid rgba(0, 255, 65, 0.35);
+	border: 1px solid rgba(143, 224, 138, 0.35);
 	border-radius: 3px;
 	padding: 0.7rem 1.1rem;
 	transition: border-color 0.2s, background 0.2s;
 }
 .legacy-index .nudge-cta:hover {
-	border-color: rgba(0, 255, 65, 0.7);
-	background: rgba(0, 255, 65, 0.05);
+	border-color: rgba(143, 224, 138, 0.7);
+	background: rgba(143, 224, 138, 0.05);
 }
 .legacy-index .nudge-cta-label {
 	font-size: 0.58rem;
@@ -2256,7 +2231,7 @@ a:hover {
 	font-weight: 700;
 	letter-spacing: 0.1em;
 	color: var(--green);
-	text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+	text-shadow: 0 0 8px rgba(143, 224, 138, 0.4);
 }
 @media (max-width: 768px) {
 	.legacy-index .nudge-card {
@@ -2278,8 +2253,9 @@ a:hover {
 }
 .legacy-index .submit-inner {
 	background: var(--bg1);
-	border: 1px solid rgba(0, 240, 255, 0.2);
+	border: 1px solid rgba(147, 214, 200, 0.2);
 	border-radius: 4px;
+	box-shadow: var(--bevel-raised);
 	padding: 1.2rem 1.5rem;
 }
 .legacy-index #submit-toggle {
@@ -2320,7 +2296,7 @@ a:hover {
 	gap: 0.75rem;
 	flex: 1;
 	padding-right: 1.5rem;
-	border-right: 1px solid rgba(0, 255, 65, 0.1);
+	border-right: 1px solid rgba(143, 224, 138, 0.1);
 	margin-right: 1.5rem;
 }
 .legacy-index .submit-step:last-child {
@@ -2369,7 +2345,7 @@ a:hover {
 .legacy-index .divider-line {
 	flex: 1;
 	height: 1px;
-	background: linear-gradient(to right, transparent, rgba(0, 255, 65, 0.3), transparent);
+	background: linear-gradient(to right, transparent, rgba(143, 224, 138, 0.3), transparent);
 }
 .legacy-index .divider-label {
 	font-family: 'Orbitron', sans-serif;
@@ -2402,8 +2378,9 @@ a:hover {
 }
 .legacy-index .course-card {
 	background: var(--bg1);
-	border: 1px solid rgba(0, 255, 65, 0.12);
+	border: 1px solid rgba(143, 224, 138, 0.12);
 	border-radius: 4px;
+	box-shadow: var(--bevel-raised);
 	overflow: hidden;
 	opacity: 0;
 	transform: translateY(20px);
@@ -2418,11 +2395,11 @@ a:hover {
 	transform: translateY(0);
 }
 .legacy-index .course-card:hover {
-	border-color: rgba(0, 255, 65, 0.35);
+	border-color: rgba(143, 224, 138, 0.35);
 }
 .legacy-index .course-card.pinned {
-	border-color: rgba(200, 255, 0, 0.5);
-	box-shadow: 0 0 0 1px rgba(200, 255, 0, 0.15);
+	border-color: rgba(211, 198, 142, 0.5);
+	box-shadow: 0 0 0 1px rgba(211, 198, 142, 0.15);
 }
 .legacy-index .course-header {
 	display: flex;
@@ -2431,7 +2408,7 @@ a:hover {
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	padding: 1.1rem 1.5rem;
-	border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+	border-bottom: 1px solid rgba(143, 224, 138, 0.1);
 	background: var(--bg2);
 }
 .legacy-index .course-header.collapsible {
@@ -2479,18 +2456,18 @@ a:hover {
 }
 .legacy-index .badge-grade {
 	color: var(--gold);
-	border: 1px solid rgba(200, 255, 0, 0.3);
-	background: rgba(200, 255, 0, 0.05);
+	border: 1px solid rgba(211, 198, 142, 0.3);
+	background: rgba(211, 198, 142, 0.05);
 }
 .legacy-index .badge-block {
 	color: var(--cyan);
-	border: 1px solid rgba(0, 240, 255, 0.3);
-	background: rgba(0, 240, 255, 0.05);
+	border: 1px solid rgba(147, 214, 200, 0.3);
+	background: rgba(147, 214, 200, 0.05);
 }
 .legacy-index .badge-instructor {
 	color: var(--ice);
-	border: 1px solid rgba(136, 221, 255, 0.3);
-	background: rgba(136, 221, 255, 0.05);
+	border: 1px solid rgba(169, 188, 171, 0.3);
+	background: rgba(169, 188, 171, 0.05);
 }
 .legacy-index .gc-link {
 	font-family: 'Orbitron', sans-serif;
@@ -2498,7 +2475,7 @@ a:hover {
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
 	color: var(--dim);
-	border: 1px solid rgba(74, 122, 82, 0.3);
+	border: 1px solid rgba(135, 148, 124, 0.3);
 	padding: 0.2rem 0.6rem;
 	border-radius: 2px;
 	text-decoration: none;
@@ -2508,7 +2485,7 @@ a:hover {
 }
 .legacy-index .gc-link:hover {
 	color: var(--green);
-	border-color: rgba(0, 255, 65, 0.4);
+	border-color: rgba(143, 224, 138, 0.4);
 }
 .legacy-index .course-collapse-arrow {
 	font-family: 'Orbitron', sans-serif;
@@ -2542,7 +2519,7 @@ a:hover {
 	flex-wrap: wrap;
 	gap: 0.5rem;
 	padding: 0.8rem 1.5rem;
-	border-bottom: 1px solid rgba(0, 255, 65, 0.05);
+	border-bottom: 1px solid rgba(143, 224, 138, 0.05);
 	transition:
 		background 0.2s,
 		padding-left 0.2s;
@@ -2559,7 +2536,7 @@ a:hover {
 	cursor: pointer;
 }
 .legacy-index .assignment-item.linked:hover {
-	background: rgba(0, 255, 65, 0.04);
+	background: rgba(143, 224, 138, 0.04);
 	padding-left: 1.8rem;
 }
 .legacy-index .assignment-left {
@@ -2576,7 +2553,7 @@ a:hover {
 }
 .legacy-index .dot-live {
 	background: var(--green);
-	box-shadow: 0 0 6px rgba(0, 255, 65, 0.8);
+	box-shadow: 0 0 6px rgba(143, 224, 138, 0.8);
 }
 .legacy-index .dot-archived {
 	background: var(--dim);
@@ -2717,7 +2694,7 @@ a:hover {
 	align-items: flex-start;
 	font-family: 'Share Tech Mono', monospace;
 	background: var(--bg2);
-	border: 1px solid rgba(0, 255, 65, 0.2);
+	border: 1px solid rgba(143, 224, 138, 0.2);
 	border-radius: 3px;
 	padding: 0.6rem 0.9rem;
 	cursor: pointer;
@@ -2726,12 +2703,12 @@ a:hover {
 		background 0.2s;
 }
 .legacy-index .picker-option:hover {
-	border-color: rgba(0, 255, 65, 0.6);
-	background: rgba(0, 255, 65, 0.05);
+	border-color: rgba(143, 224, 138, 0.6);
+	background: rgba(143, 224, 138, 0.05);
 }
 .legacy-index .picker-option.selected {
 	border-color: var(--gold);
-	background: rgba(200, 255, 0, 0.06);
+	background: rgba(211, 198, 142, 0.06);
 }
 .legacy-index .picker-option:disabled {
 	opacity: 0.6;
@@ -2758,7 +2735,7 @@ a:hover {
 }
 .legacy-index .changelog-toggle {
 	background: none;
-	border: 1px solid rgba(74, 122, 82, 0.3);
+	border: 1px solid rgba(135, 148, 124, 0.3);
 	color: var(--dim);
 	font-family: 'Orbitron', sans-serif;
 	font-size: 0.58rem;
@@ -2777,7 +2754,7 @@ a:hover {
 }
 .legacy-index .changelog-toggle:hover {
 	color: var(--green);
-	border-color: rgba(0, 255, 65, 0.3);
+	border-color: rgba(143, 224, 138, 0.3);
 }
 .legacy-index .changelog-arrow {
 	transition: transform 0.3s;
@@ -2789,8 +2766,9 @@ a:hover {
 	display: none;
 	margin-top: 1rem;
 	background: var(--bg1);
-	border: 1px solid rgba(74, 122, 82, 0.2);
+	border: 1px solid rgba(135, 148, 124, 0.2);
 	border-radius: 3px;
+	box-shadow: var(--bevel-raised);
 	padding: 1rem 1.5rem;
 	max-height: 360px;
 	overflow-y: auto;
@@ -2803,7 +2781,7 @@ a:hover {
 	gap: 1.5rem;
 	align-items: baseline;
 	padding: 0.5rem 0;
-	border-bottom: 1px solid rgba(74, 122, 82, 0.1);
+	border-bottom: 1px solid rgba(135, 148, 124, 0.1);
 	font-size: 0.72rem;
 }
 .legacy-index .changelog-entry:last-child {
@@ -2830,7 +2808,7 @@ a:hover {
 	flex-wrap: wrap;
 	padding-bottom: 0.75rem;
 	margin-bottom: 0.5rem;
-	border-bottom: 1px solid rgba(74, 122, 82, 0.25);
+	border-bottom: 1px solid rgba(135, 148, 124, 0.25);
 }
 .legacy-index .cl-select,
 .legacy-index .cl-date input {
@@ -2839,7 +2817,7 @@ a:hover {
 	letter-spacing: 0.06em;
 	color: var(--cyan);
 	background: var(--bg2);
-	border: 1px solid rgba(0, 240, 255, 0.25);
+	border: 1px solid rgba(147, 214, 200, 0.25);
 	border-radius: 2px;
 	padding: 0.3rem 0.5rem;
 }
@@ -2879,18 +2857,18 @@ a:hover {
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
 	color: var(--dim);
-	border: 1px solid rgba(74, 122, 82, 0.35);
+	border: 1px solid rgba(135, 148, 124, 0.35);
 	border-radius: 2px;
 	padding: 0.08rem 0.35rem;
 	white-space: nowrap;
 }
 .legacy-index .cl-tag.cl-type {
 	color: var(--cyan);
-	border-color: rgba(0, 240, 255, 0.3);
+	border-color: rgba(147, 214, 200, 0.3);
 }
 .legacy-index .cl-tag.cl-type-feature {
 	color: var(--green);
-	border-color: rgba(0, 255, 65, 0.35);
+	border-color: rgba(143, 224, 138, 0.35);
 }
 .legacy-index .cl-tag.cl-type-fix {
 	color: var(--amber);
@@ -2898,14 +2876,14 @@ a:hover {
 }
 .legacy-index .cl-tag.cl-type-visual {
 	color: var(--gold);
-	border-color: rgba(200, 255, 0, 0.35);
+	border-color: rgba(211, 198, 142, 0.35);
 }
 
 /* Footer */
 .legacy-index footer {
 	position: relative;
 	z-index: 1;
-	border-top: 1px solid rgba(0, 255, 65, 0.1);
+	border-top: 1px solid rgba(143, 224, 138, 0.1);
 	padding: 2rem;
 	text-align: center;
 }
@@ -2919,7 +2897,7 @@ a:hover {
 }
 .legacy-index .footer-sub {
 	font-size: 0.58rem;
-	color: rgba(74, 122, 82, 0.6);
+	color: rgba(135, 148, 124, 0.6);
 	letter-spacing: 0.1em;
 }
 .legacy-index .footer-archive {
@@ -2981,7 +2959,7 @@ a:hover {
 		border-right: none;
 		margin-right: 0;
 		padding-right: 0;
-		border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+		border-bottom: 1px solid rgba(143, 224, 138, 0.1);
 		padding-bottom: 1rem;
 	}
 	.legacy-index .submit-step:last-child {

@@ -1,0 +1,13 @@
+/* ==========================================================================
+   IDEA Design System v2 — token entry point (machined palette).
+   Imported once at the top of src/app.css. Load order matters: fonts first,
+   then colors, type, effects, surfaces, motion. deck-motion.css is deliberately
+   NOT imported here — it belongs to the slide-deck template only.
+   ========================================================================== */
+
+@import './fonts.css';
+@import './colors.css';
+@import './typography.css';
+@import './effects.css';
+@import './surfaces.css';
+@import './motion.css';
