@@ -85,8 +85,29 @@
 		}
 	}
 
+	/**
+	 * The deck (day1-slides.html) is an editor: its default layout shows a
+	 * thumbnail RAIL of every slide on the left beside the current slide. The
+	 * deck exposes a `no-rail` observed attribute on its <deck-stage> element
+	 * that hides the rail and refits the current slide to fill the whole frame —
+	 * this is its intended "present" layout. Toggle it (same-origin, so the
+	 * iframe document is reachable) so presentation mode shows ONLY the current
+	 * slide. Guarded: a not-yet-loaded or unexpected deck can never throw.
+	 */
+	function setDeckRailHidden(hidden: boolean) {
+		try {
+			const stage = iframeEl?.contentDocument?.querySelector('deck-stage');
+			if (!stage) return;
+			if (hidden) stage.setAttribute('no-rail', '');
+			else stage.removeAttribute('no-rail');
+		} catch {
+			// cross-origin or not ready — ignore, presentation still fullscreens.
+		}
+	}
+
 	function toggleFullscreen() {
 		if (!document.fullscreenElement) {
+			setDeckRailHidden(true);
 			rootEl?.requestFullscreen?.().catch(() => {});
 		} else {
 			document.exitFullscreen?.().catch(() => {});
@@ -94,17 +115,21 @@
 	}
 
 	/**
-	 * Present: fullscreen the deck iframe DIRECTLY (not the page root), so all
-	 * page chrome — including this presenter toolbar — falls away and only the
-	 * slides fill the screen. Escape exits fullscreen natively; the toolbar
-	 * returns on the fullscreenchange event.
+	 * Present: hide the deck's thumbnail rail, then fullscreen the deck iframe
+	 * DIRECTLY (not the page root), so all page chrome — the presenter toolbar
+	 * included — falls away and only the current slide fills the screen. Escape
+	 * exits fullscreen natively; the rail and toolbar return on fullscreenchange.
 	 */
 	function presentDeck() {
+		setDeckRailHidden(true);
 		iframeEl?.requestFullscreen?.().catch(() => {});
 	}
 
 	function onFullscreenChange() {
 		isFullscreen = !!document.fullscreenElement;
+		// Rail hidden only while presenting (fullscreen); restored on exit so the
+		// embedded /fsp/day1 view keeps the deck's normal navigable thumbnails.
+		setDeckRailHidden(isFullscreen);
 	}
 
 	function focusDeck() {

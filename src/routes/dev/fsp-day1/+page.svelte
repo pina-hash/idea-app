@@ -57,11 +57,25 @@
 		liveActive = d.slide === 13;
 	}
 
+	// The deck shows a thumbnail rail by default; its <deck-stage> `no-rail`
+	// attribute hides it and refits the current slide to fill (present layout).
+	function setDeckRailHidden(hidden: boolean) {
+		try {
+			const stage = iframeEl?.contentDocument?.querySelector('deck-stage');
+			if (!stage) return;
+			if (hidden) stage.setAttribute('no-rail', '');
+			else stage.removeAttribute('no-rail');
+		} catch {
+			/* not ready — ignore */
+		}
+	}
 	function presentDeck() {
+		setDeckRailHidden(true);
 		iframeEl?.requestFullscreen?.().catch(() => {});
 	}
 	function onFullscreenChange() {
 		isFullscreen = !!document.fullscreenElement;
+		setDeckRailHidden(isFullscreen);
 	}
 
 	onMount(() => {
