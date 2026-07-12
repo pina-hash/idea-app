@@ -1,11 +1,14 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 </script>
 
 <main>
 	<section class="hero">
 		<span class="eyebrow warn">Authentication // Error</span>
-		<a class="wordmark" href="/">IDEA</a>
+		<a class="wordmark logo-mark" href="/" aria-label="IDEA home">
+			<AnimatedLogo width="clamp(220px, 60vw, 420px)" />
+		</a>
 	</section>
 
 	<div class="card">

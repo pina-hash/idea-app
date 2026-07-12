@@ -1,6 +1,7 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 
 	/**
 	 * /fsp/class — the FSP (Freshman Summer Program) class materials hub. Public,
@@ -42,7 +43,7 @@
 
 <div class="legacy-index fsp-page">
 	<header>
-		<a class="logo" href="/">IDEA</a>
+		<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 		<div class="header-right">
 			<a class="auth-link" href="/fsp">&lsaquo; FSP hub</a>
 			<ProfileMenu />

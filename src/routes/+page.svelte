@@ -6,6 +6,7 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import {
 		computeStreak,
 		levelFromXp,
@@ -352,7 +353,7 @@
 	<canvas id="bg-canvas"></canvas>
 
 	<header>
-		<a class="logo" href="/">IDEA</a>
+		<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 		<div class="header-right">
 			{#if mySection}
 				<a class="class-chip" href="#your-class">{mySection.course} &middot; {mySection.instructor}</a>

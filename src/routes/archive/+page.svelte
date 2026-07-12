@@ -2,6 +2,7 @@
 	import { ARCHIVE_COURSES } from '$lib/curriculum';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 </script>
 
 <svelte:head>
@@ -10,7 +11,7 @@
 
 <div class="legacy-index">
 	<header>
-		<a class="logo" href="/">IDEA</a>
+		<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 		<div class="header-right">
 			<a class="auth-link" href="/">&lsaquo; Home</a>
 			<ProfileMenu />

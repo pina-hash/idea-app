@@ -1843,9 +1843,25 @@ stack are the source of truth; do not invent colors or swap fonts.
   and the `.legacy-index ...` theme (header/hero/course-card/assignment-item/
   picker/changelog/footer) shared by `/` and `/archive`. All `.legacy-index`
   rules are scoped under that wrapper class so they never affect the app shell.
-- **Wordmark:** no logo mark exists; use the plain `IDEA` wordmark (green,
-  `--glow-green`) in headers and the landing hero. No trailing period or accent
-  dot.
+- **Wordmark + animated emblem:** the plain `IDEA` wordmark (green,
+  `--glow-green`, no trailing period or accent dot) is the live-text mark; the
+  **gear emblem lockup** is `src/lib/brand/AnimatedLogo.svelte`, the port of the
+  design-system `AnimatedLogo` (`components/brand/AnimatedLogo.jsx`). It layers
+  the isolated gear (`/IDEA/idea-gear.png`) behind the isolated text plate
+  (`/IDEA/idea-logo-text.png`) at the emblem's exact geometry (2560x1204 canvas,
+  gear 46.95% wide anchored top-left) and turns the gear slowly behind the
+  plate. It is **prop-driven** (`width`, `spin`, `duration`, `srcText`,
+  `srcGear`) so the same component is the animated hero mark and the static
+  fallback (`spin={false}`); the spin is gated behind
+  `prefers-reduced-motion: no-preference`, so it NEVER rotates for reduced-motion
+  users. It stands in for the top-left `IDEA` wordmark in every portal header
+  (landing `/`, `/archive`, `/dashboard`, `/fsp/class`, the GAUNTLET
+  `IDEA // GAUNTLET` lockup) and the `/auth/error` hero. The `.logo-mark` helper
+  (in `src/app.css`) frames the emblem inside the wordmark anchor. Dev harness:
+  `/dev/animated-logo` (404 in production, no auth) renders the header/hero
+  scales, the static fallback, and a fast-spin variant to eyeball the
+  reduced-motion gate. The intentionally-off-brand scoped themes (FRC navy/red,
+  FSP navy/gold) keep their own marks and do NOT use the IDEA emblem.
 - **Background:** a restrained CSS-only scanline + vignette overlay (`.bg-fx`
   in the root layout), disabled under `prefers-reduced-motion`. Legibility
   first; keep ambiance subtle and load light.

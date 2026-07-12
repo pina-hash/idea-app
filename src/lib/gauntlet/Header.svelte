@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import { displayName, type UserProfile } from '$lib/profile';
 
 	/**
@@ -49,7 +50,10 @@
 		<span class="gt-eyebrow">Trains SOLIDWORKS skills</span>
 		<nav class="gt-brandline" aria-label="Breadcrumb">
 			<span class="gt-wordmark">
-				<a href="/">IDEA</a><span class="sl" aria-hidden="true">//</span><a href="/gauntlet">GAUNTLET</a>
+				<a class="gt-logo" href="/" aria-label="IDEA home"><AnimatedLogo width={92} /></a><span
+					class="sl"
+					aria-hidden="true">//</span
+				><a href="/gauntlet">GAUNTLET</a>
 			</span>
 			{#each crumbs as crumb (crumb.label)}
 				<span class="crumb-sep" aria-hidden="true">&rsaquo;</span>
@@ -93,6 +97,8 @@
 		flex-wrap: wrap;
 	}
 	.gt-wordmark {
+		display: inline-flex;
+		align-items: center;
 		font-family: var(--font-head, 'Orbitron', sans-serif);
 		font-weight: 900;
 		font-size: 1.7rem;
@@ -112,6 +118,13 @@
 		-webkit-text-fill-color: transparent;
 		color: transparent;
 		text-decoration: none;
+	}
+	/* The emblem anchor holds an image, so it keeps a normal fill (the gradient
+	   text-clip on the parent only affects the // and GAUNTLET glyphs). */
+	.gt-wordmark .gt-logo {
+		display: inline-flex;
+		align-items: center;
+		-webkit-text-fill-color: initial;
 	}
 	.gt-wordmark .sl {
 		-webkit-text-fill-color: var(--dim);

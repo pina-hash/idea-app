@@ -232,7 +232,7 @@ a:hover {
 	color: var(--green);
 	background: transparent;
 	border: 1px solid var(--green);
-	border-radius: 3px;
+	border-radius: var(--radius-control);
 	padding: 0.7rem 1.3rem;
 	cursor: pointer;
 	text-decoration: none;
@@ -247,6 +247,12 @@ a:hover {
 	color: var(--bg0);
 	box-shadow: var(--glow-green);
 	text-shadow: none;
+}
+/* Pressed buttons physically depress: bevel flips to inset and the control
+   drops 1px (after :hover in source order so it wins while held). */
+.btn:active {
+	transform: translateY(1px);
+	box-shadow: var(--bevel-inset);
 }
 .btn:disabled {
 	color: var(--ice);
@@ -280,7 +286,10 @@ a:hover {
 .card {
 	background: var(--bg1);
 	border: 1px solid var(--line);
-	border-radius: 4px;
+	border-radius: var(--radius-card);
+	/* Machined bevel: cards read as raised metal (top highlight, bottom shade,
+	   short drop) — the signature press. */
+	box-shadow: var(--bevel-raised);
 	padding: 1.5rem;
 	margin: 1.25rem 0;
 }
@@ -1918,6 +1927,14 @@ a:hover {
 	text-decoration: none;
 	white-space: nowrap;
 }
+/* When the wordmark is the animated emblem instead of live text, the anchor is
+   just a frame for the lockup: drop the text glow/spacing and seat the image. */
+.logo-mark {
+	display: inline-flex;
+	align-items: center;
+	text-shadow: none;
+	letter-spacing: normal;
+}
 .legacy-index .header-right {
 	display: flex;
 	align-items: center;
@@ -2354,6 +2371,13 @@ a:hover {
 	color: var(--dim);
 	text-transform: uppercase;
 	white-space: nowrap;
+}
+/* House `//` motif: section dividers read as labeled `// SECTION` rules. */
+.legacy-index .divider-label::before {
+	content: '// ';
+	color: var(--green);
+	font-family: var(--font-mono);
+	text-shadow: var(--glow-green);
 }
 
 /* Courses */
