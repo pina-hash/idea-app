@@ -785,7 +785,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='195';
+const VERSION='196';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -6154,7 +6154,7 @@ const COOP=(function(){
   let snapAtPrev=0, snapAtCur=0;
   let snapBuf=[];               // Phase 2.5: arrival-ordered {at,s} history feeding the delayed world timeline
   let lastFireHeld=false;       // Phase 2.5: fire press-edge detector for the predicted local fire cue
-  const RENDER_DELAY_MS=120;    // Phase 2.5: guest renders the host world this far in the past (~1.8x SNAP_MS); raised from 90 after real-network playtest feedback (occasional stutter beyond the 90ms buffer's known limit)
+  const RENDER_DELAY_MS=70;    // Phase 2.5: guest renders the host world this far in the past (~1.8x SNAP_MS); re-tested lower after fixing the guest pointer-lock input bug and missing visual/audio systems that confounded the earlier 90->120 raise
   const SNAP_BUF_MAX=6;         // rolling snapshot history cap (~400ms at 15Hz; count-based FIFO, still ~3x the 120ms delay target under normal jitter, no change needed
   const PRED_SNAP_PX=40;        // own ship: reconcile-snap beyond this, blend inside it
   const INTERP_JUMP_PX=120;     // partner/enemies/boss: a larger snapshot step is a teleport (respawn/blink), never glide it
