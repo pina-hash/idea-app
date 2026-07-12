@@ -21,6 +21,7 @@
 		sectionsByYear,
 		nextLiveCourse,
 		sectionById,
+		summerProgram,
 		selfSelectOptions,
 		activeCourseCount,
 		type Section
@@ -51,6 +52,7 @@
 	});
 
 	const yearGroups = sectionsByYear();
+	const fsp = summerProgram();
 	const nextLive = nextLiveCourse();
 	const pickerGroups = selfSelectOptions();
 	const courseCount = activeCourseCount();
@@ -115,8 +117,8 @@
 	};
 
 	// Browser-only chrome: scroll bar, card fade-in, collapsible cards, the
-	// changelog + how-to-submit toggles, and the particle canvas. (The 2026-27
-	// course rows carry their state in markup, so no status JS is needed here.)
+	// changelog toggle, and the particle canvas. (The 2026-27 course rows carry
+	// their state in markup, so no status JS is needed here.)
 	onMount(() => {
 		const cleanups: Array<() => void> = [];
 
@@ -173,24 +175,6 @@
 		};
 		changelogBtn?.addEventListener('click', toggleChangelog);
 		cleanups.push(() => changelogBtn?.removeEventListener('click', toggleChangelog));
-
-		const submitToggle = document.getElementById('submit-toggle');
-		const submitWrap = document.getElementById('submit-steps-wrap');
-		if (submitToggle && submitWrap) {
-			const seenKey = 'idea-portal-submit-seen';
-			const setSubmitState = (open: boolean) => {
-				submitWrap.style.maxHeight = open ? '300px' : '0';
-				submitToggle.classList.toggle('open', open);
-			};
-			if (localStorage.getItem(seenKey)) setSubmitState(false);
-			else {
-				setSubmitState(true);
-				setTimeout(() => localStorage.setItem(seenKey, '1'), 2000);
-			}
-			const onSubmitToggle = () => setSubmitState(!submitToggle.classList.contains('open'));
-			submitToggle.addEventListener('click', onSubmitToggle);
-			cleanups.push(() => submitToggle.removeEventListener('click', onSubmitToggle));
-		}
 
 		// Delegated (not per-node) so it still works on cards that mount later,
 		// like the pinned "Your class" card that only appears once a signed-in
@@ -319,7 +303,7 @@
 		<div class="assignment-list">
 			{#if s.assignments && s.assignments.length}
 				{#each s.assignments as a (a.slug)}
-					<a class="assignment-item linked" href="/assignments/{a.slug}">
+					<a class="assignment-item linked" href={a.href ?? `/assignments/${a.slug}`}>
 						<div class="assignment-left">
 							<div class="assignment-dot dot-live"></div>
 							<div class="assignment-name">{a.title}</div>
@@ -459,41 +443,6 @@
 		</div>
 	{/if}
 
-	<div class="submit-panel">
-		<div class="submit-inner">
-			<button id="submit-toggle" type="button">
-				<span>HOW TO SUBMIT</span>
-				<span id="submit-chevron">v</span>
-			</button>
-			<div id="submit-steps-wrap" style="overflow:hidden; transition: max-height 0.35s ease;">
-				<div class="submit-label">How to Submit</div>
-				<div class="submit-steps">
-					<div class="submit-step">
-						<div class="step-num">01</div>
-						<div class="step-text">
-							Open your class assignment. It opens directly in your browser -
-							<strong>no download needed.</strong>
-						</div>
-					</div>
-					<div class="submit-step">
-						<div class="step-num">02</div>
-						<div class="step-text">
-							Complete all sections. Progress <strong>saves automatically</strong> every 30 seconds.
-							Use the Save button to save manually.
-						</div>
-					</div>
-					<div class="submit-step">
-						<div class="step-num">03</div>
-						<div class="step-text">
-							When finished, click <strong>Export HTML</strong> and upload the file directly to
-							Google Classroom. Do not submit a PDF.
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-
 	<div class="divider" id="your-class" style="margin-top:2.5rem">
 		<div class="divider-line"></div>
 		<div class="divider-label">Courses &amp; Assignments</div>
@@ -550,6 +499,11 @@
 					</button> to pin your class to the top and save your progress.
 				</p>
 			</div>
+		{/if}
+
+		{#if fsp}
+			<div class="year-label">Incoming Freshman</div>
+			{@render sectionCard(fsp, false)}
 		{/if}
 
 		{#each yearGroups as group (group.year)}

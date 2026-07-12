@@ -58,19 +58,17 @@ ability, it is not required to browse the portal.
   can pin favorites, reorder within groups, collapse groups, and toggle a
   compact view, persisted to `profiles.preferences.homepage` (anonymous
   visitors can collapse/compact for the session only, unsaved). The "next
-  live course" promo callout stays above the launcher. **Per-card accent
-  identity:** each app carries an `accent` (`AppAccent` in `portal-apps.ts`)
-  so its launcher tile themes to its own content — the icon, border, hover
-  wash, CTA, and title all draw from that accent via `--acc*` CSS vars set by
-  the `.acc-*` classes in `AppLauncher.svelte`. Accents map ONLY to
-  design-system tokens (no invented colors) plus the established FRC
-  FIRST-Blue: VANGUARD cyan, GAUNTLET green, GREENLINE teal (pre-alpha),
-  Coin Ledger/Coin Entry brass gold, Dashboard violet, FSP amber, Courses
-  green, FRC `blue` (FIRST Blue chrome, but its `--acc-title` falls back to
-  brass so the title stays legible on the dark card), Archive muted (retired).
-  Unset defaults to gold. `--crimson` stays reserved for status, never an
-  accent. Cards also carry the machined `var(--bevel-raised)` and press on
-  `:active`.
+  live course" promo callout stays above the launcher. **Uniform card chrome
+  (no per-card accent):** every launcher tile uses ONE shared design-system
+  accent (brass/gold) via the `--acc*` CSS vars on `.app-card` in
+  `AppLauncher.svelte`; there is deliberately no per-card `accent` field.
+  Cards are differentiated by name, tagline, status badge, and section group,
+  never by an arbitrary per-card color (the old `AppAccent` field + `.acc-*`
+  classes were removed because a per-card color read as an unrelated identity
+  hue on tools it did not belong to, e.g. violet on the teacher dashboard).
+  `--crimson` stays reserved for status. Cards carry the machined
+  `var(--bevel-raised)` and press on `:active`. FSP is NOT a launcher app: it
+  is a regular class card in the course listing (see "2026-27 curriculum").
 - **Optional sign-in:** the landing page header has a Google sign-in control.
   Signing in is additive: it unlocks signed-in features (VANGUARD cloud saves,
   pinning your class) and, for teachers, the dashboard. After sign-in from `/`
@@ -1721,31 +1719,26 @@ entry points.
 - **`/fsp/class`** (the FSP class-materials page) links to this tool under a
   "Pulse Check" divider, card id "Pathway Pulse".
 
-## FSP hub
+## FSP as a regular class card (the `/fsp` hub is retired)
 
-`/fsp` is the **FSP navigation hub** that ties the presentation, live feed, and
-ask page together. **Auth required (Google OAuth), gated in-page** exactly like
-`/fsp/day1` / `/fsp/live` / `/fsp/ask` — the `/fsp` prefix is NOT in
-`authedPrefixes`, so a cold/QR visitor gets a friendly sign-in rather than a
-bounce to `/`. IDEA green on near-black, same aesthetic as the live Q&A pair.
+FSP is surfaced as a **standard class card in the homepage course listing**, not
+a special hub or a launcher app. The `summer-2026` section (`curriculum.ts`) is
+pinned to the TOP of the course listing (above the year groups, an "Incoming
+Freshman" band) via `summerProgram()`, formatted identically to every other
+section card, with three material rows that use the new optional
+`Assignment.href` to link directly to the FSP tools:
+`Day 1 Presentation` -> `/fsp/day1`, `Live Q&A` -> `/fsp/ask`,
+`SolidWorks Add-In` -> `/fsp/class`. It is no longer a `portal-apps.ts` launcher
+app (that entry was removed), and the old role-routing hub page
+`/fsp/+page.svelte` was DELETED — `/fsp/day1`, `/fsp/live`, `/fsp/ask`, and
+`/fsp/class` are intact and reached directly (bare `/fsp` no longer resolves).
 
-- **Routes by account domain** (from the signed-in email):
-  - `@boscotech.edu` (staff): two link cards — **Day 1 Presentation**
-    (`/fsp/day1`) and **Live Q&A Feed** (`/fsp/live`) — plus an inline
-    **active-session shortcut** that shows the current
-    `fsp_config.active_session` and a **Set Session** input, so Mr. Pina can set
-    the session (RLS-gated `fsp_config` update, the same write `/fsp/live` does)
-    without opening `/fsp/live` first.
-  - `@boscotech.net` (student): one card — **Submit a Question** (`/fsp/ask`) —
-    plus the note "Questions appear live during the presentation."
-  - Any other signed-in account: a "Bosco Tech account required" card with a
-    switch-account button.
-- **The former `/fsp` class page moved to `/fsp/class`** (the pawn/dogtag add-in
-  download, install steps, project cards, 3-day overview, and the Pulse Check
-  link). The hub links to it as "Class materials & SolidWorks add-in", and the
-  curriculum `summer-2026` section's `href` now points at `/fsp/class`. The
-  homepage portal launcher's FSP card (`portal-apps.ts`) still points at `/fsp`
-  (the hub), visible to both account types.
+- **`/fsp/class`** still hosts the pawn/dogtag add-in download, install steps,
+  project cards, 3-day overview, and the Pulse Check link (the former `/fsp`
+  class page). Its header now links back to `/` (Home) since the hub is gone.
+  The curriculum `summer-2026` section's `href` also points at `/fsp/class`
+  (used by the empty-state "View class hub" link and the "next live course"
+  promo callout).
 
 ## FSP live Q&A
 

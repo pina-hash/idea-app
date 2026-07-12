@@ -5,21 +5,24 @@
    ========================================================================== */
 
 :root {
-	/* --- Backgrounds (deep desaturated greens — dark machined metal) --- */
-	--bg0: #131a13; /* page base */
-	--bg1: #1b241b; /* cards and panels */
-	--bg2: #242f23; /* header bars, input fields */
-	--plate: #2e3d2e; /* raised emblem plate: hero panels, featured surfaces */
+	/* --- Backgrounds (richly green machined metal — saturation pushed to
+	   ~22-25% to match the logo plate surface, same darkness) --- */
+	--bg0: #121a12; /* page base */
+	--bg1: #1a2a1a; /* cards and panels — most impactful, now visibly green */
+	--bg2: #222e22; /* header bars, input fields */
+	--plate: #2c3c2c; /* raised emblem plate: hero panels, featured surfaces */
 
-	/* --- Semantic colors (fixed roles) --- */
-	--green: #8fe08a; /* PRIMARY: mint rim-light — key labels, glows, success, active */
-	--gold: #d3c68e; /* secondary accent: aged brass — special callouts */
-	--cyan: #93d6c8; /* informational: patina — timestamps, version, metadata */
-	--amber: #d99a55; /* warning: copper */
-	--teal: #6fae91; /* in-progress */
-	--violet: #8577a6; /* special, sparingly */
+	/* --- Semantic colors (fixed roles). Lightness reduced ~10-13 points and
+	   richness restored so accents read on dark surfaces; the logo's measured
+	   rim-light green sits at L ~= 57% (#72ab6d). --- */
+	--green: #78b870; /* PRIMARY: mint rim-light — key labels, glows, success, active */
+	--gold: #c8a848; /* secondary accent: aged brass — special callouts */
+	--cyan: #5abda8; /* informational: patina — timestamps, version, metadata */
+	--amber: #d08030; /* warning: copper */
+	--teal: #3ea368; /* in-progress */
+	--violet: #7050a8; /* special, sparingly */
 	--white: #eae6d8; /* body text: bone — the letterform ivory, NOT pure white */
-	--dim: #87947c; /* dim text, placeholders, secondary labels (gear sage) */
+	--dim: #849080; /* dim text, placeholders, secondary labels (gear sage) */
 	--ice: #a9bcab; /* disabled / not-yet-started */
 	--gear: #75846f; /* sage metal: structural chrome, inactive strokes */
 	--edge: #0d120c; /* near-black outline — the emblem's dark linework */
@@ -28,8 +31,8 @@
 	--crimson: #d95f5f;
 
 	/* --- Hairlines (sage at rest, mint rim-light when active) --- */
-	--line: rgba(151, 164, 140, 0.25);
-	--line-strong: rgba(143, 224, 138, 0.55);
+	--line: rgba(145, 165, 130, 0.27);
+	--line-strong: rgba(120, 184, 112, 0.58);
 
 	/* --- Semantic aliases (map roles onto base tokens) --- */
 	--surface-page: var(--bg0);

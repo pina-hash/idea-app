@@ -124,12 +124,6 @@
 			<path d="M 6,22 C 6,10 14,6 20,12 C 26,18 26,24 20,26" stroke-dasharray="2,3" />
 		{:else if id === 'archive'}
 			<path d="M5 7h22v6H5z" /><path d="M7 13v12h18V13" /><path d="M13 18h6" />
-		{:else if id === 'fsp'}
-			<!-- Chess pawn silhouette (FSP builds a pawn on day 1). -->
-			<circle cx="16" cy="9" r="3" />
-			<path d="M12.5 16.5c1-2.5 6-2.5 7 0" />
-			<path d="M12 21c0-2.5 1.5-3.5 1.5-5h5c0 1.5 1.5 2.5 1.5 5z" />
-			<path d="M9.5 26h13" />
 		{/if}
 	</svg>
 	{/if}
@@ -137,7 +131,7 @@
 
 {#snippet appCard(app: PortalApp, group: AppGroupId | null)}
 	{#if customizing}
-		<div class="app-card static acc-{app.accent ?? 'gold'}" class:compact>
+		<div class="app-card static" class:compact>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title">{app.title}</span>
@@ -159,7 +153,7 @@
 			</span>
 		</div>
 	{:else}
-		<a class="app-card acc-{app.accent ?? 'gold'}" class:compact href={app.href} onclick={(e) => appClick(e, app)}>
+		<a class="app-card" class:compact href={app.href} onclick={(e) => appClick(e, app)}>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title">{app.title}</span>
@@ -356,16 +350,17 @@
 		gap: 0.6rem;
 	}
 	.app-card {
-		/* Per-card accent identity (see the `.acc-*` blocks below). Every card
-		   themes its icon, edges, title, and CTA from these vars; the default is
-		   brass/gold. `--acc-title` splits out so a low-contrast accent (FRC blue)
-		   can keep a legible title while still theming its chrome. */
+		/* One uniform, token-only accent for every card (brass/gold). Cards are
+		   differentiated by name, tagline, status, and group — never by a
+		   per-card color. The `--acc*` vars keep the card's icon, edges, title,
+		   and CTA on a single design-system scheme; the rgba values are the
+		   --gold token (200,168,72) at the working opacities. */
 		--acc: var(--gold);
 		--acc-title: var(--acc);
-		--acc-glow: rgba(211, 198, 142, 0.4);
-		--acc-line: rgba(211, 198, 142, 0.2);
-		--acc-line-strong: rgba(211, 198, 142, 0.5);
-		--acc-wash: rgba(211, 198, 142, 0.05);
+		--acc-glow: rgba(200, 168, 72, 0.4);
+		--acc-line: rgba(200, 168, 72, 0.2);
+		--acc-line-strong: rgba(200, 168, 72, 0.5);
+		--acc-wash: rgba(200, 168, 72, 0.05);
 		display: flex;
 		align-items: center;
 		gap: 0.9rem;
@@ -387,60 +382,6 @@
 		box-shadow: var(--bevel-inset);
 	}
 
-	/* --- Content-matched accents (design-system tokens + FRC FIRST-Blue) --- */
-	.acc-green {
-		--acc: var(--green);
-		--acc-glow: rgba(143, 224, 138, 0.4);
-		--acc-line: rgba(143, 224, 138, 0.18);
-		--acc-line-strong: rgba(143, 224, 138, 0.5);
-		--acc-wash: rgba(143, 224, 138, 0.05);
-	}
-	.acc-cyan {
-		--acc: var(--cyan);
-		--acc-glow: rgba(147, 214, 200, 0.4);
-		--acc-line: rgba(147, 214, 200, 0.18);
-		--acc-line-strong: rgba(147, 214, 200, 0.5);
-		--acc-wash: rgba(147, 214, 200, 0.05);
-	}
-	.acc-teal {
-		--acc: var(--teal);
-		--acc-glow: rgba(111, 174, 145, 0.42);
-		--acc-line: rgba(111, 174, 145, 0.22);
-		--acc-line-strong: rgba(111, 174, 145, 0.5);
-		--acc-wash: rgba(111, 174, 145, 0.06);
-	}
-	.acc-amber {
-		--acc: var(--amber);
-		--acc-glow: rgba(217, 154, 85, 0.42);
-		--acc-line: rgba(217, 154, 85, 0.22);
-		--acc-line-strong: rgba(217, 154, 85, 0.5);
-		--acc-wash: rgba(217, 154, 85, 0.06);
-	}
-	.acc-violet {
-		--acc: var(--violet);
-		--acc-glow: rgba(133, 119, 166, 0.45);
-		--acc-line: rgba(133, 119, 166, 0.24);
-		--acc-line-strong: rgba(133, 119, 166, 0.55);
-		--acc-wash: rgba(133, 119, 166, 0.07);
-	}
-	/* FRC: FIRST Blue chrome, but the title falls back to brass so it stays
-	   legible on the dark card (blue #0066B3 is too low-contrast for text). */
-	.acc-blue {
-		--acc: #0066b3;
-		--acc-title: var(--gold);
-		--acc-glow: rgba(0, 102, 179, 0.45);
-		--acc-line: rgba(0, 102, 179, 0.32);
-		--acc-line-strong: rgba(0, 102, 179, 0.6);
-		--acc-wash: rgba(0, 102, 179, 0.07);
-	}
-	/* Archive: retired courses read muted (gear sage), de-emphasized on purpose. */
-	.acc-muted {
-		--acc: var(--ice);
-		--acc-glow: rgba(169, 188, 171, 0.24);
-		--acc-line: rgba(151, 164, 140, 0.22);
-		--acc-line-strong: rgba(169, 188, 171, 0.42);
-		--acc-wash: rgba(169, 188, 171, 0.05);
-	}
 	.app-card.compact {
 		padding: 0.6rem 0.8rem;
 	}

@@ -17,6 +17,12 @@ export type SectionStatus = 'live' | 'upcoming' | 'planned';
 export interface Assignment {
 	slug: string;
 	title: string;
+	/**
+	 * Optional explicit link. Rows default to the public `/assignments/<slug>`
+	 * endpoint; set this to point a material row at any route instead (e.g. the
+	 * FSP class rows that link to /fsp/day1, /fsp/ask, and the add-in page).
+	 */
+	href?: string;
 }
 
 export interface Section {
@@ -61,7 +67,12 @@ export const SECTIONS: Section[] = [
 		isNew: true,
 		status: 'live',
 		note: '3-day intensive. The next live course.',
-		href: '/fsp/class'
+		href: '/fsp/class',
+		assignments: [
+			{ slug: 'fsp-day1', title: 'Day 1 Presentation', href: '/fsp/day1' },
+			{ slug: 'fsp-ask', title: 'Live Q&A', href: '/fsp/ask' },
+			{ slug: 'fsp-addin', title: 'SolidWorks Add-In', href: '/fsp/class' }
+		]
 	},
 	{
 		id: 'intro-100-1',
@@ -109,17 +120,6 @@ export const SECTIONS: Section[] = [
 		status: 'upcoming'
 	},
 	{
-		id: 'eng1-sophomore',
-		course: 'IDEA 209',
-		title: 'Engineering I',
-		year: 2,
-		yearLabel: 'Sophomore',
-		instructor: 'Pina',
-		term: 'S1',
-		isNew: true,
-		status: 'upcoming'
-	},
-	{
 		id: 'eng1h-junior',
 		course: 'IDEA 209H',
 		title: 'Engineering I Honors',
@@ -132,17 +132,6 @@ export const SECTIONS: Section[] = [
 		status: 'upcoming'
 	},
 	{
-		id: 'eng1-junior',
-		course: 'IDEA 209',
-		title: 'Engineering I',
-		year: 3,
-		yearLabel: 'Junior',
-		instructor: 'Pina',
-		term: 'S1',
-		isNew: true,
-		status: 'upcoming'
-	},
-	{
 		id: 'eng1h-senior',
 		course: 'IDEA 209H',
 		title: 'Engineering I Honors',
@@ -151,17 +140,6 @@ export const SECTIONS: Section[] = [
 		instructor: 'Cosso',
 		term: 'S1',
 		honors: true,
-		isNew: true,
-		status: 'upcoming'
-	},
-	{
-		id: 'eng1-senior',
-		course: 'IDEA 209',
-		title: 'Engineering I',
-		year: 4,
-		yearLabel: 'Senior',
-		instructor: 'Cosso',
-		term: 'S1',
 		isNew: true,
 		status: 'upcoming'
 	}
@@ -183,6 +161,15 @@ export function nextLiveCourse(): Section | undefined {
 export function sectionById(id: string | null | undefined): Section | undefined {
 	if (!id) return undefined;
 	return SECTIONS.find((s) => s.id === id);
+}
+
+/**
+ * The Freshman Summer Program section, rendered as a regular class card pinned
+ * to the top of the course listing (it is a pre-enrollment summer program for
+ * incoming students). Its material rows link to the FSP tools directly.
+ */
+export function summerProgram(): Section | undefined {
+	return SECTIONS.find((s) => s.term === 'Summer');
 }
 
 export interface YearGroup {
