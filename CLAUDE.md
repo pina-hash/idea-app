@@ -346,6 +346,32 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   still come entirely from host snapshots, so the guest cannot diverge on
   anything that matters. Deferred to later phases: difficulty scaling,
   revive/down-states, synced REFIT, co-op boards, reconnect.
+- **Co-op Phase 2.5 (game v191): predicted action feedback + delay-buffered
+  interpolation, guest-side only.** Two responsiveness fixes layered on Phase
+  2 without moving any authority. (1) Predicted FEEDBACK, never outcome: the
+  guest's fire press (physical key edge in `COOP.guestFrame`; the synthetic
+  autofire hold has no press moment) and parry press (`tryParry`'s coop-guest
+  branch) play the existing audio cue plus a cosmetic-only flash (muzzle
+  particles / cyan ring + shake) instantly and locally. No projectile or parry
+  state, no ammo/heat/cooldown, no score, and no snapshot-owned field is
+  touched, so a host-rejected action costs one harmless extra cue and there is
+  never anything to reconcile; the real resolution still arrives only via
+  snapshot. Bomb/meltdown/weapon-switch were deliberately NOT given predicted
+  cues (their success cues are loud or paired with explicit fail cues, so a
+  misfire would read as a lie). (2) The guest renders the host-owned world
+  (partner, enemies, boss, bullets, HUD) `RENDER_DELAY_MS` (90ms, a tunable
+  constant beside the other COOP timing constants) in the past through a small
+  rolling buffer of arrival-stamped snapshots (`snapBuf`; `applySnap` applies
+  each buffered snapshot once the delayed render clock enters its bracket, and
+  `interpFrame` lerps across the applied bracket), so in-order WebSocket
+  jitter and queue-release bursts are absorbed by buffered history instead of
+  the Phase 2 hold-then-jump; the guest's OWN predicted ship still reconciles
+  against the NEWEST snapshot immediately (untouched by the delay), the
+  `INTERP_JUMP_PX` teleport guard still applies, and a gap beyond the buffer's
+  coverage briefly holds rather than extrapolating. The `?coopstub=1` stub
+  gained in-order delivery fault injection (`__vgStubNetDelay`,
+  `__vgStubNetJitter`, `__vgStubNetStall(ms)`) and a cosmetic-FX sampler
+  (`__vgStubFx`) so both behaviors are regression-drivable with two tabs.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The

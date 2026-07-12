@@ -785,7 +785,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='190';
+const VERSION='191';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2651,7 +2651,18 @@ function drawHoles(){ for(const hh of holes){ const x=hh.x,y=hh.y,r=Math.max(0,h
     bg.shadowColor=COL.white; bg.shadowBlur=14; bg.fillStyle=COL.white; bg.beginPath(); bg.arc(0,0,3+Math.sin(hh.core*6),0,6.28); bg.fill();
     bg.shadowBlur=0; bg.globalCompositeOperation='source-over'; bg.restore(); continue; }
   drawSingularity(hh,x,y,r); } }
-function tryParry(pl){ if(!pl && COOP.sendAct('parry')) return; pl=pl||player;
+function tryParry(pl){
+  if(!pl && COOP.sendAct('parry')){
+    // CO-OP guest, Phase 2.5 predicted FEEDBACK, never outcome: the activation
+    // cue (sound + ring + shake, all cosmetic) plays instantly so the swing
+    // feels immediate, but no parry state (parryT/parryCd/parryArmed/parryHit/
+    // inv/runParryAtt) is touched locally; the host still resolves the real
+    // parry from the act sent above and its result arrives via snapshot.
+    if(state==='play'&&player&&!player.dead){ Audio_.parry();
+      rings.push({x:player.x,y:player.y,r:10,vr:150,life:.3,max:.3,c:COL.cyan}); shake=Math.max(shake,3); }
+    return;
+  }
+  pl=pl||player;
   if(state!=='play'||!pl||pl.dead)return;
   if(pl.parryCd>0&&pl.parryT<=0){ pl.parryCd=Math.min(2.0,pl.parryCd+0.35); pl.parryCdMax=pl.parryCd; pops.push({x:pl.x,y:pl.y-30,txt:'JAM',c:COL.dim,life:.5,max:.5}); Audio_.hit&&Audio_.hit(); return; }
   if(pl.parryCd>0||pl.parryT>0)return;
@@ -5674,6 +5685,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'191',date:'2026',items:['CO-OP responsiveness pass: firing and parrying now give instant feedback for the guest, and everything else renders through a small delay buffer to smooth out network jitter.']},
  {ver:'190',date:'2026',items:['CO-OP smoothed: your own ship now responds instantly to input, and everything else (partner, enemies, boss, bullets) animates smoothly instead of stepping between updates.']},
  {ver:'189',date:'2026',items:['VANGUARD co-op Phase 1: lobby, per-player refactor, and live host-authoritative sync (beta)']},
  {ver:'188',date:'2026',items:['CO-OP added (beta): create or join a room from the title screen and play shared-field co-op live with a friend. Unranked while this is tuned.']},
@@ -6006,8 +6018,20 @@ try{ if(/[?&]coopstub=1\b/.test(location.search)){
       const handlers={broadcast:{},presence:[]};
       const pres={}; let myKey=null, myMeta=null;
       function emitPresence(){ handlers.presence.forEach(f=>{try{f();}catch(e){}}); }
+      // Phase 2.5 fault injection: optional delivery delay/jitter/stall knobs
+      // (__vgStubNetDelay ms, __vgStubNetJitter extra random ms, __vgStubNetStall(ms)).
+      // Release times are forced monotonic so the stub keeps WebSocket in-order
+      // semantics: a held packet queues everything behind it, released as a burst.
+      let relAt=0;
+      function dispatchB(m){ (handlers.broadcast[m.event]||[]).forEach(f=>{try{f({payload:m.payload});}catch(e){}}); }
       bc.onmessage=ev=>{ const m=ev.data||{};
-        if(m.k==='b'){ (handlers.broadcast[m.event]||[]).forEach(f=>{try{f({payload:m.payload});}catch(e){}}); }
+        if(m.k==='b'){
+          const base=(+window.__vgStubNetDelay||0)+Math.random()*(+window.__vgStubNetJitter||0);
+          const hold=Math.max(0,(+window.__vgStubNetHoldUntil||0)-performance.now());
+          const d=Math.max(base,hold);
+          if(d>0||relAt>performance.now()){ relAt=Math.max(performance.now()+d,relAt); setTimeout(()=>dispatchB(m),Math.max(0,relAt-performance.now())); }
+          else dispatchB(m);
+        }
         else if(m.k==='join'){ pres[m.key]=[m.meta]; if(myKey) bc.postMessage({k:'here',key:myKey,meta:myMeta}); emitPresence(); }
         else if(m.k==='here'){ if(m.key){ pres[m.key]=[m.meta]; emitPresence(); } }
         else if(m.k==='leave'){ delete pres[m.key]; emitPresence(); } };
@@ -6035,6 +6059,12 @@ try{ if(/[?&]coopstub=1\b/.test(location.search)){
   window.__vgStubHurt=function(pi){ const p=players[pi||0]; if(p&&!p.dead){ p.shieldHits=0; p.guardUsed=true; p.armor=1; p.inv=0; playerHit(p); } };
   window.__vgStubWarp=function(pi,dx,dy){ const p=players[pi||0]; if(p&&!p.dead){ p.x=clamp(p.x+(dx||0),16,W-16); p.y=clamp(p.y+(dy||0),H*0.16,H-40); } };
   window.__vgStubShield=function(){ for(const p of players){ if(p&&!p.dead){ p.inv=3; p.armor=p.maxArmor; } } };
+  // Phase 2.5 drive helpers: hold all deliveries for ms (they release as an
+  // in-order burst, the WebSocket stall symptom), and a cosmetic-FX sampler so
+  // the predicted fire/parry cues are observable without audio.
+  window.__vgStubNetStall=function(ms){ window.__vgStubNetHoldUntil=performance.now()+(+ms||0); };
+  window.__vgStubFx=function(){ const me=players[localIndex]; return { parts:parts.length, rings:rings.length, pops:pops.length, pbul:pbul.length, ebul:ebul.length, shake:Math.round(shake*10)/10,
+    me:me?{pc:+(me.parryCd||0).toFixed(2),pt:+(me.parryT||0).toFixed(2),ht:+(me.heat||0).toFixed(2),bb:me.bombs}:null }; };
 } }catch(e){}
 
 /* ?vgheadless=1 - dev-only rAF pump (opt-in like ?coopstub=1): drives
@@ -6056,11 +6086,14 @@ try{ if(/[?&]vgheadless=1\b/.test(location.search)){
    `vgcoop:<CODE>`, distinct from the netcheck tool's `coopnet:` namespace).
    HOST runs the authoritative simulation (players[0] = host ship, players[1] =
    guest ship) and broadcasts compact state snapshots at ~15Hz; the GUEST sends
-   its held-input state at ~25Hz plus one-shot actions. Phase 2 smoothing, all
-   guest-side and render-only: the guest PREDICTS its own ship's position each
-   frame (stepShipPosition + snapshot reconcile in applyShip) and interpolates
-   everything else between the two newest snapshots (interpFrame); combat,
-   damage, and scoring are never predicted. No sign-in required (broadcast
+   its held-input state at ~25Hz plus one-shot actions. Phase 2/2.5 smoothing,
+   all guest-side and render-only: the guest PREDICTS its own ship's position
+   each frame (stepShipPosition + snapshot reconcile in applyShip), renders
+   everything else RENDER_DELAY_MS in the past through a small buffered
+   snapshot history (applySnap/interpFrame) to absorb delivery jitter, and
+   plays instant local fire/parry FEEDBACK cues on press (audio + cosmetic
+   flash only, Phase 2.5); combat, damage, and scoring are never predicted.
+   No sign-in required (broadcast
    only, nothing persisted). Unranked: no leaderboard submit, no telemetry, no
    achievements, no checkpoint. */
 const COOP=(function(){
@@ -6073,10 +6106,20 @@ const COOP=(function(){
   let actQueue=[];
   let latestSnap=null, lastInputAt=0, lastSnapAt=0, lastInputSendAt=0, lastInputSig='';
   let eidSeq=1; const guestEnemies=new Map();
-  /* Phase 2 guest smoothing: local receive times of the two newest snapshots
-     (the interpolation clock) plus tuning constants. Render-only; the host
-     stays fully authoritative on all state. */
+  /* Phase 2/2.5 guest smoothing: the host-owned world (partner, enemies, boss,
+     bullets, HUD) renders RENDER_DELAY_MS in the past through a small rolling
+     buffer of received snapshots (snapBuf, arrival-stamped), so a late or
+     bursty delivery is absorbed by buffered history instead of a
+     hold-then-jump. snapAtPrev/snapAtCur are the arrival times of the two most
+     recently APPLIED world snapshots (the interpolation bracket). Render-only;
+     the host stays fully authoritative on all state, and the guest's OWN
+     predicted ship reconciles against the NEWEST snapshot immediately, never
+     the delayed timeline. */
   let snapAtPrev=0, snapAtCur=0;
+  let snapBuf=[];               // Phase 2.5: arrival-ordered {at,s} history feeding the delayed world timeline
+  let lastFireHeld=false;       // Phase 2.5: fire press-edge detector for the predicted local fire cue
+  const RENDER_DELAY_MS=90;     // Phase 2.5: guest renders the host world this far in the past (~1.4x SNAP_MS); tune after real-network testing
+  const SNAP_BUF_MAX=6;         // rolling snapshot history cap (~400ms at 15Hz; the delay target needs ~2)
   const PRED_SNAP_PX=40;        // own ship: reconcile-snap beyond this, blend inside it
   const INTERP_JUMP_PX=120;     // partner/enemies/boss: a larger snapshot step is a teleport (respawn/blink), never glide it
   const BULLET_EXTRAP_MAX=0.25; // s: stop advancing render-only bullets if snapshots stall
@@ -6129,7 +6172,9 @@ const COOP=(function(){
       ch.on('broadcast',{event:'input'},({payload:p})=>{ if(role!=='host'||!p)return;
         remoteCtrl.mx=+p.mx||0; remoteCtrl.my=+p.my||0; remoteCtrl.fire=!!p.f; remoteCtrl.beam=!!p.b; lastInputAt=performance.now(); });
       ch.on('broadcast',{event:'act'},({payload:p})=>{ if(role==='host'&&p) actQueue.push(p); });
-      ch.on('broadcast',{event:'snap'},({payload:p})=>{ if(role==='guest'&&p) latestSnap=p; });
+      ch.on('broadcast',{event:'snap'},({payload:p})=>{ if(role!=='guest'||!p) return;
+        latestSnap=p;                                  // newest: own-ship reconcile only, never delayed
+        snapBuf.push({at:performance.now(),s:p}); if(snapBuf.length>SNAP_BUF_MAX) snapBuf.shift(); });
       ch.on('broadcast',{event:'end'},({payload:p})=>{ if(role==='guest'&&phase==='match') showEnd(p||{}); });
       ch.on('presence',{event:'sync'},onPresence);
       ch.subscribe(status=>{
@@ -6150,7 +6195,7 @@ const COOP=(function(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(gameMode==='coop') gameMode=prevMode||'normal';
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
-    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; guestEnemies.clear();
+    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; guestEnemies.clear();
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
@@ -6164,7 +6209,7 @@ const COOP=(function(){
     phase='match';
     prevMode=(gameMode==='coop')?prevMode:gameMode;
     coopMatch=true; localIndex=(role==='host')?0:1;
-    players.length=0; guestEnemies.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; actQueue.length=0;
+    players.length=0; guestEnemies.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; actQueue.length=0;
     remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now();
     gameMode='coop';
     startGame();                                   // builds players[localIndex] (baseline loadout)
@@ -6253,16 +6298,34 @@ const COOP=(function(){
     };
   }
   function guestEnemyDefaults(){ return {bob:0,flash:0,dead:false,dt:0,hp:1,maxhp:1,state:'free',slot:-1,vx:0,vy:0,fire:9,t:0,spin:0,aimAng:Math.PI/2,buffed:0,barrageGlow:0}; }
+  /* Phase 2.5 split: the NEWEST snapshot reconciles ONLY our own predicted
+     ship the moment it lands (staleness here is prediction error, so it must
+     never sit in the delay buffer); everything host-owned applies from the
+     rolling buffer once the delayed render clock (now - RENDER_DELAY_MS)
+     enters its bracket, so normal delivery jitter and in-order WebSocket
+     bursts are absorbed by history instead of a hold-then-jump. At match
+     start (snapAtCur=0) the first buffered snapshot applies immediately
+     rather than waiting out the delay. */
   function applySnap(){
-    const s=latestSnap; if(!s) return; latestSnap=null;
-    snapAtPrev=snapAtCur; snapAtCur=performance.now();
+    if(latestSnap){ const sp=latestSnap.pl&&latestSnap.pl[localIndex]; latestSnap=null;
+      if(sp){ if(!players[localIndex]){ players[localIndex]=makeShip(localIndex); player=players[localIndex]; }
+        applyShip(players[localIndex],sp,true); } }
+    const T=performance.now()-RENDER_DELAY_MS;
+    while(snapBuf.length && (!snapAtCur || T>=snapAtCur)){
+      const e=snapBuf.shift();
+      snapAtPrev=snapAtCur||e.at; snapAtCur=e.at;
+      applyWorldSnap(e.s);
+    }
+  }
+  function applyWorldSnap(s){
     if(s.sec!==sector){ sector=s.sec; killsForBoss=s.kfb||killsForBoss; triggerBanner(); }
     sectorKills=s.sk||0; killsForBoss=s.kfb||killsForBoss; bossPending=!!s.bp;
     window.scoreT=s.sc||0; window.style=s.st||0; window.mult=s.mult||1;
     runTime=s.rt||runTime; runKills=s.kl||runKills;
-    for(let i=0;i<2;i++){ const sp=s.pl&&s.pl[i]; if(!sp) continue;
-      if(!players[i]){ players[i]=makeShip(i); if(i===localIndex) player=players[i]; }
-      applyShip(players[i],sp,i===localIndex); }
+    for(let i=0;i<2;i++){ if(i===localIndex) continue;   // own ship reconciles from the NEWEST snapshot in applySnap, never the delayed timeline
+      const sp=s.pl&&s.pl[i]; if(!sp) continue;
+      if(!players[i]){ players[i]=makeShip(i); }
+      applyShip(players[i],sp,false); }
     if(players[0]&&s.co!=null) players[0].coins=s.co;
     // enemies: keyed by host eid; vanished ids explode locally
     const seen=new Set();
@@ -6299,17 +6362,19 @@ const COOP=(function(){
       try{ document.getElementById('bossname').style.display='none'; document.getElementById('bossbar').style.display='none'; }catch(e){}
       boss=null; }
   }
-  /* Phase 2, render-only, called every guest frame: blends each host-owned
-     entity from its previous snapshot position to its current one (alpha =
-     time since the newest snapshot / measured snapshot interval, clamped to 1
-     so a late packet holds at the authoritative position instead of
-     overshooting), advances bullets on their own broadcast velocity (they are
-     ephemeral and unindexed, so per-bullet extrapolation beats cross-snapshot
-     matching - a wrong match would snap a bullet sideways, worse than no
-     smoothing), and eases out the local ship's reconcile correction. Never
-     feeds back into simulation, hit detection, or scoring; the guest runs no
-     combat logic, so writing display positions here only changes what is
-     drawn. */
+  /* Phase 2/2.5, render-only, called every guest frame: blends each host-owned
+     entity from its previous applied snapshot position to its current one
+     (alpha = the DELAYED render time's progress across the applied arrival
+     bracket [snapAtPrev, snapAtCur], clamped to 1 so a delivery gap beyond
+     the buffer's coverage holds briefly at the last authoritative position
+     instead of overshooting), advances bullets on their own broadcast
+     velocity (they are ephemeral and unindexed, so per-bullet extrapolation
+     beats cross-snapshot matching - a wrong match would snap a bullet
+     sideways, worse than no smoothing), and eases out the local ship's
+     reconcile correction (which tracks the NEWEST snapshot, untouched by the
+     render delay). Never feeds back into simulation, hit detection, or
+     scoring; the guest runs no combat logic, so writing display positions
+     here only changes what is drawn. */
   function interpFrame(dt){
     const me=players[localIndex];
     if(me&&(me._cx||me._cy)){
@@ -6318,8 +6383,8 @@ const COOP=(function(){
       if(me._cx*me._cx+me._cy*me._cy<0.25){ me._cx=0; me._cy=0; }
     }
     if(!snapAtCur) return;
-    const span=snapAtPrev?Math.max(20,Math.min(250,snapAtCur-snapAtPrev)):SNAP_MS;
-    const al=Math.max(0,Math.min(1,(performance.now()-snapAtCur)/span));
+    const span=(snapAtPrev&&snapAtCur>snapAtPrev)?Math.max(20,Math.min(250,snapAtCur-snapAtPrev)):SNAP_MS;
+    const al=Math.max(0,Math.min(1,((performance.now()-RENDER_DELAY_MS)-snapAtPrev)/span));
     for(let i=0;i<players.length;i++) if(i!==localIndex) lerpPos(players[i],al);
     for(let i=0;i<enemies.length;i++) lerpPos(enemies[i],al);
     lerpPos(boss,al);
@@ -6340,7 +6405,21 @@ const COOP=(function(){
     if(keys.ArrowLeft||keys.a)mx-=1; if(keys.ArrowRight||keys.d)mx+=1;
     if(keys.ArrowUp||keys.w)my-=1; if(keys.ArrowDown||keys.s)my+=1;
     if(!mx&&!my&&stick.on){ mx=stick.dx; my=stick.dy; }
-    const fire=autofire||!!held[keybinds.fire]||!!held[keybinds.fireKey];
+    const fireKey=!!held[keybinds.fire]||!!held[keybinds.fireKey];
+    const fire=autofire||fireKey;
+    // Phase 2.5 predicted FEEDBACK, never outcome: a fresh PHYSICAL fire press
+    // (key edge, not the synthetic autofire hold, which has no press moment)
+    // plays the fire cue + muzzle flash instantly at the predicted ship. No
+    // projectile is spawned and no ammo/heat/cooldown state is touched
+    // locally; the real shot still happens host-side and arrives via snapshot
+    // exactly as before. Worst case (host overheat/cooldown rejects it) is
+    // one harmless extra cue.
+    if(fireKey&&!lastFireHeld&&player&&!player.dead){
+      const wt=player.wtype||'spread';
+      ((Audio_.play&&Audio_.play('fire_'+wt))||Audio_.fire(wt));
+      if(wt!=='buzzsaw') muzzle(player.x,player.y-20,(wt==='flak'?FLAK_COL:wt==='lance'?COL.cyan:wt==='homing'?COL.gold:COL.green),1,3);
+    }
+    lastFireHeld=fireKey;
     const beam=!!(player&&player.beamOn);
     const sig=mx.toFixed(2)+','+my.toFixed(2)+','+(fire?1:0)+','+(beam?1:0);
     const now=performance.now();
@@ -6354,7 +6433,9 @@ const COOP=(function(){
     //    instead of stepping at snapshot rate. Snapshots only reconcile it
     //    (applyShip); nothing else (fire/parry/damage) is ever predicted.
     if(player&&!player.dead) stepShipPosition(player,{mx:mx,my:my},dt);
-    // 3. fold in the newest host snapshot (authoritative state + structure)
+    // 3. reconcile our own ship against the NEWEST host snapshot, then fold in
+    //    the delayed world timeline (authoritative state + structure) from the
+    //    snapshot buffer (Phase 2.5)
     applySnap();
     // 4. render-only smoothing between snapshots (partner ship, enemies,
     //    boss, bullets) + our own ship's reconcile blend
