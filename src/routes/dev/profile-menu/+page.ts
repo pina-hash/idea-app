@@ -67,10 +67,15 @@ function makeStubSupabase() {
 	};
 }
 
-export const load: PageLoad = async () => {
+export const load: PageLoad = async ({ url }) => {
+	// `?loading=1` simulates the brief post-sign-in window where claims have
+	// resolved but the profile row hasn't arrived yet, for verifying the
+	// neutral loading placeholder (avatar pulse + name skeleton) instead of
+	// the "Signed in" / "SI" fallback.
+	const simulateLoading = url.searchParams.get('loading') === '1';
 	return {
 		claims: { sub: store.profile.id, email: store.profile.email },
-		userProfile: { ...store.profile },
+		userProfile: simulateLoading ? null : { ...store.profile },
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		supabase: makeStubSupabase() as any
 	};

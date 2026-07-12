@@ -26,6 +26,12 @@
 	const supabase = $derived(page.data.supabase as SupabaseClient);
 	const claims = $derived(page.data.claims);
 	const profile = $derived((page.data.userProfile ?? null) as UserProfile | null);
+	// A signed-in user always has a profile row (created by the signup
+	// trigger). If claims resolved before the profile row did, this is a
+	// brief loading window, not a genuinely profile-less account, so the UI
+	// shows a neutral placeholder instead of the "Signed in" / "SI" fallback
+	// text meant for a truly missing profile.
+	const profileLoading = $derived(!!claims && !profile);
 
 	let open = $state(false);
 	let root: HTMLDivElement | undefined = $state();
@@ -150,7 +156,7 @@
 			aria-label="Profile menu"
 			onclick={() => (open ? close() : (open = true))}
 		>
-			<Avatar {profile} size={30} />
+			<Avatar {profile} size={30} loading={profileLoading} />
 			<PathwayChip pathway={profile?.pathway} size="sm" />
 			<span class="pm-caret" class:up={open} aria-hidden="true">&#9662;</span>
 		</button>
@@ -158,9 +164,11 @@
 		{#if open}
 			<div class="pm-panel" role="menu">
 				<div class="pm-id">
-					<Avatar {profile} size={44} />
+					<Avatar {profile} size={44} loading={profileLoading} />
 					<div class="pm-id-text">
-						{#if editingName}
+						{#if profileLoading}
+							<div class="pm-name-skeleton" aria-hidden="true"></div>
+						{:else if editingName}
 							<form
 								class="pm-name-edit"
 								onsubmit={(e) => {
@@ -285,6 +293,23 @@
 	.pm-id-text {
 		min-width: 0;
 		flex: 1;
+	}
+	.pm-name-skeleton {
+		width: 70%;
+		height: 1.05rem;
+		border-radius: 3px;
+		background: var(--bg2, #081209);
+		animation: pm-skeleton-pulse 1.4s ease-in-out infinite;
+	}
+	@keyframes pm-skeleton-pulse {
+		0%, 100% { opacity: 0.5; }
+		50% { opacity: 0.9; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.pm-name-skeleton {
+			animation: none;
+			opacity: 0.7;
+		}
 	}
 	.pm-name {
 		font-family: var(--font-display, 'Rajdhani', sans-serif);
