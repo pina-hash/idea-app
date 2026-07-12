@@ -160,29 +160,6 @@
 				</div>
 			{/each}
 		</div>
-
-		<div class="divider">
-			<div class="divider-line"></div>
-			<div class="divider-label">Pulse Check</div>
-			<div class="divider-line"></div>
-		</div>
-
-		<a class="course-card visible link-card" href="/fsp-pulse">
-			<div class="course-header">
-				<div class="course-header-left">
-					<div class="course-id">Pathway Pulse</div>
-					<div class="course-updated">View or manage incoming student interest snapshot.</div>
-				</div>
-				<div class="course-meta">
-					<span class="course-badge badge-instructor">Open &rarr;</span>
-				</div>
-			</div>
-			<div class="card-body">
-				<p class="instructor-note">
-					Instructor-only: restricted to @boscotech.edu and @boscotech.net sign-in.
-				</p>
-			</div>
-		</a>
 	</div>
 
 	<footer>
