@@ -1,51 +1,23 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { fetchUserProfile } from '$lib/profile';
 import type { LayoutServerLoad } from './$types';
-
-const PROFILE_COLUMNS =
-	'id, email, full_name, display_name, avatar_url, avatar, role, section_id, pathway, preferences';
-// Pre-0038 fallback (pathway column not applied yet): a select naming a
-// missing column errors, which would sign everyone out of the profile
-// system. This narrower select degrades the portal to "no pathway".
-const PROFILE_COLUMNS_NO_PATHWAY =
-	'id, email, full_name, display_name, avatar_url, avatar, role, section_id, preferences';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Every signed-in user is guaranteed a profiles row (the 0001 signup
- * trigger), and `/auth/callback` already blocks its redirect until that row
- * is confirmed visible, so this should succeed on the first try for any
- * session that came through our sign-in flow. The short retry here is only
- * a backstop for sessions that didn't (an existing cookie from before this
- * fix shipped, a magic link, etc.) — it is not the primary guarantee.
+ * Load the signed-in user's profile during SSR. Every signed-in user is
+ * guaranteed a profiles row (the 0001 signup trigger), so a null here right
+ * after sign-in is a transient read (the request's session/token not fully
+ * settled server-side yet), not a real "no profile" account. A short retry
+ * covers that. If it still comes back empty, the browser-side load in
+ * +layout.ts fetches it during hydration, so the name/avatar are still correct
+ * without a manual refresh.
  */
 async function loadProfile(supabase: SupabaseClient, userId: string) {
-	let lastError: unknown = null;
 	for (let attempt = 0; attempt < 2; attempt++) {
 		if (attempt > 0) await sleep(200);
-
-		let { data, error } = await supabase
-			.from('profiles')
-			.select(PROFILE_COLUMNS)
-			.eq('id', userId)
-			.single();
-		if (error) lastError = error;
-
-		if (!data) {
-			({ data, error } = await supabase
-				.from('profiles')
-				.select(PROFILE_COLUMNS_NO_PATHWAY)
-				.eq('id', userId)
-				.single());
-			if (data) (data as Record<string, unknown>).pathway = null;
-			if (error) lastError = error;
-		}
-
-		if (data) return data;
-	}
-
-	if (lastError) {
-		console.error(`Failed to load profile for user ${userId}:`, lastError);
+		const profile = await fetchUserProfile(supabase, userId);
+		if (profile) return profile;
 	}
 	return null;
 }

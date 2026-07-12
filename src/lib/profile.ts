@@ -25,6 +25,41 @@ export interface UserProfile {
 	preferences: Record<string, unknown>;
 }
 
+// Columns loaded for the signed-in user's own profile. The `_NO_PATHWAY`
+// variant is the pre-0038 fallback: selecting a column that doesn't exist
+// errors the whole query, so if the pathway column isn't applied yet we retry
+// without it and degrade to "no pathway" rather than losing the profile.
+const PROFILE_SELECT =
+	'id, email, full_name, display_name, avatar_url, avatar, role, section_id, pathway, preferences';
+const PROFILE_SELECT_NO_PATHWAY =
+	'id, email, full_name, display_name, avatar_url, avatar, role, section_id, preferences';
+
+/**
+ * Load a signed-in user's own profile row through the given Supabase client.
+ * Works with either the server or browser client, so both the SSR load and the
+ * client-side hydration self-heal can use it. Returns null if the row isn't
+ * readable (missing, or blocked by RLS because the request wasn't authed yet).
+ */
+export async function fetchUserProfile(
+	supabase: SupabaseClient,
+	userId: string
+): Promise<UserProfile | null> {
+	let { data } = await supabase
+		.from('profiles')
+		.select(PROFILE_SELECT)
+		.eq('id', userId)
+		.maybeSingle();
+	if (!data) {
+		({ data } = await supabase
+			.from('profiles')
+			.select(PROFILE_SELECT_NO_PATHWAY)
+			.eq('id', userId)
+			.maybeSingle());
+		if (data) (data as Record<string, unknown>).pathway = null;
+	}
+	return (data as unknown as UserProfile) ?? null;
+}
+
 /** The name to show for a user anywhere in the portal. */
 export function displayName(profile: UserProfile | null | undefined): string {
 	return profile?.display_name?.trim() || profile?.full_name?.trim() || profile?.email || 'Signed in';
