@@ -314,8 +314,7 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   colors); coins are a shared wallet on players[0]. **Host-authoritative:**
   the host runs the full sim (guest held-input applied to players[1], one-shot
   actions relayed as events) and broadcasts ~15Hz compact snapshots; the guest
-  sends ~25Hz input heartbeats and renders snapshots (no prediction in Phase 1,
-  steppy guest render accepted). Match ends only when BOTH ships are out of
+  sends ~25Hz input heartbeats and renders snapshots. Match ends only when BOTH ships are out of
   lives; the end screen is the adapted game-over labeled CO-OP // UNRANKED with
   NO leaderboard submit, NO telemetry, NO achievements, NO checkpoint; REFIT is
   skipped in co-op (sectors chain directly) and both ships run the clean
@@ -323,9 +322,30 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   cleanly. Difficulty is the unscaled solo curve (accepted Phase 1 gap).
   `?coopstub=1` (opt-in, like `?mockresume=1`) swaps the transport for a
   same-origin BroadcastChannel stub so the whole flow is regression-testable
-  with two tabs/iframes and no live backend. Deferred to later phases: guest
-  prediction, difficulty scaling, revive/down-states, synced REFIT, co-op
-  boards, reconnect.
+  with two tabs/iframes and no live backend (it also exposes `__vgStub*`
+  introspection/fault-injection helpers for scripted drives); the sibling
+  `?vgheadless=1` flag pumps requestAnimationFrame off a MessageChannel so
+  the game loop runs even in a hidden/headless tab.
+- **Co-op Phase 2 (game v190): guest-side smoothing, render-only.** Fixes the
+  steppy guest render accepted in Phase 1. Two techniques, both scoped to what
+  the GUEST displays (host and solo behavior byte-identical): (1) own-ship
+  POSITION prediction: the movement-integration block of `updateShip` is
+  extracted verbatim into the side-effect-free `stepShipPosition(pl, ctrl, dt)`
+  (updates only x/y/vx + arena clamp; `updateShip` calls it, a pure refactor),
+  and `COOP.guestFrame` runs it every frame on the guest's own held input;
+  snapshots reconcile in `applyShip` (error <= `PRED_SNAP_PX` 40px blends out
+  ~12%/frame, larger or death/respawn snaps outright). (2) snapshot
+  interpolation for everything host-owned: `applySnap` buffers prev->cur
+  positions per entity (`bufPos`: partner ship, enemies by `_eid`, boss, with
+  an `INTERP_JUMP_PX` 120px teleport guard so respawns/blinks snap, never
+  glide) and per-frame `interpFrame` lerps by time-since-newest-snapshot over
+  the measured snapshot interval, clamped to 1 (late packet = brief hold);
+  bullets are ephemeral/unindexed so they extrapolate forward on their own
+  broadcast vx/vy (capped `BULLET_EXTRAP_MAX` 0.25s) instead of cross-snapshot
+  matching. Nothing but position is ever predicted: fire/parry/damage/score
+  still come entirely from host snapshots, so the guest cannot diverge on
+  anything that matters. Deferred to later phases: difficulty scaling,
+  revive/down-states, synced REFIT, co-op boards, reconnect.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The

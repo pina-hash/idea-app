@@ -785,7 +785,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='189';
+const VERSION='190';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2743,6 +2743,36 @@ function killEnemy(e,silent){ if(e.dead)return; runKills++; e.dead=true; e.dt=0;
   if(!silent)onKill(e);
   dropPod(e.x,e.y, e.variant>=2); }
 
+/* Movement integration ONLY: advances pl.x / pl.y / pl.vx from the control
+   source and applies the arena clamp. No other side effects (no firing, parry,
+   heat, meters, score, VFX). Shared verbatim by updateShip() inside update()
+   (host + solo, behavior unchanged) and by the co-op GUEST, which calls it
+   with its own held input every frame to PREDICT its own ship between host
+   snapshots (Phase 2); reconciliation lives in COOP's applyShip. */
+function stepShipPosition(pl, ctrl, dt){
+  let mx=0,my=0; const spd=pl.speed*(pl.beamActive?0.5:1);
+  const kbMove=!ctrl&&(keys.ArrowLeft||keys.a||keys.ArrowRight||keys.d||keys.ArrowUp||keys.w||keys.ArrowDown||keys.s);
+  if(ctrl){ mx=ctrl.mx||0; my=ctrl.my||0;
+    if(mx||my){ const m=Math.hypot(mx,my)||1; pl.x+=mx/m*spd*dt; pl.y+=my/m*spd*dt; pl.vx=mx; } }
+  else if(kbMove){ if(keys.ArrowLeft||keys.a)mx-=1; if(keys.ArrowRight||keys.d)mx+=1;
+    if(keys.ArrowUp||keys.w)my-=1; if(keys.ArrowDown||keys.s)my+=1;
+    const m=Math.hypot(mx,my)||1; pl.x+=mx/m*spd*dt; pl.y+=my/m*spd*dt; pl.vx=mx; }
+  else if(moveMode_pref==='lock' && plocked){ const tx=clamp(ptr.lx==null?pl.x:ptr.lx,16,W-16), ty=clamp(ptr.ly==null?pl.y:ptr.ly,H*0.16,H-40);
+    const dx=tx-pl.x, dy=ty-pl.y, d=Math.hypot(dx,dy)||1;
+    const step=Math.min(spd*dt, d); if(d>step){ pl.x+=dx/d*step; pl.y+=dy/d*step; } else { pl.x=tx; pl.y=ty; } pl.vx=dx*0.05; }
+  else if(touchSteer.active){
+    const tx=clamp(touchSteer.tx,16,W-16), ty=clamp(touchSteer.ty,H*0.16,H-40);
+    const dx=tx-pl.x;
+    pl.x=tx; pl.y=ty; pl.vx=dx*0.1;
+    if(touchSteer.tx!==tx && touchSteer.curX!=null){ touchSteer.shipStartX=tx; touchSteer.startX=touchSteer.curX; }
+    if(touchSteer.ty!==ty && touchSteer.curY!=null){ touchSteer.shipStartY=ty; touchSteer.startY=touchSteer.curY; }
+  }
+  else if(stick.on && (stick.dx||stick.dy)){ pl.x+=stick.dx*spd*dt; pl.y+=stick.dy*spd*dt; pl.vx=stick.dx; }
+  else if(ptr.active){ const tx=ptr.x, ty=ptr.y-46; const dx=tx-pl.x, dy=ty-pl.y, d=Math.hypot(dx,dy)||1;
+    const step=Math.min(spd*dt, d); if(d>step){ pl.x+=dx/d*step; pl.y+=dy/d*step; } else { pl.x=tx; pl.y=ty; } pl.vx=dx*0.05; }
+  pl.x=clamp(pl.x,16,W-16); pl.y=clamp(pl.y,H*0.16,H-40);
+}
+
 /* ============================= update ============================= */
 function update(dt){
   t+=dt; runTime+=dt; if(shake>0)shake=Math.max(0,shake-dt*40);
@@ -2757,8 +2787,9 @@ function update(dt){
   if(milestoneCard){ milestoneCard.t+=dt; if(milestoneCard.t>=milestoneCard.dur) milestoneCard=null; }
   if(state!=='play')return;
 
-  /* ----- CO-OP guest: no local simulation (Phase 1). Send input, render the
-     host's latest snapshot, tick cosmetics, done. Prediction is Phase 2. ----- */
+  /* ----- CO-OP guest: no combat simulation. Send input, predict our own
+     ship's POSITION locally, smooth everything else between host snapshots
+     (Phase 2), tick cosmetics. The host stays fully authoritative. ----- */
   if(coopMatch && COOP.isGuest()){ COOP.guestFrame(dt); return; }
 
   /* ----- players (local ship + co-op partner) ----- */
@@ -2807,28 +2838,10 @@ function update(dt){
     // GLINT: clean-play damage bonus, re-arms 3s after a hit
     pl.noHitT=(pl.noHitT||0)+dt; { const _g=(pl.modGlint && pl.noHitT>=3); if(_g!==!!pl.glintOn){ pl.glintOn=_g; applyUpgrades(pl); } }
     // movement (slowed while the beam is firing); a remote ship moves on its
-    // broadcast held-input vector, every local device path is unchanged below
-    let mx=0,my=0; const spd=pl.speed*(pl.beamActive?0.5:1);
-    const kbMove=!ctrl&&(keys.ArrowLeft||keys.a||keys.ArrowRight||keys.d||keys.ArrowUp||keys.w||keys.ArrowDown||keys.s);
-    if(ctrl){ mx=ctrl.mx||0; my=ctrl.my||0;
-      if(mx||my){ const m=Math.hypot(mx,my)||1; pl.x+=mx/m*spd*dt; pl.y+=my/m*spd*dt; pl.vx=mx; } }
-    else if(kbMove){ if(keys.ArrowLeft||keys.a)mx-=1; if(keys.ArrowRight||keys.d)mx+=1;
-      if(keys.ArrowUp||keys.w)my-=1; if(keys.ArrowDown||keys.s)my+=1;
-      const m=Math.hypot(mx,my)||1; pl.x+=mx/m*spd*dt; pl.y+=my/m*spd*dt; pl.vx=mx; }
-    else if(moveMode_pref==='lock' && plocked){ const tx=clamp(ptr.lx==null?pl.x:ptr.lx,16,W-16), ty=clamp(ptr.ly==null?pl.y:ptr.ly,H*0.16,H-40);
-      const dx=tx-pl.x, dy=ty-pl.y, d=Math.hypot(dx,dy)||1;
-      const step=Math.min(spd*dt, d); if(d>step){ pl.x+=dx/d*step; pl.y+=dy/d*step; } else { pl.x=tx; pl.y=ty; } pl.vx=dx*0.05; }
-    else if(touchSteer.active){
-      const tx=clamp(touchSteer.tx,16,W-16), ty=clamp(touchSteer.ty,H*0.16,H-40);
-      const dx=tx-pl.x;
-      pl.x=tx; pl.y=ty; pl.vx=dx*0.1;
-      if(touchSteer.tx!==tx && touchSteer.curX!=null){ touchSteer.shipStartX=tx; touchSteer.startX=touchSteer.curX; }
-      if(touchSteer.ty!==ty && touchSteer.curY!=null){ touchSteer.shipStartY=ty; touchSteer.startY=touchSteer.curY; }
-    }
-    else if(stick.on && (stick.dx||stick.dy)){ pl.x+=stick.dx*spd*dt; pl.y+=stick.dy*spd*dt; pl.vx=stick.dx; }
-    else if(ptr.active){ const tx=ptr.x, ty=ptr.y-46; const dx=tx-pl.x, dy=ty-pl.y, d=Math.hypot(dx,dy)||1;
-      const step=Math.min(spd*dt, d); if(d>step){ pl.x+=dx/d*step; pl.y+=dy/d*step; } else { pl.x=tx; pl.y=ty; } pl.vx=dx*0.05; }
-    pl.x=clamp(pl.x,16,W-16); pl.y=clamp(pl.y,H*0.16,H-40);
+    // broadcast held-input vector, every local device path is unchanged - the
+    // integration itself lives in stepShipPosition() (shared with the co-op
+    // guest's own-ship prediction, Phase 2)
+    stepShipPosition(pl, ctrl, dt);
     // HEAVY slot operates the heavy energy meter and suppresses primary while engaged
     if(ctrl){ const _b=!!ctrl.beam; if(pl.beamOn&&!_b){ pl.beamOn=false; pl.beamLock=false; } else pl.beamOn=_b; }   // remote beam-hold mirrors the local press/release handlers
     const heavyBusy=updateHeavy(pl,dt);
@@ -5661,6 +5674,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'190',date:'2026',items:['CO-OP smoothed: your own ship now responds instantly to input, and everything else (partner, enemies, boss, bullets) animates smoothly instead of stepping between updates.']},
  {ver:'189',date:'2026',items:['VANGUARD co-op Phase 1: lobby, per-player refactor, and live host-authoritative sync (beta)']},
  {ver:'188',date:'2026',items:['CO-OP added (beta): create or join a room from the title screen and play shared-field co-op live with a friend. Unranked while this is tuned.']},
  {ver:'187',date:'2026',items:['Vanguard mobile optimization, touch gesture fixes, and Bloom balance']},
@@ -6012,16 +6026,43 @@ try{ if(/[?&]coopstub=1\b/.test(location.search)){
   window.__vgStubInfo=function(){ return { state:state, mode:gameMode, coop:coopMatch, li:localIndex, sector:sector, score:window.scoreT||0, enemies:enemies.length, ebul:ebul.length,
     players:players.map(p=>p?{pi:p.pi,x:Math.round(p.x),y:Math.round(p.y),dead:p.dead,lives:p.lives,armor:p.armor}:null), boss:!!boss }; };
   window.__vgStubForceDown=function(){ for(const p of players){ if(p&&!p.dead){ p.shieldHits=0; p.guardUsed=true; p.armor=1; p.inv=0; p.lives=0; playerHit(p); } } };
+  // Phase 2 smoothing drive: sub-pixel entity sampler + single-ship fault injectors
+  window.__vgStubEnts=function(){ const r1=v=>Math.round(v*10)/10, sh=p=>p?{x:r1(p.x),y:r1(p.y),dead:!!p.dead}:null;
+    return { me:sh(players[localIndex]), pt:sh(players[1-localIndex]),
+      en:enemies.slice(0,5).map(e=>({id:e._eid||0,x:r1(e.x),y:r1(e.y)})),
+      eb:ebul.slice(0,3).map(b=>({x:r1(b.x),y:r1(b.y)})), pb:pbul.slice(0,3).map(b=>({x:r1(b.x),y:r1(b.y)})),
+      bo:boss?{x:r1(boss.x),y:r1(boss.y)}:null }; };
+  window.__vgStubHurt=function(pi){ const p=players[pi||0]; if(p&&!p.dead){ p.shieldHits=0; p.guardUsed=true; p.armor=1; p.inv=0; playerHit(p); } };
+  window.__vgStubWarp=function(pi,dx,dy){ const p=players[pi||0]; if(p&&!p.dead){ p.x=clamp(p.x+(dx||0),16,W-16); p.y=clamp(p.y+(dy||0),H*0.16,H-40); } };
+  window.__vgStubShield=function(){ for(const p of players){ if(p&&!p.dead){ p.inv=3; p.armor=p.maxArmor; } } };
 } }catch(e){}
 
-/* ============================= CO-OP (Phase 1, beta) =============================
+/* ?vgheadless=1 - dev-only rAF pump (opt-in like ?coopstub=1): drives
+   requestAnimationFrame off a MessageChannel loop (not timer-throttled) so the
+   game loop still runs in a hidden/headless tab, where real rAF never fires.
+   Regression-drive tooling only; a normal load never touches this. */
+try{ if(/[?&]vgheadless=1\b/.test(location.search)){
+  const _q=[]; const _mc=new MessageChannel(); let _lt=0;
+  window.requestAnimationFrame=function(cb){ _q.push(cb); return _q.length; };
+  window.cancelAnimationFrame=function(){};
+  _mc.port1.onmessage=function(){ const now=performance.now();
+    if(now-_lt>=16){ _lt=now; const cbs=_q.splice(0,_q.length); for(let i=0;i<cbs.length;i++){ try{cbs[i](now);}catch(e){} } }
+    _mc.port2.postMessage(0); };
+  _mc.port2.postMessage(0);
+} }catch(e){}
+
+/* ============================= CO-OP (Phase 2, beta) =============================
    Shared-field 2-player co-op over Supabase Realtime broadcast (channel
    `vgcoop:<CODE>`, distinct from the netcheck tool's `coopnet:` namespace).
    HOST runs the authoritative simulation (players[0] = host ship, players[1] =
    guest ship) and broadcasts compact state snapshots at ~15Hz; the GUEST sends
-   its held-input state at ~25Hz plus one-shot actions, and renders whatever the
-   host last broadcast. No sign-in required (broadcast only, nothing persisted).
-   Unranked: no leaderboard submit, no telemetry, no achievements, no checkpoint. */
+   its held-input state at ~25Hz plus one-shot actions. Phase 2 smoothing, all
+   guest-side and render-only: the guest PREDICTS its own ship's position each
+   frame (stepShipPosition + snapshot reconcile in applyShip) and interpolates
+   everything else between the two newest snapshots (interpFrame); combat,
+   damage, and scoring are never predicted. No sign-in required (broadcast
+   only, nothing persisted). Unranked: no leaderboard submit, no telemetry, no
+   achievements, no checkpoint. */
 const COOP=(function(){
   const ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no O/0/I/1/L (matches the netcheck tool)
   const SNAP_MS=66, INPUT_MS=40, INPUT_STALE_MS=3000;
@@ -6032,6 +6073,13 @@ const COOP=(function(){
   let actQueue=[];
   let latestSnap=null, lastInputAt=0, lastSnapAt=0, lastInputSendAt=0, lastInputSig='';
   let eidSeq=1; const guestEnemies=new Map();
+  /* Phase 2 guest smoothing: local receive times of the two newest snapshots
+     (the interpolation clock) plus tuning constants. Render-only; the host
+     stays fully authoritative on all state. */
+  let snapAtPrev=0, snapAtCur=0;
+  const PRED_SNAP_PX=40;        // own ship: reconcile-snap beyond this, blend inside it
+  const INTERP_JUMP_PX=120;     // partner/enemies/boss: a larger snapshot step is a teleport (respawn/blink), never glide it
+  const BULLET_EXTRAP_MAX=0.25; // s: stop advancing render-only bullets if snapshots stall
   let myId=''; try{ myId=Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b=>b.toString(16).padStart(2,'0')).join(''); }catch(e){ myId='c'+Math.random().toString(36).slice(2,9); }
   const myName=((window.__ideaCoopName||'').slice(0,14)) || ('PILOT-'+myId.slice(0,3).toUpperCase());
   const $=id=>document.getElementById(id);
@@ -6102,7 +6150,7 @@ const COOP=(function(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(gameMode==='coop') gameMode=prevMode||'normal';
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
-    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; guestEnemies.clear();
+    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; guestEnemies.clear();
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
@@ -6116,7 +6164,7 @@ const COOP=(function(){
     phase='match';
     prevMode=(gameMode==='coop')?prevMode:gameMode;
     coopMatch=true; localIndex=(role==='host')?0:1;
-    players.length=0; guestEnemies.clear(); latestSnap=null; actQueue.length=0;
+    players.length=0; guestEnemies.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; actQueue.length=0;
     remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now();
     gameMode='coop';
     startGame();                                   // builds players[localIndex] (baseline loadout)
@@ -6155,9 +6203,32 @@ const COOP=(function(){
     pt:+(pl.parryT||0).toFixed(2), pc:+(pl.parryCd||0).toFixed(2), pm:+(pl.parryCdMax||0).toFixed(2),
     mu:pl.meltdownUnlocked?1:0, mc:Math.round(pl.meltdownCharge||0), mA:+(pl.meltdownActive||0).toFixed(2), mD:+(pl.meltdownCd||0).toFixed(2),
     bf:pl.buffs, dr:pl.drone?1:0, df:+(pl.dmgFlash||0).toFixed(2), kk:+(pl.kick||0).toFixed(2), rp:+(pl.repair||0).toFixed(2) }; }
+  /* Shift an entity's prev<-cur buffered snapshot positions (interpFrame lerps
+     between them each frame). A first-ever apply or a teleport-sized step
+     (respawn, boss blink, sector reset) sets both to the new position so the
+     entity snaps instead of gliding across the field. */
+  function bufPos(o,nx,ny){
+    o._sx0=(o._sx1==null)?nx:o._sx1; o._sy0=(o._sy1==null)?ny:o._sy1;
+    o._sx1=nx; o._sy1=ny;
+    const jx=nx-o._sx0, jy=ny-o._sy0;
+    if(jx*jx+jy*jy>INTERP_JUMP_PX*INTERP_JUMP_PX){ o._sx0=nx; o._sy0=ny; o.x=nx; o.y=ny; }
+  }
+  function lerpPos(o,al){ if(o&&o._sx1!=null){ o.x=o._sx0+(o._sx1-o._sx0)*al; o.y=o._sy0+(o._sy1-o._sy0)*al; } }
   function applyShip(pl,sp,isLocal){
     const wasDead=pl.dead;
-    pl.x=sp.x; pl.y=sp.y; pl.vx=sp.vx; pl.dead=!!sp.dd;
+    if(isLocal){
+      // Phase 2 predict-then-reconcile: x/y/vx are driven by local prediction
+      // (stepShipPosition in guestFrame); the snapshot only corrects them. A
+      // small error blends out over the next frames (interpFrame); a large one
+      // (death, respawn, genuine desync) snaps outright. Everything else on
+      // this ship still comes entirely from the snapshot below.
+      const dx=sp.x-pl.x, dy=sp.y-pl.y;
+      if(wasDead||sp.dd||(dx*dx+dy*dy)>PRED_SNAP_PX*PRED_SNAP_PX){ pl.x=sp.x; pl.y=sp.y; pl.vx=sp.vx; pl._cx=0; pl._cy=0; }
+      else { pl._cx=dx; pl._cy=dy; }
+    } else {
+      bufPos(pl,sp.x,sp.y); pl.vx=sp.vx;   // partner ship: interpFrame writes the displayed x/y
+    }
+    pl.dead=!!sp.dd;
     pl.inv=sp.iv; pl.armor=sp.ar; pl.maxArmor=sp.ma; pl.lives=sp.lv; pl.shieldHits=sp.sh;
     pl.wtype=sp.wt; pl.wlevel=sp.wl; if(sp.un)pl.unlocked=sp.un; pl.heavy=sp.hv; if(sp.hu)pl.heavyUnlocked=sp.hu; pl.heavyCharge=sp.hc;
     pl.beamE=sp.be; pl.beamMax=sp.bm; pl.beamActive=!!sp.ba; pl.beamLock=!!sp.bl; if(!isLocal) pl.beamOn=!!sp.bo;   // the guest's OWN beamOn is live input, never overwritten
@@ -6184,6 +6255,7 @@ const COOP=(function(){
   function guestEnemyDefaults(){ return {bob:0,flash:0,dead:false,dt:0,hp:1,maxhp:1,state:'free',slot:-1,vx:0,vy:0,fire:9,t:0,spin:0,aimAng:Math.PI/2,buffed:0,barrageGlow:0}; }
   function applySnap(){
     const s=latestSnap; if(!s) return; latestSnap=null;
+    snapAtPrev=snapAtCur; snapAtCur=performance.now();
     if(s.sec!==sector){ sector=s.sec; killsForBoss=s.kfb||killsForBoss; triggerBanner(); }
     sectorKills=s.sk||0; killsForBoss=s.kfb||killsForBoss; bossPending=!!s.bp;
     window.scoreT=s.sc||0; window.style=s.st||0; window.mult=s.mult||1;
@@ -6198,13 +6270,14 @@ const COOP=(function(){
       let e=guestEnemies.get(a[0]);
       if(!e){ const fk=FKL[a[1]]||'ace', F=FACTIONS[fk]||FACTIONS.ace;
         e=Object.assign(guestEnemyDefaults(),{_eid:a[0],fk:fk,c:F.c,draw:F.draw,variant:a[2]||0,x:a[3],y:a[4],r:a[5]||16,core:a[6]||0,bank:a[7]||0,tell:a[8]||0,fireFlash:a[9]||0,pts:0});
-        guestEnemies.set(a[0],e); }
-      else { e.x=a[3]; e.y=a[4]; e.r=a[5]||e.r; e.core=a[6]||0; e.bank=a[7]||0; e.tell=a[8]||0; e.fireFlash=a[9]||0; } });
+        bufPos(e,a[3],a[4]); guestEnemies.set(a[0],e); }
+      else { bufPos(e,a[3],a[4]); e.r=a[5]||e.r; e.core=a[6]||0; e.bank=a[7]||0; e.tell=a[8]||0; e.fireFlash=a[9]||0; } });
     guestEnemies.forEach((e,id)=>{ if(!seen.has(id)){ try{ explode(e.x,e.y,e.c,e.variant>=2); factionDeathLayer(e); }catch(err){} guestEnemies.delete(id); } });
     enemies.length=0; guestEnemies.forEach(e=>enemies.push(e));
-    // bullets: render-only copies
-    ebul.length=0; (s.eb||[]).forEach(a=>{ ebul.push({x:a[0],y:a[1],r:a[2],c:a[3],shape:(a[4]&&a[4]!==0)?a[4]:undefined,parryBolt:a[4]==='bolt',vx:a[5]||0,vy:a[6]||0,owner:null}); });
-    pbul.length=0; (s.pb||[]).forEach(a=>{ pbul.push({x:a[0],y:a[1],r:a[2],c:a[3],wt:(a[4]&&a[4]!==0)?a[4]:undefined,vx:a[5]||0,vy:a[6]||0,len:a[7]||undefined,hot:a[8]||0,gl:1,pi:0}); });
+    // bullets: render-only copies; _age lets interpFrame advance each one on
+    // its own velocity between snapshots (capped extrapolation)
+    ebul.length=0; (s.eb||[]).forEach(a=>{ ebul.push({x:a[0],y:a[1],r:a[2],c:a[3],shape:(a[4]&&a[4]!==0)?a[4]:undefined,parryBolt:a[4]==='bolt',vx:a[5]||0,vy:a[6]||0,owner:null,_age:0}); });
+    pbul.length=0; (s.pb||[]).forEach(a=>{ pbul.push({x:a[0],y:a[1],r:a[2],c:a[3],wt:(a[4]&&a[4]!==0)?a[4]:undefined,vx:a[5]||0,vy:a[6]||0,len:a[7]||undefined,hot:a[8]||0,gl:1,pi:0,_age:0}); });
     // boss: a light render shell driven by host fields
     if(s.bo){ const bo=s.bo;
       if(!boss||boss.fk!==bo.fk){ const F=FACTIONS[bo.fk]||FACTIONS.ace;
@@ -6219,12 +6292,39 @@ const COOP=(function(){
           document.getElementById('bossbar').style.display='block'; }catch(e){}
         bossCard={mode:'enter',name:(BOSSNAME[bo.fk]||F.name),sub:'SECTOR BOSS',c:F.c,t:0,dur:2.4};
       }
-      boss.x=bo.x; boss.y=bo.y; boss.r=bo.r||boss.r; boss.core=bo.core||0; boss.hp=bo.hp; boss.maxhp=bo.mh;
+      bufPos(boss,bo.x,bo.y); boss.r=bo.r||boss.r; boss.core=bo.core||0; boss.hp=bo.hp; boss.maxhp=bo.mh;
       boss.entering=!!bo.en; boss.dying=!!bo.dy; boss.phase=bo.ph|0; boss.tell=bo.tl||0;
       boss._barFrac=boss._chip=Math.max(0,Math.min(1,bo.mh?bo.hp/bo.mh:0));
     } else if(boss){ try{ explode(boss.x,boss.y,boss.c,true); }catch(e){}
       try{ document.getElementById('bossname').style.display='none'; document.getElementById('bossbar').style.display='none'; }catch(e){}
       boss=null; }
+  }
+  /* Phase 2, render-only, called every guest frame: blends each host-owned
+     entity from its previous snapshot position to its current one (alpha =
+     time since the newest snapshot / measured snapshot interval, clamped to 1
+     so a late packet holds at the authoritative position instead of
+     overshooting), advances bullets on their own broadcast velocity (they are
+     ephemeral and unindexed, so per-bullet extrapolation beats cross-snapshot
+     matching - a wrong match would snap a bullet sideways, worse than no
+     smoothing), and eases out the local ship's reconcile correction. Never
+     feeds back into simulation, hit detection, or scoring; the guest runs no
+     combat logic, so writing display positions here only changes what is
+     drawn. */
+  function interpFrame(dt){
+    const me=players[localIndex];
+    if(me&&(me._cx||me._cy)){
+      const k=1-Math.exp(-dt*8);   // ~12% of the remaining gap per frame at 60fps
+      me.x+=me._cx*k; me.y+=me._cy*k; me._cx*=1-k; me._cy*=1-k;
+      if(me._cx*me._cx+me._cy*me._cy<0.25){ me._cx=0; me._cy=0; }
+    }
+    if(!snapAtCur) return;
+    const span=snapAtPrev?Math.max(20,Math.min(250,snapAtCur-snapAtPrev)):SNAP_MS;
+    const al=Math.max(0,Math.min(1,(performance.now()-snapAtCur)/span));
+    for(let i=0;i<players.length;i++) if(i!==localIndex) lerpPos(players[i],al);
+    for(let i=0;i<enemies.length;i++) lerpPos(enemies[i],al);
+    lerpPos(boss,al);
+    for(let i=0;i<ebul.length;i++){ const b=ebul[i]; if((b._age+=dt)<=BULLET_EXTRAP_MAX){ b.x+=b.vx*dt; b.y+=b.vy*dt; } }
+    for(let i=0;i<pbul.length;i++){ const b=pbul[i]; if((b._age+=dt)<=BULLET_EXTRAP_MAX){ b.x+=b.vx*dt; b.y+=b.vy*dt; } }
   }
   /* ---- per-frame hooks (called from update()) ---- */
   function hostFrame(dt){
@@ -6248,9 +6348,18 @@ const COOP=(function(){
       lastInputSig=sig; lastInputSendAt=now;
       try{ channel.send({type:'broadcast',event:'input',payload:{mx:+mx.toFixed(2),my:+my.toFixed(2),f:fire?1:0,b:beam?1:0}}); }catch(e){}
     }
-    // 2. render the latest host snapshot
+    // 2. PREDICT our own ship's position locally every frame (Phase 2): the
+    //    exact integration the host runs for us (stepShipPosition), fed the
+    //    same input we just captured, so the ship answers input instantly
+    //    instead of stepping at snapshot rate. Snapshots only reconcile it
+    //    (applyShip); nothing else (fire/parry/damage) is ever predicted.
+    if(player&&!player.dead) stepShipPosition(player,{mx:mx,my:my},dt);
+    // 3. fold in the newest host snapshot (authoritative state + structure)
     applySnap();
-    // 3. tick local cosmetics so explosions/pops animate between snapshots
+    // 4. render-only smoothing between snapshots (partner ship, enemies,
+    //    boss, bullets) + our own ship's reconcile blend
+    interpFrame(dt);
+    // 5. tick local cosmetics so explosions/pops animate between snapshots
     for(let i=parts.length-1;i>=0;i--){const q=parts[i];q.life-=dt;if(q.life<=0){parts.splice(i,1);continue;}q.x+=q.vx*dt;q.y+=q.vy*dt;q.vx*=.96;q.vy*=.96;}
     for(let i=shards.length-1;i>=0;i--){const q=shards[i];q.life-=dt;if(q.life<=0){shards.splice(i,1);continue;}q.x+=q.vx*dt;q.y+=q.vy*dt;q.vx*=.97;q.vy*=.97;q.rot+=q.vr*dt;}
     for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.life-=dt;if(q.life<=0){rings.splice(i,1);continue;}q.r+=q.vr*dt;}
