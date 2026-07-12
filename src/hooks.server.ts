@@ -56,13 +56,33 @@ const supabase: Handle = async ({ event, resolve }) => {
 	});
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 /**
  * Validates the session and guards protected routes on the server.
  *
- * `getClaims` validates the JWT signature locally (against the project's
- * asymmetric signing keys) without an extra round-trip to the Auth server,
- * which is both faster and safer than `getSession` for route protection.
+ * `getClaims` validates the JWT signature locally only for projects using
+ * asymmetric signing keys. This project (like most Supabase projects, which
+ * default to legacy HS256/shared-secret signing) doesn't have those, so
+ * `getClaims` transparently falls back to `getUser()` -- a live round trip to
+ * the Auth server -- on every call. That round trip can transiently fail
+ * right after a fresh OAuth sign-in (back-to-back requests to the Auth
+ * server, a cold serverless start, ...), which would otherwise read as
+ * "not signed in" until the user retries or refreshes. A couple of quick
+ * retries survive that blip; a clean "no session" result (no error) is never
+ * retried, so anonymous requests (most of this public-first site's traffic)
+ * pay no extra cost.
  */
+async function resolveClaims(supabase: App.Locals['supabase']): Promise<App.Claims | null> {
+	for (let attempt = 0; attempt < 3; attempt++) {
+		const { data, error } = await supabase.auth.getClaims();
+		if (data?.claims) return data.claims as App.Claims;
+		if (!error) return null;
+		if (attempt < 2) await sleep(150);
+	}
+	return null;
+}
+
 /**
  * Route prefixes that require a signed-in user. `/dashboard` is additionally
  * teacher-gated in its own load; `/gauntlet` (the CAD skills dojo) and `/frc`
@@ -72,8 +92,7 @@ const supabase: Handle = async ({ event, resolve }) => {
 const authedPrefixes = ['/dashboard', '/gauntlet', '/frc'];
 
 const authGuard: Handle = async ({ event, resolve }) => {
-	const { data } = await event.locals.supabase.auth.getClaims();
-	event.locals.claims = (data?.claims ?? null) as App.Claims | null;
+	event.locals.claims = await resolveClaims(event.locals.supabase);
 
 	// Protected tier: only authenticated users may reach these sections.
 	const { pathname } = event.url;
