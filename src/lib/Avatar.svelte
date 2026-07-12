@@ -3,17 +3,25 @@
 
 	/**
 	 * A user's picture at any size: chosen preset mark, uploaded image, Google
-	 * photo, or an initials tile (in that order; see avatarSource).
+	 * photo, or an initials tile (in that order; see avatarSource). Pass
+	 * `loading` while a signed-in user's profile row hasn't arrived yet (e.g.
+	 * the brief window right after sign-in) to show a neutral placeholder
+	 * instead of initials derived from an empty profile.
 	 */
-	let { profile, size = 32 }: { profile: UserProfile | null | undefined; size?: number } =
-		$props();
+	let {
+		profile,
+		size = 32,
+		loading = false
+	}: { profile: UserProfile | null | undefined; size?: number; loading?: boolean } = $props();
 
-	const source = $derived(avatarSource(profile));
+	const source = $derived(loading ? null : avatarSource(profile));
 	const px = $derived(`${size}px`);
 </script>
 
-<span class="avatar" style="width:{px};height:{px}" aria-hidden="true">
-	{#if source.kind === 'image'}
+<span class="avatar" class:loading style="width:{px};height:{px}" aria-hidden="true">
+	{#if loading || !source}
+		<!-- neutral placeholder while the profile row hasn't arrived yet -->
+	{:else if source.kind === 'image'}
 		<img src={source.url} alt="" width={size} height={size} referrerpolicy="no-referrer" />
 	{:else if source.kind === 'preset'}
 		<svg viewBox="0 0 24 24" fill="none" stroke={source.preset.fg} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -49,5 +57,18 @@
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
 		color: var(--green, #00ff41);
 		letter-spacing: 0.05em;
+	}
+	.avatar.loading {
+		animation: avatar-pulse 1.4s ease-in-out infinite;
+	}
+	@keyframes avatar-pulse {
+		0%, 100% { opacity: 0.5; }
+		50% { opacity: 0.9; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.avatar.loading {
+			animation: none;
+			opacity: 0.7;
+		}
 	}
 </style>
