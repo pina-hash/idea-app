@@ -785,7 +785,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='193';
+const VERSION='194';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -5686,6 +5686,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'194',date:'2026',items:['Fixed a bug where CO-OP guest movement did not respond at all in pointer-lock/mouse-follow control mode.']},
  {ver:'192',date:'2026',items:['CO-OP visual parity pass: guests now see hazards, score popups and milestones, boss phase-transition effects, and the partner\'s fire and parry cues.']},
  {ver:'191',date:'2026',items:['CO-OP responsiveness pass: firing and parrying now give instant feedback for the guest, and everything else renders through a small delay buffer to smooth out network jitter.']},
  {ver:'190',date:'2026',items:['CO-OP smoothed: your own ship now responds instantly to input, and everything else (partner, enemies, boss, bullets) animates smoothly instead of stepping between updates.']},
@@ -6494,6 +6495,20 @@ const COOP=(function(){
     let mx=0,my=0;
     if(keys.ArrowLeft||keys.a)mx-=1; if(keys.ArrowRight||keys.d)mx+=1;
     if(keys.ArrowUp||keys.w)my-=1; if(keys.ArrowDown||keys.s)my+=1;
+    // pointer-lock / mouse-follow movement (Classic preset, moveMode_pref==='lock'):
+    // solo steers the ship TOWARD a virtual cursor target (ptr.lx/ptr.ly, which the
+    // global pointerdown/pointermove handlers accumulate from mouse deltas and which
+    // already update for the guest). Reproduce that here by sending the unit direction
+    // from the ship to that target - stepShipPosition normalizes {mx,my} to a unit
+    // vector, so this yields the same move-toward-cursor behavior the host and our own
+    // prediction expect, in the same [-1,1] shape keyboard uses. Keyboard keeps priority
+    // (mirrors solo's kbMove-first order); a one-frame deadzone holds the ship at the
+    // target instead of jittering. Touch joystick stays the fallback below.
+    if(!mx&&!my&&moveMode_pref==='lock'&&plocked&&player){
+      const tx=clamp(ptr.lx==null?player.x:ptr.lx,16,W-16), ty=clamp(ptr.ly==null?player.y:ptr.ly,H*0.16,H-40);
+      const dx=tx-player.x, dy=ty-player.y, d=Math.hypot(dx,dy), spd=player.speed*(player.beamActive?0.5:1);
+      if(d>spd*dt){ mx=dx/d; my=dy/d; }
+    }
     if(!mx&&!my&&stick.on){ mx=stick.dx; my=stick.dy; }
     const fireKey=!!held[keybinds.fire]||!!held[keybinds.fireKey];
     const fire=autofire||fireKey;
