@@ -3,6 +3,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import FspLiveFeed from '$lib/fsp/FspLiveFeed.svelte';
+	import FspStudentPreview from '$lib/fsp/FspStudentPreview.svelte';
 
 	/**
 	 * /fsp/live — Mr. Pina's live presenter console for FSP Q&A. Staff only
@@ -34,6 +35,7 @@
 
 	let rootEl: HTMLElement;
 	let isFullscreen = $state(false);
+	let studentOpen = $state(false);
 
 	async function signIn() {
 		loading = true;
@@ -177,6 +179,9 @@
 				<button class="ghost danger" onclick={clearSession} disabled={busy !== '' || !activeSession}>
 					{busy === 'clear' ? 'Clearing…' : 'Clear Session'}
 				</button>
+				<button class="ghost" onclick={() => (studentOpen = true)} title="Preview the student phone view">
+					Student View
+				</button>
 				<button class="ghost fs" onclick={toggleFullscreen} title="Toggle full screen">
 					{isFullscreen ? 'Exit full screen' : 'Full screen'}
 				</button>
@@ -193,6 +198,8 @@
 		<main class="feed">
 			<FspLiveFeed variant="console" {supabase} session={activeSession} bind:count />
 		</main>
+
+		<FspStudentPreview bind:open={studentOpen} />
 	{/if}
 </div>
 

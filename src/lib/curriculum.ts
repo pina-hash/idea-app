@@ -61,7 +61,7 @@ export const SECTIONS: Section[] = [
 		isNew: true,
 		status: 'live',
 		note: '3-day intensive. The next live course.',
-		href: '/fsp'
+		href: '/fsp/class'
 	},
 	{
 		id: 'intro-100-1',

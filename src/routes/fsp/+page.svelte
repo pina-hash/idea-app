@@ -1,321 +1,464 @@
 <script lang="ts">
-	import VersionBadge from '$lib/VersionBadge.svelte';
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import { onMount } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
+	import type { SupabaseClient } from '@supabase/supabase-js';
 
 	/**
-	 * /fsp — the FSP (Freshman Summer Program) class hub. Public, no auth gate.
-	 * Built as a sibling of the other class pages (IDEA-113/208/403 style):
-	 * wrapped in `.legacy-index` and built from the SAME header/hero/course-card
-	 * classes those pages use (app.css), so it reads as one of the portal's
-	 * class pages rather than a one-off design. It runs FIRST in the app's
-	 * curriculum ordering (see `SECTIONS` in `$lib/curriculum`, before the
-	 * regular school year).
+	 * /fsp — the FSP navigation hub. Auth required (Google OAuth), gated in-page
+	 * like /fsp/day1, /fsp/live, and /fsp/ask (this route is NOT in
+	 * authedPrefixes, so a cold/QR visitor sees a friendly sign-in rather than a
+	 * bounce to /). Routes by account domain:
 	 *
-	 * Install steps mirror tools/fsp-pawn-addin/README-install.md exactly:
-	 * SOLIDWORKS discovers COM add-ins through the Windows registry, not a
-	 * browsable manifest file, so registration is register.bat (self-elevating
-	 * RegAsm /codebase), not a "Tools > Add-ins > Browse" flow.
+	 *   @boscotech.edu (staff) — two cards (Day 1 Presentation -> /fsp/day1,
+	 *     Live Q&A Feed -> /fsp/live) plus an inline active-session shortcut
+	 *     (shows the current fsp_config.active_session and a Set Session input,
+	 *     so Mr. Pina can set the session without opening /fsp/live first).
+	 *   @boscotech.net (student) — one card (Submit a Question -> /fsp/ask) plus
+	 *     a note that questions appear live during the presentation.
+	 *
+	 * The former /fsp class-materials page (pawn add-in + project days + pulse
+	 * check) moved to /fsp/class and is linked from here as "Class materials".
 	 */
 
-	const installSteps = [
-		'Extract the zip to a folder you keep (not a temp folder), e.g. C:\\SolidWorks Addins\\IDEA\\FspPawnAddin\\',
-		'Right-click register.bat in that folder and choose Run as administrator (a plain double-click also works: it requests elevation itself)',
-		'Open SolidWorks 2025',
-		'Go to Tools > Add-ins and check the box next to IDEA FSP Pawn Build (both columns, to load now and at startup)',
-		'The PAWN BUILD panel appears in the task pane strip on the right'
-	];
+	const STAFF_DOMAIN = '@boscotech.edu';
+	const STUDENT_DOMAIN = '@boscotech.net';
 
-	const days = [
-		{ id: 'Day 1', title: 'Intro deck, print lab tour, pawn or dogtag build.' },
-		{ id: 'Day 2', title: 'FRC and facilities deck, shop tour, Blade build.' },
-		{ id: 'Day 3', title: 'Curriculum overview, Blade tournament, exit card.' }
-	];
+	let { data } = $props();
+	const supabase = $derived(data.supabase as SupabaseClient);
+	const claims = $derived(data.claims);
+
+	const email = $derived((claims?.email ?? '').toString());
+	const signedIn = $derived(!!claims);
+	const isStaff = $derived(email.toLowerCase().endsWith(STAFF_DOMAIN));
+	const isStudent = $derived(email.toLowerCase().endsWith(STUDENT_DOMAIN));
+
+	let loading = $state(false);
+	let authError = $state('');
+
+	// Staff-only inline session shortcut (mirrors /fsp/live's Set Session).
+	let activeSession = $state('');
+	let sessionInput = $state('');
+	let sessionBusy = $state(false);
+	let sessionMsg = $state('');
+	let sessionErr = $state('');
+
+	async function signIn() {
+		loading = true;
+		authError = '';
+		const { error } = await supabase.auth.signInWithOAuth({
+			provider: 'google',
+			options: {
+				redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/fsp')}`,
+				queryParams: { prompt: 'select_account' }
+			}
+		});
+		if (error) {
+			authError = error.message;
+			loading = false;
+		}
+	}
+
+	async function signOut() {
+		await supabase.auth.signOut();
+		await invalidateAll();
+	}
+
+	async function setSession() {
+		const s = sessionInput.trim();
+		if (!s || sessionBusy) return;
+		sessionBusy = true;
+		sessionMsg = '';
+		sessionErr = '';
+		try {
+			const { error } = await supabase
+				.from('fsp_config')
+				.update({ value: s })
+				.eq('key', 'active_session');
+			if (error) throw error;
+			activeSession = s;
+			sessionInput = s;
+			sessionMsg = `Active session set to "${s}".`;
+		} catch (err) {
+			sessionErr = err instanceof Error ? err.message : 'Could not set the session.';
+		} finally {
+			sessionBusy = false;
+		}
+	}
+
+	onMount(async () => {
+		if (signedIn && isStaff) {
+			const { data: cfg } = await supabase
+				.from('fsp_config')
+				.select('value')
+				.eq('key', 'active_session')
+				.maybeSingle();
+			const session = cfg?.value ?? 'Day1-A';
+			activeSession = session;
+			sessionInput = session;
+		}
+	});
 </script>
 
 <svelte:head>
-	<title>FSP // IDEA</title>
+	<title>FSP // Hub</title>
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="legacy-index fsp-page">
-	<header>
-		<a class="logo" href="/">IDEA</a>
-		<div class="header-right">
-			<a class="auth-link" href="/">&lsaquo; Home</a>
-			<ProfileMenu />
-		</div>
-	</header>
-
-	<section class="hero">
-		<div class="hero-eyebrow">Incoming Freshman &middot; Summer</div>
-		<h1>IDEA <span class="accent">FSP</span></h1>
-		<p class="hero-sub">Freshman Summer Program. Runs before the regular school year.</p>
-	</section>
-
-	<div class="courses">
-		<div class="course-card visible">
-			<div class="course-header">
-				<div class="course-header-left">
-					<div class="course-id">PAWN BUILD + DOGTAG PLUGIN</div>
-					<div class="course-updated">SolidWorks 2025 Add-in</div>
-				</div>
-				<div class="course-meta">
-					<a class="course-badge badge-grade download-btn" href="/downloads/fsp-pawn-addin.zip" download
-						>Download</a
-					>
-				</div>
+<div class="hub-root">
+	<div class="center">
+		{#if !signedIn}
+			<div class="card gate">
+				<h1>Freshman Summer Program</h1>
+				<p>Sign in with your Bosco Tech account to reach the FSP tools.</p>
+				<button class="primary" onclick={signIn} disabled={loading}>
+					{loading ? 'Redirecting…' : 'Sign in with Google'}
+				</button>
+				{#if authError}<p class="err">{authError}</p>{/if}
+				<p class="fine">
+					Staff (<strong>@boscotech.edu</strong>) and students (<strong>@boscotech.net</strong>).
+				</p>
 			</div>
-			<div class="card-body">
-				<p class="lead">
-					One add-in, two projects. Students choose at launch: chess pawn (3D printed overnight)
-					or dogtag (laser cut overnight). Guides the full workflow from file creation to export.
-				</p>
+		{:else}
+			<div class="hub">
+				<header class="head">
+					<div class="eyebrow">Freshman Summer Program</div>
+					<h1>FSP <span class="accent">Hub</span></h1>
+					<p class="who">
+						Signed in as {email}
+						<button class="linkbtn" onclick={signOut}>Sign out</button>
+					</p>
+				</header>
 
-				<p class="requires">
-					<span class="requires-key">Requires</span>
-					<span class="mono requires-val">SolidWorks 2025, Windows 10 or later</span>
-				</p>
-
-				<div class="plugin-grid">
-					<div>
-						<h3 class="sub-heading">Installation</h3>
-						<ol class="setup-steps">
-							{#each installSteps as step (step)}
-								<li>{step}</li>
-							{/each}
-						</ol>
+				{#if isStaff}
+					<div class="grid">
+						<a class="card link" href="/fsp/day1">
+							<div class="card-kicker">Present</div>
+							<h2>Day 1 Presentation</h2>
+							<p>Run the Day 1 deck full-screen. Slide 13 overlays the live question feed.</p>
+							<span class="go">Open deck &rarr;</span>
+						</a>
+						<a class="card link" href="/fsp/live">
+							<div class="card-kicker">Console</div>
+							<h2>Live Q&amp;A Feed</h2>
+							<p>The presenter console: watch questions arrive live and manage the session.</p>
+							<span class="go">Open feed &rarr;</span>
+						</a>
 					</div>
 
-					<div>
-						<h3 class="sub-heading">Classroom setup</h3>
-						<div class="note">
-							<p>
-								No template setup needed. The plugin creates each student's starting part (in
-								inches) and saves their work to an <strong>IDEA_FSP</strong> folder it makes on the
-								Desktop.
-							</p>
+					<div class="card session">
+						<div class="session-head">
+							<h2>Active session</h2>
+							<span class="cur">{activeSession || '—'}</span>
 						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<div class="divider">
-			<div class="divider-line"></div>
-			<div class="divider-label">Projects</div>
-			<div class="divider-line"></div>
-		</div>
-
-		<div class="project-grid">
-			<div class="course-card visible">
-				<div class="course-header">
-					<div class="course-header-left">
-						<div class="course-id">CHESS PAWN</div>
-					</div>
-					<div class="course-meta">
-						<span class="course-badge badge-block">Day 1</span>
-					</div>
-				</div>
-				<div class="card-body">
-					<p class="lead">SolidWorks 3D modeling. Printed on the Bambu overnight.</p>
-				</div>
-			</div>
-
-			<div class="course-card visible">
-				<div class="course-header">
-					<div class="course-header-left">
-						<div class="course-id">DOGTAG</div>
-					</div>
-					<div class="course-meta">
-						<span class="course-badge badge-block">Day 1 - Bonus</span>
-					</div>
-				</div>
-				<div class="card-body">
-					<p class="lead">Laser-cut on the xTool MetalFab. Students design the layout in the plugin.</p>
-				</div>
-			</div>
-		</div>
-
-		<div class="divider">
-			<div class="divider-line"></div>
-			<div class="divider-label">Program Overview</div>
-			<div class="divider-line"></div>
-		</div>
-
-		<div class="day-grid">
-			{#each days as day (day.id)}
-				<div class="course-card visible day-card">
-					<div class="course-header">
-						<div class="course-header-left">
-							<div class="course-id">{day.id}</div>
+						<p class="session-sub">
+							Students on <strong>/fsp/ask</strong> submit to this session; the live feed shows it.
+						</p>
+						<div class="session-row">
+							<input
+								class="sess"
+								type="text"
+								bind:value={sessionInput}
+								placeholder="Day1-A"
+								onkeydown={(e) => e.key === 'Enter' && setSession()}
+							/>
+							<button class="ghost" onclick={setSession} disabled={sessionBusy || !sessionInput.trim()}>
+								{sessionBusy ? 'Setting…' : 'Set Session'}
+							</button>
 						</div>
+						{#if sessionMsg}<p class="ok">{sessionMsg}</p>{/if}
+						{#if sessionErr}<p class="err">{sessionErr}</p>{/if}
 					</div>
-					<div class="card-body">
-						<p class="lead">{day.title}</p>
+				{:else if isStudent}
+					<div class="grid one">
+						<a class="card link" href="/fsp/ask">
+							<div class="card-kicker">Live session</div>
+							<h2>Submit a Question</h2>
+							<p>Send a question to the current session from your phone.</p>
+							<span class="go">Ask &rarr;</span>
+						</a>
 					</div>
-				</div>
-			{/each}
-		</div>
+					<p class="student-note">Questions appear live during the presentation.</p>
+				{:else}
+					<div class="card gate">
+						<h2>Bosco Tech account required</h2>
+						<p>
+							You are signed in as <strong>{email || 'an unknown account'}</strong>. The FSP hub is
+							for Bosco Tech staff (<strong>@boscotech.edu</strong>) and students
+							(<strong>@boscotech.net</strong>).
+						</p>
+						<button class="primary" onclick={signOut}>Sign out and switch account</button>
+					</div>
+				{/if}
 
-		<div class="divider">
-			<div class="divider-line"></div>
-			<div class="divider-label">Pulse Check</div>
-			<div class="divider-line"></div>
-		</div>
-
-		<a class="course-card visible link-card" href="/fsp-pulse">
-			<div class="course-header">
-				<div class="course-header-left">
-					<div class="course-id">Pathway Pulse</div>
-					<div class="course-updated">View or manage incoming student interest snapshot.</div>
-				</div>
-				<div class="course-meta">
-					<span class="course-badge badge-instructor">Open &rarr;</span>
-				</div>
+				<a class="materials" href="/fsp/class">Class materials &amp; SolidWorks add-in &rarr;</a>
 			</div>
-			<div class="card-body">
-				<p class="instructor-note">
-					Instructor-only: restricted to @boscotech.edu and @boscotech.net sign-in.
-				</p>
-			</div>
-		</a>
+		{/if}
 	</div>
-
-	<footer>
-		<div class="footer-logo">IDEA - Integrated Design, Engineering &amp; Art</div>
-		<a class="footer-archive" href="/">&lsaquo; Back to home</a>
-		<div class="footer-version"><VersionBadge app="portal" /></div>
-	</footer>
 </div>
 
 <style>
-	/* Card body: the class-page classes (app.css) style header/badges/footer,
-	   but leave inner card content to the page, same division of labor as the
-	   `.plugin-*` block on the original standalone FSP page. */
-	.card-body {
-		padding: 1.25rem 1.5rem 1.5rem;
+	.hub-root {
+		position: relative;
+		z-index: 1;
+		min-height: 100vh;
+		min-height: 100dvh;
+		background: #0a0a0a;
+		color: var(--white, #e8ffe8);
+		font-family: 'Rajdhani', system-ui, sans-serif;
 	}
-	.lead {
-		margin: 0;
-		font-size: 0.88rem;
-		line-height: 1.6;
-		color: var(--white);
+	.center {
+		min-height: 100vh;
+		min-height: 100dvh;
+		display: grid;
+		place-items: center;
+		padding: 2rem 1.25rem;
 	}
-
-	.download-btn {
-		text-decoration: none;
-		cursor: pointer;
-	}
-
-	.requires {
+	.hub {
+		width: 100%;
+		max-width: 780px;
 		display: flex;
-		align-items: baseline;
-		gap: 0.6rem;
-		flex-wrap: wrap;
-		margin: 1rem 0 1.5rem;
-		padding: 0.6rem 0.9rem;
-		background: var(--bg2);
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.12));
-		border-radius: 3px;
-	}
-	.requires-key {
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.68rem;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: var(--green);
-	}
-	.requires-val {
-		font-size: 0.85rem;
-		color: var(--cyan);
-	}
-
-	.plugin-grid {
-		display: grid;
-		grid-template-columns: 1.1fr 1fr;
-		gap: 1.75rem;
-	}
-	@media (max-width: 620px) {
-		.plugin-grid {
-			grid-template-columns: 1fr;
-		}
-	}
-
-	.sub-heading {
-		color: var(--green);
-		font-family: var(--font-display, 'Rajdhani', sans-serif);
-		font-size: 1rem;
-		letter-spacing: 0.04em;
-		text-transform: uppercase;
-		margin: 0 0 0.6rem;
-	}
-
-	.setup-steps {
-		margin: 0;
-		padding-left: 1.2rem;
-		display: grid;
-		gap: 0.6rem;
-	}
-	.setup-steps li {
-		color: var(--white);
-		font-size: 0.88rem;
-		line-height: 1.6;
-	}
-	.setup-steps li::marker {
-		color: var(--green);
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-	}
-
-	.note {
-		background: var(--bg2);
-		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.2));
-		border-left-width: 3px;
-		border-radius: 3px;
-		padding: 0.85rem 1rem;
-	}
-	.note p {
-		margin: 0;
-		font-size: 0.88rem;
-		line-height: 1.55;
-		color: var(--white);
-	}
-	.note strong {
-		color: var(--green);
-	}
-
-	.project-grid,
-	.day-grid {
-		display: grid;
+		flex-direction: column;
 		gap: 1.25rem;
 	}
-	.project-grid {
+	.head {
+		text-align: center;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+	.eyebrow {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.78rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: #6fae77;
+	}
+	.head h1 {
+		margin: 0;
+		font-size: clamp(2rem, 6vw, 3rem);
+		font-weight: 700;
+		color: var(--green, #00ff41);
+		text-shadow: 0 0 18px rgba(0, 255, 65, 0.45);
+	}
+	.accent {
+		color: var(--white, #e8ffe8);
+		text-shadow: none;
+	}
+	.who {
+		margin: 0.2rem 0 0;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.8rem;
+		color: #4a7a52;
+		display: flex;
+		gap: 0.6rem;
+		justify-content: center;
+		align-items: center;
+	}
+	.linkbtn {
+		font: inherit;
+		background: none;
+		border: 0;
+		padding: 0;
+		color: var(--cyan, #00f0ff);
+		cursor: pointer;
+		text-decoration: underline;
+	}
+	.grid {
+		display: grid;
 		grid-template-columns: 1fr 1fr;
+		gap: 1rem;
 	}
-	.day-grid {
-		grid-template-columns: repeat(3, 1fr);
+	.grid.one {
+		grid-template-columns: 1fr;
+		max-width: 420px;
+		margin: 0 auto;
+		width: 100%;
 	}
-	@media (max-width: 700px) {
-		.project-grid,
-		.day-grid {
+	@media (max-width: 620px) {
+		.grid {
 			grid-template-columns: 1fr;
 		}
 	}
-
-	.link-card {
-		display: block;
+	.card {
+		background: #101410;
+		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.35));
+		border-radius: 16px;
+		padding: 1.4rem 1.3rem;
+	}
+	.card.gate {
+		width: 100%;
+		max-width: 460px;
+		display: flex;
+		flex-direction: column;
+		gap: 0.9rem;
+		text-align: left;
+	}
+	.card.link {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
 		text-decoration: none;
+		color: inherit;
 		transition:
-			border-color 0.2s,
-			box-shadow 0.2s;
+			border-color 0.18s,
+			box-shadow 0.18s,
+			transform 0.18s;
 	}
-	.link-card:hover {
-		border-color: rgba(0, 255, 65, 0.35);
-		box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.15);
+	.card.link:hover {
+		border-color: var(--green, #00ff41);
+		box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.2), 0 0 30px rgba(0, 255, 65, 0.12);
+		transform: translateY(-2px);
 	}
-	.instructor-note {
-		margin: 0;
-		font-family: var(--font-mono, 'Share Tech Mono', monospace);
+	.card-kicker {
+		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.7rem;
-		color: var(--dim);
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: #6fae77;
+	}
+	.card h1,
+	.card h2 {
+		margin: 0;
+	}
+	.card h2 {
+		font-size: 1.35rem;
+		font-weight: 700;
+		color: var(--green, #00ff41);
+	}
+	.card.link p,
+	.card.session .session-sub {
+		margin: 0;
+		font-size: 0.92rem;
+		line-height: 1.5;
+		color: #b7d4bb;
+	}
+	.go {
+		margin-top: 0.3rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.82rem;
+		letter-spacing: 0.04em;
+		color: var(--cyan, #00f0ff);
+	}
+	.card.gate h1 {
+		font-size: 1.7rem;
+		font-weight: 700;
+		color: var(--green, #00ff41);
+		text-shadow: 0 0 14px rgba(0, 255, 65, 0.45);
+	}
+	.card.gate p {
+		margin: 0;
+		line-height: 1.5;
+	}
+
+	/* ---- session shortcut ---- */
+	.card.session {
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+	}
+	.session-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+	.session-head .cur {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 1rem;
+		color: var(--cyan, #00f0ff);
+	}
+	.session-row {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.sess {
+		flex: 1;
+		min-width: 8rem;
+		font: inherit;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.95rem;
+		color: var(--white, #e8ffe8);
+		background: #0a0f0a;
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+		border-radius: 8px;
+		padding: 0.55rem 0.7rem;
+	}
+	.sess:focus {
+		outline: none;
+		border-color: var(--green, #00ff41);
+	}
+	.ghost {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.85rem;
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		padding: 0.55rem 0.9rem;
+		border-radius: 8px;
+		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.35));
+		background: transparent;
+		color: var(--green, #00ff41);
+		cursor: pointer;
+	}
+	.ghost:hover:not(:disabled) {
+		background: rgba(0, 255, 65, 0.12);
+	}
+	.ghost:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+	}
+	.student-note {
+		margin: 0;
+		text-align: center;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.82rem;
+		color: #7fae86;
+	}
+	.materials {
+		margin-top: 0.4rem;
+		text-align: center;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.82rem;
+		letter-spacing: 0.03em;
+		color: #6fae77;
+		text-decoration: none;
+	}
+	.materials:hover {
+		color: var(--green, #00ff41);
+	}
+
+	.primary {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 1.05rem;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		padding: 0.9rem 1.1rem;
+		border-radius: 10px;
+		border: 1px solid var(--green, #00ff41);
+		background: rgba(0, 255, 65, 0.12);
+		color: var(--green, #00ff41);
+		cursor: pointer;
+	}
+	.primary:hover:not(:disabled) {
+		background: rgba(0, 255, 65, 0.22);
+	}
+	.primary:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	.fine {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.8rem;
+		color: #4a7a52;
+	}
+	.ok {
+		margin: 0;
+		color: var(--green, #00ff41);
+		font-size: 0.85rem;
+	}
+	.err {
+		margin: 0;
+		color: #ff6b6b;
+		font-size: 0.9rem;
 	}
 </style>
