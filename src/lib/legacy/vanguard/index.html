@@ -785,7 +785,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='191';
+const VERSION='192';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2381,6 +2381,7 @@ function firePrimary(pl){
   // tag every projectile spawned this trigger pull with the owning ship (kill attribution)
   for(let _q=prevLen;_q<pbul.length;_q++) pbul[_q].pi=_pi;
   shotsFired+=pbul.length-prevLen;   // count each player projectile actually spawned this trigger pull (multi-pellet = N)
+  pl.fireSeq=(pl.fireSeq||0)+1;   // co-op visual parity: one-shot fire-event counter (shipSnap `fq`); the guest edge-detects it to replay the partner's muzzle flash, render-only
 }
 /* FLAK: airburst into a lingering damage cloud (mult scales early-contact vs full-band detonations) */
 function detonateFlak(b,mult){
@@ -2666,7 +2667,7 @@ function tryParry(pl){
   if(state!=='play'||!pl||pl.dead)return;
   if(pl.parryCd>0&&pl.parryT<=0){ pl.parryCd=Math.min(2.0,pl.parryCd+0.35); pl.parryCdMax=pl.parryCd; pops.push({x:pl.x,y:pl.y-30,txt:'JAM',c:COL.dim,life:.5,max:.5}); Audio_.hit&&Audio_.hit(); return; }
   if(pl.parryCd>0||pl.parryT>0)return;
-  { const _pg=(pl.ks&&pl.ks.parry)==='guard'; pl.parryT=(0.22+(_pg?0.06:0))*(pl.modVamp?0.75:1); pl.parryCd=(_pg?0.75:0.95); pl.parryCdMax=pl.parryCd; } pl.parryHit=false; pl.parryArmed=true; runParryAtt++; Audio_.parry(); pl.inv=Math.max(pl.inv,0.10);
+  { const _pg=(pl.ks&&pl.ks.parry)==='guard'; pl.parryT=(0.22+(_pg?0.06:0))*(pl.modVamp?0.75:1); pl.parryCd=(_pg?0.75:0.95); pl.parryCdMax=pl.parryCd; } pl.parryHit=false; pl.parryArmed=true; pl.parrySeq=(pl.parrySeq||0)+1; runParryAtt++; Audio_.parry(); pl.inv=Math.max(pl.inv,0.10);   // parrySeq: co-op visual parity event counter (shipSnap `pq`), incremented only on real activation
   rings.push({x:pl.x,y:pl.y,r:10,vr:150,life:.3,max:.3,c:COL.cyan}); shake=Math.max(shake,3);
 }
 function fireBomb(pl){ if(!pl && COOP.sendAct('bomb')) return; pl=pl||player;
@@ -5685,6 +5686,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'192',date:'2026',items:['CO-OP visual parity pass: guests now see hazards, score popups and milestones, boss phase-transition effects, and the partner\'s fire and parry cues.']},
  {ver:'191',date:'2026',items:['CO-OP responsiveness pass: firing and parrying now give instant feedback for the guest, and everything else renders through a small delay buffer to smooth out network jitter.']},
  {ver:'190',date:'2026',items:['CO-OP smoothed: your own ship now responds instantly to input, and everything else (partner, enemies, boss, bullets) animates smoothly instead of stepping between updates.']},
  {ver:'189',date:'2026',items:['VANGUARD co-op Phase 1: lobby, per-player refactor, and live host-authoritative sync (beta)']},
@@ -6064,7 +6066,21 @@ try{ if(/[?&]coopstub=1\b/.test(location.search)){
   // the predicted fire/parry cues are observable without audio.
   window.__vgStubNetStall=function(ms){ window.__vgStubNetHoldUntil=performance.now()+(+ms||0); };
   window.__vgStubFx=function(){ const me=players[localIndex]; return { parts:parts.length, rings:rings.length, pops:pops.length, pbul:pbul.length, ebul:ebul.length, shake:Math.round(shake*10)/10,
-    me:me?{pc:+(me.parryCd||0).toFixed(2),pt:+(me.parryT||0).toFixed(2),ht:+(me.heat||0).toFixed(2),bb:me.bombs}:null }; };
+    me:me?{pc:+(me.parryCd||0).toFixed(2),pt:+(me.parryT||0).toFixed(2),ht:+(me.heat||0).toFixed(2),bb:me.bombs}:null,
+    score:Math.round(window.scoreT||0), milestone:milestoneCard?milestoneCard.value:0, scoreFlash:+(scoreFlash||0).toFixed(2), bossFlash:+(bossFlash||0).toFixed(2),
+    holes:holes.map(h=>({x:Math.round(h.x),y:Math.round(h.y),r:Math.round(h.r),st:h.state,core:+(h.core||0).toFixed(2)})),
+    hazards:hazards.length, barriers:barriers.length,
+    boss:boss?{ph:boss.phase|0,flash:+(boss.flash||0).toFixed(2),flick:+(boss._phaseFlick||0).toFixed(2)}:null,
+    pops2:pops.filter(p=>p.txt&&p.txt[0]==='+').map(p=>p.txt) }; };
+  // visual-parity drive injectors (host side): a real singularity hole, real
+  // addScore gains, a real boss, and a forced hp fraction to cross a phase
+  window.__vgStubHole=function(){ const p=players[0]||player; if(!p||p.dead) return 'no ship';
+    holes.push({x:p.x,y:p.y-30,ty:rnd(H*0.22,H*0.40),vy:-200,state:'travel',t:0,r:0,maxr:150,pull:234,dur:2.5,dmg:13,crush:1,core:0,pi:0}); return 'hole'; };
+  window.__vgStubScore=function(n){ const p=players[0]||player; if(!p) return 'no ship'; addScore(+n||100,p.x,p.y-40,COL.gold); return Math.round(window.scoreT||0); };
+  window.__vgStubBossNow=function(){ if(!boss) spawnBoss(); return boss?boss.fk:'none'; };
+  window.__vgStubHazard=function(){ hazards.push({x:Math.round(W/2),y:Math.round(H*0.5),r:26,life:3.0,max:3.0,c:COL.ace}); return hazards.length; };
+  window.__vgStubBarrier=function(){ barriers.push({x:Math.round(W/2),y:Math.round(H*0.4),w:180,h:12,life:4.2,max:4.2,c:COL.ace}); return barriers.length; };
+  window.__vgStubBossHp=function(frac){ if(!boss) return 'no boss'; boss.hp=Math.max(1,Math.round(boss.maxhp*(+frac||0.5))); return boss.hp+'/'+boss.maxhp; };
 } }catch(e){}
 
 /* ?vgheadless=1 - dev-only rAF pump (opt-in like ?coopstub=1): drives
@@ -6106,6 +6122,7 @@ const COOP=(function(){
   let actQueue=[];
   let latestSnap=null, lastInputAt=0, lastSnapAt=0, lastInputSendAt=0, lastInputSig='';
   let eidSeq=1; const guestEnemies=new Map();
+  const guestHoles=new Map(), guestHazards=new Map(), guestBarriers=new Map();   // visual parity: render-only mirrors of the host's environmental hazards, keyed by host id like guestEnemies
   /* Phase 2/2.5 guest smoothing: the host-owned world (partner, enemies, boss,
      bullets, HUD) renders RENDER_DELAY_MS in the past through a small rolling
      buffer of received snapshots (snapBuf, arrival-stamped), so a late or
@@ -6195,7 +6212,7 @@ const COOP=(function(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(gameMode==='coop') gameMode=prevMode||'normal';
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
-    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; guestEnemies.clear();
+    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear();
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
@@ -6209,7 +6226,7 @@ const COOP=(function(){
     phase='match';
     prevMode=(gameMode==='coop')?prevMode:gameMode;
     coopMatch=true; localIndex=(role==='host')?0:1;
-    players.length=0; guestEnemies.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; actQueue.length=0;
+    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; actQueue.length=0;
     remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now();
     gameMode='coop';
     startGame();                                   // builds players[localIndex] (baseline loadout)
@@ -6247,7 +6264,8 @@ const COOP=(function(){
     ht:+(pl.heat||0).toFixed(2), oh:+(pl.overheatT||0).toFixed(2), bb:pl.bombs,
     pt:+(pl.parryT||0).toFixed(2), pc:+(pl.parryCd||0).toFixed(2), pm:+(pl.parryCdMax||0).toFixed(2),
     mu:pl.meltdownUnlocked?1:0, mc:Math.round(pl.meltdownCharge||0), mA:+(pl.meltdownActive||0).toFixed(2), mD:+(pl.meltdownCd||0).toFixed(2),
-    bf:pl.buffs, dr:pl.drone?1:0, df:+(pl.dmgFlash||0).toFixed(2), kk:+(pl.kick||0).toFixed(2), rp:+(pl.repair||0).toFixed(2) }; }
+    bf:pl.buffs, dr:pl.drone?1:0, df:+(pl.dmgFlash||0).toFixed(2), kk:+(pl.kick||0).toFixed(2), rp:+(pl.repair||0).toFixed(2),
+    fq:pl.fireSeq||0, pq:pl.parrySeq||0 }; }
   /* Shift an entity's prev<-cur buffered snapshot positions (interpFrame lerps
      between them each frame). A first-ever apply or a teleport-sized step
      (respawn, boss blink, sector reset) sets both to the new position so the
@@ -6272,6 +6290,15 @@ const COOP=(function(){
       else { pl._cx=dx; pl._cy=dy; }
     } else {
       bufPos(pl,sp.x,sp.y); pl.vx=sp.vx;   // partner ship: interpFrame writes the displayed x/y
+      // partner action cues (visual parity): the host bumps fq/pq each time
+      // this ship actually fires/parries; a counter step between snapshots
+      // replays the cosmetic cue once at the displayed position. Render-only:
+      // no ammo, cooldown, or score is touched, and a first-ever apply only
+      // stamps the counters (no replay of pre-join history).
+      if(pl._fq!=null&&sp.fq>pl._fq&&!sp.dd){ const wt=sp.wt||'spread';
+        if(wt!=='buzzsaw') muzzle(pl.x,pl.y-20,(wt==='flak'?FLAK_COL:wt==='lance'?COL.cyan:wt==='homing'?COL.gold:COL.green),1,3); }
+      if(pl._pq!=null&&sp.pq>pl._pq&&!sp.dd){ rings.push({x:pl.x,y:pl.y,r:10,vr:150,life:.3,max:.3,c:COL.cyan}); shake=Math.max(shake,3); }
+      pl._fq=sp.fq; pl._pq=sp.pq;
     }
     pl.dead=!!sp.dd;
     pl.inv=sp.iv; pl.armor=sp.ar; pl.maxArmor=sp.ma; pl.lives=sp.lv; pl.shieldHits=sp.sh;
@@ -6294,6 +6321,14 @@ const COOP=(function(){
         return [e._eid,Math.max(0,FKL.indexOf(e.fk)),e.variant|0,Math.round(e.x),Math.round(e.y),Math.round(e.r),+(e.core||0).toFixed(2),Math.round(e.bank||0),+(e.tell||0).toFixed(2),+(e.fireFlash||0).toFixed(2)]; }),
       eb:ebul.slice(0,110).map(b=>[Math.round(b.x),Math.round(b.y),+(b.r||3).toFixed(1),b.c,(b.shape||(b.parryBolt?'bolt':0)),Math.round(b.vx||0),Math.round(b.vy||0)]),
       pb:pbul.slice(0,70).map(b=>[Math.round(b.x),Math.round(b.y),+(b.r||2).toFixed(1),b.c,(b.wt||0),Math.round(b.vx||0),Math.round(b.vy||0),(b.len||0),+(b.hot||0).toFixed(2)]),
+      // environmental hazards (visual parity): only the fields the draw code
+      // reads. 0 when empty (the `bo` convention) so quiet snapshots stay lean.
+      ho:holes.length?holes.slice(0,4).map(h=>{ if(!h._eid)h._eid=eidSeq++;
+        return [h._eid,Math.round(h.x),Math.round(h.y),Math.round(h.r),+(h.core||0).toFixed(2),(h.state==='travel'?0:h.state==='active'?1:2),Math.round(h.maxr||0),Math.round(h.ty||0)]; }):0,
+      hz:hazards.length?hazards.slice(0,16).map(h=>{ if(!h._eid)h._eid=eidSeq++;
+        return [h._eid,Math.round(h.x),Math.round(h.y),Math.round(h.r),+(h.life||0).toFixed(2),+(h.max||1).toFixed(2),h.c]; }):0,
+      br:barriers.length?barriers.slice(0,6).map(w2=>{ if(!w2._eid)w2._eid=eidSeq++;
+        return [w2._eid,Math.round(w2.x),Math.round(w2.y),Math.round(w2.w),+(w2.life||0).toFixed(2),w2.c]; }):0,
       bo:boss?{fk:boss.fk,x:Math.round(boss.x),y:Math.round(boss.y),r:Math.round(boss.r),core:+(boss.core||0).toFixed(2),hp:Math.max(0,Math.round(boss.hp)),mh:Math.round(boss.maxhp),en:boss.entering?1:0,dy:boss.dying?1:0,ph:boss.phase|0,nm:boss.name||'',tl:+(boss.tell||0).toFixed(2)}:0
     };
   }
@@ -6320,7 +6355,19 @@ const COOP=(function(){
   function applyWorldSnap(s){
     if(s.sec!==sector){ sector=s.sec; killsForBoss=s.kfb||killsForBoss; triggerBanner(); }
     sectorKills=s.sk||0; killsForBoss=s.kfb||killsForBoss; bossPending=!!s.bp;
-    window.scoreT=s.sc||0; window.style=s.st||0; window.mult=s.mult||1;
+    { const _prevSc=window.scoreT||0, _sc=s.sc||0;
+      window.scoreT=_sc; window.style=s.st||0; window.mult=s.mult||1;
+      // score feedback parity (render-only; scoreT itself is the untouched
+      // authoritative assignment above): one combined "+N" pop per snapshot
+      // above our own ship (no per-event location is transmitted, so never
+      // guess a kill site), and the same milestone celebration solo gets,
+      // driven purely by the received score. `lastMilestone` is the solo
+      // tracker, reset by startGame in beginMatch; the guest is its only
+      // writer here since the guest never runs addScore.
+      if(_sc>_prevSc){
+        if(player&&!player.dead) pops.push({x:player.x,y:player.y-44,txt:'+'+(_sc-_prevSc),c:COL.gold,life:.9,max:.9});
+        const _ms=highestMilestoneCrossed(lastMilestone,_sc);
+        if(_ms>0){ lastMilestone=_ms; celebrateMilestone(_ms); } } }
     runTime=s.rt||runTime; runKills=s.kl||runKills;
     for(let i=0;i<2;i++){ if(i===localIndex) continue;   // own ship reconciles from the NEWEST snapshot in applySnap, never the delayed timeline
       const sp=s.pl&&s.pl[i]; if(!sp) continue;
@@ -6341,6 +6388,34 @@ const COOP=(function(){
     // its own velocity between snapshots (capped extrapolation)
     ebul.length=0; (s.eb||[]).forEach(a=>{ ebul.push({x:a[0],y:a[1],r:a[2],c:a[3],shape:(a[4]&&a[4]!==0)?a[4]:undefined,parryBolt:a[4]==='bolt',vx:a[5]||0,vy:a[6]||0,owner:null,_age:0}); });
     pbul.length=0; (s.pb||[]).forEach(a=>{ pbul.push({x:a[0],y:a[1],r:a[2],c:a[3],wt:(a[4]&&a[4]!==0)?a[4]:undefined,vx:a[5]||0,vy:a[6]||0,len:a[7]||undefined,hot:a[8]||0,gl:1,pi:0,_age:0}); });
+    // environmental hazards (visual parity): render-only mirrors keyed by host
+    // id, exactly the guestEnemies pattern. NO hazard logic runs on the guest
+    // (no pull, no damage - those already land via the host's authoritative
+    // sim); these arrays only feed the existing draw functions. Hole state
+    // transitions replay the host's one-shot arrival/implosion cosmetics.
+    { const seenH=new Set();
+      (s.ho||[]).forEach(a=>{ seenH.add(a[0]); let h=guestHoles.get(a[0]);
+        const st=a[5]===0?'travel':a[5]===1?'active':'implode';
+        if(!h){ h={_eid:a[0],x:a[1],y:a[2],r:a[3],core:a[4]||0,state:st,maxr:a[6]||120,ty:a[7]||0,t:0};
+          bufPos(h,a[1],a[2]); guestHoles.set(a[0],h); }
+        else { if(st!==h.state){
+            if(st==='active'){ rings.push({x:a[1],y:a[2],r:6,vr:620,life:.35,max:.35,c:COL.white}); rings.push({x:a[1],y:a[2],r:h.maxr*0.7,vr:-300,life:.3,max:.3,c:COL.bmet}); shake=Math.max(shake,7); }
+            else if(st==='implode'){ explode(a[1],a[2],COL.bmet,true); rings.push({x:a[1],y:a[2],r:8,vr:520,life:.4,max:.4,c:COL.white}); rings.push({x:a[1],y:a[2],r:h.maxr,vr:-260,life:.3,max:.3,c:COL.bmet}); shake=Math.max(shake,12); bossFlash=Math.max(bossFlash,0.3); Audio_.phase(); } }
+          bufPos(h,a[1],a[2]); h.r=a[3]; h.state=st; h.maxr=a[6]||h.maxr; h.ty=a[7]||h.ty; } });
+      guestHoles.forEach((h,id)=>{ if(!seenH.has(id)) guestHoles.delete(id); });
+      holes.length=0; guestHoles.forEach(h=>holes.push(h)); }
+    { const seenZ=new Set();
+      (s.hz||[]).forEach(a=>{ seenZ.add(a[0]); let z=guestHazards.get(a[0]);
+        if(!z){ z={_eid:a[0],x:a[1],y:a[2],r:a[3],life:a[4],max:a[5]||1,c:a[6]||COL.ace}; guestHazards.set(a[0],z); }
+        else { z.x=a[1]; z.y=a[2]; z.r=a[3]; z.life=a[4]; z.max=a[5]||z.max; } });
+      guestHazards.forEach((z,id)=>{ if(!seenZ.has(id)) guestHazards.delete(id); });
+      hazards.length=0; guestHazards.forEach(z=>hazards.push(z)); }
+    { const seenB=new Set();
+      (s.br||[]).forEach(a=>{ seenB.add(a[0]); let w2=guestBarriers.get(a[0]);
+        if(!w2){ w2={_eid:a[0],x:a[1],y:a[2],w:a[3],h:12,life:a[4],max:4.2,c:a[5]||COL.ace}; guestBarriers.set(a[0],w2); }
+        else { w2.x=a[1]; w2.y=a[2]; w2.w=a[3]; w2.life=a[4]; } });
+      guestBarriers.forEach((w2,id)=>{ if(!seenB.has(id)) guestBarriers.delete(id); });
+      barriers.length=0; guestBarriers.forEach(w2=>barriers.push(w2)); }
     // boss: a light render shell driven by host fields
     if(s.bo){ const bo=s.bo;
       if(!boss||boss.fk!==bo.fk){ const F=FACTIONS[bo.fk]||FACTIONS.ace;
@@ -6355,6 +6430,20 @@ const COOP=(function(){
           document.getElementById('bossbar').style.display='block'; }catch(e){}
         bossCard={mode:'enter',name:(BOSSNAME[bo.fk]||F.name),sub:'SECTOR BOSS',c:F.c,t:0,dur:2.4};
       }
+      // boss phase-transition drama replay (visual parity): compare the
+      // incoming phase to OUR stored one BEFORE stamping it (the create block
+      // above seeds phase=bo.ph, so boss-appears never fires this). Replays
+      // solo's exact flash/shake/rings/particles/name-plate/audio, minus the
+      // gameplay bits (lastPhase bookkeeping, the b.tT telegraph pause);
+      // hp/damage/authority untouched.
+      { const _np=bo.ph|0;
+        if(_np!==(boss.phase|0)&&!boss.dying){
+          boss.flash=.5; shake=Math.max(shake,16); bossFlash=Math.max(bossFlash,0.5);
+          boss._phaseFlick=0.3; if(_np>0){ boss._litNotchPhase=_np; boss._litNotchT=0.6; }
+          rings.push({x:boss.x,y:boss.y,r:boss.r,vr:340,life:.7,max:.7,c:boss.c}); rings.push({x:boss.x,y:boss.y,r:boss.r*0.5,vr:220,life:.6,max:.6,c:COL.white}); rings.push({x:boss.x,y:boss.y,r:boss.r*0.2,vr:120,life:.5,max:.5,c:boss.c});
+          for(let i=0;i<40;i++){const a=rnd(0,6.28),sp2=rnd(80,360);parts.push({x:boss.x,y:boss.y,vx:Math.cos(a)*sp2,vy:Math.sin(a)*sp2,life:.7,max:.7,c:Math.random()<0.4?COL.white:boss.c,sz:rnd(1.6,2.8)});}
+          try{ const nmEl=document.getElementById('bossname'); if(nmEl) nmEl.textContent='SECTOR BOSS · '+(BOSSNAME[boss.fk]||boss.name)+(_np>0?' · PHASE '+(_np+1):''); }catch(e){}
+          Audio_.phase(); } }
       bufPos(boss,bo.x,bo.y); boss.r=bo.r||boss.r; boss.core=bo.core||0; boss.hp=bo.hp; boss.maxhp=bo.mh;
       boss.entering=!!bo.en; boss.dying=!!bo.dy; boss.phase=bo.ph|0; boss.tell=bo.tl||0;
       boss._barFrac=boss._chip=Math.max(0,Math.min(1,bo.mh?bo.hp/bo.mh:0));
@@ -6387,6 +6476,7 @@ const COOP=(function(){
     const al=Math.max(0,Math.min(1,((performance.now()-RENDER_DELAY_MS)-snapAtPrev)/span));
     for(let i=0;i<players.length;i++) if(i!==localIndex) lerpPos(players[i],al);
     for(let i=0;i<enemies.length;i++) lerpPos(enemies[i],al);
+    for(let i=0;i<holes.length;i++) lerpPos(holes[i],al);   // visual parity: smooth the travel arc (hazards/barriers are static, no lerp needed)
     lerpPos(boss,al);
     for(let i=0;i<ebul.length;i++){ const b=ebul[i]; if((b._age+=dt)<=BULLET_EXTRAP_MAX){ b.x+=b.vx*dt; b.y+=b.vy*dt; } }
     for(let i=0;i<pbul.length;i++){ const b=pbul[i]; if((b._age+=dt)<=BULLET_EXTRAP_MAX){ b.x+=b.vx*dt; b.y+=b.vy*dt; } }
@@ -6445,6 +6535,17 @@ const COOP=(function(){
     for(let i=shards.length-1;i>=0;i--){const q=shards[i];q.life-=dt;if(q.life<=0){shards.splice(i,1);continue;}q.x+=q.vx*dt;q.y+=q.vy*dt;q.vx*=.97;q.vy*=.97;q.rot+=q.vr*dt;}
     for(let i=rings.length-1;i>=0;i--){const q=rings[i];q.life-=dt;if(q.life<=0){rings.splice(i,1);continue;}q.r+=q.vr*dt;}
     for(let i=pops.length-1;i>=0;i--){const q=pops[i];q.life-=dt;if(q.life<=0){pops.splice(i,1);continue;}q.y-=32*dt;}
+    // visual parity: cosmetic timers that solo's host-only update() section
+    // owns (the guest never runs it), now settable here by milestones, boss
+    // phase replays, and hole implosions; plus the holes' spin clock (core
+    // advances locally at the host's rate so the vortex animates at 60fps,
+    // not 15Hz snapshot steps)
+    if(bossFlash>0) bossFlash-=dt*1.8;
+    if(scoreFlash>0) scoreFlash-=dt*2.4;
+    if(boss){ if(boss.flash>0)boss.flash-=dt;
+      if(boss._phaseFlick>0)boss._phaseFlick=Math.max(0,boss._phaseFlick-dt);
+      if(boss._litNotchT>0)boss._litNotchT=Math.max(0,boss._litNotchT-dt); }
+    for(let i=0;i<holes.length;i++) holes[i].core+=dt*4;
   }
   /* ---- match end (unranked ARCADE screen; nothing submitted) ---- */
   function finishMatch(){

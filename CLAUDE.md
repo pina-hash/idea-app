@@ -372,6 +372,37 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   gained in-order delivery fault injection (`__vgStubNetDelay`,
   `__vgStubNetJitter`, `__vgStubNetStall(ms)`) and a cosmetic-FX sampler
   (`__vgStubFx`) so both behaviors are regression-drivable with two tabs.
+- **Co-op visual parity pass 1 (game v192): hazards, score feedback, boss
+  phase drama, partner action cues.** Four render-only guest-side additions;
+  the host sim, scoring, damage, and authority are untouched. (1) Environmental
+  hazards: `buildSnap` gains compact `ho`/`hz`/`br` fields (holes with the
+  fields their draw actually reads incl. the `core` spin clock and an encoded
+  travel/active/implode state, hazard zones, boss barrier walls; `0` when
+  empty, the `bo` convention) mirrored on the guest into
+  `guestHoles`/`guestHazards`/`guestBarriers` maps keyed by host id (the
+  guestEnemies pattern) that only feed the existing draw functions - no pull
+  or damage runs guest-side; holes ride bufPos/lerpPos for smooth travel,
+  spin their core locally at the host rate, and replay the host's one-shot
+  arrival/implosion ring bursts on state-change edges. (2) Score feedback:
+  the guest's world-snapshot apply pops ONE combined "+N" above the guest's
+  own ship per snapshot in which the authoritative score increased (no
+  per-event location exists, so kill sites are never guessed) and runs the
+  existing `highestMilestoneCrossed`/`celebrateMilestone` against the solo
+  `lastMilestone` tracker (reset by startGame in beginMatch; the guest is its
+  only writer since it never runs addScore). (3) Boss phase-transition drama:
+  the guest's boss apply edge-detects the transmitted phase against its own
+  stored one BEFORE stamping and replays solo's exact flash / shake / rings /
+  particles / name-plate / audio (minus the gameplay `b.tT` telegraph pause).
+  (4) Partner action cues: `firePrimary`/`tryParry` bump per-ship
+  `fireSeq`/`parrySeq` counters (inert in solo), `shipSnap` transmits them as
+  `fq`/`pq`, and the guest's non-local `applyShip` replays the muzzle flash /
+  parry ring once per detected counter step at the displayed partner
+  position. Cosmetic timers solo's host-only update() owns (bossFlash,
+  scoreFlash, boss flash/flicker/notch, hole spin) now also tick in
+  guestFrame's cosmetics block. Stub drive injectors added: `__vgStubHole`,
+  `__vgStubHazard`, `__vgStubBarrier`, `__vgStubScore`, `__vgStubBossNow`,
+  `__vgStubBossHp`. Known gaps deferred to pass 2: FLAK cloud visuals and
+  enemy telegraph/state fidelity.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The
