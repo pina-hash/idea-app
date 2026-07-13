@@ -795,7 +795,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='202';
+const VERSION='203';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -5819,6 +5819,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'203',date:'2026',items:['CO-OP: sustained weapon sounds, boss beam audio, visible pods, death slow-mo, and the SYSTEM HALT sequence now all sync correctly for the guest.']},
  {ver:'202',date:'2026',items:['CO-OP now gives a dropped guest a window to reconnect instead of ending the match immediately.']},
  {ver:'201',date:'2026',items:['CO-OP now offers HARDCORE as well as NORMAL - choose it in the lobby before creating or joining a room.']},
  {ver:'200',date:'2026',items:['CO-OP normal mode: a downed ship can be revived by a teammate through proximity, coming back fragile. Hardcore still has no revive.']},
@@ -6295,6 +6296,7 @@ const COOP=(function(){
   let eidSeq=1; const guestEnemies=new Map();
   const guestHoles=new Map(), guestHazards=new Map(), guestBarriers=new Map();   // visual parity: render-only mirrors of the host's environmental hazards, keyed by host id like guestEnemies
   const guestFlak=new Map();   // visual parity pass 2: render-only FLAK cloud mirror, same id-keyed pattern (no damage tick ever runs guest-side)
+  const guestPods=new Map();   // v203: render-only pod mirror (pods visible on the field pre-pickup), same id-keyed pattern; pickup stays host-authoritative and arrives via EV_PICKUP + the vanished-id sweep
   /* Generic one-shot cue replay pipeline (v197). The host's simulation runs
      dozens of one-shot audio/visual cues (enemy deaths, hit sparks, pickups,
      boss attack sounds) inside update(), which the guest never executes. Each
@@ -6310,7 +6312,9 @@ const COOP=(function(){
   const EV_SFXL=['enemy_fire','whine','blast','wub','thump','big','hit','pickup','power','death'];   // audio-only one-shots (EV_SFX code index)
   const EV_PRI={8:0,7:1,0:2,2:3,3:4,5:5,4:6,6:7,1:8};   // over-cap significance order (lower ships first; finale/touchdown/kills before generic sfx/sparks)
   const EV_CAP=10, EV_BUF_MAX=24, PODK=['coin','core','shield','1up','pwr'];
+  const PODB=['overdrive','scatter','magnet'];   // v203: pwr-pod buff enum for the pod mirror (drawPod reads p.buff for the letter glyph)
   let evBuf=[], evSent=0, evApplied=0, bossFinRep=false;
+  let guestAlivePrev=2;   // v203: last observed alivePlayersLeft() on the guest, for the full-wipe slow-mo edge
   function evPush(row){
     if(!(coopMatch&&role==='host'&&state==='play')) return;
     if(evBuf.length>=EV_BUF_MAX) return;
@@ -6463,7 +6467,7 @@ const COOP=(function(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(coopMatch) gameMode=prevMode||'normal';   // restore the pre-coop solo mode after ANY co-op match (gameMode is 'coop' OR 'hardcore'); runs before coopMatch is cleared just below
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
-    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); evBuf.length=0; bossFinRep=false; refitSessClear();
+    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); guestPods.clear(); guestAlivePrev=2; evBuf.length=0; bossFinRep=false; refitSessClear();
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
@@ -6482,7 +6486,7 @@ const COOP=(function(){
     phase='match';
     prevMode=(gameMode==='coop')?prevMode:gameMode;
     coopMatch=true; localIndex=(role==='host')?0:1;
-    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; actQueue.length=0; evBuf.length=0; evSent=0; evApplied=0; bossFinRep=false;
+    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); guestPods.clear(); guestAlivePrev=2; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; actQueue.length=0; evBuf.length=0; evSent=0; evApplied=0; bossFinRep=false;
     remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now();
     gameMode=(coopMode==='hardcore')?'hardcore':'coop';   // HARDCORE co-op reuses the solo 'hardcore' value so every gameMode==='hardcore' check (single life, fire ramp, no revive) applies unchanged; coopMatch (set above) stays the true "any co-op" flag
     startGame();                                   // builds players[localIndex] (baseline loadout; single life when gameMode==='hardcore')
@@ -6545,7 +6549,12 @@ const COOP=(function(){
     refitSessClear();
     refitSess={ready:[false,false],iv:0,lastBuyAt:0};
     openRefit();
-    refitSend(refitSyncPayload('open'));
+    // v203: `hl` tells the guest whether this REFIT opened with the SYSTEM
+    // HALT station active (today: always post-boss, since refit only opens
+    // from the bossSpoils drain). The EV_BFIN replay already created the
+    // guest's station at the finale; this flag is the self-heal for a
+    // dropped snapshot, and stays honest if a non-boss refit path ever lands.
+    const _o=refitSyncPayload('open'); _o.hl=station?1:0; refitSend(_o);
     refitSess.iv=setInterval(()=>{ if(!refitSess)return; refitSend(refitSyncPayload('state')); },800);
   }
   function refitSessClear(){ if(refitSess&&refitSess.iv)clearInterval(refitSess.iv); refitSess=null;
@@ -6596,6 +6605,8 @@ const COOP=(function(){
     if(p.op==='launch'){ refitGuestLaunch(); return; }
     if(p.op==='open'){
       refitApplySync(p);
+      if(Audio_.stopAllLoops)Audio_.stopAllLoops();   // v203: guestFrame's loop gates stop ticking in refit; never carry a beam loop into the shop
+      if(p.hl&&!station) station={t:0, beam:0, phase:'arrive', glitch:0};   // v203: SYSTEM HALT self-heal (normally already created by the EV_BFIN replay)
       if(state!=='refit'){ gRefit={ready:false,hostReady:!!(p.rd&&p.rd[0]),pending:null,msg:'',msgT:0}; openRefit(); }
       else { if(gRefit)gRefit.hostReady=!!(p.rd&&p.rd[0]); refitUI(); }
       return; }
@@ -6637,6 +6648,7 @@ const COOP=(function(){
     if(!(coopMatch&&role==='guest')) return;
     if(gRefit&&gRefit.pending)clearTimeout(gRefit.pending.to); gRefit=null;
     if(state!=='refit') return;
+    if(station){ station.phase='depart'; station.vy=-60; }   // v203: mirror launchFromRefit's SYSTEM HALT departure
     state='play'; showOverlay(null); refitUI();
     document.getElementById('touch').classList.toggle('hidden', !isTouch);
     Audio_.power();   // launch feel; the sector banner + music lane ride the next snapshot's sector edge (applyWorldSnap)
@@ -6719,6 +6731,19 @@ const COOP=(function(){
     // rows (EV_PRI) instead of dropping arbitrarily.
     const ev=evBuf.length?(evBuf.length>EV_CAP?evBuf.sort((a,b)=>(EV_PRI[a[0]]||9)-(EV_PRI[b[0]]||9)).slice(0,EV_CAP):evBuf):0;
     evBuf=[]; if(ev) evSent+=ev.length;
+    // boss carving-beam state (v203): only while a sweep/scan is live and the
+    // boss is not dying (startBossDeath hard-stops the host loops; a dying
+    // boss must read state 0 on the guest too). Per-state minimal fields:
+    // sweep telegraph needs start/span/dir (the draw derives the preview arc
+    // from the already-sent tell), the live beam needs angle + angular
+    // velocity (guest advances locally between snapshots, restamped each
+    // apply - the holes-core pattern); scan mirrors that shape.
+    const _bsw=(boss&&!boss.dying&&boss.sweepState)?(boss.sweepState===1
+      ?[1,+(boss.sweepStart||0).toFixed(2),+(boss.sweepSpan||0).toFixed(2),boss.sweepDir||1]
+      :[2,+(boss.sweepAng||0).toFixed(2),+((boss.sweepRate||1.6)*(boss.sweepDir||1)).toFixed(2)]):0;
+    const _bsn=(boss&&!boss.dying&&boss.scanState)?(boss.scanState===1
+      ?[1,+(boss.scanAng||0).toFixed(2)]
+      :[2,+(boss.scanAng||0).toFixed(2),+((boss.scanRate||1.5)*(boss.scanDir||1)).toFixed(2),boss.scanDir||1]):0;
     return {
       sec:sector, sk:sectorKills, kfb:killsForBoss, bp:bossPending?1:0,
       sc:Math.round(window.scoreT||0), st:Math.round(window.style||0), mult:window.mult||1,
@@ -6750,8 +6775,15 @@ const COOP=(function(){
       // constant). dps/pi stay host-only - damage never ticks on the guest.
       fc:flakClouds.length?flakClouds.slice(0,12).map(c=>{ if(!c._eid)c._eid=eidSeq++;
         return [c._eid,Math.round(c.x),Math.round(c.y),Math.round(c.r),+(c.t||0).toFixed(2),+(c.life||1).toFixed(2)]; }):0,
+      // field pods (v203): only what drawPod reads (type via PODK, color as-is
+      // like eb rows, radius; the trailing slot is the pwr buff / core faction
+      // enum). bob/spin are cosmetic clocks the guest ticks locally. 0 when
+      // empty, the ho/hz/br/fc convention. Pickup is never mirrored: the host
+      // collects (pod vanishes from this list) and EV_PICKUP plays the cue.
+      po:pods.length?pods.slice(0,16).map(p=>{ if(!p._eid)p._eid=eidSeq++;
+        return [p._eid,Math.round(p.x),Math.round(p.y),Math.max(0,PODK.indexOf(p.type)),Math.round(p.r||11),p.c||'',p.type==='pwr'?Math.max(0,PODB.indexOf(p.buff)):p.type==='core'?Math.max(0,FKL.indexOf(p.fk)):0]; }):0,
       ev:ev,
-      bo:boss?{fk:boss.fk,x:Math.round(boss.x),y:Math.round(boss.y),r:Math.round(boss.r),core:+(boss.core||0).toFixed(2),hp:Math.max(0,Math.round(boss.hp)),mh:Math.round(boss.maxhp),en:boss.entering?1:0,dy:boss.dying?1:0,ph:boss.phase|0,nm:boss.name||'',tl:+(boss.tell||0).toFixed(2)}:0
+      bo:boss?{fk:boss.fk,x:Math.round(boss.x),y:Math.round(boss.y),r:Math.round(boss.r),core:+(boss.core||0).toFixed(2),hp:Math.max(0,Math.round(boss.hp)),mh:Math.round(boss.maxhp),en:boss.entering?1:0,dy:boss.dying?1:0,ph:boss.phase|0,nm:boss.name||'',tl:+(boss.tell||0).toFixed(2),sw:_bsw,sn:_bsn}:0
     };
   }
   function guestEnemyDefaults(){ return {bob:0,flash:0,dead:false,dt:0,hp:1,maxhp:1,state:'free',slot:-1,vx:0,vy:0,fire:9,t:0,spin:0,aimAng:Math.PI/2,buffed:0,barrageGlow:0,lockT:0,lockX:0,lockY:0}; }
@@ -6805,7 +6837,7 @@ const COOP=(function(){
         else { ((Audio_.play&&Audio_.play(k==='shield'?'shield_up':k==='1up'?'life_up':'coin'))||Audio_.pickup());
           pops.push({x:x,y:y-6,txt:k==='coin'?'+60 i¢':k.toUpperCase(),c:k==='shield'?COL.cyan:k==='1up'?COL.mat:COL.gold,life:.8,max:.8}); }
       } else if(t===EV_BOMB){ const x=a[1],y=a[2];
-        Audio_.bomb(); Audio_.big(); shake=Math.max(shake,16); bossFlash=Math.max(bossFlash,0.55);
+        Audio_.bomb(); Audio_.big(); shake=Math.max(shake,16); bossFlash=Math.max(bossFlash,0.55); deathSlow=Math.max(deathSlow,0.25);   // v203: fireBomb's slow-mo beat (frame() scales dt by 0.4 while it drains, both clients)
         rings.push({x:x,y:y,r:6,vr:1100,life:.55,max:.55,c:COL.white}); rings.push({x:x,y:y,r:6,vr:760,life:.55,max:.55,c:COL.green}); rings.push({x:x,y:y,r:6,vr:480,life:.5,max:.5,c:COL.gold});
         for(let q=0;q<64;q++){const an=rnd(0,6.28),sp2=rnd(120,520); parts.push({x:x,y:y,vx:Math.cos(an)*sp2,vy:Math.sin(an)*sp2,life:rnd(.4,.7),max:.7,c:Math.random()<0.4?COL.white:COL.green,sz:rnd(1.6,3)});}
         pops.push({x:x,y:y-30,txt:'PURGE',c:COL.green,life:.8,max:.8});
@@ -6818,7 +6850,8 @@ const COOP=(function(){
         for(let q=0;q<32;q++){const an=rnd(0,6.28),sp2=rnd(60,330); parts.push({x:x,y:y,vx:Math.cos(an)*sp2,vy:Math.sin(an)*sp2,life:.6,max:.6,c:Math.random()<0.4?COL.white:c,sz:rnd(1.6,2.8)});}
       } else if(t===EV_BFIN){ const x=a[1],y=a[2],c=(boss&&boss.c)||COL.white;
         explode(x,y,c,true); explode(x,y,COL.white,true); Audio_.big(); Audio_.death(); Audio_.play&&Audio_.play('boss_death');
-        shake=24; bossFlash=0.85; warpT=Math.max(warpT,0.7);
+        shake=24; bossFlash=0.85; warpT=Math.max(warpT,0.7); deathSlow=Math.max(deathSlow,0.5);   // v203: finishBoss's slow-mo beat
+        station={t:0, beam:0, phase:'arrive', glitch:0};   // v203: SYSTEM HALT arrives with the boss finale, exactly when finishBoss creates it host-side (guestFrame ticks updateStation; the v199 refit-open `hl` flag is the lossy-broadcast self-heal)
         rings.push({x:x,y:y,r:8,vr:900,life:.7,max:.7,c:COL.white}); rings.push({x:x,y:y,r:8,vr:620,life:.65,max:.65,c:c}); rings.push({x:x,y:y,r:8,vr:380,life:.6,max:.6,c:COL.white});
         for(let q=0;q<10;q++) setTimeoutSafe(x+rnd(-70,70),y+rnd(-60,60),Math.random()<0.5?c:COL.white,q*60);
         for(let q=0;q<30;q++){ const an=rnd(0,6.28),sp2=rnd(80,360); shards.push({x:x,y:y,vx:Math.cos(an)*sp2,vy:Math.sin(an)*sp2,rot:rnd(0,6.28),vr:rnd(-10,10),len:rnd(8,22),life:rnd(.6,1.2),max:1,c:c}); }
@@ -6870,6 +6903,13 @@ const COOP=(function(){
       if(!players[i]){ players[i]=makeShip(i); }
       applyShip(players[i],sp,false); }
     if(players[0]&&s.co!=null) players[0].coins=s.co;
+    // full-wipe slow-mo (v203): the host sets deathSlow=1.1 when the last
+    // fighting ship goes out (playerHit); mirror it off the SAME predicate
+    // over the freshly-stamped ships. Render-only: frame() scales dt while it
+    // drains, and the end screen still arrives via the host's 'end' broadcast
+    // (the death SFX already rides EV_SFX). One snapshot of edge latency is
+    // fine for a 1.1s effect.
+    { const _al=alivePlayersLeft(); if(guestAlivePrev>0&&_al<=0) deathSlow=Math.max(deathSlow,1.1); guestAlivePrev=_al; }
     // enemies: keyed by host eid; vanished ids explode locally
     const seen=new Set();
     (s.en||[]).forEach(a=>{ seen.add(a[0]);
@@ -6923,6 +6963,21 @@ const COOP=(function(){
         else { c.x=a[1]; c.y=a[2]; c.r=a[3]; c.t=a[4]; c.life=a[5]||c.life; } });
       guestFlak.forEach((c,id)=>{ if(!seenF.has(id)) guestFlak.delete(id); });
       flakClouds.length=0; guestFlak.forEach(c=>flakClouds.push(c)); }
+    // field pods (v203): render-only mirror keyed by host id, the guestEnemies
+    // pattern. Pods drift/chase host-side, so they ride bufPos/lerpPos like
+    // enemies; bob/spin are cosmetic clocks ticked in guestFrame. NO pickup
+    // logic runs here - a collected pod simply vanishes from the list (its cue
+    // arrives via EV_PICKUP, coins/score via the authoritative snapshot).
+    { const seenP=new Set();
+      (s.po||[]).forEach(a=>{ seenP.add(a[0]); let p=guestPods.get(a[0]);
+        if(!p){ const ty=PODK[a[3]]||'coin';
+          p={_eid:a[0],x:a[1],y:a[2],type:ty,r:a[4]||11,c:a[5]||COL.gold,bob:rnd(0,6.28),spin:0,vy:0};
+          if(ty==='pwr') p.buff=PODB[a[6]]||'overdrive';
+          if(ty==='core') p.fk=FKL[a[6]]||'ace';
+          bufPos(p,a[1],a[2]); guestPods.set(a[0],p); }
+        else { bufPos(p,a[1],a[2]); p.r=a[4]||p.r; } });
+      guestPods.forEach((p,id)=>{ if(!seenP.has(id)) guestPods.delete(id); });
+      pods.length=0; guestPods.forEach(p=>pods.push(p)); }
     // boss: a light render shell driven by host fields
     if(s.bo){ const bo=s.bo;
       if(!boss||boss.fk!==bo.fk){ const F=FACTIONS[bo.fk]||FACTIONS.ace;
@@ -6955,12 +7010,25 @@ const COOP=(function(){
       // boss death-start drama (render-only mirror of startBossDeath's
       // cosmetic half, on the transmitted dying edge; the ~2.4s rumble ticks
       // in guestFrame's cosmetics block and the finale rides EV_BFIN)
-      if(bo.dy&&!boss.dying){ Audio_.big(); shake=Math.max(shake,18); bossFlash=Math.max(bossFlash,0.5); boss._dieT=0;
+      if(bo.dy&&!boss.dying){ Audio_.big(); shake=Math.max(shake,18); bossFlash=Math.max(bossFlash,0.5); boss._dieT=0; deathSlow=Math.max(deathSlow,0.7);   // v203: startBossDeath's slow-mo beat
         rings.push({x:boss.x,y:boss.y,r:boss.r*0.5,vr:300,life:.6,max:.6,c:COL.white});
         bossCard={mode:'death',name:(BOSSNAME[boss.fk]||boss.name),sub:'ELIMINATED',c:boss.c,t:0,dur:2.6};
         try{ document.getElementById('bossname').style.display='none'; document.getElementById('bossbar').style.display='none'; }catch(e){} }
       bufPos(boss,bo.x,bo.y); boss.r=bo.r||boss.r; boss.core=bo.core||0; boss.hp=bo.hp; boss.maxhp=bo.mh;
       boss.entering=!!bo.en; boss.dying=!!bo.dy; boss.phase=bo.ph|0; boss.tell=bo.tl||0;
+      // carving-beam state (v203): stamp the transmitted sweep/scan fields the
+      // draw reads (telegraph: start/span/dir + the synced tell; live beam:
+      // angle + angular velocity for the local advance in guestFrame's
+      // cosmetics). Absent field = state 0, so a dying or idle boss stops the
+      // loop via bossBeamLoopSfx exactly like the host. Render/audio-only:
+      // the beam's playerHit and hazard spawns stay host-side.
+      if(bo.sw){ boss.sweepState=bo.sw[0]|0;
+        if(boss.sweepState===1){ boss.sweepStart=bo.sw[1]||0; boss.sweepSpan=bo.sw[2]||0; boss.sweepDir=bo.sw[3]||1; boss._swVel=0; }
+        else { boss.sweepAng=bo.sw[1]||0; boss._swVel=bo.sw[2]||0; } }
+      else { boss.sweepState=0; boss._swVel=0; }
+      if(bo.sn){ boss.scanState=bo.sn[0]|0; boss.scanAng=bo.sn[1]||0;
+        if(boss.scanState===2){ boss._snVel=bo.sn[2]||0; boss.scanDir=bo.sn[3]||1; } else boss._snVel=0; }
+      else { boss.scanState=0; boss._snVel=0; }
       boss._barFrac=boss._chip=Math.max(0,Math.min(1,bo.mh?bo.hp/bo.mh:0));
     } else if(boss){ if(!bossFinRep){ try{ explode(boss.x,boss.y,boss.c,true); }catch(e){} } bossFinRep=false;   // EV_BFIN already replayed the full finale for this removal
       try{ Audio_.lane(sectorTheme().fk||'idea'); }catch(e){}   // music back to the sector lane (solo: finishBoss)
@@ -6993,6 +7061,7 @@ const COOP=(function(){
     for(let i=0;i<players.length;i++) if(i!==localIndex) lerpPos(players[i],al);
     for(let i=0;i<enemies.length;i++) lerpPos(enemies[i],al);
     for(let i=0;i<holes.length;i++) lerpPos(holes[i],al);   // visual parity: smooth the travel arc (hazards/barriers are static, no lerp needed)
+    for(let i=0;i<pods.length;i++) lerpPos(pods[i],al);   // v203: pods drift/chase host-side, smooth them like enemies
     lerpPos(boss,al);
     for(let i=0;i<ebul.length;i++){ const b=ebul[i]; if((b._age+=dt)<=BULLET_EXTRAP_MAX){ b.x+=b.vx*dt; b.y+=b.vy*dt; } }
     for(let i=0;i<pbul.length;i++){ const b=pbul[i]; if((b._age+=dt)<=BULLET_EXTRAP_MAX){ b.x+=b.vx*dt; b.y+=b.vy*dt; } }
@@ -7120,6 +7189,28 @@ const COOP=(function(){
     // and the FLAK cloud fade clock (removal stays host-authoritative)
     for(let i=0;i<enemies.length;i++) enemies[i].core+=dt*1.1;
     for(let i=0;i<flakClouds.length;i++) flakClouds[i].t-=dt;
+    // v203: pod cosmetic clocks (bob wobble + CORE spin), the host rates
+    for(let i=0;i<pods.length;i++){ const p=pods[i]; p.bob+=dt*3; if(p.type==='core') p.spin=(p.spin||0)+dt*2; }
+    // v203: sustained heavy-weapon loop audio. The SAME exactly-one-slot gate
+    // the host's updateHeavy runs, derived per frame from snapshot-synced ship
+    // state (beamActive/heavy/waveT all ride shipSnap; own ship stamps from
+    // the NEWEST snapshot). One combined call per frame - own ship wins the
+    // slot - so the two ships never flip-flop the loop layer. No prediction:
+    // beam validity (energy/lock) is host-authoritative, so the loop keys off
+    // the synced state, ~1 snapshot late on press/release, never a lie.
+    { const _lw=p=>{ if(!p||p.dead||p.downed||!p.beamActive||p.waveT>0) return null;
+        return (p.heavy==='beam'||p.heavy==='tesla')?p.heavy:'heavy_charge'; };
+      heavyLoopSfx(_lw(players[localIndex])||_lw(players[1-localIndex])); }
+    // v203: boss carving-beam loop gate (same call the host's updateBoss makes;
+    // null boss stops both slots) + local advance of the live beam angle
+    // between snapshot restamps (the holes-core pattern; scan clamps to the
+    // host's pivot bounds so it never overshoots a bounce)
+    bossBeamLoopSfx(boss);
+    if(boss){ if(boss.sweepState===2) boss.sweepAng+=(boss._swVel||0)*dt;
+      if(boss.scanState===2){ boss.scanAng=Math.max(Math.PI/2-0.6,Math.min(Math.PI/2+0.6,boss.scanAng+(boss._snVel||0)*dt)); } }
+    // v203: SYSTEM HALT overlay clock (render-only; created by the EV_BFIN
+    // replay / the refit-open `hl` flag, departs in refitGuestLaunch)
+    if(station) updateStation(dt);
   }
   /* ---- match end (unranked ARCADE screen; nothing submitted) ---- */
   function finishMatch(){

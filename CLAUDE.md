@@ -457,14 +457,10 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   block, the music lane restore on boss removal, and the sector lane on
   sector change. Stub drive additions: `__vgStubKill`, `__vgStubPod`,
   `__vgStubBombNow`, `__vgStubEv` (sent/applied counters; a full stub match
-  verified sent == applied exactly, once-only delivery). Known deferred gaps
-  for later passes: sustained LOOPS (player beam/tesla/charge and boss
-  carving-beam loops; boss sweep/scan STATE is not transmitted at all, so
-  those beams are invisible AND silent on the guest), `deathSlow` is not
-  mirrored guest-side, the SYSTEM HALT station overlay stays host-only (the
-  v197-era REFIT-skipped pop is gone: v199 opens real REFIT), and PODS remain
-  untransmitted (pickup cues now play via events, but the guest cannot see
-  pods on the field; a pod entity mirror is the natural next entity pass).
+  verified sent == applied exactly, once-only delivery). The gaps known at
+  v197 (sustained loops, untransmitted boss sweep/scan state, `deathSlow`,
+  the SYSTEM HALT overlay, and untransmitted field pods) were all closed in
+  v203 (see the audio/visual parity close-out bullet below).
 - **Co-op REFIT economy + two-ship difficulty (game v199):** REFIT now runs in
   co-op instead of being skipped (the Phase 1 "REFIT SKIPPED" auto-chain is
   gone). Doctrine: ONE shared wallet (`players[0].coins`, the existing
@@ -569,6 +565,44 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   unchanged) and guest drops while the host sits in REFIT (immediate end as
   before; resyncing a live REFIT session is deferred). Solo never enters any
   of this (`graceFrame` is called only when `coopMatch`).
+- **Co-op audio/visual parity close-out (game v203):** closes the four gaps
+  documented since v197, all render/audio-only, established patterns reused.
+  (1) SUSTAINED LOOPS: the guest ticks the SAME two loop gates the host's sim
+  runs, per frame in guestFrame's cosmetics block - `heavyLoopSfx` driven by
+  a per-ship want derived from snapshot-synced ship state (beamActive/heavy/
+  waveT/dead/downed all already rode `shipSnap`, so NO new transmission; one
+  combined call per frame, own ship wins the slot, so two ships never
+  flip-flop the loop layer; no prediction - beam validity is host-side, the
+  loop keys off synced state ~1 snapshot late) and `bossBeamLoopSfx(boss)`
+  off newly-transmitted sweep/scan state. The guest's refit-open handler
+  stops all loops (its gates stop ticking in refit). (2) BOSS CARVING BEAMS:
+  `bo` gains `sw`/`sn` (0 unless a sweep/scan is live AND the boss is not
+  dying, so death silences the guest exactly like the host's stopAllLoops):
+  telegraph state sends start/span/dir (the preview derives from the already-
+  sent `tl`), live state sends angle + angular velocity, which the guest
+  advances locally between restamps (the holes-core pattern; scan clamps to
+  the host's pivot bounds). Damage/hazard spawns from the beam stay
+  host-side. (3) FIELD PODS: `po` snapshot field (cap 16, only what drawPod
+  reads: type via the existing PODK enum, color string like `eb` rows,
+  radius, pwr-buff/core-faction in one trailing slot) mirrored into the
+  id-keyed `guestPods` map repopulating `pods` (the guestEnemies pattern,
+  bufPos/lerpPos smoothing since pods drift/chase); bob/spin tick locally;
+  NO pickup logic guest-side - a collected pod vanishes from the list and its
+  cue was already riding EV_PICKUP. (4) DEATH SLOW-MO: `deathSlow` is now set
+  guest-side at every host trigger, off transmitted edges: EV_BOMB 0.25,
+  boss dying edge 0.7, EV_BFIN 0.5, and full-wipe 1.1 via the
+  `alivePlayersLeft()` predicate over freshly-stamped ships (edge-tracked in
+  `guestAlivePrev`). frame() already scales update dt by 0.4 while it drains,
+  which on the guest slows own-ship prediction exactly as the host slows its
+  sim of the same ship; world entities stay snapshot-true. (5) SYSTEM HALT:
+  the guest's `station` is created by the EV_BFIN replay (the same moment
+  finishBoss creates it host-side), ticked by `updateStation` in guestFrame's
+  cosmetics, self-healed by an `hl` flag on the v199 refit-open payload
+  (broadcast is lossy; today every refit is post-boss - refit only opens from
+  the bossSpoils drain - so `hl` is 1 in practice, but it stays honest if a
+  non-boss refit path ever lands), and departs in `refitGuestLaunch`
+  mirroring `launchFromRefit`. Solo/hardcore byte-identical: every addition
+  is inside guest-only code paths or 0-when-idle snapshot fields.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The
