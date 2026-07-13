@@ -19,7 +19,6 @@
 	import { modeById } from '$lib/gauntlet';
 	import {
 		sectionsByYear,
-		nextLiveCourse,
 		sectionById,
 		summerProgram,
 		selfSelectOptions,
@@ -53,7 +52,6 @@
 
 	const yearGroups = sectionsByYear();
 	const fsp = summerProgram();
-	const nextLive = nextLiveCourse();
 	const pickerGroups = selfSelectOptions();
 	const courseCount = activeCourseCount();
 
@@ -388,21 +386,11 @@
 		</div>
 	</section>
 
-	{#if nextLive}
-		<svelte:element this={nextLive.href ? 'a' : 'div'} class="promo-callout nextlive" href={nextLive.href}>
-			<div class="promo-left">
-				<div class="promo-icon">&#9650;</div>
-				<div>
-					<div class="promo-title">
-						<span class="promo-eyebrow">Next Live Course</span>
-						<span class="promo-sep">&middot;</span>
-						<span class="promo-course">{nextLive.course}</span>
-					</div>
-					<div class="promo-sub">{nextLive.title}. {nextLive.note ?? ''}</div>
-				</div>
-			</div>
-			<div class="promo-cta">{nextLive.href ? 'Open →' : nextLive.term}</div>
-		</svelte:element>
+	{#if fsp}
+		<div class="courses" style="margin-top:2.5rem">
+			<div class="year-label">Incoming Freshman</div>
+			{@render sectionCard(fsp, false)}
+		</div>
 	{/if}
 
 	<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
@@ -503,11 +491,6 @@
 					</button> to pin your class to the top and save your progress.
 				</p>
 			</div>
-		{/if}
-
-		{#if fsp}
-			<div class="year-label">Incoming Freshman</div>
-			{@render sectionCard(fsp, false)}
 		{/if}
 
 		{#each yearGroups as group (group.year)}

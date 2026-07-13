@@ -152,11 +152,6 @@ const YEAR_LABELS: Record<Year, string> = {
 	4: 'Senior'
 };
 
-/** The highlighted "next live course" (first section with status 'live'). */
-export function nextLiveCourse(): Section | undefined {
-	return SECTIONS.find((s) => s.status === 'live');
-}
-
 /** Look up a section by its id (a student's saved `section_id`). */
 export function sectionById(id: string | null | undefined): Section | undefined {
 	if (!id) return undefined;
@@ -180,8 +175,8 @@ export interface YearGroup {
 
 /**
  * The curriculum grid: school-year sections grouped by year (1-4). The Summer
- * program is excluded here because it is surfaced as the standalone
- * {@link nextLiveCourse} callout.
+ * program is excluded here because it is surfaced separately via
+ * {@link summerProgram}.
  */
 export function sectionsByYear(): YearGroup[] {
 	const years: Year[] = [1, 2, 3, 4];

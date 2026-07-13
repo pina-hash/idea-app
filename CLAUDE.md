@@ -57,8 +57,10 @@ ability, it is not required to browse the portal.
   default (unconfigured) view is the clean curated grouping; signed-in users
   can pin favorites, reorder within groups, collapse groups, and toggle a
   compact view, persisted to `profiles.preferences.homepage` (anonymous
-  visitors can collapse/compact for the session only, unsaved). The "next
-  live course" promo callout stays above the launcher. **Uniform card chrome
+  visitors can collapse/compact for the session only, unsaved). The old "next
+  live course" promo callout above the launcher is retired; the pinned FSP
+  section (see "2026-27 curriculum" below) now sits in that spot instead.
+  **Uniform card chrome
   (no per-card accent):** every launcher tile uses ONE shared design-system
   accent (brass/gold) via the `--acc*` CSS vars on `.app-card` in
   `AppLauncher.svelte`; there is deliberately no per-card `accent` field.
@@ -168,10 +170,12 @@ bundle.
   (e.g. `eng1h-sophomore` vs `eng1h-senior`) so a student sees their own. Each has
   an `id`, `course`, `title`, `year` (1-4), `instructor`, `term`, `status`, and an
   optional `assignments` list (empty for the new courses until content exists).
-  The **Freshman Summer Program** (`summer-2026`) is the `status: 'live'` "next
-  live course"; its title/dates are placeholders to fill in.
-- Helpers: `sectionsByYear()` (the curriculum grid), `nextLiveCourse()`,
-  `sectionById()`, `selfSelectOptions()` (the picker), `activeCourseCount()`.
+  The **Freshman Summer Program** (`summer-2026`) is the `status: 'live'`
+  section pinned atop the homepage (see below); its title/dates are
+  placeholders to fill in.
+- Helpers: `sectionsByYear()` (the curriculum grid), `summerProgram()` (the
+  FSP section), `sectionById()`, `selfSelectOptions()` (the picker),
+  `activeCourseCount()`.
 - **Per-student class:** a signed-in student self-selects a section on `/`; the
   page writes `profiles.section_id` via the browser Supabase client (allowed by
   the `update own profile` RLS policy) and pins that section. `section_id` is
@@ -1821,12 +1825,13 @@ entry points.
 
 ## FSP as a regular class card (the `/fsp` hub is retired)
 
-FSP is surfaced as a **standard class card in the homepage course listing**, not
-a special hub or a launcher app. The `summer-2026` section (`curriculum.ts`) is
-pinned to the TOP of the course listing (above the year groups, an "Incoming
-Freshman" band) via `summerProgram()`, formatted identically to every other
-section card, with three material rows that use the new optional
-`Assignment.href` to link directly to the FSP tools:
+FSP is surfaced as a **standard class card pinned to the top of the
+homepage**, not a special hub or a launcher app. The `summer-2026` section
+(`curriculum.ts`) renders via `summerProgram()` in its own "Incoming Freshman"
+band between the hero stats and the APPS block (`src/routes/+page.svelte`,
+replacing the old "next live course" promo callout there), formatted
+identically to every other section card, with three material rows that use
+the optional `Assignment.href` to link directly to the FSP tools:
 `Day 1 Presentation` -> `/fsp/day1`, `Live Q&A` -> `/fsp/ask`,
 `SolidWorks Add-In` -> `/fsp/class`. It is no longer a `portal-apps.ts` launcher
 app (that entry was removed), and the old role-routing hub page
@@ -1837,8 +1842,7 @@ app (that entry was removed), and the old role-routing hub page
   project cards, 3-day overview, and the Pulse Check link (the former `/fsp`
   class page). Its header now links back to `/` (Home) since the hub is gone.
   The curriculum `summer-2026` section's `href` also points at `/fsp/class`
-  (used by the empty-state "View class hub" link and the "next live course"
-  promo callout).
+  (used by the empty-state "View class hub" link on the pinned homepage card).
 
 ## FSP live Q&A
 
