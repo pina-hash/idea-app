@@ -348,8 +348,8 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   matching. Nothing but position is ever predicted: fire/parry/damage/score
   still come entirely from host snapshots, so the guest cannot diverge on
   anything that matters. Deferred to later phases: difficulty scaling and
-  synced REFIT (both landed in v199), revive/down-states, co-op boards,
-  reconnect.
+  synced REFIT (both landed in v199), revive/down-states (landed in v200),
+  co-op boards, reconnect.
 - **Co-op Phase 2.5 (game v191): predicted action feedback + delay-buffered
   interpolation, guest-side only.** Two responsiveness fixes layered on Phase
   2 without moving any authority. (1) Predicted FEEDBACK, never outcome: the
@@ -501,10 +501,40 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   for playtest tuning. The playfield never grows (Pillar 4). Stub addition:
   `__vgStubEval` (game-scope eval for scripted drives; the game's top-level
   lets are closure-scoped and unreachable from the console otherwise). Still
-  deferred: revive/down-states, reconnect, co-op boards, telemetry. Known
-  accepted quirks: match-wide (not per-ship) module gate stats, and keystone
-  dwell validated from the request's self-reported `runDwell` (unranked co-op,
-  host still owns the wallet).
+  deferred: reconnect, co-op boards, telemetry (revive/down-states landed in
+  v200, see below). Known accepted quirks: match-wide (not per-ship) module
+  gate stats, and keystone dwell validated from the request's self-reported
+  `runDwell` (unranked co-op, host still owns the wallet).
+- **Co-op revive/down-states (game v200, NORMAL co-op only):** a ship that
+  runs out of lives in co-op goes DOWNED (`pl.downed`, layered ON TOP of the
+  existing `pl.dead` so every dead-gate - movement, firing, damage, enemy
+  aim, pod pickup - applies unchanged) instead of permanently out; the
+  per-life respawn (`respawn`/`lives>=0`) is untouched. A living teammate
+  holding within `COOP_REVIVE_RADIUS` (70px) for `COOP_REVIVE_TIME` (2.0s;
+  the host-side channel `updateReviveChannel` runs only in update()'s sim,
+  so the guest never executes it) revives the wreck IN PLACE at
+  `COOP_REVIVE_HULL_PCT` (0.45) of max armor with NO lives restored: a
+  revived ship that loses its hull goes straight back down (exposure
+  preserves danger) and can be revived again, in either direction (the
+  guest can revive the host). Channel progress decays at 2x while nobody is
+  in range, so rapid in-and-out banks nothing but a one-frame dropout is not
+  a hard reset. Dials sit beside the other co-op constants.
+  `alivePlayersLeft()` now counts "still in the fight"
+  (`!downed && (lives>=0 || !dead)`), so the run ends exactly when nobody is
+  left standing to attempt a revive (both downed at once); solo semantics
+  byte-identical. `resetPlayer(false)` clears `downed`/`reviveT`, so a
+  lives-granted respawn (1up / CORE extra life) cleanly rescues a downed
+  ship. Sync rides `shipSnap` (`dn`/`rv`), deliberately NOT a new
+  hazard-style entity map: ships are already position-tracked snapshot
+  entities. `drawDownedWreck` (dim split hull in the ship's identity color,
+  blinking crimson distress beacon, dashed revive-radius ring, gold channel
+  arc + percent) renders from those same fields on both clients, and the
+  guest replays the revive cue off the snapshot's downed->flying edge in
+  `applyShip`. HARDCORE has no revive by explicit gate (`gameMode!=='hardcore'`
+  at both the down-point and the channel call site); hardcore co-op is not a
+  reachable mode today (co-op always runs `gameMode='coop'`), so the gate is
+  future-proofing, verified synthetically. Solo and hardcore-solo
+  death/respawn/game-over paths are unchanged.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The

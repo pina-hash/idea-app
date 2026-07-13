@@ -786,7 +786,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='199';
+const VERSION='200';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -860,6 +860,12 @@ let BAL = freshBAL();
 const COOP_ENEMY_HP_MUL=1.35;   // grunt/elite HP multiplier with two ships
 const COOP_BOSS_HP_MUL=1.5;     // boss HP multiplier with two ships
 const COOP_ALIVE_BONUS=3;       // wave spawner keeps this many MORE enemies on the field
+/* CO-OP revive dials (v200, NORMAL co-op only - hardcore has no safety net and
+   solo never reads these): a ship out of lives goes DOWNED instead of gone, and
+   a living teammate holding inside the radius channels it back up. */
+const COOP_REVIVE_RADIUS=70;    // px: how close the living ship must hold to the wreck
+const COOP_REVIVE_TIME=2.0;     // s of sustained proximity to complete a revive
+const COOP_REVIVE_HULL_PCT=0.45;// fraction of max armor a revived ship comes back with
 const stage=document.getElementById('stage');
 const bgC=document.getElementById('bg'), fxC=document.getElementById('fx');
 const bg=bgC.getContext('2d'), fx=fxC.getContext('2d');
@@ -1961,7 +1967,7 @@ function makeShip(pi){ return {pi:pi||0, x:shipSpawnX(pi||0),y:H-130, vx:0,vy:0,
     fireCd:0, beamOn:false, beamLock:false, beamActive:false, beamE:1, beamMax:1, beamDps:46, beamWind:0, beamCoolT:0, heat:0, overheatT:0,
     heavy:'beam', heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, heavyCharge:0, waveT:0, teslaArc:null,
     speed:184, wlevel:1, pdmg:1, bombs:2, shieldHits:0, drone:null,
-    inv:1.4, armor:5, maxArmor:5, dmgFlash:0, lives:3, dead:false, respawn:0, coins:0, repair:0,
+    inv:1.4, armor:5, maxArmor:5, dmgFlash:0, lives:3, dead:false, respawn:0, downed:false, reviveT:0, coins:0, repair:0,
     parryT:0, parryCd:0, parryCdMax:0, guardUsed:false, purgeCd:0,
     meltdownUnlocked:false, meltdownCharge:0, meltdownActive:0, meltdownCd:0,
     buffs:{overdrive:0,scatter:0,magnet:0}}; }
@@ -1972,6 +1978,7 @@ function resetPlayer(full, plArg){
     if(s.pi===localIndex) player=players[localIndex];
     applyUpgrades(s); s.beamE=s.beamMax; }
   else { pl.x=shipSpawnX(pl.pi); pl.y=H-130; pl.armor=pl.maxArmor; pl.inv=1.6; pl.dead=false;
+    pl.downed=false; pl.reviveT=0;   // a lives-granted respawn (1up / CORE extra life) cleanly rescues a downed ship
     pl.beamOn=false; pl.beamLock=false; pl.beamActive=false; pl.beamE=pl.beamMax; pl.beamWind=0; pl.beamDrained=false;
     pl.parryT=0; pl.parryCd=0; pl.heat=0; pl.overheatT=0; pl.guardUsed=false; pl.purgeCd=0;
     pl.meltdownActive=0; pl.meltdownCd=0;   // unlock + charge persist across lives (kill-earned, like bombs)
@@ -2012,7 +2019,51 @@ function applyUpgrades(pl){ pl=pl||player; const u=pl.up;
 function nearestPlayer(x,y){ if(players.length<2) return player;
   let best=null,bd=Infinity; for(const p of players){ if(!p||p.dead)continue; const d=dist2(p.x,p.y,x,y); if(d<bd){bd=d;best=p;} }
   return best||player; }
-function alivePlayersLeft(){ let n=0; for(const p of players){ if(p&&p.lives>=0)n++; } return n; }
+/* Ships still IN THE FIGHT (can act now or will respawn): a ship counts while it
+   has spare lives (covers a mid-respawn wait) OR is currently flying (covers a
+   REVIVED ship at spent lives, v200). A DOWNED wreck never counts, so the run
+   ends the moment nobody is left standing to attempt a revive. Solo semantics
+   are unchanged: one ship, never downed, alive == lives>=0 exactly as before. */
+function alivePlayersLeft(){ let n=0; for(const p of players){ if(p && !p.downed && (p.lives>=0 || !p.dead)) n++; } return n; }
+/* ---- co-op revive (v200, NORMAL co-op only) ----
+   Host-authoritative: runs only inside update()'s simulation (the guest never
+   executes it; downed/reviveT arrive via shipSnap like every other ship field).
+   A living ship holding within COOP_REVIVE_RADIUS of a downed wreck fills its
+   channel; progress DECAYS at 2x while nobody is in range, so rapid in-and-out
+   never banks progress but a one-frame dropout is not a hard reset. Completion
+   restores COOP_REVIVE_HULL_PCT of max hull and NO lives: a revived ship that
+   loses its hull again goes straight back down (exposure preserves danger).
+   HARDCORE co-op: never called - out of lives stays permanent, the solo rule. */
+function updateReviveChannel(dt){
+  for(const d of players){ if(!d||!d.downed) continue;
+    let near=false;
+    for(const l of players){ if(!l||l===d||l.dead||l.downed) continue;
+      if(dist2(l.x,l.y,d.x,d.y)<COOP_REVIVE_RADIUS*COOP_REVIVE_RADIUS){ near=true; break; } }
+    if(near) d.reviveT=Math.min(COOP_REVIVE_TIME,(d.reviveT||0)+dt);
+    else if(d.reviveT>0) d.reviveT=Math.max(0,d.reviveT-dt*2);
+    if(d.reviveT>=COOP_REVIVE_TIME) revivePlayer(d);
+  }
+}
+function revivePlayer(pl){
+  pl.downed=false; pl.dead=false; pl.reviveT=0; pl.respawn=0;
+  pl.armor=Math.max(1,Math.round(pl.maxArmor*COOP_REVIVE_HULL_PCT));
+  pl.inv=1.6;   // the respawn grace window (resetPlayer's), so it is not instantly re-killed
+  pl.beamOn=false; pl.beamLock=false; pl.beamActive=false; pl.beamE=pl.beamMax; pl.beamWind=0; pl.beamDrained=false;
+  pl.parryT=0; pl.parryCd=0; pl.heat=0; pl.overheatT=0; pl.guardUsed=false; pl.purgeCd=0;
+  pl.meltdownActive=0; pl.meltdownCd=0; pl.buffs={overdrive:0,scatter:0,magnet:0};
+  reviveCue(pl);
+}
+/* revive cue, cosmetic only: the host plays it at completion; the guest replays
+   the SAME cue off the snapshot's downed->flying edge (applyShip). */
+function reviveCue(pl){
+  const c=(pl.pi===1)?COL.cyan:COL.green;
+  rings.push({x:pl.x,y:pl.y,r:10,vr:420,life:.5,max:.5,c:COL.white});
+  rings.push({x:pl.x,y:pl.y,r:10,vr:260,life:.45,max:.45,c:c});
+  for(let i=0;i<24;i++){const a=rnd(0,6.28),sp=rnd(60,260);parts.push({x:pl.x,y:pl.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rnd(.3,.6),max:.6,c:Math.random()<0.4?COL.white:c,sz:rnd(1.4,2.4)});}
+  pops.push({x:pl.x,y:pl.y-34,txt:'P'+(pl.pi+1)+' REVIVED',c:c,life:1.2,max:1.2});
+  shake=Math.max(shake,6);
+  ((Audio_.play&&Audio_.play('life_up'))||Audio_.power());
+}
 
 /* ============================= start / waves ============================= */
 function getGames(){ try{ return parseInt(localStorage.getItem('vanguard_games')||'0',10)||0; }catch(e){ return 0; } }
@@ -2163,9 +2214,17 @@ function playerHit(pl){
   if(pl.armor<=0){ explode(pl.x,pl.y,COL.green,true); Audio_.big(); shake=14;
     pl.dead=true; pl.respawn=1.4; pl.lives--; runLivesUsed++; pl.drone=null; if(Audio_.stopAllLoops)Audio_.stopAllLoops();
     if(pl.lives<0){
-      // CO-OP: one ship going down does not end the match; the run ends only
-      // when EVERY ship is out of lives (solo: the single player, unchanged).
-      if(alivePlayersLeft()<=0){ deathSlow=1.1; Audio_.death(); COOP.evSfx('death'); startGameOver(); }
+      // Out of lives. CO-OP NORMAL (v200): the ship goes DOWNED - out of the
+      // fight but revivable in place by a living teammate (updateReviveChannel);
+      // a REVIVED ship re-entering here (lives stay spent) goes straight back
+      // down. HARDCORE keeps no safety net: out of lives is permanent, the solo
+      // rule. In every mode the run ends only when nobody is left who could
+      // fight on (co-op: both ships downed/out at once; solo: the one ship).
+      if(coopMatch && gameMode!=='hardcore' && alivePlayersLeft()>0){
+        pl.downed=true; pl.reviveT=0;
+        pops.push({x:pl.x,y:pl.y-30,txt:'P'+(pl.pi+1)+' DOWN - GET CLOSE TO REVIVE',c:COL.mset,life:1.8,max:1.8});
+      }
+      else if(alivePlayersLeft()<=0){ deathSlow=1.1; Audio_.death(); COOP.evSfx('death'); startGameOver(); }
       else pops.push({x:pl.x,y:pl.y-30,txt:'P'+(pl.pi+1)+' DOWN',c:COL.mset,life:1.4,max:1.4});
     } }
 }
@@ -2816,6 +2875,9 @@ function update(dt){
   /* ----- players (local ship + co-op partner) ----- */
   updateShip(player, null, dt);
   if(coopMatch && COOP.isHost() && players[1]){ COOP.drainActs(); updateShip(players[1], COOP.remoteCtrl, dt); }
+  /* co-op revive channel (v200, NORMAL only): host-authoritative - the guest never
+     reaches this line, it sees downed/reviveT via shipSnap like all ship state */
+  if(coopMatch && gameMode!=='hardcore') updateReviveChannel(dt);
 
   /* One ship's full per-tick logic (timers, parry, movement, heavy, fire, drone,
      probe). `ctrl` is null for the LOCAL ship, which reads this client's real
@@ -4278,7 +4340,7 @@ function drawBG(){
   // SYSTEM HALT overlay (post-boss root-access / patch sequence)
   if(station) drawSystemHalt();
   // player
-  if(state==='play'||(state==='refit'&&station)){ for(const _pp of players){ if(_pp&&!_pp.dead){ drawProbe(_pp); drawDrone(_pp); drawShip(_pp); } } }
+  if(state==='play'||(state==='refit'&&station)){ for(const _pp of players){ if(_pp&&!_pp.dead){ drawProbe(_pp); drawDrone(_pp); drawShip(_pp); } else if(_pp&&_pp.downed){ drawDownedWreck(_pp); } } }
 
   // score pops
   bg.font="700 14px 'Chakra Petch',system-ui,sans-serif"; bg.textAlign='center';
@@ -4541,6 +4603,39 @@ function drawBossBar(g){ const b=boss; if(!b||b.dying) return;
     g.beginPath(); g.moveTo(px,py-3.2); g.lineTo(px+3.2,py); g.lineTo(px,py+3.2); g.lineTo(px-3.2,py); g.closePath();
     if(full){ g.fillStyle=c; g.shadowColor=c; g.shadowBlur=6; g.fill(); g.shadowBlur=0; } else { g.strokeStyle=c+'88'; g.lineWidth=1; g.stroke(); } } }
   g.restore();
+}
+/* CO-OP (v200): a DOWNED ship renders as a distress wreck both pilots see (the
+   guest's copy is driven purely by the snapshot's dn/rv fields, drawn by this
+   same function): a dim broken hull in the ship's identity color, a blinking
+   distress beacon, a dashed ring at the revive radius (where the living ship
+   must hold), and a gold channel arc + percent while a revive is in progress. */
+function drawDownedWreck(pl){
+  const x=pl.x,y=pl.y,c=(pl.pi===1)?COL.cyan:COL.green;
+  const pulse=0.5+0.5*Math.sin(t*3);
+  bg.save(); bg.translate(x,y);
+  bg.globalAlpha=0.35+0.15*Math.sin(t*7);
+  bg.lineWidth=1.4; bg.lineJoin='round'; bg.strokeStyle=c; bg.shadowColor=c; bg.shadowBlur=8;
+  bg.beginPath(); bg.moveTo(2,-22); bg.lineTo(17,13); bg.lineTo(7,7); bg.stroke();     // hull halves, split apart
+  bg.beginPath(); bg.moveTo(-3,-19); bg.lineTo(-7,7); bg.lineTo(-17,13); bg.stroke();
+  bg.globalAlpha=1;
+  if(Math.floor(t*2.5)%2===0){ bg.beginPath(); bg.arc(0,-4,2.4,0,6.28); bg.fillStyle=COL.mset; bg.shadowColor=COL.mset; bg.shadowBlur=12; bg.fill(); }   // distress beacon blink
+  bg.restore();
+  bg.save(); bg.translate(x,y);
+  bg.globalAlpha=0.22+0.16*pulse;   // revive radius: where the teammate must hold
+  bg.setLineDash([6,6]); bg.lineWidth=1.2; bg.strokeStyle=c; bg.shadowColor=c; bg.shadowBlur=6;
+  bg.beginPath(); bg.arc(0,0,COOP_REVIVE_RADIUS,0,6.28); bg.stroke(); bg.setLineDash([]);
+  bg.globalAlpha=1;
+  const rv=pl.reviveT||0;
+  if(rv>0){ const frac=Math.min(1,rv/COOP_REVIVE_TIME);
+    bg.lineWidth=3; bg.lineCap='round'; bg.strokeStyle=COL.gold; bg.shadowColor=COL.gold; bg.shadowBlur=10;
+    bg.beginPath(); bg.arc(0,0,30,-Math.PI/2,-Math.PI/2+frac*6.2832); bg.stroke();
+    bg.font="600 10px 'Share Tech Mono',monospace"; bg.textAlign='center'; bg.fillStyle=COL.gold; bg.shadowBlur=6;
+    bg.fillText('REVIVING '+Math.round(frac*100)+'%',0,-42);
+  } else {
+    bg.font="600 10px 'Share Tech Mono',monospace"; bg.textAlign='center'; bg.fillStyle=c; bg.shadowColor=c; bg.shadowBlur=6;
+    bg.globalAlpha=0.55+0.45*pulse; bg.fillText('P'+(pl.pi+1)+' DOWN',0,-42);
+  }
+  bg.restore();
 }
 function drawShip(pl){
   pl=pl||player; const x=pl.x,y=pl.y,bank=pl.vx, dmg=pl.maxArmor-pl.armor, hit=pl.dmgFlash>0 && (!SETTINGS.hitFlash || pl.dmgFlash>0.1), inv=pl.inv>0;
@@ -5705,6 +5800,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'200',date:'2026',items:['CO-OP normal mode: a downed ship can be revived by a teammate through proximity, coming back fragile. Hardcore still has no revive.']},
  {ver:'199',date:'2026',items:['CO-OP now has a real REFIT economy: a shared wallet, individual builds, and both players shop between sectors. Enemies scale up for two ships.']},
  {ver:'198',date:'2026',items:['Fixed CO-OP guest fire sound going silent during a sustained hold - it now repeats at the weapon\'s actual pace.']},
  {ver:'197',date:'2026',items:['CO-OP now replays sound and effects for enemy deaths, hits, and other world events for the guest - not just your own actions.']},
@@ -6489,7 +6585,7 @@ const COOP=(function(){
   /* ---- snapshots (host -> guest) ---- */
   function shipSnap(pl){ if(!pl) return 0; return {
     x:Math.round(pl.x*10)/10, y:Math.round(pl.y*10)/10, vx:+(pl.vx||0).toFixed(2),
-    dd:pl.dead?1:0, iv:+(pl.inv||0).toFixed(2), ar:pl.armor, ma:pl.maxArmor, lv:pl.lives, sh:pl.shieldHits,
+    dd:pl.dead?1:0, dn:pl.downed?1:0, rv:+(pl.reviveT||0).toFixed(2), iv:+(pl.inv||0).toFixed(2), ar:pl.armor, ma:pl.maxArmor, lv:pl.lives, sh:pl.shieldHits,
     wt:pl.wtype, wl:pl.wlevel, un:pl.unlocked, hv:pl.heavy, hu:pl.heavyUnlocked, hc:+(pl.heavyCharge||0).toFixed(2),
     be:+(pl.beamE||0).toFixed(2), bm:pl.beamMax, ba:pl.beamActive?1:0, bl:pl.beamLock?1:0, bo:pl.beamOn?1:0,
     bw:+(pl.beamWind||0).toFixed(2), bwu:pl.beamWindup, bey:Math.round(pl.beamEndY||0), wv:+(pl.waveT||0).toFixed(2),
@@ -6510,7 +6606,7 @@ const COOP=(function(){
   }
   function lerpPos(o,al){ if(o&&o._sx1!=null){ o.x=o._sx0+(o._sx1-o._sx0)*al; o.y=o._sy0+(o._sy1-o._sy0)*al; } }
   function applyShip(pl,sp,isLocal){
-    const wasDead=pl.dead;
+    const wasDead=pl.dead, wasDowned=!!pl.downed;
     if(isLocal){
       // Phase 2 predict-then-reconcile: x/y/vx are driven by local prediction
       // (stepShipPosition in guestFrame); the snapshot only corrects them. A
@@ -6532,7 +6628,7 @@ const COOP=(function(){
       if(pl._pq!=null&&sp.pq>pl._pq&&!sp.dd){ rings.push({x:pl.x,y:pl.y,r:10,vr:150,life:.3,max:.3,c:COL.cyan}); shake=Math.max(shake,3); }
       pl._fq=sp.fq; pl._pq=sp.pq;
     }
-    pl.dead=!!sp.dd;
+    pl.dead=!!sp.dd; pl.downed=!!sp.dn; pl.reviveT=sp.rv||0;   // downed/revive state is host-authoritative (v200); the guest only mirrors it
     pl.inv=sp.iv; pl.armor=sp.ar; pl.maxArmor=sp.ma; pl.lives=sp.lv; pl.shieldHits=sp.sh;
     pl.wtype=sp.wt; pl.wlevel=sp.wl; if(sp.un)pl.unlocked=sp.un; pl.heavy=sp.hv; if(sp.hu)pl.heavyUnlocked=sp.hu; pl.heavyCharge=sp.hc;
     pl.beamE=sp.be; pl.beamMax=sp.bm; pl.beamActive=!!sp.ba; pl.beamLock=!!sp.bl; if(!isLocal) pl.beamOn=!!sp.bo;   // the guest's OWN beamOn is live input, never overwritten
@@ -6542,6 +6638,7 @@ const COOP=(function(){
     pl.meltdownUnlocked=!!sp.mu; pl.meltdownCharge=sp.mc; pl.meltdownActive=sp.mA; pl.meltdownCd=sp.mD;
     if(sp.bf)pl.buffs=sp.bf; pl.drone=sp.dr?(pl.drone||{ph:0}):null; pl.dmgFlash=sp.df; pl.kick=sp.kk; pl.repair=sp.rp;
     if(!wasDead&&pl.dead){ explode(pl.x,pl.y,COL.green,true); Audio_.big(); }
+    if(wasDowned&&!pl.downed&&!pl.dead) reviveCue(pl);   // downed -> flying edge: replay the host's revive cue (cosmetic only; the state above is already stamped)
   }
   function buildSnap(){
     // one-shot cue events (v197): consume the buffer, so each event rides
