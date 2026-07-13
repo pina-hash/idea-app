@@ -535,6 +535,40 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   reachable mode today (co-op always runs `gameMode='coop'`), so the gate is
   future-proofing, verified synthetically. Solo and hardcore-solo
   death/respawn/game-over paths are unchanged.
+- **Co-op guest reconnect grace (game v202, GUEST drops only):** a guest whose
+  presence drops mid-match no longer ends the match instantly. The host
+  FREEZES the sim (`COOP.graceFrame()` early-returns `update()`, placed
+  BEFORE the state gate so the countdown ticks even if the host was paused
+  when the drop hit; a frozen match means the unattended guest ship can never
+  die, or permadie in hardcore co-op, and the resync target stays
+  deterministic) and holds the room open for `COOP_RECONNECT_GRACE_S` (30s,
+  beside the other co-op dials), showing a countdown on the existing coopMsg
+  modal ("PARTNER DISCONNECTED ... ENDING IN Ns" with the room code, button
+  relabeled END MATCH NOW; the modal now swallows keydowns while visible so
+  Enter/Escape cannot reach the game underneath). The room CODE is the
+  reconnect identity (a reload mints a fresh presence id, so possession of
+  the code, already the join credential with a one-guest cap, is the only
+  stable match): a guest rejoining the same code gets a FULL `rsync`
+  broadcast (the v199 refit sync payload - wallet, own ship snap, build
+  up/ks/hks/modules, run stats - plus mode, sector counters, score/style/
+  mult, run clock, and the partner's ship snap; sent 3x since broadcast has
+  no ack, the guest's lobby-phase guard no-ops repeats), enters through the
+  normal `beginMatch()` and stamps the authoritative state over it
+  (`lastMilestone` via `highestMilestoneAtOrBelow`, the run-resume pattern,
+  so old milestones never re-celebrate); the world itself rebuilds from the
+  normal snapshot stream on resume. Rejoin aids: the co-op lobby prefills
+  the last room code (in-memory for the same tab, plus the device-local
+  `vgcoop_last` localStorage hint for a reopened tab - deliberately NOT
+  `vanguard_`-prefixed so the cloud-save prefs sweep never syncs an
+  ephemeral room code). A DELIBERATE quit (toTitle -> `COOP.leave()`) now
+  broadcasts `bye` so the partner still ends immediately instead of sitting
+  out the grace window; expiry falls through to `partnerLost` exactly as an
+  immediate drop used to, and the guest's connection-lost modal gains a
+  rejoin hint. Explicitly out of scope: HOST drops (the host is the sole
+  simulator; no migration/handoff, the match still ends immediately,
+  unchanged) and guest drops while the host sits in REFIT (immediate end as
+  before; resyncing a live REFIT session is deferred). Solo never enters any
+  of this (`graceFrame` is called only when `coopMatch`).
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The

@@ -795,7 +795,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='201';
+const VERSION='202';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -875,6 +875,10 @@ const COOP_ALIVE_BONUS=3;       // wave spawner keeps this many MORE enemies on 
 const COOP_REVIVE_RADIUS=70;    // px: how close the living ship must hold to the wreck
 const COOP_REVIVE_TIME=2.0;     // s of sustained proximity to complete a revive
 const COOP_REVIVE_HULL_PCT=0.45;// fraction of max armor a revived ship comes back with
+/* CO-OP reconnect dial (v202, GUEST drops only - a HOST drop still ends the match
+   immediately, the host is the sole simulator): how long the host freezes the match
+   and holds the room open for the guest to rejoin before partnerLost fires. */
+const COOP_RECONNECT_GRACE_S=30;// s the host waits for a dropped guest to rejoin
 const stage=document.getElementById('stage');
 const bgC=document.getElementById('bg'), fxC=document.getElementById('fx');
 const bg=bgC.getContext('2d'), fx=fxC.getContext('2d');
@@ -2874,6 +2878,11 @@ function update(dt){
   if(sectorBanner>0) sectorBanner-=dt;
   if(bossCard){ bossCard.t+=dt; if(bossCard.t>=bossCard.dur) bossCard=null; }
   if(milestoneCard){ milestoneCard.t+=dt; if(milestoneCard.t>=milestoneCard.dur) milestoneCard=null; }
+  /* CO-OP guest-drop reconnect grace (v202, host only): freeze the whole sim while
+     the rejoin window counts down (works from 'play' OR 'pause', which is why this
+     sits before the state gate); expiry inside graceFrame falls through to
+     partnerLost exactly as an immediate disconnect used to. */
+  if(coopMatch && COOP.graceFrame()) return;
   if(state!=='play')return;
 
   /* ----- CO-OP guest: no combat simulation. Send input, predict our own
@@ -5371,6 +5380,7 @@ window.addEventListener('keydown',e=>{ if(typingInField()) return;
   if(!document.getElementById('ovlLog').classList.contains('hidden')){ if(e.key==='Escape')closeLog(); e.preventDefault(); return; }
   if(!document.getElementById('ovlHist').classList.contains('hidden')){ if(e.key==='Escape')closeHist(); e.preventDefault(); return; }
   if(!document.getElementById('ovlAch').classList.contains('hidden')){ if(e.key==='Escape')closeAch(); e.preventDefault(); return; }
+  if(!document.getElementById('ovlCoopMsg').classList.contains('hidden')){ e.preventDefault(); return; }   // co-op disconnect/grace modal: swallow keys so Enter never reaches the game-over submit and Escape never pauses under it
   if(!document.getElementById('ovlConfirm').classList.contains('hidden')){
     if(e.key==='Enter') doRestart(); else if(e.key==='Escape') cancelRestart();
     e.preventDefault(); return; }
@@ -5809,6 +5819,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'202',date:'2026',items:['CO-OP now gives a dropped guest a window to reconnect instead of ending the match immediately.']},
  {ver:'201',date:'2026',items:['CO-OP now offers HARDCORE as well as NORMAL - choose it in the lobby before creating or joining a room.']},
  {ver:'200',date:'2026',items:['CO-OP normal mode: a downed ship can be revived by a teammate through proximity, coming back fragile. Hardcore still has no revive.']},
  {ver:'199',date:'2026',items:['CO-OP now has a real REFIT economy: a shared wallet, individual builds, and both players shop between sectors. Enemies scale up for two ships.']},
@@ -6260,7 +6271,9 @@ try{ if(/[?&]vgheadless=1\b/.test(location.search)){
    flash only, Phase 2.5); combat, damage, and scoring are never predicted.
    No sign-in required (broadcast
    only, nothing persisted). Unranked: no leaderboard submit, no telemetry, no
-   achievements, no checkpoint. */
+   achievements, no checkpoint. v202: a GUEST that drops mid-match gets a
+   reconnect grace window with a full-state resync (see graceStart below);
+   a HOST drop still ends the match immediately. */
 const COOP=(function(){
   const ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no O/0/I/1/L (matches the netcheck tool)
   const SNAP_MS=66, INPUT_MS=40, INPUT_STALE_MS=3000;
@@ -6271,6 +6284,8 @@ const COOP=(function(){
   const ESTL=['free','form','reenter','dive','climb','weave','strafe','retreat','foreman','vector','celebrate'];
   const MUTL=[0,'vet','mar','gun'];
   let client=null, channel=null, code='', role=null, phase='idle';
+  let grace=null;          // host-only guest-drop reconnect window (v202): {until, shown}; null when not waiting
+  let lastCode='';         // last room code this page used, prefilled in the lobby so a same-tab rejoin is one click
   let prevMode='normal';
   let coopMode='normal';   // host-chosen match mode ('normal'|'hardcore'); synced to the guest via presence + the start payload. Drives the gameMode set in beginMatch.
   let myJoinAt=0;          // stable presence join timestamp (kept constant across re-tracks so guest ordering never shifts when the host re-broadcasts its mode choice)
@@ -6384,9 +6399,16 @@ const COOP=(function(){
   }
   function onPresence(){
     renderRoster();
-    if(phase==='match'||phase==='ended'){
-      const gone = role==='host' ? !guestPeer() : !hostPeer();
-      if(gone && phase==='match') partnerLost(role==='host'?'PARTNER DISCONNECTED':'HOST DISCONNECTED');
+    if(phase!=='match') return;
+    if(role==='host'){
+      // GUEST drop: open the reconnect grace window instead of ending outright
+      // (v202); a guest presence returning while it is open is the reconnect.
+      if(!guestPeer()){ if(!grace) graceStart(); }
+      else if(grace) graceReconnected();
+    } else if(!hostPeer()){
+      // HOST drop: unchanged, the match ends immediately. The host is the sole
+      // simulator; there is deliberately no migration/handoff.
+      partnerLost('HOST DISCONNECTED');
     }
   }
   /* ---- channel ---- */
@@ -6394,8 +6416,19 @@ const COOP=(function(){
     setStatus('CONNECTING...');
     ensureClient().then(c=>{
       code=codeArg; role=asHost?'host':'guest';
+      lastCode=code;
+      // reconnect hint for a closed tab: deliberately NOT vanguard_-prefixed, so the
+      // cloud-save injection's prefs sweep never syncs an ephemeral room code
+      if(!asHost){ try{ localStorage.setItem('vgcoop_last',JSON.stringify({code:code,at:Date.now()})); }catch(e){} }
       const ch=c.channel('vgcoop:'+code,{config:{broadcast:{self:false,ack:false},presence:{key:myId}}});
       ch.on('broadcast',{event:'start'},({payload:p})=>{ if(role==='guest'&&phase==='lobby'){ coopMode=(p&&p.mode==='hardcore')?'hardcore':'normal'; beginMatch(); } });
+      // full-state resync (v202): the host sends this when a dropped guest rejoins
+      // mid-match; only a lobby-phase guest applies it (repeats are no-ops)
+      ch.on('broadcast',{event:'rsync'},({payload:p})=>{ if(role==='guest'&&phase==='lobby'&&p) rejoinMatch(p); });
+      // deliberate quit (v202): distinguishes "left on purpose" from a real drop,
+      // so a mid-match quit still ends the partner's side immediately instead of
+      // making the host sit out the reconnect grace window
+      ch.on('broadcast',{event:'bye'},()=>{ if(phase==='match') partnerLost(role==='host'?'PARTNER DISCONNECTED':'HOST DISCONNECTED'); });
       ch.on('broadcast',{event:'input'},({payload:p})=>{ if(role!=='host'||!p)return;
         remoteCtrl.mx=+p.mx||0; remoteCtrl.my=+p.my||0; remoteCtrl.fire=!!p.f; remoteCtrl.beam=!!p.b; lastInputAt=performance.now(); });
       ch.on('broadcast',{event:'act'},({payload:p})=>{ if(role!=='host'||!p) return;
@@ -6415,14 +6448,18 @@ const COOP=(function(){
           $('coopSetup').style.display='none'; $('coopRoom').style.display='flex';
           $('coopCodeBig').textContent=code; renderRoster();
         } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
-          if(phase==='match') partnerLost('CONNECTION LOST');
+          if(phase==='match') partnerLost('CONNECTION LOST',guestRejoinHint());
           else { leave(); openLobby(); setStatus('CHANNEL ERROR ('+status+'). TRY AGAIN.'); }
-        } else if(status==='CLOSED' && phase==='match'){ partnerLost('CONNECTION LOST'); }
+        } else if(status==='CLOSED' && phase==='match'){ partnerLost('CONNECTION LOST',guestRejoinHint()); }
       });
       channel=ch;
     }).catch(err=>{ setStatus('CO-OP UNAVAILABLE: '+(err&&err.message||'network error')); });
   }
   function leave(){
+    // a DELIBERATE quit mid-match tells the partner to end immediately (v202):
+    // without this, presence loss alone would start the reconnect grace wait
+    if(channel&&phase==='match'){ try{ channel.send({type:'broadcast',event:'bye',payload:{}}); }catch(e){} }
+    grace=null;
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(coopMatch) gameMode=prevMode||'normal';   // restore the pre-coop solo mode after ANY co-op match (gameMode is 'coop' OR 'hardcore'); runs before coopMatch is cleared just below
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
@@ -6433,7 +6470,11 @@ const COOP=(function(){
   function openLobby(){
     coopMode='normal';   // every lobby opens on NORMAL; the host opts into HARDCORE explicitly
     $('coopSetup').style.display='flex'; $('coopRoom').style.display='none';
-    $('coopStartBtn').style.display='none'; $('coopCodeIn').value=''; setStatus('');
+    // rejoin aid (v202): prefill the last room code - same tab from memory, a
+    // reopened tab from the device-local vgcoop_last hint (fresh codes only)
+    let pre=lastCode;
+    if(!pre){ try{ const j=JSON.parse(localStorage.getItem('vgcoop_last')||'0'); if(j&&j.code&&Date.now()-(j.at||0)<300000) pre=String(j.code); }catch(e){} }
+    $('coopStartBtn').style.display='none'; $('coopCodeIn').value=pre||''; setStatus('');
     showOverlay('ovlCoop');
     ensureClient().catch(err=>setStatus('CO-OP UNAVAILABLE: '+(err&&err.message||'could not load the realtime client')));
   }
@@ -7123,15 +7164,105 @@ const COOP=(function(){
     }catch(err){ console.error('VANGUARD co-op end error:',err); }
     showOverlay('ovlOver');
   }
-  function partnerLost(msg){
+  /* ---- guest-drop reconnect grace (v202, HOST side only) ----
+     When the GUEST's presence drops mid-match the host no longer ends the match
+     outright: the sim FREEZES (update() early-returns via graceFrame, so an
+     unattended guest ship can never die - or permadie in hardcore co-op - while
+     its pilot is gone, and the resync target stays deterministic) and the
+     channel stays open for COOP_RECONNECT_GRACE_S. A guest rejoining the same
+     room code within the window gets a FULL state resync ('rsync': mode,
+     sector, score, wallet, run stats, both ships incl. build and downed state)
+     and the match resumes. The code IS the identity: a page reload mints a
+     fresh presence id, so possession of the room code - already the join
+     credential, one guest max - is the only stable way to recognize the
+     returning pilot. Expiry falls through to partnerLost exactly as an
+     immediate drop used to. Deliberately out of scope: HOST drops (sole
+     simulator, no migration) and drops while the host sits in REFIT (resyncing
+     a live REFIT session; graceStart falls back to the old immediate end). */
+  function graceStart(){
+    if(state!=='play'&&state!=='pause'){ partnerLost('PARTNER DISCONNECTED'); return; }   // REFIT (or any other non-freezable state): unchanged immediate end
+    grace={until:performance.now()+COOP_RECONNECT_GRACE_S*1000,shown:-1};
+    actQueue.length=0; remoteCtrl={mx:0,my:0,fire:false,beam:false};
+    if(Audio_.stopAllLoops)Audio_.stopAllLoops();
+    try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){}
+    graceMsg();
+  }
+  function graceMsg(){
+    const left=grace?Math.max(0,Math.ceil((grace.until-performance.now())/1000)):0;
+    if(!grace||left===grace.shown) return;
+    grace.shown=left;
+    const t2=$('coopMsgTitle'), b2=$('coopMsgBody'), mb=$('coopMsgBtn'), o=$('ovlCoopMsg');
+    if(t2) t2.textContent='PARTNER DISCONNECTED';
+    if(b2) b2.innerHTML='CONNECTION TO THE OTHER PILOT DROPPED. THE MATCH IS PAUSED FOR A RECONNECT.<br>THEY CAN REJOIN FROM THE CO-OP LOBBY WITH ROOM CODE <span style="color:'+COL.gold+'">'+code+'</span>.<br>ENDING IN '+left+'s.';
+    if(mb) mb.textContent='END MATCH NOW';
+    if(o) o.classList.remove('hidden');
+  }
+  /* called from update() every frame, BEFORE the state gate (so the countdown
+     ticks even if the host was paused when the guest dropped); returns true
+     while the window is open, which freezes the whole simulation */
+  function graceFrame(){
+    if(!grace||role!=='host') return false;
+    if(performance.now()>=grace.until){ partnerLost('PARTNER DISCONNECTED','YOUR PARTNER DID NOT RECONNECT IN TIME, SO THE MATCH HAS ENDED. YOUR SOLO PROGRESS IS UNAFFECTED.'); return true; }
+    graceMsg();
+    return true;
+  }
+  function graceReconnected(){
+    grace=null;
+    const o=$('ovlCoopMsg'); if(o) o.classList.add('hidden');
+    const mb=$('coopMsgBtn'); if(mb) mb.textContent='BACK TO TITLE';
+    remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now(); lastSnapAt=0;
+    // FULL resync, re-sent a few times (broadcast has no ack; the rejoining
+    // guest applies the first one it sees, its phase guard no-ops the repeats).
+    // The sim is frozen until the host's next update frame, so every send
+    // carries the identical state.
+    const send=()=>{ try{ channel&&channel.send({type:'broadcast',event:'rsync',payload:resyncPayload()}); }catch(e){} };
+    send(); let n=0; const iv=setInterval(()=>{ if(++n>=3||!coopMatch||phase!=='match'){ clearInterval(iv); return; } send(); },700);
+  }
+  /* everything the rejoining guest needs to render and play correctly at once,
+     not drip-fed by later incremental snapshots: the v199 refit sync payload
+     (wallet, sector, own ship snap + build up/ks/hks/modules, match-wide run
+     stats) plus score/style/mult, sector-progress counters, run clock, mode,
+     and the partner ship's snap. The world itself (enemies/bullets/hazards/
+     boss) rebuilds from the normal snapshot stream the moment play resumes. */
+  function resyncPayload(){
+    const p=refitSyncPayload('rsync');
+    p.mode=coopMode;
+    p.sc=Math.round(window.scoreT||0); p.st=Math.round(window.style||0); p.mult=window.mult||1;
+    p.sk=sectorKills; p.kfb=killsForBoss; p.bp=bossPending?1:0;
+    p.rt=Math.round(runTime||0); p.kl=runKills||0;
+    p.hs=shipSnap(players[0]);
+    return p;
+  }
+  /* GUEST side of the resync: enter the match through the normal clean path
+     (beginMatch -> startGame builds ships, clears mirrors/buffers, state='play'),
+     then stamp the authoritative match state over the fresh start. */
+  function rejoinMatch(p){
+    coopMode=(p&&p.mode==='hardcore')?'hardcore':'normal';
+    beginMatch();
+    sector=p.sec||sector; sectorKills=p.sk||0; if(p.kfb!=null)killsForBoss=p.kfb; bossPending=!!p.bp;
+    window.scoreT=p.sc||0; window.style=p.st||0; window.mult=p.mult||1;
+    lastMilestone=highestMilestoneAtOrBelow(window.scoreT||0);   // a rejoin never replays milestones already celebrated (the run-resume pattern)
+    runTime=p.rt||0; runKills=p.kl||0;
+    refitApplySync(p);   // wallet + match-wide run stats + OWN ship state and build (up/ks/hks/modules) + applyUpgrades, the v199 sync pattern
+    const partner=players[1-localIndex];
+    if(p.hs&&partner) applyShip(partner,p.hs,false);   // the partner renders true immediately; snapshots keep it live from here
+    triggerBanner();   // startGame stamped SECTOR I; show the real sector
+    try{ Audio_.lane(sectorTheme().fk||'idea'); }catch(e){}
+  }
+  function guestRejoinHint(){
+    return role==='guest'?'THE CONNECTION DROPPED. YOUR PARTNER MAY STILL BE HOLDING THE MATCH OPEN: GO BACK TO TITLE, OPEN CO-OP, AND JOIN WITH THE SAME ROOM CODE TO RESUME.':undefined;
+  }
+  function partnerLost(msg,body){
     if(phase!=='match') return;
+    grace=null;   // an expired or aborted reconnect window ends here; also covers the host's own channel dying mid-grace
     phase='ended';
     refitSessClear();   // a partner lost mid-REFIT must stop the heartbeat + pending purchase timers
     state='over';   // freeze the sim behind the modal (Escape cannot un-pause 'over'); no overlay swap
     if(Audio_.stopAllLoops)Audio_.stopAllLoops();
-    const t2=$('coopMsgTitle'), b2=$('coopMsgBody'), o=$('ovlCoopMsg');
+    const t2=$('coopMsgTitle'), b2=$('coopMsgBody'), mb=$('coopMsgBtn'), o=$('ovlCoopMsg');
     if(t2) t2.textContent=msg||'CONNECTION LOST';
-    if(b2) b2.textContent='THE MATCH ENDED BECAUSE THE OTHER PILOT LEFT THE ROOM. YOUR SOLO PROGRESS IS UNAFFECTED.';
+    if(b2) b2.textContent=body||'THE MATCH ENDED BECAUSE THE OTHER PILOT LEFT THE ROOM. YOUR SOLO PROGRESS IS UNAFFECTED.';
+    if(mb) mb.textContent='BACK TO TITLE';   // graceMsg relabels it END MATCH NOW; always restore
     if(o) o.classList.remove('hidden');
   }
   /* ---- wiring ---- */
@@ -7165,6 +7296,12 @@ const COOP=(function(){
     isGuest:()=>coopMatch&&role==='guest',
     get remoteCtrl(){ return remoteCtrl; },
     sendAct, drainActs, hostFrame, guestFrame, finishMatch, leave, openLobby,
+    // guest-drop reconnect grace (v202): graceFrame is update()'s per-frame sim
+    // freeze + countdown hook; the _grace* pair exists for the ?coopstub=1
+    // scripted drives only (read the window, fast-forward its expiry)
+    graceFrame,
+    _graceInfo:()=>grace?{left:Math.max(0,Math.round(grace.until-performance.now()))}:null,
+    _graceSet:(ms)=>{ if(grace) grace.until=performance.now()+(+ms||0); },
     // co-op REFIT orchestration (v199): shared wallet, individual builds, host arbitrates
     refitOpenHost, refitGuestBuy, refitReadyLocal, refitHostChanged, refitUI,
     // generic cue-event pushes (v197): additive bookkeeping beside the host's
