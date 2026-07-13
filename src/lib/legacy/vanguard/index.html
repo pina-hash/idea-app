@@ -581,6 +581,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <div class="refitwrap" id="refitWrap">
       <h2 class="ovh">REFIT</h2>
       <div class="tag">SECTOR <span id="refitNext">II</span> AHEAD &nbsp;·&nbsp; BALANCE <b id="refitBal" style="color:var(--gold)">0</b> i¢</div>
+      <div class="tag" id="refitCoopStatus" style="display:none"></div>
       <div class="shop" id="refitItems"></div>
       <button class="obtn" id="launchBtn">LAUNCH</button>
     </div>
@@ -785,7 +786,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='198';
+const VERSION='199';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -851,6 +852,14 @@ const BAL_META = [
 function freshBAL(){ return JSON.parse(JSON.stringify(BAL_DEFAULTS)); }
 function loadTuneBAL(){ const b=freshBAL(); try{ const s=JSON.parse(localStorage.getItem('vanguard_baltune')||'null'); if(s) for(const k in s) if(k in b) b[k]=s[k]; }catch(e){} return b; }
 let BAL = freshBAL();
+/* CO-OP difficulty dials (v199): two ships bring roughly double the firepower, so a
+   co-op match runs modestly tougher and denser enemies LAYERED ON TOP of the normal
+   sector curve (enemyHpMul, the wave spawner). Conservative starting points for real
+   playtesting; tune here, nothing else needs to change. Solo/hardcore never read
+   these: every use is gated on coopMatch. The playfield itself never grows. */
+const COOP_ENEMY_HP_MUL=1.35;   // grunt/elite HP multiplier with two ships
+const COOP_BOSS_HP_MUL=1.5;     // boss HP multiplier with two ships
+const COOP_ALIVE_BONUS=3;       // wave spawner keeps this many MORE enemies on the field
 const stage=document.getElementById('stage');
 const bgC=document.getElementById('bg'), fxC=document.getElementById('fx');
 const bg=bgC.getContext('2d'), fx=fxC.getContext('2d');
@@ -1795,7 +1804,7 @@ function triggerBanner(){ sectorBanner=2.4; bannerSec=sector; warpT=0.8; buildCe
 
 /* ============================= spawning ============================= */
 /* threat dials: enemy durability and global enemy-bullet budget (see DESIGN_DIRECTION.md Pillar 5) */
-function enemyHpMul(){ return (1+sector*BAL.enemyHpLin)*Math.pow(BAL.enemyHpComp,Math.max(0,sector-BAL.enemyHpCompFrom)); }
+function enemyHpMul(){ return (1+sector*BAL.enemyHpLin)*Math.pow(BAL.enemyHpComp,Math.max(0,sector-BAL.enemyHpCompFrom))*(coopMatch?COOP_ENEMY_HP_MUL:1); }
 function ebulCap(){ return BAL.ebulCapBase+sector*BAL.ebulCapPer; }
 function enemyFireScale(){ let hcMul=1; if(gameMode==='hardcore'){ const t=clamp((sector-1)/Math.max(1,(BAL.hcFireMulFrom-1)),0,1); hcMul=BAL.hcFireMulEarly+(BAL.hcFireMul-BAL.hcFireMulEarly)*t; } return (1+sector*BAL.fireCadenceScale)*hcMul; }
 function ebulSpeedMul(){ return 1+Math.min(0.45,sector*0.015); }
@@ -1922,7 +1931,7 @@ function spawnBoss(forceFk){
     else{ fk=themed||factionForSector(); } }
   if(bossesSeen.indexOf(fk)<0) bossesSeen.push(fk);
   const F=FACTIONS[fk];
-  const hp=BAL.bossBase + sector*BAL.bossLin + sector*sector*BAL.bossQuad;
+  const hp=Math.round((BAL.bossBase + sector*BAL.bossLin + sector*sector*BAL.bossQuad)*(coopMatch?COOP_BOSS_HP_MUL:1));
   boss={fk,c:F.c,draw:drawBoss,variant:2, x:W/2, y:-90, ty:128, r:60, name:F.name,
     hp:hp, maxhp:hp, core:0, phase:0, lastPhase:0, ph:0, fire:Math.max(0.18,gameMode==='hardcore'?0.3:1.0/(1+sector*0.13)), sweep:0, entering:true,
     flash:0, dead:false, dying:false, deathT:0, salvo:0,
@@ -2066,7 +2075,7 @@ function nextSectorCheck(dt){
       for(const e of enemies){ if(e.dead)continue; e.slot=-1; e.state='free'; e.vy=Math.max(60,Math.abs(e.vy)||60); }
     } else {
       waveTimer-=dt;
-      if(alive<(sector>=10?9:6) && waveTimer<=0 && gameMode!=='calib' && !(gameMode==='dev' && window.__devNoSpawn)){ spawnWave(); waveTimer=rnd(1.3,2.3); }
+      if(alive<((sector>=10?9:6)+(coopMatch?COOP_ALIVE_BONUS:0)) && waveTimer<=0 && gameMode!=='calib' && !(gameMode==='dev' && window.__devNoSpawn)){ spawnWave(); waveTimer=rnd(1.3,2.3); }
     }
   } else {
     waveTimer-=dt;
@@ -3121,7 +3130,7 @@ function update(dt){
   if(scoreFlash>0) scoreFlash-=dt*2.4;
   if(bossSpoils>0){ bossSpoils-=dt; if(bossSpoils<=0){ for(let i=pods.length-1;i>=0;i--) applyPod(pods[i]); pods.length=0;
     if(gameOverT<=0){
-      if(coopMatch){ pops.push({x:W/2,y:H*0.4,txt:'REFIT SKIPPED (CO-OP BETA)',c:COL.gold,life:1.6,max:1.6}); launchFromRefit(); }   // Phase 1: no synced shop yet, sectors chain directly
+      if(coopMatch){ COOP.refitOpenHost(); }   // co-op REFIT (v199): shared wallet, individual builds, host arbitrates; resumes when BOTH pilots are ready
       else openRefit();
     } } }
 
@@ -3804,6 +3813,9 @@ function launchFromRefit(){ sector++; waveIdx=0; waveTimer=1.6; bossPending=fals
   document.getElementById('touch').classList.toggle('hidden', !isTouch);
   // Cross-device checkpoint: a new sector just began (clean loadout, coins spent).
   if(gameMode!=='dev'&&gameMode!=='tune'&&gameMode!=='calib'&&gameMode!=='coop'){ try{ window.__ideaVanguardSaveCheckpoint&&window.__ideaVanguardSaveCheckpoint(); }catch(e){} } }
+/* co-op: the LAUNCH control becomes a READY signal and the match resumes only when
+   BOTH pilots have signalled (the host arbitrates). Solo/hardcore: unchanged direct launch. */
+function refitLaunchRequested(){ if(state!=='refit')return; if(coopMatch){ COOP.refitReadyLocal(); } else launchFromRefit(); }
 /* ---- shared shop rendering (icons + cards + previews) ---- */
 function svgI(p){ return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
 const SHOP_ICONS={
@@ -4079,14 +4091,21 @@ function setAutofire(v){ autofire=v; try{localStorage.setItem('vanguard_autofire
 function setGfx(v){ GFX=(v==='med'||v==='low')?v:'full'; LOWFX=(GFX==='low'); try{localStorage.setItem('vanguard_gfx',GFX);}catch(e){} const b=el('lowfxBtn'); if(b)b.textContent='GRAPHICS: '+GFX.toUpperCase(); }
 function setLowFX(v){ setGfx(v?'low':'full'); }
 function setMoveMode(v){ moveMode_pref=(v==='lock'?'lock':'hold'); try{localStorage.setItem('vanguard_movemode',moveMode_pref);}catch(e){} const b=el('moveModeBtn'); if(b)b.textContent='MOUSE MOVE: '+(moveMode_pref==='lock'?'POINTER LOCK':'FOLLOW'); if(moveMode_pref!=='lock' && document.pointerLockElement){ try{document.exitPointerLock();}catch(e){} } if(typeof refreshControlsHint==='function') refreshControlsHint(); }
-function buildRefit(){ el('refitBal').textContent=player.coins.toLocaleString();
+/* The run's spendable coins live on players[0] (the established shared-wallet
+   convention, see the HUD's coin readout): in solo that IS `player`, so nothing
+   changes; in co-op both pilots draw from this one pool. */
+function walletShip(){ return players[0]||player; }
+function buildRefit(){ el('refitBal').textContent=walletShip().coins.toLocaleString();
   renderShopGrid(el('refitItems'), refitItems(), {
-    afford:it=>{ const maxed=(it.mx>0&&it.lv>=it.mx)||!it.can; return !maxed && player.coins>=it.cost; },
+    afford:it=>{ const maxed=(it.mx>0&&it.lv>=it.mx)||!it.can; return !maxed && walletShip().coins>=it.cost; },
     onBuy:(i)=>{ const it=refitItems()[i]; const maxed=(it.mx>0&&it.lv>=it.mx)||!it.can;
-      if(maxed||!it.can||player.coins<it.cost){ (Audio_.play&&Audio_.play('buy_fail'))||Audio_.hit(); return; }
-      player.coins-=it.cost; runCoinsSpent+=it.cost; it.buy(); applyUpgrades(); ((Audio_.play&&Audio_.play('buy'))||Audio_.pickup()); buildRefit(); }
+      if(coopMatch&&COOP.isGuest()){ COOP.refitGuestBuy(i,it,maxed); return; }   // guest purchases are REQUESTS: the host validates against the live wallet and applies to the guest's own ship
+      if(maxed||!it.can||walletShip().coins<it.cost){ (Audio_.play&&Audio_.play('buy_fail'))||Audio_.hit(); return; }
+      walletShip().coins-=it.cost; runCoinsSpent+=it.cost; it.buy(); applyUpgrades(); ((Audio_.play&&Audio_.play('buy'))||Audio_.pickup()); buildRefit();
+      if(coopMatch&&COOP.isHost()) COOP.refitHostChanged(); }   // the shared wallet moved: push the new balance to the guest now, not on the next heartbeat
   });
   refitHighlight(false);
+  COOP.refitUI();   // co-op status line + READY relabel (solo: hides the line, restores LAUNCH)
 }
 /* ---- REFIT keyboard navigation (works alongside clicking) ---- */
 let refitSel=0;
@@ -5273,7 +5292,7 @@ window.addEventListener('keydown',e=>{ if(typingInField()) return;
     if(k===keybinds.pause||e.key==='Escape'){ pauseToggle(); }
     else if(k==='r'){ showRestartConfirm(); }   // keyboard path to RESTART RUN (confirm with Enter, cancel with Esc)
   } else if(state==='refit'){
-    if(e.key==='Enter'){ launchFromRefit(); }
+    if(e.key==='Enter'){ refitLaunchRequested(); }
     else if(e.key==='ArrowLeft'){ refitMoveSel(-1); e.preventDefault(); }
     else if(e.key==='ArrowRight'){ refitMoveSel(1); e.preventDefault(); }
     else if(e.key==='ArrowUp'){ refitTabStep(-1); e.preventDefault(); }
@@ -5305,7 +5324,7 @@ el('btnHeavy').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropa
 el('btnParry').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(state==='play')tryParry();},{passive:false});
 el('btnMelt').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();if(state==='play')tryMeltdown();},{passive:false});
 el('btnPause').addEventListener('pointerdown',e=>{e.preventDefault();e.stopPropagation();pauseToggle();},{passive:false});
-el('launchBtn').addEventListener('click',()=>{ if(state==='refit')launchFromRefit(); });
+el('launchBtn').addEventListener('click',()=>{ if(state==='refit')refitLaunchRequested(); });
 
 function pauseToggle(){ if(state==='play'||state==='pause'){ Audio_.play&&Audio_.play('pause'); } if(state==='play'){ state='pause'; clearInput(); if(Audio_.stopAllLoops)Audio_.stopAllLoops(); showOverlay('ovlPause'); try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){}
     const pmb=document.getElementById('pauseMuteBtn'); if(pmb)pmb.textContent='SOUND: '+(Audio_.muted?'OFF':'ON'); }
@@ -5686,6 +5705,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'199',date:'2026',items:['CO-OP now has a real REFIT economy: a shared wallet, individual builds, and both players shop between sectors. Enemies scale up for two ships.']},
  {ver:'198',date:'2026',items:['Fixed CO-OP guest fire sound going silent during a sustained hold - it now repeats at the weapon\'s actual pace.']},
  {ver:'197',date:'2026',items:['CO-OP now replays sound and effects for enemy deaths, hits, and other world events for the guest - not just your own actions.']},
  {ver:'195',date:'2026',items:['CO-OP visual parity pass 2: enemies now telegraph and animate correctly for the guest, and FLAK clouds are visible.']},
@@ -6053,6 +6073,7 @@ try{ if(/[?&]coopstub=1\b/.test(location.search)){
     removeChannel:function(ch){ try{ ch.unsubscribe(); }catch(e){} }
   }); } };
   // stub-only introspection + force-down, for the two-client regression drive
+  window.__vgStubEval=function(code){ try{ const r=eval(code); return r===undefined?null:r; }catch(e){ return 'ERR:'+(e&&e.message); } };   // game-scope eval (the module lets are closure-scoped, unreachable from the console otherwise)
   window.__vgStubInfo=function(){ return { state:state, mode:gameMode, coop:coopMatch, li:localIndex, sector:sector, score:window.scoreT||0, enemies:enemies.length, ebul:ebul.length,
     players:players.map(p=>p?{pi:p.pi,x:Math.round(p.x),y:Math.round(p.y),dead:p.dead,lives:p.lives,armor:p.armor}:null), boss:!!boss }; };
   window.__vgStubForceDown=function(){ for(const p of players){ if(p&&!p.dead){ p.shieldHits=0; p.guardUsed=true; p.armor=1; p.inv=0; p.lives=0; playerHit(p); } } };
@@ -6251,8 +6272,12 @@ const COOP=(function(){
       ch.on('broadcast',{event:'start'},()=>{ if(role==='guest'&&phase==='lobby') beginMatch(); });
       ch.on('broadcast',{event:'input'},({payload:p})=>{ if(role!=='host'||!p)return;
         remoteCtrl.mx=+p.mx||0; remoteCtrl.my=+p.my||0; remoteCtrl.fire=!!p.f; remoteCtrl.beam=!!p.b; lastInputAt=performance.now(); });
-      ch.on('broadcast',{event:'act'},({payload:p})=>{ if(role==='host'&&p) actQueue.push(p); });
+      ch.on('broadcast',{event:'act'},({payload:p})=>{ if(role!=='host'||!p) return;
+        if(p.t==='rbuy'||p.t==='rrdy'){ refitHostAct(p); return; }   // REFIT acts resolve immediately (drainActs only runs in play; the sim is paused in refit)
+        actQueue.push(p); });
+      ch.on('broadcast',{event:'refit'},({payload:p})=>{ if(role==='guest'&&p) refitGuestMsg(p); });
       ch.on('broadcast',{event:'snap'},({payload:p})=>{ if(role!=='guest'||!p) return;
+        if(state==='refit'&&gRefit) refitGuestLaunch();   // the host only snapshots in play, so a missed 'launch' can never strand the guest in REFIT
         latestSnap=p;                                  // newest: own-ship reconcile only, never delayed
         snapBuf.push({at:performance.now(),s:p}); if(snapBuf.length>SNAP_BUF_MAX) snapBuf.shift(); });
       ch.on('broadcast',{event:'end'},({payload:p})=>{ if(role==='guest'&&phase==='match') showEnd(p||{}); });
@@ -6275,7 +6300,7 @@ const COOP=(function(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(gameMode==='coop') gameMode=prevMode||'normal';
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
-    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); evBuf.length=0; bossFinRep=false;
+    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); evBuf.length=0; bossFinRep=false; refitSessClear();
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
@@ -6294,6 +6319,7 @@ const COOP=(function(){
     gameMode='coop';
     startGame();                                   // builds players[localIndex] (baseline loadout)
     const oi=1-localIndex, s=makeShip(oi);         // the partner's ship, same baseline
+    s.ks={}; s.hks={}; s.modules=[0,0,0];          // the per-run fields startGame gives the local ship (the REFIT shop reads/writes them)
     players[oi]=s; applyUpgrades(s); s.armor=s.maxArmor; s.beamE=s.beamMax;
     players[0].x=shipSpawnX(0); players[1].x=shipSpawnX(1);
     eidSeq=1;
@@ -6316,6 +6342,149 @@ const COOP=(function(){
       else if(a.t==='wnext') switchWeapon(a.dir===-1?-1:1,players[1]);
       else if(a.t==='wsel'&&a.w) selectWeapon(a.w,players[1]);
     }
+  }
+  /* ---- co-op REFIT (v199): shared wallet, individual builds, host arbitrates ----
+     At a sector transition the REFIT overlay opens on BOTH clients. The wallet is
+     players[0].coins (the established shared-wallet convention); a purchase applies
+     to the BUYING pilot's own ship. The host's purchases run the solo path directly;
+     the guest's are REQUESTS relayed on the existing sendAct channel ('rbuy'), and
+     the host validates each against the wallet AT THE MOMENT it processes it, so
+     concurrent spends are arbitrated first-come-first-served. The shop UI is the
+     unmodified solo shop (buildRefit/renderShopGrid/refitItems): those read the
+     global `player`, which on the guest already IS the guest ship, and the host
+     points it at players[1] for the one validation call. Because shipSnap never
+     carried up/ks/hks/modules, the refit messages sync them (plus a shipSnap) so
+     the guest's shop renders its real levels and its movement prediction picks up
+     ENGINE buys via applyUpgrades. The match resumes only when BOTH pilots signal
+     ready ('rrdy'); an 800ms host heartbeat re-sends wallet/ready/build state so a
+     dropped broadcast self-heals, and a snapshot arriving while the guest is still
+     in refit (host can only snapshot in play) is a launch fallback. */
+  let refitSess=null;   // host: {ready:[host,guest], iv:heartbeat id, lastBuyAt}
+  let gRefit=null;      // guest: {ready, hostReady, pending:{i,n,to}, msg, msgT, lastW}
+  function refitSend(p){ try{ channel&&channel.send({type:'broadcast',event:'refit',payload:p}); }catch(e){} }
+  function refitSyncPayload(op){
+    const g=players[1];
+    return {op:op, co:Math.round((players[0]&&players[0].coins)||0),
+      rd:[refitSess&&refitSess.ready[0]?1:0, refitSess&&refitSess.ready[1]?1:0], sec:sector,
+      gs:g?shipSnap(g):0, up:(g&&g.up)||0, ks:(g&&g.ks)||0, hks:(g&&g.hks)||0, mods:(g&&g.modules)||0,
+      // match-wide run stats the shop's keystone/module gates read (runDwell stays
+      // per-client: each pilot's own weapon-dwell is the honest per-ship stat)
+      rs:{rb:runBosses||0,rh:runHits||0,rp:runPerfect||0,rr:runParries||0,rbo:runBombs||0,rc:runCoinsEarned||0,ms:window.maxStyle||0,hu:runHeavyUse}};
+  }
+  function refitOpenHost(){
+    if(!(coopMatch&&role==='host')){ openRefit(); return; }   // safety net: never strand a transition
+    refitSessClear();
+    refitSess={ready:[false,false],iv:0,lastBuyAt:0};
+    openRefit();
+    refitSend(refitSyncPayload('open'));
+    refitSess.iv=setInterval(()=>{ if(!refitSess)return; refitSend(refitSyncPayload('state')); },800);
+  }
+  function refitSessClear(){ if(refitSess&&refitSess.iv)clearInterval(refitSess.iv); refitSess=null;
+    if(gRefit&&gRefit.pending)clearTimeout(gRefit.pending.to); gRefit=null; }
+  function refitHostAct(p){
+    if(!(coopMatch&&role==='host'&&state==='refit'&&refitSess)) return;
+    if(p.t==='rrdy'){ if(!refitSess.ready[1]){ refitSess.ready[1]=true; refitUI(); refitSend(refitSyncPayload('state')); refitTryLaunch(); } return; }
+    const now=performance.now(); if(now-(refitSess.lastBuyAt||0)<60) return; refitSess.lastBuyAt=now;   // flood guard: purchases arbitrate one at a time; a dropped request surfaces via the guest's own timeout
+    const g=players[1], w=players[0]; if(!g||!w) return;
+    let ok=false, msg='';
+    const prevPlayer=player, prevDwell=runDwell;
+    player=g;                       // the shop item definitions read the global `player`: point them at the BUYING ship for this one call (sim is paused in refit; restored below)
+    if(p.dw) runDwell=p.dw;         // keystone dwell gates judge the guest's OWN weapon use, sent with the request
+    g.coins=w.coins;                // mirror the shared wallet onto the buying ship so cost checks and self-charging buys (module uninstall) see the real pool
+    try{
+      const items=refitItems(); let it=items[p.i];
+      if(!it||(p.n&&it.name!==p.n)) it=items.find(q=>q&&q.name===p.n&&(q.grp||'SYSTEMS')===(p.g||'SYSTEMS'));   // index drift safety: fall back to a name match
+      const maxed=it?((it.mx>0&&it.lv>=it.mx)||!it.can):true;
+      if(!it){ msg='ITEM UNAVAILABLE'; }
+      else if(maxed||!it.can){ msg='NOT AVAILABLE'; }
+      else if(g.coins<it.cost){ msg='INSUFFICIENT FUNDS'; }
+      else { g.coins-=it.cost; runCoinsSpent+=it.cost; it.buy(); applyUpgrades(g); ok=true; }
+    }catch(err){ msg='PURCHASE FAILED'; }
+    w.coins=Math.max(0,Math.round(g.coins)); g.coins=0;   // wallet result back to the canonical slot (players[1] never holds coins)
+    player=prevPlayer; runDwell=prevDwell;
+    const res=refitSyncPayload('res'); res.ok=ok?1:0; res.i=p.i; res.n=p.n||''; res.msg=msg;
+    refitSend(res);
+    if(ok){ ((Audio_.play&&Audio_.play('buy'))||Audio_.pickup()); }   // audible host-side too: the shared wallet moved
+    buildRefit();   // refresh the host's own balance + afford styling
+  }
+  function refitTryLaunch(){
+    if(!(refitSess&&refitSess.ready[0]&&refitSess.ready[1])) return;
+    refitSessClear();
+    refitSend({op:'launch'});
+    launchFromRefit();
+    refitUI();
+  }
+  function refitApplySync(p){
+    if(players[0]&&p.co!=null) players[0].coins=p.co;
+    if(p.rs){ runBosses=p.rs.rb||0; runHits=p.rs.rh||0; runPerfect=p.rs.rp||0; runParries=p.rs.rr||0; runBombs=p.rs.rbo||0; runCoinsEarned=p.rs.rc||0; window.maxStyle=p.rs.ms||window.maxStyle; if(p.rs.hu)runHeavyUse=p.rs.hu; }
+    const me=players[localIndex];
+    if(me){ if(p.gs) applyShip(me,p.gs,true);
+      if(p.up) me.up=p.up; if(p.ks) me.ks=p.ks; if(p.hks) me.hks=p.hks; if(p.mods) me.modules=p.mods;
+      applyUpgrades(me); }   // derived stats (speed, beamMax, maxArmor) follow the synced build, so guest movement prediction honors ENGINE buys
+  }
+  function refitGuestMsg(p){
+    if(!(coopMatch&&role==='guest')) return;
+    if(p.op==='launch'){ refitGuestLaunch(); return; }
+    if(p.op==='open'){
+      refitApplySync(p);
+      if(state!=='refit'){ gRefit={ready:false,hostReady:!!(p.rd&&p.rd[0]),pending:null,msg:'',msgT:0}; openRefit(); }
+      else { if(gRefit)gRefit.hostReady=!!(p.rd&&p.rd[0]); refitUI(); }
+      return; }
+    if(state!=='refit'||!gRefit) return;
+    if(p.op==='state'){
+      const wPrev=(players[0]&&players[0].coins)||0;
+      refitApplySync(p); gRefit.hostReady=!!(p.rd&&p.rd[0]);
+      if(gRefit.ready) sendAct('rrdy');   // self-healing: re-assert readiness until the launch lands
+      if(((players[0]&&players[0].coins)||0)!==wPrev) buildRefit(); else refitUI();
+      return; }
+    if(p.op==='res'){
+      refitApplySync(p);
+      if(gRefit.pending){ clearTimeout(gRefit.pending.to); gRefit.pending=null; }
+      if(p.ok){ ((Audio_.play&&Audio_.play('buy'))||Audio_.pickup()); gRefit.msg=''; }
+      else { ((Audio_.play&&Audio_.play('buy_fail'))||Audio_.hit()); gRefit.msg=p.msg||'PURCHASE REJECTED'; gRefit.msgT=performance.now()+4000; }
+      buildRefit();
+      return; }
+  }
+  function refitGuestBuy(i,it,maxed){
+    if(!(coopMatch&&role==='guest'&&state==='refit'&&gRefit)) return;
+    if(gRefit.pending){ gRefit.msg='PURCHASE PENDING...'; gRefit.msgT=performance.now()+1200; refitUI(); return; }   // one request in flight at a time
+    const w=(players[0]&&players[0].coins)||0;
+    if(!it||maxed||!it.can||w<it.cost){ (Audio_.play&&Audio_.play('buy_fail'))||Audio_.hit(); return; }   // local pre-check mirrors solo's instant reject; the host re-validates regardless
+    const to=setTimeout(()=>{ if(gRefit&&gRefit.pending){ gRefit.pending=null; gRefit.msg='NO RESPONSE - TRY AGAIN'; gRefit.msgT=performance.now()+4000; ((Audio_.play&&Audio_.play('buy_fail'))||Audio_.hit()); refitUI(); } },4000);
+    gRefit.pending={i:i,n:it.name,to:to};
+    sendAct('rbuy',{i:i,n:it.name,g:it.grp||'SYSTEMS',dw:runDwell});
+    refitUI();
+  }
+  function refitReadyLocal(){
+    if(state!=='refit') return;
+    if(role==='host'){ if(!refitSess) return;
+      if(!refitSess.ready[0]){ refitSess.ready[0]=true; Audio_.hit&&Audio_.hit(); refitSend(refitSyncPayload('state')); refitUI(); }
+      refitTryLaunch(); return; }
+    if(role==='guest'){ if(!gRefit) return;
+      if(!gRefit.ready){ gRefit.ready=true; Audio_.hit&&Audio_.hit(); }
+      sendAct('rrdy'); refitUI(); }
+  }
+  function refitGuestLaunch(){
+    if(!(coopMatch&&role==='guest')) return;
+    if(gRefit&&gRefit.pending)clearTimeout(gRefit.pending.to); gRefit=null;
+    if(state!=='refit') return;
+    state='play'; showOverlay(null); refitUI();
+    document.getElementById('touch').classList.toggle('hidden', !isTouch);
+    Audio_.power();   // launch feel; the sector banner + music lane ride the next snapshot's sector edge (applyWorldSnap)
+  }
+  function refitHostChanged(){ if(coopMatch&&role==='host'&&refitSess) refitSend(refitSyncPayload('state')); }
+  function refitUI(){
+    const s=document.getElementById('refitCoopStatus'), b=document.getElementById('launchBtn');
+    if(!coopMatch||state!=='refit'){ if(s)s.style.display='none'; if(b)b.textContent='LAUNCH'; return; }
+    const meReady=role==='host'?!!(refitSess&&refitSess.ready[0]):!!(gRefit&&gRefit.ready);
+    const otherReady=role==='host'?!!(refitSess&&refitSess.ready[1]):!!(gRefit&&gRefit.hostReady);
+    const mine=role==='host'?'P1':'P2', theirs=role==='host'?'P2':'P1';
+    let line='CO-OP · ONE SHARED WALLET · UPGRADES FIT YOUR OWN SHIP<br>'
+      +mine+' (YOU): '+(meReady?'READY':'OUTFITTING')+' &nbsp;·&nbsp; '+theirs+': '+(otherReady?'READY':'OUTFITTING');
+    if(role==='guest'&&gRefit&&gRefit.pending) line+='<br><span style="color:'+COL.gold+'">PURCHASE REQUESTED - WAITING FOR HOST...</span>';
+    if(role==='guest'&&gRefit&&gRefit.msg&&performance.now()<gRefit.msgT) line+='<br><span style="color:'+COL.mset+'">'+gRefit.msg+'</span>';
+    if(s){ s.style.display='block'; s.innerHTML=line; }
+    if(b) b.textContent=meReady?('READY ✓ - WAITING FOR '+theirs):'READY UP';
   }
   /* ---- snapshots (host -> guest) ---- */
   function shipSnap(pl){ if(!pl) return 0; return {
@@ -6828,6 +6997,7 @@ const COOP=(function(){
   function partnerLost(msg){
     if(phase!=='match') return;
     phase='ended';
+    refitSessClear();   // a partner lost mid-REFIT must stop the heartbeat + pending purchase timers
     state='over';   // freeze the sim behind the modal (Escape cannot un-pause 'over'); no overlay swap
     if(Audio_.stopAllLoops)Audio_.stopAllLoops();
     const t2=$('coopMsgTitle'), b2=$('coopMsgBody'), o=$('ovlCoopMsg');
@@ -6861,6 +7031,8 @@ const COOP=(function(){
     isGuest:()=>coopMatch&&role==='guest',
     get remoteCtrl(){ return remoteCtrl; },
     sendAct, drainActs, hostFrame, guestFrame, finishMatch, leave, openLobby,
+    // co-op REFIT orchestration (v199): shared wallet, individual builds, host arbitrates
+    refitOpenHost, refitGuestBuy, refitReadyLocal, refitHostChanged, refitUI,
     // generic cue-event pushes (v197): additive bookkeeping beside the host's
     // own Audio_/FX calls; all no-ops in solo, on the guest, and outside play
     evKill, evHit, evPhit, evParryHit, evPickup, evBomb, evSfx, evBossTouch, evBossFin,

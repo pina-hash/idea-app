@@ -314,10 +314,11 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   actions relayed as events) and broadcasts ~15Hz compact snapshots; the guest
   sends ~25Hz input heartbeats and renders snapshots. Match ends only when BOTH ships are out of
   lives; the end screen is the adapted game-over labeled CO-OP // UNRANKED with
-  NO leaderboard submit, NO telemetry, NO achievements, NO checkpoint; REFIT is
-  skipped in co-op (sectors chain directly) and both ships run the clean
-  baseline build. Partner/host disconnect shows a modal and ends the match
-  cleanly. Difficulty is the unscaled solo curve (accepted Phase 1 gap).
+  NO leaderboard submit, NO telemetry, NO achievements, NO checkpoint; both
+  ships START on the clean baseline build (Phase 1 skipped REFIT entirely;
+  superseded by the v199 co-op REFIT economy, see below). Partner/host
+  disconnect shows a modal and ends the match cleanly. Difficulty was the
+  unscaled solo curve (accepted Phase 1 gap, closed in v199).
   `?coopstub=1` (opt-in, like `?mockresume=1`) swaps the transport for a
   same-origin BroadcastChannel stub so the whole flow is regression-testable
   with two tabs/iframes and no live backend (it also exposes `__vgStub*`
@@ -342,8 +343,9 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   broadcast vx/vy (capped `BULLET_EXTRAP_MAX` 0.25s) instead of cross-snapshot
   matching. Nothing but position is ever predicted: fire/parry/damage/score
   still come entirely from host snapshots, so the guest cannot diverge on
-  anything that matters. Deferred to later phases: difficulty scaling,
-  revive/down-states, synced REFIT, co-op boards, reconnect.
+  anything that matters. Deferred to later phases: difficulty scaling and
+  synced REFIT (both landed in v199), revive/down-states, co-op boards,
+  reconnect.
 - **Co-op Phase 2.5 (game v191): predicted action feedback + delay-buffered
   interpolation, guest-side only.** Two responsiveness fixes layered on Phase
   2 without moving any authority. (1) Predicted FEEDBACK, never outcome: the
@@ -455,10 +457,50 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   for later passes: sustained LOOPS (player beam/tesla/charge and boss
   carving-beam loops; boss sweep/scan STATE is not transmitted at all, so
   those beams are invisible AND silent on the guest), `deathSlow` is not
-  mirrored guest-side, the SYSTEM HALT station overlay and REFIT-skipped pop
-  stay host-only, and PODS remain untransmitted (pickup cues now play via
-  events, but the guest cannot see pods on the field; a pod entity mirror is
-  the natural next entity pass).
+  mirrored guest-side, the SYSTEM HALT station overlay stays host-only (the
+  v197-era REFIT-skipped pop is gone: v199 opens real REFIT), and PODS remain
+  untransmitted (pickup cues now play via events, but the guest cannot see
+  pods on the field; a pod entity mirror is the natural next entity pass).
+- **Co-op REFIT economy + two-ship difficulty (game v199):** REFIT now runs in
+  co-op instead of being skipped (the Phase 1 "REFIT SKIPPED" auto-chain is
+  gone). Doctrine: ONE shared wallet (`players[0].coins`, the existing
+  convention), INDIVIDUAL builds (a purchase applies to the buying pilot's own
+  ship), host arbitrates. At a sector clear the host runs the normal
+  `openRefit()` and broadcasts a `refit` event; the guest opens the SAME solo
+  shop UI (`buildRefit`/`renderShopGrid`/`refitItems` read the global `player`,
+  which on the guest IS the guest ship - no shadow shop). `buildRefit` is
+  wallet-aware via `walletShip()` (players[0]; solo identical). Host purchases
+  run the solo path directly; guest purchases ride the existing sendAct channel
+  as `rbuy` requests (item index + name + the guest's own `runDwell` for
+  keystone gates) that the host validates against the wallet at processing time
+  (first-come-first-served = concurrent-spend arbitration), applying to
+  `players[1]` with `player` temporarily pointed at it, then answers with a
+  `res` carrying ok/reject reason + a full sync. Because `shipSnap` never
+  carried `up`/`ks`/`hks`/`modules`, every refit message syncs them plus a
+  `shipSnap`, and the guest reruns `applyUpgrades` so its movement prediction
+  honors ENGINE buys; match-wide gate stats (runBosses/runHits/... /maxStyle)
+  are synced too. Guest UX: one request in flight, "PURCHASE REQUESTED" status,
+  4s timeout ("NO RESPONSE"), reject reasons shown ("INSUFFICIENT FUNDS"), the
+  buy/buy_fail cues on resolution. Flow control: LAUNCH becomes READY UP
+  (`refitLaunchRequested()`; Enter and the button both route through it); the
+  match resumes ONLY when both pilots are ready (`rrdy`), the host then
+  broadcasts `launch` and runs `launchFromRefit()`. Self-healing: an 800ms host
+  heartbeat re-sends wallet/ready/build state (guest re-asserts `rrdy` off it),
+  and a snapshot arriving while the guest is still in refit (host only
+  snapshots in play) is a launch fallback; `partnerLost`/`leave` clear the
+  session. `beginMatch` now seeds the partner ship's `ks`/`hks`/`modules`
+  baseline (makeShip lacks them; module buys would crash host-side otherwise).
+  Difficulty: co-op-only dials beside BAL (`COOP_ENEMY_HP_MUL` 1.35 in
+  `enemyHpMul()`, `COOP_BOSS_HP_MUL` 1.5 in `spawnBoss`, `COOP_ALIVE_BONUS` +3
+  on the wave spawner's alive threshold), every use gated on `coopMatch`, so
+  solo/hardcore curves are byte-identical; conservative starting points meant
+  for playtest tuning. The playfield never grows (Pillar 4). Stub addition:
+  `__vgStubEval` (game-scope eval for scripted drives; the game's top-level
+  lets are closure-scoped and unreachable from the console otherwise). Still
+  deferred: revive/down-states, reconnect, co-op boards, telemetry. Known
+  accepted quirks: match-wide (not per-ship) module gate stats, and keystone
+  dwell validated from the request's self-reported `runDwell` (unranked co-op,
+  host still owns the wallet).
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The
