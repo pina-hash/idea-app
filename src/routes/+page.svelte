@@ -364,9 +364,9 @@
 	<section class="hero">
 		<div class="hero-eyebrow">Don Bosco Technical Institute - Technology Pathway</div>
 		<h1>Integrated Design, Engineering <span class="accent">&amp;</span> Art</h1>
-		<p class="hero-sub">
-			The IDEA pathway portal. Browse the 2026-27 curriculum below. Sign in to pin your class and
-			save your progress.
+		<p class="hero-sub" style="text-align: center;">
+			Everything IDEA in one place — curriculum, competitive games, CAD training, and team tools.
+			Sign in to pin your class and save your progress.
 		</p>
 		<div class="hero-meta">
 			<div class="hero-stat">
