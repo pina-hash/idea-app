@@ -689,6 +689,15 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
       <div class="tag">ROOM CODE - SHARE THIS</div>
       <div id="coopCodeBig" style="font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:44px;letter-spacing:.34em;text-indent:.34em;color:var(--gold);text-shadow:0 0 18px rgba(200,255,0,.6)">----</div>
       <div id="coopRoster" style="display:flex;flex-direction:column;gap:6px;min-width:240px"></div>
+      <!-- Host-chosen match mode (NORMAL / HARDCORE). Host picks; the guest sees it read-only, synced via presence. -->
+      <div id="coopModeSel" style="display:none;flex-direction:column;align-items:center;gap:6px">
+        <div class="tag" style="letter-spacing:.1em">MATCH MODE</div>
+        <div style="display:flex;gap:8px;pointer-events:auto">
+          <button class="fbbtn coopModeBtn" id="coopModeNormal" data-cm="normal">NORMAL</button>
+          <button class="fbbtn coopModeBtn" id="coopModeHardcore" data-cm="hardcore">HARDCORE</button>
+        </div>
+      </div>
+      <div class="tag" id="coopModeInfo" style="min-height:12px;letter-spacing:.08em"></div>
       <div class="tag" id="coopReady" style="min-height:12px"></div>
       <button class="obtn" id="coopStartBtn" style="display:none">START MATCH</button>
     </div>
@@ -786,7 +795,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='200';
+const VERSION='201';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2073,9 +2082,9 @@ function updateGamesPlayed(){ const g=el('gamesPlayed'); if(g) g.textContent='RU
 function startGame(){
   state='play';
   runContinued=0;   // a fresh run is not a resume; __ideaRestoreRun increments this after this
-  if(gameMode!=='coop'){ coopMatch=false; localIndex=0; players.length=0; }   // a solo start always rebuilds the classic 1-ship array (co-op sets these up before calling)
+  if(!coopMatch){ coopMatch=false; localIndex=0; players.length=0; }   // a solo start always rebuilds the classic 1-ship array (any co-op match - normal OR hardcore - sets these up before calling; check coopMatch not gameMode, which is 'hardcore' in hardcore co-op)
   BAL = (gameMode==='tune') ? loadTuneBAL() : freshBAL();
-  try{ if(gameMode!=='calib'&&gameMode!=='coop') localStorage.setItem('vanguard_games', getGames()+1); }catch(e){}
+  try{ if(gameMode!=='calib'&&!coopMatch) localStorage.setItem('vanguard_games', getGames()+1); }catch(e){}   // co-op (normal + hardcore) never counts toward the local games-played tally
   enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; meltFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossCard=null; lastMilestone=0; milestoneCard=null; scoreFlash=0;
   runFactionSeq=[...FKEYS]; for(let _i=runFactionSeq.length-1;_i>0;_i--){const _j=Math.random()*_i|0;[runFactionSeq[_i],runFactionSeq[_j]]=[runFactionSeq[_j],runFactionSeq[_i]];} waveFk=null; bossesSeen=[];
   hybridTimer=rnd(6,10);
@@ -2090,7 +2099,7 @@ function startGame(){
   balDmgAccum=0; balEbulPrev=0; balEbulSpawned=0;
   resetPlayer(true);
   { let b=startBuild;
-    if(gameMode==='calib'||gameMode==='coop') b=freshBuild();   // calibration + co-op always run the clean baseline loadout (co-op: both ships identical, no build desync)
+    if(gameMode==='calib'||coopMatch) b=freshBuild();   // calibration + co-op (normal OR hardcore) always run the clean baseline loadout (co-op: both ships identical, no build desync)
     if(gameMode!=='dev' && gameMode!=='tune' && (buildCost(startBuild)>START_BUDGET || startBuild.mode==='dev' || startBuild.mode==='tune')) {
       startBuild=freshBuild();
       saveBuild();
@@ -2104,7 +2113,7 @@ function startGame(){
   player.hks={};   // heavy keystone picks, per-run, in-run only
   player.modules=[0,0,0];   // ship module slots, per-run, in-run only
   applyUpgrades(); player.armor=player.maxArmor; player.beamE=player.beamMax;
-  if(gameMode!=='coop') player.coins += Math.max(0, START_BUDGET-(startBuild.spent||0));   // unspent pre-game budget carries into the run (co-op: no build, no carry)
+  if(!coopMatch) player.coins += Math.max(0, START_BUDGET-(startBuild.spent||0));   // unspent pre-game budget carries into the run (co-op, normal OR hardcore: no build, no carry)
   if(gameMode==='hardcore'){ player.lives=0; } else if(gameMode==='dev'){ player.lives=99; player.coins=99999; player.heavyUnlocked={beam:1,rail:1,tesla:1,singularity:1,wave:1}; }
   window.__devTime=1; window.__devStep=false; window.__devNoSpawn=false;
   if(gameMode!=='dev'){ if(window.__devSetGod){ window.__devSetGod(false); } else { window.__devGod=false; } }   // god mode is dev-only; never carries into normal/ranked runs
@@ -3874,7 +3883,7 @@ function launchFromRefit(){ sector++; waveIdx=0; waveTimer=1.6; bossPending=fals
   for(const _pp of players){ if(_pp) _pp.beamE=_pp.beamMax; } triggerBanner(); state='play'; showOverlay(null); Audio_.lane(sectorTheme().fk||'idea');
   document.getElementById('touch').classList.toggle('hidden', !isTouch);
   // Cross-device checkpoint: a new sector just began (clean loadout, coins spent).
-  if(gameMode!=='dev'&&gameMode!=='tune'&&gameMode!=='calib'&&gameMode!=='coop'){ try{ window.__ideaVanguardSaveCheckpoint&&window.__ideaVanguardSaveCheckpoint(); }catch(e){} } }
+  if(gameMode!=='dev'&&gameMode!=='tune'&&gameMode!=='calib'&&!coopMatch){ try{ window.__ideaVanguardSaveCheckpoint&&window.__ideaVanguardSaveCheckpoint(); }catch(e){} } }   // co-op (normal + hardcore) is ephemeral: no cross-device checkpoint
 /* co-op: the LAUNCH control becomes a READY signal and the match resumes only when
    BOTH pilots have signalled (the host arbitrates). Solo/hardcore: unchanged direct launch. */
 function refitLaunchRequested(){ if(state!=='refit')return; if(coopMatch){ COOP.refitReadyLocal(); } else launchFromRefit(); }
@@ -5008,7 +5017,7 @@ function startGameOver(){
 }
 function endRun(){
   if(gameMode==='calib'){ if(window.CALIB)window.CALIB.finish(); return; }
-  if(gameMode==='coop'){ COOP.finishMatch(); return; }   // unranked ARCADE end screen on both clients; nothing submitted, no achievements
+  if(coopMatch){ COOP.finishMatch(); return; }   // any co-op run (normal OR hardcore): unranked ARCADE end screen on both clients; nothing submitted, no achievements. Must be coopMatch, not gameMode==='coop', or hardcore co-op would fall through to the ranked hardcore end + leaderboard submit
   const _dc = killerInfo ? (killerInfo.fk ? (/BOSS/.test(killerInfo.label||'') ? killerInfo.fk+'_boss' : killerInfo.fk+(killerInfo.variant!=null?String(killerInfo.variant):'')) : 'hazard') : 'none';
   sendTelemetry(_dc);
   try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){}
@@ -5124,7 +5133,7 @@ window.__ideaRestoreRun=function(snap){
    Fires once per run on any termination: death, quit, restart, or page abandon. */
 function inActiveRun(){ return state==='play'||state==='pause'||state==='refit'; }
 function sendTelemetry(dc){
-  if(!API_URL || gameMode==='dev' || gameMode==='tune' || gameMode==='calib' || gameMode==='coop' || !inActiveRun() || window.__telemSent) return;
+  if(!API_URL || gameMode==='dev' || gameMode==='tune' || gameMode==='calib' || coopMatch || !inActiveRun() || window.__telemSent) return;   // co-op (normal + hardcore) sends no telemetry
   window.__telemSent=true;
   try{
     const tacc=shotsFired>0?clamp(Math.round(100*shotsHit/shotsFired),0,100):0;
@@ -5164,7 +5173,7 @@ function sendTelemetry(dc){
    so firing on both pagehide and visibilitychange is harmless. */
 (function(){ function flushCheckpoint(){
     try{
-      if(gameMode==='dev'||gameMode==='tune'||gameMode==='calib'||gameMode==='coop') return;
+      if(gameMode==='dev'||gameMode==='tune'||gameMode==='calib'||coopMatch) return;   // co-op (normal + hardcore) never flushes a cross-device checkpoint
       if(!inActiveRun() || (sector||0)<2) return;
       window.__ideaVanguardSaveCheckpoint && window.__ideaVanguardSaveCheckpoint({beacon:true});
     }catch(e){}
@@ -5476,7 +5485,7 @@ el('againBtn').addEventListener('click',()=>{ startGame(); });
 function mergeScore(name,score){ const b=(onlineBoard?onlineBoard.slice():[]);
   if(!b.some(r=>r.name===name&&r.score===score)) b.push({name,score});
   b.sort((a,c)=>c.score-a.score); onlineBoard=b.slice(0,BOARD_N); }
-function submitScore(){ if(gameMode==='coop'){ toTitle(); return; } if(gameMode==='dev'||gameMode==='tune'){ toTitle(); return; } const sc=pendingScore?pendingScore.score:window.scoreT; const nm=trimName(curInitials); curInitials=nm;
+function submitScore(){ if(coopMatch){ toTitle(); return; } if(gameMode==='dev'||gameMode==='tune'){ toTitle(); return; } const sc=pendingScore?pendingScore.score:window.scoreT; const nm=trimName(curInitials); curInitials=nm;
   boardMode=(gameMode==='hardcore')?'hardcore':'normal'; onlineBoard=null; boardRetries=0;   // post-run board reflects the run's mode (continued folded in)
   document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===boardMode));
   saveLocal(nm, sc); try{localStorage.setItem('vanguard_lastInitials',nm);}catch(e){}
@@ -5800,6 +5809,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'201',date:'2026',items:['CO-OP now offers HARDCORE as well as NORMAL - choose it in the lobby before creating or joining a room.']},
  {ver:'200',date:'2026',items:['CO-OP normal mode: a downed ship can be revived by a teammate through proximity, coming back fragile. Hardcore still has no revive.']},
  {ver:'199',date:'2026',items:['CO-OP now has a real REFIT economy: a shared wallet, individual builds, and both players shop between sectors. Enemies scale up for two ships.']},
  {ver:'198',date:'2026',items:['Fixed CO-OP guest fire sound going silent during a sustained hold - it now repeats at the weapon\'s actual pace.']},
@@ -6262,6 +6272,8 @@ const COOP=(function(){
   const MUTL=[0,'vet','mar','gun'];
   let client=null, channel=null, code='', role=null, phase='idle';
   let prevMode='normal';
+  let coopMode='normal';   // host-chosen match mode ('normal'|'hardcore'); synced to the guest via presence + the start payload. Drives the gameMode set in beginMatch.
+  let myJoinAt=0;          // stable presence join timestamp (kept constant across re-tracks so guest ordering never shifts when the host re-broadcasts its mode choice)
   let remoteCtrl={mx:0,my:0,fire:false,beam:false};
   let actQueue=[];
   let latestSnap=null, lastInputAt=0, lastSnapAt=0, lastInputSendAt=0, lastInputSig='';
@@ -6335,6 +6347,7 @@ const COOP=(function(){
     try{ const st=channel.presenceState(); for(const k in st){ (st[k]||[]).forEach(m=>out.push(m)); } }catch(e){}
     return out; }
   function hostPeer(){ return peers().find(m=>m.role==='host')||null; }
+  function trackPresence(){ if(!channel) return; try{ channel.track({id:myId,role:role,name:myName,joinedAt:myJoinAt,mode:coopMode}); }catch(e){} }
   function guestPeer(){ const g=peers().filter(m=>m.role==='guest'); g.sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0)); return g[0]||null; }
   function renderRoster(){
     const box=$('coopRoster'); if(!box) return;
@@ -6351,6 +6364,23 @@ const COOP=(function(){
     // a second guest is one too many: the latest joiner backs out
     if(role==='guest' && phase==='lobby'){ const g=peers().filter(m=>m.role==='guest');
       if(g.length>1){ g.sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0)); if(g[g.length-1].id===myId){ leave(); openLobby(); setStatus('ROOM IS FULL (2 PILOTS MAX).'); } } }
+    renderCoopMode();
+  }
+  /* NORMAL/HARDCORE selector: the host toggles it (buttons); the guest sees the
+     host's live choice read-only, resolved from presence (hostPeer().mode). */
+  function renderCoopMode(){
+    const sel=$('coopModeSel'), info=$('coopModeInfo');
+    const hp=hostPeer();
+    const shown=(role==='host')?coopMode:((hp&&hp.mode==='hardcore')?'hardcore':'normal');
+    if(sel) sel.style.display=(role==='host'&&phase==='lobby')?'flex':'none';
+    ['coopModeNormal','coopModeHardcore'].forEach(id=>{ const b=$(id); if(!b) return;
+      const on=b.getAttribute('data-cm')===shown, c=(shown==='hardcore')?COL.amber:COL.green;
+      b.style.borderColor=on?c:''; b.style.color=on?c:''; b.style.textShadow=on?('0 0 8px '+c+'88'):'';
+      b.style.boxShadow=on?('0 0 12px '+c+'33'):''; b.style.opacity=on?'1':'.5'; });
+    if(info){
+      if(shown==='hardcore'){ info.textContent=(role==='host'?'HARDCORE: one life each, no revive, tougher enemies.':'MODE: HARDCORE - one life each, no revive'); info.style.color=COL.amber; }
+      else { info.textContent=(role==='host'?'NORMAL: full lives and proximity revives.':'MODE: NORMAL'); info.style.color='var(--dim)'; }
+    }
   }
   function onPresence(){
     renderRoster();
@@ -6365,7 +6395,7 @@ const COOP=(function(){
     ensureClient().then(c=>{
       code=codeArg; role=asHost?'host':'guest';
       const ch=c.channel('vgcoop:'+code,{config:{broadcast:{self:false,ack:false},presence:{key:myId}}});
-      ch.on('broadcast',{event:'start'},()=>{ if(role==='guest'&&phase==='lobby') beginMatch(); });
+      ch.on('broadcast',{event:'start'},({payload:p})=>{ if(role==='guest'&&phase==='lobby'){ coopMode=(p&&p.mode==='hardcore')?'hardcore':'normal'; beginMatch(); } });
       ch.on('broadcast',{event:'input'},({payload:p})=>{ if(role!=='host'||!p)return;
         remoteCtrl.mx=+p.mx||0; remoteCtrl.my=+p.my||0; remoteCtrl.fire=!!p.f; remoteCtrl.beam=!!p.b; lastInputAt=performance.now(); });
       ch.on('broadcast',{event:'act'},({payload:p})=>{ if(role!=='host'||!p) return;
@@ -6381,7 +6411,7 @@ const COOP=(function(){
       ch.subscribe(status=>{
         if(status==='SUBSCRIBED'){
           phase='lobby'; setStatus('');
-          try{ ch.track({id:myId,role:role,name:myName,joinedAt:Date.now()}); }catch(e){}
+          myJoinAt=Date.now(); trackPresence();
           $('coopSetup').style.display='none'; $('coopRoom').style.display='flex';
           $('coopCodeBig').textContent=code; renderRoster();
         } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
@@ -6394,13 +6424,14 @@ const COOP=(function(){
   }
   function leave(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
-    if(gameMode==='coop') gameMode=prevMode||'normal';
+    if(coopMatch) gameMode=prevMode||'normal';   // restore the pre-coop solo mode after ANY co-op match (gameMode is 'coop' OR 'hardcore'); runs before coopMatch is cleared just below
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
     phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); evBuf.length=0; bossFinRep=false; refitSessClear();
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
   function openLobby(){
+    coopMode='normal';   // every lobby opens on NORMAL; the host opts into HARDCORE explicitly
     $('coopSetup').style.display='flex'; $('coopRoom').style.display='none';
     $('coopStartBtn').style.display='none'; $('coopCodeIn').value=''; setStatus('');
     showOverlay('ovlCoop');
@@ -6412,11 +6443,12 @@ const COOP=(function(){
     coopMatch=true; localIndex=(role==='host')?0:1;
     players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; actQueue.length=0; evBuf.length=0; evSent=0; evApplied=0; bossFinRep=false;
     remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now();
-    gameMode='coop';
-    startGame();                                   // builds players[localIndex] (baseline loadout)
+    gameMode=(coopMode==='hardcore')?'hardcore':'coop';   // HARDCORE co-op reuses the solo 'hardcore' value so every gameMode==='hardcore' check (single life, fire ramp, no revive) applies unchanged; coopMatch (set above) stays the true "any co-op" flag
+    startGame();                                   // builds players[localIndex] (baseline loadout; single life when gameMode==='hardcore')
     const oi=1-localIndex, s=makeShip(oi);         // the partner's ship, same baseline
     s.ks={}; s.hks={}; s.modules=[0,0,0];          // the per-run fields startGame gives the local ship (the REFIT shop reads/writes them)
     players[oi]=s; applyUpgrades(s); s.armor=s.maxArmor; s.beamE=s.beamMax;
+    if(gameMode==='hardcore') s.lives=0;           // hardcore: the partner ship is single-life too (makeShip defaults 3; startGame only zeroes the local ship)
     players[0].x=shipSpawnX(0); players[1].x=shipSpawnX(1);
     eidSeq=1;
   }
@@ -7115,9 +7147,14 @@ const COOP=(function(){
       ci.addEventListener('keyup',e=>e.stopPropagation());
       ci.addEventListener('pointerdown',e=>e.stopPropagation());
     }
+    document.querySelectorAll('.coopModeBtn').forEach(b=>{ b.addEventListener('click',e=>{ e.stopPropagation();
+      if(role!=='host') return;                          // guest choice is read-only; only the host governs the mode
+      coopMode=(b.getAttribute('data-cm')==='hardcore')?'hardcore':'normal';
+      trackPresence();                                   // push the choice to the guest live over presence
+      renderCoopMode(); }); });
     const st2=$('coopStartBtn'); if(st2) st2.addEventListener('click',e=>{ e.stopPropagation();
       if(role!=='host'||phase!=='lobby'||!guestPeer()) return;
-      try{ channel&&channel.send({type:'broadcast',event:'start',payload:{}}); }catch(err){}
+      try{ channel&&channel.send({type:'broadcast',event:'start',payload:{mode:coopMode}}); }catch(err){}   // authoritative handoff: the guest adopts this mode before beginMatch
       beginMatch(); });
     const lv=$('coopLeaveBtn'); if(lv) lv.addEventListener('click',e=>{ e.stopPropagation(); leave(); toTitle(); });
     const mb=$('coopMsgBtn'); if(mb) mb.addEventListener('click',e=>{ e.stopPropagation();
