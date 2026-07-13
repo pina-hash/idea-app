@@ -785,7 +785,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='196';
+const VERSION='197';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2143,11 +2143,11 @@ function playerHit(pl){
   pl.noHitT=0; if(pl.glintOn){ pl.glintOn=false; applyUpgrades(pl); }
   pl.greed=0;
   if(pl.shieldHits>0){ pl.shieldHits--; pl.dmgFlash=.18; pl.inv=graceWindow(pl);
-    if(pl.shieldHits<=0){ (Audio_.play&&Audio_.play('shield_break'))||Audio_.hit();
+    if(pl.shieldHits<=0){ (Audio_.play&&Audio_.play('shield_break'))||Audio_.hit(); COOP.evPhit(pl,1);
       if((pl.ks&&pl.ks.shield)==='deflector'){ rings.push({x:pl.x,y:pl.y,r:10,vr:900,life:.4,max:.4,c:COL.cyan}); for(let qi=ebul.length-1;qi>=0;qi--){ if(dist2(ebul[qi].x,ebul[qi].y,pl.x,pl.y)<150*150) ebul.splice(qi,1); } shake=Math.max(shake,7); pops.push({x:pl.x,y:pl.y-30,txt:'DEFLECT',c:COL.cyan,life:.7,max:.7}); } }
-    else { (Audio_.play&&Audio_.play('shield_hit'))||Audio_.hit(); } return; }
+    else { (Audio_.play&&Audio_.play('shield_hit'))||Audio_.hit(); COOP.evPhit(pl,0); } return; }
   if((pl.ks&&pl.ks.hull)==='phalanx' && !pl.guardUsed){ pl.guardUsed=true; pl.dmgFlash=.18; pl.inv=(gameMode==='hardcore'?0.4:0.6); rings.push({x:pl.x,y:pl.y,r:12,vr:300,life:.4,max:.4,c:COL.gold}); pops.push({x:pl.x,y:pl.y-30,txt:'PHALANX',c:COL.gold,life:.8,max:.8}); (Audio_.play&&Audio_.play('shield_hit'))||Audio_.hit(); return; }
-  pl.armor--; pl.inv=graceWindow(pl); pl.dmgFlash=.2; styleHit(); (Audio_.play&&Audio_.play('player_hit'))||Audio_.hit();
+  pl.armor--; pl.inv=graceWindow(pl); pl.dmgFlash=.2; styleHit(); (Audio_.play&&Audio_.play('player_hit'))||Audio_.hit(); COOP.evPhit(pl,2);
   if((pl.ks&&pl.ks.hull)==='purge' && (pl.purgeCd||0)<=0){ pl.purgeCd=2; pl.inv=Math.max(pl.inv,0.5); rings.push({x:pl.x,y:pl.y,r:10,vr:800,life:.4,max:.4,c:COL.amber}); for(let qi=ebul.length-1;qi>=0;qi--){ if(dist2(ebul[qi].x,ebul[qi].y,pl.x,pl.y)<140*140) ebul.splice(qi,1); } shake=Math.max(shake,8); }
   for(let k=0;k<10;k++) parts.push({x:pl.x,y:pl.y,vx:rnd(-80,80),vy:rnd(-80,80),life:.25,max:.25,c:COL.green,sz:1.8});
   shake=Math.max(shake,6);
@@ -2156,7 +2156,7 @@ function playerHit(pl){
     if(pl.lives<0){
       // CO-OP: one ship going down does not end the match; the run ends only
       // when EVERY ship is out of lives (solo: the single player, unchanged).
-      if(alivePlayersLeft()<=0){ deathSlow=1.1; Audio_.death(); startGameOver(); }
+      if(alivePlayersLeft()<=0){ deathSlow=1.1; Audio_.death(); COOP.evSfx('death'); startGameOver(); }
       else pops.push({x:pl.x,y:pl.y-30,txt:'P'+(pl.pi+1)+' DOWN',c:COL.mset,life:1.4,max:1.4});
     } }
 }
@@ -2295,14 +2295,14 @@ function applyPod(p,pl){
       else if(pl.shieldHits<(pl.shieldCap||3)){ pl.shieldHits++; pl.shieldMax=Math.max(pl.shieldMax||0,pl.shieldHits); txt='CORE  SHIELD'; }
       else if(!pl.drone){ pl.drone={ph:0}; txt='CORE  DRONE'; }
       else { wallet.coins+=100; runCoinsEarned+=100; txt='CORE  +'+(jack+100)+' i\u00a2'; } }
-    ((Audio_.play&&Audio_.play('core'))||Audio_.pickup()); shake=Math.max(shake,5);
+    ((Audio_.play&&Audio_.play('core'))||Audio_.pickup()); COOP.evPickup(p); shake=Math.max(shake,5);
     for(let k=0;k<18;k++) parts.push({x:p.x,y:p.y,vx:rnd(-160,160),vy:rnd(-160,160),life:.5,max:.5,c:p.c,sz:2});
     pops.push({x:p.x,y:p.y-8,txt:txt,c:p.c,life:1.4,max:1.4}); return; }
   if(p.type==='pwr'){
     pl.buffs[p.buff]=8;
     pops.push({x:p.x,y:p.y-6,txt:{overdrive:'OVERDRIVE',scatter:'SCATTER',magnet:'MAGNET'}[p.buff],c:p.c,life:.8,max:.8});
-    (Audio_.play&&Audio_.play('powerup'))||Audio_.power(); return; }
-  (Audio_.play&&Audio_.play(p.type==='coin'?'coin':p.type==='shield'?'shield_up':p.type==='1up'?'life_up':'coin'))||Audio_.pickup();
+    (Audio_.play&&Audio_.play('powerup'))||Audio_.power(); COOP.evPickup(p); return; }
+  (Audio_.play&&Audio_.play(p.type==='coin'?'coin':p.type==='shield'?'shield_up':p.type==='1up'?'life_up':'coin'))||Audio_.pickup(); COOP.evPickup(p);
   if(p.type==='coin'){ wallet.coins+=60; runCoinsEarned+=60; addScore(60,p.x,p.y,COL.gold); }
   else if(p.type==='shield'){ pl.shieldHits=Math.min((pl.shieldCap||3),pl.shieldHits+1); pl.shieldMax=Math.max(pl.shieldMax||0,pl.shieldHits); }
   else if(p.type==='1up'){ pl.lives=Math.min(4,pl.lives+1); }
@@ -2678,7 +2678,7 @@ function fireBomb(pl){ if(!pl && COOP.sendAct('bomb')) return; pl=pl||player;
   pl.inv=Math.max(pl.inv,1.1);
   if(!pl.modMuni) ebul.length=0;
   shake=Math.max(shake,16); bossFlash=Math.max(bossFlash,0.55); deathSlow=Math.max(deathSlow,0.25);
-  Audio_.bomb(); Audio_.big();
+  Audio_.bomb(); Audio_.big(); COOP.evBomb(pl);
   if(_bk==='clus'){
     for(let s=0;s<8;s++){ const sa=((s/8)*6.2832), sx=pl.x+Math.cos(sa)*40, sy=pl.y+Math.sin(sa)*40;
       setTimeout(()=>{ if(!pl||pl.dead)return; const sd=dmg/8;
@@ -2715,7 +2715,7 @@ function tryMeltdown(pl){ if(!pl && COOP.sendAct('melt')) return; pl=pl||player;
   pops.push({x:pl.x,y:pl.y-30,txt:'MELTDOWN',c:COL.amber,life:.8,max:.8});
   ((Audio_.play&&Audio_.play('wave'))||Audio_.big());
 }
-function killEnemy(e,silent){ if(e.dead)return; runKills++; e.dead=true; e.dt=0; explode(e.x,e.y,e.c,e.variant>=2);
+function killEnemy(e,silent){ if(e.dead)return; runKills++; e.dead=true; e.dt=0; COOP.evKill(e,silent); explode(e.x,e.y,e.c,e.variant>=2);
   if(window.killSrc==='singularity'){   // devoured, not just destroyed: violet implosion + streak into the hole (visual only)
     rings.push({x:e.x,y:e.y,r:e.r*1.7,vr:-(e.r*4.8),life:.30,max:.30,c:COL.bmet});   // scale-aware collapse: never reaches r=0 within its life (the ring drawer does not clamp)
     rings.push({x:e.x,y:e.y,r:2,vr:260,life:.22,max:.22,c:COL.white});
@@ -2740,7 +2740,7 @@ function killEnemy(e,silent){ if(e.dead)return; runKills++; e.dead=true; e.dt=0;
   addScore(e.pts,e.x,e.y,e.c); { const _cg=Math.ceil(e.pts*BAL.coinCoef*styleCoinMult()*((kp.coinMult)||1)); _wallet.coins+=_cg; runCoinsEarned+=_cg; } sectorKills++;
   if(kp && !kp.dead && ((kp.up&&kp.up.shieldChg)||0)>0 && kp.shieldHits<(kp.shieldCap||3) && kp.shieldHits<(kp.shieldMax||0)){ const _sc=kp.up.shieldChg, _need=[14,10,7][Math.min(_sc,3)-1]; kp.shieldKills=(kp.shieldKills||0)+1; if(kp.shieldKills>=_need){ kp.shieldKills=0; kp.shieldHits++; (Audio_.play&&Audio_.play('shield_up'))||Audio_.power(); rings.push({x:kp.x,y:kp.y,r:8,vr:160,life:.4,max:.4,c:COL.cyan}); } }
   if(kp && !kp.dead && dist2(e.x,e.y,kp.x,kp.y)<80*80){ kp.repair=Math.min(1,(kp.repair||0)+(0.12+0.04*((kp.up&&kp.up.bArmor)||0))*(kp.modVamp?1.5:1));
-    if(kp.repair>=1 && kp.armor<kp.maxArmor){ kp.repair=0; kp.armor++; Audio_.power();
+    if(kp.repair>=1 && kp.armor<kp.maxArmor){ kp.repair=0; kp.armor++; Audio_.power(); COOP.evSfx('power');
       rings.push({x:kp.x,y:kp.y,r:8,vr:120,life:.4,max:.4,c:COL.green}); } }
   if(e.fk==='foreman'||e.fk==='vector'){ _wallet.coins+=40; dropPod(e.x,e.y,true); }
   if(e.role==='anchor'){ for(const e2 of enemies){ if(!e2.dead) e2.buffed=0; }
@@ -2845,7 +2845,7 @@ function update(dt){
         bossFlash=Math.max(bossFlash,gotBolt?0.6:0.32); shake=Math.max(shake,gotBolt?10:5); pl.inv=Math.max(pl.inv,pl.modPhase?0.45:0.3);
         pl.armor=Math.min(pl.maxArmor,pl.armor+(gotBolt?1:0)); const _mp=(pl.up&&pl.up.mParry)||0; if(_mp>0){ pl.repair=Math.min(1,(pl.repair||0)+(0.10+0.10*_mp)*(pl.modVamp?1.5:1)); if(pl.repair>=1&&pl.armor<pl.maxArmor){ pl.repair=0; pl.armor++; } } if(pl.modVamp){ pl.repair=Math.min(1,(pl.repair||0)+(gotBolt?0.4:0.2)); if(pl.repair>=1&&pl.armor<pl.maxArmor){ pl.repair=0; pl.armor++; } } if(gotBolt) pl.parryCd*=0.5; if((pl.ks&&pl.ks.parry)==='riposte'){ const _rn=6; for(let _r=0;_r<_rn;_r++){ const _a=-1.5708+(_r-(_rn-1)/2)*0.42; pbul.push({x:pl.x,y:pl.y-8,vx:Math.cos(_a)*560,vy:Math.sin(_a)*560,c:COL.cyan,r:3,dmg:3,reflected:true}); } if(gotBolt) pl.parryCd=0; }
         addStyle(gotBolt?20:Math.min(18,6*caught));
-        pops.push({x:pl.x,y:pl.y-30,txt:gotBolt?'PERFECT PARRY':'PARRY',c:gotBolt?COL.white:COL.cyan,life:.9,max:.9}); Audio_.parryHit(); } }
+        pops.push({x:pl.x,y:pl.y-30,txt:gotBolt?'PERFECT PARRY':'PARRY',c:gotBolt?COL.white:COL.cyan,life:.9,max:.9}); Audio_.parryHit(); COOP.evParryHit(pl,gotBolt); } }
     if(pl.parryT<=0 && pl.parryArmed && !pl.parryHit){ pl.parryArmed=false; pl.parryCd=Math.max(pl.parryCd,1.2); pl.parryCdMax=pl.parryCd; pops.push({x:pl.x,y:pl.y-30,txt:'WHIFF',c:COL.dim,life:.5,max:.5}); }
     // GLINT: clean-play damage bonus, re-arms 3s after a hit
     pl.noHitT=(pl.noHitT||0)+dt; { const _g=(pl.modGlint && pl.noHitT>=3); if(_g!==!!pl.glintOn){ pl.glintOn=_g; applyUpgrades(pl); } }
@@ -2949,10 +2949,10 @@ function update(dt){
           enemies.forEach(e=>{ if(e.state==='form') e.spFired=false; });
           if(move==='converge'){ const _tp=nearestPlayer(fleet.x,fleet.y); fleet.spLX=_tp.x; fleet.spLY=_tp.y; }
           if(move==='curtain'){ fleet.spGapX=rnd(120,W-120); }
-          Audio_.whine(); }
+          Audio_.whine(); COOP.evSfx('whine'); }
       } else if(fleet.spPhase==='charge'){ fleet.spCharge-=dt;
         enemies.forEach(e=>{ if(!e.dead&&e.state==='form') e.barrageGlow=0.9; });
-        if(fleet.spCharge<=0){ fleet.spPhase='fire'; fleet.spFireT=(fleet.spMove==='rolling'?0.6:0.12); fleet.spDidFire=false; if(fleet.spMove==='rolling') fleet.spSweepX=-20; Audio_.blast(); }
+        if(fleet.spCharge<=0){ fleet.spPhase='fire'; fleet.spFireT=(fleet.spMove==='rolling'?0.6:0.12); fleet.spDidFire=false; if(fleet.spMove==='rolling') fleet.spSweepX=-20; Audio_.blast(); COOP.evSfx('blast'); }
       } else { enemies.forEach(e=>{ if(e.state==='form') e.barrageGlow=0; }); fleet.spFireT-=dt;
         const forms=enemies.filter(e=>!e.dead&&e.state==='form');
         if(fleet.spMove==='rolling'){ fleet.spSweepX += (W+40)/0.6*dt;
@@ -3001,9 +3001,9 @@ function update(dt){
               ebul.push({x:e.x,y:e.y+e.r*0.6-26,vx:0,vy:sp,c:e.c,r:3.4,owner:e});
               if(sector>=3) ebul.push({x:e.x,y:e.y+e.r*0.6-52,vx:0,vy:sp,c:e.c,r:3.4,owner:e});
               e.fireFlash=0.12; } }
-          if(fired) Audio_.blast(); fleet.barrageT=Math.max(0.7,1.5-sector*0.07);
+          if(fired){ Audio_.blast(); COOP.evSfx('blast'); } fleet.barrageT=Math.max(0.7,1.5-sector*0.07);
         }
-      } else { enemies.forEach(e=>{ if(e.state==='form') e.barrageGlow=0; }); fleet.barrageT-=dt; if(fleet.barrageT<=0){ fleet.barrageCharge=0.45; Audio_.whine(); } }
+      } else { enemies.forEach(e=>{ if(e.state==='form') e.barrageGlow=0; }); fleet.barrageT-=dt; if(fleet.barrageT<=0){ fleet.barrageCharge=0.45; Audio_.whine(); COOP.evSfx('whine'); } }
     }
     diveTimer-=dt;
     if(diveTimer<=0){ diveTimer=(rnd(0.7,1.4)-Math.min(sector*0.07,0.9))*fleet.diveMul;
@@ -3277,10 +3277,10 @@ function update(dt){
         if(b.frag){ for(const e2 of enemies){ if(e2.dead||e2===e)continue; if(dist2(e2.x,e2.y,b.x,b.y)<900){ e2.hp-=dmgEff*0.5; e2.flash=.08; if(e2.hp<=0){ window.killSrc='spread'; window.killerPi=b.pi; killEnemy(e2); } } } for(let qi=ebul.length-1;qi>=0;qi--){ const _eb=ebul[qi]; if(dist2(_eb.x,_eb.y,b.x,b.y)<900){ ebul.splice(qi,1); } } rings.push({x:b.x,y:b.y,r:4,vr:160,life:.18,max:.18,c:COL.green}); }
         if(b.ramp){ b.dmg=Math.min((b.dmg||0)*1.15,(b.dmg0||b.dmg)*2.5); }
         if(b.scatter){ for(let s=0;s<3;s++){ const fa=(s-1)*0.5; pbul.push({x:b.x,y:b.y,vx:Math.sin(fa)*360,vy:-820,c:COL.cyan,r:2.4,dmg:(b.dmg0||b.dmg)*0.5,len:14,wt:'rail',gl:b.gl,pi:b.pi}); } b.scatter=false; }
-        if(e.hp<=0){ window.killerPi=b.pi; killEnemy(e); } else if(Audio_.play)Audio_.play('hit'); if(!b.pierce){hit=true;} else if(b.pcount!=null){ b.dmg*=0.7; b.pcount--; if(b.pcount<=0){hit=true;} } break; } }
+        if(e.hp<=0){ window.killerPi=b.pi; killEnemy(e); } else { if(Audio_.play)Audio_.play('hit'); COOP.evHit(b.x,b.y,e.c,b.vx,b.vy); } if(!b.pierce){hit=true;} else if(b.pcount!=null){ b.dmg*=0.7; b.pcount--; if(b.pcount<=0){hit=true;} } break; } }
     if(!hit && boss && !boss.entering && !boss.dying && dist2(boss.x,boss.y,b.x,b.y)<(boss.r)*(boss.r)){
       if(b.wt==='flak'){ detonateFlak(b,FLAK_EARLY); hit=true; }
-      else { damageBoss(dmgEff); impactFX(b.x,b.y,boss.c,b.vx,b.vy); if(!b.hasHit){ b.hasHit=true; shotsHit++; } if(!b.pierce)hit=true; }
+      else { damageBoss(dmgEff); impactFX(b.x,b.y,boss.c,b.vx,b.vy); COOP.evHit(b.x,b.y,boss.c,b.vx,b.vy,1); if(!b.hasHit){ b.hasHit=true; shotsHit++; } if(!b.pierce)hit=true; }
     }
     if(hit)pbul.splice(i,1);
   }
@@ -3333,7 +3333,7 @@ function enemyShot(e,ang,spdMul){ if(ebul.length>=ebulCap()) return; if(sector<=
   e.fireFlash=0.12; const sp=(255+sector*14)*(spdMul||1)*ebulSpeedMul();
   ebul.push({x:e.x,y:e.y+e.r*0.6,vx:Math.sin(ang||0)*sp,vy:Math.cos(ang||0)*sp,c:e.c,r:3,owner:e}); }
 function enemyAimShot(e){ if(ebul.length>=ebulCap()) return; if(sector<=1&&Math.random()<0.3) return;
-  e.fireFlash=0.12; if(Audio_.play)Audio_.play('enemy_fire'); const _tp=nearestPlayer(e.x,e.y), dx=_tp.x-e.x,dy=_tp.y-e.y,m=Math.hypot(dx,dy)||1,sp=(270+sector*14)*ebulSpeedMul();
+  e.fireFlash=0.12; if(Audio_.play)Audio_.play('enemy_fire'); COOP.evSfx('enemy_fire'); const _tp=nearestPlayer(e.x,e.y), dx=_tp.x-e.x,dy=_tp.y-e.y,m=Math.hypot(dx,dy)||1,sp=(270+sector*14)*ebulSpeedMul();
   ebul.push({x:e.x,y:e.y,vx:dx/m*sp,vy:dy/m*sp,c:e.c,r:3,owner:e}); }
 
 /* faction-specific attacks */
@@ -3380,7 +3380,7 @@ function msetAttack(e){
   else { /* DENDRITE: branching fork */ const sp=(260+sector*9)*_sm; for(const off of [-0.22,0,0.22]){ const a=base+off; ebul.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:e.c,r:3.2,split:true,owner:e}); } }
 }
 function factionFire(e){
-  if(Audio_.play)Audio_.play('enemy_fire');
+  if(Audio_.play)Audio_.play('enemy_fire'); COOP.evSfx('enemy_fire');
   switch(e.fk){
     case 'ace': aceAttack(e); break; case 'bmet': bmetAttack(e); break;
     case 'csee': cseeAttack(e); break; case 'mat': matAttack(e); break;
@@ -3421,7 +3421,7 @@ function updateBoss(dt){
       if(!b.touchedDown){ b.touchedDown=true; shake=Math.max(shake,15); bossFlash=Math.max(bossFlash,0.5);
         rings.push({x:b.x,y:b.y,r:b.r*0.6,vr:540,life:.6,max:.6,c:COL.white}); rings.push({x:b.x,y:b.y,r:b.r,vr:340,life:.55,max:.55,c:b.c});
         for(let i=0;i<32;i++){ const a=rnd(0,6.28),sp=rnd(60,330); parts.push({x:b.x,y:b.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.6,max:.6,c:Math.random()<0.4?COL.white:b.c,sz:rnd(1.6,2.8)}); }
-        Audio_.big(); }
+        Audio_.big(); COOP.evBossTouch(b.x,b.y); }
       if(b.enterT>tDesc+0.45){ b.entering=false; window.__bossT0=runTime; b.gx=b.x; b.gy=b.ty;
         document.getElementById('bossname').style.display='block'; document.getElementById('bossbar').style.display='block'; } }
     return; }
@@ -3475,19 +3475,19 @@ function updateBoss(dt){
       b.pulseSeq=3; b.pulseCd=0; b.regenT=0;
       const nn=Math.min(8,3+Math.floor(sector/2));
       for(let i=0;i<nn;i++){const e=makeEnemy('bmet',0,b.x+rnd(-80,80),b.y+24,'dive');e.vy=85;e.vx=rnd(-50,50);e.hp=2;e.maxhp=2;e.fire=0.4;enemies.push(e);}
-      b.hp=Math.min(b.maxhp,b.hp+b.maxhp*0.05); Audio_.pickup(); shake=Math.max(shake,6);
+      b.hp=Math.min(b.maxhp,b.hp+b.maxhp*0.05); Audio_.pickup(); COOP.evSfx('pickup'); shake=Math.max(shake,6);
     } else if(b.fk==='csee'){ // THE AMPLIFIER: DROP THE BASS
       ampShockwave(2); b.beatT=0.4;
-      b.fireFlash=0.22; Audio_.wub(); Audio_.big(); shake=Math.max(shake,14); bossFlash=Math.max(bossFlash,0.45);
+      b.fireFlash=0.22; Audio_.wub(); Audio_.big(); COOP.evSfx('wub'); COOP.evSfx('big'); shake=Math.max(shake,14); bossFlash=Math.max(bossFlash,0.45);
     } else if(b.fk==='mat'){ // FRAME: overexposure flare
       const lx=b.x, ly=b.y+0.58*b.r; matLensFx(b);
       const n=14, sp=300; for(let i=0;i<n;i++){const a=-Math.PI/2+(i/(n-1))*Math.PI;ebul.push({x:lx,y:ly,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:b.c,r:4});}
-      rings.push({x:lx,y:ly,r:b.r*0.5,vr:300,life:.6,max:.6,c:b.c}); bossFlash=Math.max(bossFlash,0.4); Audio_.blast(); shake=Math.max(shake,10);
+      rings.push({x:lx,y:ly,r:b.r*0.5,vr:300,life:.6,max:.6,c:b.c}); bossFlash=Math.max(bossFlash,0.4); Audio_.blast(); COOP.evSfx('blast'); shake=Math.max(shake,10);
     } else if(b.fk==='mset'){ // SCOPE: full-power scan burst
       const n=Math.min(26,16+Math.floor(sector/2));
       for(let i=0;i<n;i++){const a=b.core+i/n*6.2832;ebul.push({x:b.x,y:b.y,vx:Math.cos(a)*260,vy:Math.sin(a)*260+50,c:b.c,r:4,shape:'shard'});}
       b.scanState=1; b.scanT=0.6; b.scanDir=Math.random()<0.5?1:-1;
-      Audio_.big(); bossFlash=Math.max(bossFlash,0.35); shake=Math.max(shake,9);
+      Audio_.big(); COOP.evSfx('big'); bossFlash=Math.max(bossFlash,0.35); shake=Math.max(shake,9);
     }
   }}
 
@@ -3507,45 +3507,45 @@ function updateBoss(dt){
     if(b.pulseSeq>0){ b.pulseCd=(b.pulseCd||0)-dt; if(b.pulseCd<=0){ b.pulseCd=0.32; b.pulseSeq--;
       const n=Math.min(22,14+phase*3+Math.floor(sector/3)), off=Math.random()*0.5;
       for(let i=0;i<n;i++){ const a=i/n*6.2832+off; ebul.push({x:b.x,y:b.y,vx:Math.cos(a)*(170+phase*40),vy:Math.sin(a)*(170+phase*40),c:b.c,r:3,shape:'spore'}); }
-      rings.push({x:b.x,y:b.y,r:b.r*0.5,vr:220,life:.6,max:.6,c:b.c}); Audio_.hit(); shake=Math.max(shake,5); } }
+      rings.push({x:b.x,y:b.y,r:b.r*0.5,vr:220,life:.6,max:.6,c:b.c}); Audio_.hit(); COOP.evSfx('hit'); shake=Math.max(shake,5); } }
     if(b.burstT>0){ b.burstT-=dt; b.tell=clamp(1-b.burstT/0.8,0,1);
-      if(b.burstT<=0){ b.tell=0; b.fireFlash=0.2; Audio_.wub(); shake=Math.max(shake,8); bossFlash=Math.max(bossFlash,0.25);
+      if(b.burstT<=0){ b.tell=0; b.fireFlash=0.2; Audio_.wub(); COOP.evSfx('wub'); shake=Math.max(shake,8); bossFlash=Math.max(bossFlash,0.25);
         const n=Math.min(30,18+phase*5+Math.floor(sector/2)), gaps=2+phase, base=Math.random()*6.2832;
         for(let i=0;i<n;i++){ const a=i/n*6.2832; let ok=true; for(let g=0;g<gaps;g++){ if(Math.abs(((a-(base+g*6.2832/gaps)+Math.PI)%(Math.PI*2))-Math.PI)<0.34){ok=false;break;} } if(!ok)continue;
           ebul.push({x:b.x,y:b.y,vx:Math.cos(a)*(160+sector*6),vy:Math.sin(a)*(160+sector*6),c:b.c,r:3.5,shape:'spore'}); }
         rings.push({x:b.x,y:b.y,r:b.r*0.4,vr:260,life:.6,max:.6,c:b.c}); } }
     if(b.spiralN>0){ b.spiralCd=(b.spiralCd||0)-dt; if(b.spiralCd<=0){ b.spiralCd=0.05; b.spiralN--; b.spiralAng=(b.spiralAng||0)+(b.spiralDir||1)*0.40;
       const arms=2+phase; for(let a=0;a<arms;a++){ const ang=b.spiralAng+a*(6.2832/arms); ebul.push({x:b.x,y:b.y,vx:Math.cos(ang)*(150+sector*5),vy:Math.sin(ang)*(150+sector*5),c:b.c,r:3.2}); }
-      if(b.spiralN%5===0) Audio_.hit(); } }
+      if(b.spiralN%5===0){ Audio_.hit(); COOP.evSfx('hit'); } } }
     if(b.sigCd<=0 && !(b.spiralN>0) && !(b.burstT>0)){ const rr=Math.random();
-      if(rr<0.24){ const n=Math.min(7,2+phase+Math.floor(sector/4)); for(let i=0;i<n;i++){ const e=makeEnemy('bmet',0,b.x+rnd(-40,40),b.y+18,'dive'); e.vy=70+phase*12; e.vx=rnd(-40,40); e.hp=2; e.maxhp=2; e.fire=0.5; enemies.push(e); } Audio_.pickup(); }
+      if(rr<0.24){ const n=Math.min(7,2+phase+Math.floor(sector/4)); for(let i=0;i<n;i++){ const e=makeEnemy('bmet',0,b.x+rnd(-40,40),b.y+18,'dive'); e.vy=70+phase*12; e.vx=rnd(-40,40); e.hp=2; e.maxhp=2; e.fire=0.5; enemies.push(e); } Audio_.pickup(); COOP.evSfx('pickup'); }
       else if(rr<0.50){ b.spiralN=20+phase*6; b.spiralCd=0; b.spiralAng=Math.atan2(P.y-b.y,P.x-b.x); b.spiralDir=Math.random()<0.5?1:-1; rings.push({x:b.x,y:b.y,r:b.r*0.4,vr:150,life:.5,max:.5,c:b.c}); }
-      else if(rr<0.74){ b.burstT=0.8; Audio_.whine(0.8); }
-      else if(phase>=1 && rr<0.88){ for(let i=0;i<2+phase;i++){ const a=Math.atan2(P.y-b.y,P.x-b.x)+rnd(-0.5,0.5); ebul.push({x:b.x,y:b.y,vx:Math.cos(a)*120,vy:Math.sin(a)*120,c:COL.bmet,r:3,shape:'spore',seeker:true,homeT:1.6}); } Audio_.hit(); }
+      else if(rr<0.74){ b.burstT=0.8; Audio_.whine(0.8); COOP.evSfx('whine',0.8); }
+      else if(phase>=1 && rr<0.88){ for(let i=0;i<2+phase;i++){ const a=Math.atan2(P.y-b.y,P.x-b.x)+rnd(-0.5,0.5); ebul.push({x:b.x,y:b.y,vx:Math.cos(a)*120,vy:Math.sin(a)*120,c:COL.bmet,r:3,shape:'spore',seeker:true,homeT:1.6}); } Audio_.hit(); COOP.evSfx('hit'); }
       else { for(let i=0;i<(phase>=1?3:2);i++) hazards.push({x:clamp(P.x+rnd(-120,120),30,W-30),y:rnd(H*0.44,H*0.68),r:26,life:3.2,max:3.2,c:b.c}); }
       b.sigCd=Math.max(0.4,(rnd(2.8,4.0)-phase*0.6)*sf); }
   } else if(b.fk==='csee'){
     if(b.fireFlash>0) b.fireFlash=Math.max(0,(b.fireFlash||0)-dt);
     if(b.lockT>0){ b.lockT-=dt; b.lockX+=(P.x-b.lockX)*Math.min(1,dt*3); b.lockY+=(P.y-b.lockY)*Math.min(1,dt*3); b.tell=clamp(1-b.lockT/0.8,0,1);
-      if(b.lockT<=0){ b.tell=0; b.fireFlash=0.18; Audio_.blast();
+      if(b.lockT<=0){ b.tell=0; b.fireFlash=0.18; Audio_.blast(); COOP.evSfx('blast');
         const ang=Math.atan2(P.y-(b.y+0.55*b.r),P.x-b.x), sp=480+sector*14, spread=0.18, n=5+phase*2;
         for(let i=0;i<n;i++){ const a=ang-spread+(i/(n-1))*spread*2; ebul.push({x:b.x,y:b.y+0.55*b.r,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:b.c,r:3.4}); }
         if(phase>=2) b.doubleTapT=0.18;
         shake=Math.max(shake,7); } }
-    if((b.doubleTapT||0)>0){ b.doubleTapT-=dt; if(b.doubleTapT<=0){ b.doubleTapT=0; Audio_.blast();
+    if((b.doubleTapT||0)>0){ b.doubleTapT-=dt; if(b.doubleTapT<=0){ b.doubleTapT=0; Audio_.blast(); COOP.evSfx('blast');
       const ang=Math.atan2(P.y-(b.y+0.55*b.r),P.x-b.x), sp=480+sector*14, spread=0.18, n=5+phase*2;
       for(let i=0;i<n;i++){ const a=ang-spread+(i/(n-1))*spread*2; ebul.push({x:b.x,y:b.y+0.55*b.r,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:b.c,r:3.4}); }
       shake=Math.max(shake,7); } }
     if(b.beatN==null){ b.beatN=0; b.beatT=0.6; b.gapCol=2; }
     b.beatT-=dt;
-    if(b.beatT<=0){ const beatLen=[0.85,0.68,0.52][phase]; b.beatT=beatLen; b.beatN++; Audio_.thump(112); b.fireFlash=Math.max(b.fireFlash,0.06);
+    if(b.beatT<=0){ const beatLen=[0.85,0.68,0.52][phase]; b.beatT=beatLen; b.beatN++; Audio_.thump(112); COOP.evSfx('thump',112); b.fireFlash=Math.max(b.fireFlash,0.06);
       const n=b.beatN;
       if(phase>=2){ const rr=Math.random();
         if(rr<0.38){ ampWaveWall(phase,b.gapCol); b.gapCol=(b.gapCol+(Math.random()<0.5?1:5))%6; }
-        else if(rr<0.70 && b.lockT<=0){ b.lockX=P.x; b.lockY=P.y; b.lockT=0.68; Audio_.whine(b.lockT); }
+        else if(rr<0.70 && b.lockT<=0){ b.lockX=P.x; b.lockY=P.y; b.lockT=0.68; Audio_.whine(b.lockT); COOP.evSfx('whine',b.lockT); }
         else { ampShockwave(phase); } }
       else if(phase>=1 && n%4===0){ ampShockwave(phase); }
-      else if(n%3===0 && b.lockT<=0){ b.lockX=P.x; b.lockY=P.y; b.lockT=0.80-phase*0.12; Audio_.whine(b.lockT); }
+      else if(n%3===0 && b.lockT<=0){ b.lockX=P.x; b.lockY=P.y; b.lockT=0.80-phase*0.12; Audio_.whine(b.lockT); COOP.evSfx('whine',b.lockT); }
       else { ampWaveWall(phase,b.gapCol); b.gapCol=(b.gapCol+(Math.random()<0.5?1:5))%6; }
     }
   } else if(b.fk==='mat'){
@@ -3563,15 +3563,15 @@ function updateBoss(dt){
       if(b.sweepT<=0){ if(phase>=2 && b.sweepPass>0){ b.sweepPass=0; b.sweepDir=-(b.sweepDir||1); b.sweepStart=b.sweepAng; b.sweepState=1; b.sweepTele=0.32; b.sweepT=0.32; b.tell=0; }
         else b.sweepState=0; } }
     if(b.focusState===1){ b.focusT-=dt; b.tell=clamp(1-b.focusT/0.8,0,1); b.focusX=P.x; b.focusY=P.y;
-      if(b.focusT<=0){ b.focusState=0; b.tell=0; matLensFx(b); Audio_.blast();
+      if(b.focusT<=0){ b.focusState=0; b.tell=0; matLensFx(b); Audio_.blast(); COOP.evSfx('blast');
         const dx=b.focusX-lx, dy=b.focusY-ly, m=Math.hypot(dx,dy)||1, base=Math.atan2(dy,dx), sp=320+sector*10, n=5+phase*2;
         for(let i=0;i<n;i++){ const a=base+rnd(-0.10,0.10); ebul.push({x:lx,y:ly,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:b.c,r:3.4}); }
         shake=Math.max(shake,6); } }
     if(b.sweepState===0 && b.focusState!==1 && b.sigCd<=0){ const rr=Math.random();
       if(rr<0.32){ b.sweepState=1; b.sweepTele=0.5; b.sweepT=0.5; b.sweepDir=Math.random()<0.5?1:-1; b.sweepDur=phase>=2?1.0:1.3; b.sweepRate=phase>=2?2.3:1.6;
-        b.sweepStart=(b.sweepDir>0?0.30:Math.PI-0.30); b.sweepSpan=b.sweepRate*b.sweepDur; b.sweepPass=phase>=2?1:0; Audio_.whine(0.5); }
-      else if(rr<0.60){ b.focusState=1; b.focusT=0.8; b.focusX=P.x; b.focusY=P.y; Audio_.whine(0.8); }
-      else if(phase>=1 && rr<0.82){ matLensFx(b); bossFlash=Math.max(bossFlash,0.3); Audio_.blast(); shake=Math.max(shake,7);
+        b.sweepStart=(b.sweepDir>0?0.30:Math.PI-0.30); b.sweepSpan=b.sweepRate*b.sweepDur; b.sweepPass=phase>=2?1:0; Audio_.whine(0.5); COOP.evSfx('whine',0.5); }
+      else if(rr<0.60){ b.focusState=1; b.focusT=0.8; b.focusX=P.x; b.focusY=P.y; Audio_.whine(0.8); COOP.evSfx('whine',0.8); }
+      else if(phase>=1 && rr<0.82){ matLensFx(b); bossFlash=Math.max(bossFlash,0.3); Audio_.blast(); COOP.evSfx('blast'); shake=Math.max(shake,7);
         const n=Math.min(16,9+phase*3+Math.floor(sector/4)), sp=230+sector*8, off=Math.random()*0.4;
         for(let i=0;i<n;i++){ const a=-Math.PI/2+(i/(n-1))*Math.PI+off; ebul.push({x:lx,y:ly,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:b.c,r:3.4}); }
         rings.push({x:lx,y:ly,r:b.r*0.4,vr:300,life:.5,max:.5,c:b.c}); }
@@ -3591,17 +3591,17 @@ function updateBoss(dt){
       let pa=Math.atan2(P.y-ay,P.x-ax); let d=Math.abs(pa-b.scanAng); if(d>Math.PI)d=2*Math.PI-d;
       if(P.y>ay && d<0.08 && !P.dead && P.inv<=0) playerHit(P); }
     if(b.lockT>0){ b.lockT-=dt; b.lockX+=(P.x-b.lockX)*Math.min(1,dt*2.4); b.lockY+=(P.y-b.lockY)*Math.min(1,dt*2.4); b.tell=clamp(1-b.lockT/0.8,0,1);
-      if(b.lockT<=0){ b.tell=0; msetFocalFx(b); Audio_.blast();
+      if(b.lockT<=0){ b.tell=0; msetFocalFx(b); Audio_.blast(); COOP.evSfx('blast');
         const dx=b.lockX-ax, dy=b.lockY-ay, m=Math.hypot(dx,dy)||1, base=Math.atan2(dy,dx), sp=380+sector*12, n=3+phase;
         for(let i=0;i<n;i++){ const a=base+(i-(n-1)/2)*0.05; ebul.push({x:ax,y:ay,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:b.c,r:3.4,shape:'shard'}); }
         shake=Math.max(shake,6); } }
     if(b.scanState===0 && b.lockT<=0 && b.sigCd<=0){ const rr=Math.random();
       if(b.plates>0){ /* shielded: track and poke */
-        if(rr<0.55){ b.lockT=0.8; b.lockX=P.x; b.lockY=P.y; Audio_.whine(0.8); }
+        if(rr<0.55){ b.lockT=0.8; b.lockX=P.x; b.lockY=P.y; Audio_.whine(0.8); COOP.evSfx('whine',0.8); }
         else { msetFocalFx(b); const sp=300, base=Math.atan2(P.y-ay,P.x-ax); for(let k=-1;k<=1;k++){const a=base+k*0.16; ebul.push({x:ax,y:ay,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:b.c,r:3,shape:'shard'});} }
       } else { /* exposed: full sweep or hunting lance */
-        if(rr<0.55){ b.scanState=1; b.scanTele=Math.max(0.28,0.5-phase*0.08-sector*0.012); b.scanT=b.scanTele; b.scanStartDir=Math.random()<0.5?1:-1; b.scanAng=Math.PI/2-0.6*b.scanStartDir; Audio_.whine(0.5); }
-        else { b.lockT=0.8; b.lockX=P.x; b.lockY=P.y; Audio_.whine(0.8); }
+        if(rr<0.55){ b.scanState=1; b.scanTele=Math.max(0.28,0.5-phase*0.08-sector*0.012); b.scanT=b.scanTele; b.scanStartDir=Math.random()<0.5?1:-1; b.scanAng=Math.PI/2-0.6*b.scanStartDir; Audio_.whine(0.5); COOP.evSfx('whine',0.5); }
+        else { b.lockT=0.8; b.lockX=P.x; b.lockY=P.y; Audio_.whine(0.8); COOP.evSfx('whine',0.8); }
       }
       b.sigCd=Math.max(0.4,(rnd(2.4,3.2)-phase*0.3)*sf); }
   }
@@ -3609,8 +3609,8 @@ function updateBoss(dt){
   /* parryable bolt: a telegraphed slow orb the player can parry back for heavy damage */
   if(b.boltWind>0){ b.boltWind-=dt; b.boltTell=clamp(1-b.boltWind/0.7,0,1);
     if(b.boltWind<=0){ b.boltTell=0; const my=b.y+b.r*0.4, dx=P.x-b.x, dy=P.y-my, m=Math.hypot(dx,dy)||1, sp=175+sector*6;
-      ebul.push({x:b.x,y:my,vx:dx/m*sp,vy:dy/m*sp,c:COL.white,r:8,parryBolt:true,shape:'bolt',owner:b}); Audio_.whine(0.22); } }
-  else { b.boltCd-=dt; if(b.boltCd<=0 && b.sweepState!==2){ b.boltCd=Math.max(2.2,rnd(3.6,4.8)-phase*0.4); b.boltWind=0.7; Audio_.thump(170); } }
+      ebul.push({x:b.x,y:my,vx:dx/m*sp,vy:dy/m*sp,c:COL.white,r:8,parryBolt:true,shape:'bolt',owner:b}); Audio_.whine(0.22); COOP.evSfx('whine',0.22); } }
+  else { b.boltCd-=dt; if(b.boltCd<=0 && b.sweepState!==2){ b.boltCd=Math.max(2.2,rnd(3.6,4.8)-phase*0.4); b.boltWind=0.7; Audio_.thump(170); COOP.evSfx('thump',170); } }
   /* adaptive base attack: react to where the player is */
   b.fire-=dt;
   if(b.fire<=0 && b.sweepState!==2 && !(b.fk==='bmet'&&b.spiralN>0) && b.fk!=='csee' && b.fk!=='ace' && !(b.fk==='mset'&&b.scanState===2)){ const dx=pdx, dy=pdy;
@@ -3630,7 +3630,7 @@ function matLensFx(b){ b.fireFlash=Math.max(b.fireFlash||0,0.2); const lx=b.x, l
 function msetFocalFx(b){ b.fireFlash=Math.max(b.fireFlash||0,0.16); const ax=b.x, ay=b.y+0.56*b.r;
   for(let i=0;i<4;i++){ const a=rnd(0,6.2832),s=rnd(20,60); parts.push({x:ax,y:ay,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.28,max:.28,c:COL.white,sz:1.5}); } }
 function spawnBarrier(){ const y=rnd(H*0.42,H*0.58), w=rnd(120,180), x=clamp(nearestPlayer(W/2,H*0.5).x+rnd(-60,60),w/2+8,W-w/2-8);
-  barriers.push({x,y,w,h:12,life:4.2,max:4.2,c:boss?boss.c:COL.ace}); Audio_.hit(); }
+  barriers.push({x,y,w,h:12,life:4.2,max:4.2,c:boss?boss.c:COL.ace}); Audio_.hit(); COOP.evSfx('hit'); }
 function angDiff(a,b){ let d=(a-b)%(2*Math.PI); if(d>Math.PI)d-=2*Math.PI; if(d<-Math.PI)d+=2*Math.PI; return d; }
 function aceMuzzle(s,f){ const b=boss, lx=s*(0.28+0.88*f)*b.r, ly=(-0.14+0.32*(1-f))*b.r, a=b.faceRot||0, c=Math.cos(a), sn=Math.sin(a);
   return { x:b.x+lx*c-ly*sn, y:b.y+lx*sn+ly*c }; }
@@ -3639,7 +3639,7 @@ function aceGunVolley(){ const b=boss; if(!b) return; const P=nearestPlayer(b.x,
     const dx=P.x-mz.x, dy=P.y-mz.y, d=Math.hypot(dx,dy)||1;
     ebul.push({x:mz.x,y:mz.y,vx:dx/d*sp,vy:dy/d*sp,c:COL.ace,r:3.4});
     for(let p=0;p<3;p++) parts.push({x:mz.x,y:mz.y,vx:rnd(-40,40),vy:rnd(-40,20),life:.25,max:.25,c:COL.ace,sz:1.6}); }
-  Audio_.hit(); }
+  Audio_.hit(); COOP.evSfx('hit'); }
 function aceFly(b,dt,phase,sf){
   const P=nearestPlayer(b.x,b.y);   // co-op: dives/hovers key off the nearest live ship
   /* hard watchdog: guarantees re-entry even if a state stalls offscreen */
@@ -3658,7 +3658,7 @@ function aceFly(b,dt,phase,sf){
     const s=Math.hypot(b.vx,b.vy); if(s>cap){ b.vx=b.vx/s*cap; b.vy=b.vy/s*cap; } };
   const startHover=()=>{ b.flyState='hover'; b.hx=clamp(P.x+rnd(-140,140),90,W-90); b.hy=rnd(120,H*0.30); b.flyT=rnd(1.7,2.3); b.gunCd=0; };
   const startStrafe=()=>{ b.flyState='strafe'; b.strafeDir=b.x<W/2?1:-1; b.flyT=3.0; b.gunCd=0; };
-  const startDive=()=>{ b.flyState='dive'; b.tx=P.x; b.ty=clamp(P.y,H*0.5,H*0.84); b.flash=.22; Audio_.whine(0.6); };
+  const startDive=()=>{ b.flyState='dive'; b.tx=P.x; b.ty=clamp(P.y,H*0.5,H*0.84); b.flash=.22; Audio_.whine(0.6); COOP.evSfx('whine',0.6); };
   const startExit=()=>{ b.flyState='exit'; b.exitT=0; };
   const enterWarn=()=>{ if(!(b.x<-80||b.x>W+80||b.y<-80||b.y>H+80)){ const m=Math.min(b.x,W-b.x,b.y); if(m===b.y)b.y=-90; else if(m===b.x)b.x=-90; else b.x=W+90; }
     const side=pick(['top','left','right']);
@@ -3705,12 +3705,12 @@ function aceImpact(x,y){ const ph=boss?(boss.phase||0):0; const sp=220+sector*8;
   if(ph>=2){ rings.push({x,y,r:8,vr:560,life:.5,max:.5,c:COL.white});
     for(let i=0;i<n;i++){ const a=i/n*6.2832+0.14; ebul.push({x,y,vx:Math.cos(a)*sp*0.62,vy:Math.sin(a)*sp*0.62,c:COL.white,r:3.4}); } }
   hazards.push({x:clamp(x,40,W-40),y:clamp(y,H*0.3,H*0.78),r:30,life:1.6,max:1.6,c:COL.ace});
-  Audio_.big(); shake=Math.max(shake,13+ph*3); bossFlash=Math.max(bossFlash,0.3+ph*0.12); }
+  Audio_.big(); COOP.evSfx('big'); shake=Math.max(shake,13+ph*3); bossFlash=Math.max(bossFlash,0.3+ph*0.12); }
 function aceCrush(){ const w=Math.min(22,15+Math.floor(sector/2));
   [0,-260].forEach((oy,wi)=>{ const gap=rnd(W*0.22,W*0.78);
     for(let i=0;i<=w;i++){ const x=20+i*((W-40)/w); if(Math.abs(x-gap)<48)continue;
       ebul.push({x,y:oy-30,vx:0,vy:230+sector*9,c:wi?COL.white:COL.ace,r:5}); } });
-  Audio_.big(); shake=Math.max(shake,14); bossFlash=Math.max(bossFlash,0.3); }
+  Audio_.big(); COOP.evSfx('big'); shake=Math.max(shake,14); bossFlash=Math.max(bossFlash,0.3); }
 function ampWaveWall(phase,gapCol){ const cols=6;
   for(let c=0;c<cols;c++){ if(Math.abs(c-gapCol)<1.4) continue;
     const x=30+c*((W-60)/(cols-1)), y0=-20-Math.abs(Math.sin(c*0.9))*70, sp=200+sector*8+phase*30;
@@ -3724,11 +3724,11 @@ function ampShockwave(phase){ const b=boss; if(!b) return; const cx=b.x, cy=b.y+
     for(let i=0;i<n2;i++){ const a=i/n2*6.2832; if(Math.abs(((a-gap2+Math.PI)%(Math.PI*2))-Math.PI)<0.50) continue;
       ebul.push({x:cx,y:cy,vx:Math.cos(a)*sp2,vy:Math.sin(a)*sp2,c:COL.csee,r:3.4}); }
     rings.push({x:cx,y:cy,r:b.r*0.3,vr:sp2,life:.5,max:.5,c:COL.csee}); }
-  Audio_.wub(); shake=Math.max(shake,9); bossFlash=Math.max(bossFlash,0.18); }
+  Audio_.wub(); COOP.evSfx('wub'); shake=Math.max(shake,9); bossFlash=Math.max(bossFlash,0.18); }
 function damageBoss(dmg){ const b=boss; if(!b||b.dying||b.entering||b.tT>0) return; if(player&&player.modDuelist) dmg*=1.25; if(gameMode==='tune') balDmgAccum+=dmg; b.flash=.08;
   if(b.fk==='bmet') b.regenT=1.6;
   if(b.plates>0){ b.plateHp-=dmg;
-    if(b.plateHp<=0){ b.plates--; explode(b.x+rnd(-b.r,b.r),b.y+rnd(-b.r,b.r),b.c,false); Audio_.hit();
+    if(b.plateHp<=0){ b.plates--; explode(b.x+rnd(-b.r,b.r),b.y+rnd(-b.r,b.r),b.c,false); Audio_.hit(); COOP.evSfx('hit');
       if(b.plates>0) b.plateHp=b.plateMax; else { b.flash=.3; shake=Math.max(shake,8); } }
     return; }
   b.hp-=dmg; if(b.hp<=0) startBossDeath();
@@ -3741,7 +3741,7 @@ function startBossDeath(){ const b=boss; b.dying=true; b.deathT=2.4; b.deathDur=
   document.querySelector('#bossbar i').style.transform='scaleX(0)';
   document.getElementById('bossname').style.display='none'; document.getElementById('bossbar').style.display='none'; }
 function finishBoss(){ runBosses++; runBossTTK.push(Math.max(0,Math.round(runTime-(window.__bossT0||runTime)))); const b=boss;
-  explode(b.x,b.y,b.c,true); explode(b.x,b.y,COL.white,true); Audio_.big(); Audio_.death(); shake=24; bossFlash=0.85; deathSlow=Math.max(deathSlow,0.5); warpT=Math.max(warpT,0.7);
+  explode(b.x,b.y,b.c,true); explode(b.x,b.y,COL.white,true); Audio_.big(); Audio_.death(); COOP.evBossFin(b.x,b.y); shake=24; bossFlash=0.85; deathSlow=Math.max(deathSlow,0.5); warpT=Math.max(warpT,0.7);
   rings.push({x:b.x,y:b.y,r:8,vr:900,life:.7,max:.7,c:COL.white}); rings.push({x:b.x,y:b.y,r:8,vr:620,life:.65,max:.65,c:b.c}); rings.push({x:b.x,y:b.y,r:8,vr:380,life:.6,max:.6,c:COL.white});
   for(let i=0;i<10;i++) setTimeoutSafe(b.x+rnd(-70,70),b.y+rnd(-60,60),Math.random()<0.5?b.c:COL.white,i*60);
   for(let i=0;i<30;i++){ const a=rnd(0,6.28),sp=rnd(80,360); shards.push({x:b.x,y:b.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,rot:rnd(0,6.28),vr:rnd(-10,10),len:rnd(8,22),life:rnd(.6,1.2),max:1,c:b.c}); }
@@ -5686,6 +5686,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'197',date:'2026',items:['CO-OP now replays sound and effects for enemy deaths, hits, and other world events for the guest - not just your own actions.']},
  {ver:'195',date:'2026',items:['CO-OP visual parity pass 2: enemies now telegraph and animate correctly for the guest, and FLAK clouds are visible.']},
  {ver:'194',date:'2026',items:['Fixed a bug where CO-OP guest movement did not respond at all in pointer-lock/mouse-follow control mode.']},
  {ver:'192',date:'2026',items:['CO-OP visual parity pass: guests now see hazards, score popups and milestones, boss phase-transition effects, and the partner\'s fire and parry cues.']},
@@ -6094,6 +6095,13 @@ try{ if(/[?&]coopstub=1\b/.test(location.search)){
   window.__vgStubAnchor=function(){ for(const e of enemies){ if(!e.dead&&e.role!=='anchor'){ e.role='anchor'; e.buffR=150; return e._eid||1; } } return 'none'; };
   window.__vgStubBuffAll=function(){ let n=0; for(const e of enemies){ if(!e.dead){ e.buffed=0.35; n++; } } return n; };
   window.__vgStubFlak=function(){ const p=players[0]||player; if(!p) return 'no ship'; detonateFlak({x:p.x,y:p.y-120,pi:0},1); return flakClouds.length; };
+  // v197 event-pipeline drive: kill real enemies through the real kill path,
+  // apply a real pod pickup, fire a real bomb, and sample sent/applied event
+  // counts on either side.
+  window.__vgStubKill=function(n){ let k=0; for(const e of enemies){ if(!e.dead){ killEnemy(e); if(++k>=(+n||1)) break; } } return k; };
+  window.__vgStubPod=function(type){ const p=players[0]||player; if(!p) return 'no ship'; applyPod({x:p.x,y:p.y-30,type:type||'coin',buff:'overdrive',c:COL.gold,r:11,bob:0},p); return type||'coin'; };
+  window.__vgStubBombNow=function(){ const p=players[0]||player; if(!p) return 'no ship'; p.bombs=Math.max(1,p.bombs||0); fireBomb(p); return p.bombs; };
+  window.__vgStubEv=function(){ return COOP._evStats(); };
 } }catch(e){}
 
 /* ?vgheadless=1 - dev-only rAF pump (opt-in like ?coopstub=1): drives
@@ -6142,6 +6150,38 @@ const COOP=(function(){
   let eidSeq=1; const guestEnemies=new Map();
   const guestHoles=new Map(), guestHazards=new Map(), guestBarriers=new Map();   // visual parity: render-only mirrors of the host's environmental hazards, keyed by host id like guestEnemies
   const guestFlak=new Map();   // visual parity pass 2: render-only FLAK cloud mirror, same id-keyed pattern (no damage tick ever runs guest-side)
+  /* Generic one-shot cue replay pipeline (v197). The host's simulation runs
+     dozens of one-shot audio/visual cues (enemy deaths, hit sparks, pickups,
+     boss attack sounds) inside update(), which the guest never executes. Each
+     such site also queues a compact typed row here via the COOP.ev* helpers
+     (a no-op in solo, on the guest, and outside 'play'); buildSnap ships the
+     buffer as the `ev` field (0 when empty, the ho/hz/br/fc convention) and
+     clears it, so an event rides exactly one snapshot. applyEvents() on the
+     guest replays the SAME cue code solo plays, render/audio-only: it writes
+     nothing but Audio_ and the cosmetic layers (parts/shards/rings/pops/
+     shake/hitStop/bossFlash/warpT) - never hp, score, ammo, or any other
+     simulation state. */
+  const EV_KILL=0,EV_HIT=1,EV_PHIT=2,EV_PARRYHIT=3,EV_PICKUP=4,EV_BOMB=5,EV_SFX=6,EV_BTOUCH=7,EV_BFIN=8;
+  const EV_SFXL=['enemy_fire','whine','blast','wub','thump','big','hit','pickup','power','death'];   // audio-only one-shots (EV_SFX code index)
+  const EV_PRI={8:0,7:1,0:2,2:3,3:4,5:5,4:6,6:7,1:8};   // over-cap significance order (lower ships first; finale/touchdown/kills before generic sfx/sparks)
+  const EV_CAP=10, EV_BUF_MAX=24, PODK=['coin','core','shield','1up','pwr'];
+  let evBuf=[], evSent=0, evApplied=0, bossFinRep=false;
+  function evPush(row){
+    if(!(coopMatch&&role==='host'&&state==='play')) return;
+    if(evBuf.length>=EV_BUF_MAX) return;
+    if(row[0]===EV_SFX){ for(let i=0;i<evBuf.length;i++){ if(evBuf[i][0]===EV_SFX&&evBuf[i][1]===row[1]) return; } }   // one instance of each sound per interval (mirrors the sample layer's own 50ms throttle)
+    if(row[0]===EV_HIT){ let n=0; for(let i=0;i<evBuf.length;i++){ if(evBuf[i][0]===EV_HIT&&++n>=3) return; } }       // impact sparks: 3 per interval already reads as continuous fire
+    evBuf.push(row);
+  }
+  function evKill(e,silent){ evPush([EV_KILL,e._eid||0,Math.round(e.x),Math.round(e.y),Math.max(0,FKL.indexOf(e.fk)),e.variant|0,(silent?1:0)|(e.role==='anchor'?2:0)]); }
+  function evHit(x,y,c,vx,vy,silent){ evPush(silent?[EV_HIT,Math.round(x),Math.round(y),c,+Math.atan2(vy||0,vx||0).toFixed(2),1]:[EV_HIT,Math.round(x),Math.round(y),c,+Math.atan2(vy||0,vx||0).toFixed(2)]); }
+  function evPhit(pl,kind){ evPush([EV_PHIT,pl.pi||0,kind|0]); }
+  function evParryHit(pl,perfect){ evPush([EV_PARRYHIT,pl.pi||0,perfect?1:0]); }
+  function evPickup(p){ evPush([EV_PICKUP,Math.round(p.x),Math.round(p.y),Math.max(0,PODK.indexOf(p.type))]); }
+  function evBomb(pl){ evPush([EV_BOMB,Math.round(pl.x),Math.round(pl.y)]); }
+  function evSfx(name,arg){ const c=EV_SFXL.indexOf(name); if(c>=0) evPush(arg!=null?[EV_SFX,c,arg]:[EV_SFX,c]); }
+  function evBossTouch(x,y){ evPush([EV_BTOUCH,Math.round(x),Math.round(y)]); }
+  function evBossFin(x,y){ evPush([EV_BFIN,Math.round(x),Math.round(y)]); }
   /* Phase 2/2.5 guest smoothing: the host-owned world (partner, enemies, boss,
      bullets, HUD) renders RENDER_DELAY_MS in the past through a small rolling
      buffer of received snapshots (snapBuf, arrival-stamped), so a late or
@@ -6231,7 +6271,7 @@ const COOP=(function(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(gameMode==='coop') gameMode=prevMode||'normal';
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
-    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear();
+    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); evBuf.length=0; bossFinRep=false;
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
@@ -6245,7 +6285,7 @@ const COOP=(function(){
     phase='match';
     prevMode=(gameMode==='coop')?prevMode:gameMode;
     coopMatch=true; localIndex=(role==='host')?0:1;
-    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; actQueue.length=0;
+    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; actQueue.length=0; evBuf.length=0; evSent=0; evApplied=0; bossFinRep=false;
     remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now();
     gameMode='coop';
     startGame();                                   // builds players[localIndex] (baseline loadout)
@@ -6331,6 +6371,11 @@ const COOP=(function(){
     if(!wasDead&&pl.dead){ explode(pl.x,pl.y,COL.green,true); Audio_.big(); }
   }
   function buildSnap(){
+    // one-shot cue events (v197): consume the buffer, so each event rides
+    // exactly ONE snapshot; an over-cap interval keeps the most significant
+    // rows (EV_PRI) instead of dropping arbitrarily.
+    const ev=evBuf.length?(evBuf.length>EV_CAP?evBuf.sort((a,b)=>(EV_PRI[a[0]]||9)-(EV_PRI[b[0]]||9)).slice(0,EV_CAP):evBuf):0;
+    evBuf=[]; if(ev) evSent+=ev.length;
     return {
       sec:sector, sk:sectorKills, kfb:killsForBoss, bp:bossPending?1:0,
       sc:Math.round(window.scoreT||0), st:Math.round(window.style||0), mult:window.mult||1,
@@ -6362,6 +6407,7 @@ const COOP=(function(){
       // constant). dps/pi stay host-only - damage never ticks on the guest.
       fc:flakClouds.length?flakClouds.slice(0,12).map(c=>{ if(!c._eid)c._eid=eidSeq++;
         return [c._eid,Math.round(c.x),Math.round(c.y),Math.round(c.r),+(c.t||0).toFixed(2),+(c.life||1).toFixed(2)]; }):0,
+      ev:ev,
       bo:boss?{fk:boss.fk,x:Math.round(boss.x),y:Math.round(boss.y),r:Math.round(boss.r),core:+(boss.core||0).toFixed(2),hp:Math.max(0,Math.round(boss.hp)),mh:Math.round(boss.maxhp),en:boss.entering?1:0,dy:boss.dying?1:0,ph:boss.phase|0,nm:boss.name||'',tl:+(boss.tell||0).toFixed(2)}:0
     };
   }
@@ -6378,6 +6424,65 @@ const COOP=(function(){
     const fg=a[13]|0; e.mut=MUTL[fg&3]||undefined;
     if(fg&4){ e.role='anchor'; e.buffR=150; }
     e.lockT=a[14]||0; e.lockX=a[15]||0; e.lockY=a[16]||0;
+  }
+  /* Guest-side generic cue dispatcher (v197): replays each transmitted one-shot
+     event with the SAME cue code solo runs, at the transmitted position.
+     Render/audio only. A kill event retires its guestEnemies id itself (with
+     the full solo death treatment: faction kill sound, explosion, faction
+     death layer, elite/anchor flourishes) so the vanished-id sweep below never
+     explodes the same enemy twice; kills whose event was dropped by the cap
+     still get the sweep's silent explosion as the fallback. */
+  function applyEvents(s){
+    if(!s.ev) return;
+    for(const a of s.ev){ try{
+      const t=a[0];
+      if(t===EV_KILL){
+        const eid=a[1],x=a[2],y=a[3],fk=FKL[a[4]]||'ace',vr=a[5]|0,fl=a[6]|0;
+        const F=FACTIONS[fk]||FACTIONS.ace, sh=eid?guestEnemies.get(eid):null;
+        const c=(sh&&sh.c)||F.c, r=(sh&&sh.r)||(F.r&&F.r[Math.min(vr,2)])||16;
+        explode(x,y,c,vr>=2); factionDeathLayer({fk:fk,x:x,y:y,c:c,r:r,variant:vr});
+        shake=Math.max(shake,2.5+vr*3.5);
+        if(vr>=2||fk==='foreman'||fk==='vector'){ hitStop=Math.max(hitStop,0.05); rings.push({x:x,y:y,r:r*0.4,vr:440,life:.4,max:.4,c:COL.white}); }
+        if(fl&2){ rings.push({x:x,y:y,r:r,vr:360,life:.6,max:.6,c:COL.white}); rings.push({x:x,y:y,r:r,vr:240,life:.5,max:.5,c:COL.mat});
+          shake=Math.max(shake,9); Audio_.phase(); pops.push({x:x,y:y-10,txt:'ANCHOR DOWN',c:COL.mat,life:1.3,max:1.3}); }
+        if(!(fl&1)){ (Audio_.play&&Audio_.play('kill_'+fk))||Audio_.kill(); }
+        if(eid) guestEnemies.delete(eid);
+      } else if(t===EV_HIT){ impactFX(a[1],a[2],a[3]||COL.white,Math.cos(a[4]||0),Math.sin(a[4]||0)); if(!a[5]&&Audio_.play)Audio_.play('hit');
+      } else if(t===EV_PHIT){ const pl=players[a[1]], k=a[2]|0;
+        ((Audio_.play&&Audio_.play(k===1?'shield_break':k===0?'shield_hit':'player_hit'))||Audio_.hit());
+        if(pl&&k===2){ for(let q=0;q<10;q++)parts.push({x:pl.x,y:pl.y,vx:rnd(-80,80),vy:rnd(-80,80),life:.25,max:.25,c:COL.green,sz:1.8}); shake=Math.max(shake,6); }
+      } else if(t===EV_PARRYHIT){ const pl=players[a[1]], pf=!!a[2];
+        Audio_.parryHit(); hitStop=Math.max(hitStop,pf?0.10:0.06); shake=Math.max(shake,pf?10:5); bossFlash=Math.max(bossFlash,pf?0.6:0.32);
+        if(pl) pops.push({x:pl.x,y:pl.y-30,txt:pf?'PERFECT PARRY':'PARRY',c:pf?COL.white:COL.cyan,life:.9,max:.9});
+      } else if(t===EV_PICKUP){ const x=a[1],y=a[2],k=PODK[a[3]]||'coin';
+        if(k==='core'){ ((Audio_.play&&Audio_.play('core'))||Audio_.pickup()); shake=Math.max(shake,5);
+          for(let q=0;q<18;q++)parts.push({x:x,y:y,vx:rnd(-160,160),vy:rnd(-160,160),life:.5,max:.5,c:COL.gold,sz:2});
+          pops.push({x:x,y:y-8,txt:'CORE',c:COL.gold,life:1.4,max:1.4}); }
+        else if(k==='pwr'){ ((Audio_.play&&Audio_.play('powerup'))||Audio_.power()); pops.push({x:x,y:y-6,txt:'POWER-UP',c:COL.gold,life:.8,max:.8}); }
+        else { ((Audio_.play&&Audio_.play(k==='shield'?'shield_up':k==='1up'?'life_up':'coin'))||Audio_.pickup());
+          pops.push({x:x,y:y-6,txt:k==='coin'?'+60 i¢':k.toUpperCase(),c:k==='shield'?COL.cyan:k==='1up'?COL.mat:COL.gold,life:.8,max:.8}); }
+      } else if(t===EV_BOMB){ const x=a[1],y=a[2];
+        Audio_.bomb(); Audio_.big(); shake=Math.max(shake,16); bossFlash=Math.max(bossFlash,0.55);
+        rings.push({x:x,y:y,r:6,vr:1100,life:.55,max:.55,c:COL.white}); rings.push({x:x,y:y,r:6,vr:760,life:.55,max:.55,c:COL.green}); rings.push({x:x,y:y,r:6,vr:480,life:.5,max:.5,c:COL.gold});
+        for(let q=0;q<64;q++){const an=rnd(0,6.28),sp2=rnd(120,520); parts.push({x:x,y:y,vx:Math.cos(an)*sp2,vy:Math.sin(an)*sp2,life:rnd(.4,.7),max:.7,c:Math.random()<0.4?COL.white:COL.green,sz:rnd(1.6,3)});}
+        pops.push({x:x,y:y-30,txt:'PURGE',c:COL.green,life:.8,max:.8});
+      } else if(t===EV_SFX){ const nm=EV_SFXL[a[1]];
+        if(nm==='enemy_fire'){ if(Audio_.play)Audio_.play('enemy_fire'); }
+        else if(nm&&typeof Audio_[nm]==='function') Audio_[nm](a[2]);
+      } else if(t===EV_BTOUCH){ const x=a[1],y=a[2],c=(boss&&boss.c)||COL.white,r=(boss&&boss.r)||60;
+        shake=Math.max(shake,15); bossFlash=Math.max(bossFlash,0.5); Audio_.big();
+        rings.push({x:x,y:y,r:r*0.6,vr:540,life:.6,max:.6,c:COL.white}); rings.push({x:x,y:y,r:r,vr:340,life:.55,max:.55,c:c});
+        for(let q=0;q<32;q++){const an=rnd(0,6.28),sp2=rnd(60,330); parts.push({x:x,y:y,vx:Math.cos(an)*sp2,vy:Math.sin(an)*sp2,life:.6,max:.6,c:Math.random()<0.4?COL.white:c,sz:rnd(1.6,2.8)});}
+      } else if(t===EV_BFIN){ const x=a[1],y=a[2],c=(boss&&boss.c)||COL.white;
+        explode(x,y,c,true); explode(x,y,COL.white,true); Audio_.big(); Audio_.death(); Audio_.play&&Audio_.play('boss_death');
+        shake=24; bossFlash=0.85; warpT=Math.max(warpT,0.7);
+        rings.push({x:x,y:y,r:8,vr:900,life:.7,max:.7,c:COL.white}); rings.push({x:x,y:y,r:8,vr:620,life:.65,max:.65,c:c}); rings.push({x:x,y:y,r:8,vr:380,life:.6,max:.6,c:COL.white});
+        for(let q=0;q<10;q++) setTimeoutSafe(x+rnd(-70,70),y+rnd(-60,60),Math.random()<0.5?c:COL.white,q*60);
+        for(let q=0;q<30;q++){ const an=rnd(0,6.28),sp2=rnd(80,360); shards.push({x:x,y:y,vx:Math.cos(an)*sp2,vy:Math.sin(an)*sp2,rot:rnd(0,6.28),vr:rnd(-10,10),len:rnd(8,22),life:rnd(.6,1.2),max:1,c:c}); }
+        bossFinRep=true;   // the bo:0 removal edge in this same snapshot skips its fallback explosion
+      }
+      evApplied++;
+    }catch(err){} }
   }
   /* Phase 2.5 split: the NEWEST snapshot reconciles ONLY our own predicted
      ship the moment it lands (staleness here is prediction error, so it must
@@ -6399,10 +6504,12 @@ const COOP=(function(){
     }
   }
   function applyWorldSnap(s){
-    if(s.sec!==sector){ sector=s.sec; killsForBoss=s.kfb||killsForBoss; triggerBanner(); }
+    applyEvents(s);   // one-shot cue replays first: kill events retire their guestEnemies id before the vanish sweep, EV_BFIN flags the boss-removal edge below
+    if(s.sec!==sector){ sector=s.sec; killsForBoss=s.kfb||killsForBoss; triggerBanner(); try{ Audio_.lane(sectorTheme().fk||'idea'); }catch(e){} }
     sectorKills=s.sk||0; killsForBoss=s.kfb||killsForBoss; bossPending=!!s.bp;
-    { const _prevSc=window.scoreT||0, _sc=s.sc||0;
+    { const _prevSc=window.scoreT||0, _sc=s.sc||0, _prevMu=window.mult||1;
       window.scoreT=_sc; window.style=s.st||0; window.mult=s.mult||1;
+      if((s.mult||1)>_prevMu&&Audio_.play)Audio_.play('style_up');   // style rank-up cue (solo: addStyle), driven by the transmitted mult edge
       // score feedback parity (render-only; scoreT itself is the untouched
       // authoritative assignment above): one combined "+N" pop per snapshot
       // above our own ship (no per-event location is transmitted, so never
@@ -6486,6 +6593,7 @@ const COOP=(function(){
           nm.style.color=F.c; nm.style.textShadow='0 0 10px '+F.c; nm.style.display='block';
           document.getElementById('bossbar').style.display='block'; }catch(e){}
         bossCard={mode:'enter',name:(BOSSNAME[bo.fk]||F.name),sub:'SECTOR BOSS',c:F.c,t:0,dur:2.4};
+        Audio_.bossWarn(); try{ Audio_.lane('boss:'+bo.fk); }catch(e){}   // arrival warn jingle + boss music lane (solo: spawnBoss)
       }
       // boss phase-transition drama replay (visual parity): compare the
       // incoming phase to OUR stored one BEFORE stamping it (the create block
@@ -6501,10 +6609,18 @@ const COOP=(function(){
           for(let i=0;i<40;i++){const a=rnd(0,6.28),sp2=rnd(80,360);parts.push({x:boss.x,y:boss.y,vx:Math.cos(a)*sp2,vy:Math.sin(a)*sp2,life:.7,max:.7,c:Math.random()<0.4?COL.white:boss.c,sz:rnd(1.6,2.8)});}
           try{ const nmEl=document.getElementById('bossname'); if(nmEl) nmEl.textContent='SECTOR BOSS · '+(BOSSNAME[boss.fk]||boss.name)+(_np>0?' · PHASE '+(_np+1):''); }catch(e){}
           Audio_.phase(); } }
+      // boss death-start drama (render-only mirror of startBossDeath's
+      // cosmetic half, on the transmitted dying edge; the ~2.4s rumble ticks
+      // in guestFrame's cosmetics block and the finale rides EV_BFIN)
+      if(bo.dy&&!boss.dying){ Audio_.big(); shake=Math.max(shake,18); bossFlash=Math.max(bossFlash,0.5); boss._dieT=0;
+        rings.push({x:boss.x,y:boss.y,r:boss.r*0.5,vr:300,life:.6,max:.6,c:COL.white});
+        bossCard={mode:'death',name:(BOSSNAME[boss.fk]||boss.name),sub:'ELIMINATED',c:boss.c,t:0,dur:2.6};
+        try{ document.getElementById('bossname').style.display='none'; document.getElementById('bossbar').style.display='none'; }catch(e){} }
       bufPos(boss,bo.x,bo.y); boss.r=bo.r||boss.r; boss.core=bo.core||0; boss.hp=bo.hp; boss.maxhp=bo.mh;
       boss.entering=!!bo.en; boss.dying=!!bo.dy; boss.phase=bo.ph|0; boss.tell=bo.tl||0;
       boss._barFrac=boss._chip=Math.max(0,Math.min(1,bo.mh?bo.hp/bo.mh:0));
-    } else if(boss){ try{ explode(boss.x,boss.y,boss.c,true); }catch(e){}
+    } else if(boss){ if(!bossFinRep){ try{ explode(boss.x,boss.y,boss.c,true); }catch(e){} } bossFinRep=false;   // EV_BFIN already replayed the full finale for this removal
+      try{ Audio_.lane(sectorTheme().fk||'idea'); }catch(e){}   // music back to the sector lane (solo: finishBoss)
       try{ document.getElementById('bossname').style.display='none'; document.getElementById('bossbar').style.display='none'; }catch(e){}
       boss=null; }
   }
@@ -6615,7 +6731,17 @@ const COOP=(function(){
     if(scoreFlash>0) scoreFlash-=dt*2.4;
     if(boss){ if(boss.flash>0)boss.flash-=dt;
       if(boss._phaseFlick>0)boss._phaseFlick=Math.max(0,boss._phaseFlick-dt);
-      if(boss._litNotchT>0)boss._litNotchT=Math.max(0,boss._litNotchT-dt); }
+      if(boss._litNotchT>0)boss._litNotchT=Math.max(0,boss._litNotchT-dt);
+      // boss death rumble (v197): render-only mirror of updateBoss's dying
+      // block, driven by the transmitted dying flag on a local progress
+      // clock. Purely cosmetic (explosions/rings/shards/sound); the finale
+      // and removal stay host-authoritative (EV_BFIN + the bo:0 edge).
+      if(boss.dying){ boss._dieT=(boss._dieT||0)+dt; const prog=Math.min(1,boss._dieT/2.4);
+        shake=Math.max(shake,7+prog*11);
+        if(Math.random()<0.4+prog*0.5) explode(boss.x+rnd(-boss.r,boss.r),boss.y+rnd(-boss.r*0.8,boss.r*0.8),Math.random()<0.5?boss.c:COL.white,false);
+        boss._deathRing=(boss._deathRing||0)-dt; if(boss._deathRing<=0){ boss._deathRing=0.3; rings.push({x:boss.x,y:boss.y,r:boss.r*0.4,vr:300+prog*220,life:.5,max:.5,c:Math.random()<0.5?boss.c:COL.white}); Audio_.phase(); }
+        if(Math.random()<0.4){ const _da=rnd(0,6.28),_ds=rnd(60,230); shards.push({x:boss.x,y:boss.y,vx:Math.cos(_da)*_ds,vy:Math.sin(_da)*_ds,rot:rnd(0,6.28),vr:rnd(-9,9),len:rnd(8,20),life:rnd(.5,1.0),max:1,c:boss.c}); }
+        boss.flash=Math.max(boss.flash||0,0.12); bossFlash=Math.max(bossFlash,prog*0.4); } }
     for(let i=0;i<holes.length;i++) holes[i].core+=dt*4;
     // pass 2: enemy pulse/hover clock at the base host rate (host runs
     // 1.1+spin; snapshots restamp core every ~66ms, so the +/-0.4 per-enemy
@@ -6702,7 +6828,11 @@ const COOP=(function(){
     isHost:()=>coopMatch&&role==='host',
     isGuest:()=>coopMatch&&role==='guest',
     get remoteCtrl(){ return remoteCtrl; },
-    sendAct, drainActs, hostFrame, guestFrame, finishMatch, leave, openLobby
+    sendAct, drainActs, hostFrame, guestFrame, finishMatch, leave, openLobby,
+    // generic cue-event pushes (v197): additive bookkeeping beside the host's
+    // own Audio_/FX calls; all no-ops in solo, on the guest, and outside play
+    evKill, evHit, evPhit, evParryHit, evPickup, evBomb, evSfx, evBossTouch, evBossFin,
+    _evStats:()=>({sent:evSent,applied:evApplied,buffered:evBuf.length})
   };
 })();
 

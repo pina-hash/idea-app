@@ -425,6 +425,40 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   cosmetics block. Stub additions: the `__vgStubTele` sampler plus
   `__vgStubForeman` / `__vgStubVector` / `__vgStubMut` / `__vgStubAnchor` /
   `__vgStubBuffAll` / `__vgStubFlak` injectors.
+- **Co-op generic cue replay (game v197): event-driven audio/visual parity,
+  the systemic fix for the one-cue-at-a-time parity chase.** Every one-shot
+  audio/visual cue that fires inside the host-only simulation also queues a
+  compact typed row (host-side `COOP.ev*` helpers, no-ops in solo and on the
+  guest) that rides the next snapshot as the `ev` field (`0` when empty, the
+  ho/hz/br/fc convention; cap 10 rows per snapshot with a significance
+  priority on overflow; the buffer is consumed per snapshot so an event rides
+  exactly once). ONE guest dispatcher (`applyEvents`, run first in
+  `applyWorldSnap`) replays the SAME cue code solo runs, render/audio-only
+  (writes nothing but Audio_ plus parts/shards/rings/pops/shake/hitStop/
+  bossFlash/warpT): enemy deaths (faction kill sound, explosion, faction
+  death layer, elite/anchor flourishes; a kill event retires its guestEnemies
+  id so the v192 vanished-id sweep never double-explodes, and that sweep
+  stays the silent fallback for cap-dropped kills), bullet-impact sparks
+  (3 per interval), player shield-hit/shield-break/armor-hit cues, parry
+  SUCCESS (activation was already predicted in v191), pickups (coin/core/
+  shield/1up/powerup), bombs, boss touchdown and death finale, and a deduped
+  audio-only SFX class (enemy fire, boss attack whines/blasts/wubs/thumps,
+  fleet set-piece telegraph audio: one instance of each sound per snapshot,
+  mirroring the sample layer's own 50ms throttle). Alongside it, dedicated
+  replays off already-transmitted state edges (no bandwidth): style rank-up
+  cue, boss arrival warn + `boss:<fk>` music lane, boss dying-edge drama +
+  ELIMINATED card + a render-only death rumble in guestFrame's cosmetics
+  block, the music lane restore on boss removal, and the sector lane on
+  sector change. Stub drive additions: `__vgStubKill`, `__vgStubPod`,
+  `__vgStubBombNow`, `__vgStubEv` (sent/applied counters; a full stub match
+  verified sent == applied exactly, once-only delivery). Known deferred gaps
+  for later passes: sustained LOOPS (player beam/tesla/charge and boss
+  carving-beam loops; boss sweep/scan STATE is not transmitted at all, so
+  those beams are invisible AND silent on the guest), `deathSlow` is not
+  mirrored guest-side, the SYSTEM HALT station overlay and REFIT-skipped pop
+  stay host-only, and PODS remain untransmitted (pickup cues now play via
+  events, but the guest cannot see pods on the field; a pod entity mirror is
+  the natural next entity pass).
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The
