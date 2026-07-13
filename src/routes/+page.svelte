@@ -23,7 +23,8 @@
 		summerProgram,
 		selfSelectOptions,
 		activeCourseCount,
-		type Section
+		type Section,
+		type Assignment
 	} from '$lib/curriculum';
 
 	let { data } = $props();
@@ -280,7 +281,7 @@
 	<meta property="og:type" content="website" />
 </svelte:head>
 
-{#snippet sectionCard(s: Section, pinned: boolean)}
+{#snippet sectionCard(s: Section, pinned: boolean, extraRows: Assignment[] = [])}
 	<div class="course-card section-card" class:pinned>
 		<div class="course-header collapsible">
 			<div class="course-header-left">
@@ -299,8 +300,8 @@
 			<span class="course-collapse-arrow">&#9662;</span>
 		</div>
 		<div class="assignment-list">
-			{#if s.assignments && s.assignments.length}
-				{#each s.assignments as a (a.slug)}
+			{#if (s.assignments && s.assignments.length) || extraRows.length}
+				{#each [...(s.assignments ?? []), ...extraRows] as a (a.slug)}
 					<a class="assignment-item linked" href={a.href ?? `/assignments/${a.slug}`}>
 						<div class="assignment-left">
 							<div class="assignment-dot dot-live"></div>
@@ -389,7 +390,11 @@
 	{#if fsp}
 		<div class="courses" style="margin-top:2.5rem">
 			<div class="year-label">Incoming Freshman</div>
-			{@render sectionCard(fsp, false)}
+			{@render sectionCard(
+				fsp,
+				false,
+				isTeacher ? [{ slug: 'fsp-live', title: 'Live Question Feed', href: '/fsp/live' }] : []
+			)}
 		</div>
 	{/if}
 

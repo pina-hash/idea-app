@@ -1867,6 +1867,11 @@ the optional `Assignment.href` to link directly to the FSP tools:
 app (that entry was removed), and the old role-routing hub page
 `/fsp/+page.svelte` was DELETED — `/fsp/day1`, `/fsp/live`, `/fsp/ask`, and
 `/fsp/class` are intact and reached directly (bare `/fsp` no longer resolves).
+**Teachers get a fourth row, `Live Question Feed` -> `/fsp/live`**, appended
+client-side in `+page.svelte` (an `extraRows` param on the shared
+`sectionCard` snippet, gated on the existing `isTeacher` derived value), never
+written into `curriculum.ts` itself since that file is plain client-safe data
+with no role awareness; students never see the row.
 
 - **`/fsp/class`** still hosts the pawn/dogtag add-in download, install steps,
   project cards, 3-day overview, and the Pulse Check link (the former `/fsp`
@@ -1921,9 +1926,12 @@ root so the shell `.bg-fx` never shows through.
   - `fsp_questions` is added to the `supabase_realtime` publication so the live
     feed gets INSERT (new question) and UPDATE (soft clear) events; RLS still
     applies to the stream.
-- **`/fsp/ask` (students, `@boscotech.net`):** mobile-first. In-page Google
-  sign-in gate (no hooks redirect, like `/fsp-tech-selection`, since it is
-  reached cold from a QR code) + client domain check. A single textarea, a
+- **`/fsp/ask` (any Bosco Tech account, `@boscotech.net` or `@boscotech.edu`):**
+  mobile-first. In-page Google sign-in gate (no hooks redirect, like
+  `/fsp-tech-selection`, since it is reached cold from a QR code) + client
+  domain check against both domains (no `hd` OAuth hint, since it must not pin
+  the picker to a single domain); a teacher signing in from their own account
+  can submit a question too. A single textarea, a
   lightweight **"Submit anonymously" toggle** below it (default unchecked, a
   plain checkbox line, not a callout box), and submit. Unchecked shows a
   read-only "Asking as `<name>`" line (`user_metadata.full_name` from the auth

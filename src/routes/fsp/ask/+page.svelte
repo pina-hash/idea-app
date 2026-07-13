@@ -5,8 +5,9 @@
 	/**
 	 * /fsp/ask — the audience-facing question box for FSP live sessions. Reached
 	 * from a QR code, so it gates its own sign-in in-page (no hooks redirect) the
-	 * way /fsp-tech-selection does. Google OAuth, restricted to @boscotech.net
-	 * students. Mobile-first, IDEA green on near-black.
+	 * way /fsp-tech-selection does. Google OAuth, open to both @boscotech.net
+	 * students and @boscotech.edu staff (so a teacher can submit a question from
+	 * their own account too). Mobile-first, IDEA green on near-black.
 	 *
 	 * Submit calls the submit_fsp_question RPC (the only write path) with the
 	 * CURRENT active session id, read fresh from fsp_config at submit time so a
@@ -22,7 +23,7 @@
 	 * regardless of what's passed, so there's nothing to strip client-side).
 	 */
 
-	const ALLOWED_DOMAIN = '@boscotech.net';
+	const ALLOWED_DOMAINS = ['@boscotech.net', '@boscotech.edu'];
 
 	let { data } = $props();
 	const supabase = $derived(data.supabase as SupabaseClient);
@@ -30,7 +31,7 @@
 
 	const email = $derived((claims?.email ?? '').toString());
 	const signedIn = $derived(!!claims);
-	const domainOk = $derived(email.toLowerCase().endsWith(ALLOWED_DOMAIN));
+	const domainOk = $derived(ALLOWED_DOMAINS.some((d) => email.toLowerCase().endsWith(d)));
 	const displayName = $derived(
 		((claims?.user_metadata as { full_name?: string } | undefined)?.full_name || email) as string
 	);
@@ -51,7 +52,7 @@
 			provider: 'google',
 			options: {
 				redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent('/fsp/ask')}`,
-				queryParams: { hd: 'boscotech.net', prompt: 'select_account' }
+				queryParams: { prompt: 'select_account' }
 			}
 		});
 		if (error) {
@@ -121,12 +122,14 @@
 		<div class="center">
 			<div class="card">
 				<h1>Ask a Question</h1>
-				<p>Sign in with your Bosco Tech student account to send a question to the session.</p>
+				<p>Sign in with your Bosco Tech account to send a question to the session.</p>
 				<button class="primary" onclick={signIn} disabled={loading}>
 					{loading ? 'Redirecting…' : 'Sign in with Google'}
 				</button>
 				{#if authError}<p class="err">{authError}</p>{/if}
-				<p class="fine">Use your <strong>@boscotech.net</strong> account.</p>
+				<p class="fine">
+					Use your <strong>@boscotech.net</strong> or <strong>@boscotech.edu</strong> account.
+				</p>
 			</div>
 		</div>
 	{:else if !domainOk}
@@ -135,7 +138,8 @@
 				<h1>Wrong account</h1>
 				<p>
 					You are signed in as <strong>{email || 'an unknown account'}</strong>. This is for Bosco
-					Tech students. Please sign in with your <strong>@boscotech.net</strong> account.
+					Tech accounts. Please sign in with your <strong>@boscotech.net</strong> or
+					<strong>@boscotech.edu</strong> account.
 				</p>
 				<button class="primary" onclick={signOut}>Sign out and switch account</button>
 			</div>
