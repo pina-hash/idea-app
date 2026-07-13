@@ -2042,10 +2042,10 @@ a:hover {
 	font-size: 0.82rem;
 	color: var(--dim);
 	letter-spacing: 0.04em;
-	margin: 1rem 0 0;
-	max-width: 480px;
+	margin: 1rem auto 0;
+	max-width: 56ch;
 	line-height: 1.7;
-	text-align: left;
+	text-align: center;
 }
 /* Stats plate: the three stat blocks seated in a bordered, chamfered panel
    (octagonal clip echoes the IDEA emblem plate). inline-flex + fit-content so it
