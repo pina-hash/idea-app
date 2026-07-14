@@ -2000,6 +2000,12 @@ a:hover {
 	opacity: 0.6;
 	cursor: default;
 }
+/* Header "Take the tour" entry: persistent but quiet (dim until hovered, when
+   the shared .auth-link:hover green takes over). */
+.legacy-index .tour-link {
+	color: var(--dim);
+	border-color: rgba(143, 224, 138, 0.18);
+}
 .legacy-index .auth-error {
 	position: relative;
 	z-index: 1;

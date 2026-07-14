@@ -2119,6 +2119,53 @@ duplicating it a third time.
   matching the real page now that it is an archive viewer with no live-feed
   overlay or postMessage bridge to simulate.
 
+## First-time orientation tour
+
+A reusable spotlight tour system plus the portal's first-time walkthrough.
+
+- **Engine (generic, reuse it for future tours):**
+  `src/lib/tour/SpotlightTour.svelte` renders any ordered `TourStep[]` (types
+  in `src/lib/tour/tour.ts`; step content is always a plain config array, never
+  hardcoded in the engine). Per step it dims the page and cuts a gold focus
+  ring (the existing `--gold` token, the tour accent everywhere) around the
+  target, with a callout: title, body, "N of M" counter, Back / Next (Done on
+  the last step), Skip tour, and a close X. Steps whose target selector is
+  missing or zero-size at launch are dropped, so one config serves signed-in
+  and anonymous pages. Position recomputes on resize and capture-phase scroll
+  via rAF-or-timeout, and the callout height is a synchronous DOM read, never
+  a ResizeObserver binding (both per the DrawingViewer throttled-window rule:
+  a background window stops ticking rAF). Keyboard: Esc closes, Enter /
+  ArrowRight advance, ArrowLeft goes back. Narrow viewports (<=640px) stack
+  the callout below the target at full width. scrollIntoView uses 'instant',
+  never 'auto', under reduced motion (the site's global scroll-behavior:smooth
+  would win otherwise). Page interaction is paused behind a click-catcher
+  while open; scrolling still works.
+- **Content:** `src/lib/tour/orientation.ts`, two phases in one continuous
+  flow: `signin` (pre-auth, one step on the header Google control) and `home`
+  (post-auth walk: hero, apps grid, courses section, closing with the
+  VANGUARD, GAUNTLET, and IDEA Coin entry points; spotlights only, no
+  navigation). Targets are stable `data-tour` attributes on the home page and
+  the AppLauncher cards (an app pinned AND grouped matches twice;
+  querySelector's first match, the pinned row, wins).
+- **Trigger (`src/lib/tour/HomeTour.svelte`, mounted on `/` outside the page
+  wrapper):** an anonymous visitor with no `idea_tour_seen` localStorage flag
+  auto-gets phase A once; a signed-in user whose
+  `profiles.tour_completed_at` (0045, nullable timestamptz) is STRICTLY null
+  auto-gets phase B after render settle. Undefined (0045 unapplied) fails
+  soft: no auto-launch, no write; `fetchUserProfile` degrades stepwise
+  (full -> no-tour -> legacy select). If the first-login PathwayPicker owns
+  the screen, the tour waits for its `PATHWAY_PICKER_DONE_EVENT` (dispatched
+  on choose and on "Choose later"). ANY exit (finish, Skip, X, Esc) counts as
+  seen: signed-in stamps `tour_completed_at = now()` through the existing
+  "update own profile" policy (0045 adds NO policies or grants); anonymous
+  sets the localStorage flag. The header's persistent "Take the tour" control
+  replays the full tour anytime regardless of both flags.
+- **Dev harness `/dev/tour`** (404 in production, no auth / Supabase): mounts
+  the REAL home page with a mock session and a stub client whose writes show
+  in an on-screen log. Modes: `anon` (phase A auto-launch), `student`
+  (phase B auto-launch), `done` (no auto-launch, replay only), `picker`
+  (pathway picker first, tour waits). Reset button clears every flag.
+
 ## Version + changelog substrate
 
 The site changelog AND every page's version are **auto-generated from git

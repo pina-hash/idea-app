@@ -222,7 +222,7 @@
 	{@const tex = cardTexture(primary, secondary)}
 	{@const accStyle = `--acc-primary:${primary};--acc-secondary:${secondary};--card-texture:${tex.image};--card-texture-size:${tex.size};`}
 	{#if customizing}
-		<div class="app-card static" class:compact style={accStyle}>
+		<div class="app-card static" class:compact style={accStyle} data-tour={app.id}>
 			<span class="app-strip"></span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
@@ -245,7 +245,14 @@
 			</span>
 		</div>
 	{:else}
-		<a class="app-card" class:compact href={app.href} onclick={(e) => appClick(e, app)} style={accStyle}>
+		<a
+			class="app-card"
+			class:compact
+			href={app.href}
+			onclick={(e) => appClick(e, app)}
+			style={accStyle}
+			data-tour={app.id}
+		>
 			<span class="app-strip"></span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
@@ -265,7 +272,7 @@
 {/snippet}
 
 <section class="launcher" aria-label="Portal apps">
-	<div class="launcher-bar">
+	<div class="launcher-bar" data-tour="apps">
 		<span class="launcher-title">Apps</span>
 		<span class="launcher-actions">
 			{#if saving}<span class="launcher-note">Saving...</span>{/if}

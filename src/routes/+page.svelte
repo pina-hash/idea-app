@@ -7,6 +7,7 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AppLauncher from '$lib/AppLauncher.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
+	import HomeTour from '$lib/tour/HomeTour.svelte';
 	import {
 		computeStreak,
 		levelFromXp,
@@ -58,6 +59,9 @@
 
 	let loading = $state(false);
 	let errorMessage = $state('');
+	// The first-time orientation tour (auto-launch lives inside HomeTour); the
+	// header's "Take the tour" control replays it manually at any time.
+	let homeTour: ReturnType<typeof HomeTour> | undefined = $state();
 	let savingSection = $state(false);
 	let changing = $state(false);
 
@@ -341,6 +345,9 @@
 			{#if mySection}
 				<a class="class-chip" href="#your-class">{mySection.course} &middot; {mySection.instructor}</a>
 			{/if}
+			<button class="auth-link tour-link" type="button" onclick={() => homeTour?.start()}>
+				Take the tour
+			</button>
 			<div class="auth-block">
 				{#if signedIn}
 					{#if isTeacher}
@@ -348,7 +355,13 @@
 					{/if}
 					<ProfileMenu />
 				{:else}
-					<button class="auth-link signin" type="button" onclick={() => signInWithGoogle()} disabled={loading}>
+					<button
+						class="auth-link signin"
+						data-tour="signin"
+						type="button"
+						onclick={() => signInWithGoogle()}
+						disabled={loading}
+					>
 						{loading ? '...' : 'Sign in'}
 					</button>
 				{/if}
@@ -360,7 +373,7 @@
 		<p class="auth-error">{errorMessage}</p>
 	{/if}
 
-	<section class="hero">
+	<section class="hero" data-tour="hero">
 		<div class="hero-eyebrow">Don Bosco Technical Institute - Technology Pathway</div>
 		<h1>Integrated Design, Engineering <span class="accent">&amp;</span> Art</h1>
 		<p class="hero-sub">
@@ -440,7 +453,7 @@
 		</div>
 	{/if}
 
-	<div class="divider" id="your-class" style="margin-top:2.5rem">
+	<div class="divider" id="your-class" data-tour="your-class" style="margin-top:2.5rem">
 		<div class="divider-line"></div>
 		<div class="divider-label">Courses &amp; Assignments</div>
 		<div class="divider-line"></div>
@@ -577,4 +590,8 @@
 		<div class="footer-version"><VersionBadge app="portal" /></div>
 	</footer>
 </div>
+
+<!-- Outside the page wrapper so no ancestor stacking context or transform can
+     re-anchor the tour's fixed-position spotlight and callout. -->
+<HomeTour bind:this={homeTour} />
 

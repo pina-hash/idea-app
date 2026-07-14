@@ -1,3 +1,11 @@
+<script lang="ts" module>
+	/**
+	 * Fired on window when the picker stops owning the screen (pathway chosen or
+	 * "Choose later"), so waiting UI (the first-time tour) can proceed.
+	 */
+	export const PATHWAY_PICKER_DONE_EVENT = 'idea:pathway-picker-done';
+</script>
+
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
@@ -52,6 +60,7 @@
 		} catch {
 			/* session-only convenience; losing it just means the prompt returns */
 		}
+		window.dispatchEvent(new CustomEvent(PATHWAY_PICKER_DONE_EVENT));
 	};
 
 	const confirm = async () => {
@@ -71,6 +80,7 @@
 			errorMsg = 'Could not save your pathway. Try signing out and back in.';
 		} else {
 			await invalidateAll();
+			window.dispatchEvent(new CustomEvent(PATHWAY_PICKER_DONE_EVENT));
 		}
 		saving = false;
 	};

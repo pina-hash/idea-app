@@ -23,15 +23,25 @@ export interface UserProfile {
 	pathway: string | null;
 	/** Free-form per-user portal settings (theme, homepage layout, ...). */
 	preferences: Record<string, unknown>;
+	/**
+	 * When the user completed or skipped the first-time portal tour (0045).
+	 * Null = never seen, so the homepage auto-launches it once. Undefined = the
+	 * column is not readable yet (migration unapplied): the tour fails soft, no
+	 * auto-launch and no write.
+	 */
+	tour_completed_at?: string | null;
 }
 
-// Columns loaded for the signed-in user's own profile. The `_NO_PATHWAY`
-// variant is the pre-0038 fallback: selecting a column that doesn't exist
-// errors the whole query, so if the pathway column isn't applied yet we retry
-// without it and degrade to "no pathway" rather than losing the profile.
+// Columns loaded for the signed-in user's own profile. Selecting a column
+// that doesn't exist errors the whole query, so unapplied migrations degrade
+// stepwise rather than losing the profile: `_NO_TOUR` is the pre-0045 shape
+// (tour_completed_at stays undefined, so the tour never auto-launches or
+// writes), `_LEGACY` the pre-0038 one (no pathway either).
 const PROFILE_SELECT =
+	'id, email, full_name, display_name, avatar_url, avatar, role, section_id, pathway, preferences, tour_completed_at';
+const PROFILE_SELECT_NO_TOUR =
 	'id, email, full_name, display_name, avatar_url, avatar, role, section_id, pathway, preferences';
-const PROFILE_SELECT_NO_PATHWAY =
+const PROFILE_SELECT_LEGACY =
 	'id, email, full_name, display_name, avatar_url, avatar, role, section_id, preferences';
 
 /**
@@ -52,7 +62,14 @@ export async function fetchUserProfile(
 	if (!data) {
 		({ data } = await supabase
 			.from('profiles')
-			.select(PROFILE_SELECT_NO_PATHWAY)
+			.select(PROFILE_SELECT_NO_TOUR)
+			.eq('id', userId)
+			.maybeSingle());
+	}
+	if (!data) {
+		({ data } = await supabase
+			.from('profiles')
+			.select(PROFILE_SELECT_LEGACY)
 			.eq('id', userId)
 			.maybeSingle());
 		if (data) (data as Record<string, unknown>).pathway = null;
