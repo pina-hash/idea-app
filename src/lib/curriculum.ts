@@ -71,7 +71,12 @@ export const SECTIONS: Section[] = [
 		assignments: [
 			{ slug: 'fsp-day1', title: 'Day 1 Presentation', href: '/fsp/day1' },
 			{ slug: 'fsp-ask', title: 'Live Q&A', href: '/fsp/ask' },
-			{ slug: 'fsp-addin', title: 'SolidWorks Add-In', href: '/fsp/class' }
+			{ slug: 'fsp-addin', title: 'SolidWorks Add-In', href: '/fsp/class' },
+			{
+				slug: 'IDEA-Blade_Rulebook_v2_2',
+				title: 'IDEA-Blade Rulebook',
+				href: '/assignments/IDEA-Blade_Rulebook_v2_2'
+			}
 		]
 	},
 	{
