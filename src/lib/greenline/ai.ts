@@ -76,13 +76,16 @@ function curvatureOf(rt: TrackRuntime): number[] {
 	return out;
 }
 
+/** The tools an AI actively chooses to use (ram is passive contact). */
+export type AiWeapon = 'emp' | 'oil' | 'tether';
+
 export class AiDriver {
 	private readonly rt: TrackRuntime;
 	private readonly curv: number[];
 	private readonly spacing: number;
 	private stuckMs = 0;
 	private reverseUntilMs = 0;
-	private nextFireOkMs = 0;
+	private nextOkMs: Record<AiWeapon, number> = { emp: 0, oil: 0, tether: 0 };
 
 	constructor(rt: TrackRuntime) {
 		this.rt = rt;
@@ -170,9 +173,9 @@ export class AiDriver {
 		t: AiTuning,
 		nowMs: number
 	): boolean {
-		if (nowMs < this.nextFireOkMs) return false;
+		if (nowMs < this.nextOkMs.emp) return false;
 		if (self.combat.isDisrupted(nowMs)) return false;
-		if (!self.combat.canFire(nowMs, ct.weaponCooldownSec)) return false;
+		if (!self.combat.canUse('emp', nowMs, ct.empCooldownSec)) return false;
 		const aggr = Math.max(0, Math.min(1, t.aggression));
 		const range = ct.empRange * (0.45 + 0.55 * aggr);
 		const cosLimit = Math.cos((((ct.empConeDeg / 2) * 0.8) * Math.PI) / 180);
@@ -188,10 +191,70 @@ export class AiDriver {
 		return false;
 	}
 
-	/** Called after a successful shot: cooldown plus aggression-scaled delay. */
-	scheduleNextFire(nowMs: number, ct: CombatTuning, t: AiTuning): void {
+	/**
+	 * Drop oil when a live rival is close behind and roughly on the AI's
+	 * tail (the slick lands right in their path). Same restraint pattern as
+	 * wantsFire: never while disrupted, own decision delay per weapon.
+	 */
+	wantsOil(
+		self: Combatant,
+		others: Combatant[],
+		ct: CombatTuning,
+		t: AiTuning,
+		nowMs: number
+	): boolean {
+		if (nowMs < this.nextOkMs.oil) return false;
+		if (self.combat.isDisrupted(nowMs)) return false;
+		if (!self.combat.canUse('oil', nowMs, ct.oilCooldownSec)) return false;
+		const aggr = Math.max(0, Math.min(1, t.aggression));
+		const range = 9 + 8 * aggr;
+		for (const o of others) {
+			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
+			const dx = o.x - self.x;
+			const dz = o.z - self.z;
+			const dist = Math.hypot(dx, dz);
+			if (dist > range || dist < 0.001) continue;
+			// Behind: the rival sits opposite the AI's heading.
+			if ((dx * self.hx + dz * self.hz) / dist > -0.45) continue;
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Fire the tether at a target ahead that sits BEYOND comfortable EMP
+	 * range but inside tether range: the yank is the long-reach tool.
+	 */
+	wantsTether(
+		self: Combatant,
+		others: Combatant[],
+		ct: CombatTuning,
+		t: AiTuning,
+		nowMs: number
+	): boolean {
+		if (nowMs < this.nextOkMs.tether) return false;
+		if (self.combat.isDisrupted(nowMs)) return false;
+		if (!self.combat.canUse('tether', nowMs, ct.tetherCooldownSec)) return false;
+		const aggr = Math.max(0, Math.min(1, t.aggression));
+		const maxRange = ct.tetherRange * (0.55 + 0.45 * aggr);
+		const minRange = ct.empRange * 0.8;
+		const cosLimit = Math.cos((((ct.tetherConeDeg / 2) * 0.8) * Math.PI) / 180);
+		for (const o of others) {
+			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
+			const dx = o.x - self.x;
+			const dz = o.z - self.z;
+			const dist = Math.hypot(dx, dz);
+			if (dist > maxRange || dist < minRange) continue;
+			if ((dx * self.hx + dz * self.hz) / dist < cosLimit) continue;
+			return true;
+		}
+		return false;
+	}
+
+	/** Called after a successful use: cooldown plus aggression-scaled delay. */
+	scheduleNextUse(weapon: AiWeapon, nowMs: number, cooldownSec: number, t: AiTuning): void {
 		const aggr = Math.max(0, Math.min(1, t.aggression));
 		const extraSec = (1.6 - 1.4 * aggr) * (0.6 + 0.8 * Math.random());
-		this.nextFireOkMs = nowMs + (ct.weaponCooldownSec + Math.max(0.1, extraSec)) * 1000;
+		this.nextOkMs[weapon] = nowMs + (cooldownSec + Math.max(0.1, extraSec)) * 1000;
 	}
 }

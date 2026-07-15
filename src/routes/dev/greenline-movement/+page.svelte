@@ -12,11 +12,20 @@
 		COMBAT_DEFAULTS,
 		cooldownRemaining,
 		driveMods,
+		TETHER_SLACK_DIST,
+		tetherStatus,
+		tryDeployOil,
 		tryFire,
+		tryRam,
+		tryTether,
+		updateOilSlicks,
 		VehicleCombat,
+		type ActiveTether,
 		type Combatant,
 		type CombatTuning,
-		type GreenlineMode
+		type DamageOutcome,
+		type GreenlineMode,
+		type OilSlick
 	} from '$lib/greenline/combat';
 	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
 	import Minimap from '$lib/greenline/Minimap.svelte';
@@ -36,9 +45,20 @@
 	 * mode branch is VehicleCombat.applyDamage. Everything numeric is in the
 	 * live tuning panel. No art; throwaway while the design solidifies.
 	 *
+	 * Four disruption tools, all vehicle-agnostic (AI uses them through the
+	 * same paths): EMP burst (F / RB), oil slick dropped behind (E / X),
+	 * tether yank at the nearest vehicle ahead (Q / LB), and the passive
+	 * shockwave ram that triggers on nose-first contact above a closing-speed
+	 * threshold. Combat facts live in $lib/greenline/combat.ts; this file owns
+	 * every force and all the feedback: trauma-based screen shake, spark and
+	 * smoke particle pools, escalating damage states on the placeholder mesh
+	 * (scorch tint, crumpled vertices, hood smoke), oil puddles, the live
+	 * tether cable, the stun crackle ring, and ram shockwave rings.
+	 *
 	 * Controls: W/S throttle+brake (reverse from standstill), A/D steer,
-	 * Space handbrake, F fire EMP, R reset round. Gamepad: left stick steer,
-	 * RT throttle, LT brake, A handbrake, RB fire.
+	 * Space handbrake, F fire EMP, E drop oil, Q fire tether, R reset round.
+	 * Gamepad: left stick steer, RT throttle, LT brake, A handbrake, RB fire,
+	 * X oil, LB tether.
 	 */
 
 	const DEFAULTS = {
@@ -65,6 +85,12 @@
 		camHeight: 3.5,
 		camStiffness: 5,
 		...COMBAT_DEFAULTS,
+		/** Screen shake amplitude at full trauma, world units. */
+		shakeMax: 0.6,
+		/** Trauma decay per second (higher = shake dies faster). */
+		shakeDecay: 1.6,
+		/** Particle count multiplier for every burst. */
+		fxDensity: 1,
 		lapTarget: 3,
 		aiCount: 3,
 		aiTopSpeed: AI_DEFAULTS.topSpeed,
@@ -110,8 +136,10 @@
 		hp: COMBAT_DEFAULTS.maxHealth,
 		max: COMBAT_DEFAULTS.maxHealth,
 		status: '' as '' | 'DISRUPTED' | 'DOWN' | 'ELIMINATED',
+		oiled: false,
+		tethered: false,
 		downLeft: 0,
-		ready: 0
+		ready: { emp: 0, oil: 0, tether: 0, ram: 0 }
 	});
 	let lapFlash = $state('');
 
@@ -321,6 +349,7 @@
 					vehicle: InstanceType<typeof CANNON.RaycastVehicle>;
 					carGroup: InstanceType<typeof THREE.Group>;
 					bodyMat: InstanceType<typeof THREE.MeshStandardMaterial>;
+					bodyMesh: InstanceType<typeof THREE.Mesh>;
 					baseColor: number;
 					wheelMeshes: InstanceType<typeof THREE.Mesh>[];
 					combat: VehicleCombat;
@@ -331,6 +360,18 @@
 						fg: InstanceType<typeof THREE.Mesh>;
 						fgMat: InstanceType<typeof THREE.MeshBasicMaterial>;
 					} | null;
+					/** Crumple state: 0 pristine .. 3 wrecked; drives vertex jitter. */
+					dentStage: number;
+					/** Pristine body-geometry positions, restored on heal/reset. */
+					dentBase: Float32Array;
+					/** Cyan crackle ring shown while disrupted (inside carGroup). */
+					stunMat: InstanceType<typeof THREE.MeshBasicMaterial>;
+					stunRing: InstanceType<typeof THREE.Mesh>;
+					smokeAcc: number;
+					dripAcc: number;
+					/** Velocity captured before world.step, for ram closing speed. */
+					preVx: number;
+					preVz: number;
 					warmIdx: number;
 					lastOnRibbon: boolean;
 					steerCurrent: number;
@@ -343,6 +384,13 @@
 					finishPos: number;
 					spawn: RigSpawn;
 				}
+
+				// Ram detection: chassis-chassis contacts queue here from cannon's
+				// collide events (fired inside world.step) and are evaluated right
+				// after the step using PRE-step velocities, because by the time the
+				// event fires the solver has already bled off the closing speed.
+				const rigByBodyId = new Map<number, Rig>();
+				let pendingRams: { a: Rig; b: Rig }[] = [];
 
 				const quatFor = (headingDeg: number) => {
 					const q = new CANNON.Quaternion();
@@ -452,19 +500,47 @@
 						return m;
 					});
 
-					return {
+					// Stun crackle ring: flickers around the hull while disrupted.
+					const stunMat = new THREE.MeshBasicMaterial({
+						color: 0x00f0ff,
+						transparent: true,
+						opacity: 0,
+						side: THREE.DoubleSide,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending
+					});
+					const stunRing = new THREE.Mesh(new THREE.RingGeometry(1.6, 2.05, 26), stunMat);
+					stunRing.rotation.x = -Math.PI / 2;
+					stunRing.position.y = 0.35;
+					stunRing.visible = false;
+					carGroup.add(stunRing);
+
+					const rig: Rig = {
 						id,
 						label,
 						body,
 						vehicle,
 						carGroup,
 						bodyMat,
+						bodyMesh,
 						baseColor,
 						wheelMeshes,
 						combat: new VehicleCombat(id, num(tuning.maxHealth, DEFAULTS.maxHealth)),
 						tracker: new LapTracker(),
 						ai: null,
 						bar: null,
+						dentStage: 0,
+						dentBase: new Float32Array(
+							(bodyMesh.geometry.getAttribute('position') as InstanceType<
+								typeof THREE.BufferAttribute
+							>).array as Float32Array
+						),
+						stunMat,
+						stunRing,
+						smokeAcc: 0,
+						dripAcc: 0,
+						preVx: 0,
+						preVz: 0,
 						warmIdx: spawn.warmIdx,
 						lastOnRibbon: true,
 						steerCurrent: 0,
@@ -477,6 +553,16 @@
 						finishPos: 0,
 						spawn
 					};
+					rigByBodyId.set(body.id, rig);
+					body.addEventListener('collide', (e: { body: InstanceType<typeof CANNON.Body> }) => {
+						const other = rigByBodyId.get(e.body.id);
+						if (!other || other === rig) return;
+						// Dedupe: both bodies fire the event for one contact.
+						if (pendingRams.some((p) => (p.a === rig && p.b === other) || (p.a === other && p.b === rig)))
+							return;
+						pendingRams.push({ a: rig, b: other });
+					});
+					return rig;
 				};
 
 				const player = makeRig('player', 'YOU', 0x0e6b2f, slotPose(0));
@@ -485,6 +571,7 @@
 				const rigsAll = () => [player, ...ais];
 
 				const disposeRig = (r: Rig) => {
+					rigByBodyId.delete(r.body.id);
 					r.vehicle.removeFromWorld(world);
 					scene.remove(r.carGroup);
 					r.wheelMeshes.forEach((m) => scene.remove(m));
@@ -506,24 +593,262 @@
 				};
 				buildAis(num(tuning.aiCount, DEFAULTS.aiCount));
 
-				// ---- EMP burst effect pool (visual only) ----
-				const fxList: { mesh: InstanceType<typeof THREE.Mesh>; born: number }[] = [];
+				// ================= FEEDBACK TOOLKIT (visual only) =================
+				// Everything here is presentation: rings, sparks, smoke, screen
+				// shake. Nothing in this block touches combat state or physics.
+
+				// Soft round sprite texture (radial falloff) shared by particles.
+				const softTex = (() => {
+					const c = document.createElement('canvas');
+					c.width = c.height = 64;
+					const g = c.getContext('2d')!;
+					const grad = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+					grad.addColorStop(0, 'rgba(255,255,255,1)');
+					grad.addColorStop(0.4, 'rgba(255,255,255,0.6)');
+					grad.addColorStop(1, 'rgba(255,255,255,0)');
+					g.fillStyle = grad;
+					g.fillRect(0, 0, 64, 64);
+					return new THREE.CanvasTexture(c);
+				})();
+
+				// ---- Expanding ground rings (EMP burst, ram shockwave, latch) ----
+				const fxList: {
+					mesh: InstanceType<typeof THREE.Mesh>;
+					born: number;
+					life: number;
+					maxR: number;
+					baseOpacity: number;
+				}[] = [];
 				const fxGeo = new THREE.RingGeometry(0.82, 1, 40);
 				fxGeo.rotateX(-Math.PI / 2);
-				const spawnFx = (x: number, z: number) => {
+				const spawnRing = (
+					x: number,
+					z: number,
+					color: number,
+					maxR: number,
+					lifeMs = 320,
+					baseOpacity = 0.55,
+					y = 0.5
+				) => {
 					const mesh = new THREE.Mesh(
 						fxGeo,
 						new THREE.MeshBasicMaterial({
-							color: 0x00f0ff,
+							color,
 							transparent: true,
-							opacity: 0.55,
+							opacity: baseOpacity,
 							side: THREE.DoubleSide,
 							depthWrite: false
 						})
 					);
-					mesh.position.set(x, 0.5, z);
+					mesh.position.set(x, y, z);
 					scene.add(mesh);
-					fxList.push({ mesh, born: performance.now() });
+					fxList.push({ mesh, born: performance.now(), life: lifeMs, maxR, baseOpacity });
+				};
+
+				// ---- Spark pool: additive points for impacts and debris ----
+				const SPARK_CAP = 1000;
+				const sparkPos = new Float32Array(SPARK_CAP * 3);
+				const sparkCol = new Float32Array(SPARK_CAP * 3);
+				const sparkVel = new Float32Array(SPARK_CAP * 3);
+				const sparkBase = new Float32Array(SPARK_CAP * 3);
+				const sparkBorn = new Float32Array(SPARK_CAP);
+				const sparkLife = new Float32Array(SPARK_CAP);
+				sparkPos.fill(-9999);
+				const sparkGeo = new THREE.BufferGeometry();
+				sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+				sparkGeo.setAttribute('color', new THREE.BufferAttribute(sparkCol, 3));
+				const sparkPoints = new THREE.Points(
+					sparkGeo,
+					new THREE.PointsMaterial({
+						size: 0.5,
+						map: softTex,
+						vertexColors: true,
+						transparent: true,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending
+					})
+				);
+				sparkPoints.frustumCulled = false;
+				scene.add(sparkPoints);
+				let sparkCursor = 0;
+				const tmpColor = new THREE.Color();
+				const tmpColA = new THREE.Color();
+				const tmpColB = new THREE.Color();
+				const spawnSparks = (
+					x: number,
+					y: number,
+					z: number,
+					count: number,
+					color: number,
+					speed = 12,
+					lifeMs = 550
+				) => {
+					const n = Math.max(1, Math.round(count * num(tuning.fxDensity, DEFAULTS.fxDensity)));
+					tmpColor.setHex(color);
+					const now = performance.now();
+					for (let k = 0; k < n; k++) {
+						const i = sparkCursor;
+						sparkCursor = (sparkCursor + 1) % SPARK_CAP;
+						const a = Math.random() * Math.PI * 2;
+						const up = Math.random() * 0.9 + 0.15;
+						const s = speed * (0.35 + Math.random() * 0.85);
+						sparkPos[i * 3] = x;
+						sparkPos[i * 3 + 1] = y;
+						sparkPos[i * 3 + 2] = z;
+						sparkVel[i * 3] = Math.cos(a) * s;
+						sparkVel[i * 3 + 1] = up * s * 0.7;
+						sparkVel[i * 3 + 2] = Math.sin(a) * s;
+						const v = 0.75 + Math.random() * 0.25;
+						sparkBase[i * 3] = tmpColor.r * v;
+						sparkBase[i * 3 + 1] = tmpColor.g * v;
+						sparkBase[i * 3 + 2] = tmpColor.b * v;
+						sparkBorn[i] = now;
+						sparkLife[i] = lifeMs * (0.55 + Math.random() * 0.9);
+					}
+				};
+				const updateSparks = (now: number, dt: number) => {
+					const drag = 1 - Math.min(1, dt * 1.6);
+					for (let i = 0; i < SPARK_CAP; i++) {
+						if (sparkLife[i] <= 0) continue;
+						const age = (now - sparkBorn[i]) / sparkLife[i];
+						if (age >= 1) {
+							sparkLife[i] = 0;
+							sparkPos[i * 3 + 1] = -9999;
+							continue;
+						}
+						sparkVel[i * 3 + 1] -= 22 * dt;
+						sparkVel[i * 3] *= drag;
+						sparkVel[i * 3 + 2] *= drag;
+						sparkPos[i * 3] += sparkVel[i * 3] * dt;
+						sparkPos[i * 3 + 1] += sparkVel[i * 3 + 1] * dt;
+						sparkPos[i * 3 + 2] += sparkVel[i * 3 + 2] * dt;
+						if (sparkPos[i * 3 + 1] < 0.05) {
+							sparkPos[i * 3 + 1] = 0.05;
+							sparkVel[i * 3 + 1] *= -0.35;
+						}
+						const fade = 1 - age;
+						sparkCol[i * 3] = sparkBase[i * 3] * fade;
+						sparkCol[i * 3 + 1] = sparkBase[i * 3 + 1] * fade;
+						sparkCol[i * 3 + 2] = sparkBase[i * 3 + 2] * fade;
+					}
+					sparkGeo.getAttribute('position').needsUpdate = true;
+					sparkGeo.getAttribute('color').needsUpdate = true;
+				};
+
+				// ---- Smoke pool: billboarded sprites (normal blending, so dark
+				// smoke and oil drips actually read against the ground) ----
+				const SMOKE_CAP = 90;
+				interface Puff {
+					sprite: InstanceType<typeof THREE.Sprite>;
+					mat: InstanceType<typeof THREE.SpriteMaterial>;
+					born: number;
+					life: number;
+					vx: number;
+					vy: number;
+					vz: number;
+					size: number;
+					grow: number;
+					baseOpacity: number;
+				}
+				const smokePool: Puff[] = [];
+				for (let i = 0; i < SMOKE_CAP; i++) {
+					const mat = new THREE.SpriteMaterial({
+						map: softTex,
+						color: 0x333333,
+						transparent: true,
+						opacity: 0,
+						depthWrite: false
+					});
+					const sprite = new THREE.Sprite(mat);
+					sprite.visible = false;
+					scene.add(sprite);
+					smokePool.push({
+						sprite,
+						mat,
+						born: 0,
+						life: 0,
+						vx: 0,
+						vy: 0,
+						vz: 0,
+						size: 1,
+						grow: 1,
+						baseOpacity: 0.5
+					});
+				}
+				let smokeCursor = 0;
+				const spawnSmoke = (
+					x: number,
+					y: number,
+					z: number,
+					color: number,
+					size = 1,
+					lifeMs = 1100,
+					rise = 1.6,
+					baseOpacity = 0.45
+				) => {
+					const p = smokePool[smokeCursor];
+					smokeCursor = (smokeCursor + 1) % SMOKE_CAP;
+					p.sprite.visible = true;
+					p.sprite.position.set(x, y, z);
+					p.mat.color.setHex(color);
+					p.born = performance.now();
+					p.life = lifeMs * (0.7 + Math.random() * 0.6);
+					p.vx = (Math.random() - 0.5) * 1.2;
+					p.vy = rise * (0.7 + Math.random() * 0.6);
+					p.vz = (Math.random() - 0.5) * 1.2;
+					p.size = size * (0.8 + Math.random() * 0.5);
+					p.grow = 1.8;
+					p.baseOpacity = baseOpacity;
+				};
+				const updateSmoke = (now: number, dt: number) => {
+					for (const p of smokePool) {
+						if (!p.sprite.visible) continue;
+						const age = (now - p.born) / p.life;
+						if (age >= 1) {
+							p.sprite.visible = false;
+							p.mat.opacity = 0;
+							continue;
+						}
+						p.sprite.position.x += p.vx * dt;
+						p.sprite.position.y += p.vy * dt;
+						p.sprite.position.z += p.vz * dt;
+						const s = p.size * (1 + p.grow * age);
+						p.sprite.scale.set(s, s, 1);
+						p.mat.opacity = p.baseOpacity * Math.pow(1 - age, 1.3);
+					}
+				};
+
+				// ---- Screen shake: trauma model (shake = trauma^2) ----
+				let trauma = 0;
+				const addTrauma = (amount: number) => {
+					trauma = Math.min(1, trauma + amount);
+				};
+				// Distance-scaled: full punch within 15u of the player, 1/d beyond.
+				const addTraumaAt = (x: number, z: number, amount: number) => {
+					const d = Math.hypot(x - player.body.position.x, z - player.body.position.z);
+					addTrauma(amount * Math.min(1, 15 / Math.max(d, 15)));
+				};
+
+				// ---- Damage state: crumple the (per-rig) body geometry ----
+				// Stage 0 pristine .. 3 wrecked. Each stage re-jitters from the
+				// pristine base so healing (RACE recovery, reset) restores clean.
+				const applyDentStage = (rig: Rig, stage: number) => {
+					rig.dentStage = stage;
+					const attr = rig.bodyMesh.geometry.getAttribute('position') as InstanceType<
+						typeof THREE.BufferAttribute
+					>;
+					const arr = attr.array as Float32Array;
+					arr.set(rig.dentBase);
+					for (let pass = 1; pass <= stage; pass++) {
+						const amp = 0.05 * pass;
+						for (let v = 0; v < arr.length; v += 3) {
+							arr[v] += (Math.random() - 0.5) * amp;
+							arr[v + 1] += (Math.random() - 0.5) * amp;
+							arr[v + 2] += (Math.random() - 0.5) * amp;
+						}
+					}
+					attr.needsUpdate = true;
+					rig.bodyMesh.geometry.computeVertexNormals();
 				};
 
 				// ---- Combat wiring (shared by player input and AI shooters) ----
@@ -532,12 +857,29 @@
 					empDamage: num(tuning.empDamage, DEFAULTS.empDamage),
 					empRange: num(tuning.empRange, DEFAULTS.empRange),
 					empConeDeg: num(tuning.empConeDeg, DEFAULTS.empConeDeg),
-					weaponCooldownSec: num(tuning.weaponCooldownSec, DEFAULTS.weaponCooldownSec),
+					empCooldownSec: num(tuning.empCooldownSec, DEFAULTS.empCooldownSec),
 					disruptionSec: num(tuning.disruptionSec, DEFAULTS.disruptionSec),
 					disruptEngineCut: num(tuning.disruptEngineCut, DEFAULTS.disruptEngineCut),
 					disruptSteerCut: num(tuning.disruptSteerCut, DEFAULTS.disruptSteerCut),
 					spinKick: num(tuning.spinKick, DEFAULTS.spinKick),
-					downSec: num(tuning.downSec, DEFAULTS.downSec)
+					downSec: num(tuning.downSec, DEFAULTS.downSec),
+					oilRadius: num(tuning.oilRadius, DEFAULTS.oilRadius),
+					oilLifeSec: num(tuning.oilLifeSec, DEFAULTS.oilLifeSec),
+					oilSlipSec: num(tuning.oilSlipSec, DEFAULTS.oilSlipSec),
+					oilTractionCut: num(tuning.oilTractionCut, DEFAULTS.oilTractionCut),
+					oilCooldownSec: num(tuning.oilCooldownSec, DEFAULTS.oilCooldownSec),
+					tetherRange: num(tuning.tetherRange, DEFAULTS.tetherRange),
+					tetherConeDeg: num(tuning.tetherConeDeg, DEFAULTS.tetherConeDeg),
+					tetherSec: num(tuning.tetherSec, DEFAULTS.tetherSec),
+					tetherForce: num(tuning.tetherForce, DEFAULTS.tetherForce),
+					tetherDamage: num(tuning.tetherDamage, DEFAULTS.tetherDamage),
+					tetherCooldownSec: num(tuning.tetherCooldownSec, DEFAULTS.tetherCooldownSec),
+					ramMinClosingSpeed: num(tuning.ramMinClosingSpeed, DEFAULTS.ramMinClosingSpeed),
+					ramDamage: num(tuning.ramDamage, DEFAULTS.ramDamage),
+					ramImpulse: num(tuning.ramImpulse, DEFAULTS.ramImpulse),
+					ramPopUp: num(tuning.ramPopUp, DEFAULTS.ramPopUp),
+					ramStunSec: num(tuning.ramStunSec, DEFAULTS.ramStunSec),
+					ramCooldownSec: num(tuning.ramCooldownSec, DEFAULTS.ramCooldownSec)
 				});
 				const aiTuning = (): AiTuning => ({
 					topSpeed: num(tuning.aiTopSpeed, DEFAULTS.aiTopSpeed),
@@ -570,26 +912,64 @@
 					}
 				};
 
+				// The knockout moment: any vehicle reaching zero health (down OR
+				// eliminated) detonates loud -- sparks, fireball smoke, a ground
+				// ring, and shake. These machines are expensive; breaking them
+				// should look violent.
+				const explodeRig = (r: Rig) => {
+					const p = r.body.position;
+					spawnSparks(p.x, p.y + 0.6, p.z, 60, 0xffb347, 16, 900);
+					spawnSparks(p.x, p.y + 0.6, p.z, 30, 0xfff2c0, 22, 550);
+					for (let k = 0; k < 7; k++) {
+						spawnSmoke(
+							p.x + (Math.random() - 0.5) * 2,
+							p.y + 0.8,
+							p.z + (Math.random() - 0.5) * 2,
+							0x181818,
+							1.8,
+							1800,
+							2.2,
+							0.6
+						);
+					}
+					spawnRing(p.x, p.z, 0xffb347, 10, 420, 0.5);
+					addTraumaAt(p.x, p.z, 0.7);
+				};
+
+				// Shared aftermath for every damage source (EMP, tether, ram).
+				const handleOutcome = (target: Rig, outcome: DamageOutcome, sourceLabel: string) => {
+					if (outcome === 'eliminated') {
+						explodeRig(target);
+						if (target === player) {
+							banner = 'YOU ARE ELIMINATED — press R to reset the round';
+						} else {
+							flash(`${target.label} ELIMINATED by ${sourceLabel}`);
+						}
+						checkLastStanding();
+					} else if (outcome === 'down') {
+						explodeRig(target);
+						flash(`${target.label} DOWN — recovering`);
+					}
+				};
+
 				const performFire = (shooter: Rig) => {
 					const ct = combatTuning();
 					const now = performance.now();
 					const result = tryFire(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
 					if (!result.fired) return result;
-					spawnFx(shooter.body.position.x, shooter.body.position.z);
+					spawnRing(shooter.body.position.x, shooter.body.position.z, 0x00f0ff, ct.empRange);
+					if (shooter === player) addTrauma(0.15);
 					for (const hit of result.hits) {
 						const target = rigsAll().find((r) => r.id === hit.targetId);
 						if (!target) continue;
 						target.body.angularVelocity.y += ct.spinKick * hit.spinSign;
 						target.flashUntil = now + 180;
-						if (hit.outcome === 'eliminated') {
-							if (target === player) {
-								banner = 'YOU ARE ELIMINATED — press R to reset the round';
-							} else {
-								flash(`${target.label} ELIMINATED by ${shooter.label}`);
-							}
-							checkLastStanding();
-						} else if (hit.outcome === 'down') {
-							flash(`${target.label} DOWN — recovering`);
+						const tp = target.body.position;
+						spawnSparks(tp.x, tp.y + 0.7, tp.z, 22, 0x00f0ff, 10, 500);
+						if (target === player) addTrauma(0.4);
+						else addTraumaAt(tp.x, tp.z, 0.25);
+						if (hit.outcome === 'eliminated' || hit.outcome === 'down') {
+							handleOutcome(target, hit.outcome, shooter.label);
 						} else if (target === player || shooter === player) {
 							flash(
 								shooter === player
@@ -599,6 +979,200 @@
 						}
 					}
 					return result;
+				};
+
+				// ---- Oil slicks: combat facts + puddle visuals keyed by slick id ----
+				let slickSeq = 1;
+				const slicks: OilSlick[] = [];
+				const slickVis = new Map<
+					number,
+					{
+						group: InstanceType<typeof THREE.Group>;
+						discMat: InstanceType<typeof THREE.MeshStandardMaterial>;
+						rimMat: InstanceType<typeof THREE.MeshBasicMaterial>;
+						sheenMat: InstanceType<typeof THREE.MeshBasicMaterial>;
+					}
+				>();
+				const oilDiscGeo = new THREE.CircleGeometry(1, 28);
+				oilDiscGeo.rotateX(-Math.PI / 2);
+				const oilRimGeo = new THREE.RingGeometry(0.78, 1, 28);
+				oilRimGeo.rotateX(-Math.PI / 2);
+
+				const performOil = (shooter: Rig): boolean => {
+					const ct = combatTuning();
+					const now = performance.now();
+					const slick = tryDeployOil(combatantOf(shooter), ct, now, slickSeq);
+					if (!slick) return false;
+					slickSeq++;
+					slicks.push(slick);
+					// Glossy dark puddle (real reflectance under the sun) with an
+					// unmissable additive iridescent rim + faint violet sheen,
+					// squishing in from the drop point.
+					const discMat = new THREE.MeshStandardMaterial({
+						color: 0x0a0a14,
+						roughness: 0.05,
+						metalness: 0.9,
+						transparent: true,
+						opacity: 0.92
+					});
+					const rimMat = new THREE.MeshBasicMaterial({
+						color: 0x8f5fff,
+						transparent: true,
+						opacity: 0.65,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending
+					});
+					const disc = new THREE.Mesh(oilDiscGeo, discMat);
+					disc.position.y = 0.05;
+					const rim = new THREE.Mesh(oilRimGeo, rimMat);
+					rim.position.y = 0.07;
+					const sheenMat = new THREE.MeshBasicMaterial({
+						color: 0x8f5fff,
+						transparent: true,
+						opacity: 0.12,
+						depthWrite: false,
+						blending: THREE.AdditiveBlending
+					});
+					const sheen = new THREE.Mesh(oilDiscGeo, sheenMat);
+					sheen.position.y = 0.06;
+					const group = new THREE.Group();
+					group.add(disc);
+					group.add(sheen);
+					group.add(rim);
+					group.position.set(slick.x, 0, slick.z);
+					group.scale.set(0.01, 1, 0.01);
+					scene.add(group);
+					slickVis.set(slick.id, { group, discMat, rimMat, sheenMat });
+					if (shooter === player) flash('OIL SLICK DEPLOYED');
+					return true;
+				};
+
+				const removeSlickVis = (id: number) => {
+					const vis = slickVis.get(id);
+					if (vis) {
+						scene.remove(vis.group);
+						vis.discMat.dispose();
+						vis.rimMat.dispose();
+						vis.sheenMat.dispose();
+						slickVis.delete(id);
+					}
+				};
+
+				// ---- Tethers: live cables + transient probe beams ----
+				interface TetherVis {
+					t: ActiveTether;
+					cable: InstanceType<typeof THREE.Mesh>;
+					cableMat: InstanceType<typeof THREE.MeshBasicMaterial>;
+					hook: InstanceType<typeof THREE.Mesh>;
+				}
+				const tethers: TetherVis[] = [];
+				const beams: {
+					mesh: InstanceType<typeof THREE.Mesh>;
+					mat: InstanceType<typeof THREE.MeshBasicMaterial>;
+					born: number;
+					life: number;
+				}[] = [];
+				const cableGeo = new THREE.CylinderGeometry(0.06, 0.06, 1, 6);
+				const hookGeo = new THREE.SphereGeometry(0.3, 12, 10);
+				const cableA = new THREE.Vector3();
+				const cableB = new THREE.Vector3();
+				const cableDir = new THREE.Vector3();
+				const yAxis = new THREE.Vector3(0, 1, 0);
+				const placeCable = (
+					mesh: InstanceType<typeof THREE.Mesh>,
+					ax: number,
+					ay: number,
+					az: number,
+					bx: number,
+					by: number,
+					bz: number
+				) => {
+					cableA.set(ax, ay, az);
+					cableB.set(bx, by, bz);
+					cableDir.subVectors(cableB, cableA);
+					const len = Math.max(0.001, cableDir.length());
+					mesh.position.copy(cableA).addScaledVector(cableDir, 0.5);
+					cableDir.normalize();
+					mesh.quaternion.setFromUnitVectors(yAxis, cableDir);
+					mesh.scale.set(1, len, 1);
+				};
+
+				const removeTetherVis = (tv: TetherVis) => {
+					scene.remove(tv.cable);
+					scene.remove(tv.hook);
+					tv.cableMat.dispose();
+				};
+
+				const performTether = (shooter: Rig) => {
+					const ct = combatTuning();
+					const now = performance.now();
+					const res = tryTether(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
+					if (!res.fired) return res;
+					if (shooter === player) addTrauma(0.12);
+					const sp = shooter.body.position;
+					if (!res.hit) {
+						// Miss: a probe beam that flashes forward and fizzles.
+						const mat = new THREE.MeshBasicMaterial({
+							color: 0xc8ff00,
+							transparent: true,
+							opacity: 0.7,
+							depthWrite: false
+						});
+						const mesh = new THREE.Mesh(cableGeo, mat);
+						const reach = ct.tetherRange * 0.55;
+						placeCable(
+							mesh,
+							sp.x,
+							sp.y + 0.5,
+							sp.z,
+							sp.x + shooter.hx * reach,
+							sp.y + 0.5,
+							sp.z + shooter.hz * reach
+						);
+						scene.add(mesh);
+						beams.push({ mesh, mat, born: now, life: 220 });
+						if (shooter === player) flash('TETHER MISSED');
+						return res;
+					}
+					const target = rigsAll().find((r) => r.id === res.hit!.targetId);
+					if (!target) return res;
+					// One live cable per shooter: a re-fire replaces the old one.
+					for (let i = tethers.length - 1; i >= 0; i--) {
+						if (tethers[i].t.shooterId === shooter.id) {
+							removeTetherVis(tethers[i]);
+							tethers.splice(i, 1);
+						}
+					}
+					const cableMat = new THREE.MeshBasicMaterial({
+						color: 0xc8ff00,
+						transparent: true,
+						opacity: 0.9,
+						depthWrite: false
+					});
+					const cable = new THREE.Mesh(cableGeo, cableMat);
+					const hook = new THREE.Mesh(hookGeo, cableMat);
+					scene.add(cable);
+					scene.add(hook);
+					tethers.push({
+						t: { shooterId: shooter.id, targetId: target.id, untilMs: now + ct.tetherSec * 1000 },
+						cable,
+						cableMat,
+						hook
+					});
+					target.flashUntil = now + 180;
+					const tp = target.body.position;
+					spawnRing(tp.x, tp.z, 0xc8ff00, 4, 260, 0.7);
+					spawnSparks(tp.x, tp.y + 0.7, tp.z, 16, 0xc8ff00, 9, 450);
+					if (shooter === player || target === player) addTrauma(0.35);
+					else addTraumaAt(tp.x, tp.z, 0.25);
+					if (res.hit.outcome === 'eliminated' || res.hit.outcome === 'down') {
+						handleOutcome(target, res.hit.outcome, shooter.label);
+					} else if (shooter === player) {
+						flash(`TETHER LATCHED ${target.label}`);
+					} else if (target === player) {
+						flash(`TETHERED by ${shooter.label}`);
+					}
+					return res;
 				};
 
 				// ---- Round state ----
@@ -627,7 +1201,11 @@
 					'Space'
 				]);
 				let fireQueued = false;
+				let oilQueued = false;
+				let tetherQueued = false;
 				let prevPadFire = false;
+				let prevPadOil = false;
+				let prevPadTether = false;
 
 				resetRound = () => {
 					const wantAis = Math.max(1, Math.min(6, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
@@ -642,6 +1220,11 @@
 						r.body.angularVelocity.setZero();
 						r.steerCurrent = 0;
 						r.flashUntil = 0;
+						r.smokeAcc = 0;
+						r.dripAcc = 0;
+						r.preVx = 0;
+						r.preVz = 0;
+						if (r.dentStage !== 0) applyDentStage(r, 0);
 						r.warmIdx = r.spawn.warmIdx;
 						r.lastOnRibbon = true;
 						r.prevX = r.spawn.x;
@@ -649,6 +1232,14 @@
 						r.finished = false;
 						r.finishPos = 0;
 					}
+					for (const s of slicks) removeSlickVis(s.id);
+					slicks.length = 0;
+					for (const tv of tethers) removeTetherVis(tv);
+					tethers.length = 0;
+					for (const b of beams) scene.remove(b.mesh);
+					beams.length = 0;
+					pendingRams = [];
+					trauma = 0;
 					finishOrder = [];
 					roundOver = false;
 					banner = '';
@@ -666,6 +1257,14 @@
 					}
 					if (e.code === 'KeyF') {
 						if (!e.repeat) fireQueued = true;
+						return;
+					}
+					if (e.code === 'KeyE') {
+						if (!e.repeat) oilQueued = true;
+						return;
+					}
+					if (e.code === 'KeyQ') {
+						if (!e.repeat) tetherQueued = true;
 						return;
 					}
 					if (TRACKED.has(e.code)) {
@@ -729,9 +1328,46 @@
 						const r = rigsAll().find((q) => q.id === rigId);
 						return r ? performFire(r) : null;
 					},
+					oil: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						return r ? performOil(r) : false;
+					},
+					tether: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						return r ? performTether(r) : null;
+					},
+					damage: (rigId: string, amount: number) => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						const outcome = r.combat.applyDamage(
+							amount,
+							'debug',
+							mode,
+							combatTuning(),
+							performance.now()
+						);
+						handleOutcome(r, outcome, 'DEBUG');
+						return outcome;
+					},
+					getSlicks: () => slicks,
+					getTethers: () => tethers.map((tv) => tv.t),
 					getMode: () => mode,
 					getFinishOrder: () => finishOrder.map((r) => r.id),
-					isRoundOver: () => roundOver
+					isRoundOver: () => roundOver,
+					// One-frame render to a small JPEG data URL, for scripted
+					// visual checks in a hidden/headless tab (where the on-screen
+					// canvas never presents and pane screenshots cannot capture).
+					capture: (width = 480, brightness = 1) => {
+						renderer.render(scene, camera);
+						const src = renderer.domElement;
+						const c = document.createElement('canvas');
+						c.width = width;
+						c.height = Math.round((src.height / src.width) * width) || 1;
+						const g2d = c.getContext('2d')!;
+						if (brightness !== 1) g2d.filter = `brightness(${brightness})`;
+						g2d.drawImage(src, 0, 0, c.width, c.height);
+						return c.toDataURL('image/jpeg', 0.55);
+					}
 				};
 
 				const tick = () => {
@@ -764,9 +1400,17 @@
 						const padFire = pad.buttons[5]?.pressed ?? false;
 						if (padFire && !prevPadFire) fireQueued = true;
 						prevPadFire = padFire;
+						const padOil = pad.buttons[2]?.pressed ?? false;
+						if (padOil && !prevPadOil) oilQueued = true;
+						prevPadOil = padOil;
+						const padTether = pad.buttons[4]?.pressed ?? false;
+						if (padTether && !prevPadTether) tetherQueued = true;
+						prevPadTether = padTether;
 					} else {
 						if (padName) padName = '';
 						prevPadFire = false;
+						prevPadOil = false;
+						prevPadTether = false;
 					}
 
 					// -- Global physics tuning --
@@ -813,6 +1457,10 @@
 						const vel = body.velocity;
 						const forwardSpeed = vel.x * fwdWorld.x + vel.y * fwdWorld.y + vel.z * fwdWorld.z;
 						const rawSpeed = Math.hypot(vel.x, vel.y, vel.z);
+						// Pre-step velocity snapshot: the ram check runs after
+						// world.step, when the solver has already eaten the impact.
+						rig.preVx = vel.x;
+						rig.preVz = vel.z;
 
 						// Controls: player from input, AI from its driver.
 						let sIn: number;
@@ -850,6 +1498,11 @@
 						thr *= mods.engineScale;
 						sIn *= mods.steerScale;
 						if (rig.combat.isOut(now) && rig === player) brk = 0;
+						// Oil slick traction loss: slicked tires on every wheel (the
+						// handbrake's own grip cut still multiplies on top below).
+						if (mods.tractionScale !== 1) {
+							for (const w of rig.vehicle.wheelInfos) w.frictionSlip *= mods.tractionScale;
+						}
 
 						const falloff = num(tuning.steerSpeedFalloff, DEFAULTS.steerSpeedFalloff);
 						const effSteer =
@@ -925,15 +1578,79 @@
 							);
 						}
 
-						// Status tint: gray when out, cyan blink on hit, base otherwise.
+						// Status tint + scorch: gray when out, gold when down, cyan
+						// blink on hit, violet flicker while oiled; otherwise the base
+						// color chars toward burnt charcoal as health drops.
+						const hpFrac = Math.max(0, Math.min(1, rig.combat.health / Math.max(1, ct.maxHealth)));
 						const tint = rig.combat.eliminated
 							? 0x3a4440
 							: rig.combat.isDown(now)
 								? 0x6b5a1c
 								: rig.flashUntil > now
 									? 0x00b8c8
-									: rig.baseColor;
+									: rig.combat.isOiled(now) && Math.floor(now / 130) % 2 === 0
+										? 0x4a3a7a
+										: tmpColA
+												.setHex(rig.baseColor)
+												.lerp(tmpColB.setHex(0x141210), (1 - hpFrac) * 0.75)
+												.getHex();
 						if (rig.bodyMat.color.getHex() !== tint) rig.bodyMat.color.setHex(tint);
+
+						// Crumple stages at 75/50/25% health; heal/reset restores.
+						const dentStage = hpFrac <= 0.25 ? 3 : hpFrac <= 0.5 ? 2 : hpFrac <= 0.75 ? 1 : 0;
+						if (dentStage !== rig.dentStage) applyDentStage(rig, dentStage);
+
+						// Damage smoke off the hood, escalating; wrecks burn heavy,
+						// critical hulls also spit the odd ember.
+						rig.smokeAcc += dt;
+						let smokeEvery = 0;
+						let smokeColor = 0x3a3a3a;
+						let smokeSize = 0.9;
+						if (rig.combat.eliminated) {
+							smokeEvery = 0.09;
+							smokeColor = 0x141414;
+							smokeSize = 1.7;
+						} else if (hpFrac <= 0.25) {
+							smokeEvery = 0.07;
+							smokeColor = 0x1f1f1f;
+							smokeSize = 1.25;
+						} else if (hpFrac <= 0.5) {
+							smokeEvery = 0.17;
+						}
+						if (smokeEvery > 0 && rig.smokeAcc >= smokeEvery) {
+							rig.smokeAcc = 0;
+							spawnSmoke(
+								body.position.x + rig.hx * 1.1,
+								body.position.y + 0.75,
+								body.position.z + rig.hz * 1.1,
+								smokeColor,
+								smokeSize,
+								1300,
+								1.9,
+								0.5
+							);
+						}
+						if (!rig.combat.eliminated && hpFrac <= 0.25 && Math.random() < dt * 2.5) {
+							spawnSparks(body.position.x, body.position.y + 0.6, body.position.z, 4, 0xffcf7a, 5, 350);
+						}
+
+						// Oil drip trail while the tires are slicked.
+						if (rig.combat.isOiled(now)) {
+							rig.dripAcc += dt;
+							if (rig.dripAcc >= 0.09) {
+								rig.dripAcc = 0;
+								spawnSmoke(
+									body.position.x - rig.hx * 1.4,
+									0.25,
+									body.position.z - rig.hz * 1.4,
+									0x120f1e,
+									0.4,
+									520,
+									0.15,
+									0.6
+								);
+							}
+						}
 
 						if (rig === player) {
 							speedMs = Math.round(rawSpeed * 10) / 10;
@@ -941,21 +1658,189 @@
 						}
 					}
 
-					// -- Firing: player trigger + AI decisions, one shared path --
+					// -- Weapons: player triggers + AI decisions, one shared path --
 					if (fireQueued) {
 						fireQueued = false;
 						performFire(player);
 					}
+					if (oilQueued) {
+						oilQueued = false;
+						performOil(player);
+					}
+					if (tetherQueued) {
+						tetherQueued = false;
+						performTether(player);
+					}
 					const combatants = all.map(combatantOf);
 					for (const rig of ais) {
 						if (!rig.ai || rig.combat.isOut(now)) continue;
-						if (rig.ai.wantsFire(combatants[all.indexOf(rig)], combatants, ct, aiT, now)) {
+						const self = combatants[all.indexOf(rig)];
+						if (rig.ai.wantsFire(self, combatants, ct, aiT, now)) {
 							const res = performFire(rig);
-							if (res.fired) rig.ai.scheduleNextFire(now, ct, aiT);
+							if (res.fired) rig.ai.scheduleNextUse('emp', now, ct.empCooldownSec, aiT);
+						} else if (rig.ai.wantsTether(self, combatants, ct, aiT, now)) {
+							const res = performTether(rig);
+							if (res.fired) rig.ai.scheduleNextUse('tether', now, ct.tetherCooldownSec, aiT);
+						} else if (rig.ai.wantsOil(self, combatants, ct, aiT, now)) {
+							if (performOil(rig)) rig.ai.scheduleNextUse('oil', now, ct.oilCooldownSec, aiT);
 						}
 					}
 
 					world.step(1 / 60, dt, 4);
+
+					// -- Shockwave rams: chassis contacts queued during the step,
+					// evaluated on pre-step velocities, resolved with impulses --
+					if (pendingRams.length) {
+						for (const pr of pendingRams) {
+							const { a, b } = pr;
+							const dx = b.body.position.x - a.body.position.x;
+							const dz = b.body.position.z - a.body.position.z;
+							const d = Math.hypot(dx, dz) || 1;
+							const ux = dx / d;
+							const uz = dz / d;
+							const res = tryRam(
+								{
+									a: combatantOf(a),
+									b: combatantOf(b),
+									closingSpeed: (a.preVx - b.preVx) * ux + (a.preVz - b.preVz) * uz,
+									frontalityA: a.hx * ux + a.hz * uz,
+									frontalityB: -(b.hx * ux + b.hz * uz)
+								},
+								mode,
+								ct,
+								now
+							);
+							if (!res.triggered) continue;
+							const imp = ct.ramImpulse;
+							const pop = ct.ramPopUp;
+							a.body.applyImpulse(new CANNON.Vec3(-ux * imp, pop, -uz * imp));
+							b.body.applyImpulse(new CANNON.Vec3(ux * imp, pop, uz * imp));
+							a.flashUntil = now + 220;
+							b.flashUntil = now + 220;
+							const mx = (a.body.position.x + b.body.position.x) / 2;
+							const mz = (a.body.position.z + b.body.position.z) / 2;
+							spawnRing(mx, mz, 0xffb347, 14, 440, 0.6, 0.7);
+							spawnRing(mx, mz, 0xfff2c0, 7, 300, 0.7, 0.9);
+							spawnSparks(mx, 1, mz, 46, 0xffb347, 15, 700);
+							spawnSparks(mx, 1, mz, 20, 0xfff2c0, 20, 450);
+							for (let k = 0; k < 4; k++) {
+								spawnSmoke(
+									mx + (Math.random() - 0.5) * 1.6,
+									1,
+									mz + (Math.random() - 0.5) * 1.6,
+									0x2a2a2a,
+									1.2,
+									900,
+									1.6,
+									0.5
+								);
+							}
+							if (a === player || b === player) {
+								addTrauma(0.85);
+								flash(`SHOCKWAVE RAM — -${res.damage} BOTH`);
+							} else {
+								addTraumaAt(mx, mz, 0.6);
+							}
+							handleOutcome(a, res.outcomeA, b.label);
+							handleOutcome(b, res.outcomeB, a.label);
+						}
+						pendingRams = [];
+					}
+
+					// -- Oil slicks: trigger checks + puddle lifecycle --
+					{
+						const fresh = all.map(combatantOf);
+						const oilEvents = updateOilSlicks(slicks, fresh, ct, now);
+						for (const ev of oilEvents) {
+							const victim = all.find((r) => r.id === ev.targetId);
+							if (!victim) continue;
+							const vp = victim.body.position;
+							spawnSparks(vp.x, vp.y + 0.4, vp.z, 14, 0xb47cff, 7, 450);
+							for (let k = 0; k < 4; k++) {
+								spawnSmoke(vp.x, 0.35, vp.z, 0x11101c, 0.8, 700, 0.7, 0.55);
+							}
+							spawnRing(ev.slick.x, ev.slick.z, 0x8f5fff, ct.oilRadius * 1.6, 300, 0.4, 0.15);
+							if (victim === player) {
+								addTrauma(0.3);
+								flash('OILED — TRACTION LOST');
+							} else if (ev.slick.ownerId === 'player') {
+								flash(`${victim.label} HIT YOUR OIL`);
+							}
+						}
+						for (let i = slicks.length - 1; i >= 0; i--) {
+							const s = slicks[i];
+							const vis = slickVis.get(s.id);
+							if (!vis) {
+								slicks.splice(i, 1);
+								continue;
+							}
+							const scaleIn = Math.min(1, (now - s.createdMs) / 260);
+							let r = ct.oilRadius * (0.25 + 0.75 * scaleIn);
+							let alpha = 1;
+							let done = false;
+							if (s.consumedBy !== null) {
+								const t = (now - s.consumedMs) / 450;
+								done = t >= 1;
+								r *= Math.max(0, 1 - t);
+								alpha = Math.max(0, 1 - t);
+							} else if (now >= s.expiresMs) {
+								const t = (now - s.expiresMs) / 600;
+								done = t >= 1;
+								alpha = Math.max(0, 1 - t);
+							}
+							if (done) {
+								removeSlickVis(s.id);
+								slicks.splice(i, 1);
+								continue;
+							}
+							vis.group.scale.set(Math.max(0.01, r), 1, Math.max(0.01, r));
+							vis.discMat.opacity = 0.92 * alpha;
+							vis.rimMat.opacity = (0.6 + 0.25 * Math.sin(now / 180 + s.id)) * alpha;
+						}
+					}
+
+					// -- Tethers: hold check, pull forces, cable + hook visuals --
+					for (let i = tethers.length - 1; i >= 0; i--) {
+						const tv = tethers[i];
+						const shooter = all.find((r) => r.id === tv.t.shooterId);
+						const target = all.find((r) => r.id === tv.t.targetId);
+						if (!shooter || !target) {
+							removeTetherVis(tv);
+							tethers.splice(i, 1);
+							continue;
+						}
+						const status = tetherStatus(tv.t, combatantOf(shooter), combatantOf(target), ct, now);
+						if (status !== 'active') {
+							const hp = tv.hook.position;
+							spawnSparks(hp.x, hp.y, hp.z, 8, 0xc8ff00, 5, 350);
+							removeTetherVis(tv);
+							tethers.splice(i, 1);
+							continue;
+						}
+						const sp = shooter.body.position;
+						const tp = target.body.position;
+						const pdx = sp.x - tp.x;
+						const pdz = sp.z - tp.z;
+						const dist = Math.hypot(pdx, pdz);
+						// The yank: pull the target off its line toward the shooter,
+						// with a fraction of the reaction dragging the shooter back.
+						// Slack inside the near radius so the pair never orbit-slams.
+						if (dist > TETHER_SLACK_DIST) {
+							const f = ct.tetherForce;
+							const ux = pdx / dist;
+							const uz = pdz / dist;
+							target.body.applyForce(new CANNON.Vec3(ux * f, 0, uz * f), new CANNON.Vec3());
+							shooter.body.applyForce(
+								new CANNON.Vec3(-ux * f * 0.25, 0, -uz * f * 0.25),
+								new CANNON.Vec3()
+							);
+						}
+						placeCable(tv.cable, sp.x, sp.y + 0.5, sp.z, tp.x, tp.y + 0.6, tp.z);
+						tv.hook.position.set(tp.x, tp.y + 0.7, tp.z);
+						const pulse = 1 + 0.25 * Math.sin(now / 60);
+						tv.hook.scale.set(pulse, pulse, pulse);
+						tv.cableMat.opacity = 0.75 + 0.2 * Math.sin(now / 45);
+					}
 
 					// -- Lap logic: every rig tracks its own laps and checkpoints --
 					const lapTarget = Math.max(1, Math.round(num(tuning.lapTarget, DEFAULTS.lapTarget)));
@@ -1027,6 +1912,26 @@
 								t.quaternion.w
 							);
 						}
+						// Stun crackle ring: flicker + spin while disrupted, with the
+						// odd arc of cyan sparks so a stun reads at a glance.
+						const stunned = rig.combat.isDisrupted(now) && !rig.combat.eliminated;
+						rig.stunRing.visible = stunned;
+						if (stunned) {
+							rig.stunMat.opacity = 0.22 + Math.random() * 0.3;
+							rig.stunRing.rotation.z += 0.15;
+							if (Math.random() < 0.12) {
+								spawnSparks(
+									rig.body.position.x,
+									rig.body.position.y + 0.7,
+									rig.body.position.z,
+									3,
+									0x00f0ff,
+									6,
+									250
+								);
+							}
+						}
+
 						// Overhead health bar (AI only): follow, face camera, fill.
 						if (rig.bar) {
 							rig.bar.group.position.set(
@@ -1044,21 +1949,34 @@
 						}
 					}
 
-					// -- EMP effects --
+					// -- Transient FX: rings, probe beams, sparks, smoke --
 					for (let i = fxList.length - 1; i >= 0; i--) {
 						const fx = fxList[i];
-						const age = (now - fx.born) / 320;
+						const age = (now - fx.born) / fx.life;
 						if (age >= 1) {
 							scene.remove(fx.mesh);
 							(fx.mesh.material as InstanceType<typeof THREE.MeshBasicMaterial>).dispose();
 							fxList.splice(i, 1);
 							continue;
 						}
-						const r = 1.5 + age * ct.empRange;
+						const r = 1.5 + age * fx.maxR;
 						fx.mesh.scale.set(r, 1, r);
 						(fx.mesh.material as InstanceType<typeof THREE.MeshBasicMaterial>).opacity =
-							0.55 * (1 - age);
+							fx.baseOpacity * (1 - age);
 					}
+					for (let i = beams.length - 1; i >= 0; i--) {
+						const bm = beams[i];
+						const age = (now - bm.born) / bm.life;
+						if (age >= 1) {
+							scene.remove(bm.mesh);
+							bm.mat.dispose();
+							beams.splice(i, 1);
+							continue;
+						}
+						bm.mat.opacity = 0.7 * (1 - age);
+					}
+					updateSparks(now, dt);
+					updateSmoke(now, dt);
 
 					// -- Chase camera (player) --
 					const flatFwd = new THREE.Vector3(player.hx, 0, player.hz);
@@ -1080,6 +1998,17 @@
 					);
 					camera.position.copy(camPos);
 					camera.lookAt(camLook);
+
+					// -- Screen shake: shake = trauma^2, layered sines, plus roll --
+					trauma = Math.max(0, trauma - num(tuning.shakeDecay, DEFAULTS.shakeDecay) * dt);
+					if (trauma > 0.001) {
+						const mag = trauma * trauma * num(tuning.shakeMax, DEFAULTS.shakeMax);
+						const tSec = now / 1000;
+						camera.position.x += mag * (Math.sin(tSec * 91.7) * 0.6 + Math.sin(tSec * 47.3 + 1.7) * 0.4);
+						camera.position.y += mag * (Math.sin(tSec * 83.1 + 0.9) * 0.6 + Math.sin(tSec * 39.7 + 2.6) * 0.4);
+						camera.position.z += mag * (Math.sin(tSec * 71.9 + 2.1) * 0.6 + Math.sin(tSec * 55.3 + 0.4) * 0.4);
+						camera.rotation.z += mag * 0.06 * Math.sin(tSec * 67.3);
+					}
 
 					// -- HUD state --
 					pose.x = player.body.position.x;
@@ -1108,7 +2037,12 @@
 					chud.downLeft = player.combat.isDown(now)
 						? Math.max(0, (player.combat.downUntilMs - now) / 1000)
 						: 0;
-					chud.ready = cooldownRemaining(player.combat, ct.weaponCooldownSec, now);
+					chud.oiled = player.combat.isOiled(now);
+					chud.tethered = tethers.some((tv) => tv.t.targetId === player.id);
+					chud.ready.emp = cooldownRemaining(player.combat, 'emp', ct.empCooldownSec, now);
+					chud.ready.oil = cooldownRemaining(player.combat, 'oil', ct.oilCooldownSec, now);
+					chud.ready.tether = cooldownRemaining(player.combat, 'tether', ct.tetherCooldownSec, now);
+					chud.ready.ram = cooldownRemaining(player.combat, 'ram', ct.ramCooldownSec, now);
 					if (
 						mode === 'elimination' &&
 						player.combat.eliminated &&
@@ -1161,7 +2095,34 @@
 				};
 				renderer.setAnimationLoop(tick);
 
+				// ?glheadless=1 (the VANGUARD ?vgheadless pattern): pump the loop
+				// off a MessageChannel so the sim keeps stepping in a hidden or
+				// headless tab, where requestAnimationFrame never fires. Scripted
+				// console drives against __greenline depend on this.
+				let headlessStop: (() => void) | null = null;
+				if (new URLSearchParams(window.location.search).has('glheadless')) {
+					renderer.setAnimationLoop(null);
+					const ch = new MessageChannel();
+					let stopped = false;
+					let lastTick = 0;
+					ch.port1.onmessage = () => {
+						if (stopped) return;
+						const t = performance.now();
+						if (t - lastTick >= 1000 / 60) {
+							lastTick = t;
+							tick();
+						}
+						ch.port2.postMessage(0);
+					};
+					ch.port2.postMessage(0);
+					headlessStop = () => {
+						stopped = true;
+						ch.port1.onmessage = null;
+					};
+				}
+
 				cleanup = () => {
+					headlessStop?.();
 					renderer.setAnimationLoop(null);
 					ro.disconnect();
 					clearTimeout(flashTimer);
@@ -1220,9 +2181,26 @@
 						>DOWN {chud.downLeft.toFixed(1)}s</span
 					>{/if}
 				{#if chud.status === 'ELIMINATED'}<span class="gl-st-down">ELIMINATED</span>{/if}
+				{#if chud.oiled}<span class="gl-st-oiled">OILED</span>{/if}
+				{#if chud.tethered}<span class="gl-st-tether">TETHERED</span>{/if}
 			</div>
-			<div class="gl-health-line dim2">
-				EMP {chud.ready <= 0 ? 'READY (F / RB)' : `${chud.ready.toFixed(1)}s`}
+			<div class="gl-weapons">
+				<div class="gl-weapon-row">
+					<span class="gl-wname">EMP</span>
+					{chud.ready.emp <= 0 ? 'READY (F / RB)' : `${chud.ready.emp.toFixed(1)}s`}
+				</div>
+				<div class="gl-weapon-row">
+					<span class="gl-wname">OIL</span>
+					{chud.ready.oil <= 0 ? 'READY (E / X)' : `${chud.ready.oil.toFixed(1)}s`}
+				</div>
+				<div class="gl-weapon-row">
+					<span class="gl-wname">TETHER</span>
+					{chud.ready.tether <= 0 ? 'READY (Q / LB)' : `${chud.ready.tether.toFixed(1)}s`}
+				</div>
+				<div class="gl-weapon-row">
+					<span class="gl-wname">RAM</span>
+					{chud.ready.ram <= 0 ? 'ARMED (nose-first contact)' : `${chud.ready.ram.toFixed(1)}s`}
+				</div>
 			</div>
 		</div>
 
@@ -1251,7 +2229,7 @@
 
 		<div class="gl-pad">{padName ? `pad: ${padName}` : 'pad: none (keyboard)'}</div>
 		<div class="gl-keys">
-			W/S throttle+brake · A/D steer · Space handbrake · F fire · R reset round
+			W/S throttle+brake · A/D steer · Space handbrake · F EMP · E oil · Q tether · R reset round
 		</div>
 	</div>
 
@@ -1282,12 +2260,13 @@
 
 		<div class="gl-section">combat</div>
 		<label>max health <input type="number" step="10" bind:value={tuning.maxHealth} /></label>
-		<label>EMP damage <input type="number" step="5" bind:value={tuning.empDamage} /></label>
-		<label>EMP range <input type="number" step="5" bind:value={tuning.empRange} /></label>
-		<label>EMP cone (deg) <input type="number" step="5" bind:value={tuning.empConeDeg} /></label>
-		<label
-			>cooldown (s) <input type="number" step="0.1" bind:value={tuning.weaponCooldownSec} /></label
-		>
+		<label>down time (s, race) <input type="number" step="0.5" bind:value={tuning.downSec} /></label>
+
+		<div class="gl-section">emp</div>
+		<label>damage <input type="number" step="5" bind:value={tuning.empDamage} /></label>
+		<label>range <input type="number" step="5" bind:value={tuning.empRange} /></label>
+		<label>cone (deg) <input type="number" step="5" bind:value={tuning.empConeDeg} /></label>
+		<label>cooldown (s) <input type="number" step="0.1" bind:value={tuning.empCooldownSec} /></label>
 		<label
 			>disruption (s) <input type="number" step="0.1" bind:value={tuning.disruptionSec} /></label
 		>
@@ -1298,7 +2277,40 @@
 			>disrupt steer x <input type="number" step="0.05" bind:value={tuning.disruptSteerCut} /></label
 		>
 		<label>spin kick <input type="number" step="0.5" bind:value={tuning.spinKick} /></label>
-		<label>down time (s, race) <input type="number" step="0.5" bind:value={tuning.downSec} /></label>
+
+		<div class="gl-section">oil slick</div>
+		<label>cooldown (s) <input type="number" step="0.5" bind:value={tuning.oilCooldownSec} /></label>
+		<label>radius <input type="number" step="0.2" bind:value={tuning.oilRadius} /></label>
+		<label>puddle life (s) <input type="number" step="1" bind:value={tuning.oilLifeSec} /></label>
+		<label>slip time (s) <input type="number" step="0.5" bind:value={tuning.oilSlipSec} /></label>
+		<label
+			>traction x (0-1) <input type="number" step="0.02" bind:value={tuning.oilTractionCut} /></label
+		>
+
+		<div class="gl-section">tether</div>
+		<label
+			>cooldown (s) <input type="number" step="0.5" bind:value={tuning.tetherCooldownSec} /></label
+		>
+		<label>range <input type="number" step="2" bind:value={tuning.tetherRange} /></label>
+		<label>cone (deg) <input type="number" step="5" bind:value={tuning.tetherConeDeg} /></label>
+		<label>pull force <input type="number" step="500" bind:value={tuning.tetherForce} /></label>
+		<label>duration (s) <input type="number" step="0.05" bind:value={tuning.tetherSec} /></label>
+		<label>damage <input type="number" step="2" bind:value={tuning.tetherDamage} /></label>
+
+		<div class="gl-section">ram</div>
+		<label
+			>min speed (m/s) <input type="number" step="1" bind:value={tuning.ramMinClosingSpeed} /></label
+		>
+		<label>damage <input type="number" step="5" bind:value={tuning.ramDamage} /></label>
+		<label>impulse <input type="number" step="200" bind:value={tuning.ramImpulse} /></label>
+		<label>pop-up <input type="number" step="100" bind:value={tuning.ramPopUp} /></label>
+		<label>stun (s) <input type="number" step="0.1" bind:value={tuning.ramStunSec} /></label>
+		<label>cooldown (s) <input type="number" step="0.5" bind:value={tuning.ramCooldownSec} /></label>
+
+		<div class="gl-section">feedback</div>
+		<label>shake amount <input type="number" step="0.05" bind:value={tuning.shakeMax} /></label>
+		<label>shake decay <input type="number" step="0.1" bind:value={tuning.shakeDecay} /></label>
+		<label>fx density <input type="number" step="0.1" bind:value={tuning.fxDensity} /></label>
 
 		<div class="gl-section">drive</div>
 		<label>engine force <input type="number" step="100" bind:value={tuning.engineForce} /></label>
@@ -1455,10 +2467,6 @@
 		font-size: 0.8rem;
 		color: #b9d9c2;
 	}
-	.gl-health-line.dim2 {
-		color: #5f7f6a;
-		font-size: 0.72rem;
-	}
 	.gl-st-disrupted {
 		color: #00f0ff;
 		margin-left: 0.5rem;
@@ -1466,6 +2474,27 @@
 	.gl-st-down {
 		color: #ffb347;
 		margin-left: 0.5rem;
+	}
+	.gl-st-oiled {
+		color: #b47cff;
+		margin-left: 0.5rem;
+	}
+	.gl-st-tether {
+		color: #c8ff00;
+		margin-left: 0.5rem;
+	}
+	.gl-weapons {
+		margin-top: 0.35rem;
+	}
+	.gl-weapon-row {
+		font-size: 0.72rem;
+		color: #5f7f6a;
+		margin-top: 0.12rem;
+	}
+	.gl-wname {
+		display: inline-block;
+		width: 3.6rem;
+		color: #7fbf8f;
 	}
 	.gl-lap {
 		margin-top: 0.7rem;

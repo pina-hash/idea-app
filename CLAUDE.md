@@ -1363,20 +1363,47 @@ on one side of the world.
   markers for non-player vehicles).
 - **Combat scaffold:** `src/lib/greenline/combat.ts` is pure, vehicle-agnostic
   logic (like the track runtime): `VehicleCombat` holds health / disruption /
-  down / eliminated state for ANY vehicle, `tryFire` is the forward EMP
-  disruption burst (range + cone + cooldown; hits damage and apply the
-  disruption state, callers apply the spin kick via `spinSign`), `driveMods`
-  turns combat state into engine/steer scaling. **The RACE vs ELIMINATION
-  zero-health branch lives in exactly one place, `VehicleCombat.applyDamage`:**
-  RACE = temporary down window then full-heal (`tick` recovers), ELIMINATION =
-  permanent removal. The harness runs the player and a scripted centerline-
-  following dummy through one identical per-vehicle pipeline (controls ->
-  driveMods -> physics), fires with F / gamepad RB, shows a health bar +
-  DISRUPTED/DOWN/ELIMINATED HUD and an overhead bar on the dummy, and has a
-  MODE select + every combat number (damage, range, cone, cooldown,
-  disruption cuts, spin kick, down time, lap target) in the tuning panel. The
-  dummy can fire the same weapon at the player through the same code path
-  (proven in the harness), so AI reuses it later without rework.
+  oiled / down / eliminated state for ANY vehicle plus PER-WEAPON cooldowns
+  (`WeaponId = emp | oil | tether | ram`, `canUse`/`markUsed`), and `driveMods`
+  turns combat state into engine/steer/traction scaling. **The RACE vs
+  ELIMINATION zero-health branch lives in exactly one place,
+  `VehicleCombat.applyDamage`:** RACE = temporary down window then full-heal
+  (`tick` recovers), ELIMINATION = permanent removal. The harness runs the
+  player and every AI through one identical per-vehicle pipeline (controls ->
+  driveMods -> physics), shows a health bar + DISRUPTED/OILED/TETHERED/DOWN/
+  ELIMINATED HUD and an overhead bar on AIs, and has a MODE select + every
+  combat, weapon, and feedback number in the tuning panel.
+- **Four disruption tools,** consistent trigger/cooldown/HUD pattern, any
+  vehicle can use any tool (loadouts come later): the forward **EMP burst**
+  (`tryFire`, F / RB: cone + damage + disruption + spin kick), the **oil
+  slick** (`tryDeployOil`/`updateOilSlicks`, E / X: dropped behind, a ground
+  trigger volume consumed by the FIRST vehicle through it, cutting tire
+  frictionSlip for a few seconds; owner immune only during a short arm
+  window), the **tether** (`tryTether`/`tetherStatus`, Q / LB: latches the
+  nearest vehicle ahead in range/cone, one-time latch damage, then the harness
+  pulls the target toward the shooter for the hold duration, force tapering
+  inside a slack radius so pairs never orbit-slam, plus a 25% reaction drag on
+  the shooter), and the passive **shockwave ram** (`tryRam`: nose-first
+  chassis contact above a closing-speed threshold damages + briefly stuns
+  BOTH and the harness blasts them apart with horizontal + pop-up impulses;
+  contacts queue from cannon collide events and are evaluated on PRE-step
+  velocities because the solver has already eaten the closing speed by the
+  time the event fires). AI decides tool use in `ai.ts` (`wantsFire`,
+  `wantsOil` when a rival is close behind, `wantsTether` for targets beyond
+  EMP reach, shared per-weapon restraint scheduling).
+- **Combat feedback layer** (all in the harness, presentation only):
+  trauma-model screen shake (shake = trauma^2, distance-scaled for off-player
+  events), an additive spark Points pool + a sprite smoke pool (dark smoke
+  and oil drips need normal blending to read), escalating damage states on
+  the placeholder mesh (scorch tint lerp, per-rig vertex-jitter crumple at
+  75/50/25% health restored on heal, hood smoke + embers, heavy wreck smoke),
+  and a distinct landing moment per tool: glossy black puddle with an
+  additive violet rim, visible gold tether cable + pulsing hook, cyan stun
+  crackle ring + spark arcs while disrupted, amber shockwave rings on rams,
+  and a knockout explosion on every down/elimination. `?glheadless=1` (the
+  VANGUARD `?vgheadless` pattern) pumps the loop off a MessageChannel so
+  scripted `__greenline` console drives (fire/oil/tether/damage/capture) run
+  in a hidden tab.
 - **AI opponents:** `src/lib/greenline/ai.ts` (pure, like combat/runtime): one
   `AiDriver` per vehicle. The racing line is DERIVED from the track data (no
   hand-authored path): centerline pure-pursuit with speed-scaled lookahead,
