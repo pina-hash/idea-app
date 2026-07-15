@@ -111,6 +111,24 @@ export const RAM_FRONTAL_COS = 0.45;
 export type DamageOutcome = 'damaged' | 'down' | 'eliminated' | 'ignored';
 
 /**
+ * Per-vehicle incoming-effect multipliers, set by the loadout layer (neutral
+ * = 1). They live on VehicleCombat because they are per-vehicle combat state:
+ * the pure weapon functions consume them without knowing about loadouts.
+ * `reset()` deliberately does NOT touch them; the owner (the harness's
+ * loadout application) manages their lifecycle.
+ */
+export interface ResistMods {
+	/** Scales every disruption/stun duration received. */
+	disruption: number;
+	/** Scales the oil slick traction-loss duration received. */
+	oilSlip: number;
+	/** Scales ram damage received. */
+	impactDamage: number;
+	/** Scales the EMP spin-out kick received (the harness applies it). */
+	spinKick: number;
+}
+
+/**
  * Per-vehicle combat state. Health, disruption, and the zero-health
  * consequence all live here so every vehicle behaves identically; nothing in
  * this class knows which vehicle is the player.
@@ -118,6 +136,10 @@ export type DamageOutcome = 'damaged' | 'down' | 'eliminated' | 'ignored';
 export class VehicleCombat {
 	readonly id: string;
 	health: number;
+	/** This vehicle's own health pool (builds change it per vehicle). */
+	maxHealth: number;
+	/** Incoming-effect multipliers from the equipped build (neutral = 1). */
+	resist: ResistMods = { disruption: 1, oilSlip: 1, impactDamage: 1, spinKick: 1 };
 	eliminated = false;
 	/** RACE-mode temporary setback: immobilized until this time (0 = none). */
 	downUntilMs = 0;
@@ -131,10 +153,12 @@ export class VehicleCombat {
 	constructor(id: string, maxHealth: number) {
 		this.id = id;
 		this.health = maxHealth;
+		this.maxHealth = maxHealth;
 	}
 
 	reset(maxHealth: number): void {
 		this.health = maxHealth;
+		this.maxHealth = maxHealth;
 		this.eliminated = false;
 		this.downUntilMs = 0;
 		this.disruptedUntilMs = 0;
@@ -197,23 +221,33 @@ export class VehicleCombat {
 		this.applyStun(tuning.disruptionSec, nowMs);
 	}
 
-	/** Same disruption state, explicit duration (the ram's brief stun). */
+	/**
+	 * Same disruption state, explicit duration (the ram's brief stun).
+	 * Scaled by this vehicle's disruption resistance.
+	 */
 	applyStun(seconds: number, nowMs: number): void {
-		this.disruptedUntilMs = Math.max(this.disruptedUntilMs, nowMs + seconds * 1000);
+		this.disruptedUntilMs = Math.max(
+			this.disruptedUntilMs,
+			nowMs + seconds * this.resist.disruption * 1000
+		);
 	}
 
 	applyOiled(tuning: CombatTuning, nowMs: number): void {
-		this.oiledUntilMs = Math.max(this.oiledUntilMs, nowMs + tuning.oilSlipSec * 1000);
+		this.oiledUntilMs = Math.max(
+			this.oiledUntilMs,
+			nowMs + tuning.oilSlipSec * this.resist.oilSlip * 1000
+		);
 	}
 
 	/**
 	 * Per-frame upkeep. Returns 'recovered' once when a RACE down window
-	 * expires: health is restored to full and the vehicle may drive again.
+	 * expires: health is restored to this vehicle's own full pool and the
+	 * vehicle may drive again.
 	 */
-	tick(tuning: CombatTuning, nowMs: number): 'recovered' | null {
+	tick(nowMs: number): 'recovered' | null {
 		if (!this.eliminated && this.downUntilMs !== 0 && nowMs >= this.downUntilMs) {
 			this.downUntilMs = 0;
-			this.health = tuning.maxHealth;
+			this.health = this.maxHealth;
 			this.disruptedUntilMs = 0;
 			this.oiledUntilMs = 0;
 			return 'recovered';
@@ -497,8 +531,9 @@ export interface RamContext {
 
 export interface RamResult {
 	triggered: boolean;
-	/** Damage dealt to EACH vehicle (already applied). */
-	damage: number;
+	/** Damage dealt to each side (already applied; per-vehicle armor scales it). */
+	damageA: number;
+	damageB: number;
 	outcomeA: DamageOutcome;
 	outcomeB: DamageOutcome;
 }
@@ -509,7 +544,13 @@ export function tryRam(
 	tuning: CombatTuning,
 	nowMs: number
 ): RamResult {
-	const none: RamResult = { triggered: false, damage: 0, outcomeA: 'ignored', outcomeB: 'ignored' };
+	const none: RamResult = {
+		triggered: false,
+		damageA: 0,
+		damageB: 0,
+		outcomeA: 'ignored',
+		outcomeB: 'ignored'
+	};
 	if (ctx.closingSpeed < tuning.ramMinClosingSpeed) return none;
 	if (Math.max(ctx.frontalityA, ctx.frontalityB) < RAM_FRONTAL_COS) return none;
 	if (
@@ -520,12 +561,14 @@ export function tryRam(
 	}
 	ctx.a.combat.markUsed('ram', nowMs);
 	ctx.b.combat.markUsed('ram', nowMs);
-	// Harder hits hurt more: scale from base at threshold up to 1.6x.
+	// Harder hits hurt more: scale from base at threshold up to 1.6x; each
+	// side then takes it through its own impact resistance (armor plating).
 	const violence = Math.min(1.6, Math.max(0.6, ctx.closingSpeed / (tuning.ramMinClosingSpeed * 2)));
-	const damage = Math.round(tuning.ramDamage * violence);
-	const outcomeA = ctx.a.combat.applyDamage(damage, ctx.b.id, mode, tuning, nowMs);
-	const outcomeB = ctx.b.combat.applyDamage(damage, ctx.a.id, mode, tuning, nowMs);
+	const damageA = Math.round(tuning.ramDamage * violence * ctx.a.combat.resist.impactDamage);
+	const damageB = Math.round(tuning.ramDamage * violence * ctx.b.combat.resist.impactDamage);
+	const outcomeA = ctx.a.combat.applyDamage(damageA, ctx.b.id, mode, tuning, nowMs);
+	const outcomeB = ctx.b.combat.applyDamage(damageB, ctx.a.id, mode, tuning, nowMs);
 	if (outcomeA === 'damaged') ctx.a.combat.applyStun(tuning.ramStunSec, nowMs);
 	if (outcomeB === 'damaged') ctx.b.combat.applyStun(tuning.ramStunSec, nowMs);
-	return { triggered: true, damage, outcomeA, outcomeB };
+	return { triggered: true, damageA, damageB, outcomeA, outcomeB };
 }

@@ -28,8 +28,21 @@
 		type OilSlick
 	} from '$lib/greenline/combat';
 	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
+	import {
+		defaultLoadout,
+		neutralStats,
+		parseLoadout,
+		resolveLoadout,
+		serializeLoadout,
+		type ArchetypeId,
+		type Loadout,
+		type PartSlot,
+		type ResolvedStats
+	} from '$lib/greenline/loadout';
+	import Garage from '$lib/greenline/Garage.svelte';
 	import Minimap from '$lib/greenline/Minimap.svelte';
 	import testLoopJson from '$lib/greenline/tracks/test-loop.json';
+	import { browser } from '$app/environment';
 
 	/**
 	 * GREENLINE movement + track + combat + AI prototype (dev-only harness).
@@ -55,10 +68,20 @@
 	 * (scorch tint, crumpled vertices, hood smoke), oil puddles, the live
 	 * tether cable, the stun crackle ring, and ram shockwave rings.
 	 *
+	 * Loadouts: G opens the garage ($lib/greenline/Garage.svelte over the
+	 * $lib/greenline/loadout.ts catalog): one archetype (ARMOR / VELOCITY /
+	 * HANDLING / SYSTEMS) plus one part per slot, resolved to per-rig stat
+	 * MULTIPLIERS over the tuning-panel baseline and applied live to physics
+	 * (engine, drag, brakes, steering, mass, grip, suspension, grass drag),
+	 * health pool, incoming-effect resistances (VehicleCombat.resist), and
+	 * offense (damage, EMP range, tool cooldowns via ctFor). AIs cycle the
+	 * four archetypes so every round has build variety. Player loadout
+	 * persists in localStorage; everything is unlocked (dev).
+	 *
 	 * Controls: W/S throttle+brake (reverse from standstill), A/D steer,
-	 * Space handbrake, F fire EMP, E drop oil, Q fire tether, R reset round.
-	 * Gamepad: left stick steer, RT throttle, LT brake, A handbrake, RB fire,
-	 * X oil, LB tether.
+	 * Space handbrake, F fire EMP, E drop oil, Q fire tether, G garage,
+	 * R reset round. Gamepad: left stick steer, RT throttle, LT brake,
+	 * A handbrake, RB fire, X oil, LB tether.
 	 */
 
 	const DEFAULTS = {
@@ -69,6 +92,9 @@
 		aeroDrag: 1.8,
 		maxSteer: 1,
 		steerSpeedFalloff: 0.04,
+		/** Anti-wheelie: local pitch-rate damping (1/s). Light builds backflip
+		 * under full throttle without it; yaw (steering) is untouched. */
+		pitchDamp: 5,
 		chassisMass: 180,
 		gravity: 14,
 		suspensionStiffness: 35,
@@ -104,6 +130,34 @@
 	const rt = buildRuntime(track);
 
 	let mode = $state<GreenlineMode>('race');
+
+	// ---- Player loadout (garage). Persisted per browser; parts multiply the
+	// tuning-panel baseline, so the panel stays the global feel surface. ----
+	const LOADOUT_KEY = 'greenline_loadout';
+	let playerLoadout = $state<Loadout>(
+		(browser && parseLoadout(localStorage.getItem(LOADOUT_KEY))) || defaultLoadout()
+	);
+	let garageOpen = $state(false);
+	// Assigned in onMount once the player rig exists (the resetRound pattern).
+	let applyPlayerLoadout: () => void = () => {};
+	const persistLoadout = () => {
+		try {
+			localStorage.setItem(LOADOUT_KEY, serializeLoadout(playerLoadout));
+		} catch {
+			/* storage unavailable: session-only loadout */
+		}
+	};
+	const selectArchetype = (id: ArchetypeId) => {
+		playerLoadout = { ...playerLoadout, archetype: id };
+		persistLoadout();
+		applyPlayerLoadout();
+	};
+	const equipPart = (slot: PartSlot, partId: string) => {
+		playerLoadout = { ...playerLoadout, parts: { ...playerLoadout.parts, [slot]: partId } };
+		persistLoadout();
+		applyPlayerLoadout();
+	};
+
 	let speedKmh = $state(0);
 	let speedMs = $state(0);
 	let padName = $state('');
@@ -116,6 +170,7 @@
 	interface StandRow {
 		pos: number;
 		label: string;
+		arch: string;
 		laps: number;
 		cp: number;
 		hp: number;
@@ -360,6 +415,9 @@
 						fg: InstanceType<typeof THREE.Mesh>;
 						fgMat: InstanceType<typeof THREE.MeshBasicMaterial>;
 					} | null;
+					/** Resolved build multipliers (archetype x parts), neutral = 1. */
+					buildStats: ResolvedStats;
+					archetype: ArchetypeId;
 					/** Crumple state: 0 pristine .. 3 wrecked; drives vertex jitter. */
 					dentStage: number;
 					/** Pristine body-geometry positions, restored on heal/reset. */
@@ -529,6 +587,8 @@
 						tracker: new LapTracker(),
 						ai: null,
 						bar: null,
+						buildStats: neutralStats(),
+						archetype: 'handling',
 						dentStage: 0,
 						dentBase: new Float32Array(
 							(bodyMesh.geometry.getAttribute('position') as InstanceType<
@@ -565,8 +625,36 @@
 					return rig;
 				};
 
+				// Apply a resolved build to a rig: multipliers for the physics
+				// pipeline, the combat resistances, and this vehicle's own health
+				// pool (current health keeps its fraction, so a mid-run swap is
+				// honest rather than a free heal).
+				const applyLoadoutToRig = (rig: Rig, l: Loadout) => {
+					const s = resolveLoadout(l);
+					rig.buildStats = s;
+					rig.archetype = l.archetype;
+					const newMax = Math.max(
+						1,
+						Math.round(num(tuning.maxHealth, DEFAULTS.maxHealth) * s.maxHealth)
+					);
+					const frac =
+						rig.combat.maxHealth > 0 ? rig.combat.health / rig.combat.maxHealth : 1;
+					rig.combat.maxHealth = newMax;
+					rig.combat.health = Math.round(Math.min(1, Math.max(0, frac)) * newMax);
+					rig.combat.resist.disruption = s.disruptionTaken;
+					rig.combat.resist.oilSlip = s.oilSlipTaken;
+					rig.combat.resist.impactDamage = s.impactDamageTaken;
+					rig.combat.resist.spinKick = s.spinKickTaken;
+				};
+
 				const player = makeRig('player', 'YOU', 0x0e6b2f, slotPose(0));
+				applyLoadoutToRig(player, playerLoadout);
+				applyPlayerLoadout = () => applyLoadoutToRig(player, playerLoadout);
 				const AI_COLORS = [0x2f5f8f, 0x6f3f8f, 0x2f8f7f, 0x8f5f2f, 0x4f4f8f, 0x3f6f4f];
+				// AIs cycle the four archetypes (stock parts) so every round has
+				// build variety to race and fight against: AI-1 armor, AI-2
+				// velocity, AI-3 handling, AI-4 systems, then repeat.
+				const AI_ARCHS: ArchetypeId[] = ['armor', 'velocity', 'handling', 'systems'];
 				let ais: Rig[] = [];
 				const rigsAll = () => [player, ...ais];
 
@@ -587,6 +675,7 @@
 						const rig = makeRig(`ai-${k}`, `AI-${k}`, AI_COLORS[(k - 1) % AI_COLORS.length], slotPose(k));
 						rig.ai = new AiDriver(rt);
 						rig.bar = makeBar();
+						applyLoadoutToRig(rig, defaultLoadout(AI_ARCHS[(k - 1) % AI_ARCHS.length]));
 						ais.push(rig);
 						aiPoses.push({ x: rig.spawn.x, z: rig.spawn.z, hx: 1, hz: 0, out: false });
 					}
@@ -881,6 +970,25 @@
 					ramStunSec: num(tuning.ramStunSec, DEFAULTS.ramStunSec),
 					ramCooldownSec: num(tuning.ramCooldownSec, DEFAULTS.ramCooldownSec)
 				});
+				// Per-shooter effective combat tuning: the build's OFFENSE side
+				// (damage out, EMP reach, tool cooldowns). Defense lives on the
+				// TARGET's VehicleCombat.resist, so the pure weapon functions stay
+				// single-tuning. The ram is passive; its anti-machine-gun cooldown
+				// stays global on purpose.
+				const ctFor = (rig: Rig): CombatTuning => {
+					const s = rig.buildStats;
+					const ct = combatTuning();
+					return {
+						...ct,
+						empDamage: Math.round(ct.empDamage * s.damageDealt),
+						tetherDamage: Math.round(ct.tetherDamage * s.damageDealt),
+						empRange: ct.empRange * s.empRange,
+						empCooldownSec: ct.empCooldownSec * s.weaponCooldown,
+						oilCooldownSec: ct.oilCooldownSec * s.weaponCooldown,
+						tetherCooldownSec: ct.tetherCooldownSec * s.weaponCooldown
+					};
+				};
+
 				const aiTuning = (): AiTuning => ({
 					topSpeed: num(tuning.aiTopSpeed, DEFAULTS.aiTopSpeed),
 					cornerAccel: num(tuning.aiCorner, DEFAULTS.aiCorner),
@@ -888,6 +996,19 @@
 					steerGain: AI_DEFAULTS.steerGain,
 					aggression: num(tuning.aiAggression, DEFAULTS.aiAggression)
 				});
+
+				// The AI DRIVER's targets scale with its vehicle's build, so an
+				// armor AI drives like a truck and a velocity AI like a missile:
+				// allowed speed tracks the drag-terminal proxy sqrt(engine/drag),
+				// corner budget tracks grip.
+				const aiTuningFor = (rig: Rig, base: AiTuning): AiTuning => {
+					const s = rig.buildStats;
+					return {
+						...base,
+						topSpeed: base.topSpeed * Math.sqrt(s.engineForce / Math.max(0.01, s.aeroDrag)),
+						cornerAccel: base.cornerAccel * s.frictionSlip
+					};
+				};
 
 				const combatantOf = (r: Rig): Combatant => ({
 					id: r.id,
@@ -953,7 +1074,7 @@
 				};
 
 				const performFire = (shooter: Rig) => {
-					const ct = combatTuning();
+					const ct = ctFor(shooter);
 					const now = performance.now();
 					const result = tryFire(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
 					if (!result.fired) return result;
@@ -962,7 +1083,8 @@
 					for (const hit of result.hits) {
 						const target = rigsAll().find((r) => r.id === hit.targetId);
 						if (!target) continue;
-						target.body.angularVelocity.y += ct.spinKick * hit.spinSign;
+						target.body.angularVelocity.y +=
+							ct.spinKick * hit.spinSign * target.combat.resist.spinKick;
 						target.flashUntil = now + 180;
 						const tp = target.body.position;
 						spawnSparks(tp.x, tp.y + 0.7, tp.z, 22, 0x00f0ff, 10, 500);
@@ -999,7 +1121,7 @@
 				oilRimGeo.rotateX(-Math.PI / 2);
 
 				const performOil = (shooter: Rig): boolean => {
-					const ct = combatTuning();
+					const ct = ctFor(shooter);
 					const now = performance.now();
 					const slick = tryDeployOil(combatantOf(shooter), ct, now, slickSeq);
 					if (!slick) return false;
@@ -1104,7 +1226,7 @@
 				};
 
 				const performTether = (shooter: Rig) => {
-					const ct = combatTuning();
+					const ct = ctFor(shooter);
 					const now = performance.now();
 					const res = tryTether(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
 					if (!res.fired) return res;
@@ -1212,7 +1334,7 @@
 					if (wantAis !== ais.length) buildAis(wantAis);
 					const maxHp = num(tuning.maxHealth, DEFAULTS.maxHealth);
 					for (const r of rigsAll()) {
-						r.combat.reset(maxHp);
+						r.combat.reset(Math.max(1, Math.round(maxHp * r.buildStats.maxHealth)));
 						r.tracker.reset();
 						r.body.position.set(r.spawn.x, SPAWN_Y, r.spawn.z);
 						r.body.quaternion.copy(quatFor(r.spawn.headingDeg));
@@ -1267,6 +1389,10 @@
 						if (!e.repeat) tetherQueued = true;
 						return;
 					}
+					if (e.code === 'KeyG') {
+						if (!e.repeat) garageOpen = !garageOpen;
+						return;
+					}
 					if (TRACKED.has(e.code)) {
 						keys.add(e.code);
 						e.preventDefault();
@@ -1299,6 +1425,7 @@
 				const camPos = new THREE.Vector3().copy(camera.position);
 				const camLook = new THREE.Vector3(track.spawn.x, 1, track.spawn.z);
 				const fwdWorld = new THREE.Vector3();
+				const rightWorld = new THREE.Vector3();
 				const tmpQuat = new THREE.Quaternion();
 
 				let lastT = performance.now();
@@ -1351,6 +1478,11 @@
 					},
 					getSlicks: () => slicks,
 					getTethers: () => tethers.map((tv) => tv.t),
+					getLoadout: () => playerLoadout,
+					setArchetype: (id: ArchetypeId) => selectArchetype(id),
+					equip: (slot: PartSlot, partId: string) => equipPart(slot, partId),
+					getBuildStats: (rigId = 'player') =>
+						rigsAll().find((q) => q.id === rigId)?.buildStats ?? null,
 					getMode: () => mode,
 					getFinishOrder: () => finishOrder.map((r) => r.id),
 					isRoundOver: () => roundOver,
@@ -1419,21 +1551,23 @@
 					// -- Per-vehicle pipeline: identical for player and AI --
 					for (const rig of all) {
 						const body = rig.body;
-						const recovered = rig.combat.tick(ct, now);
+						const recovered = rig.combat.tick(now);
 						if (recovered === 'recovered' && rig === player) {
 							flash('BACK IN — health restored');
 						}
 
-						const mass = num(tuning.chassisMass, DEFAULTS.chassisMass);
+						// Panel baseline x this rig's build multipliers: the garage is
+						// how a VEHICLE deviates from the global tuning surface.
+						const bs = rig.buildStats;
+						const mass = num(tuning.chassisMass, DEFAULTS.chassisMass) * bs.chassisMass;
 						if (body.mass !== mass) {
 							body.mass = mass;
 							body.updateMassProperties();
 						}
 						for (const w of rig.vehicle.wheelInfos) {
-							w.suspensionStiffness = num(
-								tuning.suspensionStiffness,
-								DEFAULTS.suspensionStiffness
-							);
+							w.suspensionStiffness =
+								num(tuning.suspensionStiffness, DEFAULTS.suspensionStiffness) *
+								bs.suspensionStiffness;
 							w.dampingCompression = num(tuning.dampingCompression, DEFAULTS.dampingCompression);
 							w.dampingRelaxation = num(tuning.dampingRelaxation, DEFAULTS.dampingRelaxation);
 							w.suspensionRestLength = num(
@@ -1444,7 +1578,7 @@
 								tuning.maxSuspensionTravel,
 								DEFAULTS.maxSuspensionTravel
 							);
-							w.frictionSlip = num(tuning.frictionSlip, DEFAULTS.frictionSlip);
+							w.frictionSlip = num(tuning.frictionSlip, DEFAULTS.frictionSlip) * bs.frictionSlip;
 							w.rollInfluence = num(tuning.rollInfluence, DEFAULTS.rollInfluence);
 						}
 
@@ -1485,7 +1619,7 @@
 									nowMs: now,
 									dtMs: dt * 1000
 								},
-								aiT
+								aiTuningFor(rig, aiT)
 							);
 							sIn = c.steer;
 							thr = c.throttle;
@@ -1504,9 +1638,11 @@
 							for (const w of rig.vehicle.wheelInfos) w.frictionSlip *= mods.tractionScale;
 						}
 
-						const falloff = num(tuning.steerSpeedFalloff, DEFAULTS.steerSpeedFalloff);
+						const falloff =
+							num(tuning.steerSpeedFalloff, DEFAULTS.steerSpeedFalloff) * bs.steerFalloff;
 						const effSteer =
-							num(tuning.maxSteer, DEFAULTS.maxSteer) / (1 + rawSpeed * Math.max(0, falloff));
+							(num(tuning.maxSteer, DEFAULTS.maxSteer) * bs.maxSteer) /
+							(1 + rawSpeed * Math.max(0, falloff));
 						const steerTarget = sIn * effSteer;
 						rig.steerCurrent += (steerTarget - rig.steerCurrent) * Math.min(1, dt * 10);
 						rig.vehicle.setSteeringValue(rig.steerCurrent, 0);
@@ -1514,10 +1650,11 @@
 
 						let engine = 0;
 						let brake = 0;
-						const engineMax = num(tuning.engineForce, DEFAULTS.engineForce);
+						const engineMax = num(tuning.engineForce, DEFAULTS.engineForce) * bs.engineForce;
 						if (thr > 0) engine = thr * engineMax;
 						if (brk > 0 && !rig.combat.isOut(now)) {
-							if (forwardSpeed > 0.5) brake = brk * num(tuning.brakeForce, DEFAULTS.brakeForce);
+							if (forwardSpeed > 0.5)
+								brake = brk * num(tuning.brakeForce, DEFAULTS.brakeForce) * bs.brakeForce;
 							else engine = -brk * engineMax * 0.55;
 						}
 						// Engine force is the TOTAL drive force, split across the two
@@ -1535,8 +1672,23 @@
 							rig.vehicle.wheelInfos[3].frictionSlip *= gripCut;
 						}
 
+						// Anti-wheelie: bleed LOCAL pitch rate (rotation about the
+						// car's right axis) so drive torque can never backflip a
+						// light build; steering yaw is deliberately untouched.
+						const pd = num(tuning.pitchDamp, DEFAULTS.pitchDamp);
+						if (pd > 0) {
+							rightWorld.set(0, 0, 1).applyQuaternion(tmpQuat);
+							const av = body.angularVelocity;
+							const pitchRate =
+								av.x * rightWorld.x + av.y * rightWorld.y + av.z * rightWorld.z;
+							const bleed = pitchRate * Math.min(1, pd * dt);
+							av.x -= rightWorld.x * bleed;
+							av.y -= rightWorld.y * bleed;
+							av.z -= rightWorld.z * bleed;
+						}
+
 						// Quadratic aero drag caps top speed (~sqrt(engine/drag)).
-						const drag = num(tuning.aeroDrag, DEFAULTS.aeroDrag);
+						const drag = num(tuning.aeroDrag, DEFAULTS.aeroDrag) * bs.aeroDrag;
 						if (drag > 0 && rawSpeed > 0.1) {
 							body.applyForce(
 								new CANNON.Vec3(
@@ -1555,7 +1707,7 @@
 						rig.lastOnRibbon = surf.state.onRibbon;
 						if (rig === player) hud.offTrack = !surf.state.onRibbon;
 						if (!surf.state.onRibbon && rawSpeed > 0.1) {
-							const gd = num(tuning.grassDrag, DEFAULTS.grassDrag);
+							const gd = num(tuning.grassDrag, DEFAULTS.grassDrag) * bs.grassDrag;
 							body.applyForce(
 								new CANNON.Vec3(-gd * rawSpeed * vel.x, 0, -gd * rawSpeed * vel.z),
 								new CANNON.Vec3(0, 0, 0)
@@ -1581,7 +1733,10 @@
 						// Status tint + scorch: gray when out, gold when down, cyan
 						// blink on hit, violet flicker while oiled; otherwise the base
 						// color chars toward burnt charcoal as health drops.
-						const hpFrac = Math.max(0, Math.min(1, rig.combat.health / Math.max(1, ct.maxHealth)));
+						const hpFrac = Math.max(
+							0,
+							Math.min(1, rig.combat.health / Math.max(1, rig.combat.maxHealth))
+						);
 						const tint = rig.combat.eliminated
 							? 0x3a4440
 							: rig.combat.isDown(now)
@@ -1675,14 +1830,16 @@
 					for (const rig of ais) {
 						if (!rig.ai || rig.combat.isOut(now)) continue;
 						const self = combatants[all.indexOf(rig)];
-						if (rig.ai.wantsFire(self, combatants, ct, aiT, now)) {
+						// The AI decides with ITS OWN build's ranges and cooldowns.
+						const rct = ctFor(rig);
+						if (rig.ai.wantsFire(self, combatants, rct, aiT, now)) {
 							const res = performFire(rig);
-							if (res.fired) rig.ai.scheduleNextUse('emp', now, ct.empCooldownSec, aiT);
-						} else if (rig.ai.wantsTether(self, combatants, ct, aiT, now)) {
+							if (res.fired) rig.ai.scheduleNextUse('emp', now, rct.empCooldownSec, aiT);
+						} else if (rig.ai.wantsTether(self, combatants, rct, aiT, now)) {
 							const res = performTether(rig);
-							if (res.fired) rig.ai.scheduleNextUse('tether', now, ct.tetherCooldownSec, aiT);
-						} else if (rig.ai.wantsOil(self, combatants, ct, aiT, now)) {
-							if (performOil(rig)) rig.ai.scheduleNextUse('oil', now, ct.oilCooldownSec, aiT);
+							if (res.fired) rig.ai.scheduleNextUse('tether', now, rct.tetherCooldownSec, aiT);
+						} else if (rig.ai.wantsOil(self, combatants, rct, aiT, now)) {
+							if (performOil(rig)) rig.ai.scheduleNextUse('oil', now, rct.oilCooldownSec, aiT);
 						}
 					}
 
@@ -1737,7 +1894,9 @@
 							}
 							if (a === player || b === player) {
 								addTrauma(0.85);
-								flash(`SHOCKWAVE RAM — -${res.damage} BOTH`);
+								const mine = a === player ? res.damageA : res.damageB;
+								const theirs = a === player ? res.damageB : res.damageA;
+								flash(`SHOCKWAVE RAM — you -${mine} / them -${theirs}`);
 							} else {
 								addTraumaAt(mx, mz, 0.6);
 							}
@@ -1940,7 +2099,7 @@
 								rig.body.position.z
 							);
 							rig.bar.group.lookAt(camera.position);
-							const frac = Math.max(0, rig.combat.health / Math.max(1, ct.maxHealth));
+							const frac = Math.max(0, rig.combat.health / Math.max(1, rig.combat.maxHealth));
 							rig.bar.fg.scale.x = Math.max(0.001, frac);
 							rig.bar.fg.position.x = -(1 - frac) * 1.2;
 							rig.bar.fgMat.color.setHex(
@@ -2026,7 +2185,7 @@
 					}
 
 					chud.hp = Math.round(player.combat.health);
-					chud.max = ct.maxHealth;
+					chud.max = player.combat.maxHealth;
 					chud.status = player.combat.eliminated
 						? 'ELIMINATED'
 						: player.combat.isDown(now)
@@ -2039,10 +2198,11 @@
 						: 0;
 					chud.oiled = player.combat.isOiled(now);
 					chud.tethered = tethers.some((tv) => tv.t.targetId === player.id);
-					chud.ready.emp = cooldownRemaining(player.combat, 'emp', ct.empCooldownSec, now);
-					chud.ready.oil = cooldownRemaining(player.combat, 'oil', ct.oilCooldownSec, now);
-					chud.ready.tether = cooldownRemaining(player.combat, 'tether', ct.tetherCooldownSec, now);
-					chud.ready.ram = cooldownRemaining(player.combat, 'ram', ct.ramCooldownSec, now);
+					const pct = ctFor(player);
+					chud.ready.emp = cooldownRemaining(player.combat, 'emp', pct.empCooldownSec, now);
+					chud.ready.oil = cooldownRemaining(player.combat, 'oil', pct.oilCooldownSec, now);
+					chud.ready.tether = cooldownRemaining(player.combat, 'tether', pct.tetherCooldownSec, now);
+					chud.ready.ram = cooldownRemaining(player.combat, 'ram', pct.ramCooldownSec, now);
 					if (
 						mode === 'elimination' &&
 						player.combat.eliminated &&
@@ -2078,6 +2238,7 @@
 							.map((r, i) => ({
 								pos: i + 1,
 								label: r.label,
+								arch: r.archetype.slice(0, 3).toUpperCase(),
 								laps: r.tracker.lapsCompleted,
 								cp: r.tracker.nextCheckpoint,
 								hp: Math.max(0, Math.round(r.combat.health)),
@@ -2221,7 +2382,7 @@
 			<div class="gl-standings">
 				{#each standings as s (s.label)}
 					<div class="gl-stand-row" class:me={s.label === 'YOU'}>
-						P{s.pos} {s.label} · {s.note || `L${s.laps} CP${s.cp}`} · {s.hp}hp
+						P{s.pos} {s.label} [{s.arch}] · {s.note || `L${s.laps} CP${s.cp}`} · {s.hp}hp
 					</div>
 				{/each}
 			</div>
@@ -2229,7 +2390,8 @@
 
 		<div class="gl-pad">{padName ? `pad: ${padName}` : 'pad: none (keyboard)'}</div>
 		<div class="gl-keys">
-			W/S throttle+brake · A/D steer · Space handbrake · F EMP · E oil · Q tether · R reset round
+			W/S throttle+brake · A/D steer · Space handbrake · F EMP · E oil · Q tether · G garage · R
+			reset round
 		</div>
 	</div>
 
@@ -2237,8 +2399,32 @@
 		<Minimap runtime={rt} {pose} nextCheckpoint={hud.cp} others={aiPoses} />
 	</div>
 
+	{#if garageOpen}
+		<Garage
+			loadout={playerLoadout}
+			baselineHealth={Number.isFinite(tuning.maxHealth) ? tuning.maxHealth : DEFAULTS.maxHealth}
+			baselineMass={Number.isFinite(tuning.chassisMass) ? tuning.chassisMass : DEFAULTS.chassisMass}
+			baselineEngine={Number.isFinite(tuning.engineForce)
+				? tuning.engineForce
+				: DEFAULTS.engineForce}
+			baselineDrag={Number.isFinite(tuning.aeroDrag) ? tuning.aeroDrag : DEFAULTS.aeroDrag}
+			onselect={selectArchetype}
+			onequip={equipPart}
+			onclose={() => (garageOpen = false)}
+		/>
+	{/if}
+
 	<div class="gl-panel">
 		<div class="gl-panel-head">TUNING (live)</div>
+
+		<div class="gl-actions" style="margin-top: 0;">
+			<button
+				onclick={() => (garageOpen = true)}
+				style="background: rgba(200, 255, 0, 0.1); border-color: rgba(200, 255, 0, 0.45); color: #c8ff00;"
+			>
+				garage / loadout (G) · {playerLoadout.archetype.toUpperCase()}
+			</button>
+		</div>
 
 		<div class="gl-section">mode</div>
 		<label class="gl-select-row"
@@ -2327,6 +2513,7 @@
 			>steer falloff /(m/s)
 			<input type="number" step="0.01" bind:value={tuning.steerSpeedFalloff} /></label
 		>
+		<label>pitch damp (anti-flip) <input type="number" step="0.5" bind:value={tuning.pitchDamp} /></label>
 
 		<div class="gl-section">chassis</div>
 		<label>mass (kg) <input type="number" step="10" bind:value={tuning.chassisMass} /></label>

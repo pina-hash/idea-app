@@ -1404,6 +1404,37 @@ on one side of the world.
   VANGUARD `?vgheadless` pattern) pumps the loop off a MessageChannel so
   scripted `__greenline` console drives (fire/oil/tether/damage/capture) run
   in a hidden tab.
+- **Loadouts (archetypes + parts):** `src/lib/greenline/loadout.ts` is the
+  pure balance sheet (the curriculum.ts convention): every effect is a
+  MULTIPLIER over the harness tuning-panel baseline (neutral 1), a build =
+  one archetype x one part per slot, resolved by `resolveLoadout`. The four
+  archetypes are the big identity (ARMOR juggernaut 1.6x hull / 1.35x mass /
+  0.75x ram damage in; VELOCITY missile 0.8x drag / 0.7x hull; HANDLING
+  scalpel 1.2x grip / steering held at speed; SYSTEMS warlock 0.8x cooldowns
+  / 0.65x stun taken / weak hull), and the 4 slots x (stock + 3) parts each
+  trade explicitly -- NO strict upgrades (slicks grip harder but take 1.4x
+  oil duration, all-terrain treads halve grass drag but dull on-track grip,
+  hot intake adds power but lengthens stuns taken, reactive cage shrugs rams
+  at the cost of hull). Mass is deliberately dual-natured: heavy builds
+  physically resist tether yanks / ram knockback / spin-outs (impulse over
+  mass) and pay in acceleration and cornering. Wiring: per-rig
+  `rig.buildStats` multiplies the physics pipeline (engine, brakes, drag,
+  steering, mass, grip, suspension, grass drag), `VehicleCombat.maxHealth` +
+  `VehicleCombat.resist` carry the defense side (consumed inside the pure
+  combat functions; `tryRam` deals per-side damage through each receiver's
+  impact resistance), and `ctFor(rig)` threads the offense side (damage out,
+  EMP range, tool cooldowns) as a per-shooter effective CombatTuning.
+  `src/lib/greenline/Garage.svelte` (G key in the harness) is the
+  presentation-only loadout screen: archetype cards, per-slot part pickers
+  with green/red/amber tradeoff chips, and a resolved-build summary; changes
+  apply LIVE, everything is unlocked (the currency/unlock economy is a later,
+  separate problem), and the player loadout persists per browser in
+  localStorage (`greenline_loadout`). AI rigs cycle the four archetypes
+  (stock parts) and their DRIVER targets scale with the build (allowed speed
+  ~ sqrt(engine/drag), corner budget ~ grip), so rounds have felt variety;
+  standings rows carry a 3-letter archetype tag. A `pitchDamp` anti-wheelie
+  dial (local pitch-rate damping, yaw untouched) keeps light builds from
+  backflipping under full throttle.
 - **AI opponents:** `src/lib/greenline/ai.ts` (pure, like combat/runtime): one
   `AiDriver` per vehicle. The racing line is DERIVED from the track data (no
   hand-authored path): centerline pure-pursuit with speed-scaled lookahead,
