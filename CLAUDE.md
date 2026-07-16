@@ -645,11 +645,46 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   edges (host: playerHit set-point + revivePlayer; guest: the mirrored
   applyShip edges); proximity samples every 0.5s of play on each client;
   `disconnected` means the match went through the v202 paused-for-reconnect
-  flow (graceStart host-side / rejoinMatch guest-side). KNOWN per-client
-  caveat, documented at `telemetryFieldList`: most solo counters in that list
-  are global sim tallies (host reports both ships combined, guest ~0); only
-  runTime and the runDwell clocks are genuinely per-client. A per-ship
-  counter split is a proposed follow-up, deliberately not done yet.
+  flow (graceStart host-side / rejoinMatch guest-side). The v204 per-client
+  caveat (most counters were global sim tallies: host reported both ships
+  combined, guest ~0) was closed by the v206 per-ship tally split, see below.
+- **Co-op telemetry per-ship attribution + revive/reconnect counting (game
+  v206, closes the v204 caveat):** the action stats each client's beacon
+  reports (sf/sh/acc, pa/pry/ppr, ht, bmb, oh, lu) are now genuinely that
+  pilot's own. Every counter gained a per-ship `pl.tally*` field
+  (`tallyShotsFired/ShotsHit/ParryAtt/Parries/Perfect/Hits/Bombs/Overheats/
+  LivesUsed/Meltdowns`, initialized in `makeShip`) incremented at the SAME
+  sites as the match-wide `run*` globals - which stay untouched for their
+  other consumers (death screen, achievements, refit gates) - so in solo
+  tally === global by construction (browser-asserted) and the solo beacon is
+  byte-identical (same param order, same values). Attribution rides the
+  existing bullet `pi`: `firePrimary` already bulk-tags its spawns; the
+  non-primary spawns that lacked it (rail slugs, drone shots, parry
+  reflect/riposte, FLAK flechettes) now carry `pi`, and the two `shotsHit`
+  collision sites credit `players[b.pi||0]`. **Transport:** the guest runs no
+  combat sim, so its own tallies are counted host-side (relayed acts land on
+  `players[1]` at the same sites) and STAMPED back over a new `ty` field on
+  `shipSnap` (ordered by the shared `TALLY_KEYS` registry, one list for
+  transmit + apply so the pair can never drift); `downedCount`/`revivedCount`
+  ride the same stamp, replacing the v204 guest edge-detection - which is the
+  revive-count fix: a 1up/CORE lives-rescue (`resetPlayer`, deliberately not
+  a revive) now increments `revivedCount` on NEITHER client, while genuine
+  `revivePlayer` channel revives count on both (browser-verified: dn=3/rv=2
+  identical on both clients through a rescue). The guest's own beacon reads
+  its stamped ship; `telemetryFieldList` reads `player` (the
+  players[localIndex] alias) for both roles, so the HOST's beacon is now its
+  own-ship-only too. **Reconnect:** ship tallies survive a guest drop for
+  free (host ship objects persist; the v202 rsync's shipSnap restores them
+  onto the rebuilt ships); the two genuinely guest-local accumulators
+  (runDwell + the proximity samples) are cached device-local in
+  `vgcoop_tallies` keyed by matchId (the `vgcoop_` non-synced prefix
+  convention; written ~2s via the proxTick throttle + pagehide + guest
+  partnerLost, restored in rejoinMatch, stale entries inert - no clearing
+  needed), so a rejoined guest's final beacon covers the whole match
+  (browser-verified: bmb=2 across a drop, whole-match dwell). Deliberately
+  NOT per-ship (still match-wide/team-wide by design): sec/rt/k/bk/sc,
+  ce/cs, btk (boss TTK), hwd (runHeavyUse), ps/maxStyle, and the refit-gate
+  stats the v199 `rs` sync carries.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The

@@ -797,7 +797,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='205';
+const VERSION='206';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -1998,7 +1998,14 @@ function makeShip(pi){ return {pi:pi||0, x:shipSpawnX(pi||0),y:H-130, vx:0,vy:0,
     inv:1.4, armor:5, maxArmor:5, dmgFlash:0, lives:3, dead:false, respawn:0, downed:false, reviveT:0, coins:0, repair:0,
     parryT:0, parryCd:0, parryCdMax:0, guardUsed:false, purgeCd:0,
     meltdownUnlocked:false, meltdownCharge:0, meltdownActive:0, meltdownCd:0,
-    buffs:{overdrive:0,scatter:0,magnet:0}}; }
+    buffs:{overdrive:0,scatter:0,magnet:0},
+    // v206 per-ship telemetry tallies: counted on the SHIP that acted/suffered,
+    // at the same sites as the match-wide run* globals (those stay for the
+    // death screen, achievements, and refit gates). In co-op they ride shipSnap
+    // (`ty`, see TALLY_KEYS) so the guest's copies are host-authoritative.
+    tallyShotsFired:0, tallyShotsHit:0, tallyParryAtt:0, tallyParries:0, tallyPerfect:0,
+    tallyHits:0, tallyBombs:0, tallyOverheats:0, tallyLivesUsed:0, tallyMeltdowns:0,
+    downedCount:0, revivedCount:0}; }
 function resetPlayer(full, plArg){
   const pl=plArg||players[localIndex];
   if(!pl||full){ const pi=pl?pl.pi:localIndex; const s=makeShip(pi==null?localIndex:pi);
@@ -2228,7 +2235,7 @@ function playerHit(pl){
   pl=pl||player;
   if(window.__devGod)return;
   if(pl.inv>0||pl.dead)return;
-  runHits++;
+  runHits++; pl.tallyHits++;   // v206: per-ship hit tally beside the match-wide global
   pl.noHitT=0; if(pl.glintOn){ pl.glintOn=false; applyUpgrades(pl); }
   pl.greed=0;
   if(pl.shieldHits>0){ pl.shieldHits--; pl.dmgFlash=.18; pl.inv=graceWindow(pl);
@@ -2241,7 +2248,7 @@ function playerHit(pl){
   for(let k=0;k<10;k++) parts.push({x:pl.x,y:pl.y,vx:rnd(-80,80),vy:rnd(-80,80),life:.25,max:.25,c:COL.green,sz:1.8});
   shake=Math.max(shake,6);
   if(pl.armor<=0){ explode(pl.x,pl.y,COL.green,true); Audio_.big(); shake=14;
-    pl.dead=true; pl.respawn=1.4; pl.lives--; runLivesUsed++; pl.drone=null; if(Audio_.stopAllLoops)Audio_.stopAllLoops();
+    pl.dead=true; pl.respawn=1.4; pl.lives--; runLivesUsed++; pl.tallyLivesUsed++; pl.drone=null; if(Audio_.stopAllLoops)Audio_.stopAllLoops();
     if(pl.lives<0){
       // Out of lives. CO-OP NORMAL (v200): the ship goes DOWNED - out of the
       // fight but revivable in place by a living teammate (updateReviveChannel);
@@ -2438,7 +2445,7 @@ function firePrimary(pl){
     if(kR==='coolant') pl.heat=Math.min(0.86,pl.heat);
     muzzle(x,y,hotC,gl*(0.7+heat),streams);
     if(pl.heat>=1){   // redline always VENTs softly now, both firing modes (the old harsh style-penalty branch only hit manual fire - a settings tax, not a skill choice)
-      pl.heat=0; pl.overheatT=0.6; pl.fireCd=0.6; runOverheats++;
+      pl.heat=0; pl.overheatT=0.6; pl.fireCd=0.6; runOverheats++; pl.tallyOverheats++;
       rings.push({x,y,r:5,vr:220,life:.28,max:.28,c:COL.gold});
       pops.push({x:pl.x,y:pl.y-30,txt:'VENT',c:COL.gold,life:.6,max:.6}); Audio_.hit(); }
   } else if(pl.wtype==='lance'){      // RAILSPIKE: slow, committed, full-pierce columns
@@ -2474,14 +2481,14 @@ function firePrimary(pl){
   }
   // tag every projectile spawned this trigger pull with the owning ship (kill attribution)
   for(let _q=prevLen;_q<pbul.length;_q++) pbul[_q].pi=_pi;
-  shotsFired+=pbul.length-prevLen;   // count each player projectile actually spawned this trigger pull (multi-pellet = N)
+  shotsFired+=pbul.length-prevLen; pl.tallyShotsFired+=pbul.length-prevLen;   // count each player projectile actually spawned this trigger pull (multi-pellet = N); v206 also on the firing ship
   pl.fireSeq=(pl.fireSeq||0)+1;   // co-op visual parity: one-shot fire-event counter (shipSnap `fq`); the guest edge-detects it to replay the partner's muzzle flash, render-only
 }
 /* FLAK: airburst into a lingering damage cloud (mult scales early-contact vs full-band detonations) */
 function detonateFlak(b,mult){
   const kf=b.ksFlak||0; const _life=FLAK_CLOUD_LIFE*(kf==='sticky'?2.6:1), _rad=(b.flakR||BAL.flakR)*(kf==='sticky'?0.7:1);
   flakClouds.push({x:b.x,y:b.y,r:_rad,t:_life,life:_life,dps:(b.flakDps||BAL.flakDps)*mult,c:FLAK_COL,pi:b.pi||0});
-  if(kf==='flechette'){ for(let s=0;s<6;s++){ const fa=(s/6)*6.2832; pbul.push({x:b.x,y:b.y,vx:Math.cos(fa)*420,vy:Math.sin(fa)*420,c:FLAK_COL,r:2.0,dmg:(b.flakDps||BAL.flakDps)*0.18*mult,wt:'scrap',gl:(b.gl||1)}); } }
+  if(kf==='flechette'){ for(let s=0;s<6;s++){ const fa=(s/6)*6.2832; pbul.push({x:b.x,y:b.y,vx:Math.cos(fa)*420,vy:Math.sin(fa)*420,c:FLAK_COL,r:2.0,dmg:(b.flakDps||BAL.flakDps)*0.18*mult,wt:'scrap',gl:(b.gl||1),pi:b.pi||0}); } }
   for(let k=0;k<8;k++) parts.push({x:b.x,y:b.y,vx:rnd(-90,90),vy:rnd(-90,90),life:.3,max:.3,c:Math.random()<0.5?FLAK_COL:COL.white,sz:rnd(1.4,2.4)});
   rings.push({x:b.x,y:b.y,r:6,vr:180,life:.25,max:.25,c:FLAK_COL});
   (Audio_.play&&Audio_.play('blast'))||Audio_.blast();
@@ -2581,8 +2588,8 @@ function fireHeavyShot(pl,h,charge){
   if(pl.beamE < heavyCost(h)*pl.beamMax) return;
   pl.beamE -= heavyCost(h)*pl.beamMax; if(runHeavyUse[h]!=null)runHeavyUse[h]++; pl.beamCoolT=pl.beamCool||0.6; const hm=pl.heavyMult||1;
   if(h==='rail'){ const rp=(pl.up.railPow||1), rc=(pl.up.railCap||1), flr=0.4+0.10*(rc-1); const _hk=(pl.hks&&pl.hks.rail)||0; let dmg=(40*hm)*(1+0.18*(rp-1))*(flr+(1-flr)*charge);
-    if(_hk==='twin'){ dmg*=0.62; pbul.push({x:pl.x-9,y:pl.y-20,vx:0,vy:-1500,c:COL.cyan,r:5,dmg,pierce:true,len:30,rail:true}); pbul.push({x:pl.x+9,y:pl.y-20,vx:0,vy:-1500,c:COL.cyan,r:5,dmg,pierce:true,len:30,rail:true}); }
-    else { if(_hk==='siege'){ dmg*=1.5; pl.beamCoolT=(pl.beamCool||0.6)+0.4; } pbul.push({x:pl.x,y:pl.y-20,vx:0,vy:-1500,c:COL.cyan,r:5,dmg,pierce:true,len:30,rail:true}); }
+    if(_hk==='twin'){ dmg*=0.62; pbul.push({x:pl.x-9,y:pl.y-20,vx:0,vy:-1500,c:COL.cyan,r:5,dmg,pierce:true,len:30,rail:true,pi:pl.pi||0}); pbul.push({x:pl.x+9,y:pl.y-20,vx:0,vy:-1500,c:COL.cyan,r:5,dmg,pierce:true,len:30,rail:true,pi:pl.pi||0}); }
+    else { if(_hk==='siege'){ dmg*=1.5; pl.beamCoolT=(pl.beamCool||0.6)+0.4; } pbul.push({x:pl.x,y:pl.y-20,vx:0,vy:-1500,c:COL.cyan,r:5,dmg,pierce:true,len:30,rail:true,pi:pl.pi||0}); }
     ((Audio_.play&&Audio_.play('rail'))||Audio_.blast()); shake=Math.max(shake,5+charge*6); rings.push({x:pl.x,y:pl.y-20,r:6,vr:240,life:.3,max:.3,c:COL.cyan}); }
   else if(h==='singularity'){ if(holes.length>0) return; const sa=(pl.up.singAmp||1), sc=(pl.up.singCrush||1), _hk=(pl.hks&&pl.hks.singularity)||0; let _dur=1.4+sa*0.25, _pull=200+sa*34, _cr=1+0.15*(sc-1);
     if(_hk==='burst'){ _dur*=0.4; _cr*=1.7; } else if(_hk==='well'){ _dur*=1.6; _pull*=1.3; _cr*=0.6; }
@@ -2761,11 +2768,11 @@ function tryParry(pl){
   if(state!=='play'||!pl||pl.dead)return;
   if(pl.parryCd>0&&pl.parryT<=0){ pl.parryCd=Math.min(2.0,pl.parryCd+0.35); pl.parryCdMax=pl.parryCd; pops.push({x:pl.x,y:pl.y-30,txt:'JAM',c:COL.dim,life:.5,max:.5}); Audio_.hit&&Audio_.hit(); return; }
   if(pl.parryCd>0||pl.parryT>0)return;
-  { const _pg=(pl.ks&&pl.ks.parry)==='guard'; pl.parryT=(0.22+(_pg?0.06:0))*(pl.modVamp?0.75:1); pl.parryCd=(_pg?0.75:0.95); pl.parryCdMax=pl.parryCd; } pl.parryHit=false; pl.parryArmed=true; pl.parrySeq=(pl.parrySeq||0)+1; runParryAtt++; Audio_.parry(); pl.inv=Math.max(pl.inv,0.10);   // parrySeq: co-op visual parity event counter (shipSnap `pq`), incremented only on real activation
+  { const _pg=(pl.ks&&pl.ks.parry)==='guard'; pl.parryT=(0.22+(_pg?0.06:0))*(pl.modVamp?0.75:1); pl.parryCd=(_pg?0.75:0.95); pl.parryCdMax=pl.parryCd; } pl.parryHit=false; pl.parryArmed=true; pl.parrySeq=(pl.parrySeq||0)+1; runParryAtt++; pl.tallyParryAtt++; Audio_.parry(); pl.inv=Math.max(pl.inv,0.10);   // parrySeq: co-op visual parity event counter (shipSnap `pq`), incremented only on real activation; v206 per-ship tally counts the same real activations (the guest's relayed acts land here on players[1])
   rings.push({x:pl.x,y:pl.y,r:10,vr:150,life:.3,max:.3,c:COL.cyan}); shake=Math.max(shake,3);
 }
 function fireBomb(pl){ if(!pl && COOP.sendAct('bomb')) return; pl=pl||player;
-  if(pl.bombs<=0||pl.dead)return; pl.bombs--; runBombs++;
+  if(pl.bombs<=0||pl.dead)return; pl.bombs--; runBombs++; pl.tallyBombs++;   // v206: per-ship tally counts host-validated uses (the guest's relayed acts land here on players[1])
   const bp=(pl.up.bombPow||1), _bk=(pl.ks&&pl.ks.bomb)||0;
   let dmg=(10+sector*3)*(1+(bp-1)*0.5)*(pl.modMuni?1.25:1);
   if(_bk==='implo') dmg*=1.80;
@@ -2802,7 +2809,7 @@ function tryMeltdown(pl){ if(!pl && COOP.sendAct('melt')) return; pl=pl||player;
   const kh = (pl.ks && pl.ks.meltdown) || 0;
   let dur = MELTDOWN_DURATION + 0.5 * (cap - 1);
   if (kh === 'neutron') dur = Math.max(1.0, dur - 0.5);
-  pl.meltdownActive=dur; pl.meltdownCharge=0; runMeltdownUses++;
+  pl.meltdownActive=dur; pl.meltdownCharge=0; runMeltdownUses++; pl.tallyMeltdowns++;
   pl.overheatT=0;   // an in-flight NAILGUN lockout would eat the window
   meltFlash=0.5; shake=Math.max(shake,10);
   rings.push({x:pl.x,y:pl.y,r:8,vr:420,life:.35,max:.35,c:COL.amber});
@@ -2940,12 +2947,12 @@ function update(dt){
         let rvx=-b.vx/m*sp, rvy=-b.vy/m*sp;
         if(heavy && boss){ const dx=boss.x-b.x, dy=boss.y-b.y, mm=Math.hypot(dx,dy)||1; rvx=dx/mm*sp; rvy=dy/mm*sp; }
         const _bl=(pl.up&&pl.up.bParry)||0; const dmg=heavy ? (boss?Math.max(20,boss.maxhp*0.07*(1+0.15*_bl)):24*(1+0.15*_bl)) : 2.5*(1+0.40*_bl);
-        pbul.push({x:b.x,y:b.y,vx:rvx,vy:rvy,c:heavy?COL.white:COL.cyan,r:heavy?5:3.2,dmg,reflected:true});
+        pbul.push({x:b.x,y:b.y,vx:rvx,vy:rvy,c:heavy?COL.white:COL.cyan,r:heavy?5:3.2,dmg,reflected:true,pi:pl.pi||0});
         pl.beamE=Math.min(pl.beamMax,pl.beamE+(heavy?0.4:0.12)); addScore(heavy?300:40,b.x,b.y,heavy?COL.white:COL.cyan);
         caught++; if(heavy)gotBolt++; ebul.splice(i,1); } }
-      if(caught>0 && !pl.parryHit){ pl.parryHit=true; pl.parryArmed=false; runParries++; if(gotBolt)runPerfect++; hitStop=Math.max(hitStop,gotBolt?0.10:0.06);
+      if(caught>0 && !pl.parryHit){ pl.parryHit=true; pl.parryArmed=false; runParries++; pl.tallyParries++; if(gotBolt){runPerfect++; pl.tallyPerfect++;} hitStop=Math.max(hitStop,gotBolt?0.10:0.06);
         bossFlash=Math.max(bossFlash,gotBolt?0.6:0.32); shake=Math.max(shake,gotBolt?10:5); pl.inv=Math.max(pl.inv,pl.modPhase?0.45:0.3);
-        pl.armor=Math.min(pl.maxArmor,pl.armor+(gotBolt?1:0)); const _mp=(pl.up&&pl.up.mParry)||0; if(_mp>0){ pl.repair=Math.min(1,(pl.repair||0)+(0.10+0.10*_mp)*(pl.modVamp?1.5:1)); if(pl.repair>=1&&pl.armor<pl.maxArmor){ pl.repair=0; pl.armor++; } } if(pl.modVamp){ pl.repair=Math.min(1,(pl.repair||0)+(gotBolt?0.4:0.2)); if(pl.repair>=1&&pl.armor<pl.maxArmor){ pl.repair=0; pl.armor++; } } if(gotBolt) pl.parryCd*=0.5; if((pl.ks&&pl.ks.parry)==='riposte'){ const _rn=6; for(let _r=0;_r<_rn;_r++){ const _a=-1.5708+(_r-(_rn-1)/2)*0.42; pbul.push({x:pl.x,y:pl.y-8,vx:Math.cos(_a)*560,vy:Math.sin(_a)*560,c:COL.cyan,r:3,dmg:3,reflected:true}); } if(gotBolt) pl.parryCd=0; }
+        pl.armor=Math.min(pl.maxArmor,pl.armor+(gotBolt?1:0)); const _mp=(pl.up&&pl.up.mParry)||0; if(_mp>0){ pl.repair=Math.min(1,(pl.repair||0)+(0.10+0.10*_mp)*(pl.modVamp?1.5:1)); if(pl.repair>=1&&pl.armor<pl.maxArmor){ pl.repair=0; pl.armor++; } } if(pl.modVamp){ pl.repair=Math.min(1,(pl.repair||0)+(gotBolt?0.4:0.2)); if(pl.repair>=1&&pl.armor<pl.maxArmor){ pl.repair=0; pl.armor++; } } if(gotBolt) pl.parryCd*=0.5; if((pl.ks&&pl.ks.parry)==='riposte'){ const _rn=6; for(let _r=0;_r<_rn;_r++){ const _a=-1.5708+(_r-(_rn-1)/2)*0.42; pbul.push({x:pl.x,y:pl.y-8,vx:Math.cos(_a)*560,vy:Math.sin(_a)*560,c:COL.cyan,r:3,dmg:3,reflected:true,pi:pl.pi||0}); } if(gotBolt) pl.parryCd=0; }
         addStyle(gotBolt?20:Math.min(18,6*caught));
         pops.push({x:pl.x,y:pl.y-30,txt:gotBolt?'PERFECT PARRY':'PARRY',c:gotBolt?COL.white:COL.cyan,life:.9,max:.9}); Audio_.parryHit(); COOP.evParryHit(pl,gotBolt); } }
     if(pl.parryT<=0 && pl.parryArmed && !pl.parryHit){ pl.parryArmed=false; pl.parryCd=Math.max(pl.parryCd,1.2); pl.parryCdMax=pl.parryCd; pops.push({x:pl.x,y:pl.y-30,txt:'WHIFF',c:COL.dim,life:.5,max:.5}); }
@@ -3012,10 +3019,10 @@ function update(dt){
         let tgt=null,bd=1e9; for(const e of enemies){ if(e.dead)continue; const d=Math.abs(e.x-(pl.x+ox)); if(e.y<pl.y&&d<bd){bd=d;tgt=e;} }
         if(_dk==='sentinel' && boss && !boss.dying && !boss.entering) tgt=boss;
         const aim=tgt?clamp((tgt.x-(pl.x+ox))*1.4,-180,180):0;
-        pbul.push({x:pl.x+ox,y:pl.y+24-9,vx:aim,vy:-560,c:COL.green,r:_dk==='sentinel'?2.0:1.4,dmg:ddmg});
+        pbul.push({x:pl.x+ox,y:pl.y+24-9,vx:aim,vy:-560,c:COL.green,r:_dk==='sentinel'?2.0:1.4,dmg:ddmg,pi:pl.pi||0});
         const _twin=(_dk==='wingmate')||(g>=(pl.modAuto?2:4));
-        if(_twin) pbul.push({x:pl.x+ox+6,y:pl.y+24-9,vx:aim,vy:-560,c:COL.green,r:1.4,dmg:ddmg});
-        if(_dk==='wingmate'&&g>=4) pbul.push({x:pl.x+ox-6,y:pl.y+24-9,vx:aim,vy:-560,c:COL.green,r:1.4,dmg:ddmg}); }
+        if(_twin) pbul.push({x:pl.x+ox+6,y:pl.y+24-9,vx:aim,vy:-560,c:COL.green,r:1.4,dmg:ddmg,pi:pl.pi||0});
+        if(_dk==='wingmate'&&g>=4) pbul.push({x:pl.x+ox-6,y:pl.y+24-9,vx:aim,vy:-560,c:COL.green,r:1.4,dmg:ddmg,pi:pl.pi||0}); }
       if(_dk==='sentinel'&&(pl.drone.itc||0)<=0){ let _bi=-1,_bd2=120*120; for(let qi=0;qi<ebul.length;qi++){ const _d=dist2(ebul[qi].x,ebul[qi].y,pl.x+ox,pl.y); if(_d<_bd2){_bd2=_d;_bi=qi;} } if(_bi>=0){ ebul.splice(_bi,1); pl.drone.itc=3; rings.push({x:pl.x+ox,y:pl.y+24,r:4,vr:220,life:.25,max:.25,c:COL.cyan}); } } }
     // DEFENSE PROBE: movement-gated point defense vs grunt fire
     { const _plv=(pl.up&&pl.up.probe)||0;
@@ -3356,7 +3363,7 @@ function update(dt){
       for(let k=0;k<2;k++)parts.push({x:b.x,y:b.y,vx:rnd(-40,40),vy:rnd(-10,30),life:.15,max:.15,c:bar.c,sz:1.3}); break; } }
     if(!hit) for(const e of enemies){ if(e.dead)continue;
       if(dist2(e.x,e.y,b.x,b.y)<(e.r+2)*(e.r+2)){
-        if(!b.hasHit){ b.hasHit=true; shotsHit++; }   // count this projectile the first time it contacts any enemy (deduped; a pierce shot counts once)
+        if(!b.hasHit){ b.hasHit=true; shotsHit++; const _bs=players[b.pi||0]; if(_bs)_bs.tallyShotsHit++; }   // count this projectile the first time it contacts any enemy (deduped; a pierce shot counts once); v206 also on the owning ship
         if(b.wt==='flak'){ detonateFlak(b,FLAK_EARLY); hit=true; break; }   // early contact -> weak airburst
         const _bo=players[b.pi||0]||player;   // the ship that fired this projectile (solo: always `player`)
         if(b.reflected && Math.random()<0.15){ const dx=_bo.x-e.x,dy=_bo.y-e.y,mm=Math.hypot(dx,dy)||1;
@@ -3382,7 +3389,7 @@ function update(dt){
         if(e.hp<=0){ window.killerPi=b.pi; killEnemy(e); } else { if(Audio_.play)Audio_.play('hit'); COOP.evHit(b.x,b.y,e.c,b.vx,b.vy); } if(!b.pierce){hit=true;} else if(b.pcount!=null){ if(b.wt!=='rail') b.dmg*=0.7; b.pcount--; if(b.pcount<=0){hit=true;} } break; } }   // per-pierce decay is the SPREAD pierce-keystone design; RAILSPIKE's pcount is a flat cap (impaler ramp untouched)
     if(!hit && boss && !boss.entering && !boss.dying && dist2(boss.x,boss.y,b.x,b.y)<(boss.r)*(boss.r)){
       if(b.wt==='flak'){ detonateFlak(b,FLAK_EARLY); hit=true; }
-      else { damageBoss(dmgEff); impactFX(b.x,b.y,boss.c,b.vx,b.vy); COOP.evHit(b.x,b.y,boss.c,b.vx,b.vy,1); if(!b.hasHit){ b.hasHit=true; shotsHit++; } if(!b.pierce)hit=true; }
+      else { damageBoss(dmgEff); impactFX(b.x,b.y,boss.c,b.vx,b.vy); COOP.evHit(b.x,b.y,boss.c,b.vx,b.vy,1); if(!b.hasHit){ b.hasHit=true; shotsHit++; const _bs=players[b.pi||0]; if(_bs)_bs.tallyShotsHit++; } if(!b.pierce)hit=true; }
     }
     if(hit)pbul.splice(i,1);
   }
@@ -5155,20 +5162,24 @@ window.__ideaRestoreRun=function(snap){
    Fires once per run on any termination: death, quit, restart, or page abandon. */
 function inActiveRun(){ return state==='play'||state==='pause'||state==='refit'; }
 /* Shared per-run telemetry field list, one builder so the solo beacon and the
-   co-op variant (sendCoopTelemetry) can never drift apart. Reads this client's
-   OWN local counters. `modeStr` is the reported mode: solo passes gameMode;
-   co-op passes 'coopnormal'/'coophardcore' derived from coopMode, NEVER raw
-   gameMode (hardcore co-op deliberately runs gameMode==='hardcore').
-   PER-CLIENT CAVEAT (v204): in co-op most of these counters are global sim
-   tallies - on the HOST they combine both ships (shotsFired/shotsHit/parries/
-   hits/bombs/overheats/... increment wherever the sim runs them, regardless of
-   which ship acted) and on the GUEST they stay ~0 (the guest runs no combat
-   sim). Only runTime and the runDwell weapon-dwell clocks are genuinely
-   per-client (both accrue at the top of update(), which each client runs for
-   its OWN `player` before the guest bails to guestFrame). A per-ship split is
-   a proposed follow-up, not done here. */
+   co-op variant (sendCoopTelemetry) can never drift apart. `modeStr` is the
+   reported mode: solo passes gameMode; co-op passes 'coopnormal'/'coophardcore'
+   derived from coopMode, NEVER raw gameMode (hardcore co-op deliberately runs
+   gameMode==='hardcore').
+   PER-SHIP ATTRIBUTION (v206, closes the v204 caveat): the action stats
+   (sf/sh/acc, pa/pry/ppr, ht, bmb, oh, lu) read the OWN ship's pl.tally*
+   fields - counted in the sim on the ship that acted (host ship locally; the
+   guest's ship host-side, stamped back over shipSnap `ty`) - so each client's
+   beacon covers exactly its own pilot. In solo the single ship's tallies are
+   maintained at the very same sites as the run* globals, so the reported
+   values are identical to the pre-v206 beacon by construction. The run*
+   globals themselves stay MATCH-WIDE and untouched for their other consumers
+   (death screen, achievements, refit gates), as do the deliberately team-wide
+   fields here: sec/rt/k/bk/sc, ce/cs, btk, hwd. runDwell stays per-client
+   (each client accrues only its own ship's dwell). */
 function telemetryFieldList(dc,modeStr){
-    const tacc=shotsFired>0?clamp(Math.round(100*shotsHit/shotsFired),0,100):0;
+    const me=player||{};   // players[localIndex] (the documented alias): this client's OWN ship
+    const tacc=(me.tallyShotsFired>0)?clamp(Math.round(100*(me.tallyShotsHit||0)/me.tallyShotsFired),0,100):0;
     let _ps='D'; { const _ms=window.maxStyle||0; for(const k of STYLE_RANKS){ if(_ms>=k.min)_ps=k.g; } }
     const _bsp=(startBuild&&startBuild.spent)||0, _bct=buildCount();
     const u=(player&&player.up)||{}, unl=(player&&player.unlocked)||{}, hvl=(player&&player.heavyUnlocked)||{};
@@ -5185,7 +5196,7 @@ function telemetryFieldList(dc,modeStr){
     const hvu=['beam','rail','tesla','singularity','wave'].reduce((n,h)=>n+(hvl[h]?1:0),0);
     const _ks=[].concat(Object.keys((player&&player.ks)||{}).filter(w=>(player.ks[w])).map(w=>w+':'+player.ks[w]), Object.keys((player&&player.hks)||{}).filter(w=>(player.hks[w])).map(w=>w+':'+player.hks[w])).join(',');
     const _mod=((player&&player.modules)||[]).filter(m=>m).join(',');
-    const tq=['action=telemetry','v='+encodeURIComponent(VERSION),'m='+encodeURIComponent(modeStr),'sec='+(sector||0),'rt='+Math.round(runTime||0),'k='+(runKills||0),'bk='+(runBosses||0),'sc='+Math.round(window.scoreT||0),'acc='+tacc,'pw='+encodeURIComponent((player&&player.wtype)||''),'hw='+encodeURIComponent((player&&player.heavy)||''),'gp='+((player&&player.up&&player.up.gun)||1),'dc='+encodeURIComponent(dc||'none'),'ce='+(runCoinsEarned||0),'cs='+(runCoinsSpent||0),'pa='+(runParryAtt||0),'pry='+(runParries||0),'ppr='+(runPerfect||0),'ht='+(runHits||0),'bmb='+(runBombs||0),'oh='+(runOverheats||0),'lu='+(runLivesUsed||0),'ps='+encodeURIComponent(_ps),'bsp='+_bsp,'bct='+_bct,'dws='+Math.round(runDwell.spread||0),'dwl='+Math.round(runDwell.lance||0),'dwh='+Math.round(runDwell.homing||0),'dwr='+Math.round(runDwell.rapid||0),'dwf='+Math.round(runDwell.flak||0),'dwb='+Math.round(runDwell.buzzsaw||0),'sf='+(shotsFired||0),'sh='+(shotsHit||0),'bld='+encodeURIComponent(bld),'wpu='+wpu,'hvu='+hvu,'did='+encodeURIComponent(typeof DEVICE_ID!=='undefined'?DEVICE_ID:''),'btk='+encodeURIComponent(runBossTTK.join(',')),'hwd='+encodeURIComponent([Math.round(runHeavyUse.beam),Math.round(runHeavyUse.tesla),runHeavyUse.rail,runHeavyUse.singularity,runHeavyUse.wave].join(',')),'ks='+encodeURIComponent(_ks),'mod='+encodeURIComponent(_mod),'cb='+Date.now()];
+    const tq=['action=telemetry','v='+encodeURIComponent(VERSION),'m='+encodeURIComponent(modeStr),'sec='+(sector||0),'rt='+Math.round(runTime||0),'k='+(runKills||0),'bk='+(runBosses||0),'sc='+Math.round(window.scoreT||0),'acc='+tacc,'pw='+encodeURIComponent((player&&player.wtype)||''),'hw='+encodeURIComponent((player&&player.heavy)||''),'gp='+((player&&player.up&&player.up.gun)||1),'dc='+encodeURIComponent(dc||'none'),'ce='+(runCoinsEarned||0),'cs='+(runCoinsSpent||0),'pa='+(me.tallyParryAtt||0),'pry='+(me.tallyParries||0),'ppr='+(me.tallyPerfect||0),'ht='+(me.tallyHits||0),'bmb='+(me.tallyBombs||0),'oh='+(me.tallyOverheats||0),'lu='+(me.tallyLivesUsed||0),'ps='+encodeURIComponent(_ps),'bsp='+_bsp,'bct='+_bct,'dws='+Math.round(runDwell.spread||0),'dwl='+Math.round(runDwell.lance||0),'dwh='+Math.round(runDwell.homing||0),'dwr='+Math.round(runDwell.rapid||0),'dwf='+Math.round(runDwell.flak||0),'dwb='+Math.round(runDwell.buzzsaw||0),'sf='+(me.tallyShotsFired||0),'sh='+(me.tallyShotsHit||0),'bld='+encodeURIComponent(bld),'wpu='+wpu,'hvu='+hvu,'did='+encodeURIComponent(typeof DEVICE_ID!=='undefined'?DEVICE_ID:''),'btk='+encodeURIComponent(runBossTTK.join(',')),'hwd='+encodeURIComponent([Math.round(runHeavyUse.beam),Math.round(runHeavyUse.tesla),runHeavyUse.rail,runHeavyUse.singularity,runHeavyUse.wave].join(',')),'ks='+encodeURIComponent(_ks),'mod='+encodeURIComponent(_mod),'cb='+Date.now()];
     return tq;
 }
 function sendTelemetry(dc){
@@ -6370,6 +6381,43 @@ const COOP=(function(){
   let subWait=null;        // host: pending wait-for-guest-initials timer (short timeout, then 'P2')
   let subDone=false;       // host: exactly-one-row guard
   let proxN=0, proxNear=0, proxSum=0, proxT=0;   // throttled two-ship proximity samples (count, within-revive-radius count, distance sum, sample clock)
+  /* v206 per-ship telemetry tallies: the ONE ordered registry shared by
+     shipSnap (`ty` field) and applyShip's stamp, so the transmit/apply pair
+     can never drift (the telemetryFieldList lesson). The host's sim counts
+     every one of these on the ship that acted/suffered (including the guest's
+     relayed acts onto players[1]); the guest's copies are STAMPED from
+     snapshots, never locally incremented or edge-detected - which is also why
+     a 1up/CORE lives-rescue (resetPlayer, deliberately not a "revive") can
+     never miscount on the guest, and why a rejoining guest gets its full
+     pre-disconnect tallies back with the first rsync/snapshot (host ship
+     objects persist across a guest drop). */
+  const TALLY_KEYS=['tallyShotsFired','tallyShotsHit','tallyParryAtt','tallyParries','tallyPerfect','tallyHits','tallyBombs','tallyOverheats','tallyLivesUsed','tallyMeltdowns','downedCount','revivedCount'];
+  /* v206 guest reconnect cache: the only two per-client accumulators that live
+     NOWHERE but on this client (the runDwell weapon-dwell clocks + the
+     proximity samples) would zero when a dropped guest rejoins (reload or
+     same-page rejoin both pass through beginMatch/startGame, which reset
+     them). Cache them device-local keyed by matchId (vgcoop_ prefix, NOT
+     vanguard_, so the cloud-save prefs sweep never syncs it - the vgcoop_last
+     convention) and restore on rejoin. The per-ship pl.tally* values need NO
+     cache: the host's ship objects persist across a guest drop, and the
+     rsync/first-snapshot `ty` stamp puts them straight back on the fresh
+     ships. Stale entries are inert (restore requires the same matchId, and
+     match ids embed the start timestamp), so nothing ever needs clearing. */
+  function saveGuestLocals(){
+    if(!(coopMatch&&role==='guest'&&matchId)) return;
+    try{ localStorage.setItem('vgcoop_tallies',JSON.stringify({mid:matchId,at:Date.now(),dw:runDwell,px:[proxN,proxNear,proxSum]})); }catch(e){}
+  }
+  function restoreGuestLocals(){
+    try{
+      const j=JSON.parse(localStorage.getItem('vgcoop_tallies')||'0');
+      if(!j||!matchId||j.mid!==matchId||Date.now()-(j.at||0)>600000) return;   // same match only, 10 min freshness (grace is 30s; generous margin)
+      if(j.dw) runDwell=Object.assign(runDwell,j.dw);
+      if(j.px){ proxN=j.px[0]||0; proxNear=j.px[1]||0; proxSum=j.px[2]||0; }
+    }catch(e){}
+  }
+  // reload-drop coverage (the abandon-handler pattern): flush the guest-local
+  // accumulators as the page goes away mid-match; no-op on the host
+  window.addEventListener('pagehide',()=>{ try{ if(phase==='match') saveGuestLocals(); }catch(e){} });
   /* The one derivation rule for everything ranked co-op reports: from coopMode
      ALONE. NEVER read gameMode here - hardcore co-op deliberately reuses the
      literal 'hardcore' gameMode (single life / fire ramp), and submitting that
@@ -6780,7 +6828,8 @@ const COOP=(function(){
     pt:+(pl.parryT||0).toFixed(2), pc:+(pl.parryCd||0).toFixed(2), pm:+(pl.parryCdMax||0).toFixed(2),
     mu:pl.meltdownUnlocked?1:0, mc:Math.round(pl.meltdownCharge||0), mA:+(pl.meltdownActive||0).toFixed(2), mD:+(pl.meltdownCd||0).toFixed(2),
     bf:pl.buffs, dr:pl.drone?1:0, df:+(pl.dmgFlash||0).toFixed(2), kk:+(pl.kick||0).toFixed(2), rp:+(pl.repair||0).toFixed(2),
-    fq:pl.fireSeq||0, pq:pl.parrySeq||0 }; }
+    fq:pl.fireSeq||0, pq:pl.parrySeq||0,
+    ty:TALLY_KEYS.map(k=>pl[k]||0) }; }   // v206 per-ship telemetry tallies (host-authoritative; the guest stamps these in applyShip)
   /* Shift an entity's prev<-cur buffered snapshot positions (interpFrame lerps
      between them each frame). A first-ever apply or a teleport-sized step
      (respawn, boss blink, sector reset) sets both to the new position so the
@@ -6824,9 +6873,9 @@ const COOP=(function(){
     pl.parryT=sp.pt; pl.parryCd=sp.pc; pl.parryCdMax=sp.pm;
     pl.meltdownUnlocked=!!sp.mu; pl.meltdownCharge=sp.mc; pl.meltdownActive=sp.mA; pl.meltdownCd=sp.mD;
     if(sp.bf)pl.buffs=sp.bf; pl.drone=sp.dr?(pl.drone||{ph:0}):null; pl.dmgFlash=sp.df; pl.kick=sp.kk; pl.repair=sp.rp;
+    if(sp.ty) TALLY_KEYS.forEach((k,i)=>{ pl[k]=sp.ty[i]||0; });   // v206: per-ship tallies are STAMPED host-authoritative, never edge-counted here - so a 1up/CORE lives-rescue (resetPlayer clears downed without a revivePlayer count) reads identically on both clients
     if(!wasDead&&pl.dead){ explode(pl.x,pl.y,COL.green,true); Audio_.big(); }
-    if(!wasDowned&&pl.downed) pl.downedCount=(pl.downedCount||0)+1;   // v204 telemetry: mirrored downed edge (the host tallies at its playerHit set-point)
-    if(wasDowned&&!pl.downed&&!pl.dead){ pl.revivedCount=(pl.revivedCount||0)+1; reviveCue(pl); }   // downed -> flying edge: per-ship revive tally (v204) + replay the host's revive cue (cosmetic; the state above is already stamped)
+    if(wasDowned&&!pl.downed&&!pl.dead) reviveCue(pl);   // downed -> flying edge: replay the host's revive cue (COSMETIC ONLY since v206; the counters above come from the snapshot, so this edge no longer counts anything and a lives-rescue only costs a spurious cue, exactly like pre-v204)
   }
   function buildSnap(){
     // one-shot cue events (v197): consume the buffer, so each event rides
@@ -7421,6 +7470,7 @@ const COOP=(function(){
     proxT+=dt; if(proxT<0.5) return; proxT=0;
     const d=Math.hypot(a.x-b.x,a.y-b.y);
     proxN++; proxSum+=d; if(d<=COOP_REVIVE_RADIUS) proxNear++;
+    if(role==='guest'&&(proxN&3)===0) saveGuestLocals();   // v206: ~2s periodic flush of the guest-local accumulators for reconnect (pagehide/partnerLost cover the exits)
   }
   /* the co-op end screen's SUBMIT / MAIN MENU button (submitScore delegates
      here for any coopMatch). Unranked ends keep the old main-menu behavior. */
@@ -7559,7 +7609,8 @@ const COOP=(function(){
     window.scoreT=p.sc||0; window.style=p.st||0; window.mult=p.mult||1;
     lastMilestone=highestMilestoneAtOrBelow(window.scoreT||0);   // a rejoin never replays milestones already celebrated (the run-resume pattern)
     runTime=p.rt||0; runKills=p.kl||0;
-    refitApplySync(p);   // wallet + match-wide run stats + OWN ship state and build (up/ks/hks/modules) + applyUpgrades, the v199 sync pattern
+    refitApplySync(p);   // wallet + match-wide run stats + OWN ship state and build (up/ks/hks/modules) + applyUpgrades, the v199 sync pattern; since v206 the gs shipSnap inside also stamps the own ship's pl.tally* back
+    restoreGuestLocals();   // v206: the guest-local accumulators (dwell + proximity) come back from the device cache; everything per-ship already came back on the line above
     const partner=players[1-localIndex];
     if(p.hs&&partner) applyShip(partner,p.hs,false);   // the partner renders true immediately; snapshots keep it live from here
     triggerBanner();   // startGame stamped SECTOR I; show the real sector
@@ -7570,6 +7621,7 @@ const COOP=(function(){
   }
   function partnerLost(msg,body){
     if(phase!=='match') return;
+    saveGuestLocals();   // v206: before anything ends, flush the guest-local accumulators so a same-page rejoin of this match restores them (no-op on the host)
     coopEndTelemetry('partner_lost');   // v204: a terminal disconnect/quit end still reports once (finishMatch ends report from showEnd instead, guarded by the same flag)
     grace=null;   // an expired or aborted reconnect window ends here; also covers the host's own channel dying mid-grace
     phase='ended';
