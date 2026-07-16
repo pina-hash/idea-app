@@ -4,4 +4,4 @@
 	let { data } = $props();
 </script>
 
-<FspDayArchive day={1} slidesSrc="/fsp/day1-slides.html" {data} />
+<FspDayArchive day={2} slidesSrc="/fsp/day2/index.html" {data} />

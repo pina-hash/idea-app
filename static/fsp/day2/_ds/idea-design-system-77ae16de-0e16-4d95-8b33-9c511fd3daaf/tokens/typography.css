@@ -1,0 +1,42 @@
+/* ==========================================================================
+   IDEA typography tokens.
+     - Rajdhani        display + body (condensed, technical sans)
+     - Share Tech Mono chrome, labels, metadata, code
+     - Chakra Petch    hero display (angular corner-cut tech face — the
+                       closest live match to the emblem's machined letterforms)
+   Mono labels are UPPERCASE with wide tracking. Display is bold and oversized.
+   ========================================================================== */
+
+:root {
+	/* --- Families --- */
+	--font-display: 'Rajdhani', sans-serif; /* headings + body */
+	--font-mono: 'Share Tech Mono', monospace; /* chrome, labels, code */
+	--font-hero: 'Chakra Petch', sans-serif; /* landing display, wordmark */
+
+	/* --- Weights --- */
+	--fw-regular: 400; /* @kind font */
+	--fw-medium: 500; /* @kind font */
+	--fw-semibold: 600; /* @kind font */
+	--fw-bold: 700; /* @kind font */
+	--fw-black: 700; /* @kind font */ /* Chakra Petch caps at 700 — the heavy voice */
+
+	/* --- Type scale (rem) --- */
+	--fs-hero: clamp(3.5rem, 12vw, 7rem); /* @kind font */ /* wordmark hero */
+	--fs-h1: 2.4rem;
+	--fs-h2: 1.4rem;
+	--fs-h3: 1.2rem;
+	--fs-lead: 1.05rem;
+	--fs-body: 1.05rem;
+	--fs-sm: 0.9rem;
+	--fs-label: 0.72rem; /* mono uppercase labels */
+	--fs-micro: 0.6rem; /* mono micro labels, badges */
+
+	/* --- Line heights --- */
+	--lh-tight: 1.15; /* @kind font */
+	--lh-body: 1.6; /* @kind font */
+
+	/* --- Tracking (letter-spacing) for mono labels --- */
+	--track-label: 0.14em; /* standard uppercase label */
+	--track-wide: 0.22em; /* eyebrows */
+	--track-hero: 0.18em; /* wordmark (machined letterforms sit tighter) */
+}

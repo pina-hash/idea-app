@@ -1,0 +1,9 @@
+/* ==========================================================================
+   IDEA webfonts. All three families are on Google Fonts.
+     - Rajdhani       display + body
+     - Share Tech Mono chrome, metadata, labels, code
+     - Chakra Petch   hero display (angular corner-cut tech face, matches the
+                      emblem's machined letterforms)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&family=Chakra+Petch:wght@400;500;600;700&display=swap');

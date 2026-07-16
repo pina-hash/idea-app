@@ -1,0 +1,162 @@
+/* ==========================================================================
+   IDEA surfaces & backdrops. Texture and depth for large background areas.
+   Layered CSS gradients only — no image binaries. Use ONE backdrop per zone.
+   ========================================================================== */
+
+:root {
+	/* Brushed metal: fine horizontal strokes, barely-there. */
+	--texture-brushed:
+		repeating-linear-gradient(
+			0deg,
+			rgba(234, 230, 216, 0.016) 0px,
+			rgba(234, 230, 216, 0.016) 1px,
+			transparent 1px,
+			transparent 3px
+		); /* @kind other */
+
+	/* Vignette: darkened edges + a faint mint bloom top-center. */
+	--texture-vignette:
+		radial-gradient(ellipse at 50% -20%, rgba(143, 224, 138, 0.05), transparent 55%),
+		radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0, 0, 0, 0.4) 100%); /* @kind other */
+
+	/* Ambient-texture intensity knob (0 = off, 1 = default, 2 = heavy). The
+	   .ds-ambient-* layers multiply their opacity by this so one value dims or
+	   lifts the whole atmosphere. Decks expose it as the "textureLevel" tweak;
+	   set at runtime with document.documentElement.style.setProperty('--tex', n). */
+	--tex: 1; /* @kind other */
+}
+
+/* --- Machined page surface: brushed metal + vignette over --bg0. -------- */
+.surface-machined {
+	background-color: var(--bg0);
+	background-image: var(--texture-vignette), var(--texture-brushed);
+}
+
+/* --- Backdrop: blueprint (the classic CAD grid — see --blueprint-*). ---- */
+.backdrop-blueprint {
+	background-color: var(--blueprint-bg);
+	background-image: var(--blueprint-grid);
+	background-size: var(--blueprint-grid-size);
+	box-shadow: inset 0 0 0 1px rgba(151, 164, 140, 0.15), inset 0 0 40px rgba(143, 224, 138, 0.04);
+}
+
+/* --- Backdrop: toolpath — concentric CNC passes, off-center. ------------ */
+.backdrop-toolpath {
+	background-color: var(--blueprint-bg);
+	background-image:
+		repeating-radial-gradient(
+			circle at 70% 30%,
+			transparent 0px,
+			transparent 22px,
+			rgba(143, 224, 138, 0.06) 22px,
+			rgba(143, 224, 138, 0.06) 23px
+		);
+	box-shadow: inset 0 0 0 1px rgba(151, 164, 140, 0.15), inset 0 0 40px rgba(0, 0, 0, 0.35);
+}
+
+/* --- Backdrop: tread plate — diagonal machined ridges. ------------------ */
+.backdrop-tread {
+	background-color: var(--bg1);
+	background-image:
+		repeating-linear-gradient(
+			45deg,
+			rgba(234, 230, 216, 0.02) 0px,
+			rgba(234, 230, 216, 0.02) 2px,
+			transparent 2px,
+			transparent 14px
+		),
+		repeating-linear-gradient(
+			-45deg,
+			rgba(13, 18, 12, 0.5) 0px,
+			rgba(13, 18, 12, 0.5) 1px,
+			transparent 1px,
+			transparent 14px
+		);
+	box-shadow: var(--bevel-inset);
+}
+
+/* --- Backdrop: hatch — engineering section-cut hatching, one corner. ---- */
+.backdrop-hatch {
+	background-color: var(--bg1);
+	background-image:
+		linear-gradient(115deg, rgba(19, 26, 19, 0) 60%, rgba(13, 18, 12, 0.55) 100%),
+		repeating-linear-gradient(
+			115deg,
+			transparent 0px,
+			transparent 9px,
+			rgba(151, 164, 140, 0.07) 9px,
+			rgba(151, 164, 140, 0.07) 10px
+		);
+	box-shadow: inset 0 0 0 1px rgba(151, 164, 140, 0.15);
+}
+
+/* ==========================================================================
+   Ambient texture system — layered, animated backdrops for full-bleed zones
+   (deck slides, hero screens). Each layer is a full-bleed, click-through div;
+   stack the ones you want inside a positioned container. Every layer scales
+   its opacity by --tex, so one knob controls the whole atmosphere. Motion is
+   reduced-motion gated and, inside a deck, runs only on the active slide
+   ([data-deck-active]); on other pages wrap the layers in a .ds-run container.
+   ========================================================================== */
+
+.ds-ambient { position: absolute; inset: 0; pointer-events: none; }
+
+/* Panning CAD grid. */
+.ds-ambient-grid {
+	opacity: calc(var(--tex) * 1);
+	background-image:
+		linear-gradient(rgba(143, 224, 138, 0.045) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(143, 224, 138, 0.045) 1px, transparent 1px);
+	background-size: 48px 48px;
+}
+/* Scrolling scanlines. */
+.ds-ambient-scan {
+	opacity: calc(var(--tex) * 0.6);
+	background: repeating-linear-gradient(0deg, rgba(143, 224, 138, 0.035) 0 2px, transparent 2px 5px);
+}
+/* Static edge bloom — mint top, patina bottom. */
+.ds-ambient-bloom {
+	opacity: calc(var(--tex) * 1);
+	background:
+		radial-gradient(ellipse 80% 55% at 50% -8%, rgba(143, 224, 138, 0.08), transparent 62%),
+		radial-gradient(ellipse 90% 45% at 50% 112%, rgba(147, 214, 200, 0.05), transparent 62%);
+}
+/* Drifting glow — a soft mint pool that breathes side to side. */
+.ds-ambient-glow {
+	opacity: calc(var(--tex) * 1);
+	background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(143, 224, 138, 0.07), transparent 60%);
+}
+/* CAD-wireframe corner ornament — wrap an inline <svg> in this. */
+.ds-ambient-cad { opacity: calc(var(--tex) * 0.14); }
+/* Rising particles — container + dots. Vary each dot's left / animation-duration
+   / animation-delay inline; the class supplies size, color, and the loop. */
+.ds-ambient-particles { opacity: calc(var(--tex) * 1); }
+.ds-ambient-particle {
+	position: absolute;
+	bottom: -12px;
+	width: 3px;
+	height: 3px;
+	border-radius: 50%;
+	background: var(--green);
+	box-shadow: 0 0 6px rgba(143, 224, 138, 0.8);
+}
+
+@keyframes ds-tex-gridpan { from { background-position: 0 0; } to { background-position: 48px 48px; } }
+@keyframes ds-tex-scan { from { background-position-y: 0; } to { background-position-y: 140px; } }
+@keyframes ds-tex-glowdrift {
+	0%, 100% { opacity: calc(var(--tex) * 0.55); transform: translateX(-3%) scale(1); }
+	50% { opacity: calc(var(--tex) * 1); transform: translateX(3%) scale(1.05); }
+}
+@keyframes ds-tex-rise {
+	0% { transform: translateY(0); opacity: 0; }
+	8% { opacity: 0.7; }
+	85% { opacity: 0.35; }
+	100% { transform: translateY(-1120px); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	[data-deck-active] .ds-ambient-grid, .ds-run .ds-ambient-grid { animation: ds-tex-gridpan 26s linear infinite; }
+	[data-deck-active] .ds-ambient-scan, .ds-run .ds-ambient-scan { animation: ds-tex-scan 12s linear infinite; }
+	[data-deck-active] .ds-ambient-glow, .ds-run .ds-ambient-glow { animation: ds-tex-glowdrift 13s ease-in-out infinite; }
+	[data-deck-active] .ds-ambient-particle, .ds-run .ds-ambient-particle { animation: ds-tex-rise 16s linear infinite; }
+}

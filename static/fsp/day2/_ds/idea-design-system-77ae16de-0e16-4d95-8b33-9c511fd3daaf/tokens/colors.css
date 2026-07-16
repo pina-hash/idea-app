@@ -1,0 +1,45 @@
+/* ==========================================================================
+   IDEA color tokens. Derived from the IDEA emblem: machined sage-green metal,
+   deep green plate surfaces, bone letterforms, and a luminous mint rim-light.
+   The token set is the source of truth — do not invent colors.
+   ========================================================================== */
+
+:root {
+	/* --- Backgrounds (deep desaturated greens — dark machined metal) --- */
+	--bg0: #131a13; /* page base */
+	--bg1: #1b241b; /* cards and panels */
+	--bg2: #242f23; /* header bars, input fields */
+	--plate: #2e3d2e; /* raised emblem plate: hero panels, featured surfaces */
+
+	/* --- Semantic colors (fixed roles) --- */
+	--green: #8fe08a; /* PRIMARY: mint rim-light — key labels, glows, success, active */
+	--gold: #d3c68e; /* secondary accent: aged brass — special callouts */
+	--cyan: #93d6c8; /* informational: patina — timestamps, version, metadata */
+	--amber: #d99a55; /* warning: copper */
+	--teal: #6fae91; /* in-progress */
+	--violet: #8577a6; /* special, sparingly */
+	--white: #eae6d8; /* body text: bone — the letterform ivory, NOT pure white */
+	--dim: #87947c; /* dim text, placeholders, secondary labels (gear sage) */
+	--ice: #a9bcab; /* disabled / not-yet-started */
+	--gear: #75846f; /* sage metal: structural chrome, inactive strokes */
+	--edge: #0d120c; /* near-black outline — the emblem's dark linework */
+
+	/* Reserved status red: LIVE / REC / error. Never used for identity. */
+	--crimson: #d95f5f;
+
+	/* --- Hairlines (sage at rest, mint rim-light when active) --- */
+	--line: rgba(151, 164, 140, 0.25);
+	--line-strong: rgba(143, 224, 138, 0.55);
+
+	/* --- Semantic aliases (map roles onto base tokens) --- */
+	--surface-page: var(--bg0);
+	--surface-card: var(--bg1);
+	--surface-input: var(--bg2);
+	--text-body: var(--white);
+	--text-muted: var(--dim);
+	--text-accent: var(--green);
+	--text-meta: var(--cyan);
+	--border-hairline: var(--line);
+	--border-active: var(--line-strong);
+	--focus-ring: var(--cyan);
+}

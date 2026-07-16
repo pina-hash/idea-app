@@ -1,0 +1,105 @@
+/* ==========================================================================
+   IDEA motion. Every animation is applied ONLY under
+   prefers-reduced-motion: no-preference — keyframes are harmless to define,
+   classes are the gate. Components reference these classes; consumers can too.
+   ========================================================================== */
+
+@keyframes ds-spin {
+	to { transform: rotate(360deg); }
+}
+@keyframes ds-scan {
+	0% { transform: translateX(-120%); opacity: 0; }
+	8% { opacity: 1; }
+	92% { opacity: 1; }
+	100% { transform: translateX(320%); opacity: 0; }
+}
+@keyframes ds-breathe {
+	0%, 100% { text-shadow: 0 0 6px rgba(143, 224, 138, 0.45), 0 0 18px rgba(143, 224, 138, 0.2); }
+	50% { text-shadow: 0 0 9px rgba(143, 224, 138, 0.7), 0 0 30px rgba(143, 224, 138, 0.35); }
+}
+@keyframes ds-flicker {
+	0% { opacity: 0; }
+	6% { opacity: 1; }
+	10% { opacity: 0.3; }
+	14% { opacity: 1; }
+	22% { opacity: 0.5; }
+	28%, 100% { opacity: 1; }
+}
+@keyframes ds-draw {
+	from { stroke-dashoffset: var(--ds-draw-len, 400); }
+	to { stroke-dashoffset: 0; }
+}
+@keyframes ds-rise {
+	from { opacity: 0; transform: translateY(14px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+@keyframes ds-caret {
+	0%, 100% { border-color: transparent; }
+	50% { border-color: var(--green); }
+}
+@keyframes ds-type {
+	from { width: 0; }
+	to { width: 100%; }
+}
+@keyframes ds-blink {
+	0%, 49% { opacity: 1; }
+	50%, 100% { opacity: 0.1; }
+}
+@keyframes ds-pulse {
+	0%, 100% { box-shadow: 0 0 5px rgba(217, 95, 95, 0.9); opacity: 1; }
+	50% { box-shadow: 0 0 18px rgba(217, 95, 95, 1); opacity: 0.6; }
+}
+@keyframes ds-flow {
+	from { background-position-x: 0; }
+	to { background-position-x: -48px; }
+}
+@keyframes ds-flow-v {
+	from { background-position-y: 0; }
+	to { background-position-y: 24px; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	/* Slow-turning gear (watermarks); fast variant for spinners. */
+	.ds-anim-spin { animation: ds-spin 24s linear infinite; }
+	.ds-anim-spin-fast { animation: ds-spin 2.4s linear infinite; }
+
+	/* Machining scan pass — apply to a ~40%-width overlay bar inside an
+	   overflow:hidden surface, not to the surface itself. */
+	.ds-anim-scan { animation: ds-scan 2.8s ease-in-out infinite; }
+	.ds-anim-scan-once { animation: ds-scan 1.6s ease-in-out 1 both; }
+
+	/* Hero numeral glow pulse. */
+	.ds-anim-breathe { animation: ds-breathe 3.2s ease-in-out infinite; }
+
+	/* Electrical ignite on entry (SlashAccent, status pills). */
+	.ds-anim-flicker { animation: ds-flicker 0.9s steps(1, end) 1 both; }
+
+	/* SVG stroke draw-in: set stroke-dasharray + --ds-draw-len to path length. */
+	.ds-anim-draw { animation: ds-draw 1.4s ease-out 1 both; }
+
+	/* Content entrance. Stagger with animation-delay. */
+	.ds-anim-rise { animation: ds-rise 0.5s ease-out 1 both; }
+
+	/* Terminal type-on: mono, single line, width animates in ch steps. */
+	.ds-anim-type {
+		display: inline-block;
+		overflow: hidden;
+		white-space: nowrap;
+		border-right: 2px solid var(--green);
+		animation: ds-type 1.6s steps(24, end) 1 both, ds-caret 0.8s step-end infinite;
+	}
+
+	/* Block-cursor blink — terminal caret + "waiting for input" placeholders. */
+	.ds-anim-blink { animation: ds-blink 1.2s steps(1, end) infinite; }
+
+	/* Status pulse — the reserved crimson LIVE / REC indicator dot. */
+	.ds-anim-pulse { animation: ds-pulse 1.6s ease-in-out infinite; }
+
+	/* Dashed flow line — process pipelines and connectors. Put on a thin bar
+	   whose background is a dashed repeating-linear-gradient (see ProcessPipeline):
+	   -v scrolls a vertical run downward; the base class scrolls horizontally.
+	   NOTE: the hero-numeral glow that FSP decks hand-rolled as `fsp-breathe`
+	   is the same effect as .ds-anim-breathe above — use that, not a new class. */
+	.ds-anim-flow { animation: ds-flow 1.6s linear infinite; }
+	.ds-anim-flow-v { animation: ds-flow-v 1.6s linear infinite; }
+}
