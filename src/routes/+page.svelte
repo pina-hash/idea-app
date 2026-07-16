@@ -403,11 +403,10 @@
 	{#if fsp}
 		<div class="courses" style="margin-top:2.5rem">
 			<div class="year-label">Incoming Freshman</div>
-			{@render sectionCard(
-				fsp,
-				false,
-				isTeacher ? [{ slug: 'fsp-live', title: 'Live Question Feed', href: '/fsp/live' }] : []
-			)}
+			{@render sectionCard(fsp, false, [
+				{ slug: 'frc-interest', title: 'FRC Interest Form', href: '/fsp/frc-interest' },
+				...(isTeacher ? [{ slug: 'fsp-live', title: 'Live Question Feed', href: '/fsp/live' }] : [])
+			])}
 		</div>
 	{/if}
 
