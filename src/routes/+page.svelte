@@ -437,6 +437,7 @@
 				openedSet={fspOpenedSet}
 				onOpen={onOpenFspItem}
 			/>
+			<a class="fsp-archive-link" href="/archive">Course archive (2025-26) &rsaquo;</a>
 		</div>
 	{/if}
 
