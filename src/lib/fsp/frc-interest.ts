@@ -1,9 +1,10 @@
 /**
  * FRC Team 5669 interest form: the client seam onto the `fsp_frc_interest`
- * table (0046). Unlike every other FSP/GAUNTLET/FRC write path in this repo,
- * this one is a genuinely public, unauthenticated INSERT (RLS itself is the
- * write path, no RPC), because the form is reached cold from a QR code by
- * prospective freshmen and parents who have no Bosco Tech account.
+ * table (0046, `parent_email` added in 0047). Unlike every other
+ * FSP/GAUNTLET/FRC write path in this repo, this one is a genuinely public,
+ * unauthenticated INSERT (RLS itself is the write path, no RPC), because the
+ * form is reached cold from a QR code by prospective freshmen and parents who
+ * have no Bosco Tech account.
  *
  * Reads (the /fsp/frc-interest/admin roster) are teacher-only under RLS
  * (`is_teacher()`), and fail soft to an empty list + `ready: false` until the
@@ -29,6 +30,7 @@ export interface FrcInterestSubmission {
 	fullName: string;
 	email: string;
 	phone: string;
+	parentEmail: string;
 	interestAreas: string[];
 	priorExperience: string;
 }
@@ -39,6 +41,7 @@ export interface FrcInterestRow {
 	fullName: string;
 	email: string;
 	phone: string;
+	parentEmail: string;
 	interestAreas: string[];
 	priorExperience: string;
 	createdAt: string;
@@ -49,6 +52,7 @@ interface Row {
 	full_name: string;
 	email: string;
 	phone: string | null;
+	parent_email: string | null;
 	interest_areas: string[] | null;
 	prior_experience: string | null;
 	created_at: string;
@@ -60,6 +64,7 @@ function toRow(r: Row): FrcInterestRow {
 		fullName: r.full_name,
 		email: r.email,
 		phone: r.phone ?? '',
+		parentEmail: r.parent_email ?? '',
 		interestAreas: r.interest_areas ?? [],
 		priorExperience: r.prior_experience ?? '',
 		createdAt: r.created_at
@@ -75,6 +80,7 @@ export async function submitFrcInterest(
 		full_name: submission.fullName.trim(),
 		email: submission.email.trim(),
 		phone: submission.phone.trim() || null,
+		parent_email: submission.parentEmail.trim() || null,
 		interest_areas: submission.interestAreas,
 		prior_experience: submission.priorExperience.trim() || null
 	});
@@ -87,7 +93,7 @@ export async function loadFrcInterestSubmissions(
 ): Promise<{ ready: boolean; rows: FrcInterestRow[] }> {
 	const { data, error } = await supabase
 		.from(FRC_INTEREST_TABLE)
-		.select('id, full_name, email, phone, interest_areas, prior_experience, created_at')
+		.select('id, full_name, email, phone, parent_email, interest_areas, prior_experience, created_at')
 		.order('created_at', { ascending: false });
 
 	if (error) return { ready: false, rows: [] };

@@ -1936,15 +1936,17 @@ Tech navy/gold with a standard system-sans stack, all scoped under `.fsp-root`
 
 `/fsp/frc-interest` is a standalone, **public, unauthenticated** intake form
 for FRC Team 5669 (distinct from the `/frc` training track above and from
-`/fsp-pulse`'s FRC-interest question): full name, email, optional phone, a
-multi-select interest-area chip picker (Mechanical & Build, Electrical &
-Wiring, Programming & Controls, CAD & Design, Business & Outreach, Drive Team,
-Not sure yet), and an optional prior-experience text field. Reached cold from
-a QR code like the other FSP tools, so it needs no sign-in: prospective
-freshmen and parents scanning it will not have Bosco Tech accounts.
+`/fsp-pulse`'s FRC-interest question): full name, email, optional phone,
+optional parent/guardian email, a multi-select interest-area chip picker
+(Mechanical & Build, Electrical & Wiring, Programming & Controls, CAD &
+Design, Business & Outreach, Drive Team, Not sure yet), and an optional
+prior-experience text field. Reached cold from a QR code like the other FSP
+tools, so it needs no sign-in: prospective freshmen and parents scanning it
+will not have Bosco Tech accounts.
 
 - **Genuinely anonymous INSERT, the one exception to the "no direct client
-  write" convention.** `fsp_frc_interest` (`0046_fsp_frc_interest.sql`) grants
+  write" convention.** `fsp_frc_interest` (`0046_fsp_frc_interest.sql`,
+  `parent_email` added in `0047_fsp_frc_interest_parent_email.sql`) grants
   `insert` to `anon, authenticated` under an `with check (true)` RLS policy,
   no RPC: unlike every other FSP/GAUNTLET/FRC table, there is no grading,
   ranking, or session to forge here, so the anon insert itself is the safe
@@ -1978,8 +1980,9 @@ freshmen and parents scanning it will not have Bosco Tech accounts.
   email-prefill entry states, a fake logged submit endpoint) and the real
   `FrcInterestAdmin` (sample rows, plus the pre-migration "not ready" state)
   side by side.
-- **Migration `0046_fsp_frc_interest.sql` must be applied manually** in the
-  Supabase SQL editor, after `0045`.
+- **Migrations `0046_fsp_frc_interest.sql` and
+  `0047_fsp_frc_interest_parent_email.sql` must be applied manually** in the
+  Supabase SQL editor, in order, after `0045`.
 
 ## FSP Pulse Check
 

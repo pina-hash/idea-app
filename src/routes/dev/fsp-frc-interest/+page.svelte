@@ -23,7 +23,7 @@
 
 	async function fakeSubmit(s: FrcInterestSubmission): Promise<{ error: string | null }> {
 		pushLog(
-			`→ submit  name="${s.fullName}"  email=${s.email}  phone=${s.phone || '(none)'}  areas=[${s.interestAreas.join(', ')}]`
+			`→ submit  name="${s.fullName}"  email=${s.email}  phone=${s.phone || '(none)'}  parentEmail=${s.parentEmail || '(none)'}  areas=[${s.interestAreas.join(', ')}]`
 		);
 		await new Promise((r) => setTimeout(r, 400));
 		pushLog('✓ inserted OK');
@@ -42,6 +42,7 @@
 			fullName: 'Alex Rivera',
 			email: 'alex.rivera@example.com',
 			phone: '(555) 111-2222',
+			parentEmail: 'rivera.parent@example.com',
 			interestAreas: ['Mechanical & Build', 'CAD & Design'],
 			priorExperience: 'Built a go-kart with my dad, some SolidWorks in a summer class.',
 			createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString()
@@ -51,6 +52,7 @@
 			fullName: 'Kai Nguyen',
 			email: 'kai.nguyen@example.com',
 			phone: '',
+			parentEmail: '',
 			interestAreas: ['Programming & Controls'],
 			priorExperience: '',
 			createdAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString()
@@ -60,6 +62,7 @@
 			fullName: 'Jordan Park',
 			email: 'jordan.park@example.com',
 			phone: '(555) 333-4444',
+			parentEmail: '',
 			interestAreas: ['Not sure yet'],
 			priorExperience: 'None yet, just curious!',
 			createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString()

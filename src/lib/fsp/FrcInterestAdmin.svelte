@@ -43,7 +43,8 @@
 
 	{#if !ready}
 		<p class="note">
-			Apply migration <code>0046_fsp_frc_interest.sql</code> in the Supabase SQL editor to enable this
+			Apply migrations <code>0046_fsp_frc_interest.sql</code> and
+			<code>0047_fsp_frc_interest_parent_email.sql</code> in the Supabase SQL editor to enable this
 			roster.
 		</p>
 	{:else if rows.length === 0}
@@ -56,6 +57,7 @@
 						<th>Name</th>
 						<th>Email</th>
 						<th>Phone</th>
+						<th>Parent/guardian email</th>
 						<th>Interest areas</th>
 						<th>Prior experience</th>
 						<th>
@@ -71,6 +73,13 @@
 							<td>{row.fullName}</td>
 							<td><a href={`mailto:${row.email}`}>{row.email}</a></td>
 							<td>{row.phone || '—'}</td>
+							<td>
+								{#if row.parentEmail}
+									<a href={`mailto:${row.parentEmail}`}>{row.parentEmail}</a>
+								{:else}
+									—
+								{/if}
+							</td>
 							<td>
 								{#if row.interestAreas.length}
 									<div class="tags">

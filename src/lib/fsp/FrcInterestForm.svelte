@@ -19,6 +19,7 @@
 	let fullName = $state('');
 	let email = $state(initialEmail);
 	let phone = $state('');
+	let parentEmail = $state('');
 	let selectedAreas = $state<string[]>([]);
 	let priorExperience = $state('');
 
@@ -44,6 +45,7 @@
 				fullName: name,
 				email: mail,
 				phone,
+				parentEmail,
 				interestAreas: selectedAreas,
 				priorExperience
 			});
@@ -60,6 +62,7 @@
 		fullName = '';
 		email = initialEmail;
 		phone = '';
+		parentEmail = '';
 		selectedAreas = [];
 		priorExperience = '';
 		submitted = false;
@@ -118,6 +121,17 @@
 						bind:value={phone}
 						placeholder="(555) 555-5555"
 						autocomplete="tel"
+						disabled={submitting}
+					/>
+				</label>
+
+				<label class="field">
+					<span class="label">Parent/guardian email <span class="opt">(optional)</span></span>
+					<input
+						type="email"
+						bind:value={parentEmail}
+						placeholder="parent@example.com"
+						autocomplete="off"
 						disabled={submitting}
 					/>
 				</label>
