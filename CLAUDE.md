@@ -2062,24 +2062,26 @@ item.
   `onOpen(slug)` callback; it is rendering-only, the page owns the open-state and
   the write. Enhancements over the flat list (all styled in `app.css` under
   `.legacy-index .fsp-home-card`, colors only from existing tokens):
-  - **Thin group dividers.** Items cluster under four labeled rules by slug:
-    Presentations (day1/day2), Live (ask/live), Tools & Resources
-    (addin/rulebook), Forms (frc-interest). Empty groups are dropped (a student
-    without the teacher-only feed sees a one-item Live group); any future slug
-    not in the fixed `GROUP_ORDER` falls into a trailing "More" group rather than
-    vanishing.
+  - **Single flat list, no section headers.** Items render in one list kept in a
+    sensible fixed `ORDER` (presentations, the two live items adjacent, tools,
+    then the form); any slug not in `ORDER` sorts to the end (stable) so nothing
+    is dropped. (An earlier labeled-group-divider version was removed as bulk.)
   - **Inline-SVG icon glyphs** (32-40px tinted/bordered square) per row by kind:
     deck (presentations), pulse (live), plugin (add-in), book (rulebook),
     clipboard (form). The pulse-kind badge tints `--crimson`; the rest `--green`.
   - **HUD corner brackets** (four two-sided L marks) in `--acc` (aliased to
     `--gold`, the same brass accent AppLauncher's `.app-card` uses; no new color).
-  - **Drifting CAD backdrop** (`.fsp-grid-bg`): the effects.css `--blueprint-grid`
-    scaled to 22px at 0.4 opacity plus a slower mint-dot particulate `::before`,
-    both `overflow:hidden`-clipped to the card and behind an opaque header bar;
-    animations freeze under `prefers-reduced-motion` (static grid stays).
+  - **Lit machined-panel surface** (no texture layer). The card's own background
+    is a soft brass top-glow (`--acc`, near the brackets) over a vertical
+    `--bg2 -> --bg1 -> --bg0` sheen that darkens toward the base, with the header
+    bar made transparent so the whole panel reads as ONE edge-lit surface, plus a
+    faint `--acc`-tinted border. Two earlier backdrops (a CAD graph-paper grid,
+    then a mint-dot particulate field) were both removed for clashing with the
+    site's scanline/particle background; there is no separate backdrop element.
   - **Live pulse** (`.live-pulse`): a pulsing `--crimson` dot on the two Live
     items only (matching their crimson icon badge, the reserved LIVE/REC color;
-    the wave/pulse indicator is semantically a live state). Static rows get none.
+    the wave/pulse indicator is semantically a live state). Static rows get none;
+    freezes under `prefers-reduced-motion` (solid dot stays).
   - **Opened progress dots** (`.open-progress`): signed-in only; a hollow `--gear`
     ring until the item is opened, then a filled `--green` check.
 - **Open-state tracking (`0048_fsp_item_opens.sql`, apply manually after 0047):**

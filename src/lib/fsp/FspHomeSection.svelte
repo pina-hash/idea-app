@@ -43,30 +43,24 @@
 	};
 	const iconKind = (slug: string): AssignmentIconKind | undefined => ICON_KINDS[slug];
 
-	// Thin-divider groups. Items are placed by slug in this fixed order; a group
-	// with no present items (e.g. the teacher-only feed for a student) is dropped.
-	const GROUP_ORDER: { label: string; slugs: string[] }[] = [
-		{ label: 'Presentations', slugs: ['fsp-day1', 'fsp-day2'] },
-		{ label: 'Live', slugs: ['fsp-ask', 'fsp-live'] },
-		{ label: 'Tools & Resources', slugs: ['fsp-addin', 'IDEA-Blade_Rulebook_v2_2'] },
-		{ label: 'Forms', slugs: ['frc-interest'] }
+	// A single flat list (no section headers), but kept in a sensible order:
+	// presentations, then the live items adjacent, then tools, then the form. Any
+	// slug not in this order sorts to the end (stable) so nothing is ever dropped.
+	const ORDER = [
+		'fsp-day1',
+		'fsp-day2',
+		'fsp-ask',
+		'fsp-live',
+		'fsp-addin',
+		'IDEA-Blade_Rulebook_v2_2',
+		'frc-interest'
 	];
-
-	const groups = $derived.by(() => {
-		const bySlug = new Map(items.map((a) => [a.slug, a]));
-		const used = new Set<string>();
-		const built = GROUP_ORDER.map((g) => {
-			const groupItems = g.slugs
-				.map((slug) => bySlug.get(slug))
-				.filter((a): a is Assignment => !!a);
-			groupItems.forEach((a) => used.add(a.slug));
-			return { label: g.label, items: groupItems };
-		}).filter((g) => g.items.length);
-		// Any item not covered by GROUP_ORDER falls into a trailing "More" group so
-		// a newly-added slug is never silently dropped.
-		const leftover = items.filter((a) => !used.has(a.slug));
-		if (leftover.length) built.push({ label: 'More', items: leftover });
-		return built;
+	const orderedItems = $derived.by(() => {
+		const rank = (slug: string) => {
+			const i = ORDER.indexOf(slug);
+			return i === -1 ? ORDER.length : i;
+		};
+		return [...items].sort((a, b) => rank(a.slug) - rank(b.slug));
 	});
 
 	const isLive = (slug: string) => iconKind(slug) === 'pulse';
@@ -108,7 +102,6 @@
 {/snippet}
 
 <div class="course-card section-card fsp-home-card">
-	<div class="fsp-grid-bg" aria-hidden="true"></div>
 	<span class="hud-corner tl" aria-hidden="true"></span>
 	<span class="hud-corner tr" aria-hidden="true"></span>
 	<span class="hud-corner bl" aria-hidden="true"></span>
@@ -130,44 +123,41 @@
 		<span class="course-collapse-arrow">&#9662;</span>
 	</div>
 
-	<div class="assignment-list fsp-grouped">
-		{#each groups as g (g.label)}
-			<div class="fsp-group-divider"><span>{g.label}</span></div>
-			{#each g.items as a (a.slug)}
-				{@const opened = openedSet.has(a.slug)}
-				<a
-					class="assignment-item linked"
-					href={a.href ?? `/assignments/${a.slug}`}
-					onclick={() => handleOpen(a.slug)}
-				>
-					<div class="assignment-left">
-						{#if iconKind(a.slug)}
-							{@render icon(iconKind(a.slug)!)}
-						{/if}
-						<div class="assignment-name">{a.title}</div>
-						{#if isLive(a.slug)}
-							<span class="live-pulse" aria-hidden="true"></span>
-						{/if}
-					</div>
-					<div class="assignment-right">
-						{#if signedIn}
-							<span
-								class="open-progress"
-								class:done={opened}
-								title={opened ? 'Opened' : 'Not opened yet'}
-								aria-label={opened ? 'Opened' : 'Not opened yet'}
-							>
-								{#if opened}
-									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-										<path d="M5 12.5l4.5 4.5L19 6.5" />
-									</svg>
-								{/if}
-							</span>
-						{/if}
-						<span class="assignment-status status-live">Open</span>
-					</div>
-				</a>
-			{/each}
+	<div class="assignment-list">
+		{#each orderedItems as a (a.slug)}
+			{@const opened = openedSet.has(a.slug)}
+			<a
+				class="assignment-item linked"
+				href={a.href ?? `/assignments/${a.slug}`}
+				onclick={() => handleOpen(a.slug)}
+			>
+				<div class="assignment-left">
+					{#if iconKind(a.slug)}
+						{@render icon(iconKind(a.slug)!)}
+					{/if}
+					<div class="assignment-name">{a.title}</div>
+					{#if isLive(a.slug)}
+						<span class="live-pulse" aria-hidden="true"></span>
+					{/if}
+				</div>
+				<div class="assignment-right">
+					{#if signedIn}
+						<span
+							class="open-progress"
+							class:done={opened}
+							title={opened ? 'Opened' : 'Not opened yet'}
+							aria-label={opened ? 'Opened' : 'Not opened yet'}
+						>
+							{#if opened}
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M5 12.5l4.5 4.5L19 6.5" />
+								</svg>
+							{/if}
+						</span>
+					{/if}
+					<span class="assignment-status status-live">Open</span>
+				</div>
+			</a>
 		{/each}
 	</div>
 </div>

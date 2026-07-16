@@ -2637,46 +2637,28 @@ a:hover {
 .legacy-index .fsp-home-card {
 	/* Reuse the AppLauncher --acc token name for the bracket accent. */
 	--acc: var(--gold);
-	/* Own stacking context so the particulate backdrop stays clipped behind this
-	   card's own content and never bleeds under neighbors. */
-	isolation: isolate;
+	/* Lit machined-HUD surface instead of a flat fill or a busy texture: a soft
+	   brass glow bleeds from the top (where the corner brackets sit) into the
+	   green plate and darkens toward the base, so the card reads as a raised,
+	   edge-lit panel that sits on the site backdrop rather than clashing with it. */
+	background:
+		radial-gradient(
+			135% 90% at 50% -15%,
+			color-mix(in srgb, var(--acc) 10%, transparent),
+			transparent 55%
+		),
+		linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--bg2) 85%, #000) 0%,
+			var(--bg1) 44%,
+			color-mix(in srgb, var(--bg0) 80%, #000) 100%
+		);
+	border-color: color-mix(in srgb, var(--acc) 20%, var(--line));
 }
-/* Keep header + list (and their opaque header bar) above the backdrop. */
-.legacy-index .fsp-home-card .course-header,
-.legacy-index .fsp-home-card .assignment-list {
-	position: relative;
-	z-index: 1;
-}
-/* A faint drifting mint-dot particulate field for depth. The earlier CAD
-   graph-paper grid was removed: its hard lines clashed with the site's
-   scanline/particle backdrop. The dot field echoes the homepage particle canvas
-   instead, and an edge mask keeps it from ever reading as a tiled sheet. */
-.legacy-index .fsp-grid-bg {
-	position: absolute;
-	inset: 0;
-	z-index: 0;
-	pointer-events: none;
-	background-image: radial-gradient(
-		circle,
-		color-mix(in srgb, var(--green) 26%, transparent) 0.6px,
-		transparent 1.6px
-	);
-	background-size: 52px 52px;
-	opacity: 0.5;
-	-webkit-mask-image: radial-gradient(ellipse at center, #000 45%, transparent 100%);
-	mask-image: radial-gradient(ellipse at center, #000 45%, transparent 100%);
-	animation: fsp-particulate 70s linear infinite;
-}
-@keyframes fsp-particulate {
-	from {
-		background-position: 0 0;
-	}
-	to {
-		background-position: -52px -72px;
-	}
-	to {
-		transform: translate3d(-32px, -44px, 0);
-	}
+/* Let the card's lit gradient run continuously through the header (drop the flat
+   bg2 bar) so the whole panel reads as one edge-lit surface. */
+.legacy-index .fsp-home-card .course-header {
+	background: transparent;
 }
 /* HUD corner brackets: two-sided L marks in the --acc (brass) accent. */
 .legacy-index .fsp-home-card .hud-corner {
@@ -2710,30 +2692,6 @@ a:hover {
 	right: 6px;
 	border-bottom-width: 1px;
 	border-right-width: 1px;
-}
-/* Thin labeled group dividers inside the list. */
-.legacy-index .fsp-group-divider {
-	display: flex;
-	align-items: center;
-	gap: 0.7rem;
-	padding: 0.85rem 1.5rem 0.35rem;
-}
-.legacy-index .fsp-group-divider:first-child {
-	padding-top: 0.4rem;
-}
-.legacy-index .fsp-group-divider span {
-	font-family: 'Share Tech Mono', monospace;
-	font-size: 0.55rem;
-	letter-spacing: 0.2em;
-	text-transform: uppercase;
-	color: var(--cyan);
-	white-space: nowrap;
-}
-.legacy-index .fsp-group-divider::after {
-	content: '';
-	flex: 1;
-	height: 1px;
-	background: linear-gradient(to right, var(--line), transparent);
 }
 /* Pulsing LIVE indicator (crimson, the reserved LIVE/REC status color; matches
    the crimson pulse icon-thumb on the same rows). Static rows get no pulse. */
@@ -3156,12 +3114,8 @@ a:hover {
 	.legacy-index .assignment-item {
 		padding: 0.75rem 1rem;
 	}
-	/* FSP rows: tighten the icon/name gap and pull the group dividers in so the
-	   card never crowds or forces awkward wrapping on narrow phones. */
-	.legacy-index .fsp-group-divider {
-		padding-left: 1rem;
-		padding-right: 1rem;
-	}
+	/* FSP rows: tighten the icon/name gap so the card never crowds or forces
+	   awkward wrapping on narrow phones. */
 	.legacy-index .fsp-home-card .assignment-left {
 		gap: 0.6rem;
 	}
@@ -3187,9 +3141,7 @@ a:hover {
 	.legacy-index .promo-icon {
 		animation: none;
 	}
-	/* Freeze the FSP particulate drift and the live pulse; keep the static dots
-	   and a solid crimson live dot visible. */
-	.legacy-index .fsp-grid-bg,
+	/* Freeze the FSP live pulse; the crimson dot stays solid. */
 	.legacy-index .live-pulse {
 		animation: none;
 	}
