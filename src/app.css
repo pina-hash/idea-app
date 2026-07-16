@@ -2637,52 +2637,42 @@ a:hover {
 .legacy-index .fsp-home-card {
 	/* Reuse the AppLauncher --acc token name for the bracket accent. */
 	--acc: var(--gold);
-	/* Own stacking context so the drifting grid backdrop stays clipped behind
-	   this card's own content and never bleeds under neighbors. */
+	/* Own stacking context so the particulate backdrop stays clipped behind this
+	   card's own content and never bleeds under neighbors. */
 	isolation: isolate;
 }
-/* Keep header + list (and their opaque header bar) above the grid backdrop. */
+/* Keep header + list (and their opaque header bar) above the backdrop. */
 .legacy-index .fsp-home-card .course-header,
 .legacy-index .fsp-home-card .assignment-list {
 	position: relative;
 	z-index: 1;
 }
+/* A faint drifting mint-dot particulate field for depth. The earlier CAD
+   graph-paper grid was removed: its hard lines clashed with the site's
+   scanline/particle backdrop. The dot field echoes the homepage particle canvas
+   instead, and an edge mask keeps it from ever reading as a tiled sheet. */
 .legacy-index .fsp-grid-bg {
 	position: absolute;
 	inset: 0;
 	z-index: 0;
 	pointer-events: none;
-	/* Faint CAD viewport grid (the effects.css blueprint motif), scaled down. */
-	background-image: var(--blueprint-grid);
-	background-size: 22px 22px;
-	opacity: 0.4;
-	animation: fsp-grid-drift 42s linear infinite;
-}
-/* A second, slower particulate layer of faint mint dots for depth. */
-.legacy-index .fsp-grid-bg::before {
-	content: '';
-	position: absolute;
-	inset: -25%;
 	background-image: radial-gradient(
 		circle,
-		color-mix(in srgb, var(--green) 34%, transparent) 0.6px,
+		color-mix(in srgb, var(--green) 26%, transparent) 0.6px,
 		transparent 1.6px
 	);
-	background-size: 48px 48px;
+	background-size: 52px 52px;
 	opacity: 0.5;
+	-webkit-mask-image: radial-gradient(ellipse at center, #000 45%, transparent 100%);
+	mask-image: radial-gradient(ellipse at center, #000 45%, transparent 100%);
 	animation: fsp-particulate 70s linear infinite;
-}
-@keyframes fsp-grid-drift {
-	from {
-		background-position: 0 0, 0 0;
-	}
-	to {
-		background-position: 22px 26px, 22px 26px;
-	}
 }
 @keyframes fsp-particulate {
 	from {
-		transform: translate3d(0, 0, 0);
+		background-position: 0 0;
+	}
+	to {
+		background-position: -52px -72px;
 	}
 	to {
 		transform: translate3d(-32px, -44px, 0);
@@ -3197,10 +3187,9 @@ a:hover {
 	.legacy-index .promo-icon {
 		animation: none;
 	}
-	/* Freeze the FSP backdrop drift and the live pulse; keep the static grid,
-	   dots, and a solid crimson live dot visible. */
+	/* Freeze the FSP particulate drift and the live pulse; keep the static dots
+	   and a solid crimson live dot visible. */
 	.legacy-index .fsp-grid-bg,
-	.legacy-index .fsp-grid-bg::before,
 	.legacy-index .live-pulse {
 		animation: none;
 	}
