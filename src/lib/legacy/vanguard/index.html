@@ -797,7 +797,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='204';
+const VERSION='205';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -807,7 +807,13 @@ const BAL_DEFAULTS = {
   // player power
   gunCoef:0.22,                       // GUN POWER damage per level
   spreadPellets:[4,4,5,5,6,6,7,8],    // SPREAD pellet count by gun level
-  spreadDmg:0.644,                    // SPREAD per-pellet base damage (baseline DPS anchor)
+  spreadDmg:0.72,                     // SPREAD per-pellet base damage (baseline DPS anchor)
+  spreadFullRange:320,                // SPREAD full-damage range px (100% inside, floor beyond)
+  spreadFarFloor:0.75,                // SPREAD damage floor beyond full range (no fade-to-nothing)
+  homingDmg:0.95,                     // SWARM per-dart base damage
+  flakDps:19,                         // FLAK cloud base damage per second
+  flakR:56,                           // FLAK cloud base radius px
+  flakBandMin:150, flakBandMax:380,   // FLAK airburst detonation band px
   slugPer:0.12,                       // SLUG LOAD per-level pellet damage
   flankBase:0.55, flankPer:0.07,      // FLANK gun damage base + per gun level
   droneCd:0.30,                       // DRONE fire cooldown seconds
@@ -834,6 +840,13 @@ const BAL_META = [
   {key:'gunCoef',label:'GUN POWER /lvl',group:'PLAYER',min:0.10,max:0.40,step:0.01},
   {key:'spreadPellets',label:'SPREAD pellets',group:'PLAYER',type:'array'},
   {key:'spreadDmg',label:'SPREAD pellet dmg',group:'PLAYER',min:0.30,max:1.20,step:0.01},
+  {key:'spreadFullRange',label:'SPREAD full range',group:'PLAYER',min:150,max:450,step:10},
+  {key:'spreadFarFloor',label:'SPREAD far floor',group:'PLAYER',min:0.30,max:1.00,step:0.05},
+  {key:'homingDmg',label:'SWARM dart dmg',group:'PLAYER',min:0.40,max:1.60,step:0.01},
+  {key:'flakDps',label:'FLAK cloud dps',group:'PLAYER',min:8,max:32,step:1},
+  {key:'flakR',label:'FLAK cloud radius',group:'PLAYER',min:30,max:90,step:2},
+  {key:'flakBandMin',label:'FLAK band min',group:'PLAYER',min:80,max:300,step:10},
+  {key:'flakBandMax',label:'FLAK band max',group:'PLAYER',min:200,max:500,step:10},
   {key:'slugPer',label:'SLUG LOAD /lvl',group:'PLAYER',min:0.05,max:0.30,step:0.01},
   {key:'flankBase',label:'FLANK base dmg',group:'PLAYER',min:0.20,max:0.80,step:0.01},
   {key:'flankPer',label:'FLANK dmg /gun lvl',group:'PLAYER',min:0.00,max:0.15,step:0.01},
@@ -2302,8 +2315,9 @@ function dropPod(x,y,fromBoss){
 const WEAPONS=['spread','lance','homing','rapid','flak','buzzsaw'];
 const BOSS_COLLATERAL=6;   // boss friendly-fire chip damage to its own grunts (Pillar 3); kills give the player no reward (Pillar 4/5)
 /* ===== weapon balance, all relative to measured SPREAD baseline DPS = 7.0 (gun1: 4 pellets x 0.7 dmg x 5/s x ~2 hits @150px) ===== */
-const SPREAD_FULL_RANGE=260, SPREAD_FAR_FLOOR=0.60;                 // 100% to 260px, hard 60% floor beyond (no fade-to-nothing)
-const FLAK_BAND_MIN=190, FLAK_BAND_MAX=360, FLAK_CLOUD_R=46, FLAK_CLOUD_LIFE=0.45, FLAK_CLOUD_DPS=13, FLAK_EARLY=0.75, FLAK_COL='#FFB000';
+/* SPREAD range + FLAK cloud/band dials moved into BAL (spreadFullRange/spreadFarFloor, flakDps/flakR/flakBandMin/flakBandMax) so the tune panel drives them live */
+const FLAK_CLOUD_LIFE=0.45, FLAK_EARLY=0.75, FLAK_COL='#FFB000';
+const LANCE_PIERCE_CAP=6;                                          // base-kit RAILSPIKE pierce limit (enemies per bolt); keystone behavior unchanged
 const BUZZSAW_ORBIT=54;                                            // BALANCE DIAL - do not expose as an upgrade
 const BUZZSAW_BLADE_R=13, BUZZSAW_SPEED=3.2, BUZZSAW_DPS_PER_BLADE=24.0, BUZZSAW_FWD_DMG=0.42;
 /* MELTDOWN (endgame active): fire-RATE overload only, kill-recharged. Phase 1 core; upgrade tree is Phase 2. */
@@ -2404,11 +2418,11 @@ function firePrimary(pl){
   if(pl.wtype==='spread'){            // SPREAD: neutral generalist baseline - flat pellet damage, soft range floor
     const ms=u.mSpread||0; const kS=(pl.ks&&pl.ks.spread)||0; const pellets=BAL.spreadPellets[Math.min(lv,8)-1]+ms; const dmg=BAL.spreadDmg*pm*(1+BAL.slugPer*(u.bSpread||0)), spread=Math.max(0.07,0.13-ms*0.014);
     for(let i=0;i<pellets;i++){ const a=(i-(pellets-1)/2)*spread;
-      pbul.push({x:x+Math.sin(a)*8,y,vx:Math.sin(a)*420,vy:-700-rnd(0,60),c:COL.green,r:2.0,dmg,wt:'scrap',gl,ox:x,oy:y,falloff:SPREAD_FULL_RANGE,floor:SPREAD_FAR_FLOOR,pierce:(kS==='pierce'),pcount:(kS==='pierce'?3:0),frag:(kS==='frag')}); }
+      pbul.push({x:x+Math.sin(a)*8,y,vx:Math.sin(a)*420,vy:-700-rnd(0,60),c:COL.green,r:2.0,dmg,wt:'scrap',gl,ox:x,oy:y,falloff:BAL.spreadFullRange,floor:BAL.spreadFarFloor,pierce:(kS==='pierce'),pcount:(kS==='pierce'?3:0),frag:(kS==='frag')}); }
     pl.fireCd=.2; muzzle(x,y,COL.green,gl,pellets*0.7); pl.kick=1.5;
   } else if(pl.wtype==='flak'){       // FLAK: committed mid-range zone control - shells airburst into a damage cloud inside the band
-    const det=rnd(FLAK_BAND_MIN,FLAK_BAND_MAX);
-    pbul.push({x,y,vx:0,vy:-680,c:FLAK_COL,r:3.0,dmg:0,wt:'flak',gl,ox:x,oy:y,detAt:det,flakDps:FLAK_CLOUD_DPS*pm*(1+0.18*(u.mFlak||0)),flakR:FLAK_CLOUD_R+6*(u.bFlak||0),ksFlak:((pl.ks&&pl.ks.flak)||0),smoke:0});
+    const det=rnd(BAL.flakBandMin,BAL.flakBandMax);
+    pbul.push({x,y,vx:0,vy:-680,c:FLAK_COL,r:3.0,dmg:0,wt:'flak',gl,ox:x,oy:y,detAt:det,flakDps:BAL.flakDps*pm*(1+0.18*(u.mFlak||0)),flakR:BAL.flakR+6*(u.bFlak||0),ksFlak:((pl.ks&&pl.ks.flak)||0),smoke:0});
     pl.fireCd=.45*(1-0.10*(u.bFlak||0)); muzzle(x,y,FLAK_COL,gl,2);
   } else if(pl.wtype==='buzzsaw'){    // BUZZSAW: orbiting contact blades do the work; BLADE LAUNCHER adds a thrown boomerang
     if(!u.bladeLauncher){ pl.fireCd=0.2; }
@@ -2423,21 +2437,17 @@ function firePrimary(pl){
     if(pl.meltdownActive<=0) pl.heat=heat+(0.052-mr*0.004)*(kR==='redline'?1.5:1);   // MELTDOWN: no heat accrual, the stream fires freely for the window
     if(kR==='coolant') pl.heat=Math.min(0.86,pl.heat);
     muzzle(x,y,hotC,gl*(0.7+heat),streams);
-    if(pl.heat>=1){
-      if(autofire){ pl.heat=0; pl.overheatT=0.6; pl.fireCd=0.6; rings.push({x,y,r:5,vr:220,life:.28,max:.28,c:COL.gold});
-        pops.push({x:pl.x,y:pl.y-30,txt:'VENT',c:COL.gold,life:.6,max:.6}); Audio_.hit(); }
-      else { pl.heat=0; pl.overheatT=0.9*(kR==='redline'?1.4:1); runOverheats++;
-        window.style=(window.style||0)*0.85; window.styleRepeat=0; window.styleGrace=0.2; window.mult=styleRankObj().mult;
-        shake=Math.max(shake,7); pl.dmgFlash=Math.max(pl.dmgFlash,0.12);
-        rings.push({x,y,r:6,vr:300,life:.35,max:.35,c:COL.mset});
-        pops.push({x:pl.x,y:pl.y-30,txt:'OVERHEAT',c:COL.mset,life:.9,max:.9}); (Audio_.play&&Audio_.play('overheat'))||Audio_.hit(); } }
+    if(pl.heat>=1){   // redline always VENTs softly now, both firing modes (the old harsh style-penalty branch only hit manual fire - a settings tax, not a skill choice)
+      pl.heat=0; pl.overheatT=0.6; pl.fireCd=0.6; runOverheats++;
+      rings.push({x,y,r:5,vr:220,life:.28,max:.28,c:COL.gold});
+      pops.push({x:pl.x,y:pl.y-30,txt:'VENT',c:COL.gold,life:.6,max:.6}); Audio_.hit(); }
   } else if(pl.wtype==='lance'){      // RAILSPIKE: slow, committed, full-pierce columns
     const ml=u.mLance||0; const kL=(pl.ks&&pl.ks.lance)||0; const cols=lv<5?1:lv<8?2:3; const sp=12; const dmg=(2.5+ml*0.8)*pm;
     for(let i=0;i<cols;i++){ const ox=(i-(cols-1)/2)*sp;
-      pbul.push({x:x+ox,y,vx:0,vy:-1050,c:COL.cyan,r:3.2+ml*0.4,dmg,dmg0:dmg,pierce:(kL!=='scatter'),scatter:(kL==='scatter'),ramp:(kL==='impaler'),len:22+ml*4,wt:'rail',gl}); }
+      pbul.push({x:x+ox,y,vx:0,vy:-1050,c:COL.cyan,r:3.2+ml*0.4,dmg,dmg0:dmg,pierce:(kL!=='scatter'),pcount:LANCE_PIERCE_CAP,scatter:(kL==='scatter'),ramp:(kL==='impaler'),len:22+ml*4,wt:'rail',gl}); }
     pl.fireCd=.34*(1-ml*0.05)*(1-0.07*(u.bLance||0)); muzzle(x,y,COL.cyan,gl*1.3,cols*2);
   } else {                                 // SWARM: weak darts, hands-free, dodge while they hunt
-    const mh=u.mHoming||0; const kH=(pl.ks&&pl.ks.homing)||0; let n=Math.min(8,(lv<3?2:lv<6?3:4)+mh); let dmg=(0.75+0.16*(u.bHoming||0))*pm; let dturn=3.6, dvy=-360, dr=1.8;
+    const mh=u.mHoming||0; const kH=(pl.ks&&pl.ks.homing)||0; let n=Math.min(8,(lv<3?2:lv<6?3:4)+mh); let dmg=(BAL.homingDmg+0.16*(u.bHoming||0))*pm; let dturn=3.6, dvy=-360, dr=1.8;
     if(kH==='hive'){ n=Math.min(11,n+2); dmg*=0.78; dturn=5.2; }
     else if(kH==='lancehead'){ n=Math.max(1,Math.ceil(n/2)); dmg*=2.3; dvy=-540; dturn=3.0; dr=2.6; }
     for(let i=0;i<n;i++){ const a=(i-(n-1)/2)*0.42+rnd(-0.06,0.06);
@@ -2469,9 +2479,9 @@ function firePrimary(pl){
 }
 /* FLAK: airburst into a lingering damage cloud (mult scales early-contact vs full-band detonations) */
 function detonateFlak(b,mult){
-  const kf=b.ksFlak||0; const _life=FLAK_CLOUD_LIFE*(kf==='sticky'?2.6:1), _rad=(b.flakR||FLAK_CLOUD_R)*(kf==='sticky'?0.7:1);
-  flakClouds.push({x:b.x,y:b.y,r:_rad,t:_life,life:_life,dps:(b.flakDps||FLAK_CLOUD_DPS)*mult,c:FLAK_COL,pi:b.pi||0});
-  if(kf==='flechette'){ for(let s=0;s<6;s++){ const fa=(s/6)*6.2832; pbul.push({x:b.x,y:b.y,vx:Math.cos(fa)*420,vy:Math.sin(fa)*420,c:FLAK_COL,r:2.0,dmg:(b.flakDps||FLAK_CLOUD_DPS)*0.18*mult,wt:'scrap',gl:(b.gl||1)}); } }
+  const kf=b.ksFlak||0; const _life=FLAK_CLOUD_LIFE*(kf==='sticky'?2.6:1), _rad=(b.flakR||BAL.flakR)*(kf==='sticky'?0.7:1);
+  flakClouds.push({x:b.x,y:b.y,r:_rad,t:_life,life:_life,dps:(b.flakDps||BAL.flakDps)*mult,c:FLAK_COL,pi:b.pi||0});
+  if(kf==='flechette'){ for(let s=0;s<6;s++){ const fa=(s/6)*6.2832; pbul.push({x:b.x,y:b.y,vx:Math.cos(fa)*420,vy:Math.sin(fa)*420,c:FLAK_COL,r:2.0,dmg:(b.flakDps||BAL.flakDps)*0.18*mult,wt:'scrap',gl:(b.gl||1)}); } }
   for(let k=0;k<8;k++) parts.push({x:b.x,y:b.y,vx:rnd(-90,90),vy:rnd(-90,90),life:.3,max:.3,c:Math.random()<0.5?FLAK_COL:COL.white,sz:rnd(1.4,2.4)});
   rings.push({x:b.x,y:b.y,r:6,vr:180,life:.25,max:.25,c:FLAK_COL});
   (Audio_.play&&Audio_.play('blast'))||Audio_.blast();
@@ -2500,9 +2510,9 @@ function updateBuzzsaw(pl,dt){
       if(Math.random()<dt*(12+4*(_bu.bBuzz||0))) impactFX(bx,by,e.c,bx-e.x,by-e.y);   // reuse the directional spark fan, throttled per tick
       if(e.hp<=0){ window.killSrc='buzzsaw'; window.killerPi=pl.pi; killEnemy(e); } } }
     if(boss && !boss.dying && !boss.entering && dist2(boss.x,boss.y,bx,by)<(_br+boss.r)*(_br+boss.r)) damageBoss(_bdps*pm*dt);
-    // 15% chance (30% at max level) to deflect/graze enemy bullets contacting the blades
+    // 22% chance (30% at max level) to deflect/graze enemy bullets contacting the blades
     const u=pl.up||{}; const isMax = (u.mBuzz>=3 && u.bBuzz>=3);
-    const deflectChance = isMax ? 0.30 : 0.15;
+    const deflectChance = isMax ? 0.30 : 0.22;
     const deflectBr = _br + (isMax ? 4 : 0);
     for(let i=ebul.length-1;i>=0;i--){ const eb=ebul[i];
       if(dist2(eb.x,eb.y,bx,by)<(deflectBr+4)*(deflectBr+4)){
@@ -3369,7 +3379,7 @@ function update(dt){
         if(b.frag){ for(const e2 of enemies){ if(e2.dead||e2===e)continue; if(dist2(e2.x,e2.y,b.x,b.y)<900){ e2.hp-=dmgEff*0.5; e2.flash=.08; if(e2.hp<=0){ window.killSrc='spread'; window.killerPi=b.pi; killEnemy(e2); } } } for(let qi=ebul.length-1;qi>=0;qi--){ const _eb=ebul[qi]; if(dist2(_eb.x,_eb.y,b.x,b.y)<900){ ebul.splice(qi,1); } } rings.push({x:b.x,y:b.y,r:4,vr:160,life:.18,max:.18,c:COL.green}); }
         if(b.ramp){ b.dmg=Math.min((b.dmg||0)*1.15,(b.dmg0||b.dmg)*2.5); }
         if(b.scatter){ for(let s=0;s<3;s++){ const fa=(s-1)*0.5; pbul.push({x:b.x,y:b.y,vx:Math.sin(fa)*360,vy:-820,c:COL.cyan,r:2.4,dmg:(b.dmg0||b.dmg)*0.5,len:14,wt:'rail',gl:b.gl,pi:b.pi}); } b.scatter=false; }
-        if(e.hp<=0){ window.killerPi=b.pi; killEnemy(e); } else { if(Audio_.play)Audio_.play('hit'); COOP.evHit(b.x,b.y,e.c,b.vx,b.vy); } if(!b.pierce){hit=true;} else if(b.pcount!=null){ b.dmg*=0.7; b.pcount--; if(b.pcount<=0){hit=true;} } break; } }
+        if(e.hp<=0){ window.killerPi=b.pi; killEnemy(e); } else { if(Audio_.play)Audio_.play('hit'); COOP.evHit(b.x,b.y,e.c,b.vx,b.vy); } if(!b.pierce){hit=true;} else if(b.pcount!=null){ if(b.wt!=='rail') b.dmg*=0.7; b.pcount--; if(b.pcount<=0){hit=true;} } break; } }   // per-pierce decay is the SPREAD pierce-keystone design; RAILSPIKE's pcount is a flat cap (impaler ramp untouched)
     if(!hit && boss && !boss.entering && !boss.dying && dist2(boss.x,boss.y,b.x,b.y)<(boss.r)*(boss.r)){
       if(b.wt==='flak'){ detonateFlak(b,FLAK_EARLY); hit=true; }
       else { damageBoss(dmgEff); impactFX(b.x,b.y,boss.c,b.vx,b.vy); COOP.evHit(b.x,b.y,boss.c,b.vx,b.vy,1); if(!b.hasHit){ b.hasHit=true; shotsHit++; } if(!b.pierce)hit=true; }
@@ -4098,7 +4108,7 @@ function refitItems(){ const u=player.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), p
     {grp:'WEAPONS',name:'GUN POWER',icon:'gun',desc:'Boosts damage on all primary weapons.',delta:'x'+pdN.toFixed(2)+' -> x'+pdX.toFixed(2),lv:u.gun,mx:8,cost:400+(u.gun-1)*250,can:u.gun<8,buy:()=>u.gun++},
     {grp:'WEAPONS',name:'FLANK GUNS',icon:'flank',desc:'Forward side guns that scale with GUN POWER. Lv 2 widens, Lv 3 adds rear coverage.',delta:'+ side guns',lv:u.flank||0,mx:3,cost:[450,700,1000][Math.min(u.flank||0,2)],can:(u.flank||0)<3,buy:()=>{u.flank=(u.flank||0)+1;}},
     ...(showFlankKeystone?[dksCard('WEAPONS','flank','CONVERGENCE','flank','KEYSTONE: all side guns converge to a tight forward cone, tripling damage on-axis. Locks out BROADSIDE.','conv'),dksCard('WEAPONS','flank','BROADSIDE','flank','KEYSTONE: side guns fire 90° outward, clearing flanks but no forward coverage. Locks out CONVERGENCE.','broad')]:[]),
-    ...['spread|SPREAD|0|w_spread|Brawler shotgun: tight fan, +25% inside 90px, solid floor at range.|1','homing|SWARM|400|w_homing|Auto-aiming darts. Good for crowds, weak per shot.|1','rapid|NAILGUN|350|w_rapid|Heat ramps power, redline locks the gun. Single-target.|1','flak|FLAK|550|w_flak|Mid-range airburst: shells pop into a damage cloud in the band.|2','lance|RAILSPIKE|650|w_lance|Slow, committed bolts that pierce a whole column.|2','buzzsaw|BUZZSAW|800|w_buzz|Contact blades orbit the ship. Pure melee; BLADE LAUNCHER adds a thrown blade.|3'].map(s=>{const p=s.split('|'),w=p[0],owned=!!player.unlocked[w],active=player.wtype===w,minS=+p[5],gated=!owned&&sector<minS;return {grp:'WEAPONS',name:p[1],icon:p[3],desc:p[4],lv:0,mx:0,meta:active?'EQUIPPED':owned?'EQUIP':gated?('SECTOR '+minS+'+'):('i¢'+p[2]),cost:owned?0:+p[2],can:!active&&!gated,buy:()=>{player.unlocked[w]=1;player.wtype=w;}};}),
+    ...['spread|SPREAD|0|w_spread|Brawler shotgun: tight fan, +25% inside 90px, solid floor at range.|1','homing|SWARM|400|w_homing|Auto-aiming darts. Good for crowds, weak per shot.|1','rapid|NAILGUN|350|w_rapid|Heat ramps power, redline locks the gun. Single-target.|1','flak|FLAK|550|w_flak|Mid-range airburst: shells pop into a damage cloud in the band.|2','lance|RAILSPIKE|650|w_lance|Slow, committed bolts that pierce a whole column.|2','buzzsaw|BUZZSAW|650|w_buzz|Contact blades orbit the ship. Pure melee; BLADE LAUNCHER adds a thrown blade.|2'].map(s=>{const p=s.split('|'),w=p[0],owned=!!player.unlocked[w],active=player.wtype===w,minS=+p[5],gated=!owned&&sector<minS;return {grp:'WEAPONS',name:p[1],icon:p[3],desc:p[4],lv:0,mx:0,meta:active?'EQUIPPED':owned?'EQUIP':gated?('SECTOR '+minS+'+'):('i¢'+p[2]),cost:owned?0:+p[2],can:!active&&!gated,buy:()=>{player.unlocked[w]=1;player.wtype=w;}};}),
     {grp:'WEAPONS',name:'SCATTER CHOKE',icon:'w_spread',desc:'Adds a SPREAD pellet and tightens the cone for more focus.',delta:'+1 pellet',lv:u.mSpread||0,mx:3,cost:300+(u.mSpread||0)*220,can:(u.mSpread||0)<3,buy:()=>{u.mSpread=(u.mSpread||0)+1;}},
     {grp:'WEAPONS',name:'SLUG LOAD',icon:'w_spread',desc:'Heavier SPREAD pellets hit harder per hit.',delta:'+12% pellet dmg',lv:u.bSpread||0,mx:3,cost:320+(u.bSpread||0)*230,can:(u.bSpread||0)<3,buy:()=>{u.bSpread=(u.bSpread||0)+1;}},
     ...(showSpreadKeystone?[ksCard('spread','PIERCE ROUNDS','w_spread','KEYSTONE: SPREAD pellets punch through up to 3 enemies, losing 30% damage per hull. Locks out FRAG SHELLS.','pierce'),ksCard('spread','FRAG SHELLS','w_spread','KEYSTONE: SPREAD pellets burst on impact, splashing and clearing all enemy bullets in a 30px radius. Locks out PIERCE ROUNDS.','frag')]:[]),
@@ -4788,7 +4798,7 @@ function drawFX(){
     fx.globalAlpha=0.5*k; fx.strokeStyle=FLAK_COL; fx.lineWidth=1.5; fx.beginPath(); fx.arc(c.x,c.y,c.r,0,6.28); fx.stroke(); fx.restore(); });
   // FLAK band guide arc (own ship only) + BUZZSAW blades (every live ship)
   if(state==='play') for(const pl of players){ if(!pl||pl.dead) continue;
-    if(pl===player && pl.wtype==='flak'){ const r0=(FLAK_BAND_MIN+FLAK_BAND_MAX)/2; fx.save(); fx.globalAlpha=0.10; fx.strokeStyle=FLAK_COL; fx.lineWidth=1; fx.setLineDash([5,9]);
+    if(pl===player && pl.wtype==='flak'){ const r0=(BAL.flakBandMin+BAL.flakBandMax)/2; fx.save(); fx.globalAlpha=0.10; fx.strokeStyle=FLAK_COL; fx.lineWidth=1; fx.setLineDash([5,9]);
       fx.beginPath(); fx.arc(pl.x,pl.y,r0,-Math.PI*0.85,-Math.PI*0.15); fx.stroke(); fx.setLineDash([]); fx.restore(); }
     if(pl.wtype==='buzzsaw'){ const _bbu=pl.up||{}; const ang=t*BUZZSAW_SPEED*(1+0.18*(_bbu.bBuzz||0))*((pl.meltdownActive>0)?MELTDOWN_MELEE_MULT:1); fx.save(); fx.globalCompositeOperation='lighter';
       // afterimage ghosts
@@ -5874,6 +5884,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'205',date:'2026',items:['Weapon rebalance: RAILSPIKE bolts now stop after drilling through 6 enemies','SPREAD hits harder and keeps full damage further downrange','NAILGUN redlines are now always a quick vent with no style loss, whether you hold or tap fire','SWARM darts carry a heavier charge','FLAK clouds are bigger and meaner, and the burst band starts closer to your ship','BUZZSAW unlocks a sector earlier, costs less, and its blades deflect more incoming fire']},
  {ver:'204',date:'2026',items:['CO-OP is now RANKED: finish a qualifying match (sector 2+ or 20+ kills) and your team submits one score with both pilots\' initials to the new CO-OP and CO-OP HC leaderboards - find them in the board tabs on the title screen, and click any row for each pilot\'s loadout.']},
  {ver:'203',date:'2026',items:['CO-OP: sustained weapon sounds, boss beam audio, visible pods, death slow-mo, and the SYSTEM HALT sequence now all sync correctly for the guest.']},
  {ver:'202',date:'2026',items:['CO-OP now gives a dropped guest a window to reconnect instead of ending the match immediately.']},
