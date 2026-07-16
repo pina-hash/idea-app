@@ -50,6 +50,7 @@ export const load: PageLoad = async ({ url }) => {
 		userProfile: profile,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		supabase: makeStubSupabase() as any,
-		gauntletNudge: null
+		gauntletNudge: null,
+		fspOpened: [] as string[]
 	};
 };

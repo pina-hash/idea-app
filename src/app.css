@@ -2625,6 +2625,175 @@ a:hover {
 .legacy-index .status-archived {
 	color: var(--dim);
 }
+
+/* ==========================================================================
+   FSP homepage section (the pinned "Incoming Freshman" card). Adds HUD-style
+   corner brackets, a faint drifting CAD grid backdrop, thin group dividers, a
+   live pulse on the Live items, and per-item opened progress dots — all on top
+   of the shared .course-card / .assignment-item chrome. Colors come only from
+   existing tokens; --acc aliases --gold (the same brass accent AppLauncher's
+   .app-card uses) for the bracket line, so no new color is introduced.
+   ========================================================================== */
+.legacy-index .fsp-home-card {
+	/* Reuse the AppLauncher --acc token name for the bracket accent. */
+	--acc: var(--gold);
+	/* Own stacking context so the drifting grid backdrop stays clipped behind
+	   this card's own content and never bleeds under neighbors. */
+	isolation: isolate;
+}
+/* Keep header + list (and their opaque header bar) above the grid backdrop. */
+.legacy-index .fsp-home-card .course-header,
+.legacy-index .fsp-home-card .assignment-list {
+	position: relative;
+	z-index: 1;
+}
+.legacy-index .fsp-grid-bg {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	/* Faint CAD viewport grid (the effects.css blueprint motif), scaled down. */
+	background-image: var(--blueprint-grid);
+	background-size: 22px 22px;
+	opacity: 0.4;
+	animation: fsp-grid-drift 42s linear infinite;
+}
+/* A second, slower particulate layer of faint mint dots for depth. */
+.legacy-index .fsp-grid-bg::before {
+	content: '';
+	position: absolute;
+	inset: -25%;
+	background-image: radial-gradient(
+		circle,
+		color-mix(in srgb, var(--green) 34%, transparent) 0.6px,
+		transparent 1.6px
+	);
+	background-size: 48px 48px;
+	opacity: 0.5;
+	animation: fsp-particulate 70s linear infinite;
+}
+@keyframes fsp-grid-drift {
+	from {
+		background-position: 0 0, 0 0;
+	}
+	to {
+		background-position: 22px 26px, 22px 26px;
+	}
+}
+@keyframes fsp-particulate {
+	from {
+		transform: translate3d(0, 0, 0);
+	}
+	to {
+		transform: translate3d(-32px, -44px, 0);
+	}
+}
+/* HUD corner brackets: two-sided L marks in the --acc (brass) accent. */
+.legacy-index .fsp-home-card .hud-corner {
+	position: absolute;
+	width: 13px;
+	height: 13px;
+	z-index: 2;
+	pointer-events: none;
+	border: 0 solid color-mix(in srgb, var(--acc) 70%, transparent);
+}
+.legacy-index .fsp-home-card .hud-corner.tl {
+	top: 6px;
+	left: 6px;
+	border-top-width: 1px;
+	border-left-width: 1px;
+}
+.legacy-index .fsp-home-card .hud-corner.tr {
+	top: 6px;
+	right: 6px;
+	border-top-width: 1px;
+	border-right-width: 1px;
+}
+.legacy-index .fsp-home-card .hud-corner.bl {
+	bottom: 6px;
+	left: 6px;
+	border-bottom-width: 1px;
+	border-left-width: 1px;
+}
+.legacy-index .fsp-home-card .hud-corner.br {
+	bottom: 6px;
+	right: 6px;
+	border-bottom-width: 1px;
+	border-right-width: 1px;
+}
+/* Thin labeled group dividers inside the list. */
+.legacy-index .fsp-group-divider {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	padding: 0.85rem 1.5rem 0.35rem;
+}
+.legacy-index .fsp-group-divider:first-child {
+	padding-top: 0.4rem;
+}
+.legacy-index .fsp-group-divider span {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.55rem;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	color: var(--cyan);
+	white-space: nowrap;
+}
+.legacy-index .fsp-group-divider::after {
+	content: '';
+	flex: 1;
+	height: 1px;
+	background: linear-gradient(to right, var(--line), transparent);
+}
+/* Pulsing LIVE indicator (crimson, the reserved LIVE/REC status color; matches
+   the crimson pulse icon-thumb on the same rows). Static rows get no pulse. */
+.legacy-index .live-pulse {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	background: var(--crimson);
+	box-shadow: 0 0 6px color-mix(in srgb, var(--crimson) 70%, transparent);
+	animation: fsp-live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes fsp-live-pulse {
+	0%,
+	100% {
+		transform: scale(1);
+		opacity: 0.9;
+	}
+	50% {
+		transform: scale(1.55);
+		opacity: 0.35;
+	}
+}
+/* Per-item opened progress: hollow ring until opened, then a filled green check
+   (green = the achievement/complete state, per the token roles). */
+.legacy-index .open-progress {
+	width: 17px;
+	height: 17px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--gear);
+	color: transparent;
+	transition:
+		border-color 0.2s,
+		background 0.2s;
+}
+.legacy-index .open-progress.done {
+	border-color: var(--green);
+	background: color-mix(in srgb, var(--green) 18%, transparent);
+	color: var(--green);
+	box-shadow: var(--glow-green);
+}
+.legacy-index .open-progress svg {
+	width: 11px;
+	height: 11px;
+}
+
 .legacy-index .empty-state {
 	padding: 1.4rem 1.5rem;
 	display: flex;
@@ -2997,6 +3166,18 @@ a:hover {
 	.legacy-index .assignment-item {
 		padding: 0.75rem 1rem;
 	}
+	/* FSP rows: tighten the icon/name gap and pull the group dividers in so the
+	   card never crowds or forces awkward wrapping on narrow phones. */
+	.legacy-index .fsp-group-divider {
+		padding-left: 1rem;
+		padding-right: 1rem;
+	}
+	.legacy-index .fsp-home-card .assignment-left {
+		gap: 0.6rem;
+	}
+	.legacy-index .fsp-home-card .assignment-right {
+		gap: 0.7rem;
+	}
 	.legacy-index .changelog-wrap {
 		padding: 0 1rem 3rem;
 	}
@@ -3014,6 +3195,13 @@ a:hover {
 	.legacy-index .hero-stat .value,
 	.legacy-index .step-num,
 	.legacy-index .promo-icon {
+		animation: none;
+	}
+	/* Freeze the FSP backdrop drift and the live pulse; keep the static grid,
+	   dots, and a solid crimson live dot visible. */
+	.legacy-index .fsp-grid-bg,
+	.legacy-index .fsp-grid-bg::before,
+	.legacy-index .live-pulse {
 		animation: none;
 	}
 }

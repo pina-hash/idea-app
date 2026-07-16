@@ -2045,12 +2045,59 @@ the optional `Assignment.href` to link directly to the FSP tools:
 app (that entry was removed), and the old role-routing hub page
 `/fsp/+page.svelte` was DELETED — `/fsp/day1`, `/fsp/live`, `/fsp/ask`, and
 `/fsp/class` are intact and reached directly (bare `/fsp` no longer resolves).
-**Teachers get a fourth row, `Live Question Feed` -> `/fsp/live`**, appended
-client-side in `+page.svelte` (an `extraRows` param on the shared
-`sectionCard` snippet, gated on the existing `isTeacher` derived value), never
-written into `curriculum.ts` itself since that file is plain client-safe data
-with no role awareness; students never see the row.
+**Teachers get a fourth item, `Live Question Feed` -> `/fsp/live`**, appended
+client-side in `+page.svelte` (added to the FSP item list gated on the existing
+`isTeacher` derived value), never written into `curriculum.ts` itself since that
+file is plain client-safe data with no role awareness; students never see the
+item.
 
+- **FSP section is its own component, not the shared `sectionCard` snippet.**
+  The pinned FSP card renders through `src/lib/fsp/FspHomeSection.svelte`
+  (factored out so `/dev/fsp-home` mounts the exact same component, the
+  FspTechSelection/FrcInterestForm convention); every OTHER course still uses the
+  homepage's local `sectionCard` snippet (which no longer carries the FSP-only
+  icon glyphs — those moved into the component). The component takes the FSP
+  `Section`, the full ordered item list (section assignments + the FRC interest
+  form + the teacher-only Live Question Feed), `signedIn`, an `openedSet`, and an
+  `onOpen(slug)` callback; it is rendering-only, the page owns the open-state and
+  the write. Enhancements over the flat list (all styled in `app.css` under
+  `.legacy-index .fsp-home-card`, colors only from existing tokens):
+  - **Thin group dividers.** Items cluster under four labeled rules by slug:
+    Presentations (day1/day2), Live (ask/live), Tools & Resources
+    (addin/rulebook), Forms (frc-interest). Empty groups are dropped (a student
+    without the teacher-only feed sees a one-item Live group); any future slug
+    not in the fixed `GROUP_ORDER` falls into a trailing "More" group rather than
+    vanishing.
+  - **Inline-SVG icon glyphs** (32-40px tinted/bordered square) per row by kind:
+    deck (presentations), pulse (live), plugin (add-in), book (rulebook),
+    clipboard (form). The pulse-kind badge tints `--crimson`; the rest `--green`.
+  - **HUD corner brackets** (four two-sided L marks) in `--acc` (aliased to
+    `--gold`, the same brass accent AppLauncher's `.app-card` uses; no new color).
+  - **Drifting CAD backdrop** (`.fsp-grid-bg`): the effects.css `--blueprint-grid`
+    scaled to 22px at 0.4 opacity plus a slower mint-dot particulate `::before`,
+    both `overflow:hidden`-clipped to the card and behind an opaque header bar;
+    animations freeze under `prefers-reduced-motion` (static grid stays).
+  - **Live pulse** (`.live-pulse`): a pulsing `--crimson` dot on the two Live
+    items only (matching their crimson icon badge, the reserved LIVE/REC color;
+    the wave/pulse indicator is semantically a live state). Static rows get none.
+  - **Opened progress dots** (`.open-progress`): signed-in only; a hollow `--gear`
+    ring until the item is opened, then a filled `--green` check.
+- **Open-state tracking (`0048_fsp_item_opens.sql`, apply manually after 0047):**
+  per-student first-open state for each of the seven FSP items, persisted so
+  progress follows a student across devices (the tour-state intent from 0045).
+  `fsp_item_opens` is keyed `(user_id, item_id)` where `item_id` is the item's
+  curriculum slug (text, not a FK). This is a self-write, not a staff cross-user
+  write, so it uses direct RLS-scoped policies, NO RPC: a student reads and
+  inserts only their own rows (`auth.uid() = user_id`), and there is deliberately
+  NO update/delete grant (first-open is permanent). `src/lib/fsp/item-opens.ts`
+  is the client seam (`loadItemOpens` reads the set; `markItemOpened` is an
+  insert-only upsert with `ignoreDuplicates`, so a repeat open is a silent
+  no-op), fail-soft to empty/ignored before the migration is applied.
+  `+page.server.ts` loads the signed-in student's opened set; `+page.svelte`
+  overlays this session's optimistic first-opens and fires `markItemOpened` on
+  the OPEN click (first-open only) while the link still navigates. The dev
+  harness `/dev/fsp-home` (404 in production, no auth/Supabase) mounts the real
+  `FspHomeSection` with the open-state stubbed as local component state.
 - **`/fsp/class`** still hosts the pawn/dogtag add-in download, install steps,
   project cards, 3-day overview, and the Pulse Check link (the former `/fsp`
   class page). Its header now links back to `/` (Home) since the hub is gone.
