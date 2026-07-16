@@ -2554,6 +2554,27 @@ a:hover {
 	gap: 0.75rem;
 	flex-wrap: wrap;
 }
+.legacy-index .assignment-icon-thumb {
+	width: 34px;
+	height: 34px;
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid color-mix(in srgb, var(--green) 30%, transparent);
+	border-radius: var(--radius-control, 3px);
+	background: color-mix(in srgb, var(--green) 8%, transparent);
+	color: var(--green);
+}
+.legacy-index .assignment-icon-thumb svg {
+	width: 20px;
+	height: 20px;
+}
+.legacy-index .assignment-icon-thumb.icon-pulse {
+	border-color: color-mix(in srgb, var(--crimson) 35%, transparent);
+	background: color-mix(in srgb, var(--crimson) 8%, transparent);
+	color: var(--crimson);
+}
 .legacy-index .assignment-dot {
 	width: 6px;
 	height: 6px;

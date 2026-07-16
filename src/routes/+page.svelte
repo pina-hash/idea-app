@@ -57,6 +57,20 @@
 	const pickerGroups = selfSelectOptions();
 	const courseCount = activeCourseCount();
 
+	// Row icon-glyph kind by assignment slug, for the FSP section list only.
+	type AssignmentIconKind = 'deck' | 'pulse' | 'plugin' | 'book' | 'clipboard';
+	const ASSIGNMENT_ICON_KINDS: Record<string, AssignmentIconKind> = {
+		'fsp-day1': 'deck',
+		'fsp-day2': 'deck',
+		'fsp-ask': 'pulse',
+		'fsp-live': 'pulse',
+		'fsp-addin': 'plugin',
+		'IDEA-Blade_Rulebook_v2_2': 'book',
+		'frc-interest': 'clipboard'
+	};
+	const assignmentIconKind = (slug: string): AssignmentIconKind | undefined =>
+		ASSIGNMENT_ICON_KINDS[slug];
+
 	let loading = $state(false);
 	let errorMessage = $state('');
 	// The first-time orientation tour (auto-launch lives inside HomeTour); the
@@ -285,6 +299,38 @@
 	<meta property="og:type" content="website" />
 </svelte:head>
 
+{#snippet assignmentIcon(kind: AssignmentIconKind)}
+	<div class="assignment-icon-thumb" class:icon-pulse={kind === 'pulse'}>
+		{#if kind === 'deck'}
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="3" y="4" width="18" height="13" rx="1.5" />
+				<path d="M7 9h6M7 12h4" />
+				<path d="M8 20l4-3 4 3" />
+			</svg>
+		{:else if kind === 'pulse'}
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M2 12h4l2-7 4 14 3-10 2 3h5" />
+			</svg>
+		{:else if kind === 'plugin'}
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3z" />
+				<path d="M12 12v9M12 12l8-4.5M12 12l-8-4.5" />
+			</svg>
+		{:else if kind === 'book'}
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<path d="M4 5.5C4 4.67 4.67 4 5.5 4H12v16H5.5A1.5 1.5 0 014 18.5v-13z" />
+				<path d="M20 5.5c0-.83-.67-1.5-1.5-1.5H12v16h6.5a1.5 1.5 0 001.5-1.5v-13z" />
+			</svg>
+		{:else if kind === 'clipboard'}
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="5" y="4" width="14" height="17" rx="1.5" />
+				<rect x="9" y="2.5" width="6" height="3" rx="1" />
+				<path d="M8.5 11l2 2 4-4.5M8.5 16h7" />
+			</svg>
+		{/if}
+	</div>
+{/snippet}
+
 {#snippet sectionCard(s: Section, pinned: boolean, extraRows: Assignment[] = [])}
 	<div class="course-card section-card" class:pinned>
 		<div class="course-header collapsible">
@@ -308,6 +354,9 @@
 				{#each [...(s.assignments ?? []), ...extraRows] as a (a.slug)}
 					<a class="assignment-item linked" href={a.href ?? `/assignments/${a.slug}`}>
 						<div class="assignment-left">
+							{#if assignmentIconKind(a.slug)}
+								{@render assignmentIcon(assignmentIconKind(a.slug)!)}
+							{/if}
 							<div class="assignment-dot dot-live"></div>
 							<div class="assignment-name">{a.title}</div>
 						</div>
