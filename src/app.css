@@ -2693,21 +2693,6 @@ a:hover {
 	border-bottom-width: 1px;
 	border-right-width: 1px;
 }
-/* Discreet course-archive link sitting just under the pinned FSP card. */
-.legacy-index .fsp-archive-link {
-	display: inline-block;
-	margin-top: 0.5rem;
-	padding-left: 0.25rem;
-	font-family: 'Share Tech Mono', monospace;
-	font-size: 0.62rem;
-	letter-spacing: 0.1em;
-	color: var(--dim);
-	text-decoration: none;
-}
-.legacy-index .fsp-archive-link:hover {
-	color: var(--green);
-}
-
 /* Pulsing LIVE indicator (crimson, the reserved LIVE/REC status color; matches
    the crimson pulse icon-thumb on the same rows). Static rows get no pulse. */
 .legacy-index .live-pulse {

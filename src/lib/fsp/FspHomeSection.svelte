@@ -31,7 +31,7 @@
 
 	// Row icon-glyph kind by assignment slug. Live items (Q&A, question feed) are
 	// the `pulse` kind and additionally get the pulsing LIVE indicator.
-	type AssignmentIconKind = 'deck' | 'pulse' | 'plugin' | 'book' | 'clipboard';
+	type AssignmentIconKind = 'deck' | 'pulse' | 'plugin' | 'book' | 'clipboard' | 'archive';
 	const ICON_KINDS: Record<string, AssignmentIconKind> = {
 		'fsp-day1': 'deck',
 		'fsp-day2': 'deck',
@@ -39,7 +39,8 @@
 		'fsp-live': 'pulse',
 		'fsp-addin': 'plugin',
 		'IDEA-Blade_Rulebook_v2_2': 'book',
-		'frc-interest': 'clipboard'
+		'frc-interest': 'clipboard',
+		'course-archive': 'archive'
 	};
 	const iconKind = (slug: string): AssignmentIconKind | undefined => ICON_KINDS[slug];
 
@@ -53,7 +54,8 @@
 		'fsp-live',
 		'fsp-addin',
 		'IDEA-Blade_Rulebook_v2_2',
-		'frc-interest'
+		'frc-interest',
+		'course-archive'
 	];
 	const orderedItems = $derived.by(() => {
 		const rank = (slug: string) => {
@@ -96,6 +98,12 @@
 				<rect x="5" y="4" width="14" height="17" rx="1.5" />
 				<rect x="9" y="2.5" width="6" height="3" rx="1" />
 				<path d="M8.5 11l2 2 4-4.5M8.5 16h7" />
+			</svg>
+		{:else if kind === 'archive'}
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+				<rect x="3" y="4" width="18" height="4" rx="1" />
+				<path d="M5 8v11a1 1 0 001 1h12a1 1 0 001-1V8" />
+				<path d="M10 12h4" />
 			</svg>
 		{/if}
 	</div>

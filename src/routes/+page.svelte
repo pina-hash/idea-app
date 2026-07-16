@@ -67,7 +67,8 @@
 		{ slug: 'frc-interest', title: 'FRC Interest Form', href: '/fsp/frc-interest' } as Assignment,
 		...(isTeacher
 			? [{ slug: 'fsp-live', title: 'Live Question Feed', href: '/fsp/live' } as Assignment]
-			: [])
+			: []),
+		{ slug: 'course-archive', title: 'Course Archive (2025-26)', href: '/archive' } as Assignment
 	]);
 
 	// Per-student first-open state for the FSP items (0048). The server load
@@ -437,7 +438,6 @@
 				openedSet={fspOpenedSet}
 				onOpen={onOpenFspItem}
 			/>
-			<a class="fsp-archive-link" href="/archive">Course archive (2025-26) &rsaquo;</a>
 		</div>
 	{/if}
 

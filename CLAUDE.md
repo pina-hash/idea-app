@@ -2058,17 +2058,20 @@ item.
   homepage's local `sectionCard` snippet (which no longer carries the FSP-only
   icon glyphs — those moved into the component). The component takes the FSP
   `Section`, the full ordered item list (section assignments + the FRC interest
-  form + the teacher-only Live Question Feed), `signedIn`, an `openedSet`, and an
-  `onOpen(slug)` callback; it is rendering-only, the page owns the open-state and
-  the write. Enhancements over the flat list (all styled in `app.css` under
-  `.legacy-index .fsp-home-card`, colors only from existing tokens):
+  form + the teacher-only Live Question Feed + a Course Archive row linking to
+  `/archive`), `signedIn`, an `openedSet`, and an `onOpen(slug)` callback; it is
+  rendering-only, the page owns the open-state and the write. Enhancements over
+  the flat list (all styled in `app.css` under `.legacy-index .fsp-home-card`,
+  colors only from existing tokens):
   - **Single flat list, no section headers.** Items render in one list kept in a
     sensible fixed `ORDER` (presentations, the two live items adjacent, tools,
-    then the form); any slug not in `ORDER` sorts to the end (stable) so nothing
-    is dropped. (An earlier labeled-group-divider version was removed as bulk.)
+    the form, then the archive row last); any slug not in `ORDER` sorts to the
+    end (stable) so nothing is dropped. (An earlier labeled-group-divider version
+    was removed as bulk.)
   - **Inline-SVG icon glyphs** (32-40px tinted/bordered square) per row by kind:
     deck (presentations), pulse (live), plugin (add-in), book (rulebook),
-    clipboard (form). The pulse-kind badge tints `--crimson`; the rest `--green`.
+    clipboard (form), archive (course archive). The pulse-kind badge tints
+    `--crimson`; the rest `--green`.
   - **HUD corner brackets** (four two-sided L marks) in `--acc` (aliased to
     `--gold`, the same brass accent AppLauncher's `.app-card` uses; no new color).
   - **Lit machined-panel surface** (no texture layer). The card's own background
@@ -2085,7 +2088,7 @@ item.
   - **Opened progress dots** (`.open-progress`): signed-in only; a hollow `--gear`
     ring until the item is opened, then a filled `--green` check.
 - **Open-state tracking (`0048_fsp_item_opens.sql`, apply manually after 0047):**
-  per-student first-open state for each of the seven FSP items, persisted so
+  per-student first-open state for each of the FSP items, persisted so
   progress follows a student across devices (the tour-state intent from 0045).
   `fsp_item_opens` is keyed `(user_id, item_id)` where `item_id` is the item's
   curriculum slug (text, not a FK). This is a self-write, not a staff cross-user
