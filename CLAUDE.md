@@ -318,7 +318,9 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   actions relayed as events) and broadcasts ~15Hz compact snapshots; the guest
   sends ~25Hz input heartbeats and renders snapshots. Match ends only when BOTH ships are out of
   lives; the end screen is the adapted game-over labeled CO-OP // UNRANKED with
-  NO leaderboard submit, NO telemetry, NO achievements, NO checkpoint; both
+  NO leaderboard submit, NO telemetry, NO achievements, NO checkpoint (the
+  unranked end + no-telemetry stance was superseded by the v204 ranked co-op
+  boards, see below; achievements/checkpoint stay out); both
   ships START on the clean baseline build (Phase 1 skipped REFIT entirely;
   superseded by the v199 co-op REFIT economy, see below). Partner/host
   disconnect shows a modal and ends the match cleanly. Difficulty was the
@@ -603,6 +605,51 @@ canonical source** for the game (see "VANGUARD is unfrozen" above); its assets
   non-boss refit path ever lands), and departs in `refitGuestLaunch`
   mirroring `launchFromRefit`. Solo/hardcore byte-identical: every addition
   is inside guest-only code paths or 0-when-idle snapshot fields.
+- **Co-op ranked boards + match telemetry (game v204, supersedes the Phase 1
+  unranked/no-telemetry stance):** a QUALIFYING co-op match (the solo vetted
+  threshold mirrored in `runQualifies`: sector 2+ OR 20+ kills) now submits
+  exactly ONE team row to two NEW boards fully separate from the solo boards.
+  **Mode-derivation invariant (the one thing that must never regress):** every
+  ranked/telemetry mode value is derived by `coopModeString()` from `coopMode`
+  ALONE ('coopnormal'/'coophardcore'), NEVER read from `gameMode` - hardcore
+  co-op deliberately runs the literal `gameMode==='hardcore'` (single life /
+  fire ramp), and submitting that raw would land team runs on the solo
+  hardcore board. Flow: `showEnd` (the one place both clients pass; the guest
+  enters via the 'end' broadcast) captures `endInfo` once (eligibility, the
+  derived mode, score/sector/acc/time/kills/bosses, and both pilots'
+  weapon/heavy from the index-aligned `players` array - already mirrored by
+  `shipSnap`, no new sync fields) and, when eligible, shows the SOLO
+  initials-entry flow (`curInitials`) on both clients. The guest broadcasts
+  its initials over a new `name2` broadcast (provisional at end-screen open so
+  an idle guest still ranks, final on its SUBMIT); the HOST alone submits
+  (`submitEnd` -> `doCoopSubmit` -> `submitCoopToServer`): the existing
+  action=submit params plus `mode`, `name2`, `p1w/p1h/p2w/p2h`, with a 6s
+  wait-for-initials timeout falling back to 'P2'. Sub-threshold matches keep
+  the old unranked end screen and submit nothing. The grace-expiry disconnect
+  end (v202) routes an ELIGIBLE run through the same finishMatch/submission
+  path with last-known state (sim frozen since graceStart, so it is exact);
+  ineligible ones keep the old modal. Boards ride the existing pipeline
+  (`boardMode` 'coopnormal'/'coophardcore', action=top&mode=..., two new
+  board tabs on title + post-run): team rows render "NAME1 & NAME2", the
+  click-detail adds P1/P2 and both loadouts (`wtype1/heavy1/wtype2/heavy2`),
+  and `localBoard()` returns empty for co-op modes so the offline fallback
+  never leaks solo local scores onto a co-op board. Post-submit the host sees
+  an immediate local echo row; delayed refetches merge the backend rows in.
+  A short `matchId` (room code + start timestamp, alphanumeric) is minted by
+  the host at the lobby->match transition and rides the start/rsync payloads.
+  BOTH clients send per-client co-op telemetry once per match end
+  (`sendCoopTelemetry` via the shared `telemetryFieldList` builder that the
+  solo beacon also uses, so the field lists can never drift): solo fields +
+  matchId/role/mode/downedCount/revivedCount/disconnected/proximityPct/
+  avgDistance. Per-ship downed/revived tallies hook the existing downed-state
+  edges (host: playerHit set-point + revivePlayer; guest: the mirrored
+  applyShip edges); proximity samples every 0.5s of play on each client;
+  `disconnected` means the match went through the v202 paused-for-reconnect
+  flow (graceStart host-side / rejoinMatch guest-side). KNOWN per-client
+  caveat, documented at `telemetryFieldList`: most solo counters in that list
+  are global sim tallies (host reports both ships combined, guest ~0); only
+  runTime and the runDwell clocks are genuinely per-client. A per-ship
+  counter split is a proposed follow-up, deliberately not done yet.
 - **Cross-device run save/resume (`0032`, reworked to one-run-per-mode in
   `0037`):** distinct from the between-run progression sync above, a signed-in
   player can quit an in-progress run on one device and resume it on another. The

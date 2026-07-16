@@ -150,10 +150,12 @@ body.touchdev #btnPause{top:16px;left:50%;transform:translateX(-50%);width:48px;
 .board .scwrap{display:flex;flex-direction:column;align-items:flex-end;line-height:1.05}
 .board .bst{font-family:'Share Tech Mono',monospace;font-size:8px;color:var(--dim);letter-spacing:.06em;margin-top:1px}
 .board .bcont{font-family:'Share Tech Mono',monospace;font-size:7px;color:var(--cyan);letter-spacing:.1em;text-transform:uppercase;border:1px solid rgba(0,240,255,.4);border-radius:2px;padding:0 3px;margin-top:1px}
-.btabs{display:flex;gap:6px;justify-content:center;margin-bottom:2px}
+.btabs{display:flex;gap:6px;justify-content:center;margin-bottom:2px;flex-wrap:wrap}
 .btab{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:.14em;background:none;border:1px solid var(--dim);color:var(--dim);padding:3px 10px;border-radius:4px;cursor:pointer;pointer-events:auto}
 .btab.sel{border-color:var(--green);color:var(--green);text-shadow:0 0 8px rgba(0,255,65,.5)}
 .btab[data-bm=hardcore].sel{border-color:var(--mset);color:var(--mset);text-shadow:0 0 8px rgba(255,46,46,.6)}
+.btab[data-bm=coopnormal].sel{border-color:var(--cyan);color:var(--cyan);text-shadow:0 0 8px rgba(0,240,255,.5)}
+.btab[data-bm=coophardcore].sel{border-color:#FFB020;color:#FFB020;text-shadow:0 0 8px rgba(255,176,32,.5)}
 h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;letter-spacing:.1em;color:var(--green);text-shadow:0 0 14px rgba(0,255,65,.6)}
 .go-stat{font-size:12px;color:var(--white);letter-spacing:.06em}
 .go-stat b{font-family:'Chakra Petch',sans-serif;color:var(--gold)}
@@ -536,7 +538,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <div class="cab-panels">
       <div class="cab-panel">
         <div class="cab-ptitle">LEADERBOARD</div>
-        <div class="btabs" id="titleBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button></div>
+        <div class="btabs" id="titleBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button><button class="btab" data-bm="coopnormal">CO-OP</button><button class="btab" data-bm="coophardcore">CO-OP HC</button></div>
         <div class="board" id="titleBoard"></div>
       </div>
       <div class="cab-panel">
@@ -666,7 +668,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
   <!-- BOARD -->
   <div class="ovl hidden" id="ovlBoard">
     <h2 class="ovh">LEADERBOARD</h2>
-    <div class="btabs" id="bigBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button></div>
+    <div class="btabs" id="bigBoardTabs"><button class="btab sel" data-bm="normal">NORMAL</button><button class="btab" data-bm="hardcore">HARDCORE</button><button class="btab" data-bm="coopnormal">CO-OP</button><button class="btab" data-bm="coophardcore">CO-OP HC</button></div>
     <div class="board" id="bigBoard"></div>
     <button class="obtn" id="againBtn">PLAY AGAIN</button>
     <button class="mini" id="menuBtn">MAIN MENU</button>
@@ -675,7 +677,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
   <!-- CO-OP LOBBY (Phase 1 beta): create/join a room by 4-char code over Supabase Realtime broadcast -->
   <div class="ovl hidden" id="ovlCoop">
     <h2 class="ovh">CO-OP <span style="color:var(--cyan)">// 2 PLAYERS</span></h2>
-    <div class="tag" style="max-width:320px;letter-spacing:.08em;line-height:1.6">SHARED-FIELD CO-OP (BETA). ONE PLAYER CREATES A ROOM, THE OTHER JOINS WITH THE CODE. UNRANKED WHILE THIS IS TUNED.</div>
+    <div class="tag" style="max-width:320px;letter-spacing:.08em;line-height:1.6">SHARED-FIELD CO-OP (BETA). ONE PLAYER CREATES A ROOM, THE OTHER JOINS WITH THE CODE. QUALIFYING MATCHES RANK ON THE CO-OP BOARDS.</div>
     <div id="coopSetup" style="display:flex;flex-direction:column;align-items:center;gap:12px">
       <button class="obtn" id="coopCreateBtn">CREATE ROOM</button>
       <div class="tag">OR JOIN A FRIEND'S ROOM</div>
@@ -795,7 +797,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='203';
+const VERSION='204';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2059,6 +2061,7 @@ function updateReviveChannel(dt){
 }
 function revivePlayer(pl){
   pl.downed=false; pl.dead=false; pl.reviveT=0; pl.respawn=0;
+  pl.revivedCount=(pl.revivedCount||0)+1;   // v204 telemetry: per-ship revive tally at the authoritative edge (the guest mirrors the snapshot's downed->flying edge in applyShip)
   pl.armor=Math.max(1,Math.round(pl.maxArmor*COOP_REVIVE_HULL_PCT));
   pl.inv=1.6;   // the respawn grace window (resetPlayer's), so it is not instantly re-killed
   pl.beamOn=false; pl.beamLock=false; pl.beamActive=false; pl.beamE=pl.beamMax; pl.beamWind=0; pl.beamDrained=false;
@@ -2234,7 +2237,7 @@ function playerHit(pl){
       // rule. In every mode the run ends only when nobody is left who could
       // fight on (co-op: both ships downed/out at once; solo: the one ship).
       if(coopMatch && gameMode!=='hardcore' && alivePlayersLeft()>0){
-        pl.downed=true; pl.reviveT=0;
+        pl.downed=true; pl.reviveT=0; pl.downedCount=(pl.downedCount||0)+1;   // v204 telemetry: per-ship downed tally at the authoritative set-point (the guest mirrors the same edge in applyShip)
         pops.push({x:pl.x,y:pl.y-30,txt:'P'+(pl.pi+1)+' DOWN - GET CLOSE TO REVIVE',c:COL.mset,life:1.8,max:1.8});
       }
       else if(alivePlayersLeft()<=0){ deathSlow=1.1; Audio_.death(); COOP.evSfx('death'); startGameOver(); }
@@ -5026,7 +5029,7 @@ function startGameOver(){
 }
 function endRun(){
   if(gameMode==='calib'){ if(window.CALIB)window.CALIB.finish(); return; }
-  if(coopMatch){ COOP.finishMatch(); return; }   // any co-op run (normal OR hardcore): unranked ARCADE end screen on both clients; nothing submitted, no achievements. Must be coopMatch, not gameMode==='coop', or hardcore co-op would fall through to the ranked hardcore end + leaderboard submit
+  if(coopMatch){ COOP.finishMatch(); return; }   // any co-op run (normal OR hardcore): the CO-OP end screen on both clients. Since v204 a QUALIFYING match submits ONE team row to the co-op boards (host-authoritative, mode derived from coopMode, never gameMode); no achievements. Must be coopMatch, not gameMode==='coop', or hardcore co-op would fall through to the SOLO hardcore end + leaderboard submit
   const _dc = killerInfo ? (killerInfo.fk ? (/BOSS/.test(killerInfo.label||'') ? killerInfo.fk+'_boss' : killerInfo.fk+(killerInfo.variant!=null?String(killerInfo.variant):'')) : 'hazard') : 'none';
   sendTelemetry(_dc);
   try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){}
@@ -5141,10 +5144,20 @@ window.__ideaRestoreRun=function(snap){
 /* telemetry beacon - anonymous per-run gameplay metrics, no name or identifier.
    Fires once per run on any termination: death, quit, restart, or page abandon. */
 function inActiveRun(){ return state==='play'||state==='pause'||state==='refit'; }
-function sendTelemetry(dc){
-  if(!API_URL || gameMode==='dev' || gameMode==='tune' || gameMode==='calib' || coopMatch || !inActiveRun() || window.__telemSent) return;   // co-op (normal + hardcore) sends no telemetry
-  window.__telemSent=true;
-  try{
+/* Shared per-run telemetry field list, one builder so the solo beacon and the
+   co-op variant (sendCoopTelemetry) can never drift apart. Reads this client's
+   OWN local counters. `modeStr` is the reported mode: solo passes gameMode;
+   co-op passes 'coopnormal'/'coophardcore' derived from coopMode, NEVER raw
+   gameMode (hardcore co-op deliberately runs gameMode==='hardcore').
+   PER-CLIENT CAVEAT (v204): in co-op most of these counters are global sim
+   tallies - on the HOST they combine both ships (shotsFired/shotsHit/parries/
+   hits/bombs/overheats/... increment wherever the sim runs them, regardless of
+   which ship acted) and on the GUEST they stay ~0 (the guest runs no combat
+   sim). Only runTime and the runDwell weapon-dwell clocks are genuinely
+   per-client (both accrue at the top of update(), which each client runs for
+   its OWN `player` before the guest bails to guestFrame). A per-ship split is
+   a proposed follow-up, not done here. */
+function telemetryFieldList(dc,modeStr){
     const tacc=shotsFired>0?clamp(Math.round(100*shotsHit/shotsFired),0,100):0;
     let _ps='D'; { const _ms=window.maxStyle||0; for(const k of STYLE_RANKS){ if(_ms>=k.min)_ps=k.g; } }
     const _bsp=(startBuild&&startBuild.spent)||0, _bct=buildCount();
@@ -5162,10 +5175,37 @@ function sendTelemetry(dc){
     const hvu=['beam','rail','tesla','singularity','wave'].reduce((n,h)=>n+(hvl[h]?1:0),0);
     const _ks=[].concat(Object.keys((player&&player.ks)||{}).filter(w=>(player.ks[w])).map(w=>w+':'+player.ks[w]), Object.keys((player&&player.hks)||{}).filter(w=>(player.hks[w])).map(w=>w+':'+player.hks[w])).join(',');
     const _mod=((player&&player.modules)||[]).filter(m=>m).join(',');
-    const tq=['action=telemetry','v='+encodeURIComponent(VERSION),'m='+encodeURIComponent(gameMode),'sec='+(sector||0),'rt='+Math.round(runTime||0),'k='+(runKills||0),'bk='+(runBosses||0),'sc='+Math.round(window.scoreT||0),'acc='+tacc,'pw='+encodeURIComponent((player&&player.wtype)||''),'hw='+encodeURIComponent((player&&player.heavy)||''),'gp='+((player&&player.up&&player.up.gun)||1),'dc='+encodeURIComponent(dc||'none'),'ce='+(runCoinsEarned||0),'cs='+(runCoinsSpent||0),'pa='+(runParryAtt||0),'pry='+(runParries||0),'ppr='+(runPerfect||0),'ht='+(runHits||0),'bmb='+(runBombs||0),'oh='+(runOverheats||0),'lu='+(runLivesUsed||0),'ps='+encodeURIComponent(_ps),'bsp='+_bsp,'bct='+_bct,'dws='+Math.round(runDwell.spread||0),'dwl='+Math.round(runDwell.lance||0),'dwh='+Math.round(runDwell.homing||0),'dwr='+Math.round(runDwell.rapid||0),'dwf='+Math.round(runDwell.flak||0),'dwb='+Math.round(runDwell.buzzsaw||0),'sf='+(shotsFired||0),'sh='+(shotsHit||0),'bld='+encodeURIComponent(bld),'wpu='+wpu,'hvu='+hvu,'did='+encodeURIComponent(typeof DEVICE_ID!=='undefined'?DEVICE_ID:''),'btk='+encodeURIComponent(runBossTTK.join(',')),'hwd='+encodeURIComponent([Math.round(runHeavyUse.beam),Math.round(runHeavyUse.tesla),runHeavyUse.rail,runHeavyUse.singularity,runHeavyUse.wave].join(',')),'ks='+encodeURIComponent(_ks),'mod='+encodeURIComponent(_mod),'cb='+Date.now()].join('&');
-    const url=API_URL+'?'+tq;
+    const tq=['action=telemetry','v='+encodeURIComponent(VERSION),'m='+encodeURIComponent(modeStr),'sec='+(sector||0),'rt='+Math.round(runTime||0),'k='+(runKills||0),'bk='+(runBosses||0),'sc='+Math.round(window.scoreT||0),'acc='+tacc,'pw='+encodeURIComponent((player&&player.wtype)||''),'hw='+encodeURIComponent((player&&player.heavy)||''),'gp='+((player&&player.up&&player.up.gun)||1),'dc='+encodeURIComponent(dc||'none'),'ce='+(runCoinsEarned||0),'cs='+(runCoinsSpent||0),'pa='+(runParryAtt||0),'pry='+(runParries||0),'ppr='+(runPerfect||0),'ht='+(runHits||0),'bmb='+(runBombs||0),'oh='+(runOverheats||0),'lu='+(runLivesUsed||0),'ps='+encodeURIComponent(_ps),'bsp='+_bsp,'bct='+_bct,'dws='+Math.round(runDwell.spread||0),'dwl='+Math.round(runDwell.lance||0),'dwh='+Math.round(runDwell.homing||0),'dwr='+Math.round(runDwell.rapid||0),'dwf='+Math.round(runDwell.flak||0),'dwb='+Math.round(runDwell.buzzsaw||0),'sf='+(shotsFired||0),'sh='+(shotsHit||0),'bld='+encodeURIComponent(bld),'wpu='+wpu,'hvu='+hvu,'did='+encodeURIComponent(typeof DEVICE_ID!=='undefined'?DEVICE_ID:''),'btk='+encodeURIComponent(runBossTTK.join(',')),'hwd='+encodeURIComponent([Math.round(runHeavyUse.beam),Math.round(runHeavyUse.tesla),runHeavyUse.rail,runHeavyUse.singularity,runHeavyUse.wave].join(',')),'ks='+encodeURIComponent(_ks),'mod='+encodeURIComponent(_mod),'cb='+Date.now()];
+    return tq;
+}
+function sendTelemetry(dc){
+  if(!API_URL || gameMode==='dev' || gameMode==='tune' || gameMode==='calib' || coopMatch || !inActiveRun() || window.__telemSent) return;   // solo beacon only: co-op matches report through sendCoopTelemetry from the co-op end paths
+  window.__telemSent=true;
+  try{
+    const url=API_URL+'?'+telemetryFieldList(dc,gameMode).join('&');
     // abandon may fire as the page unloads, where an Image request can be dropped: prefer sendBeacon there
     if(dc==='abandon' && navigator.sendBeacon){ navigator.sendBeacon(url); } else { new Image().src=url; }
+  }catch(e){}
+}
+/* co-op per-client telemetry (v204): fired once per match from BOTH clients by
+   the COOP end paths (finish/showEnd, partner lost, deliberate mid-match quit).
+   The leaderboard row stays host-only; this is the anonymous metrics beacon.
+   `extra` carries the co-op fields: matchId, role, mode (derived, see
+   telemetryFieldList), downed/revived counts, the disconnect-pause flag, and
+   the proximity aggregates. */
+function sendCoopTelemetry(dc,extra){
+  if(!API_URL) return;
+  try{
+    const q=telemetryFieldList(dc,extra.mode).concat([
+      'matchId='+encodeURIComponent(extra.matchId||''),
+      'role='+encodeURIComponent(extra.role||''),
+      'downedCount='+(extra.downedCount||0),
+      'revivedCount='+(extra.revivedCount||0),
+      'disconnected='+(extra.disconnected?1:0),
+      'proximityPct='+(extra.proximityPct||0),
+      'avgDistance='+(extra.avgDistance||0)
+    ]).join('&');
+    new Image().src=API_URL+'?'+q;
   }catch(e){}
 }
 /* page-abandonment telemetry: never changes game state, only reports */
@@ -5220,12 +5260,20 @@ function refreshBoard(target){
           else if(!onlineBoard){ onlineBoard=localBoard(); renderBoard(target); } }
   );
 }
-function localBoard(){ try{return JSON.parse(localStorage.getItem('vanguard_scores')||'[]');}catch(e){return [];} }
+function localBoard(){ if(boardMode==='coopnormal'||boardMode==='coophardcore') return [];   // co-op boards are online-only (a co-op match needed the network anyway); never fall back to the solo local list
+  try{return JSON.parse(localStorage.getItem('vanguard_scores')||'[]');}catch(e){return [];} }
 function saveLocal(name,score){ const b=localBoard(); b.push({name,score}); b.sort((a,c)=>c.score-a.score);
   const top=b.slice(0,10); try{localStorage.setItem('vanguard_scores',JSON.stringify(top));}catch(e){} return top; }
 function boardRows(){ return (API_URL && onlineBoard)? onlineBoard : localBoard(); }
 function submitToServer(score,sec,acc){ if(!API_URL)return; try{ const img=new Image();
   img.src=API_URL+'?action=submit&name='+encodeURIComponent(curInitials)+'&score='+score+'&sector='+sec+'&acc='+acc+'&t='+Math.round(runTime)+'&mode='+gameMode+'&ver='+encodeURIComponent(VERSION)+'&cont='+(runContinued||0)+'&k='+(runKills||0)+'&bk='+(runBosses||0)+'&cb='+Date.now(); }catch(e){} }   // cont=<count> resumes; k/bk are the run's kills/bosses (same values telemetry sends), now recorded on the board too
+/* co-op team submit (v204; host only, exactly one row per match). `e` is the
+   endInfo captured at the end screen. e.mode is 'coopnormal'/'coophardcore'
+   derived from coopMode ALONE - never gameMode, which hardcore co-op
+   deliberately keeps at the literal 'hardcore'; submitting that raw would land
+   team runs on the solo hardcore board. */
+function submitCoopToServer(name,name2,e){ if(!API_URL)return; try{ const img=new Image();
+  img.src=API_URL+'?action=submit&name='+encodeURIComponent(name)+'&score='+(e.sc||0)+'&sector='+(e.sec||1)+'&acc='+(e.acc||0)+'&t='+(e.tm||0)+'&mode='+encodeURIComponent(e.mode)+'&ver='+encodeURIComponent(VERSION)+'&cont=0&k='+(e.kl||0)+'&bk='+(e.bk||0)+'&name2='+encodeURIComponent(name2)+'&p1w='+encodeURIComponent(e.p1w||'')+'&p1h='+encodeURIComponent(e.p1h||'')+'&p2w='+encodeURIComponent(e.p2w||'')+'&p2h='+encodeURIComponent(e.p2h||'')+'&cb='+Date.now(); }catch(err){} }
 function escHTML(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 /* CONTINUED badge reflecting the numeric continue-count: "CONTINUED x2" for a run
    resumed twice, nothing for cont 0 / missing (pre-update rows degrade to no badge). */
@@ -5233,19 +5281,26 @@ function contBadge(r){ const c=r?Number(r.cont)||0:0; return c>0 ? '<span class=
 let _boardShown={};   // target -> [{run,rank}] backing each rendered row for click-to-detail
 function _boardRowHTML(r,rank,me,idx){
   const st=(r.sector!=null)?('<span class="bst">S'+r.sector+(r.acc!=null?' · '+r.acc+'%':'')+(r.ver?' · v'+r.ver:'')+'</span>'):'';
-  const tt=me?_achTitleChip():'';   // local earned title on the player's own row only (broadcast is a deferred follow-up)
-  return '<div class="row'+(me?' me':'')+'" data-i="'+idx+'"><span class="rk">'+rank+'</span><span class="nm">'+escHTML(r.name)+tt+'</span><span class="scwrap"><span class="sc">'+(Number(r.score)||0).toLocaleString()+'</span>'+contBadge(r)+st+'</span></div>';
+  const tt=(me&&!r.name2)?_achTitleChip():'';   // local earned title on the player's own row only (broadcast is a deferred follow-up); a co-op team row is not one player's title
+  const nm=r.name2?(escHTML(r.name)+' <span style="color:var(--cyan)">&amp;</span> '+escHTML(r.name2)):escHTML(r.name);   // co-op rows carry both pilots
+  return '<div class="row'+(me?' me':'')+'" data-i="'+idx+'"><span class="rk">'+rank+'</span><span class="nm">'+nm+tt+'</span><span class="scwrap"><span class="sc">'+(Number(r.score)||0).toLocaleString()+'</span>'+contBadge(r)+st+'</span></div>';
 }
 /* inline run detail from the fields the row already carries (styled like run-history .hs-det) */
 function _boardDetail(r,rank){ const p=[]; const add=(l,v)=>p.push('<span>'+l+' <b>'+v+'</b></span>');
-  add('RANK','#'+rank); add('NAME',escHTML(r.name)); add('SCORE',(Number(r.score)||0).toLocaleString());
-  add('MODE',escHTML(String(r.mode||boardMode).toUpperCase()));
+  add('RANK','#'+rank);
+  if(r.name2){ add('P1',escHTML(r.name)); add('P2',escHTML(r.name2)); } else add('NAME',escHTML(r.name));
+  add('SCORE',(Number(r.score)||0).toLocaleString());
+  { const _md=String(r.mode||boardMode);   // co-op mode values render as readable labels, never the raw param string
+    add('MODE',escHTML(_md==='coopnormal'?'CO-OP NORMAL':_md==='coophardcore'?'CO-OP HARDCORE':_md.toUpperCase())); }
   if(r.sector!=null) add('SECTOR',escHTML(r.sector));
   if(r.acc!=null) add('ACCURACY',escHTML(r.acc)+'%');
   const tv=(r.t!=null?r.t:(r.time_s!=null?r.time_s:r.time)); if(tv!=null&&isFinite(+tv)) add('TIME',_hTime(+tv));
   const kills=(r.kills!=null?r.kills:r.k), bosses=(r.bosses!=null?r.bosses:(r.bk!=null?r.bk:r.boss));   // backend field names, tolerant of the submit-side k/bk too; pre-update rows carry neither
   if(Number(kills)>0) add('KILLS',(Number(kills)||0).toLocaleString());
   if(Number(bosses)>0) add('BOSSES',(Number(bosses)||0));
+  // co-op team rows: each pilot's primary weapon / heavy from the submit's p1w/p1h/p2w/p2h
+  if(r.wtype1||r.heavy1) add('P1 LOADOUT',escHTML(String(r.wtype1||'-').toUpperCase())+' / '+escHTML(String(r.heavy1||'-').toUpperCase()));
+  if(r.wtype2||r.heavy2) add('P2 LOADOUT',escHTML(String(r.wtype2||'-').toUpperCase())+' / '+escHTML(String(r.heavy2||'-').toUpperCase()));
   if(r.ver!=null) add('VERSION','v'+escHTML(r.ver));
   const cc=Number(r.cont)||0; if(cc>0) add('CONTINUED','x'+cc);
   return p.join(''); }
@@ -5495,7 +5550,7 @@ el('againBtn').addEventListener('click',()=>{ startGame(); });
 function mergeScore(name,score){ const b=(onlineBoard?onlineBoard.slice():[]);
   if(!b.some(r=>r.name===name&&r.score===score)) b.push({name,score});
   b.sort((a,c)=>c.score-a.score); onlineBoard=b.slice(0,BOARD_N); }
-function submitScore(){ if(coopMatch){ toTitle(); return; } if(gameMode==='dev'||gameMode==='tune'){ toTitle(); return; } const sc=pendingScore?pendingScore.score:window.scoreT; const nm=trimName(curInitials); curInitials=nm;
+function submitScore(){ if(coopMatch){ COOP.submitEnd(); return; } if(gameMode==='dev'||gameMode==='tune'){ toTitle(); return; } const sc=pendingScore?pendingScore.score:window.scoreT; const nm=trimName(curInitials); curInitials=nm;
   boardMode=(gameMode==='hardcore')?'hardcore':'normal'; onlineBoard=null; boardRetries=0;   // post-run board reflects the run's mode (continued folded in)
   document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===boardMode));
   saveLocal(nm, sc); try{localStorage.setItem('vanguard_lastInitials',nm);}catch(e){}
@@ -5819,6 +5874,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'204',date:'2026',items:['CO-OP is now RANKED: finish a qualifying match (sector 2+ or 20+ kills) and your team submits one score with both pilots\' initials to the new CO-OP and CO-OP HC leaderboards - find them in the board tabs on the title screen, and click any row for each pilot\'s loadout.']},
  {ver:'203',date:'2026',items:['CO-OP: sustained weapon sounds, boss beam audio, visible pods, death slow-mo, and the SYSTEM HALT sequence now all sync correctly for the guest.']},
  {ver:'202',date:'2026',items:['CO-OP now gives a dropped guest a window to reconnect instead of ending the match immediately.']},
  {ver:'201',date:'2026',items:['CO-OP now offers HARDCORE as well as NORMAL - choose it in the lobby before creating or joining a room.']},
@@ -6271,10 +6327,15 @@ try{ if(/[?&]vgheadless=1\b/.test(location.search)){
    plays instant local fire/parry FEEDBACK cues on press (audio + cosmetic
    flash only, Phase 2.5); combat, damage, and scoring are never predicted.
    No sign-in required (broadcast
-   only, nothing persisted). Unranked: no leaderboard submit, no telemetry, no
-   achievements, no checkpoint. v202: a GUEST that drops mid-match gets a
+   only, nothing persisted). v202: a GUEST that drops mid-match gets a
    reconnect grace window with a full-state resync (see graceStart below);
-   a HOST drop still ends the match immediately. */
+   a HOST drop still ends the match immediately. v204: co-op is RANKED - a
+   qualifying match (the solo threshold: sector 2+ or 20+ kills) submits ONE
+   team row to the separate coopnormal/coophardcore boards (host-authoritative
+   submit, guest initials over a 'name2' broadcast, mode derived from
+   coopMode NEVER gameMode), and BOTH clients send per-client co-op telemetry
+   (matchId/role/downed/revived/disconnect/proximity). Still no achievements
+   and no checkpoint. */
 const COOP=(function(){
   const ALPHA='ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no O/0/I/1/L (matches the netcheck tool)
   const SNAP_MS=66, INPUT_MS=40, INPUT_STALE_MS=3000;
@@ -6289,6 +6350,21 @@ const COOP=(function(){
   let lastCode='';         // last room code this page used, prefilled in the lobby so a same-tab rejoin is one click
   let prevMode='normal';
   let coopMode='normal';   // host-chosen match mode ('normal'|'hardcore'); synced to the guest via presence + the start payload. Drives the gameMode set in beginMatch.
+  /* ---- ranked co-op + telemetry state (v204) ---- */
+  let matchId='';          // short match id minted by the host at start (room code + start timestamp, alphanumeric), broadcast on the start/rsync payloads; both clients hold it for the match and stamp it on their telemetry
+  let coopDisc=false;      // this match went through the disconnect/reconnect pause flow (graceStart on the host, rejoinMatch on the guest); rides telemetry as disconnected=1
+  let coopTelemSent=false; // once-per-match guard for sendCoopTelemetry (whichever end path fires first)
+  let endInfo=null;        // stats captured ONCE at the end screen: {elig,mode,disc,sc,sec,acc,tm,kl,bk,p1w,p1h,p2w,p2h}; mode here is the ONLY source for the ranked submit
+  let guestInitials='';    // host: latest initials the guest broadcast ('name2' event; provisional at end-screen open, final on its SUBMIT)
+  let subWait=null;        // host: pending wait-for-guest-initials timer (short timeout, then 'P2')
+  let subDone=false;       // host: exactly-one-row guard
+  let proxN=0, proxNear=0, proxSum=0, proxT=0;   // throttled two-ship proximity samples (count, within-revive-radius count, distance sum, sample clock)
+  /* The one derivation rule for everything ranked co-op reports: from coopMode
+     ALONE. NEVER read gameMode here - hardcore co-op deliberately reuses the
+     literal 'hardcore' gameMode (single life / fire ramp), and submitting that
+     raw would land team runs on the SOLO hardcore board. */
+  function coopModeString(){ return (coopMode==='hardcore')?'coophardcore':'coopnormal'; }
+  function runQualifies(sec,kl){ return (sec||0)>=2 || (kl||0)>=20; }   // the solo vetted qualifying-run threshold (see endRun's achievements block), mirrored for ranked co-op
   let myJoinAt=0;          // stable presence join timestamp (kept constant across re-tracks so guest ordering never shifts when the host re-broadcasts its mode choice)
   let remoteCtrl={mx:0,my:0,fire:false,beam:false};
   let actQueue=[];
@@ -6425,7 +6501,14 @@ const COOP=(function(){
       // cloud-save injection's prefs sweep never syncs an ephemeral room code
       if(!asHost){ try{ localStorage.setItem('vgcoop_last',JSON.stringify({code:code,at:Date.now()})); }catch(e){} }
       const ch=c.channel('vgcoop:'+code,{config:{broadcast:{self:false,ack:false},presence:{key:myId}}});
-      ch.on('broadcast',{event:'start'},({payload:p})=>{ if(role==='guest'&&phase==='lobby'){ coopMode=(p&&p.mode==='hardcore')?'hardcore':'normal'; beginMatch(); } });
+      ch.on('broadcast',{event:'start'},({payload:p})=>{ if(role==='guest'&&phase==='lobby'){ coopMode=(p&&p.mode==='hardcore')?'hardcore':'normal'; matchId=(p&&p.mid)?String(p.mid):''; beginMatch(); } });
+      // ranked co-op (v204): the guest broadcasts its board initials from the end
+      // screen (provisional on open, final on its SUBMIT); latest value wins. If
+      // the host was already inside its wait-for-initials window, finish now.
+      ch.on('broadcast',{event:'name2'},({payload:p})=>{ if(role!=='host'||!p) return;
+        const s=String(p.n||'').trim();
+        if(s) guestInitials=Array.from(s).slice(0,NAMELEN).join('');
+        if(subWait){ clearTimeout(subWait); subWait=null; doCoopSubmit(); } });
       // full-state resync (v202): the host sends this when a dropped guest rejoins
       // mid-match; only a lobby-phase guest applies it (repeats are no-ops)
       ch.on('broadcast',{event:'rsync'},({payload:p})=>{ if(role==='guest'&&phase==='lobby'&&p) rejoinMatch(p); });
@@ -6460,6 +6543,7 @@ const COOP=(function(){
     }).catch(err=>{ setStatus('CO-OP UNAVAILABLE: '+(err&&err.message||'network error')); });
   }
   function leave(){
+    if(phase==='match') coopEndTelemetry('quit');   // v204: a deliberate mid-match quit still reports once (the solo 'quit' convention); end-screen exits already reported at showEnd (phase 'ended' by then)
     // a DELIBERATE quit mid-match tells the partner to end immediately (v202):
     // without this, presence loss alone would start the reconnect grace wait
     if(channel&&phase==='match'){ try{ channel.send({type:'broadcast',event:'bye',payload:{}}); }catch(e){} }
@@ -6468,6 +6552,7 @@ const COOP=(function(){
     if(coopMatch) gameMode=prevMode||'normal';   // restore the pre-coop solo mode after ANY co-op match (gameMode is 'coop' OR 'hardcore'); runs before coopMatch is cleared just below
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
     phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); guestPods.clear(); guestAlivePrev=2; evBuf.length=0; bossFinRep=false; refitSessClear();
+    matchId=''; endInfo=null; guestInitials=''; subDone=false; if(subWait){ clearTimeout(subWait); subWait=null; }   // v204: ranked/telemetry session state ends with the room
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
   /* ---- lobby UI ---- */
@@ -6487,6 +6572,12 @@ const COOP=(function(){
     prevMode=(gameMode==='coop')?prevMode:gameMode;
     coopMatch=true; localIndex=(role==='host')?0:1;
     players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); guestPods.clear(); guestAlivePrev=2; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; actQueue.length=0; evBuf.length=0; evSent=0; evApplied=0; bossFinRep=false;
+    // v204 ranked/telemetry state: fresh per match. matchId is NOT reset here -
+    // every start path (host start button, guest 'start' handler, rejoinMatch)
+    // stamps it just before calling beginMatch; it clears in leave().
+    coopDisc=false; coopTelemSent=false; endInfo=null; guestInitials=''; subDone=false;
+    if(subWait){ clearTimeout(subWait); subWait=null; }
+    proxN=0; proxNear=0; proxSum=0; proxT=0;
     remoteCtrl={mx:0,my:0,fire:false,beam:false}; lastInputAt=performance.now();
     gameMode=(coopMode==='hardcore')?'hardcore':'coop';   // HARDCORE co-op reuses the solo 'hardcore' value so every gameMode==='hardcore' check (single life, fire ramp, no revive) applies unchanged; coopMatch (set above) stays the true "any co-op" flag
     startGame();                                   // builds players[localIndex] (baseline loadout; single life when gameMode==='hardcore')
@@ -6723,7 +6814,8 @@ const COOP=(function(){
     pl.meltdownUnlocked=!!sp.mu; pl.meltdownCharge=sp.mc; pl.meltdownActive=sp.mA; pl.meltdownCd=sp.mD;
     if(sp.bf)pl.buffs=sp.bf; pl.drone=sp.dr?(pl.drone||{ph:0}):null; pl.dmgFlash=sp.df; pl.kick=sp.kk; pl.repair=sp.rp;
     if(!wasDead&&pl.dead){ explode(pl.x,pl.y,COL.green,true); Audio_.big(); }
-    if(wasDowned&&!pl.downed&&!pl.dead) reviveCue(pl);   // downed -> flying edge: replay the host's revive cue (cosmetic only; the state above is already stamped)
+    if(!wasDowned&&pl.downed) pl.downedCount=(pl.downedCount||0)+1;   // v204 telemetry: mirrored downed edge (the host tallies at its playerHit set-point)
+    if(wasDowned&&!pl.downed&&!pl.dead){ pl.revivedCount=(pl.revivedCount||0)+1; reviveCue(pl); }   // downed -> flying edge: per-ship revive tally (v204) + replay the host's revive cue (cosmetic; the state above is already stamped)
   }
   function buildSnap(){
     // one-shot cue events (v197): consume the buffer, so each event rides
@@ -7069,12 +7161,14 @@ const COOP=(function(){
   /* ---- per-frame hooks (called from update()) ---- */
   function hostFrame(dt){
     if(!channel||state!=='play') return;
+    proxTick(dt);   // v204 telemetry: two-ship proximity sampling (play frames only)
     if(performance.now()-lastInputAt>INPUT_STALE_MS){ remoteCtrl.mx=0; remoteCtrl.my=0; remoteCtrl.fire=false; remoteCtrl.beam=false; }
     const now=performance.now();
     if(now-lastSnapAt>=SNAP_MS){ lastSnapAt=now;
       try{ channel.send({type:'broadcast',event:'snap',payload:buildSnap()}); }catch(e){} }
   }
   function guestFrame(dt){
+    proxTick(dt);   // v204 telemetry: two-ship proximity sampling (guest view: own prediction + smoothed partner; only called during play)
     // 1. capture + send held input (movement vector, fire, beam) with a steady heartbeat
     let mx=0,my=0;
     if(keys.ArrowLeft||keys.a)mx-=1; if(keys.ArrowRight||keys.d)mx+=1;
@@ -7212,18 +7306,37 @@ const COOP=(function(){
     // replay / the refit-open `hl` flag, departs in refitGuestLaunch)
     if(station) updateStation(dt);
   }
-  /* ---- match end (unranked ARCADE screen; nothing submitted) ---- */
-  function finishMatch(){
+  /* ---- match end (v204: RANKED when the run qualifies) ----
+     finishMatch runs on the HOST (endRun, or the grace-expiry disconnect end,
+     disc=true) and broadcasts the 'end' payload; the guest enters through that
+     broadcast. showEnd is the ONE place both clients pass, so the eligibility/
+     stats capture and the per-client telemetry live there. An eligible end
+     shows the solo initials-entry flow on both clients; the HOST alone submits
+     the one team row (submitEnd/doCoopSubmit below). */
+  function finishMatch(disc){
     const acc=shotsFired>0?clamp(Math.round(100*shotsHit/shotsFired),0,100):0;
     const hp2=hostPeer(), gp2=guestPeer();
     const payload={sc:Math.round(window.scoreT||0),sec:sector,tm:Math.round(runTime||0),kl:runKills||0,bk:runBosses||0,acc:acc,
       ce:Math.round(runCoinsEarned||0),pr:runParries||0,pp:runPerfect||0,
-      n1:(hp2&&hp2.name)||'P1',n2:(gp2&&gp2.name)||'P2'};
+      n1:(hp2&&hp2.name)||'P1',n2:(gp2&&gp2.name)||'P2',mid:matchId,dc:disc?1:0};
     if(role==='host'&&channel){ try{ channel.send({type:'broadcast',event:'end',payload:payload}); }catch(e){} }
     showEnd(payload);
   }
   function showEnd(p){
+    const first=(phase==='match');   // a repeated 'end' can never re-capture or re-report
     phase='ended';
+    if(first){
+      // v204: capture the last-known match stats ONCE for the ranked submit +
+      // telemetry. The mode string is derived HERE from coopMode alone (see
+      // coopModeString) and endInfo.mode is the only value any later submit
+      // reads - gameMode never touches the payload. Weapon/heavy come from the
+      // index-aligned players array (0=host, 1=guest on both clients).
+      endInfo={ elig:runQualifies(p.sec,p.kl), mode:coopModeString(), disc:!!p.dc,
+        sc:p.sc||0, sec:p.sec||1, acc:p.acc||0, tm:p.tm||0, kl:p.kl||0, bk:p.bk||0,
+        p1w:(players[0]&&players[0].wtype)||'', p1h:(players[0]&&players[0].heavy)||'',
+        p2w:(players[1]&&players[1].wtype)||'', p2h:(players[1]&&players[1].heavy)||'' };
+      coopEndTelemetry(endInfo.disc?'partner_lost':'end');
+    }
     state='over';
     try{ if(document.pointerLockElement) document.exitPointerLock(); }catch(e){}
     Audio_.lane(null); if(Audio_.stopAllLoops)Audio_.stopAllLoops();
@@ -7234,7 +7347,7 @@ const COOP=(function(){
       const kg=el('killerGlyph'); if(kg) kg.style.display='none';
       const fb=el('felledBy'); if(fb&&fb.parentElement) fb.parentElement.style.display='none';
       const fd=el('felledByDetail'); if(fd){ fd.style.display='block'; fd.style.color=COL.cyan;
-        fd.textContent='P1 '+(p.n1||'HOST')+'  ·  P2 '+(p.n2||'GUEST'); }
+        fd.textContent='P1 '+(p.n1||'HOST')+'  ·  P2 '+(p.n2||'GUEST')+(p.dc?'  ·  PARTNER DISCONNECTED':''); }
       countUp('finalScore',p.sc||0,{fmt:v=>v.toLocaleString(),delay:0});
       el('finalSector').textContent=roman(p.sec||1);
       el('finalAcc').textContent=(p.acc||0)+'%';
@@ -7248,12 +7361,96 @@ const COOP=(function(){
       { const fc=el('finalCombo'); if(fc) fc.textContent='-'; const fa=el('finalAvg'); if(fa) fa.textContent='-'; }
       const ga=el('goAch'); if(ga){ ga.style.display='none'; ga.innerHTML=''; }
       const gt=el('goTitle'); if(gt) gt.style.display='none';
-      el('initials').style.display='none';
-      el('enterHint').textContent='CO-OP // UNRANKED - NOT SUBMITTED';
-      el('submitBtn').textContent='MAIN MENU';
+      if(endInfo&&endInfo.elig){
+        // ranked co-op end (v204): the solo initials-entry flow on both
+        // clients. The guest sends a provisional name2 right away so the host
+        // can rank the team even if this pilot idles on the screen.
+        buildInitials();
+        el('initials').style.display='flex';
+        el('enterHint').textContent='RANKED CO-OP - ENTER YOUR INITIALS';
+        el('submitBtn').textContent='SUBMIT';
+        if(role==='guest') sendGuestInitials();
+      } else {
+        el('initials').style.display='none';
+        el('enterHint').textContent='CO-OP // UNRANKED - NOT SUBMITTED';
+        el('submitBtn').textContent='MAIN MENU';
+      }
       revealOver();
     }catch(err){ console.error('VANGUARD co-op end error:',err); }
     showOverlay('ovlOver');
+  }
+  /* guest -> host initials broadcast (v204): provisional at end-screen open,
+     final on the guest's SUBMIT; the host keeps the latest value. */
+  function sendGuestInitials(){
+    if(!(role==='guest'&&channel)) return;
+    try{ channel.send({type:'broadcast',event:'name2',payload:{n:trimName(curInitials)}}); }catch(e){}
+  }
+  /* per-client co-op telemetry (v204), once per match, whichever end path
+     fires first: showEnd ('end'/'partner_lost'), partnerLost, or a deliberate
+     mid-match quit (leave). Reads THIS client's own ship counters. */
+  function coopEndTelemetry(dc){
+    if(coopTelemSent||!coopMatch) return; coopTelemSent=true;
+    const me=players[localIndex];
+    try{ sendCoopTelemetry(dc,{
+      matchId:matchId, role:(role==='host')?'host':'guest',
+      mode:(endInfo&&endInfo.mode)||coopModeString(),
+      downedCount:(me&&me.downedCount)||0, revivedCount:(me&&me.revivedCount)||0,
+      disconnected:coopDisc?1:0,
+      proximityPct:proxN>0?Math.round(100*proxNear/proxN):0,
+      avgDistance:proxN>0?Math.round(proxSum/proxN):0 }); }catch(e){}
+  }
+  /* throttled two-ship proximity sampler (v204): each client runs it every
+     play frame off its own view of the synced positions (host sim / guest
+     smoothed mirror); a sample lands every 0.5s while both ships are on the
+     field. Downed wrecks still sample (the revive question is exactly "were
+     you close to the wreck"); dead ships between respawns do not. */
+  function proxTick(dt){
+    if(phase!=='match') return;
+    const a=players[0], b=players[1]; if(!a||!b||a.dead||b.dead) return;
+    proxT+=dt; if(proxT<0.5) return; proxT=0;
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    proxN++; proxSum+=d; if(d<=COOP_REVIVE_RADIUS) proxNear++;
+  }
+  /* the co-op end screen's SUBMIT / MAIN MENU button (submitScore delegates
+     here for any coopMatch). Unranked ends keep the old main-menu behavior. */
+  function submitEnd(){
+    if(subWait) return;                                    // host already waiting on the guest's initials; ignore repeat clicks
+    if(!endInfo||!endInfo.elig||subDone){ toTitle(); return; }
+    const nm=trimName(curInitials); curInitials=nm;
+    try{ localStorage.setItem('vanguard_lastInitials',nm); }catch(e){}
+    if(role==='guest'){ sendGuestInitials(); gotoCoopBoard(false); leave(); return; }
+    if(guestInitials){ doCoopSubmit(); return; }
+    // wait briefly for the guest's initials (its provisional send usually
+    // already landed); the timeout falls back to the 'P2' placeholder
+    try{ el('enterHint').textContent='WAITING FOR P2 INITIALS...'; el('submitBtn').textContent='SUBMITTING...'; }catch(e){}
+    subWait=setTimeout(()=>{ subWait=null; doCoopSubmit(); },6000);
+  }
+  /* the ONE ranked team submission (host only; subDone makes it exactly one
+     row even if the guest's initials land the same instant the wait expires) */
+  function doCoopSubmit(){
+    if(subDone||!endInfo||role!=='host') return; subDone=true;
+    if(subWait){ clearTimeout(subWait); subWait=null; }
+    const nm=trimName(curInitials), n2=guestInitials||'P2';
+    submitCoopToServer(nm,n2,endInfo);
+    gotoCoopBoard(true,nm,n2);
+    leave();
+  }
+  /* land on the matching co-op board after the end screen (both roles). The
+     host passes echo=true so its just-submitted row shows instantly; the
+     delayed refetches merge the real backend rows in as they appear. */
+  function gotoCoopBoard(echo,nm,n2){
+    const e=endInfo, bm=(e&&e.mode)||coopModeString();
+    boardMode=bm; onlineBoard=null; boardRetries=0;
+    document.querySelectorAll('.btab[data-bm]').forEach(b=>b.classList.toggle('sel',b.dataset.bm===bm));
+    let hn,hs;
+    if(echo&&e){ hn=nm; hs=e.sc;
+      onlineBoard=[{name:nm,name2:n2,score:e.sc,sector:e.sec,acc:e.acc,ver:VERSION,mode:bm,t:e.tm,k:e.kl,bk:e.bk,wtype1:e.p1w,heavy1:e.p1h,wtype2:e.p2w,heavy2:e.p2h}]; }
+    state='board'; showOverlay('ovlBoard'); renderBoard('bigBoard',hn,hs);
+    if(!echo) refreshBoard('bigBoard');
+    if(API_URL){ const row=(echo&&onlineBoard)?onlineBoard[0]:null;
+      [2500,6000,11000].forEach(ms=>setTimeout(()=>{ if(boardMode!==bm) return;
+        fetchOnline(()=>{ if(row&&onlineBoard&&!onlineBoard.some(r=>r.name===row.name&&r.name2===row.name2&&Number(r.score)===Number(row.score))){ onlineBoard.push(row); onlineBoard.sort((a,c)=>c.score-a.score); }
+          renderBoard('bigBoard',hn,hs); }); },ms)); }
   }
   /* ---- guest-drop reconnect grace (v202, HOST side only) ----
      When the GUEST's presence drops mid-match the host no longer ends the match
@@ -7272,6 +7469,7 @@ const COOP=(function(){
      a live REFIT session; graceStart falls back to the old immediate end). */
   function graceStart(){
     if(state!=='play'&&state!=='pause'){ partnerLost('PARTNER DISCONNECTED'); return; }   // REFIT (or any other non-freezable state): unchanged immediate end
+    coopDisc=true;   // v204 telemetry: this match went through the paused-for-reconnect flow (sticks even if the guest reconnects)
     grace={until:performance.now()+COOP_RECONNECT_GRACE_S*1000,shown:-1};
     actQueue.length=0; remoteCtrl={mx:0,my:0,fire:false,beam:false};
     if(Audio_.stopAllLoops)Audio_.stopAllLoops();
@@ -7293,7 +7491,21 @@ const COOP=(function(){
      while the window is open, which freezes the whole simulation */
   function graceFrame(){
     if(!grace||role!=='host') return false;
-    if(performance.now()>=grace.until){ partnerLost('PARTNER DISCONNECTED','YOUR PARTNER DID NOT RECONNECT IN TIME, SO THE MATCH HAS ENDED. YOUR SOLO PROGRESS IS UNAFFECTED.'); return true; }
+    if(performance.now()>=grace.until){
+      // v204: an ELIGIBLE run still ranks on the way out - route this end
+      // through the same finishMatch/submission path with the last-known state
+      // (sim frozen since graceStart, so it is exact) instead of bypassing it.
+      // The guest is gone, so the initials wait falls back to its provisional
+      // initials or 'P2'. Sub-threshold runs keep the old modal end unchanged.
+      if(runQualifies(sector,runKills)){
+        grace=null;
+        const o=$('ovlCoopMsg'); if(o) o.classList.add('hidden');
+        const mb=$('coopMsgBtn'); if(mb) mb.textContent='BACK TO TITLE';   // graceMsg relabeled it END MATCH NOW
+        finishMatch(true);
+      }
+      else partnerLost('PARTNER DISCONNECTED','YOUR PARTNER DID NOT RECONNECT IN TIME, SO THE MATCH HAS ENDED. YOUR SOLO PROGRESS IS UNAFFECTED.');
+      return true;
+    }
     graceMsg();
     return true;
   }
@@ -7317,7 +7529,7 @@ const COOP=(function(){
      boss) rebuilds from the normal snapshot stream the moment play resumes. */
   function resyncPayload(){
     const p=refitSyncPayload('rsync');
-    p.mode=coopMode;
+    p.mode=coopMode; p.mid=matchId;   // v204: the rejoining guest recovers the match id with the rest of the state
     p.sc=Math.round(window.scoreT||0); p.st=Math.round(window.style||0); p.mult=window.mult||1;
     p.sk=sectorKills; p.kfb=killsForBoss; p.bp=bossPending?1:0;
     p.rt=Math.round(runTime||0); p.kl=runKills||0;
@@ -7329,7 +7541,9 @@ const COOP=(function(){
      then stamp the authoritative match state over the fresh start. */
   function rejoinMatch(p){
     coopMode=(p&&p.mode==='hardcore')?'hardcore':'normal';
+    matchId=(p&&p.mid)?String(p.mid):matchId;
     beginMatch();
+    coopDisc=true;   // v204 telemetry (after beginMatch's reset): this client's match went through the reconnect-pause flow
     sector=p.sec||sector; sectorKills=p.sk||0; if(p.kfb!=null)killsForBoss=p.kfb; bossPending=!!p.bp;
     window.scoreT=p.sc||0; window.style=p.st||0; window.mult=p.mult||1;
     lastMilestone=highestMilestoneAtOrBelow(window.scoreT||0);   // a rejoin never replays milestones already celebrated (the run-resume pattern)
@@ -7345,6 +7559,7 @@ const COOP=(function(){
   }
   function partnerLost(msg,body){
     if(phase!=='match') return;
+    coopEndTelemetry('partner_lost');   // v204: a terminal disconnect/quit end still reports once (finishMatch ends report from showEnd instead, guarded by the same flag)
     grace=null;   // an expired or aborted reconnect window ends here; also covers the host's own channel dying mid-grace
     phase='ended';
     refitSessClear();   // a partner lost mid-REFIT must stop the heartbeat + pending purchase timers
@@ -7376,7 +7591,11 @@ const COOP=(function(){
       renderCoopMode(); }); });
     const st2=$('coopStartBtn'); if(st2) st2.addEventListener('click',e=>{ e.stopPropagation();
       if(role!=='host'||phase!=='lobby'||!guestPeer()) return;
-      try{ channel&&channel.send({type:'broadcast',event:'start',payload:{mode:coopMode}}); }catch(err){}   // authoritative handoff: the guest adopts this mode before beginMatch
+      // v204: mint the short match id at the lobby -> match transition (room
+      // code + start timestamp, alphanumeric); it rides the start payload so
+      // both clients hold the same id for the whole match.
+      try{ matchId=(code+Date.now().toString(36)).replace(/[^A-Za-z0-9]/g,'').toUpperCase(); }catch(err){ matchId=code+String((Math.random()*1e9)|0); }
+      try{ channel&&channel.send({type:'broadcast',event:'start',payload:{mode:coopMode,mid:matchId}}); }catch(err){}   // authoritative handoff: the guest adopts this mode before beginMatch
       beginMatch(); });
     const lv=$('coopLeaveBtn'); if(lv) lv.addEventListener('click',e=>{ e.stopPropagation(); leave(); toTitle(); });
     const mb=$('coopMsgBtn'); if(mb) mb.addEventListener('click',e=>{ e.stopPropagation();
@@ -7387,6 +7606,7 @@ const COOP=(function(){
     isGuest:()=>coopMatch&&role==='guest',
     get remoteCtrl(){ return remoteCtrl; },
     sendAct, drainActs, hostFrame, guestFrame, finishMatch, leave, openLobby,
+    submitEnd,   // ranked co-op (v204): the end screen's SUBMIT/MAIN MENU action (submitScore delegates here)
     // guest-drop reconnect grace (v202): graceFrame is update()'s per-frame sim
     // freeze + countdown hook; the _grace* pair exists for the ?coopstub=1
     // scripted drives only (read the window, fast-forward its expiry)
