@@ -267,6 +267,8 @@
 		ready: { emp: 0, oil: 0, tether: 0, ram: 0 }
 	});
 	let lapFlash = $state('');
+	// Race-start countdown text ('3' | '2' | '1' | 'GO' | ''), driven by the loop.
+	let countText = $state('');
 
 	let stage: HTMLDivElement;
 
@@ -717,17 +719,42 @@
 					return q;
 				};
 
-				// Starting grid: slot 0 is the track spawn (player); later slots sit
-				// further behind the line, alternating left/right of the centerline.
+				// Grid anchor: the centerline point nearest the player's spawn. AI
+				// rows step back from here, so the spacing is correct regardless of
+				// where the start line sits in the point list.
+				let startIdx = 0;
+				{
+					let bd = Infinity;
+					for (let i = 0; i < nC; i++) {
+						const d = Math.hypot(rt.center[i].x - track.spawn.x, rt.center[i].z - track.spawn.z);
+						if (d < bd) {
+							bd = d;
+							startIdx = i;
+						}
+					}
+				}
+				// Starting grid: slot 0 is the player, alone on the line. The AI fill
+				// staggered rows of two behind it, alternating right/left of the
+				// centerline. Rows step back GRID_ROW_STEP_PTS centerline points (~8m,
+				// well over a 3.8m car length) and the two columns sit 2 x GRID_LATERAL
+				// = 6m apart (car half-width 0.85m), so a normal launch never puts
+				// neighbouring slots in contact. The countdown + ram grace are the
+				// primary guards; this spacing is the structural one, so cars are not
+				// already touching the instant controls unlock.
+				const GRID_LATERAL = 3.0;
+				const GRID_ROW_STEP_PTS = 2;
 				const slotPose = (k: number): RigSpawn => {
-					if (k === 0) return { ...track.spawn, warmIdx: 0 };
-					const idx = (((nC - Math.round((10 + 7 * k) / 4)) % nC) + nC) % nC;
+					if (k === 0) return { ...track.spawn, warmIdx: startIdx };
+					const row = Math.ceil(k / 2); // 1,1,2,2,3,3,...
+					const side = k % 2 === 1 ? 1 : -1; // odd = right, even = left
+					const back = GRID_ROW_STEP_PTS * row; // centerline points behind the line
+					const idx = (((startIdx - back) % nC) + nC) % nC;
 					const p = rt.center[idx];
 					const p2 = rt.center[(idx + 1) % nC];
 					const tx = p2.x - p.x;
 					const tz = p2.z - p.z;
 					const tl = Math.hypot(tx, tz) || 1;
-					const lat = k % 2 === 1 ? 2.4 : -2.4;
+					const lat = side * GRID_LATERAL;
 					return {
 						x: p.x + (-tz / tl) * lat,
 						z: p.z + (tx / tl) * lat,
@@ -1586,6 +1613,20 @@
 					return res;
 				};
 
+				// ---- Race start: countdown control lock + ram grace ----
+				// On spawn and every reset, NO throttle/steer/brake/weapon input
+				// registers for ANY vehicle (player or AI) until GO. Physics stays
+				// live so the cars simply sit at rest on the flat grid. After GO,
+				// RAM damage/knockback is additionally suppressed for a short grace
+				// window so a tight launch pack cannot trade contact damage before
+				// real driving begins (EMP / oil / tether are unaffected).
+				const COUNTDOWN_SEC = 3; // 3 - 2 - 1 then GO
+				const GO_HOLD_SEC = 0.7; // how long the GO flash stays on screen
+				const RAM_GRACE_SEC = 1.5; // ram-only suppression window after GO
+				// Absolute performance.now() ms at which controls unlock (GO). Set
+				// here for the initial launch and re-armed by resetRound each round.
+				let raceStartAtMs = performance.now() + COUNTDOWN_SEC * 1000;
+
 				// ---- Round state ----
 				let finishOrder: Rig[] = [];
 				// The player's timing-start stamp (first start/finish crossing), so
@@ -1667,6 +1708,9 @@
 					styleGates(0);
 					syncHud();
 					hud.currentMs = null;
+					// Re-arm the start countdown: controls stay locked until GO.
+					raceStartAtMs = performance.now() + COUNTDOWN_SEC * 1000;
+					countText = '';
 				};
 
 				const onKeyDown = (e: KeyboardEvent) => {
@@ -1897,6 +1941,11 @@
 					const aiT = aiTuning();
 					const all = rigsAll();
 
+					// Race-start phases: controls locked until GO, ram suppressed
+					// through GO + the grace window. Both apply to every vehicle.
+					const preLaunch = now < raceStartAtMs;
+					const ramGrace = now < raceStartAtMs + RAM_GRACE_SEC * 1000;
+
 					// -- Player input (keyboard + first connected gamepad) --
 					let steerInput =
 						(keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) -
@@ -2013,6 +2062,16 @@
 							sIn = c.steer;
 							thr = c.throttle;
 							brk = c.brake;
+						}
+
+						// Race-start control lock: until GO, zero every control for
+						// every vehicle. Nothing produces drive force, so the cars sit
+						// at rest on the flat grid (physics stays live).
+						if (preLaunch) {
+							sIn = 0;
+							thr = 0;
+							brk = 0;
+							hbk = false;
 						}
 
 						// Combat drive modifiers: disruption / down / eliminated scale
@@ -2237,35 +2296,44 @@
 					}
 
 					// -- Weapons: player triggers + AI decisions, one shared path --
-					if (fireQueued) {
+					// Weapons unlock at GO along with controls. During the countdown any
+					// player weapon press is discarded and the AI does not fire, so nothing
+					// can be launched at a locked, stationary pack.
+					if (preLaunch) {
 						fireQueued = false;
-						performFire(player);
-					}
-					if (oilQueued) {
 						oilQueued = false;
-						performOil(player);
-					}
-					if (tetherQueued) {
 						tetherQueued = false;
-						performTether(player);
-					}
-					const combatants = all.map(combatantOf);
-					// Every AI-driven rig makes weapon decisions. In normal play the
-					// player has no AiDriver so it is skipped here (player fires via
-					// input above); the stress runner's AI-player is included.
-					for (const rig of all) {
-						if (!rig.ai || rig.combat.isOut(now)) continue;
-						const self = combatants[all.indexOf(rig)];
-						// The AI decides with ITS OWN build's ranges and cooldowns.
-						const rct = ctFor(rig);
-						if (rig.ai.wantsFire(self, combatants, rct, aiT, now)) {
-							const res = performFire(rig);
-							if (res.fired) rig.ai.scheduleNextUse('emp', now, rct.empCooldownSec, aiT);
-						} else if (rig.ai.wantsTether(self, combatants, rct, aiT, now)) {
-							const res = performTether(rig);
-							if (res.fired) rig.ai.scheduleNextUse('tether', now, rct.tetherCooldownSec, aiT);
-						} else if (rig.ai.wantsOil(self, combatants, rct, aiT, now)) {
-							if (performOil(rig)) rig.ai.scheduleNextUse('oil', now, rct.oilCooldownSec, aiT);
+					} else {
+						if (fireQueued) {
+							fireQueued = false;
+							performFire(player);
+						}
+						if (oilQueued) {
+							oilQueued = false;
+							performOil(player);
+						}
+						if (tetherQueued) {
+							tetherQueued = false;
+							performTether(player);
+						}
+						const combatants = all.map(combatantOf);
+						// Every AI-driven rig makes weapon decisions. In normal play the
+						// player has no AiDriver so it is skipped here (player fires via
+						// input above); the stress runner's AI-player is included.
+						for (const rig of all) {
+							if (!rig.ai || rig.combat.isOut(now)) continue;
+							const self = combatants[all.indexOf(rig)];
+							// The AI decides with ITS OWN build's ranges and cooldowns.
+							const rct = ctFor(rig);
+							if (rig.ai.wantsFire(self, combatants, rct, aiT, now)) {
+								const res = performFire(rig);
+								if (res.fired) rig.ai.scheduleNextUse('emp', now, rct.empCooldownSec, aiT);
+							} else if (rig.ai.wantsTether(self, combatants, rct, aiT, now)) {
+								const res = performTether(rig);
+								if (res.fired) rig.ai.scheduleNextUse('tether', now, rct.tetherCooldownSec, aiT);
+							} else if (rig.ai.wantsOil(self, combatants, rct, aiT, now)) {
+								if (performOil(rig)) rig.ai.scheduleNextUse('oil', now, rct.oilCooldownSec, aiT);
+							}
 						}
 					}
 
@@ -2273,7 +2341,13 @@
 
 					// -- Shockwave rams: chassis contacts queued during the step,
 					// evaluated on pre-step velocities, resolved with impulses --
-					if (pendingRams.length) {
+					if (ramGrace) {
+						// Ram-only suppression through the countdown + post-GO grace window:
+						// drop queued contacts WITHOUT calling tryRam, so no damage, stun,
+						// knockback, or cooldown is spent. Movement and steering are untouched,
+						// and once the window passes ram behaves exactly as before.
+						pendingRams = [];
+					} else if (pendingRams.length) {
 						for (const pr of pendingRams) {
 							const { a, b } = pr;
 							const dx = b.body.position.x - a.body.position.x;
@@ -2612,6 +2686,18 @@
 						camera.rotation.z += mag * 0.06 * Math.sin(tSec * 67.3);
 					}
 
+					// -- Countdown overlay: 3 - 2 - 1 during the lock, GO briefly after --
+					{
+						const toGo = raceStartAtMs - now;
+						const next =
+							toGo > 0
+								? String(Math.min(COUNTDOWN_SEC, Math.ceil(toGo / 1000)))
+								: now - raceStartAtMs < GO_HOLD_SEC * 1000
+									? 'GO'
+									: '';
+						if (next !== countText) countText = next;
+					}
+
 					// -- HUD state --
 					pose.x = player.body.position.x;
 					pose.z = player.body.position.z;
@@ -2759,6 +2845,12 @@
 
 	{#if banner}
 		<div class="gl-banner">{banner}</div>
+	{/if}
+
+	{#if countText}
+		<div class="glb gl-countdown" class:go={countText === 'GO'}>
+			<span class="gl-count-num">{countText}</span>
+		</div>
 	{/if}
 
 	<div class="glb gl-hud">
@@ -3077,6 +3169,39 @@
 		letter-spacing: 0.22em;
 		white-space: nowrap;
 		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+	}
+	/* Start countdown: same dark-plate + mono-digit language as the timing */
+	/* strip, just scaled up and centered. Steel border while counting, the */
+	/* signature green on GO (green = go/ready everywhere in this HUD).      */
+	.gl-countdown {
+		position: absolute;
+		top: 38%;
+		left: 50%;
+		transform: translate(-50%, -50%);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 5.5rem;
+		padding: 0.5rem 1.4rem 0.6rem;
+		background: rgba(4, 7, 11, 0.82);
+		border: 1px solid var(--glb-line-strong);
+		border-bottom: 2px solid var(--glb-steel);
+		border-radius: 2px;
+		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+		pointer-events: none;
+	}
+	.gl-count-num {
+		font-family: var(--glb-font-data);
+		font-size: 3.4rem;
+		line-height: 1;
+		letter-spacing: 0.06em;
+		color: var(--glb-chrome-hi);
+	}
+	.gl-countdown.go {
+		border-bottom-color: var(--glb-green);
+	}
+	.gl-countdown.go .gl-count-num {
+		color: var(--glb-green-ui);
 	}
 	.gl-hud {
 		position: absolute;
