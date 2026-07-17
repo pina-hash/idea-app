@@ -25,7 +25,11 @@
 		baselineDrag,
 		onselect,
 		onequip,
-		onclose
+		onclose,
+		note = 'all parts unlocked (dev) · applies live to the player vehicle',
+		closeLabel = 'CLOSE (G)',
+		onback,
+		backLabel = 'BACK'
 	}: {
 		loadout: Loadout;
 		/** Current tuning-panel baselines the multipliers apply over. */
@@ -36,6 +40,13 @@
 		onselect: (id: ArchetypeId) => void;
 		onequip: (slot: PartSlot, partId: string) => void;
 		onclose: () => void;
+		/** Sub-title copy (defaults to the dev-harness note). */
+		note?: string;
+		/** Primary action label (defaults to the dev-harness "CLOSE (G)"). */
+		closeLabel?: string;
+		/** Optional secondary action; renders a header button when provided. */
+		onback?: () => void;
+		backLabel?: string;
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
@@ -57,8 +68,11 @@
 	<div class="gg-panel" role="dialog" aria-label="Garage loadout">
 		<div class="gg-head">
 			<span class="gg-title">GARAGE // LOADOUT</span>
-			<span class="gg-note">all parts unlocked (dev) · applies live to the player vehicle</span>
-			<button class="gg-close" onclick={onclose}>CLOSE (G)</button>
+			<span class="gg-note">{note}</span>
+			{#if onback}
+					<button class="gg-close" onclick={onback}>{backLabel}</button>
+				{/if}
+				<button class="gg-close" onclick={onclose}>{closeLabel}</button>
 		</div>
 
 		<div class="gg-section-label">archetype</div>

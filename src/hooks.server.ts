@@ -85,11 +85,12 @@ async function resolveClaims(supabase: App.Locals['supabase']): Promise<App.Clai
 
 /**
  * Route prefixes that require a signed-in user. `/dashboard` is additionally
- * teacher-gated in its own load; `/gauntlet` (the CAD skills dojo) and `/frc`
- * (the FRC Training track) are open to any authenticated user, with GAUNTLET's
- * teacher-only authoring page gated in that page's load.
+ * teacher-gated in its own load; `/gauntlet` (the CAD skills dojo), `/frc`
+ * (the FRC Training track), and `/greenline` (the combat-racing game) are open
+ * to any authenticated user. GAUNTLET's teacher-only authoring page is gated in
+ * that page's load; GREENLINE's tuning panel is teacher-gated in its own load.
  */
-const authedPrefixes = ['/dashboard', '/gauntlet', '/frc'];
+const authedPrefixes = ['/dashboard', '/gauntlet', '/frc', '/greenline'];
 
 const authGuard: Handle = async ({ event, resolve }) => {
 	event.locals.claims = await resolveClaims(event.locals.supabase);

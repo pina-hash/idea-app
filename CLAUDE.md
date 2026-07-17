@@ -1553,6 +1553,55 @@ on one side of the world.
   live standings list (laps > checkpoints > distance to next gate) sits in
   the HUD; AI tunables (count, top speed, corner accel, aggression) are in
   the panel's ai section.
+- **The game is a reusable component now.** The whole ~2600-line integration
+  (three.js scene, cannon-es physics, combat, AI, HUD, minimap, tuning panel,
+  the `?glheadless=1` MessageChannel loop, and the `__greenline` console-drive
+  API) was extracted verbatim from the dev harness into
+  `src/lib/greenline/GreenlineRace.svelte` (the GAUNTLET shared-component
+  convention), so both the dev harness and the real portal route mount the
+  IDENTICAL systems. Three props parameterize it: `loadout?` (the build to
+  race; when omitted the component owns its loadout locally, seeded from /
+  persisted to the `greenline_loadout` localStorage key and editable via the
+  G-key garage overlay, which is exactly the old harness behavior), `showDebug`
+  (renders the live tuning panel + G-key garage overlay; the panel is dev /
+  teacher only), and `onFinish(outcome)` (called ONCE when the player completes
+  a RACE, with `{ finishPosition, totalTimeMs, bestLapMs, laps }` — total time
+  is the finishing-lap crossing stamp minus the timing-start stamp). The dev
+  harness `/dev/greenline-movement` is now a thin wrapper that mounts the
+  component with `showDebug` and no loadout prop (localStorage-backed, tuning
+  panel + garage overlay on), unchanged in feel.
+- **Real portal route `/greenline` (signed-in tier, any role; RACE only).** The
+  first player-facing home for the game, a flow state machine (no page reload
+  between screens): title -> garage -> race -> results -> loop back to
+  garage/title. Auth is the portal's existing model: `/greenline` is in
+  `hooks.server.ts` `authedPrefixes`, so anonymous users are redirected to `/`
+  (the standard signed-out handling); `+page.server.ts` additionally loads
+  `profiles.role` and passes `isTeacher` so the in-game tuning panel
+  (`showDebug={isTeacher}`) is teacher-only (@boscotech.edu) while students get
+  a clean game. The mode selector stays RACE-only in this flow (the mode flag
+  lives under GreenlineRace; the debug panel's mode row is a separate
+  teacher-tuning affordance, not surfaced in the player UI). The garage screen
+  reuses `Garage.svelte` directly (two new backward-compatible display props,
+  `note` / `closeLabel` / `onback` / `backLabel`, default to the dev-harness
+  copy so the overlay is unchanged), loads the saved build via
+  `loadUserLoadout` and saves edits via `saveUserLoadout`
+  (`src/lib/greenline/persistence.ts`, 0049); the results screen
+  (`src/lib/greenline/GreenlineResults.svelte`, presentational) submits the run
+  via `submitRaceResult` and shows the track leaderboard via `loadLeaderboard`.
+  Everything data-backed FAILS SOFT (0049 unapplied / offline): the garage and
+  results still function, the saved build reads as the default, the submit is a
+  no-op, and the board shows an "unavailable offline" note. **Not yet in the
+  portal nav** (reachable directly at `/greenline`; the visual pass that
+  surfaces it to students is a later stage). The route is NOT registered in
+  `site-manifest.ts` yet.
+- **Dev harness `/dev/greenline-portal`** (404 in production, no auth /
+  Supabase): mounts the REAL `Garage` (with the route's own labels) and the
+  REAL `GreenlineResults` (sample board + outcome, with mode toggles for the
+  empty / loading / submitting / offline-error states) so the two
+  presentational flow screens are browser-verifiable without a live backend.
+  The race itself is verified via `/dev/greenline-movement` (drive + finish
+  through the `__greenline` API under `?glheadless=1`); the full signed-in
+  data-backed loop runs only on `/greenline`.
 
 ## FRC Training track
 
