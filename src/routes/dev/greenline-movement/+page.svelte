@@ -55,8 +55,10 @@
 	 * knocked off, and fire the shared disruption weapon with restraint. Each
 	 * vehicle tracks its own laps, checkpoints, and health; RACE resolves by
 	 * finishing order, ELIMINATION by last vehicle running. The zero-health
-	 * mode branch is VehicleCombat.applyDamage. Everything numeric is in the
-	 * live tuning panel. Track dressing (floodlight towers, gantries, yard
+	 * mode branch is VehicleCombat.applyDamage. A flip-recovery watchdog in
+	 * the per-vehicle pipeline rights any rig (player or AI) left resting
+	 * upside down, since wheels-off-the-ground means no force can recover
+	 * it. Everything numeric is in the live tuning panel. Track dressing (floodlight towers, gantries, yard
 	 * blocks, skid-pad paint, the banked berm) renders generically from the
 	 * track file's `props`; no final art, throwaway while the design
 	 * solidifies.
@@ -110,6 +112,12 @@
 		grassDrag: 8,
 		wallSpring: 1800,
 		wallDamp: 300,
+		/** Flip recovery: a chassis whose local up vector's world Y stays below
+		 * flipUpY while slower than flipMaxSpeed for flipDelaySec is re-seated
+		 * upright (wheels off the ground means no drive force can right it). */
+		flipUpY: 0.2,
+		flipDelaySec: 2,
+		flipMaxSpeed: 1.5,
 		camDistance: 9,
 		camHeight: 3.5,
 		camStiffness: 5,
@@ -616,6 +624,9 @@
 					/** Velocity captured before world.step, for ram closing speed. */
 					preVx: number;
 					preVz: number;
+					/** Seconds spent flipped (up vector below the panel threshold)
+					 * while nearly stationary; drives the flip-recovery re-seat. */
+					flipAcc: number;
 					warmIdx: number;
 					lastOnRibbon: boolean;
 					steerCurrent: number;
@@ -787,6 +798,7 @@
 						dripAcc: 0,
 						preVx: 0,
 						preVz: 0,
+						flipAcc: 0,
 						warmIdx: spawn.warmIdx,
 						lastOnRibbon: true,
 						steerCurrent: 0,
@@ -1532,6 +1544,7 @@
 						r.dripAcc = 0;
 						r.preVx = 0;
 						r.preVz = 0;
+						r.flipAcc = 0;
 						if (r.dentStage !== 0) applyDentStage(r, 0);
 						r.warmIdx = r.spawn.warmIdx;
 						r.lastOnRibbon = true;
@@ -1612,6 +1625,7 @@
 				const camLook = new THREE.Vector3(track.spawn.x, 1, track.spawn.z);
 				const fwdWorld = new THREE.Vector3();
 				const rightWorld = new THREE.Vector3();
+				const upWorld = new THREE.Vector3();
 				const tmpQuat = new THREE.Quaternion();
 
 				let lastT = performance.now();
@@ -1624,6 +1638,7 @@
 					rig.body.quaternion.copy(quatFor(headingDeg));
 					rig.body.velocity.set(d.x * speed, 0, d.z * speed);
 					rig.body.angularVelocity.setZero();
+					rig.flipAcc = 0;
 				};
 				(window as unknown as Record<string, unknown>).__greenline = {
 					world,
@@ -1637,6 +1652,24 @@
 						if (r) teleportRig(r, x, z, h, v);
 					},
 					resetRound: () => resetRound(),
+					// Roll a rig over in place (default fully upside down) so the
+					// flip-recovery watchdog can be exercised from a script.
+					flip: (rigId = 'player', rollDeg = 180) => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return false;
+						const roll = new CANNON.Quaternion();
+						roll.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), (rollDeg * Math.PI) / 180);
+						r.body.quaternion.mult(roll, r.body.quaternion);
+						r.body.position.y = 0.8;
+						r.body.velocity.setZero();
+						r.body.angularVelocity.setZero();
+						return true;
+					},
+					// World Y of a rig's local up axis (1 upright, -1 upside down).
+					upY: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						return r ? r.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y : null;
+					},
 					fire: (rigId = 'player') => {
 						const r = rigsAll().find((q) => q.id === rigId);
 						return r ? performFire(r) : null;
@@ -1914,6 +1947,38 @@
 								new CANNON.Vec3(viol.pushX * f, 0, viol.pushZ * f),
 								new CANNON.Vec3(0, 0, 0)
 							);
+						}
+
+						// Flip recovery (same swappable-block spirit as the soft walls):
+						// a chassis resting with its local up vector at or below the
+						// horizon while nearly stationary can never recover on its own,
+						// because the wheels are off the ground and no drive or AI
+						// reverse produces force. After the tunable delay, re-seat it
+						// upright at its current yaw, a wheel-drop above the ground,
+						// velocities zeroed. Eliminated wrecks stay where they died.
+						upWorld.set(0, 1, 0).applyQuaternion(tmpQuat);
+						const flipped =
+							!rig.combat.eliminated &&
+							upWorld.y < num(tuning.flipUpY, DEFAULTS.flipUpY) &&
+							rawSpeed < num(tuning.flipMaxSpeed, DEFAULTS.flipMaxSpeed);
+						if (flipped) {
+							rig.flipAcc += dt;
+							if (rig.flipAcc >= num(tuning.flipDelaySec, DEFAULTS.flipDelaySec)) {
+								rig.flipAcc = 0;
+								// hx/hz are the forward vector's flat projection, so the
+								// yaw survives the roll; quatFor's convention (0 = +x,
+								// CCW positive) means yaw = atan2(-hz, hx).
+								const yawDeg = (Math.atan2(-rig.hz, rig.hx) * 180) / Math.PI;
+								body.position.y = SPAWN_Y;
+								body.quaternion.copy(quatFor(yawDeg));
+								body.velocity.setZero();
+								body.angularVelocity.setZero();
+								rig.steerCurrent = 0;
+								spawnRing(body.position.x, body.position.z, 0x00ff41, 4, 320, 0.45);
+								if (rig === player) flash('FLIPPED — vehicle righted');
+							}
+						} else if (rig.flipAcc !== 0) {
+							rig.flipAcc = 0;
 						}
 
 						// Status tint + scorch: gray when out, gold when down, cyan
@@ -2732,6 +2797,13 @@
 		<label>grass drag <input type="number" step="0.5" bind:value={tuning.grassDrag} /></label>
 		<label>wall spring <input type="number" step="100" bind:value={tuning.wallSpring} /></label>
 		<label>wall damping <input type="number" step="50" bind:value={tuning.wallDamp} /></label>
+
+		<div class="gl-section">flip recovery</div>
+		<label>up-Y threshold <input type="number" step="0.05" bind:value={tuning.flipUpY} /></label>
+		<label>delay (s) <input type="number" step="0.5" bind:value={tuning.flipDelaySec} /></label>
+		<label
+			>max speed (m/s) <input type="number" step="0.5" bind:value={tuning.flipMaxSpeed} /></label
+		>
 
 		<div class="gl-section">camera</div>
 		<label>distance <input type="number" step="0.5" bind:value={tuning.camDistance} /></label>

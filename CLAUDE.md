@@ -1452,7 +1452,12 @@ on one side of the world.
   and push direction). The harness turns those FACTS into forgiving forces
   in one swappable block: extra drag off the ribbon, a capped spring +
   outward damper past a boundary (soft walls, tunable from the panel), never
-  hard collision.
+  hard collision. A flip-recovery watchdog in the same per-vehicle pipeline
+  (player and AI alike) re-seats any chassis whose up vector stays below a
+  threshold while nearly stationary for a tunable delay, upright at its
+  current yaw with velocities zeroed (wheels off the ground = no force can
+  right it, and the AI stuck-reverse cannot help); dials in the panel's
+  "flip recovery" section, scripted via `__greenline.flip()`/`.upY()`.
 - **Minimap:** `src/lib/greenline/Minimap.svelte`, a top-down SVG of the
   boundaries, ribbon, gates (next checkpoint highlighted, start/finish gold)
   and a vehicle heading triangle fed by the physics loop (plus smaller amber
