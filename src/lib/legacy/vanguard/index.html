@@ -30,8 +30,8 @@ body{background:#000;display:flex;align-items:center;justify-content:center;min-
 .corner.br{bottom:8px;right:8px;border-left:none;border-top:none}
 .top{position:absolute;top:12px;left:14px;right:14px;display:flex;justify-content:space-between;align-items:flex-start}
 .lbl{font-size:9px;color:var(--dim);letter-spacing:.22em}
-.lives{display:flex;gap:5px;margin-bottom:6px;min-height:16px}
-.lives svg{filter:drop-shadow(0 0 5px rgba(0,255,65,.9))}
+.lives{display:flex;gap:8px;align-items:center;min-height:26px}
+.lives svg{width:26px;height:26px;filter:drop-shadow(0 0 5px rgba(0,255,65,.9))}
 .sector{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:12px;color:var(--green);text-shadow:0 0 10px rgba(0,255,65,.7);letter-spacing:.16em}
 .sector .num{color:var(--gold)}
 .right{text-align:right}
@@ -78,10 +78,18 @@ body{background:#000;display:flex;align-items:center;justify-content:center;min-
 #bossname{position:absolute;top:82px;left:0;right:0;text-align:center;font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:11px;letter-spacing:.2em;color:var(--mset);text-shadow:0 0 10px rgba(255,46,46,.7);display:none;z-index:5}
 
 /* hull + style meter */
-.hull{display:flex;gap:3px;margin-bottom:7px;min-height:9px}
-.hull .hseg{width:16px;height:7px;background:rgba(0,255,65,.10);border:1px solid rgba(0,255,65,.30);border-radius:2px;position:relative;overflow:hidden}
+.hull{display:flex;gap:5px;align-items:center;min-height:14px}
+.hull .hseg{width:26px;height:12px;background:rgba(0,255,65,.10);border:1px solid rgba(0,255,65,.30);border-radius:3px;position:relative;overflow:hidden}
 .hull .hseg.on{background:var(--green);box-shadow:0 0 7px rgba(0,255,65,.8)}
 .hull .hseg.rep i{position:absolute;left:0;bottom:0;top:0;width:0;background:var(--gold);box-shadow:0 0 6px var(--gold)}
+/* bottom-center vitals cluster: lives + hull + shared coins, seated on a dark plate
+   inside the band the ship clamp (H-90) reserves; corner brackets echo .corner.tl/.. */
+.vitals{position:absolute;left:14px;right:14px;bottom:10px;margin:0 auto;width:max-content;max-width:100%;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 18px;padding:9px 20px;background:rgba(0,12,5,.6);border:1px solid rgba(0,255,65,.14);border-radius:3px}
+.vitals .corner{width:12px;height:12px;opacity:.85}
+.vitals .corner.tl{top:-2px;left:-2px}
+.vitals .corner.tr{top:-2px;right:-2px}
+.vitals .corner.bl{bottom:-2px;left:-2px}
+.vitals .corner.br{bottom:-2px;right:-2px}
 .stylemeter{position:absolute;top:128px;right:8px;display:flex;flex-direction:column;align-items:center;gap:3px;width:46px;z-index:5}
 .stylemeter .sg{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:30px;line-height:1;color:var(--dim);text-shadow:0 0 14px var(--dim);transform-origin:50% 50%}
 .stylemeter .sm{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:12px;color:var(--dim)}
@@ -332,7 +340,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 .legend{display:flex;flex-wrap:wrap;gap:8px 14px;justify-content:center;max-width:320px;font-size:10px;letter-spacing:.04em}
 .legend span{display:inline-flex;align-items:center;gap:5px;color:var(--white)}
 .legend i{width:9px;height:9px;display:inline-block;border-radius:2px}
-.coins{font-size:12px;color:var(--gold);text-shadow:0 0 10px rgba(200,255,0,.6);margin-top:3px}
+.coins{font-size:20px;line-height:1;color:var(--gold);text-shadow:0 0 10px rgba(200,255,0,.6)}
 .coins b{font-family:'Chakra Petch',sans-serif;font-weight:700}
 .shop{display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:344px}
 .shoptabs{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;width:100%}
@@ -480,8 +488,6 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
     <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
     <div class="top">
       <div>
-        <div class="lives" id="lives"></div>
-        <div class="hull" id="hull"></div>
         <div class="lbl">SECTOR</div>
         <div class="sector"><span class="num" id="secNum">I</span> · <span id="secName">THERMOPYLAE</span></div>
         <div id="bossProg" style="font:600 11px 'Share Tech Mono',monospace;letter-spacing:1px;margin-top:3px;color:var(--dim)"></div>
@@ -489,8 +495,13 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
       <div class="right">
         <div class="lbl">SCORE</div>
         <div class="score" id="score">0000000</div>
-        <div class="coins">i¢ <b id="coins">0</b></div>
       </div>
+    </div>
+    <div class="vitals" id="vitals">
+      <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+      <div class="lives" id="lives"></div>
+      <div class="hull" id="hull"></div>
+      <div class="coins">i¢ <b id="coins">0</b></div>
     </div>
     <div class="stylemeter" id="stylemeter"><div class="sg" id="styleGrade">D</div><div class="sm" id="styleMult">x1</div><div class="strack"><i id="styleFill"></i></div></div>
     <div id="bossname">FLAGSHIP</div>
@@ -797,7 +808,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='206';
+const VERSION='207';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2883,7 +2894,7 @@ function stepShipPosition(pl, ctrl, dt){
   else if(stick.on && (stick.dx||stick.dy)){ pl.x+=stick.dx*spd*dt; pl.y+=stick.dy*spd*dt; pl.vx=stick.dx; }
   else if(ptr.active){ const tx=ptr.x, ty=ptr.y-46; const dx=tx-pl.x, dy=ty-pl.y, d=Math.hypot(dx,dy)||1;
     const step=Math.min(spd*dt, d); if(d>step){ pl.x+=dx/d*step; pl.y+=dy/d*step; } else { pl.x=tx; pl.y=ty; } pl.vx=dx*0.05; }
-  pl.x=clamp(pl.x,16,W-16); pl.y=clamp(pl.y,H*0.16,H-40);
+  pl.x=clamp(pl.x,16,W-16); pl.y=clamp(pl.y,H*0.16,H-90);   // lower bound H-90 reserves a clear band at the bottom for the vitals HUD cluster
 }
 
 /* ============================= update ============================= */
@@ -4980,7 +4991,7 @@ function hud(dt){
   else if(bossPending){ bp.textContent='⚠ BOSS INBOUND'; bp.style.color=COL.gold; }
   else { const N=8, f=clamp(Math.round(N*sectorKills/Math.max(1,killsForBoss)),0,N);
     bp.textContent='BOSS ▸ '+'▰'.repeat(f)+'▱'.repeat(N-f); bp.style.color=f>=N?COL.gold:'var(--dim)'; }
-  if(player.lives!==lastLives){ lastLives=player.lives; const lv=Math.max(0,player.lives); el('lives').innerHTML=lv<=5?shipGlyph.repeat(lv):shipGlyph+'<span style="font-size:10px;color:#00FF41;vertical-align:middle;letter-spacing:.04em">x'+lv+'</span>'; }
+  if(player.lives!==lastLives){ lastLives=player.lives; const lv=Math.max(0,player.lives); el('lives').innerHTML=lv<=5?shipGlyph.repeat(lv):shipGlyph+'<span style="font-size:17px;color:#00FF41;vertical-align:middle;letter-spacing:.04em">x'+lv+'</span>'; }
   if(player.armor!==lastHull||player.maxArmor!==lastMaxHull||Math.abs((player.repair||0)-lastRepair)>0.02){
     lastHull=player.armor; lastMaxHull=player.maxArmor; lastRepair=player.repair||0;
     const frac=player.maxArmor?player.armor/player.maxArmor:0; const col=frac<=0.25?COL.mset:frac<=0.45?COL.gold:COL.green;
@@ -5895,6 +5906,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'207',date:'2026',items:['Moved health, lives, and coins to a bigger readout near your ship']},
  {ver:'205',date:'2026',items:['Weapon rebalance: RAILSPIKE bolts now stop after drilling through 6 enemies','SPREAD hits harder and keeps full damage further downrange','NAILGUN redlines are now always a quick vent with no style loss, whether you hold or tap fire','SWARM darts carry a heavier charge','FLAK clouds are bigger and meaner, and the burst band starts closer to your ship','BUZZSAW unlocks a sector earlier, costs less, and its blades deflect more incoming fire']},
  {ver:'204',date:'2026',items:['CO-OP is now RANKED: finish a qualifying match (sector 2+ or 20+ kills) and your team submits one score with both pilots\' initials to the new CO-OP and CO-OP HC leaderboards - find them in the board tabs on the title screen, and click any row for each pilot\'s loadout.']},
  {ver:'203',date:'2026',items:['CO-OP: sustained weapon sounds, boss beam audio, visible pods, death slow-mo, and the SYSTEM HALT sequence now all sync correctly for the guest.']},
