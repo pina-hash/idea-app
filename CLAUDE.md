@@ -1570,6 +1570,21 @@ on one side of the world.
   harness `/dev/greenline-movement` is now a thin wrapper that mounts the
   component with `showDebug` and no loadout prop (localStorage-backed, tuning
   panel + garage overlay on), unchanged in feel.
+- **Headless AI-only stress-test hooks (data-only, backward compatible).** The
+  `__greenline` debug object (only present under `?glheadless=1` / the dev
+  harness) gained a few instrumentation methods for automated statistical
+  testing, none of which touch normal gameplay: `enableAiPlayer(on)` attaches
+  an `AiDriver` to the PLAYER rig so it races as a 4th AI (the drive + weapon
+  branches key off `player.ai`, both no-ops for a normal no-AI player);
+  `setFieldArchetypes(archs)` assigns archetypes across the whole field in rig
+  order (a runner rotates them so every archetype visits every grid slot,
+  cancelling start-position bias); `setLapTarget(n)` shortens races (the sim is
+  real-time and cannot be fast-forwarded); `getTelemetry()` returns per-round
+  weapon fire/hit + flip-recovery counters (`testStats`, reset by resetRound);
+  `raceState()` returns a full per-rig snapshot (laps, checkpoint, finish
+  position, exact total race time, best lap, upright-ness). The Rig gained
+  `raceStartMs`/`finishAtMs` so every vehicle (not just the player) reports an
+  exact total. All additive; solo/normal play is byte-identical.
 - **Real portal route `/greenline` (signed-in tier, any role; RACE only).** The
   first player-facing home for the game, a flow state machine (no page reload
   between screens): title -> garage -> race -> results -> loop back to

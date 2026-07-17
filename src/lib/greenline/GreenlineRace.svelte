@@ -695,6 +695,11 @@
 					flashUntil: number;
 					finished: boolean;
 					finishPos: number;
+					/** Timing-start / finish stamps (ms), for per-rig total race time.
+					 * Mirror the player's playerRaceStartMs logic for every vehicle so
+					 * the headless stress runner can read an exact total per rig. */
+					raceStartMs: number | null;
+					finishAtMs: number | null;
 					spawn: RigSpawn;
 				}
 
@@ -867,6 +872,8 @@
 						flashUntil: 0,
 						finished: false,
 						finishPos: 0,
+						raceStartMs: null,
+						finishAtMs: null,
 						spawn
 					};
 					rigByBodyId.set(body.id, rig);
@@ -1277,6 +1284,26 @@
 
 				let roundOver = false;
 
+				// ---- Headless stress-test instrumentation (data only) ----
+				// Per-round counters the AI-only stress runner reads through
+				// __greenline.getTelemetry(); nothing here is read by gameplay.
+				// Weapon "fire" counts every triggered use; "hit" counts uses that
+				// landed at least one target (oil "hit" = a rival consumed a slick).
+				const testStats = {
+					fire: { emp: 0, tether: 0, oil: 0 },
+					hit: { emp: 0, tether: 0, oil: 0 },
+					ram: 0,
+					flips: 0,
+					flipsByRig: {} as Record<string, number>
+				};
+				const resetTestStats = () => {
+					testStats.fire.emp = testStats.fire.tether = testStats.fire.oil = 0;
+					testStats.hit.emp = testStats.hit.tether = testStats.hit.oil = 0;
+					testStats.ram = 0;
+					testStats.flips = 0;
+					testStats.flipsByRig = {};
+				};
+
 				const checkLastStanding = () => {
 					if (mode !== 'elimination' || roundOver) return;
 					const alive = rigsAll().filter((r) => !r.combat.eliminated);
@@ -1334,6 +1361,8 @@
 					const now = performance.now();
 					const result = tryFire(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
 					if (!result.fired) return result;
+					testStats.fire.emp++;
+					if (result.hits.length) testStats.hit.emp++;
 					spawnRing(shooter.body.position.x, shooter.body.position.z, 0x00f0ff, ct.empRange);
 					if (shooter === player) addTrauma(0.15);
 					for (const hit of result.hits) {
@@ -1383,6 +1412,7 @@
 					if (!slick) return false;
 					slickSeq++;
 					slicks.push(slick);
+					testStats.fire.oil++;
 					// Glossy dark puddle (real reflectance under the sun) with an
 					// unmissable additive iridescent rim + faint violet sheen,
 					// squishing in from the drop point.
@@ -1486,6 +1516,7 @@
 					const now = performance.now();
 					const res = tryTether(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
 					if (!res.fired) return res;
+					testStats.fire.tether++;
 					if (shooter === player) addTrauma(0.12);
 					const sp = shooter.body.position;
 					if (!res.hit) {
@@ -1514,6 +1545,7 @@
 					}
 					const target = rigsAll().find((r) => r.id === res.hit!.targetId);
 					if (!target) return res;
+					testStats.hit.tether++;
 					// One live cable per shooter: a re-fire replaces the old one.
 					for (let i = tethers.length - 1; i >= 0; i--) {
 						if (tethers[i].t.shooterId === shooter.id) {
@@ -1614,7 +1646,10 @@
 						r.prevZ = r.spawn.z;
 						r.finished = false;
 						r.finishPos = 0;
+						r.raceStartMs = null;
+						r.finishAtMs = null;
 					}
+					resetTestStats();
 					for (const s of slicks) removeSlickVis(s.id);
 					slicks.length = 0;
 					for (const tv of tethers) removeTetherVis(tv);
@@ -1769,6 +1804,73 @@
 					getMode: () => mode,
 					getFinishOrder: () => finishOrder.map((r) => r.id),
 					isRoundOver: () => roundOver,
+						// ---- Headless AI-only stress-test hooks ----
+						// Attach/detach an AiDriver on the player rig so it races as a
+						// 4th AI (see the drive + weapon branches, both no-op for a
+						// normal no-AI player). Returns whether the player is now AI.
+						enableAiPlayer: (on = true) => {
+							player.ai = on ? new AiDriver(rt) : null;
+							return !!player.ai;
+						},
+						// Assign archetypes (stock parts) across the whole field in
+						// rig order [player, ai-1, ai-2, ...]; the runner rotates the
+						// assignment each race so every archetype visits every grid
+						// slot evenly, cancelling starting-position bias.
+						setFieldArchetypes: (archs: ArchetypeId[]) => {
+							const rigs = rigsAll();
+							rigs.forEach((r, i) =>
+								applyLoadoutToRig(r, defaultLoadout(archs[i % archs.length] ?? 'handling'))
+							);
+							return rigs.map((r) => ({ id: r.id, archetype: r.archetype }));
+						},
+						// Shorten races for the headless throughput runner (the sim is
+						// real-time and cannot be fast-forwarded); default game is 3.
+						setLapTarget: (n: number) => {
+							tuning.lapTarget = Math.max(1, Math.round(n));
+							return tuning.lapTarget;
+						},
+						// Per-round weapon / flip counters (reset by resetRound).
+						getTelemetry: () => ({
+							fire: { ...testStats.fire },
+							hit: { ...testStats.hit },
+							ram: testStats.ram,
+							flips: testStats.flips,
+							flipsByRig: { ...testStats.flipsByRig }
+						}),
+						// A full snapshot of the field: per-rig progress, finish
+						// state, exact total race time, best lap, and upright-ness.
+						raceState: () => {
+							const now = performance.now();
+							return {
+								mode,
+								lapTarget: Math.max(1, Math.round(num(tuning.lapTarget, DEFAULTS.lapTarget))),
+								aiPlayer: !!player.ai,
+								finishOrder: finishOrder.map((r) => r.id),
+								allFinished: rigsAll().every((r) => r.finished),
+								rigs: rigsAll().map((r) => ({
+									id: r.id,
+									archetype: r.archetype,
+									laps: r.tracker.lapsCompleted,
+									cp: r.tracker.nextCheckpoint,
+									timing: r.tracker.timing,
+									bestLapMs: r.tracker.bestLapMs === null ? null : Math.round(r.tracker.bestLapMs),
+									lastLapMs: r.tracker.lastLapMs === null ? null : Math.round(r.tracker.lastLapMs),
+									finished: r.finished,
+									finishPos: r.finishPos,
+									totalTimeMs:
+										r.finishAtMs !== null && r.raceStartMs !== null
+											? Math.round(r.finishAtMs - r.raceStartMs)
+											: null,
+									eliminated: r.combat.eliminated,
+									down: r.combat.isDown(now),
+									hp: Math.round(r.combat.health),
+									x: Math.round(r.body.position.x * 100) / 100,
+									z: Math.round(r.body.position.z * 100) / 100,
+									upY:
+										Math.round(r.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y * 1000) / 1000
+								}))
+							};
+						},
 					// One-frame render to a small JPEG data URL, for scripted
 					// visual checks in a hidden/headless tab (where the on-screen
 					// canvas never presents and pane screenshots cannot capture).
@@ -1884,7 +1986,10 @@
 						let thr: number;
 						let brk: number;
 						let hbk = false;
-						if (rig === player) {
+						// player.ai is null in normal play (keyboard/gamepad input); the
+						// headless stress runner attaches an AiDriver so the player rig
+						// becomes a 4th AI racer for AI-only races.
+						if (rig === player && !player.ai) {
 							sIn = steerInput;
 							thr = throttle;
 							brk = brakeInput;
@@ -2029,6 +2134,8 @@
 							rig.flipAcc += dt;
 							if (rig.flipAcc >= num(tuning.flipDelaySec, DEFAULTS.flipDelaySec)) {
 								rig.flipAcc = 0;
+								testStats.flips++;
+								testStats.flipsByRig[rig.id] = (testStats.flipsByRig[rig.id] ?? 0) + 1;
 								// hx/hz are the forward vector's flat projection, so the
 								// yaw survives the roll; quatFor's convention (0 = +x,
 								// CCW positive) means yaw = atan2(-hz, hx).
@@ -2142,7 +2249,10 @@
 						performTether(player);
 					}
 					const combatants = all.map(combatantOf);
-					for (const rig of ais) {
+					// Every AI-driven rig makes weapon decisions. In normal play the
+					// player has no AiDriver so it is skipped here (player fires via
+					// input above); the stress runner's AI-player is included.
+					for (const rig of all) {
 						if (!rig.ai || rig.combat.isOut(now)) continue;
 						const self = combatants[all.indexOf(rig)];
 						// The AI decides with ITS OWN build's ranges and cooldowns.
@@ -2183,6 +2293,7 @@
 								now
 							);
 							if (!res.triggered) continue;
+							testStats.ram++;
 							const imp = ct.ramImpulse;
 							const pop = ct.ramPopUp;
 							a.body.applyImpulse(new CANNON.Vec3(-ux * imp, pop, -uz * imp));
@@ -2228,6 +2339,7 @@
 						for (const ev of oilEvents) {
 							const victim = all.find((r) => r.id === ev.targetId);
 							if (!victim) continue;
+							testStats.hit.oil++;
 							const vp = victim.body.position;
 							spawnSparks(vp.x, vp.y + 0.4, vp.z, 14, 0xb47cff, 7, 450);
 							for (let k = 0; k < 4; k++) {
@@ -2331,6 +2443,7 @@
 						rig.prevX = rx;
 						rig.prevZ = rz;
 						for (const ev of events) {
+							if (ev.type === 'timing-started') rig.raceStartMs = ev.atMs;
 							if (rig === player) {
 								if (ev.type === 'timing-started') {
 									playerRaceStartMs = ev.atMs;
@@ -2350,6 +2463,7 @@
 								rig.tracker.lapsCompleted >= lapTarget
 							) {
 								rig.finished = true;
+								rig.finishAtMs = ev.atMs;
 								finishOrder.push(rig);
 								rig.finishPos = finishOrder.length;
 								if (rig === player) {
