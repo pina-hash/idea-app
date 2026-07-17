@@ -1,0 +1,73 @@
+/*
+ * GREENLINE brand tokens, from the locked art-direction reference
+ * ("Greenline Art Direction Reference.html", direction 1A / IMPACT).
+ *
+ * Scope: everything under a `.glb` wrapper. GREENLINE is a deliberate
+ * departure from the portal's IDEA-green theme: near-black night base,
+ * chrome/steel as the dominant material, the signature green used
+ * surgically (wordmark line, ready/power states, the player's own row),
+ * and amber reserved for genuinely high-impact moments (damage, downs,
+ * finishes). Never use amber as ambient color; it is the energy, not
+ * the palette.
+ */
+.glb {
+	/* Palette 01 · base & atmosphere */
+	--glb-night: #04060a;
+	--glb-haze: #0d1319;
+	--glb-horizon: #10161c;
+	--glb-cool-rim: #78a5cd;
+	--glb-flood: #eaf4ff;
+	--glb-black: #020303;
+
+	/* Palette 02 · signature green (surgical use only) */
+	--glb-green: #2ae57e;
+	--glb-green-core: #eafff3;
+	--glb-green-trail: #c8ffe2;
+	--glb-green-ui: #8fffc4;
+
+	/* Palette 03 · amber impact (reserved for high-impact states) */
+	--glb-amber: #ffb02e;
+	--glb-amber-deep: #ff9b2e;
+	--glb-amber-warm: #ffd9a0;
+	--glb-amber-flash: #ffe7c2;
+
+	/* Chrome / steel material language */
+	--glb-chrome-hi: #f7fbfe;
+	--glb-chrome-mid: #cfdae2;
+	--glb-steel: #93a3b0;
+	--glb-steel-dim: #6b7b88;
+	--glb-chrome-lo: #39454f;
+
+	/* Derived UI ink + surfaces */
+	--glb-ink: #dfe8ee;
+	--glb-ink-dim: #8b99a5;
+	--glb-ink-faint: #5a6771;
+	--glb-line: rgba(147, 163, 176, 0.2);
+	--glb-line-strong: rgba(207, 218, 226, 0.38);
+	--glb-panel: rgba(7, 10, 14, 0.92);
+	--glb-panel-2: rgba(13, 19, 25, 0.85);
+
+	/* The chrome gradient recipe: dark band pinned to 51% reads as the
+	   horizon reflection line. Same gradient drives wordmark and bodywork. */
+	--glb-chrome-grad: linear-gradient(
+		179deg,
+		#f7fbfe 4%,
+		#cfdae2 26%,
+		#93a3b0 44%,
+		#39454f 51%,
+		#b7c5d0 57%,
+		#eef4f8 72%,
+		#6b7b88 88%,
+		#3f4b55 100%
+	);
+
+	/* Type system: Archivo Black is the wordmark/hero voice only; Saira
+	   Condensed is decals, labels, taglines; Share Tech Mono is the
+	   instrument voice for fast-updating numerics (stable digit widths). */
+	--glb-font-display: 'Archivo Black', sans-serif;
+	--glb-font-ui: 'Saira Condensed', sans-serif;
+	--glb-font-data: 'Share Tech Mono', monospace;
+
+	font-family: var(--glb-font-ui);
+	color: var(--glb-ink);
+}

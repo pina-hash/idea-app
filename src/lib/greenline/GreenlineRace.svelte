@@ -64,6 +64,7 @@
 	import Minimap from '$lib/greenline/Minimap.svelte';
 	import provingGroundJson from '$lib/greenline/tracks/proving-ground-07.json';
 	import { browser } from '$app/environment';
+	import './brand/brand';
 
 	/**
 	 * GREENLINE movement + track + combat + AI prototype (dev-only harness).
@@ -2760,12 +2761,17 @@
 		<div class="gl-banner">{banner}</div>
 	{/if}
 
-	<div class="gl-hud">
-		<div class="gl-title">GREENLINE // movement prototype · {track.name} · {mode.toUpperCase()}</div>
-		<div class="gl-speed">{speedKmh}<span class="gl-unit">km/h</span></div>
-		<div class="gl-sub">{speedMs} m/s{hud.offTrack ? ' · OFF TRACK' : ''}</div>
+	<div class="glb gl-hud">
+		<div class="gl-tag">
+			<span class="gl-tag-line" aria-hidden="true"></span>
+			<span class="gl-tag-mark">GREENLINE</span>
+			<span class="gl-tag-meta">{track.name.toUpperCase()} · {mode.toUpperCase()}</span>
+		</div>
 
-		<div class="gl-health">
+		<div class="gl-cluster">
+			<div class="gl-speed">{speedKmh}<span class="gl-unit">KM/H</span></div>
+			{#if showDebug}<div class="gl-sub">{speedMs} m/s</div>{/if}
+
 			<div class="gl-health-bar">
 				<div
 					class="gl-health-fill"
@@ -2773,64 +2779,75 @@
 					style:width="{Math.max(0, (chud.hp / Math.max(1, chud.max)) * 100)}%"
 				></div>
 			</div>
-			<div class="gl-health-line">
-				HP {chud.hp}/{chud.max}
-				{#if chud.status === 'DISRUPTED'}<span class="gl-st-disrupted">DISRUPTED</span>{/if}
-				{#if chud.status === 'DOWN'}<span class="gl-st-down"
-						>DOWN {chud.downLeft.toFixed(1)}s</span
-					>{/if}
-				{#if chud.status === 'ELIMINATED'}<span class="gl-st-down">ELIMINATED</span>{/if}
-				{#if chud.oiled}<span class="gl-st-oiled">OILED</span>{/if}
-				{#if chud.tethered}<span class="gl-st-tether">TETHERED</span>{/if}
+			<div class="gl-health-line">HULL {chud.hp}/{chud.max}</div>
+			<div class="gl-status-row">
+				{#if chud.status === 'DISRUPTED'}<span class="gl-st gl-st-disrupted">DISRUPTED</span>{/if}
+				{#if chud.status === 'DOWN'}<span class="gl-st gl-st-down">DOWN {chud.downLeft.toFixed(1)}s</span>{/if}
+				{#if chud.status === 'ELIMINATED'}<span class="gl-st gl-st-elim">ELIMINATED</span>{/if}
+				{#if chud.oiled}<span class="gl-st gl-st-oiled">OILED</span>{/if}
+				{#if chud.tethered}<span class="gl-st gl-st-tether">TETHERED</span>{/if}
+				{#if hud.offTrack}<span class="gl-st gl-st-offtrack">OFF TRACK</span>{/if}
 			</div>
-			<div class="gl-weapons">
-				<div class="gl-weapon-row">
-					<span class="gl-wname">EMP</span>
-					{chud.ready.emp <= 0 ? 'READY (F / RB)' : `${chud.ready.emp.toFixed(1)}s`}
-				</div>
-				<div class="gl-weapon-row">
-					<span class="gl-wname">OIL</span>
-					{chud.ready.oil <= 0 ? 'READY (E / X)' : `${chud.ready.oil.toFixed(1)}s`}
-				</div>
-				<div class="gl-weapon-row">
-					<span class="gl-wname">TETHER</span>
-					{chud.ready.tether <= 0 ? 'READY (Q / LB)' : `${chud.ready.tether.toFixed(1)}s`}
-				</div>
-				<div class="gl-weapon-row">
-					<span class="gl-wname">RAM</span>
-					{chud.ready.ram <= 0 ? 'ARMED (nose-first contact)' : `${chud.ready.ram.toFixed(1)}s`}
-				</div>
-			</div>
-		</div>
 
-		<div class="gl-lap">
-			{#if hud.timing}
-				<div class="gl-lap-big">LAP {hud.lap} · CP {hud.cp}/{hud.total}</div>
-				<div class="gl-lap-line">time {formatLapMs(hud.currentMs)}</div>
-				<div class="gl-lap-line">last {formatLapMs(hud.lastMs)} · best {formatLapMs(hud.bestMs)}</div>
-			{:else}
-				<div class="gl-lap-line">cross the start line to begin timing</div>
-			{/if}
-			{#if lapFlash}
-				<div class="gl-lap-flash">{lapFlash}</div>
-			{/if}
+			<div class="gl-weapons">
+				<div class="gl-wcell" class:ready={chud.ready.emp <= 0}>
+					<span class="gl-wname">EMP</span>
+					<span class="gl-wstate">{chud.ready.emp <= 0 ? 'READY' : `${chud.ready.emp.toFixed(1)}s`}</span>
+					<span class="gl-wkey">F / RB</span>
+				</div>
+				<div class="gl-wcell" class:ready={chud.ready.oil <= 0}>
+					<span class="gl-wname">OIL</span>
+					<span class="gl-wstate">{chud.ready.oil <= 0 ? 'READY' : `${chud.ready.oil.toFixed(1)}s`}</span>
+					<span class="gl-wkey">E / X</span>
+				</div>
+				<div class="gl-wcell" class:ready={chud.ready.tether <= 0}>
+					<span class="gl-wname">TETHER</span>
+					<span class="gl-wstate">{chud.ready.tether <= 0 ? 'READY' : `${chud.ready.tether.toFixed(1)}s`}</span>
+					<span class="gl-wkey">Q / LB</span>
+				</div>
+				<div class="gl-wcell" class:ready={chud.ready.ram <= 0}>
+					<span class="gl-wname">RAM</span>
+					<span class="gl-wstate">{chud.ready.ram <= 0 ? 'ARMED' : `${chud.ready.ram.toFixed(1)}s`}</span>
+					<span class="gl-wkey">NOSE HIT</span>
+				</div>
+			</div>
 		</div>
 
 		{#if standings.length}
 			<div class="gl-standings">
 				{#each standings as s (s.label)}
 					<div class="gl-stand-row" class:me={s.label === 'YOU'}>
-						P{s.pos} {s.label} [{s.arch}] · {s.note || `L${s.laps} CP${s.cp}`} · {s.hp}hp
+						<span class="gl-stand-pos">P{s.pos}</span>
+						<span class="gl-stand-label">{s.label}</span>
+						<span class="gl-stand-arch">{s.arch}</span>
+						<span class="gl-stand-note">{s.note || `L${s.laps} · CP${s.cp}`}</span>
+						<span class="gl-stand-hp" class:low={s.hp <= 35}>{s.hp}</span>
 					</div>
 				{/each}
 			</div>
 		{/if}
+	</div>
 
-		<div class="gl-pad">{padName ? `pad: ${padName}` : 'pad: none (keyboard)'}</div>
-		<div class="gl-keys">
-			W/S throttle+brake · A/D steer · Space handbrake · F EMP · E oil · Q tether · G garage · R
-			reset round
-		</div>
+	<div class="glb gl-timing">
+		{#if hud.timing}
+			<div class="gl-timing-strip">
+				<span class="gl-t-cell"><span class="gl-t-label">LAP</span><span class="gl-t-val">{hud.lap}</span></span>
+				<span class="gl-t-cell"><span class="gl-t-label">CP</span><span class="gl-t-val">{hud.cp}/{hud.total}</span></span>
+				<span class="gl-t-cell"><span class="gl-t-label">TIME</span><span class="gl-t-val">{formatLapMs(hud.currentMs)}</span></span>
+				<span class="gl-t-cell"><span class="gl-t-label">LAST</span><span class="gl-t-val dim">{formatLapMs(hud.lastMs)}</span></span>
+				<span class="gl-t-cell"><span class="gl-t-label">BEST</span><span class="gl-t-val best">{formatLapMs(hud.bestMs)}</span></span>
+			</div>
+		{:else}
+			<div class="gl-timing-idle">CROSS THE START LINE TO BEGIN TIMING</div>
+		{/if}
+		{#if lapFlash}
+			<div class="gl-flash">{lapFlash}</div>
+		{/if}
+	</div>
+
+	<div class="glb gl-controls">
+		{padName ? `PAD: ${padName}` : 'KEYBOARD'} · W/S DRIVE · A/D STEER · SPACE HANDBRAKE · F EMP ·
+		E OIL · Q TETHER{showDebug ? ' · G GARAGE' : ''} · R RESET
 	</div>
 
 	<div class="gl-map">
@@ -3015,9 +3032,9 @@
 	.gl-root {
 		position: fixed;
 		inset: 0;
-		background: #05090c;
-		font-family: 'Share Tech Mono', monospace;
-		color: #e8ffe8;
+		background: #04060a;
+		font-family: 'Saira Condensed', sans-serif;
+		color: #dfe8ee;
 		z-index: 10;
 	}
 	.gl-stage {
@@ -3034,147 +3051,326 @@
 		top: 50%;
 		left: 50%;
 		transform: translate(-50%, -50%);
-		color: #ffb347;
-		background: rgba(10, 14, 10, 0.9);
-		border: 1px solid #ffb347;
+		color: #ffd9a0;
+		background: rgba(7, 10, 14, 0.94);
+		border: 1px solid rgba(255, 176, 46, 0.6);
 		padding: 1rem 1.5rem;
 	}
+
+	/* ------------------------------------------------------------------ */
+	/* Race HUD. Legibility under motion comes first: solid dark plates,  */
+	/* hairline steel borders, mono digits for anything that ticks, no    */
+	/* blur or glow effects over the moving scene. Green marks only the   */
+	/* player (YOU row, best lap, READY) and amber only impact states.    */
+	/* ------------------------------------------------------------------ */
 	.gl-banner {
 		position: absolute;
-		top: 1.2rem;
+		top: 22%;
 		left: 50%;
 		transform: translateX(-50%);
-		color: #c8ff00;
-		background: rgba(6, 12, 8, 0.9);
-		border: 1px solid rgba(200, 255, 0, 0.5);
-		padding: 0.5rem 1.2rem;
-		font-size: 1rem;
-		letter-spacing: 0.08em;
+		color: var(--glb-chrome-hi);
+		background: rgba(4, 7, 11, 0.88);
+		border: 1px solid var(--glb-line-strong);
+		border-bottom: 2px solid rgba(42, 229, 126, 0.75);
+		padding: 0.6rem 1.6rem;
+		font: 600 1rem var(--glb-font-ui);
+		letter-spacing: 0.22em;
 		white-space: nowrap;
+		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
 	}
 	.gl-hud {
 		position: absolute;
 		top: 1rem;
 		left: 1rem;
 		pointer-events: none;
-		text-shadow: 0 0 8px rgba(0, 255, 65, 0.35);
 	}
-	.gl-title {
-		font-size: 0.8rem;
-		letter-spacing: 0.14em;
-		color: #00ff41;
-		margin-bottom: 0.4rem;
+	.gl-tag {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin-bottom: 0.5rem;
+		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+	}
+	.gl-tag-line {
+		width: 1.4rem;
+		height: 2px;
+		background: linear-gradient(90deg, rgba(42, 229, 126, 0.2), #2ae57e);
+	}
+	.gl-tag-mark {
+		font-family: var(--glb-font-display);
+		font-size: 0.7rem;
+		letter-spacing: 0.02em;
+		transform: skewX(-7deg);
+		color: var(--glb-chrome-mid);
+	}
+	.gl-tag-meta {
+		font: 600 0.62rem var(--glb-font-ui);
+		letter-spacing: 0.2em;
+		color: var(--glb-ink-dim);
+	}
+	.gl-cluster {
+		width: 15.5rem;
+		background: rgba(4, 7, 11, 0.72);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		padding: 0.55rem 0.65rem 0.6rem;
 	}
 	.gl-speed {
-		font-size: 3rem;
+		font-family: var(--glb-font-data);
+		font-size: 2.5rem;
 		line-height: 1;
-		color: #00ff41;
+		color: var(--glb-chrome-hi);
 	}
 	.gl-unit {
-		font-size: 1rem;
+		font: 600 0.7rem var(--glb-font-ui);
 		margin-left: 0.4rem;
-		color: #7fbf8f;
+		letter-spacing: 0.18em;
+		color: var(--glb-ink-dim);
 	}
 	.gl-sub {
-		color: #7fbf8f;
-		margin-top: 0.2rem;
-	}
-	.gl-health {
-		margin-top: 0.6rem;
-		width: 15rem;
+		font-family: var(--glb-font-data);
+		font-size: 0.62rem;
+		color: var(--glb-ink-faint);
+		margin-top: 0.15rem;
 	}
 	.gl-health-bar {
-		height: 0.55rem;
-		background: rgba(10, 20, 16, 0.9);
-		border: 1px solid rgba(0, 255, 65, 0.35);
+		margin-top: 0.55rem;
+		height: 0.5rem;
+		background: rgba(13, 19, 25, 0.9);
+		border: 1px solid var(--glb-line-strong);
 	}
 	.gl-health-fill {
 		height: 100%;
-		background: #00ff41;
+		background: linear-gradient(180deg, #eef4f8, #93a3b0);
 		transition: width 120ms linear;
 	}
 	.gl-health-fill.low {
-		background: #ffb347;
+		background: linear-gradient(180deg, #ffd9a0, #ffb02e);
 	}
 	.gl-health-line {
 		margin-top: 0.25rem;
-		font-size: 0.8rem;
-		color: #b9d9c2;
+		font: 600 0.66rem var(--glb-font-ui);
+		letter-spacing: 0.16em;
+		color: var(--glb-ink-dim);
 	}
-	.gl-st-disrupted {
-		color: #00f0ff;
-		margin-left: 0.5rem;
-	}
-	.gl-st-down {
-		color: #ffb347;
-		margin-left: 0.5rem;
-	}
-	.gl-st-oiled {
-		color: #b47cff;
-		margin-left: 0.5rem;
-	}
-	.gl-st-tether {
-		color: #c8ff00;
-		margin-left: 0.5rem;
-	}
-	.gl-weapons {
-		margin-top: 0.35rem;
-	}
-	.gl-weapon-row {
-		font-size: 0.72rem;
-		color: #5f7f6a;
-		margin-top: 0.12rem;
-	}
-	.gl-wname {
-		display: inline-block;
-		width: 3.6rem;
-		color: #7fbf8f;
-	}
-	.gl-lap {
-		margin-top: 0.7rem;
-		border-left: 2px solid rgba(0, 255, 65, 0.35);
-		padding-left: 0.6rem;
-	}
-	.gl-lap-big {
-		color: #00f0ff;
-		font-size: 1.05rem;
-	}
-	.gl-lap-line {
-		color: #7fbf8f;
-		font-size: 0.85rem;
-		margin-top: 0.15rem;
-	}
-	.gl-lap-flash {
-		color: #c8ff00;
-		font-size: 0.95rem;
+	.gl-status-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		min-height: 0;
 		margin-top: 0.3rem;
 	}
+	.gl-st {
+		font: 700 0.66rem var(--glb-font-ui);
+		letter-spacing: 0.14em;
+		padding: 0.12rem 0.4rem;
+		border: 1px solid;
+		border-radius: 1px;
+		background: rgba(4, 7, 11, 0.9);
+	}
+	.gl-st-disrupted {
+		color: #9cc4e8;
+		border-color: rgba(120, 165, 205, 0.7);
+	}
+	.gl-st-down,
+	.gl-st-elim {
+		color: #170d00;
+		background: #ffb02e;
+		border-color: #ffd9a0;
+	}
+	.gl-st-oiled {
+		color: #c9b2ff;
+		border-color: rgba(180, 124, 255, 0.6);
+	}
+	.gl-st-tether {
+		color: #ffd9a0;
+		border-color: rgba(255, 217, 160, 0.55);
+	}
+	.gl-st-offtrack {
+		color: #c9a15f;
+		border-color: rgba(201, 161, 95, 0.55);
+	}
+	.gl-weapons {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 0.3rem;
+		margin-top: 0.5rem;
+	}
+	.gl-wcell {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.1rem;
+		padding: 0.28rem 0.1rem 0.24rem;
+		background: rgba(13, 19, 25, 0.75);
+		border: 1px solid var(--glb-line);
+		border-radius: 1px;
+	}
+	.gl-wname {
+		font: 600 0.56rem var(--glb-font-ui);
+		letter-spacing: 0.12em;
+		color: var(--glb-ink-dim);
+	}
+	.gl-wstate {
+		font-family: var(--glb-font-data);
+		font-size: 0.7rem;
+		line-height: 1;
+		color: var(--glb-steel);
+	}
+	.gl-wcell.ready {
+		border-color: rgba(42, 229, 126, 0.45);
+	}
+	.gl-wcell.ready .gl-wstate {
+		color: var(--glb-green-ui);
+	}
+	.gl-wkey {
+		font: 500 0.5rem var(--glb-font-ui);
+		letter-spacing: 0.08em;
+		color: var(--glb-ink-faint);
+	}
 	.gl-standings {
-		margin-top: 0.6rem;
-		border-left: 2px solid rgba(0, 240, 255, 0.3);
-		padding-left: 0.6rem;
+		margin-top: 0.5rem;
+		width: 15.5rem;
+		background: rgba(4, 7, 11, 0.72);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		padding: 0.3rem 0;
 	}
 	.gl-stand-row {
-		font-size: 0.78rem;
-		color: #7fbf8f;
-		margin-top: 0.1rem;
+		position: relative;
+		display: grid;
+		grid-template-columns: 1.7rem 3.4rem 2.4rem 1fr 1.8rem;
+		gap: 0.3rem;
+		align-items: baseline;
+		font-size: 0.72rem;
+		color: var(--glb-ink-dim);
+		padding: 0.1rem 0.55rem;
+	}
+	.gl-stand-pos {
+		font-family: var(--glb-font-data);
+		color: var(--glb-steel);
+	}
+	.gl-stand-label {
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		color: var(--glb-ink);
+	}
+	.gl-stand-arch {
+		font-size: 0.6rem;
+		font-weight: 600;
+		letter-spacing: 0.1em;
+		color: var(--glb-ink-faint);
+	}
+	.gl-stand-note {
+		font-family: var(--glb-font-data);
+		font-size: 0.64rem;
+		color: var(--glb-ink-faint);
+	}
+	.gl-stand-hp {
+		font-family: var(--glb-font-data);
+		font-size: 0.66rem;
+		text-align: right;
+		color: var(--glb-steel);
+	}
+	.gl-stand-hp.low {
+		color: var(--glb-amber);
 	}
 	.gl-stand-row.me {
-		color: #00ff41;
+		color: var(--glb-green-ui);
 	}
-	.gl-pad {
-		margin-top: 0.6rem;
-		font-size: 0.72rem;
-		color: #00f0ff;
-		max-width: 22rem;
+	.gl-stand-row.me::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 2px;
+		bottom: 2px;
+		width: 2px;
+		background: #2ae57e;
+		box-shadow: 0 0 6px rgba(42, 229, 126, 0.8);
+	}
+	.gl-stand-row.me .gl-stand-label,
+	.gl-stand-row.me .gl-stand-pos,
+	.gl-stand-row.me .gl-stand-hp,
+	.gl-stand-row.me .gl-stand-note {
+		color: var(--glb-green-ui);
+	}
+	.gl-timing {
+		position: absolute;
+		top: 1rem;
+		left: 50%;
+		transform: translateX(-50%);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.4rem;
+		pointer-events: none;
+	}
+	.gl-timing-strip {
+		display: flex;
+		gap: 1rem;
+		background: rgba(4, 7, 11, 0.72);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		padding: 0.4rem 0.9rem;
+		white-space: nowrap;
+	}
+	.gl-t-cell {
+		display: flex;
+		align-items: baseline;
+		gap: 0.35rem;
+	}
+	.gl-t-label {
+		font: 600 0.58rem var(--glb-font-ui);
+		letter-spacing: 0.18em;
+		color: var(--glb-ink-faint);
+	}
+	.gl-t-val {
+		font-family: var(--glb-font-data);
+		font-size: 0.95rem;
+		line-height: 1;
+		color: var(--glb-chrome-hi);
+	}
+	.gl-t-val.dim {
+		color: var(--glb-steel);
+	}
+	.gl-t-val.best {
+		color: var(--glb-green-ui);
+	}
+	.gl-timing-idle {
+		background: rgba(4, 7, 11, 0.72);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		padding: 0.4rem 0.9rem;
+		font: 600 0.66rem var(--glb-font-ui);
+		letter-spacing: 0.24em;
+		color: var(--glb-ink-dim);
+		white-space: nowrap;
+	}
+	.gl-flash {
+		background: rgba(4, 7, 11, 0.85);
+		border: 1px solid var(--glb-line-strong);
+		border-left: 2px solid #2ae57e;
+		border-radius: 1px;
+		padding: 0.28rem 0.8rem;
+		font: 600 0.78rem var(--glb-font-ui);
+		letter-spacing: 0.12em;
+		color: var(--glb-ink);
+		white-space: nowrap;
+	}
+	.gl-controls {
+		position: absolute;
+		bottom: 0.7rem;
+		left: 50%;
+		transform: translateX(-50%);
+		max-width: min(92vw, 60rem);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-	}
-	.gl-keys {
-		margin-top: 0.3rem;
-		font-size: 0.72rem;
-		color: #5f7f6a;
+		font: 500 0.6rem var(--glb-font-ui);
+		letter-spacing: 0.14em;
+		color: var(--glb-ink-faint);
+		text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+		pointer-events: none;
 	}
 	.gl-map {
 		position: absolute;

@@ -61,12 +61,13 @@ export const PORTAL_APPS: PortalApp[] = [
 	{
 		id: 'greenline',
 		title: 'IDEA // GREENLINE',
-		sub: 'Pre-alpha vector racing simulator. Test vehicle physics, tire slip, and centerline AI drivers.',
+		sub: 'Combat racing under the floodlights. Build your machine, run Proving Ground 07, and hold the line.',
 		icon: 'greenline',
-		href: '/dev/greenline-movement',
+		href: '/greenline',
 		group: 'games',
-		cta: 'Test',
-		theme: { primary: '#78B870', secondary: '#C8A848' }
+		cta: 'Race',
+		requiresAuth: true,
+		theme: { primary: '#2AE57E', secondary: '#CFDAE2' }
 	},
 	{
 		id: 'coins',

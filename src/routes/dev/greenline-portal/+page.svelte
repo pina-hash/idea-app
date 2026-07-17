@@ -1,18 +1,25 @@
 <script lang="ts">
+	import { browser } from '$app/environment';
 	import Garage from '$lib/greenline/Garage.svelte';
 	import GreenlineResults from '$lib/greenline/GreenlineResults.svelte';
+	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
 	import { GARAGE_BASELINE, type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
 	import { defaultLoadout, type ArchetypeId, type PartSlot } from '$lib/greenline/loadout';
 	import type { LeaderboardEntry } from '$lib/greenline/persistence';
 
 	/**
 	 * Dev harness for the /greenline portal-flow chrome (no auth / Supabase). It
-	 * mounts the real Garage with the route's own props (START RACE label, TITLE
-	 * back button, custom note) and the real GreenlineResults with sample data,
-	 * so both presentational screens are browser-verifiable. The race itself lives
-	 * in /dev/greenline-movement; the full data-backed loop is on /greenline.
+	 * mounts the real GreenlineTitle (the code-rendered key-art scene), the real
+	 * Garage with the route's own props (START RACE label, TITLE back button,
+	 * custom note), and the real GreenlineResults with sample data, so all three
+	 * presentational screens are browser-verifiable. The race itself lives in
+	 * /dev/greenline-movement; the full data-backed loop is on /greenline.
 	 */
-	let view = $state<'garage' | 'results'>('garage');
+	// ?view=garage|results preselects a view (headless screenshot support).
+	const initView = browser ? new URLSearchParams(location.search).get('view') : null;
+	let view = $state<'title' | 'garage' | 'results'>(
+		initView === 'garage' || initView === 'results' ? initView : 'title'
+	);
 
 	// --- Garage screen (real component, route props) ---
 	let loadout = $state(defaultLoadout());
@@ -84,9 +91,10 @@
 
 <div class="dh-bar">
 	<span>GREENLINE portal-flow harness (dev)</span>
+	<button class:on={view === 'title'} onclick={() => (view = 'title')}>title</button>
 	<button class:on={view === 'garage'} onclick={() => (view = 'garage')}>garage</button>
 	<button class:on={view === 'results'} onclick={() => (view = 'results')}>results</button>
-	{#if view === 'garage'}<span class="dh-note">last: {lastAction || '—'}</span>{/if}
+	{#if view !== 'results'}<span class="dh-note">last: {lastAction || '—'}</span>{/if}
 	{#if view === 'results'}
 		<span class="dh-note">board:</span>
 		{#each ['rows', 'empty', 'loading', 'submitting', 'error'] as m}
@@ -96,7 +104,9 @@
 </div>
 
 <div class="dh-stage">
-	{#if view === 'garage'}
+	{#if view === 'title'}
+		<GreenlineTitle trackName="Proving Ground 07" onStart={() => (lastAction = 'START')} />
+	{:else if view === 'garage'}
 		<Garage
 			{loadout}
 			baselineHealth={GARAGE_BASELINE.health}

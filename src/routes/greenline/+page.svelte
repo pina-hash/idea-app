@@ -21,6 +21,8 @@
 		submitRaceResult,
 		type LeaderboardEntry
 	} from '$lib/greenline/persistence';
+	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
+	import '$lib/greenline/brand/brand';
 	import type { PageData } from './$types';
 
 	/**
@@ -117,12 +119,8 @@
 </svelte:head>
 
 {#if screen === 'title'}
-	<div class="gp-root gp-center">
-		<div class="gp-title-card">
-			<div class="gp-wordmark">GREENLINE</div>
-			<div class="gp-tagline">combat racing · {track.name}</div>
-			<button class="gp-btn gp-btn-primary" onclick={() => (screen = 'garage')}>START</button>
-		</div>
+	<div class="gp-root">
+		<GreenlineTitle trackName={track.name} onStart={() => (screen = 'garage')} />
 	</div>
 {:else if screen === 'garage'}
 	<div class="gp-root">
@@ -168,9 +166,9 @@
 	.gp-root {
 		position: fixed;
 		inset: 0;
-		background: #05090c;
-		font-family: 'Share Tech Mono', monospace;
-		color: #e8ffe8;
+		background: #04060a;
+		font-family: 'Saira Condensed', sans-serif;
+		color: #dfe8ee;
 		z-index: 10;
 		overflow-y: auto;
 	}
@@ -184,45 +182,9 @@
 		inset: 0;
 	}
 	.gp-loading {
-		color: #5f7f6a;
+		color: #6b7b88;
 		font-size: 0.85rem;
-	}
-	.gp-title-card {
-		text-align: center;
-		padding: 2rem;
-	}
-	.gp-wordmark {
-		font-size: 4rem;
-		letter-spacing: 0.3em;
-		color: #00ff41;
-		text-shadow: 0 0 24px rgba(0, 255, 65, 0.4);
-	}
-	.gp-tagline {
-		margin-top: 0.6rem;
-		color: #7fbf8f;
-		letter-spacing: 0.14em;
-		font-size: 0.9rem;
-	}
-	.gp-btn {
-		background: rgba(0, 255, 65, 0.1);
-		border: 1px solid rgba(0, 255, 65, 0.4);
-		color: #00ff41;
-		font-family: inherit;
-		font-size: 1.1rem;
-		letter-spacing: 0.1em;
-		padding: 0.6rem 2.4rem;
-		margin-top: 2rem;
-		cursor: pointer;
-	}
-	.gp-btn:hover {
-		background: rgba(0, 255, 65, 0.2);
-	}
-	.gp-btn-primary {
-		background: rgba(200, 255, 0, 0.12);
-		border-color: rgba(200, 255, 0, 0.5);
-		color: #c8ff00;
-	}
-	.gp-btn-primary:hover {
-		background: rgba(200, 255, 0, 0.22);
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
 	}
 </style>

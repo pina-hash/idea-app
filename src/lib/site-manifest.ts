@@ -40,6 +40,12 @@ export const APPS: SiteApp[] = [
 		contains: ['vanguard']
 	},
 	{
+		id: 'greenline',
+		label: 'Greenline',
+		prefixes: [],
+		contains: ['greenline']
+	},
+	{
 		id: 'coins',
 		label: 'IDEA Coins',
 		prefixes: ['static/coins/', 'src/routes/coin-entry/', 'src/lib/legacy/coin-entry.html'],

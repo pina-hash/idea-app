@@ -85,9 +85,9 @@
 	aria-label="Track minimap"
 >
 	<g transform="translate(105, 105) rotate({-rotAngle - 90}) translate({-playerCx}, {-playerCy})">
-		<path d={ribbonPath} fill="rgba(0,255,65,0.10)" fill-rule="evenodd" stroke="none" />
+		<path d={ribbonPath} fill="rgba(147,163,176,0.10)" fill-rule="evenodd" stroke="none" />
 		{#each boundaryPaths as d (d)}
-			<path {d} fill="none" stroke="rgba(0,255,65,0.45)" stroke-width="1" />
+			<path {d} fill="none" stroke="rgba(147,163,176,0.4)" stroke-width="1" />
 		{/each}
 		{#each runtime.checkpoints as g, i (g.gate.id)}
 			{@const l = gateLine(g)}
@@ -96,27 +96,28 @@
 				y1={l.y1}
 				x2={l.x2}
 				y2={l.y2}
-				stroke={i === nextCheckpoint ? '#00f0ff' : i < nextCheckpoint ? '#2a5f43' : '#5f8f74'}
+				stroke={i === nextCheckpoint ? '#8fffc4' : i < nextCheckpoint ? '#39454f' : '#6b7b88'}
 				stroke-width={i === nextCheckpoint ? 2.5 : 1.5}
 			/>
 		{/each}
-		<line x1={sfLine.x1} y1={sfLine.y1} x2={sfLine.x2} y2={sfLine.y2} stroke="#c8ff00" stroke-width="2.5" />
+		<line x1={sfLine.x1} y1={sfLine.y1} x2={sfLine.x2} y2={sfLine.y2} stroke="#eaf4ff" stroke-width="2.5" />
 		{#each others as o, i (i)}
 			<polygon
 				points={triangle(o, 5)}
-				fill={o.out ? '#4a4f4a' : '#ffb347'}
-				stroke="#052"
+				fill={o.out ? '#39454f' : '#eef4f8'}
+				stroke="#04060a"
 				stroke-width="0.6"
 			/>
 		{/each}
-		<polygon points={triangle(pose, 7)} fill="#00ff41" stroke="#052" stroke-width="0.8" />
+		<polygon points={triangle(pose, 7)} fill="#2ae57e" stroke="#04060a" stroke-width="0.8" />
 	</g>
 </svg>
 
 <style>
 	.gl-minimap {
 		display: block;
-		background: rgba(6, 12, 8, 0.82);
-		border: 1px solid rgba(0, 255, 65, 0.25);
+		background: rgba(4, 7, 11, 0.78);
+		border: 1px solid rgba(147, 163, 176, 0.28);
+		border-radius: 2px;
 	}
 </style>

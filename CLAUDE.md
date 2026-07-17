@@ -1605,18 +1605,56 @@ on one side of the world.
   via `submitRaceResult` and shows the track leaderboard via `loadLeaderboard`.
   Everything data-backed FAILS SOFT (0049 unapplied / offline): the garage and
   results still function, the saved build reads as the default, the submit is a
-  no-op, and the board shows an "unavailable offline" note. **Not yet in the
-  portal nav** (reachable directly at `/greenline`; the visual pass that
-  surfaces it to students is a later stage). The route is NOT registered in
-  `site-manifest.ts` yet.
+  no-op, and the board shows an "unavailable offline" note. The route is in the
+  portal nav (the homepage launcher `greenline` card in `portal-apps.ts`, cta
+  "Race", `requiresAuth` like GAUNTLET) and registered in `site-manifest.ts`
+  (own version badge / changelog filter; `contains: ['greenline']`).
 - **Dev harness `/dev/greenline-portal`** (404 in production, no auth /
-  Supabase): mounts the REAL `Garage` (with the route's own labels) and the
-  REAL `GreenlineResults` (sample board + outcome, with mode toggles for the
-  empty / loading / submitting / offline-error states) so the two
-  presentational flow screens are browser-verifiable without a live backend.
-  The race itself is verified via `/dev/greenline-movement` (drive + finish
-  through the `__greenline` API under `?glheadless=1`); the full signed-in
-  data-backed loop runs only on `/greenline`.
+  Supabase): mounts the REAL `GreenlineTitle`, the REAL `Garage` (with the
+  route's own labels) and the REAL `GreenlineResults` (sample board + outcome,
+  with mode toggles for the empty / loading / submitting / offline-error
+  states) so the three presentational flow screens are browser-verifiable
+  without a live backend; `?view=garage|results` preselects a view (headless
+  screenshot support). The race itself is verified via
+  `/dev/greenline-movement` (drive + finish through the `__greenline` API
+  under `?glheadless=1`); the full signed-in data-backed loop runs only on
+  `/greenline`.
+- **GREENLINE brand layer (the visual identity, deliberately NOT the portal's
+  IDEA green).** The locked art direction lives in the repo-root reference
+  `Greenline Art Direction Reference.html` (direction "1A / IMPACT": floodlit
+  rig-yard night, chrome prototype machines frozen mid-collision, amber spark
+  shower, ONE green signature thread); read it before any GREENLINE visual
+  work. `src/lib/greenline/brand/` implements it: `brand.css` (tokens scoped
+  under `.glb`: night base `#04060a`, chrome/steel material with the
+  chrome-gradient recipe whose dark band pins to 51%, signature green
+  `#2ae57e` + UI green `#8fffc4`, amber impact `#ffb02e`), `brand.ts` (the
+  side-effect import: tokens + fonts `@fontsource/archivo-black` and
+  `@fontsource/saira-condensed`; Saira has no true italic, the browser
+  synthesizes it), `GreenlineWordmark.svelte` (Archivo Black, skew -7deg,
+  chrome gradient clipped to text, RGB-split ghost layers), `KeyArtScene.svelte`
+  (the master key art ported as LIVE CODE: a fixed 1280x720 stage of
+  positioned/clipped divs + an SVG spark shower + vignette + film grain that
+  cover-scales to its container; only motion is a slow ember drift, gated
+  behind `prefers-reduced-motion`), and `GreenlineTitle.svelte` (the title
+  screen: scene + responsive wordmark overlay + full-bleed signature line +
+  "ENGINEERED TO COLLIDE." + START, Enter also starts). Color doctrine, per
+  the reference: chrome/steel is the dominant language; GREEN is surgical
+  (wordmark line, the SELECTED build in the garage, the player's own
+  standings/leaderboard row, weapon READY, best-lap value, next minimap gate,
+  the player minimap marker); AMBER is reserved for impact (low hull,
+  DOWN/ELIMINATED plates, low-hp standings, the P1 win flourish on results) —
+  never ambient. Type: Archivo Black = wordmark/hero voice only, Saira
+  Condensed = labels/decals/taglines, Share Tech Mono = fast-ticking numerics
+  (stable digit widths). The race HUD in `GreenlineRace.svelte` is a
+  broadcast-style overlay (top-left speed/hull/status/weapon cluster,
+  top-center timing strip + event flash feed, standings tower, recolored
+  steel `Minimap.svelte`) built legibility-first: solid dark plates, hairline
+  steel borders, NO blur/glow over the moving scene; the m/s readout is
+  debug-only. The teacher/dev tuning panel keeps its old utilitarian style on
+  purpose (debug chrome, not player UI). Garage/results/title all share the
+  `.glb` tokens; the four archetype cards carry distinct line-art silhouette
+  glyphs (slab / dart / apex line / antenna) so builds read apart before any
+  stat is read.
 
 ## FRC Training track
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import './brand/brand';
 	import {
 		ARCHETYPES,
 		describeEffects,
@@ -12,10 +13,16 @@
 	} from './loadout';
 
 	/**
-	 * GREENLINE garage / loadout screen (dev harness UI). Pure presentation
-	 * over the loadout catalog, the Minimap convention: state in via props,
-	 * intent out via callbacks; this component never touches physics, rigs,
-	 * or storage. Everything is unlocked (the economy layer comes later).
+	 * GREENLINE garage / loadout screen. Pure presentation over the loadout
+	 * catalog, the Minimap convention: state in via props, intent out via
+	 * callbacks; this component never touches physics, rigs, or storage.
+	 * Everything is unlocked (the economy layer comes later).
+	 *
+	 * Visual language (per the art-direction reference): near-black night base,
+	 * chrome/steel material, Saira Condensed labels. Each archetype carries its
+	 * own line-art silhouette glyph so the four builds read as distinct machines
+	 * at a glance, before any stat is read; the SELECTED build is marked by the
+	 * green signature line (green = "your line", used nowhere else here).
 	 */
 	const {
 		loadout,
@@ -64,18 +71,18 @@
 	const fmtPct = (pct: number) => `${pct > 0 ? '+' : ''}${pct}%`;
 </script>
 
-<div class="gg-scrim" role="presentation">
+<div class="glb gg-scrim" role="presentation">
 	<div class="gg-panel" role="dialog" aria-label="Garage loadout">
 		<div class="gg-head">
-			<span class="gg-title">GARAGE // LOADOUT</span>
+			<span class="gg-title">GARAGE</span>
 			<span class="gg-note">{note}</span>
 			{#if onback}
-					<button class="gg-close" onclick={onback}>{backLabel}</button>
-				{/if}
-				<button class="gg-close" onclick={onclose}>{closeLabel}</button>
+				<button class="gg-btn" onclick={onback}>{backLabel}</button>
+			{/if}
+			<button class="gg-btn gg-btn-primary" onclick={onclose}>{closeLabel}</button>
 		</div>
 
-		<div class="gg-section-label">archetype</div>
+		<div class="gg-section-label">Archetype</div>
 		<div class="gg-archs">
 			{#each ARCHETYPES as a (a.id)}
 				<button
@@ -83,6 +90,29 @@
 					class:sel={a.id === loadout.archetype}
 					onclick={() => onselect(a.id)}
 				>
+					<svg class="gg-glyph" viewBox="0 0 64 28" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						{#if a.id === 'armor'}
+							<!-- Juggernaut: heavy slab hull, plated seams -->
+							<path d="M6 21 L10 12 L22 7 L42 7 L54 12 L58 21 Z" />
+							<path d="M19 8.2 V21 M32 7 V21 M45 8.2 V21" stroke-width="1" opacity="0.7" />
+							<path d="M2 24 H62" stroke-width="1" opacity="0.35" />
+						{:else if a.id === 'velocity'}
+							<!-- Missile: low dart wedge, speed lines -->
+							<path d="M10 19 L30 9 L60 15.5 L46 19 Z" />
+							<path d="M2 11 H16 M2 15 H11 M2 19 H6" stroke-width="1" opacity="0.7" />
+						{:else if a.id === 'handling'}
+							<!-- Scalpel: the apex line through a corner -->
+							<path d="M4 23 Q28 23 40 13 Q47 7 60 6" />
+							<path d="M34 21 L41 14 M40 24 L47 17" stroke-width="1.2" opacity="0.8" />
+							<circle cx="40" cy="13" r="2.4" stroke-width="1.2" />
+						{:else}
+							<!-- Warlock: hardened electronics, live antenna -->
+							<path d="M12 20 L18 11 L46 11 L52 20 Z" />
+							<path d="M32 11 V4.5" stroke-width="1.2" />
+							<circle cx="32" cy="3.4" r="1.5" stroke-width="1.2" />
+							<path d="M18 16 h8 l3 -3 h9 l3 3 h5" stroke-width="1" opacity="0.8" />
+						{/if}
+					</svg>
 					<span class="gg-arch-name">{a.name}</span>
 					<span class="gg-arch-role">{a.role}</span>
 					<span class="gg-chips">
@@ -90,6 +120,7 @@
 							<span class="gg-chip {c.tone}">{c.label} {fmtPct(c.pct)}</span>
 						{/each}
 					</span>
+					<span class="gg-sel-line" aria-hidden="true"></span>
 				</button>
 			{/each}
 		</div>
@@ -119,13 +150,13 @@
 			{/each}
 		</div>
 
-		<div class="gg-section-label">resolved build</div>
+		<div class="gg-section-label">Resolved build</div>
 		<div class="gg-summary">
 			<div class="gg-heroes">
 				<span class="gg-hero">HULL <b>{hull}</b></span>
-				<span class="gg-hero">MASS <b>{mass}kg</b></span>
-				<span class="gg-hero">TOP SPEED ≈ <b>{topSpeed.toFixed(1)}m/s</b></span>
-				<span class="gg-hero">COOLDOWNS <b>{cooldownPct}%</b></span>
+				<span class="gg-hero">MASS <b>{mass}<i>kg</i></b></span>
+				<span class="gg-hero">TOP SPEED <b>{topSpeed.toFixed(1)}<i>m/s</i></b></span>
+				<span class="gg-hero">COOLDOWNS <b>{cooldownPct}<i>%</i></b></span>
 			</div>
 			<div class="gg-chips">
 				{#each summary as c (c.key)}
@@ -135,8 +166,8 @@
 				{/each}
 			</div>
 			<div class="gg-foot">
-				multipliers apply over the live tuning panel baseline · mass is character, not a stat:
-				heavy builds physically resist tethers, rams, and spins, and pay in acceleration
+				multipliers apply over the live tuning baseline · mass is character, not a stat: heavy
+				builds physically resist tethers, rams, and spins, and pay in acceleration
 			</div>
 		</div>
 	</div>
@@ -146,93 +177,172 @@
 	.gg-scrim {
 		position: absolute;
 		inset: 0;
-		background: rgba(3, 6, 4, 0.72);
+		background: rgba(2, 3, 4, 0.78);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 30;
-		font-family: 'Share Tech Mono', monospace;
 	}
 	.gg-panel {
 		width: min(94vw, 66rem);
 		max-height: 92vh;
 		overflow-y: auto;
-		background: rgba(6, 12, 8, 0.97);
-		border: 1px solid rgba(0, 255, 65, 0.4);
-		padding: 0.9rem 1rem 1rem;
-		color: #b9d9c2;
+		background:
+			radial-gradient(120% 50% at 50% -10%, rgba(120, 165, 205, 0.06), transparent 60%),
+			linear-gradient(180deg, #0b1016 0%, #070a0e 42%, #04060a 100%);
+		border: 1px solid var(--glb-line);
+		border-top-color: var(--glb-line-strong);
+		box-shadow:
+			inset 0 1px 0 rgba(247, 251, 254, 0.08),
+			0 30px 80px rgba(0, 0, 0, 0.6);
+		padding: 1rem 1.2rem 1.1rem;
+		color: var(--glb-ink);
 	}
 	.gg-head {
 		display: flex;
-		align-items: baseline;
-		gap: 0.8rem;
-		margin-bottom: 0.5rem;
+		align-items: center;
+		gap: 0.9rem;
+		margin-bottom: 0.7rem;
+		padding-bottom: 0.6rem;
+		border-bottom: 1px solid var(--glb-line);
 	}
 	.gg-title {
-		color: #00ff41;
-		letter-spacing: 0.14em;
-		font-size: 0.95rem;
+		font-family: var(--glb-font-display);
+		font-size: 1.15rem;
+		letter-spacing: -0.01em;
+		transform: skewX(-7deg);
+		background: var(--glb-chrome-grad);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+		user-select: none;
 	}
 	.gg-note {
-		color: #5f7f6a;
-		font-size: 0.7rem;
+		color: var(--glb-ink-faint);
+		font-size: 0.72rem;
+		letter-spacing: 0.08em;
 		flex: 1;
 	}
-	.gg-close {
-		background: rgba(0, 255, 65, 0.1);
-		border: 1px solid rgba(0, 255, 65, 0.4);
-		color: #00ff41;
-		font-family: inherit;
-		font-size: 0.7rem;
-		padding: 0.25rem 0.6rem;
+	.gg-btn {
+		background: linear-gradient(180deg, rgba(23, 30, 37, 0.85), rgba(9, 13, 17, 0.9));
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		color: var(--glb-steel);
+		font: 600 0.72rem var(--glb-font-ui);
+		letter-spacing: 0.18em;
+		padding: 0.34rem 0.8rem;
 		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease,
+			box-shadow 140ms ease;
 	}
-	.gg-close:hover {
-		background: rgba(0, 255, 65, 0.2);
+	.gg-btn:hover,
+	.gg-btn:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	.gg-btn-primary {
+		color: var(--glb-chrome-mid);
+		border-color: var(--glb-line-strong);
+		box-shadow: inset 0 1px 0 rgba(247, 251, 254, 0.12);
+	}
+	.gg-btn-primary:hover,
+	.gg-btn-primary:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: rgba(42, 229, 126, 0.7);
+		box-shadow:
+			inset 0 1px 0 rgba(247, 251, 254, 0.16),
+			0 0 14px rgba(42, 229, 126, 0.25);
 	}
 	.gg-section-label {
-		color: #7fbf8f;
-		letter-spacing: 0.12em;
-		font-size: 0.72rem;
-		border-bottom: 1px solid rgba(0, 255, 65, 0.15);
-		margin: 0.6rem 0 0.35rem;
+		color: var(--glb-ink-dim);
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.26em;
+		font-size: 0.66rem;
+		border-bottom: 1px solid var(--glb-line);
+		padding-bottom: 0.2rem;
+		margin: 0.7rem 0 0.4rem;
 	}
 	.gg-archs {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-		gap: 0.5rem;
+		gap: 0.55rem;
 	}
 	.gg-arch,
 	.gg-part {
+		position: relative;
 		text-align: left;
-		background: rgba(10, 20, 14, 0.8);
-		border: 1px solid rgba(0, 255, 65, 0.18);
+		background: linear-gradient(180deg, rgba(16, 22, 28, 0.85), rgba(7, 10, 14, 0.9));
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
 		color: inherit;
 		font-family: inherit;
-		padding: 0.45rem 0.55rem;
+		padding: 0.5rem 0.6rem;
 		cursor: pointer;
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: 0.28rem;
+		transition:
+			border-color 140ms ease,
+			background 140ms ease;
+		overflow: hidden;
 	}
 	.gg-arch:hover,
 	.gg-part:hover {
-		border-color: rgba(0, 255, 65, 0.45);
+		border-color: var(--glb-line-strong);
 	}
 	.gg-arch.sel,
 	.gg-part.sel {
-		border-color: #00ff41;
-		background: rgba(0, 255, 65, 0.09);
-		box-shadow: 0 0 10px rgba(0, 255, 65, 0.18) inset;
+		border-color: rgba(207, 218, 226, 0.5);
+		background: linear-gradient(180deg, rgba(24, 32, 40, 0.95), rgba(9, 13, 17, 0.95));
+		box-shadow: inset 0 1px 0 rgba(247, 251, 254, 0.1);
+	}
+	.gg-glyph {
+		width: 4rem;
+		height: 1.75rem;
+		color: var(--glb-steel-dim);
+		transition: color 140ms ease;
+	}
+	.gg-arch:hover .gg-glyph {
+		color: var(--glb-steel);
+	}
+	.gg-arch.sel .gg-glyph {
+		color: var(--glb-chrome-mid);
 	}
 	.gg-arch-name {
-		color: #00ff41;
-		letter-spacing: 0.12em;
-		font-size: 0.85rem;
+		font-family: var(--glb-font-display);
+		font-size: 0.82rem;
+		letter-spacing: 0.02em;
+		color: var(--glb-chrome-mid);
+	}
+	.gg-arch.sel .gg-arch-name {
+		background: var(--glb-chrome-grad);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
 	}
 	.gg-arch-role {
-		color: #7fbf8f;
-		font-size: 0.68rem;
+		color: var(--glb-ink-dim);
+		font-size: 0.7rem;
+		line-height: 1.3;
+	}
+	/* The green signature line marks the chosen machine, nothing else. */
+	.gg-sel-line {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		height: 2px;
+		background: linear-gradient(90deg, rgba(42, 229, 126, 0), #2ae57e 30%, #c8ffe2 55%, #2ae57e 80%, rgba(42, 229, 126, 0));
+		box-shadow: 0 0 10px rgba(42, 229, 126, 0.8);
+		opacity: 0;
+		transition: opacity 160ms ease;
+	}
+	.gg-arch.sel .gg-sel-line {
+		opacity: 1;
 	}
 	.gg-slots {
 		display: grid;
@@ -245,13 +355,36 @@
 		flex-direction: column;
 		gap: 0.35rem;
 	}
+	.gg-part {
+		padding: 0.42rem 0.55rem 0.42rem 0.7rem;
+	}
+	.gg-part::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 2px;
+		background: linear-gradient(180deg, #2ae57e, #c8ffe2);
+		box-shadow: 0 0 8px rgba(42, 229, 126, 0.8);
+		opacity: 0;
+		transition: opacity 140ms ease;
+	}
+	.gg-part.sel::before {
+		opacity: 1;
+	}
 	.gg-part-name {
-		color: #e8ffe8;
-		font-size: 0.76rem;
+		color: var(--glb-ink);
+		font-weight: 600;
+		font-size: 0.78rem;
+		letter-spacing: 0.05em;
+	}
+	.gg-part.sel .gg-part-name {
+		color: var(--glb-chrome-hi);
 	}
 	.gg-part-blurb {
-		color: #5f7f6a;
-		font-size: 0.66rem;
+		color: var(--glb-ink-faint);
+		font-size: 0.68rem;
 		line-height: 1.35;
 	}
 	.gg-chips {
@@ -261,24 +394,27 @@
 	}
 	.gg-chip {
 		font-size: 0.62rem;
-		padding: 0.06rem 0.32rem;
+		font-weight: 600;
+		letter-spacing: 0.05em;
+		padding: 0.05rem 0.34rem;
 		border: 1px solid;
+		border-radius: 1px;
 		white-space: nowrap;
 	}
 	.gg-chip.good {
-		color: #00ff41;
-		border-color: rgba(0, 255, 65, 0.45);
-		background: rgba(0, 255, 65, 0.07);
+		color: var(--glb-green-ui);
+		border-color: rgba(143, 255, 196, 0.35);
+		background: rgba(42, 229, 126, 0.06);
 	}
 	.gg-chip.bad {
-		color: #ff8f6a;
-		border-color: rgba(255, 143, 106, 0.45);
-		background: rgba(255, 143, 106, 0.06);
+		color: #d9906a;
+		border-color: rgba(217, 144, 106, 0.35);
+		background: rgba(217, 144, 106, 0.05);
 	}
 	.gg-chip.neutral {
-		color: #ffb347;
-		border-color: rgba(255, 179, 71, 0.45);
-		background: rgba(255, 179, 71, 0.06);
+		color: #9fb0bd;
+		border-color: rgba(159, 176, 189, 0.3);
+		background: rgba(159, 176, 189, 0.05);
 	}
 	.gg-summary {
 		display: flex;
@@ -288,17 +424,29 @@
 	.gg-heroes {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.9rem;
-		font-size: 0.74rem;
-		color: #7fbf8f;
+		gap: 0.4rem 1.2rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.14em;
+		color: var(--glb-ink-dim);
 	}
 	.gg-hero b {
-		color: #00f0ff;
+		font-family: var(--glb-font-data);
 		font-weight: normal;
+		font-size: 0.92rem;
+		letter-spacing: 0;
+		color: var(--glb-chrome-hi);
+		margin-left: 0.25rem;
+	}
+	.gg-hero i {
+		font-style: normal;
+		font-size: 0.68rem;
+		color: var(--glb-steel-dim);
 	}
 	.gg-foot {
-		color: #5f7f6a;
-		font-size: 0.64rem;
-		line-height: 1.4;
+		color: var(--glb-ink-faint);
+		font-size: 0.66rem;
+		letter-spacing: 0.04em;
+		line-height: 1.45;
 	}
 </style>
