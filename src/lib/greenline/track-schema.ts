@@ -39,19 +39,52 @@ export interface TrackGate {
 }
 
 /**
- * The drivable surface. v1 defines one kind, a `ribbon`: a corridor of
- * constant `width` swept along `centerline`. Future surface kinds (mesh,
- * heightmap, variable width) join this union under new `type` tags.
+ * The drivable surface. v1 defines one kind, a `ribbon`: a corridor swept
+ * along `centerline`. Width is constant (`width`) unless the optional
+ * per-point `widths` array is present. Future surface kinds (mesh,
+ * heightmap) join this union under new `type` tags.
  */
 export interface RibbonSurface {
 	type: 'ribbon';
-	/** Full corridor width in world units. */
+	/** Full corridor width in world units (constant fallback). */
 	width: number;
+	/**
+	 * Optional per-point full width, one entry per centerline point, for a
+	 * corridor that breathes (a wide combat pad, a narrow chokepoint) within
+	 * one lap. Missing = constant `width`. Additive field: every consumer
+	 * reads widths through the runtime's precomputed edges/halfWidths, so
+	 * constant-width tracks are untouched.
+	 */
+	widths?: number[];
 	/** Whether the centerline closes back on itself (a circuit). */
 	closed: boolean;
 	centerline: TrackVec2[];
 }
 export type TrackSurface = RibbonSurface;
+
+/**
+ * Optional environmental dressing: cheap primitive set pieces that make a
+ * track read as a PLACE (floodlight towers, gantries, container/barrier
+ * blocks, skid-pad paint, a banked berm wall). Pure presentation data:
+ * nothing in the track runtime reads props, the harness renders them, and
+ * gameplay (laps, boundaries, AI) never depends on them.
+ */
+export type TrackProp =
+	| { type: 'lightTower'; x: number; z: number; headingDeg: number; height?: number }
+	| { type: 'gantry'; x: number; z: number; headingDeg: number; span: number }
+	| {
+			type: 'block';
+			x: number;
+			z: number;
+			headingDeg: number;
+			w: number;
+			l: number;
+			h: number;
+			kind?: 'container' | 'railcar' | 'barrier';
+	  }
+	| { type: 'pad'; x: number; z: number; radius: number; rings?: number[] }
+	/** Angled wall strip lofted from `inner` (ground) to `outer` (raised). */
+	| { type: 'berm'; inner: TrackVec2[]; outer: TrackVec2[]; height: number };
 
 /**
  * Boundary geometry that keeps the vehicle on course. Each boundary is a
@@ -85,6 +118,8 @@ export interface TrackData {
 	/** Ordered. A lap = all of these in order, then `startFinish`. */
 	checkpoints: TrackGate[];
 	boundaries: TrackBoundary[];
+	/** Optional presentation-only set dressing (see `TrackProp`). */
+	props?: TrackProp[];
 }
 
 /**
@@ -105,6 +140,14 @@ export function parseTrack(raw: unknown): TrackData {
 	if (!Array.isArray(t.surface.centerline) || t.surface.centerline.length < 3)
 		fail('ribbon centerline needs at least 3 points');
 	if (!(t.surface.width > 0)) fail('ribbon width must be positive');
+	if (t.surface.widths !== undefined) {
+		if (
+			!Array.isArray(t.surface.widths) ||
+			t.surface.widths.length !== t.surface.centerline.length
+		)
+			fail('ribbon widths must have one entry per centerline point');
+		if (t.surface.widths.some((w) => !(w > 0))) fail('every ribbon width must be positive');
+	}
 	const checkGate = (g: TrackGate | undefined, label: string) => {
 		if (!g || typeof g.x !== 'number' || typeof g.headingDeg !== 'number' || !(g.halfWidth > 0))
 			fail(`malformed gate: ${label}`);
@@ -116,5 +159,12 @@ export function parseTrack(raw: unknown): TrackData {
 	t.boundaries.forEach((b, i) => {
 		if (!Array.isArray(b?.points) || b.points.length < 2) fail(`boundaries[${i}] too short`);
 	});
+	if (t.props !== undefined) {
+		if (!Array.isArray(t.props)) fail('props must be an array');
+		t.props.forEach((p, i) => {
+			if (typeof p !== 'object' || p === null || typeof p.type !== 'string')
+				fail(`props[${i}] malformed`);
+		});
+	}
 	return t;
 }

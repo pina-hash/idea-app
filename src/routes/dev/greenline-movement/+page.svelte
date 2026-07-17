@@ -41,7 +41,7 @@
 	} from '$lib/greenline/loadout';
 	import Garage from '$lib/greenline/Garage.svelte';
 	import Minimap from '$lib/greenline/Minimap.svelte';
-	import testLoopJson from '$lib/greenline/tracks/test-loop.json';
+	import provingGroundJson from '$lib/greenline/tracks/proving-ground-07.json';
 	import { browser } from '$app/environment';
 
 	/**
@@ -56,7 +56,10 @@
 	 * vehicle tracks its own laps, checkpoints, and health; RACE resolves by
 	 * finishing order, ELIMINATION by last vehicle running. The zero-health
 	 * mode branch is VehicleCombat.applyDamage. Everything numeric is in the
-	 * live tuning panel. No art; throwaway while the design solidifies.
+	 * live tuning panel. Track dressing (floodlight towers, gantries, yard
+	 * blocks, skid-pad paint, the banked berm) renders generically from the
+	 * track file's `props`; no final art, throwaway while the design
+	 * solidifies.
 	 *
 	 * Four disruption tools, all vehicle-agnostic (AI uses them through the
 	 * same paths): EMP burst (F / RB), oil slick dropped behind (E / X),
@@ -126,7 +129,7 @@
 
 	const tuning = $state({ ...DEFAULTS });
 
-	const track = parseTrack(testLoopJson);
+	const track = parseTrack(provingGroundJson);
 	const rt = buildRuntime(track);
 
 	let mode = $state<GreenlineMode>('race');
@@ -255,7 +258,7 @@
 				sun.position.set(80, 120, 40);
 				scene.add(sun);
 
-				// ---- Ground: plane + grid + pylons kept off the road ----
+				// ---- Ground: plane + grid ----
 				const groundMesh = new THREE.Mesh(
 					new THREE.PlaneGeometry(600, 600),
 					new THREE.MeshStandardMaterial({ color: 0x07120a, roughness: 1 })
@@ -267,17 +270,189 @@
 				grid.position.y = 0.02;
 				scene.add(grid);
 
-				const nearTrack = (x: number, z: number, margin: number) =>
-					rt.center.some((p) => (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) < margin * margin);
-				const pylonGeo = new THREE.ConeGeometry(0.7, 2.4, 8);
-				const pylonMat = new THREE.MeshStandardMaterial({ color: 0xb8a11c, roughness: 0.7 });
-				for (let x = -250; x <= 250; x += 50) {
-					for (let z = -250; z <= 250; z += 50) {
-						if (Math.abs(x) < 25 && Math.abs(z) < 25) continue;
-						if (nearTrack(x, z, rt.halfWidth + 8)) continue;
-						const pylon = new THREE.Mesh(pylonGeo, pylonMat);
-						pylon.position.set(x, 1.2, z);
-						scene.add(pylon);
+				// ---- Environmental dressing: props from the track data ----
+				// Cheap primitives only (this is not the art pass): floodlight
+				// towers, gantries, container/railcar/barrier blocks, skid-pad
+				// paint, and the banked-oval berm. All presentation; gameplay
+				// never reads any of it.
+				const DEGR = Math.PI / 180;
+				for (const prop of track.props ?? []) {
+					if (prop.type === 'pad') {
+						const disc = new THREE.Mesh(
+							new THREE.CircleGeometry(prop.radius, 56),
+							new THREE.MeshStandardMaterial({ color: 0x0a1512, roughness: 1 })
+						);
+						disc.rotation.x = -Math.PI / 2;
+						disc.position.set(prop.x, 0.018, prop.z);
+						scene.add(disc);
+						for (const rr of prop.rings ?? []) {
+							const ring = new THREE.Mesh(
+								new THREE.RingGeometry(rr - 0.25, rr + 0.25, 72),
+								new THREE.MeshBasicMaterial({
+									color: 0x1f4433,
+									transparent: true,
+									opacity: 0.85,
+									depthWrite: false
+								})
+							);
+							ring.rotation.x = -Math.PI / 2;
+							ring.position.set(prop.x, 0.024, prop.z);
+							scene.add(ring);
+						}
+					} else if (prop.type === 'lightTower') {
+						const g = new THREE.Group();
+						const hgt = prop.height ?? 15;
+						const steel = new THREE.MeshStandardMaterial({ color: 0x2c3438, roughness: 0.8 });
+						const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.42, hgt, 8), steel);
+						pole.position.y = hgt / 2;
+						g.add(pole);
+						const arm = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.5, 3.8), steel);
+						arm.position.set(0.35, hgt - 0.4, 0);
+						g.add(arm);
+						const lampMat = new THREE.MeshStandardMaterial({
+							color: 0x333322,
+							emissive: 0xf8ffd8,
+							emissiveIntensity: 1.7
+						});
+						for (const off of [-1.3, 0, 1.3]) {
+							const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.75, 0.95), lampMat);
+							lamp.position.set(0.75, hgt - 0.4, off);
+							lamp.rotation.z = -0.5;
+							g.add(lamp);
+						}
+						const cone = new THREE.Mesh(
+							new THREE.ConeGeometry(7.5, hgt + 3, 20, 1, true),
+							new THREE.MeshBasicMaterial({
+								color: 0xdfffc8,
+								transparent: true,
+								opacity: 0.05,
+								side: THREE.DoubleSide,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending
+							})
+						);
+						cone.position.set(4.4, hgt / 2 - 0.8, 0);
+						cone.rotation.z = -0.48;
+						g.add(cone);
+						const pool = new THREE.Mesh(
+							new THREE.CircleGeometry(9.5, 28),
+							new THREE.MeshBasicMaterial({
+								color: 0xdfffc8,
+								transparent: true,
+								opacity: 0.05,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending
+							})
+						);
+						pool.rotation.x = -Math.PI / 2;
+						pool.position.set(8.6, 0.028, 0);
+						g.add(pool);
+						g.position.set(prop.x, 0, prop.z);
+						g.rotation.y = prop.headingDeg * DEGR;
+						scene.add(g);
+					} else if (prop.type === 'gantry') {
+						const g = new THREE.Group();
+						const steel = new THREE.MeshStandardMaterial({ color: 0x323a3e, roughness: 0.75 });
+						for (const side of [-1, 1]) {
+							const post = new THREE.Mesh(new THREE.BoxGeometry(0.7, 6.4, 0.7), steel);
+							post.position.set(0, 3.2, (side * prop.span) / 2);
+							g.add(post);
+						}
+						const beam = new THREE.Mesh(new THREE.BoxGeometry(1.05, 1.15, prop.span + 1), steel);
+						beam.position.y = 6.4;
+						g.add(beam);
+						const strip = new THREE.Mesh(
+							new THREE.BoxGeometry(0.22, 0.22, prop.span * 0.8),
+							new THREE.MeshStandardMaterial({
+								color: 0x223311,
+								emissive: 0xc8ff00,
+								emissiveIntensity: 1.2
+							})
+						);
+						strip.position.set(-0.5, 5.78, 0);
+						g.add(strip);
+						g.position.set(prop.x, 0, prop.z);
+						g.rotation.y = prop.headingDeg * DEGR;
+						scene.add(g);
+					} else if (prop.type === 'block') {
+						const palette =
+							prop.kind === 'barrier'
+								? [0x878d90]
+								: prop.kind === 'railcar'
+									? [0x3c4246, 0x46403a]
+									: [0x7a3b2e, 0x2e4d6b, 0x3f5a3a, 0x6b6355];
+						const hash = Math.abs(Math.round(prop.x * 7 + prop.z * 13));
+						const mesh = new THREE.Mesh(
+							new THREE.BoxGeometry(prop.l, prop.h, prop.w),
+							new THREE.MeshStandardMaterial({
+								color: palette[hash % palette.length],
+								roughness: 0.9
+							})
+						);
+						mesh.position.set(prop.x, prop.h / 2, prop.z);
+						mesh.rotation.y = prop.headingDeg * DEGR;
+						scene.add(mesh);
+					} else if (prop.type === 'berm') {
+						const m = Math.min(prop.inner.length, prop.outer.length);
+						const verts = new Float32Array(m * 2 * 3);
+						for (let i = 0; i < m; i++) {
+							verts.set([prop.inner[i].x, 0.05, prop.inner[i].z], i * 6);
+							verts.set([prop.outer[i].x, prop.height, prop.outer[i].z], i * 6 + 3);
+						}
+						const idx: number[] = [];
+						for (let i = 0; i < m - 1; i++) {
+							idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 2, i * 2 + 1, i * 2 + 3);
+						}
+						const geo = new THREE.BufferGeometry();
+						geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+						geo.setIndex(idx);
+						geo.computeVertexNormals();
+						scene.add(
+							new THREE.Mesh(
+								geo,
+								new THREE.MeshStandardMaterial({
+									color: 0x2c4436,
+									roughness: 0.85,
+									side: THREE.DoubleSide
+								})
+							)
+						);
+						const railPts = prop.outer.map(
+							(p) => new THREE.Vector3(p.x, prop.height + 0.05, p.z)
+						);
+						scene.add(
+							new THREE.Line(
+								new THREE.BufferGeometry().setFromPoints(railPts),
+								new THREE.LineBasicMaterial({ color: 0xb8a11c, transparent: true, opacity: 0.7 })
+							)
+						);
+					}
+				}
+
+				// Chain-link fence read along the outer boundary: posts + top rail.
+				{
+					const fence = rt.boundaries.find((b) => b.id === 'outer');
+					if (fence) {
+						const pts = fence.points;
+						const step = 3;
+						const count = Math.ceil(pts.length / step);
+						const postGeoF = new THREE.CylinderGeometry(0.07, 0.07, 2.6, 6);
+						const postMatF = new THREE.MeshStandardMaterial({ color: 0x39454a, roughness: 0.85 });
+						const posts = new THREE.InstancedMesh(postGeoF, postMatF, count);
+						const im = new THREE.Matrix4();
+						for (let i = 0; i < count; i++) {
+							const p = pts[(i * step) % pts.length];
+							im.makeTranslation(p.x, 1.3, p.z);
+							posts.setMatrixAt(i, im);
+						}
+						scene.add(posts);
+						const railPts = [...pts, pts[0]].map((p) => new THREE.Vector3(p.x, 2.55, p.z));
+						scene.add(
+							new THREE.Line(
+								new THREE.BufferGeometry().setFromPoints(railPts),
+								new THREE.LineBasicMaterial({ color: 0x3a4f44, transparent: true, opacity: 0.7 })
+							)
+						);
 					}
 				}
 
@@ -300,6 +475,17 @@
 					geo.computeVertexNormals();
 					scene.add(
 						new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0x11201a, roughness: 0.95 }))
+					);
+				}
+				// Painted edge lines: with a variable-width ribbon the corridor's
+				// breathing (wide pad, narrow yard) must read at speed.
+				for (const edge of [rt.leftEdge, rt.rightEdge]) {
+					const pts = [...edge, edge[0]].map((p) => new THREE.Vector3(p.x, 0.06, p.z));
+					scene.add(
+						new THREE.Line(
+							new THREE.BufferGeometry().setFromPoints(pts),
+							new THREE.LineBasicMaterial({ color: 0x4a6b58, transparent: true, opacity: 0.9 })
+						)
 					);
 				}
 				const wallMat = new THREE.MeshBasicMaterial({

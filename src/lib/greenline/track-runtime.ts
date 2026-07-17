@@ -70,7 +70,10 @@ export interface TrackRuntime {
 	checkpoints: GateRuntime[];
 	/** Ribbon centerline (same points as the data, kept for hot loops). */
 	center: TrackVec2[];
+	/** Maximum half width across the lap (margins, spawn placement). */
 	halfWidth: number;
+	/** Per-point half width; constant-width tracks repeat the same value. */
+	halfWidths: number[];
 	boundaries: TrackBoundary[];
 	bbox: { minX: number; maxX: number; minZ: number; maxZ: number };
 	/** Ribbon edge polylines, precomputed for meshes and the minimap. */
@@ -81,7 +84,8 @@ export interface TrackRuntime {
 export function buildRuntime(data: TrackData): TrackRuntime {
 	const center = data.surface.centerline;
 	const n = center.length;
-	const halfWidth = data.surface.width / 2;
+	const halfWidths = center.map((_, i) => (data.surface.widths?.[i] ?? data.surface.width) / 2);
+	const halfWidth = Math.max(...halfWidths);
 	const leftEdge: TrackVec2[] = [];
 	const rightEdge: TrackVec2[] = [];
 	for (let i = 0; i < n; i++) {
@@ -92,8 +96,8 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 		const l = Math.hypot(tx, tz) || 1;
 		const nx = -tz / l;
 		const nz = tx / l;
-		leftEdge.push({ x: center[i].x + nx * halfWidth, z: center[i].z + nz * halfWidth });
-		rightEdge.push({ x: center[i].x - nx * halfWidth, z: center[i].z - nz * halfWidth });
+		leftEdge.push({ x: center[i].x + nx * halfWidths[i], z: center[i].z + nz * halfWidths[i] });
+		rightEdge.push({ x: center[i].x - nx * halfWidths[i], z: center[i].z - nz * halfWidths[i] });
 	}
 	let minX = Infinity,
 		maxX = -Infinity,
@@ -113,6 +117,7 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 		checkpoints: data.checkpoints.map(buildGate),
 		center,
 		halfWidth,
+		halfWidths,
 		boundaries: data.boundaries,
 		bbox: { minX, maxX, minZ, maxZ },
 		leftEdge,
@@ -217,7 +222,7 @@ export function surfaceState(
 	}
 
 	return {
-		state: { onRibbon: centerDist <= rt.halfWidth, centerDist, violation },
+		state: { onRibbon: centerDist <= rt.halfWidths[bestI], centerDist, violation },
 		warmIndex: bestI
 	};
 }
