@@ -70,6 +70,15 @@
 		type WeaponSlotId,
 		type WeaponSocketId
 	} from '$lib/greenline/combat';
+	import {
+		ABILITY_NONE,
+		ABILITY_SLOTS,
+		abilityById,
+		driftIntensity,
+		tryActivateAbility,
+		VehicleAbilities,
+		type AbilitySlotId
+	} from '$lib/greenline/abilities';
 	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
 	import { NIGHT_ENV } from '$lib/greenline/environment';
 	import {
@@ -79,7 +88,7 @@
 		parseLoadout,
 		resolveLoadout,
 		resolveWeaponSockets,
-		sanitizeLoadoutWeapons,
+		sanitizeLoadout,
 		serializeLoadout,
 		type ArchetypeId,
 		type Loadout,
@@ -296,11 +305,11 @@
 	// under the equipped pair, and the __greenline console equip path has no UI
 	// guard — the sanitizer keeps every stored build valid either way.
 	const selectArchetype = (id: ArchetypeId) => {
-		playerLoadout = sanitizeLoadoutWeapons({ ...playerLoadout, archetype: id });
+		playerLoadout = sanitizeLoadout({ ...playerLoadout, archetype: id });
 		persistLoadout();
 	};
 	const equipPart = (slot: PartSlot, partId: string) => {
-		playerLoadout = sanitizeLoadoutWeapons({
+		playerLoadout = sanitizeLoadout({
 			...playerLoadout,
 			parts: { ...playerLoadout.parts, [slot]: partId }
 		});
@@ -311,7 +320,7 @@
 	// resolution cannot honor (occupied / incompatible), so the stored build
 	// stays valid exactly like an equip.
 	const setWeaponSocket = (slot: WeaponSlotId, socket: WeaponSocketId) => {
-		playerLoadout = sanitizeLoadoutWeapons({
+		playerLoadout = sanitizeLoadout({
 			...playerLoadout,
 			weaponSockets: { ...playerLoadout.weaponSockets, [slot]: socket }
 		});
@@ -332,6 +341,7 @@
 			`${keyLabel(controlSettings.keyboard.handbrake)} HANDBRAKE`,
 			`${keyLabel(controlSettings.keyboard.fireWeaponPrimary)} PRIMARY`,
 			`${keyLabel(controlSettings.keyboard.fireWeaponSecondary)} SECONDARY`,
+			`${keyLabel(controlSettings.keyboard.useAbilityPrimary)}/${keyLabel(controlSettings.keyboard.useAbilitySecondary)} ABILITY`,
 			`${keyLabel(controlSettings.keyboard.fire)} EMP`,
 			`${keyLabel(controlSettings.keyboard.oil)} OIL`,
 			`${keyLabel(controlSettings.keyboard.tether)} TETHER`,
@@ -374,6 +384,20 @@
 		/** Passive weapon (Radar Jammer): always on, no cooldown/trigger. */
 		passive?: boolean;
 	}
+	/** HUD cell state for one equipped ability slot. */
+	interface AbilityHudCell {
+		slot: AbilitySlotId;
+		short: string;
+		key: string;
+		/** Meter + cooldown both satisfied (and alive) — activatable now. */
+		ready: boolean;
+		/** A timed effect window (nitro/grip) is currently live. */
+		active: boolean;
+		/** Seconds left on the slot's secondary cooldown throttle (0 = ready). */
+		cooldown: number;
+		/** Not enough meter banked to afford this ability. */
+		needMeter: boolean;
+	}
 	// Pre-mount HUD placeholders: the default budget through the neutral split.
 	const initPools = splitPools(COMBAT_DEFAULTS.maxHealth);
 	const chud = $state({
@@ -393,7 +417,11 @@
 		shieldPct: 0,
 		ready: { emp: 0, oil: 0, tether: 0, ram: 0 },
 		/** Equipped-weapon cells (primary always; secondary only when equipped). */
-		slots: [] as SlotHudCell[]
+		slots: [] as SlotHudCell[],
+		/** Shared drift meter, 0..1 (both ability slots draw from it). */
+		meter: 0,
+		/** Equipped-ability cells (primary always; secondary only when equipped). */
+		abilities: [] as AbilityHudCell[]
 	});
 	let lapFlash = $state('');
 	// Race-start countdown text ('3' | '2' | '1' | 'GO' | ''), driven by the loop.
@@ -1809,6 +1837,12 @@
 					/** Live guided-weapon lock per slot (null = nothing acquired).
 					 * Ticked in the frame loop while the slot is ready. */
 					locks: Record<WeaponSlotId, WeaponLock | null>;
+					/** Equipped ability id per slot (ABILITY_NONE = empty secondary),
+					 * set by applyLoadoutToRig from the sanitized build. */
+					abilities: Record<AbilitySlotId, string>;
+					/** Per-vehicle ability state: the shared drift meter both slots
+					 * draw from, per-slot cooldowns, and the active nitro/grip windows. */
+					abilityState: VehicleAbilities;
 					/** Crumple state: 0 pristine .. 3 wrecked; drives vertex jitter. */
 					dentStage: number;
 					/** Pristine hull-geometry positions, restored on heal/reset. */
@@ -2107,6 +2141,8 @@
 						archetype: 'handling',
 						weapons: { weaponPrimary: 'autocannon', weaponSecondary: WEAPON_NONE },
 						locks: { weaponPrimary: null, weaponSecondary: null },
+						abilities: { abilityPrimary: 'nitro-boost', abilitySecondary: ABILITY_NONE },
+						abilityState: new VehicleAbilities(id),
 						dentStage: 0,
 						dentBase: new Float32Array(0),
 						stunMat,
@@ -2267,7 +2303,7 @@
 				const applyLoadoutToRig = (rig: Rig, rawLoadout: Loadout) => {
 					// Defense in depth: whatever reaches the sim is a valid weapon
 					// fit (capacity + no duplicates), even off the console API.
-					const l = sanitizeLoadoutWeapons(rawLoadout);
+					const l = sanitizeLoadout(rawLoadout);
 					const s = resolveLoadout(l);
 					rig.buildStats = s;
 					rig.archetype = l.archetype;
@@ -2284,6 +2320,14 @@
 						};
 						rig.locks = { weaponPrimary: null, weaponSecondary: null };
 					}
+					// Abilities carry no visual and no lock; just adopt the equipped
+					// pair (the shared meter + effect windows in rig.abilityState are
+					// run-state, untouched by a build swap). The sanitizer above already
+					// shed an over-budget secondary against this archetype's ability cap.
+					rig.abilities = {
+						abilityPrimary: l.parts.abilityPrimary,
+						abilitySecondary: l.parts.abilitySecondary
+					};
 					// Rebuild the bodywork when the visual identity changes: the
 					// archetype OR any equipped part (live garage swaps included).
 					if (rig.visualKey !== visualKeyFor(l)) buildRigVisual(rig, l);
@@ -2334,11 +2378,26 @@
 					['energy-shield', 'caltrops'], // handling (4): 3 + 1
 					['railgun', 'homing-rocket'] // systems (5): 3 + 2
 				];
+				// Ability fits cycle alongside the archetypes, each within its
+				// archetype's INVERTED ability budget (armor 4, velocity 5, handling
+				// 4, systems 2), so the default 3-AI field exercises repair + flip
+				// (armor), nitro + grip (velocity), and grip + repair (handling); the
+				// 4th (systems) shows nitro alone. Jump is deliberately not AI-used
+				// (no ramps on this track yet), so no AI fit carries it.
+				const AI_ABILITIES: [string, string][] = [
+					['overcharge-repair', 'emergency-flip'], // armor (4): 2 + 1
+					['nitro-boost', 'grip-surge'], // velocity (5): 2 + 1
+					['grip-surge', 'overcharge-repair'], // handling (4): 1 + 2
+					['nitro-boost', ABILITY_NONE] // systems (2): 2
+				];
 				const aiLoadoutFor = (k: number): Loadout => {
 					const l = defaultLoadout(AI_ARCHS[(k - 1) % AI_ARCHS.length]);
 					const [wp, ws] = AI_WEAPONS[(k - 1) % AI_WEAPONS.length];
 					l.parts.weaponPrimary = wp;
 					l.parts.weaponSecondary = ws;
+					const [ap, as] = AI_ABILITIES[(k - 1) % AI_ABILITIES.length];
+					l.parts.abilityPrimary = ap;
+					l.parts.abilitySecondary = as;
 					return l;
 				};
 				let ais: Rig[] = [];
@@ -2846,7 +2905,9 @@
 					hit: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0, railgun: 0, shotgun: 0, cluster: 0, clusterSplash: 0, caltrops: 0, turret: 0, blades: 0, shieldBreak: 0 },
 					ram: 0,
 					flips: 0,
-					flipsByRig: {} as Record<string, number>
+					flipsByRig: {} as Record<string, number>,
+					// Ability activations this round (nitro/jump/flip/repair/grip).
+					ability: { nitro: 0, jump: 0, flip: 0, repair: 0, grip: 0 }
 				};
 				const resetTestStats = () => {
 					testStats.fire.emp = testStats.fire.tether = testStats.fire.oil = 0;
@@ -2861,6 +2922,8 @@
 					testStats.ram = 0;
 					testStats.flips = 0;
 					testStats.flipsByRig = {};
+					testStats.ability.nitro = testStats.ability.jump = testStats.ability.flip = 0;
+					testStats.ability.repair = testStats.ability.grip = 0;
 				};
 
 				const checkLastStanding = () => {
@@ -3567,6 +3630,104 @@
 					else if (attacker === player) flash(`BLADES HIT ${victim.label} -${res.damage}`);
 					afterDamage(victim, res.result, attacker.label, attacker.body.position.x, attacker.body.position.z);
 				};
+
+				// ---- Abilities: drift-charged active utilities ----
+				// PLACEHOLDER SFX on the audio-engine buses (the weaponSfx convention:
+				// swap each playTone for a real playBuffer later, positions ride
+				// through so the swap is content-only).
+				const abilitySfx = (
+					kind: 'nitro' | 'jump' | 'flip' | 'repair' | 'grip',
+					x?: number,
+					z?: number
+				) => {
+					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
+					if (kind === 'nitro')
+						audioEngine.playTone('weapons', { freq: 150, durationMs: 420, type: 'sawtooth', gain: 0.2, pitchJitter: [1.0, 1.3], position: pos });
+					else if (kind === 'jump')
+						audioEngine.playTone('impacts', { freq: 240, durationMs: 200, type: 'sine', gain: 0.2, pitchJitter: [1.2, 1.7], position: pos });
+					else if (kind === 'flip')
+						audioEngine.playTone('ui', { freq: 300, durationMs: 260, type: 'triangle', gain: 0.18, pitchJitter: [0.8, 1.1] });
+					else if (kind === 'repair')
+						audioEngine.playTone('ui', { freq: 520, durationMs: 340, type: 'sine', gain: 0.2, pitchJitter: [1.0, 1.5] });
+					else
+						audioEngine.playTone('ambient', { freq: 380, durationMs: 260, type: 'triangle', gain: 0.14, pitchJitter: [1.0, 1.3], position: pos });
+				};
+
+				// Activate the ability in a slot. Returns true when it fired (meter
+				// spent). Emergency Flip triggered while upright is a costless no-op
+				// (the tryActivateAbility no-lock pattern): nothing spent, no feedback
+				// but a one-line reason for the player.
+				const performAbility = (rig: Rig, slot: AbilitySlotId): boolean => {
+					const def = abilityById(rig.abilities[slot]);
+					if (!def) return false;
+					const now = performance.now();
+					// "Genuinely flipped" = local up axis at/below the horizon (the
+					// watchdog's flipUpY threshold), but with NO stationary requirement:
+					// the whole point of the ability is to skip the wait.
+					const upY = rig.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y;
+					const isFlipped = upY < num(tuning.flipUpY, DEFAULTS.flipUpY);
+					const res = tryActivateAbility(rig.abilityState, rig.combat, slot, def, now, { isFlipped });
+					if (!res.activated) {
+						if (res.reason === 'not-flipped' && rig === player) flash('NOT FLIPPED');
+						return false;
+					}
+					const o = res.outcome;
+					const p = rig.body.position;
+					if (o?.kind === 'nitro') {
+						testStats.ability.nitro++;
+						abilitySfx('nitro', p.x, p.z);
+						// A flame-toned exhaust burst out the tail.
+						spawnSparks(p.x - rig.hx * 1.7, p.y + 0.35, p.z - rig.hz * 1.7, 16, GL.amberWarm, 13, 440);
+						spawnRing(p.x, p.z, 0x8fffc4, 3, 260, 0.35, 0.5);
+						if (rig === player) {
+							addTrauma(0.25);
+							flash('NITRO BOOST');
+						}
+					} else if (o?.kind === 'grip') {
+						testStats.ability.grip++;
+						abilitySfx('grip', p.x, p.z);
+						spawnRing(p.x, p.z, 0x8fffc4, 3.2, 300, 0.4, 0.7);
+						if (rig === player) flash('GRIP SURGE');
+					} else if (o?.kind === 'jump') {
+						testStats.ability.jump++;
+						// Wake the body first: cannon-es ignores an impulse on a
+						// sleeping body, so a hop from a standstill would be a no-op.
+						rig.body.wakeUp();
+						rig.body.applyImpulse(new CANNON.Vec3(0, o.impulse, 0));
+						abilitySfx('jump', p.x, p.z);
+						spawnRing(p.x, p.z, 0xdfeaff, 3.4, 260, 0.4, 0.5);
+						if (rig === player) {
+							addTrauma(0.2);
+							flash('HOP');
+						}
+					} else if (o?.kind === 'flip') {
+						testStats.ability.flip++;
+						// Immediate re-seat, mirroring the flip watchdog with no delay.
+						// hx/hz are the forward flat projection, so yaw survives the roll.
+						const yawDeg = (Math.atan2(-rig.hz, rig.hx) * 180) / Math.PI;
+						rig.body.position.y = SPAWN_Y;
+						rig.body.quaternion.copy(quatFor(yawDeg));
+						rig.body.velocity.setZero();
+						rig.body.angularVelocity.setZero();
+						rig.steerCurrent = 0;
+						rig.flipAcc = 0;
+						abilitySfx('flip', p.x, p.z);
+						spawnRing(p.x, p.z, 0x00ff41, 4, 320, 0.45);
+						if (rig === player) flash('EMERGENCY FLIP — righted');
+					} else if (o?.kind === 'repair') {
+						testStats.ability.repair++;
+						const healed = o.applied.armor + o.applied.chassis + o.applied.mount;
+						// The heal may have revived a dead mount and refilled plates:
+						// reconcile the bodywork with the restored pools, quietly.
+						setMountDead(rig, rig.combat.mountDown);
+						syncArmorPlates(rig, undefined, undefined, true);
+						abilitySfx('repair', p.x, p.z);
+						spawnRing(p.x, p.z, GL.green, 3.6, 420, 0.5, 0.9);
+						spawnSparks(p.x, p.y + 0.5, p.z, 14, GL.green, 7, 380);
+						if (rig === player) flash(`REPAIR +${Math.round(healed)}`);
+					}
+					return true;
+				};
 				// On spawn and every reset, NO throttle/steer/brake/weapon input
 				// registers for ANY vehicle (player or AI) until GO. Physics stays
 				// live so the cars simply sit at rest on the flat grid. After GO,
@@ -3612,6 +3773,8 @@
 				let tetherQueued = false;
 				let firePrimaryQueued = false;
 				let fireSecondaryQueued = false;
+				let abilityPrimaryQueued = false;
+				let abilitySecondaryQueued = false;
 				const prevPadEdge: Partial<Record<ControlAction, boolean>> = {};
 
 				resetRound = () => {
@@ -3643,6 +3806,7 @@
 						r.raceStartMs = null;
 						r.finishAtMs = null;
 						r.locks = { weaponPrimary: null, weaponSecondary: null };
+						r.abilityState.reset();
 					}
 					resetTestStats();
 					clearProjectiles();
@@ -3686,6 +3850,8 @@
 							else if (action === 'tether') tetherQueued = true;
 							else if (action === 'fireWeaponPrimary') firePrimaryQueued = true;
 							else if (action === 'fireWeaponSecondary') fireSecondaryQueued = true;
+							else if (action === 'useAbilityPrimary') abilityPrimaryQueued = true;
+							else if (action === 'useAbilitySecondary') abilitySecondaryQueued = true;
 						}
 						return;
 					}
@@ -3863,6 +4029,38 @@
 					},
 					getBuildStats: (rigId = 'player') =>
 						rigsAll().find((q) => q.id === rigId)?.buildStats ?? null,
+					// ---- Abilities (Phase 5a) ----
+					// Activate an equipped ability slot (the player-key path, scripted).
+					useAbility: (rigId = 'player', slot: AbilitySlotId = 'abilityPrimary') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						return r ? performAbility(r, slot) : false;
+					},
+					// The equipped ability pair + live meter / effect windows.
+					getAbilities: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						const nowMs = performance.now();
+						return {
+							equipped: { ...r.abilities },
+							meter: r.abilityState.meter,
+							nitroActive: r.abilityState.nitroActive(nowMs),
+							nitroMsLeft: Math.max(0, r.abilityState.nitroUntilMs - nowMs),
+							gripActive: r.abilityState.gripActive(nowMs),
+							gripMsLeft: Math.max(0, r.abilityState.gripUntilMs - nowMs)
+						};
+					},
+					getMeter: (rigId = 'player') =>
+						rigsAll().find((q) => q.id === rigId)?.abilityState.meter ?? null,
+					// Set the drift meter directly (0..1), so a scripted drive can
+					// verify each ability's EFFECT without first drifting up a charge.
+					setMeter: (v: number, rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (r) r.abilityState.meter = Math.max(0, Math.min(1, v));
+						return r?.abilityState.meter ?? null;
+					},
+					// Equip an ability into a slot (the console-equip path, sanitized
+					// like a garage pick since equipPart runs sanitizeLoadout).
+					setAbility: (slot: AbilitySlotId, abilityId: string) => equipPart(slot, abilityId),
 					getMode: () => mode,
 					getFinishOrder: () => finishOrder.map((r) => r.id),
 					isRoundOver: () => roundOver,
@@ -3897,7 +4095,8 @@
 							hit: { ...testStats.hit },
 							ram: testStats.ram,
 							flips: testStats.flips,
-							flipsByRig: { ...testStats.flipsByRig }
+							flipsByRig: { ...testStats.flipsByRig },
+							ability: { ...testStats.ability }
 						}),
 						// A full snapshot of the field: per-rig progress, finish
 						// state, exact total race time, best lap, and upright-ness.
@@ -3996,6 +4195,8 @@
 								else if (a === 'tether') tetherQueued = true;
 								else if (a === 'fireWeaponPrimary') firePrimaryQueued = true;
 								else if (a === 'fireWeaponSecondary') fireSecondaryQueued = true;
+								else if (a === 'useAbilityPrimary') abilityPrimaryQueued = true;
+								else if (a === 'useAbilitySecondary') abilitySecondaryQueued = true;
 								else if (a === 'resetRound') resetRound();
 							}
 							prevPadEdge[a] = down;
@@ -4041,7 +4242,12 @@
 								tuning.maxSuspensionTravel,
 								DEFAULTS.maxSuspensionTravel
 							);
-							w.frictionSlip = num(tuning.frictionSlip, DEFAULTS.frictionSlip) * bs.frictionSlip;
+							// Grip Surge ability multiplies tire bite for its window (1 when
+							// inactive), on top of the build's frictionSlip multiplier.
+							w.frictionSlip =
+								num(tuning.frictionSlip, DEFAULTS.frictionSlip) *
+								bs.frictionSlip *
+								rig.abilityState.gripMulNow(now);
 							w.rollInfluence = num(tuning.rollInfluence, DEFAULTS.rollInfluence);
 						}
 
@@ -4126,7 +4332,12 @@
 
 						let engine = 0;
 						let brake = 0;
-						const engineMax = num(tuning.engineForce, DEFAULTS.engineForce) * bs.engineForce;
+						// Nitro Boost ability multiplies engine force for its window (1
+						// when inactive), on top of the build's engineForce multiplier.
+						const engineMax =
+							num(tuning.engineForce, DEFAULTS.engineForce) *
+							bs.engineForce *
+							rig.abilityState.nitroMulNow(now);
 						if (thr > 0) engine = thr * engineMax;
 						if (brk > 0 && !rig.combat.isOut(now)) {
 							if (forwardSpeed > 0.5)
@@ -4378,6 +4589,17 @@
 							}
 						}
 
+						// Drift meter: sustained lateral slip banks the shared ability
+						// meter. `driftIntensity` reads sideways speed (velocity
+						// perpendicular to the heading) vs forward speed, so straight
+						// driving and near-stops charge nothing; a wide slide or a
+						// committed handbrake turn charges fast. Gated on being in the
+						// race (not the pre-launch lock) and alive.
+						if (!preLaunch && !rig.combat.isOut(now)) {
+							const lat = Math.abs(vel.x * -rig.hz + vel.z * rig.hx);
+							rig.abilityState.charge(driftIntensity(lat, rawSpeed, hbk), dt);
+						}
+
 						if (rig === player) {
 							// Physics is metric (rawSpeed is m/s); the HUD reads mph.
 							// Display-layer conversion only: 1 m/s = 2.236936 mph.
@@ -4395,10 +4617,20 @@
 						tetherQueued = false;
 						firePrimaryQueued = false;
 						fireSecondaryQueued = false;
+						abilityPrimaryQueued = false;
+						abilitySecondaryQueued = false;
 					} else {
 						if (fireQueued) {
 							fireQueued = false;
 							performFire(player);
+						}
+						if (abilityPrimaryQueued) {
+							abilityPrimaryQueued = false;
+							performAbility(player, 'abilityPrimary');
+						}
+						if (abilitySecondaryQueued) {
+							abilitySecondaryQueued = false;
+							performAbility(player, 'abilitySecondary');
 						}
 						if (oilQueued) {
 							oilQueued = false;
@@ -4493,6 +4725,36 @@
 								if (res.fired) rig.ai.scheduleNextUse('tether', now, rct.tetherCooldownSec, aiT);
 							} else if (rig.ai.wantsOil(self, combatants, rct, aiT, now)) {
 								if (performOil(rig)) rig.ai.scheduleNextUse('oil', now, rct.oilCooldownSec, aiT);
+							}
+						}
+						// Abilities: every AI-driven rig decides ONE ability per frame,
+						// meter permitting. The shared drift meter both slots draw from
+						// is checked by abilityState.ready(); the AI adds a tactical
+						// trigger per category (hurt -> repair, chasing/chased -> nitro,
+						// cornering -> grip, upside-down -> flip). Jump is never AI-used
+						// (no ramps yet). Simple by design; real tactics are Phase 9.
+						for (let ri = 0; ri < all.length; ri++) {
+							const rig = all[ri];
+							if (!rig.ai || rig.combat.isOut(now)) continue;
+							const self = combatants[ri];
+							for (const slot of ABILITY_SLOTS) {
+								const def = abilityById(rig.abilities[slot]);
+								if (!def) continue;
+								if (!rig.abilityState.ready(slot, def, now)) continue;
+								if (!rig.ai.abilitySlotReady(slot, now)) continue;
+								let want = false;
+								if (def.category === 'repair') want = rig.ai.wantsRepair(self, now);
+								else if (def.category === 'nitro') want = rig.ai.wantsNitro(self, combatants, now);
+								else if (def.category === 'grip') want = rig.ai.wantsGrip(now);
+								else if (def.category === 'flip') {
+									const upY = rig.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y;
+									want = upY < num(tuning.flipUpY, DEFAULTS.flipUpY);
+								}
+								if (!want) continue;
+								if (performAbility(rig, slot)) {
+									rig.ai.scheduleAbilitySlot(slot, now);
+									break;
+								}
 							}
 						}
 						// Auto-Turret: every vehicle carrying one auto-fires on its own
@@ -5107,6 +5369,33 @@
 							? player.combat.shieldHealth / Math.max(1, player.combat.maxShield)
 							: 0;
 					}
+					// Ability cells + the shared drift meter. Key labels read the live
+					// (remappable) bindings, like the weapon cells.
+					chud.meter = player.abilityState.meter;
+					{
+						const acells: AbilityHudCell[] = [];
+						for (const slot of ABILITY_SLOTS) {
+							const def = abilityById(player.abilities[slot]);
+							if (!def) continue;
+							const active =
+								(def.category === 'nitro' && player.abilityState.nitroActive(now)) ||
+								(def.category === 'grip' && player.abilityState.gripActive(now));
+							acells.push({
+								slot,
+								short: def.shortName,
+								key: keyLabel(
+									controlSettings.keyboard[
+										slot === 'abilityPrimary' ? 'useAbilityPrimary' : 'useAbilitySecondary'
+									]
+								),
+								ready: player.abilityState.ready(slot, def, now) && !player.combat.isOut(now),
+								active,
+								cooldown: player.abilityState.cooldownRemaining(slot, def, now),
+								needMeter: player.abilityState.meter < def.meterCost - 1e-6
+							});
+						}
+						chud.abilities = acells;
+					}
 					// Passive jammer hum (player only), re-armed on its interval.
 					{
 						const hasJammer = WEAPON_SLOTS.some(
@@ -5382,6 +5671,39 @@
 					<span class="gl-wkey">NOSE HIT</span>
 				</div>
 			</div>
+
+			<div class="gl-meter" class:charged={chud.meter >= 0.999}>
+				<span class="gl-meter-label">DRIFT</span>
+				<span class="gl-meter-track"
+					><span class="gl-meter-fill" style:width="{Math.round(chud.meter * 100)}%"></span></span
+				>
+				<span class="gl-meter-num">{Math.round(chud.meter * 100)}%</span>
+			</div>
+
+			{#if chud.abilities.length}
+				<div class="gl-abilities">
+					{#each chud.abilities as a (a.slot)}
+						<div
+							class="gl-acell"
+							class:ready={a.ready && !a.active}
+							class:active={a.active}
+							class:charge={!a.ready && !a.active && a.needMeter}
+						>
+							<span class="gl-wname">{a.short}</span>
+							<span class="gl-wstate"
+								>{a.active
+									? 'ACTIVE'
+									: a.cooldown > 0
+										? `${a.cooldown.toFixed(1)}s`
+										: a.ready
+											? 'READY'
+											: 'CHARGE'}</span
+							>
+							<span class="gl-wkey">{a.key}</span>
+						</div>
+					{/each}
+				</div>
+			{/if}
 		</div>
 
 		{#if standings.length}
@@ -5750,6 +6072,79 @@
 	.gl-wkey {
 		font: 500 0.5rem var(--glb-font-ui);
 		letter-spacing: 0.08em;
+		color: var(--glb-ink-faint);
+	}
+	/* Drift meter: the shared ability resource. Green fill (it powers YOUR
+	   abilities), brightening to a glow when fully charged. */
+	.gl-meter {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		margin-top: 0.5rem;
+	}
+	.gl-meter-label {
+		font: 600 0.56rem var(--glb-font-ui);
+		letter-spacing: 0.16em;
+		color: var(--glb-ink-faint);
+	}
+	.gl-meter-track {
+		flex: 1;
+		height: 0.4rem;
+		background: rgba(13, 19, 25, 0.9);
+		border: 1px solid var(--glb-line-strong);
+	}
+	.gl-meter-fill {
+		display: block;
+		height: 100%;
+		background: linear-gradient(180deg, #8fffc4, #2ae57e);
+		transition: width 90ms linear;
+	}
+	.gl-meter.charged .gl-meter-fill {
+		box-shadow: 0 0 8px rgba(42, 229, 126, 0.8);
+	}
+	.gl-meter-num {
+		min-width: 2.3rem;
+		text-align: right;
+		font-family: var(--glb-font-data);
+		font-size: 0.66rem;
+		color: var(--glb-steel);
+	}
+	.gl-meter.charged .gl-meter-num {
+		color: var(--glb-green-ui);
+	}
+	/* Ability cells: same chrome as the weapon cells. READY (meter + cooldown
+	   satisfied) reads green; an ACTIVE nitro/grip window reads bright green;
+	   CHARGE (meter still filling) reads a dim steel. */
+	.gl-abilities {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.3rem;
+		margin-top: 0.3rem;
+	}
+	.gl-acell {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.1rem;
+		padding: 0.28rem 0.1rem 0.24rem;
+		background: rgba(13, 19, 25, 0.75);
+		border: 1px solid var(--glb-line);
+		border-radius: 1px;
+	}
+	.gl-acell.ready {
+		border-color: rgba(42, 229, 126, 0.45);
+	}
+	.gl-acell.ready .gl-wstate {
+		color: var(--glb-green-ui);
+	}
+	.gl-acell.active {
+		border-color: rgba(42, 229, 126, 0.8);
+		box-shadow: inset 0 0 8px rgba(42, 229, 126, 0.25);
+	}
+	.gl-acell.active .gl-wstate {
+		color: #8fffc4;
+	}
+	.gl-acell.charge .gl-wstate {
 		color: var(--glb-ink-faint);
 	}
 	.gl-standings {

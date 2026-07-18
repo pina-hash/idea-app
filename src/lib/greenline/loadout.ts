@@ -26,6 +26,7 @@ import {
 	type WeaponSlotId,
 	type WeaponSocketId
 } from './combat';
+import { ABILITY_NONE, abilityById } from './abilities';
 
 /** The stat surface parts may touch. Multipliers, neutral = 1. */
 export type StatKey =
@@ -54,9 +55,10 @@ export type StatEffects = Partial<Record<StatKey, number>>;
 export type ResolvedStats = Record<StatKey, number>;
 
 export type ArchetypeId = 'armor' | 'velocity' | 'handling' | 'systems';
-/** The four bodywork slots plus the two weapon-mount slots. The weapon slots
- * store WEAPON ids from the combat.ts catalog (or WEAPON_NONE for an empty
- * secondary), not VehiclePart ids; partById never resolves them and the
+/** The four bodywork slots, the two weapon-mount slots, and the two ability
+ * slots. The weapon slots store WEAPON ids from the combat.ts catalog (or
+ * WEAPON_NONE); the ability slots store ABILITY ids from the abilities.ts
+ * catalog (or ABILITY_NONE). Neither resolves through partById, and the
  * stat-resolution loop skips them by construction. */
 export type PartSlot =
 	| 'plating'
@@ -64,9 +66,12 @@ export type PartSlot =
 	| 'tires'
 	| 'systems'
 	| 'weaponPrimary'
-	| 'weaponSecondary';
+	| 'weaponSecondary'
+	| 'abilityPrimary'
+	| 'abilitySecondary';
 
 export const WEAPON_SLOT_IDS: PartSlot[] = ['weaponPrimary', 'weaponSecondary'];
+export const ABILITY_SLOT_IDS: PartSlot[] = ['abilityPrimary', 'abilitySecondary'];
 
 export interface Archetype {
 	id: ArchetypeId;
@@ -90,6 +95,15 @@ export interface Archetype {
 	 * VELOCITY lowest (speed pays in firepower).
 	 */
 	mountCapacityBase: number;
+	/**
+	 * Ability-capacity budget: how many ability points this chassis can power
+	 * across its two ability slots. Like mountCapacityBase this is a flat
+	 * resolved number, not a multiplier. DELIBERATELY the MIRROR IMAGE of the
+	 * mount ordering: VELOCITY highest (5), ARMOR/HANDLING standard (4),
+	 * SYSTEMS lowest (2). The missile leans on active abilities; the warlock
+	 * leans on weapons.
+	 */
+	abilityCapacityBase: number;
 	/**
 	 * The named mount sockets this chassis actually offers, in display order
 	 * (Phase 4c). Grounded in each hull's real geometry, NOT uniform: the
@@ -149,6 +163,8 @@ export const ARCHETYPES: Archetype[] = [
 		// honest way to hurt a juggernaut.
 		pools: { armor: 0.4, chassis: 0.45, mount: 0.15 },
 		mountCapacityBase: 4,
+		// Standard ability budget (the inverted mirror of the mount ordering).
+		abilityCapacityBase: 4,
 		// The slab has real estate everywhere: forward hood plate, the big
 		// flat cab roof, and a full rear deck behind the cab.
 		sockets: ['nose', 'roof', 'rear']
@@ -171,6 +187,9 @@ export const ARCHETYPES: Archetype[] = [
 		// a floor of 3 would make every budget unreachable — at 2 the missile
 		// genuinely carries ONE weapon and the capacity system is live now.
 		mountCapacityBase: 2,
+		// HIGHEST ability budget (the mirror of its lowest mount budget): the
+		// missile's identity leans on nitro/grip/flip, not firepower.
+		abilityCapacityBase: 5,
 		// NO roof: the dart's tiny glass canopy IS its spine — nothing mounts
 		// on it. One low nose hardpoint, one rear deck hardpoint. Real felt
 		// consequence: twin forward guns (both nose-only fits) cannot share
@@ -194,6 +213,8 @@ export const ARCHETYPES: Archetype[] = [
 		// character comes from the chassis stats.
 		pools: { armor: 0.3, chassis: 0.55, mount: 0.15 },
 		mountCapacityBase: 4,
+		// Standard ability budget.
+		abilityCapacityBase: 4,
 		// Compact but conventional: short hood point, cab roof, rear deck.
 		sockets: ['nose', 'roof', 'rear']
 	},
@@ -217,6 +238,9 @@ export const ARCHETYPES: Archetype[] = [
 		// it the hard way or just break it.
 		pools: { armor: 0.22, chassis: 0.5, mount: 0.28 },
 		mountCapacityBase: 5,
+		// LOWEST ability budget (the mirror of its highest mount budget): the
+		// warlock's identity is its weapons, so it powers only ONE ability.
+		abilityCapacityBase: 2,
 		// The weapons platform (biggest budget = most hardware to seat):
 		// wedge-nose point, canopy roof, and the rear rack bridging the two
 		// sensor pods.
@@ -339,13 +363,20 @@ export const partsForSlot = (slot: PartSlot): VehiclePart[] => PARTS.filter((p) 
  * under ANY archetype's capacity budget. */
 export const STOCK_WEAPON_PRIMARY = 'autocannon';
 
+/** Stock ability fit: Nitro Boost (cost 2) primary, empty secondary. Cost 2
+ * fits every archetype's ability budget (min is SYSTEMS at 2), the same way
+ * the stock weapon fits every mount budget. */
+export const STOCK_ABILITY_PRIMARY = 'nitro-boost';
+
 const STOCK_PARTS: Record<PartSlot, string> = {
 	plating: 'plating-stock',
 	drivetrain: 'drive-stock',
 	tires: 'tires-stock',
 	systems: 'sys-stock',
 	weaponPrimary: STOCK_WEAPON_PRIMARY,
-	weaponSecondary: WEAPON_NONE
+	weaponSecondary: WEAPON_NONE,
+	abilityPrimary: STOCK_ABILITY_PRIMARY,
+	abilitySecondary: ABILITY_NONE
 };
 
 /** Handling is the closest to the harness's tuned baseline feel. */
@@ -376,6 +407,28 @@ export function weaponMountCost(id: string): number {
 /** Mount points the build's equipped weapons occupy together. */
 export function mountCostUsed(l: Loadout): number {
 	return weaponMountCost(l.parts.weaponPrimary) + weaponMountCost(l.parts.weaponSecondary);
+}
+
+// ---------------------------------------------------------------------------
+// Ability capacity: the flat ability budget, structurally identical to mount
+// capacity but a SEPARATE resolved stat with the INVERTED archetype ordering
+// (VELOCITY 5, ARMOR/HANDLING 4, SYSTEMS 2). Same no-duplicate rule; no sockets.
+// ---------------------------------------------------------------------------
+
+/** The archetype's flat ability budget (parts never touch it in this pass). */
+export function abilityCapacityFor(l: Loadout | ArchetypeId): number {
+	const id = typeof l === 'string' ? l : l.archetype;
+	return archetypeById(id)?.abilityCapacityBase ?? 4;
+}
+
+/** Ability points an ability id occupies (ABILITY_NONE / unknown ids cost 0). */
+export function abilitySlotCost(id: string): number {
+	return abilityById(id)?.slotCost ?? 0;
+}
+
+/** Ability points the build's equipped abilities occupy together. */
+export function abilityCostUsed(l: Loadout): number {
+	return abilitySlotCost(l.parts.abilityPrimary) + abilitySlotCost(l.parts.abilitySecondary);
 }
 
 // --- Mount sockets: where each equipped weapon physically sits. The choice
@@ -530,6 +583,54 @@ export function sanitizeLoadoutWeapons(l: Loadout): Loadout {
 	return out;
 }
 
+/**
+ * Why this build's ability fit is invalid, or null when it is fine. The mirror
+ * of weaponLoadoutIssue, minus sockets (abilities have none): a primary must be
+ * equipped, the secondary is optional (ABILITY_NONE) but must be a real ability
+ * if set, the two may not be the same, and the total slot cost must fit the
+ * archetype's ability budget. The garage UI blocks these up front;
+ * sanitizeLoadoutAbilities is the enforcement for stored data / console equips.
+ */
+export function abilityLoadoutIssue(l: Loadout): string | null {
+	if (!abilityById(l.parts.abilityPrimary)) return 'no primary ability equipped';
+	const sec = l.parts.abilitySecondary;
+	if (sec !== ABILITY_NONE && !abilityById(sec)) return 'unknown secondary ability';
+	if (sec !== ABILITY_NONE && sec === l.parts.abilityPrimary)
+		return 'the same ability cannot occupy both slots';
+	if (abilityCostUsed(l) > abilityCapacityFor(l))
+		return `ability capacity exceeded (${abilityCostUsed(l)}/${abilityCapacityFor(l)})`;
+	return null;
+}
+
+/**
+ * Force a build's ability slots valid (the sanitizeLoadoutWeapons shape, no
+ * sockets): unknown primary falls back to stock, unknown/duplicate secondary
+ * drops to none, and an over-budget pair sheds the secondary first (then the
+ * primary to stock if somehow still over). Returns the input untouched when
+ * already valid.
+ */
+export function sanitizeLoadoutAbilities(l: Loadout): Loadout {
+	if (!abilityLoadoutIssue(l)) return l;
+	let primary = abilityById(l.parts.abilityPrimary) ? l.parts.abilityPrimary : STOCK_ABILITY_PRIMARY;
+	let secondary = l.parts.abilitySecondary;
+	if (!abilityById(secondary) || secondary === primary) secondary = ABILITY_NONE;
+	const cap = abilityCapacityFor(l);
+	if (abilitySlotCost(primary) + abilitySlotCost(secondary) > cap) secondary = ABILITY_NONE;
+	if (abilitySlotCost(primary) > cap) primary = STOCK_ABILITY_PRIMARY;
+	return { ...l, parts: { ...l.parts, abilityPrimary: primary, abilitySecondary: secondary } };
+}
+
+/**
+ * The one sanitizer every enforcement layer (garage edit, archetype swap,
+ * applyLoadoutToRig, stored-build load) should call: weapons THEN abilities, so
+ * an archetype swap that shrinks EITHER budget sheds the offending secondary.
+ * The two component sanitizers stay exported for the callers that only touch
+ * one system, but this is the default.
+ */
+export function sanitizeLoadout(l: Loadout): Loadout {
+	return sanitizeLoadoutAbilities(sanitizeLoadoutWeapons(l));
+}
+
 const STAT_KEYS: StatKey[] = [
 	'engineForce',
 	'aeroDrag',
@@ -675,6 +776,8 @@ export function normalizeStoredLoadout(
 			if (typeof id !== 'string') continue;
 			if (slot === 'weaponPrimary' || slot === 'weaponSecondary') {
 				if (weaponById(id) || (slot === 'weaponSecondary' && id === WEAPON_NONE)) out[slot] = id;
+			} else if (slot === 'abilityPrimary' || slot === 'abilitySecondary') {
+				if (abilityById(id) || (slot === 'abilitySecondary' && id === ABILITY_NONE)) out[slot] = id;
 			} else {
 				const part = partById(id);
 				if (part && part.slot === slot) out[slot] = part.id;
@@ -694,7 +797,7 @@ export function normalizeStoredLoadout(
 				ws[slot] = v as WeaponSocketId;
 		}
 	}
-	return sanitizeLoadoutWeapons({
+	return sanitizeLoadout({
 		archetype: archetype as ArchetypeId,
 		parts: out,
 		weaponSockets: ws

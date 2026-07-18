@@ -8,7 +8,7 @@
 	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
 	import GreenlineSettings from '$lib/greenline/GreenlineSettings.svelte';
 	import { GARAGE_BASELINE, type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
-	import { defaultLoadout, resolveWeaponSockets, sanitizeLoadoutWeapons, type ArchetypeId, type Loadout, type PartSlot } from '$lib/greenline/loadout';
+	import { defaultLoadout, resolveWeaponSockets, sanitizeLoadout, type ArchetypeId, type Loadout, type PartSlot } from '$lib/greenline/loadout';
 	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
 	import { GREENLINE_MAX_SLOTS, type LeaderboardEntry, type LoadoutSlot } from '$lib/greenline/persistence';
 
@@ -38,17 +38,17 @@
 	const selectArchetype = (id: ArchetypeId) => {
 		// Same sanitize as the real route: an archetype swap that shrinks mount
 		// capacity under the equipped weapons sheds the secondary.
-		loadout = sanitizeLoadoutWeapons({ ...loadout, archetype: id });
+		loadout = sanitizeLoadout({ ...loadout, archetype: id });
 		activeSlot = null;
 		lastAction = `archetype -> ${id}`;
 	};
 	const equipPart = (slot: PartSlot, partId: string) => {
-		loadout = sanitizeLoadoutWeapons({ ...loadout, parts: { ...loadout.parts, [slot]: partId } });
+		loadout = sanitizeLoadout({ ...loadout, parts: { ...loadout.parts, [slot]: partId } });
 		activeSlot = null;
 		lastAction = `equip ${slot} -> ${partId}`;
 	};
 	const setSocket = (slot: WeaponSlotId, socket: WeaponSocketId) => {
-		loadout = sanitizeLoadoutWeapons({
+		loadout = sanitizeLoadout({
 			...loadout,
 			weaponSockets: { ...loadout.weaponSockets, [slot]: socket }
 		});
@@ -63,7 +63,7 @@
 		(window as unknown as Record<string, unknown>).__glGarage = {
 			get: () => loadout,
 			set: (l: Loadout) => {
-				loadout = sanitizeLoadoutWeapons(l);
+				loadout = sanitizeLoadout(l);
 				return loadout;
 			},
 			resolve: () => resolveWeaponSockets(loadout)

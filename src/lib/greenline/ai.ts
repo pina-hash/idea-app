@@ -13,6 +13,7 @@
  */
 
 import type { Combatant, CombatTuning, WeaponDef, WeaponSlotId } from './combat';
+import type { AbilitySlotId } from './abilities';
 import type { TrackRuntime } from './track-runtime';
 
 export interface AiTuning {
@@ -89,6 +90,15 @@ export class AiDriver {
 	/** Equipped-weapon restraint, keyed by slot (the AI's build decides what
 	 * occupies each slot; the schedule belongs to the slot, like cooldowns). */
 	private nextSlotOkMs: Record<WeaponSlotId, number> = { weaponPrimary: 0, weaponSecondary: 0 };
+	/** Ability restraint, keyed by slot (the meter is the real gate; this just
+	 * keeps the AI from spamming the instant it can afford one). */
+	private nextAbilitySlotOkMs: Record<AbilitySlotId, number> = {
+		abilityPrimary: 0,
+		abilitySecondary: 0
+	};
+	/** Unsigned centerline curvature at the AI's current point, updated each
+	 * drive() tick; the Grip Surge heuristic reads it to fire in corners. */
+	private lastCurvature = 0;
 
 	constructor(rt: TrackRuntime) {
 		this.rt = rt;
@@ -106,6 +116,7 @@ export class AiDriver {
 
 	drive(s: AiDriveState, t: AiTuning): AiControls {
 		const n = this.rt.center.length;
+		this.lastCurvature = this.curv[((s.warmIdx % n) + n) % n] ?? 0;
 
 		// Un-stick: back out for a moment (brake = reverse at standstill),
 		// steering opposite, then resume normal driving.
@@ -403,5 +414,50 @@ export class AiDriver {
 		const aggr = Math.max(0, Math.min(1, t.aggression));
 		const extraSec = (1.6 - 1.4 * aggr) * (0.6 + 0.8 * Math.random());
 		this.nextSlotOkMs[slot] = nowMs + (cooldownSec + Math.max(0.1, extraSec)) * 1000;
+	}
+
+	// ---- Abilities (Phase 5a) --------------------------------------------
+	// Intentionally simple triggers, one per ability category; the shared drift
+	// METER (checked harness-side against VehicleAbilities.ready) is the real
+	// gate, and this restraint schedule just stops the AI from firing the
+	// instant it can afford one. Jump has no AI heuristic (no ramps yet), so the
+	// harness never asks about it. Real ability tactics are Phase 9.
+
+	/** Past this slot's restraint delay? (The meter gate is the harness's.) */
+	abilitySlotReady(slot: AbilitySlotId, nowMs: number): boolean {
+		return nowMs >= this.nextAbilitySlotOkMs[slot];
+	}
+
+	/** Overcharge Repair: pop it once the chassis (the life pool) is bitten
+	 * below half. */
+	wantsRepair(self: Combatant, _nowMs: number): boolean {
+		const frac = self.combat.chassisHealth / Math.max(1, self.combat.maxChassis);
+		return frac < 0.5;
+	}
+
+	/** Nitro Boost: spend it when a rival is close (chasing to close the gap, or
+	 * chased and wanting to pull away) — either way, near a rival is when the
+	 * burst matters. */
+	wantsNitro(self: Combatant, others: Combatant[], nowMs: number): boolean {
+		const range = 34;
+		for (const o of others) {
+			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
+			const dx = o.x - self.x;
+			const dz = o.z - self.z;
+			if (dx * dx + dz * dz <= range * range) return true;
+		}
+		return false;
+	}
+
+	/** Grip Surge: the loosest heuristic — periodic while the AI is in a corner
+	 * (curvature from the last drive() tick above a small threshold). */
+	wantsGrip(_nowMs: number): boolean {
+		return this.lastCurvature > 0.008;
+	}
+
+	/** Ability twin of scheduleSlotUse: a plain restraint delay with jitter (no
+	 * per-def cooldown to add — abilities are meter-gated). */
+	scheduleAbilitySlot(slot: AbilitySlotId, nowMs: number): void {
+		this.nextAbilitySlotOkMs[slot] = nowMs + (1.5 + 2 * Math.random()) * 1000;
 	}
 }

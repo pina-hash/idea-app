@@ -10,7 +10,7 @@
 	import Garage from '$lib/greenline/Garage.svelte';
 	import {
 		defaultLoadout,
-		sanitizeLoadoutWeapons,
+		sanitizeLoadout,
 		type ArchetypeId,
 		type Loadout,
 		type PartSlot
@@ -101,18 +101,18 @@
 	// the equipped pair — the sanitizer sheds the secondary so the saved build
 	// is always valid.
 	const selectArchetype = (id: ArchetypeId) => {
-		loadout = sanitizeLoadoutWeapons({ ...loadout, archetype: id });
+		loadout = sanitizeLoadout({ ...loadout, archetype: id });
 		// Editing diverges from any loaded slot: the build is now custom/unsaved.
 		persistBuild(null);
 	};
 	const equipPart = (slot: PartSlot, partId: string) => {
-		loadout = sanitizeLoadoutWeapons({ ...loadout, parts: { ...loadout.parts, [slot]: partId } });
+		loadout = sanitizeLoadout({ ...loadout, parts: { ...loadout.parts, [slot]: partId } });
 		persistBuild(null);
 	};
 	// Mount-socket pick (4c): same sanitize-and-persist path as an equip; the
 	// sanitizer drops a pick the resolution cannot honor.
 	const setSocket = (slot: WeaponSlotId, socket: WeaponSocketId) => {
-		loadout = sanitizeLoadoutWeapons({
+		loadout = sanitizeLoadout({
 			...loadout,
 			weaponSockets: { ...loadout.weaponSockets, [slot]: socket }
 		});

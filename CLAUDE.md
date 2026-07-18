@@ -2268,6 +2268,84 @@ on one side of the world.
   picker, conflict blocks, and old-format loads were driven end to end in
   `/dev/greenline-portal` (new `__glGarage` console hook) and
   `/dev/greenline-movement` (`__greenline.setSocket` / `getSockets`).
+- **Drift-charged abilities: a second loadout system parallel to weapons
+  (Phase 5a),** `src/lib/greenline/abilities.ts`. `AbilityDef` / `ABILITIES`
+  is a NEW catalog deliberately separate from `WeaponDef` (abilities are not
+  weapons — no mount cost, own two slots, a shared meter instead of ammo), and
+  `VehicleAbilities` is the per-vehicle state (the shared drift meter both
+  slots draw from, per-slot cooldowns, the nitro/grip effect windows). It
+  imports only the `VehicleCombat` TYPE from combat.ts (Overcharge Repair
+  writes its pools — the shared source of truth, never duplicated); combat.ts
+  never imports abilities. loadout.ts imports the catalog/ids for validation
+  exactly as it imports the weapon ids. No cycles.
+  - **Two slots + inverted capacity.** `Loadout.parts` gains
+    `abilityPrimary` / `abilitySecondary` (secondary may be `ABILITY_NONE`,
+    stock = Nitro Boost / none), same no-duplicate rule as weapons. A new
+    `Archetype.abilityCapacityBase` is the MIRROR IMAGE of `mountCapacityBase`:
+    VELOCITY 5, ARMOR/HANDLING 4, SYSTEMS 2 (the missile leans on abilities,
+    the warlock on weapons). Validation follows the exact weapon shape —
+    `abilityCapacityFor` / `abilitySlotCost` / `abilityCostUsed` /
+    `abilityLoadoutIssue` / `sanitizeLoadoutAbilities`, plus a combined
+    `sanitizeLoadout(l)` (weapons THEN abilities) that every enforcement layer
+    now calls (garage edit, archetype-swap, `applyLoadoutToRig`,
+    `normalizeStoredLoadout`). Ability slots ride inside the existing `parts`
+    jsonb (partsForStorage / normalizeStoredLoadout handle them), so
+    persistence needed no migration and pre-5a builds load + auto-stock.
+  - **The shared meter (drift detection).** No prior drift signal existed;
+    `driftIntensity(lateralSpeed, forwardSpeed, handbrake)` (pure) reads
+    sideways slip — velocity perpendicular to heading — and the harness charges
+    `VehicleAbilities.meter` per frame per vehicle. Tuned to the grippy
+    RaycastVehicle (MEASURED in the harness): a clean straight sits near
+    ~0.2 m/s lateral so it banks NOTHING, a committed corner runs ~0.9-1.5, a
+    handbrake slide spikes past FULL. Constants
+    (`DRIFT_MIN_LATERAL` 0.6, `DRIFT_FULL_LATERAL` 3.0, `METER_CHARGE_PER_SEC`
+    2.2) live in abilities.ts. The meter BANKS (no passive decay). Both slots
+    draw from the ONE per-vehicle meter (a spend by either empties it for
+    both). HUD: a green DRIFT meter bar + per-slot ability cells
+    (READY / ACTIVE / CHARGE / cooldown), same visual language as weapon cells.
+  - **The five abilities** (activation via `tryActivateAbility`, the
+    tryLaunchGuided pattern — the pure layer returns intent, the harness
+    applies physics): **Nitro Boost** (cost 2, meter 0.5) = a temporary
+    `engineForce` x1.8 for 2.2s; **Jump/Hop** (cost 1, meter 0.35) = a
+    vertical impulse (1400 N*s; the harness wakes the body first, since
+    cannon-es ignores an impulse on a sleeping body — low value on the flat
+    track by design, infrastructure for Phase 8's ramps); **Emergency Flip**
+    (cost 1, meter 0.3) = forces the flip-recovery re-seat immediately, but
+    ONLY while genuinely flipped (up axis below `flipUpY`) — triggered upright
+    it is a costless no-op, the Homing Rocket "no lock, no launch" rule;
+    **Overcharge Repair** (cost 2, meter 0.6) = an instant heal via the NEW
+    `VehicleCombat.repair(amount)` (distributes 45 across armor/chassis/mount,
+    most-depleted-first, reviving a dead mount it reaches); **Grip Surge**
+    (cost 1, meter 0.35) = a temporary `frictionSlip` x1.5 for 3s. Nitro/grip
+    read their multiplier into the physics pipeline each frame
+    (`nitroMulNow`/`gripMulNow`); the meter cost is the gate (cooldowns are 0).
+  - **Wiring.** Two new remappable `ControlAction`s
+    `useAbilityPrimary` / `useAbilitySecondary` (defaults C / V keyboard,
+    D-pad up/down pad); the settings CONTROLS rebind UI picked them up with
+    zero UI changes (it renders the registry). Garage: an Abilities section
+    mirroring the weapons section (capacity pips + two slot pickers + 5
+    distinct icons), routed through the SAME `onequip` callback since ability
+    slots are `PartSlot` values (no new prop). AI (`ai.ts`): each build cycles
+    an ability fit (`AI_ABILITIES`: armor repair+flip, velocity nitro+grip,
+    handling grip+repair, systems nitro) and `wantsRepair` (hurt) /
+    `wantsNitro` (rival near) / `wantsGrip` (in a corner) / flip (upside-down,
+    harness-checked) fire it with the same restraint scheduler as weapons; jump
+    is never AI-used (no ramps yet). Placeholder synthesized SFX per ability on
+    the Phase 2C buses. `__greenline` gains `useAbility` / `getAbilities` /
+    `getMeter` / `setMeter` / `setAbility`; telemetry counts nitro/jump/flip/
+    repair/grip.
+  - **Verified** (`/dev/greenline-movement?glheadless=1` +
+    `/dev/greenline-portal`, via `__greenline` / `__glGarage` — WebGL pane
+    screenshots hang, so DOM/console/physics reads): the meter charges from
+    cornering (0 -> 0.3+) and stays flat cruising a straight at 15 m/s; nitro
+    raises pinned-throttle top speed 16.6 -> 22.3 m/s (=sqrt(1.8)); jump adds
+    +7.78 m/s vertical (=1400/mass); grip multiplies wheel frictionSlip 5 ->
+    7.5; repair distributes 42 across the pools most-depleted-first and revives
+    the mount; Emergency Flip is a no-op upright (no spend) and rights + spends
+    while flipped; the inverted budget sheds a 4-cost pair on SYSTEMS (cap 2)
+    while VELOCITY (cap 5) keeps it; the AI equips and fires nitro/grip/repair/
+    flip each off its own per-vehicle meter; and the two actions remap through
+    the settings UI (C -> B live, B fires the ability, C stops).
 
 ## FRC Training track
 

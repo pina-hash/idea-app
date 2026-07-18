@@ -873,6 +873,49 @@ export class VehicleCombat {
 	}
 
 	/**
+	 * Instant partial repair (Overcharge Repair ability). Distribute a fixed
+	 * `amount` across the three pools, filling whichever is most depleted (by
+	 * absolute missing health) FIRST, then the next, until the budget runs out.
+	 * Chassis being the life pool, a badly hurt chassis heals before shields; a
+	 * fully-drained rear MOUNT that the budget reaches comes back online (the
+	 * caller re-reads `mountDown` and clears the dead-mount visual). Pure heal,
+	 * never over max; returns per-pool amount applied for feedback. Damage-only
+	 * `applyDamage` has no reverse until now — this is it.
+	 */
+	repair(amount: number): { armor: number; chassis: number; mount: number } {
+		let rem = Math.max(0, amount);
+		const applied = { armor: 0, chassis: 0, mount: 0 };
+		type P = 'armor' | 'chassis' | 'mount';
+		const cur = (k: P): number =>
+			k === 'armor' ? this.armorHealth : k === 'chassis' ? this.chassisHealth : this.mountHealth;
+		const max = (k: P): number =>
+			k === 'armor' ? this.maxArmor : k === 'chassis' ? this.maxChassis : this.maxMount;
+		const add = (k: P, v: number): void => {
+			if (k === 'armor') this.armorHealth += v;
+			else if (k === 'chassis') this.chassisHealth += v;
+			else this.mountHealth += v;
+			applied[k] += v;
+		};
+		const keys: P[] = ['armor', 'chassis', 'mount'];
+		while (rem > 1e-4) {
+			let best: P | null = null;
+			let bestMiss = 0;
+			for (const k of keys) {
+				const miss = max(k) - cur(k);
+				if (miss > bestMiss) {
+					bestMiss = miss;
+					best = k;
+				}
+			}
+			if (!best) break;
+			const give = Math.min(rem, bestMiss);
+			add(best, give);
+			rem -= give;
+		}
+		return applied;
+	}
+
+	/**
 	 * Per-frame upkeep. Returns 'recovered' once when a RACE down window
 	 * expires: ALL THREE pools are restored to this vehicle's own full
 	 * values (the full heal is also what brings a destroyed mount back

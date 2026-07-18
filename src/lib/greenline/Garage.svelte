@@ -1,6 +1,10 @@
 <script lang="ts">
 	import './brand/brand';
 	import {
+		abilityCapacityFor,
+		abilityCostUsed,
+		abilityLoadoutIssue,
+		abilitySlotCost,
 		archetypeById,
 		ARCHETYPES,
 		describeEffects,
@@ -27,6 +31,7 @@
 		type WeaponSlotId,
 		type WeaponSocketId
 	} from './combat';
+	import { ABILITIES, ABILITY_NONE, type AbilitySlotId } from './abilities';
 	import { GREENLINE_MAX_SLOTS, type LoadoutSlot } from './persistence';
 	import GaragePreview from './GaragePreview.svelte';
 
@@ -141,6 +146,31 @@
 			...loadout,
 			parts: { ...loadout.parts, [slot]: id }
 		});
+	}
+
+	// --- Abilities: the drift-charged active slots. A SEPARATE flat capacity
+	// budget from weapons, with the INVERTED archetype ordering (VELOCITY high,
+	// SYSTEMS low). Same no-duplicate / over-budget blocking as weapons; no
+	// sockets. Ability picks route through the shared onequip callback (ability
+	// slots are PartSlot values), so no extra prop is needed. ---
+	const abilityCapacity = $derived(abilityCapacityFor(loadout));
+	const abilityUsed = $derived(abilityCostUsed(loadout));
+	const ABILITY_SLOT_UI: { id: AbilitySlotId; label: string; allowNone: boolean }[] = [
+		{ id: 'abilityPrimary', label: 'PRIMARY ABILITY', allowNone: false },
+		{ id: 'abilitySecondary', label: 'SECONDARY ABILITY', allowNone: true }
+	];
+	/** Why this candidate cannot go in this slot right now (null = allowed). */
+	function abilityBlockReason(slot: AbilitySlotId, id: string): string | null {
+		if (id === ABILITY_NONE) return null;
+		if (loadout.parts[slot] === id) return null;
+		const otherSlot: AbilitySlotId =
+			slot === 'abilityPrimary' ? 'abilitySecondary' : 'abilityPrimary';
+		if (loadout.parts[otherSlot] === id)
+			return `already equipped as ${otherSlot === 'abilityPrimary' ? 'primary' : 'secondary'}`;
+		const free = abilityCapacity - abilitySlotCost(loadout.parts[otherSlot]);
+		if (abilitySlotCost(id) > free)
+			return `over budget — needs ${abilitySlotCost(id)}, ${Math.max(0, free)} free`;
+		return abilityLoadoutIssue({ ...loadout, parts: { ...loadout.parts, [slot]: id } });
 	}
 
 	const fmtPct = (pct: number) => `${pct > 0 ? '+' : ''}${Math.round(pct)}%`;
@@ -393,6 +423,33 @@
 					<!-- Empty hardpoint -->
 					<circle cx="12" cy="12" r="7" stroke-dasharray="2.4 2.2" />
 					<path d="M9 12h6" stroke-width="1.1" opacity="0.7" />
+				{:else if id === 'nitro-boost'}
+					<!-- Boost bolt -->
+					<path d="M13 3 6 13h5l-1 8 8-11h-5z" />
+				{:else if id === 'jump-hop'}
+					<!-- Arc over a baseline + up arrow -->
+					<path d="M4 19h16" />
+					<path d="M6 17 Q12 5 18 17" />
+					<path d="M9 9l3-3 3 3" stroke-width="1.2" />
+				{:else if id === 'emergency-flip'}
+					<!-- Two curved rotation arrows -->
+					<path d="M5 12a7 7 0 0 1 12-4.5" />
+					<path d="M17 4v4h-4" stroke-width="1.2" />
+					<path d="M19 12a7 7 0 0 1-12 4.5" />
+					<path d="M7 20v-4h4" stroke-width="1.2" />
+				{:else if id === 'overcharge-repair'}
+					<!-- Heal cross in a circle -->
+					<circle cx="12" cy="12" r="8" />
+					<path d="M12 8v8M8 12h8" />
+				{:else if id === 'grip-surge'}
+					<!-- Tire with downforce arrows -->
+					<circle cx="12" cy="14" r="5.5" />
+					<circle cx="12" cy="14" r="1.8" />
+					<path d="M12 2v3.5M8 3l1 2.5M16 3l-1 2.5" stroke-width="1.2" />
+				{:else if id === 'ability-none'}
+					<!-- Empty ability slot -->
+					<circle cx="12" cy="12" r="7" stroke-dasharray="2.4 2.2" />
+					<path d="M8.7 15.3l6.6-6.6" stroke-width="1.1" opacity="0.7" />
 				{/if}
 			</svg>
 		{/snippet}
@@ -521,6 +578,55 @@
 										<span class="gg-chip neutral">mount {w.mountCost}</span>
 										<span class="gg-chip neutral">cd {w.cooldownSec}s</span>
 										<span class="gg-chip neutral">{w.category}</span>
+									{/if}
+									{#if blocked}
+										<span class="gg-chip bad">{blocked}</span>
+									{/if}
+								</span>
+							</span>
+						</button>
+					{/each}
+				</div>
+			{/each}
+		</div>
+
+		<div class="gg-section-label gg-weapons-head">
+			<span>Abilities</span>
+			<span class="gg-cap">
+				<span class="gg-cap-label">ABILITY CAPACITY</span>
+				<span class="gg-cap-pips" aria-hidden="true">
+					{#each Array(abilityCapacity) as _, i (i)}
+						<span class="gg-cap-pip" class:used={i < abilityUsed}></span>
+					{/each}
+				</span>
+				<span class="gg-cap-num">{abilityUsed}/{abilityCapacity}</span>
+			</span>
+		</div>
+		<div class="gg-wslots">
+			{#each ABILITY_SLOT_UI as aslot (aslot.id)}
+				<div class="gg-slot">
+					<div class="gg-section-label">{aslot.label}</div>
+					{#each aslot.allowNone ? [...ABILITIES.map((a) => a.id), ABILITY_NONE] : ABILITIES.map((a) => a.id) as aid (aid)}
+						{@const a = ABILITIES.find((c) => c.id === aid)}
+						{@const blocked = abilityBlockReason(aslot.id, aid)}
+						<button
+							class="gg-part"
+							class:sel={loadout.parts[aslot.id] === aid}
+							class:blocked={!!blocked}
+							disabled={!!blocked}
+							onclick={() => onequip(aslot.id, aid)}
+						>
+							<span class="gg-part-ico">{@render partIcon(aid)}</span>
+							<span class="gg-part-body">
+								<span class="gg-part-name">{a ? a.name : 'None'}</span>
+								<span class="gg-part-blurb"
+									>{a ? a.blurb : 'Leave the slot empty and bank the ability points.'}</span
+								>
+								<span class="gg-chips">
+									{#if a}
+										<span class="gg-chip neutral">cost {a.slotCost}</span>
+										<span class="gg-chip neutral">meter {Math.round(a.meterCost * 100)}%</span>
+										<span class="gg-chip neutral">{a.category}</span>
 									{/if}
 									{#if blocked}
 										<span class="gg-chip bad">{blocked}</span>

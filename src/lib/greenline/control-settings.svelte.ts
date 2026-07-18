@@ -28,7 +28,9 @@ export type ControlAction =
 	| 'oil'
 	| 'tether'
 	| 'fireWeaponPrimary'
-	| 'fireWeaponSecondary';
+	| 'fireWeaponSecondary'
+	| 'useAbilityPrimary'
+	| 'useAbilitySecondary';
 
 export type ControlDevice = 'key' | 'pad';
 
@@ -56,6 +58,8 @@ export const CONTROL_ACTIONS: {
 	{ id: 'resetRound', label: 'Recover / reset round', group: 'driving', kind: 'edge' },
 	{ id: 'fireWeaponPrimary', label: 'Primary weapon', group: 'combat', kind: 'edge' },
 	{ id: 'fireWeaponSecondary', label: 'Secondary weapon', group: 'combat', kind: 'edge' },
+	{ id: 'useAbilityPrimary', label: 'Primary ability', group: 'combat', kind: 'edge' },
+	{ id: 'useAbilitySecondary', label: 'Secondary ability', group: 'combat', kind: 'edge' },
 	{ id: 'fire', label: 'EMP burst', group: 'combat', kind: 'edge' },
 	{ id: 'oil', label: 'Oil slick', group: 'combat', kind: 'edge' },
 	{ id: 'tether', label: 'Tether', group: 'combat', kind: 'edge' }
@@ -83,7 +87,10 @@ const KEY_DEFAULTS: Record<ControlAction, string> = {
 	tether: 'KeyQ',
 	// Z / X: the left-hand bottom row, clear of the nine keys already bound.
 	fireWeaponPrimary: 'KeyZ',
-	fireWeaponSecondary: 'KeyX'
+	fireWeaponSecondary: 'KeyX',
+	// C / V: the next two of the bottom row, clear of the eleven keys above.
+	useAbilityPrimary: 'KeyC',
+	useAbilitySecondary: 'KeyV'
 };
 
 /**
@@ -105,7 +112,10 @@ const PAD_DEFAULTS: Record<ControlAction, PadBinding | null> = {
 	tether: { kind: 'button', index: 4 },
 	// B / Y: the two standard-mapping face buttons still free.
 	fireWeaponPrimary: { kind: 'button', index: 1 },
-	fireWeaponSecondary: { kind: 'button', index: 3 }
+	fireWeaponSecondary: { kind: 'button', index: 3 },
+	// D-pad up / down: the two remaining unclaimed standard-mapping inputs.
+	useAbilityPrimary: { kind: 'button', index: 12 },
+	useAbilitySecondary: { kind: 'button', index: 13 }
 };
 
 const KEY_STORE = 'greenline_control_keys';
