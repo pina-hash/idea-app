@@ -21,7 +21,7 @@
  * signed-in portal route wired to these seams comes in the next stage.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { normalizeStoredLoadout, type Loadout } from './loadout';
+import { normalizeStoredLoadout, partsForStorage, type Loadout } from './loadout';
 
 export const GREENLINE_LOADOUTS_TABLE = 'greenline_loadouts';
 export const GREENLINE_SLOTS_TABLE = 'greenline_loadout_slots';
@@ -68,7 +68,11 @@ export async function saveUserLoadout(
 	const row: Record<string, unknown> = {
 		user_id: userId,
 		archetype: loadout.archetype,
-		parts: loadout.parts,
+		// Socket picks ride INSIDE the parts jsonb (partsForStorage) so the 4c
+		// field needs no migration: 0049 rows read back as auto-assign, and a
+		// pre-4c client reading a 4c row ignores the extra key. The load side
+		// (normalizeStoredLoadout) reads the embedded key back out.
+		parts: partsForStorage(loadout),
 		updated_at: new Date().toISOString()
 	};
 	if (activeSlot !== undefined) row.active_slot = activeSlot;
@@ -155,7 +159,9 @@ export async function saveSlot(
 			slot,
 			name,
 			archetype: loadout.archetype,
-			parts: loadout.parts,
+			// Same embedded-socket convention as the working build: the named
+			// slot's socket picks live inside its parts jsonb, no 0050 change.
+			parts: partsForStorage(loadout),
 			updated_at: new Date().toISOString()
 		},
 		{ onConflict: 'user_id,slot' }
@@ -179,7 +185,9 @@ export async function deleteSlot(
 
 /** Validate a stored (archetype, parts) pair into a Loadout, or null. The
  * real logic is loadout.ts's normalizeStoredLoadout (shared with the
- * localStorage path), which also sanitizes the weapon slots' capacity fit. */
+ * localStorage path), which also sanitizes the weapon slots' capacity fit and
+ * reads the mount-socket picks embedded in the parts jsonb (partsForStorage);
+ * a pre-4c row without them resolves to auto-assigned sockets. */
 function normalizeLoadout(archetype: unknown, parts: unknown): Loadout | null {
 	return normalizeStoredLoadout(archetype, parts);
 }

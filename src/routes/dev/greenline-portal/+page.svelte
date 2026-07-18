@@ -8,7 +8,8 @@
 	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
 	import GreenlineSettings from '$lib/greenline/GreenlineSettings.svelte';
 	import { GARAGE_BASELINE, type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
-	import { defaultLoadout, sanitizeLoadoutWeapons, type ArchetypeId, type Loadout, type PartSlot } from '$lib/greenline/loadout';
+	import { defaultLoadout, resolveWeaponSockets, sanitizeLoadoutWeapons, type ArchetypeId, type Loadout, type PartSlot } from '$lib/greenline/loadout';
+	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
 	import { GREENLINE_MAX_SLOTS, type LeaderboardEntry, type LoadoutSlot } from '$lib/greenline/persistence';
 
 	/**
@@ -46,13 +47,42 @@
 		activeSlot = null;
 		lastAction = `equip ${slot} -> ${partId}`;
 	};
+	const setSocket = (slot: WeaponSlotId, socket: WeaponSocketId) => {
+		loadout = sanitizeLoadoutWeapons({
+			...loadout,
+			weaponSockets: { ...loadout.weaponSockets, [slot]: socket }
+		});
+		activeSlot = null;
+		lastAction = `socket ${slot} -> ${socket}`;
+	};
+	// Scripted-verification hook (dev harness only): lets a console drive set
+	// whole loadouts and read the resolved sockets without clicking through
+	// the picker — the regression surface for the 4c clip/conflict checks.
+	$effect(() => {
+		if (!browser) return;
+		(window as unknown as Record<string, unknown>).__glGarage = {
+			get: () => loadout,
+			set: (l: Loadout) => {
+				loadout = sanitizeLoadoutWeapons(l);
+				return loadout;
+			},
+			resolve: () => resolveWeaponSockets(loadout)
+		};
+		return () => {
+			delete (window as unknown as Record<string, unknown>).__glGarage;
+		};
+	});
 	const onSaveSlot = (i: number, name: string) => {
 		slots = slots.map((s, idx) =>
 			idx === i
 				? {
 						slot: i,
 						name,
-						loadout: { archetype: loadout.archetype, parts: { ...loadout.parts } },
+						loadout: {
+							archetype: loadout.archetype,
+							parts: { ...loadout.parts },
+							weaponSockets: { ...loadout.weaponSockets }
+						},
 						updatedAt: new Date().toISOString()
 					}
 				: s
@@ -63,7 +93,11 @@
 	const onLoadSlot = (i: number) => {
 		const s = slots[i];
 		if (!s) return;
-		loadout = { archetype: s.loadout.archetype, parts: { ...s.loadout.parts } };
+		loadout = {
+			archetype: s.loadout.archetype,
+			parts: { ...s.loadout.parts },
+			weaponSockets: { ...s.loadout.weaponSockets }
+		};
 		activeSlot = i;
 		lastAction = `load slot ${i + 1}`;
 	};
@@ -289,6 +323,7 @@
 			baselineDrag={GARAGE_BASELINE.drag}
 			onselect={selectArchetype}
 			onequip={equipPart}
+			onsocket={setSocket}
 			note="choose your build · saved to your account"
 			closeLabel="START RACE ▸"
 			onclose={() => (lastAction = 'START RACE')}

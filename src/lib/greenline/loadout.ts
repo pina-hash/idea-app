@@ -17,7 +17,15 @@
  * acceleration and cornering through the same physics.
  */
 
-import { WEAPON_NONE, weaponById, type PoolSplit } from './combat';
+import {
+	WEAPON_NONE,
+	WEAPON_SOCKET_IDS,
+	WEAPON_SLOTS,
+	weaponById,
+	type PoolSplit,
+	type WeaponSlotId,
+	type WeaponSocketId
+} from './combat';
 
 /** The stat surface parts may touch. Multipliers, neutral = 1. */
 export type StatKey =
@@ -82,6 +90,14 @@ export interface Archetype {
 	 * VELOCITY lowest (speed pays in firepower).
 	 */
 	mountCapacityBase: number;
+	/**
+	 * The named mount sockets this chassis actually offers, in display order
+	 * (Phase 4c). Grounded in each hull's real geometry, NOT uniform: the
+	 * VELOCITY dart has no roof — its canopy IS the spine — so it runs
+	 * nose + rear only. Which sockets a WEAPON accepts is the weapon's own
+	 * compatibleSockets; where a socket sits in 3D is rig-visual.ts's.
+	 */
+	sockets: WeaponSocketId[];
 }
 
 export interface VehiclePart {
@@ -99,6 +115,16 @@ export interface Loadout {
 	 * VehiclePart ids (stock counts), weapon slots hold combat.ts weapon ids
 	 * (weaponSecondary may hold WEAPON_NONE). */
 	parts: Record<PartSlot, string>;
+	/**
+	 * The player's chosen mount socket per equipped weapon slot (Phase 4c).
+	 * DELIBERATELY partial: a missing entry means "auto" — the slot falls to
+	 * the first compatible free socket via resolveWeaponSockets — which is
+	 * both the sensible default for a freshly equipped weapon and the
+	 * backward-compat path for every pre-4c stored build (no socket data at
+	 * all). The two slots can never resolve to the same socket; sanitize
+	 * enforces it for stored data and the garage blocks it up front.
+	 */
+	weaponSockets: Partial<Record<WeaponSlotId, WeaponSocketId>>;
 }
 
 /**
@@ -122,7 +148,10 @@ export const ARCHETYPES: Archetype[] = [
 		// the biggest chassis. Its mount is ordinary, so the rear stays the
 		// honest way to hurt a juggernaut.
 		pools: { armor: 0.4, chassis: 0.45, mount: 0.15 },
-		mountCapacityBase: 4
+		mountCapacityBase: 4,
+		// The slab has real estate everywhere: forward hood plate, the big
+		// flat cab roof, and a full rear deck behind the cab.
+		sockets: ['nose', 'roof', 'rear']
 	},
 	{
 		id: 'velocity',
@@ -141,7 +170,12 @@ export const ARCHETYPES: Archetype[] = [
 		// 2, not the plan's starting 3: with only the 4a weapons (costs 1+2)
 		// a floor of 3 would make every budget unreachable — at 2 the missile
 		// genuinely carries ONE weapon and the capacity system is live now.
-		mountCapacityBase: 2
+		mountCapacityBase: 2,
+		// NO roof: the dart's tiny glass canopy IS its spine — nothing mounts
+		// on it. One low nose hardpoint, one rear deck hardpoint. Real felt
+		// consequence: twin forward guns (both nose-only fits) cannot share
+		// the dart; the one nose socket is contested.
+		sockets: ['nose', 'rear']
 	},
 	{
 		id: 'handling',
@@ -159,7 +193,9 @@ export const ARCHETYPES: Archetype[] = [
 		// The baseline split (DEFAULT_POOL_SPLIT mirrors it): no pool bias,
 		// character comes from the chassis stats.
 		pools: { armor: 0.3, chassis: 0.55, mount: 0.15 },
-		mountCapacityBase: 4
+		mountCapacityBase: 4,
+		// Compact but conventional: short hood point, cab roof, rear deck.
+		sockets: ['nose', 'roof', 'rear']
 	},
 	{
 		id: 'systems',
@@ -180,7 +216,11 @@ export const ARCHETYPES: Archetype[] = [
 		// shots) and pays with thin plating over a brittle frame -- silence
 		// it the hard way or just break it.
 		pools: { armor: 0.22, chassis: 0.5, mount: 0.28 },
-		mountCapacityBase: 5
+		mountCapacityBase: 5,
+		// The weapons platform (biggest budget = most hardware to seat):
+		// wedge-nose point, canopy roof, and the rear rack bridging the two
+		// sensor pods.
+		sockets: ['nose', 'roof', 'rear']
 	}
 ];
 
@@ -310,7 +350,9 @@ const STOCK_PARTS: Record<PartSlot, string> = {
 
 /** Handling is the closest to the harness's tuned baseline feel. */
 export function defaultLoadout(archetype: ArchetypeId = 'handling'): Loadout {
-	return { archetype, parts: { ...STOCK_PARTS } };
+	// Empty weaponSockets = every slot auto-assigns (first compatible free
+	// socket), the same contract every pre-4c stored build resolves under.
+	return { archetype, parts: { ...STOCK_PARTS }, weaponSockets: {} };
 }
 
 // ---------------------------------------------------------------------------
@@ -336,6 +378,87 @@ export function mountCostUsed(l: Loadout): number {
 	return weaponMountCost(l.parts.weaponPrimary) + weaponMountCost(l.parts.weaponSecondary);
 }
 
+// --- Mount sockets: where each equipped weapon physically sits. The choice
+// lives in Loadout.weaponSockets; resolution (explicit pick > weapon
+// preference, two slots never sharing a socket) lives HERE so the garage UI,
+// the storage parsers, and rig-visual's placement all agree on one contract.
+
+/** The archetype's real hardpoint set, in display order. */
+export function socketsFor(l: Loadout | ArchetypeId): WeaponSocketId[] {
+	const id = typeof l === 'string' ? l : l.archetype;
+	return archetypeById(id)?.sockets ?? [...WEAPON_SOCKET_IDS];
+}
+
+/**
+ * Sockets this slot's weapon could occupy on this chassis, IGNORING what the
+ * other slot holds: the weapon's compatibility list filtered to the
+ * archetype's real hardpoints, kept in the weapon's own preference order.
+ * Empty when the slot is empty / unknown. The garage renders these as the
+ * socket picker options (disabling the one the other slot resolves to).
+ */
+export function slotSocketChoices(l: Loadout, slot: WeaponSlotId): WeaponSocketId[] {
+	const def = weaponById(l.parts[slot]);
+	if (!def) return [];
+	const avail = socketsFor(l);
+	return def.compatibleSockets.filter((s) => avail.includes(s));
+}
+
+/**
+ * The EFFECTIVE socket per equipped weapon slot. An explicit weaponSockets
+ * pick wins when it is still legal; anything unset/invalid auto-assigns —
+ * which is how a freshly equipped weapon gets a sensible default and how
+ * every pre-4c stored build (no socket data at all) resolves. When both
+ * slots are armed, the few possible assignments are enumerated jointly and
+ * scored (honor primary's pick > honor secondary's pick > each weapon's own
+ * preference order), so an auto-assigned primary never squats on the only
+ * socket the secondary could use. The two slots NEVER share a socket; a pair
+ * with no valid assignment resolves the primary only (sanitize sheds the
+ * secondary for exactly this case).
+ */
+export function resolveWeaponSockets(l: Loadout): Partial<Record<WeaponSlotId, WeaponSocketId>> {
+	const pChoices = slotSocketChoices(l, 'weaponPrimary');
+	const sChoices = slotSocketChoices(l, 'weaponSecondary');
+	const pWant = l.weaponSockets?.weaponPrimary;
+	const sWant = l.weaponSockets?.weaponSecondary;
+	if (!sChoices.length) {
+		const p = pWant && pChoices.includes(pWant) ? pWant : pChoices[0];
+		return p ? { weaponPrimary: p } : {};
+	}
+	if (!pChoices.length) {
+		const s = sWant && sChoices.includes(sWant) ? sWant : sChoices[0];
+		return s ? { weaponSecondary: s } : {};
+	}
+	let best: { p: WeaponSocketId; s: WeaponSocketId; score: number } | null = null;
+	for (let pi = 0; pi < pChoices.length; pi++) {
+		for (let si = 0; si < sChoices.length; si++) {
+			if (pChoices[pi] === sChoices[si]) continue;
+			const score =
+				(pWant === pChoices[pi] ? 400 : 0) + (sWant === sChoices[si] ? 200 : 0) - pi * 10 - si;
+			if (!best || score > best.score) best = { p: pChoices[pi], s: sChoices[si], score };
+		}
+	}
+	if (!best) {
+		const p = pWant && pChoices.includes(pWant) ? pWant : pChoices[0];
+		return p ? { weaponPrimary: p } : {};
+	}
+	return { weaponPrimary: best.p, weaponSecondary: best.s };
+}
+
+/** Both slots armed but every assignment collides (e.g. two nose-only guns on
+ * the two-socket VELOCITY dart). The reason string doubles as UI copy. */
+function socketPairIssue(l: Loadout): string | null {
+	const pChoices = slotSocketChoices(l, 'weaponPrimary');
+	if (weaponById(l.parts.weaponPrimary) && !pChoices.length)
+		return 'no compatible mount socket on this chassis';
+	if (l.parts.weaponSecondary === WEAPON_NONE) return null;
+	const sChoices = slotSocketChoices(l, 'weaponSecondary');
+	if (weaponById(l.parts.weaponSecondary) && !sChoices.length)
+		return 'no compatible mount socket on this chassis';
+	if (!pChoices.some((p) => sChoices.some((s) => s !== p)))
+		return 'both weapons need the same mount socket';
+	return null;
+}
+
 /**
  * Why this build's weapon fit is invalid, or null when it is fine. The
  * garage UI blocks these combinations up front; sanitizeLoadoutWeapons is the
@@ -349,24 +472,62 @@ export function weaponLoadoutIssue(l: Loadout): string | null {
 		return 'the same weapon cannot occupy both slots';
 	if (mountCostUsed(l) > mountCapacityFor(l))
 		return `mount capacity exceeded (${mountCostUsed(l)}/${mountCapacityFor(l)})`;
-	return null;
+	return socketPairIssue(l);
 }
+
+/** Do two stored socket-choice maps pin the same picks? */
+const sameSocketPicks = (
+	a: Partial<Record<WeaponSlotId, WeaponSocketId>>,
+	b: Partial<Record<WeaponSlotId, WeaponSocketId>>
+): boolean => WEAPON_SLOTS.every((slot) => a[slot] === b[slot]);
 
 /**
  * Force a build's weapon slots valid: unknown primary falls back to stock,
- * unknown/duplicate secondary drops to none, and an over-budget pair sheds
- * the secondary first (then the primary to stock if somehow still over).
- * Returns the input object untouched when it is already valid.
+ * unknown/duplicate secondary drops to none, an over-budget pair sheds the
+ * secondary first (then the primary to stock if somehow still over), and a
+ * pair with no non-colliding socket assignment sheds the secondary too. The
+ * stored socket picks are then normalized: an entry survives only when it is
+ * exactly what the slot resolves to, so a stale pick (archetype swapped under
+ * it, weapon changed, socket lost to the other slot) can never silently
+ * re-assert later — the slot just returns to auto. Returns the input object
+ * untouched when it is already fully valid.
  */
 export function sanitizeLoadoutWeapons(l: Loadout): Loadout {
-	if (!weaponLoadoutIssue(l)) return l;
-	let primary = weaponById(l.parts.weaponPrimary) ? l.parts.weaponPrimary : STOCK_WEAPON_PRIMARY;
-	let secondary = l.parts.weaponSecondary;
-	if (!weaponById(secondary) || secondary === primary) secondary = WEAPON_NONE;
-	const cap = mountCapacityFor(l);
-	if (weaponMountCost(primary) + weaponMountCost(secondary) > cap) secondary = WEAPON_NONE;
-	if (weaponMountCost(primary) > cap) primary = STOCK_WEAPON_PRIMARY;
-	return { ...l, parts: { ...l.parts, weaponPrimary: primary, weaponSecondary: secondary } };
+	let out = l;
+	if (weaponLoadoutIssue(out)) {
+		let primary = weaponById(l.parts.weaponPrimary) ? l.parts.weaponPrimary : STOCK_WEAPON_PRIMARY;
+		let secondary = l.parts.weaponSecondary;
+		if (!weaponById(secondary) || secondary === primary) secondary = WEAPON_NONE;
+		const cap = mountCapacityFor(l);
+		if (weaponMountCost(primary) + weaponMountCost(secondary) > cap) secondary = WEAPON_NONE;
+		if (weaponMountCost(primary) > cap) primary = STOCK_WEAPON_PRIMARY;
+		out = { ...l, parts: { ...l.parts, weaponPrimary: primary, weaponSecondary: secondary } };
+		// Socket assignability on the repaired pair: a primary with no socket
+		// on this chassis falls to stock (unreachable with today's catalog —
+		// every archetype has a nose — but the guard keeps future data
+		// honest); a pair that cannot split across sockets sheds the
+		// secondary, the capacity-shed convention.
+		if (weaponById(out.parts.weaponPrimary) && !slotSocketChoices(out, 'weaponPrimary').length) {
+			out = { ...out, parts: { ...out.parts, weaponPrimary: STOCK_WEAPON_PRIMARY } };
+		}
+		if (out.parts.weaponSecondary !== WEAPON_NONE && socketPairIssue(out)) {
+			out = { ...out, parts: { ...out.parts, weaponSecondary: WEAPON_NONE } };
+		}
+	}
+	// Normalize the socket picks even when the weapons themselves were fine
+	// (an archetype swap can strand a pick with no repair needed elsewhere).
+	const resolved = resolveWeaponSockets(out);
+	const cleaned: Partial<Record<WeaponSlotId, WeaponSocketId>> = {};
+	for (const slot of WEAPON_SLOTS) {
+		const want = out.weaponSockets?.[slot];
+		if (want && resolved[slot] === want) cleaned[slot] = want;
+	}
+	// Also attaches the (possibly empty) map when a caller-supplied object
+	// lacked the field entirely (console equips), so every sanitized Loadout
+	// honors the type downstream.
+	if (!out.weaponSockets || !sameSocketPicks(cleaned, out.weaponSockets))
+		out = { ...out, weaponSockets: cleaned };
+	return out;
 }
 
 const STAT_KEYS: StatKey[] = [
@@ -475,14 +636,36 @@ export function serializeLoadout(l: Loadout): string {
 }
 
 /**
- * Validate a stored (archetype, parts) pair into a Loadout, or null on an
- * unknown archetype. Unknown part ids drop to stock; weapon slots accept only
- * catalog weapon ids (secondary also WEAPON_NONE) and the pair is run through
- * the capacity/duplicate sanitizer, so an invalid stored fit can never reach
- * the sim. Shared by parseLoadout (localStorage) and persistence.ts (DB), the
- * one contract for every storage source.
+ * The `parts` object as the DB stores it: the slot map plus the socket picks
+ * folded in under one reserved key. Riding inside the existing jsonb column
+ * (0049 working build AND 0050 named slots) is deliberate — no migration, no
+ * pre-migration select breakage, and a pre-4c client reading a new row simply
+ * ignores the extra key (its normalize loop only reads known slot keys),
+ * exactly as a 4c client reading an old row auto-assigns. Empty picks are
+ * omitted so untouched builds round-trip byte-identical.
  */
-export function normalizeStoredLoadout(archetype: unknown, parts: unknown): Loadout | null {
+export function partsForStorage(l: Loadout): Record<string, unknown> {
+	return Object.keys(l.weaponSockets ?? {}).length
+		? { ...l.parts, weaponSockets: l.weaponSockets }
+		: { ...l.parts };
+}
+
+/**
+ * Validate a stored (archetype, parts[, weaponSockets]) shape into a Loadout,
+ * or null on an unknown archetype. Unknown part ids drop to stock; weapon
+ * slots accept only catalog weapon ids (secondary also WEAPON_NONE); socket
+ * picks accept only known socket ids (missing entirely = pre-4c data = auto);
+ * and the result runs through the capacity/duplicate/socket sanitizer, so an
+ * invalid stored fit can never reach the sim. Shared by parseLoadout
+ * (localStorage, socket picks as their own Loadout field) and persistence.ts
+ * (DB rows, socket picks embedded in the parts jsonb — see partsForStorage),
+ * the one contract for every storage source.
+ */
+export function normalizeStoredLoadout(
+	archetype: unknown,
+	parts: unknown,
+	weaponSockets?: unknown
+): Loadout | null {
 	if (typeof archetype !== 'string' || !archetypeById(archetype)) return null;
 	const out = { ...STOCK_PARTS };
 	if (parts && typeof parts === 'object') {
@@ -498,7 +681,24 @@ export function normalizeStoredLoadout(archetype: unknown, parts: unknown): Load
 			}
 		}
 	}
-	return sanitizeLoadoutWeapons({ archetype: archetype as ArchetypeId, parts: out });
+	const rawSockets =
+		weaponSockets ??
+		(parts && typeof parts === 'object'
+			? (parts as Record<string, unknown>).weaponSockets
+			: undefined);
+	const ws: Partial<Record<WeaponSlotId, WeaponSocketId>> = {};
+	if (rawSockets && typeof rawSockets === 'object') {
+		for (const slot of WEAPON_SLOTS) {
+			const v = (rawSockets as Record<string, unknown>)[slot];
+			if (typeof v === 'string' && (WEAPON_SOCKET_IDS as string[]).includes(v))
+				ws[slot] = v as WeaponSocketId;
+		}
+	}
+	return sanitizeLoadoutWeapons({
+		archetype: archetype as ArchetypeId,
+		parts: out,
+		weaponSockets: ws
+	});
 }
 
 /** Parse + validate; unknown archetype/part ids fail soft to null. */
@@ -506,7 +706,7 @@ export function parseLoadout(raw: string | null): Loadout | null {
 	if (!raw) return null;
 	try {
 		const v = JSON.parse(raw) as Loadout;
-		return normalizeStoredLoadout(v?.archetype, v?.parts);
+		return normalizeStoredLoadout(v?.archetype, v?.parts, v?.weaponSockets);
 	} catch {
 		return null;
 	}

@@ -15,15 +15,25 @@
  *   drivetrain -> chassis greebles  (overbored scoop + stacks, slipstream
  *                                    fairing + skirts, hot intake + plumbing)
  *   tires      -> the wheel meshes  (slick, all-terrain, hardwall)
- *   systems    -> the mount group   (capacitor bank, faraday dome, targeting
- *                                    array)
+ *   systems    -> the rear socket's gear patch (capacitor bank, faraday dome,
+ *                                    targeting array)
+ *
+ * WEAPON MOUNT SOCKETS (Phase 4c): each archetype declares a NAMED set of
+ * hardpoints (nose / roof / rear; the VELOCITY dart has no roof) with its own
+ * attachment transform, replacing the old single mountPos. build() creates
+ * one sub-group per socket under the rig's mount group; every equipped
+ * weapon's redesigned mesh seats on the socket the loadout RESOLVES for it
+ * (loadout.ts's resolveWeaponSockets — two weapons never share a socket), and
+ * empty sockets still show their collar so hardpoints read on the machine.
+ * All socket furniture and weapon mass use the per-rig mount material, so the
+ * dead-mount charring/tilt applies per socket without losing the pattern.
  *
  * Part variants are positioned off per-archetype ANCHORS (hood / rear deck /
- * tail / deck height / hull dims) so every variant layers onto every
- * archetype from one recipe, never per-combination special cases. Geometries
- * are cached and SHARED across vehicles (draw calls are the budget on the
- * aging school desktops); the one exception stays the deformable hull, cloned
- * per vehicle because the crumple system writes its vertices.
+ * tail / deck height / hull dims / gear patch) so every variant layers onto
+ * every archetype from one recipe, never per-combination special cases.
+ * Geometries are cached and SHARED across vehicles (draw calls are the budget
+ * on the aging school desktops); the one exception stays the deformable hull,
+ * cloned per vehicle because the crumple system writes its vertices.
  *
  * three.js is browser-only in this repo (dynamic imports), so this module
  * imports three TYPES only and the factory takes the loaded module at
@@ -31,7 +41,8 @@
  */
 
 import type * as THREE from 'three';
-import type { Loadout } from './loadout';
+import type { WeaponSocketId } from './combat';
+import { resolveWeaponSockets, type Loadout } from './loadout';
 
 type ThreeModule = typeof import('three');
 
@@ -64,11 +75,14 @@ export const WHEEL_CONNECTIONS: [number, number, number][] = [
 
 /**
  * Identity of a build's full visual: archetype plus every equipped slot
- * (bodywork AND the two weapon mounts). A rig rebuilds its bodywork exactly
- * when this key changes.
+ * (bodywork AND the two weapon mounts), plus each weapon's RESOLVED socket
+ * (4c) — a socket swap alone must rebuild the bodywork exactly like a part
+ * swap always has.
  */
-export const visualKeyFor = (l: Loadout): string =>
-	`${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.weaponPrimary}|${l.parts.weaponSecondary}`;
+export const visualKeyFor = (l: Loadout): string => {
+	const s = resolveWeaponSockets(l);
+	return `${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.weaponPrimary}@${s.weaponPrimary ?? '-'}|${l.parts.weaponSecondary}@${s.weaponSecondary ?? '-'}`;
+};
 
 export type PartName = 'chassis' | 'armor' | 'mount';
 type MatKind = 'hull' | 'canopy' | 'mount' | 'accent' | 'steel' | 'composite' | 'cage';
@@ -84,6 +98,31 @@ interface VisualNode {
 	scale?: [number, number, number];
 	/** The crumple target (exactly one per build, in chassis). */
 	deform?: boolean;
+	/**
+	 * mount nodes only: which socket sub-group this node lives in. Positions
+	 * on a socket node are SOCKET-LOCAL (the sub-group carries the socket's
+	 * world transform), so weapon recipes are written once and seat on any
+	 * compatible socket of any archetype.
+	 */
+	socket?: WeaponSocketId;
+	/**
+	 * Machine-readable role stamped into mesh.userData.tag: 'weapon' marks
+	 * equipped-weapon mass, 'socketBase' marks socket furniture that
+	 * DELIBERATELY connects with the hull (collars, pedestals, the systems
+	 * rear rack). The dev harnesses' automated clip check reads these to
+	 * separate intentional seating from real interpenetration.
+	 */
+	tag?: 'weapon' | 'socketBase';
+}
+
+/** One named hardpoint on an archetype's hull: where the socket group sits
+ * (COM_DROP frame, like every other node) and how tall its support pedestal
+ * is (0 = flush; a raised socket clears the deck greebles under it, e.g. the
+ * slipstream fairing, and the pedestal reads as mounted-through hardware). */
+interface SocketSpec {
+	id: WeaponSocketId;
+	pos: [number, number, number];
+	base: number;
 }
 
 /**
@@ -105,6 +144,11 @@ interface Anchors {
 	/** Exo-cage roof height (clears the canopy). */
 	cageTop: number;
 	hullLen: number;
+	/** Where the SYSTEMS-slot electronics (capacitor / faraday / targeting)
+	 * seat: a clear flank patch near the rear socket, chosen per archetype so
+	 * the hardware never contests the socket top a weapon needs (the old
+	 * single-mount layout piled both onto one point and they clipped). */
+	gear: [number, number, number];
 }
 
 interface ArchBase {
@@ -112,8 +156,13 @@ interface ArchBase {
 	tone: number;
 	metalness: number;
 	roughness: number;
-	/** Weapon-mount socket attachment, relative to the COM_DROP frame. */
-	mountPos: [number, number, number];
+	/**
+	 * The named weapon hardpoints THIS hull offers (mirrors this archetype's
+	 * `sockets` list in loadout.ts — loadout owns which exist, this owns where
+	 * they sit). Every entry renders its socket collar even when empty, so a
+	 * chassis visibly shows its hardpoints.
+	 */
+	sockets: SocketSpec[];
 	wheelWidth: number;
 	anchors: Anchors;
 	nodes: VisualNode[];
@@ -124,7 +173,7 @@ interface ComposedVisual {
 	tone: number;
 	metalness: number;
 	roughness: number;
-	mountPos: [number, number, number];
+	sockets: SocketSpec[];
 	nodes: VisualNode[];
 	wheelGeo: THREE.BufferGeometry;
 	tireMat: TireMatKind;
@@ -332,20 +381,43 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		return geo;
 	};
 
-	const socket = (r: number): VisualNode[] => [
-		{
-			part: 'mount',
-			geo: track(new three.CylinderGeometry(r, r + 0.04, 0.12, 14)),
-			mat: 'mount',
-			pos: [0, 0, 0]
-		},
-		{
-			part: 'mount',
-			geo: track(new three.CylinderGeometry(r * 0.4, r * 0.4, 0.1, 10)),
-			mat: 'mount',
-			pos: [0, 0.09, 0]
+	// One hardpoint's built-in furniture, in SOCKET-LOCAL space (the socket
+	// sub-group carries the world transform): the collar disc + cap every
+	// socket shows even when empty, plus a support pedestal when the socket
+	// rides above its deck (base > 0). Geometries cache by radius/height so
+	// same-shaped sockets share.
+	const socketNodes = (id: WeaponSocketId, base: number, r: number): VisualNode[] => {
+		const nodes: VisualNode[] = [
+			{
+				part: 'mount',
+				geo: getGeo(`sockDisc-${r}`, () => new three.CylinderGeometry(r, r + 0.04, 0.12, 14)),
+				mat: 'mount',
+				pos: [0, 0, 0],
+				socket: id,
+				tag: 'socketBase'
+			},
+			{
+				part: 'mount',
+				geo: getGeo(`sockCap-${r}`, () => new three.CylinderGeometry(r * 0.4, r * 0.4, 0.1, 10)),
+				mat: 'mount',
+				pos: [0, 0.09, 0],
+				socket: id,
+				tag: 'socketBase'
+			}
+		];
+		if (base > 0.05) {
+			nodes.push({
+				part: 'mount',
+				geo: unitCyl(),
+				mat: 'mount',
+				pos: [0, -base / 2, 0],
+				scale: [0.15, base, 0.15],
+				socket: id,
+				tag: 'socketBase'
+			});
 		}
-	];
+		return nodes;
+	};
 
 	// Unit primitives for greebles/cage: ONE geometry each, per-node scale.
 	const unitBox = () => getGeo('unitBox', () => new three.BoxGeometry(1, 1, 1));
@@ -364,12 +436,20 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		let vis: ArchBase;
 		if (arch === 'armor') {
 			// Juggernaut: tall slab hull under separate bolted plates (plow,
-			// skirts, roof, tail) - the glyph's plated seams.
+			// skirts, roof, tail) - the glyph's plated seams. Hardpoints: the
+			// forward hood slope (ahead of the scoop zone), the big flat cab
+			// roof, and the rear deck raised over the fairing/exhaust band.
 			vis = {
 				tone: GL.steelDim,
 				metalness: 0.85,
 				roughness: 0.5,
-				mountPos: [-1.05, 0.76, 0],
+				sockets: [
+					// Nose rides above the reactive cage's brush-bar lane
+					// (browser clip check).
+					{ id: 'nose', pos: [1.55, 0.56, 0], base: 0.2 },
+					{ id: 'roof', pos: [-0.5, 1.0, 0], base: 0 },
+					{ id: 'rear', pos: [-1.6, 0.8, 0], base: 0.26 }
+				],
 				wheelWidth: 0.5,
 				anchors: {
 					hood: [1.05, 0.62, 0],
@@ -378,7 +458,8 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 					halfW: 0.875,
 					deckY: 0.55,
 					cageTop: 1.05,
-					hullLen: 3.8
+					hullLen: 3.8,
+					gear: [-1.6, 0.56, -0.52]
 				},
 				nodes: [
 					{ part: 'chassis', geo: taperEnd(box(3.8, 1.0, 1.75), 1, 0.55, 0.72, 0.85), mat: 'hull', pos: [0, 0.05, 0], deform: true },
@@ -389,19 +470,26 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 					{ part: 'armor', geo: box(2.0, 0.14, 1.55), mat: 'hull', pos: [0.15, 0.62, 0] },
 					{ part: 'armor', geo: box(0.16, 0.75, 1.6), mat: 'hull', pos: [-1.92, 0.05, 0] },
 					{ part: 'armor', geo: box(2.2, 0.05, 0.06), mat: 'accent', pos: [-0.1, -0.26, 1.06] },
-					{ part: 'armor', geo: box(2.2, 0.05, 0.06), mat: 'accent', pos: [-0.1, -0.26, -1.06] },
-					...socket(0.24)
+					{ part: 'armor', geo: box(2.2, 0.05, 0.06), mat: 'accent', pos: [-0.1, -0.26, -1.06] }
 				]
 			};
 		} else if (arch === 'velocity') {
 			// Missile: one long low dart, glass canopy far back, tail fin, twin
 			// threads down the rear flanks (the glyph's speed lines). Minimal
-			// plating: a nose splitter, nothing else.
+			// plating: a nose splitter, nothing else. Hardpoints: NO roof (the
+			// tiny canopy is the spine) — one low nose point far up the dart,
+			// one rear point raised over the fairing, ahead of the tail fin.
 			vis = {
 				tone: GL.chromeMid,
 				metalness: 0.88,
 				roughness: 0.18,
-				mountPos: [-1.15, 0.23, 0],
+				sockets: [
+					// Nose lifts a gun barrel over the cage brush bar; rear rides
+					// high enough that a launch tube clears the cage's rear
+					// cross-bar (both from the browser clip check).
+					{ id: 'nose', pos: [1.4, 0.07, 0], base: 0.16 },
+					{ id: 'rear', pos: [-1.42, 0.54, 0], base: 0.36 }
+				],
 				wheelWidth: 0.3,
 				anchors: {
 					hood: [0.85, 0.12, 0],
@@ -410,7 +498,8 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 					halfW: 0.75,
 					deckY: 0.18,
 					cageTop: 0.6,
-					hullLen: 4.4
+					hullLen: 4.4,
+					gear: [-1.35, 0.18, -0.5]
 				},
 				nodes: [
 					{ part: 'chassis', geo: taperEnd(box(4.4, 0.52, 1.5), 1, -0.2, 0.24, 0.4), mat: 'hull', pos: [0, -0.08, 0], deform: true },
@@ -418,18 +507,25 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 					{ part: 'chassis', geo: box(0.55, 0.44, 0.07), mat: 'hull', pos: [-2.0, 0.3, 0] },
 					{ part: 'armor', geo: box(0.8, 0.08, 1.35), mat: 'hull', pos: [1.75, -0.3, 0] },
 					{ part: 'chassis', geo: box(1.5, 0.045, 0.05), mat: 'accent', pos: [-1.3, 0.02, 0.76] },
-					{ part: 'chassis', geo: box(1.5, 0.045, 0.05), mat: 'accent', pos: [-1.3, 0.02, -0.76] },
-					...socket(0.18)
+					{ part: 'chassis', geo: box(1.5, 0.045, 0.05), mat: 'accent', pos: [-1.3, 0.02, -0.76] }
 				]
 			};
 		} else if (arch === 'handling') {
 			// Scalpel: short compact shell tapered at BOTH ends, flared
 			// wheel-arch fenders, one short apex line under the door.
+			// Hardpoints: short hood point past the scoop zone, cab roof, and
+			// a rear post over the tail taper.
 			vis = {
 				tone: GL.steel,
 				metalness: 0.88,
 				roughness: 0.32,
-				mountPos: [-1.2, 0.25, 0],
+				sockets: [
+					// Both raised/pushed clear of the reactive cage's brush bar
+					// and rear cross-bar lanes (browser clip check).
+					{ id: 'nose', pos: [1.54, 0.24, 0], base: 0.22 },
+					{ id: 'roof', pos: [-0.15, 0.68, 0], base: 0.05 },
+					{ id: 'rear', pos: [-1.42, 0.56, 0], base: 0.4 }
+				],
 				wheelWidth: 0.38,
 				anchors: {
 					hood: [1.0, 0.2, 0],
@@ -438,7 +534,8 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 					halfW: 0.8,
 					deckY: 0.29,
 					cageTop: 0.75,
-					hullLen: 3.3
+					hullLen: 3.3,
+					gear: [-1.15, 0.23, -0.52]
 				},
 				nodes: [
 					{ part: 'chassis', geo: taperEnd(taperEnd(box(3.3, 0.62, 1.6), 1, 0.1, 0.45, 0.6), -1, 0.5, 0.7, 0.8), mat: 'hull', pos: [0, -0.02, 0], deform: true },
@@ -448,20 +545,28 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 					{ part: 'armor', geo: box(0.85, 0.16, 0.26), mat: 'hull', pos: [-1.25, 0.16, 0.92] },
 					{ part: 'armor', geo: box(0.85, 0.16, 0.26), mat: 'hull', pos: [-1.25, 0.16, -0.92] },
 					{ part: 'chassis', geo: box(1.0, 0.045, 0.05), mat: 'accent', pos: [-0.33, -0.2, 0.81] },
-					{ part: 'chassis', geo: box(1.0, 0.045, 0.05), mat: 'accent', pos: [-0.33, -0.2, -0.81] },
-					...socket(0.16)
+					{ part: 'chassis', geo: box(1.0, 0.045, 0.05), mat: 'accent', pos: [-0.33, -0.2, -0.81] }
 				]
 			};
 		} else {
 			// Warlock: faceted dark machine, tilted side panels, angled sensor
-			// pods, and the antenna mast rising off the weapon mount - the
+			// pods, and the antenna mast rising off the rear rack - the
 			// glyph's silhouette. The accent is a short spine thread plus the
-			// live antenna tip.
+			// live antenna tip. Hardpoints: wedge-nose point, canopy roof, and
+			// the rear RACK — a plate bridging the two sensor pods (the pods
+			// leave no deck channel between them, so the rack spans them),
+			// which also carries the antenna and the gear flank.
 			vis = {
 				tone: GL.chromeLo,
 				metalness: 0.88,
 				roughness: 0.38,
-				mountPos: [-1.25, 0.42, 0],
+				sockets: [
+					// Nose sits just ahead of the hood-greeble zone (scoop lip /
+					// intake trumpet; browser clip check).
+					{ id: 'nose', pos: [1.66, 0.02, 0], base: 0.07 },
+					{ id: 'roof', pos: [-0.05, 0.73, 0], base: 0.05 },
+					{ id: 'rear', pos: [-1.25, 0.74, 0], base: 0 }
+				],
 				wheelWidth: 0.42,
 				anchors: {
 					hood: [1.15, 0.26, 0],
@@ -470,7 +575,8 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 					halfW: 0.75,
 					deckY: 0.36,
 					cageTop: 0.82,
-					hullLen: 3.6
+					hullLen: 3.6,
+					gear: [-1.25, 0.715, -0.5]
 				},
 				nodes: [
 					{ part: 'chassis', geo: taperEnd(box(3.6, 0.72, 1.5), 1, 0.05, 0.4, 0.55), mat: 'hull', pos: [0, 0, 0], deform: true },
@@ -481,12 +587,20 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 					{ part: 'armor', geo: box(1.7, 0.5, 0.14), mat: 'hull', pos: [-0.3, 0.05, 0.82], rot: [0.32, 0, 0] },
 					{ part: 'armor', geo: box(1.7, 0.5, 0.14), mat: 'hull', pos: [-0.3, 0.05, -0.82], rot: [-0.32, 0, 0] },
 					{ part: 'chassis', geo: box(1.3, 0.04, 0.05), mat: 'accent', pos: [-0.6, 0.38, 0] },
-					...socket(0.18),
-					{ part: 'mount', geo: track(new three.CylinderGeometry(0.035, 0.035, 1.1, 8)), mat: 'mount', pos: [0, 0.6, 0] },
-					{ part: 'mount', geo: track(new three.SphereGeometry(0.08, 10, 8)), mat: 'accent', pos: [0, 1.18, 0] }
+					// The rear rack plate bridging the sensor pods (socket-local
+					// to 'rear': the socket sits directly on it).
+					{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [0, -0.05, 0], scale: [0.55, 0.05, 1.24], socket: 'rear', tag: 'socketBase' },
+					// Antenna mast on the rack's corner, clear of the weapon
+					// envelope (the old center mast skewered whatever mounted).
+					{ part: 'mount', geo: getGeo('sysMast', () => new three.CylinderGeometry(0.035, 0.035, 1.0, 8)), mat: 'mount', pos: [-0.2, 0.45, 0.3], socket: 'rear', tag: 'socketBase' },
+					{ part: 'mount', geo: getGeo('sysMastTip', () => new three.SphereGeometry(0.08, 10, 8)), mat: 'accent', pos: [-0.2, 0.98, 0.3], socket: 'rear', tag: 'socketBase' }
 				]
 			};
 		}
+		// Every hardpoint renders its collar disc (and pedestal, when raised)
+		// even when empty, so a chassis visibly SHOWS where weapons can seat.
+		const sockR = arch === 'armor' ? 0.24 : arch === 'handling' ? 0.16 : 0.18;
+		for (const s of vis.sockets) vis.nodes.push(...socketNodes(s.id, s.base, sockR));
 		archCache.set(arch, vis);
 		return vis;
 	};
@@ -535,10 +649,11 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		const [hx, hy] = a.hood;
 		if (partId === 'drive-overbored') {
 			// Aggressive and exposed: hood scoop with an open dark lip, twin
-			// exhaust stacks raked back off the tail.
+			// exhaust stacks raked back off the tail (set wide enough that
+			// rear-socket weapon hardware passes between them).
 			const exX = a.tailX + 0.18;
 			const exY = a.rear[1] + 0.2;
-			const exZ = a.halfW * 0.38;
+			const exZ = a.halfW * 0.44;
 			return [
 				{ part: 'chassis', geo: unitBox(), mat: 'steel', pos: [hx, hy + 0.1, 0], scale: [0.55, 0.2, 0.42] },
 				{ part: 'chassis', geo: unitBox(), mat: 'canopy', pos: [hx + 0.26, hy + 0.1, 0], scale: [0.1, 0.15, 0.34] },
@@ -572,165 +687,209 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		return [];
 	};
 
-	// SYSTEMS variants: hardware around the weapon-mount socket, in mount
-	// group local space, so they ride the socket on every archetype (and tilt
-	// with it when the mount is dead).
-	const systemsNodes = (partId: string): VisualNode[] => {
+	// SYSTEMS variants: electronics seated at the archetype's GEAR anchor (a
+	// clear flank patch beside/behind the rear hardpoint, chosen per hull so
+	// the hardware never contests the socket top a weapon needs — the old
+	// layout piled both onto one point and they interpenetrated). They still
+	// live in the REAR socket's group, so they char and tilt with the mount
+	// pool exactly as before. `g` is the gear anchor in rear-socket space.
+	const systemsNodes = (partId: string, g: [number, number, number]): VisualNode[] => {
+		const at = (dx: number, dy: number, dz: number): [number, number, number] => [
+			g[0] + dx,
+			g[1] + dy,
+			g[2] + dz
+		];
 		if (partId === 'sys-capacitor') {
-			// Visible battery bank: base plate, two chunky cells with glowing
-			// caps, and a coil ring around the socket cap.
+			// Visible battery bank: base plate, two chunky cells, glowing caps.
 			return [
-				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0.32, 0.03, 0], scale: [0.5, 0.05, 0.42] },
-				{ part: 'mount', geo: unitCyl(), mat: 'canopy', pos: [0.32, 0.17, 0.11], scale: [0.19, 0.26, 0.19] },
-				{ part: 'mount', geo: unitCyl(), mat: 'canopy', pos: [0.32, 0.17, -0.11], scale: [0.19, 0.26, 0.19] },
-				{ part: 'mount', geo: unitCyl(), mat: 'accent', pos: [0.32, 0.31, 0.11], scale: [0.19, 0.04, 0.19] },
-				{ part: 'mount', geo: unitCyl(), mat: 'accent', pos: [0.32, 0.31, -0.11], scale: [0.19, 0.04, 0.19] },
-				{ part: 'mount', geo: getGeo('coil', () => new three.TorusGeometry(0.1, 0.032, 8, 14)), mat: 'accent', pos: [0, 0.26, 0], rot: [Math.PI / 2, 0, 0] }
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: at(0, 0.03, 0), scale: [0.4, 0.05, 0.28], socket: 'rear' },
+				{ part: 'mount', geo: unitCyl(), mat: 'canopy', pos: at(-0.09, 0.16, 0), scale: [0.17, 0.22, 0.17], socket: 'rear' },
+				{ part: 'mount', geo: unitCyl(), mat: 'canopy', pos: at(0.09, 0.16, 0), scale: [0.17, 0.22, 0.17], socket: 'rear' },
+				{ part: 'mount', geo: unitCyl(), mat: 'accent', pos: at(-0.09, 0.28, 0), scale: [0.17, 0.035, 0.17], socket: 'rear' },
+				{ part: 'mount', geo: unitCyl(), mat: 'accent', pos: at(0.09, 0.28, 0), scale: [0.17, 0.035, 0.17], socket: 'rear' }
 			];
 		}
 		if (partId === 'sys-faraday') {
-			// Mesh shield dome over the socket, with a solid rim ring.
+			// Mesh shield dome on the gear patch, with a solid rim ring.
 			return [
-				{ part: 'mount', geo: getGeo('dome', () => new three.SphereGeometry(0.36, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2)), mat: 'cage', pos: [0, 0.04, 0] },
-				{ part: 'mount', geo: getGeo('domeRim', () => new three.TorusGeometry(0.36, 0.024, 6, 20)), mat: 'steel', pos: [0, 0.05, 0], rot: [Math.PI / 2, 0, 0] }
+				{ part: 'mount', geo: getGeo('dome16', () => new three.SphereGeometry(0.16, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2)), mat: 'cage', pos: at(0, 0.03, 0), socket: 'rear' },
+				{ part: 'mount', geo: getGeo('domeRim16', () => new three.TorusGeometry(0.16, 0.02, 6, 18)), mat: 'steel', pos: at(0, 0.035, 0), rot: [Math.PI / 2, 0, 0], socket: 'rear' }
 			];
 		}
 		if (partId === 'sys-targeting') {
-			// Sensor array: an angled dish with a lens, and a long scope
-			// barrel sighted down the nose with a lit tip.
+			// Sensor array: an angled dish with a lens and a short sighted
+			// scope barrel with a lit tip, kept compact on the gear patch.
 			return [
-				{ part: 'mount', geo: getGeo('dish', () => new three.CylinderGeometry(0.16, 0.05, 0.14, 12)), mat: 'steel', pos: [0.14, 0.34, -0.14], rot: [0, 0, -1.1] },
-				{ part: 'mount', geo: getGeo('lensS', () => new three.SphereGeometry(0.055, 10, 8)), mat: 'accent', pos: [0.22, 0.4, -0.14] },
-				{ part: 'mount', geo: unitCyl(), mat: 'steel', pos: [0.28, 0.2, 0.14], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.5, 0.07] },
-				{ part: 'mount', geo: getGeo('tipS', () => new three.SphereGeometry(0.035, 8, 6)), mat: 'accent', pos: [0.54, 0.2, 0.14] }
+				{ part: 'mount', geo: getGeo('dish', () => new three.CylinderGeometry(0.16, 0.05, 0.14, 12)), mat: 'steel', pos: at(0, 0.18, 0), rot: [0, 0, -1.1], socket: 'rear' },
+				{ part: 'mount', geo: getGeo('lensS', () => new three.SphereGeometry(0.055, 10, 8)), mat: 'accent', pos: at(0.08, 0.24, 0), socket: 'rear' },
+				{ part: 'mount', geo: unitCyl(), mat: 'steel', pos: at(0.04, 0.05, 0), rot: [0, 0, Math.PI / 2], scale: [0.06, 0.36, 0.06], socket: 'rear' },
+				{ part: 'mount', geo: getGeo('tipS', () => new three.SphereGeometry(0.035, 8, 6)), mat: 'accent', pos: at(0.23, 0.05, 0), socket: 'rear' }
 			];
 		}
 		return [];
 	};
 
-	// EQUIPPED WEAPONS: hardware seated on the mount socket, in mount-group
-	// local space like the systems variants, so every weapon rides (and tilts
-	// with) the socket on every archetype. The visible mass uses the per-rig
-	// 'mount' material ON PURPOSE: a dead mount chars that material dark and
-	// knocks the group askew, so the weapon deactivates visually with the pool
-	// that powers it. Simple distinguishable silhouettes for Phase 4a; the
-	// bespoke redesign is Phase 4c. An unknown/future weapon id renders a
-	// generic hardpoint stub rather than an empty socket.
-	const weaponHardware = (weaponId: string, ox: number, oy: number, oz: number): VisualNode[] => {
+	// EQUIPPED WEAPONS (Phase 4c redesign): every weapon is a bespoke rig of
+	// shared primitives authored ONCE in socket-local space (origin = socket
+	// collar, +x = vehicle forward) and seated on whichever socket the build
+	// resolves, so each recipe is designed inside a common envelope
+	// (roughly x -0.25..+forward, y 0..0.45, z within the narrowest deck) and
+	// verified against every socket it can legally occupy. The visible mass
+	// uses the per-rig 'mount' material ON PURPOSE: a dead mount chars that
+	// material dark and knocks each socket askew, so weapons deactivate
+	// visually with the pool that powers them. Primary and secondary occupy
+	// DIFFERENT sockets by construction (loadout.ts forbids sharing), which is
+	// what retired the old side-wing hack and its clipping. An unknown/future
+	// weapon id renders a generic hardpoint stub rather than an empty socket.
+	const weaponHardware = (weaponId: string): VisualNode[] => {
+		const P2 = Math.PI / 2;
 		if (weaponId === 'autocannon') {
-			// Receiver block + long forward barrel with a muzzle collar: reads
-			// as a gun at a glance.
+			// Light rapid gun: compact receiver, vented sleeve over the barrel
+			// root, single barrel with a muzzle brake, side ammo drum, and the
+			// thin sight thread in the accent color.
 			return [
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.09, oz], scale: [0.36, 0.17, 0.2] },
-				{ part: 'mount', geo: unitTube(), mat: 'mount', pos: [ox + 0.42, oy + 0.12, oz], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.62, 0.07] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.68, oy + 0.12, oz], rot: [0, 0, Math.PI / 2], scale: [0.1, 0.12, 0.1] }
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [0, 0.15, 0], scale: [0.34, 0.17, 0.17] },
+				{ part: 'mount', geo: unitTube(), mat: 'mount', pos: [0.29, 0.17, 0], rot: [0, 0, P2], scale: [0.13, 0.26, 0.13] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.52, 0.17, 0], rot: [0, 0, P2], scale: [0.09, 0.66, 0.09] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.87, 0.17, 0], rot: [0, 0, P2], scale: [0.12, 0.1, 0.12] },
+				{ part: 'mount', geo: unitCyl(), mat: 'steel', pos: [-0.09, 0.11, -0.13], rot: [P2, 0, 0], scale: [0.18, 0.09, 0.18] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [0.02, 0.26, 0], scale: [0.16, 0.025, 0.03] }
 			];
 		}
 		if (weaponId === 'railgun') {
-			// Compact breech + a very long, thin slug barrel flanked by two rails:
-			// the length + twin rails read as a railgun, not an autocannon.
+			// Heavy precision: chunky capacitor breech with cooling fins and
+			// glowing charge cells, twin accelerator rails flanking a long
+			// slug channel, forward muzzle yoke. The longest silhouette in the
+			// catalog — length IS the identity.
 			return [
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.1, oz], scale: [0.34, 0.2, 0.24] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.66, oy + 0.13, oz], rot: [0, 0, Math.PI / 2], scale: [0.05, 1.0, 0.05] },
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox + 0.6, oy + 0.13, oz + 0.08], scale: [0.9, 0.04, 0.03] },
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox + 0.6, oy + 0.13, oz - 0.08], scale: [0.9, 0.04, 0.03] },
-				{ part: 'mount', geo: unitTube(), mat: 'accent', pos: [ox + 1.18, oy + 0.13, oz], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.06, 0.07] }
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [-0.02, 0.17, 0], scale: [0.4, 0.22, 0.22] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [-0.13, 0.31, 0], scale: [0.035, 0.09, 0.19] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [-0.02, 0.31, 0], scale: [0.035, 0.09, 0.19] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0.09, 0.31, 0], scale: [0.035, 0.09, 0.19] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0.72, 0.17, 0.055], scale: [1.3, 0.055, 0.03] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0.72, 0.17, -0.055], scale: [1.3, 0.055, 0.03] },
+				{ part: 'mount', geo: unitTube(), mat: 'mount', pos: [0.66, 0.17, 0], rot: [0, 0, P2], scale: [0.07, 1.16, 0.07] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [1.32, 0.17, 0], scale: [0.07, 0.16, 0.17] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [-0.02, 0.17, 0.115], scale: [0.24, 0.1, 0.015] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [-0.02, 0.17, -0.115], scale: [0.24, 0.1, 0.015] }
 			];
 		}
 		if (weaponId === 'shotgun-burst') {
-			// Squat quad-barrel block with a broad flared muzzle: short and wide,
-			// the anti-autocannon silhouette.
+			// Bumper breacher: short and WIDE, a flared shroud lip around a
+			// horizontal row of four muzzle tubes — the anti-railgun shape.
 			return [
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.1, oz], scale: [0.3, 0.2, 0.32] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.14, oz + 0.08], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.22, 0.07] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.14, oz - 0.08], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.22, 0.07] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.06, oz + 0.08], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.22, 0.07] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.06, oz - 0.08], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.22, 0.07] },
-				{ part: 'mount', geo: unitTube(), mat: 'mount', pos: [ox + 0.4, oy + 0.1, oz], rot: [0, 0, Math.PI / 2], scale: [0.24, 0.06, 0.24] }
-			];
-		}
-		if (weaponId === 'cluster-missile') {
-			// A larger boxy pod with a 2x2 grid of tube mouths + a top fin: reads
-			// as heavier ordnance than the single-cell rocket launcher.
-			return [
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.14, oz], scale: [0.36, 0.3, 0.34] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.2, oy + 0.2, oz + 0.08], rot: [0, 0, Math.PI / 2], scale: [0.08, 0.12, 0.08] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.2, oy + 0.2, oz - 0.08], rot: [0, 0, Math.PI / 2], scale: [0.08, 0.12, 0.08] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.2, oy + 0.08, oz + 0.08], rot: [0, 0, Math.PI / 2], scale: [0.08, 0.12, 0.08] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.2, oy + 0.08, oz - 0.08], rot: [0, 0, Math.PI / 2], scale: [0.08, 0.12, 0.08] },
-				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [ox - 0.1, oy + 0.32, oz], scale: [0.18, 0.12, 0.03] }
-			];
-		}
-		if (weaponId === 'caltrops') {
-			// A rear hopper/dispenser with a downward chute: a dropper, not a gun,
-			// so it never reads as forward firepower.
-			return [
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox - 0.05, oy + 0.14, oz], scale: [0.3, 0.28, 0.34] },
-				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [ox - 0.05, oy + 0.3, oz], scale: [0.34, 0.05, 0.38] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox - 0.22, oy + 0.02, oz], rot: [Math.PI, 0, 0], scale: [0.14, 0.14, 0.14] }
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [0.05, 0.14, 0], scale: [0.3, 0.18, 0.4] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0.24, 0.14, 0], scale: [0.08, 0.22, 0.46] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.31, 0.14, -0.15], rot: [0, 0, P2], scale: [0.1, 0.14, 0.1] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.31, 0.14, -0.05], rot: [0, 0, P2], scale: [0.1, 0.14, 0.1] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.31, 0.14, 0.05], rot: [0, 0, P2], scale: [0.1, 0.14, 0.1] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.31, 0.14, 0.15], rot: [0, 0, P2], scale: [0.1, 0.14, 0.1] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [0.02, 0.245, 0], scale: [0.18, 0.02, 0.3] }
 			];
 		}
 		if (weaponId === 'homing-rocket') {
-			// Boxy launcher with two forward tube mouths + a top guidance fin:
-			// reads as ordnance, not a gun.
+			// Single launch tube on a cradle, raked slightly up-forward, open
+			// mouth ringed in the accent color, guidance fin + sensor bead.
 			return [
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.12, oz], scale: [0.34, 0.24, 0.3] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.18, oy + 0.16, oz + 0.07], rot: [0, 0, Math.PI / 2], scale: [0.09, 0.1, 0.09] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.18, oy + 0.16, oz - 0.07], rot: [0, 0, Math.PI / 2], scale: [0.09, 0.1, 0.09] },
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox - 0.08, oy + 0.28, oz], scale: [0.16, 0.1, 0.03] }
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [0, 0.07, 0], scale: [0.3, 0.1, 0.22] },
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [0.03, 0.22, 0], rot: [0, 0, 0.14 - P2], scale: [0.2, 0.56, 0.2] },
+				{ part: 'mount', geo: unitTube(), mat: 'accent', pos: [0.3, 0.26, 0], rot: [0, 0, 0.14 - P2], scale: [0.21, 0.03, 0.21] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [-0.13, 0.33, 0], scale: [0.13, 0.12, 0.025] },
+				{ part: 'mount', geo: getGeo('wSens', () => new three.SphereGeometry(0.032, 8, 6)), mat: 'accent', pos: [-0.06, 0.33, 0.06] }
+			];
+		}
+		if (weaponId === 'cluster-missile') {
+			// Six-tube battery pod: boxy mass, a 2x3 grid of tube mouths on the
+			// front face, carry rail on top — heavier ordnance than the rocket.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [0, 0.19, 0], scale: [0.42, 0.28, 0.34] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.22, 0.12, -0.1], rot: [0, 0, P2], scale: [0.11, 0.06, 0.11] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.22, 0.12, 0], rot: [0, 0, P2], scale: [0.11, 0.06, 0.11] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.22, 0.12, 0.1], rot: [0, 0, P2], scale: [0.11, 0.06, 0.11] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.22, 0.26, -0.1], rot: [0, 0, P2], scale: [0.11, 0.06, 0.11] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.22, 0.26, 0], rot: [0, 0, P2], scale: [0.11, 0.06, 0.11] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.22, 0.26, 0.1], rot: [0, 0, P2], scale: [0.11, 0.06, 0.11] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [-0.02, 0.36, 0], scale: [0.3, 0.035, 0.06] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [0.2, 0.33, 0], scale: [0.05, 0.02, 0.3] }
+			];
+		}
+		if (weaponId === 'caltrops') {
+			// Dispenser, not a gun: hopper with a canted lid, a downward-back
+			// chute with two spike tips peeking out, hazard strip on the face.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [0, 0.16, 0], scale: [0.3, 0.24, 0.3] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0, 0.29, 0], rot: [0, 0, 0.16], scale: [0.34, 0.04, 0.34] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [-0.21, 0.1, 0], rot: [0, 0, -0.5], scale: [0.16, 0.2, 0.16] },
+				{ part: 'mount', geo: getGeo('spikeTip', () => new three.ConeGeometry(0.035, 0.13, 5)), mat: 'steel', pos: [-0.27, 0.03, 0.05], rot: [0, 0, -2.1] },
+				{ part: 'mount', geo: getGeo('spikeTip', () => new three.ConeGeometry(0.035, 0.13, 5)), mat: 'steel', pos: [-0.27, 0.03, -0.05], rot: [0, 0, -2.1] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [0.155, 0.16, 0], scale: [0.015, 0.18, 0.24] }
 			];
 		}
 		if (weaponId === 'auto-turret') {
-			// A ringed turret drum with a stubby side-swinging barrel + a sensor
-			// cap on top: reads as an independent gun that turns on its own.
+			// Independent gun: bearing ring, rotating drum, yoked twin barrels,
+			// sensor cap glowing on top — reads as a machine that aims itself.
 			return [
-				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [ox, oy + 0.06, oz], scale: [0.34, 0.1, 0.34] },
-				{ part: 'mount', geo: unitCyl(), mat: 'steel', pos: [ox, oy + 0.18, oz], scale: [0.26, 0.16, 0.26] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.2, oz], rot: [0, 0, Math.PI / 2], scale: [0.05, 0.42, 0.05] },
-				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [ox, oy + 0.3, oz], scale: [0.12, 0.06, 0.12] }
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [0, 0.03, 0], scale: [0.34, 0.06, 0.34] },
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [0, 0.14, 0], scale: [0.26, 0.16, 0.26] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0.13, 0.19, 0], scale: [0.1, 0.07, 0.18] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.31, 0.19, 0.05], rot: [0, 0, P2], scale: [0.06, 0.3, 0.06] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.31, 0.19, -0.05], rot: [0, 0, P2], scale: [0.06, 0.3, 0.06] },
+				{ part: 'mount', geo: unitCyl(), mat: 'accent', pos: [0, 0.25, 0], scale: [0.11, 0.05, 0.11] }
 			];
 		}
 		if (weaponId === 'energy-shield') {
-			// A generator block topped by an emitter ring around a glowing core:
-			// reads as a projector, not a gun.
+			// NOT a gun at all: a small emitter nub — three prongs cradling the
+			// glowing core that projects the bubble around the whole vehicle
+			// (the race scene renders the translucent field while it is up).
+			const prongs: VisualNode[] = [0, 2.094, 4.189].map((a) => ({
+				part: 'mount' as const,
+				geo: unitTube(),
+				mat: 'steel' as const,
+				pos: [Math.cos(a) * 0.09, 0.16, Math.sin(a) * 0.09],
+				rot: [Math.sin(a) * 0.45, 0, -Math.cos(a) * 0.45],
+				scale: [0.035, 0.17, 0.035]
+			}));
 			return [
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.1, oz], scale: [0.3, 0.2, 0.3] },
-				{ part: 'mount', geo: getGeo('shieldRing', () => new three.TorusGeometry(0.2, 0.04, 8, 20)), mat: 'accent', pos: [ox, oy + 0.34, oz], rot: [Math.PI / 2, 0, 0] },
-				{ part: 'mount', geo: getGeo('shieldCore', () => new three.SphereGeometry(0.11, 12, 10)), mat: 'accent', pos: [ox, oy + 0.34, oz] }
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [0, 0.05, 0], scale: [0.22, 0.1, 0.22] },
+				...prongs,
+				{ part: 'mount', geo: getGeo('wOrb', () => new three.SphereGeometry(0.075, 12, 10)), mat: 'accent', pos: [0, 0.245, 0] }
 			];
 		}
 		if (weaponId === 'radar-jammer') {
-			// A masted dish with an antenna rod: reads as passive ECM, no barrel.
+			// Passive ECM: a low radome ahead of a stub mast with a canted
+			// panel and lit tip — deliberately short enough for a nose radome.
 			return [
-				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.08, oz], scale: [0.26, 0.16, 0.26] },
-				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox, oy + 0.34, oz], scale: [0.03, 0.5, 0.03] },
-				{ part: 'mount', geo: getGeo('jamDish', () => new three.CylinderGeometry(0.18, 0.05, 0.06, 16)), mat: 'steel', pos: [ox, oy + 0.56, oz], rot: [0.5, 0, 0] },
-				{ part: 'mount', geo: unitTube(), mat: 'accent', pos: [ox + 0.1, oy + 0.3, oz], rot: [0, 0, 0.3], scale: [0.015, 0.3, 0.015] }
+				{ part: 'mount', geo: getGeo('wRadome', () => new three.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2)), mat: 'mount', pos: [0.06, 0.04, 0] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [-0.13, 0.22, 0], scale: [0.045, 0.34, 0.045] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [-0.13, 0.42, 0], rot: [0, 0.5, 0.25], scale: [0.16, 0.1, 0.02] },
+				{ part: 'mount', geo: getGeo('wSens', () => new three.SphereGeometry(0.032, 8, 6)), mat: 'accent', pos: [-0.13, 0.49, 0] }
 			];
 		}
 		if (weaponId === 'deployable-blades') {
-			// A central hub with two swept blade fins to the sides: reads as
-			// spin-up melee, not a projectile weapon.
+			// Spin-up melee: motor block, hub drum, two swept fins folded to
+			// the sides (kept inside the narrowest deck's width), accent cap.
 			return [
-				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [ox, oy + 0.12, oz], scale: [0.16, 0.24, 0.16] },
-				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [ox, oy + 0.16, oz + 0.28], rot: [0, 0.5, 0], scale: [0.06, 0.05, 0.5] },
-				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [ox, oy + 0.16, oz - 0.28], rot: [0, -0.5, 0], scale: [0.06, 0.05, 0.5] },
-				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [ox, oy + 0.28, oz], scale: [0.1, 0.04, 0.1] }
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [-0.15, 0.1, 0], scale: [0.12, 0.13, 0.16] },
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [0, 0.11, 0], scale: [0.24, 0.17, 0.24] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0, 0.12, 0.18], rot: [0, -0.45, 0.06], scale: [0.07, 0.055, 0.26] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [0, 0.12, -0.18], rot: [0, 0.45, 0.06], scale: [0.07, 0.055, 0.26] },
+				{ part: 'mount', geo: unitCyl(), mat: 'accent', pos: [0, 0.215, 0], scale: [0.11, 0.04, 0.11] }
 			];
 		}
 		// Fallback hardpoint stub for catalog entries without a visual yet.
-		return [
-			{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.08, oz], scale: [0.24, 0.14, 0.18] }
-		];
+		return [{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [0, 0.13, 0], scale: [0.24, 0.14, 0.18] }];
 	};
-	const weaponNodes = (primary: string, secondary: string): VisualNode[] => {
+	// Seat each equipped weapon's hardware on its RESOLVED socket: same
+	// recipe, different socket tag — the socket sub-group carries the
+	// transform, so recipes stay socket-agnostic.
+	const weaponNodes = (l: Loadout): VisualNode[] => {
+		const resolved = resolveWeaponSockets(l);
 		const nodes: VisualNode[] = [];
-		// Primary sits centered on the socket; a secondary hangs off a side
-		// hardpoint wing so a two-weapon mount visibly carries two systems.
-		if (primary && primary !== 'weapon-none') nodes.push(...weaponHardware(primary, 0.04, 0.1, 0));
-		if (secondary && secondary !== 'weapon-none') {
-			nodes.push({ part: 'mount', geo: unitBox(), mat: 'mount', pos: [-0.1, 0.1, 0.16], scale: [0.2, 0.05, 0.2] });
-			nodes.push(...weaponHardware(secondary, -0.1, 0.02, 0.26));
+		for (const slot of ['weaponPrimary', 'weaponSecondary'] as const) {
+			const id = l.parts[slot];
+			const sock = resolved[slot];
+			if (!id || id === 'weapon-none' || !sock) continue;
+			nodes.push(...weaponHardware(id).map((n) => ({ ...n, socket: sock, tag: 'weapon' as const })));
 		}
 		return nodes;
 	};
@@ -825,15 +984,24 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		}
 		if (plating === 'plating-reactive') nodes.push(...cageNodes(a));
 		nodes.push(...drivetrainNodes(l.parts.drivetrain, a));
-		nodes.push(...systemsNodes(l.parts.systems));
-		nodes.push(...weaponNodes(l.parts.weaponPrimary, l.parts.weaponSecondary));
+		// The gear anchor expressed in rear-socket space (systems electronics
+		// live in the rear socket group so they char/tilt with the mount).
+		const rearSock = base.sockets.find((s) => s.id === 'rear') ?? base.sockets[0];
+		nodes.push(
+			...systemsNodes(l.parts.systems, [
+				a.gear[0] - rearSock.pos[0],
+				a.gear[1] - rearSock.pos[1],
+				a.gear[2] - rearSock.pos[2]
+			])
+		);
+		nodes.push(...weaponNodes(l));
 		const wheel = wheelFor(l.parts.tires, base.wheelWidth);
 		const vis: ComposedVisual = {
 			key,
 			tone: base.tone,
 			metalness: base.metalness,
 			roughness: base.roughness,
-			mountPos: base.mountPos,
+			sockets: base.sockets,
 			nodes,
 			wheelGeo: wheel.geo,
 			tireMat: wheel.mat,
@@ -868,6 +1036,21 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 								: kind === 'composite'
 									? compositeMat
 									: cageMat;
+		// The mount group is a neutral parent at the COM_DROP frame; each
+		// hardpoint gets its OWN sub-group at that socket's transform. Mount
+		// nodes route into their socket's sub-group (positions socket-local),
+		// so the dead-mount tilt and any future per-socket dressing act on
+		// each hardpoint around its own origin.
+		groups.mount.position.set(0, COM_DROP, 0);
+		const socketGroups: Partial<Record<WeaponSocketId, THREE.Group>> = {};
+		for (const spec of vis.sockets) {
+			const sg = new three.Group();
+			sg.position.set(spec.pos[0], spec.pos[1], spec.pos[2]);
+			sg.userData.socketId = spec.id;
+			groups.mount.add(sg);
+			socketGroups[spec.id] = sg;
+		}
+		const fallbackSocket = socketGroups.rear ?? socketGroups[vis.sockets[0].id]!;
 		let bodyMesh: THREE.Mesh | null = null;
 		let dentBase = new Float32Array(0);
 		for (const node of vis.nodes) {
@@ -878,7 +1061,12 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 			if (node.scale) mesh.scale.set(node.scale[0], node.scale[1], node.scale[2]);
 			// Base transform, for the plate-rattle damage jitter restore.
 			mesh.userData.base = { pos: mesh.position.clone(), rot: mesh.rotation.clone() };
-			groups[node.part].add(mesh);
+			if (node.tag) mesh.userData.tag = node.tag;
+			if (node.part === 'mount') {
+				((node.socket && socketGroups[node.socket]) || fallbackSocket).add(mesh);
+			} else {
+				groups[node.part].add(mesh);
+			}
 			if (node.deform) {
 				bodyMesh = mesh;
 				dentBase = new Float32Array(
@@ -886,7 +1074,6 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 				);
 			}
 		}
-		groups.mount.position.set(vis.mountPos[0], COM_DROP + vis.mountPos[1], vis.mountPos[2]);
 		const tMat = tireMats[vis.tireMat];
 		for (const m of target.wheels) {
 			m.geometry = vis.wheelGeo;

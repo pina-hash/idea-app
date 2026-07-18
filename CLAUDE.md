@@ -2226,6 +2226,48 @@ on one side of the world.
     swept blade fins); the part-clipping cleanup across all 10 is still Phase
     4c. `__greenline` gains `getDefense` (shield pool + windows + jammerMul);
     telemetry adds turret/shield/blades fire+hit and `shieldBreak`.
+- **Player-chosen weapon sockets + the all-10 weapon-mesh redesign (Phase 4c,
+  closes the clipping problem).** Every archetype now declares NAMED mount
+  hardpoints instead of the single `mountPos`: `Archetype.sockets` in
+  loadout.ts owns WHICH exist (ARMOR / HANDLING / SYSTEMS: nose + roof + rear;
+  VELOCITY: nose + rear only, the dart's canopy IS its spine), rig-visual.ts
+  owns WHERE they sit (per-hull `SocketSpec` transforms + pedestal heights,
+  tuned against real geometry in the browser). Each of the 10 weapons declares
+  `WeaponDef.compatibleSockets` in preference order (first = auto-assign
+  default): Caltrops is rear-only (hard mechanical constraint, it drops
+  behind), Shotgun Burst nose-only (bumper breacher), kinetics nose/roof,
+  guided + turret roof/rear, blades nose/rear, shield + jammer all three.
+  Sockets are PLACEMENT ONLY: no fire cone, drop point, or balance number
+  reads them. **The choice lives in `Loadout.weaponSockets`** (partial map per
+  weapon slot; missing = auto), resolved by `resolveWeaponSockets` — explicit
+  pick wins while legal, both slots are enumerated JOINTLY (an auto-assigned
+  primary never squats on the secondary's only socket), and the two slots can
+  NEVER share a socket: the garage blocks an occupied pick (disabled chip with
+  the holder named) and blocks weapon cards whose pair has no assignment
+  ("both weapons need the same mount socket" — e.g. twin forward guns on the
+  two-socket dart, the one deliberately lost pairing);
+  `sanitizeLoadoutWeapons` sheds the secondary for non-UI paths and drops
+  stale picks (archetype swap, weapon change) back to auto. **Storage needs NO
+  migration:** picks ride INSIDE the existing `parts` jsonb via
+  `partsForStorage` on all three paths (0049 working build, 0050 named slots,
+  localStorage), `normalizeStoredLoadout` reads them back out, and every
+  pre-4c build (no socket data) loads unchanged and auto-assigns — verified
+  through the real parse path. build() gives the rig's mount group one
+  sub-group per socket (empty hardpoints still show their collar disc);
+  dead-mount charring/tilt/sputter now applies PER SOCKET (the tilt re-asserts
+  across rebuilds; sputter sparks pick a random hardpoint). All 10 weapons got
+  bespoke socket-local meshes replacing the 4a/4b silhouettes (the old
+  secondary side-wing hack is gone — each weapon sits centered on its own
+  socket), incl. the Energy Shield reinterpreted as an emitter nub whose
+  translucent bubble wraps the whole vehicle while the absorb pool is up (a
+  per-rig field mesh in the race, hidden on break/timeout). Verified in the
+  browser via an automated AABB clip matrix over the live GaragePreview scene
+  (160 single-weapon + 226 valid dual-weapon builds x crowding bodywork
+  configs, zero real overlaps after socket repositioning; tapered-hull AABB
+  phantoms excluded by span) plus claude-in-chrome screenshots; the garage
+  picker, conflict blocks, and old-format loads were driven end to end in
+  `/dev/greenline-portal` (new `__glGarage` console hook) and
+  `/dev/greenline-movement` (`__greenline.setSocket` / `getSockets`).
 
 ## FRC Training track
 

@@ -37,6 +37,27 @@ export const WEAPON_SLOTS: WeaponSlotId[] = ['weaponPrimary', 'weaponSecondary']
  * may only afford one weapon). Stored in Loadout.parts like a part id. */
 export const WEAPON_NONE = 'weapon-none';
 
+/**
+ * The named weapon-mount sockets a chassis can offer (Phase 4c). Which of
+ * these actually EXIST on a given archetype is that archetype's own call
+ * (Archetype.sockets in loadout.ts — the dart has no roof); where they sit in
+ * 3D is rig-visual.ts's. A weapon declares which sockets it can occupy via
+ * WeaponDef.compatibleSockets, in PREFERENCE order (first = the auto-assign
+ * default). Sockets are visual/placement identity only: fire cones, drop
+ * points, and every combat function keep reading the vehicle pose, so socket
+ * choice never changes balance.
+ */
+export type WeaponSocketId = 'nose' | 'roof' | 'rear';
+
+/** Every socket id, in the canonical display order. */
+export const WEAPON_SOCKET_IDS: WeaponSocketId[] = ['nose', 'roof', 'rear'];
+
+export const WEAPON_SOCKET_LABELS: Record<WeaponSocketId, string> = {
+	nose: 'NOSE',
+	roof: 'ROOF',
+	rear: 'REAR'
+};
+
 /** The six weapon families the framework must hold (build plan section 5). */
 export type WeaponCategory = 'kinetic' | 'guided' | 'turret' | 'defensive' | 'melee' | 'area';
 
@@ -128,10 +149,10 @@ export interface JammerWeaponParams {
 /**
  * Turret: an independent gun that fires ITSELF on its own cooldown (WeaponDef
  * cooldownSec) at the nearest valid target in a full 360deg ring, EXCEPT a
- * forward blind arc the vehicle's own chassis (hood/cabin) occludes — the gun
- * sits on the rear mount (mountPos negative local-x), so it cannot see through
- * the body toward the front. No trigger, no aim: player and AI tick the same
- * auto-fire check.
+ * forward blind arc the vehicle's own chassis (hood/cabin) occludes. The blind
+ * arc is fixed gameplay identity regardless of which socket the drum sits on
+ * (roof or rear) — socket choice is placement only, never balance. No trigger,
+ * no aim: player and AI tick the same auto-fire check.
  */
 export interface TurretWeaponParams {
 	damage: number;
@@ -172,6 +193,14 @@ export interface WeaponDef {
 	/** Mount-capacity points this weapon occupies (1-3 scale; archetype
 	 * budgets run 3-5, see Archetype.mountCapacityBase in loadout.ts). */
 	mountCost: number;
+	/**
+	 * Which mount sockets this weapon can occupy, in PREFERENCE order (the
+	 * first entry that exists on the chassis and is not held by the other slot
+	 * is the auto-assign default). Some are hard mechanical constraints
+	 * (Caltrops drops behind the shooter, so it is rear-only); the rest are
+	 * geometry judgment. Sockets are placement only — no fire logic reads this.
+	 */
+	compatibleSockets: WeaponSocketId[];
 	cooldownSec: number;
 	/** Present iff category === 'kinetic'. */
 	kinetic?: KineticWeaponParams;
@@ -206,6 +235,9 @@ export const WEAPONS: WeaponDef[] = [
 		category: 'kinetic',
 		blurb: 'Rapid light cannon: weak per hit, cheap on the mount, always relevant.',
 		mountCost: 1,
+		// Forward gun: hull nose or cab roof; a rear deck aiming through the
+		// canopy would read wrong.
+		compatibleSockets: ['nose', 'roof'],
 		cooldownSec: 0.4,
 		kinetic: { damage: 8, range: 34, coneDeg: 22 }
 	},
@@ -218,6 +250,9 @@ export const WEAPONS: WeaponDef[] = [
 		// Cost 3: the first heavy kinetic — a whole slot of a 4-budget chassis,
 		// or half of SYSTEMS' 5. VELOCITY (2) literally cannot mount it.
 		mountCost: 3,
+		// The long accelerator rails need a clear forward run: integrated into
+		// the nose deck, or tank-style over the cab.
+		compatibleSockets: ['nose', 'roof'],
 		cooldownSec: 2.2,
 		kinetic: { damage: 42, range: 62, coneDeg: 6 }
 	},
@@ -228,6 +263,9 @@ export const WEAPONS: WeaponDef[] = [
 		category: 'kinetic',
 		blurb: 'Short-range spread: brutal up close, useless at distance. Rewards closing the gap.',
 		mountCost: 1,
+		// Bumper breacher: the wide quad-muzzle block is nose-integrated
+		// hardware, the one deliberately single-socket gun.
+		compatibleSockets: ['nose'],
 		cooldownSec: 0.8,
 		// Short range + wide cone reads as a shotgun without a distance-falloff
 		// field: the tight range IS the falloff, so KineticWeaponParams is reused
@@ -241,6 +279,9 @@ export const WEAPONS: WeaponDef[] = [
 		category: 'guided',
 		blurb: 'Locks a target ahead, then a live rocket chases them down. Break the cone to deny the lock.',
 		mountCost: 2,
+		// Launch tube: rides high on the cab or rakes forward off the rear deck
+		// (missile-truck style); never buried in the nose.
+		compatibleSockets: ['roof', 'rear'],
 		cooldownSec: 5,
 		guided: {
 			damage: 30,
@@ -262,6 +303,9 @@ export const WEAPONS: WeaponDef[] = [
 		// Cost 3: area guided damage is the strongest thing in the batch — it
 		// punishes a bunched pack, so it pays a heavy-slot price.
 		mountCost: 3,
+		// Six-tube pod: rear-deck battery by default (the reverse preference
+		// from the rocket, so the two guided weapons default apart).
+		compatibleSockets: ['rear', 'roof'],
 		cooldownSec: 6,
 		guided: {
 			damage: 26,
@@ -283,6 +327,9 @@ export const WEAPONS: WeaponDef[] = [
 		category: 'area',
 		blurb: 'Scatters spikes behind you: a persistent field that punctures anyone who drives over it, again and again.',
 		mountCost: 1,
+		// HARD constraint, not preference: the field drops behind the shooter
+		// (tryDeployCaltrops dropBack), so the dispenser is rear-only.
+		compatibleSockets: ['rear'],
 		cooldownSec: 5,
 		area: {
 			damage: 10,
@@ -302,6 +349,10 @@ export const WEAPONS: WeaponDef[] = [
 		// Cost 2: strong passive value (constant free chip damage), but zero
 		// player skill expression, so it is not a heavy-slot weapon.
 		mountCost: 2,
+		// Needs open sight lines for the 360deg ring: cab roof or rear deck.
+		// The forward blind arc is unchanged either way (chassis occlusion is
+		// gameplay identity, not socket math).
+		compatibleSockets: ['roof', 'rear'],
 		cooldownSec: 1.1,
 		turret: { damage: 10, range: 30, blindArcDeg: 90 }
 	},
@@ -313,6 +364,9 @@ export const WEAPONS: WeaponDef[] = [
 		blurb: 'Pop a hard absorb bubble: soaks a fixed hit budget from any source, then shatters. The strongest panic button in the roster.',
 		// Cost 3: the strongest single defensive tool — a full heavy slot.
 		mountCost: 3,
+		// A small emitter nub, not a gun: it projects the bubble around the
+		// whole vehicle, so any hardpoint carries it.
+		compatibleSockets: ['roof', 'nose', 'rear'],
 		cooldownSec: 9,
 		shield: { absorb: 70, durationSec: 4 }
 	},
@@ -324,6 +378,9 @@ export const WEAPONS: WeaponDef[] = [
 		blurb: 'Passive ECM: enemy missiles take far longer to lock you. Priceless against guided weapons, useless against guns.',
 		// Cost 1: cheap, situational — only matters against guided weapons.
 		mountCost: 1,
+		// Low-profile ECM radome: mast position preferred, but a nose radome is
+		// the oldest home radar hardware has — all three fit.
+		compatibleSockets: ['roof', 'rear', 'nose'],
 		// Passive: never triggered, never on cooldown. 0 keeps canUseSlot honest
 		// even though nothing calls it for a jammer.
 		cooldownSec: 0,
@@ -337,6 +394,9 @@ export const WEAPONS: WeaponDef[] = [
 		blurb: 'Spin up the blades: any contact shreds, no aim or speed needed. Lower per-hit than a ram, but it never misses.',
 		// Cost 2: reliable no-commitment contact damage, but demands closing in.
 		mountCost: 2,
+		// Contact fins belong at the bumpers: front shredder or rear guard,
+		// never waving off the roof.
+		compatibleSockets: ['nose', 'rear'],
 		cooldownSec: 8,
 		melee: { damage: 14, durationSec: 3.5, retriggerImmunitySec: 0.6 }
 	}
@@ -1650,9 +1710,9 @@ export function tryActivateShield(
 // ---------------------------------------------------------------------------
 // Auto-Turret (turret): no trigger, no aim. Ticked every frame for every
 // vehicle; when off cooldown it fires at the nearest valid target in the full
-// 360deg ring EXCEPT the forward blind arc the chassis occludes (the gun sits
-// on the rear mount, mountPos negative local-x, so the hood/cabin blocks the
-// shot toward the front). Instant hit-scan, zone-routed like every other gun.
+// 360deg ring EXCEPT the forward blind arc the chassis occludes (the hood and
+// cabin block the shot toward the front; the arc is identical on either
+// mount socket). Instant hit-scan, zone-routed like every other gun.
 // ---------------------------------------------------------------------------
 
 export interface TurretFireResult {

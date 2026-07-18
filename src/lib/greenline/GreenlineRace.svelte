@@ -67,7 +67,8 @@
 		type PoolMaxes,
 		type Projectile,
 		type WeaponLock,
-		type WeaponSlotId
+		type WeaponSlotId,
+		type WeaponSocketId
 	} from '$lib/greenline/combat';
 	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
 	import { NIGHT_ENV } from '$lib/greenline/environment';
@@ -77,6 +78,7 @@
 		neutralStats,
 		parseLoadout,
 		resolveLoadout,
+		resolveWeaponSockets,
 		sanitizeLoadoutWeapons,
 		serializeLoadout,
 		type ArchetypeId,
@@ -301,6 +303,17 @@
 		playerLoadout = sanitizeLoadoutWeapons({
 			...playerLoadout,
 			parts: { ...playerLoadout.parts, [slot]: partId }
+		});
+		persistLoadout();
+	};
+	// Mount-socket pick for an equipped weapon slot (console API only in-race;
+	// the garage owns the interactive picker). The sanitizer drops a pick the
+	// resolution cannot honor (occupied / incompatible), so the stored build
+	// stays valid exactly like an equip.
+	const setWeaponSocket = (slot: WeaponSlotId, socket: WeaponSocketId) => {
+		playerLoadout = sanitizeLoadoutWeapons({
+			...playerLoadout,
+			weaponSockets: { ...playerLoadout.weaponSockets, [slot]: socket }
 		});
 		persistLoadout();
 	};
@@ -1803,6 +1816,12 @@
 					/** Cyan crackle ring shown while disrupted (inside carGroup). */
 					stunMat: InstanceType<typeof THREE.MeshBasicMaterial>;
 					stunRing: InstanceType<typeof THREE.Mesh>;
+					/** Energy Shield: the translucent field projected around the
+					 * whole vehicle while the absorb pool is up (4c — the emitter
+					 * nub on the socket is deliberately small; THIS is the visual
+					 * mass of the weapon). Shared geometry/material, per-rig mesh;
+					 * visibility keys off combat.shieldActive each frame. */
+					shieldBubble: InstanceType<typeof THREE.Mesh>;
 					/** Per-rig weapon-mount material: chars dark while the mount pool
 					 * is dead (the shared mount material can never be tinted). */
 					mountMat: InstanceType<typeof THREE.MeshStandardMaterial>;
@@ -1935,6 +1954,22 @@
 					rig.dentStage = 0;
 				};
 
+				// Energy Shield bubble: ONE shared ellipsoid geometry + additive
+				// translucent material across every rig (the field is the same
+				// energy either way); each rig carries its own mesh so visibility
+				// is per vehicle. Sized to wrap the largest hull; barrels poking
+				// through the film slightly is fine (it reads as a field, not a
+				// shell).
+				const shieldBubbleGeo = new THREE.SphereGeometry(1, 24, 16);
+				const shieldBubbleMat = new THREE.MeshBasicMaterial({
+					color: 0x6fd3ff,
+					transparent: true,
+					opacity: 0.13,
+					depthWrite: false,
+					blending: THREE.AdditiveBlending,
+					side: THREE.DoubleSide
+				});
+
 				const makeBar = () => {
 					const group = new THREE.Group();
 					const bg = new THREE.Mesh(
@@ -2043,6 +2078,13 @@
 					stunRing.visible = false;
 					carGroup.add(stunRing);
 
+					// Energy Shield field (hidden until the absorb pool is up).
+					const shieldBubble = new THREE.Mesh(shieldBubbleGeo, shieldBubbleMat);
+					shieldBubble.scale.set(2.6, 1.5, 1.9);
+					shieldBubble.position.y = 0.45;
+					shieldBubble.visible = false;
+					carGroup.add(shieldBubble);
+
 					const rig: Rig = {
 						id,
 						label,
@@ -2069,6 +2111,7 @@
 						dentBase: new Float32Array(0),
 						stunMat,
 						stunRing,
+						shieldBubble,
 						mountMat: rigMountMat,
 						mountDead: false,
 						smokeAcc: 0,
@@ -2108,16 +2151,28 @@
 				// ---- Zone-targeted damage dressing: strip plates, kill mounts ----
 				const tmpWorld = new THREE.Vector3();
 
+				// World position of a rig's REAR hardpoint (the classic mount bay:
+				// rear-hit feedback and the dead-mount sputter anchor there). The
+				// mount group holds one sub-group per socket since 4c; fall back
+				// through any socket to the group itself so the anchor never
+				// disappears mid-rebuild.
+				const rearSocketWorld = (rig: Rig) => {
+					const kids = rig.parts.mount.children;
+					const rear =
+						kids.find((c) => c.userData?.socketId === 'rear') ?? kids[0] ?? rig.parts.mount;
+					return rear.getWorldPosition(tmpWorld);
+				};
+
 				// World-space anchor for a hit's feedback: the actual zone struck
-				// (nose, the flank facing the attacker, or the mount socket itself
-				// for rear hits), never the generic rig center.
+				// (nose, the flank facing the attacker, or the rear hardpoint
+				// itself for rear hits), never the generic rig center.
 				const hitAnchor = (rig: Rig, srcX: number, srcZ: number, zone: HitZone) => {
 					const p = rig.body.position;
 					if (zone === 'front') {
 						return { x: p.x + rig.hx * 1.8, y: p.y + 0.5, z: p.z + rig.hz * 1.8 };
 					}
 					if (zone === 'rear') {
-						const mp = rig.parts.mount.getWorldPosition(tmpWorld);
+						const mp = rearSocketWorld(rig);
 						return { x: mp.x, y: mp.y + 0.15, z: mp.z };
 					}
 					const px = -rig.hz;
@@ -2126,14 +2181,20 @@
 					return { x: p.x + px * side, y: p.y + 0.55, z: p.z + pz * side };
 				};
 
-				// Dead-mount visual state: the socket chars dark and sits knocked
-				// askew; the per-frame sputter sparks key off rig.mountDead.
+				// Dead-mount visual state: EVERY hardpoint chars dark (the shared
+				// per-rig mount material covers collars, pedestals, and weapon
+				// mass on all sockets) and each socket sub-group sits knocked
+				// askew around its own origin; the per-frame sputter sparks key
+				// off rig.mountDead. Applied per socket so the pattern survives
+				// the 4c one-socket -> many-sockets split.
 				const setMountDead = (rig: Rig, dead: boolean) => {
-					if (rig.mountDead === dead) return;
+					// Deliberately no same-state early-out: a bodywork rebuild
+					// recreates the socket sub-groups upright, so applyLoadoutToRig
+					// must be able to re-assert the tilt on a still-dead mount.
 					rig.mountDead = dead;
 					rig.mountMat.color.setHex(dead ? 0x0a0c0e : 0x1a2128);
 					rig.mountMat.roughness = dead ? 0.9 : 0.5;
-					rig.parts.mount.rotation.z = dead ? 0.22 : 0;
+					for (const sg of rig.parts.mount.children) sg.rotation.z = dead ? 0.22 : 0;
 				};
 
 				// Reconcile visible armor plates with the AGGREGATE armor pool (one
@@ -3758,6 +3819,10 @@
 					getLoadout: () => playerLoadout,
 					setArchetype: (id: ArchetypeId) => selectArchetype(id),
 					equip: (slot: PartSlot, partId: string) => equipPart(slot, partId),
+					// ---- Mount sockets (Phase 4c) ----
+					setSocket: (slot: WeaponSlotId, socket: WeaponSocketId) =>
+						setWeaponSocket(slot, socket),
+					getSockets: () => resolveWeaponSockets(playerLoadout),
 					// ---- Equipped-weapon drive hooks (Phase 4a) ----
 					fireWeapon: (rigId = 'player', slot: WeaponSlotId = 'weaponPrimary') => {
 						const r = rigsAll().find((q) => q.id === rigId);
@@ -4239,15 +4304,21 @@
 						}
 
 						// Dead mount: continuous electrical sputter and the odd smoke
-						// wisp off the socket itself, the at-a-glance "weapon down"
-						// read on any vehicle without checking a number.
+						// wisp off the hardpoints themselves, the at-a-glance
+						// "weapon down" read on any vehicle without checking a
+						// number. Sparks pick a random socket each tick so every
+						// charred hardpoint sputters, not just one.
 						if (rig.mountDead && !rig.combat.eliminated) {
 							if (Math.random() < dt * 7) {
-								const mp = rig.parts.mount.getWorldPosition(tmpWorld);
+								const socks = rig.parts.mount.children;
+								const pick = socks.length
+									? socks[Math.floor(Math.random() * socks.length)]
+									: rig.parts.mount;
+								const mp = pick.getWorldPosition(tmpWorld);
 								spawnSparks(mp.x, mp.y + 0.15, mp.z, 2, GL.coolRim, 4, 240);
 							}
 							if (Math.random() < dt * 1.4) {
-								const mp = rig.parts.mount.getWorldPosition(tmpWorld);
+								const mp = rearSocketWorld(rig);
 								spawnSmoke(mp.x, mp.y + 0.2, mp.z, 0x1c1c1c, 0.5, 800, 1.1, 0.4);
 							}
 						}
@@ -4833,6 +4904,14 @@
 								t.quaternion.w
 							);
 						}
+						// Energy Shield field: the translucent bubble wraps the whole
+						// vehicle exactly while the absorb pool is up (break or
+						// timeout hides it the same frame). Slow breathing spin so
+						// the film reads as live energy, not a glass shell.
+						const shielded = rig.combat.shieldActive(now) && !rig.combat.eliminated;
+						rig.shieldBubble.visible = shielded;
+						if (shielded) rig.shieldBubble.rotation.y += dt * 0.6;
+
 						// Stun crackle ring: flicker + spin while disrupted, with the
 						// odd cool-rim arc of sparks so a stun reads at a glance.
 						const stunned = rig.combat.isDisrupted(now) && !rig.combat.eliminated;
@@ -5153,6 +5232,8 @@
 					caltropPatchGeo.dispose();
 					lockRingGeo.dispose();
 					lockRingMat.dispose();
+					shieldBubbleGeo.dispose();
+					shieldBubbleMat.dispose();
 					clearTimeout(flashTimer);
 					window.removeEventListener('keydown', onKeyDown);
 					window.removeEventListener('keyup', onKeyUp);

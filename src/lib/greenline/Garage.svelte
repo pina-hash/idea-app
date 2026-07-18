@@ -10,14 +10,23 @@
 		PART_SLOTS,
 		partsForSlot,
 		resolveLoadout,
+		resolveWeaponSockets,
+		slotSocketChoices,
 		STAT_META,
+		weaponLoadoutIssue,
 		weaponMountCost,
 		type ArchetypeId,
 		type Loadout,
 		type PartSlot,
 		type StatKey
 	} from './loadout';
-	import { WEAPON_NONE, WEAPONS, type WeaponSlotId } from './combat';
+	import {
+		WEAPON_NONE,
+		WEAPON_SOCKET_LABELS,
+		WEAPONS,
+		type WeaponSlotId,
+		type WeaponSocketId
+	} from './combat';
 	import { GREENLINE_MAX_SLOTS, type LoadoutSlot } from './persistence';
 	import GaragePreview from './GaragePreview.svelte';
 
@@ -41,6 +50,7 @@
 		baselineDrag,
 		onselect,
 		onequip,
+		onsocket,
 		onclose,
 		note = 'all parts unlocked (dev) · applies live to the player vehicle',
 		closeLabel = 'CLOSE (G)',
@@ -62,6 +72,9 @@
 		baselineDrag: number;
 		onselect: (id: ArchetypeId) => void;
 		onequip: (slot: PartSlot, partId: string) => void;
+		/** Pick a mount socket for an equipped weapon slot (Phase 4c). The
+		 * parent sanitizes + persists exactly like an equip. */
+		onsocket?: (slot: WeaponSlotId, socket: WeaponSocketId) => void;
 		onclose: () => void;
 		/** Sub-title copy (defaults to the dev-harness note). */
 		note?: string;
@@ -106,6 +119,8 @@
 		{ id: 'weaponPrimary', label: 'PRIMARY WEAPON', allowNone: false },
 		{ id: 'weaponSecondary', label: 'SECONDARY WEAPON', allowNone: true }
 	];
+	/** The effective socket per equipped weapon slot (explicit pick or auto). */
+	const resolvedSockets = $derived(resolveWeaponSockets(loadout));
 	/** Why this candidate cannot go in this slot right now (null = allowed). */
 	function weaponBlockReason(slot: WeaponSlotId, id: string): string | null {
 		if (id === WEAPON_NONE) return null;
@@ -116,7 +131,16 @@
 		const free = mountCapacity - weaponMountCost(loadout.parts[otherSlot]);
 		if (weaponMountCost(id) > free)
 			return `over budget — needs ${weaponMountCost(id)}, ${Math.max(0, free)} free`;
-		return null;
+		// Socket assignability (4c): duplicates and capacity are handled above,
+		// so any remaining issue on the candidate build is a mount-socket
+		// collision ("both weapons need the same mount socket" — e.g. a second
+		// nose-only gun on the two-socket VELOCITY dart) or a chassis with no
+		// compatible socket at all. Blocked outright, reason shown, never left
+		// to clip.
+		return weaponLoadoutIssue({
+			...loadout,
+			parts: { ...loadout.parts, [slot]: id }
+		});
 	}
 
 	const fmtPct = (pct: number) => `${pct > 0 ? '+' : ''}${Math.round(pct)}%`;
@@ -316,6 +340,55 @@
 					<path d="M4 14l-1.5 2.5M6 13.7L5 16.6" stroke-width="1.1" />
 					<path d="M13 6a7 7 0 0 1 6 3" stroke-width="1.1" stroke-dasharray="2 1.6" />
 					<circle cx="20.4" cy="9.6" r="0.8" fill="currentColor" stroke="none" />
+				{:else if id === 'railgun'}
+					<!-- Breech + twin rails + charge tick -->
+					<rect x="2.5" y="9.5" width="6" height="6" rx="1" />
+					<path d="M8.5 10.8h13M8.5 14.2h13" stroke-width="1.4" />
+					<path d="M21.5 12.5h1.6" stroke-width="1.2" />
+					<path d="M4.5 7.5l1.2-2 1 1.6" stroke-width="1.1" />
+				{:else if id === 'shotgun-burst'}
+					<!-- Flared muzzle + four-bore spread -->
+					<path d="M3 10h8l4-2v9l-4-2H3z" />
+					<circle cx="18.5" cy="8.5" r="0.8" fill="currentColor" stroke="none" />
+					<circle cx="20" cy="11" r="0.8" fill="currentColor" stroke="none" />
+					<circle cx="20" cy="14" r="0.8" fill="currentColor" stroke="none" />
+					<circle cx="18.5" cy="16.5" r="0.8" fill="currentColor" stroke="none" />
+				{:else if id === 'cluster-missile'}
+					<!-- Battery pod: tube-mouth grid -->
+					<rect x="4" y="6" width="16" height="12" rx="1" />
+					<circle cx="9" cy="10" r="1.4" />
+					<circle cx="14" cy="10" r="1.4" />
+					<circle cx="9" cy="14.5" r="1.4" />
+					<circle cx="14" cy="14.5" r="1.4" />
+					<path d="M18 9.5v5.5" stroke-width="1.1" opacity="0.7" />
+				{:else if id === 'caltrops'}
+					<!-- Spike star trio -->
+					<path d="M8 18l-2-4 3 1z" />
+					<path d="M14 19l1-4.5 2 3.5z" />
+					<path d="M12 10l-1.5-4L14 8z" />
+					<path d="M4 20h16" stroke-width="1" opacity="0.5" />
+				{:else if id === 'auto-turret'}
+					<!-- Drum + barrel + sweep arc -->
+					<path d="M6 17a6 6 0 0 1 12 0z" />
+					<path d="M12 11V8" stroke-width="1.2" />
+					<path d="M14.5 12.5l6-3" stroke-width="1.6" />
+					<path d="M6 6a8.5 8.5 0 0 1 5-2.4" stroke-width="1" stroke-dasharray="1.8 1.5" />
+				{:else if id === 'energy-shield'}
+					<!-- Emitter dot inside the bubble -->
+					<circle cx="12" cy="12" r="8" stroke-dasharray="3.2 2.2" />
+					<circle cx="12" cy="12" r="4.6" />
+					<circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+				{:else if id === 'radar-jammer'}
+					<!-- Dish + broken waves (denied lock) -->
+					<path d="M6 14l6-6 3 3-6 6z" />
+					<path d="M9 17l-2.5 3.5" stroke-width="1.2" />
+					<path d="M16 7a6 6 0 0 1 2 2M18.5 4.5a9.5 9.5 0 0 1 2.4 2.4" stroke-width="1.1" stroke-dasharray="1.6 1.6" />
+				{:else if id === 'deployable-blades'}
+					<!-- Hub + swept fins -->
+					<circle cx="12" cy="12" r="2.6" />
+					<path d="M14.5 11L21 8.5 16 13z" />
+					<path d="M9.5 13L3 15.5 8 11z" />
+					<circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none" />
 				{:else if id === 'weapon-none'}
 					<!-- Empty hardpoint -->
 					<circle cx="12" cy="12" r="7" stroke-dasharray="2.4 2.2" />
@@ -398,8 +471,35 @@
 		</div>
 		<div class="gg-wslots">
 			{#each WEAPON_SLOT_UI as wslot (wslot.id)}
+				{@const sockChoices = slotSocketChoices(loadout, wslot.id)}
+				{@const otherSlot = wslot.id === 'weaponPrimary' ? 'weaponSecondary' : 'weaponPrimary'}
+				{@const otherSock = resolvedSockets[otherSlot as WeaponSlotId]}
 				<div class="gg-slot">
 					<div class="gg-section-label">{wslot.label}</div>
+					{#if sockChoices.length > 1}
+						<!-- Socket picker: only this weapon's compatible hardpoints on
+						     this chassis; the one the OTHER slot resolves to is shown
+						     but disabled (two weapons never share a socket). -->
+						<div class="gg-sockrow">
+							<span class="gg-sock-label">MOUNT AT</span>
+							{#each sockChoices as s (s)}
+								<button
+									class="gg-sock"
+									class:sel={resolvedSockets[wslot.id] === s}
+									disabled={otherSock === s}
+									title={otherSock === s
+										? `held by the ${otherSlot === 'weaponPrimary' ? 'primary' : 'secondary'} weapon`
+										: `mount this weapon at the ${WEAPON_SOCKET_LABELS[s].toLowerCase()}`}
+									onclick={() => onsocket?.(wslot.id, s)}
+								>{WEAPON_SOCKET_LABELS[s]}</button>
+							{/each}
+						</div>
+					{:else if sockChoices.length === 1}
+						<div class="gg-sockrow">
+							<span class="gg-sock-label">MOUNT AT</span>
+							<span class="gg-sock-fixed">{WEAPON_SOCKET_LABELS[sockChoices[0]]} · fixed</span>
+						</div>
+					{/if}
 					{#each wslot.allowNone ? [...WEAPONS.map((w) => w.id), WEAPON_NONE] : WEAPONS.map((w) => w.id) as wid (wid)}
 						{@const w = WEAPONS.find((c) => c.id === wid)}
 						{@const blocked = weaponBlockReason(wslot.id, wid)}
@@ -829,6 +929,56 @@
 		grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
 		gap: 0.35rem 0.7rem;
 		margin-top: 0.2rem;
+	}
+	/* Mount-socket picker: one small chip per compatible hardpoint; the chip
+	   the OTHER slot holds stays visible but disabled (never silently hidden,
+	   the blocked-pairing convention). */
+	.gg-sockrow {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		flex-wrap: wrap;
+	}
+	.gg-sock-label {
+		font-size: 0.58rem;
+		font-weight: 600;
+		letter-spacing: 0.2em;
+		color: var(--glb-ink-faint);
+	}
+	.gg-sock {
+		background: linear-gradient(180deg, rgba(16, 22, 28, 0.85), rgba(7, 10, 14, 0.9));
+		border: 1px solid var(--glb-line);
+		border-radius: 1px;
+		color: var(--glb-steel);
+		font: 600 0.62rem var(--glb-font-ui);
+		letter-spacing: 0.14em;
+		padding: 0.14rem 0.45rem;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease;
+	}
+	.gg-sock:hover:not(:disabled),
+	.gg-sock:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	.gg-sock.sel {
+		color: var(--glb-green-ui);
+		border-color: rgba(42, 229, 126, 0.6);
+		box-shadow: 0 0 8px rgba(42, 229, 126, 0.2);
+	}
+	.gg-sock:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+		text-decoration: line-through;
+	}
+	.gg-sock-fixed {
+		font-family: var(--glb-font-data);
+		font-size: 0.64rem;
+		letter-spacing: 0.08em;
+		color: var(--glb-steel-dim);
 	}
 	/* A blocked pairing stays visible WITH its reason, never silently hidden. */
 	.gg-part.blocked {

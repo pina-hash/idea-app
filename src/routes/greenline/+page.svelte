@@ -15,6 +15,7 @@
 		type Loadout,
 		type PartSlot
 	} from '$lib/greenline/loadout';
+	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
 	import {
 		deleteSlot,
 		GREENLINE_MAX_SLOTS,
@@ -108,13 +109,26 @@
 		loadout = sanitizeLoadoutWeapons({ ...loadout, parts: { ...loadout.parts, [slot]: partId } });
 		persistBuild(null);
 	};
+	// Mount-socket pick (4c): same sanitize-and-persist path as an equip; the
+	// sanitizer drops a pick the resolution cannot honor.
+	const setSocket = (slot: WeaponSlotId, socket: WeaponSocketId) => {
+		loadout = sanitizeLoadoutWeapons({
+			...loadout,
+			weaponSockets: { ...loadout.weaponSockets, [slot]: socket }
+		});
+		persistBuild(null);
+	};
 
 	// --- Named slot actions (fail soft; local state updates optimistically) ---
 	const onSaveSlot = async (i: number, name: string) => {
 		const entry: LoadoutSlot = {
 			slot: i,
 			name,
-			loadout: { archetype: loadout.archetype, parts: { ...loadout.parts } },
+			loadout: {
+				archetype: loadout.archetype,
+				parts: { ...loadout.parts },
+				weaponSockets: { ...loadout.weaponSockets }
+			},
 			updatedAt: new Date().toISOString()
 		};
 		slots = slots.map((s, idx) => (idx === i ? entry : s));
@@ -124,7 +138,11 @@
 	const onLoadSlot = (i: number) => {
 		const s = slots[i];
 		if (!s) return;
-		loadout = { archetype: s.loadout.archetype, parts: { ...s.loadout.parts } };
+		loadout = {
+			archetype: s.loadout.archetype,
+			parts: { ...s.loadout.parts },
+			weaponSockets: { ...s.loadout.weaponSockets }
+		};
 		persistBuild(i);
 	};
 	const onDeleteSlot = async (i: number) => {
@@ -196,6 +214,7 @@
 				baselineDrag={GARAGE_BASELINE.drag}
 				onselect={selectArchetype}
 				onequip={equipPart}
+				onsocket={setSocket}
 				note={garageNote}
 				closeLabel="START RACE ▸"
 				onclose={() => (screen = 'race')}
