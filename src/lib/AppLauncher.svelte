@@ -5,6 +5,7 @@
 	import type { UserProfile } from '$lib/profile';
 	import GauntletMark from '$lib/marks/GauntletMark.svelte';
 	import VanguardMark from '$lib/marks/VanguardMark.svelte';
+	import GreenlineMark from '$lib/marks/GreenlineMark.svelte';
 	import CoinMark from '$lib/marks/CoinMark.svelte';
 	// Official FRC icon (triangle/circle/diamond emblem only, no wordmark), the
 	// compact mark that fits the launcher's square icon slot.
@@ -188,6 +189,8 @@
 		<VanguardMark />
 	{:else if id === 'gauntlet'}
 		<GauntletMark />
+	{:else if id === 'greenline'}
+		<GreenlineMark />
 	{:else if id === 'coins'}
 		<CoinMark />
 	{:else if id === 'frc'}
@@ -206,9 +209,6 @@
 			<path d="M5 24a11 11 0 1122 0z" /><path d="M16 24l5.5-7" /><circle cx="16" cy="24" r="1.6" />
 		{:else if id === 'courses'}
 			<path d="M7 6h18v20H7z" /><path d="M11 12h10M11 16h10M11 20h6" />
-		{:else if id === 'greenline'}
-			<path d="M 6,22 C 6,10 14,6 20,12 C 26,18 26,24 20,26 C 14,28 6,22 6,22 Z" />
-			<path d="M 6,22 C 6,10 14,6 20,12 C 26,18 26,24 20,26" stroke-dasharray="2,3" />
 		{:else if id === 'archive'}
 			<path d="M5 7h22v6H5z" /><path d="M7 13v12h18V13" /><path d="M13 18h6" />
 		{/if}

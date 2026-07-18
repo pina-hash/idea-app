@@ -35,6 +35,7 @@
 			<h1 class="tt-mark">
 				<GreenlineWordmark size="clamp(2.6rem, 9.4vw, 7.2rem)" />
 				<span class="tt-sheen" aria-hidden="true"></span>
+				<span class="tt-flash" aria-hidden="true"></span>
 			</h1>
 			<div class="tt-line" aria-hidden="true">
 				<span class="tt-line-bloom"></span>
@@ -88,7 +89,9 @@
 		line-height: 1;
 		filter: drop-shadow(0 10px 34px rgba(0, 0, 0, 0.8));
 	}
-	/* One soft diagonal soft-light band raked across the wordmark. */
+	/* One soft diagonal soft-light band raked across the wordmark. This is the
+	   CONTINUOUS ambient loop; it keeps running after the one-time entrance
+	   below (tt-tilt's assemble + tt-flash) has finished. */
 	.tt-sheen {
 		position: absolute;
 		top: -18%;
@@ -101,9 +104,48 @@
 		filter: blur(6px);
 		pointer-events: none;
 	}
+	/* One-time bright sweep that fires once as the wordmark finishes
+	   assembling (see tt-flash-sweep below), distinct from the looping
+	   tt-sheen band. */
+	.tt-flash {
+		position: absolute;
+		top: -22%;
+		bottom: -22%;
+		left: -16%;
+		width: 22%;
+		transform: rotate(14deg) translateX(-140%);
+		background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0));
+		mix-blend-mode: screen;
+		filter: blur(4px);
+		opacity: 0;
+		pointer-events: none;
+	}
 	@media (prefers-reduced-motion: no-preference) {
 		.tt-sheen {
 			animation: tt-sheen-sweep 8.5s ease-in-out infinite;
+		}
+		.tt-flash {
+			animation: tt-flash-sweep 1.05s 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+		}
+		/* One-time assemble: the mark resolves in from a blurred, scaled-down,
+		   offset state. Ends on the SAME resting transform tt-tilt already had
+		   (rotate(-1.4deg)) so nothing jumps once the animation completes. */
+		.tt-tilt {
+			animation: tt-assemble 1.1s cubic-bezier(0.16, 0.8, 0.24, 1) both;
+		}
+		.tt-line {
+			transform-origin: 50% 50%;
+			animation: tt-line-power-on 0.7s 0.55s ease-out both;
+		}
+		.tt-tagline {
+			animation: tt-fade-up 0.6s 0.85s ease-out both;
+		}
+		/* Opacity-only fade (no transform): .tt-start already animates transform
+		   on :active for the press effect, and a still-`both`-filling entrance
+		   animation would permanently outrank that pseudo-class rule for the
+		   transform property once the entrance finished playing. */
+		.tt-start {
+			animation: tt-fade 0.6s 1.02s ease-out both;
 		}
 	}
 	@keyframes tt-sheen-sweep {
@@ -119,6 +161,63 @@
 		100% {
 			transform: rotate(14deg) translateX(820%);
 			opacity: 0;
+		}
+	}
+	@keyframes tt-flash-sweep {
+		0% {
+			transform: rotate(14deg) translateX(-140%);
+			opacity: 0;
+		}
+		35% {
+			opacity: 1;
+		}
+		100% {
+			transform: rotate(14deg) translateX(560%);
+			opacity: 0;
+		}
+	}
+	@keyframes tt-assemble {
+		0% {
+			opacity: 0;
+			filter: blur(9px);
+			transform: rotate(-1.4deg) scale(0.82) translateY(14px);
+		}
+		55% {
+			opacity: 1;
+			filter: blur(0);
+		}
+		100% {
+			opacity: 1;
+			filter: blur(0);
+			transform: rotate(-1.4deg) scale(1) translateY(0);
+		}
+	}
+	@keyframes tt-line-power-on {
+		0% {
+			transform: scaleX(0);
+			opacity: 0;
+		}
+		100% {
+			transform: scaleX(1);
+			opacity: 1;
+		}
+	}
+	@keyframes tt-fade-up {
+		0% {
+			opacity: 0;
+			transform: translateY(8px);
+		}
+		100% {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+	@keyframes tt-fade {
+		0% {
+			opacity: 0;
+		}
+		100% {
+			opacity: 1;
 		}
 	}
 	/* The signature line, edge to edge like the key art. */
@@ -224,7 +323,12 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 0.8rem 1.2rem;
+		gap: 1rem;
+		/* Right padding clears the fixed GreenlineMusic mute button (2.2rem wide,
+		   docked bottom-right at 1rem), so the "COMBAT RACING · BETA" line never
+		   runs under it. Scoped to this screen only; the mute button stays
+		   bottom-right everywhere else, which is the free HUD corner in-race. */
+		padding: 0.8rem clamp(3.4rem, 8vw, 4rem) 0.8rem 1.2rem;
 		font: 600 0.62rem var(--glb-font-ui);
 		letter-spacing: 0.28em;
 		color: var(--glb-ink-dim);

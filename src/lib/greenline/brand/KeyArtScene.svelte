@@ -42,15 +42,15 @@
 		<div class="ka" style="left:195px;top:121px;width:5px;height:5px;border-radius:50%;background:#eaf4ff;box-shadow:0 0 10px rgba(220,238,255,0.9)"></div>
 		<div class="ka" style="left:206px;top:121px;width:5px;height:5px;border-radius:50%;background:#eaf4ff;box-shadow:0 0 10px rgba(220,238,255,0.9)"></div>
 		<div class="ka" style="left:217px;top:121px;width:5px;height:5px;border-radius:50%;background:#eaf4ff;box-shadow:0 0 10px rgba(220,238,255,0.9)"></div>
-		<div class="ka" style="left:160px;top:92px;width:120px;height:60px;border-radius:50%;background:rgba(215,235,255,0.22);filter:blur(20px)"></div>
-		<div class="ka" style="left:196px;top:126px;width:560px;height:430px;transform-origin:0 0;transform:rotate(24deg);clip-path:polygon(0% 0%,9% 0%,92% 100%,26% 100%);background:linear-gradient(rgba(215,232,250,0.15),rgba(215,232,250,0) 78%);mix-blend-mode:screen;filter:blur(7px);opacity:0.7;z-index:2"></div>
+		<div class="ka ka-halo-l" style="left:160px;top:92px;width:120px;height:60px;border-radius:50%;background:rgba(215,235,255,0.22);filter:blur(20px)"></div>
+		<div class="ka ka-beam-l" style="left:196px;top:126px;width:560px;height:430px;transform-origin:0 0;transform:rotate(24deg);clip-path:polygon(0% 0%,9% 0%,92% 100%,26% 100%);background:linear-gradient(rgba(215,232,250,0.15),rgba(215,232,250,0) 78%);mix-blend-mode:screen;filter:blur(7px);opacity:0.7;z-index:2"></div>
 		<div class="ka" style="left:1062px;top:128px;width:6px;height:212px;background:#0b0f13"></div>
 		<div class="ka" style="left:1046px;top:118px;width:38px;height:12px;background:#0d1216"></div>
 		<div class="ka" style="left:1051px;top:121px;width:5px;height:5px;border-radius:50%;background:#fff3df;box-shadow:0 0 10px rgba(255,230,190,0.9)"></div>
 		<div class="ka" style="left:1062px;top:121px;width:5px;height:5px;border-radius:50%;background:#fff3df;box-shadow:0 0 10px rgba(255,230,190,0.9)"></div>
 		<div class="ka" style="left:1073px;top:121px;width:5px;height:5px;border-radius:50%;background:#fff3df;box-shadow:0 0 10px rgba(255,230,190,0.9)"></div>
-		<div class="ka" style="left:1000px;top:92px;width:120px;height:60px;border-radius:50%;background:rgba(255,225,175,0.2);filter:blur(20px)"></div>
-		<div class="ka" style="right:170px;top:124px;width:560px;height:430px;transform-origin:100% 0;transform:rotate(-24deg);clip-path:polygon(91% 0%,100% 0%,74% 100%,8% 100%);background:linear-gradient(rgba(255,225,180,0.12),rgba(255,225,180,0) 78%);mix-blend-mode:screen;filter:blur(7px);opacity:0.7;z-index:2"></div>
+		<div class="ka ka-halo-r" style="left:1000px;top:92px;width:120px;height:60px;border-radius:50%;background:rgba(255,225,175,0.2);filter:blur(20px)"></div>
+		<div class="ka ka-beam-r" style="right:170px;top:124px;width:560px;height:430px;transform-origin:100% 0;transform:rotate(-24deg);clip-path:polygon(91% 0%,100% 0%,74% 100%,8% 100%);background:linear-gradient(rgba(255,225,180,0.12),rgba(255,225,180,0) 78%);mix-blend-mode:screen;filter:blur(7px);opacity:0.7;z-index:2"></div>
 
 		<!-- Gantry with green track markers -->
 		<div class="ka" style="left:300px;top:210px;width:712px;height:24px;background:linear-gradient(#0b0f13,#080c10);border-bottom:1px solid #1a2229;z-index:2"></div>
@@ -189,6 +189,16 @@
 		<div class="ka" style="left:-90px;top:556px;width:430px;height:210px;border-radius:50%;background:rgba(6,8,11,0.85);z-index:8"></div>
 		<div class="ka" style="left:1040px;top:590px;width:340px;height:190px;border-radius:50%;background:rgba(6,8,11,0.7);z-index:8"></div>
 
+		<!-- Drifting atmosphere: faint high dust motes over the yard, slower and
+		     dimmer than the embers below, reinforcing depth without competing
+		     with the wordmark overlay in the lower third. -->
+		<div class="ka ka-dust" style="left:270px;top:180px;width:3px;height:3px;background:rgba(215,232,250,0.7);animation-delay:0s;animation-duration:19s"></div>
+		<div class="ka ka-dust" style="left:520px;top:222px;width:2px;height:2px;background:rgba(215,232,250,0.55);animation-delay:-6s;animation-duration:22s"></div>
+		<div class="ka ka-dust" style="left:760px;top:196px;width:3px;height:3px;background:rgba(255,225,190,0.6);animation-delay:-11s;animation-duration:20s"></div>
+		<div class="ka ka-dust" style="left:940px;top:250px;width:2px;height:2px;background:rgba(215,232,250,0.5);animation-delay:-3s;animation-duration:24s"></div>
+		<div class="ka ka-dust" style="left:400px;top:300px;width:2px;height:2px;background:rgba(255,225,190,0.5);animation-delay:-15s;animation-duration:21s"></div>
+		<div class="ka ka-dust" style="left:1050px;top:320px;width:3px;height:3px;background:rgba(215,232,250,0.6);animation-delay:-8s;animation-duration:18s"></div>
+
 		<!-- Drifting embers over the lower third (only motion in the frame) -->
 		<div class="ka ka-ember" style="left:812px;top:500px;width:4px;height:4px;background:#ffca7a;box-shadow:0 0 8px rgba(255,180,90,0.9);animation-delay:0s"></div>
 		<div class="ka ka-ember" style="left:902px;top:548px;width:3px;height:3px;background:#ffd9a0;box-shadow:0 0 7px rgba(255,190,110,0.9);animation-delay:-3.4s"></div>
@@ -208,6 +218,7 @@
 		inset: 0;
 		overflow: hidden;
 		background: #04060a;
+		transform-origin: 50% 50%;
 	}
 	.ka-stage {
 		position: absolute;
@@ -216,6 +227,10 @@
 		width: 1280px;
 		height: 720px;
 		isolation: isolate;
+	}
+	.ka-dust {
+		border-radius: 50%;
+		z-index: 8;
 	}
 	.ka {
 		position: absolute;
@@ -250,8 +265,102 @@
 		pointer-events: none;
 	}
 	@media (prefers-reduced-motion: no-preference) {
+		.ka-viewport {
+			/* Subtle handheld-camera drift over the whole frame. The scale floor
+			   (1.035) keeps every edge covered through the full drift range so no
+			   background gap is ever exposed, even though .ka-viewport's own
+			   background nearly matches .tt-root's anyway. */
+			animation: glb-camera-drift 26s ease-in-out infinite;
+		}
+		.ka-halo-l {
+			animation: glb-halo-flicker 5.2s ease-in-out infinite;
+		}
+		.ka-halo-r {
+			animation: glb-halo-flicker 6.1s ease-in-out infinite -2.4s;
+		}
+		.ka-beam-l {
+			animation: glb-beam-flicker 5.2s ease-in-out infinite;
+		}
+		.ka-beam-r {
+			animation: glb-beam-flicker 6.1s ease-in-out infinite -2.4s;
+		}
+		.ka-dust {
+			animation: glb-dust-drift 20s linear infinite;
+		}
 		.ka-ember {
 			animation: glb-ember-drift 11s linear infinite;
+		}
+	}
+	@keyframes glb-camera-drift {
+		0%,
+		100% {
+			transform: scale(1.035) translate(0, 0);
+		}
+		25% {
+			transform: scale(1.038) translate(-0.6%, 0.35%);
+		}
+		50% {
+			transform: scale(1.045) translate(0.3%, -0.45%);
+		}
+		75% {
+			transform: scale(1.038) translate(0.55%, 0.25%);
+		}
+	}
+	/* Baseline 1 (the halo blur ellipses carry no inline opacity). */
+	@keyframes glb-halo-flicker {
+		0%,
+		46%,
+		100% {
+			opacity: 1;
+		}
+		49% {
+			opacity: 0.55;
+		}
+		52% {
+			opacity: 1;
+		}
+		74% {
+			opacity: 0.82;
+		}
+		77% {
+			opacity: 1;
+		}
+	}
+	/* Baseline 0.7 (the beam gradients' own inline opacity), scaled the same
+	   proportional dip so the flicker reads identically on both element kinds. */
+	@keyframes glb-beam-flicker {
+		0%,
+		46%,
+		100% {
+			opacity: 0.7;
+		}
+		49% {
+			opacity: 0.39;
+		}
+		52% {
+			opacity: 0.7;
+		}
+		74% {
+			opacity: 0.57;
+		}
+		77% {
+			opacity: 0.7;
+		}
+	}
+	@keyframes glb-dust-drift {
+		0% {
+			transform: translate(0, 0);
+			opacity: 0;
+		}
+		12% {
+			opacity: 1;
+		}
+		88% {
+			opacity: 0.8;
+		}
+		100% {
+			transform: translate(-90px, 34px);
+			opacity: 0;
 		}
 	}
 	@keyframes glb-ember-drift {

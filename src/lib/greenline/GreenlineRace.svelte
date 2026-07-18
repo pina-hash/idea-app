@@ -578,7 +578,10 @@
 					cone: new THREE.MeshBasicMaterial({
 						color: 0xdfeaff,
 						transparent: true,
-						opacity: 0.05 * floodMul,
+						// Four per-lamp beams now share this material (see towerTpl), so
+						// each is dimmer than the old single merged cone to keep the
+						// tower's total visual weight comparable rather than 4x brighter.
+						opacity: 0.032 * floodMul,
 						side: THREE.DoubleSide,
 						depthWrite: false,
 						blending: THREE.AdditiveBlending,
@@ -587,7 +590,7 @@
 					pool: new THREE.MeshBasicMaterial({
 						color: 0xdfeaff,
 						transparent: true,
-						opacity: 0.05 * floodMul,
+						opacity: 0.032 * floodMul,
 						depthWrite: false,
 						blending: THREE.AdditiveBlending,
 						fog: false
@@ -788,7 +791,8 @@
 					])
 						steel.push({ g: uBox, p: [sx, headY + 0.58, sz], s: [lx, 0.05, lz] });
 					steel.push({ g: uBox, p: [0.3, headY + 0.42, 0], s: [0.6, 0.24, 3.9] });
-					for (const off of [-1.62, -0.54, 0.54, 1.62]) {
+					const HEAD_OFFSETS = [-1.62, -0.54, 0.54, 1.62];
+					for (const off of HEAD_OFFSETS) {
 						steel.push({ g: uBox, p: [0.62, headY + 0.42, off], s: [0.5, 0.14, 0.14] });
 						dark.push({
 							g: uBox,
@@ -805,16 +809,20 @@
 					}
 					steel.push({ g: uBox, p: [0, headY + 0.85, 0], s: [0.05, 0.55, 0.05] });
 					beacon.push({ g: new THREE.SphereGeometry(0.11, 8, 6), p: [0, headY + 1.18, 0] });
-					const cone: PropPart[] = [
-						{
-							g: new THREE.ConeGeometry(9, hgt + 3, 20, 1, true),
-							p: [4.9, hgt / 2 - 0.6, 0],
-							r: [0, 0, -0.5]
-						}
-					];
-					const pool: PropPart[] = [
-						{ g: new THREE.CircleGeometry(10.5, 28), p: [9.4, 0.03, 0], r: [-Math.PI / 2, 0, 0] }
-					];
+					// Four separate beams, one per lamp head: each cone/pool pair
+					// carries the SAME z offset as its lamp (HEAD_OFFSETS), so the
+					// light visibly originates from its own fixture and lands in its
+					// own patch of ground instead of one merged centerline beam.
+					const cone: PropPart[] = HEAD_OFFSETS.map((off) => ({
+						g: new THREE.ConeGeometry(3.1, hgt + 3, 14, 1, true),
+						p: [4.9, hgt / 2 - 0.6, off],
+						r: [0, 0, -0.5]
+					}));
+					const pool: PropPart[] = HEAD_OFFSETS.map((off) => ({
+						g: new THREE.CircleGeometry(3.4, 20),
+						p: [9.4, 0.03, off],
+						r: [-Math.PI / 2, 0, 0]
+					}));
 					return { steel, dark, lamp, beacon, cone, pool };
 				};
 
