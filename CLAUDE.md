@@ -1988,6 +1988,74 @@ on one side of the world.
   (rebind drives the car under the new key only, swap/cancel/reset/persist
   across reload, pad paths via a `navigator.getGamepads` fake; no physical
   gamepad in the environment).
+- **Web Audio engine + spatial audio + music unification (Phase 2C),
+  `src/lib/greenline/audio-engine.ts`.** ONE shared `AudioContext` singleton
+  (`audioEngine`) with a bus graph: `music`, `weapons`, `impacts`, `ui`,
+  `ambient`, each a `GainNode` feeding a master `GainNode` feeding
+  `destination`. This pass is pure INFRASTRUCTURE (no real SFX content yet;
+  later phases trigger it) plus the migration of the existing music crossfade
+  onto the graph. Deliberately NO `engine` (vehicle-motor) bus and NO
+  looping-source management here — RPM-mapped engine loops are Phase 8. The
+  context is created suspended (autoplay policy) and its `resume()` is
+  coordinated with GreenlineMusic's existing first-gesture arm (`armGesture`),
+  ONE resume path for both music and SFX. Degrades gracefully: if Web Audio is
+  unavailable every method is a safe no-op and music falls back to plain
+  `HTMLAudioElement` playback (the element is never routed through a dead
+  graph).
+  - **Pooled one-shot voices** for the four SFX buses (`playBuffer` is the real
+    call other phases target; `playTone` is the dev/test oscillator path).
+    Global cap 24; per-bus soft caps weapons 8 / impacts 8 / ui 4 / ambient 4.
+    The soft caps SUM to the global cap, so per-bus stealing (steal the oldest,
+    ties to the quietest, on the same bus) is the effective limiter and the
+    global cap is a defensive ceiling. Every voice supports positional pan (a
+    `{x,y,z}` via a cheap equalpower `PannerNode`, `rolloffFactor 0` = pan only,
+    no distance attenuation for v1) and per-trigger pitch jitter (a random rate
+    in a caller-supplied `[min,max]`, default none). Rate is applied through
+    `playbackRate` for buffer sources; oscillator test tones have none, so the
+    same pitch change is realized by scaling `frequency` around the nominal
+    (`applyRate`).
+  - **Manual Doppler** (browsers don't reliably auto-Doppler via `PannerNode`):
+    `setListener(pos, vel)` + per-voice pos/vel feed a per-frame `update()`
+    (driven by an internal rAF-or-timeout ticker while any positional voice is
+    live, and also callable by a future game loop — idempotent) that computes
+    relative radial velocity and nudges the voice rate, clamped to
+    `[0.94, 1.06]` so it reads as physical, never cartoonish. Approaching raises
+    pitch, receding lowers it, perpendicular velocity yields no shift.
+  - **Music migration:** in `GreenlineMusic.crossfadeTo`, each newly-created
+    `Audio(src)` is wrapped ONCE (ever) in a `MediaElementAudioSourceNode` via
+    `audioEngine.connectMusicElement` and routed through the `music` bus. The
+    element's own `.volume` (the existing `rampTo` crossfade) and the music bus
+    gain multiply, so the crossfade / pin / mute / volume behavior is unchanged
+    from a player's perspective. The music bus sits at unity and only moves for
+    ducking. All the existing GreenlineMusic logic (`rampTo`, the three
+    `$effect`s, `armGesture`, the mute/volume UI) is untouched apart from the
+    resume-coordination and one added `$effect` that pushes `sfxGain()` into the
+    engine (GreenlineMusic is the one always-mounted audio surface).
+  - **Ducking:** `duckMusicBus(amountDb, attackMs, releaseMs)` ramps the music
+    bus down and back to unity, for future impact/explosion phases (Phase 4/6)
+    to call. Nothing calls it in normal play yet.
+  - **Settings:** `sfxSettings` (0..1 gain, persisted to
+    `greenline_sfx_volume`, reactive) is a sibling of the music volume in
+    `audio-settings.svelte.ts`; `sfxGain()` / `setSfxVolume()` mirror the music
+    shape (no separate SFX mute for now). The settings overlay AUDIO section
+    gains an independent "Effects volume" slider beside the music controls;
+    music and SFX are separately adjustable, and `setSfxVolume` applies the
+    level to all four SFX bus gains (audio-clock ramp, rAF-independent).
+  - **Verification** (`/dev/greenline-portal`, no auth/Supabase): the harness
+    exposes `window.__greenlineAudio` (engine + `tone`/`stress`/`pan`/`doppler`/
+    `duck`/`snapshot`/`detail`) and an "audio (dev)" bar, since there is no real
+    content to trigger from play. Browser-verified: bus routing + soft-cap
+    stealing (12 fired → 8 kept), pitch jitter (distinct in-range rates),
+    positional pan (`panX` tracks emitter x L→R), Doppler (1.06 approaching /
+    1.00 perpendicular / 0.94 receding), music-bus duck (1 → ~0.25 → 1), the
+    SFX slider driving the four bus gains while music stays independent, the
+    music migration carrying real signal through element →
+    MediaElementSourceNode → music bus → master (analyser RMS on master), and
+    context resume-on-gesture from all four screens (title/garage/race/results).
+    Note: `requestAnimationFrame` does not tick in the automated harness tab, so
+    the rAF-driven `rampTo` volume fade is not observable there (a pre-existing
+    property of the unchanged crossfade code, not this change); everything
+    audio-clock-driven verifies normally.
 
 ## FRC Training track
 

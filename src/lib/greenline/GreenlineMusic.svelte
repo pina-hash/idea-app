@@ -5,9 +5,11 @@
 		SHUFFLE,
 		musicGain,
 		musicSettings,
+		sfxGain,
 		toggleMusicMuted,
 		type TrackCategory
 	} from './audio-settings.svelte';
+	import { audioEngine } from './audio-engine';
 
 	/**
 	 * GREENLINE music director. Wires the existing soundtrack to the route's
@@ -74,6 +76,9 @@
 			window.removeEventListener('pointerdown', handler);
 			window.removeEventListener('keydown', handler);
 			gestureArmed = false;
+			// One resume path for music + SFX: resume the shared context, then
+			// (re)play the routed element so it becomes audible.
+			audioEngine.resume();
 			current?.play().catch(() => {});
 		};
 		window.addEventListener('pointerdown', handler);
@@ -90,8 +95,18 @@
 		current = next;
 		currentSrc = src;
 
+		// Route this element through the music bus (wrapped exactly once, ever).
+		// If Web Audio is unavailable this is a no-op and the element plays direct.
+		audioEngine.connectMusicElement(next);
+
 		const p = next.play();
 		if (p) p.catch(() => armGesture());
+		// Routed through the (suspended) context, a resolved play() is still silent
+		// until the context resumes. Resume eagerly; if it is not yet running, arm
+		// the first-gesture handler (mirrors the old play()-rejection arm, but keyed
+		// on context state, which is the reliable signal once routed).
+		audioEngine.resume();
+		if (!audioEngine.contextRunning()) armGesture();
 		rampTo(next, targetVol());
 		if (old) rampTo(old, 0, () => old.pause());
 	}
@@ -163,6 +178,14 @@
 			const desired = BASE + pin;
 			if (desired !== currentSrc) crossfadeTo(desired);
 		});
+	});
+
+	// Keep the audio engine's SFX bus level in sync with the shared setting. This
+	// lives here because GreenlineMusic is the one always-mounted audio surface in
+	// the route (mounted once outside the screen {#if}); the music component owns
+	// no SFX content itself, it only forwards the level.
+	$effect(() => {
+		audioEngine.setSfxVolume(sfxGain());
 	});
 
 	onDestroy(() => {

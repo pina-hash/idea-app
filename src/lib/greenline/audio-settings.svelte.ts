@@ -37,6 +37,7 @@ export function trackLabel(cat: TrackCategory, file: string): string {
 const VOL_KEY = 'greenline_music_volume';
 const MUTE_KEY = 'greenline_music_muted';
 const PIN_KEY = 'greenline_music_pins';
+const SFX_VOL_KEY = 'greenline_sfx_volume';
 
 function clamp01(v: number): number {
 	return Math.max(0, Math.min(1, v));
@@ -51,6 +52,12 @@ function loadVolume(): number {
 function loadMuted(): boolean {
 	if (!browser) return false;
 	return localStorage.getItem(MUTE_KEY) === '1';
+}
+
+function loadSfxVolume(): number {
+	if (!browser) return 1;
+	const v = parseFloat(localStorage.getItem(SFX_VOL_KEY) ?? '');
+	return Number.isFinite(v) ? clamp01(v) : 1;
 }
 
 function loadPins(): Record<TrackCategory, string> {
@@ -107,4 +114,25 @@ export function toggleMusicMuted(): void {
 export function setTrackPin(cat: TrackCategory, value: string): void {
 	musicSettings.pins[cat] = value;
 	if (browser) localStorage.setItem(PIN_KEY, JSON.stringify(musicSettings.pins));
+}
+
+/**
+ * SFX bus level, a sibling of the music volume (0..1 gain, persisted, reactive).
+ * SFX and music are independently adjustable. GreenlineMusic pushes `sfxGain()`
+ * into the audio engine reactively, and the settings overlay edits it. There is
+ * no separate SFX mute for now (music keeps its quick mute); a `muted`/`pins`
+ * sibling can slot in here later without a redesign.
+ */
+export const sfxSettings = $state({
+	volume: loadSfxVolume()
+});
+
+/** Effective 0..1 SFX gain the engine applies. */
+export function sfxGain(): number {
+	return sfxSettings.volume;
+}
+
+export function setSfxVolume(v: number): void {
+	sfxSettings.volume = clamp01(v);
+	if (browser) localStorage.setItem(SFX_VOL_KEY, String(sfxSettings.volume));
 }

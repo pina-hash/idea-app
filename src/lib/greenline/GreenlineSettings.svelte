@@ -7,7 +7,9 @@
 		musicSettings,
 		setMusicVolume,
 		setMusicMuted,
+		setSfxVolume,
 		setTrackPin,
+		sfxSettings,
 		trackLabel,
 		type TrackCategory
 	} from './audio-settings.svelte';
@@ -155,6 +157,13 @@
 		setMusicVolume(v / 100);
 	}
 
+	// SFX volume: an independent slider (music and SFX adjust separately).
+	const sfxPct = $derived(Math.round(sfxSettings.volume * 100));
+	function onSfxVolumeInput(e: Event) {
+		const v = Number((e.currentTarget as HTMLInputElement).value);
+		setSfxVolume(v / 100);
+	}
+
 	const AUDIO_CATS: { id: TrackCategory; label: string; where: string }[] = [
 		{ id: 'menu', label: 'Menu', where: 'title screen' },
 		{ id: 'workshop', label: 'Workshop', where: 'garage' },
@@ -299,7 +308,7 @@
 		</div>
 
 		<!-- AUDIO -->
-		<div class="gs-section-label">Audio · music</div>
+		<div class="gs-section-label">Audio</div>
 		<div class="gs-audio">
 			<div class="gs-vol-row">
 				<label class="gs-vol-label" for="gs-vol">Music volume</label>
@@ -324,6 +333,22 @@
 				</button>
 			</div>
 
+			<div class="gs-vol-row">
+				<label class="gs-vol-label" for="gs-sfx-vol">Effects volume</label>
+				<input
+					id="gs-sfx-vol"
+					class="gs-slider"
+					type="range"
+					min="0"
+					max="100"
+					step="1"
+					value={sfxPct}
+					oninput={onSfxVolumeInput}
+					aria-label="Sound effects volume"
+				/>
+				<span class="gs-vol-val">{sfxPct}%</span>
+			</div>
+
 			<div class="gs-tracks">
 				{#each AUDIO_CATS as cat (cat.id)}
 					<div class="gs-track-row">
@@ -345,8 +370,8 @@
 				{/each}
 			</div>
 			<div class="gs-foot">
-				Shuffle rotates the pool (today's default). Pin a track to always hear it. A separate
-				sound-effects mix arrives with SFX in a later update.
+				Shuffle rotates the pool (today's default). Pin a track to always hear it. Music and effects
+				are mixed independently; effect sounds arrive with later updates.
 			</div>
 		</div>
 

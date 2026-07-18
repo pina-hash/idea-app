@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { onMount } from 'svelte';
+	import { audioEngine, type SfxBus } from '$lib/greenline/audio-engine';
 	import Garage from '$lib/greenline/Garage.svelte';
 	import GreenlineResults from '$lib/greenline/GreenlineResults.svelte';
 	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
@@ -122,6 +124,113 @@
 		}
 	];
 	let boardMode = $state<'rows' | 'empty' | 'loading' | 'submitting' | 'error'>('rows');
+
+	// --- Audio engine dev tests (Phase 2C infrastructure) ---
+	// There is no real SFX content yet, so these synthetic oscillator tests prove
+	// the bus routing, positional pan, manual Doppler, and music-duck ramp work.
+	// Exposed on window for scripted verification (javascript_tool) and as bar
+	// buttons for manual checking; dev-harness only.
+	let audioLog = $state('');
+	const alog = (m: string) => {
+		audioLog = m;
+		// eslint-disable-next-line no-console
+		console.log('[gl-audio]', m);
+	};
+
+	function toneOn(bus: SfxBus) {
+		const freq = { weapons: 330, impacts: 160, ui: 660, ambient: 220 }[bus];
+		audioEngine.playTone(bus, { freq, durationMs: 260, pitchJitter: [0.9, 1.1], gain: 0.3 });
+		alog(`tone on ${bus} @ ${freq}Hz | ${JSON.stringify(audioEngine.snapshot().busGain)}`);
+	}
+
+	function stressBus(bus: SfxBus) {
+		for (let i = 0; i < 12; i++)
+			audioEngine.playTone(bus, { freq: 200 + i * 40, durationMs: 900, gain: 0.15 });
+		alog(`fired 12 on ${bus}; active=${JSON.stringify(audioEngine.snapshot().voices)} (soft-capped)`);
+	}
+
+	function panSweep() {
+		audioEngine.setListener({ x: 0, y: 0, z: 0 });
+		const h = audioEngine.playTone('weapons', {
+			freq: 440,
+			durationMs: 2200,
+			gain: 0.3,
+			position: { x: -20, y: 0, z: 2 }
+		});
+		if (!h) return alog('pan sweep: audio unavailable');
+		const t0 = performance.now();
+		const samples: number[] = [];
+		const step = () => {
+			const t = Math.min(1, (performance.now() - t0) / 2000);
+			const x = -20 + 40 * t;
+			h.setPosition({ x, y: 0, z: 2 });
+			const d = audioEngine.voiceDetail().find((v) => v.panX !== null);
+			if (d?.panX != null) samples.push(d.panX);
+			if (t < 1) requestAnimationFrame(step);
+			else alog(`pan sweep panX ${samples[0]} -> ${samples[samples.length - 1]} (L to R)`);
+		};
+		requestAnimationFrame(step);
+	}
+
+	function dopplerSweep() {
+		audioEngine.setListener({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
+		const h = audioEngine.playTone('ambient', {
+			freq: 300,
+			durationMs: 2200,
+			gain: 0.3,
+			position: { x: -40, y: 0, z: 4 },
+			velocity: { x: 45, y: 0, z: 0 }
+		});
+		if (!h) return alog('doppler: audio unavailable');
+		const t0 = performance.now();
+		let hi = 1;
+		let lo = 1;
+		const step = () => {
+			const t = Math.min(1, (performance.now() - t0) / 2000);
+			const x = -40 + 80 * t; // passes the listener at t=0.5
+			h.setPosition({ x, y: 0, z: 4 }, { x: 45, y: 0, z: 0 });
+			const d = audioEngine.voiceDetail().find((v) => v.bus === 'ambient');
+			if (d) {
+				hi = Math.max(hi, d.rate);
+				lo = Math.min(lo, d.rate);
+			}
+			if (t < 1) requestAnimationFrame(step);
+			else alog(`doppler rate range ${lo.toFixed(3)} (receding) .. ${hi.toFixed(3)} (approaching)`);
+		};
+		requestAnimationFrame(step);
+	}
+
+	function duckTest() {
+		const before = audioEngine.snapshot().busGain?.music;
+		audioEngine.duckMusicBus(-12, 120, 600);
+		alog(`duck fired (music ${before} -> ~0.25 -> 1). Sampling…`);
+		const t0 = performance.now();
+		let min = 1;
+		const step = () => {
+			const g = audioEngine.snapshot().busGain?.music ?? 1;
+			min = Math.min(min, g);
+			if (performance.now() - t0 < 900) requestAnimationFrame(step);
+			else
+				alog(
+					`duck: music dipped to ${min.toFixed(3)}, back to ${(audioEngine.snapshot().busGain?.music ?? 1).toFixed(3)}`
+				);
+		};
+		requestAnimationFrame(step);
+	}
+
+	onMount(() => {
+		if (!browser) return;
+		(window as unknown as Record<string, unknown>).__greenlineAudio = {
+			engine: audioEngine,
+			tone: toneOn,
+			stress: stressBus,
+			pan: panSweep,
+			doppler: dopplerSweep,
+			duck: duckTest,
+			snapshot: () => audioEngine.snapshot(),
+			detail: () => audioEngine.voiceDetail()
+		};
+	});
 </script>
 
 <svelte:head>
@@ -146,6 +255,19 @@
 			<button class:on={boardMode === m} onclick={() => (boardMode = m as typeof boardMode)}>{m}</button>
 		{/each}
 	{/if}
+</div>
+
+<div class="dh-bar dh-bar-audio">
+	<span>audio (dev):</span>
+	<button onclick={() => toneOn('weapons')}>weapons</button>
+	<button onclick={() => toneOn('impacts')}>impacts</button>
+	<button onclick={() => toneOn('ui')}>ui</button>
+	<button onclick={() => toneOn('ambient')}>ambient</button>
+	<button onclick={() => stressBus('weapons')}>stress×12</button>
+	<button onclick={panSweep}>pan sweep</button>
+	<button onclick={dopplerSweep}>doppler</button>
+	<button onclick={duckTest}>duck music</button>
+	<span class="dh-note dh-audio-log">{audioLog || '—'}</span>
 </div>
 
 <div class="dh-stage">
@@ -243,9 +365,21 @@
 	.dh-note {
 		color: #5f7f6a;
 	}
+	.dh-bar-audio {
+		top: 2.1rem;
+		border-bottom-color: rgba(0, 255, 65, 0.18);
+	}
+	.dh-audio-log {
+		color: #8fbf9a;
+		font-size: 0.66rem;
+		max-width: 32rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
 	.dh-stage {
 		position: fixed;
-		inset: 2.2rem 0 0;
+		inset: 4.4rem 0 0;
 		background: #05090c;
 		overflow-y: auto;
 	}
