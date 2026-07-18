@@ -11,6 +11,7 @@
 		type Loadout,
 		type PartSlot
 	} from './loadout';
+	import GaragePreview from './GaragePreview.svelte';
 
 	/**
 	 * GREENLINE garage / loadout screen. Pure presentation over the loadout
@@ -36,7 +37,8 @@
 		note = 'all parts unlocked (dev) · applies live to the player vehicle',
 		closeLabel = 'CLOSE (G)',
 		onback,
-		backLabel = 'BACK'
+		backLabel = 'BACK',
+		preview = true
 	}: {
 		loadout: Loadout;
 		/** Current tuning-panel baselines the multipliers apply over. */
@@ -54,6 +56,14 @@
 		/** Optional secondary action; renders a header button when provided. */
 		onback?: () => void;
 		backLabel?: string;
+		/**
+		 * Mount the isolated 3D build preview (GaragePreview) beside the
+		 * archetype cards. On by default for the pre-race garage flow; the
+		 * race's dev-only G-key overlay passes false, since the live race
+		 * scene behind it already shows the actual machine and a second WebGL
+		 * context over a running sim is pure cost.
+		 */
+		preview?: boolean;
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
@@ -82,6 +92,7 @@
 			<button class="gg-btn gg-btn-primary" onclick={onclose}>{closeLabel}</button>
 		</div>
 
+		{#snippet archetypeSection()}
 		<div class="gg-section-label">Archetype</div>
 		<div class="gg-archs">
 			{#each ARCHETYPES as a (a.id)}
@@ -124,6 +135,22 @@
 				</button>
 			{/each}
 		</div>
+		{/snippet}
+
+		{#if preview}
+			<!-- The missing visual half: the resolved build in an isolated 3D
+			     viewport beside the archetype cards, rebuilt live off the same
+			     shared builder the race scene uses. -->
+			<div class="gg-top">
+				<div class="gg-preview">
+					<div class="gg-preview-frame"><GaragePreview {loadout} /></div>
+					<div class="gg-preview-hint">live build · drag to orbit · scroll to zoom</div>
+				</div>
+				<div class="gg-top-right">{@render archetypeSection()}</div>
+			</div>
+		{:else}
+			{@render archetypeSection()}
+		{/if}
 
 		<div class="gg-slots">
 			{#each PART_SLOTS as slot (slot.id)}
@@ -184,7 +211,7 @@
 		z-index: 30;
 	}
 	.gg-panel {
-		width: min(94vw, 66rem);
+		width: min(94vw, 74rem);
 		max-height: 92vh;
 		overflow-y: auto;
 		background:
@@ -270,6 +297,43 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 		gap: 0.55rem;
+	}
+	/* Preview viewport beside the archetype cards; stacks on narrow screens. */
+	.gg-top {
+		display: grid;
+		grid-template-columns: minmax(19rem, 24rem) 1fr;
+		gap: 0.9rem;
+		align-items: stretch;
+	}
+	.gg-preview {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		margin-top: 0.7rem;
+	}
+	.gg-preview-frame {
+		position: relative;
+		flex: 1;
+		min-height: 16rem;
+		border: 1px solid var(--glb-line);
+		border-top-color: var(--glb-line-strong);
+		box-shadow: inset 0 1px 0 rgba(247, 251, 254, 0.06);
+		overflow: hidden;
+	}
+	.gg-preview-hint {
+		color: var(--glb-ink-faint);
+		font-size: 0.62rem;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+	}
+	@media (max-width: 900px) {
+		.gg-top {
+			grid-template-columns: 1fr;
+		}
+		.gg-preview-frame {
+			min-height: 0;
+			aspect-ratio: 16 / 10;
+		}
 	}
 	.gg-arch,
 	.gg-part {

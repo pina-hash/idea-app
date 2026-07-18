@@ -1770,6 +1770,58 @@ on one side of the world.
   transform jitter, restored exactly on heal. Geometries/materials are
   shared per archetype across rigs (only the hull clone + tint material are
   per-rig).
+- **Shared rig-visual builder + equipped-part visuals
+  (`src/lib/greenline/rig-visual.ts`).** The bodywork builder is extracted out
+  of `GreenlineRace.svelte` into one shared module: the brand palette (`GL`),
+  the chrome-IBL recipe, the shared vehicle materials, the four archetype part
+  sets, and the chassis-frame constants (`COM_DROP` / `WHEEL_RADIUS` /
+  `WHEEL_CONNECTIONS`) all live there, and
+  `createRigVisuals(THREE, renderer).build(target, loadout)` is the ONE
+  builder both the race scene and the garage preview call, so the preview is
+  by construction the on-track machine and the two can never drift (three.js
+  stays dynamically imported; the module imports three TYPES only, taking the
+  loaded module at runtime). The builder reads the FULL resolved loadout, not
+  just the archetype: every equipped part shows on the vehicle, mapped onto
+  the named part groups. `plating` -> the armor group (composite = thickened
+  matte-laminate plates, reactive = a bolted tube exo-cage placed in the armor
+  group ON PURPOSE so it visibly strips apart as the armor pool drains,
+  stripped = plates removed, bare hull, the signature thread relocating to a
+  deck spine when the removed plates carried it); `drivetrain` -> chassis
+  greebles (overbored = hood scoop + twin raked exhaust stacks, slipstream =
+  gloss aero fairing + flush side skirts, hotintake = open intake trumpet with
+  a glowing throat + visible pipe plumbing); `tires` -> the wheel meshes
+  (slick = wider glossy smooth, terrain = faceted knobby lugs, hardwall = wide
+  matte with a center reinforcement hoop as the wheel's one child mesh);
+  `systems` -> mount-group hardware that rides (and tilts with) the socket
+  (capacitor = cell bank with glowing caps + coil, faraday = wireframe mesh
+  dome + rim ring, targeting = sensor dish + lens + scope barrel). Variants
+  place off per-archetype ANCHORS (hood / rear deck / tail / deck height /
+  hull dims), so every part layers onto every archetype from one recipe, no
+  per-combination special cases. Geometry discipline unchanged: composed node
+  lists and geometries are cached and shared (unit primitives scaled per
+  node); only the deformable hull is cloned per vehicle. A rig rebuilds
+  exactly when `visualKeyFor(loadout)` changes (`Rig.visualKey`, superseding
+  the archetype-only `visualArch` check), so a live part swap rebuilds like an
+  archetype swap always has.
+- **Garage 3D preview (`src/lib/greenline/GaragePreview.svelte`).** The
+  garage's visual half: an isolated three.js viewport (own small scene,
+  camera, and renderer, NOT the race world) showing the resolved build on a
+  dark pedestal ringed by the green signature line, lit by a compact dual-tone
+  key/counter/rim rig with the race's hemisphere fill and a one-stop brighter
+  display exposure (SAME materials as the race; a Linear tone-mapping exposure
+  is the only brightener that does not fork the material recipe, since metals
+  take almost nothing from diffuse fill). OrbitControls per the StlViewer
+  pattern: drag to orbit, wheel/pinch zoom, distance and polar clamps so the
+  camera can never enter the model or sink under the floor, slow auto-orbit
+  until first interaction, off under `prefers-reduced-motion`. It rebuilds
+  live off the shared builder whenever the archetype or any part changes.
+  `Garage.svelte` mounts it beside the archetype cards (`preview` prop,
+  default true) for the pre-race garage flow; the race's dev-only G-key
+  overlay passes `preview={false}` deliberately (the live race behind it
+  already shows the actual machine, and a second WebGL context over a running
+  sim is pure cost on the school desktops). Browser-verified in
+  `/dev/greenline-portal?view=garage` (all sixteen parts, archetype swaps,
+  orbit/zoom clamps) and on track via `/dev/greenline-movement`.
 - **Performance target:** the school's desktop computers, roughly 6-8 years
   old (a real but aging GPU budget, not tablets or Chromebooks): moderate
   per-part polycounts, geometries and materials reused across instances (up
