@@ -2159,6 +2159,73 @@ on one side of the world.
     dropper hopper); the part-clipping cleanup across all 10 is Phase 4c, NOT
     touched here. `__greenline` gains `getCaltrops`; telemetry adds
     railgun/shotgun/cluster/caltrops fire+hit and `clusterSplash` hit counters.
+- **The last four weapons (Phase 4b-ii): Auto-Turret, Energy Shield, Radar
+  Jammer, Deployable Blades — the locked 10 complete.** Four genuinely new
+  mechanics on the same `WeaponDef` framework; each reuses an existing
+  precedent so the novelty is contained.
+  - **Radar Jammer** (`defensive`, PASSIVE, `mountCost` 1, `cooldownSec` 0).
+    No trigger, no fire logic: always active while equipped in EITHER slot,
+    even with a dead mount. `applyLoadoutToRig` sets the wielder's
+    `VehicleCombat.jammerLockMul` (0.35 from `JammerWeaponParams.lockRateMul`;
+    1 = none), which `updateWeaponLock` multiplies into the per-frame lock
+    accrual against THAT target (both the continue and re-acquire branches via
+    one `accrual(t)` helper) — so an enemy needs ~2.75x as long to lock the
+    jammer's wielder. Threaded through the TARGET's combat state (the `resist`
+    convention), not a new function. Verified: attacker lock rate 0.41/s vs
+    1.12/s unequipped (ratio 0.36).
+  - **Energy Shield** (`defensive`, ACTIVE, `mountCost` 3, `cooldownSec` 9,
+    `shield: { absorb 70, durationSec 4 }`). The fire action calls
+    `tryActivateShield`; the soak lives inside `applyDamage` (a pool that eats
+    incoming damage from ANY source BEFORE the zone split, overflow continuing
+    to armor/chassis/mount), so every damage path is covered by one code path.
+    Emptying the pool BREAKS it (window ends at once, `DamageResult.shieldBroke`
+    edge → the "SHIELD DOWN" HUD moment + `shieldBreak` telemetry); timeout ends
+    it quietly. `DamageResult` gained `shield`/`shieldBroke`. Verified: 30
+    soaked fully (pools untouched), then 50 → absorbs 40, breaks, 10 overflows
+    to pools, break event fires once. The two `defensive` shapes are split as
+    two sub-blocks on `WeaponDef` (`shield?` / `jammer?`), distinguished by
+    presence — the one-block-per-def convention, since `WeaponCategory` puts
+    both under `defensive`.
+  - **Auto-Turret** (`turret`, `mountCost` 2, `cooldownSec` 1.1, `turret:
+    { damage 10, range 30, blindArcDeg 90 }`). No trigger, no aim, no AI
+    decision: `updateTurret` is ticked every frame for EVERY vehicle (player
+    and AI alike) in its own harness loop; when off cooldown it hit-scans the
+    nearest valid target in the full 360deg ring EXCEPT a forward blind arc
+    (the gun sits on the rear mount `mountPos` -x, so the chassis occludes it
+    toward the front — a target within `blindArcDeg/2` of dead-ahead is
+    skipped). Holds fire (spends no cooldown) with no target. Verified for
+    BOTH player and AI: engages behind/beside, blocked dead-ahead.
+  - **Deployable Blades** (`melee`, ACTIVE/toggled, `mountCost` 2,
+    `cooldownSec` 8, `melee: { damage 14, durationSec 3.5,
+    retriggerImmunitySec 0.6 }`). The fire action calls `tryDeployBlades`
+    (a timer, `bladesUntilMs`, NOT a resource meter); while active,
+    `tryBladeStrike` deals damage on ANY contact — a NEW function alongside
+    `tryRam` that leans on the SAME collision-contact queue (`pendingRams`,
+    both directions per pair) but with NONE of ram's gating (no frontality, no
+    closing-speed threshold), at lower per-hit damage. A per-victim retrigger
+    window (`bladeHitMs`, the Caltrops pattern) stops a grinding scrape from
+    machine-gunning. Verified: 14 damage on a 6 m/s glancing off-axis touch
+    that triggered NO ram (control with blades off = 0 damage), and 14 < ram's
+    20 on the same geometry sped up.
+  - **AI**: `AiDriver.wantsShield` (panic button — pop when chassis < 55% AND a
+    rival is near, deliberately NOT gated on `isDisrupted`) and `wantsBlades`
+    (toggle when a rival is within ~10m); the harness weapon-decision loop
+    branches to them by category and SKIPS turret/jammer (auto/passive, no
+    decision). Verified: ai-3 deploys its shield when hurt, ai-1 deploys blades
+    when a rival closes, the turret auto-fires for AIs. `AI_WEAPONS` now fits
+    the default 3-AI field to show every 4b-ii weapon: armor = turret+blades,
+    velocity = jammer+shotgun, handling = shield+caltrops (systems = the heavy
+    kinetic+guided pair).
+  - **HUD**: a `SHIELD n%` status chip + the absorb `shieldPct`; the slot cells
+    read `ACTIVE` (shield/blades deployed, cyan), `ON` (passive jammer, dim), or
+    the usual cooldown/READY. **SFX**: turret fire/hit, shield up/break, blade
+    deploy/hit, and the jammer's distinct CONTINUOUS low hum (re-emitted on an
+    interval while the PLAYER carries one, since it is passive — no fire/impact
+    pair). Each weapon has a distinguishable mount mesh in `rig-visual.ts`
+    (ringed turret drum + barrel / emitter ring + core / masted dish / hub +
+    swept blade fins); the part-clipping cleanup across all 10 is still Phase
+    4c. `__greenline` gains `getDefense` (shield pool + windows + jammerMul);
+    telemetry adds turret/shield/blades fire+hit and `shieldBreak`.
 
 ## FRC Training track
 

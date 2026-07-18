@@ -680,6 +680,44 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox - 0.08, oy + 0.28, oz], scale: [0.16, 0.1, 0.03] }
 			];
 		}
+		if (weaponId === 'auto-turret') {
+			// A ringed turret drum with a stubby side-swinging barrel + a sensor
+			// cap on top: reads as an independent gun that turns on its own.
+			return [
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [ox, oy + 0.06, oz], scale: [0.34, 0.1, 0.34] },
+				{ part: 'mount', geo: unitCyl(), mat: 'steel', pos: [ox, oy + 0.18, oz], scale: [0.26, 0.16, 0.26] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.2, oz], rot: [0, 0, Math.PI / 2], scale: [0.05, 0.42, 0.05] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [ox, oy + 0.3, oz], scale: [0.12, 0.06, 0.12] }
+			];
+		}
+		if (weaponId === 'energy-shield') {
+			// A generator block topped by an emitter ring around a glowing core:
+			// reads as a projector, not a gun.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.1, oz], scale: [0.3, 0.2, 0.3] },
+				{ part: 'mount', geo: getGeo('shieldRing', () => new three.TorusGeometry(0.2, 0.04, 8, 20)), mat: 'accent', pos: [ox, oy + 0.34, oz], rot: [Math.PI / 2, 0, 0] },
+				{ part: 'mount', geo: getGeo('shieldCore', () => new three.SphereGeometry(0.11, 12, 10)), mat: 'accent', pos: [ox, oy + 0.34, oz] }
+			];
+		}
+		if (weaponId === 'radar-jammer') {
+			// A masted dish with an antenna rod: reads as passive ECM, no barrel.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.08, oz], scale: [0.26, 0.16, 0.26] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox, oy + 0.34, oz], scale: [0.03, 0.5, 0.03] },
+				{ part: 'mount', geo: getGeo('jamDish', () => new three.CylinderGeometry(0.18, 0.05, 0.06, 16)), mat: 'steel', pos: [ox, oy + 0.56, oz], rot: [0.5, 0, 0] },
+				{ part: 'mount', geo: unitTube(), mat: 'accent', pos: [ox + 0.1, oy + 0.3, oz], rot: [0, 0, 0.3], scale: [0.015, 0.3, 0.015] }
+			];
+		}
+		if (weaponId === 'deployable-blades') {
+			// A central hub with two swept blade fins to the sides: reads as
+			// spin-up melee, not a projectile weapon.
+			return [
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [ox, oy + 0.12, oz], scale: [0.16, 0.24, 0.16] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [ox, oy + 0.16, oz + 0.28], rot: [0, 0.5, 0], scale: [0.06, 0.05, 0.5] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [ox, oy + 0.16, oz - 0.28], rot: [0, -0.5, 0], scale: [0.06, 0.05, 0.5] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [ox, oy + 0.28, oz], scale: [0.1, 0.04, 0.1] }
+			];
+		}
 		// Fallback hardpoint stub for catalog entries without a visual yet.
 		return [
 			{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.08, oz], scale: [0.24, 0.14, 0.18] }

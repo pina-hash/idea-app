@@ -97,6 +97,70 @@ export interface AreaWeaponParams {
 	armSec: number;
 }
 
+/**
+ * Defensive (active): Energy Shield. The fire action raises a fixed absorb
+ * pool for a duration; while up, incoming damage from ANY source (weapons,
+ * ram, disruption tools) is soaked by the pool FIRST, only overflow reaching
+ * the armor/chassis/mount split. Emptying the pool breaks the shield early
+ * (the window ends at once) — the whole point of hard-absorb over
+ * percentage-reduction is that the break is a clear, legible moment.
+ */
+export interface ShieldWeaponParams {
+	/** Total damage the bubble soaks before it shatters. */
+	absorb: number;
+	/** How long the bubble stays up if it is not broken first. */
+	durationSec: number;
+}
+
+/**
+ * Defensive (passive): Radar Jammer. No trigger, no fire logic — always active
+ * while equipped. It slows the lock accrual of any ENEMY guided weapon trying
+ * to lock the JAMMER'S WIELDER as its target (matters only against guided
+ * weapons, useless against guns), via `VehicleCombat.jammerLockMul` set by the
+ * harness's loadout application and read in `updateWeaponLock`.
+ */
+export interface JammerWeaponParams {
+	/** Multiplier (< 1) on an attacker's per-frame lock accrual against the
+	 * wielder: 0.35 makes a lock take ~3x as long. */
+	lockRateMul: number;
+}
+
+/**
+ * Turret: an independent gun that fires ITSELF on its own cooldown (WeaponDef
+ * cooldownSec) at the nearest valid target in a full 360deg ring, EXCEPT a
+ * forward blind arc the vehicle's own chassis (hood/cabin) occludes — the gun
+ * sits on the rear mount (mountPos negative local-x), so it cannot see through
+ * the body toward the front. No trigger, no aim: player and AI tick the same
+ * auto-fire check.
+ */
+export interface TurretWeaponParams {
+	damage: number;
+	/** Engagement radius, world units. */
+	range: number;
+	/** Full blind-arc angle CENTERED ON the vehicle heading (front); a target
+	 * within blindArcDeg/2 of dead-ahead is occluded by the chassis. */
+	blindArcDeg: number;
+}
+
+/**
+ * Melee: Deployable Blades. The fire action toggles the blades active for a
+ * fixed duration (a timer, not a resource meter), then a cooldown. While
+ * active, ANY contact with an enemy deals damage — no frontality or
+ * closing-speed gate (unlike Ram), at meaningfully lower per-hit damage since
+ * it demands no commitment. A per-victim retrigger window keeps a sustained
+ * scrape from machine-gunning (the Ram-cooldown role, applied per contact).
+ */
+export interface MeleeWeaponParams {
+	/** Per-contact damage (lower than Ram's, which additionally requires a
+	 * nose-first, high-closing-speed hit). */
+	damage: number;
+	/** How long the blades stay out per activation. */
+	durationSec: number;
+	/** Per-victim immunity after a strike (a grinding contact does not
+	 * machine-gun; mirrors the Caltrops retrigger window). */
+	retriggerImmunitySec: number;
+}
+
 export interface WeaponDef {
 	id: string;
 	name: string;
@@ -115,8 +179,17 @@ export interface WeaponDef {
 	guided?: GuidedWeaponParams;
 	/** Present iff category === 'area'. */
 	area?: AreaWeaponParams;
-	// Phase 4b continues: turret / defensive / melee entries add their own
-	// param blocks here, exactly one block per def matching its category.
+	/** Present iff category === 'turret'. */
+	turret?: TurretWeaponParams;
+	/** Present on a category === 'defensive' Energy Shield (active). */
+	shield?: ShieldWeaponParams;
+	/** Present on a category === 'defensive' Radar Jammer (passive). The two
+	 * defensive shapes are distinguished by which block is present, exactly one
+	 * per def — matching the one-block-per-def convention the other categories
+	 * follow, since the WeaponCategory union puts both under 'defensive'. */
+	jammer?: JammerWeaponParams;
+	/** Present iff category === 'melee'. */
+	melee?: MeleeWeaponParams;
 }
 
 /**
@@ -219,6 +292,53 @@ export const WEAPONS: WeaponDef[] = [
 			dropBack: 3.6,
 			armSec: 0.9
 		}
+	},
+	{
+		id: 'auto-turret',
+		name: 'Auto-Turret',
+		shortName: 'TURR',
+		category: 'turret',
+		blurb: 'Independent gun that fires itself at whatever is nearest, all around you — except dead ahead, where your own hull blocks the shot.',
+		// Cost 2: strong passive value (constant free chip damage), but zero
+		// player skill expression, so it is not a heavy-slot weapon.
+		mountCost: 2,
+		cooldownSec: 1.1,
+		turret: { damage: 10, range: 30, blindArcDeg: 90 }
+	},
+	{
+		id: 'energy-shield',
+		name: 'Energy Shield',
+		shortName: 'SHIELD',
+		category: 'defensive',
+		blurb: 'Pop a hard absorb bubble: soaks a fixed hit budget from any source, then shatters. The strongest panic button in the roster.',
+		// Cost 3: the strongest single defensive tool — a full heavy slot.
+		mountCost: 3,
+		cooldownSec: 9,
+		shield: { absorb: 70, durationSec: 4 }
+	},
+	{
+		id: 'radar-jammer',
+		name: 'Radar Jammer',
+		shortName: 'JAM',
+		category: 'defensive',
+		blurb: 'Passive ECM: enemy missiles take far longer to lock you. Priceless against guided weapons, useless against guns.',
+		// Cost 1: cheap, situational — only matters against guided weapons.
+		mountCost: 1,
+		// Passive: never triggered, never on cooldown. 0 keeps canUseSlot honest
+		// even though nothing calls it for a jammer.
+		cooldownSec: 0,
+		jammer: { lockRateMul: 0.35 }
+	},
+	{
+		id: 'deployable-blades',
+		name: 'Deployable Blades',
+		shortName: 'BLADE',
+		category: 'melee',
+		blurb: 'Spin up the blades: any contact shreds, no aim or speed needed. Lower per-hit than a ram, but it never misses.',
+		// Cost 2: reliable no-commitment contact damage, but demands closing in.
+		mountCost: 2,
+		cooldownSec: 8,
+		melee: { damage: 14, durationSec: 3.5, retriggerImmunitySec: 0.6 }
 	}
 ];
 
@@ -404,6 +524,12 @@ export type DamageOutcome = 'damaged' | 'down' | 'eliminated' | 'ignored';
 export interface DamageResult {
 	outcome: DamageOutcome;
 	zone: HitZone;
+	/** Damage the Energy Shield absorb pool soaked before the zone split (0 when
+	 * no shield was up). Overflow past the pool continues to armor/chassis/mount. */
+	shield: number;
+	/** The shield absorb pool crossed to zero on THIS hit (the shield shattered)
+	 * — a one-time edge for the "SHIELD DOWN" HUD moment. */
+	shieldBroke: boolean;
 	/** Damage each pool absorbed this hit (post-resist; overflow included). */
 	armor: number;
 	mount: number;
@@ -419,6 +545,8 @@ export interface DamageResult {
 const IGNORED_RESULT = (zone: HitZone): DamageResult => ({
 	outcome: 'ignored',
 	zone,
+	shield: 0,
+	shieldBroke: false,
 	armor: 0,
 	mount: 0,
 	chassis: 0,
@@ -476,6 +604,19 @@ export class VehicleCombat {
 	 * inherit or leak another weapon's timer semantics beyond the slot's. */
 	lastSlotUseMs: Record<WeaponSlotId, number> = { weaponPrimary: -Infinity, weaponSecondary: -Infinity };
 	lastDamageFrom: string | null = null;
+	/** Energy Shield absorb pool: soaks incoming damage from ANY source before
+	 * the zone split while up (shieldUntilMs in the future and shieldHealth > 0). */
+	shieldHealth = 0;
+	maxShield = 0;
+	shieldUntilMs = 0;
+	/** Deployable Blades active window: ANY contact deals damage until this time. */
+	bladesUntilMs = 0;
+	/** Per-victim blade re-hit timestamps (a scrape does not machine-gun). */
+	bladeHitMs: Record<string, number> = {};
+	/** Radar Jammer: multiplier (<= 1) on an ATTACKER's lock accrual against THIS
+	 * vehicle. 1 = no jammer. Loadout-managed (set by the harness), like `resist`,
+	 * so `reset()` deliberately leaves it alone. */
+	jammerLockMul = 1;
 
 	constructor(id: string, pools: PoolMaxes) {
 		this.id = id;
@@ -501,6 +642,12 @@ export class VehicleCombat {
 		this.lastUseMs = { emp: -Infinity, oil: -Infinity, tether: -Infinity, ram: -Infinity };
 		this.lastSlotUseMs = { weaponPrimary: -Infinity, weaponSecondary: -Infinity };
 		this.lastDamageFrom = null;
+		this.shieldHealth = 0;
+		this.maxShield = 0;
+		this.shieldUntilMs = 0;
+		this.bladesUntilMs = 0;
+		this.bladeHitMs = {};
+		// jammerLockMul is loadout-managed (like resist), not per-round state.
 	}
 
 	/** Weapon systems offline: the rear mount pool has been destroyed. */
@@ -551,6 +698,24 @@ export class VehicleCombat {
 		this.lastSlotUseMs[slot] = nowMs;
 	}
 
+	/** Raise the Energy Shield absorb pool for a duration. */
+	activateShield(absorb: number, durationSec: number, nowMs: number): void {
+		this.maxShield = Math.max(1, Math.round(absorb));
+		this.shieldHealth = this.maxShield;
+		this.shieldUntilMs = nowMs + durationSec * 1000;
+	}
+
+	/** Is the absorb bubble currently soaking damage? False once it breaks (pool
+	 * empty) or the window times out. */
+	shieldActive(nowMs: number): boolean {
+		return this.shieldHealth > 0 && nowMs < this.shieldUntilMs;
+	}
+
+	/** Are the deployable blades currently out (contact deals damage)? */
+	bladesActive(nowMs: number): boolean {
+		return nowMs < this.bladesUntilMs;
+	}
+
 	/**
 	 * Apply damage from a source, routed by hit zone: front/side drain armor
 	 * first, rear drains the mount first, and overflow past an emptied (or
@@ -571,6 +736,20 @@ export class VehicleCombat {
 	): DamageResult {
 		if (this.isOut(nowMs)) return IGNORED_RESULT(zone);
 		let remaining = Math.max(0, amount);
+		// Energy Shield: the absorb pool soaks damage from ANY source FIRST; only
+		// overflow past the pool continues to the zone split. Emptying it breaks
+		// the shield outright (the window ends now, not on its timer).
+		let shieldTaken = 0;
+		let shieldBroke = false;
+		if (this.shieldActive(nowMs) && remaining > 0) {
+			shieldTaken = Math.min(this.shieldHealth, remaining);
+			this.shieldHealth -= shieldTaken;
+			remaining -= shieldTaken;
+			if (this.shieldHealth <= 0) {
+				shieldBroke = true;
+				this.shieldUntilMs = 0;
+			}
+		}
 		let armorTaken = 0;
 		let mountTaken = 0;
 		let armorStripped = false;
@@ -593,6 +772,8 @@ export class VehicleCombat {
 		this.lastDamageFrom = from;
 		const base = {
 			zone,
+			shield: shieldTaken,
+			shieldBroke,
 			armor: armorTaken,
 			mount: mountTaken,
 			chassis: chassisTaken,
@@ -645,6 +826,13 @@ export class VehicleCombat {
 			this.mountHealth = this.maxMount;
 			this.disruptedUntilMs = 0;
 			this.oiledUntilMs = 0;
+			// A spent shield / active blades do not carry through a respawn; their
+			// slot cooldowns keep running (per-slot state, untouched here).
+			this.shieldHealth = 0;
+			this.maxShield = 0;
+			this.shieldUntilMs = 0;
+			this.bladesUntilMs = 0;
+			this.bladeHitMs = {};
 			return 'recovered';
 		}
 		return null;
@@ -862,13 +1050,19 @@ export function updateWeaponLock(
 		if (dist > g.lockRange || dist < 0.001) return false;
 		return (dx * shooter.hx + dz * shooter.hz) / dist >= cosHalf;
 	};
+	// Per-frame lock accrual against a given target, slowed by that target's
+	// Radar Jammer (jammerLockMul <= 1; 1 = no jammer). The penalty is a
+	// property of the TARGET being locked, not the shooter, so it lives on the
+	// target's combat state (set by the harness's loadout application).
+	const accrual = (t: Combatant): number =>
+		(dtSec / Math.max(0.05, g.lockTimeSec)) * Math.max(0, t.combat.jammerLockMul);
 	// Current target still valid: the dwell continues.
 	if (current) {
 		const t = targets.find((c) => c.id === current.targetId);
 		if (t && inCone(t)) {
 			return {
 				...current,
-				progress: Math.min(1, current.progress + dtSec / Math.max(0.05, g.lockTimeSec))
+				progress: Math.min(1, current.progress + accrual(t))
 			};
 		}
 	}
@@ -888,7 +1082,7 @@ export function updateWeaponLock(
 		shooterId: shooter.id,
 		slot,
 		targetId: best.id,
-		progress: Math.min(1, dtSec / Math.max(0.05, g.lockTimeSec))
+		progress: Math.min(1, accrual(best))
 	};
 }
 
@@ -1422,4 +1616,164 @@ export function tryRam(
 	if (resultA.outcome === 'damaged') ctx.a.combat.applyStun(tuning.ramStunSec, nowMs);
 	if (resultB.outcome === 'damaged') ctx.b.combat.applyStun(tuning.ramStunSec, nowMs);
 	return { triggered: true, damageA, damageB, resultA, resultB };
+}
+
+// ---------------------------------------------------------------------------
+// Energy Shield (defensive, active): the fire action raises the absorb pool
+// via activateShield; the soak + break happen inside applyDamage so EVERY
+// damage source is covered by one code path. Radar Jammer (defensive, passive)
+// has NO trigger — the harness sets the wielder's jammerLockMul at loadout
+// time and updateWeaponLock reads it, so there is no activation function here.
+// ---------------------------------------------------------------------------
+
+/**
+ * Raise the Energy Shield off the fire action. Returns false (spends nothing)
+ * when the slot is on cooldown / the shooter is out. The absorb pool is a fixed
+ * defensive value, deliberately NOT scaled by the shooter's offense build.
+ */
+export function tryActivateShield(
+	shooter: Combatant,
+	slot: WeaponSlotId,
+	def: WeaponDef,
+	nowMs: number,
+	opts: WeaponFireOpts = {}
+): boolean {
+	const s = def.shield;
+	if (!s) return false;
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) return false;
+	shooter.combat.markSlotUsed(slot, nowMs);
+	shooter.combat.activateShield(s.absorb, s.durationSec, nowMs);
+	return true;
+}
+
+// ---------------------------------------------------------------------------
+// Auto-Turret (turret): no trigger, no aim. Ticked every frame for every
+// vehicle; when off cooldown it fires at the nearest valid target in the full
+// 360deg ring EXCEPT the forward blind arc the chassis occludes (the gun sits
+// on the rear mount, mountPos negative local-x, so the hood/cabin blocks the
+// shot toward the front). Instant hit-scan, zone-routed like every other gun.
+// ---------------------------------------------------------------------------
+
+export interface TurretFireResult {
+	fired: boolean;
+	hit: FireHit | null;
+}
+
+export function updateTurret(
+	shooter: Combatant,
+	targets: Combatant[],
+	slot: WeaponSlotId,
+	def: WeaponDef,
+	mode: GreenlineMode,
+	tuning: CombatTuning,
+	nowMs: number,
+	opts: WeaponFireOpts = {}
+): TurretFireResult {
+	const tp = def.turret;
+	if (!tp) return { fired: false, hit: null };
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) return { fired: false, hit: null };
+	// A target is occluded when the direction to it lies within the forward
+	// blind cone (angle to the vehicle's heading < blindArcDeg/2).
+	const cosBlind = Math.cos(((tp.blindArcDeg / 2) * Math.PI) / 180);
+	let best: Combatant | null = null;
+	let bestDist = Infinity;
+	for (const t of targets) {
+		if (t.id === shooter.id || t.combat.eliminated || t.combat.isOut(nowMs)) continue;
+		const dx = t.x - shooter.x;
+		const dz = t.z - shooter.z;
+		const dist = Math.hypot(dx, dz);
+		if (dist > tp.range || dist < 0.001) continue;
+		if ((dx * shooter.hx + dz * shooter.hz) / dist >= cosBlind) continue; // blind arc
+		if (dist < bestDist) {
+			best = t;
+			bestDist = dist;
+		}
+	}
+	// No valid target: hold fire, spend no cooldown (fires the instant one appears).
+	if (!best) return { fired: false, hit: null };
+	shooter.combat.markSlotUsed(slot, nowMs);
+	const damage = Math.max(1, Math.round(tp.damage * (opts.damageScale ?? 1)));
+	const dx = best.x - shooter.x;
+	const dz = best.z - shooter.z;
+	const zone = classifyHitZone(dx, dz, best.hx, best.hz);
+	const result = best.combat.applyDamage(damage, shooter.id, mode, tuning, nowMs, zone);
+	if (result.outcome === 'ignored') return { fired: true, hit: null };
+	return {
+		fired: true,
+		hit: {
+			targetId: best.id,
+			damage,
+			result,
+			spinSign: Math.sign(shooter.hx * dz - shooter.hz * dx) || 1,
+			dist: bestDist
+		}
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Deployable Blades (melee): the fire action toggles the active window via
+// tryDeployBlades; while active, tryBladeStrike deals damage on ANY contact.
+// It leans on the same collision contacts the ram uses, but with NONE of ram's
+// gating (no frontality, no closing-speed threshold), at lower per-hit damage.
+// A per-victim retrigger window (mirroring Caltrops) keeps a sustained scrape
+// from machine-gunning.
+// ---------------------------------------------------------------------------
+
+/** Toggle the blades out for their duration. Returns false (spends nothing)
+ * when the slot is on cooldown / the shooter is out. */
+export function tryDeployBlades(
+	shooter: Combatant,
+	slot: WeaponSlotId,
+	def: WeaponDef,
+	nowMs: number,
+	opts: WeaponFireOpts = {}
+): boolean {
+	const m = def.melee;
+	if (!m) return false;
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) return false;
+	shooter.combat.markSlotUsed(slot, nowMs);
+	shooter.combat.bladesUntilMs = nowMs + m.durationSec * 1000;
+	return true;
+}
+
+export interface BladeStrikeResult {
+	struck: boolean;
+	damage: number;
+	result: DamageResult;
+}
+
+/**
+ * Resolve one contact for the attacker's blades against a victim. No angle or
+ * speed gate — the blades are out, so contact is enough. Damage runs through
+ * the victim's impact resistance (like ram), and a per-victim throttle stops a
+ * grinding contact from ticking every frame.
+ */
+export function tryBladeStrike(
+	attacker: Combatant,
+	victim: Combatant,
+	def: WeaponDef,
+	mode: GreenlineMode,
+	tuning: CombatTuning,
+	nowMs: number,
+	opts: WeaponFireOpts = {}
+): BladeStrikeResult {
+	const none: BladeStrikeResult = { struck: false, damage: 0, result: IGNORED_RESULT('side') };
+	const m = def.melee;
+	if (!m) return none;
+	if (!attacker.combat.bladesActive(nowMs)) return none;
+	if (attacker.id === victim.id || victim.combat.eliminated || victim.combat.isOut(nowMs)) return none;
+	if (nowMs < (attacker.combat.bladeHitMs[victim.id] ?? 0)) return none;
+	attacker.combat.bladeHitMs[victim.id] = nowMs + m.retriggerImmunitySec * 1000;
+	const damage = Math.max(
+		1,
+		Math.round(m.damage * (opts.damageScale ?? 1) * victim.combat.resist.impactDamage)
+	);
+	const dx = victim.x - attacker.x;
+	const dz = victim.z - attacker.z;
+	const zone = classifyHitZone(dx, dz, victim.hx, victim.hz);
+	const result = victim.combat.applyDamage(damage, attacker.id, mode, tuning, nowMs, zone);
+	return { struck: result.outcome !== 'ignored', damage, result };
 }

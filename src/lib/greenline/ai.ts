@@ -337,6 +337,67 @@ export class AiDriver {
 		return false;
 	}
 
+	/**
+	 * Should this vehicle POP its Energy Shield now? A panic button: raise it
+	 * when hurt AND a threat is near, so the fixed absorb pool soaks the incoming
+	 * burst. Deliberately NOT gated on isDisrupted — being disrupted (and thus
+	 * about to eat follow-up damage) is exactly when you want the bubble up.
+	 */
+	wantsShield(
+		self: Combatant,
+		others: Combatant[],
+		slot: WeaponSlotId,
+		def: WeaponDef,
+		t: AiTuning,
+		nowMs: number,
+		cooldownScale = 1
+	): boolean {
+		if (nowMs < this.nextSlotOkMs[slot]) return false;
+		if (!def.shield) return false;
+		if (!self.combat.canUseSlot(slot, nowMs, def.cooldownSec * cooldownScale)) return false;
+		// Only worth a slot of cooldown when the chassis is already bitten into.
+		const chassisFrac = self.combat.chassisHealth / Math.max(1, self.combat.maxChassis);
+		if (chassisFrac > 0.55) return false;
+		const aggr = Math.max(0, Math.min(1, t.aggression));
+		const threatRange = 22 + 16 * aggr;
+		for (const o of others) {
+			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
+			const dx = o.x - self.x;
+			const dz = o.z - self.z;
+			if (dx * dx + dz * dz <= threatRange * threatRange) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Should this vehicle SPIN UP its Deployable Blades now? Toggle them out when
+	 * a rival is close enough that contact is likely, so the active window is not
+	 * wasted spinning in open air. Same restraint pattern as the fired tools.
+	 */
+	wantsBlades(
+		self: Combatant,
+		others: Combatant[],
+		slot: WeaponSlotId,
+		def: WeaponDef,
+		t: AiTuning,
+		nowMs: number,
+		cooldownScale = 1
+	): boolean {
+		if (nowMs < this.nextSlotOkMs[slot]) return false;
+		if (self.combat.isDisrupted(nowMs)) return false;
+		if (!def.melee) return false;
+		if (!self.combat.canUseSlot(slot, nowMs, def.cooldownSec * cooldownScale)) return false;
+		const aggr = Math.max(0, Math.min(1, t.aggression));
+		const range = 7 + 6 * aggr;
+		for (const o of others) {
+			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
+			const dx = o.x - self.x;
+			const dz = o.z - self.z;
+			if (dx * dx + dz * dz <= range * range) return true;
+		}
+		return false;
+	}
+
 	/** Slot twin of scheduleNextUse: cooldown + aggression-scaled delay. */
 	scheduleSlotUse(slot: WeaponSlotId, nowMs: number, cooldownSec: number, t: AiTuning): void {
 		const aggr = Math.max(0, Math.min(1, t.aggression));

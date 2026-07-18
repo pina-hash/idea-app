@@ -37,6 +37,9 @@
 		splitPools,
 		TETHER_SLACK_DIST,
 		tetherStatus,
+		tryActivateShield,
+		tryBladeStrike,
+		tryDeployBlades,
 		tryDeployCaltrops,
 		tryDeployOil,
 		tryFire,
@@ -47,6 +50,7 @@
 		updateCaltropFields,
 		updateOilSlicks,
 		updateProjectiles,
+		updateTurret,
 		updateWeaponLock,
 		VehicleCombat,
 		WEAPON_NONE,
@@ -352,6 +356,10 @@
 		ready: number;
 		offline: boolean;
 		lock: { progress: number; locked: boolean } | null;
+		/** Shield/blades currently deployed (an active timed window). */
+		active?: boolean;
+		/** Passive weapon (Radar Jammer): always on, no cooldown/trigger. */
+		passive?: boolean;
 	}
 	// Pre-mount HUD placeholders: the default budget through the neutral split.
 	const initPools = splitPools(COMBAT_DEFAULTS.maxHealth);
@@ -368,6 +376,8 @@
 		oiled: false,
 		tethered: false,
 		downLeft: 0,
+		/** Energy Shield absorb fraction (0 = inactive, else 0..1 of the pool). */
+		shieldPct: 0,
 		ready: { emp: 0, oil: 0, tether: 0, ram: 0 },
 		/** Equipped-weapon cells (primary always; secondary only when equipped). */
 		slots: [] as SlotHudCell[]
@@ -2232,6 +2242,12 @@
 					c.resist.oilSlip = s.oilSlipTaken;
 					c.resist.impactDamage = s.impactDamageTaken;
 					c.resist.spinKick = s.spinKickTaken;
+					// Radar Jammer is passive: always active while equipped in EITHER
+					// slot (no trigger, no mount-death gate), so its lock-rate penalty
+					// lives on combat state like the resist mods. 1 = no jammer.
+					const jam =
+						weaponById(l.parts.weaponPrimary)?.jammer ?? weaponById(l.parts.weaponSecondary)?.jammer;
+					c.jammerLockMul = jam ? jam.lockRateMul : 1;
 					// Reconcile the bodywork with the rescaled pools: an archetype
 					// rebuild starts pristine, a same-archetype tweak keeps its
 					// battle damage. Quiet, no burst FX.
@@ -2252,9 +2268,9 @@
 				// systems 5), so combat testing runs against both weapons and
 				// against a rocket-primary build.
 				const AI_WEAPONS: [string, string][] = [
-					['railgun', 'shotgun-burst'], // armor (4): 3 + 1
-					['autocannon', 'shotgun-burst'], // velocity (2): 1 + 1
-					['cluster-missile', 'caltrops'], // handling (4): 3 + 1
+					['auto-turret', 'deployable-blades'], // armor (4): 2 + 2
+					['radar-jammer', 'shotgun-burst'], // velocity (2): 1 + 1
+					['energy-shield', 'caltrops'], // handling (4): 3 + 1
 					['railgun', 'homing-rocket'] // systems (5): 3 + 2
 				];
 				const aiLoadoutFor = (k: number): Loadout => {
@@ -2765,8 +2781,8 @@
 				// Weapon "fire" counts every triggered use; "hit" counts uses that
 				// landed at least one target (oil "hit" = a rival consumed a slick).
 				const testStats = {
-					fire: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0, railgun: 0, shotgun: 0, cluster: 0, caltrops: 0 },
-					hit: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0, railgun: 0, shotgun: 0, cluster: 0, clusterSplash: 0, caltrops: 0 },
+					fire: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0, railgun: 0, shotgun: 0, cluster: 0, caltrops: 0, turret: 0, shield: 0, blades: 0 },
+					hit: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0, railgun: 0, shotgun: 0, cluster: 0, clusterSplash: 0, caltrops: 0, turret: 0, blades: 0, shieldBreak: 0 },
 					ram: 0,
 					flips: 0,
 					flipsByRig: {} as Record<string, number>
@@ -2779,6 +2795,8 @@
 					testStats.fire.railgun = testStats.fire.shotgun = testStats.fire.cluster = testStats.fire.caltrops = 0;
 					testStats.hit.railgun = testStats.hit.shotgun = testStats.hit.cluster = 0;
 					testStats.hit.clusterSplash = testStats.hit.caltrops = 0;
+					testStats.fire.turret = testStats.fire.shield = testStats.fire.blades = 0;
+					testStats.hit.turret = testStats.hit.blades = testStats.hit.shieldBreak = 0;
 					testStats.ram = 0;
 					testStats.flips = 0;
 					testStats.flipsByRig = {};
@@ -2833,6 +2851,21 @@
 					srcZ: number
 				) => {
 					if (res.outcome === 'ignored') return;
+					// Energy Shield feedback: a soaked hit pings the bubble; the
+					// pool emptying is the loud, legible "SHIELD DOWN" break moment.
+					if (res.shield > 0) {
+						const tp = target.body.position;
+						spawnSparks(tp.x, tp.y + 0.6, tp.z, 6, 0x6fd3ff, 6, 260);
+					}
+					if (res.shieldBroke) {
+						const tp = target.body.position;
+						spawnRing(tp.x, tp.z, 0x6fd3ff, 4.4, 380, 0.6, 1.0);
+						spawnSparks(tp.x, tp.y + 0.6, tp.z, 20, 0x6fd3ff, 11, 480);
+						weaponSfx('shield-break', tp.x, tp.z);
+						testStats.hit.shieldBreak++;
+						if (target === player) addTrauma(0.4);
+						flash(target === player ? 'SHIELD DOWN — exposed' : `${target.label} SHIELD DOWN`);
+					}
 					if (res.armor > 0 || res.armorStripped) syncArmorPlates(target, srcX, srcZ);
 					if (res.armorStripped) {
 						const p = target.body.position;
@@ -3135,6 +3168,13 @@
 						| 'cluster-hit'
 						| 'caltrops-deploy'
 						| 'caltrops-hit'
+						| 'turret-fire'
+						| 'turret-hit'
+						| 'shield-up'
+						| 'shield-break'
+						| 'blade-deploy'
+						| 'blade-hit'
+						| 'jammer-hum'
 						| 'lock-on'
 						| 'no-lock',
 					x?: number,
@@ -3165,6 +3205,20 @@
 						audioEngine.playTone('weapons', { freq: 620, durationMs: 120, type: 'square', gain: 0.16, pitchJitter: [0.85, 1.15], position: pos });
 					else if (kind === 'caltrops-hit')
 						audioEngine.playTone('impacts', { freq: 340, durationMs: 60, type: 'square', gain: 0.15, pitchJitter: [0.9, 1.1], position: pos });
+					else if (kind === 'turret-fire')
+						audioEngine.playTone('weapons', { freq: 560, durationMs: 55, type: 'square', gain: 0.13, pitchJitter: [0.9, 1.12], position: pos });
+					else if (kind === 'turret-hit')
+						audioEngine.playTone('impacts', { freq: 240, durationMs: 70, type: 'triangle', gain: 0.14, pitchJitter: [0.9, 1.1], position: pos });
+					else if (kind === 'shield-up')
+						audioEngine.playTone('ui', { freq: 320, durationMs: 260, type: 'sine', gain: 0.2, pitchJitter: [1.0, 1.4] });
+					else if (kind === 'shield-break')
+						audioEngine.playTone('impacts', { freq: 150, durationMs: 300, type: 'sawtooth', gain: 0.3, pitchJitter: [0.7, 0.95], position: pos });
+					else if (kind === 'blade-deploy')
+						audioEngine.playTone('weapons', { freq: 420, durationMs: 240, type: 'sawtooth', gain: 0.18, pitchJitter: [1.0, 1.6] });
+					else if (kind === 'blade-hit')
+						audioEngine.playTone('impacts', { freq: 300, durationMs: 80, type: 'sawtooth', gain: 0.18, pitchJitter: [0.85, 1.2], position: pos });
+					else if (kind === 'jammer-hum')
+						audioEngine.playTone('ambient', { freq: 70, durationMs: 900, type: 'sine', gain: 0.05, pitchJitter: [0.97, 1.03] });
 					else if (kind === 'lock-on')
 						audioEngine.playTone('ui', { freq: 880, durationMs: 90, type: 'sine', gain: 0.14 });
 					else audioEngine.playTone('ui', { freq: 220, durationMs: 120, type: 'sine', gain: 0.12 });
@@ -3279,6 +3333,11 @@
 				scene.add(lockRing);
 				// Rising-edge memory for the player's lock-complete cue.
 				let playerLockedPrev = false;
+				// Radar Jammer character: a soft continuous low hum while the PLAYER
+				// carries one (passive, so there is no fire/impact cue). Re-emitted on
+				// an interval since the placeholder tones are one-shots; player-only so
+				// an AI field of jammers is not a cacophony.
+				let lastJammerHumMs = 0;
 
 				// Fire the equipped weapon in a slot. Returns true when a shot /
 				// launch actually happened (cooldown spent).
@@ -3391,8 +3450,61 @@
 						if (shooter === player) flash('CALTROPS DEPLOYED');
 						return true;
 					}
-					// Catalog entry without fire logic yet (Phase 4b): no-op.
+					if (def.category === 'defensive' && def.shield) {
+						// Energy Shield: raise the hard absorb bubble.
+						if (!tryActivateShield(combatantOf(shooter), slot, def, now, opts)) return false;
+						testStats.fire.shield++;
+						weaponSfx('shield-up', sp.x, sp.z);
+						spawnRing(sp.x, sp.z, 0x6fd3ff, 3.6, 340, 0.5, 0.9);
+						if (shooter === player) flash('SHIELD UP');
+						return true;
+					}
+					if (def.category === 'melee' && def.melee) {
+						// Deployable Blades: toggle the active contact-damage window.
+						if (!tryDeployBlades(combatantOf(shooter), slot, def, now, opts)) return false;
+						testStats.fire.blades++;
+						weaponSfx('blade-deploy', sp.x, sp.z);
+						spawnRing(sp.x, sp.z, 0xffb347, 2.6, 260, 0.4, 0.7);
+						if (shooter === player) flash('BLADES OUT');
+						return true;
+					}
+					// Passive / auto weapons never fire from the trigger: the Radar
+					// Jammer works just by being equipped, the Auto-Turret fires
+					// itself in the per-frame turret tick. A fire press on them is a
+					// harmless no-op (no cost spent).
 					return false;
+				};
+
+				// Resolve one collision contact for the attacker's Deployable Blades.
+				// Driven off the SAME contact queue the ram uses, but tryBladeStrike
+				// has none of ram's gating: blades out + any contact = damage, per-
+				// victim throttled so a grinding scrape does not machine-gun.
+				const bladeContact = (attacker: Rig, victim: Rig, now: number) => {
+					const slot = WEAPON_SLOTS.find(
+						(sl) => weaponById(attacker.weapons[sl])?.category === 'melee'
+					);
+					if (!slot) return;
+					const def = weaponById(attacker.weapons[slot]);
+					if (!def) return;
+					const res = tryBladeStrike(
+						combatantOf(attacker),
+						combatantOf(victim),
+						def,
+						mode,
+						combatTuning(),
+						now,
+						{ damageScale: attacker.buildStats.damageDealt }
+					);
+					if (!res.struck) return;
+					testStats.hit.blades++;
+					const vp = victim.body.position;
+					victim.flashUntil = now + 130;
+					const a = hitAnchor(victim, attacker.body.position.x, attacker.body.position.z, res.result.zone);
+					spawnSparks(a.x, a.y + 0.2, a.z, 10, 0xffd27f, 9, 300);
+					weaponSfx('blade-hit', vp.x, vp.z);
+					if (victim === player) addTrauma(0.16);
+					else if (attacker === player) flash(`BLADES HIT ${victim.label} -${res.damage}`);
+					afterDamage(victim, res.result, attacker.label, attacker.body.position.x, attacker.body.position.z);
 				};
 				// On spawn and every reset, NO throttle/steer/brake/weapon input
 				// registers for ANY vehicle (player or AI) until GO. Physics stays
@@ -3666,6 +3778,24 @@
 					},
 					getProjectiles: () => projectiles.map((p) => ({ ...p })),
 					getCaltrops: () => caltropFields.map((f) => ({ ...f, nextHitMs: { ...f.nextHitMs } })),
+					// Defensive-weapon state for the 4b-ii verification drives: shield
+					// pool + active window, blades active window, and the jammer's
+					// lock-rate multiplier applied against this vehicle.
+					getDefense: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						const c = r.combat;
+						const nowMs = performance.now();
+						return {
+							shieldActive: c.shieldActive(nowMs),
+							shieldHealth: c.shieldHealth,
+							maxShield: c.maxShield,
+							shieldMsLeft: Math.max(0, c.shieldUntilMs - nowMs),
+							bladesActive: c.bladesActive(nowMs),
+							bladesMsLeft: Math.max(0, c.bladesUntilMs - nowMs),
+							jammerLockMul: c.jammerLockMul
+						};
+					},
 					getBuildStats: (rigId = 'player') =>
 						rigsAll().find((q) => q.id === rigId)?.buildStats ?? null,
 					getMode: () => mode,
@@ -4258,13 +4388,22 @@
 								if (!def) continue;
 								// A guided weapon only launches off a COMPLETE lock.
 								if (def.guided && !(rig.locks[slot] && rig.locks[slot].progress >= 1)) continue;
+								// The Auto-Turret fires itself in the turret tick and the
+								// Radar Jammer is passive: neither has an AI fire decision.
+								if (def.category === 'turret' || (def.category === 'defensive' && def.jammer))
+									continue;
 								const cdScale = rig.buildStats.weaponCooldown;
-								// Area weapons (caltrops) have no aim cone, so they use the
-								// drop-behind decision; everything else aims forward.
-								const want =
-									def.category === 'area'
-										? rig.ai.wantsAreaDrop(self, combatants, slot, def, aiT, now, cdScale)
-										: rig.ai.wantsWeaponFire(self, combatants, slot, def, aiT, now, cdScale);
+								// Pick the decision by shape: area weapons drop behind,
+								// blades toggle when a rival is close, the shield is a panic
+								// button, everything else aims its forward cone.
+								let want: boolean;
+								if (def.category === 'area')
+									want = rig.ai.wantsAreaDrop(self, combatants, slot, def, aiT, now, cdScale);
+								else if (def.category === 'melee')
+									want = rig.ai.wantsBlades(self, combatants, slot, def, aiT, now, cdScale);
+								else if (def.category === 'defensive' && def.shield)
+									want = rig.ai.wantsShield(self, combatants, slot, def, aiT, now, cdScale);
+								else want = rig.ai.wantsWeaponFire(self, combatants, slot, def, aiT, now, cdScale);
 								if (!want) continue;
 								if (performWeaponFire(rig, slot)) {
 									rig.ai.scheduleSlotUse(slot, now, def.cooldownSec * cdScale, aiT);
@@ -4283,6 +4422,40 @@
 								if (res.fired) rig.ai.scheduleNextUse('tether', now, rct.tetherCooldownSec, aiT);
 							} else if (rig.ai.wantsOil(self, combatants, rct, aiT, now)) {
 								if (performOil(rig)) rig.ai.scheduleNextUse('oil', now, rct.oilCooldownSec, aiT);
+							}
+						}
+						// Auto-Turret: every vehicle carrying one auto-fires on its own
+						// cooldown at the nearest target in the 360-minus-blind-arc ring. No
+						// trigger, no aim, no AI decision - player and AI tick the identical
+						// check; the forward blind arc is the vehicle's own chassis.
+						for (let ri = 0; ri < all.length; ri++) {
+							const rig = all[ri];
+							if (rig.combat.isOut(now)) continue;
+							for (const slot of WEAPON_SLOTS) {
+								const def = weaponById(rig.weapons[slot]);
+								if (def?.category !== 'turret') continue;
+								const res = updateTurret(combatants[ri], combatants, slot, def, mode, ct, now, {
+									damageScale: rig.buildStats.damageDealt,
+									cooldownScale: rig.buildStats.weaponCooldown
+								});
+								if (!res.fired) continue;
+								testStats.fire.turret++;
+								const sp = rig.body.position;
+								spawnSparks(sp.x + rig.hx * 1.2, sp.y + 0.7, sp.z + rig.hz * 1.2, 3, 0xffe0a0, 8, 160);
+								weaponSfx('turret-fire', sp.x, sp.z);
+								if (res.hit) {
+									const hit = res.hit;
+									testStats.hit.turret++;
+									const target = all.find((r) => r.id === hit.targetId);
+									if (target) {
+										target.flashUntil = now + 110;
+										const a = hitAnchor(target, sp.x, sp.z, hit.result.zone);
+										spawnSparks(a.x, a.y + 0.2, a.z, 6, GL.amberWarm, 7, 260);
+										weaponSfx('turret-hit', a.x, a.z);
+										if (target === player) addTrauma(0.08);
+										afterDamage(target, hit.result, rig.label, sp.x, sp.z);
+									}
+								}
 							}
 						}
 					}
@@ -4356,6 +4529,12 @@
 							// eats armor, a punted tail eats the mount.
 							afterDamage(a, res.resultA, b.label, b.body.position.x, b.body.position.z);
 							afterDamage(b, res.resultB, a.label, a.body.position.x, a.body.position.z);
+						}
+						// Deployable Blades run over the SAME contacts, both directions
+						// (either car may have blades out), with their own lenient gating.
+						for (const pr of pendingRams) {
+							bladeContact(pr.a, pr.b, now);
+							bladeContact(pr.b, pr.a, now);
 						}
 						pendingRams = [];
 					}
@@ -4828,16 +5007,36 @@
 							const def = weaponById(player.weapons[slot]);
 							if (!def) continue;
 							const lock = player.locks[slot];
+							const active = def.shield
+								? player.combat.shieldActive(now)
+								: def.melee
+									? player.combat.bladesActive(now)
+									: false;
 							cells.push({
 								slot,
 								short: def.shortName,
 								key: `${keyLabel(controlSettings.keyboard[slot === 'weaponPrimary' ? 'fireWeaponPrimary' : 'fireWeaponSecondary'])}`,
 								ready: slotCooldownRemaining(player.combat, slot, effSlotCooldown(player, def.cooldownSec), now),
 								offline: player.combat.mountDown,
-								lock: lock ? { progress: lock.progress, locked: lock.progress >= 1 } : null
+								lock: lock ? { progress: lock.progress, locked: lock.progress >= 1 } : null,
+								active,
+								passive: !!def.jammer
 							});
 						}
 						chud.slots = cells;
+						chud.shieldPct = player.combat.shieldActive(now)
+							? player.combat.shieldHealth / Math.max(1, player.combat.maxShield)
+							: 0;
+					}
+					// Passive jammer hum (player only), re-armed on its interval.
+					{
+						const hasJammer = WEAPON_SLOTS.some(
+							(sl) => weaponById(player.weapons[sl])?.jammer
+						);
+						if (hasJammer && !player.combat.isOut(now) && now - lastJammerHumMs > 1200) {
+							lastJammerHumMs = now;
+							weaponSfx('jammer-hum');
+						}
 					}
 					// Lock reticle on the player's locked target (primary slot wins
 					// the ring if both somehow hold guided locks), plus the one-time
@@ -5040,6 +5239,7 @@
 				{#if chud.mountDown && chud.status !== 'ELIMINATED'}<span class="gl-st gl-st-weapon">WEAPON DOWN</span>{/if}
 				{#if chud.oiled}<span class="gl-st gl-st-oiled">OILED</span>{/if}
 				{#if chud.tethered}<span class="gl-st gl-st-tether">TETHERED</span>{/if}
+				{#if chud.shieldPct > 0}<span class="gl-st gl-st-shield">SHIELD {Math.round(chud.shieldPct * 100)}%</span>{/if}
 				{#if hud.offTrack}<span class="gl-st gl-st-offtrack">OFF TRACK</span>{/if}
 				{#each chud.slots.filter((w) => w.lock) as w (w.slot)}
 					{#if w.lock?.locked}
@@ -5058,18 +5258,24 @@
 						class:offline={w.offline}
 						class:locking={!w.offline && !!w.lock && !w.lock.locked}
 						class:locked={!w.offline && !!w.lock?.locked}
+						class:active={!w.offline && w.active}
+						class:passive={w.passive}
 					>
 						<span class="gl-wname">{w.short}</span>
 						<span class="gl-wstate"
-							>{w.offline
-								? 'OFFLINE'
-								: w.ready > 0
-									? `${w.ready.toFixed(1)}s`
-									: w.lock
-										? w.lock.locked
-											? 'LOCKED'
-											: `LOCK ${Math.round(w.lock.progress * 100)}%`
-										: 'READY'}</span
+							>{w.passive
+								? 'ON'
+								: w.active
+									? 'ACTIVE'
+									: w.offline
+										? 'OFFLINE'
+										: w.ready > 0
+											? `${w.ready.toFixed(1)}s`
+											: w.lock
+												? w.lock.locked
+													? 'LOCKED'
+													: `LOCK ${Math.round(w.lock.progress * 100)}%`
+												: 'READY'}</span
 						>
 						<span class="gl-wkey">{w.key}</span>
 					</div>
@@ -5383,6 +5589,11 @@
 		color: #c9a15f;
 		border-color: rgba(201, 161, 95, 0.55);
 	}
+	.gl-st-shield {
+		color: #052b16;
+		background: #6fd3ff;
+		border-color: #bfeeff;
+	}
 	/* Up to six cells now (primary + secondary + the four fixed tools):
 	   three per row keeps every cell readable at the same width. */
 	.gl-weapons {
@@ -5431,6 +5642,20 @@
 	}
 	.gl-wcell.locked .gl-wstate {
 		color: var(--glb-green-ui);
+	}
+	/* Shield/blades deployed (an active timed window) reads cyan; a passive
+	   jammer reads a steady dim on-state (no cooldown, no trigger). */
+	.gl-wcell.active {
+		border-color: rgba(111, 211, 255, 0.7);
+	}
+	.gl-wcell.active .gl-wstate {
+		color: #6fd3ff;
+	}
+	.gl-wcell.passive {
+		border-color: rgba(120, 165, 205, 0.4);
+	}
+	.gl-wcell.passive .gl-wstate {
+		color: #9cc4e8;
 	}
 	.gl-st-locking {
 		color: #9cc4e8;
