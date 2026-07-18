@@ -17,6 +17,8 @@
  * acceleration and cornering through the same physics.
  */
 
+import type { PoolSplit } from './combat';
+
 /** The stat surface parts may touch. Multipliers, neutral = 1. */
 export type StatKey =
 	// Drive / physics (applied over the tuning panel values per vehicle)
@@ -52,6 +54,14 @@ export interface Archetype {
 	/** One-line identity for the garage card. */
 	role: string;
 	effects: StatEffects;
+	/**
+	 * How this archetype's TOTAL durability budget (the maxHealth multiplier
+	 * over the tuning baseline) splits across the three damage pools: armor
+	 * (front/side shield), chassis (the life), mount (rear shield / weapon
+	 * systems). Fractions sum to 1; the split is archetype identity, so parts
+	 * scale the total but never reshape it.
+	 */
+	pools: PoolSplit;
 }
 
 export interface VehiclePart {
@@ -85,7 +95,11 @@ export const ARCHETYPES: Archetype[] = [
 			spinKickTaken: 0.8,
 			maxSteer: 0.88,
 			aeroDrag: 1.08
-		}
+		},
+		// Plating IS the identity: the deepest armor wall on the field over
+		// the biggest chassis. Its mount is ordinary, so the rear stays the
+		// honest way to hurt a juggernaut.
+		pools: { armor: 0.4, chassis: 0.45, mount: 0.15 }
 	},
 	{
 		id: 'velocity',
@@ -97,7 +111,10 @@ export const ARCHETYPES: Archetype[] = [
 			chassisMass: 0.85,
 			maxHealth: 0.7,
 			impactDamageTaken: 1.15
-		}
+		},
+		// Stripped for speed: token plating and a bare mount; most of its
+		// small budget is raw frame, so nearly every hit bleeds real life.
+		pools: { armor: 0.2, chassis: 0.65, mount: 0.15 }
 	},
 	{
 		id: 'handling',
@@ -111,7 +128,10 @@ export const ARCHETYPES: Archetype[] = [
 			suspensionStiffness: 1.15,
 			maxHealth: 0.9,
 			engineForce: 0.95
-		}
+		},
+		// The baseline split (DEFAULT_POOL_SPLIT mirrors it): no pool bias,
+		// character comes from the chassis stats.
+		pools: { armor: 0.3, chassis: 0.55, mount: 0.15 }
 	},
 	{
 		id: 'systems',
@@ -125,7 +145,13 @@ export const ARCHETYPES: Archetype[] = [
 			maxHealth: 0.85,
 			engineForce: 0.92,
 			aeroDrag: 1.05
-		}
+		},
+		// "Systems" reads as a REINFORCED mount, not a fragile one: the role
+		// text already says hardened electronics / weak hull, so the warlock
+		// protects its weapons above all (hardest vehicle to disarm by rear
+		// shots) and pays with thin plating over a brittle frame -- silence
+		// it the hard way or just break it.
+		pools: { armor: 0.22, chassis: 0.5, mount: 0.28 }
 	}
 ];
 

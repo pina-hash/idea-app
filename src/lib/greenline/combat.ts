@@ -1,8 +1,9 @@
 /**
- * GREENLINE combat: health, damage, disruption states, and the disruption
- * weapon. Pure logic (no three.js, no cannon-es, no Svelte), usable by ANY
- * vehicle: the player, the scripted dummy, and future AI each own a
- * `VehicleCombat` and fire through `tryFire` with themselves as the shooter.
+ * GREENLINE combat: zoned three-pool health (armor / chassis / mount),
+ * damage routing, disruption states, and the disruption weapons. Pure logic
+ * (no three.js, no cannon-es, no Svelte), usable by ANY vehicle: the player,
+ * the scripted dummy, and future AI each own a `VehicleCombat` and fire
+ * through `tryFire` with themselves as the shooter.
  * The harness owns physics and visuals; it turns the facts returned here
  * (fire results, drive modifiers, recovery events) into forces, HUD, and
  * flashes. New weapon types slot in as new fire functions over the same
@@ -15,6 +16,8 @@ export type GreenlineMode = 'race' | 'elimination';
 export type WeaponId = 'emp' | 'oil' | 'tether' | 'ram';
 
 export interface CombatTuning {
+	/** TOTAL durability budget, split into armor/chassis/mount by the
+	 * vehicle's archetype pool split (see splitPools / loadout pools). */
 	maxHealth: number;
 	/** EMP burst: damage per hit. */
 	empDamage: number;
@@ -107,8 +110,112 @@ export const TETHER_SLACK_DIST = 7;
 /** Ram needs at least one vehicle hitting nose-first: heading dot >= this. */
 export const RAM_FRONTAL_COS = 0.45;
 
+// ---------------------------------------------------------------------------
+// Hit zones + the three health pools. WHERE a hit lands on the TARGET's own
+// body (relative to its facing, never the shooter's aim) decides which pool
+// takes it: front/side hits drain ARMOR first, rear hits drain the weapon
+// MOUNT first, and overflow from an emptied shield pool carries into CHASSIS
+// in the same hit. Chassis is the only "life": chassis zero is the one
+// down/elimination trigger, exactly where the flat pool's zero used to be.
+// ---------------------------------------------------------------------------
+
+/** Where a hit lands on the target's body, relative to its own facing. */
+export type HitZone = 'front' | 'side' | 'rear';
+
+/** cos(60 deg): a 120-degree nose arc classifies as 'front'. */
+export const ZONE_FRONT_COS = 0.5;
+/** cos(120 deg): a 120-degree tail arc classifies as 'rear'. */
+export const ZONE_REAR_COS = -0.5;
+
+/**
+ * Zone from dot(target unit heading, unit direction target -> attack source).
+ * The ram's frontality values are exactly this dot, so they feed in directly.
+ */
+export function zoneFromDot(towardSourceDot: number): HitZone {
+	if (towardSourceDot >= ZONE_FRONT_COS) return 'front';
+	if (towardSourceDot <= ZONE_REAR_COS) return 'rear';
+	return 'side';
+}
+
+/**
+ * Classify a hit from the attack's travel direction (source -> target, any
+ * length) and the target's unit heading. Facing-relative by construction:
+ * the same shot is front armor on a target facing the shooter and rear
+ * mount on one driving away.
+ */
+export function classifyHitZone(
+	travelX: number,
+	travelZ: number,
+	targetHx: number,
+	targetHz: number
+): HitZone {
+	const len = Math.hypot(travelX, travelZ);
+	if (len < 1e-6) return 'side';
+	return zoneFromDot(-(travelX * targetHx + travelZ * targetHz) / len);
+}
+
+/** Per-pool maximums for one vehicle. */
+export interface PoolMaxes {
+	armor: number;
+	chassis: number;
+	mount: number;
+}
+
+/** Fractions of a total durability budget, summing to 1 (archetype data). */
+export interface PoolSplit {
+	armor: number;
+	chassis: number;
+	mount: number;
+}
+
+/** Neutral split (the HANDLING baseline) for pool-less callers. */
+export const DEFAULT_POOL_SPLIT: PoolSplit = { armor: 0.3, chassis: 0.55, mount: 0.15 };
+
+/**
+ * Divide a total durability budget into the three pools. Chassis absorbs the
+ * rounding remainder so the pools always sum to the budget; every pool is at
+ * least 1 so a zero max can never divide-by-zero a fraction readout.
+ */
+export function splitPools(total: number, split: PoolSplit = DEFAULT_POOL_SPLIT): PoolMaxes {
+	const budget = Math.max(3, Math.round(total));
+	const armor = Math.max(1, Math.round(budget * split.armor));
+	const mount = Math.max(1, Math.round(budget * split.mount));
+	return { armor, mount, chassis: Math.max(1, budget - armor - mount) };
+}
+
 /** What applying damage did to the target. */
 export type DamageOutcome = 'damaged' | 'down' | 'eliminated' | 'ignored';
+
+/**
+ * Full outcome of one hit: which pool absorbed what, plus one-time edges
+ * (a pool crossing zero ON THIS HIT) so the harness can fire strip/disable
+ * feedback exactly once instead of polling pool state every frame.
+ */
+export interface DamageResult {
+	outcome: DamageOutcome;
+	zone: HitZone;
+	/** Damage each pool absorbed this hit (post-resist; overflow included). */
+	armor: number;
+	mount: number;
+	chassis: number;
+	/** Armor crossed to zero on this hit (plates gone, front/side now bleed through). */
+	armorStripped: boolean;
+	/** Mount crossed to zero on this hit (weapon systems offline until full heal). */
+	mountDisabled: boolean;
+	/** Chassis crossed to zero on this hit (equivalent to outcome down/eliminated). */
+	chassisDepleted: boolean;
+}
+
+const IGNORED_RESULT = (zone: HitZone): DamageResult => ({
+	outcome: 'ignored',
+	zone,
+	armor: 0,
+	mount: 0,
+	chassis: 0,
+	armorStripped: false,
+	mountDisabled: false,
+	chassisDepleted: false
+});
 
 /**
  * Per-vehicle incoming-effect multipliers, set by the loadout layer (neutral
@@ -129,15 +236,21 @@ export interface ResistMods {
 }
 
 /**
- * Per-vehicle combat state. Health, disruption, and the zero-health
- * consequence all live here so every vehicle behaves identically; nothing in
- * this class knows which vehicle is the player.
+ * Per-vehicle combat state. The three health pools, disruption, and the
+ * chassis-zero consequence all live here so every vehicle behaves
+ * identically; nothing in this class knows which vehicle is the player.
  */
 export class VehicleCombat {
 	readonly id: string;
-	health: number;
-	/** This vehicle's own health pool (builds change it per vehicle). */
-	maxHealth: number;
+	/** Front/side shield pool: absorbs nose and flank hits until stripped. */
+	armorHealth: number;
+	maxArmor: number;
+	/** The life pool: overflow and bare-zone hits land here; zero = down/out. */
+	chassisHealth: number;
+	maxChassis: number;
+	/** Rear shield pool: absorbs tail hits; zero = weapon systems offline. */
+	mountHealth: number;
+	maxMount: number;
 	/** Incoming-effect multipliers from the equipped build (neutral = 1). */
 	resist: ResistMods = { disruption: 1, oilSlip: 1, impactDamage: 1, spinKick: 1 };
 	eliminated = false;
@@ -150,21 +263,34 @@ export class VehicleCombat {
 	lastUseMs: Record<WeaponId, number> = { emp: -Infinity, oil: -Infinity, tether: -Infinity, ram: -Infinity };
 	lastDamageFrom: string | null = null;
 
-	constructor(id: string, maxHealth: number) {
+	constructor(id: string, pools: PoolMaxes) {
 		this.id = id;
-		this.health = maxHealth;
-		this.maxHealth = maxHealth;
+		this.armorHealth = pools.armor;
+		this.maxArmor = pools.armor;
+		this.chassisHealth = pools.chassis;
+		this.maxChassis = pools.chassis;
+		this.mountHealth = pools.mount;
+		this.maxMount = pools.mount;
 	}
 
-	reset(maxHealth: number): void {
-		this.health = maxHealth;
-		this.maxHealth = maxHealth;
+	reset(pools: PoolMaxes): void {
+		this.armorHealth = pools.armor;
+		this.maxArmor = pools.armor;
+		this.chassisHealth = pools.chassis;
+		this.maxChassis = pools.chassis;
+		this.mountHealth = pools.mount;
+		this.maxMount = pools.mount;
 		this.eliminated = false;
 		this.downUntilMs = 0;
 		this.disruptedUntilMs = 0;
 		this.oiledUntilMs = 0;
 		this.lastUseMs = { emp: -Infinity, oil: -Infinity, tether: -Infinity, ram: -Infinity };
 		this.lastDamageFrom = null;
+	}
+
+	/** Weapon systems offline: the rear mount pool has been destroyed. */
+	get mountDown(): boolean {
+		return this.mountHealth <= 0;
 	}
 
 	isDown(nowMs: number): boolean {
@@ -185,6 +311,12 @@ export class VehicleCombat {
 	}
 
 	canUse(weapon: WeaponId, nowMs: number, cooldownSec: number): boolean {
+		// A destroyed mount takes the three FIRED tools offline until the next
+		// full heal. The passive ram is deliberately exempt: it is nose-first
+		// chassis contact, not a mount system, and because tryRam requires
+		// canUse from BOTH vehicles, gating it here would make a mount-dead
+		// vehicle immune to ram damage.
+		if (this.mountDown && weapon !== 'ram') return false;
 		return !this.isOut(nowMs) && nowMs - this.lastUseMs[weapon] >= cooldownSec * 1000;
 	}
 
@@ -193,28 +325,61 @@ export class VehicleCombat {
 	}
 
 	/**
-	 * Apply damage from a source. THE MODE BRANCH LIVES HERE AND ONLY HERE:
-	 * the same damage path runs for both modes, and the single difference is
-	 * what zero health means -- RACE: a temporary "down" window (recovered by
-	 * `tick`, which restores full health); ELIMINATION: permanent removal.
+	 * Apply damage from a source, routed by hit zone: front/side drain armor
+	 * first, rear drains the mount first, and overflow past an emptied (or
+	 * already-empty) shield pool carries into chassis in the SAME hit, never
+	 * wasted. Resist multipliers stay applied to the raw amount at the call
+	 * sites (tryRam), before routing. THE MODE BRANCH LIVES HERE AND ONLY
+	 * HERE: chassis zero means RACE = a temporary "down" window (recovered by
+	 * `tick`, which restores all three pools); ELIMINATION = permanent
+	 * removal.
 	 */
 	applyDamage(
 		amount: number,
 		from: string,
 		mode: GreenlineMode,
 		tuning: CombatTuning,
-		nowMs: number
-	): DamageOutcome {
-		if (this.isOut(nowMs)) return 'ignored';
-		this.health = Math.max(0, this.health - amount);
+		nowMs: number,
+		zone: HitZone = 'front'
+	): DamageResult {
+		if (this.isOut(nowMs)) return IGNORED_RESULT(zone);
+		let remaining = Math.max(0, amount);
+		let armorTaken = 0;
+		let mountTaken = 0;
+		let armorStripped = false;
+		let mountDisabled = false;
+		if (zone === 'rear') {
+			if (this.mountHealth > 0 && remaining > 0) {
+				mountTaken = Math.min(this.mountHealth, remaining);
+				this.mountHealth -= mountTaken;
+				remaining -= mountTaken;
+				if (this.mountHealth <= 0) mountDisabled = true;
+			}
+		} else if (this.armorHealth > 0 && remaining > 0) {
+			armorTaken = Math.min(this.armorHealth, remaining);
+			this.armorHealth -= armorTaken;
+			remaining -= armorTaken;
+			if (this.armorHealth <= 0) armorStripped = true;
+		}
+		const chassisTaken = Math.min(this.chassisHealth, remaining);
+		this.chassisHealth -= chassisTaken;
 		this.lastDamageFrom = from;
-		if (this.health > 0) return 'damaged';
+		const base = {
+			zone,
+			armor: armorTaken,
+			mount: mountTaken,
+			chassis: chassisTaken,
+			armorStripped,
+			mountDisabled,
+			chassisDepleted: this.chassisHealth <= 0
+		};
+		if (this.chassisHealth > 0) return { outcome: 'damaged', ...base };
 		if (mode === 'race') {
 			this.downUntilMs = nowMs + tuning.downSec * 1000;
-			return 'down';
+			return { outcome: 'down', ...base };
 		}
 		this.eliminated = true;
-		return 'eliminated';
+		return { outcome: 'eliminated', ...base };
 	}
 
 	applyDisruption(tuning: CombatTuning, nowMs: number): void {
@@ -241,13 +406,16 @@ export class VehicleCombat {
 
 	/**
 	 * Per-frame upkeep. Returns 'recovered' once when a RACE down window
-	 * expires: health is restored to this vehicle's own full pool and the
-	 * vehicle may drive again.
+	 * expires: ALL THREE pools are restored to this vehicle's own full
+	 * values (the full heal is also what brings a destroyed mount back
+	 * online) and the vehicle may drive again.
 	 */
 	tick(nowMs: number): 'recovered' | null {
 		if (!this.eliminated && this.downUntilMs !== 0 && nowMs >= this.downUntilMs) {
 			this.downUntilMs = 0;
-			this.health = this.maxHealth;
+			this.armorHealth = this.maxArmor;
+			this.chassisHealth = this.maxChassis;
+			this.mountHealth = this.maxMount;
 			this.disruptedUntilMs = 0;
 			this.oiledUntilMs = 0;
 			return 'recovered';
@@ -291,7 +459,8 @@ export interface Combatant {
 export interface FireHit {
 	targetId: string;
 	damage: number;
-	outcome: DamageOutcome;
+	/** Zone-routed pool outcome of this hit (see DamageResult). */
+	result: DamageResult;
 	/** +1 / -1: which way the spin-out kick turns the target. */
 	spinSign: number;
 	dist: number;
@@ -328,13 +497,16 @@ export function tryFire(
 		const dist = Math.hypot(dx, dz);
 		if (dist > tuning.empRange) continue;
 		if (dist > 0.001 && (dx * shooter.hx + dz * shooter.hz) / dist < cosHalf) continue;
-		const outcome = t.combat.applyDamage(tuning.empDamage, shooter.id, mode, tuning, nowMs);
-		if (outcome === 'ignored') continue;
-		if (outcome === 'damaged') t.combat.applyDisruption(tuning, nowMs);
+		// The burst lands on whichever face of the TARGET points back at the
+		// shooter: classify off the target's own heading, not the aim cone.
+		const zone = classifyHitZone(dx, dz, t.hx, t.hz);
+		const result = t.combat.applyDamage(tuning.empDamage, shooter.id, mode, tuning, nowMs, zone);
+		if (result.outcome === 'ignored') continue;
+		if (result.outcome === 'damaged') t.combat.applyDisruption(tuning, nowMs);
 		hits.push({
 			targetId: t.id,
 			damage: tuning.empDamage,
-			outcome,
+			result,
 			spinSign: Math.sign(shooter.hx * dz - shooter.hz * dx) || 1,
 			dist
 		});
@@ -470,15 +642,24 @@ export function tryTether(
 		}
 	}
 	if (!best) return { fired: true, hit: null };
-	const outcome = best.combat.applyDamage(tuning.tetherDamage, shooter.id, mode, tuning, nowMs);
 	const dx = best.x - shooter.x;
 	const dz = best.z - shooter.z;
+	// The hook bites the face of the TARGET nearest the shooter.
+	const zone = classifyHitZone(dx, dz, best.hx, best.hz);
+	const result = best.combat.applyDamage(
+		tuning.tetherDamage,
+		shooter.id,
+		mode,
+		tuning,
+		nowMs,
+		zone
+	);
 	return {
 		fired: true,
 		hit: {
 			targetId: best.id,
 			damage: tuning.tetherDamage,
-			outcome,
+			result,
 			spinSign: Math.sign(shooter.hx * dz - shooter.hz * dx) || 1,
 			dist: bestDist
 		}
@@ -534,8 +715,8 @@ export interface RamResult {
 	/** Damage dealt to each side (already applied; per-vehicle armor scales it). */
 	damageA: number;
 	damageB: number;
-	outcomeA: DamageOutcome;
-	outcomeB: DamageOutcome;
+	resultA: DamageResult;
+	resultB: DamageResult;
 }
 
 export function tryRam(
@@ -548,8 +729,8 @@ export function tryRam(
 		triggered: false,
 		damageA: 0,
 		damageB: 0,
-		outcomeA: 'ignored',
-		outcomeB: 'ignored'
+		resultA: IGNORED_RESULT('front'),
+		resultB: IGNORED_RESULT('front')
 	};
 	if (ctx.closingSpeed < tuning.ramMinClosingSpeed) return none;
 	if (Math.max(ctx.frontalityA, ctx.frontalityB) < RAM_FRONTAL_COS) return none;
@@ -566,9 +747,27 @@ export function tryRam(
 	const violence = Math.min(1.6, Math.max(0.6, ctx.closingSpeed / (tuning.ramMinClosingSpeed * 2)));
 	const damageA = Math.round(tuning.ramDamage * violence * ctx.a.combat.resist.impactDamage);
 	const damageB = Math.round(tuning.ramDamage * violence * ctx.b.combat.resist.impactDamage);
-	const outcomeA = ctx.a.combat.applyDamage(damageA, ctx.b.id, mode, tuning, nowMs);
-	const outcomeB = ctx.b.combat.applyDamage(damageB, ctx.a.id, mode, tuning, nowMs);
-	if (outcomeA === 'damaged') ctx.a.combat.applyStun(tuning.ramStunSec, nowMs);
-	if (outcomeB === 'damaged') ctx.b.combat.applyStun(tuning.ramStunSec, nowMs);
-	return { triggered: true, damageA, damageB, outcomeA, outcomeB };
+	// The frontality dots ARE the toward-source dots each side needs (unit
+	// direction to the other vehicle vs own heading), so they classify the
+	// zone directly: a nose-first rammer takes it on the armor, the vehicle
+	// it punts in the tail takes it on the mount.
+	const resultA = ctx.a.combat.applyDamage(
+		damageA,
+		ctx.b.id,
+		mode,
+		tuning,
+		nowMs,
+		zoneFromDot(ctx.frontalityA)
+	);
+	const resultB = ctx.b.combat.applyDamage(
+		damageB,
+		ctx.a.id,
+		mode,
+		tuning,
+		nowMs,
+		zoneFromDot(ctx.frontalityB)
+	);
+	if (resultA.outcome === 'damaged') ctx.a.combat.applyStun(tuning.ramStunSec, nowMs);
+	if (resultB.outcome === 'damaged') ctx.b.combat.applyStun(tuning.ramStunSec, nowMs);
+	return { triggered: true, damageA, damageB, resultA, resultB };
 }

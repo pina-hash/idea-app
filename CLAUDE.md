@@ -1502,17 +1502,65 @@ on one side of the world.
   and a vehicle heading triangle fed by the physics loop (plus smaller amber
   markers for non-player vehicles).
 - **Combat scaffold:** `src/lib/greenline/combat.ts` is pure, vehicle-agnostic
-  logic (like the track runtime): `VehicleCombat` holds health / disruption /
-  oiled / down / eliminated state for ANY vehicle plus PER-WEAPON cooldowns
-  (`WeaponId = emp | oil | tether | ram`, `canUse`/`markUsed`), and `driveMods`
-  turns combat state into engine/steer/traction scaling. **The RACE vs
-  ELIMINATION zero-health branch lives in exactly one place,
+  logic (like the track runtime): `VehicleCombat` holds the three health pools
+  (armor / chassis / mount, see the zoned-damage bullet below) plus
+  disruption / oiled / down / eliminated state for ANY vehicle and PER-WEAPON
+  cooldowns (`WeaponId = emp | oil | tether | ram`, `canUse`/`markUsed`), and
+  `driveMods` turns combat state into engine/steer/traction scaling. **The
+  RACE vs ELIMINATION zero-chassis branch lives in exactly one place,
   `VehicleCombat.applyDamage`:** RACE = temporary down window then full-heal
-  (`tick` recovers), ELIMINATION = permanent removal. The harness runs the
-  player and every AI through one identical per-vehicle pipeline (controls ->
-  driveMods -> physics), shows a health bar + DISRUPTED/OILED/TETHERED/DOWN/
-  ELIMINATED HUD and an overhead bar on AIs, and has a MODE select + every
-  combat, weapon, and feedback number in the tuning panel.
+  (`tick` recovers, restoring all three pools), ELIMINATION = permanent
+  removal. The harness runs the player and every AI through one identical
+  per-vehicle pipeline (controls -> driveMods -> physics), shows a health bar
+  + DISRUPTED/OILED/TETHERED/DOWN/ELIMINATED HUD and an overhead bar on AIs,
+  and has a MODE select + every combat, weapon, and feedback number in the
+  tuning panel.
+- **Zoned three-pool damage (armor / chassis / mount).** WHERE a hit lands on
+  the TARGET's own body decides which pool takes it: `classifyHitZone`
+  (`combat.ts`) compares the attack's travel direction to the target's own
+  heading, never the shooter's aim (a 120 degree nose arc = `front`, a 120
+  degree tail arc = `rear`, the two remaining 60 degree wedges = `side`;
+  `tryRam` reuses its frontality dots as the zone dots via `zoneFromDot`, EMP
+  and tether classify at their hit point, oil deals no damage so it has no
+  zone). Routing: front/side drain ARMOR first, rear drains the weapon MOUNT
+  first, and overflow past an emptied (or already-empty) shield pool carries
+  into CHASSIS in the SAME hit, never wasted. Chassis is the only "life":
+  chassis zero is the sole down/elimination trigger, and resist multipliers
+  (`resist.impactDamage` etc.) still scale the raw amount before routing --
+  no new resist fields, the pool split itself is the new defensive dial. A
+  dead mount takes the three FIRED tools (EMP / oil / tether) offline via
+  `canUse` until the next full heal -- deliberately NOT the passive ram,
+  which is chassis contact and, since `tryRam` requires `canUse` from BOTH
+  sides, gating it would make a mount-dead vehicle ram-immune; ELIMINATION
+  has no mid-round heal, so a dead mount stays dead for that life by design.
+  `applyDamage` returns a `DamageResult` (outcome + zone + per-pool
+  absorption + one-time `armorStripped` / `mountDisabled` / `chassisDepleted`
+  edges) so the harness fires feedback off edges instead of polling pool
+  state. The split is ARCHETYPE identity (`Archetype.pools` in `loadout.ts`,
+  fractions of the total `maxHealth` budget; parts scale the total, never the
+  shape): ARMOR 40/45/15 (deepest wall, ordinary mount), VELOCITY 20/65/15
+  (token shields, mostly raw frame), HANDLING 30/55/15 (the neutral baseline,
+  mirrored by `DEFAULT_POOL_SPLIT`), SYSTEMS 22/50/28 (the "hardened
+  electronics" reading of the warlock: hardest mount to kill by rear shots,
+  paid for with thin plating over a brittle frame). Visual payoff in the
+  harness: armor plates visibly DETACH (nearest the hit first, so the
+  battered side goes bare) as the AGGREGATE armor pool empties -- one pool
+  per vehicle, deliberately not per-plate tracking -- exposing the hull; a
+  dead mount chars dark, sits askew, and sputters cool-rim sparks; chassis
+  keeps the existing scorch/crumple/smoke treatment; hit bursts anchor to the
+  struck zone (the mount socket itself for rear hits). Two NEW pooled
+  particle systems follow the spark/smoke cap discipline: low-poly DEBRIS
+  chunks (scripted ballistics + one damped ground bounce, never physics
+  bodies) on plate strips and heavy chassis bites, and TIRE DUST off the rear
+  wheels under slip/launch/oil (a second puff pool from the same factory as
+  the smoke pool, so dust emission can never evict a wreck's smoke column).
+  HUD: the primary bar, nameplates, and standings all stay CHASSIS; compact
+  ARM / MNT pips sit under the player bar, a dead mount reads as an amber
+  WEAPON DOWN chip + OFFLINE weapon cells (RAM stays ARMED), and AI overhead
+  bars gain a thin armor sliver + an amber weapons-offline dot. AI (`ai.ts`)
+  stays deliberately zone-unaware. Debug hooks: `__greenline.damage(id, amt,
+  zone?)`, `getPools(id)`, `setMode(m)`; `raceState` rigs carry
+  armor/mount/mountDown (`hp` stays chassis so the stress runner reads on).
 - **Four disruption tools,** consistent trigger/cooldown/HUD pattern, any
   vehicle can use any tool (loadouts come later): the forward **EMP burst**
   (`tryFire`, F / RB: cone + damage + disruption + spin kick), the **oil
@@ -1560,7 +1608,8 @@ on one side of the world.
   physically resist tether yanks / ram knockback / spin-outs (impulse over
   mass) and pay in acceleration and cornering. Wiring: per-rig
   `rig.buildStats` multiplies the physics pipeline (engine, brakes, drag,
-  steering, mass, grip, suspension, grass drag), `VehicleCombat.maxHealth` +
+  steering, mass, grip, suspension, grass drag), the `VehicleCombat` pool
+  maxes (the total budget split per archetype, see the zoned-damage bullet) +
   `VehicleCombat.resist` carry the defense side (consumed inside the pure
   combat functions; `tryRam` deals per-side damage through each receiver's
   impact resistance), and `ctFor(rig)` threads the offense side (damage out,

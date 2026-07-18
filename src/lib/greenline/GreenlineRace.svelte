@@ -33,6 +33,7 @@
 		COMBAT_DEFAULTS,
 		cooldownRemaining,
 		driveMods,
+		splitPools,
 		TETHER_SLACK_DIST,
 		tetherStatus,
 		tryDeployOil,
@@ -44,13 +45,16 @@
 		type ActiveTether,
 		type Combatant,
 		type CombatTuning,
-		type DamageOutcome,
+		type DamageResult,
 		type GreenlineMode,
-		type OilSlick
+		type HitZone,
+		type OilSlick,
+		type PoolMaxes
 	} from '$lib/greenline/combat';
 	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
 	import { NIGHT_ENV } from '$lib/greenline/environment';
 	import {
+		archetypeById,
 		defaultLoadout,
 		neutralStats,
 		parseLoadout,
@@ -96,11 +100,17 @@
 	 * same paths): EMP burst (F / RB), oil slick dropped behind (E / X),
 	 * tether yank at the nearest vehicle ahead (Q / LB), and the passive
 	 * shockwave ram that triggers on nose-first contact above a closing-speed
-	 * threshold. Combat facts live in $lib/greenline/combat.ts; this file owns
-	 * every force and all the feedback: trauma-based screen shake, spark and
-	 * smoke particle pools, escalating damage states on the bodywork (scorch
-	 * tint, crumpled hull vertices, rattled plates, hood smoke), oil puddles,
-	 * the live tether cable, the stun crackle ring, and ram shockwave rings.
+	 * threshold. Damage is ZONED off the TARGET's own facing into three pools
+	 * (front/side -> armor, rear -> mount, overflow -> chassis; chassis zero
+	 * is the down/elimination trigger and a dead mount takes the fired tools
+	 * offline until full heal). Combat facts live in $lib/greenline/combat.ts;
+	 * this file owns every force and all the feedback: trauma-based screen
+	 * shake, spark / smoke / debris-chunk / tire-dust particle pools,
+	 * zone-anchored hit bursts, armor plates that visibly strip off as the
+	 * armor pool empties, the dead sputtering mount, escalating damage states
+	 * on the bodywork (scorch tint, crumpled hull vertices, rattled plates,
+	 * hood smoke), oil puddles, the live tether cable, the stun crackle ring,
+	 * and ram shockwave rings.
 	 *
 	 * Bodywork: every vehicle composes four NAMED parts (chassis base, armor
 	 * plating, weapon-mount socket, wheels; see Rig.parts) proportioned and
@@ -270,9 +280,17 @@
 		bestMs: null as number | null,
 		offTrack: false
 	});
+	// Pre-mount HUD placeholders: the default budget through the neutral split.
+	const initPools = splitPools(COMBAT_DEFAULTS.maxHealth);
 	const chud = $state({
-		hp: COMBAT_DEFAULTS.maxHealth,
-		max: COMBAT_DEFAULTS.maxHealth,
+		/** Primary readout: CHASSIS, the life pool (armor/mount are shields). */
+		hp: initPools.chassis,
+		max: initPools.chassis,
+		armor: initPools.armor,
+		armorMax: initPools.armor,
+		mount: initPools.mount,
+		mountMax: initPools.mount,
+		mountDown: false,
 		status: '' as '' | 'DISRUPTED' | 'DOWN' | 'ELIMINATED',
 		oiled: false,
 		tethered: false,
@@ -1688,6 +1706,11 @@
 						group: InstanceType<typeof THREE.Group>;
 						fg: InstanceType<typeof THREE.Mesh>;
 						fgMat: InstanceType<typeof THREE.MeshBasicMaterial>;
+						/** Thin armor-pool sliver under the chassis fill. */
+						arm: InstanceType<typeof THREE.Mesh>;
+						armMat: InstanceType<typeof THREE.MeshBasicMaterial>;
+						/** Amber "weapon down" dot, visible while the mount is dead. */
+						mnt: InstanceType<typeof THREE.Mesh>;
 					} | null;
 					/** Resolved build multipliers (archetype x parts), neutral = 1. */
 					buildStats: ResolvedStats;
@@ -1699,8 +1722,16 @@
 					/** Cyan crackle ring shown while disrupted (inside carGroup). */
 					stunMat: InstanceType<typeof THREE.MeshBasicMaterial>;
 					stunRing: InstanceType<typeof THREE.Mesh>;
+					/** Per-rig weapon-mount material: chars dark while the mount pool
+					 * is dead (the shared mount material can never be tinted). */
+					mountMat: InstanceType<typeof THREE.MeshStandardMaterial>;
+					/** Mirrors combat.mountDown for the dead-mount visual state. */
+					mountDead: boolean;
 					smokeAcc: number;
 					dripAcc: number;
+					/** Tire dust: emission accumulator + which rear wheel puffs next. */
+					dustAcc: number;
+					dustWheel: number;
 					/** Velocity captured before world.step, for ram closing speed. */
 					preVx: number;
 					preVz: number;
@@ -2060,7 +2091,7 @@
 								: node.mat === 'canopy'
 									? canopyMat
 									: node.mat === 'mount'
-										? mountMat
+										? rig.mountMat
 										: rig.id === 'player'
 											? accentGreenMat
 											: accentSteelMat;
@@ -2093,16 +2124,30 @@
 				const makeBar = () => {
 					const group = new THREE.Group();
 					const bg = new THREE.Mesh(
-						new THREE.PlaneGeometry(2.4, 0.28),
+						new THREE.PlaneGeometry(2.4, 0.4),
 						new THREE.MeshBasicMaterial({ color: 0x070a0e, transparent: true, opacity: 0.8 })
 					);
+					// Primary fill = CHASSIS (the life pool the standings read too).
 					const fgMat = new THREE.MeshBasicMaterial({ color: GL.chromeMid });
 					const fg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.18), fgMat);
-					fg.position.z = 0.01;
+					fg.position.set(0, 0.06, 0.01);
+					// Thin cool-rim sliver under it = the ARMOR shield pool.
+					const armMat = new THREE.MeshBasicMaterial({ color: GL.coolRim });
+					const arm = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.06), armMat);
+					arm.position.set(0, -0.12, 0.01);
+					// Amber dot off the bar's right end: mount dead, weapons offline.
+					const mnt = new THREE.Mesh(
+						new THREE.PlaneGeometry(0.18, 0.18),
+						new THREE.MeshBasicMaterial({ color: GL.amber })
+					);
+					mnt.position.set(1.42, 0, 0.01);
+					mnt.visible = false;
 					group.add(bg);
 					group.add(fg);
+					group.add(arm);
+					group.add(mnt);
 					scene.add(group);
-					return { group, fg, fgMat };
+					return { group, fg, fgMat, arm, armMat, mnt };
 				};
 
 				const makeRig = (id: string, label: string, arch: ArchetypeId, spawn: RigSpawn): Rig => {
@@ -2151,6 +2196,9 @@
 						// reads flat black instead of banded chrome.
 						envMapIntensity: 1.35
 					});
+					// Per-rig mount material, cloned off the shared recipe, so a dead
+					// mount can char dark without touching every other rig's socket.
+					const rigMountMat = mountMat.clone();
 					// The named attachment groups buildRigVisual populates. Chassis
 					// and armor share the COM_DROP frame; the mount group takes the
 					// archetype's socket transform on build.
@@ -2201,7 +2249,7 @@
 						parts: { chassis: partChassis, armor: partArmor, mount: partMount, wheels: wheelMeshes },
 						visualArch: null,
 						wheelMeshes,
-						combat: new VehicleCombat(id, num(tuning.maxHealth, DEFAULTS.maxHealth)),
+						combat: new VehicleCombat(id, splitPools(num(tuning.maxHealth, DEFAULTS.maxHealth))),
 						tracker: new LapTracker(),
 						ai: null,
 						bar: null,
@@ -2211,8 +2259,12 @@
 						dentBase: new Float32Array(0),
 						stunMat,
 						stunRing,
+						mountMat: rigMountMat,
+						mountDead: false,
 						smokeAcc: 0,
 						dripAcc: 0,
+						dustAcc: 0,
+						dustWheel: 2,
 						preVx: 0,
 						preVz: 0,
 						flipAcc: 0,
@@ -2243,10 +2295,104 @@
 					return rig;
 				};
 
+				// ---- Zone-targeted damage dressing: strip plates, kill mounts ----
+				const tmpWorld = new THREE.Vector3();
+
+				// World-space anchor for a hit's feedback: the actual zone struck
+				// (nose, the flank facing the attacker, or the mount socket itself
+				// for rear hits), never the generic rig center.
+				const hitAnchor = (rig: Rig, srcX: number, srcZ: number, zone: HitZone) => {
+					const p = rig.body.position;
+					if (zone === 'front') {
+						return { x: p.x + rig.hx * 1.8, y: p.y + 0.5, z: p.z + rig.hz * 1.8 };
+					}
+					if (zone === 'rear') {
+						const mp = rig.parts.mount.getWorldPosition(tmpWorld);
+						return { x: mp.x, y: mp.y + 0.15, z: mp.z };
+					}
+					const px = -rig.hz;
+					const pz = rig.hx;
+					const side = (srcX - p.x) * px + (srcZ - p.z) * pz >= 0 ? 1 : -1;
+					return { x: p.x + px * side, y: p.y + 0.55, z: p.z + pz * side };
+				};
+
+				// Dead-mount visual state: the socket chars dark and sits knocked
+				// askew; the per-frame sputter sparks key off rig.mountDead.
+				const setMountDead = (rig: Rig, dead: boolean) => {
+					if (rig.mountDead === dead) return;
+					rig.mountDead = dead;
+					rig.mountMat.color.setHex(dead ? 0x0a0c0e : 0x1a2128);
+					rig.mountMat.roughness = dead ? 0.9 : 0.5;
+					rig.parts.mount.rotation.z = dead ? 0.22 : 0;
+				};
+
+				// Reconcile visible armor plates with the AGGREGATE armor pool (one
+				// pool per vehicle, deliberately not per-plate tracking): the plate
+				// count tracks the pool fraction, and each strip detaches the
+				// visible plate nearest the hit, so the battered side goes bare
+				// first and exposes the hull underneath. `silent` skips the burst
+				// FX for non-hit reconciles (garage swaps, heals).
+				const syncArmorPlates = (rig: Rig, hitX?: number, hitZ?: number, silent = false) => {
+					const plates = rig.parts.armor.children;
+					if (!plates.length) return;
+					const frac =
+						rig.combat.maxArmor > 0
+							? Math.max(0, rig.combat.armorHealth / rig.combat.maxArmor)
+							: 0;
+					const want = Math.ceil(frac * plates.length);
+					let visible = plates.filter((p) => p.visible);
+					while (visible.length > want) {
+						let pick = visible[visible.length - 1];
+						if (hitX !== undefined && hitZ !== undefined) {
+							let bd = Infinity;
+							for (const p of visible) {
+								const wp = p.getWorldPosition(tmpWorld);
+								const dd = (wp.x - hitX) ** 2 + (wp.z - hitZ) ** 2;
+								if (dd < bd) {
+									bd = dd;
+									pick = p;
+								}
+							}
+						}
+						pick.visible = false;
+						if (!silent) {
+							const wp = pick.getWorldPosition(tmpWorld);
+							const ox = wp.x - rig.body.position.x;
+							const oz = wp.z - rig.body.position.z;
+							const ol = Math.hypot(ox, oz) || 1;
+							spawnDebris(wp.x, wp.y, wp.z, 6, ox / ol, oz / ol, 6);
+							spawnSparks(wp.x, wp.y, wp.z, 10, 0xffb347, 8, 420);
+						}
+						visible = plates.filter((p) => p.visible);
+					}
+					for (const p of plates) {
+						if (visible.length >= want) break;
+						if (!p.visible) {
+							p.visible = true;
+							visible.push(p);
+						}
+					}
+				};
+
+				// Full-heal restore (RACE recovery, round reset): every plate back
+				// on, the mount back online. The pools themselves are the caller's.
+				const restoreRigCondition = (rig: Rig) => {
+					for (const p of rig.parts.armor.children) p.visible = true;
+					setMountDead(rig, false);
+				};
+
+				// A rig's per-pool maximums: the panel's TOTAL budget x the build's
+				// hull multiplier, split by the archetype's pool fractions.
+				const poolsForBuild = (arch: ArchetypeId, stats: ResolvedStats): PoolMaxes =>
+					splitPools(
+						num(tuning.maxHealth, DEFAULTS.maxHealth) * stats.maxHealth,
+						archetypeById(arch)?.pools
+					);
+
 				// Apply a resolved build to a rig: multipliers for the physics
-				// pipeline, the combat resistances, and this vehicle's own health
-				// pool (current health keeps its fraction, so a mid-run swap is
-				// honest rather than a free heal).
+				// pipeline, the combat resistances, and this vehicle's own three
+				// health pools (each pool keeps its damage FRACTION, so a mid-run
+				// swap is honest rather than a free heal; a dead pool stays dead).
 				const applyLoadoutToRig = (rig: Rig, l: Loadout) => {
 					const s = resolveLoadout(l);
 					rig.buildStats = s;
@@ -2254,18 +2400,27 @@
 					// Rebuild the bodywork when the archetype changes (live garage
 					// swaps included); parts never touch stats, so this is visual.
 					if (rig.visualArch !== l.archetype) buildRigVisual(rig, l.archetype);
-					const newMax = Math.max(
-						1,
-						Math.round(num(tuning.maxHealth, DEFAULTS.maxHealth) * s.maxHealth)
-					);
-					const frac =
-						rig.combat.maxHealth > 0 ? rig.combat.health / rig.combat.maxHealth : 1;
-					rig.combat.maxHealth = newMax;
-					rig.combat.health = Math.round(Math.min(1, Math.max(0, frac)) * newMax);
-					rig.combat.resist.disruption = s.disruptionTaken;
-					rig.combat.resist.oilSlip = s.oilSlipTaken;
-					rig.combat.resist.impactDamage = s.impactDamageTaken;
-					rig.combat.resist.spinKick = s.spinKickTaken;
+					const pools = poolsForBuild(l.archetype, s);
+					const c = rig.combat;
+					const rescale = (cur: number, max: number, newMax: number) => {
+						const frac = max > 0 ? Math.min(1, Math.max(0, cur / max)) : 1;
+						return frac <= 0 ? 0 : Math.max(1, Math.round(frac * newMax));
+					};
+					c.armorHealth = rescale(c.armorHealth, c.maxArmor, pools.armor);
+					c.chassisHealth = rescale(c.chassisHealth, c.maxChassis, pools.chassis);
+					c.mountHealth = rescale(c.mountHealth, c.maxMount, pools.mount);
+					c.maxArmor = pools.armor;
+					c.maxChassis = pools.chassis;
+					c.maxMount = pools.mount;
+					c.resist.disruption = s.disruptionTaken;
+					c.resist.oilSlip = s.oilSlipTaken;
+					c.resist.impactDamage = s.impactDamageTaken;
+					c.resist.spinKick = s.spinKickTaken;
+					// Reconcile the bodywork with the rescaled pools: an archetype
+					// rebuild starts pristine, a same-archetype tweak keeps its
+					// battle damage. Quiet, no burst FX.
+					syncArmorPlates(rig, undefined, undefined, true);
+					setMountDead(rig, c.mountHealth <= 0);
 				};
 
 				const player = makeRig('player', 'YOU', playerLoadout.archetype, slotPose(0));
@@ -2287,6 +2442,7 @@
 					// Per-rig GPU resources only; part geometries are shared.
 					r.bodyMesh.geometry.dispose();
 					r.bodyMat.dispose();
+					r.mountMat.dispose();
 					r.stunRing.geometry.dispose();
 					r.stunMat.dispose();
 					if (r.bar) scene.remove(r.bar.group);
@@ -2451,9 +2607,100 @@
 					sparkGeo.getAttribute('color').needsUpdate = true;
 				};
 
-				// ---- Smoke pool: billboarded sprites (normal blending, so dark
-				// smoke and oil drips actually read against the ground) ----
-				const SMOKE_CAP = 90;
+				// ---- Debris chunk pool: low-poly fragments for significant hits
+				// and part-strip moments. Scripted ballistics only (velocity +
+				// gravity + one damped ground bounce), never physics bodies;
+				// pooled and capped like the sparks. ----
+				const DEBRIS_CAP = 48;
+				const debrisGeo = new THREE.TetrahedronGeometry(0.13);
+				const debrisMats = [
+					new THREE.MeshStandardMaterial({ color: 0x6b7b88, metalness: 0.7, roughness: 0.45 }),
+					new THREE.MeshStandardMaterial({ color: 0x232a31, metalness: 0.4, roughness: 0.8 })
+				];
+				interface DebrisChunk {
+					mesh: InstanceType<typeof THREE.Mesh>;
+					vx: number;
+					vy: number;
+					vz: number;
+					rx: number;
+					rz: number;
+					born: number;
+					life: number;
+					size: number;
+				}
+				const debrisPool: DebrisChunk[] = [];
+				for (let i = 0; i < DEBRIS_CAP; i++) {
+					const mesh = new THREE.Mesh(debrisGeo, debrisMats[i % 2]);
+					mesh.visible = false;
+					scene.add(mesh);
+					debrisPool.push({ mesh, vx: 0, vy: 0, vz: 0, rx: 0, rz: 0, born: 0, life: 0, size: 1 });
+				}
+				let debrisCursor = 0;
+				// dirX/dirZ bias the scatter along the hit direction (unit-ish).
+				const spawnDebris = (
+					x: number,
+					y: number,
+					z: number,
+					count: number,
+					dirX = 0,
+					dirZ = 0,
+					speed = 7
+				) => {
+					const n = Math.max(1, Math.round(count * num(tuning.fxDensity, DEFAULTS.fxDensity)));
+					const now = performance.now();
+					for (let k = 0; k < n; k++) {
+						const d = debrisPool[debrisCursor];
+						debrisCursor = (debrisCursor + 1) % DEBRIS_CAP;
+						const a = Math.random() * Math.PI * 2;
+						const s = speed * (0.4 + Math.random() * 0.9);
+						d.mesh.visible = true;
+						d.mesh.position.set(x, y, z);
+						d.size = 0.6 + Math.random() * 1.1;
+						d.mesh.scale.setScalar(d.size);
+						d.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+						d.vx = dirX * s + Math.cos(a) * s * 0.55;
+						d.vz = dirZ * s + Math.sin(a) * s * 0.55;
+						d.vy = 2.5 + Math.random() * 3.5;
+						d.rx = (Math.random() - 0.5) * 14;
+						d.rz = (Math.random() - 0.5) * 14;
+						d.born = now;
+						d.life = 800 + Math.random() * 500;
+					}
+				};
+				const updateDebris = (now: number, dt: number) => {
+					for (const d of debrisPool) {
+						if (!d.mesh.visible) continue;
+						const age = (now - d.born) / d.life;
+						if (age >= 1) {
+							d.mesh.visible = false;
+							continue;
+						}
+						d.vy -= 22 * dt;
+						const p = d.mesh.position;
+						p.x += d.vx * dt;
+						p.y += d.vy * dt;
+						p.z += d.vz * dt;
+						if (p.y < 0.07) {
+							p.y = 0.07;
+							d.vy *= -0.3;
+							d.vx *= 0.6;
+							d.vz *= 0.6;
+							d.rx *= 0.5;
+							d.rz *= 0.5;
+						}
+						d.mesh.rotation.x += d.rx * dt;
+						d.mesh.rotation.z += d.rz * dt;
+						// Shrink out over the last stretch instead of an opacity
+						// fade, so the two chunk materials stay shared.
+						if (age > 0.7) d.mesh.scale.setScalar(d.size * (1 - (age - 0.7) / 0.3));
+					}
+				};
+
+				// ---- Puff sprite pools: billboarded sprites (normal blending, so
+				// dark smoke, oil drips, and pale tire dust actually read against
+				// the ground). One factory, two pools -- damage/oil smoke and tire
+				// dust -- so continuous dust emission can never evict a wreck's
+				// smoke column from the shared ring buffer. ----
 				interface Puff {
 					sprite: InstanceType<typeof THREE.Sprite>;
 					mat: InstanceType<typeof THREE.SpriteMaterial>;
@@ -2466,73 +2713,82 @@
 					grow: number;
 					baseOpacity: number;
 				}
-				const smokePool: Puff[] = [];
-				for (let i = 0; i < SMOKE_CAP; i++) {
-					const mat = new THREE.SpriteMaterial({
-						map: softTex,
-						color: 0x333333,
-						transparent: true,
-						opacity: 0,
-						depthWrite: false
-					});
-					const sprite = new THREE.Sprite(mat);
-					sprite.visible = false;
-					scene.add(sprite);
-					smokePool.push({
-						sprite,
-						mat,
-						born: 0,
-						life: 0,
-						vx: 0,
-						vy: 0,
-						vz: 0,
-						size: 1,
-						grow: 1,
-						baseOpacity: 0.5
-					});
-				}
-				let smokeCursor = 0;
-				const spawnSmoke = (
-					x: number,
-					y: number,
-					z: number,
-					color: number,
-					size = 1,
-					lifeMs = 1100,
-					rise = 1.6,
-					baseOpacity = 0.45
-				) => {
-					const p = smokePool[smokeCursor];
-					smokeCursor = (smokeCursor + 1) % SMOKE_CAP;
-					p.sprite.visible = true;
-					p.sprite.position.set(x, y, z);
-					p.mat.color.setHex(color);
-					p.born = performance.now();
-					p.life = lifeMs * (0.7 + Math.random() * 0.6);
-					p.vx = (Math.random() - 0.5) * 1.2;
-					p.vy = rise * (0.7 + Math.random() * 0.6);
-					p.vz = (Math.random() - 0.5) * 1.2;
-					p.size = size * (0.8 + Math.random() * 0.5);
-					p.grow = 1.8;
-					p.baseOpacity = baseOpacity;
-				};
-				const updateSmoke = (now: number, dt: number) => {
-					for (const p of smokePool) {
-						if (!p.sprite.visible) continue;
-						const age = (now - p.born) / p.life;
-						if (age >= 1) {
-							p.sprite.visible = false;
-							p.mat.opacity = 0;
-							continue;
-						}
-						p.sprite.position.x += p.vx * dt;
-						p.sprite.position.y += p.vy * dt;
-						p.sprite.position.z += p.vz * dt;
-						const s = p.size * (1 + p.grow * age);
-						p.sprite.scale.set(s, s, 1);
-						p.mat.opacity = p.baseOpacity * Math.pow(1 - age, 1.3);
+				const makePuffPool = (cap: number) => {
+					const pool: Puff[] = [];
+					for (let i = 0; i < cap; i++) {
+						const mat = new THREE.SpriteMaterial({
+							map: softTex,
+							color: 0x333333,
+							transparent: true,
+							opacity: 0,
+							depthWrite: false
+						});
+						const sprite = new THREE.Sprite(mat);
+						sprite.visible = false;
+						scene.add(sprite);
+						pool.push({
+							sprite,
+							mat,
+							born: 0,
+							life: 0,
+							vx: 0,
+							vy: 0,
+							vz: 0,
+							size: 1,
+							grow: 1,
+							baseOpacity: 0.5
+						});
 					}
+					let cursor = 0;
+					const spawn = (
+						x: number,
+						y: number,
+						z: number,
+						color: number,
+						size = 1,
+						lifeMs = 1100,
+						rise = 1.6,
+						baseOpacity = 0.45
+					) => {
+						const p = pool[cursor];
+						cursor = (cursor + 1) % cap;
+						p.sprite.visible = true;
+						p.sprite.position.set(x, y, z);
+						p.mat.color.setHex(color);
+						p.born = performance.now();
+						p.life = lifeMs * (0.7 + Math.random() * 0.6);
+						p.vx = (Math.random() - 0.5) * 1.2;
+						p.vy = rise * (0.7 + Math.random() * 0.6);
+						p.vz = (Math.random() - 0.5) * 1.2;
+						p.size = size * (0.8 + Math.random() * 0.5);
+						p.grow = 1.8;
+						p.baseOpacity = baseOpacity;
+					};
+					const update = (now: number, dt: number) => {
+						for (const p of pool) {
+							if (!p.sprite.visible) continue;
+							const age = (now - p.born) / p.life;
+							if (age >= 1) {
+								p.sprite.visible = false;
+								p.mat.opacity = 0;
+								continue;
+							}
+							p.sprite.position.x += p.vx * dt;
+							p.sprite.position.y += p.vy * dt;
+							p.sprite.position.z += p.vz * dt;
+							const s = p.size * (1 + p.grow * age);
+							p.sprite.scale.set(s, s, 1);
+							p.mat.opacity = p.baseOpacity * Math.pow(1 - age, 1.3);
+						}
+					};
+					return { spawn, update };
 				};
+				const smokePool = makePuffPool(90);
+				const spawnSmoke = smokePool.spawn;
+				const updateSmoke = smokePool.update;
+				const dustPool = makePuffPool(110);
+				const spawnDust = dustPool.spawn;
+				const updateDust = dustPool.update;
 
 				// ---- Screen shake: trauma model (shake = trauma^2) ----
 				let trauma = 0;
@@ -2726,9 +2982,49 @@
 					addTraumaAt(p.x, p.z, 0.7);
 				};
 
-				// Shared aftermath for every damage source (EMP, tether, ram).
-				const handleOutcome = (target: Rig, outcome: DamageOutcome, sourceLabel: string) => {
-					if (outcome === 'eliminated') {
+				// Shared aftermath for every damage source (EMP, tether, ram,
+				// debug): the ONE-TIME pool-edge feedback off the DamageResult
+				// (armor stripped, mount killed, heavy chassis bites) plus the
+				// existing zero-chassis outcome handling. srcX/srcZ locate the
+				// attack so plate strips and bursts land on the struck side.
+				const afterDamage = (
+					target: Rig,
+					res: DamageResult,
+					sourceLabel: string,
+					srcX: number,
+					srcZ: number
+				) => {
+					if (res.outcome === 'ignored') return;
+					if (res.armor > 0 || res.armorStripped) syncArmorPlates(target, srcX, srcZ);
+					if (res.armorStripped) {
+						const p = target.body.position;
+						spawnRing(p.x, p.z, 0xffb347, 5, 300, 0.4);
+						flash(
+							target === player
+								? 'ARMOR STRIPPED — hull exposed'
+								: `${target.label} ARMOR STRIPPED`
+						);
+					}
+					if (res.mountDisabled) {
+						setMountDead(target, true);
+						const mp = hitAnchor(target, srcX, srcZ, 'rear');
+						spawnSparks(mp.x, mp.y, mp.z, 26, GL.amber, 10, 650);
+						spawnDebris(mp.x, mp.y, mp.z, 8, -target.hx, -target.hz, 6);
+						spawnSmoke(mp.x, mp.y + 0.2, mp.z, 0x141414, 1.1, 1400, 1.6, 0.55);
+						flash(
+							target === player
+								? 'WEAPON SYSTEMS DESTROYED'
+								: `${target.label} WEAPONS OFFLINE`
+						);
+					} else if (res.outcome === 'damaged' && res.chassis >= 18) {
+						// A heavy bite of bare frame kicks debris even with no strip.
+						const a = hitAnchor(target, srcX, srcZ, res.zone);
+						const dx = a.x - srcX;
+						const dz = a.z - srcZ;
+						const dl = Math.hypot(dx, dz) || 1;
+						spawnDebris(a.x, a.y, a.z, 4, dx / dl, dz / dl, 5);
+					}
+					if (res.outcome === 'eliminated') {
 						explodeRig(target);
 						if (target === player) {
 							banner = 'YOU ARE ELIMINATED — press R to reset the round';
@@ -2736,7 +3032,7 @@
 							flash(`${target.label} ELIMINATED by ${sourceLabel}`);
 						}
 						checkLastStanding();
-					} else if (outcome === 'down') {
+					} else if (res.outcome === 'down') {
 						explodeRig(target);
 						flash(`${target.label} DOWN — recovering`);
 					}
@@ -2751,25 +3047,27 @@
 					if (result.hits.length) testStats.hit.emp++;
 					spawnRing(shooter.body.position.x, shooter.body.position.z, 0x00f0ff, ct.empRange);
 					if (shooter === player) addTrauma(0.15);
+					const sp2 = shooter.body.position;
 					for (const hit of result.hits) {
 						const target = rigsAll().find((r) => r.id === hit.targetId);
 						if (!target) continue;
 						target.body.angularVelocity.y +=
 							ct.spinKick * hit.spinSign * target.combat.resist.spinKick;
 						target.flashUntil = now + 180;
-						const tp = target.body.position;
-						spawnSparks(tp.x, tp.y + 0.7, tp.z, 22, 0x00f0ff, 10, 500);
+						// Impact burst on the zone actually struck, not the rig center.
+						const a = hitAnchor(target, sp2.x, sp2.z, hit.result.zone);
+						spawnSparks(a.x, a.y + 0.2, a.z, 22, 0x00f0ff, 10, 500);
 						if (target === player) addTrauma(0.4);
-						else addTraumaAt(tp.x, tp.z, 0.25);
-						if (hit.outcome === 'eliminated' || hit.outcome === 'down') {
-							handleOutcome(target, hit.outcome, shooter.label);
-						} else if (target === player || shooter === player) {
+						else addTraumaAt(a.x, a.z, 0.25);
+						if (hit.result.outcome === 'damaged' && (target === player || shooter === player)) {
 							flash(
 								shooter === player
 									? `HIT ${target.label} -${hit.damage}`
 									: `${shooter.label} HIT YOU -${hit.damage}`
 							);
 						}
+						// Edge/outcome feedback last, so its flashes win the slot.
+						afterDamage(target, hit.result, shooter.label, sp2.x, sp2.z);
 					}
 					return result;
 				};
@@ -2958,16 +3256,16 @@
 					target.flashUntil = now + 180;
 					const tp = target.body.position;
 					spawnRing(tp.x, tp.z, 0xc8ff00, 4, 260, 0.7);
-					spawnSparks(tp.x, tp.y + 0.7, tp.z, 16, 0xc8ff00, 9, 450);
+					// The hook's bite sparks on the face it actually latched.
+					const la = hitAnchor(target, sp.x, sp.z, res.hit.result.zone);
+					spawnSparks(la.x, la.y + 0.15, la.z, 16, 0xc8ff00, 9, 450);
 					if (shooter === player || target === player) addTrauma(0.35);
 					else addTraumaAt(tp.x, tp.z, 0.25);
-					if (res.hit.outcome === 'eliminated' || res.hit.outcome === 'down') {
-						handleOutcome(target, res.hit.outcome, shooter.label);
-					} else if (shooter === player) {
-						flash(`TETHER LATCHED ${target.label}`);
-					} else if (target === player) {
-						flash(`TETHERED by ${shooter.label}`);
+					if (res.hit.result.outcome === 'damaged') {
+						if (shooter === player) flash(`TETHER LATCHED ${target.label}`);
+						else if (target === player) flash(`TETHERED by ${shooter.label}`);
 					}
+					afterDamage(target, res.hit.result, shooter.label, sp.x, sp.z);
 					return res;
 				};
 
@@ -3024,9 +3322,9 @@
 				resetRound = () => {
 					const wantAis = Math.max(1, Math.min(6, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
 					if (wantAis !== ais.length) buildAis(wantAis);
-					const maxHp = num(tuning.maxHealth, DEFAULTS.maxHealth);
 					for (const r of rigsAll()) {
-						r.combat.reset(Math.max(1, Math.round(maxHp * r.buildStats.maxHealth)));
+						r.combat.reset(poolsForBuild(r.archetype, r.buildStats));
+						restoreRigCondition(r);
 						r.tracker.reset();
 						r.body.position.set(r.spawn.x, SPAWN_Y, r.spawn.z);
 						r.body.quaternion.copy(quatFor(r.spawn.headingDeg));
@@ -3036,6 +3334,7 @@
 						r.flashUntil = 0;
 						r.smokeAcc = 0;
 						r.dripAcc = 0;
+						r.dustAcc = 0;
 						r.preVx = 0;
 						r.preVz = 0;
 						r.flipAcc = 0;
@@ -3184,18 +3483,43 @@
 						const r = rigsAll().find((q) => q.id === rigId);
 						return r ? performTether(r) : null;
 					},
-					damage: (rigId: string, amount: number) => {
+					damage: (rigId: string, amount: number, zone: HitZone = 'front') => {
 						const r = rigsAll().find((q) => q.id === rigId);
 						if (!r) return null;
-						const outcome = r.combat.applyDamage(
+						const res = r.combat.applyDamage(
 							amount,
 							'debug',
 							mode,
 							combatTuning(),
-							performance.now()
+							performance.now(),
+							zone
 						);
-						handleOutcome(r, outcome, 'DEBUG');
-						return outcome;
+						// Synthesize an attack origin on the struck side so the zone
+						// feedback (plate strips, bursts) lands where a shot would.
+						const p = r.body.position;
+						const sx = zone === 'front' ? p.x + r.hx * 6 : zone === 'rear' ? p.x - r.hx * 6 : p.x - r.hz * 6;
+						const sz = zone === 'front' ? p.z + r.hz * 6 : zone === 'rear' ? p.z - r.hz * 6 : p.z + r.hx * 6;
+						afterDamage(r, res, 'DEBUG', sx, sz);
+						return res;
+					},
+					getPools: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						const c = r.combat;
+						return {
+							armor: c.armorHealth,
+							armorMax: c.maxArmor,
+							chassis: c.chassisHealth,
+							chassisMax: c.maxChassis,
+							mount: c.mountHealth,
+							mountMax: c.maxMount,
+							mountDown: c.mountDown
+						};
+					},
+					setMode: (m: GreenlineMode) => {
+						mode = m;
+						resetRound();
+						return mode;
 					},
 					getSlicks: () => slicks,
 					getTethers: () => tethers.map((tv) => tv.t),
@@ -3266,7 +3590,12 @@
 											: null,
 									eliminated: r.combat.eliminated,
 									down: r.combat.isDown(now),
-									hp: Math.round(r.combat.health),
+									// hp stays the survivability number = CHASSIS (the
+									// stress runner's field name is kept stable).
+									hp: Math.round(r.combat.chassisHealth),
+									armor: Math.round(r.combat.armorHealth),
+									mount: Math.round(r.combat.mountHealth),
+									mountDown: r.combat.mountDown,
 									x: Math.round(r.body.position.x * 100) / 100,
 									z: Math.round(r.body.position.z * 100) / 100,
 									upY:
@@ -3345,8 +3674,11 @@
 					for (const rig of all) {
 						const body = rig.body;
 						const recovered = rig.combat.tick(now);
-						if (recovered === 'recovered' && rig === player) {
-							flash('BACK IN — health restored');
+						if (recovered === 'recovered') {
+							// The RACE full heal restores all three pools, so the
+							// bodywork comes back whole too: plates on, mount live.
+							restoreRigCondition(rig);
+							if (rig === player) flash('BACK IN — all systems restored');
 						}
 
 						// Panel baseline x this rig's build multipliers: the garage is
@@ -3574,10 +3906,12 @@
 						// out, charred amber while down (down IS an impact state),
 						// amber-warm blink on hit, wet-black flicker while oiled;
 						// otherwise the archetype's chrome tone chars toward cold
-						// charcoal as health drops.
+						// charcoal as CHASSIS (the life pool) drops. Armor/mount
+						// damage reads through plate strips and the dead mount, not
+						// the hull scorch.
 						const hpFrac = Math.max(
 							0,
-							Math.min(1, rig.combat.health / Math.max(1, rig.combat.maxHealth))
+							Math.min(1, rig.combat.chassisHealth / Math.max(1, rig.combat.maxChassis))
 						);
 						const tint = rig.combat.eliminated
 							? 0x252d34
@@ -3631,6 +3965,20 @@
 							spawnSparks(body.position.x, body.position.y + 0.6, body.position.z, 4, GL.amberWarm, 5, 350);
 						}
 
+						// Dead mount: continuous electrical sputter and the odd smoke
+						// wisp off the socket itself, the at-a-glance "weapon down"
+						// read on any vehicle without checking a number.
+						if (rig.mountDead && !rig.combat.eliminated) {
+							if (Math.random() < dt * 7) {
+								const mp = rig.parts.mount.getWorldPosition(tmpWorld);
+								spawnSparks(mp.x, mp.y + 0.15, mp.z, 2, GL.coolRim, 4, 240);
+							}
+							if (Math.random() < dt * 1.4) {
+								const mp = rig.parts.mount.getWorldPosition(tmpWorld);
+								spawnSmoke(mp.x, mp.y + 0.2, mp.z, 0x1c1c1c, 0.5, 800, 1.1, 0.4);
+							}
+						}
+
 						// Oil drip trail while the tires are slicked.
 						if (rig.combat.isOiled(now)) {
 							rig.dripAcc += dt;
@@ -3646,6 +3994,43 @@
 									0.15,
 									0.6
 								);
+							}
+						}
+
+						// Tire dust: grit kicked off the worn tarmac under slip --
+						// sideways travel, handbrake, hard launches, oiled tires --
+						// heavier off the ribbon. Emission scales with slip so clean
+						// fast laps stay clean; the dust pool is separate from the
+						// smoke pool so this can never evict a wreck's smoke column.
+						if (!rig.combat.isOut(now) && rawSpeed > 1.5) {
+							const latSpeed = Math.abs(vel.x * -rig.hz + vel.z * rig.hx);
+							const launch = thr > 0.6 && rawSpeed < 8 ? 0.7 : 0;
+							const slip =
+								latSpeed * 0.14 +
+								(hbk && rawSpeed > 4 ? 0.9 : 0) +
+								launch +
+								(mods.tractionScale < 1 ? 0.6 : 0);
+							if (slip > 0.3) {
+								rig.dustAcc += dt * Math.min(3, slip);
+								if (rig.dustAcc >= 0.055) {
+									rig.dustAcc = 0;
+									// Alternate the two rear (driven) wheels.
+									rig.dustWheel = rig.dustWheel === 2 ? 3 : 2;
+									const wm = rig.wheelMeshes[rig.dustWheel];
+									const off = !rig.lastOnRibbon;
+									spawnDust(
+										wm.position.x - rig.hx * 0.4 + (Math.random() - 0.5) * 0.3,
+										0.16,
+										wm.position.z - rig.hz * 0.4 + (Math.random() - 0.5) * 0.3,
+										off ? 0x8d8672 : 0x777c80,
+										off ? 0.8 : 0.55,
+										off ? 750 : 550,
+										0.75,
+										off ? 0.34 : 0.26
+									);
+								}
+							} else if (rig.dustAcc > 0) {
+								rig.dustAcc = Math.max(0, rig.dustAcc - dt);
 							}
 						}
 
@@ -3741,6 +4126,7 @@
 							spawnRing(mx, mz, 0xfff2c0, 7, 300, 0.7, 0.9);
 							spawnSparks(mx, 1, mz, 46, 0xffb347, 15, 700);
 							spawnSparks(mx, 1, mz, 20, 0xfff2c0, 20, 450);
+							spawnDebris(mx, 0.9, mz, 5, 0, 0, 6);
 							for (let k = 0; k < 4; k++) {
 								spawnSmoke(
 									mx + (Math.random() - 0.5) * 1.6,
@@ -3761,8 +4147,10 @@
 							} else {
 								addTraumaAt(mx, mz, 0.6);
 							}
-							handleOutcome(a, res.outcomeA, b.label);
-							handleOutcome(b, res.outcomeB, a.label);
+							// Each side's zone came from its own frontality: nose-first
+							// eats armor, a punted tail eats the mount.
+							afterDamage(a, res.resultA, b.label, b.body.position.x, b.body.position.z);
+							afterDamage(b, res.resultB, a.label, a.body.position.x, a.body.position.z);
 						}
 						pendingRams = [];
 					}
@@ -3969,6 +4357,8 @@
 						}
 
 						// Overhead health bar (AI only): follow, face camera, fill.
+						// Primary fill reads CHASSIS; the thin sliver under it is the
+						// armor pool, and the amber dot means weapons offline.
 						if (rig.bar) {
 							rig.bar.group.position.set(
 								rig.body.position.x,
@@ -3976,7 +4366,10 @@
 								rig.body.position.z
 							);
 							rig.bar.group.lookAt(camera.position);
-							const frac = Math.max(0, rig.combat.health / Math.max(1, rig.combat.maxHealth));
+							const frac = Math.max(
+								0,
+								rig.combat.chassisHealth / Math.max(1, rig.combat.maxChassis)
+							);
 							rig.bar.fg.scale.x = Math.max(0.001, frac);
 							rig.bar.fg.position.x = -(1 - frac) * 1.2;
 							// Steel-white while healthy; low hull goes amber (the
@@ -3984,6 +4377,14 @@
 							rig.bar.fgMat.color.setHex(
 								rig.combat.eliminated ? 0x39454f : frac > 0.35 ? GL.chromeMid : GL.amber
 							);
+							const afrac = Math.max(
+								0,
+								rig.combat.armorHealth / Math.max(1, rig.combat.maxArmor)
+							);
+							rig.bar.arm.scale.x = Math.max(0.001, afrac);
+							rig.bar.arm.position.x = -(1 - afrac) * 1.2;
+							rig.bar.armMat.color.setHex(rig.combat.eliminated ? 0x39454f : GL.coolRim);
+							rig.bar.mnt.visible = rig.combat.mountDown && !rig.combat.eliminated;
 						}
 					}
 
@@ -4015,6 +4416,8 @@
 					}
 					updateSparks(now, dt);
 					updateSmoke(now, dt);
+					updateDebris(now, dt);
+					updateDust(now, dt);
 
 					// -- Chase camera (player) --
 					const flatFwd = new THREE.Vector3(player.hx, 0, player.hz);
@@ -4075,8 +4478,13 @@
 						p.out = ais[i].combat.isOut(now);
 					}
 
-					chud.hp = Math.round(player.combat.health);
-					chud.max = player.combat.maxHealth;
+					chud.hp = Math.round(player.combat.chassisHealth);
+					chud.max = player.combat.maxChassis;
+					chud.armor = Math.max(0, Math.round(player.combat.armorHealth));
+					chud.armorMax = player.combat.maxArmor;
+					chud.mount = Math.max(0, Math.round(player.combat.mountHealth));
+					chud.mountMax = player.combat.maxMount;
+					chud.mountDown = player.combat.mountDown;
 					chud.status = player.combat.eliminated
 						? 'ELIMINATED'
 						: player.combat.isDown(now)
@@ -4132,7 +4540,7 @@
 								arch: r.archetype.slice(0, 3).toUpperCase(),
 								laps: r.tracker.lapsCompleted,
 								cp: r.tracker.nextCheckpoint,
-								hp: Math.max(0, Math.round(r.combat.health)),
+								hp: Math.max(0, Math.round(r.combat.chassisHealth)),
 								note: r.combat.eliminated
 									? 'OUT'
 									: r.finished
@@ -4234,30 +4642,53 @@
 					style:width="{Math.max(0, (chud.hp / Math.max(1, chud.max)) * 100)}%"
 				></div>
 			</div>
-			<div class="gl-health-line">HULL {chud.hp}/{chud.max}</div>
+			<div class="gl-health-line">CHASSIS {chud.hp}/{chud.max}</div>
+			<div class="gl-pools">
+				<div class="gl-pool" class:gone={chud.armor <= 0}>
+					<span class="gl-pool-name">ARM</span>
+					<span class="gl-pool-track"
+						><span
+							class="gl-pool-fill"
+							style:width="{Math.max(0, (chud.armor / Math.max(1, chud.armorMax)) * 100)}%"
+						></span></span
+					>
+					<span class="gl-pool-num">{chud.armor <= 0 ? 'GONE' : chud.armor}</span>
+				</div>
+				<div class="gl-pool" class:dead={chud.mountDown}>
+					<span class="gl-pool-name">MNT</span>
+					<span class="gl-pool-track"
+						><span
+							class="gl-pool-fill"
+							style:width="{Math.max(0, (chud.mount / Math.max(1, chud.mountMax)) * 100)}%"
+						></span></span
+					>
+					<span class="gl-pool-num">{chud.mountDown ? 'DOWN' : chud.mount}</span>
+				</div>
+			</div>
 			<div class="gl-status-row">
 				{#if chud.status === 'DISRUPTED'}<span class="gl-st gl-st-disrupted">DISRUPTED</span>{/if}
 				{#if chud.status === 'DOWN'}<span class="gl-st gl-st-down">DOWN {chud.downLeft.toFixed(1)}s</span>{/if}
 				{#if chud.status === 'ELIMINATED'}<span class="gl-st gl-st-elim">ELIMINATED</span>{/if}
+				{#if chud.mountDown && chud.status !== 'ELIMINATED'}<span class="gl-st gl-st-weapon">WEAPON DOWN</span>{/if}
 				{#if chud.oiled}<span class="gl-st gl-st-oiled">OILED</span>{/if}
 				{#if chud.tethered}<span class="gl-st gl-st-tether">TETHERED</span>{/if}
 				{#if hud.offTrack}<span class="gl-st gl-st-offtrack">OFF TRACK</span>{/if}
 			</div>
 
 			<div class="gl-weapons">
-				<div class="gl-wcell" class:ready={chud.ready.emp <= 0}>
+				<div class="gl-wcell" class:ready={!chud.mountDown && chud.ready.emp <= 0} class:offline={chud.mountDown}>
 					<span class="gl-wname">EMP</span>
-					<span class="gl-wstate">{chud.ready.emp <= 0 ? 'READY' : `${chud.ready.emp.toFixed(1)}s`}</span>
+					<span class="gl-wstate">{chud.mountDown ? 'OFFLINE' : chud.ready.emp <= 0 ? 'READY' : `${chud.ready.emp.toFixed(1)}s`}</span>
 					<span class="gl-wkey">F / RB</span>
 				</div>
-				<div class="gl-wcell" class:ready={chud.ready.oil <= 0}>
+				<div class="gl-wcell" class:ready={!chud.mountDown && chud.ready.oil <= 0} class:offline={chud.mountDown}>
 					<span class="gl-wname">OIL</span>
-					<span class="gl-wstate">{chud.ready.oil <= 0 ? 'READY' : `${chud.ready.oil.toFixed(1)}s`}</span>
+					<span class="gl-wstate">{chud.mountDown ? 'OFFLINE' : chud.ready.oil <= 0 ? 'READY' : `${chud.ready.oil.toFixed(1)}s`}</span>
 					<span class="gl-wkey">E / X</span>
 				</div>
-				<div class="gl-wcell" class:ready={chud.ready.tether <= 0}>
+				<div class="gl-wcell" class:ready={!chud.mountDown && chud.ready.tether <= 0} class:offline={chud.mountDown}>
 					<span class="gl-wname">TETHER</span>
-					<span class="gl-wstate">{chud.ready.tether <= 0 ? 'READY' : `${chud.ready.tether.toFixed(1)}s`}</span>
+					<span class="gl-wstate">{chud.mountDown ? 'OFFLINE' : chud.ready.tether <= 0 ? 'READY' : `${chud.ready.tether.toFixed(1)}s`}</span>
 					<span class="gl-wkey">Q / LB</span>
 				</div>
 				<div class="gl-wcell" class:ready={chud.ready.ram <= 0}>
@@ -4640,6 +5071,61 @@
 		font: 600 0.66rem var(--glb-font-ui);
 		letter-spacing: 0.16em;
 		color: var(--glb-ink-dim);
+	}
+	/* Secondary pools: compact ARM / MNT pips under the chassis bar. Steel
+	   while intact; a dead pool flips its label amber (impact color). */
+	.gl-pools {
+		display: flex;
+		gap: 0.5rem;
+		margin-top: 0.3rem;
+	}
+	.gl-pool {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+	.gl-pool-name {
+		font: 600 0.54rem var(--glb-font-ui);
+		letter-spacing: 0.12em;
+		color: var(--glb-ink-faint);
+	}
+	.gl-pool-track {
+		flex: 1;
+		height: 0.28rem;
+		background: rgba(13, 19, 25, 0.9);
+		border: 1px solid var(--glb-line);
+	}
+	.gl-pool-fill {
+		display: block;
+		height: 100%;
+		background: #78a5cd;
+		transition: width 120ms linear;
+	}
+	.gl-pool-num {
+		min-width: 1.9rem;
+		text-align: right;
+		font-family: var(--glb-font-data);
+		font-size: 0.6rem;
+		color: var(--glb-steel);
+	}
+	.gl-pool.gone .gl-pool-num,
+	.gl-pool.dead .gl-pool-num {
+		color: var(--glb-amber);
+	}
+	.gl-pool.dead .gl-pool-name {
+		color: var(--glb-amber);
+	}
+	.gl-st-weapon {
+		color: #170d00;
+		background: var(--glb-amber);
+		border-color: #ffd9a0;
+	}
+	.gl-wcell.offline {
+		border-color: rgba(255, 176, 46, 0.55);
+	}
+	.gl-wcell.offline .gl-wstate {
+		color: var(--glb-amber);
 	}
 	.gl-status-row {
 		display: flex;
