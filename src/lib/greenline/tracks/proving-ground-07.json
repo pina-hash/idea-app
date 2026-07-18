@@ -2944,24 +2944,198 @@
 			"kind": "barrier"
 		},
 		{
-			"type": "block",
+			"type": "building",
 			"x": -55,
 			"z": 48,
 			"headingDeg": 5,
 			"w": 13,
 			"l": 30,
 			"h": 7,
-			"kind": "container"
+			"kind": "warehouse"
 		},
 		{
-			"type": "block",
+			"type": "building",
 			"x": -20,
 			"z": 66,
 			"headingDeg": -12,
 			"w": 11,
 			"l": 24,
 			"h": 6,
-			"kind": "container"
+			"kind": "warehouse"
+		},
+		{
+			"type": "building",
+			"x": 60,
+			"z": -38,
+			"headingDeg": 3,
+			"w": 16,
+			"l": 44,
+			"h": 9,
+			"kind": "warehouse"
+		},
+		{
+			"type": "building",
+			"x": -40,
+			"z": 168,
+			"headingDeg": -2,
+			"w": 14,
+			"l": 36,
+			"h": 8,
+			"kind": "warehouse"
+		},
+		{
+			"type": "building",
+			"x": 168,
+			"z": 40,
+			"headingDeg": 15,
+			"w": 10,
+			"l": 14,
+			"h": 24,
+			"kind": "tower"
+		},
+		{
+			"type": "building",
+			"x": -150,
+			"z": 100,
+			"headingDeg": 80,
+			"w": 9,
+			"l": 12,
+			"h": 20,
+			"kind": "tower"
+		},
+		{
+			"type": "building",
+			"x": 110,
+			"z": 172,
+			"headingDeg": -30,
+			"w": 8,
+			"l": 10,
+			"h": 18,
+			"kind": "tower"
+		},
+		{
+			"type": "container",
+			"x": 37.5,
+			"z": 84.3,
+			"headingDeg": 1,
+			"stack": 3
+		},
+		{
+			"type": "container",
+			"x": 57,
+			"z": 85,
+			"headingDeg": -2,
+			"stack": 2,
+			"long": true
+		},
+		{
+			"type": "container",
+			"x": 28.6,
+			"z": 107.7,
+			"headingDeg": 0,
+			"stack": 2
+		},
+		{
+			"type": "container",
+			"x": -8,
+			"z": 154,
+			"headingDeg": -178,
+			"stack": 2,
+			"long": true
+		},
+		{
+			"type": "container",
+			"x": -31,
+			"z": 155,
+			"headingDeg": 177,
+			"stack": 3
+		},
+		{
+			"type": "container",
+			"x": -70,
+			"z": 154,
+			"headingDeg": -179,
+			"stack": 1,
+			"long": true
+		},
+		{
+			"type": "container",
+			"x": -92,
+			"z": 155.5,
+			"headingDeg": 176,
+			"stack": 2
+		},
+		{
+			"type": "container",
+			"x": 156,
+			"z": 48,
+			"headingDeg": 92,
+			"stack": 2,
+			"long": true
+		},
+		{
+			"type": "container",
+			"x": 157,
+			"z": 33,
+			"headingDeg": 88,
+			"stack": 1
+		},
+		{
+			"type": "container",
+			"x": 20,
+			"z": -17,
+			"headingDeg": -2,
+			"stack": 1,
+			"long": true
+		},
+		{
+			"type": "container",
+			"x": 33.5,
+			"z": -16.5,
+			"headingDeg": 1,
+			"stack": 2
+		},
+		{
+			"type": "container",
+			"x": 12,
+			"z": 40,
+			"headingDeg": 40,
+			"stack": 1
+		},
+		{
+			"type": "container",
+			"x": -70,
+			"z": 90,
+			"headingDeg": 100,
+			"stack": 2
+		},
+		{
+			"type": "machine",
+			"x": 44.5,
+			"z": 83,
+			"headingDeg": 0,
+			"kind": "crane"
+		},
+		{
+			"type": "machine",
+			"x": -60,
+			"z": 118,
+			"headingDeg": 85,
+			"kind": "crane"
+		},
+		{
+			"type": "machine",
+			"x": 10,
+			"z": 37,
+			"headingDeg": -35,
+			"kind": "loader"
+		},
+		{
+			"type": "machine",
+			"x": 100,
+			"z": 126,
+			"headingDeg": -140,
+			"kind": "loader"
 		},
 		{
 			"type": "berm",

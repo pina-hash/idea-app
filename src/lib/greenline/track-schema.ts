@@ -84,7 +84,36 @@ export type TrackProp =
 	  }
 	| { type: 'pad'; x: number; z: number; radius: number; rings?: number[] }
 	/** Angled wall strip lofted from `inner` (ground) to `outer` (raised). */
-	| { type: 'berm'; inner: TrackVec2[]; outer: TrackVec2[]; height: number };
+	| { type: 'berm'; inner: TrackVec2[]; outer: TrackVec2[]; height: number }
+	/**
+	 * Freestanding shipping container stack at standard ISO proportions
+	 * (unlike `block`, which is a free-sized mass): `long` picks the 12 m
+	 * forty-footer over the 6 m box, `stack` is units tall (1-3). The
+	 * renderer varies worn paint tones per unit.
+	 */
+	| { type: 'container'; x: number; z: number; headingDeg: number; stack?: number; long?: boolean }
+	/**
+	 * Background yard structure, the key art's silhouetted distant masses:
+	 * a near-black shape with sparse lit windows and a soft motivated glow.
+	 * Deliberately low-detail; place it as depth, never beside the racing
+	 * line. `l` runs along the heading, `w` across it.
+	 */
+	| {
+			type: 'building';
+			x: number;
+			z: number;
+			headingDeg: number;
+			w: number;
+			l: number;
+			h: number;
+			kind?: 'warehouse' | 'tower';
+	  }
+	/**
+	 * Industrial yard machinery left where it was parked: a rubber-tyred
+	 * gantry crane (`crane`) or a wheel loader (`loader`). More detail than
+	 * a building; safe to sit near (still outside) the racing line.
+	 */
+	| { type: 'machine'; x: number; z: number; headingDeg: number; kind?: 'crane' | 'loader' };
 
 /**
  * Boundary geometry that keeps the vehicle on course. Each boundary is a

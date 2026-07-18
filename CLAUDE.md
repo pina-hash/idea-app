@@ -1432,7 +1432,8 @@ on one side of the world.
   precomputes per-point `halfWidths` so the surface query, edges, and
   minimap all honor it, and constant-width tracks are untouched), and an
   optional `props` list carries presentation-only set dressing (lightTower /
-  gantry / block / pad / berm) that the harness renders generically and the
+  gantry / block / pad / berm, plus since the environment pass container /
+  building / machine) that the harness renders generically and the
   runtime NEVER reads (props have no physics bodies, so they must sit
   outside the boundaries). Tracks stay physically FLAT in v1: elevation and
   real banking remain a future surface kind, banking is currently a visual
@@ -1459,6 +1460,43 @@ on one side of the world.
   current yaw with velocities zeroed (wheels off the ground = no force can
   right it, and the AI stuck-reverse cannot help); dials in the panel's
   "flip recovery" section, scripted via `__greenline.flip()`/`.upY()`.
+- **Environment preset + prop kit (the environment pass).** All sky / light /
+  fog / floodlight configuration the race scene uses comes from ONE
+  swappable preset object: `src/lib/greenline/environment.ts` (plain data,
+  no three imports) defines `EnvironmentPreset` (sky-dome gradient stops +
+  two motivated horizon glows, hemisphere fill, key directionals, FogExp2
+  color/density, a floodlight intensity multiplier) and the single populated
+  preset `NIGHT_ENV`, matching the key art's dual-tone rig (cool primary key
+  one side, dim warm counter the other). The scene setup in
+  `GreenlineRace.svelte` reads the preset only (gradient sky dome canvas,
+  fog, lights, lamp/cone/pool/halo intensities), so a future `dusk`/`storm`
+  or day/night system is a data addition in `ENV_PRESETS` plus a way to pick
+  one; the switching system deliberately does not exist yet. Props render
+  through a shared PROP KIT in `GreenlineRace.svelte`: each prop type is
+  authored once as a template of primitive parts, baked/merged
+  (`BufferGeometryUtils.mergeGeometries`) into one geometry per material
+  bucket (shared steel/dark/concrete/corrugated/silhouette/emissive
+  materials), and drawn as ONE `InstancedMesh` per (template, bucket) across
+  every placement (`frustumCulled = false`, since one mesh's instances span
+  the whole yard) — so the fully dressed reference track stays a flat
+  draw-call budget on the aging school desktops. The five original prop
+  types are real structures now (high-mast tower with ladder/platform/four
+  aimed heads + halo sprite, truss gantry with A-frame legs/catwalk/green
+  marker dots per the key art, corrugated containers with corner castings,
+  boxcar railcars on bogies, jersey-profile extruded barriers, textured
+  banked berm with a merged cap rail), and three NEW prop kinds exist:
+  `container` (ISO-proportioned stack, 1-3 high, 20/40 ft, per-unit worn
+  tones via baked vertex colors), `building` (background silhouette masses,
+  `warehouse` gable or `tower` slab, sparse lit windows, warm beacon, soft
+  motivated glow sprite), and `machine` (`crane` = rubber-tyred gantry crane
+  mid-lift, `loader` = parked wheel loader). Ground visuals (physics stays
+  the flat plane): generated worn-asphalt canvas texture on the apron AND
+  the ribbon (the ribbon gained per-vertex UVs along its length), the old
+  green GridHelper is gone, braking zones ahead of every gate darken via
+  vertex-color wear ramps, oil-stain decals sit near checkpoints, the skid
+  pad bakes painted rings + tire scrub into one texture, and edge lines are
+  cool worn white (steel palette, not green). All generated textures use a
+  seeded RNG so the yard is identical run to run.
 - **Minimap:** `src/lib/greenline/Minimap.svelte`, a top-down SVG of the
   boundaries, ribbon, gates (next checkpoint highlighted, start/finish gold)
   and a vehicle heading triangle fed by the physics loop (plus smaller amber
