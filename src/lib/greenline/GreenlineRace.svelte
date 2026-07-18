@@ -91,9 +91,15 @@
 	 * shockwave ram that triggers on nose-first contact above a closing-speed
 	 * threshold. Combat facts live in $lib/greenline/combat.ts; this file owns
 	 * every force and all the feedback: trauma-based screen shake, spark and
-	 * smoke particle pools, escalating damage states on the placeholder mesh
-	 * (scorch tint, crumpled vertices, hood smoke), oil puddles, the live
-	 * tether cable, the stun crackle ring, and ram shockwave rings.
+	 * smoke particle pools, escalating damage states on the bodywork (scorch
+	 * tint, crumpled hull vertices, rattled plates, hood smoke), oil puddles,
+	 * the live tether cable, the stun crackle ring, and ram shockwave rings.
+	 *
+	 * Bodywork: every vehicle composes four NAMED parts (chassis base, armor
+	 * plating, weapon-mount socket, wheels; see Rig.parts) proportioned and
+	 * chrome-toned per archetype in the GREENLINE brand palette, with the
+	 * signature green thread on the player's machine only. Physics stays one
+	 * cannon-es body; parts are visual attachment groups under carGroup.
 	 *
 	 * Loadouts: G opens the garage ($lib/greenline/Garage.svelte over the
 	 * $lib/greenline/loadout.ts catalog): one archetype (ARMOR / VELOCITY /
@@ -658,9 +664,30 @@
 					body: InstanceType<typeof CANNON.Body>;
 					vehicle: InstanceType<typeof CANNON.RaycastVehicle>;
 					carGroup: InstanceType<typeof THREE.Group>;
+					/** Per-rig tintable hull/plating material (status tint + scorch
+					 * write its color every frame, so it can never be shared). */
 					bodyMat: InstanceType<typeof THREE.MeshStandardMaterial>;
+					/** The single deformable hull mesh inside parts.chassis: the
+					 * crumple target, its geometry cloned per rig. */
 					bodyMesh: InstanceType<typeof THREE.Mesh>;
+					/** The archetype's chrome-ramp body tone (scorch lerps from it). */
 					baseColor: number;
+					/** Named visual parts: chassis base, armor plating, and the
+					 * weapon-mount socket are attachment Groups under carGroup, each
+					 * at its own local transform, so a future system can swap one
+					 * part's geometry/material - or map a hit point to its nearest
+					 * part for damage targeting - without touching the rest. Wheels
+					 * are the fourth part but stay scene-level meshes because the
+					 * RaycastVehicle drives them in world space. */
+					parts: {
+						chassis: InstanceType<typeof THREE.Group>;
+						armor: InstanceType<typeof THREE.Group>;
+						mount: InstanceType<typeof THREE.Group>;
+						wheels: InstanceType<typeof THREE.Mesh>[];
+					};
+					/** Archetype the current part set was built for (null pre-build);
+					 * applyLoadoutToRig rebuilds the visuals when it changes. */
+					visualArch: ArchetypeId | null;
 					wheelMeshes: InstanceType<typeof THREE.Mesh>[];
 					combat: VehicleCombat;
 					tracker: LapTracker;
@@ -675,7 +702,7 @@
 					archetype: ArchetypeId;
 					/** Crumple state: 0 pristine .. 3 wrecked; drives vertex jitter. */
 					dentStage: number;
-					/** Pristine body-geometry positions, restored on heal/reset. */
+					/** Pristine hull-geometry positions, restored on heal/reset. */
 					dentBase: Float32Array;
 					/** Cyan crackle ring shown while disrupted (inside carGroup). */
 					stunMat: InstanceType<typeof THREE.MeshBasicMaterial>;
@@ -763,13 +790,321 @@
 					};
 				};
 
+				// ---- GREENLINE bodywork: brand palette, chrome IBL, part sets ----
+				// The vehicle is no longer one fused mesh: every rig composes four
+				// NAMED parts (chassis base, armor plating, weapon-mount socket,
+				// wheels) so the future garage/damage systems can swap or target a
+				// single part. Physics is untouched: the cannon-es chassis stays
+				// ONE body; parts are visual attachment groups under carGroup.
+
+				// brand.css tokens as hex ints. The four archetype body tones all
+				// come from the chrome/steel ramp; green stays the single signature
+				// thread (the player's machine only, green = "your line") and amber
+				// is reserved for impact states (hit flash, DOWN, low-hull bar),
+				// never decoration.
+				const GL = {
+					coolRim: 0x78a5cd,
+					green: 0x2ae57e,
+					amber: 0xffb02e,
+					amberWarm: 0xffd9a0,
+					chromeMid: 0xcfdae2,
+					steel: 0x93a3b0,
+					steelDim: 0x6b7b88,
+					chromeLo: 0x39454f
+				};
+
+				// The brand's chrome-gradient recipe (brand.css: dark band pinned at
+				// 51% = the horizon reflection line) translated into an IBL source:
+				// a tiny vertical-gradient equirect, PMREM'd once, assigned to the
+				// VEHICLE materials only. The bodywork picks up the banded chrome
+				// reflection the wordmark carries without relighting the night
+				// scene, and the cost is one env sample on ~7 cars' materials.
+				const chromeEnv = (() => {
+					const c = document.createElement('canvas');
+					c.width = 16;
+					c.height = 128;
+					const g2 = c.getContext('2d')!;
+					const grad = g2.createLinearGradient(0, 0, 0, 128);
+					grad.addColorStop(0.04, '#f7fbfe');
+					grad.addColorStop(0.26, '#cfdae2');
+					grad.addColorStop(0.44, '#93a3b0');
+					grad.addColorStop(0.51, '#39454f');
+					grad.addColorStop(0.57, '#b7c5d0');
+					grad.addColorStop(0.72, '#eef4f8');
+					grad.addColorStop(0.88, '#6b7b88');
+					grad.addColorStop(1, '#3f4b55');
+					g2.fillStyle = grad;
+					g2.fillRect(0, 0, 16, 128);
+					const tex = new THREE.CanvasTexture(c);
+					tex.mapping = THREE.EquirectangularReflectionMapping;
+					tex.colorSpace = THREE.SRGBColorSpace;
+					const pmrem = new THREE.PMREMGenerator(renderer);
+					const env = pmrem.fromEquirectangular(tex).texture;
+					pmrem.dispose();
+					tex.dispose();
+					return env;
+				})();
+
+				// Shared (untinted) vehicle materials, ONE instance across all rigs;
+				// only the hull/plating material is per-rig (see Rig.bodyMat).
+				const canopyMat = new THREE.MeshStandardMaterial({
+					color: 0x10161c,
+					metalness: 0.6,
+					roughness: 0.16,
+					envMap: chromeEnv,
+					envMapIntensity: 0.9
+				});
+				const mountMat = new THREE.MeshStandardMaterial({
+					color: 0x1a2128,
+					metalness: 0.75,
+					roughness: 0.5,
+					envMap: chromeEnv,
+					envMapIntensity: 0.5
+				});
+				const tireMat = new THREE.MeshStandardMaterial({ color: 0x0b0d10, roughness: 0.9 });
+				// The signature thread: green on the player's machine only; the AI
+				// field carries the same thread as a dim cool-rim marker, so
+				// archetypes read by SILHOUETTE, never by hue.
+				const accentGreenMat = new THREE.MeshStandardMaterial({
+					color: 0x0a3d24,
+					emissive: GL.green,
+					emissiveIntensity: 1.5,
+					metalness: 0.2,
+					roughness: 0.4
+				});
+				const accentSteelMat = new THREE.MeshStandardMaterial({
+					color: 0x2b3743,
+					emissive: GL.coolRim,
+					emissiveIntensity: 0.8,
+					metalness: 0.2,
+					roughness: 0.4
+				});
+
+				// Collapse one end of a BoxGeometry toward a wedge: past `from`
+				// (fraction of the half-length, negative = start behind center),
+				// height scales toward the FLOOR (flat underside, dropping nose
+				// line) and width toward the centerline, linearly down to ty/tz at
+				// the tip. Cheap archetype silhouettes from plain 24-vert boxes.
+				const taperEnd = (
+					geo: InstanceType<typeof THREE.BoxGeometry>,
+					dir: 1 | -1,
+					from: number,
+					ty: number,
+					tz: number
+				) => {
+					const attr = geo.getAttribute('position') as InstanceType<typeof THREE.BufferAttribute>;
+					const arr = attr.array as Float32Array;
+					let half = 0;
+					let hh = 0;
+					for (let i = 0; i < arr.length; i += 3) {
+						half = Math.max(half, Math.abs(arr[i]));
+						hh = Math.max(hh, Math.abs(arr[i + 1]));
+					}
+					const x0 = from * half;
+					for (let i = 0; i < arr.length; i += 3) {
+						const x = arr[i] * dir;
+						if (x <= x0) continue;
+						const f = (x - x0) / (half - x0);
+						arr[i + 1] = -hh + (arr[i + 1] + hh) * (1 - f * (1 - ty));
+						arr[i + 2] *= 1 - f * (1 - tz);
+					}
+					geo.computeVertexNormals();
+					return geo;
+				};
+
+				// One visual part set per archetype, echoing the garage glyph
+				// language: ARMOR slab, VELOCITY dart, HANDLING compact apex,
+				// SYSTEMS angular + antenna mount. Geometries build once per
+				// archetype and are SHARED by every rig of that archetype (draw
+				// calls, not polycount, are the budget with up to 7 multi-part
+				// vehicles); the hull is the one exception, cloned per rig because
+				// the crumple system deforms its vertices.
+				type PartName = 'chassis' | 'armor' | 'mount';
+				/** What a THREE.Mesh accepts (narrower than the BufferGeometry default). */
+				type MeshGeo = InstanceType<typeof THREE.Mesh>['geometry'];
+				interface PartNode {
+					part: PartName;
+					geo: MeshGeo;
+					mat: 'hull' | 'canopy' | 'mount' | 'accent';
+					pos: [number, number, number];
+					rot?: [number, number, number];
+					/** The crumple target (exactly one per archetype, in chassis). */
+					deform?: boolean;
+				}
+				interface ArchVisual {
+					/** Chrome-ramp body tone + finish for the tintable hull mat. */
+					tone: number;
+					metalness: number;
+					roughness: number;
+					/** Weapon-mount socket attachment, relative to the COM_DROP frame. */
+					mountPos: [number, number, number];
+					nodes: PartNode[];
+					wheelGeo: MeshGeo;
+				}
+				const box = (l: number, h: number, w: number) => new THREE.BoxGeometry(l, h, w);
+				const socket = (r: number): PartNode[] => [
+					{ part: 'mount', geo: new THREE.CylinderGeometry(r, r + 0.04, 0.12, 14), mat: 'mount', pos: [0, 0, 0] },
+					{ part: 'mount', geo: new THREE.CylinderGeometry(r * 0.4, r * 0.4, 0.1, 10), mat: 'mount', pos: [0, 0.09, 0] }
+				];
+				const wheelGeoFor = (width: number) => {
+					const geo = new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, width, 20);
+					geo.rotateX(Math.PI / 2);
+					return geo;
+				};
+				const archVisualCache = new Map<ArchetypeId, ArchVisual>();
+				const archVisual = (arch: ArchetypeId): ArchVisual => {
+					const hit = archVisualCache.get(arch);
+					if (hit) return hit;
+					let vis: ArchVisual;
+					if (arch === 'armor') {
+						// Juggernaut: tall slab hull under separate bolted plates
+						// (plow, skirts, roof, tail) - the glyph's plated seams.
+						vis = {
+							tone: GL.steelDim,
+							metalness: 0.85,
+							roughness: 0.5,
+							mountPos: [-1.05, 0.76, 0],
+							wheelGeo: wheelGeoFor(0.5),
+							nodes: [
+								{ part: 'chassis', geo: taperEnd(box(3.8, 1.0, 1.75), 1, 0.55, 0.72, 0.85), mat: 'hull', pos: [0, 0.05, 0], deform: true },
+								{ part: 'chassis', geo: box(1.6, 0.5, 1.45), mat: 'canopy', pos: [-0.5, 0.72, 0] },
+								{ part: 'armor', geo: box(0.2, 1.05, 1.85), mat: 'hull', pos: [1.95, -0.02, 0], rot: [0, 0, -0.34] },
+								{ part: 'armor', geo: box(2.6, 0.6, 0.16), mat: 'hull', pos: [-0.1, -0.26, 0.97] },
+								{ part: 'armor', geo: box(2.6, 0.6, 0.16), mat: 'hull', pos: [-0.1, -0.26, -0.97] },
+								{ part: 'armor', geo: box(2.0, 0.14, 1.55), mat: 'hull', pos: [0.15, 0.62, 0] },
+								{ part: 'armor', geo: box(0.16, 0.75, 1.6), mat: 'hull', pos: [-1.92, 0.05, 0] },
+								{ part: 'armor', geo: box(2.2, 0.05, 0.06), mat: 'accent', pos: [-0.1, -0.26, 1.06] },
+								{ part: 'armor', geo: box(2.2, 0.05, 0.06), mat: 'accent', pos: [-0.1, -0.26, -1.06] },
+								...socket(0.24)
+							]
+						};
+					} else if (arch === 'velocity') {
+						// Missile: one long low dart, glass canopy far back, tail
+						// fin, twin threads down the rear flanks (the glyph's speed
+						// lines). Minimal plating: a nose splitter, nothing else.
+						vis = {
+							tone: GL.chromeMid,
+							metalness: 0.88,
+							roughness: 0.18,
+							mountPos: [-1.15, 0.23, 0],
+							wheelGeo: wheelGeoFor(0.3),
+							nodes: [
+								{ part: 'chassis', geo: taperEnd(box(4.4, 0.52, 1.5), 1, -0.2, 0.24, 0.4), mat: 'hull', pos: [0, -0.08, 0], deform: true },
+								{ part: 'chassis', geo: taperEnd(box(1.05, 0.34, 0.85), 1, -0.3, 0.45, 0.6), mat: 'canopy', pos: [-0.55, 0.3, 0] },
+								{ part: 'chassis', geo: box(0.55, 0.44, 0.07), mat: 'hull', pos: [-2.0, 0.3, 0] },
+								{ part: 'armor', geo: box(0.8, 0.08, 1.35), mat: 'hull', pos: [1.75, -0.3, 0] },
+								{ part: 'chassis', geo: box(1.5, 0.045, 0.05), mat: 'accent', pos: [-1.3, 0.02, 0.76] },
+								{ part: 'chassis', geo: box(1.5, 0.045, 0.05), mat: 'accent', pos: [-1.3, 0.02, -0.76] },
+								...socket(0.18)
+							]
+						};
+					} else if (arch === 'handling') {
+						// Scalpel: short compact shell tapered at BOTH ends, flared
+						// wheel-arch fenders, one short apex line under the door.
+						vis = {
+							tone: GL.steel,
+							metalness: 0.88,
+							roughness: 0.32,
+							mountPos: [-1.2, 0.25, 0],
+							wheelGeo: wheelGeoFor(0.38),
+							nodes: [
+								{ part: 'chassis', geo: taperEnd(taperEnd(box(3.3, 0.62, 1.6), 1, 0.1, 0.45, 0.6), -1, 0.5, 0.7, 0.8), mat: 'hull', pos: [0, -0.02, 0], deform: true },
+								{ part: 'chassis', geo: box(1.35, 0.44, 1.15), mat: 'canopy', pos: [-0.15, 0.42, 0] },
+								{ part: 'armor', geo: box(0.85, 0.16, 0.26), mat: 'hull', pos: [1.25, 0.16, 0.92] },
+								{ part: 'armor', geo: box(0.85, 0.16, 0.26), mat: 'hull', pos: [1.25, 0.16, -0.92] },
+								{ part: 'armor', geo: box(0.85, 0.16, 0.26), mat: 'hull', pos: [-1.25, 0.16, 0.92] },
+								{ part: 'armor', geo: box(0.85, 0.16, 0.26), mat: 'hull', pos: [-1.25, 0.16, -0.92] },
+								{ part: 'chassis', geo: box(1.0, 0.045, 0.05), mat: 'accent', pos: [-0.33, -0.2, 0.81] },
+								{ part: 'chassis', geo: box(1.0, 0.045, 0.05), mat: 'accent', pos: [-0.33, -0.2, -0.81] },
+								...socket(0.16)
+							]
+						};
+					} else {
+						// Warlock: faceted dark machine, tilted side panels, angled
+						// sensor pods, and the antenna mast rising off the weapon
+						// mount - the glyph's silhouette. The accent is a short
+						// spine thread plus the live antenna tip.
+						vis = {
+							tone: GL.chromeLo,
+							metalness: 0.88,
+							roughness: 0.38,
+							mountPos: [-1.25, 0.42, 0],
+							wheelGeo: wheelGeoFor(0.42),
+							nodes: [
+								{ part: 'chassis', geo: taperEnd(box(3.6, 0.72, 1.5), 1, 0.05, 0.4, 0.55), mat: 'hull', pos: [0, 0, 0], deform: true },
+								{ part: 'chassis', geo: taperEnd(box(1.25, 0.42, 1.0), 1, -0.2, 0.5, 0.7), mat: 'canopy', pos: [0.15, 0.5, 0] },
+								{ part: 'chassis', geo: box(0.8, 0.34, 0.5), mat: 'hull', pos: [-1.2, 0.5, 0.42], rot: [0, 0.4, 0] },
+								{ part: 'chassis', geo: box(0.8, 0.34, 0.5), mat: 'hull', pos: [-1.2, 0.5, -0.42], rot: [0, -0.4, 0] },
+								{ part: 'armor', geo: box(0.9, 0.1, 1.15), mat: 'hull', pos: [1.55, -0.34, 0] },
+								{ part: 'armor', geo: box(1.7, 0.5, 0.14), mat: 'hull', pos: [-0.3, 0.05, 0.82], rot: [0.32, 0, 0] },
+								{ part: 'armor', geo: box(1.7, 0.5, 0.14), mat: 'hull', pos: [-0.3, 0.05, -0.82], rot: [-0.32, 0, 0] },
+								{ part: 'chassis', geo: box(1.3, 0.04, 0.05), mat: 'accent', pos: [-0.6, 0.38, 0] },
+								...socket(0.18),
+								{ part: 'mount', geo: new THREE.CylinderGeometry(0.035, 0.035, 1.1, 8), mat: 'mount', pos: [0, 0.6, 0] },
+								{ part: 'mount', geo: new THREE.SphereGeometry(0.08, 10, 8), mat: 'accent', pos: [0, 1.18, 0] }
+							]
+						};
+					}
+					archVisualCache.set(arch, vis);
+					return vis;
+				};
+
+				// Build (or rebuild, on a live archetype swap in the garage) a rig's
+				// visual parts: clears the three attachment groups, repopulates them
+				// from the archetype's shared geometry set, restyles the per-rig
+				// hull material, and recaptures the pristine crumple base. Shared
+				// geometries are never disposed here; the per-rig hull clone is.
+				const buildRigVisual = (rig: Rig, arch: ArchetypeId) => {
+					const vis = archVisual(arch);
+					const groups = rig.parts;
+					for (const grp of [groups.chassis, groups.armor, groups.mount]) grp.clear();
+					// The outgoing per-rig hull clone (or the makeRig placeholder).
+					rig.bodyMesh.geometry.dispose();
+					for (const node of vis.nodes) {
+						const geo = node.deform ? node.geo.clone() : node.geo;
+						const mat =
+							node.mat === 'hull'
+								? rig.bodyMat
+								: node.mat === 'canopy'
+									? canopyMat
+									: node.mat === 'mount'
+										? mountMat
+										: rig.id === 'player'
+											? accentGreenMat
+											: accentSteelMat;
+						const mesh = new THREE.Mesh(geo, mat);
+						mesh.position.set(node.pos[0], node.pos[1], node.pos[2]);
+						if (node.rot) mesh.rotation.set(node.rot[0], node.rot[1], node.rot[2]);
+						// Base transform, for the plate-rattle damage jitter restore.
+						mesh.userData.base = { pos: mesh.position.clone(), rot: mesh.rotation.clone() };
+						groups[node.part].add(mesh);
+						if (node.deform) {
+							rig.bodyMesh = mesh;
+							rig.dentBase = new Float32Array(
+								(geo.getAttribute('position') as InstanceType<typeof THREE.BufferAttribute>)
+									.array as Float32Array
+							);
+						}
+					}
+					groups.mount.position.set(vis.mountPos[0], COM_DROP + vis.mountPos[1], vis.mountPos[2]);
+					for (const m of groups.wheels) m.geometry = vis.wheelGeo;
+					rig.bodyMat.color.setHex(vis.tone);
+					rig.bodyMat.metalness = vis.metalness;
+					rig.bodyMat.roughness = vis.roughness;
+					rig.baseColor = vis.tone;
+					rig.visualArch = arch;
+					// Fresh geometry is pristine; the frame loop re-applies whatever
+					// stage the rig's current health calls for.
+					rig.dentStage = 0;
+				};
+
 				const makeBar = () => {
 					const group = new THREE.Group();
 					const bg = new THREE.Mesh(
 						new THREE.PlaneGeometry(2.4, 0.28),
-						new THREE.MeshBasicMaterial({ color: 0x0a1410, transparent: true, opacity: 0.8 })
+						new THREE.MeshBasicMaterial({ color: 0x070a0e, transparent: true, opacity: 0.8 })
 					);
-					const fgMat = new THREE.MeshBasicMaterial({ color: 0x00ff41 });
+					const fgMat = new THREE.MeshBasicMaterial({ color: GL.chromeMid });
 					const fg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.18), fgMat);
 					fg.position.z = 0.01;
 					group.add(bg);
@@ -778,7 +1113,7 @@
 					return { group, fg, fgMat };
 				};
 
-				const makeRig = (id: string, label: string, baseColor: number, spawn: RigSpawn): Rig => {
+				const makeRig = (id: string, label: string, arch: ArchetypeId, spawn: RigSpawn): Rig => {
 					const body = new CANNON.Body({ mass: tuning.chassisMass });
 					body.addShape(
 						new CANNON.Box(new CANNON.Vec3(1.9, 0.4, 0.85)),
@@ -816,39 +1151,38 @@
 
 					const carGroup = new THREE.Group();
 					const bodyMat = new THREE.MeshStandardMaterial({
-						color: baseColor,
-						metalness: 0.3,
-						roughness: 0.55
+						color: GL.steel,
+						metalness: 0.88,
+						roughness: 0.35,
+						envMap: chromeEnv,
+						// Browser-tuned: below ~1.2 the night side of the bodywork
+						// reads flat black instead of banded chrome.
+						envMapIntensity: 1.35
 					});
-					const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.8, 1.7), bodyMat);
-					bodyMesh.position.y = COM_DROP;
-					carGroup.add(bodyMesh);
-					const cabin = new THREE.Mesh(
-						new THREE.BoxGeometry(1.4, 0.5, 1.3),
-						new THREE.MeshStandardMaterial({ color: 0x0a1f12, roughness: 0.4 })
-					);
-					cabin.position.set(-0.35, 0.6 + COM_DROP, 0);
-					carGroup.add(cabin);
-					const nose = new THREE.Mesh(
-						new THREE.BoxGeometry(0.12, 0.84, 1.74),
-						new THREE.MeshStandardMaterial({ color: 0xc8ff00, emissive: 0x445500 })
-					);
-					nose.position.set(1.5, COM_DROP, 0);
-					carGroup.add(nose);
+					// The named attachment groups buildRigVisual populates. Chassis
+					// and armor share the COM_DROP frame; the mount group takes the
+					// archetype's socket transform on build.
+					const partChassis = new THREE.Group();
+					partChassis.name = 'chassis';
+					partChassis.position.y = COM_DROP;
+					const partArmor = new THREE.Group();
+					partArmor.name = 'armor';
+					partArmor.position.y = COM_DROP;
+					const partMount = new THREE.Group();
+					partMount.name = 'mount';
+					carGroup.add(partChassis, partArmor, partMount);
 					scene.add(carGroup);
 
-					const wheelGeo = new THREE.CylinderGeometry(WHEEL_RADIUS, WHEEL_RADIUS, 0.35, 24);
-					wheelGeo.rotateX(Math.PI / 2);
-					const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.8 });
 					const wheelMeshes = connections.map(() => {
-						const m = new THREE.Mesh(wheelGeo, wheelMat);
+						const m = new THREE.Mesh(archVisual(arch).wheelGeo, tireMat);
 						scene.add(m);
 						return m;
 					});
 
-					// Stun crackle ring: flickers around the hull while disrupted.
+					// Stun crackle ring: flickers around the hull while disrupted
+					// (cool-rim arc light, the brand's electric tone).
 					const stunMat = new THREE.MeshBasicMaterial({
-						color: 0x00f0ff,
+						color: GL.coolRim,
 						transparent: true,
 						opacity: 0,
 						side: THREE.DoubleSide,
@@ -868,8 +1202,12 @@
 						vehicle,
 						carGroup,
 						bodyMat,
-						bodyMesh,
-						baseColor,
+						// Placeholders until buildRigVisual below assigns the
+						// archetype's hull mesh + pristine crumple base.
+						bodyMesh: new THREE.Mesh(),
+						baseColor: GL.steel,
+						parts: { chassis: partChassis, armor: partArmor, mount: partMount, wheels: wheelMeshes },
+						visualArch: null,
 						wheelMeshes,
 						combat: new VehicleCombat(id, num(tuning.maxHealth, DEFAULTS.maxHealth)),
 						tracker: new LapTracker(),
@@ -878,11 +1216,7 @@
 						buildStats: neutralStats(),
 						archetype: 'handling',
 						dentStage: 0,
-						dentBase: new Float32Array(
-							(bodyMesh.geometry.getAttribute('position') as InstanceType<
-								typeof THREE.BufferAttribute
-							>).array as Float32Array
-						),
+						dentBase: new Float32Array(0),
 						stunMat,
 						stunRing,
 						smokeAcc: 0,
@@ -904,6 +1238,7 @@
 						finishAtMs: null,
 						spawn
 					};
+					buildRigVisual(rig, arch);
 					rigByBodyId.set(body.id, rig);
 					body.addEventListener('collide', (e: { body: InstanceType<typeof CANNON.Body> }) => {
 						const other = rigByBodyId.get(e.body.id);
@@ -924,6 +1259,9 @@
 					const s = resolveLoadout(l);
 					rig.buildStats = s;
 					rig.archetype = l.archetype;
+					// Rebuild the bodywork when the archetype changes (live garage
+					// swaps included); parts never touch stats, so this is visual.
+					if (rig.visualArch !== l.archetype) buildRigVisual(rig, l.archetype);
 					const newMax = Math.max(
 						1,
 						Math.round(num(tuning.maxHealth, DEFAULTS.maxHealth) * s.maxHealth)
@@ -938,13 +1276,13 @@
 					rig.combat.resist.spinKick = s.spinKickTaken;
 				};
 
-				const player = makeRig('player', 'YOU', 0x0e6b2f, slotPose(0));
+				const player = makeRig('player', 'YOU', playerLoadout.archetype, slotPose(0));
 				applyLoadoutToRig(player, playerLoadout);
 				applyPlayerLoadout = () => applyLoadoutToRig(player, playerLoadout);
-				const AI_COLORS = [0x2f5f8f, 0x6f3f8f, 0x2f8f7f, 0x8f5f2f, 0x4f4f8f, 0x3f6f4f];
 				// AIs cycle the four archetypes (stock parts) so every round has
 				// build variety to race and fight against: AI-1 armor, AI-2
-				// velocity, AI-3 handling, AI-4 systems, then repeat.
+				// velocity, AI-3 handling, AI-4 systems, then repeat. Identity is
+				// carried by the archetype bodywork itself, not a color array.
 				const AI_ARCHS: ArchetypeId[] = ['armor', 'velocity', 'handling', 'systems'];
 				let ais: Rig[] = [];
 				const rigsAll = () => [player, ...ais];
@@ -954,6 +1292,11 @@
 					r.vehicle.removeFromWorld(world);
 					scene.remove(r.carGroup);
 					r.wheelMeshes.forEach((m) => scene.remove(m));
+					// Per-rig GPU resources only; part geometries are shared.
+					r.bodyMesh.geometry.dispose();
+					r.bodyMat.dispose();
+					r.stunRing.geometry.dispose();
+					r.stunMat.dispose();
 					if (r.bar) scene.remove(r.bar.group);
 				};
 
@@ -963,10 +1306,11 @@
 					aiPoses.length = 0;
 					const n = Math.max(1, Math.min(6, Math.round(count)));
 					for (let k = 1; k <= n; k++) {
-						const rig = makeRig(`ai-${k}`, `AI-${k}`, AI_COLORS[(k - 1) % AI_COLORS.length], slotPose(k));
+						const arch = AI_ARCHS[(k - 1) % AI_ARCHS.length];
+						const rig = makeRig(`ai-${k}`, `AI-${k}`, arch, slotPose(k));
 						rig.ai = new AiDriver(rt);
 						rig.bar = makeBar();
-						applyLoadoutToRig(rig, defaultLoadout(AI_ARCHS[(k - 1) % AI_ARCHS.length]));
+						applyLoadoutToRig(rig, defaultLoadout(arch));
 						ais.push(rig);
 						aiPoses.push({ x: rig.spawn.x, z: rig.spawn.z, hx: 1, hz: 0, out: false });
 					}
@@ -1209,9 +1553,12 @@
 					addTrauma(amount * Math.min(1, 15 / Math.max(d, 15)));
 				};
 
-				// ---- Damage state: crumple the (per-rig) body geometry ----
-				// Stage 0 pristine .. 3 wrecked. Each stage re-jitters from the
-				// pristine base so healing (RACE recovery, reset) restores clean.
+				// ---- Damage state: crumple the hull + rattle the plates ----
+				// Stage 0 pristine .. 3 wrecked. The (per-rig) hull geometry
+				// re-jitters its vertices from the pristine base; the armor plates
+				// (shared geometry, so no vertex writes) shift and tilt off their
+				// stored base transforms, reading as panels knocked loose. Healing
+				// (RACE recovery, reset) restores both exactly.
 				const applyDentStage = (rig: Rig, stage: number) => {
 					rig.dentStage = stage;
 					const attr = rig.bodyMesh.geometry.getAttribute('position') as InstanceType<
@@ -1229,6 +1576,25 @@
 					}
 					attr.needsUpdate = true;
 					rig.bodyMesh.geometry.computeVertexNormals();
+					for (const plate of rig.parts.armor.children) {
+						const base = plate.userData.base as
+							| {
+									pos: InstanceType<typeof THREE.Vector3>;
+									rot: InstanceType<typeof THREE.Euler>;
+							  }
+							| undefined;
+						if (!base) continue;
+						plate.position.copy(base.pos);
+						plate.rotation.copy(base.rot);
+						if (stage > 0) {
+							const amp = 0.03 * stage;
+							plate.position.x += (Math.random() - 0.5) * amp;
+							plate.position.y += (Math.random() - 0.5) * amp;
+							plate.position.z += (Math.random() - 0.5) * amp;
+							plate.rotation.x += (Math.random() - 0.5) * 0.06 * stage;
+							plate.rotation.z += (Math.random() - 0.5) * 0.06 * stage;
+						}
+					}
 				};
 
 				// ---- Combat wiring (shared by player input and AI shooters) ----
@@ -2212,24 +2578,26 @@
 							rig.flipAcc = 0;
 						}
 
-						// Status tint + scorch: gray when out, gold when down, cyan
-						// blink on hit, violet flicker while oiled; otherwise the base
-						// color chars toward burnt charcoal as health drops.
+						// Status tint + scorch, in the brand palette: dead steel when
+						// out, charred amber while down (down IS an impact state),
+						// amber-warm blink on hit, wet-black flicker while oiled;
+						// otherwise the archetype's chrome tone chars toward cold
+						// charcoal as health drops.
 						const hpFrac = Math.max(
 							0,
 							Math.min(1, rig.combat.health / Math.max(1, rig.combat.maxHealth))
 						);
 						const tint = rig.combat.eliminated
-							? 0x3a4440
+							? 0x252d34
 							: rig.combat.isDown(now)
-								? 0x6b5a1c
+								? 0x8a5c16
 								: rig.flashUntil > now
-									? 0x00b8c8
+									? GL.amberWarm
 									: rig.combat.isOiled(now) && Math.floor(now / 130) % 2 === 0
-										? 0x4a3a7a
+										? 0x0d1114
 										: tmpColA
 												.setHex(rig.baseColor)
-												.lerp(tmpColB.setHex(0x141210), (1 - hpFrac) * 0.75)
+												.lerp(tmpColB.setHex(0x101214), (1 - hpFrac) * 0.75)
 												.getHex();
 						if (rig.bodyMat.color.getHex() !== tint) rig.bodyMat.color.setHex(tint);
 
@@ -2268,7 +2636,7 @@
 							);
 						}
 						if (!rig.combat.eliminated && hpFrac <= 0.25 && Math.random() < dt * 2.5) {
-							spawnSparks(body.position.x, body.position.y + 0.6, body.position.z, 4, 0xffcf7a, 5, 350);
+							spawnSparks(body.position.x, body.position.y + 0.6, body.position.z, 4, GL.amberWarm, 5, 350);
 						}
 
 						// Oil drip trail while the tires are slicked.
@@ -2589,7 +2957,7 @@
 							);
 						}
 						// Stun crackle ring: flicker + spin while disrupted, with the
-						// odd arc of cyan sparks so a stun reads at a glance.
+						// odd cool-rim arc of sparks so a stun reads at a glance.
 						const stunned = rig.combat.isDisrupted(now) && !rig.combat.eliminated;
 						rig.stunRing.visible = stunned;
 						if (stunned) {
@@ -2601,7 +2969,7 @@
 									rig.body.position.y + 0.7,
 									rig.body.position.z,
 									3,
-									0x00f0ff,
+									GL.coolRim,
 									6,
 									250
 								);
@@ -2619,8 +2987,10 @@
 							const frac = Math.max(0, rig.combat.health / Math.max(1, rig.combat.maxHealth));
 							rig.bar.fg.scale.x = Math.max(0.001, frac);
 							rig.bar.fg.position.x = -(1 - frac) * 1.2;
+							// Steel-white while healthy; low hull goes amber (the
+							// reserved impact color); eliminated goes dead steel.
 							rig.bar.fgMat.color.setHex(
-								rig.combat.eliminated ? 0x4a4f4a : frac > 0.35 ? 0x00ff41 : 0xffb347
+								rig.combat.eliminated ? 0x39454f : frac > 0.35 ? GL.chromeMid : GL.amber
 							);
 						}
 					}
@@ -2820,6 +3190,7 @@
 					window.removeEventListener('keyup', onKeyUp);
 					window.removeEventListener('blur', onBlur);
 					delete (window as unknown as Record<string, unknown>).__greenline;
+					chromeEnv.dispose();
 					renderer.dispose();
 					renderer.domElement.remove();
 				};

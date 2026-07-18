@@ -1401,7 +1401,8 @@ north star, read it before extending GAUNTLET). Summary of what exists:
 GREENLINE is a 3D combat racing game in its earliest exploration phase. The
 only artifact so far is the movement + track prototype at
 `/dev/greenline-movement` (dev-only harness, 404 in production, no auth or
-Supabase): a placeholder box car driven by a cannon-es `RaycastVehicle`
+Supabase): a multi-part vehicle (originally a placeholder box car; see the
+multi-part rig bullet below) driven by a cannon-es `RaycastVehicle`
 (`cannon-es` is a runtime dependency; three.js is reused, not duplicated), a
 smoothed chase camera, WASD/arrow + gamepad (standard mapping) input, Space
 handbrake, R reset, and an on-screen live tuning panel (drive forces, aero
@@ -1496,8 +1497,9 @@ on one side of the world.
   trauma-model screen shake (shake = trauma^2, distance-scaled for off-player
   events), an additive spark Points pool + a sprite smoke pool (dark smoke
   and oil drips need normal blending to read), escalating damage states on
-  the placeholder mesh (scorch tint lerp, per-rig vertex-jitter crumple at
-  75/50/25% health restored on heal, hood smoke + embers, heavy wreck smoke),
+  the bodywork (scorch tint lerp, per-rig vertex-jitter hull crumple + armor
+  plate rattle at 75/50/25% health restored on heal, hood smoke + embers,
+  heavy wreck smoke),
   and a distinct landing moment per tool: glossy black puddle with an
   additive violet rim, visible gold tether cable + pulsing hook, cyan stun
   crackle ring + spark arcs while disrupted, amber shockwave rings on rams,
@@ -1655,6 +1657,38 @@ on one side of the world.
   `.glb` tokens; the four archetype cards carry distinct line-art silhouette
   glyphs (slab / dart / apex line / antenna) so builds read apart before any
   stat is read.
+- **Multi-part vehicle rigs (the Crossout-direction foundation).** Every
+  vehicle in `GreenlineRace.svelte` composes four NAMED parts instead of one
+  fused mesh: `Rig.parts` holds `chassis` (base hull + canopy), `armor`
+  (plating), and `mount` (empty weapon-mount socket) as attachment Groups
+  under carGroup, each at its own local transform, plus the physics-driven
+  `wheels` (world-space meshes, so scene-level). This exists so the future
+  garage customization, live preview, and per-part damage systems can swap a
+  part's geometry/material or map a hit point to its nearest named part
+  without touching the rest of the rig; physics is deliberately still ONE
+  cannon-es chassis body. Part geometry proportions derive from the resolved
+  archetype, echoing the garage glyphs (ARMOR slab under separate bolted
+  plates, VELOCITY low dart with tail fin, HANDLING compact with flared
+  fenders, SYSTEMS angular with the antenna mast on its mount), and
+  archetype visuals rebuild live on a garage swap (`buildRigVisual`).
+  Materials follow the brand: chrome/steel PBR whose reflections come from
+  the brand's chrome-gradient recipe baked into a tiny PMREM env map applied
+  to VEHICLE materials only; body tones are all chrome-ramp tokens; the
+  signature green thread appears on the PLAYER's machine only (the AI field
+  carries the same thread in dim cool-rim, so archetypes read by silhouette,
+  never hue); amber is only impact state (hit flash, DOWN tint, low-hull
+  overhead bar). Damage feedback rides the split: the scorch tint chars the
+  per-rig hull material, the crumple jitters the per-rig hull clone's
+  vertices AND rattles the shared-geometry armor plates via per-mesh
+  transform jitter, restored exactly on heal. Geometries/materials are
+  shared per archetype across rigs (only the hull clone + tint material are
+  per-rig).
+- **Performance target:** the school's desktop computers, roughly 6-8 years
+  old (a real but aging GPU budget, not tablets or Chromebooks): moderate
+  per-part polycounts, geometries and materials reused across instances (up
+  to 7 simultaneous multi-part vehicles, so draw calls are the budget to
+  watch), no dynamic per-light shadows; standard directional + hemisphere
+  lighting plus the one-time vehicle env map is the lighting ceiling.
 - **Soundtrack (`src/lib/greenline/GreenlineMusic.svelte`).** Music is wired to
   the `/greenline` route's screen state machine by ONE controller mounted once
   in `+page.svelte` OUTSIDE the `{#if}` chain (so audio survives every screen
