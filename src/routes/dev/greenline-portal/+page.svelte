@@ -3,6 +3,7 @@
 	import Garage from '$lib/greenline/Garage.svelte';
 	import GreenlineResults from '$lib/greenline/GreenlineResults.svelte';
 	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
+	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
 	import { GARAGE_BASELINE, type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
 	import { defaultLoadout, type ArchetypeId, type PartSlot } from '$lib/greenline/loadout';
 	import type { LeaderboardEntry } from '$lib/greenline/persistence';
@@ -17,9 +18,11 @@
 	 */
 	// ?view=garage|results preselects a view (headless screenshot support).
 	const initView = browser ? new URLSearchParams(location.search).get('view') : null;
-	let view = $state<'title' | 'garage' | 'results'>(
-		initView === 'garage' || initView === 'results' ? initView : 'title'
+	let view = $state<'title' | 'garage' | 'race' | 'results'>(
+		initView === 'garage' || initView === 'race' || initView === 'results' ? initView : 'title'
 	);
+	// Drives GreenlineMusic's winner-vs-loser branch on the results screen.
+	let resultWin = $state(false);
 
 	// --- Garage screen (real component, route props) ---
 	let loadout = $state(defaultLoadout());
@@ -93,8 +96,14 @@
 	<span>GREENLINE portal-flow harness (dev)</span>
 	<button class:on={view === 'title'} onclick={() => (view = 'title')}>title</button>
 	<button class:on={view === 'garage'} onclick={() => (view = 'garage')}>garage</button>
+	<button class:on={view === 'race'} onclick={() => (view = 'race')}>race</button>
 	<button class:on={view === 'results'} onclick={() => (view = 'results')}>results</button>
 	{#if view !== 'results'}<span class="dh-note">last: {lastAction || '—'}</span>{/if}
+	{#if view === 'results'}
+		<span class="dh-note">music:</span>
+		<button class:on={resultWin} onclick={() => (resultWin = true)}>win (winner)</button>
+		<button class:on={!resultWin} onclick={() => (resultWin = false)}>lose (loser)</button>
+	{/if}
 	{#if view === 'results'}
 		<span class="dh-note">board:</span>
 		{#each ['rows', 'empty', 'loading', 'submitting', 'error'] as m}
@@ -121,6 +130,13 @@
 			onback={() => (lastAction = 'back to TITLE')}
 			backLabel="◂ TITLE"
 		/>
+	{:else if view === 'race'}
+		<div class="dh-center">
+			<div class="dh-racenote">
+				RACE (music harness only — real race is /dev/greenline-movement)<br />
+				a random race-N track plays here; re-select race to reroll
+			</div>
+		</div>
 	{:else}
 		<div class="dh-center">
 			<GreenlineResults
@@ -138,6 +154,8 @@
 		</div>
 	{/if}
 </div>
+
+<GreenlineMusic screen={view} finishPosition={view === 'results' ? (resultWin ? 1 : 2) : null} />
 
 <style>
 	.dh-bar {
@@ -183,5 +201,13 @@
 		display: flex;
 		align-items: flex-start;
 		justify-content: center;
+	}
+	.dh-racenote {
+		margin-top: 25vh;
+		text-align: center;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.85rem;
+		line-height: 1.8;
+		color: #7fbf8f;
 	}
 </style>

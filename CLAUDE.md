@@ -1655,6 +1655,35 @@ on one side of the world.
   `.glb` tokens; the four archetype cards carry distinct line-art silhouette
   glyphs (slab / dart / apex line / antenna) so builds read apart before any
   stat is read.
+- **Soundtrack (`src/lib/greenline/GreenlineMusic.svelte`).** Music is wired to
+  the `/greenline` route's screen state machine by ONE controller mounted once
+  in `+page.svelte` OUTSIDE the `{#if}` chain (so audio survives every screen
+  change without remount), taking `screen` + `finishPosition` props. Mapping:
+  title -> a menu track, garage -> a workshop track, race -> a random race
+  track picked at race start, results -> `winner.mp3` if `finishPosition === 1`
+  else `loser.mp3`; all loop (a track that outlasts a race cleanly restarts,
+  no crossfade-to-self). Screen changes CROSSFADE (~350ms two-channel over
+  plain `HTMLAudioElement`s, never a hard cut/pop). Autoplay: the first play()
+  is attempted on mount and, if the browser blocks it, retried once on the
+  first pointer/key event (armed listeners), so the title is never silent
+  forever. A **session mute toggle** (module-level `sessionMuted` so it
+  survives remounts within the SPA session but NOT a reload) is a fixed
+  bottom-right `.glb`-styled dark-plate/hairline-steel button (bottom-right is
+  the one free HUD corner: speed top-left, timing top-center, standings/tuning
+  top-right, minimap bottom-left, controls bottom-center); toggling ramps the
+  active track's volume. This is a small purpose-built controller, NOT a reuse
+  of VANGUARD's audio (that lives inline in the legacy HTML monolith, coupled
+  to its own music-lane/sector logic, not an extractable module). **Assets:**
+  `static/greenline/audio/` (following VANGUARD's `static/<game>/audio/`
+  convention), holding two menu (`menu-1/2`), two workshop (`workshop-1/2`),
+  five race (`race-1..5`), plus `winner.mp3` / `loser.mp3` — the menu/workshop
+  pools rotate, race is random, so the pool counts are read from the arrays in
+  the component, not hardcoded elsewhere. Music only: no SFX/engine/weapon
+  audio exists yet. Dev harness: `/dev/greenline-portal` mounts the controller
+  with a title/garage/race/results view switcher + a win/lose toggle, so
+  per-screen track selection, crossfade, and the mute button are
+  browser-verifiable (via network + DOM, since `new Audio()` elements are
+  off-DOM) without auth.
 
 ## FRC Training track
 

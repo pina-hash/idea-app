@@ -22,6 +22,7 @@
 		type LeaderboardEntry
 	} from '$lib/greenline/persistence';
 	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
+	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
 	import '$lib/greenline/brand/brand';
 	import type { PageData } from './$types';
 
@@ -117,6 +118,8 @@
 <svelte:head>
 	<title>GREENLINE</title>
 </svelte:head>
+
+<GreenlineMusic {screen} finishPosition={outcome?.finishPosition ?? null} />
 
 {#if screen === 'title'}
 	<div class="gp-root">
