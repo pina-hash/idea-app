@@ -1,16 +1,20 @@
 <script lang="ts">
 	import './brand/brand';
 	import {
+		archetypeById,
 		ARCHETYPES,
 		describeEffects,
 		describeStats,
 		PART_SLOTS,
 		partsForSlot,
 		resolveLoadout,
+		STAT_META,
 		type ArchetypeId,
 		type Loadout,
-		type PartSlot
+		type PartSlot,
+		type StatKey
 	} from './loadout';
+	import { GREENLINE_MAX_SLOTS, type LoadoutSlot } from './persistence';
 	import GaragePreview from './GaragePreview.svelte';
 
 	/**
@@ -38,7 +42,13 @@
 		closeLabel = 'CLOSE (G)',
 		onback,
 		backLabel = 'BACK',
-		preview = true
+		preview = true,
+		onSettings,
+		slots,
+		activeSlot = null,
+		onSaveSlot,
+		onLoadSlot,
+		onDeleteSlot
 	}: {
 		loadout: Loadout;
 		/** Current tuning-panel baselines the multipliers apply over. */
@@ -64,27 +74,112 @@
 		 * context over a running sim is pure cost.
 		 */
 		preview?: boolean;
+		/** Optional: renders a gear button that opens the settings overlay. */
+		onSettings?: () => void;
+		/**
+		 * Named build slots (index = slot number, null = empty), up to
+		 * GREENLINE_MAX_SLOTS. When provided, the BUILD SLOTS section renders. The
+		 * garage stays storage-agnostic: the parent owns persistence and passes
+		 * these + the callbacks below (the Minimap convention).
+		 */
+		slots?: (LoadoutSlot | null)[];
+		/** Which slot the working build is tied to (null = custom / unsaved). */
+		activeSlot?: number | null;
+		onSaveSlot?: (slot: number, name: string) => void;
+		onLoadSlot?: (slot: number) => void;
+		onDeleteSlot?: (slot: number) => void;
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
-	const summary = $derived(describeStats(stats));
 
-	// Hero numbers: what the build actually means in this session's tuning.
-	// Physics stays metric (baselineMass in kg, the speed proxy in m/s); these
-	// convert to US customary at the display layer only.
-	const hull = $derived(Math.round(baselineHealth * stats.maxHealth));
-	// Mass in pounds (1 kg = 2.2046226 lb).
-	const massLb = $derived(Math.round(baselineMass * stats.chassisMass * 2.2046226));
-	// Top speed proxy: quadratic-drag terminal speed sqrt(engine / drag), m/s,
-	// shown in mph (1 m/s = 2.236936 mph).
-	const topSpeedMph = $derived(
-		Math.sqrt(
-			(baselineEngine * stats.engineForce) / Math.max(0.01, baselineDrag * stats.aeroDrag)
-		) * 2.236936
+	const fmtPct = (pct: number) => `${pct > 0 ? '+' : ''}${Math.round(pct)}%`;
+
+	/** Tone a signed delta by which direction reads as an upgrade. */
+	function toneByDelta(deltaPct: number, better: 'higher' | 'lower' | 'neutral') {
+		if (better === 'neutral' || Math.abs(deltaPct) < 0.5) return 'neutral';
+		return (better === 'higher') === deltaPct > 0 ? 'good' : 'bad';
+	}
+
+	/**
+	 * The four headline numbers, each with its real delta from the neutral
+	 * baseline and a tone, so the build reads at a glance without parsing a wall
+	 * of multipliers. Physics stays metric (kg, m/s); US-customary conversion is
+	 * display-only.
+	 */
+	const heroes = $derived.by(() => {
+		const s = stats;
+		const baseTop = Math.sqrt(baselineEngine / Math.max(0.01, baselineDrag)) * 2.236936;
+		const top =
+			Math.sqrt((baselineEngine * s.engineForce) / Math.max(0.01, baselineDrag * s.aeroDrag)) *
+			2.236936;
+		const speedDelta = baseTop > 0 ? (top / baseTop - 1) * 100 : 0;
+		return [
+			{
+				label: 'HULL',
+				value: String(Math.round(baselineHealth * s.maxHealth)),
+				unit: '',
+				delta: (s.maxHealth - 1) * 100,
+				tone: toneByDelta((s.maxHealth - 1) * 100, STAT_META.maxHealth.better)
+			},
+			{
+				label: 'TOP SPEED',
+				value: top.toFixed(1),
+				unit: 'mph',
+				delta: speedDelta,
+				tone: toneByDelta(speedDelta, 'higher')
+			},
+			{
+				label: 'MASS',
+				value: String(Math.round(baselineMass * s.chassisMass * 2.2046226)),
+				unit: 'lb',
+				delta: (s.chassisMass - 1) * 100,
+				tone: 'neutral' as const
+			},
+			{
+				label: 'COOLDOWNS',
+				value: String(Math.round(s.weaponCooldown * 100)),
+				unit: '%',
+				delta: (s.weaponCooldown - 1) * 100,
+				tone: toneByDelta((s.weaponCooldown - 1) * 100, STAT_META.weaponCooldown.better)
+			}
+		];
+	});
+
+	// The headline heroes already cover these five stats; the secondary list
+	// shows only the REST (grip, steering, resistances, EMP reach, ...), grouped
+	// by what you gain vs what it costs.
+	const HERO_KEYS: StatKey[] = [
+		'maxHealth',
+		'chassisMass',
+		'engineForce',
+		'aeroDrag',
+		'weaponCooldown'
+	];
+	const secondary = $derived(describeStats(stats).filter((c) => !HERO_KEYS.includes(c.key)));
+	const gains = $derived(secondary.filter((c) => c.tone === 'good'));
+	const costs = $derived(secondary.filter((c) => c.tone === 'bad'));
+	const character = $derived(secondary.filter((c) => c.tone === 'neutral'));
+
+	// --- Build slots (only rendered when the parent passes `slots`) ---
+	const slotList = $derived(
+		slots
+			? Array.from({ length: GREENLINE_MAX_SLOTS }, (_, i) => slots.find((s) => s?.slot === i) ?? null)
+			: []
 	);
-	const cooldownPct = $derived(Math.round(stats.weaponCooldown * 100));
+	let slotName = $state('');
+	let confirmDelete = $state<number | null>(null);
 
-	const fmtPct = (pct: number) => `${pct > 0 ? '+' : ''}${pct}%`;
+	function doSave(i: number) {
+		const existing = slotList[i];
+		const name = slotName.trim() || existing?.name || `Build ${i + 1}`;
+		onSaveSlot?.(i, name);
+		slotName = '';
+		confirmDelete = null;
+	}
+	function doDelete(i: number) {
+		onDeleteSlot?.(i);
+		confirmDelete = null;
+	}
 </script>
 
 <div class="glb gg-scrim" role="presentation">
@@ -92,11 +187,100 @@
 		<div class="gg-head">
 			<span class="gg-title">GARAGE</span>
 			<span class="gg-note">{note}</span>
+			{#if onSettings}
+				<button class="gg-btn gg-gear" onclick={onSettings} aria-label="Settings" title="Settings">
+					<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+						<circle cx="12" cy="12" r="3.2" />
+						<path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4 5.3 5.3" />
+					</svg>
+				</button>
+			{/if}
 			{#if onback}
 				<button class="gg-btn" onclick={onback}>{backLabel}</button>
 			{/if}
 			<button class="gg-btn gg-btn-primary" onclick={onclose}>{closeLabel}</button>
 		</div>
+
+		{#snippet partIcon(id: string)}
+			<svg class="gg-part-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				{#if id === 'plating-stock'}
+					<!-- Factory panel with bolt heads -->
+					<rect x="4" y="6" width="16" height="12" rx="1" />
+					<circle cx="7" cy="9" r="0.7" fill="currentColor" stroke="none" />
+					<circle cx="17" cy="9" r="0.7" fill="currentColor" stroke="none" />
+					<circle cx="7" cy="15" r="0.7" fill="currentColor" stroke="none" />
+					<circle cx="17" cy="15" r="0.7" fill="currentColor" stroke="none" />
+				{:else if id === 'plating-composite'}
+					<!-- Laminated layers -->
+					<rect x="4" y="5" width="16" height="14" rx="1" />
+					<path d="M4 9.5h16M4 13h16M4 16.5h16" stroke-width="1" opacity="0.85" />
+				{:else if id === 'plating-reactive'}
+					<!-- Exo-cage hexagon -->
+					<path d="M12 3l7 4v10l-7 4-7-4V7z" />
+					<path d="M12 3v18M5 7l14 10M19 7L5 17" stroke-width="1" opacity="0.7" />
+				{:else if id === 'plating-stripped'}
+					<!-- Bare frame: corner brackets only -->
+					<path d="M4 9V6h3M17 6h3v3M20 15v3h-3M7 18H4v-3" />
+					<path d="M9 12h6" stroke-width="1" opacity="0.6" />
+				{:else if id === 'drive-stock'}
+					<!-- Gear -->
+					<circle cx="12" cy="12" r="3.4" />
+					<path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
+				{:else if id === 'drive-overbored'}
+					<!-- Piston + crank: raw power -->
+					<rect x="9" y="3" width="6" height="7" rx="1" />
+					<path d="M12 10v6" />
+					<rect x="7" y="16" width="10" height="4" rx="1" />
+				{:else if id === 'drive-slipstream'}
+					<!-- Streamline arrow -->
+					<path d="M3 12h13" />
+					<path d="M12 8l5 4-5 4" />
+					<path d="M3 8h6M3 16h6" stroke-width="1" opacity="0.7" />
+				{:else if id === 'drive-hotintake'}
+					<!-- Intake trumpet + heat -->
+					<path d="M3 9l8 2v2l-8 2z" />
+					<path d="M11 12h4" />
+					<path d="M17 7c1.6 1 1.6 3 .4 4.2M19.5 8c1.6 1.2 1.6 3.4.2 5" stroke-width="1.3" />
+				{:else if id === 'tires-stock'}
+					<!-- Tire + hub -->
+					<circle cx="12" cy="12" r="8" />
+					<circle cx="12" cy="12" r="3" />
+				{:else if id === 'tires-slick'}
+					<!-- Smooth tire + gloss highlight -->
+					<circle cx="12" cy="12" r="8" />
+					<circle cx="12" cy="12" r="3" />
+					<path d="M7 6.5A8 8 0 0 1 12 4.2" stroke-width="1.3" opacity="0.9" />
+				{:else if id === 'tires-terrain'}
+					<!-- Knobby tire: lugs around the tread -->
+					<circle cx="12" cy="12" r="7" />
+					<circle cx="12" cy="12" r="2.6" />
+					<path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.5 1.5M16.9 16.9l1.5 1.5M18.4 5.6l-1.5 1.5M7.1 16.9l-1.5 1.5" stroke-width="1.2" />
+				{:else if id === 'tires-hardwall'}
+					<!-- Reinforced: double sidewall ring -->
+					<circle cx="12" cy="12" r="8" />
+					<circle cx="12" cy="12" r="5.6" stroke-width="1" opacity="0.85" />
+					<circle cx="12" cy="12" r="2.4" />
+				{:else if id === 'sys-stock'}
+					<!-- Factory chip + pins -->
+					<rect x="7" y="7" width="10" height="10" rx="1" />
+					<path d="M10 7V4M14 7V4M10 20v-3M14 20v-3M4 10h3M4 14h3M17 10h3M17 14h3" stroke-width="1.1" />
+				{:else if id === 'sys-capacitor'}
+					<!-- Charge cell + bolt -->
+					<rect x="4" y="6" width="9" height="12" rx="1" />
+					<path d="M6.5 6V4h4v2" stroke-width="1.1" />
+					<path d="M17 6l-3 6h3l-3 6" />
+				{:else if id === 'sys-faraday'}
+					<!-- Shield dome mesh -->
+					<path d="M4 17a8 8 0 0 1 16 0z" />
+					<path d="M8 17V10M12 17V8M16 17v-7M6 13.5h12" stroke-width="1" opacity="0.8" />
+				{:else if id === 'sys-targeting'}
+					<!-- Reticle -->
+					<circle cx="12" cy="12" r="7" />
+					<path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+					<circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+				{/if}
+			</svg>
+		{/snippet}
 
 		{#snippet archetypeSection()}
 		<div class="gg-section-label">Archetype</div>
@@ -168,15 +352,18 @@
 							class:sel={loadout.parts[slot.id] === part.id}
 							onclick={() => onequip(slot.id, part.id)}
 						>
-							<span class="gg-part-name">{part.name}</span>
-							<span class="gg-part-blurb">{part.blurb}</span>
-							{#if describeEffects(part.effects).length}
-								<span class="gg-chips">
-									{#each describeEffects(part.effects) as c (c.key)}
-										<span class="gg-chip {c.tone}">{c.label} {fmtPct(c.pct)}</span>
-									{/each}
-								</span>
-							{/if}
+							<span class="gg-part-ico">{@render partIcon(part.id)}</span>
+							<span class="gg-part-body">
+								<span class="gg-part-name">{part.name}</span>
+								<span class="gg-part-blurb">{part.blurb}</span>
+								{#if describeEffects(part.effects).length}
+									<span class="gg-chips">
+										{#each describeEffects(part.effects) as c (c.key)}
+											<span class="gg-chip {c.tone}">{c.label} {fmtPct(c.pct)}</span>
+										{/each}
+									</span>
+								{/if}
+							</span>
 						</button>
 					{/each}
 				</div>
@@ -185,24 +372,120 @@
 
 		<div class="gg-section-label">Resolved build</div>
 		<div class="gg-summary">
-			<div class="gg-heroes">
-				<span class="gg-hero">HULL <b>{hull}</b></span>
-				<span class="gg-hero">MASS <b>{massLb}<i>lb</i></b></span>
-				<span class="gg-hero">TOP SPEED <b>{topSpeedMph.toFixed(1)}<i>mph</i></b></span>
-				<span class="gg-hero">COOLDOWNS <b>{cooldownPct}<i>%</i></b></span>
-			</div>
-			<div class="gg-chips">
-				{#each summary as c (c.key)}
-					<span class="gg-chip {c.tone}">{c.label} {fmtPct(c.pct)}</span>
-				{:else}
-					<span class="gg-part-blurb">neutral build, identical to the tuning-panel baseline</span>
+			<div class="gg-hero-grid">
+				{#each heroes as h (h.label)}
+					<div class="gg-hero-tile {h.tone}">
+						<span class="gg-hero-label">{h.label}</span>
+						<span class="gg-hero-value">{h.value}{#if h.unit}<i>{h.unit}</i>{/if}</span>
+						<span class="gg-hero-delta {h.tone}">
+							{Math.abs(h.delta) < 0.5 ? 'baseline' : fmtPct(h.delta)}
+						</span>
+					</div>
 				{/each}
 			</div>
+
+			{#if secondary.length}
+				<div class="gg-deltas">
+					{#if gains.length}
+						<div class="gg-delta-col">
+							<span class="gg-delta-head good">GAINS</span>
+							<span class="gg-chips">
+								{#each gains as c (c.key)}
+									<span class="gg-chip good">{c.label} {fmtPct(c.pct)}</span>
+								{/each}
+							</span>
+						</div>
+					{/if}
+					{#if costs.length}
+						<div class="gg-delta-col">
+							<span class="gg-delta-head bad">TRADEOFFS</span>
+							<span class="gg-chips">
+								{#each costs as c (c.key)}
+									<span class="gg-chip bad">{c.label} {fmtPct(c.pct)}</span>
+								{/each}
+							</span>
+						</div>
+					{/if}
+					{#if character.length}
+						<div class="gg-delta-col">
+							<span class="gg-delta-head neutral">CHARACTER</span>
+							<span class="gg-chips">
+								{#each character as c (c.key)}
+									<span class="gg-chip neutral">{c.label} {fmtPct(c.pct)}</span>
+								{/each}
+							</span>
+						</div>
+					{/if}
+				</div>
+			{:else}
+				<span class="gg-part-blurb">neutral build — identical to the baseline feel</span>
+			{/if}
+
 			<div class="gg-foot">
-				multipliers apply over the live tuning baseline · mass is character, not a stat: heavy
-				builds physically resist tethers, rams, and spins, and pay in acceleration
+				HULL / MASS / TOP SPEED / COOLDOWNS are the resolved numbers; the columns below are the
+				rest of the deltas. Mass is character, not a stat: heavy builds physically resist tethers,
+				rams, and spins, and pay in acceleration.
 			</div>
 		</div>
+
+		{#if slots}
+			<div class="gg-section-label">Build slots</div>
+			<div class="gg-slots-panel">
+				<div class="gg-slot-namebar">
+					<input
+						class="gg-slot-input"
+						type="text"
+						maxlength="24"
+						placeholder="Name this build (optional)"
+						bind:value={slotName}
+						aria-label="Name for the build you save"
+					/>
+					<span class="gg-slot-hint">
+						{#if activeSlot != null && slotList[activeSlot]}
+							equipped: <b>{slotList[activeSlot]?.name}</b>
+						{:else}
+							working build — unsaved
+						{/if}
+					</span>
+				</div>
+				<div class="gg-slot-grid">
+					{#each slotList as s, i (i)}
+						{@const filled = !!s}
+						{@const active = activeSlot === i && filled}
+						<div class="gg-slot-tile" class:filled class:active>
+							<div class="gg-slot-top">
+								<span class="gg-slot-idx">SLOT {i + 1}</span>
+								{#if active}<span class="gg-slot-badge">EQUIPPED</span>{/if}
+							</div>
+							{#if s}
+								<span class="gg-slot-name">{s.name}</span>
+								<span class="gg-slot-arch">{archetypeById(s.loadout.archetype)?.name ?? s.loadout.archetype}</span>
+								<div class="gg-slot-actions">
+									{#if confirmDelete === i}
+										<button class="gg-slot-btn danger" onclick={() => doDelete(i)}>CONFIRM</button>
+										<button class="gg-slot-btn" onclick={() => (confirmDelete = null)}>CANCEL</button>
+									{:else}
+										<button class="gg-slot-btn primary" onclick={() => onLoadSlot?.(i)}>LOAD</button>
+										<button class="gg-slot-btn" onclick={() => doSave(i)} title="Overwrite with the current build">SAVE</button>
+										<button class="gg-slot-btn" onclick={() => (confirmDelete = i)} aria-label="Delete slot">✕</button>
+									{/if}
+								</div>
+							{:else}
+								<span class="gg-slot-empty">— empty —</span>
+								<div class="gg-slot-actions">
+									<button class="gg-slot-btn primary" onclick={() => doSave(i)}>SAVE HERE</button>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+				<div class="gg-foot">
+					Save up to {GREENLINE_MAX_SLOTS} named builds. LOAD equips a slot as your working build;
+					SAVE overwrites a slot with what you have now. Editing the working build after loading
+					marks it unsaved until you save it back.
+				</div>
+			</div>
+		{/if}
 	</div>
 </div>
 
@@ -427,6 +710,43 @@
 	}
 	.gg-part {
 		padding: 0.42rem 0.55rem 0.42rem 0.7rem;
+		flex-direction: row;
+		align-items: flex-start;
+		gap: 0.5rem;
+	}
+	.gg-part-ico {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 1.9rem;
+		height: 1.9rem;
+		margin-top: 0.05rem;
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		background: linear-gradient(180deg, rgba(10, 14, 19, 0.9), rgba(5, 8, 11, 0.9));
+	}
+	.gg-part-glyph {
+		width: 1.25rem;
+		height: 1.25rem;
+		color: var(--glb-steel-dim);
+		transition: color 140ms ease;
+	}
+	.gg-part:hover .gg-part-glyph {
+		color: var(--glb-steel);
+	}
+	.gg-part.sel .gg-part-ico {
+		border-color: rgba(42, 229, 126, 0.45);
+		background: linear-gradient(180deg, rgba(14, 22, 18, 0.95), rgba(6, 10, 8, 0.95));
+	}
+	.gg-part.sel .gg-part-glyph {
+		color: var(--glb-green-ui);
+	}
+	.gg-part-body {
+		display: flex;
+		flex-direction: column;
+		gap: 0.24rem;
+		min-width: 0;
 	}
 	.gg-part::before {
 		content: '';
@@ -489,34 +809,244 @@
 	.gg-summary {
 		display: flex;
 		flex-direction: column;
-		gap: 0.45rem;
+		gap: 0.6rem;
 	}
-	.gg-heroes {
+	/* Headline numbers as a row of tiles: value big, signed delta beneath. */
+	.gg-hero-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+		gap: 0.5rem;
+	}
+	.gg-hero-tile {
 		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem 1.2rem;
-		font-size: 0.7rem;
+		flex-direction: column;
+		gap: 0.15rem;
+		padding: 0.5rem 0.6rem;
+		background: linear-gradient(180deg, rgba(16, 22, 28, 0.85), rgba(7, 10, 14, 0.9));
+		border: 1px solid var(--glb-line);
+		border-left: 2px solid var(--glb-line-strong);
+		border-radius: 2px;
+	}
+	.gg-hero-tile.good {
+		border-left-color: rgba(42, 229, 126, 0.7);
+	}
+	.gg-hero-tile.bad {
+		border-left-color: rgba(217, 144, 106, 0.7);
+	}
+	.gg-hero-tile.neutral {
+		border-left-color: rgba(159, 176, 189, 0.5);
+	}
+	.gg-hero-label {
+		font-size: 0.62rem;
 		font-weight: 600;
-		letter-spacing: 0.14em;
+		letter-spacing: 0.2em;
 		color: var(--glb-ink-dim);
 	}
-	.gg-hero b {
+	.gg-hero-value {
 		font-family: var(--glb-font-data);
-		font-weight: normal;
-		font-size: 0.92rem;
-		letter-spacing: 0;
+		font-size: 1.35rem;
+		line-height: 1;
 		color: var(--glb-chrome-hi);
-		margin-left: 0.25rem;
 	}
-	.gg-hero i {
+	.gg-hero-value i {
 		font-style: normal;
-		font-size: 0.68rem;
+		font-size: 0.7rem;
 		color: var(--glb-steel-dim);
+		margin-left: 0.15rem;
+	}
+	.gg-hero-delta {
+		font-family: var(--glb-font-data);
+		font-size: 0.72rem;
+		letter-spacing: 0.02em;
+	}
+	.gg-hero-delta.good {
+		color: var(--glb-green-ui);
+	}
+	.gg-hero-delta.bad {
+		color: #d9906a;
+	}
+	.gg-hero-delta.neutral {
+		color: var(--glb-steel-dim);
+	}
+	/* Secondary deltas, split into what you gain / what it costs / character. */
+	.gg-deltas {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+		gap: 0.5rem 0.9rem;
+	}
+	.gg-delta-col {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+	.gg-delta-head {
+		font-size: 0.6rem;
+		font-weight: 600;
+		letter-spacing: 0.24em;
+	}
+	.gg-delta-head.good {
+		color: var(--glb-green-ui);
+	}
+	.gg-delta-head.bad {
+		color: #d9906a;
+	}
+	.gg-delta-head.neutral {
+		color: #9fb0bd;
 	}
 	.gg-foot {
 		color: var(--glb-ink-faint);
 		font-size: 0.66rem;
 		letter-spacing: 0.04em;
 		line-height: 1.45;
+	}
+	/* Header gear button, sized to the header buttons. */
+	.gg-gear {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.3rem 0.5rem;
+	}
+	/* Build slots. */
+	.gg-slots-panel {
+		display: flex;
+		flex-direction: column;
+		gap: 0.55rem;
+	}
+	.gg-slot-namebar {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+		flex-wrap: wrap;
+	}
+	.gg-slot-input {
+		flex: 1;
+		min-width: 12rem;
+		background: linear-gradient(180deg, rgba(10, 14, 19, 0.9), rgba(5, 8, 11, 0.92));
+		border: 1px solid var(--glb-line-strong);
+		border-radius: 2px;
+		color: var(--glb-chrome-hi);
+		font: 600 0.8rem var(--glb-font-ui);
+		letter-spacing: 0.04em;
+		padding: 0.4rem 0.6rem;
+	}
+	.gg-slot-input::placeholder {
+		color: var(--glb-ink-faint);
+	}
+	.gg-slot-input:focus-visible {
+		outline: 1px solid rgba(42, 229, 126, 0.5);
+		outline-offset: 1px;
+	}
+	.gg-slot-hint {
+		font-size: 0.7rem;
+		letter-spacing: 0.06em;
+		color: var(--glb-ink-dim);
+	}
+	.gg-slot-hint b {
+		color: var(--glb-green-ui);
+		font-weight: 600;
+	}
+	.gg-slot-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+		gap: 0.5rem;
+	}
+	.gg-slot-tile {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding: 0.5rem 0.6rem;
+		min-height: 6.5rem;
+		background: linear-gradient(180deg, rgba(12, 16, 21, 0.7), rgba(6, 9, 12, 0.7));
+		border: 1px dashed var(--glb-line);
+		border-radius: 2px;
+	}
+	.gg-slot-tile.filled {
+		background: linear-gradient(180deg, rgba(16, 22, 28, 0.9), rgba(7, 10, 14, 0.92));
+		border-style: solid;
+	}
+	.gg-slot-tile.active {
+		border-color: rgba(42, 229, 126, 0.55);
+		box-shadow:
+			inset 0 1px 0 rgba(247, 251, 254, 0.08),
+			0 0 12px rgba(42, 229, 126, 0.18);
+	}
+	.gg-slot-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.4rem;
+	}
+	.gg-slot-idx {
+		font-size: 0.6rem;
+		font-weight: 600;
+		letter-spacing: 0.22em;
+		color: var(--glb-ink-faint);
+	}
+	.gg-slot-badge {
+		font-size: 0.56rem;
+		font-weight: 600;
+		letter-spacing: 0.16em;
+		color: var(--glb-green-ui);
+		border: 1px solid rgba(42, 229, 126, 0.4);
+		border-radius: 1px;
+		padding: 0.03rem 0.28rem;
+	}
+	.gg-slot-name {
+		color: var(--glb-chrome-hi);
+		font-weight: 600;
+		font-size: 0.85rem;
+		letter-spacing: 0.02em;
+		line-height: 1.2;
+		word-break: break-word;
+	}
+	.gg-slot-arch {
+		font-family: var(--glb-font-data);
+		font-size: 0.66rem;
+		letter-spacing: 0.06em;
+		color: var(--glb-steel);
+	}
+	.gg-slot-empty {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		color: var(--glb-ink-faint);
+		font-size: 0.74rem;
+		letter-spacing: 0.08em;
+	}
+	.gg-slot-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+		margin-top: auto;
+	}
+	.gg-slot-btn {
+		background: linear-gradient(180deg, rgba(23, 30, 37, 0.85), rgba(9, 13, 17, 0.9));
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		color: var(--glb-steel);
+		font: 600 0.62rem var(--glb-font-ui);
+		letter-spacing: 0.12em;
+		padding: 0.26rem 0.5rem;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease;
+	}
+	.gg-slot-btn:hover,
+	.gg-slot-btn:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	.gg-slot-btn.primary {
+		color: var(--glb-green-ui);
+		border-color: rgba(42, 229, 126, 0.45);
+	}
+	.gg-slot-btn.primary:hover {
+		border-color: rgba(42, 229, 126, 0.75);
+	}
+	.gg-slot-btn.danger {
+		color: var(--glb-amber);
+		border-color: rgba(255, 176, 46, 0.5);
 	}
 </style>

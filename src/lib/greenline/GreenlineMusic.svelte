@@ -1,14 +1,13 @@
-<script lang="ts" module>
-	/**
-	 * Session-scoped mute state. Module-level so it survives the component
-	 * remounting as the player navigates within the /greenline SPA session
-	 * (it deliberately does NOT survive a full reload, per the spec).
-	 */
-	let sessionMuted = false;
-</script>
-
 <script lang="ts">
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
+	import {
+		MUSIC_TRACKS,
+		SHUFFLE,
+		musicGain,
+		musicSettings,
+		toggleMusicMuted,
+		type TrackCategory
+	} from './audio-settings.svelte';
 
 	/**
 	 * GREENLINE music director. Wires the existing soundtrack to the route's
@@ -24,6 +23,10 @@
 	 * few hundred ms, so screen changes never hard-cut or pop. Tracks loop, so a
 	 * race that outlasts its track cleanly restarts rather than going silent.
 	 *
+	 * Volume, mute, and per-category track pins live in the shared, reload-
+	 * persisted store (audio-settings.svelte.ts); the settings overlay edits it
+	 * and this component reacts. The floating button here is a quick mute toggle.
+	 *
 	 * Autoplay: browsers block audio before a user gesture, so the first play()
 	 * is attempted on mount and, if rejected, retried on the first pointer/key
 	 * event on the page.
@@ -36,17 +39,9 @@
 	}: { screen: Screen; finishPosition?: number | null } = $props();
 
 	const BASE = '/greenline/audio/';
-	// Two menu and two workshop tracks shipped alongside the five race tracks;
-	// rotate through each pool so repeat visits vary. Race picks at random each
-	// start.
-	const MENU = ['menu-1.mp3', 'menu-2.mp3'];
-	const WORKSHOP = ['workshop-1.mp3', 'workshop-2.mp3'];
-	const RACE = ['race-1.mp3', 'race-2.mp3', 'race-3.mp3', 'race-4.mp3', 'race-5.mp3'];
 
-	const MASTER = 0.55; // ceiling volume for whichever track is active
+	const MASTER = 0.55; // ceiling volume; the player's 0..1 gain multiplies it
 	const FADE_MS = 350;
-
-	let muted = $state(sessionMuted);
 
 	let current: HTMLAudioElement | null = null;
 	let currentSrc = '';
@@ -56,7 +51,8 @@
 	let lastScreen: Screen | '' = '';
 	let lastFinish: number | null = null;
 
-	const targetVol = () => (muted ? 0 : MASTER);
+	const targetVol = () => MASTER * musicGain();
+	const showMuted = $derived(musicSettings.muted || musicSettings.volume === 0);
 
 	function rampTo(audio: HTMLAudioElement, to: number, done?: () => void) {
 		const from = audio.volume;
@@ -100,26 +96,38 @@
 		if (old) rampTo(old, 0, () => old.pause());
 	}
 
+	/** Category for a screen (results has no category, returns null). */
+	function categoryFor(s: Screen | ''): TrackCategory | null {
+		if (s === 'garage') return 'workshop';
+		if (s === 'race') return 'race';
+		if (s === 'title' || s === '') return 'menu';
+		return null;
+	}
+
 	function selectFor(s: Screen, fp: number | null): string {
-		if (s === 'garage') {
-			const t = WORKSHOP[workshopIdx % WORKSHOP.length];
+		if (s === 'results') return fp === 1 ? 'winner.mp3' : 'loser.mp3';
+		const cat = categoryFor(s)!;
+		const pin = musicSettings.pins[cat];
+		// A concrete pin wins over the shuffle default.
+		if (pin !== SHUFFLE && MUSIC_TRACKS[cat].includes(pin)) return pin;
+		// Shuffle: race is random each start; menu/workshop rotate their pool.
+		if (cat === 'race') {
+			return MUSIC_TRACKS.race[Math.floor(Math.random() * MUSIC_TRACKS.race.length)];
+		}
+		if (cat === 'workshop') {
+			const t = MUSIC_TRACKS.workshop[workshopIdx % MUSIC_TRACKS.workshop.length];
 			workshopIdx++;
 			return t;
 		}
-		if (s === 'race') {
-			return RACE[Math.floor(Math.random() * RACE.length)];
-		}
-		if (s === 'results') {
-			return fp === 1 ? 'winner.mp3' : 'loser.mp3';
-		}
-		// title (and any fallback)
-		const t = MENU[menuIdx % MENU.length];
+		const t = MUSIC_TRACKS.menu[menuIdx % MUSIC_TRACKS.menu.length];
 		menuIdx++;
 		return t;
 	}
 
-	// React to screen changes. The effect only reads `screen`/`finishPosition`,
-	// so it runs on mount and on every real transition, and nothing else.
+	// React to screen changes ONLY. The selection + crossfade are wrapped in
+	// untrack so a volume / mute / pin change never re-triggers this effect
+	// (which would reroll a random race track). Those are handled by the two
+	// dedicated effects below.
 	$effect(() => {
 		const s = screen;
 		const fp = finishPosition;
@@ -129,16 +137,33 @@
 		if (s === lastScreen && !flip) return;
 		lastScreen = s;
 		lastFinish = fp;
-		crossfadeTo(BASE + selectFor(s, fp), true);
+		untrack(() => crossfadeTo(BASE + selectFor(s, fp), true));
 	});
 
-	function toggleMute() {
-		muted = !muted;
-		sessionMuted = muted;
-		// A muted track keeps looping silently so an unmute picks the current
-		// screen's music back up instantly.
-		if (current) rampTo(current, targetVol());
-	}
+	// Live volume / mute: ramp whatever is playing to the new gain. This is what
+	// makes the settings slider and the mute button change playback immediately.
+	$effect(() => {
+		const g = musicGain();
+		if (current) untrack(() => rampTo(current!, MASTER * g));
+	});
+
+	// Live track pinning: if the player pins a CONCRETE track for the category
+	// currently playing, switch to it at once. Switching a category to SHUFFLE
+	// does not interrupt the current track (no reroll mid-screen).
+	$effect(() => {
+		const pins = musicSettings.pins;
+		// Touch each so a change to any category fires this effect.
+		void (pins.menu + pins.workshop + pins.race);
+		untrack(() => {
+			if (!current) return;
+			const cat = categoryFor(lastScreen);
+			if (!cat) return;
+			const pin = musicSettings.pins[cat];
+			if (pin === SHUFFLE || !MUSIC_TRACKS[cat].includes(pin)) return;
+			const desired = BASE + pin;
+			if (desired !== currentSrc) crossfadeTo(desired);
+		});
+	});
 
 	onDestroy(() => {
 		current?.pause();
@@ -149,12 +174,12 @@
 <div class="glb glm-wrap">
 	<button
 		class="glm-btn"
-		class:muted
-		onclick={toggleMute}
-		aria-label={muted ? 'Unmute music' : 'Mute music'}
-		title={muted ? 'Unmute music' : 'Mute music'}
+		class:muted={showMuted}
+		onclick={toggleMusicMuted}
+		aria-label={showMuted ? 'Unmute music' : 'Mute music'}
+		title={showMuted ? 'Unmute music' : 'Mute music'}
 	>
-		{#if muted}
+		{#if showMuted}
 			<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
 				<path
 					d="M4 9v6h4l5 5V4L8 9H4z"

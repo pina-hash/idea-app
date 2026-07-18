@@ -4,9 +4,10 @@
 	import GreenlineResults from '$lib/greenline/GreenlineResults.svelte';
 	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
 	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
+	import GreenlineSettings from '$lib/greenline/GreenlineSettings.svelte';
 	import { GARAGE_BASELINE, type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
-	import { defaultLoadout, type ArchetypeId, type PartSlot } from '$lib/greenline/loadout';
-	import type { LeaderboardEntry } from '$lib/greenline/persistence';
+	import { defaultLoadout, type ArchetypeId, type Loadout, type PartSlot } from '$lib/greenline/loadout';
+	import { GREENLINE_MAX_SLOTS, type LeaderboardEntry, type LoadoutSlot } from '$lib/greenline/persistence';
 
 	/**
 	 * Dev harness for the /greenline portal-flow chrome (no auth / Supabase). It
@@ -25,16 +26,51 @@
 	let resultWin = $state(false);
 
 	// --- Garage screen (real component, route props) ---
-	let loadout = $state(defaultLoadout());
+	let loadout = $state<Loadout>(defaultLoadout());
 	let lastAction = $state('');
+	// In-memory named slots + active pointer (the real route persists to Supabase;
+	// here we just exercise the UI + component contract).
+	let slots = $state<(LoadoutSlot | null)[]>(Array(GREENLINE_MAX_SLOTS).fill(null));
+	let activeSlot = $state<number | null>(null);
 	const selectArchetype = (id: ArchetypeId) => {
 		loadout = { ...loadout, archetype: id };
+		activeSlot = null;
 		lastAction = `archetype -> ${id}`;
 	};
 	const equipPart = (slot: PartSlot, partId: string) => {
 		loadout = { ...loadout, parts: { ...loadout.parts, [slot]: partId } };
+		activeSlot = null;
 		lastAction = `equip ${slot} -> ${partId}`;
 	};
+	const onSaveSlot = (i: number, name: string) => {
+		slots = slots.map((s, idx) =>
+			idx === i
+				? {
+						slot: i,
+						name,
+						loadout: { archetype: loadout.archetype, parts: { ...loadout.parts } },
+						updatedAt: new Date().toISOString()
+					}
+				: s
+		);
+		activeSlot = i;
+		lastAction = `save slot ${i + 1} "${name}"`;
+	};
+	const onLoadSlot = (i: number) => {
+		const s = slots[i];
+		if (!s) return;
+		loadout = { archetype: s.loadout.archetype, parts: { ...s.loadout.parts } };
+		activeSlot = i;
+		lastAction = `load slot ${i + 1}`;
+	};
+	const onDeleteSlot = (i: number) => {
+		slots = slots.map((s, idx) => (idx === i ? null : s));
+		if (activeSlot === i) activeSlot = null;
+		lastAction = `delete slot ${i + 1}`;
+	};
+
+	// Settings overlay (real component).
+	let settingsOpen = $state(false);
 
 	// --- Results screen (real component, sample data) ---
 	const sampleOutcome: RaceOutcome = {
@@ -114,7 +150,12 @@
 
 <div class="dh-stage">
 	{#if view === 'title'}
-		<GreenlineTitle trackName="Proving Ground 07" onStart={() => (lastAction = 'START')} />
+		<GreenlineTitle
+			trackName="Proving Ground 07"
+			onStart={() => (lastAction = 'START')}
+			onSettings={() => (settingsOpen = true)}
+			enableShortcut={!settingsOpen}
+		/>
 	{:else if view === 'garage'}
 		<Garage
 			{loadout}
@@ -129,6 +170,12 @@
 			onclose={() => (lastAction = 'START RACE')}
 			onback={() => (lastAction = 'back to TITLE')}
 			backLabel="◂ TITLE"
+			onSettings={() => (settingsOpen = true)}
+			{slots}
+			{activeSlot}
+			{onSaveSlot}
+			{onLoadSlot}
+			{onDeleteSlot}
 		/>
 	{:else if view === 'race'}
 		<div class="dh-center">
@@ -156,6 +203,12 @@
 </div>
 
 <GreenlineMusic screen={view} finishPosition={view === 'results' ? (resultWin ? 1 : 2) : null} />
+
+{#if settingsOpen}
+	<div class="dh-settings">
+		<GreenlineSettings onClose={() => (settingsOpen = false)} />
+	</div>
+{/if}
 
 <style>
 	.dh-bar {
@@ -195,6 +248,11 @@
 		inset: 2.2rem 0 0;
 		background: #05090c;
 		overflow-y: auto;
+	}
+	.dh-settings {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
 	}
 	.dh-center {
 		min-height: 100%;

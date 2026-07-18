@@ -1895,6 +1895,67 @@ on one side of the world.
     `/dev/greenline-movement` (panel absent, G opens nothing, HUD mph matches
     physics velocity) and `/dev/greenline-portal?view=garage` (lb + mph
     heroes).
+- **Garage foundation + settings shell (Phase 2a).** Four additive changes to
+  the pre-race flow, all layered on the existing loadout/persistence model.
+  - **Named loadout slots (up to 5), migration `0050`.** 0049's single
+    `greenline_loadouts` row stays the ACTIVE/working build the race reads (its
+    fail-soft path is untouched); it gains a nullable `active_slot` pointer, and
+    the new `greenline_loadout_slots` table (PK `(user_id, slot)`, `slot` in
+    [0,5)) holds named builds. Same owner-scoped self-write RLS as
+    greenline_loadouts, plus a DELETE grant (slots are removable). Persistence
+    seam (`persistence.ts`): `loadUserSlots` / `loadActiveSlot` / `saveSlot` /
+    `deleteSlot`, and `saveUserLoadout` gains an optional `activeSlot` arg
+    (upsert writes only the columns it is given, so omitting it preserves the
+    pointer). All fail soft like `loadUserLoadout`. Doctrine: ONE shared working
+    build, up to five NAMED snapshots; LOAD copies a slot into the working build
+    and marks it active, SAVE overwrites a slot with the current build, editing
+    the working build (archetype/part swap) sets `active_slot = null`
+    ("unsaved"). The garage stays storage-agnostic (`Garage.svelte` takes
+    `slots` / `activeSlot` + `onSaveSlot` / `onLoadSlot` / `onDeleteSlot`
+    callbacks, the Minimap convention); `/greenline/+page.svelte` owns the
+    Supabase I/O (optimistic local update so slots work in-session even
+    pre-migration). Delete is a two-step inline confirm (the gauntlet-room
+    pattern). Empty slots render distinctly (dashed frame, "SAVE HERE") from the
+    stock default build.
+  - **Settings overlay (`GreenlineSettings.svelte`).** A MODAL, not a screen in
+    the title/garage/race/results machine; opened from a gear on the title
+    (`GreenlineTitle` gained `onSettings` + an `enableShortcut` prop the parent
+    sets false while the modal is open, so Enter-to-start never fires from
+    underneath) and the garage header (`onSettings`). Sections: CONTROLS
+    (read-only key legend this pass — a remap UI drops into the same row layout
+    next prompt), AUDIO (music-only), and a clearly-labelled CAMERA placeholder
+    (Phase 9). Escape closes; the overlay swallows keydowns. Rendered on top by
+    `+page.svelte` (and the dev harness).
+  - **Music settings (`audio-settings.svelte.ts`, a reactive localStorage store)
+    replace the old binary session mute.** Persisted across a real reload:
+    continuous `volume` (0..1 gain multiplying the existing `MASTER` 0.55
+    ceiling), a quick `muted` toggle (the floating button + a settings toggle;
+    raising the slider off zero auto-clears mute and PERSISTS that), and
+    per-category track `pins` (menu/workshop/race) with a `SHUFFLE` default that
+    keeps today's rotation/random behavior. `MUSIC_TRACKS` lives in this ONE
+    module (pool counts read from it, not hardcoded). `GreenlineMusic` reworked:
+    the screen effect wraps selection in `untrack` so volume/mute/pin changes
+    never reroll a random race track; a volume/mute effect ramps the live track;
+    a pin effect crossfades to a newly-pinned CONCRETE track for the current
+    screen at once (switching to shuffle does not interrupt). Crossfade
+    mechanism unchanged. No SFX bus yet (later phase); the store is shaped so an
+    `sfx` sibling drops in without a redesign.
+  - **Garage stats redesign + part icons.** The resolved-build display leans on
+    the existing `describeStats` / `describeEffects` (no new stats model): four
+    headline hero tiles (HULL / TOP SPEED / MASS / COOLDOWNS) each with a real
+    signed delta from the neutral baseline and a tone, then the REST of the
+    deltas split into GAINS / TRADEOFFS / CHARACTER columns (the five
+    hero-covered keys filtered out). Every one of the 16 parts gets a distinct
+    inline stroke-SVG icon (the AppLauncher `appIcon` convention, chrome/green
+    themed) in the part picker.
+  - **Verified** end to end in `/dev/greenline-portal` (no auth/Supabase, the
+    slots run on an in-memory store): slot save/load/delete + active-slot
+    tracking survive a reload, settings open from title AND garage without
+    breaking Enter-start (suppressed while open, works when closed), the volume
+    slider + mute + track pin persist to localStorage and drive playback (pin
+    fetched the pinned track live), and the 16 icons + redesigned stats render.
+    WebGL (`GaragePreview`) hangs pane screenshots, so DOM/network/console were
+    the verification surface (per the WebGL-harness memory note).
 
 ## FRC Training track
 

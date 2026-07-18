@@ -11,14 +11,24 @@
 	 */
 	const {
 		onStart,
-		trackName = 'Proving Ground 07'
+		onSettings,
+		trackName = 'Proving Ground 07',
+		enableShortcut = true
 	}: {
 		onStart: () => void;
+		/** Optional: renders a gear button that opens the settings overlay. */
+		onSettings?: () => void;
 		trackName?: string;
+		/**
+		 * When false, the Enter-to-start shortcut is disabled (the parent sets
+		 * this while the settings overlay is open, so Enter can't start the race
+		 * from underneath the modal).
+		 */
+		enableShortcut?: boolean;
 	} = $props();
 
 	function onKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter' && !e.repeat) {
+		if (enableShortcut && e.key === 'Enter' && !e.repeat) {
 			e.preventDefault();
 			onStart();
 		}
@@ -29,6 +39,15 @@
 
 <div class="glb tt-root">
 	<KeyArtScene />
+
+	{#if onSettings}
+		<button class="tt-gear" onclick={onSettings} aria-label="Settings" title="Settings">
+			<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+				<circle cx="12" cy="12" r="3.2" />
+				<path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4 5.3 5.3" />
+			</svg>
+		</button>
+	{/if}
 
 	<div class="tt-stack">
 		<div class="tt-tilt">
@@ -61,6 +80,35 @@
 		inset: 0;
 		overflow: hidden;
 		background: var(--glb-night);
+	}
+	.tt-gear {
+		position: absolute;
+		top: 1rem;
+		right: 1rem;
+		z-index: 30;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.4rem;
+		height: 2.4rem;
+		padding: 0;
+		background: var(--glb-panel);
+		border: 1px solid var(--glb-line-strong);
+		border-radius: 3px;
+		color: var(--glb-steel);
+		cursor: pointer;
+		box-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+		transition:
+			color 150ms ease,
+			border-color 150ms ease,
+			background 150ms ease;
+	}
+	.tt-gear:hover,
+	.tt-gear:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: rgba(42, 229, 126, 0.6);
+		background: var(--glb-panel-2);
+		outline: none;
 	}
 	.tt-stack {
 		position: absolute;

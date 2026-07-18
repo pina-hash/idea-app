@@ -24,6 +24,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { archetypeById, partById, type Loadout, type PartSlot } from './loadout';
 
 export const GREENLINE_LOADOUTS_TABLE = 'greenline_loadouts';
+export const GREENLINE_SLOTS_TABLE = 'greenline_loadout_slots';
+/** Hard cap on named build slots per user (mirrors the 0050 CHECK). */
+export const GREENLINE_MAX_SLOTS = 5;
 
 /**
  * Load a user's saved loadout, or null if none exists / the table is absent /
@@ -45,24 +48,132 @@ export async function loadUserLoadout(
 }
 
 /**
- * Upsert a user's loadout (owner-scoped, one row per user). Direct write under
- * the owner RLS policy, no RPC: a build only affects its own owner, nothing is
- * forgeable. Fire-and-forget friendly; a failure is surfaced but never thrown.
+ * Upsert a user's active/working loadout (owner-scoped, one row per user).
+ * Direct write under the owner RLS policy, no RPC: a build only affects its own
+ * owner, nothing is forgeable. Fire-and-forget friendly; a failure is surfaced
+ * but never thrown.
+ *
+ * `activeSlot` designates which named slot this working build corresponds to
+ * (see loadUserSlots). Pass a slot index when loading/saving a named slot, or
+ * `null` to mark the build as a custom, unsaved one. Omit it entirely to leave
+ * the stored pointer untouched (upsert only writes the columns provided, so an
+ * existing row's active_slot survives; a brand-new row defaults to null).
  */
 export async function saveUserLoadout(
 	supabase: SupabaseClient,
 	userId: string,
+	loadout: Loadout,
+	activeSlot?: number | null
+): Promise<{ error: string | null }> {
+	const row: Record<string, unknown> = {
+		user_id: userId,
+		archetype: loadout.archetype,
+		parts: loadout.parts,
+		updated_at: new Date().toISOString()
+	};
+	if (activeSlot !== undefined) row.active_slot = activeSlot;
+	const { error } = await supabase
+		.from(GREENLINE_LOADOUTS_TABLE)
+		.upsert(row, { onConflict: 'user_id' });
+	return { error: error ? error.message : null };
+}
+
+/**
+ * Which named slot the working build is currently tied to, or null (custom /
+ * unsaved / no build yet / table missing the column pre-0050). Fails soft: any
+ * error or absent row reads as null.
+ */
+export async function loadActiveSlot(
+	supabase: SupabaseClient,
+	userId: string
+): Promise<number | null> {
+	const { data, error } = await supabase
+		.from(GREENLINE_LOADOUTS_TABLE)
+		.select('active_slot')
+		.eq('user_id', userId)
+		.maybeSingle();
+	if (error || !data) return null;
+	const s = (data as { active_slot: unknown }).active_slot;
+	return typeof s === 'number' ? s : null;
+}
+
+/** One named build slot (0..GREENLINE_MAX_SLOTS-1). */
+export interface LoadoutSlot {
+	slot: number;
+	name: string;
+	loadout: Loadout;
+	updatedAt: string | null;
+}
+
+/**
+ * Load all of a user's named build slots, validated (invalid rows dropped) and
+ * sorted by slot. Fails soft to `[]` if 0050 is unapplied or the read is
+ * blocked, exactly like loadUserLoadout.
+ */
+export async function loadUserSlots(
+	supabase: SupabaseClient,
+	userId: string
+): Promise<LoadoutSlot[]> {
+	const { data, error } = await supabase
+		.from(GREENLINE_SLOTS_TABLE)
+		.select('slot, name, archetype, parts, updated_at')
+		.eq('user_id', userId)
+		.order('slot', { ascending: true });
+	if (error || !Array.isArray(data)) return [];
+	const out: LoadoutSlot[] = [];
+	for (const row of data as Array<Record<string, unknown>>) {
+		const slot = row.slot;
+		if (typeof slot !== 'number' || slot < 0 || slot >= GREENLINE_MAX_SLOTS) continue;
+		const loadout = normalizeLoadout(row.archetype, row.parts);
+		if (!loadout) continue;
+		out.push({
+			slot,
+			name: typeof row.name === 'string' && row.name.trim() ? row.name : `Build ${slot + 1}`,
+			loadout,
+			updatedAt: typeof row.updated_at === 'string' ? row.updated_at : null
+		});
+	}
+	return out;
+}
+
+/**
+ * Save (create or overwrite) a named build into a slot. Owner-scoped upsert on
+ * (user_id, slot), the greenline_loadouts pattern. Surfaces an error string but
+ * never throws, so a caller can fail soft (keep the build for the session even
+ * when the write is blocked / 0050 is unapplied).
+ */
+export async function saveSlot(
+	supabase: SupabaseClient,
+	userId: string,
+	slot: number,
+	name: string,
 	loadout: Loadout
 ): Promise<{ error: string | null }> {
-	const { error } = await supabase.from(GREENLINE_LOADOUTS_TABLE).upsert(
+	const { error } = await supabase.from(GREENLINE_SLOTS_TABLE).upsert(
 		{
 			user_id: userId,
+			slot,
+			name,
 			archetype: loadout.archetype,
 			parts: loadout.parts,
 			updated_at: new Date().toISOString()
 		},
-		{ onConflict: 'user_id' }
+		{ onConflict: 'user_id,slot' }
 	);
+	return { error: error ? error.message : null };
+}
+
+/** Delete a named build slot (owner-scoped). Fails soft. */
+export async function deleteSlot(
+	supabase: SupabaseClient,
+	userId: string,
+	slot: number
+): Promise<{ error: string | null }> {
+	const { error } = await supabase
+		.from(GREENLINE_SLOTS_TABLE)
+		.delete()
+		.eq('user_id', userId)
+		.eq('slot', slot);
 	return { error: error ? error.message : null };
 }
 

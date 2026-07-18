@@ -15,14 +15,21 @@
 		type PartSlot
 	} from '$lib/greenline/loadout';
 	import {
+		deleteSlot,
+		GREENLINE_MAX_SLOTS,
+		loadActiveSlot,
 		loadLeaderboard,
 		loadUserLoadout,
+		loadUserSlots,
+		saveSlot,
 		saveUserLoadout,
 		submitRaceResult,
-		type LeaderboardEntry
+		type LeaderboardEntry,
+		type LoadoutSlot
 	} from '$lib/greenline/persistence';
 	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
 	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
+	import GreenlineSettings from '$lib/greenline/GreenlineSettings.svelte';
 	import '$lib/greenline/brand/brand';
 	import type { PageData } from './$types';
 
@@ -50,6 +57,15 @@
 	let loadoutReady = $state(false);
 	let saveStatus = $state<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
+	// Named build slots (index = slot number, null = empty) + which one is
+	// equipped. All fail soft: if 0050 is unapplied, slots load empty, saves are
+	// no-ops server-side but stay usable this session (optimistic local update).
+	let slots = $state<(LoadoutSlot | null)[]>(Array(GREENLINE_MAX_SLOTS).fill(null));
+	let activeSlot = $state<number | null>(null);
+
+	// Settings overlay (a modal, not a screen). Reachable from title + garage.
+	let settingsOpen = $state(false);
+
 	// Results state.
 	let outcome = $state<RaceOutcome | null>(null);
 	let submitting = $state(false);
@@ -58,23 +74,58 @@
 	let boardLoading = $state(false);
 
 	onMount(async () => {
-		const saved = await loadUserLoadout(data.supabase, data.userId);
+		const [saved, savedSlots, savedActive] = await Promise.all([
+			loadUserLoadout(data.supabase, data.userId),
+			loadUserSlots(data.supabase, data.userId),
+			loadActiveSlot(data.supabase, data.userId)
+		]);
 		if (saved) loadout = saved;
+		const next: (LoadoutSlot | null)[] = Array(GREENLINE_MAX_SLOTS).fill(null);
+		for (const s of savedSlots) if (s.slot >= 0 && s.slot < GREENLINE_MAX_SLOTS) next[s.slot] = s;
+		slots = next;
+		activeSlot = savedActive;
 		loadoutReady = true;
 	});
 
-	async function persist() {
+	/** Persist the working build + which slot it is tied to (null = custom). */
+	async function persistBuild(slot: number | null) {
+		activeSlot = slot;
 		saveStatus = 'saving';
-		const { error } = await saveUserLoadout(data.supabase, data.userId, loadout);
+		const { error } = await saveUserLoadout(data.supabase, data.userId, loadout, slot);
 		saveStatus = error ? 'error' : 'saved';
 	}
 	const selectArchetype = (id: ArchetypeId) => {
 		loadout = { ...loadout, archetype: id };
-		persist();
+		// Editing diverges from any loaded slot: the build is now custom/unsaved.
+		persistBuild(null);
 	};
 	const equipPart = (slot: PartSlot, partId: string) => {
 		loadout = { ...loadout, parts: { ...loadout.parts, [slot]: partId } };
-		persist();
+		persistBuild(null);
+	};
+
+	// --- Named slot actions (fail soft; local state updates optimistically) ---
+	const onSaveSlot = async (i: number, name: string) => {
+		const entry: LoadoutSlot = {
+			slot: i,
+			name,
+			loadout: { archetype: loadout.archetype, parts: { ...loadout.parts } },
+			updatedAt: new Date().toISOString()
+		};
+		slots = slots.map((s, idx) => (idx === i ? entry : s));
+		await saveSlot(data.supabase, data.userId, i, name, loadout);
+		await persistBuild(i);
+	};
+	const onLoadSlot = (i: number) => {
+		const s = slots[i];
+		if (!s) return;
+		loadout = { archetype: s.loadout.archetype, parts: { ...s.loadout.parts } };
+		persistBuild(i);
+	};
+	const onDeleteSlot = async (i: number) => {
+		slots = slots.map((s, idx) => (idx === i ? null : s));
+		if (activeSlot === i) await persistBuild(null);
+		await deleteSlot(data.supabase, data.userId, i);
 	};
 
 	const garageNote = $derived(
@@ -122,7 +173,12 @@
 
 {#if screen === 'title'}
 	<div class="gp-root">
-		<GreenlineTitle trackName={track.name} onStart={() => (screen = 'garage')} />
+		<GreenlineTitle
+			trackName={track.name}
+			onStart={() => (screen = 'garage')}
+			onSettings={() => (settingsOpen = true)}
+			enableShortcut={!settingsOpen}
+		/>
 	</div>
 {:else if screen === 'garage'}
 	<div class="gp-root">
@@ -140,6 +196,12 @@
 				onclose={() => (screen = 'race')}
 				onback={() => (screen = 'title')}
 				backLabel="◂ TITLE"
+				onSettings={() => (settingsOpen = true)}
+				{slots}
+				{activeSlot}
+				{onSaveSlot}
+				{onLoadSlot}
+				{onDeleteSlot}
 			/>
 		{:else}
 			<div class="gp-center gp-fill"><div class="gp-loading">loading your build…</div></div>
@@ -164,6 +226,12 @@
 	</div>
 {/if}
 
+{#if settingsOpen}
+	<div class="gp-root gp-overlay">
+		<GreenlineSettings onClose={() => (settingsOpen = false)} />
+	</div>
+{/if}
+
 <style>
 	.gp-root {
 		position: fixed;
@@ -178,6 +246,10 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+	}
+	.gp-overlay {
+		z-index: 50;
+		background: transparent;
 	}
 	.gp-fill {
 		position: absolute;
