@@ -11,46 +11,142 @@
 		trackLabel,
 		type TrackCategory
 	} from './audio-settings.svelte';
+	import {
+		CONTROL_ACTIONS,
+		actionLabel,
+		controlSettings,
+		keyConflict,
+		keyLabel,
+		padConflict,
+		padLabel,
+		resetActionBindings,
+		resetAllBindings,
+		samePadBinding,
+		setKeyBinding,
+		setPadBinding,
+		swapKeyBindings,
+		swapPadBindings,
+		type ControlAction,
+		type ControlDevice,
+		type PadBinding
+	} from './control-settings.svelte';
 
 	/**
 	 * GREENLINE settings overlay. A modal (NOT a screen in the title/garage/race/
 	 * results state machine), reachable from the gear on the title and garage
-	 * screens. Sections: CONTROLS (a read-only key legend this pass; a remap UI
-	 * drops into the same layout next), AUDIO (music-only for now: continuous
-	 * volume, quick mute, per-category track pinning), and a clearly labelled
-	 * CAMERA placeholder for Phase 9.
+	 * screens. Sections: CONTROLS (the full rebind UI over the control-settings
+	 * store: keyboard + gamepad capture, conflict swap, per-action and reset-all
+	 * defaults), AUDIO (music-only for now: continuous volume, quick mute,
+	 * per-category track pinning), and a clearly labelled CAMERA placeholder for
+	 * Phase 9.
 	 *
-	 * Presentation only: reads/writes the shared audio-settings store, one
-	 * `onClose` callback out. Escape closes; the overlay swallows keydowns so the
-	 * title's Enter-start shortcut can never fire from underneath (the parent
-	 * also disables that shortcut while this is open, belt and suspenders).
+	 * Presentation only: reads/writes the shared settings stores, one `onClose`
+	 * callback out. Escape closes; the overlay swallows keydowns so the title's
+	 * Enter-start shortcut can never fire from underneath (the parent also
+	 * disables that shortcut while this is open, belt and suspenders).
 	 */
 	const { onClose }: { onClose: () => void } = $props();
 
-	// Read-only bindings for this pass (remap UI is the next prompt). Grouped so
-	// a remap control can slot in per row without a layout change.
-	const CONTROL_GROUPS: { title: string; rows: { action: string; keys: string[] }[] }[] = [
-		{
-			title: 'Driving',
-			rows: [
-				{ action: 'Accelerate', keys: ['W', '↑'] },
-				{ action: 'Brake / Reverse', keys: ['S', '↓'] },
-				{ action: 'Steer left', keys: ['A', '←'] },
-				{ action: 'Steer right', keys: ['D', '→'] },
-				{ action: 'Handbrake', keys: ['Space'] },
-				{ action: 'Recover / flip upright', keys: ['R'] }
-			]
-		},
-		{
-			title: 'Combat',
-			rows: [
-				{ action: 'EMP burst', keys: ['F'] },
-				{ action: 'Oil slick', keys: ['E'] },
-				{ action: 'Tether', keys: ['Q'] },
-				{ action: 'Shockwave ram', keys: ['nose contact'] }
-			]
-		}
+	const CONTROL_GROUPS = [
+		{ title: 'Driving', rows: CONTROL_ACTIONS.filter((a) => a.group === 'driving') },
+		{ title: 'Combat', rows: CONTROL_ACTIONS.filter((a) => a.group === 'combat') }
 	];
+
+	// ---- Rebind capture ----
+	// Arming a binding cell listens for the NEXT relevant input: a keydown for
+	// the keyboard column, or the next gamepad button press / axis push for the
+	// gamepad column (two separate capture modes; a key and a pad input can
+	// never conflict with each other). Escape cancels a capture.
+	let capture = $state<{ action: ControlAction; device: ControlDevice } | null>(null);
+	// A captured input already bound to ANOTHER action on the same device parks
+	// here pending the player's choice: swap the two bindings, or cancel.
+	let conflict = $state<{
+		action: ControlAction;
+		device: ControlDevice;
+		other: ControlAction;
+		candidate: string | PadBinding;
+	} | null>(null);
+
+	const arming = (id: ControlAction, d: ControlDevice) =>
+		capture !== null && capture.action === id && capture.device === d;
+
+	function armCapture(action: ControlAction, device: ControlDevice) {
+		conflict = null;
+		// Clicking the armed cell again cancels the capture.
+		capture = arming(action, device) ? null : { action, device };
+	}
+
+	function applyCapturedKey(action: ControlAction, code: string) {
+		capture = null;
+		const other = keyConflict(code, action);
+		if (other) {
+			conflict = { action, device: 'key', other, candidate: code };
+			return;
+		}
+		setKeyBinding(action, code);
+	}
+
+	function applyCapturedPad(action: ControlAction, b: PadBinding) {
+		capture = null;
+		if (samePadBinding(controlSettings.gamepad[action], b)) return;
+		const other = padConflict(b, action);
+		if (other) {
+			conflict = { action, device: 'pad', other, candidate: b };
+			return;
+		}
+		setPadBinding(action, b);
+	}
+
+	function confirmSwap() {
+		if (!conflict) return;
+		if (conflict.device === 'key') swapKeyBindings(conflict.action, conflict.other);
+		else swapPadBindings(conflict.action, conflict.other);
+		conflict = null;
+	}
+
+	// Gamepad capture: poll for the first NEW button press or axis push past
+	// the threshold, judged against a baseline snapshot taken at arm time so an
+	// already-held trigger or a drifted/resting-at-full axis can never bind
+	// itself; releasing an input re-arms its baseline slot.
+	$effect(() => {
+		if (capture?.device !== 'pad') return;
+		const action = capture.action;
+		let baseline: { buttons: boolean[]; axes: number[] } | null = null;
+		const iv = setInterval(() => {
+			const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+			const pad = Array.from(pads).find((p) => p && p.connected) ?? null;
+			if (!pad) {
+				baseline = null;
+				return;
+			}
+			if (!baseline) {
+				baseline = {
+					buttons: pad.buttons.map((b) => b.pressed),
+					axes: pad.axes.map((v) => (Math.abs(v) > 0.4 ? v : 0))
+				};
+				return;
+			}
+			// Buttons win over axes (a press is unambiguous).
+			for (let i = 0; i < pad.buttons.length; i++) {
+				const pressed = pad.buttons[i]?.pressed ?? false;
+				if (pressed && !baseline.buttons[i]) {
+					applyCapturedPad(action, { kind: 'button', index: i });
+					return;
+				}
+				if (!pressed) baseline.buttons[i] = false;
+			}
+			for (let i = 0; i < pad.axes.length; i++) {
+				const v = pad.axes[i] ?? 0;
+				const base = baseline.axes[i] ?? 0;
+				if (Math.abs(v) > 0.6 && Math.abs(base) < 0.4) {
+					applyCapturedPad(action, { kind: 'axis', axis: i, dir: v < 0 ? -1 : 1 });
+					return;
+				}
+				if (Math.abs(v) < 0.4) baseline.axes[i] = 0;
+			}
+		}, 50);
+		return () => clearInterval(iv);
+	});
 
 	// Volume slider works in whole percents; the store keeps a 0..1 gain.
 	const volumePct = $derived(Math.round(musicSettings.volume * 100));
@@ -66,11 +162,24 @@
 	];
 
 	function onKeydown(e: KeyboardEvent) {
+		// A keyboard capture eats the next key outright (Escape cancels it and
+		// deliberately cannot be bound).
+		if (capture?.device === 'key') {
+			e.preventDefault();
+			e.stopPropagation();
+			if (e.code === 'Escape') capture = null;
+			// A keydown with no code (some synthetic/IME events) can't be a
+			// binding; stay armed and wait for a real key.
+			else if (e.code) applyCapturedKey(capture.action, e.code);
+			return;
+		}
 		// Swallow keys while open so nothing (Enter-to-start, driving keys) leaks
-		// to the screen underneath.
+		// to the screen underneath. Escape steps back: dialog, capture, modal.
 		if (e.key === 'Escape') {
 			e.preventDefault();
-			onClose();
+			if (conflict) conflict = null;
+			else if (capture) capture = null;
+			else onClose();
 			return;
 		}
 		e.stopPropagation();
@@ -104,26 +213,89 @@
 		</div>
 
 		<!-- CONTROLS -->
-		<div class="gs-section-label">Controls</div>
+		<div class="gs-section-label gs-controls-head">
+			<span>Controls</span>
+			<button
+				class="gs-btn gs-reset-all"
+				onclick={() => {
+					capture = null;
+					conflict = null;
+					resetAllBindings();
+				}}
+			>
+				RESET ALL
+			</button>
+		</div>
 		<div class="gs-controls">
 			{#each CONTROL_GROUPS as g (g.title)}
 				<div class="gs-ctrl-group">
-					<div class="gs-ctrl-group-title">{g.title}</div>
-					{#each g.rows as row (row.action)}
+					<div class="gs-ctrl-row gs-ctrl-cols">
+						<span class="gs-ctrl-group-title">{g.title}</span>
+						<span class="gs-col-label">Key</span>
+						<span class="gs-col-label">Pad</span>
+						<span></span>
+					</div>
+					{#each g.rows as row (row.id)}
 						<div class="gs-ctrl-row">
-							<span class="gs-ctrl-action">{row.action}</span>
-							<span class="gs-keys">
-								{#each row.keys as k (k)}
-									<kbd class="gs-key">{k}</kbd>
-								{/each}
-							</span>
+							<span class="gs-ctrl-action">{row.label}</span>
+							<button
+								class="gs-bind"
+								class:arming={arming(row.id, 'key')}
+								onclick={() => armCapture(row.id, 'key')}
+								aria-label={`Rebind ${row.label} (keyboard)`}
+							>
+								{arming(row.id, 'key') ? 'PRESS KEY' : keyLabel(controlSettings.keyboard[row.id])}
+							</button>
+							<button
+								class="gs-bind"
+								class:arming={arming(row.id, 'pad')}
+								onclick={() => armCapture(row.id, 'pad')}
+								aria-label={`Rebind ${row.label} (gamepad)`}
+							>
+								{arming(row.id, 'pad') ? 'PRESS INPUT' : padLabel(controlSettings.gamepad[row.id])}
+							</button>
+							<button
+								class="gs-row-reset"
+								onclick={() => {
+									capture = null;
+									conflict = null;
+									resetActionBindings(row.id);
+								}}
+								title="Reset to default"
+								aria-label={`Reset ${row.label} to default`}
+							>
+								↺
+							</button>
 						</div>
 					{/each}
+					{#if g.title === 'Combat'}
+						<!-- The ram is not a binding: it triggers on nose-first contact. -->
+						<div class="gs-ctrl-row gs-ctrl-static">
+							<span class="gs-ctrl-action">Shockwave ram</span>
+							<span class="gs-key gs-key-static">nose contact</span>
+						</div>
+					{/if}
 				</div>
 			{/each}
 		</div>
+		{#if conflict}
+			<div class="gs-conflict" role="alertdialog" aria-label="Binding conflict">
+				<span class="gs-conflict-text">
+					<kbd class="gs-key"
+						>{conflict.device === 'key'
+							? keyLabel(conflict.candidate as string)
+							: padLabel(conflict.candidate as PadBinding)}</kbd
+					>
+					is bound to {actionLabel(conflict.other)}. Swap it with {actionLabel(conflict.action)}?
+				</span>
+				<button class="gs-btn gs-btn-primary" onclick={confirmSwap}>SWAP</button>
+				<button class="gs-btn" onclick={() => (conflict = null)}>CANCEL</button>
+			</div>
+		{/if}
 		<div class="gs-foot">
-			Gamepad (standard mapping) is supported too. Key remapping arrives in the next update.
+			Click a binding, then press the new key or gamepad input (Esc cancels). Gamepad uses standard
+			mapping; a stick binds one direction per action. The ram has no button: it triggers on
+			nose-first contact.
 		</div>
 
 		<!-- AUDIO -->
@@ -295,21 +467,134 @@
 		text-transform: uppercase;
 		margin-bottom: 0.35rem;
 	}
-	.gs-ctrl-row {
+	.gs-controls-head {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 0.6rem;
+	}
+	.gs-reset-all {
+		padding: 0.14rem 0.5rem;
+		font-size: 0.6rem;
+		margin-bottom: 0.15rem;
+	}
+	.gs-ctrl-row {
+		display: grid;
+		grid-template-columns: 1fr 5rem 5rem 1.3rem;
+		align-items: center;
+		gap: 0.45rem;
 		padding: 0.22rem 0;
 		border-bottom: 1px solid rgba(147, 163, 176, 0.08);
+	}
+	.gs-ctrl-cols {
+		border-bottom: none;
+		padding-bottom: 0;
+	}
+	.gs-col-label {
+		color: var(--glb-ink-faint);
+		font-size: 0.58rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		text-align: center;
 	}
 	.gs-ctrl-action {
 		color: var(--glb-ink-dim);
 		font-size: 0.78rem;
 	}
-	.gs-keys {
+	.gs-bind {
+		font-family: var(--glb-font-data);
+		font-size: 0.64rem;
+		color: var(--glb-chrome-mid);
+		background: linear-gradient(180deg, rgba(23, 30, 37, 0.9), rgba(9, 13, 17, 0.92));
+		border: 1px solid var(--glb-line-strong);
+		border-radius: 3px;
+		box-shadow:
+			inset 0 1px 0 rgba(247, 251, 254, 0.1),
+			0 1px 0 rgba(0, 0, 0, 0.5);
+		padding: 0.18rem 0.25rem;
+		text-align: center;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease;
+	}
+	.gs-bind:hover,
+	.gs-bind:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: rgba(42, 229, 126, 0.5);
+		outline: none;
+	}
+	.gs-bind.arming {
+		color: #8fffc4;
+		border-color: rgba(42, 229, 126, 0.75);
+		animation: gs-arm-pulse 0.9s ease-in-out infinite;
+	}
+	@keyframes gs-arm-pulse {
+		0%,
+		100% {
+			box-shadow:
+				inset 0 1px 0 rgba(247, 251, 254, 0.1),
+				0 0 4px rgba(42, 229, 126, 0.2);
+		}
+		50% {
+			box-shadow:
+				inset 0 1px 0 rgba(247, 251, 254, 0.1),
+				0 0 12px rgba(42, 229, 126, 0.5);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.gs-bind.arming {
+			animation: none;
+			box-shadow:
+				inset 0 1px 0 rgba(247, 251, 254, 0.1),
+				0 0 10px rgba(42, 229, 126, 0.4);
+		}
+	}
+	.gs-row-reset {
+		background: none;
+		border: 1px solid transparent;
+		border-radius: 3px;
+		color: var(--glb-ink-faint);
+		font-size: 0.78rem;
+		line-height: 1;
+		padding: 0.1rem 0;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease;
+	}
+	.gs-row-reset:hover,
+	.gs-row-reset:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: var(--glb-line);
+		outline: none;
+	}
+	.gs-ctrl-static .gs-ctrl-action {
+		color: var(--glb-ink-faint);
+	}
+	.gs-key-static {
+		grid-column: 2 / 4;
+		color: var(--glb-ink-faint);
+	}
+	.gs-conflict {
 		display: flex;
-		gap: 0.25rem;
+		align-items: center;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		margin-top: 0.55rem;
+		padding: 0.45rem 0.6rem;
+		border: 1px solid rgba(255, 176, 46, 0.45);
+		border-radius: 2px;
+		background: rgba(255, 176, 46, 0.06);
+	}
+	.gs-conflict-text {
+		flex: 1;
+		min-width: 14rem;
+		color: var(--glb-ink-dim);
+		font-size: 0.74rem;
+		line-height: 1.5;
 	}
 	.gs-key {
 		font-family: var(--glb-font-data);

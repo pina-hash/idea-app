@@ -73,6 +73,16 @@
 		WHEEL_CONNECTIONS,
 		WHEEL_RADIUS
 	} from '$lib/greenline/rig-visual';
+	import {
+		ACTION_KIND,
+		CONTROL_ACTIONS,
+		actionForKey,
+		controlSettings,
+		keyLabel,
+		padBindingHeld,
+		padBindingValue,
+		type ControlAction
+	} from '$lib/greenline/control-settings.svelte';
 	import Minimap from '$lib/greenline/Minimap.svelte';
 	import provingGroundJson from '$lib/greenline/tracks/proving-ground-07.json';
 	import { browser } from '$app/environment';
@@ -139,10 +149,13 @@
 	 * four archetypes so every round has build variety. The build is chosen in
 	 * the pre-race garage screen (the portal flow); there is no in-race garage.
 	 *
-	 * Controls: W/S throttle+brake (reverse from standstill), A/D steer,
-	 * Space handbrake, F fire EMP, E drop oil, Q fire tether,
-	 * R reset round. Gamepad: left stick steer, RT throttle, LT brake,
-	 * A handbrake, RB fire, X oil, LB tether.
+	 * Controls: fully remappable (keyboard + gamepad) through the settings
+	 * overlay, backed by $lib/greenline/control-settings.svelte.ts (the action
+	 * registry + persisted bindings); every input here resolves through that
+	 * store per keypress/frame. Defaults: W/S throttle+brake (reverse from
+	 * standstill), A/D steer, Space handbrake, F fire EMP, E drop oil,
+	 * Q fire tether, R reset round. Gamepad: left stick steer, RT throttle,
+	 * LT brake, A handbrake, RB fire, X oil, LB tether.
 	 */
 
 	const {
@@ -262,6 +275,19 @@
 	let bootError = $state('');
 	let banner = $state('');
 	let resetRound: () => void = () => {};
+
+	// The bottom controls hint reflects the CURRENT (remappable) key bindings.
+	const keyHint = $derived(
+		[
+			`${keyLabel(controlSettings.keyboard.accelerate)}/${keyLabel(controlSettings.keyboard.brake)} DRIVE`,
+			`${keyLabel(controlSettings.keyboard.steerLeft)}/${keyLabel(controlSettings.keyboard.steerRight)} STEER`,
+			`${keyLabel(controlSettings.keyboard.handbrake)} HANDBRAKE`,
+			`${keyLabel(controlSettings.keyboard.fire)} EMP`,
+			`${keyLabel(controlSettings.keyboard.oil)} OIL`,
+			`${keyLabel(controlSettings.keyboard.tether)} TETHER`,
+			`${keyLabel(controlSettings.keyboard.resetRound)} RESET`
+		].join(' · ')
+	);
 
 	const pose = $state({ x: track.spawn.x, z: track.spawn.z, hx: 1, hz: 0 });
 	const aiPoses = $state<{ x: number; z: number; hx: number; hz: number; out: boolean }[]>([]);
@@ -3022,24 +3048,20 @@
 				};
 
 				// ---- Input state ----
+				// Every check resolves through the remappable bindings in
+				// control-settings, so a rebind in the settings overlay changes
+				// what drives the car with no wiring here. `keys` tracks HELD key
+				// codes only; edge actions trigger straight from the keydown (or
+				// the pad edge scan below).
 				const keys = new Set<string>();
-				const TRACKED = new Set([
-					'KeyW',
-					'KeyA',
-					'KeyS',
-					'KeyD',
-					'ArrowUp',
-					'ArrowDown',
-					'ArrowLeft',
-					'ArrowRight',
-					'Space'
-				]);
+				const keyHeld = (a: ControlAction) => keys.has(controlSettings.keyboard[a]);
+				const PAD_EDGE_ACTIONS = CONTROL_ACTIONS.filter((d) => d.kind === 'edge').map(
+					(d) => d.id
+				);
 				let fireQueued = false;
 				let oilQueued = false;
 				let tetherQueued = false;
-				let prevPadFire = false;
-				let prevPadOil = false;
-				let prevPadTether = false;
+				const prevPadEdge: Partial<Record<ControlAction, boolean>> = {};
 
 				resetRound = () => {
 					const wantAis = Math.max(1, Math.min(6, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
@@ -3095,26 +3117,21 @@
 				const onKeyDown = (e: KeyboardEvent) => {
 					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)
 						return;
-					if (e.code === 'KeyR') {
-						resetRound();
+					const action = actionForKey(e.code);
+					if (!action) return;
+					// Any BOUND key is swallowed (a remapped Space or '/' must not
+					// scroll or open the browser's quick find).
+					e.preventDefault();
+					if (ACTION_KIND[action] === 'edge') {
+						if (action === 'resetRound') resetRound();
+						else if (!e.repeat) {
+							if (action === 'fire') fireQueued = true;
+							else if (action === 'oil') oilQueued = true;
+							else if (action === 'tether') tetherQueued = true;
+						}
 						return;
 					}
-					if (e.code === 'KeyF') {
-						if (!e.repeat) fireQueued = true;
-						return;
-					}
-					if (e.code === 'KeyE') {
-						if (!e.repeat) oilQueued = true;
-						return;
-					}
-					if (e.code === 'KeyQ') {
-						if (!e.repeat) tetherQueued = true;
-						return;
-					}
-					if (TRACKED.has(e.code)) {
-						keys.add(e.code);
-						e.preventDefault();
-					}
+					keys.add(e.code);
 				};
 				const onKeyUp = (e: KeyboardEvent) => keys.delete(e.code);
 				const onBlur = () => keys.clear();
@@ -3351,38 +3368,39 @@
 					const preLaunch = now < raceStartAtMs;
 					const ramGrace = now < raceStartAtMs + RAM_GRACE_SEC * 1000;
 
-					// -- Player input (keyboard + first connected gamepad) --
-					let steerInput =
-						(keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) -
-						(keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0);
-					let throttle = keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0;
-					let brakeInput = keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0;
-					let handbrake = keys.has('Space');
+					// -- Player input (keyboard + first connected gamepad), every
+					// lookup through the remappable control-settings bindings --
+					let steerInput = (keyHeld('steerLeft') ? 1 : 0) - (keyHeld('steerRight') ? 1 : 0);
+					let throttle = keyHeld('accelerate') ? 1 : 0;
+					let brakeInput = keyHeld('brake') ? 1 : 0;
+					let handbrake = keyHeld('handbrake');
 
 					const pads = navigator.getGamepads ? navigator.getGamepads() : [];
 					const pad = Array.from(pads).find((p) => p && p.connected) ?? null;
 					if (pad) {
 						if (pad.id !== padName) padName = pad.id;
-						const ax = pad.axes[0] ?? 0;
-						const padSteer = Math.abs(ax) > 0.12 ? -ax : 0;
+						const gp = controlSettings.gamepad;
+						// Two half-axis reads on the default stick bindings reproduce
+						// the old single signed-axis steer exactly (dead zone per side).
+						const padSteer =
+							padBindingValue(pad, gp.steerLeft) - padBindingValue(pad, gp.steerRight);
 						if (Math.abs(padSteer) > Math.abs(steerInput)) steerInput = padSteer;
-						throttle = Math.max(throttle, pad.buttons[7]?.value ?? 0);
-						brakeInput = Math.max(brakeInput, pad.buttons[6]?.value ?? 0);
-						handbrake = handbrake || (pad.buttons[0]?.pressed ?? false);
-						const padFire = pad.buttons[5]?.pressed ?? false;
-						if (padFire && !prevPadFire) fireQueued = true;
-						prevPadFire = padFire;
-						const padOil = pad.buttons[2]?.pressed ?? false;
-						if (padOil && !prevPadOil) oilQueued = true;
-						prevPadOil = padOil;
-						const padTether = pad.buttons[4]?.pressed ?? false;
-						if (padTether && !prevPadTether) tetherQueued = true;
-						prevPadTether = padTether;
+						throttle = Math.max(throttle, padBindingValue(pad, gp.accelerate));
+						brakeInput = Math.max(brakeInput, padBindingValue(pad, gp.brake));
+						handbrake = handbrake || padBindingHeld(pad, gp.handbrake);
+						for (const a of PAD_EDGE_ACTIONS) {
+							const down = padBindingHeld(pad, gp[a]);
+							if (down && !prevPadEdge[a]) {
+								if (a === 'fire') fireQueued = true;
+								else if (a === 'oil') oilQueued = true;
+								else if (a === 'tether') tetherQueued = true;
+								else if (a === 'resetRound') resetRound();
+							}
+							prevPadEdge[a] = down;
+						}
 					} else {
 						if (padName) padName = '';
-						prevPadFire = false;
-						prevPadOil = false;
-						prevPadTether = false;
+						for (const a of PAD_EDGE_ACTIONS) prevPadEdge[a] = false;
 					}
 
 					// -- Global physics tuning --
@@ -4450,8 +4468,7 @@
 	</div>
 
 	<div class="glb gl-controls">
-		{padName ? `PAD: ${padName}` : 'KEYBOARD'} · W/S DRIVE · A/D STEER · SPACE HANDBRAKE · F EMP ·
-		E OIL · Q TETHER · R RESET
+		{padName ? `PAD: ${padName}` : 'KEYBOARD'} · {keyHint}
 	</div>
 
 	<div class="gl-map">

@@ -1956,6 +1956,38 @@ on one side of the world.
     fetched the pinned track live), and the 16 icons + redesigned stats render.
     WebGL (`GaragePreview`) hangs pane screenshots, so DOM/network/console were
     the verification surface (per the WebGL-harness memory note).
+- **Remappable controls (Phase 2b), keyboard + gamepad.**
+  `src/lib/greenline/control-settings.svelte.ts` (the audio-settings pattern:
+  module-level `$state` + localStorage) is the action registry AND binding
+  store: nine actions (accelerate, brake, steerLeft, steerRight, handbrake,
+  resetRound, fire, oil, tether), each `held` (sampled per frame) or `edge`
+  (once per press), with ONE keyboard binding and at most ONE gamepad binding
+  (`button` index, or `axis` + direction; two half-axis steer actions
+  reproduce the old signed stick-X read exactly, dead zone 0.12 preserved).
+  Defaults are the historical scheme (W/S/A/D/Space/R/F/E/Q; pad standard
+  mapping RT/LT/LS-X/A/RB/X/LB, resetRound ships unbound on pad); the old
+  hardcoded arrow-key ALTERNATES are gone, one binding per action per device.
+  Invariants: bindings on a device stay unique (a corrupt stored map falls
+  back to defaults wholesale), keyboard stays total (swaps exchange, never
+  drop), pad bindings may be null (a swap into an unbound action moves the
+  binding). `GreenlineRace.svelte` resolves EVERY input through the store:
+  the fixed `TRACKED` set is gone (keydown resolves `actionForKey`, any BOUND
+  key gets `preventDefault`, held actions track by code, edge actions fire
+  from keydown or the generalized pad edge scan; pad reads go through
+  `padBindingValue`/`padBindingHeld`), and the HUD controls hint derives from
+  the live bindings. The settings overlay CONTROLS section is the rebind UI:
+  click a Key/Pad cell to arm capture (next keydown, or next pad button press
+  / axis push past threshold judged against an arm-time baseline snapshot so
+  a held trigger or drifted stick can never bind itself; Esc cancels; a
+  code-less keydown is ignored), a same-device conflict opens an explicit
+  SWAP / CANCEL prompt (never silent overwrite; key vs pad never conflicts),
+  each row has a reset-to-default (which auto-swaps with whatever holds the
+  default, keeping uniqueness), and RESET ALL restores the whole scheme. The
+  "Shockwave ram" row stays non-interactive (nose contact, not a binding).
+  Verified in `/dev/greenline-portal` + `/dev/greenline-movement?glheadless=1`
+  (rebind drives the car under the new key only, swap/cancel/reset/persist
+  across reload, pad paths via a `navigator.getGamepads` fake; no physical
+  gamepad in the environment).
 
 ## FRC Training track
 
