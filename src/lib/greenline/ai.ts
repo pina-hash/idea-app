@@ -300,6 +300,43 @@ export class AiDriver {
 		return false;
 	}
 
+	/**
+	 * Should this vehicle DROP its equipped area weapon (Caltrops) now? The
+	 * wantsOil logic applied to a mount slot: an area weapon has no forward
+	 * range/cone to aim (wantsWeaponFire returns false for it), so the trigger
+	 * is a live rival close behind and roughly on the AI's tail, right where the
+	 * dropped field lands. Same restraint pattern (never disrupted, own slot
+	 * schedule).
+	 */
+	wantsAreaDrop(
+		self: Combatant,
+		others: Combatant[],
+		slot: WeaponSlotId,
+		def: WeaponDef,
+		t: AiTuning,
+		nowMs: number,
+		cooldownScale = 1
+	): boolean {
+		if (nowMs < this.nextSlotOkMs[slot]) return false;
+		if (self.combat.isDisrupted(nowMs)) return false;
+		if (!self.combat.canUseSlot(slot, nowMs, def.cooldownSec * cooldownScale)) return false;
+		const a = def.area;
+		if (!a) return false;
+		const aggr = Math.max(0, Math.min(1, t.aggression));
+		const range = a.dropBack + 4 + 9 * aggr;
+		for (const o of others) {
+			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
+			const dx = o.x - self.x;
+			const dz = o.z - self.z;
+			const dist = Math.hypot(dx, dz);
+			if (dist > range || dist < 0.001) continue;
+			// Behind: the rival sits opposite the AI's heading (drop in their path).
+			if ((dx * self.hx + dz * self.hz) / dist > -0.35) continue;
+			return true;
+		}
+		return false;
+	}
+
 	/** Slot twin of scheduleNextUse: cooldown + aggression-scaled delay. */
 	scheduleSlotUse(slot: WeaponSlotId, nowMs: number, cooldownSec: number, t: AiTuning): void {
 		const aggr = Math.max(0, Math.min(1, t.aggression));

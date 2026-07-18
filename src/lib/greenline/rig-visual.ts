@@ -626,6 +626,50 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.68, oy + 0.12, oz], rot: [0, 0, Math.PI / 2], scale: [0.1, 0.12, 0.1] }
 			];
 		}
+		if (weaponId === 'railgun') {
+			// Compact breech + a very long, thin slug barrel flanked by two rails:
+			// the length + twin rails read as a railgun, not an autocannon.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.1, oz], scale: [0.34, 0.2, 0.24] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.66, oy + 0.13, oz], rot: [0, 0, Math.PI / 2], scale: [0.05, 1.0, 0.05] },
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox + 0.6, oy + 0.13, oz + 0.08], scale: [0.9, 0.04, 0.03] },
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox + 0.6, oy + 0.13, oz - 0.08], scale: [0.9, 0.04, 0.03] },
+				{ part: 'mount', geo: unitTube(), mat: 'accent', pos: [ox + 1.18, oy + 0.13, oz], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.06, 0.07] }
+			];
+		}
+		if (weaponId === 'shotgun-burst') {
+			// Squat quad-barrel block with a broad flared muzzle: short and wide,
+			// the anti-autocannon silhouette.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.1, oz], scale: [0.3, 0.2, 0.32] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.14, oz + 0.08], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.22, 0.07] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.14, oz - 0.08], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.22, 0.07] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.06, oz + 0.08], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.22, 0.07] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.24, oy + 0.06, oz - 0.08], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.22, 0.07] },
+				{ part: 'mount', geo: unitTube(), mat: 'mount', pos: [ox + 0.4, oy + 0.1, oz], rot: [0, 0, Math.PI / 2], scale: [0.24, 0.06, 0.24] }
+			];
+		}
+		if (weaponId === 'cluster-missile') {
+			// A larger boxy pod with a 2x2 grid of tube mouths + a top fin: reads
+			// as heavier ordnance than the single-cell rocket launcher.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.14, oz], scale: [0.36, 0.3, 0.34] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.2, oy + 0.2, oz + 0.08], rot: [0, 0, Math.PI / 2], scale: [0.08, 0.12, 0.08] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.2, oy + 0.2, oz - 0.08], rot: [0, 0, Math.PI / 2], scale: [0.08, 0.12, 0.08] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.2, oy + 0.08, oz + 0.08], rot: [0, 0, Math.PI / 2], scale: [0.08, 0.12, 0.08] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.2, oy + 0.08, oz - 0.08], rot: [0, 0, Math.PI / 2], scale: [0.08, 0.12, 0.08] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [ox - 0.1, oy + 0.32, oz], scale: [0.18, 0.12, 0.03] }
+			];
+		}
+		if (weaponId === 'caltrops') {
+			// A rear hopper/dispenser with a downward chute: a dropper, not a gun,
+			// so it never reads as forward firepower.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox - 0.05, oy + 0.14, oz], scale: [0.3, 0.28, 0.34] },
+				{ part: 'mount', geo: unitBox(), mat: 'steel', pos: [ox - 0.05, oy + 0.3, oz], scale: [0.34, 0.05, 0.38] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox - 0.22, oy + 0.02, oz], rot: [Math.PI, 0, 0], scale: [0.14, 0.14, 0.14] }
+			];
+		}
 		if (weaponId === 'homing-rocket') {
 			// Boxy launcher with two forward tube mouths + a top guidance fin:
 			// reads as ordnance, not a gun.

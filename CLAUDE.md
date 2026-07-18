@@ -2109,6 +2109,56 @@ on one side of the world.
   / boxy tube launcher, plus a generic hardpoint stub for future catalog
   ids); `__greenline` gains `fireWeapon` / `getWeapons` / `getLocks` /
   `getProjectiles`, and telemetry counts autocannon/rocket fire+hits.
+- **Four more weapons (Phase 4b-i): Railgun, Shotgun Burst, Cluster Missile,
+  Caltrops, on the 4a framework.** Additive over the shapes 4a established; no
+  new structural inventions except the two noted.
+  - **Railgun** (kinetic, `mountCost` 3, cd 2.2s) and **Shotgun Burst**
+    (kinetic, `mountCost` 1, cd 0.8s) reuse `KineticWeaponParams` /
+    `tryFireKinetic` UNCHANGED. Railgun = heavy precision (`damage` 42, `range`
+    62, `coneDeg` 6 — a needle cone at long reach); Shotgun = close spread
+    (`damage` 22, `range` 16, `coneDeg` 64 — the short range IS the falloff, so
+    no distance-attenuation field was added). Both zone-route through
+    `applyDamage` exactly like the Autocannon; only per-weapon telemetry keys
+    (`railgun`/`shotgun`) and muzzle/hit FX intensity differ in the harness.
+  - **Cluster Missile** (guided, `mountCost` 3, cd 6s) reuses the full
+    lock -> `tryLaunchGuided` -> `updateProjectiles` pipeline, adding ONE new
+    sub-behavior: `GuidedWeaponParams` gained optional
+    `splashRadius`/`splashDamageFraction` (Cluster 9 / 0.5; Homing Rocket
+    leaves them UNDEFINED and stays strictly single-target, zero behavior
+    change). On a direct hit `updateProjectiles` also applies the reduced
+    fraction to every OTHER live vehicle within `splashRadius` of the impact
+    point (never the locked target, never the owner), returned as
+    `ProjectileHit.splash: SplashHit[]` (always `[]` for the rocket). The
+    projectile carries the two splash fields from the def.
+  - **Caltrops** (NEW `area` category + `AreaWeaponParams`, `mountCost` 1, cd
+    5s): a persistent ground hazard, the OilSlick world-object pattern
+    (`CaltropField`, race-level array owned by the harness, `createdMs`/
+    `expiresMs`) but DELIBERATELY NOT single-consumption — it triggers
+    repeatedly, against multiple vehicles or the same vehicle again, over its
+    14s life. `tryDeployCaltrops` bakes build-scaled `damage` at deploy (the
+    Projectile.damage convention) and uses `canUseSlot`/`markSlotUsed` (it is
+    an equipped weapon, not a fixed tool); `updateCaltropFields` deals small
+    direct puncture damage (10, zone-routed), NOT a traction/slip effect
+    (that stays oil's job), with a per-vehicle `retriggerImmunitySec` (1.5s)
+    window keyed in `field.nextHitMs` so a stalled car is not shredded in
+    place, plus the owner `armSec` (0.9s) immunity mirroring `OIL_ARM_SEC`.
+  - **Capacity fits** (budgets unchanged: ARMOR/HANDLING 4, VELOCITY 2,
+    SYSTEMS 5): 3+3 is unreachable on every chassis (a hard dual-heavy ceiling),
+    VELOCITY (2) cannot mount any cost-3 weapon at all. Validation is the same
+    `weaponLoadoutIssue`/`sanitizeLoadoutWeapons` (no new validation code); the
+    garage picker surfaces the four cards automatically (`WEAPONS.map`).
+  - **AI**: `AiDriver.wantsAreaDrop` (NEW, the `wantsOil` drop-behind logic,
+    slot-keyed) decides area weapons since they have no forward aim cone;
+    kinetic/guided still use `wantsWeaponFire`. `AI_WEAPONS` now cycles
+    armor=railgun+shotgun, velocity=auto+shotgun, handling=cluster+caltrops,
+    systems=railgun+rocket, so the field exercises the whole catalog.
+  - Placeholder synthesized SFX per weapon on the Phase 2C buses (rail/shot/
+    cluster/caltrops fire+hit; cluster reuses the existing lock cue). Each new
+    weapon has a distinguishable mount-socket mesh in `rig-visual.ts`
+    (long twin-rail barrel / squat quad-barrel / 2x2 launcher pod / rear
+    dropper hopper); the part-clipping cleanup across all 10 is Phase 4c, NOT
+    touched here. `__greenline` gains `getCaltrops`; telemetry adds
+    railgun/shotgun/cluster/caltrops fire+hit and `clusterSplash` hit counters.
 
 ## FRC Training track
 

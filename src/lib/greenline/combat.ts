@@ -63,6 +63,38 @@ export interface GuidedWeaponParams {
 	lifetimeSec: number;
 	/** Contact radius against the locked target. */
 	hitRadius: number;
+	/**
+	 * Area-of-effect payload (Cluster Missile). When set, a direct hit ALSO
+	 * splashes `splashDamageFraction` of the hit damage to every OTHER live
+	 * vehicle within `splashRadius` of the impact point. Homing Rocket leaves
+	 * both undefined and stays strictly single-target (zero behavior change).
+	 */
+	splashRadius?: number;
+	splashDamageFraction?: number;
+}
+
+/**
+ * Area: a persistent ground hazard dropped behind the deployer (the OilSlick
+ * structural pattern — race-level world object owned by the harness — but
+ * NOT single-consumption: it can trigger repeatedly, against multiple
+ * vehicles or the same vehicle again, over its whole lifetime). Deals small
+ * direct puncture damage, never a traction/slip effect (that stays oil's
+ * job), with a brief per-vehicle immunity window after each trigger so a
+ * stalled car is not shredded in place.
+ */
+export interface AreaWeaponParams {
+	/** Direct puncture damage per trigger. */
+	damage: number;
+	/** Trigger radius, world units. */
+	radius: number;
+	/** Field lifetime before it wears away. */
+	lifetimeSec: number;
+	/** Per-vehicle immunity after a trigger (a stalled car is not shredded). */
+	retriggerImmunitySec: number;
+	/** How far behind the deployer's rear bumper the field lands. */
+	dropBack: number;
+	/** Owner immunity while driving off their own field (mirrors OIL_ARM_SEC). */
+	armSec: number;
 }
 
 export interface WeaponDef {
@@ -81,14 +113,17 @@ export interface WeaponDef {
 	kinetic?: KineticWeaponParams;
 	/** Present iff category === 'guided'. */
 	guided?: GuidedWeaponParams;
-	// Phase 4b: turret / defensive / melee / area entries add their own param
-	// blocks here, exactly one block per def matching its category.
+	/** Present iff category === 'area'. */
+	area?: AreaWeaponParams;
+	// Phase 4b continues: turret / defensive / melee entries add their own
+	// param blocks here, exactly one block per def matching its category.
 }
 
 /**
- * The equippable-weapon catalog. Two live entries for Phase 4a: the cheap
- * rapid kinetic baseline and the expensive guided payoff. Phase 4b adds the
- * other eight over this same shape.
+ * The equippable-weapon catalog. Phase 4a shipped the rapid kinetic baseline
+ * and the guided payoff; Phase 4b-i adds the heavy precision kinetic, the
+ * close-range spread kinetic, the area-splash guided missile, and the first
+ * `area` hazard, over this same shape.
  */
 export const WEAPONS: WeaponDef[] = [
 	{
@@ -100,6 +135,31 @@ export const WEAPONS: WeaponDef[] = [
 		mountCost: 1,
 		cooldownSec: 0.4,
 		kinetic: { damage: 8, range: 34, coneDeg: 22 }
+	},
+	{
+		id: 'railgun',
+		name: 'Railgun',
+		shortName: 'RAIL',
+		category: 'kinetic',
+		blurb: 'Heavy precision slug: long reach, hits like a truck, but a needle cone and a long recharge.',
+		// Cost 3: the first heavy kinetic — a whole slot of a 4-budget chassis,
+		// or half of SYSTEMS' 5. VELOCITY (2) literally cannot mount it.
+		mountCost: 3,
+		cooldownSec: 2.2,
+		kinetic: { damage: 42, range: 62, coneDeg: 6 }
+	},
+	{
+		id: 'shotgun-burst',
+		name: 'Shotgun Burst',
+		shortName: 'SHOT',
+		category: 'kinetic',
+		blurb: 'Short-range spread: brutal up close, useless at distance. Rewards closing the gap.',
+		mountCost: 1,
+		cooldownSec: 0.8,
+		// Short range + wide cone reads as a shotgun without a distance-falloff
+		// field: the tight range IS the falloff, so KineticWeaponParams is reused
+		// untouched. Damage sits between Autocannon (8) and Railgun (42).
+		kinetic: { damage: 22, range: 16, coneDeg: 64 }
 	},
 	{
 		id: 'homing-rocket',
@@ -118,6 +178,46 @@ export const WEAPONS: WeaponDef[] = [
 			turnRateRadPerSec: 2.6,
 			lifetimeSec: 4,
 			hitRadius: 2.2
+		}
+	},
+	{
+		id: 'cluster-missile',
+		name: 'Cluster Missile',
+		shortName: 'CLUSTER',
+		category: 'guided',
+		blurb: 'Locks like a rocket, then bursts: full damage to the target, splash to everyone packed around it.',
+		// Cost 3: area guided damage is the strongest thing in the batch — it
+		// punishes a bunched pack, so it pays a heavy-slot price.
+		mountCost: 3,
+		cooldownSec: 6,
+		guided: {
+			damage: 26,
+			lockRange: 55,
+			lockConeDeg: 50,
+			lockTimeSec: 1.1,
+			projectileSpeed: 30,
+			turnRateRadPerSec: 2.4,
+			lifetimeSec: 4,
+			hitRadius: 2.4,
+			splashRadius: 9,
+			splashDamageFraction: 0.5
+		}
+	},
+	{
+		id: 'caltrops',
+		name: 'Caltrops',
+		shortName: 'CALT',
+		category: 'area',
+		blurb: 'Scatters spikes behind you: a persistent field that punctures anyone who drives over it, again and again.',
+		mountCost: 1,
+		cooldownSec: 5,
+		area: {
+			damage: 10,
+			radius: 3.4,
+			lifetimeSec: 14,
+			retriggerImmunitySec: 1.5,
+			dropBack: 3.6,
+			armSec: 0.9
 		}
 	}
 ];
@@ -812,6 +912,10 @@ export interface Projectile {
 	turnRate: number;
 	hitRadius: number;
 	expiresMs: number;
+	/** Area-splash payload, carried from the guided def (Cluster Missile).
+	 * Undefined on a single-target rocket. */
+	splashRadius?: number;
+	splashDamageFraction?: number;
 }
 
 /**
@@ -851,8 +955,18 @@ export function tryLaunchGuided(
 		damage: Math.max(1, Math.round(g.damage * (opts.damageScale ?? 1))),
 		turnRate: g.turnRateRadPerSec,
 		hitRadius: g.hitRadius,
-		expiresMs: nowMs + g.lifetimeSec * 1000
+		expiresMs: nowMs + g.lifetimeSec * 1000,
+		splashRadius: g.splashRadius,
+		splashDamageFraction: g.splashDamageFraction
 	};
+}
+
+/** One vehicle caught in a Cluster Missile's splash (never the direct target
+ * or the owner). Reduced damage, already applied. */
+export interface SplashHit {
+	targetId: string;
+	damage: number;
+	result: DamageResult;
 }
 
 export interface ProjectileHit {
@@ -860,6 +974,9 @@ export interface ProjectileHit {
 	targetId: string;
 	damage: number;
 	result: DamageResult;
+	/** Extra vehicles caught in the area splash (Cluster Missile). Always empty
+	 * for a single-target rocket, so its handling is unchanged. */
+	splash: SplashHit[];
 }
 
 export interface ProjectileUpdate {
@@ -870,11 +987,14 @@ export interface ProjectileUpdate {
 
 /**
  * Per-frame projectile step: steer toward the target's CURRENT position at
- * most turnRate, advance, and resolve contact against the locked target only
- * (v1: no proximity detonation on bystanders). A projectile whose target goes
- * out of the fight flies straight until it expires. Finished projectiles
- * (hit or expired) are spliced OUT of the array in place; the returned events
- * tell the harness which visuals to burst or fade.
+ * most turnRate, advance, and resolve contact against the locked target. A
+ * projectile whose target goes out of the fight flies straight until it
+ * expires. Finished projectiles (hit or expired) are spliced OUT of the array
+ * in place; the returned events tell the harness which visuals to burst or
+ * fade. If the projectile carries a splash payload (Cluster Missile), a direct
+ * hit ALSO damages every other live vehicle within `splashRadius` of the
+ * impact point at a reduced fraction — a rocket without the payload stays
+ * single-target exactly as before.
  */
 export function updateProjectiles(
 	projectiles: Projectile[],
@@ -920,7 +1040,27 @@ export function updateProjectiles(
 				const zone = classifyHitZone(p.hx, p.hz, target.hx, target.hz);
 				const result = target.combat.applyDamage(p.damage, p.ownerId, mode, tuning, nowMs, zone);
 				if (result.outcome !== 'ignored') {
-					hits.push({ projectile: p, targetId: target.id, damage: p.damage, result });
+					// Cluster splash: reduced damage to everyone ELSE packed around
+					// the impact point (never the direct target, never the owner).
+					const splash: SplashHit[] = [];
+					if (p.splashRadius && p.splashDamageFraction) {
+						const r2 = p.splashRadius * p.splashRadius;
+						const splashDamage = Math.max(1, Math.round(p.damage * p.splashDamageFraction));
+						for (const other of vehicles) {
+							if (other.id === target.id || other.id === p.ownerId) continue;
+							if (other.combat.eliminated || other.combat.isOut(nowMs)) continue;
+							const sdx = other.x - p.x;
+							const sdz = other.z - p.z;
+							if (sdx * sdx + sdz * sdz > r2) continue;
+							// The blast radiates from the impact point outward, so it
+							// lands on the face of `other` turned toward it.
+							const szone = classifyHitZone(sdx, sdz, other.hx, other.hz);
+							const sres = other.combat.applyDamage(splashDamage, p.ownerId, mode, tuning, nowMs, szone);
+							if (sres.outcome !== 'ignored')
+								splash.push({ targetId: other.id, damage: splashDamage, result: sres });
+						}
+					}
+					hits.push({ projectile: p, targetId: target.id, damage: p.damage, result, splash });
 				} else {
 					expired.push(p);
 				}
@@ -1004,6 +1144,111 @@ export function updateOilSlicks(
 			v.combat.applyOiled(tuning, nowMs);
 			events.push({ slick: s, targetId: v.id });
 			break;
+		}
+	}
+	return events;
+}
+
+// ---------------------------------------------------------------------------
+// Caltrops (area weapon): a persistent spike field dropped behind the deployer.
+// Structurally the OilSlick pattern (race-level world object, the harness owns
+// the array and visuals), but deliberately NOT single-consumption — the field
+// stays live for its whole lifetime and can puncture MULTIPLE vehicles, or the
+// same vehicle repeatedly, each trigger dealing small direct damage. A brief
+// per-vehicle immunity window after each trigger keeps a stalled car from being
+// shredded in place; there is no traction effect (that stays oil's job).
+// This is an EQUIPPED weapon, so it cools down per SLOT (canUseSlot), not per
+// fixed-tool id.
+// ---------------------------------------------------------------------------
+
+export interface CaltropField {
+	id: number;
+	ownerId: string;
+	/** Catalog id, so update() can resolve the field's AreaWeaponParams. */
+	weaponId: string;
+	x: number;
+	z: number;
+	createdMs: number;
+	expiresMs: number;
+	/** Puncture damage per trigger, build-scaled at deploy (Projectile.damage
+	 * convention: the owner's offense is fixed for the field's life). */
+	damage: number;
+	/** Per-vehicle next-eligible-trigger timestamps (the immunity windows). */
+	nextHitMs: Record<string, number>;
+}
+
+/**
+ * Deploy a caltrop field behind the shooter. Returns null when the slot is on
+ * cooldown or the shooter is out. The `damage` is baked at deploy from the
+ * shooter's build scale so repeated triggers stay consistent (a rocket bakes
+ * its damage at launch the same way).
+ */
+export function tryDeployCaltrops(
+	shooter: Combatant,
+	slot: WeaponSlotId,
+	def: WeaponDef,
+	nowMs: number,
+	id: number,
+	opts: WeaponFireOpts = {}
+): CaltropField | null {
+	const a = def.area;
+	if (!a) return null;
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) return null;
+	shooter.combat.markSlotUsed(slot, nowMs);
+	return {
+		id,
+		ownerId: shooter.id,
+		weaponId: def.id,
+		x: shooter.x - shooter.hx * a.dropBack,
+		z: shooter.z - shooter.hz * a.dropBack,
+		createdMs: nowMs,
+		expiresMs: nowMs + a.lifetimeSec * 1000,
+		damage: Math.max(1, Math.round(a.damage * (opts.damageScale ?? 1))),
+		nextHitMs: {}
+	};
+}
+
+export interface CaltropTriggerEvent {
+	field: CaltropField;
+	targetId: string;
+	damage: number;
+	result: DamageResult;
+}
+
+/**
+ * Per-frame caltrop check. UNLIKE updateOilSlicks this never consumes a field:
+ * every live vehicle inside a live field's radius that is past its own immunity
+ * window takes a puncture, and the field keeps going. The owner is immune only
+ * during the short arm window while driving off their own drop.
+ */
+export function updateCaltropFields(
+	fields: CaltropField[],
+	vehicles: Combatant[],
+	mode: GreenlineMode,
+	tuning: CombatTuning,
+	nowMs: number
+): CaltropTriggerEvent[] {
+	const events: CaltropTriggerEvent[] = [];
+	for (const f of fields) {
+		if (nowMs >= f.expiresMs) continue;
+		const a = weaponById(f.weaponId)?.area;
+		if (!a) continue;
+		const r2 = a.radius * a.radius;
+		for (const v of vehicles) {
+			if (v.combat.eliminated || v.combat.isOut(nowMs)) continue;
+			// Owner arm window: immune while driving off their own field.
+			if (v.id === f.ownerId && nowMs - f.createdMs < a.armSec * 1000) continue;
+			// Per-vehicle immunity: a car sitting on the field is not shredded.
+			if (nowMs < (f.nextHitMs[v.id] ?? 0)) continue;
+			const dx = v.x - f.x;
+			const dz = v.z - f.z;
+			if (dx * dx + dz * dz > r2) continue;
+			f.nextHitMs[v.id] = nowMs + a.retriggerImmunitySec * 1000;
+			const zone = classifyHitZone(dx, dz, v.hx, v.hz);
+			const result = v.combat.applyDamage(f.damage, f.ownerId, mode, tuning, nowMs, zone);
+			if (result.outcome === 'ignored') continue;
+			events.push({ field: f, targetId: v.id, damage: f.damage, result });
 		}
 	}
 	return events;

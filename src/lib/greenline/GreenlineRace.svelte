@@ -37,12 +37,14 @@
 		splitPools,
 		TETHER_SLACK_DIST,
 		tetherStatus,
+		tryDeployCaltrops,
 		tryDeployOil,
 		tryFire,
 		tryFireKinetic,
 		tryLaunchGuided,
 		tryRam,
 		tryTether,
+		updateCaltropFields,
 		updateOilSlicks,
 		updateProjectiles,
 		updateWeaponLock,
@@ -51,6 +53,7 @@
 		WEAPON_SLOTS,
 		weaponById,
 		type ActiveTether,
+		type CaltropField,
 		type Combatant,
 		type CombatTuning,
 		type DamageResult,
@@ -2249,10 +2252,10 @@
 				// systems 5), so combat testing runs against both weapons and
 				// against a rocket-primary build.
 				const AI_WEAPONS: [string, string][] = [
-					['autocannon', 'homing-rocket'],
-					['autocannon', WEAPON_NONE],
-					['homing-rocket', WEAPON_NONE],
-					['autocannon', 'homing-rocket']
+					['railgun', 'shotgun-burst'], // armor (4): 3 + 1
+					['autocannon', 'shotgun-burst'], // velocity (2): 1 + 1
+					['cluster-missile', 'caltrops'], // handling (4): 3 + 1
+					['railgun', 'homing-rocket'] // systems (5): 3 + 2
 				];
 				const aiLoadoutFor = (k: number): Loadout => {
 					const l = defaultLoadout(AI_ARCHS[(k - 1) % AI_ARCHS.length]);
@@ -2762,8 +2765,8 @@
 				// Weapon "fire" counts every triggered use; "hit" counts uses that
 				// landed at least one target (oil "hit" = a rival consumed a slick).
 				const testStats = {
-					fire: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0 },
-					hit: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0 },
+					fire: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0, railgun: 0, shotgun: 0, cluster: 0, caltrops: 0 },
+					hit: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0, railgun: 0, shotgun: 0, cluster: 0, clusterSplash: 0, caltrops: 0 },
 					ram: 0,
 					flips: 0,
 					flipsByRig: {} as Record<string, number>
@@ -2773,6 +2776,9 @@
 					testStats.hit.emp = testStats.hit.tether = testStats.hit.oil = 0;
 					testStats.fire.autocannon = testStats.fire.rocket = 0;
 					testStats.hit.autocannon = testStats.hit.rocket = 0;
+					testStats.fire.railgun = testStats.fire.shotgun = testStats.fire.cluster = testStats.fire.caltrops = 0;
+					testStats.hit.railgun = testStats.hit.shotgun = testStats.hit.cluster = 0;
+					testStats.hit.clusterSplash = testStats.hit.caltrops = 0;
 					testStats.ram = 0;
 					testStats.flips = 0;
 					testStats.flipsByRig = {};
@@ -3116,7 +3122,21 @@
 				// each playTone for playBuffer with the real asset; positions
 				// already ride through, so the swap is content-only.
 				const weaponSfx = (
-					kind: 'auto-fire' | 'auto-hit' | 'rocket-launch' | 'rocket-hit' | 'lock-on' | 'no-lock',
+					kind:
+						| 'auto-fire'
+						| 'auto-hit'
+						| 'rail-fire'
+						| 'rail-hit'
+						| 'shot-fire'
+						| 'shot-hit'
+						| 'rocket-launch'
+						| 'rocket-hit'
+						| 'cluster-launch'
+						| 'cluster-hit'
+						| 'caltrops-deploy'
+						| 'caltrops-hit'
+						| 'lock-on'
+						| 'no-lock',
 					x?: number,
 					z?: number
 				) => {
@@ -3125,10 +3145,26 @@
 						audioEngine.playTone('weapons', { freq: 480, durationMs: 70, type: 'square', gain: 0.16, pitchJitter: [0.92, 1.08], position: pos });
 					else if (kind === 'auto-hit')
 						audioEngine.playTone('impacts', { freq: 210, durationMs: 90, type: 'triangle', gain: 0.18, pitchJitter: [0.9, 1.1], position: pos });
+					else if (kind === 'rail-fire')
+						audioEngine.playTone('weapons', { freq: 900, durationMs: 140, type: 'square', gain: 0.22, pitchJitter: [0.98, 1.02], position: pos });
+					else if (kind === 'rail-hit')
+						audioEngine.playTone('impacts', { freq: 140, durationMs: 220, type: 'sawtooth', gain: 0.3, position: pos });
+					else if (kind === 'shot-fire')
+						audioEngine.playTone('weapons', { freq: 300, durationMs: 90, type: 'square', gain: 0.2, pitchJitter: [0.82, 1.2], position: pos });
+					else if (kind === 'shot-hit')
+						audioEngine.playTone('impacts', { freq: 200, durationMs: 90, type: 'triangle', gain: 0.2, pitchJitter: [0.85, 1.15], position: pos });
 					else if (kind === 'rocket-launch')
 						audioEngine.playTone('weapons', { freq: 180, durationMs: 340, type: 'sawtooth', gain: 0.22, pitchJitter: [0.95, 1.05], position: pos });
 					else if (kind === 'rocket-hit')
 						audioEngine.playTone('impacts', { freq: 90, durationMs: 320, type: 'sawtooth', gain: 0.3, position: pos });
+					else if (kind === 'cluster-launch')
+						audioEngine.playTone('weapons', { freq: 210, durationMs: 320, type: 'sawtooth', gain: 0.22, pitchJitter: [0.95, 1.05], position: pos });
+					else if (kind === 'cluster-hit')
+						audioEngine.playTone('impacts', { freq: 80, durationMs: 360, type: 'sawtooth', gain: 0.32, position: pos });
+					else if (kind === 'caltrops-deploy')
+						audioEngine.playTone('weapons', { freq: 620, durationMs: 120, type: 'square', gain: 0.16, pitchJitter: [0.85, 1.15], position: pos });
+					else if (kind === 'caltrops-hit')
+						audioEngine.playTone('impacts', { freq: 340, durationMs: 60, type: 'square', gain: 0.15, pitchJitter: [0.9, 1.1], position: pos });
 					else if (kind === 'lock-on')
 						audioEngine.playTone('ui', { freq: 880, durationMs: 90, type: 'sine', gain: 0.14 });
 					else audioEngine.playTone('ui', { freq: 220, durationMs: 120, type: 'sine', gain: 0.12 });
@@ -3159,6 +3195,68 @@
 				const clearProjectiles = () => {
 					for (const p of projectiles) removeProjectileVis(p.id);
 					projectiles.length = 0;
+				};
+
+				// Caltrop fields (combat facts) + their ground visuals keyed by id
+				// (the OilSlick vis pattern, but persistent multi-trigger hazards).
+				// A field reads as a matte scatter patch studded with steel spikes,
+				// distinct from the glossy oil puddle. Spike geometry is shared.
+				let caltropSeq = 1;
+				const caltropFields: CaltropField[] = [];
+				const caltropSpikeGeo = new THREE.ConeGeometry(0.06, 0.22, 5);
+				const caltropVis = new Map<
+					number,
+					{
+						group: InstanceType<typeof THREE.Group>;
+						patchMat: InstanceType<typeof THREE.MeshStandardMaterial>;
+						spikeMat: InstanceType<typeof THREE.MeshStandardMaterial>;
+					}
+				>();
+				const caltropPatchGeo = new THREE.CircleGeometry(1, 24);
+				caltropPatchGeo.rotateX(-Math.PI / 2);
+				const spawnCaltropVis = (f: CaltropField) => {
+					const cdef = weaponById(f.weaponId);
+					const radius = cdef?.area?.radius ?? 3.4;
+					const patchMat = new THREE.MeshStandardMaterial({
+						color: 0x1a1712,
+						roughness: 0.95,
+						metalness: 0.1,
+						transparent: true,
+						opacity: 0.7
+					});
+					const patch = new THREE.Mesh(caltropPatchGeo, patchMat);
+					patch.position.y = 0.03;
+					const group = new THREE.Group();
+					group.add(patch);
+					// A scatter of small steel spikes across the patch (seeded off the
+					// field id so the pattern is stable per field, cheap fixed count).
+					const spikeMat = new THREE.MeshStandardMaterial({ color: 0x9aa6ad, roughness: 0.4, metalness: 0.8, transparent: true, opacity: 1 });
+					const spikeCount = 11;
+					for (let i = 0; i < spikeCount; i++) {
+						const ang = i * 2.399963 + f.id; // golden-angle scatter
+						const rr = radius * (0.15 + 0.8 * ((i * 0.618034 + f.id * 0.13) % 1));
+						const spike = new THREE.Mesh(caltropSpikeGeo, spikeMat);
+						spike.position.set(Math.cos(ang) * rr, 0.11, Math.sin(ang) * rr);
+						spike.rotation.set(Math.sin(ang) * 0.4, ang, Math.cos(ang) * 0.4);
+						group.add(spike);
+					}
+					group.position.set(f.x, 0, f.z);
+					group.scale.set(0.01, 1, 0.01);
+					scene.add(group);
+					caltropVis.set(f.id, { group, patchMat, spikeMat });
+				};
+				const removeCaltropVis = (id: number) => {
+					const vis = caltropVis.get(id);
+					if (vis) {
+						scene.remove(vis.group);
+						vis.patchMat.dispose();
+						vis.spikeMat.dispose();
+						caltropVis.delete(id);
+					}
+				};
+				const clearCaltrops = () => {
+					for (const f of caltropFields) removeCaltropVis(f.id);
+					caltropFields.length = 0;
 				};
 
 				// The player's lock reticle: one reusable ground ring placed on
@@ -3206,21 +3304,41 @@
 							opts
 						);
 						if (!res.fired) return false;
-						testStats.fire.autocannon++;
-						if (res.hits.length) testStats.hit.autocannon++;
-						// Muzzle flash at the nose; deliberately small feedback (a
-						// rapid weapon must not strobe the screen).
-						spawnSparks(sp.x + shooter.hx * 1.9, sp.y + 0.5, sp.z + shooter.hz * 1.9, 5, 0xfff2c0, 7, 200);
-						weaponSfx('auto-fire', sp.x, sp.z);
-						if (shooter === player) addTrauma(0.04);
+						// Per-weapon telemetry + feedback: the railgun is a heavy
+						// precision crack, the shotgun a close spread, the autocannon
+						// the light rapid baseline. Meshes/bespoke FX are Phase 4c.
+						const rail = def.id === 'railgun';
+						const shot = def.id === 'shotgun-burst';
+						const kkey = rail ? 'railgun' : shot ? 'shotgun' : 'autocannon';
+						testStats.fire[kkey]++;
+						if (res.hits.length) testStats.hit[kkey]++;
+						// Muzzle flash at the nose; railgun a sharp bright lance, shotgun
+						// a wide scatter, autocannon a small puff (a rapid weapon must
+						// not strobe the screen).
+						const mx = sp.x + shooter.hx * 1.9;
+						const mz = sp.z + shooter.hz * 1.9;
+						if (rail) {
+							spawnSparks(mx, sp.y + 0.5, mz, 14, 0xbfeaff, 16, 260);
+							spawnRing(mx, mz, 0xbfeaff, 3.2, 220, 0.5, 0.6);
+							weaponSfx('rail-fire', sp.x, sp.z);
+							if (shooter === player) addTrauma(0.12);
+						} else if (shot) {
+							spawnSparks(mx, sp.y + 0.5, mz, 12, 0xffe0a0, 11, 220);
+							weaponSfx('shot-fire', sp.x, sp.z);
+							if (shooter === player) addTrauma(0.08);
+						} else {
+							spawnSparks(mx, sp.y + 0.5, mz, 5, 0xfff2c0, 7, 200);
+							weaponSfx('auto-fire', sp.x, sp.z);
+							if (shooter === player) addTrauma(0.04);
+						}
 						for (const hit of res.hits) {
 							const target = rigsAll().find((r) => r.id === hit.targetId);
 							if (!target) continue;
-							target.flashUntil = now + 120;
+							target.flashUntil = now + (rail ? 220 : 120);
 							const a = hitAnchor(target, sp.x, sp.z, hit.result.zone);
-							spawnSparks(a.x, a.y + 0.2, a.z, 8, GL.amberWarm, 8, 320);
-							weaponSfx('auto-hit', a.x, a.z);
-							if (target === player) addTrauma(0.12);
+							spawnSparks(a.x, a.y + 0.2, a.z, rail ? 16 : 8, GL.amberWarm, rail ? 11 : 8, rail ? 500 : 320);
+							weaponSfx(rail ? 'rail-hit' : shot ? 'shot-hit' : 'auto-hit', a.x, a.z);
+							if (target === player) addTrauma(rail ? 0.28 : 0.12);
 							// No per-hit flash text (too chatty at this cadence);
 							// afterDamage still fires the one-time edge flashes.
 							afterDamage(target, hit.result, shooter.label, sp.x, sp.z);
@@ -3250,14 +3368,27 @@
 						projectiles.push(proj);
 						spawnProjectileVis(proj);
 						shooter.locks[slot] = null;
-						testStats.fire.rocket++;
+						const cluster = def.id === 'cluster-missile';
+						if (cluster) testStats.fire.cluster++;
+						else testStats.fire.rocket++;
 						spawnSmoke(proj.x, proj.y, proj.z, 0x2a2a2a, 0.7, 700, 1.2, 0.5);
 						spawnSparks(proj.x, proj.y, proj.z, 6, GL.amberWarm, 6, 300);
-						weaponSfx('rocket-launch', proj.x, proj.z);
+						weaponSfx(cluster ? 'cluster-launch' : 'rocket-launch', proj.x, proj.z);
 						if (shooter === player) {
 							addTrauma(0.12);
-							flash('ROCKET AWAY');
+							flash(cluster ? 'CLUSTER AWAY' : 'ROCKET AWAY');
 						}
+						return true;
+					}
+					if (def.category === 'area' && def.area) {
+						const field = tryDeployCaltrops(combatantOf(shooter), slot, def, now, caltropSeq, opts);
+						if (!field) return false;
+						caltropSeq++;
+						caltropFields.push(field);
+						spawnCaltropVis(field);
+						testStats.fire.caltrops++;
+						weaponSfx('caltrops-deploy', field.x, field.z);
+						if (shooter === player) flash('CALTROPS DEPLOYED');
 						return true;
 					}
 					// Catalog entry without fire logic yet (Phase 4b): no-op.
@@ -3342,6 +3473,7 @@
 					}
 					resetTestStats();
 					clearProjectiles();
+					clearCaltrops();
 					lockRing.visible = false;
 					playerLockedPrev = false;
 					for (const s of slicks) removeSlickVis(s.id);
@@ -3533,6 +3665,7 @@
 							: null;
 					},
 					getProjectiles: () => projectiles.map((p) => ({ ...p })),
+					getCaltrops: () => caltropFields.map((f) => ({ ...f, nextHitMs: { ...f.nextHitMs } })),
 					getBuildStats: (rigId = 'player') =>
 						rigsAll().find((q) => q.id === rigId)?.buildStats ?? null,
 					getMode: () => mode,
@@ -4126,7 +4259,13 @@
 								// A guided weapon only launches off a COMPLETE lock.
 								if (def.guided && !(rig.locks[slot] && rig.locks[slot].progress >= 1)) continue;
 								const cdScale = rig.buildStats.weaponCooldown;
-								if (!rig.ai.wantsWeaponFire(self, combatants, slot, def, aiT, now, cdScale)) continue;
+								// Area weapons (caltrops) have no aim cone, so they use the
+								// drop-behind decision; everything else aims forward.
+								const want =
+									def.category === 'area'
+										? rig.ai.wantsAreaDrop(self, combatants, slot, def, aiT, now, cdScale)
+										: rig.ai.wantsWeaponFire(self, combatants, slot, def, aiT, now, cdScale);
+								if (!want) continue;
 								if (performWeaponFire(rig, slot)) {
 									rig.ai.scheduleSlotUse(slot, now, def.cooldownSec * cdScale, aiT);
 									acted = true;
@@ -4228,25 +4367,49 @@
 							const target = all.find((r) => r.id === hit.targetId);
 							removeProjectileVis(hit.projectile.id);
 							if (!target) continue;
-							testStats.hit.rocket++;
-							target.flashUntil = now + 220;
 							const p = hit.projectile;
-							spawnRing(p.x, p.z, 0xffb347, 7, 380, 0.6, 0.7);
-							spawnSparks(p.x, p.y + 0.2, p.z, 30, 0xffb347, 12, 600);
-							spawnDebris(p.x, p.y, p.z, 4, p.hx, p.hz, 5);
-							for (let k = 0; k < 3; k++) {
+							const isCluster = p.weaponId === 'cluster-missile';
+							if (isCluster) testStats.hit.cluster++;
+							else testStats.hit.rocket++;
+							target.flashUntil = now + 220;
+							// Cluster bursts wider: bigger ring/spark scatter reads as
+							// an area detonation, not a single-point rocket hit.
+							spawnRing(p.x, p.z, 0xffb347, isCluster ? 12 : 7, isCluster ? 460 : 380, 0.6, 0.7);
+							spawnSparks(p.x, p.y + 0.2, p.z, isCluster ? 42 : 30, 0xffb347, isCluster ? 15 : 12, 600);
+							spawnDebris(p.x, p.y, p.z, isCluster ? 6 : 4, p.hx, p.hz, 6);
+							for (let k = 0; k < (isCluster ? 4 : 3); k++) {
 								spawnSmoke(p.x + (Math.random() - 0.5) * 1.2, p.y + 0.3, p.z + (Math.random() - 0.5) * 1.2, 0x232323, 1.1, 1000, 1.5, 0.5);
 							}
-							weaponSfx('rocket-hit', p.x, p.z);
+							weaponSfx(isCluster ? 'cluster-hit' : 'rocket-hit', p.x, p.z);
 							if (target === player) {
 								addTrauma(0.55);
-								flash(`ROCKET HIT — -${hit.damage}`);
+								flash(`${isCluster ? 'CLUSTER' : 'ROCKET'} HIT — -${hit.damage}`);
 							} else {
 								addTraumaAt(p.x, p.z, 0.35);
-								if (p.ownerId === 'player') flash(`ROCKET HIT ${target.label} -${hit.damage}`);
+								if (p.ownerId === 'player') flash(`${isCluster ? 'CLUSTER' : 'ROCKET'} HIT ${target.label} -${hit.damage}`);
 							}
 							const owner = all.find((r) => r.id === p.ownerId);
 							afterDamage(target, hit.result, owner?.label ?? p.ownerId, p.x - p.hx * 4, p.z - p.hz * 4);
+							// Cluster splash: every OTHER vehicle caught in the burst
+							// takes reduced damage, rendered off the returned sub-hits.
+							for (const sh of hit.splash) {
+								const st = all.find((r) => r.id === sh.targetId);
+								if (!st) continue;
+								testStats.hit.clusterSplash++;
+								st.flashUntil = now + 180;
+								const stp = st.body.position;
+								spawnSparks(stp.x, stp.y + 0.3, stp.z, 14, 0xffb347, 9, 420);
+								spawnRing(stp.x, stp.z, 0xffb347, 4, 320, 0.4, 0.5);
+								if (st === player) {
+									addTrauma(0.32);
+									flash(`CLUSTER SPLASH — -${sh.damage}`);
+								} else if (p.ownerId === 'player') {
+									flash(`SPLASH ${st.label} -${sh.damage}`);
+								}
+								// Source point is the blast center so armor plates/debris
+								// kick away from the detonation, not toward it.
+								afterDamage(st, sh.result, owner?.label ?? p.ownerId, p.x, p.z);
+							}
 						}
 						for (const p of res.expired) {
 							// Fizzle: a dodged/expired rocket dies quietly where it was.
@@ -4316,6 +4479,50 @@
 							vis.group.scale.set(Math.max(0.01, r), 1, Math.max(0.01, r));
 							vis.discMat.opacity = 0.92 * alpha;
 							vis.rimMat.opacity = (0.6 + 0.25 * Math.sin(now / 180 + s.id)) * alpha;
+						}
+					}
+
+					// -- Caltrops: persistent multi-trigger fields + spike-field lifecycle --
+					{
+						const fresh = all.map(combatantOf);
+						const caltropEvents = updateCaltropFields(caltropFields, fresh, mode, ct, now);
+						for (const ev of caltropEvents) {
+							const victim = all.find((r) => r.id === ev.targetId);
+							if (!victim) continue;
+							testStats.hit.caltrops++;
+							const vp = victim.body.position;
+							victim.flashUntil = now + 140;
+							spawnSparks(vp.x, vp.y + 0.2, vp.z, 9, 0xffd27f, 6, 320);
+							weaponSfx('caltrops-hit', vp.x, vp.z);
+							if (victim === player) {
+								addTrauma(0.16);
+								flash(`CALTROPS — -${ev.damage}`);
+							} else if (ev.field.ownerId === 'player') {
+								flash(`${victim.label} HIT YOUR CALTROPS`);
+							}
+							const owner = all.find((r) => r.id === ev.field.ownerId);
+							afterDamage(victim, ev.result, owner?.label ?? ev.field.ownerId, ev.field.x, ev.field.z);
+						}
+						for (let i = caltropFields.length - 1; i >= 0; i--) {
+							const f = caltropFields[i];
+							const vis = caltropVis.get(f.id);
+							if (!vis) {
+								caltropFields.splice(i, 1);
+								continue;
+							}
+							const scaleIn = Math.max(0.01, Math.min(1, (now - f.createdMs) / 300));
+							let alpha = 1;
+							const fadeStart = f.expiresMs - 900;
+							if (now >= f.expiresMs) {
+								removeCaltropVis(f.id);
+								caltropFields.splice(i, 1);
+								continue;
+							} else if (now >= fadeStart) {
+								alpha = Math.max(0, 1 - (now - fadeStart) / 900);
+							}
+							vis.group.scale.set(scaleIn, 1, scaleIn);
+							vis.patchMat.opacity = 0.7 * alpha;
+							vis.spikeMat.opacity = alpha;
 						}
 					}
 
@@ -4740,8 +4947,11 @@
 					renderer.setAnimationLoop(null);
 					ro.disconnect();
 					clearProjectiles();
+					clearCaltrops();
 					projGeo.dispose();
 					projMat.dispose();
+					caltropSpikeGeo.dispose();
+					caltropPatchGeo.dispose();
 					lockRingGeo.dispose();
 					lockRingMat.dispose();
 					clearTimeout(flashTimer);
