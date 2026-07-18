@@ -21,7 +21,7 @@
  * signed-in portal route wired to these seams comes in the next stage.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { archetypeById, partById, type Loadout, type PartSlot } from './loadout';
+import { normalizeStoredLoadout, type Loadout } from './loadout';
 
 export const GREENLINE_LOADOUTS_TABLE = 'greenline_loadouts';
 export const GREENLINE_SLOTS_TABLE = 'greenline_loadout_slots';
@@ -177,24 +177,11 @@ export async function deleteSlot(
 	return { error: error ? error.message : null };
 }
 
-/** Validate a stored (archetype, parts) pair into a Loadout, or null. */
+/** Validate a stored (archetype, parts) pair into a Loadout, or null. The
+ * real logic is loadout.ts's normalizeStoredLoadout (shared with the
+ * localStorage path), which also sanitizes the weapon slots' capacity fit. */
 function normalizeLoadout(archetype: unknown, parts: unknown): Loadout | null {
-	if (typeof archetype !== 'string' || !archetypeById(archetype)) return null;
-	const stock: Record<PartSlot, string> = {
-		plating: 'plating-stock',
-		drivetrain: 'drive-stock',
-		tires: 'tires-stock',
-		systems: 'sys-stock'
-	};
-	const out = { ...stock };
-	if (parts && typeof parts === 'object') {
-		for (const slot of Object.keys(out) as PartSlot[]) {
-			const id = (parts as Record<string, unknown>)[slot];
-			const part = typeof id === 'string' ? partById(id) : undefined;
-			if (part && part.slot === slot) out[slot] = part.id;
-		}
-	}
-	return { archetype: archetype as Loadout['archetype'], parts: out };
+	return normalizeStoredLoadout(archetype, parts);
 }
 
 /** One player's line on a track leaderboard (board-safe fields only). */

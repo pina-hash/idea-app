@@ -5,15 +5,19 @@
 		ARCHETYPES,
 		describeEffects,
 		describeStats,
+		mountCapacityFor,
+		mountCostUsed,
 		PART_SLOTS,
 		partsForSlot,
 		resolveLoadout,
 		STAT_META,
+		weaponMountCost,
 		type ArchetypeId,
 		type Loadout,
 		type PartSlot,
 		type StatKey
 	} from './loadout';
+	import { WEAPON_NONE, WEAPONS, type WeaponSlotId } from './combat';
 	import { GREENLINE_MAX_SLOTS, type LoadoutSlot } from './persistence';
 	import GaragePreview from './GaragePreview.svelte';
 
@@ -91,6 +95,29 @@
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
+
+	// --- Weapon mounts: the flat capacity budget (never a multiplier). The
+	// picker blocks any invalid pairing OUTRIGHT with the reason shown, so an
+	// over-budget or duplicate fit can never be saved from this UI; the
+	// loadout.ts sanitizer backs it up for every non-UI path. ---
+	const mountCapacity = $derived(mountCapacityFor(loadout));
+	const mountUsed = $derived(mountCostUsed(loadout));
+	const WEAPON_SLOT_UI: { id: WeaponSlotId; label: string; allowNone: boolean }[] = [
+		{ id: 'weaponPrimary', label: 'PRIMARY WEAPON', allowNone: false },
+		{ id: 'weaponSecondary', label: 'SECONDARY WEAPON', allowNone: true }
+	];
+	/** Why this candidate cannot go in this slot right now (null = allowed). */
+	function weaponBlockReason(slot: WeaponSlotId, id: string): string | null {
+		if (id === WEAPON_NONE) return null;
+		if (loadout.parts[slot] === id) return null;
+		const otherSlot: WeaponSlotId = slot === 'weaponPrimary' ? 'weaponSecondary' : 'weaponPrimary';
+		if (loadout.parts[otherSlot] === id)
+			return `already equipped as ${otherSlot === 'weaponPrimary' ? 'primary' : 'secondary'}`;
+		const free = mountCapacity - weaponMountCost(loadout.parts[otherSlot]);
+		if (weaponMountCost(id) > free)
+			return `over budget — needs ${weaponMountCost(id)}, ${Math.max(0, free)} free`;
+		return null;
+	}
 
 	const fmtPct = (pct: number) => `${pct > 0 ? '+' : ''}${Math.round(pct)}%`;
 
@@ -278,6 +305,21 @@
 					<circle cx="12" cy="12" r="7" />
 					<path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
 					<circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+				{:else if id === 'autocannon'}
+					<!-- Barrel + receiver + muzzle flash ticks -->
+					<rect x="3" y="10" width="7" height="5" rx="1" />
+					<path d="M10 12.5h9" stroke-width="2" />
+					<path d="M21 10.5l1.6-1.2M21 14.5l1.6 1.2M22 12.5h1.6" stroke-width="1.1" />
+				{:else if id === 'homing-rocket'}
+					<!-- Missile + guidance arc -->
+					<path d="M4 14l9-1.5 3.5-1 3 2-3 2-3.5-1L4 14z" />
+					<path d="M4 14l-1.5 2.5M6 13.7L5 16.6" stroke-width="1.1" />
+					<path d="M13 6a7 7 0 0 1 6 3" stroke-width="1.1" stroke-dasharray="2 1.6" />
+					<circle cx="20.4" cy="9.6" r="0.8" fill="currentColor" stroke="none" />
+				{:else if id === 'weapon-none'}
+					<!-- Empty hardpoint -->
+					<circle cx="12" cy="12" r="7" stroke-dasharray="2.4 2.2" />
+					<path d="M9 12h6" stroke-width="1.1" opacity="0.7" />
 				{/if}
 			</svg>
 		{/snippet}
@@ -341,6 +383,55 @@
 		{:else}
 			{@render archetypeSection()}
 		{/if}
+
+		<div class="gg-section-label gg-weapons-head">
+			<span>Weapons</span>
+			<span class="gg-cap">
+				<span class="gg-cap-label">MOUNT CAPACITY</span>
+				<span class="gg-cap-pips" aria-hidden="true">
+					{#each Array(mountCapacity) as _, i (i)}
+						<span class="gg-cap-pip" class:used={i < mountUsed}></span>
+					{/each}
+				</span>
+				<span class="gg-cap-num">{mountUsed}/{mountCapacity}</span>
+			</span>
+		</div>
+		<div class="gg-wslots">
+			{#each WEAPON_SLOT_UI as wslot (wslot.id)}
+				<div class="gg-slot">
+					<div class="gg-section-label">{wslot.label}</div>
+					{#each wslot.allowNone ? [...WEAPONS.map((w) => w.id), WEAPON_NONE] : WEAPONS.map((w) => w.id) as wid (wid)}
+						{@const w = WEAPONS.find((c) => c.id === wid)}
+						{@const blocked = weaponBlockReason(wslot.id, wid)}
+						<button
+							class="gg-part"
+							class:sel={loadout.parts[wslot.id] === wid}
+							class:blocked={!!blocked}
+							disabled={!!blocked}
+							onclick={() => onequip(wslot.id, wid)}
+						>
+							<span class="gg-part-ico">{@render partIcon(wid)}</span>
+							<span class="gg-part-body">
+								<span class="gg-part-name">{w ? w.name : 'None'}</span>
+								<span class="gg-part-blurb"
+									>{w ? w.blurb : 'Leave the hardpoint empty and bank the mount points.'}</span
+								>
+								<span class="gg-chips">
+									{#if w}
+										<span class="gg-chip neutral">mount {w.mountCost}</span>
+										<span class="gg-chip neutral">cd {w.cooldownSec}s</span>
+										<span class="gg-chip neutral">{w.category}</span>
+									{/if}
+									{#if blocked}
+										<span class="gg-chip bad">{blocked}</span>
+									{/if}
+								</span>
+							</span>
+						</button>
+					{/each}
+				</div>
+			{/each}
+		</div>
 
 		<div class="gg-slots">
 			{#each PART_SLOTS as slot (slot.id)}
@@ -696,6 +787,56 @@
 	}
 	.gg-arch.sel .gg-sel-line {
 		opacity: 1;
+	}
+	/* Weapon mounts: the capacity budget readout + the two slot pickers. */
+	.gg-weapons-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.8rem;
+	}
+	.gg-cap {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+	}
+	.gg-cap-label {
+		font-size: 0.58rem;
+		letter-spacing: 0.2em;
+		color: var(--glb-ink-faint);
+	}
+	.gg-cap-pips {
+		display: flex;
+		gap: 0.2rem;
+	}
+	.gg-cap-pip {
+		width: 0.85rem;
+		height: 0.32rem;
+		border: 1px solid var(--glb-line-strong);
+		background: rgba(13, 19, 25, 0.9);
+	}
+	.gg-cap-pip.used {
+		background: linear-gradient(180deg, #c8ffe2, #2ae57e);
+		border-color: rgba(42, 229, 126, 0.7);
+	}
+	.gg-cap-num {
+		font-family: var(--glb-font-data);
+		font-size: 0.72rem;
+		color: var(--glb-chrome-hi);
+	}
+	.gg-wslots {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+		gap: 0.35rem 0.7rem;
+		margin-top: 0.2rem;
+	}
+	/* A blocked pairing stays visible WITH its reason, never silently hidden. */
+	.gg-part.blocked {
+		opacity: 0.55;
+		cursor: not-allowed;
+	}
+	.gg-part.blocked:hover {
+		border-color: var(--glb-line);
 	}
 	.gg-slots {
 		display: grid;

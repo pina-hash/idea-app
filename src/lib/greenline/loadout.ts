@@ -17,7 +17,7 @@
  * acceleration and cornering through the same physics.
  */
 
-import type { PoolSplit } from './combat';
+import { WEAPON_NONE, weaponById, type PoolSplit } from './combat';
 
 /** The stat surface parts may touch. Multipliers, neutral = 1. */
 export type StatKey =
@@ -46,7 +46,19 @@ export type StatEffects = Partial<Record<StatKey, number>>;
 export type ResolvedStats = Record<StatKey, number>;
 
 export type ArchetypeId = 'armor' | 'velocity' | 'handling' | 'systems';
-export type PartSlot = 'plating' | 'drivetrain' | 'tires' | 'systems';
+/** The four bodywork slots plus the two weapon-mount slots. The weapon slots
+ * store WEAPON ids from the combat.ts catalog (or WEAPON_NONE for an empty
+ * secondary), not VehiclePart ids; partById never resolves them and the
+ * stat-resolution loop skips them by construction. */
+export type PartSlot =
+	| 'plating'
+	| 'drivetrain'
+	| 'tires'
+	| 'systems'
+	| 'weaponPrimary'
+	| 'weaponSecondary';
+
+export const WEAPON_SLOT_IDS: PartSlot[] = ['weaponPrimary', 'weaponSecondary'];
 
 export interface Archetype {
 	id: ArchetypeId;
@@ -62,6 +74,14 @@ export interface Archetype {
 	 * scale the total but never reshape it.
 	 */
 	pools: PoolSplit;
+	/**
+	 * Mount-capacity budget: how many weapon mount points this chassis can
+	 * power across its two weapon slots. UNLIKE every StatKey this is a flat
+	 * resolved number, not a neutral=1 multiplier — a budget, not a scale.
+	 * Locked identity ordering: SYSTEMS highest, ARMOR/HANDLING standard,
+	 * VELOCITY lowest (speed pays in firepower).
+	 */
+	mountCapacityBase: number;
 }
 
 export interface VehiclePart {
@@ -75,7 +95,9 @@ export interface VehiclePart {
 
 export interface Loadout {
 	archetype: ArchetypeId;
-	/** Equipped part id per slot (always fully populated; stock counts). */
+	/** Equipped id per slot, always fully populated: bodywork slots hold
+	 * VehiclePart ids (stock counts), weapon slots hold combat.ts weapon ids
+	 * (weaponSecondary may hold WEAPON_NONE). */
 	parts: Record<PartSlot, string>;
 }
 
@@ -99,7 +121,8 @@ export const ARCHETYPES: Archetype[] = [
 		// Plating IS the identity: the deepest armor wall on the field over
 		// the biggest chassis. Its mount is ordinary, so the rear stays the
 		// honest way to hurt a juggernaut.
-		pools: { armor: 0.4, chassis: 0.45, mount: 0.15 }
+		pools: { armor: 0.4, chassis: 0.45, mount: 0.15 },
+		mountCapacityBase: 4
 	},
 	{
 		id: 'velocity',
@@ -114,7 +137,11 @@ export const ARCHETYPES: Archetype[] = [
 		},
 		// Stripped for speed: token plating and a bare mount; most of its
 		// small budget is raw frame, so nearly every hit bleeds real life.
-		pools: { armor: 0.2, chassis: 0.65, mount: 0.15 }
+		pools: { armor: 0.2, chassis: 0.65, mount: 0.15 },
+		// 2, not the plan's starting 3: with only the 4a weapons (costs 1+2)
+		// a floor of 3 would make every budget unreachable — at 2 the missile
+		// genuinely carries ONE weapon and the capacity system is live now.
+		mountCapacityBase: 2
 	},
 	{
 		id: 'handling',
@@ -131,7 +158,8 @@ export const ARCHETYPES: Archetype[] = [
 		},
 		// The baseline split (DEFAULT_POOL_SPLIT mirrors it): no pool bias,
 		// character comes from the chassis stats.
-		pools: { armor: 0.3, chassis: 0.55, mount: 0.15 }
+		pools: { armor: 0.3, chassis: 0.55, mount: 0.15 },
+		mountCapacityBase: 4
 	},
 	{
 		id: 'systems',
@@ -151,7 +179,8 @@ export const ARCHETYPES: Archetype[] = [
 		// protects its weapons above all (hardest vehicle to disarm by rear
 		// shots) and pays with thin plating over a brittle frame -- silence
 		// it the hard way or just break it.
-		pools: { armor: 0.22, chassis: 0.5, mount: 0.28 }
+		pools: { armor: 0.22, chassis: 0.5, mount: 0.28 },
+		mountCapacityBase: 5
 	}
 ];
 
@@ -266,16 +295,78 @@ export const archetypeById = (id: string): Archetype | undefined =>
 export const partById = (id: string): VehiclePart | undefined => PARTS.find((p) => p.id === id);
 export const partsForSlot = (slot: PartSlot): VehiclePart[] => PARTS.filter((p) => p.slot === slot);
 
+/** Stock weapon fit: Autocannon (cost 1) primary, empty secondary — sane
+ * under ANY archetype's capacity budget. */
+export const STOCK_WEAPON_PRIMARY = 'autocannon';
+
 const STOCK_PARTS: Record<PartSlot, string> = {
 	plating: 'plating-stock',
 	drivetrain: 'drive-stock',
 	tires: 'tires-stock',
-	systems: 'sys-stock'
+	systems: 'sys-stock',
+	weaponPrimary: STOCK_WEAPON_PRIMARY,
+	weaponSecondary: WEAPON_NONE
 };
 
 /** Handling is the closest to the harness's tuned baseline feel. */
 export function defaultLoadout(archetype: ArchetypeId = 'handling'): Loadout {
 	return { archetype, parts: { ...STOCK_PARTS } };
+}
+
+// ---------------------------------------------------------------------------
+// Mount capacity: the flat weapon budget. Resolution + validation live here so
+// the garage UI, the storage parsers, and the race application all agree on
+// one set of rules: total mount cost within the archetype's budget, and no
+// duplicate weapon across the two slots.
+// ---------------------------------------------------------------------------
+
+/** The archetype's flat weapon budget (parts never touch it in this pass). */
+export function mountCapacityFor(l: Loadout | ArchetypeId): number {
+	const id = typeof l === 'string' ? l : l.archetype;
+	return archetypeById(id)?.mountCapacityBase ?? 4;
+}
+
+/** Mount points a weapon id occupies (WEAPON_NONE / unknown ids cost 0). */
+export function weaponMountCost(id: string): number {
+	return weaponById(id)?.mountCost ?? 0;
+}
+
+/** Mount points the build's equipped weapons occupy together. */
+export function mountCostUsed(l: Loadout): number {
+	return weaponMountCost(l.parts.weaponPrimary) + weaponMountCost(l.parts.weaponSecondary);
+}
+
+/**
+ * Why this build's weapon fit is invalid, or null when it is fine. The
+ * garage UI blocks these combinations up front; sanitizeLoadoutWeapons is the
+ * enforcement for everything else (stored data, console equips).
+ */
+export function weaponLoadoutIssue(l: Loadout): string | null {
+	if (!weaponById(l.parts.weaponPrimary)) return 'no primary weapon equipped';
+	const sec = l.parts.weaponSecondary;
+	if (sec !== WEAPON_NONE && !weaponById(sec)) return 'unknown secondary weapon';
+	if (sec !== WEAPON_NONE && sec === l.parts.weaponPrimary)
+		return 'the same weapon cannot occupy both slots';
+	if (mountCostUsed(l) > mountCapacityFor(l))
+		return `mount capacity exceeded (${mountCostUsed(l)}/${mountCapacityFor(l)})`;
+	return null;
+}
+
+/**
+ * Force a build's weapon slots valid: unknown primary falls back to stock,
+ * unknown/duplicate secondary drops to none, and an over-budget pair sheds
+ * the secondary first (then the primary to stock if somehow still over).
+ * Returns the input object untouched when it is already valid.
+ */
+export function sanitizeLoadoutWeapons(l: Loadout): Loadout {
+	if (!weaponLoadoutIssue(l)) return l;
+	let primary = weaponById(l.parts.weaponPrimary) ? l.parts.weaponPrimary : STOCK_WEAPON_PRIMARY;
+	let secondary = l.parts.weaponSecondary;
+	if (!weaponById(secondary) || secondary === primary) secondary = WEAPON_NONE;
+	const cap = mountCapacityFor(l);
+	if (weaponMountCost(primary) + weaponMountCost(secondary) > cap) secondary = WEAPON_NONE;
+	if (weaponMountCost(primary) > cap) primary = STOCK_WEAPON_PRIMARY;
+	return { ...l, parts: { ...l.parts, weaponPrimary: primary, weaponSecondary: secondary } };
 }
 
 const STAT_KEYS: StatKey[] = [
@@ -383,19 +474,39 @@ export function serializeLoadout(l: Loadout): string {
 	return JSON.stringify(l);
 }
 
+/**
+ * Validate a stored (archetype, parts) pair into a Loadout, or null on an
+ * unknown archetype. Unknown part ids drop to stock; weapon slots accept only
+ * catalog weapon ids (secondary also WEAPON_NONE) and the pair is run through
+ * the capacity/duplicate sanitizer, so an invalid stored fit can never reach
+ * the sim. Shared by parseLoadout (localStorage) and persistence.ts (DB), the
+ * one contract for every storage source.
+ */
+export function normalizeStoredLoadout(archetype: unknown, parts: unknown): Loadout | null {
+	if (typeof archetype !== 'string' || !archetypeById(archetype)) return null;
+	const out = { ...STOCK_PARTS };
+	if (parts && typeof parts === 'object') {
+		const p = parts as Record<string, unknown>;
+		for (const slot of Object.keys(out) as PartSlot[]) {
+			const id = p[slot];
+			if (typeof id !== 'string') continue;
+			if (slot === 'weaponPrimary' || slot === 'weaponSecondary') {
+				if (weaponById(id) || (slot === 'weaponSecondary' && id === WEAPON_NONE)) out[slot] = id;
+			} else {
+				const part = partById(id);
+				if (part && part.slot === slot) out[slot] = part.id;
+			}
+		}
+	}
+	return sanitizeLoadoutWeapons({ archetype: archetype as ArchetypeId, parts: out });
+}
+
 /** Parse + validate; unknown archetype/part ids fail soft to null. */
 export function parseLoadout(raw: string | null): Loadout | null {
 	if (!raw) return null;
 	try {
 		const v = JSON.parse(raw) as Loadout;
-		if (!archetypeById(v?.archetype)) return null;
-		const parts = { ...STOCK_PARTS };
-		for (const slot of Object.keys(parts) as PartSlot[]) {
-			const id = v?.parts?.[slot];
-			const part = id ? partById(id) : undefined;
-			if (part && part.slot === slot) parts[slot] = part.id;
-		}
-		return { archetype: v.archetype, parts };
+		return normalizeStoredLoadout(v?.archetype, v?.parts);
 	} catch {
 		return null;
 	}

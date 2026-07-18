@@ -10,6 +10,7 @@
 	import Garage from '$lib/greenline/Garage.svelte';
 	import {
 		defaultLoadout,
+		sanitizeLoadoutWeapons,
 		type ArchetypeId,
 		type Loadout,
 		type PartSlot
@@ -94,13 +95,17 @@
 		const { error } = await saveUserLoadout(data.supabase, data.userId, loadout, slot);
 		saveStatus = error ? 'error' : 'saved';
 	}
+	// Weapon-slot sanitize on every edit: the garage blocks invalid weapon
+	// pairings itself, but an archetype swap can shrink mount capacity under
+	// the equipped pair — the sanitizer sheds the secondary so the saved build
+	// is always valid.
 	const selectArchetype = (id: ArchetypeId) => {
-		loadout = { ...loadout, archetype: id };
+		loadout = sanitizeLoadoutWeapons({ ...loadout, archetype: id });
 		// Editing diverges from any loaded slot: the build is now custom/unsaved.
 		persistBuild(null);
 	};
 	const equipPart = (slot: PartSlot, partId: string) => {
-		loadout = { ...loadout, parts: { ...loadout.parts, [slot]: partId } };
+		loadout = sanitizeLoadoutWeapons({ ...loadout, parts: { ...loadout.parts, [slot]: partId } });
 		persistBuild(null);
 	};
 

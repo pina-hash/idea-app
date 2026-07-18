@@ -63,11 +63,12 @@ export const WHEEL_CONNECTIONS: [number, number, number][] = [
 ];
 
 /**
- * Identity of a build's full visual: archetype plus all four part slots. A
- * rig rebuilds its bodywork exactly when this key changes.
+ * Identity of a build's full visual: archetype plus every equipped slot
+ * (bodywork AND the two weapon mounts). A rig rebuilds its bodywork exactly
+ * when this key changes.
  */
 export const visualKeyFor = (l: Loadout): string =>
-	`${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}`;
+	`${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.weaponPrimary}|${l.parts.weaponSecondary}`;
 
 export type PartName = 'chassis' | 'armor' | 'mount';
 type MatKind = 'hull' | 'canopy' | 'mount' | 'accent' | 'steel' | 'composite' | 'cage';
@@ -607,6 +608,51 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		return [];
 	};
 
+	// EQUIPPED WEAPONS: hardware seated on the mount socket, in mount-group
+	// local space like the systems variants, so every weapon rides (and tilts
+	// with) the socket on every archetype. The visible mass uses the per-rig
+	// 'mount' material ON PURPOSE: a dead mount chars that material dark and
+	// knocks the group askew, so the weapon deactivates visually with the pool
+	// that powers it. Simple distinguishable silhouettes for Phase 4a; the
+	// bespoke redesign is Phase 4c. An unknown/future weapon id renders a
+	// generic hardpoint stub rather than an empty socket.
+	const weaponHardware = (weaponId: string, ox: number, oy: number, oz: number): VisualNode[] => {
+		if (weaponId === 'autocannon') {
+			// Receiver block + long forward barrel with a muzzle collar: reads
+			// as a gun at a glance.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.09, oz], scale: [0.36, 0.17, 0.2] },
+				{ part: 'mount', geo: unitTube(), mat: 'mount', pos: [ox + 0.42, oy + 0.12, oz], rot: [0, 0, Math.PI / 2], scale: [0.07, 0.62, 0.07] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.68, oy + 0.12, oz], rot: [0, 0, Math.PI / 2], scale: [0.1, 0.12, 0.1] }
+			];
+		}
+		if (weaponId === 'homing-rocket') {
+			// Boxy launcher with two forward tube mouths + a top guidance fin:
+			// reads as ordnance, not a gun.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.12, oz], scale: [0.34, 0.24, 0.3] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.18, oy + 0.16, oz + 0.07], rot: [0, 0, Math.PI / 2], scale: [0.09, 0.1, 0.09] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [ox + 0.18, oy + 0.16, oz - 0.07], rot: [0, 0, Math.PI / 2], scale: [0.09, 0.1, 0.09] },
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox - 0.08, oy + 0.28, oz], scale: [0.16, 0.1, 0.03] }
+			];
+		}
+		// Fallback hardpoint stub for catalog entries without a visual yet.
+		return [
+			{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [ox, oy + 0.08, oz], scale: [0.24, 0.14, 0.18] }
+		];
+	};
+	const weaponNodes = (primary: string, secondary: string): VisualNode[] => {
+		const nodes: VisualNode[] = [];
+		// Primary sits centered on the socket; a secondary hangs off a side
+		// hardpoint wing so a two-weapon mount visibly carries two systems.
+		if (primary && primary !== 'weapon-none') nodes.push(...weaponHardware(primary, 0.04, 0.1, 0));
+		if (secondary && secondary !== 'weapon-none') {
+			nodes.push({ part: 'mount', geo: unitBox(), mat: 'mount', pos: [-0.1, 0.1, 0.16], scale: [0.2, 0.05, 0.2] });
+			nodes.push(...weaponHardware(secondary, -0.1, 0.02, 0.26));
+		}
+		return nodes;
+	};
+
 	// TIRES: one geometry per (variant, archetype width), still ONE mesh per
 	// wheel; hardwall adds one hoop child. Flat-shade the terrain lugs so the
 	// blocky tread reads under light.
@@ -698,6 +744,7 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		if (plating === 'plating-reactive') nodes.push(...cageNodes(a));
 		nodes.push(...drivetrainNodes(l.parts.drivetrain, a));
 		nodes.push(...systemsNodes(l.parts.systems));
+		nodes.push(...weaponNodes(l.parts.weaponPrimary, l.parts.weaponSecondary));
 		const wheel = wheelFor(l.parts.tires, base.wheelWidth);
 		const vis: ComposedVisual = {
 			key,

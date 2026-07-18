@@ -12,8 +12,118 @@
 
 export type GreenlineMode = 'race' | 'elimination';
 
-/** The four disruption tools. Every one cools down per vehicle, per weapon. */
+/** The four disruption tools. Every one cools down per vehicle, per weapon.
+ * These are the FIXED, always-on utility tools every vehicle carries
+ * regardless of build; the equippable weapons below are a separate, parallel
+ * system (see WeaponDef / WeaponSlotId), not an extension of this union. */
 export type WeaponId = 'emp' | 'oil' | 'tether' | 'ram';
+
+// ---------------------------------------------------------------------------
+// Equippable weapons: the loadout-chosen firepower occupying the two mount
+// slots (weaponPrimary / weaponSecondary in Loadout.parts). The catalog is the
+// balance sheet, the loadout.ts convention; loadout.ts imports from here (the
+// PoolSplit direction), never the reverse, so this file stays pure and
+// dependency-free. Only two entries have real fire logic this pass (Phase 4a);
+// the shape is built to hold all six categories as Phase 4b fills them in.
+// ---------------------------------------------------------------------------
+
+/** The two equip slots. Cooldowns key on the SLOT (the weapon occupying a
+ * slot changes between builds), never the weapon id. */
+export type WeaponSlotId = 'weaponPrimary' | 'weaponSecondary';
+
+export const WEAPON_SLOTS: WeaponSlotId[] = ['weaponPrimary', 'weaponSecondary'];
+
+/** "Nothing equipped" sentinel for the secondary slot (a low-capacity build
+ * may only afford one weapon). Stored in Loadout.parts like a part id. */
+export const WEAPON_NONE = 'weapon-none';
+
+/** The six weapon families the framework must hold (build plan section 5). */
+export type WeaponCategory = 'kinetic' | 'guided' | 'turret' | 'defensive' | 'melee' | 'area';
+
+/** Kinetic: instant forward hit-scan cone (the tryFire shape, no disruption). */
+export interface KineticWeaponParams {
+	damage: number;
+	range: number;
+	coneDeg: number;
+}
+
+/** Guided: lock-on then a real multi-frame projectile that steers to target. */
+export interface GuidedWeaponParams {
+	damage: number;
+	/** Lock acquisition range / full cone, world units / degrees. */
+	lockRange: number;
+	lockConeDeg: number;
+	/** Dwell before the lock completes; breaking the cone resets it. */
+	lockTimeSec: number;
+	/** Projectile flight, m/s. */
+	projectileSpeed: number;
+	/** Max steering rate toward the target, rad/s. */
+	turnRateRadPerSec: number;
+	/** Projectile self-destructs after this long (a dodged rocket expires). */
+	lifetimeSec: number;
+	/** Contact radius against the locked target. */
+	hitRadius: number;
+}
+
+export interface WeaponDef {
+	id: string;
+	name: string;
+	/** Compact HUD-cell label. */
+	shortName: string;
+	category: WeaponCategory;
+	/** One-line honest summary for the garage picker. */
+	blurb: string;
+	/** Mount-capacity points this weapon occupies (1-3 scale; archetype
+	 * budgets run 3-5, see Archetype.mountCapacityBase in loadout.ts). */
+	mountCost: number;
+	cooldownSec: number;
+	/** Present iff category === 'kinetic'. */
+	kinetic?: KineticWeaponParams;
+	/** Present iff category === 'guided'. */
+	guided?: GuidedWeaponParams;
+	// Phase 4b: turret / defensive / melee / area entries add their own param
+	// blocks here, exactly one block per def matching its category.
+}
+
+/**
+ * The equippable-weapon catalog. Two live entries for Phase 4a: the cheap
+ * rapid kinetic baseline and the expensive guided payoff. Phase 4b adds the
+ * other eight over this same shape.
+ */
+export const WEAPONS: WeaponDef[] = [
+	{
+		id: 'autocannon',
+		name: 'Autocannon',
+		shortName: 'AUTO',
+		category: 'kinetic',
+		blurb: 'Rapid light cannon: weak per hit, cheap on the mount, always relevant.',
+		mountCost: 1,
+		cooldownSec: 0.4,
+		kinetic: { damage: 8, range: 34, coneDeg: 22 }
+	},
+	{
+		id: 'homing-rocket',
+		name: 'Homing Rocket',
+		shortName: 'ROCKET',
+		category: 'guided',
+		blurb: 'Locks a target ahead, then a live rocket chases them down. Break the cone to deny the lock.',
+		mountCost: 2,
+		cooldownSec: 5,
+		guided: {
+			damage: 30,
+			lockRange: 55,
+			lockConeDeg: 50,
+			lockTimeSec: 0.9,
+			projectileSpeed: 34,
+			turnRateRadPerSec: 2.6,
+			lifetimeSec: 4,
+			hitRadius: 2.2
+		}
+	}
+];
+
+export const weaponById = (id: string): WeaponDef | undefined =>
+	id === WEAPON_NONE ? undefined : WEAPONS.find((w) => w.id === id);
 
 export interface CombatTuning {
 	/** TOTAL durability budget, split into armor/chassis/mount by the
@@ -261,6 +371,10 @@ export class VehicleCombat {
 	oiledUntilMs = 0;
 	/** Per-weapon last-use timestamps; every tool cools down independently. */
 	lastUseMs: Record<WeaponId, number> = { emp: -Infinity, oil: -Infinity, tether: -Infinity, ram: -Infinity };
+	/** Equipped-weapon slot cooldowns, keyed by SLOT (not weapon id): the
+	 * weapon occupying a slot can change between builds, and a swap must not
+	 * inherit or leak another weapon's timer semantics beyond the slot's. */
+	lastSlotUseMs: Record<WeaponSlotId, number> = { weaponPrimary: -Infinity, weaponSecondary: -Infinity };
 	lastDamageFrom: string | null = null;
 
 	constructor(id: string, pools: PoolMaxes) {
@@ -285,6 +399,7 @@ export class VehicleCombat {
 		this.disruptedUntilMs = 0;
 		this.oiledUntilMs = 0;
 		this.lastUseMs = { emp: -Infinity, oil: -Infinity, tether: -Infinity, ram: -Infinity };
+		this.lastSlotUseMs = { weaponPrimary: -Infinity, weaponSecondary: -Infinity };
 		this.lastDamageFrom = null;
 	}
 
@@ -322,6 +437,18 @@ export class VehicleCombat {
 
 	markUsed(weapon: WeaponId, nowMs: number): void {
 		this.lastUseMs[weapon] = nowMs;
+	}
+
+	/** canUse for an equipped-weapon slot. Same mount-death rule as the fired
+	 * tools: the equipped weapons literally sit ON the mount socket, so a dead
+	 * mount takes both slots offline until the next full heal. */
+	canUseSlot(slot: WeaponSlotId, nowMs: number, cooldownSec: number): boolean {
+		if (this.mountDown) return false;
+		return !this.isOut(nowMs) && nowMs - this.lastSlotUseMs[slot] >= cooldownSec * 1000;
+	}
+
+	markSlotUsed(slot: WeaponSlotId, nowMs: number): void {
+		this.lastSlotUseMs[slot] = nowMs;
 	}
 
 	/**
@@ -522,6 +649,286 @@ export function cooldownRemaining(
 	nowMs: number
 ): number {
 	return Math.max(0, cooldownSec - (nowMs - c.lastUseMs[weapon]) / 1000);
+}
+
+/** Seconds until an equipped-weapon slot is ready again (0 = ready). */
+export function slotCooldownRemaining(
+	c: VehicleCombat,
+	slot: WeaponSlotId,
+	cooldownSec: number,
+	nowMs: number
+): number {
+	return Math.max(0, cooldownSec - (nowMs - c.lastSlotUseMs[slot]) / 1000);
+}
+
+/** Per-shooter effective scaling of a weapon def (the ctFor convention:
+ * offense scales with the SHOOTER's build; defense lives on the target). */
+export interface WeaponFireOpts {
+	/** Multiplies the def's damage (buildStats.damageDealt). Default 1. */
+	damageScale?: number;
+	/** Multiplies the def's cooldown (buildStats.weaponCooldown). Default 1. */
+	cooldownScale?: number;
+}
+
+/**
+ * Kinetic equipped weapon (Autocannon): instant hit-scan cone in front of the
+ * shooter, the tryFire shape, but slot-cooldown-gated and with NO disruption
+ * applied — kinetic weapons are raw chip damage, not control.
+ */
+export function tryFireKinetic(
+	shooter: Combatant,
+	targets: Combatant[],
+	slot: WeaponSlotId,
+	def: WeaponDef,
+	mode: GreenlineMode,
+	tuning: CombatTuning,
+	nowMs: number,
+	opts: WeaponFireOpts = {}
+): FireResult {
+	const k = def.kinetic;
+	if (!k) return { fired: false, hits: [] };
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) {
+		return { fired: false, hits: [] };
+	}
+	shooter.combat.markSlotUsed(slot, nowMs);
+	const damage = Math.max(1, Math.round(k.damage * (opts.damageScale ?? 1)));
+	const cosHalf = Math.cos(((k.coneDeg / 2) * Math.PI) / 180);
+	const hits: FireHit[] = [];
+	for (const t of targets) {
+		if (t.id === shooter.id || t.combat.eliminated) continue;
+		const dx = t.x - shooter.x;
+		const dz = t.z - shooter.z;
+		const dist = Math.hypot(dx, dz);
+		if (dist > k.range) continue;
+		if (dist > 0.001 && (dx * shooter.hx + dz * shooter.hz) / dist < cosHalf) continue;
+		const zone = classifyHitZone(dx, dz, t.hx, t.hz);
+		const result = t.combat.applyDamage(damage, shooter.id, mode, tuning, nowMs, zone);
+		if (result.outcome === 'ignored') continue;
+		hits.push({
+			targetId: t.id,
+			damage,
+			result,
+			spinSign: Math.sign(shooter.hx * dz - shooter.hz * dx) || 1,
+			dist
+		});
+	}
+	return { fired: true, hits };
+}
+
+// ---------------------------------------------------------------------------
+// Guided weapons (Homing Rocket): a two-stage system. Stage 1 is the LOCK, a
+// per-shooter per-slot state the harness ticks every frame while the slot is
+// ready: the nearest valid target inside the forward lock cone accrues
+// progress over the dwell time, and leaving the cone/range (or dying) clears
+// it — the counterplay. Stage 2 is a real PROJECTILE: launched only off a
+// complete lock, it lives in a race-level array (the OilSlick pattern:
+// world object with its own lifecycle, not per-vehicle state) and steers
+// toward its target each frame until contact, expiry, or target loss.
+// ---------------------------------------------------------------------------
+
+/** A lock in progress (or complete at progress >= 1) for one shooter slot. */
+export interface WeaponLock {
+	shooterId: string;
+	slot: WeaponSlotId;
+	targetId: string;
+	/** 0..1; 1 = locked, launch permitted. */
+	progress: number;
+}
+
+/**
+ * Tick a slot's lock. Keeps the current target while it stays valid (a nearer
+ * rival never steals an acquisition in progress); a target that leaves the
+ * cone/range or goes down clears the lock outright, so re-entering starts the
+ * dwell from zero. Returns the new lock state (null = nothing acquirable).
+ */
+export function updateWeaponLock(
+	current: WeaponLock | null,
+	shooter: Combatant,
+	targets: Combatant[],
+	slot: WeaponSlotId,
+	def: WeaponDef,
+	dtSec: number,
+	nowMs: number
+): WeaponLock | null {
+	const g = def.guided;
+	if (!g) return null;
+	const cosHalf = Math.cos(((g.lockConeDeg / 2) * Math.PI) / 180);
+	const inCone = (t: Combatant): boolean => {
+		if (t.id === shooter.id || t.combat.eliminated || t.combat.isOut(nowMs)) return false;
+		const dx = t.x - shooter.x;
+		const dz = t.z - shooter.z;
+		const dist = Math.hypot(dx, dz);
+		if (dist > g.lockRange || dist < 0.001) return false;
+		return (dx * shooter.hx + dz * shooter.hz) / dist >= cosHalf;
+	};
+	// Current target still valid: the dwell continues.
+	if (current) {
+		const t = targets.find((c) => c.id === current.targetId);
+		if (t && inCone(t)) {
+			return {
+				...current,
+				progress: Math.min(1, current.progress + dtSec / Math.max(0.05, g.lockTimeSec))
+			};
+		}
+	}
+	// (Re)acquire: nearest valid target starts a fresh dwell.
+	let best: Combatant | null = null;
+	let bestDist = Infinity;
+	for (const t of targets) {
+		if (!inCone(t)) continue;
+		const dist = Math.hypot(t.x - shooter.x, t.z - shooter.z);
+		if (dist < bestDist) {
+			best = t;
+			bestDist = dist;
+		}
+	}
+	if (!best) return null;
+	return {
+		shooterId: shooter.id,
+		slot,
+		targetId: best.id,
+		progress: Math.min(1, dtSec / Math.max(0.05, g.lockTimeSec))
+	};
+}
+
+/** A live guided projectile. Race-level state: the harness owns the array and
+ * its visuals; updateProjectiles owns the flight math and hit resolution. */
+export interface Projectile {
+	id: number;
+	ownerId: string;
+	weaponId: string;
+	x: number;
+	z: number;
+	/** Flight height, visual only (combat math is 2D on the ground plane). */
+	y: number;
+	/** Unit heading on the ground plane. */
+	hx: number;
+	hz: number;
+	speed: number;
+	targetId: string;
+	/** Pre-resolved (shooter-build-scaled) damage, fixed at launch. */
+	damage: number;
+	turnRate: number;
+	hitRadius: number;
+	expiresMs: number;
+}
+
+/**
+ * Launch a guided projectile off a COMPLETE lock. Returns null (and spends
+ * nothing) when the lock is missing/incomplete, the target is gone, or the
+ * slot is on cooldown — a press without a lock costs nothing.
+ */
+export function tryLaunchGuided(
+	shooter: Combatant,
+	targets: Combatant[],
+	slot: WeaponSlotId,
+	def: WeaponDef,
+	lock: WeaponLock | null,
+	nowMs: number,
+	id: number,
+	opts: WeaponFireOpts = {}
+): Projectile | null {
+	const g = def.guided;
+	if (!g) return null;
+	if (!lock || lock.progress < 1 || lock.slot !== slot) return null;
+	const target = targets.find((t) => t.id === lock.targetId);
+	if (!target || target.combat.eliminated || target.combat.isOut(nowMs)) return null;
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) return null;
+	shooter.combat.markSlotUsed(slot, nowMs);
+	return {
+		id,
+		ownerId: shooter.id,
+		weaponId: def.id,
+		x: shooter.x + shooter.hx * 0.6,
+		z: shooter.z + shooter.hz * 0.6,
+		y: 0.85,
+		hx: shooter.hx,
+		hz: shooter.hz,
+		speed: g.projectileSpeed,
+		targetId: lock.targetId,
+		damage: Math.max(1, Math.round(g.damage * (opts.damageScale ?? 1))),
+		turnRate: g.turnRateRadPerSec,
+		hitRadius: g.hitRadius,
+		expiresMs: nowMs + g.lifetimeSec * 1000
+	};
+}
+
+export interface ProjectileHit {
+	projectile: Projectile;
+	targetId: string;
+	damage: number;
+	result: DamageResult;
+}
+
+export interface ProjectileUpdate {
+	hits: ProjectileHit[];
+	/** Missed/expired projectiles removed this frame (fizzle, no damage). */
+	expired: Projectile[];
+}
+
+/**
+ * Per-frame projectile step: steer toward the target's CURRENT position at
+ * most turnRate, advance, and resolve contact against the locked target only
+ * (v1: no proximity detonation on bystanders). A projectile whose target goes
+ * out of the fight flies straight until it expires. Finished projectiles
+ * (hit or expired) are spliced OUT of the array in place; the returned events
+ * tell the harness which visuals to burst or fade.
+ */
+export function updateProjectiles(
+	projectiles: Projectile[],
+	vehicles: Combatant[],
+	mode: GreenlineMode,
+	tuning: CombatTuning,
+	dtSec: number,
+	nowMs: number
+): ProjectileUpdate {
+	const hits: ProjectileHit[] = [];
+	const expired: Projectile[] = [];
+	for (let i = projectiles.length - 1; i >= 0; i--) {
+		const p = projectiles[i];
+		if (nowMs >= p.expiresMs) {
+			expired.push(p);
+			projectiles.splice(i, 1);
+			continue;
+		}
+		const target = vehicles.find((v) => v.id === p.targetId);
+		const targetLive = !!target && !target.combat.eliminated && !target.combat.isOut(nowMs);
+		if (targetLive && target) {
+			// Steer: rotate the heading toward the target, clamped to turnRate.
+			const dx = target.x - p.x;
+			const dz = target.z - p.z;
+			const desired = Math.atan2(dz, dx);
+			const cur = Math.atan2(p.hz, p.hx);
+			let delta = desired - cur;
+			while (delta > Math.PI) delta -= Math.PI * 2;
+			while (delta < -Math.PI) delta += Math.PI * 2;
+			const maxTurn = p.turnRate * dtSec;
+			const turn = Math.max(-maxTurn, Math.min(maxTurn, delta));
+			const next = cur + turn;
+			p.hx = Math.cos(next);
+			p.hz = Math.sin(next);
+		}
+		p.x += p.hx * p.speed * dtSec;
+		p.z += p.hz * p.speed * dtSec;
+		if (targetLive && target) {
+			const dist = Math.hypot(target.x - p.x, target.z - p.z);
+			if (dist <= p.hitRadius) {
+				// Impact travels along the rocket's own heading; the zone is
+				// whichever face of the TARGET it slammed into.
+				const zone = classifyHitZone(p.hx, p.hz, target.hx, target.hz);
+				const result = target.combat.applyDamage(p.damage, p.ownerId, mode, tuning, nowMs, zone);
+				if (result.outcome !== 'ignored') {
+					hits.push({ projectile: p, targetId: target.id, damage: p.damage, result });
+				} else {
+					expired.push(p);
+				}
+				projectiles.splice(i, 1);
+			}
+		}
+	}
+	return { hits, expired };
 }
 
 // ---------------------------------------------------------------------------

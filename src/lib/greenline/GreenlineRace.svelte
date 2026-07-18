@@ -33,15 +33,23 @@
 		COMBAT_DEFAULTS,
 		cooldownRemaining,
 		driveMods,
+		slotCooldownRemaining,
 		splitPools,
 		TETHER_SLACK_DIST,
 		tetherStatus,
 		tryDeployOil,
 		tryFire,
+		tryFireKinetic,
+		tryLaunchGuided,
 		tryRam,
 		tryTether,
 		updateOilSlicks,
+		updateProjectiles,
+		updateWeaponLock,
 		VehicleCombat,
+		WEAPON_NONE,
+		WEAPON_SLOTS,
+		weaponById,
 		type ActiveTether,
 		type Combatant,
 		type CombatTuning,
@@ -49,7 +57,10 @@
 		type GreenlineMode,
 		type HitZone,
 		type OilSlick,
-		type PoolMaxes
+		type PoolMaxes,
+		type Projectile,
+		type WeaponLock,
+		type WeaponSlotId
 	} from '$lib/greenline/combat';
 	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
 	import { NIGHT_ENV } from '$lib/greenline/environment';
@@ -59,12 +70,14 @@
 		neutralStats,
 		parseLoadout,
 		resolveLoadout,
+		sanitizeLoadoutWeapons,
 		serializeLoadout,
 		type ArchetypeId,
 		type Loadout,
 		type PartSlot,
 		type ResolvedStats
 	} from '$lib/greenline/loadout';
+	import { audioEngine } from '$lib/greenline/audio-engine';
 	import {
 		COM_DROP,
 		createRigVisuals,
@@ -117,7 +130,15 @@
 	 * same paths): EMP burst (F / RB), oil slick dropped behind (E / X),
 	 * tether yank at the nearest vehicle ahead (Q / LB), and the passive
 	 * shockwave ram that triggers on nose-first contact above a closing-speed
-	 * threshold. Damage is ZONED off the TARGET's own facing into three pools
+	 * threshold. On top of them sit the EQUIPPED weapons (Phase 4a): two
+	 * loadout-chosen mount slots (weaponPrimary Z / B, weaponSecondary X / Y)
+	 * over the combat.ts WeaponDef catalog, budgeted by the archetype's flat
+	 * mount capacity — the Autocannon (kinetic hit-scan) and the Homing
+	 * Rocket (continuous forward-cone lock acquisition, then a live steered
+	 * projectile; breaking the cone before the dwell completes denies the
+	 * lock). Projectiles are race-level state stepped by updateProjectiles
+	 * (the oil-slick pattern); locks tick per rig per frame and feed the HUD
+	 * cells + the player's tightening lock reticle. Damage is ZONED off the TARGET's own facing into three pools
 	 * (front/side -> armor, rear -> mount, overflow -> chassis; chassis zero
 	 * is the down/elimination trigger and a dead mount takes the fired tools
 	 * offline until full heal). Combat facts live in $lib/greenline/combat.ts;
@@ -261,12 +282,19 @@
 			/* storage unavailable: session-only loadout */
 		}
 	};
+	// Both edits run through the weapon sanitizer: the garage UI blocks invalid
+	// weapon fits up front, but an archetype swap can shrink mount capacity
+	// under the equipped pair, and the __greenline console equip path has no UI
+	// guard — the sanitizer keeps every stored build valid either way.
 	const selectArchetype = (id: ArchetypeId) => {
-		playerLoadout = { ...playerLoadout, archetype: id };
+		playerLoadout = sanitizeLoadoutWeapons({ ...playerLoadout, archetype: id });
 		persistLoadout();
 	};
 	const equipPart = (slot: PartSlot, partId: string) => {
-		playerLoadout = { ...playerLoadout, parts: { ...playerLoadout.parts, [slot]: partId } };
+		playerLoadout = sanitizeLoadoutWeapons({
+			...playerLoadout,
+			parts: { ...playerLoadout.parts, [slot]: partId }
+		});
 		persistLoadout();
 	};
 
@@ -282,6 +310,8 @@
 			`${keyLabel(controlSettings.keyboard.accelerate)}/${keyLabel(controlSettings.keyboard.brake)} DRIVE`,
 			`${keyLabel(controlSettings.keyboard.steerLeft)}/${keyLabel(controlSettings.keyboard.steerRight)} STEER`,
 			`${keyLabel(controlSettings.keyboard.handbrake)} HANDBRAKE`,
+			`${keyLabel(controlSettings.keyboard.fireWeaponPrimary)} PRIMARY`,
+			`${keyLabel(controlSettings.keyboard.fireWeaponSecondary)} SECONDARY`,
 			`${keyLabel(controlSettings.keyboard.fire)} EMP`,
 			`${keyLabel(controlSettings.keyboard.oil)} OIL`,
 			`${keyLabel(controlSettings.keyboard.tether)} TETHER`,
@@ -311,6 +341,15 @@
 		bestMs: null as number | null,
 		offTrack: false
 	});
+	/** HUD cell state for one equipped weapon slot (lock is guided-only). */
+	interface SlotHudCell {
+		slot: WeaponSlotId;
+		short: string;
+		key: string;
+		ready: number;
+		offline: boolean;
+		lock: { progress: number; locked: boolean } | null;
+	}
 	// Pre-mount HUD placeholders: the default budget through the neutral split.
 	const initPools = splitPools(COMBAT_DEFAULTS.maxHealth);
 	const chud = $state({
@@ -326,7 +365,9 @@
 		oiled: false,
 		tethered: false,
 		downLeft: 0,
-		ready: { emp: 0, oil: 0, tether: 0, ram: 0 }
+		ready: { emp: 0, oil: 0, tether: 0, ram: 0 },
+		/** Equipped-weapon cells (primary always; secondary only when equipped). */
+		slots: [] as SlotHudCell[]
 	});
 	let lapFlash = $state('');
 	// Race-start countdown text ('3' | '2' | '1' | 'GO' | ''), driven by the loop.
@@ -1736,6 +1777,12 @@
 					/** Resolved build multipliers (archetype x parts), neutral = 1. */
 					buildStats: ResolvedStats;
 					archetype: ArchetypeId;
+					/** Equipped weapon id per slot (WEAPON_NONE = empty secondary),
+					 * set by applyLoadoutToRig from the sanitized build. */
+					weapons: Record<WeaponSlotId, string>;
+					/** Live guided-weapon lock per slot (null = nothing acquired).
+					 * Ticked in the frame loop while the slot is ready. */
+					locks: Record<WeaponSlotId, WeaponLock | null>;
 					/** Crumple state: 0 pristine .. 3 wrecked; drives vertex jitter. */
 					dentStage: number;
 					/** Pristine hull-geometry positions, restored on heal/reset. */
@@ -2003,6 +2050,8 @@
 						bar: null,
 						buildStats: neutralStats(),
 						archetype: 'handling',
+						weapons: { weaponPrimary: 'autocannon', weaponSecondary: WEAPON_NONE },
+						locks: { weaponPrimary: null, weaponSecondary: null },
 						dentStage: 0,
 						dentBase: new Float32Array(0),
 						stunMat,
@@ -2141,10 +2190,26 @@
 				// pipeline, the combat resistances, and this vehicle's own three
 				// health pools (each pool keeps its damage FRACTION, so a mid-run
 				// swap is honest rather than a free heal; a dead pool stays dead).
-				const applyLoadoutToRig = (rig: Rig, l: Loadout) => {
+				const applyLoadoutToRig = (rig: Rig, rawLoadout: Loadout) => {
+					// Defense in depth: whatever reaches the sim is a valid weapon
+					// fit (capacity + no duplicates), even off the console API.
+					const l = sanitizeLoadoutWeapons(rawLoadout);
 					const s = resolveLoadout(l);
 					rig.buildStats = s;
 					rig.archetype = l.archetype;
+					if (
+						rig.weapons.weaponPrimary !== l.parts.weaponPrimary ||
+						rig.weapons.weaponSecondary !== l.parts.weaponSecondary
+					) {
+						// A weapon swap clears in-progress locks (the new weapon
+						// starts its own acquisition); slot cooldowns are per-slot
+						// state and deliberately survive.
+						rig.weapons = {
+							weaponPrimary: l.parts.weaponPrimary,
+							weaponSecondary: l.parts.weaponSecondary
+						};
+						rig.locks = { weaponPrimary: null, weaponSecondary: null };
+					}
 					// Rebuild the bodywork when the visual identity changes: the
 					// archetype OR any equipped part (live garage swaps included).
 					if (rig.visualKey !== visualKeyFor(l)) buildRigVisual(rig, l);
@@ -2179,6 +2244,23 @@
 				// velocity, AI-3 handling, AI-4 systems, then repeat. Identity is
 				// carried by the archetype bodywork itself, not a color array.
 				const AI_ARCHS: ArchetypeId[] = ['armor', 'velocity', 'handling', 'systems'];
+				// Weapon fits cycle alongside the archetypes (each respects its
+				// archetype's mount capacity: armor 4, velocity 2, handling 4,
+				// systems 5), so combat testing runs against both weapons and
+				// against a rocket-primary build.
+				const AI_WEAPONS: [string, string][] = [
+					['autocannon', 'homing-rocket'],
+					['autocannon', WEAPON_NONE],
+					['homing-rocket', WEAPON_NONE],
+					['autocannon', 'homing-rocket']
+				];
+				const aiLoadoutFor = (k: number): Loadout => {
+					const l = defaultLoadout(AI_ARCHS[(k - 1) % AI_ARCHS.length]);
+					const [wp, ws] = AI_WEAPONS[(k - 1) % AI_WEAPONS.length];
+					l.parts.weaponPrimary = wp;
+					l.parts.weaponSecondary = ws;
+					return l;
+				};
 				let ais: Rig[] = [];
 				const rigsAll = () => [player, ...ais];
 
@@ -2206,7 +2288,7 @@
 						const rig = makeRig(`ai-${k}`, `AI-${k}`, arch, slotPose(k));
 						rig.ai = new AiDriver(rt);
 						rig.bar = makeBar();
-						applyLoadoutToRig(rig, defaultLoadout(arch));
+						applyLoadoutToRig(rig, aiLoadoutFor(k));
 						ais.push(rig);
 						aiPoses.push({ x: rig.spawn.x, z: rig.spawn.z, hx: 1, hz: 0, out: false });
 					}
@@ -2680,8 +2762,8 @@
 				// Weapon "fire" counts every triggered use; "hit" counts uses that
 				// landed at least one target (oil "hit" = a rival consumed a slick).
 				const testStats = {
-					fire: { emp: 0, tether: 0, oil: 0 },
-					hit: { emp: 0, tether: 0, oil: 0 },
+					fire: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0 },
+					hit: { emp: 0, tether: 0, oil: 0, autocannon: 0, rocket: 0 },
 					ram: 0,
 					flips: 0,
 					flipsByRig: {} as Record<string, number>
@@ -2689,6 +2771,8 @@
 				const resetTestStats = () => {
 					testStats.fire.emp = testStats.fire.tether = testStats.fire.oil = 0;
 					testStats.hit.emp = testStats.hit.tether = testStats.hit.oil = 0;
+					testStats.fire.autocannon = testStats.fire.rocket = 0;
+					testStats.hit.autocannon = testStats.hit.rocket = 0;
 					testStats.ram = 0;
 					testStats.flips = 0;
 					testStats.flipsByRig = {};
@@ -3017,7 +3101,168 @@
 					return res;
 				};
 
-				// ---- Race start: countdown control lock + ram grace ----
+				// ---- Equipped weapons: fire dispatch, locks, projectiles ----
+				// The two mount slots resolve whatever WeaponDef the build carries
+				// (autocannon = kinetic hit-scan, homing rocket = lock + live
+				// projectile); an equipped-but-unimplemented catalog id simply
+				// does not fire. Offense scales with the SHOOTER's build (the
+				// ctFor convention): damage x damageDealt, cooldown x
+				// weaponCooldown.
+				const effSlotCooldown = (rig: Rig, cooldownSec: number) =>
+					cooldownSec * rig.buildStats.weaponCooldown;
+
+				// PLACEHOLDER SFX: synthesized tones on the audio-engine buses
+				// until real weapon audio is sourced (build plan section 8). Swap
+				// each playTone for playBuffer with the real asset; positions
+				// already ride through, so the swap is content-only.
+				const weaponSfx = (
+					kind: 'auto-fire' | 'auto-hit' | 'rocket-launch' | 'rocket-hit' | 'lock-on' | 'no-lock',
+					x?: number,
+					z?: number
+				) => {
+					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
+					if (kind === 'auto-fire')
+						audioEngine.playTone('weapons', { freq: 480, durationMs: 70, type: 'square', gain: 0.16, pitchJitter: [0.92, 1.08], position: pos });
+					else if (kind === 'auto-hit')
+						audioEngine.playTone('impacts', { freq: 210, durationMs: 90, type: 'triangle', gain: 0.18, pitchJitter: [0.9, 1.1], position: pos });
+					else if (kind === 'rocket-launch')
+						audioEngine.playTone('weapons', { freq: 180, durationMs: 340, type: 'sawtooth', gain: 0.22, pitchJitter: [0.95, 1.05], position: pos });
+					else if (kind === 'rocket-hit')
+						audioEngine.playTone('impacts', { freq: 90, durationMs: 320, type: 'sawtooth', gain: 0.3, position: pos });
+					else if (kind === 'lock-on')
+						audioEngine.playTone('ui', { freq: 880, durationMs: 90, type: 'sine', gain: 0.14 });
+					else audioEngine.playTone('ui', { freq: 220, durationMs: 120, type: 'sine', gain: 0.12 });
+				};
+
+				// Live projectiles (combat facts) + their meshes keyed by id. The
+				// combat array is owned here and stepped by updateProjectiles;
+				// visuals share ONE geometry/material pair across all rockets.
+				let projSeq = 1;
+				const projectiles: Projectile[] = [];
+				const projGeo = new THREE.ConeGeometry(0.13, 0.72, 8);
+				projGeo.rotateZ(-Math.PI / 2); // point +x so lookalong = heading
+				const projMat = new THREE.MeshBasicMaterial({ color: 0xe6edf3 });
+				const projVis = new Map<number, InstanceType<typeof THREE.Mesh>>();
+				const spawnProjectileVis = (p: Projectile) => {
+					const mesh = new THREE.Mesh(projGeo, projMat);
+					mesh.position.set(p.x, p.y, p.z);
+					scene.add(mesh);
+					projVis.set(p.id, mesh);
+				};
+				const removeProjectileVis = (id: number) => {
+					const mesh = projVis.get(id);
+					if (mesh) {
+						scene.remove(mesh);
+						projVis.delete(id);
+					}
+				};
+				const clearProjectiles = () => {
+					for (const p of projectiles) removeProjectileVis(p.id);
+					projectiles.length = 0;
+				};
+
+				// The player's lock reticle: one reusable ground ring placed on
+				// the locked target. Cool-rim while acquiring (tightening onto
+				// the target), signature green once LOCKED (green = ready). The
+				// player's own lock only; being locked BY an AI is deliberately
+				// not telegraphed in this pass.
+				const lockRingMat = new THREE.MeshBasicMaterial({
+					color: GL.coolRim,
+					transparent: true,
+					opacity: 0,
+					side: THREE.DoubleSide,
+					depthWrite: false,
+					blending: THREE.AdditiveBlending
+				});
+				const lockRingGeo = new THREE.RingGeometry(0.86, 1, 32);
+				lockRingGeo.rotateX(-Math.PI / 2);
+				const lockRing = new THREE.Mesh(lockRingGeo, lockRingMat);
+				lockRing.visible = false;
+				scene.add(lockRing);
+				// Rising-edge memory for the player's lock-complete cue.
+				let playerLockedPrev = false;
+
+				// Fire the equipped weapon in a slot. Returns true when a shot /
+				// launch actually happened (cooldown spent).
+				const performWeaponFire = (shooter: Rig, slot: WeaponSlotId): boolean => {
+					const def = weaponById(shooter.weapons[slot]);
+					if (!def) return false;
+					const now = performance.now();
+					const opts = {
+						damageScale: shooter.buildStats.damageDealt,
+						cooldownScale: shooter.buildStats.weaponCooldown
+					};
+					const ct = combatTuning();
+					const sp = shooter.body.position;
+					if (def.category === 'kinetic' && def.kinetic) {
+						const res = tryFireKinetic(
+							combatantOf(shooter),
+							rigsAll().map(combatantOf),
+							slot,
+							def,
+							mode,
+							ct,
+							now,
+							opts
+						);
+						if (!res.fired) return false;
+						testStats.fire.autocannon++;
+						if (res.hits.length) testStats.hit.autocannon++;
+						// Muzzle flash at the nose; deliberately small feedback (a
+						// rapid weapon must not strobe the screen).
+						spawnSparks(sp.x + shooter.hx * 1.9, sp.y + 0.5, sp.z + shooter.hz * 1.9, 5, 0xfff2c0, 7, 200);
+						weaponSfx('auto-fire', sp.x, sp.z);
+						if (shooter === player) addTrauma(0.04);
+						for (const hit of res.hits) {
+							const target = rigsAll().find((r) => r.id === hit.targetId);
+							if (!target) continue;
+							target.flashUntil = now + 120;
+							const a = hitAnchor(target, sp.x, sp.z, hit.result.zone);
+							spawnSparks(a.x, a.y + 0.2, a.z, 8, GL.amberWarm, 8, 320);
+							weaponSfx('auto-hit', a.x, a.z);
+							if (target === player) addTrauma(0.12);
+							// No per-hit flash text (too chatty at this cadence);
+							// afterDamage still fires the one-time edge flashes.
+							afterDamage(target, hit.result, shooter.label, sp.x, sp.z);
+						}
+						return true;
+					}
+					if (def.category === 'guided' && def.guided) {
+						const proj = tryLaunchGuided(
+							combatantOf(shooter),
+							rigsAll().map(combatantOf),
+							slot,
+							def,
+							shooter.locks[slot],
+							now,
+							projSeq,
+							opts
+						);
+						if (!proj) {
+							// A press without a complete lock costs nothing.
+							if (shooter === player && slotCooldownRemaining(shooter.combat, slot, effSlotCooldown(shooter, def.cooldownSec), now) <= 0) {
+								flash('NO LOCK');
+								weaponSfx('no-lock');
+							}
+							return false;
+						}
+						projSeq++;
+						projectiles.push(proj);
+						spawnProjectileVis(proj);
+						shooter.locks[slot] = null;
+						testStats.fire.rocket++;
+						spawnSmoke(proj.x, proj.y, proj.z, 0x2a2a2a, 0.7, 700, 1.2, 0.5);
+						spawnSparks(proj.x, proj.y, proj.z, 6, GL.amberWarm, 6, 300);
+						weaponSfx('rocket-launch', proj.x, proj.z);
+						if (shooter === player) {
+							addTrauma(0.12);
+							flash('ROCKET AWAY');
+						}
+						return true;
+					}
+					// Catalog entry without fire logic yet (Phase 4b): no-op.
+					return false;
+				};
 				// On spawn and every reset, NO throttle/steer/brake/weapon input
 				// registers for ANY vehicle (player or AI) until GO. Physics stays
 				// live so the cars simply sit at rest on the flat grid. After GO,
@@ -3061,6 +3306,8 @@
 				let fireQueued = false;
 				let oilQueued = false;
 				let tetherQueued = false;
+				let firePrimaryQueued = false;
+				let fireSecondaryQueued = false;
 				const prevPadEdge: Partial<Record<ControlAction, boolean>> = {};
 
 				resetRound = () => {
@@ -3091,8 +3338,12 @@
 						r.finishPos = 0;
 						r.raceStartMs = null;
 						r.finishAtMs = null;
+						r.locks = { weaponPrimary: null, weaponSecondary: null };
 					}
 					resetTestStats();
+					clearProjectiles();
+					lockRing.visible = false;
+					playerLockedPrev = false;
 					for (const s of slicks) removeSlickVis(s.id);
 					slicks.length = 0;
 					for (const tv of tethers) removeTetherVis(tv);
@@ -3128,6 +3379,8 @@
 							if (action === 'fire') fireQueued = true;
 							else if (action === 'oil') oilQueued = true;
 							else if (action === 'tether') tetherQueued = true;
+							else if (action === 'fireWeaponPrimary') firePrimaryQueued = true;
+							else if (action === 'fireWeaponSecondary') fireSecondaryQueued = true;
 						}
 						return;
 					}
@@ -3261,6 +3514,25 @@
 					getLoadout: () => playerLoadout,
 					setArchetype: (id: ArchetypeId) => selectArchetype(id),
 					equip: (slot: PartSlot, partId: string) => equipPart(slot, partId),
+					// ---- Equipped-weapon drive hooks (Phase 4a) ----
+					fireWeapon: (rigId = 'player', slot: WeaponSlotId = 'weaponPrimary') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						return r ? performWeaponFire(r, slot) : false;
+					},
+					getWeapons: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						return r ? { ...r.weapons } : null;
+					},
+					getLocks: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						return r
+							? {
+									weaponPrimary: r.locks.weaponPrimary ? { ...r.locks.weaponPrimary } : null,
+									weaponSecondary: r.locks.weaponSecondary ? { ...r.locks.weaponSecondary } : null
+								}
+							: null;
+					},
+					getProjectiles: () => projectiles.map((p) => ({ ...p })),
 					getBuildStats: (rigId = 'player') =>
 						rigsAll().find((q) => q.id === rigId)?.buildStats ?? null,
 					getMode: () => mode,
@@ -3394,6 +3666,8 @@
 								if (a === 'fire') fireQueued = true;
 								else if (a === 'oil') oilQueued = true;
 								else if (a === 'tether') tetherQueued = true;
+								else if (a === 'fireWeaponPrimary') firePrimaryQueued = true;
+								else if (a === 'fireWeaponSecondary') fireSecondaryQueued = true;
 								else if (a === 'resetRound') resetRound();
 							}
 							prevPadEdge[a] = down;
@@ -3785,6 +4059,8 @@
 						fireQueued = false;
 						oilQueued = false;
 						tetherQueued = false;
+						firePrimaryQueued = false;
+						fireSecondaryQueued = false;
 					} else {
 						if (fireQueued) {
 							fireQueued = false;
@@ -3798,13 +4074,66 @@
 							tetherQueued = false;
 							performTether(player);
 						}
+						if (firePrimaryQueued) {
+							firePrimaryQueued = false;
+							performWeaponFire(player, 'weaponPrimary');
+						}
+						if (fireSecondaryQueued) {
+							fireSecondaryQueued = false;
+							performWeaponFire(player, 'weaponSecondary');
+						}
 						const combatants = all.map(combatantOf);
+						// Guided-weapon lock acquisition, every rig, every frame:
+						// passive and continuous while the slot is ready, so the HUD
+						// can show progress and the fire press launches instantly off
+						// a complete lock. A slot on cooldown (or a dead mount) holds
+						// no lock at all.
+						for (let ri = 0; ri < all.length; ri++) {
+							const rig = all[ri];
+							for (const slot of WEAPON_SLOTS) {
+								const def = weaponById(rig.weapons[slot]);
+								if (!def?.guided || rig.combat.isOut(now)) {
+									rig.locks[slot] = null;
+									continue;
+								}
+								if (!rig.combat.canUseSlot(slot, now, effSlotCooldown(rig, def.cooldownSec))) {
+									rig.locks[slot] = null;
+									continue;
+								}
+								rig.locks[slot] = updateWeaponLock(
+									rig.locks[slot],
+									combatants[ri],
+									combatants,
+									slot,
+									def,
+									dt,
+									now
+								);
+							}
+						}
 						// Every AI-driven rig makes weapon decisions. In normal play the
 						// player has no AiDriver so it is skipped here (player fires via
 						// input above); the stress runner's AI-player is included.
+						// Equipped weapons come first (they are the build's actual
+						// firepower), then the fixed-tool chain.
 						for (const rig of all) {
 							if (!rig.ai || rig.combat.isOut(now)) continue;
 							const self = combatants[all.indexOf(rig)];
+							let acted = false;
+							for (const slot of WEAPON_SLOTS) {
+								const def = weaponById(rig.weapons[slot]);
+								if (!def) continue;
+								// A guided weapon only launches off a COMPLETE lock.
+								if (def.guided && !(rig.locks[slot] && rig.locks[slot].progress >= 1)) continue;
+								const cdScale = rig.buildStats.weaponCooldown;
+								if (!rig.ai.wantsWeaponFire(self, combatants, slot, def, aiT, now, cdScale)) continue;
+								if (performWeaponFire(rig, slot)) {
+									rig.ai.scheduleSlotUse(slot, now, def.cooldownSec * cdScale, aiT);
+									acted = true;
+									break;
+								}
+							}
+							if (acted) continue;
 							// The AI decides with ITS OWN build's ranges and cooldowns.
 							const rct = ctFor(rig);
 							if (rig.ai.wantsFire(self, combatants, rct, aiT, now)) {
@@ -3890,6 +4219,51 @@
 							afterDamage(b, res.resultB, a.label, a.body.position.x, a.body.position.z);
 						}
 						pendingRams = [];
+					}
+
+					// -- Guided projectiles: steer, advance, resolve hits/expiry --
+					if (projectiles.length) {
+						const res = updateProjectiles(projectiles, all.map(combatantOf), mode, ct, dt, now);
+						for (const hit of res.hits) {
+							const target = all.find((r) => r.id === hit.targetId);
+							removeProjectileVis(hit.projectile.id);
+							if (!target) continue;
+							testStats.hit.rocket++;
+							target.flashUntil = now + 220;
+							const p = hit.projectile;
+							spawnRing(p.x, p.z, 0xffb347, 7, 380, 0.6, 0.7);
+							spawnSparks(p.x, p.y + 0.2, p.z, 30, 0xffb347, 12, 600);
+							spawnDebris(p.x, p.y, p.z, 4, p.hx, p.hz, 5);
+							for (let k = 0; k < 3; k++) {
+								spawnSmoke(p.x + (Math.random() - 0.5) * 1.2, p.y + 0.3, p.z + (Math.random() - 0.5) * 1.2, 0x232323, 1.1, 1000, 1.5, 0.5);
+							}
+							weaponSfx('rocket-hit', p.x, p.z);
+							if (target === player) {
+								addTrauma(0.55);
+								flash(`ROCKET HIT — -${hit.damage}`);
+							} else {
+								addTraumaAt(p.x, p.z, 0.35);
+								if (p.ownerId === 'player') flash(`ROCKET HIT ${target.label} -${hit.damage}`);
+							}
+							const owner = all.find((r) => r.id === p.ownerId);
+							afterDamage(target, hit.result, owner?.label ?? p.ownerId, p.x - p.hx * 4, p.z - p.hz * 4);
+						}
+						for (const p of res.expired) {
+							// Fizzle: a dodged/expired rocket dies quietly where it was.
+							removeProjectileVis(p.id);
+							spawnSparks(p.x, p.y, p.z, 6, 0x9fb0bd, 5, 300);
+							spawnSmoke(p.x, p.y, p.z, 0x2a2a2a, 0.6, 600, 1.0, 0.4);
+						}
+						// Live rockets: mesh follows the fact, plus a motor trail.
+						for (const p of projectiles) {
+							const mesh = projVis.get(p.id);
+							if (!mesh) continue;
+							mesh.position.set(p.x, p.y, p.z);
+							mesh.rotation.y = Math.atan2(-p.hz, p.hx);
+							if (Math.random() < dt * 30) {
+								spawnSparks(p.x - p.hx * 0.5, p.y, p.z - p.hz * 0.5, 1, GL.amberWarm, 2, 220);
+							}
+						}
 					}
 
 					// -- Oil slicks: trigger checks + puddle lifecycle --
@@ -4239,6 +4613,49 @@
 					chud.ready.oil = cooldownRemaining(player.combat, 'oil', pct.oilCooldownSec, now);
 					chud.ready.tether = cooldownRemaining(player.combat, 'tether', pct.tetherCooldownSec, now);
 					chud.ready.ram = cooldownRemaining(player.combat, 'ram', pct.ramCooldownSec, now);
+					// Equipped-weapon cells: primary always, secondary when equipped.
+					// Key labels read the live (remappable) bindings.
+					{
+						const cells: SlotHudCell[] = [];
+						for (const slot of WEAPON_SLOTS) {
+							const def = weaponById(player.weapons[slot]);
+							if (!def) continue;
+							const lock = player.locks[slot];
+							cells.push({
+								slot,
+								short: def.shortName,
+								key: `${keyLabel(controlSettings.keyboard[slot === 'weaponPrimary' ? 'fireWeaponPrimary' : 'fireWeaponSecondary'])}`,
+								ready: slotCooldownRemaining(player.combat, slot, effSlotCooldown(player, def.cooldownSec), now),
+								offline: player.combat.mountDown,
+								lock: lock ? { progress: lock.progress, locked: lock.progress >= 1 } : null
+							});
+						}
+						chud.slots = cells;
+					}
+					// Lock reticle on the player's locked target (primary slot wins
+					// the ring if both somehow hold guided locks), plus the one-time
+					// lock-complete cue on the rising edge.
+					{
+						const lock = player.locks.weaponPrimary ?? player.locks.weaponSecondary;
+						const target = lock ? all.find((r) => r.id === lock.targetId) : undefined;
+						if (lock && target) {
+							const locked = lock.progress >= 1;
+							lockRing.visible = true;
+							const tp = target.body.position;
+							lockRing.position.set(tp.x, 0.28, tp.z);
+							// The ring tightens onto the target as the dwell completes.
+							const r = locked ? 2.1 : 3.6 - 1.5 * lock.progress;
+							lockRing.scale.set(r, 1, r);
+							lockRing.rotation.y += locked ? 0 : dt * 2.4;
+							lockRingMat.color.setHex(locked ? GL.green : GL.coolRim);
+							lockRingMat.opacity = locked ? 0.75 : 0.3 + 0.25 * Math.sin(now / 90);
+							if (locked && !playerLockedPrev) weaponSfx('lock-on');
+							playerLockedPrev = locked;
+						} else {
+							lockRing.visible = false;
+							playerLockedPrev = false;
+						}
+					}
 					if (
 						mode === 'elimination' &&
 						player.combat.eliminated &&
@@ -4322,6 +4739,11 @@
 					headlessStop?.();
 					renderer.setAnimationLoop(null);
 					ro.disconnect();
+					clearProjectiles();
+					projGeo.dispose();
+					projMat.dispose();
+					lockRingGeo.dispose();
+					lockRingMat.dispose();
 					clearTimeout(flashTimer);
 					window.removeEventListener('keydown', onKeyDown);
 					window.removeEventListener('keyup', onKeyUp);
@@ -4409,9 +4831,39 @@
 				{#if chud.oiled}<span class="gl-st gl-st-oiled">OILED</span>{/if}
 				{#if chud.tethered}<span class="gl-st gl-st-tether">TETHERED</span>{/if}
 				{#if hud.offTrack}<span class="gl-st gl-st-offtrack">OFF TRACK</span>{/if}
+				{#each chud.slots.filter((w) => w.lock) as w (w.slot)}
+					{#if w.lock?.locked}
+						<span class="gl-st gl-st-locked">LOCKED — {w.short} READY</span>
+					{:else}
+						<span class="gl-st gl-st-locking">LOCKING {Math.round((w.lock?.progress ?? 0) * 100)}%</span>
+					{/if}
+				{/each}
 			</div>
 
 			<div class="gl-weapons">
+				{#each chud.slots as w (w.slot)}
+					<div
+						class="gl-wcell"
+						class:ready={!w.offline && w.ready <= 0 && !w.lock}
+						class:offline={w.offline}
+						class:locking={!w.offline && !!w.lock && !w.lock.locked}
+						class:locked={!w.offline && !!w.lock?.locked}
+					>
+						<span class="gl-wname">{w.short}</span>
+						<span class="gl-wstate"
+							>{w.offline
+								? 'OFFLINE'
+								: w.ready > 0
+									? `${w.ready.toFixed(1)}s`
+									: w.lock
+										? w.lock.locked
+											? 'LOCKED'
+											: `LOCK ${Math.round(w.lock.progress * 100)}%`
+										: 'READY'}</span
+						>
+						<span class="gl-wkey">{w.key}</span>
+					</div>
+				{/each}
 				<div class="gl-wcell" class:ready={!chud.mountDown && chud.ready.emp <= 0} class:offline={chud.mountDown}>
 					<span class="gl-wname">EMP</span>
 					<span class="gl-wstate">{chud.mountDown ? 'OFFLINE' : chud.ready.emp <= 0 ? 'READY' : `${chud.ready.emp.toFixed(1)}s`}</span>
@@ -4721,9 +5173,11 @@
 		color: #c9a15f;
 		border-color: rgba(201, 161, 95, 0.55);
 	}
+	/* Up to six cells now (primary + secondary + the four fixed tools):
+	   three per row keeps every cell readable at the same width. */
 	.gl-weapons {
 		display: grid;
-		grid-template-columns: repeat(4, 1fr);
+		grid-template-columns: repeat(3, 1fr);
 		gap: 0.3rem;
 		margin-top: 0.5rem;
 	}
@@ -4753,6 +5207,29 @@
 	}
 	.gl-wcell.ready .gl-wstate {
 		color: var(--glb-green-ui);
+	}
+	/* Guided-weapon lock states: cool-rim while acquiring, green when the
+	   lock completes (green = ready, the HUD's one meaning for it). */
+	.gl-wcell.locking {
+		border-color: rgba(120, 165, 205, 0.55);
+	}
+	.gl-wcell.locking .gl-wstate {
+		color: #9cc4e8;
+	}
+	.gl-wcell.locked {
+		border-color: rgba(42, 229, 126, 0.75);
+	}
+	.gl-wcell.locked .gl-wstate {
+		color: var(--glb-green-ui);
+	}
+	.gl-st-locking {
+		color: #9cc4e8;
+		border-color: rgba(120, 165, 205, 0.7);
+	}
+	.gl-st-locked {
+		color: #052b16;
+		background: var(--glb-green);
+		border-color: #c8ffe2;
 	}
 	.gl-wkey {
 		font: 500 0.5rem var(--glb-font-ui);

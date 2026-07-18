@@ -12,7 +12,7 @@
  * allowed speed now. Any track in the v1 format gets AI for free.
  */
 
-import type { Combatant, CombatTuning } from './combat';
+import type { Combatant, CombatTuning, WeaponDef, WeaponSlotId } from './combat';
 import type { TrackRuntime } from './track-runtime';
 
 export interface AiTuning {
@@ -86,6 +86,9 @@ export class AiDriver {
 	private stuckMs = 0;
 	private reverseUntilMs = 0;
 	private nextOkMs: Record<AiWeapon, number> = { emp: 0, oil: 0, tether: 0 };
+	/** Equipped-weapon restraint, keyed by slot (the AI's build decides what
+	 * occupies each slot; the schedule belongs to the slot, like cooldowns). */
+	private nextSlotOkMs: Record<WeaponSlotId, number> = { weaponPrimary: 0, weaponSecondary: 0 };
 
 	constructor(rt: TrackRuntime) {
 		this.rt = rt;
@@ -256,5 +259,51 @@ export class AiDriver {
 		const aggr = Math.max(0, Math.min(1, t.aggression));
 		const extraSec = (1.6 - 1.4 * aggr) * (0.6 + 0.8 * Math.random());
 		this.nextOkMs[weapon] = nowMs + (cooldownSec + Math.max(0.1, extraSec)) * 1000;
+	}
+
+	/**
+	 * Should this vehicle fire the equipped weapon in `slot` now? The wantsFire
+	 * pattern applied to the weapon's own def: off slot cooldown, past the
+	 * aggression-scaled restraint delay, not disrupted, and a valid target
+	 * inside the def's aggression-scaled range and tightened cone (kinetic uses
+	 * its hit-scan cone, guided its lock cone — the harness additionally
+	 * requires a COMPLETE lock before a guided launch actually happens).
+	 * Deliberately simple; real weapon tactics are Phase 9.
+	 */
+	wantsWeaponFire(
+		self: Combatant,
+		others: Combatant[],
+		slot: WeaponSlotId,
+		def: WeaponDef,
+		t: AiTuning,
+		nowMs: number,
+		cooldownScale = 1
+	): boolean {
+		if (nowMs < this.nextSlotOkMs[slot]) return false;
+		if (self.combat.isDisrupted(nowMs)) return false;
+		if (!self.combat.canUseSlot(slot, nowMs, def.cooldownSec * cooldownScale)) return false;
+		const baseRange = def.kinetic?.range ?? def.guided?.lockRange ?? 0;
+		const coneDeg = def.kinetic?.coneDeg ?? def.guided?.lockConeDeg ?? 0;
+		if (baseRange <= 0 || coneDeg <= 0) return false;
+		const aggr = Math.max(0, Math.min(1, t.aggression));
+		const range = baseRange * (0.45 + 0.55 * aggr);
+		const cosLimit = Math.cos((((coneDeg / 2) * 0.8) * Math.PI) / 180);
+		for (const o of others) {
+			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
+			const dx = o.x - self.x;
+			const dz = o.z - self.z;
+			const dist = Math.hypot(dx, dz);
+			if (dist > range || dist < 0.001) continue;
+			if ((dx * self.hx + dz * self.hz) / dist < cosLimit) continue;
+			return true;
+		}
+		return false;
+	}
+
+	/** Slot twin of scheduleNextUse: cooldown + aggression-scaled delay. */
+	scheduleSlotUse(slot: WeaponSlotId, nowMs: number, cooldownSec: number, t: AiTuning): void {
+		const aggr = Math.max(0, Math.min(1, t.aggression));
+		const extraSec = (1.6 - 1.4 * aggr) * (0.6 + 0.8 * Math.random());
+		this.nextSlotOkMs[slot] = nowMs + (cooldownSec + Math.max(0.1, extraSec)) * 1000;
 	}
 }

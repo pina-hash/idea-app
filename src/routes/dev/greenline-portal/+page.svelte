@@ -8,7 +8,7 @@
 	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
 	import GreenlineSettings from '$lib/greenline/GreenlineSettings.svelte';
 	import { GARAGE_BASELINE, type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
-	import { defaultLoadout, type ArchetypeId, type Loadout, type PartSlot } from '$lib/greenline/loadout';
+	import { defaultLoadout, sanitizeLoadoutWeapons, type ArchetypeId, type Loadout, type PartSlot } from '$lib/greenline/loadout';
 	import { GREENLINE_MAX_SLOTS, type LeaderboardEntry, type LoadoutSlot } from '$lib/greenline/persistence';
 
 	/**
@@ -35,12 +35,14 @@
 	let slots = $state<(LoadoutSlot | null)[]>(Array(GREENLINE_MAX_SLOTS).fill(null));
 	let activeSlot = $state<number | null>(null);
 	const selectArchetype = (id: ArchetypeId) => {
-		loadout = { ...loadout, archetype: id };
+		// Same sanitize as the real route: an archetype swap that shrinks mount
+		// capacity under the equipped weapons sheds the secondary.
+		loadout = sanitizeLoadoutWeapons({ ...loadout, archetype: id });
 		activeSlot = null;
 		lastAction = `archetype -> ${id}`;
 	};
 	const equipPart = (slot: PartSlot, partId: string) => {
-		loadout = { ...loadout, parts: { ...loadout.parts, [slot]: partId } };
+		loadout = sanitizeLoadoutWeapons({ ...loadout, parts: { ...loadout.parts, [slot]: partId } });
 		activeSlot = null;
 		lastAction = `equip ${slot} -> ${partId}`;
 	};

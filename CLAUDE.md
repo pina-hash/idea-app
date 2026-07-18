@@ -2056,6 +2056,59 @@ on one side of the world.
     the rAF-driven `rampTo` volume fade is not observable there (a pre-existing
     property of the unchanged crossfade code, not this change); everything
     audio-clock-driven verifies normally.
+- **Equippable weapons: dual mount slots + capacity budget (Phase 4a), proven
+  with Autocannon and Homing Rocket.** A second weapon system PARALLEL to the
+  four fixed disruption tools (`WeaponId`/`lastUseMs`/`AiWeapon` untouched):
+  `Loadout.parts` gains `weaponPrimary` / `weaponSecondary` (weapon ids from
+  the new `WEAPONS` catalog in combat.ts; secondary may be the `WEAPON_NONE`
+  sentinel, stock = Autocannon / none). The catalog (`WeaponDef`: id, name,
+  shortName, category over all six planned families, `mountCost` 1-3,
+  cooldown, per-category param block) is the balance sheet; only kinetic +
+  guided have fire logic this pass, Phase 4b adds the other eight entries.
+  **Mount capacity** is a FLAT budget, not a neutral=1 multiplier:
+  `Archetype.mountCapacityBase` (SYSTEMS 5, ARMOR/HANDLING 4, VELOCITY 2,
+  lowered from the planned 3 because with only costs 1+2 shipped a floor of 3
+  made every budget unreachable; at 2 the missile genuinely carries one
+  weapon). Validation (total cost <= capacity, no duplicate weapon) lives in
+  ONE place, loadout.ts (`weaponLoadoutIssue` / `sanitizeLoadoutWeapons` /
+  `normalizeStoredLoadout`, the latter now shared by parseLoadout AND
+  persistence.ts): the garage UI blocks invalid picks up front with the
+  reason shown (capacity pip bar, disabled cards: "over budget — needs N, M
+  free" / "already equipped as ..."), an archetype swap that shrinks capacity
+  sheds the secondary, and `applyLoadoutToRig` re-sanitizes so console equips
+  can never reach the sim invalid. **Slot cooldowns** key on the SLOT
+  (`VehicleCombat.lastSlotUseMs` / `canUseSlot` / `markSlotUsed`), never the
+  weapon id; a dead mount takes both equip slots offline exactly like the
+  fired tools (the weapon meshes sit in the mount group with the per-rig
+  charring mount material, so they visibly deactivate with the pool).
+  **Autocannon** = `tryFireKinetic`, the tryFire shape (forward cone,
+  hit-scan, zone-routed applyDamage) with no disruption, rapid/weak/cheap.
+  **Homing Rocket** = two stages: a passive continuous LOCK per shooter slot
+  (`WeaponLock` / `updateWeaponLock`, ticked per rig per frame while the slot
+  is ready; the nearest target in the forward cone accrues dwell, leaving the
+  cone clears it outright and re-entry restarts from zero, the counterplay)
+  and a real multi-frame PROJECTILE launched only off a complete lock
+  (`tryLaunchGuided` / `updateProjectiles`, a race-level array in the
+  OilSlick world-object pattern: steers toward the target each frame, hits
+  via the same classifyHitZone/applyDamage pair, expires on lifetime/target
+  loss; a no-lock press spends nothing). Controls: two new remappable edge
+  actions `fireWeaponPrimary` / `fireWeaponSecondary` (defaults Z / X
+  keyboard, B / Y pad) in the standard registry, so the settings rebind UI
+  picked them up with zero UI changes. HUD: per-slot weapon cells (READY /
+  cooldown / OFFLINE / LOCK n% / LOCKED) beside the four tool cells (grid
+  now 3-wide), a LOCKING/LOCKED status chip, and a world-space lock ring on
+  the player's target that tightens with the dwell (cool-rim acquiring,
+  green locked). AI: every AI build cycles a weapon fit alongside its
+  archetype (`AI_WEAPONS`, incl. a rocket-primary build) and
+  `AiDriver.wantsWeaponFire` / `scheduleSlotUse` reuse the wantsFire
+  restraint pattern; guided launches additionally require the harness-side
+  complete lock. SFX are PLACEHOLDER synthesized tones on the Phase 2C
+  audio-engine buses (positions ride through, so the later real-asset swap
+  is content-only). rig-visual's `visualKeyFor` now includes both weapon
+  slots and each weapon has a simple distinguishable mesh recipe (barrel gun
+  / boxy tube launcher, plus a generic hardpoint stub for future catalog
+  ids); `__greenline` gains `fireWeapon` / `getWeapons` / `getLocks` /
+  `getProjectiles`, and telemetry counts autocannon/rocket fire+hits.
 
 ## FRC Training track
 
