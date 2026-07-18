@@ -36,8 +36,7 @@
 	 * (src/lib/greenline/persistence.ts), which fails soft: if migration 0049 is
 	 * unapplied, the garage and results still function, just without real
 	 * persistence (saved build reads as the default, submit is a no-op, the board
-	 * comes back empty). The tuning panel inside the race is teacher-only
-	 * (data.isTeacher), gated server-side.
+	 * comes back empty).
 	 */
 	const { data }: { data: PageData } = $props();
 
@@ -147,7 +146,7 @@
 		{/if}
 	</div>
 {:else if screen === 'race'}
-	<GreenlineRace {loadout} showDebug={data.isTeacher} onFinish={handleFinish} />
+	<GreenlineRace {loadout} onFinish={handleFinish} />
 {:else if screen === 'results'}
 	<div class="gp-root gp-center">
 		<GreenlineResults

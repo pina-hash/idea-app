@@ -1405,10 +1405,13 @@ Supabase): a multi-part vehicle (originally a placeholder box car; see the
 multi-part rig bullet below) driven by a cannon-es `RaycastVehicle`
 (`cannon-es` is a runtime dependency; three.js is reused, not duplicated), a
 smoothed chase camera, WASD/arrow + gamepad (standard mapping) input, Space
-handbrake, R reset, and an on-screen live tuning panel (drive forces, aero
-drag, speed-sensitive steering falloff, mass, gravity, suspension, tire
-friction, track boundary response, camera) so driving feel can be hand-tuned
-without a redeploy. Deliberately throwaway and iterative: it validates
+handbrake, and R reset. The `tuning` object (drive forces, aero drag,
+speed-sensitive steering falloff, mass, gravity, suspension, tire friction,
+track boundary response, camera) still drives the whole simulation from its
+default values; the old on-screen live-editable tuning panel was REMOVED (see
+the tuning-panel + in-race-garage removal bullet below), so hand-tuning feel
+is now a code edit, not a live panel. Deliberately throwaway and iterative: it
+validates
 driving and lap feel before any combat or art gets built, and will be rebuilt
 as the design solidifies. One hard-won cannon-es lesson lives as a code
 comment in the route: a body's cached world AABB is computed while its
@@ -1614,11 +1617,13 @@ on one side of the world.
   combat functions; `tryRam` deals per-side damage through each receiver's
   impact resistance), and `ctFor(rig)` threads the offense side (damage out,
   EMP range, tool cooldowns) as a per-shooter effective CombatTuning.
-  `src/lib/greenline/Garage.svelte` (G key in the harness) is the
-  presentation-only loadout screen: archetype cards, per-slot part pickers
-  with green/red/amber tradeoff chips, and a resolved-build summary; changes
-  apply LIVE, everything is unlocked (the currency/unlock economy is a later,
-  separate problem), and the player loadout persists per browser in
+  `src/lib/greenline/Garage.svelte` is the presentation-only loadout screen
+  (reached in the pre-race garage flow, never mid-race): archetype cards,
+  per-slot part pickers with green/red/amber tradeoff chips, and a
+  resolved-build summary (HULL, MASS in POUNDS, TOP SPEED in MPH, COOLDOWNS;
+  physics stays SI, the mass/speed heroes convert at the display layer only),
+  changes apply LIVE, everything is unlocked (the currency/unlock economy is a
+  later, separate problem), and the player loadout persists per browser in
   localStorage (`greenline_loadout`). AI rigs cycle the four archetypes
   (stock parts) and their DRIVER targets scale with the build (allowed speed
   ~ sqrt(engine/drag), corner budget ~ grip), so rounds have felt variety;
@@ -1640,25 +1645,25 @@ on one side of the world.
   finishing order (banner with the player's position, standings row FIN Pn);
   ELIMINATION by last vehicle running (checked after every elimination). A
   live standings list (laps > checkpoints > distance to next gate) sits in
-  the HUD; AI tunables (count, top speed, corner accel, aggression) are in
-  the panel's ai section.
-- **The game is a reusable component now.** The whole ~2600-line integration
-  (three.js scene, cannon-es physics, combat, AI, HUD, minimap, tuning panel,
+  the HUD; AI tunables (count, top speed, corner accel, aggression) live in
+  the `tuning` defaults (the old live panel that edited them was removed).
+- **The game is a reusable component now.** The whole ~2400-line integration
+  (three.js scene, cannon-es physics, combat, AI, HUD, minimap,
   the `?glheadless=1` MessageChannel loop, and the `__greenline` console-drive
   API) was extracted verbatim from the dev harness into
   `src/lib/greenline/GreenlineRace.svelte` (the GAUNTLET shared-component
   convention), so both the dev harness and the real portal route mount the
-  IDENTICAL systems. Three props parameterize it: `loadout?` (the build to
+  IDENTICAL systems. TWO props parameterize it: `loadout?` (the build to
   race; when omitted the component owns its loadout locally, seeded from /
-  persisted to the `greenline_loadout` localStorage key and editable via the
-  G-key garage overlay, which is exactly the old harness behavior), `showDebug`
-  (renders the live tuning panel + G-key garage overlay; the panel is dev /
-  teacher only), and `onFinish(outcome)` (called ONCE when the player completes
-  a RACE, with `{ finishPosition, totalTimeMs, bestLapMs, laps }` — total time
-  is the finishing-lap crossing stamp minus the timing-start stamp). The dev
-  harness `/dev/greenline-movement` is now a thin wrapper that mounts the
-  component with `showDebug` and no loadout prop (localStorage-backed, tuning
-  panel + garage overlay on), unchanged in feel.
+  persisted to the `greenline_loadout` localStorage key, live-swappable only
+  through the `__greenline` console API's `setArchetype`/`equip` since there is
+  no in-race garage) and `onFinish(outcome)` (called ONCE when the player
+  completes a RACE, with `{ finishPosition, totalTimeMs, bestLapMs, laps }` —
+  total time is the finishing-lap crossing stamp minus the timing-start stamp).
+  The `showDebug` prop was removed along with the tuning panel + in-race garage
+  (see the removal bullet below). The dev harness `/dev/greenline-movement` is
+  a thin wrapper that mounts the component with no loadout prop
+  (localStorage-backed), unchanged in feel apart from those removals.
 - **Headless AI-only stress-test hooks (data-only, backward compatible).** The
   `__greenline` debug object (only present under `?glheadless=1` / the dev
   harness) gained a few instrumentation methods for automated statistical
@@ -1679,12 +1684,12 @@ on one side of the world.
   between screens): title -> garage -> race -> results -> loop back to
   garage/title. Auth is the portal's existing model: `/greenline` is in
   `hooks.server.ts` `authedPrefixes`, so anonymous users are redirected to `/`
-  (the standard signed-out handling); `+page.server.ts` additionally loads
-  `profiles.role` and passes `isTeacher` so the in-game tuning panel
-  (`showDebug={isTeacher}`) is teacher-only (@boscotech.edu) while students get
-  a clean game. The mode selector stays RACE-only in this flow (the mode flag
-  lives under GreenlineRace; the debug panel's mode row is a separate
-  teacher-tuning affordance, not surfaced in the player UI). The garage screen
+  (the standard signed-out handling); `+page.server.ts` loads only the user id
+  now (the old `profiles.role`/`isTeacher` lookup existed solely to gate the
+  in-game tuning panel, which is gone, so no role lookup remains). Everyone
+  gets the same clean game. The mode is RACE-only in this flow (the `mode` flag
+  lives under GreenlineRace and defaults to `race`; the old panel's mode row
+  was the only switch and it was removed). The garage screen
   reuses `Garage.svelte` directly (two new backward-compatible display props,
   `note` / `closeLabel` / `onback` / `backLabel`, default to the dev-harness
   copy so the overlay is unchanged), loads the saved build via
@@ -1738,9 +1743,10 @@ on one side of the world.
   broadcast-style overlay (top-left speed/hull/status/weapon cluster,
   top-center timing strip + event flash feed, standings tower, recolored
   steel `Minimap.svelte`) built legibility-first: solid dark plates, hairline
-  steel borders, NO blur/glow over the moving scene; the m/s readout is
-  debug-only. The teacher/dev tuning panel keeps its old utilitarian style on
-  purpose (debug chrome, not player UI). Garage/results/title all share the
+  steel borders, NO blur/glow over the moving scene. The speed readout shows
+  MPH (physics stays SI; converted at display). The old debug m/s sub-line and
+  the whole teacher/dev tuning panel were removed (see the removal bullet).
+  Garage/results/title all share the
   `.glb` tokens; the four archetype cards carry distinct line-art silhouette
   glyphs (slab / dart / apex line / antenna) so builds read apart before any
   stat is read.
@@ -1816,10 +1822,9 @@ on one side of the world.
   until first interaction, off under `prefers-reduced-motion`. It rebuilds
   live off the shared builder whenever the archetype or any part changes.
   `Garage.svelte` mounts it beside the archetype cards (`preview` prop,
-  default true) for the pre-race garage flow; the race's dev-only G-key
-  overlay passes `preview={false}` deliberately (the live race behind it
-  already shows the actual machine, and a second WebGL context over a running
-  sim is pure cost on the school desktops). Browser-verified in
+  default true) for the pre-race garage flow. (The garage is now only ever the
+  pre-race screen; the old race-embedded G-key garage overlay, which passed
+  `preview={false}`, was removed.) Browser-verified in
   `/dev/greenline-portal?view=garage` (all sixteen parts, archetype swaps,
   orbit/zoom clamps) and on track via `/dev/greenline-movement`.
 - **Performance target:** the school's desktop computers, roughly 6-8 years
@@ -1857,6 +1862,39 @@ on one side of the world.
   per-screen track selection, crossfade, and the mute button are
   browser-verifiable (via network + DOM, since `new Audio()` elements are
   off-DOM) without auth.
+- **Tuning panel + in-race garage removed; player-facing units are US
+  customary.** Two chrome removals and a display-unit pass, all display-layer
+  only (the SI physics, `tuning` defaults, and `cannon-es` calibration are
+  untouched):
+  - The live-editable **tuning panel** in `GreenlineRace.svelte` is gone
+    (with it: the `resetTuning`/`copyTuning` helpers and the `.gl-panel*` /
+    `.gl-section` / `.gl-actions` CSS). The `tuning` object keeps driving the
+    sim from its defaults; hand-tuning feel is now a code edit. Its mode row
+    was the only mode switch, so RACE is the only reachable mode everywhere
+    (the `mode` state stays `'race'`, still settable via the `__greenline`
+    console API's `setMode`).
+  - **In-race garage removed:** the G-key overlay (`garageOpen`, its keydown
+    handler, the `<Garage>` render, the `Garage` import, and the "G GARAGE"
+    controls hint) is gone. The garage is reachable ONLY through the portal
+    title -> garage -> race -> results flow now, in every build including the
+    dev harness (a real pit-stop mechanic, a track location rather than a menu,
+    is a future idea, deliberately not built). Live build swaps in the race
+    still work through the `__greenline` console API (`setArchetype`/`equip`),
+    which is why `selectArchetype`/`equipPart`/`persistLoadout` stay.
+  - **`showDebug` prop removed** from `GreenlineRace` (its only remaining job
+    after the two removals was the debug m/s sub-line, also removed). Both
+    callers dropped it: `/greenline/+page.svelte` no longer passes it and its
+    `+page.server.ts` no longer looks up `profiles.role`/`isTeacher` (that
+    lookup existed only for the panel); `/dev/greenline-movement` mounts the
+    component bare.
+  - **Units:** the HUD speed reads **MPH** (`speedMph`, `rawSpeed * 2.236936`),
+    and the Garage resolved-build heroes read **MASS in lb**
+    (`baselineMass * chassisMass * 2.2046226`) and **TOP SPEED in mph**
+    (`* 2.236936`). Converted at the point of display only; nothing in the
+    simulation or the balance sheet changed. Verified in
+    `/dev/greenline-movement` (panel absent, G opens nothing, HUD mph matches
+    physics velocity) and `/dev/greenline-portal?view=garage` (lb + mph
+    heroes).
 
 ## FRC Training track
 

@@ -6,26 +6,17 @@ import type { PageServerLoad } from './$types';
  * already redirects anonymous users off `/greenline` to `/`, the portal's
  * standard signed-out handling (mirrored here defensively).
  *
- * The only role-dependent bit is the in-game tuning panel: it stays available
- * for continued tuning but is teacher-only (@boscotech.edu -> `teacher`), the
- * same server-side `profiles.role` check the dashboard and GAUNTLET authoring
- * use. Students reach a clean game with no debug chrome. The build/leaderboard
- * data all flows through the browser Supabase client in the page (the
- * persistence seam), so nothing else is loaded here.
+ * There is no role-dependent chrome in the game anymore (the teacher-only
+ * live tuning panel was removed), so no role lookup is needed. The
+ * build/leaderboard data all flows through the browser Supabase client in the
+ * page (the persistence seam), so only the user id is loaded here.
  */
-export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
+export const load: PageServerLoad = async ({ locals: { claims } }) => {
 	if (!claims) {
 		redirect(303, '/');
 	}
 
-	const { data: profile } = await supabase
-		.from('profiles')
-		.select('role')
-		.eq('id', claims.sub)
-		.single();
-
 	return {
-		userId: claims.sub,
-		isTeacher: profile?.role === 'teacher'
+		userId: claims.sub
 	};
 };

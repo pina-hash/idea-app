@@ -70,11 +70,17 @@
 	const summary = $derived(describeStats(stats));
 
 	// Hero numbers: what the build actually means in this session's tuning.
+	// Physics stays metric (baselineMass in kg, the speed proxy in m/s); these
+	// convert to US customary at the display layer only.
 	const hull = $derived(Math.round(baselineHealth * stats.maxHealth));
-	const mass = $derived(Math.round(baselineMass * stats.chassisMass));
-	// Top speed proxy: quadratic drag terminal speed sqrt(engine / drag).
-	const topSpeed = $derived(
-		Math.sqrt((baselineEngine * stats.engineForce) / Math.max(0.01, baselineDrag * stats.aeroDrag))
+	// Mass in pounds (1 kg = 2.2046226 lb).
+	const massLb = $derived(Math.round(baselineMass * stats.chassisMass * 2.2046226));
+	// Top speed proxy: quadratic-drag terminal speed sqrt(engine / drag), m/s,
+	// shown in mph (1 m/s = 2.236936 mph).
+	const topSpeedMph = $derived(
+		Math.sqrt(
+			(baselineEngine * stats.engineForce) / Math.max(0.01, baselineDrag * stats.aeroDrag)
+		) * 2.236936
 	);
 	const cooldownPct = $derived(Math.round(stats.weaponCooldown * 100));
 
@@ -181,8 +187,8 @@
 		<div class="gg-summary">
 			<div class="gg-heroes">
 				<span class="gg-hero">HULL <b>{hull}</b></span>
-				<span class="gg-hero">MASS <b>{mass}<i>kg</i></b></span>
-				<span class="gg-hero">TOP SPEED <b>{topSpeed.toFixed(1)}<i>m/s</i></b></span>
+				<span class="gg-hero">MASS <b>{massLb}<i>lb</i></b></span>
+				<span class="gg-hero">TOP SPEED <b>{topSpeedMph.toFixed(1)}<i>mph</i></b></span>
 				<span class="gg-hero">COOLDOWNS <b>{cooldownPct}<i>%</i></b></span>
 			</div>
 			<div class="gg-chips">

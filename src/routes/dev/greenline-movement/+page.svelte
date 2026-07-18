@@ -7,10 +7,11 @@
 	 * The whole game now lives in the reusable $lib/greenline/GreenlineRace.svelte
 	 * component (extracted so the real portal route at /greenline can mount the
 	 * identical movement / combat / AI / HUD / minimap systems). This page is the
-	 * thin dev wrapper: `showDebug` turns on the live tuning panel and the G-key
-	 * garage overlay, and with no `loadout` prop the component seeds and persists
+	 * thin dev wrapper: with no `loadout` prop the component seeds and persists
 	 * the player build from localStorage (`greenline_loadout`), exactly as this
-	 * harness always did. Controls, tuning, and behavior are unchanged.
+	 * harness always did. The build is edited via the __greenline console API
+	 * (setArchetype / equip) here; there is no in-race garage. Controls and
+	 * behavior are otherwise unchanged.
 	 */
 	const onFinish = (o: RaceOutcome) => {
 		// The in-game "YOU FINISHED" banner already shows the result; log the
@@ -25,4 +26,4 @@
 	<title>GREENLINE movement prototype (dev)</title>
 </svelte:head>
 
-<GreenlineRace showDebug {onFinish} />
+<GreenlineRace {onFinish} />

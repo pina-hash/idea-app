@@ -73,7 +73,6 @@
 		WHEEL_CONNECTIONS,
 		WHEEL_RADIUS
 	} from '$lib/greenline/rig-visual';
-	import Garage from '$lib/greenline/Garage.svelte';
 	import Minimap from '$lib/greenline/Minimap.svelte';
 	import provingGroundJson from '$lib/greenline/tracks/proving-ground-07.json';
 	import { browser } from '$app/environment';
@@ -130,36 +129,32 @@
 	 * the wheels, systems hardware on the mount. Physics stays one cannon-es
 	 * body; parts are visual attachment groups under carGroup.
 	 *
-	 * Loadouts: G opens the garage ($lib/greenline/Garage.svelte over the
+	 * Loadouts ($lib/greenline/Garage.svelte over the
 	 * $lib/greenline/loadout.ts catalog): one archetype (ARMOR / VELOCITY /
 	 * HANDLING / SYSTEMS) plus one part per slot, resolved to per-rig stat
-	 * MULTIPLIERS over the tuning-panel baseline and applied live to physics
+	 * MULTIPLIERS over the physics baseline and applied live to physics
 	 * (engine, drag, brakes, steering, mass, grip, suspension, grass drag),
 	 * health pool, incoming-effect resistances (VehicleCombat.resist), and
 	 * offense (damage, EMP range, tool cooldowns via ctFor). AIs cycle the
-	 * four archetypes so every round has build variety. Player loadout
-	 * persists in localStorage; everything is unlocked (dev).
+	 * four archetypes so every round has build variety. The build is chosen in
+	 * the pre-race garage screen (the portal flow); there is no in-race garage.
 	 *
 	 * Controls: W/S throttle+brake (reverse from standstill), A/D steer,
-	 * Space handbrake, F fire EMP, E drop oil, Q fire tether, G garage,
+	 * Space handbrake, F fire EMP, E drop oil, Q fire tether,
 	 * R reset round. Gamepad: left stick steer, RT throttle, LT brake,
 	 * A handbrake, RB fire, X oil, LB tether.
 	 */
 
 	const {
 		loadout,
-		showDebug = false,
 		onFinish
 	}: {
 		/**
 		 * The build to race. When omitted the component owns its loadout locally
-		 * (the dev harness: seeded from / persisted to localStorage, editable via
-		 * the G-key garage overlay). The real portal route always passes one,
-		 * chosen in its own garage screen.
+		 * (the dev harness: seeded from / persisted to localStorage). The real
+		 * portal route always passes one, chosen in its own garage screen.
 		 */
 		loadout?: Loadout;
-		/** Render the live tuning panel + G-key garage overlay (dev / teacher). */
-		showDebug?: boolean;
 		/** Called once when the player completes a RACE. */
 		onFinish?: (outcome: RaceOutcome) => void;
 	} = $props();
@@ -219,9 +214,9 @@
 
 	// ---- Player loadout. Source: the `loadout` prop when the parent supplies
 	// one (the real route, chosen in its garage screen); otherwise seeded from /
-	// persisted to localStorage so the dev harness keeps its G-key garage. Parts
-	// multiply the tuning-panel baseline, so the panel stays the global feel
-	// surface. ----
+	// persisted to localStorage (the dev harness). Parts multiply the physics
+	// baseline. Live edits arrive only through the __greenline console API
+	// (setArchetype / equip); there is no in-race garage. ----
 	const LOADOUT_KEY = 'greenline_loadout';
 	// True when this instance owns its loadout locally (no parent prop). Captured
 	// once at init (untrack makes the intent explicit); the real route always
@@ -232,7 +227,6 @@
 		untrack(() => loadout) ??
 			((browser && parseLoadout(localStorage.getItem(LOADOUT_KEY))) || defaultLoadout())
 	);
-	let garageOpen = $state(false);
 	// Assigned in onMount once the player rig exists (the resetRound pattern).
 	let applyPlayerLoadout: () => void = () => {};
 	// Adopt a parent-supplied loadout when it changes (real-route hot-swap; inert
@@ -241,7 +235,7 @@
 		if (loadout) playerLoadout = loadout;
 	});
 	// Re-apply the current build to the player rig whenever it changes. onMount
-	// applies it once at spawn; this keeps it live through garage edits / swaps.
+	// applies it once at spawn; this keeps it live through console-API swaps.
 	$effect(() => {
 		void playerLoadout;
 		applyPlayerLoadout();
@@ -263,8 +257,7 @@
 		persistLoadout();
 	};
 
-	let speedKmh = $state(0);
-	let speedMs = $state(0);
+	let speedMph = $state(0);
 	let padName = $state('');
 	let bootError = $state('');
 	let banner = $state('');
@@ -315,22 +308,9 @@
 
 	let stage: HTMLDivElement;
 
-	// A panel input momentarily empty while the user types reads NaN; fall back
-	// to the default so the sim never ingests a non-finite value.
+	// A tuning value can momentarily read NaN (e.g. a bad stored loadout); fall
+	// back to the default so the sim never ingests a non-finite value.
 	const num = (v: number, d: number) => (Number.isFinite(v) ? v : d);
-
-	const resetTuning = () => Object.assign(tuning, DEFAULTS);
-
-	let copied = $state(false);
-	let copyTimer: ReturnType<typeof setTimeout>;
-	const copyTuning = () => {
-		const json = JSON.stringify(tuning, null, 2);
-		navigator.clipboard.writeText(json).then(() => {
-			copied = true;
-			clearTimeout(copyTimer);
-			copyTimer = setTimeout(() => (copied = false), 2000);
-		});
-	};
 
 	onMount(() => {
 		let disposed = false;
@@ -3123,10 +3103,6 @@
 						if (!e.repeat) tetherQueued = true;
 						return;
 					}
-					if (e.code === 'KeyG') {
-						if (!e.repeat) garageOpen = !garageOpen;
-						return;
-					}
 					if (TRACKED.has(e.code)) {
 						keys.add(e.code);
 						e.preventDefault();
@@ -3769,8 +3745,9 @@
 						}
 
 						if (rig === player) {
-							speedMs = Math.round(rawSpeed * 10) / 10;
-							speedKmh = Math.round(rawSpeed * 3.6);
+							// Physics is metric (rawSpeed is m/s); the HUD reads mph.
+							// Display-layer conversion only: 1 m/s = 2.236936 mph.
+							speedMph = Math.round(rawSpeed * 2.236936);
 						}
 					}
 
@@ -4366,8 +4343,7 @@
 		</div>
 
 		<div class="gl-cluster">
-			<div class="gl-speed">{speedKmh}<span class="gl-unit">KM/H</span></div>
-			{#if showDebug}<div class="gl-sub">{speedMs} m/s</div>{/if}
+			<div class="gl-speed">{speedMph}<span class="gl-unit">MPH</span></div>
 
 			<div class="gl-health-bar">
 				<div
@@ -4467,186 +4443,13 @@
 
 	<div class="glb gl-controls">
 		{padName ? `PAD: ${padName}` : 'KEYBOARD'} · W/S DRIVE · A/D STEER · SPACE HANDBRAKE · F EMP ·
-		E OIL · Q TETHER{showDebug ? ' · G GARAGE' : ''} · R RESET
+		E OIL · Q TETHER · R RESET
 	</div>
 
 	<div class="gl-map">
 		<Minimap runtime={rt} {pose} nextCheckpoint={hud.cp} others={aiPoses} />
 	</div>
 
-	{#if showDebug && garageOpen}
-		<Garage
-			loadout={playerLoadout}
-			baselineHealth={Number.isFinite(tuning.maxHealth) ? tuning.maxHealth : DEFAULTS.maxHealth}
-			baselineMass={Number.isFinite(tuning.chassisMass) ? tuning.chassisMass : DEFAULTS.chassisMass}
-			baselineEngine={Number.isFinite(tuning.engineForce)
-				? tuning.engineForce
-				: DEFAULTS.engineForce}
-			baselineDrag={Number.isFinite(tuning.aeroDrag) ? tuning.aeroDrag : DEFAULTS.aeroDrag}
-			onselect={selectArchetype}
-			onequip={equipPart}
-			onclose={() => (garageOpen = false)}
-			preview={false}
-		/>
-	{/if}
-
-	{#if showDebug}
-	<div class="gl-panel">
-		<div class="gl-panel-head">TUNING (live)</div>
-
-		<div class="gl-actions" style="margin-top: 0;">
-			<button
-				onclick={() => (garageOpen = true)}
-				style="background: rgba(200, 255, 0, 0.1); border-color: rgba(200, 255, 0, 0.45); color: #c8ff00;"
-			>
-				garage / loadout (G) · {playerLoadout.archetype.toUpperCase()}
-			</button>
-		</div>
-
-		<div class="gl-section">mode</div>
-		<label class="gl-select-row"
-			>mode
-			<select bind:value={mode} onchange={() => resetRound()}>
-				<option value="race">RACE</option>
-				<option value="elimination">ELIMINATION</option>
-			</select></label
-		>
-		<label>lap target (race) <input type="number" step="1" bind:value={tuning.lapTarget} /></label>
-
-		<div class="gl-section">ai</div>
-		<label>count (on reset) <input type="number" step="1" bind:value={tuning.aiCount} /></label>
-		<label>top speed (m/s) <input type="number" step="0.5" bind:value={tuning.aiTopSpeed} /></label>
-		<label>corner accel <input type="number" step="0.5" bind:value={tuning.aiCorner} /></label>
-		<label
-			>aggression (0-1) <input type="number" step="0.1" bind:value={tuning.aiAggression} /></label
-		>
-
-		<div class="gl-section">combat</div>
-		<label>max health <input type="number" step="10" bind:value={tuning.maxHealth} /></label>
-		<label>down time (s, race) <input type="number" step="0.5" bind:value={tuning.downSec} /></label>
-
-		<div class="gl-section">emp</div>
-		<label>damage <input type="number" step="5" bind:value={tuning.empDamage} /></label>
-		<label>range <input type="number" step="5" bind:value={tuning.empRange} /></label>
-		<label>cone (deg) <input type="number" step="5" bind:value={tuning.empConeDeg} /></label>
-		<label>cooldown (s) <input type="number" step="0.1" bind:value={tuning.empCooldownSec} /></label>
-		<label
-			>disruption (s) <input type="number" step="0.1" bind:value={tuning.disruptionSec} /></label
-		>
-		<label
-			>disrupt engine x <input type="number" step="0.05" bind:value={tuning.disruptEngineCut} /></label
-		>
-		<label
-			>disrupt steer x <input type="number" step="0.05" bind:value={tuning.disruptSteerCut} /></label
-		>
-		<label>spin kick <input type="number" step="0.5" bind:value={tuning.spinKick} /></label>
-
-		<div class="gl-section">oil slick</div>
-		<label>cooldown (s) <input type="number" step="0.5" bind:value={tuning.oilCooldownSec} /></label>
-		<label>radius <input type="number" step="0.2" bind:value={tuning.oilRadius} /></label>
-		<label>puddle life (s) <input type="number" step="1" bind:value={tuning.oilLifeSec} /></label>
-		<label>slip time (s) <input type="number" step="0.5" bind:value={tuning.oilSlipSec} /></label>
-		<label
-			>traction x (0-1) <input type="number" step="0.02" bind:value={tuning.oilTractionCut} /></label
-		>
-
-		<div class="gl-section">tether</div>
-		<label
-			>cooldown (s) <input type="number" step="0.5" bind:value={tuning.tetherCooldownSec} /></label
-		>
-		<label>range <input type="number" step="2" bind:value={tuning.tetherRange} /></label>
-		<label>cone (deg) <input type="number" step="5" bind:value={tuning.tetherConeDeg} /></label>
-		<label>pull force <input type="number" step="500" bind:value={tuning.tetherForce} /></label>
-		<label>duration (s) <input type="number" step="0.05" bind:value={tuning.tetherSec} /></label>
-		<label>damage <input type="number" step="2" bind:value={tuning.tetherDamage} /></label>
-
-		<div class="gl-section">ram</div>
-		<label
-			>min speed (m/s) <input type="number" step="1" bind:value={tuning.ramMinClosingSpeed} /></label
-		>
-		<label>damage <input type="number" step="5" bind:value={tuning.ramDamage} /></label>
-		<label>impulse <input type="number" step="200" bind:value={tuning.ramImpulse} /></label>
-		<label>pop-up <input type="number" step="100" bind:value={tuning.ramPopUp} /></label>
-		<label>stun (s) <input type="number" step="0.1" bind:value={tuning.ramStunSec} /></label>
-		<label>cooldown (s) <input type="number" step="0.5" bind:value={tuning.ramCooldownSec} /></label>
-
-		<div class="gl-section">feedback</div>
-		<label>shake amount <input type="number" step="0.05" bind:value={tuning.shakeMax} /></label>
-		<label>shake decay <input type="number" step="0.1" bind:value={tuning.shakeDecay} /></label>
-		<label>fx density <input type="number" step="0.1" bind:value={tuning.fxDensity} /></label>
-
-		<div class="gl-section">drive</div>
-		<label>engine force <input type="number" step="100" bind:value={tuning.engineForce} /></label>
-		<label>brake force <input type="number" step="50" bind:value={tuning.brakeForce} /></label>
-		<label
-			>handbrake force <input type="number" step="50" bind:value={tuning.handbrakeForce} /></label
-		>
-		<label
-			>handbrake grip <input type="number" step="0.05" bind:value={tuning.handbrakeGrip} /></label
-		>
-		<label>aero drag <input type="number" step="0.1" bind:value={tuning.aeroDrag} /></label>
-		<label>max steer (rad) <input type="number" step="0.05" bind:value={tuning.maxSteer} /></label>
-		<label
-			>steer falloff /(m/s)
-			<input type="number" step="0.01" bind:value={tuning.steerSpeedFalloff} /></label
-		>
-		<label>pitch damp (anti-flip) <input type="number" step="0.5" bind:value={tuning.pitchDamp} /></label>
-
-		<div class="gl-section">chassis</div>
-		<label>mass (kg) <input type="number" step="10" bind:value={tuning.chassisMass} /></label>
-		<label>gravity <input type="number" step="0.5" bind:value={tuning.gravity} /></label>
-
-		<div class="gl-section">suspension</div>
-		<label
-			>stiffness <input type="number" step="1" bind:value={tuning.suspensionStiffness} /></label
-		>
-		<label
-			>damping (comp) <input type="number" step="0.1" bind:value={tuning.dampingCompression} /></label
-		>
-		<label
-			>damping (relax) <input type="number" step="0.1" bind:value={tuning.dampingRelaxation} /></label
-		>
-		<label
-			>rest length <input type="number" step="0.05" bind:value={tuning.suspensionRestLength} /></label
-		>
-		<label
-			>max travel <input type="number" step="0.05" bind:value={tuning.maxSuspensionTravel} /></label
-		>
-
-		<div class="gl-section">tires</div>
-		<label>friction slip <input type="number" step="0.1" bind:value={tuning.frictionSlip} /></label>
-		<label
-			>roll influence <input type="number" step="0.01" bind:value={tuning.rollInfluence} /></label
-		>
-
-		<div class="gl-section">track</div>
-		<label>grass drag <input type="number" step="0.5" bind:value={tuning.grassDrag} /></label>
-		<label>wall spring <input type="number" step="100" bind:value={tuning.wallSpring} /></label>
-		<label>wall damping <input type="number" step="50" bind:value={tuning.wallDamp} /></label>
-
-		<div class="gl-section">flip recovery</div>
-		<label>up-Y threshold <input type="number" step="0.05" bind:value={tuning.flipUpY} /></label>
-		<label>delay (s) <input type="number" step="0.5" bind:value={tuning.flipDelaySec} /></label>
-		<label
-			>max speed (m/s) <input type="number" step="0.5" bind:value={tuning.flipMaxSpeed} /></label
-		>
-
-		<div class="gl-section">camera</div>
-		<label>distance <input type="number" step="0.5" bind:value={tuning.camDistance} /></label>
-		<label>height <input type="number" step="0.5" bind:value={tuning.camHeight} /></label>
-		<label>stiffness <input type="number" step="0.5" bind:value={tuning.camStiffness} /></label>
-
-		<div class="gl-actions">
-			<button onclick={() => resetRound()}>reset round (R)</button>
-			<button onclick={resetTuning}>reset tuning</button>
-		</div>
-		<div class="gl-actions" style="margin-top: 0.4rem;">
-			<button onclick={copyTuning} style="background: rgba(0, 240, 255, 0.12); border-color: rgba(0, 240, 255, 0.4); color: #00f0ff;">
-				{copied ? 'copied!' : 'copy tuning parameters'}
-			</button>
-		</div>
-	</div>
-	{/if}
 </div>
 
 <style>
@@ -4780,12 +4583,6 @@
 		margin-left: 0.4rem;
 		letter-spacing: 0.18em;
 		color: var(--glb-ink-dim);
-	}
-	.gl-sub {
-		font-family: var(--glb-font-data);
-		font-size: 0.62rem;
-		color: var(--glb-ink-faint);
-		margin-top: 0.15rem;
 	}
 	.gl-health-bar {
 		margin-top: 0.55rem;
@@ -5085,76 +4882,5 @@
 		position: absolute;
 		left: 1rem;
 		bottom: 1rem;
-	}
-	.gl-panel {
-		position: absolute;
-		top: 1rem;
-		right: 1rem;
-		width: 15.5rem;
-		max-height: calc(100% - 2rem);
-		overflow-y: auto;
-		background: rgba(6, 12, 8, 0.88);
-		border: 1px solid rgba(0, 255, 65, 0.25);
-		padding: 0.7rem 0.8rem;
-		font-size: 0.72rem;
-	}
-	.gl-panel-head {
-		color: #00ff41;
-		letter-spacing: 0.14em;
-		margin-bottom: 0.4rem;
-	}
-	.gl-section {
-		color: #7fbf8f;
-		letter-spacing: 0.1em;
-		margin: 0.55rem 0 0.2rem;
-		border-bottom: 1px solid rgba(0, 255, 65, 0.15);
-	}
-	.gl-panel label {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.5rem;
-		margin: 0.18rem 0;
-		color: #b9d9c2;
-	}
-	.gl-panel input {
-		width: 5.2rem;
-		background: #0a1410;
-		border: 1px solid rgba(0, 255, 65, 0.3);
-		color: #e8ffe8;
-		font-family: inherit;
-		font-size: 0.72rem;
-		padding: 0.15rem 0.3rem;
-	}
-	.gl-panel select {
-		width: 8rem;
-		background: #0a1410;
-		border: 1px solid rgba(0, 255, 65, 0.3);
-		color: #e8ffe8;
-		font-family: inherit;
-		font-size: 0.72rem;
-		padding: 0.15rem 0.3rem;
-	}
-	.gl-panel input:focus,
-	.gl-panel select:focus {
-		outline: 1px solid #00ff41;
-	}
-	.gl-actions {
-		display: flex;
-		gap: 0.5rem;
-		margin-top: 0.7rem;
-	}
-	.gl-actions button {
-		flex: 1;
-		background: rgba(0, 255, 65, 0.1);
-		border: 1px solid rgba(0, 255, 65, 0.4);
-		color: #00ff41;
-		font-family: inherit;
-		font-size: 0.7rem;
-		padding: 0.3rem 0.2rem;
-		cursor: pointer;
-	}
-	.gl-actions button:hover {
-		background: rgba(0, 255, 65, 0.2);
 	}
 </style>
