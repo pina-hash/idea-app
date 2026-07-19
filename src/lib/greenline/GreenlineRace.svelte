@@ -240,6 +240,27 @@
 		flipUpY: 0.2,
 		flipDelaySec: 2,
 		flipMaxSpeed: 1.5,
+		/** Slipstream / draft: a trailing vehicle tucked into another's wake gets
+		 * reduced aero drag (a higher top speed), universal and free — no slot, no
+		 * cost, every vehicle player and AI alike, no equipment or AI decision.
+		 * Detection is a forward wake corridor behind the leader; the strength
+		 * scales with how tightly the trailer is tucked in. Numbers are sized to
+		 * real pack spacing (the car is ~3.8m long, grid columns sit 6m apart): the
+		 * wake reaches draftMaxDist ~14m back (~3.5 car lengths) inside a
+		 * draftHalfWidth 3m corridor, needs headings within ~53deg (draftAlignDot
+		 * 0.6, so an oncoming or crossing car never counts), and only fires while
+		 * the trailer is actually moving (draftMinSpeed 6 m/s; below that the
+		 * quadratic drag is negligible anyway, and it keeps the stationary grid from
+		 * false-triggering). Peak draftDragReduction 0.25 (drag x0.75 -> top speed
+		 * ~x1.15) when nearly nose-to-tail, tapering to 0 at the corridor edges. It
+		 * reduces the SAME aeroDrag term the build stat scales, so it stacks
+		 * cleanly with Nitro (which lifts engineForce) instead of colliding. */
+		draftMaxDist: 14,
+		draftMinDist: 3,
+		draftHalfWidth: 3,
+		draftAlignDot: 0.6,
+		draftMinSpeed: 6,
+		draftDragReduction: 0.25,
 		camDistance: 9,
 		camHeight: 3.5,
 		camStiffness: 5,
@@ -369,7 +390,9 @@
 		currentMs: null as number | null,
 		lastMs: null as number | null,
 		bestMs: null as number | null,
-		offTrack: false
+		offTrack: false,
+		/** Player is currently in another vehicle's slipstream (draft cue). */
+		drafting: false
 	});
 	/** HUD cell state for one equipped weapon slot (lock is guided-only). */
 	interface SlotHudCell {
@@ -1877,6 +1900,13 @@
 					steerCurrent: number;
 					hx: number;
 					hz: number;
+					/** Slipstream, set each frame by the draft-detection pass. drafting =
+					 * currently in another vehicle's wake; draftFactor 0..1 = how tightly
+					 * tucked in (scales the drag reduction); draftPrev drives the
+					 * engage-SFX rising edge for the player. */
+					drafting: boolean;
+					draftFactor: number;
+					draftPrev: boolean;
 					prevX: number;
 					prevZ: number;
 					flashUntil: number;
@@ -2162,6 +2192,9 @@
 						steerCurrent: 0,
 						hx: 1,
 						hz: 0,
+						drafting: false,
+						draftFactor: 0,
+						draftPrev: false,
 						prevX: spawn.x,
 						prevZ: spawn.z,
 						flashUntil: 0,
@@ -3653,6 +3686,16 @@
 						audioEngine.playTone('ambient', { freq: 380, durationMs: 260, type: 'triangle', gain: 0.14, pitchJitter: [1.0, 1.3], position: pos });
 				};
 
+				// PLACEHOLDER draft cue (the weaponSfx/abilitySfx convention: swap the
+				// playTone for a real playBuffer later). A soft airy sine on the ambient
+				// bus, deliberately distinct from the ability tones (nitro sawtooth, grip
+				// ambient-triangle), read as a wind whoosh as the trailer catches the
+				// wake. Fired on the ENGAGE rising edge only (see the detection pass).
+				const draftSfx = (x?: number, z?: number) => {
+					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
+					audioEngine.playTone('ambient', { freq: 520, durationMs: 300, type: 'sine', gain: 0.12, pitchJitter: [1.0, 1.16], position: pos });
+				};
+
 				// Activate the ability in a slot. Returns true when it fired (meter
 				// spent). Emergency Flip triggered while upright is a costless no-op
 				// (the tryActivateAbility no-lock pattern): nothing spent, no feedback
@@ -3795,6 +3838,9 @@
 						r.dustAcc = 0;
 						r.preVx = 0;
 						r.preVz = 0;
+						r.drafting = false;
+						r.draftFactor = 0;
+						r.draftPrev = false;
 						r.flipAcc = 0;
 						if (r.dentStage !== 0) applyDentStage(r, 0);
 						r.warmIdx = r.spawn.warmIdx;
@@ -4132,6 +4178,12 @@
 									mountDown: r.combat.mountDown,
 									x: Math.round(r.body.position.x * 100) / 100,
 									z: Math.round(r.body.position.z * 100) / 100,
+									speed:
+										Math.round(
+											Math.hypot(r.body.velocity.x, r.body.velocity.y, r.body.velocity.z) * 100
+										) / 100,
+									drafting: r.drafting,
+									draftFactor: Math.round(r.draftFactor * 1000) / 1000,
 									upY:
 										Math.round(r.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y * 1000) / 1000
 								}))
@@ -4208,6 +4260,61 @@
 
 					// -- Global physics tuning --
 					world.gravity.set(0, -num(tuning.gravity, DEFAULTS.gravity), 0);
+
+					// -- Slipstream / draft detection (universal, free, no equipment) --
+					// One O(n^2) pass over every vehicle pair BEFORE the physics loop, so
+					// the drag calc below just reads rig.drafting/draftFactor. Positions
+					// are current; headings use each rig's stored hx/hz (last frame),
+					// which is fine — heading barely moves per frame, and it sidesteps the
+					// mid-loop ordering where later rigs have not refreshed hx/hz yet. The
+					// SAME detection runs for the player and every AI, no opt-in.
+					{
+						const dMax = num(tuning.draftMaxDist, DEFAULTS.draftMaxDist);
+						const dMin = num(tuning.draftMinDist, DEFAULTS.draftMinDist);
+						const dHalf = num(tuning.draftHalfWidth, DEFAULTS.draftHalfWidth);
+						const dAlign = num(tuning.draftAlignDot, DEFAULTS.draftAlignDot);
+						const dMinSpd = num(tuning.draftMinSpeed, DEFAULTS.draftMinSpeed);
+						const span = Math.max(0.001, dMax - dMin);
+						for (const t of all) {
+							let best = 0;
+							// Only draft while actually moving forward at a real clip (this
+							// also keeps the lined-up stationary grid from false-triggering).
+							const tFwd =
+								t.body.velocity.x * t.hx + t.body.velocity.z * t.hz;
+							if (!preLaunch && tFwd >= dMinSpd && !t.combat.isOut(now)) {
+								for (const l of all) {
+									if (l === t || l.combat.isOut(now)) continue;
+									const dx = l.body.position.x - t.body.position.x;
+									const dz = l.body.position.z - t.body.position.z;
+									// Forward distance to the leader along the trailer's heading.
+									const ahead = dx * t.hx + dz * t.hz;
+									if (ahead < dMin || ahead > dMax) continue;
+									// Perpendicular offset: leader must sit in the wake corridor,
+									// not off to one side (a car crossing your path).
+									const lateral = Math.abs(dx * -t.hz + dz * t.hx);
+									if (lateral > dHalf) continue;
+									// Headings roughly agree, so an oncoming or crossing car is
+									// never a tow (dot < 0 is oncoming, ~0 is crossing).
+									const align = t.hx * l.hx + t.hz * l.hz;
+									if (align < dAlign) continue;
+									// Strength grows as the trailer tucks closer + more centered.
+									const distF = (dMax - ahead) / span;
+									const latF = 1 - lateral / dHalf;
+									const f = Math.max(0, Math.min(1, distF)) * Math.max(0, Math.min(1, latF));
+									if (f > best) best = f;
+								}
+							}
+							t.drafting = best > 0;
+							t.draftFactor = best;
+							// Engage cue on the rising edge, player only (a sustained state
+							// would spam if fired for the whole AI pack; the HUD cue is
+							// player-only anyway). The EFFECT still applies to everyone.
+							if (t === player && t.drafting && !t.draftPrev)
+								draftSfx(t.body.position.x, t.body.position.z);
+							t.draftPrev = t.drafting;
+							if (t === player) hud.drafting = t.drafting;
+						}
+					}
 
 					// -- Per-vehicle pipeline: identical for player and AI --
 					for (const rig of all) {
@@ -4375,7 +4482,14 @@
 						}
 
 						// Quadratic aero drag caps top speed (~sqrt(engine/drag)).
-						const drag = num(tuning.aeroDrag, DEFAULTS.aeroDrag) * bs.aeroDrag;
+						// Slipstream reduces this same term for a vehicle tucked in another's
+						// wake, so a higher top speed follows with no new force/impulse; it
+						// scales with how tightly the trailer is tucked in (draftFactor) and
+						// stacks cleanly with Nitro's engineForce lift (independent terms).
+						let drag = num(tuning.aeroDrag, DEFAULTS.aeroDrag) * bs.aeroDrag;
+						if (rig.drafting)
+							drag *=
+								1 - num(tuning.draftDragReduction, DEFAULTS.draftDragReduction) * rig.draftFactor;
 						if (drag > 0 && rawSpeed > 0.1) {
 							body.applyForce(
 								new CANNON.Vec3(
@@ -5611,6 +5725,7 @@
 				{#if chud.tethered}<span class="gl-st gl-st-tether">TETHERED</span>{/if}
 				{#if chud.shieldPct > 0}<span class="gl-st gl-st-shield">SHIELD {Math.round(chud.shieldPct * 100)}%</span>{/if}
 				{#if hud.offTrack}<span class="gl-st gl-st-offtrack">OFF TRACK</span>{/if}
+				{#if hud.drafting}<span class="gl-st gl-st-draft">DRAFT</span>{/if}
 				{#each chud.slots.filter((w) => w.lock) as w (w.slot)}
 					{#if w.lock?.locked}
 						<span class="gl-st gl-st-locked">LOCKED — {w.short} READY</span>
@@ -5991,6 +6106,13 @@
 	.gl-st-offtrack {
 		color: #c9a15f;
 		border-color: rgba(201, 161, 95, 0.55);
+	}
+	/* Draft is a beneficial player state (free top-speed tow), so the signature
+	   green, in line with weapon-READY / best-lap. Amber stays impact-only. */
+	.gl-st-draft {
+		color: #052b16;
+		background: #8fffc4;
+		border-color: #2ae57e;
 	}
 	.gl-st-shield {
 		color: #052b16;
