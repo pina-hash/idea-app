@@ -88,8 +88,91 @@ export const WHEEL_CONNECTIONS: [number, number, number][] = [
 export const visualKeyFor = (l: Loadout): string => {
 	const s = resolveWeaponSockets(l);
 	const c = l.cosmetics;
-	return `${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.weaponPrimary}@${s.weaponPrimary ?? '-'}|${l.parts.weaponSecondary}@${s.weaponSecondary ?? '-'}|${c?.color ?? '-'}/${c?.pattern ?? '-'}/${c?.number ?? '-'}`;
+	return `${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.weaponPrimary}@${s.weaponPrimary ?? '-'}|${l.parts.weaponSecondary}@${s.weaponSecondary ?? '-'}|${c?.color ?? '-'}/${c?.pattern ?? '-'}/${c?.number ?? '-'}/${c?.decal ?? '-'}`;
 };
+
+// ---------------------------------------------------------------------------
+// Custom decal images (Phase 6c). Cosmetics.decal is an opaque REFERENCE (the
+// greenline-decals storage path); this module never talks to Supabase, so the
+// page that owns the data layer registers a resolvable URL per ref (a signed
+// URL on /greenline, a data: URL in the dev harness) and the texture painter
+// below pulls the image through this registry. Module-level on purpose: the
+// registration outlives any one createRigVisuals instance, so the garage
+// preview and the race scene share one image cache. An unregistered or
+// failing ref simply renders no decal — the build never breaks on it.
+// ---------------------------------------------------------------------------
+const decalSources = new Map<string, string>();
+const decalImages = new Map<string, HTMLImageElement | null>(); // null = load failed
+const decalLoading = new Set<string>();
+const decalWaiters = new Map<string, Set<(img: HTMLImageElement) => void>>();
+
+/** Make a decal ref resolvable (or unresolvable again with url = null). A
+ * fresh URL for an already-loaded ref keeps the loaded image; after a FAILED
+ * load a re-registration allows a retry (signed URLs expire). */
+export function registerDecalImage(ref: string, url: string | null): void {
+	if (!ref) return;
+	if (!url) {
+		decalSources.delete(ref);
+		return;
+	}
+	decalSources.set(ref, url);
+	if (decalImages.get(ref) === null) decalImages.delete(ref);
+	if (decalWaiters.get(ref)?.size) kickDecalLoad(ref);
+}
+
+/** Dev/verification introspection: where a ref's image stands. */
+export function decalImageState(ref: string): 'loaded' | 'failed' | 'loading' | 'unresolved' {
+	const img = decalImages.get(ref);
+	if (img) return 'loaded';
+	if (img === null) return 'failed';
+	if (decalLoading.has(ref)) return 'loading';
+	return 'unresolved';
+}
+
+/** The loaded image now, or null — parking `onReady` for a later async load
+ * (fires at most once, when/if the image arrives). */
+function requestDecalImage(
+	ref: string,
+	onReady: (img: HTMLImageElement) => void
+): HTMLImageElement | null {
+	const cached = decalImages.get(ref);
+	if (cached) return cached;
+	if (cached === null) return null; // failed; a re-registration clears this
+	let set = decalWaiters.get(ref);
+	if (!set) {
+		set = new Set();
+		decalWaiters.set(ref, set);
+	}
+	set.add(onReady);
+	kickDecalLoad(ref);
+	return null;
+}
+
+function kickDecalLoad(ref: string): void {
+	const url = decalSources.get(ref);
+	if (!url || decalLoading.has(ref) || decalImages.has(ref)) return;
+	decalLoading.add(ref);
+	const img = new Image();
+	// Anonymous CORS so the canvas the image is drawn onto never taints —
+	// a tainted canvas cannot upload to WebGL. Supabase storage URLs send
+	// CORS headers; data: URLs ignore the attribute (see the dev-harness
+	// CORS/taint memory note: this is exactly the class of bug that hides
+	// behind data: URLs and only surfaces against real signed URLs).
+	img.crossOrigin = 'anonymous';
+	img.onload = () => {
+		decalLoading.delete(ref);
+		decalImages.set(ref, img);
+		const ws = decalWaiters.get(ref);
+		decalWaiters.delete(ref);
+		if (ws) for (const w of ws) w(img);
+	};
+	img.onerror = () => {
+		decalLoading.delete(ref);
+		decalImages.set(ref, null);
+		decalWaiters.delete(ref);
+	};
+	img.src = url;
+}
 
 export type PartName = 'chassis' | 'armor' | 'mount';
 type MatKind = 'hull' | 'canopy' | 'mount' | 'accent' | 'steel' | 'composite' | 'cage';
@@ -1153,46 +1236,72 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 	// upright decal quads instead (makeNumberTexture / the quad placements
 	// below). Stripes/geometric fills tolerate the stretch, so they stay here. ----
 	const makeCosmeticTexture = (cos: Cosmetics, baseHex: number): THREE.CanvasTexture => {
-		const S = 256;
+		// 6c: a custom decal is the livery's centerpiece, so its canvas doubles
+		// the resolution; pattern-only liveries keep the original cheap 256.
+		const S = cos.decal ? 512 : 256;
 		const cv = document.createElement('canvas');
 		cv.width = cv.height = S;
 		const ctx = cv.getContext('2d')!;
-		const toHex = (n: number) => '#' + (n & 0xffffff).toString(16).padStart(6, '0');
-		ctx.fillStyle = toHex(baseHex);
-		ctx.fillRect(0, 0, S, S);
-		const r = (baseHex >> 16) & 255;
-		const g = (baseHex >> 8) & 255;
-		const b = baseHex & 255;
-		const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-		const light = '#eef3f7';
-		const dark = '#111417';
-		const inkOn = lum > 0.55 ? dark : light; // contrasts the base
-		const inkAlt = lum > 0.55 ? light : dark; // the opposite, for the outline
-		// Stripes run front-to-back (vertical bands in UV); geometric fills.
-		ctx.fillStyle = inkOn;
-		const p = cos.pattern;
-		if (p === 'stripe') {
-			ctx.fillRect(S * 0.42, 0, S * 0.16, S);
-		} else if (p === 'twin') {
-			ctx.fillRect(S * 0.29, 0, S * 0.09, S);
-			ctx.fillRect(S * 0.62, 0, S * 0.09, S);
-		} else if (p === 'wedge') {
-			ctx.beginPath();
-			ctx.moveTo(0, S);
-			ctx.lineTo(S, 0);
-			ctx.lineTo(S, S);
-			ctx.closePath();
-			ctx.fill();
-		} else if (p === 'checker') {
-			const n = 8;
-			const cs = S / n;
-			for (let iy = 3; iy <= 4; iy++)
-				for (let ix = 0; ix < n; ix++)
-					if ((ix + iy) % 2 === 0) ctx.fillRect(ix * cs, iy * cs, cs, cs);
-		}
-		void inkOn;
-		void inkAlt;
+		// Full repaint (base fill + pattern + decal image, in that order), so the
+		// async decal arrival can redraw the SAME canvas without tracking layers.
+		const paint = (img: HTMLImageElement | null) => {
+			const toHex = (n: number) => '#' + (n & 0xffffff).toString(16).padStart(6, '0');
+			ctx.clearRect(0, 0, S, S);
+			ctx.fillStyle = toHex(baseHex);
+			ctx.fillRect(0, 0, S, S);
+			const r = (baseHex >> 16) & 255;
+			const g = (baseHex >> 8) & 255;
+			const b = baseHex & 255;
+			const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+			const light = '#eef3f7';
+			const dark = '#111417';
+			const inkOn = lum > 0.55 ? dark : light; // contrasts the base
+			// Stripes run front-to-back (vertical bands in UV); geometric fills.
+			ctx.fillStyle = inkOn;
+			const p = cos.pattern;
+			if (p === 'stripe') {
+				ctx.fillRect(S * 0.42, 0, S * 0.16, S);
+			} else if (p === 'twin') {
+				ctx.fillRect(S * 0.29, 0, S * 0.09, S);
+				ctx.fillRect(S * 0.62, 0, S * 0.09, S);
+			} else if (p === 'wedge') {
+				ctx.beginPath();
+				ctx.moveTo(0, S);
+				ctx.lineTo(S, 0);
+				ctx.lineTo(S, S);
+				ctx.closePath();
+				ctx.fill();
+			} else if (p === 'checker') {
+				const n = 8;
+				const cs = S / n;
+				for (let iy = 3; iy <= 4; iy++)
+					for (let ix = 0; ix < n; ix++)
+						if ((ix + iy) % 2 === 0) ctx.fillRect(ix * cs, iy * cs, cs, cs);
+			}
+			if (img) {
+				// Aspect-preserving "contain" into a centered box over the base +
+				// pattern: reads as an applied decal, not a full wrap. The box UVs
+				// stretch it per face exactly like the pattern — acceptable for an
+				// image (the 6b number needed dedicated quads because a GLYPH
+				// smears illegibly; a picture just leans).
+				const box = S * 0.78;
+				const k = Math.min(box / img.width, box / img.height);
+				const w = img.width * k;
+				const h = img.height * k;
+				ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+			}
+		};
 		const tex = new three.CanvasTexture(cv);
+		// The decal image resolves through the module registry, usually async: an
+		// immediate cache hit paints now; a later arrival repaints this canvas and
+		// re-uploads the texture. A disposed texture just ignores the flag.
+		const ready = cos.decal
+			? requestDecalImage(cos.decal, (img) => {
+					paint(img);
+					tex.needsUpdate = true;
+				})
+			: null;
+		paint(ready);
 		tex.colorSpace = three.SRGBColorSpace;
 		tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
 		tex.needsUpdate = true;
@@ -1334,7 +1443,10 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		let bodyDecalMat: THREE.MeshStandardMaterial | null = null;
 		const cosmeticDisposables: { dispose(): void }[] = [];
 		const cos = normalizeCosmetics(l.cosmetics);
-		if (cos?.pattern && bodyMesh) {
+		// A pattern OR a custom decal ref (6c) puts the canvas texture on the
+		// body; a decal whose image never resolves paints base color only, which
+		// looks identical to the plain hull material.
+		if ((cos?.pattern || cos?.decal) && bodyMesh) {
 			const tex = makeCosmeticTexture(cos, vis.tone);
 			bodyDecalMat = target.hullMat.clone();
 			bodyDecalMat.map = tex;

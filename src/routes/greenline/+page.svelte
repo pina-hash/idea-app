@@ -33,6 +33,15 @@
 	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
 	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
 	import GreenlineSettings from '$lib/greenline/GreenlineSettings.svelte';
+	import {
+		decalImageUrl,
+		loadOwnDecal,
+		removeDecal,
+		uploadDecal,
+		validateDecalFile,
+		type DecalStatus
+	} from '$lib/greenline/decals';
+	import { registerDecalImage } from '$lib/greenline/rig-visual';
 	import '$lib/greenline/brand/brand';
 	import type { PageData } from './$types';
 
@@ -69,6 +78,21 @@
 	// Settings overlay (a modal, not a screen). Reachable from title + garage.
 	let settingsOpen = $state(false);
 
+	// Custom decal (Phase 6c). `undefined` until loaded (or when 0051 is
+	// unapplied — the garage hides the control), null = none uploaded. The
+	// image itself resolves through rig-visual's decal registry (a signed URL
+	// registered here), so the garage preview AND the race render it without
+	// ever touching Supabase themselves.
+	type DecalState = {
+		path: string;
+		status: DecalStatus;
+		feedback: string;
+		previewUrl: string | null;
+	};
+	let decalState = $state<DecalState | null | undefined>(undefined);
+	let decalBusy = $state(false);
+	let decalError = $state('');
+
 	// Results state.
 	let outcome = $state<RaceOutcome | null>(null);
 	let submitting = $state(false);
@@ -77,10 +101,11 @@
 	let boardLoading = $state(false);
 
 	onMount(async () => {
-		const [saved, savedSlots, savedActive] = await Promise.all([
+		const [saved, savedSlots, savedActive, ownDecal] = await Promise.all([
 			loadUserLoadout(data.supabase, data.userId),
 			loadUserSlots(data.supabase, data.userId),
-			loadActiveSlot(data.supabase, data.userId)
+			loadActiveSlot(data.supabase, data.userId),
+			loadOwnDecal(data.supabase, data.userId)
 		]);
 		if (saved) loadout = saved;
 		const next: (LoadoutSlot | null)[] = Array(GREENLINE_MAX_SLOTS).fill(null);
@@ -88,7 +113,61 @@
 		slots = next;
 		activeSlot = savedActive;
 		loadoutReady = true;
+		// Custom decal: resolve a signed URL (the owner may always read their
+		// own image, whatever the review status) and register it so the garage
+		// preview and the race scene can paint it. 0051 unapplied -> undefined,
+		// the garage control stays hidden.
+		if (ownDecal.ready) {
+			if (ownDecal.decal) {
+				const url = await decalImageUrl(data.supabase, ownDecal.decal.path);
+				registerDecalImage(ownDecal.decal.path, url);
+				decalState = {
+					path: ownDecal.decal.path,
+					status: ownDecal.decal.status,
+					feedback: ownDecal.decal.feedback,
+					previewUrl: url
+				};
+			} else {
+				decalState = null;
+			}
+		}
 	});
+
+	// --- Custom decal actions (6c). Validation is client-side convenience; the
+	// bucket's own size/mime constraints and the review gate are the boundary. ---
+	const handleDecalUpload = async (file: File) => {
+		decalError = '';
+		decalBusy = true;
+		const reason = await validateDecalFile(file);
+		if (reason) {
+			decalError = reason;
+			decalBusy = false;
+			return;
+		}
+		const prev = decalState?.path ?? null;
+		const { decal: up, error } = await uploadDecal(data.supabase, data.userId, file, prev);
+		if (error || !up) {
+			decalError = error ?? 'Upload failed.';
+			decalBusy = false;
+			return;
+		}
+		const url = await decalImageUrl(data.supabase, up.path);
+		registerDecalImage(up.path, url);
+		decalState = { path: up.path, status: up.status, feedback: '', previewUrl: url };
+		// A fresh upload auto-equips: uploading a decal means wanting it shown.
+		setCosmetic({ decal: up.path });
+		decalBusy = false;
+	};
+	const handleDecalRemove = async () => {
+		decalError = '';
+		decalBusy = true;
+		const path = decalState?.path ?? null;
+		if (loadout.cosmetics?.decal) setCosmetic({ decal: undefined });
+		const { error } = await removeDecal(data.supabase, data.userId, path);
+		if (error) decalError = error;
+		else decalState = null;
+		decalBusy = false;
+	};
 
 	/** Persist the working build + which slot it is tied to (null = custom). */
 	async function persistBuild(slot: number | null) {
@@ -236,6 +315,11 @@
 				{onSaveSlot}
 				{onLoadSlot}
 				{onDeleteSlot}
+				decal={decalState}
+				{decalBusy}
+				{decalError}
+				onDecalUpload={handleDecalUpload}
+				onDecalRemove={handleDecalRemove}
 			/>
 		{:else}
 			<div class="gp-center gp-fill"><div class="gp-loading">loading your build…</div></div>

@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { loadProgressForUsers } from '$lib/frc/progression';
 import { loadPendingSubmissions } from '$lib/frc/gate-submissions';
+import { GREENLINE_DECALS_BUCKET, loadPendingDecals } from '$lib/greenline/decals';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
@@ -46,6 +47,31 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	// applied. Student display data is joined client-side from the roster above.
 	const { ready: frcReviewReady, rows: frcReviewQueue } = await loadPendingSubmissions(supabase);
 
+	// GREENLINE decal uploads awaiting review (the teacher queue). Fails soft to
+	// an empty queue with greenlineDecalReady=false until migration 0051 is
+	// applied. The images live in the private greenline-decals bucket; signed
+	// URLs are minted here under the teacher's own storage read policy so the
+	// queue can show exactly what was submitted.
+	const { ready: greenlineDecalReady, rows: decalRows } = await loadPendingDecals(supabase);
+	let greenlineDecalQueue: {
+		userId: string;
+		path: string;
+		imageUrl: string | null;
+		submittedAt: string | null;
+	}[] = [];
+	if (decalRows.length) {
+		const { data: signed } = await supabase.storage
+			.from(GREENLINE_DECALS_BUCKET)
+			.createSignedUrls(
+				decalRows.map((r) => r.path),
+				3600
+			);
+		greenlineDecalQueue = decalRows.map((r, i) => ({
+			...r,
+			imageUrl: signed?.[i]?.signedUrl ?? null
+		}));
+	}
+
 	return {
 		profile,
 		email: claims.email ?? profile?.email ?? null,
@@ -54,7 +80,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		frcProgress,
 		frcProgressReady,
 		frcReviewQueue,
-		frcReviewReady
+		frcReviewReady,
+		greenlineDecalQueue,
+		greenlineDecalReady
 	};
 };
 

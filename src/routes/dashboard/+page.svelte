@@ -7,6 +7,8 @@
 	import PathwayChip from '$lib/PathwayChip.svelte';
 	import FrcUnitOverride from '$lib/frc/FrcUnitOverride.svelte';
 	import FrcReviewQueue from '$lib/frc/FrcReviewQueue.svelte';
+	import DecalReviewQueue from '$lib/greenline/DecalReviewQueue.svelte';
+	import { reviewDecal } from '$lib/greenline/decals';
 	import { PATHWAY_IDS, pathwayColor } from '$lib/pathways';
 	import { displayName, type UserProfile } from '$lib/profile';
 	import { domainById, rankForCount } from '$lib/frc/track';
@@ -154,6 +156,43 @@
 		else await invalidateAll();
 		reviewBusy = '';
 	};
+
+	// ------ GREENLINE decal review queue (Phase 6c). ------
+	// Both decisions route through the greenline_decal_review SECURITY DEFINER
+	// RPC (reviewDecal) — the only write path onto another user's decal row; the
+	// dashboard never updates greenline_decals directly.
+	let decalBusy = $state(''); // userId in flight
+	let decalError = $state('');
+
+	const decalItems = $derived(
+		(data.greenlineDecalQueue ?? []).map((r) => {
+			const s = studentById.get(r.userId);
+			return {
+				userId: r.userId,
+				studentName: s ? displayName(toProfile(s)) : 'Unknown student',
+				studentEmail: s?.email ?? null,
+				imageUrl: r.imageUrl,
+				submittedAt: r.submittedAt
+			};
+		})
+	);
+
+	const approveDecal = async (userId: string) => {
+		decalBusy = userId;
+		decalError = '';
+		const { error } = await reviewDecal(data.supabase, userId, 'approve');
+		if (error) decalError = error;
+		else await invalidateAll();
+		decalBusy = '';
+	};
+	const requestDecalRevision = async (userId: string, feedback: string) => {
+		decalBusy = userId;
+		decalError = '';
+		const { error } = await reviewDecal(data.supabase, userId, 'needs_revision', feedback);
+		if (error) decalError = error;
+		else await invalidateAll();
+		decalBusy = '';
+	};
 </script>
 
 <div class="legacy-index">
@@ -264,6 +303,45 @@
 						onRequestRevision={requestReview}
 					/>
 					{#if reviewError}<p class="roster-error">{reviewError}</p>{/if}
+				</div>
+			{/if}
+		</div>
+	</div>
+
+	<div class="divider" style="margin-top:2.5rem">
+		<div class="divider-line"></div>
+		<div class="divider-label">GREENLINE Decal Reviews</div>
+		<div class="divider-line"></div>
+	</div>
+
+	<div class="courses">
+		<div class="course-card visible">
+			<div class="course-header">
+				<div class="course-header-left">
+					<div class="course-id">Decal Queue</div>
+					<div class="course-updated">
+						Custom decal uploads awaiting approval. Approving makes the image visible to other
+						players; a revision request sends feedback back to the student.
+					</div>
+				</div>
+				<div class="course-meta">
+					<span class="section-meta">{decalItems.length} pending</span>
+				</div>
+			</div>
+			{#if !data.greenlineDecalReady}
+				<div class="roster-note">
+					Decal submissions are not available yet. Apply migration 0051_greenline_decals.sql in
+					the Supabase SQL editor.
+				</div>
+			{:else}
+				<div style="padding:0.6rem 1rem 1rem">
+					<DecalReviewQueue
+						items={decalItems}
+						busyKey={decalBusy}
+						onApprove={approveDecal}
+						onRequestRevision={requestDecalRevision}
+					/>
+					{#if decalError}<p class="roster-error">{decalError}</p>{/if}
 				</div>
 			{/if}
 		</div>

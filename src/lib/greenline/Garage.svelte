@@ -71,7 +71,12 @@
 		activeSlot = null,
 		onSaveSlot,
 		onLoadSlot,
-		onDeleteSlot
+		onDeleteSlot,
+		decal = undefined,
+		decalBusy = false,
+		decalError = '',
+		onDecalUpload,
+		onDecalRemove
 	}: {
 		loadout: Loadout;
 		/** Current tuning-panel baselines the multipliers apply over. */
@@ -117,6 +122,25 @@
 		onSaveSlot?: (slot: number, name: string) => void;
 		onLoadSlot?: (slot: number) => void;
 		onDeleteSlot?: (slot: number) => void;
+		/**
+		 * Custom decal (Phase 6c). Presentation only, the slots convention: the
+		 * parent owns the data layer (upload, validation, review state, signed
+		 * URLs) and passes the current submission here. `undefined` hides the
+		 * whole control (feature not wired / migration unapplied); `null` means
+		 * "none uploaded yet". Equipping the decal on the car itself rides the
+		 * existing `oncosmetic` callback ({ decal: path | undefined }).
+		 */
+		decal?: {
+			path: string;
+			status: 'pending' | 'approved' | 'needs_revision';
+			feedback: string;
+			previewUrl: string | null;
+		} | null;
+		decalBusy?: boolean;
+		/** Client-side rejection / upload-failure reason to show inline. */
+		decalError?: string;
+		onDecalUpload?: (file: File) => void;
+		onDecalRemove?: () => void;
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
@@ -135,6 +159,25 @@
 		if (Number.isNaN(n)) return;
 		oncosmetic?.({ number: Math.max(0, Math.min(99, n)) });
 	};
+	// Custom decal (6c): file pick + on-car toggle. Whether the decal is shown
+	// on the car is a cosmetics field like any other; upload/remove are the
+	// parent's data-layer concern.
+	const decalEquipped = $derived(!!decal && livery?.decal === decal.path);
+	const onDecalFile = (e: Event) => {
+		const input = e.currentTarget as HTMLInputElement;
+		const f = input.files?.[0];
+		input.value = ''; // so re-picking the same file still fires change
+		if (f) onDecalUpload?.(f);
+	};
+	const toggleDecalOnCar = () => {
+		if (!decal) return;
+		oncosmetic?.({ decal: decalEquipped ? undefined : decal.path });
+	};
+	const DECAL_STATUS_UI = {
+		pending: { label: 'PENDING REVIEW', tone: 'neutral', note: 'only you see it until a teacher approves' },
+		approved: { label: 'APPROVED', tone: 'good', note: 'visible to other players' },
+		needs_revision: { label: 'REVISION REQUESTED', tone: 'bad', note: 'fix and upload a new image to resubmit' }
+	} as const;
 
 	// --- Weapon mounts: the flat capacity budget (never a multiplier). The
 	// picker blocks any invalid pairing OUTRIGHT with the reason shown, so an
@@ -597,6 +640,78 @@
 						<span class="gg-num-hint">0–99 · tells cars apart</span>
 					</div>
 				</div>
+				{#if onDecalUpload && decal !== undefined}
+					<div class="gg-livery-group gg-livery-decal">
+						<div class="gg-livery-label">Custom decal</div>
+						{#if decal}
+							{@const st = DECAL_STATUS_UI[decal.status]}
+							<div class="gg-decal-row">
+								{#if decal.previewUrl}
+									<img class="gg-decal-thumb" src={decal.previewUrl} alt="Your custom decal" />
+								{/if}
+								<div class="gg-decal-meta">
+									<span class="gg-decal-chips">
+										<span class="gg-chip {st.tone}">{st.label}</span>
+										<span class="gg-decal-note">{st.note}</span>
+									</span>
+									{#if decal.status === 'needs_revision' && decal.feedback}
+										<p class="gg-decal-feedback">Teacher feedback: {decal.feedback}</p>
+									{/if}
+									<div class="gg-decal-actions">
+										<button
+											type="button"
+											class="gg-pattern"
+											class:sel={decalEquipped}
+											onclick={toggleDecalOnCar}
+										>
+											{decalEquipped ? 'On car' : 'Show on car'}
+										</button>
+										<label class="gg-pattern gg-decal-upload" class:busy={decalBusy}>
+											{decalBusy
+												? 'Uploading…'
+												: decal.status === 'needs_revision'
+													? 'Upload new image'
+													: 'Replace'}
+											<input
+												type="file"
+												accept="image/png,image/jpeg"
+												hidden
+												disabled={decalBusy}
+												onchange={onDecalFile}
+											/>
+										</label>
+										{#if onDecalRemove}
+											<button
+												type="button"
+												class="gg-pattern"
+												disabled={decalBusy}
+												onclick={() => onDecalRemove?.()}
+											>
+												Remove
+											</button>
+										{/if}
+									</div>
+								</div>
+							</div>
+						{:else}
+							<label class="gg-pattern gg-decal-upload" class:busy={decalBusy}>
+								{decalBusy ? 'Uploading…' : 'Upload image'}
+								<input
+									type="file"
+									accept="image/png,image/jpeg"
+									hidden
+									disabled={decalBusy}
+									onchange={onDecalFile}
+								/>
+							</label>
+							<span class="gg-decal-note">
+								PNG or JPG · up to 1 MB · up to 1024px · a teacher must approve it before other
+								players see it
+							</span>
+						{/if}
+						{#if decalError}<span class="gg-decal-error">{decalError}</span>{/if}
+					</div>
+				{/if}
 			</div>
 		{/if}
 
@@ -1630,5 +1745,68 @@
 		font-size: 0.6rem;
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
+	}
+	/* Custom decal (Phase 6c): upload + review-status strip in the livery panel. */
+	.gg-livery-decal {
+		max-width: 26rem;
+	}
+	.gg-decal-row {
+		display: flex;
+		gap: 0.6rem;
+		align-items: flex-start;
+	}
+	.gg-decal-thumb {
+		width: 3.4rem;
+		height: 3.4rem;
+		object-fit: contain;
+		background: var(--glb-panel);
+		border: 1px solid var(--glb-line-strong);
+		border-radius: 2px;
+		flex-shrink: 0;
+	}
+	.gg-decal-meta {
+		display: flex;
+		flex-direction: column;
+		gap: 0.34rem;
+		min-width: 0;
+	}
+	.gg-decal-chips {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		flex-wrap: wrap;
+	}
+	.gg-decal-note {
+		color: var(--glb-ink-faint);
+		font-size: 0.6rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+	}
+	.gg-decal-feedback {
+		margin: 0;
+		color: var(--glb-ink-dim);
+		font-size: 0.72rem;
+		line-height: 1.4;
+		border-left: 2px solid rgba(255, 176, 46, 0.55);
+		padding-left: 0.5rem;
+	}
+	.gg-decal-actions {
+		display: flex;
+		gap: 0.3rem;
+		flex-wrap: wrap;
+	}
+	.gg-decal-upload {
+		display: inline-flex;
+		align-items: center;
+		align-self: flex-start;
+	}
+	.gg-decal-upload.busy {
+		opacity: 0.55;
+		cursor: default;
+	}
+	.gg-decal-error {
+		color: var(--glb-amber);
+		font-size: 0.68rem;
+		line-height: 1.35;
 	}
 </style>

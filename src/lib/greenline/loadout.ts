@@ -159,6 +159,16 @@ export interface Cosmetics {
 	pattern?: string;
 	/** Car number 0-99, or unset = none. The way to tell cars apart. */
 	number?: number;
+	/**
+	 * Custom decal REFERENCE (Phase 6c): the storage path of the player's
+	 * uploaded decal image (greenline-decals bucket), never image data itself.
+	 * The visual layer resolves it through rig-visual's decal-image registry
+	 * (the page registers a signed URL); an unresolvable ref simply renders no
+	 * decal. Moderation lives entirely in the data layer (0051): the ref is
+	 * harmless to carry regardless of review status, because the image object
+	 * is unreadable to non-owners until approved.
+	 */
+	decal?: string;
 }
 
 /**
@@ -217,7 +227,14 @@ export function normalizeCosmetics(raw: unknown): Cosmetics | undefined {
 		out.pattern = r.pattern;
 	if (typeof r.number === 'number' && Number.isInteger(r.number) && r.number >= 0 && r.number <= 99)
 		out.number = r.number;
-	return out.color || out.pattern || out.number != null ? out : undefined;
+	// Decal ref (6c): a short opaque storage path, never image data (a data: URL
+	// would balloon the stored jsonb and bypass the moderated bucket entirely).
+	if (typeof r.decal === 'string') {
+		const d = r.decal.trim();
+		if (d && d.length <= 220 && !/\s/.test(d) && !d.toLowerCase().startsWith('data:'))
+			out.decal = d;
+	}
+	return out.color || out.pattern || out.number != null || out.decal ? out : undefined;
 }
 
 /**

@@ -2449,6 +2449,74 @@ on one side of the world.
     two independent looks through the storage round-trip, and a pre-6b save with
     no cosmetics loads with the archetype default (no error). `svelte-check`
     clean.
+- **Custom decal upload + teacher moderation (Phase 6c, migration `0051`).** A
+  student uploads ONE free-form image (PNG/JPG, up to 1 MiB and 1024px;
+  client checks in `src/lib/greenline/decals.ts`, size + mime ALSO enforced
+  server-side by the bucket row) as a custom livery decal, gated behind
+  teacher approval.
+  - **Data model (`0051_greenline_decals.sql`, apply manually after 0050):**
+    `greenline_decals` (PK `user_id`, one decal per user) holds `path` (the
+    storage object), `status` (`pending | approved | needs_revision`),
+    `reviewer_feedback`, and submitted/reviewed stamps. Students
+    read/insert/update/delete their OWN row, and every student write is
+    forced to `pending` (WITH CHECK) at ANY current status — deliberately
+    unlike the FRC gate's no-resubmit-after-approval rule, because replacing
+    an APPROVED decal's image must re-enter moderation (approve-once-then-
+    swap-the-image would otherwise bypass the gate). The TEACHER decision is
+    written ONLY by the `greenline_decal_review(p_user_id, p_action,
+    p_feedback)` SECURITY DEFINER RPC (`is_teacher()` enforced inside;
+    feedback text required for `needs_revision`); there is NO teacher-RLS
+    row-update policy, per the cross-user staff-write convention. Approve or
+    request-revision, never a blunt reject: a needs_revision decal stays
+    visible to its owner with the feedback attached.
+  - **Storage:** private bucket `greenline-decals` with `file_size_limit` +
+    `allowed_mime_types` on the bucket row. Every upload goes to a FRESH
+    random path in the user's own `<uid>/` folder and there is deliberately
+    NO storage update policy (objects are immutable in place); moving the
+    row's `path` is what forces it back to pending. Read policy: own folder
+    OR `is_teacher()` OR an APPROVED row matching the object path (the table
+    grants any signed-in user SELECT on approved rows, which is also what
+    makes that policy's EXISTS subquery work under RLS).
+  - **Visibility-gate finding:** NO current surface renders another player's
+    vehicle or livery at all (the track leaderboard is name/archetype TEXT +
+    times, races are vs AI, there is no replay/spectator), so the gate is
+    enforced at the source: an unapproved image is unreadable by non-owners,
+    while the uploader's own use (garage preview, own races) works
+    immediately at any status via owner-read. Any future surface that shows
+    another player's car inherits the gate for free.
+  - **Rendering:** `Cosmetics.decal` (loadout.ts) stores the storage PATH,
+    never image data (`normalizeCosmetics` drops data: URLs / whitespace /
+    overlong strings), and rides the parts jsonb like every 6b field, so the
+    loadout tables needed no migration. `rig-visual.ts` owns a module-level
+    decal-image registry (`registerDecalImage(ref, url)` + cache +
+    `decalImageState`): `/greenline` registers a signed URL, the dev harness
+    a data: URL. `makeCosmeticTexture` composites the image
+    (aspect-preserving contain, async repaint + `needsUpdate` on load,
+    `crossOrigin='anonymous'` so the canvas never taints against real signed
+    URLs) onto the SAME UV-mapped body canvas the 6b pattern uses —
+    deliberately NOT the number's dedicated quads (a picture tolerates the
+    per-face stretch; the glyph did not). A decal-only build (no pattern)
+    now also gets the bodyDecalMat; the scorch-tint path is unchanged. The
+    canvas doubles to 512 when a decal is present.
+  - **Surfaces:** the Garage livery panel gains a Custom decal group
+    (upload/replace/remove, status chip + teacher feedback, Show-on-car
+    toggle riding the existing `oncosmetic`), all presentation-only props;
+    `/greenline` wires it to the decals seam + registry, auto-equipping a
+    fresh upload (fail-soft: control hidden pre-0051). `/dashboard` gains a
+    GREENLINE Decal Reviews queue (`src/lib/greenline/DecalReviewQueue.svelte`,
+    mirroring FrcReviewQueue; pending images signed server-side in
+    `+page.server.ts`; apply-migration note pre-0051) whose both actions call
+    the review RPC. `__greenline` gains `registerDecalImage`, and `getLivery`
+    reports `customDecal` / `customDecalImage`.
+  - **Verified** in `/dev/greenline-portal` (in-memory store driving the REAL
+    `validateDecalFile`, Garage decal UI, and DecalReviewQueue: upload ->
+    pending -> usable by the uploader immediately -> approve -> replace
+    forces re-pending -> revision round-trip with feedback -> resubmit ->
+    remove; wrong-format / oversized-bytes / oversized-dimensions each
+    rejected with a clear reason) and `/dev/greenline-movement?glheadless=1`
+    (decal-only, pattern+decal, and unequip via `getLivery`), plus a
+    claude-in-chrome screenshot of the decal rendered on the hull in the
+    garage preview. `svelte-check` clean, 0 errors.
 
 ## FRC Training track
 

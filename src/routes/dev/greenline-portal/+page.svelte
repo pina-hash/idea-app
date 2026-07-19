@@ -11,6 +11,9 @@
 	import { defaultLoadout, resolveWeaponSockets, sanitizeLoadout, type ArchetypeId, type Cosmetics, type Loadout, type PartSlot } from '$lib/greenline/loadout';
 	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
 	import { GREENLINE_MAX_SLOTS, type LeaderboardEntry, type LoadoutSlot } from '$lib/greenline/persistence';
+	import DecalReviewQueue from '$lib/greenline/DecalReviewQueue.svelte';
+	import { validateDecalFile, type DecalStatus } from '$lib/greenline/decals';
+	import { decalImageState, registerDecalImage } from '$lib/greenline/rig-visual';
 
 	/**
 	 * Dev harness for the /greenline portal-flow chrome (no auth / Supabase). It
@@ -113,6 +116,97 @@
 		if (activeSlot === i) activeSlot = null;
 		lastAction = `delete slot ${i + 1}`;
 	};
+
+	// --- Custom decal (Phase 6c): in-memory store standing in for Supabase. The
+	// REAL validateDecalFile, the REAL Garage decal UI, and the REAL
+	// DecalReviewQueue all run against it, so the full loop — upload -> client
+	// validation -> pending -> student uses it immediately -> teacher approve /
+	// request-revision -> resubmit — is browser-verifiable without auth (the
+	// /dev/frc model-gate convention). Images resolve through rig-visual's decal
+	// registry as data: URLs, exactly where /greenline registers signed URLs.
+	type DevDecal = {
+		path: string;
+		status: DecalStatus;
+		feedback: string;
+		previewUrl: string | null;
+		submittedAt: string;
+	};
+	let devDecal = $state<DevDecal | null>(null);
+	let decalBusy = $state(false);
+	let decalError = $state('');
+	let showDecalQueue = $state(false);
+	let decalSeq = 0;
+	const handleDecalUpload = async (file: File) => {
+		decalError = '';
+		decalBusy = true;
+		const reason = await validateDecalFile(file);
+		if (reason) {
+			decalError = reason;
+			decalBusy = false;
+			lastAction = `decal rejected: ${reason}`;
+			return;
+		}
+		const dataUrl = await new Promise<string>((resolve, reject) => {
+			const fr = new FileReader();
+			fr.onload = () => resolve(fr.result as string);
+			fr.onerror = () => reject(fr.error);
+			fr.readAsDataURL(file);
+		});
+		const path = `dev-user/decal-${++decalSeq}`;
+		registerDecalImage(path, dataUrl);
+		devDecal = {
+			path,
+			status: 'pending',
+			feedback: '',
+			previewUrl: dataUrl,
+			submittedAt: new Date().toISOString()
+		};
+		// A fresh upload auto-equips, like the real route.
+		setCosmetic({ decal: path });
+		decalBusy = false;
+		lastAction = `decal uploaded -> pending (${path})`;
+	};
+	const handleDecalRemove = () => {
+		if (loadout.cosmetics?.decal) setCosmetic({ decal: undefined });
+		devDecal = null;
+		lastAction = 'decal removed';
+	};
+	const decalQueueItems = $derived(
+		devDecal && devDecal.status === 'pending'
+			? [
+					{
+						userId: 'dev-user',
+						studentName: 'Dev Student',
+						studentEmail: 'dev.student@boscotech.net',
+						imageUrl: devDecal.previewUrl,
+						submittedAt: devDecal.submittedAt
+					}
+				]
+			: []
+	);
+	const devApproveDecal = (userId: string) => {
+		if (devDecal) devDecal = { ...devDecal, status: 'approved', feedback: '' };
+		lastAction = `decal approved (${userId})`;
+	};
+	const devReviseDecal = (userId: string, feedback: string) => {
+		if (devDecal) devDecal = { ...devDecal, status: 'needs_revision', feedback };
+		lastAction = `decal revision requested (${userId}): ${feedback}`;
+	};
+	// Scripted-verification hook: the decal store + registry state, console-readable.
+	$effect(() => {
+		if (!browser) return;
+		(window as unknown as Record<string, unknown>).__glDecal = {
+			get: () => devDecal,
+			imageState: (ref: string) => decalImageState(ref),
+			upload: handleDecalUpload,
+			approve: () => devApproveDecal('dev-user'),
+			revise: (fb: string) => devReviseDecal('dev-user', fb),
+			remove: handleDecalRemove
+		};
+		return () => {
+			delete (window as unknown as Record<string, unknown>).__glDecal;
+		};
+	});
 
 	// Settings overlay (real component).
 	let settingsOpen = $state(false);
@@ -286,6 +380,11 @@
 	<button class:on={view === 'garage'} onclick={() => (view = 'garage')}>garage</button>
 	<button class:on={view === 'race'} onclick={() => (view = 'race')}>race</button>
 	<button class:on={view === 'results'} onclick={() => (view = 'results')}>results</button>
+	{#if view === 'garage'}
+		<button class:on={showDecalQueue} onclick={() => (showDecalQueue = !showDecalQueue)}>
+			decal queue ({decalQueueItems.length})
+		</button>
+	{/if}
 	{#if view !== 'results'}<span class="dh-note">last: {lastAction || '—'}</span>{/if}
 	{#if view === 'results'}
 		<span class="dh-note">music:</span>
@@ -343,7 +442,24 @@
 			{onSaveSlot}
 			{onLoadSlot}
 			{onDeleteSlot}
+			decal={devDecal}
+			{decalBusy}
+			{decalError}
+			onDecalUpload={handleDecalUpload}
+			onDecalRemove={handleDecalRemove}
 		/>
+		{#if showDecalQueue}
+			<!-- The REAL dashboard review queue over the in-memory store: the
+			     teacher half of the 6c round-trip, verifiable beside the garage. -->
+			<div class="dh-decal-queue">
+				<div class="dh-decal-queue-head">decal review queue (dev · real DecalReviewQueue)</div>
+				<DecalReviewQueue
+					items={decalQueueItems}
+					onApprove={devApproveDecal}
+					onRequestRevision={devReviseDecal}
+				/>
+			</div>
+		{/if}
 	{:else if view === 'race'}
 		<div class="dh-center">
 			<div class="dh-racenote">
@@ -432,6 +548,24 @@
 		position: fixed;
 		inset: 0;
 		z-index: 60;
+	}
+	.dh-decal-queue {
+		position: fixed;
+		top: 4.8rem;
+		right: 0.6rem;
+		width: min(24rem, 92vw);
+		z-index: 45;
+		background: #04120a;
+		border: 1px solid rgba(0, 255, 65, 0.35);
+		border-radius: 6px;
+		padding: 0.5rem 0.7rem 0.7rem;
+		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+	}
+	.dh-decal-queue-head {
+		font-size: 0.66rem;
+		color: #7fbf8f;
+		letter-spacing: 0.08em;
+		margin-bottom: 0.2rem;
 	}
 	.dh-center {
 		min-height: 100%;

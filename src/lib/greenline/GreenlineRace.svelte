@@ -101,7 +101,9 @@
 	import {
 		COM_DROP,
 		createRigVisuals,
+		decalImageState,
 		GL,
+		registerDecalImage,
 		visualKeyFor,
 		WHEEL_CONNECTIONS,
 		WHEEL_RADIUS
@@ -4277,6 +4279,11 @@
 						setCosmetic(patch);
 						return playerLoadout.cosmetics ?? null;
 					},
+					// 6c: make a decal ref resolvable from a scripted drive (the
+					// pages register real signed URLs; a harness registers a
+					// data: URL), so the custom-decal texture path is verifiable
+					// headless.
+					registerDecalImage: (ref: string, url: string | null) => registerDecalImage(ref, url),
 					getCosmetics: () => playerLoadout.cosmetics ?? null,
 					// Structural livery introspection for headless verification: the
 					// resolved body color, whether a decal texture is live, and the
@@ -4294,7 +4301,14 @@
 							decalUsesMap: !!(r.bodyDecalMat && r.bodyDecalMat.map),
 							bodyMeshUsesDecal: !!(r.bodyDecalMat && r.bodyMesh.material === r.bodyDecalMat),
 							decalColor: r.bodyDecalMat ? '0x' + (r.bodyDecalMat.color.getHex() >>> 0).toString(16) : null,
-							numberQuads
+							numberQuads,
+							// Custom decal (6c): the equipped ref + its image's load state
+							// in the module registry.
+							customDecal: r === player ? (playerLoadout.cosmetics?.decal ?? null) : null,
+							customDecalImage:
+								r === player && playerLoadout.cosmetics?.decal
+									? decalImageState(playerLoadout.cosmetics.decal)
+									: null
 						};
 					},
 					// ---- Equipped-weapon drive hooks (Phase 4a) ----
