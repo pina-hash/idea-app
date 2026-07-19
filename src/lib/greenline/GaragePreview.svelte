@@ -137,11 +137,15 @@
 				}
 
 				let bodyMesh: InstanceType<typeof THREE.Mesh> | null = null;
+				// Phase 6b livery decals (pattern + number materials/textures); ours
+				// to dispose on each rebuild + teardown, like the hull clone.
+				let cosmeticDisposables: { dispose(): void }[] = [];
 				let lastKey = '';
 				applyBuild = (l: Loadout) => {
 					if (visualKeyFor(l) === lastKey) return;
-					// The previous per-vehicle hull clone is ours to dispose.
+					// The previous per-vehicle hull clone + livery decals are ours to dispose.
 					bodyMesh?.geometry.dispose();
+					for (const d of cosmeticDisposables) d.dispose();
 					const built = rigVis.build(
 						{
 							chassis: partChassis,
@@ -155,6 +159,7 @@
 						l
 					);
 					bodyMesh = built.bodyMesh;
+					cosmeticDisposables = built.cosmeticDisposables;
 					lastKey = built.key;
 				};
 				applyBuild(loadout);
@@ -204,6 +209,7 @@
 					controls.dispose();
 					applyBuild = null;
 					bodyMesh?.geometry.dispose();
+					for (const d of cosmeticDisposables) d.dispose();
 					hullMat.dispose();
 					mountMat.dispose();
 					pedestal.geometry.dispose();

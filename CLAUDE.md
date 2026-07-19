@@ -2392,6 +2392,63 @@ on one side of the world.
     verification. Solo/normal play byte-identical for non-damage frames; the
     debris/spark pools stay ring-buffer-capped (48 / 1000) through connector
     failures (browser-verified 48/48, never exceeded).
+- **Preset cosmetic customization (Phase 6b, cars only): color, pattern, car
+  number.** A purely visual livery layer — no stat, no physics, no gate.
+  - **Data (`loadout.ts`):** an OPTIONAL `Loadout.cosmetics` (`Cosmetics =
+    {color?, pattern?, number?}`), the 4c weaponSockets precedent exactly — it
+    rides INSIDE the existing `parts` jsonb via `partsForStorage` (no migration;
+    a pre-6b client ignores the extra key, a pre-6b row loads with no override),
+    and `normalizeStoredLoadout` reads it back from the explicit arg
+    (localStorage, top-level) OR the embedded `parts.cosmetics` (DB rows) — the
+    same dual-source read weaponSockets uses. `normalizeCosmetics` drops unknown
+    color/pattern ids, the 'none' pattern, and out-of-range numbers, returning
+    `undefined` when nothing valid survives, so an all-default livery is stored
+    as absence (round-trips byte-identical). `COSMETIC_COLORS` (10-swatch curated
+    palette, independent of archetype) + `COSMETIC_PATTERNS` (none / center
+    stripe / twin / wedge / checker) are plain client-safe registries. Threaded
+    through ALL persistence paths: localStorage (`serializeLoadout`/`parseLoadout`
+    carry it top-level), the working Supabase build + the 5 named slots (both via
+    `partsForStorage`), and the slot SNAPSHOTS in both the real route and the dev
+    harness (which construct `{archetype,parts,weaponSockets,cosmetics}` by hand
+    — the one place the field had to be added explicitly).
+  - **Color (`rig-visual.ts`):** `cosmeticColorHex(l.cosmetics?.color)` overrides
+    the archetype `tone` in `compose()`, so the LIVERY color becomes `hullMat`'s
+    color AND `rig.baseColor` — the damage-scorch lerp reads FROM the custom base,
+    verified to darken sensibly toward charcoal from any palette color (crimson
+    72→`0xb23b3b`, 56→`0xa43637`, 21→`0x7f2b2b`).
+  - **Pattern** rides a runtime canvas texture on a DEDICATED bodyMesh decal
+    material (base color + pattern; plates keep the plain hull mat so it never
+    tiles across every plate). Its `.color` is a WHITE-based scorch MULTIPLIER
+    over the full-color map (`white.lerp(charcoal)` on the neutral branch, the
+    state tints on hit/down/oiled/out), tinted alongside `bodyMat` each frame so
+    the textured body still chars with damage.
+  - **Car number** (the FUNCTIONAL element — tells cars apart on the board / in a
+    race) is NOT on the body canvas: a single square canvas stretches to each box
+    face's aspect (up to 3.8:1 on the flanks) and the canopy hides the top, both
+    of which smear a number illegibly (verified failure). Instead it rides
+    dedicated UPRIGHT, UNLIT decal quads (`makeNumberTexture`: a bright glyph on a
+    high-contrast rounded plate, transparent elsewhere) on both flanks
+    (left un-mirrored via `scale.x = -1`) + the tail, placed off the archetype
+    anchors — browser-verified legible in the garage AND at race chase-cam
+    distance. The quads ride the chassis group (cleared on rebuild); their
+    material/texture + the pattern decal are returned as `cosmeticDisposables`
+    the caller disposes on the next rebuild so a live swap never leaks.
+    Deliberate tradeoff: the number quads are unlit (constant brightness) so they
+    stay legible in the murky race night and do NOT scorch with damage — a
+    racing number reads even on a battered car.
+  - **Garage UI (`Garage.svelte`):** a LIVERY panel (color swatches incl. an "A"
+    archetype-default, pattern picker, 0-99 number input clamped/validated) via a
+    new `oncosmetic` callback, live-updating `GaragePreview` through
+    `visualKeyFor` (now keyed on cosmetics) exactly like every other garage edit.
+    `GreenlineRace` gains `setCosmetic` + `__greenline.setCosmetic`/`getLivery`
+    for the console API + headless verification.
+  - Verified in `/dev/greenline-portal` + `/dev/greenline-movement` (structural
+    via `getLivery` + pure-function round-trips; visual via claude-in-chrome):
+    color threads to the scorch base, pattern + number render in garage AND
+    in-race with the number legible at chase-cam distance, two named slots hold
+    two independent looks through the storage round-trip, and a pre-6b save with
+    no cosmetics loads with the archetype default (no error). `svelte-check`
+    clean.
 
 ## FRC Training track
 

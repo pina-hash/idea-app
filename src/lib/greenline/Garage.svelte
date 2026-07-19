@@ -7,6 +7,8 @@
 		abilitySlotCost,
 		archetypeById,
 		ARCHETYPES,
+		COSMETIC_COLORS,
+		COSMETIC_PATTERNS,
 		describeEffects,
 		describeStats,
 		mountCapacityFor,
@@ -20,6 +22,7 @@
 		weaponLoadoutIssue,
 		weaponMountCost,
 		type ArchetypeId,
+		type Cosmetics,
 		type Loadout,
 		type PartSlot,
 		type StatKey
@@ -56,6 +59,7 @@
 		onselect,
 		onequip,
 		onsocket,
+		oncosmetic,
 		onclose,
 		note = 'all parts unlocked (dev) · applies live to the player vehicle',
 		closeLabel = 'CLOSE (G)',
@@ -80,6 +84,9 @@
 		/** Pick a mount socket for an equipped weapon slot (Phase 4c). The
 		 * parent sanitizes + persists exactly like an equip. */
 		onsocket?: (slot: WeaponSlotId, socket: WeaponSocketId) => void;
+		/** Patch the preset livery (Phase 6b): color / pattern / number. The
+		 * parent merges + re-normalizes + persists, exactly like an equip. */
+		oncosmetic?: (patch: Partial<Cosmetics>) => void;
 		onclose: () => void;
 		/** Sub-title copy (defaults to the dev-harness note). */
 		note?: string;
@@ -113,6 +120,21 @@
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
+
+	// --- Livery (Phase 6b): preset color / pattern / number. Presentation only;
+	// the number input clamps 0-99 and an empty value clears it. ---
+	const livery = $derived(loadout.cosmetics);
+	const swHex = (n: number) => '#' + n.toString(16).padStart(6, '0');
+	const onNumberInput = (e: Event) => {
+		const raw = (e.currentTarget as HTMLInputElement).value.trim();
+		if (raw === '') {
+			oncosmetic?.({ number: undefined });
+			return;
+		}
+		const n = parseInt(raw, 10);
+		if (Number.isNaN(n)) return;
+		oncosmetic?.({ number: Math.max(0, Math.min(99, n)) });
+	};
 
 	// --- Weapon mounts: the flat capacity budget (never a multiplier). The
 	// picker blocks any invalid pairing OUTRIGHT with the reason shown, so an
@@ -512,6 +534,70 @@
 			</div>
 		{:else}
 			{@render archetypeSection()}
+		{/if}
+
+		{#if oncosmetic}
+			<div class="gg-section-label">Livery</div>
+			<div class="gg-livery">
+				<div class="gg-livery-group">
+					<div class="gg-livery-label">Color</div>
+					<div class="gg-swatches">
+						<button
+							type="button"
+							class="gg-swatch gg-swatch-def"
+							class:sel={!livery?.color}
+							onclick={() => oncosmetic?.({ color: undefined })}
+							title="Archetype default"
+							aria-label="Archetype default color"
+						>
+							<span aria-hidden="true">A</span>
+						</button>
+						{#each COSMETIC_COLORS as c (c.id)}
+							<button
+								type="button"
+								class="gg-swatch"
+								class:sel={livery?.color === c.id}
+								style="--sw: {swHex(c.hex)}"
+								onclick={() => oncosmetic?.({ color: c.id })}
+								title={c.name}
+								aria-label={c.name}
+							></button>
+						{/each}
+					</div>
+				</div>
+				<div class="gg-livery-group">
+					<div class="gg-livery-label">Pattern</div>
+					<div class="gg-patterns">
+						{#each COSMETIC_PATTERNS as p (p.id)}
+							<button
+								type="button"
+								class="gg-pattern"
+								class:sel={(livery?.pattern ?? 'none') === p.id}
+								onclick={() => oncosmetic?.({ pattern: p.id })}
+							>
+								{p.name}
+							</button>
+						{/each}
+					</div>
+				</div>
+				<div class="gg-livery-group gg-livery-num">
+					<div class="gg-livery-label">Car number</div>
+					<div class="gg-num-row">
+						<input
+							class="gg-num-input"
+							type="number"
+							min="0"
+							max="99"
+							inputmode="numeric"
+							placeholder="--"
+							value={livery?.number ?? ''}
+							oninput={onNumberInput}
+							aria-label="Car number, 0 to 99"
+						/>
+						<span class="gg-num-hint">0–99 · tells cars apart</span>
+					</div>
+				</div>
+			</div>
 		{/if}
 
 		<div class="gg-section-label gg-weapons-head">
@@ -1445,5 +1531,104 @@
 	.gg-slot-btn.danger {
 		color: var(--glb-amber);
 		border-color: rgba(255, 176, 46, 0.5);
+	}
+	/* Livery panel (Phase 6b): color swatches, pattern picker, number input. */
+	.gg-livery {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.9rem 1.4rem;
+		align-items: flex-start;
+	}
+	.gg-livery-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.32rem;
+	}
+	.gg-livery-label {
+		color: var(--glb-ink-faint);
+		font-size: 0.6rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+	}
+	.gg-swatches {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.32rem;
+	}
+	.gg-swatch {
+		width: 1.55rem;
+		height: 1.55rem;
+		border-radius: 2px;
+		border: 1px solid var(--glb-line-strong);
+		background: var(--sw, #10151a);
+		cursor: pointer;
+		padding: 0;
+		position: relative;
+		box-shadow: inset 0 1px 0 rgba(247, 251, 254, 0.18);
+	}
+	.gg-swatch.sel {
+		outline: 2px solid var(--glb-green);
+		outline-offset: 1px;
+		border-color: var(--glb-green);
+	}
+	.gg-swatch-def {
+		display: grid;
+		place-items: center;
+		background: var(--glb-panel-2);
+		color: var(--glb-ink-dim);
+		font-size: 0.68rem;
+		font-weight: 700;
+	}
+	.gg-patterns {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+	}
+	.gg-pattern {
+		padding: 0.24rem 0.55rem;
+		border: 1px solid var(--glb-line);
+		background: var(--glb-panel-2);
+		color: var(--glb-ink-dim);
+		font-size: 0.66rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		cursor: pointer;
+		border-radius: 2px;
+	}
+	.gg-pattern:hover {
+		color: var(--glb-ink);
+		border-color: var(--glb-line-strong);
+	}
+	.gg-pattern.sel {
+		color: #041b0f;
+		background: var(--glb-green-ui);
+		border-color: var(--glb-green);
+		font-weight: 700;
+	}
+	.gg-num-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.gg-num-input {
+		width: 4rem;
+		padding: 0.28rem 0.45rem;
+		background: var(--glb-panel);
+		border: 1px solid var(--glb-line-strong);
+		color: var(--glb-ink);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 1.1rem;
+		text-align: center;
+		border-radius: 2px;
+	}
+	.gg-num-input:focus {
+		outline: none;
+		border-color: var(--glb-green);
+	}
+	.gg-num-hint {
+		color: var(--glb-ink-faint);
+		font-size: 0.6rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
 	}
 </style>

@@ -8,7 +8,7 @@
 	import GreenlineMusic from '$lib/greenline/GreenlineMusic.svelte';
 	import GreenlineSettings from '$lib/greenline/GreenlineSettings.svelte';
 	import { GARAGE_BASELINE, type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
-	import { defaultLoadout, resolveWeaponSockets, sanitizeLoadout, type ArchetypeId, type Loadout, type PartSlot } from '$lib/greenline/loadout';
+	import { defaultLoadout, resolveWeaponSockets, sanitizeLoadout, type ArchetypeId, type Cosmetics, type Loadout, type PartSlot } from '$lib/greenline/loadout';
 	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
 	import { GREENLINE_MAX_SLOTS, type LeaderboardEntry, type LoadoutSlot } from '$lib/greenline/persistence';
 
@@ -55,6 +55,11 @@
 		activeSlot = null;
 		lastAction = `socket ${slot} -> ${socket}`;
 	};
+	const setCosmetic = (patch: Partial<Cosmetics>) => {
+		loadout = sanitizeLoadout({ ...loadout, cosmetics: { ...loadout.cosmetics, ...patch } });
+		activeSlot = null;
+		lastAction = `livery ${Object.keys(patch).join(',')}`;
+	};
 	// Scripted-verification hook (dev harness only): lets a console drive set
 	// whole loadouts and read the resolved sockets without clicking through
 	// the picker — the regression surface for the 4c clip/conflict checks.
@@ -81,7 +86,8 @@
 						loadout: {
 							archetype: loadout.archetype,
 							parts: { ...loadout.parts },
-							weaponSockets: { ...loadout.weaponSockets }
+							weaponSockets: { ...loadout.weaponSockets },
+							cosmetics: loadout.cosmetics
 						},
 						updatedAt: new Date().toISOString()
 					}
@@ -96,7 +102,8 @@
 		loadout = {
 			archetype: s.loadout.archetype,
 			parts: { ...s.loadout.parts },
-			weaponSockets: { ...s.loadout.weaponSockets }
+			weaponSockets: { ...s.loadout.weaponSockets },
+			cosmetics: s.loadout.cosmetics
 		};
 		activeSlot = i;
 		lastAction = `load slot ${i + 1}`;
@@ -324,6 +331,7 @@
 			onselect={selectArchetype}
 			onequip={equipPart}
 			onsocket={setSocket}
+			oncosmetic={setCosmetic}
 			note="choose your build · saved to your account"
 			closeLabel="START RACE ▸"
 			onclose={() => (lastAction = 'START RACE')}

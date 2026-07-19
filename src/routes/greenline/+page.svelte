@@ -12,6 +12,7 @@
 		defaultLoadout,
 		sanitizeLoadout,
 		type ArchetypeId,
+		type Cosmetics,
 		type Loadout,
 		type PartSlot
 	} from '$lib/greenline/loadout';
@@ -118,6 +119,12 @@
 		});
 		persistBuild(null);
 	};
+	// Preset livery patch (Phase 6b): same sanitize-and-persist path; cosmetics
+	// ride the parts jsonb via partsForStorage, so saveUserLoadout stores them.
+	const setCosmetic = (patch: Partial<Cosmetics>) => {
+		loadout = sanitizeLoadout({ ...loadout, cosmetics: { ...loadout.cosmetics, ...patch } });
+		persistBuild(null);
+	};
 
 	// --- Named slot actions (fail soft; local state updates optimistically) ---
 	const onSaveSlot = async (i: number, name: string) => {
@@ -127,7 +134,8 @@
 			loadout: {
 				archetype: loadout.archetype,
 				parts: { ...loadout.parts },
-				weaponSockets: { ...loadout.weaponSockets }
+				weaponSockets: { ...loadout.weaponSockets },
+				cosmetics: loadout.cosmetics
 			},
 			updatedAt: new Date().toISOString()
 		};
@@ -141,7 +149,8 @@
 		loadout = {
 			archetype: s.loadout.archetype,
 			parts: { ...s.loadout.parts },
-			weaponSockets: { ...s.loadout.weaponSockets }
+			weaponSockets: { ...s.loadout.weaponSockets },
+			cosmetics: s.loadout.cosmetics
 		};
 		persistBuild(i);
 	};
@@ -215,6 +224,7 @@
 				onselect={selectArchetype}
 				onequip={equipPart}
 				onsocket={setSocket}
+				oncosmetic={setCosmetic}
 				note={garageNote}
 				closeLabel="START RACE ▸"
 				onclose={() => (screen = 'race')}

@@ -42,7 +42,13 @@
 
 import type * as THREE from 'three';
 import type { WeaponSocketId } from './combat';
-import { resolveWeaponSockets, type Loadout } from './loadout';
+import {
+	cosmeticColorHex,
+	normalizeCosmetics,
+	resolveWeaponSockets,
+	type Cosmetics,
+	type Loadout
+} from './loadout';
 
 type ThreeModule = typeof import('three');
 
@@ -81,7 +87,8 @@ export const WHEEL_CONNECTIONS: [number, number, number][] = [
  */
 export const visualKeyFor = (l: Loadout): string => {
 	const s = resolveWeaponSockets(l);
-	return `${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.weaponPrimary}@${s.weaponPrimary ?? '-'}|${l.parts.weaponSecondary}@${s.weaponSecondary ?? '-'}`;
+	const c = l.cosmetics;
+	return `${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.weaponPrimary}@${s.weaponPrimary ?? '-'}|${l.parts.weaponSecondary}@${s.weaponSecondary ?? '-'}|${c?.color ?? '-'}/${c?.pattern ?? '-'}/${c?.number ?? '-'}`;
 };
 
 export type PartName = 'chassis' | 'armor' | 'mount';
@@ -208,12 +215,30 @@ export interface VehicleVisualTarget {
 
 export interface BuiltVehicleVisual {
 	key: string;
-	/** The archetype body tone the hull mat was set to (scorch lerps from it). */
+	/** The body tone the hull mat was set to — the LIVERY color when the build
+	 * overrides it, else the archetype tone. Scorch lerps the plates from this. */
 	tone: number;
 	/** The per-vehicle deformable hull mesh (the crumple target). */
 	bodyMesh: THREE.Mesh;
 	/** Pristine hull-geometry positions, restored on heal/reset. */
 	dentBase: Float32Array;
+	/**
+	 * Phase 6b livery PATTERN material. When the build carries a livery pattern,
+	 * the bodyMesh gets a DEDICATED material carrying a runtime canvas texture
+	 * (base color + pattern on the body's UV faces; plates keep the plain hull
+	 * material so it never duplicates across them). Its `.color` is a WHITE-based
+	 * scorch MULTIPLIER over the map, so the caller tints it alongside hullMat
+	 * each frame and the body still chars with damage. null when the build has
+	 * no pattern (bodyMesh uses hullMat as before).
+	 */
+	bodyDecalMat: THREE.MeshStandardMaterial | null;
+	/**
+	 * Every per-build cosmetic material + texture (the pattern decal, the number
+	 * decal, and the number quads' material) the CALLER must dispose on the next
+	 * rebuild so a live livery swap never leaks. The number quads themselves are
+	 * added to the chassis group and cleared by the next build()'s group.clear().
+	 */
+	cosmeticDisposables: { dispose(): void }[];
 }
 
 export type RigVisuals = ReturnType<typeof createRigVisuals>;
@@ -1098,9 +1123,14 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		// Mount-seam connectors: struts/tabs fastening each hardpoint to the body.
 		nodes.push(...mountConnectorNodes(base.sockets, l.archetype));
 		const wheel = wheelFor(l.parts.tires, base.wheelWidth);
+		// Livery color (Phase 6b): a curated palette override, independent of
+		// archetype. Falls back to the archetype tone when unset/unknown. This
+		// becomes the hull-mat color AND rig.baseColor, so the damage scorch lerps
+		// from the CUSTOM base, not the archetype default.
+		const tone = cosmeticColorHex(l.cosmetics?.color) ?? base.tone;
 		const vis: ComposedVisual = {
 			key,
-			tone: base.tone,
+			tone,
 			metalness: base.metalness,
 			roughness: base.roughness,
 			sockets: base.sockets,
@@ -1112,6 +1142,112 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		composedCache.set(key, vis);
 		return vis;
 	};
+
+	// ---- Livery body texture (Phase 6b). A runtime-generated canvas (NOT a
+	// pre-baked asset): the base color fill + the chosen PATTERN, drawn onto a
+	// square canvas the body box's per-face UVs sample. Applied ONLY to the
+	// bodyMesh's dedicated decal material (plates keep the plain hull material),
+	// so the livery never tiles across every plate. The car NUMBER is NOT drawn
+	// here — a single square canvas stretches to each face's aspect (up to 3.8:1
+	// on the long flanks), which smears a number illegibly; it rides dedicated
+	// upright decal quads instead (makeNumberTexture / the quad placements
+	// below). Stripes/geometric fills tolerate the stretch, so they stay here. ----
+	const makeCosmeticTexture = (cos: Cosmetics, baseHex: number): THREE.CanvasTexture => {
+		const S = 256;
+		const cv = document.createElement('canvas');
+		cv.width = cv.height = S;
+		const ctx = cv.getContext('2d')!;
+		const toHex = (n: number) => '#' + (n & 0xffffff).toString(16).padStart(6, '0');
+		ctx.fillStyle = toHex(baseHex);
+		ctx.fillRect(0, 0, S, S);
+		const r = (baseHex >> 16) & 255;
+		const g = (baseHex >> 8) & 255;
+		const b = baseHex & 255;
+		const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+		const light = '#eef3f7';
+		const dark = '#111417';
+		const inkOn = lum > 0.55 ? dark : light; // contrasts the base
+		const inkAlt = lum > 0.55 ? light : dark; // the opposite, for the outline
+		// Stripes run front-to-back (vertical bands in UV); geometric fills.
+		ctx.fillStyle = inkOn;
+		const p = cos.pattern;
+		if (p === 'stripe') {
+			ctx.fillRect(S * 0.42, 0, S * 0.16, S);
+		} else if (p === 'twin') {
+			ctx.fillRect(S * 0.29, 0, S * 0.09, S);
+			ctx.fillRect(S * 0.62, 0, S * 0.09, S);
+		} else if (p === 'wedge') {
+			ctx.beginPath();
+			ctx.moveTo(0, S);
+			ctx.lineTo(S, 0);
+			ctx.lineTo(S, S);
+			ctx.closePath();
+			ctx.fill();
+		} else if (p === 'checker') {
+			const n = 8;
+			const cs = S / n;
+			for (let iy = 3; iy <= 4; iy++)
+				for (let ix = 0; ix < n; ix++)
+					if ((ix + iy) % 2 === 0) ctx.fillRect(ix * cs, iy * cs, cs, cs);
+		}
+		void inkOn;
+		void inkAlt;
+		const tex = new three.CanvasTexture(cv);
+		tex.colorSpace = three.SRGBColorSpace;
+		tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+		tex.needsUpdate = true;
+		return tex;
+	};
+
+	// The car NUMBER as an UPRIGHT decal on a high-contrast rounded plate
+	// (transparent elsewhere), sized to a fixed aspect so it never stretches. A
+	// dark semi-opaque plate + bright glyph reads on ANY livery color, and the
+	// quads that carry it (below) are unlit so it stays legible at race distance
+	// in the murky night. The plate is the classic racing-number roundel.
+	const makeNumberTexture = (num: number): THREE.CanvasTexture => {
+		const W = 176;
+		const H = 120;
+		const cv = document.createElement('canvas');
+		cv.width = W;
+		cv.height = H;
+		const ctx = cv.getContext('2d')!;
+		ctx.clearRect(0, 0, W, H);
+		// Rounded contrast plate.
+		const pad = 8;
+		const r = 16;
+		ctx.beginPath();
+		ctx.moveTo(pad + r, pad);
+		ctx.arcTo(W - pad, pad, W - pad, H - pad, r);
+		ctx.arcTo(W - pad, H - pad, pad, H - pad, r);
+		ctx.arcTo(pad, H - pad, pad, pad, r);
+		ctx.arcTo(pad, pad, W - pad, pad, r);
+		ctx.closePath();
+		ctx.fillStyle = 'rgba(8, 11, 14, 0.74)';
+		ctx.fill();
+		ctx.lineWidth = 4;
+		ctx.strokeStyle = 'rgba(238, 243, 247, 0.5)';
+		ctx.stroke();
+		// The glyph.
+		const t = String(num);
+		ctx.font = `900 ${Math.round(H * 0.66)}px 'Share Tech Mono', 'Arial Black', system-ui, sans-serif`;
+		ctx.textAlign = 'center';
+		ctx.textBaseline = 'middle';
+		ctx.lineJoin = 'round';
+		ctx.lineWidth = 6;
+		ctx.strokeStyle = 'rgba(4, 6, 8, 0.85)';
+		ctx.strokeText(t, W / 2, H * 0.54);
+		ctx.fillStyle = '#f2f7fb';
+		ctx.fillText(t, W / 2, H * 0.54);
+		const tex = new three.CanvasTexture(cv);
+		tex.colorSpace = three.SRGBColorSpace;
+		tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+		tex.needsUpdate = true;
+		return tex;
+	};
+	// One shared plane for every number decal (per-rig material carries the
+	// texture). 0.86 wide x 0.58 tall matches the plate aspect.
+	const numberQuadGeo = () =>
+		getGeo('numberQuad', () => new three.PlaneGeometry(0.86, 0.58));
 
 	// ---- The builder both surfaces call. Clears the target's part groups,
 	// repopulates them from the composed shared geometry set, restyles the
@@ -1187,7 +1323,69 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		target.hullMat.color.setHex(vis.tone);
 		target.hullMat.metalness = vis.metalness;
 		target.hullMat.roughness = vis.roughness;
-		return { key: vis.key, tone: vis.tone, bodyMesh: bodyMesh!, dentBase };
+		// Livery (Phase 6b). PATTERN -> a dedicated bodyMesh decal material
+		// carrying the base+pattern canvas (plates keep the plain hull mat; its
+		// color is a WHITE-based scorch multiplier so the body still chars).
+		// NUMBER -> upright, unlit decal quads on both flanks + the tail, so it
+		// reads undistorted at race distance and never hides under the canopy.
+		// Everything created here is disposed by the caller on the next rebuild;
+		// the number quads themselves ride the chassis group and are removed by
+		// the next build()'s group.clear().
+		let bodyDecalMat: THREE.MeshStandardMaterial | null = null;
+		const cosmeticDisposables: { dispose(): void }[] = [];
+		const cos = normalizeCosmetics(l.cosmetics);
+		if (cos?.pattern && bodyMesh) {
+			const tex = makeCosmeticTexture(cos, vis.tone);
+			bodyDecalMat = target.hullMat.clone();
+			bodyDecalMat.map = tex;
+			bodyDecalMat.color.setHex(0xffffff);
+			bodyDecalMat.needsUpdate = true;
+			bodyMesh.material = bodyDecalMat;
+			cosmeticDisposables.push(tex, bodyDecalMat);
+		}
+		if (cos?.number != null) {
+			const ntex = makeNumberTexture(cos.number);
+			const nmat = new three.MeshBasicMaterial({
+				map: ntex,
+				transparent: true,
+				depthWrite: false,
+				side: three.DoubleSide
+			});
+			const a = archBase(l.archetype).anchors;
+			const zc = a.halfW + 0.05;
+			const yc = a.deckY - 0.1;
+			// Right flank (+z), left flank (-z, un-mirrored via scale.x), tail (-x).
+			const placements: {
+				pos: [number, number, number];
+				rot: [number, number, number];
+				sx: number;
+			}[] = [
+				{ pos: [0.15, yc, zc], rot: [0, 0, 0], sx: 1 },
+				{ pos: [0.15, yc, -zc], rot: [0, Math.PI, 0], sx: -1 },
+				{ pos: [a.tailX - 0.05, a.deckY, 0], rot: [0, -Math.PI / 2, 0], sx: 1 }
+			];
+			for (const pl of placements) {
+				const q = new three.Mesh(numberQuadGeo(), nmat);
+				q.position.set(pl.pos[0], pl.pos[1], pl.pos[2]);
+				q.rotation.set(pl.rot[0], pl.rot[1], pl.rot[2]);
+				q.scale.x = pl.sx;
+				// A deliberate surface decal (rides on the hull): tag it so the clip
+				// check treats the hull overlap as intentional, and mark it a number
+				// decal for introspection.
+				q.userData.tag = 'socketBase';
+				q.userData.numberDecal = true;
+				groups.chassis.add(q);
+			}
+			cosmeticDisposables.push(ntex, nmat);
+		}
+		return {
+			key: vis.key,
+			tone: vis.tone,
+			bodyMesh: bodyMesh!,
+			dentBase,
+			bodyDecalMat,
+			cosmeticDisposables
+		};
 	};
 
 	/** Per-vehicle tintable hull material (the race's browser-tuned recipe). */

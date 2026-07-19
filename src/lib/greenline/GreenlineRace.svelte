@@ -85,12 +85,14 @@
 		archetypeById,
 		defaultLoadout,
 		neutralStats,
+		normalizeCosmetics,
 		parseLoadout,
 		resolveLoadout,
 		resolveWeaponSockets,
 		sanitizeLoadout,
 		serializeLoadout,
 		type ArchetypeId,
+		type Cosmetics,
 		type Loadout,
 		type PartSlot,
 		type ResolvedStats
@@ -344,6 +346,17 @@
 		playerLoadout = sanitizeLoadout({
 			...playerLoadout,
 			weaponSockets: { ...playerLoadout.weaponSockets, [slot]: socket }
+		});
+		persistLoadout();
+	};
+	// Preset livery patch (Phase 6b): merge the {color?, pattern?, number?} field
+	// and re-normalize (drops invalid/default values, 'none' pattern, out-of-range
+	// numbers). Purely cosmetic, so no sim reset — applyPlayerLoadout rebuilds the
+	// bodywork via visualKeyFor, exactly like an equip.
+	const setCosmetic = (patch: Partial<Cosmetics>) => {
+		playerLoadout = sanitizeLoadout({
+			...playerLoadout,
+			cosmetics: normalizeCosmetics({ ...playerLoadout.cosmetics, ...patch })
 		});
 		persistLoadout();
 	};
@@ -1818,7 +1831,15 @@
 					/** The single deformable hull mesh inside parts.chassis: the
 					 * crumple target, its geometry cloned per rig. */
 					bodyMesh: InstanceType<typeof THREE.Mesh>;
-					/** The archetype's chrome-ramp body tone (scorch lerps from it). */
+					/** Phase 6b livery: the bodyMesh's dedicated pattern-decal material
+					 * (null unless the build has a pattern; its color is a white-based
+					 * scorch MULTIPLIER tinted alongside bodyMat each frame), plus every
+					 * per-build cosmetic material/texture (pattern + number decals) that
+					 * buildRigVisual disposes on the next rebuild. */
+					bodyDecalMat: InstanceType<typeof THREE.MeshStandardMaterial> | null;
+					cosmeticDisposables: { dispose(): void }[];
+					/** The body tone the scorch lerps from — the LIVERY color when the
+					 * build overrides it, else the archetype tone. */
 					baseColor: number;
 					/** Named visual parts: chassis base, armor plating, and the
 					 * weapon-mount socket are attachment Groups under carGroup, each
@@ -2003,6 +2024,10 @@
 				const buildRigVisual = (rig: Rig, l: Loadout) => {
 					// The outgoing per-rig hull clone (or the makeRig placeholder).
 					rig.bodyMesh.geometry.dispose();
+					// The outgoing livery decals (pattern + number materials/textures)
+					// are ours to dispose (Phase 6b), so a live swap never leaks; the
+					// number quads themselves are cleared by build()'s group.clear().
+					for (const d of rig.cosmeticDisposables) d.dispose();
 					const built = rigVis.build(
 						{
 							chassis: rig.parts.chassis,
@@ -2016,6 +2041,8 @@
 						l
 					);
 					rig.bodyMesh = built.bodyMesh;
+					rig.bodyDecalMat = built.bodyDecalMat;
+					rig.cosmeticDisposables = built.cosmeticDisposables;
 					rig.dentBase = built.dentBase;
 					// Fresh clone is pristine; the compounding crumple starts at zero
 					// (the frame loop re-applies whatever stage the health calls for).
@@ -2168,6 +2195,8 @@
 						// Placeholders until buildRigVisual below assigns the
 						// archetype's hull mesh + pristine crumple base.
 						bodyMesh: new THREE.Mesh(),
+						bodyDecalMat: null,
+						cosmeticDisposables: [],
 						baseColor: GL.steel,
 						parts: { chassis: partChassis, armor: partArmor, mount: partMount, wheels: wheelMeshes },
 						visualKey: null,
@@ -4243,6 +4272,31 @@
 					setSocket: (slot: WeaponSlotId, socket: WeaponSocketId) =>
 						setWeaponSocket(slot, socket),
 					getSockets: () => resolveWeaponSockets(playerLoadout),
+					// ---- Livery cosmetics (Phase 6b) ----
+					setCosmetic: (patch: Partial<Cosmetics>) => {
+						setCosmetic(patch);
+						return playerLoadout.cosmetics ?? null;
+					},
+					getCosmetics: () => playerLoadout.cosmetics ?? null,
+					// Structural livery introspection for headless verification: the
+					// resolved body color, whether a decal texture is live, and the
+					// scorch base the damage lerp reads from.
+					getLivery: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						let numberQuads = 0;
+						for (const c of r.parts.chassis.children) if (c.userData.numberDecal) numberQuads++;
+						return {
+							cosmetics: r === player ? (playerLoadout.cosmetics ?? null) : null,
+							baseColor: '0x' + (r.baseColor >>> 0).toString(16),
+							bodyColor: '0x' + (r.bodyMat.color.getHex() >>> 0).toString(16),
+							hasPatternDecal: !!r.bodyDecalMat,
+							decalUsesMap: !!(r.bodyDecalMat && r.bodyDecalMat.map),
+							bodyMeshUsesDecal: !!(r.bodyDecalMat && r.bodyMesh.material === r.bodyDecalMat),
+							decalColor: r.bodyDecalMat ? '0x' + (r.bodyDecalMat.color.getHex() >>> 0).toString(16) : null,
+							numberQuads
+						};
+					},
 					// ---- Equipped-weapon drive hooks (Phase 4a) ----
 					fireWeapon: (rigId = 'player', slot: WeaponSlotId = 'weaponPrimary') => {
 						const r = rigsAll().find((q) => q.id === rigId);
@@ -4797,6 +4851,27 @@
 												.lerp(tmpColB.setHex(0x101214), (1 - hpFrac) * 0.75)
 												.getHex();
 						if (rig.bodyMat.color.getHex() !== tint) rig.bodyMat.color.setHex(tint);
+						// Livery decal body (Phase 6b): the map already carries the
+						// full-color livery, so the material color is a MULTIPLIER over it
+						// — white when clean, the same state tints on hit/down/oiled/out,
+						// but the neutral scorch lerps from WHITE (not the base color) so
+						// the map darkens toward charcoal exactly like the plates do.
+						if (rig.bodyDecalMat) {
+							const decalTint = rig.combat.eliminated
+								? 0x252d34
+								: rig.combat.isDown(now)
+									? 0x8a5c16
+									: rig.flashUntil > now
+										? GL.amberWarm
+										: rig.combat.isOiled(now) && Math.floor(now / 130) % 2 === 0
+											? 0x0d1114
+											: tmpColA
+													.setHex(0xffffff)
+													.lerp(tmpColB.setHex(0x101214), (1 - hpFrac) * 0.75)
+													.getHex();
+							if (rig.bodyDecalMat.color.getHex() !== decalTint)
+								rig.bodyDecalMat.color.setHex(decalTint);
+						}
 
 						// Crumple stages at 75/50/25% health; heal/reset restores.
 						const dentStage = hpFrac <= 0.25 ? 3 : hpFrac <= 0.5 ? 2 : hpFrac <= 0.75 ? 1 : 0;

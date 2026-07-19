@@ -139,6 +139,85 @@ export interface Loadout {
 	 * enforces it for stored data and the garage blocks it up front.
 	 */
 	weaponSockets: Partial<Record<WeaponSlotId, WeaponSocketId>>;
+	/**
+	 * Preset cosmetic livery (Phase 6b): body color, pattern, and car number.
+	 * Purely visual — no stat, no physics, no gate. DELIBERATELY optional, the
+	 * 4c weaponSockets precedent: a pre-6b stored build has no `cosmetics` key
+	 * and loads with the archetype default (no override), and a 6b build rides
+	 * the field inside the existing parts jsonb (partsForStorage), so no
+	 * migration. All three sub-fields are independently optional; an all-default
+	 * livery normalizes to `undefined` so untouched builds round-trip clean.
+	 */
+	cosmetics?: Cosmetics;
+}
+
+/** Preset livery selections. Every field optional: unset = default. */
+export interface Cosmetics {
+	/** Palette color id (COSMETIC_COLORS), or unset = the archetype's own tone. */
+	color?: string;
+	/** Pattern id (COSMETIC_PATTERNS); unset / 'none' = no livery pattern. */
+	pattern?: string;
+	/** Car number 0-99, or unset = none. The way to tell cars apart. */
+	number?: number;
+}
+
+/**
+ * Curated livery palette, INDEPENDENT of archetype (a build's color is not
+ * locked to its chassis). Rendered as tinted chrome by the metallic hull
+ * material, so these read as painted metal, not flat color. Kept clear of the
+ * two reserved signal colors: the signature-thread green (`#2ae57e`, still the
+ * player's accent regardless of livery) and the status crimson (`#FF3355`) live
+ * in different visual channels (emissive thread / UI), so a muted metallic red
+ * or green BODY is a distinct read.
+ */
+export const COSMETIC_COLORS: { id: string; name: string; hex: number }[] = [
+	{ id: 'steel', name: 'Steel', hex: 0x93a3b0 },
+	{ id: 'gunmetal', name: 'Gunmetal', hex: 0x566472 },
+	{ id: 'crimson', name: 'Crimson', hex: 0xb23b3b },
+	{ id: 'ember', name: 'Ember', hex: 0xcf7a2a },
+	{ id: 'sulfur', name: 'Sulfur', hex: 0xc7b83f },
+	{ id: 'viper', name: 'Viper', hex: 0x3aa564 },
+	{ id: 'azure', name: 'Azure', hex: 0x3579b8 },
+	{ id: 'violet', name: 'Violet', hex: 0x7d55c0 },
+	{ id: 'bone', name: 'Bone', hex: 0xd7dce1 },
+	{ id: 'copper', name: 'Copper', hex: 0xb06a3c }
+];
+
+/** Livery pattern presets (two racing-stripe variants, two geometric). */
+export const COSMETIC_PATTERNS: { id: string; name: string }[] = [
+	{ id: 'none', name: 'None' },
+	{ id: 'stripe', name: 'Center Stripe' },
+	{ id: 'twin', name: 'Twin Stripes' },
+	{ id: 'wedge', name: 'Wedge' },
+	{ id: 'checker', name: 'Checker' }
+];
+
+/** Resolve a livery color id to its hex, or null when unset / unknown. */
+export function cosmeticColorHex(id: string | undefined): number | null {
+	if (!id) return null;
+	return COSMETIC_COLORS.find((c) => c.id === id)?.hex ?? null;
+}
+
+/**
+ * Validate a raw cosmetics blob (from storage) into a clean Cosmetics, dropping
+ * unknown color/pattern ids and out-of-range numbers, omitting the 'none'
+ * pattern. Returns `undefined` when nothing valid survives, so a default livery
+ * is stored as absence (the round-trips-clean contract, like empty sockets).
+ */
+export function normalizeCosmetics(raw: unknown): Cosmetics | undefined {
+	if (!raw || typeof raw !== 'object') return undefined;
+	const r = raw as Record<string, unknown>;
+	const out: Cosmetics = {};
+	if (typeof r.color === 'string' && COSMETIC_COLORS.some((c) => c.id === r.color)) out.color = r.color;
+	if (
+		typeof r.pattern === 'string' &&
+		r.pattern !== 'none' &&
+		COSMETIC_PATTERNS.some((p) => p.id === r.pattern)
+	)
+		out.pattern = r.pattern;
+	if (typeof r.number === 'number' && Number.isInteger(r.number) && r.number >= 0 && r.number <= 99)
+		out.number = r.number;
+	return out.color || out.pattern || out.number != null ? out : undefined;
 }
 
 /**
@@ -746,9 +825,13 @@ export function serializeLoadout(l: Loadout): string {
  * omitted so untouched builds round-trip byte-identical.
  */
 export function partsForStorage(l: Loadout): Record<string, unknown> {
-	return Object.keys(l.weaponSockets ?? {}).length
-		? { ...l.parts, weaponSockets: l.weaponSockets }
-		: { ...l.parts };
+	const out: Record<string, unknown> = { ...l.parts };
+	if (Object.keys(l.weaponSockets ?? {}).length) out.weaponSockets = l.weaponSockets;
+	// The 6b livery rides the same jsonb the same way (omitted when default, so
+	// an untouched build round-trips byte-identical; a pre-6b client ignores it).
+	const cos = normalizeCosmetics(l.cosmetics);
+	if (cos) out.cosmetics = cos;
+	return out;
 }
 
 /**
@@ -765,7 +848,8 @@ export function partsForStorage(l: Loadout): Record<string, unknown> {
 export function normalizeStoredLoadout(
 	archetype: unknown,
 	parts: unknown,
-	weaponSockets?: unknown
+	weaponSockets?: unknown,
+	cosmetics?: unknown
 ): Loadout | null {
 	if (typeof archetype !== 'string' || !archetypeById(archetype)) return null;
 	const out = { ...STOCK_PARTS };
@@ -797,10 +881,19 @@ export function normalizeStoredLoadout(
 				ws[slot] = v as WeaponSocketId;
 		}
 	}
+	// Livery: prefer the explicit arg (localStorage stores it top-level), else
+	// the copy embedded in the parts jsonb (DB rows, via partsForStorage) — the
+	// exact dual-source read weaponSockets uses.
+	const rawCosmetics =
+		cosmetics ??
+		(parts && typeof parts === 'object'
+			? (parts as Record<string, unknown>).cosmetics
+			: undefined);
 	return sanitizeLoadout({
 		archetype: archetype as ArchetypeId,
 		parts: out,
-		weaponSockets: ws
+		weaponSockets: ws,
+		cosmetics: normalizeCosmetics(rawCosmetics)
 	});
 }
 
@@ -809,7 +902,7 @@ export function parseLoadout(raw: string | null): Loadout | null {
 	if (!raw) return null;
 	try {
 		const v = JSON.parse(raw) as Loadout;
-		return normalizeStoredLoadout(v?.archetype, v?.parts, v?.weaponSockets);
+		return normalizeStoredLoadout(v?.archetype, v?.parts, v?.weaponSockets, v?.cosmetics);
 	} catch {
 		return null;
 	}
