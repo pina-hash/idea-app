@@ -1,15 +1,19 @@
 /**
- * GREENLINE track format, v1 (`schemaVersion: 1`).
+ * GREENLINE track format, v2 (`schemaVersion: 1 | 2`).
  *
  * A track is one plain-JSON file conforming to `TrackData` (see
- * `tracks/test-loop.json` for the reference track). This is the schema every
- * future track uses; extend it by adding fields or new discriminated-union
- * members, never by repurposing existing ones.
+ * `tracks/proving-ground-07.json` for the flat v1 reference and
+ * `tracks/relief-proof-01.json` for the v2 proof segment). This is the schema
+ * every future track uses; extend it by adding fields or new
+ * discriminated-union members, never by repurposing existing ones. v2 is
+ * purely ADDITIVE over v1: per-point `elevations` / `banking` on the ribbon
+ * (the `widths` convention) and the gameplay `zones` list; every v1 track
+ * parses and behaves exactly as before.
  *
  * Conventions, fixed for all tracks:
- * - All positions and dimensions are WORLD UNITS (meters). Tracks live on the
- *   ground plane: `x`/`z` are horizontal, `y` is up (tracks are flat in v1;
- *   an elevation field would be an additive v2 change).
+ * - All positions and dimensions are WORLD UNITS (meters). `x`/`z` are
+ *   horizontal, `y` is up. A track without `elevations`/`banking` is flat on
+ *   the ground plane at y 0.
  * - Headings are degrees, `0` pointing along `+x`, positive counterclockwise
  *   seen from above, i.e. `headingDeg = atan2(-dz, dx)` for a direction
  *   vector `(dx, dz)`. This matches the movement harness's heading readout.
@@ -56,6 +60,24 @@ export interface RibbonSurface {
 	 * constant-width tracks are untouched.
 	 */
 	widths?: number[];
+	/**
+	 * Optional per-point surface elevation: the world-unit `y` of the
+	 * centerline at each point, one entry per centerline point (the `widths`
+	 * convention exactly; missing = flat at y 0). Every consumer reads
+	 * elevation through the runtime's precomputed 3D sweep
+	 * (`leftEdge3`/`rightEdge3`), so flat tracks are untouched. Schema v2.
+	 */
+	elevations?: number[];
+	/**
+	 * Optional per-point banking: the surface's roll about the local
+	 * direction of travel, in DEGREES, one entry per centerline point
+	 * (`widths` convention; missing = 0 everywhere). Positive raises the
+	 * runtime's `leftEdge` side of the sweep (the lateral normal
+	 * `(-tz, tx)`, which is the driver's RIGHT traveling in point order), so
+	 * a right-hand turn banks correctly with NEGATIVE values (outside edge
+	 * raised). Schema v2.
+	 */
+	banking?: number[];
 	/** Whether the centerline closes back on itself (a circuit). */
 	closed: boolean;
 	centerline: TrackVec2[];
@@ -116,6 +138,42 @@ export type TrackProp =
 	| { type: 'machine'; x: number; z: number; headingDeg: number; kind?: 'crane' | 'loader' };
 
 /**
+ * Gameplay trigger zones (schema v2). Deliberately NOT a `TrackProp`: props
+ * are documented as pure presentation the runtime never reads, and zones ARE
+ * gameplay — the runtime tracks per-vehicle occupancy and the harness applies
+ * the effects. Each zone is a circular trigger area on the surface (position
+ * + radius, world units), checked top-down like `surfaceState`. New zone
+ * families join the discriminated union under new `type` tags, and new
+ * hazard behaviors grow the `kind` field (the WeaponDef-catalog pattern from
+ * combat phases 4a/4b).
+ */
+export type TrackZone =
+	| {
+			type: 'boost';
+			id: string;
+			x: number;
+			z: number;
+			radius: number;
+			/** Engine-force multiplier while the boost window runs (default 1.8). */
+			strength?: number;
+			/** Boost window in seconds from entry (default 1.5). */
+			durationSec?: number;
+	  }
+	| {
+			type: 'hazard';
+			id: string;
+			x: number;
+			z: number;
+			radius: number;
+			/**
+			 * Hazard behavior. v2 ships `oil`: a permanent slick patch — entering
+			 * applies the deployed-oil-slick traction cut (per-vehicle retrigger
+			 * window, never consumed). More kinds join here in 8b.
+			 */
+			kind: 'oil';
+	  };
+
+/**
  * Boundary geometry that keeps the vehicle on course. Each boundary is a
  * polyline (closed = polygon). How the runtime enforces them (soft wall,
  * slowdown, hard collision) is a runtime/feel decision, deliberately NOT part
@@ -134,12 +192,12 @@ export interface TrackSpawn {
 }
 
 export interface TrackData {
-	schemaVersion: 1;
+	schemaVersion: 1 | 2;
 	/** Stable slug, unique across tracks. */
 	id: string;
 	name: string;
 	description?: string;
-	/** Documentation field; always `meters` in v1. */
+	/** Documentation field; always `meters`. */
 	units: 'meters';
 	spawn: TrackSpawn;
 	surface: TrackSurface;
@@ -147,6 +205,8 @@ export interface TrackData {
 	/** Ordered. A lap = all of these in order, then `startFinish`. */
 	checkpoints: TrackGate[];
 	boundaries: TrackBoundary[];
+	/** Optional gameplay trigger zones (see `TrackZone`). Schema v2. */
+	zones?: TrackZone[];
 	/** Optional presentation-only set dressing (see `TrackProp`). */
 	props?: TrackProp[];
 }
@@ -161,7 +221,8 @@ export function parseTrack(raw: unknown): TrackData {
 	};
 	if (typeof raw !== 'object' || raw === null) fail('not an object');
 	const t = raw as TrackData;
-	if (t.schemaVersion !== 1) fail(`unsupported schemaVersion ${String(t.schemaVersion)}`);
+	if (t.schemaVersion !== 1 && t.schemaVersion !== 2)
+		fail(`unsupported schemaVersion ${String(t.schemaVersion)}`);
 	if (!t.id || typeof t.id !== 'string') fail('missing id');
 	if (!t.spawn || typeof t.spawn.x !== 'number' || typeof t.spawn.headingDeg !== 'number')
 		fail('missing or malformed spawn');
@@ -177,6 +238,24 @@ export function parseTrack(raw: unknown): TrackData {
 			fail('ribbon widths must have one entry per centerline point');
 		if (t.surface.widths.some((w) => !(w > 0))) fail('every ribbon width must be positive');
 	}
+	if (t.surface.elevations !== undefined) {
+		if (
+			!Array.isArray(t.surface.elevations) ||
+			t.surface.elevations.length !== t.surface.centerline.length
+		)
+			fail('ribbon elevations must have one entry per centerline point');
+		if (t.surface.elevations.some((e) => !Number.isFinite(e)))
+			fail('every ribbon elevation must be a finite number');
+	}
+	if (t.surface.banking !== undefined) {
+		if (
+			!Array.isArray(t.surface.banking) ||
+			t.surface.banking.length !== t.surface.centerline.length
+		)
+			fail('ribbon banking must have one entry per centerline point');
+		if (t.surface.banking.some((b) => !Number.isFinite(b) || Math.abs(b) > 75))
+			fail('every ribbon banking angle must be finite and within +/-75 degrees');
+	}
 	const checkGate = (g: TrackGate | undefined, label: string) => {
 		if (!g || typeof g.x !== 'number' || typeof g.headingDeg !== 'number' || !(g.halfWidth > 0))
 			fail(`malformed gate: ${label}`);
@@ -188,6 +267,20 @@ export function parseTrack(raw: unknown): TrackData {
 	t.boundaries.forEach((b, i) => {
 		if (!Array.isArray(b?.points) || b.points.length < 2) fail(`boundaries[${i}] too short`);
 	});
+	if (t.zones !== undefined) {
+		if (!Array.isArray(t.zones)) fail('zones must be an array');
+		t.zones.forEach((zn, i) => {
+			if (typeof zn !== 'object' || zn === null) fail(`zones[${i}] malformed`);
+			if (zn.type !== 'boost' && zn.type !== 'hazard')
+				fail(`zones[${i}] has unknown type ${String((zn as { type?: unknown }).type)}`);
+			if (!zn.id || typeof zn.id !== 'string') fail(`zones[${i}] missing id`);
+			if (typeof zn.x !== 'number' || typeof zn.z !== 'number' || !(zn.radius > 0))
+				fail(`zones[${i}] (${zn.id}) needs numeric x/z and a positive radius`);
+			// Unknown hazard kinds fail loudly at load, not silently at play.
+			if (zn.type === 'hazard' && zn.kind !== 'oil')
+				fail(`zones[${i}] (${zn.id}) has unknown hazard kind ${String(zn.kind)}`);
+		});
+	}
 	if (t.props !== undefined) {
 		if (!Array.isArray(t.props)) fail('props must be an array');
 		t.props.forEach((p, i) => {

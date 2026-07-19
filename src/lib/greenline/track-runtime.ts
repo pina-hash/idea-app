@@ -6,7 +6,7 @@
  * boundary behavior easy to swap later.
  */
 
-import type { TrackBoundary, TrackData, TrackGate, TrackVec2 } from './track-schema';
+import type { TrackBoundary, TrackData, TrackGate, TrackVec2, TrackZone } from './track-schema';
 
 const DEG = Math.PI / 180;
 
@@ -64,6 +64,13 @@ export function crossesGate(prev: TrackVec2, cur: TrackVec2, g: GateRuntime): nu
 	return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? t : null;
 }
 
+/** A point on the 3D ribbon sweep (schema v2 elevation/banking applied). */
+export interface TrackVec3 {
+	x: number;
+	y: number;
+	z: number;
+}
+
 export interface TrackRuntime {
 	data: TrackData;
 	startFinish: GateRuntime;
@@ -74,11 +81,31 @@ export interface TrackRuntime {
 	halfWidth: number;
 	/** Per-point half width; constant-width tracks repeat the same value. */
 	halfWidths: number[];
+	/** Per-point centerline elevation (world y); 0-filled for flat tracks. */
+	elevations: number[];
+	/** Per-point banking in RADIANS; 0-filled for unbanked tracks. */
+	bankingRad: number[];
+	/**
+	 * True when any point carries nonzero elevation or banking: the signal
+	 * for consumers to build real 3D collision for the ribbon. Flat tracks
+	 * read false and keep their plane-only physics untouched.
+	 */
+	hasRelief: boolean;
 	boundaries: TrackBoundary[];
+	/** Gameplay trigger zones (schema v2); empty when the track has none. */
+	zones: TrackZone[];
 	bbox: { minX: number; maxX: number; minZ: number; maxZ: number };
-	/** Ribbon edge polylines, precomputed for meshes and the minimap. */
+	/** Ribbon edge polylines, precomputed for meshes and the minimap. These
+	 * are the exact x/z projection of `leftEdge3`/`rightEdge3`. */
 	leftEdge: TrackVec2[];
 	rightEdge: TrackVec2[];
+	/**
+	 * The 3D ribbon sweep (elevation + banking applied): the ONE geometry
+	 * both the visual ribbon mesh AND the physics collision build from, so
+	 * they can never drift apart. Flat tracks sweep at y 0.
+	 */
+	leftEdge3: TrackVec3[];
+	rightEdge3: TrackVec3[];
 }
 
 export function buildRuntime(data: TrackData): TrackRuntime {
@@ -86,8 +113,11 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 	const n = center.length;
 	const halfWidths = center.map((_, i) => (data.surface.widths?.[i] ?? data.surface.width) / 2);
 	const halfWidth = Math.max(...halfWidths);
-	const leftEdge: TrackVec2[] = [];
-	const rightEdge: TrackVec2[] = [];
+	const elevations = center.map((_, i) => data.surface.elevations?.[i] ?? 0);
+	const bankingRad = center.map((_, i) => ((data.surface.banking?.[i] ?? 0) * Math.PI) / 180);
+	const hasRelief = elevations.some((e) => e !== 0) || bankingRad.some((b) => b !== 0);
+	const leftEdge3: TrackVec3[] = [];
+	const rightEdge3: TrackVec3[] = [];
 	for (let i = 0; i < n; i++) {
 		const p0 = center[(i - 1 + n) % n];
 		const p2 = center[(i + 1) % n];
@@ -96,9 +126,20 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 		const l = Math.hypot(tx, tz) || 1;
 		const nx = -tz / l;
 		const nz = tx / l;
-		leftEdge.push({ x: center[i].x + nx * halfWidths[i], z: center[i].z + nz * halfWidths[i] });
-		rightEdge.push({ x: center[i].x - nx * halfWidths[i], z: center[i].z - nz * halfWidths[i] });
+		// Banking rotates the cross-section about the local tangent: the
+		// lateral arm shortens to cos(bank) horizontally and gains sin(bank)
+		// vertically. Positive bank raises the leftEdge side. Flat tracks
+		// (bank 0, elevation 0) produce the exact pre-v2 2D edges.
+		const hw = halfWidths[i];
+		const latX = nx * Math.cos(bankingRad[i]) * hw;
+		const latZ = nz * Math.cos(bankingRad[i]) * hw;
+		const latY = Math.sin(bankingRad[i]) * hw;
+		const cy = elevations[i];
+		leftEdge3.push({ x: center[i].x + latX, y: cy + latY, z: center[i].z + latZ });
+		rightEdge3.push({ x: center[i].x - latX, y: cy - latY, z: center[i].z - latZ });
 	}
+	const leftEdge = leftEdge3.map((p) => ({ x: p.x, z: p.z }));
+	const rightEdge = rightEdge3.map((p) => ({ x: p.x, z: p.z }));
 	let minX = Infinity,
 		maxX = -Infinity,
 		minZ = Infinity,
@@ -118,11 +159,109 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 		center,
 		halfWidth,
 		halfWidths,
+		elevations,
+		bankingRad,
+		hasRelief,
 		boundaries: data.boundaries,
+		zones: data.zones ?? [],
 		bbox: { minX, maxX, minZ, maxZ },
 		leftEdge,
-		rightEdge
+		rightEdge,
+		leftEdge3,
+		rightEdge3
 	};
+}
+
+/**
+ * Surface height (world y) of the ribbon nearest to `(x, z)`: nearest
+ * centerline SEGMENT projection, with elevation and banking interpolated
+ * along the segment and the point's signed lateral offset tilted by the bank
+ * (clamped to the local half width, so a point far off the ribbon reads the
+ * edge height rather than an extrapolated cliff). Flat tracks return 0
+ * everywhere via the fast path. `warmIndex` follows the `surfaceState`
+ * convention: pass a vehicle's last nearest-centerline index for an O(few)
+ * query, or omit it for a one-off full scan (build-time placement).
+ */
+export function surfaceYAt(rt: TrackRuntime, x: number, z: number, warmIndex?: number): number {
+	if (!rt.hasRelief) return 0;
+	const n = rt.center.length;
+	let bestI = 0;
+	let bestD = Infinity;
+	const probe = (i: number) => {
+		const ii = ((i % n) + n) % n;
+		const p = rt.center[ii];
+		const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+		if (d < bestD) {
+			bestD = d;
+			bestI = ii;
+		}
+	};
+	if (warmIndex === undefined) {
+		for (let i = 0; i < n; i++) probe(i);
+	} else {
+		for (let k = -8; k <= 8; k++) probe(warmIndex + k);
+		if (bestD > 40 * 40) for (let i = 0; i < n; i++) probe(i);
+	}
+	// Project onto the better of the two segments flanking the nearest point.
+	let best: { i: number; j: number; t: number; dist: number } | null = null;
+	for (const [i, j] of [
+		[(bestI - 1 + n) % n, bestI],
+		[bestI, (bestI + 1) % n]
+	]) {
+		const a = rt.center[i];
+		const b = rt.center[j];
+		const ex = b.x - a.x;
+		const ez = b.z - a.z;
+		const len2 = ex * ex + ez * ez || 1;
+		let t = ((x - a.x) * ex + (z - a.z) * ez) / len2;
+		t = t < 0 ? 0 : t > 1 ? 1 : t;
+		const px = a.x + ex * t;
+		const pz = a.z + ez * t;
+		const d = (x - px) * (x - px) + (z - pz) * (z - pz);
+		if (!best || d < best.dist) best = { i, j, t, dist: d };
+	}
+	const { i, j, t } = best!;
+	const elev = rt.elevations[i] + (rt.elevations[j] - rt.elevations[i]) * t;
+	const bank = rt.bankingRad[i] + (rt.bankingRad[j] - rt.bankingRad[i]) * t;
+	const hw = rt.halfWidths[i] + (rt.halfWidths[j] - rt.halfWidths[i]) * t;
+	// Signed lateral offset along the segment's left normal (-ez, ex).
+	const a = rt.center[i];
+	const b = rt.center[j];
+	const ex = b.x - a.x;
+	const ez = b.z - a.z;
+	const el = Math.hypot(ex, ez) || 1;
+	const px = a.x + ex * t;
+	const pz = a.z + ez * t;
+	let lat = (x - px) * (-ez / el) + (z - pz) * (ex / el);
+	lat = Math.max(-hw, Math.min(hw, lat));
+	return elev + lat * Math.tan(bank);
+}
+
+/**
+ * Circular trigger-zone occupancy: updates the caller's persistent
+ * per-vehicle `inside` array (one boolean per zone, parallel to `zones`; the
+ * warmIndex spirit — state lives with the vehicle, logic stays pure) and
+ * returns the indices of zones ENTERED since the last call (empty most
+ * frames). Top-down radius test only: zones are authored on the surface, so
+ * containment viewed from above is the whole question; a car under an
+ * elevated span never lingers there (the caller's fall recovery removes it).
+ */
+export function zoneEntries(
+	zones: TrackZone[],
+	x: number,
+	z: number,
+	inside: boolean[]
+): number[] {
+	const entered: number[] = [];
+	for (let i = 0; i < zones.length; i++) {
+		const zn = zones[i];
+		const dx = x - zn.x;
+		const dz = z - zn.z;
+		const isIn = dx * dx + dz * dz <= zn.radius * zn.radius;
+		if (isIn && !inside[i]) entered.push(i);
+		inside[i] = isIn;
+	}
+	return entered;
 }
 
 /** Even-odd point-in-polygon over a boundary loop. */

@@ -21,13 +21,15 @@
 
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
-	import { parseTrack } from '$lib/greenline/track-schema';
+	import { parseTrack, type TrackData } from '$lib/greenline/track-schema';
 	import {
 		buildRuntime,
 		formatLapMs,
 		headingToDir,
 		LapTracker,
-		surfaceState
+		surfaceState,
+		surfaceYAt,
+		zoneEntries
 	} from '$lib/greenline/track-runtime';
 	import {
 		COMBAT_DEFAULTS,
@@ -148,6 +150,17 @@
 	 * ($lib/greenline/environment.ts, `night` today) so a future
 	 * time-of-day/weather system is a data addition, not a scene rewrite.
 	 *
+	 * Track relief (Phase 8a, schema v2): a track carrying per-point
+	 * elevation/banking gets a real drivable Trimesh built from the runtime's
+	 * 3D sweep (the same geometry the visual ribbon renders), so the
+	 * RaycastVehicle wheels follow slopes and banked turns natively; flat
+	 * tracks keep the plane-only physics untouched. A fall watchdog (the flip
+	 * pattern) recovers any car far below the local surface (off an elevated
+	 * edge) onto the nearest centerline point. Schema-v2 `zones` are gameplay
+	 * trigger circles: boost pads (entry impulse + a timed engine-force
+	 * window) and hazards (v2 ships `oil`, the deployed-slick traction cut),
+	 * entry-edge detected per vehicle with a rearm window.
+	 *
 	 * Four disruption tools, all vehicle-agnostic (AI uses them through the
 	 * same paths): EMP burst (F / RB), oil slick dropped behind (E / X),
 	 * tether yank at the nearest vehicle ahead (Q / LB), and the passive
@@ -203,7 +216,8 @@
 
 	const {
 		loadout,
-		onFinish
+		onFinish,
+		track: trackOverride
 	}: {
 		/**
 		 * The build to race. When omitted the component owns its loadout locally
@@ -213,6 +227,13 @@
 		loadout?: Loadout;
 		/** Called once when the player completes a RACE. */
 		onFinish?: (outcome: RaceOutcome) => void;
+		/**
+		 * The track to race (a parseTrack result). Omitted = Proving Ground 07,
+		 * so every existing caller is unchanged. Read ONCE at init (the whole
+		 * scene/physics world builds from it in onMount); switching tracks
+		 * means remounting the component.
+		 */
+		track?: TrackData;
 	} = $props();
 
 	const DEFAULTS = {
@@ -244,6 +265,17 @@
 		flipUpY: 0.2,
 		flipDelaySec: 2,
 		flipMaxSpeed: 1.5,
+		/** Fall recovery (Phase 8a, relief tracks only): a chassis sitting more
+		 * than fallRecoverDrop meters BELOW the local track surface for
+		 * fallRecoverDelaySec is re-seated on the nearest centerline point. A
+		 * car off an elevated edge lands on the catch plane with no drivable
+		 * route back up, so recovery is the only exit (Lakitu-style; this
+		 * deliberately also recovers a car lingering on the ground BESIDE an
+		 * elevated span or banked berm — 2.5 is low enough to catch the
+		 * bottom of relief-proof-01's 3.7 m berm wall). Never fires on flat
+		 * tracks. */
+		fallRecoverDrop: 2.5,
+		fallRecoverDelaySec: 1.2,
 		/** Slipstream / draft: a trailing vehicle tucked into another's wake gets
 		 * reduced aero drag (a higher top speed), universal and free — no slot, no
 		 * cost, every vehicle player and AI alike, no equipment or AI decision.
@@ -284,7 +316,7 @@
 
 	const tuning = $state({ ...DEFAULTS });
 
-	const track = parseTrack(provingGroundJson);
+	const track = untrack(() => trackOverride) ?? parseTrack(provingGroundJson);
 	const rt = buildRuntime(track);
 
 	let mode = $state<GreenlineMode>('race');
@@ -1654,8 +1686,16 @@
 					for (let i = 0; i <= nC; i++) {
 						const j = i % nC;
 						const s = i === nC ? total : cum[i];
-						verts.set([rt.leftEdge[j].x, 0.03, rt.leftEdge[j].z], i * 6);
-						verts.set([rt.rightEdge[j].x, 0.03, rt.rightEdge[j].z], i * 6 + 3);
+						// The 3D sweep (elevation + banking; flat tracks sweep at y 0)
+						// — the same geometry the physics trimesh is built from.
+						verts.set(
+							[rt.leftEdge3[j].x, rt.leftEdge3[j].y + 0.03, rt.leftEdge3[j].z],
+							i * 6
+						);
+						verts.set(
+							[rt.rightEdge3[j].x, rt.rightEdge3[j].y + 0.03, rt.rightEdge3[j].z],
+							i * 6 + 3
+						);
 						uvs.set([s / tile, 0], i * 4);
 						uvs.set([s / tile, 1], i * 4 + 2);
 						const tone = 1 - 0.5 * wearAt(s);
@@ -1664,7 +1704,13 @@
 					}
 					const idx: number[] = [];
 					for (let i = 0; i < nC; i++) {
-						idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 2, i * 2 + 1, i * 2 + 3);
+						// Wind the quads so the right-hand-rule normals point UP: the
+						// old order ((L,R,L'),(L',R,R')) faced DOWN, which FrontSide
+						// culling silently hid — invisible against the apron plane on
+						// a flat track, but fatal on an elevated span with nothing
+						// behind it. (Latent since the first ribbon mesh; the darker
+						// corridor + braking wear ramps render for the first time.)
+						idx.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
 					}
 					const geo = new THREE.BufferGeometry();
 					geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
@@ -1715,7 +1761,9 @@
 						const stain = new THREE.Mesh(stainGeo, stainMat);
 						stain.rotation.set(-Math.PI / 2, 0, (g.gate.x + g.gate.z) % 3.1);
 						const d = headingToDir(g.gate.headingDeg);
-						stain.position.set(g.gate.x - d.x * back, 0.045, g.gate.z - d.z * back);
+						const sx = g.gate.x - d.x * back;
+						const sz = g.gate.z - d.z * back;
+						stain.position.set(sx, surfaceYAt(rt, sx, sz) + 0.045, sz);
 						stain.scale.set(size, size * 0.7, 1);
 						scene.add(stain);
 					}
@@ -1723,8 +1771,8 @@
 				// Painted edge lines: with a variable-width ribbon the corridor's
 				// breathing (wide pad, narrow yard) must read at speed. Cool worn
 				// white, per the steel-not-green night palette.
-				for (const edge of [rt.leftEdge, rt.rightEdge]) {
-					const pts = [...edge, edge[0]].map((p) => new THREE.Vector3(p.x, 0.06, p.z));
+				for (const edge of [rt.leftEdge3, rt.rightEdge3]) {
+					const pts = [...edge, edge[0]].map((p) => new THREE.Vector3(p.x, p.y + 0.06, p.z));
 					scene.add(
 						new THREE.Line(
 							new THREE.BufferGeometry().setFromPoints(pts),
@@ -1760,6 +1808,9 @@
 				const postGeo = new THREE.CylinderGeometry(0.22, 0.22, 2.6, 10);
 				const paneFor = (g: (typeof rt.checkpoints)[number], color: number, opacity: number) => {
 					const group = new THREE.Group();
+					// Gate visuals sit on the LOCAL surface (relief tracks); the
+					// crossing math itself stays top-down 2D, unaffected by height.
+					const gy = surfaceYAt(rt, g.gate.x, g.gate.z);
 					const mat = new THREE.MeshBasicMaterial({
 						color,
 						transparent: true,
@@ -1773,11 +1824,11 @@
 						[g.bx, g.bz]
 					]) {
 						const post = new THREE.Mesh(postGeo, postMat);
-						post.position.set(px, 1.3, pz);
+						post.position.set(px, gy + 1.3, pz);
 						group.add(post);
 					}
 					const pane = new THREE.Mesh(new THREE.PlaneGeometry(g.gate.halfWidth * 2, 2.6), mat);
-					pane.position.set(g.gate.x, 1.3, g.gate.z);
+					pane.position.set(g.gate.x, gy + 1.3, g.gate.z);
 					pane.rotation.y = Math.atan2(g.dx, g.dz);
 					group.add(pane);
 					scene.add(group);
@@ -1785,6 +1836,130 @@
 				};
 				const cpMats = rt.checkpoints.map((g) => paneFor(g, 0x00ff41, 0.1));
 				paneFor(rt.startFinish, 0xc8ff00, 0.2);
+
+				// ---- Trigger zones (schema v2): boost pads + hazards ----
+				// Visuals only here; the trigger check lives in the per-vehicle
+				// pipeline (zoneEntries). Rings/rims pulse gently via zonePulse in
+				// the frame loop. Empty on tracks without zones (zero cost).
+				const zonePulse: {
+					mat: InstanceType<typeof THREE.MeshBasicMaterial>;
+					base: number;
+					phase: number;
+				}[] = [];
+				if (rt.zones.length) {
+					const zoneDiscGeo = new THREE.CircleGeometry(1, 30);
+					zoneDiscGeo.rotateX(-Math.PI / 2);
+					const zoneRingGeo = new THREE.RingGeometry(0.82, 1, 30);
+					zoneRingGeo.rotateX(-Math.PI / 2);
+					// Boost chevrons: three signature-green arrows pointing along
+					// local +x; the pad is rotated to the track direction below.
+					const chevTex = (() => {
+						const c = document.createElement('canvas');
+						c.width = 128;
+						c.height = 128;
+						const g2 = c.getContext('2d')!;
+						g2.strokeStyle = '#2ae57e';
+						g2.lineWidth = 10;
+						g2.lineJoin = 'miter';
+						for (const cx of [28, 58, 88]) {
+							g2.beginPath();
+							g2.moveTo(cx - 10, 30);
+							g2.lineTo(cx + 14, 64);
+							g2.lineTo(cx - 10, 98);
+							g2.stroke();
+						}
+						const tex = new THREE.CanvasTexture(c);
+						tex.colorSpace = THREE.SRGBColorSpace;
+						return tex;
+					})();
+					rt.zones.forEach((zn, zi) => {
+						const zy = surfaceYAt(rt, zn.x, zn.z);
+						const group = new THREE.Group();
+						group.position.set(zn.x, zy, zn.z);
+						if (zn.type === 'boost') {
+							// Direction of travel at the pad, so the chevrons point the
+							// way the pad shoves.
+							let bi = 0;
+							let bd = Infinity;
+							for (let i = 0; i < rt.center.length; i++) {
+								const d =
+									(rt.center[i].x - zn.x) ** 2 + (rt.center[i].z - zn.z) ** 2;
+								if (d < bd) {
+									bd = d;
+									bi = i;
+								}
+							}
+							const p2 = rt.center[(bi + 1) % rt.center.length];
+							group.rotation.y = Math.atan2(
+								-(p2.z - rt.center[bi].z),
+								p2.x - rt.center[bi].x
+							);
+							const baseMat = new THREE.MeshBasicMaterial({
+								color: 0x0b2417,
+								transparent: true,
+								opacity: 0.85,
+								depthWrite: false
+							});
+							const base = new THREE.Mesh(zoneDiscGeo, baseMat);
+							base.scale.set(zn.radius, 1, zn.radius);
+							base.position.y = 0.04;
+							const chevMat = new THREE.MeshBasicMaterial({
+								map: chevTex,
+								transparent: true,
+								opacity: 0.9,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending
+							});
+							const chev = new THREE.Mesh(
+								new THREE.PlaneGeometry(zn.radius * 1.7, zn.radius * 1.7),
+								chevMat
+							);
+							chev.rotation.x = -Math.PI / 2;
+							// Canvas +u runs along local +x after the flat rotation.
+							chev.rotation.z = Math.PI / 2;
+							chev.position.y = 0.06;
+							const rimMat = new THREE.MeshBasicMaterial({
+								color: 0x2ae57e,
+								transparent: true,
+								opacity: 0.6,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending
+							});
+							const rim = new THREE.Mesh(zoneRingGeo, rimMat);
+							rim.scale.set(zn.radius, 1, zn.radius);
+							rim.position.y = 0.05;
+							group.add(base, chev, rim);
+							zonePulse.push({ mat: rimMat, base: 0.6, phase: zi });
+							zonePulse.push({ mat: chevMat, base: 0.9, phase: zi + 1.6 });
+						} else {
+							// Oil hazard: the deployed-slick look (glossy dark puddle,
+							// additive violet rim), permanent.
+							const discMat = new THREE.MeshStandardMaterial({
+								color: 0x0a0a14,
+								roughness: 0.05,
+								metalness: 0.9,
+								transparent: true,
+								opacity: 0.92
+							});
+							const disc = new THREE.Mesh(zoneDiscGeo, discMat);
+							disc.scale.set(zn.radius, 1, zn.radius);
+							disc.position.y = 0.05;
+							const rimMat = new THREE.MeshBasicMaterial({
+								color: 0x8f5fff,
+								transparent: true,
+								opacity: 0.55,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending
+							});
+							const rim = new THREE.Mesh(zoneRingGeo, rimMat);
+							rim.scale.set(zn.radius, 1, zn.radius);
+							rim.position.y = 0.07;
+							group.add(disc, rim);
+							zonePulse.push({ mat: rimMat, base: 0.55, phase: zi });
+						}
+						scene.add(group);
+					});
+				}
 				const styleGates = (next: number) => {
 					cpMats.forEach((m, i) => {
 						const color = i === next ? 0x00f0ff : i < next ? 0x1d4531 : 0x00ff41;
@@ -1809,10 +1984,49 @@
 				// rolls over onto the phantom side.
 				groundBody.updateAABB();
 
+				// Ribbon relief collision (Phase 8a): a track carrying elevation or
+				// banking gets REAL drivable geometry — a static Trimesh built from
+				// the SAME 3D sweep (rt.leftEdge3/rightEdge3) the visual ribbon
+				// renders, so physics and visuals cannot drift apart by
+				// construction. RaycastVehicle's own wheel rays follow slopes and
+				// banking against it natively; world.rayTest skips backfaces, so the
+				// triangles are wound normals-UP (verified against cannon-es's
+				// net-right-hand-rule Trimesh.updateNormals). The flat plane above
+				// stays as the catch/run-off surface at y 0: cannon-es has no
+				// Box-vs-Trimesh narrowphase, so the CHASSIS never contacts the
+				// ribbon (wheels are the only ground interface — exactly the
+				// RaycastVehicle model), and a car that tumbles or drives off an
+				// elevated edge lands on the plane for the fall watchdog to
+				// recover. Flat tracks build nothing here: plane-only physics,
+				// identical to pre-8a.
+				if (rt.hasRelief) {
+					const tv: number[] = [];
+					for (let i = 0; i < rt.center.length; i++) {
+						const L = rt.leftEdge3[i];
+						const R = rt.rightEdge3[i];
+						tv.push(L.x, L.y, L.z, R.x, R.y, R.z);
+					}
+					const ti: number[] = [];
+					for (let i = 0; i < rt.center.length; i++) {
+						const j = (i + 1) % rt.center.length;
+						// (L_i, L_j, R_i) + (R_i, L_j, R_j): right-hand normals up.
+						ti.push(i * 2, j * 2, i * 2 + 1, i * 2 + 1, j * 2, j * 2 + 1);
+					}
+					const ribbonBody = new CANNON.Body({ mass: 0, shape: new CANNON.Trimesh(tv, ti) });
+					world.addBody(ribbonBody);
+					// Same static-body stale-AABB raycast trap as the plane above.
+					ribbonBody.updateAABB();
+				}
+
 				// ---- Vehicle rigs: ONE pipeline for every vehicle ----
 				// (COM_DROP / WHEEL_RADIUS / WHEEL_CONNECTIONS come from
 				// rig-visual.ts, shared with the garage preview's static pose.)
 				const SPAWN_Y = 0.9;
+				// Spawn / re-seat height: a wheel-drop above the LOCAL track
+				// surface. Flat tracks read surfaceYAt 0 everywhere (its fast
+				// path), so this is exactly the pre-8a SPAWN_Y behavior there.
+				const seatY = (x: number, z: number, warmIdx?: number) =>
+					SPAWN_Y + surfaceYAt(rt, x, z, warmIdx);
 
 				interface RigSpawn {
 					x: number;
@@ -1924,6 +2138,19 @@
 					/** Seconds spent flipped (up vector below the panel threshold)
 					 * while nearly stationary; drives the flip-recovery re-seat. */
 					flipAcc: number;
+					/** Seconds spent far BELOW the local track surface (drove off an
+					 * elevated edge, or tumbled through the ribbon — the chassis box
+					 * has no Trimesh narrowphase); drives the fall-recovery re-seat.
+					 * Always 0 on flat tracks. */
+					fallAcc: number;
+					/** Boost-pad window: engine-force multiplier applied while the
+					 * stamp is in the future (Phase 8a trigger zones). */
+					boostUntilMs: number;
+					boostMul: number;
+					/** Per-zone occupancy + retrigger stamps, parallel to rt.zones
+					 * (zoneEntries updates the occupancy in place per frame). */
+					zoneInside: boolean[];
+					zoneRearmMs: number[];
 					warmIdx: number;
 					lastOnRibbon: boolean;
 					steerCurrent: number;
@@ -2107,7 +2334,7 @@
 						new CANNON.Box(new CANNON.Vec3(1.9, 0.4, 0.85)),
 						new CANNON.Vec3(0, COM_DROP, 0)
 					);
-					body.position.set(spawn.x, SPAWN_Y, spawn.z);
+					body.position.set(spawn.x, seatY(spawn.x, spawn.z, spawn.warmIdx), spawn.z);
 					body.quaternion.copy(quatFor(spawn.headingDeg));
 					const vehicle = new CANNON.RaycastVehicle({
 						chassisBody: body,
@@ -2228,6 +2455,11 @@
 						preVx: 0,
 						preVz: 0,
 						flipAcc: 0,
+						fallAcc: 0,
+						boostUntilMs: 0,
+						boostMul: 1,
+						zoneInside: rt.zones.map(() => false),
+						zoneRearmMs: rt.zones.map(() => 0),
 						warmIdx: spawn.warmIdx,
 						lastOnRibbon: true,
 						steerCurrent: 0,
@@ -3085,6 +3317,10 @@
 					ram: 0,
 					flips: 0,
 					flipsByRig: {} as Record<string, number>,
+					// Fall-recovery re-seats this round (relief tracks only).
+					falls: 0,
+					// Trigger-zone entries this round (Phase 8a).
+					zone: { boost: 0, hazard: 0 },
 					// Ability activations this round (nitro/jump/flip/repair/grip).
 					ability: { nitro: 0, jump: 0, flip: 0, repair: 0, grip: 0 }
 				};
@@ -3101,6 +3337,8 @@
 					testStats.ram = 0;
 					testStats.flips = 0;
 					testStats.flipsByRig = {};
+					testStats.falls = 0;
+					testStats.zone.boost = testStats.zone.hazard = 0;
 					testStats.ability.nitro = testStats.ability.jump = testStats.ability.flip = 0;
 					testStats.ability.repair = testStats.ability.grip = 0;
 				};
@@ -3892,6 +4130,14 @@
 					audioEngine.playTone('ambient', { freq: 520, durationMs: 300, type: 'sine', gain: 0.12, pitchJitter: [1.0, 1.16], position: pos });
 				};
 
+				// PLACEHOLDER trigger-zone cue (same convention): a rising surge for
+				// the boost pad, distinct from nitro's low sawtooth.
+				const zoneSfx = (kind: 'boost', x?: number, z?: number) => {
+					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
+					if (kind === 'boost')
+						audioEngine.playTone('ambient', { freq: 340, durationMs: 380, type: 'sawtooth', gain: 0.18, pitchJitter: [1.15, 1.45], position: pos });
+				};
+
 				// Activate the ability in a slot. Returns true when it fired (meter
 				// spent). Emergency Flip triggered while upright is a costless no-op
 				// (the tryActivateAbility no-lock pattern): nothing spent, no feedback
@@ -3976,6 +4222,14 @@
 				const COUNTDOWN_SEC = 3; // 3 - 2 - 1 then GO
 				const GO_HOLD_SEC = 0.7; // how long the GO flash stays on screen
 				const RAM_GRACE_SEC = 1.5; // ram-only suppression window after GO
+				// Trigger-zone defaults (Phase 8a): a zone's own strength/durationSec
+				// override the first two; the kick and rearm window are feel
+				// constants (the kick is the instant shove, mass-scaled; rearm keeps
+				// a car weaving along a zone edge from machine-gunning re-entries).
+				const BOOST_STRENGTH = 1.8; // engine-force multiplier default
+				const BOOST_DURATION_SEC = 1.5; // boost window default
+				const BOOST_KICK_MPS = 5; // instant forward speed added on pad entry
+				const ZONE_REARM_SEC = 1.5; // per-vehicle per-zone retrigger window
 				// Absolute performance.now() ms at which controls unlock (GO). Set
 				// here for the initial launch and re-armed by resetRound each round.
 				let raceStartAtMs = performance.now() + COUNTDOWN_SEC * 1000;
@@ -4023,7 +4277,7 @@
 						r.combat.reset(poolsForBuild(r.archetype, r.buildStats));
 						restoreRigCondition(r);
 						r.tracker.reset();
-						r.body.position.set(r.spawn.x, SPAWN_Y, r.spawn.z);
+						r.body.position.set(r.spawn.x, seatY(r.spawn.x, r.spawn.z, r.spawn.warmIdx), r.spawn.z);
 						r.body.quaternion.copy(quatFor(r.spawn.headingDeg));
 						r.body.velocity.setZero();
 						r.body.angularVelocity.setZero();
@@ -4038,6 +4292,11 @@
 						r.draftFactor = 0;
 						r.draftPrev = false;
 						r.flipAcc = 0;
+						r.fallAcc = 0;
+						r.boostUntilMs = 0;
+						r.boostMul = 1;
+						r.zoneInside.fill(false);
+						r.zoneRearmMs.fill(0);
 						// Wipe the compounding crumple, then re-seat the pristine hull.
 						if (r.dentAccum.length) r.dentAccum.fill(0);
 						applyDentStage(r, 0);
@@ -4138,7 +4397,7 @@
 				// Dev-only debug handle for poking the sim from the console.
 				const teleportRig = (rig: Rig, x: number, z: number, headingDeg: number, speed = 0) => {
 					const d = headingToDir(headingDeg);
-					rig.body.position.set(x, SPAWN_Y, z);
+					rig.body.position.set(x, seatY(x, z), z);
 					rig.body.quaternion.copy(quatFor(headingDeg));
 					rig.body.velocity.set(d.x * speed, 0, d.z * speed);
 					rig.body.angularVelocity.setZero();
@@ -4150,6 +4409,25 @@
 					getAis: () => ais,
 					getRigs: () => rigsAll(),
 					rt,
+					// Phase 8a introspection: the local track-surface height (0 on
+					// flat tracks) and the trigger-zone state.
+					surfaceY: (x: number, z: number) => surfaceYAt(rt, x, z),
+					getZones: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						const now = performance.now();
+						return {
+							zones: rt.zones,
+							rig: r
+								? {
+										inside: [...r.zoneInside],
+										boostActive: now < r.boostUntilMs,
+										boostMul: r.boostMul,
+										boostLeftMs: Math.max(0, Math.round(r.boostUntilMs - now)),
+										oiled: r.combat.isOiled(now)
+									}
+								: null
+						};
+					},
 					teleport: (x: number, z: number, h: number, v = 0) => teleportRig(player, x, z, h, v),
 					teleportRig: (id: string, x: number, z: number, h: number, v = 0) => {
 						const r = rigsAll().find((q) => q.id === id);
@@ -4164,7 +4442,7 @@
 						const roll = new CANNON.Quaternion();
 						roll.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), (rollDeg * Math.PI) / 180);
 						r.body.quaternion.mult(roll, r.body.quaternion);
-						r.body.position.y = 0.8;
+						r.body.position.y = seatY(r.body.position.x, r.body.position.z) - 0.1;
 						r.body.velocity.setZero();
 						r.body.angularVelocity.setZero();
 						return true;
@@ -4411,13 +4689,16 @@
 							tuning.lapTarget = Math.max(1, Math.round(n));
 							return tuning.lapTarget;
 						},
-						// Per-round weapon / flip counters (reset by resetRound).
+						// Per-round weapon / flip / fall / zone counters (reset by
+						// resetRound).
 						getTelemetry: () => ({
 							fire: { ...testStats.fire },
 							hit: { ...testStats.hit },
 							ram: testStats.ram,
 							flips: testStats.flips,
 							flipsByRig: { ...testStats.flipsByRig },
+							falls: testStats.falls,
+							zone: { ...testStats.zone },
 							ability: { ...testStats.ability }
 						}),
 						// A full snapshot of the field: per-rig progress, finish
@@ -4453,6 +4734,7 @@
 									mount: Math.round(r.combat.mountHealth),
 									mountDown: r.combat.mountDown,
 									x: Math.round(r.body.position.x * 100) / 100,
+									y: Math.round(r.body.position.y * 100) / 100,
 									z: Math.round(r.body.position.z * 100) / 100,
 									speed:
 										Math.round(
@@ -4716,11 +4998,13 @@
 						let engine = 0;
 						let brake = 0;
 						// Nitro Boost ability multiplies engine force for its window (1
-						// when inactive), on top of the build's engineForce multiplier.
+						// when inactive), on top of the build's engineForce multiplier;
+						// a boost-pad window (Phase 8a zones) stacks the same way.
 						const engineMax =
 							num(tuning.engineForce, DEFAULTS.engineForce) *
 							bs.engineForce *
-							rig.abilityState.nitroMulNow(now);
+							rig.abilityState.nitroMulNow(now) *
+							(now < rig.boostUntilMs ? rig.boostMul : 1);
 						if (thr > 0) engine = thr * engineMax;
 						if (brk > 0 && !rig.combat.isOut(now)) {
 							if (forwardSpeed > 0.5)
@@ -4829,16 +5113,147 @@
 								// yaw survives the roll; quatFor's convention (0 = +x,
 								// CCW positive) means yaw = atan2(-hz, hx).
 								const yawDeg = (Math.atan2(-rig.hz, rig.hx) * 180) / Math.PI;
-								body.position.y = SPAWN_Y;
+								// Re-seat at the LOCAL surface height (flat tracks: the
+								// old SPAWN_Y exactly), so a flip on an elevated span
+								// never re-seats under the ribbon.
+								body.position.y = seatY(body.position.x, body.position.z, rig.warmIdx);
 								body.quaternion.copy(quatFor(yawDeg));
 								body.velocity.setZero();
 								body.angularVelocity.setZero();
 								rig.steerCurrent = 0;
-								spawnRing(body.position.x, body.position.z, 0x00ff41, 4, 320, 0.45);
+								spawnRing(
+									body.position.x,
+									body.position.z,
+									0x00ff41,
+									4,
+									320,
+									0.45,
+									body.position.y - 0.4
+								);
 								if (rig === player) flash('FLIPPED — vehicle righted');
 							}
 						} else if (rig.flipAcc !== 0) {
 							rig.flipAcc = 0;
+						}
+
+						// Fall recovery (Phase 8a, the flip-watchdog pattern; relief
+						// tracks only). A car far BELOW the local track surface drove
+						// off an elevated edge (or tumbled through the ribbon — the
+						// chassis box has no Trimesh narrowphase; only wheels touch
+						// it) and is now on the catch plane with no drivable route
+						// back up. After a short grace it re-seats on the nearest
+						// centerline point, upright along the track, velocities
+						// zeroed. Deliberately Lakitu-style: anywhere deeper than the
+						// drop threshold under the local surface recovers, including
+						// the ground strip BESIDE an elevated span.
+						if (rt.hasRelief && !rig.combat.eliminated) {
+							const surfY = surfaceYAt(rt, body.position.x, body.position.z, rig.warmIdx);
+							if (
+								surfY - body.position.y >
+								num(tuning.fallRecoverDrop, DEFAULTS.fallRecoverDrop)
+							) {
+								rig.fallAcc += dt;
+								if (
+									rig.fallAcc >=
+									num(tuning.fallRecoverDelaySec, DEFAULTS.fallRecoverDelaySec)
+								) {
+									rig.fallAcc = 0;
+									testStats.falls++;
+									const ri2 = rig.warmIdx;
+									const rp = rt.center[ri2];
+									const rp2 = rt.center[(ri2 + 1) % nC];
+									const yawDeg =
+										(Math.atan2(-(rp2.z - rp.z), rp2.x - rp.x) * 180) / Math.PI;
+									body.position.set(rp.x, seatY(rp.x, rp.z, ri2), rp.z);
+									body.quaternion.copy(quatFor(yawDeg));
+									body.velocity.setZero();
+									body.angularVelocity.setZero();
+									rig.steerCurrent = 0;
+									// No phantom motion segment for the lap tracker: the
+									// re-seat is a teleport, not travel.
+									rig.prevX = rp.x;
+									rig.prevZ = rp.z;
+									spawnRing(rp.x, rp.z, 0x00ff41, 4, 320, 0.45, body.position.y - 0.4);
+									if (rig === player) flash('OFF THE EDGE — recovered');
+								}
+							} else if (rig.fallAcc !== 0) {
+								rig.fallAcc = 0;
+							}
+						}
+
+						// Trigger zones (schema v2): boost pads + hazards, entry-edge
+						// per vehicle (zoneEntries updates rig.zoneInside in place); a
+						// per-zone rearm window keeps boundary jitter from
+						// re-triggering. Locked during the countdown like weapons.
+						if (rt.zones.length && !preLaunch && !rig.combat.isOut(now)) {
+							for (const zi of zoneEntries(
+								rt.zones,
+								body.position.x,
+								body.position.z,
+								rig.zoneInside
+							)) {
+								if (now < rig.zoneRearmMs[zi]) continue;
+								rig.zoneRearmMs[zi] = now + ZONE_REARM_SEC * 1000;
+								const zn = rt.zones[zi];
+								if (zn.type === 'boost') {
+									testStats.zone.boost++;
+									rig.boostMul = zn.strength ?? BOOST_STRENGTH;
+									rig.boostUntilMs = now + (zn.durationSec ?? BOOST_DURATION_SEC) * 1000;
+									// Instant kick worth BOOST_KICK_MPS of forward speed
+									// (mass-scaled so every build feels the same shove);
+									// the engine window above sustains it.
+									body.applyImpulse(
+										new CANNON.Vec3(
+											rig.hx * body.mass * BOOST_KICK_MPS,
+											0,
+											rig.hz * body.mass * BOOST_KICK_MPS
+										),
+										new CANNON.Vec3()
+									);
+									spawnRing(zn.x, zn.z, 0x2ae57e, 6, 380, 0.55, body.position.y - 0.3);
+									spawnSparks(
+										body.position.x,
+										body.position.y + 0.3,
+										body.position.z,
+										14,
+										0x8fffc4,
+										10,
+										400
+									);
+									zoneSfx('boost', zn.x, zn.z);
+									if (rig === player) {
+										addTrauma(0.15);
+										flash('BOOST');
+									}
+								} else {
+									// hazard kind 'oil': the deployed-slick traction cut,
+									// resist-scaled like a real slick, never consumed.
+									testStats.zone.hazard++;
+									rig.combat.applyOiled(ct, now);
+									spawnSparks(
+										body.position.x,
+										body.position.y + 0.4,
+										body.position.z,
+										12,
+										0xb47cff,
+										7,
+										420
+									);
+									spawnRing(
+										zn.x,
+										zn.z,
+										0x8f5fff,
+										zn.radius * 1.5,
+										300,
+										0.4,
+										body.position.y - 0.3
+									);
+									if (rig === player) {
+										addTrauma(0.25);
+										flash('OIL PATCH — TRACTION LOST');
+									}
+								}
+							}
 						}
 
 						// Status tint + scorch, in the brand palette: dead steel when
@@ -5667,6 +6082,10 @@
 					updateSmoke(now, dt);
 					updateDebris(now, dt);
 					updateDust(now, dt);
+					// Trigger-zone markers breathe gently (empty on zone-less tracks).
+					for (const zp of zonePulse) {
+						zp.mat.opacity = zp.base * (0.75 + 0.25 * Math.sin(now / 420 + zp.phase));
+					}
 
 					// -- Chase camera (player) --
 					const flatFwd = new THREE.Vector3(player.hx, 0, player.hz);

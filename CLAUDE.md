@@ -1438,9 +1438,11 @@ on one side of the world.
   gantry / block / pad / berm, plus since the environment pass container /
   building / machine) that the harness renders generically and the
   runtime NEVER reads (props have no physics bodies, so they must sit
-  outside the boundaries). Tracks stay physically FLAT in v1: elevation and
-  real banking remain a future surface kind, banking is currently a visual
-  berm prop. Reference track: `tracks/proving-ground-07.json` (Proving
+  outside the boundaries). Tracks were physically FLAT in v1; schema v2
+  (Phase 8a, see the "Track schema v2" bullet below) added real per-point
+  elevation and banking plus gameplay trigger zones, all additive — a v1
+  track like this one is untouched. Reference track:
+  `tracks/proving-ground-07.json` (Proving
   Ground 07, a decommissioned automotive proving ground at night: 794 m,
   six checkpoints; long test straight into a hard braking gate, a 20 m wide
   skid-pad sweep with multiple viable arcs, a funnel into the 10.5 m
@@ -2517,6 +2519,94 @@ on one side of the world.
     (decal-only, pattern+decal, and unequip via `getLivery`), plus a
     claude-in-chrome screenshot of the decal rendered on the hull in the
     garage preview. `svelte-check` clean, 0 errors.
+- **Track schema v2: elevation, banking, trigger zones + real 3D track
+  physics (Phase 8a).** The first non-flat collision geometry the track
+  system has ever had, proven on a compact segment before 8b authors real
+  content against it. All additive: every v1 track parses and behaves
+  byte-identically.
+  - **Schema (`track-schema.ts`, `schemaVersion: 1 | 2`):** `RibbonSurface`
+    gains optional per-point `elevations` (world-unit centerline y) and
+    `banking` (roll degrees about the direction of travel; POSITIVE raises
+    the runtime's `leftEdge` side, the driver's right, so a right-hand turn
+    banks with negative values), both the exact `widths` convention (parallel
+    array, missing = flat). Gameplay `TrackData.zones` is a NEW top-level
+    discriminated union deliberately separate from `props` (which stay
+    presentation-only, never runtime-read): `boost` (radius circle;
+    `strength` engine multiplier + `durationSec`) and `hazard` with a `kind`
+    field that grows like the WeaponDef catalog (v2 ships `oil`, the
+    deployed-slick traction cut as permanent track furniture). parseTrack
+    validates all three (unknown hazard kinds fail loudly at load).
+  - **Runtime (`track-runtime.ts`):** `buildRuntime` sweeps a real 3D cross-
+    section (`leftEdge3`/`rightEdge3`, elevation + bank rotation about the
+    tangent; the 2D `leftEdge`/`rightEdge` are now its exact x/z projection)
+    and exposes `elevations`/`bankingRad`/`hasRelief`/`zones`. `surfaceYAt`
+    is the local surface-height query (nearest-segment interpolation +
+    bank-tilted lateral offset, clamped to the edge; warm-index convention,
+    fast-path 0 on flat tracks); `zoneEntries` is the pure per-vehicle
+    zone-occupancy/entry-edge check. `surfaceState` (the top-down
+    on-ribbon/boundary question) is deliberately untouched.
+  - **Physics (`GreenlineRace.svelte`):** a track with `hasRelief` gets a
+    static `CANNON.Trimesh` built from the SAME `leftEdge3`/`rightEdge3`
+    sweep the visual ribbon renders (one geometry, physics and visuals can
+    never drift), triangles wound normals-UP because `world.rayTest` skips
+    backfaces; the RaycastVehicle wheel rays follow slopes and banking
+    natively (browser-measured: ride height ~0.85 constant up a 5 m climb,
+    chassis roll upY ~0.951 = cos 18deg on the banked berm). The flat plane
+    stays as the y-0 catch/run-off surface; flat tracks build NO trimesh
+    (plane-only, pre-8a identical, verified). cannon-es has no Box-vs-Trimesh
+    narrowphase, so the chassis never contacts the ribbon (wheels are the
+    only ground interface): a flipped car on an elevated span falls THROUGH
+    to the plane, which is handled, see fall recovery. Spawn/reset/teleport/
+    flip re-seat heights all go through `seatY` = SPAWN_Y + `surfaceYAt`.
+    IMPORTANT authoring constraint: the catch plane sits at y 0, so a banked
+    section must build its berm UP (raise the centerline so the LOW edge
+    stays at or above 0, e.g. by hw*sin(bank)) or the plane swallows the low
+    half and flattens the bank (found live: wheels ray-hit whichever surface
+    is higher).
+  - **Fall recovery (the flip-watchdog pattern):** a chassis more than
+    `fallRecoverDrop` (2.5 m, sized under relief-proof-01's 3.7 m berm wall)
+    below the local surface for `fallRecoverDelaySec` (1.2 s) re-seats on the
+    nearest centerline point, upright along the track, velocities zeroed,
+    lap-tracker prev position synced so the teleport never crosses a gate.
+    Deliberately Lakitu-style: it also recovers a car lingering on the ground
+    BESIDE an elevated span (no drivable route back exists). Never fires on
+    flat tracks (`hasRelief` gate).
+  - **Zones in the harness:** per-rig occupancy arrays + a 1.5 s per-zone
+    rearm window; boost = mass-scaled forward impulse (+5 m/s) plus a timed
+    engineForce multiplier window (stacks with Nitro, same term), hazard oil
+    = `combat.applyOiled` (resist-scaled like a real slick). Zone triggers
+    are countdown-locked like weapons. Visuals: chevroned signature-green pad
+    (rotated to travel direction) and a permanent violet-rimmed slick, both
+    placed at `surfaceYAt` height with a gentle opacity pulse. Gate panes/
+    posts and oil-stain decals also sit at local surface height now.
+  - **Ribbon winding fix (latent since the first ribbon mesh):** the visual
+    ribbon's triangles wound face-DOWN, so FrontSide culling hid the darker
+    asphalt corridor + braking-zone wear ramps on every track (the "road"
+    seen in all prior screenshots was the apron plane underneath); an
+    elevated span would have been see-through. Rebuilt winding face-up as
+    part of the elevation pass; Proving Ground 07 now shows its authored
+    corridor for the first time, driving behavior untouched.
+  - **Proof segment `tracks/relief-proof-01.json`** (schemaVersion 2,
+    generated by a scratch script with built-in sanity checks: boundary
+    orientation, grid-area flatness, min-edge-above-plane, grade limits): a
+    306 m stadium loop; flat start straight with a boost pad and an oil patch
+    on the corner entry, an 18-degree banked berm turn (berm built up so the
+    low edge kisses y 0, outer wall 3.7 m), a climb to a 5 m elevated
+    straight (~12% peak grade), and a descending turn home. Browser-verified
+    end to end (headless `?glheadless=1&track=relief` + claude-in-chrome
+    visuals): AI field laps it (~20-24 s laps), boost measurably kicks a
+    coasting car 11.06 -> 15.79 m/s, the oil patch applies the slick state,
+    driving off the 5 m edge falls ballistically to the catch plane and
+    recovers to the centerline in 1.2 s, an elevated flip falls through and
+    recovers on top, and Proving Ground 07 is structurally untouched (no
+    trimesh body, surfaceY 0, zero zones, same spawn heights, normal racing).
+  - **Harness/API:** `GreenlineRace` gains an optional `track` prop (a
+    parseTrack result, read once at init; omitted = Proving Ground 07, so
+    /greenline is unchanged); `/dev/greenline-movement?track=relief` mounts
+    the proof segment (and the page now actually 404s in production — the
+    guard load was missing). `__greenline` adds `surfaceY(x, z)` and
+    `getZones(rigId)`; `raceState` rigs carry `y`; telemetry adds `falls` and
+    `zone: { boost, hazard }`.
 - **Ignition Credits economy + unlock gating + creative mode (Phase 7,
   migration `0052`).** "IC" is the GREENLINE-only currency (Ignition Credits),
   named in the spirit of IDEA Coin but fully separate from it — the no-coin-
