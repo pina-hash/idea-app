@@ -2346,6 +2346,52 @@ on one side of the world.
     while VELOCITY (cap 5) keeps it; the AI equips and fires nitro/grip/repair/
     flip each off its own per-vehicle meter; and the two actions remap through
     the settings UI (C -> B live, B fires the ability, C stops).
+- **Structural connectors + deeper destruction (Phase 6a, cars only).** Two
+  additive layers extending the existing rig-visual + damage systems (no new
+  particle system, no new material convention).
+  - **Connectors bridge the part-group seams** so a vehicle reads as assembled,
+    not four floating pieces. `rig-visual.ts` gains a `connector` VisualNode
+    field + two generators wired into `compose()`: MOUNT connectors (per
+    hardpoint: two weld tabs just under the collar plane at y<0 where no weapon
+    reaches, plus three pedestal-flanking struts + a foot on clearly RAISED
+    sockets, base >= 0.15) live in the socket sub-groups on the per-rig
+    `mount` material; ARMOR connectors (one inner bracket per real plate present
+    after the plating variant) live in the armor group on the per-rig `hull`
+    material. The CRITICAL invariant: connectors share the SAME per-rig material
+    OBJECT the damage system already mutates (`mountConnector.material ===
+    rig.mountMat`, `armorConnector.material === rig.bodyMat`, both
+    browser-asserted), so a connector under a failing pool degrades WITH it —
+    mount struts char + tilt + buckle-and-drop when the mount dies
+    (`setMountDead` droops them), armor brackets strip WITH the plates
+    (`syncArmorPlates` now reconciles plates and brackets as SEPARATE sets by
+    the same armor fraction, so brackets never skew the plate count). Each
+    failure spits its own distinct debris/spark category on the SHARED pools
+    (never a new pool) + a snap cue. Stripping a build (`plating-stripped`) has
+    no plates so no armor brackets; a socket swap rebuilds them like any part.
+    Storage/clip: connectors deliberately interpenetrate the two groups they
+    join (the bridge), so `userData.connector` marks them for the clip check to
+    skip; browser-verified 0 connector-vs-weapon overlaps across all four
+    archetypes with heavy dual-weapon fits.
+  - **Compounding crumple** replaces the old snap-to-stage hull deform. `Rig`
+    gains `dentAccum` (per-vertex accumulated deformation); every chassis bite
+    (`addCrumple` in `afterDamage`, struck-side-biased, clamped to
+    `CRUMPLE_MAX` 0.34) DEEPENS it, so the live hull = `dentBase + dentAccum`
+    (`writeHull`) and a car battered across a race looks progressively worse
+    instead of capping at one state (browser-verified mesh deviation grows
+    monotonically 0.71 -> 1.67 over successive hits on a surviving rig). The
+    stage (0..3) now drives only the plate-rattle + damage-smoke tiers.
+    Heal/reset (`restoreRigCondition`, round reset) zeroes `dentAccum` so the
+    bodywork comes back whole.
+  - **Tiered damage SFX** (`damageSfx`, the weaponSfx placeholder-tone
+    convention on the Phase 2C buses): five DISTINCT tones so severity reads by
+    ear — light `scuff`, heavy `crunch`, sharp metallic `connector-snap`,
+    `armor-strip`, deep `mount-kill` — one matched sound per hit (pool-kill >
+    strip > crunch > scuff), never one generic hit.
+  - Debug: `__greenline.getDamageVis(id)` returns the crumple magnitude, plate/
+    connector visibility, and the material-object wiring booleans for structural
+    verification. Solo/normal play byte-identical for non-damage frames; the
+    debris/spark pools stay ring-buffer-capped (48 / 1000) through connector
+    failures (browser-verified 48/48, never exceeded).
 
 ## FRC Training track
 

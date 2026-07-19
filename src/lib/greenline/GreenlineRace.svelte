@@ -1866,10 +1866,16 @@
 					/** Per-vehicle ability state: the shared drift meter both slots
 					 * draw from, per-slot cooldowns, and the active nitro/grip windows. */
 					abilityState: VehicleAbilities;
-					/** Crumple state: 0 pristine .. 3 wrecked; drives vertex jitter. */
+					/** Crumple state: 0 pristine .. 3 wrecked; drives the stage-based
+					 * plate rattle + damage smoke tiers. */
 					dentStage: number;
 					/** Pristine hull-geometry positions, restored on heal/reset. */
 					dentBase: Float32Array;
+					/** Accumulated per-vertex hull deformation (Phase 6a): each hit adds
+					 * a compounding bite here (clamped), so repeated damage reads as
+					 * progressively worse crumple instead of snapping to one stage. The
+					 * live hull = dentBase + dentAccum; heal/reset zeroes it. */
+					dentAccum: Float32Array;
 					/** Cyan crackle ring shown while disrupted (inside carGroup). */
 					stunMat: InstanceType<typeof THREE.MeshBasicMaterial>;
 					stunRing: InstanceType<typeof THREE.Mesh>;
@@ -2011,6 +2017,9 @@
 					);
 					rig.bodyMesh = built.bodyMesh;
 					rig.dentBase = built.dentBase;
+					// Fresh clone is pristine; the compounding crumple starts at zero
+					// (the frame loop re-applies whatever stage the health calls for).
+					rig.dentAccum = new Float32Array(built.dentBase.length);
 					rig.baseColor = built.tone;
 					rig.visualKey = built.key;
 					// Fresh geometry is pristine; the frame loop re-applies whatever
@@ -2175,6 +2184,7 @@
 						abilityState: new VehicleAbilities(id),
 						dentStage: 0,
 						dentBase: new Float32Array(0),
+						dentAccum: new Float32Array(0),
 						stunMat,
 						stunRing,
 						shieldBubble,
@@ -2263,7 +2273,26 @@
 					rig.mountDead = dead;
 					rig.mountMat.color.setHex(dead ? 0x0a0c0e : 0x1a2128);
 					rig.mountMat.roughness = dead ? 0.9 : 0.5;
-					for (const sg of rig.parts.mount.children) sg.rotation.z = dead ? 0.22 : 0;
+					for (const sg of rig.parts.mount.children) {
+						sg.rotation.z = dead ? 0.22 : 0;
+						// The mount struts/tabs bridging this hardpoint to the body
+						// buckle and drop when the mount is dead (Phase 6a), restored
+						// to their build transform when the mount comes back.
+						for (const child of sg.children) {
+							if (child.userData.connector !== 'mount') continue;
+							const b = child.userData.base as
+								| { pos: InstanceType<typeof THREE.Vector3>; rot: InstanceType<typeof THREE.Euler> }
+								| undefined;
+							if (!b) continue;
+							if (dead) {
+								child.rotation.set(b.rot.x, b.rot.y, b.rot.z + 0.55);
+								child.position.set(b.pos.x, b.pos.y - 0.06, b.pos.z);
+							} else {
+								child.position.copy(b.pos);
+								child.rotation.copy(b.rot);
+							}
+						}
+					}
 				};
 
 				// Reconcile visible armor plates with the AGGREGATE armor pool (one
@@ -2273,8 +2302,13 @@
 				// first and exposes the hull underneath. `silent` skips the burst
 				// FX for non-hit reconciles (garage swaps, heals).
 				const syncArmorPlates = (rig: Rig, hitX?: number, hitZ?: number, silent = false) => {
-					const plates = rig.parts.armor.children;
-					if (!plates.length) return;
+					const children = rig.parts.armor.children;
+					if (!children.length) return;
+					// Plates and their inner mounting brackets (Phase 6a) reconcile as
+					// separate sets, so the brackets strip WITH the armor without
+					// skewing the plate-fraction count.
+					const plates = children.filter((c) => c.userData.connector !== 'armor');
+					const connectors = children.filter((c) => c.userData.connector === 'armor');
 					const frac =
 						rig.combat.maxArmor > 0
 							? Math.max(0, rig.combat.armorHealth / rig.combat.maxArmor)
@@ -2312,13 +2346,57 @@
 							visible.push(p);
 						}
 					}
+					// Armor mounting brackets strip with the pool too (Phase 6a): a
+					// failing bracket spits its own smaller steel-fleck debris + a
+					// distinct snap cue, its own damage category on the shared pools.
+					const wantC = Math.ceil(frac * connectors.length);
+					let visC = connectors.filter((p) => p.visible);
+					let snapped = false;
+					while (visC.length > wantC) {
+						let pick = visC[visC.length - 1];
+						if (hitX !== undefined && hitZ !== undefined) {
+							let bd = Infinity;
+							for (const p of visC) {
+								const wp = p.getWorldPosition(tmpWorld);
+								const dd = (wp.x - hitX) ** 2 + (wp.z - hitZ) ** 2;
+								if (dd < bd) {
+									bd = dd;
+									pick = p;
+								}
+							}
+						}
+						pick.visible = false;
+						if (!silent) {
+							const wp = pick.getWorldPosition(tmpWorld);
+							const ox = wp.x - rig.body.position.x;
+							const oz = wp.z - rig.body.position.z;
+							const ol = Math.hypot(ox, oz) || 1;
+							spawnDebris(wp.x, wp.y, wp.z, 2, ox / ol, oz / ol, 5);
+							spawnSparks(wp.x, wp.y, wp.z, 4, GL.steel, 6, 260);
+							snapped = true;
+						}
+						visC = connectors.filter((p) => p.visible);
+					}
+					for (const p of connectors) {
+						if (visC.length >= wantC) break;
+						if (!p.visible) {
+							p.visible = true;
+							visC.push(p);
+						}
+					}
+					if (snapped) damageSfx('connector-snap', rig.body.position.x, rig.body.position.z);
 				};
 
-				// Full-heal restore (RACE recovery, round reset): every plate back
-				// on, the mount back online. The pools themselves are the caller's.
+				// Full-heal restore (RACE recovery, round reset): every plate and armor
+				// bracket back on, the mount + struts online, and the compounding
+				// crumple wiped so the bodywork comes back whole.
 				const restoreRigCondition = (rig: Rig) => {
 					for (const p of rig.parts.armor.children) p.visible = true;
 					setMountDead(rig, false);
+					if (rig.dentAccum.length) {
+						rig.dentAccum.fill(0);
+						applyDentStage(rig, 0);
+					}
 				};
 
 				// A rig's per-pool maximums: the panel's TOTAL budget x the build's
@@ -2809,23 +2887,60 @@
 				// (shared geometry, so no vertex writes) shift and tilt off their
 				// stored base transforms, reading as panels knocked loose. Healing
 				// (RACE recovery, reset) restores both exactly.
-				const applyDentStage = (rig: Rig, stage: number) => {
-					rig.dentStage = stage;
+				// Write the live hull = pristine base + the accumulated crumple.
+				const writeHull = (rig: Rig) => {
+					if (!rig.dentBase.length) return;
 					const attr = rig.bodyMesh.geometry.getAttribute('position') as InstanceType<
 						typeof THREE.BufferAttribute
 					>;
 					const arr = attr.array as Float32Array;
-					arr.set(rig.dentBase);
-					for (let pass = 1; pass <= stage; pass++) {
-						const amp = 0.05 * pass;
-						for (let v = 0; v < arr.length; v += 3) {
-							arr[v] += (Math.random() - 0.5) * amp;
-							arr[v + 1] += (Math.random() - 0.5) * amp;
-							arr[v + 2] += (Math.random() - 0.5) * amp;
-						}
-					}
+					const base = rig.dentBase;
+					const acc = rig.dentAccum;
+					for (let i = 0; i < arr.length; i++) arr[i] = base[i] + (acc[i] || 0);
 					attr.needsUpdate = true;
 					rig.bodyMesh.geometry.computeVertexNormals();
+				};
+
+				// Per-vertex clamp: repeated hits keep deepening the crumple up to
+				// this, so a battered car looks progressively worse without shredding
+				// the mesh into noise.
+				const CRUMPLE_MAX = 0.34;
+				// Add ONE compounding deformation bite from a hit. The struck side
+				// (hit direction projected into the hull's local frame) crumples
+				// harder, and the accumulation persists across hits until a heal
+				// zeroes dentAccum — this is what makes damage read as escalating
+				// over a race rather than snapping to a single stage.
+				const addCrumple = (rig: Rig, amount: number, hitX: number, hitZ: number) => {
+					const acc = rig.dentAccum;
+					const base = rig.dentBase;
+					if (!acc.length) return;
+					const wdx = hitX - rig.body.position.x;
+					const wdz = hitZ - rig.body.position.z;
+					const wl = Math.hypot(wdx, wdz) || 1;
+					// Hit direction resolved into local x (heading) / z (lateral).
+					const lx = (wdx / wl) * rig.hx + (wdz / wl) * rig.hz;
+					const lz = (wdx / wl) * -rig.hz + (wdz / wl) * rig.hx;
+					const amp = Math.min(0.07, 0.012 + amount * 0.0018);
+					for (let v = 0; v < acc.length; v += 3) {
+						// Vertices on the struck half take ~2x the bite.
+						const side = base[v] * lx + base[v + 2] * lz > 0 ? 1 : 0.5;
+						for (let k = 0; k < 3; k++) {
+							const j = v + k;
+							let n = acc[j] + (Math.random() - 0.5) * amp * 2 * side;
+							if (n > CRUMPLE_MAX) n = CRUMPLE_MAX;
+							else if (n < -CRUMPLE_MAX) n = -CRUMPLE_MAX;
+							acc[j] = n;
+						}
+					}
+					writeHull(rig);
+				};
+
+				// Stage drives the escalating PLATE rattle + damage-smoke tiers; the
+				// hull itself is written from the compounding dentAccum (above), so a
+				// stage change just re-seats the hull and rattles the plates.
+				const applyDentStage = (rig: Rig, stage: number) => {
+					rig.dentStage = stage;
+					writeHull(rig);
 					for (const plate of rig.parts.armor.children) {
 						const base = plate.userData.base as
 							| {
@@ -3027,6 +3142,7 @@
 					if (res.armorStripped) {
 						const p = target.body.position;
 						spawnRing(p.x, p.z, 0xffb347, 5, 300, 0.4);
+						damageSfx('armor-strip', p.x, p.z);
 						flash(
 							target === player
 								? 'ARMOR STRIPPED — hull exposed'
@@ -3034,11 +3150,24 @@
 						);
 					}
 					if (res.mountDisabled) {
+						// setMountDead also buckles + drops the mount struts (Phase 6a).
 						setMountDead(target, true);
 						const mp = hitAnchor(target, srcX, srcZ, 'rear');
 						spawnSparks(mp.x, mp.y, mp.z, 26, GL.amber, 10, 650);
 						spawnDebris(mp.x, mp.y, mp.z, 8, -target.hx, -target.hz, 6);
 						spawnSmoke(mp.x, mp.y + 0.2, mp.z, 0x141414, 1.1, 1400, 1.6, 0.55);
+						// Each failing strut spits a cool electrical fleck at its own
+						// world position, and a chunk of bracket debris breaks free.
+						for (const sg of target.parts.mount.children) {
+							for (const child of sg.children) {
+								if (child.userData.connector !== 'mount') continue;
+								const wp = child.getWorldPosition(tmpWorld);
+								spawnSparks(wp.x, wp.y, wp.z, 2, GL.coolRim, 5, 240);
+							}
+						}
+						spawnDebris(mp.x, mp.y, mp.z, 3, -target.hx, -target.hz, 5);
+						damageSfx('mount-kill', mp.x, mp.z);
+						damageSfx('connector-snap', mp.x, mp.z);
 						flash(
 							target === player
 								? 'WEAPON SYSTEMS DESTROYED'
@@ -3051,6 +3180,18 @@
 						const dz = a.z - srcZ;
 						const dl = Math.hypot(dx, dz) || 1;
 						spawnDebris(a.x, a.y, a.z, 4, dx / dl, dz / dl, 5);
+					}
+					// Compounding hull crumple (Phase 6a): every chassis bite deepens the
+					// deformation, so a car battered across a race looks progressively
+					// worse instead of snapping to a single stage. Pool-depletion cues
+					// already sounded in their branches; the ordinary bites pick a heavy
+					// crunch vs a light scuff so severity reads by ear too.
+					if (res.chassis > 0) addCrumple(target, res.chassis, srcX, srcZ);
+					if (!res.mountDisabled && !res.armorStripped) {
+						const dp = target.body.position;
+						if (res.chassis >= 14) damageSfx('crunch', dp.x, dp.z);
+						else if (res.chassis > 0 || res.armor > 0 || res.mount > 0)
+							damageSfx('scuff', dp.x, dp.z);
 					}
 					if (res.outcome === 'eliminated') {
 						explodeRig(target);
@@ -3379,6 +3520,30 @@
 					else if (kind === 'lock-on')
 						audioEngine.playTone('ui', { freq: 880, durationMs: 90, type: 'sine', gain: 0.14 });
 					else audioEngine.playTone('ui', { freq: 220, durationMs: 120, type: 'sine', gain: 0.12 });
+				};
+
+				// PLACEHOLDER structural-damage SFX (Phase 6a), tiered so each visual
+				// damage step reads by ear: a light scuff, a heavy crumple crunch, a
+				// sharp metallic connector snap, plate armor tearing, and the deep
+				// mount-kill destruction are five DISTINCT tones (freq/type/length),
+				// not one generic "hit". Same audio-engine-bus convention as weaponSfx;
+				// swap for real assets later (positions ride through).
+				const damageSfx = (
+					kind: 'scuff' | 'crunch' | 'connector-snap' | 'armor-strip' | 'mount-kill',
+					x?: number,
+					z?: number
+				) => {
+					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
+					if (kind === 'scuff')
+						audioEngine.playTone('impacts', { freq: 130, durationMs: 70, type: 'triangle', gain: 0.12, pitchJitter: [0.85, 1.15], position: pos });
+					else if (kind === 'crunch')
+						audioEngine.playTone('impacts', { freq: 90, durationMs: 180, type: 'sawtooth', gain: 0.24, pitchJitter: [0.8, 1.05], position: pos });
+					else if (kind === 'connector-snap')
+						audioEngine.playTone('impacts', { freq: 640, durationMs: 70, type: 'square', gain: 0.17, pitchJitter: [0.9, 1.25], position: pos });
+					else if (kind === 'armor-strip')
+						audioEngine.playTone('impacts', { freq: 260, durationMs: 160, type: 'sawtooth', gain: 0.22, pitchJitter: [0.85, 1.1], position: pos });
+					else
+						audioEngine.playTone('impacts', { freq: 70, durationMs: 340, type: 'sawtooth', gain: 0.3, pitchJitter: [0.9, 1.0], position: pos });
 				};
 
 				// Live projectiles (combat facts) + their meshes keyed by id. The
@@ -3842,7 +4007,9 @@
 						r.draftFactor = 0;
 						r.draftPrev = false;
 						r.flipAcc = 0;
-						if (r.dentStage !== 0) applyDentStage(r, 0);
+						// Wipe the compounding crumple, then re-seat the pristine hull.
+						if (r.dentAccum.length) r.dentAccum.fill(0);
+						applyDentStage(r, 0);
 						r.warmIdx = r.spawn.warmIdx;
 						r.lastOnRibbon = true;
 						r.prevX = r.spawn.x;
@@ -4019,6 +4186,47 @@
 							mount: c.mountHealth,
 							mountMax: c.maxMount,
 							mountDown: c.mountDown
+						};
+					},
+					// Phase 6a structural-damage introspection: the compounding-crumple
+					// magnitude, plate/connector visibility, and the material-object
+					// wiring (connectors share the per-rig materials the damage system
+					// mutates), so the visuals are verifiable structurally, not by eye.
+					getDamageVis: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						let crumpleMag = 0;
+						let crumpleMax = 0;
+						for (const v of r.dentAccum) {
+							const a = Math.abs(v);
+							crumpleMag += a;
+							if (a > crumpleMax) crumpleMax = a;
+						}
+						const armorChildren = r.parts.armor.children;
+						const armorPlates = armorChildren.filter((c) => c.userData.connector !== 'armor');
+						const armorConns = armorChildren.filter((c) => c.userData.connector === 'armor');
+						const mountConns: InstanceType<typeof THREE.Object3D>[] = [];
+						for (const sg of r.parts.mount.children)
+							for (const c of sg.children)
+								if (c.userData.connector === 'mount') mountConns.push(c);
+						const matchAll = (
+							arr: InstanceType<typeof THREE.Object3D>[],
+							mat: InstanceType<typeof THREE.Material>
+						) =>
+							arr.length > 0 &&
+							arr.every((m) => (m as InstanceType<typeof THREE.Mesh>).material === mat);
+						return {
+							dentStage: r.dentStage,
+							crumpleMag: Math.round(crumpleMag * 1000) / 1000,
+							crumpleMax: Math.round(crumpleMax * 1000) / 1000,
+							armorPlatesVisible: armorPlates.filter((p) => p.visible).length,
+							armorPlatesTotal: armorPlates.length,
+							armorConnectorsVisible: armorConns.filter((p) => p.visible).length,
+							armorConnectorsTotal: armorConns.length,
+							mountConnectorsTotal: mountConns.length,
+							mountDead: r.mountDead,
+							mountConnectorsUseMountMat: matchAll(mountConns, r.mountMat),
+							armorConnectorsUseHullMat: matchAll(armorConns, r.bodyMat)
 						};
 					},
 					setMode: (m: GreenlineMode) => {

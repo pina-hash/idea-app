@@ -113,6 +113,17 @@ interface VisualNode {
 	 * separate intentional seating from real interpenetration.
 	 */
 	tag?: 'weapon' | 'socketBase';
+	/**
+	 * Structural connector (Phase 6a): brackets/struts that bridge the seams
+	 * between the modular part groups so the machine reads as assembled, not
+	 * floating. 'mount' connectors live in a socket sub-group on the per-rig
+	 * mount material (they char + tilt with a dead mount); 'armor' connectors
+	 * live in the armor group on the per-rig hull material (they scorch + strip
+	 * with the plates). Stamped into mesh.userData.connector so the damage
+	 * system's failure FX + reconcile can find them. A connector DELIBERATELY
+	 * interpenetrates the two groups it joins, so the clip check skips it.
+	 */
+	connector?: 'mount' | 'armor';
 }
 
 /** One named hardpoint on an archetype's hull: where the socket group sits
@@ -381,6 +392,12 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		return geo;
 	};
 
+	// Socket collar radius per archetype (armor's hardpoints are chunkiest,
+	// handling's slimmest). Shared by the collar furniture and the mount
+	// connectors so both size to the same hardpoint.
+	const sockRadiusFor = (arch: string) =>
+		arch === 'armor' ? 0.24 : arch === 'handling' ? 0.16 : 0.18;
+
 	// One hardpoint's built-in furniture, in SOCKET-LOCAL space (the socket
 	// sub-group carries the world transform): the collar disc + cap every
 	// socket shows even when empty, plus a support pedestal when the socket
@@ -599,7 +616,7 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		}
 		// Every hardpoint renders its collar disc (and pedestal, when raised)
 		// even when empty, so a chassis visibly SHOWS where weapons can seat.
-		const sockR = arch === 'armor' ? 0.24 : arch === 'handling' ? 0.16 : 0.18;
+		const sockR = sockRadiusFor(arch);
 		for (const s of vis.sockets) vis.nodes.push(...socketNodes(s.id, s.base, sockR));
 		archCache.set(arch, vis);
 		return vis;
@@ -894,6 +911,81 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		return nodes;
 	};
 
+	// ---- Structural connectors (Phase 6a). Bracket/strut geometry that
+	// bridges the gaps between the modular part groups, so the machine reads as
+	// physically assembled rather than four floating pieces. They ride the SAME
+	// per-rig materials the damage system already mutates, so a connector under
+	// a failing pool degrades with it (see the `connector` field doc). ----
+
+	// MOUNT connectors: every hardpoint gets a pair of small weld gusset tabs at
+	// the collar base (reads as fastened to the body); a clearly RAISED socket
+	// (a real pedestal gap) additionally gets three struts flanking the pedestal
+	// down to a foot at the deck. All socket-local + mat 'mount', so they char
+	// and tilt with a dead mount exactly like the socket furniture.
+	const mountConnectorNodes = (sockets: SocketSpec[], arch: string): VisualNode[] => {
+		const r = sockRadiusFor(arch);
+		const nodes: VisualNode[] = [];
+		for (const s of sockets) {
+			// Weld tabs: two flat wedges just UNDER the collar plane (y < 0, where
+			// no weapon mesh reaches — weapons seat at y >= 0), so they read as
+			// fastened to the body without ever contesting the weapon envelope.
+			for (const sgn of [1, -1]) {
+				nodes.push({
+					part: 'mount',
+					geo: unitBox(),
+					mat: 'mount',
+					pos: [0, -0.05, sgn * r * 0.85],
+					scale: [r * 1.3, 0.05, 0.06],
+					socket: s.id,
+					connector: 'mount'
+				});
+			}
+			if (s.base >= 0.15) {
+				// Struts flanking the pedestal from just under the collar down to
+				// the deck, plus a foot disc welded flat to the body.
+				const h = s.base + 0.04;
+				for (const ang of [Math.PI / 2, (7 * Math.PI) / 6, (11 * Math.PI) / 6]) {
+					nodes.push({
+						part: 'mount',
+						geo: unitTube(),
+						mat: 'mount',
+						pos: [Math.cos(ang) * r * 0.78, -h / 2, Math.sin(ang) * r * 0.78],
+						scale: [0.05, h, 0.05],
+						socket: s.id,
+						connector: 'mount'
+					});
+				}
+				nodes.push({
+					part: 'mount',
+					geo: getGeo('sockFoot', () => new three.CylinderGeometry(r * 0.95, r * 1.1, 0.06, 12)),
+					mat: 'mount',
+					pos: [0, -h, 0],
+					socket: s.id,
+					connector: 'mount'
+				});
+			}
+		}
+		return nodes;
+	};
+
+	// ARMOR connectors: one inner mounting bracket per real plate (hull /
+	// composite mat), seated between the plate and the body center so it reads
+	// as bolted on. mat 'hull' -> the per-rig hull material, so it scorches with
+	// the body and (being an armor-group child) strips with the plates. `plates`
+	// is the composed armor plate list AFTER the plating variant, so a stripped
+	// build has none and a composite build brackets its thick slabs.
+	const armorConnectorNodes = (plates: VisualNode[]): VisualNode[] =>
+		plates.map((p) => ({
+			part: 'armor' as const,
+			geo: unitBox(),
+			mat: 'hull' as const,
+			// Pulled 15% toward the body center and dropped a touch: a small
+			// bracket tucked behind the plate, bridging it to the hull.
+			pos: [p.pos[0] * 0.85, p.pos[1] * 0.85 - 0.02, p.pos[2] * 0.85] as [number, number, number],
+			scale: [0.14, 0.1, 0.14] as [number, number, number],
+			connector: 'armor' as const
+		}));
+
 	// TIRES: one geometry per (variant, archetype width), still ONE mesh per
 	// wheel; hardwall adds one hoop child. Flat-shade the terrain lugs so the
 	// blocky tread reads under light.
@@ -982,6 +1074,14 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 			// build carries it as a spine line on the exposed deck instead.
 			nodes.push({ part: 'chassis', geo: getGeo('stripThread', () => new three.BoxGeometry(0.9, 0.045, 0.05)), mat: 'accent', pos: [a.hood[0] - 0.5, a.deckY + 0.03, 0] });
 		}
+		// Armor-seam connectors: one inner bracket per real plate present after
+		// the plating variant (none on a stripped build; brackets the thick
+		// slabs on a composite one).
+		nodes.push(
+			...armorConnectorNodes(
+				nodes.filter((n) => n.part === 'armor' && (n.mat === 'hull' || n.mat === 'composite'))
+			)
+		);
 		if (plating === 'plating-reactive') nodes.push(...cageNodes(a));
 		nodes.push(...drivetrainNodes(l.parts.drivetrain, a));
 		// The gear anchor expressed in rear-socket space (systems electronics
@@ -995,6 +1095,8 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 			])
 		);
 		nodes.push(...weaponNodes(l));
+		// Mount-seam connectors: struts/tabs fastening each hardpoint to the body.
+		nodes.push(...mountConnectorNodes(base.sockets, l.archetype));
 		const wheel = wheelFor(l.parts.tires, base.wheelWidth);
 		const vis: ComposedVisual = {
 			key,
@@ -1062,6 +1164,7 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 			// Base transform, for the plate-rattle damage jitter restore.
 			mesh.userData.base = { pos: mesh.position.clone(), rot: mesh.rotation.clone() };
 			if (node.tag) mesh.userData.tag = node.tag;
+			if (node.connector) mesh.userData.connector = node.connector;
 			if (node.part === 'mount') {
 				((node.socket && socketGroups[node.socket]) || fallbackSocket).add(mesh);
 			} else {
