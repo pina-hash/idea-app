@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './brand/brand';
+	import { CURRENCY_SHORT, type RaceAward } from './economy';
 	import { formatLapMs } from './track-runtime';
 	import type { RaceOutcome } from './GreenlineRace.svelte';
 	import type { LeaderboardEntry } from './persistence';
@@ -24,6 +25,8 @@
 		submitting = false,
 		submitError = false,
 		myUserId,
+		award = null,
+		creative = false,
 		onRaceAgain,
 		onGarage,
 		onTitle
@@ -35,6 +38,10 @@
 		submitting?: boolean;
 		submitError?: boolean;
 		myUserId: string;
+		/** Ignition Credits the submit paid out (Phase 7); null = none/unknown. */
+		award?: RaceAward | null;
+		/** The run was a creative-mode run: no IC, not ranked. */
+		creative?: boolean;
 		onRaceAgain: () => void;
 		onGarage: () => void;
 		onTitle: () => void;
@@ -68,6 +75,20 @@
 				<span class="gr-stat-val">{outcome.laps}</span>
 			</div>
 		</div>
+		{#if creative}
+			<div class="gr-award gr-award-creative">
+				CREATIVE RUN · no {CURRENCY_SHORT} earned · not ranked
+			</div>
+		{:else if award && award.awarded > 0}
+			<div class="gr-award">
+				<span class="gr-award-amt">+{award.awarded} {CURRENCY_SHORT}</span>
+				<span class="gr-award-detail">
+					placement +{award.placement}{award.pbBonus > 0
+						? ` · personal best lap +${award.pbBonus}`
+						: ''}{award.balance != null ? ` · wallet ${award.balance} ${CURRENCY_SHORT}` : ''}
+				</span>
+			</div>
+		{/if}
 	{/if}
 
 	<div class="gr-board-head">
@@ -229,6 +250,33 @@
 		color: var(--glb-chrome-hi);
 		font-size: 1.5rem;
 		line-height: 1;
+	}
+	/* Ignition Credits payout strip (Phase 7). The amount rides the signature
+	   green — it is the player's own earnings, the "your line" doctrine. */
+	.gr-award {
+		display: flex;
+		align-items: baseline;
+		justify-content: center;
+		gap: 0.7rem;
+		flex-wrap: wrap;
+		margin: -0.6rem 0 1.2rem;
+	}
+	.gr-award-amt {
+		font-family: var(--glb-font-data);
+		font-size: 1.05rem;
+		color: var(--glb-green-ui);
+		text-shadow: 0 0 12px rgba(42, 229, 126, 0.35);
+	}
+	.gr-award-detail {
+		color: var(--glb-ink-dim);
+		font-size: 0.7rem;
+		letter-spacing: 0.08em;
+	}
+	.gr-award-creative {
+		color: var(--glb-ink-faint);
+		font: 600 0.66rem var(--glb-font-ui);
+		letter-spacing: 0.2em;
+		text-transform: uppercase;
 	}
 	.gr-board-head {
 		color: var(--glb-ink-dim);

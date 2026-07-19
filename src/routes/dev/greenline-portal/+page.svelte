@@ -10,6 +10,15 @@
 	import { GARAGE_BASELINE, type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
 	import { defaultLoadout, resolveWeaponSockets, sanitizeLoadout, type ArchetypeId, type Cosmetics, type Loadout, type PartSlot } from '$lib/greenline/loadout';
 	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
+	import { creativeSettings } from '$lib/greenline/creative.svelte';
+	import {
+		AWARD_PB_BONUS,
+		awardForPlacement,
+		itemPrice,
+		sanitizeLoadoutOwnership,
+		unlockableItems,
+		type RaceAward
+	} from '$lib/greenline/economy';
 	import { GREENLINE_MAX_SLOTS, type LeaderboardEntry, type LoadoutSlot } from '$lib/greenline/persistence';
 	import DecalReviewQueue from '$lib/greenline/DecalReviewQueue.svelte';
 	import { validateDecalFile, type DecalStatus } from '$lib/greenline/decals';
@@ -211,6 +220,97 @@
 	// Settings overlay (real component).
 	let settingsOpen = $state(false);
 
+	// --- Economy (Phase 7): in-memory wallet + unlocks standing in for the 0052
+	// tables, driving the REAL Garage lock UI, the REAL ownership sanitizer, and
+	// the REAL creative store (the settings toggle works here). The purchase
+	// handler mirrors the greenline_purchase_item RPC's semantics — including
+	// the busy guard, so a scripted double-fire verifiably charges once (the
+	// server's wallet row lock is the real guard on /greenline).
+	let devEconomyOn = $state(true);
+	let devWallet = $state(800);
+	let devUnlocked = $state<Set<string>>(new Set());
+	let purchasing = $state<string | null>(null);
+	let purchaseError = $state('');
+	async function devPurchase(itemId: string) {
+		if (purchasing) return;
+		purchasing = itemId;
+		purchaseError = '';
+		// Simulated round-trip so rapid double-clicks race like the real RPC.
+		await new Promise((r) => setTimeout(r, 200));
+		const price = itemPrice(itemId);
+		if (price == null) {
+			purchasing = null;
+			lastAction = `purchase ${itemId}: unknown/free item`;
+			return;
+		}
+		if (devUnlocked.has(itemId)) {
+			purchasing = null;
+			lastAction = `purchase ${itemId}: already unlocked (no charge)`;
+			return;
+		}
+		if (devWallet < price) {
+			purchaseError = `Not enough IC — that costs ${price}, you have ${devWallet}.`;
+			purchasing = null;
+			lastAction = `purchase ${itemId}: insufficient (${devWallet}/${price})`;
+			return;
+		}
+		devWallet -= price;
+		devUnlocked = new Set([...devUnlocked, itemId]);
+		purchasing = null;
+		lastAction = `purchased ${itemId} for ${price} IC (balance ${devWallet})`;
+	}
+	// Ownership enforcement, the REAL route effect: creative off + economy on
+	// means the working build only holds owned items.
+	$effect(() => {
+		if (!devEconomyOn || creativeSettings.enabled) return;
+		const gated = sanitizeLoadoutOwnership(loadout, devUnlocked);
+		if (gated !== loadout) {
+			loadout = gated;
+			lastAction = 'ownership gate stripped locked items from the build';
+		}
+	});
+	// Simulated race finish -> award, mirroring the 0052 server formula
+	// (placement + PB bonus, zero on creative), crediting the dev wallet so the
+	// earn -> spend loop is verifiable end to end without a backend.
+	let simAward = $state<RaceAward | null>(null);
+	let simCreative = $state(false);
+	function simFinish(pos: number, pb: boolean) {
+		const creative = creativeSettings.enabled;
+		const placement = creative ? 0 : awardForPlacement(pos);
+		const pbBonus = creative || !pb ? 0 : AWARD_PB_BONUS;
+		const awarded = placement + pbBonus;
+		devWallet += awarded;
+		simCreative = creative;
+		simAward = { awarded, placement, pbBonus, balance: devWallet, creative };
+		resultWin = pos === 1;
+		view = 'results';
+		lastAction = creative
+			? `sim finish P${pos}: CREATIVE, +0 IC (balance ${devWallet})`
+			: `sim finish P${pos}${pb ? ' +PB' : ''}: +${awarded} IC (balance ${devWallet})`;
+	}
+	// Scripted-verification hook: the whole economy store, console-drivable.
+	$effect(() => {
+		if (!browser) return;
+		(window as unknown as Record<string, unknown>).__glEconomy = {
+			wallet: () => devWallet,
+			setWallet: (n: number) => (devWallet = n),
+			unlocked: () => [...devUnlocked],
+			purchase: devPurchase,
+			price: itemPrice,
+			catalog: unlockableItems,
+			simFinish,
+			reset: () => {
+				devWallet = 800;
+				devUnlocked = new Set();
+				simAward = null;
+				purchaseError = '';
+			}
+		};
+		return () => {
+			delete (window as unknown as Record<string, unknown>).__glEconomy;
+		};
+	});
+
 	// --- Results screen (real component, sample data) ---
 	const sampleOutcome: RaceOutcome = {
 		finishPosition: 2,
@@ -399,6 +499,30 @@
 	{/if}
 </div>
 
+<div class="dh-bar dh-bar-economy">
+	<span>economy (dev):</span>
+	<button class:on={devEconomyOn} onclick={() => (devEconomyOn = !devEconomyOn)}>
+		{devEconomyOn ? 'on' : 'off (fail-soft)'}
+	</button>
+	<span class="dh-note">wallet {devWallet} IC · {devUnlocked.size} unlocked</span>
+	<button onclick={() => (devWallet += 500)}>+500 IC</button>
+	<button onclick={() => { devWallet = 0; lastAction = 'wallet zeroed'; }}>wallet=0</button>
+	<button
+		onclick={() => {
+			devWallet = 800;
+			devUnlocked = new Set();
+			simAward = null;
+			purchaseError = '';
+			lastAction = 'economy reset';
+		}}>reset</button
+	>
+	<span class="dh-note">sim finish:</span>
+	<button onclick={() => simFinish(1, true)}>P1 +PB</button>
+	<button onclick={() => simFinish(2, false)}>P2</button>
+	<button onclick={() => simFinish(4, false)}>P4</button>
+	<span class="dh-note">creative: {creativeSettings.enabled ? 'ON' : 'off'} (toggle in settings)</span>
+</div>
+
 <div class="dh-bar dh-bar-audio">
 	<span>audio (dev):</span>
 	<button onclick={() => toneOn('weapons')}>weapons</button>
@@ -447,6 +571,12 @@
 			{decalError}
 			onDecalUpload={handleDecalUpload}
 			onDecalRemove={handleDecalRemove}
+			wallet={devEconomyOn ? devWallet : undefined}
+			unlocked={devEconomyOn ? devUnlocked : undefined}
+			creative={creativeSettings.enabled}
+			onPurchase={devPurchase}
+			{purchasing}
+			{purchaseError}
 		/>
 		{#if showDecalQueue}
 			<!-- The REAL dashboard review queue over the in-memory store: the
@@ -477,6 +607,8 @@
 				submitting={boardMode === 'submitting'}
 				submitError={boardMode === 'error'}
 				myUserId={MY_ID}
+				award={simAward}
+				creative={simCreative}
 				onRaceAgain={() => (lastAction = 'race again')}
 				onGarage={() => (view = 'garage')}
 				onTitle={() => (lastAction = 'title')}
@@ -530,6 +662,10 @@
 		top: 2.1rem;
 		border-bottom-color: rgba(0, 255, 65, 0.18);
 	}
+	.dh-bar-economy {
+		top: 4.2rem;
+		border-bottom-color: rgba(0, 255, 65, 0.18);
+	}
 	.dh-audio-log {
 		color: #8fbf9a;
 		font-size: 0.66rem;
@@ -540,7 +676,7 @@
 	}
 	.dh-stage {
 		position: fixed;
-		inset: 4.4rem 0 0;
+		inset: 6.5rem 0 0;
 		background: #05090c;
 		overflow-y: auto;
 	}

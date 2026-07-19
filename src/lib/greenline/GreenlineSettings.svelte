@@ -13,6 +13,8 @@
 		trackLabel,
 		type TrackCategory
 	} from './audio-settings.svelte';
+	import { creativeSettings, setCreativeMode } from './creative.svelte';
+	import { CURRENCY_NAME, CURRENCY_SHORT } from './economy';
 	import {
 		CONTROL_ACTIONS,
 		actionLabel,
@@ -375,6 +377,27 @@
 			</div>
 		</div>
 
+		<!-- GAMEPLAY (Phase 7): creative mode -->
+		<div class="gs-section-label">Gameplay</div>
+		<div class="gs-creative-row">
+			<div class="gs-creative-text">
+				<span class="gs-creative-name">Creative mode</span>
+				<span class="gs-creative-note">
+					Build and race with everything unlocked. While on, races earn no {CURRENCY_NAME}
+					({CURRENCY_SHORT}) and never count for the leaderboard. Turning it off returns your build
+					to what you actually own.
+				</span>
+			</div>
+			<button
+				class="gs-btn gs-creative-toggle"
+				class:on={creativeSettings.enabled}
+				onclick={() => setCreativeMode(!creativeSettings.enabled)}
+				aria-pressed={creativeSettings.enabled}
+			>
+				{creativeSettings.enabled ? 'ON' : 'OFF'}
+			</button>
+		</div>
+
 		<!-- CAMERA (placeholder, Phase 9) -->
 		<div class="gs-section-label">Camera</div>
 		<div class="gs-placeholder">
@@ -703,6 +726,34 @@
 	.gs-select:focus-visible {
 		outline: 1px solid rgba(42, 229, 126, 0.5);
 		outline-offset: 1px;
+	}
+	.gs-creative-row {
+		display: flex;
+		align-items: center;
+		gap: 0.9rem;
+	}
+	.gs-creative-text {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+	}
+	.gs-creative-name {
+		color: var(--glb-ink-dim);
+		font-size: 0.78rem;
+	}
+	.gs-creative-note {
+		color: var(--glb-ink-faint);
+		font-size: 0.68rem;
+		line-height: 1.45;
+	}
+	.gs-creative-toggle {
+		min-width: 3.6rem;
+	}
+	.gs-creative-toggle.on {
+		color: #8fffc4;
+		border-color: rgba(42, 229, 126, 0.6);
+		box-shadow: 0 0 10px rgba(42, 229, 126, 0.2);
 	}
 	.gs-placeholder {
 		color: var(--glb-ink-faint);

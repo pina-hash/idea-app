@@ -35,6 +35,13 @@
 		type WeaponSocketId
 	} from './combat';
 	import { ABILITIES, ABILITY_NONE, type AbilitySlotId } from './abilities';
+	import {
+		colorItemId,
+		CURRENCY_NAME,
+		CURRENCY_SHORT,
+		itemPrice,
+		patternItemId
+	} from './economy';
 	import { GREENLINE_MAX_SLOTS, type LoadoutSlot } from './persistence';
 	import GaragePreview from './GaragePreview.svelte';
 
@@ -76,7 +83,13 @@
 		decalBusy = false,
 		decalError = '',
 		onDecalUpload,
-		onDecalRemove
+		onDecalRemove,
+		wallet = undefined,
+		unlocked = undefined,
+		creative = false,
+		onPurchase,
+		purchasing = null,
+		purchaseError = ''
 	}: {
 		loadout: Loadout;
 		/** Current tuning-panel baselines the multipliers apply over. */
@@ -141,6 +154,24 @@
 		decalError?: string;
 		onDecalUpload?: (file: File) => void;
 		onDecalRemove?: () => void;
+		/**
+		 * Ignition Credits balance (Phase 7). `undefined` together with an
+		 * undefined `unlocked` hides the economy UI entirely (pre-0052 /
+		 * fail-soft: nothing is gated, the pre-economy garage); `null` means
+		 * unlocks are known but the balance was unreadable, so purchases are
+		 * disabled with an offline reason.
+		 */
+		wallet?: number | null;
+		/** The player's unlocked item ids. `undefined` disables all gating. */
+		unlocked?: ReadonlySet<string>;
+		/** Creative mode: every unlock check bypassed, nothing priced. */
+		creative?: boolean;
+		/** Buy an unlock. The parent owns the RPC (atomic server-side). */
+		onPurchase?: (itemId: string) => void;
+		/** Item id with a purchase in flight (busy state, blocks re-fires). */
+		purchasing?: string | null;
+		/** Last purchase failure to surface (offline / server refusal). */
+		purchaseError?: string;
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
@@ -238,6 +269,33 @@
 		return abilityLoadoutIssue({ ...loadout, parts: { ...loadout.parts, [slot]: id } });
 	}
 
+	// --- Economy (Phase 7): per-item lock state. Gating is ACTIVE only when the
+	// parent supplied real unlock data AND creative mode is off; otherwise every
+	// item renders exactly as before (the fail-soft rule: no unlock data must
+	// never mean lock-everything). A locked card is not selectable — it shows
+	// its price and a two-step UNLOCK -> CONFIRM purchase action instead; the
+	// server RPC is the real double-submit guard, this UI just makes an
+	// accidental spend impossible. ---
+	const economyOn = $derived(unlocked !== undefined && !creative);
+	/** Price when this item is locked for this player, else null (usable). */
+	function lockPriceFor(id: string): number | null {
+		if (!economyOn || !unlocked || unlocked.has(id)) return null;
+		return itemPrice(id);
+	}
+	/** Armed two-step purchase (item id awaiting its CONFIRM click). */
+	let confirmPurchase = $state<string | null>(null);
+	function firePurchase(id: string) {
+		confirmPurchase = null;
+		onPurchase?.(id);
+	}
+	function cosmeticItemName(id: string): string {
+		if (id.startsWith('color:'))
+			return COSMETIC_COLORS.find((c) => c.id === id.slice('color:'.length))?.name ?? id;
+		if (id.startsWith('pattern:'))
+			return COSMETIC_PATTERNS.find((p) => p.id === id.slice('pattern:'.length))?.name ?? id;
+		return id;
+	}
+
 	const fmtPct = (pct: number) => `${pct > 0 ? '+' : ''}${Math.round(pct)}%`;
 
 	/** Tone a signed delta by which direction reads as an upgrade. */
@@ -333,6 +391,17 @@
 		<div class="gg-head">
 			<span class="gg-title">GARAGE</span>
 			<span class="gg-note">{note}</span>
+			{#if creative}
+				<span
+					class="gg-wallet gg-wallet-creative"
+					title="Creative mode — everything unlocked; races earn no {CURRENCY_NAME} and are not ranked"
+					>CREATIVE · ALL UNLOCKED</span
+				>
+			{:else if unlocked !== undefined}
+				<span class="gg-wallet" title={CURRENCY_NAME}
+					>{wallet == null ? '—' : wallet} {CURRENCY_SHORT}</span
+				>
+			{/if}
 			{#if onSettings}
 				<button class="gg-btn gg-gear" onclick={onSettings} aria-label="Settings" title="Settings">
 					<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -346,6 +415,52 @@
 			{/if}
 			<button class="gg-btn gg-btn-primary" onclick={onclose}>{closeLabel}</button>
 		</div>
+
+		{#if purchaseError}
+			<div class="gg-purchase-error">{purchaseError}</div>
+		{/if}
+
+		{#snippet lockChips(id: string, price: number)}
+			{#if purchasing === id}
+				<span class="gg-chip lock">UNLOCKING…</span>
+			{:else if confirmPurchase === id}
+				<button class="gg-unlock gg-unlock-confirm" onclick={() => firePurchase(id)}>
+					CONFIRM {price} {CURRENCY_SHORT}
+				</button>
+				<button class="gg-unlock" onclick={() => (confirmPurchase = null)}>CANCEL</button>
+			{:else}
+				<span class="gg-chip lock">LOCKED · {price} {CURRENCY_SHORT}</span>
+				{#if wallet != null && wallet >= price}
+					<button class="gg-unlock" onclick={() => (confirmPurchase = id)}>UNLOCK</button>
+				{:else if wallet == null}
+					<span class="gg-chip bad">balance unavailable offline</span>
+				{:else}
+					<span class="gg-chip bad">need {price - wallet} more {CURRENCY_SHORT}</span>
+				{/if}
+			{/if}
+		{/snippet}
+
+		{#snippet purchaseStrip(id: string)}
+			{@const price = itemPrice(id) ?? 0}
+			{@const name = cosmeticItemName(id)}
+			<div class="gg-purchase-strip">
+				{#if purchasing === id}
+					<span class="gg-strip-text">UNLOCKING {name}…</span>
+				{:else if wallet != null && wallet >= price}
+					<span class="gg-strip-text">Unlock <b>{name}</b> for {price} {CURRENCY_SHORT}?</span>
+					<button class="gg-unlock gg-unlock-confirm" onclick={() => firePurchase(id)}>CONFIRM</button>
+					<button class="gg-unlock" onclick={() => (confirmPurchase = null)}>CANCEL</button>
+				{:else}
+					<span class="gg-strip-text">
+						<b>{name}</b> costs {price}
+						{CURRENCY_SHORT} — {wallet == null
+							? 'balance unavailable offline'
+							: `you have ${wallet}, need ${price - wallet} more`}
+					</span>
+					<button class="gg-unlock" onclick={() => (confirmPurchase = null)}>CLOSE</button>
+				{/if}
+			</div>
+		{/snippet}
 
 		{#snippet partIcon(id: string)}
 			<svg class="gg-part-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -596,32 +711,68 @@
 							<span aria-hidden="true">A</span>
 						</button>
 						{#each COSMETIC_COLORS as c (c.id)}
+							{@const colorLock = lockPriceFor(colorItemId(c.id))}
 							<button
 								type="button"
 								class="gg-swatch"
-								class:sel={livery?.color === c.id}
+								class:sel={colorLock == null && livery?.color === c.id}
+								class:locked={colorLock != null}
 								style="--sw: {swHex(c.hex)}"
-								onclick={() => oncosmetic?.({ color: c.id })}
-								title={c.name}
-								aria-label={c.name}
-							></button>
+								onclick={() =>
+									colorLock != null
+										? (confirmPurchase = colorItemId(c.id))
+										: oncosmetic?.({ color: c.id })}
+								title={colorLock != null
+									? `${c.name} — locked · ${colorLock} ${CURRENCY_SHORT}`
+									: c.name}
+								aria-label={colorLock != null
+									? `${c.name}, locked, ${colorLock} ${CURRENCY_SHORT} to unlock`
+									: c.name}
+							>
+								{#if colorLock != null}
+									<svg
+										class="gg-swatch-lock"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="2"
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										aria-hidden="true"
+									>
+										<rect x="6" y="11" width="12" height="9" rx="1.5" />
+										<path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3" />
+									</svg>
+								{/if}
+							</button>
 						{/each}
 					</div>
+					{#if confirmPurchase?.startsWith('color:')}
+						{@render purchaseStrip(confirmPurchase)}
+					{/if}
 				</div>
 				<div class="gg-livery-group">
 					<div class="gg-livery-label">Pattern</div>
 					<div class="gg-patterns">
 						{#each COSMETIC_PATTERNS as p (p.id)}
+							{@const patternLock = p.id === 'none' ? null : lockPriceFor(patternItemId(p.id))}
 							<button
 								type="button"
 								class="gg-pattern"
-								class:sel={(livery?.pattern ?? 'none') === p.id}
-								onclick={() => oncosmetic?.({ pattern: p.id })}
+								class:sel={patternLock == null && (livery?.pattern ?? 'none') === p.id}
+								class:locked={patternLock != null}
+								onclick={() =>
+									patternLock != null
+										? (confirmPurchase = patternItemId(p.id))
+										: oncosmetic?.({ pattern: p.id })}
 							>
-								{p.name}
+								{p.name}{patternLock != null ? ` · ${patternLock} ${CURRENCY_SHORT}` : ''}
 							</button>
 						{/each}
 					</div>
+					{#if confirmPurchase?.startsWith('pattern:')}
+						{@render purchaseStrip(confirmPurchase)}
+					{/if}
 				</div>
 				<div class="gg-livery-group gg-livery-num">
 					<div class="gg-livery-label">Car number</div>
@@ -760,13 +911,20 @@
 					{/if}
 					{#each wslot.allowNone ? [...WEAPONS.map((w) => w.id), WEAPON_NONE] : WEAPONS.map((w) => w.id) as wid (wid)}
 						{@const w = WEAPONS.find((c) => c.id === wid)}
-						{@const blocked = weaponBlockReason(wslot.id, wid)}
-						<button
+						{@const lockPrice = lockPriceFor(wid)}
+						{@const blocked = lockPrice == null ? weaponBlockReason(wslot.id, wid) : null}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<!-- The click handler exists only when this renders as a real
+						     <button>; the locked variant is a plain div whose actions are
+						     the nested UNLOCK/CONFIRM buttons. -->
+						<svelte:element
+							this={lockPrice != null ? 'div' : 'button'}
 							class="gg-part"
-							class:sel={loadout.parts[wslot.id] === wid}
+							class:sel={lockPrice == null && loadout.parts[wslot.id] === wid}
 							class:blocked={!!blocked}
-							disabled={!!blocked}
-							onclick={() => onequip(wslot.id, wid)}
+							class:locked={lockPrice != null}
+							disabled={lockPrice == null && blocked ? true : undefined}
+							onclick={lockPrice == null ? () => onequip(wslot.id, wid) : undefined}
 						>
 							<span class="gg-part-ico">{@render partIcon(wid)}</span>
 							<span class="gg-part-body">
@@ -783,9 +941,12 @@
 									{#if blocked}
 										<span class="gg-chip bad">{blocked}</span>
 									{/if}
+									{#if lockPrice != null}
+										{@render lockChips(wid, lockPrice)}
+									{/if}
 								</span>
 							</span>
-						</button>
+						</svelte:element>
 					{/each}
 				</div>
 			{/each}
@@ -809,13 +970,18 @@
 					<div class="gg-section-label">{aslot.label}</div>
 					{#each aslot.allowNone ? [...ABILITIES.map((a) => a.id), ABILITY_NONE] : ABILITIES.map((a) => a.id) as aid (aid)}
 						{@const a = ABILITIES.find((c) => c.id === aid)}
-						{@const blocked = abilityBlockReason(aslot.id, aid)}
-						<button
+						{@const lockPrice = lockPriceFor(aid)}
+						{@const blocked = lockPrice == null ? abilityBlockReason(aslot.id, aid) : null}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<!-- Click handler only on the <button> variant (see the weapons list). -->
+						<svelte:element
+							this={lockPrice != null ? 'div' : 'button'}
 							class="gg-part"
-							class:sel={loadout.parts[aslot.id] === aid}
+							class:sel={lockPrice == null && loadout.parts[aslot.id] === aid}
 							class:blocked={!!blocked}
-							disabled={!!blocked}
-							onclick={() => onequip(aslot.id, aid)}
+							class:locked={lockPrice != null}
+							disabled={lockPrice == null && blocked ? true : undefined}
+							onclick={lockPrice == null ? () => onequip(aslot.id, aid) : undefined}
 						>
 							<span class="gg-part-ico">{@render partIcon(aid)}</span>
 							<span class="gg-part-body">
@@ -832,9 +998,12 @@
 									{#if blocked}
 										<span class="gg-chip bad">{blocked}</span>
 									{/if}
+									{#if lockPrice != null}
+										{@render lockChips(aid, lockPrice)}
+									{/if}
 								</span>
 							</span>
-						</button>
+						</svelte:element>
 					{/each}
 				</div>
 			{/each}
@@ -845,24 +1014,32 @@
 				<div class="gg-slot">
 					<div class="gg-section-label">{slot.label}</div>
 					{#each partsForSlot(slot.id) as part (part.id)}
-						<button
+						{@const lockPrice = lockPriceFor(part.id)}
+						<!-- svelte-ignore a11y_no_static_element_interactions -->
+						<!-- Click handler only on the <button> variant (see the weapons list). -->
+						<svelte:element
+							this={lockPrice != null ? 'div' : 'button'}
 							class="gg-part"
-							class:sel={loadout.parts[slot.id] === part.id}
-							onclick={() => onequip(slot.id, part.id)}
+							class:sel={lockPrice == null && loadout.parts[slot.id] === part.id}
+							class:locked={lockPrice != null}
+							onclick={lockPrice == null ? () => onequip(slot.id, part.id) : undefined}
 						>
 							<span class="gg-part-ico">{@render partIcon(part.id)}</span>
 							<span class="gg-part-body">
 								<span class="gg-part-name">{part.name}</span>
 								<span class="gg-part-blurb">{part.blurb}</span>
-								{#if describeEffects(part.effects).length}
+								{#if describeEffects(part.effects).length || lockPrice != null}
 									<span class="gg-chips">
 										{#each describeEffects(part.effects) as c (c.key)}
 											<span class="gg-chip {c.tone}">{c.label} {fmtPct(c.pct)}</span>
 										{/each}
+										{#if lockPrice != null}
+											{@render lockChips(part.id, lockPrice)}
+										{/if}
 									</span>
 								{/if}
 							</span>
-						</button>
+						</svelte:element>
 					{/each}
 				</div>
 			{/each}
@@ -1808,5 +1985,104 @@
 		color: var(--glb-amber);
 		font-size: 0.68rem;
 		line-height: 1.35;
+	}
+	/* Economy (Phase 7): wallet readout, locked items, purchase actions. */
+	.gg-wallet {
+		font-family: var(--glb-font-data);
+		font-size: 0.78rem;
+		color: var(--glb-green-ui);
+		border: 1px solid rgba(42, 229, 126, 0.35);
+		border-radius: 2px;
+		background: rgba(42, 229, 126, 0.06);
+		padding: 0.2rem 0.55rem;
+		white-space: nowrap;
+	}
+	.gg-wallet-creative {
+		color: var(--glb-steel);
+		border-color: var(--glb-line-strong);
+		background: rgba(147, 163, 176, 0.08);
+		font: 600 0.62rem var(--glb-font-ui);
+		letter-spacing: 0.14em;
+		padding: 0.3rem 0.55rem;
+	}
+	.gg-purchase-error {
+		color: var(--glb-amber);
+		font-size: 0.7rem;
+		letter-spacing: 0.04em;
+		margin: -0.2rem 0 0.4rem;
+	}
+	.gg-part.locked {
+		opacity: 0.78;
+		cursor: default;
+	}
+	.gg-part.locked .gg-part-glyph {
+		color: var(--glb-ink-faint);
+	}
+	.gg-chip.lock {
+		color: var(--glb-steel);
+		border-color: var(--glb-line-strong);
+		background: rgba(147, 163, 176, 0.08);
+	}
+	.gg-unlock {
+		background: linear-gradient(180deg, rgba(23, 30, 37, 0.9), rgba(9, 13, 17, 0.92));
+		border: 1px solid var(--glb-line-strong);
+		border-radius: 2px;
+		color: var(--glb-chrome-mid);
+		font: 600 0.6rem var(--glb-font-ui);
+		letter-spacing: 0.14em;
+		padding: 0.14rem 0.45rem;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+	.gg-unlock:hover,
+	.gg-unlock:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: rgba(42, 229, 126, 0.6);
+		box-shadow: 0 0 8px rgba(42, 229, 126, 0.2);
+		outline: none;
+	}
+	.gg-unlock-confirm {
+		color: #041b0f;
+		background: var(--glb-green-ui);
+		border-color: var(--glb-green);
+		font-weight: 700;
+	}
+	.gg-unlock-confirm:hover,
+	.gg-unlock-confirm:focus-visible {
+		color: #041b0f;
+	}
+	.gg-swatch.locked {
+		opacity: 0.55;
+	}
+	.gg-swatch-lock {
+		position: absolute;
+		inset: 0;
+		margin: auto;
+		width: 0.85rem;
+		height: 0.85rem;
+		color: rgba(4, 6, 10, 0.92);
+		filter: drop-shadow(0 0 2px rgba(247, 251, 254, 0.75));
+	}
+	.gg-pattern.locked {
+		opacity: 0.6;
+	}
+	.gg-purchase-strip {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin-top: 0.35rem;
+		padding: 0.3rem 0.5rem;
+		border: 1px solid var(--glb-line-strong);
+		border-radius: 2px;
+		background: rgba(13, 19, 25, 0.7);
+		font-size: 0.7rem;
+		color: var(--glb-ink-dim);
+	}
+	.gg-strip-text b {
+		color: var(--glb-ink);
 	}
 </style>

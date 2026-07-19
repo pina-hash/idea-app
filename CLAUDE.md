@@ -2517,6 +2517,78 @@ on one side of the world.
     (decal-only, pattern+decal, and unequip via `getLivery`), plus a
     claude-in-chrome screenshot of the decal rendered on the hull in the
     garage preview. `svelte-check` clean, 0 errors.
+- **Ignition Credits economy + unlock gating + creative mode (Phase 7,
+  migration `0052`).** "IC" is the GREENLINE-only currency (Ignition Credits),
+  named in the spirit of IDEA Coin but fully separate from it — the no-coin-
+  economy scope guardrail is untouched. `src/lib/greenline/economy.ts` is the
+  pure client-side balance sheet (currency naming, price tiers, the 39-item
+  unlockable catalog, `itemPrice`, `sanitizeLoadoutOwnership`, the award
+  mirror); `0052_greenline_economy.sql` (apply manually after 0051) is the
+  AUTHORITY — the SQL price list + award constants govern, the economy.ts
+  copies are display-only, keep both in sync in the same change.
+  - **Earning is server-side only, inside the result transaction.**
+    `greenline_submit_race_result` was dropped + recreated (returns jsonb:
+    id + award breakdown + balance): it computes placement pay (P1 120 /
+    P2 90 / P3 70 / any finish 50) plus a personal-best bonus (+40 when this
+    run's best lap beats the player's prior best ranked lap on the track; a
+    first recorded lap counts) and credits `greenline_wallets` inline. There
+    is deliberately NO standalone credit RPC. A light throttle zeroes the
+    award (still logging the run) when another result landed within 30s — a
+    real race takes minutes, so this only catches replayed submits. The
+    client seam (`submitRaceResult` in persistence.ts) passes `p_creative`,
+    parses the jsonb, and falls back to the legacy 7-arg call on a pre-0052
+    backend — EXCEPT a creative run, which is never submitted through the
+    legacy function (it would rank) and reads as an offline no-op instead.
+  - **Creative mode** (`creative.svelte.ts`, localStorage
+    `greenline_creative_mode`, OFF by default; toggled in the settings
+    overlay's new GAMEPLAY section) bypasses unlock checks entirely, building
+    AND racing. The flag is captured at race start and rides the submit;
+    server-side it zeroes the award AND stores the row as mode `'creative'`,
+    so the leaderboard RPC (mode = 'race') never ranks it — one flag, both
+    consequences, one server-side branch. Turning creative OFF runs
+    `sanitizeLoadoutOwnership` over the working build (a route `$effect`):
+    unowned gear falls back to the starter kit and the gated build persists
+    (the settings copy says so); named slots are untouched.
+  - **Unlocks + pricing.** `greenline_wallets` (balance CHECK >= 0,
+    lifetime_earned) + `greenline_unlocks` (`(user_id, item_id)` PK,
+    price_paid audit trail): owner-SELECT only, definer-write only. Purchase
+    is the `greenline_purchase_item` RPC, atomic by a wallet row lock
+    (`SELECT ... FOR UPDATE`): concurrent double-submits serialize, the
+    second returns `already_unlocked` uncharged; refusals are structured
+    returns (already_unlocked / insufficient_funds / unknown_item), never
+    exceptions. Tiers: starter kit FREE (stock parts, Autocannon, Nitro
+    Boost, empty slots, ALL archetypes — the gate is on what's built within
+    one, never the foundation choice — default livery, the car number
+    (identification is never paywalled), and the decal, which stays
+    moderation-gated not priced); bodywork parts flat 250 (all sidegrades by
+    doctrine); weapons by mountCost 1/2/3 -> 300/600/1000; abilities by
+    slotCost 1/2 -> 300/600; livery colors 100, patterns 150. Full catalog
+    ~11.8k IC at 50-160 IC per race: first cosmetic in 1-2 races, first part
+    in 3-4, a heavy weapon is a save-up goal.
+  - **Garage UI:** presentation-only props (`wallet`, `unlocked`, `creative`,
+    `onPurchase`, `purchasing`, `purchaseError`). A locked card renders as a
+    non-selectable div showing "LOCKED · N IC" with a two-step
+    UNLOCK -> CONFIRM action (accidental-spend guard; the server lock is the
+    real double-submit guard); insufficient balance disables purchase with
+    "need N more IC". Locked swatches/patterns carry a padlock/price and arm
+    a confirm strip under their group. Header shows the IC balance chip, or
+    "CREATIVE · ALL UNLOCKED". **Fail-soft rule:** `unlocked === undefined`
+    hides the economy UI entirely and the route applies NO gating when 0052
+    is unapplied/offline (`loadUnlocks().ready` false) — the pre-economy
+    behavior, never lock-everything. `GreenlineResults` shows the payout
+    strip (+N IC, placement/PB breakdown, wallet) or "CREATIVE RUN · no IC
+    earned · not ranked".
+  - **Verified** in `/dev/greenline-portal` (in-memory wallet/unlocks driving
+    the REAL Garage lock UI, the REAL ownership effect + creative store, and
+    the award mirror via `__glEconomy` + sim-finish dev buttons: lock display
+    with correct tier prices, two-step purchase 800->500 IC, a concurrent
+    double-fire charging once, already-owned repurchase free, insufficient
+    blocked with reason, cosmetic confirm-strip flow, P1+PB=+160 / P2=+90 /
+    P4=+50, a creative P1 earning 0 with the creative strip, the creative-off
+    toggle stripping unowned gear, a day-one reset leaving the full starter
+    build usable at 0 IC, and economy-off = zero gating) and
+    `/dev/greenline-movement?glheadless=1` (race sim + livery unaffected).
+    `svelte-check` clean, 0 errors.
 
 ## FRC Training track
 

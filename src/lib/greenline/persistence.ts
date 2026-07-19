@@ -21,10 +21,13 @@
  * signed-in portal route wired to these seams comes in the next stage.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { RaceAward } from './economy';
 import { normalizeStoredLoadout, partsForStorage, type Loadout } from './loadout';
 
 export const GREENLINE_LOADOUTS_TABLE = 'greenline_loadouts';
 export const GREENLINE_SLOTS_TABLE = 'greenline_loadout_slots';
+export const GREENLINE_WALLETS_TABLE = 'greenline_wallets';
+export const GREENLINE_UNLOCKS_TABLE = 'greenline_unlocks';
 /** Hard cap on named build slots per user (mirrors the 0050 CHECK). */
 export const GREENLINE_MAX_SLOTS = 5;
 
@@ -216,17 +219,33 @@ export interface RaceResult {
 	bestLapMs?: number | null;
 	laps?: number | null;
 	archetype?: string | null;
+	/** Creative-mode run (Phase 7): the server zeroes the award and stores the
+	 * row as mode 'creative' so it never ranks. Client-reported, same trust
+	 * model as the rest of the result. */
+	creative?: boolean;
 }
+
+/** Does this rpc error mean the deployed function predates the given shape? */
+const isMissingFunction = (e: { code?: string; message: string }): boolean =>
+	e.code === 'PGRST202' || /could not find the function/i.test(e.message);
 
 /**
  * Submit a finished race through the greenline_submit_race_result RPC, which
- * stamps user_id / created_at server-side. Returns the new row id, or an error.
+ * stamps user_id / created_at server-side and (since 0052) computes + credits
+ * the Ignition Credits award in the same transaction. Returns the new row id
+ * and the award breakdown.
+ *
+ * Fail-soft on a pre-0052 backend (the old seven-arg function rejects the
+ * p_creative call): a NORMAL run retries the legacy shape (no award existed
+ * yet, so `award` comes back null); a CREATIVE run is deliberately NOT
+ * submitted through the legacy function — that would rank an
+ * unlocked-everything run on the real board — and reads as an offline no-op.
  */
 export async function submitRaceResult(
 	supabase: SupabaseClient,
 	result: RaceResult
-): Promise<{ id: string | null; error: string | null }> {
-	const { data, error } = await supabase.rpc('greenline_submit_race_result', {
+): Promise<{ id: string | null; award: RaceAward | null; error: string | null }> {
+	const params = {
 		p_track_id: result.trackId,
 		p_mode: result.mode ?? 'race',
 		p_finish_position: result.finishPosition ?? null,
@@ -234,9 +253,113 @@ export async function submitRaceResult(
 		p_best_lap_ms: result.bestLapMs ?? null,
 		p_laps: result.laps ?? null,
 		p_archetype: result.archetype ?? null
+	};
+	const { data, error } = await supabase.rpc('greenline_submit_race_result', {
+		...params,
+		p_creative: result.creative ?? false
 	});
-	if (error) return { id: null, error: error.message };
-	return { id: (data as string) ?? null, error: null };
+	if (error) {
+		if (isMissingFunction(error)) {
+			if (result.creative) return { id: null, award: null, error: null };
+			const legacy = await supabase.rpc('greenline_submit_race_result', params);
+			if (legacy.error) return { id: null, award: null, error: legacy.error.message };
+			return { id: (legacy.data as string) ?? null, award: null, error: null };
+		}
+		return { id: null, award: null, error: error.message };
+	}
+	// 0052 returns jsonb { id, awarded, placement, pb_bonus, balance, creative }.
+	if (data && typeof data === 'object') {
+		const d = data as Record<string, unknown>;
+		return {
+			id: typeof d.id === 'string' ? d.id : null,
+			award: {
+				awarded: typeof d.awarded === 'number' ? d.awarded : 0,
+				placement: typeof d.placement === 'number' ? d.placement : 0,
+				pbBonus: typeof d.pb_bonus === 'number' ? d.pb_bonus : 0,
+				balance: typeof d.balance === 'number' ? d.balance : null,
+				creative: d.creative === true
+			},
+			error: null
+		};
+	}
+	return { id: typeof data === 'string' ? data : null, award: null, error: null };
+}
+
+// ---------------------------------------------------------------------------
+// Economy (Phase 7): wallet + unlocks reads, and the atomic purchase RPC. All
+// fail soft pre-0052: `ready: false` means "no economy data" and callers must
+// then apply NO gating at all (the pre-economy behavior), never lock-everything.
+// ---------------------------------------------------------------------------
+
+/**
+ * Read the caller's Ignition Credits balance. No wallet row yet is a real,
+ * ready state (balance 0 — the row is created by the first credit/purchase).
+ */
+export async function loadWallet(
+	supabase: SupabaseClient,
+	userId: string
+): Promise<{ balance: number; ready: boolean }> {
+	const { data, error } = await supabase
+		.from(GREENLINE_WALLETS_TABLE)
+		.select('balance')
+		.eq('user_id', userId)
+		.maybeSingle();
+	if (error) return { balance: 0, ready: false };
+	const b = data ? (data as { balance: unknown }).balance : 0;
+	return { balance: typeof b === 'number' ? b : 0, ready: true };
+}
+
+/** Read the caller's unlocked item ids. Fails soft to not-ready (see above). */
+export async function loadUnlocks(
+	supabase: SupabaseClient,
+	userId: string
+): Promise<{ items: Set<string>; ready: boolean }> {
+	const { data, error } = await supabase
+		.from(GREENLINE_UNLOCKS_TABLE)
+		.select('item_id')
+		.eq('user_id', userId);
+	if (error || !Array.isArray(data)) return { items: new Set(), ready: false };
+	const items = new Set<string>();
+	for (const row of data as Array<{ item_id: unknown }>) {
+		if (typeof row.item_id === 'string') items.add(row.item_id);
+	}
+	return { items, ready: true };
+}
+
+export interface PurchaseResult {
+	ok: boolean;
+	/** Structured server reason on a clean refusal (null on ok / hard error). */
+	reason: 'already_unlocked' | 'insufficient_funds' | 'unknown_item' | null;
+	/** Wallet balance the server reported, when it did. */
+	balance: number | null;
+	/** The authoritative price, reported on insufficient_funds. */
+	price: number | null;
+	error: string | null;
+}
+
+/**
+ * Buy an unlock through the greenline_purchase_item RPC (0052), which locks
+ * the wallet row so a double-submit can never double-charge or double-unlock:
+ * balance check, deduction, and the unlock record are one transaction.
+ */
+export async function purchaseItem(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<PurchaseResult> {
+	const { data, error } = await supabase.rpc('greenline_purchase_item', { p_item_id: itemId });
+	if (error) return { ok: false, reason: null, balance: null, price: null, error: error.message };
+	const d = (data ?? {}) as Record<string, unknown>;
+	const reason = d.reason;
+	return {
+		ok: d.ok === true,
+		reason:
+			reason === 'already_unlocked' || reason === 'insufficient_funds' || reason === 'unknown_item'
+				? reason
+				: null,
+		balance: typeof d.balance === 'number' ? d.balance : null,
+		price: typeof d.price === 'number' ? d.price : null,
+		error: null
+	};
 }
 
 /**

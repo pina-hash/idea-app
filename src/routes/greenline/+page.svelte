@@ -17,13 +17,23 @@
 		type PartSlot
 	} from '$lib/greenline/loadout';
 	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
+	import { creativeSettings } from '$lib/greenline/creative.svelte';
+	import {
+		CURRENCY_SHORT,
+		itemPrice,
+		sanitizeLoadoutOwnership,
+		type RaceAward
+	} from '$lib/greenline/economy';
 	import {
 		deleteSlot,
 		GREENLINE_MAX_SLOTS,
 		loadActiveSlot,
 		loadLeaderboard,
+		loadUnlocks,
 		loadUserLoadout,
 		loadUserSlots,
+		loadWallet,
+		purchaseItem,
 		saveSlot,
 		saveUserLoadout,
 		submitRaceResult,
@@ -78,6 +88,18 @@
 	// Settings overlay (a modal, not a screen). Reachable from title + garage.
 	let settingsOpen = $state(false);
 
+	// Economy (Phase 7): Ignition Credits wallet + unlocked items. economyReady
+	// false (0052 unapplied / offline) means NO gating at all — the pre-economy
+	// behavior — never lock-everything (the fail-soft rule).
+	let economyReady = $state(false);
+	let wallet = $state<number | null>(null);
+	let unlockedSet = $state<Set<string>>(new Set());
+	let purchasing = $state<string | null>(null);
+	let purchaseError = $state('');
+	// Creative flag captured at RACE START (settings are unreachable mid-race,
+	// but the capture makes the submitted flag unambiguous either way).
+	let raceCreative = $state(false);
+
 	// Custom decal (Phase 6c). `undefined` until loaded (or when 0051 is
 	// unapplied — the garage hides the control), null = none uploaded. The
 	// image itself resolves through rig-visual's decal registry (a signed URL
@@ -95,19 +117,31 @@
 
 	// Results state.
 	let outcome = $state<RaceOutcome | null>(null);
+	let lastAward = $state<RaceAward | null>(null);
 	let submitting = $state(false);
 	let submitError = $state(false);
 	let board = $state<LeaderboardEntry[]>([]);
 	let boardLoading = $state(false);
 
 	onMount(async () => {
-		const [saved, savedSlots, savedActive, ownDecal] = await Promise.all([
-			loadUserLoadout(data.supabase, data.userId),
-			loadUserSlots(data.supabase, data.userId),
-			loadActiveSlot(data.supabase, data.userId),
-			loadOwnDecal(data.supabase, data.userId)
-		]);
+		const [saved, savedSlots, savedActive, ownDecal, savedWallet, savedUnlocks] =
+			await Promise.all([
+				loadUserLoadout(data.supabase, data.userId),
+				loadUserSlots(data.supabase, data.userId),
+				loadActiveSlot(data.supabase, data.userId),
+				loadOwnDecal(data.supabase, data.userId),
+				loadWallet(data.supabase, data.userId),
+				loadUnlocks(data.supabase, data.userId)
+			]);
 		if (saved) loadout = saved;
+		// Economy: gating turns on only when the unlock ledger really read back
+		// (0052 applied + online). A failed wallet read alone leaves purchases
+		// disabled (balance null) but ownership gating still correct.
+		if (savedUnlocks.ready) {
+			unlockedSet = savedUnlocks.items;
+			wallet = savedWallet.ready ? savedWallet.balance : null;
+			economyReady = true;
+		}
 		const next: (LoadoutSlot | null)[] = Array(GREENLINE_MAX_SLOTS).fill(null);
 		for (const s of savedSlots) if (s.slot >= 0 && s.slot < GREENLINE_MAX_SLOTS) next[s.slot] = s;
 		slots = next;
@@ -175,6 +209,51 @@
 		saveStatus = 'saving';
 		const { error } = await saveUserLoadout(data.supabase, data.userId, loadout, slot);
 		saveStatus = error ? 'error' : 'saved';
+	}
+
+	// Ownership enforcement (Phase 7): whenever creative mode is OFF and the
+	// economy is live, the working build may only hold owned items — locked
+	// gear (equipped during a creative session, or loaded from a slot saved
+	// then) falls back to the starter kit and the gated build persists, per the
+	// settings copy ("turning it off returns your build to what you actually
+	// own"). The sanitizer returns the same object when nothing is locked, so
+	// this effect is a no-op on every ordinary edit (the garage already blocks
+	// equipping locked items up front).
+	$effect(() => {
+		if (!economyReady || creativeSettings.enabled) return;
+		const gated = sanitizeLoadoutOwnership(loadout, unlockedSet);
+		if (gated !== loadout) {
+			loadout = gated;
+			persistBuild(null);
+		}
+	});
+
+	// Purchase (Phase 7): the RPC is atomic server-side (wallet row lock), so a
+	// double-submit can never double-charge; this guard just keeps the UI to
+	// one in-flight purchase.
+	async function handlePurchase(itemId: string) {
+		if (purchasing) return;
+		purchasing = itemId;
+		purchaseError = '';
+		const res = await purchaseItem(data.supabase, itemId);
+		if (res.ok || res.reason === 'already_unlocked') {
+			unlockedSet = new Set([...unlockedSet, itemId]);
+			if (res.balance != null) wallet = res.balance;
+		} else if (res.reason === 'insufficient_funds') {
+			if (res.balance != null) wallet = res.balance;
+			purchaseError = `Not enough ${CURRENCY_SHORT} — that costs ${res.price ?? itemPrice(itemId) ?? '?'}, you have ${res.balance ?? 0}.`;
+		} else {
+			purchaseError = res.error
+				? `Purchase failed — ${res.error}`
+				: 'Purchase unavailable right now.';
+		}
+		purchasing = null;
+	}
+
+	/** Enter the race, capturing the creative flag the submit will report. */
+	function startRace() {
+		raceCreative = creativeSettings.enabled;
+		screen = 'race';
 	}
 	// Weapon-slot sanitize on every edit: the garage blocks invalid weapon
 	// pairings itself, but an archetype swap can shrink mount capacity under
@@ -251,21 +330,29 @@
 
 	async function handleFinish(o: RaceOutcome) {
 		outcome = o;
+		lastAward = null;
 		screen = 'results';
 		submitting = true;
 		submitError = false;
 		board = [];
-		const { error } = await submitRaceResult(data.supabase, {
+		const { award, error } = await submitRaceResult(data.supabase, {
 			trackId: track.id,
 			mode: 'race',
 			finishPosition: o.finishPosition,
 			totalTimeMs: o.totalTimeMs,
 			bestLapMs: o.bestLapMs,
 			laps: o.laps,
-			archetype: loadout.archetype
+			archetype: loadout.archetype,
+			creative: raceCreative
 		});
 		submitError = error !== null;
 		submitting = false;
+		// The award was credited in the same transaction as the result; mirror
+		// the server-reported balance into the wallet readout.
+		if (award) {
+			lastAward = award;
+			if (award.balance != null) wallet = award.balance;
+		}
 		await refreshBoard();
 	}
 
@@ -306,7 +393,7 @@
 				oncosmetic={setCosmetic}
 				note={garageNote}
 				closeLabel="START RACE ▸"
-				onclose={() => (screen = 'race')}
+				onclose={startRace}
 				onback={() => (screen = 'title')}
 				backLabel="◂ TITLE"
 				onSettings={() => (settingsOpen = true)}
@@ -320,6 +407,12 @@
 				{decalError}
 				onDecalUpload={handleDecalUpload}
 				onDecalRemove={handleDecalRemove}
+				wallet={economyReady ? wallet : undefined}
+				unlocked={economyReady ? unlockedSet : undefined}
+				creative={creativeSettings.enabled}
+				onPurchase={handlePurchase}
+				{purchasing}
+				{purchaseError}
 			/>
 		{:else}
 			<div class="gp-center gp-fill"><div class="gp-loading">loading your build…</div></div>
@@ -337,7 +430,9 @@
 			{submitting}
 			{submitError}
 			myUserId={data.userId}
-			onRaceAgain={() => (screen = 'race')}
+			award={lastAward}
+			creative={raceCreative}
+			onRaceAgain={startRace}
 			onGarage={() => (screen = 'garage')}
 			onTitle={() => (screen = 'title')}
 		/>
