@@ -27,7 +27,9 @@ export type ControlAction =
 	| 'fireWeaponPrimary'
 	| 'fireWeaponSecondary'
 	| 'useAbilityPrimary'
-	| 'useAbilitySecondary';
+	| 'useAbilitySecondary'
+	| 'cycleCamera'
+	| 'lookBack';
 // Phase 8g retired the dedicated 'fire' / 'oil' / 'tether' actions: EMP, Oil
 // Slick, and the Grappling Hook are equippable weapons now, fired through the
 // two weapon-slot actions like everything else. A stored bindings map that
@@ -50,7 +52,7 @@ export type PadBinding =
 export const CONTROL_ACTIONS: {
 	id: ControlAction;
 	label: string;
-	group: 'driving' | 'combat';
+	group: 'driving' | 'combat' | 'camera';
 	kind: 'held' | 'edge';
 }[] = [
 	{ id: 'accelerate', label: 'Accelerate', group: 'driving', kind: 'held' },
@@ -62,7 +64,13 @@ export const CONTROL_ACTIONS: {
 	{ id: 'fireWeaponPrimary', label: 'Primary weapon', group: 'combat', kind: 'edge' },
 	{ id: 'fireWeaponSecondary', label: 'Secondary weapon', group: 'combat', kind: 'edge' },
 	{ id: 'useAbilityPrimary', label: 'Primary ability', group: 'combat', kind: 'edge' },
-	{ id: 'useAbilitySecondary', label: 'Secondary ability', group: 'combat', kind: 'edge' }
+	{ id: 'useAbilitySecondary', label: 'Secondary ability', group: 'combat', kind: 'edge' },
+	// Camera (Phase 9a): cycle the follow distance, hold to glance behind. These
+	// reuse F / Q (keyboard) and RB / LB (gamepad), freed when Phase 8g retired
+	// the dedicated EMP / oil / tether inputs. Mouse-drag free-look is not a
+	// binding (it reads the pointer directly), so it is not in this registry.
+	{ id: 'cycleCamera', label: 'Cycle camera view', group: 'camera', kind: 'edge' },
+	{ id: 'lookBack', label: 'Look back', group: 'camera', kind: 'held' }
 ];
 
 const ACTION_IDS = CONTROL_ACTIONS.map((a) => a.id);
@@ -87,7 +95,10 @@ const KEY_DEFAULTS: Record<ControlAction, string> = {
 	fireWeaponPrimary: 'KeyZ',
 	fireWeaponSecondary: 'KeyX',
 	useAbilityPrimary: 'KeyC',
-	useAbilitySecondary: 'KeyV'
+	useAbilitySecondary: 'KeyV',
+	// F cycles the camera view, Q glances behind — both freed by Phase 8g.
+	cycleCamera: 'KeyF',
+	lookBack: 'KeyQ'
 };
 
 /**
@@ -110,7 +121,11 @@ const PAD_DEFAULTS: Record<ControlAction, PadBinding | null> = {
 	fireWeaponPrimary: { kind: 'button', index: 1 },
 	fireWeaponSecondary: { kind: 'button', index: 3 },
 	useAbilityPrimary: { kind: 'button', index: 12 },
-	useAbilitySecondary: { kind: 'button', index: 13 }
+	useAbilitySecondary: { kind: 'button', index: 13 },
+	// RB(5) cycles camera, LB(4) glances behind — the old EMP / tether buttons,
+	// free since Phase 8g. X(2) stays unused.
+	cycleCamera: { kind: 'button', index: 5 },
+	lookBack: { kind: 'button', index: 4 }
 };
 
 const KEY_STORE = 'greenline_control_keys';

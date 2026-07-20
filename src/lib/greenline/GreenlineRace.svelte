@@ -226,9 +226,13 @@
 	 * overlay, backed by $lib/greenline/control-settings.svelte.ts (the action
 	 * registry + persisted bindings); every input here resolves through that
 	 * store per keypress/frame. Defaults: W/S throttle+brake (reverse from
-	 * standstill), A/D steer, Space handbrake, F fire EMP, E drop oil,
-	 * Q fire tether, R reset round. Gamepad: left stick steer, RT throttle,
-	 * LT brake, A handbrake, RB fire, X oil, LB tether.
+	 * standstill), A/D steer, Space handbrake, Z/X primary/secondary weapon,
+	 * C/V primary/secondary ability, R reset round, F cycle camera, Q look back
+	 * (EMP / oil / tether are equipped weapons since Phase 8g, fired through the
+	 * weapon slots). Gamepad: left stick steer, RT throttle, LT brake, A
+	 * handbrake, B/Y weapons, D-pad up/down abilities, RB cycle camera, LB look
+	 * back. Mouse drag over the track free-looks (orbits) without changing the
+	 * follow.
 	 */
 
 	const {
@@ -323,7 +327,40 @@
 		engineForce: 2900,
 		brakeForce: 50,
 		handbrakeForce: 50,
-		handbrakeGrip: 0.65,
+		/**
+		 * Handbrake drift feel (Phase 9a). The old model cut rear grip instantly
+		 * and binarily the frame the key went down and restored it the frame it
+		 * came up, which read as a sharp snap sideways and an equally sharp
+		 * hook-back. Grip now fades in and out over a per-rig engagement scalar
+		 * (`rig.hbEngage`), so the tail steps out progressively and settles rather
+		 * than stepping.
+		 *
+		 * - handbrakeGrip: the REAR-axle grip fraction at full engagement.
+		 *   Deepened from 0.65 to 0.4. Lower rear friction both steps the tail out
+		 *   further AND scrubs less forward momentum (a low-grip locked wheel slides
+		 *   instead of braking hard), so the car CARRIES speed through the slide
+		 *   rather than stopping dead — the difference between a drift and a spin.
+		 *   Ramped, a deep cut is controllable where the old instant one was a
+		 *   twitch.
+		 * - handbrakeFrontGrip: the FRONT-axle grip fraction at full engagement.
+		 *   Kept at FULL (1.0) — the reconsidered front-wheel behaviour. A front
+		 *   cut was tried and measured to be WRONG: with the nose unable to bite,
+		 *   the car just understeers/plows straight ahead while decelerating (a
+		 *   high-speed handbrake produced ZERO lateral slip). A handbrake drift
+		 *   needs the front to grip and rotate the car while the LOCKED rear steps
+		 *   out, so the front stays planted; the rear alone does the sliding. The
+		 *   field is kept (rather than dropping the front multiply) so the choice
+		 *   is explicit and tunable.
+		 * - handbrakeEngageRate / handbrakeReleaseRate: exponential approach rates
+		 *   (1/s) for hbEngage toward the held / released state. Engage is faster
+		 *   (the tail should break with intent), release is slower (grip returns
+		 *   gently so exiting a drift settles the car instead of snapping it
+		 *   straight).
+		 */
+		handbrakeGrip: 0.4,
+		handbrakeFrontGrip: 1,
+		handbrakeEngageRate: 9,
+		handbrakeReleaseRate: 4.5,
 		aeroDrag: 0.68,
 		maxSteer: 1,
 		steerSpeedFalloff: 0.04,
@@ -409,6 +446,28 @@
 		/** Extra distance / height at the cap, world units. */
 		camDistanceGain: 4.5,
 		camHeightGain: 1,
+		/**
+		 * Camera views + free-look + look-back (Phase 9a). The speed-scaled
+		 * pull-back above still governs the follow; these layer ON TOP of whichever
+		 * view is active and never change the follow distance/smoothing itself.
+		 *
+		 * - camPanSens: radians of orbit per pixel of mouse drag over the track.
+		 * - camPanYawMax / camPanPitchMax: clamps on the free-look orbit (yaw in
+		 *   radians, pitch as a world-unit height offset).
+		 * - camPanRecenter: how fast (1/s) free-look eases back to neutral once the
+		 *   drag ends, so a glance never sticks.
+		 * - camLookBackRate: how fast (1/s) the look-back swing eases in/out (near
+		 *   instant — it is a held glance, not a follow change).
+		 * - camLookBackArch: extra height (world units) at the MIDPOINT of the
+		 *   look-back swing, so the camera arcs OVER the car rather than clipping
+		 *   through it as it crosses from behind to in front.
+		 */
+		camPanSens: 0.0042,
+		camPanYawMax: 1.25,
+		camPanPitchMax: 4,
+		camPanRecenter: 5,
+		camLookBackRate: 11,
+		camLookBackArch: 3,
 		...COMBAT_DEFAULTS,
 		/** Screen shake amplitude at full trauma, world units. */
 		shakeMax: 0.6,
@@ -517,6 +576,8 @@
 
 	let speedMph = $state(0);
 	let padName = $state('');
+	/** Current camera view name, flashed briefly on the HUD when cycled. */
+	let cameraView = $state('Standard');
 	let bootError = $state('');
 	let banner = $state('');
 	let resetRound: () => void = () => {};
@@ -578,6 +639,8 @@
 			`${keyLabel(controlSettings.keyboard.fireWeaponPrimary)} PRIMARY`,
 			`${keyLabel(controlSettings.keyboard.fireWeaponSecondary)} SECONDARY`,
 			`${keyLabel(controlSettings.keyboard.useAbilityPrimary)}/${keyLabel(controlSettings.keyboard.useAbilitySecondary)} ABILITY`,
+			`${keyLabel(controlSettings.keyboard.cycleCamera)} CAMERA (${cameraView.toUpperCase()})`,
+			`${keyLabel(controlSettings.keyboard.lookBack)} LOOK BACK`,
 			`${keyLabel(controlSettings.keyboard.resetRound)} RESET`
 		].join(' · ')
 	);
@@ -2462,6 +2525,10 @@
 					routeUsed: string;
 					lastOnRibbon: boolean;
 					steerCurrent: number;
+					/** Handbrake drift engagement 0..1: eases toward the held state so
+					 * the rear-grip cut and lock brake fade in/out instead of snapping
+					 * (Phase 9a). Player-only in practice (AI never sets the handbrake). */
+					hbEngage: number;
 					hx: number;
 					hz: number;
 					/** Slipstream, set each frame by the draft-detection pass. drafting =
@@ -2776,6 +2843,7 @@
 						routeUsed: 'main',
 						lastOnRibbon: true,
 						steerCurrent: 0,
+						hbEngage: 0,
 						hx: 1,
 						hz: 0,
 						drafting: false,
@@ -4730,6 +4798,36 @@
 				let abilitySecondaryQueued = false;
 				const prevPadEdge: Partial<Record<ControlAction, boolean>> = {};
 
+				// ---- Camera views + free-look state (Phase 9a) ----
+				// The chase follow (speed-scaled pull-back + smoothing lerp) is
+				// unchanged; a view only scales the target distance/height, and
+				// free-look / look-back layer on top without touching the follow.
+				const CAMERA_VIEWS: { name: string; distMul: number; heightMul: number }[] = [
+					// Cycle order (F / RB): tighter -> the tuned standard -> wider.
+					{ name: 'Close', distMul: 0.68, heightMul: 0.82 },
+					{ name: 'Standard', distMul: 1, heightMul: 1 },
+					{ name: 'Far', distMul: 1.5, heightMul: 1.35 }
+				];
+				let camViewIdx = 1; // Standard by default.
+				const cycleCameraView = () => {
+					camViewIdx = (camViewIdx + 1) % CAMERA_VIEWS.length;
+					cameraView = CAMERA_VIEWS[camViewIdx].name;
+				};
+				// Free-look: mouse drag over the track orbits the camera around the
+				// car (yaw radians + a pitch height offset), easing back to neutral
+				// when the drag ends. Never changes the follow distance/smoothing.
+				let panYaw = 0;
+				let panPitch = 0;
+				let panDragging = false;
+				let panLastX = 0;
+				let panLastY = 0;
+				// Look-back: a held glance behind. lookBackF eases 0..1 toward the
+				// held state; the camera swings from behind the car to in front of
+				// it (looking back over the tail), arcing up at the midpoint.
+				let lookBackF = 0;
+				// Headless/debug override: forces look-back regardless of input.
+				let lookBackForce = false;
+
 				resetRound = () => {
 					const wantAis = Math.max(1, Math.min(MAX_AI, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
 					if (wantAis !== ais.length) buildAis(wantAis);
@@ -4742,6 +4840,7 @@
 						r.body.velocity.setZero();
 						r.body.angularVelocity.setZero();
 						r.steerCurrent = 0;
+						r.hbEngage = 0;
 						r.flashUntil = 0;
 						r.smokeAcc = 0;
 						r.dripAcc = 0;
@@ -4842,16 +4941,56 @@
 							else if (action === 'fireWeaponSecondary') fireSecondaryQueued = true;
 							else if (action === 'useAbilityPrimary') abilityPrimaryQueued = true;
 							else if (action === 'useAbilitySecondary') abilitySecondaryQueued = true;
+							else if (action === 'cycleCamera') cycleCameraView();
 						}
 						return;
 					}
 					keys.add(e.code);
 				};
 				const onKeyUp = (e: KeyboardEvent) => keys.delete(e.code);
-				const onBlur = () => keys.clear();
+				const onBlur = () => {
+					keys.clear();
+					panDragging = false;
+				};
 				window.addEventListener('keydown', onKeyDown);
 				window.addEventListener('keyup', onKeyUp);
 				window.addEventListener('blur', onBlur);
+
+				// ---- Mouse-drag free-look (Phase 9a) ----
+				// Dragging over the track orbits the camera around the car; the
+				// accumulated offset eases back to neutral once the drag ends (in
+				// the chase-camera block). This is NOT a rebindable action -- it
+				// reads the pointer directly -- and never touches the follow.
+				const onPointerDown = (e: PointerEvent) => {
+					if (inputBlocked || paused || e.button !== 0) return;
+					panDragging = true;
+					panLastX = e.clientX;
+					panLastY = e.clientY;
+					stage.setPointerCapture?.(e.pointerId);
+				};
+				const onPointerMove = (e: PointerEvent) => {
+					if (!panDragging) return;
+					const sens = num(tuning.camPanSens, DEFAULTS.camPanSens);
+					const yawMax = num(tuning.camPanYawMax, DEFAULTS.camPanYawMax);
+					const pitchMax = num(tuning.camPanPitchMax, DEFAULTS.camPanPitchMax);
+					// Drag right -> orbit right (camera swings to the car's left),
+					// drag up -> lift. Clamp so free-look can never invert or spin.
+					panYaw = Math.max(-yawMax, Math.min(yawMax, panYaw - (e.clientX - panLastX) * sens));
+					panPitch = Math.max(
+						-pitchMax,
+						Math.min(pitchMax, panPitch + (e.clientY - panLastY) * sens * 600)
+					);
+					panLastX = e.clientX;
+					panLastY = e.clientY;
+				};
+				const endPointer = () => {
+					panDragging = false;
+				};
+				stage.addEventListener('pointerdown', onPointerDown);
+				stage.addEventListener('pointermove', onPointerMove);
+				stage.addEventListener('pointerup', endPointer);
+				stage.addEventListener('pointercancel', endPointer);
+				stage.addEventListener('pointerleave', endPointer);
 
 				// ---- Resize ----
 				const ro = new ResizeObserver(() => {
@@ -5084,7 +5223,8 @@
 						lightning: !!ENV.lightning,
 						flashIntensity: flashLight.intensity
 					}),
-					// Chase-camera geometry vs the speed driving it (Phase 8c).
+					// Chase-camera geometry vs the speed driving it (Phase 8c),
+					// plus the active view / free-look / look-back state (Phase 9a).
 					camInfo: () => {
 						const v = player.body.velocity;
 						return {
@@ -5094,7 +5234,52 @@
 								camera.position.x - player.carGroup.position.x,
 								camera.position.z - player.carGroup.position.z
 							),
-							height: camera.position.y - player.carGroup.position.y
+							height: camera.position.y - player.carGroup.position.y,
+							view: CAMERA_VIEWS[camViewIdx].name,
+							viewIndex: camViewIdx,
+							lookBack: lookBackF,
+							panYaw,
+							panPitch
+						};
+					},
+					// ---- Camera controls (Phase 9a) ----
+					// Drive the SAME view cycle / look-back / free-look the player uses, so a
+					// headless test can exercise them without a real key or mouse.
+					cycleCamera: () => {
+						cycleCameraView();
+						return CAMERA_VIEWS[camViewIdx].name;
+					},
+					setCameraView: (i: number) => {
+						camViewIdx = ((i % CAMERA_VIEWS.length) + CAMERA_VIEWS.length) % CAMERA_VIEWS.length;
+						cameraView = CAMERA_VIEWS[camViewIdx].name;
+						return CAMERA_VIEWS[camViewIdx].name;
+					},
+					lookBack: (on: boolean) => {
+						lookBackForce = !!on;
+						return lookBackForce;
+					},
+					setPan: (yaw: number, pitch = 0) => {
+						const yawMax = num(tuning.camPanYawMax, DEFAULTS.camPanYawMax);
+						const pitchMax = num(tuning.camPanPitchMax, DEFAULTS.camPanPitchMax);
+						panYaw = Math.max(-yawMax, Math.min(yawMax, yaw));
+						panPitch = Math.max(-pitchMax, Math.min(pitchMax, pitch));
+						// Hold the offset so a scripted read sees it before recenter kicks in.
+						panDragging = true;
+						return { panYaw, panPitch };
+					},
+					releasePan: () => {
+						panDragging = false;
+					},
+					// Handbrake drift engagement + achievable lateral slip, for re-measuring
+					// the Phase 5a drift-meter thresholds against the new feel.
+					driftInfo: () => {
+						const vel = player.body.velocity;
+						const lat = Math.abs(vel.x * -player.hz + vel.z * player.hx);
+						return {
+							hbEngage: player.hbEngage,
+							lateralMs: lat,
+							speedMs: Math.hypot(vel.x, vel.y, vel.z),
+							meter: player.abilityState.meter
 						};
 					},
 					// Frame cost over the rolling window: mean / median / p95 / worst
@@ -5406,6 +5591,9 @@
 					let throttle = keyHeld('accelerate') ? 1 : 0;
 					let brakeInput = keyHeld('brake') ? 1 : 0;
 					let handbrake = keyHeld('handbrake');
+					// Look-back is a held camera glance (read here so the pad OR can
+					// fold in below); consumed later in the chase-camera block.
+					let lookBackHeld = keyHeld('lookBack') || lookBackForce;
 
 					const pads = navigator.getGamepads ? navigator.getGamepads() : [];
 					const pad = Array.from(pads).find((p) => p && p.connected) ?? null;
@@ -5420,6 +5608,7 @@
 						throttle = Math.max(throttle, padBindingValue(pad, gp.accelerate));
 						brakeInput = Math.max(brakeInput, padBindingValue(pad, gp.brake));
 						handbrake = handbrake || padBindingHeld(pad, gp.handbrake);
+						lookBackHeld = lookBackHeld || padBindingHeld(pad, gp.lookBack);
 						for (const a of PAD_EDGE_ACTIONS) {
 							const down = padBindingHeld(pad, gp[a]);
 							if (down && !prevPadEdge[a]) {
@@ -5429,6 +5618,7 @@
 								else if (a === 'useAbilityPrimary') abilityPrimaryQueued = true;
 								else if (a === 'useAbilitySecondary') abilitySecondaryQueued = true;
 								else if (a === 'resetRound') resetRound();
+								else if (a === 'cycleCamera') cycleCameraView();
 							}
 							prevPadEdge[a] = down;
 						}
@@ -5638,13 +5828,42 @@
 						rig.vehicle.applyEngineForce(engine / 2, 2);
 						rig.vehicle.applyEngineForce(engine / 2, 3);
 						for (let i = 0; i < 4; i++) rig.vehicle.setBrake(brake, i);
-						if (hbk) {
-							const hb = num(tuning.handbrakeForce, DEFAULTS.handbrakeForce);
-							const gripCut = Math.max(0.05, num(tuning.handbrakeGrip, DEFAULTS.handbrakeGrip));
-							rig.vehicle.setBrake(hb, 2);
-							rig.vehicle.setBrake(hb, 3);
-							rig.vehicle.wheelInfos[2].frictionSlip *= gripCut;
-							rig.vehicle.wheelInfos[3].frictionSlip *= gripCut;
+						// Handbrake drift (Phase 9a): a per-rig engagement scalar eases
+						// toward the held state (fast in, slower out) so grip fades
+						// rather than snapping. The rear axle loses grip deeply and the
+						// front mildly, both scaled by engagement, and the rear lock
+						// brake ramps the same way. This replaced the old instant binary
+						// rear-only cut that read as a twitch sideways. frictionSlip is
+						// recomputed fresh above each frame, so multiplying by the ramped
+						// factor here restores full grip cleanly as engagement decays.
+						{
+							const hbTarget = hbk ? 1 : 0;
+							const hbRate = hbk
+								? num(tuning.handbrakeEngageRate, DEFAULTS.handbrakeEngageRate)
+								: num(tuning.handbrakeReleaseRate, DEFAULTS.handbrakeReleaseRate);
+							rig.hbEngage += (hbTarget - rig.hbEngage) * Math.min(1, hbRate * dt);
+							if (rig.hbEngage < 0.001) rig.hbEngage = 0;
+							if (rig.hbEngage > 0) {
+								const e = rig.hbEngage;
+								const hb = num(tuning.handbrakeForce, DEFAULTS.handbrakeForce);
+								const rearCut = Math.max(0.05, num(tuning.handbrakeGrip, DEFAULTS.handbrakeGrip));
+								const frontCut = Math.max(
+									0.05,
+									num(tuning.handbrakeFrontGrip, DEFAULTS.handbrakeFrontGrip)
+								);
+								// Rear lock brake ramps in; never below the regular brake so
+								// braking + handbrake together can't reduce stopping power.
+								const rearBrake = Math.max(brake, hb * e);
+								rig.vehicle.setBrake(rearBrake, 2);
+								rig.vehicle.setBrake(rearBrake, 3);
+								// Grip fades from full (1) toward each axle's cut as e rises.
+								const frontMul = 1 - (1 - frontCut) * e;
+								const rearMul = 1 - (1 - rearCut) * e;
+								rig.vehicle.wheelInfos[0].frictionSlip *= frontMul;
+								rig.vehicle.wheelInfos[1].frictionSlip *= frontMul;
+								rig.vehicle.wheelInfos[2].frictionSlip *= rearMul;
+								rig.vehicle.wheelInfos[3].frictionSlip *= rearMul;
+							}
 						}
 
 						// Anti-wheelie: bleed LOCAL pitch rate (rotation about the
@@ -6791,35 +7010,67 @@
 
 					// -- Chase camera (player) --
 					const flatFwd = new THREE.Vector3(player.hx, 0, player.hz);
+					const carPos = player.carGroup.position;
 					// Speed-scaled pull-back: linear in speed, clamped at camSpeedRef
-					// (see DEFAULTS). The lerp below still smooths the result, so the
-					// camera eases out and back in rather than snapping.
+					// (see DEFAULTS). The active VIEW then scales the target distance and
+					// height; the lerp below still smooths the result, so the camera eases
+					// out and back in rather than snapping, at any view.
 					const camSpeed = Math.hypot(
 						player.body.velocity.x,
 						player.body.velocity.y,
 						player.body.velocity.z
 					);
 					const camT = Math.min(1, camSpeed / Math.max(1, num(tuning.camSpeedRef, DEFAULTS.camSpeedRef)));
+					const view = CAMERA_VIEWS[camViewIdx];
 					const dist =
-						num(tuning.camDistance, DEFAULTS.camDistance) +
-						camT * num(tuning.camDistanceGain, DEFAULTS.camDistanceGain);
+						(num(tuning.camDistance, DEFAULTS.camDistance) +
+							camT * num(tuning.camDistanceGain, DEFAULTS.camDistanceGain)) *
+						view.distMul;
 					const height =
-						num(tuning.camHeight, DEFAULTS.camHeight) +
-						camT * num(tuning.camHeightGain, DEFAULTS.camHeightGain);
-					const stiff = num(tuning.camStiffness, DEFAULTS.camStiffness);
-					const desired = player.carGroup.position
+						(num(tuning.camHeight, DEFAULTS.camHeight) +
+							camT * num(tuning.camHeightGain, DEFAULTS.camHeightGain)) *
+						view.heightMul;
+					
+					// Look-back glance: eases toward the held state, then the camera swings
+					// from behind (lb 0) to in front looking back over the tail (lb 1),
+					// arcing UP at the midpoint so it clears the car instead of clipping it.
+					lookBackF +=
+						((lookBackHeld ? 1 : 0) - lookBackF) *
+						Math.min(1, num(tuning.camLookBackRate, DEFAULTS.camLookBackRate) * dt);
+					if (lookBackF < 0.0005) lookBackF = 0;
+					// Free-look eases back to neutral once the drag ends (never mid-drag).
+					if (!panDragging) {
+						const rec = 1 - Math.exp(-num(tuning.camPanRecenter, DEFAULTS.camPanRecenter) * dt);
+						panYaw += (0 - panYaw) * rec;
+						panPitch += (0 - panPitch) * rec;
+					}
+					
+					const lb = lookBackF;
+					const fwdOffset = dist * (-1 + 2 * lb);
+					const arch = num(tuning.camLookBackArch, DEFAULTS.camLookBackArch) * Math.sin(Math.PI * lb);
+					// Base offset from the car (behind + up), before free-look orbit.
+					const offX = flatFwd.x * fwdOffset;
+					const offZ = flatFwd.z * fwdOffset;
+					const offY = height + arch + panPitch;
+					// Free-look: orbit the horizontal offset around the world up axis.
+					const cy = Math.cos(panYaw);
+					const sy = Math.sin(panYaw);
+					const desired = carPos
 						.clone()
-						.addScaledVector(flatFwd, -dist)
-						.add(new THREE.Vector3(0, height, 0));
-					const s = 1 - Math.exp(-stiff * dt);
+						.add(new THREE.Vector3(offX * cy - offZ * sy, offY, offX * sy + offZ * cy));
+					// Look target: ahead normally, behind when looking back; blended toward
+					// the car as free-look grows so an orbit actually shows the car's flanks.
+					const lookFwd = 6 * (1 - 2 * lb);
+					const yawMax = Math.max(0.001, num(tuning.camPanYawMax, DEFAULTS.camPanYawMax));
+					const panMag = Math.min(1, Math.abs(panYaw) / yawMax);
+					const lookTarget = carPos
+						.clone()
+						.addScaledVector(flatFwd, lookFwd)
+						.add(new THREE.Vector3(0, 1.2, 0))
+						.lerp(carPos.clone().add(new THREE.Vector3(0, 1.2, 0)), panMag * 0.85);
+					const s = 1 - Math.exp(-num(tuning.camStiffness, DEFAULTS.camStiffness) * dt);
 					camPos.lerp(desired, s);
-					camLook.lerp(
-						player.carGroup.position
-							.clone()
-							.addScaledVector(flatFwd, 6)
-							.add(new THREE.Vector3(0, 1.2, 0)),
-						s
-					);
+					camLook.lerp(lookTarget, s);
 					camera.position.copy(camPos);
 					camera.lookAt(camLook);
 
@@ -7081,6 +7332,11 @@
 					window.removeEventListener('keydown', onKeyDown);
 					window.removeEventListener('keyup', onKeyUp);
 					window.removeEventListener('blur', onBlur);
+					stage.removeEventListener('pointerdown', onPointerDown);
+					stage.removeEventListener('pointermove', onPointerMove);
+					stage.removeEventListener('pointerup', endPointer);
+					stage.removeEventListener('pointercancel', endPointer);
+					stage.removeEventListener('pointerleave', endPointer);
 					delete (window as unknown as Record<string, unknown>).__greenline;
 					rigVis.dispose();
 					renderer.dispose();

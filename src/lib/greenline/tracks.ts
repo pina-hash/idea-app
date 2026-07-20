@@ -67,8 +67,12 @@ export const TRACKS: TrackEntry[] = [
 	}
 ];
 
-/** The track a fresh player starts on (and the fallback for any unknown id). */
-export const DEFAULT_TRACK_ID = 'proving-ground-07';
+/**
+ * The track a fresh player starts on (and the fallback for any unknown id).
+ * Terminal Nine is the flagship full-scale circuit (Phase 9a); Proving Ground
+ * 07 stays a selectable option, it is just no longer the cold-start default.
+ */
+export const DEFAULT_TRACK_ID = 'terminal-nine';
 
 export function trackEntry(id: string | null | undefined): TrackEntry {
 	return TRACKS.find((t) => t.id === id) ?? TRACKS.find((t) => t.id === DEFAULT_TRACK_ID) ?? TRACKS[0];

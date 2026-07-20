@@ -55,7 +55,8 @@
 
 	const CONTROL_GROUPS = [
 		{ title: 'Driving', rows: CONTROL_ACTIONS.filter((a) => a.group === 'driving') },
-		{ title: 'Combat', rows: CONTROL_ACTIONS.filter((a) => a.group === 'combat') }
+		{ title: 'Combat', rows: CONTROL_ACTIONS.filter((a) => a.group === 'combat') },
+		{ title: 'Camera', rows: CONTROL_ACTIONS.filter((a) => a.group === 'camera') }
 	];
 
 	// ---- Rebind capture ----
@@ -286,6 +287,13 @@
 						<div class="gs-ctrl-row gs-ctrl-static">
 							<span class="gs-ctrl-action">Shockwave ram</span>
 							<span class="gs-key gs-key-static">nose contact</span>
+						</div>
+					{/if}
+					{#if g.title === 'Camera'}
+						<!-- Free-look is not a binding: drag on the track to orbit. -->
+						<div class="gs-ctrl-row gs-ctrl-static">
+							<span class="gs-ctrl-action">Free-look (orbit)</span>
+							<span class="gs-key gs-key-static">drag mouse</span>
 						</div>
 					{/if}
 				</div>

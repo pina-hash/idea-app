@@ -3169,6 +3169,94 @@ on one side of the world.
     Visual confirmation of all four tabs via claude-in-chrome (WebGL hangs
     preview-pane screenshots). `svelte-check` clean, 0 errors.
 
+- **Drift-feel rework + camera system + Terminal Nine default (Phase 9a).**
+  Three changes: the cold-start track, the handbrake drift model, and a real
+  camera-view system. All in `GreenlineRace.svelte` unless noted.
+  - **Terminal Nine is the default track.** `DEFAULT_TRACK_ID` in `tracks.ts`
+    (which seeds the `track-selection` store the `/greenline` route reads) is
+    now `terminal-nine`; a fresh session with no stored selection loads the
+    flagship circuit, not Proving Ground 07 (which stays selectable). The dev
+    movement harness's own no-`?track` fallback (GreenlineRace line ~480,
+    hardcoded proving-ground) is unrelated and unchanged — the "fresh session"
+    default is the store.
+  - **Handbrake drift is gradual, not an instant binary cut.** The old model
+    cut REAR grip instantly to 0.65 the frame the key went down and restored it
+    the frame it came up — a sharp snap sideways and an equally sharp hook-back.
+    Grip now fades in/out over a per-rig `Rig.hbEngage` scalar (0..1) that eases
+    toward the held state via two rates: `handbrakeEngageRate` 9 (~360ms in,
+    faster — the tail breaks with intent) and `handbrakeReleaseRate` 4.5 (~480ms
+    out, slower — grip returns gently so exiting a drift settles the car instead
+    of snapping straight). The rear-axle grip fraction (`handbrakeGrip`) was
+    DEEPENED 0.65 -> 0.4: lower rear friction both steps the tail out further AND
+    scrubs less forward momentum (a low-grip locked wheel slides rather than
+    braking hard), so the car CARRIES the slide instead of stopping dead. The
+    rear lock brake (handbrakeForce, unchanged 50) also ramps by `hbEngage`
+    (`max(brake, hb*e)` so it never reduces regular braking). `hbEngage` is
+    added to the Rig interface / makeRig init / resetRound clear.
+    - **Front wheels stay at FULL grip (the reconsidered front-wheel
+      behaviour).** `handbrakeFrontGrip` exists as a tunable but is set to 1.0.
+      A front cut was tried (0.82) and MEASURED to be wrong: with the nose
+      unable to bite, a high-speed handbrake produced ZERO lateral slip — the
+      car just understeers/plows straight while decelerating. A handbrake drift
+      needs the front to grip and rotate the car while the LOCKED rear steps
+      out, so the front stays planted and the rear alone slides. The field is
+      kept (not the front multiply dropped) so the choice is explicit/tunable.
+    - **Drift-meter thresholds RE-MEASURED, unchanged.** Phase 5a's
+      `DRIFT_MIN_LATERAL` 0.6 / `DRIFT_FULL_LATERAL` 3.0 / `METER_CHARGE_PER_SEC`
+      2.2 (abilities.ts) were measured against the OLD feel; re-measured against
+      the new feel they still hold and were left as-is. Reasoning + measurement:
+      the rework touches ONLY handbrake grip, never clean-cornering grip, so the
+      straight (~0 lateral) and clean-corner (~1.8 lateral) regimes the
+      thresholds were tuned to are identical; a committed handbrake slide still
+      spikes to ~3.0-3.46 lateral (reaches/exceeds DRIFT_FULL_LATERAL), and the
+      `driftIntensity` handbrake floor (0.5 above 4 m/s) still guarantees charge.
+      A clean donut filled the meter 0.5 -> 0.836 in ~0.3s. No abilities.ts change.
+  - **Camera system: three views, mouse free-look, look-back.** The Phase 8c
+    speed-scaled pull-back + smoothing lerp is UNCHANGED and still governs the
+    follow; the new pieces layer on top and never change the follow
+    distance/smoothing.
+    - **Three cyclable views** (`CAMERA_VIEWS`, cycle order Close -> Standard ->
+      Far, default Standard): distance/height multipliers over the tuned follow
+      (Close 0.68/0.82, Standard 1/1, Far 1.5/1.35). Measured settled distances
+      ~6.3 / ~9.2 / ~12.9. New edge `ControlAction` `cycleCamera` (KeyF / pad RB,
+      freed by Phase 8g).
+    - **Mouse-drag free-look:** dragging over the track orbits the camera around
+      the car (`panYaw` radians clamped to `camPanYawMax` 1.25, `panPitch` height
+      offset clamped to `camPanPitchMax` 4), the look target blending toward the
+      car as the orbit grows so flanks are actually visible; eases back to
+      neutral (`camPanRecenter` 5) once the drag ends. NOT a rebindable action —
+      it reads the pointer directly (pointerdown/move/up/cancel/leave on `stage`,
+      cleaned up on teardown, ignored while paused/`inputBlocked`).
+    - **Look-back glance:** a held `ControlAction` `lookBack` (KeyQ / pad LB).
+      `lookBackF` eases 0..1 (`camLookBackRate` 11); the camera swings from
+      behind (lb 0) to in front looking back over the tail (lb 1), the forward
+      offset flipping `dist*(-1+2*lb)` and the look target flipping `6*(1-2*lb)`,
+      with `camLookBackArch` (3) lifting the camera at the mid-swing so it arcs
+      OVER the car instead of clipping through. Measured: eases 0->1 smoothly,
+      height peaks ~4.95 mid-swing then settles.
+    - Controls: two new registry entries (`control-settings.svelte.ts`) in a new
+      `camera` group; the settings overlay renders a "Camera" section (the two
+      rebind rows + a static "Free-look · drag mouse" note). The HUD controls
+      hint shows `F CAMERA (<VIEW>) · Q LOOK BACK`, the view name live.
+    - Debug (`__greenline`): `cycleCamera` / `setCameraView(i)` / `lookBack(on)`
+      / `setPan(yaw,pitch)` / `releasePan`, `camInfo()` extended with
+      view/lookBack/pan, and `driftInfo()` (hbEngage + lateral m/s + meter) for
+      re-measuring thresholds headlessly.
+  - **Verified** in `/dev/greenline-movement?glheadless=1` (synthetic-key drives
+    via `__greenline`, since the automated tab doesn't tick rAF): the three views
+    read distinct distances and cycle F/RB; look-back eases 0->1 and arcs up then
+    settles; free-look holds a clamped orbit and recenters on release; the
+    handbrake `hbEngage` ramps 0.28->1 (~360ms) and back (~480ms) rather than
+    snapping; a clean high-speed slide reaches lat 3.46 (a real drift, not a
+    plow) and the meter charges; a full 7-car race runs stable (all upright, all
+    weapon/ability classes firing, 0 falls, no console errors) with camera
+    cycling/look-back/pan exercised under motion and speed-scaling intact; a
+    fresh `trackEntry(null)` resolves terminal-nine. Settings Camera group + the
+    free-look note verified in `/dev/greenline-portal`. `svelte-check` clean, 0
+    errors, no new warnings. NOTE: the combat down-state zeros a rig's controls,
+    so drift measurements must keep the player off other cars (donuts near spawn
+    / let the AI drive away first) or the readings are vacuous.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.
