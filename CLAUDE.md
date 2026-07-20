@@ -3030,6 +3030,83 @@ on one side of the world.
     so it works on any route, not just the movement harness) or the sim
     silently never ticks and every physics assertion passes vacuously.
 
+- **Garage reorganization (Phase 8h): real side-by-side + four tabs.** The
+  garage had accumulated across eight phases into one long vertical scroll
+  (a narrow `minmax(19rem, 24rem)` preview inset beside archetype cards, with
+  livery, weapons, abilities, bodywork, stats, and slots stacked below it).
+  This pass is an ORGANIZING change only: every picker, budget rule, block
+  reason, socket constraint, and purchase action is the SAME markup and the
+  SAME callbacks, moved.
+  - **Layout.** `.gg-panel` is now a fixed-height flex column
+    (`min(94vh, 58rem)`) rather than a `max-height` box that scrolled as one
+    page — a definite height is what lets the body divide it. `.gg-body` is a
+    two-column grid: LEFT is the vehicle (`GaragePreview` growing to fill) plus
+    the resolved-build readout; RIGHT is the tab bar and one tab panel. The
+    preview measures 430px wide at a 1280 viewport and 638px at 1600 (against
+    304-384px before), via a `min-width: 1500px` bump that only spends
+    genuinely spare room — the preview is capped below that so it can never
+    starve the pickers into scrolling.
+  - **Four tabs** (`GarageTab`): BUILD (archetype + the four bodywork slots),
+    COMBAT (both weapon slots with their socket pickers + both ability slots),
+    LIVERY (color / pattern / number / decal), GARAGE (the five named build
+    slots + the track selector, moved here from "above the build" where 8e/8f
+    left it — saved builds and track are both "what am I taking out", as
+    against building the vehicle). A tab renders only when the host passed it
+    something (`availableTabs`), and `activeTab` falls back if the selected one
+    stops existing. **Settings deliberately stays its own overlay, not a fifth
+    tab:** it is app-wide preference (audio, controls, weather), not
+    vehicle-building.
+  - **Locked items stay CONTEXTUAL**, per the phase brief: a locked weapon
+    shows in COMBAT with its price and two-step UNLOCK -> CONFIRM inline, a
+    locked color in LIVERY with its purchase strip. There is deliberately no
+    separate shop tab divorced from where the equivalent owned item lives.
+  - **The stats readout moved OUT of the flow and under the preview**, where it
+    is visible from every tab: it is the readout for whatever the tabs are
+    editing, and it was previously buried below a screen of controls. Its
+    explanatory paragraph is hidden in that column (it earns its space once,
+    then becomes noise) and the hero tiles are pinned to a 2x2, since auto-fit
+    landed on three across and orphaned the fourth.
+  - **Density, and the one real information tradeoff.** To fit COMBAT's ~11
+    weapons x 2 slots plus 7 abilities x 2 without scrolling, part rows in a
+    tab are dense: name and chips share a line, and the BLURB is hidden,
+    reachable as a `title` tooltip and shown inline for the EQUIPPED item only.
+    Every chip that changes a decision (cost, cooldown, block reason, lock
+    price) stays visible always. A LOCKED row additionally drops its secondary
+    stat chip (cooldown / meter cost), since what it costs to BUY outranks how
+    it behaves when you cannot use it yet. Picker grids are column-COUNT driven
+    (`repeat(4, ...)`, `repeat(2, ...)`) rather than `auto-fit`, which silently
+    collapsed to one or two columns in the narrower right pane and was the
+    single biggest cause of the overflow.
+  - **Scroll behavior, measured rather than asserted.** At a 1280x720 viewport
+    all four tabs fit with ZERO overflow in the shipped default (creative mode
+    on, everything unlocked). With the FULL economy locked — every weapon,
+    ability, and part carrying a price chip and a buy button — COMBAT is the
+    one tab that still scrolls below roughly a 950px viewport height (131px
+    over at 720, 20px at 900, 0 at 950); the other three fit everywhere. That
+    is inherent: ~28 locked rows each carry two affordances an owned row does
+    not. A `max-height: 820px` block reclaims chrome (tab hint line, panel
+    padding) rather than content, and below 1000px width the columns stack and
+    the panel scrolls as one, which is the honest fallback.
+  - **Verified** in `/dev/greenline-portal` by driving the REAL component, each
+    interaction checked rather than assumed: mount-capacity pips updating
+    (1/5 -> 3/5), over-budget blocking with its reason ("over budget — needs 3,
+    2 free"), no-duplicate blocking ("already equipped as primary"), the
+    inverted ability budget refusing every candidate at 2/2, socket
+    compatibility + mutual conflict (NOSE disabled in the secondary as "held by
+    the primary weapon" and vice versa) and a socket MOVE persisting
+    (nose -> roof); the purchase flow end to end (unaffordable item renders with
+    no UNLOCK button and "need 200 more IC", affordable one goes
+    UNLOCK -> CONFIRM -> 800 -> 500 IC -> div becomes button -> equips, capacity
+    and socket updating); all five save slots (save with a name, LOAD restoring
+    archetype AND weapon across an archetype change, two-step delete back to
+    empty); the track selector still driving a real race from its new tab
+    (selected Terminal Nine -> `trackInfo()` reports terminal-nine with its
+    branch); and the decal flow in LIVERY (real upload through
+    `validateDecalFile` -> PENDING REVIEW chip + thumbnail + actions, then a
+    teacher revision -> REVISION REQUESTED + feedback + "Upload new image").
+    Visual confirmation of all four tabs via claude-in-chrome (WebGL hangs
+    preview-pane screenshots). `svelte-check` clean, 0 errors.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

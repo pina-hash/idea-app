@@ -405,6 +405,37 @@
 		onDeleteSlot?.(i);
 		confirmDelete = null;
 	}
+
+	// --- Tabs (Phase 8h). The garage had grown across eight phases into one
+	// long vertical scroll; the content is now split four ways beside a large
+	// preview. Purely an ORGANIZING layer: every picker, budget rule, block
+	// reason, and purchase action below is the same markup and the same
+	// callbacks it was before the split.
+	//
+	// Settings deliberately stays its own overlay rather than becoming a fifth
+	// tab: it is app-wide preference (audio, controls, weather), not
+	// vehicle-building, and folding it in here would blur what this screen is.
+	type GarageTab = 'build' | 'combat' | 'livery' | 'garage';
+	// A tab renders only when the host actually gave it something to show, so a
+	// caller that passes no cosmetics / slots / tracks never gets an empty tab.
+	const TAB_UI: { id: GarageTab; label: string; hint: string }[] = [
+		{ id: 'build', label: 'BUILD', hint: 'chassis and bodywork' },
+		{ id: 'combat', label: 'COMBAT', hint: 'weapons and abilities' },
+		{ id: 'livery', label: 'LIVERY', hint: 'color, number, decal' },
+		{ id: 'garage', label: 'GARAGE', hint: 'saved builds and track' }
+	];
+	const hasLivery = $derived(!!oncosmetic);
+	const hasGarageTab = $derived(!!slots || !!(tracks && tracks.length > 1));
+	const availableTabs = $derived(
+		TAB_UI.filter(
+			(t) => (t.id !== 'livery' || hasLivery) && (t.id !== 'garage' || hasGarageTab)
+		)
+	);
+	let tab = $state<GarageTab>('build');
+	/** Never leave a tab selected that stopped being available. */
+	const activeTab = $derived(
+		availableTabs.some((t) => t.id === tab) ? tab : (availableTabs[0]?.id ?? 'build')
+	);
 </script>
 
 <div class="glb gg-scrim" role="presentation">
@@ -709,13 +740,13 @@
 		</div>
 		{/snippet}
 
-		{#if tracks && tracks.length > 1}
-			<!-- Track (Phase 8e). Above the build on purpose: where you are racing
-			     frames every choice under it, and a player who wants a different
-			     circuit should not have to go looking in a settings menu. -->
+		{#snippet trackSection()}
+			<!-- Track. Lived above the build in 8e/8f; its home is now the GARAGE
+			     tab, beside the saved builds — both are "which of my things am I
+			     taking out", as opposed to building the vehicle itself. -->
 			<div class="gg-section-label">Track</div>
 			<div class="gg-tracks">
-				{#each tracks as t (t.id)}
+				{#each tracks ?? [] as t (t.id)}
 					<button
 						class="gg-track"
 						class:on={trackId === t.id}
@@ -733,24 +764,9 @@
 					</button>
 				{/each}
 			</div>
-		{/if}
+		{/snippet}
 
-		{#if preview}
-			<!-- The missing visual half: the resolved build in an isolated 3D
-			     viewport beside the archetype cards, rebuilt live off the same
-			     shared builder the race scene uses. -->
-			<div class="gg-top">
-				<div class="gg-preview">
-					<div class="gg-preview-frame"><GaragePreview {loadout} /></div>
-					<div class="gg-preview-hint">live build · drag to orbit · scroll to zoom</div>
-				</div>
-				<div class="gg-top-right">{@render archetypeSection()}</div>
-			</div>
-		{:else}
-			{@render archetypeSection()}
-		{/if}
-
-		{#if oncosmetic}
+		{#snippet liverySection()}
 			<div class="gg-section-label">Livery</div>
 			<div class="gg-livery">
 				<div class="gg-livery-group">
@@ -920,8 +936,9 @@
 					</div>
 				{/if}
 			</div>
-		{/if}
+		{/snippet}
 
+		{#snippet weaponsSection()}
 		<div class="gg-section-label gg-weapons-head">
 			<span>Weapons</span>
 			<span class="gg-cap">
@@ -980,6 +997,7 @@
 							class:blocked={!!blocked}
 							class:locked={lockPrice != null}
 							disabled={lockPrice == null && blocked ? true : undefined}
+							title={w ? w.blurb : 'Leave the hardpoint empty and bank the mount points.'}
 							onclick={lockPrice == null ? () => onequip(wslot.id, wid) : undefined}
 						>
 							<span class="gg-part-ico">{@render partIcon(wid)}</span>
@@ -991,8 +1009,8 @@
 								<span class="gg-chips">
 									{#if w}
 										<span class="gg-chip neutral">mount {w.mountCost}</span>
-										<span class="gg-chip neutral">cd {w.cooldownSec}s</span>
-										<span class="gg-chip neutral">{w.category}</span>
+										<span class="gg-chip neutral gg-cd">cd {w.cooldownSec}s</span>
+										<span class="gg-chip neutral gg-cat">{w.category}</span>
 									{/if}
 									{#if blocked}
 										<span class="gg-chip bad">{blocked}</span>
@@ -1007,7 +1025,9 @@
 				</div>
 			{/each}
 		</div>
+		{/snippet}
 
+		{#snippet abilitiesSection()}
 		<div class="gg-section-label gg-weapons-head">
 			<span>Abilities</span>
 			<span class="gg-cap">
@@ -1037,6 +1057,7 @@
 							class:blocked={!!blocked}
 							class:locked={lockPrice != null}
 							disabled={lockPrice == null && blocked ? true : undefined}
+							title={a ? a.blurb : 'Leave the slot empty and bank the ability points.'}
 							onclick={lockPrice == null ? () => onequip(aslot.id, aid) : undefined}
 						>
 							<span class="gg-part-ico">{@render partIcon(aid)}</span>
@@ -1048,8 +1069,8 @@
 								<span class="gg-chips">
 									{#if a}
 										<span class="gg-chip neutral">cost {a.slotCost}</span>
-										<span class="gg-chip neutral">meter {Math.round(a.meterCost * 100)}%</span>
-										<span class="gg-chip neutral">{a.category}</span>
+										<span class="gg-chip neutral gg-cd">meter {Math.round(a.meterCost * 100)}%</span>
+										<span class="gg-chip neutral gg-cat">{a.category}</span>
 									{/if}
 									{#if blocked}
 										<span class="gg-chip bad">{blocked}</span>
@@ -1064,7 +1085,9 @@
 				</div>
 			{/each}
 		</div>
+		{/snippet}
 
+		{#snippet bodyworkSection()}
 		<div class="gg-slots">
 			{#each PART_SLOTS as slot (slot.id)}
 				<div class="gg-slot">
@@ -1078,6 +1101,7 @@
 							class="gg-part"
 							class:sel={lockPrice == null && loadout.parts[slot.id] === part.id}
 							class:locked={lockPrice != null}
+							title={part.blurb}
 							onclick={lockPrice == null ? () => onequip(slot.id, part.id) : undefined}
 						>
 							<span class="gg-part-ico">{@render partIcon(part.id)}</span>
@@ -1101,6 +1125,9 @@
 			{/each}
 		</div>
 
+		{/snippet}
+
+		{#snippet summarySection()}
 		<div class="gg-section-label">Resolved build</div>
 		<div class="gg-summary">
 			<div class="gg-hero-grid">
@@ -1158,8 +1185,9 @@
 				rams, and spins, and pay in acceleration.
 			</div>
 		</div>
+		{/snippet}
 
-		{#if slots}
+		{#snippet slotsSection()}
 			<div class="gg-section-label">Build slots</div>
 			<div class="gg-slots-panel">
 				<div class="gg-slot-namebar">
@@ -1216,7 +1244,61 @@
 					marks it unsaved until you save it back.
 				</div>
 			</div>
-		{/if}
+		{/snippet}
+
+		<!-- Body: a real side-by-side. The vehicle and its resolved numbers hold
+		     the left column at all times (they are what every tab is editing),
+		     and the tabs own the right. Both columns are height-bounded by the
+		     panel, so the preview grows with the viewport instead of sitting in
+		     a fixed inset while the controls scroll past it. -->
+		<div class="gg-body" class:nopreview={!preview}>
+			<div class="gg-stage">
+				{#if preview}
+					<div class="gg-preview-frame"><GaragePreview {loadout} /></div>
+					<div class="gg-preview-hint">live build · drag to orbit · scroll to zoom</div>
+				{/if}
+				<div class="gg-stage-stats">{@render summarySection()}</div>
+			</div>
+
+			<div class="gg-work">
+				<div class="gg-tabs" role="tablist" aria-label="Garage sections">
+					{#each availableTabs as t (t.id)}
+						<button
+							class="gg-tab"
+							class:on={activeTab === t.id}
+							role="tab"
+							aria-selected={activeTab === t.id}
+							title={t.hint}
+							onclick={() => (tab = t.id)}
+						>
+							<span class="gg-tab-label">{t.label}</span>
+							<span class="gg-tab-hint">{t.hint}</span>
+						</button>
+					{/each}
+				</div>
+
+				<div class="gg-tabpanel" role="tabpanel">
+					{#if activeTab === 'build'}
+						{@render archetypeSection()}
+						<div class="gg-section-label">Bodywork</div>
+						{@render bodyworkSection()}
+					{:else if activeTab === 'combat'}
+						<div class="gg-combat">
+							<!-- Each section renders a heading AND its grid, so each needs
+							     its own column box; without the wrapper the four elements
+							     lay out 2x2 and the headings sit beside the pickers. -->
+							<div class="gg-combat-col">{@render weaponsSection()}</div>
+							<div class="gg-combat-col">{@render abilitiesSection()}</div>
+						</div>
+					{:else if activeTab === 'livery'}
+						{@render liverySection()}
+					{:else if activeTab === 'garage'}
+						{#if slots}{@render slotsSection()}{/if}
+						{#if tracks && tracks.length > 1}{@render trackSection()}{/if}
+					{/if}
+				</div>
+			</div>
+		</div>
 	</div>
 </div>
 
@@ -1231,9 +1313,15 @@
 		z-index: 30;
 	}
 	.gg-panel {
-		width: min(94vw, 74rem);
-		max-height: 92vh;
-		overflow-y: auto;
+		/* Wider than the pre-8h 74rem so the preview column can be a real
+		   viewport rather than an inset. Height is FIXED (not max-height) so the
+		   body has a definite box to divide: that is what lets the preview grow
+		   with the viewport and the tab panel bound its own content, instead of
+		   the whole panel growing and scrolling as one long page. */
+		width: min(96vw, 92rem);
+		height: min(94vh, 58rem);
+		display: flex;
+		flex-direction: column;
 		background:
 			radial-gradient(120% 50% at 50% -10%, rgba(120, 165, 205, 0.06), transparent 60%),
 			linear-gradient(180deg, #0b1016 0%, #070a0e 42%, #04060a 100%);
@@ -1252,6 +1340,7 @@
 		margin-bottom: 0.7rem;
 		padding-bottom: 0.6rem;
 		border-bottom: 1px solid var(--glb-line);
+		flex: 0 0 auto;
 	}
 	.gg-title {
 		font-family: var(--glb-font-display);
@@ -1318,23 +1407,32 @@
 		grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
 		gap: 0.55rem;
 	}
-	/* Preview viewport beside the archetype cards; stacks on narrow screens. */
-	.gg-top {
+	/* ---- 8h body: preview + live stats on the left, tabs on the right ---- */
+	.gg-body {
+		flex: 1;
+		min-height: 0; /* lets both columns bound themselves, not overflow */
 		display: grid;
-		grid-template-columns: minmax(19rem, 24rem) 1fr;
-		gap: 0.9rem;
+		/* The preview is capped rather than given half the panel: past ~30rem it
+		   stops reading as "bigger car" and just starves the pickers, which is
+		   what forces a tab to scroll. */
+		grid-template-columns: minmax(19rem, 27rem) minmax(0, 1fr);
+		gap: 1rem;
 		align-items: stretch;
 	}
-	.gg-preview {
+	/* With no 3D preview the stats do not need that much column to themselves. */
+	.gg-body.nopreview {
+		grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+	}
+	.gg-stage {
 		display: flex;
 		flex-direction: column;
 		gap: 0.3rem;
-		margin-top: 0.7rem;
+		min-height: 0;
 	}
 	.gg-preview-frame {
 		position: relative;
 		flex: 1;
-		min-height: 16rem;
+		min-height: 12rem;
 		border: 1px solid var(--glb-line);
 		border-top-color: var(--glb-line-strong);
 		box-shadow: inset 0 1px 0 rgba(247, 251, 254, 0.06);
@@ -1345,14 +1443,286 @@
 		font-size: 0.62rem;
 		letter-spacing: 0.16em;
 		text-transform: uppercase;
+		flex: 0 0 auto;
 	}
-	@media (max-width: 900px) {
-		.gg-top {
+	/* The resolved numbers sit under the car and stay put across every tab:
+	   they are the readout for whatever the tabs are editing. */
+	.gg-stage-stats {
+		/* Shrinkable and self-scrolling: a build with a long delta list must
+		   never push the preview out of the column. */
+		flex: 0 1 auto;
+		min-height: 0;
+		overflow-y: auto;
+	}
+	/* The stats block is a READOUT that sits on screen the whole time now, so
+	   the paragraph explaining how to read it earns its space once and then
+	   becomes noise. The tiles and tone-coded chips carry the meaning; the prose
+	   stays in the no-preview layout, where there is room for it. */
+	.gg-body:not(.nopreview) .gg-stage-stats .gg-foot {
+		display: none;
+	}
+	/* A fixed 2x2 rather than auto-fit: at this column width auto-fit lands on
+	   three across and leaves one tile orphaned on its own row. */
+	.gg-stage-stats .gg-hero-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.gg-stage-stats .gg-hero-tile {
+		padding: 0.4rem 0.5rem;
+	}
+	.gg-stage-stats .gg-hero-value {
+		font-size: 1.2rem;
+	}
+	.gg-stage-stats .gg-section-label {
+		margin: 0.3rem 0 0.35rem;
+	}
+	.gg-work {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+	.gg-tabs {
+		display: grid;
+		grid-auto-flow: column;
+		grid-auto-columns: 1fr;
+		gap: 0.3rem;
+		flex: 0 0 auto;
+		margin-bottom: 0.5rem;
+	}
+	.gg-tab {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		align-items: flex-start;
+		padding: 0.4rem 0.6rem;
+		background: linear-gradient(180deg, rgba(16, 22, 28, 0.7), rgba(7, 10, 14, 0.8));
+		border: 1px solid var(--glb-line);
+		border-bottom-width: 2px;
+		border-radius: 2px 2px 0 0;
+		color: var(--glb-steel-dim);
+		font-family: inherit;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease;
+	}
+	.gg-tab:hover,
+	.gg-tab:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	/* The signature green marks the open tab, the same way it marks the chosen
+	   machine and the selected track. */
+	.gg-tab.on {
+		color: var(--glb-chrome-hi);
+		border-color: var(--glb-line-strong);
+		border-bottom-color: #2ae57e;
+		background: linear-gradient(180deg, rgba(26, 34, 42, 0.95), rgba(9, 13, 17, 0.95));
+		box-shadow: 0 2px 12px rgba(42, 229, 126, 0.14);
+	}
+	.gg-tab-label {
+		font-weight: 600;
+		font-size: 0.72rem;
+		letter-spacing: 0.2em;
+	}
+	.gg-tab.on .gg-tab-label {
+		color: var(--glb-green-ui);
+	}
+	.gg-tab-hint {
+		font-size: 0.6rem;
+		letter-spacing: 0.04em;
+		color: var(--glb-ink-faint);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 100%;
+	}
+	/* Each tab is sized to fit its content at a normal viewport; the scroll is a
+	   fallback for short windows, not the intended reading mode. */
+	.gg-tabpanel {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+		padding-right: 0.2rem;
+	}
+	/* Every picker grid inside a tab is column-COUNT driven, not auto-fit:
+	   auto-fit silently collapsed to one or two columns in the narrower right
+	   pane, which is precisely what made these tabs scroll. One column per
+	   thing being chosen between. */
+	.gg-tabpanel .gg-archs,
+	.gg-tabpanel .gg-slots {
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		gap: 0.4rem;
+	}
+	/* COMBAT: weapons and abilities side by side, each splitting into its two
+	   slot columns, so all four pickers are visible at once instead of stacking
+	   into a 700px scroll. */
+	.gg-combat {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.2rem 1rem;
+	}
+	.gg-combat-col {
+		min-width: 0;
+	}
+	.gg-combat .gg-wslots {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 0.25rem 0.4rem;
+	}
+	.gg-combat .gg-slot {
+		gap: 0.22rem;
+	}
+	/* A selected item's blurb is context, not an essay: cap it so equipping
+	   something does not reflow the column it lives in. */
+	.gg-tabpanel .gg-part.sel .gg-part-blurb {
+		display: -webkit-box;
+		-webkit-line-clamp: 1;
+		line-clamp: 1;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+	/* Dense rows across every tab: the blurb rides the tooltip and shows inline
+	   only for the EQUIPPED item, which is where it actually informs a decision.
+	   Every chip that CHANGES a decision (cost, cooldown, block reason, lock
+	   price) stays visible at all times. */
+	.gg-tabpanel .gg-part {
+		padding: 0.22rem 0.35rem 0.22rem 0.45rem;
+		gap: 0.35rem;
+	}
+	/* Name and chips share a line and wrap only when they must, so an ordinary
+	   row is one line tall instead of two. A blocked or locked item pushes its
+	   extra chips onto a second line, which is the right emphasis: the rows that
+	   need explaining are the ones that get taller. */
+	.gg-tabpanel .gg-part-body {
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.1rem 0.32rem;
+	}
+	.gg-tabpanel .gg-part-name {
+		line-height: 1.2;
+	}
+	.gg-tabpanel .gg-part-blurb {
+		flex-basis: 100%;
+	}
+	.gg-tabpanel .gg-part-blurb {
+		display: none;
+	}
+	.gg-tabpanel .gg-part.sel .gg-part-blurb {
+		display: block;
+		font-size: 0.62rem;
+		line-height: 1.25;
+	}
+	/* The icon already says which family a weapon belongs to. */
+	.gg-tabpanel .gg-cat {
+		display: none;
+	}
+	/* A LOCKED row has to carry a price and a buy action, which is two more
+	   things than an owned row. Rather than let that push every locked row onto
+	   a third line, the secondary stat (cooldown / meter cost) steps aside: you
+	   cannot use the thing yet, so what it costs to BUY outranks how it behaves,
+	   and the number is still one hover away in the tooltip. */
+	.gg-tabpanel .gg-part.locked .gg-cd {
+		display: none;
+	}
+	.gg-tabpanel .gg-chip.lock {
+		font-size: 0.52rem;
+		padding: 0.02rem 0.2rem;
+	}
+	.gg-tabpanel .gg-unlock {
+		font-size: 0.52rem;
+		padding: 0.04rem 0.32rem;
+	}
+	.gg-tabpanel .gg-part-ico {
+		width: 1.4rem;
+		height: 1.4rem;
+		margin-top: 0;
+	}
+	.gg-tabpanel .gg-part-glyph {
+		width: 0.95rem;
+		height: 0.95rem;
+	}
+	.gg-tabpanel .gg-part-name {
+		font-size: 0.68rem;
+		letter-spacing: 0.01em;
+	}
+	.gg-tabpanel .gg-chip {
+		font-size: 0.54rem;
+		padding: 0.02rem 0.22rem;
+	}
+	.gg-tabpanel .gg-chips {
+		gap: 0.18rem;
+	}
+	.gg-tabpanel .gg-section-label {
+		margin: 0.35rem 0 0.3rem;
+	}
+	/* Archetype cards keep their glyph and role line (they are the identity
+	   anchor) but tighten so all four sit in one row. */
+	.gg-tabpanel .gg-arch {
+		padding: 0.4rem 0.45rem;
+		gap: 0.18rem;
+	}
+	.gg-tabpanel .gg-glyph {
+		width: 3.4rem;
+		height: 1.5rem;
+	}
+	.gg-tabpanel .gg-arch-name {
+		font-size: 0.76rem;
+	}
+	.gg-tabpanel .gg-arch-role {
+		font-size: 0.63rem;
+		line-height: 1.25;
+	}
+	/* Wide screens have slack the pickers do not need, so the car takes it. The
+	   breakpoint is deliberately above the width where COMBAT was measured to
+	   fit: the preview only grows out of genuinely spare room, never out of the
+	   column that would start scrolling. */
+	@media (min-width: 1500px) {
+		.gg-body {
+			grid-template-columns: minmax(19rem, 40rem) minmax(0, 1fr);
+		}
+	}
+	/* Short windows (a 1366x768 laptop is the school's common case) reclaim the
+	   chrome rather than the content: the tab hint line and the outer padding go
+	   before any picker row does. */
+	@media (max-height: 820px) {
+		.gg-panel {
+			padding: 0.7rem 0.9rem 0.75rem;
+		}
+		.gg-head {
+			margin-bottom: 0.45rem;
+			padding-bottom: 0.4rem;
+		}
+		.gg-tab-hint {
+			display: none;
+		}
+		.gg-tabs {
+			margin-bottom: 0.35rem;
+		}
+		.gg-tab {
+			padding: 0.32rem 0.5rem;
+		}
+		.gg-tabpanel .gg-part {
+			padding: 0.18rem 0.3rem 0.18rem 0.4rem;
+		}
+		.gg-tabpanel .gg-section-label {
+			margin: 0.25rem 0 0.25rem;
+		}
+	}
+	/* Narrow / short windows: stack the columns and let the panel scroll as one,
+	   which is the honest fallback when there is genuinely not room. */
+	@media (max-width: 1000px) {
+		.gg-body,
+		.gg-body.nopreview {
 			grid-template-columns: 1fr;
+			overflow-y: auto;
 		}
 		.gg-preview-frame {
 			min-height: 0;
 			aspect-ratio: 16 / 10;
+		}
+		.gg-tabpanel {
+			overflow-y: visible;
 		}
 	}
 	.gg-arch,
