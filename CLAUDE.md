@@ -2912,6 +2912,165 @@ on one side of the world.
     recovered flip, 0 falls, all 12 upright and finite. Visual confirmation of
     the four presets and the settings selector via claude-in-chrome (WebGL
     screenshots hang the preview pane).
+- **Track selection, pause menu, feedback, telemetry, creative default
+  (Phase 8e + 8f).** Five changes that make what already exists usable and
+  measurable during active playtesting.
+  - **Track catalog + selector.** `src/lib/greenline/tracks.ts` is the ONE
+    list of races (the curriculum.ts convention: plain data, lazy `parseTrack`
+    cached per id, unknown ids fall back to the default rather than throwing).
+    Adding a track is one import plus one entry; nothing else hardcodes a
+    track. `track-selection.svelte.ts` is the reactive localStorage store (the
+    creative/weather pattern) holding the choice. **Deliberately NOT part of
+    the loadout:** a track is where you race, not what you race, so it must
+    never ride the build slots (loading a saved build would otherwise silently
+    move you to another circuit) and it needs no migration. **The picker lives
+    in the GARAGE**, above the build, since that is where every other pre-race
+    choice already is; `Garage.svelte` takes `tracks`/`trackId`/`ontrack`
+    (presentation only, the Minimap convention) and hides the section when
+    given fewer than two. All three tracks are selectable, with
+    `relief-proof-01` LABELLED `TEST` rather than hidden — a player who picks
+    the physics proof segment should know that is what they chose. **Tracks
+    are never economy-gated:** the whole field races the same circuit, so
+    paywalling one would fragment the leaderboards instead of giving anyone
+    something to earn. The route captures `raceTrackId` at race start (the
+    `raceCreative` convention) so the result, the award, the board read, and
+    the telemetry all agree on which track was raced.
+  - **In-race pause menu, and the game clock it required.** THE CLOCK WAS THE
+    WHOLE PROBLEM, and this is the part to understand before touching it:
+    every time-based thing in `GreenlineRace` (lap timing, weapon and ability
+    cooldowns, boost windows, revive channels, the start countdown, FX
+    lifetimes) is an absolute `performance.now()` stamp, so merely skipping
+    the sim would leave real time running underneath and, on resume, the
+    current lap would gain the paused duration while every cooldown in flight
+    silently expired. So the sim now runs on its OWN clock: `gameNow()` is
+    real time minus time spent paused, and it is genuinely FROZEN while paused
+    rather than offset. Every sim-side clock read goes through it; only the
+    frame-cost instrumentation and the headless pump's throttle still read the
+    real clock (they measure wall time, and a pause must not distort them).
+    The world is never stepped while paused, so nothing drifts or settles
+    behind the menu, and held keys are cleared on pause so a throttle held as
+    the menu opens cannot stick with no keyup ever arriving. Escape is
+    deliberately NOT rebindable (it is the universal modal key, as in
+    GreenlineSettings) and steps back one layer per press: feedback box →
+    pause menu → race. `onQuit` / `onFeedback` are OPTIONAL props — the dev
+    harness has no screen to quit to, and the parent owns the feedback UI.
+  - **`inputBlocked`, a real fix and not belt-and-braces.** Both
+    `GreenlineRace` and any host overlay listen on `window`, and the race's
+    listener is registered FIRST (it mounted first), so `stopPropagation` in
+    the overlay cannot help — the race sees the key regardless. Found in the
+    browser: a real Escape press from the feedback textarea closed the box AND
+    unpaused, skipping a step and throwing the player back on track
+    mid-sentence. The host now passes `inputBlocked` while any modal is open
+    (the `GreenlineTitle` `enableShortcut` convention), and the race's
+    typing guard was widened from input/select to include TEXTAREA and
+    contenteditable. Note the near-miss: dispatching the same Escape from a
+    `div` passed, and only targeting the genuinely focused textarea exposed
+    it — test the real input path, not a convenient one.
+  - **Shared feedback box** — see the section below. GREENLINE wires it on all
+    four screens (title, garage, race via the pause menu, results).
+  - **Telemetry MVP (`0054`), extending the EXISTING result path.**
+    `greenline_submit_race_result` already owns the trusted write (server
+    stamped attribution, award math, the creative branch), so the new fields
+    ride it as extra columns and extra DEFAULTED parameters: there is no
+    second "log telemetry" RPC to keep in sync, and no way to log a run that
+    did not also go through the award/ranking rules. Added: both weapon slots,
+    both ability slots, an EXPLICIT `creative` boolean (it was previously only
+    inferable from `mode = 'creative'`), and `route`. Empty equipment slots
+    normalize to NULL, so "no secondary weapon" reads as absence rather than a
+    weapon named 'none'. The old 8-arg signature is DROPPED, not left in place:
+    with defaulted parameters an 8-arg call would be ambiguous between the two
+    overloads and PostgREST would refuse it. `submitRaceResult` now falls back
+    through THREE backend generations (0054 → 0052 → 0049), stepping down only
+    on a missing-function error so a real error is never masked as a version
+    mismatch; a CREATIVE run still refuses the 0049 shape entirely rather than
+    rank an unlocked-everything run. **Route is coarse ON PURPOSE and says so
+    in its own doc comment:** it records the last alternate branch the vehicle
+    was on at any point, not a per-lap series, which answers "did this driver
+    use the shortcut" — the design question Terminal Nine's split actually
+    poses. It is derived from the `warmPath` the surface query already
+    maintains, so it costs one comparison per frame and nothing in the sim
+    reads it back. MVP scope deliberately; `gauntlet_run_events` is the model
+    if a full event stream is ever wanted.
+  - **Creative mode now defaults ON.** A DEFAULT change and nothing more: the
+    wallet, price list, unlock ledger, purchase RPC, and every bit of the
+    garage's lock UI are fully intact, and turning creative off in settings
+    restores the complete Phase 7 economy (re-gating the build to what is
+    actually owned on the way out). During active playtesting the point is
+    getting the whole catalog in front of testers immediately; making them
+    grind first would only measure the grind. `DEFAULT_CREATIVE` in
+    `creative.svelte.ts` is the one line to flip back. The stored value is
+    read as an explicit '1'/'0' rather than a presence check, so a tester who
+    already turned it OFF keeps it off across the change.
+  - **Migrations `0053_app_feedback.sql` and
+    `0054_greenline_race_telemetry.sql` must be applied manually**, in order,
+    after 0052. Both fail soft unapplied (feedback surfaces the error in
+    place; the result submit drops to the older RPC shape).
+  - **Verified** in `/dev/greenline-portal` and
+    `/dev/greenline-movement`: all three tracks render in the picker with the
+    TEST tag on the proof segment, selecting one persists to localStorage and
+    the REAL sim mounts on it (Terminal Nine loaded with `paths 2 / routes 2 /
+    branches [loading-dock]`); the pause menu froze physics (position
+    identical across 4 real seconds) and, decisively, the lap clock read
+    0:35.63 before the pause and 0:35.63 after it, advancing only 0.30s on
+    resume instead of gaining 4.2s, with `pausedAccumMs` 4201 and `gameNow`
+    stable while held; RESTART ROUND reset timing/route and closed the menu;
+    Escape stepped feedback → pause → race one layer per press after the
+    `inputBlocked` fix (and reproduced the bug before it); typing driving keys
+    into the feedback textarea moved nothing; feedback submitted mid-race
+    carried `context: 'race'`; QUIT TO GARAGE unmounted the race cleanly (no
+    `__greenline` leak); a full AI-driven race finished P1 with `route main`
+    on the single-route track and flowed to results; the route field flipped
+    to `loading-dock` on the branch and correctly STAYED there after
+    rejoining the main line; the telemetry payload built the exact 13
+    parameters and the 3-tier fallback stepped 13 → 8 → 7 with the creative
+    run stopping short of the legacy call; and creative read ON with no stored
+    preference while an explicit OFF persisted as '0'. `svelte-check` clean, 0
+    errors. NOTE for future harness work: the portal harness does NOT pump
+    rAF in an automated tab — append `?glheadless=1` (it is read from the URL,
+    so it works on any route, not just the movement harness) or the sim
+    silently never ticks and every physics assertion passes vacuously.
+
+## Shared feedback box
+
+`src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.
+GREENLINE is the first consumer and VANGUARD is the intended second; nothing
+in the component or the seam knows what a race, a lap, or a wave is.
+
+- **`FeedbackBox.svelte`** is presentation only (the Minimap / Garage
+  convention: state in via props, intent out via callbacks) and never touches
+  Supabase itself, so a dev harness mounts it against an in-memory store
+  unchanged. Props: `app` (which app), `context` (which screen), `meta`
+  (free-form context attached to the row), `submit` (does the write, resolves
+  `{ error }`), `onClose`, plus optional `title` / `note`. It owns the form,
+  the four kinds (bug / idea / praise / other — kept short on purpose, more
+  categories means more time choosing and less writing), validation, the
+  in-flight state, the thank-you, and a "send another" reset. A FAILED submit
+  keeps the player's text rather than discarding it.
+- **Theming is via `--fb-*` custom properties** declared on the scrim with
+  neutral dark defaults, so a host overrides them from outside
+  (`.glb .fb-scrim { --fb-accent: ... }`) instead of the component growing a
+  per-app branch. No game-specific copy, color, or font is baked in.
+- **Escape closes it and keydowns are swallowed** while open, matching
+  GreenlineSettings; Ctrl/Cmd+Enter sends (a bare Enter stays a newline, since
+  this is prose). A host that runs a keyboard-driven game underneath must ALSO
+  block its own key handling while the box is open — see `inputBlocked` in the
+  GREENLINE section for why `stopPropagation` cannot do this on its own.
+- **`feedback.ts`** is the data seam (`submitFeedback`, `feedbackIssue`,
+  `FEEDBACK_KINDS`, `FEEDBACK_MAX_LEN`). A feedback row is a comment about
+  YOURSELF, so there is nothing to forge and NO RPC is needed: the insert is a
+  direct RLS-scoped write whose WITH CHECK pins `user_id` to `auth.uid()` (the
+  fsp_item_opens doctrine, not the gauntlet_submit one).
+- **Table `app_feedback` (`0053`, apply manually after 0052):** ONE table with
+  an `app` discriminator rather than one per game, so "what are players telling
+  us this week" is one query instead of a union that grows with every surface.
+  APPEND-ONLY — no update or delete grant at all; correcting yourself means
+  sending a second note, which is also a truer record than a silently edited
+  one. Reads are own-rows plus `is_teacher()` for everything. `meta` is
+  client-reported context (build, track, screen): a debugging aid, never
+  authoritative. No admin UI ships with it yet; the table is the deliverable.
+- **VANGUARD is deliberately NOT wired yet** (its own task): it would mount the
+  same component with `app="vanguard"`, its own `--fb-*` palette, and a submit
+  that calls the same `submitFeedback`.
 
 ## FRC Training track
 

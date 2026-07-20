@@ -43,6 +43,7 @@
 		patternItemId
 	} from './economy';
 	import { GREENLINE_MAX_SLOTS, type LoadoutSlot } from './persistence';
+	import type { TrackEntry } from './tracks';
 	import GaragePreview from './GaragePreview.svelte';
 
 	/**
@@ -89,7 +90,11 @@
 		creative = false,
 		onPurchase,
 		purchasing = null,
-		purchaseError = ''
+		purchaseError = '',
+		tracks = undefined,
+		trackId = undefined,
+		ontrack,
+		onFeedback
 	}: {
 		loadout: Loadout;
 		/** Current tuning-panel baselines the multipliers apply over. */
@@ -172,6 +177,22 @@
 		purchasing?: string | null;
 		/** Last purchase failure to surface (offline / server refusal). */
 		purchaseError?: string;
+		/**
+		 * Track selection (Phase 8e). The garage is where a player already makes
+		 * every pre-race choice, so the venue belongs here rather than behind a
+		 * menu. Presentation only, the slots convention: `undefined` hides the
+		 * section entirely (a host with nothing to choose between), and the
+		 * parent owns which track is selected and what that selection does.
+		 *
+		 * Tracks are NOT gated by the economy — the whole field races the same
+		 * circuit, so paywalling one would fragment the leaderboards rather than
+		 * give anyone something to earn.
+		 */
+		tracks?: readonly TrackEntry[];
+		trackId?: string;
+		ontrack?: (id: string) => void;
+		/** Optional: renders a button that opens the host's feedback box. */
+		onFeedback?: () => void;
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
@@ -409,6 +430,9 @@
 						<path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1M18.7 18.7l-2.1-2.1M7.4 7.4 5.3 5.3" />
 					</svg>
 				</button>
+			{/if}
+			{#if onFeedback}
+				<button class="gg-btn" onclick={onFeedback}>FEEDBACK</button>
 			{/if}
 			{#if onback}
 				<button class="gg-btn" onclick={onback}>{backLabel}</button>
@@ -684,6 +708,32 @@
 			{/each}
 		</div>
 		{/snippet}
+
+		{#if tracks && tracks.length > 1}
+			<!-- Track (Phase 8e). Above the build on purpose: where you are racing
+			     frames every choice under it, and a player who wants a different
+			     circuit should not have to go looking in a settings menu. -->
+			<div class="gg-section-label">Track</div>
+			<div class="gg-tracks">
+				{#each tracks as t (t.id)}
+					<button
+						class="gg-track"
+						class:on={trackId === t.id}
+						aria-pressed={trackId === t.id}
+						onclick={() => ontrack?.(t.id)}
+					>
+						<span class="gg-track-head">
+							<span class="gg-track-name">{t.name}</span>
+							{#if t.kind === 'test'}
+								<span class="gg-track-tag">TEST</span>
+							{/if}
+						</span>
+						<span class="gg-track-tagline">{t.tagline}</span>
+						<span class="gg-track-len">{(t.lengthM / 1000).toFixed(2)} km lap</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
 
 		{#if preview}
 			<!-- The missing visual half: the resolved build in an isolated 3D
@@ -2090,5 +2140,74 @@
 	}
 	.gg-strip-text b {
 		color: var(--glb-ink);
+	}
+
+	/* ---- Track picker (Phase 8e) ---- */
+	.gg-tracks {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+		gap: 0.45rem;
+	}
+	.gg-track {
+		display: flex;
+		flex-direction: column;
+		gap: 0.22rem;
+		text-align: left;
+		padding: 0.55rem 0.65rem;
+		background: rgba(10, 15, 21, 0.6);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		cursor: pointer;
+		transition:
+			border-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+	.gg-track:hover,
+	.gg-track:focus-visible {
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	/* The signature green marks the SELECTED track, exactly as it marks the
+	   selected build — "your line", used for nothing else on this screen. */
+	.gg-track.on {
+		border-color: rgba(42, 229, 126, 0.6);
+		box-shadow: 0 0 10px rgba(42, 229, 126, 0.16);
+	}
+	.gg-track-head {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+	.gg-track-name {
+		flex: 1;
+		color: var(--glb-ink-dim);
+		font-family: var(--glb-font-data);
+		font-size: 0.76rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+	}
+	.gg-track.on .gg-track-name {
+		color: #8fffc4;
+	}
+	/* Steel, not amber: a test segment is a labelled choice, not a warning. */
+	.gg-track-tag {
+		color: var(--glb-steel-dim);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		font-family: var(--glb-font-data);
+		font-size: 0.54rem;
+		letter-spacing: 0.16em;
+		padding: 0.05rem 0.28rem;
+	}
+	.gg-track-tagline {
+		color: var(--glb-ink-faint);
+		font-size: 0.68rem;
+		line-height: 1.4;
+	}
+	.gg-track-len {
+		color: var(--glb-steel-dim);
+		font-family: var(--glb-font-data);
+		font-size: 0.6rem;
+		letter-spacing: 0.12em;
 	}
 </style>

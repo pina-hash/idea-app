@@ -12,12 +12,15 @@
 	const {
 		onStart,
 		onSettings,
+		onFeedback,
 		trackName = 'Proving Ground 07',
 		enableShortcut = true
 	}: {
 		onStart: () => void;
 		/** Optional: renders a gear button that opens the settings overlay. */
 		onSettings?: () => void;
+		/** Optional: renders a button that opens the host's feedback box. */
+		onFeedback?: () => void;
 		trackName?: string;
 		/**
 		 * When false, the Enter-to-start shortcut is disabled (the parent sets
@@ -70,6 +73,9 @@
 
 	<div class="tt-foot">
 		<span>{trackName.toUpperCase()} · NIGHT SESSION</span>
+		{#if onFeedback}
+			<button class="tt-feedback" onclick={onFeedback}>SEND FEEDBACK</button>
+		{/if}
 		<span class="tt-foot-dim">COMBAT RACING · BETA</span>
 	</div>
 </div>
@@ -385,5 +391,26 @@
 	}
 	.tt-foot-dim {
 		color: var(--glb-ink-faint);
+	}
+	/* Deliberately quiet: a permanently available route to feedback, sitting in
+	   the footer chrome rather than competing with START. */
+	.tt-feedback {
+		background: none;
+		border: 1px solid transparent;
+		border-radius: 2px;
+		color: var(--glb-ink-faint);
+		font: inherit;
+		letter-spacing: 0.2em;
+		padding: 0.2rem 0.5rem;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease;
+	}
+	.tt-feedback:hover,
+	.tt-feedback:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: var(--glb-line);
+		outline: none;
 	}
 </style>

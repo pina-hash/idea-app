@@ -11,6 +11,11 @@
 	import { defaultLoadout, resolveWeaponSockets, sanitizeLoadout, type ArchetypeId, type Cosmetics, type Loadout, type PartSlot } from '$lib/greenline/loadout';
 	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
 	import { creativeSettings } from '$lib/greenline/creative.svelte';
+	import GreenlineRace from '$lib/greenline/GreenlineRace.svelte';
+	import { loadTrack, TRACKS } from '$lib/greenline/tracks';
+	import { setSelectedTrack, trackSelection } from '$lib/greenline/track-selection.svelte';
+	import FeedbackBox from '$lib/feedback/FeedbackBox.svelte';
+	import type { FeedbackEntry } from '$lib/feedback/feedback';
 	import {
 		AWARD_PB_BONUS,
 		awardForPlacement,
@@ -311,12 +316,40 @@
 		};
 	});
 
+	// --- Track selection (Phase 8e). The REAL registry and the REAL persisted
+	// store, so the picker verified here is byte-for-byte the one on /greenline
+	// (including the localStorage round-trip across a reload). ---
+	const trackList = TRACKS;
+	// Mount the real sim in the `race` view (off by default — full WebGL).
+	let liveRace = $state(false);
+
+	// --- Feedback (Phase 8e). The REAL FeedbackBox against an in-memory sink,
+	// so the whole submit / validate / thank-you / error round-trip is
+	// verifiable with no auth and no Supabase. ---
+	let feedbackOpen = $state(false);
+	let feedbackContext = $state('title');
+	let feedbackLog = $state<{ at: string; entry: FeedbackEntry }[]>([]);
+	// Forces the error branch, which is otherwise unreachable without a backend.
+	let feedbackFails = $state(false);
+	function openFeedback(context: string) {
+		feedbackContext = context;
+		feedbackOpen = true;
+	}
+	const devSubmitFeedback = async (entry: FeedbackEntry) => {
+		await new Promise((r) => setTimeout(r, 220));
+		if (feedbackFails) return { error: 'Simulated write failure (dev toggle).' };
+		feedbackLog = [{ at: new Date().toLocaleTimeString(), entry }, ...feedbackLog].slice(0, 8);
+		lastAction = `feedback ${entry.kind} from ${entry.context}`;
+		return { error: null };
+	};
+
 	// --- Results screen (real component, sample data) ---
 	const sampleOutcome: RaceOutcome = {
 		finishPosition: 2,
 		totalTimeMs: 92450,
 		bestLapMs: 29380,
-		laps: 3
+		laps: 3,
+		route: 'main'
 	};
 	const MY_ID = 'me-uid';
 	const sampleBoard: LeaderboardEntry[] = [
@@ -499,6 +532,23 @@
 	{/if}
 </div>
 
+<div class="dh-bar dh-bar-feedback">
+	<span>feedback (dev):</span>
+	<button onclick={() => openFeedback(view)}>open from "{view}"</button>
+	<button class:on={liveRace} onclick={() => (liveRace = !liveRace)}>
+		live race {liveRace ? 'on' : 'off'}
+	</button>
+	<button class:on={feedbackFails} onclick={() => (feedbackFails = !feedbackFails)}>
+		{feedbackFails ? 'submit FAILS' : 'submit succeeds'}
+	</button>
+	<span class="dh-note">
+		{feedbackLog.length
+			? `${feedbackLog.length} sent · last: ${feedbackLog[0].entry.kind} @ ${feedbackLog[0].entry.context} — "${feedbackLog[0].entry.message.slice(0, 40)}"`
+			: 'nothing sent yet'}
+	</span>
+	<span class="dh-note">track: {trackSelection.id}</span>
+</div>
+
 <div class="dh-bar dh-bar-economy">
 	<span>economy (dev):</span>
 	<button class:on={devEconomyOn} onclick={() => (devEconomyOn = !devEconomyOn)}>
@@ -539,10 +589,11 @@
 <div class="dh-stage">
 	{#if view === 'title'}
 		<GreenlineTitle
-			trackName="Proving Ground 07"
+			trackName={TRACKS.find((t) => t.id === trackSelection.id)?.name ?? 'Proving Ground 07'}
 			onStart={() => (lastAction = 'START')}
 			onSettings={() => (settingsOpen = true)}
-			enableShortcut={!settingsOpen}
+			onFeedback={() => openFeedback('title')}
+			enableShortcut={!settingsOpen && !feedbackOpen}
 		/>
 	{:else if view === 'garage'}
 		<Garage
@@ -561,6 +612,13 @@
 			onback={() => (lastAction = 'back to TITLE')}
 			backLabel="◂ TITLE"
 			onSettings={() => (settingsOpen = true)}
+			onFeedback={() => openFeedback('garage')}
+			tracks={trackList}
+			trackId={trackSelection.id}
+			ontrack={(id) => {
+				setSelectedTrack(id);
+				lastAction = `track -> ${id}`;
+			}}
 			{slots}
 			{activeSlot}
 			{onSaveSlot}
@@ -591,12 +649,42 @@
 			</div>
 		{/if}
 	{:else if view === 'race'}
-		<div class="dh-center">
-			<div class="dh-racenote">
-				RACE (music harness only — real race is /dev/greenline-movement)<br />
-				a random race-N track plays here; re-select race to reroll
+		{#if liveRace}
+			<!-- The REAL race, on the REAL selected track, with the route's own
+			     onQuit / onFeedback wired. This is the only place the pause menu's
+			     FULL button set (resume · restart · feedback · quit) is
+			     verifiable, since /dev/greenline-movement passes neither callback
+			     and /greenline needs auth. Off by default: it is a full WebGL sim,
+			     and the other views should stay cheap to open. -->
+			{#key trackSelection.id}
+				<GreenlineRace
+					{loadout}
+					track={loadTrack(trackSelection.id)}
+					onFinish={(o) => {
+						// simFinish sets its own lastAction, so stamp the real outcome
+						// (route included) AFTER it — the route is the whole point of
+						// mounting a live race here.
+						simFinish(o.finishPosition, true);
+						lastAction = `finished P${o.finishPosition} · route ${o.route} · best ${o.bestLapMs}ms`;
+					}}
+					onQuit={() => {
+						lastAction = 'quit to garage';
+						view = 'garage';
+					}}
+					onFeedback={() => openFeedback('race')}
+					inputBlocked={feedbackOpen || settingsOpen}
+				/>
+			{/key}
+		{:else}
+			<div class="dh-center">
+				<div class="dh-racenote">
+					RACE (music harness) — a random race-N track plays here; re-select race to reroll<br />
+					use "live race" above to mount the real sim on
+					<b>{TRACKS.find((t) => t.id === trackSelection.id)?.name}</b>
+					(pause menu, quit, mid-race feedback)
+				</div>
 			</div>
-		</div>
+		{/if}
 	{:else}
 		<div class="dh-center">
 			<GreenlineResults
@@ -612,6 +700,7 @@
 				onRaceAgain={() => (lastAction = 'race again')}
 				onGarage={() => (view = 'garage')}
 				onTitle={() => (lastAction = 'title')}
+				onFeedback={() => openFeedback('results')}
 			/>
 		</div>
 	{/if}
@@ -622,6 +711,18 @@
 {#if settingsOpen}
 	<div class="dh-settings">
 		<GreenlineSettings onClose={() => (settingsOpen = false)} />
+	</div>
+{/if}
+
+{#if feedbackOpen}
+	<div class="glb dh-feedback">
+		<FeedbackBox
+			app="greenline"
+			context={feedbackContext}
+			meta={{ screen: feedbackContext, track: trackSelection.id, harness: true }}
+			submit={devSubmitFeedback}
+			onClose={() => (feedbackOpen = false)}
+		/>
 	</div>
 {/if}
 
@@ -666,6 +767,10 @@
 		top: 4.2rem;
 		border-bottom-color: rgba(0, 255, 65, 0.18);
 	}
+	.dh-bar-feedback {
+		top: 6.3rem;
+		border-bottom-color: rgba(127, 208, 255, 0.22);
+	}
 	.dh-audio-log {
 		color: #8fbf9a;
 		font-size: 0.66rem;
@@ -676,9 +781,15 @@
 	}
 	.dh-stage {
 		position: fixed;
-		inset: 6.5rem 0 0;
+		inset: 8.6rem 0 0;
 		background: #05090c;
 		overflow-y: auto;
+	}
+	/* Above the settings overlay: feedback can be opened from either. */
+	.dh-feedback :global(.fb-scrim) {
+		z-index: 120;
+		--fb-accent: #2ae57e;
+		--fb-font: 'Saira Condensed', sans-serif;
 	}
 	.dh-settings {
 		position: fixed;

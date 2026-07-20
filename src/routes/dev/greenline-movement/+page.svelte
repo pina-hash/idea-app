@@ -1,8 +1,6 @@
 <script lang="ts">
 	import GreenlineRace, { type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
-	import { parseTrack } from '$lib/greenline/track-schema';
-	import reliefProofJson from '$lib/greenline/tracks/relief-proof-01.json';
-	import terminalNineJson from '$lib/greenline/tracks/terminal-nine.json';
+	import { loadTrack, TRACKS } from '$lib/greenline/tracks';
 	import { page } from '$app/state';
 
 	/**
@@ -16,22 +14,23 @@
 	 * harness always did. The build is edited via the __greenline console API
 	 * (setArchetype / equip) here; there is no in-race garage.
 	 *
-	 * `?track=` picks the circuit, defaulting to Proving Ground 07:
-	 *   relief        - the Phase 8a schema-v2 proof segment (elevation,
-	 *                   banking, boost pad, oil hazard)
-	 *   terminal-nine - the Phase 8b full-scale circuit (~2.5 km, elevated
-	 *                   deck + jump, rail-yard chokepoint, banked sweeper, and
-	 *                   the grouped-checkpoint shortcut branch)
+	 * `?track=` picks the circuit by its registry id (see $lib/greenline/tracks),
+	 * defaulting to Proving Ground 07. `relief` stays accepted as a shorthand
+	 * for `relief-proof-01`, since scripted drives and the 8a notes use it.
 	 * Read once at page init — switch tracks with a full page load, the
 	 * component builds its world once on mount.
+	 *
+	 * No `onQuit` is passed: the pause menu still opens (resume / restart /
+	 * feedback), it just offers no way out, because this harness has no screen
+	 * to quit to. That optionality is the reason the prop exists.
 	 */
-	const trackParam = page.url.searchParams.get('track');
-	const track =
-		trackParam === 'relief'
-			? parseTrack(reliefProofJson)
-			: trackParam === 'terminal-nine'
-				? parseTrack(terminalNineJson)
-				: undefined;
+	const raw = page.url.searchParams.get('track');
+	const trackParam = raw === 'relief' ? 'relief-proof-01' : raw;
+	// An unknown id resolves to the default rather than throwing, so a typo in a
+	// scripted drive lands on a playable track instead of a blank screen.
+	const track = trackParam && TRACKS.some((t) => t.id === trackParam)
+		? loadTrack(trackParam)
+		: undefined;
 
 	const onFinish = (o: RaceOutcome) => {
 		// The in-game "YOU FINISHED" banner already shows the result; log the

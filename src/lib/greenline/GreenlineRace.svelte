@@ -8,6 +8,18 @@
 		totalTimeMs: number | null;
 		bestLapMs: number | null;
 		laps: number;
+		/**
+		 * Which way round the track the player drove (telemetry, Phase 8f):
+		 * 'main', or the id of the alternate RibbonBranch they used. On a
+		 * single-route track this is always 'main'.
+		 *
+		 * MVP semantics, stated plainly because they are coarse: this reports
+		 * the LAST alternate route the player was on at any point in the race,
+		 * not a per-lap breakdown. It answers "did this player use the
+		 * shortcut", which is the design question Terminal Nine's split
+		 * actually poses; a per-lap series is a later phase's job.
+		 */
+		route: string;
 	}
 
 	/**
@@ -222,7 +234,10 @@
 	const {
 		loadout,
 		onFinish,
-		track: trackOverride
+		track: trackOverride,
+		onQuit,
+		onFeedback,
+		inputBlocked = false
 	}: {
 		/**
 		 * The build to race. When omitted the component owns its loadout locally
@@ -239,6 +254,35 @@
 		 * means remounting the component.
 		 */
 		track?: TrackData;
+		/**
+		 * Leave the race from the pause menu (Phase 8e). When omitted the pause
+		 * menu still opens (resume / restart), it just offers no way out — the
+		 * dev harness has no screen to quit TO.
+		 */
+		onQuit?: () => void;
+		/**
+		 * Open the host's feedback box from the pause menu. The race deliberately
+		 * does not own the feedback UI: the parent already mounts ONE FeedbackBox
+		 * for every screen, and it is the parent that has the Supabase client. The
+		 * race stays paused underneath while it is open, so Escape steps back
+		 * feedback -> pause menu -> race, matching the settings-overlay
+		 * convention.
+		 */
+		onFeedback?: () => void;
+		/**
+		 * True while the HOST has a modal open above the race (its feedback box,
+		 * a settings overlay). The race then processes NO keys at all, including
+		 * Escape.
+		 *
+		 * This is not belt-and-braces, it is the actual fix: both this component
+		 * and any overlay listen on `window`, and this component's listener is
+		 * registered first (it mounted first), so `stopPropagation` in the
+		 * overlay cannot save us — the race sees the key regardless. Without
+		 * this, one Escape press would close the overlay AND unpause, skipping a
+		 * step and throwing the player back onto the track mid-sentence. Same
+		 * convention as GreenlineTitle's `enableShortcut`.
+		 */
+		inputBlocked?: boolean;
 	} = $props();
 
 	const DEFAULTS = {
@@ -476,6 +520,54 @@
 	let bootError = $state('');
 	let banner = $state('');
 	let resetRound: () => void = () => {};
+
+	// ---- Pause (Phase 8e) ----
+	//
+	// THE CLOCK IS THE WHOLE PROBLEM. Everything time-based in this component —
+	// lap timing, weapon and ability cooldowns, boost windows, revive channels,
+	// the start countdown, FX lifetimes — is an ABSOLUTE performance.now()
+	// stamp. Simply skipping the simulation while paused would leave real time
+	// running underneath it, so on resume every one of those stamps would jump:
+	// the current lap would gain the paused duration, and every cooldown in
+	// flight would silently expire.
+	//
+	// So the sim runs on its own clock. `gameNow()` is performance.now() minus
+	// the time spent paused, which makes pausing invisible to every consumer
+	// without touching any of them: stamps stay comparable across a pause
+	// because the clock they were taken from simply does not advance while the
+	// menu is open. Only genuinely wall-clock things — the frame-cost
+	// instrumentation and the headless pump's throttle — keep reading the real
+	// clock.
+	//
+	// Physics is frozen the honest way too: the world is never stepped while
+	// paused, so nothing drifts, settles, or falls asleep behind the menu.
+	let paused = $state(false);
+	let pausedAccumMs = 0;
+	let pauseStartedAt = 0;
+	/**
+	 * The simulation clock: real time minus time spent paused. While paused it
+	 * is genuinely FROZEN, not merely offset — the tick early-returns so nothing
+	 * in the sim reads it today, but a future caller (or a console drive) asking
+	 * the time mid-pause should get the stopped clock, not one quietly ticking
+	 * toward a jump.
+	 */
+	const gameNow = () =>
+		paused ? pauseStartedAt - pausedAccumMs : performance.now() - pausedAccumMs;
+	/** Cleared on pause so a key held at that moment can't stick down. */
+	let clearHeldKeys: () => void = () => {};
+
+	function setPaused(on: boolean) {
+		if (on === paused) return;
+		if (on) {
+			pauseStartedAt = performance.now();
+			// A throttle or steer held as the menu opens would otherwise still be
+			// in `keys` on resume, with no keyup ever arriving (the menu has focus).
+			clearHeldKeys();
+		} else {
+			pausedAccumMs += performance.now() - pauseStartedAt;
+		}
+		paused = on;
+	}
 
 	// The bottom controls hint reflects the CURRENT (remappable) key bindings.
 	const keyHint = $derived(
@@ -2361,6 +2453,14 @@
 					 * on; single-path tracks leave this 0 forever.
 					 */
 					warmPath: number;
+					/**
+					 * Telemetry (Phase 8f): the last ALTERNATE route this vehicle was
+					 * driving — a RibbonBranch id — or 'main' if it has only ever been
+					 * on the main line. Derived from `warmPath` (which the surface
+					 * query already maintains), so it costs one comparison per frame
+					 * and nothing in the sim reads it back. Reset per round.
+					 */
+					routeUsed: string;
 					lastOnRibbon: boolean;
 					steerCurrent: number;
 					hx: number;
@@ -2674,6 +2774,7 @@
 						zoneRearmMs: rt.zones.map(() => 0),
 						warmIdx: spawn.warmIdx,
 						warmPath: 0,
+						routeUsed: 'main',
 						lastOnRibbon: true,
 						steerCurrent: 0,
 						hx: 1,
@@ -3070,7 +3171,7 @@
 					);
 					mesh.position.set(x, y, z);
 					scene.add(mesh);
-					fxList.push({ mesh, born: performance.now(), life: lifeMs, maxR, baseOpacity });
+					fxList.push({ mesh, born: gameNow(), life: lifeMs, maxR, baseOpacity });
 				};
 
 				// ---- Spark pool: additive points for impacts and debris ----
@@ -3113,7 +3214,7 @@
 				) => {
 					const n = Math.max(1, Math.round(count * num(tuning.fxDensity, DEFAULTS.fxDensity)));
 					tmpColor.setHex(color);
-					const now = performance.now();
+					const now = gameNow();
 					for (let k = 0; k < n; k++) {
 						const i = sparkCursor;
 						sparkCursor = (sparkCursor + 1) % SPARK_CAP;
@@ -3203,7 +3304,7 @@
 					speed = 7
 				) => {
 					const n = Math.max(1, Math.round(count * num(tuning.fxDensity, DEFAULTS.fxDensity)));
-					const now = performance.now();
+					const now = gameNow();
 					for (let k = 0; k < n; k++) {
 						const d = debrisPool[debrisCursor];
 						debrisCursor = (debrisCursor + 1) % DEBRIS_CAP;
@@ -3311,7 +3412,7 @@
 						p.sprite.visible = true;
 						p.sprite.position.set(x, y, z);
 						p.mat.color.setHex(color);
-						p.born = performance.now();
+						p.born = gameNow();
 						p.life = lifeMs * (0.7 + Math.random() * 0.6);
 						p.vx = (Math.random() - 0.5) * 1.2;
 						p.vy = rise * (0.7 + Math.random() * 0.6);
@@ -3436,7 +3537,7 @@
 					}
 					flashLight.intensity = 0;
 					flashStartMs = -1e9;
-					nextFlashAtMs = env.lightning ? performance.now() + env.lightning.minGapSec * 1000 : Infinity;
+					nextFlashAtMs = env.lightning ? gameNow() + env.lightning.minGapSec * 1000 : Infinity;
 				};
 				applyEnvironment(ENV);
 
@@ -3785,7 +3886,7 @@
 
 				const performFire = (shooter: Rig) => {
 					const ct = ctFor(shooter);
-					const now = performance.now();
+					const now = gameNow();
 					const result = tryFire(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
 					if (!result.fired) return result;
 					testStats.fire.emp++;
@@ -3836,7 +3937,7 @@
 
 				const performOil = (shooter: Rig): boolean => {
 					const ct = ctFor(shooter);
-					const now = performance.now();
+					const now = gameNow();
 					const slick = tryDeployOil(combatantOf(shooter), ct, now, slickSeq);
 					if (!slick) return false;
 					slickSeq++;
@@ -3942,7 +4043,7 @@
 
 				const performTether = (shooter: Rig) => {
 					const ct = ctFor(shooter);
-					const now = performance.now();
+					const now = gameNow();
 					const res = tryTether(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
 					if (!res.fired) return res;
 					testStats.fire.tether++;
@@ -4242,7 +4343,7 @@
 				const performWeaponFire = (shooter: Rig, slot: WeaponSlotId): boolean => {
 					const def = weaponById(shooter.weapons[slot]);
 					if (!def) return false;
-					const now = performance.now();
+					const now = gameNow();
 					const opts = {
 						damageScale: shooter.buildStats.damageDealt,
 						cooldownScale: shooter.buildStats.weaponCooldown
@@ -4464,7 +4565,7 @@
 				const performAbility = (rig: Rig, slot: AbilitySlotId): boolean => {
 					const def = abilityById(rig.abilities[slot]);
 					if (!def) return false;
-					const now = performance.now();
+					const now = gameNow();
 					// "Genuinely flipped" = local up axis at/below the horizon (the
 					// watchdog's flipUpY threshold), but with NO stationary requirement:
 					// the whole point of the ability is to skip the wait.
@@ -4561,9 +4662,9 @@
 				const BOOST_DURATION_SEC = 1.5; // boost window default
 				const BOOST_KICK_MPS = 5; // instant forward speed added on pad entry
 				const ZONE_REARM_SEC = 1.5; // per-vehicle per-zone retrigger window
-				// Absolute performance.now() ms at which controls unlock (GO). Set
+				// Absolute sim-clock ms at which controls unlock (GO). Set
 				// here for the initial launch and re-armed by resetRound each round.
-				let raceStartAtMs = performance.now() + COUNTDOWN_SEC * 1000;
+				let raceStartAtMs = gameNow() + COUNTDOWN_SEC * 1000;
 
 				// ---- Round state ----
 				let finishOrder: Rig[] = [];
@@ -4571,7 +4672,7 @@
 				// total race time = finishing-lap atMs - this. Reset each round.
 				let playerRaceStartMs: number | null = null;
 				let finishReported = false;
-				let prevMs = performance.now();
+				let prevMs = gameNow();
 
 				const syncHud = () => {
 					hud.timing = player.tracker.timing;
@@ -4633,6 +4734,7 @@
 						applyDentStage(r, 0);
 						r.warmIdx = r.spawn.warmIdx;
 						r.warmPath = 0;
+						r.routeUsed = 'main';
 						r.lastOnRibbon = true;
 						r.prevX = r.spawn.x;
 						r.prevZ = r.spawn.z;
@@ -4665,13 +4767,39 @@
 					syncHud();
 					hud.currentMs = null;
 					// Re-arm the start countdown: controls stay locked until GO.
-					raceStartAtMs = performance.now() + COUNTDOWN_SEC * 1000;
+					raceStartAtMs = gameNow() + COUNTDOWN_SEC * 1000;
 					countText = '';
 				};
 
+				// Held-key reset used when the pause menu takes focus (declared up
+				// top so setPaused can reach it; see the pause block).
+				clearHeldKeys = () => keys.clear();
+
 				const onKeyDown = (e: KeyboardEvent) => {
-					if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement)
+					// A modal above us owns the keyboard entirely (see inputBlocked).
+					if (inputBlocked) return;
+					// Never act on a key the player is TYPING. Textarea belongs here
+					// as much as input/select does — the feedback box's message field
+					// is a textarea, and Escape from it must close only that box.
+					if (
+						e.target instanceof HTMLInputElement ||
+						e.target instanceof HTMLSelectElement ||
+						e.target instanceof HTMLTextAreaElement ||
+						(e.target instanceof HTMLElement && e.target.isContentEditable)
+					)
 						return;
+					// Escape is deliberately NOT a rebindable action: it is the
+					// universal modal key here, exactly as in GreenlineSettings.
+					// Escape steps back one layer at a time — the parent's feedback
+					// box (if it is open, it swallows the key before this listener
+					// ever sees it), then the pause menu, then nothing.
+					if (e.code === 'Escape') {
+						e.preventDefault();
+						setPaused(!paused);
+						return;
+					}
+					// While paused, no driving or weapon input reaches the sim.
+					if (paused) return;
 					const action = actionForKey(e.code);
 					if (!action) return;
 					// Any BOUND key is swallowed (a remapped Space or '/' must not
@@ -4723,7 +4851,7 @@
 				const upWorld = new THREE.Vector3();
 				const tmpQuat = new THREE.Quaternion();
 
-				let lastT = performance.now();
+				let lastT = gameNow();
 				let frame = 0;
 
 				// Dev-only debug handle for poking the sim from the console.
@@ -4741,12 +4869,32 @@
 					getAis: () => ais,
 					getRigs: () => rigsAll(),
 					rt,
+					// Phase 8e/8f introspection. `pauseInfo` exposes the sim-clock
+					// offset so a scripted drive can assert that a pause really did
+					// stop time rather than merely hiding it.
+					setPaused: (on: boolean) => setPaused(on),
+					isPaused: () => paused,
+					pauseInfo: () => ({
+						paused,
+						pausedAccumMs: Math.round(pausedAccumMs),
+						gameNow: Math.round(gameNow()),
+						realNow: Math.round(performance.now())
+					}),
+					trackInfo: () => ({
+						id: track.id,
+						name: track.name,
+						paths: rt.paths.length,
+						routes: rt.routes.length,
+						branches: (track.surface.branches ?? []).map((b) => b.id)
+					}),
+					getRoute: (rigId = 'player') =>
+						rigsAll().find((q) => q.id === rigId)?.routeUsed ?? null,
 					// Phase 8a introspection: the local track-surface height (0 on
 					// flat tracks) and the trigger-zone state.
 					surfaceY: (x: number, z: number) => surfaceYAt(rt, x, z),
 					getZones: (rigId = 'player') => {
 						const r = rigsAll().find((q) => q.id === rigId);
-						const now = performance.now();
+						const now = gameNow();
 						return {
 							zones: rt.zones,
 							rig: r
@@ -4804,7 +4952,7 @@
 							'debug',
 							mode,
 							combatTuning(),
-							performance.now(),
+							gameNow(),
 							zone
 						);
 						// Synthesize an attack origin on the struck side so the zone
@@ -5010,7 +5158,7 @@
 						const r = rigsAll().find((q) => q.id === rigId);
 						if (!r) return null;
 						const c = r.combat;
-						const nowMs = performance.now();
+						const nowMs = gameNow();
 						return {
 							shieldActive: c.shieldActive(nowMs),
 							shieldHealth: c.shieldHealth,
@@ -5033,7 +5181,7 @@
 					getAbilities: (rigId = 'player') => {
 						const r = rigsAll().find((q) => q.id === rigId);
 						if (!r) return null;
-						const nowMs = performance.now();
+						const nowMs = gameNow();
 						return {
 							equipped: { ...r.abilities },
 							meter: r.abilityState.meter,
@@ -5053,7 +5201,7 @@
 							airborneSec: +r.airborneSec.toFixed(3),
 							groundedSec: +r.groundedSec.toFixed(3),
 							airborne: rigAirborne(r),
-							windowActive: r.abilityState.airActive(performance.now()),
+							windowActive: r.abilityState.airActive(gameNow()),
 							rollTorque: r.abilityState.airRollTorque,
 							pitchTorque: r.abilityState.airPitchTorque
 						};
@@ -5123,7 +5271,7 @@
 						// A full snapshot of the field: per-rig progress, finish
 						// state, exact total race time, best lap, and upright-ness.
 						raceState: () => {
-							const now = performance.now();
+							const now = gameNow();
 							return {
 								mode,
 								lapTarget: Math.max(1, Math.round(num(tuning.lapTarget, DEFAULTS.lapTarget))),
@@ -5189,8 +5337,18 @@
 				let perfFilled = 0;
 				let perfFrames = 0;
 				const tick = () => {
+					// frameT0 is REAL time (this measures main-thread cost, which a
+					// pause must not distort); `now` is the SIM clock, which does not
+					// advance while paused.
 					const frameT0 = performance.now();
-					const now = frameT0;
+					const now = gameNow();
+					// Paused: render the frozen frame so the scene stays visible
+					// behind the menu, but step nothing. The world is never advanced,
+					// and because `now` is the paused clock, no stamp anywhere ages.
+					if (paused) {
+						renderer.render(scene, camera);
+						return;
+					}
 					const dt = Math.min((now - lastT) / 1000, 0.05);
 					lastT = now;
 					frame++;
@@ -5498,6 +5656,15 @@
 						);
 						rig.warmIdx = surf.warmIndex;
 						rig.warmPath = surf.path;
+						// Route telemetry: paths beyond 0 are branch spurs, in the
+						// order the runtime built them from surface.branches. Only a
+						// real branch is ever recorded — returning to the main line
+						// does NOT clear it, because the question being answered is
+						// "did this driver use the shortcut", not "where are they now".
+						if (surf.path > 0) {
+							const branch = track.surface.branches?.[surf.path - 1];
+							if (branch) rig.routeUsed = branch.id;
+						}
 						rig.lastOnRibbon = surf.state.onRibbon;
 						if (rig === player) hud.offTrack = !surf.state.onRibbon;
 						if (!surf.state.onRibbon && rawSpeed > 0.1) {
@@ -6460,7 +6627,8 @@
 												playerRaceStartMs !== null ? Math.round(ev.atMs - playerRaceStartMs) : null,
 											bestLapMs:
 												player.tracker.bestLapMs !== null ? Math.round(player.tracker.bestLapMs) : null,
-											laps: lapTarget
+											laps: lapTarget,
+											route: player.routeUsed
 										});
 									}
 								} else {
@@ -6869,6 +7037,7 @@
 					let lastTick = 0;
 					ch.port1.onmessage = () => {
 						if (stopped) return;
+						// Real clock: this paces the pump itself, not the simulation.
 						const t = performance.now();
 						if (t - lastTick >= 1000 / 60) {
 							lastTick = t;
@@ -7114,13 +7283,45 @@
 	</div>
 
 	<div class="glb gl-controls">
-		{padName ? `PAD: ${padName}` : 'KEYBOARD'} · {keyHint}
+		{padName ? `PAD: ${padName}` : 'KEYBOARD'} · {keyHint} · ESC PAUSE
 	</div>
 
 	<div class="gl-map">
 		<Minimap runtime={rt} {pose} nextCheckpoint={hud.cp} others={aiPoses} />
 	</div>
 
+	{#if paused}
+		<!-- Pause menu (Phase 8e). The sim is frozen on its own clock behind
+		     this (see the pause block up top), so nothing ages while it is open.
+		     Escape steps back out, matching the settings-overlay convention. -->
+		<div class="glb gl-pause" role="dialog" aria-label="Paused" aria-modal="true">
+			<div class="gl-pause-panel">
+				<div class="gl-pause-title">PAUSED</div>
+				<div class="gl-pause-sub">{track.name.toUpperCase()} · LAP {hud.lap}</div>
+				<div class="gl-pause-actions">
+					<button class="gl-pause-btn gl-pause-primary" onclick={() => setPaused(false)}>
+						RESUME
+					</button>
+					<button
+						class="gl-pause-btn"
+						onclick={() => {
+							resetRound();
+							setPaused(false);
+						}}
+					>
+						RESTART ROUND
+					</button>
+					{#if onFeedback}
+						<button class="gl-pause-btn" onclick={onFeedback}>SEND FEEDBACK</button>
+					{/if}
+					{#if onQuit}
+						<button class="gl-pause-btn gl-pause-quit" onclick={onQuit}>QUIT TO GARAGE</button>
+					{/if}
+				</div>
+				<div class="gl-pause-hint">ESC RESUMES</div>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>
@@ -7677,5 +7878,97 @@
 		position: absolute;
 		left: 1rem;
 		bottom: 1rem;
+	}
+
+	/* ---- Pause menu (Phase 8e) ---- */
+	.gl-pause {
+		position: absolute;
+		inset: 0;
+		z-index: 60;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		/* Solid dark plate, no blur: the HUD legibility-first rule applies to
+		   the pause scrim too, and a backdrop-filter over a live WebGL canvas
+		   is exactly the cost the aging-desktop budget cannot spare. */
+		background: rgba(2, 3, 4, 0.72);
+	}
+	.gl-pause-panel {
+		min-width: min(88vw, 19rem);
+		padding: 1.1rem 1.3rem 0.9rem;
+		text-align: center;
+		background: linear-gradient(180deg, #0b1016 0%, #05080b 100%);
+		border: 1px solid var(--glb-line-strong);
+		box-shadow:
+			inset 0 1px 0 rgba(247, 251, 254, 0.08),
+			0 30px 80px rgba(0, 0, 0, 0.6);
+	}
+	.gl-pause-title {
+		font-family: var(--glb-font-display);
+		font-size: 1.5rem;
+		letter-spacing: -0.01em;
+		transform: skewX(-7deg);
+		background: var(--glb-chrome-grad);
+		-webkit-background-clip: text;
+		background-clip: text;
+		color: transparent;
+		user-select: none;
+	}
+	.gl-pause-sub {
+		margin-top: 0.15rem;
+		color: var(--glb-ink-faint);
+		font-family: var(--glb-font-data);
+		font-size: 0.64rem;
+		letter-spacing: 0.16em;
+	}
+	.gl-pause-actions {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		margin: 0.9rem 0 0.6rem;
+	}
+	.gl-pause-btn {
+		background: linear-gradient(180deg, rgba(23, 30, 37, 0.85), rgba(9, 13, 17, 0.9));
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		color: var(--glb-steel);
+		font: 600 0.74rem var(--glb-font-ui);
+		letter-spacing: 0.18em;
+		padding: 0.45rem 1rem;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+	.gl-pause-btn:hover,
+	.gl-pause-btn:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	/* Green is surgical here, per the brand doctrine: the one action that puts
+	   you back on the track gets the signature thread, nothing else does. */
+	.gl-pause-primary {
+		color: var(--glb-chrome-mid);
+		border-color: var(--glb-line-strong);
+	}
+	.gl-pause-primary:hover,
+	.gl-pause-primary:focus-visible {
+		color: #8fffc4;
+		border-color: rgba(42, 229, 126, 0.7);
+		box-shadow: 0 0 14px rgba(42, 229, 126, 0.25);
+	}
+	/* Amber is impact, and abandoning a race is the destructive option here. */
+	.gl-pause-quit:hover,
+	.gl-pause-quit:focus-visible {
+		color: var(--glb-amber);
+		border-color: rgba(255, 176, 46, 0.55);
+	}
+	.gl-pause-hint {
+		color: var(--glb-ink-faint);
+		font-family: var(--glb-font-data);
+		font-size: 0.58rem;
+		letter-spacing: 0.2em;
 	}
 </style>

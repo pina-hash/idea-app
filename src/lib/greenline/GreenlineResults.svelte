@@ -29,7 +29,8 @@
 		creative = false,
 		onRaceAgain,
 		onGarage,
-		onTitle
+		onTitle,
+		onFeedback
 	}: {
 		outcome: RaceOutcome | null;
 		trackName: string;
@@ -45,6 +46,12 @@
 		onRaceAgain: () => void;
 		onGarage: () => void;
 		onTitle: () => void;
+		/**
+		 * Optional: opens the host's feedback box. The results screen is the
+		 * single best moment to ask — the player has just finished a race and
+		 * still remembers exactly what felt wrong about it.
+		 */
+		onFeedback?: () => void;
 	} = $props();
 
 	const boardName = (e: LeaderboardEntry) => e.display_name || e.full_name || 'Pilot';
@@ -120,6 +127,9 @@
 		<button class="gr-btn gr-btn-primary" onclick={onRaceAgain}>RACE AGAIN</button>
 		<button class="gr-btn" onclick={onGarage}>GARAGE</button>
 		<button class="gr-btn" onclick={onTitle}>TITLE</button>
+		{#if onFeedback}
+			<button class="gr-btn" onclick={onFeedback}>FEEDBACK</button>
+		{/if}
 	</div>
 </div>
 

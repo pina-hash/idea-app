@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { parseTrack } from '$lib/greenline/track-schema';
-	import provingGroundJson from '$lib/greenline/tracks/proving-ground-07.json';
+	import { loadTrack, trackEntry, TRACKS } from '$lib/greenline/tracks';
+	import { setSelectedTrack, trackSelection } from '$lib/greenline/track-selection.svelte';
+	import FeedbackBox from '$lib/feedback/FeedbackBox.svelte';
+	import { submitFeedback, type FeedbackEntry } from '$lib/feedback/feedback';
+	import { ABILITY_NONE } from '$lib/greenline/abilities';
+	import { WEAPON_NONE } from '$lib/greenline/combat';
 	import GreenlineRace, {
 		GARAGE_BASELINE,
 		type RaceOutcome
@@ -69,10 +73,36 @@
 	 */
 	const { data }: { data: PageData } = $props();
 
-	const track = parseTrack(provingGroundJson);
+	// Selected track (Phase 8e). The choice lives in the reactive
+	// track-selection store (per browser, like weather), so it survives a
+	// reload and the garage picker, the race, the results header, and the
+	// leaderboard read all resolve from the same id.
+	const selectedTrack = $derived(loadTrack(trackSelection.id));
 
 	type Screen = 'title' | 'garage' | 'race' | 'results';
 	let screen = $state<Screen>('title');
+
+	// Feedback box (Phase 8e). ONE instance for the whole flow, rendered above
+	// every screen, so the race can offer it from its pause menu without owning
+	// any of the data layer. `feedbackContext` records which screen asked, which
+	// is exactly the field that makes a bug report actionable.
+	let feedbackOpen = $state(false);
+	let feedbackContext = $state<Screen>('title');
+	function openFeedback(context: Screen) {
+		feedbackContext = context;
+		feedbackOpen = true;
+	}
+	// Attached to the row as free-form context: enough to reproduce a report
+	// without asking the player a single follow-up question.
+	const feedbackMeta = () => ({
+		screen: feedbackContext,
+		track: trackSelection.id,
+		archetype: loadout.archetype,
+		parts: loadout.parts,
+		creative: creativeSettings.enabled,
+		userAgent: typeof navigator === 'undefined' ? null : navigator.userAgent
+	});
+	const sendFeedback = (entry: FeedbackEntry) => submitFeedback(data.supabase, data.userId, entry);
 
 	// Player build: loaded from the account on mount, edited in the garage.
 	let loadout = $state<Loadout>(defaultLoadout());
@@ -99,6 +129,11 @@
 	// Creative flag captured at RACE START (settings are unreachable mid-race,
 	// but the capture makes the submitted flag unambiguous either way).
 	let raceCreative = $state(false);
+	// The track the CURRENT run is on, captured at race start for the same
+	// reason: the result, the award, the board, and the telemetry must all agree
+	// on which track was raced even if the selection moves afterwards.
+	let raceTrackId = $state(trackSelection.id);
+	const raceTrack = $derived(loadTrack(raceTrackId));
 
 	// Custom decal (Phase 6c). `undefined` until loaded (or when 0051 is
 	// unapplied — the garage hides the control), null = none uploaded. The
@@ -250,9 +285,10 @@
 		purchasing = null;
 	}
 
-	/** Enter the race, capturing the creative flag the submit will report. */
+	/** Enter the race, capturing the flags the submit will report. */
 	function startRace() {
 		raceCreative = creativeSettings.enabled;
+		raceTrackId = trackSelection.id;
 		screen = 'race';
 	}
 	// Weapon-slot sanitize on every edit: the garage blocks invalid weapon
@@ -328,6 +364,10 @@
 					: 'choose your build · saved to your account'
 	);
 
+	/** An empty equipment slot is absence, not an item id, so it logs as null. */
+	const telemetrySlot = (id: string | undefined, none: string): string | null =>
+		!id || id === none ? null : id;
+
 	async function handleFinish(o: RaceOutcome) {
 		outcome = o;
 		lastAward = null;
@@ -336,14 +376,22 @@
 		submitError = false;
 		board = [];
 		const { award, error } = await submitRaceResult(data.supabase, {
-			trackId: track.id,
+			trackId: raceTrackId,
 			mode: 'race',
 			finishPosition: o.finishPosition,
 			totalTimeMs: o.totalTimeMs,
 			bestLapMs: o.bestLapMs,
 			laps: o.laps,
 			archetype: loadout.archetype,
-			creative: raceCreative
+			creative: raceCreative,
+			// Telemetry (Phase 8f). The empty-slot sentinels are normalized to
+			// null so "no secondary weapon" reads as absence in the data rather
+			// than as a weapon literally named 'none'.
+			weaponPrimary: telemetrySlot(loadout.parts.weaponPrimary, WEAPON_NONE),
+			weaponSecondary: telemetrySlot(loadout.parts.weaponSecondary, WEAPON_NONE),
+			abilityPrimary: telemetrySlot(loadout.parts.abilityPrimary, ABILITY_NONE),
+			abilitySecondary: telemetrySlot(loadout.parts.abilitySecondary, ABILITY_NONE),
+			route: o.route
 		});
 		submitError = error !== null;
 		submitting = false;
@@ -358,7 +406,7 @@
 
 	async function refreshBoard() {
 		boardLoading = true;
-		board = await loadLeaderboard(data.supabase, track.id, { mode: 'race', limit: 20 });
+		board = await loadLeaderboard(data.supabase, raceTrackId, { mode: 'race', limit: 20 });
 		boardLoading = false;
 	}
 </script>
@@ -372,10 +420,11 @@
 {#if screen === 'title'}
 	<div class="gp-root">
 		<GreenlineTitle
-			trackName={track.name}
+			trackName={selectedTrack.name}
 			onStart={() => (screen = 'garage')}
 			onSettings={() => (settingsOpen = true)}
-			enableShortcut={!settingsOpen}
+			onFeedback={() => openFeedback('title')}
+			enableShortcut={!settingsOpen && !feedbackOpen}
 		/>
 	</div>
 {:else if screen === 'garage'}
@@ -397,6 +446,10 @@
 				onback={() => (screen = 'title')}
 				backLabel="◂ TITLE"
 				onSettings={() => (settingsOpen = true)}
+				onFeedback={() => openFeedback('garage')}
+				tracks={TRACKS}
+				trackId={trackSelection.id}
+				ontrack={setSelectedTrack}
 				{slots}
 				{activeSlot}
 				{onSaveSlot}
@@ -419,12 +472,20 @@
 		{/if}
 	</div>
 {:else if screen === 'race'}
-	<GreenlineRace {loadout} onFinish={handleFinish} />
+	<GreenlineRace
+		{loadout}
+		track={raceTrack}
+		onFinish={handleFinish}
+		onQuit={() => (screen = 'garage')}
+		onFeedback={() => openFeedback('race')}
+		inputBlocked={feedbackOpen || settingsOpen}
+	/>
 {:else if screen === 'results'}
 	<div class="gp-root gp-center">
 		<GreenlineResults
 			{outcome}
-			trackName={track.name}
+			trackName={raceTrack.name}
+			onFeedback={() => openFeedback('results')}
 			{board}
 			{boardLoading}
 			{submitting}
@@ -442,6 +503,23 @@
 {#if settingsOpen}
 	<div class="gp-root gp-overlay">
 		<GreenlineSettings onClose={() => (settingsOpen = false)} />
+	</div>
+{/if}
+
+{#if feedbackOpen}
+	<!-- ONE shared box for every screen. The `glb` class hands it the GREENLINE
+	     brand tokens (the component itself is app-agnostic and takes its palette
+	     from --fb-* custom properties, so VANGUARD can theme it differently
+	     without the component changing). Rendered ABOVE the race, which stays
+	     paused underneath, so Escape steps feedback -> pause menu -> race. -->
+	<div class="glb gp-feedback">
+		<FeedbackBox
+			app="greenline"
+			context={feedbackContext}
+			meta={feedbackMeta()}
+			submit={sendFeedback}
+			onClose={() => (feedbackOpen = false)}
+		/>
 	</div>
 {/if}
 
@@ -463,6 +541,15 @@
 	.gp-overlay {
 		z-index: 50;
 		background: transparent;
+	}
+	/* Above the pause menu (z 60) and the settings overlay (z 50): feedback is
+	   always the topmost layer, since it can be opened from either. The GREENLINE
+	   palette is handed to the shared component through its --fb-* hooks rather
+	   than baked into it. */
+	.gp-feedback :global(.fb-scrim) {
+		z-index: 120;
+		--fb-accent: #2ae57e;
+		--fb-font: 'Saira Condensed', sans-serif;
 	}
 	.gp-fill {
 		position: absolute;

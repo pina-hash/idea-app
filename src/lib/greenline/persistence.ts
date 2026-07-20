@@ -223,6 +223,18 @@ export interface RaceResult {
 	 * row as mode 'creative' so it never ranks. Client-reported, same trust
 	 * model as the rest of the result. */
 	creative?: boolean;
+	/**
+	 * Telemetry (Phase 8f, 0054). All optional and all non-ranking: these
+	 * describe HOW the run was played, never how it scores. A pre-0054 backend
+	 * drops them (the submit falls back to the older signature), so nothing
+	 * here may ever become load-bearing for the result itself.
+	 */
+	weaponPrimary?: string | null;
+	weaponSecondary?: string | null;
+	abilityPrimary?: string | null;
+	abilitySecondary?: string | null;
+	/** Which way round a branched track: 'main', or a RibbonBranch id. */
+	route?: string | null;
 }
 
 /** Does this rpc error mean the deployed function predates the given shape? */
@@ -235,10 +247,13 @@ const isMissingFunction = (e: { code?: string; message: string }): boolean =>
  * the Ignition Credits award in the same transaction. Returns the new row id
  * and the award breakdown.
  *
- * Fail-soft on a pre-0052 backend (the old seven-arg function rejects the
- * p_creative call): a NORMAL run retries the legacy shape (no award existed
- * yet, so `award` comes back null); a CREATIVE run is deliberately NOT
- * submitted through the legacy function — that would rank an
+ * Fail-soft across three backend generations, newest first:
+ *   0054 — result + award + telemetry (the full call).
+ *   0052 — result + award, no telemetry columns (retry without them).
+ *   0049 — result only, no p_creative (retry the seven-arg shape).
+ * Each step down is taken only when the RPC reports the signature missing, so
+ * a real error is never masked as a version mismatch. A CREATIVE run is
+ * deliberately NOT submitted through the 0049 function — that would rank an
  * unlocked-everything run on the real board — and reads as an offline no-op.
  */
 export async function submitRaceResult(
@@ -254,10 +269,20 @@ export async function submitRaceResult(
 		p_laps: result.laps ?? null,
 		p_archetype: result.archetype ?? null
 	};
-	const { data, error } = await supabase.rpc('greenline_submit_race_result', {
-		...params,
-		p_creative: result.creative ?? false
+	const withCreative = { ...params, p_creative: result.creative ?? false };
+	let { data, error } = await supabase.rpc('greenline_submit_race_result', {
+		...withCreative,
+		p_weapon_primary: result.weaponPrimary ?? null,
+		p_weapon_secondary: result.weaponSecondary ?? null,
+		p_ability_primary: result.abilityPrimary ?? null,
+		p_ability_secondary: result.abilitySecondary ?? null,
+		p_route: result.route ?? null
 	});
+	// Pre-0054: the telemetry parameters do not exist. The RESULT still matters
+	// far more than the telemetry, so drop the extra fields and submit anyway.
+	if (error && isMissingFunction(error)) {
+		({ data, error } = await supabase.rpc('greenline_submit_race_result', withCreative));
+	}
 	if (error) {
 		if (isMissingFunction(error)) {
 			if (result.creative) return { id: null, award: null, error: null };
