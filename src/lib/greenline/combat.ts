@@ -12,11 +12,17 @@
 
 export type GreenlineMode = 'race' | 'elimination';
 
-/** The four disruption tools. Every one cools down per vehicle, per weapon.
- * These are the FIXED, always-on utility tools every vehicle carries
- * regardless of build; the equippable weapons below are a separate, parallel
- * system (see WeaponDef / WeaponSlotId), not an extension of this union. */
-export type WeaponId = 'emp' | 'oil' | 'tether' | 'ram';
+/**
+ * The one tool that is NOT equipment (Phase 8g). EMP, Oil Slick, and the
+ * Grappling Hook used to live here beside it as always-on fixtures; they are
+ * ordinary catalog weapons now (see WEAPONS below) and must be equipped to be
+ * used at all. Ram stays: it is a CONSEQUENCE of collision, not a mounted
+ * system — every vehicle rams by driving nose-first into someone, so it has no
+ * card, no cost, no socket, and no way to be unequipped. Its per-vehicle
+ * cooldown (the anti-machine-gun throttle on a grinding contact) is the only
+ * reason this keyed record still exists.
+ */
+export type WeaponId = 'ram';
 
 // ---------------------------------------------------------------------------
 // Equippable weapons: the loadout-chosen firepower occupying the two mount
@@ -58,8 +64,26 @@ export const WEAPON_SOCKET_LABELS: Record<WeaponSocketId, string> = {
 	rear: 'REAR'
 };
 
-/** The six weapon families the framework must hold (build plan section 5). */
-export type WeaponCategory = 'kinetic' | 'guided' | 'turret' | 'defensive' | 'melee' | 'area';
+/**
+ * The weapon families the framework holds. The first six are the build plan's
+ * original set; `disruption` and `tether` were added in Phase 8g when the EMP
+ * and the Grappling Hook stopped being always-on fixtures and became ordinary
+ * equipment. They are their OWN categories rather than being folded into
+ * `kinetic` because kinetic is defined as raw chip damage with no control
+ * effect, which is exactly what these two are not. The Oil Slick did NOT need a
+ * new category: it is an `area` weapon that carries an `oil` block instead of an
+ * `area` one, the same distinguished-by-which-block-is-present convention the
+ * two `defensive` shapes (shield vs jammer) already use.
+ */
+export type WeaponCategory =
+	| 'kinetic'
+	| 'guided'
+	| 'turret'
+	| 'defensive'
+	| 'melee'
+	| 'area'
+	| 'disruption'
+	| 'tether';
 
 /** Kinetic: instant forward hit-scan cone (the tryFire shape, no disruption). */
 export interface KineticWeaponParams {
@@ -164,6 +188,78 @@ export interface TurretWeaponParams {
 }
 
 /**
+ * Disruption: the EMP Burst. Structurally the kinetic hit-scan cone, but it
+ * ALSO applies the disruption state (the engine/steer cut in `driveMods`) and a
+ * spin-out kick the harness reads off `FireHit.spinSign`. That control payload
+ * is why it is not just a kinetic entry.
+ *
+ * Note which numbers live here and which stay in `CombatTuning`, because the
+ * rule is load-bearing for every weapon: a value only THIS weapon reads moves
+ * onto the def, and a value SHARED with another system stays global. So
+ * `disruptionSec` (how long this burst disrupts) is here, while
+ * `disruptEngineCut` / `disruptSteerCut` (what being disrupted DOES, whatever
+ * caused it — a ram stun disrupts too) and `spinKick` (the harness's shared
+ * feedback impulse) stay in CombatTuning.
+ */
+export interface DisruptionWeaponParams {
+	damage: number;
+	/** Forward reach, world units. Scaled per shooter by the `empRange` stat. */
+	range: number;
+	/** Full cone angle, degrees. */
+	coneDeg: number;
+	/** How long a hit disrupts the target (before the target's own resistance). */
+	disruptionSec: number;
+}
+
+/**
+ * Area (oil variant): the Oil Slick. Shares the `area` category with Caltrops
+ * and is told apart by carrying an `oil` block instead of an `area` one. The
+ * behavioral difference is deliberate and total: a slick is SINGLE-consumption
+ * (the first vehicle through it takes it and the puddle is spent) and deals NO
+ * damage — it cuts traction. Caltrops is the opposite on both counts.
+ *
+ * `oilSlipSec` and `oilTractionCut` are NOT here: they stay in CombatTuning
+ * because a track's `hazard: oil` trigger zone (Phase 8a) applies the identical
+ * state through `applyOiled`, and permanent track furniture must not read its
+ * duration off a weapon nobody may have equipped.
+ */
+export interface OilWeaponParams {
+	/** Trigger radius, world units. */
+	radius: number;
+	/** Unconsumed puddle lifetime before it evaporates. */
+	lifeSec: number;
+	/** How far behind the deployer's rear bumper the slick lands. */
+	dropBack: number;
+	/** Owner immunity while driving off their own drop. */
+	armSec: number;
+}
+
+/**
+ * Tether: the Grappling Hook. Latches the nearest vehicle ahead inside range
+ * and cone, deals a one-time bite of damage, then HOLDS while the harness pulls
+ * the target toward the shooter. The yank is the weapon; the damage is
+ * incidental, which is why it is the lowest-damage entry in the catalog that
+ * still costs a real mount slot.
+ */
+export interface TetherWeaponParams {
+	/** Forward latch range, world units. */
+	range: number;
+	/** Full latch cone, degrees. */
+	coneDeg: number;
+	/** How long the cable holds and pulls. */
+	holdSec: number;
+	/** Pull force applied to the target, newtons (the harness applies it). */
+	force: number;
+	/** Damage applied once, at latch. */
+	damage: number;
+	/** The cable snaps past range * this (the target dragged you or escaped). */
+	breakFactor: number;
+	/** Inside this distance the cable goes slack: no pull, so pairs never
+	 * orbit-slam each other. */
+	slackDist: number;
+}
+
+/**
  * Melee: Deployable Blades. The fire action toggles the blades active for a
  * fixed duration (a timer, not a resource meter), then a cooldown. While
  * active, ANY contact with an enemy deals damage — no frontality or
@@ -206,8 +302,15 @@ export interface WeaponDef {
 	kinetic?: KineticWeaponParams;
 	/** Present iff category === 'guided'. */
 	guided?: GuidedWeaponParams;
-	/** Present iff category === 'area'. */
+	/** Present on a category === 'area' Caltrops (persistent damage field). */
 	area?: AreaWeaponParams;
+	/** Present on a category === 'area' Oil Slick (single-consumption traction
+	 * cut). Exactly one of `area` / `oil` per def, the shield/jammer convention. */
+	oil?: OilWeaponParams;
+	/** Present iff category === 'disruption'. */
+	disruption?: DisruptionWeaponParams;
+	/** Present iff category === 'tether'. */
+	tether?: TetherWeaponParams;
 	/** Present iff category === 'turret'. */
 	turret?: TurretWeaponParams;
 	/** Present on a category === 'defensive' Energy Shield (active). */
@@ -399,6 +502,73 @@ export const WEAPONS: WeaponDef[] = [
 		compatibleSockets: ['nose', 'rear'],
 		cooldownSec: 8,
 		melee: { damage: 14, durationSec: 3.5, retriggerImmunitySec: 0.6 }
+	},
+	// --- Phase 8g: the three former always-on tools, now ordinary equipment ---
+	// Every number below is lifted VERBATIM from the COMBAT_DEFAULTS values these
+	// tools ran on when they were free fixtures, so an equipped one behaves
+	// exactly as it always did. What changed is that you have to choose it.
+	{
+		id: 'emp-burst',
+		name: 'EMP Burst',
+		shortName: 'EMP',
+		category: 'disruption',
+		blurb: 'Short forward burst that hurts AND scrambles: cuts their engine, kills their steering, spins them out.',
+		// Cost 2. Its damage-per-second sits near the rocket's tier and it adds a
+		// hard control effect on top, which argues for 3 — but its 30m reach puts
+		// it in the shotgun's brawl range rather than the railgun's, and the whole
+		// point of this phase is that these three stay reachable next to the
+		// flashier options. 2 is the honest middle.
+		mountCost: 2,
+		// Forward emitter, same geometry logic as the autocannon: hull nose or
+		// cab roof, never firing back through the canopy.
+		compatibleSockets: ['nose', 'roof'],
+		cooldownSec: 1.5,
+		disruption: { damage: 35, range: 30, coneDeg: 40, disruptionSec: 2.5 }
+	},
+	{
+		id: 'oil-slick',
+		name: 'Oil Slick',
+		shortName: 'OIL',
+		category: 'area',
+		blurb: 'Dumps a puddle behind you. The first car through it loses all grip — no damage, just a corner they cannot make.',
+		// Cost 1: no damage at all, and single-consumption (one rival, once), so
+		// it is the cheapest thing on the board alongside Caltrops. The two are
+		// deliberately the same price and the same socket: rear droppers that
+		// trade damage-over-time against a harder one-shot effect.
+		mountCost: 1,
+		// HARD constraint like Caltrops, not preference: the slick lands behind
+		// the deployer, so the dispenser is rear-only. Consequence worth knowing:
+		// this means Oil and Caltrops can never share a build.
+		compatibleSockets: ['rear'],
+		cooldownSec: 6,
+		oil: { radius: 3.2, lifeSec: 12, dropBack: 3.6, armSec: 0.9 }
+	},
+	{
+		id: 'grappling-hook',
+		name: 'Grappling Hook',
+		shortName: 'HOOK',
+		category: 'tether',
+		blurb: 'Harpoons a car ahead and reels it in. Barely scratches them; the point is where they end up.',
+		// Cost 2: the damage is trivial, but a 42m yank is the longest-reach
+		// control tool in the game and it rewrites a rival's line entirely. At
+		// cost 1 there would be no reason not to carry one.
+		mountCost: 2,
+		// Winch + harpoon: rides HIGH first (roof, tank-style) so it clears its
+		// own bodywork, nose second. Preferring roof also means it pairs with a
+		// nose-mounted EMP on any three-socket chassis; on the VELOCITY dart
+		// (nose + rear, no roof) the two contest the one nose point and cannot be
+		// carried together, which is the dart's usual firepower tax.
+		compatibleSockets: ['roof', 'nose'],
+		cooldownSec: 5,
+		tether: {
+			range: 42,
+			coneDeg: 70,
+			holdSec: 1.25,
+			force: 7000,
+			damage: 12,
+			breakFactor: 1.4,
+			slackDist: 7
+		}
 	}
 ];
 
@@ -409,15 +579,6 @@ export interface CombatTuning {
 	/** TOTAL durability budget, split into armor/chassis/mount by the
 	 * vehicle's archetype pool split (see splitPools / loadout pools). */
 	maxHealth: number;
-	/** EMP burst: damage per hit. */
-	empDamage: number;
-	/** EMP burst: forward range, world units. */
-	empRange: number;
-	/** EMP burst: full cone angle, degrees. */
-	empConeDeg: number;
-	empCooldownSec: number;
-	/** How long a hit disrupts the target. */
-	disruptionSec: number;
 	/** Engine force multiplier while disrupted (boost loss), 0..1. */
 	disruptEngineCut: number;
 	/** Steering multiplier while disrupted, 0..1. */
@@ -426,26 +587,16 @@ export interface CombatTuning {
 	spinKick: number;
 	/** RACE mode: immobilize duration at zero health before full-heal. */
 	downSec: number;
-	/** Oil slick: trigger radius, world units. */
-	oilRadius: number;
-	/** Oil slick: unconsumed puddle lifetime before it evaporates. */
-	oilLifeSec: number;
-	/** Oil slick: how long the victim's traction stays cut. */
+	/**
+	 * How long a victim's traction stays cut once oiled. SHARED, so it is here
+	 * and not on the Oil Slick weapon: a track's `hazard: oil` trigger zone
+	 * applies the same state through `applyOiled`, and that furniture exists
+	 * whether or not anyone on the grid mounted an oil dispenser.
+	 */
 	oilSlipSec: number;
-	/** Oil slick: tire frictionSlip multiplier while oiled, 0..1. */
+	/** Tire frictionSlip multiplier while oiled, 0..1. Shared for the same
+	 * reason, and additionally read every frame by `driveMods`. */
 	oilTractionCut: number;
-	oilCooldownSec: number;
-	/** Tether: forward latch range, world units. */
-	tetherRange: number;
-	/** Tether: full latch cone, degrees. */
-	tetherConeDeg: number;
-	/** Tether: how long the cable holds and pulls. */
-	tetherSec: number;
-	/** Tether: pull force on the target, newtons. */
-	tetherForce: number;
-	/** Tether: damage applied once at latch. */
-	tetherDamage: number;
-	tetherCooldownSec: number;
 	/** Ram: minimum closing speed (m/s) for a frontal hit to shockwave. */
 	ramMinClosingSpeed: number;
 	/** Ram: base damage to BOTH vehicles (scaled up by closing speed). */
@@ -461,26 +612,12 @@ export interface CombatTuning {
 
 export const COMBAT_DEFAULTS: CombatTuning = {
 	maxHealth: 100,
-	empDamage: 35,
-	empRange: 30,
-	empConeDeg: 40,
-	empCooldownSec: 1.5,
-	disruptionSec: 2.5,
 	disruptEngineCut: 0.25,
 	disruptSteerCut: 0.35,
 	spinKick: 2.5,
 	downSec: 3,
-	oilRadius: 3.2,
-	oilLifeSec: 12,
 	oilSlipSec: 3,
 	oilTractionCut: 0.22,
-	oilCooldownSec: 6,
-	tetherRange: 42,
-	tetherConeDeg: 70,
-	tetherSec: 1.25,
-	tetherForce: 7000,
-	tetherDamage: 12,
-	tetherCooldownSec: 5,
 	ramMinClosingSpeed: 9,
 	ramDamage: 30,
 	ramImpulse: 2600,
@@ -489,14 +626,10 @@ export const COMBAT_DEFAULTS: CombatTuning = {
 	ramCooldownSec: 2.5
 };
 
-/** Owner immunity window after dropping a slick (they are driving off it). */
-export const OIL_ARM_SEC = 0.9;
-/** How far behind the rear bumper a slick lands. */
-export const OIL_DROP_BACK = 3.6;
-/** Tether snaps if the target gets dragged/escapes beyond range * this. */
-export const TETHER_BREAK_FACTOR = 1.4;
-/** Inside this distance the cable goes slack: no pull, no slingshot orbit. */
-export const TETHER_SLACK_DIST = 7;
+// The oil arm/drop-back and tether break/slack constants that used to live here
+// moved ONTO their weapon defs in Phase 8g (OilWeaponParams / TetherWeaponParams),
+// so a weapon's whole behavior reads from one place.
+
 /** Ram needs at least one vehicle hitting nose-first: heading dot >= this. */
 export const RAM_FRONTAL_COS = 0.45;
 
@@ -657,8 +790,8 @@ export class VehicleCombat {
 	disruptedUntilMs = 0;
 	/** Oil slick traction loss: tires stay slicked until this time. */
 	oiledUntilMs = 0;
-	/** Per-weapon last-use timestamps; every tool cools down independently. */
-	lastUseMs: Record<WeaponId, number> = { emp: -Infinity, oil: -Infinity, tether: -Infinity, ram: -Infinity };
+	/** Ram's last-use timestamp (the only non-equipment tool; see WeaponId). */
+	lastUseMs: Record<WeaponId, number> = { ram: -Infinity };
 	/** Equipped-weapon slot cooldowns, keyed by SLOT (not weapon id): the
 	 * weapon occupying a slot can change between builds, and a swap must not
 	 * inherit or leak another weapon's timer semantics beyond the slot's. */
@@ -699,7 +832,7 @@ export class VehicleCombat {
 		this.downUntilMs = 0;
 		this.disruptedUntilMs = 0;
 		this.oiledUntilMs = 0;
-		this.lastUseMs = { emp: -Infinity, oil: -Infinity, tether: -Infinity, ram: -Infinity };
+		this.lastUseMs = { ram: -Infinity };
 		this.lastSlotUseMs = { weaponPrimary: -Infinity, weaponSecondary: -Infinity };
 		this.lastDamageFrom = null;
 		this.shieldHealth = 0;
@@ -732,13 +865,13 @@ export class VehicleCombat {
 		return this.eliminated || this.isDown(nowMs);
 	}
 
+	/**
+	 * Ram's cooldown gate. Deliberately NOT gated on `mountDown`, unlike every
+	 * equipped weapon (`canUseSlot`): ram is nose-first chassis contact, not a
+	 * mount system, and since `tryRam` requires this from BOTH vehicles, gating
+	 * it would make a mount-dead vehicle immune to being rammed.
+	 */
 	canUse(weapon: WeaponId, nowMs: number, cooldownSec: number): boolean {
-		// A destroyed mount takes the three FIRED tools offline until the next
-		// full heal. The passive ram is deliberately exempt: it is nose-first
-		// chassis contact, not a mount system, and because tryRam requires
-		// canUse from BOTH vehicles, gating it here would make a mount-dead
-		// vehicle immune to ram damage.
-		if (this.mountDown && weapon !== 'ram') return false;
 		return !this.isOut(nowMs) && nowMs - this.lastUseMs[weapon] >= cooldownSec * 1000;
 	}
 
@@ -848,10 +981,6 @@ export class VehicleCombat {
 		}
 		this.eliminated = true;
 		return { outcome: 'eliminated', ...base };
-	}
-
-	applyDisruption(tuning: CombatTuning, nowMs: number): void {
-		this.applyStun(tuning.disruptionSec, nowMs);
 	}
 
 	/**
@@ -990,40 +1119,56 @@ export interface FireResult {
 }
 
 /**
- * The forward EMP burst: instant short-range cone in front of the shooter.
- * Any combatant may shoot at any list of targets; hits deal damage and apply
- * the disruption state. The caller applies physical feedback (spin kick) via
+ * The forward EMP burst (equipped `disruption` weapon since Phase 8g): instant
+ * short-range cone in front of the shooter. Hits deal damage AND apply the
+ * disruption state; the caller applies physical feedback (spin kick) via
  * `spinSign`.
+ *
+ * Slot-gated like every other equipped weapon, so a build that did not mount an
+ * EMP has no way to reach this: the harness only calls it from the slot whose
+ * def carries a `disruption` block.
  */
 export function tryFire(
 	shooter: Combatant,
 	targets: Combatant[],
+	slot: WeaponSlotId,
+	def: WeaponDef,
 	mode: GreenlineMode,
 	tuning: CombatTuning,
-	nowMs: number
+	nowMs: number,
+	opts: WeaponFireOpts = {}
 ): FireResult {
-	if (!shooter.combat.canUse('emp', nowMs, tuning.empCooldownSec)) {
+	const d = def.disruption;
+	if (!d) return { fired: false, hits: [] };
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) {
 		return { fired: false, hits: [] };
 	}
-	shooter.combat.markUsed('emp', nowMs);
-	const cosHalf = Math.cos(((tuning.empConeDeg / 2) * Math.PI) / 180);
+	shooter.combat.markSlotUsed(slot, nowMs);
+	// The build's offense scales the burst exactly as it did through the old
+	// per-shooter CombatTuning: damage x damageDealt, reach x empRange.
+	const damage = Math.max(1, Math.round(d.damage * (opts.damageScale ?? 1)));
+	const range = d.range * (opts.rangeScale ?? 1);
+	const cosHalf = Math.cos(((d.coneDeg / 2) * Math.PI) / 180);
 	const hits: FireHit[] = [];
 	for (const t of targets) {
 		if (t.id === shooter.id || t.combat.eliminated) continue;
 		const dx = t.x - shooter.x;
 		const dz = t.z - shooter.z;
 		const dist = Math.hypot(dx, dz);
-		if (dist > tuning.empRange) continue;
+		if (dist > range) continue;
 		if (dist > 0.001 && (dx * shooter.hx + dz * shooter.hz) / dist < cosHalf) continue;
 		// The burst lands on whichever face of the TARGET points back at the
 		// shooter: classify off the target's own heading, not the aim cone.
 		const zone = classifyHitZone(dx, dz, t.hx, t.hz);
-		const result = t.combat.applyDamage(tuning.empDamage, shooter.id, mode, tuning, nowMs, zone);
+		const result = t.combat.applyDamage(damage, shooter.id, mode, tuning, nowMs, zone);
 		if (result.outcome === 'ignored') continue;
-		if (result.outcome === 'damaged') t.combat.applyDisruption(tuning, nowMs);
+		// applyStun scales by the target's own disruption resistance, which is
+		// what the removed applyDisruption() wrapper did.
+		if (result.outcome === 'damaged') t.combat.applyStun(d.disruptionSec, nowMs);
 		hits.push({
 			targetId: t.id,
-			damage: tuning.empDamage,
+			damage,
 			result,
 			spinSign: Math.sign(shooter.hx * dz - shooter.hz * dx) || 1,
 			dist
@@ -1059,6 +1204,10 @@ export interface WeaponFireOpts {
 	damageScale?: number;
 	/** Multiplies the def's cooldown (buildStats.weaponCooldown). Default 1. */
 	cooldownScale?: number;
+	/** Multiplies a weapon's reach (buildStats.empRange). Default 1. Only the
+	 * EMP Burst reads it today — the `empRange` stat's one consumer — but it is a
+	 * general offense scale, not an EMP-specific field. */
+	rangeScale?: number;
 }
 
 /**
@@ -1378,6 +1527,9 @@ export function updateProjectiles(
 export interface OilSlick {
 	id: number;
 	ownerId: string;
+	/** Catalog id, so update() can resolve the slick's radius / arm window (the
+	 * CaltropField.weaponId convention). */
+	weaponId: string;
 	x: number;
 	z: number;
 	createdMs: number;
@@ -1388,24 +1540,32 @@ export interface OilSlick {
 }
 
 /**
- * Drop a slick behind the shooter. Returns null when the oil tool is on
- * cooldown (or the shooter is out).
+ * Drop a slick behind the shooter (equipped Oil Slick weapon since Phase 8g).
+ * Returns null when the slot is on cooldown, the shooter is out, or the def is
+ * not an oil weapon. Slot-gated, so a build without an oil dispenser can never
+ * reach it.
  */
 export function tryDeployOil(
 	shooter: Combatant,
-	tuning: CombatTuning,
+	slot: WeaponSlotId,
+	def: WeaponDef,
 	nowMs: number,
-	id: number
+	id: number,
+	opts: WeaponFireOpts = {}
 ): OilSlick | null {
-	if (!shooter.combat.canUse('oil', nowMs, tuning.oilCooldownSec)) return null;
-	shooter.combat.markUsed('oil', nowMs);
+	const o = def.oil;
+	if (!o) return null;
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) return null;
+	shooter.combat.markSlotUsed(slot, nowMs);
 	return {
 		id,
 		ownerId: shooter.id,
-		x: shooter.x - shooter.hx * OIL_DROP_BACK,
-		z: shooter.z - shooter.hz * OIL_DROP_BACK,
+		weaponId: def.id,
+		x: shooter.x - shooter.hx * o.dropBack,
+		z: shooter.z - shooter.hz * o.dropBack,
 		createdMs: nowMs,
-		expiresMs: nowMs + tuning.oilLifeSec * 1000,
+		expiresMs: nowMs + o.lifeSec * 1000,
 		consumedBy: null,
 		consumedMs: 0
 	};
@@ -1430,14 +1590,19 @@ export function updateOilSlicks(
 	const events: OilTriggerEvent[] = [];
 	for (const s of slicks) {
 		if (s.consumedBy !== null || nowMs >= s.expiresMs) continue;
+		const o = weaponById(s.weaponId)?.oil;
+		if (!o) continue;
+		const r2 = o.radius * o.radius;
 		for (const v of vehicles) {
 			if (v.combat.eliminated || v.combat.isOut(nowMs)) continue;
-			if (v.id === s.ownerId && nowMs - s.createdMs < OIL_ARM_SEC * 1000) continue;
+			if (v.id === s.ownerId && nowMs - s.createdMs < o.armSec * 1000) continue;
 			const dx = v.x - s.x;
 			const dz = v.z - s.z;
-			if (dx * dx + dz * dz > tuning.oilRadius * tuning.oilRadius) continue;
+			if (dx * dx + dz * dz > r2) continue;
 			s.consumedBy = v.id;
 			s.consumedMs = nowMs;
+			// The slip duration/traction stay shared CombatTuning (a track oil zone
+			// applies the identical state), so applyOiled is unchanged.
 			v.combat.applyOiled(tuning, nowMs);
 			events.push({ slick: s, targetId: v.id });
 			break;
@@ -1567,15 +1732,22 @@ export interface TetherResult {
 export function tryTether(
 	shooter: Combatant,
 	targets: Combatant[],
+	slot: WeaponSlotId,
+	def: WeaponDef,
 	mode: GreenlineMode,
 	tuning: CombatTuning,
-	nowMs: number
+	nowMs: number,
+	opts: WeaponFireOpts = {}
 ): TetherResult {
-	if (!shooter.combat.canUse('tether', nowMs, tuning.tetherCooldownSec)) {
+	const th = def.tether;
+	if (!th) return { fired: false, hit: null };
+	const cooldown = def.cooldownSec * (opts.cooldownScale ?? 1);
+	if (!shooter.combat.canUseSlot(slot, nowMs, cooldown)) {
 		return { fired: false, hit: null };
 	}
-	shooter.combat.markUsed('tether', nowMs);
-	const cosHalf = Math.cos(((tuning.tetherConeDeg / 2) * Math.PI) / 180);
+	shooter.combat.markSlotUsed(slot, nowMs);
+	const damage = Math.max(1, Math.round(th.damage * (opts.damageScale ?? 1)));
+	const cosHalf = Math.cos(((th.coneDeg / 2) * Math.PI) / 180);
 	let best: Combatant | null = null;
 	let bestDist = Infinity;
 	for (const t of targets) {
@@ -1583,7 +1755,7 @@ export function tryTether(
 		const dx = t.x - shooter.x;
 		const dz = t.z - shooter.z;
 		const dist = Math.hypot(dx, dz);
-		if (dist > tuning.tetherRange || dist < 0.001) continue;
+		if (dist > th.range || dist < 0.001) continue;
 		if ((dx * shooter.hx + dz * shooter.hz) / dist < cosHalf) continue;
 		if (dist < bestDist) {
 			best = t;
@@ -1595,19 +1767,12 @@ export function tryTether(
 	const dz = best.z - shooter.z;
 	// The hook bites the face of the TARGET nearest the shooter.
 	const zone = classifyHitZone(dx, dz, best.hx, best.hz);
-	const result = best.combat.applyDamage(
-		tuning.tetherDamage,
-		shooter.id,
-		mode,
-		tuning,
-		nowMs,
-		zone
-	);
+	const result = best.combat.applyDamage(damage, shooter.id, mode, tuning, nowMs, zone);
 	return {
 		fired: true,
 		hit: {
 			targetId: best.id,
-			damage: tuning.tetherDamage,
+			damage,
 			result,
 			spinSign: Math.sign(shooter.hx * dz - shooter.hz * dx) || 1,
 			dist: bestDist
@@ -1620,23 +1785,30 @@ export interface ActiveTether {
 	shooterId: string;
 	targetId: string;
 	untilMs: number;
+	/** The Grappling Hook weapon that fired it, so the harness resolves the pull
+	 * force / slack / break distance from one place (the OilSlick.weaponId
+	 * convention). */
+	weaponId: string;
 }
 
 /**
  * Is this cable still holding? 'broken' when the pair separates past the
  * break distance or either end goes out of the fight; 'done' at duration end.
+ * Reads the break/range values off the firing weapon's def (its `range` *
+ * `breakFactor`), so a build with no hook can never own a live tether.
  */
 export function tetherStatus(
 	tether: ActiveTether,
 	shooter: Combatant,
 	target: Combatant,
-	tuning: CombatTuning,
 	nowMs: number
 ): 'active' | 'done' | 'broken' {
 	if (nowMs >= tether.untilMs) return 'done';
 	if (shooter.combat.isOut(nowMs) || target.combat.isOut(nowMs)) return 'broken';
+	const th = weaponById(tether.weaponId)?.tether;
+	if (!th) return 'broken';
 	const dist = Math.hypot(target.x - shooter.x, target.z - shooter.z);
-	if (dist > tuning.tetherRange * TETHER_BREAK_FACTOR) return 'broken';
+	if (dist > th.range * th.breakFactor) return 'broken';
 	return 'active';
 }
 

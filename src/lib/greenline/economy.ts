@@ -101,7 +101,9 @@ export interface UnlockableItem {
 	price: number;
 }
 
-/** Every purchasable item with its price — the full shop catalog (39 items). */
+/** Every purchasable item with its price — the full shop catalog (42 items
+ * since Phase 8g added EMP / Oil Slick / Grappling Hook as equipment; the three
+ * auto-price off mountCost through itemPrice like every other weapon). */
 export function unlockableItems(): UnlockableItem[] {
 	const out: UnlockableItem[] = [];
 	for (const p of PARTS) {

@@ -49,7 +49,6 @@
 		driveMods,
 		slotCooldownRemaining,
 		splitPools,
-		TETHER_SLACK_DIST,
 		tetherStatus,
 		tryActivateShield,
 		tryBladeStrike,
@@ -80,6 +79,7 @@
 		type OilSlick,
 		type PoolMaxes,
 		type Projectile,
+		type WeaponDef,
 		type WeaponLock,
 		type WeaponSlotId,
 		type WeaponSocketId
@@ -578,9 +578,6 @@
 			`${keyLabel(controlSettings.keyboard.fireWeaponPrimary)} PRIMARY`,
 			`${keyLabel(controlSettings.keyboard.fireWeaponSecondary)} SECONDARY`,
 			`${keyLabel(controlSettings.keyboard.useAbilityPrimary)}/${keyLabel(controlSettings.keyboard.useAbilitySecondary)} ABILITY`,
-			`${keyLabel(controlSettings.keyboard.fire)} EMP`,
-			`${keyLabel(controlSettings.keyboard.oil)} OIL`,
-			`${keyLabel(controlSettings.keyboard.tether)} TETHER`,
 			`${keyLabel(controlSettings.keyboard.resetRound)} RESET`
 		].join(' · ')
 	);
@@ -653,7 +650,9 @@
 		downLeft: 0,
 		/** Energy Shield absorb fraction (0 = inactive, else 0..1 of the pool). */
 		shieldPct: 0,
-		ready: { emp: 0, oil: 0, tether: 0, ram: 0 },
+		// Ram is the only fixed always-on tool left (Phase 8g): EMP / oil / tether
+		// are equipped weapons now, so they live in `slots`, not here.
+		ready: { ram: 0 },
 		/** Equipped-weapon cells (primary always; secondary only when equipped). */
 		slots: [] as SlotHudCell[],
 		/** Shared drift meter, 0..1 (both ability slots draw from it). */
@@ -3056,15 +3055,23 @@
 				// velocity, AI-3 handling, AI-4 systems, then repeat. Identity is
 				// carried by the archetype bodywork itself, not a color array.
 				const AI_ARCHS: ArchetypeId[] = ['armor', 'velocity', 'handling', 'systems'];
-				// Weapon fits cycle alongside the archetypes (each respects its
-				// archetype's mount capacity: armor 4, velocity 2, handling 4,
-				// systems 5), so combat testing runs against both weapons and
-				// against a rocket-primary build.
+				// Weapon fits cycle alongside the archetypes. EIGHT entries (two full
+				// archetype passes) so the whole 13-weapon roster is exercised across a
+				// larger field, INCLUDING the three folded in at Phase 8g (EMP Burst,
+				// Oil Slick, Grappling Hook). Entry k pairs with archetype
+				// AI_ARCHS[(k-1)%4]; because this list also cycles a/v/h/s, index i%4 is
+				// that archetype, so every fit respects its own mount capacity (armor 4,
+				// velocity 2, handling 4, systems 5). The default 3-AI field is the first
+				// three, which deliberately showcases the three NEW weapons.
 				const AI_WEAPONS: [string, string][] = [
-					['auto-turret', 'deployable-blades'], // armor (4): 2 + 2
-					['radar-jammer', 'shotgun-burst'], // velocity (2): 1 + 1
-					['energy-shield', 'caltrops'], // handling (4): 3 + 1
-					['railgun', 'homing-rocket'] // systems (5): 3 + 2
+					['emp-burst', 'auto-turret'], // armor (4): 2 + 2  (EMP)
+					['oil-slick', 'shotgun-burst'], // velocity (2): 1 + 1  (oil)
+					['grappling-hook', 'caltrops'], // handling (4): 2 + 1  (hook)
+					['railgun', 'homing-rocket'], // systems (5): 3 + 2
+					['energy-shield', 'radar-jammer'], // armor (4): 3 + 1
+					['deployable-blades', WEAPON_NONE], // velocity (2): 2
+					['cluster-missile', 'autocannon'], // handling (4): 3 + 1
+					['emp-burst', 'railgun'] // systems (5): 2 + 3
 				];
 				// Ability fits cycle alongside the archetypes, each within its
 				// archetype's INVERTED ability budget (armor 4, velocity 5, handling
@@ -3634,28 +3641,18 @@
 				};
 
 				// ---- Combat wiring (shared by player input and AI shooters) ----
+				// The shared, build-independent combat constants. Since Phase 8g the
+				// EMP / oil / tether numbers live on their WeaponDefs (equipment now),
+				// so this holds only what is genuinely shared: the disruption/oil
+				// EFFECT scales (whatever caused them), ram, and the down window.
 				const combatTuning = (): CombatTuning => ({
 					maxHealth: num(tuning.maxHealth, DEFAULTS.maxHealth),
-					empDamage: num(tuning.empDamage, DEFAULTS.empDamage),
-					empRange: num(tuning.empRange, DEFAULTS.empRange),
-					empConeDeg: num(tuning.empConeDeg, DEFAULTS.empConeDeg),
-					empCooldownSec: num(tuning.empCooldownSec, DEFAULTS.empCooldownSec),
-					disruptionSec: num(tuning.disruptionSec, DEFAULTS.disruptionSec),
 					disruptEngineCut: num(tuning.disruptEngineCut, DEFAULTS.disruptEngineCut),
 					disruptSteerCut: num(tuning.disruptSteerCut, DEFAULTS.disruptSteerCut),
 					spinKick: num(tuning.spinKick, DEFAULTS.spinKick),
 					downSec: num(tuning.downSec, DEFAULTS.downSec),
-					oilRadius: num(tuning.oilRadius, DEFAULTS.oilRadius),
-					oilLifeSec: num(tuning.oilLifeSec, DEFAULTS.oilLifeSec),
 					oilSlipSec: num(tuning.oilSlipSec, DEFAULTS.oilSlipSec),
 					oilTractionCut: num(tuning.oilTractionCut, DEFAULTS.oilTractionCut),
-					oilCooldownSec: num(tuning.oilCooldownSec, DEFAULTS.oilCooldownSec),
-					tetherRange: num(tuning.tetherRange, DEFAULTS.tetherRange),
-					tetherConeDeg: num(tuning.tetherConeDeg, DEFAULTS.tetherConeDeg),
-					tetherSec: num(tuning.tetherSec, DEFAULTS.tetherSec),
-					tetherForce: num(tuning.tetherForce, DEFAULTS.tetherForce),
-					tetherDamage: num(tuning.tetherDamage, DEFAULTS.tetherDamage),
-					tetherCooldownSec: num(tuning.tetherCooldownSec, DEFAULTS.tetherCooldownSec),
 					ramMinClosingSpeed: num(tuning.ramMinClosingSpeed, DEFAULTS.ramMinClosingSpeed),
 					ramDamage: num(tuning.ramDamage, DEFAULTS.ramDamage),
 					ramImpulse: num(tuning.ramImpulse, DEFAULTS.ramImpulse),
@@ -3663,24 +3660,16 @@
 					ramStunSec: num(tuning.ramStunSec, DEFAULTS.ramStunSec),
 					ramCooldownSec: num(tuning.ramCooldownSec, DEFAULTS.ramCooldownSec)
 				});
-				// Per-shooter effective combat tuning: the build's OFFENSE side
-				// (damage out, EMP reach, tool cooldowns). Defense lives on the
-				// TARGET's VehicleCombat.resist, so the pure weapon functions stay
-				// single-tuning. The ram is passive; its anti-machine-gun cooldown
-				// stays global on purpose.
-				const ctFor = (rig: Rig): CombatTuning => {
-					const s = rig.buildStats;
-					const ct = combatTuning();
-					return {
-						...ct,
-						empDamage: Math.round(ct.empDamage * s.damageDealt),
-						tetherDamage: Math.round(ct.tetherDamage * s.damageDealt),
-						empRange: ct.empRange * s.empRange,
-						empCooldownSec: ct.empCooldownSec * s.weaponCooldown,
-						oilCooldownSec: ct.oilCooldownSec * s.weaponCooldown,
-						tetherCooldownSec: ct.tetherCooldownSec * s.weaponCooldown
-					};
-				};
+				// The build's OFFENSE scaling, applied through WeaponFireOpts to every
+				// equipped weapon (kinetic/guided/disruption/oil/tether alike): damage
+				// x damageDealt, cooldown x weaponCooldown, and reach x empRange (only
+				// the EMP reads the range scale today). Defense lives on the TARGET's
+				// VehicleCombat.resist. The ram is passive; its cooldown stays global.
+				const weaponOpts = (rig: Rig) => ({
+					damageScale: rig.buildStats.damageDealt,
+					cooldownScale: rig.buildStats.weaponCooldown,
+					rangeScale: rig.buildStats.empRange
+				});
 
 				const aiTuning = (): AiTuning => ({
 					topSpeed: num(tuning.aiTopSpeed, DEFAULTS.aiTopSpeed),
@@ -3884,14 +3873,28 @@
 					}
 				};
 
-				const performFire = (shooter: Rig) => {
-					const ct = ctFor(shooter);
+				// EMP Burst (equipped `disruption` weapon since Phase 8g). Fired only
+				// from the slot whose def carries a disruption block; a build with no
+				// EMP never reaches this.
+				const performFire = (shooter: Rig, slot: WeaponSlotId, def: WeaponDef) => {
+					const ct = combatTuning();
 					const now = gameNow();
-					const result = tryFire(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
+					const result = tryFire(
+						combatantOf(shooter),
+						rigsAll().map(combatantOf),
+						slot,
+						def,
+						mode,
+						ct,
+						now,
+						weaponOpts(shooter)
+					);
 					if (!result.fired) return result;
 					testStats.fire.emp++;
 					if (result.hits.length) testStats.hit.emp++;
-					spawnRing(shooter.body.position.x, shooter.body.position.z, 0x00f0ff, ct.empRange);
+					const empReach = (def.disruption?.range ?? 30) * shooter.buildStats.empRange;
+					spawnRing(shooter.body.position.x, shooter.body.position.z, 0x00f0ff, empReach);
+					weaponSfx('emp-fire', shooter.body.position.x, shooter.body.position.z);
 					if (shooter === player) addTrauma(0.15);
 					const sp2 = shooter.body.position;
 					for (const hit of result.hits) {
@@ -3935,14 +3938,15 @@
 				const oilRimGeo = new THREE.RingGeometry(0.78, 1, 28);
 				oilRimGeo.rotateX(-Math.PI / 2);
 
-				const performOil = (shooter: Rig): boolean => {
-					const ct = ctFor(shooter);
+				// Oil Slick (equipped `area` weapon carrying an `oil` block, Phase 8g).
+				const performOil = (shooter: Rig, slot: WeaponSlotId, def: WeaponDef): boolean => {
 					const now = gameNow();
-					const slick = tryDeployOil(combatantOf(shooter), ct, now, slickSeq);
+					const slick = tryDeployOil(combatantOf(shooter), slot, def, now, slickSeq, weaponOpts(shooter));
 					if (!slick) return false;
 					slickSeq++;
 					slicks.push(slick);
 					testStats.fire.oil++;
+					weaponSfx('oil-deploy', slick.x, slick.z);
 					// Glossy dark puddle (real reflectance under the sun) with an
 					// unmissable additive iridescent rim + faint violet sheen,
 					// squishing in from the drop point.
@@ -4041,12 +4045,22 @@
 					tv.cableMat.dispose();
 				};
 
-				const performTether = (shooter: Rig) => {
-					const ct = ctFor(shooter);
+				// Grappling Hook (equipped `tether` weapon since Phase 8g).
+				const performTether = (shooter: Rig, slot: WeaponSlotId, def: WeaponDef) => {
 					const now = gameNow();
-					const res = tryTether(combatantOf(shooter), rigsAll().map(combatantOf), mode, ct, now);
+					const res = tryTether(
+						combatantOf(shooter),
+						rigsAll().map(combatantOf),
+						slot,
+						def,
+						mode,
+						combatTuning(),
+						now,
+						weaponOpts(shooter)
+					);
 					if (!res.fired) return res;
 					testStats.fire.tether++;
+					weaponSfx('hook-fire', shooter.body.position.x, shooter.body.position.z);
 					if (shooter === player) addTrauma(0.12);
 					const sp = shooter.body.position;
 					if (!res.hit) {
@@ -4058,7 +4072,7 @@
 							depthWrite: false
 						});
 						const mesh = new THREE.Mesh(cableGeo, mat);
-						const reach = ct.tetherRange * 0.55;
+						const reach = (def.tether?.range ?? 42) * 0.55;
 						placeCable(
 							mesh,
 							sp.x,
@@ -4094,7 +4108,12 @@
 					scene.add(cable);
 					scene.add(hook);
 					tethers.push({
-						t: { shooterId: shooter.id, targetId: target.id, untilMs: now + ct.tetherSec * 1000 },
+						t: {
+							shooterId: shooter.id,
+							targetId: target.id,
+							untilMs: now + (def.tether?.holdSec ?? 1.25) * 1000,
+							weaponId: def.id
+						},
 						cable,
 						cableMat,
 						hook
@@ -4151,7 +4170,10 @@
 						| 'blade-hit'
 						| 'jammer-hum'
 						| 'lock-on'
-						| 'no-lock',
+						| 'no-lock'
+						| 'emp-fire'
+						| 'oil-deploy'
+						| 'hook-fire',
 					x?: number,
 					z?: number
 				) => {
@@ -4196,6 +4218,12 @@
 						audioEngine.playTone('ambient', { freq: 70, durationMs: 900, type: 'sine', gain: 0.05, pitchJitter: [0.97, 1.03] });
 					else if (kind === 'lock-on')
 						audioEngine.playTone('ui', { freq: 880, durationMs: 90, type: 'sine', gain: 0.14 });
+					else if (kind === 'emp-fire')
+						audioEngine.playTone('weapons', { freq: 620, durationMs: 200, type: 'square', gain: 0.2, pitchJitter: [0.9, 1.1], position: pos });
+					else if (kind === 'oil-deploy')
+						audioEngine.playTone('weapons', { freq: 160, durationMs: 200, type: 'sine', gain: 0.16, pitchJitter: [0.9, 1.1], position: pos });
+					else if (kind === 'hook-fire')
+						audioEngine.playTone('weapons', { freq: 240, durationMs: 160, type: 'sawtooth', gain: 0.18, pitchJitter: [0.85, 1.05], position: pos });
 					else audioEngine.playTone('ui', { freq: 220, durationMs: 120, type: 'sine', gain: 0.12 });
 				};
 
@@ -4344,12 +4372,15 @@
 					const def = weaponById(shooter.weapons[slot]);
 					if (!def) return false;
 					const now = gameNow();
-					const opts = {
-						damageScale: shooter.buildStats.damageDealt,
-						cooldownScale: shooter.buildStats.weaponCooldown
-					};
+					const opts = weaponOpts(shooter);
 					const ct = combatTuning();
 					const sp = shooter.body.position;
+					// EMP Burst / Oil Slick / Grappling Hook (Phase 8g): the three former
+					// fixed tools dispatch here now, into their own rich-visual perform*
+					// helpers, exactly like every other equipped weapon.
+					if (def.category === 'disruption') return performFire(shooter, slot, def).fired;
+					if (def.category === 'tether') return performTether(shooter, slot, def).fired;
+					if (def.category === 'area' && def.oil) return performOil(shooter, slot, def);
 					if (def.category === 'kinetic' && def.kinetic) {
 						const res = tryFireKinetic(
 							combatantOf(shooter),
@@ -4693,9 +4724,6 @@
 				const PAD_EDGE_ACTIONS = CONTROL_ACTIONS.filter((d) => d.kind === 'edge').map(
 					(d) => d.id
 				);
-				let fireQueued = false;
-				let oilQueued = false;
-				let tetherQueued = false;
 				let firePrimaryQueued = false;
 				let fireSecondaryQueued = false;
 				let abilityPrimaryQueued = false;
@@ -4808,10 +4836,9 @@
 					if (ACTION_KIND[action] === 'edge') {
 						if (action === 'resetRound') resetRound();
 						else if (!e.repeat) {
-							if (action === 'fire') fireQueued = true;
-							else if (action === 'oil') oilQueued = true;
-							else if (action === 'tether') tetherQueued = true;
-							else if (action === 'fireWeaponPrimary') firePrimaryQueued = true;
+							// EMP / oil / tether are equipped weapons now (Phase 8g): they fire
+							// through the two weapon slots, not their own keys.
+							if (action === 'fireWeaponPrimary') firePrimaryQueued = true;
 							else if (action === 'fireWeaponSecondary') fireSecondaryQueued = true;
 							else if (action === 'useAbilityPrimary') abilityPrimaryQueued = true;
 							else if (action === 'useAbilitySecondary') abilitySecondaryQueued = true;
@@ -4862,6 +4889,20 @@
 					rig.body.velocity.set(d.x * speed, 0, d.z * speed);
 					rig.body.angularVelocity.setZero();
 					rig.flipAcc = 0;
+				};
+				// Fire whichever equipped slot holds a weapon matching `match` (Phase
+				// 8g dev hooks for EMP / oil / tether, which are equipment now).
+				const fireEquippedByCategory = (
+					rigId: string,
+					match: (d: WeaponDef) => boolean
+				): boolean => {
+					const r = rigsAll().find((q) => q.id === rigId);
+					if (!r) return false;
+					const slot = WEAPON_SLOTS.find((sl) => {
+						const d = weaponById(r.weapons[sl]);
+						return d ? match(d) : false;
+					});
+					return slot ? performWeaponFire(r, slot) : false;
 				};
 				(window as unknown as Record<string, unknown>).__greenline = {
 					world,
@@ -4932,18 +4973,16 @@
 						const r = rigsAll().find((q) => q.id === rigId);
 						return r ? r.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y : null;
 					},
-					fire: (rigId = 'player') => {
-						const r = rigsAll().find((q) => q.id === rigId);
-						return r ? performFire(r) : null;
-					},
-					oil: (rigId = 'player') => {
-						const r = rigsAll().find((q) => q.id === rigId);
-						return r ? performOil(r) : false;
-					},
-					tether: (rigId = 'player') => {
-						const r = rigsAll().find((q) => q.id === rigId);
-						return r ? performTether(r) : null;
-					},
+					// EMP / oil / tether are equipped weapons now (Phase 8g): these dev
+					// hooks fire whichever slot holds the matching weapon, returning false
+					// when the rig has not equipped one — the "genuinely cannot use it
+					// unless equipped" contract, exercisable headlessly.
+					fire: (rigId = 'player') =>
+						fireEquippedByCategory(rigId, (d) => d.category === 'disruption'),
+					oil: (rigId = 'player') =>
+						fireEquippedByCategory(rigId, (d) => d.category === 'area' && !!d.oil),
+					tether: (rigId = 'player') =>
+						fireEquippedByCategory(rigId, (d) => d.category === 'tether'),
 					damage: (rigId: string, amount: number, zone: HitZone = 'front') => {
 						const r = rigsAll().find((q) => q.id === rigId);
 						if (!r) return null;
@@ -5384,10 +5423,8 @@
 						for (const a of PAD_EDGE_ACTIONS) {
 							const down = padBindingHeld(pad, gp[a]);
 							if (down && !prevPadEdge[a]) {
-								if (a === 'fire') fireQueued = true;
-								else if (a === 'oil') oilQueued = true;
-								else if (a === 'tether') tetherQueued = true;
-								else if (a === 'fireWeaponPrimary') firePrimaryQueued = true;
+								// EMP / oil / tether fire through the weapon slots now (Phase 8g).
+								if (a === 'fireWeaponPrimary') firePrimaryQueued = true;
 								else if (a === 'fireWeaponSecondary') fireSecondaryQueued = true;
 								else if (a === 'useAbilityPrimary') abilityPrimaryQueued = true;
 								else if (a === 'useAbilitySecondary') abilitySecondaryQueued = true;
@@ -6097,18 +6134,11 @@
 					// player weapon press is discarded and the AI does not fire, so nothing
 					// can be launched at a locked, stationary pack.
 					if (preLaunch) {
-						fireQueued = false;
-						oilQueued = false;
-						tetherQueued = false;
 						firePrimaryQueued = false;
 						fireSecondaryQueued = false;
 						abilityPrimaryQueued = false;
 						abilitySecondaryQueued = false;
 					} else {
-						if (fireQueued) {
-							fireQueued = false;
-							performFire(player);
-						}
 						if (abilityPrimaryQueued) {
 							abilityPrimaryQueued = false;
 							performAbility(player, 'abilityPrimary');
@@ -6116,14 +6146,6 @@
 						if (abilitySecondaryQueued) {
 							abilitySecondaryQueued = false;
 							performAbility(player, 'abilitySecondary');
-						}
-						if (oilQueued) {
-							oilQueued = false;
-							performOil(player);
-						}
-						if (tetherQueued) {
-							tetherQueued = false;
-							performTether(player);
 						}
 						if (firePrimaryQueued) {
 							firePrimaryQueued = false;
@@ -6165,12 +6187,11 @@
 						// Every AI-driven rig makes weapon decisions. In normal play the
 						// player has no AiDriver so it is skipped here (player fires via
 						// input above); the stress runner's AI-player is included.
-						// Equipped weapons come first (they are the build's actual
-						// firepower), then the fixed-tool chain.
+						// Every equipped weapon is a candidate — the whole 13-weapon roster,
+						// including EMP / oil / hook since Phase 8g — decided by one loop.
 						for (const rig of all) {
 							if (!rig.ai || rig.combat.isOut(now)) continue;
 							const self = combatants[all.indexOf(rig)];
-							let acted = false;
 							for (const slot of WEAPON_SLOTS) {
 								const def = weaponById(rig.weapons[slot]);
 								if (!def) continue;
@@ -6195,22 +6216,13 @@
 								if (!want) continue;
 								if (performWeaponFire(rig, slot)) {
 									rig.ai.scheduleSlotUse(slot, now, def.cooldownSec * cdScale, aiT);
-									acted = true;
 									break;
 								}
 							}
-							if (acted) continue;
-							// The AI decides with ITS OWN build's ranges and cooldowns.
-							const rct = ctFor(rig);
-							if (rig.ai.wantsFire(self, combatants, rct, aiT, now)) {
-								const res = performFire(rig);
-								if (res.fired) rig.ai.scheduleNextUse('emp', now, rct.empCooldownSec, aiT);
-							} else if (rig.ai.wantsTether(self, combatants, rct, aiT, now)) {
-								const res = performTether(rig);
-								if (res.fired) rig.ai.scheduleNextUse('tether', now, rct.tetherCooldownSec, aiT);
-							} else if (rig.ai.wantsOil(self, combatants, rct, aiT, now)) {
-								if (performOil(rig)) rig.ai.scheduleNextUse('oil', now, rct.oilCooldownSec, aiT);
-							}
+							// The former fixed-tool chain (EMP / tether / oil) is gone (Phase 8g):
+							// those are equipped weapons now, decided by the same loop above
+							// (wantsWeaponFire for the EMP/hook forward cones, wantsAreaDrop for
+							// the oil drop), so there is no separate fixed-tool chain.
 						}
 						// Abilities: every AI-driven rig decides ONE ability per frame,
 						// meter permitting. The shared drift meter both slots draw from
@@ -6441,7 +6453,7 @@
 							for (let k = 0; k < 4; k++) {
 								spawnSmoke(vp.x, 0.35, vp.z, 0x11101c, 0.8, 700, 0.7, 0.55);
 							}
-							spawnRing(ev.slick.x, ev.slick.z, 0x8f5fff, ct.oilRadius * 1.6, 300, 0.4, 0.15);
+							spawnRing(ev.slick.x, ev.slick.z, 0x8f5fff, (weaponById(ev.slick.weaponId)?.oil?.radius ?? 3.2) * 1.6, 300, 0.4, 0.15);
 							if (victim === player) {
 								addTrauma(0.3);
 								flash('OILED — TRACTION LOST');
@@ -6457,7 +6469,7 @@
 								continue;
 							}
 							const scaleIn = Math.min(1, (now - s.createdMs) / 260);
-							let r = ct.oilRadius * (0.25 + 0.75 * scaleIn);
+							let r = (weaponById(s.weaponId)?.oil?.radius ?? 3.2) * (0.25 + 0.75 * scaleIn);
 							let alpha = 1;
 							let done = false;
 							if (s.consumedBy !== null) {
@@ -6535,7 +6547,7 @@
 							tethers.splice(i, 1);
 							continue;
 						}
-						const status = tetherStatus(tv.t, combatantOf(shooter), combatantOf(target), ct, now);
+						const status = tetherStatus(tv.t, combatantOf(shooter), combatantOf(target), now);
 						if (status !== 'active') {
 							const hp = tv.hook.position;
 							spawnSparks(hp.x, hp.y, hp.z, 8, 0xc8ff00, 5, 350);
@@ -6551,8 +6563,9 @@
 						// The yank: pull the target off its line toward the shooter,
 						// with a fraction of the reaction dragging the shooter back.
 						// Slack inside the near radius so the pair never orbit-slams.
-						if (dist > TETHER_SLACK_DIST) {
-							const f = ct.tetherForce;
+						const th = weaponById(tv.t.weaponId)?.tether;
+						if (th && dist > th.slackDist) {
+							const f = th.force;
 							const ux = pdx / dist;
 							const uz = pdz / dist;
 							target.body.applyForce(new CANNON.Vec3(ux * f, 0, uz * f), new CANNON.Vec3());
@@ -6867,11 +6880,9 @@
 						: 0;
 					chud.oiled = player.combat.isOiled(now);
 					chud.tethered = tethers.some((tv) => tv.t.targetId === player.id);
-					const pct = ctFor(player);
-					chud.ready.emp = cooldownRemaining(player.combat, 'emp', pct.empCooldownSec, now);
-					chud.ready.oil = cooldownRemaining(player.combat, 'oil', pct.oilCooldownSec, now);
-					chud.ready.tether = cooldownRemaining(player.combat, 'tether', pct.tetherCooldownSec, now);
-					chud.ready.ram = cooldownRemaining(player.combat, 'ram', pct.ramCooldownSec, now);
+					// Ram is the only fixed always-on tool left (Phase 8g); EMP / oil /
+					// tether are equipped weapons now and show in the slot cells below.
+					chud.ready.ram = cooldownRemaining(player.combat, 'ram', combatTuning().ramCooldownSec, now);
 					// Equipped-weapon cells: primary always, secondary when equipped.
 					// Key labels read the live (remappable) bindings.
 					{
@@ -7194,21 +7205,8 @@
 						<span class="gl-wkey">{w.key}</span>
 					</div>
 				{/each}
-				<div class="gl-wcell" class:ready={!chud.mountDown && chud.ready.emp <= 0} class:offline={chud.mountDown}>
-					<span class="gl-wname">EMP</span>
-					<span class="gl-wstate">{chud.mountDown ? 'OFFLINE' : chud.ready.emp <= 0 ? 'READY' : `${chud.ready.emp.toFixed(1)}s`}</span>
-					<span class="gl-wkey">F / RB</span>
-				</div>
-				<div class="gl-wcell" class:ready={!chud.mountDown && chud.ready.oil <= 0} class:offline={chud.mountDown}>
-					<span class="gl-wname">OIL</span>
-					<span class="gl-wstate">{chud.mountDown ? 'OFFLINE' : chud.ready.oil <= 0 ? 'READY' : `${chud.ready.oil.toFixed(1)}s`}</span>
-					<span class="gl-wkey">E / X</span>
-				</div>
-				<div class="gl-wcell" class:ready={!chud.mountDown && chud.ready.tether <= 0} class:offline={chud.mountDown}>
-					<span class="gl-wname">TETHER</span>
-					<span class="gl-wstate">{chud.mountDown ? 'OFFLINE' : chud.ready.tether <= 0 ? 'READY' : `${chud.ready.tether.toFixed(1)}s`}</span>
-					<span class="gl-wkey">Q / LB</span>
-				</div>
+				<!-- EMP / oil / tether are equipped weapons now (Phase 8g); they render
+				     in the slot cells above. Ram is the last fixed always-on tool. -->
 				<div class="gl-wcell" class:ready={chud.ready.ram <= 0}>
 					<span class="gl-wname">RAM</span>
 					<span class="gl-wstate">{chud.ready.ram <= 0 ? 'ARMED' : `${chud.ready.ram.toFixed(1)}s`}</span>

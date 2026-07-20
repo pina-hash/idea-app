@@ -1001,6 +1001,39 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 				{ part: 'mount', geo: unitCyl(), mat: 'accent', pos: [0, 0.215, 0], scale: [0.11, 0.04, 0.11] }
 			];
 		}
+		if (weaponId === 'emp-burst') {
+			// Disruption emitter (Phase 8g): squat drum, ringed dish mouth forward,
+			// glowing coil — a projector, not a barrel.
+			return [
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [0, 0.12, 0], scale: [0.28, 0.2, 0.28] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.2, 0.14, 0], rot: [0, 0, P2], scale: [0.26, 0.12, 0.26] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.28, 0.14, 0], rot: [0, 0, P2], scale: [0.3, 0.05, 0.3] },
+				{ part: 'mount', geo: getGeo('wOrb', () => new three.SphereGeometry(0.075, 12, 10)), mat: 'accent', pos: [0.24, 0.14, 0] },
+				{ part: 'mount', geo: unitTube(), mat: 'accent', pos: [0, 0.24, 0], scale: [0.14, 0.02, 0.14] }
+			];
+		}
+		if (weaponId === 'oil-slick') {
+			// Rear dispenser (Phase 8g): fat canted tank, down-and-back nozzle, hazard
+			// band — sibling of the Caltrops hopper.
+			return [
+				{ part: 'mount', geo: unitCyl(), mat: 'mount', pos: [0.02, 0.17, 0], rot: [P2, 0, 0], scale: [0.3, 0.34, 0.3] },
+				{ part: 'mount', geo: unitCyl(), mat: 'steel', pos: [0.02, 0.35, 0], rot: [P2, 0, 0], scale: [0.31, 0.04, 0.31] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [-0.22, 0.08, 0], rot: [0, 0, -0.6], scale: [0.14, 0.22, 0.14] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [-0.3, 0.02, 0], rot: [0, 0, -1.3], scale: [0.16, 0.1, 0.16] },
+				{ part: 'mount', geo: unitBox(), mat: 'accent', pos: [0.19, 0.17, 0], scale: [0.015, 0.2, 0.28] }
+			];
+		}
+		if (weaponId === 'grappling-hook') {
+			// Winch + harpoon (Phase 8g): drum reel, stub launch rail, forward-raked
+			// harpoon head, accent tip.
+			return [
+				{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [-0.08, 0.13, 0], scale: [0.24, 0.2, 0.3] },
+				{ part: 'mount', geo: unitCyl(), mat: 'steel', pos: [-0.08, 0.16, 0.17], rot: [P2, 0, 0], scale: [0.18, 0.06, 0.18] },
+				{ part: 'mount', geo: unitCyl(), mat: 'steel', pos: [-0.08, 0.16, -0.17], rot: [P2, 0, 0], scale: [0.18, 0.06, 0.18] },
+				{ part: 'mount', geo: unitTube(), mat: 'steel', pos: [0.22, 0.17, 0], rot: [0, 0, P2], scale: [0.06, 0.66, 0.06] },
+				{ part: 'mount', geo: getGeo('hookHead', () => new three.ConeGeometry(0.08, 0.24, 6)), mat: 'accent', pos: [0.5, 0.17, 0], rot: [0, 0, -P2] }
+			];
+		}
 		// Fallback hardpoint stub for catalog entries without a visual yet.
 		return [{ part: 'mount', geo: unitBox(), mat: 'mount', pos: [0, 0.13, 0], scale: [0.24, 0.14, 0.18] }];
 	};

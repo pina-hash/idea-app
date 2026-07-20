@@ -24,13 +24,16 @@ export type ControlAction =
 	| 'steerRight'
 	| 'handbrake'
 	| 'resetRound'
-	| 'fire'
-	| 'oil'
-	| 'tether'
 	| 'fireWeaponPrimary'
 	| 'fireWeaponSecondary'
 	| 'useAbilityPrimary'
 	| 'useAbilitySecondary';
+// Phase 8g retired the dedicated 'fire' / 'oil' / 'tether' actions: EMP, Oil
+// Slick, and the Grappling Hook are equippable weapons now, fired through the
+// two weapon-slot actions like everything else. A stored bindings map that
+// still carries the old three is harmless — loadKeyboard/loadGamepad only read
+// keys named in ACTION_IDS, so the retired entries are simply ignored, and the
+// remap UI (which renders CONTROL_ACTIONS) no longer shows them.
 
 export type ControlDevice = 'key' | 'pad';
 
@@ -59,10 +62,7 @@ export const CONTROL_ACTIONS: {
 	{ id: 'fireWeaponPrimary', label: 'Primary weapon', group: 'combat', kind: 'edge' },
 	{ id: 'fireWeaponSecondary', label: 'Secondary weapon', group: 'combat', kind: 'edge' },
 	{ id: 'useAbilityPrimary', label: 'Primary ability', group: 'combat', kind: 'edge' },
-	{ id: 'useAbilitySecondary', label: 'Secondary ability', group: 'combat', kind: 'edge' },
-	{ id: 'fire', label: 'EMP burst', group: 'combat', kind: 'edge' },
-	{ id: 'oil', label: 'Oil slick', group: 'combat', kind: 'edge' },
-	{ id: 'tether', label: 'Tether', group: 'combat', kind: 'edge' }
+	{ id: 'useAbilitySecondary', label: 'Secondary ability', group: 'combat', kind: 'edge' }
 ];
 
 const ACTION_IDS = CONTROL_ACTIONS.map((a) => a.id);
@@ -82,13 +82,10 @@ const KEY_DEFAULTS: Record<ControlAction, string> = {
 	steerRight: 'KeyD',
 	handbrake: 'Space',
 	resetRound: 'KeyR',
-	fire: 'KeyF',
-	oil: 'KeyE',
-	tether: 'KeyQ',
-	// Z / X: the left-hand bottom row, clear of the nine keys already bound.
+	// Z / X primary/secondary weapon, C / V primary/secondary ability. F / E / Q
+	// (the old EMP / oil / tether keys) are free again since Phase 8g.
 	fireWeaponPrimary: 'KeyZ',
 	fireWeaponSecondary: 'KeyX',
-	// C / V: the next two of the bottom row, clear of the eleven keys above.
 	useAbilityPrimary: 'KeyC',
 	useAbilitySecondary: 'KeyV'
 };
@@ -107,13 +104,11 @@ const PAD_DEFAULTS: Record<ControlAction, PadBinding | null> = {
 	steerRight: { kind: 'axis', axis: 0, dir: 1 },
 	handbrake: { kind: 'button', index: 0 },
 	resetRound: null,
-	fire: { kind: 'button', index: 5 },
-	oil: { kind: 'button', index: 2 },
-	tether: { kind: 'button', index: 4 },
-	// B / Y: the two standard-mapping face buttons still free.
+	// B / Y primary/secondary weapon, D-pad up/down primary/secondary ability
+	// (unchanged from before). RB(5) / X(2) / LB(4) — the old EMP / oil / tether
+	// buttons — are simply unused now that those are equipment (Phase 8g).
 	fireWeaponPrimary: { kind: 'button', index: 1 },
 	fireWeaponSecondary: { kind: 'button', index: 3 },
-	// D-pad up / down: the two remaining unclaimed standard-mapping inputs.
 	useAbilityPrimary: { kind: 'button', index: 12 },
 	useAbilitySecondary: { kind: 'button', index: 13 }
 };

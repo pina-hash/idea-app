@@ -1569,7 +1569,11 @@ on one side of the world.
   stays deliberately zone-unaware. Debug hooks: `__greenline.damage(id, amt,
   zone?)`, `getPools(id)`, `setMode(m)`; `raceState` rigs carry
   armor/mount/mountDown (`hp` stays chassis so the stress runner reads on).
-- **Four disruption tools,** consistent trigger/cooldown/HUD pattern, any
+- **Four disruption tools** (HISTORICAL — three of these became equippable
+  weapons in Phase 8g; see that bullet below. EMP / oil / tether now MUST be
+  mounted to use, fire through the weapon slots, and no longer have their own
+  F/E/Q keys. Only the passive **ram** remains a fixed always-on tool.)
+  Consistent trigger/cooldown/HUD pattern, any
   vehicle can use any tool (loadouts come later): the forward **EMP burst**
   (`tryFire`, F / RB: cone + damage + disruption + spin kick), the **oil
   slick** (`tryDeployOil`/`updateOilSlicks`, E / X: dropped behind, a ground
@@ -3029,6 +3033,64 @@ on one side of the world.
     rAF in an automated tab — append `?glheadless=1` (it is read from the URL,
     so it works on any route, not just the movement harness) or the sim
     silently never ticks and every physics assertion passes vacuously.
+
+- **EMP / Oil Slick / Grappling Hook are equipment now (Phase 8g), so the
+  roster is 13 weapons.** The three formerly always-on fixed tools were folded
+  into the equippable `WeaponDef` catalog; a build must MOUNT one to use it at
+  all, and every vehicle without it genuinely cannot (browser-verified: the
+  default autocannon build returns false from all three fire paths). **Ram is
+  the ONE tool that stays fixed and universal** — it is a consequence of a
+  nose-first collision, not a mounted system, so it has no card, cost, socket,
+  or category, and `WeaponId` shrank to the single member `'ram'` (its
+  per-vehicle anti-machine-gun cooldown is the only reason that keyed record
+  still exists). New in `combat.ts`: two categories `disruption` (the EMP —
+  kinetic-shaped but ALSO applies the disruption state + spin kick, which is
+  why it is not just a kinetic entry) and `tether` (the hook), plus the Oil
+  Slick as an `area`-category def carrying an `oil` block instead of an `area`
+  one (the shield/jammer distinguished-by-which-block convention; a new
+  category was unnecessary). The three fire functions (`tryFire`,
+  `tryDeployOil`, `tryTether`) are now slot-gated `(shooter, slot, def, ...,
+  opts)` calls exactly like every other weapon, reading their numbers off the
+  def and scaling through `WeaponFireOpts` (damage × damageDealt, cooldown ×
+  weaponCooldown, and a new `rangeScale` × empRange for the EMP's reach).
+  Every landed value is VERBATIM the old `COMBAT_DEFAULTS` number, so an
+  equipped one behaves identically (verified: neutral EMP total 35, SYSTEMS
+  EMP 39 = 35×1.1, hook 12). **What stayed in `CombatTuning`** (the shared vs.
+  weapon-owned rule, load-bearing): `oilSlipSec` / `oilTractionCut` (a track
+  `hazard: oil` zone applies the same state through `applyOiled`, so the
+  duration/traction cannot live on a weapon nobody equipped) and the disrupt
+  engine/steer cuts + spinKick (what disruption DOES, whatever caused it); the
+  EMP/oil/tether ranges, cones, cooldowns, and slick/tether geometry moved onto
+  their defs. `OilSlick` and `ActiveTether` gained a `weaponId` so the harness
+  resolves radius / force / slack / break off the def (the `CaltropField`
+  convention). **Mount costs landed: EMP 2, Oil 1, Hook 2** — utility/control
+  tools priced under the flashy heavy hitters (rationale in each def's comment;
+  the spec left costs to judgment). Consequences worth knowing: Oil is rear-only
+  and so shares a socket family with Caltrops (the two can never co-exist on one
+  build); the Hook prefers roof, so on the two-socket VELOCITY dart it contests
+  the one nose point with a nose weapon. **Controls: the dedicated F/E/Q (and
+  the pad RB/X/LB) actions are RETIRED** — `ControlAction` dropped
+  `'fire'/'oil'/'tether'`, so those fire through the two weapon-slot actions
+  now and the settings remap UI no longer lists them (a genuine muscle-memory
+  change, verified absent from the CONTROLS section). The HUD's four fixed
+  tool cells collapsed to one: RAM. AI needed real re-fitting — `AI_WEAPONS`
+  grew to eight fits (two archetype passes) covering all 13 weapons, the
+  default 3-AI field deliberately showcasing the new three (armor emp+turret,
+  velocity oil+shotgun, handling hook+caltrops); the dead `wantsFire` /
+  `wantsOil` / `wantsTether` methods were removed and `wantsWeaponFire` /
+  `wantsAreaDrop` widened to read the disruption/tether/oil param blocks, so
+  the one equipped-weapon decision loop chooses among all 13. Garage COMBAT
+  tab and economy (colors auto-priced off mountCost) needed ZERO wiring — both
+  iterate the catalog. **Migration `0055_greenline_phase8g_weapon_prices.sql`
+  (apply after 0054):** teaches the server `greenline_item_price` the three new
+  prices (EMP 600, Oil 300, Hook 600); the client mirror auto-prices them via
+  `weaponById` + `WEAPON_PRICE_BY_MOUNT_COST` with no code change. Only
+  reachable when creative mode is off. Verified end to end in
+  `/dev/greenline-movement?glheadless=1` (equip → fire → damage/slick/latch,
+  the not-equipped refusal, an 8-fit field, a full 9-car race with every
+  class firing, 0 flips, no console errors) and `/dev/greenline-portal`
+  (all 13 in COMBAT, F/E/Q gone from the remap UI). `svelte-check` clean, 0
+  new errors.
 
 - **Garage reorganization (Phase 8h): real side-by-side + four tabs.** The
   garage had accumulated across eight phases into one long vertical scroll

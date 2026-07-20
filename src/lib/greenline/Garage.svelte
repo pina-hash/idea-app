@@ -654,6 +654,22 @@
 					<path d="M14.5 11L21 8.5 16 13z" />
 					<path d="M9.5 13L3 15.5 8 11z" />
 					<circle cx="12" cy="12" r="0.9" fill="currentColor" stroke="none" />
+				{:else if id === 'emp-burst'}
+					<!-- Emitter + radiating disruption arcs -->
+					<circle cx="12" cy="12" r="2.4" />
+					<path d="M12 12l6-4M12 12l6 4M12 12l-6-4M12 12l-6 4" stroke-width="1.1" opacity="0.6" />
+					<path d="M17 6.5a8 8 0 0 1 0 11M7 6.5a8 8 0 0 0 0 11" stroke-width="1.2" stroke-dasharray="2 1.6" />
+				{:else if id === 'oil-slick'}
+					<!-- Drum tipping a slick puddle -->
+					<rect x="6" y="4" width="7" height="8" rx="1" transform="rotate(18 9.5 8)" />
+					<path d="M4 18c3-2 6-2 8-1s5 1 8-1" stroke-width="1.6" />
+					<ellipse cx="14" cy="18.5" rx="5" ry="1.6" fill="currentColor" stroke="none" opacity="0.35" />
+				{:else if id === 'grappling-hook'}
+					<!-- Winch line to a three-prong hook -->
+					<circle cx="5" cy="6" r="2" />
+					<path d="M6.5 7.2 L13 13" stroke-width="1.4" />
+					<path d="M13 13l3.5-1M13 13l1 3.5M13 13l3.2 3.2" stroke-width="1.3" />
+					<circle cx="13" cy="13" r="0.8" fill="currentColor" stroke="none" />
 				{:else if id === 'weapon-none'}
 					<!-- Empty hardpoint -->
 					<circle cx="12" cy="12" r="7" stroke-dasharray="2.4 2.2" />

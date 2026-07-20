@@ -12,7 +12,7 @@
  * allowed speed now. Any track in the v1 format gets AI for free.
  */
 
-import type { Combatant, CombatTuning, WeaponDef, WeaponSlotId } from './combat';
+import type { Combatant, WeaponDef, WeaponSlotId } from './combat';
 import type { AbilitySlotId } from './abilities';
 import type { TrackRuntime } from './track-runtime';
 import type { TrackVec2 } from './track-schema';
@@ -84,9 +84,6 @@ function curvatureOf(pts: TrackVec2[]): number[] {
 	return out;
 }
 
-/** The tools an AI actively chooses to use (ram is passive contact). */
-export type AiWeapon = 'emp' | 'oil' | 'tether';
-
 export class AiDriver {
 	private readonly rt: TrackRuntime;
 	/**
@@ -109,7 +106,6 @@ export class AiDriver {
 	private readonly branched: boolean;
 	private stuckMs = 0;
 	private reverseUntilMs = 0;
-	private nextOkMs: Record<AiWeapon, number> = { emp: 0, oil: 0, tether: 0 };
 	/** Equipped-weapon restraint, keyed by slot (the AI's build decides what
 	 * occupies each slot; the schedule belongs to the slot, like cooldowns). */
 	private nextSlotOkMs: Record<WeaponSlotId, number> = { weaponPrimary: 0, weaponSecondary: 0 };
@@ -253,112 +249,14 @@ export class AiDriver {
 	}
 
 	/**
-	 * Should this vehicle fire now? True when the weapon is off cooldown, the
-	 * aggression-scaled extra delay has passed, the shooter is not disrupted
-	 * (restraint: disrupted AI concentrates on recovering), and some valid
-	 * target sits within the aggression-scaled range and a tightened cone.
-	 * The harness then routes the actual shot through the shared fire path.
-	 */
-	wantsFire(
-		self: Combatant,
-		others: Combatant[],
-		ct: CombatTuning,
-		t: AiTuning,
-		nowMs: number
-	): boolean {
-		if (nowMs < this.nextOkMs.emp) return false;
-		if (self.combat.isDisrupted(nowMs)) return false;
-		if (!self.combat.canUse('emp', nowMs, ct.empCooldownSec)) return false;
-		const aggr = Math.max(0, Math.min(1, t.aggression));
-		const range = ct.empRange * (0.45 + 0.55 * aggr);
-		const cosLimit = Math.cos((((ct.empConeDeg / 2) * 0.8) * Math.PI) / 180);
-		for (const o of others) {
-			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
-			const dx = o.x - self.x;
-			const dz = o.z - self.z;
-			const dist = Math.hypot(dx, dz);
-			if (dist > range || dist < 0.001) continue;
-			if ((dx * self.hx + dz * self.hz) / dist < cosLimit) continue;
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * Drop oil when a live rival is close behind and roughly on the AI's
-	 * tail (the slick lands right in their path). Same restraint pattern as
-	 * wantsFire: never while disrupted, own decision delay per weapon.
-	 */
-	wantsOil(
-		self: Combatant,
-		others: Combatant[],
-		ct: CombatTuning,
-		t: AiTuning,
-		nowMs: number
-	): boolean {
-		if (nowMs < this.nextOkMs.oil) return false;
-		if (self.combat.isDisrupted(nowMs)) return false;
-		if (!self.combat.canUse('oil', nowMs, ct.oilCooldownSec)) return false;
-		const aggr = Math.max(0, Math.min(1, t.aggression));
-		const range = 9 + 8 * aggr;
-		for (const o of others) {
-			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
-			const dx = o.x - self.x;
-			const dz = o.z - self.z;
-			const dist = Math.hypot(dx, dz);
-			if (dist > range || dist < 0.001) continue;
-			// Behind: the rival sits opposite the AI's heading.
-			if ((dx * self.hx + dz * self.hz) / dist > -0.45) continue;
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * Fire the tether at a target ahead that sits BEYOND comfortable EMP
-	 * range but inside tether range: the yank is the long-reach tool.
-	 */
-	wantsTether(
-		self: Combatant,
-		others: Combatant[],
-		ct: CombatTuning,
-		t: AiTuning,
-		nowMs: number
-	): boolean {
-		if (nowMs < this.nextOkMs.tether) return false;
-		if (self.combat.isDisrupted(nowMs)) return false;
-		if (!self.combat.canUse('tether', nowMs, ct.tetherCooldownSec)) return false;
-		const aggr = Math.max(0, Math.min(1, t.aggression));
-		const maxRange = ct.tetherRange * (0.55 + 0.45 * aggr);
-		const minRange = ct.empRange * 0.8;
-		const cosLimit = Math.cos((((ct.tetherConeDeg / 2) * 0.8) * Math.PI) / 180);
-		for (const o of others) {
-			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
-			const dx = o.x - self.x;
-			const dz = o.z - self.z;
-			const dist = Math.hypot(dx, dz);
-			if (dist > maxRange || dist < minRange) continue;
-			if ((dx * self.hx + dz * self.hz) / dist < cosLimit) continue;
-			return true;
-		}
-		return false;
-	}
-
-	/** Called after a successful use: cooldown plus aggression-scaled delay. */
-	scheduleNextUse(weapon: AiWeapon, nowMs: number, cooldownSec: number, t: AiTuning): void {
-		const aggr = Math.max(0, Math.min(1, t.aggression));
-		const extraSec = (1.6 - 1.4 * aggr) * (0.6 + 0.8 * Math.random());
-		this.nextOkMs[weapon] = nowMs + (cooldownSec + Math.max(0.1, extraSec)) * 1000;
-	}
-
-	/**
-	 * Should this vehicle fire the equipped weapon in `slot` now? The wantsFire
-	 * pattern applied to the weapon's own def: off slot cooldown, past the
-	 * aggression-scaled restraint delay, not disrupted, and a valid target
-	 * inside the def's aggression-scaled range and tightened cone (kinetic uses
-	 * its hit-scan cone, guided its lock cone — the harness additionally
-	 * requires a COMPLETE lock before a guided launch actually happens).
-	 * Deliberately simple; real weapon tactics are Phase 9.
+	 * Should this vehicle fire the equipped weapon in `slot` now? Off slot
+	 * cooldown, past the aggression-scaled restraint delay, not disrupted, and a
+	 * valid target inside the def's aggression-scaled range and tightened cone.
+	 * Handles every FORWARD-AIMED family: kinetic (hit-scan cone), guided (lock
+	 * cone; the harness additionally requires a COMPLETE lock before a launch),
+	 * disruption (the EMP cone) and tether (the Grappling Hook cone) — the last
+	 * two folded in when Phase 8g made those equipment. Deliberately simple;
+	 * real weapon tactics are Phase 9.
 	 */
 	wantsWeaponFire(
 		self: Combatant,
@@ -372,8 +270,10 @@ export class AiDriver {
 		if (nowMs < this.nextSlotOkMs[slot]) return false;
 		if (self.combat.isDisrupted(nowMs)) return false;
 		if (!self.combat.canUseSlot(slot, nowMs, def.cooldownSec * cooldownScale)) return false;
-		const baseRange = def.kinetic?.range ?? def.guided?.lockRange ?? 0;
-		const coneDeg = def.kinetic?.coneDeg ?? def.guided?.lockConeDeg ?? 0;
+		const baseRange =
+			def.kinetic?.range ?? def.guided?.lockRange ?? def.disruption?.range ?? def.tether?.range ?? 0;
+		const coneDeg =
+			def.kinetic?.coneDeg ?? def.guided?.lockConeDeg ?? def.disruption?.coneDeg ?? def.tether?.coneDeg ?? 0;
 		if (baseRange <= 0 || coneDeg <= 0) return false;
 		const aggr = Math.max(0, Math.min(1, t.aggression));
 		const range = baseRange * (0.45 + 0.55 * aggr);
@@ -410,7 +310,9 @@ export class AiDriver {
 		if (nowMs < this.nextSlotOkMs[slot]) return false;
 		if (self.combat.isDisrupted(nowMs)) return false;
 		if (!self.combat.canUseSlot(slot, nowMs, def.cooldownSec * cooldownScale)) return false;
-		const a = def.area;
+		// Both rear droppers use this: Caltrops (def.area) and the Oil Slick
+		// (def.oil, added Phase 8g). Both blocks carry a dropBack.
+		const a = def.area ?? def.oil;
 		if (!a) return false;
 		const aggr = Math.max(0, Math.min(1, t.aggression));
 		const range = a.dropBack + 4 + 9 * aggr;
