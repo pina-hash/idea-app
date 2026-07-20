@@ -534,6 +534,18 @@ export class AiDriver {
 		return this.lastCurvature > 0.008;
 	}
 
+	/**
+	 * Air Correction: fire it whenever the vehicle is genuinely airborne and the
+	 * meter can afford it — the harness supplies the airborne flag (it owns the
+	 * wheel-contact state) and the meter gate is the harness's too, so this is
+	 * just "am I flying". Deliberately shallow, like the other five: an AI that
+	 * actually flies its landings is Phase 9's problem, and a wasted activation
+	 * costs it only meter.
+	 */
+	wantsAirControl(isAirborne: boolean): boolean {
+		return isAirborne;
+	}
+
 	/** Ability twin of scheduleSlotUse: a plain restraint delay with jitter (no
 	 * per-def cooldown to add — abilities are meter-gated). */
 	scheduleAbilitySlot(slot: AbilitySlotId, nowMs: number): void {

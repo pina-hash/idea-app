@@ -2775,6 +2775,65 @@ on one side of the world.
     and 0 falls; relief-proof-01 reads 1 path / 1 route / 6 bodies / 5 m max
     elevation / 18deg bank with 21-29 s laps, matching its documented
     behavior. `svelte-check` clean, 0 errors.
+- **Air Correction, the sixth ability + airborne detection (Phase 8d).** One
+  more entry on the mature `ABILITIES` catalog, plus the first airborne-state
+  primitive the project has had.
+  - **Airborne detection.** A vehicle is airborne when ALL FOUR wheels are
+    clear of the ground, held for `AIRBORNE_MIN_SEC` (0.12 s). Zero contacts
+    rather than a majority means a kerb strike, a crest, or one wheel
+    unloading over a bump can never read as flight; the short dwell filters
+    single-frame ray misses on rough ground. Against Terminal Nine's ~1.29 s
+    deck jump that dwell is ~9% of a real jump but longer than any bump
+    survives. Per-rig state: `wheelContacts`, `airborneSec`, `groundedSec`.
+  - **CANNON-ES TRAP (measured, cost a debugging pass):** `wheelInfo.isInContact`
+    is NOT readable from game code. `updateWheelTransformWorld` sets it FALSE
+    on entry, and the per-frame `vehicle.updateWheelTransform(i)` call that
+    syncs the wheel MESHES runs after the step — so by the time anything looks,
+    all four wheels read false even for a car sitting still on the ground
+    (verified: 4 wheels "not in contact" at a steady 55 m/s). Use
+    `vehicle.numWheelsOnGround`, which `updateFriction` recomputes each step
+    from `raycastResult.body` and nothing clobbers afterwards. Sibling of the
+    static-AABB raycast trap already documented in the movement prototype.
+  - **The ability.** `AbilityCategory` gains a 6th value `aircontrol` and
+    `AirControlParams` (`rollTorque` 260 N*m, `pitchTorque` 900 N*m,
+    `durationSec` 3). Unlike Jump's one-shot impulse this is ONGOING control:
+    every frame the window is open AND the vehicle is airborne, the driver's
+    own steer input torques about the chassis FORWARD axis (roll) and
+    throttle/brake about the RIGHT axis (pitch). The two torques are
+    deliberately asymmetric because the chassis roll inertia (~53 kg*m^2) is
+    far below pitch (~226), so equal torques would feel nothing alike. No new
+    bindings: it reads the same control values the grounded car uses.
+  - **Ends on landing, not on the timer.** `durationSec` is only a CEILING;
+    the harness calls `endAirControl()` once the wheels have been down for
+    `GROUNDED_END_SEC` (0.06 s). The dwell is deliberately tiny — the
+    requirement is not lingering, and 60 ms is imperceptible — but it stops a
+    single-frame wheel graze mid-flight from cancelling the ability outright.
+    Leaving the window open on the ground would also be a hidden way to torque
+    a grounded car.
+  - **Triggering grounded is a costless no-op** (`reason: 'not-airborne'`),
+    exactly the Emergency Flip / Homing Rocket no-lock rule: nothing spent, one
+    line of feedback.
+  - **No special-casing anywhere else:** slotCost 1 / meterCost 0.3 flow
+    through the existing ability-capacity budget, the HUD ability cell, the
+    Phase 7 economy (auto-priced 300 IC from slotCost), and the garage picker
+    unchanged. AI: `wantsAirControl(isAirborne)` — the harness owns the
+    airborne flag and the meter gate, so the heuristic is just "am I flying".
+    The velocity AI fit is now nitro + air-correction.
+  - **Verified** in `/dev/greenline-movement?track=terminal-nine` off the real
+    deck jump: grounded activation fired false, spent 0 meter, opened no
+    window; airborne activation with counter-steer arrested and reversed the
+    roll, landing at **upY 0.966 (near level) against a 0.448 baseline** on the
+    identical jump, with the opposite steer amplifying it to 75.7deg — i.e. the
+    torque genuinely tracks player input rather than being a fixed nudge; the
+    window closed **177 ms after touchdown** having held 1.72 s of its 3 s cap,
+    so landing ended it, not the timer; and an 8-car AI race logged **17 Air
+    Correction activations**. `svelte-check` clean, 0 errors.
+  - **Observation, pre-existing and NOT changed here:** the drift meter charges
+    from lateral speed without checking ground contact, so a vehicle in flight
+    banks meter. It barely matters for this ability (one activation covers a
+    whole jump) but it is worth knowing before any future airborne-charged
+    mechanic.
+
 - **Weather presets, speed retune, larger grid (Phase 8c).** Three tuning
   changes on existing registries; no new system.
   - **Weather is atmosphere, never time of day.** `ENV_PRESETS`

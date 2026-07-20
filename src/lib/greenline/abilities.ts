@@ -30,8 +30,8 @@ export const ABILITY_SLOTS: AbilitySlotId[] = ['abilityPrimary', 'abilitySeconda
  * part id, mirroring WEAPON_NONE. */
 export const ABILITY_NONE = 'ability-none';
 
-/** The five ability families. One block per def, distinguished by category. */
-export type AbilityCategory = 'nitro' | 'jump' | 'flip' | 'repair' | 'grip';
+/** The six ability families. One block per def, distinguished by category. */
+export type AbilityCategory = 'nitro' | 'jump' | 'flip' | 'repair' | 'grip' | 'aircontrol';
 
 /** Nitro Boost: a temporary engineForce multiplier for a fixed duration. */
 export interface NitroAbilityParams {
@@ -55,6 +55,23 @@ export interface RepairAbilityParams {
 /** Grip Surge: a temporary frictionSlip multiplier for a short duration. */
 export interface GripAbilityParams {
 	frictionMul: number;
+	durationSec: number;
+}
+
+/**
+ * Air Correction: ONGOING attitude control while airborne, not a one-shot
+ * nudge like Jump. While the window is open AND the vehicle is off the ground,
+ * the driver's own steer/throttle input is turned into corrective torque about
+ * the chassis axes, so a bad launch off a jump can be rotated into a flat
+ * landing. Torques are N*m applied continuously; `durationSec` is only a
+ * CEILING — landing closes the window first (that is the normal ending).
+ */
+export interface AirControlParams {
+	/** Torque about the FORWARD axis, driven by steer input (levels a roll). */
+	rollTorque: number;
+	/** Torque about the RIGHT axis, driven by throttle/brake (nose up/down). */
+	pitchTorque: number;
+	/** Hard ceiling on the window; landing normally ends it sooner. */
 	durationSec: number;
 }
 
@@ -86,6 +103,8 @@ export interface AbilityDef {
 	repair?: RepairAbilityParams;
 	/** Present iff category === 'grip'. */
 	grip?: GripAbilityParams;
+	/** Present iff category === 'aircontrol'. */
+	air?: AirControlParams;
 	// Emergency Flip (category === 'flip') carries no params: the re-seat has
 	// no tunable of its own beyond the meter cost.
 }
@@ -143,6 +162,23 @@ export const ABILITIES: AbilityDef[] = [
 		meterCost: 0.6,
 		repair: { amount: 45 },
 		cooldownSec: 0
+	},
+	{
+		id: 'air-correction',
+		name: 'Air Correction',
+		shortName: 'AIR',
+		category: 'aircontrol',
+		blurb: 'Attitude thrusters while you are off the ground: steer to level a roll, throttle and brake to lift or drop the nose. Dead weight on the tarmac.',
+		// Cost 1: powerful on a track with real air, worthless without it, so it
+		// prices with the other situational utilities rather than with nitro.
+		slotCost: 1,
+		meterCost: 0.3,
+		cooldownSec: 0,
+		// Roll is the cheap axis (chassis roll inertia ~53 kg*m^2 against ~226
+		// in pitch), so the two torques are deliberately asymmetric to give
+		// both axes a comparable feel in the air. Measured in the harness
+		// against Terminal Nine's 1.29 s deck jump.
+		air: { rollTorque: 260, pitchTorque: 900, durationSec: 3 }
 	},
 	{
 		id: 'grip-surge',
@@ -212,14 +248,16 @@ export type AbilityOutcome =
 	| { kind: 'jump'; impulse: number }
 	| { kind: 'flip' }
 	| { kind: 'repair'; applied: { armor: number; chassis: number; mount: number } }
-	| { kind: 'grip'; durationSec: number; mul: number };
+	| { kind: 'grip'; durationSec: number; mul: number }
+	| { kind: 'air'; durationSec: number; rollTorque: number; pitchTorque: number };
 
 export interface AbilityResult {
 	activated: boolean;
 	outcome: AbilityOutcome | null;
 	/** Why it did NOT activate (never a cost spent): not enough meter / on
-	 * cooldown / out, or an Emergency Flip triggered while upright. */
-	reason?: 'not-ready' | 'not-flipped';
+	 * cooldown / out, an Emergency Flip triggered while upright, or an Air
+	 * Correction triggered with the wheels still down. */
+	reason?: 'not-ready' | 'not-flipped' | 'not-airborne';
 }
 
 /**
@@ -243,6 +281,14 @@ export class VehicleAbilities {
 	/** Grip Surge active window + frictionSlip multiplier (1 = inactive). */
 	gripUntilMs = 0;
 	gripMul = 1;
+	/**
+	 * Air Correction window + the torques it authorizes. Unlike nitro/grip this
+	 * window is expected to be cut SHORT: the harness closes it the moment the
+	 * wheels are back down, so `airUntilMs` is only the ceiling.
+	 */
+	airUntilMs = 0;
+	airRollTorque = 0;
+	airPitchTorque = 0;
 
 	constructor(id: string) {
 		this.id = id;
@@ -255,6 +301,9 @@ export class VehicleAbilities {
 		this.nitroMul = 1;
 		this.gripUntilMs = 0;
 		this.gripMul = 1;
+		this.airUntilMs = 0;
+		this.airRollTorque = 0;
+		this.airPitchTorque = 0;
 	}
 
 	/** Bank meter from a 0..1 drift intensity over dt seconds (no-op at 0). */
@@ -301,6 +350,20 @@ export class VehicleAbilities {
 	gripMulNow(nowMs: number): number {
 		return this.gripActive(nowMs) ? this.gripMul : 1;
 	}
+
+	airActive(nowMs: number): boolean {
+		return nowMs < this.airUntilMs;
+	}
+
+	/**
+	 * Close the Air Correction window immediately. The harness calls this on
+	 * touchdown: the ability is attitude control for a vehicle in flight, so
+	 * leaving it open on the ground would be both useless and a hidden way to
+	 * torque a grounded car.
+	 */
+	endAirControl(): void {
+		this.airUntilMs = 0;
+	}
 }
 
 /**
@@ -318,7 +381,7 @@ export function tryActivateAbility(
 	slot: AbilitySlotId,
 	def: AbilityDef,
 	nowMs: number,
-	opts: { isFlipped?: boolean } = {}
+	opts: { isFlipped?: boolean; isAirborne?: boolean } = {}
 ): AbilityResult {
 	if (combat.isOut(nowMs) || !ab.ready(slot, def, nowMs)) {
 		return { activated: false, outcome: null, reason: 'not-ready' };
@@ -326,6 +389,11 @@ export function tryActivateAbility(
 	// Emergency Flip is inert (and free) unless the vehicle is genuinely flipped.
 	if (def.category === 'flip' && !opts.isFlipped) {
 		return { activated: false, outcome: null, reason: 'not-flipped' };
+	}
+	// Air Correction is inert (and free) with the wheels still down — the same
+	// no-lock rule: no airtime, no activation, nothing spent.
+	if (def.category === 'aircontrol' && !opts.isAirborne) {
+		return { activated: false, outcome: null, reason: 'not-airborne' };
 	}
 	ab.spend(slot, def, nowMs);
 	if (def.category === 'nitro' && def.nitro) {
@@ -342,6 +410,20 @@ export function tryActivateAbility(
 		return {
 			activated: true,
 			outcome: { kind: 'grip', durationSec: def.grip.durationSec, mul: def.grip.frictionMul }
+		};
+	}
+	if (def.category === 'aircontrol' && def.air) {
+		ab.airRollTorque = def.air.rollTorque;
+		ab.airPitchTorque = def.air.pitchTorque;
+		ab.airUntilMs = nowMs + def.air.durationSec * 1000;
+		return {
+			activated: true,
+			outcome: {
+				kind: 'air',
+				durationSec: def.air.durationSec,
+				rollTorque: def.air.rollTorque,
+				pitchTorque: def.air.pitchTorque
+			}
 		};
 	}
 	if (def.category === 'jump' && def.jump) {

@@ -626,6 +626,12 @@
 					<circle cx="12" cy="14" r="5.5" />
 					<circle cx="12" cy="14" r="1.8" />
 					<path d="M12 2v3.5M8 3l1 2.5M16 3l-1 2.5" stroke-width="1.2" />
+				{:else if id === 'air-correction'}
+					<!-- Attitude ball: tilted horizon + opposed correction jets -->
+					<circle cx="12" cy="12" r="7" />
+					<path d="M5.6 14.6a7 7 0 0 0 12.8-5.2" stroke-width="1.2" />
+					<path d="M2.4 9.2l2.6 1.1-1 2.6" stroke-width="1.1" />
+					<path d="M21.6 14.8l-2.6-1.1 1-2.6" stroke-width="1.1" />
 				{:else if id === 'ability-none'}
 					<!-- Empty ability slot -->
 					<circle cx="12" cy="12" r="7" stroke-dasharray="2.4 2.2" />

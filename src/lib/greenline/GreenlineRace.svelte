@@ -591,6 +591,24 @@
 	 * assumption that it scales.
 	 */
 	const MAX_AI = 11;
+	/**
+	 * Airborne detection (Phase 8d). A vehicle counts as airborne only with ALL
+	 * FOUR wheels clear of the ground, held for AIRBORNE_MIN_SEC. Both halves
+	 * matter: requiring zero contacts (rather than a majority) means a kerb
+	 * strike, a crest, or a wheel unloading over a bump can never read as
+	 * flight, and the short dwell filters the one-or-two-frame ray misses that
+	 * rough ground produces. Sized against Terminal Nine's deck jump, which
+	 * gives ~1.29 s of genuine air, so 0.12 s is ~9% of a real jump but longer
+	 * than any bump survives.
+	 */
+	const AIRBORNE_MIN_SEC = 0.12;
+	/**
+	 * Touchdown dwell before an Air Correction window is closed. Deliberately
+	 * tiny: the requirement is that the effect does NOT linger once grounded,
+	 * and 60 ms is imperceptible, but it stops a single-frame wheel graze
+	 * mid-flight from cancelling the ability outright.
+	 */
+	const GROUNDED_END_SEC = 0.06;
 	const num = (v: number, d: number) => (Number.isFinite(v) ? v : d);
 	/** Wrap a relative offset into [-half, half] (the rain volume's toroidal
 	 * follow: drops left behind the camera reappear ahead of it). */
@@ -2313,6 +2331,15 @@
 					/** Seconds spent flipped (up vector below the panel threshold)
 					 * while nearly stationary; drives the flip-recovery re-seat. */
 					flipAcc: number;
+					/**
+					 * Airborne detection (Phase 8d). `wheelContacts` is the live count
+					 * of wheels reporting isInContact; the two accumulators are how
+					 * long the vehicle has been continuously clear of / back on the
+					 * ground. Nothing read wheel contact before this.
+					 */
+					wheelContacts: number;
+					airborneSec: number;
+					groundedSec: number;
 					/** Seconds spent far BELOW the local track surface (drove off an
 					 * elevated edge, or tumbled through the ribbon — the chassis box
 					 * has no Trimesh narrowphase); drives the fall-recovery re-seat.
@@ -2637,6 +2664,9 @@
 						preVx: 0,
 						preVz: 0,
 						flipAcc: 0,
+						wheelContacts: 4,
+						airborneSec: 0,
+						groundedSec: 0,
 						fallAcc: 0,
 						boostUntilMs: 0,
 						boostMul: 1,
@@ -2943,7 +2973,7 @@
 				// (no ramps on this track yet), so no AI fit carries it.
 				const AI_ABILITIES: [string, string][] = [
 					['overcharge-repair', 'emergency-flip'], // armor (4): 2 + 1
-					['nitro-boost', 'grip-surge'], // velocity (5): 2 + 1
+					['nitro-boost', 'air-correction'], // velocity (5): 2 + 1
 					['grip-surge', 'overcharge-repair'], // handling (4): 1 + 2
 					['nitro-boost', ABILITY_NONE] // systems (2): 2
 				];
@@ -3599,7 +3629,7 @@
 					// Trigger-zone entries this round (Phase 8a).
 					zone: { boost: 0, hazard: 0 },
 					// Ability activations this round (nitro/jump/flip/repair/grip).
-					ability: { nitro: 0, jump: 0, flip: 0, repair: 0, grip: 0 }
+					ability: { nitro: 0, jump: 0, flip: 0, repair: 0, grip: 0, air: 0 }
 				};
 				const resetTestStats = () => {
 					testStats.fire.emp = testStats.fire.tether = testStats.fire.oil = 0;
@@ -3617,7 +3647,7 @@
 					testStats.falls = 0;
 					testStats.zone.boost = testStats.zone.hazard = 0;
 					testStats.ability.nitro = testStats.ability.jump = testStats.ability.flip = 0;
-					testStats.ability.repair = testStats.ability.grip = 0;
+					testStats.ability.repair = testStats.ability.grip = testStats.ability.air = 0;
 				};
 
 				const checkLastStanding = () => {
@@ -4380,7 +4410,7 @@
 				// swap each playTone for a real playBuffer later, positions ride
 				// through so the swap is content-only).
 				const abilitySfx = (
-					kind: 'nitro' | 'jump' | 'flip' | 'repair' | 'grip',
+					kind: 'nitro' | 'jump' | 'flip' | 'repair' | 'grip' | 'air',
 					x?: number,
 					z?: number
 				) => {
@@ -4393,6 +4423,10 @@
 						audioEngine.playTone('ui', { freq: 300, durationMs: 260, type: 'triangle', gain: 0.18, pitchJitter: [0.8, 1.1] });
 					else if (kind === 'repair')
 						audioEngine.playTone('ui', { freq: 520, durationMs: 340, type: 'sine', gain: 0.2, pitchJitter: [1.0, 1.5] });
+					else if (kind === 'air')
+						// Thin cold hiss, read as attitude jets; deliberately unlike the
+						// hop's low sine so the two never blur together in flight.
+						audioEngine.playTone('ambient', { freq: 900, durationMs: 300, type: 'square', gain: 0.1, pitchJitter: [0.92, 1.08], position: pos });
 					else
 						audioEngine.playTone('ambient', { freq: 380, durationMs: 260, type: 'triangle', gain: 0.14, pitchJitter: [1.0, 1.3], position: pos });
 				};
@@ -4415,6 +4449,14 @@
 						audioEngine.playTone('ambient', { freq: 340, durationMs: 380, type: 'sawtooth', gain: 0.18, pitchJitter: [1.15, 1.45], position: pos });
 				};
 
+				/**
+				 * Genuinely in the air: ALL four wheels clear, held for the dwell.
+				 * See AIRBORNE_MIN_SEC for why it is zero-contacts rather than a
+				 * majority. Used both to gate activation and by the AI heuristic.
+				 */
+				const rigAirborne = (rig: Rig): boolean =>
+					rig.wheelContacts === 0 && rig.airborneSec >= AIRBORNE_MIN_SEC;
+
 				// Activate the ability in a slot. Returns true when it fired (meter
 				// spent). Emergency Flip triggered while upright is a costless no-op
 				// (the tryActivateAbility no-lock pattern): nothing spent, no feedback
@@ -4428,9 +4470,14 @@
 					// the whole point of the ability is to skip the wait.
 					const upY = rig.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y;
 					const isFlipped = upY < num(tuning.flipUpY, DEFAULTS.flipUpY);
-					const res = tryActivateAbility(rig.abilityState, rig.combat, slot, def, now, { isFlipped });
+					const isAirborne = rigAirborne(rig);
+					const res = tryActivateAbility(rig.abilityState, rig.combat, slot, def, now, {
+						isFlipped,
+						isAirborne
+					});
 					if (!res.activated) {
 						if (res.reason === 'not-flipped' && rig === player) flash('NOT FLIPPED');
+						if (res.reason === 'not-airborne' && rig === player) flash('NOT AIRBORNE');
 						return false;
 					}
 					const o = res.outcome;
@@ -4450,7 +4497,14 @@
 						abilitySfx('grip', p.x, p.z);
 						spawnRing(p.x, p.z, 0x8fffc4, 3.2, 300, 0.4, 0.7);
 						if (rig === player) flash('GRIP SURGE');
-					} else if (o?.kind === 'jump') {
+										} else if (o?.kind === 'air') {
+							testStats.ability.air++;
+							abilitySfx('air', p.x, p.z);
+							// Cool-rim thruster puffs off the flanks; no ground ring, the
+							// car is not near the ground.
+							spawnSparks(p.x, p.y + 0.5, p.z, 10, 0xdfeaff, 6, 320);
+							if (rig === player) flash('AIR CORRECTION');
+						} else if (o?.kind === 'jump') {
 						testStats.ability.jump++;
 						// Wake the body first: cannon-es ignores an impulse on a
 						// sleeping body, so a hop from a standstill would be a no-op.
@@ -4989,6 +5043,21 @@
 							gripMsLeft: Math.max(0, r.abilityState.gripUntilMs - nowMs)
 						};
 					},
+					// Airborne state (Phase 8d): wheel contacts + the dwell that
+					// gates Air Correction, and whether the window is live.
+					getAir: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						return {
+							wheelContacts: r.wheelContacts,
+							airborneSec: +r.airborneSec.toFixed(3),
+							groundedSec: +r.groundedSec.toFixed(3),
+							airborne: rigAirborne(r),
+							windowActive: r.abilityState.airActive(performance.now()),
+							rollTorque: r.abilityState.airRollTorque,
+							pitchTorque: r.abilityState.airPitchTorque
+						};
+					},
 					getMeter: (rigId = 'player') =>
 						rigsAll().find((q) => q.id === rigId)?.abilityState.meter ?? null,
 					// Set the drift meter directly (0..1), so a scripted drive can
@@ -5453,6 +5522,65 @@
 								new CANNON.Vec3(viol.pushX * f, 0, viol.pushZ * f),
 								new CANNON.Vec3(0, 0, 0)
 							);
+						}
+
+						// Wheel-contact bookkeeping (Phase 8d). One pass over the
+						// RaycastVehicle's own wheel state, which is the authoritative
+						// ground answer for this vehicle model — the chassis box never
+						// touches the ribbon (no Box-vs-Trimesh narrowphase), so wheels
+						// are the only ground interface there is.
+					{
+							// CANNON-ES TRAP, measured here: `wheelInfo.isInContact` is
+							// NOT readable outside the solver. `updateWheelTransformWorld`
+							// sets it FALSE on entry, and the per-frame
+							// `vehicle.updateWheelTransform(i)` call that syncs the wheel
+							// MESHES (see the render block) runs after the step — so by the
+							// time any game code looks, all four wheels read false even
+							// with the car sitting still on the ground (verified: 4 wheels
+							// "not in contact" at a steady 55 m/s). The vehicle's own
+							// `numWheelsOnGround` is the durable signal: `updateFriction`
+							// recomputes it each step from `raycastResult.body`, and
+							// nothing clobbers it afterwards.
+							const contacts = rig.vehicle.numWheelsOnGround;
+							rig.wheelContacts = contacts;
+							if (contacts === 0) {
+								rig.airborneSec += dt;
+								rig.groundedSec = 0;
+							} else {
+								rig.groundedSec += dt;
+								rig.airborneSec = 0;
+							}
+						}
+
+						// Air Correction (Phase 8d): ONGOING attitude control, so the
+						// work happens here every frame the window is open rather than
+						// once at activation. Landing closes the window immediately
+						// (the ability is meaningless with the wheels down, and leaving
+						// it open would be a hidden way to torque a grounded car);
+						// otherwise the driver's own steer / throttle input becomes
+						// torque about the chassis axes.
+						if (rig.abilityState.airActive(now)) {
+							if (rig.groundedSec >= GROUNDED_END_SEC) {
+								rig.abilityState.endAirControl();
+								if (rig === player) flash('AIR CORRECTION — landed');
+							} else {
+								// Local axes: forward = +x (roll), right = +z (pitch),
+								// matching the RaycastVehicle index axes configured on
+								// every rig and the pitchDamp block below.
+								fwdWorld.set(1, 0, 0).applyQuaternion(tmpQuat);
+								rightWorld.set(0, 0, 1).applyQuaternion(tmpQuat);
+								// Steer input rolls, throttle/brake pitches. Both read the
+								// SAME control values the grounded car uses, so no new
+								// bindings and no special-casing in the input layer.
+								const roll = -sIn * rig.abilityState.airRollTorque;
+								const pitch = (brk - thr) * rig.abilityState.airPitchTorque;
+								if (roll !== 0 || pitch !== 0) {
+									body.wakeUp();
+									body.torque.x += fwdWorld.x * roll + rightWorld.x * pitch;
+									body.torque.y += fwdWorld.y * roll + rightWorld.y * pitch;
+									body.torque.z += fwdWorld.z * roll + rightWorld.z * pitch;
+								}
+							}
 						}
 
 						// Flip recovery (same swappable-block spirit as the soft walls):
@@ -5936,6 +6064,8 @@
 								if (def.category === 'repair') want = rig.ai.wantsRepair(self, now);
 								else if (def.category === 'nitro') want = rig.ai.wantsNitro(self, combatants, now);
 								else if (def.category === 'grip') want = rig.ai.wantsGrip(now);
+								else if (def.category === 'aircontrol')
+									want = rig.ai.wantsAirControl(rigAirborne(rig));
 								else if (def.category === 'flip') {
 									const upY = rig.body.quaternion.vmult(new CANNON.Vec3(0, 1, 0)).y;
 									want = upY < num(tuning.flipUpY, DEFAULTS.flipUpY);
@@ -6613,7 +6743,8 @@
 							if (!def) continue;
 							const active =
 								(def.category === 'nitro' && player.abilityState.nitroActive(now)) ||
-								(def.category === 'grip' && player.abilityState.gripActive(now));
+								(def.category === 'grip' && player.abilityState.gripActive(now)) ||
+							(def.category === 'aircontrol' && player.abilityState.airActive(now));
 							acells.push({
 								slot,
 								short: def.shortName,
