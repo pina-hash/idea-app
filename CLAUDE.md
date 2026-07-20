@@ -3318,6 +3318,69 @@ on one side of the world.
     intact), 0 falls, no phantom laps, and a race runs to completion with a
     proper finish order. `svelte-check` clean, 0 errors, no new warnings.
 
+- **Pit-stop system + physical pit lanes (Phase 9c).** A pit lane is structurally
+  a BRANCH like 8b's shortcut (`paths[]` + a grouped-checkpoint alternative,
+  reused exactly, not reinvented) — the difference is framing: a deliberate slow
+  repair detour, not a risk/reward speed gain.
+  - **`'pit'` TrackZone (schema v2, `track-schema.ts`).** A third
+    discriminated-union member beside `boost`/`hazard`. Unlike those (which fire
+    ONCE on entry), the pit zone rewards a genuine STOP: continuous, not
+    entry-edge. `repairPerSec` (default 50) + `stopSpeed` (default 2.5 m/s),
+    both validated in `parseTrack`.
+  - **Stop-gated, dwell-scaled repair (harness).** After the per-frame
+    `zoneEntries` refresh (which updates `rig.zoneInside` for all zones), a
+    separate block heals any vehicle whose planar speed `<= stopSpeed` while
+    inside a pit zone: `rig.combat.repair(repairPerSec * dt)` per frame (the
+    EXISTING Phase 5a `VehicleCombat.repair()` — the real call path, most-
+    depleted pool first), reconciling plates + a revived mount quietly, with a
+    throttled green pulse for the player. Amount scales with dwell because it is
+    applied per frame; the pool caps clamp a long stop to a full heal.
+    **Healing curve landed on: 50 health/sec, capped at max.** A ~0.5s splash
+    heals ~25 (LESS than Overcharge Repair's fixed 45); ~0.9s matches it; ~2s
+    tops a light ~90-pool build off; a heavy ~160-pool build wants ~3s. So the
+    pit heals FAR more completely than the ability, paid for in the detour +
+    stop TIME (not a meter) — the 5a ability was explicitly the smaller "field"
+    version. Constants `PIT_REPAIR_PER_SEC` / `PIT_STOP_SPEED` in
+    `GreenlineRace.svelte`.
+  - **Real pit-lane geometry for BOTH tracks, additive.** Authored by a scratch
+    script (committed as data): each pit lane is a branch offset OUTWARD from a
+    flat straight (Proving Ground's start straight idx 4-30; Terminal Nine's
+    dispatch straight idx 20-82 — both flat, so no 8a elevation/banking
+    interaction), with a smootherstep diverge/rejoin so it connects to the main
+    line at both ends. Kept apart from the main line by a `pit-wall` boundary
+    ISLAND filling the gap (the 8b depot-block convention) plus an OUTER-boundary
+    bulge around the lane (the aligned outer loop is pushed out past the pit,
+    smoothly returning at the ends). A NEW grouped checkpoint pair (a main-line
+    gate + a pit-lane gate, same group, step 0 of the lap) makes a pit lap
+    lawful via the 8b group mechanism — deliberately a NEW step rather than
+    grouping an existing corner checkpoint, so every existing checkpoint is
+    untouched and the pit sits on the best (widest, flattest) straight. The pit
+    repair ZONE sits at the lane's fully-offset midpoint. Terminal Nine keeps
+    its `loading-dock` shortcut AND gains the pit lane (two independent
+    branches, two independent groups); Proving Ground bumps schemaVersion 1->2
+    (needed for branches/zones) but stays flat (`hasRelief` false, plane-only
+    physics unchanged).
+  - **AI: simple usage only (real strategy is 9d).** `TrackRuntime.pitRoutes`
+    marks routes whose branch id starts with `pit`. The harness per-lap decision
+    forces the pit route when `chassis/maxChassis < PIT_AI_HEALTH_FRAC` (0.5)
+    via `AiDriver.setRoute`; otherwise it falls back to `chooseRoute`, which was
+    refined to EXCLUDE pit routes from its random risk/reward pick (a healthy car
+    never gambles onto a slow repair detour; on a pit-only-alternative track like
+    Proving Ground that leaves the main line). **Deferred to 9d (flagged):** a
+    hurt AI takes the pit LANE but does not yet STOP in the box, so it currently
+    gets the detour without the heal — stopping/timing strategy is explicitly
+    9d's job.
+  - **Verified** in `/dev/greenline-movement?track=<each>`: both tracks parse +
+    build (pit path, `pitRoutes`, steps, pit zone, `pit-wall` boundary); the REAL
+    `LapTracker` completes a lap via main, via the pit lane, and (Terminal Nine)
+    via the existing shortcut, with partial-then-clean recovery; stopping in the
+    box heals (~50/s, capped) while driving THROUGH heals 0 (moving 0 vs stopped
+    +32 over ~0.6s, on both tracks' zones), confirming `repair()` is the path; a
+    hurt AI switches `main -> pit-lane`, healthy AIs never pick pit (chooseRoute
+    picks only [0] on PG, [0,1] on TN); full 7-car live races on BOTH tracks run
+    all-upright with 0 falls and existing routes lapping (ai-4 finished a PG lap;
+    the TN shortcut + boosts/hazards untouched). `svelte-check` clean, 0 errors.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

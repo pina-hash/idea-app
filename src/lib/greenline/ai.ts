@@ -151,10 +151,21 @@ export class AiDriver {
 	 * `rand` is injected so a scripted drive can force a route.
 	 */
 	chooseRoute(aggression: number, rand: () => number = Math.random): number {
-		const alts = this.rt.routes.length - 1;
-		if (alts < 1) return 0;
+		// Only risk/reward alternatives are eligible for the random branch pick:
+		// PIT lanes (Phase 9c) are deliberate slow repair detours, reached only by
+		// the harness's "pit when hurt" heuristic (which calls setRoute directly),
+		// never gambled onto by a healthy car. On a track whose only alternative is
+		// a pit lane (e.g. Proving Ground), that leaves nothing to pick and the
+		// driver stays on the main line.
+		const pit = new Set(this.rt.pitRoutes);
+		const eligible: number[] = [];
+		for (let i = 1; i < this.rt.routes.length; i++) if (!pit.has(i)) eligible.push(i);
+		if (eligible.length === 0) {
+			this.setRoute(0);
+			return this.routeIdx;
+		}
 		const pBranch = 0.2 + 0.45 * Math.max(0, Math.min(1, aggression));
-		const next = rand() < pBranch ? 1 + Math.floor(rand() * alts) : 0;
+		const next = rand() < pBranch ? eligible[Math.floor(rand() * eligible.length)] : 0;
 		this.setRoute(next);
 		return this.routeIdx;
 	}

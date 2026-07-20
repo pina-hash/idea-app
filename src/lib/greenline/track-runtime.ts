@@ -124,6 +124,14 @@ export interface TrackRuntime {
 	 * the driver. Single-path tracks have exactly one route (the centerline).
 	 */
 	routes: TrackVec2[][];
+	/**
+	 * Route indices that are PIT LANES (Phase 9c): a branch whose id begins with
+	 * `pit`. A pit lane is structurally a branch like any other (8b) — the only
+	 * difference the runtime marks is that it is a deliberate slow detour with a
+	 * repair box, so the AI's simple "pit when hurt" heuristic can pick it out
+	 * from a risk/reward shortcut. Empty on tracks with no pit lane.
+	 */
+	pitRoutes: number[];
 	/** Ribbon centerline (same points as the data, kept for hot loops). */
 	center: TrackVec2[];
 	/** Maximum half width across the lap (margins, spawn placement). */
@@ -253,6 +261,12 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 			...center.slice(p.joinEnd!)
 		]);
 	}
+	// Pit-lane routes: a branch id beginning with `pit` marks a pit lane. routes[i]
+	// splices paths[i] (both in branch order), so the route index is the path index.
+	const pitRoutes: number[] = [];
+	paths.forEach((p, i) => {
+		if (i > 0 && (p.id === 'branch:pit' || p.id.startsWith('branch:pit-'))) pitRoutes.push(i);
+	});
 	const { halfWidths, elevations, bankingRad, leftEdge, rightEdge, leftEdge3, rightEdge3 } = main;
 	const halfWidth = Math.max(...paths.flatMap((p) => p.halfWidths));
 	const hasRelief = paths.some(
@@ -289,6 +303,7 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 		stepCount,
 		paths,
 		routes,
+		pitRoutes,
 		center,
 		halfWidth,
 		halfWidths,

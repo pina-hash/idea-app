@@ -2223,6 +2223,21 @@
 						tex.colorSpace = THREE.SRGBColorSpace;
 						return tex;
 					})();
+					// Pit repair cross: a bold signature-green plus on transparent, the
+					// friendly-stop counterpart to the boost chevrons.
+					const pitCrossTex = (() => {
+						const c = document.createElement('canvas');
+						c.width = 128;
+						c.height = 128;
+						const g2 = c.getContext('2d')!;
+						g2.fillStyle = '#2ae57e';
+						const arm = 22;
+						g2.fillRect(64 - arm / 2, 30, arm, 68);
+						g2.fillRect(30, 64 - arm / 2, 68, arm);
+						const tex = new THREE.CanvasTexture(c);
+						tex.colorSpace = THREE.SRGBColorSpace;
+						return tex;
+					})();
 					rt.zones.forEach((zn, zi) => {
 						const zy = surfaceYAt(rt, zn.x, zn.z);
 						const group = new THREE.Group();
@@ -2282,6 +2297,44 @@
 							group.add(base, chev, rim);
 							zonePulse.push({ mat: rimMat, base: 0.6, phase: zi });
 							zonePulse.push({ mat: chevMat, base: 0.9, phase: zi + 1.6 });
+						} else if (zn.type === 'pit') {
+							// Pit box: a painted green repair pad with a bright cross,
+							// signature green so it reads as a friendly stop, not a hazard.
+							const baseMat = new THREE.MeshBasicMaterial({
+								color: 0x0b2417,
+								transparent: true,
+								opacity: 0.9,
+								depthWrite: false
+							});
+							const base = new THREE.Mesh(zoneDiscGeo, baseMat);
+							base.scale.set(zn.radius, 1, zn.radius);
+							base.position.y = 0.04;
+							const crossMat = new THREE.MeshBasicMaterial({
+								map: pitCrossTex,
+								transparent: true,
+								opacity: 0.95,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending
+							});
+							const cross = new THREE.Mesh(
+								new THREE.PlaneGeometry(zn.radius * 1.5, zn.radius * 1.5),
+								crossMat
+							);
+							cross.rotation.x = -Math.PI / 2;
+							cross.position.y = 0.06;
+							const pRimMat = new THREE.MeshBasicMaterial({
+								color: 0x2ae57e,
+								transparent: true,
+								opacity: 0.7,
+								depthWrite: false,
+								blending: THREE.AdditiveBlending
+							});
+							const pRim = new THREE.Mesh(zoneRingGeo, pRimMat);
+							pRim.scale.set(zn.radius, 1, zn.radius);
+							pRim.position.y = 0.05;
+							group.add(base, cross, pRim);
+							zonePulse.push({ mat: pRimMat, base: 0.7, phase: zi });
+							zonePulse.push({ mat: crossMat, base: 0.95, phase: zi + 1.1 });
 						} else {
 							// Oil hazard: the deployed-slick look (glossy dark puddle,
 							// additive violet rim), permanent.
@@ -2520,6 +2573,8 @@
 					 * (zoneEntries updates the occupancy in place per frame). */
 					zoneInside: boolean[];
 					zoneRearmMs: number[];
+					/** Throttle stamp for the pit-repair FX pulse (Phase 9c). */
+					pitFxMs: number;
 					warmIdx: number;
 					/**
 					 * Which ribbon PATH `warmIdx` indexes (0 = main line, >0 = a
@@ -2912,6 +2967,7 @@
 						boostMul: 1,
 						zoneInside: rt.zones.map(() => false),
 						zoneRearmMs: rt.zones.map(() => 0),
+						pitFxMs: 0,
 						warmIdx: spawn.warmIdx,
 						warmPath: 0,
 						routeUsed: 'main',
@@ -4908,6 +4964,18 @@
 				const BOOST_DURATION_SEC = 1.5; // boost window default
 				const BOOST_KICK_MPS = 5; // instant forward speed added on pad entry
 				const ZONE_REARM_SEC = 1.5; // per-vehicle per-zone retrigger window
+				// Pit repair (Phase 9c): a car STOPPED (speed <= PIT_STOP_SPEED) inside
+				// a pit zone heals PIT_REPAIR_PER_SEC health/second through
+				// VehicleCombat.repair(), so the amount scales with dwell (the pool
+				// caps clamp a long stop to a full heal). Deliberately heals FAR more
+				// completely than Overcharge Repair's fixed 45: a ~1s splash already
+				// beats it, a ~2s stop tops a light build off, a heavy build wants ~3s
+				// — paid for in the pit-lane detour + the stop, not a meter.
+				const PIT_REPAIR_PER_SEC = 50;
+				const PIT_STOP_SPEED = 2.5; // m/s at or below = stopped in the box
+				// AI takes the pit lane when its chassis drops below this fraction
+				// (simple usage only; strategic pitting is Phase 9d's job).
+				const PIT_AI_HEALTH_FRAC = 0.5;
 				// Absolute sim-clock ms at which controls unlock (GO). Set
 				// here for the initial launch and re-armed by resetRound each round.
 				let raceStartAtMs = gameNow() + COUNTDOWN_SEC * 1000;
@@ -5009,6 +5077,7 @@
 						r.boostMul = 1;
 						r.zoneInside.fill(false);
 						r.zoneRearmMs.fill(0);
+						r.pitFxMs = 0;
 						// Wipe the compounding crumple, then re-seat the pristine hull.
 						if (r.dentAccum.length) r.dentAccum.fill(0);
 						applyDentStage(r, 0);
@@ -6307,7 +6376,7 @@
 										addTrauma(0.15);
 										flash('BOOST');
 									}
-								} else {
+								} else if (zn.type === 'hazard') {
 									// hazard kind 'oil': the deployed-slick traction cut,
 									// resist-scaled like a real slick, never consumed.
 									testStats.zone.hazard++;
@@ -6333,6 +6402,49 @@
 									if (rig === player) {
 										addTrauma(0.25);
 										flash('OIL PATCH — TRACTION LOST');
+									}
+								} else if (zn.type === 'pit' && rig === player) {
+									// Pit zone is not an entry effect (the repair is the
+									// continuous, stop-gated block below); the entry edge just
+									// cues the player that stopping here repairs.
+									flash('PIT BOX — STOP TO REPAIR');
+								}
+							}
+
+							// Pit repair (Phase 9c): CONTINUOUS while genuinely stopped in
+							// a pit box, not an entry effect. `rig.zoneInside` was refreshed
+							// for every zone by the zoneEntries call above, so this reads
+							// live occupancy. Healing scales with dwell because it is applied
+							// per frame; VehicleCombat.repair() clamps each pool at max, so a
+							// long stop simply fills up and further time does nothing.
+							{
+								const speed = Math.hypot(body.velocity.x, body.velocity.z);
+								for (let zi = 0; zi < rt.zones.length; zi++) {
+									const zn = rt.zones[zi];
+									if (zn.type !== 'pit' || !rig.zoneInside[zi]) continue;
+									if (speed > (zn.stopSpeed ?? PIT_STOP_SPEED)) continue;
+									const healed = rig.combat.repair(
+										(zn.repairPerSec ?? PIT_REPAIR_PER_SEC) * dt
+									);
+									const total = healed.armor + healed.chassis + healed.mount;
+									if (total <= 0) continue;
+									// The heal may have refilled plates or revived a dead mount:
+									// reconcile the bodywork with the restored pools, quietly.
+									if (healed.mount > 0) setMountDead(rig, rig.combat.mountDown);
+									if (healed.armor > 0) syncArmorPlates(rig, undefined, undefined, true);
+									// Throttled green repair pulse (a few per second), player only.
+									if (rig === player && now >= rig.pitFxMs) {
+										rig.pitFxMs = now + 240;
+										spawnRing(
+											body.position.x,
+											body.position.z,
+											GL.green,
+											3.2,
+											360,
+											0.45,
+											body.position.y + 0.2
+										);
+										flash('PIT — REPAIRING');
 									}
 								}
 							}
@@ -6987,12 +7099,22 @@
 							// route it will drive as it crosses the line, so a field
 							// with mixed aggression splits across the main line and the
 							// shortcut. No-op on tracks with a single route.
+							//
+							// Pit heuristic (Phase 9c, deliberately simple — real strategy
+							// is 9d's job): if chassis is below PIT_AI_HEALTH_FRAC and the
+							// track has a pit lane, take it to repair; otherwise fall back
+							// to the normal risk/reward route choice.
 							if (
 								rig.ai &&
 								(ev.type === 'lap' || ev.type === 'timing-started') &&
 								rt.routes.length > 1
-							)
-								rig.ai.chooseRoute(num(tuning.aiAggression, DEFAULTS.aiAggression));
+							) {
+								const hurt =
+									rig.combat.chassisHealth / Math.max(1, rig.combat.maxChassis) <
+									PIT_AI_HEALTH_FRAC;
+								if (hurt && rt.pitRoutes.length > 0) rig.ai.setRoute(rt.pitRoutes[0]);
+								else rig.ai.chooseRoute(num(tuning.aiAggression, DEFAULTS.aiAggression));
+							}
 							if (rig === player) {
 								if (ev.type === 'timing-started') {
 									playerRaceStartMs = ev.atMs;

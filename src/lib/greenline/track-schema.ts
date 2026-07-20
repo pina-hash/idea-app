@@ -222,6 +222,30 @@ export type TrackZone =
 			 * window, never consumed). More kinds join here in 8b.
 			 */
 			kind: 'oil';
+	  }
+	| {
+			/**
+			 * Pit repair box (Phase 9c). Unlike boost/hazard, which fire ONCE on
+			 * entry, the pit zone rewards a genuine STOP: a vehicle nearly stopped
+			 * (speed <= `stopSpeed`) inside the box heals continuously at
+			 * `repairPerSec` through `VehicleCombat.repair()`, so the amount healed
+			 * scales with how long it dwells — a quick splash tops up a little, a
+			 * full stop restores everything (the pool caps clamp it). The whole
+			 * point of the pit LANE is that this is paid for in time (a longer
+			 * detour plus the stop), not a meter, which is why it heals far more
+			 * completely than the Overcharge Repair ability's fixed partial heal.
+			 * Authored INSIDE a pit-lane branch so you must take the detour to use
+			 * it. Zone families join `TrackZone` under new `type` tags.
+			 */
+			type: 'pit';
+			id: string;
+			x: number;
+			z: number;
+			radius: number;
+			/** Health restored per second while stopped in the box (default 50). */
+			repairPerSec?: number;
+			/** Speed (m/s) at or below which the car counts as stopped (default 2.5). */
+			stopSpeed?: number;
 	  };
 
 /**
@@ -370,7 +394,7 @@ export function parseTrack(raw: unknown): TrackData {
 		if (!Array.isArray(t.zones)) fail('zones must be an array');
 		t.zones.forEach((zn, i) => {
 			if (typeof zn !== 'object' || zn === null) fail(`zones[${i}] malformed`);
-			if (zn.type !== 'boost' && zn.type !== 'hazard')
+			if (zn.type !== 'boost' && zn.type !== 'hazard' && zn.type !== 'pit')
 				fail(`zones[${i}] has unknown type ${String((zn as { type?: unknown }).type)}`);
 			if (!zn.id || typeof zn.id !== 'string') fail(`zones[${i}] missing id`);
 			if (typeof zn.x !== 'number' || typeof zn.z !== 'number' || !(zn.radius > 0))
@@ -378,6 +402,12 @@ export function parseTrack(raw: unknown): TrackData {
 			// Unknown hazard kinds fail loudly at load, not silently at play.
 			if (zn.type === 'hazard' && zn.kind !== 'oil')
 				fail(`zones[${i}] (${zn.id}) has unknown hazard kind ${String(zn.kind)}`);
+			if (zn.type === 'pit') {
+				if (zn.repairPerSec !== undefined && !(zn.repairPerSec > 0))
+					fail(`zones[${i}] (${zn.id}) repairPerSec must be positive`);
+				if (zn.stopSpeed !== undefined && !(zn.stopSpeed > 0))
+					fail(`zones[${i}] (${zn.id}) stopSpeed must be positive`);
+			}
 		});
 	}
 	if (t.props !== undefined) {
