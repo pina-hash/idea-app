@@ -3257,6 +3257,67 @@ on one side of the world.
     so drift measurements must keep the player off other cars (donuts near spawn
     / let the AI drive away first) or the readings are vacuous.
 
+- **Qualifying-based grid placement (Phase 9b).** The starting grid is no longer
+  "player always on pole"; slots are assigned by qualifying lap time (fastest =
+  pole), across the player AND the AI field, so the player can genuinely start
+  off pole — or last.
+  - **`slotPose(k)` (the PHYSICAL grid layout — pole, then staggered rows of two
+    at `GRID_LATERAL`/`GRID_ROW_STEP_PTS` spacing) is UNCHANGED.** Only the
+    mapping of rigs to slots changed. The old hardcoded `k === 0 -> player`
+    special case is gone.
+  - **Player qualifying = real leaderboard data.** `Rig.qualMs` holds the
+    qualifying time. The player's is a new `playerQualifyingMs` prop on
+    `GreenlineRace`, read by `/greenline/+page.svelte` from the EXISTING
+    `loadLeaderboard` (best_lap_ms per user per track — the same board the
+    results screen shows): a `$effect` keyed on the selected track finds the
+    caller's own row's `best_lap_ms`, `startRace` freezes it into
+    `raceQualifyingMs`, and the race remounts per run so the time is read fresh.
+    **No recorded time on the track -> `null` -> `NO_QUAL_MS` sentinel -> BACK of
+    the grid** (real motorsport convention; a concrete incentive to set a time).
+    The read fails soft (loadLeaderboard returns `[]` -> null -> back), and a
+    player outside the queried top-100 also reads as no-time (accepted for now).
+  - **AI qualifying = simulated.** AI has no persistent history, so each AI gets
+    a plausible simulated time generated once at build (`simulatedAiQualMs`):
+    `lapLenM / GRID_AI_LAP_SPEED` (lap length summed from the centerline, so long
+    circuits get long times) times a per-archetype tendency (`AI_QUAL_ARCH_MUL`:
+    velocity 0.96 quickest, armor 1.04 slowest) times +/-4% per-car jitter.
+    **`GRID_AI_LAP_SPEED = 30` m/s** is an assumed competent BEST-LAP average
+    (Terminal Nine ~2498m -> ~83s, Proving Ground ~794m -> ~26s), deliberately
+    NOT derived from the AI's current on-track pace. **FLAG (revisit at 9d):**
+    AI top speed is still the mismatched ~17 m/s that 9d will retune, so a
+    measured baseline would bake in a number about to change — once 9d lands,
+    sanity-check `GRID_AI_LAP_SPEED` against AI's real measured lap times and
+    align it. Simulated times are fixed for a rig's lifetime (regenerated only
+    when the field is rebuilt, e.g. AI count changes), so the grid is stable
+    across resets rather than reshuffling every round.
+  - **`assignGrid()`** sorts player + AI by `qualMs` ascending via the shared
+    `gridOrder()` (exact ties break deterministically: player first, then id, so
+    the grid never depends on sort stability), assigns `slotPose(slot)` in order,
+    and re-seats each body (position/quaternion/velocity/warmIdx and the
+    prevX/prevZ trackers, so the grid teleport never registers a phantom gate
+    crossing). Called at init (after `buildAis`) and at the top of `resetRound`
+    (which re-reads the player's time from the prop and re-derives). In
+    `resetRound` the existing per-rig seat loop then re-applies from the same
+    `.spawn`, idempotently.
+  - **Judgment calls / tradeoffs:** (1) the AI baseline speed constant is a
+    forward-looking estimate, not a measurement — flagged above; (2) own-best is
+    read from the top-100 board rather than a dedicated own-row query (uses the
+    existing seam per the spec, fine at GREENLINE's board size); (3) the dev
+    harness passes no prop, so `resetRound` re-reads it as null and a
+    `setPlayerQualifying`-injected time does not survive a reset there (a harness
+    quirk, not a product bug — in `/greenline` the prop is the source of truth).
+  - **Debug (`__greenline`):** `setPlayerQualifying(ms|null)` injects a player
+    time (the harness has no leaderboard) and re-derives; `gridInfo()` returns
+    the grid ordered by slot with each rig's qual time + seated pose.
+  - **Verified** in `/dev/greenline-movement?glheadless=1`: a fast player time
+    (70000) takes pole (slot 0 at the exact pole position); a mid time (82000,
+    between the AI times) lands mid-grid (slot 2); no time (null) starts last;
+    the physical layout is provably unchanged (slot -> position identical before
+    and after a re-sort, `layoutUnchangedAfterResort: true`); a full 7-car field
+    launches from the qualifying grid with min seat distance 5.99m (spacing
+    intact), 0 falls, no phantom laps, and a race runs to completion with a
+    proper finish order. `svelte-check` clean, 0 errors, no new warnings.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

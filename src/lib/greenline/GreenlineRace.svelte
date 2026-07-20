@@ -241,7 +241,8 @@
 		track: trackOverride,
 		onQuit,
 		onFeedback,
-		inputBlocked = false
+		inputBlocked = false,
+		playerQualifyingMs = null
 	}: {
 		/**
 		 * The build to race. When omitted the component owns its loadout locally
@@ -287,6 +288,18 @@
 		 * convention as GreenlineTitle's `enableShortcut`.
 		 */
 		inputBlocked?: boolean;
+		/**
+		 * Qualifying-based grid placement (Phase 9b): the PLAYER's best recorded
+		 * lap time on this track (ms), read from the real leaderboard by the portal
+		 * route. `null` = no time set on this track yet, which starts the player at
+		 * the BACK of the grid (real motorsport convention: no time, start last).
+		 * The player is sorted against the AI field by this time — a slow time can
+		 * genuinely put the player off pole. AI qualifying times are simulated
+		 * (see the grid-assignment block). Read ONCE at init like the other props
+		 * (a new race remounts the component with the fresh time); the dev harness
+		 * omits it and can inject one via `__greenline.setPlayerQualifying`.
+		 */
+		playerQualifyingMs?: number | null;
 	} = $props();
 
 	const DEFAULTS = {
@@ -2549,6 +2562,11 @@
 					raceStartMs: number | null;
 					finishAtMs: number | null;
 					spawn: RigSpawn;
+					/** Qualifying lap time (ms) that decides this rig's grid slot
+					 * (Phase 9b): the player's real best recorded lap on the track, or
+					 * a simulated time for AI. NO_QUAL_MS (a large sentinel) means "no
+					 * time set" and sorts to the back of the grid. */
+					qualMs: number;
 				}
 
 				// Ram detection: chassis-chassis contacts queue here from cannon's
@@ -2578,14 +2596,17 @@
 						}
 					}
 				}
-				// Starting grid: slot 0 is the player, alone on the line. The AI fill
-				// staggered rows of two behind it, alternating right/left of the
-				// centerline. Rows step back GRID_ROW_STEP_PTS centerline points (~8m,
-				// well over a 3.8m car length) and the two columns sit 2 x GRID_LATERAL
-				// = 6m apart (car half-width 0.85m), so a normal launch never puts
-				// neighbouring slots in contact. The countdown + ram grace are the
-				// primary guards; this spacing is the structural one, so cars are not
-				// already touching the instant controls unlock.
+				// Starting grid SLOTS (Phase 9b): `slotPose(k)` is the PHYSICAL layout
+				// of grid position k, and is deliberately UNCHANGED — slot 0 is pole
+				// (alone on the line), the rest fill staggered rows of two behind it,
+				// alternating right/left of the centerline. Rows step back
+				// GRID_ROW_STEP_PTS centerline points (~8m, well over a 3.8m car
+				// length) and the two columns sit 2 x GRID_LATERAL = 6m apart (car
+				// half-width 0.85m), so a normal launch never puts neighbouring slots
+				// in contact. What CHANGED is only WHO gets which slot: it is no
+				// longer hardcoded "player = slot 0", it is decided by qualifying time
+				// in assignGrid() below (fastest = pole). The countdown + ram grace
+				// are the primary launch guards; this spacing is the structural one.
 				const GRID_LATERAL = 3.0;
 				const GRID_ROW_STEP_PTS = 2;
 				const slotPose = (k: number): RigSpawn => {
@@ -2606,6 +2627,59 @@
 						headingDeg: (Math.atan2(-tz, tx) * 180) / Math.PI,
 						warmIdx: idx
 					};
+				};
+
+				// ---- Qualifying grid placement (Phase 9b) ----
+				// A rig's grid slot is decided by a qualifying lap time: the player's
+				// REAL best recorded lap on this track (the `playerQualifyingMs` prop,
+				// read from the leaderboard by the portal route), and a SIMULATED time
+				// for each AI (they have no persistent history). Sorted ascending,
+				// fastest takes pole; a rig with no time sorts to the back.
+				//
+				// `NO_QUAL_MS` is the "no time set" sentinel — large and finite so the
+				// numeric sort puts it dead last with no NaN/Infinity edge cases.
+				const NO_QUAL_MS = Number.MAX_SAFE_INTEGER;
+
+				// Lap length of the main line, summed from the centerline (closed
+				// loop). Used only to scale the AI's simulated qualifying baseline so a
+				// long circuit gets long times and a short one short — the physical
+				// grid layout does NOT depend on it.
+				let lapLenM = 0;
+				for (let i = 0; i < nC; i++) {
+					const a = rt.center[i];
+					const b = rt.center[(i + 1) % nC];
+					lapLenM += Math.hypot(b.x - a.x, b.z - a.z);
+				}
+
+				// AI simulated qualifying baseline = lap length / an ASSUMED competent
+				// best-lap average speed. This is deliberately NOT derived from the
+				// AI's CURRENT on-track pace: at the time of writing AI top speed is
+				// still the mismatched ~17 m/s that Phase 9d will retune, so a
+				// measured baseline would bake in a number about to change. 30 m/s is a
+				// plausible best-lap average for a ~65 m/s-terminal car with corners
+				// (Terminal Nine ~2498m -> ~83s, Proving Ground ~794m -> ~26s).
+				//
+				// FLAG (revisit at 9d): once AI's real top speed is fixed, sanity-check
+				// GRID_AI_LAP_SPEED against AI's ACTUAL measured lap times and align it
+				// so the simulated grid reflects what the field can really do.
+				const GRID_AI_LAP_SPEED = 30;
+				// Per-archetype tendency so the field is not a flat line: velocity
+				// quickest, armor slowest. Multiplies the baseline lap time.
+				const AI_QUAL_ARCH_MUL: Record<ArchetypeId, number> = {
+					velocity: 0.96,
+					handling: 0.99,
+					systems: 1.01,
+					armor: 1.04
+				};
+				// A plausible simulated qualifying time for one AI: the length-scaled
+				// baseline, its archetype tendency, and +/-4% per-car variance so no
+				// two AIs of a kind tie and the grid has spread. Generated once per AI
+				// at build time (stored on the rig) so the grid is stable across a
+				// round rather than reshuffling every reset.
+				const simulatedAiQualMs = (arch: ArchetypeId): number => {
+					const baseMs = (lapLenM / GRID_AI_LAP_SPEED) * 1000;
+					const jitter = 0.96 + Math.random() * 0.08; // 0.96 .. 1.04
+					return baseMs * (AI_QUAL_ARCH_MUL[arch] ?? 1) * jitter;
 				};
 
 				// ---- GREENLINE bodywork: the SHARED rig-visual builder ----
@@ -2856,7 +2930,8 @@
 						finishPos: 0,
 						raceStartMs: null,
 						finishAtMs: null,
-						spawn
+						spawn,
+						qualMs: NO_QUAL_MS
 					};
 					buildRigVisual(rig, defaultLoadout(arch));
 					rigByBodyId.set(body.id, rig);
@@ -3118,6 +3193,14 @@
 				const player = makeRig('player', 'YOU', playerLoadout.archetype, slotPose(0));
 				applyLoadoutToRig(player, playerLoadout);
 				applyPlayerLoadout = () => applyLoadoutToRig(player, playerLoadout);
+				// The player's qualifying time is their real best recorded lap on this
+				// track (prop from the leaderboard); null / non-positive = no time set,
+				// which sorts to the back of the grid (NO_QUAL_MS).
+				const playerQualFromProp = (): number =>
+					typeof playerQualifyingMs === 'number' && playerQualifyingMs > 0
+						? playerQualifyingMs
+						: NO_QUAL_MS;
+				player.qualMs = playerQualFromProp();
 				// AIs cycle the four archetypes (stock parts) so every round has
 				// build variety to race and fight against: AI-1 armor, AI-2
 				// velocity, AI-3 handling, AI-4 systems, then repeat. Identity is
@@ -3190,12 +3273,76 @@
 						const rig = makeRig(`ai-${k}`, `AI-${k}`, arch, slotPose(k));
 						rig.ai = new AiDriver(rt);
 						rig.bar = makeBar();
+						// A simulated qualifying time, fixed for this rig's lifetime so the
+						// grid is stable across resets (regenerated only when the field is
+						// rebuilt, e.g. the AI count changes).
+						rig.qualMs = simulatedAiQualMs(arch);
 						applyLoadoutToRig(rig, aiLoadoutFor(k));
 						ais.push(rig);
 						aiPoses.push({ x: rig.spawn.x, z: rig.spawn.z, hx: 1, hz: 0, out: false });
 					}
 				};
 				buildAis(num(tuning.aiCount, DEFAULTS.aiCount));
+
+				// Assign grid slots by qualifying time: sort player + AI ascending
+				// (fastest = pole = slot 0), then map each to slotPose(slot). Only the
+				// slot ASSIGNMENT changes here; slotPose() (the physical layout) is
+				// untouched. Re-seats each rig's body to its assigned pose, so it is
+				// self-contained enough to run at init and at the top of a reset.
+				// The field sorted by qualifying time ascending (fastest first). A
+				// no-time rig (NO_QUAL_MS) sorts to the back; an exact tie breaks
+				// deterministically (player first, then by id) so the grid never
+				// depends on Array.sort stability. Shared by assignment + the debug
+				// snapshot so the two can never disagree.
+				const gridOrder = (): Rig[] =>
+					[...rigsAll()].sort((a, b) => {
+						const d = a.qualMs - b.qualMs;
+						if (d !== 0) return d;
+						if (a === player) return -1;
+						if (b === player) return 1;
+						return a.id < b.id ? -1 : 1;
+					});
+				const assignGrid = () => {
+					gridOrder().forEach((r, slot) => {
+						r.spawn = slotPose(slot);
+						r.body.position.set(
+							r.spawn.x,
+							seatY(r.spawn.x, r.spawn.z, r.spawn.warmIdx),
+							r.spawn.z
+						);
+						r.body.quaternion.copy(quatFor(r.spawn.headingDeg));
+						r.body.velocity.setZero();
+						r.body.angularVelocity.setZero();
+						r.warmIdx = r.spawn.warmIdx;
+						r.warmPath = 0;
+						// Sync the last-position trackers to the new seat so the grid
+						// teleport never registers a phantom gate crossing.
+						r.prevX = r.spawn.x;
+						r.prevZ = r.spawn.z;
+						const ai = ais.indexOf(r);
+						if (ai >= 0 && aiPoses[ai]) {
+							aiPoses[ai].x = r.spawn.x;
+							aiPoses[ai].z = r.spawn.z;
+						}
+					});
+					pose.x = player.spawn.x;
+					pose.z = player.spawn.z;
+				};
+				assignGrid();
+
+				// Debug snapshot of the current grid: recompute the slot order (same
+				// comparator as assignGrid — qualMs is stable, so the order matches the
+				// last assignment) and report each rig's qual time and seated pose.
+				const gridSnapshot = () =>
+					gridOrder().map((r, slot) => ({
+						id: r.id,
+						archetype: r.archetype,
+						qualMs: r.qualMs === NO_QUAL_MS ? null : Math.round(r.qualMs),
+						slot,
+						x: +r.spawn.x.toFixed(2),
+						z: +r.spawn.z.toFixed(2),
+						warmIdx: r.spawn.warmIdx
+					}));
 
 				// ================= FEEDBACK TOOLKIT (visual only) =================
 				// Everything here is presentation: rings, sparks, smoke, screen
@@ -4831,6 +4978,12 @@
 				resetRound = () => {
 					const wantAis = Math.max(1, Math.min(MAX_AI, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
 					if (wantAis !== ais.length) buildAis(wantAis);
+					// Re-derive the qualifying grid before seating: a changed AI count
+					// regenerated the AI times, and the player's time is re-read from
+					// the prop. assignGrid updates each rig's `.spawn`, which the seat
+					// loop below then applies (idempotent — assignGrid also seats).
+					player.qualMs = playerQualFromProp();
+					assignGrid();
 					for (const r of rigsAll()) {
 						r.combat.reset(poolsForBuild(r.archetype, r.buildStats));
 						restoreRigCondition(r);
@@ -5480,6 +5633,20 @@
 							return tuning.aiCount;
 						},
 						maxAi: () => MAX_AI,
+						// ---- Qualifying grid (Phase 9b) ----
+						// Inject a player qualifying time the dev harness has no
+						// leaderboard to supply, then re-derive the grid. `null` = no
+						// time (back of grid). Returns the resulting grid order.
+						setPlayerQualifying: (ms: number | null) => {
+							player.qualMs = typeof ms === 'number' && ms > 0 ? ms : NO_QUAL_MS;
+							assignGrid();
+							return gridSnapshot();
+						},
+						// The grid as assigned: one row per rig, ordered by slot (0 =
+						// pole), with each rig's qualifying time and seated position, so a
+						// test can assert both the ORDERING (by qual) and that the
+						// physical LAYOUT (positions per slot) is unchanged.
+						gridInfo: () => gridSnapshot(),
 						// Per-round weapon / flip / fall / zone counters (reset by
 						// resetRound).
 						getTelemetry: () => ({

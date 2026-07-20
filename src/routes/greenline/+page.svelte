@@ -135,6 +135,30 @@
 	let raceTrackId = $state(trackSelection.id);
 	const raceTrack = $derived(loadTrack(raceTrackId));
 
+	// Qualifying grid placement (Phase 9b): the player's best recorded lap on the
+	// selected track, read from the REAL leaderboard (the same board the results
+	// screen shows). Loaded in the background whenever the track changes so it is
+	// ready by race time; a race captures it into raceQualifyingMs. null = no time
+	// set on this track yet, which starts the player at the back of the grid.
+	let playerQualifyingMs = $state<number | null>(null);
+	let raceQualifyingMs = $state<number | null>(null);
+	$effect(() => {
+		const tid = trackSelection.id; // re-run when the selected track changes
+		let cancelled = false;
+		void (async () => {
+			// Best-per-player board; find the caller's own row for their best lap.
+			// (limit 100 is plenty for GREENLINE's board size; a player outside the
+			// top 100 reads as no-time, i.e. back of grid — acceptable for now.)
+			const rows = await loadLeaderboard(data.supabase, tid, { mode: 'race', limit: 100 });
+			if (cancelled) return;
+			const mine = rows.find((e) => e.user_id === data.userId);
+			playerQualifyingMs = typeof mine?.best_lap_ms === 'number' ? mine.best_lap_ms : null;
+		})();
+		return () => {
+			cancelled = true;
+		};
+	});
+
 	// Custom decal (Phase 6c). `undefined` until loaded (or when 0051 is
 	// unapplied — the garage hides the control), null = none uploaded. The
 	// image itself resolves through rig-visual's decal registry (a signed URL
@@ -289,6 +313,9 @@
 	function startRace() {
 		raceCreative = creativeSettings.enabled;
 		raceTrackId = trackSelection.id;
+		// Freeze the qualifying time for THIS run's grid, same reason as the track
+		// and creative flag: the selection could move before the race mounts.
+		raceQualifyingMs = playerQualifyingMs;
 		screen = 'race';
 	}
 	// Weapon-slot sanitize on every edit: the garage blocks invalid weapon
@@ -475,6 +502,7 @@
 	<GreenlineRace
 		{loadout}
 		track={raceTrack}
+		playerQualifyingMs={raceQualifyingMs}
 		onFinish={handleFinish}
 		onQuit={() => (screen = 'garage')}
 		onFeedback={() => openFeedback('race')}
