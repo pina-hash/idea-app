@@ -48,6 +48,14 @@
 	const ribbonPath = $derived(
 		loopPath(runtime.leftEdge) + ' ' + loopPath([...runtime.rightEdge].reverse())
 	);
+	// Branch spurs (Phase 8b) are drawn as their own filled outline: a driver
+	// glancing at the map has to be able to see that a second route exists and
+	// where it rejoins. Empty on tracks with no branches.
+	const branchPaths = $derived(
+		runtime.paths
+			.slice(1)
+			.map((p) => loopPath([...p.leftEdge, ...[...p.rightEdge].reverse()]))
+	);
 
 	const gateLine = (g: (typeof runtime.checkpoints)[number]) => ({
 		x1: mx(g.ax),
@@ -86,6 +94,15 @@
 >
 	<g transform="translate(105, 105) rotate({-rotAngle - 90}) translate({-playerCx}, {-playerCy})">
 		<path d={ribbonPath} fill="rgba(147,163,176,0.10)" fill-rule="evenodd" stroke="none" />
+		{#each branchPaths as bp (bp)}
+			<path
+				d={bp}
+				fill="rgba(147,163,176,0.10)"
+				stroke="rgba(147,163,176,0.34)"
+				stroke-width="0.7"
+				stroke-dasharray="3 2"
+			/>
+		{/each}
 		{#each boundaryPaths as d (d)}
 			<path {d} fill="none" stroke="rgba(147,163,176,0.4)" stroke-width="1" />
 		{/each}

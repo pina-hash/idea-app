@@ -40,6 +40,21 @@ export interface TrackGate {
 	z: number;
 	headingDeg: number;
 	halfWidth: number;
+	/**
+	 * Optional alternative-gate group (schema v2, Phase 8b). Checkpoints
+	 * sharing a group id are ALTERNATIVES for the same sequence position: a
+	 * lap credits whichever one the driver crosses, and the others become
+	 * uncreditable for that lap. This is what makes a route branch lawful —
+	 * the main line and the shortcut each carry their own gate, and either
+	 * satisfies the step.
+	 *
+	 * Group members must be CONTIGUOUS in the `checkpoints` array; the runtime
+	 * derives sequence steps by walking the array and starting a new step
+	 * whenever the group id changes (an ungrouped gate is always its own
+	 * step). Ungrouped is the default, so a track with no groups gets one step
+	 * per checkpoint, exactly the pre-8b ordering.
+	 */
+	group?: string;
 }
 
 /**
@@ -81,6 +96,42 @@ export interface RibbonSurface {
 	/** Whether the centerline closes back on itself (a circuit). */
 	closed: boolean;
 	centerline: TrackVec2[];
+	/**
+	 * Optional alternate routes (schema v2, Phase 8b): OPEN ribbon spurs that
+	 * diverge from the main centerline and rejoin it later. Each is a REAL
+	 * drivable surface — its own swept mesh, its own physics collision, and
+	 * `surfaceState` counts a vehicle on it as on-ribbon — not a painted lane
+	 * or a scoring trick.
+	 *
+	 * Additive: a surface with no `branches` builds exactly one path and every
+	 * consumer sees the pre-8b single-ribbon runtime unchanged.
+	 *
+	 * Keeping the two routes APART is boundary work, not surface work: the
+	 * data says where each path is, and a boundary island between them (the
+	 * existing inner-loop convention) is what stops a driver cutting across
+	 * the gap.
+	 */
+	branches?: RibbonBranch[];
+}
+
+/**
+ * An alternate route spur. Always OPEN (it starts on the main line and ends
+ * back on it); `joinStart`/`joinEnd` are the main-centerline point indices it
+ * leaves from and returns to, which is what lets the runtime splice a complete
+ * lap route for the AI to follow. Geometry fields mirror `RibbonSurface`.
+ */
+export interface RibbonBranch {
+	id: string;
+	name?: string;
+	width: number;
+	widths?: number[];
+	elevations?: number[];
+	banking?: number[];
+	centerline: TrackVec2[];
+	/** Main-centerline index this spur diverges from. */
+	joinStart: number;
+	/** Main-centerline index this spur rejoins at (> joinStart). */
+	joinEnd: number;
 }
 export type TrackSurface = RibbonSurface;
 
@@ -256,13 +307,61 @@ export function parseTrack(raw: unknown): TrackData {
 		if (t.surface.banking.some((b) => !Number.isFinite(b) || Math.abs(b) > 75))
 			fail('every ribbon banking angle must be finite and within +/-75 degrees');
 	}
+	if (t.surface.branches !== undefined) {
+		if (!Array.isArray(t.surface.branches)) fail('surface.branches must be an array');
+		const mainN = t.surface.centerline.length;
+		t.surface.branches.forEach((br, i) => {
+			const tag = `surface.branches[${i}] (${br?.id ?? '?'})`;
+			if (typeof br !== 'object' || br === null) fail(`${tag} malformed`);
+			if (!br.id || typeof br.id !== 'string') fail(`${tag} missing id`);
+			if (!Array.isArray(br.centerline) || br.centerline.length < 2)
+				fail(`${tag} centerline needs at least 2 points`);
+			if (!(br.width > 0)) fail(`${tag} width must be positive`);
+			for (const [key, arr] of [
+				['widths', br.widths],
+				['elevations', br.elevations],
+				['banking', br.banking]
+			] as const) {
+				if (arr === undefined) continue;
+				if (!Array.isArray(arr) || arr.length !== br.centerline.length)
+					fail(`${tag} ${key} must have one entry per branch centerline point`);
+				if (arr.some((v) => !Number.isFinite(v))) fail(`${tag} ${key} must all be finite`);
+			}
+			if (br.widths?.some((w) => !(w > 0))) fail(`${tag} every width must be positive`);
+			if (br.banking?.some((b) => Math.abs(b) > 75))
+				fail(`${tag} banking angles must be within +/-75 degrees`);
+			// Join indices must address the main centerline, in order, or the
+			// spliced AI route would be nonsense.
+			if (!Number.isInteger(br.joinStart) || br.joinStart < 0 || br.joinStart >= mainN)
+				fail(`${tag} joinStart ${String(br.joinStart)} is not a main centerline index`);
+			if (!Number.isInteger(br.joinEnd) || br.joinEnd <= br.joinStart || br.joinEnd >= mainN)
+				fail(`${tag} joinEnd ${String(br.joinEnd)} must be a main index after joinStart`);
+		});
+	}
 	const checkGate = (g: TrackGate | undefined, label: string) => {
 		if (!g || typeof g.x !== 'number' || typeof g.headingDeg !== 'number' || !(g.halfWidth > 0))
 			fail(`malformed gate: ${label}`);
+		if (g?.group !== undefined && (typeof g.group !== 'string' || !g.group))
+			fail(`gate ${label} has a malformed group`);
 	};
 	checkGate(t.startFinish, 'startFinish');
+	if (t.startFinish?.group !== undefined) fail('startFinish cannot belong to a checkpoint group');
 	if (!Array.isArray(t.checkpoints) || t.checkpoints.length < 1) fail('no checkpoints');
 	t.checkpoints.forEach((g, i) => checkGate(g, `checkpoints[${i}] (${g?.id ?? '?'})`));
+	// Groups define one sequence step, so their members must be contiguous:
+	// a group that reappears after a gap would silently become two steps.
+	const seenGroups = new Set<string>();
+	let runGroup: string | undefined;
+	t.checkpoints.forEach((g, i) => {
+		const grp = g?.group;
+		if (grp === runGroup) return;
+		if (grp !== undefined) {
+			if (seenGroups.has(grp))
+				fail(`checkpoints[${i}] reopens group "${grp}"; group members must be contiguous`);
+			seenGroups.add(grp);
+		}
+		runGroup = grp;
+	});
 	if (!Array.isArray(t.boundaries)) fail('missing boundaries');
 	t.boundaries.forEach((b, i) => {
 		if (!Array.isArray(b?.points) || b.points.length < 2) fail(`boundaries[${i}] too short`);

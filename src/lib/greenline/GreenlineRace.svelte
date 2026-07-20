@@ -1785,59 +1785,79 @@
 
 				// ---- Track visuals (from the JSON data, all visual-only) ----
 				const nC = rt.center.length;
-				{
+				// One swept surface per path: the main line, plus any branch spurs
+				// (Phase 8b). A branch is REAL road, so it gets the same asphalt,
+				// wear ramps, and edge lines rather than a painted hint. Tracks
+				// with no branches run this loop exactly once, over the main
+				// centerline, which is the pre-8b behavior.
+				for (const path of rt.paths) {
+					const nP = path.center.length;
+					const closed = path.closed;
 					// Cumulative distance along the centerline drives the ribbon's
-					// texture tiling and the braking-zone wear ramps. The last
-					// cross-section is duplicated (with the end-of-loop u) so the
-					// closing quad doesn't smear the whole texture backwards.
+					// texture tiling and the braking-zone wear ramps. On a closed
+					// path the last cross-section is duplicated (with the
+					// end-of-loop u) so the closing quad doesn't smear the whole
+					// texture backwards; an open spur simply ends.
 					const cum: number[] = [0];
-					for (let i = 1; i < nC; i++)
+					for (let i = 1; i < nP; i++)
 						cum[i] =
 							cum[i - 1] +
-							Math.hypot(rt.center[i].x - rt.center[i - 1].x, rt.center[i].z - rt.center[i - 1].z);
-					const total =
-						cum[nC - 1] +
-						Math.hypot(rt.center[0].x - rt.center[nC - 1].x, rt.center[0].z - rt.center[nC - 1].z);
+							Math.hypot(
+								path.center[i].x - path.center[i - 1].x,
+								path.center[i].z - path.center[i - 1].z
+							);
+					const total = closed
+						? cum[nP - 1] +
+							Math.hypot(
+								path.center[0].x - path.center[nP - 1].x,
+								path.center[0].z - path.center[nP - 1].z
+							)
+						: cum[nP - 1];
 					// Rubbered-in braking zones: the surface darkens on the approach
 					// to every gate and briefly past it. Purely visual.
 					const gates = [...rt.checkpoints, rt.startFinish];
-					const gateS = gates.map((g) => {
+					// Only gates that actually sit on THIS path get a braking-wear
+					// ramp on it, so a branch does not inherit rubber from a gate
+					// 200 m away on the main line.
+					const gateS: number[] = [];
+					for (const g of gates) {
 						let best = 0;
 						let bd = Infinity;
-						for (let i = 0; i < nC; i++) {
+						for (let i = 0; i < nP; i++) {
 							const d =
-								(rt.center[i].x - g.gate.x) ** 2 + (rt.center[i].z - g.gate.z) ** 2;
+								(path.center[i].x - g.gate.x) ** 2 + (path.center[i].z - g.gate.z) ** 2;
 							if (d < bd) {
 								bd = d;
 								best = i;
 							}
 						}
-						return cum[best];
-					});
+						if (bd <= (path.maxHalfWidth + 12) ** 2) gateS.push(cum[best]);
+					}
 					const wearAt = (s: number) => {
 						let w = 0;
 						for (const gs of gateS) {
-							const d = (((gs - s) % total) + total) % total;
+							const d = closed ? (((gs - s) % total) + total) % total : Math.max(0, gs - s);
 							if (d < 30) w = Math.max(w, 1 - d / 30);
-							else if (total - d < 9) w = Math.max(w, (1 - (total - d) / 9) * 0.5);
+							else if (closed && total - d < 9) w = Math.max(w, (1 - (total - d) / 9) * 0.5);
 						}
 						return w;
 					};
-					const verts = new Float32Array((nC + 1) * 2 * 3);
-					const uvs = new Float32Array((nC + 1) * 2 * 2);
-					const cols = new Float32Array((nC + 1) * 2 * 3);
+					const rings = closed ? nP + 1 : nP;
+					const verts = new Float32Array(rings * 2 * 3);
+					const uvs = new Float32Array(rings * 2 * 2);
+					const cols = new Float32Array(rings * 2 * 3);
 					const tile = 13.5;
-					for (let i = 0; i <= nC; i++) {
-						const j = i % nC;
-						const s = i === nC ? total : cum[i];
+					for (let i = 0; i < rings; i++) {
+						const j = i % nP;
+						const s = i === nP ? total : cum[i];
 						// The 3D sweep (elevation + banking; flat tracks sweep at y 0)
 						// — the same geometry the physics trimesh is built from.
 						verts.set(
-							[rt.leftEdge3[j].x, rt.leftEdge3[j].y + 0.03, rt.leftEdge3[j].z],
+							[path.leftEdge3[j].x, path.leftEdge3[j].y + 0.03, path.leftEdge3[j].z],
 							i * 6
 						);
 						verts.set(
-							[rt.rightEdge3[j].x, rt.rightEdge3[j].y + 0.03, rt.rightEdge3[j].z],
+							[path.rightEdge3[j].x, path.rightEdge3[j].y + 0.03, path.rightEdge3[j].z],
 							i * 6 + 3
 						);
 						uvs.set([s / tile, 0], i * 4);
@@ -1847,7 +1867,7 @@
 						cols.set([tone, tone, tone], i * 6 + 3);
 					}
 					const idx: number[] = [];
-					for (let i = 0; i < nC; i++) {
+					for (let i = 0; i < rings - 1; i++) {
 						// Wind the quads so the right-hand-rule normals point UP: the
 						// old order ((L,R,L'),(L',R,R')) faced DOWN, which FrontSide
 						// culling silently hid — invisible against the apron plane on
@@ -1915,8 +1935,10 @@
 				// Painted edge lines: with a variable-width ribbon the corridor's
 				// breathing (wide pad, narrow yard) must read at speed. Cool worn
 				// white, per the steel-not-green night palette.
-				for (const edge of [rt.leftEdge3, rt.rightEdge3]) {
-					const pts = [...edge, edge[0]].map((p) => new THREE.Vector3(p.x, p.y + 0.06, p.z));
+				for (const path of rt.paths)
+				for (const edge of [path.leftEdge3, path.rightEdge3]) {
+					const loop = path.closed ? [...edge, edge[0]] : edge;
+					const pts = loop.map((p) => new THREE.Vector3(p.x, p.y + 0.06, p.z));
 					scene.add(
 						new THREE.Line(
 							new THREE.BufferGeometry().setFromPoints(pts),
@@ -2144,22 +2166,31 @@
 				// recover. Flat tracks build nothing here: plane-only physics,
 				// identical to pre-8a.
 				if (rt.hasRelief) {
-					const tv: number[] = [];
-					for (let i = 0; i < rt.center.length; i++) {
-						const L = rt.leftEdge3[i];
-						const R = rt.rightEdge3[i];
-						tv.push(L.x, L.y, L.z, R.x, R.y, R.z);
+					// One collision mesh per path (Phase 8b): a branch spur is
+					// driven on, so it needs real geometry under the wheels, not
+					// just a visual. Single-path tracks build exactly one body, as
+					// before.
+					for (const path of rt.paths) {
+						const nT = path.center.length;
+						const tv: number[] = [];
+						for (let i = 0; i < nT; i++) {
+							const L = path.leftEdge3[i];
+							const R = path.rightEdge3[i];
+							tv.push(L.x, L.y, L.z, R.x, R.y, R.z);
+						}
+						const ti: number[] = [];
+						// An open spur has no closing quad back to its first ring.
+						const quads = path.closed ? nT : nT - 1;
+						for (let i = 0; i < quads; i++) {
+							const j = (i + 1) % nT;
+							// (L_i, L_j, R_i) + (R_i, L_j, R_j): right-hand normals up.
+							ti.push(i * 2, j * 2, i * 2 + 1, i * 2 + 1, j * 2, j * 2 + 1);
+						}
+						const ribbonBody = new CANNON.Body({ mass: 0, shape: new CANNON.Trimesh(tv, ti) });
+						world.addBody(ribbonBody);
+						// Same static-body stale-AABB raycast trap as the plane above.
+						ribbonBody.updateAABB();
 					}
-					const ti: number[] = [];
-					for (let i = 0; i < rt.center.length; i++) {
-						const j = (i + 1) % rt.center.length;
-						// (L_i, L_j, R_i) + (R_i, L_j, R_j): right-hand normals up.
-						ti.push(i * 2, j * 2, i * 2 + 1, i * 2 + 1, j * 2, j * 2 + 1);
-					}
-					const ribbonBody = new CANNON.Body({ mass: 0, shape: new CANNON.Trimesh(tv, ti) });
-					world.addBody(ribbonBody);
-					// Same static-body stale-AABB raycast trap as the plane above.
-					ribbonBody.updateAABB();
 				}
 
 				// ---- Vehicle rigs: ONE pipeline for every vehicle ----
@@ -2296,6 +2327,13 @@
 					zoneInside: boolean[];
 					zoneRearmMs: number[];
 					warmIdx: number;
+					/**
+					 * Which ribbon PATH `warmIdx` indexes (0 = main line, >0 = a
+					 * branch spur). Carried per vehicle so the warm-started
+					 * nearest-point search resumes on the path the car is actually
+					 * on; single-path tracks leave this 0 forever.
+					 */
+					warmPath: number;
 					lastOnRibbon: boolean;
 					steerCurrent: number;
 					hx: number;
@@ -2605,6 +2643,7 @@
 						zoneInside: rt.zones.map(() => false),
 						zoneRearmMs: rt.zones.map(() => 0),
 						warmIdx: spawn.warmIdx,
+						warmPath: 0,
 						lastOnRibbon: true,
 						steerCurrent: 0,
 						hx: 1,
@@ -4539,6 +4578,7 @@
 						if (r.dentAccum.length) r.dentAccum.fill(0);
 						applyDentStage(r, 0);
 						r.warmIdx = r.spawn.warmIdx;
+						r.warmPath = 0;
 						r.lastOnRibbon = true;
 						r.prevX = r.spawn.x;
 						r.prevZ = r.spawn.z;
@@ -5380,8 +5420,15 @@
 
 						// Track surface + soft boundaries (the swappable block): extra
 						// drag off the ribbon, capped spring + damper past a wall.
-						const surf = surfaceState(rt, body.position.x, body.position.z, rig.warmIdx);
+						const surf = surfaceState(
+							rt,
+							body.position.x,
+							body.position.z,
+							rig.warmIdx,
+							rig.warmPath
+						);
 						rig.warmIdx = surf.warmIndex;
+						rig.warmPath = surf.path;
 						rig.lastOnRibbon = surf.state.onRibbon;
 						if (rig === player) hud.offTrack = !surf.state.onRibbon;
 						if (!surf.state.onRibbon && rawSpeed > 0.1) {
@@ -5464,7 +5511,7 @@
 						// drop threshold under the local surface recovers, including
 						// the ground strip BESIDE an elevated span.
 						if (rt.hasRelief && !rig.combat.eliminated) {
-							const surfY = surfaceYAt(rt, body.position.x, body.position.z, rig.warmIdx);
+							const surfY = surfaceYAt(rt, body.position.x, body.position.z, rig.warmIdx, rig.warmPath);
 							if (
 								surfY - body.position.y >
 								num(tuning.fallRecoverDrop, DEFAULTS.fallRecoverDrop)
@@ -6240,6 +6287,16 @@
 						rig.prevZ = rz;
 						for (const ev of events) {
 							if (ev.type === 'timing-started') rig.raceStartMs = ev.atMs;
+							// Branch decision, once per lap (Phase 8b): an AI picks the
+							// route it will drive as it crosses the line, so a field
+							// with mixed aggression splits across the main line and the
+							// shortcut. No-op on tracks with a single route.
+							if (
+								rig.ai &&
+								(ev.type === 'lap' || ev.type === 'timing-started') &&
+								rt.routes.length > 1
+							)
+								rig.ai.chooseRoute(num(tuning.aiAggression, DEFAULTS.aiAggression));
 							if (rig === player) {
 								if (ev.type === 'timing-started') {
 									playerRaceStartMs = ev.atMs;

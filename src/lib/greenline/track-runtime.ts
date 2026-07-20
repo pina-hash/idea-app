@@ -71,10 +71,59 @@ export interface TrackVec3 {
 	z: number;
 }
 
+/**
+ * One swept ribbon path. A track always has at least one (`paths[0]`, the main
+ * centerline); schema-v2 `surface.branches` add more. Every field mirrors what
+ * the pre-8b runtime exposed at the top level, because that is exactly what
+ * `paths[0]` IS — the top-level fields are aliases of it, so single-path tracks
+ * are unchanged in both data and behavior.
+ */
+export interface RibbonRuntime {
+	id: string;
+	/** False for branch spurs: no wraparound at the ends. */
+	closed: boolean;
+	center: TrackVec2[];
+	halfWidths: number[];
+	elevations: number[];
+	bankingRad: number[];
+	leftEdge: TrackVec2[];
+	rightEdge: TrackVec2[];
+	leftEdge3: TrackVec3[];
+	rightEdge3: TrackVec3[];
+	/** Main-centerline indices this spur leaves and rejoins (branches only). */
+	joinStart?: number;
+	joinEnd?: number;
+	/** Path extent, used to cull far-away paths from the nearest-path search. */
+	bbox: { minX: number; maxX: number; minZ: number; maxZ: number };
+	/** Largest half width on this path (the bbox cull margin). */
+	maxHalfWidth: number;
+}
+
 export interface TrackRuntime {
 	data: TrackData;
 	startFinish: GateRuntime;
 	checkpoints: GateRuntime[];
+	/**
+	 * Sequence step each checkpoint satisfies, parallel to `checkpoints`.
+	 * Ungrouped gates get their own step, so a track with no groups reads
+	 * `[0, 1, 2, ...]` and every comparison below is the pre-8b index match.
+	 */
+	checkpointSteps: number[];
+	/** Number of distinct steps a lap must clear (<= checkpoints.length). */
+	stepCount: number;
+	/**
+	 * Every drivable path: `[0]` is the main centerline, the rest are branch
+	 * spurs. Surface queries consider all of them.
+	 */
+	paths: RibbonRuntime[];
+	/**
+	 * Complete lap routes as closed point lists, one per branch combination:
+	 * `[0]` is the pure main line, and each later entry splices one branch in
+	 * between its join indices. This is what the AI follows — a route is just
+	 * a polyline, so branch-following needs no special path-handoff logic in
+	 * the driver. Single-path tracks have exactly one route (the centerline).
+	 */
+	routes: TrackVec2[][];
 	/** Ribbon centerline (same points as the data, kept for hot loops). */
 	center: TrackVec2[];
 	/** Maximum half width across the lap (margins, spawn placement). */
@@ -108,19 +157,33 @@ export interface TrackRuntime {
 	rightEdge3: TrackVec3[];
 }
 
-export function buildRuntime(data: TrackData): TrackRuntime {
-	const center = data.surface.centerline;
+/**
+ * Sweep one ribbon path into its 3D edges. Shared by the main centerline and
+ * every branch spur, so both get identical banking/elevation treatment. An
+ * OPEN path (a branch) uses one-sided differences at its ends instead of
+ * wrapping, which would otherwise fold the first and last cross-sections
+ * across the whole track.
+ */
+function buildPath(
+	id: string,
+	closed: boolean,
+	center: TrackVec2[],
+	width: number,
+	widths: number[] | undefined,
+	elevs: number[] | undefined,
+	banks: number[] | undefined
+): RibbonRuntime {
 	const n = center.length;
-	const halfWidths = center.map((_, i) => (data.surface.widths?.[i] ?? data.surface.width) / 2);
-	const halfWidth = Math.max(...halfWidths);
-	const elevations = center.map((_, i) => data.surface.elevations?.[i] ?? 0);
-	const bankingRad = center.map((_, i) => ((data.surface.banking?.[i] ?? 0) * Math.PI) / 180);
-	const hasRelief = elevations.some((e) => e !== 0) || bankingRad.some((b) => b !== 0);
+	const halfWidths = center.map((_, i) => (widths?.[i] ?? width) / 2);
+	const elevations = center.map((_, i) => elevs?.[i] ?? 0);
+	const bankingRad = center.map((_, i) => ((banks?.[i] ?? 0) * Math.PI) / 180);
 	const leftEdge3: TrackVec3[] = [];
 	const rightEdge3: TrackVec3[] = [];
 	for (let i = 0; i < n; i++) {
-		const p0 = center[(i - 1 + n) % n];
-		const p2 = center[(i + 1) % n];
+		const iPrev = closed ? (i - 1 + n) % n : Math.max(0, i - 1);
+		const iNext = closed ? (i + 1) % n : Math.min(n - 1, i + 1);
+		const p0 = center[iPrev];
+		const p2 = center[iNext];
 		const tx = p2.x - p0.x;
 		const tz = p2.z - p0.z;
 		const l = Math.hypot(tx, tz) || 1;
@@ -138,8 +201,74 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 		leftEdge3.push({ x: center[i].x + latX, y: cy + latY, z: center[i].z + latZ });
 		rightEdge3.push({ x: center[i].x - latX, y: cy - latY, z: center[i].z - latZ });
 	}
-	const leftEdge = leftEdge3.map((p) => ({ x: p.x, z: p.z }));
-	const rightEdge = rightEdge3.map((p) => ({ x: p.x, z: p.z }));
+	const bbox = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+	for (const p of center) {
+		if (p.x < bbox.minX) bbox.minX = p.x;
+		if (p.x > bbox.maxX) bbox.maxX = p.x;
+		if (p.z < bbox.minZ) bbox.minZ = p.z;
+		if (p.z > bbox.maxZ) bbox.maxZ = p.z;
+	}
+	return {
+		id,
+		closed,
+		center,
+		halfWidths,
+		elevations,
+		bankingRad,
+		leftEdge: leftEdge3.map((p) => ({ x: p.x, z: p.z })),
+		rightEdge: rightEdge3.map((p) => ({ x: p.x, z: p.z })),
+		leftEdge3,
+		rightEdge3,
+		bbox,
+		maxHalfWidth: Math.max(...halfWidths)
+	};
+}
+
+export function buildRuntime(data: TrackData): TrackRuntime {
+	const center = data.surface.centerline;
+	const main = buildPath(
+		'main',
+		data.surface.closed,
+		center,
+		data.surface.width,
+		data.surface.widths,
+		data.surface.elevations,
+		data.surface.banking
+	);
+	const paths: RibbonRuntime[] = [main];
+	for (const br of data.surface.branches ?? []) {
+		const p = buildPath('branch:' + br.id, false, br.centerline, br.width, br.widths, br.elevations, br.banking);
+		p.joinStart = br.joinStart;
+		p.joinEnd = br.joinEnd;
+		paths.push(p);
+	}
+	// Lap routes: the pure main line, then one spliced route per branch. A
+	// route is a plain closed polyline, which is why the AI can follow a
+	// branch with no path-switching logic of its own.
+	const routes: TrackVec2[][] = [center.slice()];
+	for (const p of paths.slice(1)) {
+		routes.push([
+			...center.slice(0, p.joinStart! + 1),
+			...p.center,
+			...center.slice(p.joinEnd!)
+		]);
+	}
+	const { halfWidths, elevations, bankingRad, leftEdge, rightEdge, leftEdge3, rightEdge3 } = main;
+	const halfWidth = Math.max(...paths.flatMap((p) => p.halfWidths));
+	const hasRelief = paths.some(
+		(p) => p.elevations.some((e) => e !== 0) || p.bankingRad.some((b) => b !== 0)
+	);
+	// Sequence steps: a new step whenever the group id changes, so ungrouped
+	// checkpoints read [0, 1, 2, ...] and grouped alternatives share a step.
+	const checkpointSteps: number[] = [];
+	let step = -1;
+	let runGroup: string | undefined | symbol = Symbol('none');
+	data.checkpoints.forEach((g) => {
+		if (g.group === undefined || g.group !== runGroup) step += 1;
+		runGroup = g.group;
+		checkpointSteps.push(step);
+	});
+	const stepCount = step + 1;
 	let minX = Infinity,
 		maxX = -Infinity,
 		minZ = Infinity,
@@ -156,6 +285,10 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 		data,
 		startFinish: buildGate(data.startFinish),
 		checkpoints: data.checkpoints.map(buildGate),
+		checkpointSteps,
+		stepCount,
+		paths,
+		routes,
 		center,
 		halfWidth,
 		halfWidths,
@@ -182,15 +315,26 @@ export function buildRuntime(data: TrackData): TrackRuntime {
  * convention: pass a vehicle's last nearest-centerline index for an O(few)
  * query, or omit it for a one-off full scan (build-time placement).
  */
-export function surfaceYAt(rt: TrackRuntime, x: number, z: number, warmIndex?: number): number {
-	if (!rt.hasRelief) return 0;
-	const n = rt.center.length;
+/**
+ * Nearest centerline point on ONE path. Warm-started when `warmIndex` is
+ * given (the caller's last index on this path), full scan otherwise. Branch
+ * spurs are short, so callers full-scan them rather than tracking a warm index
+ * per path.
+ */
+function nearestPointOnPath(
+	p: RibbonRuntime,
+	x: number,
+	z: number,
+	warmIndex?: number
+): { index: number; dist2: number } {
+	const n = p.center.length;
 	let bestI = 0;
 	let bestD = Infinity;
 	const probe = (i: number) => {
-		const ii = ((i % n) + n) % n;
-		const p = rt.center[ii];
-		const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+		const ii = p.closed ? ((i % n) + n) % n : i;
+		if (ii < 0 || ii >= n) return;
+		const q = p.center[ii];
+		const d = (q.x - x) * (q.x - x) + (q.z - z) * (q.z - z);
 		if (d < bestD) {
 			bestD = d;
 			bestI = ii;
@@ -202,14 +346,60 @@ export function surfaceYAt(rt: TrackRuntime, x: number, z: number, warmIndex?: n
 		for (let k = -8; k <= 8; k++) probe(warmIndex + k);
 		if (bestD > 40 * 40) for (let i = 0; i < n; i++) probe(i);
 	}
+	return { index: bestI, dist2: bestD };
+}
+
+/**
+ * Pick the path a point is closest to, across every path on the track. Branch
+ * spurs are short (tens of points) so they are scanned in full; only the main
+ * line uses the warm index. Single-path tracks reduce to exactly the pre-8b
+ * warm-started scan of the main centerline.
+ */
+function nearestPath(
+	rt: TrackRuntime,
+	x: number,
+	z: number,
+	warmIndex?: number,
+	warmPath = 0
+): { path: number; index: number; dist2: number } {
+	// The path the caller was on last frame keeps its warm index; every other
+	// path is scanned in full, but only when the point is actually near it.
+	const wp = warmPath >= 0 && warmPath < rt.paths.length ? warmPath : 0;
+	const w = nearestPointOnPath(rt.paths[wp], x, z, warmIndex);
+	let best = { path: wp, index: w.index, dist2: w.dist2 };
+	for (let pi = 0; pi < rt.paths.length; pi++) {
+		if (pi === wp) continue;
+		const p = rt.paths[pi];
+		// Bbox cull: a car on the far side of the circuit never pays for the
+		// branch scan, and a car on a branch only rescans the main line while
+		// it is geometrically plausible to be near it.
+		const m = p.maxHalfWidth + 60;
+		if (x < p.bbox.minX - m || x > p.bbox.maxX + m || z < p.bbox.minZ - m || z > p.bbox.maxZ + m)
+			continue;
+		const r = nearestPointOnPath(p, x, z);
+		if (r.dist2 < best.dist2) best = { path: pi, index: r.index, dist2: r.dist2 };
+	}
+	return best;
+}
+
+/** Interpolated surface height at `(x, z)` against one path. */
+function surfaceYOnPath(p: RibbonRuntime, x: number, z: number, bestI: number): number {
+	const n = p.center.length;
+	const flank: [number, number][] = p.closed
+		? [
+				[(bestI - 1 + n) % n, bestI],
+				[bestI, (bestI + 1) % n]
+			]
+		: [
+				[Math.max(0, bestI - 1), bestI],
+				[bestI, Math.min(n - 1, bestI + 1)]
+			];
 	// Project onto the better of the two segments flanking the nearest point.
 	let best: { i: number; j: number; t: number; dist: number } | null = null;
-	for (const [i, j] of [
-		[(bestI - 1 + n) % n, bestI],
-		[bestI, (bestI + 1) % n]
-	]) {
-		const a = rt.center[i];
-		const b = rt.center[j];
+	for (const [i, j] of flank) {
+		if (i === j) continue;
+		const a = p.center[i];
+		const b = p.center[j];
 		const ex = b.x - a.x;
 		const ez = b.z - a.z;
 		const len2 = ex * ex + ez * ez || 1;
@@ -220,13 +410,14 @@ export function surfaceYAt(rt: TrackRuntime, x: number, z: number, warmIndex?: n
 		const d = (x - px) * (x - px) + (z - pz) * (z - pz);
 		if (!best || d < best.dist) best = { i, j, t, dist: d };
 	}
-	const { i, j, t } = best!;
-	const elev = rt.elevations[i] + (rt.elevations[j] - rt.elevations[i]) * t;
-	const bank = rt.bankingRad[i] + (rt.bankingRad[j] - rt.bankingRad[i]) * t;
-	const hw = rt.halfWidths[i] + (rt.halfWidths[j] - rt.halfWidths[i]) * t;
+	if (!best) return p.elevations[bestI];
+	const { i, j, t } = best;
+	const elev = p.elevations[i] + (p.elevations[j] - p.elevations[i]) * t;
+	const bank = p.bankingRad[i] + (p.bankingRad[j] - p.bankingRad[i]) * t;
+	const hw = p.halfWidths[i] + (p.halfWidths[j] - p.halfWidths[i]) * t;
 	// Signed lateral offset along the segment's left normal (-ez, ex).
-	const a = rt.center[i];
-	const b = rt.center[j];
+	const a = p.center[i];
+	const b = p.center[j];
 	const ex = b.x - a.x;
 	const ez = b.z - a.z;
 	const el = Math.hypot(ex, ez) || 1;
@@ -235,6 +426,18 @@ export function surfaceYAt(rt: TrackRuntime, x: number, z: number, warmIndex?: n
 	let lat = (x - px) * (-ez / el) + (z - pz) * (ex / el);
 	lat = Math.max(-hw, Math.min(hw, lat));
 	return elev + lat * Math.tan(bank);
+}
+
+export function surfaceYAt(
+	rt: TrackRuntime,
+	x: number,
+	z: number,
+	warmIndex?: number,
+	warmPath = 0
+): number {
+	if (!rt.hasRelief) return 0;
+	const near = nearestPath(rt, x, z, warmIndex, warmPath);
+	return surfaceYOnPath(rt.paths[near.path], x, z, near.index);
 }
 
 /**
@@ -319,26 +522,15 @@ export function surfaceState(
 	rt: TrackRuntime,
 	x: number,
 	z: number,
-	warmIndex: number
-): { state: SurfaceState; warmIndex: number } {
-	const n = rt.center.length;
-	// Warm-start nearest-centerline walk
-	let bestI = ((warmIndex % n) + n) % n;
-	let bestD = Infinity;
-	const probe = (i: number) => {
-		const p = rt.center[((i % n) + n) % n];
-		const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
-		if (d < bestD) {
-			bestD = d;
-			bestI = ((i % n) + n) % n;
-		}
-	};
-	for (let k = -8; k <= 8; k++) probe(warmIndex + k);
-	// If the local window looks wrong (teleport, reset), scan everything.
-	if (bestD > 40 * 40) {
-		for (let i = 0; i < n; i++) probe(i);
-	}
-	const centerDist = Math.sqrt(bestD);
+	warmIndex: number,
+	warmPath = 0
+): { state: SurfaceState; warmIndex: number; path: number } {
+	// Nearest across every path: a vehicle on a branch spur is on real track,
+	// so it must read on-ribbon there, not off-course beside the main line.
+	// Single-path tracks reduce to the original warm-started main-line scan.
+	const near = nearestPath(rt, x, z, warmIndex, warmPath);
+	const bestI = near.index;
+	const centerDist = Math.sqrt(near.dist2);
 
 	let violation: SurfaceState['violation'] = null;
 	for (const b of rt.boundaries) {
@@ -361,31 +553,55 @@ export function surfaceState(
 	}
 
 	return {
-		state: { onRibbon: centerDist <= rt.halfWidths[bestI], centerDist, violation },
-		warmIndex: bestI
+		state: {
+			onRibbon: centerDist <= rt.paths[near.path].halfWidths[bestI],
+			centerDist,
+			violation
+		},
+		warmIndex: bestI,
+		path: near.path
 	};
 }
 
 export type LapEvent =
 	| { type: 'timing-started'; atMs: number }
-	| { type: 'checkpoint'; index: number; atMs: number }
+	/** `index` is the checkpoint ARRAY index actually crossed (which
+	 * alternative, on a grouped step); `step` is the sequence position it
+	 * satisfied. Ungrouped tracks always have index === step. */
+	| { type: 'checkpoint'; index: number; step: number; atMs: number }
 	| { type: 'lap'; lapMs: number; best: boolean; atMs: number }
 	| { type: 'rejected'; gateId: string; reason: 'out-of-order' | 'not-started'; atMs: number };
 
 /**
  * Ordered-checkpoint lap state machine. Timing starts on the first
- * start/finish crossing; a lap counts only after every checkpoint has been
- * crossed in array order; out-of-order and skipped-checkpoint crossings are
- * rejected (reported, never advance state). Crossing times are interpolated
- * within the frame for sub-frame timing.
+ * start/finish crossing; a lap counts only after every sequence STEP has been
+ * cleared in order; out-of-order and skipped crossings are rejected (reported,
+ * never advance state). Crossing times are interpolated within the frame for
+ * sub-frame timing.
+ *
+ * `nextCheckpoint` counts SEQUENCE STEPS, not array indices (Phase 8b). On a
+ * track with no checkpoint groups every gate is its own step, so steps and
+ * indices coincide and the behavior is exactly what it was before groups
+ * existed. On a branching track, the gates sharing a group are alternatives
+ * for one step: crossing EITHER advances the step, and because the step
+ * counter only moves forward, the alternative that was not taken can never
+ * also be credited for that lap (it now maps to an already-passed step and is
+ * rejected out-of-order, the same as any other backtrack).
  */
 export class LapTracker {
+	/** Next sequence step required (see the class note; not an array index). */
 	nextCheckpoint = 0;
 	lapsCompleted = 0;
 	timing = false;
 	lapStartMs = 0;
 	lastLapMs: number | null = null;
 	bestLapMs: number | null = null;
+	/**
+	 * Checkpoint array index credited for each cleared step this lap attempt,
+	 * i.e. WHICH alternative was taken. Cleared at every lap boundary. Read by
+	 * the harness/AI to report the route a vehicle actually drove.
+	 */
+	takenByStep: number[] = [];
 
 	reset(): void {
 		this.nextCheckpoint = 0;
@@ -394,6 +610,7 @@ export class LapTracker {
 		this.lapStartMs = 0;
 		this.lastLapMs = null;
 		this.bestLapMs = null;
+		this.takenByStep = [];
 	}
 
 	currentLapMs(nowMs: number): number | null {
@@ -426,8 +643,9 @@ export class LapTracker {
 					this.timing = true;
 					this.lapStartMs = atMs;
 					this.nextCheckpoint = 0;
+					this.takenByStep = [];
 					events.push({ type: 'timing-started', atMs });
-				} else if (this.nextCheckpoint === rt.checkpoints.length) {
+				} else if (this.nextCheckpoint === rt.stepCount) {
 					const lapMs = atMs - this.lapStartMs;
 					this.lapsCompleted += 1;
 					this.lastLapMs = lapMs;
@@ -435,15 +653,21 @@ export class LapTracker {
 					if (best) this.bestLapMs = lapMs;
 					this.lapStartMs = atMs;
 					this.nextCheckpoint = 0;
+					this.takenByStep = [];
 					events.push({ type: 'lap', lapMs, best, atMs });
 				} else {
 					events.push({ type: 'rejected', gateId: c.gateId, reason: 'out-of-order', atMs });
 				}
 			} else if (!this.timing) {
 				events.push({ type: 'rejected', gateId: c.gateId, reason: 'not-started', atMs });
-			} else if (c.cpIndex === this.nextCheckpoint) {
+			} else if (rt.checkpointSteps[c.cpIndex] === this.nextCheckpoint) {
+				// Any gate mapped to the awaited step satisfies it. The counter
+				// then moves past that step, so a sibling alternative crossed
+				// afterwards falls into the out-of-order branch below.
+				const step = this.nextCheckpoint;
+				this.takenByStep[step] = c.cpIndex;
 				this.nextCheckpoint += 1;
-				events.push({ type: 'checkpoint', index: c.cpIndex, atMs });
+				events.push({ type: 'checkpoint', index: c.cpIndex, step, atMs });
 			} else {
 				events.push({ type: 'rejected', gateId: c.gateId, reason: 'out-of-order', atMs });
 			}

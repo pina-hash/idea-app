@@ -15,6 +15,7 @@
 import type { Combatant, CombatTuning, WeaponDef, WeaponSlotId } from './combat';
 import type { AbilitySlotId } from './abilities';
 import type { TrackRuntime } from './track-runtime';
+import type { TrackVec2 } from './track-schema';
 
 export interface AiTuning {
 	/** Straight-line speed cap, m/s. The main "skill" knob. */
@@ -58,9 +59,15 @@ export interface AiDriveState {
 	dtMs: number;
 }
 
-/** Unsigned curvature (1/radius) at each centerline point. */
-function curvatureOf(rt: TrackRuntime): number[] {
-	const pts = rt.center;
+/** Point spacing on a route, the unit the lookahead/braking sweep counts in. */
+function routeSpacing(pts: TrackVec2[]): number {
+	let total = 0;
+	for (let i = 1; i < pts.length; i++) total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z);
+	return Math.max(0.5, total / Math.max(1, pts.length - 1));
+}
+
+/** Unsigned curvature (1/radius) at each point of a closed route. */
+function curvatureOf(pts: TrackVec2[]): number[] {
 	const n = pts.length;
 	const out = new Array<number>(n);
 	for (let i = 0; i < n; i++) {
@@ -82,8 +89,24 @@ export type AiWeapon = 'emp' | 'oil' | 'tether';
 
 export class AiDriver {
 	private readonly rt: TrackRuntime;
-	private readonly curv: number[];
-	private readonly spacing: number;
+	/**
+	 * The lap route this driver is following: `rt.routes[routeIdx]`, a plain
+	 * closed polyline. Route 0 is the main line; later routes have a branch
+	 * spliced in. Because a route is just points, following a shortcut needs
+	 * no path-handoff logic here — only different points.
+	 */
+	private route: TrackVec2[];
+	private routeIdx = 0;
+	private curv: number[];
+	private spacing: number;
+	/**
+	 * Nearest-route-point index, tracked internally and ONLY used on tracks
+	 * that have branches. On a single-route track the driver keeps using the
+	 * caller's `warmIdx` exactly as it always did, so existing tracks run the
+	 * unchanged code path rather than a re-derived equivalent of it.
+	 */
+	private warm = 0;
+	private readonly branched: boolean;
 	private stuckMs = 0;
 	private reverseUntilMs = 0;
 	private nextOkMs: Record<AiWeapon, number> = { emp: 0, oil: 0, tether: 0 };
@@ -102,10 +125,63 @@ export class AiDriver {
 
 	constructor(rt: TrackRuntime) {
 		this.rt = rt;
-		this.curv = curvatureOf(rt);
-		const a = rt.center[0];
-		const b = rt.center[1];
-		this.spacing = Math.max(0.5, Math.hypot(b.x - a.x, b.z - a.z));
+		this.branched = rt.routes.length > 1;
+		this.route = rt.routes[0];
+		this.curv = curvatureOf(this.route);
+		this.spacing = routeSpacing(this.route);
+	}
+
+	/** Which route this driver is currently following (0 = main line). */
+	get currentRoute(): number {
+		return this.routeIdx;
+	}
+
+	/** Switch routes and rebuild the derived line data. */
+	setRoute(index: number): void {
+		const i = Math.max(0, Math.min(this.rt.routes.length - 1, Math.round(index)));
+		if (i === this.routeIdx && this.route === this.rt.routes[i]) return;
+		this.routeIdx = i;
+		this.route = this.rt.routes[i];
+		this.curv = curvatureOf(this.route);
+		this.spacing = routeSpacing(this.route);
+		this.warm = 0;
+	}
+
+	/**
+	 * Per-lap branch decision. Deliberately shallow: real route tactics (is the
+	 * shortcut worth it given my hull, who is behind me, is the hazard already
+	 * triggered) are Phase 9's job. A bolder driver gambles on the risky line
+	 * more often, so a field with mixed aggression splits across both routes.
+	 * `rand` is injected so a scripted drive can force a route.
+	 */
+	chooseRoute(aggression: number, rand: () => number = Math.random): number {
+		const alts = this.rt.routes.length - 1;
+		if (alts < 1) return 0;
+		const pBranch = 0.2 + 0.45 * Math.max(0, Math.min(1, aggression));
+		const next = rand() < pBranch ? 1 + Math.floor(rand() * alts) : 0;
+		this.setRoute(next);
+		return this.routeIdx;
+	}
+
+	/** Warm-started nearest point on the current route. */
+	private updateWarm(x: number, z: number): number {
+		const pts = this.route;
+		const n = pts.length;
+		let bestI = this.warm;
+		let bestD = Infinity;
+		const probe = (i: number) => {
+			const ii = ((i % n) + n) % n;
+			const p = pts[ii];
+			const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
+			if (d < bestD) {
+				bestD = d;
+				bestI = ii;
+			}
+		};
+		for (let k = -10; k <= 10; k++) probe(this.warm + k);
+		if (bestD > 40 * 40) for (let i = 0; i < n; i++) probe(i);
+		this.warm = bestI;
+		return bestI;
 	}
 
 	/** Corner-limited speed at a centerline index. */
@@ -115,8 +191,11 @@ export class AiDriver {
 	}
 
 	drive(s: AiDriveState, t: AiTuning): AiControls {
-		const n = this.rt.center.length;
-		this.lastCurvature = this.curv[((s.warmIdx % n) + n) % n] ?? 0;
+		const n = this.route.length;
+		// Branched tracks index the driver's OWN route; single-route tracks
+		// keep using the caller's warm index, unchanged.
+		const idx = this.branched ? this.updateWarm(s.x, s.z) : s.warmIdx;
+		this.lastCurvature = this.curv[((idx % n) + n) % n] ?? 0;
 
 		// Un-stick: back out for a moment (brake = reverse at standstill),
 		// steering opposite, then resume normal driving.
@@ -128,7 +207,7 @@ export class AiDriver {
 		// speeds, each relaxed by the distance available to brake for it.
 		let allowed = t.topSpeed;
 		for (let j = 0; j < 26; j++) {
-			const vC = this.cornerSpeed(s.warmIdx + j, t);
+			const vC = this.cornerSpeed(idx + j, t);
 			const d = Math.max(0, j * this.spacing - 2);
 			const v = Math.sqrt(vC * vC + 2 * t.brakeAccel * d);
 			if (v < allowed) allowed = v;
@@ -138,8 +217,8 @@ export class AiDriver {
 		// at the nearest centerline point instead to rejoin the track.
 		const lookPts = Math.min(12, Math.max(1, Math.round((3 + s.speed * 0.45) / this.spacing)));
 		const target = s.onRibbon
-			? this.rt.center[(s.warmIdx + lookPts) % n]
-			: this.rt.center[(s.warmIdx + 2) % n];
+			? this.route[(idx + lookPts) % n]
+			: this.route[(idx + 2) % n];
 		const dx = target.x - s.x;
 		const dz = target.z - s.z;
 		const cross = s.hx * dz - s.hz * dx;
