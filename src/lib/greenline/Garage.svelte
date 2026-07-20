@@ -707,6 +707,25 @@
 					<!-- Empty ability slot -->
 					<circle cx="12" cy="12" r="7" stroke-dasharray="2.4 2.2" />
 					<path d="M8.7 15.3l6.6-6.6" stroke-width="1.1" opacity="0.7" />
+				{:else if id === 'aero-stock'}
+					<!-- Underbody: flat floor + a down arrow of balanced airflow -->
+					<path d="M4 15h16" stroke-width="1.6" />
+					<path d="M8 6l4 5 4-5" />
+					<path d="M8 9h8" stroke-width="1" opacity="0.6" />
+				{:else if id === 'aero-splitter'}
+					<!-- Front splitter blade + dive-plane fins -->
+					<path d="M3 15h11l3-1.5" stroke-width="1.6" />
+					<path d="M6 11l4 2M18 10l-3 2" stroke-width="1.2" />
+					<path d="M9 6v3M13 5v3" stroke-width="1.1" opacity="0.7" />
+				{:else if id === 'aero-wing'}
+					<!-- Rear wing on two end plates + downforce arrows -->
+					<path d="M4 8h16" stroke-width="2" />
+					<path d="M6 8v10M18 8v10" />
+					<path d="M12 11v6M9.5 14l2.5 3 2.5-3" stroke-width="1.1" opacity="0.85" />
+				{:else if id === 'aero-lowdrag'}
+					<!-- Streamliner teardrop: low frontal area, clean airflow -->
+					<path d="M3 13c5-6 13-6 18-1-5 3-13 3-18 1z" />
+					<path d="M3 8h8M3 18h6" stroke-width="1" opacity="0.7" />
 				{/if}
 			</svg>
 		{/snippet}

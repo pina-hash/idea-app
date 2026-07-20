@@ -88,7 +88,7 @@ export const WHEEL_CONNECTIONS: [number, number, number][] = [
 export const visualKeyFor = (l: Loadout): string => {
 	const s = resolveWeaponSockets(l);
 	const c = l.cosmetics;
-	return `${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.weaponPrimary}@${s.weaponPrimary ?? '-'}|${l.parts.weaponSecondary}@${s.weaponSecondary ?? '-'}|${c?.color ?? '-'}/${c?.pattern ?? '-'}/${c?.number ?? '-'}/${c?.decal ?? '-'}`;
+	return `${l.archetype}|${l.parts.plating}|${l.parts.drivetrain}|${l.parts.tires}|${l.parts.systems}|${l.parts.aero}|${l.parts.weaponPrimary}@${s.weaponPrimary ?? '-'}|${l.parts.weaponSecondary}@${s.weaponSecondary ?? '-'}|${c?.color ?? '-'}/${c?.pattern ?? '-'}/${c?.number ?? '-'}/${c?.decal ?? '-'}`;
 };
 
 // ---------------------------------------------------------------------------
@@ -812,6 +812,49 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		return [];
 	};
 
+	// AERO surfaces (Phase 9-fix-a): the downforce slot's bodywork, attached to
+	// the chassis group like drivetrain greebles. Presentation ONLY — the
+	// downforce physics is a per-vehicle build stat, never read from geometry.
+	// aero-stock is invisible (a factory floor/valance), so a stock car reads
+	// clean; the three trade parts each carry an unmistakable silhouette.
+	const aeroNodes = (partId: string, a: Anchors): VisualNode[] => {
+		if (partId === 'aero-wing') {
+			// Big rear element on two end plates: the classic downforce read.
+			const wx = a.tailX + 0.06;
+			const wy = a.deckY + 0.5;
+			const span = a.halfW * 1.35;
+			return [
+				{ part: 'chassis', geo: box(0.34, 0.05, span * 2), mat: 'steel', pos: [wx, wy, 0], rot: [0, 0, -0.18] },
+				{ part: 'chassis', geo: unitBox(), mat: 'accent', pos: [wx + 0.11, wy + 0.03, 0], scale: [0.05, 0.02, span * 1.7] },
+				{ part: 'chassis', geo: unitBox(), mat: 'hull', pos: [wx - 0.02, wy - 0.24, span], scale: [0.42, 0.46, 0.05] },
+				{ part: 'chassis', geo: unitBox(), mat: 'hull', pos: [wx - 0.02, wy - 0.24, -span], scale: [0.42, 0.46, 0.05] }
+			];
+		}
+		if (partId === 'aero-splitter') {
+			// Low front blade jutting forward + two flanking dive planes: the
+			// ground-effect read, all up front.
+			const [hx] = a.hood;
+			const bx = hx + 0.34;
+			const dz = a.halfW + 0.05;
+			return [
+				{ part: 'chassis', geo: unitBox(), mat: 'steel', pos: [bx, -0.29, 0], scale: [0.42, 0.05, a.halfW * 1.85] },
+				{ part: 'chassis', geo: unitBox(), mat: 'accent', pos: [bx + 0.18, -0.28, 0], scale: [0.04, 0.02, a.halfW * 1.4] },
+				{ part: 'chassis', geo: unitBox(), mat: 'hull', pos: [hx + 0.05, 0.0, dz], rot: [0.24, 0, 0], scale: [0.26, 0.03, 0.2] },
+				{ part: 'chassis', geo: unitBox(), mat: 'hull', pos: [hx + 0.05, 0.0, -dz], rot: [-0.24, 0, 0], scale: [0.26, 0.03, 0.2] }
+			];
+		}
+		if (partId === 'aero-lowdrag') {
+			// Slick low tail cone + a floor diffuser: minimal frontal area, the
+			// straight-line read.
+			const [rx, ry] = a.rear;
+			return [
+				{ part: 'chassis', geo: getGeo('aeroCone', () => taperEnd(box(0.95, 0.13, a.halfW * 1.5), -1, -0.15, 0.22, 0.18)), mat: 'canopy', pos: [rx - 0.06, ry + 0.03, 0] },
+				{ part: 'chassis', geo: unitBox(), mat: 'steel', pos: [a.tailX - 0.04, -0.24, 0], scale: [0.26, 0.12, a.halfW * 1.6] }
+			];
+		}
+		return [];
+	};
+
 	// SYSTEMS variants: electronics seated at the archetype's GEAR anchor (a
 	// clear flank patch beside/behind the rear hardpoint, chosen per hull so
 	// the hardware never contests the socket top a weapon needs — the old
@@ -1225,6 +1268,7 @@ export function createRigVisuals(three: ThreeModule, renderer: THREE.WebGLRender
 		);
 		if (plating === 'plating-reactive') nodes.push(...cageNodes(a));
 		nodes.push(...drivetrainNodes(l.parts.drivetrain, a));
+		nodes.push(...aeroNodes(l.parts.aero, a));
 		// The gear anchor expressed in rear-socket space (systems electronics
 		// live in the rear socket group so they char/tilt with the mount).
 		const rearSock = base.sockets.find((s) => s.id === 'rear') ?? base.sockets[0];

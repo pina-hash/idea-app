@@ -33,6 +33,7 @@ export type StatKey =
 	// Drive / physics (applied over the tuning panel values per vehicle)
 	| 'engineForce'
 	| 'aeroDrag'
+	| 'aeroDown'
 	| 'brakeForce'
 	| 'maxSteer'
 	| 'steerFalloff'
@@ -65,6 +66,7 @@ export type PartSlot =
 	| 'drivetrain'
 	| 'tires'
 	| 'systems'
+	| 'aero'
 	| 'weaponPrimary'
 	| 'weaponSecondary'
 	| 'abilityPrimary'
@@ -348,7 +350,8 @@ export const PART_SLOTS: { id: PartSlot; label: string }[] = [
 	{ id: 'plating', label: 'PLATING' },
 	{ id: 'drivetrain', label: 'DRIVETRAIN' },
 	{ id: 'tires', label: 'TIRES' },
-	{ id: 'systems', label: 'SYSTEMS' }
+	{ id: 'systems', label: 'SYSTEMS' },
+	{ id: 'aero', label: 'AERO' }
 ];
 
 /**
@@ -447,6 +450,37 @@ export const PARTS: VehiclePart[] = [
 		name: 'Overclocked Targeting',
 		blurb: 'Longer reach, harder hits, electronics running hot enough to fry.',
 		effects: { empRange: 1.3, damageDealt: 1.15, disruptionTaken: 1.25 }
+	},
+	// ---- AERO ----
+	// The downforce slot (Phase 9-fix-a). The BASELINE downforce that keeps
+	// every car's nose planted at speed is a global sim constant applied to all
+	// builds, so `aero-stock` is the neutral default and is stable unmodified.
+	// The rest are a strict downforce-vs-drag TRADE frontier — more downforce
+	// buys high-speed grip and stability but costs top speed (drag), and vice
+	// versa. Every part sits ON that frontier, so none dominates another (the
+	// NO-strict-upgrades doctrine): stock trades speed vs the wing, the wing
+	// trades speed vs stock, the cowl trades stability vs stock.
+	{ id: 'aero-stock', slot: 'aero', name: 'Stock Underbody', blurb: 'Factory floor + valance. Balanced downforce, keeps the nose down at speed.', effects: {} },
+	{
+		id: 'aero-splitter',
+		slot: 'aero',
+		name: 'Front Splitter',
+		blurb: 'Blade + dive planes: more downforce and front bite, a little more drag off the top end.',
+		effects: { aeroDown: 1.35, aeroDrag: 1.1 }
+	},
+	{
+		id: 'aero-wing',
+		slot: 'aero',
+		name: 'Adjustable Wing',
+		blurb: 'Big rear element: glued through fast corners and over crests, clear top-speed cost.',
+		effects: { aeroDown: 1.8, aeroDrag: 1.25 }
+	},
+	{
+		id: 'aero-lowdrag',
+		slot: 'aero',
+		name: 'Streamliner Cowl',
+		blurb: 'Slick low body: the fastest straights on the field, floatier and less planted when pushed.',
+		effects: { aeroDown: 0.55, aeroDrag: 0.85 }
 	}
 ];
 
@@ -469,6 +503,7 @@ const STOCK_PARTS: Record<PartSlot, string> = {
 	drivetrain: 'drive-stock',
 	tires: 'tires-stock',
 	systems: 'sys-stock',
+	aero: 'aero-stock',
 	weaponPrimary: STOCK_WEAPON_PRIMARY,
 	weaponSecondary: WEAPON_NONE,
 	abilityPrimary: STOCK_ABILITY_PRIMARY,
@@ -730,6 +765,7 @@ export function sanitizeLoadout(l: Loadout): Loadout {
 const STAT_KEYS: StatKey[] = [
 	'engineForce',
 	'aeroDrag',
+	'aeroDown',
 	'brakeForce',
 	'maxSteer',
 	'steerFalloff',
@@ -772,6 +808,7 @@ export function resolveLoadout(l: Loadout): ResolvedStats {
 export const STAT_META: Record<StatKey, { label: string; better: 'higher' | 'lower' | 'neutral' }> = {
 	engineForce: { label: 'accel', better: 'higher' },
 	aeroDrag: { label: 'drag', better: 'lower' },
+	aeroDown: { label: 'downforce', better: 'higher' },
 	brakeForce: { label: 'brakes', better: 'higher' },
 	maxSteer: { label: 'steering', better: 'higher' },
 	steerFalloff: { label: 'steer fade', better: 'lower' },

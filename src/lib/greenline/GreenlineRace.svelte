@@ -431,6 +431,44 @@
 		draftMinSpeed: 6,
 		draftDragReduction: 0.25,
 		/**
+		 * DOWNFORCE (Phase 9-fix-a). Before this there was ZERO downforce model,
+		 * which is why the nose lifted at speed — not a tuning issue, a missing
+		 * system. This is REAL downforce, the same v^2 shape as drag but a
+		 * downward force on the chassis: it compresses the suspension, which
+		 * raises the wheel normal load cannon-es already uses to bound tire
+		 * friction, so grip follows from physics (the 8a trimesh standard), NOT a
+		 * frictionSlip fudge. F_down = aeroDownforce * v^2 (N), universal — the
+		 * baseline is applied to EVERY vehicle regardless of build (aeroDown = 1),
+		 * so a stock car is stable unmodified; the AERO part slot scales it.
+		 *
+		 *   stock @ 65 m/s (terminal)  = 0.42 * 65^2  = 1776 N ~= 0.70 * weight
+		 *   stock @ 85 m/s (fast draft)= 0.42 * 85^2  = 3035 N ~= 1.20 * weight
+		 *   stock @ 15 m/s (low speed) = 0.42 * 15^2  =   95 N ~= 0.04 * weight
+		 *
+		 * Negligible at low speed (as real aero is), decisive at the 60-85 m/s
+		 * band, so low-speed handling is untouched by construction. (weight =
+		 * chassisMass * gravity = 180 * 14 = 2520 N.)
+		 *
+		 * FRONT/REAR SPLIT — the reason a single COM force is NOT enough. The
+		 * reported symptom is FRONT lift, which is a pitch problem: drive force
+		 * enters at the rear contact patches (ground level) while the COM sits
+		 * above them, so acceleration pitches the nose UP (worse under Nitro,
+		 * where engineForce is ~2x). A uniform downforce at the COM adds grip but
+		 * applies no pitch moment, so it cannot correct that. Splitting the force
+		 * front-biased (downforceFrontBias > 0.5) and applying the halves at the
+		 * front/rear axle offsets (downforceArm, the ~1.25 m wheelbase half)
+		 * produces a nose-DOWN moment that GROWS with v^2 — exactly matched to
+		 * where lift appears — while the total vertical force is unchanged. The
+		 * bias is modest so it never digs the nose on a steady cruise; its
+		 * authority is only felt at speed, self-correcting against the accel/Nitro
+		 * nose-up. Zeroed while FULLY airborne (no wheels down) so ramp jumps and
+		 * Air Correction are untouched; a wheelie (rears still down) keeps it,
+		 * which is precisely when the nose needs pushing back to the ground.
+		 */
+		aeroDownforce: 0.42,
+		downforceFrontBias: 0.62,
+		downforceArm: 1.25,
+		/**
 		 * Chase camera. camDistance / camHeight are the STANDING values; the rig
 		 * pulls back and lifts with speed (Phase 8c) so the higher ceiling reads
 		 * as fast rather than as a wall of car filling the screen.
@@ -5042,6 +5080,21 @@
 				let lookBackF = 0;
 				// Headless/debug override: forces look-back regardless of input.
 				let lookBackForce = false;
+				// Headless/debug drive override (Phase 9-fix-a verification): when set,
+				// forces the human player's controls so a scripted drive can hold full
+				// throttle in a straight line and measure lift/downforce deterministically.
+				// null = normal keyboard/gamepad input. Never touches AI rigs.
+				let debugHold: { thr: number; steer: number; brk: number; hbk: boolean } | null = null;
+				// Headless/debug flat-ground DYNO (Phase 9-fix-a verification): when on,
+				// the player is translated back to the spawn's x/z each frame AFTER the
+				// step, keeping y / orientation / velocity untouched, so on a FLAT track
+				// (plane at y 0) the wheel raycasts and suspension are physically
+				// identical — the car accelerates in place to true terminal speed
+				// without a track feature (cliff / braking gate) ever cutting the run,
+				// which is the only way to measure the sustained 60-85 m/s band. Only
+				// valid on a flat track; never used in normal play.
+				let dynoOn = false;
+				let dynoAnchor: { x: number; z: number } | null = null;
 
 				resetRound = () => {
 					const wantAis = Math.max(1, Math.min(MAX_AI, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
@@ -5654,6 +5707,75 @@
 					},
 					getMeter: (rigId = 'player') =>
 						rigsAll().find((q) => q.id === rigId)?.abilityState.meter ?? null,
+					// ---- Downforce / lift verification (Phase 9-fix-a) ----
+					// Force the human player's controls (thr/steer/brk in [-1,1] where
+					// used, hbk bool); pass null to release. Lets a headless drive hold
+					// full throttle in a straight line to measure lift deterministically.
+					hold: (h: { thr?: number; steer?: number; brk?: number; hbk?: boolean } | null) => {
+						debugHold = h
+							? { thr: h.thr ?? 0, steer: h.steer ?? 0, brk: h.brk ?? 0, hbk: !!h.hbk }
+							: null;
+						return debugHold;
+					},
+					// Verification only: override the global baseline downforce
+					// coefficient (DEFAULTS.aeroDownforce) so an A/B can compare the
+					// fix against the pre-fix zero-downforce behavior. Pass null to
+					// restore the default.
+					setDownforce: (coef: number | null) => {
+						tuning.aeroDownforce = coef == null ? DEFAULTS.aeroDownforce : coef;
+						return tuning.aeroDownforce;
+					},
+					// Verification only: flat-ground dyno. Pins the player in place after
+					// each step (velocity/orientation/suspension intact) so it reaches
+					// true terminal speed on a FLAT track without a feature cutting the
+					// run. Combine with hold({thr:1}) to spin the dyno up.
+					dyno: (on = true) => {
+						dynoOn = on;
+						dynoAnchor = null;
+						return dynoOn;
+					},
+					// Live downforce + lift readout for a rig: the applied downward force,
+					// the nose pitch (positive = nose UP = lifting), and per-wheel ground
+					// contact + suspension load (front wheels are 0,1; rear 2,3). Front
+					// lift shows as a positive pitch and/or the front suspensionForce
+					// dropping toward 0 while the rears stay loaded.
+					downforceInfo: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						const b = r.body;
+						const q = new CANNON.Quaternion(
+							b.quaternion.x,
+							b.quaternion.y,
+							b.quaternion.z,
+							b.quaternion.w
+						);
+						const f = q.vmult(new CANNON.Vec3(1, 0, 0));
+						const speed = Math.hypot(b.velocity.x, b.velocity.y, b.velocity.z);
+						const coef = num(tuning.aeroDownforce, DEFAULTS.aeroDownforce) * r.buildStats.aeroDown;
+						const grounded = r.vehicle.numWheelsOnGround > 0;
+						const totalDown = grounded ? coef * speed * speed : 0;
+						const wheels = r.vehicle.wheelInfos.map((w) => ({
+							onGround: !!w.raycastResult.body,
+							suspForce: Math.round(w.suspensionForce),
+							suspLen: Math.round(w.suspensionLength * 1000) / 1000
+						}));
+						const frontLoad = (wheels[0]?.suspForce ?? 0) + (wheels[1]?.suspForce ?? 0);
+						const rearLoad = (wheels[2]?.suspForce ?? 0) + (wheels[3]?.suspForce ?? 0);
+						return {
+							speed: Math.round(speed * 100) / 100,
+							aeroDownCoef: Math.round(coef * 1000) / 1000,
+							downforceN: Math.round(totalDown),
+							bias: num(tuning.downforceFrontBias, DEFAULTS.downforceFrontBias),
+							// Nose pitch in degrees: +up (lift), -down. asin of forward.y.
+							pitchDeg:
+								Math.round(Math.asin(Math.max(-1, Math.min(1, f.y))) * (180 / Math.PI) * 100) /
+								100,
+							numWheelsOnGround: r.vehicle.numWheelsOnGround,
+							frontLoad,
+							rearLoad,
+							wheels
+						};
+					},
 					// Set the drift meter directly (0..1), so a scripted drive can
 					// verify each ability's EFFECT without first drifting up a charge.
 					setMeter: (v: number, rigId = 'player') => {
@@ -5986,10 +6108,17 @@
 						// headless stress runner attaches an AiDriver so the player rig
 						// becomes a 4th AI racer for AI-only races.
 						if (rig === player && !player.ai) {
-							sIn = steerInput;
-							thr = throttle;
-							brk = brakeInput;
-							hbk = handbrake;
+							if (debugHold) {
+								sIn = debugHold.steer;
+								thr = debugHold.thr;
+								brk = debugHold.brk;
+								hbk = debugHold.hbk;
+							} else {
+								sIn = steerInput;
+								thr = throttle;
+								brk = brakeInput;
+								hbk = handbrake;
+							}
 						} else {
 							const c = rig.ai!.drive(
 								{
@@ -6134,6 +6263,36 @@
 									-drag * rawSpeed * vel.z
 								),
 								new CANNON.Vec3(0, 0, 0)
+							);
+						}
+
+						// Aerodynamic downforce (Phase 9-fix-a): a real v^2 downward force
+						// on the chassis (see DEFAULTS.aeroDownforce). It compresses the
+						// suspension -> raises wheel normal load -> raises the friction
+						// cannon-es already bounds by it, so grip is physical, not a
+						// frictionSlip trick. Applied FRONT-BIASED at the two axle offsets so
+						// it ALSO makes a nose-down pitch moment that grows with v^2 — the
+						// specific fix for acceleration/Nitro front lift, which no COM force
+						// could correct. numWheelsOnGround is last step's value (a 1-frame
+						// lag, fine); zero wheels = fully airborne = downforce off, so jumps
+						// and Air Correction are untouched, while a wheelie (rears down)
+						// still gets the nose pushed back.
+						const downCoef = num(tuning.aeroDownforce, DEFAULTS.aeroDownforce) * bs.aeroDown;
+						if (downCoef > 0 && rawSpeed > 0.1 && rig.vehicle.numWheelsOnGround > 0) {
+							const totalDown = downCoef * rawSpeed * rawSpeed;
+							const bias = num(tuning.downforceFrontBias, DEFAULTS.downforceFrontBias);
+							const arm = num(tuning.downforceArm, DEFAULTS.downforceArm);
+							// fwdWorld is the chassis forward set this frame (before the Air
+							// Correction block reuses it). For a purely-vertical force only the
+							// application point's HORIZONTAL offset makes pitch torque, so
+							// fwdWorld * arm is the correct front (+) / rear (-) point.
+							body.applyForce(
+								new CANNON.Vec3(0, -totalDown * bias, 0),
+								new CANNON.Vec3(fwdWorld.x * arm, fwdWorld.y * arm, fwdWorld.z * arm)
+							);
+							body.applyForce(
+								new CANNON.Vec3(0, -totalDown * (1 - bias), 0),
+								new CANNON.Vec3(-fwdWorld.x * arm, -fwdWorld.y * arm, -fwdWorld.z * arm)
 							);
 						}
 
@@ -6791,6 +6950,19 @@
 					}
 
 					world.step(1 / 60, dt, 4);
+
+					// Flat-ground dyno (verification only): hold the player at the
+					// anchor x/z, keeping y / orientation / velocity, so it runs in
+					// place at true terminal speed on a flat track. Suspension/wheel
+					// state is unchanged because only the horizontal position moves.
+					if (dynoOn) {
+						if (!dynoAnchor) dynoAnchor = { x: player.body.position.x, z: player.body.position.z };
+						player.body.position.x = dynoAnchor.x;
+						player.body.position.z = dynoAnchor.z;
+						player.body.velocity.z = 0;
+						player.prevX = dynoAnchor.x;
+						player.prevZ = dynoAnchor.z;
+					}
 
 					// -- Shockwave rams: chassis contacts queued during the step,
 					// evaluated on pre-step velocities, resolved with impulses --

@@ -3381,6 +3381,79 @@ on one side of the world.
     all-upright with 0 falls and existing routes lapping (ai-4 finished a PG lap;
     the TN shortcut + boosts/hazards untouched). `svelte-check` clean, 0 errors.
 
+- **Downforce system + AERO part slot (Phase 9-fix-a).** Before this there was
+  ZERO downforce model, which is why the nose lifted at speed — a MISSING
+  system, not a tuning issue on top of an existing one.
+  - **Real v^2 downforce, not a grip trick.** In `GreenlineRace.svelte`'s
+    per-vehicle pipeline, right after the aero-drag force, a downward force
+    `F = aeroDownforce * v^2` (DEFAULTS.aeroDownforce 0.42, scaled by the build
+    stat `bs.aeroDown`) is applied to the chassis. It COMPRESSES the suspension,
+    which raises the wheel normal load cannon-es already uses to bound tire
+    friction — so grip follows from physics the same way 8a's trimesh work did,
+    NOT a `frictionSlip` multiplier. Universal: the baseline is applied to EVERY
+    vehicle (aeroDown = 1), so a stock car is stable unmodified. Magnitudes:
+    ~1776 N at 65 m/s (~0.7 * weight, weight = 180*14 = 2520 N), ~3035 N at
+    85 m/s, ~95 N at 15 m/s — decisive in the 60-85 band, negligible at low
+    speed (as real aero is), so low-speed handling is untouched by construction.
+  - **FRONT/REAR SPLIT was needed and is the crux.** The reported symptom is
+    FRONT lift, which is a PITCH problem: drive force enters at the rear contact
+    patches while the COM sits above them, so acceleration pitches the nose UP
+    (worse under Nitro, engine ~2x). A uniform COM downforce adds grip but no
+    pitch moment, so it can't correct that. The force is split FRONT-BIASED
+    (`downforceFrontBias` 0.62) and applied at the front/rear axle offsets
+    (`downforceArm` 1.25 m, the wheelbase half via WHEEL_CONNECTIONS +/-1.25),
+    producing a nose-DOWN moment that GROWS with v^2 — matched exactly to where
+    lift appears. Only the application point's HORIZONTAL offset makes pitch
+    torque for a purely-vertical force, so `fwdWorld * arm` is the correct
+    front(+)/rear(-) point. Zeroed while FULLY airborne (numWheelsOnGround 0)
+    so ramp jumps and Air Correction are untouched; a wheelie (rears down)
+    keeps it, which is exactly when the nose needs pushing back.
+  - **AERO PartSlot (5th bodywork slot).** `PartSlot` gains `'aero'`
+    (loadout.ts): stock/default `aero-stock` is invisible bodywork carrying the
+    baseline (empty effects, aeroDown = 1); the three trade parts sit on a
+    monotone downforce-vs-drag frontier so NO part dominates another (the
+    sidegrade doctrine): `aero-splitter` (aeroDown 1.35, drag 1.1),
+    `aero-wing` (1.8 / 1.25), `aero-lowdrag` (0.55 / 0.85). `StatKey` gains
+    `aeroDown` (STAT_KEYS / STAT_META label "downforce", so it resolves through
+    the build multiplier and renders as a garage chip). McMurtry-tier vacuum
+    downforce is deliberately NOT built. The slot flows through everything
+    generically: `PART_SLOTS` + `STOCK_PARTS` (pre-9-fix-a stored builds default
+    to aero-stock, no migration), economy.ts (STARTER_ITEMS / BODY_SLOTS /
+    itemPrice all derive from PARTS + PART_SLOTS, so the parts auto-price at the
+    flat 250), Garage BUILD tab (iterates PART_SLOTS), `visualKeyFor` (a live
+    aero swap rebuilds), and `rig-visual.ts` `aeroNodes` (bespoke chassis-group
+    meshes: rear wing on end plates, front splitter + dive planes, low tail
+    cone; aero-stock is invisible). 4 new garage part icons.
+  - **Server price migration `0056_greenline_aero_part_prices.sql`** (apply
+    after 0055): teaches `greenline_item_price` the three aero parts at 250
+    (aero-stock is the free starter, absent). Only reachable when creative mode
+    is off; economy.ts auto-prices the client mirror with no code change.
+  - **Debug hooks (`__greenline`, verification only):** `hold({thr,steer,brk,
+    hbk})` forces the human player's controls; `setDownforce(coef|null)`
+    overrides the baseline for an A/B against the pre-fix zero; `dyno(on)` pins
+    the player in place after each step (velocity/orientation/suspension
+    intact) so it reaches true terminal on a FLAT track without a feature
+    cutting the run — the only way to measure the sustained 60-85 band, since
+    both tracks route a full-throttle car off a cliff / into a braking gate and
+    AI top speed is still the ~26 m/s Phase 9b gap; `downforceInfo(id)` returns
+    the applied force, nose pitch (+ = up = lifting), and per-wheel ground
+    contact + suspension load.
+  - **Verified** in `/dev/greenline-movement?glheadless=1` via the flat-ground
+    dyno at the 60-85 band: at terminal 62.5 m/s downforce ON, the front wheel
+    load is 1332 N and nose pitch 2.36deg with all 4 wheels down (front load
+    GREW from 62 N under launch to 1332 N as downforce built to 1638 N);
+    downforce OFF (the pre-fix state) pins the front at 264 N (~21% load) with
+    the nose STUCK at 3.14deg across the whole 52-63 m/s range — the front on
+    the verge of lift. Low speed is identical ON/OFF (62 N front at 3 m/s). The
+    four aero parts trace a clean tradeoff frontier: terminal speed 54.8 (wing)
+    -> 60.6 (stock) -> 64.5 m/s (lowdrag) against front load 1748 -> 1268 ->
+    888 N, none dominating; even lowdrag's 888 N front is well above the broken
+    264 N, so it is a sidegrade not a regression. A full 8-car Terminal Nine
+    race with downforce active for every vehicle ran 0 NaN / 0 falls / 0 flips,
+    all upright. Garage renders the AERO slot + 4 parts + the "downforce" stat
+    chip + splitter/wing tradeoff chips. `svelte-check` clean, 0 errors, no new
+    warnings.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.
