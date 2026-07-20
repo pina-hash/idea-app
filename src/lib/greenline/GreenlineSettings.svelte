@@ -14,6 +14,8 @@
 		type TrackCategory
 	} from './audio-settings.svelte';
 	import { creativeSettings, setCreativeMode } from './creative.svelte';
+	import { ENV_PRESETS, ENV_PRESET_IDS } from './environment';
+	import { weatherSettings, setWeatherPreset } from './weather.svelte';
 	import { CURRENCY_NAME, CURRENCY_SHORT } from './economy';
 	import {
 		CONTROL_ACTIONS,
@@ -398,11 +400,33 @@
 			</button>
 		</div>
 
+		<!-- WEATHER (Phase 8c) -->
+		<div class="gs-section-label">Weather</div>
+		<div class="gs-weather">
+			{#each ENV_PRESET_IDS as id (id)}
+				{@const p = ENV_PRESETS[id]}
+				<button
+					class="gs-weather-card"
+					class:on={weatherSettings.preset === id}
+					onclick={() => setWeatherPreset(id)}
+					aria-pressed={weatherSettings.preset === id}
+				>
+					<span class="gs-weather-name">{p.label}</span>
+					<span class="gs-weather-note">{p.note}</span>
+				</button>
+			{/each}
+		</div>
+		<div class="gs-foot">
+			Look only. Weather never changes grip, damage, or lap times, so every run is raced on the same
+			physics and still counts.
+		</div>
+
 		<!-- CAMERA (placeholder, Phase 9) -->
 		<div class="gs-section-label">Camera</div>
 		<div class="gs-placeholder">
 			<span class="gs-soon">COMING SOON</span>
-			Chase-camera distance, height, and field-of-view controls arrive in a later update (Phase 9).
+			The chase camera already pulls back and lifts on its own as you gain speed. Manual distance,
+			height, and field-of-view controls arrive in a later update (Phase 9).
 		</div>
 	</div>
 </div>
@@ -754,6 +778,44 @@
 		color: #8fffc4;
 		border-color: rgba(42, 229, 126, 0.6);
 		box-shadow: 0 0 10px rgba(42, 229, 126, 0.2);
+	}
+	.gs-weather {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+		gap: 0.45rem;
+	}
+	.gs-weather-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		text-align: left;
+		padding: 0.5rem 0.6rem;
+		background: rgba(10, 15, 21, 0.6);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		cursor: pointer;
+	}
+	.gs-weather-card:hover {
+		border-color: var(--glb-line-strong);
+	}
+	.gs-weather-card.on {
+		border-color: rgba(42, 229, 126, 0.6);
+		box-shadow: 0 0 10px rgba(42, 229, 126, 0.16);
+	}
+	.gs-weather-name {
+		color: var(--glb-ink-dim);
+		font-family: var(--glb-font-data);
+		font-size: 0.72rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+	}
+	.gs-weather-card.on .gs-weather-name {
+		color: #8fffc4;
+	}
+	.gs-weather-note {
+		color: var(--glb-ink-faint);
+		font-size: 0.66rem;
+		line-height: 1.4;
 	}
 	.gs-placeholder {
 		color: var(--glb-ink-faint);

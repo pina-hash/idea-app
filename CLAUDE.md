@@ -2679,6 +2679,84 @@ on one side of the world.
     build usable at 0 IC, and economy-off = zero gating) and
     `/dev/greenline-movement?glheadless=1` (race sim + livery unaffected).
     `svelte-check` clean, 0 errors.
+- **Weather presets, speed retune, larger grid (Phase 8c).** Three tuning
+  changes on existing registries; no new system.
+  - **Weather is atmosphere, never time of day.** `ENV_PRESETS`
+    (`environment.ts`) grows from one preset to four, ALL of them night
+    presets: `night` (the untouched key-art clear night), `fog`, `rain`,
+    `storm`. The floodlit rig-yard night is locked brand identity
+    (KeyArtScene, "1A / IMPACT"), so a dusk/daylight preset that would compete
+    with it is deliberately absent — weather varies fog depth, precipitation,
+    and how far the floods throw, not the hour. `EnvironmentPreset` gained
+    `label`/`note` (the selector copy) plus optional `precip` (count, speed,
+    color, opacity, streak length) and `lightning` (gap range, intensity).
+    Thick air makes a beam READ brighter, so `floodIntensity` goes ABOVE 1 for
+    fog (1.45) and storm (1.3).
+  - **Applied LIVE, not at mount.** `weather.svelte.ts` is the reactive
+    localStorage store (the `creative.svelte.ts` / audio-settings pattern);
+    `GreenlineRace` holds an `applyEnvironment(env)` hook assigned in onMount
+    (the `applyPlayerLoadout` convention) that re-points `ENV` and pushes the
+    preset into scene.background, the FogExp2, the hemisphere light, the
+    rebuilt key directionals, the repainted sky canvas, and the flood
+    materials. Flood materials are rescaled from a REGISTERED BASE value
+    (`floodScalables`), never multiplied in place, so repeated swaps never
+    compound. Rain is ONE `LineSegments` draw call: a camera-following box of
+    streaks that wraps toroidally, allocated once at the largest preset's
+    count with `setDrawRange` shrinking it for lighter presets, so switching
+    weather never reallocates mid-race. Storm lightning is one directional
+    light pulsed on a double-strobe decay.
+  - **Weather NEVER touches gameplay** — no grip, drag, damage, AI target, or
+    timing value. A stormy lap is the same lap as a clear one and still ranks.
+    Selector lives in the settings overlay's WEATHER section; the choice
+    persists across a reload.
+  - **Top speed retuned ~1.7x: engine 2300 -> 2900, drag 1.8 -> 0.68.** Top
+    speed is DERIVED (`v = sqrt(engineForce / aeroDrag)`), so the ~1.7x
+    ceiling took a ~4.5x lift in the RATIO, not in either number. The lift is
+    mostly on the DRAG side, which is how real top-speed cars get there
+    (drag-limited, not power-limited) and keeps launch feel near what was
+    already tuned (standing accel 12.8 -> 16.1 m/s^2, not 4x).
+    **`chassisMass` is deliberately UNCHANGED at 180:** terminal speed is
+    mass-independent here (drag is a force), so mass buys nothing for the
+    goal, while moving it would silently re-tune the jump impulse, ram
+    knockback, and tether pull all measured against 180 kg. `GARAGE_BASELINE`
+    is kept in lock-step. Knock-on, intended: lifting off no longer scrubs
+    speed the way 1.8 drag did, so coasting stays fast and the brake pedal
+    matters.
+  - **Camera scales with speed** (`camSpeedRef` 60, `camDistanceGain` 4.5,
+    `camHeightGain` 1): linear in speed, clamped, so a stock car reaches full
+    pull-back at its own top end. The gain is modest because the camera was
+    never as fixed as it looked — the `camStiffness` lerp chases a moving
+    target and settles a further ~v/camStiffness behind it (~12 m at 60 m/s).
+    Measured effective distance ~16 m at the OLD 35 m/s ceiling -> ~26 m at
+    the new one.
+  - **Grid cap 6 -> 11 AI (12 cars), one `MAX_AI` constant** replacing both
+    hardcoded `Math.min(6, ...)` sites. NOT 16: measured mean frame CPU rose
+    1.82 ms (4 cars) -> 3.32 ms (12 cars), sub-linear at ~0.19 ms per extra
+    vehicle, but that is a DEV machine, not the 6-8 year old school desktops
+    the project targets. 16 stays a stretch goal contingent on a cheaper rig
+    (instanced bodywork / shared hull), not a default — raise `MAX_AI` only
+    behind the same measurement.
+  - **Debug/instrumentation added:** `__greenline.setWeather` / `getWeather`
+    (drives the REAL store, so a scripted drive exercises the settings path
+    end to end), `camInfo`, `setAiCount` / `maxAi`, and `perf` / `perfReset`
+    (rolling mean/median/p95/worst frame CPU ms, budget %, draw calls,
+    triangles). `perf` measures MAIN-THREAD cost only; GPU work is async and
+    excluded.
+  - **Verified** in `/dev/greenline-movement?glheadless=1` (rAF is frozen in
+    an automated tab, so frame cost is measured by the in-loop `perf` counter,
+    not rAF deltas): all four presets apply and revert with no compounding,
+    storm lightning fires at its configured intensity, weather survives a
+    reload; a seamless treadmill dyno (pure position translation preserving y,
+    orientation, and velocity — teleport-based resets unloaded the suspension
+    and corrupted the runs) measured neutral 62.7 m/s (140 mph) and a VELOCITY
+    build with the slipstream part 83.4 m/s (186.6 mph), both ~98% of the
+    predicted terminal, validating the model that puts a drafting VELOCITY
+    build at 200+; an 85 m/s (190 mph) perpendicular wall impact decelerated
+    smoothly, stayed upright, and produced no NaN and no tunneling; a full
+    12-car race ran ~8000 frames with every weapon class firing, 7 rams, 1
+    recovered flip, 0 falls, all 12 upright and finite. Visual confirmation of
+    the four presets and the settings selector via claude-in-chrome (WebGL
+    screenshots hang the preview pane).
 
 ## FRC Training track
 

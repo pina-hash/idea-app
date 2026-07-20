@@ -16,7 +16,7 @@
 	 * same figures without mounting the tuning panel. Kept in lock-step with
 	 * DEFAULTS below (health = COMBAT_DEFAULTS.maxHealth).
 	 */
-	export const GARAGE_BASELINE = { health: 100, mass: 180, engine: 2300, drag: 1.8 };
+	export const GARAGE_BASELINE = { health: 100, mass: 180, engine: 2900, drag: 0.68 };
 </script>
 
 <script lang="ts">
@@ -82,7 +82,12 @@
 		type AbilitySlotId
 	} from '$lib/greenline/abilities';
 	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
-	import { NIGHT_ENV } from '$lib/greenline/environment';
+	import type { EnvironmentPreset, EnvPresetId } from '$lib/greenline/environment';
+	import {
+		activeEnvironment,
+		setWeatherPreset,
+		weatherSettings
+	} from '$lib/greenline/weather.svelte';
 	import {
 		archetypeById,
 		defaultLoadout,
@@ -237,11 +242,45 @@
 	} = $props();
 
 	const DEFAULTS = {
-		engineForce: 2300,
+		/**
+		 * SPEED (retuned Phase 8c, was engine 2300 / drag 1.8 = a ~80 mph car).
+		 *
+		 * Top speed is DERIVED, never capped: quadratic aero drag balances drive
+		 * force at v = sqrt(engineForce / aeroDrag). That square root is the whole
+		 * story — raising the ceiling ~1.7x took a ~4.5x lift in the RATIO, not in
+		 * either number alone. The lift is mostly on the DRAG side (1.8 -> 0.8,
+		 * with engine only 2300 -> 2900), which is both how real top-speed cars
+		 * get there (drag-limited, not power-limited) and the change that leaves
+		 * launch feel closest to what was already tuned: standing acceleration
+		 * goes 12.8 -> 16.1 m/s^2, not 4x.
+		 *
+		 *   stock terminal    = sqrt(2900 / 0.68)          = 65.3 m/s = 146 mph
+		 *   VELOCITY build    x sqrt(1.15 / 0.8)  = x1.199 = 78.3 m/s = 175 mph
+		 *   + slipstream      x sqrt(1 / 0.75)    = x1.155 = 90.4 m/s = 202 mph
+		 *   + Nitro (2.2s)    x sqrt(1.8)         = x1.342 = a burst well past it
+		 *
+		 * The 200 mph mark is deliberately placed at the SUSTAINED velocity-build
+		 * draft figure rather than behind a Nitro burst: Nitro only lasts 2.2s,
+		 * far short of the time needed to actually reach a terminal speed, so
+		 * hanging the headline number on it would have been a number no one ever
+		 * sees. Optimal conditions here means the right build, tucked in a wake -
+		 * something a player earns by racing well, and can hold.
+		 *
+		 * chassisMass is deliberately UNCHANGED at 180. Terminal speed is
+		 * mass-independent here (drag is a force, not an acceleration), so mass
+		 * buys nothing for the goal, while moving it would silently re-tune the
+		 * jump impulse, ram knockback, and tether pull that were measured against
+		 * 180 kg.
+		 *
+		 * The knock-on is that lifting off no longer scrubs speed the way 1.8 drag
+		 * did: coasting stays fast and the brake pedal genuinely matters. That is
+		 * the intended consequence, not a side effect to compensate for.
+		 */
+		engineForce: 2900,
 		brakeForce: 50,
 		handbrakeForce: 50,
 		handbrakeGrip: 0.65,
-		aeroDrag: 1.8,
+		aeroDrag: 0.68,
 		maxSteer: 1,
 		steerSpeedFalloff: 0.04,
 		/** Anti-wheelie: local pitch-rate damping (1/s). Light builds backflip
@@ -297,9 +336,35 @@
 		draftAlignDot: 0.6,
 		draftMinSpeed: 6,
 		draftDragReduction: 0.25,
+		/**
+		 * Chase camera. camDistance / camHeight are the STANDING values; the rig
+		 * pulls back and lifts with speed (Phase 8c) so the higher ceiling reads
+		 * as fast rather than as a wall of car filling the screen.
+		 *
+		 * The curve is linear in speed and CLAMPED, ramping from 0 to camSpeedRef
+		 * (60 m/s, about the stock terminal, so a stock car reaches full pull-back
+		 * at its own top end and faster builds simply hold it there). At the cap
+		 * the TARGET sits 9 -> 13.5 m back and 3.5 -> 4.5 m up.
+		 *
+		 * The gain is deliberately modest because the camera was never as fixed as
+		 * it looked: the camStiffness lerp chases a target that is itself moving,
+		 * so at steady speed it settles a further ~v / camStiffness behind it
+		 * (~12 m at 60 m/s). Measured end to end, effective distance goes from
+		 * ~16 m at the OLD 35 m/s ceiling to ~26 m at the new one. Doubling the
+		 * explicit term on top of that lag pushed the car too far away to read.
+		 *
+		 * Linear-and-clamped on purpose over anything sharper: the camera must
+		 * never move faster than that same lerp can smooth, or the pull-back
+		 * itself becomes the disorientation it exists to prevent.
+		 */
 		camDistance: 9,
 		camHeight: 3.5,
 		camStiffness: 5,
+		/** Speed (m/s) at which the pull-back reaches full extent. */
+		camSpeedRef: 60,
+		/** Extra distance / height at the cap, world units. */
+		camDistanceGain: 4.5,
+		camHeightGain: 1,
 		...COMBAT_DEFAULTS,
 		/** Screen shake amplitude at full trauma, world units. */
 		shakeMax: 0.6,
@@ -338,6 +403,17 @@
 	);
 	// Assigned in onMount once the player rig exists (the resetRound pattern).
 	let applyPlayerLoadout: () => void = () => {};
+	// Weather (Phase 8c): assigned in onMount once the scene exists, the same
+	// pattern. A no-op before mount so an early store change can never throw.
+	let applyEnvironment: (env: EnvironmentPreset) => void = () => {};
+	// Push the selected weather preset into the live scene. Presentation only —
+	// nothing in applyEnvironment touches physics, AI, or timing, so a weather
+	// change mid-race is safe and a stormy lap is the same lap as a clear one.
+	$effect(() => {
+		const env = activeEnvironment();
+		void weatherSettings.preset;
+		applyEnvironment(env);
+	});
 	// Adopt a parent-supplied loadout when it changes (real-route hot-swap; inert
 	// for the dev harness, which passes no prop).
 	$effect(() => {
@@ -501,7 +577,27 @@
 
 	// A tuning value can momentarily read NaN (e.g. a bad stored loadout); fall
 	// back to the default so the sim never ingests a non-finite value.
+	/**
+	 * Hard ceiling on AI opponents (Phase 8c, raised from 6). Both the grid
+	 * builder and the round reset clamp to this one constant.
+	 *
+	 * Raised to 11 (a 12-car grid with the player), NOT straight to the 16 the
+	 * design wants, because the perf target is the school's 6-8 year old
+	 * desktops and draw calls are the known budget: every vehicle is a
+	 * multi-part rig with its own hull clone and tint material. 11 was picked
+	 * against measured frame time on a full grid, with 16 left as a stretch
+	 * goal contingent on a cheaper rig (instanced bodywork / shared hull) —
+	 * raise this constant only behind the same measurement, not on the
+	 * assumption that it scales.
+	 */
+	const MAX_AI = 11;
 	const num = (v: number, d: number) => (Number.isFinite(v) ? v : d);
+	/** Wrap a relative offset into [-half, half] (the rain volume's toroidal
+	 * follow: drops left behind the camera reappear ahead of it). */
+	const wrapRel = (d: number, half: number) => {
+		const span = half * 2;
+		return ((((d + half) % span) + span) % span) - half;
+	};
 
 	onMount(() => {
 		let disposed = false;
@@ -529,13 +625,16 @@
 				stage.appendChild(renderer.domElement);
 
 				// ---- Environment: everything sky/light/fog reads ONE preset ----
-				// (environment.ts). A future day/night or weather system swaps the
-				// preset; nothing in here hardcodes a time of day.
-				const ENV = NIGHT_ENV;
+				// (environment.ts). The WEATHER selector swaps the preset live (see
+				// applyEnvironment below); nothing in here hardcodes a look. `ENV` is
+				// the preset in force right now — the build-time reads below use the
+				// one selected at mount, and applyEnvironment re-points it after.
+				let ENV = untrack(() => activeEnvironment());
 
 				const scene = new THREE.Scene();
 				scene.background = new THREE.Color(ENV.sky.base);
-				scene.fog = new THREE.FogExp2(ENV.fog.color, ENV.fog.density);
+				const sceneFog = new THREE.FogExp2(ENV.fog.color, ENV.fog.density);
+				scene.fog = sceneFog;
 
 				const camera = new THREE.PerspectiveCamera(
 					70,
@@ -544,14 +643,34 @@
 					1000
 				);
 
-				scene.add(
-					new THREE.HemisphereLight(ENV.hemisphere.sky, ENV.hemisphere.ground, ENV.hemisphere.intensity)
+				const hemiLight = new THREE.HemisphereLight(
+					ENV.hemisphere.sky,
+					ENV.hemisphere.ground,
+					ENV.hemisphere.intensity
 				);
-				for (const kl of ENV.keyLights) {
-					const dl = new THREE.DirectionalLight(kl.color, kl.intensity);
-					dl.position.set(kl.position.x, kl.position.y, kl.position.z);
-					scene.add(dl);
-				}
+				scene.add(hemiLight);
+				// Key directionals are rebuilt per preset (a preset may carry a
+				// different count), so they live in a swappable list.
+				const keyLightObjs: InstanceType<typeof THREE.DirectionalLight>[] = [];
+				const buildKeyLights = (env: EnvironmentPreset) => {
+					for (const dl of keyLightObjs) scene.remove(dl);
+					keyLightObjs.length = 0;
+					for (const kl of env.keyLights) {
+						const dl = new THREE.DirectionalLight(kl.color, kl.intensity);
+						dl.position.set(kl.position.x, kl.position.y, kl.position.z);
+						scene.add(dl);
+						keyLightObjs.push(dl);
+					}
+				};
+				buildKeyLights(ENV);
+
+				// Storm lightning: one flash light, idle at zero. Pulsed by the
+				// render loop only while the active preset carries `lightning`.
+				const flashLight = new THREE.DirectionalLight(0xdcecff, 0);
+				flashLight.position.set(40, 160, -30);
+				scene.add(flashLight);
+				let nextFlashAtMs = Infinity;
+				let flashStartMs = -1e9;
 
 				// Deterministic RNG for every generated texture / scatter detail, so
 				// the yard looks identical run to run (and headless drives stay
@@ -563,25 +682,28 @@
 				};
 
 				// ---- Sky: gradient dome from the preset (no shader) ----
-				{
-					const c = document.createElement('canvas');
-					c.width = 512;
-					c.height = 256;
-					const g2 = c.getContext('2d')!;
+				// Baked to a canvas, so a weather swap repaints the same canvas and
+				// flags the texture rather than rebuilding the dome mesh.
+				const skyCanvas = document.createElement('canvas');
+				skyCanvas.width = 512;
+				skyCanvas.height = 256;
+				const paintSky = (env: EnvironmentPreset) => {
+					const g2 = skyCanvas.getContext('2d')!;
+					g2.globalCompositeOperation = 'source-over';
 					const grad = g2.createLinearGradient(0, 0, 0, 256);
-					grad.addColorStop(0, ENV.sky.top);
-					grad.addColorStop(0.34, ENV.sky.high);
-					grad.addColorStop(0.47, ENV.sky.horizon);
-					grad.addColorStop(0.5, ENV.sky.glow);
-					grad.addColorStop(0.55, ENV.sky.base);
-					grad.addColorStop(1, ENV.sky.base);
+					grad.addColorStop(0, env.sky.top);
+					grad.addColorStop(0.34, env.sky.high);
+					grad.addColorStop(0.47, env.sky.horizon);
+					grad.addColorStop(0.5, env.sky.glow);
+					grad.addColorStop(0.55, env.sky.base);
+					grad.addColorStop(1, env.sky.base);
 					g2.fillStyle = grad;
 					g2.fillRect(0, 0, 512, 512);
 					// Motivated horizon glows: warm one heading, cool the opposite.
 					g2.globalCompositeOperation = 'lighter';
 					for (const [u, col] of [
-						[0.22, ENV.sky.warmGlow],
-						[0.68, ENV.sky.coolGlow]
+						[0.22, env.sky.warmGlow],
+						[0.68, env.sky.coolGlow]
 					] as const) {
 						const gx = u * 512;
 						const gy = 0.49 * 256;
@@ -596,8 +718,12 @@
 						g2.fillRect(gx - 90, gy - 90, 180, 180);
 						g2.restore();
 					}
-					const skyTex = new THREE.CanvasTexture(c);
-					skyTex.colorSpace = THREE.SRGBColorSpace;
+					g2.globalCompositeOperation = 'source-over';
+				};
+				paintSky(ENV);
+				const skyTex = new THREE.CanvasTexture(skyCanvas);
+				skyTex.colorSpace = THREE.SRGBColorSpace;
+				{
 					const dome = new THREE.Mesh(
 						new THREE.SphereGeometry(820, 32, 16),
 						new THREE.MeshBasicMaterial({
@@ -679,6 +805,11 @@
 				// it, and props never get physics bodies.
 				const DEGR = Math.PI / 180;
 				const floodMul = ENV.floodIntensity;
+				// Flood materials are baked with the mount-time multiplier; a weather
+				// swap rescales them from their registered BASE value, so repeated
+				// swaps never compound.
+				const floodScalables: { apply: (mul: number) => void }[] = [];
+				let floodAppliedMul = floodMul;
 
 				// Worn corrugated-panel texture shared by containers / railcars.
 				const corrTex = (() => {
@@ -895,6 +1026,19 @@
 						fog: false
 					})
 				};
+				// The four flood-driven materials, registered with their BASE
+				// (un-multiplied) values so a live weather rescale never compounds.
+				floodScalables.push(
+					{
+						apply: (m) => {
+							(propMats.lamp as InstanceType<typeof THREE.MeshStandardMaterial>).emissiveIntensity =
+								1.9 * m;
+						}
+					},
+					{ apply: (m) => (propMats.cone.opacity = 0.032 * m) },
+					{ apply: (m) => (propMats.pool.opacity = 0.032 * m) },
+					{ apply: (m) => (haloMats.flood.opacity = 0.38 * m) }
+				);
 				const addHalo = (
 					kind: keyof typeof haloMats,
 					wx: number,
@@ -2795,7 +2939,7 @@
 					ais.forEach(disposeRig);
 					ais = [];
 					aiPoses.length = 0;
-					const n = Math.max(1, Math.min(6, Math.round(count)));
+					const n = Math.max(1, Math.min(MAX_AI, Math.round(count)));
 					for (let k = 1; k <= n; k++) {
 						const arch = AI_ARCHS[(k - 1) % AI_ARCHS.length];
 						const rig = makeRig(`ai-${k}`, `AI-${k}`, arch, slotPose(k));
@@ -3132,6 +3276,100 @@
 				const dustPool = makePuffPool(110);
 				const spawnDust = dustPool.spawn;
 				const updateDust = dustPool.update;
+
+				// ---- Precipitation (weather presets only) ----
+				// ONE LineSegments draw call: a box of falling streaks that rides
+				// with the camera and wraps, so the player is always inside the
+				// weather without simulating a whole sky. Presentation only — rain
+				// never touches grip, drag, damage, or timing (weather.svelte.ts).
+				// Allocated once at the largest preset's count; the draw range
+				// (setDrawRange) is what a lighter preset shrinks, so switching
+				// weather never reallocates a buffer mid-race.
+				const RAIN_MAX = 4200;
+				const RAIN_BOX = 46; // half-extent of the wrap volume around the camera
+				const RAIN_TOP = 26;
+				const rainPos = new Float32Array(RAIN_MAX * 6); // 2 verts per streak
+				const rainSeed = new Float32Array(RAIN_MAX * 3); // x, y, z of the head
+				for (let i = 0; i < RAIN_MAX; i++) {
+					rainSeed[i * 3] = (Math.random() * 2 - 1) * RAIN_BOX;
+					rainSeed[i * 3 + 1] = Math.random() * RAIN_TOP;
+					rainSeed[i * 3 + 2] = (Math.random() * 2 - 1) * RAIN_BOX;
+				}
+				const rainGeo = new THREE.BufferGeometry();
+				rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+				rainGeo.setDrawRange(0, 0);
+				const rainMat = new THREE.LineBasicMaterial({
+					color: 0xb8d4ea,
+					transparent: true,
+					opacity: 0.34,
+					depthWrite: false,
+					fog: true
+				});
+				const rainMesh = new THREE.LineSegments(rainGeo, rainMat);
+				rainMesh.frustumCulled = false; // it always surrounds the camera
+				rainMesh.visible = false;
+				scene.add(rainMesh);
+				const updateRain = (dt: number) => {
+					const p = ENV.precip;
+					if (!p) return;
+					const n = Math.min(RAIN_MAX, p.count);
+					const fall = p.speed * dt;
+					// A slight lean sells falling speed without a wind system.
+					const lean = p.length * 0.22;
+					const cx = camera.position.x;
+					const cy = camera.position.y;
+					const cz = camera.position.z;
+					for (let i = 0; i < n; i++) {
+						let y = rainSeed[i * 3 + 1] - fall;
+						if (y < 0) y += RAIN_TOP;
+						rainSeed[i * 3 + 1] = y;
+						// Wrap x/z into the box centered on the camera, so the volume
+						// follows the player without per-drop repositioning logic.
+						const hx = cx + wrapRel(rainSeed[i * 3] - cx, RAIN_BOX);
+						const hz = cz + wrapRel(rainSeed[i * 3 + 2] - cz, RAIN_BOX);
+						const hy = cy - RAIN_TOP * 0.5 + y;
+						const o = i * 6;
+						rainPos[o] = hx;
+						rainPos[o + 1] = hy;
+						rainPos[o + 2] = hz;
+						rainPos[o + 3] = hx + lean;
+						rainPos[o + 4] = hy - p.length;
+						rainPos[o + 5] = hz;
+					}
+					rainGeo.getAttribute('position').needsUpdate = true;
+					rainGeo.setDrawRange(0, n * 2);
+				};
+
+				// ---- Live weather swap ----
+				// Re-points ENV and pushes it into every object built from a preset.
+				// Everything here is sky/light/fog/precipitation: no physics body,
+				// AI target, or timing value is touched, by design.
+				applyEnvironment = (env: EnvironmentPreset) => {
+					ENV = env;
+					(scene.background as InstanceType<typeof THREE.Color>).set(env.sky.base);
+					sceneFog.color.set(env.fog.color);
+					sceneFog.density = env.fog.density;
+					hemiLight.color.set(env.hemisphere.sky);
+					hemiLight.groundColor.set(env.hemisphere.ground);
+					hemiLight.intensity = env.hemisphere.intensity;
+					buildKeyLights(env);
+					paintSky(env);
+					skyTex.needsUpdate = true;
+					for (const f of floodScalables) f.apply(env.floodIntensity);
+					floodAppliedMul = env.floodIntensity;
+					if (env.precip) {
+						rainMat.color.set(env.precip.color);
+						rainMat.opacity = env.precip.opacity;
+						rainMesh.visible = true;
+					} else {
+						rainMesh.visible = false;
+						rainGeo.setDrawRange(0, 0);
+					}
+					flashLight.intensity = 0;
+					flashStartMs = -1e9;
+					nextFlashAtMs = env.lightning ? performance.now() + env.lightning.minGapSec * 1000 : Infinity;
+				};
+				applyEnvironment(ENV);
 
 				// ---- Screen shake: trauma model (shake = trauma^2) ----
 				let trauma = 0;
@@ -4271,7 +4509,7 @@
 				const prevPadEdge: Partial<Record<ControlAction, boolean>> = {};
 
 				resetRound = () => {
-					const wantAis = Math.max(1, Math.min(6, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
+					const wantAis = Math.max(1, Math.min(MAX_AI, Math.round(num(tuning.aiCount, DEFAULTS.aiCount))));
 					if (wantAis !== ais.length) buildAis(wantAis);
 					for (const r of rigsAll()) {
 						r.combat.reset(poolsForBuild(r.archetype, r.buildStats));
@@ -4543,6 +4781,68 @@
 						resetRound();
 						return mode;
 					},
+					// ---- Weather (Phase 8c) ----
+					// Drives the SAME store the settings selector writes, so a
+					// scripted drive exercises the real path end to end.
+					setWeather: (id: EnvPresetId) => {
+						setWeatherPreset(id);
+						return weatherSettings.preset;
+					},
+					getWeather: () => ({
+						id: ENV.id,
+						selected: weatherSettings.preset,
+						fogDensity: sceneFog.density,
+						fogColor: `#${sceneFog.color.getHexString()}`,
+						hemiIntensity: hemiLight.intensity,
+						keyLights: keyLightObjs.map((k) => k.intensity),
+						flood: ENV.floodIntensity,
+						floodApplied: floodAppliedMul,
+						rainVisible: rainMesh.visible,
+						rainDrawn: rainGeo.drawRange.count / 2,
+						rainOpacity: rainMat.opacity,
+						lightning: !!ENV.lightning,
+						flashIntensity: flashLight.intensity
+					}),
+					// Chase-camera geometry vs the speed driving it (Phase 8c).
+					camInfo: () => {
+						const v = player.body.velocity;
+						return {
+							speedMs: Math.hypot(v.x, v.y, v.z),
+							// Planar distance camera-to-car: the pull-back the player sees.
+							distance: Math.hypot(
+								camera.position.x - player.carGroup.position.x,
+								camera.position.z - player.carGroup.position.z
+							),
+							height: camera.position.y - player.carGroup.position.y
+						};
+					},
+					// Frame cost over the rolling window: mean / median / p95 / worst
+					// CPU ms per frame, against the 16.7ms 60fps budget. Used to size
+					// MAX_AI against a real measurement rather than a guess.
+					perf: () => {
+						const n = perfFilled;
+						if (!n) return null;
+						const v = Array.from(perfSamples.slice(0, n)).sort((a, b) => a - b);
+						const mean = v.reduce((a, b) => a + b, 0) / n;
+						return {
+							ais: ais.length,
+							vehicles: ais.length + 1,
+							frames: perfFrames,
+							samples: n,
+							meanMs: +mean.toFixed(2),
+							medianMs: +v[Math.floor(n / 2)].toFixed(2),
+							p95Ms: +v[Math.floor(n * 0.95)].toFixed(2),
+							worstMs: +v[n - 1].toFixed(2),
+							budgetPct60: +((mean / (1000 / 60)) * 100).toFixed(1),
+							drawCalls: renderer.info.render.calls,
+							triangles: renderer.info.render.triangles
+						};
+					},
+					perfReset: () => {
+						perfIdx = 0;
+						perfFilled = 0;
+						perfFrames = 0;
+					},
 					getSlicks: () => slicks,
 					getTethers: () => tethers.map((tv) => tv.t),
 					getLoadout: () => playerLoadout,
@@ -4689,6 +4989,16 @@
 							tuning.lapTarget = Math.max(1, Math.round(n));
 							return tuning.lapTarget;
 						},
+						// Grid size, clamped to MAX_AI. Applies on the reset it triggers
+						// (rigs are built at round start), which is how aiCount always
+						// behaved. Exists so a full-grid perf run stays scriptable now
+						// that the live tuning panel is gone.
+						setAiCount: (n: number) => {
+							tuning.aiCount = Math.max(1, Math.min(MAX_AI, Math.round(n)));
+							resetRound();
+							return tuning.aiCount;
+						},
+						maxAi: () => MAX_AI,
 						// Per-round weapon / flip / fall / zone counters (reset by
 						// resetRound).
 						getTelemetry: () => ({
@@ -4763,8 +5073,15 @@
 					}
 				};
 
+				// Rolling ring buffer of per-frame CPU cost (see the write at the end
+				// of tick). ~4s at 60fps, enough to average out a GC or a spawn spike.
+				const perfSamples = new Float32Array(240);
+				let perfIdx = 0;
+				let perfFilled = 0;
+				let perfFrames = 0;
 				const tick = () => {
-					const now = performance.now();
+					const frameT0 = performance.now();
+					const now = frameT0;
 					const dt = Math.min((now - lastT) / 1000, 0.05);
 					lastT = now;
 					frame++;
@@ -6082,6 +6399,23 @@
 					updateSmoke(now, dt);
 					updateDebris(now, dt);
 					updateDust(now, dt);
+					// -- Weather: precipitation follows the camera; storm flashes --
+					if (ENV.precip) updateRain(dt);
+					if (ENV.lightning) {
+						const lg = ENV.lightning;
+						if (now >= nextFlashAtMs) {
+							flashStartMs = now;
+							nextFlashAtMs =
+								now + (lg.minGapSec + Math.random() * (lg.maxGapSec - lg.minGapSec)) * 1000;
+						}
+						// Double-strobe decay: a bright stab, a dimmer echo, gone in
+						// ~400ms. Cheap and reads as lightning without a sky shader.
+						const age = (now - flashStartMs) / 400;
+						flashLight.intensity =
+							age >= 0 && age < 1
+								? lg.intensity * Math.max(0, (1 - age) * (0.55 + 0.45 * Math.cos(age * 22)))
+								: 0;
+					}
 					// Trigger-zone markers breathe gently (empty on zone-less tracks).
 					for (const zp of zonePulse) {
 						zp.mat.opacity = zp.base * (0.75 + 0.25 * Math.sin(now / 420 + zp.phase));
@@ -6089,8 +6423,21 @@
 
 					// -- Chase camera (player) --
 					const flatFwd = new THREE.Vector3(player.hx, 0, player.hz);
-					const dist = num(tuning.camDistance, DEFAULTS.camDistance);
-					const height = num(tuning.camHeight, DEFAULTS.camHeight);
+					// Speed-scaled pull-back: linear in speed, clamped at camSpeedRef
+					// (see DEFAULTS). The lerp below still smooths the result, so the
+					// camera eases out and back in rather than snapping.
+					const camSpeed = Math.hypot(
+						player.body.velocity.x,
+						player.body.velocity.y,
+						player.body.velocity.z
+					);
+					const camT = Math.min(1, camSpeed / Math.max(1, num(tuning.camSpeedRef, DEFAULTS.camSpeedRef)));
+					const dist =
+						num(tuning.camDistance, DEFAULTS.camDistance) +
+						camT * num(tuning.camDistanceGain, DEFAULTS.camDistanceGain);
+					const height =
+						num(tuning.camHeight, DEFAULTS.camHeight) +
+						camT * num(tuning.camHeightGain, DEFAULTS.camHeightGain);
 					const stiff = num(tuning.camStiffness, DEFAULTS.camStiffness);
 					const desired = player.carGroup.position
 						.clone()
@@ -6310,6 +6657,15 @@
 					}
 
 					renderer.render(scene, camera);
+					// Frame-cost instrumentation (Phase 8c). CPU time for the whole
+					// tick: simulation, AI, FX, and the render SUBMIT. GPU work is
+					// asynchronous and is NOT included, so read this as "how much of
+					// the 16.7ms budget the main thread spends", which is the side the
+					// grid size actually scales.
+					perfSamples[perfIdx] = performance.now() - frameT0;
+					perfIdx = (perfIdx + 1) % perfSamples.length;
+					if (perfFilled < perfSamples.length) perfFilled++;
+					perfFrames++;
 				};
 				renderer.setAnimationLoop(tick);
 
