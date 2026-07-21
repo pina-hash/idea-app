@@ -18,19 +18,21 @@
 	/**
 	 * FspLiveFeed — the Supabase Realtime question feed for FSP live Q&A, factored
 	 * out of /fsp/live so it can be embedded without rebuilding. It owns ONLY the
-	 * feed: loading unanswered questions for a session, the Realtime subscription
-	 * (INSERT adds a card, a soft-clear UPDATE removes it), the relative-time
-	 * clock, and the card list + empty state. The chrome around it (auth gate,
-	 * session controls, panel frame) belongs to the parent.
+	 * feed: loading unanswered questions, the Realtime subscription (INSERT adds
+	 * a card, a soft-clear UPDATE removes it), the relative-time clock, and the
+	 * card list + empty state. The chrome around it (auth gate, panel frame)
+	 * belongs to the parent.
 	 *
-	 * Used in two places from ONE source:
+	 * ONE chronological feed, no grouping by session. Every submitted question
+	 * still carries a `session_id` (unchanged submission flow: /fsp/ask still
+	 * tags each question with the active session from fsp_config, and the data
+	 * model is untouched), but the feed no longer filters or displays by it —
+	 * every unanswered question renders here newest-first with its own
+	 * timestamp. Moderation state (`answered`, the soft clear) is unchanged.
+	 *
+	 * Used from:
 	 *   - /fsp/live      — the staff presenter console (variant="console")
-	 *   - /fsp/day1      — slide 13 of the Day 1 deck (variant="slide")
-	 *
-	 * Session resolution: pass `session` to filter on a specific session and the
-	 * feed reacts to changes (the console drives this as staff switch sessions).
-	 * Leave it undefined and the feed resolves the active session from fsp_config
-	 * itself (the deck embed just wants "whatever is live now").
+	 *   - /fsp/day1      — slide 13 of the Day 1 deck (variant="slide", dead code)
 	 *
 	 * Harness/no-DB: pass `sampleQuestions` with `supabase = null` to render a
 	 * static preview with no network (the /dev harness relies on this).
@@ -38,14 +40,11 @@
 
 	let {
 		supabase = null,
-		session = undefined,
 		sampleQuestions = null,
 		variant = 'console',
 		count = $bindable(0)
 	}: {
 		supabase?: SupabaseClient | null;
-		/** Explicit session to filter on. Undefined = resolve from fsp_config. */
-		session?: string | null | undefined;
 		/** Static questions for the no-Supabase harness preview. */
 		sampleQuestions?: FspQuestion[] | null;
 		variant?: 'console' | 'slide';
@@ -56,7 +55,6 @@
 	let questions = $state<FspQuestion[]>([]);
 	let ready = $state(false);
 	let feedError = $state('');
-	let resolvedSession = $state<string | null>(null);
 
 	let channel: RealtimeChannel | null = null;
 	let now = $state(Date.now());
@@ -64,16 +62,12 @@
 	let reduced = $state(false);
 
 	const usingSample = $derived(!supabase && !!sampleQuestions);
-	// When `session` is passed use it (and react to it); otherwise use whatever
-	// we resolved from fsp_config.
-	const effectiveSession = $derived(session !== undefined ? session : resolvedSession);
 
-	async function loadFeed(s: string) {
+	async function loadFeed() {
 		if (!supabase) return;
 		const { data: rows, error } = await supabase
 			.from('fsp_questions')
 			.select('id, question, session_id, created_at, answered, is_anonymous, submitter_name')
-			.eq('session_id', s)
 			.eq('answered', false)
 			.order('created_at', { ascending: false });
 		if (error) {
@@ -85,14 +79,14 @@
 		questions = (rows ?? []) as FspQuestion[];
 	}
 
-	function subscribe(s: string) {
+	function subscribe() {
 		if (!supabase) return;
 		teardown();
 		channel = supabase
-			.channel(`fsp-live-${s}`)
+			.channel('fsp-live-all')
 			.on(
 				'postgres_changes',
-				{ event: 'INSERT', schema: 'public', table: 'fsp_questions', filter: `session_id=eq.${s}` },
+				{ event: 'INSERT', schema: 'public', table: 'fsp_questions' },
 				(payload) => {
 					const row = payload.new as FspQuestion;
 					if (row.answered) return;
@@ -102,7 +96,7 @@
 			)
 			.on(
 				'postgres_changes',
-				{ event: 'UPDATE', schema: 'public', table: 'fsp_questions', filter: `session_id=eq.${s}` },
+				{ event: 'UPDATE', schema: 'public', table: 'fsp_questions' },
 				(payload) => {
 					const row = payload.new as FspQuestion;
 					// A soft clear (answered = true) removes the card from the feed.
@@ -127,7 +121,7 @@
 		return `${hrs}h ago`;
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 		clockTimer = setInterval(() => (now = Date.now()), 1000);
 
@@ -136,24 +130,10 @@
 			ready = true;
 			return;
 		}
-		// Self-resolve the active session only when the parent didn't pass one.
-		if (session === undefined && supabase) {
-			const { data: cfg } = await supabase
-				.from('fsp_config')
-				.select('value')
-				.eq('key', 'active_session')
-				.maybeSingle();
-			resolvedSession = cfg?.value ?? 'Day1-A';
+		if (supabase) {
+			loadFeed().then(() => (ready = true));
+			subscribe();
 		}
-	});
-
-	// (Re)load + (re)subscribe whenever the effective session changes.
-	$effect(() => {
-		const s = effectiveSession;
-		if (!supabase || !s) return;
-		loadFeed(s).then(() => (ready = true));
-		subscribe(s);
-		return () => teardown();
 	});
 
 	// Keep the parent's chrome (LIVE dot, count) in sync with the feed.

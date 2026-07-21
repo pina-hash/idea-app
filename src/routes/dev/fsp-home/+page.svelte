@@ -44,7 +44,7 @@
 	]);
 
 	// Stubbed open-state (local only in the harness).
-	let opened = $state(new Set<string>(['fsp-day1']));
+	let opened = $state(new Set<string>(['fsp-presentations']));
 	let log = $state<string[]>([]);
 
 	const onOpen = (slug: string) => {

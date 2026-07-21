@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Section, Assignment } from '$lib/curriculum';
+	import FspPresentationsPanel from '$lib/fsp/FspPresentationsPanel.svelte';
 
 	/**
 	 * The FSP section card pinned atop the homepage, factored out so the dev
@@ -33,8 +34,7 @@
 	// the `pulse` kind and additionally get the pulsing LIVE indicator.
 	type AssignmentIconKind = 'deck' | 'pulse' | 'plugin' | 'book' | 'clipboard' | 'archive';
 	const ICON_KINDS: Record<string, AssignmentIconKind> = {
-		'fsp-day1': 'deck',
-		'fsp-day2': 'deck',
+		'fsp-presentations': 'deck',
 		'fsp-ask': 'pulse',
 		'fsp-live': 'pulse',
 		'fsp-addin': 'plugin',
@@ -48,8 +48,7 @@
 	// presentations, then the live items adjacent, then tools, then the form. Any
 	// slug not in this order sorts to the end (stable) so nothing is ever dropped.
 	const ORDER = [
-		'fsp-day1',
-		'fsp-day2',
+		'fsp-presentations',
 		'fsp-ask',
 		'fsp-live',
 		'fsp-addin',
@@ -68,6 +67,19 @@
 	const isLive = (slug: string) => iconKind(slug) === 'pulse';
 	const handleOpen = (slug: string) => {
 		if (signedIn && !openedSet.has(slug)) onOpen?.(slug);
+	};
+
+	// "FSP Presentations" opens a tabbed panel in place rather than navigating
+	// (it has no href in curriculum.ts); every other row navigates as normal.
+	const PANEL_SLUGS = new Set(['fsp-presentations']);
+	let presentationsOpen = $state(false);
+	const isPanel = (slug: string) => PANEL_SLUGS.has(slug);
+	const handleRowClick = (e: MouseEvent, slug: string) => {
+		if (isPanel(slug)) {
+			e.preventDefault();
+			presentationsOpen = true;
+		}
+		handleOpen(slug);
 	};
 </script>
 
@@ -136,8 +148,9 @@
 			{@const opened = openedSet.has(a.slug)}
 			<a
 				class="assignment-item linked"
-				href={a.href ?? `/assignments/${a.slug}`}
-				onclick={() => handleOpen(a.slug)}
+				href={isPanel(a.slug) ? '#' : (a.href ?? `/assignments/${a.slug}`)}
+				aria-haspopup={isPanel(a.slug) ? 'dialog' : undefined}
+				onclick={(e) => handleRowClick(e, a.slug)}
 			>
 				<div class="assignment-left">
 					{#if iconKind(a.slug)}
@@ -169,3 +182,5 @@
 		{/each}
 	</div>
 </div>
+
+<FspPresentationsPanel bind:open={presentationsOpen} />

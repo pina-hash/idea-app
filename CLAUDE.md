@@ -4505,10 +4505,10 @@ homepage**, not a special hub or a launcher app. The `summer-2026` section
 (`curriculum.ts`) renders via `summerProgram()` in its own "Incoming Freshman"
 band between the hero stats and the APPS block (`src/routes/+page.svelte`,
 replacing the old "next live course" promo callout there), formatted
-identically to every other section card, with three material rows that use
+identically to every other section card, with material rows that use
 the optional `Assignment.href` to link directly to the FSP tools:
-`Day 1 Presentation` -> `/fsp/day1`, `Live Q&A` -> `/fsp/ask`,
-`SolidWorks Add-In` -> `/fsp/class`. It is no longer a `portal-apps.ts` launcher
+`FSP Presentations` (no href, see `FspPresentationsPanel` below), `Live Q&A` ->
+`/fsp/ask`, `SolidWorks Add-In` -> `/fsp/class`. It is no longer a `portal-apps.ts` launcher
 app (that entry was removed), and the old role-routing hub page
 `/fsp/+page.svelte` was DELETED — `/fsp/day1`, `/fsp/live`, `/fsp/ask`, and
 `/fsp/class` are intact and reached directly (bare `/fsp` no longer resolves).
@@ -4554,6 +4554,23 @@ item.
     freezes under `prefers-reduced-motion` (solid dot stays).
   - **Opened progress dots** (`.open-progress`): signed-in only; a hollow `--gear`
     ring until the item is opened, then a filled `--green` check.
+  - **`FSP Presentations` opens a panel, not a page.** The row has no `href`
+    (`curriculum.ts`); `FspHomeSection` special-cases its slug
+    (`fsp-presentations`) so the click is intercepted (`preventDefault`, the
+    `open-state` first-open callback still fires) and it mounts
+    `src/lib/fsp/FspPresentationsPanel.svelte` instead of navigating. That
+    component is a green-on-black modal (styled like `FspStudentPreview`) with
+    three tabs (Day 1/2/3), each embedding that day's Google Slides deck via
+    the public `/embed?start=false&loop=false&delayms=3000` URL (no auth, no
+    per-day route — distinct from the Claude Design archive viewers at
+    `/fsp/day1` / `/fsp/day2`, which are untouched). A tab's iframe mounts only
+    on first view (lazy) and stays mounted after that (tab-switch just
+    toggles CSS visibility, so switching back never re-loads it). Because a
+    blocked Google Slides share can render an in-frame "you need access" page
+    WITHOUT ever firing the iframe's `error` event, failure can't be reliably
+    detected: a plain "Open in Google Slides ↗" link is therefore always shown
+    under every tab's iframe, never gated behind error detection, so the deck
+    is always reachable even if the embed is silently broken.
 - **Open-state tracking (`0048_fsp_item_opens.sql`, apply manually after 0047):**
   per-student first-open state for each of the FSP items, persisted so
   progress follows a student across devices (the tour-state intent from 0045).
@@ -4611,11 +4628,13 @@ root so the shell `.bg-fx` never shows through.
     what those rows meant before the column existed).
   - `fsp_config` (`key` PK, `value`), seeded `active_session = 'Day1-A'`. All
     authenticated users read; only `@boscotech.edu` (staff) may UPDATE (RLS on
-    the JWT email domain). This one row is the session the ask picker submits to
-    and the live feed filters on. **Six fixed session slots** are used in
-    practice, one per FSP day/session: `Day1-A`, `Day1-B`, `Day2-A`, `Day2-B`,
-    `Day3-A`, `Day3-B` (two sessions per day); these are UI presets on
-    `/fsp/live`; the column itself stays free-form text.
+    the JWT email domain). This one row is the session `/fsp/ask` tags every
+    submission with (unchanged submission flow). **Six fixed session slots**
+    still exist as values, one per FSP day/session: `Day1-A`, `Day1-B`,
+    `Day2-A`, `Day2-B`, `Day3-A`, `Day3-B` (two sessions per day); the column
+    stays free-form text. `/fsp/live` no longer exposes these as a picker or
+    groups the feed by them (see `/fsp/live` below) — they now exist purely as
+    the tag every question still carries and the sweep target for Clear Feed.
   - Soft clear is the staff-only SECURITY DEFINER RPC
     `clear_fsp_session(p_session_id)` (gated to `@boscotech.edu`): sets
     `answered = true` on that session's unanswered rows (never deletes) and
@@ -4642,38 +4661,38 @@ root so the shell `.bg-fx` never shows through.
   display-only; no coin economy exists in this repo, see the scope
   guardrails.)
 - **`/fsp/live` (staff, `@boscotech.edu`):** the standalone Q&A display,
-  redesigned for projection (a widescreen session panel + feed layout, session
-  panel stacking above the feed on narrow viewports). In-page sign-in + staff
-  domain gate, a full-screen toggle, and:
-  - **Session panel:** six preset buttons (`Day1-A` through `Day3-B`, see
-    above) replace the old free-text session input; clicking one writes that
-    value to `fsp_config.active_session` (same RLS-gated write path as before)
-    and the currently-active preset is highlighted. The active session name is
-    shown large above the panel. **Clear Feed** (renamed from "Clear Session")
-    still calls `clear_fsp_session(session_id)` on the CURRENT session only, a
-    manual soft-delete for edge cases (e.g. clearing chatter without switching
-    slots); switching presets itself does not delete anything, it just points
-    the feed at a session_id that starts empty until new questions arrive for
-    it, which reads as "cleared" on screen.
+  redesigned for projection (a widescreen panel + feed layout, panel stacking
+  above the feed on narrow viewports). In-page sign-in + staff domain gate, a
+  full-screen toggle, and:
+  - **ONE chronological feed, no session grouping.** The earlier six-preset
+    session picker (`Day1-A` through `Day3-B`) is gone from the display: every
+    unanswered question renders together, newest-first, regardless of which
+    session it was submitted under. This is display-only — the data model and
+    submission flow are unchanged (`/fsp/ask` still tags every question with
+    `fsp_config.active_session`; see the `fsp_config` bullet above). **Clear
+    Feed** still uses the only RPC that exists, the per-session
+    `clear_fsp_session(session_id)` (no "clear all" RPC was added, to avoid a
+    migration), so it loops over the six known session ids and calls the RPC
+    for each, soft-clearing the whole (now ungrouped) feed in one click.
   - **QR code:** a static `api.qrserver.com` generated PNG (dark green-on-black
     to match the palette) linking to `https://ideabosco.com/fsp/ask`, labelled
-    "ideabosco.com/fsp/ask" underneath, docked at the bottom of the session
-    panel so students can scan it straight off the projected display.
+    "ideabosco.com/fsp/ask" underneath, docked at the bottom of the panel so
+    students can scan it straight off the projected display.
   - **Feed:** each card shows the question, the submitter (or "Anonymous" when
     `is_anonymous` or a null `submitter_name`), and a relative timestamp;
     newest-at-top, animated in, generous padding sized for reading from across
     a room.
-  The **feed itself** (Realtime subscription filtered by the active session,
-  loading unanswered rows newest-first, question cards, soft-clear UPDATE
+  The **feed itself** (Realtime subscription with no session filter, loading
+  every unanswered row newest-first, question cards, soft-clear UPDATE
   removing a card, `prefers-reduced-motion`) is factored into
   `src/lib/fsp/FspLiveFeed.svelte`, still shared with the dead-code
   `FspDeck.svelte` and the dev harnesses; the page keeps only the chrome (auth
-  gate, session panel, QR, a **Student View** control, count via a bound prop,
-  full-screen toggle). The component's `select()` now includes `is_anonymous` /
-  `submitter_name`, and takes an optional `session` (undefined = self-resolve
-  `active_session` from `fsp_config`), a `variant` (`console` on this page,
-  `slide` for the now-unused deck-embed path kept alive only by dead code /
-  harnesses), and `sampleQuestions` for the no-Supabase harness path.
+  gate, QR, a **Student View** control, count via a bound prop, full-screen
+  toggle). The component's `select()` includes `is_anonymous` /
+  `submitter_name`, and takes a `variant` (`console` on this page, `slide` for
+  the now-unused deck-embed path kept alive only by dead code / harnesses) and
+  `sampleQuestions` for the no-Supabase harness path (the earlier `session`
+  filter prop was removed along with the grouping).
   - **Student View** (staff-only surface, so no extra gate) opens
     `src/lib/fsp/FspStudentPreview.svelte`: a modal that shows `/fsp/ask` inside
     a ~390px mobile phone frame, so the presenter sees exactly what students see

@@ -177,7 +177,7 @@
 					<div
 						style="flex:1;min-height:0;position:relative;background-image:linear-gradient(rgba(0,255,65,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,65,0.04) 1px,transparent 1px);background-size:24px 24px"
 					>
-						<FspLiveFeed variant="slide" {supabase} {session} sampleQuestions={liveSample} />
+						<FspLiveFeed variant="slide" {supabase} sampleQuestions={liveSample} />
 					</div>
 				</div>
 

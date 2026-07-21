@@ -12,22 +12,21 @@
 	 * Q&A, never embedded in a deck. The actual question feed (Realtime
 	 * subscription + cards) lives in $lib/fsp/FspLiveFeed.svelte, shared with the
 	 * dead-code FspDeck.svelte and the dev harnesses. This page owns the chrome:
-	 * the staff auth gate, the session preset panel, the QR code, and the
-	 * full-screen toggle.
+	 * the staff auth gate, the QR code, and the full-screen toggle.
 	 *
-	 * Session selection is now six fixed presets (Day1-A/B, Day2-A/B, Day3-A/B),
-	 * not free text — one FSP still runs three days, two sessions each. Clicking
-	 * a preset writes it to fsp_config.active_session (same RLS-gated write path
-	 * as before); the feed reacts because `session` is passed to FspLiveFeed and
-	 * it re-subscribes whenever that prop changes. Switching presets naturally
-	 * "clears" what's on screen since a new session_id starts with no rows for
-	 * it; Clear Feed remains as an explicit soft-delete of the CURRENT session's
-	 * questions for edge cases (e.g. clearing chatter mid-session without
-	 * switching to a new slot).
+	 * ONE chronological feed, no session grouping in the display: every
+	 * unanswered question renders regardless of which session it was submitted
+	 * under. The data model and submission flow are unchanged — /fsp/ask still
+	 * tags each question with fsp_config.active_session, and `clear_fsp_session`
+	 * is still scoped per session_id — so Clear Feed sweeps every known session
+	 * preset to soft-clear the whole visible feed without a schema change.
 	 */
 
 	const ALLOWED_DOMAIN = '@boscotech.edu';
-	const SESSION_PRESETS = ['Day1-A', 'Day1-B', 'Day2-A', 'Day2-B', 'Day3-A', 'Day3-B'];
+	// Every session_id a question can carry (unchanged submission flow). No
+	// longer shown as a picker; used only so Clear Feed can soft-clear the
+	// entire (now ungrouped) feed via the existing per-session RPC.
+	const KNOWN_SESSIONS = ['Day1-A', 'Day1-B', 'Day2-A', 'Day2-B', 'Day3-A', 'Day3-B'];
 	const ASK_URL = 'https://ideabosco.com/fsp/ask';
 	const QR_SRC =
 		'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https%3A%2F%2Fideabosco.com%2Ffsp%2Fask&bgcolor=0a0a0a&color=00FF41&format=png';
@@ -43,10 +42,9 @@
 	let loading = $state(false);
 	let authError = $state('');
 
-	let activeSession = $state('');
 	let count = $state(0);
 	let feedError = $state('');
-	let busy = $state(''); // 'set' | 'clear' | ''
+	let busy = $state(''); // 'clear' | ''
 
 	let rootEl: HTMLElement;
 	let isFullscreen = $state(false);
@@ -73,34 +71,19 @@
 		await invalidateAll();
 	}
 
-	async function selectSession(s: string) {
-		if (busy || s === activeSession) return;
-		busy = 'set';
-		feedError = '';
-		try {
-			const { error } = await supabase
-				.from('fsp_config')
-				.update({ value: s })
-				.eq('key', 'active_session');
-			if (error) throw error;
-			// The feed reacts to the `session` prop changing.
-			activeSession = s;
-		} catch (err) {
-			feedError = err instanceof Error ? err.message : 'Could not set the session.';
-		} finally {
-			busy = '';
-		}
-	}
-
 	async function clearFeed() {
-		if (!activeSession || busy) return;
+		if (busy) return;
 		busy = 'clear';
 		feedError = '';
 		try {
-			const { error } = await supabase.rpc('clear_fsp_session', { p_session_id: activeSession });
-			if (error) throw error;
-			// Soft clear: the feed's Realtime UPDATE handler removes the cleared
-			// cards on its own; new questions repopulate it.
+			// No "clear all" RPC exists (the data model is unchanged), so sweep
+			// every known session_id through the existing per-session RPC. Soft
+			// clear: the feed's Realtime UPDATE handler removes each cleared card
+			// on its own; new questions repopulate it.
+			for (const s of KNOWN_SESSIONS) {
+				const { error } = await supabase.rpc('clear_fsp_session', { p_session_id: s });
+				if (error) throw error;
+			}
 		} catch (err) {
 			feedError = err instanceof Error ? err.message : 'Could not clear the feed.';
 		} finally {
@@ -120,16 +103,8 @@
 		isFullscreen = !!document.fullscreenElement;
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		document.addEventListener('fullscreenchange', onFullscreenChange);
-		if (signedIn && domainOk) {
-			const { data: cfg } = await supabase
-				.from('fsp_config')
-				.select('value')
-				.eq('key', 'active_session')
-				.maybeSingle();
-			activeSession = cfg?.value ?? 'Day1-A';
-		}
 	});
 
 	onDestroy(() => {
@@ -189,25 +164,11 @@
 		<div class="layout">
 			<aside class="panel">
 				<div class="active-session">
-					<span class="active-label">Active session</span>
-					<span class="active-name">{activeSession || '—'}</span>
+					<span class="active-label">Live feed</span>
 					<span class="count">{count} question{count === 1 ? '' : 's'}</span>
 				</div>
 
-				<div class="presets">
-					{#each SESSION_PRESETS as preset (preset)}
-						<button
-							class="preset"
-							class:active={preset === activeSession}
-							onclick={() => selectSession(preset)}
-							disabled={busy !== ''}
-						>
-							{preset}
-						</button>
-					{/each}
-				</div>
-
-				<button class="ghost danger clear" onclick={clearFeed} disabled={busy !== '' || !activeSession}>
+				<button class="ghost danger clear" onclick={clearFeed} disabled={busy !== ''}>
 					{busy === 'clear' ? 'Clearing…' : 'Clear Feed'}
 				</button>
 
@@ -218,7 +179,7 @@
 			</aside>
 
 			<main class="feed">
-				<FspLiveFeed variant="console" {supabase} session={activeSession} bind:count />
+				<FspLiveFeed variant="console" {supabase} bind:count />
 			</main>
 		</div>
 
@@ -420,48 +381,13 @@
 		text-transform: uppercase;
 		color: #4a7a52;
 	}
-	.active-name {
+	.count {
 		font-size: 2rem;
 		font-weight: 700;
 		line-height: 1.1;
+		font-family: 'Share Tech Mono', monospace;
 		color: var(--green, #00ff41);
 		text-shadow: 0 0 14px rgba(0, 255, 65, 0.4);
-	}
-	.count {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.85rem;
-		color: var(--cyan, #00f0ff);
-	}
-
-	.presets {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 0.5rem;
-	}
-	.preset {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.9rem;
-		letter-spacing: 0.02em;
-		padding: 0.6rem 0.5rem;
-		border-radius: 8px;
-		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.25));
-		background: #0a0f0a;
-		color: #a9c9ad;
-		cursor: pointer;
-	}
-	.preset:hover:not(:disabled) {
-		background: rgba(0, 255, 65, 0.1);
-		color: var(--green, #00ff41);
-	}
-	.preset:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-	.preset.active {
-		background: rgba(0, 255, 65, 0.16);
-		border-color: var(--green, #00ff41);
-		color: var(--green, #00ff41);
-		box-shadow: 0 0 14px rgba(0, 255, 65, 0.2);
 	}
 
 	.clear {
