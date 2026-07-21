@@ -3522,6 +3522,105 @@ on one side of the world.
     12 cars with 12 seated grid slots. `svelte-check` clean, 0 errors, 0 new
     warnings.
 
+- **Elevation-aware scenery, floodlight beams, and a chassis floor (Phase
+  9-fix-c).** Three reported bugs, three genuinely separate root causes.
+  - **Scenery was pinned to y 0 (the barrier/guardrail bug, and more).** Every
+    prop instance was composed at `iv.set(t.x, 0, t.z)` and the berm strip
+    lofted between two hardcoded heights, which is only the truth on a flat
+    yard. On Terminal Nine that put the deck gantry 13.5 m under the deck it
+    spans, the outer-boundary chain-link fence 13.5 m below the road it lines,
+    and the banked sweeper's berm buried to its cap rail. Scenery now stands on
+    its own ground: `surfaceProbe(rt, x, z)` (NEW in track-runtime.ts, a
+    build-time full-scan returning surface height PLUS how far the point lies
+    beyond the ribbon edge) states the fact, and `propGroundY` in the harness
+    applies the policy. **The policy is two grounds, chosen by a hard
+    threshold:** the world has the flat apron at y 0 and the ribbon where it
+    rises, so a prop within `PROP_TRACKSIDE_M` (20) of the ribbon edge rides
+    the ribbon's local surface and anything further out stays on the apron.
+    Deliberately NOT a blend — a half-lifted prop floats, which never reads as
+    correct — and the margin is sized off real placements (furthest authored
+    trackside prop 16 m, nearest yard machinery 22 m). The berm reads elevation
+    per point for BOTH its inner and outer edge, and its cap-rail segments are
+    now PITCHED between their two ends (Euler XYZ composes as RY * RZ, so an
+    +x-aligned box tilts in its own vertical plane then yaws) instead of
+    stair-stepping. Flat tracks are untouched by construction: `surfaceProbe`
+    returns 0 when `hasRelief` is false, verified on Proving Ground 07 (226
+    prop instances, every one still at y 0; the only non-zero group is its 67
+    fence posts at their unchanged 1.3).
+  - **Floodlight beams were inverted, on EVERY track.** The working hypothesis
+    was that this was elevated-placement-only; it was not. `ConeGeometry`'s
+    apex is its +y end, and the beams were tilted `-0.5` about z, which swung
+    the apex OUT into the air and the wide base back UNDER the mast, below
+    ground: measured before the fix, the cone's top vertex sat at local
+    (11.85, 25.12) while the lamp lens it should hang from is at (1.14,
+    26.88), with the pool glowing 9 m away and nothing joining them. Flat
+    Proving Ground 07 shows it just as plainly as Terminal Nine (screenshot
+    verified: beams flaring UPWARD and outward, missing their own lamp heads).
+    The beam is now DERIVED from its two real endpoints, the lamp lens and the
+    pool, so cone and pool can never disagree again: length `hypot(dx, dy)`,
+    centre at their midpoint, tilt `+atan2(dx, dy)`. The pool stays on the
+    tower's own ground plane, which is correct because every ground query
+    beyond the ribbon edge clamps to that edge's height, so a trackside tower
+    and the patch it lights read the same surface (checked for all 12 Terminal
+    Nine towers); a tower authored close enough that its pool falls on banked
+    ribbon would need per-instance beam geometry, which nothing needs today.
+  - **Elevated-floor clipping: 9-fix-a helped a lot but did not fix it, and
+    the mechanism is not only "fully airborne".** A RaycastVehicle touches the
+    track ONLY through its four wheel rays and cannon-es has no
+    Box-vs-Trimesh narrowphase, so a chassis whose wheels cannot reach the
+    deck has literally nothing holding it up. MEASURED on the 13.5 m deck: a
+    car rolled onto its ROOF falls the full 13.5 m in ~1.4 s (deterministic,
+    not a rare tunnel — and the flip watchdog's 2 s delay can never fire in
+    time), and a landing above ~15-20 m/s vertical punches straight through
+    because the impact blows past the suspension travel and puts the ray
+    origins under the surface. The downforce A/B (same scripted lap, floor fix
+    off in both) shows 9-fix-a's real contribution: WITHOUT downforce, 31.8%
+    of frames airborne, the car ends 14.56 m below the surface, 2 fall
+    recoveries; WITH it, 13.4% airborne, never below the surface, 0 falls. So
+    it removed the ordinary-driving symptom without touching the cause. The
+    cause is now covered by a **chassis floor**: per vehicle per frame, when
+    the ribbon is more than `CHASSIS_FLOOR_MIN_RISE` (0.5 m) above the catch
+    plane AND the vehicle is over the ribbon corridor AND its chassis AABB's
+    lower bound (the exact lowest vertex of the oriented box, so inverted /
+    rolled / pitched cars need no special case) is under the surface by less
+    than `chassisFloorBand` (2.5 m), the body is stood back on the surface and
+    downward velocity is killed. **All three gates earn their place:** below
+    the rise threshold the y-0 plane already does this with a real
+    narrowphase, and doing it twice nudged every hard landing on ordinary
+    ground (measured 119 of 127 near-floor frames on a clean lap were flat;
+    adding the gate took a clean Terminal Nine run from 91 catches to 3); and
+    the band matters because a car BESIDE or far UNDER an elevated span reads
+    that same clamped surface height and would otherwise be flung 13 m into
+    the air. The band is deliberately the SAME value as `fallRecoverDrop`,
+    which splits the two watchdogs with no gap and no overlap: penetrating the
+    floor is the floor's job, anything deeper has genuinely fallen off and is
+    the fall watchdog's. This SUPERSEDES the 8a note that an elevated flip
+    falls through and recovers on top; it now stays on top and is righted
+    there. Driving off an edge is unchanged (off the corridor, no clamp, fall
+    recovery as before).
+  - **Debug:** `__greenline.setFloorBand(m)` (0 restores the pre-fix
+    fall-through, the `setDownforce` A/B convention) and a `floorCatches`
+    counter in `getTelemetry()` — normal driving never trips it, so a non-zero
+    count on a clean lap is the signal that something is scraping.
+  - **Verified** in `/dev/greenline-movement` on all three tracks, headless
+    (`?glheadless=1`) for physics and via claude-in-chrome for the visuals.
+    Before/after screenshots at the same camera on the Terminal Nine deck and
+    the banked sweeper (tower down on the apron with an upside-down beam and a
+    guardrail slicing dead-straight through the banked road, versus a tower
+    standing on the deck lighting it and a rail that climbs with the track),
+    plus the Proving Ground 07 flat-track beam pair. Structurally: tower
+    instances at [0 x9, 7.99, 13.5, 8.17] matching the three beside elevated
+    track, the deck gantry at 13.5, fence posts spanning 1.3 -> 17.8 over 42
+    levels with its rail line 2.55 -> 19.05, berm strip 0.05 -> 12.78, cone
+    apex now exactly on the lamp lens. Physics: roof / side / nose-down on the
+    deck all stay on it (band 0 reproduces the 13.03 m fall), 16 m and 40 m
+    drops onto the deck stay (16 m fell through before), a full-throttle
+    scripted lap over the climb, deck, kicker and cliff jump reaches 75.1 m/s
+    with 0 falls and 3 floor catches, relief-proof-01 laps with its edge-fall
+    recovery intact, and Proving Ground 07 laps with 0 floor catches (the
+    block never runs on a flat track) and 5 physics bodies as before.
+    `svelte-check` clean, 0 errors, 0 new warnings.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

@@ -40,6 +40,7 @@
 		formatLapMs,
 		headingToDir,
 		LapTracker,
+		surfaceProbe,
 		surfaceState,
 		surfaceYAt,
 		zoneEntries
@@ -423,6 +424,20 @@
 		 * tracks. */
 		fallRecoverDrop: 2.5,
 		fallRecoverDelaySec: 1.2,
+		/**
+		 * Chassis floor (Phase 9-fix-c, relief tracks only): how deep a chassis
+		 * may sink into the ribbon before it is stood back on top of it. A
+		 * RaycastVehicle only ever touches the track through its four wheel
+		 * rays and cannon-es has no Box-vs-Trimesh narrowphase, so a chassis
+		 * whose wheels cannot reach the surface -- rolled onto its roof or
+		 * side, or driven into the deck by a landing that blows through the
+		 * suspension travel -- has literally nothing holding it up on an
+		 * elevated span. Deliberately the SAME value as fallRecoverDrop, which
+		 * splits the two watchdogs cleanly with no gap and no overlap:
+		 * penetrating the floor is this block's job, and anything deeper than
+		 * that has genuinely fallen off and is the fall watchdog's.
+		 */
+		chassisFloorBand: 2.5,
 		/** Slipstream / draft: a trailing vehicle tucked into another's wake gets
 		 * reduced aero drag (a higher top speed), universal and free — no slot, no
 		 * cost, every vehicle player and AI alike, no equipment or AI decision.
@@ -838,6 +853,13 @@
 	 * mid-flight from cancelling the ability outright.
 	 */
 	const GROUNDED_END_SEC = 0.06;
+	/**
+	 * How far the ribbon must rise above the y-0 catch plane before the chassis
+	 * floor (Phase 9-fix-c) takes over from it. Below this the plane is already
+	 * under the car with a real Box-vs-Plane narrowphase, and adding a second
+	 * floor there would only nudge hard landings on ordinary ground.
+	 */
+	const CHASSIS_FLOOR_MIN_RISE = 0.5;
 	const num = (v: number, d: number) => (Number.isFinite(v) ? v : d);
 	/** Wrap a relative offset into [-half, half] (the rain volume's toroidal
 	 * follow: drops left behind the camera reappear ahead of it). */
@@ -1205,9 +1227,33 @@
 					}
 					return out;
 				};
+				/**
+				 * Ground height a piece of scenery stands on (Phase 9-fix-c). Props
+				 * carry no physics and were placed at a hardcoded y 0, which is only
+				 * correct while the whole yard is flat: on a relief track a tower
+				 * beside the 13.5 m gantry deck sank to the apron and threw its light
+				 * cones 13.5 m below the road, and a gantry meant to span the deck sat
+				 * buried under it.
+				 *
+				 * The world has TWO grounds — the flat apron plane at y 0 and the
+				 * ribbon wherever it rises — so trackside furniture (within
+				 * PROP_TRACKSIDE_M of the ribbon edge) rides the ribbon's local
+				 * surface, and anything further out stays on the apron. Deliberately a
+				 * hard threshold rather than a blend: a half-lifted prop floats, which
+				 * never reads as correct. The margin is sized off real placements (the
+				 * furthest authored trackside prop sits 16 m off the edge; the nearest
+				 * yard machinery 22 m). Flat tracks read 0 everywhere through
+				 * surfaceProbe's own fast path, so their scenery is untouched.
+				 */
+				const PROP_TRACKSIDE_M = 20;
+				const propGroundY = (x: number, z: number) => {
+					if (!rt.hasRelief) return 0;
+					const s = surfaceProbe(rt, x, z);
+					return s.edgeGap <= PROP_TRACKSIDE_M ? s.y : 0;
+				};
 				const propRuns = new Map<
 					string,
-					{ buckets: Record<string, PropGeo>; list: { x: number; z: number; hd: number }[] }
+					{ buckets: Record<string, PropGeo>; list: { x: number; y: number; z: number; hd: number }[] }
 				>();
 				const placeProp = (
 					key: string,
@@ -1221,7 +1267,7 @@
 						run = { buckets: buildTemplate(make()), list: [] };
 						propRuns.set(key, run);
 					}
-					run.list.push({ x, z, hd });
+					run.list.push({ x, y: propGroundY(x, z), z, hd });
 				};
 				// Local prop-space offset -> world, for the non-instanceable extras
 				// (billboard halo sprites).
@@ -1374,6 +1420,12 @@
 						steel.push({ g: uBox, p: [sx, headY + 0.58, sz], s: [lx, 0.05, lz] });
 					steel.push({ g: uBox, p: [0.3, headY + 0.42, 0], s: [0.6, 0.24, 3.9] });
 					const HEAD_OFFSETS = [-1.62, -0.54, 0.54, 1.62];
+					// The lamp LENS and the light POOL on the ground are the beam's two
+					// real endpoints; the cone below is derived from them (see there).
+					const LAMP_X = 1.14;
+					const LAMP_Y = headY + 0.28;
+					const POOL_X = 9.4;
+					const POOL_Y = 0.03;
 					for (const off of HEAD_OFFSETS) {
 						steel.push({ g: uBox, p: [0.62, headY + 0.42, off], s: [0.5, 0.14, 0.14] });
 						dark.push({
@@ -1384,7 +1436,7 @@
 						});
 						lamp.push({
 							g: uBox,
-							p: [1.14, headY + 0.28, off],
+							p: [LAMP_X, LAMP_Y, off],
 							s: [0.1, 0.66, 0.82],
 							r: [0, 0, -0.55]
 						});
@@ -1395,14 +1447,34 @@
 					// carries the SAME z offset as its lamp (HEAD_OFFSETS), so the
 					// light visibly originates from its own fixture and lands in its
 					// own patch of ground instead of one merged centerline beam.
+					//
+					// Phase 9-fix-c: the beam is DERIVED from its two real endpoints
+					// (the lamp lens above, the pool on the ground) instead of a
+					// hand-placed centre and tilt, which had the tilt INVERTED: a
+					// ConeGeometry's apex is its +y end, and rotating by -0.5 swung
+					// that apex outward and its wide base back under the mast, so
+					// every tower on every track shone an upside-down beam from its
+					// own foot into empty air while the pool glowed 9 m away with
+					// nothing joining them. Rotating by +atan2(dx, dy) instead swings
+					// the BASE out to the pool and leaves the apex on the lens.
+					// (Euler XYZ composes as RY * RZ, so this z tilt runs in the
+					// prop's own vertical plane before any placement yaw.)
+					const beamDx = POOL_X - LAMP_X;
+					const beamDy = LAMP_Y - POOL_Y;
 					const cone: PropPart[] = HEAD_OFFSETS.map((off) => ({
-						g: new THREE.ConeGeometry(3.1, hgt + 3, 14, 1, true),
-						p: [4.9, hgt / 2 - 0.6, off],
-						r: [0, 0, -0.5]
+						g: new THREE.ConeGeometry(3.1, Math.hypot(beamDx, beamDy), 14, 1, true),
+						p: [(LAMP_X + POOL_X) / 2, (LAMP_Y + POOL_Y) / 2, off],
+						r: [0, 0, Math.atan2(beamDx, beamDy)]
 					}));
+					// The pool sits on the tower's OWN ground plane. Every ground
+					// query beyond the ribbon edge clamps to that edge's height, so a
+					// trackside tower and the patch it lights read the same surface
+					// height (verified for all 12 Terminal Nine towers); a tower
+					// authored close enough that its pool falls on banked ribbon would
+					// need per-instance beam geometry, which nothing needs today.
 					const pool: PropPart[] = HEAD_OFFSETS.map((off) => ({
 						g: new THREE.CircleGeometry(3.4, 20),
-						p: [9.4, 0.03, off],
+						p: [POOL_X, POOL_Y, off],
 						r: [-Math.PI / 2, 0, 0]
 					}));
 					return { steel, dark, lamp, beacon, cone, pool };
@@ -1805,13 +1877,15 @@
 							new THREE.MeshStandardMaterial({ map: tex, roughness: 1 })
 						);
 						disc.rotation.x = -Math.PI / 2;
-						disc.position.set(prop.x, 0.018, prop.z);
+						disc.position.set(prop.x, propGroundY(prop.x, prop.z) + 0.018, prop.z);
 						scene.add(disc);
 					} else if (prop.type === 'lightTower') {
 						const hgt = prop.height ?? 15;
 						placeProp(`tower:${hgt}`, prop.x, prop.z, prop.headingDeg, towerTpl(hgt));
 						const head = worldOf(prop.x, prop.z, prop.headingDeg, 0.9, 0);
-						addHalo('flood', head.x, hgt + 1.05, head.z, 6);
+						// The halo is a separate world-space sprite, so it needs the same
+						// ground lift the instanced mast just got or it hangs mid-air.
+						addHalo('flood', head.x, propGroundY(prop.x, prop.z) + hgt + 1.05, head.z, 6);
 					} else if (prop.type === 'gantry') {
 						placeProp(
 							`gantry:${prop.span}`,
@@ -1874,7 +1948,7 @@
 						addHalo(
 							hash % 2 ? 'warm' : 'cool',
 							prop.x,
-							prop.h * 1.05,
+							propGroundY(prop.x, prop.z) + prop.h * 1.05,
 							prop.z,
 							Math.max(prop.l, prop.w) * 1.1
 						);
@@ -1890,7 +1964,17 @@
 					} else if (prop.type === 'berm') {
 						// Banked concrete sweeper: lofted strip with seam texture +
 						// a steel cap rail on posts along the top edge.
+						//
+						// Phase 9-fix-c: every y here is measured from the LOCAL track
+						// surface, read per point from the same elevation/banking data
+						// the ribbon sweep itself uses. The strip used to loft between
+						// two hardcoded heights (0.05 and prop.height), which is only
+						// the truth on a flat yard: against Terminal Nine's banked
+						// sweeper (surface ~3.1 m, -17 deg) the whole wall was buried to
+						// its cap rail and read as a curb.
 						const m = Math.min(prop.inner.length, prop.outer.length);
+						const innerY = prop.inner.map((p) => surfaceYAt(rt, p.x, p.z));
+						const outerY = prop.outer.map((p) => surfaceYAt(rt, p.x, p.z));
 						const verts = new Float32Array(m * 2 * 3);
 						const uvs = new Float32Array(m * 2 * 2);
 						let along = 0;
@@ -1900,8 +1984,8 @@
 									prop.inner[i].x - prop.inner[i - 1].x,
 									prop.inner[i].z - prop.inner[i - 1].z
 								);
-							verts.set([prop.inner[i].x, 0.05, prop.inner[i].z], i * 6);
-							verts.set([prop.outer[i].x, prop.height, prop.outer[i].z], i * 6 + 3);
+							verts.set([prop.inner[i].x, innerY[i] + 0.05, prop.inner[i].z], i * 6);
+							verts.set([prop.outer[i].x, outerY[i] + prop.height, prop.outer[i].z], i * 6 + 3);
 							uvs.set([along / 4.2, 0], i * 4);
 							uvs.set([along / 4.2, 1], i * 4 + 2);
 						}
@@ -1952,23 +2036,30 @@
 								})
 							)
 						);
-						// Cap rail + posts, merged into one draw call (world-space).
+						// Cap rail + posts, merged into one draw call (world-space). Each
+						// post stands on its own point's surface height and each rail
+						// segment is PITCHED to span between its two ends, so the rail
+						// follows a climbing berm as one line instead of stair-stepping
+						// through it. (Euler XYZ composes as RY(yaw) * RZ(pitch), so a
+						// +x-aligned box tilts in its own vertical plane, then yaws.)
 						const railParts: PropPart[] = [];
 						for (let i = 0; i < m - 1; i++) {
 							const a = prop.outer[i];
 							const b = prop.outer[i + 1];
-							const len = Math.hypot(b.x - a.x, b.z - a.z);
+							const ay = outerY[i] + prop.height + 0.42;
+							const by = outerY[i + 1] + prop.height + 0.42;
+							const flat = Math.hypot(b.x - a.x, b.z - a.z);
 							const yaw = Math.atan2(-(b.z - a.z), b.x - a.x);
 							railParts.push({
 								g: uBox,
-								p: [(a.x + b.x) / 2, prop.height + 0.42, (a.z + b.z) / 2],
-								s: [len + 0.15, 0.16, 0.3],
-								r: [0, yaw, 0]
+								p: [(a.x + b.x) / 2, (ay + by) / 2, (a.z + b.z) / 2],
+								s: [Math.hypot(flat, by - ay) + 0.15, 0.16, 0.3],
+								r: [0, yaw, Math.atan2(by - ay, flat)]
 							});
 							if (i % 2 === 0)
 								railParts.push({
 									g: uBox,
-									p: [a.x, prop.height + 0.14, a.z],
+									p: [a.x, outerY[i] + prop.height + 0.14, a.z],
 									s: [0.09, 0.62, 0.09]
 								});
 						}
@@ -1992,7 +2083,7 @@
 							list.forEach((t, i) => {
 								ie.set(0, t.hd * DEGR, 0);
 								iq.setFromEuler(ie);
-								iv.set(t.x, 0, t.z);
+								iv.set(t.x, t.y, t.z);
 								im.compose(iv, iq, is1);
 								mesh.setMatrixAt(i, im);
 							});
@@ -2014,13 +2105,23 @@
 						const postMatF = new THREE.MeshStandardMaterial({ color: 0x39454a, roughness: 0.85 });
 						const posts = new THREE.InstancedMesh(postGeoF, postMatF, count);
 						const im = new THREE.Matrix4();
+						// Phase 9-fix-c: the fence is the guardrail the driver reads the
+						// track edge from, so it climbs with the track instead of staying
+						// on the apron — on the gantry deck it used to sit 13.5 m under
+						// the road it was meant to line. The outer boundary hugs the
+						// ribbon (measured: within 9 m of the edge everywhere the track
+						// is raised, 2 m on the deck itself), so every post is trackside
+						// by propGroundY's margin and the run lifts smoothly rather than
+						// stepping.
 						for (let i = 0; i < count; i++) {
 							const p = pts[(i * step) % pts.length];
-							im.makeTranslation(p.x, 1.3, p.z);
+							im.makeTranslation(p.x, propGroundY(p.x, p.z) + 1.3, p.z);
 							posts.setMatrixAt(i, im);
 						}
 						scene.add(posts);
-						const railPts = [...pts, pts[0]].map((p) => new THREE.Vector3(p.x, 2.55, p.z));
+						const railPts = [...pts, pts[0]].map(
+							(p) => new THREE.Vector3(p.x, propGroundY(p.x, p.z) + 2.55, p.z)
+						);
 						scene.add(
 							new THREE.Line(
 								new THREE.BufferGeometry().setFromPoints(railPts),
@@ -4049,6 +4150,11 @@
 					flipsByRig: {} as Record<string, number>,
 					// Fall-recovery re-seats this round (relief tracks only).
 					falls: 0,
+					// Chassis-floor catches this round (Phase 9-fix-c): frames a
+					// chassis was stood back on the ribbon because no wheel could
+					// reach it. Normal driving never trips this, so a non-zero count
+					// on a clean lap is the signal that something is scraping.
+					floorCatches: 0,
 					// Trigger-zone entries this round (Phase 8a).
 					zone: { boost: 0, hazard: 0 },
 					// Ability activations this round (nitro/jump/flip/repair/grip).
@@ -4068,6 +4174,7 @@
 					testStats.flips = 0;
 					testStats.flipsByRig = {};
 					testStats.falls = 0;
+					testStats.floorCatches = 0;
 					testStats.zone.boost = testStats.zone.hazard = 0;
 					testStats.ability.nitro = testStats.ability.jump = testStats.ability.flip = 0;
 					testStats.ability.repair = testStats.ability.grip = testStats.ability.air = 0;
@@ -5778,6 +5885,14 @@
 						tuning.aeroDownforce = coef == null ? DEFAULTS.aeroDownforce : coef;
 						return tuning.aeroDownforce;
 					},
+					// Chassis-floor band (Phase 9-fix-c). 0 restores the pre-fix
+					// behaviour — a chassis with no wheel on the ribbon falls straight
+					// through an elevated span — so a scripted drive can A/B the floor
+					// the same way setDownforce A/Bs the aero.
+					setFloorBand: (m: number | null) => {
+						tuning.chassisFloorBand = m == null ? DEFAULTS.chassisFloorBand : m;
+						return tuning.chassisFloorBand;
+					},
 					// Verification only: flat-ground dyno. Pins the player in place after
 					// each step (velocity/orientation/suspension intact) so it reaches
 					// true terminal speed on a FLAT track without a feature cutting the
@@ -5922,6 +6037,7 @@
 							flips: testStats.flips,
 							flipsByRig: { ...testStats.flipsByRig },
 							falls: testStats.falls,
+							floorCatches: testStats.floorCatches,
 							zone: { ...testStats.zone },
 							ability: { ...testStats.ability }
 						}),
@@ -6523,19 +6639,62 @@
 
 						// Fall recovery (Phase 8a, the flip-watchdog pattern; relief
 						// tracks only). A car far BELOW the local track surface drove
-						// off an elevated edge (or tumbled through the ribbon — the
-						// chassis box has no Trimesh narrowphase; only wheels touch
-						// it) and is now on the catch plane with no drivable route
-						// back up. After a short grace it re-seats on the nearest
+						// off an elevated edge and is now on the catch plane with no
+						// drivable route back up. (Sinking THROUGH the ribbon is no
+						// longer one of the ways to get here: the chassis floor
+						// immediately below catches that first, within its band.)
+						// After a short grace it re-seats on the nearest
 						// centerline point, upright along the track, velocities
 						// zeroed. Deliberately Lakitu-style: anywhere deeper than the
 						// drop threshold under the local surface recovers, including
 						// the ground strip BESIDE an elevated span.
-						if (rt.hasRelief && !rig.combat.eliminated) {
-							const surfY = surfaceYAt(rt, body.position.x, body.position.z, rig.warmIdx, rig.warmPath);
+						if (rt.hasRelief) {
+							const surfY = surfaceYAt(
+								rt,
+								body.position.x,
+								body.position.z,
+								rig.warmIdx,
+								rig.warmPath
+							);
+							// Chassis floor (Phase 9-fix-c). The wheels stay the only
+							// DRIVING interface with the ribbon; this is purely the floor
+							// they stand on, for the moments no wheel can reach it.
+							// MEASURED before the fix, on Terminal Nine's 13.5 m deck: a
+							// car rolled onto its roof drops the full 13.5 m in ~1.4 s
+							// (the flip watchdog's 2 s delay can never fire in time), and
+							// a landing above ~15 m/s vertical punches straight through.
+							//
+							// Three gates, each earning its place: (1) the ribbon has to be
+							// meaningfully ABOVE the catch plane, because at ground level
+							// the plane already stops the chassis through a real
+							// narrowphase and doing it here too would nudge every hard
+							// landing on flat ground (measured: 119 of 127 near-floor
+							// frames on a clean lap were flat, none of them a problem);
+							// (2) the vehicle has to be over the ribbon corridor; and
+							// (3) it has to be within the band, because a car BESIDE or
+							// far UNDER an elevated span reads that same clamped surface
+							// height and would otherwise be flung 13 m into the air
+							// instead of left to the fall watchdog.
+							//
+							// The chassis AABB's lower bound is the exact lowest VERTEX of
+							// the oriented box, so an inverted, rolled, or pitched car is
+							// handled by the same test with no special cases; only
+							// downward velocity is killed, so being stood up never adds
+							// energy.
+							if (surfY > CHASSIS_FLOOR_MIN_RISE && surf.state.onRibbon) {
+								body.updateAABB();
+								const under = surfY - body.aabb.lowerBound.y;
+								if (under > 0 && under < num(tuning.chassisFloorBand, DEFAULTS.chassisFloorBand)) {
+									body.position.y += under;
+									if (body.velocity.y < 0) body.velocity.y = 0;
+									body.aabbNeedsUpdate = true;
+									testStats.floorCatches++;
+								}
+							}
 							if (
+								!rig.combat.eliminated &&
 								surfY - body.position.y >
-								num(tuning.fallRecoverDrop, DEFAULTS.fallRecoverDrop)
+									num(tuning.fallRecoverDrop, DEFAULTS.fallRecoverDrop)
 							) {
 								rig.fallAcc += dt;
 								if (

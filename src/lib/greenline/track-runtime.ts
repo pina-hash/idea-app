@@ -456,6 +456,29 @@ export function surfaceYAt(
 }
 
 /**
+ * Build-time placement probe: the surface height at `(x, z)` plus how far the
+ * point lies BEYOND the nearest ribbon edge (0 when it is over the ribbon).
+ * Always a full scan, so it is for one-off placement (scenery, decals), never
+ * a per-frame query — use `surfaceYAt` with a warm index for those.
+ *
+ * The edge gap is the FACT a caller needs to decide whether something sits on
+ * the ribbon's local ground or on the flat apron beside it; what to do with it
+ * is the caller's policy, not the runtime's.
+ */
+export function surfaceProbe(
+	rt: TrackRuntime,
+	x: number,
+	z: number
+): { y: number; edgeGap: number } {
+	const near = nearestPath(rt, x, z);
+	const p = rt.paths[near.path];
+	return {
+		y: rt.hasRelief ? surfaceYOnPath(p, x, z, near.index) : 0,
+		edgeGap: Math.max(0, Math.sqrt(near.dist2) - p.halfWidths[near.index])
+	};
+}
+
+/**
  * Circular trigger-zone occupancy: updates the caller's persistent
  * per-vehicle `inside` array (one boolean per zone, parallel to `zones`; the
  * warmIndex spirit — state lives with the vehicle, logic stays pure) and
