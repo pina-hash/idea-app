@@ -95,7 +95,13 @@
 		VehicleAbilities,
 		type AbilitySlotId
 	} from '$lib/greenline/abilities';
-	import { AI_DEFAULTS, AiDriver, type AiTuning } from '$lib/greenline/ai';
+	import {
+		AI_DEFAULTS,
+		AiDriver,
+		aiTuningFor,
+		type AiSkill,
+		type AiTuning
+	} from '$lib/greenline/ai';
 	import type { EnvironmentPreset, EnvPresetId } from '$lib/greenline/environment';
 	import {
 		activeEnvironment,
@@ -588,7 +594,8 @@
 		fxDensity: 1,
 		lapTarget: 3,
 		aiCount: 3,
-		aiTopSpeed: AI_DEFAULTS.topSpeed,
+		/** Fraction of its OWN terminal speed an AI targets; see AiSkill. */
+		aiSpeedFrac: AI_DEFAULTS.speedFrac,
 		aiCorner: AI_DEFAULTS.cornerAccel,
 		aiAggression: AI_DEFAULTS.aggression
 	};
@@ -2900,17 +2907,19 @@
 					lapLenM += Math.hypot(b.x - a.x, b.z - a.z);
 				}
 
-				// AI simulated qualifying baseline = lap length / an ASSUMED competent
-				// best-lap average speed. This is deliberately NOT derived from the
-				// AI's CURRENT on-track pace: at the time of writing AI top speed is
-				// still the mismatched ~17 m/s that Phase 9d will retune, so a
-				// measured baseline would bake in a number about to change. 30 m/s is a
-				// plausible best-lap average for a ~65 m/s-terminal car with corners
-				// (Terminal Nine ~2498m -> ~83s, Proving Ground ~794m -> ~26s).
+				// AI simulated qualifying baseline = lap length / an assumed competent
+				// best-lap average speed. When this was written it was an ESTIMATE,
+				// because AI top speed was still the mismatched ~17 m/s that Phase
+				// 9d-i went on to fix, and measuring then would have baked in a number
+				// about to change.
 				//
-				// FLAG (revisit at 9d): once AI's real top speed is fixed, sanity-check
-				// GRID_AI_LAP_SPEED against AI's ACTUAL measured lap times and align it
-				// so the simulated grid reflects what the field can really do.
+				// 9d-i CHECKED IT and left it at 30. Measured clean AI laps on the now
+				// properly-derived speed: Terminal Nine (2494 m) 76.5 to 84.6 s, which
+				// is a 29.5 to 32.6 m/s average — the estimate landed on it. Proving
+				// Ground (794 m) runs 32.7 to 42.3 s, i.e. ~19 to 24 m/s, because it is
+				// far tighter and shorter, so no single constant fits both; 30 is kept
+				// because it is measured-correct on the default track and only ever
+				// scales a SIMULATED grid time, never anything a car has to drive.
 				const GRID_AI_LAP_SPEED = 30;
 				// Per-archetype tendency so the field is not a flat line: velocity
 				// quickest, armor slowest. Multiplies the baseline lap time.
@@ -4136,25 +4145,38 @@
 					rangeScale: rig.buildStats.empRange
 				});
 
-				const aiTuning = (): AiTuning => ({
-					topSpeed: num(tuning.aiTopSpeed, DEFAULTS.aiTopSpeed),
+				// Field-wide driver skill (what every AI shares). Deliberately
+				// carries NO absolute speed: see AiSkill.
+				const aiSkill = (): AiSkill => ({
+					speedFrac: num(tuning.aiSpeedFrac, DEFAULTS.aiSpeedFrac),
 					cornerAccel: num(tuning.aiCorner, DEFAULTS.aiCorner),
 					brakeAccel: AI_DEFAULTS.brakeAccel,
+					tractionAccel: AI_DEFAULTS.tractionAccel,
 					steerGain: AI_DEFAULTS.steerGain,
 					aggression: num(tuning.aiAggression, DEFAULTS.aiAggression)
 				});
 
-				// The AI DRIVER's targets scale with its vehicle's build, so an
-				// armor AI drives like a truck and a velocity AI like a missile:
-				// allowed speed tracks the drag-terminal proxy sqrt(engine/drag),
-				// corner budget tracks grip.
-				const aiTuningFor = (rig: Rig, base: AiTuning): AiTuning => {
+				/**
+				 * The AI DRIVER's targets, resolved from ITS OWN vehicle, so an
+				 * armor AI drives like a truck and a velocity AI like a missile.
+				 *
+				 * The numbers handed over are the SAME absolute quantities the
+				 * physics loop below applies to this rig (panel baseline x build
+				 * multipliers), so the driver's straight-line target IS the speed
+				 * the car actually reaches — it can no longer drift away from the
+				 * physics the way a flat constant did for four phases.
+				 */
+				const aiTuningForRig = (rig: Rig, skill: AiSkill): AiTuning => {
 					const s = rig.buildStats;
-					return {
-						...base,
-						topSpeed: base.topSpeed * Math.sqrt(s.engineForce / Math.max(0.01, s.aeroDrag)),
-						cornerAccel: base.cornerAccel * s.frictionSlip
-					};
+					return aiTuningFor(
+						{
+							engineForce: num(tuning.engineForce, DEFAULTS.engineForce) * s.engineForce,
+							aeroDrag: num(tuning.aeroDrag, DEFAULTS.aeroDrag) * s.aeroDrag,
+							mass: num(tuning.chassisMass, DEFAULTS.chassisMass) * s.chassisMass,
+							gripMul: s.frictionSlip
+						},
+						skill
+					);
 				};
 
 				const combatantOf = (r: Rig): Combatant => ({
@@ -5967,6 +5989,55 @@
 						tuning.chassisFloorBand = m == null ? DEFAULTS.chassisFloorBand : m;
 						return tuning.chassisFloorBand;
 					},
+					// ---- AI speed derivation (Phase 9d-i) ----
+					// Every rig's RESOLVED driving targets beside the terminal speed
+					// its physics actually produces, so a scripted drive can assert
+					// that the AI's straight-line target IS its car's capability (the
+					// staleness this replaced is exactly a divergence between those two
+					// columns). `speedFrac` is the one deliberate handicap knob.
+					aiSpeedInfo: () => {
+						const r2 = (v: number) => Math.round(v * 100) / 100;
+						return {
+							speedFrac: num(tuning.aiSpeedFrac, DEFAULTS.aiSpeedFrac),
+							cornerAccel: num(tuning.aiCorner, DEFAULTS.aiCorner),
+							brakeAccel: AI_DEFAULTS.brakeAccel,
+							rigs: rigsAll().map((r) => {
+								const s = r.buildStats;
+								const eng = num(tuning.engineForce, DEFAULTS.engineForce) * s.engineForce;
+								const drg = num(tuning.aeroDrag, DEFAULTS.aeroDrag) * s.aeroDrag;
+								const t = aiTuningForRig(r, aiSkill());
+								return {
+									id: r.id,
+									archetype: r.archetype,
+									ai: !!r.ai,
+									// What the PHYSICS gives this car (the garage's hero number).
+									physicsTopSpeed: r2(Math.sqrt(eng / Math.max(0.01, drg))),
+									// What the DRIVER aims for. These must track each other.
+									aiTopSpeed: r2(t.topSpeed),
+									aiCornerAccel: r2(t.cornerAccel),
+									aiDragDecel: Math.round((t.dragDecel ?? 0) * 1e5) / 1e5,
+									// Full-throttle drive accel vs what the tires can take, and
+									// the resulting standing-start throttle cap (1 = no cap).
+									driveAccel: r2(t.driveAccel ?? 0),
+									tractionAccel: r2(t.tractionAccel ?? 0),
+									throttleCapAtRest: r2(
+										t.driveAccel ? Math.min(1, (t.tractionAccel ?? 0) / t.driveAccel) : 1
+									)
+								};
+							})
+						};
+					},
+					// Verification only: override the AI skill knobs so a scripted
+					// drive can A/B a cornerAccel sweep, or restore the pre-9d-i flat
+					// straight-line handicap via speedFrac. null restores the default.
+					setAiSkill: (skill: { speedFrac?: number | null; cornerAccel?: number | null }) => {
+						if (skill.speedFrac !== undefined)
+							tuning.aiSpeedFrac =
+								skill.speedFrac == null ? DEFAULTS.aiSpeedFrac : skill.speedFrac;
+						if (skill.cornerAccel !== undefined)
+							tuning.aiCorner = skill.cornerAccel == null ? DEFAULTS.aiCorner : skill.cornerAccel;
+						return { speedFrac: tuning.aiSpeedFrac, cornerAccel: tuning.aiCorner };
+					},
 					// Handbrake yaw authority (Phase 9-fix-d). Passing damp 0 restores
 					// the pre-fix behaviour exactly (an unbounded yaw spike), so a
 					// scripted drive can A/B the fix the same way setDownforce and
@@ -6217,7 +6288,7 @@
 					lastT = now;
 					frame++;
 					const ct = combatTuning();
-					const aiT = aiTuning();
+					const aiT = aiSkill();
 					const all = rigsAll();
 
 					// Race-start phases: controls locked until GO, ram suppressed
@@ -6414,7 +6485,7 @@
 									nowMs: now,
 									dtMs: dt * 1000
 								},
-								aiTuningFor(rig, aiT)
+								aiTuningForRig(rig, aiT)
 							);
 							sIn = c.steer;
 							thr = c.throttle;

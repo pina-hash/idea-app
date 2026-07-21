@@ -3799,6 +3799,85 @@ on one side of the world.
       exactly what the AI overhaul addresses; it was deliberately not
       compensated for here by over-inflating health.
 
+- **AI speed derived from each vehicle's own build (Phase 9d-i).** The AI drove
+  to `AI_DEFAULTS.topSpeed = 17` m/s, a FLAT constant, while the player's
+  derived ceiling climbed past 60 across four phases of physics retuning. The
+  fix is not a bigger constant: an absolute shared speed is deleted from the
+  design, and every driving target is now resolved per vehicle from the same
+  physics the car obeys.
+  - **Two types where there was one.** `AiSkill` is the FIELD-WIDE driver skill
+    (`AI_DEFAULTS`), and it deliberately has no `topSpeed` at all — speed is a
+    `speedFrac` (default **1**: flat out, the corner sweep is the only limit,
+    since an AI should not self-handicap against a player in the same car).
+    `AiTuning` is the RESOLVED per-vehicle target set, built ONLY by the new
+    pure `aiTuningFor(spec, skill)`. `topSpeed` is
+    `sqrt(engineForce / aeroDrag)` — the identical formula the player's car
+    reaches and the garage TOP SPEED hero displays, so one change now moves all
+    three together. Verified equal for all four archetypes:
+    **velocity 78.3 / handling 63.65 / armor 62.84 / systems 61.13 m/s**, each
+    matching `physicsTopSpeed` exactly.
+  - **Three more constants were sized for 17 m/s and had to go with it.**
+    (1) The braking sweep planned with CONSTANT deceleration over a fixed
+    26-point window; it now integrates `a0 + k*v^2` in closed form (aero is the
+    dominant term at speed — a car at 63 m/s sheds ~12 m/s^2 to drag alone) and
+    derives its horizon from the vehicle's own stopping distance. `brakeAccel`
+    4.5 -> **14**, against a MEASURED ~25 m/s^2 of purely mechanical braking.
+    (2) The hold band around the allowed speed was a flat 0.8 m/s = 1% at
+    63 m/s, so a fast car stuttered between full brakes and full throttle; it is
+    proportional now. (3) The off-ribbon REJOIN target was a fixed 8 m = 0.13 s
+    at 60 m/s, so any brief excursion answered with near-full lock and spun the
+    car; both steering distances are in metres now, converted to points after.
+  - **`cornerAccel` 7 -> 12, the one value that could not be derived.** MEASURED
+    lateral capability is 28.7 m/s^2 at 12 m/s rising to ~72 at 54 m/s, so grip
+    is NOT the constraint — the centerline-following LINE is. Swept solo:
+    10 -> 106.7 s clean, 13 -> 85.2 s, 16 -> 77.0 s, 18 -> DNF off the deck.
+    Raising it does not buy safety either (a full-field run at 9 was WORSE than
+    12 on both progress and falls), which is what identifies the residual below
+    as line quality rather than corner budget.
+  - **Traction cap: the VELOCITY build cannot be driven flat out, by anyone.**
+    Full throttle from rest, dead straight, ZERO steering input, held 10 s:
+    ARMOR 2.25 m/s of lateral slip, HANDLING 2.67, SYSTEMS 2.78 — and VELOCITY
+    **31.4 m/s and a full 180 deg spin**, ending stationary. It is a pre-existing
+    VEHICLE trait (a human holding the same key gets the same spin) that only
+    became reachable once the AI drove fast enough to meet it. So the AI
+    feathers: commanded throttle is capped at
+    `(tractionAccel + dragDecel*v^2) / driveAccel`. Two properties make it safe
+    to apply unconditionally — it can never cost a vehicle its top speed (at
+    terminal, drag consumes the whole drive force, so the cap passed 1 long
+    before; VELOCITY is back to full throttle above ~44 m/s), and it is a no-op
+    for the three archetypes whose tires already take their power (caps compute
+    to 1.30 / 1.22 / 1.05 at rest, all clamped to 1). `tractionAccel` 15.5 is
+    exactly the line the measurements draw. This took VELOCITY from a DNF to
+    the **fastest** archetype.
+  - **Measured lap times, Terminal Nine (2494 m), solo clean laps** against the
+    pre-9d-i baseline: velocity **76.5 s** (was 132.3), systems **78.7 s** (was
+    152.4), armor **80.9 s** (was 153.7 / 156.0), handling **77.7 to 84.6 s**
+    (was 161.2 / 170.8). Peak speeds reached 75.7 / 59.4 / 61.3 / 61.8 m/s, each
+    within ~3% of its own derived ceiling, and the ORDERING matches what a
+    player feels from the same builds. Proving Ground 07 (794 m, flat) runs
+    32.7 to 42.3 s laps.
+  - **Prior AI systems confirmed unaffected** (they all sit on this loop): a
+    12-car-scale field still fires weapons, spends abilities, collects boost and
+    hazard zones, rams, gambles onto the `loading-dock` shortcut, and diverts to
+    the pit lane when hurt — all observed live. `GRID_AI_LAP_SPEED` (9b's
+    flagged estimate) was CHECKED here and left at 30: measured Terminal Nine
+    averages are 29.5 to 32.6 m/s, so the estimate was right.
+  - **Known residual, and it is 9d-ii/iii's.** On a FLAT track the driving loop
+    is clean (Proving Ground: 0 falls, 0 floor scrapes across an 8-car race). On
+    Terminal Nine an 8-car pack at ~60 m/s produces roughly 19 falls / 21 flips
+    per 3 minutes against 4 / 11 at the old speed, and a positional histogram
+    puts the hotspot squarely on the **elevated deck-edge kicker** (the jump was
+    authored around 52 m/s and cars now arrive above 60) plus the standing
+    start, where eight cars pure-pursue the identical centerline. Both are
+    racing-line and traffic-awareness problems, not speed-capability ones, and
+    were deliberately not papered over by handicapping the field back down.
+  - Debug: `__greenline.aiSpeedInfo()` prints every rig's `physicsTopSpeed`
+    beside its `aiTopSpeed` (a divergence between those two columns IS the
+    staleness this replaced) plus corner/drag/traction terms and the
+    standing-start throttle cap; `setAiSkill({speedFrac, cornerAccel})` A/Bs the
+    skill knobs, and `speedFrac: 0.2603` reproduces the pre-9d-i flat 17 m/s
+    exactly on every build (`17 / sqrt(2900/0.68)`).
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

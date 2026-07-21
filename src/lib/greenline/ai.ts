@@ -17,26 +17,206 @@ import type { AbilitySlotId } from './abilities';
 import type { TrackRuntime } from './track-runtime';
 import type { TrackVec2 } from './track-schema';
 
+/**
+ * The RESOLVED driving targets for ONE vehicle. Every field is absolute (m/s,
+ * m/s^2, 1/m) and per-vehicle: build an `AiTuning` with `aiTuningFor()` below
+ * rather than by hand, so a driver's speed can never be a flat constant that
+ * quietly goes stale when the physics is retuned.
+ */
 export interface AiTuning {
-	/** Straight-line speed cap, m/s. The main "skill" knob. */
+	/**
+	 * Straight-line speed target for THIS vehicle, m/s. DERIVED from the
+	 * vehicle's own drive force and drag (see `aiTuningFor`), so it tracks the
+	 * player's top-speed formula automatically.
+	 */
 	topSpeed: number;
 	/** Lateral acceleration budget for corner speeds, m/s^2. */
 	cornerAccel: number;
-	/** Assumed deceleration for brake-early planning, m/s^2. */
+	/** Assumed MECHANICAL deceleration for brake-early planning, m/s^2. */
 	brakeAccel: number;
+	/**
+	 * Aero deceleration coefficient k (1/m): a coasting or braking vehicle
+	 * sheds `k * v^2` m/s^2 ON TOP of `brakeAccel`, so k = dragCoefficient /
+	 * mass. Omitted / 0 reproduces the old constant-deceleration planning
+	 * exactly.
+	 *
+	 * This matters far more than `brakeAccel` at speed, and leaving it out is
+	 * what made the pre-9d-i braking sweep unusable once the speed range grew:
+	 * a car doing 63 m/s sheds ~12 m/s^2 to drag alone, so planning without it
+	 * overestimates the braking distance several-fold, and the driver either
+	 * crawls or needs a horizon longer than the corner it is braking for.
+	 */
+	dragDecel?: number;
+	/**
+	 * Full-throttle drive acceleration at rest, m/s^2 (engineForce / mass).
+	 * Paired with `tractionAccel` to cap throttle; omitted = no cap.
+	 */
+	driveAccel?: number;
+	/**
+	 * The longitudinal acceleration this vehicle's tires can actually put down,
+	 * m/s^2, already scaled by its grip. See `AiSkill.tractionAccel`.
+	 */
+	tractionAccel?: number;
 	/** Pure-pursuit steering gain. */
 	steerGain: number;
 	/** 0..1: how eagerly the AI fires (range used and post-cooldown delay). */
 	aggression: number;
 }
 
-export const AI_DEFAULTS: AiTuning = {
-	topSpeed: 17,
-	cornerAccel: 7,
-	brakeAccel: 4.5,
+/**
+ * The FIELD-WIDE driver skill knobs: what every AI shares, as against what its
+ * own vehicle can do. There is deliberately no `topSpeed` here. An absolute
+ * speed shared across builds is exactly the constant that went stale (a flat
+ * 17 m/s survived four phases of physics retuning while the player's derived
+ * ceiling climbed past 60), so speed is expressed as a FRACTION of each
+ * vehicle's own capability instead.
+ */
+export interface AiSkill {
+	/**
+	 * Fraction of the vehicle's OWN drag-limited terminal speed the driver
+	 * targets on a straight. 1 = drive it flat out and let the corner sweep be
+	 * the only limit (the default: an AI should not self-handicap relative to a
+	 * player in the same car). Below 1 is a genuine skill handicap.
+	 */
+	speedFrac: number;
+	/** Lateral acceleration budget for corner speeds, m/s^2, before the
+	 * vehicle's own grip multiplier. */
+	cornerAccel: number;
+	/** Assumed mechanical deceleration for brake-early planning, m/s^2. */
+	brakeAccel: number;
+	/** Longitudinal acceleration the tires can put down at neutral grip,
+	 * m/s^2; caps throttle on cars with more power than traction. */
+	tractionAccel: number;
+	/** Pure-pursuit steering gain. */
+	steerGain: number;
+	/** 0..1: how eagerly the AI fires (range used and post-cooldown delay). */
+	aggression: number;
+}
+
+export const AI_DEFAULTS: AiSkill = {
+	// Flat out. The corner sweep, not an arbitrary ceiling, is what slows an AI
+	// down; a car that can do 63 m/s down a straight now does 63 m/s.
+	speedFrac: 1,
+	/**
+	 * The one value here that could NOT be read off the physics, so it was
+	 * swept rather than derived.
+	 *
+	 * What the car can actually hold, MEASURED (steering-step probes on the
+	 * Terminal Nine dispatch straight, stock ARMOR build): 28.7 m/s^2 of
+	 * lateral acceleration at 12 m/s, rising to ~72 m/s^2 at 54 m/s as
+	 * downforce loads the tires. So grip is NOT the binding constraint, the
+	 * driver's LINE is. It follows the centerline with pure pursuit, has no
+	 * apex or track-out, and on this track corners of 90 to 130 m radius sit
+	 * inside an 18 m corridor 13.5 m up in the air, where running wide is a
+	 * fall rather than a scrub.
+	 *
+	 * Swept solo on Terminal Nine (HANDLING, so the effective budget is 1.2x
+	 * these numbers), one flying lap each, against a 161 to 171 s pre-9d-i
+	 * baseline:
+	 *   10 -> 106.7 s, 0 falls, 0 flips, 0 floor scrapes
+	 *   13 ->  85.2 s, 1 fall,  0 flips, 6 floor scrapes
+	 *   16 ->  77.0 s, 1 fall,  0 flips, 17 floor scrapes
+	 *   18 -> DNF, flipped off the elevated deck mid-corner
+	 * 12 sits just under the knee: most of the available lap time with the
+	 * incident count still near zero, which matters more once eleven other cars
+	 * and their weapons are on the same corridor. Raise it alongside a better
+	 * racing line (9d-ii / 9d-iii), not on its own.
+	 *
+	 * For scale here: 12 puts the tightest corner (13.7 m radius rail-yard
+	 * switchback) at 12.8 m/s and a 90 m radius deck sweeper at 33 m/s.
+	 */
+	cornerAccel: 12,
+	/**
+	 * MEASURED: full brakes hold ~25 m/s^2 of purely mechanical deceleration on
+	 * the 243 kg ARMOR build (higher on a lighter chassis, since the brake acts
+	 * as a fixed per-wheel impulse). 14 is a deliberate conservative half of
+	 * that, and the aero term (`dragDecel`) supplies the rest of the real
+	 * stopping power at speed. The old 4.5 was not a margin, it was a
+	 * misestimate: it planned braking zones several times longer than the car
+	 * needed.
+	 */
+	brakeAccel: 14,
+	/**
+	 * How much longitudinal acceleration the tires can put down before the car
+	 * starts driving itself sideways, m/s^2 at neutral grip.
+	 *
+	 * MEASURED, and the measurement is stark. Full throttle from rest on a
+	 * dead-straight road with ZERO steering input, held 10 s:
+	 *   ARMOR    (11.9 m/s^2 of drive) -> 2.25 m/s lateral,  2.8 deg of yaw
+	 *   HANDLING (15.3)                -> 2.67 m/s lateral,  3.1 deg
+	 *   SYSTEMS  (14.8)                -> 2.78 m/s lateral,  3.4 deg
+	 *   VELOCITY (21.8)                -> 31.4 m/s lateral, 180 deg: it spins
+	 *                                     itself out and ends up stationary
+	 * VELOCITY on part throttle: 0.85 -> 3.65 lateral, 0.7 -> 2.79, 0.55 ->
+	 * 1.97, and it is FASTER after 10 s on 0.55 (55.2 m/s) than on 1.0 (20.7),
+	 * because full throttle spends the difference fishtailing.
+	 *
+	 * 15.5 is the line those runs draw: it leaves ARMOR / HANDLING / SYSTEMS at
+	 * full throttle (their caps compute to 1.30 / 1.22 / 1.05, all clamped to
+	 * 1, so their behavior is untouched) and puts VELOCITY at 0.71, the level
+	 * it was measured stable at.
+	 *
+	 * This is a VEHICLE trait, not an AI one: a human holding the same key gets
+	 * the same spin. The AI simply cannot be asked to drive flat out a car that
+	 * cannot be driven flat out, so it feathers instead. See the throttle cap
+	 * in `drive()` for why this can never cost a vehicle its top speed.
+	 */
+	tractionAccel: 15.5,
 	steerGain: 1.3,
 	aggression: 0.5
 };
+
+/**
+ * The physics facts about ONE vehicle that its driving targets derive from.
+ * All ABSOLUTE (the field baseline already multiplied by the build stats), so
+ * this module never needs to know what a loadout is.
+ */
+export interface AiVehicleSpec {
+	/** Total drive force at full throttle, N. */
+	engineForce: number;
+	/** Quadratic aero drag coefficient (force = coef * v^2). */
+	aeroDrag: number;
+	/** Chassis mass, kg. */
+	mass: number;
+	/** Tire grip multiplier over the field baseline (1 = neutral). */
+	gripMul: number;
+}
+
+/**
+ * Resolve one vehicle's driving targets from ITS OWN build.
+ *
+ * `topSpeed` is the same drag-limited terminal `sqrt(engineForce / aeroDrag)`
+ * the player's car actually reaches and the garage's TOP SPEED hero displays:
+ * one formula, three consumers, so an AI is fast for exactly the reasons its
+ * build is fast, and a future engine / drag / aero change moves all three
+ * together instead of leaving the driver behind.
+ */
+export function aiTuningFor(spec: AiVehicleSpec, skill: AiSkill): AiTuning {
+	const mass = Math.max(1, spec.mass);
+	const drag = Math.max(0, spec.aeroDrag);
+	const engine = Math.max(0, spec.engineForce);
+	const grip = Math.max(0.01, spec.gripMul);
+	return {
+		topSpeed: Math.sqrt(engine / Math.max(0.01, drag)) * skill.speedFrac,
+		cornerAccel: skill.cornerAccel * grip,
+		brakeAccel: skill.brakeAccel,
+		dragDecel: drag / mass,
+		driveAccel: engine / mass,
+		tractionAccel: skill.tractionAccel * grip,
+		steerGain: skill.steerGain,
+		aggression: skill.aggression
+	};
+}
+
+/**
+ * The single field the weapon / ability restraint heuristics read. Both
+ * `AiSkill` (field-wide) and a resolved `AiTuning` (per vehicle) satisfy it,
+ * so a call site passes whichever it already has.
+ */
+export interface AiAggressionSource {
+	/** 0..1: how eagerly the AI fires (range used and post-cooldown delay). */
+	aggression: number;
+}
 
 export interface AiControls {
 	steer: number;
@@ -212,20 +392,54 @@ export class AiDriver {
 
 		// Allowed speed now: the tightest constraint among upcoming corner
 		// speeds, each relaxed by the distance available to brake for it.
+		//
+		// Deceleration is `a0 + k*v^2` (mechanical brakes plus quadratic aero),
+		// which integrates in closed form, so the entry speed that still reaches
+		// vC over distance d is exact rather than a constant-a approximation.
+		// The sweep HORIZON is derived from the current speed too: a corner
+		// further away than this vehicle's own stopping distance cannot
+		// constrain it now, so a slow car pays for a handful of points while a
+		// fast one looks as far ahead as it genuinely needs to. Both replaced
+		// fixed numbers (a 26-point window, constant deceleration) that were
+		// sized for a 17 m/s field and do not survive a 63 m/s one.
+		const a0 = Math.max(0.1, t.brakeAccel);
+		const k = Math.max(0, t.dragDecel ?? 0);
+		const stopDist =
+			k > 1e-6
+				? Math.log(1 + (k * s.speed * s.speed) / a0) / (2 * k)
+				: (s.speed * s.speed) / (2 * a0);
+		const steps = Math.min(n, Math.max(8, Math.ceil((stopDist + 4) / this.spacing) + 1));
 		let allowed = t.topSpeed;
-		for (let j = 0; j < 26; j++) {
+		for (let j = 0; j < steps; j++) {
 			const vC = this.cornerSpeed(idx + j, t);
 			const d = Math.max(0, j * this.spacing - 2);
-			const v = Math.sqrt(vC * vC + 2 * t.brakeAccel * d);
+			const v =
+				k > 1e-6
+					? Math.sqrt(Math.max(0, ((a0 + k * vC * vC) * Math.exp(2 * k * d) - a0) / k))
+					: Math.sqrt(vC * vC + 2 * a0 * d);
 			if (v < allowed) allowed = v;
 		}
 
 		// Pure pursuit at a speed-scaled lookahead; when off the ribbon, aim
-		// at the nearest centerline point instead to rejoin the track.
-		const lookPts = Math.min(12, Math.max(1, Math.round((3 + s.speed * 0.45) / this.spacing)));
+		// closer in to rejoin the track.
+		//
+		// Both distances are in METRES and only then converted to points, so a
+		// finely sampled track cannot clip the lookahead the way the old
+		// 12-POINT ceiling did (12 points is 48 m at this track's 4 m spacing
+		// but only 24 m at 2 m spacing, a step input at 60 m/s).
+		//
+		// The REJOIN distance is the one that had to stop being fixed: 2 points
+		// was 8 m, which is 0.13 s of travel at 60 m/s. Any brief excursion off
+		// the ribbon at speed therefore answered with near-full lock, which
+		// spins the car rather than recovering it. It is still deliberately
+		// SHORTER than the on-ribbon lookahead (rejoining should be decisive),
+		// just no longer sharp enough to be its own accident.
+		const lookM = Math.min(50, 3 + s.speed * 0.45);
+		const lookPts = Math.max(1, Math.round(lookM / this.spacing));
+		const rejoinPts = Math.max(2, Math.round((lookM * 0.6) / this.spacing));
 		const target = s.onRibbon
 			? this.route[(idx + lookPts) % n]
-			: this.route[(idx + 2) % n];
+			: this.route[(idx + rejoinPts) % n];
 		const dx = target.x - s.x;
 		const dz = target.z - s.z;
 		const cross = s.hx * dz - s.hz * dx;
@@ -235,17 +449,39 @@ export class AiDriver {
 			Math.min(1, -Math.atan2(cross, Math.max(Math.abs(dot), 0.001) * Math.sign(dot || 1)) * t.steerGain)
 		);
 
+		// Hold band around the allowed speed. PROPORTIONAL, not the old flat
+		// 0.8 m/s: at 17 m/s that was a 5% deadband, at 63 m/s it is 1%, and
+		// full brakes here are ~25 m/s^2, so a fast car sitting on the edge
+		// would stutter between hard braking and full throttle rather than
+		// cruising.
+		const band = Math.max(0.8, allowed * 0.03);
 		const wrongWay = dot < 0;
 		let throttle = 0;
 		let brake = 0;
 		if (wrongWay) {
 			throttle = 0.35;
-		} else if (s.speed > allowed + 0.8) {
+		} else if (s.speed > allowed + band) {
 			brake = 1;
-		} else if (s.speed < allowed - 0.8) {
+		} else if (s.speed < allowed - band) {
 			throttle = s.onRibbon ? 1 : 0.55;
 		} else {
 			throttle = 0.35;
+		}
+
+		// Traction cap: never ask for more drive force than the tires can put
+		// down. `driveAccel * throttle` is the acceleration being demanded and
+		// `dragDecel * v^2` is what aero is already absorbing, so the surplus
+		// reaching the contact patch has to stay inside the traction budget.
+		//
+		// Two properties make this safe to apply unconditionally. It CANNOT
+		// cost a vehicle its top speed: at terminal, drag alone consumes the
+		// whole drive force, so the cap has risen past 1 long before then (a
+		// VELOCITY build is back to full throttle above ~44 m/s). And it does
+		// nothing at all to a car whose power its tires can already handle:
+		// three of the four archetypes compute a cap above 1 even at rest.
+		if (t.driveAccel && t.driveAccel > 0 && t.tractionAccel) {
+			const cap = (t.tractionAccel + k * s.speed * s.speed) / t.driveAccel;
+			if (cap < throttle) throttle = Math.max(0.3, cap);
 		}
 
 		// Stuck detection: trying to move but not moving -> reverse briefly.
@@ -274,7 +510,7 @@ export class AiDriver {
 		others: Combatant[],
 		slot: WeaponSlotId,
 		def: WeaponDef,
-		t: AiTuning,
+		t: AiAggressionSource,
 		nowMs: number,
 		cooldownScale = 1
 	): boolean {
@@ -314,7 +550,7 @@ export class AiDriver {
 		others: Combatant[],
 		slot: WeaponSlotId,
 		def: WeaponDef,
-		t: AiTuning,
+		t: AiAggressionSource,
 		nowMs: number,
 		cooldownScale = 1
 	): boolean {
@@ -351,7 +587,7 @@ export class AiDriver {
 		others: Combatant[],
 		slot: WeaponSlotId,
 		def: WeaponDef,
-		t: AiTuning,
+		t: AiAggressionSource,
 		nowMs: number,
 		cooldownScale = 1
 	): boolean {
@@ -382,7 +618,7 @@ export class AiDriver {
 		others: Combatant[],
 		slot: WeaponSlotId,
 		def: WeaponDef,
-		t: AiTuning,
+		t: AiAggressionSource,
 		nowMs: number,
 		cooldownScale = 1
 	): boolean {
@@ -402,7 +638,7 @@ export class AiDriver {
 	}
 
 	/** Slot twin of scheduleNextUse: cooldown + aggression-scaled delay. */
-	scheduleSlotUse(slot: WeaponSlotId, nowMs: number, cooldownSec: number, t: AiTuning): void {
+	scheduleSlotUse(slot: WeaponSlotId, nowMs: number, cooldownSec: number, t: AiAggressionSource): void {
 		const aggr = Math.max(0, Math.min(1, t.aggression));
 		const extraSec = (1.6 - 1.4 * aggr) * (0.6 + 0.8 * Math.random());
 		this.nextSlotOkMs[slot] = nowMs + (cooldownSec + Math.max(0.1, extraSec)) * 1000;
