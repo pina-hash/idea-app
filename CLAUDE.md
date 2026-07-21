@@ -3454,6 +3454,74 @@ on one side of the world.
     chip + splitter/wing tradeoff chips. `svelte-check` clean, 0 errors, no new
     warnings.
 
+- **Race-start integrity + player-chosen grid size (Phase 9-fix-b).** Two
+  changes: weapons/abilities arm per vehicle on POSITION rather than on the
+  countdown clock, and the player can finally choose how big the field is.
+  - **Arming is PER VEHICLE and positional.** The old gate was one shared
+    `preLaunch = now < raceStartAtMs`, so the whole field unlocked on the SAME
+    FRAME at GO, with every car still sitting on its slot: a tightly packed grid
+    was armed before anyone had moved. Arming now asks a question about the
+    individual car, and the signal it asks is one the lap system ALREADY
+    maintained: `LapTracker.timing`, set by the `timing-started` event on that
+    vehicle's FIRST start/finish crossing. Nothing new is tracked and nothing is
+    inferred from speed or a timer — every grid slot sits behind the line
+    (`slotPose` steps rows BACK from the start anchor), so crossing it is exactly
+    "this car has left the grid and is racing", and the staggered rows arm in the
+    order they actually launch. `weaponsArmed(rig, now)` (beside the countdown
+    constants) is the one predicate; the tick computes it once per frame into an
+    `armed[]` array parallel to `all`, and EVERY combat path reads it: the
+    player's queued fire/ability presses (discarded while disarmed, so a held
+    trigger buys nothing), guided-lock acquisition (nobody rolls off the grid
+    with a lock already banked), the AI weapon and ability decision loops, and
+    the self-firing Auto-Turret.
+    - `LAUNCH_ARM_DIST_M` (100 m straight-line from this round's grid seat) is a
+      SAFETY NET, not the mechanism: it sits far past what any car covers before
+      reaching the line on the current tracks (pole crosses within ~12-32 m, the
+      back of a full grid within ~80 m), and exists only so a track authored with
+      its spawn PAST the start line could not withhold weapons for a whole lap.
+      Measured: the player armed at 43-62 m, i.e. on the crossing, never the
+      fallback.
+    - `preLaunch` (the shared time gate) STAYS for what it was always right for:
+      the control lock, draft detection, trigger zones, and drift-meter charge.
+      The `RAM_GRACE_SEC` window is also unchanged and still time-based — ram is
+      nose-first contact above a closing-speed threshold, so it already cannot
+      trigger on a stationary grid.
+    - HUD: a steel `WEAPONS SAFE / CROSS THE LINE` chip (deliberately not amber,
+      which is impact-only), and weapon/ability cells read `SAFE` dimmed instead
+      of a `READY` that would not actually fire. RAM keeps reading ARMED, since
+      it is the one fixed always-on tool.
+  - **Grid size is a real player choice.** `DEFAULTS.aiCount` (3) used to be the
+    only thing deciding a real race's field, with no UI anywhere.
+    `grid-selection.svelte.ts` is the reactive localStorage store (the
+    track-selection pattern) and now also owns `GRID_MAX_AI` (11, a 12-car grid),
+    which GreenlineRace's own `MAX_AI` reads — so the picker can never offer a
+    field the sim will not build. Like the track, it is deliberately NOT part of
+    the loadout (loading a saved build must not change who you race) and NOT
+    economy-gated (field size is a difficulty/feel choice, not a reward).
+    `Garage.svelte` gains a presentation-only `aiCount` / `onAiCount` pair and a
+    GRID SIZE picker in the GARAGE tab under the track, labelled by TOTAL cars
+    (2..12) since that is what a driver thinks in. `GreenlineRace` gains an
+    `aiCount` prop read ONCE at init to SEED `tuning.aiCount` before the field is
+    built (so `__greenline.setAiCount` still owns it afterwards for scripted
+    drives); `/greenline` captures the choice at race start into `raceAiCount`,
+    exactly as it captures the track and the creative flag.
+  - **Verified** in `/dev/greenline-portal` + `/dev/greenline-movement`
+    (`/greenline` itself needs a signed-in session, which the placeholder local
+    `.env` cannot provide; the movement harness therefore reads the SAME store
+    the garage writes, mirroring the real route's wiring, so the whole
+    picker -> store -> prop -> field path is drivable without auth). Arming:
+    a real countdown captured frame by frame shows `fieldArmed 0` AT GO and for
+    2.5 s after it, then a staggered ramp (1 armed at +2.5 s, 2 at +3.4 s, 7 at
+    +4.3 s, 11 at +5.2 s) as the pack crosses; a player spamming the real
+    Z/X/C/V keys through the countdown and past GO produced 0 weapon fires and 0
+    ability uses while its 12-car grid sat 6 m apart; the player armed exactly on
+    `timing: true`, the SAFE chip cleared, cells went SAFE -> READY, and one real
+    KeyZ press then put its own slot on cooldown (0.0s -> 0.2s). Grid size:
+    picking 8 cars in the REAL garage stored 7 AI, survived a reload, and
+    launched a race with exactly `player + ai-1..ai-7`; picking the max launched
+    12 cars with 12 seated grid slots. `svelte-check` clean, 0 errors, 0 new
+    warnings.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

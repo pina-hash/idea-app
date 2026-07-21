@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { loadTrack, trackEntry, TRACKS } from '$lib/greenline/tracks';
 	import { setSelectedTrack, trackSelection } from '$lib/greenline/track-selection.svelte';
+	import { gridSelection, setAiCount } from '$lib/greenline/grid-selection.svelte';
 	import FeedbackBox from '$lib/feedback/FeedbackBox.svelte';
 	import { submitFeedback, type FeedbackEntry } from '$lib/feedback/feedback';
 	import { ABILITY_NONE } from '$lib/greenline/abilities';
@@ -134,6 +135,9 @@
 	// on which track was raced even if the selection moves afterwards.
 	let raceTrackId = $state(trackSelection.id);
 	const raceTrack = $derived(loadTrack(raceTrackId));
+	// Grid size for the CURRENT run (Phase 9-fix-b), captured at race start like
+	// the track: the player picks it in the garage, the race launches with it.
+	let raceAiCount = $state(gridSelection.aiCount);
 
 	// Qualifying grid placement (Phase 9b): the player's best recorded lap on the
 	// selected track, read from the REAL leaderboard (the same board the results
@@ -316,6 +320,10 @@
 		// Freeze the qualifying time for THIS run's grid, same reason as the track
 		// and creative flag: the selection could move before the race mounts.
 		raceQualifyingMs = playerQualifyingMs;
+		// Grid size, frozen for the same reason: the picker stays reachable from
+		// the garage between runs, and the launched race must be the field the
+		// player chose when they hit START.
+		raceAiCount = gridSelection.aiCount;
 		screen = 'race';
 	}
 	// Weapon-slot sanitize on every edit: the garage blocks invalid weapon
@@ -477,6 +485,8 @@
 				tracks={TRACKS}
 				trackId={trackSelection.id}
 				ontrack={setSelectedTrack}
+				aiCount={gridSelection.aiCount}
+				onAiCount={setAiCount}
 				{slots}
 				{activeSlot}
 				{onSaveSlot}
@@ -503,6 +513,7 @@
 		{loadout}
 		track={raceTrack}
 		playerQualifyingMs={raceQualifyingMs}
+		aiCount={raceAiCount}
 		onFinish={handleFinish}
 		onQuit={() => (screen = 'garage')}
 		onFeedback={() => openFeedback('race')}

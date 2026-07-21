@@ -14,6 +14,7 @@
 	import GreenlineRace from '$lib/greenline/GreenlineRace.svelte';
 	import { loadTrack, TRACKS } from '$lib/greenline/tracks';
 	import { setSelectedTrack, trackSelection } from '$lib/greenline/track-selection.svelte';
+	import { gridSelection, setAiCount } from '$lib/greenline/grid-selection.svelte';
 	import FeedbackBox from '$lib/feedback/FeedbackBox.svelte';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
 	import {
@@ -619,6 +620,11 @@
 				setSelectedTrack(id);
 				lastAction = `track -> ${id}`;
 			}}
+			aiCount={gridSelection.aiCount}
+			onAiCount={(n) => {
+				setAiCount(n);
+				lastAction = `grid -> ${gridSelection.aiCount + 1} cars`;
+			}}
 			{slots}
 			{activeSlot}
 			{onSaveSlot}
@@ -656,10 +662,15 @@
 			     verifiable, since /dev/greenline-movement passes neither callback
 			     and /greenline needs auth. Off by default: it is a full WebGL sim,
 			     and the other views should stay cheap to open. -->
-			{#key trackSelection.id}
+			<!-- Keyed on the grid size as well as the track: both are read ONCE at
+			     init by the component, so a change has to remount to take effect —
+			     which is exactly what the real route does by capturing them at
+			     race start. -->
+			{#key `${trackSelection.id}:${gridSelection.aiCount}`}
 				<GreenlineRace
 					{loadout}
 					track={loadTrack(trackSelection.id)}
+					aiCount={gridSelection.aiCount}
 					onFinish={(o) => {
 						// simFinish sets its own lastAction, so stamp the real outcome
 						// (route included) AFTER it — the route is the whole point of

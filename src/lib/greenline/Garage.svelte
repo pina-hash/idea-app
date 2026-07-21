@@ -44,6 +44,7 @@
 	} from './economy';
 	import { GREENLINE_MAX_SLOTS, type LoadoutSlot } from './persistence';
 	import type { TrackEntry } from './tracks';
+	import { GRID_MAX_AI, GRID_MIN_AI } from './grid-selection.svelte';
 	import GaragePreview from './GaragePreview.svelte';
 
 	/**
@@ -94,6 +95,8 @@
 		tracks = undefined,
 		trackId = undefined,
 		ontrack,
+		aiCount = undefined,
+		onAiCount,
 		onFeedback
 	}: {
 		loadout: Loadout;
@@ -191,6 +194,17 @@
 		tracks?: readonly TrackEntry[];
 		trackId?: string;
 		ontrack?: (id: string) => void;
+		/**
+		 * Grid size (Phase 9-fix-b): how many AI opponents the next race launches
+		 * with. Presentation only, like the track picker — state in, intent out —
+		 * so the host owns where the choice is stored. Omit both to hide the
+		 * control (the dev harness that mounts a bare garage).
+		 *
+		 * Deliberately NOT economy-gated, for the same reason tracks are not: a
+		 * bigger grid is a difficulty/feel choice, not a reward.
+		 */
+		aiCount?: number;
+		onAiCount?: (n: number) => void;
 		/** Optional: renders a button that opens the host's feedback box. */
 		onFeedback?: () => void;
 	} = $props();
@@ -425,7 +439,8 @@
 		{ id: 'garage', label: 'GARAGE', hint: 'saved builds and track' }
 	];
 	const hasLivery = $derived(!!oncosmetic);
-	const hasGarageTab = $derived(!!slots || !!(tracks && tracks.length > 1));
+	const hasGrid = $derived(aiCount !== undefined && !!onAiCount);
+	const hasGarageTab = $derived(!!slots || !!(tracks && tracks.length > 1) || hasGrid);
 	const availableTabs = $derived(
 		TAB_UI.filter(
 			(t) => (t.id !== 'livery' || hasLivery) && (t.id !== 'garage' || hasGarageTab)
@@ -798,6 +813,34 @@
 						<span class="gg-track-len">{(t.lengthM / 1000).toFixed(2)} km lap</span>
 					</button>
 				{/each}
+			</div>
+		{/snippet}
+
+		{#snippet gridSection()}
+			<!-- Grid size (Phase 9-fix-b). Sits beside the track for the same
+			     reason the track sits here: both answer "what am I taking out",
+			     not "what am I building". One button per field size so the choice
+			     is one tap, and the total (you + N) is what a driver actually
+			     thinks in. -->
+			<div class="gg-section-label">Grid size</div>
+			<div class="gg-grid-pick">
+				{#each Array.from({ length: GRID_MAX_AI - GRID_MIN_AI + 1 }, (_, i) => i + GRID_MIN_AI) as n (n)}
+					<button
+						type="button"
+						class="gg-grid-btn"
+						class:on={aiCount === n}
+						aria-pressed={aiCount === n}
+						title="{n + 1} cars: you and {n} {n === 1 ? 'opponent' : 'opponents'}"
+						onclick={() => onAiCount?.(n)}
+					>
+						{n + 1}
+					</button>
+				{/each}
+			</div>
+			<div class="gg-grid-note">
+				{(aiCount ?? GRID_MIN_AI) + 1} cars on the grid: you and {aiCount ?? GRID_MIN_AI}
+				{(aiCount ?? GRID_MIN_AI) === 1 ? 'opponent' : 'opponents'}. Bigger fields are heavier
+				on older machines.
 			</div>
 		{/snippet}
 
@@ -1330,6 +1373,7 @@
 					{:else if activeTab === 'garage'}
 						{#if slots}{@render slotsSection()}{/if}
 						{#if tracks && tracks.length > 1}{@render trackSection()}{/if}
+						{#if hasGrid}{@render gridSection()}{/if}
 					{/if}
 				</div>
 			</div>
@@ -2545,6 +2589,46 @@
 	}
 	.gg-strip-text b {
 		color: var(--glb-ink);
+	}
+
+	/* ---- Grid-size picker (Phase 9-fix-b) ---- */
+	.gg-grid-pick {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.3rem;
+	}
+	.gg-grid-btn {
+		min-width: 2.1rem;
+		padding: 0.3rem 0.4rem;
+		background: rgba(10, 15, 21, 0.6);
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		color: var(--glb-ink-dim);
+		font-family: var(--glb-font-data);
+		font-size: 0.76rem;
+		letter-spacing: 0.06em;
+		cursor: pointer;
+		transition:
+			border-color 140ms ease,
+			box-shadow 140ms ease;
+	}
+	.gg-grid-btn:hover,
+	.gg-grid-btn:focus-visible {
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	/* The signature green marks the SELECTED size, exactly as it marks the
+	   selected track and the selected build. */
+	.gg-grid-btn.on {
+		border-color: rgba(42, 229, 126, 0.6);
+		box-shadow: 0 0 10px rgba(42, 229, 126, 0.16);
+		color: #8fffc4;
+	}
+	.gg-grid-note {
+		margin-top: 0.3rem;
+		color: var(--glb-ink-faint);
+		font-size: 0.66rem;
+		line-height: 1.4;
 	}
 
 	/* ---- Track picker (Phase 8e) ---- */

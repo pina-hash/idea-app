@@ -1,6 +1,7 @@
 <script lang="ts">
 	import GreenlineRace, { type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
 	import { loadTrack, TRACKS } from '$lib/greenline/tracks';
+	import { gridSelection } from '$lib/greenline/grid-selection.svelte';
 	import { page } from '$app/state';
 
 	/**
@@ -23,6 +24,12 @@
 	 * No `onQuit` is passed: the pause menu still opens (resume / restart /
 	 * feedback), it just offers no way out, because this harness has no screen
 	 * to quit to. That optionality is the reason the prop exists.
+	 *
+	 * `aiCount` comes from the SAME grid-selection store the garage's grid-size
+	 * picker writes (Phase 9-fix-b), mirroring how the real /greenline route
+	 * feeds the prop. That makes the whole picker -> store -> field path
+	 * verifiable here (choose a size in /dev/greenline-portal, count the cars
+	 * that launch here) without a signed-in session.
 	 */
 	const raw = page.url.searchParams.get('track');
 	const trackParam = raw === 'relief' ? 'relief-proof-01' : raw;
@@ -45,4 +52,4 @@
 	<title>GREENLINE movement prototype (dev)</title>
 </svelte:head>
 
-<GreenlineRace {onFinish} {track} />
+<GreenlineRace {onFinish} {track} aiCount={gridSelection.aiCount} />

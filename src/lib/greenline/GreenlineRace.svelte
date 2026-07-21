@@ -34,6 +34,7 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import { parseTrack, type TrackData } from '$lib/greenline/track-schema';
+	import { clampAiCount, GRID_MAX_AI } from '$lib/greenline/grid-selection.svelte';
 	import {
 		buildRuntime,
 		formatLapMs,
@@ -242,7 +243,8 @@
 		onQuit,
 		onFeedback,
 		inputBlocked = false,
-		playerQualifyingMs = null
+		playerQualifyingMs = null,
+		aiCount: aiCountProp
 	}: {
 		/**
 		 * The build to race. When omitted the component owns its loadout locally
@@ -300,6 +302,18 @@
 		 * omits it and can inject one via `__greenline.setPlayerQualifying`.
 		 */
 		playerQualifyingMs?: number | null;
+		/**
+		 * Grid size (Phase 9-fix-b): how many AI opponents to race against,
+		 * clamped to [GRID_MIN_AI, GRID_MAX_AI]. Omitted = the historical
+		 * default of 3, so the dev harness is unchanged. The portal route
+		 * passes the player's choice from the garage's grid-size picker,
+		 * captured at race start like the track and the creative flag.
+		 *
+		 * Read ONCE at init (a new race remounts the component), and only to
+		 * SEED `tuning.aiCount` — so `__greenline.setAiCount` still owns it
+		 * afterwards for scripted drives.
+		 */
+		aiCount?: number;
 	} = $props();
 
 	const DEFAULTS = {
@@ -534,6 +548,15 @@
 	};
 
 	const tuning = $state({ ...DEFAULTS });
+
+	// Grid size: seed tuning.aiCount from the caller's choice, ONCE, before the
+	// field is built (buildAis reads tuning.aiCount in onMount, and every later
+	// resetRound re-reads it). Read untracked and only as a seed so a scripted
+	// __greenline.setAiCount still owns the value from then on.
+	{
+		const n = untrack(() => aiCountProp);
+		if (n !== undefined) tuning.aiCount = clampAiCount(n);
+	}
 
 	const track = untrack(() => trackOverride) ?? parseTrack(provingGroundJson);
 	const rt = buildRuntime(track);
@@ -772,7 +795,13 @@
 		/** Shared drift meter, 0..1 (both ability slots draw from it). */
 		meter: 0,
 		/** Equipped-ability cells (primary always; secondary only when equipped). */
-		abilities: [] as AbilityHudCell[]
+		abilities: [] as AbilityHudCell[],
+		/**
+		 * Whether the PLAYER's own weapons and abilities are armed (Phase
+		 * 9-fix-b): false on the grid and until this car crosses the start line,
+		 * so the cells read SAFE rather than a READY that would not fire.
+		 */
+		armed: false
 	});
 	let lapFlash = $state('');
 	// Race-start countdown text ('3' | '2' | '1' | 'GO' | ''), driven by the loop.
@@ -783,19 +812,14 @@
 	// A tuning value can momentarily read NaN (e.g. a bad stored loadout); fall
 	// back to the default so the sim never ingests a non-finite value.
 	/**
-	 * Hard ceiling on AI opponents (Phase 8c, raised from 6). Both the grid
-	 * builder and the round reset clamp to this one constant.
-	 *
-	 * Raised to 11 (a 12-car grid with the player), NOT straight to the 16 the
-	 * design wants, because the perf target is the school's 6-8 year old
-	 * desktops and draw calls are the known budget: every vehicle is a
-	 * multi-part rig with its own hull clone and tint material. 11 was picked
-	 * against measured frame time on a full grid, with 16 left as a stretch
-	 * goal contingent on a cheaper rig (instanced bodywork / shared hull) —
-	 * raise this constant only behind the same measurement, not on the
-	 * assumption that it scales.
+	 * Hard ceiling on AI opponents. Both the grid builder and the round reset
+	 * clamp to this one constant, which now lives in grid-selection.svelte.ts
+	 * (Phase 9-fix-b) so the garage's grid-size picker clamps to the SAME
+	 * number — the UI can never offer a field the sim will not build. The
+	 * rationale for the value (and what raising it would cost) is documented
+	 * there.
 	 */
-	const MAX_AI = 11;
+	const MAX_AI = GRID_MAX_AI;
 	/**
 	 * Airborne detection (Phase 8d). A vehicle counts as airborne only with ALL
 	 * FOUR wheels clear of the ground, held for AIRBORNE_MIN_SEC. Both halves
@@ -5018,6 +5042,35 @@
 				// here for the initial launch and re-armed by resetRound each round.
 				let raceStartAtMs = gameNow() + COUNTDOWN_SEC * 1000;
 
+				// ---- Weapon/ability arming: PER VEHICLE and POSITIONAL ----
+				// (Phase 9-fix-b.) The countdown clock alone is the wrong gate: it
+				// unlocks the whole field on the same frame, so a tightly packed grid
+				// is armed while every car is still sitting on its slot, and the back
+				// row can fire into the pack before anyone has moved. Arming is now a
+				// question about THIS vehicle: has it actually launched?
+				//
+				// The signal is one the lap system already maintains — LapTracker.timing,
+				// set by the `timing-started` event on a vehicle's FIRST start/finish
+				// crossing. Nothing new is tracked, nothing is inferred: every grid slot
+				// sits behind the line (slotPose steps rows BACK from the start anchor),
+				// so crossing it is exactly "this car has left the grid and is racing",
+				// and the staggered rows arm in the order they actually launch.
+				//
+				// LAUNCH_ARM_DIST_M is a safety net, not the mechanism: straight-line
+				// distance from this round's grid seat, set far past what any car covers
+				// before reaching the line on the current tracks (pole crosses within
+				// ~12-32 m, the back of a full grid within ~80 m). It only matters if a
+				// track were ever authored with its spawn PAST the start line, where the
+				// timing signal would otherwise withhold weapons for a whole lap.
+				const LAUNCH_ARM_DIST_M = 100;
+				const weaponsArmed = (rig: Rig, now: number): boolean => {
+					if (now < raceStartAtMs) return false; // never before GO
+					if (rig.tracker.timing) return true;
+					const dx = rig.body.position.x - rig.spawn.x;
+					const dz = rig.body.position.z - rig.spawn.z;
+					return dx * dx + dz * dz >= LAUNCH_ARM_DIST_M * LAUNCH_ARM_DIST_M;
+				};
+
 				// ---- Round state ----
 				let finishOrder: Rig[] = [];
 				// The player's timing-start stamp (first start/finish crossing), so
@@ -5838,6 +5891,28 @@
 						// test can assert both the ORDERING (by qual) and that the
 						// physical LAYOUT (positions per slot) is unchanged.
 						gridInfo: () => gridSnapshot(),
+						// ---- Weapon arming (Phase 9-fix-b) ----
+						// Per-rig arming state, so a scripted drive can assert that a car
+						// on the grid is genuinely disarmed and that arming follows the
+						// start-line crossing rather than the countdown clock: `armed` is
+						// what the sim gates on, `timing` is the crossing signal it reads,
+						// and `distFromGrid` is the safety-net fallback's input.
+						armedInfo: () => {
+							const now = gameNow();
+							return {
+								preGo: now < raceStartAtMs,
+								toGoMs: Math.round(raceStartAtMs - now),
+								armDistM: LAUNCH_ARM_DIST_M,
+								rigs: rigsAll().map((r) => ({
+									id: r.id,
+									armed: weaponsArmed(r, now),
+									timing: r.tracker.timing,
+									distFromGrid: Math.round(
+										Math.hypot(r.body.position.x - r.spawn.x, r.body.position.z - r.spawn.z) * 10
+									) / 10
+								}))
+							};
+						},
 						// Per-round weapon / flip / fall / zone counters (reset by
 						// resetRound).
 						getTelemetry: () => ({
@@ -6787,15 +6862,22 @@
 					}
 
 					// -- Weapons: player triggers + AI decisions, one shared path --
-					// Weapons unlock at GO along with controls. During the countdown any
-					// player weapon press is discarded and the AI does not fire, so nothing
-					// can be launched at a locked, stationary pack.
-					if (preLaunch) {
+					// Arming is PER VEHICLE and POSITIONAL (weaponsArmed): a car stays
+					// disarmed until it has actually crossed the start/finish line, so a
+					// packed grid can never trade fire before anyone has moved and the
+					// staggered rows arm in the order they launch, not all on one frame.
+					// One array, computed once per frame, gates every path below: the
+					// player's queued presses, guided-lock acquisition, the AI weapon and
+					// ability decisions, and the self-firing Auto-Turret.
+					const armed = all.map((r) => weaponsArmed(r, now));
+					chud.armed = armed[0];
+					if (!armed[0]) {
 						firePrimaryQueued = false;
 						fireSecondaryQueued = false;
 						abilityPrimaryQueued = false;
 						abilitySecondaryQueued = false;
-					} else {
+					}
+					{
 						if (abilityPrimaryQueued) {
 							abilityPrimaryQueued = false;
 							performAbility(player, 'abilityPrimary');
@@ -6817,12 +6899,13 @@
 						// passive and continuous while the slot is ready, so the HUD
 						// can show progress and the fire press launches instantly off
 						// a complete lock. A slot on cooldown (or a dead mount) holds
-						// no lock at all.
+						// no lock at all — and neither does a car that has not launched
+						// yet, so nobody rolls off the grid with a lock already banked.
 						for (let ri = 0; ri < all.length; ri++) {
 							const rig = all[ri];
 							for (const slot of WEAPON_SLOTS) {
 								const def = weaponById(rig.weapons[slot]);
-								if (!def?.guided || rig.combat.isOut(now)) {
+								if (!def?.guided || rig.combat.isOut(now) || !armed[ri]) {
 									rig.locks[slot] = null;
 									continue;
 								}
@@ -6846,9 +6929,10 @@
 						// input above); the stress runner's AI-player is included.
 						// Every equipped weapon is a candidate — the whole 13-weapon roster,
 						// including EMP / oil / hook since Phase 8g — decided by one loop.
-						for (const rig of all) {
-							if (!rig.ai || rig.combat.isOut(now)) continue;
-							const self = combatants[all.indexOf(rig)];
+						for (let ri = 0; ri < all.length; ri++) {
+							const rig = all[ri];
+							if (!rig.ai || rig.combat.isOut(now) || !armed[ri]) continue;
+							const self = combatants[ri];
 							for (const slot of WEAPON_SLOTS) {
 								const def = weaponById(rig.weapons[slot]);
 								if (!def) continue;
@@ -6889,7 +6973,7 @@
 						// (no ramps yet). Simple by design; real tactics are Phase 9.
 						for (let ri = 0; ri < all.length; ri++) {
 							const rig = all[ri];
-							if (!rig.ai || rig.combat.isOut(now)) continue;
+							if (!rig.ai || rig.combat.isOut(now) || !armed[ri]) continue;
 							const self = combatants[ri];
 							for (const slot of ABILITY_SLOTS) {
 								const def = abilityById(rig.abilities[slot]);
@@ -6919,7 +7003,7 @@
 						// check; the forward blind arc is the vehicle's own chassis.
 						for (let ri = 0; ri < all.length; ri++) {
 							const rig = all[ri];
-							if (rig.combat.isOut(now)) continue;
+							if (rig.combat.isOut(now) || !armed[ri]) continue;
 							for (const slot of WEAPON_SLOTS) {
 								const def = weaponById(rig.weapons[slot]);
 								if (def?.category !== 'turret') continue;
@@ -7881,6 +7965,7 @@
 				{#if chud.oiled}<span class="gl-st gl-st-oiled">OILED</span>{/if}
 				{#if chud.tethered}<span class="gl-st gl-st-tether">TETHERED</span>{/if}
 				{#if chud.shieldPct > 0}<span class="gl-st gl-st-shield">SHIELD {Math.round(chud.shieldPct * 100)}%</span>{/if}
+				{#if !chud.armed}<span class="gl-st gl-st-safe">WEAPONS SAFE / CROSS THE LINE</span>{/if}
 				{#if hud.offTrack}<span class="gl-st gl-st-offtrack">OFF TRACK</span>{/if}
 				{#if hud.drafting}<span class="gl-st gl-st-draft">DRAFT</span>{/if}
 				{#each chud.slots.filter((w) => w.lock) as w (w.slot)}
@@ -7896,8 +7981,9 @@
 				{#each chud.slots as w (w.slot)}
 					<div
 						class="gl-wcell"
-						class:ready={!w.offline && w.ready <= 0 && !w.lock}
+						class:ready={chud.armed && !w.offline && w.ready <= 0 && !w.lock}
 						class:offline={w.offline}
+						class:safe={!chud.armed && !w.offline}
 						class:locking={!w.offline && !!w.lock && !w.lock.locked}
 						class:locked={!w.offline && !!w.lock?.locked}
 						class:active={!w.offline && w.active}
@@ -7905,19 +7991,21 @@
 					>
 						<span class="gl-wname">{w.short}</span>
 						<span class="gl-wstate"
-							>{w.passive
-								? 'ON'
-								: w.active
-									? 'ACTIVE'
-									: w.offline
-										? 'OFFLINE'
-										: w.ready > 0
-											? `${w.ready.toFixed(1)}s`
-											: w.lock
-												? w.lock.locked
-													? 'LOCKED'
-													: `LOCK ${Math.round(w.lock.progress * 100)}%`
-												: 'READY'}</span
+							>{w.offline
+								? 'OFFLINE'
+								: !chud.armed
+									? 'SAFE'
+									: w.passive
+										? 'ON'
+										: w.active
+											? 'ACTIVE'
+											: w.ready > 0
+												? `${w.ready.toFixed(1)}s`
+												: w.lock
+													? w.lock.locked
+														? 'LOCKED'
+														: `LOCK ${Math.round(w.lock.progress * 100)}%`
+													: 'READY'}</span
 						>
 						<span class="gl-wkey">{w.key}</span>
 					</div>
@@ -7944,19 +8032,22 @@
 					{#each chud.abilities as a (a.slot)}
 						<div
 							class="gl-acell"
-							class:ready={a.ready && !a.active}
+							class:ready={chud.armed && a.ready && !a.active}
 							class:active={a.active}
-							class:charge={!a.ready && !a.active && a.needMeter}
+							class:safe={!chud.armed}
+							class:charge={chud.armed && !a.ready && !a.active && a.needMeter}
 						>
 							<span class="gl-wname">{a.short}</span>
 							<span class="gl-wstate"
-								>{a.active
-									? 'ACTIVE'
-									: a.cooldown > 0
-										? `${a.cooldown.toFixed(1)}s`
-										: a.ready
-											? 'READY'
-											: 'CHARGE'}</span
+								>{!chud.armed
+									? 'SAFE'
+									: a.active
+										? 'ACTIVE'
+										: a.cooldown > 0
+											? `${a.cooldown.toFixed(1)}s`
+											: a.ready
+												? 'READY'
+												: 'CHARGE'}</span
 							>
 							<span class="gl-wkey">{a.key}</span>
 						</div>
@@ -8283,6 +8374,12 @@
 		color: #c9a15f;
 		border-color: rgba(201, 161, 95, 0.55);
 	}
+	/* Weapons safe (on the grid / not yet over the line): steel, deliberately
+	   NOT amber — this is a normal race-start state, not an impact or a fault. */
+	.gl-st-safe {
+		color: var(--glb-steel);
+		border-color: var(--glb-line-strong);
+	}
 	/* Draft is a beneficial player state (free top-speed tow), so the signature
 	   green, in line with weapon-READY / best-lap. Amber stays impact-only. */
 	.gl-st-draft {
@@ -8357,6 +8454,16 @@
 	}
 	.gl-wcell.passive .gl-wstate {
 		color: #9cc4e8;
+	}
+	/* Disarmed until this car crosses the start line: dimmed steel, so a cell
+	   never reads READY for something that would not actually fire. */
+	.gl-wcell.safe .gl-wstate,
+	.gl-acell.safe .gl-wstate {
+		color: var(--glb-steel-dim);
+	}
+	.gl-wcell.safe .gl-wname,
+	.gl-acell.safe .gl-wname {
+		opacity: 0.7;
 	}
 	.gl-st-locking {
 		color: #9cc4e8;
