@@ -70,6 +70,7 @@ export const SECTIONS: Section[] = [
 		href: '/fsp/class',
 		assignments: [
 			{ slug: 'fsp-presentations', title: 'FSP Presentations' },
+			{ slug: 'fsp-course-info', title: 'Course Info' },
 			{ slug: 'fsp-ask', title: 'Live Q&A', href: '/fsp/ask' },
 			{ slug: 'fsp-addin', title: 'SolidWorks Add-In', href: '/fsp/class' },
 			{

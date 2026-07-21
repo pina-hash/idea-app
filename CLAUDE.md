@@ -4507,12 +4507,13 @@ band between the hero stats and the APPS block (`src/routes/+page.svelte`,
 replacing the old "next live course" promo callout there), formatted
 identically to every other section card, with material rows that use
 the optional `Assignment.href` to link directly to the FSP tools:
-`FSP Presentations` (no href, see `FspPresentationsPanel` below), `Live Q&A` ->
-`/fsp/ask`, `SolidWorks Add-In` -> `/fsp/class`. It is no longer a `portal-apps.ts` launcher
+`FSP Presentations` (no href, see `FspPresentationsPanel` below), `Course Info`
+(no href, see `FspCourseInfoPanel` below), `Live Q&A` -> `/fsp/ask`,
+`SolidWorks Add-In` -> `/fsp/class`. It is no longer a `portal-apps.ts` launcher
 app (that entry was removed), and the old role-routing hub page
 `/fsp/+page.svelte` was DELETED — `/fsp/day1`, `/fsp/live`, `/fsp/ask`, and
 `/fsp/class` are intact and reached directly (bare `/fsp` no longer resolves).
-**Teachers get a fourth item, `Live Question Feed` -> `/fsp/live`**, appended
+**Teachers get a fifth item, `Live Question Feed` -> `/fsp/live`**, appended
 client-side in `+page.svelte` (added to the FSP item list gated on the existing
 `isTeacher` derived value), never written into `curriculum.ts` itself since that
 file is plain client-safe data with no role awareness; students never see the
@@ -4571,6 +4572,20 @@ item.
     detected: a plain "Open in Google Slides ↗" link is therefore always shown
     under every tab's iframe, never gated behind error detection, so the deck
     is always reachable even if the embed is silently broken.
+  - **`Course Info` is the same panel pattern with static text, no embed.** The
+    row (slug `fsp-course-info`, also no `href`) opens
+    `src/lib/fsp/FspCourseInfoPanel.svelte` — identical modal chrome and tab
+    mechanics to `FspPresentationsPanel` (same `--green`/`--gold`/`--cyan`/
+    `--line` tokens from the design-system layer `app.css` imports), but each
+    tab is plain `Course[]` data (title, italic tagline, body paragraph,
+    bullet list) rendered directly, so there is no lazy-mount, load-status, or
+    fallback-link machinery — nothing external to fail. `FspHomeSection`
+    generalizes the panel-slug dispatch to a `PANEL_OPENERS` map
+    (`slug -> () => void`) rather than a single hardcoded slug, so a third
+    panel-opening row is a one-line addition. Tabs: IDEA114 (Engineering
+    Foundations), IDEA209H (Engineering I Honors), IDEA210H (Engineering
+    Applications Honors) — course-overview copy for prospective FSP students,
+    unrelated to the live `curriculum.ts` section data.
 - **Open-state tracking (`0048_fsp_item_opens.sql`, apply manually after 0047):**
   per-student first-open state for each of the FSP items, persisted so
   progress follows a student across devices (the tour-state intent from 0045).

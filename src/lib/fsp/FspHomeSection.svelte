@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Section, Assignment } from '$lib/curriculum';
 	import FspPresentationsPanel from '$lib/fsp/FspPresentationsPanel.svelte';
+	import FspCourseInfoPanel from '$lib/fsp/FspCourseInfoPanel.svelte';
 
 	/**
 	 * The FSP section card pinned atop the homepage, factored out so the dev
@@ -35,6 +36,7 @@
 	type AssignmentIconKind = 'deck' | 'pulse' | 'plugin' | 'book' | 'clipboard' | 'archive';
 	const ICON_KINDS: Record<string, AssignmentIconKind> = {
 		'fsp-presentations': 'deck',
+		'fsp-course-info': 'book',
 		'fsp-ask': 'pulse',
 		'fsp-live': 'pulse',
 		'fsp-addin': 'plugin',
@@ -49,6 +51,7 @@
 	// slug not in this order sorts to the end (stable) so nothing is ever dropped.
 	const ORDER = [
 		'fsp-presentations',
+		'fsp-course-info',
 		'fsp-ask',
 		'fsp-live',
 		'fsp-addin',
@@ -69,15 +72,20 @@
 		if (signedIn && !openedSet.has(slug)) onOpen?.(slug);
 	};
 
-	// "FSP Presentations" opens a tabbed panel in place rather than navigating
-	// (it has no href in curriculum.ts); every other row navigates as normal.
-	const PANEL_SLUGS = new Set(['fsp-presentations']);
+	// Some rows open a tabbed panel in place rather than navigating (they have
+	// no href in curriculum.ts); every other row navigates as normal.
 	let presentationsOpen = $state(false);
-	const isPanel = (slug: string) => PANEL_SLUGS.has(slug);
+	let courseInfoOpen = $state(false);
+	const PANEL_OPENERS: Record<string, () => void> = {
+		'fsp-presentations': () => (presentationsOpen = true),
+		'fsp-course-info': () => (courseInfoOpen = true)
+	};
+	const isPanel = (slug: string) => slug in PANEL_OPENERS;
 	const handleRowClick = (e: MouseEvent, slug: string) => {
-		if (isPanel(slug)) {
+		const openPanel = PANEL_OPENERS[slug];
+		if (openPanel) {
 			e.preventDefault();
-			presentationsOpen = true;
+			openPanel();
 		}
 		handleOpen(slug);
 	};
@@ -184,3 +192,4 @@
 </div>
 
 <FspPresentationsPanel bind:open={presentationsOpen} />
+<FspCourseInfoPanel bind:open={courseInfoOpen} />
