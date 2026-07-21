@@ -257,9 +257,17 @@ export const ARCHETYPES: Archetype[] = [
 			aeroDrag: 1.08
 		},
 		// Plating IS the identity: the deepest armor wall on the field over
-		// the biggest chassis. Its mount is ordinary, so the rear stays the
-		// honest way to hurt a juggernaut.
-		pools: { armor: 0.4, chassis: 0.45, mount: 0.15 },
+		// the biggest chassis. Its mount takes the SMALLEST share of its own
+		// budget after SYSTEMS' and HANDLING's, so the rear stays the honest
+		// way to hurt a juggernaut relative to hitting its face.
+		// 9-fix-d reshape (40/45/15 -> 35/40/25; see DEFAULT_POOL_SPLIT for the
+		// measured rear-fire share that sized every mount): at 1.6x the budget
+		// this resolves to armor 146 / chassis 166 / mount 104, still the deepest
+		// plating on the field by a wide margin. Note the share is the identity,
+		// not the absolute: 1.6x a big budget means even its "ordinary" mount is
+		// the largest raw mount pool on the grid -- a juggernaut is simply hard
+		// to hurt anywhere, which is the point of it.
+		pools: { armor: 0.35, chassis: 0.4, mount: 0.25 },
 		mountCapacityBase: 4,
 		// Standard ability budget (the inverted mirror of the mount ordering).
 		abilityCapacityBase: 4,
@@ -280,7 +288,12 @@ export const ARCHETYPES: Archetype[] = [
 		},
 		// Stripped for speed: token plating and a bare mount; most of its
 		// small budget is raw frame, so nearly every hit bleeds real life.
-		pools: { armor: 0.2, chassis: 0.65, mount: 0.15 },
+		// 9-fix-d reshape (20/65/15 -> 17/58/25): resolves to armor 31 /
+		// chassis 105 / mount 46 at 0.7x. Still the highest raw-frame share of
+		// the four and still the thinnest shields in the game -- this is the one
+		// chassis a Railgun's 40 genuinely one-shots a pool on, which is the
+		// documented cost of being made of glass.
+		pools: { armor: 0.17, chassis: 0.58, mount: 0.25 },
 		// 2, not the plan's starting 3: with only the 4a weapons (costs 1+2)
 		// a floor of 3 would make every budget unreachable — at 2 the missile
 		// genuinely carries ONE weapon and the capacity system is live now.
@@ -308,8 +321,11 @@ export const ARCHETYPES: Archetype[] = [
 			engineForce: 0.95
 		},
 		// The baseline split (DEFAULT_POOL_SPLIT mirrors it): no pool bias,
-		// character comes from the chassis stats.
-		pools: { armor: 0.3, chassis: 0.55, mount: 0.15 },
+		// character comes from the chassis stats. 9-fix-d reshape
+		// (30/55/15 -> 26/46/28) resolves to armor 61 / chassis 107 / mount 66 at
+		// 0.9x -- the 234-point NEUTRAL BUILD every weapon number in combat.ts
+		// is balanced against.
+		pools: { armor: 0.26, chassis: 0.46, mount: 0.28 },
 		mountCapacityBase: 4,
 		// Standard ability budget.
 		abilityCapacityBase: 4,
@@ -334,7 +350,12 @@ export const ARCHETYPES: Archetype[] = [
 		// protects its weapons above all (hardest vehicle to disarm by rear
 		// shots) and pays with thin plating over a brittle frame -- silence
 		// it the hard way or just break it.
-		pools: { armor: 0.22, chassis: 0.5, mount: 0.28 },
+		// 9-fix-d reshape (22/50/28 -> 19/43/38): resolves to armor 42 /
+		// chassis 95 / mount 84 at 0.85x. Its mount stays far and away the
+		// hardest to kill -- 84 is more than a HANDLING build carries in FRONT
+		// armor -- which is exactly the hardened-electronics identity, and it is
+		// the one chassis that can trade rear hits all race and keep shooting.
+		pools: { armor: 0.19, chassis: 0.43, mount: 0.38 },
 		mountCapacityBase: 5,
 		// LOWEST ability budget (the mirror of its highest mount budget): the
 		// warlock's identity is its weapons, so it powers only ONE ability.

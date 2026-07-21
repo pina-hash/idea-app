@@ -160,7 +160,12 @@ export const ABILITIES: AbilityDef[] = [
 		// Cost 2: instant durability is strong, so it prices like nitro.
 		slotCost: 2,
 		meterCost: 0.6,
-		repair: { amount: 45 },
+		// Scaled with the 9-fix-d durability budget (45 -> 115). A repair is only
+		// ever meaningful as a FRACTION of the pools it refills, so this tracks
+		// maxHealth rather than standing still: 115 is ~half a neutral 234-point
+		// build, exactly the share 45 was of the old 90 -- and it stays the
+		// smaller, in-the-field counterpart to a full pit-lane stop.
+		repair: { amount: 115 },
 		cooldownSec: 0
 	},
 	{

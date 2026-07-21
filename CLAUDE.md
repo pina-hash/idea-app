@@ -3621,6 +3621,184 @@ on one side of the world.
     block never runs on a flat track) and 5 physics bodies as before.
     `svelte-check` clean, 0 errors, 0 new warnings.
 
+- **Combat balance pass + handbrake yaw authority (Phase 9-fix-d).** Two
+  unrelated problems. Both were diagnosed by MEASURING first, and in both cases
+  the measurement contradicted the obvious guess.
+  - **The damage economy had never been audited as a whole.** The roster grew
+    from 2 weapons (Autocannon 8, Homing Rocket 30) to 13 across four separate
+    sessions, each adding plausible numbers, while `COMBAT_DEFAULTS.maxHealth`
+    sat at 100 the entire time. MEASURED baseline (terminal-nine, 8 cars,
+    all-AI, default fits, 175s): **34 downs, 1.46 downs per car per minute** —
+    a car destroyed every ~41 seconds — with 4 of 8 weapon mounts permanently
+    destroyed inside a single lap. Two Railgun hits (42 + 42) killed a neutral
+    HANDLING build (armor 27 + chassis 49 = 76) inside one 2.2s cooldown.
+  - **Durability: 100 -> 260**, sized off the anchor weapon rather than picked.
+    The Autocannon (cost 1, 20 nominal DPS) is the one damage value the pass
+    deliberately did NOT move; 260 is what takes a neutral 0.9x HANDLING build
+    from **3.8s to 8.4s of UNBROKEN cone contact** to destroy. That figure is
+    against 168, not the full 234: a single attacker only ever chews through
+    ONE shield pool plus the chassis (front 61 + 107, rear 66 + 107) because
+    the opposite shield is never touched — the whole budget is only consumed by
+    fire from several directions, which is exactly what a pack does. Real cone
+    uptime in a race is far below 1, so a pass costs real health without ending
+    the race.
+    - **Raising durability is PARTLY SELF-DEFEATING, which is worth knowing
+      before tuning this again.** Cars that live longer spend more time alive
+      and shooting instead of sitting in a down window, so measured field-wide
+      damage throughput ROSE from 2.23 to 3.9 per car per second across the
+      same race when health went 100 -> 220. Steady-state downs track roughly
+      `damage_rate / pool`, so each increment buys less than its ratio
+      suggests. Do not try to fix a lethality problem with durability alone.
+  - **The pool split was reshaped, and the mount share was sized from data.**
+    New instrumentation (`getTelemetry().hitZone` / `.pool` / `.damageTaken` /
+    `.downs`, all tallied in the universal `afterDamage` funnel so every one of
+    the 13 weapons plus ram, caltrops and splash is covered with no per-source
+    wiring) measured where damage ACTUALLY lands over a full race:
+    **front 36% / side 13% / REAR 51%** — the rear alone eats more than the
+    whole front and side combined, because in a race you spend most of your
+    time being chased. The mount was carrying 15% of the budget against 51% of
+    the fire, and its depletion is the sticky consequence (weapons offline
+    until a full heal, which in RACE mode only comes from being DOWNED). It now
+    sits level with armor. Every archetype identity ORDERING is preserved —
+    ARMOR keeps the deepest plating, SYSTEMS by far the hardest mount to kill,
+    VELOCITY the highest raw-frame share — only the shape moved:
+    ARMOR 40/45/15 -> 35/40/25, VELOCITY 20/65/15 -> 17/58/25,
+    HANDLING (and `DEFAULT_POOL_SPLIT`) 30/55/15 -> 26/46/28,
+    SYSTEMS 22/50/28 -> 19/43/38. Resolved (armor/chassis/mount):
+    **HANDLING 61/107/66 = 234** (the NEUTRAL BUILD every weapon number is
+    balanced against), ARMOR 146/166/104 = 416, VELOCITY 31/105/46 = 182,
+    SYSTEMS 42/95/84 = 221.
+    - **The counterplay for a dead mount existed but never fired, and that was
+      its own bug.** Both recovery paths — a Phase 9c pit-lane stop and the
+      Overcharge Repair ability, which run `repair()` and revive a dead mount —
+      keyed their AI heuristics on the CHASSIS fraction alone, so a car whose
+      guns had been shot off would sit on a full meter and drive past a repair
+      box it had no rule to enter. `AiDriver.wantsRepair` and the pit decision
+      in `GreenlineRace` now both treat `mountDown` as its own reason. Measured
+      effect: dead mounts went from accumulating monotonically to oscillating
+      and recovering (4 -> 1 within 20s as repairs fired).
+    - **Second-order effect worth knowing:** frequent downs used to full-heal
+      the field constantly, so making cars survive longer makes dead mounts (and
+      stripped armor) ACCUMULATE instead of being reset — pool size alone can
+      only change when, not whether.
+  - **Two rules now govern every damage value in `WEAPONS`,** and a new entry
+    has to satisfy both. (1) NOMINAL DPS (damage / cooldownSec) is the balance
+    currency, measured against the 234-point neutral build; mount COST buys
+    reach, reliability or a control payload, NOT simply more DPS. (2) NO SINGLE
+    HIT DELETES A POOL on a neutral build (armor 61, mount 66) — every per-hit
+    value is at or under 40. Effective DPS is nominal times cone uptime, so the
+    nominal numbers are deliberately spread to land the EFFECTIVE band flat.
+    Landed values: Autocannon 8/0.4s (anchor, unchanged); **Shotgun Burst
+    22/0.8s -> 18/1.0s** (27.5 -> 18 DPS: the clearest violation on the board,
+    a cost-1 gun with the highest sustained DPS in the game AND the easiest
+    64deg cone to land — it still wins the brawl on uptime); **Railgun 42/2.2s
+    -> 40/2.0s** (level DPS with the cost-1 anchor on purpose — cost 3 buys
+    62m of REACH and per-shot burst, not a bigger number per second);
+    **EMP Burst 35 dmg / 1.5s / 2.5s disruption -> 22 / 1.8s / 1.4s** (23.3 ->
+    12.2 DPS: at cost 2 it out-damaged every cost-3 weapon AND carried the
+    hardest control effect, and a 2.5s lock on a 1.5s cooldown meant a single
+    carrier could hold a rival disrupted forever — the cooldown now outlasts
+    the effect); **Cluster Missile 26/6s -> 28/5s**; **Homing Rocket cd 5 ->
+    4.5s**; **Auto-Turret 10 -> 11**; **Blades 14 -> 16**; **Caltrops 10 ->
+    12**; **Energy Shield absorb 70 -> 140**; Grappling Hook unchanged (12, the
+    "barely scratches them" control tool).
+    - Rule 2 is deliberately scoped to the NEUTRAL build, not claimed
+      universally. On the lightest chassis (VELOCITY, armor 31 / mount 46) the
+      heavy end — Railgun 40, a maximum-violence ram at 41.6, and the guided
+      pair at 30 / 28 against its 31 armor — does clear the front shield in one
+      hit. That is **the deliberate exception**: it is the documented identity
+      of the archetype whose own role text says nearly every hit bleeds real
+      life. Building out of glass is a choice with consequences; the baseline
+      is what has to be safe from one-shot deletion.
+  - **Ram (the one free, universal, always-equipped damage source) 30 -> 26**,
+    putting its speed-scaled peak at 41.6 instead of 48 — still the hardest
+    single impact bar the Railgun, now under every neutral pool. `ramStunSec`
+    1.1 -> 0.8 (a ram already knocks both cars apart physically).
+  - **Disruption itself was softened**: `disruptEngineCut` 0.25 -> 0.55,
+    `disruptSteerCut` 0.35 -> 0.60. At a quarter engine and a third steering a
+    disrupted car could neither escape the 30m EMP cone nor steer out of it, so
+    the first hit bought every follow-up for free — the report was as much a
+    control-lock problem as a damage one.
+  - **Constants whose RELATIONSHIP to the budget is documented were scaled with
+    it**, not left behind: Overcharge Repair 45 -> 115 (still ~half a neutral
+    build), `PIT_REPAIR_PER_SEC` 50 -> 125 (keeps 9c's documented ~2s light /
+    ~3s heavy full-heal dwell), and `GARAGE_BASELINE.health` 100 -> 260 (a
+    hardcoded mirror of `COMBAT_DEFAULTS.maxHealth` that the garage HULL hero
+    reads — it must move in lock-step or the garage lies).
+  - **Handbrake: the low-speed spin was a YAW-AUTHORITY problem, not the 9a
+    grip curve, and it is not actually worse at low speed.** MEASURED yaw-rate
+    sweep (single tap, both handbrake and steering released at the end of the
+    tap): peak yaw 37 deg/s at 4 m/s, 182 at 14, 217 at 18, **408 deg/s at
+    22 m/s**, and a 250ms tap turned the car **150deg at 22 m/s and 199deg at
+    30 m/s** — the reported "full 180 from one tap", reproduced exactly. The
+    spike GROWS with speed; what makes it read as a low-speed problem is that
+    around 20-25 m/s (45-55 mph, genuinely "low" in a 146 mph game) the car has
+    grip enough to convert the whole tap into rotation but too little momentum
+    to keep travelling, so it pirouettes on the spot instead of carving an arc.
+    - Mechanism: cutting rear grip removes the only thing damping rotation,
+      while the FRONT keeps full grip (`frictionSlip` 5) at a very large
+      steering angle (`steerSpeedFalloff` is only 0.04, so the wheels are still
+      turned ~30deg at 22 m/s and ~49deg at walking pace). The front generates
+      far more yaw torque than the slid rear can resist, and nothing bounded
+      the result. 9a's `hbEngage` ramp fixed HOW GRIP ARRIVES and is working;
+      it never addressed how fast the car could be made to rotate.
+    - Fix: while the handbrake is engaged, bleed only the yaw rate ABOVE a
+      drift-shaped ceiling — `handbrakeYawMax` 1.4 rad/s (80 deg/s, a ~16m arc
+      at 22 m/s) with `handbrakeYawDamp` 45 (1/s) on the EXCESS. It mirrors the
+      `pitchDamp` anti-wheelie term directly above it, which deliberately left
+      yaw alone; this is the scoped exception and applies ONLY while engaged.
+      Both values were SWEPT in the harness (four pairs x two entry speeds),
+      not guessed: the first attempt at damp 8 barely dented the spin because
+      the front drives yaw up at ~24 rad/s^2, putting the equilibrium at
+      5.6 rad/s. Scaling the term by `hbEngage` means the flick still spikes
+      sharply to ~2.9 rad/s in the first moments and is then caught, so it
+      reads as the rear axle biting back rather than as a hard clamp.
+    - Result, measured on the shipped constants: a 250ms tap turns the car
+      **51 / 49 / 52 deg at 14 / 22 / 30 m/s**, against **84 / 150 / 199 deg**
+      before. The spin is now essentially FLAT across the speed range instead
+      of exploding with it, which is the real quality signal — a tap does the
+      same predictable thing however fast you are going.
+    - Holding it still rotates you: **90 deg at 22 m/s and 105 deg over a 1.8s
+      hold**, so a full 180 costs roughly 3s of deliberate holding rather than
+      one twitch. 9a's committed drift is untouched and if anything better —
+      lateral slip reaches 4.3-4.9 m/s (well above `DRIFT_FULL_LATERAL` 3.0),
+      the meter charges 0.5-0.73 from a single tap and **fills completely** on
+      a held drift.
+    - Debug: `__greenline.setHandbrakeYaw(max, damp)`; **damp 0 restores the
+      pre-fix unbounded spike exactly**, the `setDownforce` / `setFloorBand`
+      A/B convention.
+  - **Verified** in `/dev/greenline-movement?glheadless=1`, same 8-car all-AI
+    terminal-nine race as the baseline.
+    - **Single races vary wildly with pileup luck** (observed 0.22-1.05
+      downs/car/min on the SAME build), so the headline is a repeated-trial
+      mean, and the primary metric is **damage absorbed per down** — far lower
+      variance than downs-per-minute, because both its numerator and
+      denominator scale with how intense the racing happened to be, which
+      isolates survivability from engagement intensity.
+    - **Damage absorbed before being destroyed: 92 -> 407, a 4.4x increase**
+      (3 x 60s trials: 439 / 328 / 453). Down rate over the same trials:
+      **1.46 -> 0.71 per car per minute (2.1x)**. The two multipliers differ
+      for the documented alive-time reason: field-wide damage throughput more
+      than doubled (2.23 -> 4.7 per car per second) precisely BECAUSE cars now
+      survive to keep shooting, so halving the down rate required each car to
+      absorb 4.4x more punishment.
+    - Per-weapon TTK against the neutral build (front hits, unbroken fire):
+      Autocannon 3.8 -> 8.4s, Shotgun Burst 2.8 -> 9.3s, Railgun **2.2 ->
+      8.4s**, EMP Burst 3.0 -> 13.8s. The two-shot Railgun kill and the
+      three-shot EMP kill are both gone.
+    - Per-archetype pools verified against the design table through the real
+      `splitPools`; per-hit weapon damage verified landing at exactly its
+      catalog value through the real fire path (42/35/22/8 pre-fix). Handbrake
+      A/B driven through `setHandbrakeYaw` at four entry speeds, plus a
+      four-config parameter sweep. `svelte-check` clean, 0 errors, 0 new
+      warnings.
+    - **Known residual, and it is 9d's:** the remaining lethality is dominated
+      by AI firing with near-perfect cone uptime — the health budget was sized
+      for realistic player uptime, and 7 AI in a pack all achieving nominal DPS
+      simultaneously is the stress case. That is AI firing discipline, which is
+      exactly what the AI overhaul addresses; it was deliberately not
+      compensated for here by over-inflating health.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

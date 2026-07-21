@@ -420,9 +420,19 @@ export class AiDriver {
 		return nowMs >= this.nextAbilitySlotOkMs[slot];
 	}
 
-	/** Overcharge Repair: pop it once the chassis (the life pool) is bitten
-	 * below half. */
+	/**
+	 * Overcharge Repair: pop it once the chassis (the life pool) is bitten below
+	 * half, OR once the weapon mount has been destroyed.
+	 *
+	 * The mount clause was added in Phase 9-fix-d. `repair()` fills the
+	 * most-depleted pool first and revives a dead mount when the budget reaches
+	 * it, so bringing your weapons back online is one of the two things this
+	 * ability is FOR -- but keying only on chassis meant an AI whose guns had
+	 * been shot off would sit on a full meter and never spend it, and measured
+	 * races ended with most of the field disarmed for exactly that reason.
+	 */
 	wantsRepair(self: Combatant, _nowMs: number): boolean {
+		if (self.combat.mountDown) return true;
 		const frac = self.combat.chassisHealth / Math.max(1, self.combat.maxChassis);
 		return frac < 0.5;
 	}

@@ -329,6 +329,35 @@ export interface WeaponDef {
  * and the guided payoff; Phase 4b-i adds the heavy precision kinetic, the
  * close-range spread kinetic, the area-splash guided missile, and the first
  * `area` hazard, over this same shape.
+ *
+ * PHASE 9-fix-d BALANCE PASS. The roster grew from 2 weapons to 13 across four
+ * sessions, each adding honest-looking numbers without anyone checking the
+ * whole board at once. Two rules now govern every damage value here, and a new
+ * entry has to satisfy both:
+ *
+ * 1. NOMINAL DPS (damage / cooldownSec) is the balance currency, measured
+ *    against a neutral 234-point build (HANDLING, stock). Mount COST buys
+ *    reach, reliability, or a control payload -- NOT simply more DPS, because
+ *    a weapon that is both the cheapest and the deadliest has no tradeoff to
+ *    reason about. The pre-fix board failed this outright: the cost-1 Shotgun
+ *    Burst had the single highest sustained DPS in the game (27.5), above the
+ *    cost-3 Railgun (19.1).
+ * 2. NO SINGLE HIT DELETES A POOL ON THE NEUTRAL BUILD (armor 61, mount 66).
+ *    Every per-hit value is at or under 40, the Railgun being the ceiling.
+ *    This is deliberately scoped to the neutral build rather than claimed
+ *    universally: on the LIGHTEST chassis (VELOCITY, armor 31 / mount 46) the
+ *    heavy end of the roster -- Railgun 40, a maximum-violence ram at 41.6,
+ *    and the guided pair at 30 / 28 against its 31 armor -- does clear the
+ *    front shield outright, and that is the documented identity of an archetype
+ *    whose own role text says nearly every hit bleeds real life. Building out
+ *    of glass is a choice with consequences; the baseline is what has to be
+ *    safe from one-shot deletion.
+ *
+ * Effective DPS is what a player actually feels, and it is nominal DPS times
+ * cone uptime -- a 6-degree needle at 62m lands far less often than a
+ * 64-degree spread at 16m, and a guided weapon or an auto-turret lands almost
+ * always. The nominal numbers below are deliberately spread so that the
+ * EFFECTIVE band lands roughly flat across the roster.
  */
 export const WEAPONS: WeaponDef[] = [
 	{
@@ -342,6 +371,11 @@ export const WEAPONS: WeaponDef[] = [
 		// canopy would read wrong.
 		compatibleSockets: ['nose', 'roof'],
 		cooldownSec: 0.4,
+		// THE ANCHOR of the 9-fix-d ladder, and the one damage value the pass
+		// deliberately did not move: 8 / 0.4s = 20 nominal DPS, which is what the
+		// 260 durability budget was sized against (~8.4s of unbroken cone contact
+		// to destroy a neutral build, up from 3.8s). Everything else is priced
+		// relative to this.
 		kinetic: { damage: 8, range: 34, coneDeg: 22 }
 	},
 	{
@@ -356,8 +390,19 @@ export const WEAPONS: WeaponDef[] = [
 		// The long accelerator rails need a clear forward run: integrated into
 		// the nose deck, or tank-style over the cab.
 		compatibleSockets: ['nose', 'roof'],
-		cooldownSec: 2.2,
-		kinetic: { damage: 42, range: 62, coneDeg: 6 }
+		cooldownSec: 2.0,
+		// 42 / 2.2s -> 40 / 2.0s (19.1 -> 20 nominal DPS). The DPS is
+		// deliberately level with the cost-1 Autocannon: what cost 3 buys here is
+		// REACH (62m against 34m -- it hits people who cannot hit back at all)
+		// and per-shot BURST, not a bigger number per second. The 6-degree cone
+		// means its effective DPS is the lowest of any gun; the trade is that
+		// when it does land, it lands like nothing else.
+		//
+		// 40 is the roster ceiling and the one deliberate pool-deletion
+		// exception: under a neutral build's armor (61) and mount (66), but it
+		// one-shots the front shield of a light chassis. That is the payoff for
+		// threading a needle at long range against a glass car.
+		kinetic: { damage: 40, range: 62, coneDeg: 6 }
 	},
 	{
 		id: 'shotgun-burst',
@@ -369,11 +414,20 @@ export const WEAPONS: WeaponDef[] = [
 		// Bumper breacher: the wide quad-muzzle block is nose-integrated
 		// hardware, the one deliberately single-socket gun.
 		compatibleSockets: ['nose'],
-		cooldownSec: 0.8,
+		cooldownSec: 1.0,
 		// Short range + wide cone reads as a shotgun without a distance-falloff
 		// field: the tight range IS the falloff, so KineticWeaponParams is reused
-		// untouched. Damage sits between Autocannon (8) and Railgun (42).
-		kinetic: { damage: 22, range: 16, coneDeg: 64 }
+		// untouched. Damage sits between Autocannon (8) and Railgun (40).
+		//
+		// 9-fix-d: 22 / 0.8s -> 18 / 1.0s (27.5 -> 18 nominal DPS). This was the
+		// clearest rule-1 violation on the board -- the cost-1 Shotgun had the
+		// highest sustained DPS in the game, above every cost-3 weapon, while
+		// its 64-degree cone made it the EASIEST thing to land. Nominal DPS now
+		// sits just under the Autocannon; the shotgun still wins the brawl
+		// outright because near-100% uptime inside 16m beats the Autocannon's
+		// real cone uptime by a wide margin. The cone stays wide -- it is the
+		// weapon's identity, and range is the honest limiter.
+		kinetic: { damage: 18, range: 16, coneDeg: 64 }
 	},
 	{
 		id: 'homing-rocket',
@@ -385,8 +439,14 @@ export const WEAPONS: WeaponDef[] = [
 		// Launch tube: rides high on the cab or rakes forward off the rear deck
 		// (missile-truck style); never buried in the nose.
 		compatibleSockets: ['roof', 'rear'],
-		cooldownSec: 5,
+		// 5 -> 4.5s (6 -> 6.7 nominal DPS). Guided weapons land almost every shot
+		// once locked, so their nominal and effective DPS are nearly the same
+		// number; they sit low on the nominal ladder on purpose and still come
+		// out level with the guns in practice.
+		cooldownSec: 4.5,
 		guided: {
+			// Held at 30: under the neutral armor (61) and mount (66), so the
+			// single-target rocket obeys rule 2 unchanged.
 			damage: 30,
 			lockRange: 55,
 			lockConeDeg: 50,
@@ -409,9 +469,13 @@ export const WEAPONS: WeaponDef[] = [
 		// Six-tube pod: rear-deck battery by default (the reverse preference
 		// from the rocket, so the two guided weapons default apart).
 		compatibleSockets: ['rear', 'roof'],
-		cooldownSec: 6,
+		// 6 -> 5s and 26 -> 28 damage (4.3 -> 5.6 nominal DPS). The cost-3 pod was
+		// the WEAKEST single-target weapon on the board, which only worked when
+		// health was low enough that its splash decided fights; against the new pools it
+		// needed to carry its own slot too.
+		cooldownSec: 5,
 		guided: {
-			damage: 26,
+			damage: 28,
 			lockRange: 55,
 			lockConeDeg: 50,
 			lockTimeSec: 1.1,
@@ -435,7 +499,10 @@ export const WEAPONS: WeaponDef[] = [
 		compatibleSockets: ['rear'],
 		cooldownSec: 5,
 		area: {
-			damage: 10,
+			// 10 -> 12: a field that has to be driven over to matter, re-triggering
+			// at most every 1.5s per victim, needed to keep pace with the bigger
+			// pools or it became pure nuisance.
+			damage: 12,
 			radius: 3.4,
 			lifetimeSec: 14,
 			retriggerImmunitySec: 1.5,
@@ -457,7 +524,11 @@ export const WEAPONS: WeaponDef[] = [
 		// gameplay identity, not socket math).
 		compatibleSockets: ['roof', 'rear'],
 		cooldownSec: 1.1,
-		turret: { damage: 10, range: 30, blindArcDeg: 90 }
+		// 10 -> 11 (9.1 -> 10 nominal DPS). It sits low on the ladder on purpose:
+		// it needs no aim, no trigger and no decision, so almost all of its
+		// nominal DPS is also effective DPS. The small lift keeps it relevant
+		// against the bigger pools without turning free damage into best damage.
+		turret: { damage: 11, range: 30, blindArcDeg: 90 }
 	},
 	{
 		id: 'energy-shield',
@@ -471,7 +542,13 @@ export const WEAPONS: WeaponDef[] = [
 		// whole vehicle, so any hardpoint carries it.
 		compatibleSockets: ['roof', 'nose', 'rear'],
 		cooldownSec: 9,
-		shield: { absorb: 70, durationSec: 4 }
+		// 70 -> 140 absorb. The absorb pool is meaningful only relative to the
+		// durability budget, so it scales with it: 140 is ~60% of a neutral
+		// 234-point build, keeping it the strongest single defensive tool in the
+		// roster and a genuine panic button, while still breaking under
+		// concentrated fire (which is the legible moment the whole hard-absorb
+		// design exists for). At 70 against 260 it would have been a shrug.
+		shield: { absorb: 140, durationSec: 4 }
 	},
 	{
 		id: 'radar-jammer',
@@ -501,7 +578,12 @@ export const WEAPONS: WeaponDef[] = [
 		// never waving off the roof.
 		compatibleSockets: ['nose', 'rear'],
 		cooldownSec: 8,
-		melee: { damage: 14, durationSec: 3.5, retriggerImmunitySec: 0.6 }
+		// 14 -> 16 per contact. Up to ~6 strikes per 3.5s window on a sustained
+		// scrape (~11.7 DPS over the full 8s cycle), but only while glued to a
+		// rival, which is the commitment it charges for. 16 also clears the old
+		// coincidence where blade damage exactly equalled a neutral mount pool
+		// and disarmed on one touch.
+		melee: { damage: 16, durationSec: 3.5, retriggerImmunitySec: 0.6 }
 	},
 	// --- Phase 8g: the three former always-on tools, now ordinary equipment ---
 	// Every number below is lifted VERBATIM from the COMBAT_DEFAULTS values these
@@ -522,8 +604,19 @@ export const WEAPONS: WeaponDef[] = [
 		// Forward emitter, same geometry logic as the autocannon: hull nose or
 		// cab roof, never firing back through the canopy.
 		compatibleSockets: ['nose', 'roof'],
-		cooldownSec: 1.5,
-		disruption: { damage: 35, range: 30, coneDeg: 40, disruptionSec: 2.5 }
+		// 1.5 -> 1.8s. With a 2.5s disruption on a 1.5s cooldown, a single EMP
+		// carrier could hold a rival permanently disrupted: every burst re-applied
+		// the lock a full second before it expired, so the victim never got a
+		// frame of full engine or steering to escape the 30m cone with. The
+		// cooldown now outlasts the effect.
+		cooldownSec: 1.8,
+		// 9-fix-d: 35 -> 22 damage, 2.5 -> 1.4s disruption (23.3 -> 12.2 nominal
+		// DPS). At cost 2 the EMP was out-damaging every cost-3 weapon AND
+		// carrying the hardest control effect in the game -- it was simply the
+		// best weapon on the board. It is a CONTROL weapon now, priced as one:
+		// the lowest DPS of any gun, paid back in what it does to their line.
+		// 22 also keeps it clear of a neutral mount (66) on a rear hit.
+		disruption: { damage: 22, range: 30, coneDeg: 40, disruptionSec: 1.4 }
 	},
 	{
 		id: 'oil-slick',
@@ -611,18 +704,74 @@ export interface CombatTuning {
 }
 
 export const COMBAT_DEFAULTS: CombatTuning = {
-	maxHealth: 100,
-	disruptEngineCut: 0.25,
-	disruptSteerCut: 0.35,
+	/**
+	 * TOTAL durability budget (Phase 9-fix-d: 100 -> 220).
+	 *
+	 * 100 was set when the roster was TWO weapons (Autocannon 8, Homing Rocket
+	 * 30). It never moved across the four sessions that grew the catalog to 13,
+	 * so the pools were sized against a damage economy that no longer existed.
+	 * MEASURED on the pre-fix build (terminal-nine, 8 cars, all-AI, default
+	 * fits, 175s): 34 downs, 1.46 downs per car per minute -- a car destroyed
+	 * every ~41 seconds -- and 4 of 8 mounts permanently destroyed inside one
+	 * lap. Two Railgun hits (42 + 42 = 84) killed a neutral HANDLING build
+	 * (armor 27 + chassis 49 = 76) in one 2.2s cooldown.
+	 *
+	 * 260 is sized off the anchor weapon rather than picked: the Autocannon
+	 * (cost 1, "always relevant") sits at 20 nominal DPS, and a neutral 0.9x
+	 * HANDLING build takes ~8.4s of UNBROKEN cone contact to destroy. Note that
+	 * figure is against 168, not the full 234: a single attacker only ever
+	 * chews through ONE shield pool plus the chassis (front 61 + 107 = 168,
+	 * rear 66 + 107 = 173), because the opposite shield is never touched. The
+	 * total budget is only fully consumed by fire from several directions,
+	 * which is exactly what a pack does. Real cone uptime in a race is far
+	 * below 1, so a single pass costs real health without ending the race --
+	 * which is the whole point: you can be out-driven or out-fought, not
+	 * deleted. (Was 3.8s against the pre-fix pools.)
+	 *
+	 * It landed at 260 rather than the first-pass 220 because of a feedback
+	 * effect worth knowing before tuning this again: raising durability is
+	 * PARTLY SELF-DEFEATING. Cars that live longer spend more time alive and
+	 * shooting instead of sitting in a down window, so field-wide damage
+	 * throughput rose from 2.23 to 3.9 per car per second across the same race
+	 * when health went 100 -> 220. Steady-state downs track roughly
+	 * damage_rate / pool, so each increment buys less than its ratio suggests
+	 * and the returns are visibly diminishing -- do not expect to fix a
+	 * lethality problem by durability alone, and prefer cutting the damage
+	 * economy (or, from Phase 9d on, AI firing discipline) once this stops
+	 * paying.
+	 */
+	maxHealth: 260,
+	/**
+	 * What being disrupted DOES. Softened in 9-fix-d (0.25 -> 0.55 engine,
+	 * 0.35 -> 0.60 steer). At a quarter engine and a third steering a disrupted
+	 * car could neither escape the 30m EMP cone nor steer out of it, so the
+	 * first hit bought every follow-up hit for free -- the "cannot get past
+	 * someone without dying" report, as much a control-lock problem as a damage
+	 * one. At 0.55/0.60 the handicap is still heavy and clearly felt, but the
+	 * car is still a car: you can drive out of the cone.
+	 */
+	disruptEngineCut: 0.55,
+	disruptSteerCut: 0.6,
 	spinKick: 2.5,
 	downSec: 3,
 	oilSlipSec: 3,
 	oilTractionCut: 0.22,
 	ramMinClosingSpeed: 9,
-	ramDamage: 30,
+	/**
+	 * Ram base damage, scaled 0.6-1.6x by closing speed (30 -> 26 in 9-fix-d).
+	 * Ram is the one FREE, universal, always-equipped damage source, so in a
+	 * crowded pack it fires more often than any weapon; at 30 its peak hit was
+	 * 48, above the 40 ceiling rule 2 sets for the roster and enough to clear a
+	 * shield pool outright at the pool sizes of the time. 26 puts the peak at
+	 * 41.6 -- still the hardest single impact in the game bar the Railgun,
+	 * still under every neutral pool (armor 61, mount 66).
+	 */
+	ramDamage: 26,
 	ramImpulse: 2600,
 	ramPopUp: 950,
-	ramStunSec: 1.1,
+	/** 1.1 -> 0.8: a ram already knocks both cars apart physically; a stun long
+	 * enough to hold you in the follow-up window on top of it was double-dipping. */
+	ramStunSec: 0.8,
 	ramCooldownSec: 2.5
 };
 
@@ -691,8 +840,37 @@ export interface PoolSplit {
 	mount: number;
 }
 
-/** Neutral split (the HANDLING baseline) for pool-less callers. */
-export const DEFAULT_POOL_SPLIT: PoolSplit = { armor: 0.3, chassis: 0.55, mount: 0.15 };
+/**
+ * Neutral split (the HANDLING baseline) for pool-less callers.
+ *
+ * Phase 9-fix-d reshaped every split to lift the MOUNT share (here 0.15 ->
+ * 0.28). At 15% of a small budget the mount was not a pool at all, it was a
+ * one-hit trigger: 6 of the 13 weapons plus ram destroyed a neutral mount
+ * (14 points) in a single rear hit, and because a full heal only happens by
+ * being DOWNED in RACE mode, that one shot disarmed a player for the rest of
+ * the race.
+ *
+ * The size is MEASURED, not guessed. Instrumenting where damage actually lands
+ * across a full 8-car race (getTelemetry().hitZone) gave front 36% / side 13%
+ * / REAR 51% -- the rear alone eats more than the whole front and side
+ * combined, because in a race you spend most of your time being chased. So the
+ * mount absorbs half of all incoming fire and now carries a share to match it,
+ * ending up level with (slightly above) armor rather than a third of it. The
+ * extra margin over armor is deliberate: stripping armor merely exposes the
+ * hull, while emptying the mount takes your weapons away.
+ *
+ * This does NOT make a dead mount impossible, and it should not: a car under
+ * sustained rear fire will still be disarmed, and the counterplay is the two
+ * paths that already exist -- a pit-lane stop (Phase 9c) and the Overcharge
+ * Repair ability, both of which run `repair()` and bring a dead mount back.
+ * What changed is that being disarmed is now the result of losing a sustained
+ * fight rather than something that happens to you in passing.
+ *
+ * Every archetype ORDERING that carries identity is preserved (ARMOR keeps the
+ * deepest plating, SYSTEMS by far the hardest mount to kill, VELOCITY the
+ * highest raw-frame share) -- only the shape moved.
+ */
+export const DEFAULT_POOL_SPLIT: PoolSplit = { armor: 0.26, chassis: 0.46, mount: 0.28 };
 
 /**
  * Divide a total durability budget into the three pools. Chassis absorbs the

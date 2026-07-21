@@ -28,7 +28,7 @@
 	 * same figures without mounting the tuning panel. Kept in lock-step with
 	 * DEFAULTS below (health = COMBAT_DEFAULTS.maxHealth).
 	 */
-	export const GARAGE_BASELINE = { health: 100, mass: 180, engine: 2900, drag: 0.68 };
+	export const GARAGE_BASELINE = { health: 260, mass: 180, engine: 2900, drag: 0.68 };
 </script>
 
 <script lang="ts">
@@ -389,6 +389,37 @@
 		handbrakeFrontGrip: 1,
 		handbrakeEngageRate: 9,
 		handbrakeReleaseRate: 4.5,
+		/**
+		 * Handbrake YAW AUTHORITY (Phase 9-fix-d). The 9a pass fixed HOW GRIP
+		 * ARRIVES (the hbEngage ramp) but nothing ever bounded how fast the car
+		 * could be made to ROTATE once the rear let go, and that is a separate
+		 * mechanism: see the long note at the application site for the measured
+		 * yaw-rate sweep that isolated it.
+		 *
+		 * Both values were swept in the harness rather than guessed (four pairs x
+		 * two entry speeds, measuring spin per tap against retained lateral slip).
+		 *
+		 * - handbrakeYawMax: the fastest sustained rotation (rad/s about the
+		 *   chassis up axis) a handbrake slide may hold. 1.4 rad/s is 80 deg/s:
+		 *   at 22 m/s that is a ~16m-radius arc, unmistakably a committed drift.
+		 *   MEASURED: a 250ms tap turns the car 51 / 49 / 52 deg at 14 / 22 / 30
+		 *   m/s, against 84 / 150 / 199 deg before -- note the spin is now
+		 *   essentially FLAT across the speed range instead of exploding with it,
+		 *   which is the real quality signal. Rotating further is still entirely
+		 *   available: a 1.8s HOLD gives 90-105 deg, so a full 180 costs roughly
+		 *   3s of deliberate holding rather than one twitch. That is the whole
+		 *   distinction being drawn: a flick, not a coin toss.
+		 * - handbrakeYawDamp: how hard the EXCESS above that ceiling is bled off
+		 *   (1/s). It has to be strong because the front tires drive yaw up at
+		 *   roughly 24 rad/s^2 -- at the first-attempt value of 8 the equilibrium
+		 *   sat at 5.6 rad/s and barely dented the spin. 45 holds the ceiling
+		 *   properly. It does NOT read as a hard clamp, because the term is
+		 *   scaled by `e` (hbEngage), which ramps in over ~360ms: the flick still
+		 *   spikes sharply to ~2.9 rad/s in the first moments and is then caught,
+		 *   which is exactly how a rear axle biting back should feel.
+		 */
+		handbrakeYawMax: 1.4,
+		handbrakeYawDamp: 45,
 		aeroDrag: 0.68,
 		maxSteer: 1,
 		steerSpeedFalloff: 0.04,
@@ -4158,7 +4189,24 @@
 					// Trigger-zone entries this round (Phase 8a).
 					zone: { boost: 0, hazard: 0 },
 					// Ability activations this round (nitro/jump/flip/repair/grip).
-					ability: { nitro: 0, jump: 0, flip: 0, repair: 0, grip: 0, air: 0 }
+					ability: { nitro: 0, jump: 0, flip: 0, repair: 0, grip: 0, air: 0 },
+					// Survivability instrumentation (Phase 9-fix-d). Every damage source
+					// funnels through afterDamage, so tallying there covers all 13
+					// weapons plus ram, caltrops, splash and the debug hook with no
+					// per-source wiring. `damageTaken` sums what actually landed on a
+					// rig's pools (shield soak included, so a shielded hit is not
+					// invisible); `downs` counts zero-chassis events. Together they turn
+					// "combat feels lethal" into a number: damage/second survived and
+					// downs per race, comparable across a balance change.
+					damageTaken: {} as Record<string, number>,
+					damageDealt: {} as Record<string, number>,
+					downs: {} as Record<string, number>,
+					// Which POOL the field's incoming damage actually lands in. The pool
+					// split assumes hits arrive spread across the body; in a race you
+					// spend most of your time being chased, so this is the check on that
+					// assumption -- and it is what sized the mount share.
+					pool: { armor: 0, mount: 0, chassis: 0, shield: 0 },
+					hitZone: { front: 0, side: 0, rear: 0 }
 				};
 				const resetTestStats = () => {
 					testStats.fire.emp = testStats.fire.tether = testStats.fire.oil = 0;
@@ -4178,6 +4226,12 @@
 					testStats.zone.boost = testStats.zone.hazard = 0;
 					testStats.ability.nitro = testStats.ability.jump = testStats.ability.flip = 0;
 					testStats.ability.repair = testStats.ability.grip = testStats.ability.air = 0;
+					testStats.damageTaken = {};
+					testStats.damageDealt = {};
+					testStats.downs = {};
+					testStats.pool.armor = testStats.pool.mount = testStats.pool.chassis = 0;
+					testStats.pool.shield = 0;
+					testStats.hitZone.front = testStats.hitZone.side = testStats.hitZone.rear = 0;
 				};
 
 				const checkLastStanding = () => {
@@ -4229,6 +4283,22 @@
 					srcZ: number
 				) => {
 					if (res.outcome === 'ignored') return;
+					// Survivability tally (data only, read by __greenline.getTelemetry).
+					// applyDamage already stamped the attacker on the target, so both
+					// sides of the ledger come from one place.
+					{
+						const landed = res.shield + res.armor + res.mount + res.chassis;
+						testStats.damageTaken[target.id] = (testStats.damageTaken[target.id] ?? 0) + landed;
+						const from = target.combat.lastDamageFrom;
+						if (from) testStats.damageDealt[from] = (testStats.damageDealt[from] ?? 0) + landed;
+						if (res.outcome === 'down' || res.outcome === 'eliminated')
+							testStats.downs[target.id] = (testStats.downs[target.id] ?? 0) + 1;
+						testStats.pool.armor += res.armor;
+						testStats.pool.mount += res.mount;
+						testStats.pool.chassis += res.chassis;
+						testStats.pool.shield += res.shield;
+						testStats.hitZone[res.zone] += landed;
+					}
 					// Energy Shield feedback: a soaked hit pings the bubble; the
 					// pool emptying is the loud, legible "SHIELD DOWN" break moment.
 					if (res.shield > 0) {
@@ -5137,10 +5207,14 @@
 				// a pit zone heals PIT_REPAIR_PER_SEC health/second through
 				// VehicleCombat.repair(), so the amount scales with dwell (the pool
 				// caps clamp a long stop to a full heal). Deliberately heals FAR more
-				// completely than Overcharge Repair's fixed 45: a ~1s splash already
+				// completely than Overcharge Repair's fixed amount: a ~1s splash already
 				// beats it, a ~2s stop tops a light build off, a heavy build wants ~3s
 				// — paid for in the pit-lane detour + the stop, not a meter.
-				const PIT_REPAIR_PER_SEC = 50;
+				// Scaled with the 9-fix-d durability budget (50 -> 125) so those
+				// documented dwell times still hold against the bigger pools: ~1.5s
+				// for a 182-point VELOCITY, ~3.3s for a 416-point ARMOR. A track zone
+				// may still override it per box (zn.repairPerSec); none do today.
+				const PIT_REPAIR_PER_SEC = 125;
 				const PIT_STOP_SPEED = 2.5; // m/s at or below = stopped in the box
 				// AI takes the pit lane when its chassis drops below this fraction
 				// (simple usage only; strategic pitting is Phase 9d's job).
@@ -5893,6 +5967,18 @@
 						tuning.chassisFloorBand = m == null ? DEFAULTS.chassisFloorBand : m;
 						return tuning.chassisFloorBand;
 					},
+					// Handbrake yaw authority (Phase 9-fix-d). Passing damp 0 restores
+					// the pre-fix behaviour exactly (an unbounded yaw spike), so a
+					// scripted drive can A/B the fix the same way setDownforce and
+					// setFloorBand A/B theirs. null on either arg restores its default.
+					setHandbrakeYaw: (max: number | null, damp: number | null) => {
+						tuning.handbrakeYawMax = max == null ? DEFAULTS.handbrakeYawMax : max;
+						tuning.handbrakeYawDamp = damp == null ? DEFAULTS.handbrakeYawDamp : damp;
+						return {
+							max: tuning.handbrakeYawMax,
+							damp: tuning.handbrakeYawDamp
+						};
+					},
 					// Verification only: flat-ground dyno. Pins the player in place after
 					// each step (velocity/orientation/suspension intact) so it reaches
 					// true terminal speed on a FLAT track without a feature cutting the
@@ -6039,7 +6125,12 @@
 							falls: testStats.falls,
 							floorCatches: testStats.floorCatches,
 							zone: { ...testStats.zone },
-							ability: { ...testStats.ability }
+							ability: { ...testStats.ability },
+							damageTaken: { ...testStats.damageTaken },
+							damageDealt: { ...testStats.damageDealt },
+							downs: { ...testStats.downs },
+							pool: { ...testStats.pool },
+							hitZone: { ...testStats.hitZone }
 						}),
 						// A full snapshot of the field: per-rig progress, finish
 						// state, exact total race time, best lap, and upright-ness.
@@ -6419,6 +6510,54 @@
 								rig.vehicle.wheelInfos[1].frictionSlip *= frontMul;
 								rig.vehicle.wheelInfos[2].frictionSlip *= rearMul;
 								rig.vehicle.wheelInfos[3].frictionSlip *= rearMul;
+								// Handbrake YAW AUTHORITY (Phase 9-fix-d). Cutting rear grip
+								// removes the only thing damping rotation, while the FRONT
+								// keeps full grip (frictionSlip 5) at a very large steering
+								// angle (steerSpeedFalloff is only 0.04, so the wheels are
+								// still turned ~30deg at 22 m/s and ~49deg at walking pace).
+								// The front therefore generates far more yaw torque than the
+								// slid rear can resist, and nothing bounded the result:
+								// MEASURED peak yaw from a single 300ms tap was 37 deg/s at
+								// 4 m/s, 182 at 14, 217 at 18 and 408 deg/s at 22 m/s, which
+								// is what put 140deg of rotation on the car from one tap.
+								//
+								// This is NOT the 9a grip-transition problem (that ramp is
+								// working; hbEngage is what scales this term) and it is not
+								// literally worse at low speed -- the spike GROWS with speed.
+								// What makes it read as a low-speed spin is that around
+								// 20-25 m/s the car has grip enough to convert the whole tap
+								// into rotation but too little momentum to keep travelling,
+								// so it pirouettes on the spot instead of carving an arc.
+								//
+								// Fix: bleed only the yaw rate ABOVE a drift-shaped ceiling,
+								// mirroring the pitchDamp anti-wheelie term directly above
+								// (which deliberately left yaw alone -- this is the scoped
+								// exception, and it applies ONLY while the handbrake is
+								// engaged). Damping the EXCESS rather than clamping means the
+								// rotation still builds naturally and just stops running
+								// away; scaling the rate by `e` means it fades out on the
+								// same release ramp as the grip cut, so nothing snaps.
+								const hbYawMax = num(tuning.handbrakeYawMax, DEFAULTS.handbrakeYawMax);
+								const hbYawDamp = num(tuning.handbrakeYawDamp, DEFAULTS.handbrakeYawDamp);
+								if (hbYawMax > 0 && hbYawDamp > 0) {
+									tmpQuat.set(
+										body.quaternion.x,
+										body.quaternion.y,
+										body.quaternion.z,
+										body.quaternion.w
+									);
+									upWorld.set(0, 1, 0).applyQuaternion(tmpQuat);
+									const av = body.angularVelocity;
+									const yawRate = av.x * upWorld.x + av.y * upWorld.y + av.z * upWorld.z;
+									const excess = Math.abs(yawRate) - hbYawMax;
+									if (excess > 0) {
+										const bleed =
+											Math.sign(yawRate) * excess * Math.min(1, hbYawDamp * e * dt);
+										av.x -= upWorld.x * bleed;
+										av.y -= upWorld.y * bleed;
+										av.z -= upWorld.z * bleed;
+									}
+								}
 							}
 						}
 
@@ -7524,9 +7663,16 @@
 								(ev.type === 'lap' || ev.type === 'timing-started') &&
 								rt.routes.length > 1
 							) {
+								// A DESTROYED MOUNT is its own reason to pit (Phase 9-fix-d).
+								// The chassis fraction alone missed it entirely, which meant the
+								// pit lane -- the designed counterplay for being disarmed --
+								// never once fired for that reason: measured races ended with
+								// most of the field's weapons permanently offline while every
+								// car still drove past a repair box it had no rule to enter.
+								// `repair()` revives a dead mount, so the box already fixes it.
 								const hurt =
 									rig.combat.chassisHealth / Math.max(1, rig.combat.maxChassis) <
-									PIT_AI_HEALTH_FRAC;
+										PIT_AI_HEALTH_FRAC || rig.combat.mountDown;
 								if (hurt && rt.pitRoutes.length > 0) rig.ai.setRoute(rt.pitRoutes[0]);
 								else rig.ai.chooseRoute(num(tuning.aiAggression, DEFAULTS.aiAggression));
 							}
