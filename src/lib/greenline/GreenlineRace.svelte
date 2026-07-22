@@ -100,8 +100,10 @@
 		AiDriver,
 		VEHICLE_TRACTION_ACCEL,
 		aiTuningFor,
+		chooseWeaponIntent,
 		fireThreshold,
 		type AiSkill,
+		type WeaponIntent,
 		type AiTuning
 	} from '$lib/greenline/ai';
 	import type { EnvironmentPreset, EnvPresetId } from '$lib/greenline/environment';
@@ -3519,42 +3521,120 @@
 				// velocity, AI-3 handling, AI-4 systems, then repeat. Identity is
 				// carried by the archetype bodywork itself, not a color array.
 				const AI_ARCHS: ArchetypeId[] = ['armor', 'velocity', 'handling', 'systems'];
-				// Weapon fits cycle alongside the archetypes. EIGHT entries (two full
-				// archetype passes) so the whole 13-weapon roster is exercised across a
-				// larger field, INCLUDING the three folded in at Phase 8g (EMP Burst,
-				// Oil Slick, Grappling Hook). Entry k pairs with archetype
-				// AI_ARCHS[(k-1)%4]; because this list also cycles a/v/h/s, index i%4 is
-				// that archetype, so every fit respects its own mount capacity (armor 4,
-				// velocity 2, handling 4, systems 5). The default 3-AI field is the first
-				// three, which deliberately showcases the three NEW weapons.
-				const AI_WEAPONS: [string, string][] = [
-					['emp-burst', 'auto-turret'], // armor (4): 2 + 2  (EMP)
-					['oil-slick', 'shotgun-burst'], // velocity (2): 1 + 1  (oil)
-					['grappling-hook', 'caltrops'], // handling (4): 2 + 1  (hook)
-					['railgun', 'homing-rocket'], // systems (5): 3 + 2
-					['energy-shield', 'radar-jammer'], // armor (4): 3 + 1
-					['deployable-blades', WEAPON_NONE], // velocity (2): 2
-					['cluster-missile', 'autocannon'], // handling (4): 3 + 1
-					['emp-burst', 'railgun'] // systems (5): 2 + 3
-				];
-				// Ability fits cycle alongside the archetypes, each within its
-				// archetype's INVERTED ability budget (armor 4, velocity 5, handling
-				// 4, systems 2), so the default 3-AI field exercises repair + flip
-				// (armor), nitro + grip (velocity), and grip + repair (handling); the
-				// 4th (systems) shows nitro alone. Jump is deliberately not AI-used
-				// (no ramps on this track yet), so no AI fit carries it.
-				const AI_ABILITIES: [string, string][] = [
-					['overcharge-repair', 'emergency-flip'], // armor (4): 2 + 1
-					['nitro-boost', 'air-correction'], // velocity (5): 2 + 1
-					['grip-surge', 'overcharge-repair'], // handling (4): 1 + 2
-					['nitro-boost', ABILITY_NONE] // systems (2): 2
-				];
+				// ---- AI weapon / ability fits (Phase 9d-ii-b) ----
+				// Fits are now POOLS KEYED BY ARCHETYPE, weighted-random per car at
+				// field-build time, replacing the flat arrays that were indexed by
+				// `(k-1) % 8`. The old shape worked only because that list happened to
+				// cycle a/v/h/s in step with AI_ARCHS -- a real invariant nobody could
+				// see, which any added entry silently broke. Keying by archetype removes
+				// it, so adding a fit is a one-line edit that cannot mis-pair a build
+				// with a capacity it does not have.
+				//
+				// Every fit is hand-curated to its archetype's MOUNT capacity (armor 4,
+				// velocity 2, handling 4, systems 5) and its socket geometry (VELOCITY
+				// has only nose + rear, so a pair that both want the same one is illegal
+				// there). `sanitizeLoadout` would shed an over-budget secondary anyway;
+				// the curation is so it never has to.
+				//
+				// Weights, not equal chances: the three Phase 8g weapons (EMP Burst, Oil
+				// Slick, Grappling Hook) keep the heaviest weight in their archetype, so
+				// the small default field still USUALLY showcases them. That is a
+				// deliberate downgrade from the old GUARANTEE -- randomization is the
+				// point of this pass, and a guarantee is just determinism wearing a
+				// different hat.
+				//
+				// This is explicitly NOT strategy: nothing here reads the track, the
+				// opponents, or the standings. It is variety in what shows up to race.
+				type AiFit = { pick: [string, string]; w: number };
+				const AI_WEAPON_FITS: Record<ArchetypeId, AiFit[]> = {
+					// ARMOR, mount 4: the juggernaut fights at close and medium range.
+					armor: [
+						{ pick: ['emp-burst', 'auto-turret'], w: 3 }, // 2+2 control brawler
+						{ pick: ['energy-shield', 'radar-jammer'], w: 2 }, // 3+1 unkillable
+						{ pick: ['auto-turret', 'deployable-blades'], w: 2 }, // 2+2 grinder
+						{ pick: ['railgun', 'radar-jammer'], w: 2 }, // 3+1 sniper truck
+						{ pick: ['emp-burst', 'shotgun-burst'], w: 2 } // 2+1 stun + breacher
+					],
+					// VELOCITY, mount 2 (and no roof socket): everything is 1+1 or a
+					// single 2-cost, which is the archetype paying for its speed.
+					velocity: [
+						{ pick: ['oil-slick', 'shotgun-burst'], w: 3 }, // 1+1 rear+nose
+						{ pick: ['deployable-blades', WEAPON_NONE], w: 2 }, // 2 drive-by
+						{ pick: ['autocannon', 'caltrops'], w: 2 }, // 1+1 chip + trail
+						{ pick: ['autocannon', 'radar-jammer'], w: 2 }, // 1+1 hard to lock
+						{ pick: ['grappling-hook', WEAPON_NONE], w: 2 }, // 2 reel them in
+						{ pick: ['caltrops', 'radar-jammer'], w: 1 } // 1+1 pure runner
+					],
+					// HANDLING, mount 4: the scalpel, built around setting shots up.
+					handling: [
+						{ pick: ['grappling-hook', 'caltrops'], w: 3 }, // 2+1 hook + trail
+						{ pick: ['cluster-missile', 'autocannon'], w: 2 }, // 3+1 pack punisher
+						{ pick: ['emp-burst', 'autocannon'], w: 2 }, // 2+1 stun then chip
+						{ pick: ['homing-rocket', 'autocannon'], w: 2 }, // 2+1 lock + chip
+						{ pick: ['deployable-blades', 'oil-slick'], w: 2 }, // 2+1 knife fighter
+						{ pick: ['auto-turret', 'shotgun-burst'], w: 1 } // 2+1 all-round
+					],
+					// SYSTEMS, mount 5: the warlock, the only chassis that can carry two
+					// heavy mounts at once.
+					systems: [
+						{ pick: ['railgun', 'homing-rocket'], w: 3 }, // 3+2 long reach
+						{ pick: ['emp-burst', 'railgun'], w: 3 }, // 2+3 stun then snipe
+						{ pick: ['cluster-missile', 'emp-burst'], w: 2 }, // 3+2 stun then burst
+						{ pick: ['energy-shield', 'grappling-hook'], w: 2 }, // 3+2 duelist
+						{ pick: ['railgun', 'auto-turret'], w: 2 }, // 3+2 gun platform
+						{ pick: ['cluster-missile', 'auto-turret'], w: 1 } // 3+2 area platform
+					]
+				};
+				// Ability fits, each within its archetype's INVERTED ability budget
+				// (armor 4, velocity 5, handling 4, systems 2). Jump is deliberately
+				// absent from every fit: no AI heuristic drives it (no ramps in use), so
+				// equipping it would just idle a slot.
+				const AI_ABILITY_FITS: Record<ArchetypeId, AiFit[]> = {
+					armor: [
+						{ pick: ['overcharge-repair', 'emergency-flip'], w: 3 }, // 2+1
+						{ pick: ['overcharge-repair', 'grip-surge'], w: 2 }, // 2+1
+						{ pick: ['overcharge-repair', 'air-correction'], w: 1 }, // 2+1
+						{ pick: ['grip-surge', 'emergency-flip'], w: 1 } // 1+1
+					],
+					velocity: [
+						{ pick: ['nitro-boost', 'air-correction'], w: 3 }, // 2+1
+						{ pick: ['nitro-boost', 'grip-surge'], w: 2 }, // 2+1
+						{ pick: ['nitro-boost', 'overcharge-repair'], w: 2 }, // 2+2
+						{ pick: ['grip-surge', 'air-correction'], w: 1 } // 1+1
+					],
+					handling: [
+						{ pick: ['grip-surge', 'overcharge-repair'], w: 3 }, // 1+2
+						{ pick: ['grip-surge', 'nitro-boost'], w: 2 }, // 1+2
+						{ pick: ['overcharge-repair', 'emergency-flip'], w: 2 }, // 2+1
+						{ pick: ['nitro-boost', 'air-correction'], w: 1 } // 2+1
+					],
+					systems: [
+						{ pick: ['nitro-boost', ABILITY_NONE], w: 3 }, // 2
+						{ pick: ['overcharge-repair', ABILITY_NONE], w: 2 }, // 2
+						{ pick: ['grip-surge', 'emergency-flip'], w: 2 }, // 1+1
+						{ pick: ['grip-surge', 'air-correction'], w: 1 } // 1+1
+					]
+				};
+				const pickFit = (fits: AiFit[]): [string, string] => {
+					const total = fits.reduce((a, f) => a + f.w, 0);
+					let r = Math.random() * total;
+					for (const f of fits) {
+						r -= f.w;
+						if (r <= 0) return f.pick;
+					}
+					return fits[fits.length - 1].pick;
+				};
+				// Rolled ONCE per car at field-build time, exactly like
+				// `simulatedAiQualMs` (Phase 9b): fits vary from race to race but are
+				// fixed for a rig's lifetime, so a reset re-runs the SAME field rather
+				// than reshuffling everyone's guns mid-session.
 				const aiLoadoutFor = (k: number): Loadout => {
-					const l = defaultLoadout(AI_ARCHS[(k - 1) % AI_ARCHS.length]);
-					const [wp, ws] = AI_WEAPONS[(k - 1) % AI_WEAPONS.length];
+					const arch = AI_ARCHS[(k - 1) % AI_ARCHS.length];
+					const l = defaultLoadout(arch);
+					const [wp, ws] = pickFit(AI_WEAPON_FITS[arch]);
 					l.parts.weaponPrimary = wp;
 					l.parts.weaponSecondary = ws;
-					const [ap, as] = AI_ABILITIES[(k - 1) % AI_ABILITIES.length];
+					const [ap, as] = pickFit(AI_ABILITY_FITS[arch]);
 					l.parts.abilityPrimary = ap;
 					l.parts.abilitySecondary = as;
 					return l;
@@ -5997,6 +6077,68 @@
 							}))
 						};
 					},
+					// Cross-slot coordination introspection (Phase 9d-ii-b): the
+					// WeaponIntent each slot would act on right now, which one the
+					// arbitration picks, and the live focus mark a control shot left
+					// behind. Verification only; reading it fires nothing.
+					aiIntents: (rigId = 'ai-1') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r?.ai) return null;
+						const ai = r.ai;
+						const nowMs = gameNow();
+						const self = combatantOf(r);
+						const others = rigsAll().map(combatantOf);
+						const skill = aiSkill();
+						const cdScale = r.buildStats.weaponCooldown;
+						const aimed: WeaponIntent[] = [];
+						for (const slot of WEAPON_SLOTS) {
+							const def = weaponById(r.weapons[slot]);
+							if (!def || def.category === 'turret') continue;
+							if (def.category === 'defensive' && def.jammer) continue;
+							if (def.category === 'area' || def.category === 'melee') continue;
+							if (def.category === 'defensive' && def.shield) continue;
+							const i = ai.weaponIntent(
+								self,
+								others,
+								slot,
+								def,
+								skill,
+								nowMs,
+								cdScale,
+								r.locks[slot]?.targetId ?? null
+							);
+							if (i) aimed.push(i);
+						}
+						const view = (i: WeaponIntent) => ({
+							slot: i.slot,
+							weapon: i.def.id,
+							value: i.value,
+							threshold: i.threshold,
+							margin: i.value - i.threshold,
+							targetId: i.targetId,
+							finishes: i.finishes,
+							targetDisrupted: i.targetDisrupted,
+							control: i.control,
+							cooldownSec: i.cooldownSec
+						});
+						const chosen =
+							aimed.length > 1 ? chooseWeaponIntent(aimed[0], aimed[1]) : (aimed[0] ?? null);
+						return {
+							weapons: { ...r.weapons },
+							intents: aimed.map(view),
+							chosen: chosen ? view(chosen) : null,
+							focus: ai.focusTarget(nowMs)
+						};
+					},
+					// Every AI's rolled fit, so a scripted drive can confirm that field
+					// builds VARY across races and stay STABLE across a reset.
+					getFits: () =>
+						ais.map((r) => ({
+							id: r.id,
+							archetype: r.archetype,
+							weapons: { ...r.weapons },
+							abilities: { ...r.abilities }
+						})),
 					getProjectiles: () => projectiles.map((p) => ({ ...p })),
 					getCaltrops: () => caltropFields.map((f) => ({ ...f, nextHitMs: { ...f.nextHitMs } })),
 					// Defensive-weapon state for the 4b-ii verification drives: shield
@@ -7523,7 +7665,17 @@
 						for (let ri = 0; ri < all.length; ri++) {
 							const rig = all[ri];
 							if (!rig.ai || rig.combat.isOut(now) || !armed[ri]) continue;
+							const ai = rig.ai;
 							const self = combatants[ri];
+							const cdScale = rig.buildStats.weaponCooldown;
+							// PASS 1: ask each slot what it would do, without firing
+							// anything yet. AIMED weapons report a full WeaponIntent (the
+							// 9d-ii-a score of the shot they would really take, the car it
+							// lands on, whether it kills); the unaimed shapes -- an area
+							// drop behind, blades, the panic shield -- have no target to
+							// compare, so they only report that they want their slot.
+							const aimed: WeaponIntent[] = [];
+							const unaimed: WeaponSlotId[] = [];
 							for (const slot of WEAPON_SLOTS) {
 								const def = weaponById(rig.weapons[slot]);
 								if (!def) continue;
@@ -7533,22 +7685,20 @@
 								// Radar Jammer is passive: neither has an AI fire decision.
 								if (def.category === 'turret' || (def.category === 'defensive' && def.jammer))
 									continue;
-								const cdScale = rig.buildStats.weaponCooldown;
-								// Pick the decision by shape: area weapons drop behind,
-								// blades toggle when a rival is close, the shield is a panic
-								// button, everything else aims its forward cone.
-								let want: boolean;
-								if (def.category === 'area')
-									want = rig.ai.wantsAreaDrop(self, combatants, slot, def, aiT, now, cdScale);
-								else if (def.category === 'melee')
-									want = rig.ai.wantsBlades(self, combatants, slot, def, aiT, now, cdScale);
-								else if (def.category === 'defensive' && def.shield)
-									want = rig.ai.wantsShield(self, combatants, slot, def, aiT, now, cdScale);
-								// The locked target id is threaded through for guided weapons:
-								// a launch goes where the LOCK points, so that is the car the
-								// decision has to be scored against.
-								else
-									want = rig.ai.wantsWeaponFire(
+								if (def.category === 'area') {
+									if (ai.wantsAreaDrop(self, combatants, slot, def, aiT, now, cdScale))
+										unaimed.push(slot);
+								} else if (def.category === 'melee') {
+									if (ai.wantsBlades(self, combatants, slot, def, aiT, now, cdScale))
+										unaimed.push(slot);
+								} else if (def.category === 'defensive' && def.shield) {
+									if (ai.wantsShield(self, combatants, slot, def, aiT, now, cdScale))
+										unaimed.push(slot);
+								} else {
+									// The locked target id is threaded through for guided
+									// weapons: a launch goes where the LOCK points, so that is
+									// the car the decision has to be scored against.
+									const intent = ai.weaponIntent(
 										self,
 										combatants,
 										slot,
@@ -7558,15 +7708,51 @@
 										cdScale,
 										rig.locks[slot]?.targetId ?? null
 									);
-								if (!want) continue;
-								if (performWeaponFire(rig, slot)) {
-									rig.ai.scheduleSlotUse(slot, now, def.cooldownSec * cdScale, aiT);
-									break;
+									if (intent) aimed.push(intent);
 								}
+							}
+							// PASS 2: at most ONE weapon fires per rig per frame (as it
+							// always has). Two aimed shots are ARBITRATED against each
+							// other -- kill first, then stun-before-damage on a shared
+							// target, then whichever has the better opportunity by its own
+							// weapon's standard. Anything else keeps slot order: an oil
+							// drop behind you and a gun ahead of you are not competing for
+							// the same opportunity, so there is nothing to arbitrate.
+							let firedSlot: WeaponSlotId | null = null;
+							let firedIntent: WeaponIntent | null = null;
+							if (aimed.length > 0 && unaimed.length === 0) {
+								const pick = aimed.length > 1 ? chooseWeaponIntent(aimed[0], aimed[1]) : aimed[0];
+								if (performWeaponFire(rig, pick.slot)) {
+									firedSlot = pick.slot;
+									firedIntent = pick;
+								}
+							} else {
+								for (const slot of WEAPON_SLOTS) {
+									const wantsIt =
+										unaimed.includes(slot) || aimed.some((i) => i.slot === slot);
+									if (!wantsIt) continue;
+									if (performWeaponFire(rig, slot)) {
+										firedSlot = slot;
+										firedIntent = aimed.find((i) => i.slot === slot) ?? null;
+										break;
+									}
+								}
+							}
+							if (firedSlot) {
+								const firedDef = weaponById(rig.weapons[firedSlot]);
+								if (firedDef)
+									ai.scheduleSlotUse(firedSlot, now, firedDef.cooldownSec * cdScale, aiT);
+								// A control tool just pinned a car: mark it so the OTHER slot
+								// follows the stun up instead of drifting to another target.
+								// The intent's target IS the car the shot lands on (the hook
+								// takes the nearest, the EMP cone certainly catches its best
+								// candidate), so no extra plumbing is needed to learn it.
+								if (firedIntent?.control)
+									ai.markControlLanded(firedIntent.def, firedIntent.targetId, now);
 							}
 							// The former fixed-tool chain (EMP / tether / oil) is gone (Phase 8g):
 							// those are equipped weapons now, decided by the same loop above
-							// (wantsWeaponFire for the EMP/hook forward cones, wantsAreaDrop for
+							// (weaponIntent for the EMP/hook forward cones, wantsAreaDrop for
 							// the oil drop), so there is no separate fixed-tool chain.
 						}
 						// Abilities: every AI-driven rig decides ONE ability per frame,

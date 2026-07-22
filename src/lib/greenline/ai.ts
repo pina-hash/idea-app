@@ -357,7 +357,16 @@ export const AI_TARGET_WEIGHTS = {
 	 * score. A burst that rakes three cars is genuinely worth more than one that
 	 * clips a single car, and only sweep-shaped weapons can collect it.
 	 */
-	sweepExtra: 0.3
+	sweepExtra: 0.3,
+	/**
+	 * The FOCUS mark: this vehicle's OTHER weapon slot just landed a control
+	 * effect on this target (Phase 9d-ii-b). Sized between `through` (1.2) and
+	 * `vulnerable` (1.6) on purpose — a strong pull, so the follow-up shot really
+	 * does go where the stun went, but well under `finish` (3), so a genuine kill
+	 * on a different car still wins. Zero whenever no focus is live, which is why
+	 * every 9d-ii-a score is unchanged in the ordinary case.
+	 */
+	focus: 1
 };
 
 /**
@@ -383,6 +392,8 @@ export interface ScoredTarget {
 	dist: number;
 	/** cos of the angle off the shooter's nose (1 = dead ahead). */
 	aimDot: number;
+	/** This shot alone would empty the target's chassis (the kill case). */
+	finishes: boolean;
 }
 
 /** The reach of a shot, already resolved from a def (and, for a fire decision,
@@ -447,7 +458,8 @@ function scoreCandidate(
 	t: Combatant,
 	def: WeaponDef,
 	reach: ShotReach,
-	nowMs: number
+	nowMs: number,
+	focusId: string | null = null
 ): ScoredTarget | null {
 	if (t.id === self.id || t.combat.eliminated || t.combat.isOut(nowMs)) return null;
 	const dx = t.x - self.x;
@@ -482,7 +494,104 @@ function scoreCandidate(
 		W.aim * aimQ +
 		W.close * closeQ;
 	if (def.disruption && c.isDisrupted(nowMs)) score -= W.redundantControl;
-	return { target: t, score, dist, aimDot };
+	// The other slot just pinned this car with a control effect: follow it up.
+	if (focusId && t.id === focusId) score += W.focus;
+	return { target: t, score, dist, aimDot, finishes: finishes === 1 };
+}
+
+// ---------------------------------------------------------------------------
+// Cross-slot coordination (Phase 9d-ii-b)
+//
+// The two weapon slots each ran their own `wantsX` in a fixed order and the
+// harness fired the first one that said yes, so `weaponPrimary` won every
+// contested frame by nothing more than being checked first. That is the wrong
+// answer twice over: it spends a 2 s Railgun cooldown on a car the 0.4 s
+// Autocannon in the other slot was about to kill, and it fires an EMP and a gun
+// at the same car as two unrelated coincidences rather than as a stun followed
+// by the shot that stun bought.
+//
+// The fix is deliberately NOT a second scoring system. Each slot reports a
+// `WeaponIntent` carrying the 9d-ii-a score of the shot it would really take,
+// and the arbitration below compares those intents using the SAME calibration:
+// the margin a shot has over its own `fireThreshold`, which already encodes what
+// that weapon's cooldown demands of it.
+// ---------------------------------------------------------------------------
+
+/** Is this an AIMED control weapon — one whose payload is an effect on a
+ * specific car rather than raw damage? EMP Burst (disruption) and Grappling
+ * Hook (tether). The Oil Slick is control too but it is DROPPED behind, with no
+ * target to follow up on at the moment it is spent, so it is not part of the
+ * sequencing rule (see `wantsAreaDrop`). */
+export function isControlWeapon(def: WeaponDef): boolean {
+	return !!(def.disruption || def.tether);
+}
+
+/**
+ * What one slot would do this frame if it were allowed to. Produced by
+ * `AiDriver.weaponIntent`, consumed by `chooseWeaponIntent`.
+ */
+export interface WeaponIntent {
+	slot: WeaponSlotId;
+	def: WeaponDef;
+	/** The 9d-ii-a value of the shot this slot would actually take. */
+	value: number;
+	/** The threshold that shot had to clear, so `value - threshold` is the
+	 * comparable margin (see `chooseWeaponIntent`). */
+	threshold: number;
+	/** The vehicle the shot resolves onto — the locked car for a guided launch,
+	 * the nearest for the hook, the best in the cone for a sweep. */
+	targetId: string;
+	/** This shot alone would empty that target's chassis. */
+	finishes: boolean;
+	/** Target is ALREADY disrupted (so a control shot buys little). */
+	targetDisrupted: boolean;
+	/** Lands a control effect rather than damage. */
+	control: boolean;
+	/** Effective cooldown, seconds: what committing this slot costs. */
+	cooldownSec: number;
+}
+
+/** Margin over this weapon's own worthiness bar — the comparable number. */
+export const intentMargin = (i: WeaponIntent): number => i.value - i.threshold;
+
+/**
+ * Given both slots' intents, which ONE fires this frame? (The harness has always
+ * fired at most one weapon per rig per frame; this decides WHICH, where the old
+ * code just took the primary.)
+ *
+ * The policy, in order:
+ *  1. FINISH FIRST. A shot that empties the target's chassis outranks anything
+ *     else — and when BOTH would finish, the CHEAPER cooldown takes the kill.
+ *     That is the overkill deferral: the expensive gun is held for a target the
+ *     cheap one cannot close, instead of being spent on one it already has.
+ *  2. CONTROL FIRST. Same target, one control tool and one damage weapon, and
+ *     the target is not already disrupted -> land the control effect. The
+ *     follow-up is not left to chance: the driver marks that car as its FOCUS,
+ *     which pulls the damage slot onto it on the next frames (see
+ *     `markControlLanded`). Deliberately below rule 1 — if you can kill it now,
+ *     stunning it first is a wasted cooldown.
+ *  3. BEST OPPORTUNITY. Higher margin over its own threshold; ties break to the
+ *     shorter cooldown. This is what keeps a Railgun off ordinary traffic
+ *     without a special case: on a healthy car the Autocannon's margin is the
+ *     bigger one, and on a nearly-dead car the Railgun's is.
+ *
+ * Returns the winning intent; the loser simply does not fire this frame and is
+ * re-evaluated on the next, so nothing is permanently suppressed.
+ */
+export function chooseWeaponIntent(a: WeaponIntent, b: WeaponIntent): WeaponIntent {
+	const cheaper = (): WeaponIntent => (a.cooldownSec <= b.cooldownSec ? a : b);
+	// 1. Kill shots.
+	if (a.finishes !== b.finishes) return a.finishes ? a : b;
+	if (a.finishes && b.finishes) return cheaper();
+	// 2. Stun then shoot, on the same car.
+	if (a.targetId === b.targetId && a.control !== b.control && !a.targetDisrupted) {
+		return a.control ? a : b;
+	}
+	// 3. Whoever has the better opportunity by its own weapon's standard.
+	const ma = intentMargin(a);
+	const mb = intentMargin(b);
+	if (Math.abs(ma - mb) > 1e-9) return ma > mb ? a : b;
+	return cheaper();
 }
 
 export class AiDriver {
@@ -519,6 +628,14 @@ export class AiDriver {
 	/** Unsigned centerline curvature at the AI's current point, updated each
 	 * drive() tick; the Grip Surge heuristic reads it to fire in corners. */
 	private lastCurvature = 0;
+	/**
+	 * The FOCUS mark (Phase 9d-ii-b): the car this vehicle's OTHER slot just
+	 * pinned with a control effect, and how long the follow-up window lasts. This
+	 * is the whole cross-slot signal — one id and one timestamp, read by every
+	 * scoring call, rather than a synchronous rework of the decision tick.
+	 */
+	private focusId: string | null = null;
+	private focusUntilMs = 0;
 
 	constructor(rt: TrackRuntime) {
 		this.rt = rt;
@@ -735,13 +852,33 @@ export class AiDriver {
 	): ScoredTarget[] {
 		const reach = shotReach(def, aggressionScaled ? aggression : null);
 		if (!reach) return [];
+		const focus = this.focusTarget(nowMs);
 		const out: ScoredTarget[] = [];
 		for (const o of others) {
-			const s = scoreCandidate(self, o, def, reach, nowMs);
+			const s = scoreCandidate(self, o, def, reach, nowMs, focus);
 			if (s) out.push(s);
 		}
 		out.sort((a, b) => b.score - a.score);
 		return out;
+	}
+
+	/**
+	 * Record that a control tool in one slot just landed on `targetId`, opening a
+	 * follow-up window for the OTHER slot (Phase 9d-ii-b). The window is the
+	 * control effect's OWN duration — how long the target actually stays pinned —
+	 * floored at 1.2 s so a short stun still leaves time to convert it.
+	 */
+	markControlLanded(def: WeaponDef, targetId: string, nowMs: number): void {
+		if (!isControlWeapon(def)) return;
+		const holdSec = Math.max(1.2, def.disruption?.disruptionSec ?? def.tether?.holdSec ?? 1.5);
+		this.focusId = targetId;
+		this.focusUntilMs = nowMs + holdSec * 1000;
+	}
+
+	/** The car the other slot pinned, while the window is still open. */
+	focusTarget(nowMs: number): string | null {
+		if (!this.focusId || nowMs >= this.focusUntilMs) return null;
+		return this.focusId;
 	}
 
 	/**
@@ -759,7 +896,7 @@ export class AiDriver {
 	lockPreference(self: Combatant, target: Combatant, def: WeaponDef, nowMs: number): number {
 		const reach = shotReach(def, null);
 		if (!reach) return -Infinity;
-		return scoreCandidate(self, target, def, reach, nowMs)?.score ?? -Infinity;
+		return scoreCandidate(self, target, def, reach, nowMs, this.focusTarget(nowMs))?.score ?? -Infinity;
 	}
 
 	/**
@@ -788,21 +925,47 @@ export class AiDriver {
 		cooldownScale = 1,
 		lockedTargetId?: string | null
 	): boolean {
-		if (nowMs < this.nextSlotOkMs[slot]) return false;
-		if (self.combat.isDisrupted(nowMs)) return false;
-		if (!self.combat.canUseSlot(slot, nowMs, def.cooldownSec * cooldownScale)) return false;
+		return !!this.weaponIntent(self, others, slot, def, t, nowMs, cooldownScale, lockedTargetId);
+	}
+
+	/**
+	 * The same decision as `wantsWeaponFire`, but reporting WHAT the slot would do
+	 * rather than just whether it would (Phase 9d-ii-b) — the value of the shot,
+	 * the car it resolves onto, and whether that shot is a kill. Null = this slot
+	 * does not want to fire, for any of the reasons above.
+	 *
+	 * This is what lets the two slots be compared against each other; every number
+	 * in it comes from 9d-ii-a's scoring, so the coordination layer adds no
+	 * second opinion about what a target is worth.
+	 */
+	weaponIntent(
+		self: Combatant,
+		others: Combatant[],
+		slot: WeaponSlotId,
+		def: WeaponDef,
+		t: AiAggressionSource,
+		nowMs: number,
+		cooldownScale = 1,
+		lockedTargetId?: string | null
+	): WeaponIntent | null {
+		if (nowMs < this.nextSlotOkMs[slot]) return null;
+		if (self.combat.isDisrupted(nowMs)) return null;
+		const cooldownSec = def.cooldownSec * cooldownScale;
+		if (!self.combat.canUseSlot(slot, nowMs, cooldownSec)) return null;
 		const aggr = Math.max(0, Math.min(1, t.aggression));
 		const cands = this.scoreTargets(self, others, def, nowMs, aggr);
-		if (cands.length === 0) return false;
+		if (cands.length === 0) return null;
 
 		// What this particular shot is actually worth, by what it can actually hit.
 		let value: number;
+		let on: ScoredTarget;
 		switch (shotShape(def)) {
 			case 'locked': {
 				// No lock id supplied (a caller that predates the parameter): fall
 				// back to the best candidate rather than refusing to fire.
 				const locked = lockedTargetId ? cands.find((c) => c.target.id === lockedTargetId) : cands[0];
-				if (!locked) return false;
+				if (!locked) return null;
+				on = locked;
 				value = locked.score;
 				break;
 			}
@@ -811,12 +974,14 @@ export class AiDriver {
 				// further down the cone is not the one the cable would reach.
 				let best = cands[0];
 				for (const c of cands) if (c.dist < best.dist) best = c;
+				on = best;
 				value = best.score;
 				break;
 			}
 			default: {
 				// A cone sweep damages everything inside it, so extra bodies in the
 				// burst are real added value on top of the best target.
+				on = cands[0];
 				value = cands[0].score;
 				for (let i = 1; i < cands.length; i++) {
 					value += AI_TARGET_WEIGHTS.sweepExtra * Math.max(0, cands[i].score);
@@ -824,7 +989,19 @@ export class AiDriver {
 				break;
 			}
 		}
-		return value >= fireThreshold(def, aggr);
+		const threshold = fireThreshold(def, aggr);
+		if (value < threshold) return null;
+		return {
+			slot,
+			def,
+			value,
+			threshold,
+			targetId: on.target.id,
+			finishes: on.finishes,
+			targetDisrupted: on.target.combat.isDisrupted(nowMs),
+			control: isControlWeapon(def),
+			cooldownSec
+		};
 	}
 
 	/**

@@ -4057,6 +4057,106 @@ on one side of the world.
     and pile-ups are a driving/contact outcome, but it is worth watching in
     9d-ii-b. `svelte-check` clean, 0 errors, 0 new warnings.
 
+- **Cross-slot coordination + weighted fit pools (Phase 9d-ii-b).** The two
+  weapon slots each ran their own `wantsX` in a FIXED ORDER and the harness
+  fired the first one that said yes, so `weaponPrimary` won every contested
+  frame by nothing more than being checked first. Wrong twice over: it spent a
+  2 s Railgun cooldown on a car the 0.4 s Autocannon in the other slot was
+  about to kill, and it fired an EMP and a gun at the same rival as two
+  unrelated coincidences rather than as a stun and the shot that stun bought.
+  - **Intents, not booleans.** `AiDriver.weaponIntent` returns a `WeaponIntent`
+    (the 9d-ii-a score of the shot the slot would REALLY take, the car it lands
+    on, whether it kills, whether that car is already disrupted, and the
+    effective cooldown); `wantsWeaponFire` is now a thin `!!weaponIntent(...)`
+    wrapper, so 9d-ii-a's API and every one of its assertions are untouched.
+    **No second scoring system exists** — the arbitration compares intents by
+    the MARGIN over each weapon's own `fireThreshold`, which already encodes
+    what that weapon's cooldown demands of it, so "is this shot worth it" is
+    asked once and reused.
+  - **`chooseWeaponIntent(a, b)` is the whole policy, in order:** (1) FINISH
+    FIRST — a shot that empties the chassis outranks everything, and when BOTH
+    would kill, the CHEAPER cooldown takes it (that IS the overkill deferral:
+    the expensive gun is held for a target the cheap one cannot close); (2)
+    CONTROL FIRST — same target, one control tool and one damage weapon, target
+    not already disrupted, land the control effect; deliberately BELOW rule 1,
+    because if you can kill it now a stun is a wasted cooldown; (3) BEST
+    OPPORTUNITY — higher margin, ties to the shorter cooldown. Rule 3 is what
+    keeps a Railgun off ordinary traffic with no special case: on a healthy car
+    the Autocannon's margin is bigger, on a nearly-dead one the Railgun's is.
+  - **The follow-up is a real signal, not a hope.** `markControlLanded` stamps
+    a per-driver FOCUS (one target id + one expiry — the light cross-slot
+    signal, not a synchronous rework of the tick), lasting the control effect's
+    OWN duration floored at 1.2 s. `AI_TARGET_WEIGHTS.focus` (1, between
+    `through` 1.2 and `vulnerable` 1.6, far under `finish` 3) then pulls BOTH
+    the other slot's fire decision and the guided lock preference onto that car
+    — a strong pull that a genuine kill elsewhere still beats. It is zero
+    whenever no focus is live, which is why every 9d-ii-a score is unchanged.
+    The intent's `targetId` IS the car the shot lands on (the hook takes the
+    nearest, the EMP cone certainly catches its best candidate), so learning
+    what was hit needed no plumbing through `performWeaponFire`.
+  - **Judgment calls.** Arbitration runs only when BOTH slots produce AIMED
+    intents; if either is an unaimed shape (area drop, blades, panic shield) the
+    old slot order stands, because an oil slick landing behind you and a gun
+    pointed ahead are not competing for the same opportunity — there is nothing
+    to arbitrate. For the same reason the **Oil Slick is excluded from the
+    control-first rule** even though it is a control tool: it is dropped behind
+    with no known victim at the moment it is spent, so there is no car to follow
+    up on. `isControlWeapon` is therefore EMP + Hook only. At most one weapon
+    still fires per rig per frame, exactly as before; only WHICH one changed.
+  - **Fit pools (the light half).** `AI_WEAPONS`/`AI_ABILITIES` were flat arrays
+    indexed `(k-1) % 8`, which worked only because that list happened to cycle
+    a/v/h/s in step with `AI_ARCHS` — an invisible invariant any added entry
+    would silently break. They are now `AI_WEAPON_FITS`/`AI_ABILITY_FITS`, POOLS
+    KEYED BY ARCHETYPE (23 weapon fits, 16 ability fits, up from 8 and 4),
+    weighted-random per car in `aiLoadoutFor`, rolled ONCE at field-build time
+    exactly like `simulatedAiQualMs` (Phase 9b) — so fits vary race to race and
+    a `resetRound` re-runs the SAME field. Weights, not equal chances: the three
+    Phase 8g weapons keep the heaviest weight in their archetype, so a small
+    field still USUALLY showcases them — a deliberate downgrade from the old
+    GUARANTEE, since randomization is the point and a guarantee is determinism
+    wearing a different hat. Nothing here reads the track, the opponents, or the
+    standings; it is variety in what shows up to race, not strategy.
+  - **Verified** in `/dev/greenline-movement?glheadless=1`. Arbitration, driven
+    through the real functions: healthy target -> Autocannon (margin 0.54) beats
+    Railgun (0.47), the big gun held; badly hurt target the Autocannon cannot
+    close -> Railgun wins with a KILL (margin 5.81); both would kill -> the
+    0.4 s Autocannon takes it and the 2.0 s Railgun stands down; EMP beats
+    Autocannon on an undisrupted shared target DESPITE a lower margin (0.34 vs
+    0.54) — the sequencing rule overriding raw opportunity — and yields to the
+    Autocannon the moment that shot is a kill; against an already-disrupted car
+    the EMP does not even want to fire (9d-ii-a's `redundantControl` already
+    handles it). **Slot-order independence**: the same weapon wins whichever
+    slot holds it, in all three cases — the thing that was broken. **Live
+    sequencing**, AI-driven and repeating in the sim: EMP fires -> focus set ->
+    Autocannon fires inside that window, cycling every EMP cooldown; and the
+    decisive redirect, hook + autocannon with two rivals that DISAGREE (a near
+    healthy car the hook grabs, a far chassis-chewed car the autocannon
+    prefers) — 16/16 clean split, `focus=none` aims the far car 12/12,
+    `focus=ai-2` aims the hooked car 4/4. Focus arithmetic: exactly +1.000 on
+    the focused car, top of the ranking during the window, EXACTLY back to
+    baseline after it expires, and +1.000 on the guided lock preference too.
+    **9d-ii-a unaffected**: every assertion reproduces to 3 decimals (3.157 /
+    0.701, 2.535 / 0.858, 0.922 / 0.344, the 2.300 / 2.300 no-second-disable
+    tie, all seven thresholds, and the hold/fire regressions). **Fits**: all 92
+    authored weapon x ability combinations survive `sanitizeLoadout` untouched
+    with legal distinct sockets; 7 field rebuilds gave 7 distinct fields (16
+    weapon pairs, 11 ability pairs seen), and two `resetRound` calls left the
+    field byte-identical. Debug: `__greenline.aiIntents(rigId)` (both intents,
+    the arbitration's pick, the live focus) and `getFits()`. A full 8-car race
+    ran clean: all upright, 0 falls, finite, every weapon class and all five
+    AI-used abilities firing, 7 distinct rolled fits, laps completed, no console
+    errors. **No perf cost**: 1.6 to 1.94 ms mean frame CPU at 8 cars against a
+    1.89 ms HEAD baseline (same track, same field size), measured with the same
+    revert-to-HEAD A/B as 9d-ii-a.
+  - **HARNESS TRAP that cost a debugging pass, worth knowing before reading
+    `__greenline.perf()` again:** its stats are a ROLLING ~240-frame (~4 s)
+    window, so a reading taken during or straight after your own scripted
+    instrumentation measures the instrumentation. Console-driven scenario
+    pinning (teleport + health at 20-50 Hz) and `aiIntents` sampling across 7
+    rigs read 16 to 29 ms mean and looked exactly like a regression; the same
+    build on a quiet window reads 1.6. Stop every sampler, wait past the window,
+    then read.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.
