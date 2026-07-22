@@ -808,7 +808,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='207';
+const VERSION='208';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -839,6 +839,12 @@ const BAL_DEFAULTS = {
   ebulCapBase:24, ebulCapPer:11,      // global enemy-bullet budget base + per sector
   // boss
   bossBase:95, bossLin:40, bossQuad:15,           // boss HP = bossBase + sector * bossLin + sector^2 * bossQuad
+  bombFromSector:3,                   // sector the boss bomb-drop unlocks at (matches the SINGULARITY gate)
+  bombWind:1.15,                      // bomb telegraph/windup seconds before detonation
+  bombR:76,                           // base detonation radius px (the marker grows to exactly this)
+  bombDmg:1,                          // hits dealt to a ship caught in the blast (extra hits ignore i-frames)
+  bombCdMin:5.0, bombCdMax:7.2,       // seconds between bomb cycles (shortened by boss phase)
+  bombPhase:[1,2,3],                  // bombs dropped per cycle by boss phase (0/1/2)
   // economy + pacing
   coinCoef:0.12,                      // kill coin coefficient (master income dial)
   styleCoinScale:1.0,                 // multiplier on STYLE coin bonus
@@ -876,6 +882,13 @@ const BAL_META = [
   {key:'bossBase',label:'Boss HP base',group:'BOSS',min:50,max:200,step:5},
   {key:'bossLin',label:'Boss HP linear',group:'BOSS',min:0,max:100,step:5},
   {key:'bossQuad',label:'Boss HP /sector^2',group:'BOSS',min:10,max:50,step:1},
+  {key:'bombFromSector',label:'BOMB from sector',group:'BOSS',min:1,max:8,step:1},
+  {key:'bombWind',label:'BOMB windup',group:'BOSS',min:0.50,max:2.50,step:0.05},
+  {key:'bombR',label:'BOMB blast radius',group:'BOSS',min:40,max:140,step:2},
+  {key:'bombDmg',label:'BOMB hits',group:'BOSS',min:1,max:3,step:1},
+  {key:'bombCdMin',label:'BOMB cd min',group:'BOSS',min:2.0,max:12.0,step:0.2},
+  {key:'bombCdMax',label:'BOMB cd max',group:'BOSS',min:3.0,max:16.0,step:0.2},
+  {key:'bombPhase',label:'BOMB count /phase',group:'BOSS',type:'array'},
   {key:'coinCoef',label:'Kill coin coef',group:'ECONOMY',min:0.04,max:0.20,step:0.01},
   {key:'styleCoinScale',label:'STYLE coin scale',group:'ECONOMY',min:0.50,max:2.00,step:0.05},
   {key:'coreBase',label:'CORE jackpot base',group:'ECONOMY',min:40,max:150,step:5},
@@ -1067,7 +1080,7 @@ const keys={};
    that reads `player.X` for local input/fire/upgrades keeps working unchanged.
    A solo run is a 1-element players array with localIndex 0 - identical to the
    old single-player object in every way. */
-let player=null, players=[], localIndex=0, coopMatch=false, enemies=[], pbul=[], ebul=[], pods=[], parts=[], shards=[], rings=[], pops=[], boss=null, barriers=[], hazards=[], holes=[], flakClouds=[];
+let player=null, players=[], localIndex=0, coopMatch=false, enemies=[], pbul=[], ebul=[], pods=[], parts=[], shards=[], rings=[], pops=[], boss=null, barriers=[], hazards=[], holes=[], flakClouds=[], bossBombs=[];
 let fleet=null, slots=[], refill=[], reconfTimer=0, volleyTimer=0, diveTimer=0;
 let sector, waveIdx, wavesPerSector, waveTimer, bossPending, sectorClearT, bossSpoils=0, bossFlash=0, meltFlash=0, sectorKills=0, killsForBoss=21, gameOverT=0, killer=null, lastHitBy=null;
 let sector1up=0;
@@ -1983,7 +1996,8 @@ function spawnBoss(forceFk){
     gx:W/2, gy:140, moveMode:'track', moveT:1.0, dodgeCd:0,
     sigCd:Math.max(0.4,2.6/(1+sector*0.10)), blinkCd:Math.max(0.8,3.2/(1+sector*0.10)), lockT:0, lockX:0, lockY:0,
     sweepState:0, sweepT:0, sweepAng:0, sweepDir:1, focusState:0, focusT:0, focusX:0, focusY:0, scanState:0, scanT:0, scanX:0, scanDir:1, regenT:0, p3Cd:5.5,
-    plates:0, plateMax:0, plateHp:0, boltCd:rnd(2.6,3.6), boltWind:0, boltTell:0};
+    plates:0, plateMax:0, plateHp:0, boltCd:rnd(2.6,3.6), boltWind:0, boltTell:0,
+    bombCd:rnd(BAL.bombCdMin,BAL.bombCdMax)};
   if(fk==='mset'){ boss.plates=3; boss.plate0=3; boss.plateMax=Math.round(hp*0.15); boss.plateHp=boss.plateMax; boss.r=62; }
   if(fk==='ace'){ boss.r=64; Object.assign(boss,{flyState:'hover',vx:0,vy:0,face:0,faceRot:0,flyT:0,gunCd:0,warnT:0,warnX:0,warnY:0,hx:W/2,hy:160}); } Audio_.bossWarn();
   document.getElementById('bossname').textContent='SECTOR BOSS · '+(BOSSNAME[fk]||F.name);
@@ -2123,7 +2137,7 @@ function startGame(){
   if(!coopMatch){ coopMatch=false; localIndex=0; players.length=0; }   // a solo start always rebuilds the classic 1-ship array (any co-op match - normal OR hardcore - sets these up before calling; check coopMatch not gameMode, which is 'hardcore' in hardcore co-op)
   BAL = (gameMode==='tune') ? loadTuneBAL() : freshBAL();
   try{ if(gameMode!=='calib'&&!coopMatch) localStorage.setItem('vanguard_games', getGames()+1); }catch(e){}   // co-op (normal + hardcore) never counts toward the local games-played tally
-  enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; meltFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossCard=null; lastMilestone=0; milestoneCard=null; scoreFlash=0;
+  enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; meltFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossBombs=[]; bossCard=null; lastMilestone=0; milestoneCard=null; scoreFlash=0;
   runFactionSeq=[...FKEYS]; for(let _i=runFactionSeq.length-1;_i>0;_i--){const _j=Math.random()*_i|0;[runFactionSeq[_i],runFactionSeq[_j]]=[runFactionSeq[_j],runFactionSeq[_i]];} waveFk=null; bossesSeen=[];
   hybridTimer=rnd(6,10);
   fleet=null; slots=[]; refill=[]; reconfTimer=0; volleyTimer=2; diveTimer=2.6;
@@ -3434,6 +3448,7 @@ function update(dt){
     for(const pp of players){ if(!pp||pp.dead||pp.inv>0)continue;
       if(dist2(h.x,h.y,pp.x,pp.y-2)<(h.r+8)*(h.r+8)){if(Math.random()<dt*2.5){lastHitBy=null;playerHit(pp);}}}}
   for(let i=pops.length-1;i>=0;i--){const p=pops[i];p.life-=dt;if(p.life<=0){pops.splice(i,1);continue;}p.y-=32*dt;}
+  updateBossBombs(dt);   // boss bomb windup + detonation (host/solo only; update() never runs on a guest)
 
   // style decay
   if(window.styleGrace>0) window.styleGrace-=dt;
@@ -3731,6 +3746,10 @@ function updateBoss(dt){
     if(b.boltWind<=0){ b.boltTell=0; const my=b.y+b.r*0.4, dx=P.x-b.x, dy=P.y-my, m=Math.hypot(dx,dy)||1, sp=175+sector*6;
       ebul.push({x:b.x,y:my,vx:dx/m*sp,vy:dy/m*sp,c:COL.white,r:8,parryBolt:true,shape:'bolt',owner:b}); Audio_.whine(0.22); COOP.evSfx('whine',0.22); } }
   else { b.boltCd-=dt; if(b.boltCd<=0 && b.sweepState!==2){ b.boltCd=Math.max(2.2,rnd(3.6,4.8)-phase*0.4); b.boltWind=0.7; Audio_.thump(170); COOP.evSfx('thump',170); } }
+  /* bomb drop: the second universal telegraphed attack, on its own independent
+     cadence so a boss can threaten both it and the bolt across one fight */
+  if(bossBombReady()){ b.bombCd-=dt;
+    if(b.bombCd<=0 && b.sweepState!==2 && b.scanState!==2){ b.bombCd=Math.max(2.4,(rnd(BAL.bombCdMin,BAL.bombCdMax)-phase*0.8)*sf); dropBossBombs(b,P,phase); } }
   /* adaptive base attack: react to where the player is */
   b.fire-=dt;
   if(b.fire<=0 && b.sweepState!==2 && !(b.fk==='bmet'&&b.spiralN>0) && b.fk!=='csee' && b.fk!=='ace' && !(b.fk==='mset'&&b.scanState===2)){ const dx=pdx, dy=pdy;
@@ -3745,6 +3764,114 @@ function updateBoss(dt){
   for(let i=barriers.length-1;i>=0;i--){ barriers[i].life-=dt; if(barriers[i].life<=0) barriers.splice(i,1); }
   document.querySelector('#bossbar i').style.transform='scaleX('+bossHpFrac()+')';
 }
+/* ===================== boss bomb drop (sector 3+) =====================
+   The second universal boss attack. ONE skeleton for all five factions: a
+   windup that LOCKS its target position to the nearest ship at that instant
+   (never tracked afterwards, so the telegraph is genuinely readable and the
+   player dodges by leaving), a ground-level marker that grows over the windup,
+   then a timed detonation damaging any ship inside the radius. Only the marker
+   art and the detonation SHAPE differ per faction. Runs on its own cadence,
+   independent of the parryable bolt, so a boss threatens both across a fight.
+   Gated to BAL.bombFromSector (3, the SINGULARITY threshold); the per-cycle
+   count scales with boss phase off BAL.bombPhase. */
+function bossBombReady(){ return sector>=(BAL.bombFromSector|0); }
+function bombCount(phase){ const a=BAL.bombPhase||[1]; return Math.max(1,a[Math.min(Math.max(0,phase|0),a.length-1)]|0); }
+/* every bomb in a cycle locks off the SAME nearest ship the boss already reads
+   (P === nearestPlayer(b.x,b.y), exactly like the bolt, so co-op needs no
+   special case): the first lands on that ship, the rest scatter around it so a
+   cycle denies an AREA instead of stacking one point. */
+function dropBossBombs(b,P,phase){ const n=bombCount(phase);
+  for(let i=0;i<n;i++){ const ox=i?rnd(-80,80):0, oy=i?rnd(-72,72):0;
+    bossBombs.push({x:clamp(P.x+ox,36,W-36), y:clamp(P.y+oy,H*0.20,H-34), fk:b.fk, c:b.c,
+      wind:BAL.bombWind, max:BAL.bombWind, r:BAL.bombR, k:0, spin:rnd(0,6.2832)}); }
+  Audio_.whine(BAL.bombWind); COOP.evSfx('whine',BAL.bombWind); }
+/* telegraph radius: every faction converges on exactly bm.r at detonation
+   (f(1)=1), so the marker never under-reads the blast it becomes. CSEE is the
+   pulse - it swells past full, then draws back in to land on it. */
+function bombRadNow(bm){ const k=clamp(bm.k||0,0,1);
+  if(bm.fk==='csee') return bm.r*(0.35+0.65*k+0.45*Math.sin(k*Math.PI));
+  if(bm.fk==='mat')  return bm.r*(0.24+0.76*k);
+  return bm.r*(0.30+0.70*k); }
+function updateBossBombs(dt){
+  for(let i=bossBombs.length-1;i>=0;i--){ const bm=bossBombs[i];
+    bm.wind-=dt; bm.k=clamp(1-bm.wind/(bm.max||1),0,1); bm.spin+=dt*(1.4+bm.k*3.4);
+    if(bm.wind<=0){ bossBombs.splice(i,1); detonateBomb(bm); } } }
+/* guest-side cosmetic advance only: the host owns the timer, the damage and
+   the removal, so this just keeps the marker animating between 15Hz snapshots */
+function tickBombCosmetics(dt){ for(const bm of bossBombs){ bm.k=clamp((bm.k||0)+dt/(bm.max||1),0,1); bm.spin=(bm.spin||0)+dt*(1.4+bm.k*3.4); } }
+/* the blast: one discrete radius check per ship. BAL.bombDmg>1 deliberately
+   punches through the i-frame grace so the damage dial is a real dial. */
+function bombDamage(bm,rad){ const n=Math.max(1,BAL.bombDmg|0);
+  for(const pp of players){ if(!pp||pp.dead||pp.inv>0) continue;
+    if(dist2(bm.x,bm.y,pp.x,pp.y-2) < (rad+10)*(rad+10)){ lastHitBy=null;
+      for(let h=0;h<n;h++){ if(h) pp.inv=0; playerHit(pp); } } } }
+/* cue + visuals only, so a co-op guest can replay this verbatim: the hazards
+   and bullets a detonation spawns are authoritative state and already ride the
+   hz/eb snapshot fields. */
+function bombFx(bm){ const r=bm.r, c=bm.c;
+  rings.push({x:bm.x,y:bm.y,r:r*0.35,vr:r*2.2,life:.45,max:.45,c:COL.white});
+  rings.push({x:bm.x,y:bm.y,r:r*0.15,vr:r*1.4,life:.55,max:.55,c:c});
+  for(let i=0;i<18;i++){ const a=rnd(0,6.2832),sp=rnd(70,260); parts.push({x:bm.x,y:bm.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:.45,max:.45,c:Math.random()<0.35?COL.white:c,sz:rnd(1.6,3.0)}); }
+  shake=Math.max(shake,7);
+  if(bm.fk==='bmet'){ Audio_.wub();   // the split reads as three separate pops
+    for(let i=0;i<3;i++){ const a=bm.spin+i*2.0944, d=r*0.55;
+      rings.push({x:bm.x+Math.cos(a)*d,y:bm.y+Math.sin(a)*d,r:3,vr:r*1.0,life:.42,max:.42,c:c}); } }
+  else if(bm.fk==='csee'){ Audio_.wub(); shake=Math.max(shake,16); bossFlash=Math.max(bossFlash,0.16);   // the shake accent
+    rings.push({x:bm.x,y:bm.y,r:r*0.6,vr:r*3.4,life:.5,max:.5,c:c}); }
+  else if(bm.fk==='mat'){ Audio_.blast(); bossFlash=Math.max(bossFlash,0.5);   // blinding radial flash-burst
+    rings.push({x:bm.x,y:bm.y,r:r*0.18,vr:r*4.2,life:.4,max:.4,c:COL.white});
+    for(let i=0;i<14;i++){ const a=i/14*6.2832; shards.push({x:bm.x,y:bm.y,vx:Math.cos(a)*rnd(200,360),vy:Math.sin(a)*rnd(200,360),rot:a,vr:0,len:rnd(14,26),life:.4,max:.4,c:COL.white}); } }
+  else if(bm.fk==='mset'){ Audio_.blast();   // crystal shatters outward
+    for(let i=0;i<10;i++){ const a=rnd(0,6.2832),sp=rnd(90,240); shards.push({x:bm.x,y:bm.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,rot:a,vr:rnd(-8,8),len:rnd(8,18),life:.5,max:.5,c:c}); } }
+  else Audio_.big(); }
+function detonateBomb(bm){ const rad=bm.r;
+  bombFx(bm); bombDamage(bm,rad);
+  /* per-faction detonation SHAPE (host/solo only: hazards and bullets are
+     authoritative state, mirrored to a guest by the hz/eb snapshot fields) */
+  if(bm.fk==='bmet'){ const n=2+(Math.random()<0.5?0:1);   // splits into 2-3 smaller lingering puffs instead of one blast
+    for(let i=0;i<n;i++){ const a=rnd(0,6.2832), d=rad*rnd(0.45,0.95);
+      if(hazards.length<16) hazards.push({x:clamp(bm.x+Math.cos(a)*d,30,W-30),y:clamp(bm.y+Math.sin(a)*d,H*0.16,H-20),r:rad*0.38,life:2.8,max:2.8,c:bm.c}); } }
+  else if(bm.fk==='mset'){ const n=Math.min(14,8+Math.floor(sector/3)), sp=240+sector*8, off=Math.random()*6.2832;   // shrapnel scatter, not a uniform radius
+    for(let i=0;i<n && ebul.length<ebulCap();i++){ const a=off+i/n*6.2832+rnd(-0.12,0.12), s=sp*rnd(0.8,1.2);
+      ebul.push({x:bm.x,y:bm.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,c:bm.c,r:3.2,shape:'shard'}); } } }
+/* ground-level telegraph marker: one shared footprint (filling disc + the hard
+   edge of the blast to come) under a per-faction layer */
+function drawBossBombs(){ if(!bossBombs.length) return; bg.save();
+  for(const bm of bossBombs){ const k=clamp(bm.k||0,0,1), rr=Math.max(1,bombRadNow(bm)), c=bm.c, pul=0.5+0.5*Math.sin(t*(9+k*16));
+    bg.save(); bg.globalCompositeOperation='lighter';
+    const g=bg.createRadialGradient(bm.x,bm.y,0,bm.x,bm.y,rr);
+    g.addColorStop(0,c+hex2((0.30+0.40*k)*255)); g.addColorStop(0.65,c+hex2((0.08+0.20*k)*255)); g.addColorStop(1,c+'00');
+    bg.fillStyle=g; bg.beginPath(); bg.arc(bm.x,bm.y,rr,0,6.28); bg.fill();
+    bg.strokeStyle=c; bg.shadowColor=c; bg.shadowBlur=10+14*k; bg.lineWidth=1.5+2.5*k; bg.globalAlpha=0.45+0.5*k;
+    bg.beginPath(); bg.arc(bm.x,bm.y,rr,0,6.28); bg.stroke();
+    if(bm.fk==='ace'){ /* straightforward: an outer ring converging on the blast edge + four cardinal ticks */
+      bg.globalAlpha=0.25+0.5*k; bg.lineWidth=2;
+      bg.beginPath(); bg.arc(bm.x,bm.y,rr*(1.55-0.55*k),0,6.28); bg.stroke();
+      bg.globalAlpha=0.45+0.45*pul; bg.lineWidth=2.5;
+      for(let i=0;i<4;i++){ const a=i*Math.PI/2; bg.beginPath(); bg.moveTo(bm.x+Math.cos(a)*rr*0.70,bm.y+Math.sin(a)*rr*0.70); bg.lineTo(bm.x+Math.cos(a)*rr*1.08,bm.y+Math.sin(a)*rr*1.08); bg.stroke(); } }
+    else if(bm.fk==='bmet'){ /* the split it will become: satellite cells drifting outward */
+      bg.globalAlpha=0.35+0.5*k; bg.lineWidth=1.8;
+      for(let i=0;i<3;i++){ const a=bm.spin+i*2.0944, d=rr*(0.22+0.44*k), sr=rr*(0.15+0.17*k);
+        bg.beginPath(); bg.arc(bm.x+Math.cos(a)*d,bm.y+Math.sin(a)*d,sr,0,6.28); bg.stroke(); } }
+    else if(bm.fk==='csee'){ /* pulse: concentric waves running the swelling zone */
+      bg.lineWidth=1.6;
+      for(let i=1;i<=3;i++){ const f=(k*1.7+i/3)%1; bg.globalAlpha=(0.55-0.42*f)*(0.35+0.65*k);
+        bg.beginPath(); bg.arc(bm.x,bm.y,rr*f,0,6.28); bg.stroke(); } }
+    else if(bm.fk==='mat'){ /* a growing bright light gathering at the point */
+      const cr=Math.max(1,rr*(0.10+0.34*k)*(0.9+0.2*pul));
+      const cg=bg.createRadialGradient(bm.x,bm.y,0,bm.x,bm.y,cr);
+      cg.addColorStop(0,'rgba(255,255,255,'+(0.55+0.45*k).toFixed(2)+')'); cg.addColorStop(0.5,c+hex2((0.40+0.50*k)*255)); cg.addColorStop(1,c+'00');
+      bg.fillStyle=cg; bg.beginPath(); bg.arc(bm.x,bm.y,cr,0,6.28); bg.fill(); }
+    else if(bm.fk==='mset'){ /* a crystal forming: facets sharpen as it locks in */
+      const n=6, cr=rr*(0.28+0.52*k), rot=bm.spin*0.5;
+      bg.globalAlpha=0.40+0.55*k; bg.lineWidth=1.6+1.6*k;
+      bg.beginPath(); for(let i=0;i<n;i++){ const a=rot+i/n*6.2832, d=cr*(i%2?0.60:1), px=bm.x+Math.cos(a)*d, py=bm.y+Math.sin(a)*d; if(i)bg.lineTo(px,py); else bg.moveTo(px,py); } bg.closePath(); bg.stroke();
+      bg.globalAlpha=0.20+0.40*k; bg.lineWidth=1.2;
+      bg.beginPath(); for(let i=0;i<n;i++){ const a=rot+i/n*6.2832, d=cr*(i%2?0.60:1); bg.moveTo(bm.x,bm.y); bg.lineTo(bm.x+Math.cos(a)*d,bm.y+Math.sin(a)*d); } bg.stroke(); }
+    if(k>0.82){ const fl=(k-0.82)/0.18; bg.globalAlpha=fl*(0.35+0.65*pul); bg.strokeStyle=COL.white; bg.lineWidth=2+3*fl;
+      bg.beginPath(); bg.arc(bm.x,bm.y,rr*(1.02+0.05*fl),0,6.28); bg.stroke(); }
+    bg.restore(); }
+  bg.globalAlpha=1; bg.shadowBlur=0; bg.restore(); }
 function matLensFx(b){ b.fireFlash=Math.max(b.fireFlash||0,0.2); const lx=b.x, ly=b.y+0.58*b.r;
   for(let i=0;i<4;i++){ const a=rnd(0,6.2832),s=rnd(20,70); parts.push({x:lx,y:ly,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:.3,max:.3,c:COL.white,sz:1.6}); } }
 function msetFocalFx(b){ b.fireFlash=Math.max(b.fireFlash||0,0.16); const ax=b.x, ay=b.y+0.56*b.r;
@@ -3853,7 +3980,7 @@ function damageBoss(dmg){ const b=boss; if(!b||b.dying||b.entering||b.tT>0) retu
     return; }
   b.hp-=dmg; if(b.hp<=0) startBossDeath();
 }
-function startBossDeath(){ const b=boss; b.dying=true; b.deathT=2.4; b.deathDur=2.4; b.deathRing=0; b.hp=0; ebul.length=0; barriers.length=0;
+function startBossDeath(){ const b=boss; b.dying=true; b.deathT=2.4; b.deathDur=2.4; b.deathRing=0; b.hp=0; ebul.length=0; barriers.length=0; bossBombs.length=0;   // pending bombs die with the boss that armed them
   if(Audio_.stopAllLoops)Audio_.stopAllLoops();   // hard-stop boss carving-beam loops on death
   Audio_.big(); shake=18; bossFlash=Math.max(bossFlash,0.5); deathSlow=Math.max(deathSlow,0.7);
   bossCard={mode:'death',name:(BOSSNAME[b.fk]||b.name),sub:'ELIMINATED',c:b.c,t:0,dur:2.6};
@@ -4343,6 +4470,8 @@ function drawBG(){
     else { bg.fillStyle='rgba(232,255,232,'+(s.al*tw)+')'; bg.beginPath();bg.arc(sx,sy,s.sz,0,6.28);bg.fill(); } }));
   if(!LOWFX) bg.shadowBlur=0;
 
+  // boss bomb telegraph markers: ground level, so they read UNDER every craft
+  if(bossBombs.length) drawBossBombs();
   // enemies
   bg.lineJoin='round';
   enemies.forEach(e=>{ if(e.dead)return; drawCraft(bg,e,e.draw); });
@@ -5906,6 +6035,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'208',date:'2026',items:['VANGUARD: sector 3 bosses now drop bombs, marking a patch of ground with a warning that swells before it blows, so you can see the hit coming and get out of the way']},
  {ver:'207',date:'2026',items:['Moved health, lives, and coins to a bigger readout near your ship']},
  {ver:'205',date:'2026',items:['Weapon rebalance: RAILSPIKE bolts now stop after drilling through 6 enemies','SPREAD hits harder and keeps full damage further downrange','NAILGUN redlines are now always a quick vent with no style loss, whether you hold or tap fire','SWARM darts carry a heavier charge','FLAK clouds are bigger and meaner, and the burst band starts closer to your ship','BUZZSAW unlocks a sector earlier, costs less, and its blades deflect more incoming fire']},
  {ver:'204',date:'2026',items:['CO-OP is now RANKED: finish a qualifying match (sector 2+ or 20+ kills) and your team submits one score with both pilots\' initials to the new CO-OP and CO-OP HC leaderboards - find them in the board tabs on the title screen, and click any row for each pilot\'s loadout.']},
@@ -6314,6 +6444,12 @@ try{ if(/[?&]coopstub=1\b/.test(location.search)){
   window.__vgStubHazard=function(){ hazards.push({x:Math.round(W/2),y:Math.round(H*0.5),r:26,life:3.0,max:3.0,c:COL.ace}); return hazards.length; };
   window.__vgStubBarrier=function(){ barriers.push({x:Math.round(W/2),y:Math.round(H*0.4),w:180,h:12,life:4.2,max:4.2,c:COL.ace}); return barriers.length; };
   window.__vgStubBossHp=function(frac){ if(!boss) return 'no boss'; boss.hp=Math.max(1,Math.round(boss.maxhp*(+frac||0.5))); return boss.hp+'/'+boss.maxhp; };
+  // boss bomb drive: force a real cycle through the real code path (so the
+  // sector gate, the nearest-ship lock and the phase count all apply), and
+  // sample the live telegraphs on either side of a co-op pair.
+  window.__vgStubBomb=function(){ if(!boss) return 'no boss'; if(!bossBombReady()) return 'gated: sector '+sector+' < '+BAL.bombFromSector;
+    dropBossBombs(boss,nearestPlayer(boss.x,boss.y),boss.phase|0); return bossBombs.length; };
+  window.__vgStubBombs=function(){ return bossBombs.map(q=>({id:q._eid||0,fk:q.fk,x:Math.round(q.x),y:Math.round(q.y),k:+(q.k||0).toFixed(2),r:Math.round(q.r),rad:Math.round(bombRadNow(q))})); };
   // pass 2 drive: sample the telegraph/FLAK fields on either side, and force
   // real host-side states (real spawn/update code paths) so guest parity is
   // scriptable with two tabs.
@@ -6443,6 +6579,7 @@ const COOP=(function(){
   let eidSeq=1; const guestEnemies=new Map();
   const guestHoles=new Map(), guestHazards=new Map(), guestBarriers=new Map();   // visual parity: render-only mirrors of the host's environmental hazards, keyed by host id like guestEnemies
   const guestFlak=new Map();   // visual parity pass 2: render-only FLAK cloud mirror, same id-keyed pattern (no damage tick ever runs guest-side)
+  const guestBombs=new Map();  // boss bomb telegraph mirror, same id-keyed pattern (the windup timer + blast stay host-authoritative)
   const guestPods=new Map();   // v203: render-only pod mirror (pods visible on the field pre-pickup), same id-keyed pattern; pickup stays host-authoritative and arrives via EV_PICKUP + the vanished-id sweep
   /* Generic one-shot cue replay pipeline (v197). The host's simulation runs
      dozens of one-shot audio/visual cues (enemy deaths, hit sparks, pickups,
@@ -6622,7 +6759,7 @@ const COOP=(function(){
     if(channel){ try{ channel.unsubscribe(); }catch(e){} try{ client&&client.removeChannel(channel); }catch(e){} channel=null; }
     if(coopMatch) gameMode=prevMode||'normal';   // restore the pre-coop solo mode after ANY co-op match (gameMode is 'coop' OR 'hardcore'); runs before coopMatch is cleared just below
     if(coopMatch||phase!=='idle'){ coopMatch=false; localIndex=0; players.length=0; player=null; }
-    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); guestPods.clear(); guestAlivePrev=2; evBuf.length=0; bossFinRep=false; refitSessClear();
+    phase='idle'; role=null; code=''; actQueue.length=0; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); guestBombs.clear(); guestPods.clear(); guestAlivePrev=2; evBuf.length=0; bossFinRep=false; refitSessClear();
     matchId=''; endInfo=null; guestInitials=''; subDone=false; if(subWait){ clearTimeout(subWait); subWait=null; }   // v204: ranked/telemetry session state ends with the room
     remoteCtrl={mx:0,my:0,fire:false,beam:false};
   }
@@ -6642,7 +6779,7 @@ const COOP=(function(){
     phase='match';
     prevMode=(gameMode==='coop')?prevMode:gameMode;
     coopMatch=true; localIndex=(role==='host')?0:1;
-    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); guestPods.clear(); guestAlivePrev=2; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; actQueue.length=0; evBuf.length=0; evSent=0; evApplied=0; bossFinRep=false;
+    players.length=0; guestEnemies.clear(); guestHoles.clear(); guestHazards.clear(); guestBarriers.clear(); guestFlak.clear(); guestBombs.clear(); guestPods.clear(); guestAlivePrev=2; latestSnap=null; snapAtPrev=snapAtCur=0; snapBuf.length=0; lastFireHeld=false; coopFireCd=0; coopFirePeriod=0; coopFiring=false; actQueue.length=0; evBuf.length=0; evSent=0; evApplied=0; bossFinRep=false;
     // v204 ranked/telemetry state: fresh per match. matchId is NOT reset here -
     // every start path (host start button, guest 'start' handler, rejoinMatch)
     // stamps it just before calling beginMatch; it clears in leave().
@@ -6934,6 +7071,13 @@ const COOP=(function(){
         return [h._eid,Math.round(h.x),Math.round(h.y),Math.round(h.r),+(h.life||0).toFixed(2),+(h.max||1).toFixed(2),h.c]; }):0,
       br:barriers.length?barriers.slice(0,6).map(w2=>{ if(!w2._eid)w2._eid=eidSeq++;
         return [w2._eid,Math.round(w2.x),Math.round(w2.y),Math.round(w2.w),+(w2.life||0).toFixed(2),w2.c]; }):0,
+      // boss bomb telegraphs: the locked position, the base blast radius and the
+      // windup progress - everything drawBossBombs reads. Damage and removal stay
+      // host-side; the guest advances k locally (tickBombCosmetics) between
+      // snapshots and replays the detonation FX off the vanished-id sweep, the
+      // way cap-dropped kills already work. 0 when empty (the ho/hz/br/fc convention).
+      bm:bossBombs.length?bossBombs.slice(0,8).map(q=>{ if(!q._eid)q._eid=eidSeq++;
+        return [q._eid,Math.round(q.x),Math.round(q.y),Math.round(q.r),+(q.k||0).toFixed(2),Math.max(0,FKL.indexOf(q.fk)),+(q.max||1).toFixed(2)]; }):0,
       // FLAK damage clouds (visual parity pass 2): only what the draw reads
       // (position, radius, life fraction via t/life; color is the FLAK_COL
       // constant). dps/pi stay host-only - damage never ticks on the guest.
@@ -7117,6 +7261,17 @@ const COOP=(function(){
         else { w2.x=a[1]; w2.y=a[2]; w2.w=a[3]; w2.life=a[4]; } });
       guestBarriers.forEach((w2,id)=>{ if(!seenB.has(id)) guestBarriers.delete(id); });
       barriers.length=0; guestBarriers.forEach(w2=>barriers.push(w2)); }
+    // boss bomb telegraphs: same id-keyed render-only mirror. The guest never
+    // ticks the windup down or runs bombDamage (that is host-authoritative and
+    // reaches this ship through the normal armor/shield snapshot); it draws the
+    // marker, advances k locally between snapshots, and replays the detonation
+    // FX on the vanished-id edge - the cap-dropped-kill fallback pattern.
+    { const seenM=new Set();
+      (s.bm||[]).forEach(a=>{ seenM.add(a[0]); let q=guestBombs.get(a[0]);
+        if(!q){ q={_eid:a[0],x:a[1],y:a[2],r:a[3],k:a[4],fk:FKL[a[5]]||'ace',max:a[6]||1,spin:rnd(0,6.2832),c:(FACTIONS[FKL[a[5]]||'ace']||FACTIONS.ace).c}; guestBombs.set(a[0],q); }
+        else { q.x=a[1]; q.y=a[2]; q.r=a[3]; q.k=a[4]; q.max=a[6]||q.max; } });
+      guestBombs.forEach((q,id)=>{ if(!seenM.has(id)){ guestBombs.delete(id); if((q.k||0)>0.6) bombFx(q); } });   // only a bomb that ran its windup out detonated; a cleared field just vanishes
+      bossBombs.length=0; guestBombs.forEach(q=>bossBombs.push(q)); }
     // FLAK clouds (visual parity pass 2): same id-keyed render-only mirror.
     // Clouds are static once spawned (no lerp needed); dps:0 so no code path
     // could ever tick damage from these shadows - removal is host-authoritative
@@ -7355,6 +7510,7 @@ const COOP=(function(){
     // and the FLAK cloud fade clock (removal stays host-authoritative)
     for(let i=0;i<enemies.length;i++) enemies[i].core+=dt*1.1;
     for(let i=0;i<flakClouds.length;i++) flakClouds[i].t-=dt;
+    tickBombCosmetics(dt);   // boss bomb marker: advance the windup progress locally so it grows at 60fps, not in 15Hz snapshot steps
     // v203: pod cosmetic clocks (bob wobble + CORE spin), the host rates
     for(let i=0;i<pods.length;i++){ const p=pods[i]; p.bob+=dt*3; if(p.type==='core') p.spin=(p.spin||0)+dt*2; }
     // v203: sustained heavy-weapon loop audio. The SAME exactly-one-slot gate
@@ -7752,7 +7908,7 @@ requestAnimationFrame(frame);
   function devEnemy(fk,v){ const e=makeEnemy(fk,v, rnd(W*0.3,W*0.7), 120, 'free'); e.vy=0; enemies.push(e); }
   function devHybrid(fk){ const e=makeEnemy(fk,0, rnd(W*0.3,W*0.7), 90, fk);
     e.hold=rnd(120,200); e.sigCd=2; e.lockT=0; e.lockX=0; e.lockY=0; e.buffR=190; e.altMove=false; enemies.push(e); }
-  function clearField(){ if(Audio_.stopAllLoops)Audio_.stopAllLoops(); enemies.length=0; ebul.length=0; pbul.length=0; boss=null; bossPending=false; bossSpoils=0;
+  function clearField(){ if(Audio_.stopAllLoops)Audio_.stopAllLoops(); enemies.length=0; ebul.length=0; pbul.length=0; boss=null; bossPending=false; bossSpoils=0; bossBombs.length=0;
     document.getElementById('bossbar').style.display='none'; document.getElementById('bossname').style.display='none'; }
   function devBoss(fk){ clearField(); spawnBoss(fk); }
   function devHurt(){ if(!boss||boss.dying||boss.entering) return;
