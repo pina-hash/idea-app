@@ -4157,6 +4157,107 @@ on one side of the world.
     build on a quiet window reads 1.6. Stop every sampler, wait past the window,
     then read.
 
+- **Informed branch strategy + real pit stops (Phase 9d-iii), the last stage of
+  the AI overhaul.** Two things: the route gamble reads the driver's actual
+  situation, and a car that takes the pit lane now genuinely STOPS in the box.
+  - **Branch choice is the same weighted coin flip, differently weighted.** Not
+    a new framework: still one probability and one `rand()` in `chooseRoute`,
+    but `branchProbability(RouteChoice)` sets it from three real signals instead
+    of aggression alone. `ROUTE_CHOICE`: base 0.12, aggression 0.35, race
+    position 0.30, damage -0.45, clamped to [0.05, 0.85]. Health is CHASSIS
+    fraction (the only pool that ends a race, and the same pool the pit trigger
+    reads, so "hurt" means one thing); position is `positionFrac`, 0 leading to
+    1 last. Calibrated so the FIELD-WIDE shortcut rate barely moves and only its
+    DISTRIBUTION changes — a healthy mid-field car sits at 0.445 against the old
+    flat 0.425 — while a car at the back is twice as likely to gamble as the
+    leader (0.595 vs 0.295) and a half-chassis car is half as likely as a
+    healthy one (0.220 vs 0.445). The 0.05 floor is deliberate: a beaten-up
+    leader should almost never take the risky line, but never being able to is
+    its own kind of predictable.
+  - **Race position reuses the standings, it does not invent a second ranking.**
+    The ordering function was hoisted out of the HUD standings block into
+    `standingScore(rig)` (laps > checkpoints > distance to the next gate;
+    finished cars hold their position, eliminated sink) and `racePositionFrac`
+    counts how many cars outrank you. ONE function, two consumers, so "who is
+    ahead" can never mean two different things. No artifact at the decision
+    moment: every car decides at ITS OWN line crossing, so the lap it just
+    banked is banked for whoever crossed earlier too.
+  - **The pit stop is the genuinely new behaviour.** Phase 9c only ever
+    RE-ROUTED a hurt car onto the pit lane; it then drove through the repair box
+    at racing speed and healed nothing, because the box pays out only to a car
+    that is stopped. `AiDriver` now owns a `PitPhase` state machine
+    (`none | approach | stopping | held`) layered ON TOP of route following
+    rather than beside it, and the layering is the design: **the box is fed into
+    the existing braking-distance integral as a corner whose corner speed is
+    ZERO**, so the approach brakes with exactly the same math that slows the car
+    for a hairpin and there is no second speed controller to fight the first.
+    Only the final hold short-circuits `drive()`. `startPitStop(routeIdx, now)`
+    sets the route AND finds the box (nearest route point to the nearest pit
+    zone); the aim point sits half a radius PAST the centre so a marginally
+    short stop still comes to rest inside.
+  - **Holding still needed the handbrake, and that is not a detail.** `brake` at
+    a standstill is REVERSE in this harness (the S-key semantics), so a parked
+    car holding the brake drives itself back out of the box — and if it had
+    drifted even slightly backwards, out under power. `AiControls` gained an
+    optional `handbrake` (false on every normal AI driving frame; the AI does
+    not drift) and the held state uses it ALONE, with `brake` restricted to the
+    `stopping` phase, which by construction means the car rolled in under power
+    and is still moving forward.
+  - **Resume, and three ways a stop can end.** Health: `PIT_AI_RESUME_FRAC` 0.9
+    of TOTAL pools, checked in the harness right where the repair is applied so
+    a car leaves on the frame it is fixed. Total rather than chassis because the
+    two things worth stopping for are a chewed hull and a destroyed mount, and
+    0.9 of the budget is unreachable with a dead mount on any archetype (the
+    smallest mount share is 25%) — one number, no second clause. Time:
+    `PIT_HOLD_MAX_SEC` 6 (a car that CANNOT heal rejoins instead of parking
+    forever) and `PIT_COMMIT_MAX_SEC` 30 (a car that never arrives gives up),
+    both owned by the driver since it owns the clock it is stopped against.
+    Plus a fourth, geometric: if the box ends up more than half a lap ahead the
+    car has driven past it, so the stop is abandoned rather than crawling a
+    whole lap back — browser-observed firing correctly. `endPitStop` deliberately
+    does NOT touch the route: the car is mid-lap on the pit lane and has to
+    finish driving it to rejoin lawfully (the lane is a grouped-checkpoint
+    alternative).
+  - **Verified** in `/dev/greenline-movement?glheadless=1` on BOTH tracks.
+    Branch choice, measured through the REAL `chooseRoute` against the real
+    runtime, 4000 laps per cell: healthy leader 0.302, healthy last 0.598
+    (2.0x), healthy mid 0.442, half-chassis mid 0.213 (half of healthy),
+    quarter-chassis leader 0.055 (the floor) — every cell within sampling noise
+    of its analytic probability, aggression still spanning 0.27 to 0.62, and the
+    PIT lane never once gambled onto across 20,000 trials. The pit stop, traced
+    live on Proving Ground 07: `route 0 -> 1 (PIT COMMITTED)` at total 0.120
+    with a dead mount, `approach` at 42.4 m/s, `stopping` on entering the box at
+    13.7, `held` at 0.13 m/s, healed while parked, resumed, and rejoined the
+    main line on the next lap. **The heal is the box's, proven in isolation**:
+    with the ability meter starved to zero every tick (so Overcharge Repair
+    could not fire) a parked car healed monotonically across 18 consecutive
+    samples at **123.5 health/sec against the configured 125**, 0.143 -> 0.915
+    total, mount revived, then released the frame it crossed 0.9. The same trace
+    on TERMINAL NINE, on a 416-point ARMOR build: `approach` at 31.5 m/s ->
+    `stopping` at 16.7 -> `held` at 0.16 with a dead mount and total 0.101 ->
+    **320.2 points restored over 2.60 s = 125.4 health/sec**, mount revived,
+    released at 0.901, drove away. Speed reads 0.00 while held, so the handbrake
+    hold is solid. The approach profile is clean rather than a slam: 32.8 m/s at
+    28 m out, 18.6 at 8 m, 4.1 at 0.1 m from the box centre.
+  - **Race regression, and a measurement trap worth recording.** Multi-second
+    stationary periods DO occur in an 8-car pack on both tracks — but they are
+    pre-existing (the AI stuck-detector and pack contact), not new. Same-config
+    HEAD A/B: Terminal Nine HEAD's worst non-pit stall was **6250 ms at 84 s**
+    against this build's **5750 ms at 138 s**; Proving Ground HEAD **8250 ms at
+    61 s** against **9250 ms at 81 s**, with HEAD at 7/8 upright and this build
+    at 8/8. Clean races on both tracks ran all-upright, all-finite, 0 falls on
+    Proving Ground, laps progressing, no console errors. **The trap:** an early
+    stress run that held three of eight cars pinned at 30% health for two
+    minutes produced 5/8 upright and a 15 s stall — entirely an artifact of the
+    test, not the feature (the field recovered to 8/8 as soon as the injection
+    stopped). Do not read a deliberately-wrecked field as a regression signal.
+  - **Accepted behaviour, not a bug:** a car whose lap decision fires while the
+    box is already behind it commits, notices within a frame or two, and
+    abandons — observed live on both tracks. It races on and pits properly at
+    the next crossing rather than crawling backwards to a box it has passed.
+
+
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

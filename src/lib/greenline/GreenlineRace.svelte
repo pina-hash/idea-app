@@ -100,6 +100,7 @@
 		AiDriver,
 		VEHICLE_TRACTION_ACCEL,
 		aiTuningFor,
+		branchProbability,
 		chooseWeaponIntent,
 		fireThreshold,
 		type AiSkill,
@@ -5378,9 +5379,64 @@
 				// may still override it per box (zn.repairPerSec); none do today.
 				const PIT_REPAIR_PER_SEC = 125;
 				const PIT_STOP_SPEED = 2.5; // m/s at or below = stopped in the box
-				// AI takes the pit lane when its chassis drops below this fraction
-				// (simple usage only; strategic pitting is Phase 9d's job).
+				// AI takes the pit lane when its chassis drops below this fraction.
 				const PIT_AI_HEALTH_FRAC = 0.5;
+				// ...and leaves the box once it is this full again, measured across ALL
+				// THREE pools rather than chassis alone (Phase 9d-iii). Total, because
+				// the two things worth stopping for are a chewed hull and a destroyed
+				// mount, and 0.9 of the total budget cannot be reached with a dead mount
+				// on any archetype (the smallest mount share is 25%), so one number
+				// covers both without a second clause.
+				//
+				// At PIT_REPAIR_PER_SEC 125 a typical stop is short: a VELOCITY build
+				// (182 total) pitting at half chassis is repaired in well under a
+				// second, a full ARMOR rebuild (416) in about three. The timeouts in
+				// ai.ts (PIT_HOLD_MAX_SEC / PIT_COMMIT_MAX_SEC) only ever catch a car
+				// that CANNOT heal.
+				const PIT_AI_RESUME_FRAC = 0.9;
+				// Which zones are repair boxes, resolved once: the driver asks "am I in
+				// one" every frame and this keeps that a two-element scan.
+				const pitZoneIdx: number[] = [];
+				for (let i = 0; i < rt.zones.length; i++) if (rt.zones[i].type === 'pit') pitZoneIdx.push(i);
+				const inPitBox = (r: Rig): boolean => {
+					for (const zi of pitZoneIdx) if (r.zoneInside[zi]) return true;
+					return false;
+				};
+				/** Total health across all three pools, 0..1. */
+				const totalHealthFrac = (c: VehicleCombat): number => {
+					const max = Math.max(1, c.maxArmor + c.maxChassis + c.maxMount);
+					return Math.max(0, Math.min(1, (c.armorHealth + c.chassisHealth + c.mountHealth) / max));
+				};
+
+				// ---- Race position (Phase 9d-iii) ----
+				// ONE ordering function, two consumers: the HUD standings tower and the
+				// AI's per-lap route decision. Hoisted out of the standings block rather
+				// than duplicated, so "who is ahead" can never mean two different things.
+				// Laps > checkpoints > distance to the next gate; finished cars hold
+				// their finishing position and eliminated cars sink.
+				const standingScore = (r: Rig): number => {
+					if (r.combat.eliminated) return -1e12 + r.tracker.lapsCompleted;
+					if (r.finished) return 1e12 - r.finishPos;
+					const g =
+						r.tracker.nextCheckpoint < rt.checkpoints.length
+							? rt.checkpoints[r.tracker.nextCheckpoint]
+							: rt.startFinish;
+					const d = Math.hypot(g.gate.x - r.body.position.x, g.gate.z - r.body.position.z);
+					return (
+						(r.tracker.timing ? 1e9 : 0) +
+						r.tracker.lapsCompleted * 1e7 +
+						r.tracker.nextCheckpoint * 1e5 -
+						d
+					);
+				};
+				/** 0 = leading the field, 1 = last. */
+				const racePositionFrac = (r: Rig, field: Rig[]): number => {
+					if (field.length < 2) return 0;
+					const mine = standingScore(r);
+					let ahead = 0;
+					for (const q of field) if (q !== r && standingScore(q) > mine) ahead++;
+					return ahead / (field.length - 1);
+				};
 				// Absolute sim-clock ms at which controls unlock (GO). Set
 				// here for the initial launch and re-armed by resetRound each round.
 				let raceStartAtMs = gameNow() + COUNTDOWN_SEC * 1000;
@@ -6139,6 +6195,52 @@
 							weapons: { ...r.weapons },
 							abilities: { ...r.abilities }
 						})),
+					// Pit-stop + route strategy introspection (Phase 9d-iii). Verification
+					// only: reading it neither starts nor ends a stop.
+					pitInfo: (rigId = 'ai-1') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						const c = r.combat;
+						return {
+							id: r.id,
+							route: r.ai?.currentRoute ?? null,
+							pitRoutes: rt.pitRoutes,
+							pitting: !!r.ai?.pitting,
+							phase: r.ai?.pitState ?? 'none',
+							heldMs: Math.round(r.ai?.pitHeldMs(gameNow()) ?? 0),
+							inPitBox: inPitBox(r),
+							speed: Math.hypot(r.body.velocity.x, r.body.velocity.z),
+							chassisFrac: c.chassisHealth / Math.max(1, c.maxChassis),
+							totalFrac: totalHealthFrac(c),
+							resumeAt: PIT_AI_RESUME_FRAC,
+							mountDown: c.mountDown,
+							positionFrac: racePositionFrac(r, rigsAll())
+						};
+					},
+					// Force a rig into a committed pit stop (the lap decision normally does
+					// this), so a scripted drive does not have to wait for one to be hurt.
+					forcePit: (rigId = 'ai-1') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r?.ai || rt.pitRoutes.length === 0) return false;
+						return r.ai.startPitStop(rt.pitRoutes[0], gameNow());
+					},
+					endPit: (rigId = 'ai-1') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						r?.ai?.endPitStop();
+						return r?.ai?.pitState ?? null;
+					},
+					// The branch probability this rig would use right now, and the signals
+					// behind it, without actually rolling for a route.
+					routeOdds: (rigId = 'ai-1') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						const ctx = {
+							aggression: num(tuning.aiAggression, DEFAULTS.aiAggression),
+							healthFrac: r.combat.chassisHealth / Math.max(1, r.combat.maxChassis),
+							positionFrac: racePositionFrac(r, rigsAll())
+						};
+						return { ...ctx, pBranch: branchProbability(ctx) };
+					},
 					getProjectiles: () => projectiles.map((p) => ({ ...p })),
 					getCaltrops: () => caltropFields.map((f) => ({ ...f, nextHitMs: { ...f.nextHitMs } })),
 					// Defensive-weapon state for the 4b-ii verification drives: shield
@@ -6766,13 +6868,19 @@
 									warmIdx: rig.warmIdx,
 									onRibbon: rig.lastOnRibbon,
 									nowMs: now,
-									dtMs: dt * 1000
+									dtMs: dt * 1000,
+									// Zone occupancy is refreshed once per frame by the
+									// zoneEntries pass further down, so this reads one frame
+									// stale -- 4 cm at the 2.5 m/s the box cares about.
+									inPitBox: inPitBox(rig)
 								},
 								aiTuningForRig(rig, aiT)
 							);
 							sIn = c.steer;
 							thr = c.throttle;
 							brk = c.brake;
+							// The AI only ever raises this to hold itself still in a pit box.
+							hbk = !!c.handbrake;
 						}
 
 						// Race-start control lock: until GO, zero every control for
@@ -7410,6 +7518,16 @@
 									}
 								}
 							}
+						}
+
+						// Pit release (Phase 9d-iii): the health half of the resume
+						// condition, checked right where the repair is applied so a car
+						// leaves on the frame it is fixed. The two TIME limits live in
+						// the driver itself (PIT_HOLD_MAX_SEC / PIT_COMMIT_MAX_SEC),
+						// because it owns the clock it is stopped against; between them
+						// no pit stop can last forever whatever happens to the box.
+						if (rig.ai?.pitting && totalHealthFrac(rig.combat) >= PIT_AI_RESUME_FRAC) {
+							rig.ai.endPitStop();
 						}
 
 						// Status tint + scorch, in the brand palette: dead steel when
@@ -8162,11 +8280,25 @@
 								// most of the field's weapons permanently offline while every
 								// car still drove past a repair box it had no rule to enter.
 								// `repair()` revives a dead mount, so the box already fixes it.
-								const hurt =
-									rig.combat.chassisHealth / Math.max(1, rig.combat.maxChassis) <
-										PIT_AI_HEALTH_FRAC || rig.combat.mountDown;
-								if (hurt && rt.pitRoutes.length > 0) rig.ai.setRoute(rt.pitRoutes[0]);
-								else rig.ai.chooseRoute(num(tuning.aiAggression, DEFAULTS.aiAggression));
+								const healthFrac =
+									rig.combat.chassisHealth / Math.max(1, rig.combat.maxChassis);
+								const hurt = healthFrac < PIT_AI_HEALTH_FRAC || rig.combat.mountDown;
+								// Phase 9d-iii: taking the lane now COMMITS to stopping in the
+								// box (startPitStop), which is what Phase 9c was missing -- it
+								// re-routed and then drove straight through at racing speed,
+								// and the box only pays out to a car that is stopped.
+								if (hurt && rt.pitRoutes.length > 0) rig.ai.startPitStop(rt.pitRoutes[0], now);
+								else {
+									// Informed branch choice (Phase 9d-iii): the same weighted
+									// coin flip, but weighted by what this driver actually has
+									// to lose and to gain rather than by aggression alone.
+									rig.ai.endPitStop();
+									rig.ai.chooseRoute({
+										aggression: num(tuning.aiAggression, DEFAULTS.aiAggression),
+										healthFrac,
+										positionFrac: racePositionFrac(rig, all)
+									});
+								}
 							}
 							if (rig === player) {
 								if (ev.type === 'timing-started') {
@@ -8579,26 +8711,8 @@
 					// Standings (~5 Hz): laps > checkpoints > distance to next gate;
 					// finished vehicles hold their finishing position, eliminated sink.
 					if (frame % 12 === 0) {
-						const score = (r: Rig) => {
-							if (r.combat.eliminated) return -1e12 + r.tracker.lapsCompleted;
-							if (r.finished) return 1e12 - r.finishPos;
-							const g =
-								r.tracker.nextCheckpoint < rt.checkpoints.length
-									? rt.checkpoints[r.tracker.nextCheckpoint]
-									: rt.startFinish;
-							const d = Math.hypot(
-								g.gate.x - r.body.position.x,
-								g.gate.z - r.body.position.z
-							);
-							return (
-								(r.tracker.timing ? 1e9 : 0) +
-								r.tracker.lapsCompleted * 1e7 +
-								r.tracker.nextCheckpoint * 1e5 -
-								d
-							);
-						};
 						standings = [...all]
-							.sort((a, b) => score(b) - score(a))
+							.sort((a, b) => standingScore(b) - standingScore(a))
 							.map((r, i) => ({
 								pos: i + 1,
 								label: r.label,

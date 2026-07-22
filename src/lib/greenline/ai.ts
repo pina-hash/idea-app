@@ -248,6 +248,13 @@ export interface AiControls {
 	throttle: number;
 	/** Doubles as reverse at standstill (the harness's S-key semantics). */
 	brake: number;
+	/**
+	 * Rear-axle lock. Omitted / false for every normal driving frame — the AI
+	 * does not drift. It exists because a pit stop has to HOLD the car still, and
+	 * `brake` cannot do that: at a standstill the harness reads brake as reverse
+	 * and would back the car out of the repair box (Phase 9d-iii).
+	 */
+	handbrake?: boolean;
 }
 
 export interface AiDriveState {
@@ -262,6 +269,10 @@ export interface AiDriveState {
 	onRibbon: boolean;
 	nowMs: number;
 	dtMs: number;
+	/** Inside a pit repair box right now (Phase 9d-iii). The harness already
+	 * tracks zone occupancy per vehicle, so this is a read of existing state
+	 * rather than a second containment test. Omitted = not pitting. */
+	inPitBox?: boolean;
 }
 
 /** Point spacing on a route, the unit the lookahead/braking sweep counts in. */
@@ -594,6 +605,93 @@ export function chooseWeaponIntent(a: WeaponIntent, b: WeaponIntent): WeaponInte
 	return cheaper();
 }
 
+// ---------------------------------------------------------------------------
+// Route strategy and pit stops (Phase 9d-iii)
+// ---------------------------------------------------------------------------
+
+/** What a driver knows about its own situation when it picks a lap route. */
+export interface RouteChoice {
+	/** 0..1 driver boldness (`AiSkill.aggression`). */
+	aggression: number;
+	/** Chassis fraction, 0 = about to go down, 1 = untouched. Chassis and not
+	 * total health on purpose: it is the only pool that ends a race, and it is
+	 * the same pool the pit-lane trigger reads, so "hurt" means one thing. */
+	healthFrac: number;
+	/** Race position, 0 = leading the field, 1 = last. */
+	positionFrac: number;
+}
+
+/**
+ * Weights for the branch coin flip. The structure is unchanged from Phase 8b —
+ * one probability, one `rand()` — but three real signals set it instead of
+ * aggression alone.
+ *
+ * Calibrated so the FIELD-WIDE shortcut rate barely moves and only its
+ * DISTRIBUTION changes: at the default aggression 0.5, a healthy mid-field car
+ * sits at 0.445 against the old flat 0.425. What changed is who gambles:
+ *   healthy leader (pos 0)       0.295   |  healthy last (pos 1)   0.595
+ *   half-chassis mid-field       0.220   |  quarter-chassis leader 0.050 (floor)
+ * so a car at the back is roughly twice as likely to take the risky line as the
+ * one in front, and a badly damaged car is half as likely as a healthy one.
+ *
+ * The 0.05 floor is deliberate: a beaten-up leader should almost never gamble,
+ * but "almost never" keeps the field from being perfectly predictable.
+ */
+export const ROUTE_CHOICE = {
+	base: 0.12,
+	/** Bolder drivers still gamble more; just no longer the only input. */
+	aggression: 0.35,
+	/** Nothing to lose: a car at the back leans into the risky line. */
+	position: 0.3,
+	/** Everything to lose: missing chassis pulls hard toward the safe line. */
+	damage: 0.45,
+	min: 0.05,
+	max: 0.85
+};
+
+/** Probability this driver takes a risk/reward branch this lap. */
+export function branchProbability(c: RouteChoice): number {
+	const W = ROUTE_CHOICE;
+	const p =
+		W.base +
+		W.aggression * clamp01(c.aggression) +
+		W.position * clamp01(c.positionFrac) -
+		W.damage * (1 - clamp01(c.healthFrac));
+	return Math.max(W.min, Math.min(W.max, p));
+}
+
+/**
+ * The pit-stop behavioural state, layered ON TOP of route following rather than
+ * beside it (Phase 9d-iii). Phase 9c only ever re-routed a hurt car onto the pit
+ * lane; it then drove through the repair box at racing speed and healed nothing,
+ * because the box heals only while genuinely stopped.
+ *
+ *  - `approach`  driving the pit lane, braking for the box. The box is fed into
+ *                the SAME braking-distance integral the corner sweep uses, as a
+ *                corner whose corner speed is ZERO, so stopping needs no second
+ *                speed controller.
+ *  - `stopping`  inside the box, still rolling: brakes on.
+ *  - `held`      parked and repairing. The only genuinely new control state.
+ */
+export type PitPhase = 'none' | 'approach' | 'stopping' | 'held';
+
+/** At or below this speed (m/s) the car counts as parked. Well under the pit
+ * zone's own `stopSpeed` (2.5), so the repair is already running by the time the
+ * driver considers itself stopped. */
+export const PIT_HOLD_SPEED = 0.6;
+/** Longest the AI will sit in the box. Nothing should ever reach it — 6 s of
+ * repair is more health than any build owns — so it exists purely so a car that
+ * CANNOT heal (a zone that stops paying out, a box it is being shoved out of)
+ * rejoins the race instead of parking there for good. */
+export const PIT_HOLD_MAX_SEC = 6;
+/** Longest a pit stop stays committed from the moment it is taken. Covers
+ * driving the lane, stopping, and healing; a car that never arrives (knocked
+ * off, spun, blocked) gives up and races on rather than crawling forever. */
+export const PIT_COMMIT_MAX_SEC = 30;
+/** Aim to come to rest this far PAST the box centre, as a fraction of its
+ * radius, so a slightly short stop is still inside the zone. */
+const PIT_AIM_PAST_RADIUS = 0.5;
+
 export class AiDriver {
 	private readonly rt: TrackRuntime;
 	/**
@@ -636,6 +734,14 @@ export class AiDriver {
 	 */
 	private focusId: string | null = null;
 	private focusUntilMs = 0;
+	/** Pit-stop state (Phase 9d-iii). `pitIdx` is the point on the CURRENT route
+	 * nearest the repair box, so the stop is expressed in the same units the
+	 * corner sweep already works in. */
+	private pitPhase: PitPhase = 'none';
+	private pitIdx = -1;
+	private pitAimM = 0;
+	private pitCommitMs = 0;
+	private pitHeldSinceMs = 0;
 
 	constructor(rt: TrackRuntime) {
 		this.rt = rt;
@@ -662,16 +768,17 @@ export class AiDriver {
 	}
 
 	/**
-	 * Per-lap branch decision. Deliberately shallow: real route tactics (is the
-	 * shortcut worth it given my hull, who is behind me, is the hazard already
-	 * triggered) are Phase 9's job. A bolder driver gambles on the risky line
-	 * more often, so a field with mixed aggression splits across both routes.
+	 * Per-lap branch decision (Phase 8b, informed in 9d-iii).
+	 *
+	 * Still ONE weighted coin flip — deliberately not a new decision framework —
+	 * but the weight is now a read of the driver's actual situation instead of
+	 * aggression alone. See `ROUTE_CHOICE` for the terms and what they land on.
 	 * `rand` is injected so a scripted drive can force a route.
 	 */
-	chooseRoute(aggression: number, rand: () => number = Math.random): number {
+	chooseRoute(c: RouteChoice, rand: () => number = Math.random): number {
 		// Only risk/reward alternatives are eligible for the random branch pick:
 		// PIT lanes (Phase 9c) are deliberate slow repair detours, reached only by
-		// the harness's "pit when hurt" heuristic (which calls setRoute directly),
+		// the harness's "pit when hurt" heuristic (which calls startPitStop),
 		// never gambled onto by a healthy car. On a track whose only alternative is
 		// a pit lane (e.g. Proving Ground), that leaves nothing to pick and the
 		// driver stays on the main line.
@@ -682,10 +789,78 @@ export class AiDriver {
 			this.setRoute(0);
 			return this.routeIdx;
 		}
-		const pBranch = 0.2 + 0.45 * Math.max(0, Math.min(1, aggression));
-		const next = rand() < pBranch ? eligible[Math.floor(rand() * eligible.length)] : 0;
+		const p = branchProbability(c);
+		const next = rand() < p ? eligible[Math.floor(rand() * eligible.length)] : 0;
 		this.setRoute(next);
 		return this.routeIdx;
+	}
+
+	// ---- Pit stops (Phase 9d-iii) ----------------------------------------
+
+	/** Is a pit stop currently committed? */
+	get pitting(): boolean {
+		return this.pitPhase !== 'none';
+	}
+
+	/** Current pit phase (`'none'` when racing normally). */
+	get pitState(): PitPhase {
+		return this.pitPhase;
+	}
+
+	/**
+	 * Take the pit lane AND commit to actually stopping in its repair box. The
+	 * route change is the Phase 9c behaviour; the commitment is what makes the
+	 * detour pay.
+	 *
+	 * Returns false when the lane has no repair box to aim at, in which case the
+	 * car simply drives the lane as it did before rather than braking for
+	 * nothing.
+	 */
+	startPitStop(routeIdx: number, nowMs: number): boolean {
+		this.setRoute(routeIdx);
+		// The box is found on the route the car is now driving, so the distance
+		// to it is a plain walk along that polyline.
+		const pts = this.route;
+		let bestZone = -1;
+		let bestIdx = -1;
+		let bestD = Infinity;
+		for (const z of this.rt.zones) {
+			if (z.type !== 'pit') continue;
+			for (let i = 0; i < pts.length; i++) {
+				const d = (pts[i].x - z.x) * (pts[i].x - z.x) + (pts[i].z - z.z) * (pts[i].z - z.z);
+				if (d < bestD) {
+					bestD = d;
+					bestIdx = i;
+					bestZone = this.rt.zones.indexOf(z);
+				}
+			}
+		}
+		this.pitCommitMs = nowMs;
+		this.pitHeldSinceMs = 0;
+		if (bestZone < 0 || bestIdx < 0) {
+			this.pitPhase = 'none';
+			this.pitIdx = -1;
+			return false;
+		}
+		const zone = this.rt.zones[bestZone];
+		this.pitIdx = bestIdx;
+		this.pitAimM = zone.type === 'pit' ? zone.radius * PIT_AIM_PAST_RADIUS : 0;
+		this.pitPhase = 'approach';
+		return true;
+	}
+
+	/** Release the car back to racing. Deliberately does NOT touch the route: it
+	 * is mid-lap on the pit lane and has to finish driving it to rejoin lawfully
+	 * (the lane is a grouped-checkpoint alternative). */
+	endPitStop(): void {
+		this.pitPhase = 'none';
+		this.pitIdx = -1;
+		this.pitHeldSinceMs = 0;
+	}
+
+	/** How long the car has been parked in the box, ms (0 = not parked). */
+	pitHeldMs(nowMs: number): number {
+		return this.pitPhase === 'held' ? Math.max(0, nowMs - this.pitHeldSinceMs) : 0;
 	}
 
 	/** Warm-started nearest point on the current route. */
@@ -728,6 +903,48 @@ export class AiDriver {
 			return { steer: 0, throttle: 0, brake: 1 };
 		}
 
+		// ---- Pit stop (Phase 9d-iii) ----
+		// The one genuinely new control state. Everything before the car is
+		// parked reuses the normal driving loop: the box enters the ordinary
+		// braking sweep below as a corner whose corner speed is ZERO, so there is
+		// no second speed controller to fight the first one. Only the final
+		// hold — sitting still while the box repairs — short-circuits.
+		if (this.pitPhase !== 'none') {
+			// Self-limiting: a stop that never completes releases the car rather
+			// than parking it forever. Neither should ever fire in a normal race.
+			if (
+				s.nowMs - this.pitCommitMs > PIT_COMMIT_MAX_SEC * 1000 ||
+				(this.pitPhase === 'held' && s.nowMs - this.pitHeldSinceMs > PIT_HOLD_MAX_SEC * 1000)
+			) {
+				this.endPitStop();
+			} else if (s.inPitBox) {
+				if (this.pitPhase === 'approach') this.pitPhase = 'stopping';
+				if (this.pitPhase === 'stopping' && s.speed <= PIT_HOLD_SPEED) {
+					this.pitPhase = 'held';
+					this.pitHeldSinceMs = s.nowMs;
+				}
+			} else if (this.pitPhase !== 'approach') {
+				// Rolled or was shoved back out of the box: aim for it again.
+				this.pitPhase = 'approach';
+			}
+			if (this.pitPhase === 'stopping' || this.pitPhase === 'held') {
+				// Sit still. `brake` is used ONLY while `stopping` — a phase that by
+				// construction means the car rolled in under power and is still
+				// moving forward. Once parked it is dropped entirely, because the
+				// harness maps brake below walking pace to REVERSE (the S-key
+				// semantics): held against a car that had drifted even slightly
+				// backwards it would drive it out of the box under power. The
+				// HANDBRAKE (rear lock) is what pins it, and it has no such
+				// second meaning.
+				return {
+					steer: 0,
+					throttle: 0,
+					brake: this.pitPhase === 'stopping' ? 1 : 0,
+					handbrake: true
+				};
+			}
+		}
+
 		// Allowed speed now: the tightest constraint among upcoming corner
 		// speeds, each relaxed by the distance available to brake for it.
 		//
@@ -756,6 +973,31 @@ export class AiDriver {
 					? Math.sqrt(Math.max(0, ((a0 + k * vC * vC) * Math.exp(2 * k * d) - a0) / k))
 					: Math.sqrt(vC * vC + 2 * a0 * d);
 			if (v < allowed) allowed = v;
+		}
+
+		// The pit box as a corner with corner speed ZERO. Same integral, vC = 0,
+		// so the approach brakes exactly as hard as it does for a hairpin and no
+		// separate stopping controller exists. The aim point sits slightly PAST
+		// the box centre so a marginally short stop still comes to rest inside it.
+		//
+		// Unlike the sweep above this is NOT limited to the braking horizon: it is
+		// one evaluation, and while the box is far away it simply returns a speed
+		// above `topSpeed` and binds nothing.
+		if (this.pitPhase === 'approach' && this.pitIdx >= 0) {
+			const ahead = (((this.pitIdx - idx) % n) + n) % n;
+			if (ahead > n * 0.5) {
+				// The box is behind us: we drove past without stopping (shoved,
+				// spun, or arrived too fast). Give up on this stop rather than
+				// crawling a whole lap back to it; the lap decision can pit again.
+				this.endPitStop();
+			} else {
+				const d = Math.max(0, ahead * this.spacing + this.pitAimM);
+				const v =
+					k > 1e-6
+						? Math.sqrt(Math.max(0, (a0 * (Math.exp(2 * k * d) - 1)) / k))
+						: Math.sqrt(2 * a0 * d);
+				if (v < allowed) allowed = v;
+			}
 		}
 
 		// Pure pursuit at a speed-scaled lookahead; when off the ribbon, aim
