@@ -808,7 +808,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='208';
+const VERSION='209';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -825,6 +825,8 @@ const BAL_DEFAULTS = {
   flakDps:19,                         // FLAK cloud base damage per second
   flakR:56,                           // FLAK cloud base radius px
   flakBandMin:150, flakBandMax:380,   // FLAK airburst detonation band px
+  bouncePerLevel:1,                   // RICOCHET bounces granted per level (ONE budget shared by wall reflects and enemy redirects)
+  bounceSeekR:260,                    // RICOCHET search radius px for the next target after an enemy bounce
   slugPer:0.12,                       // SLUG LOAD per-level pellet damage
   flankBase:0.55, flankPer:0.07,      // FLANK gun damage base + per gun level
   droneCd:0.30,                       // DRONE fire cooldown seconds
@@ -864,6 +866,8 @@ const BAL_META = [
   {key:'flakR',label:'FLAK cloud radius',group:'PLAYER',min:30,max:90,step:2},
   {key:'flakBandMin',label:'FLAK band min',group:'PLAYER',min:80,max:300,step:10},
   {key:'flakBandMax',label:'FLAK band max',group:'PLAYER',min:200,max:500,step:10},
+  {key:'bouncePerLevel',label:'RICOCHET /lvl',group:'PLAYER',min:1,max:4,step:1},
+  {key:'bounceSeekR',label:'RICOCHET seek radius',group:'PLAYER',min:120,max:420,step:10},
   {key:'slugPer',label:'SLUG LOAD /lvl',group:'PLAYER',min:0.05,max:0.30,step:0.01},
   {key:'flankBase',label:'FLANK base dmg',group:'PLAYER',min:0.20,max:0.80,step:0.01},
   {key:'flankPer',label:'FLANK dmg /gun lvl',group:'PLAYER',min:0.00,max:0.15,step:0.01},
@@ -1089,7 +1093,7 @@ let hybridTimer=0;
 let gameMode='normal';
 let runContinued=0;   // integer count of how many times THIS run was resumed from a saved checkpoint (0037); rides every later checkpoint + the score submit as cont=<count>
 const START_BUDGET=1000;
-function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0,grace:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
+function freshBuild(){ return { up:{gun:1,beamPow:1,beamCap:1,speed:1,beamPierce:1,beamSpool:1,flank:0,bounce:0,armor:0,heavyPow:1,heavyChg:1,teslaJump:1,singAmp:1,wavePow:1,railPow:1,railCap:1,teslaDps:1,singCrush:1,mSpread:0,mRapid:0,mLance:0,mHoming:0,bombPow:1,bArmor:0,shieldChg:0,droneLv:0,mParry:0,bParry:0,probe:0,grace:0}, unlocked:{spread:1,lance:0,homing:0,rapid:0,flak:0,buzzsaw:0}, heavyUnlocked:{beam:1,rail:0,tesla:0,singularity:0,wave:0}, wtype:'spread', heavy:'beam', bombs:2, shieldHits:0, drone:null, spent:0 }; }
 let startBuild=freshBuild();
 /* PHASE BUFFER / grace caps. Declared here (not with the other grace dials far
    below) because outfitOffers() references GRACE_MAX, and buildCost() calls
@@ -2350,6 +2354,34 @@ const BOSS_COLLATERAL=6;   // boss friendly-fire chip damage to its own grunts (
 /* SPREAD range + FLAK cloud/band dials moved into BAL (spreadFullRange/spreadFarFloor, flakDps/flakR/flakBandMin/flakBandMax) so the tune panel drives them live */
 const FLAK_CLOUD_LIFE=0.45, FLAK_EARLY=0.75, FLAK_COL='#FFB000';
 const LANCE_PIERCE_CAP=6;                                          // base-kit RAILSPIKE pierce limit (enemies per bolt); keystone behavior unchanged
+/* ===================== RICOCHET (u.bounce) =====================
+   ONE charge budget per projectile, spent by both wall reflects and enemy
+   redirects. Resolved LAZILY on first use rather than stamped at every
+   pbul.push, so every spawn site inherits it untouched - the six primaries,
+   FLANK guns, the drone, SCATTER SPIKE's splits. BUZZSAW is the one primary
+   this can never reach: it pushes no pbul at all (orbiting contact blades plus
+   the separate sawThrow boomerang object), so it is called out on the card.
+   Bounce NEVER decays damage: the charge count is the whole budget, which is
+   what lets a pierce-decayed pellet or a ramped IMPALER bolt cross the
+   pierce-to-bounce handoff carrying exactly the damage it had earned. */
+const BOUNCE_SKIP_SEC=0.12;    // per-bullet deafness to the hull it just left, so one enemy can never eat the whole budget
+function bounceBudget(b){ if(b.bnc===undefined){ const pl=players[b.pi||0]||player;
+    b.bnc=Math.max(0,((pl&&pl.up&&pl.up.bounce)||0)*BAL.bouncePerLevel); } return b.bnc; }
+/* redirect off a hull: hunt the nearest OTHER live enemy in range (the boss
+   counts as a destination, so an add can kick a shot into it), else turn back
+   the way it came with a little scatter. Speed and damage are preserved. */
+function bounceOffEnemy(b,from){
+  const sp=Math.hypot(b.vx,b.vy)||600, R2=BAL.bounceSeekR*BAL.bounceSeekR;
+  let best=null,bd=R2;
+  for(const e2 of enemies){ if(e2.dead||e2===from)continue; const d=dist2(e2.x,e2.y,b.x,b.y); if(d<bd){bd=d;best=e2;} }
+  if(!best && boss && !boss.entering && !boss.dying && dist2(boss.x,boss.y,b.x,b.y)<R2) best=boss;
+  const a = best ? Math.atan2(best.y-b.y,best.x-b.x) : Math.atan2(-b.vy,-b.vx)+rnd(-0.6,0.6);
+  b.vx=Math.cos(a)*sp; b.vy=Math.sin(a)*sp;
+  b.bSkip=from; b.bSkipT=BOUNCE_SKIP_SEC;
+  if(b.target!==undefined && best) b.target=best;   // a SWARM dart re-acquires onto the new mark instead of re-homing the hull it just left
+  bounceFx(b); }
+function bounceFx(b){ rings.push({x:b.x,y:b.y,r:2,vr:130,life:.16,max:.16,c:COL.gold});
+  for(let q=0;q<2;q++) parts.push({x:b.x,y:b.y,vx:rnd(-50,50),vy:rnd(-50,50),life:.14,max:.14,c:COL.gold,sz:1.2}); }
 const BUZZSAW_ORBIT=54;                                            // BALANCE DIAL - do not expose as an upgrade
 const BUZZSAW_BLADE_R=13, BUZZSAW_SPEED=3.2, BUZZSAW_DPS_PER_BLADE=24.0, BUZZSAW_FWD_DMG=0.42;
 /* MELTDOWN (endgame active): fire-RATE overload only, kill-recharged. Phase 1 core; upgrade tree is Phase 2. */
@@ -2375,6 +2407,7 @@ function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.
   ]:[]),
   {grp:'WEAPONS',name:'GUN POWER',icon:'gun',desc:'Boosts damage on all primary weapons.',delta:'x'+pdN.toFixed(2)+' -> x'+pdX.toFixed(2),lv:u.gun,mx:8,cost:400+(u.gun-1)*250,can:u.gun<8,buy:()=>u.gun++},
   {grp:'WEAPONS',name:'FLANK GUNS',icon:'flank',desc:'Forward side guns that scale with GUN POWER. Lv 2 widens, Lv 3 adds rear coverage.',delta:'+ side guns',lv:u.flank,mx:3,cost:[450,700,1000][Math.min(u.flank,2)],can:u.flank<3,buy:()=>u.flank++},
+  {grp:'WEAPONS',name:'RICOCHET',icon:'ricochet',desc:'Shots skip off the side walls and off hulls instead of dying, hunting a new target and hitting again. Every primary but BUZZSAW, which throws no shots.',delta:'+1 bounce',lv:u.bounce||0,mx:5,cost:400+(u.bounce||0)*250,can:(u.bounce||0)<5,buy:()=>{u.bounce=(u.bounce||0)+1;}},
   {grp:'WEAPONS',name:'SPREAD',icon:'w_spread',desc:'Your starting primary: a brawler shotgun with a point-blank bonus.',lv:0,mx:0,meta:'OWNED',cost:0,can:false,buy:()=>{}},
   {grp:'WEAPONS',name:'SCATTER CHOKE',icon:'w_spread',desc:'Adds a SPREAD pellet and tightens the cone for more focus.',delta:'+1 pellet',lv:u.mSpread||0,mx:3,cost:300+(u.mSpread||0)*220,can:(u.mSpread||0)<3,buy:()=>{u.mSpread=(u.mSpread||0)+1;}},
   {grp:'WEAPONS',name:'SLUG LOAD',icon:'w_spread',desc:'Heavier SPREAD pellets hit harder per hit.',delta:'+12% pellet dmg',lv:u.bSpread||0,mx:3,cost:320+(u.bSpread||0)*230,can:(u.bSpread||0)<3,buy:()=>{u.bSpread=(u.bSpread||0)+1;}},
@@ -2410,7 +2443,7 @@ function outfitOffers(){ const b=startBuild, u=b.up; const pdN=(1+(u.gun-1)*BAL.
   {grp:'SYSTEMS',name:'DRONE',icon:'drone',desc:'Auto-targeting wingman. Damage scales with GUN POWER; twins at high power.',lv:b.drone?1:0,mx:0,meta:b.drone?'OWNED':'i¢600',cost:600,can:!b.drone,buy:()=>{b.drone={ph:0};}},
   ...(b.drone?[{grp:'SYSTEMS',name:'DRONE ARMS',icon:'drone',desc:'Increases DRONE damage. Requires a DRONE.',delta:'+35% dmg',lv:u.droneLv||0,mx:3,cost:400+(u.droneLv||0)*240,can:(u.droneLv||0)<3,buy:()=>{u.droneLv=(u.droneLv||0)+1;}}]:[])
 ];}
-function buildCount(){ const u=startBuild.up,b=startBuild; const hu=b.heavyUnlocked||{}; return (u.gun-1)+(u.beamPow-1)+(u.beamCap-1)+(u.beamPierce-1)+(u.beamSpool-1)+(u.speed-1)+u.flank+u.armor+b.shieldHits+(b.bombs-2)+(b.drone?1:0)+b.unlocked.lance+b.unlocked.homing+b.unlocked.rapid+((u.heavyPow||1)-1)+((u.heavyChg||1)-1)+((u.teslaJump||1)-1)+((u.singAmp||1)-1)+((u.wavePow||1)-1)+((u.railPow||1)-1)+((u.railCap||1)-1)+((u.teslaDps||1)-1)+((u.singCrush||1)-1)+(u.mSpread||0)+(u.mRapid||0)+(u.mLance||0)+(u.mHoming||0)+(u.bSpread||0)+(u.bRapid||0)+(u.bLance||0)+(u.bHoming||0)+(u.mFlak||0)+(u.bFlak||0)+(u.mBuzz||0)+(u.bBuzz||0)+((u.bombPow||1)-1)+(u.bArmor||0)+(u.grace||0)+(u.shieldChg||0)+(u.droneLv||0)+(u.mParry||0)+(u.bParry||0)+(hu.rail?1:0)+(hu.tesla?1:0)+(hu.singularity?1:0)+(hu.wave?1:0); }
+function buildCount(){ const u=startBuild.up,b=startBuild; const hu=b.heavyUnlocked||{}; return (u.gun-1)+(u.beamPow-1)+(u.beamCap-1)+(u.beamPierce-1)+(u.beamSpool-1)+(u.speed-1)+u.flank+(u.bounce||0)+u.armor+b.shieldHits+(b.bombs-2)+(b.drone?1:0)+b.unlocked.lance+b.unlocked.homing+b.unlocked.rapid+((u.heavyPow||1)-1)+((u.heavyChg||1)-1)+((u.teslaJump||1)-1)+((u.singAmp||1)-1)+((u.wavePow||1)-1)+((u.railPow||1)-1)+((u.railCap||1)-1)+((u.teslaDps||1)-1)+((u.singCrush||1)-1)+(u.mSpread||0)+(u.mRapid||0)+(u.mLance||0)+(u.mHoming||0)+(u.bSpread||0)+(u.bRapid||0)+(u.bLance||0)+(u.bHoming||0)+(u.mFlak||0)+(u.bFlak||0)+(u.mBuzz||0)+(u.bBuzz||0)+((u.bombPow||1)-1)+(u.bArmor||0)+(u.grace||0)+(u.shieldChg||0)+(u.droneLv||0)+(u.mParry||0)+(u.bParry||0)+(hu.rail?1:0)+(hu.tesla?1:0)+(hu.singularity?1:0)+(hu.wave?1:0); }
 const WCOL={spread:COL.green,lance:COL.cyan,homing:COL.gold,rapid:COL.mat,flak:FLAK_COL,buzzsaw:COL.green};
 const WDISP={spread:'SPREAD',lance:'RAILSPIKE',homing:'SWARM',rapid:'NAILGUN',flak:'FLAK',buzzsaw:'BUZZSAW'};
 const WROT_ICON={spread:'w_spread',lance:'w_lance',homing:'w_homing',rapid:'w_rapid',flak:'w_flak',buzzsaw:'w_buzz'};   // rotation-strip icon+short label maps (compact HUD only, WDISP unchanged elsewhere)
@@ -3276,7 +3309,12 @@ function update(dt){
         let na=cur+clamp(((ang-cur+Math.PI*3)%(Math.PI*2))-Math.PI,-(b.turn||3)*dt,(b.turn||3)*dt);
         const sp=Math.hypot(b.vx,b.vy); b.vx=Math.cos(na)*sp; b.vy=Math.sin(na)*sp; } }
     b.x+=b.vx*dt; b.y+=b.vy*dt;
-    if(b.y<-20||b.y>H+20||b.x<-20||b.x>W+20){pbul.splice(i,1);continue;}
+    if((b.bSkipT||0)>0) b.bSkipT-=dt;
+    /* RICOCHET walls: LEFT/RIGHT only. A y-bounce would let a shot live forever
+       between the top and bottom of the field, so the y-axis always culls. */
+    if(b.y<-20||b.y>H+20){pbul.splice(i,1);continue;}
+    if(b.x<-20||b.x>W+20){ if(bounceBudget(b)>0){ b.bnc--; b.vx=-b.vx; b.x=clamp(b.x,6,W-6); bounceFx(b); }
+      else { pbul.splice(i,1); continue; } }
     
     // Projectile-projectile collision & cancel-out / punch-through logic
     let bDmg = b.dmg || 0;
@@ -3387,6 +3425,7 @@ function update(dt){
     for(const bar of barriers){ if(Math.abs(b.x-bar.x)<bar.w/2 && Math.abs(b.y-bar.y)<bar.h/2+2){ hit=true;
       for(let k=0;k<2;k++)parts.push({x:b.x,y:b.y,vx:rnd(-40,40),vy:rnd(-10,30),life:.15,max:.15,c:bar.c,sz:1.3}); break; } }
     if(!hit) for(const e of enemies){ if(e.dead)continue;
+      if(e===b.bSkip && (b.bSkipT||0)>0) continue;   // RICOCHET: ignore the hull we just bounced off while still inside its radius
       if(dist2(e.x,e.y,b.x,b.y)<(e.r+2)*(e.r+2)){
         if(!b.hasHit){ b.hasHit=true; shotsHit++; const _bs=players[b.pi||0]; if(_bs)_bs.tallyShotsHit++; }   // count this projectile the first time it contacts any enemy (deduped; a pierce shot counts once); v206 also on the owning ship
         if(b.wt==='flak'){ detonateFlak(b,FLAK_EARLY); hit=true; break; }   // early contact -> weak airburst
@@ -3411,7 +3450,14 @@ function update(dt){
         if(b.frag){ for(const e2 of enemies){ if(e2.dead||e2===e)continue; if(dist2(e2.x,e2.y,b.x,b.y)<900){ e2.hp-=dmgEff*0.5; e2.flash=.08; if(e2.hp<=0){ window.killSrc='spread'; window.killerPi=b.pi; killEnemy(e2); } } } for(let qi=ebul.length-1;qi>=0;qi--){ const _eb=ebul[qi]; if(dist2(_eb.x,_eb.y,b.x,b.y)<900){ ebul.splice(qi,1); } } rings.push({x:b.x,y:b.y,r:4,vr:160,life:.18,max:.18,c:COL.green}); }
         if(b.ramp){ b.dmg=Math.min((b.dmg||0)*1.15,(b.dmg0||b.dmg)*2.5); }
         if(b.scatter){ for(let s=0;s<3;s++){ const fa=(s-1)*0.5; pbul.push({x:b.x,y:b.y,vx:Math.sin(fa)*360,vy:-820,c:COL.cyan,r:2.4,dmg:(b.dmg0||b.dmg)*0.5,len:14,wt:'rail',gl:b.gl,pi:b.pi}); } b.scatter=false; }
-        if(e.hp<=0){ window.killerPi=b.pi; killEnemy(e); } else { if(Audio_.play)Audio_.play('hit'); COOP.evHit(b.x,b.y,e.c,b.vx,b.vy); } if(!b.pierce){hit=true;} else if(b.pcount!=null){ if(b.wt!=='rail') b.dmg*=0.7; b.pcount--; if(b.pcount<=0){hit=true;} } break; } }   // per-pierce decay is the SPREAD pierce-keystone design; RAILSPIKE's pcount is a flat cap (impaler ramp untouched)
+        if(e.hp<=0){ window.killerPi=b.pi; killEnemy(e); } else { if(Audio_.play)Audio_.play('hit'); COOP.evHit(b.x,b.y,e.c,b.vx,b.vy); } if(!b.pierce){hit=true;} else if(b.pcount!=null){ if(b.wt!=='rail') b.dmg*=0.7; b.pcount--; if(b.pcount<=0){hit=true;} }   // per-pierce decay is the SPREAD pierce-keystone design; RAILSPIKE's pcount is a flat cap (impaler ramp untouched)
+        /* RICOCHET takes over only where the shot would otherwise die here, so
+           a LANCE bolt spends its whole pcount budget first, exactly as before.
+           The IMPALER ramp above already ran for this hit and needs no special
+           case: pierce-continuation and bounce-continuation are both just "this
+           bolt hit another hull", and b.dmg carries across the handoff. */
+        if(hit && bounceBudget(b)>0){ b.bnc--; hit=false; bounceOffEnemy(b,e); }
+        break; } }
     if(!hit && boss && !boss.entering && !boss.dying && dist2(boss.x,boss.y,b.x,b.y)<(boss.r)*(boss.r)){
       if(b.wt==='flak'){ detonateFlak(b,FLAK_EARLY); hit=true; }
       else { damageBoss(dmgEff); impactFX(b.x,b.y,boss.c,b.vx,b.vy); COOP.evHit(b.x,b.y,boss.c,b.vx,b.vy,1); if(!b.hasHit){ b.hasHit=true; shotsHit++; const _bs=players[b.pi||0]; if(_bs)_bs.tallyShotsHit++; } if(!b.pierce)hit=true; }
@@ -4064,6 +4110,7 @@ const SHOP_ICONS={
   beampierce: svgI('<path d="M3 12h13"/><path d="M12 8l5 4-5 4"/><path d="M6 7v10M9 7v10"/>'),
   beamspool: svgI('<circle cx="12" cy="12" r="8"/><path d="M12 12l5-3"/><path d="M12 4v2"/>'),
   flank: svgI('<path d="M12 5v14"/><path d="M6 9l-4 3 4 3"/><path d="M18 9l4 3-4 3"/>'),
+  ricochet: svgI('<path d="M4 4v16M20 4v16"/><path d="M6 6l12 7-12 5"/>'),   // shot zig-zagging between two walls (its own icon so the shop kit-grouper never folds it under GUN POWER)
   w_spread: svgI('<path d="M12 21V9"/><path d="M12 9L6 4M12 9l6-5M12 9V3"/>'),
   w_rapid: svgI('<path d="M9 3v6M12 3v8M15 3v6"/><path d="M12 21v-4"/>'),
   w_lance: svgI('<path d="M12 21V4"/><path d="M8 7l4-4 4 4"/>'),
@@ -4252,6 +4299,7 @@ function refitItems(){ const u=player.up; const pdN=(1+(u.gun-1)*BAL.gunCoef), p
   return [
     {grp:'WEAPONS',name:'GUN POWER',icon:'gun',desc:'Boosts damage on all primary weapons.',delta:'x'+pdN.toFixed(2)+' -> x'+pdX.toFixed(2),lv:u.gun,mx:8,cost:400+(u.gun-1)*250,can:u.gun<8,buy:()=>u.gun++},
     {grp:'WEAPONS',name:'FLANK GUNS',icon:'flank',desc:'Forward side guns that scale with GUN POWER. Lv 2 widens, Lv 3 adds rear coverage.',delta:'+ side guns',lv:u.flank||0,mx:3,cost:[450,700,1000][Math.min(u.flank||0,2)],can:(u.flank||0)<3,buy:()=>{u.flank=(u.flank||0)+1;}},
+    {grp:'WEAPONS',name:'RICOCHET',icon:'ricochet',desc:'Shots skip off the side walls and off hulls instead of dying, hunting a new target and hitting again. Every primary but BUZZSAW, which throws no shots.',delta:'+1 bounce',lv:u.bounce||0,mx:5,cost:400+(u.bounce||0)*250,can:(u.bounce||0)<5,buy:()=>{u.bounce=(u.bounce||0)+1;}},
     ...(showFlankKeystone?[dksCard('WEAPONS','flank','CONVERGENCE','flank','KEYSTONE: all side guns converge to a tight forward cone, tripling damage on-axis. Locks out BROADSIDE.','conv'),dksCard('WEAPONS','flank','BROADSIDE','flank','KEYSTONE: side guns fire 90° outward, clearing flanks but no forward coverage. Locks out CONVERGENCE.','broad')]:[]),
     ...['spread|SPREAD|0|w_spread|Brawler shotgun: tight fan, +25% inside 90px, solid floor at range.|1','homing|SWARM|400|w_homing|Auto-aiming darts. Good for crowds, weak per shot.|1','rapid|NAILGUN|350|w_rapid|Heat ramps power, redline locks the gun. Single-target.|1','flak|FLAK|550|w_flak|Mid-range airburst: shells pop into a damage cloud in the band.|2','lance|RAILSPIKE|650|w_lance|Slow, committed bolts that pierce a whole column.|2','buzzsaw|BUZZSAW|650|w_buzz|Contact blades orbit the ship. Pure melee; BLADE LAUNCHER adds a thrown blade.|2'].map(s=>{const p=s.split('|'),w=p[0],owned=!!player.unlocked[w],active=player.wtype===w,minS=+p[5],gated=!owned&&sector<minS;return {grp:'WEAPONS',name:p[1],icon:p[3],desc:p[4],lv:0,mx:0,meta:active?'EQUIPPED':owned?'EQUIP':gated?('SECTOR '+minS+'+'):('i¢'+p[2]),cost:owned?0:+p[2],can:!active&&!gated,buy:()=>{player.unlocked[w]=1;player.wtype=w;}};}),
     {grp:'WEAPONS',name:'SCATTER CHOKE',icon:'w_spread',desc:'Adds a SPREAD pellet and tightens the cone for more focus.',delta:'+1 pellet',lv:u.mSpread||0,mx:3,cost:300+(u.mSpread||0)*220,can:(u.mSpread||0)<3,buy:()=>{u.mSpread=(u.mSpread||0)+1;}},
@@ -6035,6 +6083,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'209',date:'2026',items:['VANGUARD: new RICOCHET upgrade in the weapons shop, your shots now skip off the side walls and off enemy hulls instead of dying, hunting down a fresh target and hitting again']},
  {ver:'208',date:'2026',items:['VANGUARD: sector 3 bosses now drop bombs, marking a patch of ground with a warning that swells before it blows, so you can see the hit coming and get out of the way']},
  {ver:'207',date:'2026',items:['Moved health, lives, and coins to a bigger readout near your ship']},
  {ver:'205',date:'2026',items:['Weapon rebalance: RAILSPIKE bolts now stop after drilling through 6 enemies','SPREAD hits harder and keeps full damage further downrange','NAILGUN redlines are now always a quick vent with no style loss, whether you hold or tap fire','SWARM darts carry a heavier charge','FLAK clouds are bigger and meaner, and the burst band starts closer to your ship','BUZZSAW unlocks a sector earlier, costs less, and its blades deflect more incoming fire']},
