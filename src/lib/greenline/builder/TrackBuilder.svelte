@@ -1,5 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { setCustomTrack } from '../custom-track.svelte';
+	import { setSelectedTrack } from '../track-selection.svelte';
+	import { CUSTOM_TRACK_ID } from '../tracks';
 	import Builder2D from './Builder2D.svelte';
 	import Builder3D from './Builder3D.svelte';
 	import {
@@ -518,6 +522,40 @@
 
 	/* ---------------- export ---------------- */
 
+	/* ---------------- test drive ---------------- */
+
+	let testDriveError = $state('');
+
+	/**
+	 * Park the CURRENT compiled track and drive it, now.
+	 *
+	 * It hands over `compiled.track` — the live object the compiler built and
+	 * `buildRuntime` already swept — deliberately NOT the export string, which
+	 * rounds every coordinate to 2 dp for committed files. The race then loads
+	 * it through the completely unmodified path: the same track-selection store,
+	 * the same `loadTrack`, the same `GreenlineRace`. Nothing builder-specific
+	 * reaches the race.
+	 */
+	function testDrive() {
+		testDriveError = '';
+		const track = compiled.track;
+		if (!track || !compiled.runtime) {
+			testDriveError = compiled.error ?? 'Track does not compile yet.';
+			return;
+		}
+		const err = setCustomTrack(track);
+		if (err) {
+			testDriveError = err;
+			return;
+		}
+		setSelectedTrack(CUSTOM_TRACK_ID);
+		// `?race=1` skips title -> garage so authoring and driving are one click
+		// apart; the garage entry is still there for a deliberate visit.
+		void goto('/greenline?race=1');
+	}
+
+	const canTestDrive = $derived(!!compiled.track && !!compiled.runtime);
+
 	async function copyJson() {
 		if (!report?.json) return;
 		try {
@@ -577,6 +615,7 @@
 				? 'CLOSED LOOP'
 				: 'OPEN'}
 		</div>
+		<button class="tb-btn drive" disabled={!canTestDrive} onclick={testDrive}>TEST DRIVE ▸</button>
 		{#if resetArmed}
 			<button class="tb-btn danger" onclick={doReset}>CONFIRM RESET</button>
 			<button class="tb-btn" onclick={() => (resetArmed = false)}>KEEP</button>
@@ -584,6 +623,10 @@
 			<button class="tb-btn" onclick={() => (resetArmed = true)}>RESET</button>
 		{/if}
 	</header>
+
+	{#if testDriveError}
+		<div class="tb-error">TEST DRIVE: {testDriveError}</div>
+	{/if}
 
 	{#if !compiled.ok}
 		<div class="tb-error">COMPILE: {compiled.error}</div>
@@ -1089,6 +1132,21 @@
 	.tb-btn.danger {
 		color: #ff8899;
 		border-color: rgba(255, 85, 102, 0.6);
+	}
+	.tb-btn.drive {
+		color: #04060a;
+		background: #2ae57e;
+		border-color: #2ae57e;
+		font-weight: 700;
+	}
+	.tb-btn.drive:hover:not(:disabled) {
+		background: #8fffc4;
+		border-color: #8fffc4;
+	}
+	.tb-btn.drive:disabled {
+		background: rgba(42, 229, 126, 0.25);
+		border-color: rgba(42, 229, 126, 0.3);
+		color: rgba(4, 6, 10, 0.6);
 	}
 	.tb-error {
 		border: 1px solid rgba(255, 85, 102, 0.6);

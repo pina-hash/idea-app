@@ -4430,6 +4430,57 @@ on one side of the world.
     1 path / 1 route, 872 m, 220 pts, with no `branches` key.
   - **Still deliberately NOT built:** props / scenery authoring, and nested
     forks (a branch may not contain another fork or a second merge).
+- **Track builder: teacher-gated on the live site, plus one-click Test Drive.**
+  The builder is a real authoring tool, so it had to leave the dev-only tier
+  without becoming discoverable.
+  - **Access.** `/dev/greenline-track-builder` swapped its
+    `if (!dev) error(404)` universal load for a `+page.server.ts` that reuses
+    the portal's EXISTING role model — no new auth: the role comes from the
+    Google sign-in email domain (`role_for_email`, @boscotech.edu -> teacher)
+    and lives in `profiles`, so it is looked up server-side exactly like
+    `/coin-entry` and `/dashboard`. Everyone else gets a **404, deliberately
+    not the redirect those two use**: 404 is what the path has always
+    returned and tells a probing student nothing. The route stays unlinked
+    from every nav surface. **`/dev` must NOT be added to `authedPrefixes`** —
+    that would bounce anonymous visitors with a redirect instead of the 404
+    and sweep in every other harness.
+  - **The parked track is its own localStorage entry**
+    (`greenline_custom_track`, `custom-track.svelte.ts`), extending the Phase
+    8e split one level down: "which track" is already independent of "which
+    build", and the authored track DATA is in turn independent of which track
+    is selected. Selecting it is still just
+    `setSelectedTrack(CUSTOM_TRACK_ID)`. `tracks.ts` owns the catalog slot
+    (`custom-builder`) and resolves it through a **lazy** read + a
+    `registerCustomTrack` hook (the `registerDecalImage` convention), so it has
+    no module-evaluation-order dependency on the reactive store that writes it.
+  - **Test Drive hands over the LIVE `compiled.track`**, not the export string
+    — the export rounds every coordinate to 2 dp for committed files
+    (browser-verified: a stored coordinate reads 27.39130434782609, not 27.39).
+    It then writes the selection and navigates to `/greenline?race=1`, a
+    one-shot auto-start that waits for the build to load. The race itself is
+    reached through the completely unmodified path: same store, same
+    `loadTrack`, same `GreenlineRace`. Nothing builder-specific enters the race.
+  - **A builder run is UNRANKED**, reusing the existing creative flag rather
+    than inventing a mode: a scratch track changes every time it is re-authored,
+    so its times compare to nothing and its payout would be free IC from a
+    trivially short loop.
+  - **Picker.** The garage tile shows a `BUILDER` tag the same way
+    `relief-proof-01` shows `TEST` (`TrackKind` gained `'custom'`; any
+    non-`circuit` kind is labelled). The entry appears only while a track is
+    parked. `/dev/greenline-portal` and `/dev/greenline-movement` both read
+    `allTracks()` now, so `?track=custom-builder` races a parked track and the
+    picker is verifiable without a signed-in session.
+  - **Verified**: the shipped guard function driven directly with mocked
+    `locals` — logged out / student / visitor / no-profile-row all 404, teacher
+    renders — plus a live logged-out `curl` returning 404 while the other
+    harnesses still serve 200. End to end with the guard temporarily bypassed
+    (then restored and re-proven): the real TEST DRIVE button parked a track
+    with a branch and a boost zone, set the selection, and navigated; the real
+    race then mounted **that exact track** (name, 2 paths, `branch-1`, its zone
+    circles, 4-car AI field) with real lap tracking (3 AI laps, 0 falls), and
+    Terminal Nine afterwards still loaded its own 3 paths unaffected.
+    **Not verifiable without the user's own login:** the live teacher-session
+    render and the `?race=1` landing, since both need real Google OAuth.
 
 ## Shared feedback box
 

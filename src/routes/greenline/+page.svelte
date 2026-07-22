@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { loadTrack, trackEntry, TRACKS } from '$lib/greenline/tracks';
+	import { page } from '$app/state';
+	import { allTracks, CUSTOM_TRACK_ID, loadTrack } from '$lib/greenline/tracks';
+	import { customTrack } from '$lib/greenline/custom-track.svelte';
 	import { setSelectedTrack, trackSelection } from '$lib/greenline/track-selection.svelte';
 	import { gridSelection, setAiCount } from '$lib/greenline/grid-selection.svelte';
 	import FeedbackBox from '$lib/feedback/FeedbackBox.svelte';
@@ -79,6 +81,16 @@
 	// reload and the garage picker, the race, the results header, and the
 	// leaderboard read all resolve from the same id.
 	const selectedTrack = $derived(loadTrack(trackSelection.id));
+
+	// The picker list: the permanent catalog, plus the builder's parked track
+	// when this browser has one (teacher-authored, via the track builder's Test
+	// Drive). `allTracks()` composes it; touching `customTrack.data` is what
+	// registers the reactive dependency, so the entry appears the moment a track
+	// is parked and disappears when it is cleared.
+	const selectableTracks = $derived.by(() => {
+		void customTrack.data;
+		return allTracks();
+	});
 
 	type Screen = 'title' | 'garage' | 'race' | 'results';
 	let screen = $state<Screen>('title');
@@ -313,6 +325,18 @@
 		purchasing = null;
 	}
 
+	// Test-drive shortcut: the builder navigates here with `?race=1` so authoring
+	// and driving are one click apart. It waits for the build to load (the race
+	// needs a real loadout) and fires once — a deliberate visit to the title or
+	// garage is unaffected.
+	let autoRaced = $state(false);
+	$effect(() => {
+		if (autoRaced || !loadoutReady) return;
+		if (page.url.searchParams.get('race') !== '1') return;
+		autoRaced = true;
+		startRace();
+	});
+
 	/** Enter the race, capturing the flags the submit will report. */
 	function startRace() {
 		raceCreative = creativeSettings.enabled;
@@ -418,7 +442,13 @@
 			bestLapMs: o.bestLapMs,
 			laps: o.laps,
 			archetype: loadout.archetype,
-			creative: raceCreative,
+			// A builder test drive is UNRANKED, for the same reason a creative run
+			// is: the track is a scratch artifact that changes every time it is
+			// re-authored, so its times are not comparable to anything and its
+			// payout would be free IC from a trivially short loop. Reusing the
+			// existing creative flag means the server's own unranked/no-award
+			// branch handles it — no new mode, and nothing added to the race path.
+			creative: raceCreative || raceTrackId === CUSTOM_TRACK_ID,
 			// Telemetry (Phase 8f). The empty-slot sentinels are normalized to
 			// null so "no secondary weapon" reads as absence in the data rather
 			// than as a weapon literally named 'none'.
@@ -482,7 +512,7 @@
 				backLabel="◂ TITLE"
 				onSettings={() => (settingsOpen = true)}
 				onFeedback={() => openFeedback('garage')}
-				tracks={TRACKS}
+				tracks={selectableTracks}
 				trackId={trackSelection.id}
 				ontrack={setSelectedTrack}
 				aiCount={gridSelection.aiCount}

@@ -12,7 +12,8 @@
 	import type { WeaponSlotId, WeaponSocketId } from '$lib/greenline/combat';
 	import { creativeSettings } from '$lib/greenline/creative.svelte';
 	import GreenlineRace from '$lib/greenline/GreenlineRace.svelte';
-	import { loadTrack, TRACKS } from '$lib/greenline/tracks';
+	import { allTracks, loadTrack } from '$lib/greenline/tracks';
+	import { customTrack } from '$lib/greenline/custom-track.svelte';
 	import { setSelectedTrack, trackSelection } from '$lib/greenline/track-selection.svelte';
 	import { gridSelection, setAiCount } from '$lib/greenline/grid-selection.svelte';
 	import FeedbackBox from '$lib/feedback/FeedbackBox.svelte';
@@ -320,7 +321,13 @@
 	// --- Track selection (Phase 8e). The REAL registry and the REAL persisted
 	// store, so the picker verified here is byte-for-byte the one on /greenline
 	// (including the localStorage round-trip across a reload). ---
-	const trackList = TRACKS;
+	// `allTracks()` (not the static catalog) so a track parked by the builder's
+	// Test Drive shows up here exactly as it does on /greenline; touching
+	// `customTrack.data` is the reactive dependency.
+	const trackList = $derived.by(() => {
+		void customTrack.data;
+		return allTracks();
+	});
 	// Mount the real sim in the `race` view (off by default — full WebGL).
 	let liveRace = $state(false);
 
@@ -590,7 +597,7 @@
 <div class="dh-stage">
 	{#if view === 'title'}
 		<GreenlineTitle
-			trackName={TRACKS.find((t) => t.id === trackSelection.id)?.name ?? 'Proving Ground 07'}
+			trackName={trackList.find((t) => t.id === trackSelection.id)?.name ?? 'Proving Ground 07'}
 			onStart={() => (lastAction = 'START')}
 			onSettings={() => (settingsOpen = true)}
 			onFeedback={() => openFeedback('title')}
@@ -691,7 +698,7 @@
 				<div class="dh-racenote">
 					RACE (music harness) — a random race-N track plays here; re-select race to reroll<br />
 					use "live race" above to mount the real sim on
-					<b>{TRACKS.find((t) => t.id === trackSelection.id)?.name}</b>
+					<b>{trackList.find((t) => t.id === trackSelection.id)?.name}</b>
 					(pause menu, quit, mid-race feedback)
 				</div>
 			</div>

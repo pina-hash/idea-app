@@ -805,8 +805,13 @@
 					>
 						<span class="gg-track-head">
 							<span class="gg-track-name">{t.name}</span>
-							{#if t.kind === 'test'}
-								<span class="gg-track-tag">TEST</span>
+							{#if t.kind !== 'circuit'}
+								<!-- Anything that is not a permanent racing venue says so on
+								     the tile: TEST for the physics proof segment, BUILDER for
+								     a track parked from the track builder. -->
+								<span class="gg-track-tag" class:builder={t.kind === 'custom'}
+									>{t.kind === 'custom' ? 'BUILDER' : 'TEST'}</span
+								>
 							{/if}
 						</span>
 						<span class="gg-track-tagline">{t.tagline}</span>
@@ -2687,6 +2692,10 @@
 		font-size: 0.54rem;
 		letter-spacing: 0.16em;
 		padding: 0.05rem 0.28rem;
+	}
+	.gg-track-tag.builder {
+		color: var(--glb-green-ui);
+		border-color: color-mix(in srgb, var(--glb-green-ui) 45%, transparent);
 	}
 	.gg-track-tagline {
 		color: var(--glb-ink-faint);

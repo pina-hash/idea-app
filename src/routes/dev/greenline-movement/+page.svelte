@@ -1,6 +1,6 @@
 <script lang="ts">
 	import GreenlineRace, { type RaceOutcome } from '$lib/greenline/GreenlineRace.svelte';
-	import { loadTrack, TRACKS } from '$lib/greenline/tracks';
+	import { allTracks, loadTrack } from '$lib/greenline/tracks';
 	import { gridSelection } from '$lib/greenline/grid-selection.svelte';
 	import { page } from '$app/state';
 
@@ -35,9 +35,12 @@
 	const trackParam = raw === 'relief' ? 'relief-proof-01' : raw;
 	// An unknown id resolves to the default rather than throwing, so a typo in a
 	// scripted drive lands on a playable track instead of a blank screen.
-	const track = trackParam && TRACKS.some((t) => t.id === trackParam)
-		? loadTrack(trackParam)
-		: undefined;
+	// `allTracks()` rather than the static catalog, so `?track=custom-builder`
+	// mounts a track parked by the builder's Test Drive. That makes the real
+	// race path drivable here without a signed-in session, which is the only way
+	// to verify an authored track actually races without live OAuth.
+	const track =
+		trackParam && allTracks().some((t) => t.id === trackParam) ? loadTrack(trackParam) : undefined;
 
 	const onFinish = (o: RaceOutcome) => {
 		// The in-game "YOU FINISHED" banner already shows the result; log the
