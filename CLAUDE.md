@@ -4256,7 +4256,95 @@ on one side of the world.
     abandons — observed live on both tracks. It races on and pits properly at
     the next crossing rather than crawling backwards to a box it has passed.
 
-
+- **Track builder, stage 1 (dev tool): `/dev/greenline-track-builder`.** An
+  internal authoring tool that builds tracks from snap-together pieces and
+  exports real schema-v2 `TrackData`. Dev-gated exactly like the other
+  harnesses (404 in production, no auth, no Supabase). Lives in
+  `src/lib/greenline/builder/`: `pieces.ts` (piece model + compiler, pure math
+  — no three/cannon/Svelte, so it is scriptable from the console),
+  `validate.ts` (serialization + validation report), `Builder2D.svelte`,
+  `Builder3D.svelte`, `TrackBuilder.svelte`.
+  - **Placement model, Trackmania-style.** A piece carries an ENTRY and an EXIT
+    socket (position, heading, elevation, bank, width). Placing appends after
+    the selected piece and its entry socket IS the previous piece's exit
+    socket; the piece's own parameters (length / radius / turn angle /
+    elevation delta / bank / width) decide where its exit lands. **There are no
+    typed coordinates anywhere**, so the corridor is continuous BY
+    CONSTRUCTION and editing an early piece re-derives everything downstream
+    (browser-verified: widening one curve's radius moved every later exit and
+    the loop still closed). Pieces: start/finish, straight, curve L/R at two
+    radii, banked turn L/R, jump ramp, chicane L/R, and a `loop-close`
+    connector whose geometry is DERIVED (a cubic Hermite from the current exit
+    back to the track start, resampled to even spacing), so closing the loop
+    survives edits to any earlier piece.
+  - **The two documented authoring rules are enforced by the compiler, not
+    left to the author.** (1) The Phase 8a banked-centerline raise: every
+    sample's elevation is lifted to at least `halfWidth * sin(|bank|)` (+1 cm
+    for the export's 2-dp rounding) so the low edge always clears the y=0
+    catch plane. (2) The Terminal Nine run-off margin lesson: the generated
+    boundary offset shrinks from the flat 9 m toward 1.8 m as the ribbon edge
+    rises, wall-tight by deck height (3 m), so a car engages the soft wall
+    instead of falling off a deck edge.
+  - **Validation runs the game's REAL code paths, which is the whole promise:**
+    a track that validates in the tool is provably LOADABLE, not merely
+    plausibly shaped. The exported JSON STRING is parsed back through
+    `parseTrack` (the exact load-time validator `tracks.ts` runs) and swept
+    through `buildRuntime`, and the catch-plane check reads the resulting
+    `leftEdge3`/`rightEdge3` — so the banked rule is verified against the same
+    geometry the physics trimesh would collide with, never against the tool's
+    own math. The remaining checks (grade, margins, closure, self-overlap) are
+    advisory authoring lints, warnings not failures. A 2D crossing with real
+    elevation difference is a legitimate flyover and passes.
+  - **Surfaces.** The 2D top-down SVG canvas is the placement view (world
+    meters ARE the SVG units; drag pan, cursor-anchored wheel zoom, click a
+    piece to select, double-click refit) and draws the corridor from the
+    runtime's own `leftEdge`/`rightEdge`. The live 3D panel (the GaragePreview
+    convention: own scene/renderer/OrbitControls, dynamic browser-only imports,
+    full disposal) builds its ribbon mesh straight from `leftEdge3`/
+    `rightEdge3`, so **both views read one geometry and cannot drift**. A dim
+    grid marks the y=0 catch plane so banked pieces are visibly ON it. The
+    inspector tunes the selected piece numerically, live in both views.
+  - **3D auto-frame is a real fit-to-bounds solve** (bounding sphere against
+    the tighter of the two half-FOVs), NOT a fixed multiple of the track span:
+    the multiple approach pushed the near corner of the circuit outside the
+    frustum at this panel's aspect, which is how the selected piece could end
+    up off-screen. A resize refits unless the user has taken the camera.
+  - **Auto-placed gates sit BETWEEN samples, never on one.** A gate exactly on
+    a centerline point is degenerate: a vehicle passing through that point
+    meets the gate line at a motion-segment endpoint, and `crossesGate`
+    accepts t at both 0 and 1, so the gate registers on two consecutive
+    segments and the second is reported out-of-order. Laps still counted, but
+    the spurious rejections are confusing; midpoint placement removed them
+    (browser-verified 0 rejections on three different racing lines, against 6
+    before).
+  - **Export** serializes stable key order at 2 dp (the committed tracks'
+    convention) with empty `zones`/`props` arrays. Copy or download, then drop
+    the file into `tracks/` and add one import plus one entry in `tracks.ts`.
+    The piece sequence persists per browser in `localStorage`
+    (`greenline_track_builder_v1`), restored with its structural invariants
+    re-imposed (one start/finish first, loop-close last).
+  - **`window.__glBuilder`** (the `__greenline` convention) drives everything
+    from the console — `addPiece` / `setParam` / `select` / `movePiece` /
+    `removePiece` / `getCompiled` / `validateNow` / `exportJson` / `probe3d`.
+    Since a WebGL canvas cannot be screenshotted through the preview pane (it
+    hangs), `probe3d(cols, rows)` reads the REAL framebuffer back and returns
+    pixel counts, a color histogram, and a coarse ASCII occupancy grid — that
+    is the verification surface for the 3D panel.
+  - **Verified** in the harness: an 8-piece circuit (straight, banked turn,
+    jump, chicane, curves, loop-close; 872 m, 220 pts) exports and passes all
+    nine checks; the banked turn's low edge sits at exactly y 0 with the rule
+    and would sit at **-2.16 m without it** (measured A/B), and a 30° bank
+    auto-raised to exactly the predicted 3.51 m; **439 of 440** points of the
+    2D view's edge data projected through the 3D camera land on lit pixels in
+    the real framebuffer (99.8%), proving the two views show the same track;
+    the exported file drives a clean lap through the game's own `LapTracker`
+    (`timing-started, checkpoint, checkpoint, lap`) with zero rejections; and
+    the flat/open-track branch correctly omits the `elevations`/`banking`
+    arrays and reads `hasRelief: false`. `svelte-check` clean, 0 errors.
+  - **Next bundle, deliberately NOT built here:** zones (boost / hazard /
+    pit), authored checkpoints with branch grouping, and junction/merge
+    pieces for shortcuts. The export's two auto-placed checkpoints exist only
+    because `parseTrack` requires at least one gate.
 
 ## Shared feedback box
 
