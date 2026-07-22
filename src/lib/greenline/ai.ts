@@ -93,6 +93,43 @@ export interface AiSkill {
 	aggression: number;
 }
 
+/**
+ * How much longitudinal acceleration a neutral-grip vehicle's tires can put
+ * down before it starts driving itself sideways, m/s^2.
+ *
+ * This lives here, exported, because it is a VEHICLE trait rather than a
+ * driver one, and BOTH the AI's commanded throttle (`drive()` below) and the
+ * human player's drive force (the traction limiter in `GreenlineRace.svelte`)
+ * resolve their cap from it. One number, two consumers: the two can never
+ * drift into a world where an AI feathers a car a player is still allowed to
+ * spin.
+ *
+ * MEASURED, and the measurement is stark. Full throttle from rest on a
+ * dead-straight road with ZERO steering input, held 10 s:
+ *   ARMOR    (11.9 m/s^2 of drive) -> 2.25 m/s lateral,  2.8 deg of yaw
+ *   HANDLING (15.3)                -> 2.67 m/s lateral,  3.1 deg
+ *   SYSTEMS  (14.8)                -> 2.78 m/s lateral,  3.4 deg
+ *   VELOCITY (21.8)                -> 31.4 m/s lateral, 180 deg: it spins
+ *                                     itself out and ends up stationary
+ * VELOCITY on part throttle: 0.85 -> 3.65 lateral, 0.7 -> 2.79, 0.55 -> 1.97,
+ * and it is FASTER after 10 s on 0.55 (55.2 m/s) than on 1.0 (20.7), because
+ * full throttle spends the difference fishtailing.
+ *
+ * 15.5 is the line those runs draw: it leaves ARMOR / HANDLING / SYSTEMS at
+ * full throttle (their caps compute to 1.30 / 1.22 / 1.05, all clamped to 1,
+ * so their behavior is untouched) and puts VELOCITY at 0.71, the level it was
+ * measured stable at.
+ *
+ * VELOCITY's instability is NOT a grip deficit to be patched on the balance
+ * sheet: its `effects` block carries no `frictionSlip` at all, so it runs
+ * baseline grip. The spin comes entirely from `engineForce: 1.15` over
+ * `chassisMass: 0.85` — 21.8 m/s^2 of drive against 15.5 of tire — and those
+ * two numbers ARE the archetype's identity. The car is not overtuned; it is
+ * simply a car that cannot be driven flat out off the line, and both drivers
+ * now know it.
+ */
+export const VEHICLE_TRACTION_ACCEL = 15.5;
+
 export const AI_DEFAULTS: AiSkill = {
 	// Flat out. The corner sweep, not an arbitrary ceiling, is what slows an AI
 	// down; a car that can do 63 m/s down a straight now does 63 m/s.
@@ -138,30 +175,17 @@ export const AI_DEFAULTS: AiSkill = {
 	brakeAccel: 14,
 	/**
 	 * How much longitudinal acceleration the tires can put down before the car
-	 * starts driving itself sideways, m/s^2 at neutral grip.
-	 *
-	 * MEASURED, and the measurement is stark. Full throttle from rest on a
-	 * dead-straight road with ZERO steering input, held 10 s:
-	 *   ARMOR    (11.9 m/s^2 of drive) -> 2.25 m/s lateral,  2.8 deg of yaw
-	 *   HANDLING (15.3)                -> 2.67 m/s lateral,  3.1 deg
-	 *   SYSTEMS  (14.8)                -> 2.78 m/s lateral,  3.4 deg
-	 *   VELOCITY (21.8)                -> 31.4 m/s lateral, 180 deg: it spins
-	 *                                     itself out and ends up stationary
-	 * VELOCITY on part throttle: 0.85 -> 3.65 lateral, 0.7 -> 2.79, 0.55 ->
-	 * 1.97, and it is FASTER after 10 s on 0.55 (55.2 m/s) than on 1.0 (20.7),
-	 * because full throttle spends the difference fishtailing.
-	 *
-	 * 15.5 is the line those runs draw: it leaves ARMOR / HANDLING / SYSTEMS at
-	 * full throttle (their caps compute to 1.30 / 1.22 / 1.05, all clamped to
-	 * 1, so their behavior is untouched) and puts VELOCITY at 0.71, the level
-	 * it was measured stable at.
+	 * starts driving itself sideways, m/s^2 at neutral grip. See
+	 * `VEHICLE_TRACTION_ACCEL` above for the measurements behind the number.
 	 *
 	 * This is a VEHICLE trait, not an AI one: a human holding the same key gets
-	 * the same spin. The AI simply cannot be asked to drive flat out a car that
-	 * cannot be driven flat out, so it feathers instead. See the throttle cap
-	 * in `drive()` for why this can never cost a vehicle its top speed.
+	 * the same spin, which is why the player's drive force now resolves its own
+	 * limit from the SAME constant (Phase 9-fix-e). The AI simply cannot be
+	 * asked to drive flat out a car that cannot be driven flat out, so it
+	 * feathers instead. See the throttle cap in `drive()` for why this can
+	 * never cost a vehicle its top speed.
 	 */
-	tractionAccel: 15.5,
+	tractionAccel: VEHICLE_TRACTION_ACCEL,
 	steerGain: 1.3,
 	aggression: 0.5
 };

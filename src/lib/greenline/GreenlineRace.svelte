@@ -98,6 +98,7 @@
 	import {
 		AI_DEFAULTS,
 		AiDriver,
+		VEHICLE_TRACTION_ACCEL,
 		aiTuningFor,
 		type AiSkill,
 		type AiTuning
@@ -440,6 +441,47 @@
 		suspensionRestLength: 0.4,
 		maxSuspensionTravel: 0.3,
 		frictionSlip: 5,
+		/**
+		 * TRACTION LIMITING (Phase 9-fix-e). The longitudinal acceleration the
+		 * tires can put down at neutral grip, m/s^2; scaled per build by its grip
+		 * multiplier. Sourced from `VEHICLE_TRACTION_ACCEL` rather than a literal
+		 * so the human player's limit and the AI's commanded-throttle cap (Phase
+		 * 9d-i) are provably the same number.
+		 *
+		 * The AI has fed its throttle through this since 9d-i; the player never
+		 * did, which is why a VELOCITY build was still spinning itself 180 deg
+		 * off a standing start on a dead-straight road with no steering input.
+		 * The car was never the bug — a human holding the accelerator was simply
+		 * being allowed to ask for 21.8 m/s^2 out of tires good for 15.5.
+		 */
+		tractionAccel: VEHICLE_TRACTION_ACCEL,
+		/**
+		 * How fast the drive force fades toward (engage) and back off (release)
+		 * the traction limit, 1/s, mirroring the handbrake's engage/release ramp
+		 * directly above.
+		 *
+		 * This smoothing is the whole difference between a traction limiter and
+		 * an input ceiling. Applied instantly, the limit reads as a dead zone —
+		 * the pedal is down and the car simply refuses a third of it. Ramped, the
+		 * first ~120ms of a launch delivers everything the driver asked for, the
+		 * tires break loose, and the force bleeds back to what they can hold: the
+		 * car feels like it is fighting for grip and finding it, which is what is
+		 * physically happening. Release is slower still (~250ms) so power returns
+		 * as a swell rather than a shove when the limit lifts.
+		 *
+		 * Both are exact no-ops on a car whose tires can take its power: the
+		 * target factor is a constant 1, so the eased value never leaves 1.
+		 */
+		tractionEngageRate: 8,
+		tractionReleaseRate: 4,
+		/**
+		 * Floor under the limited throttle, matching the AI cap's own floor. A
+		 * traction-limited car must still be a car that drives; nothing in the
+		 * catalog comes close to needing this (VELOCITY, the worst case, limits
+		 * to 0.71 at rest), so it is a guard rail against a future build, not a
+		 * value that shapes anything today.
+		 */
+		tractionFloor: 0.3,
 		rollInfluence: 0.01,
 		grassDrag: 8,
 		wallSpring: 1800,
@@ -2798,6 +2840,16 @@
 					 * the rear-grip cut and lock brake fade in/out instead of snapping
 					 * (Phase 9a). Player-only in practice (AI never sets the handbrake). */
 					hbEngage: number;
+					/**
+					 * Traction limiting 0..1 (Phase 9-fix-e): the fraction of the
+					 * driver's commanded throttle the tires can currently put down,
+					 * eased over time so grip fades in and out instead of snapping.
+					 * 1 = unlimited, and it stays EXACTLY 1 for the whole race on any
+					 * build whose tires can take its power (three of the four
+					 * archetypes), which is what makes the limiter provably a no-op
+					 * for them rather than merely a small one.
+					 */
+					tractionEase: number;
 					hx: number;
 					hz: number;
 					/** Slipstream, set each frame by the draft-detection pass. drafting =
@@ -3177,6 +3229,7 @@
 						lastOnRibbon: true,
 						steerCurrent: 0,
 						hbEngage: 0,
+						tractionEase: 1,
 						hx: 1,
 						hz: 0,
 						drafting: false,
@@ -4208,6 +4261,11 @@
 					// reach it. Normal driving never trips this, so a non-zero count
 					// on a clean lap is the signal that something is scraping.
 					floorCatches: 0,
+					// Vehicle-frames the traction limiter actually bound this round
+					// (Phase 9-fix-e). Zero across a whole race is the assertion that
+					// a build's tires can take its power; a non-zero count says the
+					// limiter is doing work rather than merely being installed.
+					tractionLimitedFrames: 0,
 					// Trigger-zone entries this round (Phase 8a).
 					zone: { boost: 0, hazard: 0 },
 					// Ability activations this round (nitro/jump/flip/repair/grip).
@@ -4245,6 +4303,7 @@
 					testStats.flipsByRig = {};
 					testStats.falls = 0;
 					testStats.floorCatches = 0;
+					testStats.tractionLimitedFrames = 0;
 					testStats.zone.boost = testStats.zone.hazard = 0;
 					testStats.ability.nitro = testStats.ability.jump = testStats.ability.flip = 0;
 					testStats.ability.repair = testStats.ability.grip = testStats.ability.air = 0;
@@ -5371,6 +5430,7 @@
 						r.body.angularVelocity.setZero();
 						r.steerCurrent = 0;
 						r.hbEngage = 0;
+						r.tractionEase = 1;
 						r.flashUntil = 0;
 						r.smokeAcc = 0;
 						r.dripAcc = 0;
@@ -5981,6 +6041,53 @@
 						tuning.aeroDownforce = coef == null ? DEFAULTS.aeroDownforce : coef;
 						return tuning.aeroDownforce;
 					},
+					// ---- Traction limiting (Phase 9-fix-e) ----
+					// What the tires can take vs what the driver is asking for, per
+					// rig: the standing-start cap (1 = the limiter never binds on this
+					// build), the live cap at the current speed, the eased factor
+					// actually multiplying drive force, and the speed above which the
+					// limiter releases entirely.
+					tractionInfo: (rigId = 'player') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						if (!r) return null;
+						const r2 = (v: number) => Math.round(v * 100) / 100;
+						const bs = r.buildStats;
+						const mass = num(tuning.chassisMass, DEFAULTS.chassisMass) * bs.chassisMass;
+						const driveAccel =
+							(num(tuning.engineForce, DEFAULTS.engineForce) * bs.engineForce) /
+							Math.max(1, mass);
+						const dragDecel =
+							(num(tuning.aeroDrag, DEFAULTS.aeroDrag) * bs.aeroDrag) / Math.max(1, mass);
+						const budget = num(tuning.tractionAccel, DEFAULTS.tractionAccel) * bs.frictionSlip;
+						const v = Math.hypot(r.body.velocity.x, r.body.velocity.y, r.body.velocity.z);
+						// v where (budget + drag*v^2) / drive = 1, i.e. the cap reaches
+						// full throttle and the limiter stops binding for good.
+						const releaseAt =
+							driveAccel > budget && dragDecel > 0
+								? Math.sqrt((driveAccel - budget) / dragDecel)
+								: 0;
+						return {
+							id: r.id,
+							archetype: r.archetype,
+							driveAccel: r2(driveAccel),
+							tractionBudget: r2(budget),
+							capAtRest: r2(Math.min(1, budget / Math.max(0.001, driveAccel))),
+							capNow: r2(Math.min(1, (budget + dragDecel * v * v) / Math.max(0.001, driveAccel))),
+							ease: Math.round(r.tractionEase * 1000) / 1000,
+							limiting: r.tractionEase < 1,
+							speedMs: r2(v),
+							releaseAtMs: r2(releaseAt),
+							limitedFrames: testStats.tractionLimitedFrames
+						};
+					},
+					// Verification only: override the traction budget so a scripted
+					// drive can A/B the limiter, the setDownforce / setFloorBand
+					// convention. A large value (e.g. 999) restores the pre-fix
+					// uncapped behaviour exactly; null restores the default.
+					setTraction: (accel: number | null) => {
+						tuning.tractionAccel = accel == null ? DEFAULTS.tractionAccel : accel;
+						return tuning.tractionAccel;
+					},
 					// Chassis-floor band (Phase 9-fix-c). 0 restores the pre-fix
 					// behaviour — a chassis with no wheel on the ribbon falls straight
 					// through an elevated span — so a scripted drive can A/B the floor
@@ -6195,6 +6302,7 @@
 							flipsByRig: { ...testStats.flipsByRig },
 							falls: testStats.falls,
 							floorCatches: testStats.floorCatches,
+							tractionLimitedFrames: testStats.tractionLimitedFrames,
 							zone: { ...testStats.zone },
 							ability: { ...testStats.ability },
 							damageTaken: { ...testStats.damageTaken },
@@ -6534,7 +6642,83 @@
 							bs.engineForce *
 							rig.abilityState.nitroMulNow(now) *
 							(now < rig.boostUntilMs ? rig.boostMul : 1);
-						if (thr > 0) engine = thr * engineMax;
+
+						// ---- TRACTION LIMITING (Phase 9-fix-e) ----
+						// The AI has fed its commanded throttle through this cap since
+						// 9d-i; the player's real input never did, so a VELOCITY build
+						// still spun itself out of a standing start. Same formula, applied
+						// here in the SHARED force path so both drivers of the same car
+						// meet the same physical limit.
+						//
+						// `driveAccel * throttle` is the acceleration being demanded and
+						// `dragDecel * v^2` is what aero is already absorbing, so the
+						// surplus reaching the contact patch has to stay inside the tires'
+						// budget. Two properties make it safe unconditionally. It CANNOT
+						// cost a vehicle its top speed: at terminal, drag alone consumes
+						// the whole drive force, so the cap has risen past 1 long before
+						// (VELOCITY is back to full throttle above ~44 m/s). And it does
+						// nothing at all to a car whose power its tires already handle.
+						//
+						// TWO DELIBERATE DIFFERENCES FROM THE AI PORT:
+						//
+						// 1. It scales the DRIVE FORCE, not the input. `throttle` (and the
+						//    HUD, the gamepad axis, the held-key state) is never touched,
+						//    so nothing downstream sees a clipped pedal — the accelerator
+						//    still works as hard as the driver pushes it, and what changes
+						//    is how much of that reaches the road. An input clamp would
+						//    read as a dead zone at the top of the pedal travel; this
+						//    reads as tires slipping and hooking up, because that is what
+						//    it is modelling.
+						//
+						// 2. It is EASED, not applied instantly. The AI re-decides its
+						//    throttle from scratch every frame off a step function, so a
+						//    hard cap costs it nothing; a human holding a key feels every
+						//    discontinuity. Ramping means the launch delivers full power
+						//    for the first instants, loses it as the tires break away, and
+						//    settles onto what they can hold.
+						//
+						// The cap is measured against the BASE drive force, deliberately
+						// excluding the Nitro and boost-pad multipliers already folded
+						// into engineMax. Those are burst abilities with a meter cost and
+						// a tuned launch feel (Phase 5a measured Nitro's top-speed gain
+						// against this exact pipeline); limiting them here would silently
+						// re-tune an ability this pass has no business touching. A driver
+						// who spends Nitro off the line can still light the tires up, and
+						// that is a choice they made rather than a car they cannot drive.
+						{
+							const mass =
+								num(tuning.chassisMass, DEFAULTS.chassisMass) * bs.chassisMass;
+							const baseDriveAccel =
+								(num(tuning.engineForce, DEFAULTS.engineForce) * bs.engineForce) /
+								Math.max(1, mass);
+							const dragDecel =
+								(num(tuning.aeroDrag, DEFAULTS.aeroDrag) * bs.aeroDrag) / Math.max(1, mass);
+							const tractionBudget =
+								num(tuning.tractionAccel, DEFAULTS.tractionAccel) * bs.frictionSlip;
+							// Fraction of full throttle the tires can take right now.
+							const cap =
+								baseDriveAccel > 0
+									? (tractionBudget + dragDecel * rawSpeed * rawSpeed) / baseDriveAccel
+									: Infinity;
+							const floor = num(tuning.tractionFloor, DEFAULTS.tractionFloor);
+							const allowed = Math.min(thr, Math.max(floor, cap));
+							// The limiter as a FACTOR on demand, so lifting off is always
+							// instant (demand drops to 0 regardless of the eased factor)
+							// and only the grip loss itself is smoothed.
+							const target = thr > 0.001 ? allowed / thr : 1;
+							const rate =
+								target < rig.tractionEase
+									? num(tuning.tractionEngageRate, DEFAULTS.tractionEngageRate)
+									: num(tuning.tractionReleaseRate, DEFAULTS.tractionReleaseRate);
+							rig.tractionEase += (target - rig.tractionEase) * Math.min(1, rate * dt);
+							// Snap home so an unlimited car can never be left sitting on a
+							// 0.9999 factor by float drift after a limited stretch.
+							if (rig.tractionEase > 0.9995) rig.tractionEase = 1;
+							if (rig.tractionEase < 1) testStats.tractionLimitedFrames++;
+						}
+						const driveThr = thr * rig.tractionEase;
+
+						if (thr > 0) engine = driveThr * engineMax;
 						if (brk > 0 && !rig.combat.isOut(now)) {
 							if (forwardSpeed > 0.5)
 								brake = brk * num(tuning.brakeForce, DEFAULTS.brakeForce) * bs.brakeForce;

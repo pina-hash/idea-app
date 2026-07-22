@@ -3878,6 +3878,89 @@ on one side of the world.
     skill knobs, and `speedFrac: 0.2603` reproduces the pre-9d-i flat 17 m/s
     exactly on every build (`17 / sqrt(2900/0.68)`).
 
+- **Player traction limiting (Phase 9-fix-e), the VELOCITY spin-out fix.** The
+  AI has fed its commanded throttle through a traction cap since 9d-i; the
+  human player's real input never did, so a VELOCITY build still spun itself
+  180 deg off a standing start on a dead-straight road with zero steering.
+  Same formula, ported to the player, and moved into the SHARED per-vehicle
+  force path so both drivers of the same car now meet the same physical limit.
+  - **One constant, two consumers.** `VEHICLE_TRACTION_ACCEL` (15.5 m/s^2 at
+    neutral grip) is exported from `ai.ts` and read by BOTH `AI_DEFAULTS`
+    .tractionAccel and `DEFAULTS.tractionAccel` in `GreenlineRace.svelte`. It
+    lives in ai.ts only because that is where the measurements are documented;
+    it is a VEHICLE trait, and the export exists so the two can never drift
+    into a world where an AI feathers a car a player is still allowed to spin.
+  - **VELOCITY's stats are NOT the bug and were not touched.** Its `effects`
+    block carries no `frictionSlip` at all (baseline grip); the instability is
+    entirely `engineForce: 1.15` over `chassisMass: 0.85` — 21.8 m/s^2 of drive
+    against 15.5 of tire — and those two numbers ARE the archetype's identity.
+    The car is not overtuned, it is a car that cannot be driven flat out off
+    the line, and now both drivers know it.
+  - **Two deliberate differences from the AI port**, and they are what make it
+    read as physics rather than as a ceiling on the accelerator. (1) It scales
+    the DRIVE FORCE, not the input: `throttle` and every held-key / gamepad /
+    HUD consumer is untouched, so the pedal still works as hard as the driver
+    pushes it and what changes is how much reaches the road. (2) It is EASED
+    over a per-rig `Rig.tractionEase` factor (`tractionEngageRate` 8 in,
+    `tractionReleaseRate` 4 out, mirroring the handbrake ramp), so a launch
+    delivers everything asked for for the first ~120ms, loses it as the tires
+    break away, and settles onto what they can hold. The factor multiplies
+    DEMAND, so lifting off is always instant and only the grip loss is
+    smoothed. The AI re-decides its throttle from a step function every frame
+    and needs neither.
+  - **Nitro and boost pads are deliberately EXCLUDED** from the cap (it is
+    computed against the base drive force, not the `engineMax` those multiply).
+    They are burst abilities with a meter cost and a launch feel tuned in Phase
+    5a against this exact pipeline; limiting them here would silently re-tune
+    an ability this pass has no business touching. Spending Nitro off the line
+    can still light the tires up — a choice the driver made, not a car they
+    cannot drive.
+  - **Proven a no-op for the other three archetypes, structurally rather than
+    statistically.** `tractionEase` is initialized to 1 and its target is a
+    constant 1 whenever the cap exceeds demand, so the multiply is the
+    IDENTITY. Browser-asserted `ease === 1` under strict equality (not "about
+    1") with `tractionLimitedFrames === 0` through ARMOR / HANDLING / SYSTEMS
+    standing starts AND a 90 s 8-car race — identical drive force, so lap times
+    and launch behaviour cannot change. A 16-case sweep (4 archetypes x 4
+    drivetrain parts) confirms no non-VELOCITY build in the catalog reaches its
+    tire budget: drive 11.93 / 15.31 / 14.82 against 15.5 (SYSTEMS is the
+    tightest at cap 1.05).
+  - **The AI is never double-limited**, also proven rather than assumed: its
+    commanded throttle is already at or below the same cap, so the target
+    resolves to 1 and the player-side limiter finds nothing to do. The 90 s
+    8-car race logged `tractionLimitedFrames: 0` with every rig at `ease === 1`,
+    including two VELOCITY rigs whose `capAtRest` is 0.71. The two limiters
+    compose to exactly one.
+  - **Top speed provably untouched.** The cap rises with `v^2` and crosses 1 at
+    42.1 m/s on VELOCITY, far below its 78.3 m/s drag-limited terminal.
+    Measured on the treadmill dyno: 77.4 m/s limiter ON vs 77.7 OFF (0.4%,
+    inside run-to-run noise), with `ease === 1` at the top end.
+  - **Emergent, and a genuinely good property:** grippier tires visibly buy
+    back authority. Slicks (grip 1.25) lift VELOCITY's rest cap 0.71 -> 0.89
+    and drop the release speed 42.1 -> 26.1 m/s, so the parts system expresses
+    the tradeoff on its own with no special-casing.
+  - Debug: `__greenline.tractionInfo(rigId)` (drive vs tire budget, cap at rest
+    and now, the live eased factor, the release speed) and `setTraction(accel |
+    null)` — a large value such as 999 restores the pre-fix uncapped behaviour
+    exactly, the `setDownforce` / `setFloorBand` A/B convention. Telemetry adds
+    `tractionLimitedFrames`.
+  - **Verified** in `/dev/greenline-movement`, on the REAL key-input path
+    (dispatched `KeyW` keydown through the actual `actionForKey` handler, no
+    `hold()` bypass) as well as headless: pre-fix VELOCITY reaches 173 deg of
+    yaw and ends at `upY -1.00`, on its roof, 62 m from the grid; fixed, the
+    identical input holds `upY` at exactly 1.00 for the whole run — it never
+    lifts a wheel — covers 174 m, peaks at 104 mph, and clears checkpoints.
+    Pedal linearity swept at rest: applied throttle tracks demand 1:1 through
+    0.70 and saturates at ~0.72 above it, so there is no dead zone anywhere in
+    the usable range and the knee sits exactly where the tires run out.
+    Screenshots via claude-in-chrome (WebGL hangs preview-pane captures) show
+    the before as spun sideways in the grass at 4 mph with the drift meter
+    pegged, and the after as square on the racing surface at 30 mph.
+    NOTE for future harness work: `setArchetype` / `equip` apply on the next
+    frame, so a synchronous `tractionInfo()` read straight after one returns
+    the PREVIOUS build's numbers — await a tick or the sweep silently reports
+    one build four times.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.
