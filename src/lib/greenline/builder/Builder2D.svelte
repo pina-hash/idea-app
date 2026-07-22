@@ -3,15 +3,18 @@
 	import type { CompiledTrack } from './pieces';
 
 	/**
-	 * The track builder's primary 2D top-down view: the compiled corridor
-	 * drawn piece by piece (click a piece to select it), plus centerline,
-	 * boundaries, gates, spawn, joints, and travel-direction arrows. World
-	 * meters ARE the SVG units (+x right, +z down, matching the schema's
-	 * top-down convention), so pan/zoom is just the viewBox moving.
+	 * The track builder's primary 2D top-down view: the compiled corridor drawn
+	 * piece by piece across EVERY lane (main line plus any branch spurs), with
+	 * centerlines, boundaries, gates, zone triggers, spawn, joints, and
+	 * travel-direction arrows. World meters ARE the SVG units (+x right, +z
+	 * down, matching the schema's top-down convention), so pan/zoom is just the
+	 * viewBox moving.
 	 *
-	 * Corridor edges come from the REAL runtime's `leftEdge`/`rightEdge`
-	 * projections (the exact x/z shadow of the 3D sweep), so what this view
-	 * shows is what `buildRuntime` built, not a second edge computation.
+	 * Corridor edges come from the REAL runtime's per-path `leftEdge`/
+	 * `rightEdge` projections (the exact x/z shadow of the 3D sweep), so what
+	 * this view shows is what `buildRuntime` built, not a second edge
+	 * computation. Lane index and `runtime.paths` index are the same number by
+	 * construction, which is what lets a piece on a branch find its own edges.
 	 */
 	const {
 		compiled,
@@ -27,9 +30,6 @@
 	let wrapW = $state(800);
 	let wrapH = $state(520);
 
-	// View: world-space center + width; height follows the element's aspect,
-	// so the viewBox aspect always matches the element (no letterboxing and
-	// cursor math stays exact).
 	let view = $state<{ cx: number; cz: number; w: number } | null>(null);
 	let userMoved = $state(false);
 
@@ -38,10 +38,9 @@
 		const spanX = Math.max(40, b.maxX - b.minX);
 		const spanZ = Math.max(40, b.maxZ - b.minZ);
 		const aspect = wrapW / Math.max(1, wrapH);
-		let w = Math.max(spanX, spanZ * aspect) * 1.28 + 40;
+		const w = Math.max(spanX, spanZ * aspect) * 1.28 + 40;
 		return { cx: (b.minX + b.maxX) / 2, cz: (b.minZ + b.maxZ) / 2, w };
 	};
-	// Refit whenever the track changes, until the user takes the camera.
 	$effect(() => {
 		void compiled;
 		void wrapW;
@@ -59,80 +58,118 @@
 
 	const rt = $derived(compiled.runtime);
 
-	/** Sample index sequence a piece's polygon covers (wrap joint included). */
+	/** Lane-local sample indices a piece's polygon covers (wrap joint included). */
 	const rangeSeq = (ri: number): number[] => {
 		const r = compiled.ranges[ri];
+		const lane = compiled.lanes[r.lane];
 		const seq: number[] = [];
 		for (let i = r.start; i <= r.end; i++) seq.push(i);
-		if (compiled.closure.closed && ri === compiled.ranges.length - 1) seq.push(0);
+		// The closing wrap segment belongs to the last piece of a closed lane.
+		if (lane?.closed && r.end === lane.samples.length - 1) seq.push(0);
 		return seq;
 	};
 
 	interface PiecePoly {
 		idx: number;
+		lane: number;
 		d: string;
 		pts: { x: number; z: number }[];
 	}
 	const piecePolys = $derived.by((): PiecePoly[] => {
-		if (!rt || rt.leftEdge.length !== compiled.samples.length) return [];
-		return compiled.ranges.map((_, ri) => {
+		if (!rt) return [];
+		const out: PiecePoly[] = [];
+		compiled.ranges.forEach((r, ri) => {
+			const path = rt.paths[r.lane];
+			const lane = compiled.lanes[r.lane];
+			if (!path || !lane || path.leftEdge.length !== lane.samples.length) return;
 			const seq = rangeSeq(ri);
+			if (seq.length < 2) return;
 			const pts = [
-				...seq.map((i) => rt.leftEdge[i]),
-				...seq.map((i) => rt.rightEdge[i]).reverse()
+				...seq.map((i) => path.leftEdge[i]),
+				...seq.map((i) => path.rightEdge[i]).reverse()
 			];
-			const d =
-				pts.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)} ${p.z.toFixed(2)}`).join('') + 'Z';
-			return { idx: ri, d, pts };
+			out.push({
+				idx: ri,
+				lane: r.lane,
+				d: pts.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)} ${p.z.toFixed(2)}`).join('') + 'Z',
+				pts
+			});
 		});
+		return out;
 	});
 
-	const centerPath = $derived.by(() => {
-		const s = compiled.samples;
-		if (!s.length) return '';
-		let d = s.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)} ${p.z.toFixed(2)}`).join('');
-		if (compiled.closure.closed) d += 'Z';
-		return d;
-	});
+	const centerPaths = $derived(
+		compiled.lanes.map((L) => ({
+			isMain: L.isMain,
+			d:
+				L.samples.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)} ${p.z.toFixed(2)}`).join('') +
+				(L.closed ? 'Z' : '')
+		}))
+	);
 
 	const boundaryPaths = $derived(
-		(compiled.track?.boundaries ?? []).map(
-			(b) =>
+		(compiled.track?.boundaries ?? []).map((b) => ({
+			island: b.id !== 'outer' && b.id !== 'infield',
+			d:
 				b.points.map((p, k) => `${k ? 'L' : 'M'}${p.x.toFixed(2)} ${p.z.toFixed(2)}`).join('') +
 				(b.closed ? 'Z' : '')
-		)
+		}))
 	);
 
 	const gateLines = $derived.by(() => {
-		if (!rt) return { sf: null as null | { x1: number; y1: number; x2: number; y2: number }, cps: [] as { x1: number; y1: number; x2: number; y2: number }[] };
+		if (!rt)
+			return {
+				sf: null as null | { x1: number; y1: number; x2: number; y2: number },
+				cps: [] as { x1: number; y1: number; x2: number; y2: number; group?: string }[]
+			};
 		const line = (g: { ax: number; az: number; bx: number; bz: number }) => ({
 			x1: g.ax,
 			y1: g.az,
 			x2: g.bx,
 			y2: g.bz
 		});
-		return { sf: line(rt.startFinish), cps: rt.checkpoints.map(line) };
+		return {
+			sf: line(rt.startFinish),
+			cps: rt.checkpoints.map((g) => ({ ...line(g), group: g.gate.group }))
+		};
 	});
 
-	/** Joint markers: each piece's entry point (piece 0's is the origin). */
+	const zoneCircles = $derived(
+		compiled.zones.flatMap((z) =>
+			z.circles.map((c) => ({ kind: z.spec.kind, x: c.x, z: c.z, r: c.radius }))
+		)
+	);
+	const ZONE_FILL: Record<string, string> = {
+		boost: 'rgba(42,229,126,0.22)',
+		hazard: 'rgba(160,110,255,0.24)',
+		pit: 'rgba(255,176,46,0.22)'
+	};
+	const ZONE_STROKE: Record<string, string> = {
+		boost: '#2ae57e',
+		hazard: '#a06eff',
+		pit: '#ffb02e'
+	};
+
+	/** Joint markers: each piece's entry point on its own lane. */
 	const joints = $derived(
-		compiled.ranges.map((r, ri) => ({
-			ri,
-			x: compiled.samples[r.start]?.x ?? 0,
-			z: compiled.samples[r.start]?.z ?? 0,
-			elev: compiled.samples[r.start]?.elev ?? 0
-		}))
+		compiled.ranges.map((r, ri) => {
+			const s = compiled.lanes[r.lane]?.samples[r.start];
+			return { ri, x: s?.x ?? 0, z: s?.z ?? 0, elev: s?.elev ?? 0 };
+		})
 	);
 
 	/** One travel-direction arrow + index label per piece, at its midpoint. */
 	const midMarks = $derived(
 		compiled.ranges.map((r, ri) => {
+			const L = compiled.lanes[r.lane];
+			const n = L?.samples.length ?? 0;
 			const i = Math.round((r.start + r.end) / 2);
-			const a = compiled.samples[Math.max(0, i - 1)];
-			const b = compiled.samples[Math.min(compiled.samples.length - 1, i + 1)];
-			const s = compiled.samples[i];
+			const s = L?.samples[i];
+			if (!s) return { ri, x: 0, z: 0, tx: 1, tz: 0 };
+			const a = L.samples[Math.max(0, i - 1)];
+			const b = L.samples[Math.min(n - 1, i + 1)];
 			const l = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-			return { ri, x: s.x, z: s.z, tx: (b.x - a.x) / l, tz: (b.z - a.z) / l, elev: s.elev };
+			return { ri, x: s.x, z: s.z, tx: (b.x - a.x) / l, tz: (b.z - a.z) / l };
 		})
 	);
 
@@ -160,8 +197,7 @@
 		for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
 			const a = pts[i];
 			const b = pts[j];
-			if (a.z > z !== b.z > z && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x)
-				inside = !inside;
+			if (a.z > z !== b.z > z && x < ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x) inside = !inside;
 		}
 		return inside;
 	};
@@ -209,12 +245,11 @@
 			const wasDrag = drag?.moved;
 			drag = null;
 			if (wasDrag) return;
-			// A plain click: hit-test the piece polygons (topmost = later piece).
 			const w = worldFromEvent(e);
 			let hit: number | null = null;
-			for (const poly of piecePolys) {
-				if (pointInPoly(poly.pts, w.x, w.z)) hit = poly.idx;
-			}
+			// Later pieces win, and branch lanes beat the main line, so a spur
+			// drawn over the corridor is still selectable.
+			for (const poly of piecePolys) if (pointInPoly(poly.pts, w.x, w.z)) hit = poly.idx;
 			onselect?.(hit);
 		};
 		const onDbl = () => {
@@ -238,45 +273,67 @@
 
 <div class="b2d-wrap" bind:clientWidth={wrapW} bind:clientHeight={wrapH}>
 	<svg bind:this={stageEl} class="b2d" {viewBox} preserveAspectRatio="xMidYMid meet">
-		<!-- boundaries -->
-		{#each boundaryPaths as d, i (i)}
+		<!-- boundaries; islands read brighter, they are what keeps routes apart -->
+		{#each boundaryPaths as b, i (i)}
 			<path
-				{d}
+				d={b.d}
 				fill="none"
-				stroke="rgba(147,163,176,0.30)"
+				stroke={b.island ? 'rgba(255,176,46,0.42)' : 'rgba(147,163,176,0.30)'}
 				stroke-dasharray="{u * 1.2} {u * 0.9}"
-				stroke-width={u * 0.22}
+				stroke-width={u * (b.island ? 0.26 : 0.22)}
 			/>
 		{/each}
 
-		<!-- corridor, piece by piece -->
+		<!-- corridor, piece by piece, across every lane -->
 		{#each piecePolys as poly (poly.idx)}
 			<path
 				d={poly.d}
-				fill={selected === poly.idx ? 'rgba(42,229,126,0.26)' : 'rgba(147,163,176,0.14)'}
-				stroke={selected === poly.idx ? '#2ae57e' : 'rgba(147,163,176,0.45)'}
+				fill={selected === poly.idx
+					? 'rgba(42,229,126,0.26)'
+					: poly.lane > 0
+						? 'rgba(143,212,255,0.14)'
+						: 'rgba(147,163,176,0.14)'}
+				stroke={selected === poly.idx
+					? '#2ae57e'
+					: poly.lane > 0
+						? 'rgba(143,212,255,0.5)'
+						: 'rgba(147,163,176,0.45)'}
 				stroke-width={selected === poly.idx ? u * 0.34 : u * 0.16}
 			/>
 		{/each}
 
-		<!-- centerline -->
-		<path
-			d={centerPath}
-			fill="none"
-			stroke="rgba(234,244,255,0.30)"
-			stroke-dasharray="{u * 0.9} {u * 0.9}"
-			stroke-width={u * 0.14}
-		/>
+		<!-- zone triggers -->
+		{#each zoneCircles as z, i (i)}
+			<circle
+				cx={z.x}
+				cy={z.z}
+				r={z.r}
+				fill={ZONE_FILL[z.kind]}
+				stroke={ZONE_STROKE[z.kind]}
+				stroke-width={u * 0.16}
+			/>
+		{/each}
 
-		<!-- gates -->
+		<!-- centerlines -->
+		{#each centerPaths as cp, i (i)}
+			<path
+				d={cp.d}
+				fill="none"
+				stroke={cp.isMain ? 'rgba(234,244,255,0.30)' : 'rgba(143,212,255,0.4)'}
+				stroke-dasharray="{u * 0.9} {u * 0.9}"
+				stroke-width={u * 0.14}
+			/>
+		{/each}
+
+		<!-- gates: grouped alternatives dashed, so a split reads at a glance -->
 		{#each gateLines.cps as l, i (i)}
 			<line
 				x1={l.x1}
 				y1={l.y1}
 				x2={l.x2}
 				y2={l.y2}
-				stroke="#22d3ee"
-				stroke-dasharray="{u * 0.7} {u * 0.5}"
+				stroke={l.group ? '#ffb02e' : '#22d3ee'}
+				stroke-dasharray={l.group ? `${u * 0.5} ${u * 0.4}` : `${u * 0.7} ${u * 0.5}`}
 				stroke-width={u * 0.3}
 			/>
 		{/each}

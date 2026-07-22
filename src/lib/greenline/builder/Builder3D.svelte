@@ -4,14 +4,14 @@
 	import type { CompiledTrack } from './pieces';
 
 	/**
-	 * Live 3D preview of the compiled track: its own small three.js scene
-	 * (the GaragePreview convention — dynamic browser-only imports, own
-	 * renderer, OrbitControls with clamps, full disposal on unmount). The
-	 * ribbon mesh is built STRAIGHT from the real runtime's
-	 * `leftEdge3`/`rightEdge3` sweep — the exact geometry the game's physics
-	 * trimesh and visual ribbon build from — so the preview cannot drift from
-	 * what would ship. A dim grid marks the y=0 catch plane, which is the
-	 * whole point of the banked-ribbon authoring rule: banked pieces must
+	 * Live 3D preview of the compiled track: its own small three.js scene (the
+	 * GaragePreview convention — dynamic browser-only imports, own renderer,
+	 * OrbitControls with clamps, full disposal on unmount). One ribbon mesh per
+	 * runtime PATH, built straight from that path's `leftEdge3`/`rightEdge3`
+	 * sweep — the exact geometry the game's physics trimesh and visual ribbon
+	 * build from — so the preview cannot drift from what would ship, on the
+	 * main line or on a branch. A dim grid marks the y=0 catch plane, which is
+	 * the whole point of the banked-ribbon authoring rule: banked pieces must
 	 * visibly sit ON it, never through it.
 	 *
 	 * The render loop is rAF-or-timeout (the DrawingViewer throttled-window
@@ -37,8 +37,10 @@
 				height: number;
 				nonBg: number;
 				green: number;
+				zonePixels: { boost: number; hazard: number; pit: number };
 				topColors: string[];
 				selVerts: number;
+				pathMeshes: number;
 				grid?: string[];
 				total: number;
 			};
@@ -111,7 +113,6 @@
 					const h = host as unknown as Record<string, Record<string, unknown>>;
 					if (h.__b3d) h.__b3d.camera = camera;
 				}
-				camera.position.set(120, 140, 160);
 				const controls = new OrbitControls(camera, renderer.domElement);
 				controls.enableDamping = true;
 				controls.maxPolarAngle = 1.5;
@@ -138,106 +139,164 @@
 					transparent: true,
 					opacity: 0.8
 				});
+				const islandMat = new THREE.LineBasicMaterial({ color: 0xffb02e, transparent: true, opacity: 0.7 });
 				const sfMat = new THREE.LineBasicMaterial({ color: 0xeaf4ff });
 				const cpMat = new THREE.LineBasicMaterial({ color: 0x22d3ee });
+				const cpGroupMat = new THREE.LineBasicMaterial({ color: 0xffb02e });
 				const spawnMat = new THREE.MeshBasicMaterial({ color: 0x2ae57e });
+				// Zone disc colors match the 2D canvas exactly, which is what
+				// makes the framebuffer probe able to tell them apart by hue.
+				const zoneMats = {
+					boost: new THREE.MeshBasicMaterial({
+						color: 0x2ae57e,
+						transparent: true,
+						opacity: 0.5,
+						side: THREE.DoubleSide
+					}),
+					hazard: new THREE.MeshBasicMaterial({
+						color: 0xa06eff,
+						transparent: true,
+						opacity: 0.5,
+						side: THREE.DoubleSide
+					}),
+					pit: new THREE.MeshBasicMaterial({
+						color: 0xffb02e,
+						transparent: true,
+						opacity: 0.5,
+						side: THREE.DoubleSide
+					})
+				};
 
 				let disposables: { dispose(): void }[] = [];
-				let ribbonGeo: BufferGeometry | null = null;
+				/** One ribbon geometry per runtime path, in path order. */
+				let ribbonGeos: BufferGeometry[] = [];
 				let lastCompiled: CompiledTrack | null = null;
 
 				const BASE = new THREE.Color(0x46525c);
+				const BRANCH = new THREE.Color(0x3d5566);
 				const BANKED = new THREE.Color(0x3f7fa0);
 				const CLIFF = new THREE.Color(0x6b5340);
 				const SELECTED = new THREE.Color(0x2ae57e);
 
-				const sampleColor = (c: CompiledTrack, i: number, sel: number | null) => {
-					const s = c.samples[i];
+				const sampleColor = (c: CompiledTrack, lane: number, i: number, sel: number | null) => {
+					const s = c.lanes[lane]?.samples[i];
+					if (!s) return BASE;
 					if (sel !== null && s.pieceIdx === sel) return SELECTED;
 					if (s.cliff) return CLIFF;
+					const base = lane > 0 ? BRANCH : BASE;
 					const b = Math.min(1, Math.abs(s.bankDeg) / 26);
-					if (b > 0.08) return BASE.clone().lerp(BANKED, b);
-					return BASE;
+					if (b > 0.08) return base.clone().lerp(BANKED, b);
+					return base;
 				};
 
 				const recolor = (c: CompiledTrack, sel: number | null) => {
-					if (!ribbonGeo || !c.runtime) return;
-					const attr = ribbonGeo.getAttribute('color') as BufferAttribute;
-					if (!attr) return;
-					const n = c.samples.length;
-					for (let i = 0; i < n; i++) {
-						const col = sampleColor(c, i, sel);
-						attr.setXYZ(2 * i, col.r, col.g, col.b);
-						attr.setXYZ(2 * i + 1, col.r, col.g, col.b);
-					}
-					attr.needsUpdate = true;
+					ribbonGeos.forEach((geo, lane) => {
+						const attr = geo.getAttribute('color') as BufferAttribute;
+						if (!attr) return;
+						const n = c.lanes[lane]?.samples.length ?? 0;
+						for (let i = 0; i < n; i++) {
+							const col = sampleColor(c, lane, i, sel);
+							attr.setXYZ(2 * i, col.r, col.g, col.b);
+							attr.setXYZ(2 * i + 1, col.r, col.g, col.b);
+						}
+						attr.needsUpdate = true;
+					});
 				};
 
 				const rebuild = (c: CompiledTrack) => {
 					trackGroup.clear();
 					for (const d of disposables) d.dispose();
 					disposables = [];
-					ribbonGeo = null;
+					ribbonGeos = [];
 					const rt = c.runtime;
 					if (!rt) return;
-					const n = rt.leftEdge3.length;
-					if (n < 2) return;
-					const closed = c.closure.closed;
 
-					// Ribbon: indexed quads over the runtime's own 3D sweep,
-					// wound face-up like the race scene's ribbon.
-					const pos = new Float32Array(n * 2 * 3);
-					for (let i = 0; i < n; i++) {
-						const L = rt.leftEdge3[i];
-						const R = rt.rightEdge3[i];
-						pos.set([L.x, L.y, L.z], i * 6);
-						pos.set([R.x, R.y, R.z], i * 6 + 3);
-					}
-					const segs = closed ? n : n - 1;
-					const idx = new Uint32Array(segs * 6);
-					for (let i = 0; i < segs; i++) {
-						const a = 2 * i;
-						const b = 2 * i + 1;
-						const cN = 2 * ((i + 1) % n);
-						const dN = 2 * ((i + 1) % n) + 1;
-						idx.set([a, cN, b, b, cN, dN], i * 6);
-					}
-					ribbonGeo = new THREE.BufferGeometry();
-					ribbonGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-					ribbonGeo.setAttribute(
-						'color',
-						new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3)
-					);
-					ribbonGeo.setIndex(new THREE.BufferAttribute(idx, 1));
-					ribbonGeo.computeVertexNormals();
-					disposables.push(ribbonGeo);
-					trackGroup.add(new THREE.Mesh(ribbonGeo, ribbonMat));
+					rt.paths.forEach((path, pi) => {
+						const n = path.leftEdge3.length;
+						if (n < 2) return;
+						const closed = c.lanes[pi]?.closed ?? false;
+						// Ribbon: indexed quads over the runtime's own 3D sweep,
+						// wound face-up like the race scene's ribbon.
+						const pos = new Float32Array(n * 2 * 3);
+						for (let i = 0; i < n; i++) {
+							const L = path.leftEdge3[i];
+							const R = path.rightEdge3[i];
+							pos.set([L.x, L.y, L.z], i * 6);
+							pos.set([R.x, R.y, R.z], i * 6 + 3);
+						}
+						const segs = closed ? n : n - 1;
+						const idx = new Uint32Array(segs * 6);
+						for (let i = 0; i < segs; i++) {
+							const a = 2 * i;
+							const b = 2 * i + 1;
+							const cN = 2 * ((i + 1) % n);
+							const dN = 2 * ((i + 1) % n) + 1;
+							idx.set([a, cN, b, b, cN, dN], i * 6);
+						}
+						const geo = new THREE.BufferGeometry();
+						geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+						geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 2 * 3), 3));
+						geo.setIndex(new THREE.BufferAttribute(idx, 1));
+						geo.computeVertexNormals();
+						disposables.push(geo);
+						ribbonGeos[pi] = geo;
+						trackGroup.add(new THREE.Mesh(geo, ribbonMat));
 
-					// Edge rails.
-					for (const edge of [rt.leftEdge3, rt.rightEdge3]) {
-						const pts = edge.map((p) => new THREE.Vector3(p.x, p.y + 0.06, p.z));
-						if (closed) pts.push(pts[0].clone());
-						const g = new THREE.BufferGeometry().setFromPoints(pts);
-						disposables.push(g);
-						trackGroup.add(new THREE.Line(g, edgeMat));
-					}
+						// Edge rails.
+						for (const edge of [path.leftEdge3, path.rightEdge3]) {
+							const pts = edge.map((p) => new THREE.Vector3(p.x, p.y + 0.06, p.z));
+							if (closed) pts.push(pts[0].clone());
+							const g = new THREE.BufferGeometry().setFromPoints(pts);
+							disposables.push(g);
+							trackGroup.add(new THREE.Line(g, edgeMat));
+						}
+					});
 
-					// Boundaries flat on the ground.
+					// Boundaries flat on the ground; islands highlighted.
 					for (const b of rt.boundaries) {
 						const pts = b.points.map((p) => new THREE.Vector3(p.x, 0.05, p.z));
 						if (b.closed && pts.length) pts.push(pts[0].clone());
 						const g = new THREE.BufferGeometry().setFromPoints(pts);
 						disposables.push(g);
-						trackGroup.add(new THREE.Line(g, boundMat));
+						trackGroup.add(
+							new THREE.Line(g, b.id === 'outer' || b.id === 'infield' ? boundMat : islandMat)
+						);
+					}
+
+					// Zone trigger discs, at their local surface height.
+					for (const z of c.zones) {
+						const lane = c.lanes[z.lane];
+						for (const circ of z.circles) {
+							const g = new THREE.CircleGeometry(circ.radius, 22);
+							g.rotateX(-Math.PI / 2);
+							disposables.push(g);
+							const mesh = new THREE.Mesh(g, zoneMats[z.spec.kind]);
+							// Nearest lane sample supplies the height; zones are
+							// authored on the surface, so this is exact enough.
+							let y = 0.12;
+							if (lane) {
+								let bestD = Infinity;
+								for (const s of lane.samples) {
+									const d = (s.x - circ.x) ** 2 + (s.z - circ.z) ** 2;
+									if (d < bestD) {
+										bestD = d;
+										y = s.elev + 0.12;
+									}
+								}
+							}
+							mesh.position.set(circ.x, y, circ.z);
+							trackGroup.add(mesh);
+						}
 					}
 
 					// Gates at their local surface height.
 					const gateBar = (
 						gr: { ax: number; az: number; bx: number; bz: number },
+						lane: number,
 						sampleIdx: number,
 						mat: InstanceType<typeof THREE.LineBasicMaterial>
 					) => {
-						const y = (rt.elevations[sampleIdx] ?? 0) + 0.5;
+						const y = (c.lanes[lane]?.samples[sampleIdx]?.elev ?? 0) + 0.5;
 						const g = new THREE.BufferGeometry().setFromPoints([
 							new THREE.Vector3(gr.ax, y, gr.az),
 							new THREE.Vector3(gr.bx, y, gr.bz)
@@ -245,8 +304,11 @@
 						disposables.push(g);
 						trackGroup.add(new THREE.Line(g, mat));
 					};
-					gateBar(rt.startFinish, c.gates.sfIndex, sfMat);
-					rt.checkpoints.forEach((g, k) => gateBar(g, c.gates.cpIndices[k] ?? 0, cpMat));
+					gateBar(rt.startFinish, 0, c.gates.sfIndex, sfMat);
+					rt.checkpoints.forEach((g, k) => {
+						const r = c.gates.resolved[k];
+						gateBar(g, r?.lane ?? 0, r?.index ?? 0, r?.group ? cpGroupMat : cpMat);
+					});
 
 					// Spawn arrow.
 					if (c.track) {
@@ -255,7 +317,7 @@
 						disposables.push(coneGeo);
 						const cone = new THREE.Mesh(coneGeo, spawnMat);
 						const sp = c.track.spawn;
-						cone.position.set(sp.x, (rt.elevations[c.gates.spawnIndex] ?? 0) + 1.2, sp.z);
+						cone.position.set(sp.x, (c.lanes[0]?.samples[c.gates.spawnIndex]?.elev ?? 0) + 1.2, sp.z);
 						cone.rotation.y = (sp.headingDeg * Math.PI) / 180;
 						trackGroup.add(cone);
 					}
@@ -328,8 +390,9 @@
 				 * Read the real framebuffer back. WebGL canvases cannot be
 				 * screenshotted through the preview pane (it hangs), so this is
 				 * the verification surface for the 3D panel: pixel counts, a
-				 * color histogram, and a coarse occupancy grid that can be
-				 * printed as ASCII and compared against the 2D layout.
+				 * hue split for the three zone colors, a color histogram, and a
+				 * coarse occupancy grid that can be printed as ASCII and
+				 * compared against the 2D layout.
 				 */
 				const probe = (cols = 0, rows = 0) => {
 					renderOnce();
@@ -340,6 +403,7 @@
 					gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, buf);
 					let nonBg = 0;
 					let green = 0;
+					const zonePixels = { boost: 0, hazard: 0, pit: 0 };
 					const hist = new Map<string, number>();
 					for (let i = 0; i < buf.length; i += 4) {
 						const r = buf[i];
@@ -347,26 +411,28 @@
 						const bl = buf[i + 2];
 						if (r + g + bl > 60) {
 							nonBg++;
-							// Coarse 32-step buckets: enough to see which color
-							// families are on screen without a huge map.
-							const key = `${r >> 5},${g >> 5},${bl >> 5}`;
-							hist.set(key, (hist.get(key) ?? 0) + 1);
+							const kk = `${r >> 5},${g >> 5},${bl >> 5}`;
+							hist.set(kk, (hist.get(kk) ?? 0) + 1);
 						}
-						if (g > 90 && g > r + 25 && g > bl + 12) green++;
+						if (g > 90 && g > r + 25 && g > bl + 12) {
+							green++;
+							zonePixels.boost++;
+						}
+						// Violet oil vs amber pit: both are bright, split by hue.
+						if (bl > 110 && bl > g + 35 && r > g + 20) zonePixels.hazard++;
+						if (r > 130 && g > 70 && g < r - 25 && bl < g - 20) zonePixels.pit++;
 					}
 					const topColors = [...hist.entries()]
 						.sort((a, b) => b[1] - a[1])
 						.slice(0, 8)
 						.map(([k, n]) => `${k}:${n}`);
 					let selVerts = 0;
-					const cAttr = ribbonGeo?.getAttribute('color');
-					if (cAttr) {
-						for (let i = 0; i < cAttr.count; i++) {
+					for (const geo of ribbonGeos) {
+						const cAttr = geo?.getAttribute('color');
+						if (!cAttr) continue;
+						for (let i = 0; i < cAttr.count; i++)
 							if (cAttr.getY(i) > 0.6 && cAttr.getX(i) < 0.4) selVerts++;
-						}
 					}
-					// Coarse occupancy grid, rows flipped (readPixels is
-					// bottom-left origin) so the strings read screen-order.
 					let grid: string[] | undefined;
 					if (cols > 0 && rows > 0) {
 						const cell = new Array(cols * rows).fill(0);
@@ -374,7 +440,6 @@
 							const gy = Math.min(rows - 1, Math.floor(((h - 1 - y) / h) * rows));
 							for (let x = 0; x < w; x++) {
 								const i = (y * w + x) * 4;
-								// Ribbon/edges only: ignore the dim ground grid.
 								if (buf[i] + buf[i + 1] + buf[i + 2] > 150)
 									cell[gy * cols + Math.min(cols - 1, Math.floor((x / w) * cols))]++;
 							}
@@ -382,10 +447,10 @@
 						const per = (w / cols) * (h / rows);
 						const ramp = ' .:-=+*#%@';
 						grid = [];
-						for (let r = 0; r < rows; r++) {
+						for (let r2 = 0; r2 < rows; r2++) {
 							let line = '';
 							for (let cc = 0; cc < cols; cc++) {
-								const f = Math.min(1, cell[r * cols + cc] / (per * 0.35));
+								const f = Math.min(1, cell[r2 * cols + cc] / (per * 0.35));
 								line += f <= 0.001 ? ' ' : ramp[Math.min(9, Math.max(1, Math.round(f * 9)))];
 							}
 							grid.push(line);
@@ -396,8 +461,10 @@
 						height: h,
 						nonBg,
 						green,
+						zonePixels,
 						topColors,
 						selVerts,
+						pathMeshes: ribbonGeos.filter(Boolean).length,
 						grid,
 						total: w * h
 					};
@@ -429,9 +496,14 @@
 					ribbonMat.dispose();
 					edgeMat.dispose();
 					boundMat.dispose();
+					islandMat.dispose();
 					sfMat.dispose();
 					cpMat.dispose();
+					cpGroupMat.dispose();
 					spawnMat.dispose();
+					zoneMats.boost.dispose();
+					zoneMats.hazard.dispose();
+					zoneMats.pit.dispose();
 					floor.geometry.dispose();
 					floorMat.dispose();
 					grid.geometry.dispose();

@@ -4341,10 +4341,95 @@ on one side of the world.
     (`timing-started, checkpoint, checkpoint, lap`) with zero rejections; and
     the flat/open-track branch correctly omits the `elevations`/`banking`
     arrays and reads `hasRelief: false`. `svelte-check` clean, 0 errors.
-  - **Next bundle, deliberately NOT built here:** zones (boost / hazard /
-    pit), authored checkpoints with branch grouping, and junction/merge
-    pieces for shortcuts. The export's two auto-placed checkpoints exist only
-    because `parseTrack` requires at least one gate.
+- **Track builder, stage 2: zones, authored checkpoints, fork/merge pieces.**
+  Closes everything stage 1 deferred. The socket model is GENERALIZED rather
+  than special-cased, and the result is represented the way 8b already
+  represents a split, so nothing new was invented beside the real system.
+  - **Fork/merge as extra SOCKETS, not a new piece kind.** A piece takes one
+    entry socket and returns its samples plus its exits; most return a single
+    `exit`, so the chain stays linear. A FORK also returns a `branch` socket
+    (one entry, two exits) which seeds a nested sub-chain; that sub-chain's
+    terminating MERGE is a DERIVED connector back onto the main line (two
+    entries, one exit), reusing the exact Hermite machinery `loop-close`
+    already used — so a rejoin survives edits to any earlier piece, like loop
+    closure does. The branch is stored NESTED on the fork
+    (`PlacedPiece.branch`), which is what makes "delete the fork" unambiguously
+    mean "delete its branch too" and lets the UI show the split as two visible
+    sub-sequences (indented, blue-railed) instead of a flat list with a flag.
+  - **It maps ONTO `surface.branches[]`, it does not reinterpret it.** The
+    branch emits one `RibbonBranch` whose first and last points are EXACTLY
+    `main[joinStart]` / `main[joinEnd]` — verified against Terminal Nine, whose
+    two branches share both endpoints to 0.00 m. `buildRuntime` then produces
+    `paths[]` and spliced lap `routes[]` with no builder-side help. Lane index
+    and `runtime.paths` index are the same number by construction, which is
+    what lets a piece on a branch find its own edges in both views.
+  - **Zones are authored as an EXTENT along a piece, compiled to the circles
+    the runtime reads.** `TrackZone` is strictly circular (`zoneEntries` is a
+    top-down radius test), so an extent (pieceId + start/end fraction + radius)
+    is laid down as a chain of circles spaced 2r (tangent), never overlapping,
+    so a car is inside at most one at a time. Anchoring to a PIECE is what
+    stops drift: retuning the piece moves the zone with it (browser-verified —
+    extending a piece 80 -> 200 m moved its boost zone from x 114 to x 150,
+    holding its authored fraction). **A PIT box is capped at ONE circle on
+    purpose:** the harness heals per occupied pit zone per frame, so
+    overlapping pit circles would multiply the repair rate.
+  - **A branch carrying a pit box is named `pit-*`, and that is load-bearing.**
+    `buildRuntime` fills `pitRoutes` from the branch id prefix ALONE
+    (`p.id === 'branch:pit' || p.id.startsWith('branch:pit-')`), and the AI's
+    `startPitStop` only ever diverts onto a route in that list — so a pit lane
+    named `branch-2` would be invisible to the AI. The compiler names the lane
+    from its zone, and a check reports the resulting `pitRoutes`. No runtime
+    change was needed; this is an existing convention the builder must honor.
+  - **Gate ordering is measured from the START/FINISH LINE, wrapping.** Sorting
+    by raw arc length is wrong on a closed loop: a gate placed just before the
+    line sorts first when a car actually reaches it last (found live). Branch
+    gates map onto the point in the bypassed stretch their progress
+    corresponds to, so a grouped alternative lands beside its main sibling, and
+    a contiguity pass emits each group together as the schema requires. The
+    stage-1 between-samples gate placement now applies to EVERY gate.
+  - **The rule Terminal Nine learned the hard way is enforced:** an UNGROUPED
+    checkpoint inside a stretch a branch bypasses is a FAIL, because a shortcut
+    car can never cross it and that route's lap can never complete. A one-click
+    SPLIT PAIR drops both halves already sharing a group.
+  - **Boundaries for a split.** The enclosing loop is pushed out past the
+    branch on the branch's side, then an ISLAND fills the lens between the two
+    corridors (Terminal Nine's `depot-block` / `pit-wall` convention) — without
+    it a driver just cuts across instead of committing to a route. Two things
+    were wrong on the first attempt and are worth keeping in mind: the island
+    must be CLIPPED to the run where a real gap exists (the corridors converge
+    to nothing at both joins, so a full-span island folds through itself), and
+    the enclosing push cannot be applied only at the branch's nearest main
+    index — a boundary point moves along its OWN normal, so a diagonal branch
+    is shadowed by a whole span of main indices and widening only the nearest
+    few leaves a notch the branch pokes through (measured: 8 samples up to
+    11.2 m inside the infield). Every main index within a 40 m tangential
+    window is pushed, then a running max closes residual notches.
+  - **Validation gained the checks a graph needs, all on real code paths.**
+    Beyond stage 1's `parseTrack` / `buildRuntime` / catch-plane: branch join
+    endpoints match to 0.000 m; every lane centerline is driven through the
+    real `surfaceState` (0 wall violations, 0 off-ribbon) rather than trusting
+    the polygon construction; the lens between branch and main is probed and
+    must be REJECTED (100% blocked); zone circles must sit on drivable ribbon;
+    and every lap ROUTE is driven through the real `LapTracker`. Rejections are
+    split into `spurious` and `pre-start roll-up`, because a gate crossed
+    between the spawn and the timing line is correctly `not-started` and is not
+    a defect.
+  - **Verified end to end** on a 1699 m circuit with BOTH a shortcut fork
+    (357 m vs 452 m bypassed) and a pit-lane fork (240 m vs 192 m, deliberately
+    longer), a banked turn, a jump, and all three zone kinds: all 18 checks
+    pass, and **all three lap routes complete with 0 spurious rejections** and
+    checkpoints in order across 4 sequence steps. The 3D preview builds 3 path
+    meshes and **1157 of 1162** points of the 2D view's edge data project onto
+    lit pixels in the real framebuffer (99.6%, per path 99.5 / 99.5 / 100).
+    Zone discs confirmed by differential probe (boost 13 -> 31, hazard 16 -> 46
+    px as radii grow, restoring exactly). Reintroducing the Terminal Nine bug
+    is caught TWO independent ways: the dedicated rule FAILs, and route 1
+    independently drops to 0 laps while routes 0 and 2 still complete. The full
+    document survives a real reload byte-identically (same 87,575-byte export).
+    Stage-1 regression intact: a linear circuit still compiles to 1 lane /
+    1 path / 1 route, 872 m, 220 pts, with no `branches` key.
+  - **Still deliberately NOT built:** props / scenery authoring, and nested
+    forks (a branch may not contain another fork or a second merge).
 
 ## Shared feedback box
 
