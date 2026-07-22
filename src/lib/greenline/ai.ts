@@ -13,6 +13,7 @@
  */
 
 import type { Combatant, WeaponDef, WeaponSlotId } from './combat';
+import { classifyHitZone } from './combat';
 import type { AbilitySlotId } from './abilities';
 import type { TrackRuntime } from './track-runtime';
 import type { TrackVec2 } from './track-schema';
@@ -288,6 +289,202 @@ function curvatureOf(pts: TrackVec2[]): number[] {
 	return out;
 }
 
+// ---------------------------------------------------------------------------
+// Target prioritization (Phase 9d-ii-a)
+//
+// Before this, every weapon heuristic returned `true` on the FIRST candidate it
+// happened to walk past in the `others` array, so with three cars in the cone an
+// AI engaged whichever rig index came first — a healthy car at the cone's edge
+// beat a nearly-dead one dead ahead, and a long-cooldown Railgun spent its two
+// seconds on the same shot an Autocannon would have taken for 0.4.
+//
+// The replacement scores every candidate and engages the best one, gated by a
+// worthiness threshold so a marginal shot is HELD rather than spent. Everything
+// below is single-AI ("which target in front of me is worth engaging"); there is
+// deliberately no cross-AI focus-fire coordination.
+// ---------------------------------------------------------------------------
+
+const clamp01 = (v: number): number => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/**
+ * Weights over the scoring factors. Higher total = better target; the units are
+ * arbitrary but the RELATIVE sizes are the design, so read them as a ranking:
+ * a kill shot outranks everything, a hurt target outranks a healthy one, and
+ * geometry (aim, range) only decides between targets that are otherwise alike.
+ *
+ * Ceiling for scale: 3 + 1.6 + 1.2 + 0.7 + 0.8 + 0.5 = 7.8, against thresholds
+ * in the 0.5 to 0.9 band (see `fireThreshold`).
+ */
+export const AI_TARGET_WEIGHTS = {
+	/**
+	 * This shot would empty the target's CHASSIS outright. Dominant on purpose:
+	 * finishing a fight is worth more than starting a better-looking one, and it
+	 * is the only factor that can single-handedly clear any threshold.
+	 */
+	finish: 3,
+	/**
+	 * How far into the chassis the target already is (0 = untouched, 1 = about to
+	 * go down). The "reward finishing a fight rather than starting a new one"
+	 * factor for shots that will not quite kill.
+	 */
+	vulnerable: 1.6,
+	/**
+	 * Fraction of this shot's damage that would reach CHASSIS rather than being
+	 * soaked by a shield pool. This one factor covers most of the wasted-shot
+	 * problem by construction: an Energy Shield bubble drives it toward 0, intact
+	 * armor holds it down, and a stripped face drives it to 1.
+	 */
+	through: 1.2,
+	/**
+	 * This shot would STRIP the armor / DISABLE the mount it lands on: a one-time
+	 * state change worth chasing. Zero when that pool is already gone, which is
+	 * exactly the "do not keep aiming mount-directed damage at a mount that is
+	 * already destroyed" rule — there is no second disable to win.
+	 */
+	breakthrough: 0.7,
+	/** Shot confidence: how centered the target sits in the firing cone. */
+	aim: 0.8,
+	/** Shot confidence: how far inside the usable range the target sits. */
+	close: 0.5,
+	/**
+	 * Re-applying disruption to an already-disrupted car buys almost nothing (the
+	 * stun does not stack, it takes the max), so an EMP prefers a rival who is
+	 * still driving. A penalty, not a veto: the damage still lands.
+	 */
+	redundantControl: 0.6,
+	/**
+	 * Each EXTRA vehicle a cone SWEEP would catch, weighted by that vehicle's own
+	 * score. A burst that rakes three cars is genuinely worth more than one that
+	 * clips a single car, and only sweep-shaped weapons can collect it.
+	 */
+	sweepExtra: 0.3
+};
+
+/**
+ * The minimum score a shot must be worth before the AI spends the slot on it.
+ *
+ * Two things move it. AGGRESSION: a bold driver takes lower-value shots. And the
+ * weapon's own COOLDOWN, which is what a shot actually costs — burning 0.4 s of
+ * Autocannon on a mediocre target is nearly free, burning 5 s of Cluster Missile
+ * on the same target is not, so patience scales with the wait. Resolved
+ * thresholds at the default aggression 0.5: Autocannon 0.50, Shotgun 0.57,
+ * EMP 0.67, Railgun 0.69, Rocket / Cluster 0.90.
+ */
+export function fireThreshold(def: WeaponDef, aggression: number): number {
+	const aggr = clamp01(aggression);
+	const patience = Math.max(0.8, Math.min(1.5, 0.75 + 0.2 * def.cooldownSec));
+	return (0.85 - 0.5 * aggr) * patience;
+}
+
+/** One candidate the AI could engage, with the geometry the decision used. */
+export interface ScoredTarget {
+	target: Combatant;
+	score: number;
+	dist: number;
+	/** cos of the angle off the shooter's nose (1 = dead ahead). */
+	aimDot: number;
+}
+
+/** The reach of a shot, already resolved from a def (and, for a fire decision,
+ * already scaled by aggression). */
+interface ShotReach {
+	range: number;
+	/** cos of the half-cone the AI will accept. */
+	cosLimit: number;
+	damage: number;
+}
+
+/**
+ * How a weapon's shot lands, which decides WHICH candidate a fire decision is
+ * really about — scoring the best car in the cone would be a lie for a weapon
+ * that cannot choose:
+ *  - `sweep`   kinetic + disruption cones damage EVERY vehicle inside them, so
+ *              the decision is about the whole set (best, plus a bonus per extra).
+ *  - `nearest` the Grappling Hook latches the NEAREST valid target, full stop.
+ *  - `locked`  a guided launch goes to the target the lock is already on.
+ */
+type ShotShape = 'sweep' | 'nearest' | 'locked';
+
+function shotShape(def: WeaponDef): ShotShape {
+	if (def.guided) return 'locked';
+	if (def.tether) return 'nearest';
+	return 'sweep';
+}
+
+/** Reach of a forward-aimed weapon; null when the def has no aimed shot. */
+function shotReach(def: WeaponDef, aggression: number | null): ShotReach | null {
+	const k = def.kinetic;
+	const g = def.guided;
+	const d = def.disruption;
+	const th = def.tether;
+	const baseRange = k?.range ?? g?.lockRange ?? d?.range ?? th?.range ?? 0;
+	const coneDeg = k?.coneDeg ?? g?.lockConeDeg ?? d?.coneDeg ?? th?.coneDeg ?? 0;
+	const damage = k?.damage ?? g?.damage ?? d?.damage ?? th?.damage ?? 0;
+	if (baseRange <= 0 || coneDeg <= 0) return null;
+	// A fire DECISION uses the aggression-scaled reach (the pre-existing
+	// restraint); a lock PREFERENCE uses the weapon's real reach, because
+	// updateWeaponLock has already decided what is acquirable and this only
+	// orders it.
+	const aggr = aggression === null ? null : clamp01(aggression);
+	const range = aggr === null ? baseRange : baseRange * (0.45 + 0.55 * aggr);
+	const halfDeg = aggr === null ? coneDeg / 2 : (coneDeg / 2) * 0.8;
+	return { range, cosLimit: Math.cos((halfDeg * Math.PI) / 180), damage };
+}
+
+/**
+ * Score ONE candidate for ONE weapon. Returns null when the candidate is not a
+ * valid target at all (dead, out, out of range, outside the cone).
+ *
+ * The routing is not guesswork: `applyDamage` sends front/side hits into ARMOR
+ * first and rear hits into the MOUNT, with overflow continuing into chassis in
+ * the same hit, and the zone is fixed by the target's own heading against the
+ * line of fire. So the AI can resolve exactly which pool would absorb this
+ * particular shot and how much of it would reach the only pool that ends a
+ * fight.
+ */
+function scoreCandidate(
+	self: Combatant,
+	t: Combatant,
+	def: WeaponDef,
+	reach: ShotReach,
+	nowMs: number
+): ScoredTarget | null {
+	if (t.id === self.id || t.combat.eliminated || t.combat.isOut(nowMs)) return null;
+	const dx = t.x - self.x;
+	const dz = t.z - self.z;
+	const dist = Math.hypot(dx, dz);
+	if (dist > reach.range || dist < 0.001) return null;
+	const aimDot = (dx * self.hx + dz * self.hz) / dist;
+	if (aimDot < reach.cosLimit) return null;
+
+	const c = t.combat;
+	const damage = Math.max(0, reach.damage);
+	const zone = classifyHitZone(dx, dz, t.hx, t.hz);
+	const soaked = c.shieldActive(nowMs) ? Math.max(0, c.shieldHealth) : 0;
+	const afterShield = Math.max(0, damage - soaked);
+	// The shield pool the zone routes into: rear hits meet the mount, everything
+	// else meets the armor plating.
+	const guard = Math.max(0, zone === 'rear' ? c.mountHealth : c.armorHealth);
+	const toChassis = Math.max(0, afterShield - guard);
+	const throughFrac = damage > 0 ? clamp01(toChassis / damage) : 0;
+	const breaks = guard > 0 && afterShield >= guard ? 1 : 0;
+	const finishes = c.chassisHealth > 0 && toChassis >= c.chassisHealth ? 1 : 0;
+	const vuln = 1 - clamp01(c.chassisHealth / Math.max(1, c.maxChassis));
+	const aimQ = reach.cosLimit < 1 ? clamp01((aimDot - reach.cosLimit) / (1 - reach.cosLimit)) : 1;
+	const closeQ = clamp01(1 - dist / Math.max(0.001, reach.range));
+
+	const W = AI_TARGET_WEIGHTS;
+	let score =
+		W.finish * finishes +
+		W.vulnerable * vuln +
+		W.through * throughFrac +
+		W.breakthrough * breaks +
+		W.aim * aimQ +
+		W.close * closeQ;
+	if (def.disruption && c.isDisrupted(nowMs)) score -= W.redundantControl;
+	return { target: t, score, dist, aimDot };
+}
+
 export class AiDriver {
 	private readonly rt: TrackRuntime;
 	/**
@@ -520,14 +717,66 @@ export class AiDriver {
 	}
 
 	/**
+	 * Score every candidate this weapon could engage right now, best first.
+	 * Exposed so a scripted drive (and the harness's `aiTargets` debug hook) can
+	 * read the AI's actual ranking rather than infer it from what it shot at.
+	 *
+	 * `aggressionScaled` false uses the weapon's FULL reach — the form a guided
+	 * LOCK preference wants, since `updateWeaponLock` has already decided what is
+	 * acquirable and this only orders it.
+	 */
+	scoreTargets(
+		self: Combatant,
+		others: Combatant[],
+		def: WeaponDef,
+		nowMs: number,
+		aggression: number,
+		aggressionScaled = true
+	): ScoredTarget[] {
+		const reach = shotReach(def, aggressionScaled ? aggression : null);
+		if (!reach) return [];
+		const out: ScoredTarget[] = [];
+		for (const o of others) {
+			const s = scoreCandidate(self, o, def, reach, nowMs);
+			if (s) out.push(s);
+		}
+		out.sort((a, b) => b.score - a.score);
+		return out;
+	}
+
+	/**
+	 * Preference for a guided LOCK acquisition: higher wins, `-Infinity` for a
+	 * target this AI would not choose. Passed by the harness into
+	 * `updateWeaponLock`, whose default (nearest) is what the PLAYER keeps — a
+	 * predictable, learnable rule for a human aiming their own nose, where an AI
+	 * wants the tactical choice.
+	 *
+	 * Only ACQUISITION is ordered by this. A lock already in progress stays on its
+	 * target while that target remains valid, unchanged: switching resets the
+	 * dwell to zero, so an AI that chased the best-scoring car every frame would
+	 * thrash and never complete a lock at all.
+	 */
+	lockPreference(self: Combatant, target: Combatant, def: WeaponDef, nowMs: number): number {
+		const reach = shotReach(def, null);
+		if (!reach) return -Infinity;
+		return scoreCandidate(self, target, def, reach, nowMs)?.score ?? -Infinity;
+	}
+
+	/**
 	 * Should this vehicle fire the equipped weapon in `slot` now? Off slot
-	 * cooldown, past the aggression-scaled restraint delay, not disrupted, and a
-	 * valid target inside the def's aggression-scaled range and tightened cone.
+	 * cooldown, past the aggression-scaled restraint delay, not disrupted, and —
+	 * since Phase 9d-ii-a — carrying a shot whose BEST available target scores
+	 * above this weapon's worthiness threshold, rather than merely having any
+	 * valid target somewhere in the cone.
+	 *
 	 * Handles every FORWARD-AIMED family: kinetic (hit-scan cone), guided (lock
 	 * cone; the harness additionally requires a COMPLETE lock before a launch),
 	 * disruption (the EMP cone) and tether (the Grappling Hook cone) — the last
-	 * two folded in when Phase 8g made those equipment. Deliberately simple;
-	 * real weapon tactics are Phase 9.
+	 * two folded in when Phase 8g made those equipment.
+	 *
+	 * `lockedTargetId` is what makes the guided case honest: a launch goes to the
+	 * locked target, so the decision is scored against THAT car, never against
+	 * whichever rival happens to score best in the cone.
 	 */
 	wantsWeaponFire(
 		self: Combatant,
@@ -536,29 +785,46 @@ export class AiDriver {
 		def: WeaponDef,
 		t: AiAggressionSource,
 		nowMs: number,
-		cooldownScale = 1
+		cooldownScale = 1,
+		lockedTargetId?: string | null
 	): boolean {
 		if (nowMs < this.nextSlotOkMs[slot]) return false;
 		if (self.combat.isDisrupted(nowMs)) return false;
 		if (!self.combat.canUseSlot(slot, nowMs, def.cooldownSec * cooldownScale)) return false;
-		const baseRange =
-			def.kinetic?.range ?? def.guided?.lockRange ?? def.disruption?.range ?? def.tether?.range ?? 0;
-		const coneDeg =
-			def.kinetic?.coneDeg ?? def.guided?.lockConeDeg ?? def.disruption?.coneDeg ?? def.tether?.coneDeg ?? 0;
-		if (baseRange <= 0 || coneDeg <= 0) return false;
 		const aggr = Math.max(0, Math.min(1, t.aggression));
-		const range = baseRange * (0.45 + 0.55 * aggr);
-		const cosLimit = Math.cos((((coneDeg / 2) * 0.8) * Math.PI) / 180);
-		for (const o of others) {
-			if (o.id === self.id || o.combat.eliminated || o.combat.isOut(nowMs)) continue;
-			const dx = o.x - self.x;
-			const dz = o.z - self.z;
-			const dist = Math.hypot(dx, dz);
-			if (dist > range || dist < 0.001) continue;
-			if ((dx * self.hx + dz * self.hz) / dist < cosLimit) continue;
-			return true;
+		const cands = this.scoreTargets(self, others, def, nowMs, aggr);
+		if (cands.length === 0) return false;
+
+		// What this particular shot is actually worth, by what it can actually hit.
+		let value: number;
+		switch (shotShape(def)) {
+			case 'locked': {
+				// No lock id supplied (a caller that predates the parameter): fall
+				// back to the best candidate rather than refusing to fire.
+				const locked = lockedTargetId ? cands.find((c) => c.target.id === lockedTargetId) : cands[0];
+				if (!locked) return false;
+				value = locked.score;
+				break;
+			}
+			case 'nearest': {
+				// The hook takes the nearest, so judge the nearest — a juicy target
+				// further down the cone is not the one the cable would reach.
+				let best = cands[0];
+				for (const c of cands) if (c.dist < best.dist) best = c;
+				value = best.score;
+				break;
+			}
+			default: {
+				// A cone sweep damages everything inside it, so extra bodies in the
+				// burst are real added value on top of the best target.
+				value = cands[0].score;
+				for (let i = 1; i < cands.length; i++) {
+					value += AI_TARGET_WEIGHTS.sweepExtra * Math.max(0, cands[i].score);
+				}
+				break;
+			}
 		}
-		return false;
+		return value >= fireThreshold(def, aggr);
 	}
 
 	/**
@@ -568,6 +834,14 @@ export class AiDriver {
 	 * is a live rival close behind and roughly on the AI's tail, right where the
 	 * dropped field lands. Same restraint pattern (never disrupted, own slot
 	 * schedule).
+	 *
+	 * Deliberately NOT scored like the aimed weapons (Phase 9d-ii-a). This is not
+	 * a target-selection problem: the field lands on the ground behind the AI and
+	 * catches whoever drives through it, so the only question is whether anyone is
+	 * close enough behind to be caught. There is nothing to compare candidates
+	 * over — first match in the drop zone is the same answer as best match. The
+	 * same reasoning leaves `wantsShield` (self-preservation) and `wantsBlades`
+	 * (contact proximity) unscored.
 	 */
 	wantsAreaDrop(
 		self: Combatant,

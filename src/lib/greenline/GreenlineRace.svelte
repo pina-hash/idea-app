@@ -100,6 +100,7 @@
 		AiDriver,
 		VEHICLE_TRACTION_ACCEL,
 		aiTuningFor,
+		fireThreshold,
 		type AiSkill,
 		type AiTuning
 	} from '$lib/greenline/ai';
@@ -5964,6 +5965,38 @@
 								}
 							: null;
 					},
+					// AI target ranking for one rig's slot (Phase 9d-ii-a): the scored,
+					// best-first candidate list the fire decision actually reads, plus the
+					// threshold that shot has to clear. Verification only - reading it
+					// changes nothing, and a rig with no AiDriver returns null.
+					aiTargets: (rigId = 'ai-1', slot: WeaponSlotId = 'weaponPrimary') => {
+						const r = rigsAll().find((q) => q.id === rigId);
+						const def = r ? weaponById(r.weapons[slot]) : undefined;
+						if (!r?.ai || !def) return null;
+						const nowMs = gameNow();
+						const aggr = aiSkill().aggression;
+						const cands = r.ai.scoreTargets(
+							combatantOf(r),
+							rigsAll().map(combatantOf),
+							def,
+							nowMs,
+							aggr
+						);
+						return {
+							weapon: def.id,
+							threshold: fireThreshold(def, aggr),
+							locked: r.locks[slot]?.targetId ?? null,
+							candidates: cands.map((c) => ({
+								id: c.target.id,
+								score: c.score,
+								dist: c.dist,
+								aimDot: c.aimDot,
+								chassis: c.target.combat.chassisHealth,
+								armor: c.target.combat.armorHealth,
+								mount: c.target.combat.mountHealth
+							}))
+						};
+					},
 					getProjectiles: () => projectiles.map((p) => ({ ...p })),
 					getCaltrops: () => caltropFields.map((f) => ({ ...f, nextHitMs: { ...f.nextHitMs } })),
 					// Defensive-weapon state for the 4b-ii verification drives: shield
@@ -7466,6 +7499,10 @@
 									rig.locks[slot] = null;
 									continue;
 								}
+								// An AI orders its acquisition by target VALUE (Phase
+								// 9d-ii-a); the player keeps the nearest-first default,
+								// so a human's lock behaves exactly as it always has.
+								const ai = rig.ai;
 								rig.locks[slot] = updateWeaponLock(
 									rig.locks[slot],
 									combatants[ri],
@@ -7473,7 +7510,8 @@
 									slot,
 									def,
 									dt,
-									now
+									now,
+									ai ? (t) => ai.lockPreference(combatants[ri], t, def, now) : undefined
 								);
 							}
 						}
@@ -7506,7 +7544,20 @@
 									want = rig.ai.wantsBlades(self, combatants, slot, def, aiT, now, cdScale);
 								else if (def.category === 'defensive' && def.shield)
 									want = rig.ai.wantsShield(self, combatants, slot, def, aiT, now, cdScale);
-								else want = rig.ai.wantsWeaponFire(self, combatants, slot, def, aiT, now, cdScale);
+								// The locked target id is threaded through for guided weapons:
+								// a launch goes where the LOCK points, so that is the car the
+								// decision has to be scored against.
+								else
+									want = rig.ai.wantsWeaponFire(
+										self,
+										combatants,
+										slot,
+										def,
+										aiT,
+										now,
+										cdScale,
+										rig.locks[slot]?.targetId ?? null
+									);
 								if (!want) continue;
 								if (performWeaponFire(rig, slot)) {
 									rig.ai.scheduleSlotUse(slot, now, def.cooldownSec * cdScale, aiT);

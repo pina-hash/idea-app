@@ -1459,6 +1459,14 @@ export interface WeaponLock {
  * rival never steals an acquisition in progress); a target that leaves the
  * cone/range or goes down clears the lock outright, so re-entering starts the
  * dwell from zero. Returns the new lock state (null = nothing acquirable).
+ *
+ * `prefer` orders ACQUISITION only (higher wins, `-Infinity` = never pick this
+ * one). Omitted — the PLAYER's path — it is nearest-first exactly as it always
+ * was: a predictable, learnable rule for a human pointing their own nose. The AI
+ * passes its target scorer instead (Phase 9d-ii-a), so an AI missile goes to the
+ * car worth killing rather than the car that happens to be closest. It cannot
+ * make a lock thrash: the sticky-current-target rule above runs first, so a
+ * preference is only ever consulted when there is no acquisition in progress.
  */
 export function updateWeaponLock(
 	current: WeaponLock | null,
@@ -1467,7 +1475,8 @@ export function updateWeaponLock(
 	slot: WeaponSlotId,
 	def: WeaponDef,
 	dtSec: number,
-	nowMs: number
+	nowMs: number,
+	prefer?: (target: Combatant) => number
 ): WeaponLock | null {
 	const g = def.guided;
 	if (!g) return null;
@@ -1496,18 +1505,20 @@ export function updateWeaponLock(
 			};
 		}
 	}
-	// (Re)acquire: nearest valid target starts a fresh dwell.
+	// (Re)acquire: the preferred valid target starts a fresh dwell. Default
+	// preference is NEAREST (negated distance), which is the original behavior.
+	const rank = prefer ?? ((t: Combatant) => -Math.hypot(t.x - shooter.x, t.z - shooter.z));
 	let best: Combatant | null = null;
-	let bestDist = Infinity;
+	let bestRank = -Infinity;
 	for (const t of targets) {
 		if (!inCone(t)) continue;
-		const dist = Math.hypot(t.x - shooter.x, t.z - shooter.z);
-		if (dist < bestDist) {
+		const r = rank(t);
+		if (r > bestRank) {
 			best = t;
-			bestDist = dist;
+			bestRank = r;
 		}
 	}
-	if (!best) return null;
+	if (!best || bestRank === -Infinity) return null;
 	return {
 		shooterId: shooter.id,
 		slot,

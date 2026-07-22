@@ -3961,6 +3961,102 @@ on one side of the world.
     the PREVIOUS build's numbers — await a tick or the sweep silently reports
     one build four times.
 
+- **AI target prioritization (Phase 9d-ii-a).** Every AI weapon heuristic used
+  to return `true` on the FIRST valid candidate it walked past in the `others`
+  array, and the guided LOCK acquired whichever target was NEAREST. So with
+  three cars in the cone an AI engaged whichever rig index came first, and a
+  two-second Railgun cooldown was spent on the same shot a 0.4 s Autocannon
+  would have taken. Candidates are now SCORED and the best one engaged, gated
+  by a worthiness threshold so a marginal shot is held rather than spent.
+  Single-AI only: this is "which target in front of me is worth engaging",
+  never cross-AI focus-fire, which is a separate and much larger problem.
+  - **The scoring is not heuristic guesswork about geometry — it resolves what
+    the shot would actually DO.** `applyDamage` routes front/side hits into
+    ARMOR and rear hits into the MOUNT with overflow continuing into chassis in
+    the same hit, and the zone is fixed by the target's own heading against the
+    line of fire, so `scoreCandidate` (ai.ts) can compute exactly which pool
+    absorbs this particular shot and how much reaches the only pool that ends a
+    fight. Weights in `AI_TARGET_WEIGHTS`, read as a ranking rather than as
+    physical units: `finish` 3 (this shot empties their chassis — dominant, the
+    only factor that clears any threshold on its own), `vulnerable` 1.6 (how
+    far into the chassis they already are), `through` 1.2 (fraction of the
+    damage that reaches chassis rather than being soaked), `breakthrough` 0.7
+    (this shot strips the armor / disables the mount), `aim` 0.8 and `close`
+    0.5 (shot confidence), `redundantControl` -0.6 (an EMP re-stunning an
+    already-disrupted car), `sweepExtra` 0.3 per extra body a cone catches.
+  - **Two of the spec's "wasted shot" cases fall out structurally rather than
+    needing their own rule.** An Energy Shield bubble drives `through` toward
+    0, so a shielded car is deprioritized without a shield-specific branch. And
+    `breakthrough` is zero on a pool that is already gone — there is no second
+    disable to win on a destroyed mount — which is measurable: a dead-mount
+    target and a stripped-armor target with identical geometry and chassis
+    score EXACTLY equal (2.300 / 2.300, browser-asserted). Note the dead mount
+    is still often the better target, and correctly so: with the mount at zero
+    the whole shot flows into chassis, which is precisely the spec's own
+    "if armor/chassis on a different target is more productive" test.
+  - **`fireThreshold(def, aggression)` is what turns scoring into discipline.**
+    Aggression lowers it (a bold driver takes worse shots) and the weapon's own
+    COOLDOWN raises it, because the cooldown is what a shot actually costs:
+    resolved at the default aggression 0.5 the ladder runs Autocannon 0.50,
+    Shotgun 0.57, EMP 0.67, Railgun 0.69, Rocket / Cluster / Hook 0.90. So the
+    autocannon plinks at whatever is in front of it while the railgun waits for
+    something worth two seconds. This is a deliberate behavior CHANGE, not only
+    a re-ordering: a healthy car at the cone edge at long range is now passed
+    over, and the same geometry with a nearly-dead car is taken.
+  - **The decision is scored against the target the weapon can actually pick,
+    never the best one in the cone** — otherwise it would be a lie for the two
+    weapons that cannot choose. `shotShape(def)`: kinetic + disruption cones
+    damage EVERYTHING inside them, so the value is the best candidate plus
+    `sweepExtra` per extra body (a burst raking three cars is genuinely worth
+    more, and a single target below threshold plus two more clears it); the
+    Grappling Hook latches the NEAREST, so the nearest is what is judged
+    (browser-verified: a 3.29-scoring hurt car further down the cone does NOT
+    justify a hook shot whose cable would grab the 0.47-scoring healthy car in
+    front of it); a guided launch goes where the LOCK points, so
+    `wantsWeaponFire` takes an optional `lockedTargetId` and the harness
+    threads `rig.locks[slot].targetId` through.
+  - **Guided lock selection is a SEPARATE path and needed its own change.**
+    `updateWeaponLock` (combat.ts) gained an optional `prefer` ranker: omitted
+    it is nearest-first exactly as before, which is what the PLAYER keeps (a
+    predictable, learnable rule for a human aiming their own nose); the harness
+    passes `AiDriver.lockPreference` only for rigs that have an `AiDriver`.
+    Ordering applies to ACQUISITION only — the pre-existing sticky-current-
+    target rule runs first, so a preference can never make a lock thrash, which
+    matters because switching resets the 0.9 s dwell to zero.
+  - **Left unscored, deliberately.** `wantsAreaDrop` (Caltrops / Oil) is not a
+    target-selection problem: the field lands on the ground behind the AI and
+    catches whoever drives through it, so first-match in the drop zone is the
+    same answer as best-match. Same reasoning for `wantsShield` (self-
+    preservation) and `wantsBlades` (contact proximity). The Auto-Turret picks
+    nearest inside `updateTurret`, a shared player+AI auto-fire path with no AI
+    decision at all, so it is out of scope too.
+  - **Verified** in `/dev/greenline-movement?glheadless=1`, including a real
+    A/B against HEAD (the working changes were stashed to a patch, the tree
+    reverted, the baseline measured, then restored and the patch confirmed
+    byte-identical). Decisive single-shot A/B on identical geometry and state:
+    the same `updateWeaponLock` call locks **ai-1** (closer, 15.1 m, full
+    health) with the default ranker and **ai-2** (28.2 m, armor stripped,
+    chassis 24/105) with the AI preference — and live in-game the AI-driven
+    player locked ai-2 on 306 of 306 samples and sent all 220 sampled
+    projectiles at it, never once at the closer healthy car. Ranking assertions
+    through the real functions: hurt-and-far 3.16 over healthy-and-near 0.70;
+    unshielded 2.53 over equally-hurt-but-shielded 0.86; not-yet-disrupted 0.92
+    over already-disrupted 0.34. Regressions held: one centered mid-range
+    target fires (autocannon, railgun, and a locked rocket), zero targets /
+    out-of-range / behind all hold. Race-level A/B, 8 cars, Proving Ground 07,
+    same config: the mean chassis fraction of the car an AI had LOCKED was
+    **0.725 against a 0.711 field average on HEAD** (health-blind, marginally
+    healthier than average) and **0.624 against a 0.712 field average with the
+    change** (systematically pointed at hurt cars), over 93 and 278 samples;
+    damage per aimed shot 44.3 -> 51.8. Both races ran clean (0 falls, all
+    upright, laps completed, every weapon class firing, no console errors).
+    Debug: `__greenline.aiTargets(rigId, slot)` returns the scored best-first
+    candidate list the decision reads plus that weapon's threshold.
+    Observation, NOT claimed as caused: the new-build races logged more flips
+    (7 in 105 s vs 1 in 82 s) — single-race variance on this metric is large
+    and pile-ups are a driving/contact outcome, but it is worth watching in
+    9d-ii-b. `svelte-check` clean, 0 errors, 0 new warnings.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.
