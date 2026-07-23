@@ -102,14 +102,38 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 			author_name: authorName,
 			name,
 			data: v.track,
-			length_m: Math.round(lapLengthM(v.track))
+			length_m: Math.round(lapLengthM(v.track)),
+			// EXPLICIT, not relying on the column default (0059). This insert runs
+			// with the service-role key, which bypasses RLS entirely, so this is
+			// the one write path that could put a row straight into public
+			// visibility. Stating 'pending' here means a future change to the
+			// column default cannot silently open that door.
+			status: 'pending'
 		})
 		.select('id')
 		.single();
 
 	if (error || !row) {
+		// A backend without 0059 has no `status` column, so this insert fails
+		// rather than silently storing a row that would be visible to everyone
+		// the moment it landed. Failing CLOSED is the point; the message says
+		// what to apply instead of surfacing a raw PostgREST error.
+		const missingStatus =
+			error?.code === 'PGRST204' || /status/i.test(error?.message ?? '');
+		if (missingStatus) {
+			return json(
+				{
+					ok: false,
+					error:
+						'track review is not configured on this deployment (apply migration 0059) — nothing was stored'
+				},
+				{ status: 503 }
+			);
+		}
 		return json({ ok: false, error: error?.message ?? 'insert failed' }, { status: 500 });
 	}
 
-	return json({ ok: true, id: row.id, trackId: `community:${row.id}` });
+	// Pending by default: the author and teachers can see and test-race it, and
+	// nobody else can, until the moderation panel approves it.
+	return json({ ok: true, id: row.id, trackId: `community:${row.id}`, status: 'pending' });
 };

@@ -75,7 +75,8 @@
 		const res = await onPublish(trackName.trim() || 'Custom Circuit', report.json);
 		if (res.ok) {
 			publishState = 'done';
-			publishMsg = 'Published. It is now listed under Community tracks in the garage.';
+			publishMsg =
+				'Submitted for review. Only you and your teachers can see or race it until it is approved.';
 		} else {
 			publishState = 'error';
 			publishMsg = res.error ?? 'Publish failed.';
@@ -634,7 +635,7 @@
 	<header class="tb-head">
 		<div class="tb-title">
 			GREENLINE <span>// TRACK BUILDER</span>
-			<em>snap pieces · validate · test drive{onPublish ? ' · publish' : ''}</em>
+			<em>snap pieces · validate · test drive{onPublish ? ' · submit for review' : ''}</em>
 		</div>
 		<label class="tb-field">
 			<span>NAME</span>
@@ -1088,13 +1089,13 @@
 							? `Publish "${trackName.trim() || 'Custom Circuit'}" for everyone to race`
 							: 'Fix the failing validation checks first'}
 					>
-						{publishState === 'busy' ? 'PUBLISHING…' : 'PUBLISH TO GREENLINE ▸'}
+						{publishState === 'busy' ? 'SUBMITTING…' : 'SUBMIT FOR REVIEW ▸'}
 					</button>
 					<span class="tb-publish-note">
 						{#if publishState === 'idle'}
-							Publishes "{trackName.trim() || 'Custom Circuit'}" to the garage's Community list
-							for every signed-in player (unranked). The server re-validates before anything is
-							stored.
+							Submits "{trackName.trim() || 'Custom Circuit'}" to your teachers. Until a teacher
+							approves it, only you and staff can see or race it. The server re-validates
+							before anything is stored.
 						{:else}
 							{publishMsg}
 						{/if}

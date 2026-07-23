@@ -21,6 +21,7 @@
 	import type { TrackPiece, TrackVec2 } from '../track-schema';
 	import { goto } from '$app/navigation';
 	import { setCustomTrack } from '../custom-track.svelte';
+	import { setSelectedTrack } from '../track-selection.svelte';
 	import { CUSTOM_TRACK_ID } from '../tracks';
 
 	/**
@@ -43,6 +44,32 @@
 	 * `window.__glPieceBuilder` drives the whole thing from the console (the
 	 * `__greenline` / `__glBuilder` convention), which is how it is verified.
 	 */
+
+	const {
+		onPublish,
+		playtestTarget = 'portal'
+	}: {
+		/**
+		 * Submit-for-review seam, the ribbon TrackBuilder's exact shape so both
+		 * builders feed ONE pipeline: the component gathers the name + the
+		 * validated export JSON, the real route posts them to
+		 * /api/greenline-track-publish (session auth, the REAL server-side
+		 * re-validation, service-role insert as `pending`), the dev harness wires
+		 * an in-memory fake. Omitted = no submit UI at all; the raw JSON export
+		 * below is unaffected either way and stays the path for a track destined
+		 * to be committed to `tracks/`.
+		 */
+		onPublish?: (
+			name: string,
+			trackJson: string
+		) => Promise<{ ok: boolean; trackId?: string | null; error: string | null }>;
+		/**
+		 * Where PLAYTEST drives. 'portal' is the real flow (`/greenline?race=1`,
+		 * the ribbon builder's Test Drive path); 'harness' is the dev movement
+		 * harness, which 404s in production and so is only for /dev.
+		 */
+		playtestTarget?: 'portal' | 'harness';
+	} = $props();
 
 	let doc = $state<ChainDoc>(emptyDoc());
 	let selected = $state(-1);
@@ -383,9 +410,45 @@
 			playtestError = err;
 			return;
 		}
-		// `from` gives the harness a one-click way back to the chain, which is
-		// still exactly where it was (the doc lives in localStorage).
-		void goto(`/dev/greenline-movement?track=${CUSTOM_TRACK_ID}&from=piece-builder`);
+		if (playtestTarget === 'harness') {
+			// `from` gives the harness a one-click way back to the chain, which is
+			// still exactly where it was (the doc lives in localStorage).
+			void goto(`/dev/greenline-movement?track=${CUSTOM_TRACK_ID}&from=piece-builder`);
+			return;
+		}
+		// The real flow: the same track-selection store + `?race=1` skip the
+		// ribbon builder's Test Drive uses. A parked track is local to this
+		// browser and unranked — it is NOT a submission and never reaches
+		// anyone else.
+		setSelectedTrack(CUSTOM_TRACK_ID);
+		void goto('/greenline?race=1');
+	}
+
+	/* ---------------- submit for review ---------------- */
+
+	let submitState = $state<'idle' | 'busy' | 'done' | 'error'>('idle');
+	let submitMsg = $state('');
+
+	/**
+	 * Send the CURRENT validated export into the moderation queue. Gated on the
+	 * chain compiling clean, purely as a courtesy — the server re-runs the
+	 * authoritative validation (parseTrack / buildRuntime / surfaceState /
+	 * LapTracker) on whatever it receives, and stores the row as `pending`
+	 * regardless of anything this client claims.
+	 */
+	async function submitForReview() {
+		if (!onPublish || !exported || submitState === 'busy') return;
+		submitState = 'busy';
+		submitMsg = 'submitting…';
+		const res = await onPublish(doc.name.trim() || 'Untitled Circuit', json);
+		if (res.ok) {
+			submitState = 'done';
+			submitMsg =
+				'Submitted for review. Only you and your teachers can see or race it until it is approved.';
+		} else {
+			submitState = 'error';
+			submitMsg = res.error ?? 'Submit failed.';
+		}
 	}
 
 	const n2 = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '-');
@@ -706,6 +769,39 @@
 				{#if copied}<span class="pb-copied">{copied}</span>{/if}
 			</div>
 			{#if playtestError}<p class="pb-err" data-testid="playtest-error">{playtestError}</p>{/if}
+
+			{#if onPublish}
+				<!-- Submit sits BESIDE the raw export, not instead of it: the export
+				     is still how a track gets committed to tracks/, and submitting
+				     is how it reaches other players. -->
+				<div class="pb-submit">
+					<button
+						class="pb-primary"
+						disabled={!exported || submitState === 'busy'}
+						data-testid="submit-review"
+						title={exported
+							? `Submit "${doc.name.trim() || 'Untitled Circuit'}" to your teachers for review`
+							: 'Fix the guardrail issues first'}
+						onclick={submitForReview}
+					>
+						{submitState === 'busy' ? 'SUBMITTING…' : 'SUBMIT FOR REVIEW ▸'}
+					</button>
+					<p
+						class="pb-note"
+						class:pb-err={submitState === 'error'}
+						class:pb-okmsg={submitState === 'done'}
+						data-testid="submit-msg"
+					>
+						{#if submitState === 'idle'}
+							Sends this chain to your teachers. Until a teacher approves it, only you and
+							staff can see or race it — it is not listed for other students.
+						{:else}
+							{submitMsg}
+						{/if}
+					</p>
+				</div>
+			{/if}
+
 			{#if !exported}
 				<p class="pb-err">
 					{doc.pieces.length === 0 ? 'Add pieces first.' : 'Export is blocked while a guardrail is broken.'}
@@ -1147,5 +1243,13 @@
 	}
 	.pb-json {
 		margin-top: 0.5rem;
+	}
+	.pb-submit {
+		margin-top: 0.7rem;
+		border-top: 1px solid #16212c;
+		padding-top: 0.6rem;
+	}
+	.pb-okmsg {
+		color: #8fffc4;
 	}
 </style>

@@ -842,7 +842,18 @@
 						>
 							<span class="gg-track-head">
 								<span class="gg-track-name">{t.name}</span>
-								{#if cm?.featured}
+								{#if cm && cm.status !== 'approved'}
+									<!-- Only its author (and staff) can ever see this tile, so
+									     the tile has to say why nobody else can: a submitted
+									     track is not public until a teacher approves it. -->
+									<span
+										class="gg-track-tag review"
+										title={cm.status === 'rejected'
+											? `Your teacher asked for changes${cm.reviewFeedback ? `: ${cm.reviewFeedback}` : ''}`
+											: 'Waiting for a teacher to review it. Only you and staff can see or race it.'}
+										>{cm.status === 'rejected' ? 'CHANGES ASKED' : 'IN REVIEW'}</span
+									>
+								{:else if cm?.featured}
 									<span
 										class="gg-track-tag featured"
 										title="Featured by a teacher: ranked leaderboard and IC payout, same terms as the official tracks"
@@ -2848,6 +2859,12 @@
 	.gg-track-tag.featured {
 		color: var(--glb-green-ui);
 		border-color: color-mix(in srgb, var(--glb-green-ui) 45%, transparent);
+	}
+	/* Not-yet-public: the brand's impact amber, never the green that means
+	   "live" everywhere else in GREENLINE. */
+	.gg-track-tag.review {
+		color: var(--glb-amber, #ffb02e);
+		border-color: color-mix(in srgb, var(--glb-amber, #ffb02e) 50%, transparent);
 	}
 	.gg-track-acts {
 		display: flex;

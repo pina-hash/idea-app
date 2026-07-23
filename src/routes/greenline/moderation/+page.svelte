@@ -4,6 +4,7 @@
 	import {
 		loadCommunityTracks,
 		removeCommunityTrack,
+		reviewCommunityTrack,
 		setTrackFeatured,
 		type CommunityTrackSummary
 	} from '$lib/greenline/community';
@@ -44,6 +45,15 @@
 		busyUuid = null;
 	}
 
+	async function handleReview(uuid: string, action: 'approve' | 'reject', feedback?: string) {
+		busyUuid = uuid;
+		actionError = '';
+		const res = await reviewCommunityTrack(supabase, uuid, action, feedback);
+		if (!res.ok) actionError = res.error ?? 'Could not record the review.';
+		await refresh();
+		busyUuid = null;
+	}
+
 	async function handleRemove(uuid: string) {
 		busyUuid = uuid;
 		actionError = '';
@@ -63,10 +73,13 @@
 		<div>
 			<h1>GREENLINE <span>// TRACK MODERATION</span></h1>
 			<p>
-				Published community tracks with their reports, ratings, and race telemetry. FEATURE
-				makes a track ranked (real leaderboard + IC payout, same terms as the official
-				circuits); UN-FEATURE demotes it back to unranked without touching its history.
-				REMOVE delists it (soft; ratings, telemetry, and board history are kept).
+				Student-submitted tracks with their reports, ratings, and race telemetry. A submitted
+				track is <b>AWAITING REVIEW</b>: only its author and staff can see or race it until
+				APPROVE publishes it to every signed-in player. REQUEST CHANGES sends it back with a
+				note (and revokes approval and featuring). FEATURE additionally makes an approved
+				track ranked (real leaderboard + IC payout, same terms as the official circuits);
+				UN-FEATURE demotes it back to unranked without touching its history. REMOVE delists
+				it (soft; ratings, telemetry, and board history are kept).
 			</p>
 		</div>
 		<a class="mod-back" href="/greenline">◂ GREENLINE</a>
@@ -76,7 +89,7 @@
 		<div class="mod-note">loading…</div>
 	{:else if !ready}
 		<div class="mod-note">
-			Community tracks are not available yet. Apply migrations 0057 and 0058 in the Supabase
+			Community tracks are not available yet. Apply migrations 0057, 0058 and 0059 in the Supabase
 			SQL editor.
 		</div>
 	{:else}
@@ -86,6 +99,7 @@
 			error={actionError}
 			onFeature={handleFeature}
 			onRemove={handleRemove}
+			onReview={handleReview}
 		/>
 	{/if}
 </div>

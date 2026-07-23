@@ -13,6 +13,7 @@
 	const {
 		onStart,
 		onBuilder,
+		onPieceBuilder,
 		onSettings,
 		onFeedback,
 		trackName = 'Proving Ground 07',
@@ -26,6 +27,12 @@
 		 * primary action.
 		 */
 		onBuilder?: () => void;
+		/**
+		 * Optional: renders the PIECE EDITOR entry beside TRACK EDITOR. The two
+		 * builders author different surface kinds (v3 parametric piece chains vs
+		 * v2 ribbon layouts), so they are separate doors, not modes of one tool.
+		 */
+		onPieceBuilder?: () => void;
 		/** Optional: renders a gear button that opens the settings overlay. */
 		onSettings?: () => void;
 		/** Optional: renders a button that opens the host's feedback box. */
@@ -78,8 +85,15 @@
 			<span class="tt-start-label">START</span>
 			<span class="tt-start-hint">ENTER</span>
 		</button>
-		{#if onBuilder}
-			<button class="tt-builder" onclick={onBuilder}>TRACK EDITOR</button>
+		{#if onBuilder || onPieceBuilder}
+			<div class="tt-builders">
+				{#if onBuilder}
+					<button class="tt-builder" onclick={onBuilder}>TRACK EDITOR</button>
+				{/if}
+				{#if onPieceBuilder}
+					<button class="tt-builder" onclick={onPieceBuilder}>PIECE EDITOR</button>
+				{/if}
+			</div>
 		{/if}
 	</div>
 
@@ -383,6 +397,14 @@
 	}
 	.tt-start:active {
 		transform: translateY(1px);
+	}
+	/* Two authoring doors side by side; they wrap on a narrow viewport rather
+	   than shrinking the START button's breathing room. */
+	.tt-builders {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		justify-content: center;
 	}
 	/* The builder entry: same machined language as START, deliberately quieter
 	   (smaller, steel) — authoring is the second door, racing the first. */

@@ -18,6 +18,19 @@ import { communityTrackId } from './tracks';
 /** Reasonable cap on a published track's display name (mirrors the 0057 CHECK). */
 export const TRACK_NAME_MAX = 60;
 
+/**
+ * Moderation state (0059). A submitted track is `pending` — visible and
+ * playable to its AUTHOR and TEACHERS only — until a teacher approves it.
+ * `rejected` carries reviewer feedback and is likewise author+staff only.
+ * Only `approved` is listed, playable, rateable, or featurable for everyone
+ * else; the authoritative gate is the RLS policy + the RPCs in 0059, never
+ * this type.
+ */
+export type TrackStatus = 'pending' | 'approved' | 'rejected';
+
+const asStatus = (v: unknown): TrackStatus =>
+	v === 'approved' || v === 'rejected' ? v : 'pending';
+
 /** One published track in the browse list, with its derived telemetry. */
 export interface CommunityTrackSummary {
 	/** greenline_tracks row uuid — the stable identity. */
@@ -27,6 +40,11 @@ export interface CommunityTrackSummary {
 	name: string;
 	authorName: string;
 	createdAt: string | null;
+	/** 0059 moderation state; only 'approved' is visible to non-author/staff. */
+	status: TrackStatus;
+	/** Reviewer's note, set when a track is sent back for revision. */
+	reviewFeedback: string | null;
+	removed: boolean;
 	featured: boolean;
 	lengthM: number | null;
 	reportCount: number;
@@ -57,6 +75,9 @@ export interface CommunityTileMeta {
 	mine: boolean;
 	reported: boolean;
 	featured: boolean;
+	/** 0059: a tile only ever reaches a non-author when this is 'approved'. */
+	status: TrackStatus;
+	reviewFeedback: string | null;
 }
 
 const num = (v: unknown): number | null => (typeof v === 'number' && isFinite(v) ? v : null);
@@ -82,6 +103,17 @@ export async function loadCommunityTracks(
 			name: typeof row.name === 'string' ? row.name : 'Community track',
 			authorName: typeof row.author_name === 'string' ? row.author_name : 'Unknown',
 			createdAt: typeof row.created_at === 'string' ? row.created_at : null,
+			// Pre-0059 backends return no `status`; treating a missing value as
+			// 'pending' would hide every existing track, so an absent field means
+			// "this backend has no review gate" and reads as approved. The
+			// authoritative gate is server-side either way — a pre-0059 backend
+			// genuinely has no gate, and the UI must not pretend otherwise.
+			status: row.status === undefined ? 'approved' : asStatus(row.status),
+			reviewFeedback:
+				typeof row.review_feedback === 'string' && row.review_feedback.trim()
+					? row.review_feedback
+					: null,
+			removed: row.removed === true,
 			featured: row.featured === true,
 			lengthM: num(row.length_m),
 			reportCount: num(row.report_count) ?? 0,
@@ -117,7 +149,9 @@ export function communityMetaMap(
 			attempts: t.attemptCount,
 			mine: t.mine,
 			reported: t.reported,
-			featured: t.featured
+			featured: t.featured,
+			status: t.status,
+			reviewFeedback: t.reviewFeedback
 		};
 	}
 	return out;
@@ -219,6 +253,37 @@ export async function setTrackFeatured(
 	});
 	if (error) return { ok: false, error: error.message };
 	return { ok: data === true, error: data === true ? null : 'no change' };
+}
+
+/**
+ * Approve a submitted track, or send it back with feedback (0059). Teacher-only,
+ * enforced INSIDE greenline_track_review — this wrapper is reachable by anyone,
+ * the server is the boundary. Approving is what makes a track visible and
+ * playable to everyone; rejecting returns it to author+staff visibility with the
+ * note attached. Neither deletes anything.
+ */
+export async function reviewCommunityTrack(
+	supabase: SupabaseClient,
+	uuid: string,
+	action: 'approve' | 'reject',
+	feedback?: string
+): Promise<{ ok: boolean; error: string | null }> {
+	const { data, error } = await supabase.rpc('greenline_track_review', {
+		p_track_id: uuid,
+		p_action: action,
+		p_feedback: feedback ?? null
+	});
+	if (error) return { ok: false, error: error.message };
+	const d = (data ?? {}) as Record<string, unknown>;
+	if (d.ok === true) return { ok: true, error: null };
+	const reason = typeof d.reason === 'string' ? d.reason : 'review rejected';
+	return {
+		ok: false,
+		error:
+			reason === 'feedback_required'
+				? 'A note back to the author is required when requesting changes.'
+				: reason
+	};
 }
 
 /** Soft-remove a track (its author, or a teacher). */

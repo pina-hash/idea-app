@@ -701,6 +701,7 @@
 			trackName={selectedTrackName}
 			onStart={() => (screen = 'garage')}
 			onBuilder={() => goto('/greenline/builder')}
+			onPieceBuilder={() => goto('/greenline/piece-builder')}
 			onSettings={() => (settingsOpen = true)}
 			onFeedback={() => openFeedback('title')}
 			enableShortcut={!settingsOpen && !feedbackOpen}

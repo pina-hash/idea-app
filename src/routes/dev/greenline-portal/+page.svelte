@@ -36,6 +36,7 @@
 	import { decalImageState, registerDecalImage } from '$lib/greenline/rig-visual';
 	import {
 		attachCommunityTrackData,
+		communityTrackReady,
 		communityTrackUuid,
 		isCommunityTrackId,
 		lapLengthM,
@@ -359,6 +360,9 @@
 		uuid: string;
 		name: string;
 		author: DevUser;
+		/** 0059 moderation state. 'pending' = author + staff only. */
+		status: 'pending' | 'approved' | 'rejected';
+		reviewFeedback: string | null;
 		data: TrackData;
 		removed: boolean;
 		featured: boolean;
@@ -369,10 +373,23 @@
 	let devCommunity = $state<DevCommunityTrack[]>([]);
 	let devTrackSeq = 0;
 	const avgOf = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+	/**
+	 * THE 0059 VISIBILITY PREDICATE, mirrored from the RLS select policy and the
+	 * list RPC: a track reaches a PLAYER only when it is approved and live, or
+	 * when they are its author. (Teachers see everything — that is the separate
+	 * moderation list below, matching the RPC's is_teacher() branch.) This one
+	 * function is what the harness verifies the access boundary against.
+	 */
+	const devVisibleTo = (t: DevCommunityTrack, u: DevUser) =>
+		(t.status === 'approved' && !t.removed) || t.author === u;
 	const devSummaries = $derived.by((): CommunityTrackSummary[] =>
-		devCommunity
-			.filter((t) => !t.removed)
-			.map((t) => {
+		devCommunity.filter((t) => devVisibleTo(t, devUser)).map(devSummaryOf)
+	);
+	/** The teacher's list: every row at every status (the is_teacher() branch). */
+	const devModerationSummaries = $derived.by((): CommunityTrackSummary[] =>
+		devCommunity.map(devSummaryOf)
+	);
+	function devSummaryOf(t: DevCommunityTrack): CommunityTrackSummary {
 				const done = t.attempts.filter((a) => a.completed);
 				const rats = Object.values(t.ratings).filter((r): r is number => typeof r === 'number');
 				const avg = avgOf(rats);
@@ -398,13 +415,15 @@
 					uniqueRacers: new Set(t.attempts.map((a) => a.user)).size,
 					avgTimeMs: avgOf(done.map((a) => a.timeMs ?? 0)),
 					avgWallViolations: avgOf(walls),
+					status: t.status,
+					reviewFeedback: t.reviewFeedback,
+					removed: t.removed,
 					mine: t.author === devUser,
 					myRating: t.ratings[devUser] ?? null,
 					canRate: t.attempts.some((a) => a.user === devUser && a.completed),
 					reported: t.reports.includes(devUser)
 				};
-			})
-	);
+	}
 	// Feed the REAL catalog registry so the garage tiles, selection, and
 	// loadTrack resolve community entries exactly as /greenline does. Called
 	// SYNCHRONOUSLY from every store mutation (the same order the real route
@@ -412,7 +431,12 @@
 	// deriveds that read the registry and leave them one render stale.
 	let registryRev = $state(0);
 	function syncRegistry() {
-		const live = devCommunity.filter((t) => !t.removed);
+		// Gated by the SAME 0059 predicate: the registry is what the garage lists
+		// AND what `loadTrack` resolves, so filtering here is the harness's model
+		// of the RLS policy refusing to hand a non-approved row's `data` to
+		// anyone but its author. A track missing from here is genuinely
+		// unplayable in this harness, not merely unlisted.
+		const live = devCommunity.filter((t) => devVisibleTo(t, devUser));
 		registerCommunityTracks(
 			live.map((t) => ({
 				id: `community:${t.uuid}`,
@@ -443,6 +467,10 @@
 				uuid,
 				name: name ?? `${v.track.name || 'Custom'} #${devTrackSeq}`,
 				author: devUser,
+				// 0059: submissions land PENDING. Author + staff only until a
+				// teacher approves.
+				status: 'pending',
+				reviewFeedback: null,
 				data: v.track,
 				removed: false,
 				featured: false,
@@ -452,8 +480,31 @@
 			}
 		];
 		syncRegistry();
-		lastAction = `published community:${uuid} as ${DEV_USER_NAME[devUser]}`;
+		lastAction = `submitted community:${uuid} as ${DEV_USER_NAME[devUser]} (PENDING review)`;
 		return { ok: true, uuid };
+	}
+	/** greenline_track_review: approve publishes it; reject sends it back with a
+	 * required note and revokes approval + featuring. */
+	function devReview(uuid: string, action: 'approve' | 'reject', feedback?: string) {
+		if (action === 'reject' && !feedback?.trim()) {
+			lastAction = `review ${uuid}: REJECTED feedback_required`;
+			return;
+		}
+		devCommunity = devCommunity.map((t) =>
+			t.uuid === uuid
+				? {
+						...t,
+						status: action === 'approve' ? 'approved' : 'rejected',
+						reviewFeedback: action === 'approve' ? null : (feedback ?? '').trim(),
+						featured: action === 'approve' ? t.featured : false
+					}
+				: t
+		);
+		syncRegistry();
+		lastAction =
+			action === 'approve'
+				? `approved ${uuid} — now visible + playable to everyone`
+				: `sent ${uuid} back to its author (author + staff only)`;
 	}
 	/** The SQL semantics: once per (track, user); repeats are a no-op. */
 	function devReport(catalogId: string) {
@@ -483,8 +534,12 @@
 	 * (The harness acts as a teacher here; the SQL's is_teacher() is the
 	 * production boundary.) */
 	function devFeature(uuid: string, on: boolean) {
+		// 0059: featuring additionally requires an APPROVED track — ranked play
+		// is a superset of visible play.
 		devCommunity = devCommunity.map((t) =>
-			t.uuid === uuid && (!on || !t.removed) ? { ...t, featured: on } : t
+			t.uuid === uuid && (!on || (!t.removed && t.status === 'approved'))
+				? { ...t, featured: on }
+				: t
 		);
 		syncRegistry();
 		lastAction = `${on ? 'featured' : 'un-featured'} ${uuid} (${on ? 'ranked' : 'back to unranked'})`;
@@ -504,6 +559,11 @@
 		const uuid = communityTrackUuid(catalogId);
 		const t = devCommunity.find((x) => x.uuid === uuid);
 		if (!t) return 'not found';
+		// 0059: ratings are an approved-track signal only.
+		if (t.status !== 'approved' || t.removed) {
+			lastAction = `rate ${uuid}: REJECTED not_found (not approved)`;
+			return 'not_found';
+		}
 		if (!t.attempts.some((a) => a.user === devUser && a.completed)) {
 			lastAction = `rate ${uuid}: REJECTED no_completed_attempt`;
 			return 'no_completed_attempt';
@@ -549,9 +609,18 @@
 			teacherRemove: devTeacherRemove,
 			rate: devRate,
 			attempt: devAttempt,
-			switchUser: (u: DevUser) => (devUser = u),
+			review: devReview,
+			// Switching identity re-gates the registry, which is the whole point:
+			// what user B can list AND resolve through loadTrack changes with it.
+			switchUser: (u: DevUser) => {
+				devUser = u;
+				syncRegistry();
+			},
 			user: () => devUser,
 			list: () => devSummaries,
+			moderationList: () => devModerationSummaries,
+			/** Can the acting user resolve this track's data at all (playability)? */
+			canPlay: (catalogId: string) => communityTrackReady(catalogId),
 			raw: () => $state.snapshot(devCommunity)
 		};
 		return () => {
@@ -848,12 +917,26 @@
 
 <div class="dh-bar dh-bar-community">
 	<span>community (dev):</span>
-	<button class:on={devUser === 'user-a'} onclick={() => (devUser = 'user-a')}>user A (AVA)</button>
-	<button class:on={devUser === 'user-b'} onclick={() => (devUser = 'user-b')}>user B (BEN)</button>
-	<button onclick={() => devPublish()}>
-		publish {customTrack.data ? 'parked builder track' : 'sample track'}
+	<button
+		class:on={devUser === 'user-a'}
+		data-testid="dev-user-a"
+		onclick={() => {
+			devUser = 'user-a';
+			syncRegistry();
+		}}>user A (AVA)</button
+	>
+	<button
+		class:on={devUser === 'user-b'}
+		data-testid="dev-user-b"
+		onclick={() => {
+			devUser = 'user-b';
+			syncRegistry();
+		}}>user B (BEN)</button
+	>
+	<button data-testid="dev-submit" onclick={() => devPublish()}>
+		submit {customTrack.data ? 'parked builder track' : 'sample track'}
 	</button>
-	<button onclick={() => devPublish({ corrupt: true })}>publish corrupt (must reject)</button>
+	<button onclick={() => devPublish({ corrupt: true })}>submit corrupt (must reject)</button>
 	{#if isCommunityTrackId(trackSelection.id)}
 		<button onclick={() => devAttempt(trackSelection.id, true)}>sim attempt ✓</button>
 		<button onclick={() => devAttempt(trackSelection.id, false)}>sim attempt ✗</button>
@@ -880,6 +963,8 @@
 			trackName={trackList.find((t) => t.id === trackSelection.id)?.name ?? 'Proving Ground 07'}
 			onStart={() => (lastAction = 'START')}
 			onBuilder={() => (lastAction = 'TRACK EDITOR (would goto /greenline/builder)')}
+			onPieceBuilder={() =>
+				(lastAction = 'PIECE EDITOR (would goto /greenline/piece-builder)')}
 			onSettings={() => (settingsOpen = true)}
 			onFeedback={() => openFeedback('title')}
 			enableShortcut={!settingsOpen && !feedbackOpen}
@@ -993,10 +1078,14 @@
 		     are all drivable here without auth (the production route
 		     /greenline/moderation gates on the teacher role + wires the RPCs). -->
 		<div class="dh-moderation">
+			<!-- The TEACHER's list (every row at every status), deliberately not
+			     the player-visible `devSummaries` — mirroring the list RPC's
+			     is_teacher() branch. -->
 			<TrackModerationPanel
-				tracks={devSummaries}
+				tracks={devModerationSummaries}
 				onFeature={devFeature}
 				onRemove={devTeacherRemove}
+				onReview={devReview}
 			/>
 		</div>
 	{:else}

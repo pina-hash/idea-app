@@ -4502,6 +4502,94 @@ on one side of the world.
     **Not verifiable without the user's own login:** the live teacher-session
     render and the `?race=1` landing, since both need real Google OAuth.
 
+- **Piece-chain builder promoted to production + REVIEW-BEFORE-VISIBLE
+  (migration `0059`).** Two changes that ship together because the first
+  requires the second.
+  - **The route.** `/greenline/piece-builder` is the real portal home of the v3
+    piece-chain builder, open to ANY signed-in user (no role gate; students are
+    the intended authors). It carries no `+page.server.ts`: `/greenline` is in
+    `authedPrefixes`, so it inherits the standard guard exactly like its sibling
+    `/greenline/builder` — anonymous visitors 303 to `/` (verified by curl on
+    all three greenline routes). `/dev/greenline-piece-builder` stays as the dev
+    harness (plain dev-404, an in-memory publish fake). Entry point: a second
+    **PIECE EDITOR** button beside TRACK EDITOR under START on the title screen
+    (`GreenlineTitle`'s new optional `onPieceBuilder`; the two builders author
+    different surface kinds, so they are separate doors, not modes of one tool).
+    `PieceChainBuilder` gained `onPublish` (the ribbon `TrackBuilder`'s exact
+    shape, so both builders feed ONE pipeline) and `playtestTarget`
+    (`'portal'` → `setSelectedTrack` + `/greenline?race=1`, the ribbon builder's
+    Test Drive path; `'harness'` → the dev movement harness, which 404s in
+    production). The raw JSON export is untouched and stays the path for a track
+    destined to be committed to `tracks/`.
+  - **v3 compatibility: no mismatch, confirmed not assumed.** `greenline_tracks.
+    data` is `jsonb`; `validatePublishTrack` runs the real `parseTrack` /
+    `buildRuntime` / `surfaceState` / `LapTracker` (all version-agnostic) and
+    already narrows its branch-join check to `surface.type === 'ribbon'` with a
+    note that a v3 chain is closure-validated by the compiler; `lapLengthM` has
+    a pieces branch. Browser-proven end to end: a 4-piece v3 chain exported from
+    the builder passed the REAL `validatePublishTrack` (the exact function the
+    publish endpoint gates on), stored with `schemaVersion 3` / `surface.type
+    'pieces'`, and raced after approval. Only a stale "(schema v2)" comment in
+    0057 was wrong.
+  - **THE REAL MISMATCH, and why 0059 exists.** 0057 shipped
+    publish-then-moderate: its RLS select was `not removed or author or
+    teacher`, `greenline_track_list()` returned every non-removed row to every
+    signed-in user, and `attempt_start` accepted any non-removed track — 0058's
+    `featured` governs RANKED eligibility ONLY, never visibility. So wiring a
+    student-facing builder into publish as-is would have made every submission
+    instantly visible and playable school-wide. `0059_greenline_track_review.sql`
+    (apply after 0058) makes the pipeline moderate-then-publish, EXTENDING the
+    existing tables/panel/endpoint rather than forking them: a `status`
+    (`pending` default / `approved` / `rejected`) plus `review_feedback` /
+    `reviewed_at` / `reviewed_by`, and the gate applied at every path that could
+    expose a track — the RLS select policy (**the actual boundary**, since the
+    client plays a track by SELECTing its `data` straight from the table, so an
+    unreadable row is an unplayable one), the list RPC, `attempt_start`, `rate`,
+    `report`, `set_featured`, and the ranked `submit_race_result` gate. Defense
+    in depth on purpose: the policy alone is the boundary, the rest are so a
+    bypass of any one still fails closed. The publish endpoint inserts
+    `status: 'pending'` EXPLICITLY (it runs with the service-role key, which
+    bypasses RLS and the column default) and fails closed with a clear
+    "apply 0059" 503 on a backend without the column.
+  - **`greenline_track_review(id, action, feedback)`** is the teacher decision
+    RPC, mirroring `greenline_decal_review` (0051): approve, or send back with a
+    REQUIRED note; never deletes; revoking approval also revokes `featured`
+    (ranked play is a superset of visible play). `is_teacher()` is enforced
+    inside the function, so the route's 404 stays convenience. The moderation
+    panel gained a status chip, an AWAITING-REVIEW-first default sort with a
+    pending count, APPROVE / REQUEST CHANGES (inline note box, SEND BACK
+    disabled until non-empty), and FEATURE disabled on anything unapproved.
+    The garage tile shows an author their own submission's state (`IN REVIEW` /
+    `CHANGES ASKED` + the teacher's note in the tooltip, amber not green).
+  - **Backfill decision, deliberate and flagged:** existing rows are set to
+    `approved`, because they were published under 0057's contract and are
+    already publicly visible — approving them preserves the status quo exactly
+    and makes nothing NEWLY visible, whereas resetting them would silently
+    unpublish real student work. Everything submitted from 0059 forward is
+    pending. The migration header carries the one-line
+    `update public.greenline_tracks set status = 'pending';` for a teacher who
+    would rather re-review the whole existing corpus.
+  - **Verified** in `/dev/greenline-portal`, whose two-user in-memory store was
+    extended to mirror the 0059 semantics (one `devVisibleTo` predicate gating
+    BOTH the list and `syncRegistry`, so a track missing from the registry is
+    genuinely unresolvable by `loadTrack`, not merely unlisted): submit as A →
+    stored `pending`; **A sees + can play it, B sees nothing (`sectionPresent:
+    false`, 0 listed) and `canPlay: false`**; teacher approves → B sees + can
+    play; teacher sends back → B loses both again while A keeps it with the
+    feedback attached. Gates: featuring refused while unapproved and
+    auto-revoked on send-back, rating refused while unapproved, reject with
+    blank feedback refused. The panel was driven through REAL clicks (approve →
+    chip flips; REQUEST CHANGES → note box, SEND BACK disabled empty, enabled
+    with text, note stored and shown). `svelte-check` clean, 0 errors.
+  - **NOT verified, and it is the verification this change most wants:** the
+    deployed two-account test on the live site, and whether 0057/0058 are even
+    applied in production. The local `.env` is entirely placeholder
+    (`example-ref`, no `SUPABASE_SERVICE_ROLE_KEY`) and there is no
+    psql/docker/supabase/vercel CLI available, so the 0059 SQL has NOT been
+    executed anywhere — it is review-verified only, per the repo's RPC
+    convention. Apply 0059 and re-run the boundary with two real accounts
+    before trusting it in front of students.
+
 - **Community tracks: publish / browse / rate / report + per-attempt telemetry
   (Bundle 4a, migration `0057`).** Any signed-in player can publish a
   builder-authored track for everyone, and race anyone else's — unranked

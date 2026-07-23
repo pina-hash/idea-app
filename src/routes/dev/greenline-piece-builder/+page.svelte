@@ -6,11 +6,23 @@
 	 * runs the real compiler (`diagnoseChain`) and the real export, and the
 	 * document persists to localStorage exactly as it would anywhere else.
 	 * `window.__glPieceBuilder` drives it from the console.
+	 *
+	 * The REAL route is /greenline/piece-builder (signed-in, submits into the
+	 * moderation queue). This harness keeps `playtestTarget="harness"` so
+	 * PLAYTEST drives the dev movement harness rather than the portal flow, and
+	 * wires an in-memory publish fake so the submit affordance is drivable with
+	 * no auth and no Supabase — it never reaches a database.
 	 */
+	const submissions = $state<{ name: string; bytes: number }[]>([]);
+	async function fakePublish(name: string, trackJson: string) {
+		submissions.push({ name, bytes: trackJson.length });
+		(window as unknown as Record<string, unknown>).__glPieceSubmissions = submissions;
+		return { ok: true, trackId: `community:dev-${submissions.length}`, error: null };
+	}
 </script>
 
 <svelte:head>
 	<title>GREENLINE piece-chain builder (dev)</title>
 </svelte:head>
 
-<PieceChainBuilder />
+<PieceChainBuilder onPublish={fakePublish} playtestTarget="harness" />

@@ -23,7 +23,8 @@
 		busyUuid = null,
 		error = '',
 		onFeature,
-		onRemove
+		onRemove,
+		onReview
 	}: {
 		tracks: CommunityTrackSummary[];
 		/** Track uuid with an action in flight (disables its buttons). */
@@ -34,15 +35,40 @@
 		onFeature: (uuid: string, featured: boolean) => void;
 		/** Teacher removal — the SAME greenline_track_remove path self-remove uses. */
 		onRemove: (uuid: string) => void;
+		/**
+		 * The 0059 review decision — greenline_track_review. This is the gate that
+		 * actually publishes a track: until it is approved, only its author and
+		 * teachers can see or race it. Rejecting requires a note back to the
+		 * author and never deletes anything.
+		 */
+		onReview?: (uuid: string, action: 'approve' | 'reject', feedback?: string) => void;
 	} = $props();
 
-	type SortKey = 'reports' | 'rating' | 'completion';
-	let sortKey = $state<SortKey>('reports');
+	type SortKey = 'pending' | 'reports' | 'rating' | 'completion';
+	// Pending first by default: the review queue is what blocks an author, so it
+	// outranks the after-the-fact signals a featuring decision uses.
+	let sortKey = $state<SortKey>('pending');
 	let confirmRemove = $state<string | null>(null);
+	/** Track uuid whose "request changes" note is open, and its draft text. */
+	let revising = $state<string | null>(null);
+	let revisionNote = $state('');
+
+	const pendingCount = $derived(tracks.filter((t) => t.status === 'pending').length);
 
 	const sorted = $derived.by(() => {
 		const list = [...tracks];
-		if (sortKey === 'rating') {
+		if (sortKey === 'pending') {
+			// Awaiting review first, oldest first (fair FIFO); everything else
+			// after, newest first.
+			const rank = (t: CommunityTrackSummary) => (t.status === 'pending' ? 0 : 1);
+			list.sort(
+				(a, b) =>
+					rank(a) - rank(b) ||
+					(rank(a) === 0
+						? (a.createdAt ?? '').localeCompare(b.createdAt ?? '')
+						: (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+			);
+		} else if (sortKey === 'rating') {
 			// Unrated tracks sink; ties break toward more ratings (more signal).
 			list.sort(
 				(a, b) =>
@@ -65,9 +91,14 @@
 
 <div class="glb tm-root">
 	<div class="tm-toolbar">
-		<span class="tm-count">{tracks.length} published track{tracks.length === 1 ? '' : 's'}</span>
+		<span class="tm-count">
+			{tracks.length} track{tracks.length === 1 ? '' : 's'}
+			{#if pendingCount > 0}
+				· <b class="tm-pendcount">{pendingCount} awaiting review</b>
+			{/if}
+		</span>
 		<span class="tm-sort-label">SORT</span>
-		{#each [{ k: 'reports', label: 'REPORTS' }, { k: 'rating', label: 'RATING' }, { k: 'completion', label: 'COMPLETION %' }] as s (s.k)}
+		{#each [{ k: 'pending', label: 'AWAITING REVIEW' }, { k: 'reports', label: 'REPORTS' }, { k: 'rating', label: 'RATING' }, { k: 'completion', label: 'COMPLETION %' }] as s (s.k)}
 			<button
 				type="button"
 				class="tm-sort"
@@ -94,11 +125,38 @@
 				<span>ACTIONS</span>
 			</div>
 			{#each sorted as t (t.uuid)}
-				<div class="tm-row" class:flagged={t.reportCount > 0} role="row">
+				<div
+					class="tm-row"
+					class:flagged={t.reportCount > 0}
+					class:pending={t.status === 'pending'}
+					role="row"
+					data-testid={`mod-row-${t.uuid}`}
+				>
 					<span class="tm-name">
 						<b>{t.name}</b>
-						{#if t.featured}<i class="tm-chip featured">FEATURED · RANKED</i>{/if}
+						<!-- Visibility state reads FIRST: what a teacher most needs to
+						     know about a row is who can currently see it. -->
+						{#if t.status === 'pending'}
+							<i class="tm-chip pend" data-testid={`mod-status-${t.uuid}`}
+								>AWAITING REVIEW · AUTHOR + STAFF ONLY</i
+							>
+						{:else if t.status === 'rejected'}
+							<i class="tm-chip rej" data-testid={`mod-status-${t.uuid}`}
+								>CHANGES REQUESTED · AUTHOR + STAFF ONLY</i
+							>
+						{:else if t.featured}
+							<i class="tm-chip featured" data-testid={`mod-status-${t.uuid}`}
+								>APPROVED · FEATURED · RANKED</i
+							>
+						{:else}
+							<i class="tm-chip live" data-testid={`mod-status-${t.uuid}`}
+								>APPROVED · VISIBLE TO ALL</i
+							>
+						{/if}
 						<em>by {t.authorName} · {fmtDate(t.createdAt)} · {((t.lengthM ?? 0) / 1000).toFixed(2)} km</em>
+						{#if t.reviewFeedback}
+							<em class="tm-fb">note to author: {t.reviewFeedback}</em>
+						{/if}
 					</span>
 					<span class="num" class:hot={t.reportCount > 0}>{t.reportCount}</span>
 					<span class="num">
@@ -114,12 +172,71 @@
 					<span class="num">{t.uniqueRacers}</span>
 					<span class="num">{fmtAvg(t.avgWallViolations)}</span>
 					<span class="tm-acts">
+						{#if onReview}
+							{#if revising === t.uuid}
+								<!-- Feedback is required to send a track back: "no" without a
+								     reason is not actionable for a student. -->
+								<textarea
+									class="tm-note"
+									rows="2"
+									placeholder="What should the author change?"
+									bind:value={revisionNote}
+									data-testid={`mod-note-${t.uuid}`}
+								></textarea>
+								<button
+									type="button"
+									class="tm-btn danger"
+									disabled={busyUuid === t.uuid || !revisionNote.trim()}
+									data-testid={`mod-send-${t.uuid}`}
+									onclick={() => {
+										const note = revisionNote.trim();
+										revising = null;
+										revisionNote = '';
+										onReview(t.uuid, 'reject', note);
+									}}>SEND BACK</button
+								>
+								<button
+									type="button"
+									class="tm-btn"
+									onclick={() => {
+										revising = null;
+										revisionNote = '';
+									}}>CANCEL</button
+								>
+							{:else}
+								{#if t.status !== 'approved'}
+									<button
+										type="button"
+										class="tm-btn approve"
+										disabled={busyUuid === t.uuid}
+										data-testid={`mod-approve-${t.uuid}`}
+										title="Approve: the track becomes visible and playable to every signed-in player"
+										onclick={() => onReview(t.uuid, 'approve')}>APPROVE</button
+									>
+								{/if}
+								{#if t.status !== 'rejected'}
+									<button
+										type="button"
+										class="tm-btn"
+										disabled={busyUuid === t.uuid}
+										data-testid={`mod-reject-${t.uuid}`}
+										title="Send back to the author with a note (revokes approval and featuring)"
+										onclick={() => {
+											revising = t.uuid;
+											revisionNote = '';
+										}}>REQUEST CHANGES</button
+									>
+								{/if}
+							{/if}
+						{/if}
 						<button
 							type="button"
 							class="tm-btn"
 							class:feature={!t.featured}
-							disabled={busyUuid === t.uuid}
-							title={t.featured
+							disabled={busyUuid === t.uuid || t.status !== 'approved'}
+							title={t.status !== 'approved'
+								? 'Only an approved track can be featured into ranked play'
+								: t.featured
 								? 'Demote to unranked (the track, its ratings, telemetry, and leaderboard history all stay)'
 								: 'Feature: ranked leaderboard + IC payout, same terms as the official tracks'}
 							onclick={() => onFeature(t.uuid, !t.featured)}
@@ -259,6 +376,43 @@
 		letter-spacing: 0.16em;
 		padding: 0.04rem 0.3rem;
 		margin: 0.1rem 0;
+	}
+	/* Not-yet-public states read in the brand's impact amber, never the green
+	   that everywhere else in GREENLINE means "live". */
+	.tm-chip.pend,
+	.tm-chip.rej {
+		color: #e3c68a;
+		border-color: rgba(201, 161, 95, 0.55);
+	}
+	.tm-chip.live {
+		color: var(--glb-ink-dim, #93a3b0);
+		border-color: var(--glb-line, rgba(147, 163, 176, 0.28));
+	}
+	.tm-pendcount {
+		color: #e3c68a;
+		font-weight: 600;
+	}
+	.tm-row.pending:not(.tm-head) {
+		box-shadow: inset 2px 0 0 rgba(227, 198, 138, 0.9);
+		background: rgba(201, 161, 95, 0.06);
+	}
+	.tm-fb {
+		color: #e3c68a !important;
+	}
+	.tm-btn.approve {
+		color: #8fffc4;
+		border-color: rgba(42, 229, 126, 0.55);
+	}
+	.tm-note {
+		flex: 1 1 9rem;
+		min-width: 8rem;
+		background: rgba(4, 7, 11, 0.9);
+		border: 1px solid var(--glb-line, rgba(147, 163, 176, 0.28));
+		border-radius: 2px;
+		color: var(--glb-ink, #dfe8ee);
+		font: 0.62rem var(--glb-font-ui, sans-serif);
+		padding: 0.2rem 0.35rem;
+		resize: vertical;
 	}
 	.num {
 		font-family: var(--glb-font-data, 'Share Tech Mono', monospace);
