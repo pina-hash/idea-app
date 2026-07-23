@@ -35,6 +35,11 @@
  *   mid-piece and returning to the entry bank at the exit. The v2 global
  *   banking array can sample that shape but cannot EXPRESS it: the coupling is
  *   authored intent, one parameter set, not two hand-synced point arrays.
+ * - The closer is the corkscrew's sibling in spirit: a smart piece doing real
+ *   work from (almost) no inputs. It bridges the chain's end pose back to the
+ *   chain start EXACTLY — closing a loop by hand is a simultaneous
+ *   position + heading + elevation + bank solve no author should have to do
+ *   by parameter-fiddling. See the closer block below for the math.
  *
  * Pure math: no three.js, no cannon-es, no Svelte (the track-runtime
  * convention), so scratch scripts and the console can drive it directly.
@@ -81,6 +86,19 @@ export const PIECE_CATCH_PLANE_MARGIN_M = 0.01;
  * centimeter margin to add.
  */
 const ARCH_SHAPE_EPS = 0.02;
+/**
+ * Closer auto-mode dials. The auto radius starts from the chord (a third of
+ * the straight-line gap reads as a natural sweep) clamped to a comfortable
+ * band, then the grade ladder may raise it — a longer connector flattens the
+ * climb back to the start's elevation. The soft grade target is HALF the lint
+ * ceiling on purpose: an auto-computed piece should come out comfortable, not
+ * barely legal; an author who wants it tighter sets `radius` explicitly.
+ */
+const CLOSER_MIN_AUTO_R = 12;
+const CLOSER_MAX_AUTO_R = 60;
+const CLOSER_MAX_R = 2000;
+const CLOSER_SOFT_GRADE = PIECE_GRADE_MAX / 2;
+const CLOSER_LADDER_STEPS = 10;
 
 /**
  * A pose on the chain: where a piece begins or ends. Heading is the schema
@@ -115,6 +133,8 @@ export interface CompiledPiece {
 	 * See `corkscrewArchLift`.
 	 */
 	archLiftM: number;
+	/** What a self-solving piece decided (the closer's word + radius). */
+	note?: string;
 }
 
 /**
@@ -138,15 +158,20 @@ export interface CompiledChain {
 	lengthM: number;
 	pieces: CompiledPiece[];
 	/**
-	 * Parametric chains: the measured pose mismatch at the loop joint (all
-	 * within the PIECE_CLOSURE_* tolerances, or compile throws). Null for a
-	 * ribbon wrap, whose closure is the legacy wrap-segment convention.
+	 * Parametric chains: the measured pose mismatch at the loop joint. In
+	 * throw mode (a real track load) every gap is within the PIECE_CLOSURE_*
+	 * tolerances or compile throws; in collect mode (the builder) `ok` says
+	 * whether the loop genuinely closes, and a false `ok` means the chain is
+	 * an OPEN road-in-progress. Null for a ribbon wrap, whose closure is the
+	 * legacy wrap-segment convention.
 	 */
 	closure: {
 		gapM: number;
 		headingGapDeg: number;
 		elevGapM: number;
 		bankGapDeg: number;
+		pitchGapDeg: number;
+		ok: boolean;
 	} | null;
 	/**
 	 * Largest catch-plane raise applied to any parametric sample (the 8a
@@ -249,6 +274,10 @@ export function pieceIssue(p: TrackPiece): string | null {
 			if (!inRange(p.peakBankDeg, -PIECE_BANK_MAX_DEG, PIECE_BANK_MAX_DEG))
 				return `corkscrew peakBankDeg must be within ±${PIECE_BANK_MAX_DEG}`;
 			break;
+		case 'closer':
+			if (p.radius !== undefined && !inRange(p.radius, 4, 2000))
+				return 'closer radius must be 4..2000 m';
+			break;
 		case 'freeform': {
 			if (!Array.isArray(p.centerline) || p.centerline.length < 2)
 				return 'freeform centerline needs at least 2 points';
@@ -272,7 +301,12 @@ export function pieceIssue(p: TrackPiece): string | null {
 		default:
 			return `unknown piece kind ${String((p as { kind?: unknown }).kind)}`;
 	}
-	if (p.kind !== 'freeform' && p.width !== undefined && !(fin(p.width) && p.width >= 4 && p.width <= 40))
+	if (
+		p.kind !== 'freeform' &&
+		p.kind !== 'closer' &&
+		p.width !== undefined &&
+		!(fin(p.width) && p.width >= 4 && p.width <= 40)
+	)
 		return 'piece width must be 4..40 m';
 	return null;
 }
@@ -299,6 +333,8 @@ interface PieceGen {
 	exitWidth: number;
 	/** Corkscrew catch-plane arch height, meters (0 on every other kind). */
 	archLiftM: number;
+	/** What a self-solving piece decided (the closer's word + radius). */
+	note?: string;
 }
 
 /**
@@ -361,10 +397,269 @@ function corkscrewArchLift(natural: ArchSample[]): number {
 	return lift;
 }
 
+/* ------------------------------------------------------------------ */
+/* the closer: an auto-computed bridge back to the chain start         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The closer solves the 4-constraint problem that made closing a chain by
+ * hand nearly impossible: its exit must land on the chain start's position,
+ * heading, elevation, AND bank simultaneously. The solve decomposes the same
+ * way the existing generators already decompose:
+ *
+ * - PLAN (x, z, heading): a Dubins-style connector — turn / straight / turn
+ *   (or turn / turn / turn when the poses are close together) at one radius.
+ *   All six candidate words are CLOSED-FORM tangent constructions between the
+ *   entry and target turning circles, i.e. exactly the arc + straight
+ *   vocabulary the `curve` and `straight` pieces are made of, composed the
+ *   same way. The outer-tangent words (LSL / RSR) exist for EVERY pose pair
+ *   at equal radii, so a solution always exists; the shortest valid word
+ *   wins. Defensively, every candidate is verified by composing its segments
+ *   analytically and checking the end pose against the target — a
+ *   construction that does not land is discarded, never trusted.
+ * - ELEVATION + PITCH: a cubic Hermite in arc length matching height AND
+ *   grade at both ends, in closed form (the straight's eased-grade profile
+ *   can match grades or height, never both at once).
+ * - BANK: the `bank` piece's own smootherstep blend, entry bank -> start
+ *   bank. WIDTH blends to the chain's first-sample width the same way.
+ *
+ * The one non-closed-form element is AUTO RADIUS selection: with no authored
+ * radius the piece starts from chord/3 (clamped to a comfortable band) and
+ * takes a few bounded ladder steps upward while the Hermite's peak grade
+ * would be steeper than `CLOSER_SOFT_GRADE` — a longer sweep flattens the
+ * climb. That is a deterministic pick AMONG exact solutions (the corkscrew's
+ * spirit: real work from simple inputs), not an iteration converging on an
+ * approximate one.
+ *
+ * All plan math runs in the plane (u, v) = (x, -z), where the schema heading
+ * convention becomes the textbook one: direction (cos th, sin th), positive
+ * turn counterclockwise.
+ */
+const TAU = Math.PI * 2;
+const mod2pi = (a: number): number => ((a % TAU) + TAU) % TAU;
+
+interface PlanPt {
+	u: number;
+	v: number;
+}
+type PlanSeg =
+	| {
+			kind: 'arc';
+			sign: 1 | -1;
+			cu: number;
+			cv: number;
+			r: number;
+			a0: number;
+			sweep: number;
+			len: number;
+	  }
+	| { kind: 'str'; u0: number; v0: number; du: number; dv: number; len: number };
+
+interface CloserPlan {
+	segs: PlanSeg[];
+	lengthM: number;
+	word: string;
+	/** Signed total heading change over the plan, radians (CCW positive). */
+	sweptRad: number;
+}
+
+/** Pose at arc length `s` along a segment list (segments are absolute). */
+function planPoseAt(segs: PlanSeg[], s: number): { u: number; v: number; th: number } {
+	let rem = Math.max(0, s);
+	for (let i = 0; i < segs.length; i++) {
+		const seg = segs[i];
+		if (rem <= seg.len || i === segs.length - 1) {
+			const t = Math.min(rem, seg.len);
+			if (seg.kind === 'arc') {
+				const ang = seg.a0 + (seg.sign * t) / seg.r;
+				return {
+					u: seg.cu + seg.r * Math.cos(ang),
+					v: seg.cv + seg.r * Math.sin(ang),
+					th: ang + seg.sign * (Math.PI / 2)
+				};
+			}
+			return { u: seg.u0 + seg.du * t, v: seg.v0 + seg.dv * t, th: Math.atan2(seg.dv, seg.du) };
+		}
+		rem -= seg.len;
+	}
+	return { u: 0, v: 0, th: 0 };
+}
+
+/**
+ * Every valid connector word between two oriented plan poses at radius R,
+ * compose-checked. CSC words come from circle tangent lines (outer tangents
+ * always exist for equal radii; inner ones need the centers 2R apart), CCC
+ * words from a middle circle tangent to both turning circles (both mirror
+ * placements tried). See the block comment above for why the check makes a
+ * transcription slip self-discarding instead of load-bearing.
+ */
+function closerCandidates(
+	P0: PlanPt,
+	th0: number,
+	P1: PlanPt,
+	th1: number,
+	R: number
+): CloserPlan[] {
+	const out: CloserPlan[] = [];
+	const angleOf = (du: number, dv: number): number => Math.atan2(dv, du);
+	const arcSeg = (c: PlanPt, sign: 1 | -1, aFrom: number, aTo: number): PlanSeg => {
+		let sweep = mod2pi(sign * (aTo - aFrom));
+		// A sweep meant to be zero can compute as a hair under a full turn
+		// through floating point; snap it, or a straight-ahead word gains a
+		// spurious 2*pi loop.
+		if (sweep > TAU - 1e-9) sweep = 0;
+		return { kind: 'arc', sign, cu: c.u, cv: c.v, r: R, a0: aFrom, sweep, len: R * sweep };
+	};
+	const center = (P: PlanPt, th: number, s: 1 | -1): PlanPt => ({
+		u: P.u - s * R * Math.sin(th),
+		v: P.v + s * R * Math.cos(th)
+	});
+	const push = (word: string, segs: PlanSeg[]): void => {
+		const L = segs.reduce((m, sg) => m + sg.len, 0);
+		const end = planPoseAt(segs, L);
+		const scale = 1 + Math.max(Math.abs(P1.u), Math.abs(P1.v));
+		if (Math.hypot(end.u - P1.u, end.v - P1.v) > 1e-6 * scale) return;
+		const dTh = Math.atan2(Math.sin(end.th - th1), Math.cos(end.th - th1));
+		if (Math.abs(dTh) > 1e-6) return;
+		const sweptRad = segs.reduce(
+			(m, sg) => (sg.kind === 'arc' ? m + sg.sign * sg.sweep : m),
+			0
+		);
+		out.push({ segs: segs.filter((sg) => sg.len > 1e-9), lengthM: L, word, sweptRad });
+	};
+
+	for (const s0 of [1, -1] as const) {
+		for (const s1 of [1, -1] as const) {
+			const c0 = center(P0, th0, s0);
+			const c1 = center(P1, th1, s1);
+			const Du = c1.u - c0.u;
+			const Dv = c1.v - c0.v;
+			const dist = Math.hypot(Du, Dv);
+			const a0 = angleOf(P0.u - c0.u, P0.v - c0.v);
+			const a1 = angleOf(P1.u - c1.u, P1.v - c1.v);
+			const wordName = `${s0 === 1 ? 'L' : 'R'}S${s1 === 1 ? 'L' : 'R'}`;
+			if (s0 === s1) {
+				if (dist < 1e-9) {
+					// Entry and target share the turning circle: one arc suffices
+					// (compose-check confirms the target really sits on it).
+					push(s0 === 1 ? 'L' : 'R', [arcSeg(c0, s0, a0, a1)]);
+					continue;
+				}
+				const eu = Du / dist;
+				const ev = Dv / dist;
+				// Outer tangent normal m = rot(-s0 * 90deg)(e).
+				const mu = s0 === 1 ? ev : -ev;
+				const mv = s0 === 1 ? -eu : eu;
+				const aT = angleOf(mu, mv);
+				push(wordName, [
+					arcSeg(c0, s0, a0, aT),
+					{ kind: 'str', u0: c0.u + R * mu, v0: c0.v + R * mv, du: eu, dv: ev, len: dist },
+					arcSeg(c1, s1, aT, a1)
+				]);
+				// CCC: a middle circle tangent to both, while they sit close.
+				if (dist <= 4 * R) {
+					const h = Math.sqrt(Math.max(0, 4 * R * R - (dist / 2) * (dist / 2)));
+					const mSign = (s0 === 1 ? -1 : 1) as 1 | -1;
+					for (const hs of [1, -1] as const) {
+						const c2 = {
+							u: (c0.u + c1.u) / 2 - hs * h * ev,
+							v: (c0.v + c1.v) / 2 + hs * h * eu
+						};
+						const p01 = { u: (c0.u + c2.u) / 2, v: (c0.v + c2.v) / 2 };
+						const p12 = { u: (c1.u + c2.u) / 2, v: (c1.v + c2.v) / 2 };
+						push(`${s0 === 1 ? 'LRL' : 'RLR'}${hs === 1 ? '' : "'"}`, [
+							arcSeg(c0, s0, a0, angleOf(p01.u - c0.u, p01.v - c0.v)),
+							arcSeg(c2, mSign, angleOf(p01.u - c2.u, p01.v - c2.v), angleOf(p12.u - c2.u, p12.v - c2.v)),
+							arcSeg(c1, s1, angleOf(p12.u - c1.u, p12.v - c1.v), a1)
+						]);
+					}
+				}
+			} else {
+				if (dist < 2 * R) continue;
+				// Inner tangent: normal m satisfies D . m = 2R, side picked so the
+				// straight travels toward the target circle.
+				const gam = Math.acos(Math.min(1, Math.max(-1, (2 * R) / dist)));
+				const psi = angleOf(Du, Dv);
+				const mAng = psi - s0 * gam;
+				const mu = Math.cos(mAng);
+				const mv = Math.sin(mAng);
+				// Straight direction e = rot(s0 * 90deg)(m).
+				const du = s0 === 1 ? -mv : mv;
+				const dv = s0 === 1 ? mu : -mu;
+				push(wordName, [
+					arcSeg(c0, s0, a0, mAng),
+					{
+						kind: 'str',
+						u0: c0.u + R * mu,
+						v0: c0.v + R * mv,
+						du,
+						dv,
+						len: Math.sqrt(Math.max(0, dist * dist - 4 * R * R))
+					},
+					arcSeg(c1, s1, mAng + Math.PI, a1)
+				]);
+			}
+		}
+	}
+	return out;
+}
+
+function bestCloserPlan(
+	P0: PlanPt,
+	th0: number,
+	P1: PlanPt,
+	th1: number,
+	R: number
+): CloserPlan | null {
+	const cands = closerCandidates(P0, th0, P1, th1, R);
+	if (!cands.length) return null;
+	cands.sort((a, b) => a.lengthM - b.lengthM);
+	return cands[0];
+}
+
+/**
+ * Elevation along the closer: cubic Hermite in arc length with y AND grade
+ * matched at both ends. `u` in [0, 1]; returns the height DELTA from y0.
+ */
+const hermiteDy = (dy: number, g0: number, g1: number, L: number, u: number): number => {
+	const h01 = u * u * (3 - 2 * u);
+	const h10 = u * (1 - u) * (1 - u);
+	const h11 = u * u * (u - 1);
+	return h01 * dy + L * (h10 * g0 + h11 * g1);
+};
+
+/** Peak |grade| of that Hermite: quadratic in u, checked at ends + vertex. */
+function hermitePeakGrade(dy: number, g0: number, g1: number, L: number): number {
+	if (L < 1e-9) return 0;
+	const A = (-6 * dy) / L + 3 * g0 + 3 * g1;
+	const B = (6 * dy) / L - 4 * g0 - 2 * g1;
+	const C = g0;
+	let m = Math.max(Math.abs(C), Math.abs(A + B + C));
+	if (Math.abs(A) > 1e-12) {
+		const u = -B / (2 * A);
+		if (u > 0 && u < 1) m = Math.max(m, Math.abs(A * u * u + B * u + C));
+	}
+	return m;
+}
+
+/** What the closer bridges back to: the chain's first compiled entry. */
+interface CloseTarget {
+	pose: PiecePose;
+	width: number;
+}
+
 const nFor = (planLen: number): number => Math.max(2, Math.ceil(planLen / PIECE_SAMPLE_STEP));
 
-function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): PieceGen {
-	const wTo = piece.kind === 'freeform' ? entryWidth : (piece.width ?? entryWidth);
+function generate(
+	entry: PiecePose,
+	entryWidth: number,
+	piece: TrackPiece,
+	closeTarget: CloseTarget | null
+): PieceGen {
+	const wTo =
+		piece.kind === 'freeform' || piece.kind === 'closer'
+			? entryWidth
+			: (piece.width ?? entryWidth);
 	const wAt = (t: number): number => entryWidth + (wTo - entryWidth) * smooth01(t);
 	const g0 = gradeOf(entry.pitchDeg);
 
@@ -570,6 +865,111 @@ function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): Piec
 				archLiftM
 			};
 		}
+		case 'closer': {
+			// The auto-computed loop closer (see the block comment above the plan
+			// solver). compileChain guarantees `closeTarget` here: a closer must be
+			// the last piece and must have a compiled piece before it.
+			const tgt = closeTarget as CloseTarget;
+			const tp = tgt.pose;
+			const P0: PlanPt = { u: entry.x, v: -entry.z };
+			const P1: PlanPt = { u: tp.x, v: -tp.z };
+			const th0 = entry.headingDeg * DEG;
+			const th1 = tp.headingDeg * DEG;
+			const dy = tp.y - entry.y;
+			const g1 = gradeOf(tp.pitchDeg);
+			const chord = Math.hypot(P1.u - P0.u, P1.v - P0.v);
+			const auto = piece.radius === undefined;
+			let R = auto
+				? Math.min(CLOSER_MAX_AUTO_R, Math.max(CLOSER_MIN_AUTO_R, chord / 3))
+				: (piece.radius as number);
+			let plan = bestCloserPlan(P0, th0, P1, th1, R);
+			if (auto && plan) {
+				// The grade ladder: while the Hermite back to the start's height
+				// would peak steeper than comfortable, sweep wider (a longer path
+				// flattens the climb). Bounded and deterministic; each step is a
+				// full exact re-solve, so the result is still closed form.
+				const gTarget = Math.max(CLOSER_SOFT_GRADE, Math.abs(g0) * 1.05, Math.abs(g1) * 1.05);
+				for (
+					let i = 0;
+					i < CLOSER_LADDER_STEPS &&
+					R < CLOSER_MAX_R &&
+					plan.lengthM > 1e-6 &&
+					hermitePeakGrade(dy, g0, g1, plan.lengthM) > gTarget;
+					i++
+				) {
+					R = Math.min(CLOSER_MAX_R, R * 1.4);
+					const next = bestCloserPlan(P0, th0, P1, th1, R);
+					if (!next) break;
+					plan = next;
+				}
+			}
+			// Exit heading: continuous with the physically swept path (spin count
+			// from the plan) but EXACTLY the target heading mod 360, so the
+			// closure check reads identically zero rather than float fuzz.
+			const headingResidue = normDeg(tp.headingDeg - entry.headingDeg);
+			const exactHeading = (sweptDeg: number): number =>
+				entry.headingDeg + headingResidue + Math.round((sweptDeg - headingResidue) / 360) * 360;
+			const exitPose: PiecePose = {
+				x: tp.x,
+				z: tp.z,
+				y: tp.y,
+				headingDeg: exactHeading(plan ? plan.sweptRad / DEG : 0),
+				pitchDeg: tp.pitchDeg,
+				bankDeg: tp.bankDeg
+			};
+			const endSample: ChainSample = {
+				pt: { x: tp.x, z: tp.z },
+				elev: tp.y,
+				bankDeg: tp.bankDeg,
+				width: tgt.width,
+				verbatim: false,
+				cliff: false
+			};
+			if (!plan || plan.lengthM < 0.5) {
+				// Already (or all but) at the start pose: a token bridge the
+				// closure sample-pop collapses. Nothing to compute.
+				return {
+					samples: [
+						{
+							pt: { x: entry.x, z: entry.z },
+							elev: entry.y,
+							bankDeg: entry.bankDeg,
+							width: entryWidth,
+							verbatim: false,
+							cliff: false
+						},
+						endSample
+					],
+					exit: exitPose,
+					exitWidth: tgt.width,
+					archLiftM: 0,
+					note: 'already at the start pose'
+				};
+			}
+			const L = plan.lengthM;
+			const N = nFor(L);
+			const samples: ChainSample[] = [];
+			for (let k = 0; k < N; k++) {
+				const t = k / N;
+				const pp = planPoseAt(plan.segs, L * t);
+				samples.push({
+					pt: { x: pp.u, z: -pp.v },
+					elev: entry.y + hermiteDy(dy, g0, g1, L, t),
+					bankDeg: entry.bankDeg + (tp.bankDeg - entry.bankDeg) * s01(t),
+					width: entryWidth + (tgt.width - entryWidth) * smooth01(t),
+					verbatim: false,
+					cliff: false
+				});
+			}
+			samples.push(endSample);
+			return {
+				samples,
+				exit: exitPose,
+				exitWidth: tgt.width,
+				archLiftM: 0,
+				note: `${plan.word} · R ${R >= 100 ? R.toFixed(0) : R.toFixed(1)} m${auto ? ' auto' : ''}`
+			};
+		}
 		case 'freeform': {
 			// Verbatim authored geometry: absolute coordinates, zero arithmetic.
 			// This is the backward-compatibility container — a legacy ribbon is
@@ -655,9 +1055,9 @@ interface PieceChain {
  */
 function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
 	let pieceCursor: number | null = null;
-	const fail = (msg: string): void => {
+	const fail = (msg: string, tag?: 'closure'): void => {
 		if (!sink) throw new Error(`Invalid piece chain: ${msg}`);
-		sink.push({ pieceIndex: pieceCursor, message: msg });
+		sink.push({ pieceIndex: pieceCursor, message: msg, ...(tag ? { tag } : {}) });
 	};
 	if (!chain.pieces.length) fail('no pieces');
 
@@ -665,6 +1065,8 @@ function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
 	const compiledPieces: CompiledPiece[] = [];
 	let pose = chain.start;
 	let width = chain.width;
+	/** The closer's bridge target: the first compiled piece's entry. */
+	let closeTarget: CloseTarget | null = null;
 	chain.pieces.forEach((piece, pi) => {
 		pieceCursor = pi;
 		if (chain.strict) {
@@ -677,8 +1079,23 @@ function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
 				return;
 			}
 		}
+		if (piece.kind === 'closer') {
+			// A closer bridges back to the chain start, so anything after it
+			// would restart ON the first piece; and with nothing compiled before
+			// it there is no road to bridge from. Both are authoring mistakes,
+			// reported and (in collect mode) skipped.
+			if (pi !== chain.pieces.length - 1) {
+				fail(`pieces[${pi}]: a closer must be the last piece in the chain`);
+				return;
+			}
+			if (closeTarget === null) {
+				fail(`pieces[${pi}]: a closer needs at least one piece before it to bridge from`);
+				return;
+			}
+		}
 		const entry = piece.kind === 'freeform' ? freeformEntryPose(piece) : pose;
-		const gen = generate(entry, width, piece);
+		const gen = generate(entry, width, piece, closeTarget);
+		if (closeTarget === null) closeTarget = { pose: entry, width: gen.samples[0].width };
 		const startIdx = samples.length === 0 ? 0 : samples.length - 1;
 		gen.samples.forEach((s, k) => {
 			if (k === 0 && samples.length > 0) {
@@ -702,7 +1119,8 @@ function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
 			exit: gen.exit,
 			start: startIdx,
 			end: samples.length - 1,
-			archLiftM: gen.archLiftM
+			archLiftM: gen.archLiftM,
+			...(gen.note ? { note: gen.note } : {})
 		});
 		pose = gen.exit;
 		width = gen.exitWidth;
@@ -720,17 +1138,23 @@ function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
 		const elevGapM = Math.abs(pose.y - chain.start.y);
 		const bankGapDeg = Math.abs(pose.bankDeg - chain.start.bankDeg);
 		const pitchGapDeg = Math.abs(normDeg(pose.pitchDeg - chain.start.pitchDeg));
+		const ok =
+			gapM <= PIECE_CLOSURE_GAP_M &&
+			headingGapDeg <= PIECE_CLOSURE_HEADING_DEG &&
+			elevGapM <= PIECE_CLOSURE_ELEV_M &&
+			bankGapDeg <= PIECE_CLOSURE_BANK_DEG &&
+			pitchGapDeg <= PIECE_CLOSURE_BANK_DEG;
 		if (gapM > PIECE_CLOSURE_GAP_M)
-			fail(`chain does not close: exit lands ${gapM.toFixed(2)} m from the start`);
+			fail(`chain does not close: exit lands ${gapM.toFixed(2)} m from the start`, 'closure');
 		if (headingGapDeg > PIECE_CLOSURE_HEADING_DEG)
-			fail(`chain does not close: exit heading is off by ${headingGapDeg.toFixed(1)} deg`);
+			fail(`chain does not close: exit heading is off by ${headingGapDeg.toFixed(1)} deg`, 'closure');
 		if (elevGapM > PIECE_CLOSURE_ELEV_M)
-			fail(`chain does not close: exit elevation is off by ${elevGapM.toFixed(2)} m`);
+			fail(`chain does not close: exit elevation is off by ${elevGapM.toFixed(2)} m`, 'closure');
 		if (bankGapDeg > PIECE_CLOSURE_BANK_DEG)
-			fail(`chain does not close: exit bank is off by ${bankGapDeg.toFixed(1)} deg`);
+			fail(`chain does not close: exit bank is off by ${bankGapDeg.toFixed(1)} deg`, 'closure');
 		if (pitchGapDeg > PIECE_CLOSURE_BANK_DEG)
-			fail(`chain does not close: exit pitch is off by ${pitchGapDeg.toFixed(1)} deg`);
-		closure = { gapM, headingGapDeg, elevGapM, bankGapDeg };
+			fail(`chain does not close: exit pitch is off by ${pitchGapDeg.toFixed(1)} deg`, 'closure');
+		closure = { gapM, headingGapDeg, elevGapM, bankGapDeg, pitchGapDeg, ok };
 		const first = samples[0];
 		const last = samples[samples.length - 1];
 		if (Math.hypot(last.pt.x - first.pt.x, last.pt.z - first.pt.z) <= 0.01) {
@@ -796,7 +1220,11 @@ function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
 	let lengthM = 0;
 	for (let i = 1; i < samples.length; i++)
 		lengthM += Math.hypot(samples[i].pt.x - samples[i - 1].pt.x, samples[i].pt.z - samples[i - 1].pt.z);
-	if (chain.closed && samples.length > 1) {
+	// The wrap segment counts only when the loop genuinely closes: an OPEN
+	// chain-in-progress (collect mode) must not report a lap length inflated
+	// by the phantom bridge across its gap. Throw mode cannot reach here with
+	// a failing closure, so real track loads are unchanged.
+	if (chain.closed && samples.length > 1 && (closure?.ok ?? true)) {
 		const a = samples[samples.length - 1];
 		const b = samples[0];
 		lengthM += Math.hypot(a.pt.x - b.pt.x, a.pt.z - b.pt.z);
@@ -891,6 +1319,12 @@ export interface ChainIssue {
 	/** Index into the authored piece list, or null for a whole-chain issue. */
 	pieceIndex: number | null;
 	message: string;
+	/**
+	 * Closure failures are tagged so a builder can present "the loop is still
+	 * open" as its own actionable state instead of five lines of jargon in the
+	 * guardrail list. Untagged issues are genuine guardrail breaks.
+	 */
+	tag?: 'closure';
 }
 
 /** What one piece did to the chain: its poses plus its measured extremes. */
@@ -919,6 +1353,8 @@ export interface PieceDiagnostic {
 	archLiftM: number;
 	/** Largest residual pointwise catch-plane raise inside this piece, meters. */
 	bankRaiseM: number;
+	/** What a self-solving piece decided (the closer's word + radius). */
+	note?: string;
 	issues: string[];
 }
 
@@ -985,6 +1421,7 @@ export function diagnoseChain(surface: PieceChainSurface): ChainDiagnostics {
 			minEdgeYM: minEdgeYM === Infinity ? 0 : minEdgeYM,
 			archLiftM: p.archLiftM,
 			bankRaiseM,
+			...(p.note ? { note: p.note } : {}),
 			issues: issues.filter((x) => x.pieceIndex === index).map((x) => x.message)
 		};
 	});

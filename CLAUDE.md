@@ -5130,6 +5130,88 @@ on one side of the world.
     that path's code is unchanged and its mapping/wheel/nudge were driven
     through OrbitControls' own handlers.
 
+- **The `closer` piece + honest open-chain preview + actionable closure
+  reporting (the "closing a chain by hand is impossible" fix).** Closing a
+  loop is a simultaneous position + heading + elevation + bank solve (plus
+  pitch, which the closure check also judges); authors had no tool for it.
+  Three changes, one feature:
+  - **`{ kind: 'closer', radius? }`** is a seventh piece kind
+    (`track-pieces.ts` / `track-schema.ts`) whose entire job is bridging the
+    chain's end pose EXACTLY back to the chain start (technically: the first
+    compiled piece's entry). CLOSED FORM, decomposed the way the generators
+    already decompose: the PLAN is a Dubins-style turn/straight/turn
+    connector — all six candidate words built from tangent geometry between
+    the entry and target turning circles (the same arc + straight vocabulary
+    `curve`/`straight` are made of); the outer-tangent words always exist at
+    equal radii so a solution always exists, and every candidate is
+    COMPOSE-CHECKED (segments walked analytically, end pose compared) so a
+    wrong construction self-discards instead of shipping — the shortest
+    valid word wins. ELEVATION + PITCH ride a cubic Hermite in arc length
+    (height AND grade matched at both ends); BANK is the bank piece's own
+    smootherstep blend; WIDTH blends to the chain's first-sample width. The
+    one loop is AUTO-RADIUS (radius omitted): start at chord/3 clamped to
+    [12, 60], then a bounded deterministic ladder (×1.4, ≤10 steps) widens
+    the sweep while the Hermite's peak grade exceeds `CLOSER_SOFT_GRADE`
+    (half the lint ceiling) — a pick among exact solutions, not an iterative
+    approximation. The exit pose is returned as the exact target (heading
+    reconciled mod 360 to the spin count actually swept), so closure reads
+    literally 0.000 on all five axes. Rules: a closer must be the LAST piece
+    and needs a compiled piece before it (both reported, and skipped in
+    collect mode); `radius` is validated 4..2000 like a curve. The
+    diagnostic row carries a `note` ("LSL · R 60.0 m auto") saying what it
+    solved.
+  - **The eager auto-closing preview ghost is retired.** `piecesChain`
+    compiles with `closed: true` always, so `previewTrack` used to hand the
+    sweep a closed ribbon and the wrap segment drew a straight-line ghost
+    road from the chain end back to the start, clipping through everything
+    it crossed. The compiler's closure record now carries `pitchGapDeg` +
+    `ok` (all five gaps within tolerance), and an unclosed chain previews
+    OPEN: no wrap in the sweep (`lengthM` also stops counting the phantom
+    bridge), `deriveFurniture` emits NO boundaries (closed offset loops
+    would bridge the gap the same way) and parks the gold start/finish pane
+    AT the true chain start as the "bring the road back here" marker, and
+    the 3D view skips checkpoint panes, showing an `OPEN — ends N m from
+    the start` chip instead. Real exports never see any of this (export is
+    gated on compiling clean, closure included). Verified by framebuffer
+    read-back: the point on the old ghost line 50 m from any real road reads
+    [0,0,0,0] while real road reads lit pixels.
+  - **Closure reporting is a checklist, not jargon.** Closure failures are
+    tagged `'closure'` on `ChainIssue`; the builder's guardrail list drops
+    them (an unclosed chain mid-build is a NORMAL state, not five
+    violations), the header chip gains a steel OPEN state (issue counts are
+    genuine guardrail breaks only), and the closure panel renders
+    `closureReadout()` (chain-doc): SIGNED deltas in plain directions
+    ("pointing 50.0° left of the start", "8.10 m above the start", each row
+    flipping to ✓ as it comes true, so closing by hand stays first-class)
+    plus a one-click **CLOSE THE LOOP** button that appends the closer.
+    `__glPieceBuilder` gains `closure` + `closeLoop()`; `__glPreview3D`
+    gains `lastPreview` / `renderNow` / `toScreen` / `readPixel` (the
+    no-WebGL-screenshot probe surface).
+  - **Bank semantics, investigated and surfaced (not rebuilt):**
+    `bank.targetBankDeg` is ABSOLUTE (eases from the entry bank to the
+    target), so returning to level was always expressible as target 0 —
+    just undiscoverable. The blurb/hint now say "absolute, not a delta; 0
+    levels the road back out", the row summary reads "-> level" at 0, and
+    the bank inspector gets a one-click "level out (0°)" quick-set.
+  - **Verified in the browser** (dev harness + `__glPieceBuilder`): a chain
+    violating all five constraints at once (202.65 m gap, 50° heading,
+    +8.1 m elevation, 18° bank, 6° pitch) closes to EXACTLY 0.000 on every
+    axis with one CLOSE THE LOOP click; 120 randomized chains all close at
+    exactly zero residual with all six Dubins words appearing as winners
+    (LSL 59 / RSR 49 / LSR 5 / RSL 4 / LRL 2 / RLR 1); the grade ladder
+    bridges a 24 m descent at 13.4% peak grade by widening to R 48; an
+    explicit radius is honored un-laddered; misplaced closers report their
+    two rules; and the closed exports drove through the REAL playtest path
+    (localStorage park -> tracks.ts -> parseTrack -> buildRuntime -> AI race
+    in the movement harness): the all-five-constraints chain laps (falls
+    there trace to its deliberately hostile hand-authored section), and the
+    isolating flat chain whose closer supplies 364 of 629 m races SPOTLESS —
+    4/4 cars lapping, 0 falls, 0 flips, 0 floor catches. Regression:
+    piece-proof-01 recompiles to its documented figures exactly (152
+    samples, 596 m, closure 2e-14 m, arch 2.36 m, raise 0) and races at its
+    documented pace (best ~21.7 s, 0 falls, all upright). Zero console
+    errors throughout.
+
 - **Shared track visuals (`src/lib/greenline/track-visual.ts`) + the builder's
   live 3D preview.** Numbers alone do not answer "what does this corkscrew look
   like", which is the gap the preview closes and the reason its camera is FREE

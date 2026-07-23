@@ -73,6 +73,13 @@
 	let undrawn = $state<number[]>([]);
 	/** Live readout while a handle is hovered or dragged ('' = none). */
 	let handleStatus = $state('');
+	/**
+	 * OPEN-chain chip: the road renders as it actually is — ending at the last
+	 * exit — with the distance still to close shown as a number. The retired
+	 * behavior bridged the gap with a straight-line ghost ribbon that clipped
+	 * through everything it crossed; the real bridge is the closer piece.
+	 */
+	let openStatus = $state('');
 
 	/** Assigned once the scene exists; re-run on every committed revision. */
 	let applyTrack: ((doc: ChainDoc, diag: ChainDiagnostics, selected: number) => void) | null = null;
@@ -477,6 +484,8 @@
 				// Materials are rebuilt per apply (they are cheap and few); the
 				// GEOMETRY is what comes from the shared builders.
 				let framed = false;
+				/** The last TrackData the preview mounted (dev verification). */
+				let lastPreviewData: ReturnType<typeof previewTrack> = null;
 				applyTrack = (d: ChainDoc, dg: ChainDiagnostics, sel: number) => {
 					clearTrack();
 					// Handles rebuild with the scene (an early return leaves none,
@@ -490,10 +499,19 @@
 								dg.issues.some((x) => x.pieceIndex === i)
 						);
 					const data = previewTrack(d, dg);
+					lastPreviewData = data;
 					if (!data) {
 						status = 'Add pieces to preview the road.';
+						openStatus = '';
 						return;
 					}
+					// An unclosed chain previews OPEN: no wrap in the sweep, no
+					// boundaries, no checkpoint panes — nothing bridges the gap.
+					const open = data.surface.type === 'ribbon' && !data.surface.closed;
+					openStatus =
+						open && dg.chain.closure
+							? `OPEN — ends ${dg.chain.closure.gapM.toFixed(1)} m from the start`
+							: '';
 					let rt: TrackRuntime;
 					try {
 						rt = buildRuntime(parseTrack(data));
@@ -613,11 +631,15 @@
 					}
 					const postGeo = new THREE.CylinderGeometry(0.22, 0.22, 2.6, 10);
 					disposables.push(postGeo);
-					for (const g of rt.checkpoints) {
-						const built = buildGatePane(THREE, rt, g, 0x2ae57e, 0.14, postGeo);
-						disposables.push(built.mat, built.postMat);
-						trackGroup.add(built.group);
-					}
+					// Checkpoint panes are finished-track furniture; an open chain
+					// shows only the gold start pane, which deriveFurniture parks at
+					// the true chain start — the "bring the road back here" marker.
+					if (!open)
+						for (const g of rt.checkpoints) {
+							const built = buildGatePane(THREE, rt, g, 0x2ae57e, 0.14, postGeo);
+							disposables.push(built.mat, built.postMat);
+							trackGroup.add(built.group);
+						}
 					const sf = buildGatePane(THREE, rt, rt.startFinish, 0xc8ff00, 0.26, postGeo);
 					disposables.push(sf.mat, sf.postMat);
 					trackGroup.add(sf.group);
@@ -757,6 +779,32 @@
 						},
 						get controlsEnabled() {
 							return controls.enabled;
+						},
+						/* ---- open/closed preview verification surface ---- */
+						/** The exact TrackData the preview last mounted. */
+						get lastPreview() {
+							return lastPreviewData;
+						},
+						/** Force a render (rAF never ticks in an automated tab). */
+						renderNow: () => renderer.render(scene, camera),
+						/** World point -> canvas client coords, for targeted probes. */
+						toScreen: (p: { x: number; y: number; z: number }) => worldToScreen(p),
+						/**
+						 * Read back one framebuffer pixel at canvas client coords (renders
+						 * first, so the drawing buffer is valid in the same task). This is
+						 * how "no ghost geometry bridges the gap" is proven without a
+						 * WebGL screenshot, which hangs the preview pane.
+						 */
+						readPixel: (clientX: number, clientY: number) => {
+							renderer.render(scene, camera);
+							const gl = renderer.getContext();
+							const rect = canvas.getBoundingClientRect();
+							const pr = renderer.getPixelRatio();
+							const px = Math.max(0, Math.round((clientX - rect.left) * pr));
+							const py = Math.max(0, Math.round((rect.height - (clientY - rect.top)) * pr));
+							const buf = new Uint8Array(4);
+							gl.readPixels(px, py, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+							return [buf[0], buf[1], buf[2], buf[3]];
 						}
 					};
 
@@ -814,6 +862,9 @@
 			<div class="p3-msg err">{bootError}</div>
 		{:else if status}
 			<div class="p3-msg">{status}</div>
+		{/if}
+		{#if openStatus}
+			<div class="p3-open" data-testid="p3-open">{openStatus}</div>
 		{/if}
 		{#if undrawn.length}
 			<div class="p3-undrawn" data-testid="p3-undrawn">
@@ -895,6 +946,19 @@
 	}
 	.p3-msg.err {
 		color: #ffb02e;
+	}
+	.p3-open {
+		position: absolute;
+		right: 0.4rem;
+		top: 0.4rem;
+		background: rgba(4, 6, 10, 0.82);
+		border-left: 2px solid #8fa3b0;
+		color: #cfe2ef;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		padding: 0.22rem 0.4rem;
+		pointer-events: none;
 	}
 	.p3-undrawn {
 		position: absolute;

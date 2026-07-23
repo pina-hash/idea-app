@@ -18,6 +18,10 @@
 import {
 	diagnoseChain,
 	PIECE_BANK_MAX_DEG,
+	PIECE_CLOSURE_BANK_DEG,
+	PIECE_CLOSURE_ELEV_M,
+	PIECE_CLOSURE_GAP_M,
+	PIECE_CLOSURE_HEADING_DEG,
 	PIECE_GRADE_MAX,
 	PIECE_PITCH_MAX_DEG,
 	type ChainDiagnostics,
@@ -34,6 +38,7 @@ import type {
 } from '../track-schema';
 
 const DEG = Math.PI / 180;
+const normDeg = (a: number): number => ((((a + 180) % 360) + 360) % 360) - 180;
 
 /* ------------------------------------------------------------------ */
 /* boundary margins (the Terminal Nine run-off lesson, ribbon builder's */
@@ -60,6 +65,8 @@ export interface ParamSpec {
 	step: number;
 	unit: string;
 	hint?: string;
+	/** Empty-field placeholder ('inherit' when unset). */
+	placeholder?: string;
 }
 
 export interface KindSpec {
@@ -125,7 +132,8 @@ export const KIND_SPECS: KindSpec[] = [
 	{
 		kind: 'bank',
 		label: 'Bank',
-		blurb: 'Roll transition on a straight run: bank eases to a target.',
+		blurb:
+			'Roll transition on a straight run: bank eases from the entry bank to an ABSOLUTE target. Target 0 returns the road to level.',
 		params: [
 			{ key: 'length', label: 'length', min: 1, max: 2000, step: 1, unit: 'm' },
 			{
@@ -135,7 +143,7 @@ export const KIND_SPECS: KindSpec[] = [
 				max: PIECE_BANK_MAX_DEG,
 				step: 1,
 				unit: 'deg',
-				hint: '+ raises the driver-right edge'
+				hint: 'absolute bank at the exit, not a delta; 0 levels the road back out (+ raises the driver-right edge)'
 			},
 			WIDTH_PARAM
 		]
@@ -193,6 +201,24 @@ export const KIND_SPECS: KindSpec[] = [
 		]
 	},
 	{
+		kind: 'closer',
+		label: 'Closer',
+		blurb:
+			'Auto-computed connector that bridges the chain end exactly back to the start: position, heading, elevation, and bank all land on the start pose. Must be the last piece.',
+		params: [
+			{
+				key: 'radius',
+				label: 'turn radius',
+				min: 4,
+				max: 2000,
+				step: 1,
+				unit: 'm',
+				hint: 'sweep aggressiveness; blank = auto (widens on its own if the climb back would be too steep)',
+				placeholder: 'auto'
+			}
+		]
+	},
+	{
 		kind: 'freeform',
 		label: 'Freeform',
 		blurb: 'Verbatim authored geometry in world coordinates. Ignores the incoming pose.',
@@ -230,6 +256,9 @@ export function defaultPiece(
 				rise: 5,
 				peakBankDeg: 22
 			};
+		case 'closer':
+			// No shape params: the compiler solves it from the chain itself.
+			return { kind: 'closer' };
 		case 'freeform': {
 			const p = after ?? { x: 0, z: 0, y: 0, headingDeg: 0 };
 			const dx = Math.cos(p.headingDeg * DEG);
@@ -290,14 +319,91 @@ export function pieceSummary(p: TrackPiece): string {
 		case 'curve':
 			return `R${p.radius} ${p.turnDeg > 0 ? 'left' : 'right'} ${Math.abs(p.turnDeg)} deg`;
 		case 'bank':
-			return `${p.length} m -> ${p.targetBankDeg} deg`;
+			return `${p.length} m -> ${p.targetBankDeg === 0 ? 'level' : `${p.targetBankDeg} deg`}`;
 		case 'jump':
 			return `${p.length} m, ${p.kickHeight} m lip`;
 		case 'corkscrew':
 			return `${p.length} m, ${p.rise >= 0 ? '+' : ''}${p.rise} m, ${p.peakBankDeg} deg${p.turnDeg ? `, ${p.turnDeg} deg turn` : ''}`;
+		case 'closer':
+			return p.radius !== undefined ? `auto-fit to start · R${p.radius}` : 'auto-fit to start';
 		case 'freeform':
 			return `${p.centerline.length} authored points`;
 	}
+}
+
+/* ------------------------------------------------------------------ */
+/* closure readout: the actionable version of the compiler's numbers   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * What the closure panel shows an author: SIGNED deltas (exit minus start,
+ * so the copy can say left/right and above/below, not just "off by"),
+ * per-axis pass flags straight from the compiler's own closure record (so
+ * the panel and the export gate can never disagree), and whether the chain
+ * already ends in a closer. Everything derives from `diagnoseChain` output.
+ */
+export interface ClosureReadout {
+	/** Nothing to measure yet (no compiled pieces). */
+	empty: boolean;
+	/** The loop closes within the compiler's tolerances. */
+	ok: boolean;
+	/** The chain's last piece is already a closer. */
+	hasCloser: boolean;
+	/** Straight-line distance from the exit to the start, meters. */
+	gapM: number;
+	/** Signed: positive = exit heading points LEFT of the start heading. */
+	headingDeg: number;
+	/** Signed: positive = exit sits ABOVE the start. */
+	elevM: number;
+	/** Signed bank difference, exit minus start. */
+	bankDeg: number;
+	/** Signed pitch (grade angle) difference, exit minus start. */
+	pitchDeg: number;
+	gapOk: boolean;
+	headingOk: boolean;
+	elevOk: boolean;
+	bankOk: boolean;
+	pitchOk: boolean;
+}
+
+export function closureReadout(doc: ChainDoc, diag: ChainDiagnostics): ClosureReadout {
+	const first = diag.pieces[0];
+	const last = diag.pieces[diag.pieces.length - 1];
+	const cl = diag.chain.closure;
+	const hasCloser = doc.pieces[doc.pieces.length - 1]?.kind === 'closer';
+	if (!first || !last || !cl)
+		return {
+			empty: true,
+			ok: false,
+			hasCloser,
+			gapM: 0,
+			headingDeg: 0,
+			elevM: 0,
+			bankDeg: 0,
+			pitchDeg: 0,
+			gapOk: false,
+			headingOk: false,
+			elevOk: false,
+			bankOk: false,
+			pitchOk: false
+		};
+	const start = first.entry;
+	const exit = last.exit;
+	return {
+		empty: false,
+		ok: cl.ok,
+		hasCloser,
+		gapM: Math.hypot(exit.x - start.x, exit.z - start.z),
+		headingDeg: normDeg(exit.headingDeg - start.headingDeg),
+		elevM: exit.y - start.y,
+		bankDeg: exit.bankDeg - start.bankDeg,
+		pitchDeg: normDeg(exit.pitchDeg - start.pitchDeg),
+		gapOk: cl.gapM <= PIECE_CLOSURE_GAP_M,
+		headingOk: cl.headingGapDeg <= PIECE_CLOSURE_HEADING_DEG,
+		elevOk: cl.elevGapM <= PIECE_CLOSURE_ELEV_M,
+		bankOk: cl.bankGapDeg <= PIECE_CLOSURE_BANK_DEG,
+		pitchOk: cl.pitchGapDeg <= PIECE_CLOSURE_BANK_DEG
+	};
 }
 
 /* ------------------------------------------------------------------ */
@@ -306,11 +412,17 @@ export function pieceSummary(p: TrackPiece): string {
 
 const round2 = (v: number): number => Math.round(v * 100) / 100;
 
-/** Unit tangent and driver-right normal at a stitched sample. */
-function frameAt(c: CompiledChain, i: number): { tx: number; tz: number; nx: number; nz: number } {
+/** Unit tangent and driver-right normal at a stitched sample. An OPEN chain
+ * clamps at its ends instead of wrapping (the buildPath convention) — a
+ * wrapped tangent on an open road would fold across the whole gap. */
+function frameAt(
+	c: CompiledChain,
+	i: number,
+	closed = true
+): { tx: number; tz: number; nx: number; nz: number } {
 	const n = c.center.length;
-	const prev = c.center[(i - 1 + n) % n];
-	const next = c.center[(i + 1) % n];
+	const prev = c.center[closed ? (i - 1 + n) % n : Math.max(0, i - 1)];
+	const next = c.center[closed ? (i + 1) % n : Math.min(n - 1, i + 1)];
 	let tx = next.x - prev.x;
 	let tz = next.z - prev.z;
 	const len = Math.hypot(tx, tz) || 1;
@@ -329,11 +441,11 @@ const headingOf = (tx: number, tz: number): number => Math.atan2(-tz, tx) / DEG;
  * again on the next segment as an out-of-order crossing. The ribbon builder
  * learned this the same way; midpoints removed the spurious rejections there.
  */
-function gateAt(c: CompiledChain, i: number, id: string, name: string): TrackGate {
+function gateAt(c: CompiledChain, i: number, id: string, name: string, closed = true): TrackGate {
 	const n = c.center.length;
 	const a = c.center[i];
 	const b = c.center[(i + 1) % n];
-	const f = frameAt(c, i);
+	const f = frameAt(c, i, closed);
 	const w = Math.max(c.widths[i], c.widths[(i + 1) % n]);
 	return {
 		id,
@@ -380,6 +492,34 @@ function deriveFurniture(
 	opts: ExportOptions = {}
 ): TrackFurniture {
 	const n = c.center.length;
+
+	// --- an OPEN chain (in progress, closure not yet met) gets no derived
+	// furniture beyond the minimum a preview runtime needs: the start/finish
+	// gate AT the true chain start (the "bring the road back here" marker) and
+	// one checkpoint so parseTrack accepts the data. Deliberately NO
+	// boundaries: a closed offset loop around an open road would bridge its
+	// gap with exactly the phantom geometry the open preview exists to avoid.
+	// Real exports never take this branch — export is gated on the chain
+	// compiling clean, which includes closure.
+	if (c.closure ? !c.closure.ok : !c.closed) {
+		const f0 = frameAt(c, 0, false);
+		const h0 = round2(headingOf(f0.tx, f0.tz));
+		return {
+			spawn: { x: round2(c.center[0].x), z: round2(c.center[0].z), headingDeg: h0 },
+			startFinish: {
+				id: 'sf',
+				name: 'Start',
+				x: round2(c.center[0].x),
+				z: round2(c.center[0].z),
+				headingDeg: h0,
+				halfWidth: round2(c.widths[0] / 2 + 1)
+			},
+			checkpoints: [
+				gateAt(c, Math.min(n - 2, Math.max(1, Math.floor(n / 2))), 'cp1', 'Checkpoint 1', false)
+			],
+			boundaries: []
+		};
+	}
 
 	// --- gates: start/finish just after the chain start, checkpoints spread
 	// evenly by sample count around the lap.
@@ -496,6 +636,12 @@ export function exportTrack(doc: ChainDoc, opts: ExportOptions = {}): TrackData 
  * `buildRuntime` sweeps them exactly as it sweeps the pieces surface. Same
  * numbers, same sweep, same mesh — reachable while the chain is still invalid.
  *
+ * A chain whose closure is not yet met previews as an OPEN road: the sweep
+ * simply ends at the last exit instead of bridging straight back to the start
+ * through whatever pieces sit in between (the retired eager-auto-close ghost).
+ * The live closure numbers, not phantom geometry, are what say how far from
+ * closed the chain is; the real bridge is the closer piece.
+ *
  * Returns null when there is not yet enough chain to build a track from.
  */
 export function previewTrack(doc: ChainDoc, diag: ChainDiagnostics): TrackData | null {
@@ -513,7 +659,7 @@ export function previewTrack(doc: ChainDoc, diag: ChainDiagnostics): TrackData |
 			widths: c.widths,
 			elevations: c.elevations,
 			banking: c.banking,
-			closed: c.closed,
+			closed: c.closure ? c.closure.ok : c.closed,
 			centerline: c.center.map((p) => ({ x: p.x, z: p.z }))
 		}
 	};
@@ -564,6 +710,9 @@ export interface ChainSummary {
 	closureHeadingDeg: number | null;
 	closureElevM: number | null;
 	closureBankDeg: number | null;
+	closurePitchDeg: number | null;
+	/** Whether the loop currently closes within tolerance (null = no chain). */
+	closureOk: boolean | null;
 }
 
 export function summarize(diag: ChainDiagnostics): ChainSummary {
@@ -594,7 +743,9 @@ export function summarize(diag: ChainDiagnostics): ChainSummary {
 		closureGapM: c.closure?.gapM ?? null,
 		closureHeadingDeg: c.closure?.headingGapDeg ?? null,
 		closureElevM: c.closure?.elevGapM ?? null,
-		closureBankDeg: c.closure?.bankGapDeg ?? null
+		closureBankDeg: c.closure?.bankGapDeg ?? null,
+		closurePitchDeg: c.closure?.pitchGapDeg ?? null,
+		closureOk: c.closure?.ok ?? null
 	};
 }
 

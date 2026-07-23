@@ -3,6 +3,7 @@
 	import {
 		BANK_LIMIT_DEG,
 		GRADE_LIMIT,
+		closureReadout,
 		defaultPiece,
 		diagnoseDoc,
 		emptyDoc,
@@ -129,6 +130,21 @@
 	const summary = $derived(summarize(diag));
 	const exported = $derived(diag.ok && doc.pieces.length > 0 ? exportTrack(doc) : null);
 	const json = $derived(exported ? serializeTrack(exported) : '');
+	/** The actionable closure state: signed deltas + per-axis pass flags. */
+	const closure = $derived(closureReadout(doc, diag));
+	/**
+	 * "The loop is still open" is a NORMAL mid-build state, not five guardrail
+	 * violations. Closure-tagged issues are owned by the closure panel; only
+	 * the rest are genuine guardrail breaks.
+	 */
+	const railIssues = $derived(diag.issues.filter((x) => x.tag !== 'closure'));
+	const openOnly = $derived(diag.issues.length > 0 && railIssues.length === 0);
+
+	/** One click from "open" to "closed": append the auto-computed closer. */
+	function closeLoop() {
+		const i = addPiece('closer', doc.pieces.length);
+		return i;
+	}
 
 	/** Per-authored-index diagnostic (a piece skipped by the walk has none). */
 	const diagFor = (i: number) => diag.pieces.find((p) => p.index === i);
@@ -182,6 +198,10 @@
 			movePiece,
 			removePiece,
 			select: (i: number) => (selected = i),
+			get closure() {
+				return closure;
+			},
+			closeLoop,
 			get insertAt() {
 				return insertAt;
 			},
@@ -478,8 +498,22 @@
 	<header class="pb-head">
 		<span class="pb-title">GREENLINE // PIECE CHAIN BUILDER</span>
 		<span class="pb-sub">schema v3 · numeric + live 3D</span>
-		<span class="pb-flag" class:ok={diag.ok && doc.pieces.length > 0} data-testid="chain-status">
-			{doc.pieces.length === 0 ? 'EMPTY' : diag.ok ? 'VALID' : `${diag.issues.length} ISSUE${diag.issues.length === 1 ? '' : 'S'}`}
+		<!-- Three states, not two: an unclosed chain mid-build is OPEN (steel, a
+		     normal working state), never a scary issue count. Only genuine
+		     guardrail breaks count as issues. -->
+		<span
+			class="pb-flag"
+			class:ok={diag.ok && doc.pieces.length > 0}
+			class:open={openOnly}
+			data-testid="chain-status"
+		>
+			{doc.pieces.length === 0
+				? 'EMPTY'
+				: diag.ok
+					? 'VALID'
+					: openOnly
+						? 'OPEN'
+						: `${railIssues.length} ISSUE${railIssues.length === 1 ? '' : 'S'}${closure.ok || closure.empty ? '' : ' · OPEN'}`}
 		</span>
 	</header>
 
@@ -634,6 +668,11 @@
 								{#if d.bankRaiseM > 0.001}
 									<span class="lift" title="residual pointwise catch-plane raise">raise {n2(d.bankRaiseM)} m</span>
 								{/if}
+								{#if d.note}
+									<span class="lift" data-testid={`note-${i}`} title="what this piece solved for itself">
+										{d.note}
+									</span>
+								{/if}
 							</div>
 						{/if}
 						{#if rowIssues.length}
@@ -669,11 +708,22 @@
 													step={spec.step}
 													data-testid={`param-${i}-${spec.key}`}
 													value={(piece as unknown as Record<string, number>)[spec.key] ?? ''}
-													placeholder="inherit"
+													placeholder={spec.placeholder ?? 'inherit'}
 													oninput={(e) => setParam(i, spec.key, (e.currentTarget as HTMLInputElement).value)}
 												/>
 											</label>
 										{/each}
+										{#if piece.kind === 'bank' && piece.targetBankDeg !== 0}
+											<!-- The bank target is ABSOLUTE, so level is always one
+											     click away — the discoverable way back from a banked
+											     stretch. -->
+											<button
+												class="pb-level"
+												data-testid={`level-${i}`}
+												title="set the target to 0° — the road returns to level"
+												onclick={() => setParams(i, { targetBankDeg: 0 })}>level out (0&deg;)</button
+											>
+										{/if}
 									</div>
 								{/if}
 								<p class="pb-blurb">{kindSpec(piece.kind).blurb}</p>
@@ -702,15 +752,59 @@
 			</dl>
 
 			<h3>closure</h3>
-			{#if summary.closureGapM === null}
-				<p class="pb-empty">Not closed yet: the last piece's exit pose has to land back on the chain start.</p>
+			{#if closure.empty}
+				<p class="pb-empty">
+					Nothing to close yet — add pieces, then bring the road back to where it started.
+				</p>
+			{:else if closure.ok}
+				<p class="pb-ok" data-testid="closure-state">
+					CLOSED — the road returns to the start pose exactly (gap {summary.closureGapM?.toFixed(3)}
+					m){closure.hasCloser ? '. The Closer piece computes the final stretch.' : '.'}
+				</p>
 			{:else}
-				<dl class="pb-stats">
-					<div><dt>gap</dt><dd>{summary.closureGapM.toFixed(3)} m</dd></div>
-					<div><dt>heading</dt><dd>{summary.closureHeadingDeg?.toFixed(2)}&deg;</dd></div>
-					<div><dt>elevation</dt><dd>{summary.closureElevM?.toFixed(3)} m</dd></div>
-					<div><dt>bank</dt><dd>{summary.closureBankDeg?.toFixed(2)}&deg;</dd></div>
-				</dl>
+				<p class="pb-openline" data-testid="closure-state">
+					OPEN — the road ends {n1(closure.gapM)} m from the start.
+				</p>
+				<!-- What still has to reach zero, in plain directions rather than
+				     bare residuals. Each row flips to a check as it comes true, so
+				     closing by hand stays a first-class path. -->
+				<ul class="pb-close-list" data-testid="closure-list">
+					<li class:done={closure.gapOk}>
+						{closure.gapOk
+							? '✓ position: back at the start'
+							: `position: ${n1(closure.gapM)} m away`}
+					</li>
+					<li class:done={closure.headingOk}>
+						{closure.headingOk
+							? '✓ heading: aligned with the start'
+							: `heading: pointing ${n1(Math.abs(closure.headingDeg))}° ${closure.headingDeg > 0 ? 'left' : 'right'} of the start`}
+					</li>
+					<li class:done={closure.elevOk}>
+						{closure.elevOk
+							? '✓ elevation: level with the start'
+							: `elevation: ${n2(Math.abs(closure.elevM))} m ${closure.elevM > 0 ? 'above' : 'below'} the start`}
+					</li>
+					<li class:done={closure.bankOk}>
+						{closure.bankOk
+							? '✓ bank: matches the start'
+							: `bank: ${n1(Math.abs(closure.bankDeg))}° off the start's bank (a Bank piece with an absolute target fixes this)`}
+					</li>
+					<li class:done={closure.pitchOk}>
+						{closure.pitchOk
+							? '✓ grade: matches the start'
+							: `grade: ${n1(Math.abs(closure.pitchDeg))}° ${closure.pitchDeg > 0 ? 'steeper' : 'shallower'} than the start`}
+					</li>
+				</ul>
+				{#if !closure.hasCloser && doc.pieces.length > 0}
+					<button class="pb-primary pb-closeloop" data-testid="close-loop" onclick={closeLoop}>
+						CLOSE THE LOOP — add a Closer piece
+					</button>
+					<p class="pb-note">
+						The Closer computes its own shape: two sweeps and a connecting run that land back on the
+						start's position, heading, elevation, and bank exactly. Prefer closing by hand? The list
+						above is what still has to reach zero.
+					</p>
+				{/if}
 			{/if}
 
 			<h3>guardrails</h3>
@@ -719,9 +813,13 @@
 					All clear: params in range, joints continuous, loop closed, every swept edge above the catch
 					plane, grades under {pct(GRADE_LIMIT)}, bank within &plusmn;{BANK_LIMIT_DEG}&deg;.
 				</p>
+			{:else if railIssues.length === 0}
+				<p class="pb-empty" data-testid="guardrails">
+					No guardrail issues. The chain still has to close — see CLOSURE above.
+				</p>
 			{:else}
 				<ul class="pb-issues big" data-testid="guardrails">
-					{#each diag.issues as issue (issue.message)}
+					{#each railIssues as issue (issue.message)}
 						<li>{issue.pieceIndex === null ? 'chain' : `piece ${issue.pieceIndex}`}: {issue.message}</li>
 					{/each}
 				</ul>
@@ -905,6 +1003,11 @@
 	.pb-flag.ok {
 		border-color: #2ae57e;
 		color: #8fffc4;
+	}
+	/* OPEN is a normal mid-build state: steel, not warning amber. */
+	.pb-flag.open {
+		border-color: #8fa3b0;
+		color: #cfe2ef;
 	}
 	/* The split: editor left, preview docked right. `min-height: 0` on both the
 	   row and the scrolling child is what actually lets the child scroll — a
@@ -1223,6 +1326,32 @@
 		font-size: 0.72rem;
 		color: #8fffc4;
 		line-height: 1.45;
+	}
+	.pb-openline {
+		margin: 0;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		color: #cfe2ef;
+	}
+	.pb-close-list {
+		list-style: none;
+		margin: 0.4rem 0 0;
+		padding: 0;
+		font-size: 0.7rem;
+		color: #a9bdcc;
+		line-height: 1.55;
+	}
+	.pb-close-list li.done {
+		color: #6d8090;
+	}
+	.pb-closeloop {
+		margin-top: 0.55rem;
+	}
+	.pb-level {
+		align-self: flex-end;
+		font-size: 0.62rem;
+		padding: 0.2rem 0.45rem;
 	}
 	.pb-err {
 		margin: 0.35rem 0 0;

@@ -188,6 +188,19 @@ export type TrackPiece =
 	 */
 	| { kind: 'corkscrew'; length: number; turnDeg: number; rise: number; peakBankDeg: number; width?: number }
 	/**
+	 * The auto-computed loop closer: bridges the chain's current end pose back
+	 * to the chain start EXACTLY — position, heading, elevation, AND bank all
+	 * land on the start pose — solved by the compiler as a turn / straight /
+	 * turn connector at one radius (closed-form tangent geometry, the same arc
+	 * + straight vocabulary the other pieces are made of) plus closed-form
+	 * elevation and bank blends. Deliberately NO shape params: `radius` is an
+	 * optional sweep-aggressiveness preference (omitted = auto, which also
+	 * lengthens the path on its own when the climb back to the start's height
+	 * would be too steep). Must be the LAST piece in the chain; width blends
+	 * back to the chain's starting width automatically.
+	 */
+	| { kind: 'closer'; radius?: number }
+	/**
 	 * Verbatim authored geometry in ABSOLUTE world coordinates — the ribbon
 	 * fields, embedded as a piece. This is the backward-compatibility
 	 * container: a legacy ribbon surface compiles as exactly one of these,
