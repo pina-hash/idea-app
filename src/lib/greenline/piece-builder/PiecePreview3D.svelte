@@ -117,6 +117,80 @@
 				controls.target.set(0, 0, 0);
 				controls.update();
 
+				/* ---------------- SolidWorks-style navigation ----------------
+				 * The author lives in SolidWorks all day, so the view answers to
+				 * SolidWorks' hands rather than to a generic orbit widget:
+				 *   MIDDLE drag            rotate
+				 *   shift/ctrl + MIDDLE    pan
+				 *   wheel                  zoom
+				 *   arrows                 nudge the view 15 deg (shift: 90)
+				 * LEFT and RIGHT are deliberately left UNBOUND: in SolidWorks
+				 * they select and open the context menu, and leaving the left
+				 * button free is also what keeps the door open for direct
+				 * manipulation handles later (explicitly not built here).
+				 *
+				 * Both shift+MMB (as specified) and ctrl+MMB (stock SolidWorks,
+				 * where shift+MMB is zoom) pan, so muscle memory lands either way.
+				 */
+				controls.mouseButtons = {
+					LEFT: null,
+					MIDDLE: THREE.MOUSE.ROTATE,
+					RIGHT: null
+				} as unknown as typeof controls.mouseButtons;
+
+				// OrbitControls reads `mouseButtons.MIDDLE` inside its own
+				// pointerdown handler, so the modifier has to be resolved into the
+				// mapping BEFORE that runs — hence the capture phase.
+				const onDownCapture = (e: PointerEvent) => {
+					if (e.button !== 1) return;
+					controls.mouseButtons.MIDDLE =
+						e.shiftKey || e.ctrlKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+				};
+				// Chrome opens its autoscroll widget on a middle press otherwise.
+				const onMiddleDefault = (e: MouseEvent) => {
+					if (e.button === 1) e.preventDefault();
+				};
+				renderer.domElement.addEventListener('pointerdown', onDownCapture, true);
+				renderer.domElement.addEventListener('mousedown', onMiddleDefault);
+				renderer.domElement.addEventListener('auxclick', onMiddleDefault);
+
+				/** Orbit the camera about the target, SolidWorks' arrow-key nudge. */
+				const nudge = (dTheta: number, dPhi: number) => {
+					const off = camera.position.clone().sub(controls.target);
+					const sph = new THREE.Spherical().setFromVector3(off);
+					sph.theta += dTheta;
+					sph.phi = Math.max(
+						controls.minPolarAngle + 1e-3,
+						Math.min(controls.maxPolarAngle - 1e-3, sph.phi + dPhi)
+					);
+					camera.position.copy(controls.target).add(new THREE.Vector3().setFromSpherical(sph));
+					camera.lookAt(controls.target);
+					controls.update();
+				};
+				const NUDGE_RAD = (15 * Math.PI) / 180;
+				// Keys are handled on the STAGE, which is focusable: that is what
+				// keeps arrow presses in a numeric param field from swinging the
+				// camera instead of stepping the value.
+				const onKey = (e: KeyboardEvent) => {
+					const step = e.shiftKey ? Math.PI / 2 : NUDGE_RAD;
+					if (e.key === 'ArrowLeft') nudge(-step, 0);
+					else if (e.key === 'ArrowRight') nudge(step, 0);
+					else if (e.key === 'ArrowUp') nudge(0, -step);
+					else if (e.key === 'ArrowDown') nudge(0, step);
+					else return;
+					e.preventDefault();
+				};
+				// The CANVAS is the focusable surface, not the wrapper: it is the
+				// thing actually being interacted with, and keeping focus (and so
+				// the arrow-key handler) on it is what guarantees arrows pressed in
+				// a param field step the number instead of swinging the camera.
+				const canvas = renderer.domElement;
+				canvas.tabIndex = 0;
+				canvas.style.outline = 'none';
+				const focusStage = () => canvas.focus({ preventScroll: true });
+				canvas.addEventListener('keydown', onKey);
+				canvas.addEventListener('pointerdown', focusStage);
+
 				/** Everything a rebuild owns and must dispose. */
 				const trackGroup = new THREE.Group();
 				scene.add(trackGroup);
@@ -339,6 +413,18 @@
 						controls,
 						trackGroup,
 						renderer,
+						/** Drive the SolidWorks nav from the console for verification. */
+						nudge,
+						nudgeDeg: (dx: number, dy: number) =>
+							nudge((dx * Math.PI) / 180, (dy * Math.PI) / 180),
+						/** Resolve the modifier -> button mapping without a real MMB. */
+						pressMiddle: (mods: { shiftKey?: boolean; ctrlKey?: boolean } = {}) => {
+							onDownCapture({ button: 1, ...mods } as PointerEvent);
+							return controls.mouseButtons.MIDDLE;
+						},
+						get mouseButtons() {
+							return controls.mouseButtons;
+						},
 						get meshCount() {
 							return trackGroup.children.length;
 						}
@@ -347,6 +433,11 @@
 				cleanup = () => {
 					cancelAnimationFrame(raf);
 					ro.disconnect();
+					renderer.domElement.removeEventListener('pointerdown', onDownCapture, true);
+					renderer.domElement.removeEventListener('mousedown', onMiddleDefault);
+					renderer.domElement.removeEventListener('auxclick', onMiddleDefault);
+					renderer.domElement.removeEventListener('pointerdown', focusStage);
+					renderer.domElement.removeEventListener('keydown', onKey);
 					controls.dispose();
 					applyTrack = null;
 					refit = null;
@@ -373,6 +464,9 @@
 </script>
 
 <div class="p3-wrap">
+	<!-- The canvas inside is made focusable in JS and owns the arrow-key view
+	     nudge; it may only act while it actually holds focus, so arrows in a
+	     param field still step the number instead of swinging the camera. -->
 	<div class="p3-stage" bind:this={host}>
 		{#if bootError}
 			<div class="p3-msg err">{bootError}</div>
@@ -386,7 +480,9 @@
 		{/if}
 	</div>
 	<div class="p3-bar">
-		<span class="p3-hint">drag orbit · wheel zoom · right-drag pan</span>
+		<span class="p3-hint" data-testid="p3-hint">
+			MMB rotate · shift/ctrl+MMB pan · wheel zoom · arrows nudge 15&deg; (shift 90&deg;)
+		</span>
 		<span class="p3-key"><i class="sw sel"></i> selected</span>
 		<span class="p3-key"><i class="sw bad"></i> guardrail broken</span>
 		<button data-testid="p3-refit" onclick={() => refit?.()}>Refit</button>
@@ -394,27 +490,36 @@
 </div>
 
 <style>
+	/* Fills whatever the dock gives it: in the docked split pane the parent has
+	   a definite height and the stage takes all of it, so the preview stays
+	   whole no matter how long the chain gets. `min-height` is the guard for an
+	   auto-height parent (the stacked narrow layout), where flex has nothing to
+	   divide and the stage would otherwise collapse to zero. */
 	.p3-wrap {
 		display: flex;
 		flex-direction: column;
 		gap: 0.3rem;
+		height: 100%;
+		min-height: 0;
 	}
 	.p3-stage {
 		position: relative;
 		width: 100%;
-		height: clamp(18rem, 42vh, 30rem);
+		flex: 1 1 auto;
+		min-height: 16rem;
 		overflow: hidden;
 		border: 1px solid #16212c;
 		background:
 			radial-gradient(80% 60% at 50% 20%, rgba(120, 165, 205, 0.08), transparent 60%),
 			linear-gradient(180deg, #0a0f14 0%, #04060a 75%);
 	}
+	.p3-stage:focus-within {
+		border-color: #2a3b4a;
+	}
+	/* No grab cursor: the left button does not orbit here (SolidWorks scheme),
+	   so advertising a drag with it would be a lie. */
 	.p3-stage :global(canvas) {
 		display: block;
-		cursor: grab;
-	}
-	.p3-stage :global(canvas:active) {
-		cursor: grabbing;
 	}
 	.p3-msg {
 		position: absolute;

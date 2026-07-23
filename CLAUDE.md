@@ -4868,6 +4868,113 @@ on one side of the world.
     parked as the custom track drove in the movement harness for 7 laps, best
     21.03 s, upright, matching the committed track's documented pace.
 
+- **Piece-chain builder workflow rework.** Six changes to how the tool is
+  DRIVEN. `compileChain`/`diagnoseChain` are untouched — the bank cap, pitch
+  cap, grade lint and corkscrew arch all still decide exactly what they did,
+  and export is still blocked while any guardrail is broken.
+  - **Insert anywhere, and duplicate.** `addPiece(kind, at?)` takes an index;
+    a row's `+` arms that position (the palette shows the target and a cancel),
+    and the historical "after the selection, else the end" is what an unarmed
+    palette still does. The new piece's defaults are seeded from the exit pose
+    of whatever ends up IN FRONT of it (`at - 1`), never from the selection or
+    the tail — that is what makes a mid-chain insert start where the road
+    actually is, and everything downstream re-derives because each entry pose
+    IS its predecessor's exit. `duplicatePiece` copies in place via a
+    structural clone, so a freeform piece's arrays are not shared with the
+    original.
+  - **Drag to reorder**, native DnD initiated ONLY from a dedicated grip.
+    Making the whole row draggable would hijack text selection inside the
+    expanded param form. The grip is `aria-hidden` and the up/down buttons
+    remain the keyboard path.
+  - **Live edits, no commit step — this reverses the earlier commit-gated
+    design.** Full recompute per edit was treated as a performance risk it
+    never was at chain scale, and the cost was that an author typed a number
+    and then had to do something ELSE before the road agreed. Two speeds now:
+    `renderNow` for structural edits (add/insert/duplicate/remove/reorder) and
+    a debounced `renderSoon` (180 ms) for typing. The document itself updates
+    on every keystroke, so poses, measurements and guardrails are live
+    throughout; only the 3D rebuild waits for the pause.
+    - **The effect-subscription trap is avoided by NOT using an effect.**
+      Reading state inside an `$effect` SUBSCRIBES to it, which is what made
+      the previous version rebuild per keystroke. The counter is bumped from
+      explicit calls in the handlers, so the set of things that trigger a
+      redraw is the set of things that call those two functions. The preview
+      keeps its half of the contract unchanged: `rev`/`selected` are its only
+      reactive triggers, `doc`/`diag` are read under `untrack`.
+    - Freeform JSON is the one concession: it is invalid for most of the time
+      it is being typed, so a parse failure leaves the last GOOD geometry in
+      place and only reports itself. Nothing commits until the text parses.
+  - **Docked split pane.** The shell is a fixed `100vh` flex column; the EDITOR
+    column scrolls on its own and the preview is docked beside it, so it never
+    scrolls out of view however long the chain gets. `min-height: 0` on the
+    grid row and the scrolling child is the load-bearing bit — a grid/flex item
+    defaults to min-content, which would push the column to full height and
+    hand the scrollbar back to the page. Below 1000px the shell gives up its
+    fixed height and stacks, preview first. `.p3-stage` went from a clamped
+    height to `flex: 1` with a `min-height` guard, so it fills a definite-height
+    dock and still survives an auto-height parent.
+  - **SolidWorks navigation**, because the author is in SolidWorks all day:
+    MMB drag rotates, shift+MMB (as asked) AND ctrl+MMB (stock SolidWorks,
+    where shift+MMB is zoom) both pan, wheel zooms, arrows nudge the view 15
+    deg and shift+arrow 90. LEFT and RIGHT are deliberately UNBOUND — they
+    select and open the context menu in SolidWorks, and leaving the left button
+    free is also what keeps the door open for direct-manipulation handles
+    (explicitly not built). OrbitControls has no modifier-aware mapping, so the
+    modifier is resolved into `mouseButtons.MIDDLE` from a CAPTURE-phase
+    pointerdown, before OrbitControls' own handler reads it; middle-click
+    default is prevented so Chrome does not open autoscroll. The nudge is
+    spherical math on the camera, not an OrbitControls internal. **Focus is
+    scoped to the CANVAS** (made focusable in JS rather than putting a
+    tabindex on the wrapper): that is what keeps arrows pressed in a numeric
+    param field stepping the number instead of swinging the camera.
+  - **Playtest, no export/reimport.** Reuses the existing pieces end to end:
+    `setCustomTrack` parks the live compiled `TrackData` (deliberately the live
+    object, not the export string, which rounds to 2 dp for committed files) in
+    the same one-slot custom-track store the ribbon builder's Test Drive uses,
+    then navigates to the DEV movement harness at
+    `?track=custom-builder&from=piece-builder`. The harness rather than
+    `/greenline` because this is a dev tool and the portal route is behind
+    auth. No second driving mode; the harness's `?track=` path is unmodified.
+    `?from=` adds a one-click return link (the only harness change), and the
+    chain is still exactly as left since the document lives in localStorage.
+    Gated on a valid closed chain, because an invalid one cannot be raced.
+  - **Verified** by building a real chain through the new workflow only:
+    palette clicks built a base chain, a row `+` inserted a bank at index 1
+    with the downstream pieces shifted intact, duplicate produced an adjacent
+    copy proven INDEPENDENT (editing the copy left the original at 16 deg while
+    the copy read 11), and a real drag from the grip to row 1 reordered
+    `[straight,bank,bank,curve,straight,curve]` into
+    `[straight,straight,bank,bank,curve,curve]` with the drop marker showing
+    during the drag and clearing after. Live editing, the decisive one: typing
+    `1`,`12`,`128` into a radius field with NO change/blur/Enter anywhere left
+    the document reading 1, 12, 128 per keystroke while `renderRev` stayed put,
+    then bumped EXACTLY ONCE after the pause — and a geometry signature of the
+    rendered road proved the scene was byte-identical while only `doc` had
+    changed (so the effect is genuinely not subscribed to it) and rebuilt only
+    when the counter moved (1512 -> 2048 verts). Layout: with 15 pieces the
+    editor scrolled 1395 px through 2048 px of content while the dock did not
+    move by a pixel and the page itself never scrolled at all, canvas 545x547.
+    Camera: plain MMB resolves ROTATE, shift and ctrl both resolve PAN, LEFT
+    and RIGHT unbound, arrow nudges measured at exactly 15/15/90 deg with the
+    orbit distance preserved, wheel zoomed 85.1 -> 75.3, real arrow keydowns on
+    the focused canvas moved the camera while an arrow in a focused param field
+    left it untouched. Playtest: a VALID 531.2 m circuit (closure 0.0000 on
+    position, heading, elevation and bank) parked and drove in the harness —
+    4 cars, 3 to 5 laps, best 18.5 to 19.8 s, 0 falls, 0 floor catches, all
+    upright and finite — surviving a FULL page load (so it resolved from
+    localStorage, not just the in-memory registration), and the return link
+    came back to the builder with the chain intact and still VALID.
+    `svelte-check` clean, 0 errors and no new warnings.
+  - **HARNESS TRAP worth knowing:** a long `await`-loop inside a
+    `javascript_tool` call KEEPS RUNNING after the call times out. A timed-out
+    piece-adding loop silently appended ten more pieces while later checks ran,
+    which read as chain corruption until the leftovers were identified. Keep
+    scripted UI loops short, or verify the piece count before trusting a later
+    measurement. Separately, the movement harness still needs `?glheadless=1`
+    in an automated tab: the playtest link deliberately omits it (a real author
+    has a visible window), so a scripted drive must add it or every car sits at
+    speed 0.
+
 - **Shared track visuals (`src/lib/greenline/track-visual.ts`) + the builder's
   live 3D preview.** Numbers alone do not answer "what does this corkscrew look
   like", which is the gap the preview closes and the reason its camera is FREE

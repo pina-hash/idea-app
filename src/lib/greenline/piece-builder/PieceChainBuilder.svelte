@@ -19,6 +19,9 @@
 	} from './chain-doc';
 	import PiecePreview3D from './PiecePreview3D.svelte';
 	import type { TrackPiece, TrackVec2 } from '../track-schema';
+	import { goto } from '$app/navigation';
+	import { setCustomTrack } from '../custom-track.svelte';
+	import { CUSTOM_TRACK_ID } from '../tracks';
 
 	/**
 	 * GREENLINE // PIECE CHAIN BUILDER (dev tool).
@@ -46,16 +49,54 @@
 	let showJson = $state(false);
 	let copied = $state('');
 	let ready = $state(false);
+
 	/**
-	 * COMMIT counter for the 3D view. Rebuilding a scene is cheap at this scale
-	 * but not free, and rebuilding it on every digit of a number field would
-	 * both thrash and flicker — so structural edits (add / remove / reorder /
-	 * freeform paste) bump this immediately, while a typed parameter commits on
-	 * change (blur or Enter). The numeric readouts stay live throughout either
-	 * way; only the render waits for the commit.
+	 * RENDER counter for the 3D view. There is no manual commit step: an edit
+	 * shows up on its own.
+	 *
+	 * This reverses the earlier commit-gated design. Rebuilding the scene per
+	 * edit was treated as a performance risk it never actually was at chain
+	 * scale (tens of pieces, a few hundred samples), and the cost of the gate
+	 * was that an author typed a number and then had to do something ELSE
+	 * before the road agreed with the form.
+	 *
+	 * Two speeds, because they want different things:
+	 *  - `renderNow` for STRUCTURAL edits (add / insert / duplicate / remove /
+	 *    reorder / paste). One discrete action, one immediate redraw.
+	 *  - `renderSoon` for TYPING. Debounced, so a four-digit radius redraws
+	 *    once on the pause rather than four times mid-number.
+	 *
+	 * Deliberately plain function calls rather than an `$effect` over `doc`:
+	 * reading a prop or state inside an effect SUBSCRIBES to it, which is the
+	 * exact trap that made the previous version rebuild on every keystroke. By
+	 * bumping the counter explicitly from the handlers, the set of things that
+	 * trigger a redraw is the set of things that call these two functions —
+	 * readable in one place, with nothing implicit. The preview keeps its own
+	 * half of that contract: `rev`/`selected` are its only reactive triggers
+	 * and it reads `doc`/`diag` under `untrack`.
 	 */
-	let commitRev = $state(0);
-	const commit = () => (commitRev += 1);
+	let renderRev = $state(0);
+	let renderTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Long enough to swallow a fast typist mid-number, short enough to feel live. */
+	const RENDER_DEBOUNCE_MS = 180;
+	function renderNow() {
+		clearTimeout(renderTimer);
+		renderTimer = undefined;
+		renderRev += 1;
+	}
+	function renderSoon() {
+		clearTimeout(renderTimer);
+		renderTimer = setTimeout(renderNow, RENDER_DEBOUNCE_MS);
+	}
+
+	/**
+	 * Where the palette drops the next piece: an explicit index, or null for
+	 * "after the selection, else at the end" (the historical behavior).
+	 */
+	let insertAt = $state<number | null>(null);
+	/** Row being dragged, and the row it would land on. */
+	let dragFrom = $state<number | null>(null);
+	let dragOver = $state<number | null>(null);
 
 	const diag = $derived(diagnoseDoc(doc));
 	const summary = $derived(summarize(diag));
@@ -77,7 +118,7 @@
 		const stored = loadDoc();
 		if (stored) doc = stored;
 		ready = true;
-		commit();
+		renderNow();
 		const api = {
 			get doc() {
 				return doc;
@@ -94,30 +135,43 @@
 			exportTrack: () => (diag.ok && doc.pieces.length ? exportTrack(doc) : null),
 			setMeta: (patch: Partial<ChainDoc>) => {
 				doc = { ...doc, ...patch };
-				commit();
+				renderNow();
 			},
 			setStart: (patch: Partial<ChainDoc['start']>) => {
 				doc = { ...doc, start: { ...doc.start, ...patch } };
-				commit();
+				renderNow();
 			},
-			addPiece: (kind: PieceKind, params?: Record<string, unknown>) => {
-				addPiece(kind);
-				if (params) setParams(doc.pieces.length - 1, params);
-				return doc.pieces.length - 1;
+			/** `at` inserts at an index; omitted keeps the append/after-selection rule. */
+			addPiece: (kind: PieceKind, params?: Record<string, unknown>, at?: number) => {
+				const i = addPiece(kind, at);
+				if (params) setParams(i, params);
+				return i;
 			},
+			duplicatePiece,
+			reorderPiece,
 			setParams,
+			/** Typed-edit path, debounce included, for driving the live-update check. */
+			setParamText: (i: number, key: string, raw: string) => setParam(i, key, raw),
 			movePiece,
 			removePiece,
 			select: (i: number) => (selected = i),
+			get insertAt() {
+				return insertAt;
+			},
+			setInsertAt: (i: number | null) => (insertAt = i),
+			get renderRev() {
+				return renderRev;
+			},
+			playtest,
 			clear: () => {
 				doc = { ...doc, pieces: [] };
 				selected = -1;
-				commit();
+				renderNow();
 			},
 			load: (next: ChainDoc) => {
 				doc = { ...emptyDoc(), ...next, start: { ...emptyDoc().start, ...next.start } };
 				selected = -1;
-				commit();
+				renderNow();
 			},
 			exitPose: (i: number) => diagFor(i)?.exit ?? null
 		};
@@ -131,56 +185,129 @@
 		if (ready) saveDoc(doc);
 	});
 
-	function addPiece(kind: PieceKind) {
-		const after = selected >= 0 ? diagFor(selected)?.exit : diag.pieces[diag.pieces.length - 1]?.exit;
-		const piece = defaultPiece(kind, after ?? { ...doc.start });
-		const at = selected >= 0 ? selected + 1 : doc.pieces.length;
+	/**
+	 * Insert a piece ANYWHERE, not only at the end.
+	 *
+	 * `at` wins; otherwise the explicit `insertAt` target; otherwise after the
+	 * selection; otherwise the end. The new piece's default params are seeded
+	 * from the exit pose of whatever ends up IN FRONT of it (`at - 1`), never
+	 * from the selection or the tail — that is what makes a mid-chain insert
+	 * start where the road actually is. Everything downstream re-derives on its
+	 * own, since each piece's entry pose IS its predecessor's exit.
+	 */
+	function addPiece(kind: PieceKind, at?: number) {
+		const target = at ?? insertAt ?? (selected >= 0 ? selected + 1 : doc.pieces.length);
+		const idx = Math.max(0, Math.min(doc.pieces.length, target));
+		const before = idx > 0 ? diagFor(idx - 1)?.exit : undefined;
+		const piece = defaultPiece(kind, before ?? { ...doc.start });
 		const next = [...doc.pieces];
-		next.splice(at, 0, piece);
+		next.splice(idx, 0, piece);
 		doc = { ...doc, pieces: next };
-		selected = at;
-		commit();
+		selected = idx;
+		insertAt = null;
+		renderNow();
+		return idx;
+	}
+
+	/**
+	 * Copy a piece in place, directly after the original. A structural clone
+	 * (JSON round trip) so a freeform piece's arrays are not shared with the
+	 * source — editing the copy must never reach back into the original.
+	 */
+	function duplicatePiece(i: number) {
+		const src = doc.pieces[i];
+		if (!src) return;
+		const next = [...doc.pieces];
+		next.splice(i + 1, 0, JSON.parse(JSON.stringify(src)) as TrackPiece);
+		doc = { ...doc, pieces: next };
+		selected = i + 1;
+		insertAt = null;
+		renderNow();
+		return i + 1;
 	}
 
 	function setParams(i: number, params: Record<string, unknown>, render = true) {
 		const next = [...doc.pieces];
 		next[i] = { ...next[i], ...params } as TrackPiece;
 		doc = { ...doc, pieces: next };
-		if (render) commit();
+		if (render) renderNow();
 	}
 
-	/** `render` false while typing; the commit (change/blur) rebuilds the view. */
-	function setParam(i: number, key: string, raw: string, render = false) {
+	/**
+	 * Typed parameter edit. The document updates on the keystroke (so every
+	 * numeric readout, pose and guardrail is live), and the 3D rebuild is
+	 * debounced behind it — no commit action of any kind.
+	 */
+	function setParam(i: number, key: string, raw: string) {
 		if (raw.trim() === '') {
 			const next = [...doc.pieces];
 			const copy = { ...next[i] } as Record<string, unknown>;
 			delete copy[key];
 			next[i] = copy as unknown as TrackPiece;
 			doc = { ...doc, pieces: next };
-			if (render) commit();
+			renderSoon();
 			return;
 		}
 		const v = Number(raw);
 		if (!Number.isFinite(v)) return;
-		setParams(i, { [key]: v }, render);
+		setParams(i, { [key]: v }, false);
+		renderSoon();
+	}
+
+	/** Move a piece to an arbitrary index (drag-drop, and the arrow buttons). */
+	function reorderPiece(from: number, to: number) {
+		const n = doc.pieces.length;
+		if (from === to || from < 0 || from >= n) return;
+		const dest = Math.max(0, Math.min(n - 1, to));
+		const next = [...doc.pieces];
+		const [moved] = next.splice(from, 1);
+		next.splice(dest, 0, moved);
+		doc = { ...doc, pieces: next };
+		// Selection follows the piece the author was manipulating.
+		if (selected === from) selected = dest;
+		else if (selected > from && selected <= dest) selected -= 1;
+		else if (selected < from && selected >= dest) selected += 1;
+		renderNow();
 	}
 
 	function movePiece(i: number, dir: -1 | 1) {
-		const j = i + dir;
-		if (j < 0 || j >= doc.pieces.length) return;
-		const next = [...doc.pieces];
-		[next[i], next[j]] = [next[j], next[i]];
-		doc = { ...doc, pieces: next };
-		if (selected === i) selected = j;
-		else if (selected === j) selected = i;
-		commit();
+		reorderPiece(i, i + dir);
+	}
+
+	/* ---- drag to reorder (native DnD, initiated only from the grip) ---- */
+	function onDragStart(e: DragEvent, i: number) {
+		dragFrom = i;
+		dragOver = i;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			// Firefox refuses to start a drag without payload.
+			e.dataTransfer.setData('text/plain', String(i));
+		}
+	}
+	function onDragOver(e: DragEvent, i: number) {
+		if (dragFrom === null) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dragOver = i;
+	}
+	function onDrop(e: DragEvent, i: number) {
+		if (dragFrom === null) return;
+		e.preventDefault();
+		reorderPiece(dragFrom, i);
+		dragFrom = null;
+		dragOver = null;
+	}
+	function onDragEnd() {
+		dragFrom = null;
+		dragOver = null;
 	}
 
 	function removePiece(i: number) {
 		const next = doc.pieces.filter((_, k) => k !== i);
 		doc = { ...doc, pieces: next };
 		if (selected >= next.length) selected = next.length - 1;
-		commit();
+		if (insertAt !== null && insertAt > next.length) insertAt = null;
+		renderNow();
 	}
 
 	/** Freeform geometry is edited as raw JSON: it IS verbatim world data. */
@@ -197,6 +324,13 @@
 		);
 	}
 	let freeformError = $state('');
+	/**
+	 * Live like every other field, with one concession to the medium: raw JSON
+	 * is invalid for most of the time it is being typed, so a parse failure
+	 * leaves the last GOOD geometry in place and just reports itself. Nothing
+	 * is committed until the text parses, so the road never flickers through
+	 * half-typed states.
+	 */
 	function setFreeform(i: number, text: string) {
 		try {
 			const parsed = JSON.parse(text) as {
@@ -210,10 +344,48 @@
 			next[i] = { kind: 'freeform', ...parsed } as TrackPiece;
 			doc = { ...doc, pieces: next };
 			freeformError = '';
-			commit();
+			renderSoon();
 		} catch (e) {
 			freeformError = e instanceof Error ? e.message : String(e);
 		}
+	}
+
+	/* ---------------- playtest ---------------- */
+
+	let playtestError = $state('');
+
+	/**
+	 * Drive the chain as it stands, with no export/reimport round trip.
+	 *
+	 * Reuses the EXISTING pieces end to end: `setCustomTrack` parks the live
+	 * compiled `TrackData` in the same one-slot custom-track store the ribbon
+	 * builder's Test Drive uses (deliberately the live object, not the export
+	 * string, which rounds every coordinate to 2 dp for committed files), and
+	 * the dev movement harness then loads it through its own unmodified
+	 * `?track=` path. No second driving mode, and nothing builder-specific
+	 * reaches the race.
+	 *
+	 * The harness rather than `/greenline` because this is a dev tool: the
+	 * portal route is behind auth, and the harness is the surface these chains
+	 * have been verified on all along.
+	 */
+	function playtest() {
+		playtestError = '';
+		if (!exported) {
+			playtestError =
+				doc.pieces.length === 0
+					? 'Add pieces first.'
+					: 'An invalid chain cannot be raced — clear the guardrail issues first.';
+			return;
+		}
+		const err = setCustomTrack(exported);
+		if (err) {
+			playtestError = err;
+			return;
+		}
+		// `from` gives the harness a one-click way back to the chain, which is
+		// still exactly where it was (the doc lives in localStorage).
+		void goto(`/dev/greenline-movement?track=${CUSTOM_TRACK_ID}&from=piece-builder`);
 	}
 
 	const n2 = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '-');
@@ -248,14 +420,9 @@
 		</span>
 	</header>
 
-	<!-- ---------------- 3D preview ---------------- -->
-	<section class="pb-col pb-preview">
-		<h3>3D preview</h3>
-		<PiecePreview3D {doc} {diag} rev={commitRev} {selected} />
-	</section>
-
-	<div class="pb-body">
-		<!-- ---------------- chain ---------------- -->
+	<div class="pb-main">
+		<!-- ---------------- editor (scrolls) ---------------- -->
+		<div class="pb-editor">
 		<section class="pb-col pb-chain">
 			<h3>chain start</h3>
 			<div class="pb-grid">
@@ -269,9 +436,10 @@
 							data-testid={`start-${key}`}
 							oninput={(e) => {
 								const v = Number((e.currentTarget as HTMLInputElement).value);
-								if (Number.isFinite(v)) doc = { ...doc, start: { ...doc.start, [key]: v } };
+								if (!Number.isFinite(v)) return;
+								doc = { ...doc, start: { ...doc.start, [key]: v } };
+								renderSoon();
 							}}
-							onchange={commit}
 						/>
 					</label>
 				{/each}
@@ -286,14 +454,30 @@
 						data-testid="chain-width"
 						oninput={(e) => {
 							const v = Number((e.currentTarget as HTMLInputElement).value);
-							if (Number.isFinite(v)) doc = { ...doc, width: v };
+							if (!Number.isFinite(v)) return;
+							doc = { ...doc, width: v };
+							renderSoon();
 						}}
-						onchange={commit}
 					/>
 				</label>
 			</div>
 
 			<h3>add a piece</h3>
+			<div class="pb-target" data-testid="insert-target">
+				{#if insertAt !== null}
+					<span class="pb-target-on">
+						inserting at position {insertAt}{insertAt === 0
+							? ' (start of chain)'
+							: ` (after piece ${insertAt - 1})`}
+					</span>
+					<button data-testid="insert-cancel" onclick={() => (insertAt = null)}>cancel</button>
+				{:else}
+					<span>
+						{selected >= 0 ? `inserting after piece ${selected}` : 'appending at the end'} · use
+						<b>+</b> on a row to insert there
+					</span>
+				{/if}
+			</div>
 			<div class="pb-palette">
 				{#each KIND_SPECS as k (k.kind)}
 					<button class="pb-add" title={k.blurb} data-testid={`add-${k.kind}`} onclick={() => addPiece(k.kind)}>
@@ -302,8 +486,9 @@
 				{/each}
 			</div>
 			<p class="pb-note">
-				Appends after the selection, or at the end. Each piece's entry pose IS the previous piece's exit,
-				so the corridor is continuous by construction.
+				A new piece's defaults are seeded from the exit pose of whatever ends up in front of it, and each
+				piece's entry pose IS the previous piece's exit, so an insert anywhere keeps the corridor
+				continuous and everything downstream re-derives.
 			</p>
 
 			<h3>pieces ({doc.pieces.length})</h3>
@@ -315,13 +500,42 @@
 					{@const d = diagFor(i)}
 					{@const rowIssues = issuesFor(i)}
 					{@const bad = rowIssues.length > 0 || !d}
-					<li class="pb-piece" class:sel={selected === i} class:bad>
+					<li
+						class="pb-piece"
+						class:sel={selected === i}
+						class:bad
+						class:dragging={dragFrom === i}
+						class:dropinto={dragFrom !== null && dragOver === i && dragFrom !== i}
+						data-testid={`row-${i}`}
+						ondragover={(e) => onDragOver(e, i)}
+						ondrop={(e) => onDrop(e, i)}
+					>
 						<button class="pb-row" data-testid={`piece-${i}`} onclick={() => (selected = selected === i ? -1 : i)}>
+							<!-- Only the grip is draggable: making the whole row draggable
+							     would hijack text selection inside the expanded param form. -->
+							<!-- Decorative for assistive tech: reordering by keyboard is the
+							     up/down buttons' job, this is purely the mouse affordance. -->
+							<span
+								class="pb-grip"
+								aria-hidden="true"
+								title="drag to reorder"
+								draggable="true"
+								data-testid={`grip-${i}`}
+								ondragstart={(e) => onDragStart(e, i)}
+								ondragend={onDragEnd}
+							>⠿</span>
 							<span class="pb-idx">{i}</span>
 							<span class="pb-kind">{piece.kind}</span>
 							<span class="pb-summary">{pieceSummary(piece)}</span>
 						</button>
 						<div class="pb-tools">
+							<button
+								title="insert a new piece here"
+								class:armed={insertAt === i}
+								data-testid={`ins-${i}`}
+								onclick={() => (insertAt = insertAt === i ? null : i)}>+</button
+							>
+							<button title="duplicate" data-testid={`dup-${i}`} onclick={() => duplicatePiece(i)}>⧉</button>
 							<button title="move up" disabled={i === 0} data-testid={`up-${i}`} onclick={() => movePiece(i, -1)}>↑</button>
 							<button
 								title="move down"
@@ -377,7 +591,7 @@
 										rows="6"
 										data-testid={`freeform-${i}`}
 										value={freeformText(piece)}
-										onchange={(e) => setFreeform(i, (e.currentTarget as HTMLTextAreaElement).value)}
+										oninput={(e) => setFreeform(i, (e.currentTarget as HTMLTextAreaElement).value)}
 									></textarea>
 									{#if freeformError}<p class="pb-err">{freeformError}</p>{/if}
 								{:else}
@@ -394,8 +608,6 @@
 													value={(piece as unknown as Record<string, number>)[spec.key] ?? ''}
 													placeholder="inherit"
 													oninput={(e) => setParam(i, spec.key, (e.currentTarget as HTMLInputElement).value)}
-												onchange={(e) =>
-													setParam(i, spec.key, (e.currentTarget as HTMLInputElement).value, true)}
 												/>
 											</label>
 										{/each}
@@ -493,6 +705,7 @@
 				<button disabled={!exported} onclick={() => (showJson = !showJson)}>{showJson ? 'Hide' : 'Show'} JSON</button>
 				{#if copied}<span class="pb-copied">{copied}</span>{/if}
 			</div>
+			{#if playtestError}<p class="pb-err" data-testid="playtest-error">{playtestError}</p>{/if}
 			{#if !exported}
 				<p class="pb-err">
 					{doc.pieces.length === 0 ? 'Add pieces first.' : 'Export is blocked while a guardrail is broken.'}
@@ -507,15 +720,40 @@
 				<textarea class="pb-json" readonly rows="14" data-testid="json-out">{json}</textarea>
 			{/if}
 		</section>
+		</div>
+
+		<!-- ---------------- docked preview (never scrolls away) ---------------- -->
+		<aside class="pb-dock">
+			<div class="pb-dockhead">
+				<h3>3D preview</h3>
+				<button
+					class="pb-drive"
+					disabled={!exported}
+					data-testid="playtest"
+					title={exported
+						? 'Park this chain and drive it in the movement harness'
+						: 'A valid, closed chain is needed to race'}
+					onclick={playtest}>PLAYTEST ▸</button
+				>
+			</div>
+			<div class="pb-dockbody">
+				<PiecePreview3D {doc} {diag} rev={renderRev} {selected} />
+			</div>
+		</aside>
 	</div>
 </div>
 
 <style>
+	/* Fixed-viewport shell: the page itself never scrolls, so the preview can be
+	   docked against it. The EDITOR column scrolls on its own instead. */
 	.pb-root {
 		position: relative;
 		z-index: 1;
-		min-height: 100vh;
+		height: 100vh;
+		display: flex;
+		flex-direction: column;
 		padding: 0.75rem;
+		box-sizing: border-box;
 		background: #04060a;
 		color: #eaf4ff;
 		font-family: 'Rajdhani', sans-serif;
@@ -561,25 +799,79 @@
 		border-color: #2ae57e;
 		color: #8fffc4;
 	}
-	.pb-body {
+	/* The split: editor left, preview docked right. `min-height: 0` on both the
+	   row and the scrolling child is what actually lets the child scroll — a
+	   grid/flex item defaults to min-content, which would push the whole
+	   column to full height and hand the scrollbar back to the page. */
+	.pb-main {
+		flex: 1 1 auto;
+		min-height: 0;
 		display: grid;
-		grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-		gap: 1rem;
-		align-items: start;
+		grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.85fr);
+		gap: 0.8rem;
 		margin-top: 0.6rem;
 	}
-	@media (max-width: 900px) {
-		.pb-body {
+	.pb-editor {
+		min-height: 0;
+		overflow-y: auto;
+		padding-right: 0.35rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.8rem;
+	}
+	.pb-dock {
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		border: 1px solid #16212c;
+		background: #070b11;
+		padding: 0.7rem;
+	}
+	.pb-dockhead {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+	}
+	.pb-dockhead h3 {
+		margin: 0;
+	}
+	.pb-dockbody {
+		flex: 1 1 auto;
+		min-height: 0;
+	}
+	.pb-drive {
+		margin-left: auto;
+		border-color: #2ae57e;
+		color: #8fffc4;
+		letter-spacing: 0.1em;
+	}
+	.pb-drive:disabled {
+		border-color: #24333f;
+		color: #cfe2ef;
+	}
+	/* Below this the columns cannot both be useful, so the shell gives up its
+	   fixed height and the page scrolls as one, preview first. */
+	@media (max-width: 1000px) {
+		.pb-root {
+			height: auto;
+			min-height: 100vh;
+		}
+		.pb-main {
 			grid-template-columns: 1fr;
+		}
+		.pb-editor {
+			overflow: visible;
+		}
+		.pb-dock {
+			order: -1;
+			height: 24rem;
 		}
 	}
 	.pb-col {
 		border: 1px solid #16212c;
 		background: #070b11;
 		padding: 0.7rem;
-	}
-	.pb-preview {
-		margin-top: 0.6rem;
 	}
 	.pb-grid {
 		display: flex;
@@ -680,6 +972,14 @@
 	.pb-piece.bad {
 		border-color: #ffb02e;
 	}
+	.pb-piece.dragging {
+		opacity: 0.4;
+	}
+	/* Where the dragged piece would land. */
+	.pb-piece.dropinto {
+		border-color: #2ae57e;
+		box-shadow: inset 0 0 0 1px rgba(42, 229, 126, 0.35);
+	}
 	.pb-row {
 		display: flex;
 		align-items: baseline;
@@ -689,6 +989,36 @@
 		border: none;
 		padding: 0;
 		text-align: left;
+	}
+	.pb-grip {
+		cursor: grab;
+		color: #44586a;
+		font-size: 0.7rem;
+		line-height: 1;
+		letter-spacing: -0.1em;
+		user-select: none;
+	}
+	.pb-grip:active {
+		cursor: grabbing;
+	}
+	.pb-piece:hover .pb-grip {
+		color: #8fa3b0;
+	}
+	.pb-target {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		font-size: 0.68rem;
+		color: #6d8090;
+		margin-bottom: 0.35rem;
+	}
+	.pb-target-on {
+		color: #8fffc4;
+	}
+	.pb-tools button.armed {
+		border-color: #2ae57e;
+		color: #8fffc4;
 	}
 	.pb-idx {
 		font-family: 'Share Tech Mono', monospace;

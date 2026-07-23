@@ -42,6 +42,18 @@
 	const track =
 		trackParam && allTracks().some((t) => t.id === trackParam) ? loadTrack(trackParam) : undefined;
 
+	/**
+	 * `?from=` closes the playtest round trip: an author who drove here from a
+	 * builder gets one click back to the chain they were editing (still exactly
+	 * as they left it — the document lives in localStorage). Absent otherwise,
+	 * so a plain scripted drive is unchanged.
+	 */
+	const RETURN_TO: Record<string, { href: string; label: string }> = {
+		'piece-builder': { href: '/dev/greenline-piece-builder', label: '◂ BACK TO CHAIN BUILDER' },
+		builder: { href: '/dev/greenline-track-builder', label: '◂ BACK TO TRACK BUILDER' }
+	};
+	const backTo = RETURN_TO[page.url.searchParams.get('from') ?? ''];
+
 	const onFinish = (o: RaceOutcome) => {
 		// The in-game "YOU FINISHED" banner already shows the result; log the
 		// structured outcome for tuning. The /greenline route turns this same
@@ -55,4 +67,32 @@
 	<title>GREENLINE movement prototype (dev)</title>
 </svelte:head>
 
+{#if backTo}
+	<a class="gl-back" href={backTo.href} data-testid="back-to-builder">{backTo.label}</a>
+{/if}
+
 <GreenlineRace {onFinish} {track} aiCount={gridSelection.aiCount} />
+
+<style>
+	/* Bottom-right: the one HUD corner the race leaves free (speed top-left,
+	   timing top-center, standings top-right, minimap bottom-left, controls
+	   bottom-center) — the same reasoning the music mute button uses. */
+	.gl-back {
+		position: fixed;
+		right: 0.7rem;
+		bottom: 0.7rem;
+		z-index: 40;
+		background: rgba(4, 6, 10, 0.86);
+		border: 1px solid #24333f;
+		color: #cfe2ef;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		letter-spacing: 0.1em;
+		padding: 0.3rem 0.6rem;
+		text-decoration: none;
+	}
+	.gl-back:hover {
+		border-color: #2ae57e;
+		color: #8fffc4;
+	}
+</style>
