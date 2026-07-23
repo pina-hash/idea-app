@@ -68,6 +68,7 @@ const SFX = {
 
 	// ---- Race ----
 	race_countdown_tick: { files: takes('sfx_race_countdown_tick', 1), bus: 'ui', gain: 0.5 },
+	race_go: { files: takes('sfx_race_go', 3), bus: 'ui', gain: 0.55 },
 
 	// ---- Weapons ----
 	wpn_autocannon_fire: { files: takes('sfx_wpn_autocannon_fire', 8), bus: 'weapons', gain: 0.3, jitter: [0.94, 1.07] },
@@ -78,10 +79,10 @@ const SFX = {
 	wpn_shotgun_impact: { files: takes('sfx_wpn_shotgun_impact', 4), bus: 'impacts', gain: 0.32, jitter: [0.9, 1.1] },
 	wpn_rocket_lock_charging: { files: takes('sfx_wpn_rocket_lock_charging', 1), bus: 'weapons', loop: true, gain: 0.22, fadeIn: 0.05 },
 	wpn_rocket_lock_confirmed: { files: takes('sfx_wpn_rocket_lock_confirmed', 1), bus: 'weapons', gain: 0.3 },
-	wpn_rocket_launch: { files: takes('sfx_wpn_rocket_launch', 1), bus: 'weapons', gain: 0.4, jitter: [0.95, 1.05] },
+	wpn_rocket_launch: { files: takes('sfx_wpn_rocket_launch', 2), bus: 'weapons', gain: 0.4, jitter: [0.95, 1.05] },
 	wpn_rocket_travel: { files: takes('sfx_wpn_rocket_travel', 1), bus: 'weapons', loop: true, gain: 0.2, fadeIn: 0.08 },
 	wpn_rocket_impact: { files: takes('sfx_wpn_rocket_impact', 4), bus: 'impacts', gain: 0.46 },
-	wpn_cluster_launch: { files: takes('sfx_wpn_cluster_launch', 4), bus: 'weapons', gain: 0.4, jitter: [0.95, 1.05] },
+	wpn_cluster_launch: { files: takes('sfx_wpn_cluster_launch', 3), bus: 'weapons', gain: 0.4, jitter: [0.95, 1.05] },
 	wpn_cluster_impact_direct: { files: takes('sfx_wpn_cluster_impact_direct', 4), bus: 'impacts', gain: 0.46 },
 	wpn_cluster_impact_splash: { files: takes('sfx_wpn_cluster_impact_splash', 4), bus: 'impacts', gain: 0.3, jitter: [0.9, 1.12] },
 	wpn_turret_fire: { files: takes('sfx_wpn_turret_fire', 7), bus: 'weapons', gain: 0.24, jitter: [0.93, 1.08] },

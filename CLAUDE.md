@@ -5131,7 +5131,7 @@ on one side of the world.
     the single source both surfaces mount.
 
 - **Real SFX content for categories 1-6 (`src/lib/greenline/sfx.ts`), replacing
-  the placeholder tones.** All 187 recorded `.wav` takes land flat in
+  the placeholder tones.** All 190 recorded `.wav` takes land flat in
   `static/greenline/audio/` beside the music (the existing convention), named
   `sfx_<category>_<specific>_NN.wav`. `sfx.ts` is the ROSTER — the content layer
   over the Phase 2C engine, which keeps owning the bus graph, voice pooling, pan
@@ -5196,8 +5196,8 @@ on one side of the world.
     roster to the SAME cached buffer (browser-asserted by object identity).
   - **Verified** in `/dev/greenline-portal` (whose audio bar gained
     `prime`/`cache`/`play`/`loop`/`stopLoops`) and
-    `/dev/greenline-movement?glheadless=1`: all 187 files fetch and decode
-    (`loaded 187, failed 0` — meaningful because the SvelteKit dev server serves
+    `/dev/greenline-movement?glheadless=1`: all 190 files fetch and decode
+    (`loaded 190, failed 0` — meaningful because the SvelteKit dev server serves
     the HTML app shell with a 200 for a MISSING static path, so only a real
     decode proves an asset exists); an analyser tapped on the master bus shows real
     signal for one sound from each of the six categories (peak RMS 0.049-0.357
@@ -5214,13 +5214,11 @@ on one side of the world.
     click, all cue sets disjoint by buffer identity), with the taken socket
     playing exactly ONE conflict cue, not the generic click, and leaving the
     loadout unchanged while free sockets still work.
-  - **GAP, still on a placeholder tone:** `sfx_race_go` has no recorded source,
-    so the start blast is the one remaining synthesized cue (marked in code).
-    Short of their rostered variation count: `sfx_ui_click` (2 of 3),
-    `sfx_wpn_rocket_launch` (1 of 2), `sfx_wpn_shield_break` (1 of 2).
-    `sfx_abl_repair_loop` is loaded but unwired — Overcharge Repair is an
-    instant heal, so there is no sustained ability repair for it to cover (the
-    pit stop uses `env_pit_repair_loop` plus `abl_repair_complete` on release).
+  - **Every roster event now has real recorded audio** (190 takes total). The
+    one remaining unwired asset is `sfx_abl_repair_loop`: it is loaded but has
+    no trigger, because Overcharge Repair is an instant heal with no sustained
+    repair phase to cover (the pit stop uses `env_pit_repair_loop` plus
+    `abl_repair_complete` on release).
 
 ## Shared feedback box
 

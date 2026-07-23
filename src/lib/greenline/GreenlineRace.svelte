@@ -8632,16 +8632,7 @@
 						// the SAME derived text so the cue can never drift from what the
 						// overlay shows; countText only changes on a real transition.
 						if (next !== countPrev) {
-							if (next === 'GO')
-								// GAP: sfx_race_go has no recorded source yet, so the start
-								// blast stays a PLACEHOLDER tone. Swap for playSfx once the
-								// asset lands; every other countdown cue is real audio.
-								audioEngine.playTone('ui', {
-									freq: 660,
-									durationMs: 420,
-									type: 'square',
-									gain: 0.24
-								});
+							if (next === 'GO') playSfx('race_go');
 							else if (next !== '') playSfx('race_countdown_tick');
 							countPrev = next;
 						}
