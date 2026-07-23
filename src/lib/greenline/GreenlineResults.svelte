@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './brand/brand';
+	import { uiSounds } from './ui-sfx';
 	import { CURRENCY_SHORT, type RaceAward } from './economy';
 	import { formatLapMs } from './track-runtime';
 	import type { RaceOutcome } from './GreenlineRace.svelte';
@@ -75,7 +76,7 @@
 	const won = $derived(outcome?.finishPosition === 1);
 </script>
 
-<div class="glb gr-results">
+<div class="glb gr-results" use:uiSounds>
 	<div class="gr-eyebrow">RACE COMPLETE · {trackName.toUpperCase()}</div>
 
 	{#if outcome}

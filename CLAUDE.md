@@ -4936,6 +4936,90 @@ on one side of the world.
     firing, cars lapping; Proving Ground 07: 0 falls, 0 floor catches, 5 physics
     bodies — the flat-track gating intact).
 
+- **Real SFX content for categories 1-6 (`src/lib/greenline/sfx.ts`), replacing
+  the placeholder tones.** 124 recorded `.wav` takes land flat in
+  `static/greenline/audio/` beside the music (the existing convention), named
+  `sfx_<category>_<specific>_NN.wav`. `sfx.ts` is the ROSTER — the content layer
+  over the Phase 2C engine, which keeps owning the bus graph, voice pooling, pan
+  and Doppler. An entry declares its takes, bus, mix level, pitch jitter and
+  whether it loops; call sites only ever name an event.
+  - **The engine had NO loader and NO loop path** (`playBuffer` took an
+    `AudioBuffer` nothing ever produced), so both were added: `audioEngine.decode`
+    and `PlayOptions.loop` / `fadeInSec`, with the handle gaining
+    `setGain`/`stop`. **Looping voices are EXEMPT from the soft-cap stealing** —
+    a sustained cue silently killed by an unrelated burst has no way to restart
+    itself — which makes every start the caller's to stop. Fixed alongside:
+    `stopVoice` used to disconnect the graph immediately, cutting its own
+    fade-out into a click; it now leaves teardown to the already-wired
+    `source.onended` so the fade is actually heard (invisible on the old
+    one-shot steal path, obvious on a loop).
+  - **Loading model, and why:** a gameplay frame cannot await, so `playSfx` is
+    synchronous and plays only from an already-decoded buffer; a miss kicks off
+    that file's load and returns null (ONE silent trigger) rather than firing
+    late and out of sync. `primeSfx()` warms all 124 at concurrency 4 on the
+    first gesture (`GreenlineMusic`'s existing `armGesture`, i.e. the title
+    screen, long before a race) and again at race mount for the dev harnesses,
+    which mount the race without the music controller. Idempotent. Every failure
+    mode — missing file, bad decode, no Web Audio — resolves to silence, never a
+    throw into a frame.
+  - **`syncLoop(name, wanted, ref, pos?)`** in `GreenlineRace` drives every
+    sustained cue off a per-frame boolean (rising edge starts, falling edge
+    stops), so a held state never restarts the sound. Wired: jammer hum, shield
+    hum, guided lock-charging, nitro / grip / air-correction, tether pull,
+    per-projectile rocket motors (keyed `proj:<id>`, so they Doppler past on
+    their own), the low-hull alarm, the pit-repair machinery, and the weather
+    beds (yard / rain / fog, keyed off `ENV.id` so a live weather swap
+    cross-swaps the bed with the visuals). Two hygiene points that are NOT
+    optional given loops are unstealable: `stopAllSfxLoops()` on teardown, and
+    the same at the `paused` early-return — that return skips the block driving
+    every loop, so one left running would drone under the pause menu with
+    nothing able to stop it.
+  - **New triggers that had no cue at all:** countdown ticks, cluster splash,
+    EMP impact, oil trigger, hook latch/release, blade retract, flip recovery,
+    weapons-offline status, thunder on the lightning strike, and tire dust
+    (throttled to ~3/s and player-only — puffs spawn ~18/s, so one cue per puff
+    would be a rattle, not a texture).
+  - **UI had no sound anywhere.** `src/lib/greenline/ui-sfx.ts` is a `uiSounds`
+    Svelte ACTION: one delegated pointer pair on a panel root gives every button
+    inside it hover + click, instead of a play call in 100+ handlers. A button
+    names a different cue declaratively with `data-sfx="confirm|back|save|tab|
+    none"`. Mounted on the title, garage, settings and results roots. OUTCOME
+    cues (purchase vs insufficient funds) call `playUiSfx` at the decision
+    point, because they depend on what the handler decided, not on what was
+    pressed. **One deliberate UX change:** the occupied socket button in the
+    garage moved from `disabled` to `aria-disabled` — a genuinely disabled
+    control swallows pointer events, so the "that hardpoint is taken" cue could
+    never have fired. It stays exactly as non-functional (its handler only plays
+    the cue) and the delegated sound skips it on the same attribute.
+  - **Aliases, not duplicate files:** cluster lock/travel reuse the rocket's
+    recordings and the turret reuses the autocannon's impact, resolved in the
+    roster to the SAME cached buffer (browser-asserted by object identity).
+  - **Verified** in `/dev/greenline-portal` (whose audio bar gained
+    `prime`/`cache`/`play`/`loop`/`stopLoops`) and
+    `/dev/greenline-movement?glheadless=1`: all 124 files fetch and decode
+    (`loaded 124, failed 0`); an analyser tapped on the master bus shows real
+    signal for one sound from each of the six categories (peak RMS 0.049-0.357
+    against a silent floor of ~0); the voices are `AudioBufferSourceNode` with
+    `oscFreq: null` and real stereo buffers, i.e. genuinely recordings and not
+    the old tones; all eight bus mappings match the spec; variation rotation
+    gives 5/5 distinct takes over 30 plays with **0 immediate repeats** (and
+    2/2 over 16 for a two-take sound); a loop survives a 20-shot flood on its
+    own bus, is still sounding well past its buffer end, and fades on stop; the
+    game's OWN path fires real buffers (weapon fire, damage funnel, the ambient
+    bed live in-race) with a 4-car race running weapons/tether/caltrops, all
+    rigs upright, 0 falls, no console errors; and the `data-sfx` routing is
+    exact (tab button plays tab-switch, primary plays confirm, untagged plays
+    click, all cue sets disjoint by buffer identity), with the taken socket
+    playing exactly ONE conflict cue, not the generic click, and leaving the
+    loadout unchanged while free sockets still work.
+  - **GAP, still on a placeholder tone:** `sfx_race_go` has no recorded source,
+    so the start blast is the one remaining synthesized cue (marked in code).
+    Short of their rostered variation count: `sfx_ui_click` (2 of 3),
+    `sfx_wpn_rocket_launch` (1 of 2), `sfx_wpn_shield_break` (1 of 2).
+    `sfx_abl_repair_loop` is loaded but unwired — Overcharge Repair is an
+    instant heal, so there is no sustained ability repair for it to cover (the
+    pit stop uses `env_pit_repair_loop` plus `abl_repair_complete` on release).
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

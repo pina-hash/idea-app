@@ -10,6 +10,7 @@
 		type TrackCategory
 	} from './audio-settings.svelte';
 	import { audioEngine } from './audio-engine';
+	import { primeSfx } from './sfx';
 
 	/**
 	 * GREENLINE music director. Wires the existing soundtrack to the route's
@@ -79,6 +80,10 @@
 			// One resume path for music + SFX: resume the shared context, then
 			// (re)play the routed element so it becomes audible.
 			audioEngine.resume();
+			// Same gesture warms the SFX cache. A frame cannot await a decode, so
+			// playSfx only fires from resident buffers; priming here (on the title
+			// screen, long before a race) is what makes the first shot audible.
+			primeSfx();
 			current?.play().catch(() => {});
 		};
 		window.addEventListener('pointerdown', handler);

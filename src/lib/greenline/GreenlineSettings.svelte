@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import './brand/brand';
+	import { uiSounds } from './ui-sfx';
 	import {
 		MUSIC_TRACKS,
 		SHUFFLE,
@@ -219,6 +220,7 @@
 		aria-modal="true"
 		tabindex="-1"
 		bind:this={panelEl}
+		use:uiSounds
 	>
 		<div class="gs-head">
 			<span class="gs-title">SETTINGS</span>

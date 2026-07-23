@@ -151,7 +151,8 @@
 		type PartSlot,
 		type ResolvedStats
 	} from '$lib/greenline/loadout';
-	import { audioEngine } from '$lib/greenline/audio-engine';
+	import { audioEngine, type VoiceHandle } from '$lib/greenline/audio-engine';
+	import { playSfx, startSfxLoop, primeSfx, type SfxRef } from '$lib/greenline/sfx';
 	import {
 		COM_DROP,
 		createRigVisuals,
@@ -934,6 +935,8 @@
 	let lapFlash = $state('');
 	// Race-start countdown text ('3' | '2' | '1' | 'GO' | ''), driven by the loop.
 	let countText = $state('');
+	/** Last countdown text a start cue fired for; not rendered, so plain state. */
+	let countPrev = '';
 
 	let stage: HTMLDivElement;
 
@@ -4480,6 +4483,7 @@
 						target.flashUntil = now + 180;
 						// Impact burst on the zone actually struck, not the rig center.
 						const a = hitAnchor(target, sp2.x, sp2.z, hit.result.zone);
+						weaponSfx('emp-hit', a.x, a.z);
 						spawnSparks(a.x, a.y + 0.2, a.z, 22, 0x00f0ff, 10, 500);
 						if (target === player) addTrauma(0.4);
 						else addTraumaAt(a.x, a.z, 0.25);
@@ -4698,6 +4702,7 @@
 					spawnRing(tp.x, tp.z, 0xc8ff00, 4, 260, 0.7);
 					// The hook's bite sparks on the face it actually latched.
 					const la = hitAnchor(target, sp.x, sp.z, res.hit.result.zone);
+					weaponSfx('hook-latch', la.x, la.z);
 					spawnSparks(la.x, la.y + 0.15, la.z, 16, 0xc8ff00, 9, 450);
 					if (shooter === player || target === player) addTrauma(0.35);
 					else addTraumaAt(tp.x, tp.z, 0.25);
@@ -4719,111 +4724,116 @@
 				const effSlotCooldown = (rig: Rig, cooldownSec: number) =>
 					cooldownSec * rig.buildStats.weaponCooldown;
 
-				// PLACEHOLDER SFX: synthesized tones on the audio-engine buses
-				// until real weapon audio is sourced (build plan section 8). Swap
-				// each playTone for playBuffer with the real asset; positions
-				// already ride through, so the swap is content-only.
-				const weaponSfx = (
-					kind:
-						| 'auto-fire'
-						| 'auto-hit'
-						| 'rail-fire'
-						| 'rail-hit'
-						| 'shot-fire'
-						| 'shot-hit'
-						| 'rocket-launch'
-						| 'rocket-hit'
-						| 'cluster-launch'
-						| 'cluster-hit'
-						| 'caltrops-deploy'
-						| 'caltrops-hit'
-						| 'turret-fire'
-						| 'turret-hit'
-						| 'shield-up'
-						| 'shield-break'
-						| 'blade-deploy'
-						| 'blade-hit'
-						| 'jammer-hum'
-						| 'lock-on'
-						| 'no-lock'
-						| 'emp-fire'
-						| 'oil-deploy'
-						| 'hook-fire',
-					x?: number,
-					z?: number
+				// Warm the SFX cache if nothing has yet (the dev harnesses mount the
+				// race without GreenlineMusic, which is the usual primer). Idempotent.
+				primeSfx();
+
+				// Sustained (looping) SFX voices, keyed by a stable slot name. A loop
+				// is exempt from the engine's voice stealing precisely because it is
+				// caller-owned, so every start MUST have a matching stop: syncLoop
+				// drives one off a per-frame boolean, starting on the rising edge and
+				// stopping on the falling one, so a held state never restarts the
+				// sound. Positional loops follow their emitter.
+				const loopVoices = new Map<string, VoiceHandle>();
+				const syncLoop = (
+					name: string,
+					wanted: boolean,
+					ref: SfxRef,
+					pos?: { x: number; y: number; z: number }
 				) => {
+					const cur = loopVoices.get(name);
+					if (wanted) {
+						if (cur) {
+							if (pos) cur.setPosition(pos);
+							return;
+						}
+						// A null here means the asset is not resident yet; the next frame
+						// retries, so a cold cache costs a moment of silence, never a
+						// permanently missing loop.
+						const h = startSfxLoop(ref, { position: pos });
+						if (h) loopVoices.set(name, h);
+					} else if (cur) {
+						cur.stop();
+						loopVoices.delete(name);
+					}
+				};
+				const stopAllSfxLoops = () => {
+					for (const h of loopVoices.values()) h.stop();
+					loopVoices.clear();
+				};
+				/**
+				 * One-frame latch: set by the pit-repair block during the physics pass,
+				 * consumed (and cleared) by the HUD pass later in the SAME frame, so the
+				 * pit loop needs neither a duplicated stop-speed predicate nor a new Rig
+				 * field. A skipped physics pass (paused) simply lets it fall to false.
+				 */
+				let playerPitHealing = false;
+				let playerPitHealingPrev = false;
+				let nitroPrev = false;
+				let playerMountDownPrev = false;
+				let playerBladesPrev = false;
+				let playerDustSfxMs = 0;
+
+				// Weapon SFX: real recorded assets through the shared roster
+				// ($lib/greenline/sfx.ts), which owns the file list, the mix level,
+				// the per-trigger pitch jitter and the never-the-same-take-twice
+				// variation rotation. Bus choice also lives there (a machine's own
+				// action -> weapons, the moment it LANDS on a target -> impacts), so
+				// this map is purely event -> roster id.
+				const WEAPON_SFX = {
+					'auto-fire': 'wpn_autocannon_fire',
+					'auto-hit': 'wpn_autocannon_impact',
+					'rail-fire': 'wpn_railgun_fire',
+					'rail-hit': 'wpn_railgun_impact',
+					'shot-fire': 'wpn_shotgun_fire',
+					'shot-hit': 'wpn_shotgun_impact',
+					'rocket-launch': 'wpn_rocket_launch',
+					'rocket-hit': 'wpn_rocket_impact',
+					'cluster-launch': 'wpn_cluster_launch',
+					'cluster-hit': 'wpn_cluster_impact_direct',
+					'cluster-splash': 'wpn_cluster_impact_splash',
+					'caltrops-deploy': 'wpn_caltrops_deploy',
+					'caltrops-hit': 'wpn_caltrops_trigger',
+					'turret-fire': 'wpn_turret_fire',
+					// Alias: the turret reuses the autocannon's impact recording rather
+					// than shipping a near-identical take (resolved in the roster).
+					'turret-hit': 'wpn_turret_impact',
+					'shield-up': 'wpn_shield_activate',
+					'shield-break': 'wpn_shield_break',
+					'blade-deploy': 'wpn_blades_deploy',
+					'blade-hit': 'wpn_blades_contact',
+					'blade-retract': 'wpn_blades_retract',
+					'lock-on': 'wpn_rocket_lock_confirmed',
+					'no-lock': 'ui_error',
+					'emp-fire': 'wpn_emp_fire',
+					'emp-hit': 'wpn_emp_impact',
+					'oil-deploy': 'wpn_oil_deploy',
+					'oil-hit': 'wpn_oil_trigger',
+					'hook-fire': 'wpn_hook_launch',
+					'hook-latch': 'wpn_hook_latch',
+					'hook-release': 'wpn_hook_release'
+				} as const satisfies Record<string, SfxRef>;
+
+				const weaponSfx = (kind: keyof typeof WEAPON_SFX, x?: number, z?: number) => {
 					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
-					if (kind === 'auto-fire')
-						audioEngine.playTone('weapons', { freq: 480, durationMs: 70, type: 'square', gain: 0.16, pitchJitter: [0.92, 1.08], position: pos });
-					else if (kind === 'auto-hit')
-						audioEngine.playTone('impacts', { freq: 210, durationMs: 90, type: 'triangle', gain: 0.18, pitchJitter: [0.9, 1.1], position: pos });
-					else if (kind === 'rail-fire')
-						audioEngine.playTone('weapons', { freq: 900, durationMs: 140, type: 'square', gain: 0.22, pitchJitter: [0.98, 1.02], position: pos });
-					else if (kind === 'rail-hit')
-						audioEngine.playTone('impacts', { freq: 140, durationMs: 220, type: 'sawtooth', gain: 0.3, position: pos });
-					else if (kind === 'shot-fire')
-						audioEngine.playTone('weapons', { freq: 300, durationMs: 90, type: 'square', gain: 0.2, pitchJitter: [0.82, 1.2], position: pos });
-					else if (kind === 'shot-hit')
-						audioEngine.playTone('impacts', { freq: 200, durationMs: 90, type: 'triangle', gain: 0.2, pitchJitter: [0.85, 1.15], position: pos });
-					else if (kind === 'rocket-launch')
-						audioEngine.playTone('weapons', { freq: 180, durationMs: 340, type: 'sawtooth', gain: 0.22, pitchJitter: [0.95, 1.05], position: pos });
-					else if (kind === 'rocket-hit')
-						audioEngine.playTone('impacts', { freq: 90, durationMs: 320, type: 'sawtooth', gain: 0.3, position: pos });
-					else if (kind === 'cluster-launch')
-						audioEngine.playTone('weapons', { freq: 210, durationMs: 320, type: 'sawtooth', gain: 0.22, pitchJitter: [0.95, 1.05], position: pos });
-					else if (kind === 'cluster-hit')
-						audioEngine.playTone('impacts', { freq: 80, durationMs: 360, type: 'sawtooth', gain: 0.32, position: pos });
-					else if (kind === 'caltrops-deploy')
-						audioEngine.playTone('weapons', { freq: 620, durationMs: 120, type: 'square', gain: 0.16, pitchJitter: [0.85, 1.15], position: pos });
-					else if (kind === 'caltrops-hit')
-						audioEngine.playTone('impacts', { freq: 340, durationMs: 60, type: 'square', gain: 0.15, pitchJitter: [0.9, 1.1], position: pos });
-					else if (kind === 'turret-fire')
-						audioEngine.playTone('weapons', { freq: 560, durationMs: 55, type: 'square', gain: 0.13, pitchJitter: [0.9, 1.12], position: pos });
-					else if (kind === 'turret-hit')
-						audioEngine.playTone('impacts', { freq: 240, durationMs: 70, type: 'triangle', gain: 0.14, pitchJitter: [0.9, 1.1], position: pos });
-					else if (kind === 'shield-up')
-						audioEngine.playTone('ui', { freq: 320, durationMs: 260, type: 'sine', gain: 0.2, pitchJitter: [1.0, 1.4] });
-					else if (kind === 'shield-break')
-						audioEngine.playTone('impacts', { freq: 150, durationMs: 300, type: 'sawtooth', gain: 0.3, pitchJitter: [0.7, 0.95], position: pos });
-					else if (kind === 'blade-deploy')
-						audioEngine.playTone('weapons', { freq: 420, durationMs: 240, type: 'sawtooth', gain: 0.18, pitchJitter: [1.0, 1.6] });
-					else if (kind === 'blade-hit')
-						audioEngine.playTone('impacts', { freq: 300, durationMs: 80, type: 'sawtooth', gain: 0.18, pitchJitter: [0.85, 1.2], position: pos });
-					else if (kind === 'jammer-hum')
-						audioEngine.playTone('ambient', { freq: 70, durationMs: 900, type: 'sine', gain: 0.05, pitchJitter: [0.97, 1.03] });
-					else if (kind === 'lock-on')
-						audioEngine.playTone('ui', { freq: 880, durationMs: 90, type: 'sine', gain: 0.14 });
-					else if (kind === 'emp-fire')
-						audioEngine.playTone('weapons', { freq: 620, durationMs: 200, type: 'square', gain: 0.2, pitchJitter: [0.9, 1.1], position: pos });
-					else if (kind === 'oil-deploy')
-						audioEngine.playTone('weapons', { freq: 160, durationMs: 200, type: 'sine', gain: 0.16, pitchJitter: [0.9, 1.1], position: pos });
-					else if (kind === 'hook-fire')
-						audioEngine.playTone('weapons', { freq: 240, durationMs: 160, type: 'sawtooth', gain: 0.18, pitchJitter: [0.85, 1.05], position: pos });
-					else audioEngine.playTone('ui', { freq: 220, durationMs: 120, type: 'sine', gain: 0.12 });
+					playSfx(WEAPON_SFX[kind], { position: pos });
 				};
 
-				// PLACEHOLDER structural-damage SFX (Phase 6a), tiered so each visual
-				// damage step reads by ear: a light scuff, a heavy crumple crunch, a
-				// sharp metallic connector snap, plate armor tearing, and the deep
-				// mount-kill destruction are five DISTINCT tones (freq/type/length),
-				// not one generic "hit". Same audio-engine-bus convention as weaponSfx;
-				// swap for real assets later (positions ride through).
-				const damageSfx = (
-					kind: 'scuff' | 'crunch' | 'connector-snap' | 'armor-strip' | 'mount-kill',
-					x?: number,
-					z?: number
-				) => {
+				// Structural-damage SFX (Phase 6a), tiered so each visual damage step
+				// reads by ear: a light scuff, a heavy crumple crunch, a sharp metallic
+				// connector snap, plate armor tearing, and the deep mount-kill
+				// destruction are five DISTINCT recordings, not one generic "hit".
+				const DAMAGE_SFX = {
+					scuff: 'veh_hit_scuff',
+					crunch: 'veh_hit_crunch',
+					'connector-snap': 'veh_connector_snap',
+					'armor-strip': 'veh_armor_strip',
+					'mount-kill': 'veh_mount_kill'
+				} as const satisfies Record<string, SfxRef>;
+
+				const damageSfx = (kind: keyof typeof DAMAGE_SFX, x?: number, z?: number) => {
 					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
-					if (kind === 'scuff')
-						audioEngine.playTone('impacts', { freq: 130, durationMs: 70, type: 'triangle', gain: 0.12, pitchJitter: [0.85, 1.15], position: pos });
-					else if (kind === 'crunch')
-						audioEngine.playTone('impacts', { freq: 90, durationMs: 180, type: 'sawtooth', gain: 0.24, pitchJitter: [0.8, 1.05], position: pos });
-					else if (kind === 'connector-snap')
-						audioEngine.playTone('impacts', { freq: 640, durationMs: 70, type: 'square', gain: 0.17, pitchJitter: [0.9, 1.25], position: pos });
-					else if (kind === 'armor-strip')
-						audioEngine.playTone('impacts', { freq: 260, durationMs: 160, type: 'sawtooth', gain: 0.22, pitchJitter: [0.85, 1.1], position: pos });
-					else
-						audioEngine.playTone('impacts', { freq: 70, durationMs: 340, type: 'sawtooth', gain: 0.3, pitchJitter: [0.9, 1.0], position: pos });
+					playSfx(DAMAGE_SFX[kind], { position: pos });
 				};
 
 				// Live projectiles (combat facts) + their meshes keyed by id. The
@@ -4842,6 +4852,9 @@
 					projVis.set(p.id, mesh);
 				};
 				const removeProjectileVis = (id: number) => {
+					// Kill the motor loop with the projectile, whether it hit, expired,
+					// or the round was reset out from under it.
+					syncLoop(`proj:${id}`, false, 'wpn_rocket_travel');
 					const mesh = projVis.get(id);
 					if (mesh) {
 						scene.remove(mesh);
@@ -4935,12 +4948,6 @@
 				scene.add(lockRing);
 				// Rising-edge memory for the player's lock-complete cue.
 				let playerLockedPrev = false;
-				// Radar Jammer character: a soft continuous low hum while the PLAYER
-				// carries one (passive, so there is no fire/impact cue). Re-emitted on
-				// an interval since the placeholder tones are one-shots; player-only so
-				// an AI field of jammers is not a cacophony.
-				let lastJammerHumMs = 0;
-
 				// Fire the equipped weapon in a slot. Returns true when a shot /
 				// launch actually happened (cooldown spent).
 				const performWeaponFire = (shooter: Rig, slot: WeaponSlotId): boolean => {
@@ -5113,47 +5120,41 @@
 				};
 
 				// ---- Abilities: drift-charged active utilities ----
-				// PLACEHOLDER SFX on the audio-engine buses (the weaponSfx convention:
-				// swap each playTone for a real playBuffer later, positions ride
-				// through so the swap is content-only).
-				const abilitySfx = (
-					kind: 'nitro' | 'jump' | 'flip' | 'repair' | 'grip' | 'air',
-					x?: number,
-					z?: number
-				) => {
+				// Ability activation SFX (the weaponSfx convention: event -> roster id,
+				// levels and variation rotation owned by $lib/greenline/sfx.ts). The
+				// SUSTAINED half of nitro / repair / grip / air-correction rides a
+				// separate looping voice, started and stopped by the ability-window
+				// tracker below, not from this one-shot path.
+				const ABILITY_SFX = {
+					nitro: 'abl_nitro_activate',
+					jump: 'abl_jump',
+					flip: 'abl_flip',
+					repair: 'abl_repair_activate',
+					grip: 'abl_grip_activate',
+					// Attitude jets; the recording is a sustained bed, so the engage
+					// one-shot is the loop's own opening (see abilityLoops).
+					air: 'abl_aircorrect_engage'
+				} as const satisfies Record<string, SfxRef>;
+
+				const abilitySfx = (kind: keyof typeof ABILITY_SFX, x?: number, z?: number) => {
 					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
-					if (kind === 'nitro')
-						audioEngine.playTone('weapons', { freq: 150, durationMs: 420, type: 'sawtooth', gain: 0.2, pitchJitter: [1.0, 1.3], position: pos });
-					else if (kind === 'jump')
-						audioEngine.playTone('impacts', { freq: 240, durationMs: 200, type: 'sine', gain: 0.2, pitchJitter: [1.2, 1.7], position: pos });
-					else if (kind === 'flip')
-						audioEngine.playTone('ui', { freq: 300, durationMs: 260, type: 'triangle', gain: 0.18, pitchJitter: [0.8, 1.1] });
-					else if (kind === 'repair')
-						audioEngine.playTone('ui', { freq: 520, durationMs: 340, type: 'sine', gain: 0.2, pitchJitter: [1.0, 1.5] });
-					else if (kind === 'air')
-						// Thin cold hiss, read as attitude jets; deliberately unlike the
-						// hop's low sine so the two never blur together in flight.
-						audioEngine.playTone('ambient', { freq: 900, durationMs: 300, type: 'square', gain: 0.1, pitchJitter: [0.92, 1.08], position: pos });
-					else
-						audioEngine.playTone('ambient', { freq: 380, durationMs: 260, type: 'triangle', gain: 0.14, pitchJitter: [1.0, 1.3], position: pos });
+					if (kind === 'air') return; // purely sustained; the loop is its cue
+					playSfx(ABILITY_SFX[kind], { position: pos });
 				};
 
-				// PLACEHOLDER draft cue (the weaponSfx/abilitySfx convention: swap the
-				// playTone for a real playBuffer later). A soft airy sine on the ambient
-				// bus, deliberately distinct from the ability tones (nitro sawtooth, grip
-				// ambient-triangle), read as a wind whoosh as the trailer catches the
-				// wake. Fired on the ENGAGE rising edge only (see the detection pass).
+				// Draft/slipstream cue: a rushing wind whoosh as the trailing car
+				// catches the wake. Fired on the ENGAGE rising edge only (see the
+				// detection pass).
 				const draftSfx = (x?: number, z?: number) => {
 					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
-					audioEngine.playTone('ambient', { freq: 520, durationMs: 300, type: 'sine', gain: 0.12, pitchJitter: [1.0, 1.16], position: pos });
+					playSfx('env_draft_engage', { position: pos });
 				};
 
-				// PLACEHOLDER trigger-zone cue (same convention): a rising surge for
-				// the boost pad, distinct from nitro's low sawtooth.
+				// Trigger-zone cue: the boost pad's propulsive surge, distinct from
+				// nitro's ignition burst.
 				const zoneSfx = (kind: 'boost', x?: number, z?: number) => {
 					const pos = x !== undefined && z !== undefined ? { x, y: 0.8, z } : undefined;
-					if (kind === 'boost')
-						audioEngine.playTone('ambient', { freq: 340, durationMs: 380, type: 'sawtooth', gain: 0.18, pitchJitter: [1.15, 1.45], position: pos });
+					if (kind === 'boost') playSfx('env_boost_pad', { position: pos });
 				};
 
 				/**
@@ -5260,6 +5261,10 @@
 				const COUNTDOWN_SEC = 3; // 3 - 2 - 1 then GO
 				const GO_HOLD_SEC = 0.7; // how long the GO flash stays on screen
 				const RAM_GRACE_SEC = 1.5; // ram-only suppression window after GO
+				// Chassis fraction at or below which the low-hull alarm loop runs. A
+				// third of the life pool is late enough to mean something and early
+				// enough to still act on; it is a feel dial, nothing reads it but SFX.
+				const LOW_HEALTH_SFX_FRAC = 0.33;
 				// Trigger-zone defaults (Phase 8a): a zone's own strength/durationSec
 				// override the first two; the kick and rearm window are feel
 				// constants (the kick is the instant shove, mass-scaled; rearm keeps
@@ -6582,6 +6587,12 @@
 					// behind the menu, but step nothing. The world is never advanced,
 					// and because `now` is the paused clock, no stamp anywhere ages.
 					if (paused) {
+						// This early-return skips the block that drives every sustained
+						// cue, so a loop left running would drone on under the pause menu
+						// with nothing able to stop it. Idempotent: only the first paused
+						// frame does any work, and resuming restarts whatever is still
+						// genuinely active from its own state.
+						stopAllSfxLoops();
 						renderer.render(scene, camera);
 						return;
 					}
@@ -7219,6 +7230,9 @@
 								rig.flipAcc = 0;
 								testStats.flips++;
 								testStats.flipsByRig[rig.id] = (testStats.flipsByRig[rig.id] ?? 0) + 1;
+								playSfx('veh_flip_recover', {
+									position: { x: body.position.x, y: 0.8, z: body.position.z }
+								});
 								// hx/hz are the forward vector's flat projection, so the
 								// yaw survives the roll; quatFor's convention (0 = +x,
 								// CCW positive) means yaw = atan2(-hz, hx).
@@ -7434,6 +7448,7 @@
 									// reconcile the bodywork with the restored pools, quietly.
 									if (healed.mount > 0) setMountDead(rig, rig.combat.mountDown);
 									if (healed.armor > 0) syncArmorPlates(rig, undefined, undefined, true);
+									if (rig === player) playerPitHealing = true;
 									// Throttled green repair pulse (a few per second), player only.
 									if (rig === player && now >= rig.pitFxMs) {
 										rig.pitFxMs = now + 240;
@@ -7601,6 +7616,15 @@
 								rig.dustAcc += dt * Math.min(3, slip);
 								if (rig.dustAcc >= 0.055) {
 									rig.dustAcc = 0;
+									// Dust puffs spawn ~18x a second while sliding, so the
+									// scatter cue is throttled hard and player-only; one per
+									// puff would be a continuous rattle, not a texture.
+									if (rig === player && now >= playerDustSfxMs) {
+										playerDustSfxMs = now + 340;
+										playSfx('env_tire_dust', {
+											position: { x: body.position.x, y: 0.3, z: body.position.z }
+										});
+									}
 									// Alternate the two rear (driven) wheels.
 									rig.dustWheel = rig.dustWheel === 2 ? 3 : 2;
 									const wm = rig.wheelMeshes[rig.dustWheel];
@@ -8003,6 +8027,7 @@
 								testStats.hit.clusterSplash++;
 								st.flashUntil = now + 180;
 								const stp = st.body.position;
+								weaponSfx('cluster-splash', stp.x, stp.z);
 								spawnSparks(stp.x, stp.y + 0.3, stp.z, 14, 0xffb347, 9, 420);
 								spawnRing(stp.x, stp.z, 0xffb347, 4, 320, 0.4, 0.5);
 								if (st === player) {
@@ -8028,6 +8053,14 @@
 							if (!mesh) continue;
 							mesh.position.set(p.x, p.y, p.z);
 							mesh.rotation.y = Math.atan2(-p.hz, p.hx);
+							// The motor loop rides the projectile, so it Dopplers past the
+							// listener on its own (the engine's positional voices handle it).
+							syncLoop(
+								`proj:${p.id}`,
+								true,
+								p.weaponId === 'cluster-missile' ? 'wpn_cluster_travel' : 'wpn_rocket_travel',
+								{ x: p.x, y: p.y, z: p.z }
+							);
 							if (Math.random() < dt * 30) {
 								spawnSparks(p.x - p.hx * 0.5, p.y, p.z - p.hz * 0.5, 1, GL.amberWarm, 2, 220);
 							}
@@ -8043,6 +8076,7 @@
 							if (!victim) continue;
 							testStats.hit.oil++;
 							const vp = victim.body.position;
+							weaponSfx('oil-hit', vp.x, vp.z);
 							spawnSparks(vp.x, vp.y + 0.4, vp.z, 14, 0xb47cff, 7, 450);
 							for (let k = 0; k < 4; k++) {
 								spawnSmoke(vp.x, 0.35, vp.z, 0x11101c, 0.8, 700, 0.7, 0.55);
@@ -8144,6 +8178,8 @@
 						const status = tetherStatus(tv.t, combatantOf(shooter), combatantOf(target), now);
 						if (status !== 'active') {
 							const hp = tv.hook.position;
+							// The cable letting go, whether it timed out or snapped.
+							weaponSfx('hook-release', hp.x, hp.z);
 							spawnSparks(hp.x, hp.y, hp.z, 8, 0xc8ff00, 5, 350);
 							removeTetherVis(tv);
 							tethers.splice(i, 1);
@@ -8395,12 +8431,23 @@
 					updateDust(now, dt);
 					// -- Weather: precipitation follows the camera; storm flashes --
 					if (ENV.precip) updateRain(dt);
+					// Ambience beds, keyed off the ACTIVE preset so a live weather swap
+					// (the settings selector applies mid-race) cross-swaps the bed with
+					// the visuals. Non-positional: these are the whole sky, not a point
+					// in the yard. The industrial yard hum underlies every preset.
+					syncLoop('amb-yard', true, 'env_ambient_yard');
+					syncLoop('amb-rain', !!ENV.precip, 'env_rain_loop');
+					syncLoop('amb-fog', ENV.id === 'fog', 'env_fog_ambience');
 					if (ENV.lightning) {
 						const lg = ENV.lightning;
 						if (now >= nextFlashAtMs) {
 							flashStartMs = now;
 							nextFlashAtMs =
 								now + (lg.minGapSec + Math.random() * (lg.maxGapSec - lg.minGapSec)) * 1000;
+							// Thunder rides the strike itself, so flash and clap stay in
+							// step (a distant-rolling recording already carries its own
+							// delay; adding another would read as a bug, not distance).
+							playSfx('env_storm_thunder');
 						}
 						// Double-strobe decay: a bright stab, a dimmer echo, gone in
 						// ~400ms. Cheap and reads as lightning without a sky shader.
@@ -8502,6 +8549,23 @@
 									? 'GO'
 									: '';
 						if (next !== countText) countText = next;
+						// One tick per counted second, plus the start blast. Driven off
+						// the SAME derived text so the cue can never drift from what the
+						// overlay shows; countText only changes on a real transition.
+						if (next !== countPrev) {
+							if (next === 'GO')
+								// GAP: sfx_race_go has no recorded source yet, so the start
+								// blast stays a PLACEHOLDER tone. Swap for playSfx once the
+								// asset lands; every other countdown cue is real audio.
+								audioEngine.playTone('ui', {
+									freq: 660,
+									durationMs: 420,
+									type: 'square',
+									gain: 0.24
+								});
+							else if (next !== '') playSfx('race_countdown_tick');
+							countPrev = next;
+						}
 					}
 
 					// -- HUD state --
@@ -8598,15 +8662,76 @@
 						}
 						chud.abilities = acells;
 					}
-					// Passive jammer hum (player only), re-armed on its interval.
+					// Blades sliding back in when their window closes (the deploy cue's
+					// counterpart), on the falling edge only.
+					{
+						const blades = player.combat.bladesActive(now);
+						if (playerBladesPrev && !blades) weaponSfx('blade-retract');
+						playerBladesPrev = blades;
+					}
+
+					// Weapons-offline readout on the rising edge of the player's mount
+					// dying. The mount-kill crunch is the destruction; this is the
+					// systems-down report right after it, and it fires once, not per hit.
+					if (player.combat.mountDown && !playerMountDownPrev) playSfx('veh_offline_status');
+					playerMountDownPrev = player.combat.mountDown;
+
+					// Passive jammer hum (player only). The jammer is always-on while
+					// equipped, so this is a genuine sustained loop rather than the
+					// re-armed one-shot the placeholder tone had to fake.
 					{
 						const hasJammer = WEAPON_SLOTS.some(
 							(sl) => weaponById(player.weapons[sl])?.jammer
 						);
-						if (hasJammer && !player.combat.isOut(now) && now - lastJammerHumMs > 1200) {
-							lastJammerHumMs = now;
-							weaponSfx('jammer-hum');
-						}
+						syncLoop('jammer-hum', hasJammer && !player.combat.isOut(now), 'wpn_jammer_hum');
+					}
+					// Energy-shield hum for as long as the player's absorb pool is up.
+					syncLoop('shield-hum', player.combat.shieldActive(now), 'wpn_shield_hum');
+
+					// -- Sustained player cues (loops), all driven off state the sim
+					// already owns, so each is a rising/falling edge on syncLoop rather
+					// than anything new to track. Player-only: a full field of these
+					// would be a wall of noise, and only the player's own machine is
+					// close enough to the listener to justify a continuous bed.
+					{
+						const out = player.combat.isOut(now);
+						const nitro = !out && player.abilityState.nitroActive(now);
+						syncLoop('nitro', nitro, 'abl_nitro_loop');
+						// The boost cutting out is its own moment; fire it on the falling
+						// edge only, never when the run simply ends.
+						if (nitroPrev && !nitro && !out) playSfx('abl_nitro_end');
+						nitroPrev = nitro;
+
+						syncLoop('grip', !out && player.abilityState.gripActive(now), 'abl_grip_loop');
+						syncLoop('air', !out && player.abilityState.airActive(now), 'abl_aircorrect_engage');
+
+						// Tethered: the cable under tension, for as long as the player is
+						// pulling something (or being pulled).
+						syncLoop(
+							'hook-pull',
+							!out &&
+								tethers.some((v) => v.t.shooterId === player.id || v.t.targetId === player.id),
+							'wpn_hook_pull'
+						);
+
+						// Low-hull warning: the urgent beep, at the same threshold the HUD
+						// bar turns amber, and never while down/eliminated (the run is
+						// already over; a nagging alarm over the DOWN plate reads as a bug).
+						const hpFrac = player.combat.maxChassis
+							? player.combat.chassisHealth / player.combat.maxChassis
+							: 1;
+						syncLoop(
+							'low-health',
+							!out && chud.armed && hpFrac > 0 && hpFrac <= LOW_HEALTH_SFX_FRAC,
+							'veh_low_health_warning'
+						);
+
+						// Pit box: the repair machinery, plus a short chime as the car is
+						// released. Latch set during the physics pass, consumed here.
+						syncLoop('pit-repair', playerPitHealing, 'env_pit_repair_loop');
+						if (playerPitHealingPrev && !playerPitHealing) playSfx('abl_repair_complete');
+						playerPitHealingPrev = playerPitHealing;
+						playerPitHealing = false;
 					}
 					// Lock reticle on the player's locked target (primary slot wins
 					// the ring if both somehow hold guided locks), plus the one-time
@@ -8627,9 +8752,13 @@
 							lockRingMat.opacity = locked ? 0.75 : 0.3 + 0.25 * Math.sin(now / 90);
 							if (locked && !playerLockedPrev) weaponSfx('lock-on');
 							playerLockedPrev = locked;
+							// Rising beep while the dwell accrues; it stops the instant the
+							// lock completes, so the confirmed tone above lands in silence.
+							syncLoop('lock-charge', !locked, 'wpn_rocket_lock_charging');
 						} else {
 							lockRing.visible = false;
 							playerLockedPrev = false;
+							syncLoop('lock-charge', false, 'wpn_rocket_lock_charging');
 						}
 					}
 					if (
@@ -8718,6 +8847,10 @@
 					shieldBubbleGeo.dispose();
 					shieldBubbleMat.dispose();
 					clearTimeout(flashTimer);
+					// Loops are exempt from voice stealing, so nothing else will ever
+					// reclaim them: leaving the race MUST stop every one by hand or a
+					// nitro/shield/rain bed would outlive the scene that started it.
+					stopAllSfxLoops();
 					window.removeEventListener('keydown', onKeyDown);
 					window.removeEventListener('keyup', onKeyUp);
 					window.removeEventListener('blur', onBlur);

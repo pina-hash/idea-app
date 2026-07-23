@@ -45,11 +45,31 @@ export interface PlayOptions {
 	pitchJitter?: [number, number];
 	/** Linear voice gain 0..1 (pre-bus). Default 1. */
 	gain?: number;
+	/**
+	 * Loop the source until the handle's stop() is called. A looping voice is
+	 * EXEMPT from the one-shot pool caps and stealing (a sustained loop cut off
+	 * mid-play by an unrelated burst would be a bug, not a graceful degradation),
+	 * so its lifetime is entirely the caller's responsibility.
+	 */
+	loop?: boolean;
+	/** Fade-in seconds for a loop start; default the shared short attack. */
+	fadeInSec?: number;
+}
+
+/** Handle returned by a started voice. */
+export interface VoiceHandle {
+	setPosition: (p: Vec3, v?: Vec3) => void;
+	/** Retarget the voice's gain (linear 0..1), ramped. For loop swells. */
+	setGain: (g: number, rampSec?: number) => void;
+	/** Stop the voice, fading out over rampSec (default a short release). */
+	stop: (rampSec?: number) => void;
 }
 
 /** A pooled one-shot voice. */
 interface Voice {
 	bus: SfxBus;
+	/** Looping voices are excluded from cap accounting and stealing. */
+	loop: boolean;
 	source: AudioScheduledSourceNode & { playbackRate?: AudioParam; frequency?: AudioParam };
 	gainNode: GainNode;
 	panner: PannerNode | null;
@@ -247,12 +267,29 @@ class GreenlineAudioEngine {
 	 * Returns a handle to reposition a moving emitter (or null if unavailable).
 	 * Content is Phase 4/6; this is the call other phases target.
 	 */
-	playBuffer(bus: SfxBus, buffer: AudioBuffer, opts: PlayOptions = {}): { setPosition: (p: Vec3, v?: Vec3) => void } | null {
+	playBuffer(bus: SfxBus, buffer: AudioBuffer, opts: PlayOptions = {}): VoiceHandle | null {
 		const ctx = this.ensure();
 		if (!ctx || !this.buses) return null;
 		const src = ctx.createBufferSource();
 		src.buffer = buffer;
+		if (opts.loop) src.loop = true;
 		return this.startVoice(bus, src, opts);
+	}
+
+	/**
+	 * Decode encoded audio bytes into an AudioBuffer on the shared context.
+	 * Resolves null if Web Audio is unavailable or the bytes fail to decode, so
+	 * a missing/corrupt asset degrades to silence rather than throwing into a
+	 * gameplay frame.
+	 */
+	async decode(data: ArrayBuffer): Promise<AudioBuffer | null> {
+		const ctx = this.ensure();
+		if (!ctx) return null;
+		try {
+			return await ctx.decodeAudioData(data);
+		} catch {
+			return null;
+		}
 	}
 
 	/**
@@ -262,7 +299,7 @@ class GreenlineAudioEngine {
 	playTone(
 		bus: SfxBus,
 		opts: PlayOptions & { freq?: number; durationMs?: number; type?: OscillatorType } = {}
-	): { setPosition: (p: Vec3, v?: Vec3) => void } | null {
+	): VoiceHandle | null {
 		const ctx = this.ensure();
 		if (!ctx || !this.buses) return null;
 		const osc = ctx.createOscillator();
@@ -281,18 +318,20 @@ class GreenlineAudioEngine {
 		opts: PlayOptions,
 		toneDurSec?: number,
 		oscFreq?: number
-	): { setPosition: (p: Vec3, v?: Vec3) => void } | null {
+	): VoiceHandle | null {
 		const ctx = this.ctx;
 		if (!ctx || !this.buses) return null;
 
-		this.evictForBus(bus);
+		const looping = !!opts.loop;
+		if (!looping) this.evictForBus(bus);
 
 		const gainNode = ctx.createGain();
 		const peak = clamp(opts.gain ?? 1, 0, 1);
 
-		// Short attack/release envelope so tones and clips never click.
+		// Short attack/release envelope so tones and clips never click. A loop may
+		// ask for a longer fade so it swells in rather than snapping on.
 		const now = ctx.currentTime;
-		const atk = 0.008;
+		const atk = Math.max(0.008, opts.fadeInSec ?? 0);
 		gainNode.gain.setValueAtTime(0, now);
 		gainNode.gain.linearRampToValueAtTime(peak, now + atk);
 
@@ -322,6 +361,7 @@ class GreenlineAudioEngine {
 
 		const voice: Voice = {
 			bus,
+			loop: looping,
 			source,
 			gainNode,
 			panner,
@@ -360,19 +400,34 @@ class GreenlineAudioEngine {
 				voice.position = { ...p };
 				if (v) voice.velocity = { ...v };
 				this.applyPanner(voice);
-			}
+			},
+			setGain: (g: number, rampSec = SFX_RAMP_S) => {
+				if (voice.stopped || !this.ctx) return;
+				const t = this.ctx.currentTime;
+				const target = clamp(g, 0, 1);
+				voice.peak = target;
+				const p = voice.gainNode.gain;
+				p.cancelScheduledValues(t);
+				p.setValueAtTime(Math.max(0.0001, p.value), t);
+				p.linearRampToValueAtTime(target, t + Math.max(0.001, rampSec));
+			},
+			stop: (rampSec = 0.06) => this.stopVoice(voice, rampSec)
 		};
 	}
 
-	/** Enforce the per-bus soft cap (and global ceiling) by stealing a voice. */
+	/**
+	 * Enforce the per-bus soft cap (and global ceiling) by stealing a voice.
+	 * Looping voices are never candidates: they are caller-owned and stealing one
+	 * would silence a sustained cue that has no way to restart itself.
+	 */
 	private evictForBus(bus: SfxBus): void {
-		const busVoices = this.voices.filter((v) => v.bus === bus && !v.stopped);
+		const busVoices = this.voices.filter((v) => v.bus === bus && !v.stopped && !v.loop);
 		if (busVoices.length >= SOFT_CAP[bus]) this.steal(busVoices);
-		const active = this.voices.filter((v) => !v.stopped);
+		const active = this.voices.filter((v) => !v.stopped && !v.loop);
 		if (active.length >= GLOBAL_VOICE_CAP) {
 			// Defensive: soft caps sum to the global cap, so this only trips if that
 			// invariant ever changes. Steal the oldest on the busiest same-bus set.
-			this.steal(this.voices.filter((v) => v.bus === bus && !v.stopped));
+			this.steal(busVoices);
 		}
 	}
 
@@ -388,20 +443,25 @@ class GreenlineAudioEngine {
 		this.stopVoice(victim);
 	}
 
-	private stopVoice(voice: Voice): void {
+	private stopVoice(voice: Voice, rampSec = 0.03): void {
 		if (voice.stopped) return;
 		voice.stopped = true;
 		const ctx = this.ctx;
 		try {
 			if (ctx) {
 				const now = ctx.currentTime;
+				const fade = Math.max(0.005, rampSec);
 				voice.gainNode.gain.cancelScheduledValues(now);
 				voice.gainNode.gain.setValueAtTime(Math.max(0.0001, voice.gainNode.gain.value), now);
-				voice.gainNode.gain.linearRampToValueAtTime(0, now + 0.03);
-				voice.source.stop(now + 0.04);
-			} else {
-				voice.source.stop();
+				voice.gainNode.gain.linearRampToValueAtTime(0, now + fade);
+				voice.source.stop(now + fade + 0.01);
+				// Do NOT tear the graph down here: source.onended already points at
+				// removeVoice and fires when the scheduled stop lands, so the fade is
+				// actually heard. Disconnecting now would cut it into a click, which a
+				// sustained loop (nitro, shield hum) would make obvious.
+				return;
 			}
+			voice.source.stop();
 		} catch {
 			/* already stopped */
 		}

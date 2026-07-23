@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './brand/brand';
+	import { uiSounds, playUiSfx } from './ui-sfx';
 	import {
 		abilityCapacityFor,
 		abilityCostUsed,
@@ -342,6 +343,12 @@
 	let confirmPurchase = $state<string | null>(null);
 	function firePurchase(id: string) {
 		confirmPurchase = null;
+		// Outcome cue, so it is decided HERE rather than by the delegated button
+		// sound: the transaction chime only fires when the spend can actually go
+		// through, and a short wallet says so instead.
+		const price = itemPrice(id);
+		if (wallet != null && price != null && wallet < price) playUiSfx('insufficient');
+		else playUiSfx('purchase');
 		onPurchase?.(id);
 	}
 	function cosmeticItemName(id: string): string {
@@ -475,7 +482,7 @@
 </script>
 
 <div class="glb gg-scrim" role="presentation">
-	<div class="gg-panel" role="dialog" aria-label="Garage loadout">
+	<div class="gg-panel" role="dialog" aria-label="Garage loadout" use:uiSounds>
 		<div class="gg-head">
 			<span class="gg-title">GARAGE</span>
 			<span class="gg-note">{note}</span>
@@ -502,9 +509,9 @@
 				<button class="gg-btn" onclick={onFeedback}>FEEDBACK</button>
 			{/if}
 			{#if onback}
-				<button class="gg-btn" onclick={onback}>{backLabel}</button>
+				<button class="gg-btn" data-sfx="back" onclick={onback}>{backLabel}</button>
 			{/if}
-			<button class="gg-btn gg-btn-primary" onclick={onclose}>{closeLabel}</button>
+			<button class="gg-btn gg-btn-primary" data-sfx="confirm" onclick={onclose}>{closeLabel}</button>
 		</div>
 
 		{#if purchaseError}
@@ -1143,14 +1150,21 @@
 						<div class="gg-sockrow">
 							<span class="gg-sock-label">MOUNT AT</span>
 							{#each sockChoices as s (s)}
+								<!-- The taken socket uses aria-disabled, not disabled: a
+								     genuinely disabled button swallows pointer events, so the
+								     "that hardpoint is occupied" cue could never fire. It stays
+								     just as non-functional (the handler only plays the cue) and
+								     the delegated menu sound skips it on the same attribute. -->
 								<button
 									class="gg-sock"
 									class:sel={resolvedSockets[wslot.id] === s}
-									disabled={otherSock === s}
+									class:taken={otherSock === s}
+									aria-disabled={otherSock === s ? 'true' : undefined}
 									title={otherSock === s
 										? `held by the ${otherSlot === 'weaponPrimary' ? 'primary' : 'secondary'} weapon`
 										: `mount this weapon at the ${WEAPON_SOCKET_LABELS[s].toLowerCase()}`}
-									onclick={() => onsocket?.(wslot.id, s)}
+									onclick={() =>
+										otherSock === s ? playUiSfx('conflict') : onsocket?.(wslot.id, s)}
 								>{WEAPON_SOCKET_LABELS[s]}</button>
 							{/each}
 						</div>
@@ -1403,14 +1417,14 @@
 										<button class="gg-slot-btn" onclick={() => (confirmDelete = null)}>CANCEL</button>
 									{:else}
 										<button class="gg-slot-btn primary" onclick={() => onLoadSlot?.(i)}>LOAD</button>
-										<button class="gg-slot-btn" onclick={() => doSave(i)} title="Overwrite with the current build">SAVE</button>
+										<button class="gg-slot-btn" data-sfx="save" onclick={() => doSave(i)} title="Overwrite with the current build">SAVE</button>
 										<button class="gg-slot-btn" onclick={() => (confirmDelete = i)} aria-label="Delete slot">✕</button>
 									{/if}
 								</div>
 							{:else}
 								<span class="gg-slot-empty">— empty —</span>
 								<div class="gg-slot-actions">
-									<button class="gg-slot-btn primary" onclick={() => doSave(i)}>SAVE HERE</button>
+									<button class="gg-slot-btn primary" data-sfx="save" onclick={() => doSave(i)}>SAVE HERE</button>
 								</div>
 							{/if}
 						</div>
@@ -1447,6 +1461,7 @@
 							role="tab"
 							aria-selected={activeTab === t.id}
 							title={t.hint}
+							data-sfx="tab"
 							onclick={() => (tab = t.id)}
 						>
 							<span class="gg-tab-label">{t.label}</span>
@@ -2047,7 +2062,7 @@
 			color 140ms ease,
 			border-color 140ms ease;
 	}
-	.gg-sock:hover:not(:disabled),
+	.gg-sock:hover:not(:disabled):not(.taken),
 	.gg-sock:focus-visible {
 		color: var(--glb-chrome-hi);
 		border-color: var(--glb-line-strong);
@@ -2058,7 +2073,8 @@
 		border-color: rgba(42, 229, 126, 0.6);
 		box-shadow: 0 0 8px rgba(42, 229, 126, 0.2);
 	}
-	.gg-sock:disabled {
+	.gg-sock:disabled,
+	.gg-sock.taken {
 		opacity: 0.4;
 		cursor: not-allowed;
 		text-decoration: line-through;

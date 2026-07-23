@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
-	import { audioEngine, type SfxBus } from '$lib/greenline/audio-engine';
+	import { audioEngine, type SfxBus, type VoiceHandle } from '$lib/greenline/audio-engine';
+	import { playSfx, startSfxLoop, primeSfx, sfxCacheStats, type SfxRef } from '$lib/greenline/sfx';
+
+	/** Loop handles started from the dev bar, so they can all be stopped again. */
+	const devLoops: VoiceHandle[] = [];
 	import Garage from '$lib/greenline/Garage.svelte';
 	import GreenlineResults from '$lib/greenline/GreenlineResults.svelte';
 	import GreenlineTitle from '$lib/greenline/brand/GreenlineTitle.svelte';
@@ -751,7 +755,22 @@
 			doppler: dopplerSweep,
 			duck: duckTest,
 			snapshot: () => audioEngine.snapshot(),
-			detail: () => audioEngine.voiceDetail()
+			detail: () => audioEngine.voiceDetail(),
+			// Real recorded SFX (the roster), so every category can be triggered
+			// from here without driving a whole race. `play` returns a handle only
+			// when a genuine decoded buffer started, which is what distinguishes a
+			// wired asset from the old synthesized placeholder tones.
+			prime: () => primeSfx(),
+			cache: () => sfxCacheStats(),
+			play: (id: string, opts?: Record<string, unknown>) => !!playSfx(id as SfxRef, opts ?? {}),
+			loop: (id: string) => {
+				const h = startSfxLoop(id as SfxRef);
+				if (h) devLoops.push(h);
+				return !!h;
+			},
+			stopLoops: () => {
+				for (const h of devLoops.splice(0)) h.stop();
+			}
 		};
 	});
 </script>

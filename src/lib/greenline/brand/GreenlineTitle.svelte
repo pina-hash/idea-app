@@ -1,5 +1,6 @@
 <script lang="ts">
 	import './brand';
+	import { uiSounds } from '../ui-sfx';
 	import KeyArtScene from './KeyArtScene.svelte';
 	import GreenlineWordmark from './GreenlineWordmark.svelte';
 
@@ -48,7 +49,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="glb tt-root">
+<div class="glb tt-root" use:uiSounds>
 	<KeyArtScene />
 
 	{#if onSettings}
@@ -73,7 +74,7 @@
 			</div>
 		</div>
 		<div class="tt-tagline">ENGINEERED TO COLLIDE.</div>
-		<button class="tt-start" onclick={onStart}>
+		<button class="tt-start" data-sfx="confirm" onclick={onStart}>
 			<span class="tt-start-label">START</span>
 			<span class="tt-start-hint">ENTER</span>
 		</button>
