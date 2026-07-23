@@ -737,7 +737,18 @@
 				>
 			</div>
 			<div class="pb-dockbody">
-				<PiecePreview3D {doc} {diag} rev={renderRev} {selected} />
+				<!-- onparam is the handle-drag write path: the SAME setParams the
+				     numeric fields funnel into, so a drag and a typed edit are one
+				     mutation pipeline (fields tick live under a drag, a typed value
+				     moves the handle). setParams renders immediately, which is what
+				     shaping by feel needs. -->
+				<PiecePreview3D
+					{doc}
+					{diag}
+					rev={renderRev}
+					{selected}
+					onparam={(i, key, v) => setParams(i, { [key]: v })}
+				/>
 			</div>
 		</aside>
 	</div>

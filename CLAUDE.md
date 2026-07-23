@@ -4916,10 +4916,10 @@ on one side of the world.
   - **SolidWorks navigation**, because the author is in SolidWorks all day:
     MMB drag rotates, shift+MMB (as asked) AND ctrl+MMB (stock SolidWorks,
     where shift+MMB is zoom) both pan, wheel zooms, arrows nudge the view 15
-    deg and shift+arrow 90. LEFT and RIGHT are deliberately UNBOUND — they
-    select and open the context menu in SolidWorks, and leaving the left button
-    free is also what keeps the door open for direct-manipulation handles
-    (explicitly not built). OrbitControls has no modifier-aware mapping, so the
+    deg and shift+arrow 90. LEFT and RIGHT are deliberately UNBOUND for the
+    CAMERA — they select and open the context menu in SolidWorks — and the left
+    button now belongs to the direct-manipulation handles (see the handles
+    bullet below). OrbitControls has no modifier-aware mapping, so the
     modifier is resolved into `mouseButtons.MIDDLE` from a CAPTURE-phase
     pointerdown, before OrbitControls' own handler reads it; middle-click
     default is prevented so Chrome does not open autoscroll. The nudge is
@@ -4974,6 +4974,73 @@ on one side of the world.
     in an automated tab: the playtest link deliberately omits it (a real author
     has a visible window), so a scripted drive must add it or every car sits at
     speed 0.
+
+- **Direct-manipulation handles in the piece-builder 3D preview (straight +
+  curve).** The SELECTED piece carries grabbable shape handles in
+  `PiecePreview3D`: shaping by feel beside the numeric fields' landing an
+  exact number — both first-class, neither replacing the other.
+  - **One mutation path, by construction.** A handle drag writes through
+    `onparam`, which the parent wires STRAIGHT into the same `setParams` the
+    numeric fields funnel into. So the field ticks live under a drag
+    (browser-verified mid-drag: 60 -> 62 -> 63.5 in the doc, the input, and
+    the on-canvas readout simultaneously), a typed value moves the handle on
+    the debounced rebuild (typed radius 45 re-seated the handle at the
+    analytic mid-arc position to full float precision), and there is no
+    second way parameters change. Drag-written values snap to a coarse
+    quantum (0.5 m lengths/radii, 1 deg sweep) so a shaped number still
+    reads like a typed one.
+  - **The framework (`piece-builder/handles.ts`, pure math — no three, no
+    Svelte)**: `handlesForPiece(piece, entry, exit)` returns `PieceHandle`s
+    positioned from diagnoseChain's own poses, each with a
+    `beginDrag(ray) -> (ray) -> value` solver over world-space pointer rays.
+    Every constraint is an EXACT locus from the generators' closed forms,
+    captured at drag start (so mid-drag scene rebuilds never disturb it):
+    straight `length` = ray-to-line along the entry heading through the exit
+    (delta-based, so an off-center grab never jumps the value); curve
+    `radius` = the mid-arc point's locus `E + R·u` (entry + turn fixed makes
+    it a straight line; gain `1/|u|`); curve `turnDeg` (sweep, at the exit) =
+    unwrapped angle about the fixed arc center, accumulator-clamped so a
+    stop reverses immediately, and SIGN-PRESERVING — crossing zero would
+    discontinuously flip the center to the entry's other side, so a drag
+    tightens to ±`MIN_SWEEP_DEG` (2) but never flips; flipping direction is
+    a typed edit. Ranges come from the same `KIND_SPECS` the inputs render.
+    Bank / jump / corkscrew extend the same two solver shapes (axis / arc)
+    in a fast-follow; freeform NEVER gets handles (verbatim geometry, not
+    parametric).
+  - **Mouse arbitration (the part that must not regress):** the handle
+    pointerdown runs in the CAPTURE phase (the same capture-at-target
+    guarantee the MMB modifier resolver already relies on) and on a hit sets
+    `controls.enabled = false` for the drag — OrbitControls no-ops on its
+    first line, so a handle drag can never fight the camera even though LEFT
+    is unbound there anyway; release re-enables. Verified live:
+    grab -> enabled false + drag active, release -> enabled true; MMB rotate /
+    shift+ctrl MMB pan mapping, wheel zoom (through OrbitControls' own wheel
+    handler) and arrow-nudge all intact outside a drag. Hit spheres are 1.6x
+    the visible ball (26 px off = a miss, verified through the real
+    raycast); handles render screen-constant (~9 px), depthTest off (a gizmo
+    is never buried in the road), green ball = axis, octahedron = arc, mint
+    hover + gold active tint, grab/grabbing cursor, and a live value chip
+    (`p3-handle-status`).
+  - **Console surface (`__glPreview3D`):** `handles()` (world + screen pos),
+    `pickAt(x, y)` (the real hit test), `dragHandleBy(id, dx, dy)` (a whole
+    drag through the real capture-phase pointer path with synthetic events;
+    `setPointerCapture` is try/caught for exactly this), `dragActive`,
+    `hoverHandle`, `controlsEnabled`.
+  - **Verified in the browser end to end:** a stadium chain whose every
+    shaped value landed by handle drags alone (straight 63.5 m; curve
+    radius 40 via iterated drags; sweep dragged to the exact 2-deg floor —
+    the sign clamp — then opened out to exactly 180), closed by
+    duplicate+reorder to `[S, C180, S, C180]` (closure gap 1.6e-14 m,
+    VALID), then PLAYTESTED through the real button: 4 cars, 8-10 laps each,
+    best ~13.9 s, all upright, 0 falls, 0 floor catches. A deep-chain handle
+    (piece 2, entry heading 180) dragged along its OWN reversed axis with
+    piece 0 untouched and the broken-closure guardrail flagging live.
+    Framebuffer read-back (the probe3d convention; WebGL screenshots hang
+    the pane) shows the handle green at both projected positions against the
+    background. Zero console errors. Not verified this session: a
+    trusted-hardware-mouse MMB drag (claude-in-chrome was not connected);
+    that path's code is unchanged and its mapping/wheel/nudge were driven
+    through OrbitControls' own handlers.
 
 - **Shared track visuals (`src/lib/greenline/track-visual.ts`) + the builder's
   live 3D preview.** Numbers alone do not answer "what does this corkscrew look

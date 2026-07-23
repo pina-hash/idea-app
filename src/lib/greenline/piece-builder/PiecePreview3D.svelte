@@ -13,6 +13,7 @@
 		toGeometry
 	} from '../track-visual';
 	import { previewTrack, type ChainDoc } from './chain-doc';
+	import { handlesForPiece, type HandleRay, type PieceHandle } from './handles';
 	import type { ChainDiagnostics } from '../track-pieces';
 
 	/**
@@ -42,8 +43,21 @@
 		doc,
 		diag,
 		rev,
-		selected = -1
-	}: { doc: ChainDoc; diag: ChainDiagnostics; rev: number; selected?: number } = $props();
+		selected = -1,
+		onparam
+	}: {
+		doc: ChainDoc;
+		diag: ChainDiagnostics;
+		rev: number;
+		selected?: number;
+		/**
+		 * A handle drag's write path: MUST be the parent's own `setParams`, the
+		 * same single mutation path the numeric fields use, so the field ticks
+		 * live under a drag and a typed value moves the handle. No callback =
+		 * no handles (there is nothing for them to write).
+		 */
+		onparam?: (index: number, key: string, value: number) => void;
+	} = $props();
 
 	let host: HTMLDivElement;
 	/** Re-frame on demand (the camera is otherwise the author's to keep). */
@@ -57,6 +71,8 @@
 	 * author staring at a gap deserves to be told which piece left it.
 	 */
 	let undrawn = $state<number[]>([]);
+	/** Live readout while a handle is hovered or dragged ('' = none). */
+	let handleStatus = $state('');
 
 	/** Assigned once the scene exists; re-run on every committed revision. */
 	let applyTrack: ((doc: ChainDoc, diag: ChainDiagnostics, selected: number) => void) | null = null;
@@ -124,10 +140,14 @@
 				 *   shift/ctrl + MIDDLE    pan
 				 *   wheel                  zoom
 				 *   arrows                 nudge the view 15 deg (shift: 90)
-				 * LEFT and RIGHT are deliberately left UNBOUND: in SolidWorks
-				 * they select and open the context menu, and leaving the left
-				 * button free is also what keeps the door open for direct
-				 * manipulation handles later (explicitly not built here).
+				 * LEFT and RIGHT are deliberately left UNBOUND for the camera:
+				 * in SolidWorks they select and open the context menu — and the
+				 * left button now belongs to the direct-manipulation HANDLES
+				 * (see the handles block below), which is exactly why keeping
+				 * it off the camera mattered. Handle drags additionally set
+				 * `controls.enabled = false` for their duration, so the
+				 * camera/handle boundary holds even if this mapping ever
+				 * changes.
 				 *
 				 * Both shift+MMB (as specified) and ctrl+MMB (stock SolidWorks,
 				 * where shift+MMB is zoom) pan, so muscle memory lands either way.
@@ -191,6 +211,260 @@
 				canvas.addEventListener('keydown', onKey);
 				canvas.addEventListener('pointerdown', focusStage);
 
+				/* ---------------- direct-manipulation handles ----------------
+				 * Grabbable points on the SELECTED piece that reshape one param
+				 * by dragging (straight: length at the far end; curve: radius at
+				 * mid-arc + sweep at the exit). All drag MATH lives in
+				 * `handles.ts` (pure, console-testable); this layer only places
+				 * meshes, hit-tests pointer rays, and writes solved values
+				 * through `onparam` — the parent's own `setParams`, the exact
+				 * pipeline the numeric fields use. One mutation path, so the
+				 * field ticks live under a drag and a typed value moves the
+				 * handle on the debounced rebuild.
+				 *
+				 * MOUSE ARBITRATION (the part that must not be wrong): a
+				 * pointerdown that lands ON a handle starts a handle drag and
+				 * must never also move the camera; anywhere else, the camera
+				 * behaves exactly as before. This handler runs in the CAPTURE
+				 * phase (the onDownCapture guarantee above: capture listeners at
+				 * the target fire before OrbitControls' bubble-phase handler),
+				 * and on a handle hit it sets `controls.enabled = false` —
+				 * OrbitControls' pointerdown checks `enabled` on its first line
+				 * and no-ops. Left is unbound on the camera anyway (SolidWorks
+				 * scheme), so this is belt on top of braces, but it is what
+				 * keeps the boundary airtight if the mapping ever changes, and
+				 * it also freezes wheel/MMB for the duration of a drag so the
+				 * constraint solve never fights a moving camera.
+				 *
+				 * Handle drags keep working through mid-drag scene rebuilds: the
+				 * drag state holds the pure solver closure from `beginDrag`
+				 * (constraints are captured at drag start and stay exact — see
+				 * handles.ts), never a mesh reference, so `applyTrack` recreating
+				 * the meshes under a live drag is invisible to it.
+				 */
+				const HANDLE_RADIUS_PX = 9;
+				const handleGroup = new THREE.Group();
+				scene.add(handleGroup);
+				const ballGeo = new THREE.SphereGeometry(1, 16, 12);
+				const diamondGeo = new THREE.OctahedronGeometry(1.15, 0);
+				// Hit sphere: 1.6x the visible ball — forgiving, but a near-miss
+				// beyond ~60% of the ball's radius stays a miss (and stays camera).
+				const hitGeo = new THREE.SphereGeometry(1.6, 10, 8);
+				// depthTest off: a handle is a gizmo and must never be buried in
+				// the road it sits on.
+				const handleMatBase = new THREE.MeshBasicMaterial({
+					color: 0x2ae57e,
+					transparent: true,
+					opacity: 0.92,
+					depthTest: false
+				});
+				const handleMatHover = new THREE.MeshBasicMaterial({ color: 0x8fffc4, depthTest: false });
+				const handleMatActive = new THREE.MeshBasicMaterial({ color: 0xc8ff00, depthTest: false });
+				const handleMatHit = new THREE.MeshBasicMaterial({
+					transparent: true,
+					opacity: 0,
+					depthWrite: false,
+					depthTest: false
+				});
+
+				type LiveHandle = {
+					def: PieceHandle;
+					root: InstanceType<typeof THREE.Group>;
+					visual: InstanceType<typeof THREE.Mesh>;
+					hit: InstanceType<typeof THREE.Mesh>;
+				};
+				let liveHandles: LiveHandle[] = [];
+				/** Which piece the current handles belong to (the selection). */
+				let selIndex = -1;
+				let hoverId: string | null = null;
+				/** MMB held = camera interaction; hover feedback stays out of it. */
+				let middleDown = false;
+				let drag: {
+					def: PieceHandle;
+					solve: (r: HandleRay) => number | null;
+					pointerId: number;
+					last: number;
+				} | null = null;
+
+				const matFor = (id: string) =>
+					drag?.def.id === id ? handleMatActive : hoverId === id ? handleMatHover : handleMatBase;
+				const syncHandleTint = () => {
+					for (const lh of liveHandles) lh.visual.material = matFor(lh.def.id);
+				};
+				const updateCursor = () => {
+					canvas.style.cursor = drag ? 'grabbing' : hoverId ? 'grab' : '';
+				};
+				const fmtHandleValue = (v: number) => (Math.round(v) === v ? String(v) : v.toFixed(1));
+				const updateHandleStatus = () => {
+					if (drag) handleStatus = `${drag.def.label} ${fmtHandleValue(drag.last)} ${drag.def.unit}`;
+					else if (hoverId) {
+						const d = liveHandles.find((l) => l.def.id === hoverId)?.def;
+						handleStatus = d ? `${d.label} · drag to reshape` : '';
+					} else handleStatus = '';
+				};
+
+				/** Screen-constant sizing: ~HANDLE_RADIUS_PX on screen at any zoom. */
+				const scaleHandles = () => {
+					if (!liveHandles.length) return;
+					const hpx = host.clientHeight || 420;
+					const half = Math.tan((camera.fov * Math.PI) / 360);
+					for (const lh of liveHandles) {
+						const dist = camera.position.distanceTo(lh.root.position);
+						lh.root.scale.setScalar(Math.max(0.02, (HANDLE_RADIUS_PX * 2 * half * dist) / hpx));
+					}
+				};
+
+				const clearHandles = () => {
+					handleGroup.clear();
+					liveHandles = [];
+				};
+				const rebuildHandles = (d: ChainDoc, dg: ChainDiagnostics, sel: number) => {
+					clearHandles();
+					selIndex = sel;
+					const piece = sel >= 0 ? d.pieces[sel] : undefined;
+					const pd = piece ? dg.pieces.find((p) => p.index === sel) : undefined;
+					if (!piece || !pd || !onparam) {
+						if (!drag) {
+							hoverId = null;
+							updateCursor();
+							updateHandleStatus();
+						}
+						return;
+					}
+					for (const def of handlesForPiece(piece, pd.entry, pd.exit)) {
+						const root = new THREE.Group();
+						root.position.set(def.pos.x, def.pos.y, def.pos.z);
+						const visual = new THREE.Mesh(def.shape === 'diamond' ? diamondGeo : ballGeo, matFor(def.id));
+						visual.renderOrder = 30;
+						const hit = new THREE.Mesh(hitGeo, handleMatHit);
+						hit.userData.handleId = def.id;
+						root.add(visual, hit);
+						handleGroup.add(root);
+						liveHandles.push({ def, root, visual, hit });
+					}
+					scaleHandles();
+					syncHandleTint();
+				};
+
+				const raycaster = new THREE.Raycaster();
+				const ndcV = new THREE.Vector2();
+				/** Pointer event -> world ray (also arms `raycaster` for pickHandle). */
+				const castPointer = (e: { clientX: number; clientY: number }): HandleRay => {
+					const rect = canvas.getBoundingClientRect();
+					ndcV.x = ((e.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
+					ndcV.y = -((e.clientY - rect.top) / Math.max(1, rect.height)) * 2 + 1;
+					// Explicit matrix refresh: pointer events must hit-test correctly
+					// even in a tab whose rAF never ticks (the documented trap).
+					camera.updateMatrixWorld();
+					raycaster.setFromCamera(ndcV, camera);
+					const o = raycaster.ray.origin;
+					const dd = raycaster.ray.direction;
+					return { origin: { x: o.x, y: o.y, z: o.z }, dir: { x: dd.x, y: dd.y, z: dd.z } };
+				};
+				/** Nearest handle under the ray castPointer just armed, or null. */
+				const pickHandle = (): PieceHandle | null => {
+					if (!liveHandles.length) return null;
+					handleGroup.updateMatrixWorld(true);
+					const hits = raycaster.intersectObjects(
+						liveHandles.map((l) => l.hit),
+						false
+					);
+					if (!hits.length) return null;
+					const id = (hits[0].object.userData as { handleId?: string }).handleId;
+					return liveHandles.find((l) => l.def.id === id)?.def ?? null;
+				};
+
+				/** World point -> canvas client coords (console drives + tests). */
+				const worldToScreen = (p: { x: number; y: number; z: number }) => {
+					camera.updateMatrixWorld();
+					const v = new THREE.Vector3(p.x, p.y, p.z).project(camera);
+					const rect = canvas.getBoundingClientRect();
+					return {
+						x: rect.left + ((v.x + 1) / 2) * rect.width,
+						y: rect.top + ((1 - v.y) / 2) * rect.height
+					};
+				};
+
+				const currentParamValue = (def: PieceHandle): number => {
+					const piece = doc.pieces[selIndex] as unknown as Record<string, number> | undefined;
+					const v = piece?.[def.paramKey];
+					return typeof v === 'number' && Number.isFinite(v) ? v : def.min;
+				};
+
+				const onHandleDown = (e: PointerEvent) => {
+					if (e.button === 1) middleDown = true;
+					if (e.button !== 0 || !onparam || drag) return;
+					const ray = castPointer(e);
+					const def = pickHandle();
+					if (!def) return; // empty viewport: the camera's, exactly as before
+					controls.enabled = false; // the arbitration boundary (see block comment)
+					drag = { def, solve: def.beginDrag(ray), pointerId: e.pointerId, last: currentParamValue(def) };
+					hoverId = def.id;
+					try {
+						canvas.setPointerCapture(e.pointerId);
+					} catch {
+						/* synthetic pointers (console drives) have no active id */
+					}
+					syncHandleTint();
+					updateCursor();
+					updateHandleStatus();
+					e.preventDefault();
+				};
+				const onHandleMove = (e: PointerEvent) => {
+					if (drag) {
+						if (e.pointerId !== drag.pointerId) return;
+						const raw = drag.solve(castPointer(e));
+						if (raw === null || !Number.isFinite(raw)) return;
+						const q = drag.def.quantum;
+						const v = Math.round(Math.min(drag.def.max, Math.max(drag.def.min, raw)) / q) * q;
+						if (v !== drag.last) {
+							drag.last = v;
+							onparam?.(selIndex, drag.def.paramKey, v);
+						}
+						updateHandleStatus();
+						return;
+					}
+					if (middleDown || !liveHandles.length) return;
+					castPointer(e);
+					const id = pickHandle()?.id ?? null;
+					if (id !== hoverId) {
+						hoverId = id;
+						syncHandleTint();
+						updateCursor();
+						updateHandleStatus();
+					}
+				};
+				const endHandleDrag = (e: PointerEvent) => {
+					if (!drag || e.pointerId !== drag.pointerId) return;
+					drag = null;
+					controls.enabled = true;
+					try {
+						canvas.releasePointerCapture(e.pointerId);
+					} catch {
+						/* was never captured */
+					}
+					syncHandleTint();
+					updateCursor();
+					updateHandleStatus();
+				};
+				// Up/cancel live on WINDOW: with pointer capture they bubble here
+				// anyway, and without it (synthetic drives, capture refusals) a
+				// release outside the canvas still ends the drag instead of
+				// leaving a stuck grab. A mouse is ONE pointer, so a button check
+				// keeps an MMB release from ending an LMB handle drag.
+				const onWinUp = (e: PointerEvent) => {
+					if (e.button === 1) middleDown = false;
+					if (e.button === 0) endHandleDrag(e);
+				};
+				const onWinCancel = (e: PointerEvent) => {
+					middleDown = false;
+					endHandleDrag(e);
+				};
+				canvas.addEventListener('pointerdown', onHandleDown, true);
+				canvas.addEventListener('pointermove', onHandleMove);
+				window.addEventListener('pointerup', onWinUp);
+				window.addEventListener('pointercancel', onWinCancel);
+
 				/** Everything a rebuild owns and must dispose. */
 				const trackGroup = new THREE.Group();
 				scene.add(trackGroup);
@@ -205,6 +479,9 @@
 				let framed = false;
 				applyTrack = (d: ChainDoc, dg: ChainDiagnostics, sel: number) => {
 					clearTrack();
+					// Handles rebuild with the scene (an early return leaves none,
+					// which is right: no road, nothing to grab).
+					clearHandles();
 					undrawn = d.pieces
 						.map((_, i) => i)
 						.filter(
@@ -352,6 +629,8 @@
 						frame(rt);
 						framed = true;
 					}
+
+					rebuildHandles(d, dg, sel);
 				};
 
 				/** Fit-to-bounds solve against the tighter of the two half-FOVs. */
@@ -390,6 +669,7 @@
 				let raf = 0;
 				const tick = () => {
 					controls.update();
+					scaleHandles();
 					renderer.render(scene, camera);
 					raf = requestAnimationFrame(tick);
 				};
@@ -427,6 +707,56 @@
 						},
 						get meshCount() {
 							return trackGroup.children.length;
+						},
+						/* ---- handle verification surface (the __greenline convention) ---- */
+						/** Current handles with world + canvas-client screen positions. */
+						handles: () =>
+							liveHandles.map((l) => ({
+								id: l.def.id,
+								paramKey: l.def.paramKey,
+								pos: { ...l.def.pos },
+								screen: worldToScreen(l.root.position)
+							})),
+						/** The REAL hit test at client coords: handle id or null. */
+						pickAt: (clientX: number, clientY: number) => {
+							castPointer({ clientX, clientY });
+							return pickHandle()?.id ?? null;
+						},
+						/**
+						 * Drive a whole drag through the REAL pointer path (capture-phase
+						 * grab, ray solves, onparam writes) with synthetic events on the
+						 * canvas. dx/dy in screen pixels from the handle's center.
+						 */
+						dragHandleBy: (id: string, dx: number, dy: number, steps = 8) => {
+							const lh = liveHandles.find((l) => l.def.id === id);
+							if (!lh) return false;
+							const s = worldToScreen(lh.root.position);
+							const ev = (type: string, x: number, y: number, button: number, buttons: number) =>
+								canvas.dispatchEvent(
+									new PointerEvent(type, {
+										clientX: x,
+										clientY: y,
+										button,
+										buttons,
+										pointerId: 7777,
+										bubbles: true,
+										cancelable: true
+									})
+								);
+							ev('pointerdown', s.x, s.y, 0, 1);
+							for (let k = 1; k <= steps; k++)
+								ev('pointermove', s.x + (dx * k) / steps, s.y + (dy * k) / steps, -1, 1);
+							ev('pointerup', s.x + dx, s.y + dy, 0, 0);
+							return true;
+						},
+						get dragActive() {
+							return drag !== null;
+						},
+						get hoverHandle() {
+							return hoverId;
+						},
+						get controlsEnabled() {
+							return controls.enabled;
 						}
 					};
 
@@ -438,10 +768,22 @@
 					renderer.domElement.removeEventListener('auxclick', onMiddleDefault);
 					renderer.domElement.removeEventListener('pointerdown', focusStage);
 					renderer.domElement.removeEventListener('keydown', onKey);
+					renderer.domElement.removeEventListener('pointerdown', onHandleDown, true);
+					renderer.domElement.removeEventListener('pointermove', onHandleMove);
+					window.removeEventListener('pointerup', onWinUp);
+					window.removeEventListener('pointercancel', onWinCancel);
 					controls.dispose();
 					applyTrack = null;
 					refit = null;
 					clearTrack();
+					clearHandles();
+					ballGeo.dispose();
+					diamondGeo.dispose();
+					hitGeo.dispose();
+					handleMatBase.dispose();
+					handleMatHover.dispose();
+					handleMatActive.dispose();
+					handleMatHit.dispose();
 					gridMat.dispose();
 					grid.geometry.dispose();
 					renderer.dispose();
@@ -478,11 +820,16 @@
 				not drawn (params out of range): piece {undrawn.join(', ')}
 			</div>
 		{/if}
+		{#if handleStatus}
+			<div class="p3-handlestat" data-testid="p3-handle-status">{handleStatus}</div>
+		{/if}
 	</div>
 	<div class="p3-bar">
 		<span class="p3-hint" data-testid="p3-hint">
-			MMB rotate · shift/ctrl+MMB pan · wheel zoom · arrows nudge 15&deg; (shift 90&deg;)
+			LMB drag handles · MMB rotate · shift/ctrl+MMB pan · wheel zoom · arrows nudge 15&deg; (shift
+			90&deg;)
 		</span>
+		<span class="p3-key"><i class="sw hnd"></i> handle</span>
 		<span class="p3-key"><i class="sw sel"></i> selected</span>
 		<span class="p3-key"><i class="sw bad"></i> guardrail broken</span>
 		<button data-testid="p3-refit" onclick={() => refit?.()}>Refit</button>
@@ -516,10 +863,24 @@
 	.p3-stage:focus-within {
 		border-color: #2a3b4a;
 	}
-	/* No grab cursor: the left button does not orbit here (SolidWorks scheme),
-	   so advertising a drag with it would be a lie. */
+	/* No resting grab cursor: the left button does not orbit here (SolidWorks
+	   scheme). It DOES grab the selected piece's shape handles, so the cursor
+	   flips to grab/grabbing dynamically, only while actually over one. */
 	.p3-stage :global(canvas) {
 		display: block;
+	}
+	.p3-handlestat {
+		position: absolute;
+		left: 0.4rem;
+		top: 0.4rem;
+		background: rgba(4, 6, 10, 0.82);
+		border-left: 2px solid #2ae57e;
+		color: #8fffc4;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		padding: 0.22rem 0.4rem;
+		pointer-events: none;
 	}
 	.p3-msg {
 		position: absolute;
@@ -570,6 +931,10 @@
 	}
 	.sw.sel {
 		background: #2ae57e;
+	}
+	.sw.hnd {
+		background: #2ae57e;
+		border-radius: 50%;
 	}
 	.sw.bad {
 		background: #ffb02e;
