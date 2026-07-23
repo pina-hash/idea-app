@@ -4762,7 +4762,106 @@ on one side of the world.
     formula exactly); the jump gives 3.95 m of air; 0 NaN. A 4-car combat
     race also completes laps (falls/scrapes there are pack-combat noise, not
     geometry). The garage picker lists it with the TEST tag and the compiled
-    0.60 km lap length.
+    0.60 km lap length. NOTE: the 0.804 m raise and the floor catches in this
+    bullet are the PRE-FIX numbers; the corkscrew catch-plane arch below took
+    the raise to 0.000 m (everything else about the track is unchanged).
+
+- **Corkscrew catch-plane arch: the 8a rule enforced in the generator
+  (`corkscrewArchLift` in `track-pieces.ts`).** A corkscrew banks hardest at
+  mid-piece while its smootherstep climb is barely off the floor, so a spiral
+  starting near y = 0 asks its low edge to sit UNDER the catch plane through
+  the first third of the piece. The pointwise raise did clamp it — nothing was
+  ever below the plane — but a clamp REPLACES a stretch of authored profile
+  with the clearance curve and then hands back, which is the flagged
+  piece-proof-01 hump: 0.804 m of raise and a genuine slope discontinuity at
+  the rejoin. So the piece now raises its own base instead, by ONE scalar
+  applied through a profile that is (a) zero at both joints — it rides
+  `bankPulse`, the same curve that swells the bank — so the entry/exit
+  elevation, the analytic exit pose, and every sample of every neighbouring
+  piece are untouched, and (b) weighted to the piece's LOW END (`1 - climb
+  progress`, derived from the piece's own natural min/max so it handles either
+  rise sign, a flat spiral, and an entry grade), so the lift decays as the
+  climb takes over instead of arching back over the high joint. `lift` is the
+  SMALLEST scalar for which `natural + lift * shape` clears every sample, so a
+  corkscrew that already sits clear gets exactly 0 and compiles
+  byte-identically to before (browser/script-verified: start y = 1 and up are
+  byte-identical, y = 0 is the only case that arches). Corkscrew-ONLY on
+  purpose: it is the one kind that returns to its entry bank, which is what
+  makes a self-contained arch possible; a `bank` piece ends banked, so its
+  clearance is a joint-level obligation its neighbour shares and the pointwise
+  raise stays the right tool there. The pointwise raise remains as the residual
+  safety net for every other kind.
+  - **Measured on piece-proof-01:** max bank raise **0.804 -> 0.000 m**; the
+    corkscrew grade profile goes from `2.9 6.6 9.0 9.9 9.6 8.3 6.4 4.0 | 7.6
+    13.3 | 12.6 ...` (a clamp-and-release W with 3 curvature sign flips, the
+    4.0 -> 13.3 sag being the concave spot that caught the floor) to a single
+    smooth peak `2.9 8.0 11.8 14.0 14.5 13.7 12.0 9.9 7.9 6.4 5.5 ...` with 1
+    sign flip. Centerline x/z, banking, widths, lap length and closure are
+    EXACT vs HEAD; only 32 elevation samples changed, every one inside a
+    corkscrew, with both corkscrew joint elevations exact (0.000 / 5.000).
+    Proving Ground 07, Terminal Nine and relief-proof-01 are exact across the
+    full runtime (10,044 / 34,875 / 4,403 numbers compared with `===`).
+    A/B driven in the headless harness as two verbatim ribbon tracks carrying
+    the old and new profiles (identical centerline, so the elevation profile is
+    the only variable), same 2-car config, ~3 min each: 0 floor catches, 1
+    fall, 0 flips, all upright on BOTH, best laps 21.108 / 22.794 s vs 21.033 /
+    22.766 s — the arch costs nothing on track.
+
+- **Piece-chain builder, stage 1 (dev tool):
+  `/dev/greenline-piece-builder`.** The v3 counterpart to the ribbon builder
+  at `/dev/greenline-track-builder` — a separate tool for a separate surface
+  kind, deliberately not a mode of the other one. Dev-guarded exactly like
+  every other harness (404 in production, no auth, no Supabase). Lives in
+  `src/lib/greenline/piece-builder/`: `chain-doc.ts` (the document, kind
+  catalog, param specs, and the TrackData export) and
+  `PieceChainBuilder.svelte` (the UI).
+  - **It owns NO geometry math, and that is the load-bearing rule.** Every
+    pose, measurement, and violation comes from the new `diagnoseChain` in
+    `track-pieces.ts` — the same walk, the same generators, and the same
+    guardrails `parseTrack` runs on a real track load — so the builder cannot
+    tell an author something the game would disagree with. `compileChain`
+    gained an optional issue SINK that switches the guardrails from THROW to
+    COLLECT (attributing each violation to its piece and carrying on, so a
+    whole chain's problems show at once); without a sink the behavior is
+    byte-identical to before, which is what every track load relies on.
+  - **Numeric readout only this stage, by design:** no 2D canvas, no live 3D.
+    Each row shows its computed exit pose (x, z, y, heading, pitch, bank) plus
+    that piece's plan length, steepest grade, peak bank, LOWEST SWEPT EDGE Y
+    (the number the y = 0 catch plane actually judges), and any corkscrew arch
+    or residual raise it applied. Reorder (↑/↓) and remove re-derive everything
+    downstream, since a piece's entry pose IS the previous piece's exit.
+  - **Guardrails are checked as pieces are added, not at export**, and export
+    is BLOCKED while any is broken (browser-verified: bank cap, pitch cap,
+    grade lint, joint continuity, and loop closure each fire inline on the
+    offending row and disable Copy/Download). A piece with out-of-range params
+    is skipped by the walk and so has no diagnostic — its message is read from
+    `diag.issues` by authored index so it still lands on its own row.
+  - **Freeform is supported as what it is:** verbatim world geometry edited as
+    raw JSON, seeded from the current exit pose so it connects on arrival.
+  - **Export** writes the authored CHAIN as the v3 surface (the point of v3)
+    while deriving spawn, gates and boundaries from the COMPILED geometry:
+    gates sit BETWEEN samples (a gate on a centerline point double-reports as
+    out-of-order — the ribbon builder's lesson), and the boundary offset
+    shrinks from the flat 9 m toward wall-tight as the edge rises (Terminal
+    Nine's run-off lesson). Copy or download, drop it in `tracks/`, add one
+    import and one entry in `tracks.ts`. No server-side save this stage.
+    The document persists per browser (`greenline_piece_builder_v1`), and
+    `window.__glPieceBuilder` drives everything from the console.
+  - **Verified** in the harness: real clicks build a chain and exit poses
+    update live (a straight to (60, 0, 0) then a corkscrew to (130, 0, 5)
+    reporting `arch 2.36 m`); typing 75 into a corkscrew's peak bank surfaces
+    "corkscrew peakBankDeg must be within ±60" on that row and disables export;
+    reorder moves the piece, keeps the selection, and re-derives both exits;
+    remove updates the count; a 13-piece document survives a reload from
+    localStorage still reading VALID. End to end: piece-proof-01's chain loaded
+    into the builder reads VALID with closure 0.000 m, exported through the
+    real Show JSON control, parsed by the real `parseTrack`, and its runtime
+    geometry is IDENTICAL to the committed file (152 samples, every x/z/
+    elevation/banking/halfWidth exact); a real `LapTracker` drive completes
+    laps with 0 spurious rejections, 0 off-ribbon samples and 0 wall violations
+    on both the centerline and a 4 m offset line; and the exported track
+    parked as the custom track drove in the movement harness for 7 laps, best
+    21.03 s, upright, matching the committed track's documented pace.
 
 ## Shared feedback box
 

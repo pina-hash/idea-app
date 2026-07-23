@@ -68,6 +68,19 @@ export const PIECE_CLOSURE_GAP_M = 1.0;
 export const PIECE_CLOSURE_HEADING_DEG = 5;
 export const PIECE_CLOSURE_ELEV_M = 0.5;
 export const PIECE_CLOSURE_BANK_DEG = 3;
+/**
+ * Clearance the swept low edge keeps above the y = 0 catch plane, meters. One
+ * centimeter, sized for the exported 2-decimal rounding, not for physics.
+ */
+export const PIECE_CATCH_PLANE_MARGIN_M = 0.01;
+/**
+ * Floor on the corkscrew arch's own profile value before a sample is allowed
+ * to SIZE the arch (see `corkscrewArchLift`). The arch shape vanishes at both
+ * joints, so the required-lift-over-shape ratio diverges there; samples inside
+ * this band are left to the pointwise raise, which by then has at most the
+ * centimeter margin to add.
+ */
+const ARCH_SHAPE_EPS = 0.02;
 
 /**
  * A pose on the chain: where a piece begins or ends. Heading is the schema
@@ -88,12 +101,20 @@ export interface PiecePose {
 
 /** One compiled piece: its poses and its sample range on the stitched chain. */
 export interface CompiledPiece {
+	/** Index into the authored `pieces` array (a ribbon's single piece is 0). */
+	index: number;
 	kind: TrackPiece['kind'];
 	entry: PiecePose;
 	exit: PiecePose;
 	/** Stitched-chain sample indices (entry joint shared with the previous piece). */
 	start: number;
 	end: number;
+	/**
+	 * Corkscrew catch-plane arch applied by the generator itself, meters (0 on
+	 * every other kind, and 0 on a corkscrew that already clears the plane).
+	 * See `corkscrewArchLift`.
+	 */
+	archLiftM: number;
 }
 
 /**
@@ -133,8 +154,16 @@ export interface CompiledChain {
 	 * does: elevation lifted to at least halfWidth * sin(|bank|) + 1 cm so the
 	 * low edge never dips under the y=0 catch plane). 0 = no lift was needed.
 	 * Never applied to freeform samples — verbatim geometry stays verbatim.
+	 *
+	 * This is the RESIDUAL raise: it is a pointwise clamp, so where it bites
+	 * hard it replaces a stretch of authored profile and leaves a slope
+	 * discontinuity. A corkscrew arches its own base first (see
+	 * `corkscrewArchLift`), which is why the only raise left on a spiral that
+	 * starts at ground level is the centimeter margin.
 	 */
 	maxBankRaiseM: number;
+	/** Per-sample catch-plane raise actually applied, meters (0 where none). */
+	bankRaises: number[];
 }
 
 /* ------------------------------------------------------------------ */
@@ -268,6 +297,68 @@ interface PieceGen {
 	samples: ChainSample[];
 	exit: PiecePose;
 	exitWidth: number;
+	/** Corkscrew catch-plane arch height, meters (0 on every other kind). */
+	archLiftM: number;
+}
+
+/**
+ * The corkscrew catch-plane ARCH: the 8a banked-centerline rule enforced where
+ * the geometry is authored instead of left to the pointwise raise downstream.
+ *
+ * A corkscrew banks hardest at mid-piece while its smootherstep climb is still
+ * barely off the floor, so a spiral that starts near y = 0 asks its low edge to
+ * sit UNDER the catch plane through the first third of the piece. The pointwise
+ * raise does clamp that (nothing ever ends up below the plane), but clamping
+ * REPLACES a stretch of the authored profile with the clearance curve and then
+ * hands back to it, which leaves a slope discontinuity — the measured 0.80 m
+ * hump on `piece-proof-01` and the floor catches at that one spot.
+ *
+ * So the piece raises its OWN base instead, by one scalar, applied through a
+ * profile that is:
+ * - zero at both joints (it rides `bankPulse`, the same curve that swells the
+ *   bank), so entry/exit elevation, the analytic exit pose, and every sample of
+ *   every neighbouring piece are untouched;
+ * - weighted to the piece's LOW END (`1 - climb progress`), so the lift decays
+ *   as the natural climb takes over instead of arching back over the high joint.
+ *
+ * `lift` is the smallest scalar for which `natural + lift * shape` clears every
+ * sample's requirement, so a corkscrew that already sits clear of the plane
+ * gets exactly 0 and compiles byte-identically to before. This is corkscrew-only
+ * on purpose: it is the one kind that returns to its entry bank, which is what
+ * makes a self-contained arch possible at all. A `bank` piece ends banked, so
+ * its clearance is a joint-level obligation its neighbour shares, and the
+ * pointwise raise remains the right tool there.
+ */
+interface ArchSample {
+	elev: number;
+	bankDeg: number;
+	width: number;
+	/** `bankPulse(t)`: the arch shape before the low-end weighting. */
+	pulse: number;
+	/** Final arch weight for this sample (`pulse * lowSide`), filled in below. */
+	weight: number;
+}
+
+function corkscrewArchLift(natural: ArchSample[]): number {
+	let lo = Infinity;
+	let hi = -Infinity;
+	for (const s of natural) {
+		if (s.elev < lo) lo = s.elev;
+		if (s.elev > hi) hi = s.elev;
+	}
+	const span = hi - lo;
+	let lift = 0;
+	for (const s of natural) {
+		// Low-end weight: 1 where the piece is at its floor, 0 at its ceiling.
+		s.weight = s.pulse * (span > 1e-6 ? (hi - s.elev) / span : 1);
+		const br = Math.abs(s.bankDeg) * DEG;
+		if (br < 0.001) continue;
+		const need = (s.width / 2) * Math.sin(br) + PIECE_CATCH_PLANE_MARGIN_M;
+		const short = need - s.elev;
+		if (short <= 0 || s.weight < ARCH_SHAPE_EPS) continue;
+		lift = Math.max(lift, short / s.weight);
+	}
+	return lift;
 }
 
 const nFor = (planLen: number): number => Math.max(2, Math.ceil(planLen / PIECE_SAMPLE_STEP));
@@ -307,7 +398,8 @@ function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): Piec
 					pitchDeg: piece.targetPitchDeg ?? entry.pitchDeg,
 					bankDeg: entry.bankDeg
 				},
-				exitWidth: wTo
+				exitWidth: wTo,
+				archLiftM: 0
 			};
 		}
 		case 'curve': {
@@ -344,7 +436,8 @@ function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): Piec
 					pitchDeg: entry.pitchDeg,
 					bankDeg: entry.bankDeg
 				},
-				exitWidth: wTo
+				exitWidth: wTo,
+				archLiftM: 0
 			};
 		}
 		case 'bank': {
@@ -375,7 +468,8 @@ function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): Piec
 					pitchDeg: entry.pitchDeg,
 					bankDeg: piece.targetBankDeg
 				},
-				exitWidth: wTo
+				exitWidth: wTo,
+				archLiftM: 0
 			};
 		}
 		case 'jump': {
@@ -413,7 +507,8 @@ function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): Piec
 					pitchDeg: entry.pitchDeg,
 					bankDeg: entry.bankDeg
 				},
-				exitWidth: wTo
+				exitWidth: wTo,
+				archLiftM: 0
 			};
 		}
 		case 'corkscrew': {
@@ -439,18 +534,29 @@ function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): Piec
 				return { x: cx - lf.x * R * sgn, z: cz - lf.z * R * sgn };
 			};
 			const N = nFor(L);
-			const samples: ChainSample[] = [];
+			const arch: ArchSample[] = [];
 			for (let k = 0; k <= N; k++) {
 				const t = k / N;
-				samples.push({
-					pt: posAt(t),
+				arch.push({
 					elev: entry.y + L * g0 * t + piece.rise * s01(t),
 					bankDeg: entry.bankDeg + (piece.peakBankDeg - entry.bankDeg) * bankPulse(t),
 					width: wAt(t),
-					verbatim: false,
-					cliff: false
+					pulse: bankPulse(t),
+					weight: 0
 				});
 			}
+			// The catch-plane arch (see `corkscrewArchLift`): its profile is zero at
+			// both joints, so the exit pose below and every downstream piece are
+			// untouched by it.
+			const archLiftM = corkscrewArchLift(arch);
+			const samples: ChainSample[] = arch.map((s, k) => ({
+				pt: posAt(k / N),
+				elev: s.elev + archLiftM * s.weight,
+				bankDeg: s.bankDeg,
+				width: s.width,
+				verbatim: false,
+				cliff: false
+			}));
 			return {
 				samples,
 				exit: {
@@ -460,7 +566,8 @@ function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): Piec
 					pitchDeg: entry.pitchDeg,
 					bankDeg: entry.bankDeg
 				},
-				exitWidth: wTo
+				exitWidth: wTo,
+				archLiftM
 			};
 		}
 		case 'freeform': {
@@ -496,7 +603,8 @@ function generate(entry: PiecePose, entryWidth: number, piece: TrackPiece): Piec
 			return {
 				samples,
 				exit: poseAt(n - 2, n - 1, n - 1),
-				exitWidth: samples[n - 1].width
+				exitWidth: samples[n - 1].width,
+				archLiftM: 0
 			};
 		}
 	}
@@ -537,9 +645,19 @@ interface PieceChain {
 	strict: boolean;
 }
 
-function compileChain(chain: PieceChain): CompiledChain {
-	const fail = (msg: string): never => {
-		throw new Error(`Invalid piece chain: ${msg}`);
+/**
+ * The compile walk. `sink`, when given, switches the guardrails from THROW to
+ * COLLECT: every violation is recorded against the piece it belongs to and the
+ * walk carries on, so the builder can show a whole chain's problems at once
+ * instead of only the first one. Without a sink the behavior is identical to
+ * before — the first violation throws the same message it always did, which is
+ * what `parseTrack` and every track load rely on.
+ */
+function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
+	let pieceCursor: number | null = null;
+	const fail = (msg: string): void => {
+		if (!sink) throw new Error(`Invalid piece chain: ${msg}`);
+		sink.push({ pieceIndex: pieceCursor, message: msg });
 	};
 	if (!chain.pieces.length) fail('no pieces');
 
@@ -548,9 +666,16 @@ function compileChain(chain: PieceChain): CompiledChain {
 	let pose = chain.start;
 	let width = chain.width;
 	chain.pieces.forEach((piece, pi) => {
+		pieceCursor = pi;
 		if (chain.strict) {
 			const issue = pieceIssue(piece);
-			if (issue) fail(`pieces[${pi}]: ${issue}`);
+			if (issue) {
+				fail(`pieces[${pi}]: ${issue}`);
+				// Collect mode only: a piece with out-of-range params cannot be
+				// generated, so it is skipped and the chain walks on from the
+				// unchanged pose. Throw mode never reaches here.
+				return;
+			}
 		}
 		const entry = piece.kind === 'freeform' ? freeformEntryPose(piece) : pose;
 		const gen = generate(entry, width, piece);
@@ -571,22 +696,25 @@ function compileChain(chain: PieceChain): CompiledChain {
 			samples.push(s);
 		});
 		compiledPieces.push({
+			index: pi,
 			kind: piece.kind,
 			entry,
 			exit: gen.exit,
 			start: startIdx,
-			end: samples.length - 1
+			end: samples.length - 1,
+			archLiftM: gen.archLiftM
 		});
 		pose = gen.exit;
 		width = gen.exitWidth;
 	});
+	pieceCursor = null;
 	if (samples.length < 4) fail('chain too short (under 4 samples)');
 
 	// --- closure (parametric chains only): the exit pose must land back on the
 	// chain start, then the duplicated closing sample is dropped so the wrap
 	// segment supplies the final stretch (the committed tracks' convention).
 	let closure: CompiledChain['closure'] = null;
-	if (chain.strict && chain.closed) {
+	if (chain.strict && chain.closed && samples.length >= 2) {
 		const gapM = Math.hypot(pose.x - chain.start.x, pose.z - chain.start.z);
 		const headingGapDeg = Math.abs(normDeg(pose.headingDeg - chain.start.headingDeg));
 		const elevGapM = Math.abs(pose.y - chain.start.y);
@@ -619,21 +747,29 @@ function compileChain(chain: PieceChain): CompiledChain {
 	// pieces enter and leave at their authored bank, so the lift fades to zero
 	// at every joint whose bank does.
 	let maxBankRaiseM = 0;
+	const bankRaises = samples.map(() => 0);
 	if (chain.strict) {
-		for (const s of samples) {
-			if (s.verbatim) continue;
+		samples.forEach((s, i) => {
+			if (s.verbatim) return;
 			const br = Math.abs(s.bankDeg) * DEG;
-			if (br < 0.001) continue;
-			const need = (s.width / 2) * Math.sin(br) + 0.01;
+			if (br < 0.001) return;
+			const need = (s.width / 2) * Math.sin(br) + PIECE_CATCH_PLANE_MARGIN_M;
 			if (need > s.elev) {
-				maxBankRaiseM = Math.max(maxBankRaiseM, need - s.elev);
+				bankRaises[i] = need - s.elev;
+				maxBankRaiseM = Math.max(maxBankRaiseM, bankRaises[i]);
 				s.elev = need;
 			}
-		}
+		});
 	}
 
 	// --- grade lint (parametric segments only; jump drop faces exempt) ---
 	if (chain.strict) {
+		/** Which authored piece a stitched sample belongs to (collect mode only). */
+		const pieceAt = (i: number): number | null => {
+			if (!sink) return null;
+			const hit = compiledPieces.find((p) => i >= p.start && i <= p.end);
+			return hit ? hit.index : null;
+		};
 		const n = samples.length;
 		const segs = chain.closed ? n : n - 1;
 		for (let i = 0; i < segs; i++) {
@@ -643,13 +779,18 @@ function compileChain(chain: PieceChain): CompiledChain {
 			const plan = Math.hypot(b.pt.x - a.pt.x, b.pt.z - a.pt.z);
 			if (plan < 0.01) continue;
 			const g = Math.abs(b.elev - a.elev) / plan;
-			if (g > PIECE_GRADE_MAX)
+			if (g > PIECE_GRADE_MAX) {
+				pieceCursor = pieceAt(i);
 				fail(`grade ${g.toFixed(2)} between samples ${i} and ${(i + 1) % n} exceeds ${PIECE_GRADE_MAX}`);
+			}
 		}
 		for (let i = 0; i < n; i++) {
-			if (Math.abs(samples[i].bankDeg) > PIECE_BANK_MAX_DEG + 1e-9)
+			if (Math.abs(samples[i].bankDeg) > PIECE_BANK_MAX_DEG + 1e-9) {
+				pieceCursor = pieceAt(i);
 				fail(`sample ${i} bank ${samples[i].bankDeg.toFixed(1)} exceeds ±${PIECE_BANK_MAX_DEG}`);
+			}
 		}
+		pieceCursor = null;
 	}
 
 	let lengthM = 0;
@@ -671,7 +812,8 @@ function compileChain(chain: PieceChain): CompiledChain {
 		lengthM,
 		pieces: compiledPieces,
 		closure,
-		maxBankRaiseM
+		maxBankRaiseM,
+		bankRaises
 	};
 }
 
@@ -738,4 +880,127 @@ export function compileSurface(surface: TrackSurface): CompiledChain {
 	const out = compileChain(surface.type === 'ribbon' ? ribbonChain(surface) : piecesChain(surface));
 	compileCache.set(surface, out);
 	return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* authoring diagnostics                                               */
+/* ------------------------------------------------------------------ */
+
+/** One guardrail violation, attributed to a piece where the compiler knows it. */
+export interface ChainIssue {
+	/** Index into the authored piece list, or null for a whole-chain issue. */
+	pieceIndex: number | null;
+	message: string;
+}
+
+/** What one piece did to the chain: its poses plus its measured extremes. */
+export interface PieceDiagnostic {
+	index: number;
+	kind: TrackPiece['kind'];
+	entry: PiecePose;
+	exit: PiecePose;
+	/** Stitched-chain sample range (the entry joint is shared with the previous piece). */
+	start: number;
+	end: number;
+	/** Plan length of this piece's own samples, meters. */
+	lengthM: number;
+	/** Steepest |dElev| / dPlan on this piece's segments (cliff faces included). */
+	maxGrade: number;
+	maxBankDeg: number;
+	minElevM: number;
+	maxElevM: number;
+	/**
+	 * Lowest point of the SWEPT surface on this piece: `elev - halfWidth *
+	 * |sin(bank)|`. This is the number the y = 0 catch plane actually judges, so
+	 * a negative value is a section the plane would swallow.
+	 */
+	minEdgeYM: number;
+	/** Corkscrew catch-plane arch this piece applied to itself, meters. */
+	archLiftM: number;
+	/** Largest residual pointwise catch-plane raise inside this piece, meters. */
+	bankRaiseM: number;
+	issues: string[];
+}
+
+/** A whole-chain authoring report: the compiled geometry plus every violation. */
+export interface ChainDiagnostics {
+	chain: CompiledChain;
+	pieces: PieceDiagnostic[];
+	/** Every violation found, in compile order. Empty = the chain is exportable. */
+	issues: ChainIssue[];
+	/** Violations that belong to no single piece (closure, chain length). */
+	chainIssues: string[];
+	ok: boolean;
+}
+
+/**
+ * Compile a piece chain for AUTHORING: same walk, same generators, same
+ * guardrails as a real track load, but collecting every violation instead of
+ * throwing on the first, and rolling up the per-piece measurements a builder
+ * needs to show. This is the builder's only entry point into the compiler, so
+ * what an author is told and what `parseTrack` will accept can never diverge.
+ */
+export function diagnoseChain(surface: PieceChainSurface): ChainDiagnostics {
+	const issues: ChainIssue[] = [];
+	const chain = compileChain(piecesChain(surface), issues);
+	const pieces: PieceDiagnostic[] = chain.pieces.map((p) => {
+		const index = p.index;
+		let lengthM = 0;
+		let maxGrade = 0;
+		let maxBankDeg = 0;
+		let minElevM = Infinity;
+		let maxElevM = -Infinity;
+		let minEdgeYM = Infinity;
+		let bankRaiseM = 0;
+		for (let i = p.start; i <= p.end && i < chain.center.length; i++) {
+			const elev = chain.elevations[i];
+			const bank = Math.abs(chain.banking[i]);
+			minElevM = Math.min(minElevM, elev);
+			maxElevM = Math.max(maxElevM, elev);
+			maxBankDeg = Math.max(maxBankDeg, bank);
+			minEdgeYM = Math.min(minEdgeYM, elev - (chain.widths[i] / 2) * Math.sin(bank * DEG));
+			bankRaiseM = Math.max(bankRaiseM, chain.bankRaises[i] ?? 0);
+			if (i > p.start) {
+				const plan = Math.hypot(
+					chain.center[i].x - chain.center[i - 1].x,
+					chain.center[i].z - chain.center[i - 1].z
+				);
+				lengthM += plan;
+				if (plan > 0.01)
+					maxGrade = Math.max(maxGrade, Math.abs(elev - chain.elevations[i - 1]) / plan);
+			}
+		}
+		return {
+			index,
+			kind: p.kind,
+			entry: p.entry,
+			exit: p.exit,
+			start: p.start,
+			end: p.end,
+			lengthM,
+			maxGrade,
+			maxBankDeg,
+			minElevM: minElevM === Infinity ? 0 : minElevM,
+			maxElevM: maxElevM === -Infinity ? 0 : maxElevM,
+			minEdgeYM: minEdgeYM === Infinity ? 0 : minEdgeYM,
+			archLiftM: p.archLiftM,
+			bankRaiseM,
+			issues: issues.filter((x) => x.pieceIndex === index).map((x) => x.message)
+		};
+	});
+	// A piece whose params are out of range is skipped by the walk, so it has no
+	// compiled entry; its issues still have to reach the author.
+	const orphaned = issues.filter(
+		(x) => x.pieceIndex !== null && !pieces.some((p) => p.index === x.pieceIndex)
+	);
+	return {
+		chain,
+		pieces,
+		issues,
+		chainIssues: [
+			...issues.filter((x) => x.pieceIndex === null).map((x) => x.message),
+			...orphaned.map((x) => x.message)
+		],
+		ok: issues.length === 0
+	};
 }
