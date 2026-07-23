@@ -5826,7 +5826,9 @@
 						name: track.name,
 						paths: rt.paths.length,
 						routes: rt.routes.length,
-						branches: (track.surface.branches ?? []).map((b) => b.id)
+						branches: (track.surface.type === 'ribbon' ? (track.surface.branches ?? []) : []).map(
+							(b) => b.id
+						)
 					}),
 					getRoute: (rigId = 'player') =>
 						rigsAll().find((q) => q.id === rigId)?.routeUsed ?? null,
@@ -7216,7 +7218,10 @@
 						// does NOT clear it, because the question being answered is
 						// "did this driver use the shortcut", not "where are they now".
 						if (surf.path > 0) {
-							const branch = track.surface.branches?.[surf.path - 1];
+							const branch =
+								track.surface.type === 'ribbon'
+									? track.surface.branches?.[surf.path - 1]
+									: undefined;
 							if (branch) rig.routeUsed = branch.id;
 						}
 						rig.lastOnRibbon = surf.state.onRibbon;

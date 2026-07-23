@@ -1,14 +1,21 @@
 /**
- * GREENLINE track format, v2 (`schemaVersion: 1 | 2`).
+ * GREENLINE track format, v3 (`schemaVersion: 1 | 2 | 3`).
  *
  * A track is one plain-JSON file conforming to `TrackData` (see
- * `tracks/proving-ground-07.json` for the flat v1 reference and
- * `tracks/relief-proof-01.json` for the v2 proof segment). This is the schema
- * every future track uses; extend it by adding fields or new
+ * `tracks/proving-ground-07.json` for the flat v1 reference,
+ * `tracks/relief-proof-01.json` for the v2 proof segment, and
+ * `tracks/piece-proof-01.json` for the v3 piece-chain proof loop). This is the
+ * schema every future track uses; extend it by adding fields or new
  * discriminated-union members, never by repurposing existing ones. v2 is
  * purely ADDITIVE over v1: per-point `elevations` / `banking` on the ribbon
  * (the `widths` convention) and the gameplay `zones` list; every v1 track
- * parses and behaves exactly as before.
+ * parses and behaves exactly as before. v3 is likewise additive: it adds the
+ * `pieces` SURFACE kind (a chain of parametric `TrackPiece` segments compiled
+ * by `track-pieces.ts` into the same per-point arrays the ribbon runtime has
+ * always swept); every v1/v2 ribbon track parses and behaves exactly as
+ * before — internally a ribbon IS a one-piece chain (one verbatim `freeform`
+ * piece), so the old format is the trivial instance of the new model rather
+ * than a parallel system.
  *
  * Conventions, fixed for all tracks:
  * - All positions and dimensions are WORLD UNITS (meters). `x`/`z` are
@@ -20,6 +27,15 @@
  * - `checkpoints` is ORDERED: a lap must cross every gate in array order,
  *   then the start/finish line.
  */
+
+// Value import only (the piece compiler + its validators); track-pieces
+// imports nothing but TYPES from this module, so there is no runtime cycle.
+import {
+	compileSurface,
+	pieceIssue,
+	PIECE_BANK_MAX_DEG,
+	PIECE_PITCH_MAX_DEG
+} from './track-pieces';
 
 export interface TrackVec2 {
 	x: number;
@@ -133,7 +149,89 @@ export interface RibbonBranch {
 	/** Main-centerline index this spur rejoins at (> joinStart). */
 	joinEnd: number;
 }
-export type TrackSurface = RibbonSurface;
+/**
+ * One segment of a v3 piece chain. Every parametric kind takes its ENTRY POSE
+ * (position, heading, pitch, bank — threaded through the chain walk, never
+ * stored per piece) plus the params here, and produces a DETERMINISTIC exit
+ * pose in closed form; `track-pieces.ts` owns the generators and the exact
+ * profile math. Angles are degrees throughout (the schema convention); pitch
+ * is a grade angle (dy/dPlan = tan(pitch)), bank is the ribbon banking sign
+ * (positive raises the runtime's leftEdge side, the driver's right), and a
+ * positive `turnDeg` increases heading (a left turn). Bank on every kind is
+ * capped WELL CLEAR of 90 degrees (`PIECE_BANK_MAX_DEG` 60): v3 deliberately
+ * has no vertical pieces, no loops/wallrides, no general 6DOF rotation.
+ *
+ * New kinds join this union under new `kind` tags (the TrackZone/WeaponDef
+ * catalog pattern); `parseTrack` fails loudly on an unknown kind.
+ */
+export type TrackPiece =
+	/** Constant heading/bank; grade eases to `targetPitchDeg` (default: held). */
+	| { kind: 'straight'; length: number; targetPitchDeg?: number; width?: number }
+	/** Plan arc at `radius` through signed `turnDeg`; pitch and bank held. */
+	| { kind: 'curve'; radius: number; turnDeg: number; width?: number }
+	/** Roll transition on a straight run: bank eases to `targetBankDeg`. */
+	| { kind: 'bank'; length: number; targetBankDeg: number; width?: number }
+	/**
+	 * Closure-neutral kicker: climb to a lip `kickHeight` above the entry
+	 * elevation line, a deliberately steep drop face back down (grade-lint
+	 * exempt, the Terminal Nine deck-edge pattern), flat run-out. Exit pose
+	 * equals a plain straight's.
+	 */
+	| { kind: 'jump'; length: number; kickHeight: number; width?: number }
+	/**
+	 * THE piece v3 exists for: bank and grade move together over the piece's
+	 * own length. Elevation gains `rise` along smootherstep while the bank
+	 * swells to `peakBankDeg` in proportion to the extra grade the spiral adds
+	 * (the same curve's normalized derivative), returning to the entry bank at
+	 * the exit. `turnDeg` 0 is a straight spiral; nonzero sweeps a plan arc of
+	 * derived radius `length / |turnDeg in radians|`.
+	 */
+	| { kind: 'corkscrew'; length: number; turnDeg: number; rise: number; peakBankDeg: number; width?: number }
+	/**
+	 * Verbatim authored geometry in ABSOLUTE world coordinates — the ribbon
+	 * fields, embedded as a piece. This is the backward-compatibility
+	 * container: a legacy ribbon surface compiles as exactly one of these,
+	 * passed through with zero arithmetic (byte-identical sweep + collision).
+	 * It ignores the incoming pose; its exit pose derives from its own data.
+	 */
+	| {
+			kind: 'freeform';
+			centerline: TrackVec2[];
+			width?: number;
+			widths?: number[];
+			elevations?: number[];
+			banking?: number[];
+	  };
+
+/** Entry pose of a piece chain's first piece. Missing y/pitch/bank = 0. */
+export interface PieceChainStart {
+	x: number;
+	z: number;
+	y?: number;
+	headingDeg: number;
+	pitchDeg?: number;
+	bankDeg?: number;
+}
+
+/**
+ * The v3 surface kind: an ordered chain of `TrackPiece` segments, walked from
+ * `start` with each piece's exit pose feeding the next piece's entry. Always a
+ * CLOSED circuit: `parseTrack` (via the compiler) rejects a chain whose final
+ * exit pose does not land back on `start` within tight tolerances. Piece
+ * chains are linear — no `branches` (route splits remain ribbon territory for
+ * now) — and compile into the same per-point centerline/width/elevation/
+ * banking arrays a ribbon carries, so every runtime consumer downstream of
+ * `compileSurface` is shared, unchanged code.
+ */
+export interface PieceChainSurface {
+	type: 'pieces';
+	/** Corridor full width the chain starts at (pieces may blend to their own). */
+	width: number;
+	start: PieceChainStart;
+	pieces: TrackPiece[];
+}
+
+export type TrackSurface = RibbonSurface | PieceChainSurface;
 
 /**
  * Optional environmental dressing: cheap primitive set pieces that make a
@@ -267,7 +365,7 @@ export interface TrackSpawn {
 }
 
 export interface TrackData {
-	schemaVersion: 1 | 2;
+	schemaVersion: 1 | 2 | 3;
 	/** Stable slug, unique across tracks. */
 	id: string;
 	name: string;
@@ -296,45 +394,77 @@ export function parseTrack(raw: unknown): TrackData {
 	};
 	if (typeof raw !== 'object' || raw === null) fail('not an object');
 	const t = raw as TrackData;
-	if (t.schemaVersion !== 1 && t.schemaVersion !== 2)
+	if (t.schemaVersion !== 1 && t.schemaVersion !== 2 && t.schemaVersion !== 3)
 		fail(`unsupported schemaVersion ${String(t.schemaVersion)}`);
 	if (!t.id || typeof t.id !== 'string') fail('missing id');
 	if (!t.spawn || typeof t.spawn.x !== 'number' || typeof t.spawn.headingDeg !== 'number')
 		fail('missing or malformed spawn');
-	if (t.surface?.type !== 'ribbon') fail(`unknown surface type ${String(t.surface?.type)}`);
-	if (!Array.isArray(t.surface.centerline) || t.surface.centerline.length < 3)
-		fail('ribbon centerline needs at least 3 points');
-	if (!(t.surface.width > 0)) fail('ribbon width must be positive');
-	if (t.surface.widths !== undefined) {
+	const surfType = (t.surface as { type?: unknown } | undefined)?.type;
+	if (surfType !== 'ribbon' && surfType !== 'pieces')
+		fail(`unknown surface type ${String(surfType)}`);
+	if (t.surface.type === 'pieces') {
+		// v3 piece-chain surface: structural checks here, then the compiler
+		// (cached, so the runtime build reuses this walk) performs the deep
+		// geometric validation — per-piece params, joint continuity, loop
+		// closure, the catch-plane bank raise, the grade lint, the bank cap.
+		if (t.schemaVersion !== 3) fail('a pieces surface requires schemaVersion 3');
+		if (!(t.surface.width > 0)) fail('piece chain width must be positive');
+		const st = t.surface.start;
 		if (
-			!Array.isArray(t.surface.widths) ||
-			t.surface.widths.length !== t.surface.centerline.length
+			!st ||
+			typeof st.x !== 'number' ||
+			typeof st.z !== 'number' ||
+			typeof st.headingDeg !== 'number'
 		)
-			fail('ribbon widths must have one entry per centerline point');
-		if (t.surface.widths.some((w) => !(w > 0))) fail('every ribbon width must be positive');
+			fail('piece chain start pose needs numeric x, z, headingDeg');
+		for (const [key, cap] of [
+			['y', Infinity],
+			['pitchDeg', PIECE_PITCH_MAX_DEG],
+			['bankDeg', PIECE_BANK_MAX_DEG]
+		] as const) {
+			const v = st[key];
+			if (v === undefined) continue;
+			if (!Number.isFinite(v) || Math.abs(v) > cap)
+				fail(`piece chain start ${key} must be finite${cap !== Infinity ? ` and within ±${cap}` : ''}`);
+		}
+		if (!Array.isArray(t.surface.pieces) || t.surface.pieces.length < 1)
+			fail('piece chain needs at least 1 piece');
+		t.surface.pieces.forEach((p, i) => {
+			const issue = pieceIssue(p);
+			if (issue) fail(`pieces[${i}]: ${issue}`);
+		});
+		try {
+			compileSurface(t.surface);
+		} catch (e) {
+			fail(e instanceof Error ? e.message : String(e));
+		}
 	}
-	if (t.surface.elevations !== undefined) {
-		if (
-			!Array.isArray(t.surface.elevations) ||
-			t.surface.elevations.length !== t.surface.centerline.length
-		)
-			fail('ribbon elevations must have one entry per centerline point');
-		if (t.surface.elevations.some((e) => !Number.isFinite(e)))
-			fail('every ribbon elevation must be a finite number');
-	}
-	if (t.surface.banking !== undefined) {
-		if (
-			!Array.isArray(t.surface.banking) ||
-			t.surface.banking.length !== t.surface.centerline.length
-		)
-			fail('ribbon banking must have one entry per centerline point');
-		if (t.surface.banking.some((b) => !Number.isFinite(b) || Math.abs(b) > 75))
-			fail('every ribbon banking angle must be finite and within +/-75 degrees');
-	}
-	if (t.surface.branches !== undefined) {
-		if (!Array.isArray(t.surface.branches)) fail('surface.branches must be an array');
-		const mainN = t.surface.centerline.length;
-		t.surface.branches.forEach((br, i) => {
+	if (t.surface.type === 'ribbon') {
+		const s = t.surface;
+		if (!Array.isArray(s.centerline) || s.centerline.length < 3)
+			fail('ribbon centerline needs at least 3 points');
+		if (!(s.width > 0)) fail('ribbon width must be positive');
+		if (s.widths !== undefined) {
+			if (!Array.isArray(s.widths) || s.widths.length !== s.centerline.length)
+				fail('ribbon widths must have one entry per centerline point');
+			if (s.widths.some((w) => !(w > 0))) fail('every ribbon width must be positive');
+		}
+		if (s.elevations !== undefined) {
+			if (!Array.isArray(s.elevations) || s.elevations.length !== s.centerline.length)
+				fail('ribbon elevations must have one entry per centerline point');
+			if (s.elevations.some((e) => !Number.isFinite(e)))
+				fail('every ribbon elevation must be a finite number');
+		}
+		if (s.banking !== undefined) {
+			if (!Array.isArray(s.banking) || s.banking.length !== s.centerline.length)
+				fail('ribbon banking must have one entry per centerline point');
+			if (s.banking.some((b) => !Number.isFinite(b) || Math.abs(b) > 75))
+				fail('every ribbon banking angle must be finite and within +/-75 degrees');
+		}
+		if (s.branches !== undefined) {
+		if (!Array.isArray(s.branches)) fail('surface.branches must be an array');
+		const mainN = s.centerline.length;
+		s.branches.forEach((br, i) => {
 			const tag = `surface.branches[${i}] (${br?.id ?? '?'})`;
 			if (typeof br !== 'object' || br === null) fail(`${tag} malformed`);
 			if (!br.id || typeof br.id !== 'string') fail(`${tag} missing id`);
@@ -361,6 +491,7 @@ export function parseTrack(raw: unknown): TrackData {
 			if (!Number.isInteger(br.joinEnd) || br.joinEnd <= br.joinStart || br.joinEnd >= mainN)
 				fail(`${tag} joinEnd ${String(br.joinEnd)} must be a main index after joinStart`);
 		});
+		}
 	}
 	const checkGate = (g: TrackGate | undefined, label: string) => {
 		if (!g || typeof g.x !== 'number' || typeof g.headingDeg !== 'number' || !(g.halfWidth > 0))

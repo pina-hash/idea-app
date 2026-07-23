@@ -64,6 +64,9 @@ const rGate = (g: TrackGate) => ({
  */
 export function serializeTrack(t: TrackData): string {
 	const s = t.surface;
+	// The builder compiles ribbon surfaces only; a v3 pieces surface is authored
+	// as JSON directly and never round-trips through this exporter.
+	if (s.type !== 'ribbon') throw new Error('serializeTrack: only ribbon surfaces are exported');
 	const out = {
 		schemaVersion: t.schemaVersion,
 		id: t.id,
@@ -177,10 +180,14 @@ export function validateCompiled(c: CompiledTrack): ValidationReport {
 	let parsed: TrackData | null = null;
 	try {
 		parsed = parseTrack(JSON.parse(json));
+		const surfDetail =
+			parsed.surface.type === 'ribbon'
+				? `${parsed.surface.centerline.length} main pts, ${parsed.surface.branches?.length ?? 0} branch(es)`
+				: `piece chain, ${parsed.surface.pieces.length} piece(s)`;
 		checks.push({
 			status: 'pass',
 			label: 'parseTrack (real loader)',
-			detail: `exported JSON parses: ${parsed.surface.centerline.length} main pts, ${parsed.surface.branches?.length ?? 0} branch(es), ${parsed.checkpoints.length} gate(s), ${parsed.zones?.length ?? 0} zone circle(s)`
+			detail: `exported JSON parses: ${surfDetail}, ${parsed.checkpoints.length} gate(s), ${parsed.zones?.length ?? 0} zone circle(s)`
 		});
 	} catch (e) {
 		checks.push({
@@ -359,7 +366,8 @@ export function validateCompiled(c: CompiledTrack): ValidationReport {
 
 	// 9. Branch join geometry: the schema shares branch endpoints EXACTLY with
 	// the main centerline, which is what makes a spliced lap route continuous.
-	if (c.branchStats.length) {
+	// Branches exist only on ribbon surfaces (piece chains are linear).
+	if (c.branchStats.length && c.track.surface.type === 'ribbon') {
 		const s = c.track.surface;
 		let worstJoin = 0;
 		for (const b of s.branches ?? []) {
@@ -619,10 +627,12 @@ export function validatePublishTrack(raw: unknown): PublishValidation {
 		errors.push(`ribbon edge dips below the y=0 catch plane (min edge y ${minY.toFixed(3)} m)`);
 
 	// 4. Branch join geometry: endpoints must sit ON the main centerline.
-	const s = track.surface;
-	for (const b of s.branches ?? []) {
-		const a0 = s.centerline[b.joinStart];
-		const a1 = s.centerline[b.joinEnd];
+	// Only ribbon surfaces carry branches; a v3 piece chain is linear and is
+	// already closure-validated by parseTrack's compiler pass above.
+	const s = track.surface.type === 'ribbon' ? track.surface : null;
+	for (const b of s?.branches ?? []) {
+		const a0 = s!.centerline[b.joinStart];
+		const a1 = s!.centerline[b.joinEnd];
 		const b0 = b.centerline[0];
 		const b1 = b.centerline[b.centerline.length - 1];
 		const worst = Math.max(

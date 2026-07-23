@@ -7,6 +7,7 @@
  */
 
 import type { TrackBoundary, TrackData, TrackGate, TrackVec2, TrackZone } from './track-schema';
+import { compileSurface } from './track-pieces';
 
 const DEG = Math.PI / 180;
 
@@ -233,18 +234,26 @@ function buildPath(
 }
 
 export function buildRuntime(data: TrackData): TrackRuntime {
-	const center = data.surface.centerline;
+	// Schema v3: EVERY surface goes through the piece-chain compiler. A legacy
+	// ribbon compiles as one verbatim `freeform` piece (same point objects,
+	// same width/elevation/banking values its old `??` defaults produced), so
+	// this is the identical sweep input, not a parallel path; a `pieces`
+	// surface arrives here as the same per-point arrays. One pipeline for both.
+	const compiled = compileSurface(data.surface);
+	const center = compiled.center;
 	const main = buildPath(
 		'main',
-		data.surface.closed,
+		compiled.closed,
 		center,
-		data.surface.width,
-		data.surface.widths,
-		data.surface.elevations,
-		data.surface.banking
+		compiled.width,
+		compiled.widths,
+		compiled.elevations,
+		compiled.banking
 	);
 	const paths: RibbonRuntime[] = [main];
-	for (const br of data.surface.branches ?? []) {
+	// Branch spurs are ribbon territory (piece chains are linear in v3).
+	const branches = data.surface.type === 'ribbon' ? (data.surface.branches ?? []) : [];
+	for (const br of branches) {
 		const p = buildPath('branch:' + br.id, false, br.centerline, br.width, br.widths, br.elevations, br.banking);
 		p.joinStart = br.joinStart;
 		p.joinEnd = br.joinEnd;

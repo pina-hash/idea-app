@@ -15,6 +15,8 @@
  */
 import { browser } from '$app/environment';
 import { parseTrack, type TrackData } from './track-schema';
+import { compileSurface } from './track-pieces';
+import pieceProofJson from './tracks/piece-proof-01.json';
 import provingGroundJson from './tracks/proving-ground-07.json';
 import reliefProofJson from './tracks/relief-proof-01.json';
 import terminalNineJson from './tracks/terminal-nine.json';
@@ -68,6 +70,15 @@ export const TRACKS: TrackEntry[] = [
 		lengthM: 306,
 		kind: 'test',
 		raw: reliefProofJson
+	},
+	{
+		id: 'piece-proof-01',
+		name: 'Piece Proof 01',
+		tagline:
+			'Schema v3 piece-chain loop: corkscrew climbs, a banked corner, a deck jump. Built to check the piece compiler, not to race.',
+		lengthM: 596,
+		kind: 'test',
+		raw: pieceProofJson
 	}
 ];
 
@@ -100,6 +111,9 @@ export const CUSTOM_TRACK_KEY = 'greenline_custom_track';
 /** Lap distance of a parsed track, for the picker's readout. Exported for the
  * publish endpoint, which stamps it onto the row at publish time. */
 export function lapLengthM(data: TrackData): number {
+	// A v3 piece chain has no authored centerline; its compiled length is the
+	// same sum over the compiled samples (cached, shared with buildRuntime).
+	if (data.surface.type === 'pieces') return compileSurface(data.surface).lengthM;
 	const c = data.surface.centerline;
 	let total = 0;
 	for (let i = 1; i < c.length; i++) total += Math.hypot(c[i].x - c[i - 1].x, c[i].z - c[i - 1].z);
