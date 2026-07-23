@@ -62,6 +62,12 @@
 		zoneEntries
 	} from '$lib/greenline/track-runtime';
 	import {
+		buildBoundaryGeometry,
+		buildGatePane,
+		buildRibbonGeometry,
+		edgeLinePoints
+	} from '$lib/greenline/track-visual';
+	import {
 		COMBAT_DEFAULTS,
 		cooldownRemaining,
 		driveMods,
@@ -2245,102 +2251,15 @@
 				// wear ramps, and edge lines rather than a painted hint. Tracks
 				// with no branches run this loop exactly once, over the main
 				// centerline, which is the pre-8b behavior.
+				const ribbonGates = [...rt.checkpoints, rt.startFinish];
 				for (const path of rt.paths) {
-					const nP = path.center.length;
-					const closed = path.closed;
-					// Cumulative distance along the centerline drives the ribbon's
-					// texture tiling and the braking-zone wear ramps. On a closed
-					// path the last cross-section is duplicated (with the
-					// end-of-loop u) so the closing quad doesn't smear the whole
-					// texture backwards; an open spur simply ends.
-					const cum: number[] = [0];
-					for (let i = 1; i < nP; i++)
-						cum[i] =
-							cum[i - 1] +
-							Math.hypot(
-								path.center[i].x - path.center[i - 1].x,
-								path.center[i].z - path.center[i - 1].z
-							);
-					const total = closed
-						? cum[nP - 1] +
-							Math.hypot(
-								path.center[0].x - path.center[nP - 1].x,
-								path.center[0].z - path.center[nP - 1].z
-							)
-						: cum[nP - 1];
-					// Rubbered-in braking zones: the surface darkens on the approach
-					// to every gate and briefly past it. Purely visual.
-					const gates = [...rt.checkpoints, rt.startFinish];
-					// Only gates that actually sit on THIS path get a braking-wear
-					// ramp on it, so a branch does not inherit rubber from a gate
-					// 200 m away on the main line.
-					const gateS: number[] = [];
-					for (const g of gates) {
-						let best = 0;
-						let bd = Infinity;
-						for (let i = 0; i < nP; i++) {
-							const d =
-								(path.center[i].x - g.gate.x) ** 2 + (path.center[i].z - g.gate.z) ** 2;
-							if (d < bd) {
-								bd = d;
-								best = i;
-							}
-						}
-						if (bd <= (path.maxHalfWidth + 12) ** 2) gateS.push(cum[best]);
-					}
-					const wearAt = (s: number) => {
-						let w = 0;
-						for (const gs of gateS) {
-							const d = closed ? (((gs - s) % total) + total) % total : Math.max(0, gs - s);
-							if (d < 30) w = Math.max(w, 1 - d / 30);
-							else if (closed && total - d < 9) w = Math.max(w, (1 - (total - d) / 9) * 0.5);
-						}
-						return w;
-					};
-					const rings = closed ? nP + 1 : nP;
-					const verts = new Float32Array(rings * 2 * 3);
-					const uvs = new Float32Array(rings * 2 * 2);
-					const cols = new Float32Array(rings * 2 * 3);
-					const tile = 13.5;
-					for (let i = 0; i < rings; i++) {
-						const j = i % nP;
-						const s = i === nP ? total : cum[i];
-						// The 3D sweep (elevation + banking; flat tracks sweep at y 0)
-						// — the same geometry the physics trimesh is built from.
-						verts.set(
-							[path.leftEdge3[j].x, path.leftEdge3[j].y + 0.03, path.leftEdge3[j].z],
-							i * 6
-						);
-						verts.set(
-							[path.rightEdge3[j].x, path.rightEdge3[j].y + 0.03, path.rightEdge3[j].z],
-							i * 6 + 3
-						);
-						uvs.set([s / tile, 0], i * 4);
-						uvs.set([s / tile, 1], i * 4 + 2);
-						const tone = 1 - 0.5 * wearAt(s);
-						cols.set([tone, tone, tone], i * 6);
-						cols.set([tone, tone, tone], i * 6 + 3);
-					}
-					const idx: number[] = [];
-					for (let i = 0; i < rings - 1; i++) {
-						// Wind the quads so the right-hand-rule normals point UP: the
-						// old order ((L,R,L'),(L',R,R')) faced DOWN, which FrontSide
-						// culling silently hid — invisible against the apron plane on
-						// a flat track, but fatal on an elevated span with nothing
-						// behind it. (Latent since the first ribbon mesh; the darker
-						// corridor + braking wear ramps render for the first time.)
-						idx.push(i * 2, i * 2 + 2, i * 2 + 1, i * 2 + 1, i * 2 + 2, i * 2 + 3);
-					}
-					const geo = new THREE.BufferGeometry();
-					geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-					geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-					geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-					geo.setIndex(idx);
-					geo.computeVertexNormals();
+					// The swept surface comes from the SHARED track-visual builder (the
+					// same geometry the builder harness previews and the physics Trimesh
+					// below is wound from); the worn-asphalt dressing stays here.
 					const ribbonTex = asphaltTex.clone();
 					scene.add(
 						new THREE.Mesh(
-							geo,
+							buildRibbonGeometry(THREE, path, ribbonGates),
 							new THREE.MeshStandardMaterial({
 								map: ribbonTex,
 								color: 0x1c2227,
@@ -2391,9 +2310,8 @@
 				// breathing (wide pad, narrow yard) must read at speed. Cool worn
 				// white, per the steel-not-green night palette.
 				for (const path of rt.paths)
-				for (const edge of [path.leftEdge3, path.rightEdge3]) {
-					const loop = path.closed ? [...edge, edge[0]] : edge;
-					const pts = loop.map((p) => new THREE.Vector3(p.x, p.y + 0.06, p.z));
+				for (const line of edgeLinePoints(path)) {
+					const pts = line.map((p) => new THREE.Vector3(p.x, p.y, p.z));
 					scene.add(
 						new THREE.Line(
 							new THREE.BufferGeometry().setFromPoints(pts),
@@ -2408,52 +2326,13 @@
 					side: THREE.DoubleSide,
 					depthWrite: false
 				});
-				for (const b of rt.boundaries) {
-					const m = b.points.length;
-					const verts = new Float32Array(m * 2 * 3);
-					for (let i = 0; i < m; i++) {
-						verts.set([b.points[i].x, 0, b.points[i].z], i * 6);
-						verts.set([b.points[i].x, 0.9, b.points[i].z], i * 6 + 3);
-					}
-					const idx: number[] = [];
-					const last = b.closed ? m : m - 1;
-					for (let i = 0; i < last; i++) {
-						const j = (i + 1) % m;
-						idx.push(i * 2, j * 2, i * 2 + 1, i * 2 + 1, j * 2, j * 2 + 1);
-					}
-					const geo = new THREE.BufferGeometry();
-					geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
-					geo.setIndex(idx);
-					scene.add(new THREE.Mesh(geo, wallMat));
-				}
+				for (const b of rt.boundaries)
+					scene.add(new THREE.Mesh(buildBoundaryGeometry(THREE, b), wallMat));
 				const postGeo = new THREE.CylinderGeometry(0.22, 0.22, 2.6, 10);
 				const paneFor = (g: (typeof rt.checkpoints)[number], color: number, opacity: number) => {
-					const group = new THREE.Group();
-					// Gate visuals sit on the LOCAL surface (relief tracks); the
-					// crossing math itself stays top-down 2D, unaffected by height.
-					const gy = surfaceYAt(rt, g.gate.x, g.gate.z);
-					const mat = new THREE.MeshBasicMaterial({
-						color,
-						transparent: true,
-						opacity,
-						side: THREE.DoubleSide,
-						depthWrite: false
-					});
-					const postMat = new THREE.MeshBasicMaterial({ color });
-					for (const [px, pz] of [
-						[g.ax, g.az],
-						[g.bx, g.bz]
-					]) {
-						const post = new THREE.Mesh(postGeo, postMat);
-						post.position.set(px, gy + 1.3, pz);
-						group.add(post);
-					}
-					const pane = new THREE.Mesh(new THREE.PlaneGeometry(g.gate.halfWidth * 2, 2.6), mat);
-					pane.position.set(g.gate.x, gy + 1.3, g.gate.z);
-					pane.rotation.y = Math.atan2(g.dx, g.dz);
-					group.add(pane);
-					scene.add(group);
-					return { mat, postMat };
+					const built = buildGatePane(THREE, rt, g, color, opacity, postGeo);
+					scene.add(built.group);
+					return { mat: built.mat, postMat: built.postMat };
 				};
 				const cpMats = rt.checkpoints.map((g) => paneFor(g, 0x00ff41, 0.1));
 				paneFor(rt.startFinish, 0xc8ff00, 0.2);

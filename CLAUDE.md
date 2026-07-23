@@ -4807,14 +4807,15 @@ on one side of the world.
     fall, 0 flips, all upright on BOTH, best laps 21.108 / 22.794 s vs 21.033 /
     22.766 s — the arch costs nothing on track.
 
-- **Piece-chain builder, stage 1 (dev tool):
+- **Piece-chain builder (dev tool):
   `/dev/greenline-piece-builder`.** The v3 counterpart to the ribbon builder
   at `/dev/greenline-track-builder` — a separate tool for a separate surface
   kind, deliberately not a mode of the other one. Dev-guarded exactly like
   every other harness (404 in production, no auth, no Supabase). Lives in
   `src/lib/greenline/piece-builder/`: `chain-doc.ts` (the document, kind
-  catalog, param specs, and the TrackData export) and
-  `PieceChainBuilder.svelte` (the UI).
+  catalog, param specs, the TrackData export and the preview track),
+  `PieceChainBuilder.svelte` (the UI) and `PiecePreview3D.svelte` (the live 3D
+  view).
   - **It owns NO geometry math, and that is the load-bearing rule.** Every
     pose, measurement, and violation comes from the new `diagnoseChain` in
     `track-pieces.ts` — the same walk, the same generators, and the same
@@ -4824,8 +4825,8 @@ on one side of the world.
     COLLECT (attributing each violation to its piece and carrying on, so a
     whole chain's problems show at once); without a sink the behavior is
     byte-identical to before, which is what every track load relies on.
-  - **Numeric readout only this stage, by design:** no 2D canvas, no live 3D.
-    Each row shows its computed exit pose (x, z, y, heading, pitch, bank) plus
+  - **Numbers per piece:** each row shows its computed exit pose
+    (x, z, y, heading, pitch, bank) plus
     that piece's plan length, steepest grade, peak bank, LOWEST SWEPT EDGE Y
     (the number the y = 0 catch plane actually judges), and any corkscrew arch
     or residual raise it applied. Reorder (↑/↓) and remove re-derive everything
@@ -4862,6 +4863,78 @@ on one side of the world.
     on both the centerline and a 4 m offset line; and the exported track
     parked as the custom track drove in the movement harness for 7 laps, best
     21.03 s, upright, matching the committed track's documented pace.
+
+- **Shared track visuals (`src/lib/greenline/track-visual.ts`) + the builder's
+  live 3D preview.** Numbers alone do not answer "what does this corkscrew look
+  like", which is the gap the preview closes and the reason its camera is FREE
+  (orbit / zoom / pan) rather than top-down or chase — bank and spiral only read
+  from an angle you pick.
+  - **The extraction is the point.** `GreenlineRace.svelte` built the ribbon
+    mesh, edge lines, boundary walls and gate panes INLINE; a preview with its
+    own mesh code would be free to disagree with the road the game renders and
+    collides. So the geometry construction moved to `track-visual.ts`
+    (`buildRibbonGeometry` / `edgeLinePoints` / `buildBoundaryGeometry` /
+    `buildGatePane`) and BOTH mount it — the rig-visual.ts convention applied to
+    the track. Geometry there, MATERIALS at the call site: the race dresses its
+    ribbon in worn asphalt under night lighting, the builder wants a lighter
+    readable surface (shading is the author's only cue for grade and bank), and
+    neither should inherit the other's look to share a shape. three.js is passed
+    in rather than imported, so the module carries no static three dependency.
+    Verified byte-identical: positions, UVs, vertex colors, indices, edge-line
+    points and boundary walls all compare `===` against the pre-extraction
+    algorithm across every committed track (450 / 1540 / 220 / 304 ribbon tris).
+  - **One pipeline, nothing recomputed:** the document compiles through
+    `diagnoseChain` (already the builder's source of truth), those exact arrays
+    go to `buildRuntime`, and the meshes come from the shared builders. The
+    preview mesh was measured against the runtime of the COMMITTED
+    piece-proof-01 and matches the driven surface to 7.5e-6 m over all 306
+    vertices — float32 storage precision, i.e. the same surface the physics
+    Trimesh is wound from.
+  - **Reaching a BROKEN chain needed one trick, not a second path.** A v3
+    `pieces` surface cannot carry a broken chain (`parseTrack` compiles it and
+    the compiler throws on the first violation — right for a track load, useless
+    for an author who needs to SEE what they just broke). So `previewTrack`
+    ships `diagnoseChain`'s already-compiled arrays as a verbatim `ribbon`
+    surface. That is not a second geometry path: a ribbon IS a one-piece
+    verbatim `freeform` chain internally (the documented v3 backward-compat
+    contract), so `compileSurface` hands those very arrays straight back and
+    `buildRuntime` sweeps them identically. `deriveFurniture` (spawn, gates,
+    boundaries) is shared with `exportTrack`, so the surroundings an author
+    inspects are the ones the exported file will carry.
+  - **Violations read on the SURFACE, from the same state.** The per-sample
+    `color` attribute the shared builder already writes is overwritten across an
+    offending piece's own sample range — amber for a guardrail break, green for
+    the selected piece — so the flag is a vertex tint on the shared geometry,
+    not a second mesh and not a second check (it reads `diag.issues`). One
+    honest exception, called out in the panel: a piece whose PARAMS are out of
+    range (the bank-past-60 case) is SKIPPED by the compiler walk, so it
+    contributes no geometry at all and cannot be tinted — the panel names it
+    ("not drawn (params out of range): piece N") instead of pretending.
+  - **Commit model, and the Svelte 5 trap it exposed.** Structural edits (add /
+    remove / reorder / freeform paste / load) rebuild the scene immediately; a
+    typed parameter commits on `change` (blur or Enter). The numeric readouts
+    stay live throughout either way. The first attempt gated on a `rev` counter
+    but still rebuilt on every keystroke: reading a prop inside an `$effect`
+    SUBSCRIBES to it, and `doc`/`diag` change on every input event — so the
+    doc/diag reads are wrapped in `untrack` and only `rev` and `selected` are
+    tracked. Verified: typing 7 then 31 into a field left the mesh untouched
+    (same uuid) while the doc read 31; the change event rebuilt it.
+  - **Camera is the author's.** A fit-to-bounds solve (bounding sphere against
+    the tighter half-FOV) frames the track ONCE; later edits never move the
+    camera, since being yanked back after every tweak is the opposite of
+    inspecting a corkscrew. A `Refit` control re-frames on demand.
+  - **Verified** in the browser: the whole 13-piece piece-proof-01 chain renders
+    with its corkscrew climb, banked corner and deck jump legible from arbitrary
+    orbit angles (the selected corkscrew visibly ROLLS — near edge dipping, far
+    edge lifting — through the middle and flattens at the top); a grade-breaking
+    corkscrew renders amber against the grey road with export blocked; a
+    `targetBankDeg: 75` bank flags its row AND reports "not drawn"; reordering
+    the corkscrew after a 30 m straight shifted the rendered elevation profile
+    by exactly that straight's length (the ROAD moved, not just the numbers) and
+    removing a piece dropped the mesh from 306 to 292 vertices. The race itself
+    still renders and drives after the extraction (Terminal Nine: 3 paths, zones
+    firing, cars lapping; Proving Ground 07: 0 falls, 0 floor catches, 5 physics
+    bodies — the flat-track gating intact).
 
 ## Shared feedback box
 

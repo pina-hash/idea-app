@@ -361,17 +361,24 @@ export interface ExportOptions {
 	spawnBackSamples?: number;
 }
 
+/** Everything a compiled chain needs around it to become a raceable track. */
+interface TrackFurniture {
+	spawn: TrackData['spawn'];
+	startFinish: TrackGate;
+	checkpoints: TrackGate[];
+	boundaries: TrackBoundary[];
+}
+
 /**
- * Turn the document into a complete TrackData: the compiled chain as a v3
- * `pieces` surface, plus the spawn, gates, and boundaries that make it
- * raceable. The SURFACE is exported as the authored chain (not the compiled
- * samples) — that is the whole point of v3 — while the gates and boundaries
- * are derived from the compiled geometry, so they always match the shape the
- * compiler actually produces.
+ * Derive the spawn, gates and boundaries from a COMPILED chain. Shared by the
+ * export and the 3D preview so the surroundings an author inspects are the
+ * ones the exported file will carry.
  */
-export function exportTrack(doc: ChainDoc, opts: ExportOptions = {}): TrackData {
-	const diag = diagnoseDoc(doc);
-	const c = diag.chain;
+function deriveFurniture(
+	doc: ChainDoc,
+	c: CompiledChain,
+	opts: ExportOptions = {}
+): TrackFurniture {
 	const n = c.center.length;
 
 	// --- gates: start/finish just after the chain start, checkpoints spread
@@ -438,25 +445,77 @@ export function exportTrack(doc: ChainDoc, opts: ExportOptions = {}): TrackData 
 	const sf = frames[si];
 
 	return {
-		schemaVersion: 3,
-		id: doc.id,
-		name: doc.name,
-		...(doc.description ? { description: doc.description } : {}),
-		units: 'meters',
 		spawn: {
 			x: round2(c.center[si].x),
 			z: round2(c.center[si].z),
 			headingDeg: round2(headingOf(sf.tx, sf.tz))
 		},
+		startFinish,
+		checkpoints,
+		boundaries
+	};
+}
+
+/**
+ * Turn the document into a complete TrackData: the compiled chain as a v3
+ * `pieces` surface, plus the spawn, gates, and boundaries that make it
+ * raceable. The SURFACE is exported as the authored chain (not the compiled
+ * samples) — that is the whole point of v3 — while the gates and boundaries
+ * are derived from the compiled geometry, so they always match the shape the
+ * compiler actually produces.
+ */
+export function exportTrack(doc: ChainDoc, opts: ExportOptions = {}): TrackData {
+	const diag = diagnoseDoc(doc);
+	return {
+		schemaVersion: 3,
+		id: doc.id,
+		name: doc.name,
+		...(doc.description ? { description: doc.description } : {}),
+		units: 'meters',
+		...deriveFurniture(doc, diag.chain, opts),
 		surface: {
 			type: 'pieces',
 			width: doc.width,
 			start: cleanStart(doc.start),
 			pieces: doc.pieces.map(cleanPiece)
-		},
-		startFinish,
-		checkpoints,
-		boundaries
+		}
+	};
+}
+
+/**
+ * The SAME compiled chain as a track the 3D preview can build a runtime from,
+ * even while the chain is breaking a guardrail.
+ *
+ * A v3 `pieces` surface cannot carry a broken chain: `parseTrack` compiles it
+ * and the compiler throws on the first violation, which is right for a track
+ * load and useless for an author who needs to SEE what they just broke. So the
+ * preview ships `diagnoseChain`'s already-compiled arrays as a verbatim
+ * `ribbon` surface. This is not a second geometry path: a ribbon IS a one-piece
+ * verbatim `freeform` chain internally (the documented v3 backward-compat
+ * contract), so `compileSurface` hands these very arrays straight back and
+ * `buildRuntime` sweeps them exactly as it sweeps the pieces surface. Same
+ * numbers, same sweep, same mesh — reachable while the chain is still invalid.
+ *
+ * Returns null when there is not yet enough chain to build a track from.
+ */
+export function previewTrack(doc: ChainDoc, diag: ChainDiagnostics): TrackData | null {
+	const c = diag.chain;
+	if (c.center.length < 3) return null;
+	return {
+		schemaVersion: 2,
+		id: `${doc.id}-preview`,
+		name: doc.name,
+		units: 'meters',
+		...deriveFurniture(doc, c),
+		surface: {
+			type: 'ribbon',
+			width: c.width,
+			widths: c.widths,
+			elevations: c.elevations,
+			banking: c.banking,
+			closed: c.closed,
+			centerline: c.center.map((p) => ({ x: p.x, z: p.z }))
+		}
 	};
 }
 

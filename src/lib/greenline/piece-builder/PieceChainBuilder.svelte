@@ -17,23 +17,25 @@
 		type ChainDoc,
 		type PieceKind
 	} from './chain-doc';
+	import PiecePreview3D from './PiecePreview3D.svelte';
 	import type { TrackPiece, TrackVec2 } from '../track-schema';
 
 	/**
-	 * GREENLINE // PIECE CHAIN BUILDER, stage 1 (dev tool).
+	 * GREENLINE // PIECE CHAIN BUILDER (dev tool).
 	 *
 	 * Authors schema-v3 `pieces` tracks: pick a kind, set its params, append it,
 	 * read the computed exit pose, reorder or remove, export droppable
-	 * TrackData. Numeric readout only by design — no 2D canvas and no live 3D
-	 * this stage; the numbers ARE the deliverable, and they come from the
-	 * compiler rather than from a preview.
+	 * TrackData — beside a live orbitable 3D view of the road it compiles to,
+	 * because a corkscrew's shape and a corner's bank do not read from numbers.
 	 *
 	 * The load-bearing rule: every pose, measurement, and violation shown here
 	 * comes from `diagnoseChain` in track-pieces.ts — the same walk, the same
 	 * generators, and the same guardrails `parseTrack` runs when the game loads
 	 * a track. Nothing about the geometry is reimplemented here, so the builder
 	 * cannot tell an author something the game would disagree with. Export is
-	 * blocked while any guardrail is broken.
+	 * blocked while any guardrail is broken, and the 3D view feeds that same
+	 * compiled output into the SHARED track-visual mesh builders the race scene
+	 * mounts, so the previewed road is by construction the road the game sweeps.
 	 *
 	 * `window.__glPieceBuilder` drives the whole thing from the console (the
 	 * `__greenline` / `__glBuilder` convention), which is how it is verified.
@@ -44,6 +46,16 @@
 	let showJson = $state(false);
 	let copied = $state('');
 	let ready = $state(false);
+	/**
+	 * COMMIT counter for the 3D view. Rebuilding a scene is cheap at this scale
+	 * but not free, and rebuilding it on every digit of a number field would
+	 * both thrash and flicker — so structural edits (add / remove / reorder /
+	 * freeform paste) bump this immediately, while a typed parameter commits on
+	 * change (blur or Enter). The numeric readouts stay live throughout either
+	 * way; only the render waits for the commit.
+	 */
+	let commitRev = $state(0);
+	const commit = () => (commitRev += 1);
 
 	const diag = $derived(diagnoseDoc(doc));
 	const summary = $derived(summarize(diag));
@@ -65,6 +77,7 @@
 		const stored = loadDoc();
 		if (stored) doc = stored;
 		ready = true;
+		commit();
 		const api = {
 			get doc() {
 				return doc;
@@ -81,9 +94,11 @@
 			exportTrack: () => (diag.ok && doc.pieces.length ? exportTrack(doc) : null),
 			setMeta: (patch: Partial<ChainDoc>) => {
 				doc = { ...doc, ...patch };
+				commit();
 			},
 			setStart: (patch: Partial<ChainDoc['start']>) => {
 				doc = { ...doc, start: { ...doc.start, ...patch } };
+				commit();
 			},
 			addPiece: (kind: PieceKind, params?: Record<string, unknown>) => {
 				addPiece(kind);
@@ -97,10 +112,12 @@
 			clear: () => {
 				doc = { ...doc, pieces: [] };
 				selected = -1;
+				commit();
 			},
 			load: (next: ChainDoc) => {
 				doc = { ...emptyDoc(), ...next, start: { ...emptyDoc().start, ...next.start } };
 				selected = -1;
+				commit();
 			},
 			exitPose: (i: number) => diagFor(i)?.exit ?? null
 		};
@@ -122,26 +139,30 @@
 		next.splice(at, 0, piece);
 		doc = { ...doc, pieces: next };
 		selected = at;
+		commit();
 	}
 
-	function setParams(i: number, params: Record<string, unknown>) {
+	function setParams(i: number, params: Record<string, unknown>, render = true) {
 		const next = [...doc.pieces];
 		next[i] = { ...next[i], ...params } as TrackPiece;
 		doc = { ...doc, pieces: next };
+		if (render) commit();
 	}
 
-	function setParam(i: number, key: string, raw: string) {
+	/** `render` false while typing; the commit (change/blur) rebuilds the view. */
+	function setParam(i: number, key: string, raw: string, render = false) {
 		if (raw.trim() === '') {
 			const next = [...doc.pieces];
 			const copy = { ...next[i] } as Record<string, unknown>;
 			delete copy[key];
 			next[i] = copy as unknown as TrackPiece;
 			doc = { ...doc, pieces: next };
+			if (render) commit();
 			return;
 		}
 		const v = Number(raw);
 		if (!Number.isFinite(v)) return;
-		setParams(i, { [key]: v });
+		setParams(i, { [key]: v }, render);
 	}
 
 	function movePiece(i: number, dir: -1 | 1) {
@@ -152,12 +173,14 @@
 		doc = { ...doc, pieces: next };
 		if (selected === i) selected = j;
 		else if (selected === j) selected = i;
+		commit();
 	}
 
 	function removePiece(i: number) {
 		const next = doc.pieces.filter((_, k) => k !== i);
 		doc = { ...doc, pieces: next };
 		if (selected >= next.length) selected = next.length - 1;
+		commit();
 	}
 
 	/** Freeform geometry is edited as raw JSON: it IS verbatim world data. */
@@ -187,6 +210,7 @@
 			next[i] = { kind: 'freeform', ...parsed } as TrackPiece;
 			doc = { ...doc, pieces: next };
 			freeformError = '';
+			commit();
 		} catch (e) {
 			freeformError = e instanceof Error ? e.message : String(e);
 		}
@@ -218,11 +242,17 @@
 <div class="pb-root">
 	<header class="pb-head">
 		<span class="pb-title">GREENLINE // PIECE CHAIN BUILDER</span>
-		<span class="pb-sub">schema v3 · stage 1 · numeric</span>
+		<span class="pb-sub">schema v3 · numeric + live 3D</span>
 		<span class="pb-flag" class:ok={diag.ok && doc.pieces.length > 0} data-testid="chain-status">
 			{doc.pieces.length === 0 ? 'EMPTY' : diag.ok ? 'VALID' : `${diag.issues.length} ISSUE${diag.issues.length === 1 ? '' : 'S'}`}
 		</span>
 	</header>
+
+	<!-- ---------------- 3D preview ---------------- -->
+	<section class="pb-col pb-preview">
+		<h3>3D preview</h3>
+		<PiecePreview3D {doc} {diag} rev={commitRev} {selected} />
+	</section>
 
 	<div class="pb-body">
 		<!-- ---------------- chain ---------------- -->
@@ -241,6 +271,7 @@
 								const v = Number((e.currentTarget as HTMLInputElement).value);
 								if (Number.isFinite(v)) doc = { ...doc, start: { ...doc.start, [key]: v } };
 							}}
+							onchange={commit}
 						/>
 					</label>
 				{/each}
@@ -257,6 +288,7 @@
 							const v = Number((e.currentTarget as HTMLInputElement).value);
 							if (Number.isFinite(v)) doc = { ...doc, width: v };
 						}}
+						onchange={commit}
 					/>
 				</label>
 			</div>
@@ -362,6 +394,8 @@
 													value={(piece as unknown as Record<string, number>)[spec.key] ?? ''}
 													placeholder="inherit"
 													oninput={(e) => setParam(i, spec.key, (e.currentTarget as HTMLInputElement).value)}
+												onchange={(e) =>
+													setParam(i, spec.key, (e.currentTarget as HTMLInputElement).value, true)}
 												/>
 											</label>
 										{/each}
@@ -543,6 +577,9 @@
 		border: 1px solid #16212c;
 		background: #070b11;
 		padding: 0.7rem;
+	}
+	.pb-preview {
+		margin-top: 0.6rem;
 	}
 	.pb-grid {
 		display: flex;
