@@ -11,12 +11,20 @@
 	 */
 	const {
 		onStart,
+		onBuilder,
 		onSettings,
 		onFeedback,
 		trackName = 'Proving Ground 07',
 		enableShortcut = true
 	}: {
 		onStart: () => void;
+		/**
+		 * Optional: renders the TRACK EDITOR entry under START (Bundle 4a — the
+		 * builder is open to every signed-in player now, and the title screen is
+		 * its front door). Quieter than START on purpose: racing stays the
+		 * primary action.
+		 */
+		onBuilder?: () => void;
 		/** Optional: renders a gear button that opens the settings overlay. */
 		onSettings?: () => void;
 		/** Optional: renders a button that opens the host's feedback box. */
@@ -69,6 +77,9 @@
 			<span class="tt-start-label">START</span>
 			<span class="tt-start-hint">ENTER</span>
 		</button>
+		{#if onBuilder}
+			<button class="tt-builder" onclick={onBuilder}>TRACK EDITOR</button>
+		{/if}
 	</div>
 
 	<div class="tt-foot">
@@ -200,6 +211,9 @@
 		   transform property once the entrance finished playing. */
 		.tt-start {
 			animation: tt-fade 0.6s 1.02s ease-out both;
+		}
+		.tt-builder {
+			animation: tt-fade 0.6s 1.14s ease-out both;
 		}
 	}
 	@keyframes tt-sheen-sweep {
@@ -367,6 +381,38 @@
 		outline: none;
 	}
 	.tt-start:active {
+		transform: translateY(1px);
+	}
+	/* The builder entry: same machined language as START, deliberately quieter
+	   (smaller, steel) — authoring is the second door, racing the first. */
+	.tt-builder {
+		margin-top: 0.7rem;
+		padding: 0.42rem 1.6rem;
+		background: linear-gradient(180deg, rgba(16, 21, 27, 0.75), rgba(7, 10, 13, 0.85));
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		cursor: pointer;
+		color: var(--glb-steel);
+		font: 600 0.68rem var(--glb-font-ui);
+		letter-spacing: 0.42em;
+		text-indent: 0.42em;
+		line-height: 1;
+		box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+		transition:
+			border-color 160ms ease,
+			color 160ms ease,
+			box-shadow 160ms ease;
+	}
+	.tt-builder:hover,
+	.tt-builder:focus-visible {
+		color: var(--glb-chrome-hi);
+		border-color: rgba(42, 229, 126, 0.6);
+		box-shadow:
+			0 0 0 1px rgba(42, 229, 126, 0.18),
+			0 6px 18px rgba(0, 0, 0, 0.5);
+		outline: none;
+	}
+	.tt-builder:active {
 		transform: translateY(1px);
 	}
 	.tt-foot {

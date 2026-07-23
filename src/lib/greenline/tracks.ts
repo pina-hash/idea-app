@@ -24,11 +24,12 @@ import terminalNineJson from './tracks/terminal-nine.json';
  * purpose-built proof segment kept selectable because driving it is the
  * fastest way to check a physics feature by hand. `custom` is a track authored
  * in the builder and parked in this browser for a test drive — never a
- * permanent one. The picker labels all three rather than hiding the
- * difference: a player who picks the test segment (or a half-finished authored
- * loop) should know that is what they chose.
+ * permanent one. `community` is a PUBLISHED player-authored track fetched from
+ * the greenline_tracks table (Bundle 4a). The picker labels all of them rather
+ * than hiding the difference: a player who picks the test segment (or a
+ * half-finished authored loop) should know that is what they chose.
  */
-export type TrackKind = 'circuit' | 'test' | 'custom';
+export type TrackKind = 'circuit' | 'test' | 'custom' | 'community';
 
 export interface TrackEntry {
 	/** TrackData.id — the stable slug used by results, the board, and telemetry. */
@@ -96,8 +97,9 @@ export const CUSTOM_TRACK_ID = 'custom-builder';
  */
 export const CUSTOM_TRACK_KEY = 'greenline_custom_track';
 
-/** Lap distance of a parsed track, for the picker's readout. */
-function lapLengthM(data: TrackData): number {
+/** Lap distance of a parsed track, for the picker's readout. Exported for the
+ * publish endpoint, which stamps it onto the row at publish time. */
+export function lapLengthM(data: TrackData): number {
 	const c = data.surface.centerline;
 	let total = 0;
 	for (let i = 1; i < c.length; i++) total += Math.hypot(c[i].x - c[i - 1].x, c[i].z - c[i - 1].z);
@@ -156,14 +158,95 @@ export function customTrackData(): TrackData | null {
 	return e ? (e.raw as TrackData) : null;
 }
 
+/* ------------------------------------------------------------------ */
+/* published community tracks (Bundle 4a)                              */
+/* ------------------------------------------------------------------ */
+
 /**
- * Every selectable track: the permanent catalog, plus the builder's parked
- * track when one exists. The custom entry is appended last so it reads as the
- * extra it is.
+ * Catalog-id namespace for published community tracks: `community:<uuid>`,
+ * where the uuid is the greenline_tracks row's primary key. The uuid is the
+ * STABLE identity — results, attempts, and (once featured, Bundle 4b) ranked
+ * leaderboard rows all key on this id, which survives the track's own data
+ * being re-read or its display name changing.
+ */
+export const COMMUNITY_TRACK_PREFIX = 'community:';
+
+export const communityTrackId = (uuid: string): string => COMMUNITY_TRACK_PREFIX + uuid;
+
+export const isCommunityTrackId = (id: string | null | undefined): boolean =>
+	typeof id === 'string' && id.startsWith(COMMUNITY_TRACK_PREFIX);
+
+/** The row uuid inside a `community:<uuid>` catalog id (or null). */
+export const communityTrackUuid = (id: string | null | undefined): string | null =>
+	isCommunityTrackId(id) ? (id as string).slice(COMMUNITY_TRACK_PREFIX.length) : null;
+
+/**
+ * Registered community entries, keyed by catalog id. An entry is registered
+ * from the browse list with `raw: null` (a placeholder: the full TrackData is
+ * fetched lazily, only when the track is actually selected), then completed by
+ * `attachCommunityTrackData`. `loadTrack` on a placeholder falls back to the
+ * default track — which is why the race flow awaits the attach before
+ * mounting a community race.
+ */
+const communityRegistry = new Map<string, TrackEntry>();
+
+/** Replace the registered community list (called after each browse fetch).
+ * Entries whose data was already attached keep it. */
+export function registerCommunityTracks(
+	list: { id: string; name: string; authorName: string; lengthM: number | null }[]
+): void {
+	const keep = new Map<string, TrackEntry>();
+	for (const item of list) {
+		const prev = communityRegistry.get(item.id);
+		keep.set(item.id, {
+			id: item.id,
+			name: item.name,
+			tagline: `Community track by ${item.authorName}.`,
+			lengthM: item.lengthM ?? prev?.lengthM ?? 0,
+			kind: 'community',
+			raw: prev?.raw ?? null
+		});
+	}
+	// Drop entries no longer listed (removed tracks), including their parse cache.
+	for (const id of communityRegistry.keys()) {
+		if (!keep.has(id)) parsed.delete(id);
+	}
+	communityRegistry.clear();
+	for (const [id, e] of keep) communityRegistry.set(id, e);
+}
+
+/** Attach a fetched + parseTrack-validated TrackData to a registered entry. */
+export function attachCommunityTrackData(id: string, data: TrackData): void {
+	const entry = communityRegistry.get(id);
+	if (entry) {
+		entry.raw = data;
+		entry.lengthM = lapLengthM(data);
+	} else {
+		communityRegistry.set(id, {
+			id,
+			name: data.name || 'Community track',
+			tagline: 'Community track.',
+			lengthM: lapLengthM(data),
+			kind: 'community',
+			raw: data
+		});
+	}
+	parsed.delete(id);
+}
+
+/** Whether a community track's full data is ready to race. */
+export function communityTrackReady(id: string): boolean {
+	return communityRegistry.get(id)?.raw != null;
+}
+
+/**
+ * Every selectable track: the permanent catalog, the builder's parked track
+ * when one exists, then any registered community tracks. The extras are
+ * appended after the officials so they read as the extras they are.
  */
 export function allTracks(): TrackEntry[] {
 	const custom = ensureCustom();
-	return custom ? [...TRACKS, custom] : TRACKS;
+	return [...TRACKS, ...(custom ? [custom] : []), ...communityRegistry.values()];
 }
 
 export function trackEntry(id: string | null | undefined): TrackEntry {
@@ -179,10 +262,14 @@ const parsed = new Map<string, TrackData>();
  * Resolve a track id to validated TrackData. Unknown ids fall back to the
  * default track rather than throwing: a stale stored selection (a track
  * removed between sessions, or a builder track cleared out of this browser)
- * must never strand a player on a dead screen.
+ * must never strand a player on a dead screen. A registered community entry
+ * whose data has not been attached yet resolves to the default track too —
+ * the race flow awaits `attachCommunityTrackData` before mounting, so this
+ * path only catches a stale selection racing ahead of the fetch.
  */
 export function loadTrack(id: string | null | undefined): TrackData {
 	const entry = trackEntry(id);
+	if (entry.raw == null) return loadTrack(DEFAULT_TRACK_ID);
 	const hit = parsed.get(entry.id);
 	if (hit) return hit;
 	const data = parseTrack(entry.raw);

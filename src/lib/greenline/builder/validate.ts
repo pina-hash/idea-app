@@ -18,7 +18,7 @@
  * self-overlap) — warnings, not load failures.
  */
 
-import { buildRuntime, LapTracker, type TrackRuntime } from '../track-runtime';
+import { buildRuntime, LapTracker, surfaceState, type TrackRuntime } from '../track-runtime';
 import { parseTrack, type TrackData, type TrackGate, type TrackVec2 } from '../track-schema';
 import {
 	DECK_EDGE_M,
@@ -546,6 +546,122 @@ export function validateCompiled(c: CompiledTrack): ValidationReport {
 	}
 
 	return { checks, ok: !checks.some((k) => k.status === 'fail'), json };
+}
+
+/* ------------------------------------------------------------------------ */
+/* Publish validation (community tracks)                                     */
+/* ------------------------------------------------------------------------ */
+
+/** Hard ceiling on total centerline samples across every path: a real track is
+ * a few hundred points, so this only stops a hostile payload from making the
+ * serverless publish endpoint sweep megabytes of geometry. */
+const PUBLISH_MAX_POINTS = 20000;
+
+export interface PublishValidation {
+	ok: boolean;
+	/** Human-readable reasons, empty when ok. */
+	errors: string[];
+	/** The validated TrackData (parseTrack output) when ok, else null. */
+	track: TrackData | null;
+}
+
+/**
+ * The authoritative gate a track must pass before it may be PUBLISHED as a
+ * community track. Runs server-side in the publish endpoint AND in dev
+ * harnesses, on the raw submitted JSON — deliberately the SAME real code paths
+ * `validateCompiled` gates on, applied to raw TrackData (no builder document
+ * needed): `parseTrack` (the exact load-time validator), `buildRuntime` (the
+ * exact 3D sweep), the catch-plane clearance read off the runtime's own edges,
+ * the branch join endpoint match, a real `surfaceState` drive down every
+ * path's centerline, and a real `LapTracker` drive of every lap route. The
+ * compiled-document lints (grade, run-off margins, self-overlap) are advisory
+ * warnings in the builder and are not publish gates.
+ *
+ * A track that fails ANY of these is rejected outright — never stored with a
+ * warning — because every other player's game client will load what publish
+ * accepts.
+ */
+export function validatePublishTrack(raw: unknown): PublishValidation {
+	const errors: string[] = [];
+
+	// 1. The real load-time validator.
+	let track: TrackData | null = null;
+	try {
+		track = parseTrack(typeof raw === 'string' ? JSON.parse(raw) : raw);
+	} catch (e) {
+		errors.push(`parseTrack: ${e instanceof Error ? e.message : String(e)}`);
+		return { ok: false, errors, track: null };
+	}
+
+	// 2. The real runtime sweep.
+	let rt: TrackRuntime | null = null;
+	try {
+		rt = buildRuntime(track);
+	} catch (e) {
+		errors.push(`buildRuntime: ${e instanceof Error ? e.message : String(e)}`);
+		return { ok: false, errors, track: null };
+	}
+
+	const totalPts = rt.paths.reduce((n, p) => n + p.center.length, 0);
+	if (totalPts > PUBLISH_MAX_POINTS) {
+		errors.push(`track too large: ${totalPts} centerline samples (max ${PUBLISH_MAX_POINTS})`);
+		return { ok: false, errors, track: null };
+	}
+
+	// 3. Catch-plane clearance, off the runtime's own 3D edges (the banked
+	// authoring rule's OUTCOME — same threshold as the builder's check).
+	let minY = Infinity;
+	for (const p of rt.paths) {
+		for (const q of p.leftEdge3) if (q.y < minY) minY = q.y;
+		for (const q of p.rightEdge3) if (q.y < minY) minY = q.y;
+	}
+	if (minY < -0.01)
+		errors.push(`ribbon edge dips below the y=0 catch plane (min edge y ${minY.toFixed(3)} m)`);
+
+	// 4. Branch join geometry: endpoints must sit ON the main centerline.
+	const s = track.surface;
+	for (const b of s.branches ?? []) {
+		const a0 = s.centerline[b.joinStart];
+		const a1 = s.centerline[b.joinEnd];
+		const b0 = b.centerline[0];
+		const b1 = b.centerline[b.centerline.length - 1];
+		const worst = Math.max(
+			Math.hypot(a0.x - b0.x, a0.z - b0.z),
+			Math.hypot(a1.x - b1.x, a1.z - b1.z)
+		);
+		if (worst >= 0.02)
+			errors.push(`branch ${b.id}: join endpoints miss the main centerline by ${worst.toFixed(3)} m`);
+	}
+
+	// 5. Every path's centerline drives clean through the real surfaceState:
+	// on-ribbon the whole way, zero wall violations.
+	rt.paths.forEach((p, pi) => {
+		let warmIdx = 0;
+		let warmPath = pi;
+		let offRibbon = 0;
+		let violations = 0;
+		for (const pt of p.center) {
+			const r = surfaceState(rt, pt.x, pt.z, warmIdx, warmPath);
+			warmIdx = r.warmIndex;
+			warmPath = r.path;
+			if (!r.state.onRibbon) offRibbon++;
+			if (r.state.violation) violations++;
+		}
+		if (offRibbon || violations)
+			errors.push(
+				`path ${pi} centerline does not drive clean: ${violations} wall violation(s), ${offRibbon} off-ribbon of ${p.center.length}`
+			);
+	});
+
+	// 6. Every lap route completes through the real LapTracker.
+	for (const sim of simulateRoutes(rt, track.spawn)) {
+		if (sim.laps < 1)
+			errors.push(
+				`lap route ${sim.route} never completes a lap (${sim.rejected} rejection(s)) — ${sim.sequence || 'no gate events'}`
+			);
+	}
+
+	return errors.length ? { ok: false, errors, track: null } : { ok: true, errors: [], track };
 }
 
 /** On-ribbon test against the runtime, for zone placement. */

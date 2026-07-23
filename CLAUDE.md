@@ -158,6 +158,17 @@ never breaks the build and the page degrades gracefully):
 - `PUBLIC_FSP_APPS_SCRIPT_URL` — the Apps Script endpoint the FSP tech-selection
   tool posts to (see "FSP tech selection" below).
 
+One var is SERVER-ONLY, read via `$env/dynamic/private` (runtime; never in the
+client bundle; a missing value degrades to a clear "not configured" response,
+never a build break):
+
+- `SUPABASE_SERVICE_ROLE_KEY` — used ONLY by the GREENLINE community-track
+  publish endpoint (`/api/greenline-track-publish`), which must run the game's
+  real track validation in Node before any row is written (there is
+  deliberately no client write path to `greenline_tracks`). Set it in the
+  Vercel project env for production. This is the repo's first private server
+  key; nothing else may read it, and it must never gain a `PUBLIC_` prefix.
+
 See `.env.example`. **Never hardcode keys.** Never commit `.env`.
 
 ## 2026-27 curriculum
@@ -4431,6 +4442,11 @@ on one side of the world.
   - **Still deliberately NOT built:** props / scenery authoring, and nested
     forks (a branch may not contain another fork or a second merge).
 - **Track builder: teacher-gated on the live site, plus one-click Test Drive.**
+  (The teacher gate + hidden `/dev` location in this bullet are SUPERSEDED by
+  the community-tracks bullet below: the builder now lives at
+  `/greenline/builder`, open to any signed-in user and linked from the title
+  screen. The Test Drive mechanics, the parked-track store, and the picker
+  behavior described here are unchanged.)
   The builder is a real authoring tool, so it had to leave the dev-only tier
   without becoming discoverable.
   - **Access.** `/dev/greenline-track-builder` swapped its
@@ -4481,6 +4497,122 @@ on one side of the world.
     Terminal Nine afterwards still loaded its own 3 paths unaffected.
     **Not verifiable without the user's own login:** the live teacher-session
     render and the `?race=1` landing, since both need real Google OAuth.
+
+- **Community tracks: publish / browse / rate / report + per-attempt telemetry
+  (Bundle 4a, migration `0057`).** Any signed-in player can publish a
+  builder-authored track for everyone, and race anyone else's — unranked
+  (featuring, which makes a community track ranked, is Bundle 4b).
+  - **Builder opened + relocated.** The real route is `/greenline/builder`
+    (thin wrapper over `TrackBuilder`), auth by the standard `/greenline`
+    authed prefix, ANY role — the teacher-only 404 guard is retired. Entry
+    point: a quieter **TRACK EDITOR** button under START on the GREENLINE
+    title screen (`GreenlineTitle`'s optional `onBuilder`).
+    `/dev/greenline-track-builder` stays as the dev harness (plain dev-404
+    guard again) and wires an in-memory publish fake that runs the REAL
+    `validatePublishTrack`, so the publish UI incl. real rejection copy is
+    drivable without auth.
+  - **Publish is a SvelteKit endpoint, deliberately NOT a client RPC.**
+    `POST /api/greenline-track-publish` is the ONE write path into
+    `greenline_tracks`, because authoritative validation is
+    `validatePublishTrack` (`src/lib/greenline/builder/validate.ts`): the
+    SAME real code paths the builder's own report FAILs on, applied to raw
+    TrackData — `parseTrack`, `buildRuntime`, the catch-plane edge scan, the
+    branch-join endpoint match, a real `surfaceState` drive down every path's
+    centerline, and a real `LapTracker` drive of every lap route (the
+    compiled-document lints stay builder-side advisories). A failing
+    submission is rejected outright (400 + reasons), never stored. The
+    endpoint also requires a session (401 first), a non-empty name (cap 60,
+    mirrored by the SQL CHECK), caps the body at 1.5 MB and total centerline
+    samples at 20k (hostile-payload ceilings), stamps `author_name`
+    server-side from `profiles` (display_name -> full_name -> email local
+    part; never client-submitted), computes `length_m` from the validated
+    data, and inserts with the server-only `SUPABASE_SERVICE_ROLE_KEY` (see
+    Environment). There is NO authenticated insert grant and NO publish RPC —
+    either would be a validation bypass. The builder's PUBLISH button (an
+    optional `onPublish` seam on `TrackBuilder`) is gated on its own report
+    passing, purely as UX; the server re-validates regardless.
+  - **Data model (0057, apply manually after 0056):** `greenline_tracks`
+    (author snapshot + `data` jsonb + `length_m` + `featured` default false
+    for 4b + soft `removed` + `report_count`), `greenline_track_reports`
+    (PK `(track_id, reporter_id)` = one report per user per track),
+    `greenline_track_ratings` (PK `(track_id, user_id)`, 1-5, upsert so a
+    re-rate CHANGES the row), `greenline_track_attempts` (ONE ROW PER
+    ATTEMPT: `completed`, `completion_time_ms`, `wall_violations`,
+    `started_at`/`finished_at`; a never-finished row is an abandoned run,
+    distinct from an explicit fail). Telemetry aggregates (avg rating,
+    completion rate, unique racers, avg time, avg wall violations) are
+    DERIVED at query time by the SECURITY DEFINER `greenline_track_list()`
+    RPC (one round trip, board-safe columns + caller fields
+    mine/my_rating/can_rate/reported) — never pre-aggregated counters
+    (`report_count` is the one deliberate exception, bumped transactionally
+    with a genuinely-new report). Reads: non-removed rows to any signed-in
+    user (authors see their own removed rows, teachers all); ratings public
+    to signed-in; reports/attempts own-rows + teachers. ALL writes are
+    definer RPCs pinned to `auth.uid()`: `greenline_track_report`
+    (idempotent), `greenline_track_remove` (author OR `is_teacher()`, soft —
+    history/ratings/attempts/board rows all kept),
+    `greenline_track_rate` (server-checks a COMPLETED attempt in the
+    attempts table, never self-reported), `greenline_track_attempt_start` /
+    `_finish` (called by the race flow itself at start and finish/quit; a
+    second finish on the same row is a no-op).
+  - **Catalog + race path.** Community catalog ids are `community:<uuid>`
+    (the row uuid is the STABLE identity results/attempts key on; it
+    survives data re-reads and renames). `tracks.ts` gains a community
+    registry: `registerCommunityTracks` (placeholder entries from the browse
+    list, no geometry), `attachCommunityTrackData` (lazy fetch on selection,
+    validated through `parseTrack`, row name wins for display), `loadTrack`
+    falls back to the default until attached — and `startRace` AWAITS the
+    attach so a community race can never silently mount the fallback. The
+    garage GARAGE tab lists community tiles under a "Community tracks ·
+    unranked" divider (COMMUNITY tag, ★ average + rating count, finish rate,
+    author byline, REPORT once -> REPORTED, two-step REMOVE on your own),
+    all presentation-only props (`communityMeta` keyed by catalog id +
+    `onReportTrack`/`onRemoveTrack`). Racing one runs the completely
+    unmodified race path, forced through the existing creative/unranked
+    submit branch (`creative: ... || isCommunityTrackId(raceTrackId)`), but
+    STILL opens/closes a real attempt row so telemetry accumulates from
+    unranked play; quitting closes it as not-completed with the wall count
+    (browser-close leaves it unfinished = abandoned). The results screen
+    shows "COMMUNITY TRACK · unranked · no IC earned" and a RATE THIS TRACK
+    star row (`GreenlineResults` `rating`/`onRate`/`ratingStatus` props):
+    disabled until the server has a completed attempt, upsert on re-click.
+  - **Wall-violation telemetry** (`GreenlineRace`): the player's soft-wall
+    contacts are counted as boundary-violation ENTRY edges with a 1 s re-arm
+    (the push-out jitter never machine-guns the count), MOUNT-scoped so
+    mid-race round restarts accumulate into the one attempt. Rides
+    `RaceOutcome.wallViolations`, the pause-menu `onQuit(info)` payload
+    (existing callers ignoring the arg are unchanged), and
+    `__greenline.getTelemetry().wallViolations`.
+  - **Client seam** `src/lib/greenline/community.ts` (the persistence.ts
+    convention, all fail-soft): pre-0057 / offline the garage simply shows
+    no community section, publish reports its error, attempts/ratings no-op.
+  - **Verified** (0 svelte-check errors): the REAL validator rejects garbage
+    JSON, wrong-shaped objects, and structurally-broken tracks with real
+    parseTrack reasons, and the signed-out endpoint probe returns 401 before
+    anything else; in `/dev/greenline-portal` (in-memory store mirroring the
+    0057 semantics, driving the REAL Garage/Results/registry + a two-user
+    switch): publish as A -> visible + selectable as B, corrupt publish
+    stores nothing, rating BLOCKED before any completed attempt AND after a
+    failed one, allowed after a completed one, re-rate upserts (count stays
+    1), report dedupes (count 1 after two clicks, REPORTED ✓), B cannot
+    remove A's track, A's two-step self-remove delists it while the raw
+    store keeps history, and the live race view mounts the ATTACHED
+    community geometry (not the fallback) through the unmodified race path;
+    in `/dev/greenline-movement?glheadless=1`: the wall counter reads 0 ->
+    1 on a real boundary breach, stays 1 through rapid in/out jitter, 2
+    after a clean re-entry + second breach, and the official-track AI field
+    still races normally (79-104 m / 4 s, checkpoints advancing). The
+    builder publish flow was driven end to end in its harness (disabled on
+    a failing report, success through the real validator on a valid
+    circuit). **Not verifiable without live credentials:** the real 0057
+    SQL against a live Supabase (applied manually per convention) and the
+    signed-in publish round trip on `ideabosco.com` (needs the service key
+    + Google OAuth).
+  - **Observation, pre-existing and not touched here:** a plain 4-corner
+    convex rectangle of curve pieces can fail the builder's own
+    "drives clean (real surfaceState)" check (the generated infield
+    boundary folds on such shapes); mixed-piece circuits (the stage-1
+    recipe) pass all checks. Worth knowing before authoring test content.
 
 ## Shared feedback box
 

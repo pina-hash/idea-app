@@ -20,6 +20,22 @@
 		 * actually poses; a per-lap series is a later phase's job.
 		 */
 		route: string;
+		/**
+		 * Soft-wall violation count for the PLAYER over this race mount
+		 * (community-track telemetry, Bundle 4a): boundary-contact ENTRY edges
+		 * with a 1 s re-arm so the soft wall's push-out jitter never
+		 * machine-guns the count. Accumulates across mid-race round restarts
+		 * on purpose — the attempt being recorded is the whole session on the
+		 * track, and "how often did this track put me in a wall" is exactly
+		 * what the per-track telemetry wants to know.
+		 */
+		wallViolations: number;
+	}
+
+	/** What the pause menu's QUIT hands the host (an abandoned attempt still
+	 * reports its wall-violation telemetry). */
+	export interface QuitInfo {
+		wallViolations: number;
 	}
 
 	/**
@@ -276,9 +292,12 @@
 		/**
 		 * Leave the race from the pause menu (Phase 8e). When omitted the pause
 		 * menu still opens (resume / restart), it just offers no way out — the
-		 * dev harness has no screen to quit TO.
+		 * dev harness has no screen to quit TO. The QuitInfo argument (Bundle
+		 * 4a) carries the run's wall-violation count so the host can close an
+		 * abandoned community-track attempt with real telemetry; existing
+		 * callers that ignore the argument are unchanged.
 		 */
-		onQuit?: () => void;
+		onQuit?: (info: QuitInfo) => void;
 		/**
 		 * Open the host's feedback box from the pause menu. The race deliberately
 		 * does not own the feedback UI: the parent already mounts ONE FeedbackBox
@@ -778,6 +797,10 @@
 	let paused = $state(false);
 	let pausedAccumMs = 0;
 	let pauseStartedAt = 0;
+	// Read the mount-scope wall-violation tally from the template (the pause
+	// menu's QUIT hands it to the host). Assigned in onMount, the
+	// applyEnvironment convention: a safe zero before the sim exists.
+	let quitWallViolations: () => number = () => 0;
 	/**
 	 * The simulation clock: real time minus time spent paused. While paused it
 	 * is genuinely FROZEN, not merely offset — the tick early-returns so nothing
@@ -5477,6 +5500,16 @@
 				let playerRaceStartMs: number | null = null;
 				let finishReported = false;
 				let prevMs = gameNow();
+				// Player wall-violation tally (Bundle 4a telemetry). MOUNT-scoped on
+				// purpose — resetRound does NOT clear it, because the recorded
+				// attempt is the whole session on this track, restarts included (see
+				// RaceOutcome.wallViolations). Entry-edge counted with a 1 s re-arm
+				// so the soft wall's in/out jitter while it pushes the car back
+				// never counts one contact repeatedly.
+				let playerWallViolations = 0;
+				let playerWallActive = false;
+				let playerWallRearmAtMs = 0;
+				quitWallViolations = () => playerWallViolations;
 
 				const syncHud = () => {
 					hud.timing = player.tracker.timing;
@@ -6572,6 +6605,8 @@
 						// Per-round weapon / flip / fall / zone counters (reset by
 						// resetRound).
 						getTelemetry: () => ({
+							// Mount-scoped (survives resetRound), see RaceOutcome.wallViolations.
+							wallViolations: playerWallViolations,
 							fire: { ...testStats.fire },
 							hit: { ...testStats.hit },
 							ram: testStats.ram,
@@ -7194,6 +7229,19 @@
 							);
 						}
 						const viol = surf.state.violation;
+						// Wall-violation telemetry (player only, entry edge + re-arm).
+						if (rig === player) {
+							if (viol) {
+								const nowW = gameNow();
+								if (!playerWallActive && nowW >= playerWallRearmAtMs) {
+									playerWallViolations++;
+									playerWallRearmAtMs = nowW + 1000;
+								}
+								playerWallActive = true;
+							} else {
+								playerWallActive = false;
+							}
+						}
 						if (viol) {
 							const k = num(tuning.wallSpring, DEFAULTS.wallSpring);
 							const c = num(tuning.wallDamp, DEFAULTS.wallDamp);
@@ -8334,7 +8382,8 @@
 											bestLapMs:
 												player.tracker.bestLapMs !== null ? Math.round(player.tracker.bestLapMs) : null,
 											laps: lapTarget,
-											route: player.routeUsed
+											route: player.routeUsed,
+											wallViolations: playerWallViolations
 										});
 									}
 								} else {
@@ -9032,7 +9081,11 @@
 						<button class="gl-pause-btn" onclick={onFeedback}>SEND FEEDBACK</button>
 					{/if}
 					{#if onQuit}
-						<button class="gl-pause-btn gl-pause-quit" onclick={onQuit}>QUIT TO GARAGE</button>
+						<button
+							class="gl-pause-btn gl-pause-quit"
+							onclick={() => onQuit?.({ wallViolations: quitWallViolations() })}
+							>QUIT TO GARAGE</button
+						>
 					{/if}
 				</div>
 				<div class="gl-pause-hint">ESC RESUMES</div>

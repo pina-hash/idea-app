@@ -27,6 +27,10 @@
 		myUserId,
 		award = null,
 		creative = false,
+		unrankedNote = undefined,
+		rating = undefined,
+		onRate,
+		ratingStatus = '',
 		onRaceAgain,
 		onGarage,
 		onTitle,
@@ -43,6 +47,19 @@
 		award?: RaceAward | null;
 		/** The run was a creative-mode run: no IC, not ranked. */
 		creative?: boolean;
+		/** Overrides the creative strip's copy (a community-track run is
+		 * unranked without being the player's creative-mode choice). */
+		unrankedNote?: string;
+		/**
+		 * Community-track rating (Bundle 4a). When provided, a RATE THIS TRACK
+		 * star row renders under the run stats. Presentation only: the parent
+		 * owns the RPC (server-gated on a completed attempt) and echoes state
+		 * back through `rating.mine` / `ratingStatus`.
+		 */
+		rating?: { avg: number | null; count: number; mine: number | null; canRate: boolean };
+		onRate?: (stars: number) => void;
+		/** Status line under the stars ('saving…' / 'saved' / an error). */
+		ratingStatus?: string;
 		onRaceAgain: () => void;
 		onGarage: () => void;
 		onTitle: () => void;
@@ -84,7 +101,7 @@
 		</div>
 		{#if creative}
 			<div class="gr-award gr-award-creative">
-				CREATIVE RUN · no {CURRENCY_SHORT} earned · not ranked
+				{unrankedNote ?? `CREATIVE RUN · no ${CURRENCY_SHORT} earned · not ranked`}
 			</div>
 		{:else if award && award.awarded > 0}
 			<div class="gr-award">
@@ -96,6 +113,38 @@
 				</span>
 			</div>
 		{/if}
+	{/if}
+
+	{#if rating}
+		<div class="gr-rate">
+			<span class="gr-rate-label">RATE THIS TRACK</span>
+			<span class="gr-stars" role="group" aria-label="Rate this track 1 to 5 stars">
+				{#each [1, 2, 3, 4, 5] as n (n)}
+					<button
+						type="button"
+						class="gr-star"
+						class:lit={rating.mine != null && n <= rating.mine}
+						disabled={!rating.canRate || !onRate}
+						title={rating.canRate
+							? `${n} star${n === 1 ? '' : 's'}`
+							: 'Finish a race on this track to rate it'}
+						onclick={() => onRate?.(n)}>★</button
+					>
+				{/each}
+			</span>
+			<span class="gr-rate-note">
+				{#if !rating.canRate}
+					finish a race on this track to rate it
+				{:else if ratingStatus}
+					{ratingStatus}
+				{:else if rating.avg != null}
+					average ★ {rating.avg.toFixed(1)} from {rating.count}
+					{rating.count === 1 ? 'rating' : 'ratings'}
+				{:else}
+					be the first to rate it
+				{/if}
+			</span>
+		</div>
 	{/if}
 
 	<div class="gr-board-head">
@@ -288,6 +337,55 @@
 		letter-spacing: 0.2em;
 		text-transform: uppercase;
 	}
+	/* Community-track rating (Bundle 4a). Gold is already the site's callout
+	   accent; here it is the literal star color, dimmed until lit. */
+	.gr-rate {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.7rem;
+		flex-wrap: wrap;
+		margin: -0.4rem 0 1.1rem;
+	}
+	.gr-rate-label {
+		color: var(--glb-ink-dim);
+		font: 600 0.62rem var(--glb-font-ui);
+		letter-spacing: 0.26em;
+	}
+	.gr-stars {
+		display: inline-flex;
+		gap: 0.15rem;
+	}
+	.gr-star {
+		background: none;
+		border: none;
+		padding: 0 0.1rem;
+		font-size: 1.15rem;
+		line-height: 1;
+		color: rgba(147, 163, 176, 0.35);
+		cursor: pointer;
+		transition: color 120ms ease, transform 120ms ease;
+	}
+	.gr-star.lit {
+		color: #c9a15f;
+		text-shadow: 0 0 10px rgba(201, 161, 95, 0.4);
+	}
+	.gr-star:hover:not(:disabled),
+	.gr-star:focus-visible:not(:disabled) {
+		color: #e3c68a;
+		transform: translateY(-1px);
+		outline: none;
+	}
+	.gr-star:disabled {
+		cursor: default;
+		opacity: 0.5;
+	}
+	.gr-rate-note {
+		color: var(--glb-ink-faint);
+		font-size: 0.7rem;
+		letter-spacing: 0.06em;
+	}
+
 	.gr-board-head {
 		color: var(--glb-ink-dim);
 		font-weight: 600;

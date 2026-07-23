@@ -43,6 +43,7 @@
 		patternItemId
 	} from './economy';
 	import { GREENLINE_MAX_SLOTS, type LoadoutSlot } from './persistence';
+	import type { CommunityTileMeta } from './community';
 	import type { TrackEntry } from './tracks';
 	import { GRID_MAX_AI, GRID_MIN_AI } from './grid-selection.svelte';
 	import GaragePreview from './GaragePreview.svelte';
@@ -95,6 +96,9 @@
 		tracks = undefined,
 		trackId = undefined,
 		ontrack,
+		communityMeta = undefined,
+		onReportTrack,
+		onRemoveTrack,
 		aiCount = undefined,
 		onAiCount,
 		onFeedback
@@ -195,6 +199,18 @@
 		trackId?: string;
 		ontrack?: (id: string) => void;
 		/**
+		 * Community-track listing meta (Bundle 4a), keyed by catalog id
+		 * (`community:<uuid>`). Presentation only, the slots convention: the
+		 * parent owns the fetch (the greenline_track_list RPC) and what report /
+		 * remove actually do. A community entry in `tracks` with no meta here
+		 * still renders as a plain selectable tile.
+		 */
+		communityMeta?: Record<string, CommunityTileMeta>;
+		/** Report a community track (recorded once per user server-side). */
+		onReportTrack?: (id: string) => void;
+		/** Remove a community track (the author's own; server re-checks). */
+		onRemoveTrack?: (id: string) => void;
+		/**
 		 * Grid size (Phase 9-fix-b): how many AI opponents the next race launches
 		 * with. Presentation only, like the track picker — state in, intent out —
 		 * so the host owns where the choice is stored. Omit both to hide the
@@ -210,6 +226,11 @@
 	} = $props();
 
 	const stats = $derived(resolveLoadout(loadout));
+
+	// Community listing (Bundle 4a): where the "Community tracks" divider goes,
+	// and the two-step remove confirm (the room-delete / slot-delete pattern).
+	const firstCommunityId = $derived(tracks?.find((t) => t.kind === 'community')?.id);
+	let confirmRemoveTrack = $state<string | null>(null);
 
 	// --- Livery (Phase 6b): preset color / pattern / number. Presentation only;
 	// the number input clamps 0-99 and an empty value clears it. ---
@@ -793,30 +814,98 @@
 		{#snippet trackSection()}
 			<!-- Track. Lived above the build in 8e/8f; its home is now the GARAGE
 			     tab, beside the saved builds — both are "which of my things am I
-			     taking out", as opposed to building the vehicle itself. -->
+			     taking out", as opposed to building the vehicle itself. Community
+			     tracks (Bundle 4a) list right here rather than on a second browse
+			     screen: one picker, every venue. -->
 			<div class="gg-section-label">Track</div>
 			<div class="gg-tracks">
 				{#each tracks ?? [] as t (t.id)}
-					<button
-						class="gg-track"
-						class:on={trackId === t.id}
-						aria-pressed={trackId === t.id}
-						onclick={() => ontrack?.(t.id)}
-					>
-						<span class="gg-track-head">
-							<span class="gg-track-name">{t.name}</span>
-							{#if t.kind !== 'circuit'}
-								<!-- Anything that is not a permanent racing venue says so on
-								     the tile: TEST for the physics proof segment, BUILDER for
-								     a track parked from the track builder. -->
-								<span class="gg-track-tag" class:builder={t.kind === 'custom'}
-									>{t.kind === 'custom' ? 'BUILDER' : 'TEST'}</span
-								>
+					{@const cm = t.kind === 'community' ? communityMeta?.[t.id] : undefined}
+					{#if t.id === firstCommunityId}
+						<div class="gg-tracks-divider">Community tracks · unranked</div>
+					{/if}
+					<div class="gg-track-wrap">
+						<button
+							class="gg-track"
+							class:on={trackId === t.id}
+							aria-pressed={trackId === t.id}
+							onclick={() => ontrack?.(t.id)}
+						>
+							<span class="gg-track-head">
+								<span class="gg-track-name">{t.name}</span>
+								{#if cm?.featured}
+									<span class="gg-track-tag featured">FEATURED</span>
+								{/if}
+								{#if t.kind !== 'circuit'}
+									<!-- Anything that is not a permanent racing venue says so on
+									     the tile: TEST for the physics proof segment, BUILDER for
+									     a track parked from the track builder, COMMUNITY for a
+									     published player-authored track. -->
+									<span class="gg-track-tag" class:builder={t.kind === 'custom'}
+										>{t.kind === 'custom'
+											? 'BUILDER'
+											: t.kind === 'community'
+												? 'COMMUNITY'
+												: 'TEST'}</span
+									>
+								{/if}
+							</span>
+							<span class="gg-track-tagline">{t.tagline}</span>
+							{#if cm}
+								<!-- Derived from real ratings + attempts (the list RPC); "no
+								     recorded runs yet" is a real state, not a failure. -->
+								<span class="gg-track-meta">
+									{cm.avgRating != null
+										? `★ ${cm.avgRating.toFixed(1)} (${cm.ratingCount})`
+										: '★ unrated'}
+									· {cm.completionPct != null
+										? `${cm.completionPct}% finish rate`
+										: 'no recorded runs yet'}
+								</span>
 							{/if}
-						</span>
-						<span class="gg-track-tagline">{t.tagline}</span>
-						<span class="gg-track-len">{(t.lengthM / 1000).toFixed(2)} km lap</span>
-					</button>
+							<span class="gg-track-len">{(t.lengthM / 1000).toFixed(2)} km lap</span>
+						</button>
+						{#if cm && (onReportTrack || (cm.mine && onRemoveTrack))}
+							<div class="gg-track-acts">
+								{#if onReportTrack}
+									{#if cm.reported}
+										<span class="gg-track-act-note">REPORTED ✓</span>
+									{:else}
+										<button
+											type="button"
+											class="gg-track-act"
+											title="Flag this track for teacher review (recorded once; nothing is hidden automatically)"
+											onclick={() => onReportTrack?.(t.id)}>REPORT</button
+										>
+									{/if}
+								{/if}
+								{#if cm.mine && onRemoveTrack}
+									{#if confirmRemoveTrack === t.id}
+										<button
+											type="button"
+											class="gg-track-act danger"
+											onclick={() => {
+												confirmRemoveTrack = null;
+												onRemoveTrack?.(t.id);
+											}}>CONFIRM REMOVE</button
+										>
+										<button
+											type="button"
+											class="gg-track-act"
+											onclick={() => (confirmRemoveTrack = null)}>KEEP</button
+										>
+									{:else}
+										<button
+											type="button"
+											class="gg-track-act"
+											title="Remove your published track from the listing (its history is kept)"
+											onclick={() => (confirmRemoveTrack = t.id)}>REMOVE</button
+										>
+									{/if}
+								{/if}
+							</div>
+						{/if}
+					</div>
 				{/each}
 			</div>
 		{/snippet}
@@ -2707,5 +2796,71 @@
 		font-family: var(--glb-font-data);
 		font-size: 0.6rem;
 		letter-spacing: 0.12em;
+	}
+
+	/* ---- Community track listing (Bundle 4a) ---- */
+	.gg-tracks-divider {
+		grid-column: 1 / -1;
+		margin-top: 0.35rem;
+		padding-bottom: 0.1rem;
+		border-bottom: 1px solid var(--glb-line);
+		color: var(--glb-ink-dim);
+		font: 600 0.6rem var(--glb-font-ui);
+		letter-spacing: 0.24em;
+		text-transform: uppercase;
+	}
+	.gg-track-wrap {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.gg-track-wrap .gg-track {
+		flex: 1;
+	}
+	.gg-track-meta {
+		color: var(--glb-steel-dim);
+		font-family: var(--glb-font-data);
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+	}
+	.gg-track-tag.featured {
+		color: var(--glb-green-ui);
+		border-color: color-mix(in srgb, var(--glb-green-ui) 45%, transparent);
+	}
+	.gg-track-acts {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.2rem 0.1rem 0;
+	}
+	.gg-track-act {
+		background: none;
+		border: 1px solid var(--glb-line);
+		border-radius: 2px;
+		color: var(--glb-steel-dim);
+		font-family: var(--glb-font-data);
+		font-size: 0.54rem;
+		letter-spacing: 0.14em;
+		padding: 0.12rem 0.4rem;
+		cursor: pointer;
+		transition:
+			color 140ms ease,
+			border-color 140ms ease;
+	}
+	.gg-track-act:hover,
+	.gg-track-act:focus-visible {
+		color: var(--glb-ink);
+		border-color: var(--glb-line-strong);
+		outline: none;
+	}
+	.gg-track-act.danger {
+		color: #c9a15f;
+		border-color: rgba(201, 161, 95, 0.5);
+	}
+	.gg-track-act-note {
+		color: var(--glb-ink-faint);
+		font-family: var(--glb-font-data);
+		font-size: 0.54rem;
+		letter-spacing: 0.14em;
 	}
 </style>

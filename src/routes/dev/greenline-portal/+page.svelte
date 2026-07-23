@@ -30,6 +30,16 @@
 	import DecalReviewQueue from '$lib/greenline/DecalReviewQueue.svelte';
 	import { validateDecalFile, type DecalStatus } from '$lib/greenline/decals';
 	import { decalImageState, registerDecalImage } from '$lib/greenline/rig-visual';
+	import {
+		attachCommunityTrackData,
+		communityTrackUuid,
+		isCommunityTrackId,
+		lapLengthM,
+		registerCommunityTracks
+	} from '$lib/greenline/tracks';
+	import { communityMetaMap, type CommunityTrackSummary } from '$lib/greenline/community';
+	import { validatePublishTrack } from '$lib/greenline/builder/validate';
+	import type { TrackData } from '$lib/greenline/track-schema';
 
 	/**
 	 * Dev harness for the /greenline portal-flow chrome (no auth / Supabase). It
@@ -318,14 +328,217 @@
 		};
 	});
 
+	// --- Community tracks (Bundle 4a): an in-memory store that mirrors the
+	// 0057 SQL semantics exactly — report once per (track, user); rating 1-5
+	// gated on a completed attempt and UPSERTED per (track, user); remove =
+	// soft flag; the list hides removed rows — driving the REAL Garage
+	// community listing, the REAL registry in tracks.ts, the REAL
+	// GreenlineResults rating row, and the REAL validatePublishTrack (the same
+	// function the server publish endpoint gates on). A "switch user" toggle
+	// simulates the two-session flows (publish as A, browse/report/rate as B).
+	// The REAL enforcement in production is the SQL in 0057; this store is the
+	// client-flow verification vehicle. ---
+	type DevUser = 'user-a' | 'user-b';
+	let devUser = $state<DevUser>('user-a');
+	const DEV_USER_NAME: Record<DevUser, string> = { 'user-a': 'AVA', 'user-b': 'BEN' };
+	interface DevAttempt {
+		user: DevUser;
+		completed: boolean;
+		timeMs: number | null;
+		wall: number | null;
+		finished: boolean;
+	}
+	interface DevCommunityTrack {
+		uuid: string;
+		name: string;
+		author: DevUser;
+		data: TrackData;
+		removed: boolean;
+		featured: boolean;
+		reports: DevUser[];
+		ratings: Partial<Record<DevUser, number>>;
+		attempts: DevAttempt[];
+	}
+	let devCommunity = $state<DevCommunityTrack[]>([]);
+	let devTrackSeq = 0;
+	const avgOf = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+	const devSummaries = $derived.by((): CommunityTrackSummary[] =>
+		devCommunity
+			.filter((t) => !t.removed)
+			.map((t) => {
+				const done = t.attempts.filter((a) => a.completed);
+				const rats = Object.values(t.ratings).filter((r): r is number => typeof r === 'number');
+				const avg = avgOf(rats);
+				const walls = t.attempts
+					.map((a) => a.wall)
+					.filter((w): w is number => typeof w === 'number');
+				return {
+					uuid: t.uuid,
+					trackId: `community:${t.uuid}`,
+					name: t.name,
+					authorName: DEV_USER_NAME[t.author],
+					createdAt: null,
+					featured: t.featured,
+					lengthM: Math.round(lapLengthM(t.data)),
+					reportCount: t.reports.length,
+					avgRating: avg == null ? null : Math.round(avg * 100) / 100,
+					ratingCount: rats.length,
+					attemptCount: t.attempts.length,
+					completedCount: done.length,
+					completionPct: t.attempts.length
+						? Math.round((done.length / t.attempts.length) * 100)
+						: null,
+					uniqueRacers: new Set(t.attempts.map((a) => a.user)).size,
+					avgTimeMs: avgOf(done.map((a) => a.timeMs ?? 0)),
+					avgWallViolations: avgOf(walls),
+					mine: t.author === devUser,
+					myRating: t.ratings[devUser] ?? null,
+					canRate: t.attempts.some((a) => a.user === devUser && a.completed),
+					reported: t.reports.includes(devUser)
+				};
+			})
+	);
+	// Feed the REAL catalog registry so the garage tiles, selection, and
+	// loadTrack resolve community entries exactly as /greenline does. Called
+	// SYNCHRONOUSLY from every store mutation (the same order the real route
+	// uses: register first, then poke state) — an $effect would run after the
+	// deriveds that read the registry and leave them one render stale.
+	let registryRev = $state(0);
+	function syncRegistry() {
+		const live = devCommunity.filter((t) => !t.removed);
+		registerCommunityTracks(
+			live.map((t) => ({
+				id: `community:${t.uuid}`,
+				name: t.name,
+				authorName: DEV_USER_NAME[t.author],
+				lengthM: Math.round(lapLengthM(t.data))
+			}))
+		);
+		for (const t of live) attachCommunityTrackData(`community:${t.uuid}`, t.data);
+		registryRev++;
+	}
+	const devCommunityMeta = $derived(communityMetaMap(devSummaries));
+	/** Publish through the REAL authoritative validator (the exact function the
+	 * server endpoint runs); the parked builder track when one exists, else a
+	 * clone of Proving Ground 07. */
+	function devPublish(raw?: unknown, name?: string) {
+		const payload =
+			raw ?? customTrack.data ?? JSON.parse(JSON.stringify(loadTrack('proving-ground-07')));
+		const v = validatePublishTrack(payload);
+		if (!v.ok || !v.track) {
+			lastAction = `publish REJECTED: ${v.errors[0]}`;
+			return { ok: false, error: v.errors.join('; ') };
+		}
+		const uuid = `dev-${++devTrackSeq}`;
+		devCommunity = [
+			...devCommunity,
+			{
+				uuid,
+				name: name ?? `${v.track.name || 'Custom'} #${devTrackSeq}`,
+				author: devUser,
+				data: v.track,
+				removed: false,
+				featured: false,
+				reports: [],
+				ratings: {},
+				attempts: []
+			}
+		];
+		syncRegistry();
+		lastAction = `published community:${uuid} as ${DEV_USER_NAME[devUser]}`;
+		return { ok: true, uuid };
+	}
+	/** The SQL semantics: once per (track, user); repeats are a no-op. */
+	function devReport(catalogId: string) {
+		const uuid = communityTrackUuid(catalogId);
+		devCommunity = devCommunity.map((t) => {
+			if (t.uuid !== uuid) return t;
+			if (t.reports.includes(devUser)) {
+				lastAction = `report ${uuid}: already reported (no-op, count ${t.reports.length})`;
+				return t;
+			}
+			lastAction = `report ${uuid}: recorded (count ${t.reports.length + 1})`;
+			return { ...t, reports: [...t.reports, devUser] };
+		});
+	}
+	function devRemove(catalogId: string) {
+		const uuid = communityTrackUuid(catalogId);
+		devCommunity = devCommunity.map((t) =>
+			t.uuid === uuid && (t.author === devUser)
+				? ((lastAction = `removed ${uuid} (soft; history kept)`), { ...t, removed: true })
+				: t
+		);
+		syncRegistry();
+		if (trackSelection.id === catalogId) setSelectedTrack('terminal-nine');
+	}
+	/** Gate + upsert, as greenline_track_rate enforces. */
+	function devRate(catalogId: string, stars: number): string {
+		const uuid = communityTrackUuid(catalogId);
+		const t = devCommunity.find((x) => x.uuid === uuid);
+		if (!t) return 'not found';
+		if (!t.attempts.some((a) => a.user === devUser && a.completed)) {
+			lastAction = `rate ${uuid}: REJECTED no_completed_attempt`;
+			return 'no_completed_attempt';
+		}
+		devCommunity = devCommunity.map((x) =>
+			x.uuid === uuid ? { ...x, ratings: { ...x.ratings, [devUser]: stars } } : x
+		);
+		lastAction = `rate ${uuid}: ${stars}★ (upsert, one row per user)`;
+		return 'ok';
+	}
+	function devAttempt(catalogId: string, completed: boolean) {
+		const uuid = communityTrackUuid(catalogId);
+		devCommunity = devCommunity.map((t) =>
+			t.uuid === uuid
+				? {
+						...t,
+						attempts: [
+							...t.attempts,
+							{
+								user: devUser,
+								completed,
+								timeMs: completed ? 60000 + Math.round(Math.random() * 30000) : null,
+								wall: Math.round(Math.random() * 5),
+								finished: true
+							}
+						]
+					}
+				: t
+		);
+		lastAction = `attempt on ${uuid}: ${completed ? 'COMPLETED' : 'failed/quit'} as ${DEV_USER_NAME[devUser]}`;
+	}
+	let devRatingStatus = $state('');
+	// Console hook for scripted verification of every community flow.
+	$effect(() => {
+		if (!browser) return;
+		(window as unknown as Record<string, unknown>).__glCommunity = {
+			publish: (name?: string) => devPublish(undefined, name),
+			publishRaw: (raw: unknown) => devPublish(raw),
+			validate: validatePublishTrack,
+			report: devReport,
+			remove: devRemove,
+			rate: devRate,
+			attempt: devAttempt,
+			switchUser: (u: DevUser) => (devUser = u),
+			user: () => devUser,
+			list: () => devSummaries,
+			raw: () => $state.snapshot(devCommunity)
+		};
+		return () => {
+			delete (window as unknown as Record<string, unknown>).__glCommunity;
+		};
+	});
+
 	// --- Track selection (Phase 8e). The REAL registry and the REAL persisted
 	// store, so the picker verified here is byte-for-byte the one on /greenline
 	// (including the localStorage round-trip across a reload). ---
 	// `allTracks()` (not the static catalog) so a track parked by the builder's
 	// Test Drive shows up here exactly as it does on /greenline; touching
-	// `customTrack.data` is the reactive dependency.
+	// `customTrack.data` / `devSummaries` are the reactive dependencies (the
+	// latter feeds the registry through the effect above).
 	const trackList = $derived.by(() => {
 		void customTrack.data;
+		void registryRev;
 		return allTracks();
 	});
 	// Mount the real sim in the `race` view (off by default — full WebGL).
@@ -357,8 +570,14 @@
 		totalTimeMs: 92450,
 		bestLapMs: 29380,
 		laps: 3,
-		route: 'main'
+		route: 'main',
+		wallViolations: 3
 	};
+	// Rating row on the results screen: the REAL component prop, fed from the
+	// in-memory store for the SELECTED community track (undefined otherwise).
+	const selCommunity = $derived(
+		devSummaries.find((s) => s.trackId === trackSelection.id) ?? null
+	);
 	const MY_ID = 'me-uid';
 	const sampleBoard: LeaderboardEntry[] = [
 		{
@@ -581,6 +800,21 @@
 	<span class="dh-note">creative: {creativeSettings.enabled ? 'ON' : 'off'} (toggle in settings)</span>
 </div>
 
+<div class="dh-bar dh-bar-community">
+	<span>community (dev):</span>
+	<button class:on={devUser === 'user-a'} onclick={() => (devUser = 'user-a')}>user A (AVA)</button>
+	<button class:on={devUser === 'user-b'} onclick={() => (devUser = 'user-b')}>user B (BEN)</button>
+	<button onclick={() => devPublish()}>
+		publish {customTrack.data ? 'parked builder track' : 'sample track'}
+	</button>
+	<button onclick={() => devPublish({ corrupt: true })}>publish corrupt (must reject)</button>
+	{#if isCommunityTrackId(trackSelection.id)}
+		<button onclick={() => devAttempt(trackSelection.id, true)}>sim attempt ✓</button>
+		<button onclick={() => devAttempt(trackSelection.id, false)}>sim attempt ✗</button>
+	{/if}
+	<span class="dh-note">{devSummaries.length} listed · acting as {DEV_USER_NAME[devUser]}</span>
+</div>
+
 <div class="dh-bar dh-bar-audio">
 	<span>audio (dev):</span>
 	<button onclick={() => toneOn('weapons')}>weapons</button>
@@ -599,6 +833,7 @@
 		<GreenlineTitle
 			trackName={trackList.find((t) => t.id === trackSelection.id)?.name ?? 'Proving Ground 07'}
 			onStart={() => (lastAction = 'START')}
+			onBuilder={() => (lastAction = 'TRACK EDITOR (would goto /greenline/builder)')}
 			onSettings={() => (settingsOpen = true)}
 			onFeedback={() => openFeedback('title')}
 			enableShortcut={!settingsOpen && !feedbackOpen}
@@ -627,6 +862,9 @@
 				setSelectedTrack(id);
 				lastAction = `track -> ${id}`;
 			}}
+			communityMeta={devCommunityMeta}
+			onReportTrack={devReport}
+			onRemoveTrack={devRemove}
 			aiCount={gridSelection.aiCount}
 			onAiCount={(n) => {
 				setAiCount(n);
@@ -707,14 +945,28 @@
 		<div class="dh-center">
 			<GreenlineResults
 				outcome={sampleOutcome}
-				trackName="Proving Ground 07"
+				trackName={selCommunity?.name ?? 'Proving Ground 07'}
 				board={boardMode === 'rows' ? sampleBoard : []}
 				boardLoading={boardMode === 'loading'}
 				submitting={boardMode === 'submitting'}
 				submitError={boardMode === 'error'}
 				myUserId={MY_ID}
 				award={simAward}
-				creative={simCreative}
+				creative={simCreative || !!selCommunity}
+				unrankedNote={selCommunity ? 'COMMUNITY TRACK · unranked · no IC earned' : undefined}
+				rating={selCommunity
+					? {
+							avg: selCommunity.avgRating,
+							count: selCommunity.ratingCount,
+							mine: selCommunity.myRating,
+							canRate: selCommunity.canRate
+						}
+					: undefined}
+				onRate={(n) => {
+					const r = devRate(trackSelection.id, n);
+					devRatingStatus = r === 'ok' ? 'saved' : r;
+				}}
+				ratingStatus={devRatingStatus}
 				onRaceAgain={() => (lastAction = 'race again')}
 				onGarage={() => (view = 'garage')}
 				onTitle={() => (lastAction = 'title')}
@@ -789,6 +1041,10 @@
 		top: 6.3rem;
 		border-bottom-color: rgba(127, 208, 255, 0.22);
 	}
+	.dh-bar-community {
+		top: 8.4rem;
+		border-bottom-color: rgba(201, 161, 95, 0.25);
+	}
 	.dh-audio-log {
 		color: #8fbf9a;
 		font-size: 0.66rem;
@@ -799,7 +1055,7 @@
 	}
 	.dh-stage {
 		position: fixed;
-		inset: 8.6rem 0 0;
+		inset: 10.7rem 0 0;
 		background: #05090c;
 		overflow-y: auto;
 	}

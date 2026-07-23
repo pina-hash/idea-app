@@ -1,7 +1,30 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
-	import { allTracks, CUSTOM_TRACK_ID, loadTrack } from '$lib/greenline/tracks';
+	import { goto } from '$app/navigation';
+	import {
+		allTracks,
+		attachCommunityTrackData,
+		communityTrackReady,
+		communityTrackUuid,
+		CUSTOM_TRACK_ID,
+		DEFAULT_TRACK_ID,
+		isCommunityTrackId,
+		loadTrack,
+		registerCommunityTracks,
+		trackEntry
+	} from '$lib/greenline/tracks';
+	import {
+		communityMetaMap,
+		finishTrackAttempt,
+		loadCommunityTracks,
+		loadCommunityTrackData,
+		rateCommunityTrack,
+		removeCommunityTrack,
+		reportCommunityTrack,
+		startTrackAttempt,
+		type CommunityTrackSummary
+	} from '$lib/greenline/community';
 	import { customTrack } from '$lib/greenline/custom-track.svelte';
 	import { setSelectedTrack, trackSelection } from '$lib/greenline/track-selection.svelte';
 	import { gridSelection, setAiCount } from '$lib/greenline/grid-selection.svelte';
@@ -76,21 +99,65 @@
 	 */
 	const { data }: { data: PageData } = $props();
 
+	// Community tracks (Bundle 4a): the browse list + derived telemetry from
+	// the greenline_track_list RPC. Fails soft: pre-0057 / offline the list is
+	// simply empty and the garage shows no community section. Reassigning the
+	// array is also the reactivity poke for everything that reads the (plain,
+	// non-reactive) community registry inside tracks.ts.
+	let communityTracks = $state<CommunityTrackSummary[]>([]);
+	async function refreshCommunity() {
+		const res = await loadCommunityTracks(data.supabase);
+		if (!res.ready) return;
+		registerCommunityTracks(
+			res.tracks.map((t) => ({
+				id: t.trackId,
+				name: t.name,
+				authorName: t.authorName,
+				lengthM: t.lengthM
+			}))
+		);
+		communityTracks = res.tracks;
+	}
+
+	/**
+	 * Make a community track's full TrackData resolvable through loadTrack
+	 * (fetched lazily: the browse list carries no geometry). Returns whether
+	 * the data is ready; the race flow awaits this before mounting so a
+	 * community race can never silently run on the fallback track.
+	 */
+	async function ensureCommunityData(catalogId: string): Promise<boolean> {
+		if (communityTrackReady(catalogId)) return true;
+		const uuid = communityTrackUuid(catalogId);
+		if (!uuid) return false;
+		const res = await loadCommunityTrackData(data.supabase, uuid);
+		if (!res.data) return false;
+		attachCommunityTrackData(catalogId, res.data);
+		communityTracks = [...communityTracks]; // poke the registry readers
+		return true;
+	}
+
 	// Selected track (Phase 8e). The choice lives in the reactive
 	// track-selection store (per browser, like weather), so it survives a
 	// reload and the garage picker, the race, the results header, and the
-	// leaderboard read all resolve from the same id.
-	const selectedTrack = $derived(loadTrack(trackSelection.id));
+	// leaderboard read all resolve from the same id. The NAME comes from the
+	// catalog entry (correct even for a community track whose geometry has not
+	// been fetched yet); loadTrack is only read where real TrackData is needed.
+	const selectedTrackName = $derived.by(() => {
+		void communityTracks;
+		return trackEntry(trackSelection.id).name;
+	});
 
 	// The picker list: the permanent catalog, plus the builder's parked track
-	// when this browser has one (teacher-authored, via the track builder's Test
-	// Drive). `allTracks()` composes it; touching `customTrack.data` is what
-	// registers the reactive dependency, so the entry appears the moment a track
-	// is parked and disappears when it is cleared.
+	// when this browser has one (via the track builder's Test Drive), plus any
+	// published community tracks. `allTracks()` composes it; touching
+	// `customTrack.data` / `communityTracks` registers the reactive
+	// dependencies, so entries appear the moment they exist.
 	const selectableTracks = $derived.by(() => {
 		void customTrack.data;
+		void communityTracks;
 		return allTracks();
 	});
+	const communityMeta = $derived(communityMetaMap(communityTracks));
 
 	type Screen = 'title' | 'garage' | 'race' | 'results';
 	let screen = $state<Screen>('title');
@@ -146,7 +213,13 @@
 	// reason: the result, the award, the board, and the telemetry must all agree
 	// on which track was raced even if the selection moves afterwards.
 	let raceTrackId = $state(trackSelection.id);
-	const raceTrack = $derived(loadTrack(raceTrackId));
+	const raceTrack = $derived.by(() => {
+		void communityTracks; // a community attach must re-resolve this
+		return loadTrack(raceTrackId);
+	});
+	// The open attempt row for the current community run (null = none recorded:
+	// official track, or the start RPC failed soft). Plain let: nothing renders it.
+	let raceAttemptId: string | null = null;
 	// Grid size for the CURRENT run (Phase 9-fix-b), captured at race start like
 	// the track: the player picks it in the garage, the race launches with it.
 	let raceAiCount = $state(gridSelection.aiCount);
@@ -197,8 +270,22 @@
 	let submitError = $state(false);
 	let board = $state<LeaderboardEntry[]>([]);
 	let boardLoading = $state(false);
+	// Community rating on the results screen (null = not a community run).
+	let resultsRating = $state<{
+		avg: number | null;
+		count: number;
+		mine: number | null;
+		canRate: boolean;
+	} | null>(null);
+	let ratingStatus = $state('');
 
 	onMount(async () => {
+		// Community list in the background (it gates nothing); if the stored
+		// selection IS a community track, pre-fetch its geometry so START does
+		// not have to wait for two round trips.
+		void refreshCommunity().then(() => {
+			if (isCommunityTrackId(trackSelection.id)) void ensureCommunityData(trackSelection.id);
+		});
 		const [saved, savedSlots, savedActive, ownDecal, savedWallet, savedUnlocks] =
 			await Promise.all([
 				loadUserLoadout(data.supabase, data.userId),
@@ -338,9 +425,21 @@
 	});
 
 	/** Enter the race, capturing the flags the submit will report. */
-	function startRace() {
+	async function startRace() {
 		raceCreative = creativeSettings.enabled;
 		raceTrackId = trackSelection.id;
+		// A community track's geometry is fetched lazily; the race must never
+		// mount before it is attached or loadTrack would fall back to the
+		// default circuit under a community label. On a failed fetch (removed
+		// between listing and start, or offline) stay in the garage.
+		if (isCommunityTrackId(raceTrackId)) {
+			const ready = await ensureCommunityData(raceTrackId);
+			if (!ready) {
+				console.warn('[greenline] community track data unavailable, not starting');
+				await refreshCommunity();
+				return;
+			}
+		}
 		// Freeze the qualifying time for THIS run's grid, same reason as the track
 		// and creative flag: the selection could move before the race mounts.
 		raceQualifyingMs = playerQualifyingMs;
@@ -348,6 +447,18 @@
 		// the garage between runs, and the launched race must be the field the
 		// player chose when they hit START.
 		raceAiCount = gridSelection.aiCount;
+		// Open the attempt row for a community run (the race path itself fires
+		// this, at start — never a user-facing "claim a result" surface). Fails
+		// soft to null: the race runs regardless, the attempt just goes
+		// unrecorded. Fire-and-forget so the start never waits on it.
+		raceAttemptId = null;
+		ratingStatus = '';
+		const uuid = communityTrackUuid(raceTrackId);
+		if (uuid) {
+			void startTrackAttempt(data.supabase, uuid).then((id) => {
+				raceAttemptId = id;
+			});
+		}
 		screen = 'race';
 	}
 	// Weapon-slot sanitize on every edit: the garage blocks invalid weapon
@@ -434,6 +545,21 @@
 		submitting = true;
 		submitError = false;
 		board = [];
+		// Close the community attempt FIRST (completed, with the run's real time
+		// + wall-violation telemetry), so the refreshed list already reflects it
+		// (canRate, completion rate) by the time the rating row renders.
+		let attemptRecorded = false;
+		if (raceAttemptId) {
+			const fin = await finishTrackAttempt(
+				data.supabase,
+				raceAttemptId,
+				true,
+				o.totalTimeMs,
+				o.wallViolations
+			);
+			attemptRecorded = fin.ok;
+			raceAttemptId = null;
+		}
 		const { award, error } = await submitRaceResult(data.supabase, {
 			trackId: raceTrackId,
 			mode: 'race',
@@ -448,7 +574,11 @@
 			// payout would be free IC from a trivially short loop. Reusing the
 			// existing creative flag means the server's own unranked/no-award
 			// branch handles it — no new mode, and nothing added to the race path.
-			creative: raceCreative || raceTrackId === CUSTOM_TRACK_ID,
+			// A COMMUNITY run is unranked the same way for now (Bundle 4a):
+			// featuring, which changes this, is Bundle 4b — but its attempt row
+			// above records real telemetry regardless.
+			creative:
+				raceCreative || raceTrackId === CUSTOM_TRACK_ID || isCommunityTrackId(raceTrackId),
 			// Telemetry (Phase 8f). The empty-slot sentinels are normalized to
 			// null so "no secondary weapon" reads as absence in the data rather
 			// than as a weapon literally named 'none'.
@@ -466,7 +596,79 @@
 			lastAward = award;
 			if (award.balance != null) wallet = award.balance;
 		}
+		// Rating row (community runs only): fresh aggregates + the caller's own
+		// state from the list RPC. canRate is optimistically true the moment the
+		// completed attempt really landed (the server would agree; if the
+		// attempt write failed soft, the server's own answer stands).
+		if (isCommunityTrackId(raceTrackId)) {
+			await refreshCommunity();
+			const s = communityTracks.find((t) => t.trackId === raceTrackId) ?? null;
+			resultsRating = {
+				avg: s?.avgRating ?? null,
+				count: s?.ratingCount ?? 0,
+				mine: s?.myRating ?? null,
+				canRate: (s?.canRate ?? false) || attemptRecorded
+			};
+		} else {
+			resultsRating = null;
+		}
 		await refreshBoard();
+	}
+
+	/** Rate the current run's community track (server-gated + upsert). */
+	async function handleRate(stars: number) {
+		const uuid = communityTrackUuid(raceTrackId);
+		if (!uuid || !resultsRating) return;
+		ratingStatus = 'saving…';
+		const res = await rateCommunityTrack(data.supabase, uuid, stars);
+		if (res.ok) {
+			resultsRating = { ...resultsRating, mine: stars };
+			ratingStatus = 'saved';
+			await refreshCommunity();
+			const s = communityTracks.find((t) => t.trackId === raceTrackId);
+			if (s)
+				resultsRating = {
+					avg: s.avgRating,
+					count: s.ratingCount,
+					mine: s.myRating,
+					canRate: true
+				};
+		} else if (res.reason === 'no_completed_attempt') {
+			ratingStatus = 'no completed run recorded for you on this track yet';
+		} else {
+			ratingStatus = res.error ?? 'could not save the rating';
+		}
+	}
+
+	/** Report a community track (recorded once server-side; repeats no-op). */
+	async function handleReportTrack(catalogId: string) {
+		const uuid = communityTrackUuid(catalogId);
+		if (!uuid) return;
+		const res = await reportCommunityTrack(data.supabase, uuid);
+		if (res.ok)
+			communityTracks = communityTracks.map((t) =>
+				t.trackId === catalogId
+					? { ...t, reported: true, reportCount: t.reportCount + (res.already ? 0 : 1) }
+					: t
+			);
+	}
+
+	/** Remove the caller's own published track (server re-checks authorship). */
+	async function handleRemoveTrack(catalogId: string) {
+		const uuid = communityTrackUuid(catalogId);
+		if (!uuid) return;
+		const res = await removeCommunityTrack(data.supabase, uuid);
+		if (res.ok) {
+			if (trackSelection.id === catalogId) setSelectedTrack(DEFAULT_TRACK_ID);
+			await refreshCommunity();
+		}
+	}
+
+	/** Close an open community attempt as not-completed (quit / abandon). */
+	function closeAbandonedAttempt(wallViolations: number | null) {
+		if (!raceAttemptId) return;
+		void finishTrackAttempt(data.supabase, raceAttemptId, false, null, wallViolations);
+		raceAttemptId = null;
 	}
 
 	async function refreshBoard() {
@@ -485,8 +687,9 @@
 {#if screen === 'title'}
 	<div class="gp-root">
 		<GreenlineTitle
-			trackName={selectedTrack.name}
+			trackName={selectedTrackName}
 			onStart={() => (screen = 'garage')}
+			onBuilder={() => goto('/greenline/builder')}
 			onSettings={() => (settingsOpen = true)}
 			onFeedback={() => openFeedback('title')}
 			enableShortcut={!settingsOpen && !feedbackOpen}
@@ -514,7 +717,15 @@
 				onFeedback={() => openFeedback('garage')}
 				tracks={selectableTracks}
 				trackId={trackSelection.id}
-				ontrack={setSelectedTrack}
+				ontrack={(id) => {
+					setSelectedTrack(id);
+					// Pre-fetch a community track's geometry on selection so START
+					// is instant; startRace still awaits it as the hard gate.
+					if (isCommunityTrackId(id)) void ensureCommunityData(id);
+				}}
+				{communityMeta}
+				onReportTrack={handleReportTrack}
+				onRemoveTrack={handleRemoveTrack}
 				aiCount={gridSelection.aiCount}
 				onAiCount={setAiCount}
 				{slots}
@@ -545,7 +756,12 @@
 		playerQualifyingMs={raceQualifyingMs}
 		aiCount={raceAiCount}
 		onFinish={handleFinish}
-		onQuit={() => (screen = 'garage')}
+		onQuit={(info) => {
+			// An abandoned community run still closes its attempt row (completed
+			// false, wall telemetry kept) so completion RATE stays honest.
+			closeAbandonedAttempt(info?.wallViolations ?? null);
+			screen = 'garage';
+		}}
 		onFeedback={() => openFeedback('race')}
 		inputBlocked={feedbackOpen || settingsOpen}
 	/>
@@ -561,7 +777,15 @@
 			{submitError}
 			myUserId={data.userId}
 			award={lastAward}
-			creative={raceCreative}
+			creative={raceCreative ||
+				raceTrackId === CUSTOM_TRACK_ID ||
+				isCommunityTrackId(raceTrackId)}
+			unrankedNote={isCommunityTrackId(raceTrackId)
+				? 'COMMUNITY TRACK · unranked · no IC earned'
+				: undefined}
+			rating={resultsRating ?? undefined}
+			onRate={handleRate}
+			{ratingStatus}
 			onRaceAgain={startRace}
 			onGarage={() => (screen = 'garage')}
 			onTitle={() => (screen = 'title')}

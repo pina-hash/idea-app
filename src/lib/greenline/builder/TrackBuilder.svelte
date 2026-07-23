@@ -43,6 +43,45 @@
 
 	const STORE_KEY = 'greenline_track_builder_v1';
 
+	/**
+	 * Publish seam (Bundle 4a). Presentation-only, the Minimap convention: the
+	 * component gathers the name + the validated export JSON and hands them to
+	 * the host; the real route posts to /api/greenline-track-publish (session
+	 * auth + the REAL server-side re-validation + the service-role insert), the
+	 * dev harness wires an in-memory fake. Omitted = no publish UI at all.
+	 */
+	const {
+		onPublish
+	}: {
+		onPublish?: (
+			name: string,
+			trackJson: string
+		) => Promise<{ ok: boolean; trackId?: string | null; error: string | null }>;
+	} = $props();
+
+	let publishState = $state<'idle' | 'busy' | 'done' | 'error'>('idle');
+	let publishMsg = $state('');
+
+	/**
+	 * Publish the CURRENT validated export. Gated on the full validation report
+	 * passing (the same gate TEST DRIVE trusts, plus the advisory-free FAIL
+	 * checks) — purely a UX courtesy: the server re-runs the authoritative
+	 * validation on whatever it receives regardless.
+	 */
+	async function publishNow() {
+		if (!onPublish || !report?.ok || !report.json || publishState === 'busy') return;
+		publishState = 'busy';
+		publishMsg = 'publishing…';
+		const res = await onPublish(trackName.trim() || 'Custom Circuit', report.json);
+		if (res.ok) {
+			publishState = 'done';
+			publishMsg = 'Published. It is now listed under Community tracks in the garage.';
+		} else {
+			publishState = 'error';
+			publishMsg = res.error ?? 'Publish failed.';
+		}
+	}
+
 	type Selection =
 		| { kind: 'piece'; id: string }
 		| { kind: 'gate'; id: string }
@@ -595,7 +634,7 @@
 	<header class="tb-head">
 		<div class="tb-title">
 			GREENLINE <span>// TRACK BUILDER</span>
-			<em>dev tool · stage 2: forks, gates, zones</em>
+			<em>snap pieces · validate · test drive{onPublish ? ' · publish' : ''}</em>
 		</div>
 		<label class="tb-field">
 			<span>NAME</span>
@@ -1039,6 +1078,29 @@
 				Drop the file into src/lib/greenline/tracks/ and register it in tracks.ts (one import + one
 				entry). Props and junction-side scenery are still authored by hand.
 			</p>
+			{#if onPublish}
+				<div class="tb-publish">
+					<button
+						class="tb-btn drive"
+						disabled={!report?.ok || publishState === 'busy'}
+						onclick={publishNow}
+						title={report?.ok
+							? `Publish "${trackName.trim() || 'Custom Circuit'}" for everyone to race`
+							: 'Fix the failing validation checks first'}
+					>
+						{publishState === 'busy' ? 'PUBLISHING…' : 'PUBLISH TO GREENLINE ▸'}
+					</button>
+					<span class="tb-publish-note">
+						{#if publishState === 'idle'}
+							Publishes "{trackName.trim() || 'Custom Circuit'}" to the garage's Community list
+							for every signed-in player (unranked). The server re-validates before anything is
+							stored.
+						{:else}
+							{publishMsg}
+						{/if}
+					</span>
+				</div>
+			{/if}
 		</section>
 	</div>
 </div>
@@ -1440,6 +1502,22 @@
 	.tb-export-acts {
 		display: flex;
 		gap: 0.4rem;
+	}
+	.tb-publish {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		margin-top: 0.5rem;
+		border-top: 1px solid rgba(147, 163, 176, 0.2);
+		padding-top: 0.5rem;
+	}
+	.tb-publish-note {
+		flex: 1;
+		min-width: 14rem;
+		font-size: 0.68rem;
+		line-height: 1.35;
+		color: rgba(143, 163, 176, 0.85);
 	}
 	.tb-export textarea {
 		width: 100%;
