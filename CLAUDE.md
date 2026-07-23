@@ -4614,6 +4614,84 @@ on one side of the world.
     boundary folds on such shapes); mixed-piece circuits (the stage-1
     recipe) pass all checks. Worth knowing before authoring test content.
 
+- **Community-track moderation + featuring = ranked eligibility (Bundle 4b,
+  migration `0058`).** Teachers curate what 4a publishes; featuring is what
+  makes a community track ranked.
+  - **Investigation result the design hangs on:** 0049 deliberately left
+    `greenline_race_results.track_id` as FREE-FORM TEXT — no enum, CHECK, or
+    FK — and `greenline_leaderboard(p_track_id)` aggregates any id it is
+    asked about. So ranked eligibility needed NO results-table or board-RPC
+    change: a featured track's stable ranked identity is its existing
+    `community:<uuid>` catalog id (the row PK, immune to renames and data
+    re-reads), and the only thing 4b had to build server-side is the
+    ELIGIBILITY GATE.
+  - **The gate (0058, apply manually after 0057):**
+    `greenline_submit_race_result` is recreated with the SAME 0054 signature
+    and byte-identical award math (verified by mechanical diff: the only
+    delta is the gate block) plus a COMMUNITY GATE: a non-creative submit on
+    a `community:%` track id ranks and pays ONLY while that row is featured
+    and not removed; anything else (unfeatured, removed, unknown or
+    malformed uuid) is DEMOTED to the existing creative branch — logged as
+    mode 'creative', zero award — rather than rejected, so a run in progress
+    when a teacher un-features still closes cleanly. Un-featuring therefore
+    removes ranked eligibility server-side the moment it lands, while the
+    track, its ratings, its attempts, and its EXISTING leaderboard rows are
+    all untouched (nothing deletes history). Without this gate any client
+    could submit ranked rows for an arbitrary community id — the client's
+    featured check is presentation, never the boundary.
+    `greenline_track_set_featured(p_track_id, p_featured)` is the
+    promote/demote RPC, `is_teacher()` enforced INSIDE (the
+    frc_mark_complete doctrine); featuring requires a live track,
+    un-featuring is always allowed. Teacher removal needed nothing new:
+    `greenline_track_remove` (0057) already honors `is_teacher()` — the
+    moderation panel calls the SAME path an author's self-remove uses.
+  - **Ranked client flow** (`/greenline/+page.svelte`): `startRace` snapshots
+    `raceUnrankedCommunity` (community AND not featured); a FEATURED
+    community run submits `creative: false` exactly like an official track —
+    same leaderboard read, same qualifying-grid read, same IC payout — while
+    unfeatured stays forced-unranked. The results screen additionally honors
+    the server's answer (`lastAward.creative`), so a mid-race demotion shows
+    as unranked rather than lying about a payout. Attempt telemetry and the
+    rating row run identically for both. Garage: the community divider drops
+    "unranked" (the FEATURED chip is the ranked flag, tooltip says so).
+  - **Moderation panel:** `/greenline/moderation` — the guard is the EXACT
+    retired builder teacher-gate pattern reused (profiles-role lookup
+    server-side, 404 for any non-teacher; anonymous never reaches it, the
+    `/greenline` authed prefix 303s them to `/` first). UI gating is
+    convenience; the RPCs' internal `is_teacher()` is the boundary.
+    `src/lib/greenline/TrackModerationPanel.svelte` (presentation +
+    callbacks, the DecalReviewQueue convention) lists every published track
+    with report count, ★ average + rating count, starts, finishes +
+    completion rate, average completion time, unique racers, and average
+    wall violations — all from the same `greenline_track_list` RPC players
+    browse with, so teachers moderate by exactly the numbers players see.
+    Default sort REPORTS DESC (problem tracks first; reported rows carry an
+    amber edge tick), re-sortable by rating and completion rate (the
+    featuring-decision views). Actions per row: FEATURE / UN-FEATURE and a
+    two-step REMOVE. Discoverability: a "Community Track Moderation" card on
+    `/dashboard` under GREENLINE Decal Reviews links to it.
+  - **Verified** (0 svelte-check errors): sorting on the REAL panel over a
+    3-track store (reports 2/1/0, rating 4.5/3/2, completion 100/50/33 —
+    each sort ordered correctly); every displayed cell for a hand-checked
+    track matched an INDEPENDENT recomputation from the raw attempt/rating
+    rows (reports 2, ★2.0(1), 3 starts, 1 finish 33%, 1:04.96 avg = 64963
+    ms, 1 racer, 2.3 avg walls); FEATURE flipped the panel chip to
+    "FEATURED · RANKED", the garage tile to FEATURED + COMMUNITY, and the
+    results screen to the RANKED branch (no unranked strip, rating row
+    intact); UN-FEATURE restored the unranked strip while the track stayed
+    listed with all 3 attempts + 2 ratings intact; the teacher REMOVE path
+    delisted another user's track (soft, history kept); the shipped guard
+    driven directly with mocked locals read 404 for logged-out / student /
+    visitor / no-profile-row and rendered for teacher, and logged-out curl
+    probes of /greenline/moderation and /greenline/builder both 303 to `/`
+    (the authed prefix) while the dev harness stays 200 in dev; and the
+    0054-vs-0058 diff confirms the award/PB/throttle/wallet code is
+    byte-identical. **Not verifiable without live credentials:** the 0058
+    SQL against live Supabase (the gate + is_teacher() enforcement are
+    review-verified per the repo's RPC convention) and a real ranked lap +
+    IC payout on ideabosco.com (needs migrations applied + Google OAuth) —
+    the payout code path itself is provably the unchanged 0054 one.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

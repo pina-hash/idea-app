@@ -39,6 +39,7 @@
 	} from '$lib/greenline/tracks';
 	import { communityMetaMap, type CommunityTrackSummary } from '$lib/greenline/community';
 	import { validatePublishTrack } from '$lib/greenline/builder/validate';
+	import TrackModerationPanel from '$lib/greenline/TrackModerationPanel.svelte';
 	import type { TrackData } from '$lib/greenline/track-schema';
 
 	/**
@@ -51,8 +52,10 @@
 	 */
 	// ?view=garage|results preselects a view (headless screenshot support).
 	const initView = browser ? new URLSearchParams(location.search).get('view') : null;
-	let view = $state<'title' | 'garage' | 'race' | 'results'>(
-		initView === 'garage' || initView === 'race' || initView === 'results' ? initView : 'title'
+	let view = $state<'title' | 'garage' | 'race' | 'results' | 'moderation'>(
+		initView === 'garage' || initView === 'race' || initView === 'results' || initView === 'moderation'
+			? initView
+			: 'title'
 	);
 	// Drives GreenlineMusic's winner-vs-loser branch on the results screen.
 	let resultWin = $state(false);
@@ -471,6 +474,27 @@
 		syncRegistry();
 		if (trackSelection.id === catalogId) setSelectedTrack('terminal-nine');
 	}
+	/** Feature/unfeature (Bundle 4b): the greenline_track_set_featured
+	 * semantics — featuring requires a live track, unfeature always allowed.
+	 * (The harness acts as a teacher here; the SQL's is_teacher() is the
+	 * production boundary.) */
+	function devFeature(uuid: string, on: boolean) {
+		devCommunity = devCommunity.map((t) =>
+			t.uuid === uuid && (!on || !t.removed) ? { ...t, featured: on } : t
+		);
+		syncRegistry();
+		lastAction = `${on ? 'featured' : 'un-featured'} ${uuid} (${on ? 'ranked' : 'back to unranked'})`;
+	}
+	/** Teacher removal: the SAME soft-remove path as self-remove, callable on
+	 * any track (greenline_track_remove's is_teacher() branch). */
+	function devTeacherRemove(uuid: string) {
+		devCommunity = devCommunity.map((t) =>
+			t.uuid === uuid ? { ...t, removed: true } : t
+		);
+		syncRegistry();
+		if (trackSelection.id === `community:${uuid}`) setSelectedTrack('terminal-nine');
+		lastAction = `teacher-removed ${uuid} (soft; history kept)`;
+	}
 	/** Gate + upsert, as greenline_track_rate enforces. */
 	function devRate(catalogId: string, stars: number): string {
 		const uuid = communityTrackUuid(catalogId);
@@ -517,6 +541,8 @@
 			validate: validatePublishTrack,
 			report: devReport,
 			remove: devRemove,
+			feature: devFeature,
+			teacherRemove: devTeacherRemove,
 			rate: devRate,
 			attempt: devAttempt,
 			switchUser: (u: DevUser) => (devUser = u),
@@ -740,6 +766,7 @@
 	<button class:on={view === 'garage'} onclick={() => (view = 'garage')}>garage</button>
 	<button class:on={view === 'race'} onclick={() => (view = 'race')}>race</button>
 	<button class:on={view === 'results'} onclick={() => (view = 'results')}>results</button>
+	<button class:on={view === 'moderation'} onclick={() => (view = 'moderation')}>moderation</button>
 	{#if view === 'garage'}
 		<button class:on={showDecalQueue} onclick={() => (showDecalQueue = !showDecalQueue)}>
 			decal queue ({decalQueueItems.length})
@@ -941,6 +968,18 @@
 				</div>
 			</div>
 		{/if}
+	{:else if view === 'moderation'}
+		<!-- The REAL moderation panel over the in-memory store: sorting,
+		     telemetry columns, feature/unfeature, and the teacher remove path
+		     are all drivable here without auth (the production route
+		     /greenline/moderation gates on the teacher role + wires the RPCs). -->
+		<div class="dh-moderation">
+			<TrackModerationPanel
+				tracks={devSummaries}
+				onFeature={devFeature}
+				onRemove={devTeacherRemove}
+			/>
+		</div>
 	{:else}
 		<div class="dh-center">
 			<GreenlineResults
@@ -952,8 +991,10 @@
 				submitError={boardMode === 'error'}
 				myUserId={MY_ID}
 				award={simAward}
-				creative={simCreative || !!selCommunity}
-				unrankedNote={selCommunity ? 'COMMUNITY TRACK · unranked · no IC earned' : undefined}
+				creative={simCreative || (selCommunity ? !selCommunity.featured : false)}
+				unrankedNote={selCommunity && !selCommunity.featured
+					? 'COMMUNITY TRACK · unranked · no IC earned'
+					: undefined}
 				rating={selCommunity
 					? {
 							avg: selCommunity.avgRating,
@@ -976,7 +1017,12 @@
 	{/if}
 </div>
 
-<GreenlineMusic screen={view} finishPosition={view === 'results' ? (resultWin ? 1 : 2) : null} />
+<!-- The music controller has no 'moderation' screen (it is not part of the
+     player flow); the harness maps it to the garage/workshop lane. -->
+<GreenlineMusic
+	screen={view === 'moderation' ? 'garage' : view}
+	finishPosition={view === 'results' ? (resultWin ? 1 : 2) : null}
+/>
 
 {#if settingsOpen}
 	<div class="dh-settings">
@@ -1087,6 +1133,9 @@
 		color: #7fbf8f;
 		letter-spacing: 0.08em;
 		margin-bottom: 0.2rem;
+	}
+	.dh-moderation {
+		padding: 1rem;
 	}
 	.dh-center {
 		min-height: 100%;

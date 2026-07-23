@@ -345,6 +345,24 @@
 				</div>
 			{/if}
 		</div>
+
+		<!-- Community-track moderation (Bundle 4b) lives on its own page: the
+		     panel is telemetry-wide and the real gate is in its RPCs; this card
+		     is the teacher's way to find it. -->
+		<div class="course-card visible">
+			<div class="course-header">
+				<div class="course-header-left">
+					<div class="course-id">Community Track Moderation</div>
+					<div class="course-updated">
+						Published GREENLINE community tracks: reports, star ratings, completion telemetry,
+						featuring (ranked eligibility + IC payout), and removal.
+					</div>
+				</div>
+				<div class="course-meta">
+					<a class="btn secondary" href="/greenline/moderation">Open panel</a>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<div class="divider" style="margin-top:2.5rem">

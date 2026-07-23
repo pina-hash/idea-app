@@ -220,6 +220,12 @@
 	// The open attempt row for the current community run (null = none recorded:
 	// official track, or the start RPC failed soft). Plain let: nothing renders it.
 	let raceAttemptId: string | null = null;
+	// Whether the CURRENT run is an UNRANKED community run (Bundle 4b): a
+	// community track that is not featured. A FEATURED community track races
+	// ranked on the same terms as the officials — real leaderboard, real IC
+	// payout — and the 0058 submit RPC re-checks the featured flag
+	// server-side, so this capture is presentation + intent, never the gate.
+	let raceUnrankedCommunity = $state(false);
 	// Grid size for the CURRENT run (Phase 9-fix-b), captured at race start like
 	// the track: the player picks it in the garage, the race launches with it.
 	let raceAiCount = $state(gridSelection.aiCount);
@@ -447,6 +453,11 @@
 		// the garage between runs, and the launched race must be the field the
 		// player chose when they hit START.
 		raceAiCount = gridSelection.aiCount;
+		// Ranked eligibility snapshot (4b): featured community tracks race
+		// ranked; unfeatured ones stay unranked. Server re-checks at submit.
+		raceUnrankedCommunity =
+			isCommunityTrackId(raceTrackId) &&
+			!(communityTracks.find((t) => t.trackId === raceTrackId)?.featured ?? false);
 		// Open the attempt row for a community run (the race path itself fires
 		// this, at start — never a user-facing "claim a result" surface). Fails
 		// soft to null: the race runs regardless, the attempt just goes
@@ -574,11 +585,11 @@
 			// payout would be free IC from a trivially short loop. Reusing the
 			// existing creative flag means the server's own unranked/no-award
 			// branch handles it — no new mode, and nothing added to the race path.
-			// A COMMUNITY run is unranked the same way for now (Bundle 4a):
-			// featuring, which changes this, is Bundle 4b — but its attempt row
-			// above records real telemetry regardless.
-			creative:
-				raceCreative || raceTrackId === CUSTOM_TRACK_ID || isCommunityTrackId(raceTrackId),
+			// An UNFEATURED community run is unranked the same way; a FEATURED
+			// one (Bundle 4b) submits ranked exactly like an official track, and
+			// the 0058 RPC re-verifies the featured flag server-side either way.
+			// The attempt row above records real telemetry in every case.
+			creative: raceCreative || raceTrackId === CUSTOM_TRACK_ID || raceUnrankedCommunity,
 			// Telemetry (Phase 8f). The empty-slot sentinels are normalized to
 			// null so "no secondary weapon" reads as absence in the data rather
 			// than as a weapon literally named 'none'.
@@ -779,8 +790,10 @@
 			award={lastAward}
 			creative={raceCreative ||
 				raceTrackId === CUSTOM_TRACK_ID ||
-				isCommunityTrackId(raceTrackId)}
-			unrankedNote={isCommunityTrackId(raceTrackId)
+				raceUnrankedCommunity ||
+				(lastAward?.creative ?? false)}
+			unrankedNote={isCommunityTrackId(raceTrackId) &&
+			(raceUnrankedCommunity || (lastAward?.creative ?? false))
 				? 'COMMUNITY TRACK · unranked · no IC earned'
 				: undefined}
 			rating={resultsRating ?? undefined}

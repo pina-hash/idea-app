@@ -822,7 +822,9 @@
 				{#each tracks ?? [] as t (t.id)}
 					{@const cm = t.kind === 'community' ? communityMeta?.[t.id] : undefined}
 					{#if t.id === firstCommunityId}
-						<div class="gg-tracks-divider">Community tracks · unranked</div>
+						<!-- FEATURED community tracks are ranked (leaderboard + IC, the
+						     0058 gate); the rest race unranked. The chip is the flag. -->
+						<div class="gg-tracks-divider">Community tracks</div>
 					{/if}
 					<div class="gg-track-wrap">
 						<button
@@ -834,7 +836,11 @@
 							<span class="gg-track-head">
 								<span class="gg-track-name">{t.name}</span>
 								{#if cm?.featured}
-									<span class="gg-track-tag featured">FEATURED</span>
+									<span
+										class="gg-track-tag featured"
+										title="Featured by a teacher: ranked leaderboard and IC payout, same terms as the official tracks"
+										>FEATURED</span
+									>
 								{/if}
 								{#if t.kind !== 'circuit'}
 									<!-- Anything that is not a permanent racing venue says so on

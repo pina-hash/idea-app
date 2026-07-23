@@ -201,6 +201,26 @@ export async function reportCommunityTrack(
 	return { ok: d.ok === true, already: d.already === true, error: null };
 }
 
+/**
+ * Feature / un-feature a track (Bundle 4b). Teacher-only, enforced INSIDE the
+ * greenline_track_set_featured RPC — this wrapper is reachable by anyone, the
+ * server is the boundary. Featuring makes the track ranked (real leaderboard
+ * + IC payout via the 0058 submit gate); un-featuring demotes it back to
+ * unranked without touching the track, its history, or its board rows.
+ */
+export async function setTrackFeatured(
+	supabase: SupabaseClient,
+	uuid: string,
+	featured: boolean
+): Promise<{ ok: boolean; error: string | null }> {
+	const { data, error } = await supabase.rpc('greenline_track_set_featured', {
+		p_track_id: uuid,
+		p_featured: featured
+	});
+	if (error) return { ok: false, error: error.message };
+	return { ok: data === true, error: data === true ? null : 'no change' };
+}
+
 /** Soft-remove a track (its author, or a teacher). */
 export async function removeCommunityTrack(
 	supabase: SupabaseClient,
