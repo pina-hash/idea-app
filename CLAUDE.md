@@ -4940,6 +4940,89 @@ on one side of the world.
     firing, cars lapping; Proving Ground 07: 0 falls, 0 floor catches, 5 physics
     bodies — the flat-track gating intact).
 
+- **Elevation-aware boundary walls + deck presence (Phase 9-fix-f), both in the
+  shared `track-visual.ts` so the race AND the piece-builder preview pick them
+  up with no duplicate wiring.** Two reported problems, and the investigation
+  found they had DIFFERENT causes than the symptom suggested.
+  - **Which of the two was actually broken.** The RENDERED wall was: it swept
+    `y 0 -> 0.9` for every track regardless of relief, so beside
+    piece-proof-01's raised deck it drew the barrier at ground level while the
+    road it marks sat at 7.34 m. The PHYSICAL boundary was NOT: `surfaceState`
+    never takes a y at all — it is a top-down polygon test, i.e. a column of
+    infinite height — so it already applied at every elevation and never
+    "stayed near ground level".
+  - **The real reason a car was not caught up there**, measured rather than
+    assumed: on the deck the ribbon edge sits at 6.0 m lateral and the
+    boundary line at 7.8 m, but the collision surface ENDED at the edge. So a
+    car ran 1.8 m off the deck into thin air, lost every wheel contact, and
+    was already ballistic before the soft wall — a horizontal spring — had
+    anything to push against. It fell to the y-0 catch plane. On a flat track
+    that same strip is solid ground (the apron plane), which is precisely why
+    walls work there. The Terminal Nine run-off-margin lesson had already
+    narrowed the margin for this reason; it reduced the failure without
+    removing it.
+  - **Fix: a run-off SHOULDER** (`deckShoulderMesh`), real ground continuing
+    the road's own cross-section past each edge wherever the ribbon is raised,
+    with ONE `MeshData` feeding both the visual mesh and the `CANNON.Trimesh`
+    so the two cannot drift. Deliberately not a hard collision wall — the
+    runtime rules those out on purpose.
+    - `SHOULDER_M` is 5.5, sized from measurement: the authored margin (1.8)
+      plus how deep the wall actually lets a car go before arresting it
+      (2.07 / 2.08 / 2.48 m at 18/25/35 degree approaches). An earlier 3 m
+      strip ran out of ground mid-arrest and the car fell anyway.
+    - **The strip runs out HORIZONTALLY at the edge height, and that is a
+      correctness requirement.** `surfaceYAt` clamps a query past the edge to
+      that edge's height, so the runtime ALREADY declares the surface out here
+      to be flat; the shoulder has to BE that surface. A first version raked
+      it along the banked plane instead, putting real ground BELOW the
+      reported height on the low side of every banked deck — the chassis-floor
+      watchdog read that as a car sunk through the floor and shoved it back up
+      **467 times** in one pass over Terminal Nine's sweeper, against 8 before.
+      Flat at the edge height, the two agree and the watchdog has nothing to do.
+    - Gated on `DECK_MIN_RISE_M` (0.5, the same threshold the chassis floor
+      uses): below it the apron plane already is the run-off ground.
+  - **Deck presence (decorative only, never handed to physics):**
+    `deckSlabMesh` extrudes a raised span down to a real thickness
+    (`halfWidth * 0.16`, clamped 0.4-1.4 m) and `deckSupportsMesh` puts trestle
+    bents — two legs, cross-beam, brace on tall ones — under anything above 2 m
+    at ~17 m spacing, all merged into ONE mesh per path for the draw-call
+    budget. Box faces carry their own vertices so edges stay crisp; shared
+    corners smooth-shaded them into soft lumps, which defeats the point. The
+    slab underside is clamped at the apron — unclamped it sank 0.63 m THROUGH
+    the y-0 plane where a deck barely clears the rise threshold.
+  - **`buildBoundaryGeometry` takes an optional `rt`** and foots each post at
+    the local surface via `surfaceProbe`, using the same two-grounds rule the
+    scenery placement uses (within 20 m of the edge rides the ribbon, further
+    out stays on the apron). Omitting `rt` keeps the old flat band.
+  - **Verified.** Wall: now spans `y 0 -> 8.24` with **exactly 0 mismatch**
+    against road height at every boundary point over raised ground. Caught:
+    run-wide approaches at 10/18/25/35 degrees on the elevated straight are all
+    held with 0 falls, where 18/25/35 all fell before; a near-perpendicular 50
+    degree launch still leaves, which is correct and preserves deliberate
+    deck-edge cliffs (Terminal Nine's kicker still flies — 0.54 s airtime,
+    2.93 m clearance at 45.6 m/s). **Collision parity, the strong claim:** a
+    fingerprint of the whole drivable surface — both swept edges, half-widths,
+    banking, elevations and the `surfaceYAt` query, 12,600 numbers across all
+    four tracks — is **byte-identical to HEAD**. Proving Ground 07 (flat)
+    builds NOTHING (0 shoulder/slab/support triangles, still 5 physics bodies,
+    surfaceY 0 over a 1600-point grid, 0 falls, 0 floor catches). Terminal Nine
+    reads upY 0.956 = cos 17 degrees on the sweeper and 0.86 ride height on the
+    deck; relief-proof-01 reads upY 0.951 = cos 18 degrees measured while
+    RACING (a stationary teleport onto a steep berm slides and flips — a test
+    artifact, not a regression, and it does the same at HEAD). Same-config AI
+    race A/B: Terminal Nine HEAD 9 falls / 539 floor catches in 192 s against
+    2 / 237 in 174 s with the fix; relief-proof-01 HEAD 7 falls / 516 catches /
+    2 upright against 7 / 366 / 3 upright — at or better than baseline
+    everywhere, because cars now have ground where they used to drop off.
+    Nothing on any track dips below the apron. `svelte-check` clean, 0 errors.
+  - **NOTE for future harness work:** the piece-builder preview does NOT pump
+    rAF, so in a hidden/automated tab it renders once and never updates —
+    orbit and zoom appear to do nothing. The race harness has `?glheadless=1`
+    for exactly this; the builder does not. To inspect deck geometry visually,
+    render the shared builders into your own scene and camera and call
+    `render()` yourself, which is also the honest test since those builders are
+    the single source both surfaces mount.
+
 - **Real SFX content for categories 1-6 (`src/lib/greenline/sfx.ts`), replacing
   the placeholder tones.** All 187 recorded `.wav` takes land flat in
   `static/greenline/audio/` beside the music (the existing convention), named

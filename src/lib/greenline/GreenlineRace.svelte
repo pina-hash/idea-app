@@ -65,7 +65,11 @@
 		buildBoundaryGeometry,
 		buildGatePane,
 		buildRibbonGeometry,
-		edgeLinePoints
+		deckShoulderMesh,
+		deckSlabMesh,
+		deckSupportsMesh,
+		edgeLinePoints,
+		toGeometry
 	} from '$lib/greenline/track-visual';
 	import {
 		COMBAT_DEFAULTS,
@@ -2322,6 +2326,35 @@
 						)
 					);
 				}
+				// Deck structure: the run-off shoulder's visible surface, the slab
+				// that gives a raised span real thickness, and the trestles under
+				// it. All three come from the shared builder off the SAME swept
+				// edges the road and its collision use. Flat tracks return null
+				// from every one of them and add nothing at all.
+				{
+					const shoulderMat = new THREE.MeshStandardMaterial({
+						color: 0x161b20,
+						roughness: 1
+					});
+					const slabMat = new THREE.MeshStandardMaterial({
+						color: 0x0e1216,
+						roughness: 0.95,
+						side: THREE.DoubleSide
+					});
+					const trestleMat = new THREE.MeshStandardMaterial({
+						color: 0x2b3238,
+						roughness: 0.85,
+						metalness: 0.35
+					});
+					for (const path of rt.paths) {
+						const sh = deckShoulderMesh(path);
+						if (sh) scene.add(new THREE.Mesh(toGeometry(THREE, sh), shoulderMat));
+						const slab = deckSlabMesh(path);
+						if (slab) scene.add(new THREE.Mesh(toGeometry(THREE, slab), slabMat));
+						const sup = deckSupportsMesh(path);
+						if (sup) scene.add(new THREE.Mesh(toGeometry(THREE, sup), trestleMat));
+					}
+				}
 				const wallMat = new THREE.MeshBasicMaterial({
 					color: 0x00ff41,
 					transparent: true,
@@ -2329,8 +2362,10 @@
 					side: THREE.DoubleSide,
 					depthWrite: false
 				});
+				// `rt` foots the band on the local surface, so the wall climbs with
+				// the deck instead of lying at y 0 far below it.
 				for (const b of rt.boundaries)
-					scene.add(new THREE.Mesh(buildBoundaryGeometry(THREE, b), wallMat));
+					scene.add(new THREE.Mesh(buildBoundaryGeometry(THREE, b, 0.9, rt), wallMat));
 				const postGeo = new THREE.CylinderGeometry(0.22, 0.22, 2.6, 10);
 				const paneFor = (g: (typeof rt.checkpoints)[number], color: number, opacity: number) => {
 					const built = buildGatePane(THREE, rt, g, color, opacity, postGeo);
@@ -2580,6 +2615,27 @@
 						world.addBody(ribbonBody);
 						// Same static-body stale-AABB raycast trap as the plane above.
 						ribbonBody.updateAABB();
+
+						// Run-off SHOULDER: real ground continuing the road's own
+						// cross-section a few meters past each edge, wherever the
+						// ribbon is raised. Measured need, not dressing — the soft
+						// wall only engages past the boundary polygon, which on an
+						// elevated deck sits ~1.8 m BEYOND the last collision
+						// surface, so a car leaving the edge crossed that gap with
+						// no wheel contact and fell to the y-0 plane before the
+						// spring had anything to work against. On a flat track that
+						// strip is the apron plane, which is exactly why walls
+						// behave there. Same MeshData the visual shoulder renders,
+						// so the two can never drift.
+						const shoulder = deckShoulderMesh(path);
+						if (shoulder) {
+							const shoulderBody = new CANNON.Body({
+								mass: 0,
+								shape: new CANNON.Trimesh(shoulder.positions, shoulder.indices)
+							});
+							world.addBody(shoulderBody);
+							shoulderBody.updateAABB();
+						}
 					}
 				}
 
@@ -5719,6 +5775,29 @@
 					// Phase 8a introspection: the local track-surface height (0 on
 					// flat tracks) and the trigger-zone state.
 					surfaceY: (x: number, z: number) => surfaceYAt(rt, x, z),
+					/**
+					 * Deck-structure census (Phase 9-fix-f): how many physics bodies
+					 * exist and what the shared builder emitted per path. The
+					 * shoulder is the only entry here that is COLLISION; slab and
+					 * supports are decoration and must never gain a body, which is
+					 * exactly what `bodies` is for — it is the number a flat track
+					 * has to hold at its pre-change value.
+					 */
+					deckInfo: () => ({
+						bodies: world.bodies.length,
+						hasRelief: rt.hasRelief,
+						paths: rt.paths.map((p) => {
+							const sh = deckShoulderMesh(p);
+							const sl = deckSlabMesh(p);
+							const su = deckSupportsMesh(p);
+							return {
+								id: p.id,
+								shoulderTris: sh ? sh.indices.length / 3 : 0,
+								slabTris: sl ? sl.indices.length / 3 : 0,
+								supportTris: su ? su.indices.length / 3 : 0
+							};
+						})
+					}),
 					getZones: (rigId = 'player') => {
 						const r = rigsAll().find((q) => q.id === rigId);
 						const now = gameNow();

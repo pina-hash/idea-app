@@ -6,7 +6,11 @@
 		buildBoundaryGeometry,
 		buildGatePane,
 		buildRibbonGeometry,
-		edgeLinePoints
+		deckShoulderMesh,
+		deckSlabMesh,
+		deckSupportsMesh,
+		edgeLinePoints,
+		toGeometry
 	} from '../track-visual';
 	import { previewTrack, type ChainDoc } from './chain-doc';
 	import type { ChainDiagnostics } from '../track-pieces';
@@ -209,6 +213,39 @@
 						}
 					}
 
+					// --- deck structure: shoulder, slab, trestles ---
+					// The same shared builders the race mounts, so an author sees the
+					// real shape of a raised piece — thickness and what carries it —
+					// not a floating ribbon. Null on a chain that never rises.
+					{
+						const shoulderMat = new THREE.MeshStandardMaterial({
+							color: 0x4a545e,
+							roughness: 0.95
+						});
+						const slabMat = new THREE.MeshStandardMaterial({
+							color: 0x39424b,
+							roughness: 0.9,
+							side: THREE.DoubleSide
+						});
+						const trestleMat = new THREE.MeshStandardMaterial({
+							color: 0x5a656f,
+							roughness: 0.8,
+							metalness: 0.3
+						});
+						disposables.push(shoulderMat, slabMat, trestleMat);
+						for (const path of rt.paths)
+							for (const [mesh, mat] of [
+								[deckShoulderMesh(path), shoulderMat],
+								[deckSlabMesh(path), slabMat],
+								[deckSupportsMesh(path), trestleMat]
+							] as const) {
+								if (!mesh) continue;
+								const g = toGeometry(THREE, mesh);
+								disposables.push(g);
+								trackGroup.add(new THREE.Mesh(g, mat));
+							}
+					}
+
 					// --- boundaries + gates: the same builders the race mounts ---
 					const wallMat = new THREE.MeshBasicMaterial({
 						color: 0x2ae57e,
@@ -219,7 +256,7 @@
 					});
 					disposables.push(wallMat);
 					for (const b of rt.boundaries) {
-						const g = buildBoundaryGeometry(THREE, b);
+						const g = buildBoundaryGeometry(THREE, b, 0.9, rt);
 						disposables.push(g);
 						trackGroup.add(new THREE.Mesh(g, wallMat));
 					}
