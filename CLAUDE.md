@@ -1874,10 +1874,14 @@ on one side of the world.
   to its own music-lane/sector logic, not an extractable module). **Assets:**
   `static/greenline/audio/` (following VANGUARD's `static/<game>/audio/`
   convention), holding two menu (`menu-1/2`), two workshop (`workshop-1/2`),
-  five race (`race-1..5`), plus `winner.mp3` / `loser.mp3` — the menu/workshop
+  four race (`race-1`, `race-3`, `race-4`, `race-5` — race-2 was cut), plus
+  `winner.mp3` / `loser.mp3` — the menu/workshop
   pools rotate, race is random, so the pool counts are read from the arrays in
-  the component, not hardcoded elsewhere. Music only: no SFX/engine/weapon
-  audio exists yet. Dev harness: `/dev/greenline-portal` mounts the controller
+  `MUSIC_TRACKS` (`audio-settings.svelte.ts`), not hardcoded elsewhere: dropping
+  a track is deleting the file and its one array entry, and a stored pin naming
+  a removed track fails the `includes()` check on load and falls back to
+  SHUFFLE. Music only; SFX arrived later (see the real-SFX bullet below).
+  Dev harness: `/dev/greenline-portal` mounts the controller
   with a title/garage/race/results view switcher + a win/lose toggle, so
   per-screen track selection, crossfade, and the mute button are
   browser-verifiable (via network + DOM, since `new Audio()` elements are
@@ -4937,12 +4941,18 @@ on one side of the world.
     bodies — the flat-track gating intact).
 
 - **Real SFX content for categories 1-6 (`src/lib/greenline/sfx.ts`), replacing
-  the placeholder tones.** 124 recorded `.wav` takes land flat in
+  the placeholder tones.** All 187 recorded `.wav` takes land flat in
   `static/greenline/audio/` beside the music (the existing convention), named
   `sfx_<category>_<specific>_NN.wav`. `sfx.ts` is the ROSTER — the content layer
   over the Phase 2C engine, which keeps owning the bus graph, voice pooling, pan
   and Doppler. An entry declares its takes, bus, mix level, pitch jitter and
   whether it loops; call sites only ever name an event.
+  - **Take counts follow what is ON DISK, not a planned number.** Where more
+    takes were recorded than the original roster called for, ALL of them are in
+    (autocannon fire 8, turret fire 7, hit-crunch and railgun impact 6, hook
+    pull and ui-confirm 5, ...), so nothing recorded goes unused and repetition
+    is as rare as the source allows. Verified by content hash: every distinct
+    source `.wav` is present, zero dropped.
   - **The engine had NO loader and NO loop path** (`playBuffer` took an
     `AudioBuffer` nothing ever produced), so both were added: `audioEngine.decode`
     and `PlayOptions.loop` / `fadeInSec`, with the handle gaining
@@ -4996,14 +5006,16 @@ on one side of the world.
     roster to the SAME cached buffer (browser-asserted by object identity).
   - **Verified** in `/dev/greenline-portal` (whose audio bar gained
     `prime`/`cache`/`play`/`loop`/`stopLoops`) and
-    `/dev/greenline-movement?glheadless=1`: all 124 files fetch and decode
-    (`loaded 124, failed 0`); an analyser tapped on the master bus shows real
+    `/dev/greenline-movement?glheadless=1`: all 187 files fetch and decode
+    (`loaded 187, failed 0` — meaningful because the SvelteKit dev server serves
+    the HTML app shell with a 200 for a MISSING static path, so only a real
+    decode proves an asset exists); an analyser tapped on the master bus shows real
     signal for one sound from each of the six categories (peak RMS 0.049-0.357
     against a silent floor of ~0); the voices are `AudioBufferSourceNode` with
     `oscFreq: null` and real stereo buffers, i.e. genuinely recordings and not
     the old tones; all eight bus mappings match the spec; variation rotation
-    gives 5/5 distinct takes over 30 plays with **0 immediate repeats** (and
-    2/2 over 16 for a two-take sound); a loop survives a 20-shot flood on its
+    reaches every take in the deepest pools (8/8 autocannon, 7/7 turret, 6/6
+    crunch, 5/5 confirm) with **0 immediate repeats**; a loop survives a 20-shot flood on its
     own bus, is still sounding well past its buffer end, and fades on stop; the
     game's OWN path fires real buffers (weapon fire, damage funnel, the ambient
     bed live in-race) with a 4-car race running weapons/tether/caltrops, all

@@ -24,7 +24,10 @@ export const SHUFFLE = 'shuffle';
 export const MUSIC_TRACKS: Record<TrackCategory, string[]> = {
 	menu: ['menu-1.mp3', 'menu-2.mp3'],
 	workshop: ['workshop-1.mp3', 'workshop-2.mp3'],
-	race: ['race-1.mp3', 'race-2.mp3', 'race-3.mp3', 'race-4.mp3', 'race-5.mp3']
+	// race-2 was cut. The pool size is read from this array (never hardcoded), so
+	// dropping an entry is the whole change; a stored pin naming a removed track
+	// fails the includes() check on load and falls back to SHUFFLE.
+	race: ['race-1.mp3', 'race-3.mp3', 'race-4.mp3', 'race-5.mp3']
 };
 
 /** Friendly label for a category's track dropdown option. */
