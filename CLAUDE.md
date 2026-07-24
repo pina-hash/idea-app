@@ -5336,6 +5336,81 @@ on one side of the world.
     naming a handle the newly-selected piece did not have ("radius" over a
     corkscrew). `svelte-check` clean, 0 errors, 0 new warnings.
 
+- **Jump piece: independent takeoff + landing angles, real ramp mass, handles.**
+  - **Investigation first (the launch was, and stays, pure ramp geometry).**
+    The pre-existing jump had two params, `length` and `kickHeight`, and a
+    hardcoded profile: a lip at 52% of the run, a steep drop face (marked
+    `cliff`, exempt from the grade lint because it is flown over), a flat
+    run-out. Nothing in the compiler or `GreenlineRace` imparts an impulse —
+    the car goes ballistic only because the surface falls away faster than its
+    wheels can follow — so gap and apex are earned by ENTRY SPEED alone.
+    **Kept pure ramp geometry** (the task's default-if-unclear, and the harder
+    direction to walk back): no assisted launch. Rewards carried speed, matches
+    the physics-driven feel, and an assist can be added later without undoing a
+    tuned one. Single piece kind: no subtypes or presets — the parametric
+    approach covers the range.
+  - **Two new OPTIONAL params, `takeoffDeg` and `landingDeg`, that resolve to
+    the old profile when absent.** `jumpGeometry` (track-pieces.ts) is ONE
+    closed-form span layout — shared by the generator, the range validator, the
+    solid-mesh builder and the handles, so none can disagree about where the
+    lip or landing is. `takeoffDeg` is the kicker's slope AT THE LIP
+    (`sKick = KICK_EXP·kickHeight / tan(takeoff)`); `landingDeg` is the landing
+    face's slope AT ITS CREST, where the car actually arrives, on a
+    `hLand·(1-u)²` profile whose slope is STEEPEST at the crest and only eases
+    to flat — so the authored number is both the arrival angle and the worst
+    the face gets, never a figure the middle of the ramp quietly exceeds.
+    Absent, `takeoffDeg` is derived from the legacy 52% lip and `landingDeg`
+    defaults to 0 (a FLAT landing, the old profile and the harshest one), so
+    every pre-existing jump compiles BYTE-IDENTICALLY — browser-verified to
+    5e-15 m across five length/kick cases. A new jump authored in the builder
+    ships explicit angles (18/12) so it uses the parametric model. Both angles
+    are capped inside `atan(PIECE_GRADE_MAX)` (`JUMP_ANGLE_MAX_DEG = 30`,
+    atan(0.62) = 31.8) because the kicker and landing are DRIVEN surfaces
+    subject to the grade lint — only the drop face between them is exempt — so
+    an author can never pick an angle the lint would then reject. A derived-span
+    set that overruns the run reports a "does not fit" issue with the numbers,
+    never silently reshapes.
+  - **Real ramp mass, not a folded sheet (`jumpSolidMesh` in track-visual.ts).**
+    The old jump was the flat ribbon with a deck-style underside paralleling the
+    top, which read as bent card. A kicker is EARTHWORK: the fill's underside is
+    the GROUND (y 0), so the mass grows with the ramp and the lip becomes a real
+    edge with thickness behind it — same solidity standard as the deck work,
+    but founded on the apron rather than hung on trestles (a deck is a bridge; a
+    jump is a mound). Decorative only, never handed to cannon-es; the car still
+    interacts only with the swept ribbon. `RibbonRuntime.jumpSpans` carries the
+    jump sample ranges so the visual layer founds the fill without knowing what
+    a piece is; the builder's preview re-wraps its chain as a verbatim ribbon
+    (which erases piece kinds, so a broken chain still renders) and therefore
+    passes the spans in from its diagnostics. Mounted in BOTH the builder
+    preview and `GreenlineRace` (168 tris in a live race, verified).
+  - **Handles (`AxisOpts.solve`, an exact non-linear readout).** Both angles are
+    realised as SPANS, so the lip and the landing's base travel on a straight
+    LINE along the run — the drag is a slide, and the readout inverts the span
+    back to the angle in closed form (`atan(h / s)`) rather than a linearised
+    `gain`. Pull the lip back → the kicker shortens and steepens; pull the
+    landing base toward its crest → the landing face does. A flat landing (0°)
+    has no face, so it has no handle (the field is the way back in). Same
+    architecture as every other handle. Browser-verified: takeoff drag moved
+    doc/field/readout together to 25 while landing stayed put, and vice versa.
+  - **Verification — the landing genuinely drives differently.** Built matched
+    jumps differing ONLY in `landingDeg`, driven with a controlled identical
+    launch (`__greenline.teleport(x,z,h,speed)` for the same pre-jump state) and
+    measured peak suspension force at the initial touchdown (the real "how hard
+    it lands" number, off `downforceInfo().wheels`). At a 22 m/s launch: flat
+    (0°) 2379 N, 16° 3078 N, 26° 2318 N — a ~30% spread at identical launch,
+    with different touchdown positions and a flat-vs-elevated-tilted landing
+    surface. The relationship is NON-MONOTONIC on purpose: softening is
+    governed by how the ramp angle matches the car's DESCENT angle
+    (`v·sin(rampAngle − descentAngle)` into the surface), and at 22 m/s the car
+    descends ~18°, so a 16° ramp roughly matches while a 26° ramp over-steepens
+    — exactly the design space "soften OR steepen" opens, not a monotonic
+    knob. (Also learned: a fast car overflies a short landing entirely and
+    touches down on the run-out beyond it, which is physically correct — the
+    landing only bites a car that comes down onto it, so an author sizes the
+    run-up to the landing.) Full 4-car AI race over a jump track: laps
+    completed (~27.6 s best), 0 falls, 0 floor catches, all upright, no console
+    errors. `svelte-check` clean, 0 errors, 0 new warnings.
+
 - **The `closer` piece + honest open-chain preview + actionable closure
   reporting (the "closing a chain by hand is impossible" fix).** Closing a
   loop is a simultaneous position + heading + elevation + bank solve (plus

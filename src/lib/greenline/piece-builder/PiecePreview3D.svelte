@@ -9,6 +9,7 @@
 		deckShoulderMesh,
 		deckSlabMesh,
 		deckSupportsMesh,
+		jumpSolidMesh,
 		edgeLinePoints,
 		toGeometry
 	} from '../track-visual';
@@ -967,12 +968,26 @@
 							roughness: 0.8,
 							metalness: 0.3
 						});
-						disposables.push(shoulderMat, slabMat, trestleMat);
+						// A jump's ramps are earthwork founded on the apron, so they get
+						// their own warmer fill material — the mound reads as built up
+						// from the ground rather than as more of the deck's structure.
+						const rampMat = new THREE.MeshStandardMaterial({
+							color: 0x585349,
+							roughness: 0.97,
+							side: THREE.DoubleSide
+						});
+						// The preview compiles to a verbatim ribbon, so the piece kinds
+						// are not on the runtime — but they ARE in the diagnostics.
+						const jumpSpans = dg.pieces
+							.filter((p) => d.pieces[p.index]?.kind === 'jump')
+							.map((p) => ({ start: p.start, end: p.end }));
+						disposables.push(shoulderMat, slabMat, trestleMat, rampMat);
 						for (const path of rt.paths)
 							for (const [mesh, mat] of [
 								[deckShoulderMesh(path), shoulderMat],
 								[deckSlabMesh(path), slabMat],
-								[deckSupportsMesh(path), trestleMat]
+								[deckSupportsMesh(path), trestleMat],
+								[jumpSolidMesh(path, jumpSpans), rampMat]
 							] as const) {
 								if (!mesh) continue;
 								const g = toGeometry(THREE, mesh);

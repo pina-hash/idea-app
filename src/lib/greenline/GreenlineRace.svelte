@@ -68,6 +68,7 @@
 		deckShoulderMesh,
 		deckSlabMesh,
 		deckSupportsMesh,
+		jumpSolidMesh,
 		edgeLinePoints,
 		toGeometry
 	} from '$lib/greenline/track-visual';
@@ -2346,6 +2347,11 @@
 						roughness: 0.85,
 						metalness: 0.35
 					});
+					const rampMat = new THREE.MeshStandardMaterial({
+						color: 0x1a1712,
+						roughness: 0.98,
+						side: THREE.DoubleSide
+					});
 					for (const path of rt.paths) {
 						const sh = deckShoulderMesh(path);
 						if (sh) scene.add(new THREE.Mesh(toGeometry(THREE, sh), shoulderMat));
@@ -2353,6 +2359,10 @@
 						if (slab) scene.add(new THREE.Mesh(toGeometry(THREE, slab), slabMat));
 						const sup = deckSupportsMesh(path);
 						if (sup) scene.add(new THREE.Mesh(toGeometry(THREE, sup), trestleMat));
+						// A jump's ramps are earthwork founded on the apron, not a
+						// deck on trestles, so they get their own solid fill.
+						const ramp = jumpSolidMesh(path);
+						if (ramp) scene.add(new THREE.Mesh(toGeometry(THREE, ramp), rampMat));
 					}
 				}
 				const wallMat = new THREE.MeshBasicMaterial({
@@ -5794,7 +5804,9 @@
 								id: p.id,
 								shoulderTris: sh ? sh.indices.length / 3 : 0,
 								slabTris: sl ? sl.indices.length / 3 : 0,
-								supportTris: su ? su.indices.length / 3 : 0
+								supportTris: su ? su.indices.length / 3 : 0,
+								jumpSolidTris: (() => { const r = jumpSolidMesh(p); return r ? r.indices.length / 3 : 0; })(),
+								jumpSpans: p.jumpSpans.length
 							};
 						})
 					}),

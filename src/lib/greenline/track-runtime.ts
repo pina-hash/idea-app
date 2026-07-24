@@ -91,6 +91,13 @@ export interface RibbonRuntime {
 	rightEdge: TrackVec2[];
 	leftEdge3: TrackVec3[];
 	rightEdge3: TrackVec3[];
+	/**
+	 * Sample ranges of this path's JUMP pieces. Carried on the runtime so the
+	 * visual layer can found a jump's fill on the ground (a kicker is an
+	 * earthwork sitting on the apron, not a deck on trestles) without either
+	 * caller needing to know what a piece is. Empty for a ribbon surface.
+	 */
+	jumpSpans: { start: number; end: number }[];
 	/** Main-centerline indices this spur leaves and rejoins (branches only). */
 	joinStart?: number;
 	joinEnd?: number;
@@ -219,6 +226,9 @@ function buildPath(
 	}
 	return {
 		id,
+		// Filled in by the caller for the main path of a piece chain; a ribbon
+		// surface and every branch spur genuinely have none.
+		jumpSpans: [],
 		closed,
 		center,
 		halfWidths,
@@ -250,6 +260,12 @@ export function buildRuntime(data: TrackData): TrackRuntime {
 		compiled.elevations,
 		compiled.banking
 	);
+	// A jump's kicker and landing are earthworks on the apron, so the visual
+	// layer founds their fill on the ground rather than hanging a slab under
+	// them. The compiler already knows which samples belong to which piece.
+	main.jumpSpans = compiled.pieces
+		.filter((p) => p.kind === 'jump')
+		.map((p) => ({ start: p.start, end: p.end }));
 	const paths: RibbonRuntime[] = [main];
 	// Branch spurs are ribbon territory (piece chains are linear in v3).
 	const branches = data.surface.type === 'ribbon' ? (data.surface.branches ?? []) : [];

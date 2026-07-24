@@ -22,6 +22,9 @@ import {
 	PIECE_CLOSURE_ELEV_M,
 	PIECE_CLOSURE_GAP_M,
 	PIECE_CLOSURE_HEADING_DEG,
+	JUMP_ANGLE_MAX_DEG,
+	JUMP_ANGLE_MIN_DEG,
+	jumpGeometry,
 	PIECE_GRADE_MAX,
 	PIECE_PITCH_MAX_DEG,
 	type ChainDiagnostics,
@@ -151,7 +154,8 @@ export const KIND_SPECS: KindSpec[] = [
 	{
 		kind: 'jump',
 		label: 'Jump',
-		blurb: 'Kicker to a lip, a steep drop face, then a flat run-out.',
+		blurb:
+			'Kicker to a lip, a drop the car flies over, then a landing. Launch is pure ramp geometry — gap and apex are earned by entry speed, nothing pushes the car — so takeoff sets the angle you leave at and landing sets what catches you.',
 		params: [
 			{
 				key: 'length',
@@ -168,6 +172,24 @@ export const KIND_SPECS: KindSpec[] = [
 				max: 20,
 				step: 0.1,
 				unit: 'm'
+			},
+			{
+				key: 'takeoffDeg',
+				label: 'takeoff',
+				min: JUMP_ANGLE_MIN_DEG,
+				max: JUMP_ANGLE_MAX_DEG,
+				step: 1,
+				unit: 'deg',
+				hint: 'ramp slope at the lip; steeper throws the car higher for the same speed and shortens the kicker'
+			},
+			{
+				key: 'landingDeg',
+				label: 'landing',
+				min: 0,
+				max: JUMP_ANGLE_MAX_DEG,
+				step: 1,
+				unit: 'deg',
+				hint: 'landing ramp slope at its crest, independent of takeoff. 0 is a flat landing, the harshest; steeper runs with the falling car and softens it'
 			},
 			WIDTH_PARAM
 		]
@@ -349,8 +371,10 @@ export function pieceSummary(p: TrackPiece): string {
 			return `R${p.radius} m · ${Math.abs(p.turnDeg)} deg ${p.turnDeg > 0 ? 'left' : 'right'}`;
 		case 'bank':
 			return `${p.length} m · ${p.targetBankDeg === 0 ? 'to level' : `to ${p.targetBankDeg} deg`}`;
-		case 'jump':
-			return `${p.length} m · ${p.kickHeight} m lip`;
+		case 'jump': {
+			const g = jumpGeometry(p);
+			return `${p.length} m · ${p.kickHeight} m lip · ${g.takeoffDeg.toFixed(0)}/${g.landingDeg.toFixed(0)} deg`;
+		}
 		case 'corkscrew':
 			return `${p.length} m · ${p.rise >= 0 ? '+' : ''}${p.rise} m · ${p.peakBankDeg} deg bank${p.turnDeg ? ` · ${p.turnDeg} deg turn` : ''}`;
 		case 'closer':

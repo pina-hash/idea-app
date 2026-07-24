@@ -63,6 +63,12 @@ export const SHOULDER_M = 5.5;
  * plane is no longer doing the job.
  */
 export const DECK_MIN_RISE_M = 0.5;
+/**
+ * Rise at which a jump's fill starts. Lower than the deck threshold because a
+ * kicker's mass should appear as soon as the road leaves the ground — the
+ * point of the fill is that the ramp is built UP from the apron.
+ */
+export const JUMP_FILL_MIN_RISE_M = 0.12;
 /** Supports appear once the deck is this far above the apron, meters. */
 const SUPPORT_MIN_RISE_M = 2;
 /** Target spacing between supports along an elevated run, meters. */
@@ -338,6 +344,93 @@ function pushBox(
 		for (const [ux, uy, uz] of f) corner(ux, uy, uz);
 		m.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
 	}
+}
+
+/**
+ * Solid FILL under a jump's kicker and landing: a mound founded on the apron,
+ * not a slab hung beneath the road.
+ *
+ * A deck is a bridge — constant thickness, trestles underneath, daylight below
+ * — and that treatment is what made a jump ramp read as a folded sheet of card
+ * rather than a structure: the underside simply paralleled the top all the way
+ * over the lip. A kicker is earthwork. Its underside is the GROUND, so the
+ * mass grows with the ramp and the lip becomes a real edge with real
+ * thickness behind it.
+ *
+ * The fill is ONE continuous mound, not two: the drop face falls from the lip
+ * only as far as the landing crest, so the mass never pinches out between
+ * them. What makes the launch and the landing distinguishable is the profile
+ * itself — a lip at the high point with the steep drop face immediately
+ * behind it, then the landing's own shallower face — and the fill's job is to
+ * put real material under all of it so those features read as built rather
+ * than as creases in a sheet. (A `landingDeg` of 0 has no crest at all, so
+ * there the fill genuinely does end at the drop and the kicker stands alone.)
+ *
+ * PURELY DECORATIVE, like the slab and the trestles: no body, no shape, never
+ * handed to cannon-es. The car interacts only with the swept ribbon.
+ */
+export function jumpSolidMesh(
+	path: RibbonRuntime,
+	/**
+	 * Which sample ranges are jumps. Defaults to the runtime's own, which a
+	 * real `pieces` track carries — but the piece-builder's preview deliberately
+	 * re-wraps its compiled chain as a verbatim RIBBON (so a chain that fails a
+	 * guardrail still renders), and that erases piece kinds. The builder has the
+	 * ranges in its diagnostics, so it passes them in rather than going without.
+	 */
+	spans: { start: number; end: number }[] = path.jumpSpans,
+	minRise = JUMP_FILL_MIN_RISE_M
+): MeshData | null {
+	if (!spans.length) return null;
+	const m: MeshData = { positions: [], indices: [] };
+	const push = (x: number, y: number, z: number) => {
+		m.positions.push(x, y, z);
+		return m.positions.length / 3 - 1;
+	};
+	// A quad with its own four vertices: flat-shaded faces keep the lip and the
+	// side walls crisp, where shared corners would smooth them into a lump.
+	const quad = (
+		a: TrackVec3,
+		b: TrackVec3,
+		c: TrackVec3,
+		d: TrackVec3
+	) => {
+		const i0 = push(a.x, a.y, a.z);
+		const i1 = push(b.x, b.y, b.z);
+		const i2 = push(c.x, c.y, c.z);
+		const i3 = push(d.x, d.y, d.z);
+		m.indices.push(i0, i1, i2, i0, i2, i3);
+	};
+	const ground = (p: TrackVec3): TrackVec3 => ({ x: p.x, y: 0, z: p.z });
+	let any = false;
+	for (const span of spans) {
+		for (let i = span.start; i < span.end; i++) {
+			const j = i + 1;
+			if (j >= path.center.length) break;
+			const li = path.leftEdge3[i];
+			const lj = path.leftEdge3[j];
+			const ri = path.rightEdge3[i];
+			const rj = path.rightEdge3[j];
+			const hi = Math.min(li.y, ri.y);
+			const hj = Math.min(lj.y, rj.y);
+			// Only where the road actually stands off the apron; the flat run-in
+			// and run-out need no fill and would otherwise emit degenerate faces.
+			if (hi <= minRise && hj <= minRise) continue;
+			any = true;
+			// Two side walls dropping from the road edge straight to the ground,
+			// wound outward, plus an end cap wherever the mound begins or ends so
+			// the lip and the landing's back both close off as solid faces
+			// instead of showing a hollow shell.
+			quad(li, lj, ground(lj), ground(li));
+			quad(ground(ri), ground(rj), rj, ri);
+			const prevRaised = i > span.start && Math.min(path.leftEdge3[i - 1].y, path.rightEdge3[i - 1].y) > minRise;
+			const nextRaised =
+				j < span.end && Math.min(path.leftEdge3[j + 1]?.y ?? 0, path.rightEdge3[j + 1]?.y ?? 0) > minRise;
+			if (!prevRaised && hi > minRise) quad(ri, li, ground(li), ground(ri));
+			if (!nextRaised && hj > minRise) quad(lj, rj, ground(rj), ground(lj));
+		}
+	}
+	return any ? m : null;
 }
 
 /**

@@ -94,6 +94,103 @@ const ARCH_SHAPE_EPS = 0.02;
  * ceiling on purpose: an auto-computed piece should come out comfortable, not
  * barely legal; an author who wants it tighter sets `radius` explicitly.
  */
+/* ------------------------------------------------------------------ */
+/* jump profile                                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Kicker shape exponent. The rise is `kickHeight * u^KICK` over the kicker's
+ * own plan span, so the lip's slope is `KICK * kickHeight / span` — which is
+ * what lets `takeoffDeg` be inverted into a span exactly. Held at the value
+ * the pre-parameter profile used, so an unchanged jump keeps its exact
+ * kicker curve and only the way its span is DERIVED has changed.
+ */
+export const JUMP_KICK_EXP = 1.7;
+/** Lip position of the pre-parameter profile, as a fraction of the run. */
+export const JUMP_LEGACY_LIP_T = 0.52;
+/**
+ * Drop-face span as a fraction of the run, for a drop of the FULL kick height.
+ * A landing crest shortens the face in proportion (see `jumpGeometry`) so the
+ * face's steepness — and therefore the launch — is unchanged by landing edits.
+ * That is what makes takeoff and landing genuinely independent.
+ */
+export const JUMP_GAP_FRAC = 0.2;
+/**
+ * Landing crest height as a fraction of the lip. Deliberately well under 1:
+ * the drop from lip to crest IS the gap, so a crest near lip height would
+ * leave nothing to fly over and the piece would stop being a jump.
+ */
+export const JUMP_LAND_CREST_FRAC = 0.5;
+/**
+ * Landing-face length as a multiple of `hLand / tan(landing)`.
+ *
+ * The face is `hLand·(1-u)²`, whose slope is STEEPEST at the crest and eases
+ * monotonically to flat — so the authored angle is both where the car arrives
+ * and the worst the face ever gets, rather than a figure the middle of the
+ * ramp quietly exceeds. That profile spends its height at twice the rate a
+ * straight ramp would, so the span carries the 2 to put the crest slope back
+ * on `tan(landing)` exactly. The longer face is a bonus, not a cost: it is a
+ * bigger target to land on.
+ */
+export const JUMP_LAND_EASE = 2;
+/** Samples the shortest live feature of a jump gets, at minimum. */
+export const JUMP_FEATURE_SAMPLES = 6;
+/** Ceiling on a single jump's sample count, so a long one stays bounded. */
+export const JUMP_MAX_SAMPLES = 220;
+/** Flat road the piece must keep past the landing, as a fraction of the run. */
+export const JUMP_MIN_RUNOUT_FRAC = 0.08;
+/**
+ * Bounds on both jump angles. The ceiling is the grade lint expressed as an
+ * angle and rounded DOWN: the kicker and the landing are both driven surfaces,
+ * so they answer to `PIECE_GRADE_MAX` like any other climb — only the drop
+ * face between them is exempt. atan(0.62) is 31.8 deg, so 30 sits safely
+ * inside it and an author can never pick an angle the lint would then reject.
+ * The floor keeps `kickHeight / tan(takeoff)` from running away to a kicker
+ * longer than any real piece.
+ */
+export const JUMP_ANGLE_MIN_DEG = 3;
+export const JUMP_ANGLE_MAX_DEG = 30;
+
+/** The resolved plan layout of a jump, in meters along the run. */
+export interface JumpGeometry {
+	takeoffDeg: number;
+	landingDeg: number;
+	/** Kicker span: 0 -> lip. */
+	sKick: number;
+	/** Drop face span: lip -> landing crest. The part the car flies over. */
+	sGap: number;
+	/** Landing ramp span: crest -> run-out. Zero for a flat landing. */
+	sLand: number;
+	/** Flat run-out span. Negative means the parts do not fit in `length`. */
+	sRunout: number;
+	/** Landing crest height above the baseline. Zero for a flat landing. */
+	hLand: number;
+}
+
+/**
+ * Resolve a jump's plan layout from its params. ONE derivation, shared by the
+ * generator, the range validator, the solid-mesh builder and the handles, so
+ * none of them can disagree about where the lip or the landing is.
+ *
+ * Every span is a closed form that inverts cleanly, which is what lets a
+ * handle drag the lip (or the landing's base) along the road and read the
+ * angle back off exactly rather than approximately.
+ */
+export function jumpGeometry(piece: Extract<TrackPiece, { kind: 'jump' }>): JumpGeometry {
+	const L = piece.length;
+	const kh = piece.kickHeight;
+	// Absent params resolve to the pre-parameter profile: a lip at 52% of the
+	// run (whose slope is what `takeoffDeg` now names) and a flat landing.
+	const takeoffDeg =
+		piece.takeoffDeg ?? Math.atan((JUMP_KICK_EXP * kh) / (JUMP_LEGACY_LIP_T * L)) / DEG;
+	const landingDeg = piece.landingDeg ?? 0;
+	const hLand = landingDeg > 0 ? JUMP_LAND_CREST_FRAC * kh : 0;
+	const sLand = landingDeg > 0 ? (JUMP_LAND_EASE * hLand) / Math.tan(landingDeg * DEG) : 0;
+	const sKick = (JUMP_KICK_EXP * kh) / Math.tan(takeoffDeg * DEG);
+	const sGap = JUMP_GAP_FRAC * L * (kh > 0 ? (kh - hLand) / kh : 1);
+	return { takeoffDeg, landingDeg, sKick, sGap, sLand, sRunout: L - sKick - sGap - sLand, hLand };
+}
+
 const CLOSER_MIN_AUTO_R = 12;
 const CLOSER_MAX_AUTO_R = 60;
 const CLOSER_MAX_R = 2000;
@@ -260,10 +357,29 @@ export function pieceIssue(p: TrackPiece): string | null {
 			if (!inRange(p.targetBankDeg, -PIECE_BANK_MAX_DEG, PIECE_BANK_MAX_DEG))
 				return `bank targetBankDeg must be within ±${PIECE_BANK_MAX_DEG}`;
 			break;
-		case 'jump':
+		case 'jump': {
 			if (!inRange(p.length, 10, 2000)) return 'jump length must be 10..2000 m';
 			if (!inRange(p.kickHeight, 0.25, 20)) return 'jump kickHeight must be 0.25..20 m';
+			if (p.takeoffDeg !== undefined && !inRange(p.takeoffDeg, JUMP_ANGLE_MIN_DEG, JUMP_ANGLE_MAX_DEG))
+				return `jump takeoffDeg must be ${JUMP_ANGLE_MIN_DEG}..${JUMP_ANGLE_MAX_DEG}`;
+			// 0 is a legal landing angle and means a FLAT landing — the harshest
+			// one, and the profile every pre-parameter jump had.
+			if (p.landingDeg !== undefined && (!fin(p.landingDeg) || p.landingDeg < 0 || p.landingDeg > JUMP_ANGLE_MAX_DEG))
+				return `jump landingDeg must be 0..${JUMP_ANGLE_MAX_DEG} (0 = flat landing)`;
+			// The spans are DERIVED, so a legal-looking set of params can still
+			// ask for more ramp than the run holds. Say so with the numbers
+			// rather than silently reshaping what the author asked for.
+			const jg = jumpGeometry(p);
+			if (jg.sRunout < JUMP_MIN_RUNOUT_FRAC * p.length)
+				return (
+					`jump does not fit: a ${jg.takeoffDeg.toFixed(0)} deg kicker to ${p.kickHeight} m ` +
+					`needs ${jg.sKick.toFixed(1)} m and a ${jg.landingDeg.toFixed(0)} deg landing ` +
+					`${jg.sLand.toFixed(1)} m, leaving ${jg.sRunout.toFixed(1)} m of run-out in ` +
+					`${p.length} m (needs ${(JUMP_MIN_RUNOUT_FRAC * p.length).toFixed(1)} m) — ` +
+					`lengthen the piece, steepen an angle, or lower the kick`
+				);
 			break;
+		}
 		case 'corkscrew':
 			if (!inRange(p.length, 8, 2000)) return 'corkscrew length must be 8..2000 m';
 			if (!fin(p.turnDeg) || Math.abs(p.turnDeg) > 270)
@@ -768,28 +884,61 @@ function generate(
 			};
 		}
 		case 'jump': {
-			// Closure-neutral kicker (the builder's jump profile, the Terminal
-			// Nine deck-edge pattern): rise to the lip, a deliberately steep drop
-			// face back to the entry elevation line, flat run-out. The ribbon
-			// stays continuous; the car goes ballistic because it cannot follow
-			// the drop. Exit pose = the straight's (nothing to un-wind).
+			// Closure-neutral kicker (the Terminal Nine deck-edge pattern): rise
+			// to the lip, a drop face the car cannot follow, a landing, flat
+			// run-out. The ribbon stays continuous; the car goes ballistic
+			// because the surface falls away faster than its wheels can reach.
+			//
+			// LAUNCH IS PURE RAMP GEOMETRY — nothing here or in the race imparts
+			// an impulse, so gap and apex are earned by entry speed alone.
+			// Exit pose = the straight's (nothing to un-wind).
 			const L = piece.length;
-			const T_LIP = 0.52;
-			const T_LAND = 0.72;
-			const bump = (t: number): number =>
-				t <= T_LIP ? Math.pow(t / T_LIP, 1.7) : t < T_LAND ? 1 - smooth01((t - T_LIP) / (T_LAND - T_LIP)) : 0;
+			const jg = jumpGeometry(piece);
+			const kh = piece.kickHeight;
+			// Plan fractions of the four spans, in order along the run.
+			const tLip = jg.sKick / L;
+			const tCrest = (jg.sKick + jg.sGap) / L;
+			const tOut = (jg.sKick + jg.sGap + jg.sLand) / L;
+			const bump = (t: number): number => {
+				if (t <= tLip) return tLip > 0 ? kh * Math.pow(t / tLip, JUMP_KICK_EXP) : 0;
+				if (t < tCrest)
+					return jg.hLand + (kh - jg.hLand) * (1 - smooth01((t - tLip) / (tCrest - tLip)));
+				if (t < tOut && jg.sLand > 0) {
+					// Landing face. Slope at the CREST is exactly tan(landingDeg) and
+					// it only ever gets shallower from there, so the number the
+					// author set is both what the car arrives on and the steepest
+					// the face ever is; it eases to flat, merging into the run-out
+					// instead of creasing into it.
+					const u = (t - tCrest) / (tOut - tCrest);
+					return jg.hLand * (1 - u) * (1 - u);
+				}
+				return 0;
+			};
 			const d = dirOf(entry.headingDeg);
-			const N = Math.max(6, nFor(L));
+			// A jump's features are SHORT — a landing face can be a few meters on a
+			// hundred-meter piece — so the generic step would round the landing
+			// angle away entirely and the road would not carry the number the
+			// author set. Sample fine enough that the shortest live feature gets
+			// real resolution, capped so a very long jump stays bounded.
+			const feature = Math.min(jg.sKick, jg.sGap, jg.sLand > 0 ? jg.sLand : Infinity);
+			const N = Math.min(
+				JUMP_MAX_SAMPLES,
+				Math.max(6, nFor(L), Math.ceil(L / Math.max(0.5, feature / JUMP_FEATURE_SAMPLES)))
+			);
 			const samples: ChainSample[] = [];
 			for (let k = 0; k <= N; k++) {
 				const t = k / N;
 				samples.push({
 					pt: { x: entry.x + d.x * L * t, z: entry.z + d.z * L * t },
-					elev: entry.y + L * g0 * t + piece.kickHeight * bump(t),
+					elev: entry.y + L * g0 * t + bump(t),
 					bankDeg: entry.bankDeg,
 					width: wAt(t),
 					verbatim: false,
-					cliff: t > T_LIP - 0.02 && t < T_LAND + 0.04
+					// Only the drop face is exempt from the grade lint: it is flown
+					// over, not driven. The kicker and the landing ramp ARE driven,
+					// so they stay subject to it — which is why both angle params
+					// are capped inside `atan(PIECE_GRADE_MAX)`.
+					cliff: t > tLip - 0.02 && t < tCrest + 0.02
 				});
 			}
 			return {

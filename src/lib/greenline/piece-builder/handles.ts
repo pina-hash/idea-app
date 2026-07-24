@@ -68,13 +68,24 @@
  * without snapping, and makes any residual pivot error cancel out of a
  * difference instead of biasing the value.
  *
- * Implemented for `straight`, `curve`, `bank` and `corkscrew`. `jump` and
- * `closer` have none yet; `freeform` never gets handles — it is verbatim
- * world geometry, not parametric.
+ * - JUMP `takeoffDeg` / `landingDeg`: both angles are realised as SPANS
+ *   (`sKick = KICK_EXP·kickHeight / tan(takeoff)`, `sLand = hLand /
+ *   tan(landing)`), so the lip and the landing's base each travel on a
+ *   straight LINE along the run, not on a circle — the drag is a slide, and
+ *   the readout inverts the span back to the angle in closed form
+ *   (`atan(h / s)`). That is what `AxisOpts.solve` exists for: an exact
+ *   non-linear readout instead of a linearised `gain`. Pull the lip back and
+ *   the kicker shortens and steepens; pull the landing's base toward its
+ *   crest and the landing face does. A flat landing (0 deg) has no face, so
+ *   it has no handle — the field is the way back in.
+ *
+ * Implemented for `straight`, `curve`, `bank`, `corkscrew` and `jump`.
+ * `closer` has none (its shape is solved from the chain, not authored);
+ * `freeform` never gets handles — it is verbatim world geometry.
  */
 
 import type { TrackPiece } from '../track-schema';
-import type { PiecePose } from '../track-pieces';
+import { JUMP_KICK_EXP, JUMP_LAND_EASE, jumpGeometry, type PiecePose } from '../track-pieces';
 import { kindSpec } from './chain-doc';
 
 const DEG = Math.PI / 180;
@@ -209,10 +220,18 @@ interface AxisOpts {
 	pos: HandleVec3;
 	/** Unit drag axis (horizontal for both shipped handles). */
 	axis: HandleVec3;
-	/** Param units per meter of travel along the axis. */
+	/** Param units per meter of travel along the axis. Ignored when `solve` is set. */
 	gain: number;
 	/** Param value at drag start (the piece's current value at build time). */
 	v0: number;
+	/**
+	 * Exact NON-LINEAR readout, for a param whose relationship to distance
+	 * along the axis is a closed form rather than a constant rate. Given the
+	 * signed travel from the grab, it returns the param value outright — so an
+	 * angle derived from a span (`atan(h / s)`) stays exact instead of being
+	 * linearised into a `gain`. Omitted = the plain `v0 + travel * gain`.
+	 */
+	solve?: (travelM: number) => number | null;
 	min: number;
 	max: number;
 	quantum: number;
@@ -240,7 +259,7 @@ function axisHandle(o: AxisOpts): PieceHandle {
 			return (move) => {
 				const s = rayLineS(move, o.pos, o.axis);
 				if (s === null) return null;
-				return o.v0 + (s - s0) * o.gain;
+				return o.solve ? o.solve(s - s0) : o.v0 + (s - s0) * o.gain;
 			};
 		}
 	};
@@ -601,9 +620,74 @@ export function handlesForPiece(
 				})
 			];
 		}
+		case 'jump': {
+			// Both angles are DERIVED spans, so the handle that shapes them is a
+			// slide along the run whose readout inverts the span exactly — not a
+			// swing, because neither the lip nor the landing base travels on a
+			// circle. Grab the lip and pull it back toward the entry: the kicker
+			// gets shorter and therefore steeper. Grab the landing's base and
+			// pull it toward the crest: the landing face gets shorter and
+			// steeper. In both cases the ANGLE is what the drag writes.
+			const g = jumpGeometry(piece);
+			const h = entry.headingDeg;
+			const d = dirOf(h);
+			const axis: HandleVec3 = { x: d.x, y: 0, z: d.z };
+			const at = (s: number, lift: number): HandleVec3 => ({
+				x: entry.x + d.x * s,
+				y: centreAt(Math.min(1, Math.max(0, s / piece.length))).y + lift,
+				z: entry.z + d.z * s
+			});
+			const rTake = range('takeoffDeg', 3, 30);
+			const rLand = range('landingDeg', 0, 30);
+			// The kicker's span is `KICK_EXP * kickHeight / tan(takeoff)`, so the
+			// lip's plan distance inverts straight back to the angle.
+			const kickC = JUMP_KICK_EXP * piece.kickHeight;
+			// The crest is fixed while takeoff and kickHeight are (see
+			// jumpGeometry: sGap depends only on kickHeight and the crest
+			// height), so the landing base's travel maps exactly onto its span.
+			const crestS = g.sKick + g.sGap;
+			const out: PieceHandle[] = [
+				axisHandle({
+					id: 'takeoff',
+					label: 'takeoff',
+					paramKey: 'takeoffDeg',
+					pos: at(g.sKick, 0),
+					axis,
+					gain: 0,
+					v0: g.takeoffDeg,
+					solve: (travel) => {
+						const s = g.sKick + travel;
+						return s > 0.2 ? Math.atan(kickC / s) / DEG : null;
+					},
+					quantum: 1,
+					...rTake
+				})
+			];
+			// A flat landing has no ramp and so nothing to grab; the field is the
+			// way in from 0, and the handle appears as soon as there is a face.
+			if (g.sLand > 0)
+				out.push(
+					axisHandle({
+						id: 'landing',
+						label: 'landing',
+						paramKey: 'landingDeg',
+						pos: at(crestS + g.sLand, 0),
+						axis,
+						gain: 0,
+						v0: g.landingDeg,
+						solve: (travel) => {
+							const s = g.sLand + travel;
+							return s > 0.2 ? Math.atan((JUMP_LAND_EASE * g.hLand) / s) / DEG : null;
+						},
+						quantum: 1,
+						...rLand
+					})
+				);
+			return out;
+		}
 		default:
-			// jump / closer: no handle yet. freeform: never — verbatim geometry
-			// has no parameter a handle could shape.
+			// closer: no handle yet (its shape is solved, not authored).
+			// freeform: never — verbatim geometry has no parameter to shape.
 			return [];
 	}
 }

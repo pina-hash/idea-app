@@ -177,7 +177,28 @@ export type TrackPiece =
 	 * exempt, the Terminal Nine deck-edge pattern), flat run-out. Exit pose
 	 * equals a plain straight's.
 	 */
-	| { kind: 'jump'; length: number; kickHeight: number; width?: number }
+	/**
+	 * Kicker to a lip, a drop the car cannot follow, then a landing.
+	 *
+	 * Launch is PURE RAMP GEOMETRY: nothing imparts an impulse, the car simply
+	 * carries its speed off a surface that falls away faster than it can, so
+	 * gap and apex are earned by entry speed (see the jump generator).
+	 *
+	 * `takeoffDeg` is the ramp's slope AT THE LIP and `landingDeg` the landing
+	 * ramp's slope AT ITS CREST, independently: a mellow launch can feed a
+	 * brutal flat landing or a steep launch a forgiving down-ramp. Both are
+	 * OPTIONAL — absent, they resolve to the pre-parameter profile exactly (a
+	 * lip at 52% of the run and a flat landing), so every jump authored before
+	 * they existed compiles to the same road it always did.
+	 */
+	| {
+			kind: 'jump';
+			length: number;
+			kickHeight: number;
+			takeoffDeg?: number;
+			landingDeg?: number;
+			width?: number;
+	  }
 	/**
 	 * THE piece v3 exists for: bank and grade move together over the piece's
 	 * own length. Elevation gains `rise` along smootherstep while the bank
