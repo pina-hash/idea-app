@@ -5929,6 +5929,99 @@ on one side of the world.
     so head-on passes will often sit AT the clamp rather than sweeping through
     it. Widen `DOPPLER_MIN`/`DOPPLER_MAX` further if passes should sweep more.
 
+- **Self-crossing tracks (overpasses): detection, local boundary enforcement,
+  overpass-aware deck structure.** A piece chain whose road comes back over
+  its own earlier footprint (a loop returning above a straight) used to break
+  three ways, each with a different root cause, all confirmed by
+  investigation before fixing:
+  - **The car-blocker was the BOUNDARY system, not wall footing.** The
+    builder's derived boundaries are two closed 2D offset loops following the
+    centerline order; on a self-crossing chain both loops cut ACROSS the other
+    pass's corridor in XZ, and `surfaceState`'s even-odd `insideLoop` test is
+    a pure top-down column — so clear road read as out of bounds and the
+    25 kN soft-wall spring pinned cars on it (measured at HEAD: the proof
+    track's own centerline registered 114 wall violations over 260 samples
+    through the real publish validator; with the fix, 0).
+  - **Detection (`computePathOverlapZones`, track-runtime):** per-path
+    spatial-hash pass over the compiled samples finding pairs close ACROSS
+    the ground (within summed half widths, `real`; +12 m slack for
+    structure-query `near` zones) but far ALONG the road (exclusion window
+    1.75x summed half widths + 8 m, so a hairpin's own legs never flag; wrap
+    distance on closed paths). Clustered into `PathOverlapZone` range pairs
+    on `RibbonRuntime.overlapZones`; any `real` zone flips
+    `TrackRuntime.selfOverlaps`. SAME-PATH only, deliberately: a branch
+    genuinely shares ground with the main line at its joins (that is what a
+    merge is), so Terminal Nine's branches/pit lanes never flag —
+    branch-over-main crossings are OUT OF SCOPE this pass and keep the old
+    behavior. All four committed tracks: zero geometry/enforcement change
+    (fingerprinted byte-identical vs HEAD; PG07 carries 2 inert near-miss
+    zones from its switchback legs, `real: false`).
+  - **Enforcement goes strictly local on such tracks** (the schema doctrine:
+    the data says where the limits are, never how they are enforced): when
+    `selfOverlaps`, `surfaceState` REPLACES the polygon walk with per-sample
+    lateral limits `limitLeft`/`limitRight` = bank-shortened half width +
+    `boundaryMarginFor(edgeY)` — the ONE margin rule, moved to track-runtime
+    and imported by chain-doc so the authored line and the enforced line
+    cannot diverge — enforced against the pass the vehicle is actually on
+    (warm-scoped), pushing back toward that pass's own centerline. The
+    authored loops stay in the data (minimap still draws them, schematic).
+    Cars on either pass of a crossing never see a false violation; the wall
+    is still there past the limit with the push pointing back at the road.
+  - **Deck structure asks what is under it** (`otherStretchAt` +
+    `underFloorAt`/`clippedShoulderExtra` in track-visual, `OVERPASS_CLEAR_M`
+    2.75): support bents whose feet OR span sit over the other pass's
+    drivable corridor are SKIPPED outright (a clear bridged span; a column
+    cars drive through would be worse than none — `sinceLast` stays past
+    spacing so the next clear sample plants one), feet beside the road stop
+    on that local ground instead of piercing to the apron, the lower brace is
+    dropped when any road runs below; the slab skirt and jump fill clamp
+    their undersides against the pass below (keep `OVERPASS_CLEAR_M` open
+    over its roadway, sit on its run-off beside it); the shoulder strip stops
+    short of the other pass's envelope where the two are at similar heights
+    (the start of a climb-over), so no ledge crosses the lower road — which
+    also scopes the PHYSICS shoulder trimesh, since it is the same MeshData.
+  - **Walls/fence:** on self-crossing tracks the race and the piece-builder
+    preview mount `buildLimitWallGeometries` — per-pass bands standing
+    exactly on the enforced limits at each sample's own edge height (lower
+    pass's wall runs under the bridge, upper's above) — instead of
+    `buildBoundaryGeometry` loops; the chain-link fence is skipped (it
+    follows the outer loop, which crosses the road there).
+  - **Fall-recovery adopt (`adoptStretchUnder`):** a car that drops off the
+    overpass onto the pass underneath stays warm-locked to the deck overhead
+    (the two passes share XZ, so the warm window never leaves it) and used to
+    be Lakitu-yanked back up 1.2 s later while driving legitimate road. When
+    `selfOverlaps` and the drop condition trips, the runtime first checks for
+    another stretch of the same road right under the car (corridor + run-off,
+    within the drop threshold) and ADOPTS its nearest sample as the new warm
+    index instead of recovering. Browser-verified: warm 128 (upper range) ->
+    19 (lower) on the first frame, falls delta 0, car kept driving under the
+    bridge.
+  - **Derived gates step clear of crossings** (`deriveFurniture`): a gate
+    line is a 2D segment crossed at ANY height, so a gate under an overpass
+    is also crossed by traffic above (rejection noise at best, a wrong-pass
+    start/finish satisfaction at worst) and its pane would draw at whichever
+    pass is XZ-nearest. Every derived gate index slides forward to the next
+    sample clear of the overlap zones, forward-only so checkpoint order stays
+    monotonic (a checkpoint with no room left is dropped rather than
+    misplaced); non-crossing chains place exactly as before.
+  - **Proof track `tracks/overpass-proof-01.json`** (1023 m, kind `test`,
+    registered in tracks.ts): a flat start straight crossed 15.9 m overhead
+    by the return leg, one real overlap zone (samples 12-29 under 120-138).
+    Verified end to end: the publish validator passes (fails at HEAD with 114
+    wall violations), 204 on-road probes 0 false violations / walls present
+    past the limits with correct push, 0 support/shoulder verts inside the
+    lower roadway envelope, gates all clear of the zone, and REAL drives in
+    the harness — the lower pass straight through under the bridge with no
+    stall and no wall contact, the upper pass across the full bridge at
+    constant deck height, the drop-adopt case above, and a full AI race
+    completing laps. Physics/enforcement identical on every committed track
+    (fingerprint A/B), svelte-check clean.
+  - **Still deliberately out of scope:** cross-path overlaps (a ribbon
+    BRANCH flying over the main line), polygon-union outer boundaries for
+    the minimap on self-crossing tracks, and hard pylon collision (deck
+    structure stays decorative; the drivable surface is still only the
+    ribbon + shoulder trimeshes).
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

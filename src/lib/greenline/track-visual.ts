@@ -25,7 +25,7 @@
 
 import type * as THREE_NS from 'three';
 import type { GateRuntime, RibbonRuntime, TrackRuntime, TrackVec3 } from './track-runtime';
-import { surfaceProbe, surfaceYAt } from './track-runtime';
+import { otherStretchAt, surfaceProbe, surfaceYAt } from './track-runtime';
 import type { TrackBoundary } from './track-schema';
 
 type ThreeModule = typeof THREE_NS;
@@ -75,6 +75,72 @@ const SUPPORT_MIN_RISE_M = 2;
 const SUPPORT_SPACING_M = 17;
 /** Boundary points further than this off the ribbon edge stand on the apron. */
 const BOUNDARY_TRACKSIDE_M = 20;
+/**
+ * Vertical clearance every deck structure must leave over ANOTHER pass of
+ * the same road (a self-crossing chain, Terminal-Nine-style overpasses built
+ * in the piece builder). A shoulder ledge, slab skirt, or jump fill ending
+ * inside this window over the other pass would read as furniture in the
+ * roadway; a proper overpass (several meters of clearance) is far outside it
+ * and gets exactly the pre-overpass geometry.
+ */
+export const OVERPASS_CLEAR_M = 2.75;
+
+/**
+ * The lowest y a structure hung downward from `(x, z, topY)` may reach,
+ * given whatever OTHER pass of the road runs underneath: over that pass's
+ * roadway it must stop `OVERPASS_CLEAR_M` above the surface (the roadway
+ * stays open), over its run-off strip it sits on that ground, and past the
+ * strip the apron (0) is the floor as before. Returns 0 — today's behavior
+ * exactly — everywhere the path never self-overlaps.
+ */
+function underFloorAt(path: RibbonRuntime, i: number, x: number, z: number, topY: number): number {
+	if (!path.overlapZones.length) return 0;
+	let floor = 0;
+	for (const m of otherStretchAt(path, i, x, z)) {
+		if (m.y >= topY - 0.2) continue;
+		const f =
+			m.absLat <= m.hw + 0.75
+				? m.y + OVERPASS_CLEAR_M
+				: m.absLat <= m.hw + SHOULDER_M + 1
+					? m.y
+					: 0;
+		floor = Math.max(floor, Math.min(topY, f));
+	}
+	return floor;
+}
+
+/**
+ * How far the shoulder at sample `i` may extend on the given side (`sign`
+ * +1 = left) before it would intrude into another pass's drivable envelope:
+ * the strip runs out at the edge's own height, so anywhere it would cross
+ * the other pass's corridor less than `OVERPASS_CLEAR_M` above that road
+ * (or below it, poking up through), it stops short instead. A clean
+ * overpass — the other road several meters down — never clips, so the strip
+ * is exactly what it was; the clip bites only where the two passes are at
+ * SIMILAR heights (the start of a climb-over), which is precisely where a
+ * ledge across the other corridor would catch wheels.
+ */
+function clippedShoulderExtra(
+	path: RibbonRuntime,
+	i: number,
+	sign: 1 | -1,
+	extraM: number
+): number {
+	if (!path.overlapZones.length || extraM <= 0) return extraM;
+	const E = sign > 0 ? path.leftEdge3[i] : path.rightEdge3[i];
+	const n = lateralAt(path, i);
+	const hl = Math.hypot(n.x, n.z) || 1;
+	const dx = (n.x / hl) * sign;
+	const dz = (n.z / hl) * sign;
+	const STEP = 0.75;
+	for (let s = STEP; s <= extraM + 1e-6; s += STEP) {
+		for (const m of otherStretchAt(path, i, E.x + dx * s, E.z + dz * s)) {
+			if (m.absLat <= m.hw + 0.75 && E.y > m.y - 0.3 && E.y < m.y + OVERPASS_CLEAR_M)
+				return Math.max(0, s - STEP);
+		}
+	}
+	return extraM;
+}
 
 /** Raw triangle soup: the ONE form both a BufferGeometry and a Trimesh read. */
 export interface MeshData {
@@ -143,11 +209,15 @@ function outerSilhouette(
 		// Horizontal component only: a banked edge still runs its shoulder out
 		// level, matching what `surfaceYAt` reports beyond the ribbon.
 		const hl = Math.hypot(n.x, n.z) || 1;
-		const e = raisedAt(path, i, minRise) ? extraM : 0;
+		const raised = raisedAt(path, i, minRise);
+		// Per side, because a self-crossing road can have the OTHER pass on
+		// one side only: each strip stops short of that pass's envelope.
+		const eL = raised ? clippedShoulderExtra(path, i, 1, extraM) : 0;
+		const eR = raised ? clippedShoulderExtra(path, i, -1, extraM) : 0;
 		const L = path.leftEdge3[i];
 		const R = path.rightEdge3[i];
-		left.push({ x: L.x + (n.x / hl) * e, y: L.y, z: L.z + (n.z / hl) * e });
-		right.push({ x: R.x - (n.x / hl) * e, y: R.y, z: R.z - (n.z / hl) * e });
+		left.push({ x: L.x + (n.x / hl) * eL, y: L.y, z: L.z + (n.z / hl) * eL });
+		right.push({ x: R.x - (n.x / hl) * eR, y: R.y, z: R.z - (n.z / hl) * eR });
 	}
 	return { left, right };
 }
@@ -243,9 +313,12 @@ export function deckSlabMesh(
 	// the y-0 plane and the skirt showed up poking out of the ground beside the
 	// road. Clamping shortens the skirt to meet the apron exactly where the
 	// deck is low, which is what a real structure does as it comes down to
-	// grade.
-	const push = (p: TrackVec3, drop = 0) => {
-		positions.push(p.x, Math.max(0, p.y - drop), p.z);
+	// grade. On a self-crossing road the floor under a point may be the OTHER
+	// pass rather than the apron — `underFloorAt` raises the clamp so the
+	// skirt can never hang down into (or through) that pass's envelope.
+	const push = (p: TrackVec3, sample: number, drop = 0) => {
+		const floor = drop > 0 ? underFloorAt(path, sample, p.x, p.z, p.y) : 0;
+		positions.push(p.x, Math.max(floor, p.y - drop), p.z);
 		return positions.length / 3 - 1;
 	};
 	const quads = path.closed ? n : n - 1;
@@ -257,15 +330,15 @@ export function deckSlabMesh(
 		const ti = thickAt(i);
 		const tj = thickAt(j);
 		// Left face (outward-facing), right face, then the underside.
-		const a = push(left[i]);
-		const b = push(left[j]);
-		const c = push(left[i], ti);
-		const d = push(left[j], tj);
+		const a = push(left[i], i);
+		const b = push(left[j], j);
+		const c = push(left[i], i, ti);
+		const d = push(left[j], j, tj);
 		indices.push(a, c, b, b, c, d);
-		const e = push(right[i]);
-		const f = push(right[j]);
-		const g = push(right[i], ti);
-		const h = push(right[j], tj);
+		const e = push(right[i], i);
+		const f = push(right[j], j);
+		const g = push(right[i], i, ti);
+		const h = push(right[j], j, tj);
 		indices.push(e, f, g, g, f, h);
 		indices.push(c, d, h, c, h, g);
 	}
@@ -401,7 +474,14 @@ export function jumpSolidMesh(
 		const i3 = push(d.x, d.y, d.z);
 		m.indices.push(i0, i1, i2, i0, i2, i3);
 	};
-	const ground = (p: TrackVec3): TrackVec3 => ({ x: p.x, y: 0, z: p.z });
+	// The fill's underside is the ground — normally the apron, but on a
+	// self-crossing road the ground under a jump may be the OTHER pass, and
+	// earthwork must never drop through (or seal off) that pass's envelope.
+	const ground = (p: TrackVec3, sample: number): TrackVec3 => ({
+		x: p.x,
+		y: underFloorAt(path, sample, p.x, p.z, p.y),
+		z: p.z
+	});
 	let any = false;
 	for (const span of spans) {
 		for (let i = span.start; i < span.end; i++) {
@@ -421,13 +501,13 @@ export function jumpSolidMesh(
 			// wound outward, plus an end cap wherever the mound begins or ends so
 			// the lip and the landing's back both close off as solid faces
 			// instead of showing a hollow shell.
-			quad(li, lj, ground(lj), ground(li));
-			quad(ground(ri), ground(rj), rj, ri);
+			quad(li, lj, ground(lj, j), ground(li, i));
+			quad(ground(ri, i), ground(rj, j), rj, ri);
 			const prevRaised = i > span.start && Math.min(path.leftEdge3[i - 1].y, path.rightEdge3[i - 1].y) > minRise;
 			const nextRaised =
 				j < span.end && Math.min(path.leftEdge3[j + 1]?.y ?? 0, path.rightEdge3[j + 1]?.y ?? 0) > minRise;
-			if (!prevRaised && hi > minRise) quad(ri, li, ground(li), ground(ri));
-			if (!nextRaised && hj > minRise) quad(lj, rj, ground(rj), ground(lj));
+			if (!prevRaised && hi > minRise) quad(ri, li, ground(li, i), ground(ri, i));
+			if (!nextRaised && hj > minRise) quad(lj, rj, ground(rj, j), ground(lj, j));
 		}
 	}
 	return any ? m : null;
@@ -468,8 +548,6 @@ export function deckSupportsMesh(
 			sinceLast += step;
 			continue;
 		}
-		sinceLast = 0;
-		any = true;
 		const thick = Math.max(0.4, Math.min(1.4, path.halfWidths[i] * 0.16));
 		const c = path.center[i];
 		const nx = path.center[j].x - path.center[i].x;
@@ -478,19 +556,56 @@ export function deckSupportsMesh(
 		const lat = lateralAt(path, i);
 		const arm = path.halfWidths[i] * 0.62;
 		const legW = Math.max(0.45, Math.min(1.1, path.halfWidths[i] * 0.12));
+		// What is actually under this bent? On a self-crossing road the answer
+		// can be the OTHER pass rather than the apron. Probe the two feet AND
+		// the centre (their roadway can run between the legs on a
+		// perpendicular crossing): a bent whose span sits over the other
+		// pass's drivable corridor is SKIPPED outright — the crossing reads as
+		// a clear bridged span, and a column standing in a roadway cars pass
+		// through would be worse than no column. A foot beside their road
+		// stops on that local ground (their run-off strip) instead of
+		// piercing down through it to the apron.
+		let blocked = false;
+		let anyBelow = false;
+		const footBase = [0, 0];
+		const probes: [number, number, number][] = [
+			[c.x, c.z, -1],
+			[c.x + lat.x * arm, c.z + lat.z * arm, 0],
+			[c.x - lat.x * arm, c.z - lat.z * arm, 1]
+		];
+		if (path.overlapZones.length) {
+			for (const [px, pz, foot] of probes) {
+				for (const o of otherStretchAt(path, i, px, pz)) {
+					if (o.y >= deckY - 0.5) continue;
+					anyBelow = true;
+					if (o.absLat <= o.hw + 1) blocked = true;
+					else if (foot >= 0 && o.absLat <= o.hw + SHOULDER_M + 1)
+						footBase[foot] = Math.max(footBase[foot], o.y);
+				}
+			}
+		}
+		// Skipped, not placed: sinceLast stays past the spacing, so the very
+		// next sample clear of the crossing plants the bent immediately.
+		if (blocked) continue;
+		sinceLast = 0;
+		any = true;
 		for (const s of [1, -1]) {
 			const lx = c.x + lat.x * arm * s;
 			const lz = c.z + lat.z * arm * s;
+			const base = footBase[s === 1 ? 0 : 1];
 			// The deck tilts with the bank, so each leg meets its own underside.
 			const top = deckY + lat.y * arm * s - thick;
-			if (top <= 0.6) continue;
-			pushBox(m, lx, top / 2, lz, legW, top, legW, yaw);
+			if (top - base <= 0.6) continue;
+			pushBox(m, lx, base + (top - base) / 2, lz, legW, top - base, legW, yaw);
 		}
-		// Cross-beam just under the slab, plus a lower brace on tall bents.
+		// Cross-beam just under the slab, plus a lower brace on tall bents —
+		// the brace is dropped whenever another pass runs anywhere below,
+		// since a mid-height bar over (or near) that road would read as an
+		// obstacle across it.
 		const beamY = deckY - thick - 0.35;
 		if (beamY > 1) {
 			pushBox(m, c.x, beamY, c.z, arm * 2 + legW, 0.42, legW * 0.8, yaw + Math.PI / 2);
-			if (beamY > 4.5)
+			if (beamY > 4.5 && !anyBelow)
 				pushBox(m, c.x, beamY * 0.45, c.z, arm * 2 + legW, 0.34, legW * 0.7, yaw + Math.PI / 2);
 		}
 	}
@@ -655,6 +770,58 @@ export function buildBoundaryGeometry(
 	geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
 	geo.setIndex(idx);
 	return geo;
+}
+
+/**
+ * The wall bands for a SELF-CROSSING track: one per side per path, standing
+ * exactly on the per-sample lateral limits the runtime actually enforces
+ * there (`limitLeft`/`limitRight`, present only on such tracks), footed at
+ * each sample's own edge height.
+ *
+ * Exists because the authored boundary polygons follow a centerline that
+ * crosses itself, so drawn as loops they visibly cut ACROSS the other pass's
+ * road — and worse, `buildBoundaryGeometry` foots each post at the
+ * nearest-in-XZ surface, which near a crossing is the WRONG pass, jumping
+ * the band to the other deck's height. These bands are strictly local to the
+ * road generating them: the lower pass's wall runs under the overpass at its
+ * own height, the upper pass's above, each marking the limit the soft wall
+ * really springs at. Returns [] on every normal track (no limits computed),
+ * so callers fall through to the boundary loops unchanged.
+ */
+export function buildLimitWallGeometries(
+	THREE: ThreeModule,
+	rt: TrackRuntime,
+	height = 0.9
+): THREE_NS.BufferGeometry[] {
+	const out: THREE_NS.BufferGeometry[] = [];
+	for (const p of rt.paths) {
+		if (!p.limitLeft || !p.limitRight) continue;
+		const n = p.center.length;
+		for (const side of [1, -1] as const) {
+			const lims = side > 0 ? p.limitLeft : p.limitRight;
+			const verts = new Float32Array(n * 2 * 3);
+			for (let i = 0; i < n; i++) {
+				const nv = lateralAt(p, i);
+				const hl = Math.hypot(nv.x, nv.z) || 1;
+				const x = p.center[i].x + (nv.x / hl) * lims[i] * side;
+				const z = p.center[i].z + (nv.z / hl) * lims[i] * side;
+				const y = side > 0 ? p.leftEdge3[i].y : p.rightEdge3[i].y;
+				verts.set([x, y, z], i * 6);
+				verts.set([x, y + height, z], i * 6 + 3);
+			}
+			const idx: number[] = [];
+			const last = p.closed ? n : n - 1;
+			for (let i = 0; i < last; i++) {
+				const j = (i + 1) % n;
+				idx.push(i * 2, j * 2, i * 2 + 1, i * 2 + 1, j * 2, j * 2 + 1);
+			}
+			const geo = new THREE.BufferGeometry();
+			geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+			geo.setIndex(idx);
+			out.push(geo);
+		}
+	}
+	return out;
 }
 
 /**

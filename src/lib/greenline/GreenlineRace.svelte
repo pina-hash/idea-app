@@ -52,6 +52,7 @@
 	import { parseTrack, type TrackData } from '$lib/greenline/track-schema';
 	import { clampAiCount, GRID_MAX_AI } from '$lib/greenline/grid-selection.svelte';
 	import {
+		adoptStretchUnder,
 		buildRuntime,
 		formatLapMs,
 		headingToDir,
@@ -64,6 +65,7 @@
 	import {
 		buildBoundaryGeometry,
 		buildGatePane,
+		buildLimitWallGeometries,
 		buildRibbonGeometry,
 		deckShoulderMesh,
 		deckSlabMesh,
@@ -2216,8 +2218,13 @@
 				}
 
 				// Chain-link fence read along the outer boundary: posts + top rail.
+				// Skipped on a SELF-CROSSING track: the outer loop follows a
+				// centerline that crosses itself, so the fence would run straight
+				// across the other pass's road (and its posts would foot at
+				// whichever pass is nearest in XZ — the wrong one near the
+				// crossing). The limit walls below mark the enforced edge there.
 				{
-					const fence = rt.boundaries.find((b) => b.id === 'outer');
+					const fence = rt.selfOverlaps ? undefined : rt.boundaries.find((b) => b.id === 'outer');
 					if (fence) {
 						const pts = fence.points;
 						const step = 3;
@@ -2373,9 +2380,17 @@
 					depthWrite: false
 				});
 				// `rt` foots the band on the local surface, so the wall climbs with
-				// the deck instead of lying at y 0 far below it.
-				for (const b of rt.boundaries)
-					scene.add(new THREE.Mesh(buildBoundaryGeometry(THREE, b, 0.9, rt), wallMat));
+				// the deck instead of lying at y 0 far below it. A SELF-CROSSING
+				// track draws the per-pass limit bands instead: the authored loops
+				// cut across the other pass there, and the limits are what the
+				// soft wall actually enforces on such a track (surfaceState).
+				if (rt.selfOverlaps) {
+					for (const g of buildLimitWallGeometries(THREE, rt, 0.9))
+						scene.add(new THREE.Mesh(g, wallMat));
+				} else {
+					for (const b of rt.boundaries)
+						scene.add(new THREE.Mesh(buildBoundaryGeometry(THREE, b, 0.9, rt), wallMat));
+				}
 				const postGeo = new THREE.CylinderGeometry(0.22, 0.22, 2.6, 10);
 				const paneFor = (g: (typeof rt.checkpoints)[number], color: number, opacity: number) => {
 					const built = buildGatePane(THREE, rt, g, color, opacity, postGeo);
@@ -7483,13 +7498,44 @@
 						// drop threshold under the local surface recovers, including
 						// the ground strip BESIDE an elevated span.
 						if (rt.hasRelief) {
-							const surfY = surfaceYAt(
+							let surfY = surfaceYAt(
 								rt,
 								body.position.x,
 								body.position.z,
 								rig.warmIdx,
 								rig.warmPath
 							);
+							// Self-crossing track: a car far below its warm surface may
+							// simply be standing on the OTHER pass of the same road (it
+							// dropped off the overpass onto the pass underneath — the
+							// warm window keeps tracking the deck overhead, because the
+							// two passes share the XZ). Adopt the stretch actually under
+							// the car as its road instead of "recovering" a car that is
+							// already driving on real ground.
+							if (
+								rt.selfOverlaps &&
+								surfY - body.position.y > num(tuning.fallRecoverDrop, DEFAULTS.fallRecoverDrop)
+							) {
+								const p = rt.paths[rig.warmPath] ?? rt.paths[0];
+								const adopted = adoptStretchUnder(
+									p,
+									rig.warmIdx,
+									body.position.x,
+									body.position.z,
+									body.position.y,
+									num(tuning.fallRecoverDrop, DEFAULTS.fallRecoverDrop)
+								);
+								if (adopted !== null) {
+									rig.warmIdx = adopted;
+									surfY = surfaceYAt(
+										rt,
+										body.position.x,
+										body.position.z,
+										adopted,
+										rig.warmPath
+									);
+								}
+							}
 							// Chassis floor (Phase 9-fix-c). The wheels stay the only
 							// DRIVING interface with the ribbon; this is purely the floor
 							// they stand on, for the moments no wheel can reach it.

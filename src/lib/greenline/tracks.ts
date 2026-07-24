@@ -16,6 +16,7 @@
 import { browser } from '$app/environment';
 import { parseTrack, type TrackData } from './track-schema';
 import { compileSurface } from './track-pieces';
+import overpassProofJson from './tracks/overpass-proof-01.json';
 import pieceProofJson from './tracks/piece-proof-01.json';
 import provingGroundJson from './tracks/proving-ground-07.json';
 import reliefProofJson from './tracks/relief-proof-01.json';
@@ -79,6 +80,15 @@ export const TRACKS: TrackEntry[] = [
 		lengthM: 596,
 		kind: 'test',
 		raw: pieceProofJson
+	},
+	{
+		id: 'overpass-proof-01',
+		name: 'Overpass Proof 01',
+		tagline:
+			'Self-crossing loop returning above its own start straight. Built to check overpass physics and boundaries, not to race.',
+		lengthM: 1023,
+		kind: 'test',
+		raw: overpassProofJson
 	}
 ];
 

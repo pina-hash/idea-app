@@ -39,19 +39,19 @@ import type {
 	TrackPiece,
 	TrackVec2
 } from '../track-schema';
+import { boundaryMarginFor, computePathOverlapZones } from '../track-runtime';
 
 const DEG = Math.PI / 180;
 const normDeg = (a: number): number => ((((a + 180) % 360) + 360) % 360) - 180;
 
 /* ------------------------------------------------------------------ */
-/* boundary margins (the Terminal Nine run-off lesson, ribbon builder's */
-/* constants reused verbatim so both builders enclose a track alike)    */
+/* boundary margins (the Terminal Nine run-off lesson). The rule itself */
+/* lives in track-runtime now — on a self-crossing chain the runtime    */
+/* enforces the same margins directly, so authoring and enforcement     */
+/* must read one formula. Re-exported here for compatibility.           */
 /* ------------------------------------------------------------------ */
 
-/** Flat-ground boundary offset beyond the ribbon edge (Proving Ground's 9 m). */
-export const FLAT_MARGIN_M = 9;
-/** Boundary offset floor beside raised track (Terminal Nine's deck lesson). */
-export const MIN_ELEVATED_MARGIN_M = 1.8;
+export { FLAT_MARGIN_M, MIN_ELEVATED_MARGIN_M } from '../track-runtime';
 
 /* ------------------------------------------------------------------ */
 /* the editable document                                               */
@@ -510,17 +510,6 @@ function gateAt(c: CompiledChain, i: number, id: string, name: string, closed = 
 	};
 }
 
-/**
- * Boundary offset for an edge at height `edgeY`: the Proving Ground 9 m on
- * flat ground, shrinking toward wall-tight as the edge rises, because 9 m of
- * run-off beside a deck is 9 m of thin air (Terminal Nine, Phase 8b).
- */
-const marginFor = (edgeY: number): number =>
-	Math.min(
-		FLAT_MARGIN_M,
-		Math.max(MIN_ELEVATED_MARGIN_M, FLAT_MARGIN_M - Math.max(0, edgeY - 0.4) * 2.4)
-	);
-
 export interface ExportOptions {
 	/** Samples the spawn sits behind the start/finish line (default 2). */
 	spawnBackSamples?: number;
@@ -576,12 +565,44 @@ function deriveFurniture(
 
 	// --- gates: start/finish just after the chain start, checkpoints spread
 	// evenly by sample count around the lap.
-	const startFinish = gateAt(c, Math.min(6, Math.max(0, n - 2)), 'sf', 'Start/Finish');
+	//
+	// SELF-CROSSING chains: no derived gate may sit where the road overlaps
+	// its own footprint. A gate line is a 2D segment crossed at ANY height, so
+	// a gate under an overpass is also crossed by traffic on the pass above
+	// (spurious rejections at best, a start/finish line satisfiable from the
+	// wrong pass at worst), and its pane would draw at whichever pass is
+	// nearest in XZ. Each desired index slides forward to the next clear
+	// sample; on a chain with no self-overlap every index is clear and the
+	// placement is exactly what it always was.
+	const inOverlap = new Uint8Array(n);
+	{
+		const zones = computePathOverlapZones(c.center, c.widths.map((w) => w / 2), true);
+		const GATE_PAD = 3;
+		for (const z of zones) {
+			for (let i = Math.max(0, z.aStart - GATE_PAD); i <= Math.min(n - 1, z.aEnd + GATE_PAD); i++)
+				inOverlap[i] = 1;
+			for (let i = Math.max(0, z.bStart - GATE_PAD); i <= Math.min(n - 1, z.bEnd + GATE_PAD); i++)
+				inOverlap[i] = 1;
+		}
+	}
+	// Forward-only walk (no wrap): checkpoint order must stay monotonic along
+	// the lap or the sequence becomes uncompletable. A checkpoint with no
+	// clear room left before the lap ends is dropped rather than misplaced.
+	const clearForward = (from: number): number | null => {
+		for (let i = Math.max(0, from); i < n - 1; i++) if (!inOverlap[i]) return i;
+		return null;
+	};
+	const sfIdx = clearForward(Math.min(6, Math.max(0, n - 2))) ?? Math.min(6, Math.max(0, n - 2));
+	const startFinish = gateAt(c, sfIdx, 'sf', 'Start/Finish');
 	const count = Math.max(1, Math.min(12, Math.round(doc.checkpointCount)));
 	const checkpoints: TrackGate[] = [];
+	let prevGate = sfIdx;
 	for (let k = 1; k <= count; k++) {
-		const i = Math.round((k * n) / (count + 1)) % n;
-		checkpoints.push(gateAt(c, i, `cp${k}`, `Checkpoint ${k}`));
+		const want = Math.round((k * n) / (count + 1)) % n;
+		const i = clearForward(Math.max(want, prevGate + 2));
+		if (i === null) break;
+		checkpoints.push(gateAt(c, i, `cp${checkpoints.length + 1}`, `Checkpoint ${checkpoints.length + 1}`));
+		prevGate = i;
 	}
 
 	// --- boundaries: one offset loop per side. Which side is "outer" is a
@@ -611,7 +632,7 @@ function deriveFurniture(
 		const arm = hw * Math.cos(br);
 		// The +normal side is the one positive banking raises.
 		const edgeY = c.elevations[i] + sign * hw * Math.sin(br);
-		const off = arm + marginFor(edgeY);
+		const off = arm + boundaryMarginFor(edgeY);
 		return {
 			x: round2(c.center[i].x + f.nx * sign * off),
 			z: round2(c.center[i].z + f.nz * sign * off)
@@ -634,7 +655,7 @@ function deriveFurniture(
 	// along it, so the grid sits before the timing gate the way every
 	// committed track's does.
 	const back = Math.max(1, Math.round(opts.spawnBackSamples ?? 2));
-	const si = (Math.min(6, Math.max(0, n - 2)) - back + n) % n;
+	const si = (sfIdx - back + n) % n;
 	const sf = frames[si];
 
 	return {

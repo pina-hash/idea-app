@@ -5,6 +5,7 @@
 	import {
 		buildBoundaryGeometry,
 		buildGatePane,
+		buildLimitWallGeometries,
 		buildRibbonGeometry,
 		deckShoulderMesh,
 		deckSlabMesh,
@@ -1009,6 +1010,15 @@
 						depthWrite: false
 					});
 					disposables.push(wallMat);
+					// Same rule as the race: a self-crossing chain shows the per-pass
+					// LIMIT bands the runtime actually enforces there, never the
+					// authored loops (which cut across the other pass at a crossing).
+					if (rt.selfOverlaps) {
+						for (const g of buildLimitWallGeometries(THREE, rt, 0.9)) {
+							disposables.push(g);
+							trackGroup.add(new THREE.Mesh(g, wallMat));
+						}
+					} else
 					for (const b of rt.boundaries) {
 						const g = buildBoundaryGeometry(THREE, b, 0.9, rt);
 						disposables.push(g);
