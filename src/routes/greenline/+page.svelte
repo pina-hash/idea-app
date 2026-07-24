@@ -82,6 +82,7 @@
 		type DecalStatus
 	} from '$lib/greenline/decals';
 	import { registerDecalImage } from '$lib/greenline/rig-visual';
+	import { playSfx } from '$lib/greenline/sfx';
 	import '$lib/greenline/brand/brand';
 	import type { PageData } from './$types';
 
@@ -407,6 +408,13 @@
 		if (res.ok || res.reason === 'already_unlocked') {
 			unlockedSet = new Set([...unlockedSet, itemId]);
 			if (res.balance != null) wallet = res.balance;
+			// The item is genuinely YOURS now, which is the progression moment: the
+			// garage's own `ui_purchase` is the button-press confirmation, fired
+			// optimistically at click time, and this lands a round trip later when
+			// the server has actually credited the unlock. A newly-owned item is
+			// only ever unlocked once, so `already_unlocked` (a replayed submit)
+			// deliberately does not get the flourish.
+			if (res.ok) playSfx('result_milestone_unlock');
 		} else if (res.reason === 'insufficient_funds') {
 			if (res.balance != null) wallet = res.balance;
 			purchaseError = `Not enough ${CURRENCY_SHORT} — that costs ${res.price ?? itemPrice(itemId) ?? '?'}, you have ${res.balance ?? 0}.`;

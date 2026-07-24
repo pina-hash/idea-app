@@ -157,7 +157,7 @@
 		type ResolvedStats
 	} from '$lib/greenline/loadout';
 	import { audioEngine, type VoiceHandle } from '$lib/greenline/audio-engine';
-	import { playSfx, startSfxLoop, primeSfx, type SfxRef } from '$lib/greenline/sfx';
+	import { playSfx, startSfxLoop, primeSfx, sfxGain, type SfxRef } from '$lib/greenline/sfx';
 	import {
 		COM_DROP,
 		createRigVisuals,
@@ -2825,6 +2825,21 @@
 					 * for them rather than merely a small one.
 					 */
 					tractionEase: number;
+					/**
+					 * Engine revs 0..1, read ONLY by the engine-audio crossfade (nothing
+					 * in the sim reads it back). There is no gearbox to take a real RPM
+					 * from, so this is a proxy: speed as a fraction of this build's own
+					 * drag-limited top speed, lifted by throttle so a car standing still
+					 * and floored still revs, eased asymmetrically (revs climb faster
+					 * than they fall) for engine inertia.
+					 */
+					engineRpm: number;
+					/** Lateral slip (m/s) sampled in the physics pass, for the drift
+					 * grip cue in the later audio block. */
+					driftLat: number;
+					/** True while the drift screech is sounding, so the tire chirp fires
+					 * once on the rising edge rather than every frame. */
+					driftOn: boolean;
 					hx: number;
 					hz: number;
 					/** Slipstream, set each frame by the draft-detection pass. drafting =
@@ -3205,6 +3220,9 @@
 						steerCurrent: 0,
 						hbEngage: 0,
 						tractionEase: 1,
+						engineRpm: 0,
+						driftLat: 0,
+						driftOn: false,
 						hx: 1,
 						hz: 0,
 						drafting: false,
@@ -4805,27 +4823,95 @@
 					name: string,
 					wanted: boolean,
 					ref: SfxRef,
-					pos?: { x: number; y: number; z: number }
+					pos?: { x: number; y: number; z: number },
+					gainScale?: number
 				) => {
 					const cur = loopVoices.get(name);
 					if (wanted) {
 						if (cur) {
 							if (pos) cur.setPosition(pos);
+							// A cue whose level varies (the drift screech swells with slip)
+							// retargets its live gain; a plain on/off loop passes nothing
+							// and keeps the roster level it started at.
+							if (gainScale !== undefined) cur.setGain(sfxGain(ref) * gainScale);
 							return;
 						}
 						// A null here means the asset is not resident yet; the next frame
 						// retries, so a cold cache costs a moment of silence, never a
 						// permanently missing loop.
-						const h = startSfxLoop(ref, { position: pos });
+						const h = startSfxLoop(ref, { position: pos, gainScale });
 						if (h) loopVoices.set(name, h);
 					} else if (cur) {
 						cur.stop();
 						loopVoices.delete(name);
 					}
 				};
+
+				// Engine-audio dials. The rev proxy (Rig.engineRpm, computed in the
+				// physics pass) is speed / this build's own top speed, lifted by
+				// throttle so a car standing still under power still revs, then eased
+				// asymmetrically for engine inertia.
+				const ENGINE_THROTTLE_LIFT = 0.26; // full throttle at a standstill -> 0.26 revs
+				const ENGINE_RPM_RISE = 5.5; // 1/s ease toward a higher target
+				const ENGINE_RPM_FALL = 2.4; // slower fall: revs hang as you lift
+				// Distance model. The engine's PannerNode is pan-only (rolloffFactor 0),
+				// which is right for discrete one-shots but would make every car in the
+				// field a full-volume motor, so the falloff is applied here as gain: flat
+				// inside NEAR, easing to nothing at FAR, and fully culled past it (which
+				// is what keeps the live voice count near the handful of cars actually
+				// around you rather than the whole grid).
+				const ENGINE_NEAR_M = 14;
+				const ENGINE_FAR_M = 75;
+				/** The player's own motor sits closer than the mix: it is your car. */
+				const ENGINE_PLAYER_GAIN = 1;
+				const ENGINE_RIVAL_GAIN = 0.8;
+				/**
+				 * A gentle continuous pitch glide layered UNDER the crossfade, as a
+				 * single function of revs so both audible layers move together and
+				 * nothing steps at a band boundary. Deliberately small: the recordings
+				 * already carry the real RPM difference, this only fills the gaps
+				 * between them.
+				 */
+				const ENGINE_RATE_LO = 0.94;
+				const ENGINE_RATE_HI = 1.07;
+				/** Skip a gain retarget smaller than this (a parked car costs nothing). */
+				const ENGINE_GAIN_EPS = 0.004;
+
+				// Tire-grip cue thresholds, in lateral slip m/s (the same measure the
+				// drift meter charges from). Sized against the MEASURED regimes: a clean
+				// straight sits near 0.2, a committed corner runs ~0.9-1.5, a real
+				// handbrake slide spikes past 3. Screeching starts above a clean corner
+				// on purpose, so the cue means "you are sliding", not "you are turning".
+				const DRIFT_SFX_ON = 1.8; // slip that starts the screech
+				const DRIFT_SFX_OFF = 1.4; // hysteresis: it holds down to here
+				const DRIFT_SFX_FULL = 4; // slip at which the bed is at full level
+
+				// ---- Engine audio: per-vehicle RPM layer crossfade ----
+				// Each archetype has three CONSTANT-RPM recordings. All three run as
+				// continuous loops for as long as a vehicle is audible, and their gains
+				// crossfade against that vehicle's own revs, so the motor glides across
+				// the range instead of cutting between bands. Held per vehicle by rig id.
+				const ENGINE_SFX: Record<ArchetypeId, [SfxRef, SfxRef, SfxRef]> = {
+					armor: ['eng_armor_idle', 'eng_armor_mid', 'eng_armor_high'],
+					velocity: ['eng_velocity_idle', 'eng_velocity_mid', 'eng_velocity_high'],
+					handling: ['eng_handling_idle', 'eng_handling_mid', 'eng_handling_high'],
+					systems: ['eng_systems_idle', 'eng_systems_mid', 'eng_systems_high']
+				};
+				type EngineRig = { arch: ArchetypeId; layers: (VoiceHandle | null)[]; gains: number[] };
+				const engineRigs = new Map<string, EngineRig>();
+				const stopEngine = (id: string) => {
+					const e = engineRigs.get(id);
+					if (!e) return;
+					for (const h of e.layers) h?.stop(0.3);
+					engineRigs.delete(id);
+				};
 				const stopAllSfxLoops = () => {
 					for (const h of loopVoices.values()) h.stop();
 					loopVoices.clear();
+					// Engine layers are loops too, so they are exempt from stealing and
+					// nothing else will ever reclaim them: the pause early-return and the
+					// teardown both come through here, and both must stop them by hand.
+					for (const id of [...engineRigs.keys()]) stopEngine(id);
 				};
 				/**
 				 * One-frame latch: set by the pit-repair block during the physics pass,
@@ -5551,6 +5637,9 @@
 						r.steerCurrent = 0;
 						r.hbEngage = 0;
 						r.tractionEase = 1;
+						r.engineRpm = 0;
+						r.driftLat = 0;
+						r.driftOn = false;
 						r.flashUntil = 0;
 						r.smokeAcc = 0;
 						r.dripAcc = 0;
@@ -6017,8 +6106,32 @@
 							hbEngage: player.hbEngage,
 							lateralMs: lat,
 							speedMs: Math.hypot(vel.x, vel.y, vel.z),
-							meter: player.abilityState.meter
+							meter: player.abilityState.meter,
+							// The grip-cue state driven off this same slip measure.
+							screeching: player.driftOn
 						};
+					},
+					/**
+					 * Engine-audio state per vehicle: the rev proxy, the live crossfade
+					 * weights, the distance falloff, and the ABSOLUTE gain each of the
+					 * three layers is currently holding. `layers: 0` means that rig is
+					 * out of range (or out of the race) and its loops are stopped, which
+					 * is what keeps the live voice count near the cars around you.
+					 */
+					engineInfo: () => {
+						const r3 = (v: number) => Math.round(v * 1000) / 1000;
+						return rigsAll().map((r) => {
+							const e = engineRigs.get(r.id);
+							return {
+								id: r.id,
+								archetype: r.archetype,
+								rpm: r3(r.engineRpm),
+								speedMs: r3(Math.hypot(r.body.velocity.x, r.body.velocity.y, r.body.velocity.z)),
+								layers: e ? e.layers.filter(Boolean).length : 0,
+								gains: e ? e.gains.map(r3) : null,
+								refs: e ? ENGINE_SFX[e.arch] : null
+							};
+						});
 					},
 					// Frame cost over the rolling window: mean / median / p95 / worst
 					// CPU ms per frame, against the 16.7ms 60fps budget. Used to size
@@ -7746,6 +7859,30 @@
 							const lat = Math.abs(vel.x * -rig.hz + vel.z * rig.hx);
 							rig.abilityState.charge(driftIntensity(lat, rawSpeed, hbk), dt);
 						}
+						// Lateral slip is sampled here (where the heading and velocity are
+						// already resolved) and consumed by the tire-grip cue in the audio
+						// block; the sim itself never reads it back.
+						rig.driftLat = Math.abs(vel.x * -rig.hz + vel.z * rig.hx);
+
+						// -- Engine revs (audio only) --
+						// Top speed is DERIVED from this build the same way the garage hero
+						// and the AI driver derive it (v = sqrt(engineForce / aeroDrag)), so
+						// every car's engine peaks at its own ceiling rather than a shared
+						// one. Throttle lifts the target so a stationary car under power
+						// revs; the ease is asymmetric because revs pick up faster than
+						// they fall away.
+						{
+							const topRef = Math.sqrt(
+								(num(tuning.engineForce, DEFAULTS.engineForce) * bs.engineForce) /
+									Math.max(0.01, num(tuning.aeroDrag, DEFAULTS.aeroDrag) * bs.aeroDrag)
+							);
+							const rpmTarget = Math.min(
+								1,
+								rawSpeed / Math.max(1, topRef) + Math.max(0, thr) * ENGINE_THROTTLE_LIFT
+							);
+							const rate = rpmTarget > rig.engineRpm ? ENGINE_RPM_RISE : ENGINE_RPM_FALL;
+							rig.engineRpm += (rpmTarget - rig.engineRpm) * Math.min(1, rate * dt);
+						}
 
 						if (rig === player) {
 							// Physics is metric (rawSpeed is m/s); the HUD reads mph.
@@ -8019,11 +8156,12 @@
 							const d = Math.hypot(dx, dz) || 1;
 							const ux = dx / d;
 							const uz = dz / d;
+							const closingSpeed = (a.preVx - b.preVx) * ux + (a.preVz - b.preVz) * uz;
 							const res = tryRam(
 								{
 									a: combatantOf(a),
 									b: combatantOf(b),
-									closingSpeed: (a.preVx - b.preVx) * ux + (a.preVz - b.preVz) * uz,
+									closingSpeed,
 									frontalityA: a.hx * ux + a.hz * uz,
 									frontalityB: -(b.hx * ux + b.hz * uz)
 								},
@@ -8041,6 +8179,26 @@
 							b.flashUntil = now + 220;
 							const mx = (a.body.position.x + b.body.position.x) / 2;
 							const mz = (a.body.position.z + b.body.position.z) / 2;
+							// Collision severity by ear. `violence` is recomputed exactly as
+							// tryRam scales its damage by it (0.6 at the trigger threshold up
+							// to 1.6), so the sound and the damage read the SAME number: a
+							// nudge that barely trips the threshold is a clunk, a full-speed
+							// nose-to-tail is a crush. The impact is one event between two
+							// cars, so it plays once, at the contact point.
+							{
+								const violence = Math.min(
+									1.6,
+									Math.max(0.6, closingSpeed / (ct.ramMinClosingSpeed * 2))
+								);
+								playSfx(
+									violence >= 1.25
+										? 'hit_ram_heavy'
+										: violence >= 0.95
+											? 'hit_ram_medium'
+											: 'hit_ram_light',
+									{ position: { x: mx, y: 0.8, z: mz } }
+								);
+							}
 							spawnRing(mx, mz, 0xffb347, 14, 440, 0.6, 0.7);
 							spawnRing(mx, mz, 0xfff2c0, 7, 300, 0.7, 0.9);
 							spawnSparks(mx, 1, mz, 46, 0xffb347, 15, 700);
@@ -8619,6 +8777,91 @@
 					camera.position.copy(camPos);
 					camera.lookAt(camLook);
 
+					// -- Audio listener: the camera IS the ears --
+					// Read BEFORE screen shake so a hit never jitters the pan. Position and
+					// orientation come from the chase camera (what the player is looking
+					// through); the velocity for Doppler is the player's own, since Doppler
+					// is about the car's motion relative to what it is passing, not the
+					// camera's smoothing lag. Nothing set a listener before this, so every
+					// positional cue used to pan relative to the world origin.
+					{
+						const pv = player.body.velocity;
+						audioEngine.setListener(
+							{ x: camPos.x, y: camPos.y, z: camPos.z },
+							{ x: pv.x, y: pv.y, z: pv.z },
+							{
+								x: camLook.x - camPos.x,
+								y: camLook.y - camPos.y,
+								z: camLook.z - camPos.z
+							}
+						);
+					}
+
+					// -- Engine audio: three constant-RPM layers per vehicle, crossfaded --
+					// Equal-power weights (cos/sin) rather than linear, so the pair sums to
+					// a constant perceived level through a transition instead of dipping
+					// ~3dB in the middle of every crossfade. Both audible layers also share
+					// ONE continuous rate curve, which fills the pitch gap between the
+					// recordings so the motor rises rather than steps.
+					for (const rig of all) {
+						const p = rig.body.position;
+						const dist = Math.hypot(p.x - camPos.x, p.y - camPos.y, p.z - camPos.z);
+						const audible = !rig.combat.isOut(now) && dist <= ENGINE_FAR_M;
+						if (!audible) {
+							stopEngine(rig.id);
+							continue;
+						}
+						let eng = engineRigs.get(rig.id);
+						// A live build swap (the console API) changes which recordings this
+						// machine runs on, so the layer set is rebuilt like any other visual.
+						if (eng && eng.arch !== rig.archetype) {
+							stopEngine(rig.id);
+							eng = undefined;
+						}
+						if (!eng) {
+							eng = { arch: rig.archetype, layers: [null, null, null], gains: [-1, -1, -1] };
+							engineRigs.set(rig.id, eng);
+						}
+						const refs = ENGINE_SFX[eng.arch];
+						const r = Math.max(0, Math.min(1, rig.engineRpm));
+						// Equal-power crossfade across the adjacent pair; the third layer
+						// stays at zero and simply keeps running.
+						const w = [0, 0, 0];
+						if (r <= 0.5) {
+							const t = r / 0.5;
+							w[0] = Math.cos((t * Math.PI) / 2);
+							w[1] = Math.sin((t * Math.PI) / 2);
+						} else {
+							const t = (r - 0.5) / 0.5;
+							w[1] = Math.cos((t * Math.PI) / 2);
+							w[2] = Math.sin((t * Math.PI) / 2);
+						}
+						const u = Math.max(0, (dist - ENGINE_NEAR_M) / (ENGINE_FAR_M - ENGINE_NEAR_M));
+						const distGain = Math.pow(Math.max(0, 1 - u), 1.5);
+						const vehGain = (rig === player ? ENGINE_PLAYER_GAIN : ENGINE_RIVAL_GAIN) * distGain;
+						const rate = ENGINE_RATE_LO + r * (ENGINE_RATE_HI - ENGINE_RATE_LO);
+						const vel = rig.body.velocity;
+						const pos = { x: p.x, y: p.y, z: p.z };
+						for (let i = 0; i < 3; i++) {
+							if (!eng.layers[i]) {
+								// A null means the asset is not resident yet: retry next frame,
+								// exactly like syncLoop, so a cold cache costs a moment of
+								// silence and never a permanently missing layer.
+								eng.layers[i] = startSfxLoop(refs[i], { position: pos, gainScale: 0 });
+								eng.gains[i] = -1;
+							}
+							const h = eng.layers[i];
+							if (!h) continue;
+							h.setPosition(pos, { x: vel.x, y: vel.y, z: vel.z });
+							const g = sfxGain(refs[i]) * w[i] * vehGain;
+							if (Math.abs(g - eng.gains[i]) > ENGINE_GAIN_EPS) {
+								h.setGain(g, 0.06);
+								eng.gains[i] = g;
+							}
+							h.setRate(rate);
+						}
+					}
+
 					// -- Screen shake: shake = trauma^2, layered sines, plus roll --
 					trauma = Math.max(0, trauma - num(tuning.shakeDecay, DEFAULTS.shakeDecay) * dt);
 					if (trauma > 0.001) {
@@ -8786,6 +9029,37 @@
 
 						syncLoop('grip', !out && player.abilityState.gripActive(now), 'abl_grip_loop');
 						syncLoop('air', !out && player.abilityState.airActive(now), 'abl_aircorrect_engage');
+
+						// Tires letting go: a chirp on the moment grip breaks, then the
+						// grinding bed for as long as the slide holds. Both read the SAME
+						// lateral-slip measure the drift meter charges from (driftLat,
+						// sampled in the physics pass), with hysteresis so a car balanced
+						// right on the threshold does not chatter the loop on and off.
+						// The bed's level swells with slip, so a gentle four-wheel drift is
+						// a whisper and a committed handbrake slide is loud.
+						{
+							const lat = player.driftLat;
+							const moving = Math.hypot(player.body.velocity.x, player.body.velocity.z) > 4;
+							const sliding =
+								!out && moving && lat >= (player.driftOn ? DRIFT_SFX_OFF : DRIFT_SFX_ON);
+							if (sliding && !player.driftOn) {
+								playSfx('drift_engage', {
+									position: { x: player.body.position.x, y: 0.3, z: player.body.position.z }
+								});
+							}
+							player.driftOn = sliding;
+							const swell = Math.min(
+								1,
+								Math.max(0.25, (lat - DRIFT_SFX_OFF) / (DRIFT_SFX_FULL - DRIFT_SFX_OFF))
+							);
+							syncLoop(
+								'drift',
+								sliding,
+								'drift_loop',
+								{ x: player.body.position.x, y: 0.3, z: player.body.position.z },
+								sliding ? swell : undefined
+							);
+						}
 
 						// Tethered: the cable under tension, for as long as the player is
 						// pulling something (or being pulled).

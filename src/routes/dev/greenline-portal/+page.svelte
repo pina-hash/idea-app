@@ -734,7 +734,7 @@
 	};
 
 	function toneOn(bus: SfxBus) {
-		const freq = { weapons: 330, impacts: 160, ui: 660, ambient: 220 }[bus];
+		const freq = { weapons: 330, impacts: 160, ui: 660, ambient: 220, engine: 110 }[bus];
 		audioEngine.playTone(bus, { freq, durationMs: 260, pitchJitter: [0.9, 1.1], gain: 0.3 });
 		alog(`tone on ${bus} @ ${freq}Hz | ${JSON.stringify(audioEngine.snapshot().busGain)}`);
 	}

@@ -50,8 +50,9 @@ function takes(base: string, n: number): string[] {
  *  - weapons: a machine's own action (fire, launch, deploy, activate, sustain)
  *  - impacts: the moment something LANDS on a target (impact, contact, trigger,
  *    latch, break) plus every structural-damage cue
- *  - ui: menus and the race-start sequence
- *  - ambient: environment, weather, and vehicle status readouts
+ *  - ui: menus, the race-start sequence, and the post-race result stings
+ *  - ambient: environment, weather, vehicle status readouts, and tire grip
+ *  - engine: the per-vehicle RPM layers, and nothing else (loops only)
  */
 const SFX = {
 	// ---- UI ----
@@ -136,7 +137,67 @@ const SFX = {
 	env_rain_loop: { files: takes('sfx_env_rain_loop', 1), bus: 'ambient', loop: true, gain: 0.24, fadeIn: 1.2 },
 	env_storm_thunder: { files: takes('sfx_env_storm_thunder', 4), bus: 'ambient', gain: 0.42, jitter: [0.94, 1.06] },
 	env_fog_ambience: { files: takes('sfx_env_fog_ambience', 1), bus: 'ambient', loop: true, gain: 0.2, fadeIn: 1.2 },
-	env_tire_dust: { files: takes('sfx_env_tire_dust', 2), bus: 'ambient', gain: 0.2, jitter: [0.9, 1.12] }
+	env_tire_dust: { files: takes('sfx_env_tire_dust', 2), bus: 'ambient', gain: 0.2, jitter: [0.9, 1.12] },
+
+	// ---- Engine (RPM layers) ----
+	// Three constant-RPM recordings per archetype, crossfaded live against the
+	// vehicle's own revs (GreenlineRace's engine-audio block). Every one is a
+	// LOOP with exactly one take: variation would be audible as a seam at the
+	// loop point, and there is nothing to rotate when the sound never stops.
+	//
+	// THE GAINS HERE LOOK ARBITRARY AND ARE NOT: they are LEVEL-MATCHED against
+	// the measured RMS of each take. The twelve recordings arrived spanning a
+	// ~6.7x level range (handling idle 0.080 RMS against systems mid 0.537), and
+	// a crossfade between two takes that far apart does not glide, it lurches —
+	// the motor would drop away to nothing in the middle of the rev range on one
+	// archetype and swell on another. Each gain is therefore
+	// `(target x band) / measuredRms`, where the band profile (idle 0.72, mid
+	// 1.0, high 1.25) is what deliberately keeps a revving engine LOUDER than an
+	// idling one after normalization has flattened everything else. Re-measure
+	// and recompute if a take is ever replaced.
+	eng_armor_idle: { files: takes('sfx_eng_armor_idle', 1), bus: 'engine', loop: true, gain: 0.17, fadeIn: 0.35 },
+	eng_armor_mid: { files: takes('sfx_eng_armor_mid', 1), bus: 'engine', loop: true, gain: 0.42, fadeIn: 0.35 },
+	eng_armor_high: { files: takes('sfx_eng_armor_high', 1), bus: 'engine', loop: true, gain: 0.32, fadeIn: 0.35 },
+	eng_velocity_idle: { files: takes('sfx_eng_velocity_idle', 1), bus: 'engine', loop: true, gain: 0.27, fadeIn: 0.35 },
+	eng_velocity_mid: { files: takes('sfx_eng_velocity_mid', 1), bus: 'engine', loop: true, gain: 0.41, fadeIn: 0.35 },
+	eng_velocity_high: { files: takes('sfx_eng_velocity_high', 1), bus: 'engine', loop: true, gain: 0.27, fadeIn: 0.35 },
+	eng_handling_idle: { files: takes('sfx_eng_handling_idle', 1), bus: 'engine', loop: true, gain: 0.5, fadeIn: 0.35 },
+	eng_handling_mid: { files: takes('sfx_eng_handling_mid', 1), bus: 'engine', loop: true, gain: 0.26, fadeIn: 0.35 },
+	eng_handling_high: { files: takes('sfx_eng_handling_high', 1), bus: 'engine', loop: true, gain: 0.21, fadeIn: 0.35 },
+	eng_systems_idle: { files: takes('sfx_eng_systems_idle', 1), bus: 'engine', loop: true, gain: 0.43, fadeIn: 0.35 },
+	eng_systems_mid: { files: takes('sfx_eng_systems_mid', 1), bus: 'engine', loop: true, gain: 0.1, fadeIn: 0.35 },
+	eng_systems_high: { files: takes('sfx_eng_systems_high', 1), bus: 'engine', loop: true, gain: 0.21, fadeIn: 0.35 },
+
+	// ---- Collision (ram) ----
+	// Three severity tiers off the ram's own `violence` scalar, so a nudge and a
+	// full-speed nose-to-tail read as different events rather than one louder one.
+	hit_ram_light: { files: takes('sfx_hit_ram_light', 3), bus: 'impacts', gain: 0.36, jitter: [0.92, 1.08] },
+	hit_ram_medium: { files: takes('sfx_hit_ram_medium', 3), bus: 'impacts', gain: 0.46, jitter: [0.94, 1.06] },
+	hit_ram_heavy: { files: takes('sfx_hit_ram_heavy', 2), bus: 'impacts', gain: 0.55, jitter: [0.96, 1.04] },
+
+	// ---- Drift ----
+	// On the ambient bus with the other own-vehicle status readouts: this is a
+	// grip report, not a weapon the car fired.
+	drift_engage: { files: takes('sfx_drift_engage', 2), bus: 'ambient', gain: 0.32, jitter: [0.94, 1.08] },
+	drift_loop: { files: takes('sfx_drift_loop', 1), bus: 'ambient', loop: true, gain: 0.34, fadeIn: 0.12 },
+
+	// ---- Results / meta ----
+	// Level-matched the same way as the engine layers: these four takes span a
+	// 6x RMS range, so equal gains would have put the win fanfare over everything
+	// and left the lose sting inaudible. The lose take is genuinely quiet
+	// (0.034 RMS, ~16dB under the win) and sits at full gain for that reason —
+	// it is still, correctly, the quietest of the four.
+	result_win: { files: takes('sfx_result_win', 1), bus: 'ui', gain: 0.43 },
+	result_lose: { files: takes('sfx_result_lose', 1), bus: 'ui', gain: 1 },
+	result_milestone_unlock: { files: takes('sfx_result_milestone_unlock', 1), bus: 'ui', gain: 0.69 },
+	result_leaderboard_new_record: { files: takes('sfx_result_leaderboard_new_record', 1), bus: 'ui', gain: 0.8 },
+
+	// ---- Fun / misc ----
+	// Loaded and playable, but nothing triggers them: the game has no horn or
+	// siren action bound (see the control registry), and inventing one is a
+	// gameplay change this pass deliberately did not make.
+	fun_siren: { files: takes('sfx_fun_siren', 1), bus: 'weapons', loop: true, gain: 0.3, fadeIn: 0.2 },
+	fun_horn: { files: takes('sfx_fun_horn', 1), bus: 'weapons', gain: 0.4 }
 } satisfies Record<string, SfxDef>;
 
 export type SfxId = keyof typeof SFX;
@@ -159,6 +220,16 @@ export type SfxRef = SfxId | SfxAlias;
 function defFor(ref: SfxRef): SfxDef {
 	const id = (SFX_ALIASES as Record<string, SfxId>)[ref] ?? (ref as SfxId);
 	return SFX[id] as SfxDef;
+}
+
+/**
+ * The roster's tuned mix level for a sound. Mix level lives HERE, so a caller
+ * that has to retarget a live loop's gain itself (the engine crossfade, whose
+ * per-frame level is `rosterGain x bandWeight x distance`) can read the
+ * authored level rather than hardcoding a second copy of it.
+ */
+export function sfxGain(ref: SfxRef): number {
+	return defFor(ref)?.gain ?? 0;
 }
 
 // --- buffer cache -----------------------------------------------------------

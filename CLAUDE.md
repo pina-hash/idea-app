@@ -5738,6 +5738,103 @@ on one side of the world.
     repair phase to cover (the pit stop uses `env_pit_repair_loop` plus
     `abl_repair_complete` on release).
 
+- **Real SFX for the last five categories (engine, collision, drift, results,
+  fun): 29 more takes, and the engine-audio system that did not exist before.**
+  Same content-layer model as the first six categories — the roster
+  (`sfx.ts`) owns which file, how loud and how variations rotate; the engine
+  (`audio-engine.ts`) owns the bus graph, pooling, pan and Doppler.
+  - **A dedicated `engine` bus**, sibling to music/weapons/impacts/ui/ambient
+    rather than folded into ambient: it is the one bus carrying nothing but
+    sustained loops, it is always several voices deep, and its level wants to
+    move on its own. It sits OUTSIDE the soft-cap arithmetic on purpose — the
+    four one-shot caps still sum to `GLOBAL_VOICE_CAP`, and engine voices are
+    loops, which are already exempt from cap accounting and stealing.
+  - **`VoiceHandle.setRate`** is the one new engine primitive (mirroring
+    `setGain`): it writes `voice.baseRate`, so Doppler keeps MULTIPLYING on
+    top instead of overwriting the caller's pitch on the next ticker frame.
+  - **RPM is a proxy, and it is derived per build, not shared.** There is no
+    gearbox to read, so `Rig.engineRpm` is `speed / sqrt(engineForce /
+    aeroDrag)` — the SAME top-speed formula the garage hero and the AI driver
+    use, so every car peaks at its own ceiling — lifted by throttle
+    (`ENGINE_THROTTLE_LIFT` 0.26, so a car standing still and floored still
+    revs) and eased asymmetrically (rise 5.5/s, fall 2.4/s) for engine
+    inertia. Nothing in the sim reads it back.
+  - **Equal-power crossfade, not linear.** Three constant-RPM recordings per
+    archetype run as continuous loops while the vehicle is audible, and the
+    adjacent pair crossfades on `cos/sin(t·π/2)`. Linear would dip ~3dB in the
+    middle of every transition, which is exactly the "smooth at idle and max,
+    wrong in between" failure. A single continuous rate curve
+    (`ENGINE_RATE_LO` 0.94 -> `HI` 1.07 across the rev range) rides underneath
+    so both audible layers glide together and nothing steps at a boundary.
+  - **THE GAINS IN THE ENGINE ROSTER BLOCK ARE MEASURED, NOT PICKED.** The
+    twelve takes arrived spanning a ~6.7x RMS range (handling idle 0.080
+    against systems mid 0.537); crossfading between takes that far apart
+    lurches rather than glides. Each gain is `(target x band) / measuredRms`
+    with a band profile (idle 0.72 / mid 1.0 / high 1.25) that deliberately
+    keeps a revving engine louder than an idling one after normalization has
+    flattened everything else. The four result stings got the same treatment
+    (they spanned 6x; the lose take is genuinely quiet at 0.034 RMS and sits
+    at gain 1.0 for that reason). **Re-measure and recompute if a take is
+    replaced** — equal gains would undo the whole thing.
+  - **Distance is handled in the game layer, because the panner cannot.**
+    Voices are pan-only (`rolloffFactor 0`), which is right for discrete
+    one-shots and would make every car in the field a full-volume motor. So
+    the falloff is applied as gain (flat inside 14 m, easing to nothing at
+    75 m) and a vehicle past 75 m has its loops STOPPED — which is what keeps
+    the live voice count near the handful of cars actually around you
+    (measured 3-24 voices in an 8-car race) instead of the whole grid. AI
+    engines run alongside the player's; no player-only fallback was needed.
+  - **`audioEngine.setListener` is now called every frame** (camera position +
+    orientation, player velocity for Doppler), read BEFORE screen shake so a
+    hit never jitters the pan. Nothing set a listener before this, so every
+    positional cue in the game had been panning relative to the world origin.
+  - **Ram tiers off the ram's own `violence` scalar**, recomputed exactly as
+    `tryRam` scales its damage by it, so the sound and the damage read the
+    same number: light under 0.95, medium to 1.25, heavy above (a 9-17 m/s
+    closing speed is a clunk, 18-22 a crunch, 22.5+ a crush). One sound per
+    contact, at the contact point.
+  - **Drift is player-only** (a grip report about your own machine, on the
+    ambient bus with the other own-vehicle readouts): a chirp on the rising
+    edge of a real slide, then a grinding bed whose level swells with slip.
+    Thresholds are sized against the MEASURED regimes — a clean straight sits
+    near 0.2 lateral m/s and a committed corner 0.9-1.5, so screeching starts
+    at 1.8 (hysteresis release 1.4, full level at 4.0) and the cue means "you
+    are sliding", not "you are turning". `syncLoop` gained an optional gain
+    scale to carry the swell.
+  - **Results stings** fire once on the results screen off the outcome it
+    opened with (an untracked latch, so the board arriving or a rating click
+    never re-triggers them). The record flourish is a SEPARATE, later cue keyed
+    on `award.pbBonus` — the server's own answer to "did this run beat your
+    previous best lap here" — so it plays whether or not the run was also won.
+  - **`result_milestone_unlock` marks the CONFIRMED unlock**, in the route's
+    purchase handler when the server has actually credited it, a round trip
+    after the garage's optimistic `ui_purchase` click chime. A replayed
+    `already_unlocked` deliberately gets no flourish.
+  - **`fun_siren` / `fun_horn` are loaded but UNWIRED**, the `abl_repair_loop`
+    precedent: no horn or siren action exists in the control registry and
+    inventing one is a gameplay change, not a content pass.
+  - **Verified** in `/dev/greenline-portal` and
+    `/dev/greenline-movement?glheadless=1`: all 219 roster files fetch and
+    decode (`loaded 219, failed 0` — meaningful because the dev server returns
+    the app shell with a 200 for a MISSING static path, so only a real decode
+    proves an asset exists); every new one-shot produces real signal against a
+    zero floor, with the ram tiers escalating in level as authored (0.218 /
+    0.460 / 0.503). The engine crossfade was swept across the FULL rev range on
+    a dyno for two archetypes — HANDLING held 0.051-0.068 engine-bus RMS and
+    SYSTEMS (the worst case, raw takes spanning 5.8x) held 0.040-0.071, both
+    with continuous gain curves and no gaps — and then driven for real on
+    ARMOR through accelerate/coast/brake/accelerate/lift, where revs fall as
+    well as rise: 140 samples, 0 silent, rms 0.031-0.082. Distance culling,
+    pause (12 engine voices -> 0, back to 9 on resume, no drone under the
+    menu) and unmount teardown (12 -> 0, no leak) all confirmed. The drift cue
+    stayed silent on a clean 17.4 m/s straight and fired at lat 3.22 in a real
+    handbrake slide, ambient bus 0.0017 -> 0.1030, edge-triggered not
+    per-frame. The record flourish was isolated by integrated energy in the
+    850ms+ window: 6x with `pbBonus 40` against `pbBonus 0`, identically for
+    P1 and P4. **Not verifiable without live credentials:** the
+    `result_milestone_unlock` trigger, which sits behind the signed-in
+    `/greenline` purchase round trip (the sound itself is proven to play).
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

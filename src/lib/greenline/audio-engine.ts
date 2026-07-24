@@ -6,13 +6,13 @@
  *     [voice gain] -> panner? ->  weapons             │
  *     [voice gain] -> panner? ->  impacts             ├─> master -> destination
  *     [voice gain] -> panner? ->  ui                  │
- *     [voice gain] -> panner? ->  ambient  ───────────┘
+ *     [voice gain] -> panner? ->  ambient             │
+ *     [voice gain] -> panner? ->  engine   ───────────┘
  *
- * This pass is pure INFRASTRUCTURE: pooled one-shot voices for the four SFX
- * buses (no real sound content exists yet, later phases trigger them) and the
- * music bus the existing crossfade migrates onto. There is deliberately NO
- * `engine` (vehicle motor) bus and NO looping-source management here; RPM-mapped
- * engine loops are Phase 8 scope.
+ * The `engine` bus is the one bus that carries ONLY sustained loops (the
+ * per-vehicle RPM layers), which is why it is its own bus rather than folded
+ * into `ambient`: it is continuous, it is always several voices deep, and its
+ * level wants to move independently of the one-shot categories.
  *
  * Autoplay: the context is created suspended per browser policy. resume() is
  * coordinated with GreenlineMusic's existing first-gesture arm (armGesture) so
@@ -24,7 +24,7 @@
  * graph).
  */
 
-export type SfxBus = 'weapons' | 'impacts' | 'ui' | 'ambient';
+export type SfxBus = 'weapons' | 'impacts' | 'ui' | 'ambient' | 'engine';
 export type BusName = 'music' | SfxBus;
 
 export interface Vec3 {
@@ -61,6 +61,13 @@ export interface VoiceHandle {
 	setPosition: (p: Vec3, v?: Vec3) => void;
 	/** Retarget the voice's gain (linear 0..1), ramped. For loop swells. */
 	setGain: (g: number, rampSec?: number) => void;
+	/**
+	 * Retarget the voice's BASE playback rate (1 = as recorded). Doppler still
+	 * multiplies on top, so this is the caller's own pitch control, not a
+	 * replacement for it: engine layers use it to glide continuously with RPM
+	 * instead of stepping at each crossfade boundary.
+	 */
+	setRate: (rate: number) => void;
 	/** Stop the voice, fading out over rampSec (default a short release). */
 	stop: (rampSec?: number) => void;
 }
@@ -90,11 +97,14 @@ interface Voice {
 }
 
 // Concurrency caps, tuned as a conservative starting point for the aging school
-// desktops. The four soft caps SUM to the global cap, so per-bus stealing is the
-// effective limiter and the global cap is a defensive ceiling (see report).
+// desktops. The four ONE-SHOT soft caps SUM to the global cap, so per-bus
+// stealing is the effective limiter and the global cap is a defensive ceiling
+// (see report). `engine` is deliberately outside that arithmetic: it carries
+// nothing but caller-owned loops, which are exempt from cap accounting and
+// stealing, so its entry is only here to keep the record total.
 const GLOBAL_VOICE_CAP = 24;
-const SFX_BUSES: SfxBus[] = ['weapons', 'impacts', 'ui', 'ambient'];
-const SOFT_CAP: Record<SfxBus, number> = { weapons: 8, impacts: 8, ui: 4, ambient: 4 };
+const SFX_BUSES: SfxBus[] = ['weapons', 'impacts', 'ui', 'ambient', 'engine'];
+const SOFT_CAP: Record<SfxBus, number> = { weapons: 8, impacts: 8, ui: 4, ambient: 4, engine: 8 };
 
 // Manual Doppler. Modern browsers don't reliably auto-Doppler via PannerNode, so
 // we compute relative radial velocity each frame and nudge playbackRate. The
@@ -158,7 +168,8 @@ class GreenlineAudioEngine {
 			weapons: mk(this.sfxVolume),
 			impacts: mk(this.sfxVolume),
 			ui: mk(this.sfxVolume),
-			ambient: mk(this.sfxVolume)
+			ambient: mk(this.sfxVolume),
+			engine: mk(this.sfxVolume)
 		};
 		this.available = true;
 		return ctx;
@@ -411,6 +422,13 @@ class GreenlineAudioEngine {
 				p.setValueAtTime(Math.max(0.0001, p.value), t);
 				p.linearRampToValueAtTime(target, t + Math.max(0.001, rampSec));
 			},
+			setRate: (rate: number) => {
+				if (voice.stopped) return;
+				// Store it as the BASE rate so the Doppler ticker keeps multiplying on
+				// top rather than overwriting the caller's pitch next frame.
+				voice.baseRate = clamp(rate, 0.25, 4);
+				this.applyRate(voice, voice.baseRate * this.dopplerFactor(voice));
+			},
 			stop: (rampSec = 0.06) => this.stopVoice(voice, rampSec)
 		};
 	}
@@ -591,7 +609,8 @@ class GreenlineAudioEngine {
 						weapons: round(this.buses.weapons.gain.value),
 						impacts: round(this.buses.impacts.gain.value),
 						ui: round(this.buses.ui.gain.value),
-						ambient: round(this.buses.ambient.gain.value)
+						ambient: round(this.buses.ambient.gain.value),
+						engine: round(this.buses.engine.gain.value)
 					}
 				: null,
 			voices: {
@@ -599,7 +618,8 @@ class GreenlineAudioEngine {
 				weapons: this.voices.filter((v) => v.bus === 'weapons').length,
 				impacts: this.voices.filter((v) => v.bus === 'impacts').length,
 				ui: this.voices.filter((v) => v.bus === 'ui').length,
-				ambient: this.voices.filter((v) => v.bus === 'ambient').length
+				ambient: this.voices.filter((v) => v.bus === 'ambient').length,
+				engine: this.voices.filter((v) => v.bus === 'engine').length
 			}
 		};
 	}

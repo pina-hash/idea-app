@@ -1,6 +1,7 @@
 <script lang="ts">
 	import './brand/brand';
 	import { uiSounds } from './ui-sfx';
+	import { playSfx } from './sfx';
 	import { CURRENCY_SHORT, type RaceAward } from './economy';
 	import { formatLapMs } from './track-runtime';
 	import type { RaceOutcome } from './GreenlineRace.svelte';
@@ -74,6 +75,39 @@
 
 	const boardName = (e: LeaderboardEntry) => e.display_name || e.full_name || 'Pilot';
 	const won = $derived(outcome?.finishPosition === 1);
+
+	/**
+	 * Result stings. The win/lose pair fires ONCE on mount, off the outcome this
+	 * screen was opened with; a re-render (the board arriving, a rating click)
+	 * must not re-trigger it, which is why this is an untracked mount effect and
+	 * not a $derived reaction.
+	 *
+	 * The record flourish is deliberately a SEPARATE, later cue keyed on
+	 * `award.pbBonus`: that is the server's own answer to "did this run beat your
+	 * previous best lap on this track", arriving with the award rather than being
+	 * inferred client-side from a board that may still be loading. It is a real
+	 * record, so it plays whether or not the run was also won.
+	 */
+	// Plain lets, not $state: nothing renders them, and a reactive latch read
+	// inside the effect that writes it would only re-run the effect to no end.
+	let stungFor: RaceOutcome | null = null;
+	let recordStung = false;
+	$effect(() => {
+		const o = outcome;
+		if (!o || stungFor === o) return;
+		stungFor = o;
+		recordStung = false;
+		playSfx(o.finishPosition === 1 ? 'result_win' : 'result_lose');
+	});
+	$effect(() => {
+		const bonus = award?.pbBonus ?? 0;
+		if (bonus <= 0 || recordStung) return;
+		recordStung = true;
+		// After the win/lose sting has landed, so the two read as a result then a
+		// flourish rather than one stacked chord.
+		const t = setTimeout(() => playSfx('result_leaderboard_new_record'), 900);
+		return () => clearTimeout(t);
+	});
 </script>
 
 <div class="glb gr-results" use:uiSounds>
