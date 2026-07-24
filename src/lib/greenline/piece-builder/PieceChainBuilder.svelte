@@ -48,8 +48,22 @@
 
 	const {
 		onPublish,
-		playtestTarget = 'portal'
+		playtestTarget = 'portal',
+		backHref,
+		backLabel = '◂ BACK TO GREENLINE'
 	}: {
+		/**
+		 * Optional "leave the builder" link, rendered as a real item in the
+		 * header's flex row. A host page must NOT float its own back control over
+		 * this component: the shell is a fixed-viewport `100vh` layout whose
+		 * top-right corner is already occupied (the chain status flag, and the
+		 * PLAYTEST button just below it), so an absolutely-positioned overlay
+		 * there covers a control and steals its clicks. Passing it in keeps the
+		 * corner in ONE layout, which is what makes non-overlap structural rather
+		 * than a matter of picking offsets that happen to miss.
+		 */
+		backHref?: string;
+		backLabel?: string;
 		/**
 		 * Submit-for-review seam, the ribbon TrackBuilder's exact shape so both
 		 * builders feed ONE pipeline: the component gathers the name + the
@@ -515,6 +529,9 @@
 						? 'OPEN'
 						: `${railIssues.length} ISSUE${railIssues.length === 1 ? '' : 'S'}${closure.ok || closure.empty ? '' : ' · OPEN'}`}
 		</span>
+		{#if backHref}
+			<a class="pb-back" href={backHref} data-testid="pb-back">{backLabel}</a>
+		{/if}
 	</header>
 
 	<div class="pb-main">
@@ -942,6 +959,8 @@
 					rev={renderRev}
 					{selected}
 					onparam={(i, key, v) => setParams(i, { [key]: v })}
+					onselect={(i) => (selected = i)}
+					onreorder={reorderPiece}
 				/>
 			</div>
 		</aside>
@@ -990,6 +1009,22 @@
 	.pb-sub {
 		font-size: 0.75rem;
 		color: #6d8090;
+	}
+	/* Sits in the header row after the status flag, so it can never cover it.
+	   `flex-shrink: 0` keeps it whole when the row wraps at narrow widths. */
+	.pb-back {
+		flex: 0 0 auto;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		letter-spacing: 0.12em;
+		color: #8fa3b0;
+		text-decoration: none;
+		border: 1px solid rgba(147, 163, 176, 0.4);
+		padding: 0.3rem 0.6rem;
+	}
+	.pb-back:hover {
+		color: #8fffc4;
+		border-color: #2ae57e;
 	}
 	.pb-flag {
 		margin-left: auto;

@@ -17,6 +17,11 @@
 	 * stores the track as `pending` (0059). A pending track is visible and
 	 * playable to its author and to teachers ONLY; it reaches other students
 	 * after a teacher approves it in /greenline/moderation.
+	 *
+	 * The back link is handed to the builder rather than floated over it: the
+	 * builder owns a fixed-viewport layout whose top-right corner already holds
+	 * the chain status flag and the PLAYTEST button, and an absolutely
+	 * positioned overlay there covered the status flag and took its clicks.
 	 */
 </script>
 
@@ -25,8 +30,11 @@
 </svelte:head>
 
 <div class="glpb-page">
-	<a class="glpb-back" href="/greenline">◂ BACK TO GREENLINE</a>
-	<PieceChainBuilder onPublish={publishCommunityTrack} playtestTarget="portal" />
+	<PieceChainBuilder
+		onPublish={publishCommunityTrack}
+		playtestTarget="portal"
+		backHref="/greenline"
+	/>
 </div>
 
 <style>
@@ -35,23 +43,5 @@
 		z-index: 1;
 		min-height: 100vh;
 		background: #04060a;
-	}
-	.glpb-back {
-		position: absolute;
-		top: 0.85rem;
-		right: 0.85rem;
-		z-index: 5;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		letter-spacing: 0.12em;
-		color: #8fa3b0;
-		text-decoration: none;
-		border: 1px solid rgba(147, 163, 176, 0.4);
-		padding: 0.3rem 0.6rem;
-		background: rgba(4, 7, 11, 0.85);
-	}
-	.glpb-back:hover {
-		color: #8fffc4;
-		border-color: #2ae57e;
 	}
 </style>

@@ -44,7 +44,9 @@
 		diag,
 		rev,
 		selected = -1,
-		onparam
+		onparam,
+		onselect,
+		onreorder
 	}: {
 		doc: ChainDoc;
 		diag: ChainDiagnostics;
@@ -57,6 +59,20 @@
 		 * no handles (there is nothing for them to write).
 		 */
 		onparam?: (index: number, key: string, value: number) => void;
+		/**
+		 * Click a piece's road surface to select it. Writes the parent's OWN
+		 * `selected`, the same state the list rows drive, so picking in 3D and
+		 * clicking a row are one selection — the row expands to its edit form and
+		 * the shape handles appear, whichever surface did the picking. -1 =
+		 * cleared (a click on empty space).
+		 */
+		onselect?: (index: number) => void;
+		/**
+		 * Drag a piece's road surface onto another piece to reorder. Same
+		 * semantics as the list's own drag-drop (`reorderPiece(from, to)`): the
+		 * dragged piece TAKES the position of whatever it is dropped on.
+		 */
+		onreorder?: (from: number, to: number) => void;
 	} = $props();
 
 	let host: HTMLDivElement;
@@ -73,6 +89,8 @@
 	let undrawn = $state<number[]>([]);
 	/** Live readout while a handle is hovered or dragged ('' = none). */
 	let handleStatus = $state('');
+	/** Live readout for road picking / reordering ('' = none). Handles outrank it. */
+	let pickStatus = $state('');
 	/**
 	 * OPEN-chain chip: the road renders as it actually is — ending at the last
 	 * exit — with the distance still to close shown as a number. The retired
@@ -143,43 +161,128 @@
 				/* ---------------- SolidWorks-style navigation ----------------
 				 * The author lives in SolidWorks all day, so the view answers to
 				 * SolidWorks' hands rather than to a generic orbit widget:
-				 *   MIDDLE drag            rotate
+				 *   MIDDLE drag            rotate, about the point UNDER THE CURSOR
 				 *   shift/ctrl + MIDDLE    pan
 				 *   wheel                  zoom
 				 *   arrows                 nudge the view 15 deg (shift: 90)
-				 * LEFT and RIGHT are deliberately left UNBOUND for the camera:
-				 * in SolidWorks they select and open the context menu — and the
-				 * left button now belongs to the direct-manipulation HANDLES
-				 * (see the handles block below), which is exactly why keeping
-				 * it off the camera mattered. Handle drags additionally set
-				 * `controls.enabled = false` for their duration, so the
-				 * camera/handle boundary holds even if this mapping ever
-				 * changes.
+				 * LEFT and RIGHT are deliberately left UNBOUND: in SolidWorks they
+				 * select and open the context menu, and here the left button owns
+				 * the direct-manipulation HANDLES and road PICKING (see below).
 				 *
 				 * Both shift+MMB (as specified) and ctrl+MMB (stock SolidWorks,
 				 * where shift+MMB is zoom) pan, so muscle memory lands either way.
+				 *
+				 * EVERY mouse button is unbound on OrbitControls and the middle
+				 * button is driven by hand below. Two reasons, both load-bearing:
+				 *
+				 *  1. OrbitControls applies its OWN modifier swap — a MIDDLE mapped
+				 *     to PAN with shift held is turned back into ROTATE. The old
+				 *     code resolved the modifier into `mouseButtons.MIDDLE` first,
+				 *     so shift+MMB was swapped TWICE and came out as rotate — the
+				 *     pan gesture was unreachable, measured on real hardware.
+				 *     Owning the button outright removes the class of bug rather
+				 *     than re-tuning around it.
+				 *  2. OrbitControls can only ever orbit `controls.target`, which
+				 *     `update()` re-aims the camera at every frame. Rotating about
+				 *     an arbitrary picked pivot is therefore not expressible
+				 *     through it at all (see `applyRotate`).
+				 *
+				 * OrbitControls is kept for what it is still exactly right for:
+				 * wheel zoom, damping, and the `update()` that re-aims the camera
+				 * at the target each frame.
 				 */
 				controls.mouseButtons = {
 					LEFT: null,
-					MIDDLE: THREE.MOUSE.ROTATE,
+					MIDDLE: null,
 					RIGHT: null
 				} as unknown as typeof controls.mouseButtons;
 
-				// OrbitControls reads `mouseButtons.MIDDLE` inside its own
-				// pointerdown handler, so the modifier has to be resolved into the
-				// mapping BEFORE that runs — hence the capture phase.
-				const onDownCapture = (e: PointerEvent) => {
-					if (e.button !== 1) return;
-					controls.mouseButtons.MIDDLE =
-						e.shiftKey || e.ctrlKey ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
-				};
 				// Chrome opens its autoscroll widget on a middle press otherwise.
 				const onMiddleDefault = (e: MouseEvent) => {
 					if (e.button === 1) e.preventDefault();
 				};
-				renderer.domElement.addEventListener('pointerdown', onDownCapture, true);
 				renderer.domElement.addEventListener('mousedown', onMiddleDefault);
 				renderer.domElement.addEventListener('auxclick', onMiddleDefault);
+
+				/* ---------------- camera drag (middle button) ---------------- */
+
+				const UP = new THREE.Vector3(0, 1, 0);
+				/** Marks the pivot a rotate drag is turning about, while it lasts. */
+				const pivotMark = new THREE.Mesh(
+					new THREE.SphereGeometry(1, 12, 10),
+					new THREE.MeshBasicMaterial({
+						color: 0xc8ff00,
+						transparent: true,
+						opacity: 0.85,
+						depthTest: false
+					})
+				);
+				pivotMark.renderOrder = 40;
+				pivotMark.visible = false;
+				scene.add(pivotMark);
+
+				let camDrag: {
+					mode: 'rotate' | 'pan';
+					pointerId: number;
+					x: number;
+					y: number;
+					pivot: InstanceType<typeof THREE.Vector3>;
+				} | null = null;
+
+				/**
+				 * Rotate about `pivot` by rigidly turning BOTH the camera and the
+				 * orbit target around it. Because the pair moves as one body, the
+				 * view direction stays consistent and `controls.update()`'s
+				 * `lookAt(target)` still produces the right orientation — so
+				 * nothing jumps at drag start even though the pivot is off-centre.
+				 * (Just moving `target` to the pivot would snap the pivot to the
+				 * middle of the screen, which is why that is not what happens.)
+				 *
+				 * Rates match OrbitControls' own (2*PI per viewport height), so the
+				 * gesture feels exactly as it did.
+				 */
+				const applyRotate = (dx: number, dy: number, pivot: InstanceType<typeof THREE.Vector3>) => {
+					const h = Math.max(1, host.clientHeight || 420);
+					const yaw = (-2 * Math.PI * dx) / h;
+					const pitch = (-2 * Math.PI * dy) / h;
+					const camOff = camera.position.clone().sub(pivot);
+					const tgtOff = controls.target.clone().sub(pivot);
+					// The camera's own right vector; rotating about it tilts the view.
+					const axis = new THREE.Vector3().crossVectors(UP, camera.position.clone().sub(controls.target));
+					const q = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
+					if (axis.lengthSq() > 1e-8)
+						q.multiply(new THREE.Quaternion().setFromAxisAngle(axis.normalize(), pitch));
+					const nextCam = camOff.clone().applyQuaternion(q).add(pivot);
+					const nextTgt = tgtOff.clone().applyQuaternion(q).add(pivot);
+					// Reject the pitch component if it would tip past a pole or drop
+					// the camera under the ground plane; the yaw always survives, so
+					// a steep drag still turns instead of locking up entirely.
+					const phi = new THREE.Spherical().setFromVector3(nextCam.clone().sub(nextTgt)).phi;
+					if (phi < 0.02 || phi > controls.maxPolarAngle - 0.01 || nextCam.y < 0.5) {
+						const qy = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
+						camera.position.copy(camOff.applyQuaternion(qy).add(pivot));
+						controls.target.copy(tgtOff.applyQuaternion(qy).add(pivot));
+					} else {
+						camera.position.copy(nextCam);
+						controls.target.copy(nextTgt);
+					}
+					controls.update();
+				};
+
+				/** Screen-space pan: translate camera and target together. */
+				const applyPan = (dx: number, dy: number) => {
+					const h = Math.max(1, host.clientHeight || 420);
+					camera.updateMatrix();
+					const dist = camera.position.distanceTo(controls.target);
+					const reach = dist * Math.tan(((camera.fov / 2) * Math.PI) / 180);
+					const m = camera.matrix.elements;
+					const right = new THREE.Vector3(m[0], m[1], m[2]).multiplyScalar((-2 * dx * reach) / h);
+					const up = new THREE.Vector3(m[4], m[5], m[6]).multiplyScalar((2 * dy * reach) / h);
+					const move = right.add(up);
+					camera.position.add(move);
+					controls.target.add(move);
+					controls.update();
+				};
 
 				/** Orbit the camera about the target, SolidWorks' arrow-key nudge. */
 				const nudge = (dTheta: number, dPhi: number) => {
@@ -229,19 +332,14 @@
 				 * field ticks live under a drag and a typed value moves the
 				 * handle on the debounced rebuild.
 				 *
-				 * MOUSE ARBITRATION (the part that must not be wrong): a
-				 * pointerdown that lands ON a handle starts a handle drag and
-				 * must never also move the camera; anywhere else, the camera
-				 * behaves exactly as before. This handler runs in the CAPTURE
-				 * phase (the onDownCapture guarantee above: capture listeners at
-				 * the target fire before OrbitControls' bubble-phase handler),
-				 * and on a handle hit it sets `controls.enabled = false` —
+				 * MOUSE ARBITRATION (the part that must not be wrong), in strict
+				 * priority order on a left press: a HANDLE if one is under the
+				 * cursor, else the ROAD (select / reorder), else nothing. The
+				 * middle button is the camera's alone and is never contested.
+				 * A handle drag additionally sets `controls.enabled = false` —
 				 * OrbitControls' pointerdown checks `enabled` on its first line
-				 * and no-ops. Left is unbound on the camera anyway (SolidWorks
-				 * scheme), so this is belt on top of braces, but it is what
-				 * keeps the boundary airtight if the mapping ever changes, and
-				 * it also freezes wheel/MMB for the duration of a drag so the
-				 * constraint solve never fights a moving camera.
+				 * and no-ops — which freezes wheel zoom for the drag's duration
+				 * so the constraint solve never fights a moving camera.
 				 *
 				 * Handle drags keep working through mid-drag scene rebuilds: the
 				 * drag state holds the pure solver closure from `beginDrag`
@@ -299,7 +397,15 @@
 					for (const lh of liveHandles) lh.visual.material = matFor(lh.def.id);
 				};
 				const updateCursor = () => {
-					canvas.style.cursor = drag ? 'grabbing' : hoverId ? 'grab' : '';
+					canvas.style.cursor = camDrag
+						? camDrag.mode === 'pan'
+							? 'move'
+							: 'grabbing'
+						: drag || pieceDrag?.moved
+							? 'grabbing'
+							: hoverId || hoverPiece >= 0
+								? 'grab'
+								: '';
 				};
 				const fmtHandleValue = (v: number) => (Math.round(v) === v ? String(v) : v.toFixed(1));
 				const updateHandleStatus = () => {
@@ -312,13 +418,12 @@
 
 				/** Screen-constant sizing: ~HANDLE_RADIUS_PX on screen at any zoom. */
 				const scaleHandles = () => {
-					if (!liveHandles.length) return;
 					const hpx = host.clientHeight || 420;
 					const half = Math.tan((camera.fov * Math.PI) / 360);
-					for (const lh of liveHandles) {
-						const dist = camera.position.distanceTo(lh.root.position);
-						lh.root.scale.setScalar(Math.max(0.02, (HANDLE_RADIUS_PX * 2 * half * dist) / hpx));
-					}
+					const sizeAt = (o: { position: InstanceType<typeof THREE.Vector3> }, px: number) =>
+						Math.max(0.02, (px * 2 * half * camera.position.distanceTo(o.position)) / hpx);
+					if (pivotMark.visible) pivotMark.scale.setScalar(sizeAt(pivotMark, 5));
+					for (const lh of liveHandles) lh.root.scale.setScalar(sizeAt(lh.root, HANDLE_RADIUS_PX));
 				};
 
 				const clearHandles = () => {
@@ -381,6 +486,89 @@
 					return liveHandles.find((l) => l.def.id === id)?.def ?? null;
 				};
 
+				/* ---------------- road picking ----------------
+				 * The main path's ribbon is ONE indexed mesh whose vertices run two
+				 * per centerline sample (left edge, right edge), which is what makes
+				 * a hit resolvable back to a piece with no extra bookkeeping: a
+				 * face's first vertex index / 2 is the sample, and every piece
+				 * diagnostic already carries its own `start`..`end` sample range.
+				 * No second geometry, no per-piece meshes, no picking proxy.
+				 */
+				type PieceRange = { index: number; start: number; end: number; broken: boolean };
+				let mainRibbon: {
+					mesh: InstanceType<typeof THREE.Mesh>;
+					geo: InstanceType<typeof THREE.BufferGeometry>;
+					/** The builder's own vertex tones, restored before every repaint. */
+					base: Float32Array;
+					nP: number;
+					ranges: PieceRange[];
+				} | null = null;
+				/** Meshes a rotate pivot may land on: the road and its deck structure. */
+				let pivotTargets: InstanceType<typeof THREE.Mesh>[] = [];
+
+				/** Authored piece index under the ray castPointer just armed, or -1. */
+				const pickPiece = (): number => {
+					const R = mainRibbon;
+					if (!R) return -1;
+					R.mesh.updateMatrixWorld(true);
+					const hit = raycaster.intersectObject(R.mesh, false)[0];
+					if (!hit?.face) return -1;
+					const sample = Math.floor(hit.face.a / 2) % R.nP;
+					return R.ranges.find((r) => sample >= r.start && sample <= r.end)?.index ?? -1;
+				};
+
+				/**
+				 * Piece state read on the SURFACE, by overwriting the per-sample
+				 * `color` attribute the shared ribbon builder already writes. Same
+				 * geometry, same builder, one attribute write — never a second
+				 * mesh. The builder's own tones are restored first, so repainting
+				 * is idempotent and the gate wear ramps survive.
+				 *
+				 * Priority is deliberate: while a reorder drag is live its feedback
+				 * outranks everything, because that is the question being asked at
+				 * that moment; otherwise a broken guardrail outranks selection,
+				 * which outranks hover.
+				 */
+				const paintPieces = () => {
+					const R = mainRibbon;
+					if (!R) return;
+					const col = R.geo.getAttribute('color') as InstanceType<typeof THREE.BufferAttribute>;
+					(col.array as Float32Array).set(R.base);
+					const paint = (from: number, to: number, r: number, g: number, b: number) => {
+						for (let i = from; i <= to; i++)
+							for (const ring of i === 0 ? [0, R.nP] : [i]) {
+								if (ring * 2 + 1 >= col.count) continue;
+								col.setXYZ(ring * 2, r, g, b);
+								col.setXYZ(ring * 2 + 1, r, g, b);
+							}
+					};
+					for (const p of R.ranges) {
+						if (pieceDrag?.moved && p.index === pieceDrag.from) paint(p.start, p.end, 0.35, 0.4, 0.5);
+						else if (pieceDrag?.moved && p.index === pieceDrag.to) paint(p.start, p.end, 1.6, 3.2, 2);
+						else if (p.broken) paint(p.start, p.end, 3.2, 1.5, 0.25);
+						else if (p.index === selIndex) paint(p.start, p.end, 0.55, 2.6, 1.3);
+						else if (p.index === hoverPiece) paint(p.start, p.end, 1.5, 1.9, 2.3);
+					}
+					col.needsUpdate = true;
+				};
+
+				/**
+				 * Where a rotate drag should turn about: the road under the cursor,
+				 * else where the ray meets the ground plane, else the current orbit
+				 * target. Grabbing empty sky therefore still rotates rather than
+				 * doing nothing.
+				 */
+				const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+				const pickPivot = (): InstanceType<typeof THREE.Vector3> => {
+					if (pivotTargets.length) {
+						const hit = raycaster.intersectObjects(pivotTargets, false)[0];
+						if (hit) return hit.point.clone();
+					}
+					const p = new THREE.Vector3();
+					if (raycaster.ray.intersectPlane(groundPlane, p)) return p;
+					return controls.target.clone();
+				};
+
 				/** World point -> canvas client coords (console drives + tests). */
 				const worldToScreen = (p: { x: number; y: number; z: number }) => {
 					camera.updateMatrixWorld();
@@ -398,26 +586,110 @@
 					return typeof v === 'number' && Number.isFinite(v) ? v : def.min;
 				};
 
-				const onHandleDown = (e: PointerEvent) => {
-					if (e.button === 1) middleDown = true;
-					if (e.button !== 0 || !onparam || drag) return;
+				/* ---------------- road select + drag-to-reorder ----------------
+				 * Clicking a piece's road selects it — the SAME `selected` the list
+				 * rows drive, so the row expands and its handles appear.
+				 *
+				 * Dragging one piece's road onto another reorders, with exactly the
+				 * list's own drop semantics (`reorderPiece(from, to)`: the dragged
+				 * piece takes the position of what it lands on), which is why a
+				 * mouse can move between the two surfaces without relearning what a
+				 * drop means. The chain is deliberately NOT mutated mid-drag: the
+				 * geometry under the cursor stays the geometry the author aimed at,
+				 * and one drag produces one undoable structural edit on release.
+				 * A press that never travels past PICK_SLOP_PX is a click, so a
+				 * slightly shaky select is still a select.
+				 */
+				const PICK_SLOP_PX = 5;
+				let pieceDrag: { from: number; to: number; x: number; y: number; moved: boolean } | null =
+					null;
+				let hoverPiece = -1;
+
+				const updatePickStatus = () => {
+					if (pieceDrag?.moved)
+						pickStatus =
+							pieceDrag.to === pieceDrag.from
+								? `piece ${pieceDrag.from} · drop on another piece to reorder`
+								: `move piece ${pieceDrag.from} → position ${pieceDrag.to}`;
+					else if (hoverPiece >= 0)
+						pickStatus = `piece ${hoverPiece} · click to select, drag to reorder`;
+					else pickStatus = '';
+				};
+
+				const onDown = (e: PointerEvent) => {
+					// A mouse is ONE pointer, so a second button pressed mid-drag would
+					// otherwise start a second, overlapping drag on the same id.
+					// Whichever gesture began wins until it is released.
+					if (e.button === 1) {
+						middleDown = true;
+						if (camDrag || drag || pieceDrag) return;
+						castPointer(e);
+						const mode = e.shiftKey || e.ctrlKey || e.metaKey ? 'pan' : 'rotate';
+						camDrag = {
+							mode,
+							pointerId: e.pointerId,
+							x: e.clientX,
+							y: e.clientY,
+							pivot: mode === 'rotate' ? pickPivot() : controls.target.clone()
+						};
+						if (mode === 'rotate') {
+							pivotMark.position.copy(camDrag.pivot);
+							pivotMark.visible = true;
+						}
+						try {
+							canvas.setPointerCapture(e.pointerId);
+						} catch {
+							/* synthetic pointers (console drives) have no active id */
+						}
+						updateCursor();
+						e.preventDefault();
+						return;
+					}
+					if (e.button !== 0 || camDrag || drag || pieceDrag) return;
 					const ray = castPointer(e);
-					const def = pickHandle();
-					if (!def) return; // empty viewport: the camera's, exactly as before
-					controls.enabled = false; // the arbitration boundary (see block comment)
-					drag = { def, solve: def.beginDrag(ray), pointerId: e.pointerId, last: currentParamValue(def) };
-					hoverId = def.id;
+					const def = onparam ? pickHandle() : null;
+					if (def) {
+						controls.enabled = false; // the arbitration boundary (see block comment)
+						drag = {
+							def,
+							solve: def.beginDrag(ray),
+							pointerId: e.pointerId,
+							last: currentParamValue(def)
+						};
+						hoverId = def.id;
+						try {
+							canvas.setPointerCapture(e.pointerId);
+						} catch {
+							/* synthetic pointers (console drives) have no active id */
+						}
+						syncHandleTint();
+						updateCursor();
+						updateHandleStatus();
+						e.preventDefault();
+						return;
+					}
+					// No handle: the road itself, or empty space (which clears).
+					const idx = pickPiece();
+					pieceDrag = { from: idx, to: idx, x: e.clientX, y: e.clientY, moved: false };
 					try {
 						canvas.setPointerCapture(e.pointerId);
 					} catch {
-						/* synthetic pointers (console drives) have no active id */
+						/* synthetic pointers have no active id */
 					}
-					syncHandleTint();
-					updateCursor();
-					updateHandleStatus();
 					e.preventDefault();
 				};
-				const onHandleMove = (e: PointerEvent) => {
+
+				const onMove = (e: PointerEvent) => {
+					if (camDrag) {
+						if (e.pointerId !== camDrag.pointerId) return;
+						const dx = e.clientX - camDrag.x;
+						const dy = e.clientY - camDrag.y;
+						camDrag.x = e.clientX;
+						camDrag.y = e.clientY;
+						if (camDrag.mode === 'rotate') applyRotate(dx, dy, camDrag.pivot);
+						else applyPan(dx, dy);
+						return;
+					}
 					if (drag) {
 						if (e.pointerId !== drag.pointerId) return;
 						const raw = drag.solve(castPointer(e));
@@ -431,28 +703,78 @@
 						updateHandleStatus();
 						return;
 					}
-					if (middleDown || !liveHandles.length) return;
+					if (pieceDrag) {
+						if (
+							!pieceDrag.moved &&
+							Math.hypot(e.clientX - pieceDrag.x, e.clientY - pieceDrag.y) > PICK_SLOP_PX
+						)
+							// Only a piece can be dragged; a press on empty space that
+							// travels is just a stray gesture, never a reorder.
+							pieceDrag.moved = pieceDrag.from >= 0 && !!onreorder;
+						if (pieceDrag.moved) {
+							castPointer(e);
+							const over = pickPiece();
+							if (over >= 0 && over !== pieceDrag.to) {
+								pieceDrag.to = over;
+								paintPieces();
+							}
+							updatePickStatus();
+						}
+						return;
+					}
+					if (middleDown) return;
 					castPointer(e);
-					const id = pickHandle()?.id ?? null;
+					const id = liveHandles.length ? (pickHandle()?.id ?? null) : null;
 					if (id !== hoverId) {
 						hoverId = id;
 						syncHandleTint();
-						updateCursor();
 						updateHandleStatus();
+					}
+					// Road hover only where a handle is not already claiming the cursor.
+					const over = id ? -1 : pickPiece();
+					if (over !== hoverPiece) {
+						hoverPiece = over;
+						paintPieces();
+						updatePickStatus();
+					}
+					updateCursor();
+				};
+
+				const releaseCapture = (id: number) => {
+					try {
+						canvas.releasePointerCapture(id);
+					} catch {
+						/* was never captured */
 					}
 				};
 				const endHandleDrag = (e: PointerEvent) => {
 					if (!drag || e.pointerId !== drag.pointerId) return;
 					drag = null;
 					controls.enabled = true;
-					try {
-						canvas.releasePointerCapture(e.pointerId);
-					} catch {
-						/* was never captured */
-					}
+					releaseCapture(e.pointerId);
 					syncHandleTint();
 					updateCursor();
 					updateHandleStatus();
+				};
+				const endPieceDrag = (e: PointerEvent, commit: boolean) => {
+					if (!pieceDrag) return;
+					const { from, to, moved } = pieceDrag;
+					pieceDrag = null;
+					releaseCapture(e.pointerId);
+					if (commit) {
+						if (moved && from >= 0 && to >= 0 && to !== from) onreorder?.(from, to);
+						else if (!moved) onselect?.(from);
+					}
+					paintPieces();
+					updatePickStatus();
+					updateCursor();
+				};
+				const endCamDrag = (e: PointerEvent) => {
+					if (!camDrag || e.pointerId !== camDrag.pointerId) return;
+					camDrag = null;
+					pivotMark.visible = false;
+					releaseCapture(e.pointerId);
+					updateCursor();
 				};
 				// Up/cancel live on WINDOW: with pointer capture they bubble here
 				// anyway, and without it (synthetic drives, capture refusals) a
@@ -460,15 +782,23 @@
 				// leaving a stuck grab. A mouse is ONE pointer, so a button check
 				// keeps an MMB release from ending an LMB handle drag.
 				const onWinUp = (e: PointerEvent) => {
-					if (e.button === 1) middleDown = false;
-					if (e.button === 0) endHandleDrag(e);
+					if (e.button === 1) {
+						middleDown = false;
+						endCamDrag(e);
+					}
+					if (e.button === 0) {
+						endHandleDrag(e);
+						endPieceDrag(e, true);
+					}
 				};
 				const onWinCancel = (e: PointerEvent) => {
 					middleDown = false;
+					endCamDrag(e);
 					endHandleDrag(e);
+					endPieceDrag(e, false);
 				};
-				canvas.addEventListener('pointerdown', onHandleDown, true);
-				canvas.addEventListener('pointermove', onHandleMove);
+				canvas.addEventListener('pointerdown', onDown, true);
+				canvas.addEventListener('pointermove', onMove);
 				window.addEventListener('pointerup', onWinUp);
 				window.addEventListener('pointercancel', onWinCancel);
 
@@ -478,6 +808,8 @@
 				const disposables: { dispose(): void }[] = [];
 				const clearTrack = () => {
 					trackGroup.clear();
+					mainRibbon = null;
+					pivotTargets = [];
 					for (const d of disposables.splice(0)) d.dispose();
 				};
 
@@ -525,33 +857,6 @@
 					const gates = [...rt.checkpoints, rt.startFinish];
 					for (const path of rt.paths) {
 						const geo = buildRibbonGeometry(THREE, path, gates);
-						// Violation + selection read on the SURFACE, not just in the
-						// list: the per-sample `color` attribute the shared builder
-						// already writes is overwritten across the offending piece's
-						// own sample range. Same geometry, same builder — only the
-						// vertex tint differs, and the state comes straight from
-						// diagnoseChain rather than from a second check.
-						const col = geo.getAttribute('color') as InstanceType<typeof THREE.BufferAttribute>;
-						const nP = path.center.length;
-						const paint = (from: number, to: number, r: number, g: number, b: number) => {
-							for (let i = from; i <= to; i++) {
-								for (const ring of i === 0 ? [0, nP] : [i]) {
-									if (ring * 2 + 1 >= col.count) continue;
-									col.setXYZ(ring * 2, r, g, b);
-									col.setXYZ(ring * 2 + 1, r, g, b);
-								}
-							}
-						};
-						// Only the main path carries piece ranges (a preview chain is
-						// linear; branches are ribbon-only territory).
-						if (path === rt.paths[0]) {
-							for (const p of dg.pieces) {
-								const broken = dg.issues.some((x) => x.pieceIndex === p.index);
-								if (broken) paint(p.start, p.end, 3.2, 1.5, 0.25);
-								else if (p.index === sel) paint(p.start, p.end, 0.55, 2.6, 1.3);
-							}
-						}
-						col.needsUpdate = true;
 						// Lighter than the race's night asphalt on purpose: shading is
 						// the only cue an author has for grade and bank, so the
 						// surface has to hold a visible gradient rather than sit at
@@ -563,7 +868,29 @@
 							metalness: 0.02
 						});
 						disposables.push(geo, mat);
-						trackGroup.add(new THREE.Mesh(geo, mat));
+						const mesh = new THREE.Mesh(geo, mat);
+						trackGroup.add(mesh);
+						pivotTargets.push(mesh);
+						// Only the main path carries piece ranges (a preview chain is
+						// linear; branches are ribbon-only territory), so it is the
+						// only one that can be picked or tinted per piece. The
+						// builder's own tones are snapshotted here and are what every
+						// later repaint restores.
+						if (path === rt.paths[0]) {
+							const col = geo.getAttribute('color') as InstanceType<typeof THREE.BufferAttribute>;
+							mainRibbon = {
+								mesh,
+								geo,
+								base: (col.array as Float32Array).slice(),
+								nP: path.center.length,
+								ranges: dg.pieces.map((p) => ({
+									index: p.index,
+									start: p.start,
+									end: p.end,
+									broken: dg.issues.some((x) => x.pieceIndex === p.index)
+								}))
+							};
+						}
 
 						// Painted edges: the corridor's breathing and, on a banked
 						// section, the two edges at visibly different heights.
@@ -611,7 +938,11 @@
 								if (!mesh) continue;
 								const g = toGeometry(THREE, mesh);
 								disposables.push(g);
-								trackGroup.add(new THREE.Mesh(g, mat));
+								const m = new THREE.Mesh(g, mat);
+								trackGroup.add(m);
+								// Deck structure is solid ground too, so a rotate started
+								// over a raised span pivots on the span, not through it.
+								pivotTargets.push(m);
 							}
 					}
 
@@ -653,6 +984,12 @@
 					}
 
 					rebuildHandles(d, dg, sel);
+					// Hover is a pointer fact about the OLD geometry; a rebuild can
+					// renumber every piece under a stationary cursor, so it is
+					// dropped and re-derived on the next move rather than carried.
+					hoverPiece = -1;
+					paintPieces();
+					updatePickStatus();
 				};
 
 				/** Fit-to-bounds solve against the tighter of the two half-FOVs. */
@@ -719,10 +1056,54 @@
 						nudge,
 						nudgeDeg: (dx: number, dy: number) =>
 							nudge((dx * Math.PI) / 180, (dy * Math.PI) / 180),
-						/** Resolve the modifier -> button mapping without a real MMB. */
-						pressMiddle: (mods: { shiftKey?: boolean; ctrlKey?: boolean } = {}) => {
-							onDownCapture({ button: 1, ...mods } as PointerEvent);
-							return controls.mouseButtons.MIDDLE;
+						/**
+						 * Drive a whole middle-button camera gesture through the REAL
+						 * pointer path. Returns what the drag resolved to plus the
+						 * pivot it turned about, which is what makes "rotate, and
+						 * about the thing under the cursor" checkable without hands.
+						 */
+						camDragBy: (
+							dx: number,
+							dy: number,
+							mods: { shiftKey?: boolean; ctrlKey?: boolean; metaKey?: boolean } = {},
+							at?: { clientX: number; clientY: number },
+							steps = 8
+						) => {
+							const rect = canvas.getBoundingClientRect();
+							const sx = at?.clientX ?? rect.left + rect.width / 2;
+							const sy = at?.clientY ?? rect.top + rect.height / 2;
+							const ev = (type: string, x: number, y: number, button: number, buttons: number) =>
+								canvas.dispatchEvent(
+									new PointerEvent(type, {
+										clientX: x,
+										clientY: y,
+										button,
+										buttons,
+										pointerId: 8888,
+										bubbles: true,
+										cancelable: true,
+										...mods
+									})
+								);
+							ev('pointerdown', sx, sy, 1, 4);
+							const mode = camDrag?.mode ?? null;
+							const pivot = camDrag ? { ...camDrag.pivot } : null;
+							for (let k = 1; k <= steps; k++)
+								ev('pointermove', sx + (dx * k) / steps, sy + (dy * k) / steps, -1, 4);
+							window.dispatchEvent(
+								new PointerEvent('pointerup', {
+									clientX: sx + dx,
+									clientY: sy + dy,
+									button: 1,
+									buttons: 0,
+									pointerId: 8888,
+									bubbles: true
+								})
+							);
+							return { mode, pivot };
+						},
+						get camDragMode() {
+							return camDrag?.mode ?? null;
 						},
 						get mouseButtons() {
 							return controls.mouseButtons;
@@ -780,6 +1161,82 @@
 						get controlsEnabled() {
 							return controls.enabled;
 						},
+						/* ---- road picking / reorder verification surface ---- */
+						/** The REAL hit test at client coords: authored piece index or -1. */
+						pickPieceAt: (clientX: number, clientY: number) => {
+							castPointer({ clientX, clientY });
+							return pickPiece();
+						},
+						/** Canvas-client coords of a point on a piece's own road surface. */
+						pieceScreen: (index: number) => {
+							const R = mainRibbon;
+							const r = R?.ranges.find((x) => x.index === index);
+							if (!R || !r) return null;
+							const mid = Math.floor((r.start + r.end) / 2);
+							const pos = R.geo.getAttribute('position') as InstanceType<
+								typeof THREE.BufferAttribute
+							>;
+							const a = mid * 2;
+							const b = mid * 2 + 1;
+							if (b >= pos.count) return null;
+							return worldToScreen({
+								x: (pos.getX(a) + pos.getX(b)) / 2,
+								y: (pos.getY(a) + pos.getY(b)) / 2,
+								z: (pos.getZ(a) + pos.getZ(b)) / 2
+							});
+						},
+						/** Click one piece's road through the REAL pointer path. */
+						clickPiece: (index: number) => {
+							const api = (window as unknown as Record<string, { pieceScreen(i: number): { x: number; y: number } | null }>)
+								.__glPreview3D;
+							const s = api.pieceScreen(index);
+							if (!s) return false;
+							const ev = (type: string, x: number, y: number, button: number, buttons: number) =>
+								canvas.dispatchEvent(
+									new PointerEvent(type, {
+										clientX: x, clientY: y, button, buttons,
+										pointerId: 6666, bubbles: true, cancelable: true
+									})
+								);
+							ev('pointerdown', s.x, s.y, 0, 1);
+							window.dispatchEvent(
+								new PointerEvent('pointerup', {
+									clientX: s.x, clientY: s.y, button: 0, buttons: 0, pointerId: 6666, bubbles: true
+								})
+							);
+							return true;
+						},
+						/** Drag one piece's road onto another's through the REAL path. */
+						dragPieceOnto: (from: number, to: number, steps = 10) => {
+							const api = (window as unknown as Record<string, { pieceScreen(i: number): { x: number; y: number } | null }>)
+								.__glPreview3D;
+							const a = api.pieceScreen(from);
+							const b = api.pieceScreen(to);
+							if (!a || !b) return false;
+							const ev = (type: string, x: number, y: number, button: number, buttons: number) =>
+								canvas.dispatchEvent(
+									new PointerEvent(type, {
+										clientX: x, clientY: y, button, buttons,
+										pointerId: 6667, bubbles: true, cancelable: true
+									})
+								);
+							ev('pointerdown', a.x, a.y, 0, 1);
+							for (let k = 1; k <= steps; k++)
+								ev('pointermove', a.x + ((b.x - a.x) * k) / steps, a.y + ((b.y - a.y) * k) / steps, -1, 1);
+							const landed = pieceDrag ? { from: pieceDrag.from, to: pieceDrag.to } : null;
+							window.dispatchEvent(
+								new PointerEvent('pointerup', {
+									clientX: b.x, clientY: b.y, button: 0, buttons: 0, pointerId: 6667, bubbles: true
+								})
+							);
+							return landed;
+						},
+						get pieceDrag() {
+							return pieceDrag ? { ...pieceDrag } : null;
+						},
+						get hoverPiece() {
+							return hoverPiece;
+						},
 						/* ---- open/closed preview verification surface ---- */
 						/** The exact TrackData the preview last mounted. */
 						get lastPreview() {
@@ -811,13 +1268,12 @@
 				cleanup = () => {
 					cancelAnimationFrame(raf);
 					ro.disconnect();
-					renderer.domElement.removeEventListener('pointerdown', onDownCapture, true);
 					renderer.domElement.removeEventListener('mousedown', onMiddleDefault);
 					renderer.domElement.removeEventListener('auxclick', onMiddleDefault);
 					renderer.domElement.removeEventListener('pointerdown', focusStage);
 					renderer.domElement.removeEventListener('keydown', onKey);
-					renderer.domElement.removeEventListener('pointerdown', onHandleDown, true);
-					renderer.domElement.removeEventListener('pointermove', onHandleMove);
+					renderer.domElement.removeEventListener('pointerdown', onDown, true);
+					renderer.domElement.removeEventListener('pointermove', onMove);
 					window.removeEventListener('pointerup', onWinUp);
 					window.removeEventListener('pointercancel', onWinCancel);
 					controls.dispose();
@@ -825,6 +1281,8 @@
 					refit = null;
 					clearTrack();
 					clearHandles();
+					pivotMark.geometry.dispose();
+					(pivotMark.material as InstanceType<typeof THREE.Material>).dispose();
 					ballGeo.dispose();
 					diamondGeo.dispose();
 					hitGeo.dispose();
@@ -871,14 +1329,14 @@
 				not drawn (params out of range): piece {undrawn.join(', ')}
 			</div>
 		{/if}
-		{#if handleStatus}
-			<div class="p3-handlestat" data-testid="p3-handle-status">{handleStatus}</div>
+		{#if handleStatus || pickStatus}
+			<div class="p3-handlestat" data-testid="p3-handle-status">{handleStatus || pickStatus}</div>
 		{/if}
 	</div>
 	<div class="p3-bar">
 		<span class="p3-hint" data-testid="p3-hint">
-			LMB drag handles · MMB rotate · shift/ctrl+MMB pan · wheel zoom · arrows nudge 15&deg; (shift
-			90&deg;)
+			LMB pick a piece, drag to reorder, drag handles · MMB rotate about the cursor ·
+			shift/ctrl+MMB pan · wheel zoom · arrows nudge 15&deg; (shift 90&deg;)
 		</span>
 		<span class="p3-key"><i class="sw hnd"></i> handle</span>
 		<span class="p3-key"><i class="sw sel"></i> selected</span>

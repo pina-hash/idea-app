@@ -5128,7 +5128,118 @@ on one side of the world.
     background. Zero console errors. Not verified this session: a
     trusted-hardware-mouse MMB drag (claude-in-chrome was not connected);
     that path's code is unchanged and its mapping/wheel/nudge were driven
-    through OrbitControls' own handlers.
+    through OrbitControls' own handlers. (That deferred check was run later
+    with real OS-level input and found the pan gesture broken — see the
+    camera-ownership bullet below.)
+
+- **The preview camera owns the middle button; orbit pivots under the cursor;
+  the road is clickable and draggable.** Four changes to how the piece-builder
+  3D view is DRIVEN. The compiler, the guardrails, the shared `track-visual`
+  mesh builders, and the handle solvers are all untouched.
+  - **THE BUG, and it was the modifier gesture, not the plain one.** The old
+    code resolved shift/ctrl into `controls.mouseButtons.MIDDLE` from a
+    capture-phase listener and let OrbitControls act on the result — but
+    OrbitControls applies its OWN modifier swap (a MIDDLE mapped to PAN with
+    shift held is turned back into ROTATE). So the modifier was applied
+    TWICE and shift/ctrl+MMB rotated: **pan was unreachable, on every track,
+    always.** Plain MMB rotated correctly the whole time. Measured with real
+    SendInput hardware input against the pre-fix build: plain MMB camera
+    moved 298.8 / orbit target moved 0 (rotate), shift+MMB camera moved
+    267.1 / target moved 0 (rotate again, should have panned). The earlier
+    session's synthetic check could not have caught this — it called the
+    resolver directly and never let OrbitControls' own swap run. The
+    capture-at-target ordering that same session worried about is fine and
+    was re-confirmed: capture listeners on the target DO precede bubble ones.
+  - **Fix: OrbitControls is bound to NO mouse button** (`LEFT`/`MIDDLE`/
+    `RIGHT` all null) and the middle button is driven by hand. This removes
+    the double-swap class of bug outright rather than re-tuning around it,
+    and it is also required for the pivot work below. OrbitControls is kept
+    for what it is still exactly right for: wheel zoom, damping, and the
+    `update()` that re-aims the camera at the target each frame.
+  - **Orbit pivots on whatever is under the cursor** (SolidWorks), picked by
+    raycast at drag start against the road and its deck structure, falling
+    back to the ground plane, then the current target — so grabbing empty sky
+    still rotates. `applyRotate` turns the camera AND the orbit target
+    rigidly about that pivot, which is the whole trick: because the pair
+    moves as one body, `lookAt(target)` still yields the right orientation
+    and NOTHING jumps at drag start. (Simply moving `target` to the pivot
+    would snap the pivot to the middle of the screen, which is why that is
+    not what happens — and it is why this is not expressible through
+    OrbitControls, whose `update()` always re-aims at `target`.) Rates match
+    OrbitControls' own (2*PI per viewport height) so the gesture feels
+    unchanged; the pitch component is dropped if it would tip past a pole or
+    put the camera under the ground, so yaw always survives a steep drag. A
+    small gold marker shows the pivot while a rotate lasts.
+  - **Click a piece's road to select it, drag it onto another to reorder.**
+    The main path's ribbon is ONE indexed mesh with two vertices per
+    centerline sample, so a hit resolves to a piece with no extra
+    bookkeeping — face vertex index / 2 is the sample, and every
+    `PieceDiagnostic` already carries its `start`..`end` sample range. No
+    picking proxy, no per-piece meshes. Selection writes the parent's OWN
+    `selected` (new `onselect` prop), so picking in 3D and clicking a list
+    row are ONE selection: the row expands to its edit form and the shape
+    handles appear either way. Reorder (new `onreorder` prop) routes to the
+    list's own `reorderPiece`, keeping its exact drop semantics — the dragged
+    piece TAKES the position of what it lands on — so a mouse moving between
+    the two surfaces never has to relearn what a drop means. The chain is
+    deliberately NOT mutated mid-drag (stable aim, one structural edit per
+    drag); a press that never travels past 5 px is a click, so a shaky select
+    is still a select; a click on empty space clears the selection.
+    Left-button priority is strict: handle, else road, else nothing.
+  - **Surface feedback reuses the existing vertex-colour channel** rather
+    than adding a mesh: the builder's own tones are snapshotted and restored
+    before every repaint (idempotent, gate wear ramps survive), then the
+    dragged piece dims and the drop target glows. Priority while a reorder is
+    live is drag feedback > broken guardrail > selection > hover.
+  - **Layout: the route's floated back link covered the builder's own status
+    chip.** `.glpb-back` was `position: absolute` at the page's top right,
+    landing on top of the chain status flag (measured 1035 px² of overlap at
+    1280 wide, with `elementFromPoint` at the flag's centre returning the
+    LINK — it was taking the clicks); PLAYTEST sits in the same corner just
+    below. Fixed structurally rather than by picking offsets that happen to
+    miss: `PieceChainBuilder` takes optional `backHref`/`backLabel` and
+    renders the link as a real item in its header flex row, so the corner is
+    ONE layout. A host page must NOT float its own chrome over this
+    component. Verified zero overlap and all three controls visible AND
+    topmost-at-their-own-centre at 1600 / 1280 / 1040 / 900 px.
+  - **Console surface** gains `camDragBy` (a whole middle-drag through the
+    real pointer path, reporting the resolved mode and pivot), `camDragMode`,
+    `pickPieceAt`, `pieceScreen`, `clickPiece`, `dragPieceOnto`, `pieceDrag`,
+    `hoverPiece`. `pressMiddle` is gone with the resolver it drove.
+  - **Verified with REAL OS-level input** (SendInput into a genuinely visible
+    Chrome window — see the harness note below), every gesture landing as a
+    trusted event on the canvas: plain MMB rotates (camera and target move by
+    DIFFERENT vectors, mismatch 412.6) and shift+MMB and ctrl+MMB pan
+    (camera and target move by the IDENTICAL vector, mismatch exactly 0 —
+    a rigid translation is the honest discriminator, since a pivot rotation
+    legitimately moves the target too). Pivot: rotating with the cursor over
+    piece 0 left that road point pinned at its pixel (moved 0.6 px) while the
+    old scene-centre swung 164.3 px across the screen; repeating over piece 3
+    inverted it exactly (piece 3 moved 0.2 px, piece 0 swung 345.1 px).
+    Picking: a real click on piece 2's road selected row 2 and expanded its
+    edit form; a real left-drag from piece 0's road onto piece 3's reordered
+    `[straight,curve,straight,curve,straight]` to
+    `[curve,straight,curve,straight,straight]` with the selection correctly
+    following to its new index. Regressions held under real input: a
+    left-drag starting ON a handle reshaped (numeric field ticking with it)
+    and did NOT reorder, with all drag state cleaned up; a click on empty
+    space cleared the selection; wheel zoom still works (280.1 -> 228.2).
+    Mid-drag state and the vertex tints were checked in the buffers
+    (dragged piece 0.35/0.4/0.5, drop target 1.6/3.2/2.0, selection
+    preserved, and an exact restore on cancel), and all 7 piece kinds
+    (incl. bank, corkscrew, closer) resolve from a raycast pick.
+    `svelte-check` clean, 0 errors, no new warnings.
+  - **HARNESS NOTE, worth knowing before the next real-input check:** the
+    claude-in-chrome tab is a BACKGROUND tab (`visibilityState: 'hidden'`)
+    that no OS window shows, so SendInput cannot reach it and its `computer`
+    tool has no middle button. The way through is to have that tab
+    `window.open` a popup — same origin, so the hidden tab can script it
+    (`w.__glPreview3D`) while it is a real, visible, focusable OS window
+    SendInput can drive. Popups need a user gesture, so the opener must be a
+    button clicked via the `computer` tool. Also: in PowerShell,
+    `$input.mi.dx = ...` silently writes to a COPY (nested value type) and
+    sends nothing — build the whole MOUSEINPUT/KEYBDINPUT and assign it to
+    `.mi`/`.ki` in one go.
 
 - **The `closer` piece + honest open-chain preview + actionable closure
   reporting (the "closing a chain by hand is impossible" fix).** Closing a
