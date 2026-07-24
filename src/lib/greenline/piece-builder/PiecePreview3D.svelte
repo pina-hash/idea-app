@@ -13,7 +13,12 @@
 		toGeometry
 	} from '../track-visual';
 	import { previewTrack, type ChainDoc } from './chain-doc';
-	import { handlesForPiece, type HandleRay, type PieceHandle } from './handles';
+	import {
+		handlesForPiece,
+		type HandleContext,
+		type HandleRay,
+		type PieceHandle
+	} from './handles';
 	import type { ChainDiagnostics } from '../track-pieces';
 
 	/**
@@ -430,6 +435,26 @@
 					handleGroup.clear();
 					liveHandles = [];
 				};
+				/**
+				 * How wide the road really is where an angle handle sits, read off
+				 * the REAL swept path rather than re-deriving the width blend: an
+				 * angle handle rides the road EDGE, so a guessed half-width would
+				 * float it off the surface it is supposed to be grabbing. Set with
+				 * the rest of the scene in applyTrack; null before the first build.
+				 */
+				let halfWidths: number[] | null = null;
+				let centres: { x: number; y: number; z: number }[] | null = null;
+				const handleCtx = (start: number, end: number): HandleContext | undefined => {
+					const hw = halfWidths;
+					const c = centres;
+					if (!hw?.length || !c?.length) return undefined;
+					const at = (t: number, n: number) =>
+						Math.min(n - 1, Math.max(0, Math.round(start + (end - start) * Math.min(1, Math.max(0, t)))));
+					return {
+						halfWidthAt: (t) => hw[at(t, hw.length)],
+						centreAt: (t) => c[at(t, c.length)]
+					};
+				};
 				const rebuildHandles = (d: ChainDoc, dg: ChainDiagnostics, sel: number) => {
 					clearHandles();
 					selIndex = sel;
@@ -443,7 +468,7 @@
 						}
 						return;
 					}
-					for (const def of handlesForPiece(piece, pd.entry, pd.exit)) {
+					for (const def of handlesForPiece(piece, pd.entry, pd.exit, handleCtx(pd.start, pd.end))) {
 						const root = new THREE.Group();
 						root.position.set(def.pos.x, def.pos.y, def.pos.z);
 						const visual = new THREE.Mesh(def.shape === 'diamond' ? diamondGeo : ballGeo, matFor(def.id));
@@ -453,6 +478,14 @@
 						root.add(visual, hit);
 						handleGroup.add(root);
 						liveHandles.push({ def, root, visual, hit });
+					}
+					// A hover belongs to the handles that WERE there. Selecting another
+					// piece swaps the whole set, so a stale id would keep naming a
+					// handle this piece does not have ("radius" over a corkscrew).
+					if (!drag && hoverId && !liveHandles.some((l) => l.def.id === hoverId)) {
+						hoverId = null;
+						updateCursor();
+						updateHandleStatus();
 					}
 					scaleHandles();
 					syncHandleTint();
@@ -809,6 +842,8 @@
 				const clearTrack = () => {
 					trackGroup.clear();
 					mainRibbon = null;
+					halfWidths = null;
+					centres = null;
 					pivotTargets = [];
 					for (const d of disposables.splice(0)) d.dispose();
 				};
@@ -877,6 +912,10 @@
 						// builder's own tones are snapshotted here and are what every
 						// later repaint restores.
 						if (path === rt.paths[0]) {
+							halfWidths = path.halfWidths;
+							// The swept centreline, carrying every catch-plane raise the
+							// compiler applied — what an angle handle must pivot on.
+							centres = path.center.map((p, i) => ({ x: p.x, y: path.elevations[i], z: p.z }));
 							const col = geo.getAttribute('color') as InstanceType<typeof THREE.BufferAttribute>;
 							mainRibbon = {
 								mesh,

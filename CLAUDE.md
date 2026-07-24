@@ -5241,6 +5241,101 @@ on one side of the world.
     sends nothing — build the whole MOUSEINPUT/KEYBDINPUT and assign it to
     `.mi`/`.ki` in one go.
 
+- **Collapsed piece rows + rotational handles for the angle params.** Two
+  changes: a long chain is scannable, and the params that ARE angles are
+  draggable like the lengths and radii already were.
+  - **One line per piece, detail only where it is being worked.** Every row
+    used to render its exit pose (6 numbers) and its measured
+    grade/bank/edge on top of the summary, whether or not anyone was looking
+    at it. A row is now the grip, index, a per-kind ICON, the kind name, and
+    a one-line summary of just the params that distinguish it; the exit pose
+    and measurements moved inside the `selected === i` branch that already
+    held the param fields. **Issues are the deliberate exception and still
+    render on a collapsed row** — a broken piece has to be findable without
+    opening it. Safe because `GRADE_LIMIT === PIECE_GRADE_MAX`: every
+    measurement that could show a warn also fails as an issue, so nothing
+    that was a violation became invisible. Measured on the SAME 16-piece
+    chain via a stash-and-reload A/B against HEAD: the list went **1135 px ->
+    583 px (48.6% shorter)** with one piece expanded, and 461 px with none;
+    a collapsed row is **66 px -> 24 px**.
+  - The toolbar moved from `position: absolute` into a shared flex line with
+    the row (`.pb-headline`). At one line per piece an overlaid toolbar would
+    sit on the summary it is meant to sit beside — the same class of mistake
+    as the floated back link two bullets up. The summary is the only elastic
+    item and ellipsizes, so the tools can never be pushed off.
+  - `PIECE_ICONS` (chain-doc.ts, beside `KIND_SPECS`) is plain path data on a
+    24x24 grid stroked with `currentColor` — the `pathways.ts` convention,
+    data in the registry and the one `<svg>` at the render site. The glyph
+    says what the piece does to the road (straight runs on, curve bends, bank
+    rolls, jump breaks, corkscrew twists, closer completes the loop, freeform
+    is plotted points) and it tints with the row: steel normally, green
+    selected, amber broken.
+  - **`angleHandle`, the rotational counterpart to `axisHandle`.** Same
+    framework, same `PieceHandle` contract, same single mutation path through
+    the parent's `setParams`, same capture-phase arbitration. A linear drag is
+    wrong for an angle, so these solve a swing about an axis instead: the
+    caller states two in-plane reference directions and the plane normal is
+    `refU × refV`, so the sign follows from their order rather than from a
+    separately-maintained axis. Delta-accumulating like the curve's sweep, and
+    the ACCUMULATOR is clamped so a drag pushed past a stop reverses at once.
+  - **Closed forms, each derived from the generator rather than fitted.**
+    BANK `targetBankDeg`: `buildRuntime` sweeps the edge to
+    `centre + halfWidth·(cos β·n + sin β·up)`, a circle in the vertical plane
+    perpendicular to travel whose in-plane angle IS β — so grabbing the road's
+    edge and swinging it reads the bank 1:1, and a bank piece's exit bank is
+    the target, so the handle rides the exit cross-section. CORKSCREW
+    `peakBankDeg`: `bankPulse(0.5) = 1`, so mid-piece bank IS the peak; same
+    solve on the mid cross-section. CORKSCREW `turnDeg`: the plan is a
+    fixed-LENGTH arc (radius is derived, `R = L/|a|`), so the exit rides no
+    circle — summing the arc gives `exit = entry + L·sinc(a/2)·dirOf(h+A/2)`,
+    i.e. the exit's BEARING about the entry moves at half the twist, so it is
+    an angular solve at **gain 2**. Zero is legal and continuous there (a
+    straight spiral), so unlike the curve's sweep there is no sign lock.
+    Bank also gets the straight's exact `length` solve. `jump` and `closer`
+    still have none; `freeform` never will.
+  - **`HandleContext` (the compiled road, not the analytic pose).** An angle
+    handle rides the EDGE, so it needs where the road actually is: the
+    compiler lifts samples clear of the y=0 catch plane on a banked run and
+    arches a corkscrew's base, and NEITHER raise appears in a piece's exit
+    pose. Found in the browser — the first version put the bank handle 1.49 m
+    under the road it was supposed to be grabbing. The 3D layer now supplies
+    `halfWidthAt`/`centreAt` from the real runtime (`path.halfWidths`,
+    `path.center` + `path.elevations` over the piece's own sample range),
+    which also retires the curve radius handle's straight-line mid-height
+    estimate. Verified: the handle lands **0.03-0.13 m** from the swept edge.
+  - **`ANGLE_GUARD_FRAC` is a singularity guard, not a damper.** At the pivot
+    an arbitrarily small movement sweeps an arbitrarily large angle, so a
+    pointer inside 30% of the handle's own lever arm HOLDS the value. Outside
+    it the mapping is untouched and exactly 1:1. Worth knowing: because the
+    mapping is 1:1 with the geometry you can see, sensitivity is a function of
+    ZOOM — measured 11 deg/px with a 700 m chain framed into 545 px (a 5 px
+    lever arm) and **0.2-0.28 deg/px** at a piece-editing zoom (152 px lever
+    arm), where a 5 px nudge moves the bank 1 deg. That is honest direct
+    manipulation, and zooming in is the precision control; do not "fix" it
+    with a damping factor, which would stop the handle following the cursor.
+  - **Verified** in `/dev/greenline-piece-builder`, drags driven through the
+    REAL capture-phase pointer path (`dragHandleBy`, the existing handle
+    standard): mid-drag, bank reads doc 60 / field "60" / readout
+    "bank 60 deg"; twist reads 23 / "23" / "twist 23 deg"; peak bank reads
+    41 / "41" / "peak bank 41 deg" — each moving ONLY its own param. Typing
+    re-seats: 35 into the bank field put the edge at exactly `6·cos 35` =
+    4.915 lateral, -25 into peak bank moved the handle 8.61 -> 1.299 y. The
+    closed forms were checked against the compiler's own output — corkscrew
+    exit bearing predicted 105 vs actual 105 and chord 69.2031 vs 69.2031,
+    and the compiled mid-piece cross-section reads a bank of exactly -25
+    when `peakBankDeg` is -25, confirming `bankPulse(0.5) = 1`. A chain was
+    then shaped by handle drags ALONE across all seven handles (straight
+    length, bank length + angle, curve radius + sweep, corkscrew twist +
+    peak bank — the twist crossing zero to -8, exercising the no-sign-lock
+    property), closed with one CLOSE THE LOOP click to gap 0.000, read
+    VALID, and PLAYTESTED: AI cars lap it at a 19.4 s best. Control, same
+    harness and field: the committed `piece-proof-01` laps at its DOCUMENTED
+    21.1 s best with 1 fall / 116 floor catches, so the authored track's
+    higher counts trace to its own 1.86 m bank raise (proof-01's is 0.000),
+    not to this change. Fixed along the way: a stale hover readout kept
+    naming a handle the newly-selected piece did not have ("radius" over a
+    corkscrew). `svelte-check` clean, 0 errors, 0 new warnings.
+
 - **The `closer` piece + honest open-chain preview + actionable closure
   reporting (the "closing a chain by hand is impossible" fix).** Closing a
   loop is a simultaneous position + heading + elevation + bank solve (plus

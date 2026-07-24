@@ -12,6 +12,7 @@
 		KIND_SPECS,
 		loadDoc,
 		pieceSummary,
+		PIECE_ICONS,
 		saveDoc,
 		serializeTrack,
 		summarize,
@@ -624,43 +625,56 @@
 						ondragover={(e) => onDragOver(e, i)}
 						ondrop={(e) => onDrop(e, i)}
 					>
-						<button class="pb-row" data-testid={`piece-${i}`} onclick={() => (selected = selected === i ? -1 : i)}>
-							<!-- Only the grip is draggable: making the whole row draggable
-							     would hijack text selection inside the expanded param form. -->
-							<!-- Decorative for assistive tech: reordering by keyboard is the
-							     up/down buttons' job, this is purely the mouse affordance. -->
-							<span
-								class="pb-grip"
-								aria-hidden="true"
-								title="drag to reorder"
-								draggable="true"
-								data-testid={`grip-${i}`}
-								ondragstart={(e) => onDragStart(e, i)}
-								ondragend={onDragEnd}
-							>⠿</span>
-							<span class="pb-idx">{i}</span>
-							<span class="pb-kind">{piece.kind}</span>
-							<span class="pb-summary">{pieceSummary(piece)}</span>
-						</button>
-						<div class="pb-tools">
-							<button
-								title="insert a new piece here"
-								class:armed={insertAt === i}
-								data-testid={`ins-${i}`}
-								onclick={() => (insertAt = insertAt === i ? null : i)}>+</button
-							>
-							<button title="duplicate" data-testid={`dup-${i}`} onclick={() => duplicatePiece(i)}>⧉</button>
-							<button title="move up" disabled={i === 0} data-testid={`up-${i}`} onclick={() => movePiece(i, -1)}>↑</button>
-							<button
-								title="move down"
-								disabled={i === doc.pieces.length - 1}
-								data-testid={`down-${i}`}
-								onclick={() => movePiece(i, 1)}>↓</button
-							>
-							<button title="remove" class="del" data-testid={`del-${i}`} onclick={() => removePiece(i)}>×</button>
+						<!-- The row and its tools share ONE flex line rather than the
+						     tools floating over the row: at one line per collapsed piece
+						     an absolutely-positioned toolbar would sit on top of the
+						     summary it is meant to sit beside. -->
+						<div class="pb-headline">
+							<button class="pb-row" data-testid={`piece-${i}`} onclick={() => (selected = selected === i ? -1 : i)}>
+								<!-- Only the grip is draggable: making the whole row draggable
+								     would hijack text selection inside the expanded param form. -->
+								<!-- Decorative for assistive tech: reordering by keyboard is the
+								     up/down buttons' job, this is purely the mouse affordance. -->
+								<span
+									class="pb-grip"
+									aria-hidden="true"
+									title="drag to reorder"
+									draggable="true"
+									data-testid={`grip-${i}`}
+									ondragstart={(e) => onDragStart(e, i)}
+									ondragend={onDragEnd}
+								>⠿</span>
+								<span class="pb-idx">{i}</span>
+								<svg class="pb-icon" viewBox="0 0 24 24" aria-hidden="true">
+									{#each PIECE_ICONS[piece.kind] as dPath (dPath)}<path d={dPath} />{/each}
+								</svg>
+								<span class="pb-kind">{kindSpec(piece.kind).label}</span>
+								<span class="pb-summary">{pieceSummary(piece)}</span>
+							</button>
+							<div class="pb-tools">
+								<button
+									title="insert a new piece here"
+									class:armed={insertAt === i}
+									data-testid={`ins-${i}`}
+									onclick={() => (insertAt = insertAt === i ? null : i)}>+</button
+								>
+								<button title="duplicate" data-testid={`dup-${i}`} onclick={() => duplicatePiece(i)}>⧉</button>
+								<button title="move up" disabled={i === 0} data-testid={`up-${i}`} onclick={() => movePiece(i, -1)}>↑</button>
+								<button
+									title="move down"
+									disabled={i === doc.pieces.length - 1}
+									data-testid={`down-${i}`}
+									onclick={() => movePiece(i, 1)}>↓</button
+								>
+								<button title="remove" class="del" data-testid={`del-${i}`} onclick={() => removePiece(i)}>×</button>
+							</div>
 						</div>
 
-						{#if d}
+						<!-- Computed detail belongs to the piece being WORKED ON. A
+						     collapsed row keeps only what identifies it (and any issue,
+						     which must never hide); the exit pose and the measured
+						     grade/bank/edge appear when it is expanded. -->
+						{#if d && selected === i}
 							<div class="pb-pose" data-testid={`exit-${i}`}>
 								<span>exit</span>
 								<b>x {n2(d.exit.x)}</b>
@@ -1205,11 +1219,21 @@
 		flex-direction: column;
 		gap: 0.3rem;
 	}
+	/* One line per collapsed piece: a 15-piece chain has to stay scannable, so
+	   the row is sized to its content and the padding is trimmed accordingly. */
 	.pb-piece {
 		border: 1px solid #16212c;
 		background: #090e15;
-		padding: 0.35rem 0.45rem;
+		padding: 0.18rem 0.4rem;
 		position: relative;
+	}
+	.pb-piece.sel {
+		padding-bottom: 0.4rem;
+	}
+	.pb-headline {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
 	}
 	.pb-piece.sel {
 		border-color: #2ae57e;
@@ -1227,13 +1251,31 @@
 	}
 	.pb-row {
 		display: flex;
-		align-items: baseline;
-		gap: 0.5rem;
-		width: 100%;
+		align-items: center;
+		gap: 0.45rem;
+		flex: 1 1 auto;
+		min-width: 0;
 		background: none;
 		border: none;
 		padding: 0;
 		text-align: left;
+	}
+	.pb-icon {
+		width: 0.95rem;
+		height: 0.95rem;
+		flex: 0 0 auto;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2.1;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+		color: #55697a;
+	}
+	.pb-piece.sel .pb-icon {
+		color: #8fffc4;
+	}
+	.pb-piece.bad .pb-icon {
+		color: #ffb02e;
 	}
 	.pb-grip {
 		cursor: grab;
@@ -1273,21 +1315,27 @@
 	}
 	.pb-kind {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		letter-spacing: 0.08em;
+		font-size: 0.7rem;
+		letter-spacing: 0.06em;
 		color: #8fffc4;
-		min-width: 5.5rem;
+		min-width: 4.6rem;
+		flex: 0 0 auto;
 	}
+	/* The summary is the only elastic part of the line, so a long one gives way
+	   rather than pushing the tools off the row. */
 	.pb-summary {
-		font-size: 0.74rem;
+		font-size: 0.72rem;
 		color: #a9bdcc;
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.pb-tools {
-		position: absolute;
-		top: 0.28rem;
-		right: 0.35rem;
 		display: flex;
 		gap: 0.2rem;
+		flex: 0 0 auto;
 	}
 	.pb-tools button {
 		padding: 0.05rem 0.32rem;

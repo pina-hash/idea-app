@@ -32,11 +32,45 @@
  *   would flip the center to the entry's other side — a discontinuous jump —
  *   so a drag can tighten to ±MIN_SWEEP_DEG but never flip; flipping a
  *   curve's direction is a typed edit.
+ * - BANK `length`: a bank piece is a straight plan run, so its exit locus is
+ *   the straight's exactly.
+ * - BANK `targetBankDeg`: an ANGLE, so the drag is rotational rather than
+ *   linear. Banking rolls the cross-section about the plan tangent, and
+ *   `buildRuntime` sweeps the edge to
+ *   `centre + halfWidth·(cos β·n + sin β·up)` (n = the horizontal cross
+ *   normal, the runtime's `leftEdge` side). That is a CIRCLE in the vertical
+ *   plane perpendicular to travel, with the edge's angle in that plane
+ *   equal to β itself — so grabbing the road's edge and swinging it about
+ *   the centreline reads the bank off directly, 1:1. A bank piece's exit
+ *   bank IS `targetBankDeg`, so the handle sits on the exit cross-section.
+ * - CORKSCREW `turnDeg` (twist): the plan is a fixed-LENGTH arc, so radius
+ *   is derived (`R = L/|a|`) and the exit does not ride a circle. Summing
+ *   the arc gives the exact chord form
+ *   `exit = entry + L·sinc(a/2)·dirOf(h + A/2)`: the exit's BEARING from
+ *   the entry is `h + A/2`, so an angular drag about the entry solves the
+ *   twist exactly at gain 2. (The chord SHORTENS as the twist grows, so the
+ *   handle slides along the ray rather than staying under the cursor — the
+ *   solve reads the bearing only, exactly as the curve's sweep reads its
+ *   angular position only.) Zero is a legal, continuous value here (a
+ *   straight spiral), so unlike the curve there is no sign lock.
+ * - CORKSCREW `peakBankDeg`: `bankPulse(0.5) = 1`, so the bank at mid-piece
+ *   IS `peakBankDeg` exactly. Same rotational solve as the bank piece, on
+ *   the mid-piece cross-section.
  *
- * Implemented for `straight` and `curve`; bank / jump / corkscrew extend the
- * same two solver shapes (axis / arc) in a fast-follow once this is proven.
- * `freeform` never gets handles — it is verbatim world geometry, not
- * parametric.
+ * An angle handle rides the road's EDGE, so it needs the road as swept rather
+ * than the analytic pose: the compiler lifts samples clear of the y=0 catch
+ * plane on a banked run and arches a corkscrew's base, and neither raise
+ * appears in a piece's exit pose. `HandleContext` supplies the compiled
+ * centreline and half-width from the real runtime, so the pivot is exact.
+ * Both angle handles additionally ACCUMULATE frame-to-frame angular deltas
+ * (the sweep handle's pattern) rather than reading an absolute angle, which
+ * keeps a grab anywhere on the ball from jumping, lets a swing pass ±180
+ * without snapping, and makes any residual pivot error cancel out of a
+ * difference instead of biasing the value.
+ *
+ * Implemented for `straight`, `curve`, `bank` and `corkscrew`. `jump` and
+ * `closer` have none yet; `freeform` never gets handles — it is verbatim
+ * world geometry, not parametric.
  */
 
 import type { TrackPiece } from '../track-schema';
@@ -47,6 +81,15 @@ const DEG = Math.PI / 180;
 
 /** Smallest sweep magnitude a drag can tighten a curve to, degrees. */
 export const MIN_SWEEP_DEG = 2;
+
+/**
+ * How close to a rotational handle's pivot a pointer may get before the solve
+ * is refused, as a fraction of that handle's own lever arm. Purely a
+ * singularity guard: at the centre an arbitrarily small movement sweeps an
+ * arbitrarily large angle, so a pointer crossing the middle would fling the
+ * value. Outside this radius the mapping is untouched and exactly 1:1.
+ */
+const ANGLE_GUARD_FRAC = 0.3;
 
 export interface HandleVec3 {
 	x: number;
@@ -132,6 +175,29 @@ function rayPlaneY(ray: HandleRay, y: number): { x: number; z: number } | null {
 	return { x: ray.origin.x + ray.dir.x * t, z: ray.origin.z + ray.dir.z * t };
 }
 
+const cross = (a: HandleVec3, b: HandleVec3): HandleVec3 => ({
+	x: a.y * b.z - a.z * b.y,
+	y: a.z * b.x - a.x * b.z,
+	z: a.x * b.y - a.y * b.x
+});
+const dot = (a: HandleVec3, b: HandleVec3): number => a.x * b.x + a.y * b.y + a.z * b.z;
+
+/**
+ * Pointer ray ∩ an arbitrary plane (point `q`, unit normal `n`), forward hits
+ * only. Null when the ray nearly lies IN the plane — for a cross-section
+ * handle that is the view looking edge-on at the roll circle, where the solve
+ * is meaningless and the caller should keep the last value.
+ */
+function rayPlaneN(ray: HandleRay, q: HandleVec3, n: HandleVec3): HandleVec3 | null {
+	const dl = Math.hypot(ray.dir.x, ray.dir.y, ray.dir.z) || 1;
+	const d = { x: ray.dir.x / dl, y: ray.dir.y / dl, z: ray.dir.z / dl };
+	const dn = dot(d, n);
+	if (Math.abs(dn) < 1e-6) return null;
+	const t = dot({ x: q.x - ray.origin.x, y: q.y - ray.origin.y, z: q.z - ray.origin.z }, n) / dn;
+	if (t <= 0) return null;
+	return { x: ray.origin.x + d.x * t, y: ray.origin.y + d.y * t, z: ray.origin.z + d.z * t };
+}
+
 /* ------------------------------------------------------------------ */
 /* the two solver shapes                                               */
 /* ------------------------------------------------------------------ */
@@ -180,9 +246,145 @@ function axisHandle(o: AxisOpts): PieceHandle {
 	};
 }
 
+interface AngleOpts {
+	id: string;
+	label: string;
+	paramKey: string;
+	pos: HandleVec3;
+	/** A point on the solve plane (the cross-section, or a height plane). */
+	planePoint: HandleVec3;
+	/** Centre the angle is measured about, inside that plane. */
+	pivot: HandleVec3;
+	/** In-plane unit direction the angle is measured FROM. */
+	refU: HandleVec3;
+	/** In-plane unit direction a quarter turn on; the angle runs refU -> refV. */
+	refV: HandleVec3;
+	/** Param degrees per degree of angular travel (1, or 2 for a chord bearing). */
+	gain: number;
+	/**
+	 * In-plane distance from the pivot below which a solve is refused. The
+	 * pivot is a genuine singularity — a pointer crossing near it sweeps an
+	 * enormous angle from a tiny movement — so a pass close to the centre
+	 * HOLDS the value instead of flinging it. Sized as a fraction of the
+	 * handle's own radius, in world units, so it is zoom-independent.
+	 */
+	minRadius: number;
+	v0: number;
+	min: number;
+	max: number;
+	quantum: number;
+	unit: string;
+}
+
+/**
+ * Swing-about-an-axis handle: the rotational counterpart to `axisHandle`, for
+ * params that ARE an angle. The plane normal is `refU × refV`, so the caller
+ * only states the two in-plane reference directions and the sign follows from
+ * their order — no separate axis to keep consistent with them.
+ *
+ * DELTA-based, like the curve's sweep: each frame adds the unwrapped angular
+ * step rather than reading an absolute angle. Three things fall out of that,
+ * all of them wanted — grabbing the ball anywhere starts from the current
+ * value with no jump, swinging past ±180 never snaps, and a small error in
+ * the pivot cancels out of the difference instead of biasing the value.
+ *
+ * The ACCUMULATOR is clamped, not just the output, so a drag pushed past a
+ * stop reverses immediately instead of unwinding invisible excess first.
+ */
+function angleHandle(o: AngleOpts): PieceHandle {
+	const n = cross(o.refU, o.refV);
+	/** In-plane angle about the pivot, or null inside the singularity guard. */
+	const angleAt = (p: HandleVec3): number | null => {
+		const w = { x: p.x - o.pivot.x, y: p.y - o.pivot.y, z: p.z - o.pivot.z };
+		const u = dot(w, o.refU);
+		const v = dot(w, o.refV);
+		if (Math.hypot(u, v) < o.minRadius) return null;
+		return Math.atan2(v, u) / DEG;
+	};
+	return {
+		id: o.id,
+		label: o.label,
+		paramKey: o.paramKey,
+		pos: o.pos,
+		shape: 'diamond',
+		min: o.min,
+		max: o.max,
+		quantum: o.quantum,
+		unit: o.unit,
+		beginDrag(grab) {
+			const g = rayPlaneN(grab, o.planePoint, n);
+			let prev = g ? angleAt(g) : null;
+			let acc = o.v0;
+			return (move) => {
+				const p = rayPlaneN(move, o.planePoint, n);
+				if (!p) return null;
+				const phi = angleAt(p);
+				if (phi === null) return null;
+				// A grab whose own ray could not be solved seeds on the first
+				// move that can be, so the drag starts from where it is rather
+				// than snapping through an unknown delta.
+				if (prev === null) {
+					prev = phi;
+					return acc;
+				}
+				acc += normDeg(phi - prev) * o.gain;
+				prev = phi;
+				acc = Math.min(o.max, Math.max(o.min, acc));
+				return acc;
+			};
+		}
+	};
+}
+
 /* ------------------------------------------------------------------ */
 /* per-kind handle sets                                                */
 /* ------------------------------------------------------------------ */
+
+/** World up, and the horizontal cross normal `buildRuntime` banks about. */
+const UP: HandleVec3 = { x: 0, y: 1, z: 0 };
+/**
+ * The side a POSITIVE bank raises. `buildRuntime`'s cross normal is
+ * `(-tz, tx)` of the plan tangent, which for `dirOf(h)` is `(sin h, cos h)` —
+ * exactly `-leftOf(h)`, i.e. the driver's RIGHT. Deriving it from the
+ * runtime's own sweep rather than restating a sign keeps the handle on the
+ * edge that actually rises.
+ */
+const bankNormal = (h: number): HandleVec3 => {
+	const l = leftOf(h);
+	return { x: -l.x, y: 0, z: -l.z };
+};
+/** Where the banked edge sits: centre + halfWidth·(cos β·n + sin β·up). */
+const bankedEdge = (
+	centre: HandleVec3,
+	n: HandleVec3,
+	halfWidth: number,
+	bankDeg: number
+): HandleVec3 => {
+	const c = Math.cos(bankDeg * DEG) * halfWidth;
+	const s = Math.sin(bankDeg * DEG) * halfWidth;
+	return { x: centre.x + n.x * c, y: centre.y + s, z: centre.z + n.z * c };
+};
+
+/**
+ * Extra geometry an angle handle needs that a pose cannot carry: how wide the
+ * road actually is where the handle sits. Supplied by the 3D layer from the
+ * REAL runtime (`path.halfWidths` over the piece's own sample range), so the
+ * grabbable point lands on the road's true edge rather than on a guess at how
+ * the width blend resolved.
+ */
+export interface HandleContext {
+	/** Half-width at parameter t along this piece, meters. */
+	halfWidthAt(t: number): number;
+	/**
+	 * The COMPILED centreline point at parameter t — the road as actually
+	 * swept, not the analytic pose. The two differ in y wherever the compiler
+	 * lifted a sample clear of the y=0 catch plane (a banked run) or arched a
+	 * corkscrew's base: those raises are applied to SAMPLES and are absent from
+	 * the piece's exit pose by design. An angle handle rides the road's edge,
+	 * so it has to pivot on the road that is there.
+	 */
+	centreAt(t: number): HandleVec3;
+}
 
 /**
  * The handles for one piece, positioned from its compiled entry/exit poses
@@ -192,8 +394,20 @@ function axisHandle(o: AxisOpts): PieceHandle {
 export function handlesForPiece(
 	piece: TrackPiece,
 	entry: PiecePose,
-	exit: PiecePose
+	exit: PiecePose,
+	ctx?: HandleContext
 ): PieceHandle[] {
+	// Falls back to the piece's own width, then a sane road, so the module
+	// stays usable (and console-testable) with no runtime attached.
+	const ownWidth = (piece as { width?: number }).width;
+	const halfWidthAt = (t: number): number => ctx?.halfWidthAt(t) ?? (ownWidth ? ownWidth / 2 : 6);
+	/** Compiled road centre, falling back to a lerp of the poses with no runtime. */
+	const centreAt = (t: number): HandleVec3 =>
+		ctx?.centreAt(t) ?? {
+			x: entry.x + (exit.x - entry.x) * t,
+			y: entry.y + (exit.y - entry.y) * t,
+			z: entry.z + (exit.z - entry.z) * t
+		};
 	// Ranges come from the SAME spec the numeric inputs render, so a handle
 	// can never drag a value the field would refuse.
 	const range = (key: string, fbMin: number, fbMax: number) => {
@@ -230,8 +444,10 @@ export function handlesForPiece(
 			const ux = (l0.x - lm.x) * sgn;
 			const uz = (l0.z - lm.z) * sgn;
 			const uLen = Math.hypot(ux, uz) || 1e-6;
-			const g0 = Math.tan(entry.pitchDeg * DEG);
-			const midY = entry.y + R * Math.abs(A) * DEG * g0 * 0.5;
+			// Height only: x/z stay on the radius locus (that IS the constraint).
+			// With a runtime attached this is the compiled road rather than the
+			// straight-line climb estimate it replaces.
+			const midY = centreAt(0.5).y;
 			const rr = range('radius', 4, 2000);
 			const rt = range('turnDeg', -270, 270);
 			return [
@@ -288,9 +504,106 @@ export function handlesForPiece(
 				}
 			];
 		}
+		case 'bank': {
+			// A straight plan run that rolls: the length solve is the straight's,
+			// and the exit bank IS `targetBankDeg`, so the roll handle rides the
+			// exit cross-section.
+			const h = entry.headingDeg;
+			const d = dirOf(h);
+			const centre = centreAt(1);
+			const n = bankNormal(h);
+			const rb = range('targetBankDeg', -60, 60);
+			return [
+				axisHandle({
+					id: 'length',
+					label: 'length',
+					paramKey: 'length',
+					pos: centre,
+					axis: { x: d.x, y: 0, z: d.z },
+					gain: 1,
+					v0: piece.length,
+					quantum: 0.5,
+					...range('length', 1, 2000)
+				}),
+				angleHandle({
+					id: 'bank',
+					label: 'bank',
+					paramKey: 'targetBankDeg',
+					pos: bankedEdge(centre, n, halfWidthAt(1), piece.targetBankDeg),
+					planePoint: centre,
+					pivot: centre,
+					refU: n,
+					refV: UP,
+					gain: 1,
+					minRadius: halfWidthAt(1) * ANGLE_GUARD_FRAC,
+					v0: piece.targetBankDeg,
+					quantum: 1,
+					...rb
+				})
+			];
+		}
+		case 'corkscrew': {
+			const L = piece.length;
+			const A = piece.turnDeg;
+			const h = entry.headingDeg;
+			const a = A * DEG;
+			const g0 = Math.tan(entry.pitchDeg * DEG);
+			// Arc-summed plan position (see the module doc): a run of arc length
+			// `L·t` turning `A·t` lands `L·t·sinc(a·t/2)` along `h + A·t/2`.
+			const planAt = (t: number): { x: number; z: number } => {
+				const half = (a * t) / 2;
+				const chord = Math.abs(half) < 1e-9 ? L * t : (L * t * Math.sin(half)) / half;
+				const dm = dirOf(h + (A * t) / 2);
+				return { x: entry.x + dm.x * chord, z: entry.z + dm.z * chord };
+			};
+			const midHeading = h + A / 2;
+			const nMid = bankNormal(midHeading);
+			// The COMPILED mid centre: the corkscrew's catch-plane arch lifts its
+			// own base, so the analytic `entry.y + L*g0/2 + rise/2` is not where
+			// the road is. Plan x/z still come from the arc sum (planAt) when no
+			// runtime is attached; with one, the compiled point wins outright.
+			const midCentre = ctx ? centreAt(0.5) : { ...planAt(0.5), y: entry.y + L * g0 * 0.5 + piece.rise * 0.5 };
+			const rt = range('turnDeg', -270, 270);
+			const rp = range('peakBankDeg', -60, 60);
+			return [
+				angleHandle({
+					id: 'twist',
+					label: 'twist',
+					paramKey: 'turnDeg',
+					pos: { x: exit.x, y: exit.y, z: exit.z },
+					// The exit's bearing about the entry moves at half the twist,
+					// hence gain 2. Solved in the horizontal plane the exit sits in.
+					planePoint: { x: entry.x, y: exit.y, z: entry.z },
+					pivot: { x: entry.x, y: exit.y, z: entry.z },
+					refU: { x: dirOf(h).x, y: 0, z: dirOf(h).z },
+					refV: { x: leftOf(h).x, y: 0, z: leftOf(h).z },
+					gain: 2,
+					// The chord is the twist handle's own lever arm.
+					minRadius: Math.hypot(exit.x - entry.x, exit.z - entry.z) * ANGLE_GUARD_FRAC,
+					v0: A,
+					quantum: 1,
+					...rt
+				}),
+				angleHandle({
+					id: 'peakbank',
+					label: 'peak bank',
+					paramKey: 'peakBankDeg',
+					pos: bankedEdge(midCentre, nMid, halfWidthAt(0.5), piece.peakBankDeg),
+					planePoint: midCentre,
+					pivot: midCentre,
+					refU: nMid,
+					refV: UP,
+					gain: 1,
+					minRadius: halfWidthAt(0.5) * ANGLE_GUARD_FRAC,
+					v0: piece.peakBankDeg,
+					quantum: 1,
+					...rp
+				})
+			];
+		}
 		default:
-			// bank / jump / corkscrew: deferred fast-follow. freeform: never —
-			// verbatim geometry has no parameter a handle could shape.
+			// jump / closer: no handle yet. freeform: never — verbatim geometry
+			// has no parameter a handle could shape.
 			return [];
 	}
 }

@@ -230,6 +230,26 @@ export const kindSpec = (kind: PieceKind): KindSpec =>
 	KIND_SPECS.find((k) => k.kind === kind) ?? KIND_SPECS[0];
 
 /**
+ * A distinct glyph per kind, so a long chain reads at a glance instead of
+ * forcing the eye through a column of similar words. Plain path data on a
+ * 24x24 grid, stroked with `currentColor` (the `pathways.ts` convention:
+ * client-safe data here, the `<svg>` wrapper at the one render site).
+ *
+ * Each glyph says what the piece DOES to the road: straight runs on, curve
+ * bends, bank rolls the surface, jump breaks it, corkscrew twists it, closer
+ * completes the loop, freeform is hand-plotted points.
+ */
+export const PIECE_ICONS: Record<PieceKind, string[]> = {
+	straight: ['M12 21V3', 'M7 8l5-5 5 5'],
+	curve: ['M4 21C4 11 11 4 21 4', 'M16 1l5 3-5 3'],
+	bank: ['M3 16L21 9', 'M3 16v4', 'M21 9v4'],
+	jump: ['M2 20h4l5-8h3', 'M18 20h4', 'M13 6c4 0 6 3 6 8'],
+	corkscrew: ['M7 21c0-6 10-5 10-11', 'M7 13c0-6 10-5 10-11'],
+	closer: ['M20 12a8 8 0 1 1-3.6-6.7', 'M12 1l5 3.5-4 3.5'],
+	freeform: ['M3 18l4-6 4 4 5-9 5 6']
+};
+
+/**
  * A new piece of the given kind. Parametric kinds get neutral defaults that
  * are always legal; a freeform piece is seeded with a short straight run from
  * `after` (the current chain exit) so it connects the moment it is added and
@@ -311,23 +331,32 @@ export const docSurface = (doc: ChainDoc): PieceChainSurface => ({
 /** Compile + guardrail report for the current document (the compiler's own). */
 export const diagnoseDoc = (doc: ChainDoc): ChainDiagnostics => diagnoseChain(docSurface(doc));
 
-/** A short human summary of a piece for the chain list. */
+/**
+ * The one-line identity of a piece for the collapsed chain list: ONLY the
+ * params that distinguish it, in a fixed order, separated by a middot. The
+ * kind's name and icon sit beside this in the row, so the summary never
+ * repeats them — "R40 m · 90 deg left", not "Curve, R40m, 90deg".
+ *
+ * Everything a piece computes (exit pose, measured grade/bank/edge) is left
+ * to the expanded view: a collapsed row is for finding the piece you want,
+ * not for reading its numbers.
+ */
 export function pieceSummary(p: TrackPiece): string {
 	switch (p.kind) {
 		case 'straight':
-			return `${p.length} m${p.targetPitchDeg ? ` -> ${p.targetPitchDeg} deg` : ''}`;
+			return `${p.length} m${p.targetPitchDeg ? ` · ${p.targetPitchDeg} deg grade` : ''}`;
 		case 'curve':
-			return `R${p.radius} ${p.turnDeg > 0 ? 'left' : 'right'} ${Math.abs(p.turnDeg)} deg`;
+			return `R${p.radius} m · ${Math.abs(p.turnDeg)} deg ${p.turnDeg > 0 ? 'left' : 'right'}`;
 		case 'bank':
-			return `${p.length} m -> ${p.targetBankDeg === 0 ? 'level' : `${p.targetBankDeg} deg`}`;
+			return `${p.length} m · ${p.targetBankDeg === 0 ? 'to level' : `to ${p.targetBankDeg} deg`}`;
 		case 'jump':
-			return `${p.length} m, ${p.kickHeight} m lip`;
+			return `${p.length} m · ${p.kickHeight} m lip`;
 		case 'corkscrew':
-			return `${p.length} m, ${p.rise >= 0 ? '+' : ''}${p.rise} m, ${p.peakBankDeg} deg${p.turnDeg ? `, ${p.turnDeg} deg turn` : ''}`;
+			return `${p.length} m · ${p.rise >= 0 ? '+' : ''}${p.rise} m · ${p.peakBankDeg} deg bank${p.turnDeg ? ` · ${p.turnDeg} deg turn` : ''}`;
 		case 'closer':
-			return p.radius !== undefined ? `auto-fit to start · R${p.radius}` : 'auto-fit to start';
+			return p.radius !== undefined ? `auto-fit · R${p.radius} m` : 'auto-fit to start';
 		case 'freeform':
-			return `${p.centerline.length} authored points`;
+			return `${p.centerline.length} points`;
 	}
 }
 
