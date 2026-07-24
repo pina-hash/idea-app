@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
-	import { audioEngine, type SfxBus, type VoiceHandle } from '$lib/greenline/audio-engine';
+	import {
+		audioEngine,
+		DISTANCE_MODEL,
+		type SfxBus,
+		type VoiceHandle
+	} from '$lib/greenline/audio-engine';
 	import { playSfx, startSfxLoop, primeSfx, sfxCacheStats, type SfxRef } from '$lib/greenline/sfx';
 
 	/** Loop handles started from the dev bar, so they can all be stopped again. */
@@ -796,6 +801,37 @@
 		requestAnimationFrame(step);
 	}
 
+	/**
+	 * Distance A/B: the SAME world sound at arm's length and across the yard,
+	 * one after the other, so the falloff is judged by ear rather than by a
+	 * number. Also prints the measured attenuation for scripted checks.
+	 */
+	function nearFar(id: SfxRef = 'wpn_railgun_fire') {
+		audioEngine.setListener({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
+		const near = DISTANCE_MODEL.refM * 0.5;
+		const far = DISTANCE_MODEL.maxM;
+		// A null handle means the asset is not decoded yet (hit `prime` first);
+		// say so rather than printing a bare "?" that reads like a broken model.
+		const g = (h: VoiceHandle | null) =>
+			h ? (audioEngine.voiceDetail().filter((v) => v.distGain !== null).pop()?.distGain ?? '?') : 'not loaded yet';
+		const a = g(playSfx(id, { position: { x: near, y: 0, z: 0 } }));
+		alog(`near ${near}m -> distGain ${a} … far ${far}m follows`);
+		setTimeout(() => {
+			const b = g(playSfx(id, { position: { x: far, y: 0, z: 0 } }));
+			alog(`distance A/B on ${id}: near ${near}m distGain ${a} vs far ${far}m distGain ${b}`);
+		}, 900);
+	}
+
+	/** A flat/meta cue, played from a far-away position: must stay full volume. */
+	function metaAtDistance(id: SfxRef = 'ui_confirm') {
+		audioEngine.setListener({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0 });
+		playSfx(id, { position: { x: 400, y: 0, z: 0 } });
+		const v = audioEngine.voiceDetail().pop();
+		alog(
+			`${id} at 400m -> distGain ${v?.distGain === null ? 'n/a (never spatialised)' : v?.distGain} (expect n/a)`
+		);
+	}
+
 	function duckTest() {
 		const before = audioEngine.snapshot().busGain?.music;
 		audioEngine.duckMusicBus(-12, 120, 600);
@@ -822,6 +858,9 @@
 			stress: stressBus,
 			pan: panSweep,
 			doppler: dopplerSweep,
+			nearFar,
+			metaAtDistance,
+			distanceModel: DISTANCE_MODEL,
 			duck: duckTest,
 			snapshot: () => audioEngine.snapshot(),
 			detail: () => audioEngine.voiceDetail(),
@@ -953,6 +992,8 @@
 	<button onclick={() => stressBus('weapons')}>stress×12</button>
 	<button onclick={panSweep}>pan sweep</button>
 	<button onclick={dopplerSweep}>doppler</button>
+	<button onclick={() => nearFar()}>near/far</button>
+	<button onclick={() => metaAtDistance()}>meta @400m</button>
 	<button onclick={duckTest}>duck music</button>
 	<span class="dh-note dh-audio-log">{audioLog || '—'}</span>
 </div>

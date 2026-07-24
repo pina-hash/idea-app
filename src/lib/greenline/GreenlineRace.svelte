@@ -156,7 +156,7 @@
 		type PartSlot,
 		type ResolvedStats
 	} from '$lib/greenline/loadout';
-	import { audioEngine, type VoiceHandle } from '$lib/greenline/audio-engine';
+	import { audioEngine, DISTANCE_MODEL, type VoiceHandle } from '$lib/greenline/audio-engine';
 	import { playSfx, startSfxLoop, primeSfx, sfxGain, type SfxRef } from '$lib/greenline/sfx';
 	import {
 		COM_DROP,
@@ -4854,15 +4854,22 @@
 				const ENGINE_THROTTLE_LIFT = 0.26; // full throttle at a standstill -> 0.26 revs
 				const ENGINE_RPM_RISE = 5.5; // 1/s ease toward a higher target
 				const ENGINE_RPM_FALL = 2.4; // slower fall: revs hang as you lift
-				// Distance model. The engine's PannerNode is pan-only (rolloffFactor 0),
-				// which is right for discrete one-shots but would make every car in the
-				// field a full-volume motor, so the falloff is applied here as gain: flat
-				// inside NEAR, easing to nothing at FAR, and fully culled past it (which
-				// is what keeps the live voice count near the handful of cars actually
-				// around you rather than the whole grid).
-				const ENGINE_NEAR_M = 14;
-				const ENGINE_FAR_M = 75;
-				/** The player's own motor sits closer than the mix: it is your car. */
+				/**
+				 * Engine loops used to carry their OWN distance curve here, because the
+				 * panner was pan-only and a rival's motor would otherwise have been as
+				 * loud as your own. The audio engine owns distance for every world sound
+				 * now (DISTANCE_* in audio-engine.ts), so that curve is gone — keeping it
+				 * would attenuate engines TWICE and quietly undo the mix.
+				 *
+				 * What remains here is voice management, not loudness: past the cull
+				 * radius a vehicle's three loops are stopped outright, which is what
+				 * keeps the live voice count near the handful of cars actually around you
+				 * instead of three per car on the whole grid. It is deliberately pinned
+				 * to the audio engine's own maxDistance, so anything culled was already
+				 * sitting at the distance floor and the stop is inaudible.
+				 */
+				const ENGINE_CULL_M = DISTANCE_MODEL.maxM;
+				/** The player's own motor sits forward in the mix: it is your car. */
 				const ENGINE_PLAYER_GAIN = 1;
 				const ENGINE_RIVAL_GAIN = 0.8;
 				/**
@@ -8806,7 +8813,7 @@
 					for (const rig of all) {
 						const p = rig.body.position;
 						const dist = Math.hypot(p.x - camPos.x, p.y - camPos.y, p.z - camPos.z);
-						const audible = !rig.combat.isOut(now) && dist <= ENGINE_FAR_M;
+						const audible = !rig.combat.isOut(now) && dist <= ENGINE_CULL_M;
 						if (!audible) {
 							stopEngine(rig.id);
 							continue;
@@ -8836,9 +8843,9 @@
 							w[1] = Math.cos((t * Math.PI) / 2);
 							w[2] = Math.sin((t * Math.PI) / 2);
 						}
-						const u = Math.max(0, (dist - ENGINE_NEAR_M) / (ENGINE_FAR_M - ENGINE_NEAR_M));
-						const distGain = Math.pow(Math.max(0, 1 - u), 1.5);
-						const vehGain = (rig === player ? ENGINE_PLAYER_GAIN : ENGINE_RIVAL_GAIN) * distGain;
+						// Mix placement only. Distance is the audio engine's job now, applied
+						// on the voice's own node from the position passed below.
+						const vehGain = rig === player ? ENGINE_PLAYER_GAIN : ENGINE_RIVAL_GAIN;
 						const rate = ENGINE_RATE_LO + r * (ENGINE_RATE_HI - ENGINE_RATE_LO);
 						const vel = rig.body.velocity;
 						const pos = { x: p.x, y: p.y, z: p.z };
@@ -9001,6 +9008,20 @@
 					if (player.combat.mountDown && !playerMountDownPrev) playSfx('veh_offline_status');
 					playerMountDownPrev = player.combat.mountDown;
 
+					// Every cue below belongs to the PLAYER'S MACHINE, and a machine is a
+					// place: these used to be non-positional purely because nothing had
+					// asked them for a position, which left them the last world sounds in
+					// the game that neither panned nor Dopplered. They ride the car now,
+					// like the engine layers already do. Distance is a no-op for them in
+					// practice (the chase camera sits inside the reference radius), so
+					// nothing gets quieter; what changes is that they swing correctly
+					// around you under free-look instead of sitting glued to centre.
+					const pPos = {
+						x: player.body.position.x,
+						y: player.body.position.y + 0.4,
+						z: player.body.position.z
+					};
+
 					// Passive jammer hum (player only). The jammer is always-on while
 					// equipped, so this is a genuine sustained loop rather than the
 					// re-armed one-shot the placeholder tone had to fake.
@@ -9008,10 +9029,10 @@
 						const hasJammer = WEAPON_SLOTS.some(
 							(sl) => weaponById(player.weapons[sl])?.jammer
 						);
-						syncLoop('jammer-hum', hasJammer && !player.combat.isOut(now), 'wpn_jammer_hum');
+						syncLoop('jammer-hum', hasJammer && !player.combat.isOut(now), 'wpn_jammer_hum', pPos);
 					}
 					// Energy-shield hum for as long as the player's absorb pool is up.
-					syncLoop('shield-hum', player.combat.shieldActive(now), 'wpn_shield_hum');
+					syncLoop('shield-hum', player.combat.shieldActive(now), 'wpn_shield_hum', pPos);
 
 					// -- Sustained player cues (loops), all driven off state the sim
 					// already owns, so each is a rising/falling edge on syncLoop rather
@@ -9021,14 +9042,14 @@
 					{
 						const out = player.combat.isOut(now);
 						const nitro = !out && player.abilityState.nitroActive(now);
-						syncLoop('nitro', nitro, 'abl_nitro_loop');
+						syncLoop('nitro', nitro, 'abl_nitro_loop', pPos);
 						// The boost cutting out is its own moment; fire it on the falling
 						// edge only, never when the run simply ends.
-						if (nitroPrev && !nitro && !out) playSfx('abl_nitro_end');
+						if (nitroPrev && !nitro && !out) playSfx('abl_nitro_end', { position: pPos });
 						nitroPrev = nitro;
 
-						syncLoop('grip', !out && player.abilityState.gripActive(now), 'abl_grip_loop');
-						syncLoop('air', !out && player.abilityState.airActive(now), 'abl_aircorrect_engage');
+						syncLoop('grip', !out && player.abilityState.gripActive(now), 'abl_grip_loop', pPos);
+						syncLoop('air', !out && player.abilityState.airActive(now), 'abl_aircorrect_engage', pPos);
 
 						// Tires letting go: a chirp on the moment grip breaks, then the
 						// grinding bed for as long as the slide holds. Both read the SAME
@@ -9067,7 +9088,8 @@
 							'hook-pull',
 							!out &&
 								tethers.some((v) => v.t.shooterId === player.id || v.t.targetId === player.id),
-							'wpn_hook_pull'
+							'wpn_hook_pull',
+							pPos
 						);
 
 						// Low-hull warning: the urgent beep, at the same threshold the HUD
@@ -9084,8 +9106,9 @@
 
 						// Pit box: the repair machinery, plus a short chime as the car is
 						// released. Latch set during the physics pass, consumed here.
-						syncLoop('pit-repair', playerPitHealing, 'env_pit_repair_loop');
-						if (playerPitHealingPrev && !playerPitHealing) playSfx('abl_repair_complete');
+						syncLoop('pit-repair', playerPitHealing, 'env_pit_repair_loop', pPos);
+						if (playerPitHealingPrev && !playerPitHealing)
+							playSfx('abl_repair_complete', { position: pPos });
 						playerPitHealingPrev = playerPitHealing;
 						playerPitHealing = false;
 					}
@@ -9110,7 +9133,7 @@
 							playerLockedPrev = locked;
 							// Rising beep while the dwell accrues; it stops the instant the
 							// lock completes, so the confirmed tone above lands in silence.
-							syncLoop('lock-charge', !locked, 'wpn_rocket_lock_charging');
+							syncLoop('lock-charge', !locked, 'wpn_rocket_lock_charging', pPos);
 						} else {
 							lockRing.visible = false;
 							playerLockedPrev = false;

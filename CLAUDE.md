@@ -5835,6 +5835,100 @@ on one side of the world.
     `result_milestone_unlock` trigger, which sits behind the signed-in
     `/greenline` purchase round trip (the sound itself is proven to play).
 
+- **Real distance falloff, and a spatial/flat split declared in the roster.**
+  Panning and Doppler existed since Phase 2C but `rolloffFactor` was 0, so
+  nothing ever got quieter with distance. It does now, for world sounds only.
+  - **THE PANNER STILL DOES AZIMUTH ONLY, AND THAT IS DELIBERATE.** Both native
+    distance models were MEASURED against an OfflineAudioContext before the
+    design was picked, and neither does what this game needs: **`inverse`
+    ignores `maxDistance` completely** (the term appears only in the `linear`
+    formula), so it keeps falling forever — 0.012x across a 1.2km straight,
+    i.e. silent, with no way to floor it; and **`linear` honours maxDistance by
+    hitting exactly zero there**, which is the same problem with a harder edge
+    on top of its known near-field spike. So `distanceGainFor()` evaluates the
+    `inverse` CURVE in JS with maxDistance as a genuine clamp and an explicit
+    floor under it. It is close to free: the Doppler ticker already computed
+    every positional voice's distance each frame, so this reuses that number.
+  - **Distance rides its OWN GainNode** (`source -> gainNode -> distNode ->
+    panner -> bus`), never the caller's. The engine crossfade rewrites the
+    caller gain every frame; if distance shared that node the two writers would
+    overwrite each other.
+  - **Four named tuning knobs, all in one block** in `audio-engine.ts`:
+    `DISTANCE_REF_M` 14 (full volume inside), `DISTANCE_MAX_M` 180 (falloff
+    stops steepening), `DISTANCE_ROLLOFF` 1, `DISTANCE_MIN_GAIN` 0.06 (a
+    backstop; the maxDistance clamp is what sets the practical floor at
+    ref/max = 0.078). Doppler's clamp widened to `[0.85, 1.18]` from
+    `[0.94, 1.06]`, same two named constants as before. All starting points to
+    be tuned by ear — no call site carries a falloff curve of its own.
+  - **The engine loops' own distance curve was DELETED, not layered under this
+    one.** The previous session gave them a game-layer falloff precisely
+    because the panner had none; keeping it would have attenuated engines twice
+    and quietly undone the mix. What remains in `GreenlineRace` is voice
+    management, not loudness: past `ENGINE_CULL_M` (pinned to the audio
+    engine's own `DISTANCE_MODEL.maxM`, so anything culled was already at the
+    floor and the stop is inaudible) a vehicle's three loops stop outright.
+  - **`SfxDef.spatial: false` is the category split**, declared per entry
+    rather than inferred from whether a call site remembered to pass a
+    position — so a caller can never accidentally turn the rain bed or a menu
+    click into a point source. `playSfx`/`startSfxLoop` STRIP position and
+    velocity for those entries, and `setPosition` on a non-positional voice is
+    a no-op. Flat: all `ui_*`, `race_countdown_tick`/`race_go`, all `result_*`,
+    and the four atmosphere beds (yard/rain/fog/thunder — thunder included
+    because the strike has no position and a rolling recording already carries
+    its own distance). **Two judgment calls beyond the brief's list:**
+    `veh_low_health_warning` and `veh_offline_status` are flat too — a cockpit
+    alarm and a systems-down callout are instrumentation about your own
+    machine, not events at a point in the yard (the brief's world-space
+    `veh_*` means the hit/damage cues, which are all spatial). `env_draft_engage`
+    was in neither list and is treated as spatial, being a real world event.
+  - **The last non-positional world sounds were fixed.** Ten player-owned cues
+    (jammer/shield hums, the lock-charge beep, hook-pull, nitro loop + end,
+    grip, air-correct, pit repair, repair complete) passed no position at all,
+    purely because nothing had asked them for one. They ride the car now, like
+    the engine layers already did. Distance is a no-op for them in practice
+    (the chase camera sits inside the reference radius), so nothing got
+    quieter; what changed is that they swing correctly around you under
+    free-look instead of sitting glued to centre.
+  - **VOICE STEALING: PARTLY FIXED, AND THE REST IS FLAGGED.** The tiebreak
+    ranked by `peak` — the authored mix level — which never sees distance, so
+    it could NOT have become distance-aware on its own; it now ranks by
+    `peak x distGain`, the actually-audible level. But the primary key is still
+    AGE, and age dominates: measured, a same-frame burst correctly sacrificed
+    3 distant voices and kept all 4 nearby ones, while a staggered case where
+    the nearby sounds were merely OLDER sacrificed 3 of 4 loud nearby voices to
+    keep faint across-the-map ones. Left as-is deliberately (the brief scoped
+    the policy out, and oldest-first guarantees turnover so no sound can
+    monopolise a slot) — making level the primary key is a one-line change in
+    `steal()` if playtesting wants it.
+  - **Verified** in `/dev/greenline-portal` (two new audio-bar buttons,
+    `near/far` and `meta @400m`, plus `__greenlineAudio.distanceModel`) and
+    `/dev/greenline-movement?glheadless=1`. Acoustically on the master bus, one
+    world sound swept out: flat 0.42 at 0m/7m/14m (no near-field spike), 0.196
+    at 30m, 0.098 at 60m, 0.0588 at 100m, then **0.0327 at 180m, 400m AND
+    1200m** — the floor holding exactly as intended, a 12.8:1 (~22dB) near-far
+    difference. Category split proved by HANDING A POSITION AND VELOCITY TO
+    EVERY ID: all 10 world sounds attenuated (0.078 at 400m, panner tracking),
+    all 12 meta/bed cues refused it (`distGain` null, `panX` null, no panner at
+    all), and `result_win`/`race_go` measured identical at 0m vs 1200m
+    (0.43/0.4291, 0.5139/0.5152 — the far reading marginally HIGHER, i.e.
+    noise). `ui_confirm` looked like it attenuated until repeated plays at one
+    position showed a 0.077-0.137 spread from its 5 rotating takes, with the
+    far set peaking higher than any near one. Flyby at 70 m/s: rate 1.18
+    approaching -> 0.85 receding with distance swelling 0.093 -> 1.0 -> 0.096
+    symmetrically. Engines proved single-attenuated by predicting the curve for
+    each live voice's distance and comparing: **max error 0.002** across a
+    running race. **Perf:** the whole spatial pass (Doppler + distance, every
+    emitter repositioned) costs **0.126 ms/frame at 63 positional voices** —
+    75% more than the game's own 36-voice worst case — i.e. **0.75% of the
+    16.7ms budget**. A full 12-car race held mean 5.21ms / p95 9.1 / worst 15.2
+    (31.2% of budget), master peak 0.774 with **0 clipped and 0 NaN samples**
+    over 1325 sampled frames, context "running" throughout, 38 concurrent
+    voices, no console errors or audio-graph warnings.
+  - **Tuning note for playtesting:** the Doppler clamp saturates above ~52 m/s
+    closing (approach) and ~60 m/s (recede), and GREENLINE cars run 45-80 m/s,
+    so head-on passes will often sit AT the clamp rather than sweeping through
+    it. Widen `DOPPLER_MIN`/`DOPPLER_MAX` further if passes should sweep more.
+
 ## Shared feedback box
 
 `src/lib/feedback/` is the app-AGNOSTIC in-app feedback / suggestion box.

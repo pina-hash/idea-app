@@ -36,6 +36,18 @@ interface SfxDef {
 	jitter?: [number, number];
 	/** Loop swell-in seconds (loops only). */
 	fadeIn?: number;
+	/**
+	 * `false` = a HUD / meta / atmosphere cue: it plays at full relative volume
+	 * no matter where the listener is, and any position a caller passes is
+	 * DISCARDED (no pan, no distance falloff, no Doppler).
+	 *
+	 * Declared here rather than inferred from whether a call site remembered to
+	 * pass a position, so the split is one readable list and a caller can never
+	 * accidentally turn the rain bed or a menu click into a point source.
+	 * Defaults to spatial, so a new world sound is correct by omission and only
+	 * the exceptions have to say so.
+	 */
+	spatial?: false;
 }
 
 /**
@@ -53,23 +65,29 @@ function takes(base: string, n: number): string[] {
  *  - ui: menus, the race-start sequence, and the post-race result stings
  *  - ambient: environment, weather, vehicle status readouts, and tire grip
  *  - engine: the per-vehicle RPM layers, and nothing else (loops only)
+ *
+ * SPATIAL vs NOT is a separate axis from the bus, and every entry below decides
+ * it: a world sound pans, Dopplers and falls off with distance, while a HUD /
+ * meta / atmosphere cue (`spatial: false`) plays flat at full relative volume
+ * wherever the listener is. Spatial is the default so a new world sound is
+ * correct by omission.
  */
 const SFX = {
-	// ---- UI ----
-	ui_click: { files: takes('sfx_ui_click', 2), bus: 'ui', gain: 0.35, jitter: [0.97, 1.03] },
-	ui_hover: { files: takes('sfx_ui_hover', 2), bus: 'ui', gain: 0.18, jitter: [0.97, 1.04] },
-	ui_confirm: { files: takes('sfx_ui_confirm', 5), bus: 'ui', gain: 0.4 },
-	ui_back: { files: takes('sfx_ui_back', 1), bus: 'ui', gain: 0.34 },
-	ui_error: { files: takes('sfx_ui_error', 1), bus: 'ui', gain: 0.36 },
-	ui_save: { files: takes('sfx_ui_save', 1), bus: 'ui', gain: 0.4 },
-	ui_tab_switch: { files: takes('sfx_ui_tab_switch', 3), bus: 'ui', gain: 0.26, jitter: [0.98, 1.02] },
-	ui_purchase: { files: takes('sfx_ui_purchase', 1), bus: 'ui', gain: 0.45 },
-	ui_insufficient_funds: { files: takes('sfx_ui_insufficient_funds', 2), bus: 'ui', gain: 0.36 },
-	ui_socket_conflict: { files: takes('sfx_ui_socket_conflict', 1), bus: 'ui', gain: 0.34 },
+	// ---- UI ---- (all flat: a menu is not a place in the world)
+	ui_click: { files: takes('sfx_ui_click', 2), bus: 'ui', gain: 0.35, jitter: [0.97, 1.03], spatial: false },
+	ui_hover: { files: takes('sfx_ui_hover', 2), bus: 'ui', gain: 0.18, jitter: [0.97, 1.04], spatial: false },
+	ui_confirm: { files: takes('sfx_ui_confirm', 5), bus: 'ui', gain: 0.4, spatial: false },
+	ui_back: { files: takes('sfx_ui_back', 1), bus: 'ui', gain: 0.34, spatial: false },
+	ui_error: { files: takes('sfx_ui_error', 1), bus: 'ui', gain: 0.36, spatial: false },
+	ui_save: { files: takes('sfx_ui_save', 1), bus: 'ui', gain: 0.4, spatial: false },
+	ui_tab_switch: { files: takes('sfx_ui_tab_switch', 3), bus: 'ui', gain: 0.26, jitter: [0.98, 1.02], spatial: false },
+	ui_purchase: { files: takes('sfx_ui_purchase', 1), bus: 'ui', gain: 0.45, spatial: false },
+	ui_insufficient_funds: { files: takes('sfx_ui_insufficient_funds', 2), bus: 'ui', gain: 0.36, spatial: false },
+	ui_socket_conflict: { files: takes('sfx_ui_socket_conflict', 1), bus: 'ui', gain: 0.34, spatial: false },
 
-	// ---- Race ----
-	race_countdown_tick: { files: takes('sfx_race_countdown_tick', 1), bus: 'ui', gain: 0.5 },
-	race_go: { files: takes('sfx_race_go', 3), bus: 'ui', gain: 0.55 },
+	// ---- Race ---- (the start sequence is a broadcast, not a speaker on a post)
+	race_countdown_tick: { files: takes('sfx_race_countdown_tick', 1), bus: 'ui', gain: 0.5, spatial: false },
+	race_go: { files: takes('sfx_race_go', 3), bus: 'ui', gain: 0.55, spatial: false },
 
 	// ---- Weapons ----
 	wpn_autocannon_fire: { files: takes('sfx_wpn_autocannon_fire', 8), bus: 'weapons', gain: 0.3, jitter: [0.94, 1.07] },
@@ -125,18 +143,26 @@ const SFX = {
 	veh_connector_snap: { files: takes('sfx_veh_connector_snap', 2), bus: 'impacts', gain: 0.34, jitter: [0.92, 1.1] },
 	veh_armor_strip: { files: takes('sfx_veh_armor_strip', 4), bus: 'impacts', gain: 0.4, jitter: [0.94, 1.06] },
 	veh_mount_kill: { files: takes('sfx_veh_mount_kill', 4), bus: 'impacts', gain: 0.46 },
-	veh_low_health_warning: { files: takes('sfx_veh_low_health_warning', 1), bus: 'ambient', loop: true, gain: 0.22, fadeIn: 0.15 },
+	// The two READOUTS are flat: a cockpit alarm and a systems-offline callout
+	// are instrumentation reporting on your own machine, not events happening at
+	// a point in the yard. (The brief's world-space `veh_*` means the hit and
+	// damage cues above, which are all spatial.)
+	veh_low_health_warning: { files: takes('sfx_veh_low_health_warning', 1), bus: 'ambient', loop: true, gain: 0.22, fadeIn: 0.15, spatial: false },
 	veh_flip_recover: { files: takes('sfx_veh_flip_recover', 2), bus: 'ambient', gain: 0.38 },
-	veh_offline_status: { files: takes('sfx_veh_offline_status', 1), bus: 'ambient', gain: 0.34 },
+	veh_offline_status: { files: takes('sfx_veh_offline_status', 1), bus: 'ambient', gain: 0.34, spatial: false },
 
 	// ---- Environment / track ----
 	env_draft_engage: { files: takes('sfx_env_draft_engage', 2), bus: 'ambient', gain: 0.26 },
 	env_boost_pad: { files: takes('sfx_env_boost_pad', 3), bus: 'ambient', gain: 0.4, jitter: [0.95, 1.06] },
 	env_pit_repair_loop: { files: takes('sfx_env_pit_repair_loop', 1), bus: 'ambient', loop: true, gain: 0.28, fadeIn: 0.15 },
-	env_ambient_yard: { files: takes('sfx_env_ambient_yard', 4), bus: 'ambient', loop: true, gain: 0.16, fadeIn: 1.2 },
-	env_rain_loop: { files: takes('sfx_env_rain_loop', 1), bus: 'ambient', loop: true, gain: 0.24, fadeIn: 1.2 },
-	env_storm_thunder: { files: takes('sfx_env_storm_thunder', 4), bus: 'ambient', gain: 0.42, jitter: [0.94, 1.06] },
-	env_fog_ambience: { files: takes('sfx_env_fog_ambience', 1), bus: 'ambient', loop: true, gain: 0.2, fadeIn: 1.2 },
+	// The four ATMOSPHERE beds are flat: they are the whole sky, not a point in
+	// the yard, so they have no distance to fall off over. Thunder is included
+	// deliberately — the strike has no position in the scene, and a rolling
+	// recording already carries its own distance.
+	env_ambient_yard: { files: takes('sfx_env_ambient_yard', 4), bus: 'ambient', loop: true, gain: 0.16, fadeIn: 1.2, spatial: false },
+	env_rain_loop: { files: takes('sfx_env_rain_loop', 1), bus: 'ambient', loop: true, gain: 0.24, fadeIn: 1.2, spatial: false },
+	env_storm_thunder: { files: takes('sfx_env_storm_thunder', 4), bus: 'ambient', gain: 0.42, jitter: [0.94, 1.06], spatial: false },
+	env_fog_ambience: { files: takes('sfx_env_fog_ambience', 1), bus: 'ambient', loop: true, gain: 0.2, fadeIn: 1.2, spatial: false },
 	env_tire_dust: { files: takes('sfx_env_tire_dust', 2), bus: 'ambient', gain: 0.2, jitter: [0.9, 1.12] },
 
 	// ---- Engine (RPM layers) ----
@@ -187,10 +213,11 @@ const SFX = {
 	// and left the lose sting inaudible. The lose take is genuinely quiet
 	// (0.034 RMS, ~16dB under the win) and sits at full gain for that reason —
 	// it is still, correctly, the quietest of the four.
-	result_win: { files: takes('sfx_result_win', 1), bus: 'ui', gain: 0.43 },
-	result_lose: { files: takes('sfx_result_lose', 1), bus: 'ui', gain: 1 },
-	result_milestone_unlock: { files: takes('sfx_result_milestone_unlock', 1), bus: 'ui', gain: 0.69 },
-	result_leaderboard_new_record: { files: takes('sfx_result_leaderboard_new_record', 1), bus: 'ui', gain: 0.8 },
+	// Flat: the results screen has no world to be positioned in.
+	result_win: { files: takes('sfx_result_win', 1), bus: 'ui', gain: 0.43, spatial: false },
+	result_lose: { files: takes('sfx_result_lose', 1), bus: 'ui', gain: 1, spatial: false },
+	result_milestone_unlock: { files: takes('sfx_result_milestone_unlock', 1), bus: 'ui', gain: 0.69, spatial: false },
+	result_leaderboard_new_record: { files: takes('sfx_result_leaderboard_new_record', 1), bus: 'ui', gain: 0.8, spatial: false },
 
 	// ---- Fun / misc ----
 	// Loaded and playable, but nothing triggers them: the game has no horn or
@@ -329,9 +356,20 @@ export function playSfx(ref: SfxRef, opts: SfxOptions = {}): VoiceHandle | null 
 	const { gainScale = 1, ...rest } = opts;
 	return audioEngine.playBuffer(def.bus, buffer, {
 		...rest,
+		...spatialise(def, rest),
 		gain: Math.min(1, def.gain * gainScale),
 		pitchJitter: def.jitter ? [...def.jitter] : undefined
 	});
+}
+
+/**
+ * The roster decides spatialisation, not the call site: a `spatial: false` def
+ * has any position/velocity stripped here, so it can never acquire a panner
+ * however it is called. Spatial defs pass through untouched.
+ */
+function spatialise(def: SfxDef, opts: SfxOptions): Pick<PlayOptions, 'position' | 'velocity'> {
+	if (def.spatial === false) return { position: undefined, velocity: undefined };
+	return { position: opts.position, velocity: opts.velocity };
 }
 
 /**
@@ -350,6 +388,7 @@ export function startSfxLoop(ref: SfxRef, opts: SfxOptions = {}): VoiceHandle | 
 	const { gainScale = 1, ...rest } = opts;
 	return audioEngine.playBuffer(def.bus, buffer, {
 		...rest,
+		...spatialise(def, rest),
 		loop: true,
 		fadeInSec: def.fadeIn,
 		gain: Math.min(1, def.gain * gainScale)

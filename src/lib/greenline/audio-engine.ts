@@ -79,7 +79,18 @@ interface Voice {
 	loop: boolean;
 	source: AudioScheduledSourceNode & { playbackRate?: AudioParam; frequency?: AudioParam };
 	gainNode: GainNode;
+	/**
+	 * Distance attenuation, owned by the engine and kept on its OWN node,
+	 * deliberately separate from `gainNode`. Callers retarget `gainNode` freely
+	 * (the engine-layer crossfade rewrites it every frame); if distance shared
+	 * that node the two writers would overwrite each other. Null for a
+	 * non-positional voice.
+	 */
+	distNode: GainNode | null;
 	panner: PannerNode | null;
+	/** Last applied distance gain, so the ticker skips no-op param writes and
+	 * voice stealing can rank by what is actually AUDIBLE, not just by peak. */
+	distGain: number;
 	/** Jittered base rate before Doppler is layered on. */
 	baseRate: number;
 	/**
@@ -109,12 +120,61 @@ const SOFT_CAP: Record<SfxBus, number> = { weapons: 8, impacts: 8, ui: 4, ambien
 // Manual Doppler. Modern browsers don't reliably auto-Doppler via PannerNode, so
 // we compute relative radial velocity each frame and nudge playbackRate. The
 // clamp keeps it reading as physical, never cartoonish, regardless of closing
-// speed.
+// speed. TUNING KNOB: widen for more drama, narrow if a flyby sounds cartoonish.
 const DOPPLER_C = 340; // speed of sound (m/s), gameplay-plausible
-const DOPPLER_MIN = 0.94;
-const DOPPLER_MAX = 1.06;
+const DOPPLER_MIN = 0.85;
+const DOPPLER_MAX = 1.18;
+
+// --- Distance falloff -------------------------------------------------------
+// TUNING KNOBS. These four are the whole distance model; tune by ear here and
+// nowhere else (no call site carries its own falloff curve).
+//
+// WHY THIS IS COMPUTED HERE INSTEAD OF BY THE PannerNode, which is the obvious
+// place for it: neither native distanceModel does what this game needs, and
+// both were MEASURED rather than assumed (see the report).
+//   - `inverse` IGNORES maxDistance completely — that term only appears in the
+//     `linear` formula — so it keeps falling forever: at ref 14 / rolloff 1 it
+//     reaches 0.012 across a 1.2km straight, i.e. silent, with no way to floor
+//     it. A sound that vanishes entirely reads as a bug, not as distance.
+//   - `linear` DOES honor maxDistance, by hitting exactly zero there. Same
+//     problem, harder edge, plus the harsh near-field spike it is known for.
+// So the panner stays azimuth-only (rolloffFactor 0) and the falloff is the
+// `inverse` CURVE evaluated here, with maxDistance as a genuine clamp and an
+// explicit floor under it. It is close to free: the Doppler ticker already
+// computes each positional voice's distance every frame, so this reuses that
+// number rather than adding a second pass.
+const DISTANCE_REF_M = 14; // full volume within this radius
+const DISTANCE_MAX_M = 180; // falloff stops steepening past this
+const DISTANCE_ROLLOFF = 1; // higher = steeper falloff
+/**
+ * Hard floor on distance attenuation. The clamp at DISTANCE_MAX_M is what sets
+ * the practical floor (ref/max = 0.078 at the shipped numbers); this is the
+ * backstop that guarantees a far-off sound stays faintly present no matter how
+ * the three knobs above are retuned. Never set it to 0.
+ */
+const DISTANCE_MIN_GAIN = 0.06;
+
+/**
+ * Web Audio's `inverse` curve, with maxDistance actually respected and a floor.
+ * Returns 1 inside the reference radius.
+ */
+export function distanceGainFor(dist: number): number {
+	const d = clamp(dist, DISTANCE_REF_M, DISTANCE_MAX_M);
+	const g = DISTANCE_REF_M / (DISTANCE_REF_M + DISTANCE_ROLLOFF * (d - DISTANCE_REF_M));
+	return Math.max(DISTANCE_MIN_GAIN, g);
+}
+
+/** The knobs, for the dev harness and for anything sizing a cull radius. */
+export const DISTANCE_MODEL = {
+	refM: DISTANCE_REF_M,
+	maxM: DISTANCE_MAX_M,
+	rolloff: DISTANCE_ROLLOFF,
+	minGain: DISTANCE_MIN_GAIN
+} as const;
 
 const SFX_RAMP_S = 0.04; // bus-volume change ramp, avoids clicks
+/** Distance-gain smoothing, ~one frame: a flyby slides instead of zippering. */
+const DISTANCE_RAMP_S = 0.02;
 
 function clamp(v: number, lo: number, hi: number): number {
 	return Math.max(lo, Math.min(hi, v));
@@ -347,15 +407,22 @@ class GreenlineAudioEngine {
 		gainNode.gain.linearRampToValueAtTime(peak, now + atk);
 
 		let panner: PannerNode | null = null;
+		let distNode: GainNode | null = null;
 		const positional = !!opts.position;
 		if (positional) {
 			panner = ctx.createPanner();
 			panner.panningModel = 'equalpower'; // cheap azimuth pan, not HRTF
+			// Azimuth ONLY. Distance is applied on distNode instead, because
+			// neither native distanceModel can both honour maxDistance and keep a
+			// floor (see the DISTANCE_* block).
 			panner.distanceModel = 'inverse';
-			panner.refDistance = 8;
-			panner.rolloffFactor = 0; // pan only; no distance attenuation for v1
+			panner.refDistance = DISTANCE_REF_M;
+			panner.rolloffFactor = 0;
+			distNode = ctx.createGain();
+			distNode.gain.value = 1;
 			panner.connect(this.buses[bus]);
-			gainNode.connect(panner);
+			distNode.connect(panner);
+			gainNode.connect(distNode);
 		} else {
 			gainNode.connect(this.buses[bus]);
 		}
@@ -375,7 +442,9 @@ class GreenlineAudioEngine {
 			loop: looping,
 			source,
 			gainNode,
+			distNode,
 			panner,
+			distGain: 1,
 			baseRate,
 			oscFreq: oscFreq ?? null,
 			peak,
@@ -385,7 +454,13 @@ class GreenlineAudioEngine {
 			stopped: false
 		};
 		this.applyRate(voice, baseRate);
-		if (panner && voice.position) this.applyPanner(voice);
+		if (panner && voice.position) {
+			this.applyPanner(voice);
+			// Set distance BEFORE the source starts: a short one-shot could
+			// otherwise finish before the first ticker frame and play at full
+			// volume no matter how far away it was.
+			this.applyDistance(voice, 0);
+		}
 
 		const cleanup = () => this.removeVoice(voice);
 		source.onended = cleanup;
@@ -408,9 +483,15 @@ class GreenlineAudioEngine {
 
 		return {
 			setPosition: (p: Vec3, v?: Vec3) => {
+				// A voice created non-positional (a `spatial: false` roster entry) has
+				// no panner and never gains one: ignore the update outright rather
+				// than storing a position that would then read back as a distance the
+				// voice does not actually have.
+				if (!voice.panner) return;
 				voice.position = { ...p };
 				if (v) voice.velocity = { ...v };
 				this.applyPanner(voice);
+				this.applyDistance(voice, DISTANCE_RAMP_S);
 			},
 			setGain: (g: number, rampSec = SFX_RAMP_S) => {
 				if (voice.stopped || !this.ctx) return;
@@ -449,12 +530,29 @@ class GreenlineAudioEngine {
 		}
 	}
 
-	/** Steal the oldest, breaking ties toward the quietest, from a candidate set. */
+	/**
+	 * Steal the oldest, breaking ties toward the quietest, from a candidate set.
+	 *
+	 * "Quietest" is `peak x distGain`, NOT `peak` alone. Before distance
+	 * attenuation existed the two were the same thing, so the tiebreak only ever
+	 * compared authored mix levels; now that a far-off sound is genuinely quiet,
+	 * ranking by audible level is what makes stealing prefer to drop the
+	 * across-the-map gunshot and keep the one next to you. This does not happen
+	 * for free — `peak` is the caller's gain and never sees distance — so the
+	 * term is explicit here.
+	 */
+	private audibleLevel(v: Voice): number {
+		return v.peak * (v.panner ? v.distGain : 1);
+	}
+
 	private steal(candidates: Voice[]): void {
 		if (!candidates.length) return;
 		let victim = candidates[0];
 		for (const v of candidates) {
-			if (v.startedAt < victim.startedAt || (v.startedAt === victim.startedAt && v.peak < victim.peak)) {
+			if (
+				v.startedAt < victim.startedAt ||
+				(v.startedAt === victim.startedAt && this.audibleLevel(v) < this.audibleLevel(victim))
+			) {
 				victim = v;
 			}
 		}
@@ -493,6 +591,7 @@ class GreenlineAudioEngine {
 		try {
 			voice.source.disconnect();
 			voice.gainNode.disconnect();
+			voice.distNode?.disconnect();
 			voice.panner?.disconnect();
 		} catch {
 			/* noop */
@@ -536,18 +635,48 @@ class GreenlineAudioEngine {
 		}
 	}
 
+	/**
+	 * Push the distance attenuation for a voice's current position onto its own
+	 * gain node. `rampSec` 0 sets it outright (voice start); the ticker ramps
+	 * over roughly a frame so a fast flyby slides instead of zippering.
+	 */
+	private applyDistance(voice: Voice, rampSec: number): void {
+		const node = voice.distNode;
+		if (!node || !voice.position || voice.stopped) return;
+		const g = distanceGainFor(this.distanceTo(voice.position));
+		// Param writes are not free at 36+ live engine loops; skip the ones that
+		// would not change anything audible.
+		if (Math.abs(g - voice.distGain) < 0.002) return;
+		voice.distGain = g;
+		const ctx = this.ctx;
+		if (!ctx) return;
+		const t = ctx.currentTime;
+		if (rampSec <= 0) {
+			node.gain.setValueAtTime(g, t);
+			return;
+		}
+		node.gain.cancelScheduledValues(t);
+		node.gain.setValueAtTime(node.gain.value, t);
+		node.gain.linearRampToValueAtTime(g, t + rampSec);
+	}
+
+	private distanceTo(p: Vec3): number {
+		return Math.hypot(p.x - this.listenerPos.x, p.y - this.listenerPos.y, p.z - this.listenerPos.z);
+	}
+
 	// --- manual Doppler ticker ------------------------------------------------
 
 	/**
-	 * Recompute Doppler for every positional voice from its stored pos/vel and
-	 * the listener. Idempotent, so both the internal ticker and a future
-	 * game-loop caller may drive it without conflict.
+	 * Recompute Doppler AND distance for every positional voice from its stored
+	 * pos/vel and the listener. Idempotent, so both the internal ticker and a
+	 * future game-loop caller may drive it without conflict.
 	 */
 	update(): void {
 		for (const voice of this.voices) {
 			if (!voice.panner || !voice.position || voice.stopped) continue;
 			const factor = this.dopplerFactor(voice);
 			this.applyRate(voice, voice.baseRate * factor);
+			this.applyDistance(voice, DISTANCE_RAMP_S);
 		}
 	}
 
@@ -630,7 +759,11 @@ class GreenlineAudioEngine {
 			bus: v.bus,
 			baseRate: round(v.baseRate),
 			rate: round(this.voiceRate(v)),
-			panX: v.panner?.positionX ? round(v.panner.positionX.value) : null
+			panX: v.panner?.positionX ? round(v.panner.positionX.value) : null,
+			/** null = non-positional (a HUD/meta cue, never attenuated). */
+			distM: v.position ? round(this.distanceTo(v.position)) : null,
+			distGain: v.panner ? round(v.distGain) : null,
+			audible: round(this.audibleLevel(v))
 		}));
 	}
 }
