@@ -5449,6 +5449,66 @@ on one side of the world.
     remount, so a helper that captured it early goes on querying a disposed
     scene; read it dynamically.
 
+- **Start-grid apron: `PieceChainSurface.startGridWidth`.** The investigation is
+  the load-bearing part, because the grid is not shaped the way it looks.
+  - **There is no start-grid ELEMENT.** `TrackData.spawn` is a bare point
+    (`{x, z, headingDeg}`), the `'pad'` prop is decorative and the runtime never
+    reads it, and the grid itself is pure layout: `slotPose(k)` puts pole on the
+    spawn and fills staggered rows stepping `GRID_ROW_STEP_PTS` (2) centerline
+    samples BACK per row, ±`GRID_LATERAL` (3 m). So the width under the grid is
+    whatever the RIBBON is there — nothing else.
+  - **The grid straddles the chain's wrap seam**, which is what the old model
+    could not express. `deriveFurniture` puts the spawn ~2 samples behind a
+    start/finish gate that sits ~6 samples in, so the grid runs from about
+    sample +4 back through 0 and onto the LAST piece. Measured on a 12-car
+    field: slots land on samples **212, 214, 216, 218, 0, 2, 4** of a 220-sample
+    lap — 7 of 12 cars behind the seam.
+  - **Which made the chain's own `width` the wrong knob.** It only seeds the
+    FIRST piece's width blend, so it widens forward and leaves everything behind
+    the seam at the last piece's width. Measured with `width` 26 over a 12 m
+    road: `[12 x16] | 26 | 26, 25.8, 25.6 ...` — a hard **12 -> 26 step exactly
+    at the seam**, with half the grid on the narrow side of it.
+  - **So the apron is its own field, applied as a WIDTHS pass** (`applyStartGrid`
+    in track-pieces.ts) over the stitched samples: full width across the grid
+    run, eased to nothing over `START_GRID_BLEND_M` with the same smootherstep
+    every other blend here uses, walked forward and backward from the seam so
+    the wrap is handled the way the grid actually sits. The hold distances are
+    DERIVED, not picked: `START_GRID_HOLD_BACK_M` 56 is 6 rows x 2 samples x the
+    4 m `PIECE_SAMPLE_STEP` plus a car length, and `START_GRID_HOLD_AHEAD_M` 32
+    carries pole and the timing gate. Two rules keep it safe on any chain — it
+    only ever WIDENS (`Math.max`, so a piece the author made wider is never
+    pinched), and it never touches VERBATIM freeform samples (the catch-plane
+    raise's exemption). It runs BEFORE the bank raise, which sizes itself on
+    `width * sin(bank)` and so has to see the widened road.
+  - **Absent = nothing happens at all** (`startGridWidth !== undefined` guards
+    the call), so every existing track compiles unchanged. Exposed in the
+    builder as "grid width" beside the corridor width, blank = none.
+  - **Verified** in `/dev/greenline-piece-builder` + the movement harness. The
+    apron profile is symmetric about the seam with **no step** (behind/at/ahead
+    all read the full 28), and its width first-difference is a clean bell
+    starting AND ending at exactly 0 (`0.14, 0.8, 1.69, 2.48, 2.92, 2.92, 2.46,
+    1.67, 0.78, 0.13, 0 ...`) — C1 by inspection, C2 from smootherstep, so the
+    taper joins the constant-width road with no crease. Edge turn scales with
+    the widening and never steps: max per-segment turn on the swept edge is
+    3.3 deg with no apron, 5.0 at 16 m, 6.8 at 20 m, 10.2 at 28 m, while the
+    CENTERLINE stays 3.27 in every case. A widths-only guarantee was asserted
+    globally: with the apron on vs off over the same chain, no sample is ever
+    NARROWER, only 18 of 210 samples change, they form one contiguous run across
+    the seam, and centerline/elevation/banking are byte-identical. Round trip:
+    the field survives export -> the REAL `parseTrack` -> `buildRuntime` (26 m
+    across the seam in the game's own runtime). Race: a 12-car grid puts **every
+    slot on 28 m road** (one width value under the whole grid, tightest margin
+    11 m); a matched 96 s A/B, apron 28 m vs none, ran 3 vs 2 flips, 0 vs 0
+    falls, 1 vs 1 wall, 12/12 upright both, best lap **22.924 vs 22.910 s** —
+    indistinguishable. Committed tracks byte-identical to HEAD across 16,907
+    numbers (measured by stashing). `svelte-check` clean, 0 errors.
+  - **MEASUREMENT TRAP** that produced two wrong readings before I caught them:
+    a piece's `width` is what it blends TO by its END, so the authored width AT
+    the seam is the CHAIN's width, not piece 0's — an assertion sampled across
+    the seam compares two different authored widths and reads as a pinch that is
+    not there. And `raceState()` sampled after any delay measures cars that have
+    already dispersed, not the grid; reset and read with no await.
+
 - **Cursor-anchored wheel zoom + WASD free-fly in the piece-builder preview.**
   Two camera additions; the SolidWorks gestures, the handles and road picking
   are untouched.

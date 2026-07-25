@@ -261,6 +261,22 @@ export interface PieceChainSurface {
 	type: 'pieces';
 	/** Corridor full width the chain starts at (pieces may blend to their own). */
 	width: number;
+	/**
+	 * Optional apron width across the STARTING GRID, full width in meters.
+	 *
+	 * The grid is not a piece and not a prop: the race lays it out from the
+	 * spawn, stepping rows BACKWARD along the centerline (`slotPose`), so it
+	 * straddles the chain's wrap seam — some rows sit on the first piece and the
+	 * rest on the last. `width` above cannot express that, because it only feeds
+	 * the FIRST piece's width blend and leaves everything behind the seam at the
+	 * last piece's width, which is a hard step exactly where the cars line up.
+	 *
+	 * This widens the road across that whole run and eases back out on both
+	 * sides (see `applyStartGrid`). It only ever WIDENS: a piece already wider
+	 * than the grid is left alone. Absent = no widening at all, so every track
+	 * authored before it compiles unchanged.
+	 */
+	startGridWidth?: number;
 	start: PieceChainStart;
 	pieces: TrackPiece[];
 }
@@ -443,6 +459,11 @@ export function parseTrack(raw: unknown): TrackData {
 		// closure, the catch-plane bank raise, the grade lint, the bank cap.
 		if (t.schemaVersion !== 3) fail('a pieces surface requires schemaVersion 3');
 		if (!(t.surface.width > 0)) fail('piece chain width must be positive');
+		{
+			const g = t.surface.startGridWidth;
+			if (g !== undefined && !(Number.isFinite(g) && g >= 4 && g <= 40))
+				fail('startGridWidth must be 4..40 m');
+		}
 		const st = t.surface.start;
 		if (
 			!st ||

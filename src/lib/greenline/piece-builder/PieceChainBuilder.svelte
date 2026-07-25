@@ -575,7 +575,33 @@
 						}}
 					/>
 				</label>
+				<label class="pb-field" title="Widens the road across the starting grid, which straddles the chain's wrap seam, and eases back to the authored width on both sides. Blank = no apron. It only ever widens: a piece already wider than this is left alone.">
+					<span>grid width</span>
+					<input
+						type="number"
+						step="0.5"
+						min="4"
+						max="40"
+						placeholder="none"
+						value={doc.startGridWidth ?? ''}
+						data-testid="start-grid-width"
+						oninput={(e) => {
+							const raw = (e.currentTarget as HTMLInputElement).value.trim();
+							const v = Number(raw);
+							// Empty clears it back to no apron at all, which is what an
+							// absent value means everywhere downstream.
+							doc = raw === '' || !Number.isFinite(v)
+								? { ...doc, startGridWidth: undefined }
+								: { ...doc, startGridWidth: v };
+							renderSoon();
+						}}
+					/>
+				</label>
 			</div>
+			<p class="pb-note">
+				The starting grid straddles the chain's wrap seam, so its apron is its own
+				width: <em>width</em> above only seeds the first piece's blend.
+			</p>
 
 			<h3>add a piece</h3>
 			<div class="pb-target" data-testid="insert-target">

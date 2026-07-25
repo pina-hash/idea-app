@@ -1222,6 +1222,88 @@ function generate(
 	}
 }
 
+/* ------------------------------------------------------------------ */
+/* the start-grid apron                                                */
+/* ------------------------------------------------------------------ */
+
+/**
+ * How far the start grid holds full width BEHIND the chain start, meters.
+ *
+ * Sized from the race's own grid, not picked: `slotPose` fills staggered rows
+ * of two stepping `GRID_ROW_STEP_PTS` (2) centerline samples back per row, and
+ * the largest field the race builds is 12 cars = 6 rows = 12 samples. At the
+ * `PIECE_SAMPLE_STEP` 4 m spacing that is 48 m, plus a car length of margin so
+ * the back row is not sitting on the taper. The grid is anchored a couple of
+ * samples behind the start/finish gate, so the whole run lands inside this.
+ */
+export const START_GRID_HOLD_BACK_M = 56;
+/**
+ * And AHEAD of the chain start: enough to carry the pole slot and the timing
+ * gate a few samples past it, so the line itself is on full-width road.
+ */
+export const START_GRID_HOLD_AHEAD_M = 32;
+/** Run each side eases the apron back to the authored width over, meters. */
+export const START_GRID_BLEND_M = 40;
+
+/**
+ * Widen the road across the starting grid, easing out on BOTH sides.
+ *
+ * The grid straddles the chain's wrap seam (rows step backward from a spawn
+ * that sits just behind the start/finish gate), which is exactly why the
+ * chain's own `width` cannot express it: that value only seeds the FIRST
+ * piece's width blend, so everything behind the seam stays at the LAST piece's
+ * width and the two meet in a hard step right where the cars line up.
+ *
+ * So this runs over the stitched samples as a widths pass — the same channel
+ * the pieces' own width blends write to, and the same one the swept edges,
+ * the physics trimesh, the derived boundaries and the gate half-widths all
+ * read — holding full width across the grid run and easing to nothing over
+ * `START_GRID_BLEND_M` with the smootherstep every other blend here uses.
+ *
+ * Two rules that keep it safe to apply to any chain:
+ * - it only ever WIDENS (`Math.max`), so a piece the author made wider than
+ *   the apron is never pinched by it;
+ * - it never touches VERBATIM freeform samples, whose widths are authored
+ *   world truth (the same exemption the catch-plane raise takes).
+ */
+function applyStartGrid(samples: ChainSample[], gridWidth: number): void {
+	const n = samples.length;
+	if (n < 3 || !(gridWidth > 0)) return;
+	const span = (i: number): number =>
+		Math.hypot(
+			samples[(i + 1) % n].pt.x - samples[i].pt.x,
+			samples[(i + 1) % n].pt.z - samples[i].pt.z
+		);
+	/** Apron weight at a signed distance from the seam: 1, then eased to 0. */
+	const weight = (dist: number, hold: number): number => {
+		if (dist <= hold) return 1;
+		if (dist >= hold + START_GRID_BLEND_M) return 0;
+		return 1 - s01((dist - hold) / START_GRID_BLEND_M);
+	};
+	const apply = (i: number, dist: number, hold: number): boolean => {
+		const w = weight(dist, hold);
+		if (w <= 0) return false;
+		const s = samples[i];
+		if (s.verbatim) return true; // keep walking, just do not rewrite it
+		s.width = Math.max(s.width, s.width + (gridWidth - s.width) * w);
+		return true;
+	};
+	// Forward from the seam, then backward around the wrap. Each walk stops as
+	// soon as the weight reaches zero, so a long lap costs only the apron.
+	let d = 0;
+	for (let k = 0; k < n; k++) {
+		const i = k % n;
+		if (!apply(i, d, START_GRID_HOLD_AHEAD_M) && k > 0) break;
+		d += span(i);
+	}
+	d = 0;
+	for (let k = 1; k < n; k++) {
+		const i = (n - k) % n;
+		d += span(i);
+		if (!apply(i, d, START_GRID_HOLD_BACK_M)) break;
+	}
+}
+
 /** Derived entry pose of a freeform piece (its data is its placement). */
 function freeformEntryPose(piece: Extract<TrackPiece, { kind: 'freeform' }>): PiecePose {
 	const pts = piece.centerline;
@@ -1246,6 +1328,8 @@ function freeformEntryPose(piece: Extract<TrackPiece, { kind: 'freeform' }>): Pi
 
 interface PieceChain {
 	width: number;
+	/** Start-grid apron width, or undefined for none (see `applyStartGrid`). */
+	startGridWidth?: number;
 	start: PiecePose;
 	pieces: TrackPiece[];
 	closed: boolean;
@@ -1377,6 +1461,12 @@ function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
 		}
 	}
 
+	// --- the start-grid apron. BEFORE the bank raise on purpose: the raise
+	// sizes itself on `width * sin(bank)`, so it has to see the widened road or
+	// a banked grid would clip the catch plane by exactly the apron's share.
+	if (chain.strict && chain.startGridWidth !== undefined)
+		applyStartGrid(samples, chain.startGridWidth);
+
 	// --- catch-plane bank raise (parametric samples only, the 8a rule the
 	// builder's compiler enforces the same way): the y=0 plane swallows the low
 	// half of a banked section unless the centerline is lifted. Freeform samples
@@ -1492,6 +1582,7 @@ function piecesChain(surface: PieceChainSurface): PieceChain {
 	const st = surface.start;
 	return {
 		width: surface.width,
+		...(surface.startGridWidth !== undefined ? { startGridWidth: surface.startGridWidth } : {}),
 		start: {
 			x: st.x,
 			z: st.z,

@@ -325,6 +325,12 @@ export interface ChainDoc {
 	description: string;
 	/** Corridor full width the chain starts at. */
 	width: number;
+	/**
+	 * Apron width across the starting grid, or undefined for none. The grid
+	 * straddles the wrap seam, so this is its own value rather than part of
+	 * `width` — see `PieceChainSurface.startGridWidth`.
+	 */
+	startGridWidth?: number;
 	start: Required<PieceChainStart>;
 	pieces: TrackPiece[];
 	/** How many checkpoints the export spreads around the lap. */
@@ -346,6 +352,7 @@ export function emptyDoc(): ChainDoc {
 export const docSurface = (doc: ChainDoc): PieceChainSurface => ({
 	type: 'pieces',
 	width: doc.width,
+	...(doc.startGridWidth !== undefined ? { startGridWidth: doc.startGridWidth } : {}),
 	start: { ...doc.start },
 	pieces: doc.pieces
 });
@@ -690,6 +697,7 @@ export function exportTrack(doc: ChainDoc, opts: ExportOptions = {}): TrackData 
 		surface: {
 			type: 'pieces',
 			width: doc.width,
+			...(doc.startGridWidth !== undefined ? { startGridWidth: doc.startGridWidth } : {}),
 			start: cleanStart(doc.start),
 			pieces: doc.pieces.map(cleanPiece)
 		}
