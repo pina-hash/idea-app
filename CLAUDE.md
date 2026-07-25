@@ -5449,6 +5449,89 @@ on one side of the world.
     remount, so a helper that captured it early goes on querying a disposed
     scene; read it dynamically.
 
+- **Cursor-anchored wheel zoom + WASD free-fly in the piece-builder preview.**
+  Two camera additions; the SolidWorks gestures, the handles and road picking
+  are untouched.
+  - **Zoom dollies toward the point UNDER THE CURSOR**, the rotate pivot's
+    principle applied to the wheel: `applyZoom` uniformly scales BOTH the camera
+    and the orbit target about that anchor. Because the pair scales as one body
+    the view direction is untouched (`C' - T' = f·(C - T)`) and the
+    camera-to-anchor vector only changes LENGTH, so the anchor projects to
+    exactly the same pixel. The dolly is `f` whatever the anchor is
+    (`|C'-T'| = f·|C-T|`), so the anchor decides only where the camera ends up
+    laterally and the target can never slide behind it. The anchor is
+    `pickPivot()`, the SAME resolution a rotate drag uses, so the two gestures
+    agree on what "under the cursor" means. OrbitControls only ever dollies
+    along the camera-to-target axis, so `enableZoom` is off and the wheel is
+    owned here — the takeover the middle button already needed — at its own 0.95
+    per notch, with `deltaMode` LINE/PAGE normalised. At a limit the step is
+    REFUSED rather than clamped (a clamped step slides the anchor off the
+    cursor), and each guard blocks only a step that makes things WORSE, so a
+    camera already past a limit can work its way back.
+  - **Free-fly is a keyboard PAN, not an orbit:** WASD/space/shift translate the
+    camera AND the orbit target by the same delta (`applyPan`'s principle), so
+    the view direction is exactly preserved and every later rotate/zoom/pan
+    still has a sane target ahead of the camera. WASD is HORIZONTAL relative to
+    facing — looking down and holding W flies level rather than diving, so
+    altitude is space/shift's alone; the flattened camera-up is the fallback
+    when a straight-down view leaves no horizontal facing. Speed follows the
+    distance to the target (the quantity pan's reach already uses), clamped
+    6..420 m/s, so flying feels the same zoomed out over the whole circuit as
+    nosed up against one piece; diagonals are normalised.
+  - **Arbitration:** fly stands down for the whole of a camDrag / handle drag /
+    piece drag, which is also what keeps shift-as-descend from sinking the view
+    during a shift+MMB pan. Shift is additionally suppressed while an ARROW is
+    held, so the nudge's own 90-degree modifier does not double as a descend.
+    Wheel zoom inherits the handle-drag freeze from `controls.enabled`.
+  - **THE FOCUS GUARD IS `document.activeElement`, NOT A BLUR EVENT** — the
+    correction this pass earned. Keydown lives on the canvas and a param field
+    is a SIBLING, so a press delivered to the field never passes through the
+    listener; that structural guard covers WASD exactly as it already covered
+    arrows. But a key already HELD when focus moves to a field was a genuine
+    leak, and the blur handlers meant to clear it DO NOT ALWAYS FIRE: focus can
+    move with no blur at all (a programmatic `focus()`, a window the OS never
+    focused), measured live here. So `flyStep` asks who is focused and clears
+    the held set itself; the keyup and both blur handlers stay for promptness,
+    not correctness.
+  - **Verified** in `/dev/greenline-piece-builder`. Zoom: the aimed world point
+    drifts **0.11 to 0.21 px** across four screen quadrants up to 368 px off
+    centre, dolly ratio exactly `0.95^n` every time; the A/B against a
+    centre-anchored dolly moves that same point **5.8 to 36 px** while holding
+    the screen-centre point at exactly 0 — the mirror image. Limits hold (far
+    5975 of 6000, near 1.55 of 1.5, camera y never under 0.5 through 400
+    zoom-ins at a ground point). Fly: W/S read ±1 along the flattened facing and
+    A/D exactly 0 (strafe, D = camera-right), space/shift pure ±Y, all at a
+    uniform 34.87 m = speed x dt, camera and target translating IDENTICALLY in
+    every case; a steep look-down + W gives dY exactly 0; straight down falls
+    back and still flies level; diagonals and triples move the same distance as
+    one axis; opposites cancel; descent stops at exactly y = 0.5. Arbitration:
+    fly returns false and the camera is byte-frozen through MMB rotate,
+    shift+MMB pan and a handle drag (which still wrote its param 60 -> 81.5,
+    wheel refused and restored on release); the same pan gesture with and
+    without Shift physically held gave BYTE-IDENTICAL deltas with fly steps
+    interleaved where the loop runs them; shift+arrow nudges with a y delta of
+    exactly 0 while shift alone still descends; piece selection works with fly
+    keys held. Regressions: plain MMB still rotates about a pivot (camera and
+    target move by different vectors), shift/ctrl+MMB still pan rigidly
+    (mismatch exactly 0), the nudge is still exactly 15 / 90 degrees, handle
+    drags still reshape, 0 console errors. Typing: a trusted click and real
+    keystrokes put "142" through to the doc and a trusted ArrowUp stepped it
+    142 -> 143 (`prevented: false`) while the camera stayed byte-identical and
+    the held set emptied.
+  - **The rAF loop needs a REAL window to verify** — the harness tab is
+    `document.hidden` with 0 frames, so `flyStep` calls bypass `tick` entirely
+    and prove nothing about the loop. Popups are blocked in both browsers here,
+    so the loop was reached instead by patching `requestAnimationFrame` to
+    capture callbacks and forcing a CLIENT-SIDE remount (a synthetic anchor
+    click through SvelteKit's router keeps the JS context, and so the patch; a
+    reload throws it away), then stepping the captured `tick` by hand: steady
+    frames move `speed x 0.016` exactly, a release stops it dead, a fresh
+    mount's first frame moves 0, and a 5-second gap moves `speed x 0.1` — the
+    clamp holding instead of teleporting 352 m.
+    **TRAP:** those callbacks RE-ARM, so iterating `__RAFQ` live recurses
+    forever and wedges the renderer (it did, and the pane had to be abandoned).
+    Snapshot the queue, or take only its newest entry.
+
 - **Jump piece: independent takeoff + landing angles, real ramp mass, handles.**
   - **Investigation first (the launch was, and stays, pure ramp geometry).**
     The pre-existing jump had two params, `length` and `kickHeight`, and a

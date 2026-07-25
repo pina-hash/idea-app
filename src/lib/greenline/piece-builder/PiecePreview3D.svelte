@@ -170,8 +170,9 @@
 				 * SolidWorks' hands rather than to a generic orbit widget:
 				 *   MIDDLE drag            rotate, about the point UNDER THE CURSOR
 				 *   shift/ctrl + MIDDLE    pan
-				 *   wheel                  zoom
+				 *   wheel                  zoom toward the point UNDER THE CURSOR
 				 *   arrows                 nudge the view 15 deg (shift: 90)
+				 *   WASD / space / shift   free-fly (see the fly block below)
 				 * LEFT and RIGHT are deliberately left UNBOUND: in SolidWorks they
 				 * select and open the context menu, and here the left button owns
 				 * the direct-manipulation HANDLES and road PICKING (see below).
@@ -189,20 +190,28 @@
 				 *     pan gesture was unreachable, measured on real hardware.
 				 *     Owning the button outright removes the class of bug rather
 				 *     than re-tuning around it.
-				 *  2. OrbitControls can only ever orbit `controls.target`, which
-				 *     `update()` re-aims the camera at every frame. Rotating about
-				 *     an arbitrary picked pivot is therefore not expressible
-				 *     through it at all (see `applyRotate`).
+				 *  2. OrbitControls can only ever orbit and dolly about
+				 *     `controls.target`, which `update()` re-aims the camera at
+				 *     every frame. Neither rotating about an arbitrary picked pivot
+				 *     nor zooming toward one is expressible through it at all (see
+				 *     `applyRotate` / `applyZoom`), and the same goes for a fly that
+				 *     has to carry the target along with the camera.
 				 *
 				 * OrbitControls is kept for what it is still exactly right for:
-				 * wheel zoom, damping, and the `update()` that re-aims the camera
-				 * at the target each frame.
+				 * damping, the polar limits, and the `update()` that re-aims the
+				 * camera at the target each frame.
 				 */
 				controls.mouseButtons = {
 					LEFT: null,
 					MIDDLE: null,
 					RIGHT: null
 				} as unknown as typeof controls.mouseButtons;
+				// The wheel is owned here too, for the same reason as the buttons:
+				// OrbitControls can only dolly along the camera-to-target axis, which
+				// always pulls toward screen centre. See `applyZoom`. Its handler
+				// checks this flag before it does anything (preventDefault included),
+				// so the event reaches ours untouched.
+				controls.enableZoom = false;
 
 				// Chrome opens its autoscroll widget on a middle press otherwise.
 				const onMiddleDefault = (e: MouseEvent) => {
@@ -214,6 +223,13 @@
 				/* ---------------- camera drag (middle button) ---------------- */
 
 				const UP = new THREE.Vector3(0, 1, 0);
+				/**
+				 * Floor for the camera's own height: the y = 0 catch plane is the
+				 * surface the whole scene is measured against, and a view from
+				 * underneath it reads as broken. Shared by every path that can lower
+				 * the camera — rotate, cursor zoom, and free-fly.
+				 */
+				const MIN_CAM_Y = 0.5;
 				/** Marks the pivot a rotate drag is turning about, while it lasts. */
 				const pivotMark = new THREE.Mesh(
 					new THREE.SphereGeometry(1, 12, 10),
@@ -265,7 +281,7 @@
 					// the camera under the ground plane; the yaw always survives, so
 					// a steep drag still turns instead of locking up entirely.
 					const phi = new THREE.Spherical().setFromVector3(nextCam.clone().sub(nextTgt)).phi;
-					if (phi < 0.02 || phi > controls.maxPolarAngle - 0.01 || nextCam.y < 0.5) {
+					if (phi < 0.02 || phi > controls.maxPolarAngle - 0.01 || nextCam.y < MIN_CAM_Y) {
 						const qy = new THREE.Quaternion().setFromAxisAngle(UP, yaw);
 						camera.position.copy(camOff.applyQuaternion(qy).add(pivot));
 						controls.target.copy(tgtOff.applyQuaternion(qy).add(pivot));
@@ -273,6 +289,44 @@
 						camera.position.copy(nextCam);
 						controls.target.copy(nextTgt);
 					}
+					controls.update();
+				};
+
+				/**
+				 * Dolly toward the point UNDER THE CURSOR — the rotate pivot's
+				 * principle applied to the wheel — by uniformly scaling BOTH the
+				 * camera and the orbit target about that anchor.
+				 *
+				 * Because the pair scales as one body the view direction is
+				 * untouched (`C' - T' = f·(C - T)`) and the camera-to-anchor vector
+				 * only changes LENGTH, never direction, so the anchor projects to
+				 * exactly the same pixel: it stays pinned under the cursor while the
+				 * world grows around it. The dolly amount is `f` whatever the anchor
+				 * is (`|C'-T'| = f·|C-T|`), so the anchor decides only where the
+				 * camera ends up laterally — the target can never slide behind it.
+				 *
+				 * Not expressible through OrbitControls, which only ever dollies
+				 * along the camera-to-`target` axis and so always pulls toward
+				 * screen centre; its own zoom is off and the wheel is owned here,
+				 * the same takeover the middle button already needed.
+				 */
+				const ZOOM_PER_NOTCH = 0.95; // OrbitControls' own rate, so the feel is unchanged
+				const ZOOM_MIN_DIST = 1.5;
+				const ZOOM_MAX_DIST = 6000;
+				const applyZoom = (f: number, anchor: InstanceType<typeof THREE.Vector3>) => {
+					const nextCam = anchor.clone().addScaledVector(camera.position.clone().sub(anchor), f);
+					const nextTgt = anchor.clone().addScaledVector(controls.target.clone().sub(anchor), f);
+					const dist = nextCam.distanceTo(nextTgt);
+					const was = camera.position.distanceTo(controls.target);
+					// REFUSE at a limit rather than clamp: a clamped step would slide
+					// the anchor off the cursor, which is the one thing this exists to
+					// hold. Each guard only blocks a step that makes things WORSE, so a
+					// camera already past a limit can always work its way back.
+					if (dist < ZOOM_MIN_DIST && dist < was) return;
+					if (dist > ZOOM_MAX_DIST && dist > was) return;
+					if (nextCam.y < MIN_CAM_Y && nextCam.y < camera.position.y) return;
+					camera.position.copy(nextCam);
+					controls.target.copy(nextTgt);
 					controls.update();
 				};
 
@@ -305,27 +359,147 @@
 					controls.update();
 				};
 				const NUDGE_RAD = (15 * Math.PI) / 180;
-				// Keys are handled on the STAGE, which is focusable: that is what
-				// keeps arrow presses in a numeric param field from swinging the
-				// camera instead of stepping the value.
-				const onKey = (e: KeyboardEvent) => {
+
+				/* ---------------- free-fly (Minecraft-creative style) ----------------
+				 * WASD moves HORIZONTALLY relative to where the camera is facing,
+				 * space rises and shift sinks. Deliberately horizontal: looking down
+				 * and holding W flies level rather than diving, so altitude belongs to
+				 * space/shift alone and a low-altitude pass over the road holds its
+				 * height on its own.
+				 *
+				 * It is a keyboard PAN, not an orbit — both the camera and the orbit
+				 * target translate by the same delta (`applyPan`'s principle), so the
+				 * view direction is exactly preserved and every later MMB rotate,
+				 * cursor zoom and pan still has a sane target sitting ahead of the
+				 * camera. Nothing about the SolidWorks gestures changes.
+				 *
+				 * ARBITRATION: a mouse gesture owns the camera while it lasts, so fly
+				 * stands down for the whole of a camDrag / handle drag / piece drag.
+				 * That is also what keeps shift-as-descend from sinking the view
+				 * during a shift+MMB pan, where shift is genuinely a pan modifier.
+				 */
+				const FLY_CODES = new Set([
+					'KeyW',
+					'KeyA',
+					'KeyS',
+					'KeyD',
+					'Space',
+					'ShiftLeft',
+					'ShiftRight'
+				]);
+				const ARROW_CODES = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+				/** Physical key codes currently down, so fly is keyboard-layout independent. */
+				const heldKeys = new Set<string>();
+				// Speed follows the distance to the target — the same quantity pan's
+				// reach uses — so flying feels the same zoomed out over the whole
+				// circuit as it does nosed up against one piece. Fly translates the
+				// target too, so that distance is stable while flying.
+				const FLY_SPEED_FRAC = 0.85;
+				const FLY_MIN_SPEED = 6;
+				const FLY_MAX_SPEED = 420;
+				/**
+				 * One integration step. Returns whether the camera actually moved, so
+				 * the caller (and the console drive) can tell a no-op from a move.
+				 */
+				const flyStep = (dtSec: number): boolean => {
+					// Fly belongs to the 3D view and only while it actually HOLDS focus.
+					// Asking the document who is focused, rather than trusting a blur
+					// event to have arrived, is what makes that airtight: focus can move
+					// without any blur firing at all (a programmatic `focus()`, a window
+					// the OS never focused), and a single missed blur would strand a key
+					// as "held" and fly the camera while the author types into a param
+					// field. Clearing here as well means the next press starts clean.
+					if (document.activeElement !== renderer.domElement) {
+						heldKeys.clear();
+						return false;
+					}
+					if (!heldKeys.size || camDrag || drag || pieceDrag) return false;
+					// Shift is BOTH fly's descend and the arrow nudge's 90-degree
+					// modifier, so descend stands down while an arrow is held: a
+					// shift+arrow gesture turns the view without also sinking it.
+					const arrowing =
+						heldKeys.has('ArrowUp') ||
+						heldKeys.has('ArrowDown') ||
+						heldKeys.has('ArrowLeft') ||
+						heldKeys.has('ArrowRight');
+					const fwd = (heldKeys.has('KeyW') ? 1 : 0) - (heldKeys.has('KeyS') ? 1 : 0);
+					const strafe = (heldKeys.has('KeyD') ? 1 : 0) - (heldKeys.has('KeyA') ? 1 : 0);
+					const rise =
+						(heldKeys.has('Space') ? 1 : 0) -
+						(!arrowing && (heldKeys.has('ShiftLeft') || heldKeys.has('ShiftRight')) ? 1 : 0);
+					if (!fwd && !strafe && !rise) return false;
+					camera.updateMatrix();
+					const m = camera.matrix.elements;
+					const f = new THREE.Vector3(-m[8], -m[9], -m[10]);
+					f.y = 0;
+					// Looking straight down or up leaves no horizontal facing; the
+					// camera's own up vector, flattened, is what reads as "away from
+					// me" on screen, so a top-down view still flies sensibly.
+					if (f.lengthSq() < 1e-6) f.set(m[4], m[5], m[6]).setY(0);
+					const r = new THREE.Vector3(m[0], m[1], m[2]);
+					r.y = 0;
+					if (f.lengthSq() < 1e-12 || r.lengthSq() < 1e-12) return false;
+					f.normalize();
+					r.normalize();
+					const dist = camera.position.distanceTo(controls.target);
+					const speed = Math.min(FLY_MAX_SPEED, Math.max(FLY_MIN_SPEED, dist * FLY_SPEED_FRAC));
+					const move = new THREE.Vector3()
+						.addScaledVector(f, fwd)
+						.addScaledVector(r, strafe)
+						.addScaledVector(UP, rise);
+					if (move.lengthSq() < 1e-12) return false;
+					move.normalize().multiplyScalar(speed * dtSec);
+					// Never sink through the plane the scene is measured from; a camera
+					// already below it is free to climb back out.
+					if (camera.position.y + move.y < MIN_CAM_Y)
+						move.y = Math.min(0, MIN_CAM_Y - camera.position.y);
+					camera.position.add(move);
+					controls.target.add(move);
+					controls.update();
+					return true;
+				};
+
+				// Keys are handled on the CANVAS, which is focusable: that is what
+				// keeps a press in a numeric param field from moving the camera
+				// instead of stepping the value. A field and the canvas are SIBLINGS,
+				// so a keydown delivered to the field never passes through this
+				// listener on its way up — the guard is structural, not a check that
+				// can be forgotten. It covers every key below, WASD as much as arrows.
+				const onKeyDown = (e: KeyboardEvent) => {
+					if (FLY_CODES.has(e.code) || ARROW_CODES.has(e.code)) heldKeys.add(e.code);
+					if (FLY_CODES.has(e.code)) {
+						// Space scrolls the page; the rest are inert on a canvas, but
+						// claiming the whole set keeps the gesture from leaking.
+						e.preventDefault();
+						return;
+					}
+					if (!ARROW_CODES.has(e.code)) return;
 					const step = e.shiftKey ? Math.PI / 2 : NUDGE_RAD;
-					if (e.key === 'ArrowLeft') nudge(-step, 0);
-					else if (e.key === 'ArrowRight') nudge(step, 0);
-					else if (e.key === 'ArrowUp') nudge(0, -step);
-					else if (e.key === 'ArrowDown') nudge(0, step);
-					else return;
+					if (e.code === 'ArrowLeft') nudge(-step, 0);
+					else if (e.code === 'ArrowRight') nudge(step, 0);
+					else if (e.code === 'ArrowUp') nudge(0, -step);
+					else nudge(0, step);
 					e.preventDefault();
 				};
+				// Releasing only ever CLEARS, never moves the camera, so it is safe on
+				// window — and it has to be there: a key released after focus has moved
+				// to a param field would otherwise stay "held". The two blurs cover the
+				// same hazard for a focus change with no keyup at all (clicking a field
+				// mid-flight, alt-tabbing away). All three are promptness, not
+				// correctness: `flyStep`'s focus check is the guarantee, and it holds
+				// even where none of these fire.
+				const onKeyUp = (e: KeyboardEvent) => heldKeys.delete(e.code);
+				const clearHeld = () => heldKeys.clear();
 				// The CANVAS is the focusable surface, not the wrapper: it is the
-				// thing actually being interacted with, and keeping focus (and so
-				// the arrow-key handler) on it is what guarantees arrows pressed in
-				// a param field step the number instead of swinging the camera.
+				// thing actually being interacted with.
 				const canvas = renderer.domElement;
 				canvas.tabIndex = 0;
 				canvas.style.outline = 'none';
 				const focusStage = () => canvas.focus({ preventScroll: true });
-				canvas.addEventListener('keydown', onKey);
+				canvas.addEventListener('keydown', onKeyDown);
+				window.addEventListener('keyup', onKeyUp);
+				canvas.addEventListener('blur', clearHeld);
+				window.addEventListener('blur', clearHeld);
 				canvas.addEventListener('pointerdown', focusStage);
 
 				/* ---------------- direct-manipulation handles ----------------
@@ -872,8 +1046,28 @@
 					endHandleDrag(e);
 					endPieceDrag(e, false);
 				};
+				/**
+				 * Wheel -> cursor-anchored dolly. The anchor is `pickPivot()`, the
+				 * SAME resolution a rotate drag uses (road under the cursor, else the
+				 * ground plane, else the current target), so the two gestures agree
+				 * about what "the point under the cursor" means.
+				 */
+				const onWheel = (e: WheelEvent) => {
+					// Claim the gesture before anything else: the page must not scroll
+					// behind the view whether or not the zoom itself goes ahead.
+					e.preventDefault();
+					// `enabled` is false for the length of a handle drag, which is what
+					// keeps the constraint solve from fighting a moving camera.
+					if (!controls.enabled || camDrag) return;
+					castPointer(e);
+					// deltaY is pixels by default but a LINE or PAGE count on some
+					// platforms, where the raw number is far too small to read as a notch.
+					const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
+					applyZoom(Math.pow(ZOOM_PER_NOTCH, (-e.deltaY * unit) / 100), pickPivot());
+				};
 				canvas.addEventListener('pointerdown', onDown, true);
 				canvas.addEventListener('pointermove', onMove);
+				canvas.addEventListener('wheel', onWheel, { passive: false });
 				window.addEventListener('pointerup', onWinUp);
 				window.addEventListener('pointercancel', onWinCancel);
 
@@ -1130,7 +1324,14 @@
 				applyTrack(doc, diag, selected);
 
 				let raf = 0;
-				const tick = () => {
+				let lastTs = 0;
+				const tick = (ts = 0) => {
+					// Clamp the step: a backgrounded tab resumes with a gap of seconds,
+					// and an unclamped frame would teleport a flying camera across the
+					// whole circuit on the first frame back.
+					const dt = lastTs && ts ? Math.min(0.1, (ts - lastTs) / 1000) : 0;
+					lastTs = ts;
+					if (dt > 0) flyStep(dt);
 					controls.update();
 					scaleHandles();
 					renderer.render(scene, camera);
@@ -1350,6 +1551,52 @@
 						get lastPreview() {
 							return lastPreviewData;
 						},
+						/* ---- camera verification surface ---- */
+						/** Camera + target + the distance every rate is scaled from. */
+						camInfo: () => ({
+							pos: camera.position.toArray(),
+							target: controls.target.toArray(),
+							dist: camera.position.distanceTo(controls.target)
+						}),
+						/**
+						 * A REAL wheel event at client coords, through the whole
+						 * cursor-anchored path (castPointer -> pickPivot -> applyZoom).
+						 */
+						wheelAt: (clientX: number, clientY: number, deltaY: number) =>
+							canvas.dispatchEvent(
+								new WheelEvent('wheel', {
+									clientX,
+									clientY,
+									deltaY,
+									bubbles: true,
+									cancelable: true
+								})
+							),
+						/**
+						 * Press a key ON THE CANVAS — the same delivery a real press
+						 * gets, so a drive exercises the focus guard rather than
+						 * bypassing it. Aim one at an input to prove the guard holds.
+						 */
+						keyDown: (code: string, shiftKey = false, target?: EventTarget) =>
+							(target ?? canvas).dispatchEvent(
+								new KeyboardEvent('keydown', {
+									code,
+									key: code,
+									shiftKey,
+									bubbles: true,
+									cancelable: true
+								})
+							),
+						keyUp: (code: string) =>
+							window.dispatchEvent(new KeyboardEvent('keyup', { code, key: code, bubbles: true })),
+						/** Held physical key codes the fly integrator is reading. */
+						heldKeys: () => [...heldKeys],
+						/**
+						 * One fly integration step at an explicit dt. rAF never ticks in
+						 * an automated tab, so this is how the REAL integrator is driven
+						 * there; returns whether the camera actually moved.
+						 */
+						flyStep: (dtSec: number) => flyStep(dtSec),
 						/** Force a render (rAF never ticks in an automated tab). */
 						renderNow: () => renderer.render(scene, camera),
 						/** World point -> canvas client coords, for targeted probes. */
@@ -1379,11 +1626,16 @@
 					renderer.domElement.removeEventListener('mousedown', onMiddleDefault);
 					renderer.domElement.removeEventListener('auxclick', onMiddleDefault);
 					renderer.domElement.removeEventListener('pointerdown', focusStage);
-					renderer.domElement.removeEventListener('keydown', onKey);
+					renderer.domElement.removeEventListener('keydown', onKeyDown);
+					renderer.domElement.removeEventListener('blur', clearHeld);
 					renderer.domElement.removeEventListener('pointerdown', onDown, true);
 					renderer.domElement.removeEventListener('pointermove', onMove);
+					renderer.domElement.removeEventListener('wheel', onWheel);
+					window.removeEventListener('keyup', onKeyUp);
+					window.removeEventListener('blur', clearHeld);
 					window.removeEventListener('pointerup', onWinUp);
 					window.removeEventListener('pointercancel', onWinCancel);
+					heldKeys.clear();
 					controls.dispose();
 					applyTrack = null;
 					refit = null;
@@ -1444,7 +1696,8 @@
 	<div class="p3-bar">
 		<span class="p3-hint" data-testid="p3-hint">
 			LMB pick a piece, drag to reorder, drag handles · MMB rotate about the cursor ·
-			shift/ctrl+MMB pan · wheel zoom · arrows nudge 15&deg; (shift 90&deg;)
+			shift/ctrl+MMB pan · wheel zoom to cursor · WASD fly, space/shift up-down ·
+			arrows nudge 15&deg; (shift 90&deg;)
 		</span>
 		<span class="p3-key"><i class="sw hnd"></i> handle</span>
 		<span class="p3-key"><i class="sw sel"></i> selected</span>
