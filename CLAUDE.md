@@ -5336,6 +5336,119 @@ on one side of the world.
     naming a handle the newly-selected piece did not have ("radius" over a
     corkscrew). `svelte-check` clean, 0 errors, 0 new warnings.
 
+- **Every piece param is handle-driven now, plus a screen-nearest picker and
+  jump fit bounds.** An audit of `KIND_SPECS` against `handlesForPiece` found
+  ELEVEN params with no handle: straight `targetPitchDeg` + `width`, curve
+  `width`, bank `width`, jump `length`/`kickHeight`/`width`, corkscrew
+  `length`/`rise`/`width`, and closer `radius`. All eleven landed on the
+  existing framework — exact closed-form solve, the same `setParams` mutation
+  path, the same capture-phase camera arbitration — taking the total to 20.
+  `freeform` stays handle-free: verbatim world geometry has no param to shape.
+  - **The new closed forms.** STRAIGHT `targetPitchDeg`: the exit lands at
+    `entry.y + L·(g0 + tan g1)/2`, affine in `tan g1`, so a vertical drag
+    inverts to `tan p = tan p0 + 2·Δy/L` — the entry grade cancels out of the
+    difference. CORKSCREW `length`: the chord form read the other way round,
+    `exit = entry + L·sinc(a/2)·dirOf(h + A/2)` being a straight LINE in L
+    along a fixed bearing, gain `1/sinc(a/2)`. CORKSCREW `rise`: the exit's
+    vertical line at gain 1 (the arch never interferes — its profile is zero
+    at both joints). JUMP `kickHeight`: with the takeoff fixed the kicker
+    SCALES, so the lip slides along the ray from its own foot,
+    `lip = entry + kh·(c·d, 1 + g0·c)`; solving the WHOLE locus rather than its
+    vertical component is what stays well conditioned on a sloped entry, where
+    a long kicker can cancel the climb and the vertical part vanishes.
+    `width`: a piece's width param IS its exit width (the blend lands on it)
+    and the swept edge is `centre + halfWidth·edgeDir`, so sliding the edge
+    straight out reads the FULL width at gain 2, exact at any bank.
+    CLOSER `radius`: no authored shape to grab, but the solve's own
+    construction gives an exact anchor — every candidate word is built from the
+    entry turning circles and the left one's centre is exactly
+    `entry + R·leftOf(h)`, so its distance from the entry IS the param at gain
+    1. It starts from what the compiler RESOLVED (the new
+    `CompiledPiece.solvedRadiusM` / `PieceDiagnostic.solvedRadiusM`, threaded
+    through `HandleContext`), because the auto radius's ladder stopping point
+    depends on the whole chain and the handle layer cannot re-derive it.
+  - **A fixed placement convention**, since a cross-section can now owe four
+    handles at once: centreline = the plan extent (`length`), floating above it
+    = the height param (offset ALONG that handle's own constraint line, so the
+    spacing never changes what the drag solves), driver's-LEFT edge = `width`,
+    driver's-RIGHT edge = that section's angle (`targetBankDeg`/`peakBankDeg`)
+    or the plan angle that swings it (`turnDeg`). Curve `sweep` and corkscrew
+    `twist` moved off the exit centre to the right edge for it; both moves are
+    cosmetic, since an angle solve reads `pivot`/`planePoint` and never `pos`.
+  - **THE PICKER WAS DEPTH-FIRST AND HAD TO STOP BEING** — the real bug of this
+    pass, found in the browser. `pickHandle` took `hits[0]`, the raycast's
+    DEPTH-nearest, so with overlapping hit spheres whichever handle floated
+    closest to the eye won: the height handle, every time. Measured at a
+    full-track framing, the straight's three handles sit 4-9 px apart and
+    `pickAt` on the LENGTH handle's own centre returned `grade`, so a drag on
+    length moved `targetPitchDeg` instead. Handles are overlay gizmos drawn
+    with `depthTest: false`, so depth order is invisible to the author; the
+    winner is now the candidate whose centre is nearest the pointer ON SCREEN
+    (NDC distance with the aspect put back, or a wide canvas biases the pick
+    vertically). Verified each handle picks itself even 2 px apart.
+  - **Jump fit bounds (`jumpFitBounds`, beside `jumpGeometry` so the two cannot
+    drift): the dead end a drag could otherwise reach.** The four jump params
+    are COUPLED — every span eats the same run — so a drag can satisfy each
+    individual spec range and still push the piece into `pieceIssue`'s
+    does-not-fit state, where the compile walk SKIPS it: no geometry, no
+    diagnostic, and no handles left to drag back out with, a corner only a
+    typed value can escape. (Pre-existing for the `takeoffDeg` handle; the new
+    `length` and `kickHeight` ones widen it, so all four are bounded.) The
+    check is solved one param at a time — with `avail` the fraction of the run
+    left for kicker + landing, the whole constraint is `sKick + sLand <=
+    avail·L` — and each bound tightens its handle's range, rounded
+    outward-safe to that handle's own quantum because the caller snaps AFTER it
+    clamps. Browser-verified: pushed toward 10 m, `length` stops at 19.5
+    (= ceil(19.461/0.5)); pushed toward 20, `kickHeight` stops at 10.75
+    (= floor(10.791/0.25)); the jump still fits and keeps all five handles in
+    both cases.
+    - **An EMPTY range is its own case:** a tall kicker can leave no landing
+      angle that fits at all (measured bound 88.99 deg against a 30 deg spec
+      max), and the caller's `min(max, max(min, raw))` on an inverted range
+      silently returns the max — precisely the illegal value the bound exists
+      to prevent, which stranded the piece a second time. A handle with nothing
+      legal to write is now not offered (`build().filter(h => h.min <= h.max)`)
+      and returns as soon as another param makes room.
+  - **`landingDeg` can be dragged into existence from flat.** It used to have
+    no handle at 0 ("the field is the way back in"), i.e. one param the drag
+    genuinely could not reach. The crest height a landing WOULD have is a
+    function of the kick alone (`JUMP_LAND_CREST_FRAC · kickHeight`), so the
+    same closed form covers both states: the handle sits on the bare crest and
+    pulling it out along the run is what creates the face.
+  - **`PieceHandle.value`** carries the param's EFFECTIVE value, replacing the
+    preview's `currentParamValue` doc read (which fell back to `def.min`). An
+    OPTIONAL param absent from the doc still has a real value — an inherited
+    width, a held pitch, the legacy jump profile, an auto radius — and only
+    `handlesForPiece` knows it.
+  - **Verified** in `/dev/greenline-piece-builder`. Enumeration: every key in
+    `KIND_SPECS` resolves to a handle across all seven kinds (freeform's empty
+    list included). The headline check — a 9-piece closed circuit built TWICE,
+    once with typed `setParams` and once by DRAGGING ALONE (31 drags through
+    the real capture-phase pointer path; structure from the palette + CLOSE THE
+    LOOP, `setParams` never called), with every target chosen to DIFFER from
+    the value the piece would have with no drag at all so nothing could pass by
+    accident: **0 param diffs across all 31 params and a byte-identical
+    compiled geometry hash** (12,898 chars covering all 282 samples' x/z,
+    elevation, banking and width), same 946.055148 m lap, same closure of
+    exactly 0 on all five axes. The export then parsed through the REAL
+    `parseTrack` (schema v3, 9 pieces, 1 path, 282 samples) and PLAYTESTED in
+    the movement harness: 4 cars, best laps 28.1 / 30.8 / 31.4 s, 0 flips, all
+    upright and finite, every weapon class firing. Framebuffer read-back (WebGL
+    screenshots hang the pane) confirms every handle draws the brand green
+    `#2ae57e` at its own projected position, 22.4 px minimum separation at a
+    piece-editing zoom with each picking itself. Regression: all five committed
+    tracks are byte-identical to HEAD across **24,907 compared numbers** (both
+    swept edges, centreline, elevations, banking, half widths, plus a
+    1,600-point `surfaceYAt` grid each), measured by stashing the change.
+    `svelte-check` clean, 0 errors, 0 new warnings.
+  - **HARNESS NOTE:** a scripted drag drive must aim the camera off the
+    PIECE'S OWN heading. A fixed azimuth eventually looks down the road, where
+    the length axis is near-parallel to the pointer ray and `rayLineS`
+    correctly declines — every probe then reads as "no response" and looks
+    exactly like a broken handle. Also, `window.__glPreview3D` is REPLACED on a
+    remount, so a helper that captured it early goes on querying a disposed
+    scene; read it dynamically.
+
 - **Jump piece: independent takeoff + landing angles, real ramp mass, handles.**
   - **Investigation first (the launch was, and stays, pure ramp geometry).**
     The pre-existing jump had two params, `length` and `kickHeight`, and a

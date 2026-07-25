@@ -446,7 +446,11 @@
 				 */
 				let halfWidths: number[] | null = null;
 				let centres: { x: number; y: number; z: number }[] | null = null;
-				const handleCtx = (start: number, end: number): HandleContext | undefined => {
+				const handleCtx = (
+					start: number,
+					end: number,
+					solvedRadiusM?: number
+				): HandleContext | undefined => {
 					const hw = halfWidths;
 					const c = centres;
 					if (!hw?.length || !c?.length) return undefined;
@@ -454,7 +458,8 @@
 						Math.min(n - 1, Math.max(0, Math.round(start + (end - start) * Math.min(1, Math.max(0, t)))));
 					return {
 						halfWidthAt: (t) => hw[at(t, hw.length)],
-						centreAt: (t) => c[at(t, c.length)]
+						centreAt: (t) => c[at(t, c.length)],
+						...(solvedRadiusM !== undefined ? { solvedRadiusM } : {})
 					};
 				};
 				const rebuildHandles = (d: ChainDoc, dg: ChainDiagnostics, sel: number) => {
@@ -470,7 +475,12 @@
 						}
 						return;
 					}
-					for (const def of handlesForPiece(piece, pd.entry, pd.exit, handleCtx(pd.start, pd.end))) {
+					for (const def of handlesForPiece(
+						piece,
+						pd.entry,
+						pd.exit,
+						handleCtx(pd.start, pd.end, pd.solvedRadiusM)
+					)) {
 						const root = new THREE.Group();
 						root.position.set(def.pos.x, def.pos.y, def.pos.z);
 						const visual = new THREE.Mesh(def.shape === 'diamond' ? diamondGeo : ballGeo, matFor(def.id));
@@ -508,7 +518,21 @@
 					const dd = raycaster.ray.direction;
 					return { origin: { x: o.x, y: o.y, z: o.z }, dir: { x: dd.x, y: dd.y, z: dd.z } };
 				};
-				/** Nearest handle under the ray castPointer just armed, or null. */
+				const pickV = new THREE.Vector3();
+				/**
+				 * The handle under the ray castPointer just armed, or null.
+				 *
+				 * CANDIDATES come from the raycast (the forgiving 1.6x hit sphere),
+				 * but the WINNER is the one whose centre is nearest the pointer ON
+				 * SCREEN — deliberately not the one nearest the camera. Handles are
+				 * overlay gizmos drawn with depthTest off, so depth order is
+				 * invisible: when two hit spheres overlap, which they do whenever a
+				 * cross-section owes several params and the view is zoomed out,
+				 * depth-first quietly hands the drag to whichever happens to float
+				 * closest to the eye (the height handle, every time) while the
+				 * author is plainly pointing at another one. Screen distance is what
+				 * they can actually see, so it is what picks.
+				 */
 				const pickHandle = (): PieceHandle | null => {
 					if (!liveHandles.length) return null;
 					handleGroup.updateMatrixWorld(true);
@@ -517,8 +541,26 @@
 						false
 					);
 					if (!hits.length) return null;
-					const id = (hits[0].object.userData as { handleId?: string }).handleId;
-					return liveHandles.find((l) => l.def.id === id)?.def ?? null;
+					// NDC is square-normalized, so put the aspect back before
+					// comparing or a wide canvas biases the pick vertically.
+					const ar = (canvas.clientWidth || 1) / Math.max(1, canvas.clientHeight);
+					let best: PieceHandle | null = null;
+					let bestD = Infinity;
+					const seen = new Set<string>();
+					for (const h of hits) {
+						const id = (h.object.userData as { handleId?: string }).handleId;
+						if (!id || seen.has(id)) continue;
+						seen.add(id);
+						const lh = liveHandles.find((l) => l.def.id === id);
+						if (!lh) continue;
+						pickV.copy(lh.root.position).project(camera);
+						const d = Math.hypot((pickV.x - ndcV.x) * ar, pickV.y - ndcV.y);
+						if (d < bestD) {
+							bestD = d;
+							best = lh.def;
+						}
+					}
+					return best;
 				};
 
 				/* ---------------- road picking ----------------
@@ -615,12 +657,6 @@
 					};
 				};
 
-				const currentParamValue = (def: PieceHandle): number => {
-					const piece = doc.pieces[selIndex] as unknown as Record<string, number> | undefined;
-					const v = piece?.[def.paramKey];
-					return typeof v === 'number' && Number.isFinite(v) ? v : def.min;
-				};
-
 				/* ---------------- road select + drag-to-reorder ----------------
 				 * Clicking a piece's road selects it — the SAME `selected` the list
 				 * rows drive, so the row expands and its handles appear.
@@ -689,7 +725,11 @@
 							def,
 							solve: def.beginDrag(ray),
 							pointerId: e.pointerId,
-							last: currentParamValue(def)
+							// The handle's own resolved value, not the doc's: an
+							// OPTIONAL param absent from the doc still has an
+							// effective value (an inherited width, a held pitch, an
+							// auto radius) and handlesForPiece already knows it.
+							last: def.value
 						};
 						hoverId = def.id;
 						try {
@@ -1181,6 +1221,10 @@
 							liveHandles.map((l) => ({
 								id: l.def.id,
 								paramKey: l.def.paramKey,
+								// The param's EFFECTIVE value — for an OPTIONAL one absent
+								// from the doc this is the only place to read it.
+								value: l.def.value,
+								quantum: l.def.quantum,
 								pos: { ...l.def.pos },
 								screen: worldToScreen(l.root.position)
 							})),

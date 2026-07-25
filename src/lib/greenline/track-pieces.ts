@@ -191,6 +191,58 @@ export function jumpGeometry(piece: Extract<TrackPiece, { kind: 'jump' }>): Jump
 	return { takeoffDeg, landingDeg, sKick, sGap, sLand, sRunout: L - sKick - sGap - sLand, hLand };
 }
 
+/**
+ * The bound each jump param must respect for the piece to still FIT its run —
+ * `pieceIssue`'s does-not-fit check, solved for one param at a time. Same
+ * derivation as `jumpGeometry`, kept beside it so the two cannot drift.
+ *
+ * This is what stops a HANDLE stranding a jump. A piece whose params fail
+ * validation is skipped by the compile walk, so it has no diagnostic, no
+ * geometry, and therefore no handles left to drag back out with — a dead end
+ * only a typed value can escape. Every span but the gap is independent of
+ * `length` and the gap is a fixed fraction of it, so each bound is a single
+ * closed form: with `avail` the fraction of the run left over for the kicker
+ * and the landing ramp, the whole constraint is `sKick + sLand <= avail·L`.
+ */
+export interface JumpFitBounds {
+	/** Shortest run that still holds the current kicker + landing. */
+	minLength: number;
+	/** Tallest kick the current run and angles still hold. */
+	maxKickHeight: number;
+	/** Shallowest takeoff: a shallower one lengthens the kicker. */
+	minTakeoffDeg: number;
+	/** Shallowest LIVE landing (0 — flat, no face at all — stays legal). */
+	minLandingDeg: number;
+}
+
+export function jumpFitBounds(piece: Extract<TrackPiece, { kind: 'jump' }>): JumpFitBounds {
+	const jg = jumpGeometry(piece);
+	const kh = piece.kickHeight;
+	const deg = (t: number): number => Math.atan(t) / DEG;
+	// A live landing crest shortens the drop face in proportion, so the gap's
+	// share of the run depends only on WHETHER there is a landing.
+	const gapFrac = JUMP_GAP_FRAC * (jg.landingDeg > 0 ? 1 - JUMP_LAND_CREST_FRAC : 1);
+	// Bounded well away from zero (gapFrac <= 0.2), so none of these divides.
+	const avail = 1 - gapFrac - JUMP_MIN_RUNOUT_FRAC;
+	const room = avail * piece.length;
+	const landPerKh = jg.landingDeg > 0 ? (JUMP_LAND_EASE * JUMP_LAND_CREST_FRAC) / Math.tan(jg.landingDeg * DEG) : 0;
+	const perKh = JUMP_KICK_EXP / Math.tan(jg.takeoffDeg * DEG) + landPerKh;
+	return {
+		minLength: (jg.sKick + jg.sLand) / avail,
+		maxKickHeight: perKh > 1e-9 ? room / perKh : 20,
+		// No room left for this span at all: pin to the steepest the piece
+		// admits rather than reporting an angle that cannot help.
+		minTakeoffDeg:
+			room - jg.sLand > 1e-6
+				? deg((JUMP_KICK_EXP * kh) / (room - jg.sLand))
+				: JUMP_ANGLE_MAX_DEG,
+		minLandingDeg:
+			room - jg.sKick > 1e-6
+				? deg((JUMP_LAND_EASE * JUMP_LAND_CREST_FRAC * kh) / (room - jg.sKick))
+				: JUMP_ANGLE_MAX_DEG
+	};
+}
+
 const CLOSER_MIN_AUTO_R = 12;
 const CLOSER_MAX_AUTO_R = 60;
 const CLOSER_MAX_R = 2000;
@@ -232,6 +284,13 @@ export interface CompiledPiece {
 	archLiftM: number;
 	/** What a self-solving piece decided (the closer's word + radius). */
 	note?: string;
+	/**
+	 * The radius a self-solving piece actually swept at, meters (the closer's,
+	 * after auto selection and the grade ladder). The number is otherwise only
+	 * readable out of `note`'s prose, and an authoring surface that wants to
+	 * show or SHAPE it — the builder's radius handle — needs it as a number.
+	 */
+	solvedRadiusM?: number;
 }
 
 /**
@@ -451,6 +510,8 @@ interface PieceGen {
 	archLiftM: number;
 	/** What a self-solving piece decided (the closer's word + radius). */
 	note?: string;
+	/** The radius a self-solving piece actually swept at, meters. */
+	solvedRadiusM?: number;
 }
 
 /**
@@ -1092,6 +1153,7 @@ function generate(
 					exit: exitPose,
 					exitWidth: tgt.width,
 					archLiftM: 0,
+					solvedRadiusM: R,
 					note: 'already at the start pose'
 				};
 			}
@@ -1116,6 +1178,7 @@ function generate(
 				exit: exitPose,
 				exitWidth: tgt.width,
 				archLiftM: 0,
+				solvedRadiusM: R,
 				note: `${plan.word} · R ${R >= 100 ? R.toFixed(0) : R.toFixed(1)} m${auto ? ' auto' : ''}`
 			};
 		}
@@ -1269,7 +1332,8 @@ function compileChain(chain: PieceChain, sink?: ChainIssue[]): CompiledChain {
 			start: startIdx,
 			end: samples.length - 1,
 			archLiftM: gen.archLiftM,
-			...(gen.note ? { note: gen.note } : {})
+			...(gen.note ? { note: gen.note } : {}),
+			...(gen.solvedRadiusM !== undefined ? { solvedRadiusM: gen.solvedRadiusM } : {})
 		});
 		pose = gen.exit;
 		width = gen.exitWidth;
@@ -1504,6 +1568,8 @@ export interface PieceDiagnostic {
 	bankRaiseM: number;
 	/** What a self-solving piece decided (the closer's word + radius). */
 	note?: string;
+	/** The radius a self-solving piece actually swept at, meters (the closer's). */
+	solvedRadiusM?: number;
 	issues: string[];
 }
 
@@ -1571,6 +1637,7 @@ export function diagnoseChain(surface: PieceChainSurface): ChainDiagnostics {
 			archLiftM: p.archLiftM,
 			bankRaiseM,
 			...(p.note ? { note: p.note } : {}),
+			...(p.solvedRadiusM !== undefined ? { solvedRadiusM: p.solvedRadiusM } : {}),
 			issues: issues.filter((x) => x.pieceIndex === index).map((x) => x.message)
 		};
 	});
