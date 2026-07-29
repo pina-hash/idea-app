@@ -1,8 +1,11 @@
 # Security and authentication audit, July 2026
 
-Read-only audit of `idea-app` as committed at `556d22f`. No application logic,
-RLS policy, migration, or Apps Script reference was modified. This document is
-the only file added.
+Read-only audit of `idea-app` as committed at `556d22f`. As originally written,
+no application logic, RLS policy, migration, or Apps Script reference was
+modified, and this document was the only file added.
+
+**Follow-up passes have since been recorded here, and some of them do change
+code.** Each is marked with the migration it added. See F10.
 
 Scope: every write path that can affect a ranked score, a leaderboard position,
 a coin or credit balance, or a grade-adjacent record (Part 1), and the state of
@@ -483,6 +486,121 @@ begins with the school's domain. The PKCE code is exchanged server-side before
 the redirect and no token appears in the URL, so this is a phishing aid rather
 than a token leak. The fix is a single guard requiring `next` to start with `/`
 and not with `//`.
+
+## F10. The three "Unrestricted" GAUNTLET views. Low. *(follow-up pass; added `0060_gauntlet_view_scoping.sql`)*
+
+**Where:** `gauntlet_leaderboard` (last defined in
+`0007_gauntlet_modeling_modes.sql:227`), `gauntlet_room_board` and
+`gauntlet_room_roster` (both `0010_gauntlet_rooms.sql:115` and `:143`).
+
+**What "Unrestricted" actually means here, and what it does not.** The Supabase
+table editor flags a relation as Unrestricted when it carries no RLS policies.
+Every view carries none, because a view cannot have RLS. The label is therefore
+expected for all three and is not by itself evidence of exposure. The two
+questions that decide the real risk are asked separately below: who holds the
+`select` grant, and what the view's owner privileges let it read past.
+
+**Is any of them readable anonymously? No.** Each is granted only to
+`authenticated` (`0007:258`, `0010:138`, `0010:153`), and each base table is
+explicitly revoked from `anon` first (`0004:112-125`, `0010:85-94`,
+`0001:92`). No `anon` grant is issued anywhere in the migration history. On the
+frontend, every consuming route is under `/gauntlet`, which is in
+`authedPrefixes` (`src/hooks.server.ts:93`), so an anonymous request is
+redirected to `/` before any load runs. There is no projector view, no live
+spectator display, and no other unauthenticated surface reading any of the
+three; the only consumers are the mode pages, `next-challenge.ts`, and the
+member-gated room page. Nothing here depends on unauthenticated read access, so
+none was left in place. `0060` re-asserts `revoke all ... from anon` on all
+three, because `create or replace view` preserves existing grants and would
+silently keep a grant made by hand in the dashboard.
+
+**Do they run with owner privileges? Yes, all three, and deliberately.** None
+declares `security_invoker`, so each runs as its owner and bypasses RLS on
+`submissions`, `profiles`, `challenges` and `gauntlet_room_participants`. This
+is stated as intentional in the migrations themselves (`0004:182-188`,
+`0010:140-142`).
+
+**Setting `security_invoker = true` on these three would not be access-neutral,
+and was therefore not done.** It is the correct default for a view and is used
+correctly elsewhere in this schema — `gauntlet_speedrun_attempt_history`
+(`0033:192`) sets it, because that view is deliberately own-rows-only. But here
+the bypass is load-bearing. `profiles` SELECT is own-row-only for students
+("select own profile", `0001:152`), and `submissions` SELECT is own-row plus
+teacher plus room-member. Under invoker rights a student would see only their
+own row on every board, so the global leaderboard, the room board and the room
+roster would each collapse to self-only for exactly the users they exist to
+serve. That is a functional break, not a hardening, and it would buy nothing
+because there is no `anon` grant to contain. The appropriate control for an
+owner-privileged view is an explicit row predicate written into the view,
+compensating for the RLS it bypasses — which is what `0060` does where it was
+missing.
+
+### `gauntlet_leaderboard` — left as it is, no change
+
+Selects `challenge_id`, `mode`, `user_id`, `player` (a `full_name` fallen back
+to `'Player'`), `is_correct`, `score_metric`, `created_at`, `rank`, from
+`submissions` joined to `profiles` and `challenges`. Every column is board-safe,
+and the omission is the important part: it deliberately selects no `value`
+column, so raw captured volumes, surface areas, masses and typed answers never
+appear. No email, no target value, no other student's private submission detail.
+`score_metric` is a score (elapsed seconds, feature count, or mean deviation
+percent), not a target.
+
+Global visibility across all players is the feature, not a leak — it is a
+leaderboard, and it is read by every mode page. The RLS it bypasses is already
+compensated for by an explicit predicate: `where c.published`, so a draft
+challenge can never surface a board. Correct as built; `0060` changes only the
+`anon` revoke.
+
+### `gauntlet_room_board` and `gauntlet_room_roster` — narrowed
+
+Columns are equally safe. The board selects `room_id`, `challenge_id`,
+`user_id`, `player`, `is_correct`, `score_metric`, `source`, `created_at`,
+`rank`; the roster selects `room_id`, `user_id`, `role`, `joined_at`, `player`.
+No `value`, no answer, no email. The problem is row scope, not columns.
+
+Neither view carried the compensating predicate that `gauntlet_leaderboard` has.
+They bypass the `members read rooms`, `members read roster` and `members read
+room submissions` policies (`0010:87-106`) with nothing put back, so **any
+authenticated user could read the roster and the board of a room they are not a
+member of** by querying the view directly through PostgREST with a `room_id`.
+The room page is genuinely member-gated — a non-member's `gauntlet_rooms` read
+returns null and the load redirects to `/gauntlet/rooms`
+(`src/routes/gauntlet/rooms/[id]/+page.server.ts:31-34`) — but that guards the
+route, not the view. It is the same shape as F2: the gate protects the user
+interface, not the API.
+
+Impact is low. What leaks is a classmate's display name, their room role, their
+join time, and their passing time in a room the reader is not in, and it
+requires knowing a room's UUID (the views key on the UUID, not the 4-character
+join code). Rooms are also joinable by anyone holding that short code. It is
+recorded as a scoping defect rather than a disclosure incident, but the views'
+own comments already assume the restriction they did not enforce: "so every
+MEMBER sees names."
+
+**What changed.** `0060` recreates both with the membership predicate applied
+through `gauntlet_is_room_member` (`0010:61`) — the same SECURITY DEFINER helper
+the base-table policies use, so the view and the table now agree on who may read
+a room. Columns, ordering and ranks are unchanged: the board's predicate sits in
+the inner query so non-member rows never reach the window function, and because
+the partition is already `(room_id, challenge_id)`, filtering whole rooms cannot
+renumber a surviving room's board. Owner privileges are retained solely for the
+`profiles` name join, which is what they were for.
+
+No legitimate path regresses. The room page only ever reads a `room_id` that
+already passed the member check. `gauntlet_room_manual_submit` reads the board
+for a rank and is SECURITY DEFINER, but `auth.uid()` resolves from the request's
+JWT claim rather than the executing role, so it still identifies the submitting
+racer, who holds a room token and is a member by construction. The host is
+enrolled as a participant (`0028:74`) and is matched by `host_id` in the helper
+regardless. No service-role client reads either view.
+
+**Verification status.** Review-verified only. Per the repo convention,
+migrations are applied by hand in the Supabase SQL editor, and the local `.env`
+holds placeholder credentials, so `0060` has not been executed anywhere. Apply
+it after `0059` and confirm on a live project that a member still sees the full
+roster and board, and that a signed-in non-member querying either view with a
+valid `room_id` now gets zero rows.
 
 ---
 

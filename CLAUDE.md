@@ -956,6 +956,17 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   `gauntlet_room_board` view ranks both sources; clients use Realtime
   (`postgres_changes`) on the room, roster, and room submissions, with a refresh
   fallback; room state is DB-authoritative. See `docs/GAUNTLET.md`.
+  **View scoping (`0060`):** `gauntlet_room_board` / `gauntlet_room_roster` (like
+  `gauntlet_leaderboard`) run with OWNER privileges, deliberately and
+  permanently — `profiles` SELECT is own-row-only for students, so
+  `security_invoker = true` would collapse every board to the caller's own row.
+  The rule that follows: an owner-privileged view MUST carry its own explicit row
+  predicate to replace the RLS it bypasses. The leaderboard's is `where
+  c.published`; the two room views now filter on `gauntlet_is_room_member`, the
+  same helper the base-table policies use, so view and table agree on who may
+  read a room (before 0060 they had none, and any signed-in user could read any
+  room's roster/board by `room_id` through PostgREST — the route was gated, the
+  view was not). All three are granted to `authenticated` only, never `anon`.
   **Delete (`0025`):** the hosting teacher can delete a room from the rooms list
   (teacher-only UI, two-step inline confirm) via the `gauntlet_room_delete`
   SECURITY DEFINER RPC, enforced by `host_id` + `is_teacher()` server-side so
