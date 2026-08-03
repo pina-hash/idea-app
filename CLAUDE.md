@@ -158,9 +158,9 @@ never breaks the build and the page degrades gracefully):
 - `PUBLIC_FSP_APPS_SCRIPT_URL` — the Apps Script endpoint the FSP tech-selection
   tool posts to (see "FSP tech selection" below).
 
-One var is SERVER-ONLY, read via `$env/dynamic/private` (runtime; never in the
-client bundle; a missing value degrades to a clear "not configured" response,
-never a build break):
+Some vars are SERVER-ONLY, read via `$env/dynamic/private` (runtime; never in
+the client bundle; a missing value degrades to a clear "not configured"
+response, never a build break):
 
 - `SUPABASE_SERVICE_ROLE_KEY` — used ONLY by the GREENLINE community-track
   publish endpoint (`/api/greenline-track-publish`), which must run the game's
@@ -168,8 +168,59 @@ never a build break):
   deliberately no client write path to `greenline_tracks`). Set it in the
   Vercel project env for production. This is the repo's first private server
   key; nothing else may read it, and it must never gain a `PUBLIC_` prefix.
+- `COIN_API_KEY` — the shared key the IDEA Coin ledger Apps Script requires on
+  every action. Read ONLY by `src/lib/server/coin-ledger.ts` (see "IDEA Coin
+  ledger" below). Never `PUBLIC_`.
+- `COIN_LEDGER_URL` — optional override for the ledger's deployed `/exec` URL;
+  the current deployment is the default in that same module, so this only needs
+  setting if the script is redeployed.
 
 See `.env.example`. **Never hardcode keys.** Never commit `.env`.
+
+## IDEA Coin ledger
+
+The coin ledger is a Google Apps Script web app outside this repo. **No browser
+ever calls its `/exec` endpoint directly.** Every call originates on the
+SvelteKit server, which attaches the server-only `COIN_API_KEY`.
+
+- **One egress point:** `src/lib/server/coin-ledger.ts` is the only module that
+  knows the endpoint. It lives under `$lib/server`, which SvelteKit refuses to
+  bundle into client code, so neither the URL nor the key can reach a browser.
+  `callLedger` attaches the key; `forwardableParams` strips any client-supplied
+  `action` or `key` so a caller can never smuggle in a second action or
+  override the key. The key rides as a QUERY PARAM (`COIN_API_KEY_PARAM`,
+  currently `key`) because an Apps Script `doGet(e)` can read only
+  `e.parameter`, never a request header — if Code.gs uses another name, that
+  one constant is the fix.
+- **Three routes, three different questions about the caller:**
+  - `/api/coin-ledger/teacher` — the teacher entry tool's single path for every
+    call it makes, reads and writes alike. Gated on the signed-in user's
+    `profiles.role`, read server-side (the `/coin-entry` and `/dashboard`
+    lookup, since the role is not in the JWT). **This session check is the
+    security boundary.** The tool's 4-digit PIN pad is retained as a UI-only
+    confirmation for shared classroom devices and is not a boundary; its hash
+    is committed and is public.
+  - `/api/coin-ledger/public` — no session (the coin leaderboard at
+    `/coins/index.html` is public tier), restricted to the read-only
+    `PUBLIC_LEDGER_ACTIONS` allowlist. Never add a write action to it.
+  - `/api/coin-ledger/apply` — role applications. **There is no `student`
+    parameter**: the applicant is resolved from the caller's own session by
+    `resolveApplicant` (session required, `profiles.role = 'student'`, then
+    `profiles.full_name` — the Google-provided name, deliberately NOT the
+    user-editable `display_name` — matched against the ledger roster by
+    comparing name TOKEN SETS, so "Last, First" and "First Last" agree). Zero
+    or multiple matches is a REFUSAL, never a fallback to a client value. The
+    public page shows "Applying as *name*" and has no name picker.
+  - `/api/coin-ledger/signin` starts OAuth for that static page (which has no
+    Supabase client) via the SERVER client, so the PKCE verifier
+    `/auth/callback` needs actually gets stored.
+- **The two legacy pages hold no endpoint, only a same-origin path.** This is
+  the one place the legacy-HTML freeze is deliberately lifted, and only for the
+  network layer: `coin-entry.html`'s `API` and `coins/index.html`'s
+  `CONTRACTS_API` constants, plus the role modal's identity handling. Do not
+  take it as licence to edit those files generally.
+- Background and residual limitations: `docs/audits/2026-07-security-audit.md`,
+  findings F2, F3 and F11.
 
 ## 2026-27 curriculum
 

@@ -1646,7 +1646,12 @@ body::after {
 
 <script>
 'use strict';
-const API = 'https://script.google.com/macros/s/AKfycby_p-lI7I5i4Rl1KZKgtWEhePnUmyrC9HBrS485JBWvcwWfpIWC_397P7yrcrmvIql9/exec';
+// Same-origin, teacher-gated proxy. Every ledger call this page makes goes
+// through /api/coin-ledger/teacher, which checks the signed-in user's role in
+// `profiles` server-side and attaches the server-only COIN_API_KEY. The Apps
+// Script /exec URL and the key are never sent to a browser. The page appends
+// '?action=...&...' exactly as before, so nothing else here changed.
+const API = '/api/coin-ledger/teacher';
 
 // ── Data ──────────────────────────────────────────────
 let allStudents    = [];

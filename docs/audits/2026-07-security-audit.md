@@ -43,7 +43,10 @@ The problems are concentrated in three places, and they are not subtle:
    student name picked from a dropdown rather than on an authenticated
    identity. The teacher-only gate on the coin entry tool protects the user
    interface, not the API. Its 4-digit PIN is checked in the browser against an
-   unsalted hash shipped in the page.
+   unsalted hash shipped in the page. *(F11 closes the repo-side half: no
+   browser reaches the endpoint now, and an application's applicant is resolved
+   from the session. Whether the Apps Script itself enforces the key is still
+   open.)*
 3. GAUNTLET hands the ranked answer key (the expected volume) to the same
    anonymous caller that submits against it, which defeats the volume-as-
    checksum model without any need to open SolidWorks.
@@ -133,7 +136,7 @@ player names that any anonymous party can write. Rendering escapes correctly
 it means the integrity of what executes in the VANGUARD page depends on the Apps
 Script always JSON-encoding its output correctly.
 
-## F2. IDEA Coin entry tool: 4-digit PIN, verified in the browser. Critical.
+## F2. IDEA Coin entry tool: 4-digit PIN, verified in the browser. Critical. *(partly addressed — see F11: the boundary is now a server-side teacher check; the PIN is retained as a UI-only step and its hash is still public.)*
 
 **Where:** `src/lib/legacy/coin-entry.html`, `PIN_HASH` at line 2631,
 `attemptUnlock()` at line 2676.
@@ -180,7 +183,7 @@ kiosk device rather than a defence against students. It fails at that job too,
 but the more important point is that the teacher-role gate protects the page and
 not the endpoint, which F3 covers.
 
-## F3. The coin ledger's endpoint is disclosed publicly, and the public page already writes to it. Critical.
+## F3. The coin ledger's endpoint is disclosed publicly, and the public page already writes to it. Critical. *(repo-side half addressed — see F11: no browser calls the endpoint now, and role applications resolve the applicant from the session. The out-of-repo review below is still required.)*
 
 **Where:** `static/coins/index.html` line 1693 (`CONTRACTS_API`), and
 `src/lib/legacy/coin-entry.html` line 1649 (`API`). The two values are the same
@@ -602,6 +605,145 @@ it after `0059` and confirm on a live project that a member still sees the full
 roster and board, and that a signed-in non-member querying either view with a
 valid `room_id` now gets zero rows.
 
+## F11. Coin ledger calls moved server-side, and role applications given an identity. *(follow-up pass; closes the repo-side half of F2 and F3. No migration.)*
+
+**Where:** new `src/lib/server/coin-ledger.ts`, new routes under
+`src/routes/api/coin-ledger/` (`public`, `teacher`, `apply`, `signin`), and one
+constant changed in each of `src/lib/legacy/coin-entry.html` and
+`static/coins/index.html`.
+
+**The gap.** Two things, from F2 and F3. First, the ledger's `/exec` URL was a
+plain string literal in both pages, and one of those pages is
+`static/coins/index.html`, served with no authentication at all — so every
+visitor held the endpoint the teacher tool uses, and the teacher-role gate on
+`/coin-entry` protected the page rather than the API. Second, that same public
+page performed a write: `submitRoleApplication` sent a `student` name picked out
+of a rendered dropdown, so an anonymous visitor could file an application in any
+named student's name and, by the tool's own description, hold one of that
+student's coins. Neither call carried an identity, and no client-side change
+could have given it one.
+
+**What changed, and where the boundary now sits.** All ledger traffic originates
+on the SvelteKit server. `src/lib/server/coin-ledger.ts` is the only module that
+knows the endpoint, and `$lib/server` is a path SvelteKit refuses to bundle into
+client code, so neither the URL nor `COIN_API_KEY` can reach a browser by
+accident the way they did before. `callLedger` attaches the key; `forwardableParams`
+drops any client-supplied `action` or `key` before forwarding, so a caller cannot
+smuggle in a second action or override the key. Browsers now talk only to
+same-origin routes, and each one answers a different question about who is asking:
+
+- **`/api/coin-ledger/teacher`** — the entry tool's single path for every call it
+  makes, reads and writes alike. Reads are not exempt: Code.gs requires the key
+  for all of them, and the roster, the transaction log and the application
+  answers are student records rather than public data, so they belong behind the
+  same check regardless. The check is the one this codebase already uses
+  correctly elsewhere — the signed-in user's `profiles.role`, read server-side,
+  the same lookup `/coin-entry` and `/dashboard` perform, because the role is not
+  in the JWT. The page needed one line changed: `const API = '/api/coin-ledger/teacher'`.
+  It still appends `?action=...`, so nothing else in that file moved.
+- **`/api/coin-ledger/public`** — no session, because the coin leaderboard is
+  public tier by design and needs the contracts board, the reason guide, the open
+  roles and the application questions to render. What keeps this from being an
+  anonymous proxy onto the whole ledger is an explicit allowlist of five read
+  actions; anything else is refused here before any upstream call, independently
+  of what Code.gs would have done with it.
+- **`/api/coin-ledger/apply`** — the fix for the impersonation gap, and it is at
+  the identity layer rather than the network layer. **There is no `student`
+  parameter any more**, so a forged one has nowhere to land. The applying student
+  is resolved from the caller's own session by `resolveApplicant`, which is the
+  single resolution path shared by the GET probe and the POST submit so the two
+  cannot disagree: it requires a session, requires `profiles.role = 'student'`,
+  reads `profiles.full_name` (the Google-provided name captured at signup by
+  `handle_new_user` in `0001` — deliberately **not** the user-editable
+  `display_name`), and matches it against the ledger's own roster, fetched
+  server-side. Matching compares name TOKEN SETS, so the roster's "Last, First"
+  and Google's "First Last" agree without either side being reformatted, and it
+  is insensitive to the comma, to double spaces, to accents and to a middle name
+  present on one side only. **Zero matches or more than one is a refusal, never a
+  fallback** — being unable to prove who is applying is precisely the condition
+  worth failing on, and the student gets a message telling them to see their
+  teacher. The name forwarded to Code.gs is the roster row the server matched.
+- **`/api/coin-ledger/signin`** — the public leaderboard is a carried-over static
+  page with no Supabase client, so once applying required a session it had no way
+  in. This mints the OAuth redirect through the *server* Supabase client
+  (`skipBrowserRedirect`), which is what stores the PKCE code verifier that
+  `/auth/callback`'s `exchangeCodeForSession` needs; hand-rolling a redirect to
+  Supabase's `/authorize` would skip the verifier and the callback would fail.
+
+The public page's role modal has **no name picker at all** now. It asks the
+server who is applying and renders "Applying as *name*" read-only, or a sign-in
+prompt, or the reason it cannot proceed. There is no selector left to influence
+the server, and the submit sends only a role and answers.
+
+**The PIN was kept, as a redundant step only.** The tool's 4-digit PIN pad is
+still there and still runs entirely in the browser. It is now unambiguously not a
+security boundary — the session and role check on `/api/coin-ledger/teacher` is —
+and it is retained for the job F2 identified as its only honest one: a
+device-level confirmation on a shared classroom or kiosk machine where a teacher
+has walked away from an already-authenticated session. **Its committed hash was
+recovered in 2 ms and must be treated as public**; the specific value should be
+changed, and if a real device factor is ever wanted it has to be verified
+server-side and be longer than four digits (P0 item 4 stands, unaddressed here).
+
+**Residual limitations, recorded rather than accepted silently.**
+
+1. **This is a gate in front of the ledger, not a fix to the ledger.** If the
+   deployed Code.gs still accepts calls without the key, everything above is
+   bypassable by anyone who recovers the `/exec` URL from git history. The
+   repo-side work is only half; item 2 of the out-of-repo review is still the
+   load-bearing one.
+2. **The key's parameter name is an assumption.** It is sent as `key`, because an
+   Apps Script `doGet(e)` can read only `e.parameter` and never a request header,
+   so a header-based key was never an option. If Code.gs reads it under another
+   name, `COIN_API_KEY_PARAM` in `src/lib/server/coin-ledger.ts` is the one line
+   to change. Confirm this against the deployed script.
+3. **`profiles.full_name` is writable by its own owner.** The "update own
+   profile" policy (`0001`) covers every column except `role`, which the guard
+   trigger protects. So a determined student could set their own `full_name` to a
+   classmate's before applying and defeat the roster match. This is a real
+   narrowing rather than a closure: it now requires an account, a deliberate
+   PostgREST call, and leaves the change sitting in the attacker's own profile
+   row. The durable fixes are either a guard trigger on `full_name` in the shape
+   of `enforce_role_change`, or an email column on the ledger Roster so identity
+   resolves on the one field a user cannot change. Worth doing; out of scope here.
+4. **The `/exec` URL remains in the repository**, now at
+   `src/lib/server/coin-ledger.ts` and never served to a browser. With the key
+   required it is no longer a credential, and `COIN_LEDGER_URL` overrides it
+   without a commit, so a rotation (P0 item 1) needs an env var and not a code
+   change.
+5. **The transport to Apps Script is unchanged**: writes are still GETs with
+   values in the query string. What changed is who can issue one. The replay
+   concern in the out-of-repo review's item 3 no longer applies to browser
+   history, proxy logs or a projected classroom display, because those URLs never
+   exist in a browser now — but Google's own request logs still see them.
+6. **Duplicate roster names cannot apply.** Two identical names on the roster
+   resolve as ambiguous and are refused for both students until a teacher
+   disambiguates them. Refusing is the correct behaviour, but it is a real
+   failure mode a class can hit.
+7. **No rate limiting.** An anonymous visitor can still drive server-side ledger
+   reads through the public allowlist. That is the same P2 item 10 gap the whole
+   codebase has; this change neither improves nor worsens it.
+
+**Verification status.** Verified against a running dev server with placeholder
+Supabase credentials, which exercises every path except a live signed-in session.
+`svelte-check` is clean (0 errors, no new warnings). The public leaderboard
+renders and issues its four ledger reads to `/api/coin-ledger/public`, with **zero
+browser requests to `script.google.com`** and no console errors. Boundary probes:
+an allowlisted read reaches the upstream call and stops at `503 not configured`
+(so the key gate is wired), while `logTransaction` and `submitRoleApplication`
+through the public route are refused `400` before any upstream call; the teacher
+route answers `401` with no session; `GET /api/coin-ledger/apply` answers
+`{"signedIn":false}` and leaks nothing; and a `POST` carrying a forged
+`student: "Victim, Some"` field is rejected `401` without reaching the ledger.
+The role modal was opened in the browser and contains no name input and no name
+option list, only the sign-in prompt. `matchRoster` was driven directly against a
+fixture roster: eleven cases pass, covering both name orders, accents, punctuation
+and spacing noise, an extra middle name, a multi-token first name, a near-miss
+classmate ("Maria Garcia" vs "Mario Garcia"), and the three refusals (not on the
+roster, duplicate rows, single token). Not verifiable here: the live signed-in
+teacher and student flows, and anything about Code.gs, which needs `COIN_API_KEY`
+set and a real Google session.
+
 ---
 
 # Part 2: student authentication across the site
@@ -684,6 +826,9 @@ Fragmented. There are five distinct patterns:
 4. **`/fsp/frc-interest`**: intentionally anonymous, no sign-in.
 5. **Legacy coin tools**: `/coin-entry` behind a server-side teacher role check
    plus the client-side PIN; `/coins/index.html` fully public with no gate.
+   *(Since F11 both also depend on the `/api/coin-ledger/*` routes, which apply
+   the same teacher check to the entry tool's traffic and require a signed-in
+   student for a role application. The pages' own gating is unchanged.)*
 
 The practical cost of the fragmentation is that the domain policy is expressed in
 at least four independent places: `role_for_email` in SQL, and three separate
@@ -745,27 +890,37 @@ response as script; and whether any delete or edit action exists that would allo
 removing the known fabricated entry, or would allow a student to remove
 legitimate entries.
 
-**2. IDEA Coin ledger script** (`AKfycby_p-lI...`, referenced at
-`src/lib/legacy/coin-entry.html:1649` and, publicly, at
+**2. IDEA Coin ledger script** (`AKfycby_p-lI...`, now referenced only from
+`src/lib/server/coin-ledger.ts`, which is never served to a browser — see F11;
+it was at `src/lib/legacy/coin-entry.html:1649` and, publicly, at
 `static/coins/index.html:1693`). This is the higher-value review of the two,
-because it is the only system backed by something students actually want.
-Determine: the deployment's execute-as and access settings; whether **any** of
-the balance-affecting actions check a caller identity or a shared secret, or
-whether the action name is the only routing. Test at minimum `logTransaction`,
-`payout`, `updateStudentWage`, `collectFine`, `addStudent`,
-`deleteTransaction`, and `completeContract` from an unauthenticated client from
-outside the school network. Test `submitRoleApplication` with an arbitrary
-student name, since the public page already performs exactly that call.
+because it is the only system backed by something students actually want, and
+**F11 does not reduce its priority**: the repo-side change is a gate in front of
+the script, so if the script still answers keyless callers, anyone who recovers
+the URL from git history bypasses the gate entirely. Determine: the deployment's
+execute-as and access settings; whether the shared key is in fact required on
+**every** action, and that it is read under the parameter name F11 sends it as
+(`key`); and whether any balance-affecting action checks a caller identity
+beyond that key. Test at minimum `logTransaction`, `payout`, `updateStudentWage`,
+`collectFine`, `addStudent`, `deleteTransaction`, and `completeContract` from an
+unauthenticated client with **no key**, from outside the school network — every
+one of them should now be refused. Test `submitRoleApplication` the same way, and
+separately confirm that with a valid key it still trusts its `student` parameter,
+because after F11 that parameter is only ever set by this application's server.
 
 **3. The PIN, specifically.** There is no server-side PIN check anywhere in the
 repo-side code. Confirm the Apps Script does not check one either. If it does
 not, then the PIN protects nothing beyond someone watching over the teacher's
-shoulder, and brute-forcing it is unnecessary: because every action is a GET
-with parameters in the query string, a single captured or replayed request URL
-is sufficient, and such URLs persist in browser history, in any proxy or device
-management logs, and in any screen recording or projected classroom display.
-Replay is the realistic attack, not cracking. If the script does check a PIN,
-verify it is rate-limited and that it is not the same 4-digit value.
+shoulder, which is the only job F11 retains it for. Brute-forcing it was always
+unnecessary anyway: because every action is a GET with parameters in the query
+string, a single captured or replayed request URL was sufficient, and such URLs
+persisted in browser history, in any proxy or device management logs, and in any
+screen recording or projected classroom display. Replay was the realistic attack,
+not cracking. **F11 removes the browser-side half of that exposure** — those URLs
+are now built server-to-server and never exist in a browser — but Google's own
+request logs still see them, and the recovered PIN value should be changed
+regardless. If the script does check a PIN, verify it is rate-limited and that it
+is not the same 4-digit value.
 
 ---
 
@@ -774,21 +929,31 @@ verify it is rate-limited and that it is not the same 4-digit value.
 ## P0, before anything else
 
 1. **Rotate both Apps Script deployments** to new `/exec` identifiers. Both
-   current URLs are committed to this repository and served in public HTML.
-   Treat both as known.
+   current URLs are committed to this repository, and both were served in public
+   HTML. Treat both as known. *(The coin URL is no longer served to any browser
+   after F11, and rotating it is now an env-var change — `COIN_LEDGER_URL` —
+   rather than a code change. The VANGUARD one is unchanged.)*
 2. **Put an identity on every coin ledger write.** Nothing else on this list
    matters as much, because coins are the only currency here that students
-   place real value on. Until the ledger can tell who is calling it, no control
-   in front of it is meaningful.
-3. **Remove write capability from the public `/coins/index.html`.** Either drop
-   `submitRoleApplication` from the public page, or move it behind the
-   authenticated portal so the applicant is `auth.uid()` rather than a name
-   selected from a dropdown. As it stands, an anonymous visitor can spend
-   another student's coin.
+   place real value on. *(Repo-side done in F11: every call now originates on
+   this application's server, carrying `COIN_API_KEY`, and role applications
+   carry a server-resolved student. **This only holds if Code.gs actually
+   enforces the key** — confirming that is now the single highest-value item
+   here, because the gate is worthless if the script still answers keyless
+   callers.)*
+3. **Remove write capability from the public `/coins/index.html`.** *(Done in
+   F11, the second way round: `submitRoleApplication` stayed on the page but
+   moved behind `/api/coin-ledger/apply`, which requires a session and resolves
+   the applicant from it. There is no `student` parameter and no name picker any
+   more. The page's remaining ledger traffic is five allowlisted read actions.
+   Residual: the roster match keys on `profiles.full_name`, which its owner can
+   still edit — see F11 residual 3 for the two durable fixes.)*
 4. **Take the PIN out of the client.** If a device-level second factor is wanted
    on shared machines, it has to be verified server-side, be rate-limited, and
    be longer than four digits. A client-side comparison against a shipped hash
-   is not a factor.
+   is not a factor. *(Not done. F11 demoted the PIN to a UI-only step on shared
+   devices and put the real boundary on the server, but the pad and its
+   recovered hash are still in the page. At minimum, change the value.)*
 
 ## P1
 

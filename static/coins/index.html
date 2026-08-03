@@ -1690,7 +1690,14 @@ body::after {
 const SUMMARY_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHVkr4mLhBYvO6tDjQxC-nFoc5rKG0CRySci77ac2a1bM4oDSGJef5McBYlhI6nXE2dlfgCy7UuRbn/pub?gid=631308186&single=true&output=csv";
 const TRANSACTIONS_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHVkr4mLhBYvO6tDjQxC-nFoc5rKG0CRySci77ac2a1bM4oDSGJef5McBYlhI6nXE2dlfgCy7UuRbn/pub?gid=1105564658&single=true&output=csv";
 const LEADERBOARD_URL = 'https://mrpina-dev.github.io/IDEA/coins/';
-const CONTRACTS_API = "https://script.google.com/macros/s/AKfycby_p-lI7I5i4Rl1KZKgtWEhePnUmyrC9HBrS485JBWvcwWfpIWC_397P7yrcrmvIql9/exec";
+// Same-origin, read-only proxy. This page is public, so it reaches the ledger
+// through /api/coin-ledger/public, which allows an allowlist of read actions
+// only and attaches the server-only COIN_API_KEY. The Apps Script /exec URL is
+// no longer in this file, and no write goes through this constant: applying for
+// a role posts to /api/coin-ledger/apply, which requires a session.
+const CONTRACTS_API = "/api/coin-ledger/public";
+const APPLY_API = "/api/coin-ledger/apply";
+const APPLY_SIGNIN_URL = "/api/coin-ledger/signin";
 
 const SECTION_COLORS = {
   'IDEA-113':   '#00FF41',
@@ -3099,17 +3106,23 @@ else canvas.style.display = 'none';
   const closeBtn  = document.getElementById('role-modal-close');
   const openBtn   = document.getElementById('apply-role-btn');
 
-  let selectedName   = '';
+  // `applicantName` is whatever /api/coin-ledger/apply told us the SERVER
+  // resolved from the visitor's own session. It is display only: the submit
+  // sends no student name at all, and the server resolves the applicant again
+  // for itself. There is deliberately no name picker any more — picking a
+  // classmate out of a list and applying as them was the bug.
+  let applicantName  = '';
   let selectedRole   = '';
   let applyQuestions = [];
 
   function openModal() {
-    selectedName   = '';
+    applicantName  = '';
     selectedRole   = '';
     applyQuestions = [];
-    renderStep1();
+    renderIdentityLoading();
     backdrop.classList.add('open');
     document.body.style.overflow = 'hidden';
+    resolveApplicant();
   }
   function closeModal() {
     backdrop.classList.remove('open');
@@ -3123,18 +3136,53 @@ else canvas.style.display = 'none';
     if (e.key === 'Escape' && backdrop.classList.contains('open')) closeModal();
   });
 
-  function renderStep1() {
+  function renderIdentityLoading() {
+    document.getElementById('role-modal-body').innerHTML =
+      '<div style="color:var(--dim);font-size:0.68rem;padding:0.9rem 0;letter-spacing:0.04em;">Checking who you are…</div>';
+  }
+
+  function renderIdentityNotice(html) {
+    document.getElementById('role-modal-body').innerHTML = html;
+  }
+
+  // Asks the server who is applying. The visitor never gets to answer this
+  // question: no session means no application, and a session names exactly one
+  // student.
+  async function resolveApplicant() {
+    let info;
+    try {
+      const res = await fetch(APPLY_API, { cache: 'no-store' });
+      info = await res.json();
+    } catch(e) {
+      renderIdentityNotice('<div class="role-status error">Could not reach the coin ledger. Please try again.</div>');
+      return;
+    }
+    if (!backdrop.classList.contains('open')) return;
+
+    if (!info || !info.signedIn) {
+      renderIdentityNotice(
+        '<p class="role-note">Applying for a role holds 1 i¢ from your own balance, so you have to be signed in as yourself.</p>' +
+        '<a class="role-submit-btn" style="display:block;text-align:center;text-decoration:none" href="' + APPLY_SIGNIN_URL + '">Sign in with your school account</a>'
+      );
+      return;
+    }
+    if (!info.eligible) {
+      renderIdentityNotice('<div class="role-status error">' + escHtml(info.error || 'You cannot apply right now.') + '</div>');
+      return;
+    }
+
+    applicantName = info.student || '';
+    renderApplyForm(applicantName, info.section || '');
+  }
+
+  function renderApplyForm(name, serverSection) {
     const body = document.getElementById('role-modal-body');
-    const names = summaryData
-      .map(r => (pick(r)('Name', 'Student', 'Full Name') || '').trim())
-      .filter(Boolean).sort();
 
     body.innerHTML =
       '<p class="role-note">Costs 1 i¢ to apply. Refunded if you\'re selected.</p>' +
       '<div class="role-field">' +
-        '<label class="role-field-label">Student Name</label>' +
-        '<input type="text" class="role-input" id="role-name-input" placeholder="Search students…" autocomplete="off">' +
-        '<div id="role-name-options" class="role-options" style="margin-top:0.4rem"></div>' +
+        '<label class="role-field-label">Applying As</label>' +
+        '<div class="role-option selected" style="cursor:default">' + escHtml(name) + '</div>' +
       '</div>' +
       '<div id="role-role-section" style="display:none">' +
         '<div class="role-field">' +
@@ -3146,43 +3194,20 @@ else canvas.style.display = 'none';
       '<div id="role-status-msg"></div>' +
       '<button class="role-submit-btn" id="role-submit-btn" disabled>Submit Application</button>';
 
-    const nameInput   = document.getElementById('role-name-input');
-    const nameOptions = document.getElementById('role-name-options');
-
-    function renderNameOptions(filter) {
-      const q = (filter || '').toLowerCase();
-      const filtered = q
-        ? names.filter(n => n.toLowerCase().includes(q))
-        : names.slice(0, 8);
-      if (!filtered.length) {
-        nameOptions.innerHTML = '<div style="color:var(--dim);font-size:0.65rem;padding:0.35rem 0">No students found.</div>';
-        return;
-      }
-      nameOptions.innerHTML = filtered.slice(0, 10).map(n =>
-        '<button class="role-option" data-name="' + escHtml(n) + '">' + escHtml(n) + '</button>'
-      ).join('');
-      nameOptions.querySelectorAll('.role-option').forEach(btn => {
-        btn.addEventListener('click', () => selectName(btn.dataset.name));
-      });
-    }
-
-    nameInput.addEventListener('input', () => renderNameOptions(nameInput.value.trim()));
-    renderNameOptions('');
-
     document.getElementById('role-submit-btn').addEventListener('click', submitApplication);
+    showRolesFor(name, serverSection);
   }
 
-  function selectName(name) {
-    selectedName   = name;
+  function showRolesFor(name, serverSection) {
     selectedRole   = '';
     applyQuestions = [];
-    const nameInput = document.getElementById('role-name-input');
-    if (nameInput) nameInput.value = name;
-    document.getElementById('role-name-options').innerHTML = '';
     clearQuestions();
 
+    // Prefer the section the server read off the roster row it matched; fall
+    // back to this page's own summary data if the ledger did not supply one.
     const row = summaryData.find(r => (pick(r)('Name', 'Student', 'Full Name') || '').trim() === name);
-    const section = row ? (pick(row)('Section', 'Class', 'Course') || '').trim() : '';
+    const section = (serverSection || '').trim()
+      || (row ? (pick(row)('Section', 'Class', 'Course') || '').trim() : '');
 
     const sectionData  = rolesData.find(s => s.section === section);
     const roleSection  = document.getElementById('role-role-section');
@@ -3286,7 +3311,7 @@ else canvas.style.display = 'none';
   function checkSubmitReady() {
     const submitBtn = document.getElementById('role-submit-btn');
     if (!submitBtn) return;
-    if (!selectedName || !selectedRole || !applyQuestions.length) {
+    if (!applicantName || !selectedRole || !applyQuestions.length) {
       submitBtn.disabled = true;
       return;
     }
@@ -3302,7 +3327,7 @@ else canvas.style.display = 'none';
   }
 
   async function submitApplication() {
-    if (!selectedName || !selectedRole) return;
+    if (!applicantName || !selectedRole) return;
     const submitBtn = document.getElementById('role-submit-btn');
     const statusMsg = document.getElementById('role-status-msg');
     submitBtn.disabled = true;
@@ -3317,11 +3342,15 @@ else canvas.style.display = 'none';
           return { answer: ta ? ta.value.trim() : '' };
         }
       });
-      const url = CONTRACTS_API +
-        '?action=submitRoleApplication&student=' + encodeURIComponent(selectedName) +
-        '&role='    + encodeURIComponent(selectedRole) +
-        '&answers=' + encodeURIComponent(JSON.stringify(answers));
-      const res  = await fetch(url, { cache: 'no-store' });
+      // No student name is sent. The server resolves who is applying from the
+      // session cookie this request carries, which is the whole fix: there is
+      // no field here a visitor could point at somebody else.
+      const res  = await fetch(APPLY_API, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ role: selectedRole, answers: answers })
+      });
       const data = await res.json();
       if (data.success) {
         statusMsg.innerHTML = '<div class="role-status success">Application submitted. 1 i¢ held — you\'ll get it back if you\'re chosen.</div>';
