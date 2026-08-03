@@ -59,6 +59,187 @@ The canonical production domain is settled below: `ideabosco.com`.
 
 ---
 
+# Status table
+
+Added by a later reconciliation pass, checked against the repository as committed
+at `2d19c19`. **Every row below was re-derived by reading the current code and
+the current migrations, not by trusting the prose in this document.** Several
+passes have edited this file, and the write-ups underneath had drifted in two
+places (noted in the table and corrected in place).
+
+Each finding is in exactly one category:
+
+1. **Resolved in the repo.** Confirmed by reading the repo alone. Nothing
+   outside the repo is required for it to be in effect right now.
+2. **Fixed in code, blocked on an outside step.** The repo-side change exists,
+   but it cannot take effect until something is done outside the repository. The
+   exact step is named.
+3. **Not addressed.** No evidence in the repo that this was ever fixed.
+
+| # | Finding | Severity | Category | Outside step still needed (category 2 only) |
+|---|---|---|---|---|
+| F1 | VANGUARD leaderboard submission | Critical | **3** | — |
+| F2 | Coin entry PIN verified in the browser | Critical | **3** | — |
+| F3 | Coin ledger endpoint disclosed publicly, public page writes to it | Critical | **2** | (a) Set `COIN_API_KEY` in the Vercel project env and redeploy. (b) Paste-and-redeploy the coin ledger Code.gs so it **requires** the key on every action, under the parameter name `key`. |
+| F4 | GAUNTLET ranked answer key disclosed to the anonymous caller | High | **3** | — |
+| F5 | GREENLINE race results, leaderboard, Ignition Credits | Medium | **3** | — |
+| F6 | VANGUARD cloud save, run history, run checkpoint | Low–medium | **3** | — |
+| F7 | GAUNTLET knowledge modes, FRC quiz and progress model | Informational | **1** | — |
+| F8 | FSP tools writing to Apps Script with client-side-only domain checks | Medium | **3** | — |
+| F9 | Open redirect on the OAuth callback | Low | **3** | — |
+| F10 | The three "Unrestricted" GAUNTLET views | Low | **2** | Apply `0060_gauntlet_view_scoping.sql` by hand in the Supabase SQL editor, after `0059`. |
+| F11 | Coin ledger calls moved server-side, role applications given an identity | — | **2** | Set `COIN_API_KEY` in the Vercel project env and redeploy. Until it is set, `callLedger` returns 503 and the coin tools do not function at all. See also F3(b): the gate only holds if Code.gs enforces the key. |
+| P2-A | Portal sign-in not restricted to the school Workspace domain | — | **3** | — |
+| P2-B | Staff and student distinction | Informational | **1** | — |
+| P2-C | Login experience fragmented across five patterns | — | **3** | — |
+| P2-D | Production domain settled (`ideabosco.com`) | Informational | **1** for the repo's own evidence; the OAuth allow-list is **2** | Confirm in the Google Cloud console and the Supabase Auth dashboard that the authorised redirect URIs, the Site URL, and the Redirect URLs allow-list name `ideabosco.com` and carry no stale `*.vercel.app` preview entries. |
+
+## What each verdict rests on
+
+**F1 — category 3.** `API_URL` is still a plain string literal at
+`src/lib/legacy/vanguard/index.html:5451`, and `submitToServer` /
+`submitCoopToServer` still issue an unauthenticated GET by assigning to
+`new Image().src`. No `vanguard_scores` table, no submit RPC, no
+`/api/vanguard-score` endpoint exists anywhere in the repo. The pasted-URL
+forgery described below works exactly as written. Nothing has been done.
+
+**F2 — category 3.** `PIN_HASH` at `src/lib/legacy/coin-entry.html:2636` is
+**byte-for-byte the same value** this audit recovered in 2 ms
+(`30606ac3…4b40`). The comparison still runs in the browser
+(`attemptUnlock`), the 30-day `idea-entry-auth` localStorage bypass is still
+honoured, and `launchApp(false)` is still callable. F11 relocated the real
+boundary to a server-side teacher check, which is genuine and is tracked in its
+own row, but it changed nothing about the PIN itself. P0 item 4 stands, and the
+value should be changed regardless of anything else on this list.
+
+**F3 — category 2.** The repo-side half is complete and verified: `grep` for
+`script.google.com` across `static/`, `src/lib/legacy/`, `src/routes/` and
+`src/lib/` returns the coin ledger URL at exactly one location,
+`src/lib/server/coin-ledger.ts:37`, which SvelteKit refuses to bundle into
+client code. `static/coins/index.html:1698` now reads
+`const CONTRACTS_API = "/api/coin-ledger/public"`, and
+`src/lib/legacy/coin-entry.html:1654` reads
+`const API = '/api/coin-ledger/teacher'`. The public page contains **zero**
+occurrences of `selectedName` and no `submitRoleApplication` call at all. But
+none of this is in effect in production until the deployed build carries
+`COIN_API_KEY`, and — the load-bearing part — the old `/exec` URL is in this
+repository's git history forever, so the disclosure is only genuinely closed
+once Code.gs itself refuses keyless callers.
+
+**F4 — category 3, and this is the definitive answer.** The fix described in
+P1 item 6 has **not** been applied. Neither RPC has been touched since `0036`,
+which is their live definition (`0034`'s bodies are superseded). Reading
+`0036_gauntlet_volume_tolerance_0_1.sql` directly:
+
+- `gauntlet_run_targets` returns `'target_volume_mm3', v_target_vol` and
+  `'tolerance_pct', v_tol_pct` in its payload (`:315`, `:316`), and is
+  `grant execute … to anon, authenticated` (`:329`). The raw target value is
+  handed to an unauthenticated caller.
+- `gauntlet_macro_submit` returns `'target_volume_mm3', v_target_vol`,
+  `'your_volume_mm3', p_volume_mm3` and `'tolerance_pct', v_tol_pct` (`:233`,
+  `:234`, `:235`) on **every** submit, pass or fail, and is likewise
+  anon-granted (`:248`).
+- **The non-consuming failed submit is still non-consuming.** The token
+  lifecycle block (`:205-218`) updates `locked_at` only `if v_correct`, and
+  consumes `used_at` only for a room token and only `if v_correct`. A failing
+  solo submit therefore writes nothing to the token and can be repeated without
+  limit — while returning both the target and the submitted value, which is the
+  exact narrowing signal the fix was supposed to remove.
+- `gauntlet_macro_start` is unchanged too: still anon-granted
+  (`0016:101`), and its blank-part check is still the client-attested
+  `p_volume_mm3 > 0` (`0016:66`).
+
+So all three steps of the exploit chain — start with a zero volume, read the
+target, submit it back — are intact, and a second independent disclosure route
+(one deliberate wrong submit) is intact alongside it. There is no partial fix,
+no coarse deviation band, and no narrowing of the `anon` grants.
+
+**F5 — category 3.** Every control this finding credits is present and
+unchanged. Every gap it records is also unchanged: `grep` for
+`greenline_run_token` and `greenline_race_start` across the migrations and
+`src/lib/greenline/` returns nothing, so there is still no run token, no start
+call, and no server-side check on lap time, total time, or finishing position.
+This is an accepted design limitation rather than a regression, but no fix
+exists.
+
+**F6 — category 3.** Attribution and scoping are confirmed correct: all three
+endpoints return `401` on a missing session and filter and write by
+`claims.sub`. The content-trust gap is unchanged, and nothing was attempted.
+Rated low for the reason stated below — none of it reaches a shared board.
+
+**F7 — category 1.** Re-verified against the migrations:
+`gauntlet_submit` (`0008:29`) is `security definer`, reads the hidden `answer`
+column, and derives the user from `(select auth.uid())`.
+`0041_frc_progress_lockdown.sql` still carries
+`revoke insert, update, delete on public.frc_user_progress from authenticated`
+(`:41`), still drops the two self-write policies (`:43-44`), and both
+`frc_mark_complete` and `frc_unmark_complete` still enforce `is_teacher()`
+inside the body (`:66`, `:88`). Nothing to fix; this remains the reference
+pattern.
+
+**F8 — category 3.** Four independent domain literals remain
+(`fsp/ask`, `fsp/live`, `fsp-pulse`, `fsp-tech-selection`). The two prototype
+allowances are still in place, with their own comments still saying they must
+revert: `// PROTOTYPE: remove @boscotech.edu before real FSP use` sits directly
+above `ALLOWED_DOMAINS` in both `fsp-tech-selection/+page.svelte` and
+`fsp-pulse/+page.svelte`. Both Apps Script URLs are still blank placeholders in
+`.env.example`, so this remains a design property to fix before the tools go
+live rather than an active exposure.
+
+**F9 — category 3.** `src/routes/auth/callback/+server.ts` is unchanged:
+`const next = url.searchParams.get('next') ?? '/dashboard'` at `:11`, redirected
+to unvalidated at `:16`. The one-line guard has not been added.
+
+**F10 — category 2.** `0060_gauntlet_view_scoping.sql` exists and does what its
+write-up claims: both room views are recreated with
+`public.gauntlet_is_room_member(...)` in the predicate (`:80`, `:100`), and all
+three views carry an explicit `revoke all … from anon`. Per the repo's standing
+convention migrations are applied by hand, and the local `.env` holds
+placeholder credentials, so this cannot be confirmed as live from here.
+
+**F11 — category 2.** Confirmed in the repo end to end. `PUBLIC_LEDGER_ACTIONS`
+is enforced with a `400` before any upstream call
+(`api/coin-ledger/public/+server.ts:31`); the teacher route answers `401`
+without a session and `403` unless `profiles.role === 'teacher'`
+(`teacher/+server.ts:26,36`); the apply route has no `student` parameter and
+calls `resolveApplicant` on both the GET probe and the POST submit
+(`apply/+server.ts:105,149`), forwarding only the roster name the server itself
+matched. `ledgerConfigured()` gates everything on `COIN_API_KEY`, so with the
+key unset every route degrades to `503` — the pages are safe but the coin tools
+do not work.
+
+**P2-A — category 3.** `src/routes/+page.svelte:123` still passes no `hd` and
+applies no allow-list, and `authedPrefixes` in `src/hooks.server.ts:93` is still
+`['/dashboard', '/gauntlet', '/frc', '/greenline']` with a guard
+(`:101`) that checks only for the presence of claims. A personal Gmail account
+can still enter GAUNTLET, FRC and GREENLINE and appear on their boards.
+
+**P2-B — category 1.** Re-verified; the separation between route guards
+(convenience) and RPC-internal `is_teacher()` checks (the boundary) holds in
+practice across every cross-user staff action named below.
+
+**P2-C — category 3.** All five patterns are still present and the domain policy
+is still expressed in four independent places.
+
+**P2-D — mixed.** The repo-side evidence is unchanged and still consistent:
+`vercel.json:6-8` carries the host-matched 308, and
+`src/routes/sitemap.xml/+server.ts:8` sets `const SITE = 'https://ideabosco.com'`.
+The one consequence the repo cannot settle — the OAuth and Supabase Auth
+redirect allow-lists — is still outstanding and is named in the table.
+
+## Corrections applied to the write-ups below
+
+Two pointers had gone stale as later migrations superseded the ones cited. Both
+are corrected in place; neither changes a verdict.
+
+- **F4's "Where"** cited `0034` for `gauntlet_macro_submit` and
+  `gauntlet_run_targets`. `0036` redefines both and is the live definition. A
+  reader following the old pointer would have read a superseded body.
+- **F5's "Where"** cited `0058` as the last redefinition of
+  `greenline_submit_race_result`. `0059` redefines it again.
+
+---
+
 # Part 1: write paths affecting scores, leaderboards, coins, and grades
 
 ## F1. VANGUARD leaderboard submission. Critical.
@@ -232,10 +413,13 @@ appears anywhere in either HTML file.
 
 ## F4. GAUNTLET: the ranked answer key is disclosed to the anonymous caller that submits against it. High.
 
-**Where:** `supabase/migrations/0034_gauntlet_volume_only_verification.sql`
-(`gauntlet_macro_submit` and `gauntlet_run_targets`),
-`0016_gauntlet_speedrun_start.sql` (`gauntlet_macro_start`),
-`0035_gauntlet_run_events.sql` (`gauntlet_run_events_insert`).
+**Where:** `supabase/migrations/0036_gauntlet_volume_tolerance_0_1.sql` is the
+**live** definition of both `gauntlet_macro_submit` and `gauntlet_run_targets`
+(it copies 0034's bodies verbatim with only the tolerance constant changed, and
+supersedes them; the pointer originally read 0034 and was corrected by the
+reconciliation pass). Also `0016_gauntlet_speedrun_start.sql`
+(`gauntlet_macro_start`) and `0035_gauntlet_run_events.sql`
+(`gauntlet_run_events_insert`).
 
 **What the client submits.** The SolidWorks macros and the C# add-in POST to
 PostgREST with the project's public anon key: `gauntlet_macro_start(p_code,
@@ -321,7 +505,11 @@ the modeling boards. That part of the model is working as documented.
 
 **Where:** `0049_greenline_accounts.sql`, `0052_greenline_economy.sql`,
 `0054_greenline_race_telemetry.sql`, `0058_greenline_track_featuring.sql`,
-client seam `src/lib/greenline/persistence.ts`.
+`0059_greenline_track_review.sql` (the **live** definition of
+`greenline_submit_race_result`; the pointer originally stopped at 0058 and was
+corrected by the reconciliation pass — 0059 adds the moderation-status gate on
+top of 0058's `featured` gate, so a community track must now be both approved
+and featured to rank), client seam `src/lib/greenline/persistence.ts`.
 
 **What the client submits.** One RPC, `greenline_submit_race_result`, carrying
 track id, mode, finishing position, total time, best lap, laps, archetype, a

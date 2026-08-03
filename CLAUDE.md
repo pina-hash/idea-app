@@ -168,9 +168,17 @@ response, never a build break):
   deliberately no client write path to `greenline_tracks`). Set it in the
   Vercel project env for production. This is the repo's first private server
   key; nothing else may read it, and it must never gain a `PUBLIC_` prefix.
-- `COIN_API_KEY` — the shared key the IDEA Coin ledger Apps Script requires on
-  every action. Read ONLY by `src/lib/server/coin-ledger.ts` (see "IDEA Coin
-  ledger" below). Never `PUBLIC_`.
+- `COIN_API_KEY` — the shared key this server attaches to every IDEA Coin ledger
+  call. Read ONLY by `src/lib/server/coin-ledger.ts` (see "IDEA Coin ledger"
+  below). Never `PUBLIC_`. **Set it in the Vercel project env**; until it is set,
+  `ledgerConfigured()` is false and every `/api/coin-ledger/*` route answers 503,
+  so the coin tools do not function at all. **Do NOT read this as "the Apps
+  Script requires the key" — that is unverified.** Whether the deployed Code.gs
+  actually refuses keyless callers, and whether it reads the key under the
+  parameter name we send it (`key`), is the single highest-value open question in
+  `docs/audits/2026-07-security-audit.md` (out-of-repo review item 2). The
+  server-side gate is worthless if the script still answers anyone, because the
+  old `/exec` URL is in this repo's git history permanently.
 - `COIN_LEDGER_URL` — optional override for the ledger's deployed `/exec` URL;
   the current deployment is the default in that same module, so this only needs
   setting if the script is redeployed.
@@ -895,7 +903,14 @@ north star, read it before extending GAUNTLET). Summary of what exists:
 - **Security model** (this is the important part to preserve):
   - Students read published challenge **prompts** and the board, and read their
     own submissions. They can never read an `answer` column (no client grant),
-    and they cannot insert submissions directly.
+    and they cannot insert submissions directly. **Caveat, true today: the
+    no-client-grant rule holds for direct column reads only.** Two anon-granted
+    SECURITY DEFINER RPCs hand out a piece of the modeling answer key anyway —
+    `gauntlet_run_targets` and `gauntlet_macro_submit` both return the level's
+    raw `target_volume_mm3`. See the KNOWN OPEN HOLE bullet under "Verification
+    model" below before treating the modeling boards as machine-verified. The
+    KNOWLEDGE modes described in this bullet are genuinely sound and are
+    unaffected.
   - **Grading is server-side and authoritative.** Submissions are written only
     by the `gauntlet_submit(p_challenge_id, p_value, p_elapsed_ms)` SECURITY
     DEFINER RPC, which reads the hidden answer, grades, and inserts with
@@ -1018,6 +1033,12 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   read a room (before 0060 they had none, and any signed-in user could read any
   room's roster/board by `room_id` through PostgREST — the route was gated, the
   view was not). All three are granted to `authenticated` only, never `anon`.
+  **`0060` is code-only until it is run:** like every migration here it is
+  applied by hand in the Supabase SQL editor (after `0059`), and it has not been
+  executed from this repo, so the cross-room read is still open on any project
+  where it has not been pasted in. Confirm on a live project that a member still
+  sees the full roster and board and a signed-in non-member querying either view
+  with a valid `room_id` gets zero rows.
   **Delete (`0025`):** the hosting teacher can delete a room from the rooms list
   (teacher-only UI, two-step inline confirm) via the `gauntlet_room_delete`
   SECURITY DEFINER RPC, enforced by `host_id` + `is_teacher()` server-side so
@@ -1308,6 +1329,27 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     blocks on material or document units. `p_material` is a non-gating advisory,
     `p_unit_system` is informational, `p_mass_g` is ignored. (Restores the 0016
     volume-only path.)
+  - **KNOWN OPEN HOLE, do not assume this is fixed: the checksum's expected
+    value is handed to the caller that submits against it.** A checksum only
+    constrains a party that does not know the answer, and today every caller
+    knows it. `gauntlet_run_targets` returns the raw `target_volume_mm3` and is
+    `grant execute ... to anon`, and `gauntlet_macro_submit` returns
+    `target_volume_mm3` alongside `your_volume_mm3` on **every** submit,
+    including a failing one — and a failing SOLO submit consumes nothing (the
+    token's `locked_at` is only set `if v_correct`), so a wrong submit discloses
+    the target for free and can be repeated without limit. Both are last defined
+    in `0036` and both are anon-granted; `gauntlet_macro_start` is anon-granted
+    too and its blank-part check (`p_volume_mm3 > 0`) is client-attested. So the
+    ranked modeling boards can be topped without opening SolidWorks: reveal for a
+    code, start, read the target, submit it back. Feature Golf is softer still
+    (`score_metric` is the client-reported `p_feature_count`) and Reverse
+    Engineer scores 0.0 deviation on the stored targets. Re-verified against the
+    live migrations on 2026-08-03 and confirmed **unfixed**. The fix is to stop
+    returning `target_volume_mm3` / `tolerance_pct` from both payloads (a coarse
+    deviation band is fine as a coaching signal) and then revisit the `anon`
+    grants. Full chain and reasoning: `docs/audits/2026-07-security-audit.md` F4
+    and P1 item 6. Anything below that reads `gauntlet_run_targets` as merely
+    "read-only" should be read with this bullet in mind.
   - **Mass = measured volume x level density**, computed server-side and shown as
     both the level's target mass and the student's computed mass, in the level's
     unit system (TooTallToby: IPS shows lb / in3, MMGS shows g / mm3; presentation
