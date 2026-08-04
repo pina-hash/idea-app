@@ -903,14 +903,14 @@ north star, read it before extending GAUNTLET). Summary of what exists:
 - **Security model** (this is the important part to preserve):
   - Students read published challenge **prompts** and the board, and read their
     own submissions. They can never read an `answer` column (no client grant),
-    and they cannot insert submissions directly. **Caveat, true today: the
-    no-client-grant rule holds for direct column reads only.** Two anon-granted
-    SECURITY DEFINER RPCs hand out a piece of the modeling answer key anyway —
-    `gauntlet_run_targets` and `gauntlet_macro_submit` both return the level's
-    raw `target_volume_mm3`. See the KNOWN OPEN HOLE bullet under "Verification
-    model" below before treating the modeling boards as machine-verified. The
-    KNOWLEDGE modes described in this bullet are genuinely sound and are
-    unaffected.
+    and they cannot insert submissions directly. **Caveat: the no-client-grant
+    rule holds for direct column reads only.** Two anon-granted SECURITY DEFINER
+    RPCs, `gauntlet_run_targets` and `gauntlet_macro_submit`, used to hand out
+    the level's raw `target_volume_mm3` anyway; `0061` removed it from both (see
+    the verification-model bullet below). What survives that fix is that the
+    target is still DERIVABLE from the public `prompt` framing, so read that
+    bullet before treating the modeling boards as machine-verified. The KNOWLEDGE
+    modes described here are genuinely sound and were never affected.
   - **Grading is server-side and authoritative.** Submissions are written only
     by the `gauntlet_submit(p_challenge_id, p_value, p_elapsed_ms)` SECURITY
     DEFINER RPC, which reads the hidden answer, grades, and inserts with
@@ -1329,27 +1329,44 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     blocks on material or document units. `p_material` is a non-gating advisory,
     `p_unit_system` is informational, `p_mass_g` is ignored. (Restores the 0016
     volume-only path.)
-  - **KNOWN OPEN HOLE, do not assume this is fixed: the checksum's expected
-    value is handed to the caller that submits against it.** A checksum only
-    constrains a party that does not know the answer, and today every caller
-    knows it. `gauntlet_run_targets` returns the raw `target_volume_mm3` and is
-    `grant execute ... to anon`, and `gauntlet_macro_submit` returns
-    `target_volume_mm3` alongside `your_volume_mm3` on **every** submit,
-    including a failing one — and a failing SOLO submit consumes nothing (the
-    token's `locked_at` is only set `if v_correct`), so a wrong submit discloses
-    the target for free and can be repeated without limit. Both are last defined
-    in `0036` and both are anon-granted; `gauntlet_macro_start` is anon-granted
-    too and its blank-part check (`p_volume_mm3 > 0`) is client-attested. So the
-    ranked modeling boards can be topped without opening SolidWorks: reveal for a
-    code, start, read the target, submit it back. Feature Golf is softer still
-    (`score_metric` is the client-reported `p_feature_count`) and Reverse
-    Engineer scores 0.0 deviation on the stored targets. Re-verified against the
-    live migrations on 2026-08-03 and confirmed **unfixed**. The fix is to stop
-    returning `target_volume_mm3` / `tolerance_pct` from both payloads (a coarse
-    deviation band is fine as a coaching signal) and then revisit the `anon`
-    grants. Full chain and reasoning: `docs/audits/2026-07-security-audit.md` F4
-    and P1 item 6. Anything below that reads `gauntlet_run_targets` as merely
-    "read-only" should be read with this bullet in mind.
+  - **The checksum's expected value is no longer handed to the caller that
+    submits against it (`0061`, audit F4).** A checksum only constrains a party
+    that does not know the answer, and until `0061` every caller knew it:
+    `gauntlet_run_targets` returned the raw `target_volume_mm3`, and
+    `gauntlet_macro_submit` returned it alongside `your_volume_mm3` on **every**
+    submit including a failing one, while a failing solo submit consumed nothing
+    — so a wrong submit read the answer for free and could be repeated without
+    limit. `0061_gauntlet_target_disclosure.sql` is now the live definition of
+    both and closes that chain two ways, which only work together:
+    - **Neither payload carries the target.** Both drop `target_volume_mm3` and
+      `tolerance_pct`; submit also drops `your_volume_mm3`. A failing submit gets
+      `deviation_band` instead — `pass`/`close` (≤1%)/`near` (≤5%)/`far`.
+      Deliberately **coarse** (its finest step is 10x the 0.1% pass band) and
+      **unsigned** (direction is the most useful bit for walking onto a target).
+      Do not add the target, the submitted volume beside it, or an exact miss
+      distance back to either payload in any form.
+    - **A failing solo submit costs an attempt.** `gauntlet_run_tokens` gained
+      `failed_attempts`; three failures per reveal, then the code is retired
+      (`used_at`). Not 5: narrowing the 1% band into the 0.1% band takes ~4
+      probes, so 5 would let one reveal be converted into a rank. **Real product
+      tradeoff:** retries were unlimited and the tools still say "your time keeps
+      counting", which stays true but is now budgeted. Acceptable because the
+      UNRANKED practice mass check is free, unlimited and exact.
+    **What is still open, do not read this as closed:** the target stays
+    DERIVABLE from public data, because `prompt.target_mass` and
+    `prompt.density` are on the spec card by design (TooTallToby) and mass is
+    volume x density — measured, the derivation lands inside the 0.1% band on
+    every level tested. So the controls now are the attempt budget and the
+    attempt trail, not secrecy; making it secret would mean taking the target
+    mass off the spec card, a product decision. Also unchanged: Feature Golf
+    still ranks on the client-reported `p_feature_count`, and Reverse Engineer's
+    `score_metric` IS the exact deviation, so the fix is complete for **Speedrun**
+    and partial for those two. `gauntlet_macro_start` (live in `0017`, not
+    `0016`) keeps its client-attested `p_volume_mm3 > 0` check deliberately —
+    unfixable server-side, and outside the disclosure chain. Full reasoning,
+    residuals and verification: `docs/audits/2026-07-security-audit.md` F4's
+    2026-08-03 note. **`0061` is code-only until it is applied by hand** in the
+    Supabase SQL editor, after `0060`.
   - **Mass = measured volume x level density**, computed server-side and shown as
     both the level's target mass and the student's computed mass, in the level's
     unit system (TooTallToby: IPS shows lb / in3, MMGS shows g / mm3; presentation
@@ -1358,12 +1375,15 @@ north star, read it before extending GAUNTLET). Summary of what exists:
     target volume, so ranked stays volume-only.
   - **Tolerance constant** `GAUNTLET_VOLUME_TOL_PCT = 0.1` (relative percent, was
     0.5; tightened in migration `0036`) is the shared DEFAULT across layers. The
-    SERVER copy governs ranked pass/fail: `gauntlet_macro_submit.c_volume_tol_pct`
-    (and the preview/practice display copy `gauntlet_run_targets.c_volume_tol_pct`).
-    The VBA `GAUNTLET_VOLUME_TOL_PCT` and C# `GauntletMath.VolumeTolPct` copies are
-    PREVIEW-ONLY (the practice check + reference-cube self-check), kept in sync. A
-    level's `answer.tolerance_pct` still takes precedence when set (both server
-    functions coalesce to the constant only when it is absent).
+    ONE server copy that governs ranked pass/fail is
+    `gauntlet_macro_submit.c_volume_tol_pct`, and a level's `answer.tolerance_pct`
+    still takes precedence over it when set. The VBA `GAUNTLET_VOLUME_TOL_PCT` and
+    C# `GauntletMath.VolumeTolPct` copies are PREVIEW-ONLY (the practice check +
+    reference-cube self-check), kept in sync. **Since `0061` the tolerance is no
+    longer transmitted at all** — `gauntlet_run_targets` used to carry a display
+    copy, but the width of the pass band is part of the answer key, so the client
+    previews now always use their own local default and a per-level override is
+    server-side only.
   - **Canonical volume:** extract on an explicit SI basis (mass properties
     `UseSystemUnits = true` -> m3) and convert ONCE via `1 m3 = 1e9 mm3`
     (`M3_TO_MM3` / `GauntletMath.CubicMToCubicMm`). NO layer branches on the

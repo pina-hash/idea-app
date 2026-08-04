@@ -49,7 +49,10 @@ The problems are concentrated in three places, and they are not subtle:
    open.)*
 3. GAUNTLET hands the ranked answer key (the expected volume) to the same
    anonymous caller that submits against it, which defeats the volume-as-
-   checksum model without any need to open SolidWorks.
+   checksum model without any need to open SolidWorks. *(F4: fixed by `0061`,
+   pending manual application. Note the residual identified during that fix —
+   the target stays derivable from the public target mass and density, so the
+   real controls are now the attempt budget and the audit trail, not secrecy.)*
 
 Separately, portal sign-in is not restricted to the school Google Workspace
 domain, and the signed-in tiers require only a session, not a role. Any Google
@@ -81,7 +84,7 @@ Each finding is in exactly one category:
 | F1 | VANGUARD leaderboard submission | Critical | **3** | — |
 | F2 | Coin entry PIN verified in the browser | Critical | **3** | — |
 | F3 | Coin ledger endpoint disclosed publicly, public page writes to it | Critical | **2** | (a) Set `COIN_API_KEY` in the Vercel project env and redeploy. (b) Paste-and-redeploy the coin ledger Code.gs so it **requires** the key on every action, under the parameter name `key`. |
-| F4 | GAUNTLET ranked answer key disclosed to the anonymous caller | High | **3** | — |
+| F4 | GAUNTLET ranked answer key disclosed to the anonymous caller | High | **2** | Apply `0061_gauntlet_target_disclosure.sql` by hand in the Supabase SQL editor, after `0060`. Until it is applied, both RPCs still return the target and failing submits are still free. |
 | F5 | GREENLINE race results, leaderboard, Ignition Credits | Medium | **3** | — |
 | F6 | VANGUARD cloud save, run history, run checkpoint | Low–medium | **3** | — |
 | F7 | GAUNTLET knowledge modes, FRC quiz and progress model | Informational | **1** | — |
@@ -126,9 +129,20 @@ none of this is in effect in production until the deployed build carries
 repository's git history forever, so the disclosure is only genuinely closed
 once Code.gs itself refuses keyless callers.
 
-**F4 — category 3, and this is the definitive answer.** The fix described in
-P1 item 6 has **not** been applied. Neither RPC has been touched since `0036`,
-which is their live definition (`0034`'s bodies are superseded). Reading
+**F4 — category 2 as of 2026-08-03; it was category 3 and the fix has now been
+written.** `0061_gauntlet_target_disclosure.sql` removes the disclosure and ends
+the free failing submit; see the dated note in F4's write-up below for what it
+does, what it deliberately does not do, and the retry-cost tradeoff it
+introduces. It is **category 2 and not 1** for the same reason F10 is: per this
+repository's standing convention migrations are applied by hand in the Supabase
+SQL editor, the local `.env` holds placeholder credentials, and `0061` has not
+been executed anywhere. Nothing about the live boundary moves until a teacher
+pastes it in. Calling it "resolved in the repo" would assert that it is in effect
+right now, which is exactly the kind of claim this table exists to keep honest.
+
+**The state that made it category 3, recorded as it stood before `0061`.**
+Neither RPC had been touched since `0036`, which was their live definition
+(`0034`'s bodies are superseded). Reading
 `0036_gauntlet_volume_tolerance_0_1.sql` directly:
 
 - `gauntlet_run_targets` returns `'target_volume_mm3', v_target_vol` and
@@ -145,14 +159,20 @@ which is their live definition (`0034`'s bodies are superseded). Reading
   solo submit therefore writes nothing to the token and can be repeated without
   limit — while returning both the target and the submitted value, which is the
   exact narrowing signal the fix was supposed to remove.
-- `gauntlet_macro_start` is unchanged too: still anon-granted
-  (`0016:101`), and its blank-part check is still the client-attested
-  `p_volume_mm3 > 0` (`0016:66`).
+- `gauntlet_macro_start` is unchanged too: still anon-granted, and its blank-part
+  check is still the client-attested `p_volume_mm3 > 0`. **Pointer corrected on
+  2026-08-03:** this entry and F4's "Where" both cited `0016` for
+  `gauntlet_macro_start`. `0017_gauntlet_run_status.sql` redefines it (`:67`,
+  grant at `:127`, the blank-part check at `:87`) and is the live definition —
+  the same class of drift the reconciliation pass corrected for the other two
+  functions. `0016`'s body is superseded. The verdict is unaffected: both bodies
+  carry the identical client-attested check.
 
 So all three steps of the exploit chain — start with a zero volume, read the
-target, submit it back — are intact, and a second independent disclosure route
-(one deliberate wrong submit) is intact alongside it. There is no partial fix,
-no coarse deviation band, and no narrowing of the `anon` grants.
+target, submit it back — were intact, and a second independent disclosure route
+(one deliberate wrong submit) was intact alongside it. There was no partial fix,
+no coarse deviation band, and no narrowing of the `anon` grants. That is the
+state `0061` was written against.
 
 **F5 — category 3.** Every control this finding credits is present and
 unchanged. Every gap it records is also unchanged: `grep` for
@@ -411,14 +431,15 @@ the out-of-repo script, and the repo-side evidence gives no reason for optimism:
 no request signing, no shared secret, no token, and no per-action credential
 appears anywhere in either HTML file.
 
-## F4. GAUNTLET: the ranked answer key is disclosed to the anonymous caller that submits against it. High.
+## F4. GAUNTLET: the ranked answer key is disclosed to the anonymous caller that submits against it. High. *(fixed 2026-08-03 by `0061_gauntlet_target_disclosure.sql` — see the dated note at the end of this finding. The body below describes the state before that migration and is kept as written.)*
 
-**Where:** `supabase/migrations/0036_gauntlet_volume_tolerance_0_1.sql` is the
-**live** definition of both `gauntlet_macro_submit` and `gauntlet_run_targets`
-(it copies 0034's bodies verbatim with only the tolerance constant changed, and
-supersedes them; the pointer originally read 0034 and was corrected by the
-reconciliation pass). Also `0016_gauntlet_speedrun_start.sql`
-(`gauntlet_macro_start`) and `0035_gauntlet_run_events.sql`
+**Where:** `supabase/migrations/0061_gauntlet_target_disclosure.sql` is now the
+**live** definition of both `gauntlet_macro_submit` and `gauntlet_run_targets`.
+Before it, `0036_gauntlet_volume_tolerance_0_1.sql` was (it copies 0034's bodies
+verbatim with only the tolerance constant changed, and supersedes them; the
+pointer originally read 0034 and was corrected by the reconciliation pass). Also
+`0017_gauntlet_run_status.sql` (`gauntlet_macro_start` — **not** `0016`, whose
+body it supersedes; corrected 2026-08-03) and `0035_gauntlet_run_events.sql`
 (`gauntlet_run_events_insert`).
 
 **What the client submits.** The SolidWorks macros and the C# add-in POST to
@@ -500,6 +521,126 @@ Manual submissions (`gauntlet_submit` with a typed mass, and
 `gauntlet_room_manual_submit`) are authenticated and explicitly unranked or
 host-supervised, and the leaderboard view already excludes manual entries from
 the modeling boards. That part of the model is working as documented.
+
+### 2026-08-03: fixed by `0061_gauntlet_target_disclosure.sql`
+
+Re-verified against the live definitions first, and confirmed unfixed exactly as
+written above: `0036` was still the live body of both RPCs, both still returned
+`target_volume_mm3` and `tolerance_pct`, `gauntlet_macro_submit` still returned
+`your_volume_mm3` beside the target on every submit, and the solo token was still
+untouched by a failure. `0061` changes two things, and they are only strong
+together.
+
+**1. Neither RPC returns the ranked comparison value.** `gauntlet_run_targets`
+drops `target_volume_mm3` and `tolerance_pct`. `gauntlet_macro_submit` drops
+`target_volume_mm3`, `your_volume_mm3` and `tolerance_pct`, and returns
+`deviation_band` instead — one of `pass` / `close` (≤1%) / `near` (≤5%) / `far`.
+Two properties of that band are deliberate and should not be relaxed. It is
+**coarse**: its finest step is ten times the 0.1% pass band, so a run of answers
+cannot be narrowed into tolerance in a few probes. And it is **unsigned**:
+direction is the single most useful bit for walking onto a target, and the
+unranked practice check already gives an honest student a better signal. The
+tolerance comparison itself is unchanged and still runs server-side.
+
+**2. A failing solo submit costs an attempt.** `gauntlet_run_tokens` gains
+`failed_attempts`; a code carries three failures per reveal, and exhausting it
+sets `used_at`, so further guesses need a fresh reveal. **This is the product
+tradeoff, and it is a real one:** retries were unlimited, and both tools tell
+students to "submit again with the same code, your time keeps counting". That
+workflow survives — the clock still runs, geometry can still be fixed and
+resubmitted — but three failures is meaningfully tighter than unlimited, and a
+student who is genuinely struggling will now sometimes have to re-reveal and
+restart their clock. It was judged acceptable because the **unranked practice
+mass check is free, unlimited, records nothing, and compares against the same
+level density**, so an unsure student has an exact self-check that costs no
+attempts; the ranked submit is for when you already believe you are done. Three
+rather than five is not a round number: intersecting the intervals a run of
+`close` answers implies takes about four probes to narrow from the 1% band into
+the 0.1% pass band, so five would have let a single reveal be converted into a
+rank by feel.
+
+**What this closes.** The chain as written above — start, read the target,
+submit it back — is broken at step 2, and the second route (one deliberate wrong
+submit) is broken too: a failing submit no longer discloses anything but a coarse
+band, and no longer costs nothing.
+
+**What it does not close, and this is the part not to overread.**
+
+- **The target volume is still derivable from PUBLIC data, and this route was
+  not identified anywhere in the original finding.** `prompt.target_mass`,
+  `prompt.density` and `prompt.tolerance_pct` are public framing, selected by
+  `speedrun/[id]/+page.server.ts` and rendered on the spec card before the run
+  starts — that is the TooTallToby convention the whole program is built on. Mass
+  is volume × density at a fixed level density, so `target_mass / density` is the
+  target volume. Measured across five representative levels in both unit systems,
+  the derived value lands within 0.0000% to 0.0115% of the true target, i.e.
+  **comfortably inside the 0.1% pass band in every case**. So a determined
+  student can still pass a ranked modeling run without opening SolidWorks. What
+  `0061` removes is the exact unrounded value, the zero-effort path, and — the
+  part that matters most — the narrowing loop that let an *approximate* guess be
+  refined into an exact one for free. Making the target genuinely secret would
+  mean taking the target mass off the spec card, which is a product decision that
+  would change what the challenge even asks, not a security fix. It should be
+  considered explicitly rather than assumed.
+- **The attempt budget is per token, not per challenge.** Re-revealing is
+  unlimited and the target belongs to the challenge, so knowledge carries across
+  reveals. The budget makes one reveal unconvertible into a rank and forces
+  anything more into a slow loop of authenticated reveals that each leave a row
+  in `gauntlet_speedrun_attempts` (0033). Guessing becomes visible, not
+  impossible.
+- **Reverse Engineer's ranked score is itself the exact deviation.** Its
+  `score_metric` is the mean percent deviation of the submitted volume and
+  surface area from the stored targets, so the exact miss distance is inherent to
+  the score and cannot be removed without redesigning the metric. Two probes pin
+  the target. **Feature Golf** still ranks on the client-reported
+  `p_feature_count`, so `p_feature_count: 1` still wins that board. Both were
+  already noted above as "softer still"; `0061` does not change either, and
+  neither is fixable without a scoring redesign. **The fix is therefore complete
+  for Speedrun** — whose `score_metric` is elapsed time and carries no
+  information about the target — **and partial for the other two modeling modes.**
+
+**`gauntlet_macro_start`: reconsidered, deliberately unchanged.** Its blank-part
+guard (`p_volume_mm3 > 0`) is client-attested and stays that way, because there
+is no server-side way to observe a CAD part — the server sees only a number the
+caller chose. It is not part of the disclosure chain, which the two changes above
+break on their own, so tightening it would be theatre. It does fail to prevent a
+**separate** cheat the original finding never covered: model the part completely
+first, then call start (the clock begins) and submit immediately, for a ranked
+time of a few seconds. That is not fixable in SQL. Its only real detector is the
+0035 telemetry stream — a passing run with no modeling events is visibly fake —
+and that stream is itself anon-granted and so forgeable, which is the same
+limitation already recorded above. Recorded here rather than folded silently into
+F4, because it survives this fix untouched.
+
+**Verification status.** The SQL is review-verified only, per the repo
+convention: migrations are applied by hand, the local `.env` holds placeholder
+credentials, and there is no psql, docker, or Supabase CLI available here, so
+`0061` has not been executed anywhere. What *was* verified: `svelte-check` clean
+(0 errors, 28 pre-existing warnings); the band's boundary behaviour, symmetry
+under sign, and the ~4-probes-versus-3-budget margin, checked numerically against
+a mirror of the SQL; the token lifecycle simulated over failure sequences,
+including that a passing submit banks the clock and later failures never retire a
+locked code; and the derived-target arithmetic above, over five levels in both
+unit systems. In the browser, `/dev/run-telemetry` still renders its volume gauge
+at the correct target with no console errors, and the shipped
+`targetVolumeFromMass` helper reproduces the harness's own hardcoded 52000 mm³
+target exactly from its public mass and density, with null guards behaving. **Not
+verifiable here:** the RPCs against a live database, which is the check to run
+after applying `0061`. Confirm on a live project that a passing submit still
+ranks and locks, that a failing one returns a band and decrements
+`attempts_remaining`, that the fourth failure retires the code, and that neither
+payload contains `target_volume_mm3`.
+
+**Consumers updated in the same change**, per the standing rule that a migration
+touching these RPCs updates the add-in with it: the Speedrun play page derives
+its telemetry gauge target from the still-returned public mass and density
+instead of reading it from the RPC; `GauntletClient.cs`, `TaskPaneControl.cs` and
+the add-in README drop the removed fields and surface the band plus the remaining
+budget; `idea-gauntlet-submit.bas` does the same. Both tools degraded gracefully
+even unchanged (a missing JSON field reads as null / empty and already fell back
+to the local tolerance constant), so an add-in built before this change will not
+break against the new server — it simply stops showing a target it no longer
+receives.
 
 ## F5. GREENLINE race results, leaderboard, and Ignition Credits. Medium.
 
@@ -1147,14 +1288,19 @@ is not the same 4-digit value.
 
 5. **Migrate the VANGUARD leaderboard off Apps Script onto a Supabase RPC.**
    Sketch below.
-6. **Stop returning the answer key in GAUNTLET.** Remove `target_volume_mm3` and
-   `tolerance_pct` from both the `gauntlet_run_targets` payload and the
-   `gauntlet_macro_submit` response; return pass or fail and, if a coaching
-   signal is wanted, a coarse deviation band. This is a small change that
-   removes the entire F4 chain while leaving the server-stamped clock, the
-   forgery-proof attribution, and the volume check itself untouched. Then
-   reconsider the `anon` grants: either the add-in holds a real session, or run
-   codes become single-attempt.
+6. **Stop returning the answer key in GAUNTLET.** *(Done 2026-08-03 in
+   `0061_gauntlet_target_disclosure.sql`, exactly as sketched: both payloads lose
+   `target_volume_mm3` and `tolerance_pct`, `gauntlet_macro_submit` also loses
+   `your_volume_mm3`, and a coarse unsigned deviation band replaces them. The
+   clock, the attribution and the volume check are untouched. **Still to apply by
+   hand.**)* On the follow-on question this item raised — reconsidering the `anon`
+   grants — the answer was to keep them: the run code is the credential the
+   macros and the add-in authenticate with, and neither can hold a session, so
+   dropping `anon` would break the ranked path entirely. Run codes did **not**
+   become single-attempt either; that would have made one mistyped submit cost a
+   whole run. They became three-attempt, which ends the unlimited-guess property
+   without that cost. See F4's dated note for the reasoning and for the two
+   residuals it does not close.
 7. **Restrict portal sign-in to the school Workspace domain and enforce it
    server-side**, in `hooks.server.ts` or in a shared role check on
    `authedPrefixes`, not with the `hd` hint. Decide explicitly whether a

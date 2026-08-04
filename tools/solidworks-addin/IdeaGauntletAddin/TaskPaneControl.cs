@@ -415,8 +415,11 @@ namespace IdeaGauntlet
             {
                 double target = level.TargetMassLevel.Value;
                 double devPct = (massLevel - target) / target * 100.0;
-                double tol = level.TolerancePct.HasValue && level.TolerancePct.Value > 0
-                    ? level.TolerancePct.Value : GauntletMath.VolumeTolPct;
+                // The server stopped returning a per-level tolerance in 0061, so
+                // this preview band is the shared default. A level that overrides
+                // answer.tolerance_pct still governs the RANKED result server-side;
+                // only this advisory readout uses the default.
+                double tol = GauntletMath.VolumeTolPct;
                 lblDelta.Text = Inv("Target {0} {1}  ·  {2}{3:0.000}% (tol {4:0.##}%)",
                     ips ? Inv("{0:0.0000}", target) : Inv("{0:0.00}", target), unit,
                     devPct >= 0 ? "+" : "-", Math.Abs(devPct), tol);
@@ -695,20 +698,30 @@ namespace IdeaGauntlet
                 }
                 else
                 {
+                    // The server tells us only how CLOSE we were, never the target
+                    // and never the exact miss (0061 / audit F4), so the coaching
+                    // line is built from the band. Retries are budgeted per reveal.
                     text = Inv("OUTSIDE TOLERANCE in {0:0.00} s", elapsedSeconds) + Environment.NewLine +
-                        "Recorded, but it does not rank. Fix your geometry and submit again with the same code (your time keeps counting), or re-reveal for a new run.";
+                        BandAdvice(result.DeviationBand);
+                    if (result.CodeRetired)
+                    {
+                        text = text + Environment.NewLine +
+                            "This code has now used all of its submits. Re-reveal in GAUNTLET for a fresh run.";
+                    }
+                    else if (result.AttemptsRemaining.HasValue)
+                    {
+                        text = text + Environment.NewLine +
+                            Inv("Recorded, but it does not rank. Fix your geometry and submit again with the same code ({0} submit{1} left on it, your time keeps counting), or re-reveal for a new run.",
+                                result.AttemptsRemaining.Value, result.AttemptsRemaining.Value == 1 ? "" : "s");
+                    }
+                    else
+                    {
+                        text = text + Environment.NewLine +
+                            "Recorded, but it does not rank. Fix your geometry and submit again with the same code (your time keeps counting), or re-reveal for a new run.";
+                    }
                 }
 
-                if (result.TargetVolumeMm3.HasValue && result.TolerancePct.HasValue)
-                {
-                    text = text + Environment.NewLine + Environment.NewLine +
-                        Inv("Volume {0:0.00} mm3 (target {1:0.00} within {2:0.##}%)",
-                            snap.VolumeMm3, result.TargetVolumeMm3.Value, result.TolerancePct.Value);
-                }
-                else
-                {
-                    text = text + Environment.NewLine + Environment.NewLine + Inv("Volume {0:0.00} mm3", snap.VolumeMm3);
-                }
+                text = text + Environment.NewLine + Environment.NewLine + Inv("Volume {0:0.00} mm3", snap.VolumeMm3);
                 text = text + Inv("  ·  Features {0}", snap.FeatureCount);
 
                 if (result.YourMassLevel.HasValue)
@@ -790,7 +803,9 @@ namespace IdeaGauntlet
             bool ips = string.Equals(level.UnitSystem, "IPS", StringComparison.OrdinalIgnoreCase);
             double massLevel = ips ? massG / GauntletMath.LbToG : massG;
             string unit = string.IsNullOrEmpty(level.MassUnit) ? (ips ? "lb" : "g") : level.MassUnit;
-            double tol = level.TolerancePct.HasValue && level.TolerancePct.Value > 0 ? level.TolerancePct.Value : GauntletMath.VolumeTolPct;
+            // Shared default: the server no longer returns a per-level tolerance
+            // (0061). Ranked pass/fail still honours a level's own override.
+            double tol = GauntletMath.VolumeTolPct;
 
             string text = "PRACTICE (unranked, nothing recorded)" + Environment.NewLine + Environment.NewLine +
                 "Your mass:   " + FormatMass(massLevel, level.UnitSystem) + " " + unit + Environment.NewLine;
@@ -930,6 +945,26 @@ namespace IdeaGauntlet
             while (inner.InnerException != null) inner = inner.InnerException;
             return "Network error posting to GAUNTLET. Check your connection." +
                 Environment.NewLine + Environment.NewLine + inner.Message;
+        }
+
+        // Turn the server's coarse closeness band into coaching. The band is the
+        // ONLY correctness signal a failing ranked submit gets (0061 / audit F4):
+        // deliberately unsigned and coarse, so it can point a student at the right
+        // KIND of mistake without ever narrowing onto the target volume. Use the
+        // unranked practice mass check for a real number.
+        private static string BandAdvice(string band)
+        {
+            switch (band)
+            {
+                case "close":
+                    return "Very close. Look for a small feature: a missing fillet or chamfer, a hole depth, or a draft.";
+                case "near":
+                    return "In the right neighbourhood. Check a dimension you may have misread, or a feature that is the wrong size.";
+                case "far":
+                    return "Well off. Re-read the drawing: a wrong overall dimension, a missed body, or the wrong units.";
+                default:
+                    return "Recorded, but it does not rank.";
+            }
         }
 
         // Present mass with IPS to 4 dp (lb), metric to 2 dp (g), per TooTallToby.

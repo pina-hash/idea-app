@@ -59,10 +59,13 @@ expires about 30 minutes after reveal.
 
 Both calls are PostgREST RPC POSTs to the same Supabase project the website
 uses, authenticated with the **public anon key** (not a secret; the code is
-the credential). Defined in `supabase/migrations/0016_gauntlet_speedrun_start.sql`,
-`0017_gauntlet_run_status.sql`, `0027_gauntlet_material_density_gate.sql`
-(material verified by density, not name), and `0030_gauntlet_unit_system.sql`
-(document unit-system gate + mass reported in the level's unit).
+the credential). Defined in `supabase/migrations/0017_gauntlet_run_status.sql`
+(`gauntlet_macro_start`, superseding `0016`), `0034_gauntlet_volume_only_verification.sql`
+(geometry-only verification; material and document units stopped gating),
+`0036_gauntlet_volume_tolerance_0_1.sql` (tolerance default 0.1%), and
+`0061_gauntlet_target_disclosure.sql` (the live definition of
+`gauntlet_macro_submit` and `gauntlet_run_targets`: no target in either payload,
+budgeted failed submits).
 
 ```
 POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_start
@@ -77,14 +80,31 @@ POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_macro_submit
              "p_material": "<applied material name, or null>",
              "p_unit_system": "IPS" | "MMGS" | null }
   returns: { "is_correct", "mode", "elapsed_ms", "score_metric", "rank",
-             "target_volume_mm3", "your_volume_mm3", "tolerance_pct",
-             "density_ok", "measured_density_g_cm3", "expected_density_g_cm3",
-             "unit_system", "mass_level", "mass_unit" }
+             "volume_ok", "deviation_band", "attempts_remaining", "code_retired",
+             "unit_system", "mass_unit", "your_mass_level", "target_mass_level",
+             "detected_material", "material_matches" }
+
+POST https://<project>.supabase.co/rest/v1/rpc/gauntlet_run_targets
+  body:    { "p_code": "..." }
+  returns: { "challenge_id", "title", "expected_density_g_cm3", "density_level",
+             "unit_system", "mass_unit", "length_unit", "target_mass_level",
+             "material" }
 ```
 
 Timing and grading are entirely server-side; the add-in never sends a clock or
 a correctness flag. If a migration changes these RPCs, update
 `GauntletClient.cs` in the same change.
+
+**Neither response carries the target volume or the tolerance** (migration
+`0061`, closing audit finding F4). The target volume is the value a ranked submit
+is checked against, and both RPCs are anon-granted with the run code as the only
+credential, so returning it handed the answer key to the caller submitting
+against it. A failing run now gets only `deviation_band`, a coarse UNSIGNED
+closeness band (`close` | `near` | `far`), and failing submits are budgeted:
+`attempts_remaining` counts down and the code retires at zero. Do not add the
+target, the submitted volume beside it, or an exact miss distance back to either
+payload. Mass and density are still returned because they are public spec-card
+framing the student is shown before the run starts.
 
 ## Building
 

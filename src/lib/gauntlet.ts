@@ -413,6 +413,30 @@ export function formatMass(value: number | null | undefined, unit = 'g'): string
 	return `${rounded} ${unit}`;
 }
 
+/**
+ * The target volume (mm3) implied by a level's target mass and density.
+ *
+ * `gauntlet_run_targets` deliberately stopped returning `target_volume_mm3` in
+ * 0061: it is the value the ranked check compares against, and handing it to the
+ * caller that submits against it was audit finding F4. Mass is volume x density
+ * at a FIXED level density, so the target mass and density the RPC still returns
+ * (both public framing, shown on the spec card before the run) reconstruct it for
+ * display gauges without the server disclosing the ranked comparison itself.
+ *
+ * `density` is always g/cm3 (the RPC normalizes it); `massLevel` is in the
+ * level's own unit, g for MMGS and lb for IPS. Mirrors the server's own
+ * mass = (volume_mm3 / 1000) * density_g_cm3.
+ */
+export function targetVolumeFromMass(
+	massLevel: number | null,
+	density: number | null,
+	unitSystem: string
+): number | null {
+	if (massLevel == null || density == null || !(density > 0) || !(massLevel > 0)) return null;
+	const massG = unitSystem.toUpperCase() === 'IPS' ? massLevel * 453.59237 : massLevel;
+	return (massG * 1000) / density;
+}
+
 /** Format a Reverse Engineer deviation metric (percent, lower is better). */
 export function formatDeviation(value: number | null | undefined): string {
 	if (value === null || value === undefined || Number.isNaN(value)) return '--';

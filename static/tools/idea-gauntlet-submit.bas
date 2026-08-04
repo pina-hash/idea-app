@@ -128,6 +128,15 @@ Sub main()
     secs = JsonField(resp, "score_metric")
     rankS = JsonField(resp, "rank")
 
+    ' Coarse, unsigned closeness band + the remaining submit budget on this code.
+    ' The server stopped returning the target volume, the submitted volume beside
+    ' it, and the tolerance in migration 0061: handing the ranked comparison value
+    ' to the caller submitting against it was the whole of audit finding F4.
+    Dim band As String, left As String, retired As String
+    band = LCase(JsonField(resp, "deviation_band"))
+    left = JsonField(resp, "attempts_remaining")
+    retired = LCase(JsonField(resp, "code_retired"))
+
     Dim yourMass As String, targMass As String, massUnit As String, lvlUnits As String
     yourMass = JsonField(resp, "your_mass_level")
     targMass = JsonField(resp, "target_mass_level")
@@ -139,9 +148,18 @@ Sub main()
         out = "PASS in " & secs & " s"
         If Len(rankS) > 0 And rankS <> "null" Then out = out & "  -  rank #" & rankS
     Else
-        out = "OUTSIDE TOLERANCE in " & secs & " s" & vbCrLf & _
-              "Recorded, but it does not rank. Fix your model and submit again with the " & _
-              "same code (your time keeps counting), or re-reveal for a new run."
+        out = "OUTSIDE TOLERANCE in " & secs & " s" & vbCrLf & BandAdvice(band)
+        If retired = "true" Then
+            out = out & vbCrLf & "This code has now used all of its submits. " & _
+                  "Re-reveal in GAUNTLET for a fresh run."
+        ElseIf Len(left) > 0 And left <> "null" Then
+            out = out & vbCrLf & "Recorded, but it does not rank. Fix your model and submit " & _
+                  "again with the same code (" & left & " left on it, your time keeps " & _
+                  "counting), or re-reveal for a new run."
+        Else
+            out = out & vbCrLf & "Recorded, but it does not rank. Fix your model and submit " & _
+                  "again with the same code (your time keeps counting), or re-reveal for a new run."
+        End If
     End If
     out = out & vbCrLf & vbCrLf & _
           "Volume: " & JNum(volumeMm3) & " mm3   Features: " & featureCount
@@ -186,8 +204,10 @@ Sub PracticeMassVerify()
     densGcm3 = ValInv(JsonField(tj, "expected_density_g_cm3"))
     unitSys = UCase(JsonField(tj, "unit_system"))
     massUnit = JsonField(tj, "mass_unit")
-    tolPct = ValInv(JsonField(tj, "tolerance_pct"))
-    If tolPct <= 0 Then tolPct = GAUNTLET_VOLUME_TOL_PCT
+    ' The server no longer returns a per-level tolerance (0061), so this UNRANKED
+    ' preview uses the shared default. A level that overrides answer.tolerance_pct
+    ' still governs the RANKED result server-side; only this readout uses default.
+    tolPct = GAUNTLET_VOLUME_TOL_PCT
 
     If densGcm3 <= 0 Then
         MsgBox "This level has no stored density, so a mass check is not available. " & _
@@ -422,6 +442,26 @@ HttpError:
            Err.Description, vbExclamation, "GAUNTLET"
     status = -1
     HttpPost = ""
+End Function
+
+' Turn the server's coarse closeness band into coaching. This band is the ONLY
+' correctness signal a failing ranked submit gets (0061 / audit F4): deliberately
+' unsigned and coarse, so it points at the KIND of mistake without ever narrowing
+' onto the target volume. Use the unranked practice mass check for a real number.
+Private Function BandAdvice(ByVal band As String) As String
+    Select Case band
+        Case "close"
+            BandAdvice = "Very close. Look for a small feature: a missing fillet or " & _
+                         "chamfer, a hole depth, or a draft."
+        Case "near"
+            BandAdvice = "In the right neighbourhood. Check a dimension you may have " & _
+                         "misread, or a feature that is the wrong size."
+        Case "far"
+            BandAdvice = "Well off. Re-read the drawing: a wrong overall dimension, a " & _
+                         "missed body, or the wrong units."
+        Case Else
+            BandAdvice = "Recorded, but it does not rank."
+    End Select
 End Function
 
 '------------------------------------------------------------------------------

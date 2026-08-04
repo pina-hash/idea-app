@@ -31,9 +31,15 @@ namespace IdeaGauntlet
         public long ElapsedMs;
         public double? ScoreMetric;
         public int? Rank;
-        public double? TargetVolumeMm3;
-        public double? YourVolumeMm3;
-        public double? TolerancePct;
+        // Coarse, UNSIGNED closeness band: "pass" | "close" | "near" | "far".
+        // Since migration 0061 the server no longer returns the target volume, the
+        // submitted volume alongside it, or the tolerance: handing the ranked
+        // comparison value back to the caller submitting against it was the whole
+        // of audit finding F4. This band is all the feedback a failing run gets.
+        public string DeviationBand;
+        // Failed submits left on this code before it retires (0061).
+        public int? AttemptsRemaining;
+        public bool CodeRetired;
         // Mass computed by the server from the LEVEL's density (never the part's
         // assigned material), in the level's unit system.
         public double? YourMassLevel;
@@ -51,13 +57,18 @@ namespace IdeaGauntlet
     /// density and target mass come from the LEVEL record, so the add-in can show
     /// target-vs-computed mass and run the unranked practice check without ever
     /// reading the part's assigned material.
+    ///
+    /// Since migration 0061 this RPC returns NEITHER target_volume_mm3 NOR
+    /// tolerance_pct: the run code is the only credential and the RPC is
+    /// anon-granted, so anything here is readable by anyone holding a code, and
+    /// the target volume is the value ranked submits are checked against (audit
+    /// F4). What remains is the public spec-card framing. The tolerance used for
+    /// the unranked practice readout is the local GauntletMath.VolumeTolPct.
     /// </summary>
     public class LevelTargets
     {
         public string ChallengeId;
         public string Title;
-        public double? TargetVolumeMm3;
-        public double? TolerancePct;
         public double? ExpectedDensityGcm3;
         public double? DensityLevel;
         public string UnitSystem;
@@ -152,9 +163,9 @@ namespace IdeaGauntlet
             result.ElapsedMs = AsLong(resp, "elapsed_ms");
             result.ScoreMetric = AsDouble(resp, "score_metric");
             result.Rank = AsInt(resp, "rank");
-            result.TargetVolumeMm3 = AsDouble(resp, "target_volume_mm3");
-            result.YourVolumeMm3 = AsDouble(resp, "your_volume_mm3");
-            result.TolerancePct = AsDouble(resp, "tolerance_pct");
+            result.DeviationBand = AsString(resp, "deviation_band");
+            result.AttemptsRemaining = AsInt(resp, "attempts_remaining");
+            result.CodeRetired = AsNullableBool(resp, "code_retired") ?? false;
             result.YourMassLevel = AsDouble(resp, "your_mass_level");
             result.TargetMassLevel = AsDouble(resp, "target_mass_level");
             result.MassUnit = AsString(resp, "mass_unit");
@@ -166,9 +177,10 @@ namespace IdeaGauntlet
 
         /// <summary>
         /// gauntlet_run_targets(p_code): the level's stored density / target mass /
-        /// tolerance / unit system for a valid code. Read-only; writes nothing and
-        /// never affects ranked state. Used for the live target-vs-computed mass
-        /// display and the unranked practice check.
+        /// unit system for a valid code. Read-only; writes nothing and never
+        /// affects ranked state. Used for the live target-vs-computed mass display
+        /// and the unranked practice check. Returns no target volume and no
+        /// tolerance since 0061 (see LevelTargets).
         /// </summary>
         public static async Task<LevelTargets> GetTargetsAsync(string code)
         {
@@ -180,8 +192,6 @@ namespace IdeaGauntlet
             LevelTargets t = new LevelTargets();
             t.ChallengeId = AsString(resp, "challenge_id");
             t.Title = AsString(resp, "title");
-            t.TargetVolumeMm3 = AsDouble(resp, "target_volume_mm3");
-            t.TolerancePct = AsDouble(resp, "tolerance_pct");
             t.ExpectedDensityGcm3 = AsDouble(resp, "expected_density_g_cm3");
             t.DensityLevel = AsDouble(resp, "density_level");
             t.UnitSystem = AsString(resp, "unit_system");

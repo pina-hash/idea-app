@@ -21,6 +21,7 @@
 		difficultyLabel,
 		formatTime,
 		formatMass,
+		targetVolumeFromMass,
 		UNIT_SYSTEM_UNITS,
 		DRAWINGS_BUCKET,
 		type FocusRegion,
@@ -342,12 +343,21 @@
 			supabase.rpc('gauntlet_run_targets', { p_code: code }).then(
 				({ data: tg }: { data: Record<string, number | string | null> | null }) => {
 					if (!tg) return;
+					const density = (tg.expected_density_g_cm3 as number) ?? null;
+					const targetMassLevel = (tg.target_mass_level as number) ?? null;
+					const unitSystem = (tg.unit_system as string) ?? 'MMGS';
 					telemetryTargets = {
-						targetVolumeMm3: (tg.target_volume_mm3 as number) ?? null,
-						densityGcm3: (tg.expected_density_g_cm3 as number) ?? null,
-						targetMassLevel: (tg.target_mass_level as number) ?? null,
+						// The gauge's target volume is DERIVED here, not fetched: since
+						// 0061 the RPC no longer returns target_volume_mm3, because that
+						// is the value the ranked check compares against (audit F4).
+						// Mass is volume x density at a fixed level density, so the
+						// already-public target mass and density reconstruct it for the
+						// gauge without the server handing out the ranked comparison.
+						targetVolumeMm3: targetVolumeFromMass(targetMassLevel, density, unitSystem),
+						densityGcm3: density,
+						targetMassLevel,
 						massUnit: (tg.mass_unit as string) ?? 'g',
-						unitSystem: (tg.unit_system as string) ?? 'MMGS',
+						unitSystem,
 						parTime: framing.par_time ?? null,
 						parFeatures: framing.par_feature_count ?? framing.par_features ?? null
 					};
