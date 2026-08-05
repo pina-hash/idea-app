@@ -816,7 +816,7 @@ h2.ovh{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:20px;lett
 let W=630,H=840;
 const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
 if(isTouch){ H=Math.round(630*(window.innerHeight/window.innerWidth)); }
-const VERSION='210';
+const VERSION='211';
 try{var _cv=document.getElementById('cabVer'); if(_cv)_cv.textContent='BUILD '+VERSION;}catch(e){}
 /* ============================= BAL: central balance registry =============================
    Every shipped balance value lives here and is read live in all modes. NORMAL/HARDCORE/
@@ -2150,7 +2150,7 @@ function startGame(){
   BAL = (gameMode==='tune') ? loadTuneBAL() : freshBAL();
   try{ if(gameMode!=='calib'&&!coopMatch) localStorage.setItem('vanguard_games', getGames()+1); }catch(e){}   // co-op (normal + hardcore) never counts toward the local games-played tally
   enemies=[]; pbul=[]; ebul=[]; pods=[]; parts=[]; shards=[]; rings=[]; pops=[]; boss=null; barriers=[]; bossSpoils=0; bossFlash=0; meltFlash=0; hitStop=0; gameOverT=0; killer=null; lastHitBy=null; hazards=[]; station=null; holes=[]; flakClouds=[]; bossBombs=[]; bossCard=null; lastMilestone=0; milestoneCard=null; scoreFlash=0;
-  runFactionSeq=[...FKEYS]; for(let _i=runFactionSeq.length-1;_i>0;_i--){const _j=Math.random()*_i|0;[runFactionSeq[_i],runFactionSeq[_j]]=[runFactionSeq[_j],runFactionSeq[_i]];} waveFk=null; bossesSeen=[];
+  runFactionSeq=[...FKEYS]; for(let _i=runFactionSeq.length-1;_i>0;_i--){const _j=Math.random()*(_i+1)|0;[runFactionSeq[_i],runFactionSeq[_j]]=[runFactionSeq[_j],runFactionSeq[_i]];} waveFk=null; bossesSeen=[];
   hybridTimer=rnd(6,10);
   fleet=null; slots=[]; refill=[]; reconfTimer=0; volleyTimer=2; diveTimer=2.6;
   sector=1; waveIdx=0; wavesPerSector=3; waveTimer=1.6; bossPending=false; sectorClearT=0;
@@ -3564,7 +3564,7 @@ function msetAttack(e){
   if(ebul.length>=ebulCap())return; if(sector<=1&&Math.random()<0.3)return;
   e.fireFlash=0.12; const _sm=ebulSpeedMul();
   const _tp=nearestPlayer(e.x,e.y), dx=_tp.x-e.x,dy=_tp.y-e.y,m=Math.hypot(dx,dy)||1,base=Math.atan2(dy,dx);
-  if(e.variant===0){ /* TORCH: tight fast forward jet */ const sp=(320+sector*11)*_sm, n=3; for(let i=0;i<n;i++){ const a=base+(i-(n-1)/2)*0.1; ebul.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:e.c,r:2.6,owner:e}); } }
+  if(e.variant===0){ /* TORCH: fast forward jet of 3 */ const sp=(320+sector*11)*_sm, n=3; for(let i=0;i<n;i++){ const a=base+(i-(n-1)/2)*0.22; ebul.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:e.c,r:2.6,owner:e}); } }
   else if(e.variant===1){ /* PENDULUM: sweeping arc of 5 */ const sp=(240+sector*8)*_sm, n=5; for(let i=0;i<n;i++){ const a=base-0.4+(i/(n-1))*0.8; ebul.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:e.c,r:3,owner:e}); } }
   else { /* DENDRITE: branching fork */ const sp=(260+sector*9)*_sm; for(const off of [-0.22,0,0.22]){ const a=base+off; ebul.push({x:e.x,y:e.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,c:e.c,r:3.2,split:true,owner:e}); } }
 }
@@ -6091,6 +6091,7 @@ window.CALIB=(function(){
 })();
 
 const CHANGELOG=[
+ {ver:'211',date:'2026',items:['Every faction now gets a fair turn at opening a run, and MSET\'s TORCH spreads its three shots wider so you can slip between them']},
  {ver:'210',date:'2026',items:['Run history: hover or tap any chart to read that run\'s details, and TIME PLAYED now shows hours']},
  {ver:'209',date:'2026',items:['VANGUARD: new RICOCHET upgrade in the weapons shop, your shots now skip off the side walls and off enemy hulls instead of dying, hunting down a fresh target and hitting again']},
  {ver:'208',date:'2026',items:['VANGUARD: sector 3 bosses now drop bombs, marking a patch of ground with a warning that swells before it blows, so you can see the hit coming and get out of the way']},
