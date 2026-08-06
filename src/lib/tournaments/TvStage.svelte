@@ -3,7 +3,14 @@
 	import '$lib/tournaments/tournaments-theme.css';
 	import EntryBanner from './EntryBanner.svelte';
 	import TournamentQr from './TournamentQr.svelte';
-	import { entryMap, isByeMatch, matchScoreline, roundLabel, statusLabel } from './tournaments';
+	import {
+		entryMap,
+		isByeMatch,
+		isForfeitMatch,
+		matchScoreline,
+		roundLabel,
+		statusLabel
+	} from './tournaments';
 	import type {
 		BracketMatch,
 		MatchGame,
@@ -217,7 +224,14 @@
 						/>
 					</div>
 				</div>
-				{#if matchScoreline(resultMatch, games)}
+				{#if isForfeitMatch(resultMatch)}
+					<!-- A forfeit is a real advancement and a real elimination, so it
+					     still gets the beat -- but the room is told what it was, never
+					     shown it as a played result (there is no scoreline to show). -->
+					<p class="scoreline forfeit">
+						By forfeit{resultMatch.forfeit_reason ? ` · ${resultMatch.forfeit_reason}` : ''}
+					</p>
+				{:else if matchScoreline(resultMatch, games)}
 					<p class="scoreline">{matchScoreline(resultMatch, games)}</p>
 				{/if}
 			</div>
@@ -471,6 +485,10 @@
 	}
 	.win-label {
 		font-size: clamp(0.8rem, 1.4vw, 1.5rem);
+	}
+	.scoreline.forfeit {
+		color: var(--tnm-gold);
+		font-size: clamp(1rem, 1.9vw, 2rem);
 	}
 	.scoreline {
 		margin: 0;

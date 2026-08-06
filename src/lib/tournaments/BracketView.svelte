@@ -3,6 +3,8 @@
 	import {
 		bracketLayout,
 		isByeMatch,
+		isForfeitMatch,
+		matchHref,
 		matchScoreline,
 		type BracketMatch,
 		type MatchGame,
@@ -18,19 +20,25 @@
 	 * `styles` is optional: a node renders its entry's Phase 2b banner
 	 * customization when one exists and the plain Phase 1 chip when it does
 	 * not (see EntryChip for why the wash is faint at this density).
+	 *
+	 * `tournamentId` is optional too (Phase 3a): given one, every node links
+	 * to that match's detail page. Surfaces with nowhere to navigate -- the
+	 * TV stage, a harness -- simply omit it and the nodes stay inert.
 	 */
 	let {
 		matches,
 		entries,
 		styles = {},
 		games = [],
-		championId = null
+		championId = null,
+		tournamentId = null
 	}: {
 		matches: BracketMatch[];
 		entries: Record<string, TournamentEntry>;
 		styles?: Record<string, EntryStyle>;
 		games?: MatchGame[];
 		championId?: string | null;
+		tournamentId?: string | null;
 	} = $props();
 
 	const layout = $derived(bracketLayout(matches));
@@ -70,11 +78,15 @@
 						<div class="round-matches">
 							{#each col.matches as m (m.id)}
 								{@const scoreline = matchScoreline(m, games)}
-								<div
+								<svelte:element
+									this={tournamentId ? 'a' : 'div'}
+									href={tournamentId ? matchHref(tournamentId, m.id) : undefined}
 									class="match"
+									class:linked={!!tournamentId}
 									class:live={m.status === 'in_progress'}
 									class:done={m.status === 'complete'}
 									class:bye={isByeMatch(m)}
+									class:forfeit={isForfeitMatch(m)}
 								>
 									<div class="match-head">
 										<span class="match-id">M{m.slot}</span>
@@ -85,13 +97,15 @@
 											<span class="live-chip">LIVE</span>
 										{:else if isByeMatch(m)}
 											<span class="bye-chip">{m.winner_id ? 'BYE' : '—'}</span>
+										{:else if isForfeitMatch(m)}
+											<span class="ff-chip" title={m.forfeit_reason ?? 'Awarded by forfeit'}>FF</span>
 										{:else if scoreline}
 											<span class="scoreline">{scoreline}</span>
 										{/if}
 									</div>
 									{@render side(m, m.entry_a_id)}
 									{@render side(m, m.entry_b_id)}
-								</div>
+								</svelte:element>
 							{/each}
 						</div>
 					</div>
@@ -158,12 +172,30 @@
 		flex-direction: column;
 		gap: 0.3rem;
 	}
+	.match.linked {
+		text-decoration: none;
+		color: inherit;
+	}
+	.match.linked:hover,
+	.match.linked:focus-visible {
+		border-color: var(--gold, #c8a848);
+	}
 	.match.live {
 		border-color: var(--crimson, #ff3355);
 		box-shadow: 0 0 10px rgba(255, 51, 85, 0.18);
 	}
 	.match.bye {
 		opacity: 0.55;
+	}
+	/* A forfeit was never played: marked, not dimmed like a bye, because two
+	 * named competitors were involved and one of them is out. */
+	.match.forfeit {
+		border-style: dashed;
+		border-color: var(--gold, #c8a848);
+	}
+	.ff-chip {
+		margin-left: auto;
+		color: var(--gold, #c8a848);
 	}
 	.match-head {
 		display: flex;

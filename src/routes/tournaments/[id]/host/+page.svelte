@@ -6,14 +6,17 @@
 	import EntryChip from '$lib/tournaments/EntryChip.svelte';
 	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
 	import ResultForm from '$lib/tournaments/ResultForm.svelte';
+	import ForfeitForm from '$lib/tournaments/ForfeitForm.svelte';
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
 	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import {
 		entryMap,
+		matchHref,
 		parseConfig,
 		roundLabel,
 		statusLabel,
 		isByeMatch,
+		isForfeitMatch,
 		type BracketMatch
 	} from '$lib/tournaments/tournaments';
 	import type { PageData } from './$types';
@@ -183,6 +186,8 @@
 
 	// --- match control ---
 	let correctingId = $state<string | null>(null);
+	/** Forfeit is a separate, explicitly opened panel: see ForfeitForm. */
+	let forfeitingId = $state<string | null>(null);
 
 	const setStatus = (status: string) =>
 		run(
@@ -249,6 +254,20 @@
 			callPush({ action: 'submit-result', tournamentId: t.id, matchId, result }),
 			'Result recorded'
 		);
+
+	/**
+	 * A forfeit rides the SAME submit action as a normal result -- it is a
+	 * match result, just one carrying a winner and a reason instead of games
+	 * -- so it also goes through /api/tournament-push and the newly-paired
+	 * competitors downstream still get their "your next match is set" alert.
+	 */
+	const submitForfeit = (matchId: string) => async (result: unknown) => {
+		const okDone = await run(
+			callPush({ action: 'submit-result', tournamentId: t.id, matchId, result }),
+			'Forfeit recorded'
+		);
+		if (okDone) forfeitingId = null;
+	};
 
 	const correctResult = (matchId: string) => async (result: unknown, reason: string) => {
 		const okDone = await run(
@@ -637,14 +656,32 @@
 						<div class="mc-row slim">
 							<span class="mc-label">{matchLabel(m)}</span>
 							{@render pingButtons(m)}
+							<button
+								class="mini gold"
+								disabled={busy}
+								title="Award this match without it being played"
+								onclick={() => (forfeitingId = forfeitingId === m.id ? null : m.id)}
+							>
+								{forfeitingId === m.id ? 'cancel forfeit' : 'forfeit'}
+							</button>
 						</div>
-						<ResultForm
-							match={m}
-							{entries}
-							scoreEntry={config.score_entry}
-							{busy}
-							onsubmit={submitResult(m.id)}
-						/>
+						{#if forfeitingId === m.id}
+							<ForfeitForm
+								match={m}
+								{entries}
+								{busy}
+								onsubmit={submitForfeit(m.id)}
+								oncancel={() => (forfeitingId = null)}
+							/>
+						{:else}
+							<ResultForm
+								match={m}
+								{entries}
+								scoreEntry={config.score_entry}
+								{busy}
+								onsubmit={submitResult(m.id)}
+							/>
+						{/if}
 					</div>
 				{/each}
 			{/if}
@@ -662,6 +699,14 @@
 						<span class="row-actions">
 							{@render pingButtons(m)}
 							<button
+								class="mini gold"
+								disabled={busy}
+								title="Nobody turned up: award it without starting the clock"
+								onclick={() => (forfeitingId = forfeitingId === m.id ? null : m.id)}
+							>
+								{forfeitingId === m.id ? 'cancel forfeit' : 'forfeit'}
+							</button>
+							<button
 								class="btn"
 								disabled={busy}
 								onclick={() =>
@@ -674,6 +719,17 @@
 							</button>
 						</span>
 					</div>
+					{#if forfeitingId === m.id}
+						<div class="mc-block">
+							<ForfeitForm
+								match={m}
+								{entries}
+								{busy}
+								onsubmit={submitForfeit(m.id)}
+								oncancel={() => (forfeitingId = null)}
+							/>
+						</div>
+					{/if}
 				{/each}
 			{/if}
 
@@ -689,12 +745,17 @@
 				<h3 class="mc-sub">Completed</h3>
 				{#each bracketByState.completed as m (m.id)}
 					<div class="mc-row done">
-						<span class="mc-label">{matchLabel(m)}</span>
+						<span class="mc-label">
+							<a class="mc-link" href={matchHref(t.id, m.id)}>{matchLabel(m)}</a>
+						</span>
 						<span class="mc-vs">
 							{entries[m.entry_a_id ?? '']?.display_name}
 							<span class="vs-sep">vs</span>
 							{entries[m.entry_b_id ?? '']?.display_name}
 							<span class="mc-winner">→ {entries[m.winner_id ?? '']?.display_name}</span>
+							{#if isForfeitMatch(m)}
+								<span class="ff-tag" title={m.forfeit_reason ?? ''}>by forfeit</span>
+							{/if}
 						</span>
 						<button
 							class="mini"
@@ -838,6 +899,27 @@
 	.mini.danger {
 		color: var(--crimson);
 		border-color: var(--crimson);
+	}
+	/* Forfeit is the exception path, in the exception colour everywhere: gold,
+	 * never the primary action's green. */
+	.mini.gold {
+		color: var(--gold);
+		border-color: rgba(200, 168, 72, 0.45);
+	}
+	.mini.gold:hover:not(:disabled) {
+		color: var(--gold);
+		border-color: var(--gold);
+	}
+	.ff-tag {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--gold);
+		margin-left: 0.5rem;
+	}
+	.mc-link {
+		color: var(--dim);
 	}
 	.invite-list {
 		margin-bottom: 0.8rem;

@@ -7,11 +7,27 @@
 	import EntryBanner from '$lib/tournaments/EntryBanner.svelte';
 	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
 	import TvStage from '$lib/tournaments/TvStage.svelte';
-	import { entryMap, type Tournament } from '$lib/tournaments/tournaments';
+	import TournamentStats from '$lib/tournaments/TournamentStats.svelte';
+	import MatchDetail from '$lib/tournaments/MatchDetail.svelte';
+	import EntryDetail from '$lib/tournaments/EntryDetail.svelte';
+	import ForfeitForm from '$lib/tournaments/ForfeitForm.svelte';
+	import {
+		entryMap,
+		entryBracketRecord,
+		isByeMatch,
+		isForfeitMatch,
+		matchTimeline,
+		tournamentStats,
+		type BracketMatch,
+		type Tournament
+	} from '$lib/tournaments/tournaments';
 	import { hasStyle, type EntryStyle, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import {
 		buildSim,
 		buildQualSample,
+		correctLast,
+		eventsFor,
+		forfeitNext,
 		playNext,
 		setSimRewardRules,
 		startNext,
@@ -20,6 +36,7 @@
 
 	let fieldSize = $state(6);
 	let sim = $state<Sim>(buildSim(6));
+	let linkMatches = $state(false);
 	const qual = buildQualSample();
 
 	const entries = $derived(entryMap(sim.entries));
@@ -77,6 +94,69 @@
 			/* run to champion */
 		}
 	}
+
+	// --- 3a: detail pages, stats, forfeits ---
+	const simTournament = $derived<Tournament>({
+		id: 'sim',
+		name: 'Harness Invitational',
+		description: '',
+		config: {},
+		status: sim.status,
+		champion_entry_id: sim.championId,
+		created_by: null,
+		created_at: new Date().toISOString(),
+		updated_at: new Date().toISOString()
+	});
+
+	/** Every match worth opening a detail page on, newest activity first. */
+	const inspectable = $derived(
+		sim.matches.filter((m) => m.status !== 'pending' || m.entry_a_id || m.entry_b_id)
+	);
+	let detailId = $state<string | null>(null);
+	const detailMatch = $derived(
+		sim.matches.find((m) => m.id === detailId) ??
+			sim.matches.find((m) => m.status === 'complete' && !isByeMatch(m)) ??
+			sim.matches[0]
+	);
+
+	let qualDetail = $state(false);
+	const qualDetailMatch = qual.matches[0];
+
+	let entryDetailId = $state<string | null>(null);
+	const entryDetailEntry = $derived(
+		sim.entries.find((e) => e.id === entryDetailId) ?? sim.entries[0]
+	);
+
+	/** Cross-checks the record and reward total against the raw rows. */
+	const entryAudit = $derived.by(() => {
+		const e = entryDetailEntry;
+		if (!e) return null;
+		const rec = entryBracketRecord(e.id, sim.matches);
+		const rows = sim.ledger.filter((r) => r.entry_id === e.id);
+		return {
+			rec,
+			ledgerRows: rows.length,
+			ledgerTotal: rows.reduce((s, r) => s + r.amount, 0),
+			forfeitLedgerRows: sim.matches
+				.filter((m) => isForfeitMatch(m))
+				.reduce((s, m) => s + sim.ledger.filter((r) => r.match_id === m.id).length, 0)
+		};
+	});
+
+	const stats = $derived(tournamentStats(sim.matches));
+	const forfeited = $derived(sim.matches.filter((m) => isForfeitMatch(m)));
+
+	/** Drives the REAL ForfeitForm against the sim's forfeit path: it always
+	 * targets the next startable match, which is what forfeitNext picks too. */
+	const readyMatch = $derived(
+		sim.matches.find(
+			(m) =>
+				(m.status === 'pending' || m.status === 'in_progress') &&
+				m.entry_a_id !== null &&
+				m.entry_b_id !== null
+		) ?? null
+	);
+	let lastForfeitPayload = $state<string>('');
 	function forceReset() {
 		// Play everything up to the grand final, then hand game one to the LB side.
 		let guard = 0;
@@ -108,6 +188,10 @@
 		<span class="sep"></span>
 		<button class="ctl" onclick={() => startNext(sim)}>start next (LIVE)</button>
 		<button class="ctl" onclick={() => playNext(sim)}>play next</button>
+		<button class="ctl" onclick={() => forfeitNext(sim)}>forfeit next</button>
+		<button class="ctl" onclick={() => (detailId = correctLast(sim) ?? detailId)}>
+			correct last
+		</button>
 		<button class="ctl" onclick={playAll}>play all</button>
 		<button class="ctl" onclick={forceReset}>force GF reset</button>
 		<button class="ctl" onclick={() => rebuild(fieldSize)}>rebuild</button>
@@ -121,15 +205,178 @@
 		<h2>BracketView · {fieldSize} entries</h2>
 		<p class="note">
 			Entries 1-5 carry sample 0064 styles (all three background types, four flourishes, accents
-			across the wheel); the rest carry none, so the default treatment sits beside them.
+			across the wheel); the rest carry none, so the default treatment sits beside them. A
+			forfeited match shows a dashed gold frame and an FF chip; a bye stays dimmed.
 		</p>
+		<div class="controls">
+			<label class="chk">
+				<input type="checkbox" bind:checked={linkMatches} /> link nodes to match detail
+			</label>
+			<span class="state">forfeited: {forfeited.length}</span>
+		</div>
 		<BracketView
 			matches={sim.matches}
 			{entries}
 			styles={sim.styles}
 			games={sim.games}
 			championId={sim.championId}
+			tournamentId={linkMatches ? 'sim' : null}
 		/>
+	</section>
+
+	<section>
+		<h2>TournamentStats · the secondary strip on the public page</h2>
+		<p class="note">
+			Play some matches, then check these against the raw stamps below. Byes and forfeits are
+			excluded from every duration figure by design.
+		</p>
+		<TournamentStats tournamentId="sim" matches={sim.matches} {entries} />
+		<div class="audit">
+			<strong>Raw check</strong>
+			<div>timed matches: {stats.timedCount}</div>
+			<div>
+				durations (s):
+				{sim.matches
+					.filter((m) => m.status === 'complete' && !isByeMatch(m) && !isForfeitMatch(m) && m.started_at && m.completed_at)
+					.map((m) => Math.round((Date.parse(m.completed_at!) - Date.parse(m.started_at!)) / 1000))
+					.join(', ') || '(none)'}
+			</div>
+			<div>average (s): {stats.averageDurationMs === null ? '—' : Math.round(stats.averageDurationMs / 1000)}</div>
+			<div>
+				span (s):
+				{stats.totalDurationMs === null ? '—' : Math.round(stats.totalDurationMs / 1000)}
+				({stats.firstStartedAt ?? '—'} → {stats.lastCompletedAt ?? '—'})
+			</div>
+		</div>
+	</section>
+
+	<section>
+		<h2>MatchDetail · the real page body</h2>
+		<div class="controls">
+			<label class="chk">
+				<input type="checkbox" bind:checked={qualDetail} /> qualifying match instead
+			</label>
+			{#if !qualDetail}
+				<span>Match:</span>
+				{#each inspectable.slice(0, 14) as m (m.id)}
+					<button
+						class="ctl"
+						class:on={detailMatch?.id === m.id}
+						onclick={() => (detailId = m.id)}
+					>
+						{m.bracket === 'winners'
+							? 'W'
+							: m.bracket === 'losers'
+								? 'L'
+								: m.bracket === 'grand_final'
+									? 'GF'
+									: 'GFR'}{m.bracket === 'winners' || m.bracket === 'losers'
+							? `${m.round}-${m.slot}`
+							: ''}{isForfeitMatch(m) ? ' ff' : isByeMatch(m) ? ' bye' : ''}
+					</button>
+				{/each}
+			{/if}
+		</div>
+		{#if qualDetail}
+			<MatchDetail
+				tournament={simTournament}
+				kind="qual"
+				qualMatch={qualDetailMatch}
+				qualPool={qual.pools.find((p) => p.id === qualDetailMatch.pool_id) ?? null}
+				entries={qual.entries}
+				events={qual.events.filter((e) => e.match_id === qualDetailMatch.id)}
+			/>
+		{:else if detailMatch}
+			{@const tl = matchTimeline(eventsFor(sim, detailMatch.id), detailMatch)}
+			<MatchDetail
+				tournament={simTournament}
+				kind="bracket"
+				match={detailMatch}
+				entries={sim.entries}
+				styles={Object.values(sim.styles)}
+				events={eventsFor(sim, detailMatch.id)}
+				games={sim.games.filter((g) => g.bracket_match_id === detailMatch.id)}
+				siblings={sim.matches}
+				ledger={sim.ledger.filter((r) => r.match_id === detailMatch.id)}
+			/>
+			<div class="audit">
+				<strong>Raw check</strong>
+				<div>created {tl.createdAt ?? '—'}</div>
+				<div>started {tl.startedAt ?? '—'}</div>
+				<div>completed {tl.completedAt ?? '—'}</div>
+				<div>
+					wait {tl.waitMs === null ? '—' : Math.round(tl.waitMs / 1000) + 's'} · duration
+					{tl.durationMs === null ? '—' : Math.round(tl.durationMs / 1000) + 's'}
+				</div>
+				<div>events {tl.events.length} · corrections {tl.corrections.length}</div>
+				<div>ledger rows for this match: {sim.ledger.filter((r) => r.match_id === detailMatch.id).length}</div>
+			</div>
+		{/if}
+	</section>
+
+	<section>
+		<h2>EntryDetail · the real page body</h2>
+		<div class="controls">
+			<span>Entry:</span>
+			{#each sim.entries as e (e.id)}
+				<button
+					class="ctl"
+					class:on={entryDetailEntry?.id === e.id}
+					onclick={() => (entryDetailId = e.id)}
+				>
+					{e.display_name}
+				</button>
+			{/each}
+		</div>
+		{#if entryDetailEntry}
+			<EntryDetail
+				tournament={simTournament}
+				entry={entryDetailEntry}
+				entries={sim.entries}
+				styles={Object.values(sim.styles)}
+				bracketMatches={sim.matches}
+				games={sim.games}
+				ledger={sim.ledger}
+			/>
+			{#if entryAudit}
+				<div class="audit">
+					<strong>Raw check</strong>
+					<div>
+						record from rows: {entryAudit.rec.wins}–{entryAudit.rec.losses} (byes
+						{entryAudit.rec.byes}, by forfeit {entryAudit.rec.forfeitWins}–{entryAudit.rec
+							.forfeitLosses})
+					</div>
+					<div>ledger rows {entryAudit.ledgerRows} · total +{entryAudit.ledgerTotal}</div>
+					<div>ledger rows attached to ANY forfeited match: {entryAudit.forfeitLedgerRows}</div>
+				</div>
+			{/if}
+		{/if}
+	</section>
+
+	<section>
+		<h2>ForfeitForm · the host console action</h2>
+		<p class="note">
+			Pick a side and a reason, then confirm. The payload below is exactly what the host console
+			sends to tournament_submit_match_result; applying it runs the sim's forfeit path (no games,
+			no reward).
+		</p>
+		{#if readyMatch}
+			<div class="card pad">
+				<ForfeitForm
+					match={readyMatch}
+					{entries}
+					onsubmit={(payload) => {
+						lastForfeitPayload = JSON.stringify(payload);
+						forfeitNext(sim, payload.reason);
+					}}
+				/>
+			</div>
+			{#if lastForfeitPayload}
+				<div class="audit"><strong>Last payload</strong> <code>{lastForfeitPayload}</code></div>
+			{/if}
+		{:else}
+			<p class="note">No startable match left — rebuild the field.</p>
+		{/if}
 	</section>
 
 	<section>
@@ -283,6 +530,26 @@
 	}
 	.pad {
 		padding: 1rem;
+	}
+	.chk {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		cursor: pointer;
+	}
+	.audit {
+		margin-top: 0.8rem;
+		padding: 0.6rem 0.8rem;
+		border: 1px dashed var(--line, rgba(0, 255, 65, 0.25));
+		border-radius: 5px;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		color: var(--dim, #7a8a7a);
+		line-height: 1.7;
+		overflow-x: auto;
+	}
+	.audit strong {
+		color: var(--white, #e8ffe8);
 	}
 	.pad-top {
 		margin-top: 1rem;

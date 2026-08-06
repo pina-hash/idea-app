@@ -1842,6 +1842,147 @@ notifications, rewards, or banner customization yet; those are later phases.
     project (the local `.env` is placeholder-only) — apply 0064 by hand and
     re-check the owner-vs-host RPC boundary and the signed-in editor
     round-trip there.
+- **Phase 3a (migration `0065_tournament_forfeits.sql`, apply manually
+    after 0064): match + entry detail pages, tournament-level timing stats,
+    and forfeit / no-show handling.**
+  - **The detail pages and the stats needed NO schema at all.** Every figure
+    is derived from what Phase 1 already captured: the append-only
+    `tournament_match_events` stream plus `started_at` / `completed_at` on
+    the match row. A tournament that ran before this phase existed reports
+    the same numbers as one that runs after it. `0065` exists only for the
+    forfeit path.
+  - **Detail routes, both fully PUBLIC (no session, no guard, reads only,
+    the whole Phase 1 access model unchanged):** `/tournaments/[id]/match/
+    [matchId]` serves BOTH match kinds — a bracket and a qual match live in
+    different tables with disjoint uuid spaces, so the id is looked up in
+    the bracket first and falls through to quals — and
+    `/tournaments/[id]/entry/[entryId]`. Each route owns ONLY its load and
+    its realtime channel; everything visual lives in
+    `MatchDetail.svelte` / `EntryDetail.svelte` (the TvStage convention), so
+    `/dev/tournaments` drives the identical components with no backend.
+  - **Match detail** shows WAIT (created -> started: how long the pairing
+    sat before it was called) and DURATION (started -> completed), the games
+    or the qual score, the corrections (each rendered as *what changed* —
+    "Winner changed from X to Y" plus the logged reason), the full event
+    log with per-event offsets, the rewards this match paid, and where each
+    side advanced to. **A figure that genuinely does not exist reads as a
+    dash with its reason, never as zero:** a qual match is never "started"
+    ("qualifying matches are recorded, never started") and a no-show
+    forfeit usually never started either ("this match was never started").
+  - **Entry detail** shows the record, every match with a link to its own
+    detail page, and the reward ledger with a running total. The entry
+    renders in its OWN 0064 style at the two established scales
+    (EntryBanner full-strength in the header, EntryChip with the faint wash
+    in the dense match rows) — neither rule re-implemented.
+    **`matchScorelineFor(m, games, entryId)`** is new and load-bearing: the
+    bracket's A-first `matchScoreline` printed "4–10" beside the word
+    "Won" for an entry sitting on side B, so an entry-scoped list orients
+    the pair to that entry. `matchScoreline` stays A-first for the bracket
+    and the TV stage, which show both sides in order.
+  - **Record semantics:** a BYE is excluded from the win/loss line (an
+    advancement the bracket's shape handed over, not a result) and counted
+    separately; a FORFEIT IS included (it really did advance one side and
+    eliminate the other) and is ALSO reported separately, so the record can
+    be read honestly. Qualifying is its own line, labelled seeding-only.
+  - **Tournament stats** (`TournamentStats.svelte`, on the existing public
+    page directly UNDER the bracket): average match duration, event span,
+    fastest and slowest match linking to their detail pages. Duration
+    figures count only contested, timed matches — averaging in a bye or a
+    forfeit would report an event running faster than it did — while the
+    SPAN is deliberately wider (wall clock, so a forfeit that ended the
+    event still closes the window) with byes out of it entirely, since they
+    complete the instant the bracket is generated. Restraint: a muted
+    `--dim` label where every other section on that page is green, compact
+    neutral cells, no accent surface, and it renders nothing at all until a
+    match has been timed. The bracket stays the attraction.
+  - **Forfeit: four rules, each mirroring how a BYE already behaves,
+    because neither is a contested win.** (1) It ADVANCES through the same
+    `_tournament_complete_match` every other outcome uses — no parallel
+    advancement code, so pointers, elimination, the grand-final reset,
+    champion settlement and the bye resolver are all unchanged. (2) It PAYS
+    NOTHING, and the mechanism is the EXISTING one named rather than a
+    second skip: the reward block was lifted verbatim out of the 0063 hook
+    into `_tournament_award_match_win`, which is now called from the ONE
+    contested-result branch; byes never reach that function and forfeits
+    take the other branch, so both are covered by the same rule. (3) It
+    writes NO `tournament_match_games` rows. (4) It logs as a `completed`
+    event with metadata `{ forfeit, reason, forfeited_by }` — exactly the
+    way a bye logs `{ bye: true }` — and NO new `event_type` value.
+  - **Entry point is `tournament_submit_match_result`, extended not
+    duplicated** (same name, signature and grant), because a forfeit IS a
+    match result — it just carries `{ forfeit: true, winner_id, reason }`
+    instead of games. Unlike a normal result it is accepted on a PENDING
+    match: a no-show is usually spotted before anyone starts the clock, and
+    requiring a start would fabricate a `started_at`. It therefore leaves
+    `started_at` exactly as it found it, which keeps the timeline honest
+    and keeps forfeits out of the duration statistics for free.
+  - **`tournament_bracket_matches.forfeit` / `forfeit_reason` are not
+    redundant with the event.** A bye is distinguishable from the ROW alone
+    (an empty slot), and every surface that lists results — the bracket, the
+    host console, the TV stage — reads rows, never the audit stream. The
+    flag is what lets those surfaces mark a forfeit without loading it.
+    Rendered as: a dashed gold frame + `FF` chip (reason in the tooltip) on
+    the bracket node, "by forfeit" on the host console's completed row,
+    "Won/Lost by forfeit" with the scoreline suppressed on entry detail, a
+    gold FORFEIT state chip on match detail, and a gold "By forfeit ·
+    reason" line replacing the (absent) scoreline on the TV result beat —
+    which a forfeit still gets, since it is a real elimination, but is
+    never shown as a played result.
+  - **A correction clears the flag**, because a corrected outcome runs
+    `_tournament_write_games` and is therefore a played result; the
+    `corrected` event carries `previous_forfeit` so the match detail says
+    "(replaced a forfeit with a played result)". Corrections still mint no
+    reward row (0063's permanent-ledger stance, unchanged).
+  - **Host console:** a gold `forfeit` action on both ready-to-start and
+    in-progress matches opening `ForfeitForm.svelte` — deliberately a
+    separate panel, not a mode of ResultForm, so "nobody turned up" is
+    never one mis-click from entering a real scoreline. Required side +
+    required short reason + a two-step confirm naming who is out. It rides
+    the SAME `/api/tournament-push` `submit-result` action, so downstream
+    newly-paired competitors still get their alert.
+  - **DOUBLE NO-SHOW is deliberately not handled.** Both sides absent is a
+    judgement call about who (if anyone) advances, and a host can already
+    reach any outcome through `tournament_correct_match_result`; automating
+    it would mean inventing a policy the spec does not have.
+  - **Verified:** 0062+0063+0064+0065 applied UNMODIFIED to a real embedded
+    Postgres (the Phase 1/2a stub approach) and integration-tested with **47
+    assertions**: a forfeit from PENDING advances the winner, drops the
+    loser into the losers bracket, leaves `started_at` null, writes 0 games,
+    pays 0 ledger rows and logs exactly one `completed` event whose metadata
+    carries forfeit/reason/forfeited_by with no new event_type — against a
+    control contested result on the same bracket that DOES pay its 2 rows
+    (win 10 + round bonus 25) and DOES write its game; validation (reason
+    required, blank reason rejected, winner must be in the match, a garbage
+    uuid rejected cleanly, an already-complete match refused); correcting
+    the forfeit clears the flag and the reason, flips the winner, writes the
+    game, logs `previous_forfeit: true` and mints no reward; the bracket
+    plays through to a champion with placements settling while the
+    once-forfeited match still pays nothing; and the anon boundary is
+    unchanged (cannot call the RPC, cannot write the new column, can still
+    read it). Browser-verified in `/dev/tournaments` (the sim now mirrors
+    the events stream, a virtual clock so timing figures are real
+    arithmetic, plus forfeit and correction paths, and mounts the REAL
+    MatchDetail / EntryDetail / TournamentStats / ForfeitForm): stats
+    checked digit-for-digit against the raw stamps (durations 1021/901/260/
+    739s -> average 730s = "12m 10s", fastest 260s, slowest 1021s, span
+    4624s = "1h 17m"); a played match's wait 1682s = "28m 02s" and duration
+    1238s = "20m 38s" against its own created/started/completed stamps; the
+    forfeited match reading "—" for both with its reasons, "None. A forfeit
+    advances a side without a contested win, so it pays nothing", and 0
+    ledger rows; a correction rendering "Winner changed from Redline to
+    Nimbus" with its logged reason; the forfeit-then-correct case dropping
+    the FF chip everywhere while keeping both events in the log; an entry
+    page cross-checked against the raw rows (record 4–1, by-forfeit 1–0,
+    ledger 5 rows running 10/35/45/145/155 totalling the same +155 the
+    public RewardsPanel shows); and the REAL ForfeitForm emitting exactly
+    `{"forfeit":true,"winner_id":"…","reason":"…"}` through its
+    validation and two-step confirm. **Restraint audit (computed, not
+    eyeballed):** match detail and entry detail each render exactly ONE
+    emerald element (the headline label, which becomes the live indicator
+    on a running match) and ZERO emerald surfaces; the stats strip contains
+    no green at all. **NOT verified:** the live Supabase project (the local
+    `.env` is placeholder-only) — apply 0065 by hand and re-run a real
+    host-session forfeit there.
 
 ## GREENLINE (prototype)
 

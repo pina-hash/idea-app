@@ -12,7 +12,15 @@
 	import MatchAlerts from '$lib/tournaments/MatchAlerts.svelte';
 	import RewardsPanel from '$lib/tournaments/RewardsPanel.svelte';
 	import TournamentQr from '$lib/tournaments/TournamentQr.svelte';
-	import { entryMap, parseConfig, roundLabel, statusLabel } from '$lib/tournaments/tournaments';
+	import TournamentStats from '$lib/tournaments/TournamentStats.svelte';
+	import {
+		entryHref,
+		entryMap,
+		matchHref,
+		parseConfig,
+		roundLabel,
+		statusLabel
+	} from '$lib/tournaments/tournaments';
 	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import type { PageData } from './$types';
 
@@ -237,6 +245,7 @@
 						<div class="live-head">
 							<span class="live-round">{roundLabel(m.bracket, m.round, maxRound(m.bracket))}</span>
 							{#if m.best_of > 1}<span class="live-bo">Best of {m.best_of}</span>{/if}
+							<a class="live-detail" href={matchHref(t.id, m.id)}>match detail</a>
 						</div>
 						<div class="live-pair">
 							<EntryBanner
@@ -337,7 +346,16 @@
 				{styles}
 				games={data.games}
 				championId={t.champion_entry_id}
+				tournamentId={t.id}
 			/>
+			<p class="bracket-hint">Open any match for its timeline and result history.</p>
+		</section>
+
+		<!-- Deliberately UNDER the bracket and deliberately quiet: the bracket
+		     is what people come to this page for, and these are a footnote to
+		     it, not a competing dashboard. -->
+		<section class="block stats-block">
+			<TournamentStats tournamentId={t.id} matches={data.bracketMatches} {entries} />
 		</section>
 	{/if}
 
@@ -366,14 +384,16 @@
 			<div class="entrants">
 				{#each data.entries as e (e.id)}
 					<div class="entrant">
-						<EntryBanner
-							entry={e}
-							style={styles[e.id] ?? null}
-							size="sm"
-							seed={t.status === 'live' || t.status === 'complete' || t.status === 'seeding'
-								? e.seed
-								: null}
-						/>
+						<a class="entrant-link" href={entryHref(t.id, e.id)}>
+							<EntryBanner
+								entry={e}
+								style={styles[e.id] ?? null}
+								size="sm"
+								seed={t.status === 'live' || t.status === 'complete' || t.status === 'seeding'
+									? e.seed
+									: null}
+							/>
+						</a>
 						{#if e.description}<p class="entrant-desc">{e.description}</p>{/if}
 					</div>
 				{/each}
@@ -481,6 +501,28 @@
 	}
 	.live-bo {
 		color: var(--gold);
+	}
+	.live-detail {
+		margin-left: auto;
+		color: var(--dim);
+		text-transform: none;
+		letter-spacing: 0.04em;
+	}
+	.bracket-hint {
+		margin: 0.5rem 0 0;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		color: var(--dim);
+	}
+	/* Sits closer to the bracket than a normal block: it belongs to it. */
+	.stats-block {
+		margin-top: 1rem;
+	}
+	.entrant-link {
+		display: block;
+		text-decoration: none;
+		border-radius: 10px;
+		min-width: 0;
 	}
 	.block-title.live-title {
 		color: var(--crimson);

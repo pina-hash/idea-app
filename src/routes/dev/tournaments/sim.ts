@@ -8,6 +8,7 @@
  */
 import type {
 	BracketMatch,
+	MatchEvent,
 	MatchGame,
 	QualMatch,
 	QualPool,
@@ -31,6 +32,54 @@ export interface Sim {
 	ledger: RewardLedgerRow[];
 	/** Mirror of 0064: per-entry banner styles, keyed by entry id. */
 	styles: Record<string, EntryStyle>;
+	/** Mirror of tournament_match_events: the append-only audit stream that
+	 * the Phase 3a match detail page reconstructs its timeline from. */
+	events: MatchEvent[];
+}
+
+/**
+ * A virtual clock, because the harness plays a whole tournament in a few
+ * milliseconds and the Phase 3a timing figures would all read 0s otherwise.
+ * Every state change advances it by a plausible number of minutes, so wait
+ * times, durations and the fastest/slowest spread are real arithmetic over
+ * real (if simulated) stamps.
+ */
+let clockMs = 0;
+function resetClock() {
+	// Two hours ago, so the whole run sits in the recent past.
+	clockMs = Date.now() - 2 * 60 * 60 * 1000;
+}
+function tick(minMinutes: number, maxMinutes: number): string {
+	clockMs += Math.round((minMinutes + Math.random() * (maxMinutes - minMinutes)) * 60_000);
+	return new Date(clockMs).toISOString();
+}
+function nowIso(): string {
+	return new Date(clockMs).toISOString();
+}
+
+let eventSeq = 0;
+function logEvent(
+	sim: Sim,
+	matchId: string | null,
+	eventType: MatchEvent['event_type'],
+	metadata: Record<string, unknown> = {},
+	kind: 'bracket' | 'qual' | null = 'bracket'
+) {
+	sim.events.push({
+		id: ++eventSeq,
+		tournament_id: 'sim',
+		match_kind: matchId ? kind : null,
+		match_id: matchId,
+		event_type: eventType,
+		actor_id: null,
+		occurred_at: nowIso(),
+		metadata
+	});
+}
+
+/** This match's slice of the stream, for MatchDetail / MatchTimeline. */
+export function eventsFor(sim: Sim, matchId: string): MatchEvent[] {
+	return sim.events.filter((e) => e.match_id === matchId);
 }
 
 const NAMES = [
@@ -138,6 +187,8 @@ function sampleStyles(entries: TournamentEntry[]): Record<string, EntryStyle> {
 
 export function buildSim(n: number): Sim {
 	counter = 0;
+	eventSeq = 0;
+	resetClock();
 	const entries: TournamentEntry[] = Array.from({ length: n }, (_, i) => ({
 		id: uid('e'),
 		tournament_id: 'sim',
@@ -160,7 +211,8 @@ export function buildSim(n: number): Sim {
 		status: 'live',
 		rewardRules: [],
 		ledger: [],
-		styles: sampleStyles(entries)
+		styles: sampleStyles(entries),
+		events: []
 	};
 
 	const placement = seedPlacement(p);
@@ -231,6 +283,12 @@ export function buildSim(n: number): Sim {
 		}
 	}
 
+	// One 'created' event per match at generation time, exactly like
+	// tournament_generate_bracket's audit loop.
+	for (const m of sim.matches) {
+		logEvent(sim, m.id, 'created', { bracket: m.bracket, round: m.round, slot: m.slot });
+	}
+
 	resolveByes(sim);
 	return sim;
 }
@@ -242,12 +300,19 @@ function setSlot(sim: Sim, matchId: string, pos: 'a' | 'b', entryId: string | nu
 	else m.entry_b_id = entryId;
 }
 
-function completeMatch(sim: Sim, m: BracketMatch, winnerId: string | null) {
+function completeMatch(
+	sim: Sim,
+	m: BracketMatch,
+	winnerId: string | null,
+	eventType: 'completed' | 'corrected' = 'completed',
+	metadata: Record<string, unknown> = {}
+) {
 	const loser =
 		winnerId === null ? null : winnerId === m.entry_a_id ? m.entry_b_id : m.entry_a_id;
 	m.status = 'complete';
 	m.winner_id = winnerId;
-	m.completed_at = new Date().toISOString();
+	m.completed_at = nowIso();
+	logEvent(sim, m.id, eventType, { ...metadata, winner_id: winnerId });
 	if (winnerId && m.winner_to_match_id) setSlot(sim, m.winner_to_match_id, m.winner_to_pos!, winnerId);
 	if (loser && m.loser_to_match_id) setSlot(sim, m.loser_to_match_id, m.loser_to_pos!, loser);
 	if (m.bracket === 'grand_final' && winnerId) {
@@ -257,6 +322,7 @@ function completeMatch(sim: Sim, m: BracketMatch, winnerId: string | null) {
 				reset.entry_a_id = m.entry_a_id;
 				reset.entry_b_id = m.entry_b_id;
 				sim.matches.push(reset);
+				logEvent(sim, reset.id, 'created', { bracket: 'grand_final_reset', round: 1, slot: 1 });
 			}
 		} else {
 			sim.championId = winnerId;
@@ -361,29 +427,28 @@ function resolveByes(sim: Sim) {
 			const aDead = dead('a');
 			const bDead = dead('b');
 			if (m.entry_a_id !== null && bDead) {
-				completeMatch(sim, m, m.entry_a_id);
+				completeMatch(sim, m, m.entry_a_id, 'completed', { bye: true });
 				changed = true;
 			} else if (m.entry_b_id !== null && aDead) {
-				completeMatch(sim, m, m.entry_b_id);
+				completeMatch(sim, m, m.entry_b_id, 'completed', { bye: true });
 				changed = true;
 			} else if (aDead && bDead) {
-				completeMatch(sim, m, null);
+				completeMatch(sim, m, null, 'completed', { dead: true });
 				changed = true;
 			}
 		}
 	}
 }
 
-/** Plays the next playable match. forceSide overrides the coin flip (the GF
- * "b" case exercises the bracket reset). Returns false when nothing is
- * playable. */
-export function playNext(sim: Sim, forceSide?: 'a' | 'b'): boolean {
-	if (sim.status === 'complete') return false;
-	const order = ['winners', 'losers', 'grand_final', 'grand_final_reset'];
-	const m = [...sim.matches]
+const PLAY_ORDER = ['winners', 'losers', 'grand_final', 'grand_final_reset'];
+
+function nextPlayable(sim: Sim): BracketMatch | undefined {
+	return [...sim.matches]
 		.sort(
 			(a, b) =>
-				order.indexOf(a.bracket) - order.indexOf(b.bracket) || a.round - b.round || a.slot - b.slot
+				PLAY_ORDER.indexOf(a.bracket) - PLAY_ORDER.indexOf(b.bracket) ||
+				a.round - b.round ||
+				a.slot - b.slot
 		)
 		.find(
 			(x) =>
@@ -391,7 +456,21 @@ export function playNext(sim: Sim, forceSide?: 'a' | 'b'): boolean {
 				x.entry_a_id !== null &&
 				x.entry_b_id !== null
 		);
+}
+
+/** Plays the next playable match. forceSide overrides the coin flip (the GF
+ * "b" case exercises the bracket reset). Returns false when nothing is
+ * playable. */
+export function playNext(sim: Sim, forceSide?: 'a' | 'b'): boolean {
+	if (sim.status === 'complete') return false;
+	const m = nextPlayable(sim);
 	if (!m) return false;
+	// Wait, then play: both figures the match detail page reports.
+	if (m.status !== 'in_progress') {
+		m.started_at = tick(1, 14);
+		m.status = 'in_progress';
+		logEvent(sim, m.id, 'started');
+	}
 	const side = forceSide ?? (Math.random() < 0.5 ? 'a' : 'b');
 	const winner = side === 'a' ? m.entry_a_id! : m.entry_b_id!;
 	sim.games.push({
@@ -403,9 +482,33 @@ export function playNext(sim: Sim, forceSide?: 'a' | 'b'): boolean {
 		score_b: side === 'b' ? 10 : Math.floor(Math.random() * 9),
 		winner_id: winner
 	});
-	m.status = 'in_progress';
-	completeMatch(sim, m, winner);
+	tick(2, 22);
+	completeMatch(sim, m, winner, 'completed', { games: [{ winner: side }] });
 	awardMatchWin(sim, m, winner);
+	resolveByes(sim);
+	return true;
+}
+
+/**
+ * Mirrors the 0065 forfeit path: advances a side, records NO games, pays NO
+ * reward (awardMatchWin is deliberately not called -- the same rule that
+ * keeps byes out of the ledger), leaves started_at alone, and logs a
+ * 'completed' event carrying forfeit metadata rather than a new event type.
+ */
+export function forfeitNext(sim: Sim, reason = 'no-show'): boolean {
+	if (sim.status === 'complete') return false;
+	const m = nextPlayable(sim);
+	if (!m) return false;
+	const winner = Math.random() < 0.5 ? m.entry_a_id! : m.entry_b_id!;
+	const loser = winner === m.entry_a_id ? m.entry_b_id : m.entry_a_id;
+	m.forfeit = true;
+	m.forfeit_reason = reason;
+	tick(1, 5);
+	completeMatch(sim, m, winner, 'completed', {
+		forfeit: true,
+		reason,
+		forfeited_by: loser
+	});
 	resolveByes(sim);
 	return true;
 }
@@ -416,9 +519,82 @@ export function startNext(sim: Sim): boolean {
 		(x) => x.status === 'pending' && x.entry_a_id !== null && x.entry_b_id !== null
 	);
 	if (!m) return false;
+	m.started_at = tick(1, 14);
 	m.status = 'in_progress';
-	m.started_at = new Date().toISOString();
+	logEvent(sim, m.id, 'started');
 	return true;
+}
+
+/**
+ * Corrects the most recent completed contested match whose downstream is
+ * still untouched -- the same restriction _tournament_check_unwindable
+ * enforces -- by flipping the winner. Logs a 'corrected' event carrying the
+ * reason and previous winner, which is what the match detail page's
+ * corrections section renders.
+ */
+export function correctLast(sim: Sim, reason = 'Scoresheet was misread at the table'): string | null {
+	// The same restriction the SQL enforces: a downstream match that is
+	// pending is fine, and one the resolver auto-completed as a BYE (derived
+	// state, an empty side) is unwound rather than blocking. Anything with a
+	// real entered result downstream blocks.
+	const unwindable = (id: string | null): boolean => {
+		if (!id) return true;
+		const d = sim.matches.find((x) => x.id === id);
+		if (!d) return true;
+		if (d.status === 'pending') return true;
+		return d.status === 'complete' && (d.entry_a_id === null || d.entry_b_id === null);
+	};
+	const candidates = sim.matches.filter(
+		(m) =>
+			m.status === 'complete' &&
+			m.winner_id !== null &&
+			m.entry_a_id !== null &&
+			m.entry_b_id !== null &&
+			unwindable(m.winner_to_match_id) &&
+			unwindable(m.loser_to_match_id)
+	);
+	const m = candidates[candidates.length - 1];
+	if (!m) return null;
+
+	const previous = m.winner_id!;
+	const next = previous === m.entry_a_id ? m.entry_b_id! : m.entry_a_id!;
+	// Unwind what this match pushed downstream before re-advancing, resetting
+	// any auto-completed bye it fed so resolveByes can re-derive it.
+	for (const [tid, pos] of [
+		[m.winner_to_match_id, m.winner_to_pos],
+		[m.loser_to_match_id, m.loser_to_pos]
+	] as [string | null, 'a' | 'b' | null][]) {
+		if (!tid || !pos) continue;
+		const d = sim.matches.find((x) => x.id === tid);
+		if (d && d.status === 'complete') {
+			d.status = 'pending';
+			d.winner_id = null;
+			d.completed_at = null;
+		}
+		setSlot(sim, tid, pos, null);
+	}
+	// A corrected result is a played result, so any forfeit flag clears.
+	const wasForfeit = m.forfeit === true;
+	m.forfeit = false;
+	m.forfeit_reason = null;
+	sim.games = sim.games.filter((g) => g.bracket_match_id !== m.id);
+	sim.games.push({
+		id: uid('g'),
+		tournament_id: 'sim',
+		bracket_match_id: m.id,
+		game_number: 1,
+		score_a: next === m.entry_a_id ? 10 : 6,
+		score_b: next === m.entry_b_id ? 10 : 6,
+		winner_id: next
+	});
+	tick(3, 12);
+	completeMatch(sim, m, next, 'corrected', {
+		reason,
+		previous_winner_id: previous,
+		previous_forfeit: wasForfeit
+	});
+	resolveByes(sim);
+	return m.id;
 }
 
 /** Sample qualifying pools (2 pools of 3) with recorded scores, for PoolsView. */
@@ -426,6 +602,8 @@ export function buildQualSample(): {
 	entries: TournamentEntry[];
 	pools: QualPool[];
 	matches: QualMatch[];
+	/** Enough of the stream for the match detail page's qual variant. */
+	events: MatchEvent[];
 } {
 	counter = 1000;
 	const entries: TournamentEntry[] = Array.from({ length: 6 }, (_, i) => ({
@@ -470,7 +648,38 @@ export function buildQualSample(): {
 		mk(pools[0], p1[0], p1[1], 10, 5),
 		mk(pools[1], p2[1], p2[2], 9, 2),
 		mk(pools[1], p2[0], p2[2], 10, 1),
-		mk(pools[1], p2[0], p2[1], 9, 10, )
+		mk(pools[1], p2[0], p2[1], 9, 10)
 	];
-	return { entries, pools, matches };
+
+	// A qual match is scheduled and then recorded; nothing ever "starts" it,
+	// which is exactly the null-wait case the timeline has to explain.
+	let seq2 = 0;
+	let base = Date.now() - 90 * 60 * 1000;
+	const events: MatchEvent[] = [];
+	for (const m of matches) {
+		events.push({
+			id: ++seq2,
+			tournament_id: 'sim',
+			match_kind: 'qual',
+			match_id: m.id,
+			event_type: 'created',
+			actor_id: null,
+			occurred_at: new Date(base).toISOString(),
+			metadata: { sequence: m.sequence }
+		});
+	}
+	for (const m of matches) {
+		base += 7 * 60 * 1000;
+		events.push({
+			id: ++seq2,
+			tournament_id: 'sim',
+			match_kind: 'qual',
+			match_id: m.id,
+			event_type: 'completed',
+			actor_id: null,
+			occurred_at: new Date(base).toISOString(),
+			metadata: { winner_id: m.winner_id, score_a: m.score_a, score_b: m.score_b }
+		});
+	}
+	return { entries, pools, matches, events };
 }
