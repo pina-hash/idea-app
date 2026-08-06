@@ -45,36 +45,42 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		hostsRes,
 		rulesRes,
 		stylesRes,
-		ledgerCountRes
+		ledgerRes
 	] = await Promise.all([
-			supabase
-				.from('tournament_entries')
-				.select('*')
-				.eq('tournament_id', params.id)
-				.order('seed', { ascending: true, nullsFirst: false }),
-			supabase.from('tournament_qual_pools').select('*').eq('tournament_id', params.id),
-			supabase
-				.from('tournament_qual_matches')
-				.select('*')
-				.eq('tournament_id', params.id)
-				.order('sequence'),
-			supabase.from('tournament_bracket_matches').select('*').eq('tournament_id', params.id),
-			supabase.from('tournament_match_games').select('*').eq('tournament_id', params.id),
-			supabase
-				.from('tournament_invites')
-				.select('*')
-				.eq('tournament_id', params.id)
-				.order('created_at'),
-			supabase.from('tournament_hosts').select('*').eq('tournament_id', params.id),
-			supabase.from('tournament_reward_rules').select('*').eq('tournament_id', params.id),
-			supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id),
-			// Count only: the console never lists payouts, it just has to say how
-			// many a deletion would destroy.
-			supabase
-				.from('tournament_reward_ledger')
-				.select('id', { count: 'exact', head: true })
-				.eq('tournament_id', params.id)
-		]);
+		supabase
+			.from('tournament_entries')
+			.select('*')
+			.eq('tournament_id', params.id)
+			.order('seed', { ascending: true, nullsFirst: false }),
+		supabase.from('tournament_qual_pools').select('*').eq('tournament_id', params.id),
+		supabase
+			.from('tournament_qual_matches')
+			.select('*')
+			.eq('tournament_id', params.id)
+			.order('sequence'),
+		supabase.from('tournament_bracket_matches').select('*').eq('tournament_id', params.id),
+		supabase.from('tournament_match_games').select('*').eq('tournament_id', params.id),
+		supabase
+			.from('tournament_invites')
+			.select('*')
+			.eq('tournament_id', params.id)
+			.order('created_at'),
+		supabase.from('tournament_hosts').select('*').eq('tournament_id', params.id),
+		supabase.from('tournament_reward_rules').select('*').eq('tournament_id', params.id),
+		supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id),
+		// The console never lists individual payouts, but the delete flow's
+		// payout-loss warning (0068) needs the real coin total and distinct
+		// entry count, not just a row count, so this pulls entry_id + amount
+		// rather than a head-only count.
+		supabase
+			.from('tournament_reward_ledger')
+			.select('entry_id, amount')
+			.eq('tournament_id', params.id)
+	]);
+
+	const ledgerRows = (ledgerRes.data ?? []) as { entry_id: string; amount: number }[];
+	const rewardLedgerCoins = ledgerRows.reduce((sum, r) => sum + r.amount, 0);
+	const rewardLedgerEntries = new Set(ledgerRows.map((r) => r.entry_id)).size;
 
 	return {
 		tournament: tournament as Tournament,
@@ -89,6 +95,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		rewardRules: (rulesRes.data ?? []) as RewardRule[],
 		// Fails soft to empty pre-0064.
 		entryStyles: (stylesRes.data ?? []) as EntryStyle[],
-		rewardLedgerCount: ledgerCountRes.count ?? 0
+		rewardLedgerCount: ledgerRows.length,
+		rewardLedgerCoins,
+		rewardLedgerEntries
 	};
 };

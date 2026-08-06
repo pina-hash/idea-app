@@ -159,26 +159,37 @@
 	);
 	let lastForfeitPayload = $state<string>('');
 
-	// --- 0066: delete. In-memory mirror of tournament_delete's rules, so the
-	// REAL control is driven end to end: the name is required exactly when the
-	// tournament has entries, the caller must be a host or a teacher, and a
-	// success wipes every tournament-scoped row.
+	// --- 0066: delete, 0068: payout-loss ack. In-memory mirror of
+	// tournament_delete's rules, so the REAL control is driven end to end: the
+	// name is required exactly when the tournament has entries, acknowledgment
+	// is required exactly when the tournament has reward ledger rows (checked
+	// BEFORE the name, matching the RPC's order), the caller must be a host or
+	// a teacher, and a success wipes every tournament-scoped row.
 	let deleteAsRole = $state<'host' | 'teacher' | 'student'>('host');
 	let deleteEntries = $state(true);
 	let deleteBusy = $state(false);
 	let deleteError = $state('');
 	let deleteLog = $state<string[]>([]);
 	const deletable = $derived<Tournament>({ ...simTournament, name: 'Harness Invitational' });
+	const deleteRewardCount = $derived(sim.ledger.length);
+	const deleteRewardCoins = $derived(sim.ledger.reduce((s, r) => s + r.amount, 0));
+	const deleteRewardEntries = $derived(new Set(sim.ledger.map((r) => r.entry_id)).size);
 
-	function fakeDelete(confirmName: string) {
+	function fakeDelete(confirmName: string, acknowledgePayoutLoss: boolean) {
 		deleteError = '';
 		deleteBusy = true;
 		const entries = deleteEntries ? sim.entries.length : 0;
+		const rewards = deleteRewardCount;
 		setTimeout(() => {
 			deleteBusy = false;
 			if (deleteAsRole === 'student') {
 				deleteError = 'Only a host of this tournament, or a teacher, can delete it.';
 				deleteLog = [...deleteLog, 'REFUSED (not a host, not a teacher)'];
+				return;
+			}
+			if (rewards > 0 && !acknowledgePayoutLoss) {
+				deleteError = `This tournament has paid out ${deleteRewardCoins} IDEA Coins to ${deleteRewardEntries} entries as reward payouts. Acknowledge the payout loss to continue.`;
+				deleteLog = [...deleteLog, 'REFUSED (payout loss not acknowledged)'];
 				return;
 			}
 			if (
@@ -191,7 +202,7 @@
 			}
 			deleteLog = [
 				...deleteLog,
-				`DELETED as ${deleteAsRole} · confirm="${confirmName}" · ${entries} entries`
+				`DELETED as ${deleteAsRole} · confirm="${confirmName}" · ack=${acknowledgePayoutLoss} · ${entries} entries · ${rewards} reward rows`
 			];
 		}, 120);
 	}
@@ -420,9 +431,12 @@
 	<section>
 		<h2>DeleteTournament · host console + list control</h2>
 		<p class="note">
-			Mirrors 0066: the typed name is required exactly when the tournament has entries, and only a
-			host or a teacher gets through. The RPC enforces all of it server-side; this form only keeps
-			the button off input the server would reject.
+			Mirrors 0066 + 0068: the typed name is required exactly when the tournament has entries, a
+			distinct payout-loss acknowledgment is required first whenever the tournament has any reward
+			ledger rows, and only a host or a teacher gets through. The RPC enforces all of it
+			server-side; this form only keeps the button off input the server would reject. This sim's
+			ledger currently totals {deleteRewardCoins} coins across {deleteRewardEntries} entries ({deleteRewardCount}
+			rows) -- play a bracket forward (below) to grow it.
 		</p>
 		<div class="controls">
 			<span>Caller:</span>
@@ -445,7 +459,9 @@
 				tournament={deletable}
 				entryCount={deleteEntries ? sim.entries.length : 0}
 				matchCount={sim.matches.length}
-				rewardCount={sim.ledger.length}
+				rewardCount={deleteRewardCount}
+				rewardCoins={deleteRewardCoins}
+				rewardEntries={deleteRewardEntries}
 				busy={deleteBusy}
 				error={deleteError}
 				ondelete={fakeDelete}
@@ -456,6 +472,9 @@
 			<DeleteTournament
 				tournament={deletable}
 				entryCount={deleteEntries ? sim.entries.length : 0}
+				rewardCount={deleteRewardCount}
+				rewardCoins={deleteRewardCoins}
+				rewardEntries={deleteRewardEntries}
 				compact
 				busy={deleteBusy}
 				error={deleteError}

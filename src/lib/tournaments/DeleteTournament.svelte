@@ -13,6 +13,14 @@
 	 *
 	 * An empty draft has nothing to lose and skips the typing step, exactly as
 	 * the RPC does.
+	 *
+	 * When the tournament has ANY reward ledger rows (0068), a distinct payout
+	 * warning step comes FIRST, before the name field is even reachable: the
+	 * real coin total and entry count (as loaded by the page, not guessed),
+	 * plus its own explicit "I understand" acknowledgment. tournament_delete
+	 * itself refuses without a matching p_acknowledge_payout_loss -- this form
+	 * mirrors that gate the same way it mirrors the name-match one, and the
+	 * server is still the one enforcing it.
 	 */
 	import type { Tournament } from './tournaments';
 
@@ -21,6 +29,8 @@
 		entryCount = 0,
 		matchCount = 0,
 		rewardCount = 0,
+		rewardCoins = 0,
+		rewardEntries = 0,
 		compact = false,
 		busy = false,
 		error = '',
@@ -29,34 +39,62 @@
 		tournament: Tournament;
 		entryCount?: number;
 		matchCount?: number;
+		/** Number of reward ledger rows (payout events), for the summary line. */
 		rewardCount?: number;
+		/** Total IDEA Coins across those rows, for the payout-loss warning. */
+		rewardCoins?: number;
+		/** Distinct entries that received a payout, for the payout-loss warning. */
+		rewardEntries?: number;
 		/** List-page variant: one line, no explanatory card around it. */
 		compact?: boolean;
 		busy?: boolean;
 		error?: string;
-		/** Called with the typed confirmation (empty string when none is needed). */
-		ondelete: (confirmName: string) => void;
+		/**
+		 * Called with the typed confirmation (empty string when none is needed)
+		 * and whether the payout loss was acknowledged (false when there was
+		 * nothing to acknowledge).
+		 */
+		ondelete: (confirmName: string, acknowledgePayoutLoss: boolean) => void;
 	} = $props();
 
 	let armed = $state(false);
+	// Two separate flags on purpose: checking the box only arms the Continue
+	// button, it must not itself advance past the warning -- otherwise
+	// checking the box and reaching the name step would be the same gesture,
+	// which is exactly the "one click past a real warning" this step exists
+	// to prevent.
+	let payoutBoxChecked = $state(false);
+	let payoutAcked = $state(false);
 	let typed = $state('');
 
+	const needsPayoutAck = $derived(rewardCount > 0);
 	const needsName = $derived(entryCount > 0);
+	// The payout warning is a gate the caller must pass through before the
+	// name step is even shown, mirroring the RPC checking acknowledgment
+	// before the name match.
+	const showingPayoutWarning = $derived(needsPayoutAck && !payoutAcked);
 	// The server compares case-insensitively after trimming the ends; nothing
 	// else is normalized, so neither is this.
 	const nameMatches = $derived(
 		typed.trim().toLowerCase() === tournament.name.trim().toLowerCase()
 	);
-	const canGo = $derived(!busy && (!needsName || nameMatches));
+	const canGo = $derived(!busy && !showingPayoutWarning && (!needsName || nameMatches));
 
 	function reset() {
 		armed = false;
+		payoutBoxChecked = false;
+		payoutAcked = false;
 		typed = '';
+	}
+
+	function continuePastPayoutWarning() {
+		if (!payoutBoxChecked) return;
+		payoutAcked = true;
 	}
 
 	function go() {
 		if (!canGo) return;
-		ondelete(needsName ? typed.trim() : '');
+		ondelete(needsName ? typed.trim() : '', needsPayoutAck);
 	}
 
 	const summary = $derived(
@@ -78,6 +116,36 @@
 				Removes this tournament and everything in it. There is no undo.
 			</p>
 		{/if}
+	{:else if showingPayoutWarning}
+		<div class="panel payout">
+			<p class="warn">
+				<strong>{tournament.name}</strong> has already paid out
+				<strong>{rewardCoins} IDEA Coin{rewardCoins === 1 ? '' : 's'}</strong>
+				to <strong>{rewardEntries} {rewardEntries === 1 ? 'entry' : 'entries'}</strong>
+				as reward payouts. Deleting this tournament permanently erases that record; the coins
+				already paid cannot be clawed back and the payout history cannot be recovered.
+			</p>
+			<label class="ack">
+				<input type="checkbox" bind:checked={payoutBoxChecked} />
+				<span>
+					I understand this permanently erases the record of {rewardCoins} coin{rewardCoins === 1
+						? ''
+						: 's'} paid to {rewardEntries} {rewardEntries === 1 ? 'entry' : 'entries'}.
+				</span>
+			</label>
+			{#if error}<p class="err">{error}</p>{/if}
+			<div class="actions">
+				<button
+					type="button"
+					class="go"
+					disabled={!payoutBoxChecked}
+					onclick={continuePastPayoutWarning}
+				>
+					Continue
+				</button>
+				<button type="button" class="cancel" onclick={reset}>Cancel</button>
+			</div>
+		</div>
 	{:else}
 		<div class="panel">
 			<p class="warn">
@@ -154,10 +222,28 @@
 		border-radius: 6px;
 		background: rgba(255, 51, 85, 0.06);
 	}
+	.panel.payout {
+		border-color: var(--gold, #ffd24a);
+		background: rgba(255, 210, 74, 0.08);
+	}
 	.warn {
 		margin: 0;
 		font-size: 0.88rem;
 		color: var(--white, #e8ffe8);
+	}
+	.ack {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--dim, #7a8a7a);
+		cursor: pointer;
+	}
+	.ack input {
+		margin-top: 0.15rem;
+		accent-color: var(--gold, #ffd24a);
+		cursor: pointer;
 	}
 	.confirm {
 		display: flex;
@@ -191,6 +277,10 @@
 		letter-spacing: 0.06em;
 		padding: 0.3rem 0.7rem;
 		cursor: pointer;
+	}
+	.payout .go {
+		border-color: var(--gold, #ffd24a);
+		color: var(--gold, #ffd24a);
 	}
 	.go:disabled {
 		opacity: 0.35;

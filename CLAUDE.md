@@ -2110,6 +2110,57 @@ notifications, rewards, or banner customization yet; those are later phases.
     bare trigger. **NOT verified:** the signed-in round trip on the live
     project — 0066 is not applied there, and running a real deletion would
     destroy real tournaments.
+  - **Payout-loss acknowledgment (migration
+    `0068_tournament_delete_payout_ack.sql`, apply manually after 0067).** A
+    SECOND, distinct confirmation for the case that actually matters most:
+    the tournament being deleted has already paid real IDEA Coins to real
+    students via `tournament_reward_ledger` (0063). Triggered purely on
+    whether that tournament has ANY ledger rows — a tournament with zero
+    payouts is completely unaffected by this migration, no new step, no
+    behavior change from 0066.
+    - **New parameter `p_acknowledge_payout_loss boolean default false`**,
+      checked BEFORE the existing name-match check (a caller who has not
+      acknowledged the payout loss never even reaches "type the name"). A
+      refusal names the real numbers — total coins paid, distinct entries
+      paid — computed in the same query 0066 already ran for its own message,
+      so the caller has what it needs to build the warning without a second
+      round trip. Required dropping the old `(uuid, text)` overload first:
+      `create or replace` keys on the exact parameter list, so merely adding
+      a parameter would have left the 0066 two-argument signature callable
+      and unguarded as a second overload.
+    - **UI:** `DeleteTournament.svelte` gained a THIRD gesture that sits
+      strictly before the name step whenever the tournament has payouts: a
+      distinct gold-bordered panel (never the crimson danger color, since
+      it is a "read this" step rather than the point of no return) stating
+      the real coin total and entry count as loaded by the page, with its
+      own checkbox and a Continue button that stays disabled until it is
+      checked. Checking the box does not itself advance — a separate
+      "acknowledged" flag only flips on the Continue click — so ticking the
+      box and reaching the name field can never be the same accidental
+      gesture. A tournament with no payouts skips this panel entirely and
+      keeps the exact single-step flow from 0066.
+    - **Real numbers, not placeholders:** the host console's load
+      (`/tournaments/[id]/host/+page.server.ts`) now selects
+      `entry_id, amount` from the ledger (replacing the old head-only count)
+      and reduces it into `rewardLedgerCoins` / `rewardLedgerEntries`
+      alongside the existing `rewardLedgerCount`. The tournament list load
+      (`/tournaments/+page.server.ts`) fetches the same per-row data, but
+      ONLY for tournaments the signed-in caller could actually delete (every
+      tournament for an admin/teacher, else just the ones they host) since
+      most visitors to that public page see no delete control at all; it
+      reduces into `rewardCoinsById` / `rewardEntriesById` /
+      `rewardCountById` maps keyed by tournament id.
+    - **Verified** in `/dev/tournaments`: reward rules saved and a bracket
+      played forward through the real sim to a real paid ledger (109 coins
+      across 5 entries, 13 rows); opening the delete panel showed that exact
+      warning text; Continue stayed disabled with the box unchecked and
+      enabled the instant it was checked; clicking Continue advanced to the
+      existing name-confirmation step (summary line correctly reading the
+      grown reward-row count); typing the name and deleting logged
+      `ack=true` in the attempt trail; and, separately, a freshly rebuilt
+      tournament with zero ledger rows went straight from the trigger button
+      to the name step with no payout panel at all, matching 0066's
+      original one-step behavior exactly.
 
 **Note on the local `.env` (supersedes the "placeholder-only" caveat repeated
 throughout the tournament and GREENLINE sections above):** it now points at a

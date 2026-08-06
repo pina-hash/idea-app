@@ -279,12 +279,13 @@
 	let deleteBusy = $state(false);
 	let deleteError = $state('');
 
-	async function deleteTournament(confirmName: string) {
+	async function deleteTournament(confirmName: string, acknowledgePayoutLoss: boolean) {
 		deleteError = '';
 		deleteBusy = true;
 		const { error } = await data.supabase.rpc('tournament_delete', {
 			p_tournament_id: t.id,
-			p_confirm_name: confirmName || null
+			p_confirm_name: confirmName || null,
+			p_acknowledge_payout_loss: acknowledgePayoutLoss
 		});
 		deleteBusy = false;
 		if (error) {
@@ -813,6 +814,8 @@
 			entryCount={data.entries.length}
 			matchCount={data.bracketMatches.length}
 			rewardCount={data.rewardLedgerCount}
+			rewardCoins={data.rewardLedgerCoins}
+			rewardEntries={data.rewardLedgerEntries}
 			busy={deleteBusy}
 			error={deleteError}
 			ondelete={deleteTournament}

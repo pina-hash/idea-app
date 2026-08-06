@@ -14,6 +14,9 @@
 	const canDelete = (t: Tournament) => data.isAdmin || data.hostedIds.includes(t.id);
 	const entryCount = (t: Tournament) =>
 		data.entryRows.filter((e) => e.tournament_id === t.id).length;
+	const rewardCount = (t: Tournament) => data.rewardCountById[t.id] ?? 0;
+	const rewardCoins = (t: Tournament) => data.rewardCoinsById[t.id] ?? 0;
+	const rewardEntries = (t: Tournament) => data.rewardEntriesById[t.id] ?? 0;
 	const championName = (t: Tournament) =>
 		t.champion_entry_id
 			? (data.entryRows.find((e) => e.id === t.champion_entry_id)?.display_name ?? null)
@@ -42,17 +45,18 @@
 		await invalidateAll();
 	}
 
-	// Deletion (0066). Per-row busy/error so one card's failure never blanks
-	// another's control.
+	// Deletion (0066, payout warning 0068). Per-row busy/error so one card's
+	// failure never blanks another's control.
 	let deleteBusy = $state<string | null>(null);
 	let deleteErrors = $state<Record<string, string>>({});
 
-	async function remove(id: string, confirmName: string) {
+	async function remove(id: string, confirmName: string, acknowledgePayoutLoss: boolean) {
 		deleteErrors = { ...deleteErrors, [id]: '' };
 		deleteBusy = id;
 		const { error } = await data.supabase.rpc('tournament_delete', {
 			p_tournament_id: id,
-			p_confirm_name: confirmName || null
+			p_confirm_name: confirmName || null,
+			p_acknowledge_payout_loss: acknowledgePayoutLoss
 		});
 		deleteBusy = null;
 		if (error) {
@@ -156,10 +160,13 @@
 						<DeleteTournament
 							tournament={t}
 							entryCount={entryCount(t)}
+							rewardCount={rewardCount(t)}
+							rewardCoins={rewardCoins(t)}
+							rewardEntries={rewardEntries(t)}
 							compact
 							busy={deleteBusy === t.id}
 							error={deleteErrors[t.id] ?? ''}
-							ondelete={(name) => remove(t.id, name)}
+							ondelete={(name, ack) => remove(t.id, name, ack)}
 						/>
 					</div>
 				{/if}
