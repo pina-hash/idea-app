@@ -102,6 +102,60 @@ export interface MatchGame {
 	winner_id: string | null;
 }
 
+export type RewardTriggerType = 'win' | 'round_reached' | 'placement';
+
+export interface RewardRule {
+	id: string;
+	tournament_id: string;
+	trigger_type: RewardTriggerType;
+	/** Null for 'win'; the round number for 'round_reached'; 1/2/3 for 'placement'. */
+	trigger_value: number | null;
+	amount: number;
+}
+
+export interface RewardLedgerRow {
+	id: number;
+	tournament_id: string;
+	entry_id: string;
+	user_id: string | null;
+	amount: number;
+	reason: string;
+	/** Null exactly for placement awards. */
+	match_id: string | null;
+	awarded_at: string;
+}
+
+const PLACEMENT_LABELS: Record<number, string> = { 1: '1st place', 2: '2nd place', 3: '3rd place' };
+
+export function rewardRuleLabel(r: Pick<RewardRule, 'trigger_type' | 'trigger_value'>): string {
+	if (r.trigger_type === 'win') return 'Match win';
+	if (r.trigger_type === 'round_reached') return `Reached round ${r.trigger_value}`;
+	return PLACEMENT_LABELS[r.trigger_value ?? 0] ?? `Placement ${r.trigger_value}`;
+}
+
+export interface RewardTotalRow {
+	entryId: string;
+	total: number;
+	awards: number;
+}
+
+/** Per-entry totals over the ledger, largest first. */
+export function rewardTotals(ledger: RewardLedgerRow[]): RewardTotalRow[] {
+	const totals = new Map<string, RewardTotalRow>();
+	for (const row of ledger) {
+		let t = totals.get(row.entry_id);
+		if (!t) {
+			t = { entryId: row.entry_id, total: 0, awards: 0 };
+			totals.set(row.entry_id, t);
+		}
+		t.total += row.amount;
+		t.awards += 1;
+	}
+	return [...totals.values()].sort(
+		(a, b) => b.total - a.total || a.entryId.localeCompare(b.entryId)
+	);
+}
+
 export function parseConfig(raw: unknown): TournamentConfig {
 	const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
 	return {

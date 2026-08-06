@@ -5,6 +5,7 @@ import type {
 	MatchGame,
 	QualMatch,
 	QualPool,
+	RewardRule,
 	Tournament,
 	TournamentEntry,
 	TournamentInvite
@@ -33,7 +34,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		.maybeSingle();
 	if (!tournament) redirect(303, '/tournaments');
 
-	const [entriesRes, poolsRes, qualRes, bracketRes, gamesRes, invitesRes, hostsRes] =
+	const [entriesRes, poolsRes, qualRes, bracketRes, gamesRes, invitesRes, hostsRes, rulesRes] =
 		await Promise.all([
 			supabase
 				.from('tournament_entries')
@@ -53,7 +54,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 				.select('*')
 				.eq('tournament_id', params.id)
 				.order('created_at'),
-			supabase.from('tournament_hosts').select('*').eq('tournament_id', params.id)
+			supabase.from('tournament_hosts').select('*').eq('tournament_id', params.id),
+			supabase.from('tournament_reward_rules').select('*').eq('tournament_id', params.id)
 		]);
 
 	return {
@@ -64,6 +66,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		bracketMatches: (bracketRes.data ?? []) as BracketMatch[],
 		games: (gamesRes.data ?? []) as MatchGame[],
 		invites: (invitesRes.data ?? []) as TournamentInvite[],
-		hostCount: (hostsRes.data ?? []).length
+		hostCount: (hostsRes.data ?? []).length,
+		// Fails soft to empty pre-0063.
+		rewardRules: (rulesRes.data ?? []) as RewardRule[]
 	};
 };

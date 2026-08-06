@@ -5,6 +5,8 @@ import type {
 	MatchGame,
 	QualMatch,
 	QualPool,
+	RewardLedgerRow,
+	RewardRule,
 	Tournament,
 	TournamentEntry,
 	TournamentInvite
@@ -25,7 +27,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		.maybeSingle();
 	if (!tournament) error(404, 'Tournament not found');
 
-	const [entriesRes, poolsRes, qualRes, bracketRes, gamesRes, hostsRes] = await Promise.all([
+	const [entriesRes, poolsRes, qualRes, bracketRes, gamesRes, hostsRes, rulesRes, ledgerRes] =
+		await Promise.all([
 		supabase
 			.from('tournament_entries')
 			.select('*')
@@ -39,7 +42,13 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 			.order('sequence'),
 		supabase.from('tournament_bracket_matches').select('*').eq('tournament_id', params.id),
 		supabase.from('tournament_match_games').select('*').eq('tournament_id', params.id),
-		supabase.from('tournament_hosts').select('user_id').eq('tournament_id', params.id)
+		supabase.from('tournament_hosts').select('user_id').eq('tournament_id', params.id),
+		supabase.from('tournament_reward_rules').select('*').eq('tournament_id', params.id),
+		supabase
+			.from('tournament_reward_ledger')
+			.select('*')
+			.eq('tournament_id', params.id)
+			.order('id', { ascending: false })
 	]);
 
 	const hostIds = (hostsRes.data ?? []).map((r: { user_id: string }) => r.user_id);
@@ -66,6 +75,10 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		games: (gamesRes.data ?? []) as MatchGame[],
 		isHost: !!claims && hostIds.includes(claims.sub),
 		myEntry: claims ? (entries.find((e) => e.user_id === claims.sub) ?? null) : null,
-		myInvite
+		myInvite,
+		// Reward tables fail soft to empty pre-0063 (a select error yields no
+		// data), so the page renders without the migration applied.
+		rewardRules: (rulesRes.data ?? []) as RewardRule[],
+		rewardLedger: (ledgerRes.data ?? []) as RewardLedgerRow[]
 	};
 };

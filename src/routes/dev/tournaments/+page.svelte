@@ -1,8 +1,18 @@
 <script lang="ts">
 	import BracketView from '$lib/tournaments/BracketView.svelte';
 	import PoolsView from '$lib/tournaments/PoolsView.svelte';
+	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
+	import RewardsPanel from '$lib/tournaments/RewardsPanel.svelte';
+	import TournamentQr from '$lib/tournaments/TournamentQr.svelte';
 	import { entryMap } from '$lib/tournaments/tournaments';
-	import { buildSim, buildQualSample, playNext, startNext, type Sim } from './sim';
+	import {
+		buildSim,
+		buildQualSample,
+		playNext,
+		setSimRewardRules,
+		startNext,
+		type Sim
+	} from './sim';
 
 	let fieldSize = $state(6);
 	let sim = $state<Sim>(buildSim(6));
@@ -13,7 +23,11 @@
 
 	function rebuild(n: number) {
 		fieldSize = n;
+		const rules = sim.rewardRules;
 		sim = buildSim(n);
+		// Keep the configured reward rules across a rebuild so play-all can be
+		// repeated against the same configuration.
+		sim.rewardRules = rules;
 	}
 	function playAll() {
 		let guard = 0;
@@ -70,6 +84,30 @@
 		<h2>PoolsView · sample quals (score mode)</h2>
 		<PoolsView pools={qual.pools} matches={qual.matches} entries={qualEntries} scoreEntry />
 	</section>
+
+	<section>
+		<h2>Rewards · RewardRulesEditor + RewardsPanel (0063 mirror)</h2>
+		<p class="note">
+			Save rules, rebuild, then play matches: win + winners-round bonuses pay per entered
+			result (byes pay nothing) and 1st/2nd/3rd settle when the grand final decides.
+		</p>
+		<div class="card pad">
+			<RewardRulesEditor
+				rules={sim.rewardRules}
+				onsave={(rules) => setSimRewardRules(sim, rules)}
+			/>
+		</div>
+		<div class="pad-top">
+			<RewardsPanel rules={sim.rewardRules} ledger={sim.ledger} {entries} />
+		</div>
+	</section>
+
+	<section>
+		<h2>TournamentQr · registration_open card</h2>
+		<div class="card pad">
+			<TournamentQr url="https://ideabosco.com/tournaments/sim-demo" name="Harness Invitational" />
+		</div>
+	</section>
 </main>
 
 <style>
@@ -120,5 +158,11 @@
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
 		color: var(--green, #00ff41);
+	}
+	.pad {
+		padding: 1rem;
+	}
+	.pad-top {
+		margin-top: 1rem;
 	}
 </style>

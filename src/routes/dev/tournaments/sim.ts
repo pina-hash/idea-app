@@ -11,6 +11,8 @@ import type {
 	MatchGame,
 	QualMatch,
 	QualPool,
+	RewardLedgerRow,
+	RewardRule,
 	TournamentEntry
 } from '$lib/tournaments/tournaments';
 
@@ -23,6 +25,9 @@ export interface Sim {
 	games: MatchGame[];
 	championId: string | null;
 	status: 'live' | 'complete';
+	/** Reward mirror of 0063: rules + the append-only ledger. */
+	rewardRules: RewardRule[];
+	ledger: RewardLedgerRow[];
 }
 
 const NAMES = [
@@ -87,7 +92,15 @@ export function buildSim(n: number): Sim {
 	let p = 1;
 	while (p < n) p *= 2;
 	const r = Math.log2(p);
-	const sim: Sim = { entries, matches: [], games: [], championId: null, status: 'live' };
+	const sim: Sim = {
+		entries,
+		matches: [],
+		games: [],
+		championId: null,
+		status: 'live',
+		rewardRules: [],
+		ledger: []
+	};
 
 	const placement = seedPlacement(p);
 	for (let round = 1; round <= r; round++) {
@@ -187,11 +200,85 @@ function completeMatch(sim: Sim, m: BracketMatch, winnerId: string | null) {
 		} else {
 			sim.championId = winnerId;
 			sim.status = 'complete';
+			awardPlacements(sim, winnerId, loser);
 		}
 	} else if (m.bracket === 'grand_final_reset' && winnerId) {
 		sim.championId = winnerId;
 		sim.status = 'complete';
+		awardPlacements(sim, winnerId, loser);
 	}
+}
+
+// --- Reward mirror (the 0063 semantics, so RewardsPanel / RewardRulesEditor
+// can be driven in a browser) -----------------------------------------------
+
+export function setSimRewardRules(
+	sim: Sim,
+	rules: { trigger_type: string; trigger_value: number | null; amount: number }[]
+) {
+	sim.rewardRules = rules.map((r) => ({
+		id: uid('rr'),
+		tournament_id: 'sim',
+		trigger_type: r.trigger_type as RewardRule['trigger_type'],
+		trigger_value: r.trigger_value,
+		amount: r.amount
+	}));
+}
+
+let ledgerSeq = 0;
+
+function award(sim: Sim, entryId: string, amount: number, reason: string, matchId: string | null) {
+	sim.ledger.push({
+		id: ++ledgerSeq,
+		tournament_id: 'sim',
+		entry_id: entryId,
+		user_id: null,
+		amount,
+		reason,
+		match_id: matchId,
+		awarded_at: new Date().toISOString()
+	});
+}
+
+/** Mirrors the win + round-bonus block of tournament_submit_match_result:
+ * only ENTERED results award (playNext calls this; byes never do). */
+function awardMatchWin(sim: Sim, m: BracketMatch, winnerId: string) {
+	const win = sim.rewardRules.find((r) => r.trigger_type === 'win');
+	if (win) award(sim, winnerId, win.amount, 'match win', m.id);
+	if (m.bracket === 'winners') {
+		const round = sim.rewardRules.find(
+			(r) => r.trigger_type === 'round_reached' && r.trigger_value === m.round
+		);
+		if (round) award(sim, winnerId, round.amount, `reached round ${m.round}`, m.id);
+	}
+}
+
+/** Mirrors _tournament_award_placements: settles once, third from the losers
+ * final (the losers match feeding the grand final's B side). */
+function awardPlacements(sim: Sim, championId: string, runnerUpId: string | null) {
+	if (sim.ledger.some((row) => row.match_id === null)) return;
+	const gf = sim.matches.find((x) => x.bracket === 'grand_final');
+	const losersFinal = sim.matches.find(
+		(x) =>
+			x.bracket === 'losers' &&
+			x.winner_to_match_id === gf?.id &&
+			x.winner_to_pos === 'b' &&
+			x.winner_id !== null
+	);
+	const third = losersFinal
+		? losersFinal.winner_id === losersFinal.entry_a_id
+			? losersFinal.entry_b_id
+			: losersFinal.entry_a_id
+		: null;
+	const amountFor = (place: number) =>
+		sim.rewardRules.find((r) => r.trigger_type === 'placement' && r.trigger_value === place)
+			?.amount ?? null;
+	const first = amountFor(1);
+	if (first !== null) award(sim, championId, first, '1st place', null);
+	const second = amountFor(2);
+	if (second !== null && runnerUpId) award(sim, runnerUpId, second, '2nd place', null);
+	const thirdAmt = amountFor(3);
+	if (thirdAmt !== null && third) award(sim, third, thirdAmt, '3rd place', null);
 }
 
 function resolveByes(sim: Sim) {
@@ -257,6 +344,7 @@ export function playNext(sim: Sim, forceSide?: 'a' | 'b'): boolean {
 	});
 	m.status = 'in_progress';
 	completeMatch(sim, m, winner);
+	awardMatchWin(sim, m, winner);
 	resolveByes(sim);
 	return true;
 }

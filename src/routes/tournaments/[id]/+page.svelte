@@ -1,12 +1,16 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import BracketView from '$lib/tournaments/BracketView.svelte';
 	import PoolsView from '$lib/tournaments/PoolsView.svelte';
 	import EntryChip from '$lib/tournaments/EntryChip.svelte';
+	import MatchAlerts from '$lib/tournaments/MatchAlerts.svelte';
+	import RewardsPanel from '$lib/tournaments/RewardsPanel.svelte';
+	import TournamentQr from '$lib/tournaments/TournamentQr.svelte';
 	import { entryMap, parseConfig, statusLabel } from '$lib/tournaments/tournaments';
 	import type { PageData } from './$types';
 
@@ -33,7 +37,9 @@
 			'tournament_qual_pools',
 			'tournament_qual_matches',
 			'tournament_bracket_matches',
-			'tournament_match_games'
+			'tournament_match_games',
+			'tournament_reward_rules',
+			'tournament_reward_ledger'
 		];
 		let channel = data.supabase.channel(`tournament-${t.id}`);
 		for (const table of filtered) {
@@ -118,6 +124,9 @@
 		await invalidateAll();
 	}
 
+	// The page's own canonical URL (origin + path, no query), for the QR.
+	const shareUrl = $derived(`${page.url.origin}/tournaments/${t.id}`);
+
 	const regOpen = $derived(t.status === 'registration_open');
 	const canRegister = $derived(
 		signedIn &&
@@ -159,6 +168,16 @@
 			<span class="champ-label">Champion</span>
 			<EntryChip entry={champion} winner />
 		</section>
+	{/if}
+
+	{#if regOpen}
+		<section class="card qr-section">
+			<TournamentQr url={shareUrl} name={t.name} />
+		</section>
+	{/if}
+
+	{#if signedIn && data.myEntry && t.status !== 'complete'}
+		<MatchAlerts supabase={data.supabase} />
 	{/if}
 
 	{#if canRegister}
@@ -225,6 +244,13 @@
 				{entries}
 				scoreEntry={config.score_entry}
 			/>
+		</section>
+	{/if}
+
+	{#if data.rewardRules.length || data.rewardLedger.length}
+		<section class="block">
+			<h2 class="block-title">Rewards</h2>
+			<RewardsPanel rules={data.rewardRules} ledger={data.rewardLedger} {entries} />
 		</section>
 	{/if}
 
@@ -301,6 +327,9 @@
 		.live-dot {
 			animation: none;
 		}
+	}
+	.qr-section {
+		margin-bottom: 1.1rem;
 	}
 	.champion-banner {
 		display: flex;

@@ -5,6 +5,7 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import EntryChip from '$lib/tournaments/EntryChip.svelte';
 	import ResultForm from '$lib/tournaments/ResultForm.svelte';
+	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
 	import {
 		entryMap,
 		parseConfig,
@@ -43,6 +44,63 @@
 		return true;
 	}
 
+	/**
+	 * The three bracket mutations that can newly pair a match (generate,
+	 * submit, correct) go through /api/tournament-push instead of a direct
+	 * RPC: the server runs the SAME RPC under this session's cookie, then
+	 * pushes "your next match is set" to both competitors of every
+	 * newly-paired match in the same request. Adapted to run()'s
+	 * { error } shape so all the existing feedback plumbing applies.
+	 */
+	const callPush =
+		(payload: Record<string, unknown>) =>
+		async (): Promise<{ error: { message: string } | null }> => {
+			try {
+				const res = await fetch('/api/tournament-push', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(payload)
+				});
+				const out = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+				if (!res.ok || !out.ok) {
+					return { error: { message: out.error ?? `Request failed (${res.status}).` } };
+				}
+				return { error: null };
+			} catch (e) {
+				return { error: { message: e instanceof Error ? e.message : String(e) } };
+			}
+		};
+
+	async function ping(matchId: string, entryId: string, entryName: string) {
+		actionError = '';
+		notice = '';
+		busy = true;
+		try {
+			const res = await fetch('/api/tournament-push', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ action: 'ping', matchId, entryId })
+			});
+			const out = (await res.json().catch(() => ({}))) as {
+				ok?: boolean;
+				sent?: number;
+				note?: string;
+				error?: string;
+			};
+			if (!res.ok || !out.ok) {
+				actionError = out.error ?? `Ping failed (${res.status}).`;
+			} else if (!out.sent) {
+				notice = out.note ?? `${entryName} has no subscribed devices.`;
+			} else {
+				notice = `Pinged ${entryName}.`;
+			}
+		} catch (e) {
+			actionError = e instanceof Error ? e.message : String(e);
+		} finally {
+			busy = false;
+		}
+	}
+
 	// Keep co-hosts in sync live.
 	onMount(() => {
 		let timer: ReturnType<typeof setTimeout> | undefined;
@@ -55,7 +113,9 @@
 			'tournament_entries',
 			'tournament_qual_matches',
 			'tournament_bracket_matches',
-			'tournament_match_games'
+			'tournament_match_games',
+			'tournament_reward_rules',
+			'tournament_reward_ledger'
 		]) {
 			channel = channel.on(
 				'postgres_changes',
@@ -154,22 +214,13 @@
 
 	const submitResult = (matchId: string) => (result: unknown) =>
 		run(
-			() =>
-				data.supabase.rpc('tournament_submit_match_result', {
-					p_match_id: matchId,
-					p_result: result
-				}),
+			callPush({ action: 'submit-result', tournamentId: t.id, matchId, result }),
 			'Result recorded'
 		);
 
 	const correctResult = (matchId: string) => async (result: unknown, reason: string) => {
 		const okDone = await run(
-			() =>
-				data.supabase.rpc('tournament_correct_match_result', {
-					p_match_id: matchId,
-					p_new_result: result,
-					p_reason: reason
-				}),
+			callPush({ action: 'correct-result', tournamentId: t.id, matchId, result, reason }),
 			'Correction applied'
 		);
 		if (okDone) correctingId = null;
@@ -201,6 +252,21 @@
 
 	{#if actionError}<p class="feedback error">{actionError}</p>{/if}
 	{#if notice}<p class="feedback notice">{notice}</p>{/if}
+
+	{#snippet pingButtons(m: BracketMatch)}
+		{#each [m.entry_a_id, m.entry_b_id] as eid (eid)}
+			{#if eid && entries[eid]?.user_id}
+				<button
+					class="mini"
+					disabled={busy}
+					title="Send this player a push notification now"
+					onclick={() => ping(m.id, eid, entries[eid]?.display_name ?? '')}
+				>
+					ping {entries[eid].display_name}
+				</button>
+			{/if}
+		{/each}
+	{/snippet}
 
 	<section class="card">
 		<h2>Phase</h2>
@@ -243,7 +309,7 @@
 					disabled={busy}
 					onclick={() =>
 						run(
-							() => data.supabase.rpc('tournament_generate_bracket', { p_tournament_id: t.id }),
+							callPush({ action: 'generate-bracket', tournamentId: t.id }),
 							'Bracket generated'
 						)}
 				>
@@ -482,6 +548,24 @@
 		</section>
 	{/if}
 
+	<section class="card">
+		<h2>Rewards</h2>
+		<RewardRulesEditor
+			rules={data.rewardRules}
+			{busy}
+			locked={t.status === 'complete'}
+			onsave={(rules) =>
+				run(
+					() =>
+						data.supabase.rpc('tournament_set_reward_rules', {
+							p_tournament_id: t.id,
+							p_rules: rules
+						}),
+					'Reward rules saved'
+				)}
+		/>
+	</section>
+
 	{#if data.bracketMatches.length}
 		<section class="card">
 			<h2>Match control</h2>
@@ -490,7 +574,10 @@
 				<h3 class="mc-sub live-sub">In progress</h3>
 				{#each bracketByState.inProgress as m (m.id)}
 					<div class="mc-block">
-						<div class="mc-label">{matchLabel(m)}</div>
+						<div class="mc-row slim">
+							<span class="mc-label">{matchLabel(m)}</span>
+							{@render pingButtons(m)}
+						</div>
 						<ResultForm
 							match={m}
 							{entries}
@@ -512,17 +599,20 @@
 							<span class="vs-sep">vs</span>
 							{entries[m.entry_b_id ?? '']?.display_name}
 						</span>
-						<button
-							class="btn"
-							disabled={busy}
-							onclick={() =>
-								run(
-									() => data.supabase.rpc('tournament_start_match', { p_match_id: m.id }),
-									'Match started'
-								)}
-						>
-							Start
-						</button>
+						<span class="row-actions">
+							{@render pingButtons(m)}
+							<button
+								class="btn"
+								disabled={busy}
+								onclick={() =>
+									run(
+										() => data.supabase.rpc('tournament_start_match', { p_match_id: m.id }),
+										'Match started'
+									)}
+							>
+								Start
+							</button>
+						</span>
 					</div>
 				{/each}
 			{/if}
@@ -773,6 +863,13 @@
 	}
 	.mc-row.done {
 		opacity: 0.85;
+	}
+	.mc-row.slim {
+		border-bottom: none;
+		padding: 0 0 0.2rem;
+	}
+	.mc-row.slim .mini {
+		margin-left: 0;
 	}
 	.mc-label {
 		font-family: 'Share Tech Mono', monospace;

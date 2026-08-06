@@ -164,12 +164,14 @@ Some vars are SERVER-ONLY, read via `$env/dynamic/private` (runtime; never in
 the client bundle; a missing value degrades to a clear "not configured"
 response, never a build break):
 
-- `SUPABASE_SERVICE_ROLE_KEY` — used ONLY by the GREENLINE community-track
-  publish endpoint (`/api/greenline-track-publish`), which must run the game's
-  real track validation in Node before any row is written (there is
-  deliberately no client write path to `greenline_tracks`). Set it in the
-  Vercel project env for production. This is the repo's first private server
-  key; nothing else may read it, and it must never gain a `PUBLIC_` prefix.
+- `SUPABASE_SERVICE_ROLE_KEY` — used by exactly TWO modules: the GREENLINE
+  community-track publish endpoint (`/api/greenline-track-publish`), which must
+  run the game's real track validation in Node before any row is written (there
+  is deliberately no client write path to `greenline_tracks`), and the
+  tournament push sender (`src/lib/server/push.ts`), which reads
+  `push_subscriptions` (own-row RLS) and claims `pair_notified_at` (no client
+  write path). Set it in the Vercel project env for production. Nothing else
+  may read it, and it must never gain a `PUBLIC_` prefix.
 - `COIN_API_KEY` — the shared key this server attaches to every IDEA Coin ledger
   call. Read ONLY by `src/lib/server/coin-ledger.ts` (see "IDEA Coin ledger"
   below). Never `PUBLIC_`. **Set it in the Vercel project env**; until it is set,
@@ -184,6 +186,16 @@ response, never a build break):
 - `COIN_LEDGER_URL` — optional override for the ledger's deployed `/exec` URL;
   the current deployment is the default in that same module, so this only needs
   setting if the script is redeployed.
+- `VAPID_PRIVATE_KEY` — signs every Web Push send (tournament match alerts).
+  Read ONLY by `src/lib/server/push.ts`. Its public half is
+  `PUBLIC_VAPID_PUBLIC_KEY` (`$env/dynamic/public`; safe in the client bundle,
+  it is what browsers subscribe against). The two must come from ONE generated
+  pair (`web-push generateVAPIDKeys`), and rotating the pair orphans every
+  existing subscription (sends fail silently; users re-enable). Optional
+  `VAPID_SUBJECT` (mailto:/https: contact, defaults to https://ideabosco.com).
+  Unset keys degrade cleanly: the alerts UI hides and every send is a no-op.
+  Set all of them in the Vercel project env. The push send path also requires
+  `SUPABASE_SERVICE_ROLE_KEY` (subscription reads + the pair-claim write).
 
 See `.env.example`. **Never hardcode keys.** Never commit `.env`.
 
@@ -1648,6 +1660,95 @@ notifications, rewards, or banner customization yet; those are later phases.
   rules drives the REAL components). NOT verified: the live Supabase
   project (the local `.env` is placeholder-only) — apply 0062 by hand in
   the SQL editor and re-run the realtime + OAuth acceptance checks there.
+- **Phase 2a (migration `0063_tournament_push_rewards.sql`, apply manually
+  after 0062): registration QR + web push match alerts + the reward engine
+  and permanent ledger.**
+  - **QR:** the public `/tournaments/[id]` view renders a client-side QR of
+    its own URL while `registration_open` (`TournamentQr.svelte`, the
+    `qrcode` npm package dynamic-imported browser-only — never an external
+    image service), with a full-screen white-sheet "Present" mode for a shop
+    TV or printout (Esc closes, print CSS strips chrome).
+  - **Web push.** `push_subscriptions` (PORTAL-WIDE, unprefixed like
+    `profiles`; endpoint text PK so a device re-signing-in reassigns its row)
+    holds one row per browser subscription; own-row SELECT only, writes only
+    via the `push_subscribe` RPC (signed-in, https-endpoint + length checks,
+    20-device cap per account). The Web Push SEND cannot run in Postgres
+    (VAPID signing + payload encryption), so the split is: SQL owns WHO
+    (subscriptions + authorization), `src/lib/server/push.ts` owns the SEND
+    (`web-push`, service-role reads, silent failure by design; 404/410 Gone
+    prunes the dead row). Keys: `PUBLIC_VAPID_PUBLIC_KEY` +
+    `VAPID_PRIVATE_KEY` (+ optional `VAPID_SUBJECT`), see Environment;
+    unconfigured = alerts UI hides, sends no-op. The service worker is
+    `static/push-sw.js`, the repo's FIRST service worker: push +
+    notificationclick handlers ONLY, deliberately NO fetch handler so it can
+    never grow caching/offline behavior; `manifest.webmanifest` predates it
+    and is untouched. Client flow: `MatchAlerts.svelte` on the public
+    tournament page (signed-in competitors, not complete) via
+    `push-client.ts` (permission -> SW -> subscribe -> RPC, device label
+    like "Windows · Chrome").
+  - **The pairing trigger** is the SvelteKit server route
+    `/api/tournament-push` WRAPPING the three RPCs that can newly pair a
+    bracket match (`generate-bracket`, `submit-result`, `correct-result`) —
+    chosen over a Database Webhook / pg_net because the send needs the
+    server-only VAPID key + Node crypto and this repo's idiom for
+    server-triggered side effects is SvelteKit routes (no Edge Function
+    surface). The RPC runs under the caller's OWN cookie session (host
+    authorization unchanged); after it commits, `sweepPairNotifications`
+    atomically CLAIMS newly-paired matches (one UPDATE ... WHERE
+    `pair_notified_at IS NULL`, the new claim column on
+    `tournament_bracket_matches`, so concurrent sweeps never double-send)
+    and pushes both linked competitors "your next match is set". A
+    correction's unwind clears the claim via `_tournament_set_slot` (0063
+    recreation), so a re-derived pairing re-notifies. Push failures can
+    never fail the committed mutation. The host console routes those three
+    calls through the endpoint (`callPush`); every other RPC stays a direct
+    browser call. `tournament_ping_entry(match, entry)` is the ping's
+    authorization + target-resolution half (host-only, entry must be in the
+    match and linked, NO match-state check by design); the endpoint's
+    `ping` action does the send. Per-participant "ping" buttons sit on the
+    host console's ready/in-progress matches.
+  - **Reward engine.** `tournament_reward_rules` (win / round_reached /
+    placement + amount, one rule per trigger, host-edited via
+    `tournament_set_reward_rules` full-set replacement, locked once
+    complete) and the INSERT-ONLY `tournament_reward_ledger` (entry,
+    user_id copied at award time, amount, short reason, match_id, stamp; no
+    update/delete path at all — a permanent record). Both public-select +
+    realtime-published; the public page shows rules chips, per-entry
+    totals, and full history (`RewardsPanel.svelte`), the host console
+    edits rules (`RewardRulesEditor.svelte`). Hook placement follows what
+    0062 actually ships: win + round-bonus rows are inserted in
+    `tournament_submit_match_result` (ONLY entered results pay — byes and
+    corrections never mint or claw back rows), and placements settle inside
+    `_tournament_complete_match` on its two tournament-completing branches,
+    because `tournament_set_status` NEVER moves a tournament to complete.
+    Semantics: `round_reached` matches the won match's own round, WINNERS
+    BRACKET ONLY (the grand final is round 1 of its own bracket and losers
+    rounds are numbered differently, so raw cross-bracket matching would
+    misfire); placements settle ONCE per tournament (guarded by the
+    existence of null-match_id rows), champion + runner-up from the
+    deciding grand final (or reset), third = the loser of the losers final;
+    N=2 has no third. A post-completion correction changes the champion but
+    deliberately not the settled ledger.
+  - **Verified:** 0062+0063 applied UNMODIFIED to a real embedded Postgres
+    (same stub approach as Phase 1) and integration-tested with 48
+    assertions: rule validation + atomic replacement + host gating, the
+    sweep claim (exact initial pairings, idempotent repeat, re-claim after
+    a correction's unwind), a scripted 6-entry bracket through the
+    grand-final reset asserting every ledger row (11 wins + 2 winners-r2
+    bonuses + 3 placements, per-entry totals, byes pay nothing, losers-r2
+    pays no round bonus, corrections mint nothing, user_id copied), the
+    N=2 no-third-place settlement, rules locked after completion, and the
+    anon boundary (reads ledger/rules, cannot write or call any new RPC;
+    push_subscribe upsert/reassign/RLS/https checks; ping target
+    resolution + unlinked/non-host refusals). Browser-verified via
+    `/dev/tournaments` (sim now mirrors the reward semantics and mounts the
+    REAL RewardRulesEditor/RewardsPanel/TournamentQr; full play-through
+    with correct payouts, QR painted at both sizes, present overlay + Esc)
+    plus live checks that `/push-sw.js` serves + registers with no fetch
+    handler and `/api/tournament-push` answers 401 signed-out. NOT
+    verifiable here: a real push arriving (the embedded pane auto-denies
+    notification permission) — enable alerts on a real signed-in device and
+    submit a pairing result, or use ping.
 
 ## GREENLINE (prototype)
 
