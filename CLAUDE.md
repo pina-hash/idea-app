@@ -230,6 +230,14 @@ response, never a build break):
 - `COIN_LEDGER_URL` — optional override for the ledger's deployed `/exec` URL;
   the current deployment is the default in that same module, so this only needs
   setting if the script is redeployed.
+- `GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY` + `GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID` — the
+  digital notebook's photo storage (see "Digital notebook" below): the full
+  JSON key of a Google service account, and the shared-drive folder id uploads
+  land in. Read ONLY by `src/lib/server/notebook-drive.ts`. Unset, the two
+  `/api/notebook/*` routes answer 503 "not configured" and nothing else is
+  affected. The service account's email must be a member of the shared drive
+  (Content manager) or every upload fails. Setup steps are in `.env.example`.
+  Set both in the Vercel project env; never `PUBLIC_`.
 - `VAPID_PRIVATE_KEY` — signs every Web Push send (tournament match alerts).
   Read ONLY by `src/lib/server/push.ts`. Its public half is
   `PUBLIC_VAPID_PUBLIC_KEY` (`$env/dynamic/public`; safe in the client bundle,
@@ -2173,6 +2181,91 @@ no session), which is the main remaining verification gap — and that limit is
 also what keeps a stray RPC call from mutating real tournaments. Confirm which
 migrations are actually applied before assuming: as of Phase 3a, 0062-0065 are
 live and 0066 is not.
+
+## Digital notebook (data layer)
+
+Migration `0069_notebook.sql` (apply manually after 0068) plus
+`src/lib/server/notebook-drive.ts` and the two `/api/notebook/*` routes are
+the DATA LAYER for the digital engineering notebook: students photograph
+notebook pages and upload them; instructors review, flag, and read a
+per-section compliance grid. **Backend and schema only — no UI yet**; the UI
+arrives in later sessions and should not need to touch this layer again.
+
+- **Schema:** `notebook_sections` (course_id is a curriculum `Section.id`
+  string, the 0003 `profiles.section_id` convention, NOT a FK; enrollment =
+  `profiles.section_id` matches it; `instructor_id` references `auth.users`,
+  the first DB representation of instructor assignment in the repo),
+  `notebook_sessions` (required check-ins: unit, date, label),
+  `notebook_entries` (one logical entry: session-linked or free via
+  `custom_label` — a CHECK requires one of the two, a second CHECK makes a
+  session imply a section, and a composite FK `(session_id, section_id) ->
+  notebook_sessions (id, section_id)` makes a mismatched pair
+  unrepresentable; `upload_timestamp` is server-set and never a parameter),
+  `notebook_entry_photos` (Drive file id + `original`/`enhanced` variant +
+  `sequence_order`; photos are only ever ADDED, never replaced),
+  `notebook_session_excusals` (an excusal is the sanctioned ABSENCE of an
+  entry — deliberately NOT a fake entry status), and the append-only
+  `notebook_admin_log` (bare-uuid subjects, no FKs, so log rows survive the
+  deletion of what they describe).
+- **RLS:** students SELECT their own entries/photos; instructors SELECT
+  their sections' (via `notebook_is_section_instructor`); the chair tier is
+  the ADMIN tier (0067) via `is_admin()` and reads everything (never write a
+  new `is_teacher()` call — the 0067 naming trap). Photo visibility delegates
+  to `notebook_can_read_entry` so it can never diverge from entry visibility.
+  Sections/sessions are readable by any signed-in user. **Zero client write
+  grants or policies on any notebook table**: every write goes through
+  SECURITY DEFINER RPCs that re-check `auth.uid()` inside (the 0041/0062
+  pattern).
+- **RPCs:** `notebook_create_entry` (self-only; inserts entry + first
+  'original' photo), `notebook_add_photo` (owner-only; a resubmission onto a
+  FLAGGED entry flips it to `pending_review`, never silently clears the
+  flag), `notebook_flag_entry` (instructor-of-section or admin; reason from
+  the fixed list, stamps reviewed_by/at), `notebook_resolve_entry`
+  (same tier; closes the loop back to `compliant` — added beyond the spec
+  because nothing else let an instructor accept a resubmission),
+  `notebook_admin_upsert_section` (admin-only — assigning instructor power is
+  role-assignment-tier trust; also added beyond the spec since no other write
+  path to sections exists), `notebook_admin_upsert_session` +
+  `notebook_admin_delete_session` (instructor-of-section or admin; delete
+  DETACHES entries — session_id nulled, `custom_label` backfilled from the
+  deleted session's label so the has-a-target CHECK holds — and logs),
+  `notebook_admin_override_entry` (admin-only; re-point session/section, fix
+  status/label, before/after logged) with `notebook_admin_set_excusal` as its
+  excusal half, and `notebook_get_section_grid` (instructor-of-section or
+  admin): sessions x roster with per-cell
+  `missing/excused/compliant/flagged/pending_review`, latest-entry
+  `entry_id`/`entry_count`/`upload_timestamp`, and `on_time` computed as
+  upload date in America/Los_Angeles <= session_date. The grid roster is
+  enrollment UNION anyone with entries/excusals in the section, so transfers
+  stay visible.
+- **Drive:** photo bytes live in a Google Shared Drive, never Postgres.
+  `src/lib/server/notebook-drive.ts` is the one egress point (the
+  coin-ledger convention): service-account JWT auth hand-rolled on
+  `node:crypto` (no googleapis dependency), multipart upload with
+  `supportsAllDrives=true`, token cached, full `drive` scope (drive.file does
+  not reliably cover creating into a shared-drive folder the app did not
+  create). Env: `GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY` +
+  `GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID` (see Environment). Routes
+  `/api/notebook/upload` (Drive upload then `notebook_create_entry`) and
+  `/api/notebook/add-photo` (then `notebook_add_photo`) authenticate the
+  caller's real session first (`locals.claims`, 401 signed out) and run the
+  RPC under the caller's OWN cookie session, so the RPC's internal check is
+  the boundary; a refused RPC deletes the just-uploaded file best-effort.
+  4 MB cap (Vercel body limit), JPEG/PNG/WebP/HEIC only. Neither route is in
+  `authedPrefixes` (they answer their own 401s, the vanguard-save pattern).
+- **Verified** against a real embedded Postgres (0001 + 0003 + 0020 + 0067 +
+  0069 applied unmodified, Supabase-shaped auth/storage stubs, the tournament
+  harness approach): RLS isolation between two students, instructor and
+  admin visibility, the anon/authenticated write boundary, flag ->
+  add_photo -> `pending_review`, delete-session detach, override/excusal
+  logging, and the grid's shape and on-time math. The Drive module was
+  verified against a local mock of Google's token + upload endpoints with a
+  real RSA keypair (JWT signature verified, multipart body parsed). **NOT
+  verified: a real upload into the real shared drive** — no service-account
+  key exists yet; create one per `.env.example` and run a real end-to-end
+  upload before trusting the Drive half in production. 0069 itself is
+  code-only until applied by hand in the SQL editor, per the migration
+  convention.
 
 ## GREENLINE (prototype)
 
