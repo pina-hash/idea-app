@@ -44,7 +44,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		invitesRes,
 		hostsRes,
 		rulesRes,
-		stylesRes
+		stylesRes,
+		ledgerCountRes
 	] = await Promise.all([
 			supabase
 				.from('tournament_entries')
@@ -66,7 +67,13 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 				.order('created_at'),
 			supabase.from('tournament_hosts').select('*').eq('tournament_id', params.id),
 			supabase.from('tournament_reward_rules').select('*').eq('tournament_id', params.id),
-			supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id)
+			supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id),
+			// Count only: the console never lists payouts, it just has to say how
+			// many a deletion would destroy.
+			supabase
+				.from('tournament_reward_ledger')
+				.select('id', { count: 'exact', head: true })
+				.eq('tournament_id', params.id)
 		]);
 
 	return {
@@ -81,6 +88,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		// Fails soft to empty pre-0063.
 		rewardRules: (rulesRes.data ?? []) as RewardRule[],
 		// Fails soft to empty pre-0064.
-		entryStyles: (stylesRes.data ?? []) as EntryStyle[]
+		entryStyles: (stylesRes.data ?? []) as EntryStyle[],
+		rewardLedgerCount: ledgerCountRes.count ?? 0
 	};
 };

@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import EntryChip from '$lib/tournaments/EntryChip.svelte';
 	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
 	import ResultForm from '$lib/tournaments/ResultForm.svelte';
 	import ForfeitForm from '$lib/tournaments/ForfeitForm.svelte';
+	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
 	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import {
@@ -268,6 +269,30 @@
 		);
 		if (okDone) forfeitingId = null;
 	};
+
+	/**
+	 * Deleting leaves nothing to come back to, so this navigates away rather
+	 * than invalidating a page whose own load would then 404. The RPC is the
+	 * authorization boundary; reaching this console at all is only a
+	 * convenience gate.
+	 */
+	let deleteBusy = $state(false);
+	let deleteError = $state('');
+
+	async function deleteTournament(confirmName: string) {
+		deleteError = '';
+		deleteBusy = true;
+		const { error } = await data.supabase.rpc('tournament_delete', {
+			p_tournament_id: t.id,
+			p_confirm_name: confirmName || null
+		});
+		deleteBusy = false;
+		if (error) {
+			deleteError = error.message;
+			return;
+		}
+		await goto('/tournaments', { invalidateAll: true });
+	}
 
 	const correctResult = (matchId: string) => async (result: unknown, reason: string) => {
 		const okDone = await run(
@@ -780,6 +805,19 @@
 			{/if}
 		</section>
 	{/if}
+
+	<section class="card danger">
+		<h2>Danger zone</h2>
+		<DeleteTournament
+			tournament={t}
+			entryCount={data.entries.length}
+			matchCount={data.bracketMatches.length}
+			rewardCount={data.rewardLedgerCount}
+			busy={deleteBusy}
+			error={deleteError}
+			ondelete={deleteTournament}
+		/>
+	</section>
 </main>
 
 <style>
@@ -920,6 +958,9 @@
 	}
 	.mc-link {
 		color: var(--dim);
+	}
+	.danger h2 {
+		color: var(--crimson);
 	}
 	.invite-list {
 		margin-bottom: 0.8rem;

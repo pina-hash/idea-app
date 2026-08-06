@@ -11,6 +11,7 @@
 	import MatchDetail from '$lib/tournaments/MatchDetail.svelte';
 	import EntryDetail from '$lib/tournaments/EntryDetail.svelte';
 	import ForfeitForm from '$lib/tournaments/ForfeitForm.svelte';
+	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
 	import {
 		entryMap,
 		entryBracketRecord,
@@ -157,6 +158,43 @@
 		) ?? null
 	);
 	let lastForfeitPayload = $state<string>('');
+
+	// --- 0066: delete. In-memory mirror of tournament_delete's rules, so the
+	// REAL control is driven end to end: the name is required exactly when the
+	// tournament has entries, the caller must be a host or a teacher, and a
+	// success wipes every tournament-scoped row.
+	let deleteAsRole = $state<'host' | 'teacher' | 'student'>('host');
+	let deleteEntries = $state(true);
+	let deleteBusy = $state(false);
+	let deleteError = $state('');
+	let deleteLog = $state<string[]>([]);
+	const deletable = $derived<Tournament>({ ...simTournament, name: 'Harness Invitational' });
+
+	function fakeDelete(confirmName: string) {
+		deleteError = '';
+		deleteBusy = true;
+		const entries = deleteEntries ? sim.entries.length : 0;
+		setTimeout(() => {
+			deleteBusy = false;
+			if (deleteAsRole === 'student') {
+				deleteError = 'Only a host of this tournament, or a teacher, can delete it.';
+				deleteLog = [...deleteLog, 'REFUSED (not a host, not a teacher)'];
+				return;
+			}
+			if (
+				entries > 0 &&
+				confirmName.trim().toLowerCase() !== deletable.name.trim().toLowerCase()
+			) {
+				deleteError = `Type the tournament name exactly to confirm deletion: "${deletable.name}".`;
+				deleteLog = [...deleteLog, `REFUSED (name "${confirmName}")`];
+				return;
+			}
+			deleteLog = [
+				...deleteLog,
+				`DELETED as ${deleteAsRole} · confirm="${confirmName}" · ${entries} entries`
+			];
+		}, 120);
+	}
 	function forceReset() {
 		// Play everything up to the grand final, then hand game one to the LB side.
 		let guard = 0;
@@ -376,6 +414,59 @@
 			{/if}
 		{:else}
 			<p class="note">No startable match left — rebuild the field.</p>
+		{/if}
+	</section>
+
+	<section>
+		<h2>DeleteTournament · host console + list control</h2>
+		<p class="note">
+			Mirrors 0066: the typed name is required exactly when the tournament has entries, and only a
+			host or a teacher gets through. The RPC enforces all of it server-side; this form only keeps
+			the button off input the server would reject.
+		</p>
+		<div class="controls">
+			<span>Caller:</span>
+			{#each ['host', 'teacher', 'student'] as r (r)}
+				<button
+					class="ctl"
+					class:on={deleteAsRole === r}
+					onclick={() => (deleteAsRole = r as typeof deleteAsRole)}
+				>
+					{r}
+				</button>
+			{/each}
+			<span class="sep"></span>
+			<label class="chk">
+				<input type="checkbox" bind:checked={deleteEntries} /> has entries ({sim.entries.length})
+			</label>
+		</div>
+		<div class="card pad">
+			<DeleteTournament
+				tournament={deletable}
+				entryCount={deleteEntries ? sim.entries.length : 0}
+				matchCount={sim.matches.length}
+				rewardCount={sim.ledger.length}
+				busy={deleteBusy}
+				error={deleteError}
+				ondelete={fakeDelete}
+			/>
+		</div>
+		<div class="pad-top">
+			<span class="cell-tag">compact variant (tournament list)</span>
+			<DeleteTournament
+				tournament={deletable}
+				entryCount={deleteEntries ? sim.entries.length : 0}
+				compact
+				busy={deleteBusy}
+				error={deleteError}
+				ondelete={fakeDelete}
+			/>
+		</div>
+		{#if deleteLog.length}
+			<div class="audit">
+				<strong>Attempts</strong>
+				{#each deleteLog as line, i (i)}<div>{line}</div>{/each}
+			</div>
 		{/if}
 	</section>
 

@@ -3,12 +3,15 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
+	import DeleteTournament from '$lib/tournaments/DeleteTournament.svelte';
 	import { statusLabel, type Tournament } from '$lib/tournaments/tournaments';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 
 	const signedIn = $derived(!!data.claims);
+	/** A host of this one, or any teacher. The RPC enforces the same rule. */
+	const canDelete = (t: Tournament) => data.isTeacher || data.hostedIds.includes(t.id);
 	const entryCount = (t: Tournament) =>
 		data.entryRows.filter((e) => e.tournament_id === t.id).length;
 	const championName = (t: Tournament) =>
@@ -34,6 +37,26 @@
 		inviteBusy = null;
 		if (error) {
 			inviteError = error.message;
+			return;
+		}
+		await invalidateAll();
+	}
+
+	// Deletion (0066). Per-row busy/error so one card's failure never blanks
+	// another's control.
+	let deleteBusy = $state<string | null>(null);
+	let deleteErrors = $state<Record<string, string>>({});
+
+	async function remove(id: string, confirmName: string) {
+		deleteErrors = { ...deleteErrors, [id]: '' };
+		deleteBusy = id;
+		const { error } = await data.supabase.rpc('tournament_delete', {
+			p_tournament_id: id,
+			p_confirm_name: confirmName || null
+		});
+		deleteBusy = null;
+		if (error) {
+			deleteErrors = { ...deleteErrors, [id]: error.message };
 			return;
 		}
 		await invalidateAll();
@@ -102,28 +125,45 @@
 			<div class="card"><p>No tournaments yet.</p></div>
 		{/if}
 		{#each data.tournaments as t (t.id)}
-			<a class="card t-card" href="/tournaments/{t.id}">
-				<div class="t-top">
-					<h2>{t.name}</h2>
-					<span
-						class="status"
-						class:live={t.status === 'live'}
-						class:open={t.status === 'registration_open'}
-					>
-						{statusLabel(t.status)}
-					</span>
-				</div>
-				{#if t.description}<p class="t-desc">{t.description}</p>{/if}
-				<div class="t-meta">
-					<span>{entryCount(t)} entr{entryCount(t) === 1 ? 'y' : 'ies'}</span>
-					{#if championName(t)}
-						<span class="champ">Champion: {championName(t)}</span>
-					{/if}
-					{#if data.hostedIds.includes(t.id)}
-						<span class="host-tag">You host this</span>
-					{/if}
-				</div>
-			</a>
+			<!-- The card itself stays one big link; the delete control is a
+			     SIBLING beneath it, never nested inside the anchor (a button in
+			     an <a> is invalid markup and its clicks would navigate). -->
+			<div class="t-row">
+				<a class="card t-card" href="/tournaments/{t.id}">
+					<div class="t-top">
+						<h2>{t.name}</h2>
+						<span
+							class="status"
+							class:live={t.status === 'live'}
+							class:open={t.status === 'registration_open'}
+						>
+							{statusLabel(t.status)}
+						</span>
+					</div>
+					{#if t.description}<p class="t-desc">{t.description}</p>{/if}
+					<div class="t-meta">
+						<span>{entryCount(t)} entr{entryCount(t) === 1 ? 'y' : 'ies'}</span>
+						{#if championName(t)}
+							<span class="champ">Champion: {championName(t)}</span>
+						{/if}
+						{#if data.hostedIds.includes(t.id)}
+							<span class="host-tag">You host this</span>
+						{/if}
+					</div>
+				</a>
+				{#if canDelete(t)}
+					<div class="t-admin">
+						<DeleteTournament
+							tournament={t}
+							entryCount={entryCount(t)}
+							compact
+							busy={deleteBusy === t.id}
+							error={deleteErrors[t.id] ?? ''}
+							ondelete={(name) => remove(t.id, name)}
+						/>
+					</div>
+				{/if}
+			</div>
 		{/each}
 	</section>
 
@@ -177,6 +217,14 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.9rem;
+	}
+	.t-row {
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+	.t-admin {
+		padding-left: 0.2rem;
 	}
 	.t-card {
 		display: block;

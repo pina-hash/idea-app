@@ -1980,9 +1980,104 @@ notifications, rewards, or banner customization yet; those are later phases.
     eyeballed):** match detail and entry detail each render exactly ONE
     emerald element (the headline label, which becomes the live indicator
     on a running match) and ZERO emerald surfaces; the stats strip contains
-    no green at all. **NOT verified:** the live Supabase project (the local
-    `.env` is placeholder-only) — apply 0065 by hand and re-run a real
-    host-session forfeit there.
+    no green at all. **Also verified against the LIVE project** (see the note
+    below: the local `.env` reaches a real Supabase, and 0062-0065 are applied
+    there): a real bye match renders its BYE state, its honest dashes and its
+    "a bye pays nothing" note with a true +14s event offset; the stats strip
+    reads 5 played matches / 3s average / 34s span / 2s fastest / 4s slowest
+    off real stamps with byes excluded; and a real champion's entry page reads
+    3–1 with the scorelines correctly oriented (0–1 LOST on the grand final it
+    lost, 1–0 WON on the reset). **NOT verified even so:** a real forfeit, which
+    needs a signed-in host session and would mean mutating live tournament
+    data.
+
+- **Deleting a tournament (migration `0066_tournament_delete.sql`, apply
+    manually after 0065).** Phase 1 shipped no delete path at all: entries
+    could be removed pre-bracket and qual pools regenerated, but a tournament
+    itself was permanent once created. `tournament_delete(id, confirm_name)`
+    is the one missing lifecycle action.
+  - **WHO: any of the tournament's own hosts, OR any teacher.** 0062 documents
+    every `tournament_hosts` row as granting full control and deletion is not
+    carved out of that. The teacher clause is what makes the feature usable
+    rather than a nicety: a teacher clearing up somebody else's abandoned test
+    event is by definition NOT one of its hosts, and the host console
+    redirects non-hosts away, so a host-only rule would leave that case with
+    no route in at all. `is_teacher()` reads `profiles.role`, which 0001
+    derives from the `@boscotech.edu` sign-in domain, so "teacher" and
+    "@boscotech.edu account" are the same set. Enforced INSIDE the function
+    (the cross-user staff-write convention); UI gating is convenience.
+  - **It is a HARD delete, and it is the one place the "permanent record"
+    stance on `tournament_reward_ledger` (0063) gives way.** That stance is
+    about never rewriting history WITHIN a live tournament — you cannot un-pay
+    a competitor, and a correction mints nothing. Removing the whole
+    tournament retracts the record rather than editing it, and the
+    alternative (a soft-deleted row lingering forever) is worse in a school
+    tool whose common case is clearing out test events.
+  - **The confirmation is SERVER-SIDE, not just a UI step:** once a tournament
+    has any entries the caller must pass its exact name back
+    (case-insensitive, ends trimmed; internal whitespace is NOT collapsed,
+    since typing it is the point). A tournament with no entries has nothing to
+    lose and skips it. Putting the check in the RPC means no client bug, stray
+    retry or hand-rolled PostgREST call can destroy a real event by id alone.
+    `DeleteTournament.svelte` mirrors the rule so the button is never enabled
+    on input the server would reject, and is three gestures either way:
+    reveal, type, confirm.
+  - **The teardown is spelled out** rather than left to ON DELETE CASCADE (the
+    `gauntlet_room_delete` rule). Worth being precise, because the FK graph
+    looks more dangerous than it is: `tournament_entries` is referenced ON
+    DELETE RESTRICT from four places, so a bare `delete from tournaments`
+    LOOKS like it should trip a RESTRICT — tested against a real Postgres, it
+    does not (the cascade removes the referencing rows before those checks are
+    evaluated). The explicit order is therefore insurance, not a workaround:
+    it survives any of those FKs being re-declared and puts the full blast
+    radius in one readable place. There is deliberately no audit row —
+    `tournament_match_events` is tournament-scoped and goes with it, and a
+    global deletion log is a bigger change than this action warrants.
+  - **Surfaces:** a crimson "Danger zone" card at the foot of the host console
+    (which navigates to `/tournaments` afterwards rather than invalidating a
+    page whose load would then 404), and a compact control under each card on
+    `/tournaments` — the latter is not a duplicate, it is the ONLY surface the
+    non-host teacher case can act from. The list card stays one big link with
+    the control as a SIBLING beneath it, never nested inside the anchor (a
+    button in an `<a>` is invalid markup and its clicks would navigate). The
+    list load now also reports `isTeacher` (a `profiles` lookup, the
+    `/coin-entry` pattern) and the host load a `rewardLedgerCount` (a
+    head-only count) so the warning can say what will be lost.
+  - **Verified:** 0062-0066 applied UNMODIFIED to a real embedded Postgres and
+    integration-tested with **38 assertions**: a fully played tournament
+    (entries, bracket, games, events, reward rules, a paid ledger and a 0064
+    entry style) deleted by its host leaves ZERO rows across all twelve
+    tournament-scoped tables and no orphans anywhere, while a neighbouring
+    tournament is byte-for-byte untouched and keeps its champion; the name
+    confirmation refuses a missing name, a wrong name and an internally
+    re-spaced name, tolerates case and surrounding whitespace, reports what
+    would be lost, and deletes nothing when it refuses; an empty draft deletes
+    with no name; a student and an outsider are both refused, anon cannot call
+    the RPC at all, and a teacher who is NOT a host CAN delete (the case the
+    whole teacher clause exists for); an unknown id reports not found; and the
+    bare-cascade behaviour the header describes is pinned by its own
+    assertion so the comment cannot drift. Browser-verified in
+    `/dev/tournaments`, which mounts the REAL control against an in-memory
+    mirror of the RPC's rules: with entries the typed name is required and the
+    button stays disabled on a wrong name then enables on a case- and
+    space-tolerant match; a student attempt shows the server's refusal and
+    keeps the panel open; a teacher on a zero-entry tournament gets no input
+    at all and deletes in one click; and the compact variant renders as the
+    bare trigger. **NOT verified:** the signed-in round trip on the live
+    project — 0066 is not applied there, and running a real deletion would
+    destroy real tournaments.
+
+**Note on the local `.env` (supersedes the "placeholder-only" caveat repeated
+throughout the tournament and GREENLINE sections above):** it now points at a
+REAL Supabase project, so `npm run dev` serves live data and the public
+tournament surfaces can be verified end to end without auth. Two consequences.
+First, those older "NOT verified: the live project" notes are stale for
+anything read-only. Second, and more important: **anything you run against it
+is production.** Signed-in and host-only paths still cannot be driven (there is
+no session), which is the main remaining verification gap — and that limit is
+also what keeps a stray RPC call from mutating real tournaments. Confirm which
+migrations are actually applied before assuming: as of Phase 3a, 0062-0065 are
+live and 0066 is not.
 
 ## GREENLINE (prototype)
 
