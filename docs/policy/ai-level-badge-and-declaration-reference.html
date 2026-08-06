@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reference | AI-Level Badge &amp; Declaration</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;600&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg0:#020A04;--bg1:#050F07;--bg2:#081209;
+  --green:#00FF41;--gold:#C8FF00;--cyan:#00F0FF;
+  --amber:#FF8C00;--teal:#00AA88;--violet:#5500AA;
+  --white:#E8FFE8;--dim:#4A7A52;--ice:#88DDFF;
+  --glow-green:0 0 10px rgba(0,255,65,.8),0 0 28px rgba(0,255,65,.3);
+  --glow-gold:0 0 10px rgba(200,255,0,.8),0 0 28px rgba(200,255,0,.3);
+  --glow-amber:0 0 10px rgba(255,140,0,.8),0 0 28px rgba(255,140,0,.3);
+  --glow-cyan:0 0 10px rgba(0,240,255,.8),0 0 28px rgba(0,240,255,.3);
+  --glow-teal:0 0 10px rgba(0,170,136,.8),0 0 28px rgba(0,170,136,.3);
+  --glow-violet:0 0 10px rgba(85,0,170,.8),0 0 28px rgba(120,40,220,.3);
+}
+body{background:var(--bg0);color:var(--white);font-family:'Rajdhani',sans-serif;font-size:15px;line-height:1.6;min-height:100vh}
+::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-track{background:rgba(0,255,65,.05);border:1px solid rgba(0,255,65,.1)}
+::-webkit-scrollbar-thumb{background:rgba(0,255,65,.3);border:1px solid rgba(0,255,65,.5);border-radius:0}::-webkit-scrollbar-thumb:hover{background:rgba(0,255,65,.6)}
+input,textarea{transition:border-color .2s,box-shadow .2s,background .2s,opacity .2s}
+a,button,label,input[type="radio"],input[type="checkbox"],[data-tip]{cursor:pointer}
+.page{position:relative;max-width:920px;margin:0 auto;padding:32px 32px 60px}
+.header{border:1px solid rgba(0,255,65,.28);border-bottom:3px solid var(--green);background:rgba(5,15,7,.97);padding:24px 28px;margin-bottom:20px;position:relative;overflow:hidden}
+.header::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--green),transparent)}
+.brand-label{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:3px;text-transform:uppercase;display:block;margin-bottom:4px}
+.brand-title{font-family:'Orbitron',sans-serif;font-size:26px;font-weight:900;color:var(--green);letter-spacing:3px;text-shadow:var(--glow-green);line-height:1.2;display:block;margin-bottom:6px}
+.brand-sub{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);letter-spacing:1px;display:block}
+.section{border:1px solid rgba(0,255,65,.18);background:var(--bg1);margin-bottom:22px;position:relative;overflow:hidden}
+.section::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:linear-gradient(180deg,var(--green),rgba(0,255,65,.05))}
+.section-header{display:flex;align-items:center;gap:12px;padding:12px 20px 12px 24px;border-bottom:1px solid rgba(0,255,65,.12);background:rgba(0,255,65,.03)}
+.section-title{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;color:var(--green);flex:1;text-transform:uppercase}
+.section-body{padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+.note{font-size:13px;color:var(--dim);font-style:italic;line-height:1.7;padding:10px 14px;border-left:2px solid rgba(0,255,65,.1);background:rgba(0,255,65,.02)}
+
+/* ---- AI-LEVEL BADGE ---- */
+.ai-badge{display:inline-flex;align-items:center;gap:6px;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;padding:4px 10px;border:1px solid;white-space:nowrap;user-select:none}
+.ai-badge .ai-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+.ai-badge.ai-off{color:var(--amber);border-color:rgba(255,140,0,.5);background:rgba(255,140,0,.06)}
+.ai-badge.ai-coach{color:var(--cyan);border-color:rgba(0,240,255,.5);background:rgba(0,240,255,.06)}
+.ai-badge.ai-assist{color:var(--teal);border-color:rgba(0,170,136,.5);background:rgba(0,170,136,.08)}
+.ai-badge.ai-open{color:#b07dff;border-color:rgba(120,40,220,.55);background:rgba(85,0,170,.1)}
+.badge-row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.badge-demo{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:14px 16px;border:1px solid rgba(0,255,65,.1);background:rgba(0,255,65,.015);flex:1;min-width:180px}
+.badge-demo-label{font-family:'Share Tech Mono',monospace;font-size:9px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase}
+
+/* mock module header, showing badge placement next to the points badge */
+.mock-module{border:1px solid rgba(0,255,65,.18);background:var(--bg2)}
+.mock-module-header{display:flex;align-items:center;gap:12px;padding:12px 20px}
+.mock-mod-num{font-family:'Orbitron',sans-serif;font-size:10px;font-weight:700;color:var(--dim);letter-spacing:1px;background:rgba(0,255,65,.07);padding:3px 8px;border:1px solid rgba(0,255,65,.18)}
+.mock-mod-title{font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;color:var(--green);flex:1;text-transform:uppercase}
+.mock-mod-pts{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:2px;background:rgba(200,255,0,.05);border:1px solid rgba(200,255,0,.18);padding:3px 10px}
+
+/* tooltip */
+#custom-tooltip{position:fixed;pointer-events:none;opacity:0;z-index:9999;background:rgba(2,10,4,.9);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);color:var(--white);padding:10px 14px;border:1px solid var(--green);box-shadow:var(--glow-green);font-family:'Share Tech Mono',monospace;font-size:11px;width:max-content;max-width:280px;line-height:1.6;transition:opacity .05s ease-out}
+#custom-tooltip strong{display:block;margin-bottom:5px;border-bottom:1px solid rgba(200,255,0,.3);padding-bottom:3px;letter-spacing:1px}
+#custom-tooltip.show{opacity:1}
+#custom-tooltip.tip-off strong{color:var(--amber)}
+#custom-tooltip.tip-coach strong{color:var(--cyan)}
+#custom-tooltip.tip-assist strong{color:var(--teal)}
+#custom-tooltip.tip-open strong{color:#b07dff}
+
+/* ---- DECLARATION ---- */
+.declaration-block{border:1px solid rgba(0,255,65,.18);background:rgba(0,255,65,.02);padding:18px 22px}
+.declaration-title{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;letter-spacing:3px;color:var(--green);text-transform:uppercase;margin-bottom:10px}
+.declaration-text{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);line-height:1.8;margin-bottom:14px}
+.part-label{font-family:'Orbitron',sans-serif;font-size:9px;font-weight:700;color:var(--dim);letter-spacing:3px;text-transform:uppercase;padding:10px 0 6px;border-bottom:1px solid rgba(0,255,65,.07);margin-bottom:8px}
+.declaration-block .part-label:first-of-type{padding-top:0}
+.decl-checkbox{display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:6px 0}
+.decl-checkbox input[type="checkbox"]{accent-color:var(--green);width:16px;height:16px;margin-top:2px;cursor:pointer;flex-shrink:0}
+.decl-checkbox-label{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--white);letter-spacing:.5px;line-height:1.6}
+.disclosure-prompt{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--white);letter-spacing:.5px;margin-bottom:10px}
+.disclosure-options{display:flex;flex-direction:column;gap:2px}
+.disclosure-option{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border:1px solid rgba(0,255,65,.08);background:rgba(0,255,65,.015);cursor:pointer;transition:border-color .2s,background .2s}
+.disclosure-option:hover{border-color:rgba(0,255,65,.25)}
+.disclosure-option.checked{border-color:rgba(0,255,65,.4);background:rgba(0,255,65,.045)}
+.disclosure-option input[type="radio"]{accent-color:var(--green);width:15px;height:15px;margin-top:2px;cursor:pointer;flex-shrink:0}
+.disclosure-option label{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--white);letter-spacing:.4px;line-height:1.6;cursor:pointer;flex:1}
+.disclosure-fields{max-height:0;overflow:hidden;transition:max-height .35s ease,padding .35s ease;padding-left:2px}
+.disclosure-fields.open{max-height:420px}
+.disclosure-field{display:flex;flex-direction:column;gap:5px;padding:10px 0 4px}
+.disclosure-field label{font-family:'Share Tech Mono',monospace;font-size:9px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
+.disclosure-field textarea{background:var(--bg2);border:1px solid rgba(0,255,65,.12);border-bottom:1px solid var(--dim);color:var(--green);font-family:'Rajdhani',sans-serif;font-size:14px;padding:9px 11px;outline:none;resize:none;min-height:56px;width:100%}
+.disclosure-field textarea:focus{border-color:var(--green)!important;box-shadow:0 0 8px rgba(0,255,65,.08)}
+.disclosure-field textarea::placeholder{color:var(--dim);font-style:italic;font-size:12px}
+.disclosure-field.unmet textarea{border-color:rgba(255,140,0,.4)}
+.status-row{display:flex;align-items:center;gap:10px;margin-top:14px;font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase}
+.status-dot{width:9px;height:9px;border-radius:50%;background:rgba(74,122,82,.4);border:1px solid rgba(74,122,82,.5);flex-shrink:0;transition:all .3s}
+.status-dot.ok{background:var(--green);border-color:var(--green);box-shadow:0 0 7px rgba(0,255,65,.6)}
+.status-dot.bad{background:var(--amber);border-color:var(--amber);box-shadow:0 0 7px rgba(255,140,0,.5)}
+.status-text{color:var(--dim)}
+.status-text.ok{color:var(--green)}
+.status-text.bad{color:var(--amber)}
+
+.action-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.tb-btn{font-family:'Share Tech Mono',monospace;font-size:10px;letter-spacing:1.5px;padding:9px 16px;border:1px solid rgba(0,255,65,.28);background:rgba(0,255,65,.04);color:var(--green);cursor:pointer;text-transform:uppercase;white-space:nowrap}
+.tb-btn:hover{background:rgba(0,255,65,.12);border-color:rgba(0,255,65,.6)}
+.tb-btn.primary{border-color:var(--gold);color:var(--gold);background:rgba(200,255,0,.05)}
+.tb-btn.primary:hover{background:rgba(200,255,0,.12)}
+.tb-btn.danger{border-color:rgba(255,140,0,.4);color:var(--amber);background:rgba(255,140,0,.04)}
+.tb-btn.danger:hover{background:rgba(255,140,0,.12)}
+
+/* ---- JSON PREVIEW ---- */
+.json-preview{background:var(--bg2);border:1px solid rgba(0,240,255,.2);color:var(--cyan);font-family:'Share Tech Mono',monospace;font-size:11px;line-height:1.6;padding:14px 16px;white-space:pre-wrap;word-break:break-word;max-height:340px;overflow-y:auto}
+
+/* ---- DIALOGS ---- */
+.dialog-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.88);z-index:9998;align-items:center;justify-content:center}
+.dialog-overlay.active{display:flex}
+.dialog-box{border:2px solid var(--amber);background:var(--bg1);padding:28px 32px;max-width:520px;width:90%;text-align:center;max-height:80vh;overflow-y:auto}
+.dialog-box.hard{border-color:#ff5555}
+.dialog-title{font-family:'Orbitron',sans-serif;font-size:12px;font-weight:700;color:var(--amber);letter-spacing:3px;text-transform:uppercase;margin-bottom:12px}
+.dialog-box.hard .dialog-title{color:#ff5555}
+.dialog-text{font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--dim);line-height:1.8;margin-bottom:18px}
+.dialog-btns{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
+.preflight-list{display:flex;flex-direction:column;gap:6px;margin-bottom:16px;text-align:left}
+.preflight-issue{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--amber);letter-spacing:.5px;padding:5px 0;border-bottom:1px solid rgba(255,140,0,.1);display:flex;gap:8px}
+.preflight-issue::before{content:'[!]';color:var(--amber);flex-shrink:0}
+.preflight-issue.hard{color:#ff8888}
+.preflight-issue.hard::before{content:'[X]';color:#ff5555}
+
+.footer{margin-top:26px;font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1.5px;text-align:center}
+</style>
+</head>
+<body>
+
+<div id="custom-tooltip"></div>
+
+<div class="page">
+  <div class="header">
+    <span class="brand-label">IDEA AI Use Policy — Reference Artifact</span>
+    <span class="brand-title">AI-Level Badge &amp; Declaration</span>
+    <span class="brand-sub">Reusable pattern for HTML assignment builds. Not a real assignment — see docs/policy/IDEA_AI_Use_Policy.md.</span>
+  </div>
+
+  <!-- ============ BADGE SECTION ============ -->
+  <div class="section">
+    <div class="section-header"><span class="section-title">AI-Level Badge — all four states</span></div>
+    <div class="section-body">
+      <div class="note">Hover any badge for its full rule. This row exists purely to show every state and every tooltip without interaction beyond hover.</div>
+      <div class="badge-row">
+        <div class="badge-demo">
+          <span class="badge-demo-label">Level 0</span>
+          <span class="ai-badge ai-off" data-tip-level="off"><span class="ai-dot"></span>AI · OFF</span>
+        </div>
+        <div class="badge-demo">
+          <span class="badge-demo-label">Level 1</span>
+          <span class="ai-badge ai-coach" data-tip-level="coach"><span class="ai-dot"></span>AI · COACH</span>
+        </div>
+        <div class="badge-demo">
+          <span class="badge-demo-label">Level 2</span>
+          <span class="ai-badge ai-assist" data-tip-level="assist"><span class="ai-dot"></span>AI · ASSIST</span>
+        </div>
+        <div class="badge-demo">
+          <span class="badge-demo-label">Level 3</span>
+          <span class="ai-badge ai-open" data-tip-level="open"><span class="ai-dot"></span>AI · OPEN</span>
+        </div>
+      </div>
+
+      <div class="part-label" style="margin-top:6px">In context — module header placement</div>
+      <div class="mock-module">
+        <div class="mock-module-header">
+          <span class="mock-mod-num">01</span>
+          <span class="mock-mod-title">Sample Module — Torque Calculation</span>
+          <span class="ai-badge ai-coach" data-tip-level="coach"><span class="ai-dot"></span>AI · COACH</span>
+          <span class="mock-mod-pts">10 pts</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DECLARATION SECTION ============ -->
+  <div class="section">
+    <div class="section-header"><span class="section-title">Declaration</span></div>
+    <div class="section-body">
+      <div class="declaration-block">
+        <div class="declaration-title">Academic Integrity &amp; AI Disclosure</div>
+
+        <div class="part-label">Part A — Integrity Statement</div>
+        <label class="decl-checkbox">
+          <input type="checkbox" id="integrity-check" onchange="onIntegrityChange()">
+          <span class="decl-checkbox-label">I completed this assignment honestly. Everything submitted is my own work, including anywhere AI helped, disclosed below. I can explain any part of it if asked.</span>
+        </label>
+
+        <div class="part-label">Part B — AI Disclosure</div>
+        <div class="disclosure-prompt">How did you use AI on this assignment?</div>
+        <div class="disclosure-options" id="disclosure-options">
+          <label class="disclosure-option" data-opt="none">
+            <input type="radio" name="ai-disclosure" value="none" onchange="onOptionChange('none')">
+            <label>I didn't use AI on this.</label>
+          </label>
+          <label class="disclosure-option" data-opt="coach">
+            <input type="radio" name="ai-disclosure" value="coach" onchange="onOptionChange('coach')">
+            <label>I used it to talk through a concept, get unstuck, or check work I'd already done. It didn't generate any part of what I'm submitting.</label>
+          </label>
+          <label class="disclosure-option" data-opt="assist">
+            <input type="radio" name="ai-disclosure" value="assist" onchange="onOptionChange('assist')">
+            <label>I used it to help generate, draft, or search. I verified everything and can explain all of it.</label>
+          </label>
+          <label class="disclosure-option" data-opt="other">
+            <input type="radio" name="ai-disclosure" value="other" onchange="onOptionChange('other')">
+            <label>Other.</label>
+          </label>
+        </div>
+
+        <!-- COACH: one required field -->
+        <div class="disclosure-fields" id="fields-coach">
+          <div class="disclosure-field" id="field-usedfor-coach">
+            <label>What did you use it for, and with which tool? (Name the module or section if it varied.)</label>
+            <textarea data-field="used-for" oninput="onFieldInput()" placeholder="e.g. Talked through why my gear ratio calc kept coming out negative, using ChatGPT."></textarea>
+          </div>
+        </div>
+
+        <!-- ASSIST: two required fields -->
+        <div class="disclosure-fields" id="fields-assist">
+          <div class="disclosure-field" id="field-usedfor-assist">
+            <label>What did you use it for, and with which tool? (Name the module or section if it varied.)</label>
+            <textarea data-field="used-for" oninput="onFieldInput()" placeholder="e.g. Drafted the bill-of-materials search for Module 2, using Claude."></textarea>
+          </div>
+          <div class="disclosure-field" id="field-checkedagainst">
+            <label>What did you check it against before submitting?</label>
+            <textarea data-field="checked-against" oninput="onFieldInput()" placeholder="e.g. Confirmed every part number against the McMaster-Carr catalog page directly."></textarea>
+          </div>
+        </div>
+
+        <!-- OTHER: one required field -->
+        <div class="disclosure-fields" id="fields-other">
+          <div class="disclosure-field" id="field-explain">
+            <label>Explain what you did.</label>
+            <textarea data-field="explanation" oninput="onFieldInput()" placeholder="Explain your AI use here."></textarea>
+          </div>
+        </div>
+
+        <div class="status-row">
+          <span class="status-dot" id="status-dot-a"></span>
+          <span class="status-text" id="status-text-a">Part A: not confirmed</span>
+        </div>
+        <div class="status-row">
+          <span class="status-dot" id="status-dot-b"></span>
+          <span class="status-text" id="status-text-b">Part B: no option selected</span>
+        </div>
+
+        <div class="action-row">
+          <button class="tb-btn primary" onclick="attemptSubmit()">[ Submit ]</button>
+          <button class="tb-btn" onclick="saveProgress()">[ Save Progress ]</button>
+          <button class="tb-btn" onclick="restoreDefaults()">[ Restore Defaults ]</button>
+          <span id="save-status" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--dim);letter-spacing:1.5px;align-self:center"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ EXPORT-SHAPED DATA PREVIEW ============ -->
+  <div class="section">
+    <div class="section-header"><span class="section-title">Export-shaped data (live preview)</span></div>
+    <div class="section-body">
+      <div class="note">This is the shape the Declaration's state would occupy inside a real assignment's saved/exported data blob. It updates live as you fill out the form above and round-trips through Save Progress / Restore Defaults via localStorage, the same as a real assignment's autosave.</div>
+      <div class="json-preview" id="json-preview">{}</div>
+    </div>
+  </div>
+
+  <div class="footer">Reference artifact for docs/policy/IDEA_AI_Use_Policy.md — not registered as a real assignment.</div>
+</div>
+
+<!-- ============ DIALOGS ============ -->
+<div class="dialog-overlay" id="hard-block-dialog">
+  <div class="dialog-box hard">
+    <div class="dialog-title">Submission Blocked</div>
+    <div class="dialog-text">Part A (the integrity statement) is required and cannot be skipped. There is no "submit anyway" for this one.</div>
+    <div class="preflight-list" id="hard-block-list"></div>
+    <div class="dialog-btns">
+      <button class="tb-btn" onclick="hideHardBlock()">[ Go Back ]</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="soft-check-dialog">
+  <div class="dialog-box">
+    <div class="dialog-title">Pre-Submit Check</div>
+    <div class="dialog-text">The following items are incomplete. You can go back to fix them or submit anyway.</div>
+    <div class="preflight-list" id="soft-check-list"></div>
+    <div class="dialog-btns">
+      <button class="tb-btn danger" onclick="proceedAnyway()">[ Submit Anyway ]</button>
+      <button class="tb-btn" onclick="hideSoftCheck()">[ Go Back ]</button>
+    </div>
+  </div>
+</div>
+
+<div class="dialog-overlay" id="success-dialog">
+  <div class="dialog-box" style="border-color:var(--green)">
+    <div class="dialog-title" style="color:var(--green)">Declaration Complete</div>
+    <div class="dialog-text" id="success-text"></div>
+    <div class="dialog-btns"><button class="tb-btn" onclick="hideSuccess()">[ Close ]</button></div>
+  </div>
+</div>
+
+<script>
+const TOOLTIPS = {
+  off: { title: 'Level 0 · OFF', body: "No AI in producing the work. Applies where the setting itself proves it: notebook entries, timed work, live defense, proctored exams." },
+  coach: { title: 'Level 1 · COACH', body: "AI as tutor, any time you're stuck, not only after you finish. It can explain a concept, explain why an approach isn't working, walk you through a method you don't understand yet. It generates none of the submitted answer." },
+  assist: { title: 'Level 2 · ASSIST', body: "AI can help generate, draft, search, or explore. Everything factual gets verified. Student can explain and defend every part of it." },
+  open: { title: 'Level 3 · OPEN', body: "Unrestricted. Used only when directing or evaluating AI output is itself the skill being graded. Always explicit, set by the instructor, never assumed by a student." }
+};
+const TIP_CLASS = { off: 'tip-off', coach: 'tip-coach', assist: 'tip-assist', open: 'tip-open' };
+
+document.addEventListener('mouseover', (e) => {
+  const el = e.target.closest('[data-tip-level]');
+  if (!el) return;
+  const level = el.getAttribute('data-tip-level');
+  const info = TOOLTIPS[level];
+  if (!info) return;
+  const tip = document.getElementById('custom-tooltip');
+  tip.className = 'show ' + (TIP_CLASS[level] || '');
+  tip.innerHTML = `<strong>${info.title}</strong>${info.body}`;
+});
+document.addEventListener('mousemove', (e) => {
+  const tip = document.getElementById('custom-tooltip');
+  if (tip && tip.classList.contains('show')) {
+    tip.style.left = (e.clientX + 14) + 'px';
+    tip.style.top = (e.clientY - 10) + 'px';
+  }
+});
+document.addEventListener('mouseout', (e) => {
+  if (e.target.closest('[data-tip-level]')) document.getElementById('custom-tooltip').classList.remove('show');
+});
+
+/* ---- Declaration state ---- */
+const STORAGE_KEY = 'ai_badge_declaration_reference_demo';
+
+const OPTION_FIELD_GROUPS = {
+  none: [],
+  coach: ['fields-coach'],
+  assist: ['fields-assist'],
+  other: ['fields-other']
+};
+const ALL_FIELD_GROUPS = ['fields-coach', 'fields-assist', 'fields-other'];
+
+function currentOption() {
+  const checked = document.querySelector('input[name="ai-disclosure"]:checked');
+  return checked ? checked.value : null;
+}
+
+function onOptionChange(option) {
+  ALL_FIELD_GROUPS.forEach((id) => document.getElementById(id).classList.remove('open'));
+  (OPTION_FIELD_GROUPS[option] || []).forEach((id) => document.getElementById(id).classList.add('open'));
+  document.querySelectorAll('.disclosure-option').forEach((row) => {
+    row.classList.toggle('checked', row.getAttribute('data-opt') === option);
+  });
+  refreshStatus();
+  saveProgress(true);
+}
+
+function onIntegrityChange() {
+  refreshStatus();
+  saveProgress(true);
+}
+
+function onFieldInput() {
+  refreshStatus();
+  saveProgress(true);
+}
+
+function fieldsMissingForOption(option) {
+  const missing = [];
+  if (option === 'coach') {
+    const v = document.querySelector('#field-usedfor-coach textarea').value.trim();
+    if (!v) missing.push({ id: 'field-usedfor-coach', text: 'AI Disclosure: "What did you use it for" is required for the COACH option' });
+  } else if (option === 'assist') {
+    const v1 = document.querySelector('#field-usedfor-assist textarea').value.trim();
+    const v2 = document.querySelector('#field-checkedagainst textarea').value.trim();
+    if (!v1) missing.push({ id: 'field-usedfor-assist', text: 'AI Disclosure: "What did you use it for" is required for the ASSIST option' });
+    if (!v2) missing.push({ id: 'field-checkedagainst', text: 'AI Disclosure: "What did you check it against" is required for the ASSIST option' });
+  } else if (option === 'other') {
+    const v = document.querySelector('#field-explain textarea').value.trim();
+    if (!v) missing.push({ id: 'field-explain', text: 'AI Disclosure: "Explain what you did" is required for the Other option' });
+  }
+  return missing;
+}
+
+function runPartBIssues() {
+  const option = currentOption();
+  const issues = [];
+  if (!option) {
+    issues.push('AI Disclosure: no option selected');
+    return issues;
+  }
+  fieldsMissingForOption(option).forEach((m) => issues.push(m.text));
+  return issues;
+}
+
+function runPartAIssues() {
+  const checked = document.getElementById('integrity-check').checked;
+  return checked ? [] : ['Part A: the integrity statement checkbox must be checked'];
+}
+
+function refreshStatus() {
+  const aOk = runPartAIssues().length === 0;
+  const bIssues = runPartBIssues();
+  const bOk = bIssues.length === 0;
+
+  const dotA = document.getElementById('status-dot-a');
+  const textA = document.getElementById('status-text-a');
+  dotA.className = 'status-dot ' + (aOk ? 'ok' : 'bad');
+  textA.className = 'status-text ' + (aOk ? 'ok' : 'bad');
+  textA.textContent = aOk ? 'Part A: confirmed' : 'Part A: not confirmed (hard block)';
+
+  const dotB = document.getElementById('status-dot-b');
+  const textB = document.getElementById('status-text-b');
+  dotB.className = 'status-dot ' + (bOk ? 'ok' : 'bad');
+  textB.className = 'status-text ' + (bOk ? 'ok' : 'bad');
+  textB.textContent = bOk ? 'Part B: complete' : 'Part B: ' + bIssues[0] + (bIssues.length > 1 ? ` (+${bIssues.length - 1} more)` : '');
+
+  document.querySelectorAll('.disclosure-field').forEach((f) => f.classList.remove('unmet'));
+  const option = currentOption();
+  if (option) fieldsMissingForOption(option).forEach((m) => document.getElementById(m.id).classList.add('unmet'));
+
+  renderJsonPreview();
+}
+
+function collectData() {
+  return {
+    integrityChecked: document.getElementById('integrity-check').checked,
+    aiDisclosure: {
+      option: currentOption(),
+      usedFor: (document.querySelector('input[name="ai-disclosure"]:checked')?.value === 'coach'
+        ? document.querySelector('#field-usedfor-coach textarea').value
+        : document.querySelector('input[name="ai-disclosure"]:checked')?.value === 'assist'
+        ? document.querySelector('#field-usedfor-assist textarea').value
+        : ''),
+      checkedAgainst: document.querySelector('#field-checkedagainst textarea').value,
+      explanation: document.querySelector('#field-explain textarea').value
+    }
+  };
+}
+
+function renderJsonPreview() {
+  document.getElementById('json-preview').textContent = JSON.stringify(collectData(), null, 2);
+}
+
+/* ---- Save / Restore (localStorage, mirrors the real autosave pattern) ---- */
+let saveFlashTimer = null;
+function saveProgress(silent) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(collectData()));
+    const status = document.getElementById('save-status');
+    status.textContent = 'Saved ' + new Date().toLocaleTimeString();
+    if (!silent) {
+      clearTimeout(saveFlashTimer);
+      saveFlashTimer = setTimeout(() => { status.textContent = ''; }, 2500);
+    }
+  } catch (e) {
+    document.getElementById('save-status').textContent = 'Save failed (storage unavailable)';
+  }
+}
+
+function applyData(data) {
+  document.getElementById('integrity-check').checked = !!(data && data.integrityChecked);
+  const option = data && data.aiDisclosure ? data.aiDisclosure.option : null;
+  document.querySelectorAll('input[name="ai-disclosure"]').forEach((r) => { r.checked = r.value === option; });
+  document.querySelector('#field-usedfor-coach textarea').value = (option === 'coach' && data.aiDisclosure.usedFor) || '';
+  document.querySelector('#field-usedfor-assist textarea').value = (option === 'assist' && data.aiDisclosure.usedFor) || '';
+  document.querySelector('#field-checkedagainst textarea').value = (data && data.aiDisclosure && data.aiDisclosure.checkedAgainst) || '';
+  document.querySelector('#field-explain textarea').value = (data && data.aiDisclosure && data.aiDisclosure.explanation) || '';
+  ALL_FIELD_GROUPS.forEach((id) => document.getElementById(id).classList.remove('open'));
+  if (option) (OPTION_FIELD_GROUPS[option] || []).forEach((id) => document.getElementById(id).classList.add('open'));
+  document.querySelectorAll('.disclosure-option').forEach((row) => {
+    row.classList.toggle('checked', row.getAttribute('data-opt') === option);
+  });
+  refreshStatus();
+}
+
+function restoreFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) applyData(JSON.parse(raw));
+  } catch (e) { /* ignore malformed storage */ }
+}
+
+function restoreDefaults() {
+  localStorage.removeItem(STORAGE_KEY);
+  applyData({ integrityChecked: false, aiDisclosure: { option: null, usedFor: '', checkedAgainst: '', explanation: '' } });
+  document.getElementById('save-status').textContent = 'Restored defaults';
+}
+
+/* ---- Submit: hard block (Part A) vs soft check (Part B) ---- */
+function attemptSubmit() {
+  const aIssues = runPartAIssues();
+  if (aIssues.length) {
+    const list = document.getElementById('hard-block-list');
+    list.innerHTML = '';
+    aIssues.forEach((i) => {
+      const d = document.createElement('div');
+      d.className = 'preflight-issue hard';
+      d.textContent = i;
+      list.appendChild(d);
+    });
+    document.getElementById('hard-block-dialog').classList.add('active');
+    return;
+  }
+  const bIssues = runPartBIssues();
+  if (bIssues.length) {
+    const list = document.getElementById('soft-check-list');
+    list.innerHTML = '';
+    bIssues.forEach((i) => {
+      const d = document.createElement('div');
+      d.className = 'preflight-issue';
+      d.textContent = i;
+      list.appendChild(d);
+    });
+    document.getElementById('soft-check-dialog').classList.add('active');
+    return;
+  }
+  finishSubmit();
+}
+
+function hideHardBlock() { document.getElementById('hard-block-dialog').classList.remove('active'); }
+function hideSoftCheck() { document.getElementById('soft-check-dialog').classList.remove('active'); }
+function proceedAnyway() { hideSoftCheck(); finishSubmit(); }
+
+function finishSubmit() {
+  saveProgress(true);
+  document.getElementById('success-text').textContent = 'Part A confirmed, Part B recorded as "' + (currentOption() || 'none') + '". In a real assignment this data would be saved into the export blob alongside the rest of the submission.';
+  document.getElementById('success-dialog').classList.add('active');
+}
+function hideSuccess() { document.getElementById('success-dialog').classList.remove('active'); }
+
+/* ---- init ---- */
+restoreFromStorage();
+refreshStatus();
+</script>
+</body>
+</html>
