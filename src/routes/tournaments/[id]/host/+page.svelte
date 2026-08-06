@@ -1,0 +1,802 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { invalidateAll } from '$app/navigation';
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
+	import EntryChip from '$lib/tournaments/EntryChip.svelte';
+	import ResultForm from '$lib/tournaments/ResultForm.svelte';
+	import {
+		entryMap,
+		parseConfig,
+		roundLabel,
+		statusLabel,
+		isByeMatch,
+		type BracketMatch
+	} from '$lib/tournaments/tournaments';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+
+	const t = $derived(data.tournament);
+	const config = $derived(parseConfig(t.config));
+	const entries = $derived(entryMap(data.entries));
+	const preBracket = $derived(t.status !== 'live' && t.status !== 'complete');
+
+	let busy = $state(false);
+	let actionError = $state('');
+	let notice = $state('');
+
+	/** Runs an RPC, surfaces its error, refetches on success. (PromiseLike:
+	 * supabase query builders are thenables, not real Promises.) */
+	async function run(fn: () => PromiseLike<{ error: { message: string } | null }>, done = '') {
+		actionError = '';
+		notice = '';
+		busy = true;
+		const { error } = await fn();
+		busy = false;
+		if (error) {
+			actionError = error.message;
+			return false;
+		}
+		notice = done;
+		await invalidateAll();
+		return true;
+	}
+
+	// Keep co-hosts in sync live.
+	onMount(() => {
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const kick = () => {
+			clearTimeout(timer);
+			timer = setTimeout(() => invalidateAll(), 200);
+		};
+		let channel = data.supabase.channel(`tournament-host-${t.id}`);
+		for (const table of [
+			'tournament_entries',
+			'tournament_qual_matches',
+			'tournament_bracket_matches',
+			'tournament_match_games'
+		]) {
+			channel = channel.on(
+				'postgres_changes',
+				{ event: '*', schema: 'public', table, filter: `tournament_id=eq.${t.id}` },
+				kick
+			);
+		}
+		channel = channel.on(
+			'postgres_changes',
+			{ event: '*', schema: 'public', table: 'tournaments', filter: `id=eq.${t.id}` },
+			kick
+		);
+		channel.subscribe();
+		return () => {
+			clearTimeout(timer);
+			data.supabase.removeChannel(channel);
+		};
+	});
+
+	// --- entries ---
+	let walkName = $state('');
+	let walkDescription = $state('');
+	let confirmRemoveId = $state<string | null>(null);
+
+	// --- invites / hosts ---
+	let inviteEmail = $state('');
+	let cohostEmail = $state('');
+
+	// --- quals ---
+	let poolCount = $state(2);
+	let qualA = $state<Record<string, string>>({});
+	let qualB = $state<Record<string, string>>({});
+
+	// --- match control ---
+	let correctingId = $state<string | null>(null);
+
+	const setStatus = (status: string) =>
+		run(
+			() => data.supabase.rpc('tournament_set_status', { p_tournament_id: t.id, p_status: status }),
+			`Status: ${statusLabel(status)}`
+		);
+
+	const bracketByState = $derived.by(() => {
+		const rows = [...data.bracketMatches].sort(
+			(a, b) =>
+				['winners', 'losers', 'grand_final', 'grand_final_reset'].indexOf(a.bracket) -
+					['winners', 'losers', 'grand_final', 'grand_final_reset'].indexOf(b.bracket) ||
+				a.round - b.round ||
+				a.slot - b.slot
+		);
+		return {
+			ready: rows.filter(
+				(m) => m.status === 'pending' && m.entry_a_id !== null && m.entry_b_id !== null
+			),
+			waiting: rows.filter(
+				(m) => m.status === 'pending' && (m.entry_a_id === null || m.entry_b_id === null)
+			),
+			inProgress: rows.filter((m) => m.status === 'in_progress'),
+			completed: rows.filter((m) => m.status === 'complete' && !isByeMatch(m))
+		};
+	});
+
+	function maxRound(bracket: string): number {
+		return Math.max(0, ...data.bracketMatches.filter((m) => m.bracket === bracket).map((m) => m.round));
+	}
+	const matchLabel = (m: BracketMatch) =>
+		`${roundLabel(m.bracket, m.round, maxRound(m.bracket))} · M${m.slot}`;
+
+	async function submitQualScore(matchId: string) {
+		const a = Number.parseInt(qualA[matchId] ?? '', 10);
+		const b = Number.parseInt(qualB[matchId] ?? '', 10);
+		if (Number.isNaN(a) || Number.isNaN(b)) {
+			actionError = 'Enter both scores.';
+			return;
+		}
+		await run(
+			() =>
+				data.supabase.rpc('tournament_submit_qual_result', {
+					p_qual_match_id: matchId,
+					p_score_a: a,
+					p_score_b: b
+				}),
+			'Result recorded'
+		);
+	}
+
+	const submitQualWinner = (matchId: string, winnerId: string) =>
+		run(
+			() =>
+				data.supabase.rpc('tournament_submit_qual_result', {
+					p_qual_match_id: matchId,
+					p_winner_id: winnerId
+				}),
+			'Result recorded'
+		);
+
+	const submitResult = (matchId: string) => (result: unknown) =>
+		run(
+			() =>
+				data.supabase.rpc('tournament_submit_match_result', {
+					p_match_id: matchId,
+					p_result: result
+				}),
+			'Result recorded'
+		);
+
+	const correctResult = (matchId: string) => async (result: unknown, reason: string) => {
+		const okDone = await run(
+			() =>
+				data.supabase.rpc('tournament_correct_match_result', {
+					p_match_id: matchId,
+					p_new_result: result,
+					p_reason: reason
+				}),
+			'Correction applied'
+		);
+		if (okDone) correctingId = null;
+	};
+</script>
+
+<svelte:head>
+	<title>Host · {t.name} // Tournaments // IDEA</title>
+</svelte:head>
+
+<div class="app-header">
+	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
+	<div class="header-right">
+		<a class="btn secondary" href="/tournaments/{t.id}">&lsaquo; Live view</a>
+		<ProfileMenu />
+	</div>
+</div>
+
+<main class="host-page">
+	<section class="hero">
+		<div class="eyebrow">Host console · {data.hostCount} host{data.hostCount === 1 ? '' : 's'}</div>
+		<h1>{t.name}</h1>
+		<p class="lead">
+			Status: <strong>{statusLabel(t.status)}</strong>
+			· {config.quals_enabled ? 'Qualifying pools on' : 'No qualifying'}
+			· {config.score_entry ? 'Score entry' : 'Win/loss entry'}
+		</p>
+	</section>
+
+	{#if actionError}<p class="feedback error">{actionError}</p>{/if}
+	{#if notice}<p class="feedback notice">{notice}</p>{/if}
+
+	<section class="card">
+		<h2>Phase</h2>
+		<div class="btn-row">
+			{#if t.status === 'draft'}
+				<button class="btn" disabled={busy} onclick={() => setStatus('registration_open')}>
+					Open registration
+				</button>
+			{:else if t.status === 'registration_open'}
+				<button class="btn" disabled={busy} onclick={() => setStatus('seeding')}>
+					Close registration (seeding)
+				</button>
+			{:else if t.status === 'seeding'}
+				<button class="btn secondary" disabled={busy} onclick={() => setStatus('registration_open')}>
+					Reopen registration
+				</button>
+				{#if config.quals_enabled}
+					<label class="pool-count">
+						Pools
+						<input type="number" min="1" max="8" bind:value={poolCount} />
+					</label>
+					<button
+						class="btn"
+						disabled={busy}
+						onclick={() =>
+							run(
+								() =>
+									data.supabase.rpc('tournament_generate_qual_pools', {
+										p_tournament_id: t.id,
+										p_pool_count: poolCount
+									}),
+								'Pools generated'
+							)}
+					>
+						Generate pools
+					</button>
+				{/if}
+				<button
+					class="btn"
+					disabled={busy}
+					onclick={() =>
+						run(
+							() => data.supabase.rpc('tournament_generate_bracket', { p_tournament_id: t.id }),
+							'Bracket generated'
+						)}
+				>
+					Generate bracket
+				</button>
+			{:else if t.status === 'live'}
+				<span class="phase-note">Bracket is live. Run matches below.</span>
+			{:else}
+				<span class="phase-note">Tournament complete.</span>
+			{/if}
+		</div>
+	</section>
+
+	<section class="card">
+		<h2>Entries ({data.entries.length})</h2>
+		{#if preBracket}
+			<div class="add-row">
+				<input type="text" maxlength="40" placeholder="Walk-up display name" bind:value={walkName} />
+				<input
+					type="text"
+					maxlength="200"
+					placeholder="Description (optional)"
+					bind:value={walkDescription}
+				/>
+				<button
+					class="btn"
+					disabled={busy || !walkName.trim()}
+					onclick={async () => {
+						const okDone = await run(
+							() =>
+								data.supabase.rpc('tournament_host_add_entry', {
+									p_tournament_id: t.id,
+									p_display_name: walkName.trim(),
+									p_description: walkDescription.trim()
+								}),
+							'Entry added'
+						);
+						if (okDone) {
+							walkName = '';
+							walkDescription = '';
+						}
+					}}
+				>
+					Add entry
+				</button>
+				<button
+					class="btn secondary"
+					disabled={busy || data.entries.length < 2}
+					onclick={() =>
+						run(
+							() => data.supabase.rpc('tournament_shuffle_seeds', { p_tournament_id: t.id }),
+							'Seeds shuffled'
+						)}
+				>
+					Shuffle seeds
+				</button>
+			</div>
+		{/if}
+		<div class="entry-list">
+			{#each data.entries as e, i (e.id)}
+				<div class="entry-row">
+					<span class="seed-cell">{e.seed ?? '·'}</span>
+					<EntryChip entry={e} />
+					{#if e.user_id}<span class="linked-tag">linked account</span>{/if}
+					{#if preBracket}
+						<span class="row-actions">
+							<button
+								class="mini"
+								title="Move up"
+								disabled={busy || i === 0}
+								onclick={() =>
+									run(() =>
+										data.supabase.rpc('tournament_reorder_seed', {
+											p_tournament_id: t.id,
+											p_entry_id: e.id,
+											p_new_position: (e.seed ?? i + 1) - 1
+										})
+									)}
+							>
+								↑
+							</button>
+							<button
+								class="mini"
+								title="Move down"
+								disabled={busy || i === data.entries.length - 1}
+								onclick={() =>
+									run(() =>
+										data.supabase.rpc('tournament_reorder_seed', {
+											p_tournament_id: t.id,
+											p_entry_id: e.id,
+											p_new_position: (e.seed ?? i + 1) + 1
+										})
+									)}
+							>
+								↓
+							</button>
+							{#if confirmRemoveId === e.id}
+								<button
+									class="mini danger"
+									disabled={busy}
+									onclick={async () => {
+										confirmRemoveId = null;
+										await run(
+											() => data.supabase.rpc('tournament_remove_entry', { p_entry_id: e.id }),
+											'Entry removed'
+										);
+									}}
+								>
+									confirm
+								</button>
+								<button class="mini" onclick={() => (confirmRemoveId = null)}>cancel</button>
+							{:else}
+								<button class="mini" disabled={busy} onclick={() => (confirmRemoveId = e.id)}>
+									remove
+								</button>
+							{/if}
+						</span>
+					{/if}
+				</div>
+			{/each}
+		</div>
+	</section>
+
+	<section class="card">
+		<h2>Invites & co-hosts</h2>
+		<div class="add-row">
+			<input type="email" placeholder="Invite by account email" bind:value={inviteEmail} />
+			<button
+				class="btn"
+				disabled={busy || !inviteEmail.trim()}
+				onclick={async () => {
+					const okDone = await run(
+						() =>
+							data.supabase.rpc('tournament_send_invite', {
+								p_tournament_id: t.id,
+								p_email: inviteEmail.trim()
+							}),
+						'Invite sent'
+					);
+					if (okDone) inviteEmail = '';
+				}}
+			>
+				Send invite
+			</button>
+		</div>
+		{#if data.invites.length}
+			<div class="invite-list">
+				{#each data.invites as inv (inv.id)}
+					<div class="invite-row">
+						<span class="mono">…{inv.invited_user_id.slice(-6)}</span>
+						<span class="inv-status {inv.status}">{inv.status}</span>
+					</div>
+				{/each}
+			</div>
+		{/if}
+		<div class="add-row">
+			<input type="email" placeholder="Add co-host by account email" bind:value={cohostEmail} />
+			<button
+				class="btn secondary"
+				disabled={busy || !cohostEmail.trim()}
+				onclick={async () => {
+					const okDone = await run(
+						() =>
+							data.supabase.rpc('tournament_add_host', {
+								p_tournament_id: t.id,
+								p_email: cohostEmail.trim()
+							}),
+						'Co-host added'
+					);
+					if (okDone) cohostEmail = '';
+				}}
+			>
+				Add co-host
+			</button>
+		</div>
+		<p class="note">
+			Invitees and co-hosts appear by opaque id only; participants are always shown by their
+			chosen display name, never an account name.
+		</p>
+	</section>
+
+	{#if config.quals_enabled && data.qualMatches.length}
+		<section class="card">
+			<h2>Qualifying results</h2>
+			<p class="note">
+				{config.score_entry
+					? 'Enter both scores; the winner is derived.'
+					: 'Pick each match winner.'}
+				Results can be re-entered until the bracket is generated.
+			</p>
+			<div class="qual-grid">
+				{#each data.qualMatches as m (m.id)}
+					<div class="qual-row" class:decided={m.winner_id !== null}>
+						<span class="qual-vs">
+							{entries[m.entry_a_id]?.display_name ?? '?'}
+							<span class="vs-sep">vs</span>
+							{entries[m.entry_b_id]?.display_name ?? '?'}
+						</span>
+						{#if m.winner_id}
+							<span class="qual-result">
+								{#if m.score_a !== null && m.score_b !== null}{m.score_a}–{m.score_b} ·{/if}
+								{entries[m.winner_id]?.display_name} won
+							</span>
+						{/if}
+						{#if t.status === 'seeding'}
+							{#if config.score_entry}
+								<span class="qual-entry">
+									<input type="number" min="0" placeholder="A" bind:value={qualA[m.id]} />
+									<input type="number" min="0" placeholder="B" bind:value={qualB[m.id]} />
+									<button class="mini" disabled={busy} onclick={() => submitQualScore(m.id)}>
+										save
+									</button>
+								</span>
+							{:else}
+								<span class="qual-entry">
+									<button
+										class="mini"
+										disabled={busy}
+										onclick={() => submitQualWinner(m.id, m.entry_a_id)}
+									>
+										{entries[m.entry_a_id]?.display_name} won
+									</button>
+									<button
+										class="mini"
+										disabled={busy}
+										onclick={() => submitQualWinner(m.id, m.entry_b_id)}
+									>
+										{entries[m.entry_b_id]?.display_name} won
+									</button>
+								</span>
+							{/if}
+						{/if}
+					</div>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	{#if data.bracketMatches.length}
+		<section class="card">
+			<h2>Match control</h2>
+
+			{#if bracketByState.inProgress.length}
+				<h3 class="mc-sub live-sub">In progress</h3>
+				{#each bracketByState.inProgress as m (m.id)}
+					<div class="mc-block">
+						<div class="mc-label">{matchLabel(m)}</div>
+						<ResultForm
+							match={m}
+							{entries}
+							scoreEntry={config.score_entry}
+							{busy}
+							onsubmit={submitResult(m.id)}
+						/>
+					</div>
+				{/each}
+			{/if}
+
+			{#if bracketByState.ready.length}
+				<h3 class="mc-sub">Ready to start</h3>
+				{#each bracketByState.ready as m (m.id)}
+					<div class="mc-row">
+						<span class="mc-label">{matchLabel(m)}</span>
+						<span class="mc-vs">
+							{entries[m.entry_a_id ?? '']?.display_name}
+							<span class="vs-sep">vs</span>
+							{entries[m.entry_b_id ?? '']?.display_name}
+						</span>
+						<button
+							class="btn"
+							disabled={busy}
+							onclick={() =>
+								run(
+									() => data.supabase.rpc('tournament_start_match', { p_match_id: m.id }),
+									'Match started'
+								)}
+						>
+							Start
+						</button>
+					</div>
+				{/each}
+			{/if}
+
+			{#if bracketByState.waiting.length}
+				<h3 class="mc-sub">Waiting on earlier results</h3>
+				<p class="note">
+					{bracketByState.waiting.length} match{bracketByState.waiting.length === 1 ? '' : 'es'}
+					still missing a participant.
+				</p>
+			{/if}
+
+			{#if bracketByState.completed.length}
+				<h3 class="mc-sub">Completed</h3>
+				{#each bracketByState.completed as m (m.id)}
+					<div class="mc-row done">
+						<span class="mc-label">{matchLabel(m)}</span>
+						<span class="mc-vs">
+							{entries[m.entry_a_id ?? '']?.display_name}
+							<span class="vs-sep">vs</span>
+							{entries[m.entry_b_id ?? '']?.display_name}
+							<span class="mc-winner">→ {entries[m.winner_id ?? '']?.display_name}</span>
+						</span>
+						<button
+							class="mini"
+							onclick={() => (correctingId = correctingId === m.id ? null : m.id)}
+						>
+							{correctingId === m.id ? 'cancel' : 'correct'}
+						</button>
+					</div>
+					{#if correctingId === m.id}
+						<div class="mc-block">
+							<ResultForm
+								match={m}
+								{entries}
+								scoreEntry={config.score_entry}
+								mode="correct"
+								{busy}
+								onsubmit={correctResult(m.id)}
+							/>
+						</div>
+					{/if}
+				{/each}
+			{/if}
+		</section>
+	{/if}
+</main>
+
+<style>
+	.host-page {
+		max-width: 60rem;
+		margin: 0 auto;
+		padding: 0 1.2rem 3rem;
+	}
+	.host-page > .card {
+		margin-bottom: 1.1rem;
+	}
+	.host-page h2 {
+		margin-top: 0;
+	}
+	.feedback {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.8rem;
+		padding: 0.45rem 0.7rem;
+		border-radius: 5px;
+	}
+	.feedback.error {
+		color: var(--amber);
+		border: 1px solid var(--amber);
+	}
+	.feedback.notice {
+		color: var(--green);
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
+	}
+	.phase-note {
+		color: var(--dim);
+	}
+	.pool-count {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--dim);
+	}
+	.pool-count input {
+		width: 3.4rem;
+	}
+	input[type='text'],
+	input[type='email'],
+	input[type='number'] {
+		background: var(--bg0);
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
+		border-radius: 4px;
+		color: var(--white);
+		font-family: 'Rajdhani', sans-serif;
+		padding: 0.4rem 0.55rem;
+	}
+	.add-row {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.8rem;
+	}
+	.add-row input {
+		flex: 1;
+		min-width: 11rem;
+	}
+	.entry-list {
+		display: flex;
+		flex-direction: column;
+	}
+	.entry-row {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+		padding: 0.35rem 0;
+		border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.08));
+	}
+	.seed-cell {
+		width: 1.6rem;
+		text-align: right;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--cyan);
+		flex: none;
+	}
+	.linked-tag {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		color: var(--dim);
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.18));
+		border-radius: 999px;
+		padding: 0.05rem 0.45rem;
+	}
+	.row-actions {
+		margin-left: auto;
+		display: flex;
+		gap: 0.3rem;
+	}
+	.mini {
+		background: none;
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
+		border-radius: 4px;
+		color: var(--dim);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		padding: 0.15rem 0.5rem;
+		cursor: pointer;
+	}
+	.mini:hover:not(:disabled) {
+		color: var(--white);
+		border-color: var(--green);
+	}
+	.mini:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+	.mini.danger {
+		color: var(--crimson);
+		border-color: var(--crimson);
+	}
+	.invite-list {
+		margin-bottom: 0.8rem;
+	}
+	.invite-row {
+		display: flex;
+		gap: 0.8rem;
+		align-items: center;
+		padding: 0.2rem 0;
+	}
+	.mono {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.75rem;
+		color: var(--dim);
+	}
+	.inv-status {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.65rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+	}
+	.inv-status.pending {
+		color: var(--gold);
+	}
+	.inv-status.accepted {
+		color: var(--green);
+	}
+	.inv-status.declined {
+		color: var(--dim);
+	}
+	.note {
+		color: var(--dim);
+		font-size: 0.85rem;
+	}
+	.qual-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+	.qual-row {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		padding: 0.3rem 0;
+		border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.08));
+	}
+	.qual-vs {
+		font-weight: 700;
+	}
+	.vs-sep {
+		color: var(--dim);
+		font-weight: 400;
+	}
+	.qual-result {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--gold);
+	}
+	.qual-entry {
+		margin-left: auto;
+		display: flex;
+		gap: 0.35rem;
+		align-items: center;
+	}
+	.qual-entry input {
+		width: 4rem;
+	}
+	.mc-sub {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--cyan);
+		margin: 1rem 0 0.4rem;
+	}
+	.mc-sub.live-sub {
+		color: var(--crimson);
+	}
+	.mc-row {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		padding: 0.3rem 0;
+		border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.08));
+	}
+	.mc-row.done {
+		opacity: 0.85;
+	}
+	.mc-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		color: var(--dim);
+		min-width: 11rem;
+	}
+	.mc-vs {
+		font-weight: 700;
+	}
+	.mc-winner {
+		color: var(--green);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.75rem;
+		margin-left: 0.4rem;
+	}
+	.mc-row .btn,
+	.mc-row .mini {
+		margin-left: auto;
+	}
+	.mc-block {
+		margin: 0.4rem 0 0.8rem;
+	}
+	.mc-block .mc-label {
+		margin-bottom: 0.3rem;
+	}
+</style>

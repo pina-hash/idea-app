@@ -70,6 +70,16 @@ export const PORTAL_APPS: PortalApp[] = [
 		theme: { primary: '#2AE57E', secondary: '#CFDAE2' }
 	},
 	{
+		id: 'tournaments',
+		title: 'Tournaments',
+		sub: 'Live double-elimination brackets: register, qualify, and follow every match in real time.',
+		icon: 'tournament',
+		href: '/tournaments',
+		group: 'games',
+		cta: 'View',
+		theme: { primary: '#00FF41', secondary: '#C8A848' }
+	},
+	{
 		id: 'coins',
 		title: 'IDEA Coin Ledger',
 		sub: 'Live balances, transaction log, and rankings across all sections.',

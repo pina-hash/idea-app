@@ -30,8 +30,10 @@ ability, it is not required to browse the portal.
 
 - **Public tier (no login):** almost everything. The landing page at `/` (the
   restored original IDEA index), every assignment and reference doc
-  (`/assignments/<slug>`), the VANGUARD game (`/vanguard/`), and the coin
-  leaderboard (`/coins/`). Future public pages slot into this tier.
+  (`/assignments/<slug>`), the VANGUARD game (`/vanguard/`), the coin
+  leaderboard (`/coins/`), and the tournament section (`/tournaments`: list +
+  live brackets, viewable and realtime-updating with no session; see "IDEA
+  Tournaments" below). Future public pages slot into this tier.
 - **Gated tier (login required):** the **teacher-only** dashboard `/dashboard`
   and the teacher-only coin entry tool (`/coin-entry`). Anonymous users are
   redirected off `/dashboard` by `hooks.server.ts`; non-teacher signed-in users
@@ -1530,6 +1532,122 @@ north star, read it before extending GAUNTLET). Summary of what exists:
   auth, scoring, or room timing. The older `.gauntlet` block in `src/app.css`
   remains but is re-themed by the scoped token overrides; new styles go in
   the viewport system, not there.
+
+## IDEA Tournaments
+
+Phase 1 of the tournament subsystem (migration `0062_tournaments.sql`, apply
+manually after 0061): registration through a live, fully PUBLIC, host-run
+double-elimination bracket with optional head-to-head qualifying pools. No
+notifications, rewards, or banner customization yet; those are later phases.
+
+- **Access model:** every tournament table is PUBLIC-SELECT to anon AND
+  authenticated; the live bracket is a spectator surface with no login.
+  `/tournaments` is deliberately NOT in `authedPrefixes`. `/tournaments/new`
+  (session required) and `/tournaments/[id]/host` (a `tournament_hosts` row
+  required) gate themselves in their own `+page.server.ts` (the `/coin-entry`
+  pattern), redirecting non-hosts to the public view; that gating is
+  convenience only, the RPCs are the boundary. There is NO client write path
+  anywhere (no insert/update/delete grant or policy): every mutation is a
+  SECURITY DEFINER `tournament_*` RPC that re-checks the caller server-side
+  (host row, invited user, or self). Any signed-in user can create a
+  tournament (they become its `creator` host; hosts add co-hosts and send
+  invites by account email, resolved server-side against `profiles`).
+- **Identity rule (hard):** a participant's public identity is
+  `tournament_entries.display_name` + `thumbnail_url`, chosen at
+  registration (uploads go to the public `tournament-thumbs` bucket,
+  own-`<uid>/`-folder writes, the avatars pattern). No surface, INCLUDING the
+  host console, ever shows a Google account name or avatar for a
+  participant; invitees and co-hosts render as opaque id fragments only.
+- **Naming:** the spec's bare names are prefixed to the repo convention:
+  tables `tournaments`, `tournament_hosts`, `tournament_entries`,
+  `tournament_invites`, `tournament_qual_pools`, `tournament_qual_matches`,
+  `tournament_bracket_matches`, `tournament_match_games`,
+  `tournament_match_events`; the RPCs are `tournament_create`, `_update`,
+  `_set_status`, `_add_host`, `_register_entry`, `_host_add_entry`,
+  `_remove_entry`, `_send_invite`, `_respond_invite`, `_shuffle_seeds`,
+  `_reorder_seed`, `_generate_qual_pools`, `_submit_qual_result`,
+  `_generate_bracket`, `_start_match`, `_submit_match_result`,
+  `_correct_match_result` (internal `_tournament_*` helpers carry no grants).
+- **Format config** (`tournaments.config` jsonb, normalized + validated
+  server-side): `quals_enabled`, `score_entry` (per-game scores vs win/loss
+  only), `best_of_default`, and a `best_of` override map keyed `'winners' |
+  'losers' | 'grand_final' | 'winners:<round>' | 'losers:<round>'` (odd,
+  1..15). Each match's `best_of` is stamped at generation
+  (specific-round > bracket > default; the reset inherits the grand
+  final's); config locks once the bracket exists.
+- **Lifecycle:** draft -> registration_open <-> seeding -> live -> complete.
+  Self-registration only while registration_open (one entry per account);
+  host walk-up adds (linked or unlinked) and invite ACCEPTS also work during
+  seeding. Seeds shuffle/reorder during pre-live states and lock at
+  `tournament_generate_bracket`, which stamps the final order, logs it, and
+  sets live; grand-final (or reset) completion sets complete +
+  `champion_entry_id`.
+- **Quals:** `tournament_generate_qual_pools` snake-drafts the seeded field
+  (pool 1 takes seed 1, direction alternating per pass) and builds each
+  pool's circle-method round robin; regeneration is allowed until a result
+  is recorded. At generate_bracket, standings become seeds: pool position by
+  wins -> two-way head-to-head -> point differential -> a LOGGED random
+  draw; across pools by position -> win percentage -> differential -> logged
+  random draw (h2h cannot apply across pools). The draws log as 'seeded'
+  events, the one extension to the spec's event-type list.
+- **Bracket model:** P = next power of two over N (2..128 entries), standard
+  1-vs-P recursive seeding; losers bracket has 2(R-1) rounds (minor 2k-1 /
+  major 2k, each P/2^(k+1) matches; winners-drop slots reverse on even
+  winners rounds to delay rematches); `grand_final_reset` is created ONLY
+  when the losers-bracket finalist wins the first grand final. N=2 has no
+  losers bracket (the final's loser drops straight to the grand final).
+  Matches carry explicit `winner_to_match_id/pos` + `loser_to_match_id/pos`
+  pointers wired once at generation, so advancement and correction never
+  re-derive topology. BYES: a slot is DEAD when it is empty and no
+  non-complete match feeds it; one live + one dead side auto-completes as a
+  bye, dead + dead completes with a null winner, and the resolver loops to a
+  fixed point at generation and after every result. The resolver MUST
+  re-read each row inside its pass: judging off the stale cursor row
+  dead-completes a match that just received two adjacent byes' winners
+  (found by the integration test, not by review).
+- **Corrections:** `tournament_correct_match_result` (reason required,
+  logged) BLOCKS with a clear error when a downstream match holding this
+  match's winner or loser is in_progress or completed from an entered
+  result, and when the grand-final reset already has a recorded result.
+  Downstream BYE auto-completions are derived state, so they are unwound and
+  re-derived instead of blocking (strict blocking would make nearly every
+  early correction in a non-power-of-two field impossible). Grand-final
+  corrections delete/recreate the pending reset and re-derive
+  champion/status both directions.
+- **Audit:** `tournament_match_events` is append-only (created / checked_in /
+  started / completed / corrected / seeded; match_kind 'bracket' | 'qual' |
+  null for tournament-level rows), written from Phase 1 because it cannot be
+  reconstructed retroactively; the public analytics view is a later phase.
+- **Realtime:** tournaments, entries, qual pools/matches, bracket matches,
+  and match games are in `supabase_realtime`; the public and host pages
+  subscribe filtered on `tournament_id` (`tournament_match_games` carries a
+  denormalized `tournament_id` for exactly this) and refetch debounced. RLS
+  is public-select, so signed-out spectators receive the stream too.
+- **Client:** `src/lib/tournaments/tournaments.ts` (row types + pure display
+  helpers; the client-side pool standings are display-only, the server
+  ranking is authoritative) and the presentation-only `EntryChip` /
+  `BracketView` / `PoolsView` / `ResultForm` components. Routes:
+  `/tournaments` (public list + own pending invites), `/tournaments/new`,
+  `/tournaments/[id]` (public live view + registration / invite accept +
+  thumbnail upload), `/tournaments/[id]/host` (console: phase moves, pool
+  generation, entries + seeding, invites + co-hosts, qual results, match
+  start/submit/correct). Launcher card in `portal-apps.ts` (Games group,
+  public) and app `tournaments` in `site-manifest.ts`.
+- **Verified:** the migration file was applied UNMODIFIED to a real embedded
+  Postgres (Supabase-shaped auth/storage/publication stubs) and
+  integration-tested end to end: 161 assertions covering the full
+  acceptance flow on a 6-entry qualifying tournament (registration, invites
+  accept/decline/re-invite, snake pools, standings-driven seeding, byes in
+  the right slots, bye-unwinding and blocked corrections, the grand-final
+  reset both directions, champion), privilege checks (anon reads
+  everything, every direct client write denied, anon cannot call RPCs), and
+  randomized full-bracket sweeps at N = 2..17, 21, 27, 33, 48, 64 asserting
+  the double-elimination loss invariant (every non-champion loses exactly
+  twice). The UI was browser-verified through `/dev/tournaments` (404 in
+  production, no auth/Supabase: an in-memory simulator mirroring the SQL
+  rules drives the REAL components). NOT verified: the live Supabase
+  project (the local `.env` is placeholder-only) — apply 0062 by hand in
+  the SQL editor and re-run the realtime + OAuth acceptance checks there.
 
 ## GREENLINE (prototype)
 
