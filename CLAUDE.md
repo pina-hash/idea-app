@@ -296,6 +296,115 @@ SvelteKit server, which attaches the server-only `COIN_API_KEY`.
 - Background and residual limitations: `docs/audits/2026-07-security-audit.md`,
   findings F2, F3 and F11.
 
+## IDEA Coin economy (Supabase foundation, `0070`)
+
+A second, independent coin system living in Supabase, built to eventually
+**replace** the Sheets/Apps Script ledger above as the source of truth.
+Migration `0070_coin_economy.sql` (apply manually after `0069`) is
+**schema, pricing, and enforcement only** -- there is no student/teacher
+entry UI yet, and nothing above (`coin-entry.html`, `static/coins/index.html`,
+`/api/coin-ledger/*`, `src/lib/server/coin-ledger.ts`) is touched or wired to
+it. The two systems run side by side until the entry tool is rebuilt on this
+foundation in a later pass. Every category name, price, and rule is a direct
+transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
+`idea_coin_quick_reference.md` -- read those before changing a price.
+
+- **Keyed by lowercased email, not user id** -- the `app_admins` (0067)
+  idiom. `coin_transactions.student_email` is plain text, no FK to
+  `auth.users`, so a balance can exist for an email that has never signed in.
+  The moment that student logs in, `coin_balances` already has their row --
+  there is no separate linking step, because nothing was ever keyed by user
+  id. This is what satisfies the docs' "attach a balance to an email
+  independent of login status" requirement (Part 8) for free.
+- **Balance is derived, never stored.** `coin_balances` is a
+  `security_invoker` view summing `coin_transactions.amount` (signed: negative
+  for fines/purchases, positive for awards, either sign for adjustments) per
+  email -- there is no mutable balance column anywhere to drift from the
+  ledger's own sum. Every coin traces to one insert with an actor, a reason,
+  and a timestamp.
+- **`coin_categories`** is the price list (server-authoritative; a future
+  entry UI reads it rather than hardcoding prices), one row per fine/award/
+  purchase from the docs, tagged `kind` (fine/award/purchase/adjustment),
+  `scope` (`core` vs `209h`), and a `pricing_model`: `flat` (fixed price),
+  `range` (admin picks within min/max, e.g. Above and Beyond 1-3i¢),
+  `per_unit` (a rate x an admin-entered quantity, e.g. Extra Credit 2i¢/point),
+  `variable` (no lookup at all, the admin enters the whole amount -- the
+  prompt's own instruction for Contract Completion / Competition Winnings,
+  generalized to every other judgment-call item), or `formula` (real computed
+  logic: Perfect Score, Pay Raise, Property Damage (Careless), 3D Printing,
+  Extra Credit's cap). A couple of rows are `loggable = false` mechanisms with
+  no per-student coin amount (Mint Tampering Suspect Unknown's section-wide
+  freeze; `eating_pass_revoked`, a system-only event) and can never be logged
+  directly.
+- **Write path:** the generic `coin_log_transaction(email, category_id,
+  amount?, quantity?, note?)` handles every `flat`/`range`/`per_unit`/
+  `variable` category; `formula` categories (and Extra Credit specifically,
+  since it needs the cap check) are refused and route through their own RPC:
+  `coin_log_perfect_score`, `coin_log_pay_raise`,
+  `coin_log_property_damage_careless`, `coin_log_three_d_printing`,
+  `coin_log_extra_credit`. All are **SECURITY DEFINER, gated on `is_admin()`
+  directly -- never `is_teacher()`** (per the 0067 naming trap: it means "is
+  an admin", not "is a teacher"), a deliberate scope boundary since this is a
+  brand-new write surface holding real value; whether a rebuilt entry tool
+  should later loosen this to a teacher-role session check (matching the old
+  Sheets tool) is that pass's call. Refusals a caller needs to display
+  gracefully (debt, an already-active pass, a cap already hit) return
+  structured `{ok:false, reason:...}` jsonb, the `greenline_purchase_item`
+  convention; genuine misuse raises an exception.
+- **Rules enforced in the database, not just documented:**
+  - **Debt:** balance can go negative with no cap; while it is ALREADY
+    negative, no `purchase`-kind transaction is allowed (fines and
+    adjustments still apply past zero). A purchase that would itself dip a
+    non-negative balance negative is allowed -- matches the docs' literal
+    condition.
+  - **Eating Pass:** `coin_eating_pass_active()` / `coin_eating_pass_strikes()`
+    are pure derived reads over the ledger (no side-table state): "active" is
+    whichever of the two event types -- an `eating_pass` purchase or the
+    system `eating_pass_revoked` event -- is most recent; "strikes" counts
+    `eating_violation` rows flagged `meta.strike = true` since the latest
+    purchase. `coin_log_transaction` special-cases both categories: an
+    `eating_pass` purchase is refused (`pass_already_active`) while one is
+    already held; an `eating_violation` logged while a pass is active is
+    flagged as a strike and, on the third, `coin_log_transaction` inserts the
+    revoke event itself. A violation with no pass held is an ordinary fine,
+    not a strike. A permanently-revoked pass can still be re-earned and
+    re-bought later at full price -- "permanently" describes the revocation
+    itself being unrefunded, not a lifetime ban.
+  - **Extra Credit (209H only):** `coin_log_extra_credit` sums
+    `quantity` (points) already logged this `coin_semester_key()` (a pure
+    Jan-Jun/Jul-Dec function of the calendar, the `role_for_email` idiom --
+    deliberately not a maintained term-boundary config table) for the student
+    and hard-refuses (`cap_exceeded`) once `used + requested` would exceed
+    `coin_categories.semester_point_cap` (21, from 2% of 209H's 1,050
+    semester points), regardless of balance. `p_grading_category` is
+    restricted to `unit_labs` / `unit_assignments` / `documentation`.
+  - **Quality Desktop Background / Correct Answer in Class:** a generic
+    `cap_period` (`day`/`month`) + `cap_count` on the category, checked
+    against **calendar boundaries** (`current_date`, `date_trunc('month', ...)`)
+    -- never a rolling window from the last submission.
+  - **Perfect Score on Graded Work:** `coin_log_perfect_score` computes
+    `greatest(1, round(points / 25.0))`.
+  - **Pay Raise:** `coin_wage_tiers` (email-keyed, tier starts at 1) is the
+    one genuinely stateful piece nothing else derives -- `coin_log_pay_raise`
+    reads the current tier, charges `40 * (tier + 1)`, and persists the new
+    tier, permanently raising the rate a future entry tool would pay out
+    weekly.
+  - **Contract Completion / Competition Winnings:** `variable` pricing --
+    the admin enters the whole amount at logging time, never a lookup, per
+    the prompt's own instruction.
+- **Admin tool:** `/admin` (0067's roster page) gained an "IDEA Coin
+  balances" card, open to any admin (not owner-gated): look up a balance by
+  email (`coin_admin_lookup`, returning balance, wage tier, eating-pass
+  status, and recent history in one round trip) and apply a signed adjustment
+  with a required reason (`coin_admin_adjust_balance`, a thin wrapper over
+  `coin_log_transaction` under the `balance_correction` adjustment category).
+  This is also how a legacy Sheets balance gets attached: whatever the old
+  balance was becomes the adjustment amount, no conversion math, and it works
+  whether or not that email has ever signed in.
+- **Not yet built, deliberately:** the student/teacher entry UI, wiring the
+  old ledger's balance data into `coin_admin_adjust_balance` for the real
+  student roster, and the Spotify Song Request approval queue (docs Part 8).
+
 ## 2026-27 curriculum
 
 `src/lib/curriculum.ts` is the single source of truth for the live curriculum. It
