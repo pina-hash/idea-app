@@ -4,7 +4,11 @@
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
 	import RewardsPanel from '$lib/tournaments/RewardsPanel.svelte';
 	import TournamentQr from '$lib/tournaments/TournamentQr.svelte';
-	import { entryMap } from '$lib/tournaments/tournaments';
+	import EntryBanner from '$lib/tournaments/EntryBanner.svelte';
+	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
+	import TvStage from '$lib/tournaments/TvStage.svelte';
+	import { entryMap, type Tournament } from '$lib/tournaments/tournaments';
+	import { hasStyle, type EntryStyle, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import {
 		buildSim,
 		buildQualSample,
@@ -29,6 +33,44 @@
 		// repeated against the same configuration.
 		sim.rewardRules = rules;
 	}
+
+	// --- 2b: banner styles + TV mode ---
+	/** In-memory mirror of tournament_set_entry_style's full-replacement +
+	 * clear-when-empty behavior, so the REAL editor drives the REAL renderers
+	 * with no Supabase. */
+	function saveStyle(entryId: string, draft: EntryStyleDraft) {
+		const empty =
+			!draft.background_type &&
+			!draft.accent_color &&
+			!draft.badge &&
+			!draft.flourish &&
+			!draft.tagline;
+		const next = { ...sim.styles };
+		if (empty) delete next[entryId];
+		else
+			next[entryId] = {
+				entry_id: entryId,
+				tournament_id: 'sim',
+				...draft
+			} as EntryStyle;
+		sim.styles = next;
+	}
+
+	let editId = $state<string | null>(null);
+	const editEntry = $derived(sim.entries.find((e) => e.id === editId) ?? sim.entries[0]);
+
+	let tvStatus = $state<Tournament['status']>('live');
+	const tvTournament = $derived<Tournament>({
+		id: 'sim',
+		name: 'Harness Invitational',
+		description: '',
+		config: {},
+		status: tvStatus,
+		champion_entry_id: tvStatus === 'complete' ? (sim.championId ?? sim.entries[0].id) : null,
+		created_by: null,
+		created_at: new Date().toISOString(),
+		updated_at: new Date().toISOString()
+	});
 	function playAll() {
 		let guard = 0;
 		while (guard++ < 300 && playNext(sim)) {
@@ -77,7 +119,87 @@
 
 	<section>
 		<h2>BracketView · {fieldSize} entries</h2>
-		<BracketView matches={sim.matches} {entries} games={sim.games} championId={sim.championId} />
+		<p class="note">
+			Entries 1-5 carry sample 0064 styles (all three background types, four flourishes, accents
+			across the wheel); the rest carry none, so the default treatment sits beside them.
+		</p>
+		<BracketView
+			matches={sim.matches}
+			{entries}
+			styles={sim.styles}
+			games={sim.games}
+			championId={sim.championId}
+		/>
+	</section>
+
+	<section>
+		<h2>EntryBanner · styled vs default</h2>
+		<div class="banner-grid">
+			{#each sim.entries.slice(0, 7) as e (e.id)}
+				<div class="banner-cell">
+					<span class="cell-tag">{hasStyle(sim.styles[e.id]) ? 'styled' : 'no style set'}</span>
+					<EntryBanner entry={e} style={sim.styles[e.id] ?? null} size="md" seed={e.seed} />
+				</div>
+			{/each}
+		</div>
+	</section>
+
+	<section>
+		<h2>EntryStyleEditor · live save into the sim</h2>
+		<div class="controls">
+			<span>Entry:</span>
+			{#each sim.entries.slice(0, 7) as e (e.id)}
+				<button
+					class="ctl"
+					class:on={editEntry?.id === e.id}
+					onclick={() => (editId = e.id)}
+				>
+					{e.display_name}
+				</button>
+			{/each}
+		</div>
+		{#if editEntry}
+			<div class="card pad">
+				<EntryStyleEditor
+					entry={editEntry}
+					style={sim.styles[editEntry.id] ?? null}
+					note="Saves into the in-memory sim; the bracket and TV stage above/below update live."
+					onsave={(draft) => saveStyle(editEntry.id, draft)}
+				/>
+			</div>
+		{/if}
+	</section>
+
+	<section>
+		<h2>TvStage · the real projector component</h2>
+		<div class="controls">
+			<span>Status:</span>
+			{#each ['registration_open', 'seeding', 'live', 'complete'] as s (s)}
+				<button
+					class="ctl"
+					class:on={tvStatus === s}
+					onclick={() => (tvStatus = s as Tournament['status'])}
+				>
+					{s}
+				</button>
+			{/each}
+			<span class="sep"></span>
+			<span class="state">
+				start a match for the live view · play one for the result beat (13s)
+			</span>
+		</div>
+		<div class="tv-frame">
+			<TvStage
+				tournament={tvTournament}
+				entries={sim.entries}
+				styles={sim.styles}
+				matches={sim.matches}
+				games={sim.games}
+				shareUrl="https://ideabosco.com/tournaments/sim-demo"
+				showHint={false}
+				fullscreen={false}
+			/>
+		</div>
 	</section>
 
 	<section>
@@ -164,5 +286,34 @@
 	}
 	.pad-top {
 		margin-top: 1rem;
+	}
+	.banner-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+		gap: 0.8rem;
+	}
+	.banner-cell {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		min-width: 0;
+	}
+	.cell-tag {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--dim, #7a8a7a);
+	}
+	/* TvStage pins itself to its nearest positioned ancestor when
+	 * fullscreen={false}, so the harness gives it a real projector-shaped box. */
+	.tv-frame {
+		position: relative;
+		width: 100%;
+		aspect-ratio: 16 / 9;
+		max-height: 78vh;
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
+		border-radius: 8px;
+		overflow: hidden;
 	}
 </style>

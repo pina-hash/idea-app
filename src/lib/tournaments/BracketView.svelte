@@ -8,20 +8,27 @@
 		type MatchGame,
 		type TournamentEntry
 	} from './tournaments';
+	import type { EntryStyle } from './entry-styles';
 
 	/**
 	 * The live double-elimination bracket, presentation only (state in via
 	 * props, the Minimap convention): winners rounds, losers rounds, then the
 	 * grand final (+ reset once it exists). Fully public data.
+	 *
+	 * `styles` is optional: a node renders its entry's Phase 2b banner
+	 * customization when one exists and the plain Phase 1 chip when it does
+	 * not (see EntryChip for why the wash is faint at this density).
 	 */
 	let {
 		matches,
 		entries,
+		styles = {},
 		games = [],
 		championId = null
 	}: {
 		matches: BracketMatch[];
 		entries: Record<string, TournamentEntry>;
+		styles?: Record<string, EntryStyle>;
 		games?: MatchGame[];
 		championId?: string | null;
 	} = $props();
@@ -42,6 +49,7 @@
 	<div class="side" class:lost={decided && entryId !== null && m.winner_id !== entryId}>
 		<EntryChip
 			entry={entryId ? (entries[entryId] ?? null) : null}
+			style={entryId ? (styles[entryId] ?? null) : null}
 			seed={entryId ? entries[entryId]?.seed : null}
 			winner={decided && m.winner_id === entryId}
 		/>
@@ -94,7 +102,7 @@
 	{#if championId && entries[championId]}
 		<div class="champion">
 			<span class="champion-label">Champion</span>
-			<EntryChip entry={entries[championId]} winner />
+			<EntryChip entry={entries[championId]} style={styles[championId] ?? null} winner />
 		</div>
 	{/if}
 </div>

@@ -11,6 +11,7 @@ import type {
 	TournamentEntry,
 	TournamentInvite
 } from '$lib/tournaments/tournaments';
+import type { EntryStyle } from '$lib/tournaments/entry-styles';
 
 /**
  * The live tournament view: fully PUBLIC (no session, no cookie needed) --
@@ -27,8 +28,17 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		.maybeSingle();
 	if (!tournament) error(404, 'Tournament not found');
 
-	const [entriesRes, poolsRes, qualRes, bracketRes, gamesRes, hostsRes, rulesRes, ledgerRes] =
-		await Promise.all([
+	const [
+		entriesRes,
+		poolsRes,
+		qualRes,
+		bracketRes,
+		gamesRes,
+		hostsRes,
+		rulesRes,
+		ledgerRes,
+		stylesRes
+	] = await Promise.all([
 		supabase
 			.from('tournament_entries')
 			.select('*')
@@ -48,7 +58,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 			.from('tournament_reward_ledger')
 			.select('*')
 			.eq('tournament_id', params.id)
-			.order('id', { ascending: false })
+			.order('id', { ascending: false }),
+		supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id)
 	]);
 
 	const hostIds = (hostsRes.data ?? []).map((r: { user_id: string }) => r.user_id);
@@ -79,6 +90,9 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		// Reward tables fail soft to empty pre-0063 (a select error yields no
 		// data), so the page renders without the migration applied.
 		rewardRules: (rulesRes.data ?? []) as RewardRule[],
-		rewardLedger: (ledgerRes.data ?? []) as RewardLedgerRow[]
+		rewardLedger: (ledgerRes.data ?? []) as RewardLedgerRow[],
+		// Same fail-soft rule: no 0064 yet means no styles, and every entry
+		// renders with the Phase 1 default treatment.
+		entryStyles: (stylesRes.data ?? []) as EntryStyle[]
 	};
 };

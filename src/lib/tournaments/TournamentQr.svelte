@@ -6,19 +6,27 @@
 	 * StlViewer convention). Two presentations: an inline card, and a
 	 * large-format full-screen mode for a shop TV or a printout (dark modules
 	 * on a white sheet, the only combination phone cameras reliably scan).
+	 *
+	 * Phase 2b adds a third presentation, `variant="panel"`: the same
+	 * large-format white sheet, but INLINE inside a layout instead of behind
+	 * a modal, for TV mode -- which has no interactive chrome, so it cannot
+	 * use a button to open the overlay.
 	 */
 	import { onMount } from 'svelte';
 
 	let {
 		url,
-		name = ''
+		name = '',
+		variant = 'card'
 	}: {
 		url: string;
 		name?: string;
+		variant?: 'card' | 'panel';
 	} = $props();
 
 	let smallCanvas = $state<HTMLCanvasElement | null>(null);
 	let bigCanvas = $state<HTMLCanvasElement | null>(null);
+	let panelCanvas = $state<HTMLCanvasElement | null>(null);
 	let presenting = $state(false);
 	let qrFailed = $state(false);
 
@@ -40,16 +48,20 @@
 	}
 
 	onMount(() => {
-		draw(smallCanvas, 180);
+		if (variant === 'card') draw(smallCanvas, 180);
 	});
 
-	// Re-render whenever the URL changes or the big canvas mounts.
+	// Re-render whenever the URL changes or a canvas mounts.
 	$effect(() => {
 		void url;
-		draw(smallCanvas, 180);
+		if (variant === 'card') draw(smallCanvas, 180);
 	});
 	$effect(() => {
 		if (presenting && bigCanvas) draw(bigCanvas, 720);
+	});
+	$effect(() => {
+		void url;
+		if (panelCanvas) draw(panelCanvas, 720);
 	});
 
 	function onKeydown(e: KeyboardEvent) {
@@ -64,6 +76,18 @@
 
 <svelte:window onkeydown={onKeydown} />
 
+{#if variant === 'panel'}
+	<!-- Large-format inline sheet, same white-on-dark-modules treatment as the
+	     present overlay, for a screen nobody is standing at. -->
+	<div class="qr-panel">
+		{#if qrFailed}
+			<p class="qr-panel-url">{displayUrl}</p>
+		{:else}
+			<div class="qr-panel-sheet"><canvas bind:this={panelCanvas}></canvas></div>
+			<p class="qr-panel-url">{displayUrl}</p>
+		{/if}
+	</div>
+{:else}
 <div class="qr-card">
 	{#if qrFailed}
 		<p class="qr-fail">QR unavailable — share the link: <span class="qr-url">{displayUrl}</span></p>
@@ -78,6 +102,7 @@
 		</div>
 	{/if}
 </div>
+{/if}
 
 {#if presenting}
 	<div class="qr-present" role="dialog" aria-label="Registration QR code">
@@ -125,6 +150,36 @@
 	.qr-fail {
 		color: var(--dim);
 		font-size: 0.9rem;
+	}
+
+	/* Inline large-format sheet (TV mode). Same dark-modules-on-white as the
+	 * present overlay: it is the only combination that scans reliably off a
+	 * screen from across a room. */
+	.qr-panel {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.6rem;
+	}
+	.qr-panel-sheet {
+		background: #fff;
+		border-radius: 12px;
+		padding: 0.9rem;
+		line-height: 0;
+	}
+	.qr-panel-sheet canvas {
+		width: min(30vh, 34vw) !important;
+		height: min(30vh, 34vw) !important;
+		display: block;
+	}
+	.qr-panel-url {
+		margin: 0;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: clamp(0.85rem, 1.35vw, 1.35rem);
+		letter-spacing: 0.04em;
+		color: var(--tnm-ink, #edede8);
+		word-break: break-all;
+		text-align: center;
 	}
 
 	/* Large-format presentation: a white sheet so it reads as a printout and

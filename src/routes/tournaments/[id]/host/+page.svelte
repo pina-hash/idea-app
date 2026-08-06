@@ -4,8 +4,10 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import EntryChip from '$lib/tournaments/EntryChip.svelte';
+	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
 	import ResultForm from '$lib/tournaments/ResultForm.svelte';
 	import RewardRulesEditor from '$lib/tournaments/RewardRulesEditor.svelte';
+	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import {
 		entryMap,
 		parseConfig,
@@ -21,6 +23,7 @@
 	const t = $derived(data.tournament);
 	const config = $derived(parseConfig(t.config));
 	const entries = $derived(entryMap(data.entries));
+	const styles = $derived(styleMap(data.entryStyles));
 	const preBracket = $derived(t.status !== 'live' && t.status !== 'complete');
 
 	let busy = $state(false);
@@ -140,6 +143,35 @@
 	let walkDescription = $state('');
 	let confirmRemoveId = $state<string | null>(null);
 
+	/**
+	 * Banner styling for WALK-UP entries only. A linked player's banner is
+	 * their own identity and the RPC refuses a host edit to it; the console
+	 * therefore only offers the editor on entries with no linked account.
+	 */
+	let stylingId = $state<string | null>(null);
+	let styleBusy = $state(false);
+	let styleError = $state('');
+
+	async function saveStyle(entryId: string, draft: EntryStyleDraft) {
+		styleError = '';
+		styleBusy = true;
+		const { error } = await data.supabase.rpc('tournament_set_entry_style', {
+			p_entry_id: entryId,
+			p_background_type: draft.background_type,
+			p_background_value: draft.background_value,
+			p_accent_color: draft.accent_color,
+			p_badge: draft.badge,
+			p_flourish: draft.flourish,
+			p_tagline: draft.tagline
+		});
+		styleBusy = false;
+		if (error) {
+			styleError = error.message;
+			return;
+		}
+		await invalidateAll();
+	}
+
 	// --- invites / hosts ---
 	let inviteEmail = $state('');
 	let cohostEmail = $state('');
@@ -234,6 +266,7 @@
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
+		<a class="btn secondary" href="/tournaments/{t.id}/tv">TV mode</a>
 		<a class="btn secondary" href="/tournaments/{t.id}">&lsaquo; Live view</a>
 		<ProfileMenu />
 	</div>
@@ -372,8 +405,19 @@
 			{#each data.entries as e, i (e.id)}
 				<div class="entry-row">
 					<span class="seed-cell">{e.seed ?? '·'}</span>
-					<EntryChip entry={e} />
-					{#if e.user_id}<span class="linked-tag">linked account</span>{/if}
+					<EntryChip entry={e} style={styles[e.id] ?? null} />
+					{#if e.user_id}
+						<span class="linked-tag">linked account</span>
+					{:else}
+						<button
+							class="mini"
+							disabled={busy}
+							title="Set this walk-up entry's banner"
+							onclick={() => (stylingId = stylingId === e.id ? null : e.id)}
+						>
+							{stylingId === e.id ? 'close banner' : 'banner'}
+						</button>
+					{/if}
 					{#if preBracket}
 						<span class="row-actions">
 							<button
@@ -429,8 +473,24 @@
 						</span>
 					{/if}
 				</div>
+				{#if stylingId === e.id}
+					<div class="style-row">
+						<EntryStyleEditor
+							entry={e}
+							style={styles[e.id] ?? null}
+							busy={styleBusy}
+							error={styleError}
+							note="Walk-up banner. A player with a linked account sets their own from the live view."
+							onsave={(draft) => saveStyle(e.id, draft)}
+						/>
+					</div>
+				{/if}
 			{/each}
 		</div>
+		<p class="note">
+			You can style walk-up entries added by hand. A player with a linked account owns their own
+			banner and sets it from the live view.
+		</p>
 	</section>
 
 	<section class="card">
@@ -739,6 +799,10 @@
 		font-size: 0.72rem;
 		color: var(--cyan);
 		flex: none;
+	}
+	.style-row {
+		padding: 0.8rem 0 1rem 2.3rem;
+		border-bottom: 1px solid var(--line, rgba(0, 255, 65, 0.08));
 	}
 	.linked-tag {
 		font-family: 'Share Tech Mono', monospace;

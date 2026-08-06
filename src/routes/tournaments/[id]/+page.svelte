@@ -7,11 +7,13 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import BracketView from '$lib/tournaments/BracketView.svelte';
 	import PoolsView from '$lib/tournaments/PoolsView.svelte';
-	import EntryChip from '$lib/tournaments/EntryChip.svelte';
+	import EntryBanner from '$lib/tournaments/EntryBanner.svelte';
+	import EntryStyleEditor from '$lib/tournaments/EntryStyleEditor.svelte';
 	import MatchAlerts from '$lib/tournaments/MatchAlerts.svelte';
 	import RewardsPanel from '$lib/tournaments/RewardsPanel.svelte';
 	import TournamentQr from '$lib/tournaments/TournamentQr.svelte';
-	import { entryMap, parseConfig, statusLabel } from '$lib/tournaments/tournaments';
+	import { entryMap, parseConfig, roundLabel, statusLabel } from '$lib/tournaments/tournaments';
+	import { styleMap, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -19,10 +21,20 @@
 	const t = $derived(data.tournament);
 	const config = $derived(parseConfig(t.config));
 	const entries = $derived(entryMap(data.entries));
+	const styles = $derived(styleMap(data.entryStyles));
 	const signedIn = $derived(!!data.claims);
 	const champion = $derived(
 		t.champion_entry_id ? (entries[t.champion_entry_id] ?? null) : null
 	);
+
+	/** The live match view: matches the host has actually started. */
+	const liveMatches = $derived(data.bracketMatches.filter((m) => m.status === 'in_progress'));
+	function maxRound(bracket: string): number {
+		return Math.max(
+			0,
+			...data.bracketMatches.filter((m) => m.bracket === bracket).map((m) => m.round)
+		);
+	}
 
 	// Live updates for everyone, signed-out spectators included: subscribe to
 	// every tournament-scoped table and refetch (debounced) on any event.
@@ -39,7 +51,8 @@
 			'tournament_bracket_matches',
 			'tournament_match_games',
 			'tournament_reward_rules',
-			'tournament_reward_ledger'
+			'tournament_reward_ledger',
+			'tournament_entry_styles'
 		];
 		let channel = data.supabase.channel(`tournament-${t.id}`);
 		for (const table of filtered) {
@@ -124,6 +137,44 @@
 		await invalidateAll();
 	}
 
+	// --- banner customization (own entry only; a host restyles walk-ups from
+	// the host console) ---
+	let styleBusy = $state(false);
+	let styleError = $state('');
+	let styleOpen = $state(false);
+
+	async function saveStyle(draft: EntryStyleDraft) {
+		if (!data.myEntry) return;
+		styleError = '';
+		styleBusy = true;
+		const { error } = await data.supabase.rpc('tournament_set_entry_style', {
+			p_entry_id: data.myEntry.id,
+			p_background_type: draft.background_type,
+			p_background_value: draft.background_value,
+			p_accent_color: draft.accent_color,
+			p_badge: draft.badge,
+			p_flourish: draft.flourish,
+			p_tagline: draft.tagline
+		});
+		styleBusy = false;
+		if (error) {
+			styleError = error.message;
+			return;
+		}
+		await invalidateAll();
+	}
+
+	/** Banner art reuses the entry-thumbnail bucket: same visibility, same
+	 * own-folder ownership rule (0062), so no second bucket to keep in sync. */
+	async function uploadBackground(file: File): Promise<string> {
+		if (!data.claims) throw new Error('Sign in to upload an image.');
+		const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+		const path = `${data.claims.sub}/bg-${crypto.randomUUID()}.${ext}`;
+		const { error } = await data.supabase.storage.from('tournament-thumbs').upload(path, file);
+		if (error) throw new Error(`Upload failed: ${error.message}`);
+		return data.supabase.storage.from('tournament-thumbs').getPublicUrl(path).data.publicUrl;
+	}
+
 	// The page's own canonical URL (origin + path, no query), for the QR.
 	const shareUrl = $derived(`${page.url.origin}/tournaments/${t.id}`);
 
@@ -142,6 +193,7 @@
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
+		<a class="btn secondary" href="/tournaments/{t.id}/tv">TV mode</a>
 		<a class="btn secondary" href="/tournaments">&lsaquo; Tournaments</a>
 		<ProfileMenu />
 	</div>
@@ -164,9 +216,44 @@
 	</section>
 
 	{#if champion}
-		<section class="card champion-banner">
+		<section class="champion-banner">
 			<span class="champ-label">Champion</span>
-			<EntryChip entry={champion} winner />
+			<EntryBanner
+				entry={champion}
+				style={styles[champion.id] ?? null}
+				size="lg"
+				winner
+				event="win"
+			/>
+		</section>
+	{/if}
+
+	{#if liveMatches.length}
+		<section class="block">
+			<h2 class="block-title live-title">Now playing</h2>
+			<div class="live-list">
+				{#each liveMatches as m (m.id)}
+					<div class="live-match">
+						<div class="live-head">
+							<span class="live-round">{roundLabel(m.bracket, m.round, maxRound(m.bracket))}</span>
+							{#if m.best_of > 1}<span class="live-bo">Best of {m.best_of}</span>{/if}
+						</div>
+						<div class="live-pair">
+							<EntryBanner
+								entry={m.entry_a_id ? (entries[m.entry_a_id] ?? null) : null}
+								style={m.entry_a_id ? (styles[m.entry_a_id] ?? null) : null}
+								size="md"
+							/>
+							<span class="live-vs">vs</span>
+							<EntryBanner
+								entry={m.entry_b_id ? (entries[m.entry_b_id] ?? null) : null}
+								style={m.entry_b_id ? (styles[m.entry_b_id] ?? null) : null}
+								size="md"
+							/>
+						</div>
+					</div>
+				{/each}
+			</div>
 		</section>
 	{/if}
 
@@ -217,9 +304,27 @@
 			<p class="note">Sign in from the <a href="/">home page</a> to register an entry.</p>
 		</section>
 	{:else if data.myEntry}
-		<section class="card register slim">
-			<span class="note">Registered as</span>
-			<EntryChip entry={data.myEntry} />
+		<section class="card register">
+			<div class="mine-head">
+				<span class="note">Your entry</span>
+				<button class="btn secondary" onclick={() => (styleOpen = !styleOpen)}>
+					{styleOpen ? 'Done' : 'Customize banner'}
+				</button>
+			</div>
+			<EntryBanner entry={data.myEntry} style={styles[data.myEntry.id] ?? null} size="md" />
+			{#if styleOpen}
+				<div class="style-panel">
+					<EntryStyleEditor
+						entry={data.myEntry}
+						style={styles[data.myEntry.id] ?? null}
+						busy={styleBusy}
+						error={styleError}
+						note="Your banner shows wherever you appear: the bracket, the live match view, and the big screen."
+						onsave={saveStyle}
+						onupload={uploadBackground}
+					/>
+				</div>
+			{/if}
 		</section>
 	{/if}
 
@@ -229,6 +334,7 @@
 			<BracketView
 				matches={data.bracketMatches}
 				{entries}
+				{styles}
 				games={data.games}
 				championId={t.champion_entry_id}
 			/>
@@ -259,8 +365,15 @@
 		{#if data.entries.length}
 			<div class="entrants">
 				{#each data.entries as e (e.id)}
-					<div class="entrant card">
-						<EntryChip entry={e} seed={t.status === 'live' || t.status === 'complete' || t.status === 'seeding' ? e.seed : null} />
+					<div class="entrant">
+						<EntryBanner
+							entry={e}
+							style={styles[e.id] ?? null}
+							size="sm"
+							seed={t.status === 'live' || t.status === 'complete' || t.status === 'seeding'
+								? e.seed
+								: null}
+						/>
 						{#if e.description}<p class="entrant-desc">{e.description}</p>{/if}
 					</div>
 				{/each}
@@ -333,9 +446,8 @@
 	}
 	.champion-banner {
 		display: flex;
-		align-items: center;
-		gap: 0.9rem;
-		border-color: var(--gold);
+		flex-direction: column;
+		gap: 0.4rem;
 		margin-bottom: 1.1rem;
 	}
 	.champ-label {
@@ -345,16 +457,72 @@
 		text-transform: uppercase;
 		color: var(--gold);
 	}
+	/* Live match view: the entries' own banners at reading size. */
+	.live-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.9rem;
+	}
+	.live-match {
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.14));
+		border-radius: 10px;
+		padding: 0.8rem;
+	}
+	.live-head {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+		margin-bottom: 0.55rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--dim);
+	}
+	.live-bo {
+		color: var(--gold);
+	}
+	.block-title.live-title {
+		color: var(--crimson);
+	}
+	.live-pair {
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
+		align-items: center;
+		gap: 0.8rem;
+	}
+	.live-vs {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.75rem;
+		color: var(--dim);
+		text-transform: uppercase;
+	}
+	@media (max-width: 46rem) {
+		.live-pair {
+			grid-template-columns: 1fr;
+			justify-items: stretch;
+		}
+		.live-vs {
+			justify-self: center;
+		}
+	}
+	.mine-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.7rem;
+		margin-bottom: 0.5rem;
+	}
+	.style-panel {
+		margin-top: 0.9rem;
+		padding-top: 0.9rem;
+		border-top: 1px solid var(--line, rgba(0, 255, 65, 0.14));
+	}
 	.register {
 		margin-bottom: 1.1rem;
 	}
 	.register h2 {
 		margin-top: 0;
-	}
-	.register.slim {
-		display: flex;
-		align-items: center;
-		gap: 0.7rem;
 	}
 	.note {
 		color: var(--dim);
@@ -403,10 +571,13 @@
 		gap: 0.8rem;
 	}
 	.entrant {
-		padding: 0.7rem 0.85rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+		min-width: 0;
 	}
 	.entrant-desc {
-		margin: 0.4rem 0 0;
+		margin: 0 0 0 0.2rem;
 		color: var(--dim);
 		font-size: 0.85rem;
 	}

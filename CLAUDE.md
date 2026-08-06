@@ -1749,6 +1749,99 @@ notifications, rewards, or banner customization yet; those are later phases.
     verifiable here: a real push arriving (the embedded pane auto-denies
     notification permission) — enable alerts on a real signed-in device and
     submit a pairing result, or use ping.
+- **Phase 2b (migration `0064_tournament_entry_styles.sql`, apply manually
+  after 0063): per-entry banner customization + TV mode.**
+  - **System chrome vs. entry content — the split this phase rests on.**
+    `src/lib/tournaments/tournaments-theme.css` (scoped `.tnm-root`, the
+    `.frc-root` / `.glb` convention) holds the FEATURE'S OWN palette:
+    emerald `#0FBE7A`, base `#0E1412`, panel `#16211C`, gold `#E0AC4E`
+    (placement and rank ONLY), ink `#EDEDE8`. **Restraint is a hard rule:
+    at most ONE dominant emerald element per screen** — the active-match
+    indicator, the primary action, or one key status; a third or fourth
+    surface takes `--tnm-panel` instead. Per-entry styles are a SEPARATE
+    palette the students own, never constrained by these tokens. The
+    existing Phase 1 pages keep their portal-green look; only the NEW
+    chrome (TV mode, the banner editor) adopts `.tnm-root`.
+  - **Data (`tournament_entry_styles`):** one optional row per entry
+    (`entry_id` PK, denormalized `tournament_id` for the realtime filter),
+    holding `background_type` (solid / gradient / image) + `background_value`
+    (**jsonb**: a hex string, a two-hex array, or an https URL — the shape
+    follows the type, and a CHECK ties the two null-together),
+    `accent_color`, `badge`, `flourish`, `tagline`. Public-select to anon +
+    authenticated, ZERO client write path, realtime-published. The badge and
+    flourish allowlists live as CHECK constraints (the DB is the authority;
+    `entry-styles.ts` mirrors them for label + artwork — edit both together).
+    **Absent row = the Phase 1 default treatment**, which is what every
+    entry looks like until its owner customizes it.
+  - **`tournament_set_entry_style`** is the only writer: FULL REPLACEMENT
+    (the `tournament_set_reward_rules` convention), and an all-empty call
+    DELETES the row — that is the reset. Authorization is deliberately
+    asymmetric: the entry's own linked user, OR a host **but only for an
+    UNLINKED walk-up** (`user_id is null`). A host cannot restyle a
+    registered player's banner; it is that player's identity, and the host
+    already controls seeding, matches and removal. Background art reuses the
+    EXISTING public `tournament-thumbs` bucket (same visibility, same
+    own-`<uid>/`-folder rule) rather than adding a second bucket to keep in
+    sync.
+  - **Accent palette, deliberately not green-dominated** (`ACCENT_PRESETS`,
+    measured hues): red 358°, orange 23°, gold 41°, emerald 157°, cyan 180°,
+    blue 221°, violet 261°, pink 330° — emerald is ONE of eight, and a new
+    entry starts with **no accent at all** (falls back to the neutral
+    `#8a938c`), never pre-selected to emerald. A freeform `<input
+    type="color">` sits beside the presets.
+  - **Two render scales, one style.** `EntryChip` (bracket nodes, host rows)
+    applies the accent rule, accent thumbnail ring, badge and a **0.22
+    opacity wash** of the background — faint on purpose, because a chip
+    lives in dense rows where the name must stay the most legible thing.
+    `EntryBanner` (entries list, live match view, TV, editor preview) is the
+    full-strength version: background, tagline, flourishes, sizes
+    `sm|md|lg|xl`. Ink flips to dark over a light custom background by
+    measured luminance (`bannerInk`), and an IMAGE background always gets
+    light ink plus a scrim since the art is unknown.
+  - **Flourishes are cosmetic only** and never encode match state. AMBIENT
+    (`glow-pulse`, `particle-trail`) render continuously; EVENT
+    (`confetti-on-win`, `screen-shake-on-elimination`) are one-shots a
+    surface plays at a moment it already knows about, via `EntryBanner`'s
+    `event` prop, and only for an entry that OPTED IN. Every animation is
+    off under `prefers-reduced-motion` (containers `display: none`).
+  - **TV mode `/tournaments/[id]/tv`:** public and session-blind (no guard,
+    and `/tournaments` must stay out of `authedPrefixes`). `TvStage.svelte`
+    owns everything visual so the dev harness drives the identical component
+    with no backend; the route owns only the load + the realtime channel
+    (the same subscription shape the public live view uses — **no polling**).
+    Five self-advancing states: `register` (large QR + roster), `match`
+    (single live pairing at `xl`; rotates every 12s if several are live),
+    `result` (a 13s beat on a newly-decided match, where the event
+    flourishes get their moment), `champion` (gold, zero emerald), and
+    `between` (next-up pairings + QR). **A BYE is skipped by the result
+    beat** — it completes at generation with an empty side, so celebrating
+    it would park the projector on a match nobody played. The loser reads
+    "Eliminated" only when `loser_to_match_id is null` (0062's own rule),
+    else "Drops to losers". **Deliberately NOT the dense bracket grid:** a
+    16-node bracket on one screen is unreadable across a room, so TV mode
+    shows who is playing now and who is up next. `TournamentQr` gained
+    `variant="panel"`, the same white-sheet present-mode treatment inline,
+    because a screen with no interactive chrome cannot open a modal.
+  - **Verified** in `/dev/tournaments` (the sim now carries sample styles
+    covering all three background types, all four flourishes and unstyled
+    entries side by side, and mounts the REAL EntryStyleEditor + TvStage):
+    a save propagates to the bracket chip, the banner grid and the TV stage
+    in one pass, and Reset returns all three to the default treatment; an
+    unstyled entry seeds the editor with "No accent" selected, not emerald;
+    the light-background entry flips to dark ink (`rgb(14,20,18)`) while
+    dark ones stay light; confetti fired 14 pieces on a real
+    `confetti-on-win` winner and 0 on a winner who had not opted in, and the
+    shake fired (0.55s x 3) on a real `screen-shake-on-elimination` loser in
+    Losers Round 2 while a winners-round loser correctly read "Drops to
+    losers"; every animated selector has a matching reduced-motion override;
+    and at a 1920x1080 projector scale the type measures 147px names / 69px
+    title / 42px LIVE / 28px smallest, with **0 links, buttons or inputs**
+    anywhere in the stage. Emerald audit per state (excluding entries' own
+    palettes): register 1, live 1, result 1, between 1, champion 0 — and
+    zero emerald SURFACES in any state. **NOT verified:** the live Supabase
+    project (the local `.env` is placeholder-only) — apply 0064 by hand and
+    re-check the owner-vs-host RPC boundary and the signed-in editor
+    round-trip there.
 
 ## GREENLINE (prototype)
 

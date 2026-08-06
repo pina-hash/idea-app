@@ -10,6 +10,7 @@ import type {
 	TournamentEntry,
 	TournamentInvite
 } from '$lib/tournaments/tournaments';
+import type { EntryStyle } from '$lib/tournaments/entry-styles';
 
 /**
  * Host console: needs a session AND a tournament_hosts row. This gate is
@@ -34,8 +35,17 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		.maybeSingle();
 	if (!tournament) redirect(303, '/tournaments');
 
-	const [entriesRes, poolsRes, qualRes, bracketRes, gamesRes, invitesRes, hostsRes, rulesRes] =
-		await Promise.all([
+	const [
+		entriesRes,
+		poolsRes,
+		qualRes,
+		bracketRes,
+		gamesRes,
+		invitesRes,
+		hostsRes,
+		rulesRes,
+		stylesRes
+	] = await Promise.all([
 			supabase
 				.from('tournament_entries')
 				.select('*')
@@ -55,7 +65,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 				.eq('tournament_id', params.id)
 				.order('created_at'),
 			supabase.from('tournament_hosts').select('*').eq('tournament_id', params.id),
-			supabase.from('tournament_reward_rules').select('*').eq('tournament_id', params.id)
+			supabase.from('tournament_reward_rules').select('*').eq('tournament_id', params.id),
+			supabase.from('tournament_entry_styles').select('*').eq('tournament_id', params.id)
 		]);
 
 	return {
@@ -68,6 +79,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		invites: (invitesRes.data ?? []) as TournamentInvite[],
 		hostCount: (hostsRes.data ?? []).length,
 		// Fails soft to empty pre-0063.
-		rewardRules: (rulesRes.data ?? []) as RewardRule[]
+		rewardRules: (rulesRes.data ?? []) as RewardRule[],
+		// Fails soft to empty pre-0064.
+		entryStyles: (stylesRes.data ?? []) as EntryStyle[]
 	};
 };

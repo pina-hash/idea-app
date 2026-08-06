@@ -15,6 +15,7 @@ import type {
 	RewardRule,
 	TournamentEntry
 } from '$lib/tournaments/tournaments';
+import type { EntryStyle } from '$lib/tournaments/entry-styles';
 
 let counter = 0;
 const uid = (prefix: string) => `${prefix}-${++counter}`;
@@ -28,6 +29,8 @@ export interface Sim {
 	/** Reward mirror of 0063: rules + the append-only ledger. */
 	rewardRules: RewardRule[];
 	ledger: RewardLedgerRow[];
+	/** Mirror of 0064: per-entry banner styles, keyed by entry id. */
+	styles: Record<string, EntryStyle>;
 }
 
 const NAMES = [
@@ -76,6 +79,63 @@ function find(sim: Sim, bracket: string, round: number, slot: number): BracketMa
 	return m;
 }
 
+/**
+ * Sample banner styles mirroring 0064, deliberately covering every axis:
+ * all three background types, accents spread across the wheel (never
+ * green-heavy), several badges, ALL FOUR flourishes, taglines both present
+ * and absent -- and, just as importantly, entries 5+ carry NO STYLE AT ALL,
+ * so the default treatment is verifiable side by side with customized ones.
+ */
+function sampleStyles(entries: TournamentEntry[]): Record<string, EntryStyle> {
+	const specs: Omit<EntryStyle, 'entry_id' | 'tournament_id'>[] = [
+		{
+			background_type: 'gradient',
+			background_value: ['#3e1d6b', '#8e5bf0'],
+			accent_color: '#8e5bf0',
+			badge: 'bolt',
+			flourish: 'glow-pulse',
+			tagline: 'Third-period specialists'
+		},
+		{
+			background_type: 'solid',
+			background_value: '#7a1418',
+			accent_color: '#e5484d',
+			badge: 'flame',
+			flourish: 'confetti-on-win',
+			tagline: 'Built in a weekend'
+		},
+		{
+			background_type: 'gradient',
+			background_value: ['#0b3b4a', '#22cccc'],
+			accent_color: '#22cccc',
+			badge: 'gear',
+			flourish: 'particle-trail',
+			tagline: null
+		},
+		{
+			background_type: 'solid',
+			background_value: '#f2e6c4',
+			accent_color: '#f76b15',
+			badge: 'crown',
+			flourish: 'screen-shake-on-elimination',
+			tagline: 'Light background, dark ink'
+		},
+		{
+			background_type: null,
+			background_value: null,
+			accent_color: '#0fbe7a',
+			badge: 'shield',
+			flourish: null,
+			tagline: 'Accent only, no background'
+		}
+	];
+	const out: Record<string, EntryStyle> = {};
+	entries.slice(0, specs.length).forEach((e, i) => {
+		out[e.id] = { entry_id: e.id, tournament_id: e.tournament_id, ...specs[i] };
+	});
+	return out;
+}
+
 export function buildSim(n: number): Sim {
 	counter = 0;
 	const entries: TournamentEntry[] = Array.from({ length: n }, (_, i) => ({
@@ -99,7 +159,8 @@ export function buildSim(n: number): Sim {
 		championId: null,
 		status: 'live',
 		rewardRules: [],
-		ledger: []
+		ledger: [],
+		styles: sampleStyles(entries)
 	};
 
 	const placement = seedPlacement(p);

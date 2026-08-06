@@ -1,0 +1,90 @@
+/*
+ * IDEA Tournaments system chrome (Phase 2b).
+ *
+ * Scoped under .tnm-root so it never leaks into the portal shell (the
+ * .frc-root / .fsp-root / .glb convention). This is the palette for the
+ * FEATURE'S OWN UI -- the TV projector view, the banner editor, the frame
+ * around a match. It is deliberately NOT the palette for per-entry banners:
+ * a student's accent, background and badge are their own (see
+ * entry-styles.ts) and are never overridden by these tokens.
+ *
+ * RESTRAINT IS A HARD RULE, not a preference. Most surfaces stay dark
+ * neutral (--tnm-bg / --tnm-panel). Emerald is a deliberate highlight: the
+ * active-match indicator, the primary action, one key status. At most ONE
+ * dominant emerald element per screen. If a third or fourth surface is
+ * getting tinted, it should be --tnm-panel instead. Gold is placement and
+ * rank only (champion, podium, seed) -- never a general accent.
+ */
+
+.tnm-root {
+	--tnm-accent: #0fbe7a;
+	--tnm-accent-dim: rgba(15, 190, 122, 0.5);
+	--tnm-accent-wash: rgba(15, 190, 122, 0.09);
+	--tnm-gold: #e0ac4e;
+	--tnm-gold-wash: rgba(224, 172, 78, 0.1);
+	--tnm-bg: #0e1412;
+	--tnm-panel: #16211c;
+	--tnm-panel-2: #1c2a24;
+	--tnm-ink: #edede8;
+	--tnm-ink-dim: #93a09a;
+	--tnm-line: rgba(237, 237, 232, 0.12);
+	--tnm-line-strong: rgba(237, 237, 232, 0.22);
+
+	background: var(--tnm-bg);
+	color: var(--tnm-ink);
+}
+
+/* Neutral panel: the default surface. Reach for this before any accent. */
+.tnm-root .tnm-panel {
+	background: var(--tnm-panel);
+	border: 1px solid var(--tnm-line);
+	border-radius: 10px;
+}
+
+/* Section label. Neutral by default; `.accent` promotes exactly one per
+ * screen to the emerald highlight. */
+.tnm-root .tnm-label {
+	font-family: 'Share Tech Mono', monospace;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	color: var(--tnm-ink-dim);
+	margin: 0;
+}
+.tnm-root .tnm-label.accent {
+	color: var(--tnm-accent);
+}
+.tnm-root .tnm-label.gold {
+	color: var(--tnm-gold);
+}
+
+/* The active-match indicator: the one emerald element on a live screen. */
+.tnm-root .tnm-live {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5em;
+	font-family: 'Share Tech Mono', monospace;
+	letter-spacing: 0.2em;
+	text-transform: uppercase;
+	color: var(--tnm-accent);
+}
+.tnm-root .tnm-live::before {
+	content: '';
+	width: 0.62em;
+	height: 0.62em;
+	border-radius: 50%;
+	background: var(--tnm-accent);
+	box-shadow: 0 0 0.9em var(--tnm-accent-dim);
+	animation: tnm-live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tnm-live-pulse {
+	50% {
+		opacity: 0.28;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tnm-root .tnm-live::before {
+		animation: none;
+	}
+}
