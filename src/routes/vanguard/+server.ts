@@ -2,6 +2,7 @@ import { PUBLIC_SUPABASE_ANON_KEY, PUBLIC_SUPABASE_URL } from '$env/static/publi
 import { vanguardHtml } from '$lib/legacy';
 import { normalizeStored, type StoredSave } from '$lib/vanguard-save';
 import { injectVersionBadge } from '$lib/version-badge';
+import { isAdmin } from '$lib/server/admin';
 import type { RequestHandler } from './$types';
 
 /**
@@ -44,7 +45,7 @@ interface PlayerProfile {
 /** Build the <head> bootstrap. `cloud` is the normalized v2 save (empty if signed out). */
 function injectionScript(
 	signedIn: boolean,
-	isTeacher: boolean,
+	isAdminUser: boolean,
 	cloud: StoredSave,
 	profile: PlayerProfile,
 	runStates: unknown
@@ -70,7 +71,7 @@ function injectionScript(
 	return `${seoHead}<script>
 (function () {
 	var SIGNED_IN = ${signedIn ? 'true' : 'false'};
-	var IS_TEACHER = ${isTeacher ? 'true' : 'false'};
+	var IS_TEACHER = ${isAdminUser ? 'true' : 'false'};
 	window.__ideaIsTeacher = IS_TEACHER;
 	var CLOUD = ${cloudJson};
 	var PROFILE = ${profileJson};
@@ -438,7 +439,7 @@ function injectionScript(
 
 export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	let signedIn = false;
-	let isTeacher = false;
+	let isAdminUser = false;
 	let cloud: StoredSave = { v: 2, progression: {}, prefs: {} };
 	let profile: PlayerProfile = { name: '', avatarUrl: '' };
 	// One saved in-progress run per mode (0037). We inject the snapshots so the
@@ -458,7 +459,9 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 		]);
 		cloud = normalizeStored(saveRes.data?.data);
 		const p = profileRes.data;
-		isTeacher = p?.role === 'teacher';
+		// Admin-only since 0067: this flag unlocks the game's TUNE mode (a dev
+		// tool), which belongs to the same privileged tier as everything else.
+		isAdminUser = await isAdmin(supabase, claims.sub);
 		profile = {
 			name: p?.display_name || p?.full_name || claims.email || 'Signed in',
 			avatarUrl: p?.avatar_url || ''
@@ -467,7 +470,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	}
 
 	let htmlContent = vanguardHtml;
-	if (!isTeacher) {
+	if (!isAdminUser) {
 		// Strip the query param check that forces tune mode
 		htmlContent = htmlContent
 			.replace(
@@ -487,7 +490,7 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims } }) => {
 	}
 
 	const html = injectVersionBadge(
-		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, isTeacher, cloud, profile, runStates)}`),
+		htmlContent.replace('<head>', `<head>\n${injectionScript(signedIn, isAdminUser, cloud, profile, runStates)}`),
 		'vanguard'
 	);
 

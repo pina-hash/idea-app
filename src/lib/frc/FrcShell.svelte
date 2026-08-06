@@ -31,14 +31,14 @@
 
 	// `rankCount` is an optional override for the dev harness; in the real track
 	// it falls back to the /frc layout's frcCompletedCount (page data).
-	// `teacherOverride` likewise lets the dev harness simulate a teacher without
+	// `adminOverride` likewise lets the dev harness simulate an admin without
 	// a real Supabase session; the real track derives it from the signed-in
 	// profile's role.
 	let {
 		children,
 		rankCount,
-		teacherOverride
-	}: { children: import('svelte').Snippet; rankCount?: number; teacherOverride?: boolean } =
+		adminOverride
+	}: { children: import('svelte').Snippet; rankCount?: number; adminOverride?: boolean } =
 		$props();
 
 	const path = $derived(page.url.pathname);
@@ -57,18 +57,20 @@
 	// getContext(FRC_VIEW_CONTEXT_KEY); FrcShell is the sole owner of the
 	// toggle so it survives navigation between /frc pages (this layout
 	// component stays mounted while its child pages change).
-	const isTeacher = $derived(teacherOverride ?? page.data.userProfile?.role === 'teacher');
+	// Admin, not teacher (0067): frc_mark_complete and the gate-review RPCs are
+	// admin-only, so the tools that call them show only to admins.
+	const isAdmin = $derived(adminOverride ?? page.data.isAdmin === true);
 	let viewAsStudent = $state(false);
 
 	setContext<FrcViewContext>(FRC_VIEW_CONTEXT_KEY, {
-		get isTeacher() {
-			return isTeacher;
+		get isAdmin() {
+			return isAdmin;
 		},
 		get viewAsStudent() {
 			return viewAsStudent;
 		},
 		get showOverride() {
-			return isTeacher && !viewAsStudent;
+			return isAdmin && !viewAsStudent;
 		}
 	});
 </script>
@@ -96,7 +98,7 @@
 			<a href="/frc" class:active={onHome}>Track home</a>
 			<a href="/frc/references" class:active={onRefs}>References</a>
 			<a href="/" class="portal">IDEA Portal</a>
-			{#if isTeacher}
+			{#if isAdmin}
 				<button
 					type="button"
 					class="frc-view-toggle"
@@ -112,7 +114,7 @@
 		</nav>
 	</header>
 
-	{#if isTeacher && viewAsStudent}
+	{#if isAdmin && viewAsStudent}
 		<div class="frc-preview-banner" role="status">
 			Previewing the track as a student sees it. Teacher tools are hidden.
 		</div>

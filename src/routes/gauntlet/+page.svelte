@@ -19,7 +19,7 @@
 	};
 
 	let { data } = $props();
-	let { supabase, userName, userRole, isTeacher, modeStats } = $derived(data);
+	let { supabase, userName, userRole, isAdmin, modeStats } = $derived(data);
 
 	const liveCount = MODES.filter((m) => m.status === 'live').length;
 	const totalCleared = $derived(
@@ -114,7 +114,7 @@
 		<span class="btn secondary">View board &rsaquo;</span>
 	</a>
 
-	{#if isTeacher}
+	{#if isAdmin}
 		<a class="card author-callout" href="/gauntlet/author">
 			<div>
 				<div class="author-title">Authoring</div>

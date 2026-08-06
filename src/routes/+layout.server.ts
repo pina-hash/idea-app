@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchUserProfile } from '$lib/profile';
+import { isAdmin } from '$lib/server/admin';
 import type { LayoutServerLoad } from './$types';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -28,13 +29,20 @@ async function loadProfile(supabase: SupabaseClient, userId: string) {
  * Also loads the signed-in user's profile once here (as `userProfile`, a key
  * no page load shadows) so the global ProfileMenu and per-user preferences
  * are available on every page, on the first render.
+ *
+ * `isAdmin` rides along for the same reason: since 0067 every privileged
+ * affordance in the shell (the launcher's admin tools, the dashboard link,
+ * FRC teacher tools) keys off admin rather than `role === 'teacher'`, and
+ * resolving it once here keeps every component from asking separately.
  */
 export const load: LayoutServerLoad = async ({ locals: { supabase, claims }, cookies }) => {
 	const userProfile = claims ? await loadProfile(supabase, claims.sub) : null;
+	const admin = claims ? await isAdmin(supabase, claims.sub) : false;
 
 	return {
 		claims,
 		userProfile,
+		isAdmin: admin,
 		cookies: cookies.getAll()
 	};
 };

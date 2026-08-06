@@ -34,7 +34,8 @@
 	const claims = $derived(page.data.claims);
 	const profile = $derived((page.data.userProfile ?? null) as UserProfile | null);
 	const signedIn = $derived(!!claims);
-	const isTeacher = $derived(profile?.role === 'teacher');
+	// Admin, not teacher (0067): the launcher's gated tools are admin surfaces.
+	const isAdmin = $derived(page.data.isAdmin === true);
 
 	let prefs = $state<HomepagePrefs>({});
 	$effect(() => {
@@ -45,7 +46,7 @@
 	let saving = $state(false);
 	let saveError = $state('');
 
-	const apps = $derived(visibleApps(isTeacher));
+	const apps = $derived(visibleApps(isAdmin));
 	const pinned = $derived(pinnedApps(apps, prefs));
 	const compact = $derived(!!prefs.compact);
 

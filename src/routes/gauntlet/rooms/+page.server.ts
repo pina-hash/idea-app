@@ -1,11 +1,14 @@
 import { redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 import type { RoomState } from '$lib/gauntlet';
 
 /**
- * Live rooms landing. Auth-gated with the rest of /gauntlet. Anyone can join a
- * room by code; teachers can also host. We load the rooms the user hosts and the
- * rooms they have joined so they can return (room state is DB-authoritative).
+ * Live rooms landing. Auth-gated with the rest of /gauntlet. Anyone can JOIN a
+ * room by code; hosting is admin-only since 0067 (gauntlet_room_create's own
+ * is_teacher() check now resolves to the admin check). We load the rooms the
+ * user hosts and the rooms they have joined so they can return (room state is
+ * DB-authoritative).
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
@@ -18,9 +21,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.eq('id', claims.sub)
 		.single();
 
-	const isTeacher = profile?.role === 'teacher';
+	const canHost = await isAdmin(supabase, claims.sub);
 
-	const { data: hosted } = isTeacher
+	const { data: hosted } = canHost
 		? await supabase
 				.from('gauntlet_rooms')
 				.select('id, join_code, state, created_at')
@@ -46,7 +49,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
-		isTeacher,
+		isAdmin: canHost,
 		hosted: (hosted ?? []) as Array<{ id: string; join_code: string; state: RoomState }>,
 		joined
 	};

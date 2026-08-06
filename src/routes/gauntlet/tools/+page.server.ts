@@ -1,10 +1,11 @@
 import { redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 import { TOOLS_MANIFEST_PATH, type ToolsManifest } from '$lib/gauntlet';
 
 /**
  * GAUNTLET tools: the single page for both run tools (the SolidWorks add-in and
- * the VBA macros), plus the teacher-only author-capture macro. Auth-gated with
+ * the VBA macros), plus the ADMIN-only author-capture macro. Auth-gated with
  * the rest of /gauntlet (hooks.server.ts). Every download is served straight
  * from static/tools; the manifest (also static) carries the versions, dates,
  * and changelog shown on the page so a stale local copy is obvious at a glance.
@@ -32,7 +33,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims }, fetch
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
-		isTeacher: profile?.role === 'teacher',
+		isAdmin: await isAdmin(supabase, claims.sub),
 		manifest
 	};
 };

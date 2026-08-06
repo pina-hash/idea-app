@@ -23,7 +23,7 @@
 	 * — including the "not yet added" state on units with no authored answer
 	 * key — can be checked on any unit, not just MDM-1.
 	 *
-	 * "Simulate teacher" drives FrcShell's `teacherOverride` prop, standing in
+	 * "Simulate admin" drives FrcShell's `adminOverride` prop, standing in
 	 * for a real signed-in teacher profile so the "View as student" toggle (the
 	 * real header button, rendered by FrcShell itself) and the in-track
 	 * teacher-override strip on the CAD domain landing can be verified without
@@ -216,7 +216,7 @@
 	{/each}
 	<label class="sim-teacher">
 		<input type="checkbox" bind:checked={simulateTeacher} />
-		Simulate teacher
+		Simulate admin
 	</label>
 </div>
 
@@ -280,7 +280,7 @@
 	</div>
 {/if}
 
-<FrcShell rankCount={count} teacherOverride={simulateTeacher}>
+<FrcShell rankCount={count} adminOverride={simulateTeacher}>
 	{#if view === 'progression'}
 		<TrackHome {count} />
 		<DomainLanding domain={cad} {completed} onToggleComplete={toggle} />

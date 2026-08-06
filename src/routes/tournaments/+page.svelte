@@ -10,8 +10,8 @@
 	let { data }: { data: PageData } = $props();
 
 	const signedIn = $derived(!!data.claims);
-	/** A host of this one, or any teacher. The RPC enforces the same rule. */
-	const canDelete = (t: Tournament) => data.isTeacher || data.hostedIds.includes(t.id);
+	/** A host of this one, or any site admin. The RPC enforces the same rule. */
+	const canDelete = (t: Tournament) => data.isAdmin || data.hostedIds.includes(t.id);
 	const entryCount = (t: Tournament) =>
 		data.entryRows.filter((e) => e.tournament_id === t.id).length;
 	const championName = (t: Tournament) =>

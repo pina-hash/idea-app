@@ -9,7 +9,7 @@
 	} from '$lib/gauntlet';
 
 	let { data } = $props();
-	let { supabase, userName, userRole, isTeacher, manifest } = $derived(data);
+	let { supabase, userName, userRole, isAdmin, manifest } = $derived(data);
 
 	const addin = $derived(manifest?.addin ?? null);
 	const macros = $derived(manifest?.macros ?? null);
@@ -168,7 +168,7 @@
 		</div>
 	</section>
 
-	{#if isTeacher}
+	{#if isAdmin}
 		<!-- Teacher-only: author capture macro. -->
 		<section class="tool-section">
 			<div class="tool-col-head">

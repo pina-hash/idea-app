@@ -43,10 +43,19 @@ export const load: LayoutLoad = async ({ fetch, data, depends }) => {
 	// the name and avatar correct without a refresh. Gated to the browser so
 	// SSR (which already tried via +layout.server.ts) doesn't double-fetch.
 	let userProfile = data?.userProfile ?? null;
+	let isAdmin = data?.isAdmin ?? false;
 	const userId = (claims as { sub?: string } | null)?.sub;
 	if (!userProfile && userId && isBrowser()) {
 		userProfile = await fetchUserProfile(supabase, userId);
+		// The admin flag (0067) is resolved server-side in +layout.server.ts and
+		// only re-checked here in the SAME transient the profile self-heal
+		// exists for: if that read came back empty, the server's is_admin() call
+		// raced the settling session too and would have answered false for a
+		// real admin. Deliberately not re-checked on the normal path -- that
+		// would be a second round trip on every page for every visitor.
+		const { data: adminData } = await supabase.rpc('is_admin');
+		isAdmin = adminData === true;
 	}
 
-	return { supabase, claims, userProfile };
+	return { supabase, claims, userProfile, isAdmin };
 };

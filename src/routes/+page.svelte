@@ -20,6 +20,7 @@
 		type SuggestibleChallenge
 	} from '$lib/gauntlet/progression';
 	import { modeById } from '$lib/gauntlet';
+	import { ADMIN_OWNER_EMAIL } from '$lib/admin';
 	import {
 		sectionsByYear,
 		sectionById,
@@ -34,7 +35,11 @@
 	let { supabase, claims, userProfile: profile } = $derived(data);
 
 	const signedIn = $derived(!!claims);
+	// Two different questions, deliberately kept apart since 0067:
+	// isTeacher = staff rather than a student (drives which homepage a person
+	// gets), isAdmin = may actually use the privileged tools.
 	const isTeacher = $derived(profile?.role === 'teacher');
+	const isAdmin = $derived(data.isAdmin === true);
 	const mySection = $derived(sectionById(profile?.section_id));
 
 	// GAUNTLET "continue / next best" nudge (signed-in only; null pre-0021).
@@ -378,7 +383,7 @@
 			</button>
 			<div class="auth-block">
 				{#if signedIn}
-					{#if isTeacher}
+					{#if isAdmin}
 						<a class="auth-link" href="/dashboard">Dashboard</a>
 					{/if}
 					<ProfileMenu />
@@ -529,7 +534,16 @@
 			{/if}
 		{:else if signedIn && isTeacher}
 			<div class="course-card teacher-note">
-				<p>You are signed in as a teacher. Use the <a href="/dashboard">Dashboard</a> for teacher tools.</p>
+				{#if isAdmin}
+					<p>
+						You are signed in as staff. Use the <a href="/dashboard">Dashboard</a> for admin tools.
+					</p>
+				{:else}
+					<p>
+						You are signed in as staff. Admin tools are limited to site admins; contact
+						{ADMIN_OWNER_EMAIL} if you need access.
+					</p>
+				{/if}
 			</div>
 		{:else}
 			<div class="course-card signin-note">

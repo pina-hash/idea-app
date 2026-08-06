@@ -4,7 +4,7 @@
 	import { roomStateLabel } from '$lib/gauntlet';
 
 	let { data } = $props();
-	let { supabase, userName, userRole, isTeacher, hosted, joined } = $derived(data);
+	let { supabase, userName, userRole, isAdmin, hosted, joined } = $derived(data);
 
 	let joinCode = $state('');
 	let busy = $state(false);
@@ -101,7 +101,7 @@
 
 	{#if error}<p class="warn">{error}</p>{/if}
 
-	{#if isTeacher}
+	{#if isAdmin}
 		<div class="btn-row">
 			<button class="btn" type="button" disabled={busy} onclick={createRoom}>+ Host a new room</button>
 		</div>

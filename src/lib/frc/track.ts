@@ -172,9 +172,9 @@ export function unitState(unit: FrcUnit, completed: ReadonlySet<string>): UnitSt
 export const FRC_VIEW_CONTEXT_KEY = 'frc-view';
 
 export interface FrcViewContext {
-	readonly isTeacher: boolean;
+	readonly isAdmin: boolean;
 	readonly viewAsStudent: boolean;
-	/** True only for a teacher NOT currently previewing as a student. */
+	/** True only for an admin NOT currently previewing as a student. */
 	readonly showOverride: boolean;
 }
 

@@ -2,16 +2,21 @@ import { redirect } from '@sveltejs/kit';
 import { loadProgressForUsers } from '$lib/frc/progression';
 import { loadPendingSubmissions } from '$lib/frc/gate-submissions';
 import { GREENLINE_DECALS_BUCKET, loadPendingDecals } from '$lib/greenline/decals';
+import { isAdmin } from '$lib/server/admin';
 import type { Actions, PageServerLoad } from './$types';
 
 /**
- * The dashboard is the teacher-only area; students use the homepage as their
- * dashboard. We load the profile and redirect anyone who is not a teacher to
- * `/`. (hooks.server.ts already redirects anonymous users off `/dashboard`; the
- * role lives in `profiles`, so the teacher check happens here.)
+ * The dashboard is the ADMIN area (0067), not merely a staff one: it carries
+ * the role editor, student contact data and three moderation queues. An
+ * ordinary @boscotech.edu teacher is redirected to `/` like anyone else.
+ * (hooks.server.ts already redirects anonymous users off `/dashboard`.)
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
+		redirect(303, '/');
+	}
+
+	if (!(await isAdmin(supabase, claims.sub))) {
 		redirect(303, '/');
 	}
 
@@ -21,14 +26,11 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.eq('id', claims.sub)
 		.single();
 
-	if (profile?.role !== 'teacher') {
-		redirect(303, '/');
-	}
-
-	// Student roster for the pathway admin view. Teachers read every profile
-	// via the "teachers select all profiles" RLS policy; pathway edits go
-	// through the "teachers update any profile" policy from the client. Fails
-	// soft to an empty roster until migration 0038 adds the pathway column.
+	// Student roster for the pathway admin view. Admins read every profile via
+	// the "teachers select all profiles" RLS policy (whose is_teacher() now
+	// resolves to the admin check); pathway edits go through "teachers update
+	// any profile" the same way. Fails soft to an empty roster until migration
+	// 0038 adds the pathway column.
 	const { data: students, error: rosterError } = await supabase
 		.from('profiles')
 		.select('id, email, full_name, display_name, avatar, avatar_url, pathway')

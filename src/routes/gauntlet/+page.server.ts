@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -13,7 +14,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		redirect(303, '/');
 	}
 
-	const [{ data: profile }, { data: challenges }, { data: mine }, { data: progression }] =
+	const [{ data: profile }, { data: challenges }, { data: mine }, { data: progression }, admin] =
 		await Promise.all([
 			supabase.from('profiles').select('full_name, role').eq('id', claims.sub).single(),
 			// Published challenges per mode (counts + ids for the completion dots).
@@ -27,7 +28,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			supabase.from('gauntlet_leaderboard').select('mode, is_correct').eq('user_id', claims.sub),
 			// Progression aggregates (XP, streak days, badges), derived read-only
 			// from submissions by the 0021 RPC. Fails soft to null pre-migration.
-			supabase.rpc('gauntlet_progression')
+			supabase.rpc('gauntlet_progression'),
+			// Authoring is admin-only since 0067, so the entry point is too.
+			isAdmin(supabase, claims.sub)
 		]);
 
 	const totals: Record<string, number> = {};
@@ -44,7 +47,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	return {
 		userName: profile?.full_name ?? claims.email ?? 'Signed in',
 		userRole: profile?.role ?? 'student',
-		isTeacher: profile?.role === 'teacher',
+		isAdmin: admin,
 		modeStats: { totals, cleared, idsByMode },
 		progression: progression ?? null
 	};

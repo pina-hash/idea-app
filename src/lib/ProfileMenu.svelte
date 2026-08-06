@@ -231,7 +231,7 @@
 				{/if}
 
 				<div class="pm-actions">
-					{#if profile?.role === 'teacher'}
+					{#if page.data.isAdmin}
 						<a class="pm-link" href="/dashboard" onclick={close}>Dashboard</a>
 					{/if}
 					<button class="pm-link pm-signout" type="button" onclick={signOut}>Sign out</button>

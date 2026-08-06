@@ -84,9 +84,53 @@ ability, it is not required to browse the portal.
   - `@boscotech.edu` -> `teacher`
   - `@boscotech.net` -> `student`
   - anything else -> `visitor`
-- **Role editing:** teachers can change other users' roles. No one can change
-  their own role. This is enforced server-side (a guard trigger plus RLS), not
-  in client code.
+- **ADMIN TIER (`0067`), and the rule that supersedes every "teacher-only"
+  claim elsewhere in this file.** `teacher` is still auto-granted by domain and
+  still marks staff apart from students, but **on its own it now grants nothing
+  privileged**. Every elevated capability requires an explicit ADMIN grant.
+  - **`is_admin()` is the check.** `public.app_admins` is the roster, keyed by
+    LOWERCASED EMAIL (not user id) so an account can be authorized before it has
+    ever signed in. `is_owner()` is the owner-only check.
+  - **THE NAMING TRAP, read this before touching any policy:** `is_teacher()`
+    still exists and **now returns `is_admin()`**. Redefining that one function
+    body was how ~90 already-applied `is_teacher()` references across 0001-0066
+    were re-gated at once -- migrations here are an immutable applied record, so
+    those policies could not be rewritten in place, and Postgres resolves a
+    function by name at call time. **`is_teacher()` does NOT mean "is a
+    teacher". Never write a new call to it; use `is_admin()`.**
+  - **The owner is pinned in the schema.** `admin_owner_email()` is a hardcoded
+    constant (`apina@boscotech.edu`) and `is_admin()`/`is_owner()` fall back to
+    it directly, so the owner keeps access even if `app_admins` is emptied. Only
+    the owner can `admin_grant` / `admin_revoke`; no admin can demote the owner,
+    and `enforce_role_change` additionally refuses any change to the owner's
+    profile role. Changing who the owner is means a new migration, deliberately.
+    `ADMIN_OWNER_EMAIL` in `src/lib/admin.ts` mirrors it for DISPLAY only --
+    never as a check -- and the two must be changed together, as must the
+    literal in the `app_admins_owner_is_pinned` CHECK.
+  - **Grants are limited to `@boscotech.edu`** (enforced in `admin_grant`), so a
+    student or outside address can never hold admin.
+  - **App side:** `src/lib/server/admin.ts` (`isAdmin` / `isOwner`) is the ONE
+    server helper, and `isAdmin` rides `page.data` from the root layout for UI.
+    `role === 'teacher'` is NOT an admin check any more; the only place it still
+    appears is that helper's PRE-0067 FALLBACK (when the RPC is missing, matched
+    on the `PGRST202` code ALONE so a runtime error inside `is_admin()` fails
+    closed rather than open) and the homepage's staff-vs-student branch.
+  - **What is admin-only:** `/dashboard`, `/coin-entry` + `/api/coin-ledger/*`,
+    `/admin`, GAUNTLET authoring / room hosting / the author-capture macro, FRC
+    completion overrides and gate reviews, the FSP FRC-interest roster,
+    GREENLINE decal + community-track moderation, tournament deletion, the
+    all-users feedback read, and VANGUARD's TUNE mode. **Deliberate exception:**
+    `/fsp/live` stays open to any `@boscotech.edu` account -- it is gated
+    in-page by email domain, was never one of the `is_teacher()` sites, and
+    shows only questions students submitted to be displayed.
+- **Role editing:** ADMINS (not teachers) can change other users' roles. No one
+  can change their own role, and the owner's role cannot be changed by anyone.
+  Enforced server-side (`enforce_role_change` plus RLS), not in client code.
+- **`/admin`** is the roster page: any admin may read it, only the owner sees
+  the add/remove controls, and `admin_grant`/`admin_revoke` refuse everyone else
+  server-side regardless. A non-admin (signed in or not) gets a 404, not a
+  redirect, so probing the URL reveals nothing; it is deliberately NOT in
+  `authedPrefixes` for that reason.
 - **Global profiles (0020):** `profiles` also carries `display_name` (user
   editable), `avatar` (`preset:<id>` from `AVATAR_PRESETS` in
   `src/lib/profile.ts`, `upload:<path>` in the public `avatars` Storage bucket,

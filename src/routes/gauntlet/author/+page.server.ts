@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { isAdmin } from '$lib/server/admin';
 import type { PageServerLoad } from './$types';
 import {
 	DEFAULT_SPEEDRUN_RULESET,
@@ -8,14 +9,20 @@ import {
 } from '$lib/gauntlet';
 
 /**
- * Teacher-only authoring: the challenge management list. Teachers see ALL
- * challenges (drafts, published, archived) via the teacher RLS read policy;
- * students never reach this route. The role check is server-side, mirroring the
- * dashboard (hooks.server.ts already blocks anonymous users off /gauntlet*).
+ * ADMIN-only authoring (0067): the challenge management list. Admins see ALL
+ * challenges (drafts, published, archived) via the RLS read policy whose
+ * is_teacher() now resolves to the admin check; nobody else reaches this
+ * route. The gate is server-side, mirroring the dashboard (hooks.server.ts
+ * already blocks anonymous users off /gauntlet*), and the authoring RPCs
+ * re-check server-side regardless.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
 		redirect(303, '/');
+	}
+
+	if (!(await isAdmin(supabase, claims.sub))) {
+		redirect(303, '/gauntlet');
 	}
 
 	const { data: profile } = await supabase
@@ -23,10 +30,6 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.select('full_name, role')
 		.eq('id', claims.sub)
 		.single();
-
-	if (profile?.role !== 'teacher') {
-		redirect(303, '/gauntlet');
-	}
 
 	const { data: challenges } = await supabase
 		.from('challenges')

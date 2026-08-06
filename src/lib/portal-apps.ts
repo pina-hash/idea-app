@@ -24,8 +24,8 @@ export interface PortalApp {
 	cta: string;
 	/** Needs a session to enter (the card offers sign-in when anonymous). */
 	requiresAuth?: boolean;
-	/** Only rendered for teachers. */
-	teacherOnly?: boolean;
+	/** Only rendered for site admins (0067; was teachers). */
+	adminOnly?: boolean;
 	/** Per-card accent colors. Falls back to the shared brass/gold scheme when unset. */
 	theme?: { primary: string; secondary: string };
 }
@@ -92,23 +92,34 @@ export const PORTAL_APPS: PortalApp[] = [
 	{
 		id: 'coin-entry',
 		title: 'Coin Entry',
-		sub: 'Award coins to students. Teacher tool.',
+		sub: 'Award coins to students. Admin tool.',
 		icon: 'coin-entry',
 		href: '/coin-entry',
 		group: 'tools',
 		cta: 'Open',
-		teacherOnly: true,
+		adminOnly: true,
 		theme: { primary: '#C8A848', secondary: '#D08030' }
 	},
 	{
 		id: 'dashboard',
-		title: 'Teacher Dashboard',
-		sub: 'Roles, teacher tools, and content management.',
+		title: 'Admin Dashboard',
+		sub: 'Roles, pathways, and the content review queues.',
 		icon: 'dashboard',
 		href: '/dashboard',
 		group: 'tools',
 		cta: 'Open',
-		teacherOnly: true,
+		adminOnly: true,
+		theme: { primary: '#78B870', secondary: '#5ABDA8' }
+	},
+	{
+		id: 'admin',
+		title: 'Site Admins',
+		sub: 'Who can administer the portal. Owner manages the list.',
+		icon: 'dashboard',
+		href: '/admin',
+		group: 'tools',
+		cta: 'Open',
+		adminOnly: true,
 		theme: { primary: '#78B870', secondary: '#5ABDA8' }
 	},
 	{
@@ -163,9 +174,9 @@ export function readHomepagePrefs(preferences: unknown): HomepagePrefs {
 	return hp as HomepagePrefs;
 }
 
-/** The apps visible to this visitor (teacher tools only for teachers). */
-export function visibleApps(isTeacher: boolean): PortalApp[] {
-	return PORTAL_APPS.filter((a) => !a.teacherOnly || isTeacher);
+/** The apps visible to this visitor (admin tools only for admins). */
+export function visibleApps(isAdmin: boolean): PortalApp[] {
+	return PORTAL_APPS.filter((a) => !a.adminOnly || isAdmin);
 }
 
 /**
