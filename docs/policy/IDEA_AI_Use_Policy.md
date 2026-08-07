@@ -1,6 +1,6 @@
 # IDEA AI Use Policy
 
-**Established:** 2026-08-06 (v1)
+**Established:** 2026-08-06 (v2, revised same day: Calculation & Analysis moved to ASSIST, Design & CAD moved to OPEN)
 **Applies to:** IDEA100, all IDEA209H sections (including Mr. Cosso's independently-taught Senior section), and any course added to the pathway after this one.
 **Referenced by:** `HTML_ASSIGNMENT_BUILD_STANDARDS.md` (AI-Level Badge), `IDEA_instructions.md` (HTML Assignment Workflow), `IDEA209H_AI_Policy_Quick_Reference.md` (standalone instructor copy).
 
@@ -22,11 +22,11 @@ What "checked" means depends on the kind of work:
 
 | Category | How you verify it |
 |---|---|
-| Calculation & Analysis | Redo it independently, by hand or calculator. Check units carry through. Sanity-check the magnitude against a case you already know. |
+| Calculation & Analysis | Confirm the setup: right formula, right values, right assumptions. Check units carry through. Sanity-check the magnitude against a case you already know. Full manual re-derivation isn't required if the setup and the sense-check both hold. |
 | Research & Catalog Selection | Click through to the actual datasheet or catalog page. Confirm the number is really printed there. AI's memory of a spec is not the spec. |
 | Written Reports & Reflection | Confirm any fact, standard, or figure it hands you is real and says what it claims. |
 | Code | Run it. Test it against a case with a known-correct output. Code that hasn't been executed hasn't been verified. |
-| Design & CAD | Check it physically closes, meets the actual load or requirement, and would manufacture the way it's drawn. Not just "looks right." |
+| Design & CAD | Check it physically closes, meets the actual load or requirement, and would manufacture the way it's drawn. Not just "looks right." Applies at every level including OPEN, verification doesn't go away just because AI's share of the work goes up. |
 | Notebook & Timed/Live Work | Not applicable. Nothing AI-assisted enters this category. |
 
 ### 2. Explain it or it doesn't count
@@ -56,6 +56,8 @@ Every module or assignment carries one of these, shown to students as a badge.
 
 *"What's the torque for this loading scenario."* That's not COACH, that's asking for the answer to copy. Same tool, opposite outcome. One produces understanding a student can defend later. The other produces nothing they can defend, which principle 2 catches regardless.
 
+**OPEN still isn't a blank check:** a student who uses AI heavily to iterate a bracket design, tries several variants, picks the one that clears interference and hits the load spec, and can explain why the wall thickness and fillet radius are what they are, that's OPEN working as intended. A student who can't say why any dimension is what it is fails the defense the same way any other unexplainable submission does. The level changes how much AI can touch the process. It never changes principle 2.
+
 ---
 
 ## Category Defaults
@@ -64,24 +66,24 @@ A default, not a fixed rule. The actual level for a specific assignment, or a sp
 
 | Category | Covers | Default | Why |
 |---|---|---|---|
-| **Calculation & Analysis** | Force/torque/gear-ratio math, tolerance and fit, any hand-computed engineering value | 1 · COACH | The computation method is the tested skill. This is exactly what 209H's checkpoints already verify before the defense happens. |
+| **Calculation & Analysis** | Force/torque/gear-ratio math, tolerance and fit, any engineering computation | 2 · ASSIST | Knowing how to set the calculation up is the tested skill, not re-doing the arithmetic by hand every time. Once the setup is right, AI computing and re-computing it as inputs change is a calculator, not a crutch. Principle 2 still requires the student to explain the method and the result. |
 | **Research & Catalog Selection** | Component and material selection from real vendor sources, published datasheets, bill of materials | 2 · ASSIST | Matches how this actually gets done in industry. The risk isn't AI helping search, it's AI stating a spec that isn't real. Every number traces to the actual catalog page. |
 | **Written Reports & Reflection** | Lab conclusions, design rationale, post-season analysis, self-assessment | 2 for technical/analytical writing, 1 for reflective/personal writing | The conclusion is the student's judgment either way. Reflection loses its whole point if AI writes it instead of reviewing it. |
 | **Code** | Programming, scripting, embedded or robot logic | 2 · ASSIST | Matches real software practice. The line has to be one the student can explain and modify, not just paste. |
-| **Design & CAD** | Mechanism design, sketching, generative-design exploration | 2 · ASSIST | Generative design is already taught content in this space, not a shortcut. AI can help explore options. The selected design and its justification are the student's. |
+| **Design & CAD** | Mechanism design, sketching, generative-design exploration, CAD modeling | 3 · OPEN | Outcome over process. If AI gets a student to a better, faster, working design, that's the point, not a shortcut around it. Generative design is already taught content in this space. Principle 2 still applies: the student has to be able to explain and defend the resulting design when asked. |
 | **Notebook & Timed/Live Work** | Contemporaneous notebook entries, in-class timed work, oral defense, proctored exams | 0 · OFF | Enforced by the setting, not an honor rule. An AI-assisted notebook entry stops being a record of what actually happened. |
 
 ---
 
 ## Setting the Level
 
-Same pattern as choosing an assignment's visual aesthetic: recommended with a one-line reason, confirmed or overridden before anything gets built, never assumed. A calculation module meant to prove unaided competence can drop to 0. A catalog assignment specifically built to teach AI-assisted parts search can go to 3. The category table is a starting point, not a ceiling.
+Same pattern as choosing an assignment's visual aesthetic: recommended with a one-line reason, confirmed or overridden before anything gets built, never assumed. A calculation module meant to prove unaided competence can still drop to 0 or 1. A foundational CAD module meant to test raw interface literacy, placing a mate, dimensioning a sketch, without AI, can drop below Design & CAD's default of 3 the same way. The category table is a starting point, not a ceiling, and for Design & CAD specifically, not a floor either.
 
 Multi-module assignments (209H's staged checkpoints are the clearest example) can carry a different level per module. Checkpoint 1 might sit at COACH while Checkpoint 2 sits at ASSIST, inside the same assignment.
 
 ### AI-Level Badge
 
-Each module header shows the level as a badge (`AI · COACH`, etc.), next to the points badge, color-coded, with a hover tooltip carrying the full rule for that level. A module with no student-submitted content, a live or in-person component graded outside the page, like an oral defense, skips the badge rather than forcing a value that doesn't apply.
+Each module header shows the level as a badge (`AI · COACH`, etc.), next to the points badge, color-coded, with a hover tooltip carrying the full rule for that level. Full technical spec (colors, tooltip mechanism, build-time behavior) is in `HTML_ASSIGNMENT_BUILD_STANDARDS.md`. A module with no student-submitted content, a live or in-person component graded outside the page, like an oral defense, skips the badge rather than forcing a value that doesn't apply.
 
 ---
 

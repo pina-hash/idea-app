@@ -36,13 +36,16 @@ Every assignment or checkpoint is marked with one of these:
 
 | Kind of work | Usual level | What "verified" means here |
 |---|---|---|
-| Force/torque/gear-ratio calculations, tolerance and fit | 1 · COACH | Redo it independently. Check units. Check the magnitude makes sense. |
+| Force/torque/gear-ratio calculations, tolerance and fit | 2 · ASSIST | AI can run the numbers. Check the setup, formula, values, assumptions, and that the magnitude makes sense. |
 | Component and material selection, bill of materials | 2 · ASSIST | The spec is checked against the real datasheet or catalog page, not AI's memory of one. |
 | Written conclusions and lab reports | 2 · ASSIST | Any cited fact or standard is confirmed real. |
 | Self-assessment or reflective writing | 1 · COACH | The voice and the thinking have to be the student's. AI reviews a real draft, doesn't write it. |
+| SolidWorks and CAD design work | 3 · OPEN | Wide open, AI can drive the design itself. Still has to close, meet the load, and be explainable when you ask why a dimension is what it is. |
 | Notebook entries, timed work | 0 · OFF | Enforced by being in the room, not by the honor system. |
 
 Assignments Mr. Pina builds show the level for each module as a small badge in the header (`AI · COACH`, etc.), color-coded, with the full rule available on hover. No badge on a module means it's a live or in-person component, like the defense, where a badge doesn't apply.
+
+**Why calculation and design read differently from writing:** for calculation, knowing how to set the problem up is the skill. Once that's right, AI running the numbers is no different from a calculator. For design, the design itself is the deliverable, if AI gets a student to a better one faster, that counts. For writing, especially reflection, the thinking and the voice are the entire point, so AI's role stays smaller there. Same policy, different reasoning per category, not an inconsistency.
 
 ---
 
