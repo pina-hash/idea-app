@@ -127,8 +127,10 @@ export const GET: RequestHandler = async ({ locals: { supabase, claims }, cookie
 		);
 	}
 
+	// Token-wise, not substring: DRIVE_SCOPE (.../auth/drive) is a prefix of
+	// drive.file, so String.includes would miss a drive.file-only grant.
 	const scopeNote =
-		result.scope && !result.scope.includes(DRIVE_SCOPE)
+		result.scope && !result.scope.split(/\s+/).includes(DRIVE_SCOPE)
 			? `<p class="warn">Warning: the granted scope was <code>${esc(result.scope)}</code>, not
 				<code>${esc(DRIVE_SCOPE)}</code>. Uploads may fail; reconnect and approve the requested access.</p>`
 			: `<p class="dim">Granted scope: <code>${esc(result.scope ?? DRIVE_SCOPE)}</code></p>`;

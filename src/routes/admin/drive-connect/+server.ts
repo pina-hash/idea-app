@@ -7,7 +7,8 @@ import type { RequestHandler } from './$types';
 /**
  * Step 1 of the one-time notebook Drive connection (see
  * src/lib/server/notebook-drive.ts): redirects the chair to Google's consent
- * screen requesting exactly the drive.file scope, with access_type=offline
+ * screen requesting the full drive scope (the target folder pre-exists in the
+ * shared drive, which drive.file cannot reliably write into), with access_type=offline
  * and prompt=consent -- without both, Google will not reliably issue the
  * refresh token this whole flow exists to produce.
  *

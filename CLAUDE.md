@@ -2552,8 +2552,13 @@ arrives in later sessions and should not need to touch this layer again.
   so it could never be granted access. An ADMIN runs the one-time consent
   flow at `/admin/drive-connect` (404 to everyone else including signed-out —
   the `/admin` rule — and deliberately NOT in `authedPrefixes`; a status card
-  on `/admin` links it): it redirects to Google requesting exactly the
-  `drive.file` scope with `access_type=offline` AND `prompt=consent`, both
+  on `/admin` links it): it redirects to Google requesting the FULL
+  `https://www.googleapis.com/auth/drive` scope (not `drive.file`: the target
+  folder pre-exists in the shared drive, neither created by this app nor
+  granted through a Picker flow, and drive.file's per-file model does not
+  reliably cover creating files inside it — the limitation the original
+  service-account module already documented) with `access_type=offline` AND
+  `prompt=consent`, both
   explicit because without both Google will not reliably return a refresh
   token at all. The callback matches the registered redirect URI
   `https://ideabosco.com/admin/drive-connect/callback` exactly (a constant in

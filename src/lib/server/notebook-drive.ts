@@ -17,10 +17,13 @@
  * GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET, and every Drive call
  * then acts AS that account.
  *
- * The scope is exactly https://www.googleapis.com/auth/drive.file: the app
- * only ever creates notebook photos (and best-effort-deletes its own
- * orphans), and drive.file covers files this app itself creates while never
- * exposing the rest of the connected account's Drive. The consent request
+ * The scope is the FULL https://www.googleapis.com/auth/drive, not
+ * drive.file: the target folder is a pre-existing folder inside the shared
+ * drive that this app neither created nor obtained through a Picker flow,
+ * and drive.file's per-file access model does not reliably extend to
+ * creating files inside such a folder -- the same limitation the original
+ * service-account module documented and worked around with the full scope.
+ * The consent request
  * carries access_type=offline AND prompt=consent, both explicitly: without
  * both, Google will not reliably return a refresh token at all, only a
  * short-lived access token, and the whole flow silently produces something
@@ -55,7 +58,7 @@ export const DRIVE_ENDPOINTS = {
 	files: 'https://www.googleapis.com/drive/v3/files'
 };
 
-export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
 
 /** State cookie the two /admin/drive-connect routes share (CSRF check). */
 export const DRIVE_STATE_COOKIE = 'nb_drive_oauth_state';
