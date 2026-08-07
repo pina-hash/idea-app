@@ -2585,6 +2585,14 @@ arrives in later sessions and should not need to touch this layer again.
   token directly. 4 MB cap (Vercel body limit), JPEG/PNG/WebP/HEIC only.
   Neither route is in `authedPrefixes` (they answer their own 401s, the
   vanguard-save pattern).
+- **Smoke test:** `/admin/notebook-drive-test` (the `/admin` 404 gate, not in
+  `authedPrefixes`) is a bare admin-only form that pushes ONE real image
+  through the existing `/api/notebook/upload` as a `custom_label` entry and
+  shows the entry id + Drive file id with a view-in-Drive link (or the
+  route's actual error). Temporary scaffolding to prove the Drive write path
+  before the student-facing upload UI exists; retire it once that lands.
+  `/dev/notebook-drive-test` (404 in production, no auth) mounts the same
+  page component for harness verification.
 - **Verified** against a real embedded Postgres (0001 + 0003 + 0020 + 0067 +
   0069 applied unmodified, Supabase-shaped auth/storage stubs, the tournament
   harness approach): RLS isolation between two students, instructor and
