@@ -2584,7 +2584,18 @@ arrives in later sessions and should not need to touch this layer again.
   neither route (nor anything else) touches the client secret or refresh
   token directly. 4 MB cap (Vercel body limit), JPEG/PNG/WebP/HEIC only.
   Neither route is in `authedPrefixes` (they answer their own 401s, the
-  vanguard-save pattern).
+  vanguard-save pattern). **Drive filenames are human-readable** (the admin
+  browses the folder by eye):
+  `{date}_{identifier}_{label}_{variant}_{entry-short-id}.{ext}` via
+  `notebookDriveFilename` (LA-calendar date; identifier = display_name ->
+  full_name -> email local part, the greenline author_name order; label =
+  session label else custom_label else "entry", slugified and capped at 40;
+  short-id = first 8 of the entry uuid). The upload route pushes to Drive
+  BEFORE the entry exists, so it uploads under a provisional random short-id
+  and best-effort RENAMES (`renameNotebookFile`) to the entry's short-id
+  after the RPC returns; add-photo names correctly at upload. Cosmetic only:
+  the DB still stores only the Drive file id, and a failed name lookup or
+  rename never fails an upload.
 - **Smoke test:** `/admin/notebook-drive-test` (the `/admin` 404 gate, not in
   `authedPrefixes`) is a bare admin-only form that pushes ONE real image
   through the existing `/api/notebook/upload` as a `custom_label` entry and

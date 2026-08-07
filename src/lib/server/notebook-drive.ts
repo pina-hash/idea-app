@@ -198,6 +198,77 @@ async function accessToken(force = false): Promise<string> {
 }
 
 /**
+ * One slug component of a Drive filename: lowercase, spaces to hyphens,
+ * anything not alphanumeric-or-hyphen stripped, hyphen runs collapsed,
+ * capped. Falls back so a component can never be empty (an empty segment
+ * would read as a double separator in the name).
+ */
+export function driveNameSlug(raw: string | null | undefined, cap: number, fallback: string): string {
+	const s = (raw ?? '')
+		.toLowerCase()
+		.replace(/\s+/g, '-')
+		.replace(/[^a-z0-9-]/g, '')
+		.replace(/-+/g, '-')
+		.replace(/^-|-$/g, '')
+		.slice(0, cap)
+		.replace(/-$/, '');
+	return s || fallback;
+}
+
+/**
+ * The human-readable Drive filename for a notebook photo:
+ * {date}_{identifier}_{label}_{variant}_{short-id}.{ext}. The shared-drive
+ * folder is browsed BY EYE by the admin managing it, so the name carries who,
+ * what, and when; the database still only ever stores the Drive file ID, so
+ * the name is presentation, never an identifier anything reads back.
+ * short-id (first 8 of the entry uuid) keeps identical date/identifier/label
+ * names from colliding. Date is the America/Los_Angeles calendar day, the
+ * same day convention the notebook's on-time math uses (0069).
+ */
+export function notebookDriveFilename(opts: {
+	identifier: string | null | undefined;
+	label: string | null | undefined;
+	variant: string;
+	entryShortId: string;
+	ext: string;
+}): string {
+	const date = new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'America/Los_Angeles',
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit'
+	}).format(new Date());
+	const identifier = driveNameSlug(opts.identifier, 40, 'student');
+	const label = driveNameSlug(opts.label, 40, 'entry');
+	return `${date}_${identifier}_${label}_${opts.variant}_${opts.entryShortId}.${opts.ext}`;
+}
+
+/**
+ * Best-effort rename, used by /api/notebook/upload AFTER notebook_create_entry
+ * returns: that route must push the file to Drive before the entry exists (the
+ * RPC takes the file id), so the entry's short-id can only land in the name by
+ * renaming afterwards. Swallows every error like deleteNotebookFile does -- the
+ * filename is presentation only, and a failed rename must never fail an upload
+ * that actually succeeded.
+ */
+export async function renameNotebookFile(fileId: string, filename: string): Promise<void> {
+	try {
+		const attempt = (token: string) =>
+			fetch(`${DRIVE_ENDPOINTS.files}/${encodeURIComponent(fileId)}?supportsAllDrives=true`, {
+				method: 'PATCH',
+				headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+				body: JSON.stringify({ name: filename })
+			});
+		let res = await attempt(await accessToken());
+		if (res.status === 401) {
+			res = await attempt(await accessToken(true));
+		}
+	} catch {
+		// Cosmetic; the provisional name is already readable.
+	}
+}
+
+/**
  * Uploads one photo into the notebook shared-drive folder and returns the
  * Drive file id. Throws with a readable message on any failure; the caller
  * decides how to surface it.

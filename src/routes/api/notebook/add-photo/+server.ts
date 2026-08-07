@@ -1,6 +1,11 @@
 import { json } from '@sveltejs/kit';
-import { deleteNotebookFile, driveConfigured, uploadNotebookPhoto } from '$lib/server/notebook-drive';
-import { formText, readPhotoForm, UUID_RE } from '$lib/server/notebook-upload';
+import {
+	deleteNotebookFile,
+	driveConfigured,
+	notebookDriveFilename,
+	uploadNotebookPhoto
+} from '$lib/server/notebook-drive';
+import { driveIdentifierFor, formText, readPhotoForm, UUID_RE } from '$lib/server/notebook-upload';
 import type { RequestHandler } from './$types';
 
 /**
@@ -45,13 +50,31 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: "variant must be 'original' or 'enhanced'." }, { status: 400 });
 	}
 
+	// Human-readable Drive name; the entry exists here, so its label (session
+	// label when linked, else the custom label) and short-id are read up front.
+	// Best-effort reads: a failure only degrades the NAME, never the upload.
+	const identifier = await driveIdentifierFor(supabase, claims);
+	const { data: entryRow } = await supabase
+		.from('notebook_entries')
+		.select('custom_label, notebook_sessions(label)')
+		.eq('id', entryId)
+		.maybeSingle();
+	const sessionLabel = (entryRow?.notebook_sessions as { label?: string } | null)?.label ?? null;
+	const label = sessionLabel ?? (entryRow?.custom_label as string | null) ?? null;
+
 	const bytes = new Uint8Array(await read.photo.arrayBuffer());
 	let fileId: string;
 	try {
 		fileId = await uploadNotebookPhoto({
 			bytes,
 			mimeType: read.photo.type,
-			filename: `notebook_${claims.sub}_${entryId}_${Date.now()}_${variant}.${read.ext}`
+			filename: notebookDriveFilename({
+				identifier,
+				label,
+				variant,
+				entryShortId: entryId.slice(0, 8),
+				ext: read.ext
+			})
 		});
 	} catch (e) {
 		return json({ error: (e as Error).message || 'Drive upload failed.' }, { status: 502 });

@@ -1,6 +1,13 @@
 import { json } from '@sveltejs/kit';
-import { deleteNotebookFile, driveConfigured, uploadNotebookPhoto } from '$lib/server/notebook-drive';
-import { formText, readPhotoForm, UUID_RE } from '$lib/server/notebook-upload';
+import { randomUUID } from 'node:crypto';
+import {
+	deleteNotebookFile,
+	driveConfigured,
+	notebookDriveFilename,
+	renameNotebookFile,
+	uploadNotebookPhoto
+} from '$lib/server/notebook-drive';
+import { driveIdentifierFor, formText, readPhotoForm, UUID_RE } from '$lib/server/notebook-upload';
 import type { RequestHandler } from './$types';
 
 /**
@@ -53,13 +60,32 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: 'Provide a session_id or a custom_label.' }, { status: 400 });
 	}
 
+	// Human-readable Drive name (the admin browses the folder by eye): the
+	// label is the session's label when session-linked, else the custom label.
+	// Both lookups are best-effort -- a failed read only degrades the NAME.
+	const identifier = await driveIdentifierFor(supabase, claims);
+	let label = customLabel;
+	if (sessionId) {
+		const { data: session } = await supabase
+			.from('notebook_sessions')
+			.select('label')
+			.eq('id', sessionId)
+			.maybeSingle();
+		label = (session?.label as string | null) ?? customLabel;
+	}
+
 	const bytes = new Uint8Array(await read.photo.arrayBuffer());
 	let fileId: string;
+	const nameFor = (entryShortId: string) =>
+		notebookDriveFilename({ identifier, label, variant: 'original', entryShortId, ext: read.ext });
 	try {
 		fileId = await uploadNotebookPhoto({
 			bytes,
 			mimeType: read.photo.type,
-			filename: `notebook_${claims.sub}_${Date.now()}_original.${read.ext}`
+			// The entry does not exist yet (the RPC below needs the file id
+			// first), so upload under a provisional random short-id and rename
+			// to the entry's real short-id once the RPC returns it.
+			filename: nameFor(randomUUID().slice(0, 8))
 		});
 	} catch (e) {
 		return json({ error: (e as Error).message || 'Drive upload failed.' }, { status: 502 });
@@ -75,6 +101,13 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	if (error) {
 		await deleteNotebookFile(fileId);
 		return json({ error: error.message }, { status: 400 });
+	}
+
+	const entryId = (data as { entry_id?: string } | null)?.entry_id;
+	if (entryId) {
+		// Best-effort: a failed rename leaves the provisional name, which is
+		// already readable; it must never fail a succeeded upload.
+		await renameNotebookFile(fileId, nameFor(entryId.slice(0, 8)));
 	}
 
 	return json({ ok: true, drive_file_id: fileId, entry: data });
