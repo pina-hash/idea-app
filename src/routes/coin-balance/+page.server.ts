@@ -1,9 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import {
-	eatingPassStatus,
 	sumBalance,
 	withCategoryNames,
-	type CoinBalanceTransaction
+	type CoinBalanceTransaction,
+	type EatingPassStatus
 } from '$lib/coin-balance';
 import type { PageServerLoad } from './$types';
 
@@ -17,7 +17,7 @@ import type { PageServerLoad } from './$types';
  * to also cover "signed in but the wrong role" the same way /dashboard
  * redirects a non-admin teacher away.
  *
- * Every query below runs as the CALLER'S OWN session (locals.supabase, the
+ * Balance and history run as the CALLER'S OWN session (locals.supabase, the
  * per-request cookie-scoped client hooks.server.ts sets up for every
  * request) with no `.eq('student_email', ...)` filter and no RPC call at
  * all: coin_transactions and coin_wage_tiers (0070) already grant a signed-in
@@ -27,6 +27,13 @@ import type { PageServerLoad } from './$types';
  * through coin_admin_lookup (an is_admin()-gated RPC) -- this route
  * exercises the student read path those policies were built for, and never
  * touches coin_admin_lookup or any other admin RPC.
+ *
+ * Eating Pass status IS one RPC call: `coin_my_eating_pass_status()` (0072),
+ * a no-parameter wrapper that resolves the caller's own identity internally
+ * and calls the existing coin_eating_pass_active / coin_eating_pass_strikes
+ * functions directly -- those two were never granted to `authenticated`
+ * (only their SECURITY DEFINER callers could reach them), and this page
+ * trusts that one answer rather than re-deriving the rule in TypeScript.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
@@ -42,14 +49,16 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	const [
 		{ data: categories, error: catError },
 		{ data: transactions, error: txError },
-		{ data: wageRow, error: wageError }
+		{ data: wageRow, error: wageError },
+		{ data: passStatus, error: passError }
 	] = await Promise.all([
 		supabase.from('coin_categories').select('id, name'),
 		supabase
 			.from('coin_transactions')
 			.select('id, category_id, amount, quantity, note, meta, created_at')
 			.order('created_at', { ascending: false }),
-		supabase.from('coin_wage_tiers').select('tier').maybeSingle()
+		supabase.from('coin_wage_tiers').select('tier').maybeSingle(),
+		supabase.rpc('coin_my_eating_pass_status')
 	]);
 
 	// Fails soft: 0070 not applied yet reads as a clearly-flagged "ledger not
@@ -57,6 +66,12 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	const configured = !catError && !txError;
 
 	const rows = (transactions ?? []) as CoinBalanceTransaction[];
+
+	// Fails soft the same way: 0072 not applied yet (but 0070 is) reads as
+	// "no pass held" rather than a crashed page.
+	const eatingPass: EatingPassStatus = passError
+		? { active: false, strikes: 0 }
+		: (passStatus as EatingPassStatus);
 
 	return {
 		configured,
@@ -68,6 +83,6 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		// same default coin_wage_tiers.tier's column default expresses, and
 		// what coin_admin_lookup itself falls back to.
 		wageTier: wageError ? null : (wageRow?.tier ?? 1),
-		eatingPass: eatingPassStatus(rows)
+		eatingPass
 	};
 };

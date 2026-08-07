@@ -8,6 +8,14 @@
  * is_admin()`) -- never coin_admin_lookup or any other is_admin()-gated RPC.
  * There is no write path here at all; /coin-desk is the only place a coin
  * transaction is ever logged.
+ *
+ * Eating Pass status is NOT derived here. It used to be re-implemented in TS
+ * over the transaction list (a second copy of coin_eating_pass_active /
+ * coin_eating_pass_strikes' rule, liable to drift from the SQL silently);
+ * 0072's `coin_my_eating_pass_status()` RPC now calls those two functions
+ * directly and is the one place that rule lives. +page.server.ts calls it
+ * and passes the result straight through -- this page trusts the database's
+ * answer, it does not recompute it.
  */
 
 export interface CoinBalanceTransaction {
@@ -37,45 +45,13 @@ export function withCategoryNames(
 	return transactions.map((t) => ({ ...t, category_name: names.get(t.category_id) ?? t.category_id }));
 }
 
+/**
+ * Shape of `coin_my_eating_pass_status()`'s jsonb result (0072). Not derived
+ * here -- see the module doc comment above.
+ */
 export interface EatingPassStatus {
 	active: boolean;
 	strikes: number;
-}
-
-/**
- * Mirrors `coin_eating_pass_active` / `coin_eating_pass_strikes` (0070) in
- * pure TS over an already-fetched transaction list. Those two SQL functions
- * are `revoke all ... from public` with no explicit `grant ... to
- * authenticated` -- only SECURITY DEFINER callers (coin_log_transaction,
- * coin_admin_lookup) can reach them, so a student session cannot call them
- * directly. This is the read-side equivalent, computed from rows the
- * student's own RLS policy already lets them see, not a second privileged
- * code path or an admin RPC.
- *
- * `transactions` MUST be sorted newest-first (created_at desc), matching the
- * page's own query order -- the same order the SQL functions' own `order by
- * created_at desc` produces.
- */
-export function eatingPassStatus(transactions: CoinBalanceTransaction[]): EatingPassStatus {
-	const passEvents = transactions.filter(
-		(t) => t.category_id === 'eating_pass' || t.category_id === 'eating_pass_revoked'
-	);
-	const active = passEvents[0]?.category_id === 'eating_pass';
-
-	// Strikes count since the most recent Eating Pass PURCHASE (not the
-	// revoke event) -- coin_eating_pass_strikes' own coalesce-to-'-infinity'
-	// rule, so a student who has never bought a pass counts every strike ever
-	// logged (there being nothing to reset against).
-	const lastPurchase = transactions.find((t) => t.category_id === 'eating_pass');
-	const cutoff = lastPurchase?.created_at ?? null;
-	const strikes = transactions.filter(
-		(t) =>
-			t.category_id === 'eating_violation' &&
-			t.meta?.strike === true &&
-			(cutoff === null || t.created_at >= cutoff)
-	).length;
-
-	return { active, strikes };
 }
 
 /**

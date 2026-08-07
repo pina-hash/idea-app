@@ -1,18 +1,22 @@
 <script lang="ts">
 	import CoinBalanceView from '$lib/coin-balance/CoinBalanceView.svelte';
 	import {
-		eatingPassStatus,
 		sumBalance,
 		withCategoryNames,
-		type CoinBalanceTransaction
+		type CoinBalanceTransaction,
+		type EatingPassStatus
 	} from '$lib/coin-balance';
 
 	/**
-	 * Dev harness: mounts the REAL CoinBalanceView, with its balance/strike
-	 * numbers run through the REAL pure helpers (coin-balance.ts) over sample
-	 * rows shaped exactly like a coin_transactions select -- so this exercises
-	 * the same derivation +page.server.ts runs, not hand-picked totals. No
-	 * Supabase or auth needed.
+	 * Dev harness: mounts the REAL CoinBalanceView, with its balance run
+	 * through the REAL pure helper (coin-balance.ts) over sample rows shaped
+	 * exactly like a coin_transactions select -- so this exercises the same
+	 * derivation +page.server.ts runs, not a hand-picked total. Eating Pass
+	 * status is no longer derived at all (0072): the real page gets it
+	 * verbatim from `coin_my_eating_pass_status()`, so this harness supplies
+	 * the SAME answer that RPC would give for each sample history, hardcoded
+	 * per scenario rather than recomputed -- there is no TS mirror of that
+	 * rule left to run. No Supabase or auth needed.
 	 *
 	 * Scenarios:
 	 *  - "populated" -- a normal history: fines, awards, an active Eating Pass
@@ -20,7 +24,8 @@
 	 *  - "revoked pass" -- 3 strikes auto-revoked the pass (coin_log_transaction's
 	 *    own rule): eating_pass_active reads false, but eating_pass_strikes
 	 *    still reads 3 -- the strike count is "since the last PURCHASE", not
-	 *    "since the pass was last active", exactly like the real SQL function.
+	 *    "since the pass was last active", exactly like the real SQL function
+	 *    coin_my_eating_pass_status() calls.
 	 *  - "empty" -- no transactions yet: the clear empty state, not a blank
 	 *    page or an error.
 	 *  - "not configured" -- migration 0070 not applied: the fail-soft card.
@@ -72,13 +77,23 @@
 	type Scenario = 'populated' | 'revoked' | 'empty' | 'unconfigured';
 	let scenario = $state<Scenario>('populated');
 
+	// What coin_my_eating_pass_status() returns for each sample history above
+	// -- verified against the (now-removed) TS mirror before it was deleted,
+	// so these are the real SQL function's answers, not guesses.
+	const EATING_PASS: Record<Scenario, EatingPassStatus> = {
+		populated: { active: true, strikes: 1 },
+		revoked: { active: false, strikes: 3 },
+		empty: { active: false, strikes: 0 },
+		unconfigured: { active: false, strikes: 0 }
+	};
+
 	const rows = $derived(
 		scenario === 'populated' ? POPULATED : scenario === 'revoked' ? REVOKED : []
 	);
 	const configured = $derived(scenario !== 'unconfigured');
 	const displayTx = $derived(withCategoryNames(rows, CATEGORIES));
 	const balance = $derived(sumBalance(rows));
-	const eatingPass = $derived(eatingPassStatus(rows));
+	const eatingPass = $derived(EATING_PASS[scenario]);
 	const wageTier = $derived(scenario === 'populated' ? 2 : 1);
 </script>
 

@@ -595,31 +595,44 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
   `+page.server.ts` on `profiles.role === 'student'` (redirects anonymous or
   non-student visitors to `/`, the `/dashboard` non-admin pattern), and also
   listed in `hooks.server.ts` `authedPrefixes` for defense in depth.
-  **Queries run as the signed-in caller with no RPC and no `student_email`
-  filter at all** -- `coin_transactions` / `coin_wage_tiers` already grant a
-  non-admin SELECT on `student_email = current_user_email()` rows only
-  (0070), so the filtering is entirely the RLS policy this page exercises,
-  never `coin_admin_lookup` or any other `is_admin()`-gated RPC. Eating Pass
-  active/strike state can't be read from `coin_eating_pass_active` /
-  `coin_eating_pass_strikes` directly (0070 grants those to no one but their
-  SECURITY DEFINER callers), so `src/lib/coin-balance.ts` reimplements that
-  same logic in pure TS (`eatingPassStatus`) over the already-fetched
-  transaction list -- the read-side mirror of the SQL, not a second
-  privileged path. `src/lib/coin-balance/CoinBalanceView.svelte` is the
-  presentation component (the `CoinDeskTool.svelte` split), so
-  `/dev/coin-balance` (404 in production, no auth/Supabase) mounts the same
-  component against sample data run through the real pure helpers, covering
-  a populated account, an Eating Pass revoked on its third strike (active
-  reads false, strikes still reads 3 -- "since the last purchase", exactly
-  like the SQL), the empty-history state, and the pre-0070 fail-soft state.
-  Linked from the homepage app launcher (`portal-apps.ts`, `coin-balance`,
-  Tools group, `requiresAuth`, not `adminOnly`) beside the public coin
-  leaderboard and the two admin coin tools. **NOT verified: a real
-  non-admin session against a live project** -- this repo's `.env` points at
-  a placeholder Supabase project (`example-ref.supabase.co`), so there is no
-  live database to sign in against; verified instead via the dev harness
-  (all four states render correctly with 0 console errors) and by reading
-  0070's RLS policies directly.
+  **Balance and history run as the signed-in caller with no RPC and no
+  `student_email` filter at all** -- `coin_transactions` / `coin_wage_tiers`
+  already grant a non-admin SELECT on `student_email = current_user_email()`
+  rows only (0070), so the filtering is entirely the RLS policy this page
+  exercises, never `coin_admin_lookup` or any other `is_admin()`-gated RPC.
+  **Eating Pass status is ONE RPC call, `coin_my_eating_pass_status()`
+  (`0072_coin_my_eating_pass_status.sql`, apply manually after 0071), not a
+  second implementation of the rule.** `coin_eating_pass_active` /
+  `coin_eating_pass_strikes` (0070) were never granted to `authenticated` --
+  only their SECURITY DEFINER callers could reach them -- so this page used
+  to re-derive that same logic in pure TS over the transaction list, a second
+  copy of the rule liable to drift from the SQL if it were ever tuned later
+  with nothing to catch the mismatch. `coin_my_eating_pass_status()` closes
+  that: a thin, NO-PARAMETER SECURITY DEFINER wrapper that resolves the
+  caller's own identity via `current_user_email()` (the exact function the
+  RLS policies above already key on, so a student can only ever see their own
+  status) and calls the two existing functions DIRECTLY -- one implementation
+  of the rule, safely exposed, never re-derived. `+page.server.ts` calls it
+  and passes the jsonb result straight through; `src/lib/coin-balance.ts`
+  keeps only the `EatingPassStatus` type (the RPC's response shape), not any
+  logic. `src/lib/coin-balance/CoinBalanceView.svelte` is the presentation
+  component (the `CoinDeskTool.svelte` split), so `/dev/coin-balance` (404 in
+  production, no auth/Supabase) mounts the same component against sample data
+  -- balance still run through the real `sumBalance`/`withCategoryNames`
+  helpers, Eating Pass status hardcoded per scenario to the same answer
+  `coin_my_eating_pass_status()` would give (there being no TS mirror left to
+  compute it from) -- covering a populated account, an Eating Pass revoked on
+  its third strike (active reads false, strikes still reads 3 -- "since the
+  last purchase", exactly like the SQL), the empty-history state, and the
+  pre-0070 fail-soft state. Linked from the homepage app launcher
+  (`portal-apps.ts`, `coin-balance`, Tools group, `requiresAuth`, not
+  `adminOnly`) beside the public coin leaderboard and the two admin coin
+  tools. **NOT verified: a real non-admin session against a live project** --
+  this repo's `.env` points at a placeholder Supabase project
+  (`example-ref.supabase.co`), so there is no live database to sign in
+  against, and 0072 has never been applied anywhere; verified instead via the
+  dev harness (all four states render correctly with 0 console errors) and by
+  reading 0070/0072's RLS policies and grants directly.
 
 ## 2026-27 curriculum
 
