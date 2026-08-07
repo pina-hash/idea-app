@@ -493,6 +493,46 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
     the balance and history updated correctly -- `runLookup` now takes a
     `refresh` flag that skips clearing it when called from `submitEntry`'s
     own follow-up read.
+  - **Separately cross-checked against the REAL, unmodified 0070 SQL** (the
+    dev-harness pass above talks to `fake-ledger.ts`, a hand-written JS
+    approximation of the rules -- useful for the interactive states but not
+    proof the real RPCs agree). A temporary route (mounting the same
+    `CoinDeskTool.svelte`, deleted before commit, never part of the repo)
+    had its `supabase.rpc()` calls forwarded VERBATIM -- same fn name, same
+    param object the component actually builds -- to a bridge server that
+    executes them as real named-parameter calls (`fn(p_x => $1, ...)`)
+    against 0001+0067+0070 applied unmodified on embedded Postgres, under a
+    real `role authenticated` session with the pinned owner's uid as the
+    JWT sub. Every one of `coin_admin_lookup`, `coin_log_transaction`
+    (flat/range/per_unit/variable-award/variable-adjustment/cap_reached/
+    debt/Eating-Pass-strikes-and-auto-revoke), `coin_log_perfect_score`,
+    `coin_log_pay_raise`, `coin_log_property_damage_careless`,
+    `coin_log_three_d_printing`, and `coin_log_extra_credit`
+    (cap-before-debt ordering, confirmed by triggering `cap_exceeded` on an
+    already-negative balance and getting the cap reason, not `debt`) was
+    driven through real browser interaction and matched what the component
+    predicted, with **zero mismatches** between what `CoinDeskTool.svelte`
+    constructs and what the real SQL does.
+  - **The two behaviors the source docs never pinned down, resolved by
+    running the real RPCs (not inferred):**
+    1. **3D Printing's grams-to-coins rounding is round-half-up (away from
+       zero), not banker's rounding.** `round(p_grams / 10.0)` at
+       `p_grams = 25` (an exact 2.5 tie) returned material cost **3**, not
+       2 -- banker's rounding would tie 2.5 to the even neighbor (2).
+       Confirmed a second, independent `round()` call site agrees:
+       Property Damage's `round(p_cost_dollars / 0.25)` at `p_cost_dollars
+       = 0.125` (also an exact 0.5 tie) also rounded up. Matches
+       `Math.round()`, which the client preview already uses -- so the
+       preview and the real charge agree at ties too, not just off them.
+    2. **The hour-band boundaries are right-exclusive at BOTH ends -- an
+       exact boundary hour always lands in the pricier band, never the
+       cheaper one.** Read directly off the `<` operators in
+       `coin_log_three_d_printing` and confirmed by real RPC calls: `1.0`
+       hours exactly is NOT "under 1 hour" (charged 2i¢, the 1-3hr band,
+       not free) and `3.0` hours exactly is NOT "1-3 hours" (charged 4i¢,
+       the 3-6hr band). So the effective bands are `[0,1) free / [1,3) 2i¢
+       / [3,6) 4i¢ / [6,∞) 6i¢`, despite the docs' prose ("1-3
+       hours: 2i¢") reading as if 3.0 could go either way.
 - **Admin balance tool is single-email only, currently.** Both
   `coin_admin_lookup` and `coin_admin_adjust_balance` take exactly one
   `p_email`; there is no bulk/multi-email path in the RPCs or in the
