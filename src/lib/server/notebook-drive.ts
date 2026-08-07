@@ -1,119 +1,193 @@
 /**
- * Server-side Google Drive uploads for the digital notebook ($lib/server, so
- * SvelteKit refuses to bundle any of this client-side -- the coin-ledger /
- * push convention). Photo BYTES live in a Google Shared Drive; Postgres
- * stores only the returned Drive file id (0069).
+ * Server-side Google Drive integration for the digital notebook ($lib/server,
+ * so SvelteKit refuses to bundle any of this client-side -- the coin-ledger /
+ * push convention). Photo BYTES live in a folder inside a Google Shared
+ * Drive; Postgres stores only the returned Drive file id (0069).
  *
- * Auth is a Google SERVICE ACCOUNT: the JSON key from
- * GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY ($env/dynamic/private, server-only, read
- * at runtime so a missing value never breaks the build -- the routes answer
- * 503 "not configured" instead). Uploads land in the shared drive folder
- * GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID; the service account's email must be a
- * member of that shared drive (Content manager) or every upload 404s.
+ * AUTH IS OAUTH ON BEHALF OF A REAL BOSCO TECH ACCOUNT, not a service
+ * account. The shared drive's Workspace policy blocks any identity outside
+ * the school's domain, and a service account is an outside identity by
+ * definition, so the earlier service-account approach could never be granted
+ * access. Instead the chair runs the one-time consent flow at
+ * /admin/drive-connect signed in as a real @boscotech.edu account; Google
+ * returns a REFRESH TOKEN which is copied BY HAND into Vercel as
+ * GOOGLE_DRIVE_REFRESH_TOKEN (displayed once, never logged, never stored in
+ * the database). This module mints short-lived access tokens from it on
+ * demand (cached until shortly before expiry) using the OAuth client in
+ * GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET, and every Drive call
+ * then acts AS that account.
  *
- * No googleapis dependency: the OAuth2 JWT-bearer exchange is ~40 lines of
- * node:crypto (RS256), and the upload is one multipart/related POST. The
- * token is cached until shortly before expiry. supportsAllDrives=true rides
- * every call because the target is a shared drive, which the plain endpoints
- * pretend not to see.
+ * The scope is exactly https://www.googleapis.com/auth/drive.file: the app
+ * only ever creates notebook photos (and best-effort-deletes its own
+ * orphans), and drive.file covers files this app itself creates while never
+ * exposing the rest of the connected account's Drive. The consent request
+ * carries access_type=offline AND prompt=consent, both explicitly: without
+ * both, Google will not reliably return a refresh token at all, only a
+ * short-lived access token, and the whole flow silently produces something
+ * useless.
  *
- * The scope is the full https://www.googleapis.com/auth/drive rather than
- * drive.file: the service account is dedicated to this feature and must
- * create files inside a shared-drive folder it did not itself create, which
- * drive.file's "files you opened or created" grant does not reliably cover.
+ * Uploads land in the folder NOTEBOOK_FOLDER_ID -- a folder INSIDE a shared
+ * drive, not a shared-drive root -- so every call carries
+ * supportsAllDrives=true; the plain endpoints pretend shared-drive content
+ * does not exist and writes into a shared-drive-nested folder fail without
+ * it. The current folder is the default below; GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID
+ * only needs setting if the folder ever moves (the COIN_LEDGER_URL
+ * convention).
+ *
+ * ONE EGRESS POINT: this module is the only code that reads the OAuth client
+ * secret or the refresh token. The connect routes call driveConsentUrl() /
+ * exchangeDriveCode(); the upload routes call uploadNotebookPhoto() /
+ * deleteNotebookFile(); nothing else touches the credentials.
  */
 
-import { createSign, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { env } from '$env/dynamic/private';
-
-interface ServiceAccountKey {
-	client_email: string;
-	private_key: string;
-	token_uri?: string;
-}
 
 /**
  * Google API hosts. Exported as a mutable object ONLY so the offline
  * verification harness can point them at a local mock (the real Google side
- * needs the real key); production code must never write to this.
+ * needs a real consent grant); production code must never write to this.
  */
 export const DRIVE_ENDPOINTS = {
+	auth: 'https://accounts.google.com/o/oauth2/v2/auth',
+	token: 'https://oauth2.googleapis.com/token',
 	upload: 'https://www.googleapis.com/upload/drive/v3/files',
 	files: 'https://www.googleapis.com/drive/v3/files'
 };
 
-const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive';
-const DEFAULT_TOKEN_URI = 'https://oauth2.googleapis.com/token';
+export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
-function parseKey(): ServiceAccountKey | null {
-	const raw = env.GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY;
-	if (!raw) return null;
-	try {
-		const parsed = JSON.parse(raw) as Partial<ServiceAccountKey>;
-		if (!parsed.client_email || !parsed.private_key) return null;
-		return {
-			client_email: parsed.client_email,
-			// A key pasted into an env editor sometimes arrives with literal
-			// backslash-n sequences; normalize them to real newlines.
-			private_key: parsed.private_key.replace(/\\n/g, '\n'),
-			token_uri: parsed.token_uri
-		};
-	} catch {
-		return null;
-	}
+/** State cookie the two /admin/drive-connect routes share (CSRF check). */
+export const DRIVE_STATE_COOKIE = 'nb_drive_oauth_state';
+
+/**
+ * Must byte-match the redirect URI registered on the OAuth client, so it is a
+ * constant rather than derived from the request origin (a dev-server origin
+ * would never match the registration anyway; the connect flow is a
+ * production, one-time action).
+ */
+export const DRIVE_REDIRECT_URI = 'https://ideabosco.com/admin/drive-connect/callback';
+
+/** The notebook photo folder inside the shared drive. */
+const DEFAULT_NOTEBOOK_FOLDER_ID = '1WT0isqdSIPu1kMV142fu-6TsbP3tlmVs';
+
+function clientId(): string {
+	return (env.GOOGLE_OAUTH_CLIENT_ID ?? '').trim();
 }
 
+function clientSecret(): string {
+	return (env.GOOGLE_OAUTH_CLIENT_SECRET ?? '').trim();
+}
+
+function refreshToken(): string {
+	return (env.GOOGLE_DRIVE_REFRESH_TOKEN ?? '').trim();
+}
+
+export function notebookFolderId(): string {
+	return (env.GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID ?? '').trim() || DEFAULT_NOTEBOOK_FOLDER_ID;
+}
+
+/** The consent flow only needs the OAuth client; the refresh token is what it produces. */
+export function driveConnectReady(): boolean {
+	return !!(clientId() && clientSecret());
+}
+
+/** Uploads additionally need the refresh token the consent flow handed over. */
 export function driveConfigured(): boolean {
-	return !!(parseKey() && env.GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID);
+	return !!(clientId() && clientSecret() && refreshToken());
 }
 
-function b64url(input: string | Uint8Array): string {
-	return Buffer.from(input).toString('base64url');
+/**
+ * The Google consent URL for /admin/drive-connect. access_type=offline +
+ * prompt=consent are both required for Google to issue a refresh token (see
+ * the module header); do not remove either.
+ */
+export function driveConsentUrl(state: string): string {
+	const params = new URLSearchParams({
+		client_id: clientId(),
+		redirect_uri: DRIVE_REDIRECT_URI,
+		response_type: 'code',
+		scope: DRIVE_SCOPE,
+		access_type: 'offline',
+		prompt: 'consent',
+		state
+	});
+	return `${DRIVE_ENDPOINTS.auth}?${params.toString()}`;
 }
 
-let cachedToken: { forEmail: string; token: string; expiresAtMs: number } | null = null;
-
-/** Exchange a signed JWT for an access token (cached until ~1 min before expiry). */
-async function accessToken(key: ServiceAccountKey): Promise<string> {
-	if (cachedToken && cachedToken.forEmail === key.client_email && Date.now() < cachedToken.expiresAtMs) {
-		return cachedToken.token;
-	}
-
-	const tokenUri = key.token_uri || DEFAULT_TOKEN_URI;
-	const now = Math.floor(Date.now() / 1000);
-	const unsigned =
-		b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' })) +
-		'.' +
-		b64url(
-			JSON.stringify({
-				iss: key.client_email,
-				scope: DRIVE_SCOPE,
-				aud: tokenUri,
-				iat: now,
-				exp: now + 3600
-			})
-		);
-	const signature = createSign('RSA-SHA256').update(unsigned).sign(key.private_key);
-	const assertion = `${unsigned}.${b64url(signature)}`;
-
-	const res = await fetch(tokenUri, {
+/**
+ * Exchanges the callback's authorization code for tokens. Returns the refresh
+ * token for the callback route to DISPLAY once; nothing here logs or persists
+ * it. Google's error bodies carry {error, error_description} and never
+ * tokens, so surfacing them is safe.
+ */
+export async function exchangeDriveCode(
+	code: string
+): Promise<{ refreshToken: string | null; scope: string | null; error: string | null }> {
+	const res = await fetch(DRIVE_ENDPOINTS.token, {
 		method: 'POST',
 		headers: { 'content-type': 'application/x-www-form-urlencoded' },
 		body: new URLSearchParams({
-			grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-			assertion
+			grant_type: 'authorization_code',
+			code,
+			client_id: clientId(),
+			client_secret: clientSecret(),
+			redirect_uri: DRIVE_REDIRECT_URI
 		})
 	});
 	if (!res.ok) {
 		const detail = (await res.text().catch(() => '')).slice(0, 300);
-		throw new Error(`Google token exchange failed (${res.status}): ${detail}`);
+		return {
+			refreshToken: null,
+			scope: null,
+			error: `Google token exchange failed (${res.status}): ${detail}`
+		};
+	}
+	const body = (await res.json()) as { refresh_token?: string; scope?: string };
+	return { refreshToken: body.refresh_token ?? null, scope: body.scope ?? null, error: null };
+}
+
+let cachedToken: { forRefreshToken: string; token: string; expiresAtMs: number } | null = null;
+
+/**
+ * Mints (or reuses) a short-lived access token from the stored refresh token.
+ * Cached until ~1 min before expiry; `force` skips the cache after a Drive
+ * call answered 401 (a cached token can outlive a revocation).
+ */
+async function accessToken(force = false): Promise<string> {
+	const rt = refreshToken();
+	if (!rt) {
+		throw new Error(
+			'The notebook Drive integration is not configured (no refresh token; an admin runs /admin/drive-connect once to mint one).'
+		);
+	}
+	if (!force && cachedToken && cachedToken.forRefreshToken === rt && Date.now() < cachedToken.expiresAtMs) {
+		return cachedToken.token;
+	}
+
+	const res = await fetch(DRIVE_ENDPOINTS.token, {
+		method: 'POST',
+		headers: { 'content-type': 'application/x-www-form-urlencoded' },
+		body: new URLSearchParams({
+			grant_type: 'refresh_token',
+			refresh_token: rt,
+			client_id: clientId(),
+			client_secret: clientSecret()
+		})
+	});
+	if (!res.ok) {
+		const detail = (await res.text().catch(() => '')).slice(0, 300);
+		const revoked = detail.includes('invalid_grant')
+			? ' The stored refresh token no longer works (revoked or expired); reconnect at /admin/drive-connect and update GOOGLE_DRIVE_REFRESH_TOKEN.'
+			: '';
+		throw new Error(`Google token refresh failed (${res.status}): ${detail}${revoked}`);
 	}
 	const body = (await res.json()) as { access_token?: string; expires_in?: number };
 	if (!body.access_token) {
-		throw new Error('Google token exchange returned no access token.');
+		throw new Error('Google token refresh returned no access token.');
 	}
 	cachedToken = {
-		forEmail: key.client_email,
+		forRefreshToken: rt,
 		token: body.access_token,
 		expiresAtMs: Date.now() + (Math.max(60, body.expires_in ?? 3600) - 60) * 1000
 	};
@@ -130,15 +204,12 @@ export async function uploadNotebookPhoto(opts: {
 	mimeType: string;
 	filename: string;
 }): Promise<string> {
-	const key = parseKey();
-	const folderId = env.GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID;
-	if (!key || !folderId) {
+	if (!driveConfigured()) {
 		throw new Error('The notebook Drive integration is not configured.');
 	}
 
-	const token = await accessToken(key);
 	const boundary = `nb-${randomUUID()}`;
-	const metadata = JSON.stringify({ name: opts.filename, parents: [folderId] });
+	const metadata = JSON.stringify({ name: opts.filename, parents: [notebookFolderId()] });
 	const head = new TextEncoder().encode(
 		`--${boundary}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
 			`--${boundary}\r\ncontent-type: ${opts.mimeType}\r\n\r\n`
@@ -149,17 +220,22 @@ export async function uploadNotebookPhoto(opts: {
 	body.set(opts.bytes, head.length);
 	body.set(tail, head.length + opts.bytes.length);
 
-	const res = await fetch(
-		`${DRIVE_ENDPOINTS.upload}?uploadType=multipart&supportsAllDrives=true&fields=id`,
-		{
+	const attempt = (token: string) =>
+		fetch(`${DRIVE_ENDPOINTS.upload}?uploadType=multipart&supportsAllDrives=true&fields=id`, {
 			method: 'POST',
 			headers: {
 				authorization: `Bearer ${token}`,
 				'content-type': `multipart/related; boundary=${boundary}`
 			},
 			body
-		}
-	);
+		});
+
+	let res = await attempt(await accessToken());
+	if (res.status === 401) {
+		// The cached access token may have been revoked out from under us;
+		// mint a fresh one and retry exactly once.
+		res = await attempt(await accessToken(true));
+	}
 	if (!res.ok) {
 		const detail = (await res.text().catch(() => '')).slice(0, 300);
 		throw new Error(`Drive upload failed (${res.status}): ${detail}`);
@@ -178,9 +254,8 @@ export async function uploadNotebookPhoto(opts: {
  */
 export async function deleteNotebookFile(fileId: string): Promise<void> {
 	try {
-		const key = parseKey();
-		if (!key || !fileId) return;
-		const token = await accessToken(key);
+		if (!driveConfigured() || !fileId) return;
+		const token = await accessToken();
 		await fetch(`${DRIVE_ENDPOINTS.files}/${encodeURIComponent(fileId)}?supportsAllDrives=true`, {
 			method: 'DELETE',
 			headers: { authorization: `Bearer ${token}` }

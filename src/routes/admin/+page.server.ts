@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { isAdmin, isOwner } from '$lib/server/admin';
+import { driveConfigured, driveConnectReady } from '$lib/server/notebook-drive';
 import type { AdminRow } from '$lib/admin';
 import type { PageServerLoad } from './$types';
 
@@ -30,6 +31,12 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		// fallback would have let a teacher in on the old rule).
 		admins: (rows ?? []) as AdminRow[],
 		isOwner: owner,
-		myEmail: claims.email ?? null
+		myEmail: claims.email ?? null,
+		// Booleans only, never the credentials themselves (which stay inside
+		// src/lib/server/notebook-drive.ts).
+		notebookDrive: {
+			connectReady: driveConnectReady(),
+			configured: driveConfigured()
+		}
 	};
 };

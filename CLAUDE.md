@@ -116,7 +116,8 @@ ability, it is not required to browse the portal.
     on the `PGRST202` code ALONE so a runtime error inside `is_admin()` fails
     closed rather than open) and the homepage's staff-vs-student branch.
   - **What is admin-only:** `/dashboard`, `/coin-entry` + `/api/coin-ledger/*`,
-    `/admin`, GAUNTLET authoring / room hosting / the author-capture macro, FRC
+    `/admin`, the notebook Drive connect flow (`/admin/drive-connect` + its
+    callback), GAUNTLET authoring / room hosting / the author-capture macro, FRC
     completion overrides and gate reviews, the FSP FRC-interest roster,
     GREENLINE decal + community-track moderation, tournament deletion, the
     all-users feedback read, and VANGUARD's TUNE mode. **Deliberate exception:**
@@ -230,14 +231,21 @@ response, never a build break):
 - `COIN_LEDGER_URL` — optional override for the ledger's deployed `/exec` URL;
   the current deployment is the default in that same module, so this only needs
   setting if the script is redeployed.
-- `GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY` + `GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID` — the
-  digital notebook's photo storage (see "Digital notebook" below): the full
-  JSON key of a Google service account, and the shared-drive folder id uploads
-  land in. Read ONLY by `src/lib/server/notebook-drive.ts`. Unset, the two
-  `/api/notebook/*` routes answer 503 "not configured" and nothing else is
-  affected. The service account's email must be a member of the shared drive
-  (Content manager) or every upload fails. Setup steps are in `.env.example`.
-  Set both in the Vercel project env; never `PUBLIC_`.
+- `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` +
+  `GOOGLE_DRIVE_REFRESH_TOKEN` — the digital notebook's photo storage (see
+  "Digital notebook" below). Auth is OAUTH ON BEHALF OF A REAL BOSCO TECH
+  ACCOUNT, not a service account: the shared drive's Workspace policy blocks
+  any identity outside the school's domain, which a service account is by
+  definition, so the original `GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY` approach
+  could never be granted access and is GONE. The refresh token is minted once
+  by an ADMIN via the `/admin/drive-connect` consent flow and pasted into
+  Vercel BY HAND (displayed once, never logged, never stored server-side).
+  All three are read ONLY by `src/lib/server/notebook-drive.ts`; unset, the
+  two `/api/notebook/*` routes answer 503 "not configured" and nothing else
+  is affected. Optional `GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID` overrides the
+  target folder — a folder INSIDE the shared drive, whose current id is the
+  module default (the `COIN_LEDGER_URL` convention). Setup steps are in
+  `.env.example`. Set all of them in the Vercel project env; never `PUBLIC_`.
 - `VAPID_PRIVATE_KEY` — signs every Web Push send (tournament match alerts).
   Read ONLY by `src/lib/server/push.ts`. Its public half is
   `PUBLIC_VAPID_PUBLIC_KEY` (`$env/dynamic/public`; safe in the client bundle,
@@ -2360,34 +2368,65 @@ arrives in later sessions and should not need to touch this layer again.
   upload date in America/Los_Angeles <= session_date. The grid roster is
   enrollment UNION anyone with entries/excusals in the section, so transfers
   stay visible.
-- **Drive:** photo bytes live in a Google Shared Drive, never Postgres.
-  `src/lib/server/notebook-drive.ts` is the one egress point (the
-  coin-ledger convention): service-account JWT auth hand-rolled on
-  `node:crypto` (no googleapis dependency), multipart upload with
-  `supportsAllDrives=true`, token cached, full `drive` scope (drive.file does
-  not reliably cover creating into a shared-drive folder the app did not
-  create). Env: `GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY` +
-  `GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID` (see Environment). Routes
+- **Drive:** photo bytes live in a folder inside a Google Shared Drive, never
+  Postgres. `src/lib/server/notebook-drive.ts` is the one egress point (the
+  coin-ledger convention) and the ONLY code that reads the credentials.
+  **Auth is OAuth on behalf of a real Bosco Tech account, not a service
+  account** (supersedes the original service-account module): the shared
+  drive blocks outside identities, which a service account is by definition,
+  so it could never be granted access. An ADMIN runs the one-time consent
+  flow at `/admin/drive-connect` (404 to everyone else including signed-out —
+  the `/admin` rule — and deliberately NOT in `authedPrefixes`; a status card
+  on `/admin` links it): it redirects to Google requesting exactly the
+  `drive.file` scope with `access_type=offline` AND `prompt=consent`, both
+  explicit because without both Google will not reliably return a refresh
+  token at all. The callback matches the registered redirect URI
+  `https://ideabosco.com/admin/drive-connect/callback` exactly (a constant in
+  the module, used in both the consent request and the code exchange),
+  verifies a state cookie (CSRF), exchanges the code, and DISPLAYS the
+  refresh token once (`cache-control: no-store`, never logged, never stored
+  in the database) with the instruction to paste it into Vercel as
+  `GOOGLE_DRIVE_REFRESH_TOKEN` and redeploy; a missing refresh token in the
+  response gets the revoke-at-myaccount-and-retry explanation. The module
+  mints short-lived access tokens from the refresh token on demand (cached
+  until near expiry, one forced re-mint + retry on a 401 upload), and every
+  Drive call carries `supportsAllDrives=true` because the target is a
+  shared-drive-NESTED folder, which the plain endpoints pretend not to see;
+  uploads land in folder `1WT0isqdSIPu1kMV142fu-6TsbP3tlmVs` (the module
+  default; `GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID` overrides). Env:
+  `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` +
+  `GOOGLE_DRIVE_REFRESH_TOKEN` (see Environment). Routes
   `/api/notebook/upload` (Drive upload then `notebook_create_entry`) and
   `/api/notebook/add-photo` (then `notebook_add_photo`) authenticate the
   caller's real session first (`locals.claims`, 401 signed out) and run the
   RPC under the caller's OWN cookie session, so the RPC's internal check is
-  the boundary; a refused RPC deletes the just-uploaded file best-effort.
-  4 MB cap (Vercel body limit), JPEG/PNG/WebP/HEIC only. Neither route is in
-  `authedPrefixes` (they answer their own 401s, the vanguard-save pattern).
+  the boundary; a refused RPC deletes the just-uploaded file best-effort;
+  neither route (nor anything else) touches the client secret or refresh
+  token directly. 4 MB cap (Vercel body limit), JPEG/PNG/WebP/HEIC only.
+  Neither route is in `authedPrefixes` (they answer their own 401s, the
+  vanguard-save pattern).
 - **Verified** against a real embedded Postgres (0001 + 0003 + 0020 + 0067 +
   0069 applied unmodified, Supabase-shaped auth/storage stubs, the tournament
   harness approach): RLS isolation between two students, instructor and
   admin visibility, the anon/authenticated write boundary, flag ->
   add_photo -> `pending_review`, delete-session detach, override/excusal
-  logging, and the grid's shape and on-time math. The Drive module was
-  verified against a local mock of Google's token + upload endpoints with a
-  real RSA keypair (JWT signature verified, multipart body parsed). **NOT
-  verified: a real upload into the real shared drive** — no service-account
-  key exists yet; create one per `.env.example` and run a real end-to-end
-  upload before trusting the Drive half in production. 0069 itself is
-  code-only until applied by hand in the SQL editor, per the migration
-  convention.
+  logging, and the grid's shape and on-time math (re-run for the OAuth pass:
+  62 assertions, all green). The OAuth Drive layer was verified through the
+  REAL shipped route handlers + module against a mocked Google (58
+  assertions: exact consent params including `access_type=offline` +
+  `prompt=consent`, 404 for anon / student / non-admin teacher, the state
+  CSRF check, the code-exchange and refresh-grant request shapes, multipart
+  upload with `supportsAllDrives=true` into the folder id, token caching and
+  the 401 re-mint retry) and live on the dev server (anonymous
+  `/admin/drive-connect` + callback answer 404 with no redirect leaked;
+  anonymous uploads answer 401). **NOT verified: a real file landing in the
+  real shared-drive folder** — that requires the one-time human consent step
+  no session can perform: after deploy, an admin visits
+  `/admin/drive-connect`, approves with a school account that can write to
+  the notebook folder, pastes the displayed token into Vercel as
+  `GOOGLE_DRIVE_REFRESH_TOKEN`, redeploys, then uploads a real photo. 0069
+  itself is code-only until applied by hand in the SQL editor, per the
+  migration convention.
 
 ## GREENLINE (prototype)
 

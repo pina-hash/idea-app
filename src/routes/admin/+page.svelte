@@ -326,6 +326,34 @@
 		{/if}
 	</section>
 
+	<section class="card">
+		<h2>Digital notebook · Google Drive</h2>
+		<p class="note">
+			Notebook photo uploads act as a real school Google account (the shared drive blocks outside
+			identities, so there is no service account). Connecting runs a one-time Google consent flow
+			and displays a refresh token to copy into Vercel as
+			<strong>GOOGLE_DRIVE_REFRESH_TOKEN</strong>.
+		</p>
+		{#if data.notebookDrive.configured}
+			<p class="note drive-ok">
+				Connected: a refresh token is configured. Reconnect only to switch accounts or replace a
+				revoked token.
+			</p>
+		{:else if !data.notebookDrive.connectReady}
+			<p class="note drive-warn">
+				Not configured: set GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET in the Vercel
+				project env first (see .env.example), then connect.
+			</p>
+		{:else}
+			<p class="note drive-warn">
+				Not connected yet: uploads answer 503 until the consent flow runs and the token is set.
+			</p>
+		{/if}
+		<div class="add-row">
+			<a class="btn secondary" href="/admin/drive-connect">Connect Google Drive</a>
+		</div>
+	</section>
+
 	<footer class="page-footer">
 		<VersionBadge app="portal" />
 	</footer>
@@ -360,6 +388,12 @@
 	.feedback.notice {
 		color: var(--green);
 		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
+	}
+	.drive-ok {
+		color: var(--green);
+	}
+	.drive-warn {
+		color: var(--amber);
 	}
 	.rows {
 		display: flex;
