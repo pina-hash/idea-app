@@ -394,9 +394,16 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
     `greatest(1, round(points / 25.0))`.
   - **Pay Raise:** `coin_wage_tiers` (email-keyed, tier starts at 1) is the
     one genuinely stateful piece nothing else derives -- `coin_log_pay_raise`
-    reads the current tier, charges `40 * (tier + 1)`, and persists the new
-    tier, permanently raising the rate a future entry tool would pay out
-    weekly.
+    reads the current tier, charges `40 * current tier` (1->2 = 40i¢,
+    2->3 = 80i¢, ...; per both source docs' own worked examples, which their
+    "40i¢ x new tier" prose shorthand does not literally match -- the
+    examples are the authority), and persists the new tier. **The wage tier
+    is currently DECORATIVE, not consulted anywhere.** `weekly_wage` is a
+    plain `flat` category priced at 1i¢ regardless of tier, and no code path
+    -- generic or dedicated -- reads `coin_wage_tiers` when logging a
+    Weekly Wage award. A Pay Raise purchase records a real cost and a real
+    tier bump, but nothing yet pays it out: the tier-aware wage award is
+    part of the entry tool this migration deliberately does not build.
   - **Contract Completion / Competition Winnings:** `variable` pricing --
     the admin enters the whole amount at logging time, never a lookup, per
     the prompt's own instruction.
@@ -412,6 +419,60 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
 - **Not yet built, deliberately:** the student/teacher entry UI, wiring the
   old ledger's balance data into `coin_admin_adjust_balance` for the real
   student roster, and the Spotify Song Request approval queue (docs Part 8).
+- **Admin balance tool is single-email only, currently.** Both
+  `coin_admin_lookup` and `coin_admin_adjust_balance` take exactly one
+  `p_email`; there is no bulk/multi-email path in the RPCs or in the
+  `/admin` UI. Worth revisiting once real onboarding volume makes
+  one-at-a-time linking slow, but that is a follow-up, not something this
+  foundation pass solves.
+- **Two correctness bugs found and fixed before this migration was ever
+  applied anywhere (verification below):**
+  1. `current_user_email()` (0067) is `revoke`d from `public` and, unlike
+     every pre-0070 caller (`is_admin()`, `is_owner()`, `admin_grant()`),
+     0070 is the first to reference it DIRECTLY inside an RLS `using`
+     clause (`coin_wage_tiers`, `coin_transactions`) rather than from
+     inside another SECURITY DEFINER function. Evaluated as the querying
+     role (`authenticated`), that means a genuine student reading their own
+     balance or transaction history hit `permission denied for function
+     current_user_email` and saw nothing -- the entire own-row read path
+     was broken. Fixed by granting execute on it to `authenticated` inside
+     0070 (idempotent, harmless whether or not 0067 already covers it;
+     the function only ever returns the caller's own email).
+  2. `coin_log_pay_raise` charged `40 * new_tier` (1st raise = 80i¢); both
+     source docs' worked examples say 1st raise = 40i¢, 2nd = 80i¢, i.e.
+     `40 * the tier being LEFT`. Fixed to `40 * current_tier`.
+  - **Verified** against a real embedded Postgres (0001 + 0067 + 0070
+    applied unmodified after the fixes, Supabase-shaped `auth` schema
+    stub) covering all five scenarios from the review prompt: debt goes
+    negative with no floor and blocks purchase-kind transactions only
+    while already negative, clearing exactly at zero re-enables them;
+    Eating Pass strikes 1-2 stay active, strike 3 auto-revokes, a 4th
+    violation post-revoke is an ordinary fine (not a strike, confirming the
+    revoke check can't double-fire since it only runs inside the
+    just-flagged-a-strike branch), and a rebought pass costs the full
+    150i¢ again; Extra Credit succeeds up to exactly the 21pt cap and
+    blocks the 22nd regardless of balance, AND the grading-category
+    allowlist is genuinely enforced server-side (an `integrated_design_
+    challenge` or `final_exam` value raises an exception, it is not left to
+    the caller); Pay Raise now costs 40i¢ for the first purchase and bumps
+    the tier to 2, and a subsequent Weekly Wage award still pays flat 1i¢
+    -- confirmed by tracing the code, not inference, that no path reads
+    `coin_wage_tiers` when logging `weekly_wage`; Quality Desktop
+    Background and Correct Answer in Class both cap correctly and reset on
+    the calendar boundary (1st of the month / midnight) even when the prior
+    row is backdated to just inside that boundary with far less than a
+    30-day/24-hour gap, proving the cap is calendar-based, not rolling.
+    Also verified as a consequence of fix 1: a signed-in non-admin student
+    can read their own `coin_balances` / `coin_transactions` /
+    `coin_wage_tiers` rows, a different student reading the same rows gets
+    zero rows (not an error, not someone else's data), a non-admin still
+    cannot call `coin_log_transaction`, and 0070 re-applies cleanly over
+    its own already-created objects (idempotency). **NOT verified: the
+    live Supabase project** -- this repo has no live database credentials
+    available to apply migrations or run RPCs against production; 0070 is
+    code-only until it is pasted into the Supabase SQL editor by hand, per
+    the migration convention, and the five scenarios above should be
+    spot-checked there too before treating real student balances as safe.
 
 ## 2026-27 curriculum
 

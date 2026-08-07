@@ -117,6 +117,20 @@ $$;
 revoke all on function public.coin_semester_key(timestamptz) from public;
 grant execute on function public.coin_semester_key(timestamptz) to authenticated;
 
+-- 0067 defines current_user_email() and revokes it from public, but every
+-- caller up to this point (is_admin(), is_owner(), admin_grant()) is itself a
+-- SECURITY DEFINER function, which runs as the function's OWNER and so never
+-- needed an explicit grant. This migration is the first to call
+-- current_user_email() directly inside an RLS `using` clause (below, on
+-- coin_wage_tiers and coin_transactions) -- an expression evaluated as the
+-- QUERYING role, not the owner. Without this grant, a student reading their
+-- own balance or transaction history hits "permission denied for function
+-- current_user_email" and sees nothing, which defeats the entire own-row
+-- read policy those tables rely on. Safe to grant broadly: the function only
+-- ever returns the caller's own email, derived from their own auth.uid().
+-- Idempotent and harmless if 0067 already granted this by the time this runs.
+grant execute on function public.current_user_email() to authenticated;
+
 -- ===========================================================================
 -- 1. Categories -- the price list. Server-authoritative; a future entry UI
 --    reads this table directly rather than hardcoding prices client-side.
@@ -668,7 +682,10 @@ $$;
 revoke all on function public.coin_log_perfect_score(text, integer, text) from public;
 grant execute on function public.coin_log_perfect_score(text, integer, text) to authenticated;
 
--- Pay Raise: 40i¢ x the new tier, and it permanently raises the wage tier.
+-- Pay Raise: 40i¢ x the tier being left (1->2 = 40i¢, 2->3 = 80i¢, 3->4 =
+-- 120i¢, ...), per both source docs' own worked examples -- their prose
+-- shorthand ("40i¢ x new tier") is contradicted by those examples and is not
+-- the authority; the examples are. Permanently raises the wage tier.
 create or replace function public.coin_log_pay_raise(
 	p_email text,
 	p_note text default null
@@ -705,7 +722,7 @@ begin
 	select tier into v_current_tier from public.coin_wage_tiers where student_email = v_email for update;
 
 	v_new_tier := v_current_tier + 1;
-	v_cost := 40 * v_new_tier;
+	v_cost := 40 * v_current_tier;
 
 	v_row := public._coin_insert(
 		v_email, 'pay_raise', -v_cost, null, nullif(btrim(coalesce(p_note, '')), ''),
