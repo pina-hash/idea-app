@@ -8601,6 +8601,67 @@ stack are the source of truth; do not invent colors or swap fonts.
   in the root layout), disabled under `prefers-reduced-motion`. Legibility
   first; keep ambiance subtle and load light.
 
+## Automated tests
+
+`npm test` (vitest, config in `vitest.config.ts`, specs in `tests/`). This is
+the **only** automated test suite in the repo, and it is deliberately narrow:
+everything else here is verified by dev harnesses and browser passes, which
+stays the norm. Tests are for guarantees that are expensive to get wrong
+SILENTLY -- ones where a regression breaks nothing visible.
+
+- **`vitest.config.ts` is standalone, NOT an extension of `vite.config.ts`.**
+  These are database tests: no Svelte, no DOM, no SvelteKit. Loading the app's
+  plugin chain (which shells out to `git log` for the changelog substrate) would
+  only add startup cost and failure modes. `tests/**/*.ts` is already inside the
+  SvelteKit-generated tsconfig's `include`, so `npm run check` type-checks the
+  suite along with everything else.
+- **The fixture is a REAL embedded Postgres with the REAL migration files
+  applied, unmodified** (`tests/db/harness.ts`, the approach three prior
+  verification passes on the notebook layer proved out and then threw away).
+  `embedded-postgres` boots a throwaway cluster on a free port in a temp dir
+  (`persistent: false`); `tests/db/supabase-stub.sql` supplies only what lives
+  OUTSIDE `supabase/migrations` and is therefore assumed to exist -- the `anon`
+  / `authenticated` / `service_role` roles, `auth.users` + `auth.uid()`
+  (Supabase's own definition, reading the `request.jwt.claims` GUC), and enough
+  of `storage` for 0020's avatars bucket. Nothing in the stub re-implements a
+  migration; if a migration would fail on a real project, it fails here.
+  Startup is ~7s per file and paid once in `beforeAll`.
+- **`asUser(id, fn)` is how a test "signs in":** set the `request.jwt.claims`
+  GUC, then `SET ROLE authenticated`, which is exactly what PostgREST does per
+  request. **The role switch is load-bearing** -- the connection role owns these
+  tables and would bypass both RLS and the table grants, so a test that forgets
+  it passes vacuously. It deliberately does NOT wrap the work in a transaction:
+  several tests assert a statement is REJECTED, and inside a transaction the
+  first rejection would poison everything after it. The GUC and role are reset
+  in a `finally` before the connection returns to the pool.
+- **`tests/notebook-security.test.ts`** (33 assertions, migrations 0001 + 0003 +
+  0020 + 0067 + 0069 + 0070 + 0071) covers three properties of the notebook data
+  layer and nothing else: **RLS isolation** (a student cannot read a classmate's
+  `notebook_entries` / `notebook_entry_photos` by listing OR by id, while the
+  section's instructor and the admin/chair tier can, and an instructor's reach
+  stops at their own section), **no direct writes** (INSERT / UPDATE / DELETE on
+  either table is rejected `42501` for a student, an instructor AND an admin --
+  the SECURITY DEFINER RPCs are the only door), and **flag integrity**
+  (`notebook_add_photo` onto a flagged entry lands on `pending_review`, retains
+  `flag_reason` and the instructor comment, and adds a NEW photo row without
+  touching the flagged one). Drive naming, label fallbacks and the section
+  grid's shape are feature correctness and are deliberately NOT here; adding
+  them would dilute what a red run means.
+- **One assertion exists purely to keep the rest honest:** the suite asserts
+  that `instructorA` and a plain `@boscotech.edu` account are NOT admins. Given
+  0067's naming trap, if `teacher` ever silently re-acquired privilege every
+  "an instructor cannot see other sections" assertion would still pass while
+  meaning nothing.
+- **Mutation-checked, not just green.** Sabotaging the "students read own
+  notebook entries" policy in 0069 turns the suite red and restoring it turns it
+  green (verified, migration restored byte-identical). Worth knowing for the
+  next time: **commenting the `USING` clause out entirely fails CLOSED** (the
+  policy then grants no rows, 1 test red) -- the mutation that models the real
+  regression is `using (true)`, which reproduces an actual leak and reddens 4
+  isolation tests, including the unattached staff account suddenly seeing every
+  student's work. Mutate in the permissive direction when checking this suite
+  still bites.
+
 ## Working conventions
 
 - **No em dashes in user-facing copy.** Use commas, periods, or "to" for ranges.
@@ -8609,6 +8670,11 @@ stack are the source of truth; do not invent colors or swap fonts.
 - **Keep this file current.** When the app gains routes, tiers, roles, env
   vars, or conventions, update CLAUDE.md in the same change. This
   self-maintenance is part of the job.
+- **Automated tests are the exception, not the default.** `npm test` exists (see
+  "Automated tests" above) and must stay green, but new work is still verified
+  by dev harnesses and browser passes. Add a test only for a guarantee whose
+  regression would be SILENT -- security boundaries, mainly -- and mutation-check
+  any test you add: a test that cannot fail is proving nothing.
 - **Interactive/visual verification:** when a task involves interactive or
   visual UI (custom viewers, canvas or three.js/3D, animations, drag/pan/zoom,
   pop-out/PiP, complex forms, or anything whose correctness is not visible to
