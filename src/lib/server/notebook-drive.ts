@@ -224,10 +224,16 @@ export function driveNameSlug(raw: string | null | undefined, cap: number, fallb
  * short-id (first 8 of the entry uuid) keeps identical date/identifier/label
  * names from colliding. Date is the America/Los_Angeles calendar day, the
  * same day convention the notebook's on-time math uses (0069).
+ *
+ * The label component falls through: session label / custom label (the
+ * caller resolves which and passes it as `label`) -> the browser's original
+ * filename with its extension stripped (0071; the file often already has a
+ * meaningful name) -> the literal 'entry' only when both slug to nothing.
  */
 export function notebookDriveFilename(opts: {
 	identifier: string | null | undefined;
 	label: string | null | undefined;
+	originalFilename?: string | null;
 	variant: string;
 	entryShortId: string;
 	ext: string;
@@ -239,7 +245,9 @@ export function notebookDriveFilename(opts: {
 		day: '2-digit'
 	}).format(new Date());
 	const identifier = driveNameSlug(opts.identifier, 40, 'student');
-	const label = driveNameSlug(opts.label, 40, 'entry');
+	const stem = (opts.originalFilename ?? '').replace(/\.[^.]+$/, '');
+	const label =
+		driveNameSlug(opts.label, 40, '') || driveNameSlug(stem, 40, '') || 'entry';
 	return `${date}_${identifier}_${label}_${opts.variant}_${opts.entryShortId}.${opts.ext}`;
 }
 

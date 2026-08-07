@@ -62,6 +62,7 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	const sessionLabel = (entryRow?.notebook_sessions as { label?: string } | null)?.label ?? null;
 	const label = sessionLabel ?? (entryRow?.custom_label as string | null) ?? null;
 
+	const originalFilename = read.photo.name?.trim() || null;
 	const bytes = new Uint8Array(await read.photo.arrayBuffer());
 	let fileId: string;
 	try {
@@ -71,6 +72,7 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 			filename: notebookDriveFilename({
 				identifier,
 				label,
+				originalFilename,
 				variant,
 				entryShortId: entryId.slice(0, 8),
 				ext: read.ext
@@ -83,7 +85,8 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	const { data, error } = await supabase.rpc('notebook_add_photo', {
 		p_entry_id: entryId,
 		p_drive_file_id: fileId,
-		p_variant: variant
+		p_variant: variant,
+		p_original_filename: originalFilename
 	});
 	if (error) {
 		await deleteNotebookFile(fileId);

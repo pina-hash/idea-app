@@ -2501,12 +2501,17 @@ arrives in later sessions and should not need to touch this layer again.
   `profiles.section_id` matches it; `instructor_id` references `auth.users`,
   the first DB representation of instructor assignment in the repo),
   `notebook_sessions` (required check-ins: unit, date, label),
-  `notebook_entries` (one logical entry: session-linked or free via
-  `custom_label` — a CHECK requires one of the two, a second CHECK makes a
+  `notebook_entries` (one logical entry: session-linked, free via
+  `custom_label`, or — since `0071_notebook_optional_label.sql`, apply after
+  0070 — fully unlabeled (the 0069 has-a-target CHECK is dropped, and the
+  RPCs that duplicated it in application logic, `notebook_create_entry` and
+  `notebook_admin_override_entry`, were relaxed to match); a CHECK makes a
   session imply a section, and a composite FK `(session_id, section_id) ->
   notebook_sessions (id, section_id)` makes a mismatched pair
   unrepresentable; `upload_timestamp` is server-set and never a parameter),
   `notebook_entry_photos` (Drive file id + `original`/`enhanced` variant +
+  `original_filename` since 0071, the browser-submitted name, informational
+  only — display and the Drive naming fallback, never access control +
   `sequence_order`; photos are only ever ADDED, never replaced),
   `notebook_session_excusals` (an excusal is the sanctioned ABSENCE of an
   entry — deliberately NOT a fake entry status), and the append-only
@@ -2589,7 +2594,8 @@ arrives in later sessions and should not need to touch this layer again.
   `{date}_{identifier}_{label}_{variant}_{entry-short-id}.{ext}` via
   `notebookDriveFilename` (LA-calendar date; identifier = display_name ->
   full_name -> email local part, the greenline author_name order; label =
-  session label else custom_label else "entry", slugified and capped at 40;
+  session label else custom_label else — 0071 — the original filename with
+  its extension stripped, else "entry", each slugified and capped at 40;
   short-id = first 8 of the entry uuid). The upload route pushes to Drive
   BEFORE the entry exists, so it uploads under a provisional random short-id
   and best-effort RENAMES (`renameNotebookFile`) to the entry's short-id

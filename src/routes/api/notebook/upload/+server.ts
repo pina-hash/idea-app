@@ -56,9 +56,7 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	if (sectionId && !UUID_RE.test(sectionId)) {
 		return json({ error: 'section_id must be a uuid.' }, { status: 400 });
 	}
-	if (!sessionId && !customLabel) {
-		return json({ error: 'Provide a session_id or a custom_label.' }, { status: 400 });
-	}
+	// 0071: no label required; a fully unlabeled free entry is valid.
 
 	// Human-readable Drive name (the admin browses the folder by eye): the
 	// label is the session's label when session-linked, else the custom label.
@@ -74,10 +72,18 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		label = (session?.label as string | null) ?? customLabel;
 	}
 
+	const originalFilename = read.photo.name?.trim() || null;
 	const bytes = new Uint8Array(await read.photo.arrayBuffer());
 	let fileId: string;
 	const nameFor = (entryShortId: string) =>
-		notebookDriveFilename({ identifier, label, variant: 'original', entryShortId, ext: read.ext });
+		notebookDriveFilename({
+			identifier,
+			label,
+			originalFilename,
+			variant: 'original',
+			entryShortId,
+			ext: read.ext
+		});
 	try {
 		fileId = await uploadNotebookPhoto({
 			bytes,
@@ -96,7 +102,8 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		p_drive_file_id: fileId,
 		p_session_id: sessionId,
 		p_section_id: sectionId,
-		p_custom_label: customLabel
+		p_custom_label: customLabel,
+		p_original_filename: originalFilename
 	});
 	if (error) {
 		await deleteNotebookFile(fileId);

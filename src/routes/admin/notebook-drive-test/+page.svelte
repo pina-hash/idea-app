@@ -20,14 +20,14 @@
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
-		if (!file || !label.trim() || busy) return;
+		if (!file || busy) return;
 		busy = true;
 		result = null;
 		errorMsg = null;
 		try {
 			const form = new FormData();
 			form.set('photo', file);
-			form.set('custom_label', label.trim());
+			if (label.trim()) form.set('custom_label', label.trim());
 			const res = await fetch('/api/notebook/upload', { method: 'POST', body: form });
 			let body: { ok?: boolean; drive_file_id?: string; entry?: { entry_id?: string }; error?: string };
 			try {
@@ -76,10 +76,10 @@
 			<input type="file" accept="image/jpeg,image/png,image/webp,image/heic" onchange={onFileChange} required />
 		</label>
 		<label>
-			Label (stored as custom_label)
-			<input type="text" bind:value={label} maxlength="200" placeholder="Drive smoke test" required />
+			Label (optional, stored as custom_label; blank falls back to the file's own name)
+			<input type="text" bind:value={label} maxlength="200" placeholder="Drive smoke test" />
 		</label>
-		<button type="submit" disabled={busy || !file || !label.trim()}>
+		<button type="submit" disabled={busy || !file}>
 			{busy ? 'Uploading…' : 'Upload'}
 		</button>
 	</form>
