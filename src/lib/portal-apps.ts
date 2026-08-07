@@ -101,6 +101,17 @@ export const PORTAL_APPS: PortalApp[] = [
 		theme: { primary: '#C8A848', secondary: '#D08030' }
 	},
 	{
+		id: 'coin-desk',
+		title: 'Coin Desk',
+		sub: 'Log fines, awards, and purchases against the real coin ledger (0070). Admin tool.',
+		icon: 'coin-entry',
+		href: '/coin-desk',
+		group: 'tools',
+		cta: 'Open',
+		adminOnly: true,
+		theme: { primary: '#C8A848', secondary: '#78B870' }
+	},
+	{
 		id: 'dashboard',
 		title: 'Admin Dashboard',
 		sub: 'Roles, pathways, and the content review queues.',

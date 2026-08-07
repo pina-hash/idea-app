@@ -416,9 +416,83 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
   This is also how a legacy Sheets balance gets attached: whatever the old
   balance was becomes the adjustment amount, no conversion math, and it works
   whether or not that email has ever signed in.
-- **Not yet built, deliberately:** the student/teacher entry UI, wiring the
-  old ledger's balance data into `coin_admin_adjust_balance` for the real
-  student roster, and the Spotify Song Request approval queue (docs Part 8).
+- **Day-to-day entry tool: `/coin-desk`.** The real logging surface this
+  migration's own comments flagged as a later pass -- a NEW route, not a
+  change to `/coin-entry`, `static/coins/index.html`, or any
+  `/api/coin-ledger/*` route, which stay exactly as they were (the old
+  Sheets ledger's teacher-role gate is untouched). Admin-gated the `/admin`
+  way (`+page.server.ts` calls `isAdmin()`, 404 for anyone else, not in
+  `authedPrefixes` so a probe learns nothing), and identical for every
+  admin -- there is no owner-only step, matching "admin is site-wide
+  already."
+  - **Every write is a call to an EXISTING 0070 RPC, never a direct table
+    write, because there is no direct write path to route around: 0070
+    grants `coin_transactions` `select` only and puts no trigger on it, so
+    `coin_log_transaction` and the five dedicated RPCs (`coin_log_
+    perfect_score`, `coin_log_pay_raise`, `coin_log_property_damage_
+    careless`, `coin_log_three_d_printing`, `coin_log_extra_credit`) are
+    the only place any rule (debt, caps, Eating Pass strikes, Extra
+    Credit's cap and category allowlist) can be enforced.** A second
+    implementation of "check the debt lockout" client-side would be exactly
+    the kind of duplicate that quietly stops applying somewhere -- this
+    tool has none. `src/lib/coin-desk.ts` (`DEDICATED_RPC`) is a lookup
+    table routing five category ids to their dedicated RPC (four true
+    `formula` categories plus `extra_credit`, which is `per_unit` pricing
+    but refused by `coin_log_transaction` by name); every other loggable
+    category goes through the generic RPC with `p_amount`/`p_quantity`
+    shaped by its `pricing_model`.
+  - **The amount input adapts to `pricing_model`:** `flat` shows the fixed
+    price, never an input; `range` is a bounded number input (Above and
+    Beyond's 1-3i¢); `per_unit` takes a quantity with a live `quantity x
+    rate` preview; `variable` takes a raw amount, POSITIVE-only for
+    award/purchase kinds and explicitly SIGNED (+/-) for the one
+    `adjustment` category, `balance_correction`; each dedicated category
+    gets its own inputs (points for Perfect Score and Extra Credit, a
+    dollar cost for Property Damage, grams/hours/overnight for 3D
+    Printing, nothing but a note for Pay Raise, whose cost the server alone
+    computes). Every preview number in `coin-desk.ts` is informational
+    only -- the RPC response is always the authoritative one, and the UI
+    re-renders from it, never from the client's own guess.
+  - **Student lookup reuses `coin_admin_lookup` as-is** (balance, wage
+    tier, Eating Pass status, recent history in one round trip) so the
+    admin sees context before logging anything new, not a blank form; a
+    successful write re-runs it to refresh the summary. A typeahead
+    against `profiles` (`role = 'student'`, matched on `display_name` /
+    `full_name` / email, admin readable via the existing "teachers select
+    all profiles" policy -- 0067's naming trap again, it means admins) is
+    a SHORTCUT, never a requirement: profiles only has rows for students
+    who have actually signed in, so a plain email input is the primary,
+    always-working path (the same "attach a balance to an email
+    independent of login status" doctrine coin_admin_adjust_balance relies
+    on), and a typeahead miss shows a plain "they may not have logged in
+    yet" note rather than blocking entry.
+  - **Verified** via a dev harness at `/dev/coin-desk` (404 in production,
+    no auth/Supabase) mounting the real interactive tool --
+    `src/lib/coin-desk/CoinDeskTool.svelte`, extracted from the route so
+    both mount the identical component -- against an in-memory ledger
+    (`fake-ledger.ts`) that mirrors 0070's actual rules closely enough to
+    reach every refusal shape: a flat fine, a range award, and the
+    per_unit/formula preview math all landed the exact server-computed
+    amount; the debt lockout blocked a purchase-kind category and left the
+    balance untouched; Eating Pass strikes 1-2 stayed active, strike 3
+    auto-revoked, a 4th violation post-revoke read as an ordinary fine, and
+    a second purchase attempt while a pass was already held was refused
+    with `pass_already_active`; Extra Credit succeeded at exactly the 21pt
+    cap and blocked one point over it; Pay Raise's preview and the RPC's
+    charged cost agreed (tier 2 -> 3 for 80i¢) and the wage tier updated;
+    Quality Desktop Background blocked a same-month repeat with the
+    calendar-cap message; Property Damage's submit stayed disabled with no
+    note and enabled once one was typed; the typeahead surfaced a real
+    match and, separately, a graceful no-match note for an unknown name; a
+    plain walk-up email with no profiles row resolved to a genuine
+    zero-balance, no-history lookup; and the "migration not applied"
+    toggle rendered the fail-soft banner. **A real bug surfaced by this
+    same testing pass, fixed before commit:** the post-submit refresh call
+    unconditionally cleared the success-message state, so a successful
+    log's confirmation flashed and vanished on the same tick even though
+    the balance and history updated correctly -- `runLookup` now takes a
+    `refresh` flag that skips clearing it when called from `submitEntry`'s
+    own follow-up read.
 - **Admin balance tool is single-email only, currently.** Both
   `coin_admin_lookup` and `coin_admin_adjust_balance` take exactly one
   `p_email`; there is no bulk/multi-email path in the RPCs or in the
