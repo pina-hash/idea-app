@@ -1,4 +1,5 @@
 import type { CoinCategory, StudentSuggestion } from '$lib/coin-desk';
+import type { CoinSectionRow, CoinSectionStudentRow } from '$lib/coin-desk/sections';
 
 /**
  * In-memory stand-in for the 0070 Supabase schema, mirroring its actual
@@ -103,6 +104,34 @@ const catById = new Map(SAMPLE_CATEGORIES.map((c) => [c.id, c]));
 const nameById = new Map([...SAMPLE_CATEGORIES, ...NAME_ONLY_CATEGORIES].map((c) => [c.id, c.name]));
 const ledger = new Map<string, StudentState>();
 let txnSeq = 0;
+
+/**
+ * In-memory mirror of 0073's coin_sections / coin_section_students. Emails
+ * match SAMPLE_STUDENTS so a section's roster resolves real display names,
+ * the same "seed against the same accounts the single-student flow uses"
+ * convention as the rest of this fake ledger.
+ */
+const sections = new Map<string, CoinSectionRow>();
+const sectionStudents = new Map<string, string>(); // student_email -> section_id
+const sectionAssignedAt = new Map<string, string>();
+
+function sectionStudentCount(id: string): number {
+	let n = 0;
+	for (const sid of sectionStudents.values()) if (sid === id) n++;
+	return n;
+}
+
+/**
+ * Synchronous read of the current section list, for the dev harness to seed
+ * CoinDeskTool's initial `sections` prop the same way +page.server.ts seeds
+ * it via coin_admin_list_sections() -- call AFTER createFakeLedger() so the
+ * seed rows above exist.
+ */
+export function listSections(): CoinSectionRow[] {
+	return Array.from(sections.values())
+		.map((s) => ({ ...s, student_count: sectionStudentCount(s.id) }))
+		.sort((a, b) => (a.active === b.active ? a.id.localeCompare(b.id) : a.active ? -1 : 1));
+}
 
 function stateFor(email: string): StudentState {
 	let s = ledger.get(email);
@@ -243,6 +272,39 @@ export function createFakeLedger() {
 	(passTxns[1] as unknown as { meta: unknown }).meta = { strike: true };
 	ledger.set('pass.student@boscotech.net', { balance: 195, wageTier: 2, ecUsedPoints: 15, txns: passTxns });
 
+	// Seed two sections: one keyed to a real curriculum.ts Section.id (so
+	// sectionDisplayName() resolves it from the curriculum, not the stored
+	// label) and one custom group with no curriculum counterpart.
+	const now = new Date().toISOString();
+	sections.set('eng1h-sophomore', {
+		id: 'eng1h-sophomore',
+		label: null,
+		color: '#00ff41',
+		active: true,
+		note: null,
+		created_by: 'admin@boscotech.edu',
+		created_at: now,
+		updated_at: now,
+		student_count: 0
+	});
+	sections.set('period-3-makeup', {
+		id: 'period-3-makeup',
+		label: 'Period 3 Makeup Group',
+		color: '#ffb02e',
+		active: true,
+		note: 'Students finishing labs after school',
+		created_by: 'admin@boscotech.edu',
+		created_at: now,
+		updated_at: now,
+		student_count: 0
+	});
+	sectionStudents.set('healthy.student@boscotech.net', 'eng1h-sophomore');
+	sectionAssignedAt.set('healthy.student@boscotech.net', now);
+	sectionStudents.set('debt.student@boscotech.net', 'eng1h-sophomore');
+	sectionAssignedAt.set('debt.student@boscotech.net', now);
+	sectionStudents.set('pass.student@boscotech.net', 'period-3-makeup');
+	sectionAssignedAt.set('pass.student@boscotech.net', now);
+
 	return {
 		auth: { getClaims: async () => ({ data: { claims: null }, error: null }) },
 		rpc(fn: string, params: Record<string, unknown> = {}) {
@@ -255,7 +317,7 @@ export function createFakeLedger() {
 	};
 }
 
-function handleRpc(fn: string, params: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }> {
+async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }> {
 	const email = String(params.p_email ?? '').toLowerCase().trim();
 
 	if (fn === 'coin_admin_lookup') {
@@ -414,6 +476,164 @@ function handleRpc(fn: string, params: Record<string, unknown>): Promise<{ data:
 				cap_points: cap,
 				remaining_points: Math.max(cap - s.ecUsedPoints, 0),
 				balance: s.balance
+			})
+		);
+	}
+
+	// -----------------------------------------------------------------------
+	// Sections (0073). Mirrors coin_admin_list_sections / _list_section_students
+	// / _upsert_section / _set_student_section / _assign_section_students /
+	// coin_bulk_log_section closely enough to drive the real SectionManager +
+	// bulk-log UI end to end.
+	// -----------------------------------------------------------------------
+
+	if (fn === 'coin_admin_list_sections') {
+		const rows = Array.from(sections.values())
+			.map((s) => ({ ...s, student_count: sectionStudentCount(s.id) }))
+			.sort((a, b) => (a.active === b.active ? a.id.localeCompare(b.id) : a.active ? -1 : 1));
+		return Promise.resolve({ data: rows, error: null });
+	}
+
+	if (fn === 'coin_admin_list_section_students') {
+		const sectionId = String(params.p_section_id ?? '');
+		const rows: CoinSectionStudentRow[] = Array.from(sectionStudents.entries())
+			.filter(([, sid]) => sid === sectionId)
+			.map(([studentEmail]) => {
+				const student = SAMPLE_STUDENTS.find((s) => s.email === studentEmail);
+				return {
+					student_email: studentEmail,
+					assigned_at: sectionAssignedAt.get(studentEmail) ?? new Date().toISOString(),
+					display_name: student?.display_name ?? null,
+					full_name: student?.full_name ?? null
+				};
+			})
+			.sort((a, b) =>
+				(a.display_name || a.full_name || a.student_email).localeCompare(
+					b.display_name || b.full_name || b.student_email
+				)
+			);
+		return Promise.resolve({ data: rows, error: null });
+	}
+
+	if (fn === 'coin_admin_upsert_section') {
+		const id = String(params.p_id ?? '')
+			.toLowerCase()
+			.trim();
+		if (!id) return Promise.resolve(rpcError('A section id is required.'));
+		const color = (params.p_color as string | null) ?? null;
+		if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+			return Promise.resolve(rpcError('Color must be a 6-digit hex value like #00FF41.'));
+		}
+		const existing = sections.get(id);
+		const now = new Date().toISOString();
+		sections.set(id, {
+			id,
+			label: (params.p_label as string | null) ?? null,
+			color,
+			active: params.p_active !== false,
+			note: (params.p_note as string | null) ?? null,
+			created_by: existing?.created_by ?? 'admin@boscotech.edu',
+			created_at: existing?.created_at ?? now,
+			updated_at: now,
+			student_count: existing?.student_count ?? 0
+		});
+		return Promise.resolve(ok({ id }));
+	}
+
+	if (fn === 'coin_admin_set_student_section') {
+		const studentEmail = String(params.p_email ?? '')
+			.toLowerCase()
+			.trim();
+		const sectionId = params.p_section_id ? String(params.p_section_id) : null;
+		if (!studentEmail) return Promise.resolve(rpcError('Enter a valid student email.'));
+		if (!sectionId) {
+			sectionStudents.delete(studentEmail);
+			sectionAssignedAt.delete(studentEmail);
+			return Promise.resolve(ok({ email: studentEmail, section_id: null }));
+		}
+		if (!sections.has(sectionId)) return Promise.resolve(rpcError(`Unknown coin section "${sectionId}".`));
+		sectionStudents.set(studentEmail, sectionId);
+		sectionAssignedAt.set(studentEmail, new Date().toISOString());
+		return Promise.resolve(ok({ email: studentEmail, section_id: sectionId }));
+	}
+
+	if (fn === 'coin_admin_assign_section_students') {
+		const sectionId = String(params.p_section_id ?? '');
+		if (!sections.has(sectionId)) return Promise.resolve(rpcError(`Unknown coin section "${sectionId}".`));
+		const emails = (params.p_emails as string[]) ?? [];
+		const results = emails.map((raw) => {
+			const e = raw.toLowerCase().trim();
+			if (!e || !e.includes('@')) return { email: raw, ok: false, reason: 'invalid_email' };
+			sectionStudents.set(e, sectionId);
+			sectionAssignedAt.set(e, new Date().toISOString());
+			return { email: e, ok: true };
+		});
+		return Promise.resolve(ok({ section_id: sectionId, results }));
+	}
+
+	if (fn === 'coin_bulk_log_section') {
+		const sectionId = String(params.p_section_id ?? '');
+		const categoryId = String(params.p_category_id ?? '');
+		const cat = catById.get(categoryId);
+		if (!sections.has(sectionId)) return Promise.resolve(rpcError(`Unknown coin section "${sectionId}".`));
+		if (!cat) return Promise.resolve(rpcError(`Unknown coin category "${categoryId}".`));
+		if (cat.id === 'extra_credit') {
+			return Promise.resolve(rpcError('Extra Credit needs a per-student point count; it cannot be bulk-logged yet.'));
+		}
+		if (!['flat', 'range', 'variable'].includes(cat.pricing_model)) {
+			return Promise.resolve(rpcError(`"${cat.name}" needs per-student input and cannot be bulk-logged yet.`));
+		}
+		// Shape validation up front, mirroring coin_bulk_log_section's own
+		// pre-loop checks: a config mistake fails once, clearly, instead of
+		// identically for every student.
+		const note = (params.p_note as string | null) ?? null;
+		if (cat.pricing_model === 'range') {
+			const amt = Number(params.p_amount);
+			if (!Number.isFinite(amt) || amt < (cat.min_amount ?? 0) || amt > (cat.max_amount ?? 0)) {
+				return Promise.resolve(rpcError(`"${cat.name}" must be between ${cat.min_amount}i¢ and ${cat.max_amount}i¢.`));
+			}
+		} else if (cat.pricing_model === 'variable') {
+			const amt = Number(params.p_amount);
+			if (cat.kind === 'adjustment') {
+				if (!Number.isFinite(amt) || amt === 0) return Promise.resolve(rpcError('A balance adjustment needs a non-zero amount.'));
+				if (!note) return Promise.resolve(rpcError('A balance adjustment needs a note explaining why.'));
+			} else {
+				if (!Number.isFinite(amt) || amt <= 0) return Promise.resolve(rpcError(`"${cat.name}" needs a positive amount.`));
+				if (!note) return Promise.resolve(rpcError(`"${cat.name}" needs a note.`));
+			}
+		}
+
+		const emails = Array.from(sectionStudents.entries())
+			.filter(([, sid]) => sid === sectionId)
+			.map(([e]) => e)
+			.sort();
+
+		const results: Record<string, unknown>[] = [];
+		let succeeded = 0;
+		for (const studentEmail of emails) {
+			// Reuses the SAME coin_log_transaction handling every single-student
+			// log goes through -- no duplicated business rule, exactly mirroring
+			// how the real coin_bulk_log_section nests the real coin_log_transaction.
+			const single = await handleRpc('coin_log_transaction', {
+				p_email: studentEmail,
+				p_category_id: categoryId,
+				p_amount: params.p_amount,
+				p_quantity: null,
+				p_note: note
+			});
+			const data = single.error ? { ok: false, reason: 'error', message: single.error.message } : single.data;
+			if ((data as { ok?: boolean }).ok) succeeded += 1;
+			results.push({ email: studentEmail, ...(data as Record<string, unknown>) });
+		}
+
+		return Promise.resolve(
+			ok({
+				section_id: sectionId,
+				category_id: categoryId,
+				total: results.length,
+				succeeded,
+				refused: results.length - succeeded,
+				results
 			})
 		);
 	}

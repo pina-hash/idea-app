@@ -3,6 +3,7 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import SectionManager from './SectionManager.svelte';
 	import {
 		EXTRA_CREDIT_GRADING_CATEGORIES,
 		KIND_LABELS,
@@ -17,6 +18,12 @@
 		type CoinCategory,
 		type StudentSuggestion
 	} from '$lib/coin-desk';
+	import {
+		isBulkEligible,
+		sectionDisplayName,
+		type BulkLogResponse,
+		type CoinSectionRow
+	} from './sections';
 
 	/**
 	 * The real interactive tool, factored out of /coin-desk so a dev harness
@@ -29,12 +36,21 @@
 	let {
 		categories,
 		supabase,
-		configured = true
+		configured = true,
+		sections: initialSections = [],
+		sectionsConfigured = true
 	}: {
 		categories: CoinCategory[];
 		supabase: SupabaseClient;
 		configured?: boolean;
+		sections?: CoinSectionRow[];
+		sectionsConfigured?: boolean;
 	} = $props();
+
+	// Owned here (not just passed through) so SectionManager's mutations --
+	// bound two-way -- are immediately visible to the bulk-log section picker
+	// below, with no separate refetch wiring between the two.
+	let sections = $state<CoinSectionRow[]>(initialSections);
 
 	// ---------------------------------------------------------------------
 	// Student lookup (coin_admin_lookup, reused as-is -- same RPC /admin uses)
@@ -186,6 +202,29 @@
 		overnight = false;
 		entryError = '';
 		entryNotice = '';
+		bulkError = '';
+		bulkResponse = null;
+	}
+
+	// ---------------------------------------------------------------------
+	// Target: a single student (the flow above) or a whole section at once.
+	// Bulk mode reuses the SAME category select and the SAME flat/range/
+	// variable field blocks below -- it is scoped to exactly those three
+	// pricing models (see sections.ts / 0073's coin_bulk_log_section), which
+	// is exactly the subset those blocks already render, so no separate
+	// field markup is needed.
+	// ---------------------------------------------------------------------
+	let logMode = $state<'student' | 'section'>('student');
+	let selectedSectionId = $state('');
+
+	const categoryOptions = $derived(logMode === 'section' ? categories.filter(isBulkEligible) : categories);
+
+	function setMode(mode: 'student' | 'section') {
+		if (logMode === mode) return;
+		logMode = mode;
+		selectedCategoryId = '';
+		selectedSectionId = '';
+		onCategoryChange();
 	}
 
 	function num(v: string): number {
@@ -237,9 +276,29 @@
 		return false;
 	});
 
+	const canSubmitBulk = $derived.by(() => {
+		if (!category || !selectedSectionId || bulkBusy || !isBulkEligible(category)) return false;
+		if (category.pricing_model === 'flat') return true;
+		if (category.pricing_model === 'range') {
+			const v = num(rangeAmount);
+			return Number.isFinite(v) && v >= (category.min_amount ?? 0) && v <= (category.max_amount ?? 0);
+		}
+		if (category.pricing_model === 'variable') {
+			const v = num(variableAmount);
+			if (!Number.isFinite(v) || v === 0) return false;
+			if (category.kind !== 'adjustment' && v <= 0) return false;
+			return !!noteText.trim();
+		}
+		return false;
+	});
+
 	let entryBusy = $state(false);
 	let entryError = $state('');
 	let entryNotice = $state('');
+
+	let bulkBusy = $state(false);
+	let bulkError = $state('');
+	let bulkResponse = $state<BulkLogResponse | null>(null);
 
 	function noteOrNull(): string | null {
 		return noteText.trim() || null;
@@ -252,6 +311,7 @@
 		used_points?: number;
 		cap_points?: number;
 		remaining_points?: number;
+		message?: string;
 	}): string {
 		switch (r.reason) {
 			case 'debt':
@@ -262,6 +322,8 @@
 				return 'Blocked: this student already holds an active Eating Pass.';
 			case 'cap_exceeded':
 				return `Blocked: Extra Credit cap reached (${r.used_points}/${r.cap_points}pt used this semester, ${r.remaining_points}pt remaining).`;
+			case 'error':
+				return r.message ? `Error: ${r.message}` : 'An unexpected error occurred.';
 			default:
 				return r.reason ? `Refused: ${r.reason}` : 'Refused by the server.';
 		}
@@ -353,6 +415,41 @@
 		return `Logged "${cat.name}" for ${amt !== null ? `${amt > 0 ? '+' : ''}${amt}i¢` : 'the entered amount'}. New balance: ${balance}i¢.${strikeNote}`;
 	}
 
+	/**
+	 * Logs the current category against every student in the selected
+	 * section, in ONE round trip to coin_bulk_log_section (0073) -- not a
+	 * client-side loop over coin_log_transaction. See that migration's header
+	 * for why: one atomic server-side transaction, one structured per-student
+	 * results array, so a debt-lockout refusal on one student never obscures
+	 * whether the rest of the section succeeded.
+	 */
+	async function submitBulk() {
+		if (!category || !selectedSectionId) return;
+		bulkError = '';
+		bulkResponse = null;
+		bulkBusy = true;
+		const resp = await supabase.rpc('coin_bulk_log_section', {
+			p_section_id: selectedSectionId,
+			p_category_id: category.id,
+			p_amount:
+				category.pricing_model === 'range'
+					? Math.round(num(rangeAmount))
+					: category.pricing_model === 'variable'
+						? Math.round(num(variableAmount))
+						: null,
+			p_note: noteOrNull()
+		});
+		bulkBusy = false;
+		if (resp.error) {
+			bulkError = resp.error.message;
+			return;
+		}
+		bulkResponse = resp.data as BulkLogResponse;
+		rangeAmount = '';
+		variableAmount = '';
+		noteText = '';
+	}
+
 	function when(iso: string): string {
 		const d = new Date(iso);
 		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
@@ -394,6 +491,8 @@
 			</p>
 		</section>
 	{/if}
+
+	<SectionManager {supabase} bind:sections configured={sectionsConfigured} />
 
 	<section class="card">
 		<h2>Find a student</h2>
@@ -488,19 +587,202 @@
 				<p class="note">No transactions logged yet for this email.</p>
 			{/if}
 		</section>
+	{/if}
 
-		<section class="card">
-			<h2>Log a transaction</h2>
+	{#snippet amountFields(cat: CoinCategory)}
+		{#if cat.pricing_model === 'flat'}
+			<p class="preview">Fixed amount: {cat.amount}i¢</p>
+		{:else if cat.pricing_model === 'range'}
+			<div class="field-row">
+				<label for="range-input">
+					Amount ({cat.min_amount}-{cat.max_amount}i¢)
+				</label>
+				<input
+					id="range-input"
+					type="number"
+					min={cat.min_amount}
+					max={cat.max_amount}
+					step="1"
+					bind:value={rangeAmount}
+				/>
+			</div>
+		{:else if cat.pricing_model === 'variable'}
+			<div class="field-row">
+				<label for="var-input">
+					{cat.kind === 'adjustment' ? 'Adjustment amount (+/-)' : 'Amount (i¢)'}
+				</label>
+				<input id="var-input" type="number" step="1" bind:value={variableAmount} />
+			</div>
+		{/if}
+	{/snippet}
 
-			{#if entryError}<p class="feedback error">{entryError}</p>{/if}
-			{#if entryNotice}<p class="feedback notice">{entryNotice}</p>{/if}
+	<section class="card">
+		<h2>Log a transaction</h2>
+
+		<div class="mode-toggle">
+			<button type="button" class:active={logMode === 'student'} onclick={() => setMode('student')}>
+				Single student
+			</button>
+			<button type="button" class:active={logMode === 'section'} onclick={() => setMode('section')}>
+				Section
+			</button>
+		</div>
+
+		{#if logMode === 'student'}
+			{#if !lookup}
+				<p class="note">Look up a student above first.</p>
+			{:else}
+				{#if entryError}<p class="feedback error">{entryError}</p>{/if}
+				{#if entryNotice}<p class="feedback notice">{entryNotice}</p>{/if}
+
+				<div class="field-row">
+					<label for="category-select">Category</label>
+					<select id="category-select" bind:value={selectedCategoryId} onchange={onCategoryChange}>
+						<option value="" disabled selected>Choose a category&hellip;</option>
+						{#each KIND_ORDER as kind (kind)}
+							{@const inKind = categoryOptions.filter((c) => c.kind === kind)}
+							{#if inKind.length}
+								<optgroup label={KIND_LABELS[kind]}>
+									{#each inKind as c (c.id)}
+										<option value={c.id}>{c.name} &mdash; {priceHint(c)}</option>
+									{/each}
+								</optgroup>
+							{/if}
+						{/each}
+					</select>
+				</div>
+
+				{#if category}
+					{#if category.notes}
+						<p class="note category-note">{category.notes}</p>
+					{/if}
+
+					{#if category.id === 'perfect_score_graded_work'}
+						<div class="field-row">
+							<label for="points-input">Points the work was worth</label>
+							<input id="points-input" type="number" min="1" step="1" bind:value={pointsInput} />
+						</div>
+						{#if pointsInput}
+							<p class="preview">Preview: {perfectScorePreview(num(pointsInput))}i¢</p>
+						{/if}
+					{:else if category.id === 'pay_raise'}
+						<p class="preview">
+							Current tier {lookup.wage_tier}. This purchase raises it to {lookup.wage_tier + 1} for
+							{payRaisePreview(lookup.wage_tier)}i¢ (the server re-checks the tier and the exact
+							cost at submit time).
+						</p>
+					{:else if category.id === 'property_damage_careless'}
+						<div class="field-row">
+							<label for="cost-input">Repair/replacement cost ($)</label>
+							<input
+								id="cost-input"
+								type="number"
+								min="0"
+								step="0.01"
+								bind:value={costDollarsInput}
+							/>
+						</div>
+						{#if costDollarsInput}
+							<p class="preview">Preview: {propertyDamagePreview(num(costDollarsInput))}i¢</p>
+						{/if}
+					{:else if category.id === 'three_d_printing'}
+						<div class="field-row">
+							<label for="grams-input">Grams (slicer's reported weight)</label>
+							<input id="grams-input" type="number" min="0" step="1" bind:value={gramsInput} />
+						</div>
+						<div class="field-row">
+							<label for="hours-input">Print time (hours)</label>
+							<input id="hours-input" type="number" min="0" step="0.1" bind:value={hoursInput} />
+						</div>
+						<label class="checkbox-row">
+							<input type="checkbox" bind:checked={overnight} />
+							Printed overnight (no time charge)
+						</label>
+						{#if gramsInput || hoursInput}
+							{@const preview = threeDPrintingPreview(num(gramsInput), num(hoursInput), overnight)}
+							<p class="preview">
+								Preview: {preview.total}i¢ (material {preview.material}i¢ + time {preview.time}i¢)
+							</p>
+						{/if}
+					{:else if category.id === 'extra_credit'}
+						<div class="field-row">
+							<label for="ec-points-input">Points</label>
+							<input id="ec-points-input" type="number" min="1" step="1" bind:value={pointsInput} />
+						</div>
+						<div class="field-row">
+							<label for="ec-category-select">Grading category</label>
+							<select id="ec-category-select" bind:value={gradingCategory}>
+								<option value="" disabled selected>Choose&hellip;</option>
+								{#each EXTRA_CREDIT_GRADING_CATEGORIES as g (g.id)}
+									<option value={g.id}>{g.label}</option>
+								{/each}
+							</select>
+						</div>
+						{#if pointsInput}
+							<p class="preview">Preview: {Math.round(num(pointsInput) * (category.amount ?? 0))}i¢</p>
+						{/if}
+					{:else if category.pricing_model === 'per_unit'}
+						<div class="field-row">
+							<label for="qty-input">Quantity ({category.unit_label})</label>
+							<input id="qty-input" type="number" min="0" step="any" bind:value={quantityInput} />
+						</div>
+						{#if quantityInput}
+							<p class="preview">
+								Preview: {Math.round(num(quantityInput) * (category.amount ?? 0))}i¢
+							</p>
+						{/if}
+					{:else}
+						{@render amountFields(category)}
+					{/if}
+
+					<div class="field-row">
+						<label for="note-input">
+							Note{noteRequired ? ' (required)' : ' (optional)'}
+						</label>
+						<input id="note-input" type="text" maxlength="500" bind:value={noteText} />
+					</div>
+
+					<div class="btn-row">
+						<button class="btn" disabled={!canSubmit} onclick={submitEntry}>
+							{entryBusy ? 'Logging…' : 'Log transaction'}
+						</button>
+					</div>
+				{/if}
+			{/if}
+		{:else if !sectionsConfigured}
+			<p class="feedback error">
+				Migration 0073 does not appear to be applied yet -- sections are unavailable.
+			</p>
+		{:else}
+			<p class="note">
+				Logs the SAME category and amount against every student in the section, in one server-side
+				call -- scoped to flat, range, and uniform-amount variable categories (Weekly Wage and
+				similar). Extra Credit, 3D Printing, and the other per-student categories need real
+				per-student input and are not bulk-loggable yet.
+			</p>
+			{#if bulkError}<p class="feedback error">{bulkError}</p>{/if}
 
 			<div class="field-row">
-				<label for="category-select">Category</label>
-				<select id="category-select" bind:value={selectedCategoryId} onchange={onCategoryChange}>
+				<label for="section-select">Section</label>
+				<select id="section-select" bind:value={selectedSectionId}>
+					<option value="" disabled selected>Choose a section&hellip;</option>
+					{#each sections.filter((s) => s.active) as s (s.id)}
+						<option value={s.id}>
+							{sectionDisplayName(s)} ({s.student_count} student{s.student_count === 1 ? '' : 's'})
+						</option>
+					{/each}
+				</select>
+				{#if !sections.some((s) => s.active)}
+					<p class="note">No active sections yet -- add one above.</p>
+				{/if}
+			</div>
+
+			<div class="field-row">
+				<label for="bulk-category-select">Category</label>
+				<select id="bulk-category-select" bind:value={selectedCategoryId} onchange={onCategoryChange}>
 					<option value="" disabled selected>Choose a category&hellip;</option>
 					{#each KIND_ORDER as kind (kind)}
-						{@const inKind = categories.filter((c) => c.kind === kind)}
+						{@const inKind = categoryOptions.filter((c) => c.kind === kind)}
 						{#if inKind.length}
 							<optgroup label={KIND_LABELS[kind]}>
 								{#each inKind as c (c.id)}
@@ -517,114 +799,50 @@
 					<p class="note category-note">{category.notes}</p>
 				{/if}
 
-				{#if category.id === 'perfect_score_graded_work'}
-					<div class="field-row">
-						<label for="points-input">Points the work was worth</label>
-						<input id="points-input" type="number" min="1" step="1" bind:value={pointsInput} />
-					</div>
-					{#if pointsInput}
-						<p class="preview">Preview: {perfectScorePreview(num(pointsInput))}i¢</p>
-					{/if}
-				{:else if category.id === 'pay_raise'}
-					<p class="preview">
-						Current tier {lookup.wage_tier}. This purchase raises it to {lookup.wage_tier + 1} for
-						{payRaisePreview(lookup.wage_tier)}i¢ (the server re-checks the tier and the exact cost
-						at submit time).
-					</p>
-				{:else if category.id === 'property_damage_careless'}
-					<div class="field-row">
-						<label for="cost-input">Repair/replacement cost ($)</label>
-						<input id="cost-input" type="number" min="0" step="0.01" bind:value={costDollarsInput} />
-					</div>
-					{#if costDollarsInput}
-						<p class="preview">Preview: {propertyDamagePreview(num(costDollarsInput))}i¢</p>
-					{/if}
-				{:else if category.id === 'three_d_printing'}
-					<div class="field-row">
-						<label for="grams-input">Grams (slicer's reported weight)</label>
-						<input id="grams-input" type="number" min="0" step="1" bind:value={gramsInput} />
-					</div>
-					<div class="field-row">
-						<label for="hours-input">Print time (hours)</label>
-						<input id="hours-input" type="number" min="0" step="0.1" bind:value={hoursInput} />
-					</div>
-					<label class="checkbox-row">
-						<input type="checkbox" bind:checked={overnight} />
-						Printed overnight (no time charge)
-					</label>
-					{#if gramsInput || hoursInput}
-						{@const preview = threeDPrintingPreview(num(gramsInput), num(hoursInput), overnight)}
-						<p class="preview">
-							Preview: {preview.total}i¢ (material {preview.material}i¢ + time {preview.time}i¢)
-						</p>
-					{/if}
-				{:else if category.id === 'extra_credit'}
-					<div class="field-row">
-						<label for="ec-points-input">Points</label>
-						<input id="ec-points-input" type="number" min="1" step="1" bind:value={pointsInput} />
-					</div>
-					<div class="field-row">
-						<label for="ec-category-select">Grading category</label>
-						<select id="ec-category-select" bind:value={gradingCategory}>
-							<option value="" disabled selected>Choose&hellip;</option>
-							{#each EXTRA_CREDIT_GRADING_CATEGORIES as g (g.id)}
-								<option value={g.id}>{g.label}</option>
-							{/each}
-						</select>
-					</div>
-					{#if pointsInput}
-						<p class="preview">Preview: {Math.round(num(pointsInput) * (category.amount ?? 0))}i¢</p>
-					{/if}
-				{:else if category.pricing_model === 'flat'}
-					<p class="preview">Fixed amount: {category.amount}i¢</p>
-				{:else if category.pricing_model === 'range'}
-					<div class="field-row">
-						<label for="range-input">
-							Amount ({category.min_amount}-{category.max_amount}i¢)
-						</label>
-						<input
-							id="range-input"
-							type="number"
-							min={category.min_amount}
-							max={category.max_amount}
-							step="1"
-							bind:value={rangeAmount}
-						/>
-					</div>
-				{:else if category.pricing_model === 'per_unit'}
-					<div class="field-row">
-						<label for="qty-input">Quantity ({category.unit_label})</label>
-						<input id="qty-input" type="number" min="0" step="any" bind:value={quantityInput} />
-					</div>
-					{#if quantityInput}
-						<p class="preview">
-							Preview: {Math.round(num(quantityInput) * (category.amount ?? 0))}i¢
-						</p>
-					{/if}
-				{:else if category.pricing_model === 'variable'}
-					<div class="field-row">
-						<label for="var-input">
-							{category.kind === 'adjustment' ? 'Adjustment amount (+/-)' : 'Amount (i¢)'}
-						</label>
-						<input id="var-input" type="number" step="1" bind:value={variableAmount} />
-					</div>
-				{/if}
+				{@render amountFields(category)}
 
 				<div class="field-row">
-					<label for="note-input">
+					<label for="bulk-note-input">
 						Note{noteRequired ? ' (required)' : ' (optional)'}
 					</label>
-					<input id="note-input" type="text" maxlength="500" bind:value={noteText} />
+					<input id="bulk-note-input" type="text" maxlength="500" bind:value={noteText} />
 				</div>
 
 				<div class="btn-row">
-					<button class="btn" disabled={!canSubmit} onclick={submitEntry}>
-						{entryBusy ? 'Logging…' : 'Log transaction'}
+					<button class="btn" disabled={!canSubmitBulk} onclick={submitBulk}>
+						{bulkBusy ? 'Logging…' : 'Log to section'}
 					</button>
 				</div>
 			{/if}
-		</section>
-	{/if}
+
+			{#if bulkResponse}
+				<p class="feedback notice">
+					Logged against {bulkResponse.total} student{bulkResponse.total === 1 ? '' : 's'}:
+					{bulkResponse.succeeded} succeeded, {bulkResponse.refused} refused.
+				</p>
+				<div class="rows bulk-rows">
+					{#each bulkResponse.results as r (r.email)}
+						<div class="row">
+							<div class="who">
+								<span class="email">{r.email}</span>
+							</div>
+							<div class="actions">
+								{#if r.ok}
+									<span class="txn-pos">
+										{typeof r.amount === 'number'
+											? `${r.amount > 0 ? '+' : ''}${r.amount}i¢`
+											: 'logged'}
+									</span>
+								{:else}
+									<span class="txn-neg">{reasonMessage(r)}</span>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		{/if}
+	</section>
 
 	<footer class="page-footer">
 		<VersionBadge app="coins" />
@@ -864,6 +1082,29 @@
 		color: var(--white);
 		margin-bottom: 0.8rem;
 		cursor: pointer;
+	}
+	.mode-toggle {
+		display: flex;
+		gap: 0.4rem;
+		margin-bottom: 1rem;
+	}
+	.mode-toggle button {
+		background: var(--bg0);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		color: var(--dim);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		padding: 0.3rem 0.7rem;
+		cursor: pointer;
+	}
+	.mode-toggle button.active {
+		color: var(--bg0);
+		background: var(--green);
+		border-color: var(--green);
+	}
+	.bulk-rows {
+		margin-top: 0.6rem;
 	}
 	.preview {
 		font-family: 'Share Tech Mono', monospace;

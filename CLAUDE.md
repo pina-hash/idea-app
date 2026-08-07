@@ -634,6 +634,110 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
   dev harness (all four states render correctly with 0 console errors) and by
   reading 0070/0072's RLS policies and grants directly.
 
+- **Sections + bulk logging (`0073_coin_sections.sql`, apply manually after
+  0072): the foundation the roles/contracts work builds on next, and a real
+  fix for "logging Weekly Wage means one email at a time, 10-20 times."**
+  - **The relationship to `curriculum.ts`: reused, never duplicated.**
+    `coin_sections` stores NO title, course, year, or instructor -- only what
+    the coin economy needs that curriculum.ts has no business knowing
+    (`color`, a carried-forward legacy Sheets feature, plus an optional
+    `note` and a `label` override). `id` is normalized (lowercased, trimmed)
+    the same way a curriculum `Section.id` already looks, so in the common
+    case the coin-desk "from curriculum" picker inserts a section keyed on
+    the EXACT `Section.id`, and `sectionDisplayName()`
+    (`src/lib/coin-desk/sections.ts`) resolves the display name client-side
+    via `sectionById()` rather than storing it -- the 0003
+    `profiles.section_id` decision (free-form text, not a FK, so the
+    curriculum can change in code with no migration) applied a second time.
+    A section with no curriculum counterpart (a combined class, a one-off
+    group) falls back to its stored `label`, then the bare id.
+  - **Assignment is email-keyed** (`coin_section_students`, one row per
+    student, PK `student_email`), the same `coin_transactions` /
+    `coin_wage_tiers` pattern (0070) that lets a balance be pre-provisioned
+    for an email that has never signed in -- `profiles.section_id` cannot be
+    what bulk logging targets, since it is only ever populated by a
+    signed-in student's own self-selection. Both tables are `is_admin()`-only
+    to read AND write (no client insert/update/delete grant on either; every
+    write goes through a SECURITY DEFINER RPC): `coin_admin_upsert_section`
+    (create/edit/archive, one function for all three via `on conflict`),
+    `coin_admin_list_sections` / `coin_admin_list_section_students` (reads,
+    the `admin_list()` inline `where public.is_admin()` shape), and
+    `coin_admin_set_student_section` (one email) /
+    `coin_admin_assign_section_students` (a whole pasted array, invalid
+    entries reported not silently dropped) for roster changes.
+  - **`coin_bulk_log_section(p_section_id, p_category_id, p_amount, p_note)`
+    is ONE round trip, ONE server-side transaction** -- not a client-side loop
+    calling `coin_log_transaction` N times, which can be interrupted partway
+    (a closed tab, a dropped call) leaving an ambiguous state where nobody
+    can tell how many of the 20 students actually got logged. It returns a
+    STRUCTURED per-student result array (the `{ok:false, reason:...}`
+    convention every other refusal in this schema already uses:
+    `{total, succeeded, refused, results: [{email, ok, reason?, balance?,
+    amount?}, ...]}`), so a debt-lockout refusal on student #7 never
+    obscures whether the other 19 succeeded. It reimplements NO business
+    rule: per student it calls the EXISTING `coin_log_transaction` (nested
+    SECURITY DEFINER, exactly the pattern `coin_admin_adjust_balance`
+    already relies on -- `is_admin()`/`current_user_email()` read the
+    session's JWT claims, not the executing role, so the inner call is
+    authorized as the same admin who called the outer function), wrapped in
+    its own exception handler so a per-student failure can never abort the
+    rest of the section.
+  - **Scope, deliberately narrow: `pricing_model in ('flat', 'range',
+    'variable')` only** -- one amount, entered once, applied uniformly.
+    `per_unit` (Extra Credit, Text Printing) and `formula` (Perfect Score,
+    Pay Raise, Property Damage, 3D Printing) both need real PER-STUDENT
+    input (a quantity, points, grams, hours) that cannot be one number typed
+    once for a whole section; building that is a real per-student input
+    grid, a later pass. Extra Credit is refused by category id explicitly
+    (on top of its `per_unit` exclusion) since it's the category this gap is
+    most often confused with. Shape validation (missing note, out-of-range
+    amount) runs ONCE before the loop, mirroring `coin_log_transaction`'s own
+    checks, so a config mistake fails with one clear error instead of the
+    same refusal N times over.
+  - **UI (`/coin-desk`):** `src/lib/coin-desk/SectionManager.svelte` is a new
+    "Sections" card (the `CoinDeskTool.svelte` factored-component
+    convention) -- add a section either from a curriculum dropdown (only
+    classes with no coin section yet) or as a custom group (id + label),
+    edit label/color/note, archive/reactivate (soft state, never delete,
+    keeps roster + history), and per-section roster management (paste emails
+    to add, remove a row). Its `sections` prop is `$bindable`, owned by
+    `CoinDeskTool.svelte` and passed straight through, so a mutation there is
+    immediately visible to the bulk-log picker with no separate refresh
+    wiring. "Log a transaction" gained a Single student / Section mode
+    toggle: Section mode swaps the student lookup for a section `<select>`
+    (active sections only) and filters the category dropdown to
+    `isBulkEligible()` categories, reusing the SAME flat/range/variable field
+    blocks (a shared `{#snippet amountFields}`) the single-student flow
+    already renders, since bulk categories are exactly that subset. Submit
+    shows the per-student results list (green amount or the refusal reason,
+    reusing the existing `reasonMessage()` helper extended with an `'error'`
+    case for the bulk RPC's per-student exception fallback).
+  - **Verified** in `/dev/coin-desk` (`fake-ledger.ts` extended with an
+    in-memory `coin_sections`/`coin_section_students` mirror, two seeded
+    sections -- one keyed to the real curriculum id `eng1h-sophomore`, one a
+    custom "Period 3 Makeup Group" -- and every 0073 RPC, including a bulk
+    handler that recurses into the SAME `coin_log_transaction` case the
+    single-student RPC uses, mirroring the real nesting): roster add (with an
+    invalid entry silently filtered client-side, reported if it reached the
+    server) and remove both live-refresh the section's student count; a bulk
+    Weekly Wage (flat) log against the sophomore section succeeded for both
+    students; a bulk Song Request (flat, purchase-kind) log correctly
+    refused the in-debt student with the debt message while the healthy
+    student still succeeded -- confirming one student's refusal never blocks
+    the rest; a bulk Above and Beyond (range) log respected the entered
+    amount for both; the single-student flow (lookup, the full category
+    list including formula/per_unit categories, a real Perfect Score submit)
+    was unaffected by any of the above; creating a custom section
+    immediately appeared in the bulk-log section picker; editing a section's
+    note persisted; and archiving a section flipped its badge, changed its
+    action to "reactivate", and removed it from the bulk-log picker while
+    leaving it in the section list. Both migration-unapplied fail-soft
+    banners (the Sections card and Section mode of the logger) render
+    correctly when toggled off. `svelte-check`: 0 errors. **NOT verified: the
+    live Supabase project** -- this repo's `.env` points at a placeholder
+    project, so 0073 has never been applied anywhere; verified via the dev
+    harness and by reading the RLS policies and grants directly.
+
 ## 2026-27 curriculum
 
 `src/lib/curriculum.ts` is the single source of truth for the live curriculum. It

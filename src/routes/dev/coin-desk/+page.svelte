@@ -1,11 +1,12 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import CoinDeskTool from '$lib/coin-desk/CoinDeskTool.svelte';
-	import { createFakeLedger, SAMPLE_CATEGORIES } from './fake-ledger';
+	import { createFakeLedger, listSections, SAMPLE_CATEGORIES } from './fake-ledger';
 
 	/**
 	 * Dev harness: mounts the real CoinDeskTool against an in-memory ledger
-	 * (fake-ledger.ts) shaped like 0070's real enforcement. Try:
+	 * (fake-ledger.ts) shaped like 0070's real enforcement, plus 0073's
+	 * sections/bulk-log RPCs. Try:
 	 *  - "healthy.student" -> a clean lookup, log a flat fine or a range award
 	 *  - "debt.student" -> negative balance; any purchase-kind category is
 	 *    refused with the debt message until an award clears it
@@ -18,16 +19,29 @@
 	 *  - Pay Raise on any student, then Weekly Wage -- watch the wage tier
 	 *    change but the award amount stay flat (the documented gap)
 	 *  - type a name with no match ("zzz") to see the graceful no-match note
+	 *  - Sections: two seeded ("Engineering I Honors (Sophomore)" via a real
+	 *    curriculum.ts id, and a custom "Period 3 Makeup Group") each holding
+	 *    a couple of the sample students. Add/edit/archive a section, paste
+	 *    emails to assign, remove a roster row, then switch "Log a
+	 *    transaction" to Section mode and bulk-log Weekly Wage (flat) or
+	 *    Above and Beyond (range) against one -- watch the per-student results
+	 *    list, including a debt refusal for "debt.student" without blocking
+	 *    the rest of the section
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
 
 	let migrationApplied = $state(true);
+	let sectionsApplied = $state(true);
 </script>
 
 <div class="dev-toolbar">
 	<label>
 		<input type="checkbox" bind:checked={migrationApplied} />
 		Migration 0070 applied
+	</label>
+	<label>
+		<input type="checkbox" bind:checked={sectionsApplied} />
+		Migration 0073 (sections) applied
 	</label>
 </div>
 
@@ -36,6 +50,8 @@
 		categories={migrationApplied ? SAMPLE_CATEGORIES : []}
 		{supabase}
 		configured={migrationApplied}
+		sections={sectionsApplied ? listSections() : []}
+		sectionsConfigured={sectionsApplied}
 	/>
 {/key}
 

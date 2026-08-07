@@ -5,4 +5,10 @@
 	let { data }: { data: PageData } = $props();
 </script>
 
-<CoinDeskTool categories={data.categories} supabase={data.supabase} configured={data.configured} />
+<CoinDeskTool
+	categories={data.categories}
+	supabase={data.supabase}
+	configured={data.configured}
+	sections={data.sections}
+	sectionsConfigured={data.sectionsConfigured}
+/>
