@@ -1,0 +1,259 @@
+<script lang="ts">
+	import ProfileMenu from '$lib/ProfileMenu.svelte';
+	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
+	import VersionBadge from '$lib/VersionBadge.svelte';
+	import type { DisplayTransaction, EatingPassStatus } from '$lib/coin-balance';
+
+	/**
+	 * The real read-only view, factored out of /coin-balance so a dev harness
+	 * can mount the SAME component against sample data (the CoinDeskTool
+	 * convention) -- everything below is presentation only, no gating logic
+	 * and no Supabase client at all: this page has no write path, so unlike
+	 * CoinDeskTool it needs nothing beyond the props the server load already
+	 * resolved.
+	 */
+	let {
+		configured = true,
+		email,
+		displayName,
+		balance,
+		transactions,
+		wageTier,
+		eatingPass
+	}: {
+		configured?: boolean;
+		email: string | null;
+		displayName: string | null;
+		balance: number;
+		transactions: DisplayTransaction[];
+		wageTier: number | null;
+		eatingPass: EatingPassStatus;
+	} = $props();
+
+	function when(iso: string): string {
+		const d = new Date(iso);
+		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+	}
+</script>
+
+<svelte:head>
+	<title>My Coin Balance // IDEA</title>
+</svelte:head>
+
+<div class="app-header">
+	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
+	<div class="header-right">
+		<a class="btn secondary" href="/">&lsaquo; Home</a>
+		<ProfileMenu />
+	</div>
+</div>
+
+<main class="coin-balance-page">
+	<section class="hero">
+		<div class="eyebrow">IDEA // Coin Balance</div>
+		<h1>My Coin Balance</h1>
+		<p class="lead">
+			Your own IDEA Coin standing: current balance, wage tier, Eating Pass status, and every
+			transaction on your account, read straight from the real Supabase ledger (migration 0070).
+			This page is read-only -- coins are logged by an admin at <strong>Coin Desk</strong>.
+		</p>
+	</section>
+
+	{#if !configured}
+		<section class="card">
+			<p class="feedback error">
+				The IDEA Coin ledger is not available yet -- migration 0070 does not appear to be applied.
+				Check back later.
+			</p>
+		</section>
+	{:else}
+		<section class="card">
+			<h2>Summary</h2>
+			<div class="coin-summary">
+				<div class="coin-balance" class:negative={balance < 0}>{balance}i&cent;</div>
+				<div class="coin-meta">
+					{#if displayName || email}
+						<span>{displayName ?? email}</span>
+					{/if}
+					<span>wage tier {wageTier ?? 1}</span>
+					<span>
+						eating pass:
+						{#if eatingPass.active}
+							active
+							{#if eatingPass.strikes > 0}
+								<span class="strike-chip"
+									>{eatingPass.strikes} strike{eatingPass.strikes === 1 ? '' : 's'}</span
+								>
+							{/if}
+						{:else}
+							none
+						{/if}
+					</span>
+				</div>
+			</div>
+		</section>
+
+		<section class="card">
+			<h2>Transaction history</h2>
+			{#if transactions.length}
+				<div class="rows coin-rows">
+					{#each transactions as t (t.id)}
+						<div class="row">
+							<div class="who">
+								<span class="reason">{t.category_name}</span>
+							</div>
+							<div class="meta">
+								{#if t.note}<span class="note-text">{t.note}</span>{/if}
+								<span class="since">{when(t.created_at)}</span>
+							</div>
+							<div class="actions">
+								<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
+									{t.amount > 0 ? '+' : ''}{t.amount}i&cent;
+								</span>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{:else}
+				<p class="note empty-state">
+					No transactions yet. Once an admin logs a fine, award, or purchase against your
+					account, it will show up here.
+				</p>
+			{/if}
+		</section>
+	{/if}
+
+	<footer class="page-footer">
+		<VersionBadge app="coins" />
+	</footer>
+</main>
+
+<style>
+	.coin-balance-page {
+		max-width: 52rem;
+		margin: 0 auto;
+		padding: 0 1.2rem 3rem;
+	}
+	.coin-balance-page > .card {
+		margin-bottom: 1.1rem;
+	}
+	.coin-balance-page h2 {
+		margin-top: 0;
+	}
+	.lead strong {
+		color: var(--white);
+	}
+	.feedback {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.8rem;
+		padding: 0.45rem 0.7rem;
+		border-radius: 5px;
+		margin-bottom: 0.8rem;
+	}
+	.feedback.error {
+		color: var(--amber);
+		border: 1px solid var(--amber);
+	}
+	.note {
+		color: var(--dim);
+		font-size: 0.9rem;
+	}
+	.empty-state {
+		padding: 0.6rem 0;
+	}
+	.coin-summary {
+		display: flex;
+		align-items: baseline;
+		gap: 1rem;
+		flex-wrap: wrap;
+		margin: 0.2rem 0 0.2rem;
+		padding: 0.6rem 0.8rem;
+		border: 1px solid var(--line);
+		border-radius: 6px;
+	}
+	.coin-balance {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 1.4rem;
+		color: var(--green);
+	}
+	.coin-balance.negative {
+		color: var(--amber);
+	}
+	.coin-meta {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.8rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--dim);
+	}
+	.strike-chip {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.65rem;
+		color: var(--amber);
+		border: 1px solid var(--amber);
+		border-radius: 999px;
+		padding: 0.05rem 0.45rem;
+		margin-left: 0.3rem;
+	}
+	.rows {
+		display: flex;
+		flex-direction: column;
+	}
+	.coin-rows {
+		margin-top: 0.2rem;
+	}
+	.row {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		padding: 0.5rem 0;
+		border-bottom: 1px solid var(--line);
+	}
+	.row:last-child {
+		border-bottom: none;
+	}
+	.who {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		min-width: 14rem;
+	}
+	.reason {
+		font-weight: 700;
+		color: var(--white);
+	}
+	.meta {
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+		min-width: 0;
+	}
+	.note-text {
+		font-size: 0.85rem;
+		color: var(--dim);
+	}
+	.since {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.65rem;
+		color: var(--dim);
+	}
+	.actions {
+		margin-left: auto;
+	}
+	.txn-neg {
+		color: var(--amber);
+		font-family: 'Share Tech Mono', monospace;
+	}
+	.txn-pos {
+		color: var(--green);
+		font-family: 'Share Tech Mono', monospace;
+	}
+	.page-footer {
+		margin-top: 2rem;
+		display: flex;
+		justify-content: center;
+	}
+</style>

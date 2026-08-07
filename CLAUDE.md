@@ -587,6 +587,39 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
     code-only until it is pasted into the Supabase SQL editor by hand, per
     the migration convention, and the five scenarios above should be
     spot-checked there too before treating real student balances as safe.
+- **Student-facing balance page: `/coin-balance`.** The read-only counterpart
+  to `/coin-desk` -- a signed-in `@boscotech.net` student's own balance,
+  reverse-chronological transaction history (category display name via
+  `coin_categories`, amount, date), wage tier, and Eating Pass status
+  (strike count shown only while a pass is currently held). Gated in
+  `+page.server.ts` on `profiles.role === 'student'` (redirects anonymous or
+  non-student visitors to `/`, the `/dashboard` non-admin pattern), and also
+  listed in `hooks.server.ts` `authedPrefixes` for defense in depth.
+  **Queries run as the signed-in caller with no RPC and no `student_email`
+  filter at all** -- `coin_transactions` / `coin_wage_tiers` already grant a
+  non-admin SELECT on `student_email = current_user_email()` rows only
+  (0070), so the filtering is entirely the RLS policy this page exercises,
+  never `coin_admin_lookup` or any other `is_admin()`-gated RPC. Eating Pass
+  active/strike state can't be read from `coin_eating_pass_active` /
+  `coin_eating_pass_strikes` directly (0070 grants those to no one but their
+  SECURITY DEFINER callers), so `src/lib/coin-balance.ts` reimplements that
+  same logic in pure TS (`eatingPassStatus`) over the already-fetched
+  transaction list -- the read-side mirror of the SQL, not a second
+  privileged path. `src/lib/coin-balance/CoinBalanceView.svelte` is the
+  presentation component (the `CoinDeskTool.svelte` split), so
+  `/dev/coin-balance` (404 in production, no auth/Supabase) mounts the same
+  component against sample data run through the real pure helpers, covering
+  a populated account, an Eating Pass revoked on its third strike (active
+  reads false, strikes still reads 3 -- "since the last purchase", exactly
+  like the SQL), the empty-history state, and the pre-0070 fail-soft state.
+  Linked from the homepage app launcher (`portal-apps.ts`, `coin-balance`,
+  Tools group, `requiresAuth`, not `adminOnly`) beside the public coin
+  leaderboard and the two admin coin tools. **NOT verified: a real
+  non-admin session against a live project** -- this repo's `.env` points at
+  a placeholder Supabase project (`example-ref.supabase.co`), so there is no
+  live database to sign in against; verified instead via the dev harness
+  (all four states render correctly with 0 console errors) and by reading
+  0070's RLS policies directly.
 
 ## 2026-27 curriculum
 

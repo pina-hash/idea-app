@@ -89,8 +89,11 @@ async function resolveClaims(supabase: App.Locals['supabase']): Promise<App.Clai
  * (the FRC Training track), and `/greenline` (the combat-racing game) are open
  * to any authenticated user. GAUNTLET's teacher-only authoring page is gated in
  * that page's load; GREENLINE's tuning panel is teacher-gated in its own load.
+ * `/coin-balance` (a signed-in student's own IDEA Coin balance) is further
+ * narrowed to `profiles.role === 'student'` in its own load, the same
+ * defense-in-depth pattern.
  */
-const authedPrefixes = ['/dashboard', '/gauntlet', '/frc', '/greenline'];
+const authedPrefixes = ['/dashboard', '/gauntlet', '/frc', '/greenline', '/coin-balance'];
 
 const authGuard: Handle = async ({ event, resolve }) => {
 	event.locals.claims = await resolveClaims(event.locals.supabase);

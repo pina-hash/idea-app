@@ -206,6 +206,11 @@
 			<circle cx="13" cy="17" r="9.5" />
 			<text x="13" y="17.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 9px 'Share Tech Mono', monospace">i&#162;</text>
 			<path d="M25 8v6m3-3h-6" />
+		{:else if id === 'coin-balance'}
+			<!-- IDEA Coin (i¢) with short ledger lines, reading as a personal statement. -->
+			<circle cx="11" cy="16" r="8" />
+			<text x="11" y="16.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 8px 'Share Tech Mono', monospace">i&#162;</text>
+			<path d="M22 9h6M22 14h6M22 19h4" />
 		{:else if id === 'dashboard'}
 			<path d="M5 24a11 11 0 1122 0z" /><path d="M16 24l5.5-7" /><circle cx="16" cy="24" r="1.6" />
 		{:else if id === 'courses'}

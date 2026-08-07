@@ -112,6 +112,17 @@ export const PORTAL_APPS: PortalApp[] = [
 		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
 	{
+		id: 'coin-balance',
+		title: 'My Coin Balance',
+		sub: 'Your balance, transaction history, wage tier, and Eating Pass status (0070).',
+		icon: 'coin-balance',
+		href: '/coin-balance',
+		group: 'tools',
+		cta: 'View',
+		requiresAuth: true,
+		theme: { primary: '#C8A848', secondary: '#78B870' }
+	},
+	{
 		id: 'dashboard',
 		title: 'Admin Dashboard',
 		sub: 'Roles, pathways, and the content review queues.',
