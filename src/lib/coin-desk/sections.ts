@@ -65,9 +65,25 @@ export interface BulkLogResponse {
  */
 export const BULK_ELIGIBLE_PRICING_MODELS: CoinPricingModel[] = ['flat', 'range', 'variable'];
 
-/** Extra Credit is 'per_unit' already, but it's worth naming explicitly since it's the category the convenience gap is most often confused with. */
+/**
+ * Extra Credit is 'per_unit' already, but it's worth naming explicitly since
+ * it's the category the convenience gap is most often confused with.
+ *
+ * Weekly Role Stipend is excluded for a different reason (it IS 'flat', the
+ * bulk-eligible shape): bulk-logging it against a whole SECTION would pay
+ * every student in the class, role or no role, which is wrong -- it is
+ * "every current role holder" money, not "every student in a section"
+ * money. It gets its own coin_bulk_log_role_stipend RPC instead, driven from
+ * RolesManager.svelte against coin_role_holders, not this section-wide
+ * bulk logger. See supabase/migrations/0074_coin_roles.sql's header for the
+ * full rationale.
+ */
 export function isBulkEligible(cat: CoinCategory): boolean {
-	return BULK_ELIGIBLE_PRICING_MODELS.includes(cat.pricing_model) && cat.id !== 'extra_credit';
+	return (
+		BULK_ELIGIBLE_PRICING_MODELS.includes(cat.pricing_model) &&
+		cat.id !== 'extra_credit' &&
+		cat.id !== 'weekly_role_stipend'
+	);
 }
 
 /**

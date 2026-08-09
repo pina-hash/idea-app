@@ -738,6 +738,160 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
     project, so 0073 has never been applied anywhere; verified via the dev
     harness and by reading the RLS policies and grants directly.
 
+- **Roles: Shop Steward / Quartermaster / Safety Officer / Lab Tech
+  (`0074_coin_roles.sql`, apply manually after 0073).** Keyed off
+  `coin_sections`/`coin_section_students`
+  (0073) for section-scoped eligibility and ratio caps -- the same "reuse
+  real infrastructure, not a parallel concept" doctrine 0073 itself
+  established for bulk logging, applied a second time. Source:
+  `docs/coin-economy/idea_coin_economy_draft_v3.md` Part 5.
+  - **Application fee is 0i¢, on purpose.** Per the doc, the free-response
+    answer is the real gate, not payment -- nothing in this migration
+    touches `coin_transactions` at apply or approve time. The only coin
+    ever tied to a role is the RECURRING Weekly Role Stipend (2i¢/week
+    while holding one, already seeded in 0070 as `weekly_role_stipend`,
+    scope `209h`), logged separately (see the bulk-logging bullet below).
+  - **The real quiz content is NOT in this repo.** The doc references "The
+    Role Questions sheet already has a full application quiz written for
+    all four roles" -- that quiz's actual question TEXT lives in the
+    legacy Google Sheet behind `getRoleQuestions`/`submitRoleApplication`
+    (`src/lib/server/coin-ledger.ts`,
+    `src/routes/api/coin-ledger/apply/+server.ts`), outside this repo, and
+    was never reproduced anywhere in the source doc itself -- there was
+    nothing to transcribe. `src/lib/coin-desk/roles.ts`'s
+    `ROLE_APPLICATION_QUESTIONS` is an explicitly-labelled functional
+    STAND-IN (two short free-response prompts per role) so an admin can log
+    a real application today; swap it for the real quiz text whenever that
+    becomes available. `coin_role_applications.answers` stores whatever
+    question text was actually asked, verbatim -- the stand-in prompts are
+    never read back from the database, only used to render the entry form.
+  - **Ratios: two are real, two are a proposed default.** Shop Steward is
+    `per_students`: 3 per ~25 students, `floor(3 x section size / 25)`,
+    where section size is the LIVE `coin_section_students` count, never a
+    stored headcount -- checked against the doc's own worked examples:
+    Junior (20 students) -> `floor(60/25)` = 2, Sophomore (10) -> 1, Senior
+    (11) -> 1, all three exact. Quartermaster is `fixed` at 1 per section
+    regardless of size, also documented. Safety Officer and Lab Tech were
+    NOT specified in the source quiz ("propose 1-2 per section, your
+    call") -- both seeded `fixed` at 2, flagged `ratio_is_default = true`
+    (surfaced in the UI as a "DEFAULT, not settled" chip with the reasoning
+    in a tooltip). The flag is a UI marker only; enforcement is identical
+    either way. Changing the actual number is a hand-edit in the SQL
+    editor, the same "price list edited by hand, no client write path"
+    doctrine 0070 established for `coin_categories` -- there is no
+    ratio-editing UI in this pass.
+  - **The ratio cap is enforced on APPROVAL, not on application** -- Extra
+    Credit's shape (`coin_log_extra_credit`'s point cap), not a new
+    pattern: a hard block returned as structured `{ok:false, reason:
+    'ratio_cap_reached', role_id, section_id, cap, held}` jsonb, never an
+    exception, so the admin UI displays it gracefully. A pending
+    application that hits the cap stays pending -- nothing silently drops;
+    the admin revokes an existing holder or rejects the new application and
+    tries again. `_coin_role_capacity` / `_coin_role_active_holder_count`
+    are internal helpers (the `_coin_insert` convention, no grant) shared
+    by both the admin-facing `coin_role_admin_capacity` preview RPC and
+    `coin_role_admin_review`'s hard block, so the two can never disagree
+    about what the cap or the current count is.
+  - **Current holders: `coin_role_holders`, one row per approved
+    application** (`application_id` not null + unique -- there is no way to
+    grant a role that skips review). A partial unique index
+    (`(student_email, role_id) where revoked_at is null`) is what makes
+    "current holder" a real, checkable state and is the actual mechanism
+    the ratio count reads: a revoked row simply stops counting, so
+    "revoking frees a slot" needed no separate bookkeeping. The same
+    "earned once, can still be lost, can be re-earned" shape the Eating
+    Pass strike system already uses -- a student can be re-approved for the
+    same role after a revoke (a fresh row, full history kept, never a
+    delete).
+  - **Weekly Role Stipend bulk-logging is its OWN RPC,
+    `coin_bulk_log_role_stipend`, deliberately NOT routed through
+    `coin_bulk_log_section` (0073).** `coin_bulk_log_section` pays every
+    student IN A SECTION; the stipend is "every student who currently holds
+    a role" money, not "every student in the class" money -- routing it
+    through the section-wide bulk logger would pay every student, role or
+    no role, which is wrong. So `weekly_role_stipend` is explicitly
+    EXCLUDED from `isBulkEligible()` (`src/lib/coin-desk/sections.ts`,
+    alongside Extra Credit) and `coin_bulk_log_role_stipend` iterates
+    ACTIVE ROLE HOLDERS instead (optionally filtered by role and/or
+    section), reusing the exact same nested-`coin_log_transaction`,
+    one-round-trip, structured-per-student-results shape
+    `coin_bulk_log_section` already established -- same jsonb shape, same
+    "one refusal never blocks the rest" guarantee, just over a different
+    roster. `distinct` on `student_email` is deliberate: a student holding
+    two roles at once (nothing forbids it) is paid the stipend once per
+    run, not once per role.
+  - **Admin UI (`src/lib/coin-desk/RolesManager.svelte`), mounted in
+    `CoinDeskTool.svelte` directly under `SectionManager`, built the SAME
+    way SectionManager was built** -- its own card, plain email inputs (no
+    separate typeahead), and the identical expand-a-section-row pattern for
+    "current holders by section" (mirroring `SectionManager`'s roster
+    expand/collapse, not a parallel roster view), rather than one shared
+    student-lookup threaded across both components. Sections: role
+    definitions with ratio description + default badge; "Log an
+    application" (email + role + the stand-in free-response questions,
+    since no student self-serve flow exists yet -- see below); "Pending
+    applications" (free-response Q&A shown expanded, a live capacity chip
+    per role/section fetched via `coin_role_admin_capacity`, Approve/Reject
+    with an optional review note, the ratio refusal shown inline while the
+    application stays in the list); "Current holders by section" (the
+    expand-per-section pattern, revoke behind a two-step inline confirm,
+    the `SectionManager`/gauntlet-room-delete convention); "Pay Weekly Role
+    Stipend" (optional role/section filters, the same per-student results
+    list rendering as bulk logging).
+  - **A real staleness bug found and fixed during verification.** The
+    "current holders" list is cached per section the same way
+    `SectionManager`'s roster is (fetch once on first expand, reuse) -- but
+    unlike the roster, a role holder can change from a DIFFERENT panel (an
+    application approved in "Pending applications") while that section's
+    holder list sits cached, including while collapsed. An approval used to
+    leave that cache stale indefinitely (collapsing and re-expanding did
+    NOT refetch, since the cache-populated check only fetches once ever).
+    Fixed: `reviewApplication` now force-refetches
+    `holdersBySection[app.section_id]` after a successful approve whenever
+    that section was EVER loaded, not only when currently expanded.
+  - **Verified** in `/dev/coin-desk` (`fake-ledger.ts` extended with an
+    in-memory `coin_role_definitions`/`coin_role_applications`/
+    `coin_role_holders` mirror and all seven 0074 RPCs, nesting into the
+    same `coin_log_transaction` handler the section bulk logger already
+    recurses into): a third seeded section, "Ratio Cap Demo (10 students)"
+    (10 bare emails, kept separate from the other two seeded sections so
+    neither's existing bulk-log demo was disturbed), holds two PENDING Shop
+    Steward applications -- Shop Steward's `floor(3 x 10 / 25)` computes a
+    real cap of exactly 1 here. Approving the first (0 held < cap 1)
+    succeeded and the remaining application's capacity chip live-updated to
+    "1 of 1 filled"; approving the second immediately afterward (1 held >=
+    cap 1) was refused inline with "Blocked: role at capacity (1/1 filled
+    for this section)." and stayed pending, nothing lost; revoking the
+    first holder (two-step confirm) live-updated the section to "No one
+    currently holds a role" and the capacity chip back to "0 of 1 filled";
+    approving the still-pending second application then succeeded, and
+    -- with the staleness fix in place -- the already-expanded "Current
+    holders" panel updated immediately with no manual collapse/re-expand
+    needed. Also verified: "Pay Weekly Role Stipend" with no filters
+    (defaults) logged the 2i¢ stipend against exactly the one current
+    holder (`+2i¢`), not the section's other 9 students; logging an
+    application for a student with no coin section assigned refused with
+    "This student has no coin section assigned yet -- assign one above..."
+    (an exception, not a structured refusal, since it is a setup
+    precondition); logging a second application for a role the student
+    already holds refused with "This student already holds this role."
+    Zero console errors throughout. `npm run check`: 0 new errors, 0 new
+    warnings (8 pre-existing errors in `tests/db/harness.ts` and
+    `tests/notebook-security.test.ts` are missing-devDependency issues
+    unrelated to this change). **NOT verified: the live Supabase project**
+    -- same placeholder-`.env` caveat as every other coin-economy
+    migration; 0074 has never been applied anywhere, verified via the dev
+    harness and by reading the RLS policies and grants directly.
+  - **Explicitly scoped OUT of this pass: any student-facing surface.** No
+    self-serve apply flow, no "my roles" view -- every application is
+    admin-entered, the same way every other coin-desk write already is.
+    The `/coin-balance` pattern (a signed-in student's own read-only view,
+    RLS-scoped with no RPC) is the right model whenever that becomes real
+    scope, but building it now would mean a new signed-in route, resolving
+    the caller's own section, and rendering the stand-in question set as if
+    it might be the real quiz -- real, separate work this pass does not
+    take on.
+
 ## 2026-27 curriculum
 
 `src/lib/curriculum.ts` is the single source of truth for the live curriculum. It

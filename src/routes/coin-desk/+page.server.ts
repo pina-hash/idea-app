@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import { isAdmin } from '$lib/server/admin';
 import type { CoinCategory } from '$lib/coin-desk';
 import type { CoinSectionRow } from '$lib/coin-desk/sections';
+import type { CoinRoleDefinition } from '$lib/coin-desk/roles';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -20,22 +21,37 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	if (!claims) error(404, 'Not found');
 	if (!(await isAdmin(supabase, claims.sub))) error(404, 'Not found');
 
-	const [{ data: categories, error: catError }, { data: sections, error: sectionsError }] =
-		await Promise.all([
-			supabase
-				.from('coin_categories')
-				.select(
-					'id, name, kind, scope, pricing_model, amount, min_amount, max_amount, unit_label, formula_key, semester_point_cap, cap_period, cap_count, notes'
-				)
-				.eq('active', true)
-				.eq('loggable', true)
-				.order('sort_order'),
-			// Sections (0073), for the bulk-log target picker and the section
-			// manager card. Loaded via the definer RPC (not a table select) so
-			// the same is_admin() gate every write on this schema uses also
-			// governs this read.
-			supabase.rpc('coin_admin_list_sections')
-		]);
+	const [
+		{ data: categories, error: catError },
+		{ data: sections, error: sectionsError },
+		{ data: roleDefinitions, error: rolesError }
+	] = await Promise.all([
+		supabase
+			.from('coin_categories')
+			.select(
+				'id, name, kind, scope, pricing_model, amount, min_amount, max_amount, unit_label, formula_key, semester_point_cap, cap_period, cap_count, notes'
+			)
+			.eq('active', true)
+			.eq('loggable', true)
+			.order('sort_order'),
+		// Sections (0073), for the bulk-log target picker and the section
+		// manager card. Loaded via the definer RPC (not a table select) so
+		// the same is_admin() gate every write on this schema uses also
+		// governs this read.
+		supabase.rpc('coin_admin_list_sections'),
+		// Role definitions (0074) -- Shop Steward / Quartermaster / Safety
+		// Officer / Lab Tech -- for RolesManager's ratio display and the
+		// "log an application" role picker. A plain table select (RLS is
+		// is_admin()-gated the same way coin_sections' select is), not an
+		// RPC, since there is nothing to compute here.
+		supabase
+			.from('coin_role_definitions')
+			.select(
+				'id, name, description, ratio_kind, ratio_count, ratio_per_students, ratio_is_default, active, sort_order, notes'
+			)
+			.eq('active', true)
+			.order('sort_order')
+	]);
 
 	return {
 		categories: (categories ?? []) as CoinCategory[],
@@ -45,6 +61,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		sections: (sections ?? []) as CoinSectionRow[],
 		// Fails soft the same way: 0073 not applied yet reads as an empty,
 		// clearly-flagged section list rather than a crashed page.
-		sectionsConfigured: !sectionsError
+		sectionsConfigured: !sectionsError,
+		roleDefinitions: (roleDefinitions ?? []) as CoinRoleDefinition[],
+		// Fails soft the same way again: 0074 not applied yet reads as an
+		// empty, clearly-flagged role list rather than a crashed page.
+		rolesConfigured: !rolesError
 	};
 };

@@ -1,5 +1,6 @@
 import type { CoinCategory, StudentSuggestion } from '$lib/coin-desk';
 import type { CoinSectionRow, CoinSectionStudentRow } from '$lib/coin-desk/sections';
+import type { CoinRoleDefinition } from '$lib/coin-desk/roles';
 
 /**
  * In-memory stand-in for the 0070 Supabase schema, mirroring its actual
@@ -69,6 +70,90 @@ export const SAMPLE_STUDENTS: StudentSuggestion[] = [
 	{ id: 's4', email: 'quinn.patel@boscotech.net', full_name: 'Quinn Patel', display_name: null }
 ];
 
+/**
+ * Mirrors 0074's seed exactly (same ids, ratios, and ratio_is_default
+ * flags): shop_steward and quartermaster are the two REAL documented
+ * ratios, safety_officer and lab_tech are the proposed DEFAULT the source
+ * quiz never specified (see roles.ts / 0074's migration header).
+ */
+export const SAMPLE_ROLE_DEFINITIONS: CoinRoleDefinition[] = [
+	{
+		id: 'shop_steward',
+		name: 'Shop Steward',
+		description: 'Keeps the shop floor safe and organized between classes.',
+		ratio_kind: 'per_students',
+		ratio_count: 3,
+		ratio_per_students: 25,
+		ratio_is_default: false,
+		active: true,
+		sort_order: 10,
+		notes: 'Documented ratio: 3 per ~25 students, scaled proportionally.'
+	},
+	{
+		id: 'quartermaster',
+		name: 'Quartermaster',
+		description: 'Tracks and issues shared tools and materials.',
+		ratio_kind: 'fixed',
+		ratio_count: 1,
+		ratio_per_students: null,
+		ratio_is_default: false,
+		active: true,
+		sort_order: 20,
+		notes: 'Documented ratio: 1 per section, regardless of size.'
+	},
+	{
+		id: 'safety_officer',
+		name: 'Safety Officer',
+		description: 'Watches for and flags safety issues during independent work time.',
+		ratio_kind: 'fixed',
+		ratio_count: 2,
+		ratio_per_students: null,
+		ratio_is_default: true,
+		active: true,
+		sort_order: 30,
+		notes: 'DEFAULT, not settled: the source quiz never specified a ratio for this role.'
+	},
+	{
+		id: 'lab_tech',
+		name: 'Lab Tech',
+		description: 'Keeps shared lab and print equipment running and reset between users.',
+		ratio_kind: 'fixed',
+		ratio_count: 2,
+		ratio_per_students: null,
+		ratio_is_default: true,
+		active: true,
+		sort_order: 40,
+		notes: 'DEFAULT, not settled: the source quiz never specified a ratio for this role.'
+	}
+];
+
+interface RoleApplicationState {
+	id: string;
+	student_email: string;
+	role_id: string;
+	section_id: string;
+	answers: { question: string; answer: string }[];
+	status: 'pending' | 'approved' | 'rejected';
+	submitted_by: string;
+	submitted_at: string;
+	reviewed_by: string | null;
+	reviewed_at: string | null;
+	review_note: string | null;
+}
+
+interface RoleHolderState {
+	id: string;
+	student_email: string;
+	role_id: string;
+	section_id: string;
+	application_id: string;
+	since: string;
+	assigned_by: string;
+	revoked_at: string | null;
+	revoked_by: string | null;
+	revoke_reason: string | null;
+}
+
 interface Txn {
 	id: string;
 	category_id: string;
@@ -115,10 +200,56 @@ const sections = new Map<string, CoinSectionRow>();
 const sectionStudents = new Map<string, string>(); // student_email -> section_id
 const sectionAssignedAt = new Map<string, string>();
 
+/**
+ * In-memory mirror of 0074's coin_role_applications / coin_role_holders,
+ * keyed the same way the rest of this fake ledger is (Maps by id).
+ */
+const roleApplications = new Map<string, RoleApplicationState>();
+const roleHolders = new Map<string, RoleHolderState>();
+let appSeq = 0;
+let holderSeq = 0;
+
 function sectionStudentCount(id: string): number {
 	let n = 0;
 	for (const sid of sectionStudents.values()) if (sid === id) n++;
 	return n;
+}
+
+function roleById(id: string): CoinRoleDefinition | undefined {
+	return SAMPLE_ROLE_DEFINITIONS.find((r) => r.id === id);
+}
+
+/** Mirrors 0074's _coin_role_capacity exactly: fixed cap, or floor(count x size / per). */
+function roleCapacity(roleId: string, sectionId: string): number {
+	const role = roleById(roleId);
+	if (!role) return 0;
+	if (role.ratio_kind === 'fixed') return role.ratio_count;
+	const size = sectionStudentCount(sectionId);
+	return Math.floor((role.ratio_count * size) / (role.ratio_per_students ?? 1));
+}
+
+function activeHolderCount(roleId: string, sectionId: string): number {
+	let n = 0;
+	for (const h of roleHolders.values()) {
+		if (h.role_id === roleId && h.section_id === sectionId && !h.revoked_at) n++;
+	}
+	return n;
+}
+
+function studentHoldsRole(email: string, roleId: string): boolean {
+	for (const h of roleHolders.values()) {
+		if (h.student_email === email && h.role_id === roleId && !h.revoked_at) return true;
+	}
+	return false;
+}
+
+/**
+ * Synchronous read of the current role definitions, for the dev harness to
+ * seed CoinDeskTool's initial `roleDefinitions` prop the way +page.server.ts
+ * seeds it from a real `coin_role_definitions` select.
+ */
+export function listRoleDefinitions(): CoinRoleDefinition[] {
+	return SAMPLE_ROLE_DEFINITIONS.filter((r) => r.active).slice();
 }
 
 /**
@@ -304,6 +435,82 @@ export function createFakeLedger() {
 	sectionAssignedAt.set('debt.student@boscotech.net', now);
 	sectionStudents.set('pass.student@boscotech.net', 'period-3-makeup');
 	sectionAssignedAt.set('pass.student@boscotech.net', now);
+
+	// Ratio-cap demo section: 10 bare students (no ledger/profile history
+	// needed -- they exist only for the section-size count) so Shop
+	// Steward's floor(3 x size / 25) ratio computes a real, non-trivial cap
+	// of exactly 1 here: floor(3 x 10 / 25) = 1. Kept SEPARATE from the two
+	// sections above so it never disturbs their existing bulk-log demo
+	// behavior (2 and 1 students respectively, already exercised).
+	sections.set('role-ratio-demo', {
+		id: 'role-ratio-demo',
+		label: 'Ratio Cap Demo (10 students)',
+		color: '#3d7dff',
+		active: true,
+		note: 'Shop Steward: 3 per ~25 students -> floor(3 x 10 / 25) = 1 here.',
+		created_by: 'admin@boscotech.edu',
+		created_at: now,
+		updated_at: now,
+		student_count: 0
+	});
+	const demoEmails: string[] = [];
+	for (let i = 1; i <= 10; i++) {
+		const demoEmail = `ratio-demo-${i}@boscotech.net`;
+		demoEmails.push(demoEmail);
+		sectionStudents.set(demoEmail, 'role-ratio-demo');
+		sectionAssignedAt.set(demoEmail, now);
+	}
+
+	// Two pending Shop Steward applications for the SAME role + section.
+	// Approving the first is "one under the cap" (0 held < cap 1); approving
+	// the second right after is "an application at exactly the cap" (1 held
+	// >= cap 1), refused with ratio_cap_reached. Revoking the first holder
+	// then frees the slot for the still-pending second application.
+	roleApplications.set('app-demo-1', {
+		id: 'app-demo-1',
+		student_email: demoEmails[0],
+		role_id: 'shop_steward',
+		section_id: 'role-ratio-demo',
+		answers: [
+			{
+				question: 'Why do you want to be Shop Steward?',
+				answer: 'I already reset the shop before anyone asks me to.'
+			},
+			{
+				question: 'Describe a time you kept a space safe or organized for other people.',
+				answer: 'Relabeled the tool wall so it stayed sorted after group builds.'
+			}
+		],
+		status: 'pending',
+		submitted_by: 'admin@boscotech.edu',
+		submitted_at: new Date(Date.now() - 3600000).toISOString(),
+		reviewed_by: null,
+		reviewed_at: null,
+		review_note: null
+	});
+	roleApplications.set('app-demo-2', {
+		id: 'app-demo-2',
+		student_email: demoEmails[1],
+		role_id: 'shop_steward',
+		section_id: 'role-ratio-demo',
+		answers: [
+			{
+				question: 'Why do you want to be Shop Steward?',
+				answer: 'I want to catch safety issues before they turn into a fine.'
+			},
+			{
+				question: 'Describe a time you kept a space safe or organized for other people.',
+				answer: 'Ran a quick cleanup checklist with my group at the end of build days.'
+			}
+		],
+		status: 'pending',
+		submitted_by: 'admin@boscotech.edu',
+		submitted_at: new Date(Date.now() - 1800000).toISOString(),
+		reviewed_by: null,
+		reviewed_at: null,
+		review_note: null
+	});
+	appSeq = 2;
 
 	return {
 		auth: { getClaims: async () => ({ data: { claims: null }, error: null }) },
@@ -630,6 +837,254 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 			ok({
 				section_id: sectionId,
 				category_id: categoryId,
+				total: results.length,
+				succeeded,
+				refused: results.length - succeeded,
+				results
+			})
+		);
+	}
+
+	// -----------------------------------------------------------------------
+	// Roles (0074). Mirrors coin_role_apply / _admin_list_applications /
+	// _admin_review / _admin_list_holders / _admin_revoke /
+	// coin_bulk_log_role_stipend / _admin_capacity closely enough to drive
+	// the real RolesManager UI end to end, including the ratio-cap refusal.
+	// -----------------------------------------------------------------------
+
+	if (fn === 'coin_role_admin_capacity') {
+		const roleId = String(params.p_role_id ?? '');
+		const sectionId = String(params.p_section_id ?? '');
+		return Promise.resolve({
+			data: {
+				role_id: roleId,
+				section_id: sectionId,
+				cap: roleCapacity(roleId, sectionId),
+				held: activeHolderCount(roleId, sectionId),
+				section_size: sectionStudentCount(sectionId)
+			},
+			error: null
+		});
+	}
+
+	if (fn === 'coin_role_apply') {
+		const studentEmail = String(params.p_student_email ?? '')
+			.toLowerCase()
+			.trim();
+		const roleId = String(params.p_role_id ?? '');
+		const role = roleById(roleId);
+		if (!studentEmail || !studentEmail.includes('@')) {
+			return Promise.resolve(rpcError('Enter a valid student email.'));
+		}
+		if (!role || !role.active) {
+			return Promise.resolve(rpcError(`Unknown or inactive coin role "${roleId}".`));
+		}
+		const sectionId = sectionStudents.get(studentEmail);
+		if (!sectionId) {
+			return Promise.resolve(
+				rpcError(
+					'This student has no coin section assigned yet -- assign one above before logging a role application (the ratio cap is checked against their section).'
+				)
+			);
+		}
+		if (studentHoldsRole(studentEmail, roleId)) {
+			return Promise.resolve(refused('already_holds_role'));
+		}
+
+		const rawAnswers = (params.p_answers as { question?: string; answer?: string }[] | undefined) ?? [];
+		const answers = rawAnswers.slice(0, 10).map((a) => ({
+			question: String(a.question ?? '').slice(0, 500),
+			answer: String(a.answer ?? '').slice(0, 4000)
+		}));
+
+		const id = `app${++appSeq}`;
+		roleApplications.set(id, {
+			id,
+			student_email: studentEmail,
+			role_id: roleId,
+			section_id: sectionId,
+			answers,
+			status: 'pending',
+			submitted_by: 'admin@boscotech.edu',
+			submitted_at: new Date().toISOString(),
+			reviewed_by: null,
+			reviewed_at: null,
+			review_note: null
+		});
+
+		return Promise.resolve(ok({ application_id: id, section_id: sectionId }));
+	}
+
+	if (fn === 'coin_role_admin_list_applications') {
+		const status = params.p_status === undefined ? 'pending' : (params.p_status as string | null);
+		const rows = Array.from(roleApplications.values())
+			.filter((a) => status === null || a.status === status)
+			.sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+			.map((a) => {
+				const student = SAMPLE_STUDENTS.find((s) => s.email === a.student_email);
+				const role = roleById(a.role_id);
+				return {
+					id: a.id,
+					student_email: a.student_email,
+					display_name: student?.display_name ?? null,
+					full_name: student?.full_name ?? null,
+					role_id: a.role_id,
+					role_name: role?.name ?? a.role_id,
+					section_id: a.section_id,
+					answers: a.answers,
+					status: a.status,
+					submitted_by: a.submitted_by,
+					submitted_at: a.submitted_at,
+					reviewed_by: a.reviewed_by,
+					reviewed_at: a.reviewed_at,
+					review_note: a.review_note
+				};
+			});
+		return Promise.resolve({ data: rows, error: null });
+	}
+
+	if (fn === 'coin_role_admin_review') {
+		const appId = String(params.p_application_id ?? '');
+		const decision = String(params.p_decision ?? '');
+		const note = (params.p_note as string | null) ?? null;
+		const app = roleApplications.get(appId);
+		if (!app) return Promise.resolve(rpcError('Unknown application.'));
+		if (decision !== 'approve' && decision !== 'reject') {
+			return Promise.resolve(rpcError('Decision must be "approve" or "reject".'));
+		}
+		if (app.status !== 'pending') {
+			return Promise.resolve(rpcError(`This application was already ${app.status}.`));
+		}
+
+		if (decision === 'reject') {
+			app.status = 'rejected';
+			app.reviewed_by = 'admin@boscotech.edu';
+			app.reviewed_at = new Date().toISOString();
+			app.review_note = note;
+			return Promise.resolve(ok({ status: 'rejected', application_id: appId }));
+		}
+
+		// Approve: the ratio cap check, hard-blocked, structured refusal --
+		// the exact Extra Credit cap_exceeded shape, checked HERE (approval),
+		// never at application time.
+		const cap = roleCapacity(app.role_id, app.section_id);
+		const held = activeHolderCount(app.role_id, app.section_id);
+		if (held >= cap) {
+			return Promise.resolve(
+				refused('ratio_cap_reached', {
+					role_id: app.role_id,
+					section_id: app.section_id,
+					cap,
+					held
+				})
+			);
+		}
+		if (studentHoldsRole(app.student_email, app.role_id)) {
+			return Promise.resolve(refused('already_holds_role'));
+		}
+
+		const holderId = `hold${++holderSeq}`;
+		roleHolders.set(holderId, {
+			id: holderId,
+			student_email: app.student_email,
+			role_id: app.role_id,
+			section_id: app.section_id,
+			application_id: appId,
+			since: new Date().toISOString(),
+			assigned_by: 'admin@boscotech.edu',
+			revoked_at: null,
+			revoked_by: null,
+			revoke_reason: null
+		});
+		app.status = 'approved';
+		app.reviewed_by = 'admin@boscotech.edu';
+		app.reviewed_at = new Date().toISOString();
+		app.review_note = note;
+
+		return Promise.resolve(ok({ status: 'approved', application_id: appId, holder_id: holderId }));
+	}
+
+	if (fn === 'coin_role_admin_list_holders') {
+		const sectionId = (params.p_section_id as string | null | undefined) ?? null;
+		const roleId = (params.p_role_id as string | null | undefined) ?? null;
+		const includeRevoked = params.p_include_revoked === true;
+		const rows = Array.from(roleHolders.values())
+			.filter((h) => sectionId === null || h.section_id === sectionId)
+			.filter((h) => roleId === null || h.role_id === roleId)
+			.filter((h) => includeRevoked || !h.revoked_at)
+			.sort((a, b) => new Date(b.since).getTime() - new Date(a.since).getTime())
+			.map((h) => {
+				const student = SAMPLE_STUDENTS.find((s) => s.email === h.student_email);
+				const role = roleById(h.role_id);
+				return {
+					id: h.id,
+					student_email: h.student_email,
+					display_name: student?.display_name ?? null,
+					full_name: student?.full_name ?? null,
+					role_id: h.role_id,
+					role_name: role?.name ?? h.role_id,
+					section_id: h.section_id,
+					since: h.since,
+					assigned_by: h.assigned_by,
+					revoked_at: h.revoked_at,
+					revoked_by: h.revoked_by,
+					revoke_reason: h.revoke_reason
+				};
+			});
+		return Promise.resolve({ data: rows, error: null });
+	}
+
+	if (fn === 'coin_role_admin_revoke') {
+		const holderId = String(params.p_holder_id ?? '');
+		const reason = (params.p_reason as string | null) ?? null;
+		const holder = roleHolders.get(holderId);
+		if (!holder) return Promise.resolve(rpcError('Unknown role holder.'));
+		if (holder.revoked_at) return Promise.resolve(rpcError('This role was already revoked.'));
+		holder.revoked_at = new Date().toISOString();
+		holder.revoked_by = 'admin@boscotech.edu';
+		holder.revoke_reason = reason;
+		return Promise.resolve(ok({ holder_id: holderId }));
+	}
+
+	if (fn === 'coin_bulk_log_role_stipend') {
+		const roleId = (params.p_role_id as string | null | undefined) ?? null;
+		const sectionId = (params.p_section_id as string | null | undefined) ?? null;
+		const note = (params.p_note as string | null) ?? null;
+
+		// distinct by email: a student holding two roles at once is paid the
+		// stipend once per run, not once per role -- mirrors 0074's `distinct`.
+		const emails = Array.from(
+			new Set(
+				Array.from(roleHolders.values())
+					.filter((h) => !h.revoked_at)
+					.filter((h) => roleId === null || h.role_id === roleId)
+					.filter((h) => sectionId === null || h.section_id === sectionId)
+					.map((h) => h.student_email)
+			)
+		).sort();
+
+		const results: Record<string, unknown>[] = [];
+		let succeeded = 0;
+		for (const studentEmail of emails) {
+			// The SAME single-student RPC coin_bulk_log_section already nests --
+			// no duplicated business rule, exactly mirroring the real
+			// coin_bulk_log_role_stipend's nested coin_log_transaction call.
+			const single = await handleRpc('coin_log_transaction', {
+				p_email: studentEmail,
+				p_category_id: 'weekly_role_stipend',
+				p_amount: null,
+				p_quantity: null,
+				p_note: note
+			});
+			const data = single.error ? { ok: false, reason: 'error', message: single.error.message } : single.data;
+			if ((data as { ok?: boolean }).ok) succeeded += 1;
+			results.push({ email: studentEmail, ...(data as Record<string, unknown>) });
+		}
+
+		return Promise.resolve(
+			ok({
+				role_id: roleId,
+				section_id: sectionId,
 				total: results.length,
 				succeeded,
 				refused: results.length - succeeded,

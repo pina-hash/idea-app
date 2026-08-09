@@ -11,4 +11,6 @@
 	configured={data.configured}
 	sections={data.sections}
 	sectionsConfigured={data.sectionsConfigured}
+	roleDefinitions={data.roleDefinitions}
+	rolesConfigured={data.rolesConfigured}
 />

@@ -4,6 +4,7 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SectionManager from './SectionManager.svelte';
+	import RolesManager from './RolesManager.svelte';
 	import {
 		EXTRA_CREDIT_GRADING_CATEGORIES,
 		KIND_LABELS,
@@ -24,6 +25,7 @@
 		type BulkLogResponse,
 		type CoinSectionRow
 	} from './sections';
+	import type { CoinRoleDefinition } from './roles';
 
 	/**
 	 * The real interactive tool, factored out of /coin-desk so a dev harness
@@ -38,13 +40,17 @@
 		supabase,
 		configured = true,
 		sections: initialSections = [],
-		sectionsConfigured = true
+		sectionsConfigured = true,
+		roleDefinitions = [],
+		rolesConfigured = true
 	}: {
 		categories: CoinCategory[];
 		supabase: SupabaseClient;
 		configured?: boolean;
 		sections?: CoinSectionRow[];
 		sectionsConfigured?: boolean;
+		roleDefinitions?: CoinRoleDefinition[];
+		rolesConfigured?: boolean;
 	} = $props();
 
 	// Owned here (not just passed through) so SectionManager's mutations --
@@ -493,6 +499,8 @@
 	{/if}
 
 	<SectionManager {supabase} bind:sections configured={sectionsConfigured} />
+
+	<RolesManager {supabase} {roleDefinitions} {sections} configured={rolesConfigured} />
 
 	<section class="card">
 		<h2>Find a student</h2>
