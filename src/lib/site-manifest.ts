@@ -88,6 +88,17 @@ export const APPS: SiteApp[] = [
 		]
 	},
 	{
+		id: 'notebook',
+		label: 'Notebook',
+		prefixes: [
+			'src/routes/notebook/',
+			'src/lib/notebook/',
+			'src/lib/notebook.ts',
+			'src/routes/api/notebook/',
+			'src/routes/dev/notebook/'
+		]
+	},
+	{
 		id: 'portal',
 		label: 'IDEA Portal',
 		// Catch-all: the homepage, shell, auth, config, and anything unclaimed.

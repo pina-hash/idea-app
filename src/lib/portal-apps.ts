@@ -166,6 +166,20 @@ export const PORTAL_APPS: PortalApp[] = [
 		theme: { primary: '#ED1C24', secondary: '#0066B3' }
 	},
 	{
+		id: 'notebook',
+		title: 'My Notebook',
+		sub: 'Photograph your engineering notebook pages and keep every entry in one place.',
+		icon: 'notebook',
+		href: '/notebook',
+		group: 'class',
+		cta: 'Open',
+		// Every signed-in account, whatever their role: a notebook is a
+		// personal record, not a student-only surface. Deliberately NO `theme`
+		// -- the card takes the launcher's shared accent fallback rather than
+		// introducing another per-card color.
+		requiresAuth: true
+	},
+	{
 		id: 'archive',
 		title: 'Course Archive',
 		sub: 'Discontinued 2025-26 courses, kept for reference.',

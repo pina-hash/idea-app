@@ -2783,6 +2783,108 @@ arrives in later sessions and should not need to touch this layer again.
   itself is code-only until applied by hand in the SQL editor, per the
   migration convention.
 
+## Digital notebook (student UI)
+
+The student-facing half of the notebook: `/notebook` (personal notebook +
+upload) and the `/notebook/review` placeholder. UI ONLY -- it calls the
+existing 0069/0071 data layer as it stands, and touches NOTHING in
+`notebook-drive.ts`, the migrations, or the two `/api/notebook/*` routes.
+
+- **Open to ANY signed-in account, deliberately, with no role check on the
+  personal half.** A notebook is a personal record, so a teacher keeping one
+  of their own is normal -- this is the opposite of `/coin-balance`, which is
+  genuinely student-only. `/notebook` is in `hooks.server.ts`
+  `authedPrefixes`, so anonymous visitors get the standard 303 to `/` (the
+  `+page.server.ts` redirect is belt-and-braces for a direct load).
+- **Every read runs as the CALLER'S OWN session with NO `student_id`
+  filter** (the `/coin-balance` doctrine): 0069 already grants a signed-in
+  user SELECT on their own `notebook_entries` and, via
+  `notebook_can_read_entry`, their photos -- so the filtering IS the RLS
+  policy, never application code. The page calls NO RPC at all;
+  `notebook_create_entry` / `notebook_add_photo` are reached only through
+  the two API routes.
+- **`src/lib/server/notebook-access.ts` is the ONE review-tier check**,
+  reusing both tiers 0069 already recognizes rather than inventing a third:
+  INSTRUCTOR (a `notebook_sections` row naming them `instructor_id` -- the
+  same question `notebook_is_section_instructor()` asks inside every policy,
+  and readable by any signed-in user so no new RPC or grant was needed) OR
+  CHAIR (the 0067 admin tier via `isAdmin()`). **`role === 'teacher'` is NOT
+  used** -- the 0067 naming trap. Fails CLOSED on any error.
+- **`/notebook/review` is a PLACEHOLDER** (the real grid is a later session
+  and will call 0069's existing `notebook_get_section_grid`). What ships is
+  the permission check and the URL so neither has to move. A non-reviewer
+  gets a **404, not a redirect** (the `/admin` rule), though anonymous
+  visitors never reach it -- the `/notebook` prefix guard fires first.
+- **`src/lib/notebook.ts`** is the client-safe pure layer (row types +
+  display/selection helpers, the `curriculum.ts` convention) and
+  **`src/lib/notebook/NotebookView.svelte`** is the whole screen, so
+  `/dev/notebook` mounts the identical component (the `CoinBalanceView`
+  split). The view owns the UPLOAD SEQUENCING -- photo 1 creates the entry,
+  every later photo joins it -- but not the transport: `createEntry` /
+  `addPhoto` are INJECTED, so the real page points them at the two existing
+  API routes while the harness answers in memory. That split is what makes
+  the multi-photo orchestration itself testable with no network.
+- **A blank label is sent as NOTHING AT ALL, not an empty string.** 0071
+  made the label optional and the upload route falls back to the file's own
+  name, so the UI must not re-impose a required-label rule the backend
+  dropped. Browser-verified: a free-form submit with an empty label puts
+  only `photo` on the FormData -- no `custom_label` key.
+- **Entry titles bottom out in a placeholder, never a blank line.**
+  `entryTitle()` walks session label -> `custom_label` -> the first photo's
+  `original_filename` (extension stripped) -> `'Untitled entry'`, because
+  since 0071 a fully unlabeled entry is a VALID state.
+- **Session quick-picks** cross-reference the student's own section's
+  `notebook_sessions` against their own entries (both already readable, no
+  new RPC) and default to the outstanding session NEAREST TODAY in either
+  direction. **A pick that stops being outstanding is treated as STALE and
+  drops back to the default** -- found in the browser, not review: the feed
+  reloads after every save, so a pick that just received an upload would
+  otherwise persist and silently file the NEXT entry against an
+  already-covered check-in.
+- **Photos are the priority content**: one per row at full column width
+  (measured 744px at a 1280 viewport, up to 40rem tall), never a thumbnail
+  grid, with reserved height so a slow load cannot collapse the frame.
+- **PHOTO BYTES ARE NOT SERVED BY THIS APP, and cannot be without a backend
+  change.** 0069 stores only the Drive file id and `notebook-drive.ts`
+  exports no download path (its `accessToken` is private), so the browser
+  asks Drive directly (`drive.google.com/thumbnail?id=...`), which serves
+  only to a viewer whose own Google session can read the file. Every photo
+  therefore renders with a per-photo `onerror` fallback card carrying an
+  "Open in Drive" link. **Whether the inline image actually renders for a
+  student is UNVERIFIED** and depends on their Drive access; a proper
+  server-side image proxy is the fix, and it needs a new export from
+  `notebook-drive.ts`.
+- **Launcher card** `notebook` in `portal-apps.ts` (Class group,
+  `requiresAuth`, NOT `adminOnly` -- every signed-in user sees it) with a
+  new `notebook` icon case in `AppLauncher.svelte`. It deliberately declares
+  **no `theme`**, so it takes the launcher's shared accent fallback rather
+  than adding another per-card color; note that fallback resolves to
+  green-primary/gold-secondary, not gold-primary. Registered in
+  `site-manifest.ts` as its own app for versioning/changelog.
+- **Verified** in `/dev/notebook` (404 in production, no auth/Supabase/Drive;
+  three accounts, both fail-soft toggles, and a log of the exact FormData
+  fields each transport received): all three role branches render as
+  described (student sees no review link, instructor sees it, plain account
+  sees neither it nor any section chip and gets the empty state); the
+  blank-label free-form submit sends no `custom_label` and the resulting
+  entry renders from its filename; a 3-photo submit issues exactly one
+  `upload` then two `add-photo` calls carrying the returned `entry_id`, and
+  the used session leaves the quick-picks live; the fully unlabeled entry
+  renders "Untitled entry" in italic; newest-first ordering was proven by
+  feeding the component OLDEST-first; the per-photo error fallback swapped
+  exactly one frame and kept the other seven; both fail-soft cards render;
+  no horizontal overflow at 375px and the file input carries
+  `accept="image/*" capture="environment" multiple`; 0 console errors. The
+  shipped `notebookAccess` guard was additionally driven directly with
+  mocked sessions (7 cases, all passing), including the two that must fail
+  closed: a plain `teacher` account teaching nothing gets NO review access,
+  and a runtime error inside `is_admin()` denies rather than falling through
+  to the pre-0067 teacher rule. **NOT verified: a real photo reaching the
+  real Drive folder through this UI** -- that needs a live signed-in session
+  and the one-time `/admin/drive-connect` consent, exactly as every
+  Drive-touching feature before it, and 0069/0071 must be applied by hand
+  first.
+
 ## GREENLINE (prototype)
 
 GREENLINE is a 3D combat racing game in its earliest exploration phase. The

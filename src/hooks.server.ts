@@ -93,7 +93,14 @@ async function resolveClaims(supabase: App.Locals['supabase']): Promise<App.Clai
  * narrowed to `profiles.role === 'student'` in its own load, the same
  * defense-in-depth pattern.
  */
-const authedPrefixes = ['/dashboard', '/gauntlet', '/frc', '/greenline', '/coin-balance'];
+const authedPrefixes = [
+	'/dashboard',
+	'/gauntlet',
+	'/frc',
+	'/greenline',
+	'/coin-balance',
+	'/notebook'
+];
 
 const authGuard: Handle = async ({ event, resolve }) => {
 	event.locals.claims = await resolveClaims(event.locals.supabase);
