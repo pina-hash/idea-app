@@ -4,7 +4,6 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import {
 		driveOpenUrl,
-		drivePhotoUrl,
 		entryTitle,
 		flagReasonLabel,
 		isUntitled,
@@ -13,6 +12,7 @@
 		orderedPhotos,
 		outstandingSessions,
 		photoCountLabel,
+		photoSrc,
 		sessionMeta,
 		showsStatus,
 		statusLabel,
@@ -76,6 +76,14 @@
 	let successMsg = $state<string | null>(null);
 	let fileInput = $state<HTMLInputElement | null>(null);
 	let broken = $state<Record<string, true>>({});
+	/** Bumped per photo by "Try again"; rides the src as a cache-buster. */
+	let retryTick = $state<Record<string, number>>({});
+
+	function retry(photoId: string) {
+		retryTick = { ...retryTick, [photoId]: (retryTick[photoId] ?? 0) + 1 };
+		const { [photoId]: _dropped, ...rest } = broken;
+		broken = rest;
+	}
 
 	const open = $derived(outstandingSessions(sessions, entries));
 	const feed = $derived(newestFirst(entries));
@@ -385,31 +393,33 @@
 									{#each photos as photo (photo.id)}
 										<figure class="photo">
 											{#if broken[photo.id]}
+												<!-- A proxied fetch can still fail for ordinary reasons
+												     (Drive hiccup, revoked token), so the per-photo
+												     fallback stays -- it is just no longer the default
+												     outcome for every viewer. -->
 												<div class="photo-missing">
-													<p>This photo is stored in the class Drive.</p>
-													<a
-														class="btn secondary"
-														href={driveOpenUrl(photo.drive_file_id)}
-														target="_blank"
-														rel="noopener noreferrer">Open in Drive</a
-													>
+													<p>This photo could not be loaded.</p>
+													<div class="photo-missing-actions">
+														<button type="button" class="btn secondary" onclick={() => retry(photo.id)}>
+															Try again
+														</button>
+														<a
+															class="drive-link"
+															href={driveOpenUrl(photo.drive_file_id)}
+															target="_blank"
+															rel="noopener noreferrer">Open in Drive</a
+														>
+													</div>
 												</div>
 											{:else}
-												<a
-													href={driveOpenUrl(photo.drive_file_id)}
-													target="_blank"
-													rel="noopener noreferrer"
-												>
-													<img
-														src={drivePhotoUrl(photo.drive_file_id)}
-														alt={photos.length > 1
-															? `${entryTitle(entry)}, page ${photo.sequence_order}`
-															: entryTitle(entry)}
-														loading="lazy"
-														referrerpolicy="no-referrer"
-														onerror={() => (broken = { ...broken, [photo.id]: true })}
-													/>
-												</a>
+												<img
+													src={`${photoSrc(photo.id)}${retryTick[photo.id] ? `?r=${retryTick[photo.id]}` : ''}`}
+													alt={photos.length > 1
+														? `${entryTitle(entry)}, page ${photo.sequence_order}`
+														: entryTitle(entry)}
+													loading="lazy"
+													onerror={() => (broken = { ...broken, [photo.id]: true })}
+												/>
 											{/if}
 											<figcaption>
 												{#if photos.length > 1}Page {photo.sequence_order}{/if}
@@ -741,6 +751,20 @@
 	}
 	.photo-missing p {
 		margin: 0;
+	}
+	.photo-missing-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.9rem;
+		flex-wrap: wrap;
+	}
+	.drive-link {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.75rem;
+		color: var(--dim);
+	}
+	.drive-link:hover {
+		color: var(--cyan);
 	}
 	figcaption {
 		display: flex;

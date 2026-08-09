@@ -330,6 +330,88 @@ export async function uploadNotebookPhoto(opts: {
 }
 
 /**
+ * The image content types this module will hand back. Uploads already
+ * enforce exactly this set (readPhotoForm in notebook-upload.ts), so a
+ * notebook photo is always one of them; anything else coming back from
+ * Drive is a sign the file id does not point at a photo we wrote.
+ *
+ * The allowlist matters because the proxy route serves these bytes FROM THE
+ * APP'S OWN ORIGIN: a response typed text/html there would run as
+ * same-origin script. Unknown types are served as application/octet-stream
+ * (inert, downloads rather than renders) instead of being echoed back.
+ */
+const SERVABLE_IMAGE_TYPES = new Set([
+	'image/jpeg',
+	'image/png',
+	'image/webp',
+	'image/heic',
+	'image/heif'
+]);
+
+export interface NotebookFileDownload {
+	/** The raw bytes, streamed straight through without buffering. */
+	body: ReadableStream<Uint8Array>;
+	/** Always safe to put in a Content-Type header (see the allowlist above). */
+	contentType: string;
+	/** Drive's own Content-Length when it sent one, else null. */
+	contentLength: string | null;
+}
+
+/**
+ * Reads one file's BYTES out of the shared drive, on the school account's
+ * behalf, using the same cached access token upload/rename/delete use.
+ *
+ * This exists because Postgres stores only the Drive file id and the folder
+ * lives in a restricted shared drive: asking the browser to fetch from
+ * drive.google.com only ever worked for a viewer who personally had access
+ * to that folder. The proxy route (/api/notebook/photo/[photo_id]) is what
+ * turns "the server can read this file" into "this signed-in student can
+ * see their own photo", and it does the AUTHORIZATION itself -- this
+ * function deliberately knows nothing about who is asking and must never be
+ * called without that check having passed first.
+ *
+ * Streams rather than buffers: photos are capped at 4 MB but there is no
+ * reason to hold one in serverless memory when the response can pass
+ * straight through.
+ */
+export async function downloadNotebookFile(fileId: string): Promise<NotebookFileDownload> {
+	if (!driveConfigured()) {
+		throw new Error('The notebook Drive integration is not configured.');
+	}
+	if (!fileId) {
+		throw new Error('A Drive file id is required.');
+	}
+
+	const attempt = (token: string) =>
+		fetch(
+			`${DRIVE_ENDPOINTS.files}/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+			{ headers: { authorization: `Bearer ${token}` } }
+		);
+
+	// Same one-shot 401 retry the write paths use: a cached access token can
+	// outlive a revocation. The body is untouched on that branch, so nothing
+	// is consumed before the retry.
+	let res = await attempt(await accessToken());
+	if (res.status === 401) {
+		res = await attempt(await accessToken(true));
+	}
+	if (!res.ok) {
+		const detail = (await res.text().catch(() => '')).slice(0, 300);
+		throw new Error(`Drive download failed (${res.status}): ${detail}`);
+	}
+	if (!res.body) {
+		throw new Error('Drive download returned no body.');
+	}
+
+	const raw = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+	return {
+		body: res.body,
+		contentType: SERVABLE_IMAGE_TYPES.has(raw) ? raw : 'application/octet-stream',
+		contentLength: res.headers.get('content-length')
+	};
+}
+
+/**
  * Best-effort delete, used ONLY to clean up an orphaned upload when the
  * follow-up RPC insert fails. Swallows every error: cleanup must never mask
  * the original failure, and a stray file in the shared drive is harmless.

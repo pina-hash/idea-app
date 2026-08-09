@@ -174,10 +174,16 @@ export const PORTAL_APPS: PortalApp[] = [
 		group: 'class',
 		cta: 'Open',
 		// Every signed-in account, whatever their role: a notebook is a
-		// personal record, not a student-only surface. Deliberately NO `theme`
-		// -- the card takes the launcher's shared accent fallback rather than
-		// introducing another per-card color.
-		requiresAuth: true
+		// personal record, not a student-only surface.
+		requiresAuth: true,
+		// The shared brass/gold scheme, stated explicitly rather than left to
+		// the snippet's fallback. Omitting `theme` does NOT yield the gold
+		// `--acc` convention: appCard's fallback is `var(--green)` primary, so
+		// an unthemed card renders green-led. These are the design-system
+		// --gold / --green tokens themselves (the .app-card CSS default, and
+		// what the coin cards already use), so this is the documented uniform
+		// accent, not a new per-card color.
+		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
 	{
 		id: 'archive',

@@ -2998,22 +2998,58 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
 - **Photos are the priority content**: one per row at full column width
   (measured 744px at a 1280 viewport, up to 40rem tall), never a thumbnail
   grid, with reserved height so a slow load cannot collapse the frame.
-- **PHOTO BYTES ARE NOT SERVED BY THIS APP, and cannot be without a backend
-  change.** 0069 stores only the Drive file id and `notebook-drive.ts`
-  exports no download path (its `accessToken` is private), so the browser
-  asks Drive directly (`drive.google.com/thumbnail?id=...`), which serves
-  only to a viewer whose own Google session can read the file. Every photo
-  therefore renders with a per-photo `onerror` fallback card carrying an
-  "Open in Drive" link. **Whether the inline image actually renders for a
-  student is UNVERIFIED** and depends on their Drive access; a proper
-  server-side image proxy is the fix, and it needs a new export from
-  `notebook-drive.ts`.
+- **Photo bytes are served by THIS APP, through a proxy
+  (`/api/notebook/photo/[photo_id]`).** This supersedes the original direct
+  `drive.google.com/thumbnail?id=...` `<img>` src, which only ever rendered
+  for a viewer who personally had access to the school's restricted shared
+  drive -- i.e. staff, not the students whose photos they are.
+  - **`downloadNotebookFile(fileId)` in `notebook-drive.ts`** is the new (and
+    only new) export: it reads the file on the school account's behalf using
+    the SAME cached access token upload/rename/delete already use, with the
+    same one-shot 401 re-mint retry, and STREAMS the body through rather than
+    buffering it. Upload, rename and the naming logic are untouched. It
+    deliberately knows nothing about who is asking.
+  - **Authorization is a real query, not a check written in the route.** The
+    row is read under the CALLER'S OWN cookie session, so 0069's policies
+    decide; `notebook_entries!inner(id)` makes the parent entry a second
+    hurdle, since PostgREST applies RLS to an embedded resource too. **An
+    empty result is 404, never 403** -- RLS returning nothing is
+    indistinguishable from the row not existing, and a 403 would confirm a
+    real id to a stranger. A caller who IS authorized but whose Drive fetch
+    fails gets **502**, so "you may not see this" and "we could not fetch it"
+    stay distinguishable in logs.
+  - **Serving from the app's own origin is why the content type is an
+    allowlist**, not an echo of Drive's header: a response typed `text/html`
+    here would run as same-origin script. Anything outside the five image
+    types uploads already enforce is served as `application/octet-stream`,
+    with `nosniff` and `Content-Disposition: inline`. Cache is
+    `private, max-age=60` -- short, because a photo is immutable but WHO may
+    see it is not (an admin override can re-point an entry's section).
+  - `photoSrc(photoId)` (notebook.ts) is what the UI uses; it is keyed on the
+    PHOTO ROW id, never the Drive file id, which the proxy resolves itself
+    from a row the caller proved they may read. The per-photo `onerror`
+    fallback stays (a proxied fetch can still fail for ordinary reasons) but
+    is no longer the default outcome for every viewer; it now offers **Try
+    again** (a cache-busted retry) with the Drive link demoted to a staff
+    escape hatch.
+- **The two RLS hurdles on that route are genuinely redundant, and a mutation
+  check is what established it.** Opening EITHER the `notebook_entries`
+  policy or the `notebook_entry_photos` policy to `using (true)` leaves
+  `tests/notebook-photo-route.test.ts` fully green; only opening BOTH turns
+  its 5 denial assertions red. That is defense in depth working, not a weak
+  test -- but it means dropping the `!inner` embed to "simplify" the query
+  would silently leave a single point of failure that the suite would not
+  catch, because the surviving policy still denies.
 - **Launcher card** `notebook` in `portal-apps.ts` (Class group,
   `requiresAuth`, NOT `adminOnly` -- every signed-in user sees it) with a
-  new `notebook` icon case in `AppLauncher.svelte`. It deliberately declares
-  **no `theme`**, so it takes the launcher's shared accent fallback rather
-  than adding another per-card color; note that fallback resolves to
-  green-primary/gold-secondary, not gold-primary. Registered in
+  new `notebook` icon case in `AppLauncher.svelte`. It declares
+  `theme: { primary: '#C8A848', secondary: '#78B870' }` -- the `--gold` /
+  `--green` design-system tokens themselves, which is also the `.app-card`
+  CSS default and what the coin cards already carry. **Omitting `theme` does
+  NOT give you the gold `--acc` convention:** `appCard`'s fallback is
+  `var(--green)` primary, so an unthemed card renders green-led. Measured:
+  the card's icon and title now compute `rgb(200, 168, 72)`, byte-identical
+  to the Coin Ledger and Coin Balance cards. Registered in
   `site-manifest.ts` as its own app for versioning/changelog.
 - **Verified** in `/dev/notebook` (404 in production, no auth/Supabase/Drive;
   three accounts, both fail-soft toggles, and a log of the exact FormData
@@ -3033,11 +3069,23 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
   mocked sessions (7 cases, all passing), including the two that must fail
   closed: a plain `teacher` account teaching nothing gets NO review access,
   and a runtime error inside `is_admin()` denies rather than falling through
-  to the pre-0067 teacher rule. **NOT verified: a real photo reaching the
-  real Drive folder through this UI** -- that needs a live signed-in session
-  and the one-time `/admin/drive-connect` consent, exactly as every
-  Drive-touching feature before it, and 0069/0071 must be applied by hand
-  first.
+  to the pre-0067 teacher rule. The proxy route additionally has its own
+  committed suite (see "Automated tests"), and was driven live from a real
+  `<img>` in the harness: the browser genuinely requested
+  `/api/notebook/photo/<id>`, got 401 signed out, rendered the fallback, and
+  retried through it with a cache-buster.
+  **NOT verified: a real photo reaching the real Drive folder through this
+  UI** -- that needs a live signed-in session and the one-time
+  `/admin/drive-connect` consent, exactly as every Drive-touching feature
+  before it, and 0069/0071 must be applied by hand first. The local `.env`
+  carries only the two PUBLIC Supabase vars -- no Drive credentials at all --
+  so `driveConfigured()` is false locally and the proxy answers 503 there
+  even for a signed-in caller; a live end-to-end check is a
+  deploy-then-verify step, not something reproducible from this repo.
+- **HARNESS NOTE:** `/dev/notebook`'s photos are `loading="lazy"`, and a
+  non-compositing preview pane never fires the intersection observer, so they
+  never request at all (the same reason screenshots time out there). Remove
+  the attribute or dispatch `error` by hand to exercise the image paths.
 
 ## GREENLINE (prototype)
 
@@ -8974,7 +9022,10 @@ SILENTLY -- ones where a regression breaks nothing visible.
   plugin chain (which shells out to `git log` for the changelog substrate) would
   only add startup cost and failure modes. `tests/**/*.ts` is already inside the
   SvelteKit-generated tsconfig's `include`, so `npm run check` type-checks the
-  suite along with everything else.
+  suite along with everything else. It carries exactly TWO aliases, the minimum
+  needed to import a REAL server route handler rather than a copy of it:
+  `$lib`, and `$env/dynamic/private` -> `tests/stubs/env-dynamic-private.ts`
+  (a live `process.env` read, which is faithfully what the real module does).
 - **The fixture is a REAL embedded Postgres with the REAL migration files
   applied, unmodified** (`tests/db/harness.ts`, the approach three prior
   verification passes on the notebook layer proved out and then threw away).
@@ -9007,6 +9058,19 @@ SILENTLY -- ones where a regression breaks nothing visible.
   touching the flagged one). Drive naming, label fallbacks and the section
   grid's shape are feature correctness and are deliberately NOT here; adding
   them would dilute what a red run means.
+- **`tests/notebook-photo-route.test.ts`** (11 assertions, same fixture) drives
+  the REAL `/api/notebook/photo/[photo_id]` handler -- imported from the route
+  file, not reimplemented -- against real policies. It covers the owner (200 +
+  the exact bytes), **a different student (404)**, that student's identical
+  answer for a real id and an imaginary one, the section instructor (200), a
+  DIFFERENT section's instructor (404), the chair tier (200), denial in both
+  directions, no session (401), a malformed id (404 without touching the
+  database, enforced by a client that throws if used), and an authorized
+  caller whose Drive fetch fails (502, not 404). Only PostgREST's wire format
+  is shimmed, translated to the equivalent SQL under `asUser`; the shim
+  ASSERTS the table, columns and filter it was handed, so a change to the
+  route's query fails the file loudly instead of quietly testing something
+  else. Drive is a local mock server via the exported `DRIVE_ENDPOINTS`.
 - **One assertion exists purely to keep the rest honest:** the suite asserts
   that `instructorA` and a plain `@boscotech.edu` account are NOT admins. Given
   0067's naming trap, if `teacher` ever silently re-acquired privilege every
@@ -9020,7 +9084,11 @@ SILENTLY -- ones where a regression breaks nothing visible.
   regression is `using (true)`, which reproduces an actual leak and reddens 4
   isolation tests, including the unattached staff account suddenly seeing every
   student's work. Mutate in the permissive direction when checking this suite
-  still bites.
+  still bites. `notebook-photo-route.test.ts` was put through the same
+  exercise, and it found something worth keeping: opening EITHER policy leaves
+  that file fully green, because the route's two hurdles are independent --
+  only opening BOTH reddens its 5 denial assertions (verified, then the
+  migration restored byte-identical). See the notebook UI section.
 
 ## Working conventions
 

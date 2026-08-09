@@ -136,16 +136,25 @@ export function orderedPhotos(entry: NotebookEntry): NotebookPhoto[] {
 }
 
 /**
- * Drive display URLs. Postgres stores only the file id (0069 keeps no image
- * bytes) and `notebook-drive.ts` exposes no download path, so the browser
- * asks Drive itself -- which serves these only to a viewer whose own Google
- * session can read the file. The UI therefore treats the image as
- * best-effort and always renders the `openUrl` link beside it.
+ * Where the <img> points: this app's OWN proxy route, keyed by the photo
+ * row's id (never the Drive file id -- the proxy resolves that itself, from
+ * a row the caller has proved they may read).
+ *
+ * This replaces an earlier direct drive.google.com thumbnail URL, which
+ * only rendered for a viewer who personally had access to the school's
+ * shared drive -- i.e. staff, not the students whose photos they are. The
+ * proxy reads the file on the school account's behalf after 0069's RLS has
+ * authorized the caller.
  */
-export function drivePhotoUrl(driveFileId: string, width = 1600): string {
-	return `https://drive.google.com/thumbnail?id=${encodeURIComponent(driveFileId)}&sz=w${width}`;
+export function photoSrc(photoId: string): string {
+	return `/api/notebook/photo/${encodeURIComponent(photoId)}`;
 }
 
+/**
+ * The escape hatch on the per-photo fallback card. Still a real Drive link,
+ * so it only opens for someone with folder access -- which is exactly who
+ * it is for: staff diagnosing a photo the proxy could not fetch.
+ */
 export function driveOpenUrl(driveFileId: string): string {
 	return `https://drive.google.com/file/d/${encodeURIComponent(driveFileId)}/view`;
 }
