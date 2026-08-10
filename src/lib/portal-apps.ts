@@ -123,6 +123,17 @@ export const PORTAL_APPS: PortalApp[] = [
 		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
 	{
+		id: 'contracts',
+		title: 'Contracts',
+		sub: 'Browse and claim posted jobs; the payout splits across whoever claims it (0077).',
+		icon: 'coin-entry',
+		href: '/contracts',
+		group: 'tools',
+		cta: 'Browse',
+		requiresAuth: true,
+		theme: { primary: '#C8A848', secondary: '#78B870' }
+	},
+	{
 		id: 'dashboard',
 		title: 'Admin Dashboard',
 		sub: 'Roles, pathways, and the content review queues.',

@@ -83,10 +83,15 @@ async function freePort(): Promise<number> {
 }
 
 /**
- * Boots Postgres, applies the stub then every migration in MIGRATIONS, and
- * returns the handle the tests drive.
+ * Boots Postgres, applies the stub then every migration in `migrationFiles`
+ * (defaults to MIGRATIONS, the notebook chain), and returns the handle the
+ * tests drive. Callers with a different dependency chain (a different
+ * feature's own migrations) pass their own list rather than editing the
+ * shared MIGRATIONS constant, which stays exactly what the notebook tests
+ * need -- so extending the harness for a new feature can never change what
+ * an existing suite applies.
  */
-export async function startTestDb(): Promise<TestDb> {
+export async function startTestDb(migrationFiles: readonly string[] = MIGRATIONS): Promise<TestDb> {
 	const dataDir = mkdtempSync(join(tmpdir(), 'idea-notebook-pg-'));
 	const port = await freePort();
 
@@ -131,7 +136,7 @@ export async function startTestDb(): Promise<TestDb> {
 
 	try {
 		await sql(readFileSync(STUB_SQL, 'utf8'));
-		for (const file of MIGRATIONS) {
+		for (const file of migrationFiles) {
 			const text = readFileSync(join(MIGRATIONS_DIR, file), 'utf8');
 			try {
 				await sql(text);

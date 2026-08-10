@@ -24,7 +24,8 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	const [
 		{ data: categories, error: catError },
 		{ data: sections, error: sectionsError },
-		{ data: roleDefinitions, error: rolesError }
+		{ data: roleDefinitions, error: rolesError },
+		{ error: contractsError }
 	] = await Promise.all([
 		supabase
 			.from('coin_categories')
@@ -50,7 +51,13 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 				'id, name, description, ratio_kind, ratio_count, ratio_per_students, ratio_is_default, active, sort_order, notes, suggested_duration_days'
 			)
 			.eq('active', true)
-			.order('sort_order')
+			.order('sort_order'),
+		// Contracts (0077) -- ContractsManager loads the real listing itself via
+		// coin_admin_list_contracts() on mount (the RolesManager applications/
+		// holders convention: a frequently-changing list, not a small admin-
+		// edited definition table). This is only a cheap configured check, the
+		// same shape as the sections/roles ones above.
+		supabase.from('coin_contracts').select('id').limit(1)
 	]);
 
 	return {
@@ -65,6 +72,9 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		roleDefinitions: (roleDefinitions ?? []) as CoinRoleDefinition[],
 		// Fails soft the same way again: 0074 not applied yet reads as an
 		// empty, clearly-flagged role list rather than a crashed page.
-		rolesConfigured: !rolesError
+		rolesConfigured: !rolesError,
+		// Fails soft the same way once more: 0077 not applied yet reads as a
+		// clearly-flagged "not available" card instead of a crashed page.
+		contractsConfigured: !contractsError
 	};
 };

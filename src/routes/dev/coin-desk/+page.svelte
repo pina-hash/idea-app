@@ -6,7 +6,20 @@
 	/**
 	 * Dev harness: mounts the real CoinDeskTool against an in-memory ledger
 	 * (fake-ledger.ts) shaped like 0070's real enforcement, plus 0073's
-	 * sections/bulk-log RPCs and 0074's roles/ratio-cap RPCs. Try:
+	 * sections/bulk-log RPCs, 0074's roles/ratio-cap RPCs, and 0077's
+	 * contracts RPCs. Try:
+	 *  - Contracts: five seeded contracts cover every status -- "Rewire the
+	 *    LED strip" (open, one existing claimant, room for more), "Deep-clean
+	 *    and inventory the fastener bins" (full), "Sophomore section supply
+	 *    restock" (section-restricted to eng1h-sophomore), "Label the storage
+	 *    bins" (completed, already paid), "Order more filament" (cancelled,
+	 *    its one claim still visible as history). Post a new one, Complete a
+	 *    contract with 3+ claimants to see the rounded even split, Cancel one
+	 *    with a claim on it (no payout, claim stays), Reset a claimed-but-
+	 *    open one back to zero claims. The REAL concurrency guarantee (two
+	 *    students racing the last slot) is proven separately against genuine
+	 *    Postgres connections in tests/coin-contracts.test.ts -- this mock
+	 *    cannot meaningfully re-demonstrate that property, see its own header.
 	 *  - "healthy.student" -> a clean lookup, log a flat fine or a range award
 	 *  - "debt.student" -> negative balance; any purchase-kind category is
 	 *    refused with the debt message until an award clears it
@@ -61,6 +74,7 @@
 	let migrationApplied = $state(true);
 	let sectionsApplied = $state(true);
 	let rolesApplied = $state(true);
+	let contractsApplied = $state(true);
 </script>
 
 <div class="dev-toolbar">
@@ -76,6 +90,10 @@
 		<input type="checkbox" bind:checked={rolesApplied} />
 		Migrations 0074/0076 (roles) applied
 	</label>
+	<label>
+		<input type="checkbox" bind:checked={contractsApplied} />
+		Migration 0077 (contracts) applied
+	</label>
 </div>
 
 {#key migrationApplied}
@@ -87,6 +105,7 @@
 		sectionsConfigured={sectionsApplied}
 		roleDefinitions={rolesApplied ? listRoleDefinitions() : []}
 		rolesConfigured={rolesApplied}
+		contractsConfigured={contractsApplied}
 	/>
 {/key}
 

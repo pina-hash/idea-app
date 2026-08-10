@@ -5,6 +5,7 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SectionManager from './SectionManager.svelte';
 	import RolesManager from './RolesManager.svelte';
+	import ContractsManager from './ContractsManager.svelte';
 	import {
 		EXTRA_CREDIT_GRADING_CATEGORIES,
 		KIND_LABELS,
@@ -42,7 +43,8 @@
 		sections: initialSections = [],
 		sectionsConfigured = true,
 		roleDefinitions = [],
-		rolesConfigured = true
+		rolesConfigured = true,
+		contractsConfigured = true
 	}: {
 		categories: CoinCategory[];
 		supabase: SupabaseClient;
@@ -51,6 +53,7 @@
 		sectionsConfigured?: boolean;
 		roleDefinitions?: CoinRoleDefinition[];
 		rolesConfigured?: boolean;
+		contractsConfigured?: boolean;
 	} = $props();
 
 	// Owned here (not just passed through) so SectionManager's mutations --
@@ -501,6 +504,8 @@
 	<SectionManager {supabase} bind:sections configured={sectionsConfigured} />
 
 	<RolesManager {supabase} {roleDefinitions} {sections} configured={rolesConfigured} />
+
+	<ContractsManager {supabase} {sections} configured={contractsConfigured} />
 
 	<section class="card">
 		<h2>Find a student</h2>

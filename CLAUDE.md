@@ -1048,6 +1048,174 @@ rule is a direct transcription of
     verified via the dev harness and by reading the RLS policies, grants,
     and the partial-unique-index-vs-`now()` reasoning directly.
 
+- **Contracts: post a job, students self-claim it, an admin completes it or
+  cancels it (migration `0077_coin_contracts.sql`, apply manually after
+  0076).** Built on 0070's existing `contract_completion` category --
+  `docs/coin-economy/idea_coin_economy_draft_v3.md` Part 3's guideline
+  ("~1i¢/hour, +50% for specialized skill") is a client-side HINT shown
+  while posting, never enforced; `payout_amount` is always a free amount the
+  admin types in, exactly like a single-student Contract Completion entry
+  always was. No new pricing model, no new category.
+  - **`coin_contracts`** (title, description, `payout_amount`,
+    `max_contractors` default 1, nullable `section_id` -> `coin_sections` on
+    delete set null meaning "open to everyone" once unset, `created_by`,
+    `completed_at` / `cancelled_at` mutually exclusive by CHECK,
+    `cancel_reason`) and **`coin_contract_claims`** (PK `(contract_id,
+    student_email)`, `claimed_at`) are the only two tables. **"Open" /
+    "full" / "completed" / "cancelled" is computed, never stored** -- the
+    `coin_wage_tiers` / Eating Pass doctrine applied a third time: only
+    `completed_at`/`cancelled_at` are real state, everything else derives
+    from those plus a live claim count.
+  - **The capacity check needs a ROW LOCK, not just a count-then-insert,
+    because there is no claim row to lock for a student who does not hold
+    one yet.** `coin_contract_self_claim(p_contract_id)` -- no email
+    parameter, resolved from `current_user_email()` like every other
+    student-facing action, so a student can only ever claim for themselves
+    -- opens with `select ... from coin_contracts where id = ... for
+    update`, locking the PARENT contract row. A second concurrent claim on
+    the SAME contract blocks on that lock until the first transaction
+    commits or rolls back; because Postgres gives each STATEMENT inside a
+    transaction a fresh snapshot under the default READ COMMITTED
+    isolation, the count taken after the wait resolves genuinely sees the
+    first call's just-committed claim. This is the real guarantee --
+    application-level sequencing on one request says nothing about two
+    concurrent ones. The `(contract_id, student_email)` PK is a second,
+    independent backstop against a literal double-claim by the SAME
+    student, caught with an explicit `unique_violation` handler so it
+    returns the same structured refusal shape as everything else here
+    rather than a raw constraint error. Refusals: `not_open` (completed or
+    cancelled), `wrong_section` (the contract is section-restricted and the
+    student's `coin_section_students` row does not match), `already_claimed`,
+    `full` (with `max_contractors`/`claimed_count`). An unknown contract id
+    raises -- genuine misuse, not an expected race.
+  - **Read model: a public aggregate view for browsing, an admin RPC for
+    identities.** `coin_contracts` itself is broadly readable to any
+    signed-in user (the `coin_categories` precedent: a job list is not
+    sensitive), so browsing is a direct table read, no RPC -- the
+    `/coin-balance` doctrine applied to a new surface.
+    `coin_contract_status` is an OWNER-PRIVILEGED view (not
+    `security_invoker`, so it can aggregate past `coin_contract_claims`' own
+    narrower RLS) exposing only `claimed_count` + computed `status` per
+    contract id -- no student identities, so there is no row-level data
+    being bypassed for it to leak (the 0060 rule about an owner-privileged
+    view needing its own row predicate has nothing to apply to here, since
+    every column it returns is a safe aggregate). `coin_contract_claims`
+    itself keeps the `coin_transactions` own-row-or-admin RLS shape
+    (`student_email = current_user_email() or is_admin()`), so "contracts
+    I'm on" is the same no-filter-needed read `/coin-balance`'s history
+    already is. The admin side wants claimant IDENTITIES too, which is
+    exactly what that RLS keeps from a plain student, so
+    `coin_admin_list_contracts()` is its own `is_admin()`-gated RPC (the
+    `coin_role_admin_list_applications` precedent) returning every contract
+    with a `claimants` jsonb array (email, display name, claimed_at).
+  - **`coin_admin_post_contract`** (title, description, payout_amount,
+    max_contractors, optional section_id) is the only writer of a new
+    contract, `is_admin()`-gated like everything else in this schema.
+  - **`coin_admin_complete_contract(p_contract_id, p_note)`** splits
+    `payout_amount` evenly across every current claimant and logs each
+    share as an ordinary Contract Completion award via the EXISTING
+    `coin_log_transaction`, never a direct write -- so the debt lockout (a
+    no-op here, since awards always land regardless of balance) and every
+    other rule stay in the one place they always lived. **Even split, round
+    half up** (Postgres `round()`, away from zero -- the SAME convention 3D
+    Printing's material charge and Property Damage's exchange rate already
+    use): `share = round(payout_amount::numeric / count)`, identical for
+    every claimant. When the payout does not divide evenly the total
+    actually paid can differ from `payout_amount` by a coin or two either
+    way -- accepted deliberately, the same way a per-unit rate rounds
+    elsewhere in this schema with no reconciliation step; singling out
+    which claimant gets an odd leftover coin is a judgment call this
+    migration does not make. Refuses (exception) a contract with zero
+    claimants ("there is no one to pay") or an already-terminal one, wrapped
+    per-claimant in its own exception handler so one student's failure can
+    never block the rest -- the `coin_bulk_log_section` per-student-results
+    convention, over a two-row roster instead of a section.
+  - **`coin_admin_cancel_contract(p_contract_id, p_reason)`** pays nothing,
+    ever -- the only path that pays anyone is `_complete_contract` above.
+    Claims are left in place as a historical record, the revoke-not-delete
+    convention this schema uses everywhere (`coin_role_holders`,
+    `coin_section_students`).
+  - **`coin_admin_reset_contract(p_contract_id)`** clears every claim and
+    returns a contract to open. Only valid while neither completed nor
+    cancelled (both genuinely terminal, exception otherwise) -- there is no
+    "un-complete" or "un-cancel" anywhere in this schema, and reset does not
+    invent one.
+  - **UI:** `src/lib/coin-desk/ContractsManager.svelte` is the admin card
+    (mounted in `CoinDeskTool.svelte` directly under `RolesManager`, the
+    `SectionManager`/`RolesManager` convention -- its own card, a plain post
+    form with the guideline hint computed client-side, a status-filtered
+    list, two-step confirm on cancel/reset). `/contracts` is the new
+    student-facing route (`src/lib/contracts/ContractsView.svelte` +
+    `src/routes/contracts/+page.server.ts`), gated to signed-in
+    `profiles.role === 'student'` exactly like `/coin-balance` (redirect
+    anonymous or non-student to `/`; also in `hooks.server.ts`
+    `authedPrefixes` for defense in depth) -- browse every open contract,
+    claim one, see "Contracts you're on". Reads run the `/coin-balance` way
+    (RLS/the view does the filtering, no `.eq(student_email, ...)`
+    anywhere); the one write, self-claim, re-fetches afterward rather than
+    guessing the new state client-side, since a claim can legitimately lose
+    a race to fill the last slot between the click and the response.
+    `contractSharePreview()` (`src/lib/coin-desk/contracts.ts`) mirrors
+    `round()`'s half-up behavior via `Math.round()`, which agrees with
+    Postgres at every tie for a positive input, so the admin's "N&cent; if
+    completed now" preview per claimant always matches the real charge.
+  - **Verified against a REAL embedded Postgres** (the `tests/db/harness.ts`
+    fixture other feature tests already use, extended with an optional
+    `migrationFiles` parameter -- defaulting to the notebook chain those
+    tests need, so nothing about them changed -- rather than editing the
+    shared constant; `npm test` reruns the FULL suite afterward, 78/78
+    green, confirming zero regression). `tests/coin-contracts.test.ts`
+    applies 0001+0003+0020+0067+0070+0073+0077 UNMODIFIED and covers, with
+    genuine Postgres transactions rather than a mock: **RLS** (any
+    signed-in user reads `coin_contracts`/`coin_contract_status`;
+    `coin_contract_claims` scoped to own rows unless admin); **no direct
+    write** on either table for a student OR an admin (`42501` both ways);
+    **every self-claim refusal shape** (full with the exact counts,
+    already_claimed, wrong_section, not_open after a cancel, an unknown id
+    raising); **the concurrency guarantee itself, against REAL concurrent
+    connections** -- exactly 3 of 5 simultaneous claims succeed on a 3-slot
+    contract with the claims table agreeing at exactly 3 rows, exactly 1 of
+    5 succeeds on a 1-slot contract repeated across 5 independent rounds
+    (a single passing round would be consistent with "got lucky"; five
+    rounds with real network/scheduling jitter between them is not), and
+    the SAME student firing two simultaneous claims never produces two
+    rows; **the even-split arithmetic against the real RPC**, including the
+    genuine round-half-up case (15i¢ across 2 claimants -> 8i¢ each, not 7,
+    Postgres `round()`'s away-from-zero tie-break exercised directly, not
+    asserted from documentation) alongside an ordinary non-tie remainder
+    (100i¢ across 3 -> 33i¢ each, 99 of 100 actually paid); **admin
+    lifecycle** (post -> list with claimants, complete refusing zero
+    claimants and a re-complete, cancel leaving claims as history with no
+    payout and refusing a re-cancel or a complete afterward, reset
+    returning a full contract to genuinely reclaimable open slots and
+    refusing on a completed or cancelled one); and the **permission
+    boundary** (a non-admin student refused with an exception on all four
+    admin RPCs and reading zero rows from `coin_admin_list_contracts()`,
+    `anon` holding no `EXECUTE` grant on any of the six RPCs, checked via
+    `has_function_privilege` rather than attempting a call with no
+    session). 19 assertions, all green. Browser-verified live against the
+    dev server (`/dev/coin-desk` and the new `/dev/contracts`, both against
+    `fake-ledger.ts` extended with a module-level contracts mirror and a
+    student-identity switcher for the self-claim caller, since that RPC
+    takes no email parameter at all): the real wrong-section refusal
+    message rendered on a real click, a real successful claim moved the
+    contract from "Open contracts" into "Contracts you're on" and updated
+    the live count, Complete paid the real Contract Completion award
+    (confirmed by re-looking up the claimant's balance in the SAME admin
+    tool, `-8i¢ -> 7i¢` for a 15i¢ payout), Cancel and Reset both drove
+    their real two-step confirms, Post created a real new row, the status
+    filter tabs partitioned all six seeded/created contracts correctly, and
+    the guideline hint computed `10 -> 15i¢` when the specialized checkbox
+    was ticked. A REAL BUG was found and fixed during this pass: the fake
+    ledger's `from('coin_contracts')` (and the two other new tables/view)
+    initially skipped the `.select()` step entirely, throwing
+    `supabase.from(...).select is not a function` on every load -- caught
+    immediately by the browser console, not assumed fixed by writing the
+    fix. `npm run check`: 0 errors. **NOT verified: the live Supabase
+    project** -- same placeholder-`.env` caveat as every other coin-economy
+    migration; 0077 has never been applied anywhere, verified via the real
+    embedded-Postgres suite above and the dev harness.
+
 ## 2026-27 curriculum
 
 `src/lib/curriculum.ts` is the single source of truth for the live curriculum. It

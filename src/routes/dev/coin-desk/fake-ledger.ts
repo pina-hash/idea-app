@@ -325,6 +325,56 @@ const roleHolders = new Map<string, RoleHolderState>();
 let appSeq = 0;
 let holderSeq = 0;
 
+/**
+ * In-memory mirror of 0077's coin_contracts / coin_contract_claims, mirroring
+ * its business logic (refusal shapes, computed status, the even-split
+ * arithmetic) closely enough to drive both ContractsManager and ContractsView
+ * end to end. The REAL guarantee this migration is actually about --
+ * concurrent claims on the last slot never over-claiming a contract -- is
+ * proven separately, against genuine concurrent Postgres connections, in
+ * tests/coin-contracts.test.ts; this mock is single-threaded JS with no
+ * interleaving point between its capacity check and its write, so it cannot
+ * meaningfully re-demonstrate that property and does not try to.
+ */
+interface ContractState {
+	id: string;
+	title: string;
+	description: string | null;
+	payout_amount: number;
+	max_contractors: number;
+	section_id: string | null;
+	created_by: string;
+	created_at: string;
+	completed_at: string | null;
+	cancelled_at: string | null;
+	cancel_reason: string | null;
+}
+const contracts = new Map<string, ContractState>();
+const contractClaims = new Map<string, Map<string, string>>(); // contract_id -> (student_email -> claimed_at)
+let contractSeq = 0;
+
+function contractClaimedCount(id: string): number {
+	return contractClaims.get(id)?.size ?? 0;
+}
+
+/** Mirrors 0077's coin_contract_status view exactly. */
+function contractStatus(c: ContractState): 'open' | 'full' | 'completed' | 'cancelled' {
+	if (c.completed_at) return 'completed';
+	if (c.cancelled_at) return 'cancelled';
+	return contractClaimedCount(c.id) >= c.max_contractors ? 'full' : 'open';
+}
+
+function contractClaimantRows(id: string): { student_email: string; claimed_at: string; display_name: string | null; full_name: string | null }[] {
+	const claims = contractClaims.get(id);
+	if (!claims) return [];
+	return Array.from(claims.entries())
+		.sort((a, b) => new Date(a[1]).getTime() - new Date(b[1]).getTime())
+		.map(([email, claimedAt]) => {
+			const student = SAMPLE_STUDENTS.find((s) => s.email === email);
+			return { student_email: email, claimed_at: claimedAt, display_name: student?.display_name ?? null, full_name: student?.full_name ?? null };
+		});
+}
+
 function sectionStudentCount(id: string): number {
 	let n = 0;
 	for (const sid of sectionStudents.values()) if (sid === id) n++;
@@ -449,7 +499,15 @@ function rpcError(message: string) {
 	return { data: null, error: { message } };
 }
 
-export function createFakeLedger() {
+/**
+ * `getCurrentStudentEmail` resolves 0077's `current_user_email()` for
+ * coin_contract_self_claim and the coin_contract_claims read -- the two
+ * places that act as "whoever is signed in", never an admin-entered email.
+ * Defaults to a dummy admin address since /dev/coin-desk's admin-only
+ * harness never calls either; /dev/contracts passes a live getter over its
+ * own student-identity switcher.
+ */
+export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'admin@boscotech.edu') {
 	// Seed a few students so every refusal path is reachable without setup clicks.
 	ledger.set('healthy.student@boscotech.net', {
 		balance: 42,
@@ -653,19 +711,191 @@ export function createFakeLedger() {
 	});
 	appSeq = 2;
 
+	// Five seeded contracts covering every status ContractsManager /
+	// ContractsView can show: open with room and one existing claimant, full
+	// (max reached), section-restricted (only eng1h-sophomore's roster can
+	// claim it -- healthy.student and debt.student both are, per the section
+	// seed above), completed (real payout already logged), cancelled (a
+	// claim survives on it as history, nothing paid).
+	const now2 = new Date();
+	function daysAgo(n: number): string {
+		return new Date(now2.getTime() - n * 86400000).toISOString();
+	}
+	contracts.set('contract-open', {
+		id: 'contract-open',
+		title: 'Rewire the LED strip along the shop bench',
+		description: 'Route and secure the strip, test every segment lights.',
+		payout_amount: 30,
+		max_contractors: 3,
+		section_id: null,
+		created_by: 'admin@boscotech.edu',
+		created_at: daysAgo(2),
+		completed_at: null,
+		cancelled_at: null,
+		cancel_reason: null
+	});
+	contractClaims.set('contract-open', new Map([['healthy.student@boscotech.net', daysAgo(1)]]));
+
+	contracts.set('contract-full', {
+		id: 'contract-full',
+		title: 'Deep-clean and inventory the fastener bins',
+		description: 'Sort by size, relabel, note anything running low.',
+		payout_amount: 15,
+		max_contractors: 1,
+		section_id: null,
+		created_by: 'admin@boscotech.edu',
+		created_at: daysAgo(3),
+		completed_at: null,
+		cancelled_at: null,
+		cancel_reason: null
+	});
+	contractClaims.set('contract-full', new Map([['debt.student@boscotech.net', daysAgo(2)]]));
+
+	contracts.set('contract-section', {
+		id: 'contract-section',
+		title: 'Sophomore section supply restock',
+		description: 'Restricted to Engineering I Honors (Sophomore) -- pull the shared cart list.',
+		payout_amount: 20,
+		max_contractors: 2,
+		section_id: 'eng1h-sophomore',
+		created_by: 'admin@boscotech.edu',
+		created_at: daysAgo(1),
+		completed_at: null,
+		cancelled_at: null,
+		cancel_reason: null
+	});
+	contractClaims.set('contract-section', new Map([['healthy.student@boscotech.net', daysAgo(1)]]));
+
+	contracts.set('contract-completed', {
+		id: 'contract-completed',
+		title: 'Label the storage bins',
+		description: 'Already finished and paid out -- history only.',
+		payout_amount: 18,
+		max_contractors: 2,
+		section_id: null,
+		created_by: 'admin@boscotech.edu',
+		created_at: daysAgo(6),
+		completed_at: daysAgo(4),
+		cancelled_at: null,
+		cancel_reason: null
+	});
+	contractClaims.set(
+		'contract-completed',
+		new Map([
+			['pass.student@boscotech.net', daysAgo(5)],
+			['quinn.patel@boscotech.net', daysAgo(5)]
+		])
+	);
+	insert('pass.student@boscotech.net', 'contract_completion', 9, null, 'Contract completion: Label the storage bins', {});
+	insert('quinn.patel@boscotech.net', 'contract_completion', 9, null, 'Contract completion: Label the storage bins', {});
+
+	contracts.set('contract-cancelled', {
+		id: 'contract-cancelled',
+		title: 'Order more filament',
+		description: 'Cancelled -- ordered directly instead of contracting it out.',
+		payout_amount: 25,
+		max_contractors: 1,
+		section_id: null,
+		created_by: 'admin@boscotech.edu',
+		created_at: daysAgo(5),
+		completed_at: null,
+		cancelled_at: daysAgo(4),
+		cancel_reason: 'Ordered directly instead'
+	});
+	contractClaims.set('contract-cancelled', new Map([['debt.student@boscotech.net', daysAgo(5)]]));
+
+	contractSeq = 5;
+
 	return {
 		auth: { getClaims: async () => ({ data: { claims: null }, error: null }) },
 		rpc(fn: string, params: Record<string, unknown> = {}) {
-			return handleRpc(fn, params);
+			return handleRpc(fn, params, getCurrentStudentEmail);
 		},
 		from(table: string) {
-			if (table !== 'profiles') throw new Error(`fake ledger: unexpected table "${table}"`);
-			return makeProfilesQuery();
+			if (table === 'profiles') return makeProfilesQuery();
+			if (table === 'coin_contracts') {
+				return {
+					select(_cols: string) {
+						const rows = Array.from(contracts.values())
+							.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+							.map((c) => ({
+								id: c.id,
+								title: c.title,
+								description: c.description,
+								payout_amount: c.payout_amount,
+								max_contractors: c.max_contractors,
+								section_id: c.section_id,
+								created_by: c.created_by,
+								created_at: c.created_at,
+								completed_at: c.completed_at,
+								cancelled_at: c.cancelled_at
+							}));
+						return contractsQueryResult(rows);
+					}
+				};
+			}
+			if (table === 'coin_contract_status') {
+				return {
+					select(_cols: string) {
+						const rows = Array.from(contracts.values()).map((c) => ({
+							id: c.id,
+							claimed_count: contractClaimedCount(c.id),
+							status: contractStatus(c)
+						}));
+						return contractsQueryResult(rows);
+					}
+				};
+			}
+			if (table === 'coin_contract_claims') {
+				return {
+					select(_cols: string) {
+						// Mirrors 0077's RLS exactly: scoped to the CALLER's own rows, no
+						// filter needed client-side -- the /coin-balance doctrine.
+						const email = getCurrentStudentEmail();
+						const rows: { contract_id: string }[] = [];
+						for (const [contractId, claims] of contractClaims.entries()) {
+							if (claims.has(email)) rows.push({ contract_id: contractId });
+						}
+						return contractsQueryResult(rows);
+					}
+				};
+			}
+			throw new Error(`fake ledger: unexpected table "${table}"`);
 		}
 	};
 }
 
-async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{ data: unknown; error: { message: string } | null }> {
+/**
+ * A minimal thenable + `.order()` pass-through, just enough to support the
+ * `await supabase.from(table).select(cols)` and `...select(cols).order(col)`
+ * shapes ContractsView.svelte / +page.server.ts actually use for the direct
+ * table/view reads (no RPC involved for those, mirroring the real 0077 read
+ * model). Rows are pre-sorted by the caller above; `.order()` is a no-op
+ * pass-through rather than re-sorting, since every seed here is already in
+ * the right order.
+ */
+function contractsQueryResult<T>(rows: T[]) {
+	const result = {
+		data: rows,
+		error: null as { message: string } | null,
+		order(_col: string, _opts?: { ascending?: boolean }) {
+			return result;
+		},
+		then<TResult1 = { data: T[]; error: { message: string } | null }, TResult2 = never>(
+			onFulfilled?: ((value: { data: T[]; error: { message: string } | null }) => TResult1 | PromiseLike<TResult1>) | null,
+			onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+		) {
+			return Promise.resolve({ data: result.data, error: result.error }).then(onFulfilled, onRejected);
+		}
+	};
+	return result;
+}
+
+async function handleRpc(
+	fn: string,
+	params: Record<string, unknown>,
+	getCurrentStudentEmail: () => string = () => 'admin@boscotech.edu'
+): Promise<{ data: unknown; error: { message: string } | null }> {
 	const email = String(params.p_email ?? '').toLowerCase().trim();
 
 	if (fn === 'coin_admin_lookup') {
@@ -1332,6 +1562,163 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 				results
 			})
 		);
+	}
+
+	// -----------------------------------------------------------------------
+	// Contracts (0077). Mirrors coin_contract_self_claim / coin_admin_post_
+	// contract / _list_contracts / _complete_contract / _cancel_contract /
+	// _reset_contract's business logic and refusal shapes closely enough to
+	// drive ContractsManager + ContractsView end to end. See the module doc
+	// above `contracts` for why this mock does NOT attempt to re-prove the
+	// concurrency guarantee -- that is tests/coin-contracts.test.ts's job,
+	// against real concurrent Postgres connections.
+	// -----------------------------------------------------------------------
+
+	if (fn === 'coin_contract_self_claim') {
+		const contractId = String(params.p_contract_id ?? '');
+		const studentEmail = getCurrentStudentEmail();
+		const contract = contracts.get(contractId);
+		if (!contract) return Promise.resolve(rpcError('Unknown contract.'));
+
+		if (contract.completed_at || contract.cancelled_at) {
+			return Promise.resolve(refused('not_open'));
+		}
+		if (contract.section_id) {
+			const studentSection = sectionStudents.get(studentEmail);
+			if (studentSection !== contract.section_id) {
+				return Promise.resolve(refused('wrong_section', { section_id: contract.section_id }));
+			}
+		}
+		let claims = contractClaims.get(contractId);
+		if (!claims) {
+			claims = new Map();
+			contractClaims.set(contractId, claims);
+		}
+		if (claims.has(studentEmail)) {
+			return Promise.resolve(refused('already_claimed'));
+		}
+		if (claims.size >= contract.max_contractors) {
+			return Promise.resolve(
+				refused('full', { max_contractors: contract.max_contractors, claimed_count: claims.size })
+			);
+		}
+		claims.set(studentEmail, new Date().toISOString());
+		return Promise.resolve(
+			ok({ contract_id: contractId, claimed_count: claims.size, max_contractors: contract.max_contractors })
+		);
+	}
+
+	if (fn === 'coin_admin_post_contract') {
+		const title = String(params.p_title ?? '').trim();
+		const payout = Number(params.p_payout_amount);
+		const max = Number(params.p_max_contractors ?? 1);
+		const sectionId = (params.p_section_id as string | null) || null;
+		if (!title) return Promise.resolve(rpcError('A contract needs a title.'));
+		if (!Number.isFinite(payout) || payout <= 0) {
+			return Promise.resolve(rpcError('A contract needs a positive payout amount.'));
+		}
+		if (!Number.isFinite(max) || max <= 0) return Promise.resolve(rpcError('Max contractors must be at least 1.'));
+		if (sectionId && !sections.has(sectionId)) {
+			return Promise.resolve(rpcError(`Unknown coin section "${sectionId}".`));
+		}
+		const id = `contract-new-${++contractSeq}`;
+		contracts.set(id, {
+			id,
+			title,
+			description: (params.p_description as string | null) ?? null,
+			payout_amount: Math.round(payout),
+			max_contractors: Math.round(max),
+			section_id: sectionId,
+			created_by: 'admin@boscotech.edu',
+			created_at: new Date().toISOString(),
+			completed_at: null,
+			cancelled_at: null,
+			cancel_reason: null
+		});
+		return Promise.resolve(ok({ id }));
+	}
+
+	if (fn === 'coin_admin_list_contracts') {
+		const rows = Array.from(contracts.values())
+			.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+			.map((c) => ({
+				id: c.id,
+				title: c.title,
+				description: c.description,
+				payout_amount: c.payout_amount,
+				max_contractors: c.max_contractors,
+				section_id: c.section_id,
+				created_by: c.created_by,
+				created_at: c.created_at,
+				completed_at: c.completed_at,
+				cancelled_at: c.cancelled_at,
+				cancel_reason: c.cancel_reason,
+				claimed_count: contractClaimedCount(c.id),
+				status: contractStatus(c),
+				claimants: contractClaimantRows(c.id)
+			}));
+		return Promise.resolve({ data: rows, error: null });
+	}
+
+	if (fn === 'coin_admin_complete_contract') {
+		const contractId = String(params.p_contract_id ?? '');
+		const contract = contracts.get(contractId);
+		if (!contract) return Promise.resolve(rpcError('Unknown contract.'));
+		if (contract.completed_at) return Promise.resolve(rpcError('This contract was already completed.'));
+		if (contract.cancelled_at) {
+			return Promise.resolve(rpcError('This contract was cancelled and cannot be completed.'));
+		}
+		const claims = contractClaims.get(contractId);
+		const count = claims?.size ?? 0;
+		if (count === 0) {
+			return Promise.resolve(rpcError('No one has claimed this contract yet -- there is no one to pay.'));
+		}
+		// Postgres round(): half rounds away from zero. JS Math.round() agrees
+		// for every positive input, including the exact-.5 case, so this mock
+		// and the real RPC always land on the same share.
+		const share = Math.round(contract.payout_amount / count);
+		const note = (params.p_note as string | null)?.trim() || `Contract completion: ${contract.title}`;
+		const results: Record<string, unknown>[] = [];
+		let succeeded = 0;
+		for (const studentEmail of Array.from(claims!.keys()).sort()) {
+			const single = await handleRpc(
+				'coin_log_transaction',
+				{ p_email: studentEmail, p_category_id: 'contract_completion', p_amount: share, p_quantity: null, p_note: note },
+				getCurrentStudentEmail
+			);
+			const data = single.error ? { ok: false, reason: 'error', message: single.error.message } : single.data;
+			if ((data as { ok?: boolean }).ok) succeeded += 1;
+			results.push({ email: studentEmail, ...(data as Record<string, unknown>) });
+		}
+		contract.completed_at = new Date().toISOString();
+		return Promise.resolve(
+			ok({ contract_id: contractId, share, claimant_count: count, succeeded, results })
+		);
+	}
+
+	if (fn === 'coin_admin_cancel_contract') {
+		const contractId = String(params.p_contract_id ?? '');
+		const contract = contracts.get(contractId);
+		if (!contract) return Promise.resolve(rpcError('Unknown contract.'));
+		if (contract.completed_at) {
+			return Promise.resolve(rpcError('This contract was already completed and cannot be cancelled.'));
+		}
+		if (contract.cancelled_at) return Promise.resolve(rpcError('This contract was already cancelled.'));
+		contract.cancelled_at = new Date().toISOString();
+		contract.cancel_reason = (params.p_reason as string | null)?.trim() || null;
+		return Promise.resolve(ok({ contract_id: contractId }));
+	}
+
+	if (fn === 'coin_admin_reset_contract') {
+		const contractId = String(params.p_contract_id ?? '');
+		const contract = contracts.get(contractId);
+		if (!contract) return Promise.resolve(rpcError('Unknown contract.'));
+		if (contract.completed_at || contract.cancelled_at) {
+			return Promise.resolve(rpcError('Cannot reset a contract that has already been completed or cancelled.'));
+		}
+		const cleared = contractClaims.get(contractId)?.size ?? 0;
+		contractClaims.set(contractId, new Map());
+		return Promise.resolve(ok({ contract_id: contractId, cleared }));
 	}
 
 	return Promise.resolve(rpcError(`fake ledger: unhandled rpc "${fn}"`));
