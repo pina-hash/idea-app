@@ -8,6 +8,7 @@
 	import ContractsManager from './ContractsManager.svelte';
 	import PayoutManager from './PayoutManager.svelte';
 	import CategoriesManager from './CategoriesManager.svelte';
+	import DebtPaymentPanel from './DebtPaymentPanel.svelte';
 	import {
 		EXTRA_CREDIT_GRADING_CATEGORIES,
 		KIND_LABELS,
@@ -618,6 +619,8 @@
 				<p class="note">No transactions logged yet for this email.</p>
 			{/if}
 		</section>
+
+		<DebtPaymentPanel {supabase} email={lookup.email} balance={lookup.balance} onLogged={() => runLookup(true)} />
 	{/if}
 
 	{#snippet amountFields(cat: CoinCategory)}

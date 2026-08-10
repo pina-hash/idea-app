@@ -84,6 +84,14 @@
 	 *    student's history. The pricing-model select only ever offers the
 	 *    four creatable shapes -- 'formula' is not an option, and the
 	 *    boundary note above the form explains why.
+	 *  - Debt Payment (0081): look up "debt.student" (starts at -8i¢) -- a
+	 *    dedicated amber "Debt payment" card appears under the student
+	 *    summary, pre-filled with the exact debt (8i¢), editable, with no
+	 *    cap. Pay less than the debt (still negative afterward, panel stays),
+	 *    exactly the debt (panel disappears, balance is 0), or more than the
+	 *    debt (balance goes positive, panel disappears too). It is also just
+	 *    an ordinary category in the ledger's own dropdown, tagged distinctly
+	 *    from "Physical Coin Submission".
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
 
