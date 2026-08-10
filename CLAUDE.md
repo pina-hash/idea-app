@@ -1249,6 +1249,126 @@ rule is a direct transcription of
     project** -- same placeholder-`.env` caveat as every other coin-economy
     migration; 0077 has never been applied anywhere, verified via the real
     embedded-Postgres suite above and the dev harness.
+- **Bulk payout (`0079_coin_bulk_payout.sql`, apply manually after 0078).**
+  Pay every student with a positive balance in one click, or one at a
+  time, from a new "Payout" card on `/coin-desk`. Reuses the EXISTING
+  `coin_payout` category (purchase-kind, `variable` pricing, already
+  loggable via the single-student flow) as the actual write -- no new
+  category, no new pricing model.
+  - **`coin_payout_student(p_email, p_note?)`** re-reads the student's
+    CURRENT `sum(coin_transactions.amount)` inside the function, in the
+    same statement that decides what to log, and passes that as the amount
+    to the EXISTING `coin_log_transaction('coin_payout', ...)` -- which
+    negates it for us (purchase-kind), converting the balance to exactly
+    zero. Nothing left to pay (balance <= 0) returns a structured
+    `{ok:false, reason:'no_balance'}`, never an exception.
+  - **`coin_bulk_payout(p_note?)`** is ONE round trip, not a client-side
+    loop: it selects every `student_email` with `sum(amount) > 0` fresh at
+    the top of its loop, then calls `coin_payout_student` (nested SECURITY
+    DEFINER, the `coin_bulk_log_role_stipend` pattern) once per student
+    INSIDE the loop -- so a fine or award landing on a not-yet-reached
+    student mid-run is still picked up when the loop gets to them, per
+    statement-level snapshotting under READ COMMITTED. Returns the same
+    `{total, succeeded, refused, results}` shape every other bulk RPC here
+    uses, wrapped per-student in its own exception handler.
+  - **The race this closes:** the candidate LIST (`src/lib/coin-desk/
+    PayoutManager.svelte`) is a plain read of the existing `coin_balances`
+    view (0070; admin already sees every row there, `student_email =
+    current_user_email() or is_admin()`) joined client-side against
+    `profiles` for a display name -- a snapshot that can go stale the
+    instant it renders. Neither RPC ever takes a client-supplied amount, so
+    whatever Pay/Pay All actually logs is always the ledger's answer at the
+    moment of the write, never the number the list happened to show.
+  - **Verified** in `/dev/coin-desk`: paying a single candidate zeroed their
+    balance and removed them from the list; and, the decisive check, adding
+    a fresh fine against a listed candidate (dropping their real balance
+    from 204i¢ to 202i¢) WITHOUT refreshing the still-stale "204i¢" row,
+    then clicking Pay All, paid exactly **202i¢** -- confirmed against the
+    real balance, not the number the list was still showing.
+- **Admin-managed categories (`0080_coin_category_admin.sql`, apply
+  manually after 0079).** 0070 documented `coin_categories` as "edited by
+  hand in the SQL editor, no client write path" -- this migration opens a
+  real but narrow write path onto it from a new "Categories" card on
+  `/coin-desk`.
+  - **`coin_admin_create_category(...)`** can define `flat`, `range`,
+    `per_unit`, and `variable` pricing -- every shape that is just DATA.
+    It explicitly REFUSES `pricing_model = 'formula'` with an exception
+    explaining why: a formula category (Perfect Score's rounding, Pay
+    Raise's tier math, Extra Credit's semester cap, ...) needs bespoke
+    plpgsql beyond a lookup, which is a code change (a dedicated RPC), not
+    something a form can produce -- `coin_log_transaction` already refuses
+    to log ANY formula category directly (0070), and this migration does
+    not touch that rule, it only adds a second, narrower door for the four
+    shapes that genuinely are configuration. `src/lib/coin-desk/
+    category-admin.ts`'s `CREATABLE_PRICING_MODELS` is that same refusal
+    surfaced in the UI before a submit is even attempted, and the create
+    form states the boundary in plain language. New rows default
+    `loggable = true, active = true` and sort after their kind's existing
+    rows; validation mirrors the table's own CHECK constraint (0070) with
+    friendlier per-field messages, but that CHECK is still the real
+    backstop.
+  - **`coin_admin_set_category_active(p_id, p_active)`** only ever flips
+    `active` -- there is no delete RPC and none is planned:
+    `coin_transactions.category_id` references `coin_categories(id)` with
+    no ON DELETE clause, so `active = false` is what already removes a
+    category from every loggable list (`coin_log_transaction` and
+    `coin_bulk_log_section` both already refuse `not active`; the
+    `/coin-desk` load query dropped its old `.eq('active', true)` filter so
+    CategoriesManager can show retired rows too, and `CoinDeskTool.svelte`'s
+    own `selectableCategories` derived value is what filters back to
+    active-only for the actual logging dropdowns) while the row itself, and
+    every historical transaction's `category_id`, stays exactly as valid
+    and readable as always -- the sections.ts "archive/reactivate, never
+    delete" convention applied to the price list.
+  - **Pricing-band guidance, hint not a gate:** `PRICE_BAND_GUIDANCE` in
+    `category-admin.ts` (drawn straight from
+    `docs/coin-economy/idea_coin_economy_draft_v3.md` Parts 2-4, the same
+    source the Contract Completion guideline in `contracts.ts` cites) shows
+    where the existing fine/award/purchase scale sits for whichever kind is
+    selected -- informational only, never enforced, the exact
+    "guideline only, never enforced" treatment the contract-posting formula
+    already established.
+  - **Verified** in `/dev/coin-desk`: creating a `variable` award landed
+    immediately in the "Log a transaction" dropdown with no reload;
+    retiring a category already used in a logged transaction dropped it
+    from that dropdown (and from the bulk-log picker) while the student's
+    transaction history still rendered its real name, not a raw id or a
+    blank; the create form's pricing-model select offers only the four
+    creatable shapes, never `formula`.
+- **Debt payment (`0081_coin_debt_payment.sql`, apply manually after
+  0080).** A pre-seeded category, `debt_payment` -- award-kind, `variable`
+  pricing, credits the balance the same direction as Physical Coin
+  Submission -- inserted the same way 0070's own seed rows are (a plain
+  `insert ... on conflict (id) do update`), needing no new RPC since
+  `variable`/`award` already routes through the existing
+  `coin_log_transaction`. Kept as its OWN category id rather than reusing
+  `physical_coin_submission` specifically so debt settlement is
+  reportable separately by filtering `category_id = 'debt_payment'`, with
+  nothing to disambiguate after the fact.
+  - **`src/lib/coin-desk/DebtPaymentPanel.svelte`** is the dedicated UI,
+    mounted in `CoinDeskTool.svelte` directly under the student summary
+    card and rendered ONLY while the looked-up student's `balance < 0` --
+    a student with no debt gets no panel at all, not a disabled or empty
+    one. It reuses the EXISTING student lookup (no second "find a
+    student" flow) and shows the current debt prominently, pre-fills the
+    payment amount from it, and leaves the amount fully editable with NO
+    cap: `coin_log_transaction`'s debt lockout (0070) only blocks
+    PURCHASE-kind transactions while a balance is already negative, and an
+    award (this one included) always applies past zero with no ceiling, so
+    a payment larger than the debt legitimately leaves the balance
+    slightly positive -- a correct outcome, never a refusal.
+  - **Verified** in `/dev/coin-desk`: looking up "debt.student" (seeded at
+    -8i¢) showed the amber Debt Payment card pre-filled with `8`; logging
+    it moved the balance to exactly `0i¢`, logged a `+8i¢` "Debt Payment"
+    transaction, and the panel disappeared (no more debt to pay); the
+    category also appears as an ordinary option in the general "Log a
+    transaction" dropdown, tagged distinctly from Physical Coin
+    Submission.
+  - **NOT verified: the live Supabase project** -- same placeholder-`.env`
+    caveat as every other coin-economy migration; 0079-0081 have never
+    been applied anywhere, verified via the dev harness (`fake-ledger.ts`
+    extended to mirror the RPCs' behavior) and by reading the RPC bodies
+    directly.
 
 ## 2026-27 curriculum
 
