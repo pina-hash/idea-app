@@ -35,6 +35,28 @@
 	let uploadReady = $state(true);
 	let log = $state<string[]>([]);
 
+	/**
+	 * Platform simulator for the capture-path branch.
+	 *
+	 * Patches navigator.userAgent for real and REMOUNTS NotebookView (the
+	 * {#key} below), so the shipped `preferredCapturePath(navigator.userAgent,
+	 * ...)` call is the thing being exercised -- rather than adding a
+	 * test-only prop to production code and then verifying the prop.
+	 */
+	type SimPlatform = 'device' | 'android' | 'ios';
+	let platform = $state<SimPlatform>('device');
+	const UA: Record<SimPlatform, string | null> = {
+		device: null,
+		android:
+			'Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36',
+		ios: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+	};
+	const realUA = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+	$effect(() => {
+		const ua = UA[platform] ?? realUA;
+		Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => ua });
+	});
+
 	const SESSIONS: NotebookSession[] = [
 		{
 			id: 'ses-1',
@@ -310,6 +332,14 @@
 			<option value="plain">plain account (no class, no entries)</option>
 		</select>
 	</label>
+	<label>
+		platform
+		<select bind:value={platform} data-testid="sim-platform">
+			<option value="device">this device</option>
+			<option value="android">Android (Chrome)</option>
+			<option value="ios">iOS (Safari)</option>
+		</select>
+	</label>
 	<label><input type="checkbox" bind:checked={configured} /> 0069 applied</label>
 	<label><input type="checkbox" bind:checked={uploadReady} /> Drive configured</label>
 	<button type="button" onclick={() => (log = [])}>clear log</button>
@@ -320,17 +350,21 @@
 	<pre class="dev-log" data-testid="dev-log">{log.join('\n')}</pre>
 {/if}
 
-<NotebookView
-	{entries}
-	{sessions}
-	{sectionLabel}
-	{canReview}
-	{configured}
-	{uploadReady}
-	{createEntry}
-	{addPhoto}
-	{createNote}
-/>
+<!-- Keyed on the simulated platform so switching remounts the component and
+     its capture-path detection runs again from scratch. -->
+{#key platform}
+	<NotebookView
+		{entries}
+		{sessions}
+		{sectionLabel}
+		{canReview}
+		{configured}
+		{uploadReady}
+		{createEntry}
+		{addPhoto}
+		{createNote}
+	/>
+{/key}
 
 <style>
 	.dev-bar {

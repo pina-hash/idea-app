@@ -279,6 +279,52 @@ export async function fitForUpload(
 	}
 }
 
+// ---- which capture path to lead with -------------------------------------
+
+/**
+ * Plain user-agent sniffing, on purpose.
+ *
+ * There is no feature test for "does this browser honour the capture
+ * attribute's VALUE" -- the attribute is reflected and reported as supported
+ * either way, and the difference only shows up as which physical lens the OS
+ * camera app happens to open. So the platform is the only thing that can be
+ * asked, and the string is stable enough for the one decision it drives:
+ * which button to lead with. Getting it wrong costs a student a tap, not a
+ * capability, since BOTH paths stay on screen on every platform.
+ */
+export function isAndroid(ua = navigator.userAgent): boolean {
+	return /android/i.test(ua);
+}
+
+export type CapturePath = 'in-app' | 'native';
+
+/**
+ * Which capture path leads, per platform, from real device testing.
+ *
+ * ANDROID -> the in-app camera. The native `capture` input is CONFIRMED
+ * broken there on a real device (it opens the front camera, and the photo
+ * never lands), and separately the attribute's value is documented as
+ * ignored by Android browsers. It stays reachable, because the OS camera
+ * takes a better photo when it works and a second device may not share the
+ * fault, but it is not presented as the normal thing to tap.
+ *
+ * EVERYTHING ELSE -- which is to say iOS, and desktop -- keeps the native
+ * input. Only Android is singled out, so only Android has to be detected.
+ * iOS honours the facing hint correctly, and getUserMedia's ~720p ceiling on
+ * iOS Safari makes the in-app camera the strictly worse option for
+ * photographing a page there; on desktop the input is just a file picker.
+ *
+ * A platform with no working in-app camera falls back to the native input
+ * regardless: one capture path that might work beats none.
+ */
+export function preferredCapturePath(
+	ua = navigator.userAgent,
+	inAppAvailable = cameraCaptureSupported()
+): CapturePath {
+	if (isAndroid(ua) && inAppAvailable) return 'in-app';
+	return 'native';
+}
+
 // ---- in-app capture ------------------------------------------------------
 
 export type CameraFacing = 'environment' | 'user';
@@ -482,6 +528,45 @@ export function takePendingCapture(): unknown | null {
 		return parsed.state ?? null;
 	} catch {
 		return null;
+	}
+}
+
+/**
+ * Is this file usable as a photo at all, checked BEFORE it is staged?
+ *
+ * A camera intent can return successfully and still hand the browser
+ * nothing: an empty file, or a truncated one that reports real dimensions
+ * and then draws blank. Both used to be staged like any other photo and only
+ * failed later at the upload route, whose complaint ("attach a photo as the
+ * photo form field") reads as nonsense to someone looking at a photo they
+ * just took and staged. Catching it here means the student is told to retake
+ * it at the moment that is still the obvious thing to do.
+ *
+ * Returns null when the file is fine, or a sentence explaining what is
+ * wrong. Deliberately does NOT reject merely-undecodable files: a HEIC this
+ * browser cannot open is still a real photo the server accepts and the
+ * corrector already knows to skip.
+ */
+export async function unusableReason(file: File): Promise<string | null> {
+	if (file.size === 0) {
+		return 'came back empty from the camera. Nothing was saved -- take it again.';
+	}
+	if (file.size < 512) {
+		return 'came back too small to be a photo. Nothing was saved -- take it again.';
+	}
+	const img = await decodeImageFile(file);
+	// Undecodable HERE is not the same as broken: HEIC is the ordinary case.
+	if (!img) return null;
+	try {
+		const { width, height } = imageSize(img);
+		if (!width || !height) return 'came back damaged from the camera -- take it again.';
+		// A truncated JPEG reports its real dimensions from the header and then
+		// draws blank, so the header alone cannot tell the two apart; the draw
+		// probe inside drawToCanvas is what actually distinguishes them.
+		if (!drawToCanvas(img, 320)) return 'came back damaged from the camera -- take it again.';
+		return null;
+	} finally {
+		releaseImage(img);
 	}
 }
 

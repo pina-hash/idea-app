@@ -3634,6 +3634,106 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
     HEIC off an iPhone does end to end. The eviction recovery in particular
     was verified by SIMULATING the reload, not by inducing a real
     out-of-memory kill.
+- **The capture path that LEADS is chosen per platform, after a real Android
+  device confirmed the native one broken there.** `preferredCapturePath()`
+  (camera.ts) is the whole decision, and it is one line of user-agent
+  sniffing on purpose: there is no feature test for "does this browser honour
+  the capture attribute's VALUE" -- the attribute is reflected and reported
+  as supported either way, and the difference only surfaces as which physical
+  lens the OS camera app opens. Getting it wrong costs a tap, not a
+  capability, since both paths stay on screen everywhere.
+  - **ANDROID leads with the IN-APP CAMERA.** The native `capture` input is
+    confirmed broken on a real device (opens the front camera; the photo
+    never lands), and Android browsers are separately documented to ignore
+    the attribute's value in BOTH directions -- mdn/browser-compat-data#19603
+    reports `capture="user"` opening the ENVIRONMENT camera on Chrome 112 and
+    74 / Android 13, with MDN stating the normative escape hatch that a user
+    agent "may fall back to its preferred default mode". So the front camera
+    opening is documented behaviour, not a bug in itself.
+  - **iOS and desktop keep the native input, unchanged.** iOS honours the
+    facing hint, and getUserMedia's ~720p ceiling on iOS Safari makes the
+    in-app camera strictly worse for photographing a page there. Only Android
+    is singled out, so only Android is detected -- there is deliberately no
+    `isIOS()`, since nothing would branch on it.
+  - **The native path on Android is DEMOTED, not removed:** a small labelled
+    link ("Use your phone's camera app instead (known to open the wrong
+    camera on some Android phones)") rather than a peer button, so it is not
+    presented as the normal thing to tap while it is known broken. It stays
+    reachable because the OS camera takes a better photo when it works and
+    another device may not share the fault.
+  - **"Choose a photo" is untouched and equally prominent on every
+    platform** -- measured identical at 272x48 beside the primary on all
+    three. Picking an existing photo is a DIFFERENT capability, not a
+    different way of capturing, so it has nothing to do with which capture
+    path is more reliable.
+- **The Android "Take a photo" failure was NOT reproduced, and no further
+  cause was found. Read this before assuming it is fixed.** What was checked,
+  concretely, all against the real code path in `/dev/notebook`:
+  - **All 8 valid EXIF orientations, INCLUDING the mirrored set (2/4/5/7)** a
+    front camera is documented to sometimes write. Real EXIF APP1 segments
+    were injected into real JPEGs. Every one decoded, with the dimension swap
+    applied exactly where it belongs (5-8 swap, 1-4 do not) and the canvas
+    draw succeeding. **Not the cause.**
+  - **Invalid orientation values 0, 9 and 255.** This was the strongest
+    documented lead: orientation `0` is out of EXIF's 1-8 range and is
+    reported as a FRONT-CAMERA-SPECIFIC defect on Samsung, Xiaomi and OnePlus
+    (triniwiz/fancycamera#25), with a documented precedent of invalid
+    orientation metadata killing a browser image pipeline outright on Android
+    (Donaldcwl/browser-image-compression#187). Measured: all three decode in
+    ~25-29ms with correct dimensions and draw fine. **Not the cause either**,
+    at least in Chromium's decode path.
+  - **The size/memory theory is actively WRONG for a front-camera-only
+    failure**, and the previous session's size fix therefore cannot explain
+    it: front sensors are far LOWER resolution than rear (12 MP front against
+    up to 200 MP rear on a Galaxy S25 Ultra), so a front capture is normally
+    the SMALLER file and a byte or memory ceiling would hit rear photos
+    first.
+  - **What WAS found and fixed, without claiming it is the reported cause:** a
+    capture that comes back EMPTY or TRUNCATED used to be staged like any
+    other photo and only failed later at the upload route, whose complaint
+    ("attach a photo as the photo form field") reads as nonsense to someone
+    looking at a photo they just staged. Android's camera intent IS documented
+    to produce zero-byte results. `unusableReason()` now screens every file
+    before it is staged -- measured: a 0-byte capture and a truncated one are
+    both refused by name with "take it again", the corrector never opens,
+    Save stays disabled, and a good photo straight afterwards still works.
+    Truncated files are the interesting case: they decode and report their
+    real dimensions from the header, so only the draw probe distinguishes
+    them.
+  - **No documented case exists anywhere of a front-camera image failing to
+    decode in a browser** -- that search came back empty, which is itself
+    worth knowing before someone spends another session on it.
+  - **The decisive next step needs the device**, not more searching: on the
+    failing phone, capture front and rear and compare `File.name`, `.type`,
+    `.size`, the first four bytes, the raw EXIF orientation byte, and whether
+    `createImageBitmap` resolves or rejects. Every remaining hypothesis
+    separates cleanly on those six values.
+- **Staged photos are shown as PHOTOS before saving, not filenames.** The
+  pre-save list was a row of names, which say nothing about whether the page
+  is in frame, in focus, or even the right page -- the questions someone
+  actually has at the moment of committing. The whole staged set renders as
+  thumbnails at once (three queued photos = three tiles, two per row at 375px,
+  three across the desktop column), so it is a glance rather than a
+  one-at-a-time review.
+  - **The thumbnail is the CORRECTED version wherever one exists**, matching
+    how a saved entry renders everywhere else (`NotebookPhotos` defaults to
+    the enhanced variant). There is deliberately no original/corrected toggle
+    here: that choice already exists at display time, and this step is "is
+    this the photo I want", not "which version". Browser-verified by
+    DIMENSION rather than by trusting the binding -- a corrected tile renders
+    933x689 (the warp output) against 1200x900 for a skipped one in the same
+    staged set.
+  - **`object-fit: contain`, not `cover`.** Cropping to fill the tile would
+    hide a cut-off page edge, which is the exact mistake the preview exists
+    to catch.
+  - Blob URLs are cached in a plain (NON-reactive) Map, since the effect that
+    builds them reads `staged` and writes `previews` and routing the URLs
+    through reactive state as well would have it re-trigger on its own
+    writes. Removing a tile revokes its URL (verified: the removed URL stops
+    resolving while its neighbour still does) and `onDestroy` revokes the
+    rest. A photo the browser cannot decode -- HEIC being the ordinary case
+    -- falls back to a tile naming the file rather than a broken-image glyph,
+    and still uploads.
 - **Photo bytes are served by THIS APP, through a proxy
   (`/api/notebook/photo/[photo_id]`).** This supersedes the original direct
   `drive.google.com/thumbnail?id=...` `<img>` src, which only ever rendered
