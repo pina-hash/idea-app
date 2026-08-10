@@ -309,12 +309,16 @@ SvelteKit server, which attaches the server-only `COIN_API_KEY`.
 A second, independent coin system living in Supabase, built to eventually
 **replace** the Sheets/Apps Script ledger above as the source of truth.
 Migration `0070_coin_economy.sql` (apply manually after `0069`) is
-**schema, pricing, and enforcement only** -- there is no student/teacher
-entry UI yet, and nothing above (`coin-entry.html`, `static/coins/index.html`,
-`/api/coin-ledger/*`, `src/lib/server/coin-ledger.ts`) is touched or wired to
-it. The two systems run side by side until the entry tool is rebuilt on this
-foundation in a later pass. Every category name, price, and rule is a direct
-transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
+**schema, pricing, and enforcement only** -- it shipped with no entry UI of
+its own. That gap has since closed: `/coin-desk` (documented at length
+further down, "Day-to-day entry tool") is the real day-to-day logging
+surface built on this schema in a later pass. The two systems still run
+fully side by side, though -- `coin-entry.html`, `static/coins/index.html`,
+`/api/coin-ledger/*`, and `src/lib/server/coin-ledger.ts` remain untouched
+and unwired to this schema; retiring the old Sheets ledger in favor of this
+one is a separate, not-yet-made decision. Every category name, price, and
+rule is a direct transcription of
+`docs/coin-economy/idea_coin_economy_draft_v3.md` and
 `idea_coin_quick_reference.md` -- read those before changing a price.
 
 - **Keyed by lowercased email, not user id** -- the `app_admins` (0067)
@@ -402,8 +406,14 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
     plain `flat` category priced at 1i¢ regardless of tier, and no code path
     -- generic or dedicated -- reads `coin_wage_tiers` when logging a
     Weekly Wage award. A Pay Raise purchase records a real cost and a real
-    tier bump, but nothing yet pays it out: the tier-aware wage award is
-    part of the entry tool this migration deliberately does not build.
+    tier bump, but nothing yet pays it out. **Re-confirmed on a 2026-08 audit
+    pass, now that `/coin-desk` (the entry tool this gap used to be attributed
+    to not existing yet) is real and shipped:** the gap is still there.
+    `/coin-desk`'s Weekly Wage entry reads `wage_tier` only to preview a Pay
+    Raise's cost, never to size a Weekly Wage award. Making the wage
+    tier-aware (paying `1i¢ x tier`, or whatever the intended scaling is) is
+    real, scoped, still-undone work -- not a side effect of the entry tool
+    not existing, since it now does.
   - **Contract Completion / Competition Winnings:** `variable` pricing --
     the admin enters the whole amount at logging time, never a lookup, per
     the prompt's own instruction.
@@ -2936,6 +2946,16 @@ no session), which is the main remaining verification gap — and that limit is
 also what keeps a stray RPC call from mutating real tournaments. Confirm which
 migrations are actually applied before assuming: as of Phase 3a, 0062-0065 are
 live and 0066 is not.
+
+**This note itself is now stale, confirmed 2026-08-09.** The checked-in
+`.env` is back to the two placeholder Supabase vars
+(`https://placeholder-local-dev.supabase.co`), not a real project, and every
+GREENLINE entry from Phase 8 onward independently calls it "the placeholder
+local `.env`" -- so whatever real project this note describes was reachable
+only for the Phase 3a tournament session, not a durable repo state. Treat
+every "NOT verified: the live Supabase project" note across this file
+(coin economy included) as still accurate, and do not assume `npm run dev`
+reaches live data without first checking `.env` yourself.
 
 ## Digital notebook (data layer)
 
