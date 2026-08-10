@@ -2,8 +2,8 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import {
-		driveOpenUrl,
 		entryTitle,
 		flagReasonLabel,
 		isUntitled,
@@ -12,7 +12,6 @@
 		orderedPhotos,
 		outstandingSessions,
 		photoCountLabel,
-		photoSrc,
 		sessionMeta,
 		showsStatus,
 		statusLabel,
@@ -88,15 +87,6 @@
 	let errorMsg = $state<string | null>(null);
 	let successMsg = $state<string | null>(null);
 	let fileInput = $state<HTMLInputElement | null>(null);
-	let broken = $state<Record<string, true>>({});
-	/** Bumped per photo by "Try again"; rides the src as a cache-buster. */
-	let retryTick = $state<Record<string, number>>({});
-
-	function retry(photoId: string) {
-		retryTick = { ...retryTick, [photoId]: (retryTick[photoId] ?? 0) + 1 };
-		const { [photoId]: _dropped, ...rest } = broken;
-		broken = rest;
-	}
 
 	const open = $derived(outstandingSessions(sessions, entries));
 	const feed = $derived(newestFirst(entries));
@@ -471,50 +461,7 @@
 								</div>
 							{/if}
 
-							{#if photos.length}
-								<div class="photos">
-									{#each photos as photo (photo.id)}
-										<figure class="photo">
-											{#if broken[photo.id]}
-												<!-- A proxied fetch can still fail for ordinary reasons
-												     (Drive hiccup, revoked token), so the per-photo
-												     fallback stays -- it is just no longer the default
-												     outcome for every viewer. -->
-												<div class="photo-missing">
-													<p>This photo could not be loaded.</p>
-													<div class="photo-missing-actions">
-														<button type="button" class="btn secondary" onclick={() => retry(photo.id)}>
-															Try again
-														</button>
-														<a
-															class="drive-link"
-															href={driveOpenUrl(photo.drive_file_id)}
-															target="_blank"
-															rel="noopener noreferrer">Open in Drive</a
-														>
-													</div>
-												</div>
-											{:else}
-												<img
-													src={`${photoSrc(photo.id)}${retryTick[photo.id] ? `?r=${retryTick[photo.id]}` : ''}`}
-													alt={photos.length > 1
-														? `${entryTitle(entry)}, page ${photo.sequence_order}`
-														: entryTitle(entry)}
-													loading="lazy"
-													onerror={() => (broken = { ...broken, [photo.id]: true })}
-												/>
-											{/if}
-											<figcaption>
-												{#if photos.length > 1}Page {photo.sequence_order}{/if}
-												{#if photo.variant === 'enhanced'}<span class="variant">enhanced</span>{/if}
-												{#if photo.original_filename}
-													<span class="filename">{photo.original_filename}</span>
-												{/if}
-											</figcaption>
-										</figure>
-									{/each}
-								</div>
-							{/if}
+							<NotebookPhotos {photos} label={entryTitle(entry)} />
 						</li>
 					{/each}
 				</ol>
@@ -796,79 +743,6 @@
 	.callout-hint {
 		color: var(--dim);
 		font-size: 0.8rem;
-	}
-
-	/* Photos are the point of this screen: one per row, full column width,
-	   never a thumbnail grid. */
-	.photos {
-		display: grid;
-		gap: 0.9rem;
-	}
-	.photo {
-		margin: 0;
-	}
-	.photo a {
-		display: block;
-	}
-	.photo img {
-		display: block;
-		width: 100%;
-		height: auto;
-		/* Reserved height: Drive can be slow, and an image still in flight has
-		   no intrinsic size, so without this the frame collapses to a hairline
-		   and the feed jumps as each photo lands. */
-		min-height: 12rem;
-		max-height: 40rem;
-		object-fit: contain;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 6px;
-	}
-	.photo-missing {
-		display: grid;
-		gap: 0.6rem;
-		justify-items: start;
-		padding: 1.2rem;
-		border: 1px dashed var(--line);
-		border-radius: 6px;
-		background: var(--bg1);
-		color: var(--dim);
-		font-size: 0.87rem;
-	}
-	.photo-missing p {
-		margin: 0;
-	}
-	.photo-missing-actions {
-		display: flex;
-		align-items: center;
-		gap: 0.9rem;
-		flex-wrap: wrap;
-	}
-	.drive-link {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		color: var(--dim);
-	}
-	.drive-link:hover {
-		color: var(--cyan);
-	}
-	figcaption {
-		display: flex;
-		gap: 0.5rem;
-		flex-wrap: wrap;
-		margin-top: 0.3rem;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--dim);
-	}
-	.variant {
-		color: var(--cyan);
-	}
-	.filename {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		max-width: 22rem;
 	}
 
 	@media (max-width: 540px) {

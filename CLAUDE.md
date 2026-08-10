@@ -3281,6 +3281,158 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
   never request at all (the same reason screenshots time out there). Remove
   the attribute or dispatch `error` by hand to exercise the image paths.
 
+## Digital notebook (instructor review)
+
+`/notebook/review` is the real per-section compliance grid plus the check-in
+management it depends on, replacing the placeholder that held the URL. UI
+ONLY -- it calls 0069's data layer exactly as it stands, and touches NO
+migration, RPC, `notebook-drive.ts`, or `/api/notebook/*` route.
+
+- **The gate is UNCHANGED and is still `notebook-access.ts`**: the same two
+  tiers 0069 recognizes (INSTRUCTOR, a `notebook_sections` row naming them
+  `instructor_id`; or CHAIR, the 0067 admin tier via `isAdmin()` -- never
+  `role === 'teacher'`, the naming trap), a 404 for a signed-in non-reviewer
+  (the `/admin` rule), and anonymous visitors turned away earlier by the
+  `/notebook` authed prefix. Not rewritten, not duplicated.
+- **Session management had to ship for the grid to have columns at all.**
+  Before this there was no way to create a `notebook_sessions` row outside
+  direct database access, so every section's grid was necessarily empty.
+  `SessionManager.svelte` lists a section's check-ins with add / edit /
+  delete, calling `notebook_admin_upsert_session` (one RPC for both create
+  and edit -- `p_id` null creates) and `notebook_admin_delete_session`. Both
+  allow the section's own instructor OR a site admin and enforce that
+  themselves; the component does no permission check of its own. Delete
+  DETACHES rather than destroys (0069: `session_id` nulled, `custom_label`
+  backfilled from the deleted session's label) and the UI reports the count
+  it returns rather than implying data was lost.
+- **The grid renders what `notebook_get_section_grid` returns and re-derives
+  none of it.** The roster in particular is the RPC's (enrollment UNION
+  anyone holding entries or excusals in the section, so a transferred
+  student stays visible), as are on-time (an LA-calendar-date comparison
+  against `session_date`), which entry a cell shows (the latest), and
+  `entry_count`. `src/lib/notebook-review.ts` is the client-safe pure layer
+  (row shapes mirroring the RPC's jsonb key for key, cell display state,
+  the completion arithmetic, the CSV).
+- **Cell states are a COLOUR AND A GLYPH, never colour alone:** on time
+  (green ✓), late (amber ⤴), awaiting review (cyan ○), flagged (crimson !,
+  the reserved error status), excused (dashed ice E), missing (dashed –),
+  plus a corner badge when a cell has more than one entry. **FLAG BEATS
+  LATE** deliberately -- a cell can say one thing and the flag is the one
+  needing action; lateness still shows in the opened panel. A cell with no
+  entry renders as a `<span>`, not a disabled button, so there is genuinely
+  nothing to click into.
+- **Photos are rendered by the SAME component the student's feed uses.**
+  `NotebookPhotos.svelte` was lifted verbatim out of `NotebookView.svelte`
+  (markup, behaviour and CSS: the `/api/notebook/photo/<id>` proxy, reserved
+  height, per-photo broken/retry with the Drive link as a staff escape
+  hatch, page captions) and both now mount it, so the two cannot drift. One
+  prop differs: `lazy` is false in the review panel, which mounts on demand
+  and must paint at once, and true in the student's long scrolling feed.
+- **Flag AND resolve both ship.** The task asked only for flagging, but
+  0069 describes `notebook_resolve_entry` as what "closes the review loop"
+  after a student resubmits, and an instructor who can flag with no way to
+  accept the fix is a trap. Same tier, same enforcement, no new RPC. The
+  "Accept it" button renders only while the entry is not already
+  `compliant`.
+- **CSV export.** Searched first: this repo had NO prior CSV export to match
+  (the only "csv" hits anywhere are inside SVG data URLs), so this is the
+  first and its shape is the convention a later one should follow -- one
+  header row, RFC 4180 quoting, CRLF, and a UTF-8 BOM so Excel opens
+  accented student names correctly. Columns: student, email, sessions
+  covered, total sessions, suggested presence score, **a blank Final score
+  column the instructor fills in by hand**, total flagged, the five flag
+  reasons individually, excused sessions, free entries. Filename
+  `notebook-<course_id>-unit-<n>-<date>.csv`.
+  - **The suggested score is `covered / total x 7` rounded, and "covered"
+    counts an ENTRY and nothing else** -- the formula exactly as specified.
+    It deliberately does not credit an excusal: rather than fold a judgement
+    call into the arithmetic, the excused count gets its own column so a low
+    suggestion is explainable at a glance and the instructor raises it by
+    hand. The page says so in as many words.
+  - **Values are guarded against spreadsheet formula injection** (a leading
+    `'` on anything starting `= + - @` or whitespace). Not theoretical: a
+    student's `display_name` is user-editable and lands in a file a teacher
+    opens in Excel.
+- **Components + transports.** `ReviewConsole.svelte` is the whole screen
+  (the `NotebookView` / `CoinBalanceView` split, so `/dev/notebook-review`
+  mounts the identical thing); `SessionManager`, `SectionGrid` and
+  `EntryReview` are its parts. Every server call is an INJECTED transport
+  (`ReviewTransports`), the way NotebookView injects its three upload
+  transports -- the real page points them at the RPCs and RLS-scoped
+  selects, the harness answers in memory, and that split is what makes
+  "a flag reaches `notebook_flag_entry` with these exact arguments"
+  checkable with no backend. The entry read is a plain RLS-scoped select
+  with no `student_id` filter and no RPC (the `/coin-balance` doctrine);
+  section scoping in the load (chair sees all, instructor only their own
+  rows) is CONVENIENCE, since the grid RPC refuses a foreign section
+  regardless.
+- **Three real bugs found and fixed during browser verification, all of them
+  invisible to `svelte-check`:**
+  1. **An infinite effect loop.** The reload effect called `refresh()`
+     inside its own tracked scope, and an effect tracks every reactive read
+     that happens while it runs INCLUDING inside functions it calls -- so it
+     silently took a dependency on whatever the injected transports touched
+     (in the harness, the call log it both read and wrote) and spun until
+     Svelte's update-depth guard fired. The refetch is now `untrack`ed with
+     the section and unit passed in explicitly, so the effect depends on
+     exactly those two.
+  2. **A stale cell snapshot.** The opened cell was captured at click time,
+     so after a flag refetched the grid the panel's status chip still read
+     "Late" beside a cell that had just turned red -- the `RolesManager`
+     staleness class again. The cell is now DERIVED from the current grid by
+     entry id, which makes the disagreement unrepresentable and closes the
+     panel if the cell stops existing.
+  3. **`bind:value` on `<input type="number">` COERCES to a number**, so the
+     session form's `unitNumber.trim()` threw `.trim is not a function`,
+     which silently wedged the Save button (a disabled button, no visible
+     error). The state is typed `string | number | null` and everything
+     reads a derived `unitText`.
+- **Verified** in `/dev/notebook-review` (404 in production, no auth /
+  Supabase / Drive; an in-memory store that mirrors the RPC's own output
+  rules AND its instructor-or-admin refusal, with every transport call
+  logged verbatim). **Scoping proven as a real limit, not a shorter list:**
+  as the instructor, section B is absent from the picker AND the transport
+  refuses `loadGrid`, `loadEntry`, `flagEntry`, `saveSession` and
+  `deleteSession` for it with 0069's own messages, leaving section B's
+  sessions untouched; as the chair, both sections are offered and both
+  grids and a section-B entry read fine. **Flagging:** a real form submit
+  sent exactly
+  `{p_entry_id:'e-4', p_flag_reason:'insufficient_detail', p_instructor_comment:'...'}`,
+  the cell flipped late -> flagged, the callout appeared, and "Accept it"
+  became available; resolving sent `notebook_resolve_entry` with its comment
+  and the cell fell back to `late` (compliant again, still uploaded late) --
+  the flag-beats-late rule demonstrated in both directions. **CSV** was
+  checked row by row against the mocked data rather than "a file
+  downloaded": the real Export button produced
+  `text/csv;charset=utf-8`, filename
+  `notebook-eng1h-sophomore-unit-3-2026-08-09.csv`, and rows 3/3->7,
+  2/3->5 with `illegible=1`, 1/3->2 with `excused=1`, 1/3->2 with
+  `free entries=1` (the student with two entries against one check-in
+  counting as ONE covered session), with the Final score column blank, a
+  BOM, CRLF, and the injection guard and RFC4180 quoting confirmed against
+  a `=cmd|calc` name and `Okafor, Ben "BJ"`. **Sessions:** add (the RPC
+  receiving a real `unit_number: 4`, a new grid column and a new unit
+  option appearing), edit (prefilled, `p_id` set, list and column both
+  updating), and delete (first click only arms the confirm, Cancel disarms,
+  the confirmed delete reports "2 entries were kept and relabelled" and
+  both entries survive with `session_id: null` and the label backfilled).
+  Also verified: all six cell states render, the transferred-out student is
+  on the roster via the entries union with a free-entry count and a
+  multi-entry badge, a 2-photo entry renders both frames with page captions,
+  clicking an open cell closes it, a unit choice that the newly-selected
+  section does not have resets to "all", both empty states and the
+  0069-unapplied card, no horizontal overflow at 375px (the wide table
+  scrolls in its own container), and 0 console errors. Regression: the
+  student `/dev/notebook` feed renders identically after the photo-renderer
+  extraction (7 figures, `loading="lazy"` intact, page/variant/filename
+  captions); `npm test` 59/59; `svelte-check` 0 errors, no new warnings.
+  **NOT verified: a real instructor viewing real student data.** That needs
+  a live signed-in session and 0069/0071 applied, exactly like every other
+  part of this feature -- the local `.env` has no session to sign in with,
+  and the photo proxy answers 401 in the harness (observed, which is what
+  proves the shared renderer really requests the proxy rather than skipping
+  it).
+
 ## GREENLINE (prototype)
 
 GREENLINE is a 3D combat racing game in its earliest exploration phase. The
