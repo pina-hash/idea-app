@@ -731,6 +731,9 @@
 								/>
 							</label>
 						</div>
+						<span class="hint gallery-hint">
+							Someone else took the photo? Get it onto this device (text, AirDrop, email) and pick it from here.
+						</span>
 
 						{#if capturePath === 'in-app'}
 							<!--
