@@ -23,7 +23,9 @@
 // (the notebook's own follow-up, which drops and recreates two of the RPCs
 // under test) and 0075 (which replaces notebook_create_entry again, to make
 // the photo conditional on the tier). The three coin migrations between them
-// (0072-0074) touch nothing the notebook reads and are left out.
+// (0072-0074) touch nothing the notebook reads and are left out. 0078 adds
+// notebook_entry_notes and its three write RPCs; it is purely additive (a new
+// table and new functions), so it changes nothing an earlier suite reads.
 //
 // Startup runs initdb + a migration pass and takes a few seconds; the suite
 // pays that once per file (beforeAll), not per test.
@@ -49,7 +51,8 @@ export const MIGRATIONS = [
 	'0069_notebook.sql',
 	'0070_coin_economy.sql',
 	'0071_notebook_optional_label.sql',
-	'0075_notebook_optional_photo.sql'
+	'0075_notebook_optional_photo.sql',
+	'0078_notebook_entry_notes.sql'
 ] as const;
 
 export type QueryFn = <R extends pg.QueryResultRow = pg.QueryResultRow>(

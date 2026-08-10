@@ -34,20 +34,39 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		notebookAccess(supabase, claims.sub)
 	]);
 
-	const { data: entryRows, error: entryError } = await supabase
-		.from('notebook_entries')
-		.select(
-			`id, session_id, section_id, custom_label, upload_timestamp, status, flag_reason,
-			 instructor_comment,
-			 notebook_sessions ( session_label, unit_number, session_date ),
-			 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename )`
-		)
-		.order('upload_timestamp', { ascending: false });
+	/**
+	 * Written notes (0078) are selected through their own embed, and their
+	 * absence degrades on its OWN rather than taking the page with it: on a
+	 * project where 0069 is applied but 0078 is not, PostgREST rejects the
+	 * whole select for an unknown relationship, which would blank a notebook
+	 * full of perfectly readable photos. So the notes join is dropped and the
+	 * read retried, and `notesReady` turns the note UI off with an explanation
+	 * instead. Migrations here are applied by hand, so a deploy sitting
+	 * between two of them is a real state, not a hypothetical one.
+	 */
+	const BASE_SELECT = `id, session_id, section_id, custom_label, upload_timestamp, status, flag_reason,
+		 instructor_comment,
+		 notebook_sessions ( session_label, unit_number, session_date ),
+		 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename )`;
+	const NOTES_SELECT = `${BASE_SELECT},
+		 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at )`;
+
+	const read = (select: string) =>
+		supabase
+			.from('notebook_entries')
+			.select(select)
+			.order('upload_timestamp', { ascending: false });
+
+	let { data: entryRows, error: entryError } = await read(NOTES_SELECT);
+	const notesReady = !entryError;
+	if (entryError) {
+		({ data: entryRows, error: entryError } = await read(BASE_SELECT));
+	}
 
 	const configured = !entryError;
 
 	const entries: NotebookEntry[] = (entryRows ?? []).map((r) => {
-		const row = r as Record<string, unknown>;
+		const row = r as unknown as Record<string, unknown>;
 		return {
 			id: row.id as string,
 			session_id: (row.session_id as string | null) ?? null,
@@ -58,7 +77,12 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			flag_reason: (row.flag_reason as NotebookEntry['flag_reason']) ?? null,
 			instructor_comment: (row.instructor_comment as string | null) ?? null,
 			session: (row.notebook_sessions as NotebookEntry['session']) ?? null,
-			photos: (row.notebook_entry_photos as NotebookEntry['photos']) ?? []
+			photos: (row.notebook_entry_photos as NotebookEntry['photos']) ?? [],
+			// Every revision, not just the current one: the feed shows a note's
+			// history, and which revision counts is derived (noteThreads), never
+			// stored. Photo visibility and note visibility both delegate to
+			// notebook_can_read_entry, so this needs no filter of its own.
+			notes: (row.notebook_entry_notes as NotebookEntry['notes']) ?? []
 		};
 	});
 
@@ -91,6 +115,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 
 	return {
 		configured,
+		notesReady,
 		// The Drive integration is server-only; the UI just needs to know
 		// whether a submit could possibly succeed, so it can say so up front
 		// rather than failing at the end of a photo upload.

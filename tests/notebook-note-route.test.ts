@@ -1,8 +1,8 @@
 // tests/notebook-note-route.test.ts
 //
-// The photo-less notebook entry route (/api/notebook/note), driven as the
-// REAL shipped POST handler against a REAL Postgres with the REAL 0075
-// notebook_create_entry applied.
+// The written-note entry route (/api/notebook/note), driven as the REAL
+// shipped POST handler against a REAL Postgres with the REAL 0078
+// notebook_create_note_entry applied.
 //
 // WHAT IS SHIMMED AND WHAT IS NOT. Only PostgREST's wire format: the shim's
 // .rpc(name, args) forwards the route's OWN argument object, verbatim and
@@ -13,10 +13,11 @@
 // have refused. Postgres decides; the test asks.
 //
 // THE POINT OF DRIVING THE ROUTE rather than just the RPC (which
-// notebook-entry-photo-rule.test.ts already covers): the route is where
-// "signed in" is enforced and where the argument object is built. Both are
-// easy to break silently -- a dropped claims check has no visible symptom for
-// the signed-in developer testing it.
+// notebook-notes.test.ts already covers): the route is where "signed in" is
+// enforced, where the argument object is built, and -- since 0078 -- where
+// the SANITIZER runs. All three are easy to break silently; a dropped claims
+// check in particular has no visible symptom for the signed-in developer
+// testing it.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
@@ -25,7 +26,12 @@ import { POST } from '../src/routes/api/notebook/note/+server';
 let db: TestDb;
 let student: SeededUser;
 let sectionId: string;
-let sessionId: string;
+
+/** What the editor actually posts: a ProseMirror document. */
+const editorDoc = (text: string) => ({
+	type: 'doc',
+	content: [{ type: 'paragraph', content: [{ type: 'text', text }] }]
+});
 
 beforeAll(async () => {
 	db = await startTestDb();
@@ -38,13 +44,6 @@ beforeAll(async () => {
 		[teacher.id]
 	);
 	sectionId = section.rows[0].id;
-
-	const session = await db.sql<{ id: string }>(
-		`insert into public.notebook_sessions (section_id, unit_number, session_date, session_label)
-		 values ($1, 3, current_date, 'Bearing teardown') returning id`,
-		[sectionId]
-	);
-	sessionId = session.rows[0].id;
 }, 120_000);
 
 afterAll(async () => {
@@ -59,14 +58,21 @@ afterAll(async () => {
 function supabaseFor(userId: string) {
 	return {
 		async rpc(fn: string, args: Record<string, unknown>) {
-			expect(fn).toBe('notebook_create_entry');
+			expect(fn).toBe('notebook_create_note_entry');
 			const names = Object.keys(args);
 			const placeholders = names.map((n, i) => `${n} => $${i + 1}`).join(', ');
 			return db.asUser(userId, async (q) => {
 				try {
 					const { rows } = await q<{ result: unknown }>(
 						`select public.${fn}(${placeholders}) as result`,
-						names.map((n) => args[n])
+						// jsonb parameters have to arrive as JSON text, which is what
+						// the supabase client does over the wire too.
+						names.map((n) => {
+							const value = args[n];
+							return value !== null && typeof value === 'object'
+								? JSON.stringify(value)
+								: value;
+						})
 					);
 					return { data: rows[0].result, error: null };
 				} catch (e) {
@@ -94,39 +100,58 @@ function callRoute(body: unknown, userId: string | null, raw?: string): Promise<
 	});
 }
 
-function entryCount(label: string) {
+function noteText(entryId: string) {
 	return db
-		.sql<{ n: string }>(
-			`select count(*)::text as n from public.notebook_entries where custom_label = $1`,
-			[label]
+		.sql<{ text: string }>(
+			`select content -> 0 -> 'runs' -> 0 ->> 'text' as text
+			   from public.notebook_entry_notes where entry_id = $1`,
+			[entryId]
 		)
-		.then((r) => Number(r.rows[0].n));
+		.then((r) => r.rows[0]?.text ?? null);
 }
 
 describe('POST /api/notebook/note', () => {
-	it('creates a photo-less entry for the signed-in caller', async () => {
-		const res = await callRoute({ custom_label: 'Talked through the gearbox ratio' }, student.id);
+	it('creates a photo-less entry plus its first note, for the signed-in caller', async () => {
+		const res = await callRoute(
+			{ content: editorDoc('Talked through the gearbox ratio'), custom_label: 'Gearbox chat' },
+			student.id
+		);
 		expect(res.status).toBe(200);
 
 		const body = (await res.json()) as { ok: boolean; entry: { entry_id: string } };
 		expect(body.ok).toBe(true);
-		expect(body.entry.entry_id).toBeTruthy();
 
 		const { rows } = await db.sql<{
 			student_id: string;
 			custom_label: string;
 			session_id: string | null;
 			photos: string;
+			notes: string;
 		}>(
 			`select e.student_id, e.custom_label, e.session_id,
-			        (select count(*) from public.notebook_entry_photos p where p.entry_id = e.id)::text as photos
+			        (select count(*) from public.notebook_entry_photos p where p.entry_id = e.id)::text as photos,
+			        (select count(*) from public.notebook_entry_notes n where n.entry_id = e.id)::text as notes
 			   from public.notebook_entries e where e.id = $1`,
 			[body.entry.entry_id]
 		);
 		expect(rows[0].student_id).toBe(student.id);
-		expect(rows[0].custom_label).toBe('Talked through the gearbox ratio');
+		expect(rows[0].custom_label).toBe('Gearbox chat');
 		expect(rows[0].session_id).toBeNull();
 		expect(Number(rows[0].photos)).toBe(0);
+		expect(Number(rows[0].notes)).toBe(1);
+		expect(await noteText(body.entry.entry_id)).toBe('Talked through the gearbox ratio');
+	});
+
+	// custom_label is a TITLE now, so an untitled note is the ordinary case.
+	it('accepts a note with no title', async () => {
+		const res = await callRoute({ content: editorDoc('No page to shoot yet.') }, student.id);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { entry: { entry_id: string } };
+		const { rows } = await db.sql<{ custom_label: string | null }>(
+			`select custom_label from public.notebook_entries where id = $1`,
+			[body.entry.entry_id]
+		);
+		expect(rows[0].custom_label).toBeNull();
 	});
 
 	// THE AUTH BOUNDARY. No session, no write -- and no database touch at all:
@@ -136,37 +161,76 @@ describe('POST /api/notebook/note', () => {
 		const before = await db.sql<{ n: string }>(
 			`select count(*)::text as n from public.notebook_entries`
 		);
-		const res = await callRoute({ custom_label: 'anonymous note' }, null);
+		const res = await callRoute({ content: editorDoc('anonymous note') }, null);
 		expect(res.status).toBe(401);
 		const after = await db.sql<{ n: string }>(
 			`select count(*)::text as n from public.notebook_entries`
 		);
 		expect(after.rows[0].n).toBe(before.rows[0].n);
-		expect(await entryCount('anonymous note')).toBe(0);
 	});
 
-	// The route passes session_id THROUGH rather than blocking it, so this is
-	// the RPC's rule being enforced end to end and not a second copy of it.
-	it('surfaces the RPC refusal for a session-linked note', async () => {
+	it('refuses a note with nothing in it, and writes nothing', async () => {
+		const before = await db.sql<{ n: string }>(
+			`select count(*)::text as n from public.notebook_entries`
+		);
+		for (const body of [{}, { content: editorDoc('   ') }, { custom_label: 'title only' }]) {
+			const res = await callRoute(body, student.id);
+			expect(res.status).toBe(400);
+			expect(((await res.json()) as { error: string }).error).toMatch(/needs some text/i);
+		}
+		const after = await db.sql<{ n: string }>(
+			`select count(*)::text as n from public.notebook_entries`
+		);
+		expect(after.rows[0].n).toBe(before.rows[0].n);
+	});
+
+	// THE SANITIZER, END TO END. The editor cannot produce these, but a hand
+	// -rolled POST can -- and what lands in the database must be the closed
+	// note shape either way.
+	it('stores only the closed shape, whatever the body carried', async () => {
 		const res = await callRoute(
-			{ custom_label: 'no page today', session_id: sessionId },
+			{
+				content: {
+					type: 'doc',
+					content: [
+						{
+							type: 'paragraph',
+							content: [
+								{
+									type: 'text',
+									text: 'click me',
+									marks: [
+										{ type: 'link', attrs: { href: 'javascript:alert(1)' } },
+										{ type: 'evil', attrs: { onclick: 'alert(1)' } }
+									]
+								}
+							]
+						},
+						{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Heading' }] },
+						{ type: 'image', attrs: { src: 'x', onerror: 'alert(1)' } }
+					]
+				}
+			},
 			student.id
 		);
-		expect(res.status).toBe(400);
-		const body = (await res.json()) as { error: string };
-		expect(body.error).toMatch(/Drive file id is required/i);
-		expect(await entryCount('no page today')).toBe(0);
-	});
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { entry: { entry_id: string } };
 
-	it('surfaces the RPC refusal when there is nothing to record', async () => {
-		const res = await callRoute({}, student.id);
-		expect(res.status).toBe(400);
-		expect(((await res.json()) as { error: string }).error).toMatch(/photo or a label/i);
+		const { rows } = await db.sql<{ content: unknown }>(
+			`select content from public.notebook_entry_notes where entry_id = $1`,
+			[body.entry.entry_id]
+		);
+		// The dangerous link is gone but the WORDS survive; the heading became
+		// a paragraph; the image contributed nothing at all.
+		expect(rows[0].content).toEqual([
+			{ type: 'p', runs: [{ text: 'click me' }] },
+			{ type: 'p', runs: [{ text: 'Heading' }] }
+		]);
 	});
 
 	it('accepts an optional section and stores it', async () => {
 		const res = await callRoute(
-			{ custom_label: 'Shop layout notes', section_id: sectionId },
+			{ content: editorDoc('Shop layout notes'), section_id: sectionId },
 			student.id
 		);
 		expect(res.status).toBe(200);
@@ -178,18 +242,18 @@ describe('POST /api/notebook/note', () => {
 		expect(rows[0].section_id).toBe(sectionId);
 	});
 
-	it('rejects a malformed id and a non-JSON body before reaching the database', async () => {
-		expect((await callRoute({ custom_label: 'x', session_id: 'nope' }, student.id)).status).toBe(
-			400
-		);
-		expect((await callRoute({ custom_label: 'x', section_id: 'nope' }, student.id)).status).toBe(
-			400
-		);
+	it('rejects a malformed id, a non-JSON body and an over-long title', async () => {
+		expect(
+			(await callRoute({ content: editorDoc('x'), section_id: 'nope' }, student.id)).status
+		).toBe(400);
 		expect((await callRoute(null, student.id, 'not json at all')).status).toBe(400);
-		// An over-long label is refused here rather than by the column's own
+		// An over-long title is refused here rather than by the column's own
 		// 200-char CHECK, so the student gets a sentence instead of a
 		// constraint name.
-		const long = await callRoute({ custom_label: 'x'.repeat(201) }, student.id);
+		const long = await callRoute(
+			{ content: editorDoc('x'), custom_label: 'x'.repeat(201) },
+			student.id
+		);
 		expect(long.status).toBe(400);
 		expect(((await long.json()) as { error: string }).error).toMatch(/200 characters/i);
 	});

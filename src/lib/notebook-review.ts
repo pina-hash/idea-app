@@ -21,6 +21,7 @@
  */
 
 import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
+import type { NotebookNoteRow } from '$lib/notebook-notes';
 
 // ---------------------------------------------------------------------------
 // 1. The shapes `notebook_get_section_grid` actually returns (0069). These
@@ -95,6 +96,12 @@ export interface ReviewEntry {
 	flag_reason: NotebookFlagReason | null;
 	instructor_comment: string | null;
 	photos: NotebookPhoto[];
+	/**
+	 * Every revision of every written note on the entry (0078). Read-only
+	 * here: an instructor reads a student's notes and never rewrites one, and
+	 * notebook_edit_note refuses them regardless of what this panel renders.
+	 */
+	notes: NotebookNoteRow[];
 }
 
 // ---------------------------------------------------------------------------

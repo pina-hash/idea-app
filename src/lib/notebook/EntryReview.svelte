@@ -1,5 +1,6 @@
 <script lang="ts">
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
+	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
 	import { flagReasonLabel, photoCountLabel, photoPages, type NotebookFlagReason } from '$lib/notebook';
 	import {
 		FLAG_REASONS,
@@ -126,8 +127,18 @@
 
 	{#if entry.photos.length}
 		<NotebookPhotos photos={entry.photos} label={title} lazy={false} />
-	{:else}
-		<p class="empty">This entry is a written note with no photos.</p>
+	{:else if !entry.notes?.length}
+		<p class="empty">This entry has no photos and no written notes.</p>
+	{/if}
+
+	{#if entry.notes?.length}
+		<!-- The student's own words, rendered by the SAME component their feed
+		     uses. Read-only: `canEdit` is never set here, and 0078's
+		     notebook_edit_note refuses anyone but the note's owner regardless. -->
+		<section class="notes-block" data-testid="review-notes">
+			<h3>Written notes</h3>
+			<EntryNotes notes={entry.notes} compact />
+		</section>
 	{/if}
 
 	<div class="review-form">
@@ -239,6 +250,10 @@
 	.empty {
 		color: var(--nb-ink-soft);
 		font-size: 0.9rem;
+	}
+	.notes-block h3 {
+		margin: 0 0 0.6rem;
+		font-size: 0.95rem;
 	}
 	.review-form {
 		display: grid;

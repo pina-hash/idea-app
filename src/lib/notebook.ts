@@ -9,6 +9,8 @@
  * lives in 0069/0071's RLS and RPCs; nothing here re-implements any of it.
  */
 
+import { docSummary, noteThreads, type NotebookNoteRow, type TiptapNode } from '$lib/notebook-notes';
+
 export type NotebookStatus = 'compliant' | 'flagged' | 'pending_review';
 
 export type NotebookFlagReason =
@@ -51,6 +53,23 @@ export interface NotebookEntry {
 	instructor_comment: string | null;
 	session: Pick<NotebookSession, 'session_label' | 'unit_number' | 'session_date'> | null;
 	photos: NotebookPhoto[];
+	/** Every revision of every written note on this entry (0078). */
+	notes: NotebookNoteRow[];
+}
+
+/**
+ * A photo picked but not yet saved: the file itself plus, when the correction
+ * step produced one, the corrected JPEG that uploads right after it as the
+ * 'enhanced' variant. `enhanced: null` means the student skipped correction
+ * (or the image could not be decoded) and only the original uploads.
+ *
+ * Shared rather than private to PhotoStager because the SEQUENCING -- which
+ * file becomes which row, in what order -- belongs to whoever is saving, and
+ * that is now two different callers.
+ */
+export interface StagedPhoto {
+	file: File;
+	enhanced: File | null;
 }
 
 /**
@@ -58,9 +77,14 @@ export interface NotebookEntry {
  *
  * Since 0071 an entry may be FULLY unlabeled -- no session, no custom label
  * -- so the chain has to bottom out in something printable rather than an
- * empty line: session label, else the typed label, else the browser filename
- * the upload recorded, else a plain placeholder. This mirrors (but does not
- * duplicate) the Drive-naming fallback order in notebookDriveFilename.
+ * empty line: session label, else the typed title, else the browser filename
+ * the upload recorded, else the first note's opening words, else a plain
+ * placeholder. This mirrors (but does not duplicate) the Drive-naming
+ * fallback order in notebookDriveFilename.
+ *
+ * The note step is why `custom_label` staying a TITLE costs a student
+ * nothing: since 0078 a note carries its own text, so an untitled note entry
+ * can name itself from what it says instead of reading as "Untitled entry".
  */
 export const UNTITLED_ENTRY = 'Untitled entry';
 
@@ -75,6 +99,11 @@ export function entryTitle(entry: NotebookEntry): string {
 		.find((p) => p.original_filename?.trim());
 	const filename = named?.original_filename?.trim();
 	if (filename) return stripExtension(filename);
+	const firstNote = noteThreads(entry.notes ?? [])[0];
+	if (firstNote) {
+		const summary = docSummary(firstNote.current.content);
+		if (summary) return summary;
+	}
 	return UNTITLED_ENTRY;
 }
 
@@ -287,12 +316,22 @@ export function photoCountLabel(count: number): string {
  */
 export type CreateEntryResult = { ok: true; entryId: string } | { ok: false; error: string };
 export type AddPhotoResult = { ok: true } | { ok: false; error: string };
+export type NoteSaveResult = { ok: true } | { ok: false; error: string };
 
 /**
- * A photo-less free-form entry (0075). Deliberately carries no session: a
- * scheduled check-in still requires a photo, so the note path never offers
- * one -- and the RPC refuses it regardless, which is where that rule lives.
+ * A photo-less free-form entry whose content is a written note (0075 opened
+ * the tier; 0078 gave it real content).
+ *
+ * Deliberately carries no session: a scheduled check-in exists because an
+ * instructor asked for a page, so the note path never offers one -- and
+ * notebook_create_note_entry takes no session at all, which is where that
+ * rule lives. A note ABOUT a check-in is added to that entry afterwards.
+ *
+ * `custom_label` is a short TITLE and nothing else. Before 0078 it carried
+ * the note's whole text, capped at 200 characters; the text is now its own
+ * row and the title is optional.
  */
 export interface NotePayload {
-	custom_label: string;
+	content: TiptapNode;
+	custom_label: string | null;
 }

@@ -3,20 +3,12 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
-	import PhotoCorrector from '$lib/notebook/PhotoCorrector.svelte';
-	import CameraCapture from '$lib/notebook/CameraCapture.svelte';
-	import {
-		cameraCaptureSupported,
-		clearPendingCapture,
-		fitForUpload,
-		preferredCapturePath,
-		rememberPendingCapture,
-		takePendingCapture,
-		unusableReason,
-		type CapturePath
-	} from '$lib/notebook/camera';
-	import { onDestroy } from 'svelte';
+	import PhotoStager from '$lib/notebook/PhotoStager.svelte';
+	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
+	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
+	import { clearPendingCapture, fitForUpload, takePendingCapture } from '$lib/notebook/camera';
 	import '$lib/notebook/notebook-theme.css';
+	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
 	import {
 		entryTitle,
 		flagReasonLabel,
@@ -33,9 +25,11 @@
 		todayIso,
 		type AddPhotoResult,
 		type CreateEntryResult,
+		type NoteSaveResult,
 		type NotebookEntry,
 		type NotebookSession,
-		type NotePayload
+		type NotePayload,
+		type StagedPhoto
 	} from '$lib/notebook';
 
 	/**
@@ -43,19 +37,23 @@
 	 * dev harness mounts the SAME component against sample data (the
 	 * CoinBalanceView / CoinDeskTool convention).
 	 *
-	 * It owns the UPLOAD SEQUENCING -- first photo creates the entry, every
-	 * later photo is added to it -- but not the transport: `createEntry`,
-	 * `addPhoto` and `createNote` are injected, so the real page points them at
-	 * /api/notebook/upload, /api/notebook/add-photo and /api/notebook/note
-	 * while the harness answers in memory. That split is what lets the
-	 * multi-photo orchestration itself be exercised with no network.
+	 * IT OWNS THE SAVE SEQUENCING, NOT THE TRANSPORT. Photo 1 creates a new
+	 * entry and every later photo joins it; a corrected version rides
+	 * immediately after its own original so the pair lands on adjacent
+	 * sequence numbers, which is the adjacency photoPages() groups back into
+	 * one page. The five transports are injected, so the real page points them
+	 * at the API routes while the harness answers in memory -- that split is
+	 * what lets the orchestration itself be exercised with no network.
 	 *
-	 * Every picked photo first passes through the CORRECTION step
-	 * (PhotoCorrector, one photo at a time, never a whole batch at once):
-	 * confirm produces a flattened + auto-leveled JPEG that uploads
-	 * immediately after its own original as the 'enhanced' variant -- adjacent
-	 * rows, which is the pairing photoPages() renders as one page -- while
-	 * skip stages the original alone, exactly the pre-correction flow.
+	 * AN ENTRY IS SOMETHING YOU KEEP ADDING TO. Every entry in the feed can
+	 * take another photo or another note without starting a new one, through
+	 * the same PhotoStager and NoteEditor the top form uses; the capture flow
+	 * exists once, in PhotoStager, and both places mount it.
+	 *
+	 * EDITING A NOTE IS OFFERED ONLY ON A FREE-FORM ENTRY -- a scheduled
+	 * check-in is reviewed work, and rewriting it after the fact would change
+	 * what an instructor read. That is 0078's notebook_edit_note refusing it;
+	 * hiding the control here is the courtesy, not the rule.
 	 */
 
 	let {
@@ -64,10 +62,13 @@
 		sectionLabel = null,
 		canReview = false,
 		configured = true,
+		notesReady = true,
 		uploadReady = true,
 		createEntry,
 		addPhoto,
 		createNote,
+		addNote,
+		editNote,
 		onUploaded
 	}: {
 		entries: NotebookEntry[];
@@ -79,6 +80,12 @@
 		/** 0069 applied; false renders the fail-soft card instead of a broken page. */
 		configured?: boolean;
 		/**
+		 * 0078 applied. False turns the WRITTEN NOTE half off on its own --
+		 * photos keep working -- rather than blanking a notebook because one
+		 * hand-applied migration has not landed yet.
+		 */
+		notesReady?: boolean;
+		/**
 		 * The Drive integration is configured server-side; false disables PHOTO
 		 * submits only. A note needs no Drive, so the note path stays usable.
 		 */
@@ -86,85 +93,45 @@
 		createEntry: (form: FormData) => Promise<CreateEntryResult>;
 		addPhoto: (form: FormData) => Promise<AddPhotoResult>;
 		createNote: (payload: NotePayload) => Promise<CreateEntryResult>;
-		/** Called after a successful upload so the page can refresh its data. */
+		addNote: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		editNote: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		/** Called after a successful save so the page can refresh its data. */
 		onUploaded?: () => void;
 	} = $props();
 
-	// ---- upload form state -------------------------------------------------
+	// ---- new-entry form state ----------------------------------------------
 
-	/** `null` is the deliberate free-form path: no session, label optional. */
+	/** `null` is the deliberate free-form path: no session, title optional. */
 	let selectedSession = $state<string | null>(null);
 	let sessionTouched = $state(false);
 	/**
 	 * Free-form only: photos (the original path, unchanged and the default) or
-	 * a written note with no photo at all (0075). Held as a plain preference
-	 * and read through `noteOnly` below, so picking a session can never leave
-	 * the form in a note mode that the session-linked path does not offer.
+	 * a written note with no photo at all. Held as a plain preference and read
+	 * through `noteOnly` below, so picking a session can never leave the form
+	 * in a note mode that the session-linked path does not offer.
 	 */
 	let freeMode = $state<'photos' | 'note'>('photos');
-	let label = $state('');
-	/**
-	 * A staged photo: the picked file plus, when the correction step produced
-	 * one, the corrected JPEG that uploads right after it as the 'enhanced'
-	 * variant. `enhanced: null` means the student skipped correction (or the
-	 * image could not be decoded) and only the original uploads -- exactly
-	 * the pre-correction behavior.
-	 */
-	interface StagedPhoto {
-		file: File;
-		enhanced: File | null;
-	}
+	/** A short TITLE for the entry. Since 0078 it is never the note's text. */
+	let title = $state('');
+	let noteDraft = $state<TiptapNode | null>(null);
 	let staged = $state<StagedPhoto[]>([]);
-	/** Picked but not yet through the correction step; corrected one at a time. */
-	let correctionQueue = $state<File[]>([]);
-	let correctionNote = $state<string | null>(null);
+	let stagerSettling = $state(false);
+	let stager = $state<ReturnType<typeof PhotoStager> | null>(null);
 	let busy = $state(false);
 	let progress = $state('');
 	let errorMsg = $state<string | null>(null);
 	let successMsg = $state<string | null>(null);
-	/**
-	 * Two inputs, not one, and the split matters on Android.
-	 *
-	 * `capture` makes an input camera-ONLY there: the browser fires a capture
-	 * intent and the gallery is simply not offered, so a single input carrying
-	 * it leaves an Android student with no way to attach a photo they already
-	 * took. Splitting gives each control one job -- and lets the shoot input
-	 * drop `multiple`, which is meaningless next to `capture` (a capture
-	 * returns exactly one file) and whose behaviour alongside it is
-	 * unspecified.
-	 */
-	let captureInput = $state<HTMLInputElement | null>(null);
-	let pickInput = $state<HTMLInputElement | null>(null);
-	/** The in-app camera overlay. */
-	let cameraOpen = $state(false);
-	let cameraSupported = $state(false);
-	/**
-	 * Which capture control LEADS on this device. Android leads with the
-	 * in-app camera because the native one is confirmed broken there; every
-	 * other platform leads with the native one. Both stay reachable either
-	 * way, and "Choose a photo" is unaffected on all of them -- picking an
-	 * existing photo is a different capability, not a different way of doing
-	 * the same thing.
-	 */
-	let capturePath = $state<CapturePath>('native');
-	/** Why the in-app camera could not be used, shown next to the buttons. */
-	let cameraMsg = $state<string | null>(null);
-	/** A capture that arrived empty or damaged, named so it can be retaken. */
-	let rejectedNote = $state<string | null>(null);
 	/** Set when a previous load's capture never came back (see camera.ts). */
 	let recoveryNote = $state<string | null>(null);
-	/** Staging a photo decodes it to check it is usable, which is not instant. */
-	let checking = $state(false);
 
 	const open = $derived(outstandingSessions(sessions, entries));
 	const feed = $derived(newestFirst(entries));
-	/** The note tier exists on the free-form path ONLY. */
-	const noteOnly = $derived(selectedSession === null && freeMode === 'note');
-	const correcting = $derived(correctionQueue[0] ?? null);
+	/** The note tier exists on the free-form path ONLY, and only once 0078 is applied. */
+	const noteOnly = $derived(selectedSession === null && freeMode === 'note' && notesReady);
 	const canSubmit = $derived(
 		noteOnly
-			? label.trim() !== ''
-			: staged.length > 0 && correctionQueue.length === 0 && !checking && uploadReady
+			? tiptapHasText(noteDraft)
+			: staged.length > 0 && !stagerSettling && uploadReady
 	);
 
 	// Default to the outstanding session nearest today, and otherwise leave
@@ -192,197 +159,57 @@
 		// dropped on submit; clearing them makes that visible instead.
 		if (mode === 'note') {
 			staged = [];
-			correctionQueue = [];
+			stager?.reset();
 		}
 	}
 
-	function onFilesChosen(e: Event) {
-		// Captured synchronously: `currentTarget` is null once dispatch ends,
-		// and everything below this awaits.
-		const input = e.currentTarget as HTMLInputElement;
-		const picked = Array.from(input.files ?? []);
-		// Clear the input so re-picking the same file still fires a change.
-		input.value = '';
-		// The capture came back, so there is nothing for the next page load to
-		// recover. (A cancelled capture is cleared by the visibility handler
-		// instead: the page surviving is itself the proof nothing was lost.)
-		clearPendingCapture();
-		void queueForCorrection(picked);
-	}
-
 	/**
-	 * The one way a photo reaches the correction queue, from any source.
+	 * THE ONE READER of the pending-capture marker. PhotoStager writes it (it
+	 * can be mounted several times on this page), and only one reader can
+	 * consume a marker that clears itself -- so the decision about where the
+	 * student lands is made here, once.
 	 *
-	 * Files are screened first, because a camera intent can return
-	 * "successfully" with an empty or truncated file. Staging one of those
-	 * looks completely normal right up until Save, where it fails at the
-	 * upload route complaining about a missing form field -- so the student
-	 * ends up staring at a photo they can see, being told there isn't one.
-	 * Rejecting it here names the file and says to retake it.
+	 * A marker still present on a FRESH load means the previous load opened
+	 * the camera and never got to clear it, i.e. the browser was killed for
+	 * memory while the camera app was in front. Put the student back where
+	 * they were and say what happened, because the alternative is a blank form
+	 * and no explanation at all.
 	 */
-	async function queueForCorrection(files: File[]) {
-		if (!files.length) return;
-		correctionNote = null;
-		cameraMsg = null;
-		recoveryNote = null;
-		rejectedNote = null;
-		checking = true;
-		try {
-			const usable: File[] = [];
-			const rejected: string[] = [];
-			for (const f of files) {
-				const reason = await unusableReason(f);
-				if (reason) rejected.push(`${f.name || 'That photo'} ${reason}`);
-				else usable.push(f);
-			}
-			if (rejected.length) rejectedNote = rejected.join(' ');
-			// Every usable photo queues for its OWN correction step (one at a
-			// time, in order); it lands in `staged` only once corrected or skipped.
-			if (usable.length) correctionQueue = [...correctionQueue, ...usable];
-		} finally {
-			checking = false;
-		}
-	}
-
-	/**
-	 * Snapshot the form before the OS camera app takes over, so a browser
-	 * killed for memory while it is in front does not also cost the student
-	 * everything they had typed. Fires on the CLICK, which is the last moment
-	 * this code is guaranteed to run.
-	 */
-	function onCaptureClick() {
-		rememberPendingCapture({ session: selectedSession, mode: freeMode, label });
-	}
-
-	function openCamera() {
-		cameraMsg = null;
-		cameraOpen = true;
-	}
-
-	function cameraCaptured(file: File) {
-		cameraOpen = false;
-		// Same screening as a picked file: one route in, one set of rules.
-		void queueForCorrection([file]);
-	}
-
-	function cameraFailed(message: string) {
-		cameraOpen = false;
-		cameraMsg = message;
-		// On Android the in-app camera is what this device leads with, so
-		// losing it is worth saying plainly rather than leaving the student to
-		// find the smaller fallback link on their own.
-		if (capturePath === 'in-app') {
-			cameraMsg += ' You can also use your phone’s own camera app below.';
-		}
-	}
-
 	$effect(() => {
-		cameraSupported = cameraCaptureSupported();
-		capturePath = preferredCapturePath(navigator.userAgent, cameraSupported);
-		// A marker still here on a FRESH load means the previous load opened
-		// the camera and never got to clear it -- i.e. it was killed. Put the
-		// student back where they were and say what happened, because the
-		// alternative is a blank form and no explanation at all.
 		const pending = takePendingCapture() as
-			| { session?: string | null; mode?: 'photos' | 'note'; label?: string }
+			| { session?: string | null; mode?: 'photos' | 'note'; title?: string; entryId?: string }
 			| null;
-		if (pending) {
+		if (!pending) return;
+		if (pending.entryId) {
+			// They were adding to an existing entry, not starting a new one.
+			panel = { entryId: pending.entryId, kind: 'photos' };
+		} else {
 			if (pending.session !== undefined) {
 				sessionTouched = true;
 				selectedSession = pending.session;
 			}
 			if (pending.mode) freeMode = pending.mode;
-			if (typeof pending.label === 'string') label = pending.label;
-			recoveryNote =
-				'Your photo did not make it back from the camera app, which can happen when the phone is low on memory. Everything you typed is still here. Please take the photo again.';
+			if (typeof pending.title === 'string') title = pending.title;
 		}
+		recoveryNote =
+			'Your photo did not make it back from the camera app, which can happen when the phone is low on memory. Everything you typed is still here. Please take the photo again.';
 	});
-
-	function correctionDone(enhanced: File | null, failed = false) {
-		const file = correctionQueue[0];
-		if (!file) return;
-		staged = [...staged, { file, enhanced }];
-		correctionQueue = correctionQueue.slice(1);
-		if (failed) {
-			correctionNote = `${file.name} could not be opened for correction; it will upload as-is.`;
-		}
-	}
-
-	function removeStaged(i: number) {
-		staged = staged.filter((_, j) => j !== i);
-	}
-
-	// ---- staged thumbnails -------------------------------------------------
-
-	/**
-	 * Blob URLs for the staged photos, so the student sees the PHOTOS they are
-	 * about to commit rather than a list of filenames -- which say nothing
-	 * about whether the page is in frame, in focus, or even the right page.
-	 *
-	 * The thumbnail is the CORRECTED version whenever one exists, matching how
-	 * a saved entry renders everywhere else in the app (NotebookPhotos shows
-	 * the enhanced variant by default). Correction needs no toggle here: that
-	 * choice already exists at display time, and this step is "is this the
-	 * photo I want", not "which version".
-	 *
-	 * The cache is a plain Map, deliberately NOT reactive: the effect below
-	 * reads `staged` and writes `previews`, and routing the URLs through
-	 * reactive state as well would have it re-trigger on its own writes.
-	 */
-	const urlCache = new Map<File, string>();
-	let previews = $state<string[]>([]);
-
-	/** Which file a tile actually shows: corrected wins over the original. */
-	function shownFile(s: StagedPhoto): File {
-		return s.enhanced ?? s.file;
-	}
-
-	$effect(() => {
-		const wanted = staged.map(shownFile);
-		const live = new Set(wanted);
-		for (const [file, url] of urlCache) {
-			if (!live.has(file)) {
-				URL.revokeObjectURL(url);
-				urlCache.delete(file);
-			}
-		}
-		previews = wanted.map((file) => {
-			let url = urlCache.get(file);
-			if (!url) {
-				url = URL.createObjectURL(file);
-				urlCache.set(file, url);
-			}
-			return url;
-		});
-	});
-
-	// Leaving the page mid-entry must not leak the blobs still held open.
-	onDestroy(() => {
-		for (const url of urlCache.values()) URL.revokeObjectURL(url);
-		urlCache.clear();
-	});
-
-	/**
-	 * A thumbnail that cannot render (a HEIC this browser will not decode is
-	 * the ordinary case) falls back to naming the file, so the tile still
-	 * says which photo it is instead of showing a broken-image glyph.
-	 */
-	let unrenderable = $state<Set<string>>(new Set());
-	function thumbFailed(url: string) {
-		if (unrenderable.has(url)) return;
-		unrenderable = new Set(unrenderable).add(url);
-	}
 
 	function resetForm() {
 		staged = [];
-		correctionQueue = [];
-		correctionNote = null;
-		cameraMsg = null;
+		stager?.reset();
+		title = '';
+		noteDraft = null;
+		noteKey += 1;
 		recoveryNote = null;
-		label = '';
-		if (captureInput) captureInput.value = '';
-		if (pickInput) pickInput.value = '';
 	}
+
+	/**
+	 * Remounts the editor. Tiptap seeds its document once, on mount, so
+	 * clearing a saved note means giving it a fresh instance rather than
+	 * fighting its internal state.
+	 */
+	let noteKey = $state(0);
 
 	/**
 	 * Shrink an original to something the upload route will accept, and say so
@@ -398,6 +225,43 @@
 		} catch {
 			return file;
 		}
+	}
+
+	/**
+	 * One staged photo onto an existing entry: the original, then -- only if
+	 * that landed -- its corrected version, so a pair can never form against
+	 * the WRONG preceding original.
+	 *
+	 * `skipOriginal` is for the photo that CREATED the entry: its original is
+	 * already stored, and only the corrected version is still owed.
+	 */
+	async function uploadPair(
+		entryId: string,
+		photo: StagedPhoto,
+		num: number,
+		total: number,
+		skipOriginal = false
+	): Promise<{ originalOk: boolean; enhancedOk: boolean }> {
+		if (!skipOriginal) {
+			progress = total > 1 ? `Uploading photo ${num} of ${total}...` : 'Uploading...';
+			const form = new FormData();
+			form.set('photo', await prepared(photo.file));
+			form.set('entry_id', entryId);
+			form.set('variant', 'original');
+			if (!(await addPhoto(form)).ok) return { originalOk: false, enhancedOk: true };
+		}
+		if (!photo.enhanced) return { originalOk: true, enhancedOk: true };
+		progress = `Uploading corrected photo ${num}...`;
+		const form = new FormData();
+		form.set('photo', await prepared(photo.enhanced));
+		form.set('entry_id', entryId);
+		form.set('variant', 'enhanced');
+		return { originalOk: true, enhancedOk: (await addPhoto(form)).ok };
+	}
+
+	/** "photo 2" / "photos 2, 4" -- shared by both save paths. */
+	function photoList(nums: number[]): string {
+		return `${nums.length === 1 ? 'photo' : 'photos'} ${nums.join(', ')}`;
 	}
 
 	async function submit(e: SubmitEvent) {
@@ -417,7 +281,10 @@
 			// It never carries a session -- the mode is only reachable on the
 			// free-form path, and a check-in still requires a page.
 			if (noteOnly) {
-				const saved = await createNote({ custom_label: label.trim() });
+				const saved = await createNote({
+					content: noteDraft as TiptapNode,
+					custom_label: title.trim() || null
+				});
 				if (!saved.ok) {
 					errorMsg = saved.error;
 					return;
@@ -428,13 +295,13 @@
 				return;
 			}
 
-			// Photo 1 creates the entry. A blank label is sent as nothing at all:
-			// 0071 made the label optional and the upload route falls back to the
-			// file's own name, so the UI must not re-impose a required-label rule.
+			// Photo 1 creates the entry. A blank title is sent as nothing at all:
+			// 0071 made it optional and the upload route falls back to the file's
+			// own name, so the UI must not re-impose a required-title rule.
 			const first = new FormData();
 			first.set('photo', await prepared(staged[0].file));
 			if (selectedSession) first.set('session_id', selectedSession);
-			const trimmed = label.trim();
+			const trimmed = title.trim();
 			if (!selectedSession && trimmed) first.set('custom_label', trimmed);
 
 			const created = await createEntry(first);
@@ -443,54 +310,36 @@
 				return;
 			}
 
-			// A corrected version rides IMMEDIATELY after its own original, so
-			// the pair lands on adjacent sequence numbers -- the adjacency
-			// photoPages() groups back into one page. Failures are reported
-			// honestly rather than rolled back: the entry and its first photo
-			// really do exist, and the student can add the rest from the page.
+			// Failures are reported honestly rather than rolled back: the entry
+			// and its first photo really do exist, and the student can add the
+			// rest from the entry itself.
 			const failed: number[] = [];
 			const failedEnhanced: number[] = [];
-			const sendEnhanced = async (i: number) => {
-				const enhanced = staged[i].enhanced;
-				if (!enhanced) return;
-				progress = `Uploading corrected photo ${i + 1}...`;
-				const form = new FormData();
-				form.set('photo', await prepared(enhanced));
-				form.set('entry_id', created.entryId);
-				form.set('variant', 'enhanced');
-				const added = await addPhoto(form);
-				if (!added.ok) failedEnhanced.push(i + 1);
-			};
-			await sendEnhanced(0);
-			for (let i = 1; i < staged.length; i++) {
-				progress = `Uploading photo ${i + 1} of ${staged.length}...`;
-				const form = new FormData();
-				form.set('photo', await prepared(staged[i].file));
-				form.set('entry_id', created.entryId);
-				form.set('variant', 'original');
-				const added = await addPhoto(form);
-				if (!added.ok) {
-					failed.push(i + 1);
-					// No original landed for this page, so its corrected version
-					// would pair against the WRONG preceding original; skip it.
-					continue;
-				}
-				await sendEnhanced(i);
+			for (let i = 0; i < staged.length; i++) {
+				const result = await uploadPair(
+					created.entryId,
+					staged[i],
+					i + 1,
+					staged.length,
+					i === 0
+				);
+				if (!result.originalOk) failed.push(i + 1);
+				else if (!result.enhancedOk) failedEnhanced.push(i + 1);
 			}
 
 			if (failed.length) {
-				errorMsg = `Saved your entry, but ${failed.length === 1 ? 'photo' : 'photos'} ${failed.join(
-					', '
-				)} did not upload. Add ${failed.length === 1 ? 'it' : 'them'} again from this page.`;
+				errorMsg = `Saved your entry, but ${photoList(failed)} did not upload. Add ${
+					failed.length === 1 ? 'it' : 'them'
+				} again from this page.`;
 			} else {
 				successMsg =
 					staged.length === 1
 						? 'Entry saved.'
 						: `Entry saved with ${photoCountLabel(staged.length)}.`;
 				if (failedEnhanced.length) {
-					successMsg += ` The corrected version of ${
-						failedEnhanced.length === 1 ? 'photo' : 'photos'
-					} ${failedEnhanced.join(', ')} did not upload; the original is saved.`;
+					successMsg += ` The corrected version of ${photoList(
+						failedEnhanced
+					)} did not upload; the original is saved.`;
 				}
 			}
 			resetForm();
@@ -501,6 +350,111 @@
 			busy = false;
 			progress = '';
 		}
+	}
+
+	// ---- adding to an existing entry ---------------------------------------
+
+	/** At most one entry panel is open at a time, so one set of state serves. */
+	let panel = $state<{ entryId: string; kind: 'photos' | 'note' } | null>(null);
+	let panelStaged = $state<StagedPhoto[]>([]);
+	let panelSettling = $state(false);
+	let panelStager = $state<ReturnType<typeof PhotoStager> | null>(null);
+	let panelNote = $state<TiptapNode | null>(null);
+	let panelBusy = $state(false);
+	let panelProgress = $state('');
+	let panelError = $state<string | null>(null);
+	let panelNoteKey = $state(0);
+
+	function togglePanel(entryId: string, kind: 'photos' | 'note') {
+		if (panelBusy) return;
+		if (panel && panel.entryId === entryId && panel.kind === kind) {
+			closePanel();
+			return;
+		}
+		panel = { entryId, kind };
+		panelStaged = [];
+		panelNote = null;
+		panelError = null;
+		panelNoteKey += 1;
+	}
+
+	function closePanel() {
+		panel = null;
+		panelStaged = [];
+		panelNote = null;
+		panelError = null;
+		panelProgress = '';
+	}
+
+	async function savePanelPhotos(entryId: string) {
+		if (panelBusy || !panelStaged.length) return;
+		panelBusy = true;
+		panelError = null;
+		errorMsg = null;
+		successMsg = null;
+		const total = panelStaged.length;
+		try {
+			const failed: number[] = [];
+			const failedEnhanced: number[] = [];
+			for (let i = 0; i < total; i++) {
+				panelProgress = total > 1 ? `Uploading photo ${i + 1} of ${total}...` : 'Uploading...';
+				const result = await uploadPair(entryId, panelStaged[i], i + 1, total);
+				if (!result.originalOk) failed.push(i + 1);
+				else if (!result.enhancedOk) failedEnhanced.push(i + 1);
+			}
+			if (failed.length === total) {
+				panelError = `That ${total === 1 ? 'photo' : 'set of photos'} did not upload. Try again.`;
+				return;
+			}
+			successMsg = failed.length
+				? `Added ${total - failed.length} of ${total} photos; ${photoList(failed)} did not upload.`
+				: `Added ${photoCountLabel(total - failed.length)} to this entry.`;
+			if (failedEnhanced.length) {
+				successMsg += ` The corrected version of ${photoList(
+					failedEnhanced
+				)} did not upload; the original is saved.`;
+			}
+			panelStager?.reset();
+			closePanel();
+			onUploaded?.();
+		} catch (err) {
+			panelError = (err as Error).message || 'The upload failed to send.';
+		} finally {
+			panelBusy = false;
+			panelProgress = '';
+		}
+	}
+
+	async function savePanelNote(entryId: string) {
+		if (panelBusy || !tiptapHasText(panelNote)) return;
+		panelBusy = true;
+		panelError = null;
+		errorMsg = null;
+		successMsg = null;
+		try {
+			const result = await addNote(entryId, panelNote as TiptapNode);
+			if (!result.ok) {
+				panelError = result.error;
+				return;
+			}
+			successMsg = 'Note added to this entry.';
+			closePanel();
+			onUploaded?.();
+		} catch (err) {
+			panelError = (err as Error).message || 'The note failed to save.';
+		} finally {
+			panelBusy = false;
+		}
+	}
+
+	/** EntryNotes hands back a saved revision; the feed then reloads. */
+	async function saveNoteEdit(noteId: string, doc: TiptapNode): Promise<NoteSaveResult> {
+		const result = await editNote(noteId, doc);
+		if (result.ok) {
+			successMsg = 'Note updated. The earlier version is still on this entry.';
+			onUploaded?.();
+		}
+		return result;
 	}
 
 	function when(iso: string): string {
@@ -537,7 +491,8 @@
 		<div class="eyebrow">IDEA // Notebook</div>
 		<h1>My Notebook</h1>
 		<p class="lead">
-			Photograph your engineering notebook pages and keep them here. Everything on this page is
+			Photograph your engineering notebook pages and keep them here, and write down what you
+			worked through. Everything on this page is
 			<strong>yours</strong>: only you, your section instructor, and the department chair can see it.
 		</p>
 		<div class="hero-meta">
@@ -555,8 +510,8 @@
 			<h2>Notebook is not available yet</h2>
 			<p class="note">
 				The notebook tables are not in place on this project yet. Apply migration
-				<code>0069_notebook.sql</code> (and <code>0071_notebook_optional_label.sql</code>) in the
-				Supabase SQL editor, then reload.
+				<code>0069_notebook.sql</code> (plus <code>0071</code>, <code>0075</code> and
+				<code>0078_notebook_entry_notes.sql</code>) in the Supabase SQL editor, then reload.
 			</p>
 		</section>
 	{:else}
@@ -574,18 +529,19 @@
 			{/if}
 			{#if !uploadReady}
 				<p class="feedback error">
-					Photo storage is not configured on the server yet, so photo uploads are turned
-					off. You can still save a note.
+					Photo storage is not configured on the server yet, so photo uploads are turned off.
+					You can still write a note.
+				</p>
+			{/if}
+			{#if !notesReady}
+				<p class="feedback error" data-testid="nb-notes-unavailable">
+					Written notes are not available on this project yet. Apply migration
+					<code>0078_notebook_entry_notes.sql</code> in the Supabase SQL editor. Photos work
+					as normal.
 				</p>
 			{/if}
 			{#if recoveryNote}
 				<p class="feedback error" role="status" data-testid="nb-recovery">{recoveryNote}</p>
-			{/if}
-			{#if rejectedNote}
-				<p class="feedback error" role="alert" data-testid="nb-rejected">{rejectedNote}</p>
-			{/if}
-			{#if correctionNote}
-				<p class="feedback error" role="status">{correctionNote}</p>
 			{/if}
 
 			<form onsubmit={submit}>
@@ -641,37 +597,34 @@
 								<span class="pick-label">Photos</span>
 								<span class="pick-meta">Shoot a page</span>
 							</button>
-							<button
-								type="button"
-								class="pick"
-								class:selected={noteOnly}
-								aria-pressed={noteOnly}
-								onclick={() => chooseMode('note')}
-							>
-								<span class="pick-label">Just write a note</span>
-								<span class="pick-meta">No photo needed</span>
-							</button>
+							{#if notesReady}
+								<button
+									type="button"
+									class="pick"
+									class:selected={noteOnly}
+									aria-pressed={noteOnly}
+									onclick={() => chooseMode('note')}
+								>
+									<span class="pick-label">Write a note</span>
+									<span class="pick-meta">No photo needed</span>
+								</button>
+							{/if}
 						</div>
 					</fieldset>
 
 					<label class="field label-field">
-						<span>
-							{#if noteOnly}
-								Note
-							{:else}
-								Label <span class="optional">(optional)</span>
-							{/if}
-						</span>
+						<span>Title <span class="optional">(optional)</span></span>
 						<input
 							type="text"
-							bind:value={label}
+							bind:value={title}
 							maxlength="200"
-							placeholder={noteOnly ? 'e.g. Talked through the gearbox ratio' : 'e.g. Gearbox sketches'}
+							placeholder="e.g. Gearbox sketches"
 							disabled={busy}
 						/>
 						<span class="hint">
 							{#if noteOnly}
-								Up to 200 characters. You can add photos to this entry later.
+								A short name for this entry. Leave it blank and we will use the note's opening
+								words.
 							{:else}
 								Leave this blank and we will use the photo's own filename.
 							{/if}
@@ -679,155 +632,26 @@
 					</label>
 				{/if}
 
-				{#if !noteOnly}
-					<div class="field photo-field">
-						<span class="photo-label">Photos</span>
-						<!--
-							Take vs choose are separate controls on purpose. `capture`
-							turns an input camera-only on Android, so one combined input
-							carrying it leaves no way to attach an existing photo there.
-							The shoot input drops `multiple` (a capture returns one file);
-							the pick input keeps it, since multi-select is a picker
-							ability.
-						-->
-						<div class="photo-buttons">
-							{#if capturePath === 'in-app'}
-								<!-- Android leads with the in-app camera: the native input
-								     is confirmed broken on a real device there. -->
-								<button
-									type="button"
-									class="photo-btn"
-									data-testid="nb-capture-primary"
-									onclick={openCamera}
-									disabled={busy || !uploadReady}
-								>
-									<span>Take a photo</span>
-								</button>
-							{:else}
-								<label class="photo-btn" data-testid="nb-capture-primary">
-									<span>Take a photo</span>
-									<input
-										bind:this={captureInput}
-										type="file"
-										accept="image/*"
-										capture="environment"
-										onclick={onCaptureClick}
-										onchange={onFilesChosen}
-										disabled={busy || !uploadReady}
-									/>
-								</label>
-							{/if}
-							<!-- Gallery is a DIFFERENT capability, not a different way of
-							     capturing, so it is equally prominent on every platform. -->
-							<label class="photo-btn secondary" data-testid="nb-pick">
-								<span>Choose a photo</span>
-								<input
-									bind:this={pickInput}
-									type="file"
-									accept="image/*"
-									multiple
-									onchange={onFilesChosen}
-									disabled={busy || !uploadReady}
-								/>
-							</label>
-						</div>
-						<span class="hint gallery-hint">
-							Someone else took the photo? Get it onto this device (text, AirDrop, email) and pick it from here.
-						</span>
-
-						{#if capturePath === 'in-app'}
-							<!--
-								The native path, demoted rather than removed. It is confirmed
-								broken on at least one real Android device (opens the front
-								camera; the photo never lands), and Android browsers are
-								documented to ignore the `capture` value regardless -- so it
-								must not look like the normal thing to tap. It stays because
-								the OS camera takes a better photo when it does work, and
-								another device may not share the fault. The label says what
-								is known rather than hiding it.
-							-->
-							<label class="native-fallback" data-testid="nb-native-fallback">
-								<span>Use your phone’s camera app instead (known to open the wrong camera on some Android phones)</span>
-								<input
-									bind:this={captureInput}
-									type="file"
-									accept="image/*"
-									capture="environment"
-									onclick={onCaptureClick}
-									onchange={onFilesChosen}
-									disabled={busy || !uploadReady}
-								/>
-							</label>
-						{:else if cameraSupported}
-							<!--
-								The escape hatch on platforms that lead with the native
-								input: iOS honours the facing hint, but if a device does open
-								the wrong lens this constrains it for real and offers a
-								switch. Not the default there, because iOS Safari serves
-								getUserMedia at roughly 720p and a page has to stay legible.
-							-->
-							<button
-								type="button"
-								class="in-app-camera"
-								data-testid="nb-in-app-camera"
-								onclick={openCamera}
-								disabled={busy || !uploadReady}
-							>
-								Camera opened the wrong way round? Use the in-app camera
-							</button>
-						{/if}
-						{#if cameraMsg}
-							<p class="feedback error" role="status" data-testid="nb-camera-msg">{cameraMsg}</p>
-						{/if}
+				{#if noteOnly}
+					<div class="field note-field">
+						<span class="photo-label">Note</span>
+						{#key noteKey}
+							<NoteEditor onchange={(doc) => (noteDraft = doc)} disabled={busy} />
+						{/key}
 						<span class="hint">
-							{#if checking}
-								Checking the photo...
-							{:else}
-								JPEG, PNG, WebP, or HEIC. Large photos are shrunk to fit before they upload,
-								and you can straighten and clean up each one first.
-							{/if}
+							Write as much as you like. You can add photos to this entry later, and come back
+							and edit this note whenever you want.
 						</span>
 					</div>
-				{/if}
-
-				{#if staged.length && !noteOnly}
-					<!-- The whole staged set at once, as PICTURES: three photos queued
-					     means three thumbnails, so the page in frame (or not) is
-					     visible before anything is committed. -->
-					<div class="staged-head">
-						<span class="photo-label">Ready to save</span>
-						<span class="staged-count">{photoCountLabel(staged.length)}</span>
-					</div>
-					<ul class="staged" data-testid="nb-staged">
-						{#each staged as s, i (shownFile(s).name + i)}
-							<li class="staged-item">
-								<div class="thumb">
-									{#if previews[i] && !unrenderable.has(previews[i])}
-										<img
-											src={previews[i]}
-											alt={`Photo ${i + 1}: ${shownFile(s).name}`}
-											data-testid="nb-thumb"
-											onerror={() => thumbFailed(previews[i])}
-										/>
-									{:else}
-										<!-- Undecodable here (a HEIC off an iPhone is the
-										     ordinary case). It still uploads fine; name it
-										     rather than showing a broken-image glyph. -->
-										<span class="thumb-fallback" data-testid="nb-thumb-fallback">
-											{shownFile(s).name}
-										</span>
-									{/if}
-									<span class="staged-n">{i + 1}</span>
-									{#if s.enhanced}
-										<span class="staged-tag" data-testid="nb-thumb-corrected">corrected</span>
-									{/if}
-								</div>
-								<button type="button" class="remove" onclick={() => removeStaged(i)} disabled={busy}>
-									Remove
-								</button>
-							</li>
-						{/each}
-					</ul>
+				{:else}
+					<PhotoStager
+						bind:this={stager}
+						bind:staged
+						bind:settling={stagerSettling}
+						disabled={busy}
+						{uploadReady}
+						captureContext={{ session: selectedSession, mode: freeMode, title }}
+					/>
 				{/if}
 
 				<div class="actions">
@@ -847,12 +671,15 @@
 
 			{#if entries.length === 0}
 				<p class="note empty-state">
-					No entries yet. Photograph a page above and it will show up here.
+					No entries yet. Photograph a page or write a note above and it will show up here.
 				</p>
 			{:else}
 				<ol class="entries">
 					{#each feed as entry (entry.id)}
 						{@const photos = orderedPhotos(entry)}
+						{@const notes = entry.notes ?? []}
+						{@const freeForm = entry.session_id === null}
+						{@const openPanel = panel && panel.entryId === entry.id ? panel.kind : null}
 						<li class="entry" class:flagged={entry.status === 'flagged'}>
 							<header class="entry-head">
 								<h3 class="entry-title" class:untitled={isUntitled(entry)}>{entryTitle(entry)}</h3>
@@ -862,6 +689,14 @@
 									<!-- Logical pages, so an original + its corrected variant count
 									     once; identical to the row count for all-original entries. -->
 									<span>{photoCountLabel(photoPages(photos).length)}</span>
+									{#if notes.length}
+										<span class="dot" aria-hidden="true">·</span>
+										<span data-testid="note-count">
+											{new Set(notes.map((n) => n.note_id)).size === 1
+												? '1 note'
+												: `${new Set(notes.map((n) => n.note_id)).size} notes`}
+										</span>
+									{/if}
 									{#if showsStatus(entry.status)}
 										<span
 											class="status"
@@ -887,11 +722,106 @@
 									{#if entry.instructor_comment}
 										<span>{entry.instructor_comment}</span>
 									{/if}
-									<span class="callout-hint">Add another photo above to send it back for review.</span>
+									<span class="callout-hint">Add another photo below to send it back for review.</span>
 								</div>
 							{/if}
 
 							<NotebookPhotos {photos} label={entryTitle(entry)} />
+
+							{#if notes.length}
+								<div class="entry-notes">
+									<!-- canEdit is TWO conditions: a check-in's notes are never
+									     editable (0078 refuses it), and with the migration
+									     unapplied nothing can be saved at all. -->
+									<EntryNotes {notes} canEdit={freeForm && notesReady} onSave={saveNoteEdit} />
+								</div>
+							{/if}
+
+							<!-- Adding to THIS entry rather than starting a new one. -->
+							<div class="entry-add">
+								<div class="entry-add-actions">
+									<button
+										type="button"
+										class="add-btn"
+										data-testid="add-photos"
+										aria-pressed={openPanel === 'photos'}
+										disabled={panelBusy || !uploadReady}
+										onclick={() => togglePanel(entry.id, 'photos')}
+									>
+										{openPanel === 'photos' ? 'Cancel' : 'Add photos'}
+									</button>
+									{#if notesReady}
+										<button
+											type="button"
+											class="add-btn"
+											data-testid="add-note"
+											aria-pressed={openPanel === 'note'}
+											disabled={panelBusy}
+											onclick={() => togglePanel(entry.id, 'note')}
+										>
+											{openPanel === 'note' ? 'Cancel' : 'Add a note'}
+										</button>
+									{/if}
+									{#if !freeForm && notes.length}
+										<span class="add-hint" data-testid="no-edit-hint">
+											Notes on a check-in cannot be edited. Add another instead.
+										</span>
+									{/if}
+								</div>
+
+								{#if openPanel === 'photos'}
+									<div class="entry-panel" data-testid="panel-photos">
+										{#if panelError}
+											<p class="feedback error" role="alert">{panelError}</p>
+										{/if}
+										<PhotoStager
+											bind:this={panelStager}
+											bind:staged={panelStaged}
+											bind:settling={panelSettling}
+											disabled={panelBusy}
+											{uploadReady}
+											captureContext={{ entryId: entry.id }}
+											testPrefix="nbe"
+										/>
+										<div class="actions">
+											<button
+												type="button"
+												class="btn"
+												disabled={panelBusy || !panelStaged.length || panelSettling}
+												onclick={() => savePanelPhotos(entry.id)}
+											>
+												{panelBusy ? 'Saving...' : 'Add to this entry'}
+											</button>
+											{#if panelProgress}<span class="progress">{panelProgress}</span>{/if}
+										</div>
+									</div>
+								{:else if openPanel === 'note'}
+									<div class="entry-panel" data-testid="panel-note">
+										{#if panelError}
+											<p class="feedback error" role="alert">{panelError}</p>
+										{/if}
+										{#key panelNoteKey}
+											<NoteEditor
+												onchange={(doc) => (panelNote = doc)}
+												disabled={panelBusy}
+												autofocus
+												label="New note"
+												placeholder="What did you work through?"
+											/>
+										{/key}
+										<div class="actions">
+											<button
+												type="button"
+												class="btn"
+												disabled={panelBusy || !tiptapHasText(panelNote)}
+												onclick={() => savePanelNote(entry.id)}
+											>
+												{panelBusy ? 'Saving...' : 'Add this note'}
+											</button>
+										</div>
+									</div>
+								{/if}
+							</div>
 						</li>
 					{/each}
 				</ol>
@@ -901,23 +831,6 @@
 
 	<VersionBadge app="portal" />
 </main>
-
-{#if cameraOpen}
-	<CameraCapture onCapture={cameraCaptured} onCancel={() => (cameraOpen = false)} onError={cameraFailed} />
-{/if}
-
-{#if correcting}
-	<!-- One photo at a time, in pick order; keyed so a new file remounts the
-	     corrector fresh (its own detection, its own corners). -->
-	{#key correcting}
-		<PhotoCorrector
-			file={correcting}
-			index={staged.length + 1}
-			total={staged.length + correctionQueue.length}
-			onDone={correctionDone}
-		/>
-	{/key}
-{/if}
 </div>
 
 <style>
@@ -1054,13 +967,9 @@
 		font-size: 0.8rem;
 		margin-top: 0.3rem;
 	}
-	.photo-field {
+	/* The shared .field class is a ROW flex; everything in here stacks. */
+	.note-field {
 		margin-top: 1rem;
-		/* The shared .field class is a ROW flex. Everything in here is written
-		   to stack (the label and the hint both carry vertical margins), and a
-		   row silently spreads them across the viewport instead -- which is
-		   what pushed the hint off the right edge at phone width once this
-		   block grew past three children. Say the direction out loud. */
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
@@ -1069,204 +978,6 @@
 		display: block;
 		margin-bottom: 0.3rem;
 		font-weight: 600;
-	}
-	/* Two real, thumb-sized targets rather than a bare file input: this is a
-	   phone-first flow, and the native control renders as a small button with
-	   a filename beside it that is easy to miss and hard to hit. */
-	.photo-buttons {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-		gap: 0.5rem;
-	}
-	.photo-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		min-height: 3rem;
-		padding: 0.7rem 1rem;
-		border: 1px solid var(--nb-accent);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-accent-wash);
-		color: var(--nb-accent-ink);
-		font-weight: 600;
-		font-size: 0.9rem;
-		cursor: pointer;
-		text-align: center;
-	}
-	.photo-btn.secondary {
-		border-color: var(--nb-hairline-strong);
-		background: var(--nb-surface-dim);
-		color: var(--nb-ink);
-	}
-	.photo-btn:hover {
-		border-color: var(--nb-accent-ink);
-	}
-	/* The input still does the work; it is only visually replaced by its
-	   label, so the native picker and keyboard activation are untouched. */
-	.photo-btn input[type='file'] {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		opacity: 0;
-		pointer-events: none;
-	}
-	.photo-btn:has(input:disabled) {
-		opacity: 0.5;
-		cursor: default;
-	}
-	.in-app-camera {
-		display: block;
-		margin-top: 0.55rem;
-		padding: 0;
-		background: none;
-		border: none;
-		color: var(--nb-ink-faint);
-		font: inherit;
-		font-size: 0.8rem;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-		cursor: pointer;
-	}
-	.in-app-camera:hover:not(:disabled) {
-		color: var(--nb-accent-ink);
-	}
-	.in-app-camera:disabled {
-		opacity: 0.5;
-		cursor: default;
-	}
-	/* The native capture path where it has been demoted (Android): still a
-	   real control, deliberately not a peer of the two buttons above it. */
-	.native-fallback {
-		display: block;
-		margin-top: 0.6rem;
-		color: var(--nb-ink-faint);
-		font-size: 0.8rem;
-		line-height: 1.35;
-		text-decoration: underline;
-		text-underline-offset: 2px;
-		cursor: pointer;
-	}
-	.native-fallback:hover {
-		color: var(--nb-accent-ink);
-	}
-	.native-fallback input[type='file'] {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		opacity: 0;
-		pointer-events: none;
-	}
-	.native-fallback:has(input:disabled) {
-		opacity: 0.5;
-		cursor: default;
-	}
-
-	/* ---- staged photos: pictures, not filenames ---- */
-	.staged-head {
-		display: flex;
-		align-items: baseline;
-		justify-content: space-between;
-		gap: 0.6rem;
-		margin: 1.2rem 0 0.4rem;
-	}
-	.staged-head .photo-label {
-		margin-bottom: 0;
-	}
-	.staged-count {
-		font-size: 0.78rem;
-		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
-	}
-	.staged {
-		list-style: none;
-		padding: 0;
-		margin: 0;
-		display: grid;
-		/* 7rem is what puts TWO across a 375px phone (one per row made three
-		   staged photos a ~1100px scroll, which defeats seeing the set at a
-		   glance) while still giving three across the desktop column. */
-		grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
-		gap: 0.7rem;
-	}
-	.staged-item {
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-	.thumb {
-		position: relative;
-		aspect-ratio: 3 / 4;
-		border: 1px solid var(--nb-hairline);
-		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
-		overflow: hidden;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-	.thumb img {
-		width: 100%;
-		height: 100%;
-		/* CONTAIN, not cover. The whole point of this preview is judging
-		   whether the page is fully in frame, and cropping to fill the tile
-		   would hide a cut-off edge -- the exact mistake it exists to catch. */
-		object-fit: contain;
-		display: block;
-	}
-	.thumb-fallback {
-		padding: 0.5rem;
-		font-size: 0.74rem;
-		line-height: 1.3;
-		color: var(--nb-ink-soft);
-		text-align: center;
-		overflow-wrap: anywhere;
-	}
-	.staged-n {
-		position: absolute;
-		top: 0.3rem;
-		left: 0.3rem;
-		min-width: 1.25rem;
-		height: 1.25rem;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		border-radius: 999px;
-		font-size: 0.7rem;
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-		/* Reads over an arbitrary photo, so it carries its own ground. */
-		color: #f5f2e9;
-		background: rgba(22, 20, 16, 0.72);
-	}
-	.staged-tag {
-		position: absolute;
-		bottom: 0.3rem;
-		left: 0.3rem;
-		right: 0.3rem;
-		text-align: center;
-		font-size: 0.62rem;
-		font-weight: 700;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		color: var(--nb-accent);
-		background: rgba(22, 20, 16, 0.72);
-		border-radius: 999px;
-		padding: 0.1rem 0.3rem;
-	}
-	.remove {
-		background: none;
-		border: none;
-		padding: 0;
-		color: var(--nb-ink-faint);
-		font-size: 0.72rem;
-		font-weight: 600;
-		cursor: pointer;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		text-align: center;
-	}
-	.remove:hover:not(:disabled) {
-		color: var(--nb-error);
 	}
 	.actions {
 		display: flex;
@@ -1360,6 +1071,55 @@
 	.callout-hint {
 		color: var(--nb-ink-soft);
 		font-size: 0.8rem;
+	}
+	.entry-notes {
+		margin-top: 1.2rem;
+	}
+
+	/* ---- adding to an existing entry ---- */
+	.entry-add {
+		margin-top: 1.1rem;
+	}
+	.entry-add-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+	}
+	.add-btn {
+		padding: 0.3rem 0.8rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: 999px;
+		background: var(--nb-surface);
+		color: var(--nb-ink-soft);
+		font: inherit;
+		font-size: 0.76rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.add-btn:hover:not(:disabled) {
+		border-color: var(--nb-accent);
+		color: var(--nb-accent-ink);
+	}
+	.add-btn[aria-pressed='true'] {
+		border-color: var(--nb-accent);
+		background: var(--nb-accent-wash);
+		color: var(--nb-accent-ink);
+	}
+	.add-btn:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.add-hint {
+		font-size: 0.74rem;
+		color: var(--nb-ink-faint);
+	}
+	.entry-panel {
+		margin-top: 0.9rem;
+		padding: 0.9rem;
+		border: 1px solid var(--nb-hairline);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface-dim);
 	}
 
 	@media (max-width: 540px) {

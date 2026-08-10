@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
 	import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
+	import type { NoteDoc, NotebookNoteRow } from '$lib/notebook-notes';
 	import {
 		buildCsv,
 		type GridCell,
@@ -78,6 +79,8 @@
 		flag_reason: NotebookFlagReason | null;
 		instructor_comment: string | null;
 		photos: NotebookPhoto[];
+		/** Written notes (0078). The review panel renders them read-only. */
+		notes: NotebookNoteRow[];
 	}
 	interface StoreStudent {
 		id: string;
@@ -130,7 +133,30 @@
 			photo('p-1e', 2, 'brief-corrected.jpg', 'enhanced')
 		]),
 		mk('e-2', 'stu-1', 'sec-a', 'ses-a2', '2026-08-05T15:40:00Z', 'compliant', [photo('p-2', 1, 'stackup.jpg')]),
-		mk('e-3', 'stu-1', 'sec-a', 'ses-a3', '2026-08-07T15:05:00Z', 'compliant', [photo('p-3', 1)]),
+		// A session-linked entry carrying a note that has already been REVISED:
+		// the instructor sees the current text and the earlier version, and no
+		// edit control anywhere (0078 refuses it for anyone but the owner, and
+		// on a check-in for the owner too).
+		mk(
+			'e-3',
+			'stu-1',
+			'sec-a',
+			'ses-a3',
+			'2026-08-07T15:05:00Z',
+			'compliant',
+			[photo('p-3', 1)],
+			[
+				noteRow('n-1', 'e-3', 'n-1', 1, 'Pulled the bearing without the puller.', '2026-08-07T15:06:00Z'),
+				noteRow(
+					'n-2',
+					'e-3',
+					'n-1',
+					2,
+					'Pulled the bearing without the puller, which scored the race.',
+					'2026-08-07T15:20:00Z'
+				)
+			]
+		),
 		// Ben: one LATE, one FLAGGED, one missing -> 2 of 3, 1 flag.
 		mk('e-4', 'stu-2', 'sec-a', 'ses-a1', '2026-08-06T20:15:00Z', 'compliant', [photo('p-4', 1, 'late-brief.jpg')]),
 		{
@@ -149,7 +175,18 @@
 		mk('e-8', 'stu-4', 'sec-a', 'ses-a3', '2026-08-07T09:00:00Z', 'compliant', [photo('p-9', 1, 'redo.jpg')]),
 		// ...and a session-less free entry, which has no column but is counted.
 		{
-			...mk('e-9', 'stu-4', 'sec-a', null, '2026-08-08T11:00:00Z', 'compliant', []),
+			// No photos at all: a written-note entry, which is exactly what the
+			// review panel must render rather than an "empty entry" message.
+			...mk('e-9', 'stu-4', 'sec-a', null, '2026-08-08T11:00:00Z', 'compliant', [], [
+				noteRow(
+					'n-3',
+					'e-9',
+					'n-3',
+					1,
+					'Measured the bench spacing; the drill press needs another 300mm.',
+					'2026-08-08T11:00:00Z'
+				)
+			]),
 			custom_label: 'Shop layout notes'
 		},
 		// Section B, so the chair has something to switch to.
@@ -163,7 +200,8 @@
 		session_id: string | null,
 		upload_timestamp: string,
 		status: NotebookStatus,
-		photos: NotebookPhoto[]
+		photos: NotebookPhoto[],
+		notes: NotebookNoteRow[] = []
 	): StoreEntry {
 		return {
 			id,
@@ -175,8 +213,22 @@
 			status,
 			flag_reason: null,
 			instructor_comment: null,
-			photos
+			photos,
+			notes
 		};
+	}
+
+	/** One stored revision row, in the shape 0078 returns. */
+	function noteRow(
+		id: string,
+		entry_id: string,
+		note_id: string,
+		revision: number,
+		text: string,
+		created_at: string
+	): NotebookNoteRow {
+		const content: NoteDoc = [{ type: 'p', runs: [{ text }] }];
+		return { id, entry_id, note_id, revision, content, created_at };
 	}
 
 	/** Chloe is excused from the stackup check-in. */
