@@ -208,16 +208,31 @@ export function sessionMeta(session: Pick<NotebookSession, 'unit_number' | 'sess
 	return `Unit ${session.unit_number} · ${date}`;
 }
 
-/** Photo-count line for an entry card: "3 photos", "1 photo". */
+/**
+ * Photo-count line for an entry card: "3 photos", "1 photo". Zero is a real
+ * state since 0075 (a note-only entry), and "0 photos" reads as a fault
+ * rather than as the thing the student deliberately did.
+ */
 export function photoCountLabel(count: number): string {
+	if (count === 0) return 'No photos yet';
 	return count === 1 ? '1 photo' : `${count} photos`;
 }
 
 /**
- * The two upload transports NotebookView injects. The component owns the
- * sequencing (photo 1 creates the entry, the rest join it); these only carry
- * a ready-made FormData to /api/notebook/upload and /api/notebook/add-photo
- * respectively, so a harness can answer them without a network.
+ * The transports NotebookView injects. The component owns the sequencing
+ * (photo 1 creates the entry, the rest join it); these only carry a ready-made
+ * payload to /api/notebook/upload, /api/notebook/add-photo and
+ * /api/notebook/note respectively, so a harness can answer them without a
+ * network.
  */
 export type CreateEntryResult = { ok: true; entryId: string } | { ok: false; error: string };
 export type AddPhotoResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * A photo-less free-form entry (0075). Deliberately carries no session: a
+ * scheduled check-in still requires a photo, so the note path never offers
+ * one -- and the RPC refuses it regardless, which is where that rule lives.
+ */
+export interface NotePayload {
+	custom_label: string;
+}

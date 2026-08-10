@@ -19,9 +19,11 @@
 // tier -- is_admin() is what "chair-level" means, and note the 0067 naming
 // trap: is_teacher() now RETURNS is_admin()), 0069 (the notebook itself), 0070
 // (coin economy -- it sits between the two notebook migrations and shares
-// 0067's current_user_email(), so applying it keeps the ordering honest) and
-// 0071 (the notebook's own follow-up, which drops and recreates two of the
-// RPCs under test).
+// 0067's current_user_email(), so applying it keeps the ordering honest), 0071
+// (the notebook's own follow-up, which drops and recreates two of the RPCs
+// under test) and 0075 (which replaces notebook_create_entry again, to make
+// the photo conditional on the tier). The three coin migrations between them
+// (0072-0074) touch nothing the notebook reads and are left out.
 //
 // Startup runs initdb + a migration pass and takes a few seconds; the suite
 // pays that once per file (beforeAll), not per test.
@@ -46,7 +48,8 @@ export const MIGRATIONS = [
 	'0067_admin_tier.sql',
 	'0069_notebook.sql',
 	'0070_coin_economy.sql',
-	'0071_notebook_optional_label.sql'
+	'0071_notebook_optional_label.sql',
+	'0075_notebook_optional_photo.sql'
 ] as const;
 
 export type QueryFn = <R extends pg.QueryResultRow = pg.QueryResultRow>(

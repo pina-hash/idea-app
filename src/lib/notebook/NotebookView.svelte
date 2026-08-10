@@ -20,7 +20,8 @@
 		type AddPhotoResult,
 		type CreateEntryResult,
 		type NotebookEntry,
-		type NotebookSession
+		type NotebookSession,
+		type NotePayload
 	} from '$lib/notebook';
 
 	/**
@@ -29,11 +30,11 @@
 	 * CoinBalanceView / CoinDeskTool convention).
 	 *
 	 * It owns the UPLOAD SEQUENCING -- first photo creates the entry, every
-	 * later photo is added to it -- but not the transport: `createEntry` and
-	 * `addPhoto` are injected, so the real page points them at the existing
-	 * /api/notebook/upload and /api/notebook/add-photo routes (untouched by
-	 * this session) while the harness answers in memory. That split is what
-	 * lets the multi-photo orchestration itself be exercised with no network.
+	 * later photo is added to it -- but not the transport: `createEntry`,
+	 * `addPhoto` and `createNote` are injected, so the real page points them at
+	 * /api/notebook/upload, /api/notebook/add-photo and /api/notebook/note
+	 * while the harness answers in memory. That split is what lets the
+	 * multi-photo orchestration itself be exercised with no network.
 	 */
 
 	let {
@@ -45,6 +46,7 @@
 		uploadReady = true,
 		createEntry,
 		addPhoto,
+		createNote,
 		onUploaded
 	}: {
 		entries: NotebookEntry[];
@@ -55,10 +57,14 @@
 		canReview?: boolean;
 		/** 0069 applied; false renders the fail-soft card instead of a broken page. */
 		configured?: boolean;
-		/** The Drive integration is configured server-side; false disables submit. */
+		/**
+		 * The Drive integration is configured server-side; false disables PHOTO
+		 * submits only. A note needs no Drive, so the note path stays usable.
+		 */
 		uploadReady?: boolean;
 		createEntry: (form: FormData) => Promise<CreateEntryResult>;
 		addPhoto: (form: FormData) => Promise<AddPhotoResult>;
+		createNote: (payload: NotePayload) => Promise<CreateEntryResult>;
 		/** Called after a successful upload so the page can refresh its data. */
 		onUploaded?: () => void;
 	} = $props();
@@ -68,6 +74,13 @@
 	/** `null` is the deliberate free-form path: no session, label optional. */
 	let selectedSession = $state<string | null>(null);
 	let sessionTouched = $state(false);
+	/**
+	 * Free-form only: photos (the original path, unchanged and the default) or
+	 * a written note with no photo at all (0075). Held as a plain preference
+	 * and read through `noteOnly` below, so picking a session can never leave
+	 * the form in a note mode that the session-linked path does not offer.
+	 */
+	let freeMode = $state<'photos' | 'note'>('photos');
 	let label = $state('');
 	let files = $state<File[]>([]);
 	let busy = $state(false);
@@ -87,6 +100,9 @@
 
 	const open = $derived(outstandingSessions(sessions, entries));
 	const feed = $derived(newestFirst(entries));
+	/** The note tier exists on the free-form path ONLY. */
+	const noteOnly = $derived(selectedSession === null && freeMode === 'note');
+	const canSubmit = $derived(noteOnly ? label.trim() !== '' : files.length > 0 && uploadReady);
 
 	// Default to the outstanding session nearest today, and otherwise leave
 	// the student's own pick alone as `entries` refreshes underneath -- with
@@ -105,6 +121,13 @@
 	function chooseSession(id: string | null) {
 		sessionTouched = true;
 		selectedSession = id;
+	}
+
+	function chooseMode(mode: 'photos' | 'note') {
+		freeMode = mode;
+		// Staged photos are meaningless in note mode and would be silently
+		// dropped on submit; clearing them makes that visible instead.
+		if (mode === 'note') files = [];
 	}
 
 	function onFilesChosen(e: Event) {
@@ -126,13 +149,32 @@
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
-		if (busy || files.length === 0) return;
+		if (busy || !canSubmit) return;
 		busy = true;
 		errorMsg = null;
 		successMsg = null;
-		progress = files.length > 1 ? `Uploading photo 1 of ${files.length}...` : 'Uploading...';
+		progress = noteOnly
+			? 'Saving...'
+			: files.length > 1
+				? `Uploading photo 1 of ${files.length}...`
+				: 'Uploading...';
 
 		try {
+			// A note has no photo and so no sequencing at all: one call, done.
+			// It never carries a session -- the mode is only reachable on the
+			// free-form path, and a check-in still requires a page.
+			if (noteOnly) {
+				const saved = await createNote({ custom_label: label.trim() });
+				if (!saved.ok) {
+					errorMsg = saved.error;
+					return;
+				}
+				successMsg = 'Note saved.';
+				resetForm();
+				onUploaded?.();
+				return;
+			}
+
 			// Photo 1 creates the entry. A blank label is sent as nothing at all:
 			// 0071 made the label optional and the upload route falls back to the
 			// file's own name, so the UI must not re-impose a required-label rule.
@@ -242,7 +284,8 @@
 			{/if}
 			{#if !uploadReady}
 				<p class="feedback error">
-					Photo storage is not configured on the server yet, so uploads are turned off.
+					Photo storage is not configured on the server yet, so photo uploads are turned
+					off. You can still save a note.
 				</p>
 			{/if}
 
@@ -284,38 +327,78 @@
 				</fieldset>
 
 				{#if selectedSession === null}
+					<!-- Free-form only. A scheduled check-in exists because an
+					     instructor asked for a page, so it never offers this. -->
+					<fieldset class="picker mode-picker">
+						<legend>How do you want to save it?</legend>
+						<div class="quick-picks">
+							<button
+								type="button"
+								class="pick"
+								class:selected={!noteOnly}
+								aria-pressed={!noteOnly}
+								onclick={() => chooseMode('photos')}
+							>
+								<span class="pick-label">Photos</span>
+								<span class="pick-meta">Shoot a page</span>
+							</button>
+							<button
+								type="button"
+								class="pick"
+								class:selected={noteOnly}
+								aria-pressed={noteOnly}
+								onclick={() => chooseMode('note')}
+							>
+								<span class="pick-label">Just write a note</span>
+								<span class="pick-meta">No photo needed</span>
+							</button>
+						</div>
+					</fieldset>
+
 					<label class="field label-field">
-						<span>Label <span class="optional">(optional)</span></span>
+						<span>
+							{#if noteOnly}
+								Note
+							{:else}
+								Label <span class="optional">(optional)</span>
+							{/if}
+						</span>
 						<input
 							type="text"
 							bind:value={label}
 							maxlength="200"
-							placeholder="e.g. Gearbox sketches"
+							placeholder={noteOnly ? 'e.g. Talked through the gearbox ratio' : 'e.g. Gearbox sketches'}
 							disabled={busy}
 						/>
 						<span class="hint">
-							Leave this blank and we will use the photo's own filename.
+							{#if noteOnly}
+								Up to 200 characters. You can add photos to this entry later.
+							{:else}
+								Leave this blank and we will use the photo's own filename.
+							{/if}
 						</span>
 					</label>
 				{/if}
 
-				<div class="field photo-field">
-					<span class="photo-label">Photos</span>
-					<!-- capture="environment" opens the rear camera directly on a
-					     phone; `multiple` still allows several pages per entry. -->
-					<input
-						bind:this={fileInput}
-						type="file"
-						accept="image/*"
-						capture="environment"
-						multiple
-						onchange={onFilesChosen}
-						disabled={busy || !uploadReady}
-					/>
-					<span class="hint">JPEG, PNG, WebP, or HEIC, up to 4&nbsp;MB each.</span>
-				</div>
+				{#if !noteOnly}
+					<div class="field photo-field">
+						<span class="photo-label">Photos</span>
+						<!-- capture="environment" opens the rear camera directly on a
+						     phone; `multiple` still allows several pages per entry. -->
+						<input
+							bind:this={fileInput}
+							type="file"
+							accept="image/*"
+							capture="environment"
+							multiple
+							onchange={onFilesChosen}
+							disabled={busy || !uploadReady}
+						/>
+						<span class="hint">JPEG, PNG, WebP, or HEIC, up to 4&nbsp;MB each.</span>
+					</div>
+				{/if}
 
-				{#if files.length}
+				{#if files.length && !noteOnly}
 					<ul class="staged">
 						{#each files as f, i (f.name + i)}
 							<li>
@@ -330,8 +413,8 @@
 				{/if}
 
 				<div class="actions">
-					<button class="btn" type="submit" disabled={busy || files.length === 0 || !uploadReady}>
-						{busy ? 'Saving...' : 'Save entry'}
+					<button class="btn" type="submit" disabled={busy || !canSubmit}>
+						{busy ? 'Saving...' : noteOnly ? 'Save note' : 'Save entry'}
 					</button>
 					{#if progress}<span class="progress">{progress}</span>{/if}
 				</div>
@@ -557,6 +640,9 @@
 	}
 	.no-sessions {
 		margin: 0;
+	}
+	.mode-picker .quick-picks {
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
 	}
 	.label-field .optional {
 		color: var(--dim);

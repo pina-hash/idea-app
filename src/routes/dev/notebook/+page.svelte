@@ -4,15 +4,16 @@
 		AddPhotoResult,
 		CreateEntryResult,
 		NotebookEntry,
-		NotebookSession
+		NotebookSession,
+		NotePayload
 	} from '$lib/notebook';
 
 	/**
-	 * Dev harness: mounts the REAL NotebookView with the two upload transports
+	 * Dev harness: mounts the REAL NotebookView with the three save transports
 	 * faked in memory, so the whole screen -- role branches, the session
-	 * quick-picks, the free-form path, the multi-photo sequencing, and every
-	 * entry-title fallback -- is drivable with no auth, no Supabase and no
-	 * Drive.
+	 * quick-picks, the free-form path (photos AND the 0075 note tier), the
+	 * multi-photo sequencing, and every entry-title fallback -- is drivable
+	 * with no auth, no Supabase and no Drive.
 	 *
 	 * The fakes answer in the same shape the real page's fetch wrappers do,
 	 * and every call is logged verbatim (including WHICH form fields were
@@ -209,6 +210,35 @@
 		return { ok: true, entryId: id };
 	}
 
+	/**
+	 * The 0075 note tier: no photo at all. Mirrors the RPC's own refusal (a
+	 * free entry needs a photo or a label) so the error path is drivable here
+	 * too, and appends an entry with an EMPTY photos array -- the state a
+	 * note-only entry really has in the feed.
+	 */
+	async function createNote(payload: NotePayload): Promise<CreateEntryResult> {
+		log = [...log, `POST /api/notebook/note  ${JSON.stringify(payload)}`];
+		const label = payload.custom_label.trim();
+		if (!label) return { ok: false, error: 'A free-form entry needs a photo or a label.' };
+		const id = `new-${++seq}`;
+		const entry: NotebookEntry = {
+			id,
+			session_id: null,
+			section_id: null,
+			custom_label: label,
+			upload_timestamp: new Date().toISOString(),
+			status: 'compliant',
+			flag_reason: null,
+			instructor_comment: null,
+			session: null,
+			photos: []
+		};
+		if (account === 'student') studentEntries = [entry, ...studentEntries];
+		else if (account === 'instructor') instructorEntries = [entry, ...instructorEntries];
+		else plainEntries = [entry, ...plainEntries];
+		return { ok: true, entryId: id };
+	}
+
 	async function addPhoto(form: FormData): Promise<AddPhotoResult> {
 		log = [...log, `POST /api/notebook/add-photo  ${describe(form)}`];
 		const entryId = form.get('entry_id') as string;
@@ -263,6 +293,7 @@
 	{uploadReady}
 	{createEntry}
 	{addPhoto}
+	{createNote}
 />
 
 <style>

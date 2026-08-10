@@ -2830,10 +2830,21 @@ arrives in later sessions and should not need to touch this layer again.
   grants or policies on any notebook table**: every write goes through
   SECURITY DEFINER RPCs that re-check `auth.uid()` inside (the 0041/0062
   pattern).
-- **RPCs:** `notebook_create_entry` (self-only; inserts entry + first
-  'original' photo), `notebook_add_photo` (owner-only; a resubmission onto a
+- **RPCs:** `notebook_create_entry` (self-only; inserts the entry plus its
+  first 'original' photo — and, since `0075_notebook_optional_photo.sql`
+  (apply after 0074), the PHOTO IS CONDITIONAL ON THE TIER: `p_drive_file_id`
+  is optional, a SESSION-LINKED entry still requires one and raises the same
+  'A Drive file id is required.' it always did, and a free-form entry needs
+  only ONE of {photo, custom_label}, refusing only when both are missing.
+  Deliberately in the RPC and not a table CHECK: the rule spans the entry and
+  its photos, and it is a rule about CREATION — `notebook_add_photo` may
+  legitimately take a note-only entry to one photo later, which a constraint
+  could not tell apart from a violation. `photo_id` comes back null on a
+  note), `notebook_add_photo` (owner-only; a resubmission onto a
   FLAGGED entry flips it to `pending_review`, never silently clears the
-  flag), `notebook_flag_entry` (instructor-of-section or admin; reason from
+  flag; UNTOUCHED by 0075 and already correct for a zero-photo entry, since
+  its `coalesce(max(sequence_order), 0) + 1` yields 1 — verified, not
+  assumed), `notebook_flag_entry` (instructor-of-section or admin; reason from
   the fixed list, stamps reviewed_by/at), `notebook_resolve_entry`
   (same tier; closes the loop back to `compliant` — added beyond the spec
   because nothing else let an instructor accept a resubmission),
@@ -2975,9 +2986,33 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
   `/dev/notebook` mounts the identical component (the `CoinBalanceView`
   split). The view owns the UPLOAD SEQUENCING -- photo 1 creates the entry,
   every later photo joins it -- but not the transport: `createEntry` /
-  `addPhoto` are INJECTED, so the real page points them at the two existing
-  API routes while the harness answers in memory. That split is what makes
-  the multi-photo orchestration itself testable with no network.
+  `addPhoto` / `createNote` are INJECTED, so the real page points them at the
+  three API routes while the harness answers in memory. That split is what
+  makes the multi-photo orchestration itself testable with no network.
+- **The free-form tier can be a NOTE with no photo at all (0075).** A mode
+  picker ("Photos" / "Just write a note") renders ONLY when no session is
+  selected; the session-linked path is byte-identical to before, shows no
+  note option, and still refuses to submit without a photo. Photos is the
+  default, so the existing free-form photo flow is unchanged. Note mode swaps
+  the "Label (optional)" field for a required "Note", hides the photo picker
+  (and CLEARS anything staged, so a dropped file is visible rather than
+  silent), and submits ONE call to `/api/notebook/note`. Because the mode is
+  read through a derived `selectedSession === null && freeMode === 'note'`
+  rather than stored as the form's state, picking a session can never leave
+  the form in a mode that tier does not offer -- browser-verified by
+  switching to note mode and then choosing a check-in.
+- **`/api/notebook/note` is its own route, not a branch in
+  `/api/notebook/upload`.** A note shares exactly ONE step with a photo
+  upload (the `notebook_create_entry` call); multipart parsing, the size/mime
+  gate, the Drive-configured gate, the human-readable filename, the upload,
+  the rename to the entry's short id and the orphan delete are all about a
+  FILE, and folding a note in would grow an "if there is a photo" branch
+  around every one of them. Consequence worth keeping: a note works on a
+  deployment where Drive is not configured at all (the UI keeps the note path
+  live when `uploadReady` is false, and says so), which is correct -- a note
+  needs no Drive. It takes JSON, not multipart, requires a real session (401
+  otherwise), and passes `session_id` THROUGH rather than blocking it, so the
+  photo-required rule stays in the RPC alone instead of gaining a second copy.
 - **A blank label is sent as NOTHING AT ALL, not an empty string.** 0071
   made the label optional and the upload route falls back to the file's own
   name, so the UI must not re-impose a required-label rule the backend
@@ -3064,7 +3099,20 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
   feeding the component OLDEST-first; the per-photo error fallback swapped
   exactly one frame and kept the other seven; both fail-soft cards render;
   no horizontal overflow at 375px and the file input carries
-  `accept="image/*" capture="environment" multiple`; 0 console errors. The
+  `accept="image/*" capture="environment" multiple`; 0 console errors.
+  **0075's note tier was driven the same way:** with a session selected the
+  form offers no note option at all, keeps its photo picker and stays
+  un-submittable; on the free-form path the mode picker appears with "Photos"
+  preselected and the photo flow unchanged (a 2-photo submit still issues one
+  `upload` + one `add-photo` and no `custom_label`); "Just write a note"
+  hides the picker, relabels the field "Note", disables submit until text is
+  typed, and then POSTs exactly `{"custom_label":"..."}` to
+  `/api/notebook/note` -- one call, no FormData, no session -- landing an
+  entry that renders its label as the title with "No photos yet" and zero
+  image frames; a file staged in Photos mode is cleared by the switch and
+  does not come back; with Drive toggled OFF the note still saves while photo
+  submits stay disabled; and picking a check-in while in note mode snaps the
+  form straight back to the session shape. The
   shipped `notebookAccess` guard was additionally driven directly with
   mocked sessions (7 cases, all passing), including the two that must fail
   closed: a plain `teacher` account teaching nothing gets NO review access,
@@ -9071,6 +9119,27 @@ SILENTLY -- ones where a regression breaks nothing visible.
   ASSERTS the table, columns and filter it was handed, so a change to the
   route's query fails the file loudly instead of quietly testing something
   else. Drive is a local mock server via the exported `DRIVE_ENDPOINTS`.
+- **`tests/notebook-entry-photo-rule.test.ts`** (9 assertions) pins 0075's
+  conditional: the free tier accepts a label with NO photo (0 photo rows,
+  `photo_id` null) and the fully-unlabeled-but-photographed 0071 case, while
+  the SESSION tier still rejects a photo-less entry -- with or without a
+  label -- and leaves nothing half-made. It also asserts there is still
+  exactly ONE `notebook_create_entry` in `pg_proc` (a defaulted parameter
+  must not leave a second overload, unlike 0068's ADDED one) and that
+  `notebook_add_photo` gives an entry with zero photos `sequence_order` 1 and
+  the next one 2. It earns its place because this rule spans two tables, so
+  no constraint enforces it and an inverted branch would look exactly like a
+  working notebook until someone tried to grade an empty check-in.
+- **`tests/notebook-note-route.test.ts`** (6 assertions) drives the REAL
+  `/api/notebook/note` POST handler against the real RPC. The shim forwards
+  the route's OWN argument object verbatim into a named-parameter SQL call
+  and asserts only the function NAME, so the route cannot pass by sending
+  something the database would have refused. Covers the happy path (0 photos,
+  correct `student_id`, null session), **401 with no session and not one row
+  written**, the RPC's two refusals surfaced as 400s through the route (a
+  session-linked note; nothing to record), an optional section, and the
+  input gates. It exists because the auth check and the argument object are
+  both easy to break with no symptom for the signed-in developer testing it.
 - **One assertion exists purely to keep the rest honest:** the suite asserts
   that `instructorA` and a plain `@boscotech.edu` account are NOT admins. Given
   0067's naming trap, if `teacher` ever silently re-acquired privilege every
@@ -9089,6 +9158,10 @@ SILENTLY -- ones where a regression breaks nothing visible.
   that file fully green, because the route's two hurdles are independent --
   only opening BOTH reddens its 5 denial assertions (verified, then the
   migration restored byte-identical). See the notebook UI section.
+  `notebook-entry-photo-rule.test.ts` was mutation-checked too, in ITS
+  permissive direction: deleting 0075's session-tier "a Drive file id is
+  required" raise turns exactly the two session assertions red and nothing
+  else (verified, then the migration restored byte-identical).
 
 ## Working conventions
 
