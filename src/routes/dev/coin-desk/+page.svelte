@@ -68,6 +68,14 @@
 	 *    bulk-logs the 2i¢ award against exactly the ACTIVE current holders
 	 *    (filterable by role/section), never the whole section and never an
 	 *    expired or revoked one
+	 *  - Payout (0079): "healthy.student" starts with a positive 42i¢ balance
+	 *    -- it appears in the Payout list. Click "Pay" to zero it out (logged
+	 *    as "Coin Payout"), or add a fresh fine/award against a candidate via
+	 *    "Log a transaction" BEFORE clicking Pay All, then confirm the amount
+	 *    actually paid matches the NEW balance, not the one the list showed
+	 *    when it loaded -- the race the feature exists to close. Once every
+	 *    balance clears, the list reads "No student currently has a positive
+	 *    balance."
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
 

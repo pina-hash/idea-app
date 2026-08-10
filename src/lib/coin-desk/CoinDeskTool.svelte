@@ -6,6 +6,7 @@
 	import SectionManager from './SectionManager.svelte';
 	import RolesManager from './RolesManager.svelte';
 	import ContractsManager from './ContractsManager.svelte';
+	import PayoutManager from './PayoutManager.svelte';
 	import {
 		EXTRA_CREDIT_GRADING_CATEGORIES,
 		KIND_LABELS,
@@ -506,6 +507,8 @@
 	<RolesManager {supabase} {roleDefinitions} {sections} configured={rolesConfigured} />
 
 	<ContractsManager {supabase} {sections} configured={contractsConfigured} />
+
+	<PayoutManager {supabase} {configured} />
 
 	<section class="card">
 		<h2>Find a student</h2>

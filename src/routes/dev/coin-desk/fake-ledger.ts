@@ -860,6 +860,7 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 					}
 				};
 			}
+			if (table === 'coin_balances') return makeBalancesQuery();
 			throw new Error(`fake ledger: unexpected table "${table}"`);
 		}
 	};
@@ -1055,6 +1056,51 @@ async function handleRpc(
 				remaining_points: Math.max(cap - s.ecUsedPoints, 0),
 				balance: s.balance
 			})
+		);
+	}
+
+	// -----------------------------------------------------------------------
+	// Bulk payout (0079). Mirrors coin_payout_student / coin_bulk_payout: both
+	// re-read the target's balance FRESH (from `ledger`, the same source
+	// coin_admin_lookup and coin_log_transaction already read) at the moment
+	// they run, never a client-supplied amount -- see that migration's header.
+	// -----------------------------------------------------------------------
+
+	if (fn === 'coin_payout_student') {
+		const s = stateFor(email);
+		if (s.balance <= 0) return Promise.resolve(refused('no_balance', { balance: s.balance }));
+		const note = (params.p_note as string | null)?.trim() || 'Coin payout.';
+		// Reuses the SAME coin_log_transaction path the single-student "Coin
+		// Payout" category entry already goes through -- no second write path.
+		return handleRpc('coin_log_transaction', {
+			p_email: email,
+			p_category_id: 'coin_payout',
+			p_amount: s.balance,
+			p_quantity: null,
+			p_note: note
+		});
+	}
+
+	if (fn === 'coin_bulk_payout') {
+		// Roster is read fresh here, at the top of the loop -- but it is
+		// coin_payout_student, called once per student BELOW, that re-reads
+		// that one student's balance again immediately before writing, so a
+		// fine or award landing on a not-yet-reached student mid-loop is
+		// still picked up correctly.
+		const targets = Array.from(ledger.entries())
+			.filter(([, s]) => s.balance > 0)
+			.map(([e]) => e)
+			.sort();
+		const results: Record<string, unknown>[] = [];
+		let succeeded = 0;
+		for (const studentEmail of targets) {
+			const single = await handleRpc('coin_payout_student', { p_email: studentEmail, p_note: params.p_note });
+			const data = single.error ? { ok: false, reason: 'error', message: single.error.message } : single.data;
+			if ((data as { ok?: boolean }).ok) succeeded += 1;
+			results.push({ email: studentEmail, ...(data as Record<string, unknown>) });
+		}
+		return Promise.resolve(
+			ok({ total: results.length, succeeded, refused: results.length - succeeded, results })
 		);
 	}
 
@@ -1724,9 +1770,46 @@ async function handleRpc(
 	return Promise.resolve(rpcError(`fake ledger: unhandled rpc "${fn}"`));
 }
 
+/**
+ * Supports both existing callers' `.eq('role', ...).or(...).order(...).limit(n)`
+ * shape (the single-student typeahead) AND PayoutManager's
+ * `.select(...).in('email', emails)` shape (no `.limit()` at all) -- the
+ * builder itself is thenable so a caller that never terminates with
+ * `.limit()` still resolves when awaited directly.
+ */
 function makeProfilesQuery() {
 	let eqRole: string | null = null;
 	let orExpr: string | null = null;
+	let inCol: string | null = null;
+	let inValues: string[] | null = null;
+	let limitN: number | null = null;
+
+	function compute() {
+		// Every sample row is already role='student'; eqRole is captured for
+		// shape parity with the real query but has nothing further to filter.
+		void eqRole;
+		let rows = SAMPLE_STUDENTS.slice();
+		if (orExpr) {
+			const terms = orExpr
+				.split(',')
+				.map((clause) => clause.match(/ilike\.%(.*)%$/)?.[1]?.toLowerCase())
+				.filter((t): t is string => !!t);
+			const term = terms[0] ?? '';
+			rows = rows.filter(
+				(r) =>
+					r.email.toLowerCase().includes(term) ||
+					(r.full_name ?? '').toLowerCase().includes(term) ||
+					(r.display_name ?? '').toLowerCase().includes(term)
+			);
+		}
+		if (inCol === 'email' && inValues) {
+			const wanted = new Set(inValues.map((v) => v.toLowerCase()));
+			rows = rows.filter((r) => wanted.has(r.email.toLowerCase()));
+		}
+		if (limitN !== null) rows = rows.slice(0, limitN);
+		return { data: rows, error: null };
+	}
+
 	const builder = {
 		select(_cols: string) {
 			return builder;
@@ -1739,28 +1822,67 @@ function makeProfilesQuery() {
 			orExpr = expr;
 			return builder;
 		},
+		in(col: string, values: string[]) {
+			inCol = col;
+			inValues = values;
+			return builder;
+		},
 		order(_col: string, _opts?: unknown) {
 			return builder;
 		},
 		limit(n: number) {
-			// Every sample row is already role='student'; eqRole is captured for
-			// shape parity with the real query but has nothing further to filter.
-			void eqRole;
-			let rows = SAMPLE_STUDENTS.slice();
-			if (orExpr) {
-				const terms = orExpr
-					.split(',')
-					.map((clause) => clause.match(/ilike\.%(.*)%$/)?.[1]?.toLowerCase())
-					.filter((t): t is string => !!t);
-				const term = terms[0] ?? '';
-				rows = rows.filter(
-					(r) =>
-						r.email.toLowerCase().includes(term) ||
-						(r.full_name ?? '').toLowerCase().includes(term) ||
-						(r.display_name ?? '').toLowerCase().includes(term)
-				);
-			}
-			return Promise.resolve({ data: rows.slice(0, n), error: null });
+			limitN = n;
+			return Promise.resolve(compute());
+		},
+		then<TResult1 = { data: StudentSuggestion[]; error: null }, TResult2 = never>(
+			onFulfilled?: ((value: { data: StudentSuggestion[]; error: null }) => TResult1 | PromiseLike<TResult1>) | null,
+			onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+		) {
+			return Promise.resolve(compute()).then(onFulfilled, onRejected);
+		}
+	};
+	return builder;
+}
+
+/**
+ * Mirrors 0070's coin_balances view (a pure sum over coin_transactions),
+ * enough to drive PayoutManager's listing read end to end: `.gt('balance',
+ * 0)` + `.order('balance', ...)`, no RPC involved, matching the real
+ * migration's own "admin already sees every row here" doctrine.
+ */
+function makeBalancesQuery() {
+	let gtVal: number | null = null;
+	let orderAsc = true;
+
+	function compute() {
+		let rows = Array.from(ledger.entries()).map(([studentEmail, s]) => ({
+			student_email: studentEmail,
+			balance: s.balance,
+			last_activity_at: s.txns[0]?.created_at ?? null,
+			transaction_count: s.txns.length
+		}));
+		if (gtVal !== null) rows = rows.filter((r) => r.balance > (gtVal as number));
+		rows.sort((a, b) => (orderAsc ? a.balance - b.balance : b.balance - a.balance));
+		return { data: rows, error: null };
+	}
+
+	const builder = {
+		select(_cols: string) {
+			return builder;
+		},
+		gt(_col: string, val: number) {
+			gtVal = val;
+			return builder;
+		},
+		order(_col: string, opts?: { ascending?: boolean }) {
+			orderAsc = opts?.ascending !== false;
+			return builder;
+		},
+		then<TResult1 = unknown, TResult2 = never>(
+			onFulfilled?: ((value: ReturnType<typeof compute>) => TResult1 | PromiseLike<TResult1>) | null,
+			onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+		) {
+			return Promise.resolve(compute()).then(onFulfilled, onRejected);
 		}
 	};
 	return builder;
