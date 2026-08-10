@@ -6,6 +6,7 @@
 	import SessionManager from '$lib/notebook/SessionManager.svelte';
 	import SectionGrid from '$lib/notebook/SectionGrid.svelte';
 	import EntryReview from '$lib/notebook/EntryReview.svelte';
+	import '$lib/notebook/notebook-theme.css';
 	import { todayIso } from '$lib/notebook';
 	import {
 		buildCsv,
@@ -256,6 +257,9 @@
 	<title>Section review // IDEA Notebook</title>
 </svelte:head>
 
+<!-- .nb-root scopes the notebook's editorial light theme (notebook-theme.css);
+     the review console lives in the same room as the student feed. -->
+<div class="nb-root">
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
@@ -372,8 +376,11 @@
 
 	<VersionBadge app="portal" />
 </main>
+</div>
 
 <style>
+	/* Same room as the student feed (palette + type from .nb-root), but the
+	   console keeps its working density -- the grid is for scanning. */
 	.review-page {
 		max-width: 76rem;
 		margin: 0 auto;
@@ -390,25 +397,34 @@
 	.field {
 		display: grid;
 		gap: 0.25rem;
-		min-width: 12rem;
+		min-width: min(12rem, 100%);
+		max-width: 100%;
 	}
 	.field span {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--dim);
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--nb-ink-faint);
 	}
 	.field select {
+		/* min-width: 0 stops the select's intrinsic width (its longest option
+		   text) from propagating up and forcing the page wider than a phone --
+		   the section names are long, and at 375px this was the one thing that
+		   made the whole layout viewport overflow. */
+		width: 100%;
+		min-width: 0;
 		padding: 0.45rem 0.55rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		color: var(--white);
-		font-family: var(--font-display);
+		background: var(--nb-surface);
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--nb-radius-control);
+		color: var(--nb-ink);
+		font-family: inherit;
 		font-size: 0.95rem;
 	}
 	.field select:focus {
 		outline: none;
-		border-color: var(--line-strong);
+		border-color: var(--nb-accent);
 	}
 	.picker-actions {
 		display: flex;
@@ -417,23 +433,22 @@
 		margin-left: auto;
 	}
 	.loading {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		color: var(--cyan);
+		font-size: 0.78rem;
+		color: var(--nb-ink-faint);
 	}
 	.note {
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.88rem;
 	}
 	.note strong {
-		color: var(--white);
+		color: var(--nb-ink);
 	}
 	.msg {
 		margin: 0;
 		font-size: 0.9rem;
 	}
 	.msg.error {
-		color: var(--crimson);
+		color: var(--nb-error);
 	}
 	.scoring h2 {
 		margin: 0 0 0.3rem;

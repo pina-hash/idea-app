@@ -4,6 +4,7 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import PhotoCorrector from '$lib/notebook/PhotoCorrector.svelte';
+	import '$lib/notebook/notebook-theme.css';
 	import {
 		entryTitle,
 		flagReasonLabel,
@@ -296,6 +297,9 @@
 	<title>My Notebook // IDEA</title>
 </svelte:head>
 
+<!-- .nb-root scopes the notebook's editorial light theme (notebook-theme.css)
+     and keeps it out of every other surface. -->
+<div class="nb-root">
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
@@ -565,67 +569,73 @@
 		/>
 	{/key}
 {/if}
+</div>
 
 <style>
+	/* Editorial column: a touch narrower than the old technical page, with
+	   more air between cards. The photo stays the widest thing on screen. */
 	.notebook-page {
-		max-width: 52rem;
+		max-width: 47rem;
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		padding: 0 1.4rem 4.5rem;
 	}
 	.notebook-page > .card {
-		margin-bottom: 1.1rem;
+		margin-bottom: 1.6rem;
 	}
 	.notebook-page h2 {
 		margin-top: 0;
 	}
 	.lead strong {
-		color: var(--white);
+		color: var(--nb-ink);
+		font-weight: 600;
 	}
 	.hero-meta {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.5rem;
-		margin-top: 0.7rem;
+		margin-top: 0.9rem;
 	}
 	.chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		letter-spacing: 0.04em;
-		padding: 0.25rem 0.6rem;
-		border: 1px solid var(--line);
+		font-size: 0.74rem;
+		font-weight: 500;
+		letter-spacing: 0.02em;
+		padding: 0.25rem 0.7rem;
+		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 	}
 	.chip-link {
-		color: var(--gold);
-		border-color: color-mix(in srgb, var(--gold) 40%, transparent);
+		color: var(--nb-accent-ink);
+		border-color: color-mix(in srgb, var(--nb-accent) 45%, transparent);
 		text-decoration: none;
 	}
 	.chip-link:hover {
-		border-color: var(--gold);
-		background: color-mix(in srgb, var(--gold) 10%, transparent);
+		border-color: var(--nb-accent-ink);
+		background: var(--nb-accent-wash);
+		text-decoration: none;
 	}
 	.note {
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.9rem;
 	}
 	.empty-state {
 		padding: 0.6rem 0;
 	}
 	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.8rem;
-		padding: 0.45rem 0.7rem;
-		border-radius: 5px;
-		margin-bottom: 0.8rem;
+		font-size: 0.84rem;
+		padding: 0.55rem 0.8rem;
+		border-radius: var(--nb-radius-control);
+		margin-bottom: 0.9rem;
 	}
 	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
+		color: var(--nb-error);
+		border: 1px solid color-mix(in srgb, var(--nb-error) 40%, transparent);
+		background: color-mix(in srgb, var(--nb-error) 5%, transparent);
 	}
 	.feedback.ok {
-		color: var(--green);
-		border: 1px solid color-mix(in srgb, var(--green) 50%, transparent);
+		color: var(--nb-ok);
+		border: 1px solid color-mix(in srgb, var(--nb-ok) 35%, transparent);
+		background: color-mix(in srgb, var(--nb-ok) 5%, transparent);
 	}
 
 	/* ---- add an entry ---- */
@@ -635,11 +645,11 @@
 		margin: 0 0 0.9rem;
 	}
 	.picker legend {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		letter-spacing: 0.06em;
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.14em;
 		text-transform: uppercase;
-		color: var(--dim);
+		color: var(--nb-ink-faint);
 		padding: 0;
 		margin-bottom: 0.5rem;
 	}
@@ -653,31 +663,31 @@
 		flex-direction: column;
 		gap: 0.15rem;
 		text-align: left;
-		padding: 0.55rem 0.7rem;
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		background: var(--bg1);
-		color: var(--white);
+		padding: 0.6rem 0.75rem;
+		border: 1px solid var(--nb-hairline);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface-dim);
+		color: var(--nb-ink);
 		cursor: pointer;
 		font: inherit;
 	}
 	.pick:hover {
-		border-color: color-mix(in srgb, var(--green) 45%, transparent);
+		border-color: var(--nb-hairline-strong);
 	}
+	/* Gold is the active state -- the one thread back to the platform. */
 	.pick.selected {
-		border-color: var(--green);
-		background: color-mix(in srgb, var(--green) 10%, transparent);
+		border-color: var(--nb-accent);
+		background: var(--nb-accent-wash);
 	}
 	.pick-label {
 		font-weight: 600;
 	}
 	.pick-meta {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--dim);
+		font-size: 0.73rem;
+		color: var(--nb-ink-faint);
 	}
 	.pick.free .pick-label {
-		color: var(--gold);
+		color: var(--nb-accent-ink);
 	}
 	.no-sessions {
 		margin: 0;
@@ -686,166 +696,174 @@
 		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
 	}
 	.label-field .optional {
-		color: var(--dim);
+		color: var(--nb-ink-faint);
 		font-weight: 400;
 	}
 	.hint {
 		display: block;
-		color: var(--dim);
-		font-size: 0.78rem;
-		margin-top: 0.25rem;
+		color: var(--nb-ink-faint);
+		font-size: 0.8rem;
+		margin-top: 0.3rem;
 	}
 	.photo-field {
-		margin-top: 0.9rem;
+		margin-top: 1rem;
 	}
 	.photo-label {
 		display: block;
 		margin-bottom: 0.3rem;
+		font-weight: 600;
 	}
 	.photo-field input[type='file'] {
 		width: 100%;
-		color: var(--white);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.82rem;
+		color: var(--nb-ink-soft);
+		font-size: 0.85rem;
 	}
 	.staged {
 		list-style: none;
 		padding: 0;
-		margin: 0.8rem 0 0;
+		margin: 0.9rem 0 0;
 		display: grid;
-		gap: 0.35rem;
+		gap: 0.4rem;
 	}
 	.staged li {
 		display: flex;
 		align-items: center;
 		gap: 0.6rem;
-		padding: 0.4rem 0.6rem;
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		background: var(--bg1);
+		padding: 0.45rem 0.65rem;
+		border: 1px solid var(--nb-hairline);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface-dim);
 	}
 	.staged-n {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--green);
+		font-size: 0.74rem;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-accent-ink);
 		min-width: 1.1rem;
 	}
 	.staged-name {
 		flex: 1;
-		font-size: 0.85rem;
+		font-size: 0.86rem;
+		color: var(--nb-ink);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.staged-tag {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		letter-spacing: 0.05em;
+		font-size: 0.66rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--cyan);
-		border: 1px solid color-mix(in srgb, var(--cyan) 45%, transparent);
+		color: var(--nb-accent-ink);
+		background: var(--nb-accent-wash);
+		border: 1px solid color-mix(in srgb, var(--nb-accent) 45%, transparent);
 		border-radius: 999px;
-		padding: 0.05rem 0.45rem;
+		padding: 0.05rem 0.5rem;
 	}
 	.remove {
 		background: none;
 		border: none;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
+		color: var(--nb-ink-faint);
 		font-size: 0.72rem;
+		font-weight: 600;
 		cursor: pointer;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.06em;
 	}
 	.remove:hover {
-		color: var(--amber);
+		color: var(--nb-error);
 	}
 	.actions {
 		display: flex;
 		align-items: center;
 		gap: 0.8rem;
-		margin-top: 1rem;
+		margin-top: 1.1rem;
 		flex-wrap: wrap;
 	}
 	.progress {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		color: var(--cyan);
+		font-size: 0.8rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
 	}
 
-	/* ---- my entries ---- */
+	/* ---- my entries: the editorial feed. Generous air between entries, the
+	   photo as the dominant element, restrained chrome around it. ---- */
 	.entries {
 		list-style: none;
 		padding: 0;
 		margin: 0;
 		display: grid;
-		gap: 1.4rem;
+		gap: 2.6rem;
 	}
 	.entry {
-		border-top: 1px solid var(--line);
-		padding-top: 1rem;
+		border-top: 1px solid var(--nb-hairline);
+		padding-top: 1.8rem;
 	}
 	.entry:first-child {
 		border-top: none;
 		padding-top: 0;
 	}
 	.entry-head {
-		margin-bottom: 0.6rem;
+		margin-bottom: 0.8rem;
 	}
 	.entry-title {
-		margin: 0 0 0.2rem;
-		font-size: 1.1rem;
+		margin: 0 0 0.3rem;
+		font-size: 1.28rem;
+		letter-spacing: -0.01em;
 	}
 	.entry-title.untitled {
-		color: var(--dim);
+		color: var(--nb-ink-faint);
 		font-style: italic;
+		font-weight: 500;
 	}
 	.entry-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: 0.45rem;
 		flex-wrap: wrap;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.74rem;
-		color: var(--cyan);
+		font-size: 0.78rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
 	}
 	.dot {
-		color: var(--dim);
+		color: var(--nb-hairline-strong);
 	}
 	.status {
-		padding: 0.1rem 0.5rem;
+		padding: 0.1rem 0.55rem;
 		border-radius: 999px;
 		border: 1px solid currentColor;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		font-size: 0.68rem;
+		letter-spacing: 0.07em;
+		font-size: 0.64rem;
+		font-weight: 600;
 	}
+	/* The flag status carries the gold thread; awaiting-review stays a quiet gray. */
 	.status.warn {
-		color: var(--amber);
+		color: var(--nb-accent-ink);
 	}
 	.status.pending {
-		color: var(--teal);
+		color: var(--nb-ink-soft);
 	}
 	.entry-session {
 		margin: 0.3rem 0 0;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.74rem;
-		color: var(--dim);
+		font-size: 0.78rem;
+		color: var(--nb-ink-faint);
 	}
 	.callout {
-		border-left: 2px solid var(--amber);
-		padding: 0.45rem 0.7rem;
-		margin: 0 0 0.7rem;
-		background: color-mix(in srgb, var(--amber) 7%, transparent);
-		font-size: 0.87rem;
+		border-left: 2px solid var(--nb-accent);
+		padding: 0.55rem 0.8rem;
+		margin: 0 0 0.8rem;
+		background: var(--nb-accent-wash);
+		border-radius: 0 var(--nb-radius-control) var(--nb-radius-control) 0;
+		font-size: 0.88rem;
 		display: grid;
 		gap: 0.2rem;
 	}
 	.callout strong {
-		color: var(--amber);
+		color: var(--nb-accent-ink);
 	}
 	.callout-hint {
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.8rem;
 	}
 

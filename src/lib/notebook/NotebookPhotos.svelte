@@ -133,9 +133,11 @@
 {/if}
 
 <style>
+	/* Editorial framing: the photo floats on paper with a hairline frame and
+	   a wider gap between pages; captions are quiet gray sans. */
 	.photos {
 		display: grid;
-		gap: 0.9rem;
+		gap: 1.4rem;
 	}
 	.photo {
 		margin: 0;
@@ -150,19 +152,19 @@
 		min-height: 12rem;
 		max-height: 40rem;
 		object-fit: contain;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 6px;
+		background: var(--nb-surface-dim);
+		border: 1px solid var(--nb-hairline);
+		border-radius: 8px;
 	}
 	.photo-missing {
 		display: grid;
 		gap: 0.6rem;
 		justify-items: start;
 		padding: 1.2rem;
-		border: 1px dashed var(--line);
-		border-radius: 6px;
-		background: var(--bg1);
-		color: var(--dim);
+		border: 1px dashed var(--nb-hairline-strong);
+		border-radius: 8px;
+		background: var(--nb-surface-dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.87rem;
 	}
 	.photo-missing p {
@@ -175,43 +177,45 @@
 		flex-wrap: wrap;
 	}
 	.drive-link {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		color: var(--dim);
+		font-size: 0.76rem;
+		color: var(--nb-ink-faint);
 	}
 	.drive-link:hover {
-		color: var(--cyan);
+		color: var(--nb-accent-ink);
 	}
 	figcaption {
 		display: flex;
-		gap: 0.5rem;
+		gap: 0.55rem;
 		flex-wrap: wrap;
 		align-items: center;
-		margin-top: 0.3rem;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--dim);
+		margin-top: 0.4rem;
+		font-size: 0.74rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
 	}
 	.variant {
-		color: var(--cyan);
+		color: var(--nb-accent-ink);
 	}
 	.variant-toggle {
 		display: inline-flex;
-		border: 1px solid var(--line);
+		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
 		overflow: hidden;
+		background: var(--nb-surface);
 	}
 	.variant-toggle button {
 		background: none;
 		border: none;
-		padding: 0.1rem 0.55rem;
+		padding: 0.12rem 0.6rem;
 		font: inherit;
-		color: var(--dim);
+		color: var(--nb-ink-faint);
 		cursor: pointer;
 	}
+	/* Gold marks the active segment, the platform's one accent thread. */
 	.variant-toggle button.on {
-		color: var(--bg0);
-		background: var(--cyan);
+		color: var(--nb-accent-ink);
+		background: var(--nb-accent-wash);
+		font-weight: 600;
 	}
 	.filename {
 		overflow: hidden;

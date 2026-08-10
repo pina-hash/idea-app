@@ -250,12 +250,12 @@
 		margin: 0;
 	}
 	.note {
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.85rem;
 		margin: 0.2rem 0 0;
 	}
 	.empty {
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.9rem;
 	}
 	.session-list {
@@ -270,9 +270,9 @@
 		gap: 1rem;
 		flex-wrap: wrap;
 		padding: 0.6rem 0.7rem;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--bg1);
+		border: 1px solid var(--nb-hairline);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface-dim);
 	}
 	.session-main {
 		display: flex;
@@ -281,18 +281,21 @@
 		flex-wrap: wrap;
 	}
 	.unit {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		color: var(--cyan);
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--nb-ink-faint);
 		white-space: nowrap;
 	}
 	.label {
-		color: var(--white);
+		color: var(--nb-ink);
+		font-weight: 500;
 	}
 	.date {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		color: var(--dim);
+		font-size: 0.76rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
 	}
 	.session-actions {
 		display: flex;
@@ -302,15 +305,15 @@
 	}
 	.confirm-hint {
 		font-size: 0.8rem;
-		color: var(--amber);
+		color: var(--nb-warn);
 	}
 	.session-form {
 		display: grid;
 		gap: 0.7rem;
 		padding: 0.9rem;
-		border: 1px solid var(--line-strong);
-		border-radius: 4px;
-		background: var(--bg2);
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface-dim);
 		width: 100%;
 	}
 	.session-form h3 {
@@ -327,23 +330,25 @@
 		gap: 0.25rem;
 	}
 	.field span {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--dim);
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--nb-ink-faint);
 	}
 	.field input {
 		width: 100%;
 		padding: 0.45rem 0.55rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		color: var(--white);
-		font-family: var(--font-display);
+		background: var(--nb-surface);
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--nb-radius-control);
+		color: var(--nb-ink);
+		font-family: inherit;
 		font-size: 0.95rem;
 	}
 	.field input:focus {
 		outline: none;
-		border-color: var(--line-strong);
+		border-color: var(--nb-accent);
 	}
 	.form-actions {
 		display: flex;
@@ -353,21 +358,29 @@
 	}
 	.hint {
 		font-size: 0.8rem;
-		color: var(--amber);
+		color: var(--nb-warn);
 	}
 	.msg {
 		margin: 0;
 		font-size: 0.88rem;
 	}
 	.msg.error {
-		color: var(--crimson);
+		color: var(--nb-error);
 	}
 	.msg.ok {
-		color: var(--green);
+		color: var(--nb-ok);
 	}
 	.btn.danger {
-		border-color: var(--crimson);
-		color: var(--crimson);
+		background: var(--nb-surface);
+		border-color: var(--nb-error);
+		color: var(--nb-error);
+	}
+	.btn.danger:hover {
+		background: var(--nb-error);
+		border-color: var(--nb-error);
+		color: var(--nb-surface);
+		box-shadow: none;
+		text-shadow: none;
 	}
 
 	@media (max-width: 640px) {

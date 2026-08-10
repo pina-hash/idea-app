@@ -45,4 +45,30 @@
 	--border-hairline: var(--line);
 	--border-active: var(--line-strong);
 	--focus-ring: var(--cyan);
+
+	/* --- Notebook editorial room (--nb-*) ---------------------------------
+	   A light, editorial palette used ONLY by the digital notebook surfaces
+	   (scoped under .nb-root in src/lib/notebook/notebook-theme.css). New
+	   names on purpose: nothing outside the notebook reads these, and no
+	   token above changes. The one deliberate thread back to the platform is
+	   the gold accent -- --nb-accent IS --gold, and --nb-accent-ink is the
+	   same brass deepened only enough to read as TEXT on the light ground
+	   (raw #c8a848 measures ~2.2:1 on #fafaf7). Status feedback colors are
+	   DERIVED from the existing semantic tokens via color-mix, never new
+	   hues. ------------------------------------------------------------- */
+	--nb-bg: #fafaf7; /* warm off-white page, never stark white */
+	--nb-surface: #ffffff; /* raised paper: cards, table sticky column */
+	--nb-surface-dim: #f2f1ea; /* recessed paper: pickers, forms, staged rows */
+	--nb-ink: #26221b; /* primary text: near-black with warmth */
+	--nb-ink-soft: #57524a; /* secondary text */
+	--nb-ink-faint: #8b857a; /* muted meta: timestamps, captions, hints */
+	--nb-hairline: #e8e5dd; /* barely-there borders */
+	--nb-hairline-strong: #d8d4c9;
+	--nb-masthead: #211f1a; /* dark header band: the emblem + ProfileMenu are drawn for dark ground */
+	--nb-accent: var(--gold); /* the platform thread: aged brass, sparingly */
+	--nb-accent-ink: #8a6d24; /* brass deepened for links / active text on light */
+	--nb-accent-wash: rgba(200, 168, 72, 0.13); /* active-state fill */
+	--nb-ok: color-mix(in srgb, var(--teal) 72%, #0e2417); /* success text on light */
+	--nb-error: color-mix(in srgb, var(--crimson) 76%, #2b100d); /* error text on light */
+	--nb-warn: color-mix(in srgb, var(--amber) 78%, #2b1a08); /* warning text on light */
 }

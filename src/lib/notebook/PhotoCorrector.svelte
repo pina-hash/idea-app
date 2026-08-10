@@ -309,13 +309,18 @@
 </div>
 
 <style>
+	/* The overlay stays a DARK island inside the light notebook room, on
+	   purpose: the drag quad and handles must keep their contrast over
+	   arbitrary photos, and a light surround would fight the photo itself.
+	   Only the CHROME (type, buttons) speaks the editorial voice; the warm
+	   near-black ties it to the notebook's ink rather than the app shell. */
 	.pc-overlay {
 		position: fixed;
 		inset: 0;
 		z-index: 1000;
 		display: flex;
 		flex-direction: column;
-		background: rgba(4, 6, 5, 0.96);
+		background: rgba(22, 20, 16, 0.97);
 		padding: 0.9rem 1rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
 	}
 	.pc-head {
@@ -329,19 +334,20 @@
 		flex-wrap: wrap;
 	}
 	.pc-title {
-		font-weight: 600;
+		font-weight: 700;
 		font-size: 1.05rem;
-		color: var(--white);
+		letter-spacing: -0.01em;
+		color: #f5f2e9;
 	}
 	.pc-count {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		color: var(--cyan);
+		font-size: 0.76rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-accent);
 	}
 	.pc-hint {
 		margin: 0.25rem 0 0;
-		color: var(--dim);
-		font-size: 0.82rem;
+		color: rgba(245, 242, 233, 0.62);
+		font-size: 0.83rem;
 	}
 	.pc-stage {
 		flex: 1;
@@ -366,8 +372,8 @@
 		max-height: calc(100vh - 11rem);
 		width: auto;
 		height: auto;
-		border: 1px solid var(--line);
-		background: var(--bg0);
+		border: 1px solid rgba(245, 242, 233, 0.16);
+		background: #171512;
 	}
 	.pc-frame svg {
 		position: absolute;
@@ -412,9 +418,8 @@
 		background: var(--green);
 	}
 	.pc-status {
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.85rem;
+		color: rgba(245, 242, 233, 0.62);
+		font-size: 0.88rem;
 	}
 	.pc-actions {
 		flex: none;
@@ -424,18 +429,61 @@
 		flex-wrap: wrap;
 		margin-top: 0.8rem;
 	}
+	/* Overlay-local button styling: the room's ink-on-paper .btn treatment
+	   inverts here (paper button on the dark stage), and these scoped rules
+	   deliberately out-rank both the app shell's and the theme file's .btn. */
+	.pc-actions .btn {
+		font-family: inherit;
+		font-size: 0.85rem;
+		font-weight: 600;
+		letter-spacing: 0.01em;
+		text-transform: none;
+		color: #26221b;
+		background: #f5f2e9;
+		border: 1px solid #f5f2e9;
+		border-radius: 6px;
+		padding: 0.6rem 1.2rem;
+	}
+	.pc-actions .btn:hover {
+		color: #26221b;
+		background: #ffffff;
+		border-color: #ffffff;
+		box-shadow: none;
+		text-shadow: none;
+	}
+	.pc-actions .btn:disabled,
+	.pc-actions .btn:disabled:hover {
+		color: rgba(245, 242, 233, 0.45);
+		background: rgba(245, 242, 233, 0.12);
+		border-color: transparent;
+		box-shadow: none;
+		opacity: 1;
+	}
+	.pc-actions .btn.secondary {
+		color: #f5f2e9;
+		background: transparent;
+		border-color: rgba(245, 242, 233, 0.38);
+	}
+	.pc-actions .btn.secondary:hover {
+		color: #ffffff;
+		background: transparent;
+		border-color: #f5f2e9;
+		box-shadow: none;
+		text-shadow: none;
+	}
 	.pc-reset {
 		background: none;
 		border: none;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
+		color: rgba(245, 242, 233, 0.55);
+		font-family: inherit;
+		font-size: 0.74rem;
+		font-weight: 600;
 		text-transform: uppercase;
-		letter-spacing: 0.05em;
+		letter-spacing: 0.08em;
 		cursor: pointer;
 	}
 	.pc-reset:hover:not(:disabled) {
-		color: var(--cyan);
+		color: var(--nb-accent);
 	}
 	.pc-reset:disabled,
 	.pc-handle:disabled {

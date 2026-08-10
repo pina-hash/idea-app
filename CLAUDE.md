@@ -3367,6 +3367,58 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
 - **Photos are the priority content**: one per row at full column width
   (measured 744px at a 1280 viewport, up to 40rem tall), never a thumbnail
   grid, with reserved height so a slow load cannot collapse the frame.
+- **Editorial light theme (`.nb-root`), the notebook's own room.** The
+  student feed, upload flow (photo corrector included), and instructor
+  review console all render inside a light, editorial skin deliberately
+  distinct from the portal's dark technical theme -- warm off-white
+  `#fafaf7`, warm near-black ink, restrained gray meta, hairline borders,
+  system sans stack (no new webfont), and ONE accent thread back to the
+  platform: the existing `--gold` for links, active states (selected picks,
+  the corrected/original toggle), and the flag-status accent (`--nb-accent`
+  IS `var(--gold)`; `--nb-accent-ink` is the same brass deepened only for
+  text legibility on light, since raw #c8a848 measures ~2.2:1 there).
+  - **Tokens live in the design-system layer** (`colors.css` / `effects.css`,
+    the `--nb-*` blocks -- purely ADDITIVE, no existing token changed;
+    status feedback colors derive from existing tokens via color-mix, never
+    new hues). `src/lib/notebook/notebook-theme.css` is the scoped skin over
+    the shared global classes (.app-header/.card/.btn/.hero/.eyebrow) plus
+    the FRC/FSP-convention neutralizations (no green `// ` h2 prefix, no
+    link glow, opaque above `.bg-fx`), imported by NotebookView and
+    ReviewConsole, which both wrap their templates in `.nb-root`. The
+    homepage launcher card is untouched.
+  - **Two deliberate dark islands:** the masthead (`.app-header` stays an
+    ink band, because the AnimatedLogo emblem and ProfileMenu are drawn for
+    dark ground) and the PhotoCorrector overlay (warm near-black so the
+    green drag quad/handles keep their contrast over arbitrary photos; only
+    its chrome -- sans type, sentence-case paper buttons -- went editorial).
+  - **The review grid's density and status cells are a LOCKED CONTRACT the
+    restyle verified, not assumed:** cell size (1.9rem), paddings, all six
+    glyph characters (✓ ⤴ ○ ! E –) in Share Tech Mono (now set explicitly
+    on the legend `.chip`, which used to inherit it), and every state's
+    exact token colors (--green/--amber/--cyan/--crimson/--ice/--gear) were
+    measured identical before/after; only chrome (hairlines, sticky
+    name-column now `--nb-surface`, the multi-entry badge bg, legend label
+    type) changed. EntryReview's PANEL status chips are the one deliberate
+    exception: same hue families deepened via color-mix for small-text
+    legibility on the light card.
+  - **A real pre-existing mobile bug fixed in passing:** the review page's
+    section `<select>` had no width constraint, so its longest option text
+    forced the whole layout viewport to ~424px at a 375px phone (also true
+    at HEAD, analytically); `width:100%; min-width:0` on it fixed the page
+    to exactly 375/375 with the grid still scrolling in its own container.
+  - **Verified** by measurement in `/dev/notebook` + `/dev/notebook-review`
+    (computed styles, not eyeballing): bg rgb(250,250,247), ink
+    rgb(38,34,27), white cards with hairline #e8e5dd + 10px radius + paper
+    shadow, 42px feed gap + 29px entry padding, photo at 649px the widest
+    element in the column, flag chip/callout on the gold thread, corrector
+    functional layer byte-identical (quad stroke rgb(120,184,112), 18px
+    dots, 44px targets), homepage/coin-desk tokens + `// ` prefix + bevel +
+    launcher card gold icon all unchanged, 0 new svelte-check warnings,
+    78/78 tests. **HARNESS TRAP found while verifying:** the non-compositing
+    preview pane freezes CSS TRANSITIONS at t=0, so a computed style read
+    through one (the .btn background transition) reports the PRE-transition
+    value forever -- set `el.style.transition='none'` before asserting
+    computed colors on anything the global .btn transition covers.
 - **Pre-upload photo correction (client-side only, no schema/RPC change).**
   Every picked photo passes through an interactive correction step before it
   uploads (`src/lib/notebook/PhotoCorrector.svelte`, one photo at a time even

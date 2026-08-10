@@ -174,7 +174,7 @@
 	.entry-panel {
 		display: grid;
 		gap: 0.9rem;
-		border-color: var(--line-strong);
+		border-color: var(--nb-hairline-strong);
 	}
 	.entry-head {
 		display: flex;
@@ -192,56 +192,61 @@
 		flex-wrap: wrap;
 		align-items: center;
 		margin: 0.35rem 0 0;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.74rem;
-		color: var(--dim);
+		font-size: 0.76rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
 	}
+	/* Panel status chips (NOT the grid's locked glyph cells): same hue
+	   families, each deepened onto ink via color-mix so the small text reads
+	   on the light card. */
 	.state {
 		padding: 0.1rem 0.4rem;
 		border: 1px solid currentColor;
 		border-radius: 3px;
+		font-weight: 600;
 	}
 	.state.on_time {
-		color: var(--green);
+		color: color-mix(in srgb, var(--green) 55%, #14260f);
 	}
 	.state.late {
-		color: var(--amber);
+		color: var(--nb-warn);
 	}
 	.state.flagged {
-		color: var(--crimson);
+		color: var(--nb-error);
 	}
 	.state.pending_review {
-		color: var(--cyan);
+		color: color-mix(in srgb, var(--cyan) 55%, #0d2620);
 	}
 	.state.excused,
 	.state.missing {
-		color: var(--ice);
+		color: var(--nb-ink-faint);
 	}
 	.also {
-		color: var(--gold);
+		color: var(--nb-accent-ink);
 	}
 	.callout {
 		display: grid;
 		gap: 0.2rem;
-		padding: 0.6rem 0.7rem;
-		border-left: 2px solid var(--amber);
-		background: var(--bg2);
+		padding: 0.6rem 0.8rem;
+		border-left: 2px solid var(--nb-accent);
+		background: var(--nb-accent-wash);
+		border-radius: 0 var(--nb-radius-control) var(--nb-radius-control) 0;
 		font-size: 0.88rem;
 	}
 	.callout strong {
-		color: var(--amber);
+		color: var(--nb-accent-ink);
 	}
 	.empty {
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.9rem;
 	}
 	.review-form {
 		display: grid;
 		gap: 0.6rem;
 		padding: 0.9rem;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--bg2);
+		border: 1px solid var(--nb-hairline);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface-dim);
 	}
 	.review-form h3 {
 		margin: 0;
@@ -260,25 +265,27 @@
 		flex: 1 1 16rem;
 	}
 	.field span {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--dim);
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--nb-ink-faint);
 	}
 	.field select,
 	.field input {
 		width: 100%;
 		padding: 0.45rem 0.55rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		color: var(--white);
-		font-family: var(--font-display);
+		background: var(--nb-surface);
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--nb-radius-control);
+		color: var(--nb-ink);
+		font-family: inherit;
 		font-size: 0.95rem;
 	}
 	.field select:focus,
 	.field input:focus {
 		outline: none;
-		border-color: var(--line-strong);
+		border-color: var(--nb-accent);
 	}
 	.form-actions {
 		display: flex;
@@ -290,14 +297,14 @@
 		font-size: 0.88rem;
 	}
 	.msg.error {
-		color: var(--crimson);
+		color: var(--nb-error);
 	}
 	.msg.ok {
-		color: var(--green);
+		color: var(--nb-ok);
 	}
 	.note {
 		margin: 0;
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.82rem;
 	}
 </style>

@@ -174,9 +174,8 @@
 		display: flex;
 		gap: 0.85rem;
 		flex-wrap: wrap;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.7rem;
-		color: var(--dim);
+		font-size: 0.72rem;
+		color: var(--nb-ink-faint);
 	}
 	.legend li {
 		display: flex;
@@ -189,11 +188,15 @@
 		width: 1.1rem;
 		height: 1.1rem;
 		border-radius: 3px;
+		/* Explicit, where it used to inherit from the legend: the glyph
+		   rendering (✓ ⤴ ○ ! E –) is a locked contract, so the chips keep
+		   Share Tech Mono even though the legend labels went sans. */
+		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.7rem;
 		line-height: 1;
 	}
 	.empty {
-		color: var(--dim);
+		color: var(--nb-ink-soft);
 		font-size: 0.9rem;
 	}
 
@@ -204,32 +207,33 @@
 		border-collapse: collapse;
 		width: 100%;
 	}
+	/* Grid DENSITY is untouched -- same paddings, same cell sizes; scanning
+	   many cells quickly is the point. Only the chrome speaks editorial. */
 	th,
 	td {
 		padding: 0.35rem 0.4rem;
 		text-align: center;
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--nb-hairline);
 	}
 	thead th {
 		vertical-align: bottom;
-		border-bottom: 1px solid var(--line-strong);
+		border-bottom: 1px solid var(--nb-hairline-strong);
 	}
 	.name-col {
 		text-align: left;
 		position: sticky;
 		left: 0;
-		background: var(--bg1);
+		background: var(--nb-surface);
 		min-width: 11rem;
 		font-weight: 400;
 	}
 	.student-name {
-		color: var(--white);
+		color: var(--nb-ink);
 	}
 	.free {
 		display: block;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--cyan);
+		font-size: 0.7rem;
+		color: var(--nb-ink-faint);
 	}
 	.session-col {
 		min-width: 5.4rem;
@@ -238,28 +242,28 @@
 	.col-label {
 		display: block;
 		font-size: 0.8rem;
-		color: var(--white);
-		font-weight: 400;
+		color: var(--nb-ink);
+		font-weight: 500;
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 	.col-date {
 		display: block;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--dim);
+		font-size: 0.7rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
 	}
 	.count-col {
 		min-width: 5rem;
-		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.78rem;
+		font-variant-numeric: tabular-nums;
 	}
 	.count {
-		color: var(--dim);
+		color: var(--nb-ink-faint);
 	}
 	.count.full {
-		color: var(--green);
+		color: var(--nb-ok);
 	}
 
 	/* One cell = colour AND glyph AND fill style, so no state depends on
@@ -283,8 +287,9 @@
 	button.cell:hover,
 	button.cell:focus-visible {
 		outline: none;
-		box-shadow: 0 0 0 2px var(--line-strong);
+		box-shadow: 0 0 0 2px rgba(38, 34, 27, 0.3);
 	}
+	/* The open cell keeps the raw gold ring -- the accent thread, unchanged. */
 	.cell.selected {
 		box-shadow: 0 0 0 2px var(--gold);
 	}
@@ -333,7 +338,8 @@
 		min-width: 0.9rem;
 		padding: 0 0.15rem;
 		border-radius: 999px;
-		background: var(--bg0);
+		/* Was --bg0 (the dark page); the badge floats on the light card now. */
+		background: var(--nb-surface);
 		border: 1px solid currentColor;
 		font-size: 0.6rem;
 		line-height: 0.95rem;

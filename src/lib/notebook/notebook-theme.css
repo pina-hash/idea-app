@@ -1,0 +1,210 @@
+/*
+ * Notebook editorial theme: the digital notebook's own room -- light, quiet,
+ * photography-first -- scoped ENTIRELY under .nb-root (the wrapper both
+ * NotebookView and ReviewConsole render) so it can never leak into the IDEA
+ * shell, VANGUARD, GAUNTLET, the coin surfaces, or anything else. The token
+ * VALUES live in the design-system layer (colors.css / effects.css, the
+ * --nb-* block); this file is the skin over the shared global classes these
+ * screens mount (.app-header, .card, .btn, .hero, .eyebrow) plus the
+ * app-shell neutralizations the FRC/FSP scoped themes established: no green
+ * '// ' h2 prefix, no link-hover glow, opaque and above the .bg-fx scanline
+ * layer.
+ *
+ * Type is a plain system sans stack, deliberately no webfont: the repo's
+ * loaded faces (Rajdhani / Share Tech Mono / Orbitron / Roboto-for-FRC) are
+ * all voices of other rooms. Share Tech Mono survives in exactly one place,
+ * the review grid's status cells, where the glyph rendering itself is a
+ * locked contract (see SectionGrid.svelte).
+ *
+ * Two deliberate dark islands remain: the masthead (.app-header) stays an
+ * ink band because the AnimatedLogo emblem and ProfileMenu are drawn for
+ * dark ground, and the PhotoCorrector overlay stays dark so the drag quad
+ * and handles keep their contrast over arbitrary photos.
+ */
+
+.nb-root {
+	--nb-font:
+		-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial,
+		sans-serif;
+
+	position: relative;
+	/* Above the portal's fixed .bg-fx overlay (z-index 0), and opaque, so the
+	   dark scanline ambiance never shows through the light surfaces. */
+	z-index: 1;
+	min-height: 100vh;
+	background: var(--nb-bg);
+	color: var(--nb-ink);
+	font-family: var(--nb-font);
+	font-size: 1rem;
+	line-height: 1.6;
+	-webkit-font-smoothing: auto;
+}
+
+/* --- Type ---------------------------------------------------------------- */
+
+.nb-root h1,
+.nb-root h2,
+.nb-root h3 {
+	font-family: var(--nb-font);
+	font-weight: 700;
+	color: var(--nb-ink);
+	line-height: 1.15;
+	letter-spacing: -0.01em;
+}
+.nb-root h1 {
+	font-size: 2.15rem;
+	letter-spacing: -0.02em;
+}
+.nb-root h2 {
+	font-size: 1.3rem;
+	margin: 0 0 0.9rem;
+}
+/* Neutralize the app shell's green '// ' heading prefix. */
+.nb-root h2::before {
+	content: none;
+}
+
+.nb-root a {
+	color: var(--nb-accent-ink);
+}
+.nb-root a:hover {
+	text-shadow: none;
+	text-decoration: underline;
+}
+.nb-root :focus-visible {
+	outline: 2px solid var(--nb-accent-ink);
+	outline-offset: 2px;
+}
+
+.nb-root .eyebrow {
+	font-family: var(--nb-font);
+	font-size: 0.7rem;
+	font-weight: 600;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--nb-accent-ink);
+	text-shadow: none;
+}
+.nb-root .lead {
+	color: var(--nb-ink-soft);
+	font-size: 1.02rem;
+	max-width: 40rem;
+}
+
+/* --- Masthead: the one dark band (emblem + ProfileMenu keep their designed
+   contrast; the back button restyles for the ink ground) ------------------ */
+
+.nb-root .app-header {
+	background: var(--nb-masthead);
+	border-bottom: none;
+}
+.nb-root .app-header .btn.secondary {
+	color: var(--white);
+	border-color: rgba(234, 230, 216, 0.32);
+	background: transparent;
+}
+.nb-root .app-header .btn.secondary:hover {
+	color: var(--white);
+	border-color: rgba(234, 230, 216, 0.75);
+	background: transparent;
+	box-shadow: none;
+	text-shadow: none;
+}
+
+/* --- Hero: left-aligned editorial opening, not the centered shell hero --- */
+
+.nb-root .hero {
+	text-align: left;
+	padding: 2.9rem 0 1.4rem;
+}
+
+/* --- Paper cards over machined metal ------------------------------------- */
+
+.nb-root .card {
+	background: var(--nb-surface);
+	border: 1px solid var(--nb-hairline);
+	border-radius: var(--nb-radius);
+	box-shadow: var(--nb-shadow);
+	padding: 1.75rem;
+}
+.nb-root .card > p {
+	color: var(--nb-ink);
+}
+.nb-root code {
+	font-size: 0.86em;
+	background: var(--nb-surface-dim);
+	border: 1px solid var(--nb-hairline);
+	border-radius: 4px;
+	padding: 0.05em 0.35em;
+}
+
+/* --- Buttons: quiet ink, sentence case, no glow --------------------------- */
+
+.nb-root .btn {
+	font-family: var(--nb-font);
+	font-size: 0.85rem;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	text-transform: none;
+	color: var(--nb-bg);
+	background: var(--nb-ink);
+	border: 1px solid var(--nb-ink);
+	border-radius: var(--nb-radius-control);
+	padding: 0.6rem 1.15rem;
+}
+.nb-root .btn:hover {
+	background: #3a352c;
+	border-color: #3a352c;
+	color: var(--nb-bg);
+	box-shadow: none;
+	text-shadow: none;
+}
+.nb-root .btn:active {
+	transform: translateY(1px);
+	box-shadow: none;
+}
+.nb-root .btn:disabled,
+.nb-root .btn:disabled:hover {
+	background: var(--nb-surface-dim);
+	border-color: var(--nb-hairline-strong);
+	color: var(--nb-ink-faint);
+	box-shadow: none;
+	opacity: 1;
+}
+.nb-root .btn.secondary {
+	background: var(--nb-surface);
+	border-color: var(--nb-hairline-strong);
+	color: var(--nb-ink-soft);
+}
+.nb-root .btn.secondary:hover {
+	background: var(--nb-surface);
+	border-color: var(--nb-ink);
+	color: var(--nb-ink);
+	box-shadow: none;
+	text-shadow: none;
+}
+
+/* --- Form controls: paper inputs. Components with their own scoped input
+   styles (SessionManager, ReviewConsole, EntryReview) override these -- this
+   is the baseline for anything unstyled, e.g. the entry label field. ------ */
+
+.nb-root .field {
+	border-bottom-color: var(--nb-hairline);
+}
+.nb-root input[type='text'],
+.nb-root input[type='number'],
+.nb-root input[type='date'],
+.nb-root select,
+.nb-root textarea {
+	font-family: var(--nb-font);
+	font-size: 0.95rem;
+	color: var(--nb-ink);
+	background: var(--nb-surface);
+	border: 1px solid var(--nb-hairline-strong);
+	border-radius: var(--nb-radius-control);
+	padding: 0.5rem 0.65rem;
+}
+.nb-root input::placeholder,
+.nb-root textarea::placeholder {
+	color: var(--nb-ink-faint);
+}
