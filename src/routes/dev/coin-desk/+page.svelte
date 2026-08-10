@@ -38,11 +38,23 @@
 	 *    revoke the first Shop Steward, then go back and Approve the still-
 	 *    pending second application -- it now succeeds (revoking freed the
 	 *    slot). Log an application of your own against any student already
-	 *    assigned to a section; try one with no section assigned to see the
-	 *    "assign one first" refusal. Once at least one role holder exists,
-	 *    "Pay Weekly Role Stipend" bulk-logs the 2i¢ award against exactly
-	 *    the current holders (filterable by role/section), never the whole
-	 *    section
+	 *    assigned to a section (pick a role and watch its REAL question bank
+	 *    load dynamically -- MC as radio options, written as free text, and
+	 *    Quartermaster has none configured yet so it renders no fields at
+	 *    all); try one with no section assigned to see the "assign one
+	 *    first" refusal. Approving pre-fills an expiration from the role's
+	 *    suggested duration (90 days here), always editable before or after
+	 *    submitting. Set a holder's expiration to a past date under Current
+	 *    holders ("expiration" -> pick a date -> save) and watch it read
+	 *    "expired" immediately, with no reload or timer needed, and drop out
+	 *    of both the ratio count and "Pay Weekly Role Stipend"'s payout;
+	 *    re-applying and re-approving the same student for the same role
+	 *    then succeeds again, auto-closing the lapsed row in the same step
+	 *    (shown as "expired" there too, distinct from a manual "revoked").
+	 *    Once at least one role holder exists, "Pay Weekly Role Stipend"
+	 *    bulk-logs the 2i¢ award against exactly the ACTIVE current holders
+	 *    (filterable by role/section), never the whole section and never an
+	 *    expired or revoked one
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
 
@@ -62,7 +74,7 @@
 	</label>
 	<label>
 		<input type="checkbox" bind:checked={rolesApplied} />
-		Migration 0074 (roles) applied
+		Migrations 0074/0076 (roles) applied
 	</label>
 </div>
 

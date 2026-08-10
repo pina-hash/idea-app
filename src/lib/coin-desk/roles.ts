@@ -2,12 +2,14 @@
  * IDEA Coin roles: Shop Steward, Quartermaster, Safety Officer, Lab Tech.
  * Plain types + pure helpers (client-safe, the coin-desk.ts / sections.ts
  * convention). This module never talks to Supabase; every write is a call
- * to a migration 0074 RPC made from RolesManager.svelte directly. See
- * supabase/migrations/0074_coin_roles.sql for the full design rationale --
- * why the ratio cap is checked at approval and not application, why two of
- * the four ratios are a proposed default rather than settled policy, and
- * why Weekly Role Stipend gets its own bulk-log RPC instead of riding
- * coin_bulk_log_section.
+ * to a migration 0074/0076 RPC made from RolesManager.svelte directly. See
+ * supabase/migrations/0074_coin_roles.sql for the base design rationale and
+ * supabase/migrations/0076_coin_role_quiz_and_expiration.sql for the real
+ * question bank, snapshotted answers, and holder expiration -- why the
+ * ratio cap is checked at approval and not application, why the question
+ * bank is edited by hand outside the normal migration flow (never here),
+ * why expiration is a computed condition with no scheduled job, and why MC
+ * correctness is informational only.
  */
 
 export interface CoinRoleDefinition {
@@ -21,11 +23,40 @@ export interface CoinRoleDefinition {
 	active: boolean;
 	sort_order: number;
 	notes: string | null;
+	/** Days from approval to a suggested expiration -- a UI pre-fill only, never server-enforced. */
+	suggested_duration_days: number | null;
 }
 
-export interface RoleAnswer {
+export type QuizQuestionType = 'mc' | 'written';
+
+/**
+ * A question as read from coin_role_quiz_questions (0076) for rendering the
+ * application form. Content is maintained by hand outside this repo's git
+ * history -- see the 0076 migration header and CLAUDE.md's Roles section --
+ * so this table is commonly empty for a role until someone seeds it.
+ */
+export interface RoleQuizQuestion {
+	id: string;
+	role_id: string;
+	type: QuizQuestionType;
+	question_text: string;
+	sequence: number;
+	/** 'mc' only. */
+	options: string[] | null;
+	correct_option_index: number | null;
+}
+
+/** A single question/answer pair as returned inside CoinRoleApplicationRow.answers, snapshotted at submission time. */
+export interface RoleAnswerRecord {
+	question_id: string;
+	type: QuizQuestionType;
 	question: string;
-	answer: string;
+	options: string[] | null;
+	written_answer: string | null;
+	selected_option_index: number | null;
+	correct_option_index: number | null;
+	/** 'mc' only -- computed once, at submission, from the question's answer key at that moment. Informational; never gates review. */
+	is_correct: boolean | null;
 }
 
 export interface CoinRoleApplicationRow {
@@ -36,7 +67,7 @@ export interface CoinRoleApplicationRow {
 	role_id: string;
 	role_name: string;
 	section_id: string;
-	answers: RoleAnswer[];
+	answers: RoleAnswerRecord[];
 	status: 'pending' | 'approved' | 'rejected';
 	submitted_by: string;
 	submitted_at: string;
@@ -55,6 +86,9 @@ export interface CoinRoleHolderRow {
 	section_id: string;
 	since: string;
 	assigned_by: string;
+	expires_at: string | null;
+	/** revoked_at is null AND (expires_at is null OR expires_at > now()), computed server-side -- never stored, never scheduled. */
+	is_active: boolean;
 	revoked_at: string | null;
 	revoked_by: string | null;
 	revoke_reason: string | null;
@@ -104,36 +138,60 @@ export function capacityLabel(cap: RoleCapacity | null): string {
 }
 
 /**
- * Placeholder free-response prompts, per role. The REAL quiz questions live
- * in the legacy "Role Questions" Google Sheet behind getRoleQuestions /
- * submitRoleApplication (src/lib/server/coin-ledger.ts,
- * src/routes/api/coin-ledger/apply/+server.ts) -- outside this repo, never
- * committed here, and NOT reproduced by this file. This is a functional
- * stand-in so an admin can log a real application today; swap these for the
- * real quiz text (by hand, or by porting it in from the Sheet) whenever
- * that content is available. coin_role_applications.answers stores whatever
- * question text was actually asked, verbatim -- these prompts are never
- * read back from the database, only used to render the entry form.
+ * Whether every currently-active question for a role has a usable answer in
+ * `answers` (a written question needs non-empty trimmed text, an MC question
+ * needs a selected index). A role with zero configured questions (the 0076
+ * migration leaves every role's question bank empty until seeded by hand)
+ * trivially passes -- there is nothing to answer yet.
  */
-export const ROLE_APPLICATION_QUESTIONS: Record<string, string[]> = {
-	shop_steward: [
-		'Why do you want to be Shop Steward?',
-		'Describe a time you kept a space safe or organized for other people.'
-	],
-	quartermaster: [
-		'Why do you want to be Quartermaster?',
-		'How would you track what tools and materials are checked out, and to whom?'
-	],
-	safety_officer: [
-		'Why do you want to be Safety Officer?',
-		'What would you do if you saw a classmate about to make an unsafe call?'
-	],
-	lab_tech: [
-		'Why do you want to be Lab Tech?',
-		'What would you check on a shared machine before the next student uses it?'
-	]
-};
+export function questionsAnswered(
+	questions: RoleQuizQuestion[],
+	answers: Record<string, { written?: string; selected?: number }>
+): boolean {
+	return questions.every((q) => {
+		const a = answers[q.id];
+		if (!a) return false;
+		if (q.type === 'written') return !!a.written?.trim();
+		return typeof a.selected === 'number';
+	});
+}
 
-export function questionsFor(roleId: string): string[] {
-	return ROLE_APPLICATION_QUESTIONS[roleId] ?? ['Why do you want this role?'];
+/**
+ * A YYYY-MM-DD date string (matching <input type="date">) `role.suggested_duration_days`
+ * days from `from` (defaults to now), or null when the role has no suggested
+ * duration. A pure UI pre-fill -- the approval RPC never applies this on its
+ * own; see the 0076 migration header for why.
+ */
+export function suggestedExpirationDate(
+	role: CoinRoleDefinition | undefined,
+	from: Date = new Date()
+): string | null {
+	if (!role?.suggested_duration_days) return null;
+	const d = new Date(from);
+	d.setDate(d.getDate() + role.suggested_duration_days);
+	return d.toISOString().slice(0, 10);
+}
+
+/** Converts a <input type="date"> value into an end-of-day ISO timestamp for an expires_at RPC param, or null for "no expiration". */
+export function dateInputToExpiresAt(value: string): string | null {
+	const trimmed = value.trim();
+	if (!trimmed) return null;
+	const d = new Date(`${trimmed}T23:59:59`);
+	return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+export type HolderStatus = 'active' | 'expired' | 'revoked';
+
+/**
+ * Single source of truth for how a holder row's state reads in the UI.
+ * `is_active` is the server's computed condition; a row can ALSO be
+ * revoked_at-null-but-expired (is_active false, revoked_at still null) when
+ * nothing has yet lazily finalized it -- see the 0076 migration header --
+ * which still reads as "expired" here, not "active".
+ */
+export function holderStatus(h: CoinRoleHolderRow): HolderStatus {
+	if (h.revoked_at) {
+		return h.revoked_by === 'system' ? 'expired' : 'revoked';
+	}
+	return h.is_active ? 'active' : 'expired';
 }

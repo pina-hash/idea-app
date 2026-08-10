@@ -47,7 +47,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		supabase
 			.from('coin_role_definitions')
 			.select(
-				'id, name, description, ratio_kind, ratio_count, ratio_per_students, ratio_is_default, active, sort_order, notes'
+				'id, name, description, ratio_kind, ratio_count, ratio_per_students, ratio_is_default, active, sort_order, notes, suggested_duration_days'
 			)
 			.eq('active', true)
 			.order('sort_order')

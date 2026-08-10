@@ -1,6 +1,6 @@
 import type { CoinCategory, StudentSuggestion } from '$lib/coin-desk';
 import type { CoinSectionRow, CoinSectionStudentRow } from '$lib/coin-desk/sections';
-import type { CoinRoleDefinition } from '$lib/coin-desk/roles';
+import type { CoinRoleDefinition, QuizQuestionType } from '$lib/coin-desk/roles';
 
 /**
  * In-memory stand-in for the 0070 Supabase schema, mirroring its actual
@@ -72,9 +72,11 @@ export const SAMPLE_STUDENTS: StudentSuggestion[] = [
 
 /**
  * Mirrors 0074's seed exactly (same ids, ratios, and ratio_is_default
- * flags): shop_steward and quartermaster are the two REAL documented
- * ratios, safety_officer and lab_tech are the proposed DEFAULT the source
- * quiz never specified (see roles.ts / 0074's migration header).
+ * flags), plus 0076's suggested_duration_days: shop_steward and
+ * quartermaster are the two REAL documented ratios, safety_officer and
+ * lab_tech are the proposed DEFAULT the source quiz never specified (see
+ * roles.ts / 0074's migration header). suggested_duration_days is a UI
+ * pre-fill only (roughly one semester, 90 days), matching 0076's seed.
  */
 export const SAMPLE_ROLE_DEFINITIONS: CoinRoleDefinition[] = [
 	{
@@ -87,7 +89,8 @@ export const SAMPLE_ROLE_DEFINITIONS: CoinRoleDefinition[] = [
 		ratio_is_default: false,
 		active: true,
 		sort_order: 10,
-		notes: 'Documented ratio: 3 per ~25 students, scaled proportionally.'
+		notes: 'Documented ratio: 3 per ~25 students, scaled proportionally.',
+		suggested_duration_days: 90
 	},
 	{
 		id: 'quartermaster',
@@ -99,7 +102,8 @@ export const SAMPLE_ROLE_DEFINITIONS: CoinRoleDefinition[] = [
 		ratio_is_default: false,
 		active: true,
 		sort_order: 20,
-		notes: 'Documented ratio: 1 per section, regardless of size.'
+		notes: 'Documented ratio: 1 per section, regardless of size.',
+		suggested_duration_days: 90
 	},
 	{
 		id: 'safety_officer',
@@ -111,7 +115,8 @@ export const SAMPLE_ROLE_DEFINITIONS: CoinRoleDefinition[] = [
 		ratio_is_default: true,
 		active: true,
 		sort_order: 30,
-		notes: 'DEFAULT, not settled: the source quiz never specified a ratio for this role.'
+		notes: 'DEFAULT, not settled: the source quiz never specified a ratio for this role.',
+		suggested_duration_days: 90
 	},
 	{
 		id: 'lab_tech',
@@ -123,16 +128,119 @@ export const SAMPLE_ROLE_DEFINITIONS: CoinRoleDefinition[] = [
 		ratio_is_default: true,
 		active: true,
 		sort_order: 40,
-		notes: 'DEFAULT, not settled: the source quiz never specified a ratio for this role.'
+		notes: 'DEFAULT, not settled: the source quiz never specified a ratio for this role.',
+		suggested_duration_days: 90
 	}
 ];
+
+interface SampleRoleQuestion {
+	id: string;
+	role_id: string;
+	type: QuizQuestionType;
+	question_text: string;
+	sequence: number;
+	options: string[] | null;
+	correct_option_index: number | null;
+}
+
+/**
+ * A dev-only stand-in question bank (this fake ledger's own test content,
+ * NOT the real quiz text -- see 0076's migration header: the real content is
+ * seeded by hand outside this repo, never committed here). Covers one
+ * written and one MC question per role so the dynamic form, submission, and
+ * the review screen's correctness indicator are all exercisable. quartermaster
+ * is left with ZERO questions on purpose, to drive the "no questions
+ * configured yet" empty state a role can genuinely be in before content is
+ * seeded.
+ */
+export const SAMPLE_ROLE_QUESTIONS: SampleRoleQuestion[] = [
+	{
+		id: 'q-ss-1',
+		role_id: 'shop_steward',
+		type: 'written',
+		question_text: 'Describe a time you kept a space safe or organized for other people.',
+		sequence: 1,
+		options: null,
+		correct_option_index: null
+	},
+	{
+		id: 'q-ss-2',
+		role_id: 'shop_steward',
+		type: 'mc',
+		question_text: 'You see a classmate leave a table saw running unattended. What do you do first?',
+		sequence: 2,
+		options: [
+			'Turn it off and find the instructor.',
+			'Leave it -- not your machine.',
+			'Wait to see if they come back.',
+			'Post about it later.'
+		],
+		correct_option_index: 0
+	},
+	{
+		id: 'q-so-1',
+		role_id: 'safety_officer',
+		type: 'written',
+		question_text: 'What would you do if you saw a classmate about to make an unsafe call?',
+		sequence: 1,
+		options: null,
+		correct_option_index: null
+	},
+	{
+		id: 'q-so-2',
+		role_id: 'safety_officer',
+		type: 'mc',
+		question_text: 'Which of these is the Safety Officer most responsible for during independent work time?',
+		sequence: 2,
+		options: [
+			'Grading classmates’ work.',
+			'Watching for and flagging unsafe behavior.',
+			'Assigning weekly wages.',
+			'Managing the coin ledger.'
+		],
+		correct_option_index: 1
+	},
+	{
+		id: 'q-lt-1',
+		role_id: 'lab_tech',
+		type: 'written',
+		question_text: 'What would you check on a shared machine before the next student uses it?',
+		sequence: 1,
+		options: null,
+		correct_option_index: null
+	},
+	{
+		id: 'q-lt-2',
+		role_id: 'lab_tech',
+		type: 'mc',
+		question_text: 'A 3D printer finishes a job and the bed is still covered in filament scraps. What do you do?',
+		sequence: 2,
+		options: ['Leave it for the next student.', 'Clean the bed and reset it.', 'Unplug the printer.', 'Nothing -- not your job.'],
+		correct_option_index: 1
+	}
+];
+
+function questionsForRole(roleId: string): SampleRoleQuestion[] {
+	return SAMPLE_ROLE_QUESTIONS.filter((q) => q.role_id === roleId).sort((a, b) => a.sequence - b.sequence);
+}
+
+interface RoleAnswerState {
+	question_id: string;
+	type: QuizQuestionType;
+	question_text: string;
+	options: string[] | null;
+	written_answer: string | null;
+	selected_option_index: number | null;
+	correct_option_index: number | null;
+	is_correct: boolean | null;
+}
 
 interface RoleApplicationState {
 	id: string;
 	student_email: string;
 	role_id: string;
 	section_id: string;
-	answers: { question: string; answer: string }[];
+	answers: RoleAnswerState[];
 	status: 'pending' | 'approved' | 'rejected';
 	submitted_by: string;
 	submitted_at: string;
@@ -149,9 +257,17 @@ interface RoleHolderState {
 	application_id: string;
 	since: string;
 	assigned_by: string;
+	expires_at: string | null;
 	revoked_at: string | null;
 	revoked_by: string | null;
 	revoke_reason: string | null;
+}
+
+/** Mirrors the 0076 "currently active" condition exactly, everywhere it's used. */
+function holderIsActive(h: RoleHolderState): boolean {
+	if (h.revoked_at) return false;
+	if (h.expires_at && new Date(h.expires_at).getTime() <= Date.now()) return false;
+	return true;
 }
 
 interface Txn {
@@ -228,17 +344,18 @@ function roleCapacity(roleId: string, sectionId: string): number {
 	return Math.floor((role.ratio_count * size) / (role.ratio_per_students ?? 1));
 }
 
+/** Mirrors 0076's _coin_role_active_holder_count: revoked_at is null AND not naturally expired. */
 function activeHolderCount(roleId: string, sectionId: string): number {
 	let n = 0;
 	for (const h of roleHolders.values()) {
-		if (h.role_id === roleId && h.section_id === sectionId && !h.revoked_at) n++;
+		if (h.role_id === roleId && h.section_id === sectionId && holderIsActive(h)) n++;
 	}
 	return n;
 }
 
 function studentHoldsRole(email: string, roleId: string): boolean {
 	for (const h of roleHolders.values()) {
-		if (h.student_email === email && h.role_id === roleId && !h.revoked_at) return true;
+		if (h.student_email === email && h.role_id === roleId && holderIsActive(h)) return true;
 	}
 	return false;
 }
@@ -473,12 +590,24 @@ export function createFakeLedger() {
 		section_id: 'role-ratio-demo',
 		answers: [
 			{
-				question: 'Why do you want to be Shop Steward?',
-				answer: 'I already reset the shop before anyone asks me to.'
+				question_id: 'q-ss-1',
+				type: 'written',
+				question_text: 'Describe a time you kept a space safe or organized for other people.',
+				options: null,
+				written_answer: 'Relabeled the tool wall so it stayed sorted after group builds.',
+				selected_option_index: null,
+				correct_option_index: null,
+				is_correct: null
 			},
 			{
-				question: 'Describe a time you kept a space safe or organized for other people.',
-				answer: 'Relabeled the tool wall so it stayed sorted after group builds.'
+				question_id: 'q-ss-2',
+				type: 'mc',
+				question_text: 'You see a classmate leave a table saw running unattended. What do you do first?',
+				options: questionsForRole('shop_steward')[1]?.options ?? null,
+				written_answer: null,
+				selected_option_index: 0,
+				correct_option_index: 0,
+				is_correct: true
 			}
 		],
 		status: 'pending',
@@ -495,12 +624,24 @@ export function createFakeLedger() {
 		section_id: 'role-ratio-demo',
 		answers: [
 			{
-				question: 'Why do you want to be Shop Steward?',
-				answer: 'I want to catch safety issues before they turn into a fine.'
+				question_id: 'q-ss-1',
+				type: 'written',
+				question_text: 'Describe a time you kept a space safe or organized for other people.',
+				options: null,
+				written_answer: 'Ran a quick cleanup checklist with my group at the end of build days.',
+				selected_option_index: null,
+				correct_option_index: null,
+				is_correct: null
 			},
 			{
-				question: 'Describe a time you kept a space safe or organized for other people.',
-				answer: 'Ran a quick cleanup checklist with my group at the end of build days.'
+				question_id: 'q-ss-2',
+				type: 'mc',
+				question_text: 'You see a classmate leave a table saw running unattended. What do you do first?',
+				options: questionsForRole('shop_steward')[1]?.options ?? null,
+				written_answer: null,
+				selected_option_index: 2,
+				correct_option_index: 0,
+				is_correct: false
 			}
 		],
 		status: 'pending',
@@ -846,10 +987,13 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 	}
 
 	// -----------------------------------------------------------------------
-	// Roles (0074). Mirrors coin_role_apply / _admin_list_applications /
-	// _admin_review / _admin_list_holders / _admin_revoke /
-	// coin_bulk_log_role_stipend / _admin_capacity closely enough to drive
-	// the real RolesManager UI end to end, including the ratio-cap refusal.
+	// Roles (0074, real questions + expiration in 0076). Mirrors
+	// coin_role_admin_list_role_questions / coin_role_apply /
+	// _admin_list_applications / _admin_review / _admin_list_holders /
+	// _admin_revoke / _admin_set_expiration / coin_bulk_log_role_stipend /
+	// _admin_capacity closely enough to drive the real RolesManager UI end
+	// to end, including the ratio-cap refusal and the lazy-expire-on-approve
+	// reconciliation the 0076 migration documents.
 	// -----------------------------------------------------------------------
 
 	if (fn === 'coin_role_admin_capacity') {
@@ -865,6 +1009,20 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 			},
 			error: null
 		});
+	}
+
+	if (fn === 'coin_role_admin_list_role_questions') {
+		const roleId = String(params.p_role_id ?? '');
+		const rows = questionsForRole(roleId).map((q) => ({
+			id: q.id,
+			role_id: q.role_id,
+			type: q.type,
+			question_text: q.question_text,
+			sequence: q.sequence,
+			options: q.options,
+			correct_option_index: q.correct_option_index
+		}));
+		return Promise.resolve({ data: rows, error: null });
 	}
 
 	if (fn === 'coin_role_apply') {
@@ -891,11 +1049,47 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 			return Promise.resolve(refused('already_holds_role'));
 		}
 
-		const rawAnswers = (params.p_answers as { question?: string; answer?: string }[] | undefined) ?? [];
-		const answers = rawAnswers.slice(0, 10).map((a) => ({
-			question: String(a.question ?? '').slice(0, 500),
-			answer: String(a.answer ?? '').slice(0, 4000)
-		}));
+		const rawAnswers =
+			(params.p_answers as
+				| { question_id?: string; written_answer?: string; selected_option_index?: number }[]
+				| undefined) ?? [];
+		const byQuestionId = new Map(rawAnswers.map((a) => [String(a.question_id ?? ''), a]));
+
+		const answers: RoleAnswerState[] = [];
+		for (const q of questionsForRole(roleId)) {
+			const submitted = byQuestionId.get(q.id);
+			if (q.type === 'written') {
+				const written = String(submitted?.written_answer ?? '').trim();
+				if (!written) {
+					return Promise.resolve(rpcError(`Missing an answer for "${q.question_text}".`));
+				}
+				answers.push({
+					question_id: q.id,
+					type: 'written',
+					question_text: q.question_text,
+					options: null,
+					written_answer: written.slice(0, 4000),
+					selected_option_index: null,
+					correct_option_index: null,
+					is_correct: null
+				});
+			} else {
+				const selected = submitted?.selected_option_index;
+				if (typeof selected !== 'number' || selected < 0 || selected >= (q.options?.length ?? 0)) {
+					return Promise.resolve(rpcError(`Missing an answer for "${q.question_text}".`));
+				}
+				answers.push({
+					question_id: q.id,
+					type: 'mc',
+					question_text: q.question_text,
+					options: q.options,
+					written_answer: null,
+					selected_option_index: selected,
+					correct_option_index: q.correct_option_index,
+					is_correct: selected === q.correct_option_index
+				});
+			}
+		}
 
 		const id = `app${++appSeq}`;
 		roleApplications.set(id, {
@@ -931,7 +1125,16 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 					role_id: a.role_id,
 					role_name: role?.name ?? a.role_id,
 					section_id: a.section_id,
-					answers: a.answers,
+					answers: a.answers.map((ans) => ({
+						question_id: ans.question_id,
+						type: ans.type,
+						question: ans.question_text,
+						options: ans.options,
+						written_answer: ans.written_answer,
+						selected_option_index: ans.selected_option_index,
+						correct_option_index: ans.correct_option_index,
+						is_correct: ans.is_correct
+					})),
 					status: a.status,
 					submitted_by: a.submitted_by,
 					submitted_at: a.submitted_at,
@@ -947,6 +1150,7 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 		const appId = String(params.p_application_id ?? '');
 		const decision = String(params.p_decision ?? '');
 		const note = (params.p_note as string | null) ?? null;
+		const expiresAt = (params.p_expires_at as string | null | undefined) ?? null;
 		const app = roleApplications.get(appId);
 		if (!app) return Promise.resolve(rpcError('Unknown application.'));
 		if (decision !== 'approve' && decision !== 'reject') {
@@ -966,7 +1170,10 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 
 		// Approve: the ratio cap check, hard-blocked, structured refusal --
 		// the exact Extra Credit cap_exceeded shape, checked HERE (approval),
-		// never at application time.
+		// never at application time. Both this and the already-holds-role
+		// check below use the SAME active condition (holderIsActive /
+		// studentHoldsRole) 0076 uses everywhere, so a naturally-expired
+		// holder never blocks a fresh approval.
 		const cap = roleCapacity(app.role_id, app.section_id);
 		const held = activeHolderCount(app.role_id, app.section_id);
 		if (held >= cap) {
@@ -983,6 +1190,24 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 			return Promise.resolve(refused('already_holds_role'));
 		}
 
+		// Lazily close out any lapsed-but-never-revoked row for this exact
+		// (student, role) so a NEW holder row for them can be created --
+		// mirrors the 0076 migration's approve-time UPDATE, since a real
+		// partial-unique-index equivalent can't reference "now" either.
+		for (const h of roleHolders.values()) {
+			if (
+				h.student_email === app.student_email &&
+				h.role_id === app.role_id &&
+				!h.revoked_at &&
+				h.expires_at &&
+				new Date(h.expires_at).getTime() <= Date.now()
+			) {
+				h.revoked_at = h.expires_at;
+				h.revoked_by = 'system';
+				h.revoke_reason = 'Closed automatically: role expired.';
+			}
+		}
+
 		const holderId = `hold${++holderSeq}`;
 		roleHolders.set(holderId, {
 			id: holderId,
@@ -992,6 +1217,7 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 			application_id: appId,
 			since: new Date().toISOString(),
 			assigned_by: 'admin@boscotech.edu',
+			expires_at: expiresAt,
 			revoked_at: null,
 			revoked_by: null,
 			revoke_reason: null
@@ -1001,7 +1227,9 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 		app.reviewed_at = new Date().toISOString();
 		app.review_note = note;
 
-		return Promise.resolve(ok({ status: 'approved', application_id: appId, holder_id: holderId }));
+		return Promise.resolve(
+			ok({ status: 'approved', application_id: appId, holder_id: holderId, expires_at: expiresAt })
+		);
 	}
 
 	if (fn === 'coin_role_admin_list_holders') {
@@ -1011,7 +1239,7 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 		const rows = Array.from(roleHolders.values())
 			.filter((h) => sectionId === null || h.section_id === sectionId)
 			.filter((h) => roleId === null || h.role_id === roleId)
-			.filter((h) => includeRevoked || !h.revoked_at)
+			.filter((h) => includeRevoked || holderIsActive(h))
 			.sort((a, b) => new Date(b.since).getTime() - new Date(a.since).getTime())
 			.map((h) => {
 				const student = SAMPLE_STUDENTS.find((s) => s.email === h.student_email);
@@ -1026,6 +1254,8 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 					section_id: h.section_id,
 					since: h.since,
 					assigned_by: h.assigned_by,
+					expires_at: h.expires_at,
+					is_active: holderIsActive(h),
 					revoked_at: h.revoked_at,
 					revoked_by: h.revoked_by,
 					revoke_reason: h.revoke_reason
@@ -1046,6 +1276,15 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 		return Promise.resolve(ok({ holder_id: holderId }));
 	}
 
+	if (fn === 'coin_role_admin_set_expiration') {
+		const holderId = String(params.p_holder_id ?? '');
+		const expiresAt = (params.p_expires_at as string | null | undefined) ?? null;
+		const holder = roleHolders.get(holderId);
+		if (!holder) return Promise.resolve(rpcError('Unknown role holder.'));
+		holder.expires_at = expiresAt;
+		return Promise.resolve(ok({ holder_id: holderId, expires_at: expiresAt }));
+	}
+
 	if (fn === 'coin_bulk_log_role_stipend') {
 		const roleId = (params.p_role_id as string | null | undefined) ?? null;
 		const sectionId = (params.p_section_id as string | null | undefined) ?? null;
@@ -1053,10 +1292,12 @@ async function handleRpc(fn: string, params: Record<string, unknown>): Promise<{
 
 		// distinct by email: a student holding two roles at once is paid the
 		// stipend once per run, not once per role -- mirrors 0074's `distinct`.
+		// Only ACTIVE holders (0076): a naturally-expired-but-unrevoked row
+		// stops being paid the moment its expiration passes.
 		const emails = Array.from(
 			new Set(
 				Array.from(roleHolders.values())
-					.filter((h) => !h.revoked_at)
+					.filter((h) => holderIsActive(h))
 					.filter((h) => roleId === null || h.role_id === roleId)
 					.filter((h) => sectionId === null || h.section_id === sectionId)
 					.map((h) => h.student_email)

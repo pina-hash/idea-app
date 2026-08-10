@@ -751,20 +751,20 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
     ever tied to a role is the RECURRING Weekly Role Stipend (2i¢/week
     while holding one, already seeded in 0070 as `weekly_role_stipend`,
     scope `209h`), logged separately (see the bulk-logging bullet below).
-  - **The real quiz content is NOT in this repo.** The doc references "The
-    Role Questions sheet already has a full application quiz written for
-    all four roles" -- that quiz's actual question TEXT lives in the
-    legacy Google Sheet behind `getRoleQuestions`/`submitRoleApplication`
+  - **The real quiz content is NOT in this repo (superseded by `0076`, see
+    below).** The doc references "The Role Questions sheet already has a
+    full application quiz written for all four roles" -- that quiz's actual
+    question TEXT lived in the legacy Google Sheet behind
+    `getRoleQuestions`/`submitRoleApplication`
     (`src/lib/server/coin-ledger.ts`,
-    `src/routes/api/coin-ledger/apply/+server.ts`), outside this repo, and
-    was never reproduced anywhere in the source doc itself -- there was
-    nothing to transcribe. `src/lib/coin-desk/roles.ts`'s
-    `ROLE_APPLICATION_QUESTIONS` is an explicitly-labelled functional
-    STAND-IN (two short free-response prompts per role) so an admin can log
-    a real application today; swap it for the real quiz text whenever that
-    becomes available. `coin_role_applications.answers` stores whatever
-    question text was actually asked, verbatim -- the stand-in prompts are
-    never read back from the database, only used to render the entry form.
+    `src/routes/api/coin-ledger/apply/+server.ts`), outside this repo. This
+    migration originally shipped a hardcoded stand-in
+    (`src/lib/coin-desk/roles.ts`'s `ROLE_APPLICATION_QUESTIONS`, two
+    free-response prompts per role) so an admin could log a real
+    application before real question storage existed. `0076` removes that
+    stand-in entirely and replaces it with a real, empty question table --
+    see "Real question storage + expiration" below for where responsibility
+    for the actual content now sits.
   - **Ratios: two are real, two are a proposed default.** Shop Steward is
     `per_students`: 3 per ~25 students, `floor(3 x section size / 25)`,
     where section size is the LIVE `coin_section_students` count, never a
@@ -891,6 +891,152 @@ transcription of `docs/coin-economy/idea_coin_economy_draft_v3.md` and
     the caller's own section, and rendering the stand-in question set as if
     it might be the real quiz -- real, separate work this pass does not
     take on.
+- **Real question storage + holder expiration
+  (`0076_coin_role_quiz_and_expiration.sql`, apply manually after 0075).**
+  Replaces `roles.ts`'s hardcoded `ROLE_APPLICATION_QUESTIONS` stand-in with
+  a real question bank, links every application answer to the specific
+  question it answered (for both MC and written), and adds an expiration to
+  `coin_role_holders`. Structure only -- see the "content ownership" bullet
+  below for exactly where the real question text is expected to come from.
+  - **`coin_role_quiz_questions`** (id, `role_id` -> `coin_role_definitions`,
+    `type` `mc`/`written`, `question_text`, `sequence`, and for `mc` a JSON
+    `options` array + `correct_option_index`) is left COMPLETELY EMPTY by
+    this migration -- no placeholder rows, no real content. `is_admin()`-
+    gated read, no insert/update/delete grant or policy at all: it is edited
+    BY HAND in the Supabase SQL editor, the exact "price list edited by
+    hand, no client write path" doctrine `0070` established for
+    `coin_categories` and `0074` already applied to `coin_role_definitions`.
+  - **CONTENT OWNERSHIP, stated plainly since this is where responsibility
+    actually sits:** the real quiz text (per `docs/coin-economy`) is never
+    committed to this repo and is never added by a future commit either --
+    it is pasted into `coin_role_quiz_questions` directly by whoever has
+    Supabase SQL editor access, the same way `coin_categories`' real prices
+    are maintained. A role with zero rows here (every role, until someone
+    seeds it) is a legitimate state, not a bug: `coin_role_apply` requires
+    zero answers for zero questions, and the admin form shows "No
+    application questions have been added for this role yet." instead of a
+    broken empty form.
+  - **`coin_role_application_answers`** replaces
+    `coin_role_applications.answers` (a freeform `{question, answer}` jsonb
+    array with no real link back to a question, dropped outright -- the
+    role-application flow had never gone live with real content per `0074`'s
+    own header, so there was no real data in that shape to preserve). One
+    row per question per application, SNAPSHOTTED at submission time
+    (question text, options, which option was correct, whether the selected
+    one matched) rather than live-joined against the question bank --
+    deliberate, because the question bank is maintained by hand outside
+    normal migrations and can be edited or replaced at any time; a live join
+    would let editing a question after the fact silently rewrite what a
+    completed review looked like.
+  - **MC scoring is informational only, exactly like the application fee is
+    0i¢ on purpose.** `is_correct` (plus the correct option's index) is
+    computed ONCE, at submission, from the question's answer key at that
+    moment, and shown on the review screen as a right/wrong indicator next
+    to whatever the student picked. Nothing reads it to gate, hide, or
+    auto-decide anything -- the written portion is never blocked or hidden
+    based on MC score, and approve/reject stays a manual admin call
+    regardless of how the MC portion scored.
+  - **Expiration is a COMPUTED condition, never a scheduled job.**
+    `coin_role_holders.expires_at` (nullable) plus the existing `revoked_at`
+    combine into one condition used EVERYWHERE a holder is counted or
+    listed: `revoked_at is null and (expires_at is null or expires_at >
+    now())`. A holder stops counting toward ratio capacity
+    (`_coin_role_active_holder_count`), stops appearing in the default
+    "current holders" list (`coin_role_admin_list_holders`), and stops being
+    paid the Weekly Role Stipend (`coin_bulk_log_role_stipend`) the instant
+    ANYTHING evaluates that condition past the expiration date -- no cron,
+    no timer, nothing that runs on a schedule.
+  - **The one place a natural expiration is ever physically WRITTEN, and
+    why it has to be.** The partial unique index that makes "one active
+    holder per (student, role)" enforceable
+    (`coin_role_holders_active_unique`, `where revoked_at is null`) can only
+    reference `revoked_at is null` -- Postgres does not allow a volatile
+    expression like `now()` in an index predicate, so the index has no way
+    to know a row has lapsed. Approving a NEW application for a student
+    whose prior holder expired naturally (revoked_at still null) would hit
+    that index. `coin_role_admin_review`'s approve branch handles this by
+    lazily stamping `revoked_at = expires_at, revoked_by = 'system'` on any
+    such lapsed-but-open row for that exact (student, role) pair the moment
+    a new approval needs the slot -- a write triggered by a real action
+    touching that row, not a background sweep. `roles.ts`'s `holderStatus()`
+    is the one place that distinguishes the result from a MANUAL revoke:
+    `revoked_by === 'system'` reads as "expired", anything else as
+    "revoked" -- and a row that is naturally past its expiration but not yet
+    lazily finalized (`revoked_at` still null) also reads as "expired" via
+    the server's own `is_active` flag, never "active".
+  - **Approval sets the expiration; it is never server-guessed.**
+    `coin_role_admin_review` gained `p_expires_at` (nullable, default
+    null) -- adding a parameter changes the function's real signature, so
+    the migration explicitly `drop function`s the old 3-argument overload
+    first (the exact "0058 naming trap" lesson this codebase already
+    documents: `create or replace` alone would have left the old signature
+    callable as a second overload). The server stores exactly what it's
+    given, including null for "no expiration" -- it never applies a default
+    on its own. `coin_role_definitions.suggested_duration_days` (seeded to
+    90, roughly a semester, for all four roles -- a proposed convenience
+    like `ratio_is_default`, always hand-editable, never enforced) is a
+    CLIENT-SIDE pre-fill only: `RolesManager.svelte` fills the approval
+    screen's expiration date input from it before the admin clicks Approve,
+    and the admin can clear or change it before submitting. This keeps the
+    RPC free of the ambiguity a server-side "null means use the default"
+    rule would create.
+  - **Editing an expiration is independent of revoking, always.**
+    `coin_role_admin_set_expiration(p_holder_id, p_expires_at)` works on a
+    holder in any state (active, expired, even already revoked) and needs
+    no revoke first; `coin_role_admin_list_holders` gained `expires_at` and
+    a computed `is_active` output column (also required an explicit
+    `drop function` first, same reasoning as above but for a return-type
+    change rather than a parameter).
+  - **Admin UI (`RolesManager.svelte`, `roles.ts`).** "Log an application"
+    now loads a role's REAL question set live
+    (`coin_role_admin_list_role_questions`) the moment a role is picked --
+    written renders a textarea, MC renders radio options -- and Log is
+    disabled until every currently-active question has an answer
+    (`questionsAnswered()`); a role with none configured shows a plain note
+    instead of a broken form. "Pending applications" shows each answer next
+    to its real question text, with a correctness badge on MC answers
+    (`✓ correct` / `✗ incorrect -- correct answer: ...`) and an expiration
+    date input pre-filled from the role's suggested duration next to
+    Approve. "Current holders by section" shows a status badge (active /
+    expired / revoked, from `holderStatus()`) and an "expiration" action
+    beside "revoke" that opens an inline date editor, independent of
+    revoking.
+  - **Verified** in `/dev/coin-desk` (`fake-ledger.ts` extended with a
+    dev-only sample question bank -- shop_steward/safety_officer/lab_tech
+    each get one written + one MC question, quartermaster deliberately gets
+    ZERO to exercise the "no questions yet" state -- and `holderIsActive()`
+    mirroring the 0076 active condition everywhere the real RPCs use it):
+    picking Quartermaster in "Log an application" showed "No application
+    questions have been added for this role yet." with Log disabled;
+    picking Safety Officer live-loaded its real written + MC question, Log
+    stayed disabled after only the textarea was filled and enabled once an
+    MC option was picked, and submitting showed the new application in
+    Pending with the real question text and a `✓ correct` badge on the
+    matching MC answer; approving it pre-filled the expiration input to
+    exactly today + 90 days and, after approval, the new holder read
+    "active · expires <that date>" under Current holders; editing that
+    holder's expiration to a past date flipped it to "expired" immediately
+    (verified against a genuine local-timezone "yesterday", not a UTC one --
+    an earlier attempt using `Date.prototype.toISOString()` for "yesterday"
+    silently produced today's date under UTC-7 and was caught by the
+    resulting "active" reading not matching the intended edit) and dropped
+    it out of a freshly-computed capacity chip (0 of 2 filled, correctly
+    excluding the expired-but-unrevoked row); re-applying and re-approving
+    the SAME student for the SAME role then succeeded (no `already_holds_role`
+    block) and the lazy-finalize left the old row reading "expired" with no
+    `revoke` button left on it (since it was already closed) while the new
+    row read "active" with a fresh expiration; manually revoking the new
+    row separately showed "revoked", confirming `holderStatus()` tells the
+    two apart; the pre-existing Ratio Cap Demo section still enforced its
+    cap-of-1 refusal identically to before (unaffected regression check);
+    and "Pay Weekly Role Stipend" with no filters paid exactly the two
+    remaining ACTIVE holders (`+2i¢` each), skipping both of the
+    now-expired/revoked Alex Rivera rows entirely. Zero console errors
+    throughout. `npm run check`: 0 errors, 0 new warnings. **NOT verified:
+    the live Supabase project** -- same placeholder-`.env` caveat as every
+    other coin-economy migration; 0076 has never been applied anywhere,
+    verified via the dev harness and by reading the RLS policies, grants,
+    and the partial-unique-index-vs-`now()` reasoning directly.
 
 ## 2026-27 curriculum
 
