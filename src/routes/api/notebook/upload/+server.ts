@@ -87,7 +87,7 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	try {
 		fileId = await uploadNotebookPhoto({
 			bytes,
-			mimeType: read.photo.type,
+			mimeType: read.mimeType,
 			// The entry does not exist yet (the RPC below needs the file id
 			// first), so upload under a provisional random short-id and rename
 			// to the entry's real short-id once the RPC returns it.

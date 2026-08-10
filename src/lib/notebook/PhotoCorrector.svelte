@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { correctedFileName } from '$lib/notebook';
+	import { decodeImageFile, imageSize, releaseImage } from './camera';
 	import {
 		autoLevels,
 		defaultCorners,
@@ -45,9 +46,18 @@
 		onDone: (enhanced: File | null, failed?: boolean) => void;
 	} = $props();
 
-	/** Full-res sources above this get downscaled once up front: the warp
-	 * output is capped at 2000px anyway, and a 12 MP ImageData is ~48 MB. */
-	const SOURCE_MAX = 3200;
+	/**
+	 * Full-res sources above this get downscaled once up front: the warp output
+	 * is capped at OUTPUT_MAX anyway, and a 12 MP ImageData is ~48 MB.
+	 *
+	 * Deliberately only a little above OUTPUT_MAX. The warp still supersamples
+	 * (it reads a larger source than it writes), so the extra headroom above
+	 * 2000 px buys real sharpness, while the step down from the old 3200 takes
+	 * the getImageData allocation this holds from ~30 MB to ~17 MB -- which
+	 * matters on the phones this flow is FOR, where that allocation failing is
+	 * what put the whole correction step on the floor.
+	 */
+	const SOURCE_MAX = 2400;
 	const OUTPUT_MAX = 2000;
 	const DETECT_MAX = 260;
 
@@ -62,81 +72,95 @@
 	let dragging = $state<number | null>(null);
 
 	onMount(() => {
+		// `load` resolves rather than rejects on every failure path (see below),
+		// so there is no rejection here to go unhandled.
 		void load();
 	});
 
+	/**
+	 * Prepare the editable canvas, or bow out cleanly.
+	 *
+	 * EVERY failure has to end in an onDone() call, and that is the whole
+	 * shape of this function. It used to guard only the decode, leaving the
+	 * canvas sizing, the draw and the getContext unguarded -- and a throw from
+	 * any of those escaped into `void load()` as an unhandled rejection while
+	 * `loading` stayed true forever, which renders as a dark overlay stuck on
+	 * "Opening photo..." with Flatten and Reset both disabled and nothing
+	 * staged behind it. That is a real, reproducible phone failure and not a
+	 * theoretical one: those operations allocate a canvas up to SOURCE_MAX
+	 * square and draw a full-resolution decode into it, so they fail under
+	 * exactly the memory pressure a 12 MP capture creates -- while the smaller
+	 * images a gallery pick tends to yield sail through the same code.
+	 */
 	async function load() {
-		let bitmap: ImageBitmap | HTMLImageElement | null = null;
+		let bitmap: Awaited<ReturnType<typeof decodeImageFile>> = null;
 		try {
-			// 'from-image' honors EXIF orientation where supported, so a
-			// portrait phone shot is corrected upright, not sideways.
-			bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-		} catch {
-			bitmap = await decodeViaImg(file);
-		}
-		if (!bitmap || !canvasEl) {
-			// Not decodable here (e.g. HEIC on a desktop browser): skip the
-			// step, upload as-is, and tell the parent why.
-			onDone(null, true);
-			return;
-		}
-		const scale = Math.min(1, SOURCE_MAX / Math.max(bitmap.width, bitmap.height));
-		imgW = Math.max(1, Math.round(bitmap.width * scale));
-		imgH = Math.max(1, Math.round(bitmap.height * scale));
-		canvasEl.width = imgW;
-		canvasEl.height = imgH;
-		const ctx = canvasEl.getContext('2d');
-		if (!ctx) {
-			onDone(null, true);
-			return;
-		}
-		ctx.drawImage(bitmap, 0, 0, imgW, imgH);
-		if ('close' in bitmap) bitmap.close();
-
-		// Best-effort detection on a small copy; unconfident falls back to
-		// near-corner defaults the student can drag from.
-		const dScale = Math.min(1, DETECT_MAX / Math.max(imgW, imgH));
-		const dw = Math.max(1, Math.round(imgW * dScale));
-		const dh = Math.max(1, Math.round(imgH * dScale));
-		const small = document.createElement('canvas');
-		small.width = dw;
-		small.height = dh;
-		const sctx = small.getContext('2d');
-		let quad: Quad | null = null;
-		if (sctx) {
-			sctx.drawImage(canvasEl, 0, 0, dw, dh);
-			try {
-				const found = detectPageCorners(sctx.getImageData(0, 0, dw, dh));
-				if (found.confident) {
-					quad = found.corners.map((p) => ({
-						x: clamp(p.x / dScale, 0, imgW),
-						y: clamp(p.y / dScale, 0, imgH)
-					})) as Quad;
-				}
-			} catch {
-				// Detection is best-effort by definition; fall through.
+			// Honors EXIF orientation (a phone capture is nearly always rotated)
+			// and, importantly, cannot hang: an oversized image on a pressured
+			// device can leave a decode that never settles at all, so the helper
+			// imposes a deadline and reports null instead of waiting forever.
+			bitmap = await decodeImageFile(file);
+			if (!bitmap || !canvasEl) {
+				// Undecodable here (HEIC on a desktop browser), or the decode
+				// overran: skip the step, upload as-is, and say why.
+				onDone(null, true);
+				return;
 			}
-		}
-		quad ??= defaultCorners(imgW, imgH);
-		seedCorners = quad.map((p) => ({ ...p })) as Quad;
-		corners = quad;
-		loading = false;
-	}
+			const { width: srcW, height: srcH } = imageSize(bitmap);
+			if (!srcW || !srcH) {
+				onDone(null, true);
+				return;
+			}
+			const scale = Math.min(1, SOURCE_MAX / Math.max(srcW, srcH));
+			imgW = Math.max(1, Math.round(srcW * scale));
+			imgH = Math.max(1, Math.round(srcH * scale));
+			canvasEl.width = imgW;
+			canvasEl.height = imgH;
+			const ctx = canvasEl.getContext('2d');
+			if (!ctx) {
+				onDone(null, true);
+				return;
+			}
+			ctx.drawImage(bitmap, 0, 0, imgW, imgH);
+			releaseImage(bitmap);
+			bitmap = null;
 
-	function decodeViaImg(f: File): Promise<HTMLImageElement | null> {
-		return new Promise((resolve) => {
-			const url = URL.createObjectURL(f);
-			const img = new Image();
-			img.onload = () => {
-				URL.revokeObjectURL(url);
-				resolve(img);
-			};
-			img.onerror = () => {
-				URL.revokeObjectURL(url);
-				resolve(null);
-			};
-			img.src = url;
-		});
+			// Best-effort detection on a small copy; unconfident falls back to
+			// near-corner defaults the student can drag from.
+			const dScale = Math.min(1, DETECT_MAX / Math.max(imgW, imgH));
+			const dw = Math.max(1, Math.round(imgW * dScale));
+			const dh = Math.max(1, Math.round(imgH * dScale));
+			const small = document.createElement('canvas');
+			small.width = dw;
+			small.height = dh;
+			const sctx = small.getContext('2d');
+			let quad: Quad | null = null;
+			if (sctx) {
+				try {
+					sctx.drawImage(canvasEl, 0, 0, dw, dh);
+					const found = detectPageCorners(sctx.getImageData(0, 0, dw, dh));
+					if (found.confident) {
+						quad = found.corners.map((p) => ({
+							x: clamp(p.x / dScale, 0, imgW),
+							y: clamp(p.y / dScale, 0, imgH)
+						})) as Quad;
+					}
+				} catch {
+					// Detection is best-effort by definition; fall through.
+				}
+			}
+			quad ??= defaultCorners(imgW, imgH);
+			seedCorners = quad.map((p) => ({ ...p })) as Quad;
+			corners = quad;
+			loading = false;
+		} catch {
+			// Correction must never strand the photo: any failure at all
+			// degrades to "upload the original as-is", which is what the parent
+			// does with a null result.
+			onDone(null, true);
+		} finally {
+			releaseImage(bitmap);
+		}
 	}
 
 	function clamp(v: number, lo: number, hi: number): number {

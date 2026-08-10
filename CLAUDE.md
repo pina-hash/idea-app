@@ -3484,6 +3484,122 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
     warnings; `npm test` 59/59. **Checked by eye only: nothing** -- but the
     pane could not composite a mobile screenshot, so the phone-width look
     was asserted geometrically rather than visually.
+- **Camera capture (`src/lib/notebook/camera.ts`), after a real phone test
+  found the flow broken two ways: the wrong lens, and a capture that went
+  nowhere.** The "nothing happens" half had TWO independent causes, both
+  reproduced before anything was changed rather than guessed at.
+  - **CAUSE 1, the silent stall: `PhotoCorrector.load()` guarded only the
+    DECODE.** Everything after it -- sizing the canvas up to `SOURCE_MAX`
+    square, `getContext`, and drawing a full-resolution bitmap into it -- ran
+    unguarded inside a function invoked as `void load()`, so a throw from any
+    of them became an unhandled rejection that nothing surfaced while
+    `loading` stayed true FOREVER. What the student sees is a dark overlay
+    stuck on "Opening photo...", Flatten and Reset both disabled, nothing
+    staged behind it, and Save never enabling -- i.e. exactly "I took a photo
+    and nothing happened". **Camera-specific because it is size-dependent:**
+    those are the allocations a 12 MP capture makes, and the smaller images a
+    gallery pick tends to be never reach them. Reproduced by making
+    `drawImage` throw on a 4032x3024 file, which pinned the corrector open
+    with a real `rejection: out of memory` and an empty staging list; with
+    the fix the identical injection stages the photo, explains itself, and
+    enables Save. `load()` now ends every path in an `onDone()` call.
+  - **CAUSE 2, the size cap: a real 12 MP camera JPEG is over it.** The
+    corrector uploads the picked file UNTOUCHED as the 'original' variant,
+    and `MAX_PHOTO_BYTES` is 4 MB. A synthesized 4032x3024 frame with genuine
+    photographic noise measures **4.38 MB**, and published figures put real
+    12 MP captures at 4-7 MB and modern sensors well past that -- so the
+    camera path was failing at the route on size while gallery picks sailed
+    through. `fitForUpload()` re-encodes only what is over the ceiling
+    (**measured 4.38 MB -> 841 KB**, entry saved); anything under it is
+    returned as the SAME object, byte-identical, and every failure returns
+    the original rather than something worse.
+  - **A THIRD, latent one found on the way: `File.type` can legitimately be
+    empty.** The File API REQUIRES an empty string when the platform cannot
+    determine a media type, which is the norm for HEIC/HEIF off an iPhone --
+    and `readPhotoForm` keyed its allowlist on `photo.type` alone, so a real
+    camera photo was refused as "must be JPEG, PNG, WebP, or HEIC". It now
+    falls back to the filename extension (and accepts the `image/jpg` alias),
+    exposing a resolved `mimeType` both routes store the bytes under.
+  - **Decoding can never hang.** An oversized image on a pressured phone can
+    leave an `<img>` that fires NEITHER load nor error, and
+    `createImageBitmap` can sit on a decode that never settles;
+    `decodeImageFile` imposes ONE deadline shared across both strategies
+    (`DECODE_TIMEOUT_MS`, total -- a per-attempt budget silently doubles, and
+    the first cut of this shipped that bug: measured 24s before it was made a
+    single shared deadline). `SOURCE_MAX` also dropped 3200 -> 2400, which
+    takes the `getImageData` allocation from ~30 MB to ~17 MB while staying
+    above the 2000 px warp output, so the warp still supersamples.
+  - **THE FRONT/BACK FIX IS NOT getUserMedia AS THE PRIMARY PATH, and the
+    reasoning is the point.** `capture="environment"` is a HINT the spec only
+    says a browser SHOULD honour, and **Android Chrome, Samsung Internet and
+    Firefox Android act on the PRESENCE of `capture` but not its VALUE**
+    (mdn/browser-compat-data#19603 reports `capture="user"` opening the REAR
+    camera on Android 13; MDN now flags the attribute as not Baseline). iOS
+    Safari does honour it. So on Android you get the camera app with whatever
+    lens it was last left on -- which is usually the rear one, which is
+    exactly why this is easy to miss and unsafe to rely on. The obvious
+    replacement is worse for THIS feature: **iOS Safari serves getUserMedia
+    at roughly 720p regardless of the resolution constraints asked for**
+    (~0.9 MP against a 12 MP native capture), and the OS camera app also
+    brings autofocus, HDR and multi-frame stacking. Making it the default
+    would trade away the one thing a notebook photo exists to be -- legible.
+    So the file input STAYS primary, and the fix is threefold:
+    1. **Two inputs instead of one.** `capture` makes an input camera-ONLY on
+       Android, so the single combined input left Android students with no
+       gallery path at all. "Take a photo" carries `capture` and drops
+       `multiple` (a capture returns one file, and the combination is
+       unspecified); "Choose a photo" carries `multiple` and no `capture`.
+    2. **An in-app camera as the explicit escape hatch** (`CameraCapture.svelte`),
+       offered as a quiet secondary control and never the default. Here the
+       facing mode is a real constraint (`{ exact: 'environment' }` first,
+       falling back to the hint, then to any camera) with a Switch button and
+       a notice when the track reports back a different lens than was asked
+       for. It also never backgrounds the page.
+    3. **Surviving the OS camera app.** Android killing the browser for
+       memory while the camera app is in front is documented and unfixed
+       (Bugzilla 868937, still reproducing in 2025 on Android WebView 139):
+       the tab reloads, the input is empty, and `change` never fires. The
+       photo is unrecoverable, but the form around it is not -- the pending
+       state is written to sessionStorage on the capture CLICK and restored
+       on the next load with an explanation. It is cleared both when the
+       capture arrives and when the page merely becomes visible again, since
+       the page surviving at all is proof there was nothing to recover.
+  - **Verified in `/dev/notebook`** by driving the REAL component: the
+    stall reproduced and then fixed under the identical injection; a decode
+    that never settles bailing at the deadline instead of hanging; 4.38 MB ->
+    841 KB with the entry saved, against an under-cap file returned as the
+    same object and an undecodable HEIC returned untouched; both file inputs
+    carrying exactly the intended attributes; the in-app camera opening with
+    `{exact:'environment'}` first, showing Switch on two video inputs, firing
+    the wrong-lens notice when a stub reported `facingMode:'user'` (the
+    Android behaviour), and its shutter producing a timestamped JPEG that
+    flowed into the corrector, which then detected the page corners
+    correctly; **exactly ONE getUserMedia call on a permission denial** (the
+    ladder correctly stops rather than re-prompting); no-camera and denied
+    both closing to a readable message with the file inputs still live; the
+    eviction recovery restoring the label and the free-form selection with
+    its note, while a gallery pick never arms the marker, a delivered capture
+    clears it, and a cancelled one clears it on return. Regressions held:
+    multi-photo still issues `upload` -> `add-photo variant=enhanced` ->
+    `add-photo variant=original` with the corrected file ADJACENT to its own
+    original, a blank label still sends no `custom_label`, the note tier
+    still posts one JSON call, and the review console is untouched. A REAL
+    LAYOUT REGRESSION was caught this way and fixed: the shared `.field`
+    class is a ROW flex, so growing this block past three children pushed the
+    hint off the right edge at 375 px (scrollWidth 426 vs 375) -- `.photo-field`
+    now states `flex-direction: column`, which is what the stacked
+    label/hint margins always assumed. `npm run check` 0 errors, no new
+    warnings; `npm test` 83/83; 0 console errors on a fresh tab.
+  - **NOT VERIFIED, and it cannot be from here: a real phone camera.**
+    Everything above was driven with synthesized files and a stubbed
+    getUserMedia against a desktop browser. What still needs a live phone
+    test is specifically: which lens `capture="environment"` actually opens
+    on the school's real Android devices, whether the in-app camera's
+    `{exact:'environment'}` genuinely selects the rear one there, whether a
+    real capture survives without the tab being evicted, and what a real
+    HEIC off an iPhone does end to end. The eviction recovery in particular
+    was verified by SIMULATING the reload, not by inducing a real
+    out-of-memory kill.
 - **Photo bytes are served by THIS APP, through a proxy
   (`/api/notebook/photo/[photo_id]`).** This supersedes the original direct
   `drive.google.com/thumbnail?id=...` `<img>` src, which only ever rendered
@@ -9743,6 +9859,18 @@ SILENTLY -- ones where a regression breaks nothing visible.
   session-linked note; nothing to record), an optional section, and the
   input gates. It exists because the auth check and the argument object are
   both easy to break with no symptom for the signed-in developer testing it.
+- **`tests/notebook-photo-mime.test.ts`** (5 assertions) is the one file here
+  that needs NO fixture -- it is pure, and covers the upload routes' media-type
+  allowlist. It is kept, against this repo's default, because the camera fix
+  WIDENED what the server accepts: `File.type` is legitimately empty for HEIC
+  off an iPhone (the File API requires that), so keying the allowlist on the
+  declared type alone silently refused real camera photos, and the fix
+  consults the filename instead. The refusals are therefore the half that
+  earns its place -- a pdf and an extensionless file are both still rejected,
+  and the size cap still fires. Mutation-checked BOTH ways: making the
+  extension fallback accept anything reddens the refusal test, and removing
+  the fallback entirely (the pre-fix behaviour) reddens the two acceptance
+  tests, with the file restored byte-identical afterwards.
 - **One assertion exists purely to keep the rest honest:** the suite asserts
   that `instructorA` and a plain `@boscotech.edu` account are NOT admins. Given
   0067's naming trap, if `teacher` ever silently re-acquired privilege every

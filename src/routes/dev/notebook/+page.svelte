@@ -175,7 +175,14 @@
 	function describe(form: FormData): string {
 		const parts: string[] = [];
 		for (const [k, v] of form.entries()) {
-			parts.push(v instanceof File ? `${k}=<File ${v.name}>` : `${k}=${JSON.stringify(v)}`);
+			// Size is logged because the upload route caps it: a camera-sized
+			// original has to arrive here already shrunk, and that is only
+			// checkable if the number is on screen.
+			parts.push(
+				v instanceof File
+					? `${k}=<File ${v.name} ${v.type || 'no-type'} ${(v.size / 1024).toFixed(0)}KB>`
+					: `${k}=${JSON.stringify(v)}`
+			);
 		}
 		return parts.length ? parts.join(' ') : '(no fields)';
 	}

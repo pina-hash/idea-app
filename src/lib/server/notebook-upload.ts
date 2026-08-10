@@ -17,11 +17,53 @@ const IMAGE_EXT: Record<string, string> = {
 	'image/heif': 'heif'
 };
 
+/**
+ * The same allowlist keyed by filename extension, for the case below where a
+ * browser hands us a file with no media type at all. `jpg` is here as well as
+ * `jpeg` because that is the extension phones actually produce.
+ */
+const EXT_MIME: Record<string, string> = {
+	jpg: 'image/jpeg',
+	jpeg: 'image/jpeg',
+	png: 'image/png',
+	webp: 'image/webp',
+	heic: 'image/heic',
+	heif: 'image/heif'
+};
+
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface PhotoField {
 	photo: File;
 	ext: string;
+	/**
+	 * The media type to store the bytes under: the browser's own when it gave
+	 * one, else the type resolved from the filename. Use this rather than
+	 * `photo.type`, which can legitimately be empty (below).
+	 */
+	mimeType: string;
+}
+
+/**
+ * Resolve a file's media type without trusting `File.type` alone.
+ *
+ * The File API REQUIRES an empty string when the platform cannot determine a
+ * file's media type, so an empty `type` is a conforming outcome rather than a
+ * broken browser -- and it shows up in practice on exactly the files this
+ * flow cares about, HEIC/HEIF straight off an iPhone, where the OS has no
+ * MIME mapping to offer. Keying the allowlist on `type` alone therefore
+ * rejects a perfectly good camera photo with "must be JPEG, PNG, WebP, or
+ * HEIC" when that is precisely what it is. The filename extension is the
+ * fallback the browser can still tell us.
+ */
+function resolveMime(photo: File): { ext: string; mimeType: string } | null {
+	const declared = photo.type.trim().toLowerCase();
+	const byType = IMAGE_EXT[declared];
+	if (byType) return { ext: byType, mimeType: declared };
+	const ext = photo.name?.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+	const mimeType = ext ? EXT_MIME[ext] : undefined;
+	if (mimeType) return { ext: IMAGE_EXT[mimeType], mimeType };
+	return null;
 }
 
 /** Validates the "photo" form field: present, non-empty, capped, an image. */
@@ -36,11 +78,11 @@ export function readPhotoForm(form: FormData): PhotoField | { error: string; sta
 			status: 413
 		};
 	}
-	const ext = IMAGE_EXT[photo.type];
-	if (!ext) {
+	const resolved = resolveMime(photo);
+	if (!resolved) {
 		return { error: 'Photos must be JPEG, PNG, WebP, or HEIC.', status: 400 };
 	}
-	return { photo, ext };
+	return { photo, ext: resolved.ext, mimeType: resolved.mimeType };
 }
 
 /**

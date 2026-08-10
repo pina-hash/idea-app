@@ -68,7 +68,7 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	try {
 		fileId = await uploadNotebookPhoto({
 			bytes,
-			mimeType: read.photo.type,
+			mimeType: read.mimeType,
 			filename: notebookDriveFilename({
 				identifier,
 				label,

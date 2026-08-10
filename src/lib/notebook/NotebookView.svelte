@@ -4,6 +4,14 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import PhotoCorrector from '$lib/notebook/PhotoCorrector.svelte';
+	import CameraCapture from '$lib/notebook/CameraCapture.svelte';
+	import {
+		cameraCaptureSupported,
+		clearPendingCapture,
+		fitForUpload,
+		rememberPendingCapture,
+		takePendingCapture
+	} from '$lib/notebook/camera';
 	import '$lib/notebook/notebook-theme.css';
 	import {
 		entryTitle,
@@ -110,7 +118,26 @@
 	let progress = $state('');
 	let errorMsg = $state<string | null>(null);
 	let successMsg = $state<string | null>(null);
-	let fileInput = $state<HTMLInputElement | null>(null);
+	/**
+	 * Two inputs, not one, and the split matters on Android.
+	 *
+	 * `capture` makes an input camera-ONLY there: the browser fires a capture
+	 * intent and the gallery is simply not offered, so a single input carrying
+	 * it leaves an Android student with no way to attach a photo they already
+	 * took. Splitting gives each control one job -- and lets the shoot input
+	 * drop `multiple`, which is meaningless next to `capture` (a capture
+	 * returns exactly one file) and whose behaviour alongside it is
+	 * unspecified.
+	 */
+	let captureInput = $state<HTMLInputElement | null>(null);
+	let pickInput = $state<HTMLInputElement | null>(null);
+	/** The in-app camera overlay (the deliberate wrong-lens escape hatch). */
+	let cameraOpen = $state(false);
+	let cameraSupported = $state(false);
+	/** Why the in-app camera could not be used, shown next to the buttons. */
+	let cameraMsg = $state<string | null>(null);
+	/** Set when a previous load's capture never came back (see camera.ts). */
+	let recoveryNote = $state<string | null>(null);
 
 	const open = $derived(outstandingSessions(sessions, entries));
 	const feed = $derived(newestFirst(entries));
@@ -151,16 +178,72 @@
 	}
 
 	function onFilesChosen(e: Event) {
-		const picked = Array.from((e.currentTarget as HTMLInputElement).files ?? []);
+		const input = e.currentTarget as HTMLInputElement;
+		const picked = Array.from(input.files ?? []);
+		// The capture came back, so there is nothing for the next page load to
+		// recover. (A cancelled capture is cleared by the visibility handler
+		// instead: the page surviving is itself the proof nothing was lost.)
+		clearPendingCapture();
 		// Every picked photo queues for its OWN correction step (one at a
 		// time, in order); it lands in `staged` only once corrected or skipped.
 		if (picked.length) {
 			correctionNote = null;
+			cameraMsg = null;
+			recoveryNote = null;
 			correctionQueue = [...correctionQueue, ...picked];
 		}
 		// Clear the input so re-picking the same file still fires a change.
-		if (fileInput) fileInput.value = '';
+		input.value = '';
 	}
+
+	/**
+	 * Snapshot the form before the OS camera app takes over, so a browser
+	 * killed for memory while it is in front does not also cost the student
+	 * everything they had typed. Fires on the CLICK, which is the last moment
+	 * this code is guaranteed to run.
+	 */
+	function onCaptureClick() {
+		rememberPendingCapture({ session: selectedSession, mode: freeMode, label });
+	}
+
+	function openCamera() {
+		cameraMsg = null;
+		cameraOpen = true;
+	}
+
+	function cameraCaptured(file: File) {
+		cameraOpen = false;
+		correctionNote = null;
+		cameraMsg = null;
+		recoveryNote = null;
+		correctionQueue = [...correctionQueue, file];
+	}
+
+	function cameraFailed(message: string) {
+		cameraOpen = false;
+		cameraMsg = message;
+	}
+
+	$effect(() => {
+		cameraSupported = cameraCaptureSupported();
+		// A marker still here on a FRESH load means the previous load opened
+		// the camera and never got to clear it -- i.e. it was killed. Put the
+		// student back where they were and say what happened, because the
+		// alternative is a blank form and no explanation at all.
+		const pending = takePendingCapture() as
+			| { session?: string | null; mode?: 'photos' | 'note'; label?: string }
+			| null;
+		if (pending) {
+			if (pending.session !== undefined) {
+				sessionTouched = true;
+				selectedSession = pending.session;
+			}
+			if (pending.mode) freeMode = pending.mode;
+			if (typeof pending.label === 'string') label = pending.label;
+			recoveryNote =
+				'Your photo did not make it back from the camera app, which can happen when the phone is low on memory. Everything you typed is still here. Please take the photo again.';
+		}
+	});
 
 	function correctionDone(enhanced: File | null, failed = false) {
 		const file = correctionQueue[0];
@@ -180,8 +263,27 @@
 		staged = [];
 		correctionQueue = [];
 		correctionNote = null;
+		cameraMsg = null;
+		recoveryNote = null;
 		label = '';
-		if (fileInput) fileInput.value = '';
+		if (captureInput) captureInput.value = '';
+		if (pickInput) pickInput.value = '';
+	}
+
+	/**
+	 * Shrink an original to something the upload route will accept, and say so
+	 * if it could not be. A real 12 MP phone capture is 4-7 MB against a 4 MB
+	 * server cap, so without this the camera path fails at the route with a
+	 * size error the student can do nothing about -- while the smaller images
+	 * a gallery pick tends to produce go straight through, which is exactly
+	 * the "gallery works, camera does not" shape of the bug.
+	 */
+	async function prepared(file: File): Promise<File> {
+		try {
+			return await fitForUpload(file);
+		} catch {
+			return file;
+		}
 	}
 
 	async function submit(e: SubmitEvent) {
@@ -216,7 +318,7 @@
 			// 0071 made the label optional and the upload route falls back to the
 			// file's own name, so the UI must not re-impose a required-label rule.
 			const first = new FormData();
-			first.set('photo', staged[0].file);
+			first.set('photo', await prepared(staged[0].file));
 			if (selectedSession) first.set('session_id', selectedSession);
 			const trimmed = label.trim();
 			if (!selectedSession && trimmed) first.set('custom_label', trimmed);
@@ -239,7 +341,7 @@
 				if (!enhanced) return;
 				progress = `Uploading corrected photo ${i + 1}...`;
 				const form = new FormData();
-				form.set('photo', enhanced);
+				form.set('photo', await prepared(enhanced));
 				form.set('entry_id', created.entryId);
 				form.set('variant', 'enhanced');
 				const added = await addPhoto(form);
@@ -249,7 +351,7 @@
 			for (let i = 1; i < staged.length; i++) {
 				progress = `Uploading photo ${i + 1} of ${staged.length}...`;
 				const form = new FormData();
-				form.set('photo', staged[i].file);
+				form.set('photo', await prepared(staged[i].file));
 				form.set('entry_id', created.entryId);
 				form.set('variant', 'original');
 				const added = await addPhoto(form);
@@ -296,6 +398,14 @@
 <svelte:head>
 	<title>My Notebook // IDEA</title>
 </svelte:head>
+
+<!-- Coming back to a page that is still alive proves nothing was lost to the
+     camera app, so the marker for the next load is dropped here. -->
+<svelte:document
+	onvisibilitychange={() => {
+		if (document.visibilityState === 'visible') clearPendingCapture();
+	}}
+/>
 
 <!-- .nb-root scopes the notebook's editorial light theme (notebook-theme.css)
      and keeps it out of every other surface. -->
@@ -353,6 +463,9 @@
 					Photo storage is not configured on the server yet, so photo uploads are turned
 					off. You can still save a note.
 				</p>
+			{/if}
+			{#if recoveryNote}
+				<p class="feedback error" role="status" data-testid="nb-recovery">{recoveryNote}</p>
 			{/if}
 			{#if correctionNote}
 				<p class="feedback error" role="status">{correctionNote}</p>
@@ -452,20 +565,65 @@
 				{#if !noteOnly}
 					<div class="field photo-field">
 						<span class="photo-label">Photos</span>
-						<!-- capture="environment" opens the rear camera directly on a
-						     phone; `multiple` still allows several pages per entry. -->
-						<input
-							bind:this={fileInput}
-							type="file"
-							accept="image/*"
-							capture="environment"
-							multiple
-							onchange={onFilesChosen}
-							disabled={busy || !uploadReady}
-						/>
+						<!--
+							Take vs choose are separate controls on purpose. `capture`
+							turns an input camera-only on Android, so one combined input
+							carrying it leaves no way to attach an existing photo there.
+							The shoot input drops `multiple` (a capture returns one file);
+							the pick input keeps it, since multi-select is a picker
+							ability.
+						-->
+						<div class="photo-buttons">
+							<label class="photo-btn">
+								<span>Take a photo</span>
+								<input
+									bind:this={captureInput}
+									type="file"
+									accept="image/*"
+									capture="environment"
+									onclick={onCaptureClick}
+									onchange={onFilesChosen}
+									disabled={busy || !uploadReady}
+								/>
+							</label>
+							<label class="photo-btn secondary">
+								<span>Choose a photo</span>
+								<input
+									bind:this={pickInput}
+									type="file"
+									accept="image/*"
+									multiple
+									onchange={onFilesChosen}
+									disabled={busy || !uploadReady}
+								/>
+							</label>
+						</div>
+						{#if cameraSupported}
+							<!--
+								The escape hatch for the one thing the buttons above cannot
+								control. Android browsers act on the PRESENCE of `capture`
+								but not its value, so "Take a photo" opens the camera app
+								with whichever lens it was last left on -- the front one,
+								sometimes. This view constrains the facing mode for real and
+								has a switch button. It is not the default because the OS
+								camera takes a much better photo of a page.
+							-->
+							<button
+								type="button"
+								class="in-app-camera"
+								data-testid="nb-in-app-camera"
+								onclick={openCamera}
+								disabled={busy || !uploadReady}
+							>
+								Camera opened the wrong way round? Use the in-app camera
+							</button>
+						{/if}
+						{#if cameraMsg}
+							<p class="feedback error" role="status" data-testid="nb-camera-msg">{cameraMsg}</p>
+						{/if}
 						<span class="hint">
-							JPEG, PNG, WebP, or HEIC, up to 4&nbsp;MB each. You can straighten and clean up
-							each photo before it uploads.
+							JPEG, PNG, WebP, or HEIC. Large photos are shrunk to fit before they upload,
+							and you can straighten and clean up each one first.
 						</span>
 					</div>
 				{/if}
@@ -556,6 +714,10 @@
 
 	<VersionBadge app="portal" />
 </main>
+
+{#if cameraOpen}
+	<CameraCapture onCapture={cameraCaptured} onCancel={() => (cameraOpen = false)} onError={cameraFailed} />
+{/if}
 
 {#if correcting}
 	<!-- One photo at a time, in pick order; keyed so a new file remounts the
@@ -707,16 +869,83 @@
 	}
 	.photo-field {
 		margin-top: 1rem;
+		/* The shared .field class is a ROW flex. Everything in here is written
+		   to stack (the label and the hint both carry vertical margins), and a
+		   row silently spreads them across the viewport instead -- which is
+		   what pushed the hint off the right edge at phone width once this
+		   block grew past three children. Say the direction out loud. */
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
 	}
 	.photo-label {
 		display: block;
 		margin-bottom: 0.3rem;
 		font-weight: 600;
 	}
-	.photo-field input[type='file'] {
-		width: 100%;
-		color: var(--nb-ink-soft);
-		font-size: 0.85rem;
+	/* Two real, thumb-sized targets rather than a bare file input: this is a
+	   phone-first flow, and the native control renders as a small button with
+	   a filename beside it that is easy to miss and hard to hit. */
+	.photo-buttons {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+		gap: 0.5rem;
+	}
+	.photo-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-height: 3rem;
+		padding: 0.7rem 1rem;
+		border: 1px solid var(--nb-accent);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-accent-wash);
+		color: var(--nb-accent-ink);
+		font-weight: 600;
+		font-size: 0.9rem;
+		cursor: pointer;
+		text-align: center;
+	}
+	.photo-btn.secondary {
+		border-color: var(--nb-hairline-strong);
+		background: var(--nb-surface-dim);
+		color: var(--nb-ink);
+	}
+	.photo-btn:hover {
+		border-color: var(--nb-accent-ink);
+	}
+	/* The input still does the work; it is only visually replaced by its
+	   label, so the native picker and keyboard activation are untouched. */
+	.photo-btn input[type='file'] {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+		pointer-events: none;
+	}
+	.photo-btn:has(input:disabled) {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.in-app-camera {
+		display: block;
+		margin-top: 0.55rem;
+		padding: 0;
+		background: none;
+		border: none;
+		color: var(--nb-ink-faint);
+		font: inherit;
+		font-size: 0.8rem;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		cursor: pointer;
+	}
+	.in-app-camera:hover:not(:disabled) {
+		color: var(--nb-accent-ink);
+	}
+	.in-app-camera:disabled {
+		opacity: 0.5;
+		cursor: default;
 	}
 	.staged {
 		list-style: none;
