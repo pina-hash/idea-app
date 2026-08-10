@@ -239,11 +239,14 @@
 	{@const tex = cardTexture(primary, secondary)}
 	{@const accStyle = `--acc-primary:${primary};--acc-secondary:${secondary};--card-texture:${tex.image};--card-texture-size:${tex.size};`}
 	{#if customizing}
-		<div class="app-card static" class:compact style={accStyle} data-tour={app.id}>
+		<div class="app-card static" class:compact class:legacy={app.legacy} style={accStyle} data-tour={app.id}>
 			<span class="app-strip"></span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
-				<span class="app-title">{app.title}</span>
+				<span class="app-title-row">
+					<span class="app-title">{app.title}</span>
+					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
+				</span>
 				{#if !compact}<span class="app-sub">{app.sub}</span>{/if}
 			</span>
 			<span class="app-tools">
@@ -265,6 +268,7 @@
 		<a
 			class="app-card"
 			class:compact
+			class:legacy={app.legacy}
 			href={app.href}
 			onclick={(e) => appClick(e, app)}
 			style={accStyle}
@@ -273,7 +277,10 @@
 			<span class="app-strip"></span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
-				<span class="app-title">{app.title}</span>
+				<span class="app-title-row">
+					<span class="app-title">{app.title}</span>
+					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
+				</span>
 				{#if !compact}
 					<span class="app-sub">
 						{app.sub}
@@ -543,6 +550,37 @@
 	}
 	.app-title {
 		overflow-wrap: anywhere;
+	}
+	.app-title-row {
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 0.4rem;
+	}
+	.legacy-badge {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.5rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--amber);
+		border: 1px solid rgba(255, 140, 0, 0.5);
+		border-radius: 2px;
+		padding: 0.08rem 0.4rem;
+		white-space: nowrap;
+		flex-shrink: 0;
+	}
+	/* Legacy tools: dimmed and dashed, so a superseded tool never reads as
+	   equal-weight with its replacement, without inventing a per-card accent
+	   color (the uniform-chrome rule). The badge above carries the "why". */
+	.app-card.legacy {
+		border-style: dashed;
+		opacity: 0.82;
+	}
+	.app-card.legacy .app-strip {
+		opacity: 0.55;
+	}
+	a.app-card.legacy:hover {
+		opacity: 1;
 	}
 	.app-icon {
 		width: 34px;

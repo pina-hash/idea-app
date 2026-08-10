@@ -73,6 +73,17 @@ ability, it is not required to browse the portal.
   `--crimson` stays reserved for status. Cards carry the machined
   `var(--bevel-raised)` and press on `:active`. FSP is NOT a launcher app: it
   is a regular class card in the course listing (see "2026-27 curriculum").
+  **Legacy tools (`PortalApp.legacy`):** a tool superseded by a newer one but
+  still reachable (bookmarks, muscle memory) sets `legacy: true` rather than
+  being removed from the registry. It renders with a dashed border, reduced
+  opacity, and an amber "Legacy" badge next to its title (`.app-card.legacy`,
+  `.legacy-badge` in `AppLauncher.svelte`) -- deliberately not a per-card
+  accent override, per the uniform-chrome rule above. `coins` (IDEA Coin
+  Ledger) and `coin-entry` are the first cards flagged this way, reordered
+  after `coin-desk`/`coin-balance`/`contracts` in the Tools group so the
+  current tools lead. This is presentational only and carries no access or
+  write implications; see "IDEA Coin ledger" below for why those two
+  specifically needed it.
 - **Optional sign-in:** the landing page header has a Google sign-in control.
   Signing in is additive: it unlocks signed-in features (VANGUARD cloud saves,
   pinning your class) and, for teachers, the dashboard. After sign-in from `/`
@@ -301,6 +312,29 @@ SvelteKit server, which attaches the server-only `COIN_API_KEY`.
   network layer: `coin-entry.html`'s `API` and `coins/index.html`'s
   `CONTRACTS_API` constants, plus the role modal's identity handling. Do not
   take it as licence to edit those files generally.
+- **Both legacy pages carry an unmissable, non-dismissible warning against the
+  new economy, added as a SECOND deliberate lift of the freeze** (still not
+  licence to edit these files generally -- this is the exact scope of the
+  lift, same as the network-layer one above). Real activity has been logging
+  to the new `0070` economy since `/coin-desk` launched; these two pages
+  cannot see any of it, and `coin-entry.html` writes ONLY to the old Sheets
+  ledger, never to `coin_transactions`.
+  - `coins/index.html`: an amber banner as the first child of `.page-wrap`
+    (`.legacy-warn`, styled with the file's own local `--amber`/`--gold`
+    tokens, not the app-shell's design-system ones -- a separate document with
+    its own CSS scope) states the ledger is frozen at whatever it last
+    recorded and points to `/coin-balance` for the real balance.
+  - `coin-entry.html`: a red `.legacy-warn` (more urgent, since this tool
+    writes) is the first child of `#s-home .screen-body` -- the actual home
+    screen, which is what renders whether or not the PIN screen is shown (a
+    returning session with a valid `AUTH_KEY` skips the PIN entirely and
+    activates `#s-home` directly, so the home screen is the one placement that
+    is never skippable). States that anything logged here never reaches the
+    new system and links to `/coin-desk`.
+  - Both are served-content edits only (`rewriteLegacyLinks`/version-badge
+    injection cannot help here since `coins/index.html` has no serving
+    endpoint at all, per the static pattern above), not a new pattern: plain
+    inline banners using each file's own existing local color tokens.
 - Background and residual limitations: `docs/audits/2026-07-security-audit.md`,
   findings F2, F3 and F11.
 

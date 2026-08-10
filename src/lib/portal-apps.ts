@@ -28,6 +28,13 @@ export interface PortalApp {
 	adminOnly?: boolean;
 	/** Per-card accent colors. Falls back to the shared brass/gold scheme when unset. */
 	theme?: { primary: string; secondary: string };
+	/**
+	 * Superseded by a newer tool but kept reachable (bookmarks, muscle memory).
+	 * Renders a muted "Legacy" badge and dimmed chrome so it never reads as
+	 * equal-weight with its replacement; the card itself still says what to use
+	 * instead. Purely presentational — carries no access or write implications.
+	 */
+	legacy?: boolean;
 }
 
 export const APP_GROUPS: { id: AppGroupId; label: string }[] = [
@@ -80,27 +87,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		theme: { primary: '#00FF41', secondary: '#C8A848' }
 	},
 	{
-		id: 'coins',
-		title: 'IDEA Coin Ledger',
-		sub: 'Live balances, transaction log, and rankings across all sections.',
-		icon: 'coins',
-		href: '/coins/index.html',
-		group: 'tools',
-		cta: 'View live',
-		theme: { primary: '#C8A848', secondary: '#78B870' }
-	},
-	{
-		id: 'coin-entry',
-		title: 'Coin Entry',
-		sub: 'Award coins to students. Admin tool.',
-		icon: 'coin-entry',
-		href: '/coin-entry',
-		group: 'tools',
-		cta: 'Open',
-		adminOnly: true,
-		theme: { primary: '#C8A848', secondary: '#D08030' }
-	},
-	{
 		id: 'coin-desk',
 		title: 'Coin Desk',
 		sub: 'Log fines, awards, and purchases against the real coin ledger (0070). Admin tool.',
@@ -132,6 +118,29 @@ export const PORTAL_APPS: PortalApp[] = [
 		cta: 'Browse',
 		requiresAuth: true,
 		theme: { primary: '#C8A848', secondary: '#78B870' }
+	},
+	{
+		id: 'coins',
+		title: 'IDEA Coin Ledger',
+		sub: 'Old Google Sheets ledger. Frozen since Coin Desk launched — see My Coin Balance for your real balance.',
+		icon: 'coins',
+		href: '/coins/index.html',
+		group: 'tools',
+		cta: 'View live',
+		legacy: true,
+		theme: { primary: '#C8A848', secondary: '#78B870' }
+	},
+	{
+		id: 'coin-entry',
+		title: 'Coin Entry',
+		sub: 'Legacy entry tool. Writes to the old Sheets ledger only, never the real balances — use Coin Desk instead.',
+		icon: 'coin-entry',
+		href: '/coin-entry',
+		group: 'tools',
+		cta: 'Open',
+		adminOnly: true,
+		legacy: true,
+		theme: { primary: '#C8A848', secondary: '#D08030' }
 	},
 	{
 		id: 'dashboard',

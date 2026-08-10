@@ -113,6 +113,27 @@ nav a.active { color: var(--gold); text-shadow: var(--glow-gold); }
 .page-title .accent { color: var(--gold); text-shadow: var(--glow-gold); }
 .page-sub { font-size: 0.78rem; color: var(--dim); margin-top: 0.4rem; }
 
+/* ── Legacy-data warning ─────────────────────────────── */
+.legacy-warn {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  margin-bottom: 1.5rem; padding: 0.9rem 1.1rem;
+  border: 1px solid rgba(255,140,0,0.55); border-radius: 4px;
+  background: rgba(255,140,0,0.08);
+  box-shadow: 0 0 18px rgba(255,140,0,0.1);
+}
+.legacy-warn-icon { font-size: 1.15rem; line-height: 1.3; color: var(--amber); flex-shrink: 0; }
+.legacy-warn-text { font-size: 0.75rem; line-height: 1.6; color: var(--white); }
+.legacy-warn-text strong {
+  display: block; font-family: 'Orbitron', sans-serif; font-size: 0.68rem;
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber);
+  text-shadow: 0 0 8px rgba(255,140,0,0.5); margin-bottom: 0.3rem;
+}
+.legacy-warn-text a {
+  color: var(--gold); text-shadow: var(--glow-gold); font-weight: 600;
+}
+.legacy-warn-text a:hover { color: var(--white); }
+@media print { .legacy-warn { display: none !important; } }
+
 /* ── Meta Row (last-updated + refresh) ──────────────── */
 .meta-row {
   display: flex; align-items: center; gap: 0.65rem;
@@ -1424,6 +1445,17 @@ body::after {
   <h1 class="page-title">IDEA <span class="accent">Coin</span> Ledger</h1>
   <p class="page-sub">Live leaderboard and transaction history. Read-only. Refreshes every 60 seconds.</p>
   <div class="print-header" id="print-header"></div>
+
+  <div class="legacy-warn" role="alert">
+    <span class="legacy-warn-icon" aria-hidden="true">&#9888;</span>
+    <div class="legacy-warn-text">
+      <strong>This page shows the old Google Sheets ledger, not your current balance</strong>
+      Real coin activity has been logging to a new system since Coin Desk launched, and this
+      page has no way to see any of it &mdash; balances and transactions here are frozen at
+      whatever the old Sheets ledger last recorded. For your actual balance and history, use
+      <a href="/coin-balance">My Coin Balance</a> instead.
+    </div>
+  </div>
 
   <div class="meta-row">
     <span class="last-updated" id="last-updated">Fetching data&hellip;</span>
