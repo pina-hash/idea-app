@@ -7,6 +7,7 @@
 	import RolesManager from './RolesManager.svelte';
 	import ContractsManager from './ContractsManager.svelte';
 	import PayoutManager from './PayoutManager.svelte';
+	import CategoriesManager from './CategoriesManager.svelte';
 	import {
 		EXTRA_CREDIT_GRADING_CATEGORIES,
 		KIND_LABELS,
@@ -38,7 +39,7 @@
 	 * component renders).
 	 */
 	let {
-		categories,
+		categories: initialCategories,
 		supabase,
 		configured = true,
 		sections: initialSections = [],
@@ -61,6 +62,16 @@
 	// bound two-way -- are immediately visible to the bulk-log section picker
 	// below, with no separate refetch wiring between the two.
 	let sections = $state<CoinSectionRow[]>(initialSections);
+
+	// Same doctrine, for categories: CategoriesManager (0080) binds this
+	// two-way, so a newly created or retired category is immediately visible
+	// everywhere below with no separate refresh. `categories` here is every
+	// LOGGABLE category regardless of active state (+page.server.ts's own
+	// query already excludes the loggable=false mechanism rows, e.g. the
+	// system-inserted Eating Pass revoke event); `selectableCategories` is
+	// the active-only subset every dropdown below actually offers.
+	let categories = $state<CoinCategory[]>(initialCategories);
+	const selectableCategories = $derived(categories.filter((c) => c.active !== false));
 
 	// ---------------------------------------------------------------------
 	// Student lookup (coin_admin_lookup, reused as-is -- same RPC /admin uses)
@@ -173,7 +184,7 @@
 	// functions, not a trigger.
 	// ---------------------------------------------------------------------
 	let selectedCategoryId = $state('');
-	const category = $derived(categories.find((c) => c.id === selectedCategoryId) ?? null);
+	const category = $derived(selectableCategories.find((c) => c.id === selectedCategoryId) ?? null);
 
 	let rangeAmount = $state('');
 	let quantityInput = $state('');
@@ -227,7 +238,9 @@
 	let logMode = $state<'student' | 'section'>('student');
 	let selectedSectionId = $state('');
 
-	const categoryOptions = $derived(logMode === 'section' ? categories.filter(isBulkEligible) : categories);
+	const categoryOptions = $derived(
+		logMode === 'section' ? selectableCategories.filter(isBulkEligible) : selectableCategories
+	);
 
 	function setMode(mode: 'student' | 'section') {
 		if (logMode === mode) return;
@@ -509,6 +522,8 @@
 	<ContractsManager {supabase} {sections} configured={contractsConfigured} />
 
 	<PayoutManager {supabase} {configured} />
+
+	<CategoriesManager {supabase} bind:categories {configured} />
 
 	<section class="card">
 		<h2>Find a student</h2>

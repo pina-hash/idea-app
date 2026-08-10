@@ -27,12 +27,17 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		{ data: roleDefinitions, error: rolesError },
 		{ error: contractsError }
 	] = await Promise.all([
+		// Every LOGGABLE category regardless of active state (never
+		// loggable=false mechanism rows like the system Eating Pass revoke
+		// event) -- CategoriesManager (0080) needs to show retired categories
+		// too, not just the ones a student can currently be charged.
+		// CoinDeskTool.svelte's own `selectableCategories` derived value is
+		// what filters this down to active-only for the logging dropdowns.
 		supabase
 			.from('coin_categories')
 			.select(
-				'id, name, kind, scope, pricing_model, amount, min_amount, max_amount, unit_label, formula_key, semester_point_cap, cap_period, cap_count, notes'
+				'id, name, kind, scope, pricing_model, amount, min_amount, max_amount, unit_label, formula_key, semester_point_cap, cap_period, cap_count, notes, active'
 			)
-			.eq('active', true)
 			.eq('loggable', true)
 			.order('sort_order'),
 		// Sections (0073), for the bulk-log target picker and the section

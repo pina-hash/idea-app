@@ -37,6 +37,18 @@ export interface CoinCategory {
 	cap_period: 'day' | 'month' | null;
 	cap_count: number | null;
 	notes: string | null;
+	/**
+	 * Optional so every pre-0080 literal in this codebase (the dev harness's
+	 * SAMPLE_CATEGORIES chief among them) keeps compiling untouched --
+	 * `undefined` reads as active everywhere this is checked (`c.active !==
+	 * false`), the same convention as leaving it off in a hand-written seed
+	 * row. Only migration 0080's CategoriesManager reads/writes it for real:
+	 * a retired category (`active: false`) drops out of every loggable list
+	 * but stays a fully valid `category_id` on its historical transactions
+	 * (coin_transactions.category_id references coin_categories(id), never
+	 * cascaded or nulled).
+	 */
+	active?: boolean;
 }
 
 export const KIND_ORDER: CoinKind[] = ['fine', 'award', 'purchase', 'adjustment'];

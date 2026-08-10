@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import CoinDeskTool from '$lib/coin-desk/CoinDeskTool.svelte';
-	import { createFakeLedger, listSections, listRoleDefinitions, SAMPLE_CATEGORIES } from './fake-ledger';
+	import { createFakeLedger, listSections, listRoleDefinitions, listCategories } from './fake-ledger';
 
 	/**
 	 * Dev harness: mounts the real CoinDeskTool against an in-memory ledger
@@ -76,6 +76,14 @@
 	 *    when it loaded -- the race the feature exists to close. Once every
 	 *    balance clears, the list reads "No student currently has a positive
 	 *    balance."
+	 *  - Categories (0080): create a new flat/range/per_unit/variable
+	 *    category in the Categories card -- it appears in the "Log a
+	 *    transaction" dropdown immediately, no reload. Retire it and watch it
+	 *    disappear from that dropdown while any transaction that already used
+	 *    it (log one first, then retire) still shows its real name in the
+	 *    student's history. The pricing-model select only ever offers the
+	 *    four creatable shapes -- 'formula' is not an option, and the
+	 *    boundary note above the form explains why.
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
 
@@ -106,7 +114,7 @@
 
 {#key migrationApplied}
 	<CoinDeskTool
-		categories={migrationApplied ? SAMPLE_CATEGORIES : []}
+		categories={migrationApplied ? listCategories() : []}
 		{supabase}
 		configured={migrationApplied}
 		sections={sectionsApplied ? listSections() : []}

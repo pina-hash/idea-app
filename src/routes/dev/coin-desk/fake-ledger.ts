@@ -301,8 +301,32 @@ const NAME_ONLY_CATEGORIES: Pick<CoinCategory, 'id' | 'name'>[] = [
 	{ id: 'eating_pass_revoked', name: 'Eating Pass Revoked (system)' },
 	{ id: 'mint_tampering_unknown', name: 'Mint Tampering (Suspect Unknown)' }
 ];
-const catById = new Map(SAMPLE_CATEGORIES.map((c) => [c.id, c]));
-const nameById = new Map([...SAMPLE_CATEGORIES, ...NAME_ONLY_CATEGORIES].map((c) => [c.id, c.name]));
+/**
+ * Mutable (unlike SAMPLE_CATEGORIES itself): 0080's coin_admin_create_category
+ * / coin_admin_set_category_active RPCs both need somewhere to write a new
+ * row or flip `active` on an existing one, and every read path (the logging
+ * dropdown, coin_log_transaction, coin_bulk_log_section, category-name
+ * resolution) goes through this map so a freshly created or retired category
+ * is visible everywhere immediately, mirroring how sections/roles/contracts
+ * already work in this fake ledger.
+ */
+const catById = new Map<string, CoinCategory>(SAMPLE_CATEGORIES.map((c) => [c.id, c]));
+
+function categoryNameFor(id: string): string {
+	return catById.get(id)?.name ?? NAME_ONLY_CATEGORIES.find((c) => c.id === id)?.name ?? id;
+}
+
+/**
+ * Synchronous read of the current loggable category list, for the dev
+ * harness to seed CoinDeskTool's initial `categories` prop the way
+ * +page.server.ts seeds it from a real `coin_categories` select (loggable
+ * regardless of active state -- CategoriesManager needs to see retired rows
+ * too, same as coin-desk/+page.server.ts's own query since 0080).
+ */
+export function listCategories(): CoinCategory[] {
+	return Array.from(catById.values());
+}
+
 const ledger = new Map<string, StudentState>();
 let txnSeq = 0;
 
@@ -445,7 +469,7 @@ function insert(email: string, categoryId: string, signed: number, quantity: num
 	const txn: Txn = {
 		id: `t${++txnSeq}`,
 		category_id: categoryId,
-		category_name: nameById.get(categoryId) ?? categoryId,
+		category_name: categoryNameFor(categoryId),
 		amount: signed,
 		quantity,
 		note,
@@ -861,6 +885,7 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 				};
 			}
 			if (table === 'coin_balances') return makeBalancesQuery();
+			if (table === 'coin_categories') return makeCategoriesQuery();
 			throw new Error(`fake ledger: unexpected table "${table}"`);
 		}
 	};
@@ -917,6 +942,7 @@ async function handleRpc(
 		const categoryId = String(params.p_category_id);
 		const cat = catById.get(categoryId);
 		if (!cat) return Promise.resolve(rpcError(`Unknown coin category "${categoryId}".`));
+		if (cat.active === false) return Promise.resolve(rpcError(`"${cat.name}" cannot be logged directly.`));
 		if (cat.pricing_model === 'formula' || categoryId === 'extra_credit') {
 			return Promise.resolve(rpcError(`"${cat.name}" needs its dedicated logging function.`));
 		}
@@ -1102,6 +1128,98 @@ async function handleRpc(
 		return Promise.resolve(
 			ok({ total: results.length, succeeded, refused: results.length - succeeded, results })
 		);
+	}
+
+	// -----------------------------------------------------------------------
+	// Admin-managed categories (0080). Mirrors coin_admin_create_category /
+	// coin_admin_set_category_active closely enough to drive the real
+	// CategoriesManager UI end to end, including the 'formula' refusal.
+	// -----------------------------------------------------------------------
+
+	if (fn === 'coin_admin_create_category') {
+		const id = String(params.p_id ?? '')
+			.toLowerCase()
+			.trim();
+		const name = String(params.p_name ?? '').trim();
+		const kind = params.p_kind as CoinCategory['kind'];
+		const scope = params.p_scope as CoinCategory['scope'];
+		const pricingModel = params.p_pricing_model as string;
+		if (!id || !/^[a-z0-9_]+$/.test(id)) {
+			return Promise.resolve(rpcError('Category id must be lowercase letters, numbers, and underscores only.'));
+		}
+		if (!name) return Promise.resolve(rpcError('Enter a category name.'));
+		if (!['fine', 'award', 'purchase', 'adjustment'].includes(kind)) {
+			return Promise.resolve(rpcError('Kind must be fine, award, purchase, or adjustment.'));
+		}
+		if (!['core', '209h'].includes(scope)) return Promise.resolve(rpcError('Scope must be core or 209h.'));
+		if (pricingModel === 'formula') {
+			return Promise.resolve(
+				rpcError(
+					"Formula categories need custom logic (like Perfect Score's rounding or Extra Credit's semester cap) and can't be created here -- that's a code change, not configuration this tool can express."
+				)
+			);
+		}
+		if (!['flat', 'range', 'per_unit', 'variable'].includes(pricingModel)) {
+			return Promise.resolve(rpcError('Pricing model must be flat, range, per_unit, or variable.'));
+		}
+		if (catById.has(id)) return Promise.resolve(rpcError(`A category with id "${id}" already exists.`));
+
+		let amount: number | null = null;
+		let minAmount: number | null = null;
+		let maxAmount: number | null = null;
+		let unitLabel: string | null = null;
+		if (pricingModel === 'flat') {
+			amount = Number(params.p_amount);
+			if (!Number.isFinite(amount) || amount < 0) {
+				return Promise.resolve(rpcError('A flat category needs a non-negative amount.'));
+			}
+		} else if (pricingModel === 'range') {
+			minAmount = Number(params.p_min_amount);
+			maxAmount = Number(params.p_max_amount);
+			if (!Number.isFinite(minAmount) || !Number.isFinite(maxAmount) || minAmount > maxAmount) {
+				return Promise.resolve(rpcError('A range category needs a min and max amount, with min <= max.'));
+			}
+		} else if (pricingModel === 'per_unit') {
+			amount = Number(params.p_amount);
+			unitLabel = (params.p_unit_label as string | null)?.trim() || null;
+			if (!Number.isFinite(amount) || amount < 0) {
+				return Promise.resolve(rpcError('A per-unit category needs a non-negative rate.'));
+			}
+			if (!unitLabel) {
+				return Promise.resolve(rpcError('A per-unit category needs a unit label (e.g. "point", "4 pages").'));
+			}
+		}
+
+		catById.set(id, {
+			id,
+			name,
+			kind,
+			scope,
+			pricing_model: pricingModel as CoinCategory['pricing_model'],
+			amount,
+			min_amount: minAmount,
+			max_amount: maxAmount,
+			unit_label: unitLabel,
+			formula_key: null,
+			semester_point_cap: null,
+			cap_period: null,
+			cap_count: null,
+			notes: (params.p_notes as string | null)?.trim() || null,
+			active: true
+		});
+
+		return Promise.resolve(ok({ id }));
+	}
+
+	if (fn === 'coin_admin_set_category_active') {
+		const id = String(params.p_id ?? '')
+			.toLowerCase()
+			.trim();
+		const existing = catById.get(id);
+		if (!existing) return Promise.resolve(rpcError(`Unknown coin category "${id}".`));
+		const active = params.p_active !== false;
+		catById.set(id, { ...existing, active });
+		return Promise.resolve(ok({ id, active }));
 	}
 
 	// -----------------------------------------------------------------------
@@ -1883,6 +2001,33 @@ function makeBalancesQuery() {
 			onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
 		) {
 			return Promise.resolve(compute()).then(onFulfilled, onRejected);
+		}
+	};
+	return builder;
+}
+
+/**
+ * Mirrors coin-desk/+page.server.ts's own `coin_categories` select
+ * (`.eq('loggable', true).order('sort_order')`) so CategoriesManager's
+ * `refreshCategories()` reads the SAME live `catById` map every RPC handler
+ * above writes to, with no separate refetch wiring.
+ */
+function makeCategoriesQuery() {
+	const builder = {
+		select(_cols: string) {
+			return builder;
+		},
+		eq(_col: string, _val: unknown) {
+			return builder;
+		},
+		order(_col: string, _opts?: unknown) {
+			return builder;
+		},
+		then<TResult1 = unknown, TResult2 = never>(
+			onFulfilled?: ((value: { data: CoinCategory[]; error: null }) => TResult1 | PromiseLike<TResult1>) | null,
+			onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+		) {
+			return Promise.resolve({ data: Array.from(catById.values()), error: null }).then(onFulfilled, onRejected);
 		}
 	};
 	return builder;
