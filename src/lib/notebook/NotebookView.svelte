@@ -3,6 +3,7 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
+	import PhotoCorrector from '$lib/notebook/PhotoCorrector.svelte';
 	import {
 		entryTitle,
 		flagReasonLabel,
@@ -12,6 +13,7 @@
 		orderedPhotos,
 		outstandingSessions,
 		photoCountLabel,
+		photoPages,
 		sessionMeta,
 		showsStatus,
 		statusLabel,
@@ -34,6 +36,13 @@
 	 * /api/notebook/upload, /api/notebook/add-photo and /api/notebook/note
 	 * while the harness answers in memory. That split is what lets the
 	 * multi-photo orchestration itself be exercised with no network.
+	 *
+	 * Every picked photo first passes through the CORRECTION step
+	 * (PhotoCorrector, one photo at a time, never a whole batch at once):
+	 * confirm produces a flattened + auto-leveled JPEG that uploads
+	 * immediately after its own original as the 'enhanced' variant -- adjacent
+	 * rows, which is the pairing photoPages() renders as one page -- while
+	 * skip stages the original alone, exactly the pre-correction flow.
 	 */
 
 	let {
@@ -81,7 +90,21 @@
 	 */
 	let freeMode = $state<'photos' | 'note'>('photos');
 	let label = $state('');
-	let files = $state<File[]>([]);
+	/**
+	 * A staged photo: the picked file plus, when the correction step produced
+	 * one, the corrected JPEG that uploads right after it as the 'enhanced'
+	 * variant. `enhanced: null` means the student skipped correction (or the
+	 * image could not be decoded) and only the original uploads -- exactly
+	 * the pre-correction behavior.
+	 */
+	interface StagedPhoto {
+		file: File;
+		enhanced: File | null;
+	}
+	let staged = $state<StagedPhoto[]>([]);
+	/** Picked but not yet through the correction step; corrected one at a time. */
+	let correctionQueue = $state<File[]>([]);
+	let correctionNote = $state<string | null>(null);
 	let busy = $state(false);
 	let progress = $state('');
 	let errorMsg = $state<string | null>(null);
@@ -92,7 +115,10 @@
 	const feed = $derived(newestFirst(entries));
 	/** The note tier exists on the free-form path ONLY. */
 	const noteOnly = $derived(selectedSession === null && freeMode === 'note');
-	const canSubmit = $derived(noteOnly ? label.trim() !== '' : files.length > 0 && uploadReady);
+	const correcting = $derived(correctionQueue[0] ?? null);
+	const canSubmit = $derived(
+		noteOnly ? label.trim() !== '' : staged.length > 0 && correctionQueue.length === 0 && uploadReady
+	);
 
 	// Default to the outstanding session nearest today, and otherwise leave
 	// the student's own pick alone as `entries` refreshes underneath -- with
@@ -117,22 +143,42 @@
 		freeMode = mode;
 		// Staged photos are meaningless in note mode and would be silently
 		// dropped on submit; clearing them makes that visible instead.
-		if (mode === 'note') files = [];
+		if (mode === 'note') {
+			staged = [];
+			correctionQueue = [];
+		}
 	}
 
 	function onFilesChosen(e: Event) {
 		const picked = Array.from((e.currentTarget as HTMLInputElement).files ?? []);
-		if (picked.length) files = [...files, ...picked];
+		// Every picked photo queues for its OWN correction step (one at a
+		// time, in order); it lands in `staged` only once corrected or skipped.
+		if (picked.length) {
+			correctionNote = null;
+			correctionQueue = [...correctionQueue, ...picked];
+		}
 		// Clear the input so re-picking the same file still fires a change.
 		if (fileInput) fileInput.value = '';
 	}
 
-	function removeFile(i: number) {
-		files = files.filter((_, j) => j !== i);
+	function correctionDone(enhanced: File | null, failed = false) {
+		const file = correctionQueue[0];
+		if (!file) return;
+		staged = [...staged, { file, enhanced }];
+		correctionQueue = correctionQueue.slice(1);
+		if (failed) {
+			correctionNote = `${file.name} could not be opened for correction; it will upload as-is.`;
+		}
+	}
+
+	function removeStaged(i: number) {
+		staged = staged.filter((_, j) => j !== i);
 	}
 
 	function resetForm() {
-		files = [];
+		staged = [];
+		correctionQueue = [];
+		correctionNote = null;
 		label = '';
 		if (fileInput) fileInput.value = '';
 	}
@@ -145,8 +191,8 @@
 		successMsg = null;
 		progress = noteOnly
 			? 'Saving...'
-			: files.length > 1
-				? `Uploading photo 1 of ${files.length}...`
+			: staged.length > 1
+				? `Uploading photo 1 of ${staged.length}...`
 				: 'Uploading...';
 
 		try {
@@ -169,7 +215,7 @@
 			// 0071 made the label optional and the upload route falls back to the
 			// file's own name, so the UI must not re-impose a required-label rule.
 			const first = new FormData();
-			first.set('photo', files[0]);
+			first.set('photo', staged[0].file);
 			if (selectedSession) first.set('session_id', selectedSession);
 			const trimmed = label.trim();
 			if (!selectedSession && trimmed) first.set('custom_label', trimmed);
@@ -180,18 +226,39 @@
 				return;
 			}
 
-			// Every later photo joins that entry. A failure here is reported
+			// A corrected version rides IMMEDIATELY after its own original, so
+			// the pair lands on adjacent sequence numbers -- the adjacency
+			// photoPages() groups back into one page. Failures are reported
 			// honestly rather than rolled back: the entry and its first photo
-			// really do exist, and the student can add the rest from the entry.
+			// really do exist, and the student can add the rest from the page.
 			const failed: number[] = [];
-			for (let i = 1; i < files.length; i++) {
-				progress = `Uploading photo ${i + 1} of ${files.length}...`;
+			const failedEnhanced: number[] = [];
+			const sendEnhanced = async (i: number) => {
+				const enhanced = staged[i].enhanced;
+				if (!enhanced) return;
+				progress = `Uploading corrected photo ${i + 1}...`;
 				const form = new FormData();
-				form.set('photo', files[i]);
+				form.set('photo', enhanced);
+				form.set('entry_id', created.entryId);
+				form.set('variant', 'enhanced');
+				const added = await addPhoto(form);
+				if (!added.ok) failedEnhanced.push(i + 1);
+			};
+			await sendEnhanced(0);
+			for (let i = 1; i < staged.length; i++) {
+				progress = `Uploading photo ${i + 1} of ${staged.length}...`;
+				const form = new FormData();
+				form.set('photo', staged[i].file);
 				form.set('entry_id', created.entryId);
 				form.set('variant', 'original');
 				const added = await addPhoto(form);
-				if (!added.ok) failed.push(i + 1);
+				if (!added.ok) {
+					failed.push(i + 1);
+					// No original landed for this page, so its corrected version
+					// would pair against the WRONG preceding original; skip it.
+					continue;
+				}
+				await sendEnhanced(i);
 			}
 
 			if (failed.length) {
@@ -200,9 +267,14 @@
 				)} did not upload. Add ${failed.length === 1 ? 'it' : 'them'} again from this page.`;
 			} else {
 				successMsg =
-					files.length === 1
+					staged.length === 1
 						? 'Entry saved.'
-						: `Entry saved with ${photoCountLabel(files.length)}.`;
+						: `Entry saved with ${photoCountLabel(staged.length)}.`;
+				if (failedEnhanced.length) {
+					successMsg += ` The corrected version of ${
+						failedEnhanced.length === 1 ? 'photo' : 'photos'
+					} ${failedEnhanced.join(', ')} did not upload; the original is saved.`;
+				}
 			}
 			resetForm();
 			onUploaded?.();
@@ -277,6 +349,9 @@
 					Photo storage is not configured on the server yet, so photo uploads are turned
 					off. You can still save a note.
 				</p>
+			{/if}
+			{#if correctionNote}
+				<p class="feedback error" role="status">{correctionNote}</p>
 			{/if}
 
 			<form onsubmit={submit}>
@@ -384,17 +459,21 @@
 							onchange={onFilesChosen}
 							disabled={busy || !uploadReady}
 						/>
-						<span class="hint">JPEG, PNG, WebP, or HEIC, up to 4&nbsp;MB each.</span>
+						<span class="hint">
+							JPEG, PNG, WebP, or HEIC, up to 4&nbsp;MB each. You can straighten and clean up
+							each photo before it uploads.
+						</span>
 					</div>
 				{/if}
 
-				{#if files.length && !noteOnly}
+				{#if staged.length && !noteOnly}
 					<ul class="staged">
-						{#each files as f, i (f.name + i)}
+						{#each staged as s, i (s.file.name + i)}
 							<li>
 								<span class="staged-n">{i + 1}</span>
-								<span class="staged-name">{f.name}</span>
-								<button type="button" class="remove" onclick={() => removeFile(i)} disabled={busy}>
+								<span class="staged-name">{s.file.name}</span>
+								{#if s.enhanced}<span class="staged-tag">corrected</span>{/if}
+								<button type="button" class="remove" onclick={() => removeStaged(i)} disabled={busy}>
 									Remove
 								</button>
 							</li>
@@ -431,7 +510,9 @@
 								<div class="entry-meta">
 									<span class="stamp">{when(entry.upload_timestamp)}</span>
 									<span class="dot" aria-hidden="true">·</span>
-									<span>{photoCountLabel(photos.length)}</span>
+									<!-- Logical pages, so an original + its corrected variant count
+									     once; identical to the row count for all-original entries. -->
+									<span>{photoCountLabel(photoPages(photos).length)}</span>
 									{#if showsStatus(entry.status)}
 										<span
 											class="status"
@@ -471,6 +552,19 @@
 
 	<VersionBadge app="portal" />
 </main>
+
+{#if correcting}
+	<!-- One photo at a time, in pick order; keyed so a new file remounts the
+	     corrector fresh (its own detection, its own corners). -->
+	{#key correcting}
+		<PhotoCorrector
+			file={correcting}
+			index={staged.length + 1}
+			total={staged.length + correctionQueue.length}
+			onDone={correctionDone}
+		/>
+	{/key}
+{/if}
 
 <style>
 	.notebook-page {
@@ -642,6 +736,16 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.staged-tag {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: var(--cyan);
+		border: 1px solid color-mix(in srgb, var(--cyan) 45%, transparent);
+		border-radius: 999px;
+		padding: 0.05rem 0.45rem;
 	}
 	.remove {
 		background: none;

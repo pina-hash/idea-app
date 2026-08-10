@@ -136,6 +136,66 @@ export function orderedPhotos(entry: NotebookEntry): NotebookPhoto[] {
 }
 
 /**
+ * One LOGICAL page: the original photo plus, when the pre-upload correction
+ * step produced one, its 'enhanced' variant.
+ *
+ * PAIRING IS BY ADJACENCY, deliberately. notebook_entry_photos carries
+ * `unique (entry_id, sequence_order)` and notebook_add_photo always assigns
+ * max+1, so two rows can never literally share a sequence_order -- and 0069's
+ * own design ("'enhanced' variants stored NEXT TO the 'original'") is
+ * adjacent rows told apart by `variant`. The upload flow writes the pair
+ * back-to-back (original, then its enhanced), so walking the ordered rows
+ * and attaching each 'enhanced' to the immediately preceding original is
+ * exact for everything this app has ever written. `page` is the logical page
+ * number; for an all-original entry (the entire pre-correction history) it
+ * equals sequence_order, since those are contiguous from 1 by construction.
+ */
+export interface PhotoPage {
+	page: number;
+	original: NotebookPhoto | null;
+	enhanced: NotebookPhoto | null;
+}
+
+export function photoPages(photos: NotebookPhoto[]): PhotoPage[] {
+	const ordered = [...photos].sort((a, b) => a.sequence_order - b.sequence_order);
+	const pages: PhotoPage[] = [];
+	for (const p of ordered) {
+		const current = pages[pages.length - 1];
+		if (p.variant === 'enhanced' && current?.original && !current.enhanced) {
+			current.enhanced = p;
+		} else if (p.variant === 'enhanced') {
+			// Defensive: an enhanced row with no original to attach to (nothing
+			// writes this shape) still renders rather than vanishing.
+			pages.push({ page: pages.length + 1, original: null, enhanced: p });
+		} else {
+			pages.push({ page: pages.length + 1, original: p, enhanced: null });
+		}
+	}
+	return pages;
+}
+
+/**
+ * What a page shows: the corrected version by default, the original on
+ * request (or when it is all the page has). One of the two always exists.
+ */
+export function pagePhoto(page: PhotoPage, showOriginal = false): NotebookPhoto {
+	if (showOriginal && page.original) return page.original;
+	return (page.enhanced ?? page.original) as NotebookPhoto;
+}
+
+/** Stable key for per-page UI state, whichever variant is displayed. */
+export function pageKey(page: PhotoPage): string {
+	return ((page.original ?? page.enhanced) as NotebookPhoto).id;
+}
+
+/** The browser-facing filename for a corrected photo's upload. */
+export function correctedFileName(originalName: string | null | undefined): string {
+	const trimmed = originalName?.trim();
+	const base = trimmed ? stripExtension(trimmed) : 'photo';
+	return `${base}-corrected.jpg`;
+}
+
+/**
  * Where the <img> points: this app's OWN proxy route, keyed by the photo
  * row's id (never the Drive file id -- the proxy resolves that itself, from
  * a row the caller has proved they may read).

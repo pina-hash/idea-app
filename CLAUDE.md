@@ -3179,6 +3179,71 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
 - **Photos are the priority content**: one per row at full column width
   (measured 744px at a 1280 viewport, up to 40rem tall), never a thumbnail
   grid, with reserved height so a slow load cannot collapse the frame.
+- **Pre-upload photo correction (client-side only, no schema/RPC change).**
+  Every picked photo passes through an interactive correction step before it
+  uploads (`src/lib/notebook/PhotoCorrector.svelte`, one photo at a time even
+  for a multi-file pick, never one correction applied to a batch): the image
+  full-screen with four draggable corner handles seeded by best-effort page
+  detection (bright-page-on-darker-desk model; unconfident falls back to
+  near-corner defaults), confirm flattens the chosen quadrilateral into a
+  rectangle plus a percentile contrast/brightness auto-level, and an
+  always-visible Skip uploads the original untouched (a photo the browser
+  cannot decode, e.g. some HEICs off-device, auto-skips with a note).
+  - **Zero-dependency by choice:** OpenCV.js (or jscanify wrapping it) is
+    ~8-10 MB of wasm for a camera-first phone flow whose real needs are a
+    4-point homography (closed-form 8x8 solve), an inverse-mapped bilinear
+    warp, a levels stretch, and an Otsu-threshold largest-bright-region
+    corner guess -- all in `src/lib/notebook/photo-correct.ts` (pure, no
+    Svelte/DOM, importable by a harness or `await import(...)` in a dev
+    console). Touch dragging is native pointer events with capture either
+    way. **Deliberately NOT corrected: page curvature near the spine** -- a
+    straight four-corner warp handles skew and angle only; modelling curl is
+    a mesh-warp problem left for later if this proves insufficient.
+  - **PAIRING IS BY ADJACENCY, because literal sequence-sharing is
+    unrepresentable.** The intent "the enhanced shares the original's
+    sequence_order" collides with 0069's `unique (entry_id, sequence_order)`
+    AND `notebook_add_photo`'s unconditional max+1 -- fixing either is a
+    schema/RPC change this feature deliberately avoids, and 0069's own
+    header already defines the design: "'enhanced' variants stored NEXT TO
+    the 'original'". So a corrected photo uploads IMMEDIATELY after its own
+    original (original via the usual route, then the corrected JPEG through
+    the same `/api/notebook/add-photo` with `variant=enhanced`), landing on
+    adjacent sequence numbers; an original whose upload failed skips its
+    enhanced so a pair can never form against the wrong original.
+  - **Display groups rows into LOGICAL PAGES** (`photoPages` in
+    `notebook.ts`: walk rows in sequence order, attach each 'enhanced' to
+    the immediately preceding original). A page with both variants renders
+    ONCE in `NotebookPhotos.svelte` -- the shared renderer, so the student
+    feed AND the instructor review panel get it identically -- showing the
+    CORRECTED version by default with a small Corrected/Original toggle,
+    never as two separate pages; photo-count lines count pages. A page with
+    only an original (the entire pre-correction history) renders exactly as
+    before, page numbers included, since all-original sequences are
+    contiguous from 1 by construction.
+  - **Verified** in `/dev/notebook` + `/dev/notebook-review` by driving the
+    REAL flow with generated test images (the harness stashes every received
+    upload on `window.__notebookReceived` so outputs are decodable):
+    detection landed within ~8px of an authored page quad; a synthetic
+    pointer drag moved exactly the dragged corner and Reset restored
+    detection; the decisive warp proof dragged all four handles onto colored
+    markers and found those exact colors at the output's four corners in
+    TL/TR/BR/BL order, with the output sized to the dragged quad's own
+    geometry (600x432 vs the page quad's 1075x780 -- dragging genuinely
+    moves where the warp samples); auto-levels pushed paper to 94.9% bright
+    pixels; a corrected submit produced exactly upload + add-photo
+    `variant=enhanced` (adjacent rows) and the feed showed one page
+    defaulting to the enhanced with the toggle flipping img src both ways;
+    Skip (and Escape) produced exactly ONE upload call, no enhanced row, no
+    toggle; a 2-file pick ran the corrector twice ("Photo 1 of 2" / "2 of
+    2") and correct-then-skip yielded upload, add-photo enhanced, add-photo
+    original with page 1 paired and page 2 plain; the review panel defaulted
+    to the enhanced (drive-p-1e) and toggled to the original; a
+    single-original review cell rendered unchanged; mobile 375px asserted
+    geometrically (canvas fits, 44px handle hit targets, all controls in
+    view, SVG overlay pixel-aligned). `npm run check` 0 errors / no new
+    warnings; `npm test` 59/59. **Checked by eye only: nothing** -- but the
+    pane could not composite a mobile screenshot, so the phone-width look
+    was asserted geometrically rather than visually.
 - **Photo bytes are served by THIS APP, through a proxy
   (`/api/notebook/photo/[photo_id]`).** This supersedes the original direct
   `drive.google.com/thumbnail?id=...` `<img>` src, which only ever rendered

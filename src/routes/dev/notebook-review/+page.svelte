@@ -105,19 +105,30 @@
 		{ id: 'stu-5', name: 'Eli Moreno', email: 'eli.moreno@boscotech.net', course_id: 'eng1h-senior' }
 	];
 
-	function photo(id: string, seq: number, filename: string | null = null): NotebookPhoto {
+	function photo(
+		id: string,
+		seq: number,
+		filename: string | null = null,
+		variant: 'original' | 'enhanced' = 'original'
+	): NotebookPhoto {
 		return {
 			id,
 			drive_file_id: `drive-${id}`,
-			variant: 'original',
+			variant,
 			sequence_order: seq,
 			original_filename: filename
 		};
 	}
 
 	let entries = $state<StoreEntry[]>([
-		// Ana: three on-time entries -> 3 of 3.
-		mk('e-1', 'stu-1', 'sec-a', 'ses-a1', '2026-08-03T16:10:00Z', 'compliant', [photo('p-1', 1, 'brief.jpg')]),
+		// Ana: three on-time entries -> 3 of 3. The first carries an original +
+		// its adjacent 'enhanced' pair, so the review panel's page grouping
+		// (corrected shown by default, toggle back to the original) is
+		// drivable here.
+		mk('e-1', 'stu-1', 'sec-a', 'ses-a1', '2026-08-03T16:10:00Z', 'compliant', [
+			photo('p-1', 1, 'brief.jpg'),
+			photo('p-1e', 2, 'brief-corrected.jpg', 'enhanced')
+		]),
 		mk('e-2', 'stu-1', 'sec-a', 'ses-a2', '2026-08-05T15:40:00Z', 'compliant', [photo('p-2', 1, 'stackup.jpg')]),
 		mk('e-3', 'stu-1', 'sec-a', 'ses-a3', '2026-08-07T15:05:00Z', 'compliant', [photo('p-3', 1)]),
 		// Ben: one LATE, one FLAGGED, one missing -> 2 of 3, 1 flag.

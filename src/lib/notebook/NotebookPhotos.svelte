@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { driveOpenUrl, photoSrc, type NotebookPhoto } from '$lib/notebook';
+	import {
+		driveOpenUrl,
+		pageKey,
+		pagePhoto,
+		photoPages,
+		photoSrc,
+		type NotebookPhoto
+	} from '$lib/notebook';
 
 	/**
 	 * The one way a notebook entry's photos are rendered anywhere in this app.
@@ -14,10 +21,16 @@
 	 * Photos are the point of every screen that shows them: one per row at
 	 * full column width, never a thumbnail grid.
 	 *
+	 * Since the pre-upload correction step, rows are grouped into LOGICAL
+	 * PAGES (photoPages in notebook.ts): an original plus its adjacent
+	 * 'enhanced' variant render as ONE page showing the corrected version by
+	 * default, with a small toggle back to the original -- never as two
+	 * separate pages. A page with only an original (every photo uploaded
+	 * before correction existed) renders exactly as it always has.
+	 *
 	 * `label` is the entry's display title, used only to build the alt text
-	 * (a multi-photo entry says which page). Ordering is a property of THIS
-	 * component (orderedPhotos), not of how the caller happened to fetch the
-	 * rows.
+	 * (a multi-photo entry says which page). Ordering and grouping are
+	 * properties of THIS component, not of how the caller fetched the rows.
 	 */
 	let {
 		photos,
@@ -36,8 +49,10 @@
 		lazy?: boolean;
 	} = $props();
 
-	/** Upload order, so a multi-page entry reads page 1 first. */
-	const ordered = $derived([...photos].sort((a, b) => a.sequence_order - b.sequence_order));
+	const pages = $derived(photoPages(photos));
+
+	/** Per-page "show me the original" choice, keyed by pageKey. */
+	let showOriginal = $state<Record<string, boolean>>({});
 
 	let broken = $state<Record<string, true>>({});
 	/** Bumped per photo by "Try again"; rides the src as a cache-buster. */
@@ -48,12 +63,20 @@
 		const { [photoId]: _dropped, ...rest } = broken;
 		broken = rest;
 	}
+
+	function setVariant(key: string, original: boolean) {
+		showOriginal = { ...showOriginal, [key]: original };
+	}
 </script>
 
-{#if ordered.length}
+{#if pages.length}
 	<div class="photos">
-		{#each ordered as photo (photo.id)}
-			<figure class="photo">
+		{#each pages as page (pageKey(page))}
+			{@const key = pageKey(page)}
+			{@const viewingOriginal = showOriginal[key] === true}
+			{@const photo = pagePhoto(page, viewingOriginal)}
+			{@const paired = page.original !== null && page.enhanced !== null}
+			<figure class="photo" data-testid="photo-page">
 				{#if broken[photo.id]}
 					<!-- A proxied fetch can still fail for ordinary reasons (Drive
 					     hiccup, revoked token), so the per-photo fallback stays --
@@ -75,14 +98,31 @@
 				{:else}
 					<img
 						src={`${photoSrc(photo.id)}${retryTick[photo.id] ? `?r=${retryTick[photo.id]}` : ''}`}
-						alt={ordered.length > 1 ? `${label}, page ${photo.sequence_order}` : label}
+						alt={pages.length > 1 ? `${label}, page ${page.page}` : label}
 						loading={lazy ? 'lazy' : 'eager'}
 						onerror={() => (broken = { ...broken, [photo.id]: true })}
 					/>
 				{/if}
 				<figcaption>
-					{#if ordered.length > 1}Page {photo.sequence_order}{/if}
-					{#if photo.variant === 'enhanced'}<span class="variant">enhanced</span>{/if}
+					{#if pages.length > 1}Page {page.page}{/if}
+					{#if paired}
+						<span class="variant-toggle" role="group" aria-label="Photo version">
+							<button
+								type="button"
+								class:on={!viewingOriginal}
+								aria-pressed={!viewingOriginal}
+								onclick={() => setVariant(key, false)}>Corrected</button
+							>
+							<button
+								type="button"
+								class:on={viewingOriginal}
+								aria-pressed={viewingOriginal}
+								onclick={() => setVariant(key, true)}>Original</button
+							>
+						</span>
+					{:else if photo.variant === 'enhanced'}
+						<span class="variant">corrected</span>
+					{/if}
 					{#if photo.original_filename}
 						<span class="filename">{photo.original_filename}</span>
 					{/if}
@@ -146,6 +186,7 @@
 		display: flex;
 		gap: 0.5rem;
 		flex-wrap: wrap;
+		align-items: center;
 		margin-top: 0.3rem;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
@@ -153,6 +194,24 @@
 	}
 	.variant {
 		color: var(--cyan);
+	}
+	.variant-toggle {
+		display: inline-flex;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		overflow: hidden;
+	}
+	.variant-toggle button {
+		background: none;
+		border: none;
+		padding: 0.1rem 0.55rem;
+		font: inherit;
+		color: var(--dim);
+		cursor: pointer;
+	}
+	.variant-toggle button.on {
+		color: var(--bg0);
+		background: var(--cyan);
 	}
 	.filename {
 		overflow: hidden;

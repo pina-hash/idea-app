@@ -1,6 +1,6 @@
 <script lang="ts">
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
-	import { flagReasonLabel, photoCountLabel, type NotebookFlagReason } from '$lib/notebook';
+	import { flagReasonLabel, photoCountLabel, photoPages, type NotebookFlagReason } from '$lib/notebook';
 	import {
 		FLAG_REASONS,
 		cellDisplay,
@@ -107,7 +107,8 @@
 			<p class="meta">
 				<span class="state {cellDisplay(cell)}">{cellLabel(cellDisplay(cell))}</span>
 				<span>{stampLabel(entry.upload_timestamp)}</span>
-				<span>{photoCountLabel(entry.photos.length)}</span>
+				<!-- Logical pages: an original + its corrected variant count once. -->
+				<span>{photoCountLabel(photoPages(entry.photos).length)}</span>
 				{#if cell.entry_count > 1}
 					<span class="also">{cell.entry_count} entries for this check-in; showing the latest</span>
 				{/if}

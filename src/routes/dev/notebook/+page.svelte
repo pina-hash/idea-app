@@ -180,8 +180,29 @@
 		return parts.length ? parts.join(' ') : '(no fields)';
 	}
 
+	/**
+	 * Every received upload, file included, exposed for scripted verification
+	 * (decoding the corrected JPEG the corrector actually produced and
+	 * diffing it against another run is how "dragging a handle changes where
+	 * the warp draws from" is ASSERTED rather than eyeballed). Dev-only page.
+	 */
+	const received: { route: string; fields: Record<string, string>; file: File | null }[] = [];
+	if (typeof window !== 'undefined') {
+		(window as unknown as Record<string, unknown>).__notebookReceived = received;
+	}
+	function record(route: string, form: FormData) {
+		const fields: Record<string, string> = {};
+		let file: File | null = null;
+		for (const [k, v] of form.entries()) {
+			if (v instanceof File) file = v;
+			else fields[k] = v;
+		}
+		received.push({ route, fields, file });
+	}
+
 	async function createEntry(form: FormData): Promise<CreateEntryResult> {
 		log = [...log, `POST /api/notebook/upload  ${describe(form)}`];
+		record('upload', form);
 		const id = `new-${++seq}`;
 		const file = form.get('photo') as File | null;
 		const sessionId = (form.get('session_id') as string | null) ?? null;
@@ -241,8 +262,11 @@
 
 	async function addPhoto(form: FormData): Promise<AddPhotoResult> {
 		log = [...log, `POST /api/notebook/add-photo  ${describe(form)}`];
+		record('add-photo', form);
 		const entryId = form.get('entry_id') as string;
 		const file = form.get('photo') as File | null;
+		// Mirrors the RPC: variant is stored, sequence_order is max+1.
+		const variant = (form.get('variant') as string) === 'enhanced' ? 'enhanced' : 'original';
 		const push = (list: NotebookEntry[]) =>
 			list.map((e) =>
 				e.id === entryId
@@ -250,7 +274,12 @@
 							...e,
 							photos: [
 								...e.photos,
-								photo(`${entryId}-${e.photos.length + 1}`, e.photos.length + 1, file?.name ?? null)
+								photo(
+									`${entryId}-${e.photos.length + 1}`,
+									e.photos.length + 1,
+									file?.name ?? null,
+									variant
+								)
 							]
 						}
 					: e
