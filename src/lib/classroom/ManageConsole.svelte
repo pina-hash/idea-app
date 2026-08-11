@@ -2,24 +2,28 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		emailLocal,
 		formatDue,
 		importReasonLabel,
+		itemKindLabel,
+		itemTitle,
 		parseRosterCsv,
 		sectionDeleteBlockedLabel,
 		sectionTitle,
 		shortWhen,
 		sortSections,
-		type ClassroomAssignment,
 		type ClassroomCourse,
 		type ClassroomEnrollment,
+		type ClassroomItem,
+		type ClassroomItemKind,
 		type ClassroomManageTransports,
-		type ClassroomPost,
 		type ClassroomSection,
 		type ImportSummary
 	} from '$lib/classroom/classroom';
+	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
 	 * The teacher console: courses + sections setup and lifecycle, the shared
@@ -40,7 +44,8 @@
 		attachmentsEnabled = true,
 		initialSections,
 		initialCourses,
-		transports
+		transports,
+		submitFeedback = null
 	}: {
 		ready?: boolean;
 		email: string;
@@ -50,6 +55,7 @@
 		initialSections: ClassroomSection[];
 		initialCourses: ClassroomCourse[];
 		transports: ClassroomManageTransports;
+		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 	} = $props();
 
 	type Msg = { ok: boolean; text: string } | null;
@@ -158,8 +164,7 @@
 	// --- Selected section: roster + content -------------------------------
 	let selectedSectionId = $state<string | null>(null);
 	let roster = $state<ClassroomEnrollment[]>([]);
-	let posts = $state<ClassroomPost[]>([]);
-	let assignments = $state<ClassroomAssignment[]>([]);
+	let items = $state<ClassroomItem[]>([]);
 	let panelBusy = $state(false);
 	let panelMsg = $state<Msg>(null);
 	let armDelete = $state<string | null>(null);
@@ -188,33 +193,27 @@
 		if (!selectedSectionId) return;
 		const res = await transports.loadContent(selectedSectionId);
 		if (res.ok) {
-			posts = res.data.posts;
-			assignments = res.data.assignments;
+			items = res.data.items;
 		} else {
 			panelMsg = { ok: false, text: res.message };
 		}
 	}
 
 	// --- Composer ---------------------------------------------------------
-	let composerKind = $state<'post' | 'assignment'>('post');
-	let editing = $state<{ kind: 'post' | 'assignment'; id: string; sectionId: string } | null>(null);
+	let composerKind = $state<ClassroomItemKind>('post');
+	let editingId = $state<string | null>(null);
 	// Remount key: switching edit targets rebuilds the composer with the right
 	// initial values rather than reaching into it imperatively.
-	const composerKey = $derived(editing ? `${editing.kind}:${editing.id}` : 'new');
-	const editingPost = $derived(
-		editing?.kind === 'post' ? (posts.find((p) => p.id === editing?.id) ?? null) : null
-	);
-	const editingAssignment = $derived(
-		editing?.kind === 'assignment' ? (assignments.find((a) => a.id === editing?.id) ?? null) : null
-	);
+	const composerKey = $derived(editingId ?? 'new');
+	const editingItem = $derived(items.find((i) => i.id === editingId) ?? null);
 
-	function startEdit(kind: 'post' | 'assignment', id: string, sectionId: string) {
-		editing = { kind, id, sectionId };
+	function startEdit(id: string) {
+		editingId = id;
 		document.getElementById('classroom-composer')?.scrollIntoView({ block: 'start' });
 	}
 
 	async function onComposerSaved() {
-		editing = null;
+		editingId = null;
 		if (selectedSectionId) await loadSelectedContent();
 		await refreshSections();
 	}
@@ -413,48 +412,62 @@
 		importBusy = false;
 	}
 
-	// Content actions
-	async function togglePostPublished(p: ClassroomPost) {
+	// Content actions. Publishing a DRAFT publishes it in every class it is
+	// posted to at once -- `published` lives on the canonical record, so there is
+	// no per-class copy left behind still reading as a draft.
+	async function togglePublished(item: ClassroomItem) {
 		if (panelBusy) return;
 		panelBusy = true;
-		const res = await transports.updatePost(p.id, p.body, p.title, !p.published);
-		if (!res.ok) panelMsg = { ok: false, text: res.message };
-		await loadSelectedContent();
-		panelBusy = false;
-	}
-
-	async function toggleAssignmentPublished(a: ClassroomAssignment) {
-		if (panelBusy) return;
-		panelBusy = true;
-		const res = await transports.updateAssignment(
-			a.id,
+		const res = await transports.updateItem(
+			item.id,
 			{
-				title: a.title,
-				description: a.description,
-				points: a.points,
-				dueAt: a.due_at,
-				category: a.category,
-				resources: a.resources.map((r) => ({ label: r.label, url: r.url }))
+				title: item.title,
+				body: item.body,
+				points: item.points,
+				dueAt: item.due_at,
+				category: item.category,
+				links: item.links.map((r) => ({ label: r.label, url: r.url }))
 			},
-			!a.published
+			!item.published
 		);
 		if (!res.ok) panelMsg = { ok: false, text: res.message };
 		await loadSelectedContent();
 		panelBusy = false;
 	}
 
-	async function deleteContent(kind: 'post' | 'assignment', id: string) {
-		const key = `${kind}:${id}`;
-		if (armDelete !== key) {
-			armDelete = key;
+	async function togglePinned(item: ClassroomItem) {
+		if (panelBusy) return;
+		panelBusy = true;
+		const res = await transports.setPinned(item.id, !item.pinned);
+		if (!res.ok) panelMsg = { ok: false, text: res.message };
+		await loadSelectedContent();
+		panelBusy = false;
+	}
+
+	async function duplicateItem(item: ClassroomItem) {
+		if (panelBusy) return;
+		panelBusy = true;
+		const res = await transports.duplicateItem(item.id);
+		panelBusy = false;
+		if (!res.ok) {
+			panelMsg = { ok: false, text: res.message };
+			return;
+		}
+		await loadSelectedContent();
+		panelMsg = { ok: true, text: 'Copied as a new draft. It is open in the composer above.' };
+		startEdit(res.data.itemId);
+	}
+
+	async function deleteContent(id: string) {
+		if (armDelete !== id) {
+			armDelete = id;
 			return;
 		}
 		armDelete = null;
 		panelBusy = true;
-		const res =
-			kind === 'post' ? await transports.deletePost(id) : await transports.deleteAssignment(id);
+		const res = await transports.deleteItem(id);
 		if (!res.ok) panelMsg = { ok: false, text: res.message };
-		if (editing?.id === id) editing = null;
+		if (editingId === id) editingId = null;
 		await loadSelectedContent();
 		panelBusy = false;
 	}
@@ -604,36 +617,22 @@
 
 		<!-- 2. Composer (the SHARED editor, also mounted on the class pages) -->
 		<section class="card" id="classroom-composer">
-			<h2>{editing ? `Edit ${editing.kind}` : 'Compose'}</h2>
-			{#if editing}
+			<h2>{editingItem ? `Edit ${itemKindLabel(editingItem.kind).toLowerCase()}` : 'Compose'}</h2>
+			{#if editingItem}
 				<p class="note">
-					Editing the copy in
-					<strong>
-						{sectionTitle(
-							sections.find((s) => s.id === editing?.sectionId) ?? {
-								id: '',
-								course_id: '',
-								label: '?',
-								block: null,
-								teacher_email: '',
-								course: null
-							}
-						)}
-					</strong>.
-					A multi-section publish made one copy per section; edits apply to this one.
-					<button type="button" class="linklike" onclick={() => (editing = null)}>
+					Editing the one shared copy of <strong>{itemTitle(editingItem)}</strong>. Every class it
+					is posted to sees the change; use the linkage controls below to add or remove a class.
+					<button type="button" class="linklike" onclick={() => (editingId = null)}>
 						Cancel editing
 					</button>
 				</p>
 			{/if}
 			{#key composerKey}
 				<ContentComposer
-					mode={editing ? 'edit' : 'create'}
+					mode={editingItem ? 'edit' : 'create'}
 					bind:kind={composerKind}
-					sections={editing ? [] : publishTargets}
-					post={editingPost}
-					assignment={editingAssignment}
-					attachments={editingPost?.attachments ?? editingAssignment?.attachments ?? []}
+					sections={editingItem ? orderedSections : publishTargets}
+					item={editingItem}
 					{transports}
 					{attachmentsEnabled}
 					onsaved={onComposerSaved}
@@ -722,8 +721,8 @@
 									<div class="danger-zone">
 										<p class="note">
 											Deleting a section is only possible when it is completely empty. If it
-											holds posts, assignments or students, archive it instead -- that keeps
-											every record and takes it out of the publish targets.
+											holds posted items or students, archive it instead -- that keeps every
+											record and takes it out of the publish targets.
 										</p>
 										<label>
 											<span>Type the section label ("{s.label}") to confirm</span>
@@ -859,67 +858,47 @@
 									{/if}
 								</details>
 
-								<h3>Posts</h3>
-								{#if posts.length === 0}
-									<p class="note empty-state">No posts in this section yet.</p>
+								<h3>Posted here</h3>
+								{#if items.length === 0}
+									<p class="note empty-state">Nothing posted to this section yet.</p>
 								{:else}
 									<div class="content-rows">
-										{#each posts as p (p.id)}
+										{#each items as item (item.id)}
 											<div class="content-row">
 												<span class="content-main">
 													<span class="content-title">
-														{p.title ?? p.body.slice(0, 60)}
-														{#if !p.published}<span class="draft-chip">Draft</span>{/if}
+														{itemTitle(item)}
+														<span class="kind-chip">{itemKindLabel(item.kind)}</span>
+														{#if item.pinned}<span class="kind-chip pinned">Pinned</span>{/if}
+														{#if !item.published}<span class="draft-chip">Draft</span>{/if}
 													</span>
 													<span class="content-when">
-														{shortWhen(p.created_at)}
-														{#if p.attachments?.length}
-															&nbsp;&middot; {p.attachments.length} file{p.attachments.length === 1 ? '' : 's'}
+														{#if item.kind === 'assignment'}
+															Due {formatDue(item.due_at)}
+															{#if item.points != null}&nbsp;&middot; {item.points} pts{/if}
+															{#if item.category}&nbsp;&middot; {item.category}{/if}
+														{:else}
+															{shortWhen(item.created_at)}
+														{/if}
+														{#if item.postings.length > 1}
+															&nbsp;&middot; in {item.postings.length} classes
+														{/if}
+														{#if item.attachments.length}
+															&nbsp;&middot; {item.attachments.length} file{item.attachments.length === 1 ? '' : 's'}
 														{/if}
 													</span>
 												</span>
 												<span class="content-actions">
-													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEdit('post', p.id, p.section_id)}>Edit</button>
-													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => togglePostPublished(p)}>
-														{p.published ? 'Unpublish' : 'Publish'}
+													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEdit(item.id)}>Edit</button>
+													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => togglePublished(item)}>
+														{item.published ? 'Unpublish' : 'Publish'}
 													</button>
-													<button type="button" class="btn secondary tiny danger" disabled={panelBusy} onclick={() => deleteContent('post', p.id)}>
-														{armDelete === `post:${p.id}` ? 'Really delete?' : 'Delete'}
+													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => togglePinned(item)}>
+														{item.pinned ? 'Unpin' : 'Pin'}
 													</button>
-												</span>
-											</div>
-										{/each}
-									</div>
-								{/if}
-
-								<h3>Assignments</h3>
-								{#if assignments.length === 0}
-									<p class="note empty-state">No assignments in this section yet.</p>
-								{:else}
-									<div class="content-rows">
-										{#each assignments as a (a.id)}
-											<div class="content-row">
-												<span class="content-main">
-													<span class="content-title">
-														{a.title}
-														{#if !a.published}<span class="draft-chip">Draft</span>{/if}
-													</span>
-													<span class="content-when">
-														Due {formatDue(a.due_at)}
-														{#if a.points != null}&nbsp;&middot; {a.points} pts{/if}
-														{#if a.category}&nbsp;&middot; {a.category}{/if}
-														{#if a.attachments?.length}
-															&nbsp;&middot; {a.attachments.length} file{a.attachments.length === 1 ? '' : 's'}
-														{/if}
-													</span>
-												</span>
-												<span class="content-actions">
-													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEdit('assignment', a.id, a.section_id)}>Edit</button>
-													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => toggleAssignmentPublished(a)}>
-														{a.published ? 'Unpublish' : 'Publish'}
-													</button>
-													<button type="button" class="btn secondary tiny danger" disabled={panelBusy} onclick={() => deleteContent('assignment', a.id)}>
-														{armDelete === `assignment:${a.id}` ? 'Really delete?' : 'Delete'}
+													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => duplicateItem(item)}>Copy</button>
+													<button type="button" class="btn secondary tiny danger" disabled={panelBusy} onclick={() => deleteContent(item.id)}>
+														{armDelete === item.id ? 'Really delete?' : 'Delete'}
 													</button>
 												</span>
 											</div>
@@ -933,6 +912,12 @@
 			{/if}
 		</section>
 	{/if}
+
+	<ClassroomFeedback
+		context="manage"
+		meta={{ section_id: selectedSectionId }}
+		submit={submitFeedback}
+	/>
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
@@ -1272,6 +1257,18 @@
 		border: 1px solid var(--amber);
 		border-radius: 999px;
 		padding: 0.02rem 0.4rem;
+	}
+	.kind-chip {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.6rem;
+		color: var(--cyan);
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		padding: 0.02rem 0.4rem;
+	}
+	.kind-chip.pinned {
+		color: var(--gold);
+		border-color: var(--gold);
 	}
 	.page-footer {
 		margin-top: 2rem;

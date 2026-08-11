@@ -45,8 +45,10 @@ const MIGRATIONS = [
 	'0003_profile_section.sql',
 	'0020_profiles_identity.sql',
 	'0067_admin_tier.sql',
+	'0053_app_feedback.sql',
 	'0082_classroom.sql',
-	'0083_classroom_management.sql'
+	'0083_classroom_management.sql',
+	'0085_classroom_canonical_items.sql'
 ] as const;
 
 let db: TestDb;
@@ -84,18 +86,30 @@ async function rpc<T = Record<string, unknown>>(
 }
 
 /** Attaches a file and returns the new attachment row's id. */
-async function attach(
-	userId: string,
-	kind: 'post' | 'assignment',
-	ownerId: string,
-	driveFileId: string
-): Promise<string> {
-	const res = await rpc<{ attachments: { id: string }[] }>(
+async function attach(userId: string, itemId: string, driveFileId: string): Promise<string> {
+	const res = await rpc<{ attachment_id: string }>(
 		userId,
-		'public.classroom_add_attachment($1, $2::uuid[], $3, $4, $5, $6::bigint)',
-		[kind, [ownerId], driveFileId, 'handout.jpg', 'image/jpeg', 1234]
+		'public.classroom_add_attachment($1::uuid, $2, $3, $4, $5::bigint)',
+		[itemId, driveFileId, 'handout.jpg', 'image/jpeg', 1234]
 	);
-	return res.attachments[0].id;
+	return res.attachment_id;
+}
+
+/** Creates one canonical item and returns its id. */
+async function createItem(
+	userId: string,
+	kind: 'post' | 'assignment' | 'material',
+	sectionIds: string[],
+	title: string | null,
+	body: string,
+	published = true
+): Promise<string> {
+	const res = await rpc<{ item_id: string }>(
+		userId,
+		"public.classroom_create_item($1, $2::uuid[], $3, $4, null, null, null, $5, '[]'::jsonb, false)",
+		[kind, sectionIds, title, body, published]
+	);
+	return res.item_id;
 }
 
 beforeAll(async () => {
@@ -177,40 +191,29 @@ beforeAll(async () => {
 		'Bruno Baptiste'
 	]);
 
-	const pubPost = (
-		await rpc<{ post_ids: string[] }>(
-			teacherA.id,
-			'public.classroom_create_post($1::uuid[], $2, $3, $4)',
-			[[sectionA], 'Bring goggles.', 'Lab day', true]
-		)
-	).post_ids[0];
-	const draftPost = (
-		await rpc<{ post_ids: string[] }>(
-			teacherA.id,
-			'public.classroom_create_post($1::uuid[], $2, $3, $4)',
-			[[sectionA], 'Not ready yet.', 'Draft plan', false]
-		)
-	).post_ids[0];
-	const pubAsg = (
-		await rpc<{ assignment_ids: string[] }>(
-			teacherA.id,
-			'public.classroom_create_assignment($1::uuid[], $2)',
-			[[sectionA], 'Bridge sketch']
-		)
-	).assignment_ids[0];
-	const foreignPost = (
-		await rpc<{ post_ids: string[] }>(
-			teacherB.id,
-			'public.classroom_create_post($1::uuid[], $2, $3, $4)',
-			[[sectionB], 'Period 2 only.', 'Notice', true]
-		)
-	).post_ids[0];
+	const pubPost = await createItem(teacherA.id, 'post', [sectionA], 'Lab day', 'Bring goggles.');
+	const draftPost = await createItem(
+		teacherA.id,
+		'post',
+		[sectionA],
+		'Draft plan',
+		'Not ready yet.',
+		false
+	);
+	const pubAsg = await createItem(teacherA.id, 'assignment', [sectionA], 'Bridge sketch', '');
+	const foreignPost = await createItem(
+		teacherB.id,
+		'post',
+		[sectionB],
+		'Notice',
+		'Period 2 only.'
+	);
 
-	pubPostAttachment = await attach(teacherA.id, 'post', pubPost, 'drive-pub-post');
-	draftPostAttachment = await attach(teacherA.id, 'post', draftPost, 'drive-draft-post');
-	pubAsgAttachment = await attach(teacherA.id, 'assignment', pubAsg, 'drive-pub-asg');
-	foreignAttachment = await attach(teacherB.id, 'post', foreignPost, 'drive-foreign');
-	brokenAttachment = await attach(teacherA.id, 'post', pubPost, BROKEN_FILE_ID);
+	pubPostAttachment = await attach(teacherA.id, pubPost, 'drive-pub-post');
+	draftPostAttachment = await attach(teacherA.id, draftPost, 'drive-draft-post');
+	pubAsgAttachment = await attach(teacherA.id, pubAsg, 'drive-pub-asg');
+	foreignAttachment = await attach(teacherB.id, foreignPost, 'drive-foreign');
+	brokenAttachment = await attach(teacherA.id, pubPost, BROKEN_FILE_ID);
 }, 180_000);
 
 afterAll(async () => {
@@ -445,34 +448,33 @@ describe('DELETE /api/classroom/attachment/[attachment_id]', () => {
 	});
 
 	it('does NOT sweep a blob that other rows still reference', async () => {
-		// One upload, two owners -- the multi-section publish shape.
-		const p1 = (
-			await rpc<{ post_ids: string[] }>(
-				teacherA.id,
-				'public.classroom_create_post($1::uuid[], $2, $3, $4)',
-				[[sectionA], 'Shared handout A', 'A', true]
-			)
-		).post_ids[0];
-		const p2 = (
-			await rpc<{ post_ids: string[] }>(
-				teacherA.id,
-				'public.classroom_create_post($1::uuid[], $2, $3, $4)',
-				[[sectionA], 'Shared handout B', 'B', true]
-			)
-		).post_ids[0];
-		const shared = await rpc<{ attachments: { id: string }[] }>(
+		// One upload, two rows -- since 0085 that is the DUPLICATE shape: a copy
+		// carries its attachments by reference rather than re-uploading them.
+		const original = await createItem(
 			teacherA.id,
-			'public.classroom_add_attachment($1, $2::uuid[], $3, $4, $5, $6::bigint)',
-			['post', [p1, p2], 'drive-shared', 'shared.pdf', 'application/pdf', 99]
+			'post',
+			[sectionA],
+			'Shared handout',
+			'Read this.'
 		);
-		expect(shared.attachments).toHaveLength(2);
+		const originalAttachment = await attach(teacherA.id, original, 'drive-shared');
+		const copy = await rpc<{ item_id: string }>(
+			teacherA.id,
+			'public.classroom_duplicate_item($1::uuid)',
+			[original]
+		);
+		const { rows } = await db.sql<{ id: string }>(
+			'select id from public.classroom_attachments where item_id = $1',
+			[copy.item_id]
+		);
+		expect(rows).toHaveLength(1);
 
 		driveDeletes = [];
-		const first = await callDelete(shared.attachments[0].id, teacherA.id);
+		const first = await callDelete(originalAttachment, teacherA.id);
 		expect(first.status).toBe(200);
-		expect(driveDeletes).toEqual([]); // the sibling still points at it
+		expect(driveDeletes).toEqual([]); // the copy still points at it
 
-		const second = await callDelete(shared.attachments[1].id, teacherA.id);
+		const second = await callDelete(rows[0].id, teacherA.id);
 		expect(second.status).toBe(200);
 		expect(driveDeletes).toEqual(['drive-shared']); // now it is orphaned
 	});

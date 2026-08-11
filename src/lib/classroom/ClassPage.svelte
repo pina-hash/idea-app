@@ -3,47 +3,59 @@
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
+	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
+	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import {
 		authorLabel,
 		classworkGroups,
+		editedWhen,
 		emailLocal,
 		formatDue,
+		isUpdatedForViewer,
+		itemKindLabel,
+		itemTitle,
+		reorderedIds,
 		sectionTitle,
 		shortWhen,
 		streamItems,
-		type ClassroomAssignment,
 		type ClassroomComposerTransports,
-		type ClassroomPost,
-		type ClassroomSection
+		type ClassroomItem,
+		type ClassroomSection,
+		type LinkPreview
 	} from '$lib/classroom/classroom';
+	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
-	 * One class: the Stream view (announcements + assignment posts, newest
-	 * first) and the Classwork view (assignments by due date).
+	 * One class: the Stream view (announcements + assignments, pinned first,
+	 * then newest) and the Classwork view (pinned, then assignments by due date,
+	 * with materials on their own shelf).
 	 *
-	 * RLS already decided what is in `posts`/`assignments` -- a student load
-	 * simply never receives drafts -- and `canManage` only adds chrome and
-	 * controls, never data. The MANAGEMENT controls live on the cards
-	 * themselves, because "edit that announcement" is a thought someone has
-	 * while looking at the announcement, not one that survives a trip to a
-	 * separate console. Editing mounts the SHARED ContentComposer; there is no
-	 * second editor in this module.
+	 * RLS already decided what is in `items` -- a student load simply never
+	 * receives drafts -- and `canManage` only adds chrome and controls, never
+	 * data. The MANAGEMENT controls live on the cards themselves, because "edit
+	 * that announcement" is a thought someone has while looking at the
+	 * announcement, not one that survives a trip to a separate console. Editing
+	 * mounts the SHARED ContentComposer; there is no second editor in this
+	 * module, and an edit changes the one canonical record every class reads.
 	 */
 	let {
 		section,
-		posts,
-		assignments,
+		items,
+		sections = [],
 		canManage = false,
 		transports = null,
 		attachmentsEnabled = true,
 		basePath = '/classroom',
 		viewAs = null,
+		fetchPreview = null,
+		submitFeedback = null,
 		onchanged = null
 	}: {
 		section: ClassroomSection;
-		posts: ClassroomPost[];
-		assignments: ClassroomAssignment[];
+		items: ClassroomItem[];
+		/** Every section the caller manages, for the composer's linkage controls. */
+		sections?: ClassroomSection[];
 		canManage?: boolean;
 		/** Omitted (null) on every read-only surface, view-as included. */
 		transports?: ClassroomComposerTransports | null;
@@ -51,54 +63,129 @@
 		/** Link root -- rewritten under /classroom/view-as/<email>. */
 		basePath?: string;
 		viewAs?: string | null;
+		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
+		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 		onchanged?: (() => void | Promise<void>) | null;
 	} = $props();
 
 	let tab: 'stream' | 'classwork' = $state('stream');
-	let editing = $state<{ kind: 'post' | 'assignment'; id: string } | null>(null);
+	let editing = $state<string | null>(null);
 	let armDelete = $state<string | null>(null);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
+	let notice = $state<string | null>(null);
 
-	const stream = $derived(streamItems(posts, assignments));
-	const groups = $derived(classworkGroups(assignments));
+	/**
+	 * Locally-cleared "Updated" badges. The mark-viewed write is fire-and-forget
+	 * (a student should never wait on it), so the badge is cleared here the
+	 * moment the item is genuinely on screen rather than on the next reload.
+	 */
+	let seen = $state<Record<string, boolean>>({});
+
+	const stream = $derived(streamItems(items));
+	const groups = $derived(classworkGroups(items));
 	/** Controls appear only where BOTH the section allows it and a write path exists. */
 	const editable = $derived(canManage && !!transports);
+	const editingItem = $derived(items.find((i) => i.id === editing) ?? null);
 
-	const editingPost = $derived(
-		editing?.kind === 'post' ? (posts.find((p) => p.id === editing?.id) ?? null) : null
-	);
-	const editingAssignment = $derived(
-		editing?.kind === 'assignment' ? (assignments.find((a) => a.id === editing?.id) ?? null) : null
-	);
-
-	function toggleEdit(kind: 'post' | 'assignment', id: string) {
-		editing = editing && editing.kind === kind && editing.id === id ? null : { kind, id };
-		armDelete = null;
-		error = null;
+	function updated(item: ClassroomItem): boolean {
+		return !seen[item.id] && isUpdatedForViewer(item);
 	}
 
-	async function remove(kind: 'post' | 'assignment', id: string) {
+	/** Every OTHER class this item is posted to that the viewer can see. */
+	function alsoIn(item: ClassroomItem): ClassroomSection[] {
+		const others = item.postings.filter((p) => p.section_id !== section.id);
+		return others
+			.map((p) => sections.find((s) => s.id === p.section_id))
+			.filter((s): s is ClassroomSection => !!s);
+	}
+
+	/**
+	 * An announcement is fully rendered in the Stream -- body, files and all --
+	 * so being on this page IS opening it, and holding the badge until they
+	 * click something that does not exist would be a badge that never clears.
+	 * Assignments and materials only show a summary here; those mark themselves
+	 * viewed on their own page.
+	 */
+	$effect(() => {
+		if (canManage || !transports) return;
+		const write = transports;
+		const pending = items.filter((i) => i.kind === 'post' && isUpdatedForViewer(i) && !seen[i.id]);
+		if (!pending.length) return;
+		// Deferred for the same reason LinkPreviewCard defers its loader: the
+		// write (and anything the transport does synchronously before its first
+		// await) must not land while this render is still settling.
+		queueMicrotask(() => {
+			for (const item of pending) {
+				seen = { ...seen, [item.id]: true };
+				void write.markViewed(item.id);
+			}
+		});
+	});
+
+	function toggleEdit(id: string) {
+		editing = editing === id ? null : id;
+		armDelete = null;
+		error = null;
+		notice = null;
+	}
+
+	async function run(fn: () => Promise<{ ok: boolean; message?: string }>, ok?: string) {
+		busy = true;
+		error = null;
+		notice = null;
+		const res = await fn();
+		busy = false;
+		if (!res.ok) {
+			error = res.message ?? 'Something went wrong.';
+			return false;
+		}
+		if (ok) notice = ok;
+		await onchanged?.();
+		return true;
+	}
+
+	async function remove(id: string) {
 		if (!transports) return;
-		const key = `${kind}:${id}`;
 		// Two-step confirm, the gauntlet-room-delete convention: the first click
 		// only arms it.
-		if (armDelete !== key) {
-			armDelete = key;
+		if (armDelete !== id) {
+			armDelete = id;
 			return;
 		}
 		armDelete = null;
-		busy = true;
-		error = null;
-		const res =
-			kind === 'post' ? await transports.deletePost(id) : await transports.deleteAssignment(id);
-		busy = false;
+		if (editing === id) editing = null;
+		await run(() => transports.deleteItem(id));
+	}
+
+	async function togglePin(item: ClassroomItem) {
+		if (!transports) return;
+		await run(
+			() => transports.setPinned(item.id, !item.pinned),
+			item.pinned ? 'Unpinned.' : 'Pinned to the top.'
+		);
+	}
+
+	async function duplicate(item: ClassroomItem) {
+		if (!transports) return;
+		const res = await transports.duplicateItem(item.id);
 		if (!res.ok) {
 			error = res.message;
 			return;
 		}
-		if (editing?.id === id) editing = null;
 		await onchanged?.();
+		// Open the copy straight away: a duplicate exists to be changed, and the
+		// composer prefilled with it IS the "copy" action's real destination.
+		editing = res.data.itemId;
+		tab = item.kind === 'post' ? 'stream' : 'classwork';
+		notice = 'Copied as a new draft. Edit it below, then post it.';
+	}
+
+	async function move(groupItems: ClassroomItem[], item: ClassroomItem, direction: -1 | 1) {
+		if (!transports) return;
+		const ids = reorderedIds(groupItems, item.id, direction);
+		if (!ids) return;
+		await run(() => transports.setOrder(ids));
 	}
 
 	async function saved() {
@@ -106,6 +193,84 @@
 		await onchanged?.();
 	}
 </script>
+
+{#snippet badges(item: ClassroomItem)}
+	{#if item.pinned}
+		<span class="chip pin-chip" title="Pinned to the top of this class">
+			<span aria-hidden="true">&#9679;</span> Pinned
+		</span>
+	{/if}
+	{#if canManage && !item.published}<span class="draft-chip">Draft</span>{/if}
+	{#if updated(item)}<span class="chip updated-chip">Updated</span>{/if}
+{/snippet}
+
+{#snippet manageActions(item: ClassroomItem, groupItems: ClassroomItem[] | null)}
+	{#if editable}
+		<span class="card-actions">
+			{#if groupItems && groupItems.length > 1}
+				<button
+					type="button"
+					class="btn secondary tiny"
+					aria-label="Move up"
+					disabled={busy || groupItems[0]?.id === item.id}
+					onclick={() => move(groupItems, item, -1)}>&uarr;</button
+				>
+				<button
+					type="button"
+					class="btn secondary tiny"
+					aria-label="Move down"
+					disabled={busy || groupItems[groupItems.length - 1]?.id === item.id}
+					onclick={() => move(groupItems, item, 1)}>&darr;</button
+				>
+			{/if}
+			<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => togglePin(item)}>
+				{item.pinned ? 'Unpin' : 'Pin'}
+			</button>
+			<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => toggleEdit(item.id)}>
+				{editing === item.id ? 'Close' : 'Edit'}
+			</button>
+			<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => duplicate(item)}>
+				Copy
+			</button>
+			<button type="button" class="btn secondary tiny danger" disabled={busy} onclick={() => remove(item.id)}>
+				{armDelete === item.id ? 'Really delete?' : 'Delete'}
+			</button>
+		</span>
+	{/if}
+{/snippet}
+
+{#snippet editorFor(item: ClassroomItem)}
+	{#if editable && editing === item.id}
+		{#key item.id}
+			<ContentComposer
+				mode="edit"
+				{item}
+				{sections}
+				transports={transports!}
+				{attachmentsEnabled}
+				compact
+				onsaved={saved}
+				oncancel={() => (editing = null)}
+			/>
+		{/key}
+	{/if}
+{/snippet}
+
+{#snippet extras(item: ClassroomItem)}
+	{#if item.links.length}
+		<div class="link-list">
+			{#each item.links as l (l.id ?? l.url)}
+				<LinkPreviewCard link={l} {fetchPreview} />
+			{/each}
+		</div>
+	{/if}
+	{#if item.attachments.length}
+		<AttachmentList attachments={item.attachments} {viewAs} />
+	{/if}
+	{#if item.edited_at}
+		<p class="edited-line">Updated {editedWhen(item.edited_at)}</p>
+	{/if}
+{/snippet}
 
 <svelte:head>
 	<title>{sectionTitle(section)} // IDEA Classroom</title>
@@ -135,6 +300,9 @@
 
 	{#if error}
 		<p class="feedback error">{error}</p>
+	{/if}
+	{#if notice}
+		<p class="feedback ok">{notice}</p>
 	{/if}
 
 	<div class="tabs" role="tablist" aria-label="Class views">
@@ -168,94 +336,51 @@
 				</p>
 			</section>
 		{:else}
-			{#each stream as item (item.kind === 'post' ? `p-${item.post.id}` : `a-${item.assignment.id}`)}
-				{#if item.kind === 'post'}
-					<article class="card stream-card">
-						<div class="stream-head">
-							<span class="stream-author">{authorLabel(item.post.author_name, item.post.author_email)}</span>
-							<span class="stream-when">{shortWhen(item.post.created_at)}</span>
-							{#if canManage && !item.post.published}<span class="draft-chip">Draft</span>{/if}
-							{#if editable}
-								<span class="card-actions">
-									<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => toggleEdit('post', item.post.id)}>
-										{editing?.kind === 'post' && editing.id === item.post.id ? 'Close' : 'Edit'}
-									</button>
-									<button type="button" class="btn secondary tiny danger" disabled={busy} onclick={() => remove('post', item.post.id)}>
-										{armDelete === `post:${item.post.id}` ? 'Really delete?' : 'Delete'}
-									</button>
-								</span>
-							{/if}
-						</div>
-						{#if item.post.title}<h2 class="stream-title">{item.post.title}</h2>{/if}
-						<p class="stream-body">{item.post.body}</p>
-						{#if item.post.attachments?.length}
-							<AttachmentList attachments={item.post.attachments} {viewAs} />
-						{/if}
-						{#if editable && editing?.kind === 'post' && editing.id === item.post.id && editingPost}
-							{#key editingPost.id}
-								<ContentComposer
-									mode="edit"
-									post={editingPost}
-									attachments={editingPost.attachments ?? []}
-									transports={transports!}
-									{attachmentsEnabled}
-									compact
-									onsaved={saved}
-									oncancel={() => (editing = null)}
-								/>
-							{/key}
-						{/if}
-					</article>
-				{:else}
-					<article class="card stream-card">
-						<div class="stream-head">
+			{#each stream as item (item.id)}
+				<article class="card stream-card" class:pinned={item.pinned}>
+					<div class="stream-head">
+						{#if item.kind === 'assignment'}
 							<span class="asg-flag">Assignment</span>
-							<span class="stream-when">{shortWhen(item.assignment.created_at)}</span>
-							{#if canManage && !item.assignment.published}<span class="draft-chip">Draft</span>{/if}
-							{#if editable}
-								<span class="card-actions">
-									<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => toggleEdit('assignment', item.assignment.id)}>
-										{editing?.kind === 'assignment' && editing.id === item.assignment.id ? 'Close' : 'Edit'}
-									</button>
-									<button type="button" class="btn secondary tiny danger" disabled={busy} onclick={() => remove('assignment', item.assignment.id)}>
-										{armDelete === `assignment:${item.assignment.id}` ? 'Really delete?' : 'Delete'}
-									</button>
-								</span>
-							{/if}
-						</div>
-						<a class="stream-link" href={`${basePath}/${section.id}/assignment/${item.assignment.id}`}>
-							<h2 class="stream-title">{item.assignment.title}</h2>
+						{:else}
+							<span class="stream-author">{authorLabel(item.author_name, item.author_email)}</span>
+						{/if}
+						<span class="stream-when">{shortWhen(item.created_at)}</span>
+						{@render badges(item)}
+						{@render manageActions(item, null)}
+					</div>
+
+					{#if item.kind === 'assignment'}
+						<a class="stream-link" href={`${basePath}/${section.id}/item/${item.id}`}>
+							<h2 class="stream-title">{itemTitle(item)}</h2>
 							<p class="asg-meta">
-								Due {formatDue(item.assignment.due_at)}
-								{#if item.assignment.points != null}&nbsp;&middot; {item.assignment.points} pts{/if}
-								{#if item.assignment.category}&nbsp;&middot; {item.assignment.category}{/if}
+								Due {formatDue(item.due_at)}
+								{#if item.points != null}&nbsp;&middot; {item.points} pts{/if}
+								{#if item.category}&nbsp;&middot; {item.category}{/if}
 							</p>
 						</a>
-						{#if item.assignment.attachments?.length}
-							<AttachmentList attachments={item.assignment.attachments} {viewAs} />
-						{/if}
-						{#if editable && editing?.kind === 'assignment' && editing.id === item.assignment.id && editingAssignment}
-							{#key editingAssignment.id}
-								<ContentComposer
-									mode="edit"
-									assignment={editingAssignment}
-									attachments={editingAssignment.attachments ?? []}
-									transports={transports!}
-									{attachmentsEnabled}
-									compact
-									onsaved={saved}
-									oncancel={() => (editing = null)}
-								/>
-							{/key}
-						{/if}
-					</article>
-				{/if}
+					{:else}
+						{#if item.title}<h2 class="stream-title">{item.title}</h2>{/if}
+						<p class="stream-body">{item.body}</p>
+					{/if}
+
+					{#if canManage && alsoIn(item).length}
+						<p class="also-line">
+							Also posted to {alsoIn(item)
+								.map((s) => sectionTitle(s))
+								.join(', ')}
+						</p>
+					{/if}
+
+					{@render extras(item)}
+					{@render editorFor(item)}
+				</article>
 			{/each}
 		{/if}
 	{:else if groups.length === 0}
 		<section class="card">
 			<p class="note empty-state">
-				No assignments yet. When your teacher posts classwork, it will be listed here by due date.
+				No classwork yet. When your teacher posts assignments or materials, they will be listed
+				here.
 			</p>
 		</section>
 	{:else}
@@ -263,56 +388,51 @@
 			<section class="card work-group">
 				<h2 class="group-label">{group.label}</h2>
 				<div class="work-rows">
-					{#each group.assignments as a (a.id)}
+					{#each group.items as item (item.id)}
 						<div class="work-item">
-							<a class="work-row" href={`${basePath}/${section.id}/assignment/${a.id}`}>
+							<a class="work-row" href={`${basePath}/${section.id}/item/${item.id}`}>
 								<span class="work-main">
 									<span class="work-title">
-										{a.title}
-										{#if canManage && !a.published}<span class="draft-chip">Draft</span>{/if}
+										{itemTitle(item)}
+										{@render badges(item)}
 									</span>
 									<span class="work-due" class:overdue={group.id === 'past'}>
-										Due {formatDue(a.due_at)}
+										{#if item.kind === 'material'}
+											{itemKindLabel(item.kind)}
+										{:else}
+											Due {formatDue(item.due_at)}
+										{/if}
 									</span>
 								</span>
 								<span class="work-chips">
-									{#if a.points != null}<span class="chip">{a.points} pts</span>{/if}
-									{#if a.category}<span class="chip">{a.category}</span>{/if}
-									{#if a.attachments?.length}
-										<span class="chip">{a.attachments.length} file{a.attachments.length === 1 ? '' : 's'}</span>
+									{#if item.points != null}<span class="chip">{item.points} pts</span>{/if}
+									{#if item.category}<span class="chip">{item.category}</span>{/if}
+									{#if item.attachments.length}
+										<span class="chip"
+											>{item.attachments.length} file{item.attachments.length === 1 ? '' : 's'}</span
+										>
+									{/if}
+									{#if item.links.length}
+										<span class="chip"
+											>{item.links.length} link{item.links.length === 1 ? '' : 's'}</span
+										>
 									{/if}
 								</span>
 							</a>
-							{#if editable}
-								<span class="card-actions work-actions">
-									<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => toggleEdit('assignment', a.id)}>
-										{editing?.kind === 'assignment' && editing.id === a.id ? 'Close' : 'Edit'}
-									</button>
-									<button type="button" class="btn secondary tiny danger" disabled={busy} onclick={() => remove('assignment', a.id)}>
-										{armDelete === `assignment:${a.id}` ? 'Really delete?' : 'Delete'}
-									</button>
-								</span>
-							{/if}
-							{#if editable && editing?.kind === 'assignment' && editing.id === a.id && editingAssignment}
-								{#key editingAssignment.id}
-									<ContentComposer
-										mode="edit"
-										assignment={editingAssignment}
-										attachments={editingAssignment.attachments ?? []}
-										transports={transports!}
-										{attachmentsEnabled}
-										compact
-										onsaved={saved}
-										oncancel={() => (editing = null)}
-									/>
-								{/key}
-							{/if}
+							{@render manageActions(item, group.items)}
+							{@render editorFor(item)}
 						</div>
 					{/each}
 				</div>
 			</section>
 		{/each}
 	{/if}
+
+	<ClassroomFeedback
+		context="class"
+		meta={{ section_id: section.id, section: sectionTitle(section), tab }}
+		submit={submitFeedback}
+	/>
 
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
@@ -361,19 +481,28 @@
 	.empty-state {
 		padding: 0.6rem 0;
 	}
-	.feedback.error {
+	.feedback {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.78rem;
-		color: var(--amber);
-		border: 1px solid var(--amber);
 		border-radius: 5px;
 		padding: 0.4rem 0.65rem;
 		margin: 0 0 0.8rem;
+	}
+	.feedback.error {
+		color: var(--amber);
+		border: 1px solid var(--amber);
+	}
+	.feedback.ok {
+		color: var(--green);
+		border: 1px solid var(--line-strong);
 	}
 	.stream-card {
 		display: block;
 		margin-bottom: 0.9rem;
 		color: var(--white);
+	}
+	.stream-card.pinned {
+		border-color: var(--line-strong);
 	}
 	.stream-link {
 		display: block;
@@ -438,6 +567,19 @@
 		font-size: 0.72rem;
 		color: var(--dim);
 	}
+	.also-line,
+	.edited-line {
+		margin: 0.5rem 0 0;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		color: var(--dim);
+	}
+	.link-list {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		margin-top: 0.6rem;
+	}
 	.work-group {
 		margin-bottom: 1rem;
 	}
@@ -455,6 +597,7 @@
 	}
 	.work-item {
 		border-bottom: 1px solid var(--line);
+		padding-bottom: 0.3rem;
 	}
 	.work-item:last-child {
 		border-bottom: none;
@@ -471,9 +614,6 @@
 	.work-row:hover .work-title {
 		color: var(--gold);
 	}
-	.work-actions {
-		margin: 0 0 0.5rem 0.2rem;
-	}
 	.work-main {
 		display: flex;
 		flex-direction: column;
@@ -486,6 +626,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.45rem;
+		flex-wrap: wrap;
 	}
 	.work-due {
 		font-family: 'Share Tech Mono', monospace;
@@ -510,6 +651,16 @@
 		padding: 0.08rem 0.5rem;
 		white-space: nowrap;
 	}
+	/* Gold is the module's one accent; the pin is a placement marker, not a
+	   status, so it never borrows the reserved crimson or amber. */
+	.pin-chip {
+		color: var(--gold);
+		border-color: var(--gold);
+	}
+	.updated-chip {
+		color: var(--green);
+		border-color: var(--green);
+	}
 	.btn.tiny,
 	.btn.secondary.tiny {
 		font-size: 0.65rem;
@@ -520,7 +671,7 @@
 		border-color: var(--crimson);
 	}
 	.page-footer {
-		margin-top: 2rem;
+		margin-top: 1.4rem;
 		display: flex;
 		justify-content: center;
 	}

@@ -1,44 +1,47 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import {
+		ITEM_KINDS,
 		formatBytes,
+		isPreviewableFile,
 		isoToLocalInput,
 		localInputToIso,
 		sectionTitle,
-		type ClassroomAssignment,
-		type ClassroomAttachment,
 		type ClassroomComposerTransports,
-		type ClassroomPost,
+		type ClassroomItem,
+		type ClassroomItemKind,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 
 	/**
-	 * THE content editor for classroom posts and assignments -- one component,
-	 * mounted by the manage console (create + edit), the class stream and the
-	 * assignment detail page (edit in place). Deliberately not a second editor
-	 * per surface: the publish/draft rules, the resource rows, the multi-section
-	 * targets and the attachment sequencing are all fiddly enough that two
-	 * copies would drift, and the one that drifts is the one nobody is looking
-	 * at.
+	 * THE content editor for every classroom item -- announcement, assignment
+	 * and material -- mounted by the manage console (create + edit), the class
+	 * stream and the item detail page (edit in place). Deliberately not a second
+	 * editor per surface: the publish rules, the link rows, the posting targets
+	 * and the attachment sequencing are all fiddly enough that two copies would
+	 * drift, and the one that drifts is the one nobody is looking at.
+	 *
+	 * ONE CANONICAL RECORD. An edit here changes the item, which every class it
+	 * is posted to reads -- there is no per-class copy to keep in step. That is
+	 * also why the edit form owns LINKAGE: adding a class and removing one are
+	 * changes to this item, made where the item is being worked on.
 	 *
 	 * Presentation + orchestration only. Every server call goes through the
 	 * injected transports (the ReviewConsole convention), which are thin callers
-	 * of the 0082/0083 SECURITY DEFINER RPCs -- nothing here is a boundary, and
-	 * a refusal comes back as text to render.
+	 * of the SECURITY DEFINER RPCs -- nothing here is a boundary, and a refusal
+	 * comes back as text to render.
 	 *
 	 * ATTACHMENT SEQUENCING is the one genuinely ordered bit: an attachment row
-	 * stores a Drive file id against a post/assignment id, so the content has to
-	 * EXIST first. Files are therefore staged locally and uploaded after the
-	 * create/update RPC hands back the ids it touched -- which is also why a
-	 * multi-section publish can put one upload on all N copies.
+	 * stores a Drive file id against an item id, so the item has to EXIST first.
+	 * Files are therefore staged locally and uploaded after the create/update
+	 * RPC hands back the id it touched.
 	 */
 	let {
 		mode = 'create',
 		kind = $bindable('post'),
 		sections = [],
-		post = null,
-		assignment = null,
-		attachments = [],
+		item = null,
 		transports,
 		attachmentsEnabled = true,
 		compact = false,
@@ -46,48 +49,44 @@
 		oncancel = null
 	}: {
 		mode?: 'create' | 'edit';
-		kind?: 'post' | 'assignment';
-		/** Publish targets; create mode only (an edit always targets one row). */
+		kind?: ClassroomItemKind;
+		/** Every section the caller manages: publish targets, and linkage on edit. */
 		sections?: ClassroomSection[];
-		post?: ClassroomPost | null;
-		assignment?: ClassroomAssignment | null;
-		attachments?: ClassroomAttachment[];
+		item?: ClassroomItem | null;
 		transports: ClassroomComposerTransports;
 		/** False when Drive is unconfigured: the file controls hide entirely. */
 		attachmentsEnabled?: boolean;
-		/** Inline placement (class page / assignment detail) vs the console card. */
+		/** Inline placement (class page / item detail) vs the console card. */
 		compact?: boolean;
-		onsaved: (info: { kind: 'post' | 'assignment'; published: boolean; text: string }) => void;
+		onsaved: (info: { kind: ClassroomItemKind; published: boolean; text: string }) => void;
 		oncancel?: (() => void) | null;
 	} = $props();
 
 	type Msg = { ok: boolean; text: string } | null;
 
-	const editingKind = $derived(mode === 'edit' ? (post ? 'post' : 'assignment') : kind);
+	const editingKind = $derived<ClassroomItemKind>(mode === 'edit' ? (item?.kind ?? 'post') : kind);
+	const isAssignment = $derived(editingKind === 'assignment');
+	const needsTitle = $derived(editingKind !== 'post');
 
 	// Seeded once from the row being edited; the parent REMOUNTS this component
 	// (a keyed block) when the edit target changes, so there is no effect
 	// resetting fields underneath someone who is typing.
 	// svelte-ignore state_referenced_locally
-	let postTitle = $state(post?.title ?? '');
+	let title = $state(item?.title ?? '');
 	// svelte-ignore state_referenced_locally
-	let postBody = $state(post?.body ?? '');
-	// svelte-ignore state_referenced_locally
-	let asgTitle = $state(assignment?.title ?? '');
-	// svelte-ignore state_referenced_locally
-	let asgDescription = $state(assignment?.description ?? '');
+	let body = $state(item?.body ?? '');
 	// bind:value on <input type="number"> COERCES to a number (the ReviewConsole
 	// unit-field lesson), so this is string | number and every read goes through
 	// String().
 	// svelte-ignore state_referenced_locally
-	let asgPoints = $state<string | number>(assignment?.points == null ? '' : String(assignment.points));
+	let points = $state<string | number>(item?.points == null ? '' : String(item.points));
 	// svelte-ignore state_referenced_locally
-	let asgDue = $state(isoToLocalInput(assignment?.due_at ?? null));
+	let due = $state(isoToLocalInput(item?.due_at ?? null));
 	// svelte-ignore state_referenced_locally
-	let asgCategory = $state(assignment?.category ?? '');
+	let category = $state(item?.category ?? '');
 	// svelte-ignore state_referenced_locally
-	let resources = $state<{ label: string; url: string }[]>(
-		(assignment?.resources ?? []).map((r) => ({ label: r.label, url: r.url }))
+	let links = $state<{ label: string; url: string }[]>(
+		(item?.links ?? []).map((r) => ({ label: r.label, url: r.url }))
 	);
 
 	let targets = $state<Record<string, boolean>>({});
@@ -98,12 +97,63 @@
 	// A local copy so a removal shows immediately without the parent having to
 	// round-trip; the parent reloads on `onsaved` and remounts on a new target.
 	// svelte-ignore state_referenced_locally
-	let existing = $state<ClassroomAttachment[]>([...attachments]);
+	let existing = $state([...(item?.attachments ?? [])]);
 	let staged = $state<File[]>([]);
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
 
+	/**
+	 * Object URLs for staged files, so a picked or pasted image shows as a
+	 * PICTURE before anything is saved -- a filename says nothing about whether
+	 * the right page is in frame (the notebook's staged-thumbnail lesson).
+	 *
+	 * Kept in a plain, NON-reactive Map: the effect that fills it reads `staged`
+	 * and writes here, and routing the URLs through reactive state as well would
+	 * have it re-trigger on its own writes.
+	 */
+	const previewUrls = new Map<File, string>();
+	let previewRev = $state(0);
+
+	$effect(() => {
+		let made = false;
+		for (const file of staged) {
+			if (!previewUrls.has(file) && isPreviewableFile(file)) {
+				previewUrls.set(file, URL.createObjectURL(file));
+				made = true;
+			}
+		}
+		for (const [file, url] of previewUrls) {
+			if (!staged.includes(file)) {
+				URL.revokeObjectURL(url);
+				previewUrls.delete(file);
+				made = true;
+			}
+		}
+		if (made) previewRev += 1;
+	});
+
+	onDestroy(() => {
+		for (const url of previewUrls.values()) URL.revokeObjectURL(url);
+		previewUrls.clear();
+	});
+
+	function previewOf(file: File): string | null {
+		// previewRev is read so the template re-evaluates when the map changes.
+		void previewRev;
+		return previewUrls.get(file) ?? null;
+	}
+
+	// --- Linkage (edit mode) ----------------------------------------------
+	const postedSectionIds = $derived(new Set((item?.postings ?? []).map((p) => p.section_id)));
+	const postedSections = $derived(sections.filter((s) => postedSectionIds.has(s.id)));
+	const linkableSections = $derived(
+		sections.filter((s) => !postedSectionIds.has(s.id) && s.active !== false)
+	);
+	let linkTargets = $state<Record<string, boolean>>({});
+	let unlinkArm = $state<string | null>(null);
+
 	const targetIds = $derived(sections.filter((s) => targets[s.id]).map((s) => s.id));
+	const linkIds = $derived(linkableSections.filter((s) => linkTargets[s.id]).map((s) => s.id));
 
 	function stageFiles(files: FileList | File[] | null) {
 		if (!files || !attachmentsEnabled) return;
@@ -122,9 +172,7 @@
 	 * Ctrl+V of a screenshot. The clipboard carries a pasted image as an
 	 * `image/*` ITEM with no name, so it is read from `items` (not `files`,
 	 * which several browsers leave empty for synthesised clipboard blobs) and
-	 * given a filename here -- the upload route also has a fallback, but naming
-	 * it at the point of paste is what lets the staged list show something a
-	 * teacher recognises.
+	 * given a filename here.
 	 *
 	 * Only image items are intercepted: pasting TEXT into the body must keep
 	 * working exactly as it always did, so anything else falls through
@@ -135,13 +183,14 @@
 		const items = event.clipboardData?.items;
 		if (!items) return;
 		const images: File[] = [];
-		for (const item of items) {
-			if (item.kind !== 'file' || !item.type.startsWith('image/')) continue;
-			const file = item.getAsFile();
+		for (const clipItem of items) {
+			if (clipItem.kind !== 'file' || !clipItem.type.startsWith('image/')) continue;
+			const file = clipItem.getAsFile();
 			if (!file) continue;
-			const ext = item.type.split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'png';
-			const name = file.name && file.name !== 'image.png' ? file.name : `pasted-${Date.now()}.${ext}`;
-			images.push(new File([file], name, { type: item.type }));
+			const ext = clipItem.type.split('/')[1]?.replace(/[^a-z0-9]/g, '') || 'png';
+			const name =
+				file.name && file.name !== 'image.png' ? file.name : `pasted-${Date.now()}.${ext}`;
+			images.push(new File([file], name, { type: clipItem.type }));
 		}
 		if (!images.length) return;
 		event.preventDefault();
@@ -150,7 +199,7 @@
 		setTimeout(() => (pasteHint = null), 4000);
 	}
 
-	async function removeExisting(a: ClassroomAttachment) {
+	async function removeExisting(a: { id: string }) {
 		if (removingId) return;
 		removingId = a.id;
 		const res = await transports.deleteAttachment(a.id);
@@ -162,19 +211,69 @@
 		}
 	}
 
-	function assignmentInput() {
-		const rawPoints = String(asgPoints ?? '').trim();
+	function itemInput() {
+		const rawPoints = String(points ?? '').trim();
 		const pts = rawPoints === '' ? null : Number.parseInt(rawPoints, 10);
 		return {
-			title: asgTitle,
-			description: asgDescription,
-			points: Number.isNaN(pts as number) ? null : pts,
-			dueAt: localInputToIso(asgDue),
-			category: asgCategory.trim() || null,
-			resources: resources
+			title: title.trim() || null,
+			body,
+			// Points and a due date are assignment vocabulary; sending them on
+			// another kind is refused server-side, so they are dropped here.
+			points: isAssignment && !Number.isNaN(pts as number) ? pts : null,
+			dueAt: isAssignment ? localInputToIso(due) : null,
+			category: category.trim() || null,
+			links: links
 				.map((r) => ({ label: r.label.trim(), url: r.url.trim() }))
 				.filter((r) => r.url !== '')
 		};
+	}
+
+	async function addLinks() {
+		if (!item || linkIds.length === 0 || busy) return;
+		busy = true;
+		msg = null;
+		const res = await transports.addPostings(item.id, linkIds);
+		busy = false;
+		if (!res.ok) {
+			msg = { ok: false, text: res.message };
+			return;
+		}
+		linkTargets = {};
+		msg = {
+			ok: true,
+			text: `Posted to ${res.data.added} more class${res.data.added === 1 ? '' : 'es'}.`
+		};
+		onsaved({ kind: editingKind, published: item.published, text: '' });
+	}
+
+	async function unlink(sectionId: string) {
+		if (!item || busy) return;
+		// Two-step confirm, the gauntlet-room-delete convention.
+		if (unlinkArm !== sectionId) {
+			unlinkArm = sectionId;
+			return;
+		}
+		unlinkArm = null;
+		busy = true;
+		msg = null;
+		const res = await transports.removePosting(item.id, sectionId);
+		busy = false;
+		if (!res.ok) {
+			msg = { ok: false, text: res.message };
+			return;
+		}
+		if (res.data.ok === false) {
+			msg = {
+				ok: false,
+				text:
+					res.data.reason === 'last_posting'
+						? 'This is the only class it is posted to. Delete it instead of unlinking.'
+						: 'That class could not be unlinked.'
+			};
+			return;
+		}
+		msg = { ok: true, text: 'Unlinked from that class. The item still exists for the others.' };
+		onsaved({ kind: editingKind, published: item.published, text: '' });
 	}
 
 	async function submit(publish: boolean) {
@@ -194,17 +293,11 @@
 	async function runSubmit(publish: boolean) {
 		let res;
 		if (mode === 'edit') {
-			res =
-				editingKind === 'post'
-					? await transports.updatePost(post!.id, postBody, postTitle.trim() || null, publish)
-					: await transports.updateAssignment(assignment!.id, assignmentInput(), publish);
+			res = await transports.updateItem(item!.id, itemInput(), publish);
 		} else if (targetIds.length === 0) {
-			res = { ok: false as const, message: 'Pick at least one section to publish to.' };
+			res = { ok: false as const, message: 'Pick at least one class to post to.' };
 		} else {
-			res =
-				kind === 'post'
-					? await transports.createPost(targetIds, postBody, postTitle.trim() || null, publish)
-					: await transports.createAssignment(targetIds, assignmentInput(), publish);
+			res = await transports.createItem(editingKind, targetIds, itemInput(), publish);
 		}
 
 		if (!res.ok) {
@@ -212,20 +305,19 @@
 			return;
 		}
 
-		// The content exists; NOW the staged files can be attached to it. One
-		// upload per file lands on every id the write touched.
+		// The item exists; NOW the staged files can be attached to it.
 		let attachNote = '';
-		if (staged.length && res.data.ids.length) {
+		if (staged.length && res.data.itemId) {
 			const failures: string[] = [];
 			for (const file of staged) {
-				const up = await transports.uploadAttachment(editingKind, res.data.ids, file);
+				const up = await transports.uploadAttachment(res.data.itemId, file);
 				if (!up.ok) failures.push(`${file.name}: ${up.message}`);
 			}
 			staged = [];
 			if (failures.length) {
 				// The content DID save. Saying so and naming the files that did not
 				// upload is the honest report; claiming the whole thing failed would
-				// send a teacher back to retype a post that is already published.
+				// send a teacher back to retype something already published.
 				msg = {
 					ok: false,
 					text: `Saved, but ${failures.length} file${failures.length === 1 ? '' : 's'} did not attach -- ${failures.join('; ')}`
@@ -236,24 +328,22 @@
 			attachNote = ' Files attached.';
 		}
 
-		const what = editingKind === 'post' ? 'Post' : 'Assignment';
+		const what = ITEM_KINDS.find((k) => k.id === editingKind)?.label ?? 'Item';
 		const where =
 			mode === 'edit'
 				? publish
-					? 'updated and published'
+					? 'updated -- every class it is posted to sees the change'
 					: 'updated (draft)'
-				: `${publish ? 'published' : 'saved as a draft'} to ${targetIds.length} section${targetIds.length === 1 ? '' : 's'}`;
+				: `${publish ? 'posted' : 'saved as a draft'} to ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`;
 		const text = `${what} ${where}.${attachNote}`;
 
 		if (mode === 'create') {
-			postTitle = '';
-			postBody = '';
-			asgTitle = '';
-			asgDescription = '';
-			asgPoints = '';
-			asgDue = '';
-			asgCategory = '';
-			resources = [];
+			title = '';
+			body = '';
+			points = '';
+			due = '';
+			category = '';
+			links = [];
 		}
 		msg = { ok: true, text };
 		onsaved({ kind: editingKind, published: publish, text });
@@ -263,84 +353,86 @@
 <div class="composer" class:compact onpaste={onPaste}>
 	{#if mode === 'create'}
 		<div class="kind-toggle" role="tablist" aria-label="Content type">
-			<button
-				type="button"
-				class="kind"
-				class:active={kind === 'post'}
-				onclick={() => (kind = 'post')}
-			>
-				Announcement
-			</button>
-			<button
-				type="button"
-				class="kind"
-				class:active={kind === 'assignment'}
-				onclick={() => (kind = 'assignment')}
-			>
-				Assignment
-			</button>
+			{#each ITEM_KINDS as k (k.id)}
+				<button
+					type="button"
+					class="kind"
+					class:active={kind === k.id}
+					title={k.blurb}
+					onclick={() => (kind = k.id)}
+				>
+					{k.label}
+				</button>
+			{/each}
 		</div>
 	{/if}
 
-	{#if editingKind === 'post'}
-		<label>
-			<span>Title (optional)</span>
-			<input type="text" bind:value={postTitle} placeholder="Welcome to class" />
-		</label>
-		<label>
-			<span>Announcement</span>
-			<textarea rows={compact ? 3 : 4} bind:value={postBody} placeholder="Share something with your class..."
-			></textarea>
-		</label>
-	{:else}
-		<label>
-			<span>Title</span>
-			<input type="text" bind:value={asgTitle} placeholder="Bridge sketch" />
-		</label>
-		<label>
-			<span>Instructions (plain text)</span>
-			<textarea rows={compact ? 4 : 5} bind:value={asgDescription} placeholder="What to do, step by step..."
-			></textarea>
-		</label>
+	<label>
+		<span>{needsTitle ? 'Title' : 'Title (optional)'}</span>
+		<input
+			type="text"
+			bind:value={title}
+			placeholder={editingKind === 'material' ? 'Course syllabus' : 'Bridge sketch'}
+		/>
+	</label>
+	<label>
+		<span>
+			{editingKind === 'post'
+				? 'Announcement'
+				: editingKind === 'material'
+					? 'Description'
+					: 'Instructions'}
+		</span>
+		<textarea
+			rows={compact ? 3 : 4}
+			bind:value={body}
+			placeholder={editingKind === 'post'
+				? 'Share something with your class...'
+				: 'What this is, and what to do with it...'}
+		></textarea>
+	</label>
+
+	{#if isAssignment}
 		<div class="field-row">
 			<label>
 				<span>Points</span>
-				<input type="number" min="0" max="10000" bind:value={asgPoints} placeholder="20" />
+				<input type="number" min="0" max="10000" bind:value={points} placeholder="20" />
 			</label>
 			<label>
 				<span>Due date</span>
-				<input type="datetime-local" bind:value={asgDue} />
+				<input type="datetime-local" bind:value={due} />
 			</label>
 			<label>
 				<span>Grading category</span>
-				<input type="text" bind:value={asgCategory} placeholder="Unit Labs" />
+				<input type="text" bind:value={category} placeholder="Unit Labs" />
 			</label>
 		</div>
-		<div class="resources-editor">
-			<span class="mini-label">Linked materials</span>
-			{#each resources as r, i (i)}
-				<div class="resource-row">
-					<input type="text" placeholder="Label" bind:value={r.label} />
-					<input type="url" placeholder="https://..." bind:value={r.url} />
-					<button
-						type="button"
-						class="btn secondary tiny"
-						aria-label="Remove resource"
-						onclick={() => (resources = resources.filter((_, j) => j !== i))}
-					>
-						&times;
-					</button>
-				</div>
-			{/each}
-			<button
-				type="button"
-				class="btn secondary tiny"
-				onclick={() => (resources = [...resources, { label: '', url: '' }])}
-			>
-				+ Add link
-			</button>
-		</div>
 	{/if}
+
+	<div class="resources-editor">
+		<span class="mini-label">Links</span>
+		{#each links as r, i (i)}
+			<div class="resource-row">
+				<input type="text" placeholder="Label" bind:value={r.label} />
+				<input type="url" placeholder="https://..." bind:value={r.url} />
+				<button
+					type="button"
+					class="btn secondary tiny"
+					aria-label="Remove link"
+					onclick={() => (links = links.filter((_, j) => j !== i))}
+				>
+					&times;
+				</button>
+			</div>
+		{/each}
+		<button
+			type="button"
+			class="btn secondary tiny"
+			onclick={() => (links = [...links, { label: '', url: '' }])}
+		>
+			+ Add link
+		</button>
+	</div>
 
 	{#if attachmentsEnabled}
 		<div class="attach-editor">
@@ -355,16 +447,24 @@
 			{#if staged.length}
 				<ul class="staged">
 					{#each staged as f, i (i)}
-						<li>
-							<span class="staged-name">{f.name}</span>
-							<span class="staged-size">{formatBytes(f.size)}</span>
-							<button
-								type="button"
-								class="btn secondary tiny"
-								onclick={() => (staged = staged.filter((_, j) => j !== i))}
-							>
-								&times;
-							</button>
+						{@const url = previewOf(f)}
+						<li class="staged-item" class:has-preview={!!url}>
+							{#if url}
+								<!-- object-fit: contain, never cover: cropping to fill would
+								     hide the cut-off edge this preview exists to catch. -->
+								<img class="staged-thumb" src={url} alt={f.name} />
+							{/if}
+							<span class="staged-meta">
+								<span class="staged-name">{f.name}</span>
+								<span class="staged-size">{formatBytes(f.size)}</span>
+								<button
+									type="button"
+									class="btn secondary tiny"
+									onclick={() => (staged = staged.filter((_, j) => j !== i))}
+								>
+									&times;
+								</button>
+							</span>
 						</li>
 					{/each}
 				</ul>
@@ -378,7 +478,7 @@
 
 	{#if mode === 'create'}
 		<div class="target-picker">
-			<span class="mini-label">Publish to</span>
+			<span class="mini-label">Post to</span>
 			{#if sections.length === 0}
 				<p class="hint">Create a section first.</p>
 			{:else}
@@ -392,11 +492,55 @@
 				</div>
 			{/if}
 		</div>
+	{:else if item}
+		<div class="target-picker linkage">
+			<span class="mini-label">Posted to</span>
+			<p class="hint">
+				One shared copy. Editing above changes it everywhere; unlinking removes it from that
+				class only.
+			</p>
+			<ul class="posted-list">
+				{#each postedSections as s (s.id)}
+					<li>
+						<span class="posted-name">{sectionTitle(s)}</span>
+						<button
+							type="button"
+							class="btn secondary tiny danger"
+							disabled={busy}
+							onclick={() => unlink(s.id)}
+						>
+							{unlinkArm === s.id ? 'Really unlink?' : 'Unlink'}
+						</button>
+					</li>
+				{:else}
+					<li><span class="posted-name muted">Not posted to any class you manage.</span></li>
+				{/each}
+			</ul>
+			{#if linkableSections.length}
+				<span class="mini-label">Also post to</span>
+				<div class="target-list">
+					{#each linkableSections as s (s.id)}
+						<label class="target-check">
+							<input type="checkbox" bind:checked={linkTargets[s.id]} />
+							<span>{sectionTitle(s)}</span>
+						</label>
+					{/each}
+				</div>
+				<button
+					type="button"
+					class="btn secondary tiny"
+					disabled={busy || linkIds.length === 0}
+					onclick={addLinks}
+				>
+					Post to {linkIds.length || ''} more
+				</button>
+			{/if}
+		</div>
 	{/if}
 
 	<div class="composer-actions">
 		<button class="btn" type="button" disabled={busy} onclick={() => submit(true)}>
-			{mode === 'edit' ? 'Save & publish' : 'Publish'}
+			{mode === 'edit' ? 'Save & publish' : 'Post'}
 		</button>
 		<button class="btn secondary" type="button" disabled={busy} onclick={() => submit(false)}>
 			Save draft
@@ -468,6 +612,7 @@
 		display: flex;
 		gap: 0.4rem;
 		margin-bottom: 0.8rem;
+		flex-wrap: wrap;
 	}
 	.kind {
 		appearance: none;
@@ -522,32 +667,78 @@
 		margin: 0;
 		padding: 0;
 		display: flex;
+		flex-wrap: wrap;
+		gap: 0.6rem;
+	}
+	.staged-item {
+		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
+		min-width: 0;
+		max-width: 100%;
 	}
-	.staged li {
+	.staged-item.has-preview {
+		width: 9.5rem;
+	}
+	.staged-thumb {
+		display: block;
+		width: 100%;
+		height: 6.5rem;
+		object-fit: contain;
+		background: var(--bg1);
+		border: 1px solid var(--line);
+		border-radius: 5px;
+	}
+	.staged-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: 0.4rem;
 		flex-wrap: wrap;
+		min-width: 0;
 	}
 	.staged-name {
-		font-size: 0.85rem;
+		font-size: 0.78rem;
 		overflow-wrap: anywhere;
 	}
 	.staged-size {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.64rem;
+		font-size: 0.62rem;
 		color: var(--dim);
 	}
 	.target-picker {
 		margin: 0.6rem 0;
 	}
+	.linkage {
+		border-top: 1px solid var(--line);
+		padding-top: 0.6rem;
+	}
+	.posted-list {
+		list-style: none;
+		margin: 0.3rem 0 0.6rem;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+	.posted-list li {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.posted-name {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.75rem;
+		color: var(--white);
+	}
+	.posted-name.muted {
+		color: var(--dim);
+	}
 	.target-list {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 0.4rem 0.9rem;
-		margin-top: 0.35rem;
+		margin: 0.35rem 0;
 	}
 	.target-check {
 		display: flex;
@@ -593,9 +784,16 @@
 		font-size: 0.65rem;
 		padding: 0.28rem 0.6rem;
 	}
+	:global(.btn.tiny.danger) {
+		color: var(--crimson);
+		border-color: var(--crimson);
+	}
 	@media (max-width: 560px) {
 		.resource-row {
 			grid-template-columns: 1fr;
+		}
+		.staged-item.has-preview {
+			width: calc(50% - 0.3rem);
 		}
 	}
 </style>

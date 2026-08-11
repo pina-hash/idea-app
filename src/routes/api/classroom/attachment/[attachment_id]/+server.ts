@@ -15,17 +15,17 @@ import type { RequestHandler } from './$types';
  * Modelled on /api/notebook/photo/[photo_id]; the differences are noted below.
  *
  * AUTHORIZATION IS A REAL QUERY, NOT A CHECK WRITTEN HERE. The row is read
- * under the CALLER'S OWN cookie session, so 0083's policy decides:
- * classroom_attachments delegates to classroom_can_read_post /
- * classroom_can_read_assignment, which admit the section's manager and an
- * ACTIVELY ENROLLED student looking at PUBLISHED content. A draft's attachments
- * are therefore unreachable for a student by construction, and so are another
+ * under the CALLER'S OWN cookie session, so the policy decides:
+ * classroom_attachments delegates to classroom_can_read_item (0085), which
+ * admits the manager of any class the item is posted to and an ACTIVELY
+ * ENROLLED student looking at PUBLISHED content. A draft's attachments are
+ * therefore unreachable for a student by construction, and so are another
  * section's.
  *
  * Unlike the notebook photo route there is deliberately no `!inner` embed as a
- * second hurdle: an attachment has exactly one owner (post XOR assignment), so
- * neither embed could be inner, and a left embed adds no check at all. The
- * delegation IS the hurdle, and it is the parent's own policy being asked.
+ * second hurdle: an attachment has exactly one owner (its item), so the embed
+ * would add no check at all. The delegation IS the hurdle, and it is the
+ * item's own policy being asked.
  *
  * AN EMPTY RESULT IS 404, NEVER 403: RLS returning nothing is indistinguishable
  * from the row not existing, and a 403 would confirm a real id to a stranger.

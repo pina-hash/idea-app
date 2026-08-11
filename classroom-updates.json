@@ -1,0 +1,64 @@
+{
+	"_readme": [
+		"The IDEA Classroom update log, shown to STUDENTS at /classroom/updates and,",
+		"in short, on the classroom home. Written for the people using the class, not",
+		"for the people writing the code: no table names, no migration numbers, no RPC",
+		"names, no jargon.",
+		"",
+		"STANDING RULE: every session that changes classroom-facing behaviour appends a",
+		"dated entry here BEFORE committing. See CLAUDE.md, 'Classroom update log'.",
+		"",
+		"Entry shape: { date: 'YYYY-MM-DD', title, body, tags?: string[] }.",
+		"Newest entries may go anywhere in the list -- the page sorts by date."
+	],
+	"entries": [
+		{
+			"date": "2026-08-11",
+			"title": "One post, every class -- edits now reach all of them",
+			"body": "An announcement, assignment or material posted to more than one class used to become a separate copy per class, so fixing a typo only fixed it in one place. There is one shared copy now: your teacher edits it once and every class it was posted to sees the change straight away.",
+			"tags": ["Classwork", "Stream"]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "\"Updated\" badges on things that changed",
+			"body": "If your teacher edits an assignment or announcement after posting it, you will see an Updated badge on it and the time it was last changed. Opening the item clears the badge, so what is left is what you have not read yet.",
+			"tags": ["Stream", "Classwork"]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Materials: syllabi and standing references",
+			"body": "Classwork can now hold Materials -- a syllabus, a rubric, a link shelf. They sit alongside assignments but have no points and nothing to hand in, so a reference you need all term stops getting buried under this week's work.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Pinned items and a set order",
+			"body": "Teachers can pin the things that matter most so they sit at the top of Stream and Classwork, and can put the rest in whatever order makes sense for the unit instead of strict date order.",
+			"tags": ["Classwork", "Stream"]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Links show a preview",
+			"body": "A link attached to an assignment or material now shows the page title and picture where the site provides them, so you can tell what you are about to open. If a site does not offer any of that, the plain link still works exactly as before.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Tell us what is not working",
+			"body": "There is a Feedback button at the bottom of every classroom page. It sends a short note along with which page you were on -- useful if something looks wrong, is confusing, or you have an idea.",
+			"tags": ["Everywhere"]
+		},
+		{
+			"date": "2026-08-10",
+			"title": "File attachments on posts and assignments",
+			"body": "Teachers can attach handouts, images and PDFs directly to an announcement or assignment. They open straight from the class page -- no separate download link, no Drive permission to request.",
+			"tags": ["Stream", "Classwork"]
+		},
+		{
+			"date": "2026-08-10",
+			"title": "Classroom opens",
+			"body": "My Classes, a Stream of announcements, and Classwork grouped by due date. Your classes appear automatically once your teacher adds you to the roster -- there is nothing to join and no code to type.",
+			"tags": ["Everywhere"]
+		}
+	]
+}

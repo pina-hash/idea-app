@@ -2,7 +2,10 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import { sectionTitle, sortSections, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
+	import { recentUpdates, updateDateLabel } from '$lib/classroom/updates';
+	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
 	 * The classroom home: one card per section the caller can see (their
@@ -19,7 +22,8 @@
 		isStaff = false,
 		sections,
 		basePath = '/classroom',
-		homeHref = '/'
+		homeHref = '/',
+		submitFeedback = null
 	}: {
 		ready?: boolean;
 		isStaff?: boolean;
@@ -27,9 +31,11 @@
 		/** Link root -- rewritten under /classroom/view-as/<email>. */
 		basePath?: string;
 		homeHref?: string;
+		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 	} = $props();
 
 	const ordered = $derived(sortSections(sections));
+	const recent = recentUpdates(3);
 </script>
 
 <svelte:head>
@@ -107,12 +113,74 @@
 		</div>
 	{/if}
 
+	<!-- What changed lately, in plain language. The full log is its own page;
+	     three entries here is a nudge, not a second changelog. -->
+	<section class="card updates-card">
+		<div class="updates-head">
+			<h2>What's new</h2>
+			<a class="updates-all" href={`${basePath}/updates`}>All updates &#9656;</a>
+		</div>
+		<ul class="updates-list">
+			{#each recent as u (u.date + u.title)}
+				<li>
+					<span class="update-when">{updateDateLabel(u.date)}</span>
+					<span class="update-title">{u.title}</span>
+				</li>
+			{/each}
+		</ul>
+	</section>
+
+	<ClassroomFeedback context="home" submit={submitFeedback} />
+
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
 	</footer>
 </main>
 
 <style>
+	.updates-card {
+		margin-top: 1.4rem;
+	}
+	.updates-head {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+	}
+	.updates-head h2 {
+		margin: 0;
+		font-size: 1rem;
+	}
+	.updates-all {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		color: var(--gold);
+		text-decoration: none;
+	}
+	.updates-list {
+		list-style: none;
+		margin: 0.6rem 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+	.updates-list li {
+		display: flex;
+		gap: 0.6rem;
+		align-items: baseline;
+		flex-wrap: wrap;
+	}
+	.update-when {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.64rem;
+		color: var(--cyan);
+		white-space: nowrap;
+	}
+	.update-title {
+		font-size: 0.9rem;
+	}
 	.classroom-page {
 		max-width: 60rem;
 		margin: 0 auto;

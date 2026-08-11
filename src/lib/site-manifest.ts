@@ -110,7 +110,10 @@ export const APPS: SiteApp[] = [
 		prefixes: [
 			'src/routes/classroom/',
 			'src/lib/classroom/',
-			'src/routes/dev/classroom/'
+			'src/routes/api/classroom/',
+			'src/routes/dev/classroom/',
+			// The student-facing update log's content file (see updates.ts).
+			'classroom-updates.json'
 		],
 		contains: ['classroom']
 	},

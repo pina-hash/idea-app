@@ -1,5 +1,5 @@
 <script lang="ts">
-	import MyClasses from '$lib/classroom/MyClasses.svelte';
+	import UpdatesPage from '$lib/classroom/UpdatesPage.svelte';
 	import { classroomFeedbackSubmit } from '$lib/classroom/transports';
 	import type { PageData } from './$types';
 
@@ -9,9 +9,4 @@
 	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
 </script>
 
-<MyClasses
-	ready={data.ready}
-	isStaff={data.isStaff}
-	sections={data.sections}
-	{submitFeedback}
-/>
+<UpdatesPage {submitFeedback} />

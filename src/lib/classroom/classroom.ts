@@ -1,13 +1,18 @@
 /**
  * Classroom module: client-safe row types + pure helpers (the curriculum.ts
  * convention -- plain data and functions, no Svelte, no Supabase). The data
- * layer is migration 0082; every write goes through its SECURITY DEFINER RPCs
- * and every read is an RLS-scoped select, so nothing here enforces anything --
- * it shapes what the policies already returned.
+ * layer is migrations 0082/0083/0085; every write goes through their SECURITY
+ * DEFINER RPCs and every read is an RLS-scoped select, so nothing here enforces
+ * anything -- it shapes what the policies already returned.
+ *
+ * SINCE 0085 there is ONE canonical record per piece of content
+ * (ClassroomItem) and a POSTING is nothing but "this item appears in this
+ * class". A component therefore never asks "which copy of this am I looking
+ * at" -- there is only one, and editing it changes every class at once.
  */
 
 // ---------------------------------------------------------------------------
-// Row types (mirroring 0082's tables; embeds normalized by the helpers below)
+// Row types (mirroring 0085's tables; embeds normalized by the helpers below)
 // ---------------------------------------------------------------------------
 
 export interface ClassroomCourse {
@@ -33,10 +38,11 @@ export interface ClassroomSection {
 }
 
 /**
- * One attached file (0083). The bytes live in the school shared drive; this is
- * metadata plus the id the proxy route resolves. `attachmentSrc` is the only
- * place a URL for it is built -- never a drive.google.com link, which would
- * only render for someone who personally has access to that folder.
+ * One attached file (0083, re-pointed at the canonical item by 0085). The bytes
+ * live in the school shared drive; this is metadata plus the id the proxy route
+ * resolves. `attachmentSrc` is the only place a URL for it is built -- never a
+ * drive.google.com link, which would only render for someone who personally has
+ * access to that folder.
  */
 export interface ClassroomAttachment {
 	id: string;
@@ -54,55 +60,66 @@ export interface ClassroomEnrollment {
 	updated_at?: string;
 }
 
-export interface ClassroomPost {
-	id: string;
-	section_id: string;
-	group_id: string | null;
-	title: string | null;
-	body: string;
-	author_email: string;
-	author_name: string | null;
-	published: boolean;
-	created_at: string;
-	updated_at: string;
-	attachments?: ClassroomAttachment[];
-}
-
-export interface AssignmentResource {
+/** A URL attached to an item (0085 classroom_item_resources). */
+export interface ItemLink {
 	id?: string;
 	label: string;
 	url: string;
 	sort_order?: number;
 }
 
-export interface ClassroomAssignment {
-	id: string;
+/** "This item appears in this class." Carries no state of its own, by design. */
+export interface ClassroomPosting {
+	id?: string;
 	section_id: string;
-	group_id: string | null;
-	title: string;
-	description: string;
+}
+
+export type ClassroomItemKind = 'post' | 'assignment' | 'material';
+
+export interface ClassroomItem {
+	id: string;
+	kind: ClassroomItemKind;
+	title: string | null;
+	body: string;
 	points: number | null;
 	due_at: string | null;
 	category: string | null;
 	author_email: string;
 	author_name: string | null;
 	published: boolean;
+	pinned: boolean;
+	sort_order: number;
+	/** Null while it has only ever been a draft. */
+	first_published_at: string | null;
+	/** Set only by a content change to an already-published item. */
+	edited_at: string | null;
 	created_at: string;
 	updated_at: string;
-	resources: AssignmentResource[];
-	attachments?: ClassroomAttachment[];
+	links: ItemLink[];
+	attachments: ClassroomAttachment[];
+	/** Every class this item is posted to that the CALLER may see. */
+	postings: ClassroomPosting[];
+	/** The caller's own last-viewed stamp (0085 classroom_item_views). */
+	viewed_at?: string | null;
+}
+
+export const ITEM_KINDS: { id: ClassroomItemKind; label: string; blurb: string }[] = [
+	{ id: 'post', label: 'Announcement', blurb: 'Something to tell the class.' },
+	{ id: 'assignment', label: 'Assignment', blurb: 'Work to do, with points and a due date.' },
+	{ id: 'material', label: 'Material', blurb: 'A syllabus or standing reference. Nothing to hand in.' }
+];
+
+export function itemKindLabel(kind: ClassroomItemKind): string {
+	return ITEM_KINDS.find((k) => k.id === kind)?.label ?? kind;
 }
 
 // ---------------------------------------------------------------------------
 // Embed normalization. PostgREST returns embedded relations under their table
-// name; the loads pass rows through these so components only ever see the
-// typed shapes above.
+// name; the 0085 view_as RPCs build plain jsonb with friendlier keys. Accepting
+// both is what lets ONE normalizer serve every read.
 // ---------------------------------------------------------------------------
 
 export function normalizeSectionRow(row: Record<string, unknown>): ClassroomSection {
-	// `classroom_courses` is the PostgREST embed key; `course` is what the 0083
-	// view_as RPCs build, since a jsonb payload has no embed convention to
-	// follow. Accepting both is what lets ONE normalizer serve every read.
 	const embed = (row.classroom_courses ?? row.course) as
 		| ClassroomCourse
 		| ClassroomCourse[]
@@ -120,35 +137,42 @@ export function normalizeSectionRow(row: Record<string, unknown>): ClassroomSect
 	};
 }
 
-function normalizeAttachments(row: Record<string, unknown>): ClassroomAttachment[] {
-	const embed = (row.classroom_attachments ?? row.attachments) as
-		| ClassroomAttachment[]
-		| null
-		| undefined;
-	return [...(embed ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+function sortedBy<T extends { sort_order?: number }>(rows: T[] | null | undefined): T[] {
+	return [...(rows ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 }
 
-export function normalizePostRow(row: Record<string, unknown>): ClassroomPost {
-	const attachments = normalizeAttachments(row);
-	const { classroom_attachments: _drop, ...rest } = row;
-	return { ...(rest as unknown as Omit<ClassroomPost, 'attachments'>), attachments };
-}
-
-export function normalizeAssignmentRow(row: Record<string, unknown>): ClassroomAssignment {
-	const embed = row.classroom_assignment_resources as AssignmentResource[] | null | undefined;
-	const resources = [...(embed ?? (row.resources as AssignmentResource[] | undefined) ?? [])].sort(
-		(a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+export function normalizeItemRow(row: Record<string, unknown>): ClassroomItem {
+	const links = sortedBy(
+		(row.classroom_item_resources ?? row.links ?? row.resources) as ItemLink[] | undefined
 	);
-	const attachments = normalizeAttachments(row);
-	const {
-		classroom_assignment_resources: _dropResources,
-		classroom_attachments: _dropAttachments,
-		...rest
-	} = row;
+	const attachments = sortedBy(
+		(row.classroom_attachments ?? row.attachments) as ClassroomAttachment[] | undefined
+	);
+	const postings = ((row.classroom_postings ?? row.postings) as ClassroomPosting[] | undefined) ?? [];
+	const views = row.classroom_item_views as { viewed_at?: string }[] | undefined;
 	return {
-		...(rest as unknown as Omit<ClassroomAssignment, 'resources' | 'attachments'>),
-		resources,
-		attachments
+		id: String(row.id),
+		kind: (row.kind as ClassroomItemKind) ?? 'post',
+		title: (row.title as string | null) ?? null,
+		body: (row.body as string | null) ?? '',
+		points: (row.points as number | null) ?? null,
+		due_at: (row.due_at as string | null) ?? null,
+		category: (row.category as string | null) ?? null,
+		author_email: String(row.author_email ?? ''),
+		author_name: (row.author_name as string | null) ?? null,
+		published: row.published !== false,
+		pinned: row.pinned === true,
+		sort_order: Number(row.sort_order ?? 0),
+		first_published_at: (row.first_published_at as string | null) ?? null,
+		edited_at: (row.edited_at as string | null) ?? null,
+		created_at: String(row.created_at ?? ''),
+		updated_at: String(row.updated_at ?? ''),
+		links,
+		attachments,
+		postings,
+		// The embed is an array (own-row RLS makes it 0 or 1 long); the view_as
+		// payload is a plain stamp.
+		viewed_at: (row.viewed_at as string | null) ?? views?.[0]?.viewed_at ?? null
 	};
 }
 
@@ -197,11 +221,43 @@ export function isImageAttachment(a: ClassroomAttachment): boolean {
 	return PREVIEW_TYPES.has((a.mime_type ?? '').toLowerCase());
 }
 
+/** A staged (not yet uploaded) file the composer can preview inline. */
+export function isPreviewableFile(file: File): boolean {
+	const type = (file.type ?? '').toLowerCase();
+	if (type.startsWith('image/')) return true;
+	// A camera capture can legitimately carry an EMPTY type (the File API
+	// requires it when the platform cannot tell) -- the notebook's HEIC lesson.
+	return type === '' && /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(file.name ?? '');
+}
+
 export function formatBytes(size: number | null | undefined): string {
 	if (size == null || Number.isNaN(size)) return '';
 	if (size < 1024) return `${size} B`;
 	if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
 	return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ---------------------------------------------------------------------------
+// Link previews (0085 bundle; fetched server-side, see /api/classroom/link-preview)
+// ---------------------------------------------------------------------------
+
+export interface LinkPreview {
+	url: string;
+	/** False when the fetch failed or the page carried nothing worth showing. */
+	ok: boolean;
+	title?: string | null;
+	site_name?: string | null;
+	image_url?: string | null;
+	description?: string | null;
+}
+
+/** "example.com" from a URL, for the fallback card when metadata is thin. */
+export function linkHost(url: string): string {
+	try {
+		return new URL(url).hostname.replace(/^www\./, '');
+	} catch {
+		return url;
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -231,6 +287,14 @@ export function sortSections(sections: ClassroomSection[]): ClassroomSection[] {
 	});
 }
 
+/** An item's headline. An announcement may legitimately have none. */
+export function itemTitle(item: ClassroomItem): string {
+	const t = item.title?.trim();
+	if (t) return t;
+	const firstLine = item.body.split('\n').find((l) => l.trim() !== '')?.trim() ?? '';
+	return firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine || 'Untitled';
+}
+
 export function formatDue(iso: string | null): string {
 	if (!iso) return 'No due date';
 	const d = new Date(iso);
@@ -254,6 +318,20 @@ export function shortWhen(iso: string): string {
 	return d.toLocaleDateString(undefined, opts);
 }
 
+/** "Updated Mar 4, 9:15 AM" -- date AND time, since an edit can be same-day. */
+export function editedWhen(iso: string): string {
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return '';
+	const opts: Intl.DateTimeFormatOptions = {
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit'
+	};
+	if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+	return d.toLocaleString(undefined, opts);
+}
+
 /** ISO -> the value an <input type="datetime-local"> binds (local time). */
 export function isoToLocalInput(iso: string | null): string {
 	if (!iso) return '';
@@ -271,56 +349,132 @@ export function localInputToIso(value: string): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Edit visibility
+// ---------------------------------------------------------------------------
+
+/**
+ * Has this item been edited since the viewer last opened it?
+ *
+ * `edited_at` is stamped ONLY by a content change to an already-published item
+ * (0085), so this can never fire for a draft being polished, a pin, or a
+ * reorder -- an "Updated" badge always means something the student may have
+ * missed. Never viewed at all still counts as unseen, which is the honest
+ * answer: they have not read the new version either.
+ */
+export function isUpdatedForViewer(item: ClassroomItem): boolean {
+	if (!item.edited_at) return false;
+	if (!item.viewed_at) return true;
+	return Date.parse(item.edited_at) > Date.parse(item.viewed_at);
+}
+
+// ---------------------------------------------------------------------------
 // Stream + classwork shaping
 // ---------------------------------------------------------------------------
 
-export type StreamItem =
-	| { kind: 'post'; at: string; post: ClassroomPost }
-	| { kind: 'assignment'; at: string; assignment: ClassroomAssignment };
-
-/** Announcements and assignment posts merged newest-first. */
-export function streamItems(
-	posts: ClassroomPost[],
-	assignments: ClassroomAssignment[]
-): StreamItem[] {
-	const items: StreamItem[] = [
-		...posts.map((p) => ({ kind: 'post' as const, at: p.created_at, post: p })),
-		...assignments.map((a) => ({ kind: 'assignment' as const, at: a.created_at, assignment: a }))
-	];
-	return items.sort((x, y) => Date.parse(y.at) - Date.parse(x.at));
+/**
+ * Manual order, applied within a group. `sort_order` 0 means "never placed by
+ * hand" and falls to the group's natural order BEHIND anything a teacher
+ * actually positioned -- so a partly-ordered group still reads sensibly instead
+ * of scattering the unplaced items through the placed ones.
+ */
+function byManualOrder(a: ClassroomItem, b: ClassroomItem): number {
+	const oa = a.sort_order || Number.MAX_SAFE_INTEGER;
+	const ob = b.sort_order || Number.MAX_SAFE_INTEGER;
+	return oa - ob;
 }
 
+function withOrder(
+	items: ClassroomItem[],
+	natural: (a: ClassroomItem, b: ClassroomItem) => number
+): ClassroomItem[] {
+	return [...items].sort((a, b) => byManualOrder(a, b) || natural(a, b));
+}
+
+const newestFirst = (a: ClassroomItem, b: ClassroomItem) =>
+	Date.parse(b.created_at) - Date.parse(a.created_at);
+
+/**
+ * The Stream: announcements and assignments, pinned first, then newest first.
+ * Materials are deliberately absent -- they are standing references, and a
+ * syllabus re-surfacing at the top of a feed every time somebody looks is
+ * exactly what pinning in Classwork is for.
+ */
+export function streamItems(items: ClassroomItem[]): ClassroomItem[] {
+	const relevant = items.filter((i) => i.kind === 'post' || i.kind === 'assignment');
+	const pinned = relevant.filter((i) => i.pinned);
+	const rest = relevant.filter((i) => !i.pinned);
+	return [...withOrder(pinned, newestFirst), ...withOrder(rest, newestFirst)];
+}
+
+export type ClassworkGroupId = 'pinned' | 'upcoming' | 'materials' | 'undated' | 'past';
+
 export interface ClassworkGroup {
-	id: 'upcoming' | 'undated' | 'past';
+	id: ClassworkGroupId;
 	label: string;
-	assignments: ClassroomAssignment[];
+	items: ClassroomItem[];
 }
 
 /**
- * Classwork grouped by due date: upcoming (soonest first), then undated
- * (newest first), then past due (most recent first). Empty groups are omitted.
+ * Classwork: pinned first (any kind), then assignments by due date, with
+ * materials in their own shelf. Empty groups are omitted.
+ *
+ * Every group is independently reorderable, and the RPC is handed the group's
+ * ids in the order they are rendered here -- so what gets stored is always
+ * exactly the order somebody was looking at.
  */
 export function classworkGroups(
-	assignments: ClassroomAssignment[],
+	items: ClassroomItem[],
 	now: Date = new Date()
 ): ClassworkGroup[] {
-	const upcoming: ClassroomAssignment[] = [];
-	const undated: ClassroomAssignment[] = [];
-	const past: ClassroomAssignment[] = [];
-	for (const a of assignments) {
-		if (!a.due_at) undated.push(a);
-		else if (Date.parse(a.due_at) < now.getTime()) past.push(a);
-		else upcoming.push(a);
+	const relevant = items.filter((i) => i.kind === 'assignment' || i.kind === 'material');
+	const pinned: ClassroomItem[] = [];
+	const upcoming: ClassroomItem[] = [];
+	const materials: ClassroomItem[] = [];
+	const undated: ClassroomItem[] = [];
+	const past: ClassroomItem[] = [];
+
+	for (const i of relevant) {
+		if (i.pinned) pinned.push(i);
+		else if (i.kind === 'material') materials.push(i);
+		else if (!i.due_at) undated.push(i);
+		else if (Date.parse(i.due_at) < now.getTime()) past.push(i);
+		else upcoming.push(i);
 	}
-	upcoming.sort((x, y) => Date.parse(x.due_at!) - Date.parse(y.due_at!));
-	past.sort((x, y) => Date.parse(y.due_at!) - Date.parse(x.due_at!));
-	undated.sort((x, y) => Date.parse(y.created_at) - Date.parse(x.created_at));
+
+	const byDueAsc = (a: ClassroomItem, b: ClassroomItem) =>
+		Date.parse(a.due_at ?? '') - Date.parse(b.due_at ?? '');
+	const byDueDesc = (a: ClassroomItem, b: ClassroomItem) =>
+		Date.parse(b.due_at ?? '') - Date.parse(a.due_at ?? '');
 
 	const groups: ClassworkGroup[] = [];
-	if (upcoming.length) groups.push({ id: 'upcoming', label: 'Upcoming', assignments: upcoming });
-	if (undated.length) groups.push({ id: 'undated', label: 'No due date', assignments: undated });
-	if (past.length) groups.push({ id: 'past', label: 'Past due', assignments: past });
+	if (pinned.length) groups.push({ id: 'pinned', label: 'Pinned', items: withOrder(pinned, newestFirst) });
+	if (upcoming.length)
+		groups.push({ id: 'upcoming', label: 'Upcoming', items: withOrder(upcoming, byDueAsc) });
+	if (materials.length)
+		groups.push({ id: 'materials', label: 'Materials', items: withOrder(materials, newestFirst) });
+	if (undated.length)
+		groups.push({ id: 'undated', label: 'No due date', items: withOrder(undated, newestFirst) });
+	if (past.length) groups.push({ id: 'past', label: 'Past due', items: withOrder(past, byDueDesc) });
 	return groups;
+}
+
+/**
+ * The id list for a move, computed from the list as RENDERED. Returns null when
+ * the move is a no-op (already at the end it was pushed toward), so a caller
+ * never sends a pointless write.
+ */
+export function reorderedIds(
+	items: ClassroomItem[],
+	itemId: string,
+	direction: -1 | 1
+): string[] | null {
+	const index = items.findIndex((i) => i.id === itemId);
+	if (index < 0) return null;
+	const target = index + direction;
+	if (target < 0 || target >= items.length) return null;
+	const ids = items.map((i) => i.id);
+	[ids[index], ids[target]] = [ids[target], ids[index]];
+	return ids;
 }
 
 // ---------------------------------------------------------------------------
@@ -417,11 +571,10 @@ export function parseRosterCsv(text: string): { rows: RosterRow[]; errors: strin
 }
 
 // ---------------------------------------------------------------------------
-// Manage-console transports. The console is presentation-only; the real route
-// wires these to the 0082 RPCs + RLS selects, the dev harness answers from an
-// in-memory store (the ReviewConsole ReviewTransports convention). Every
-// transport resolves -- never throws -- so the console renders refusals
-// inline.
+// Transports. Components are presentation-only; the real routes wire these to
+// the 0082/0083/0085 RPCs, the dev harness answers from an in-memory store (the
+// ReviewConsole ReviewTransports convention). Every transport resolves --
+// never throws -- so a surface renders refusals inline.
 // ---------------------------------------------------------------------------
 
 export type TxResult<T = undefined> = { ok: true; data: T } | { ok: false; message: string };
@@ -442,61 +595,52 @@ export interface ImportSummary {
 	results: ImportRowResult[];
 }
 
-export interface AssignmentInput {
-	title: string;
-	description: string;
+/** Everything authored on the canonical record. */
+export interface ItemInput {
+	title: string | null;
+	body: string;
 	points: number | null;
 	dueAt: string | null;
 	category: string | null;
-	resources: { label: string; url: string }[];
+	links: { label: string; url: string }[];
 }
 
 /**
  * What the shared composer needs, and nothing more. Split out from the console
- * set so the SAME composer can be mounted on the class page and the assignment
- * detail page (where there is no roster, no CSV import and no section setup) --
- * there is exactly one content editor in this module, reused, never a second
- * one written per surface.
+ * set so the SAME composer can be mounted on the class page and the item detail
+ * page (where there is no roster, no CSV import and no section setup) -- there
+ * is exactly one content editor in this module, reused, never a second one
+ * written per surface.
  *
- * The create/update calls hand back the ids they touched, because attachments
- * are uploaded AFTER the row exists (the file id lives in the row) and a
- * multi-section publish produces N ids the same file has to land on.
+ * The create call hands back the id it made, because attachments are uploaded
+ * AFTER the row exists (the file id lives in a row keyed on it).
  */
 export interface ClassroomComposerTransports {
-	createPost(
+	createItem(
+		kind: ClassroomItemKind,
 		sectionIds: string[],
-		body: string,
-		title: string | null,
+		input: ItemInput,
 		published: boolean
-	): Promise<TxResult<{ ids: string[] }>>;
-	updatePost(
+	): Promise<TxResult<{ itemId: string }>>;
+	updateItem(
 		id: string,
-		body: string,
-		title: string | null,
+		input: ItemInput,
 		published: boolean | null
-	): Promise<TxResult<{ ids: string[] }>>;
-	createAssignment(
-		sectionIds: string[],
-		input: AssignmentInput,
-		published: boolean
-	): Promise<TxResult<{ ids: string[] }>>;
-	updateAssignment(
-		id: string,
-		input: AssignmentInput,
-		published: boolean | null
-	): Promise<TxResult<{ ids: string[] }>>;
-	/** One upload, N owner rows (see the 0083 header). */
-	uploadAttachment(
-		ownerKind: 'post' | 'assignment',
-		ownerIds: string[],
-		file: File
-	): Promise<TxResult<undefined>>;
+	): Promise<TxResult<{ itemId: string }>>;
+	deleteItem(id: string): Promise<TxResult<undefined>>;
+	/** New independent draft; attachments carried by reference, not re-upload. */
+	duplicateItem(id: string): Promise<TxResult<{ itemId: string }>>;
+	addPostings(itemId: string, sectionIds: string[]): Promise<TxResult<{ added: number }>>;
+	removePosting(
+		itemId: string,
+		sectionId: string
+	): Promise<TxResult<{ ok: boolean; reason?: string }>>;
+	setPinned(itemId: string, pinned: boolean): Promise<TxResult<undefined>>;
+	setOrder(itemIds: string[]): Promise<TxResult<undefined>>;
+	uploadAttachment(itemId: string, file: File): Promise<TxResult<undefined>>;
 	deleteAttachment(id: string): Promise<TxResult<undefined>>;
-	// Delete sits here rather than in the console-only set because it belongs
-	// wherever the content is SHOWN -- deleting an announcement is a thought
-	// someone has while looking at it.
-	deletePost(id: string): Promise<TxResult<undefined>>;
-	deleteAssignment(id: string): Promise<TxResult<undefined>>;
+	/** Student-owned; a no-op for a teacher looking at their own class. */
+	markViewed(itemId: string): Promise<TxResult<undefined>>;
 }
 
 export interface ClassroomManageTransports extends ClassroomComposerTransports {
@@ -530,33 +674,51 @@ export interface ClassroomManageTransports extends ClassroomComposerTransports {
 		name: string | null
 	): Promise<TxResult<{ ok: boolean; reason?: string }>>;
 	importRoster(rows: RosterRow[]): Promise<TxResult<ImportSummary>>;
-	loadContent(
-		sectionId: string
-	): Promise<TxResult<{ posts: ClassroomPost[]; assignments: ClassroomAssignment[] }>>;
+	loadContent(sectionId: string): Promise<TxResult<{ items: ClassroomItem[] }>>;
 }
 
 /**
  * classroom_delete_section's answer. `ok: false` with `reason: 'not_empty'` is
- * the DESIGNED path, not an error: a section holding posts, assignments or
- * enrollments is never deleted, and the counts come back so the UI can say what
- * would have been lost and offer to archive instead.
+ * the DESIGNED path, not an error: a section holding postings or enrollments is
+ * never deleted, and the counts come back so the UI can say what would have
+ * been lost and offer to archive instead.
  */
 export interface SectionDeleteResult {
 	ok: boolean;
 	reason?: string;
-	posts?: number;
-	assignments?: number;
+	items?: number;
 	enrollments?: number;
 }
 
 /** Plain-language summary of a refused section delete. */
 export function sectionDeleteBlockedLabel(r: SectionDeleteResult): string {
 	const parts: string[] = [];
-	if (r.posts) parts.push(`${r.posts} post${r.posts === 1 ? '' : 's'}`);
-	if (r.assignments) parts.push(`${r.assignments} assignment${r.assignments === 1 ? '' : 's'}`);
+	if (r.items) parts.push(`${r.items} posted item${r.items === 1 ? '' : 's'}`);
 	if (r.enrollments)
 		parts.push(`${r.enrollments} enrolled student${r.enrollments === 1 ? '' : 's'}`);
 	return parts.join(', ');
+}
+
+// ---------------------------------------------------------------------------
+// Feedback console (0053's app_feedback, given a moderation status by 0085)
+// ---------------------------------------------------------------------------
+
+export type FeedbackStatus = 'new' | 'seen' | 'resolved';
+
+/** One row as app_feedback_admin_list returns it. */
+export interface FeedbackRow {
+	id: string;
+	app: string;
+	context: string | null;
+	kind: string;
+	message: string;
+	meta: Record<string, unknown> | null;
+	status: FeedbackStatus;
+	created_at: string;
+	reviewed_at: string | null;
+	reviewed_by: string | null;
+	submitter_name: string | null;
+	submitter_email: string | null;
 }
 
 /** Human-readable reason for a refused import row. */
