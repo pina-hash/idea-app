@@ -1,6 +1,19 @@
 import type { CoinCategory, StudentSuggestion } from '$lib/coin-desk';
 import type { CoinSectionRow, CoinSectionStudentRow } from '$lib/coin-desk/sections';
 import type { CoinRoleDefinition, QuizQuestionType } from '$lib/coin-desk/roles';
+import {
+	expectedBalance,
+	legacyCategoryForType,
+	parseContractsPayload,
+	parseSummaryCsv,
+	parseTransactionsCsv,
+	signedAmount,
+	isKnownLegacyType,
+	buildRawSnapshot,
+	type ImportBatchRow,
+	type LegacyPull,
+	type SavedMappingRow
+} from '$lib/coin-desk/migrate';
 
 /**
  * In-memory stand-in for the 0070 Supabase schema, mirroring its actual
@@ -280,6 +293,9 @@ interface Txn {
 	note: string | null;
 	actor_email: string;
 	created_at: string;
+	/** Sparse, like the real jsonb: the eating-violation strike flag, and the
+	 * legacy import's batch tag (0084). */
+	meta?: Record<string, unknown>;
 }
 
 interface StudentState {
@@ -300,7 +316,14 @@ interface StudentState {
  */
 const NAME_ONLY_CATEGORIES: Pick<CoinCategory, 'id' | 'name'>[] = [
 	{ id: 'eating_pass_revoked', name: 'Eating Pass Revoked (system)' },
-	{ id: 'mint_tampering_unknown', name: 'Mint Tampering (Suspect Unknown)' }
+	{ id: 'mint_tampering_unknown', name: 'Mint Tampering (Suspect Unknown)' },
+	// 0084's legacy categories: loggable = false, active = false in the real
+	// schema, so they never enter the dropdown list -- but imported history
+	// rows reference them and must resolve a real name.
+	{ id: 'legacy_award', name: 'Legacy Award (Sheets)' },
+	{ id: 'legacy_fine', name: 'Legacy Fine (Sheets)' },
+	{ id: 'legacy_purchase', name: 'Legacy Purchase (Sheets)' },
+	{ id: 'legacy_payout', name: 'Legacy Payout (Sheets)' }
 ];
 /**
  * Mutable (unlike SAMPLE_CATEGORIES itself): 0080's coin_admin_create_category
@@ -373,10 +396,105 @@ interface ContractState {
 	completed_at: string | null;
 	cancelled_at: string | null;
 	cancel_reason: string | null;
+	/** 0084's batch tag; null/absent = a live contract, untouched by rollback. */
+	import_batch?: string | null;
 }
 const contracts = new Map<string, ContractState>();
 const contractClaims = new Map<string, Map<string, string>>(); // contract_id -> (student_email -> claimed_at)
 let contractSeq = 0;
+
+// ---------------------------------------------------------------------------
+// 0084's legacy Sheets import: in-memory mirrors of coin_import_batches /
+// coin_import_mappings / coin_students plus the five import RPCs. The fixture
+// below is CSV TEXT parsed through the REAL migrate.ts parsers, so the
+// harness exercises the same parsing path the pull endpoint runs -- a
+// synthetic sheet covering every transaction type (Held / Owed included),
+// two profile-matchable names, an eating-pass purchase per real amount
+// (40/50/50), two External rows (one a partial name), all three contract
+// statuses, and multi-contractor splits.
+// ---------------------------------------------------------------------------
+
+const importBatches = new Map<string, ImportBatchRow>();
+const importMappings = new Map<string, SavedMappingRow>();
+const coinStudents = new Map<
+	string,
+	{ display_name: string; legacy_section: string | null; source: string }
+>();
+let importBatchSeq = 0;
+
+const MIGRATE_SUMMARY_CSV = `Name,Section,Wage,Awarded,Fines,Spent,Coin Balance,Paid Out,Bank Balance,Debt
+"Rivera, Alex",IDEA-113,1,30,5,0,25,0,0,0
+"Kim, Jordan",IDEA-208-1,1,10,12,6,0,0,0,8
+"Delgadillo, Seth",IDEA-113,1,80,0,40,36,4,0,0
+"Jette-Kouri, Abraham",IDEA-208-2,1,73,0,50,23,0,0,0
+"de la Loza, Joseph",IDEA-113,1,8,0,0,8,0,0,0
+"Veneziano, Ezio",IDEA-403,1,90,3,50,37,0,0,0
+Colin,External,1,15,0,0,15,0,0,0
+"Bushman, Henry",External,1,0,0,0,0,0,0,0
+`;
+
+const MIGRATE_TRANSACTIONS_CSV = `Date / Time,Name,Amount,Type,Reason,
+2026-05-05 12:00,"Rivera, Alex",20,Award,Weekly Wage,
+2026-05-06 09:15,"Rivera, Alex",10,Award - Held,Legacy Wealth Declaration,
+2026-05-07 10:00,"Rivera, Alex",5,Fine,Unprofessional Conduct,
+2026-05-05 12:05,"Kim, Jordan",10,Award,Weekly Wage,
+2026-05-08 11:30,"Kim, Jordan",12,Fine,Shop Safety Violation,
+2026-05-12 13:10,"Kim, Jordan",6,Purchase,Song Request,
+2026-05-05 12:10,"Delgadillo, Seth",60,Award,Contract Completion,
+2026-05-06 12:11,"Delgadillo, Seth",20,Award - Held,Held award,
+2026-05-18 22:37,"Delgadillo, Seth",40,Purchase,Basic Classroom Eating Pass,
+2026-05-27 09:00,"Delgadillo, Seth",4,Payout,Physical coin payout,
+2026-05-18 14:21,"Jette-Kouri, Abraham",43,Award,Legacy Wealth Declaration,
+2026-05-20 10:00,"Jette-Kouri, Abraham",30,Award,Competition Winnings,
+2026-05-18 22:42,"Jette-Kouri, Abraham",50,Purchase,Executive Classroom Eating Pass,
+2026-05-19 09:30,"de la Loza, Joseph",8,Award,Above and Beyond,
+2026-05-05 12:20,"Veneziano, Ezio",90,Award,Competition Winnings,
+2026-05-21 15:00,"Veneziano, Ezio",3,Fine - Owed,Still owes for printing,
+2026-05-18 22:43,"Veneziano, Ezio",50,Purchase,Executive Classroom Eating Pass,
+2026-05-22 10:30,Colin,15,Award,Guest helper award,
+`;
+
+/** Ledger-shaped, exactly what the contracts action answers with (camelCase
+ * keys, pipe-separated contractors), so parseContractsPayload runs for real. */
+const MIGRATE_CONTRACTS_PAYLOAD = [
+	{ row: 2, name: 'Fix Go-Cart', basePayout: 30, rateLabel: '', quantity: 1, totalPayout: 30, status: 'In Progress', contractors: 'Rivera, Alex|Kim, Jordan', split: '', notes: '', dateAdded: '2026-05-20', dateCompleted: '' },
+	{ row: 3, name: 'Safety Glasses Storage System', basePayout: 15, rateLabel: '', quantity: 1, totalPayout: 15, status: 'Open', contractors: '', split: '', notes: 'Design and build a storage rack.', dateAdded: '2026-05-20', dateCompleted: '' },
+	{ row: 4, name: 'Label 24x Safety Glasses', basePayout: 4, rateLabel: '', quantity: 1, totalPayout: 4, status: 'Completed', contractors: 'Delgadillo, Seth|Veneziano, Ezio', split: '2,2', notes: '', dateAdded: '2026-05-20', dateCompleted: '2026-05-26' }
+];
+
+/** The harness's PULL transport parses the fixture through the REAL parsers. */
+export function migrateFixturePull(): LegacyPull {
+	return buildRawSnapshot({
+		summary: parseSummaryCsv(MIGRATE_SUMMARY_CSV),
+		transactions: parseTransactionsCsv(MIGRATE_TRANSACTIONS_CSV),
+		contracts: parseContractsPayload(MIGRATE_CONTRACTS_PAYLOAD),
+		contractHistory: [],
+		contractsAvailable: true,
+		source: { note: 'dev harness fixture' }
+	});
+}
+
+/** The way the real route load resumes: the committed batch first, else the
+ * most recent pull. */
+export function latestImportBatch(): ImportBatchRow | null {
+	const all = Array.from(importBatches.values());
+	const committed = all.filter((b) => b.committed_at);
+	if (committed.length) return committed[committed.length - 1];
+	return all.length ? all[all.length - 1] : null;
+}
+
+export function listImportMappings(): SavedMappingRow[] {
+	return Array.from(importMappings.values()).map((m) => ({ ...m }));
+}
+
+/** The fake's stand-in for a naive LA timestamp: the browser's own zone is
+ * close enough for display/sorting here -- the REAL America/Los_Angeles
+ * interpretation is 0084's, proven against real Postgres in
+ * tests/coin-legacy-import.test.ts. */
+function legacyDateToIso(naive: string): string {
+	const d = new Date(naive.includes(' ') || naive.includes('T') ? naive.replace(' ', 'T') : `${naive}T00:00:00`);
+	return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
 
 function contractClaimedCount(id: string): number {
 	return contractClaims.get(id)?.size ?? 0;
@@ -887,6 +1005,7 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 			}
 			if (table === 'coin_balances') return makeBalancesQuery();
 			if (table === 'coin_categories') return makeCategoriesQuery();
+			if (table === 'coin_transactions') return makeTransactionsQuery();
 			throw new Error(`fake ledger: unexpected table "${table}"`);
 		}
 	};
@@ -1907,6 +2026,280 @@ async function handleRpc(
 		return Promise.resolve(ok({ contract_id: contractId, cleared }));
 	}
 
+	// -----------------------------------------------------------------------
+	// Legacy Sheets import (0084). Mirrors the real RPCs' semantics: refusal
+	// shapes, the single-committed-batch idempotency rule, RAW inserts (never
+	// the coin_log_transaction handler above -- historical rows must not
+	// trigger live rules), batch tagging, and batch-scoped reconciliation.
+	// -----------------------------------------------------------------------
+
+	if (fn === 'coin_admin_create_import_batch') {
+		const raw = params.p_raw as LegacyPull;
+		if (!raw || !Array.isArray(raw.summary) || !Array.isArray(raw.transactions)) {
+			return Promise.resolve(rpcError('A pull snapshot needs summary and transactions arrays.'));
+		}
+		const id = `batch-${++importBatchSeq}`;
+		importBatches.set(id, {
+			id,
+			raw,
+			pulled_at: new Date().toISOString(),
+			committed_at: null,
+			committed_by: null,
+			report: null
+		});
+		return Promise.resolve(ok({ batch_id: id }));
+	}
+
+	if (fn === 'coin_admin_save_import_mappings') {
+		const arr = (params.p_mappings ?? []) as { legacy_name?: string; email?: string | null; status?: string }[];
+		let saved = 0;
+		for (const m of arr) {
+			const name = (m.legacy_name ?? '').trim();
+			if (!name) continue;
+			const mail = (m.email ?? '').trim().toLowerCase() || null;
+			importMappings.set(name, {
+				legacy_name: name,
+				email: mail && mail.includes('@') ? mail : null,
+				status: m.status ?? 'unmapped'
+			});
+			saved++;
+		}
+		return Promise.resolve(ok({ saved }));
+	}
+
+	if (fn === 'coin_admin_import_legacy') {
+		const batch = importBatches.get(String(params.p_batch_id ?? ''));
+		if (!batch) return Promise.resolve(rpcError('Unknown import batch.'));
+		if (batch.committed_at) {
+			return Promise.resolve(refused('batch_already_committed', { committed_at: batch.committed_at }));
+		}
+		const other = Array.from(importBatches.values()).find((b) => b.committed_at);
+		if (other) return Promise.resolve(refused('another_batch_committed', { batch_id: other.id }));
+
+		const mapIn = (params.p_mappings ?? []) as { legacy_name?: string; email?: string | null }[];
+		const map = new Map<string, string>();
+		for (const m of mapIn) {
+			const name = (m.legacy_name ?? '').trim().toLowerCase();
+			const mail = (m.email ?? '').trim().toLowerCase();
+			if (!name || !mail) continue;
+			map.set(name, mail);
+		}
+		const byEmail = new Map<string, string[]>();
+		for (const [n, e] of map.entries()) byEmail.set(e, [...(byEmail.get(e) ?? []), n]);
+		const dupe = Array.from(byEmail.entries()).find(([, names]) => names.length > 1);
+		if (dupe) return Promise.resolve(refused('duplicate_email', { email: dupe[0], names: dupe[1] }));
+
+		const everyName = new Set<string>();
+		for (const s of batch.raw.summary) everyName.add(s.name.trim());
+		for (const t of batch.raw.transactions) everyName.add(t.name.trim());
+		for (const c of batch.raw.contracts) for (const n of c.contractors) everyName.add(n.trim());
+		const missing = Array.from(everyName).filter((n) => n && !map.has(n.toLowerCase()));
+		if (missing.length) return Promise.resolve(refused('unmapped_name', { names: missing.sort() }));
+
+		const badTypes = [
+			...new Set(batch.raw.transactions.map((t) => t.type.trim()).filter((t) => !isKnownLegacyType(t)))
+		];
+		if (badTypes.length) return Promise.resolve(refused('unknown_type', { types: badTypes }));
+
+		const tag = batch.id;
+		for (const s of batch.raw.summary) {
+			coinStudents.set(map.get(s.name.trim().toLowerCase())!, {
+				display_name: s.name.trim(),
+				legacy_section: s.section.trim() || null,
+				source: `legacy-import:${tag}`
+			});
+		}
+
+		// RAW inserts, oldest-first appended after any live rows (the seeded
+		// recents stay at the top of coin_admin_lookup's newest-first list).
+		const ordered = [...batch.raw.transactions].sort(
+			(a, b) => new Date(legacyDateToIso(b.date)).getTime() - new Date(legacyDateToIso(a.date)).getTime()
+		);
+		for (const t of ordered) {
+			const email2 = map.get(t.name.trim().toLowerCase())!;
+			const s = stateFor(email2);
+			const signed = signedAmount(t);
+			const categoryId = legacyCategoryForType(t.type);
+			s.balance += signed;
+			s.txns.push({
+				id: `t${++txnSeq}`,
+				category_id: categoryId,
+				category_name: categoryNameFor(categoryId),
+				amount: signed,
+				quantity: null,
+				note: t.reason.trim() || null,
+				actor_email: 'admin@boscotech.edu',
+				created_at: legacyDateToIso(t.date),
+				meta: { legacy_reason: t.reason, legacy_type: t.type, legacy_row: t.row, import_batch: tag }
+			});
+		}
+
+		let claimCount = 0;
+		for (const c of batch.raw.contracts) {
+			const id = `legacy-contract-${++contractSeq}`;
+			const added = legacyDateToIso(c.date_added || new Date().toISOString());
+			const done = c.date_completed ? legacyDateToIso(c.date_completed) : added;
+			const claimants = [
+				...new Set(c.contractors.map((n) => map.get(n.trim().toLowerCase())!).filter(Boolean))
+			];
+			contracts.set(id, {
+				id,
+				title: c.name,
+				description: c.notes.trim() || null,
+				payout_amount: Math.round(c.total_payout),
+				max_contractors: Math.max(1, claimants.length),
+				section_id: null,
+				created_by: 'admin@boscotech.edu',
+				created_at: added,
+				completed_at: c.status === 'Completed' ? done : null,
+				cancelled_at: c.status === 'Cancelled' ? done : null,
+				cancel_reason: null,
+				import_batch: tag
+			});
+			contractClaims.set(id, new Map(claimants.map((e) => [e, added])));
+			claimCount += claimants.length;
+		}
+
+		const results = batch.raw.summary
+			.map((s) => {
+				const email2 = map.get(s.name.trim().toLowerCase())!;
+				const mine = stateFor(email2).txns.filter((t) => t.meta?.import_batch === tag);
+				return {
+					email: email2,
+					name: s.name.trim(),
+					ok: true,
+					transactions: mine.length,
+					amount: mine.reduce((acc, t) => acc + t.amount, 0)
+				};
+			})
+			.sort((a, b) => a.name.localeCompare(b.name));
+
+		batch.committed_at = new Date().toISOString();
+		batch.committed_by = 'admin@boscotech.edu';
+		batch.report = {
+			mappings: Object.fromEntries(map.entries()),
+			students: batch.raw.summary.length,
+			transactions: batch.raw.transactions.length,
+			contracts: batch.raw.contracts.length,
+			claims: claimCount,
+			results
+		};
+		return Promise.resolve(
+			ok({
+				batch_id: tag,
+				students: batch.raw.summary.length,
+				transactions: batch.raw.transactions.length,
+				contracts: batch.raw.contracts.length,
+				claims: claimCount,
+				total: batch.raw.summary.length,
+				succeeded: batch.raw.summary.length,
+				refused: 0,
+				results
+			})
+		);
+	}
+
+	if (fn === 'coin_admin_rollback_import') {
+		const batch = importBatches.get(String(params.p_batch_id ?? ''));
+		if (!batch) return Promise.resolve(rpcError('Unknown import batch.'));
+		if (!batch.committed_at) return Promise.resolve(refused('not_committed'));
+		const tag = batch.id;
+		let txDeleted = 0;
+		for (const s of ledger.values()) {
+			const keep: Txn[] = [];
+			for (const t of s.txns) {
+				if (t.meta?.import_batch === tag) {
+					s.balance -= t.amount;
+					txDeleted++;
+				} else {
+					keep.push(t);
+				}
+			}
+			s.txns = keep;
+		}
+		let contractsDeleted = 0;
+		let claimsDeleted = 0;
+		for (const [id, c] of Array.from(contracts.entries())) {
+			if (c.import_batch === tag) {
+				claimsDeleted += contractClaims.get(id)?.size ?? 0;
+				contracts.delete(id);
+				contractClaims.delete(id);
+				contractsDeleted++;
+			}
+		}
+		let studentsDeleted = 0;
+		for (const [email2, row] of Array.from(coinStudents.entries())) {
+			if (row.source === `legacy-import:${tag}`) {
+				coinStudents.delete(email2);
+				studentsDeleted++;
+			}
+		}
+		batch.committed_at = null;
+		batch.committed_by = null;
+		batch.report = null;
+		return Promise.resolve(
+			ok({
+				batch_id: tag,
+				transactions_deleted: txDeleted,
+				contracts_deleted: contractsDeleted,
+				claims_deleted: claimsDeleted,
+				students_deleted: studentsDeleted
+			})
+		);
+	}
+
+	if (fn === 'coin_admin_import_reconcile') {
+		const batch = importBatches.get(String(params.p_batch_id ?? ''));
+		if (!batch) return Promise.resolve(rpcError('Unknown import batch.'));
+		if (!batch.committed_at || !batch.report) return Promise.resolve(refused('not_committed'));
+		const tag = batch.id;
+		const map = batch.report.mappings;
+		const rows = batch.raw.summary
+			.map((s) => {
+				const email2 = map[s.name.trim().toLowerCase()] ?? '';
+				const state = stateFor(email2);
+				const mine = state.txns.filter((t) => t.meta?.import_batch === tag);
+				const actual = mine.reduce((acc, t) => acc + t.amount, 0);
+				const expected = expectedBalance(s);
+				return {
+					name: s.name.trim(),
+					email: email2,
+					expected,
+					actual,
+					diff: actual - expected,
+					live_balance: state.balance
+				};
+			})
+			.sort((a, b) => a.name.localeCompare(b.name));
+		const liveTxns = rows.reduce((acc, r) => acc + stateFor(r.email).txns.length, 0);
+		let batchTxns = 0;
+		for (const s of ledger.values()) {
+			batchTxns += s.txns.filter((t) => t.meta?.import_batch === tag).length;
+		}
+		const batchClaims = Array.from(contracts.values())
+			.filter((c) => c.import_batch === tag)
+			.reduce((acc, c) => acc + (contractClaims.get(c.id)?.size ?? 0), 0);
+		return Promise.resolve(
+			ok({
+				batch_id: tag,
+				all_zero: rows.every((r) => r.diff === 0),
+				rows,
+				totals: {
+					students: rows.length,
+					expected_sum: rows.reduce((acc, r) => acc + r.expected, 0),
+					actual_sum: rows.reduce((acc, r) => acc + r.actual, 0),
+					mismatches: rows.filter((r) => r.diff !== 0).length,
+					batch_transactions: batchTxns,
+					batch_contracts: Array.from(contracts.values()).filter((c) => c.import_batch === tag).length,
+					batch_claims: batchClaims,
+					live_circulation: rows.reduce((acc, r) => acc + Math.max(0, r.live_balance), 0),
+					live_debt: rows.reduce((acc, r) => acc + Math.max(0, -r.live_balance), 0),
+					live_transactions: liveTxns
+				}
+			})
+		);
+	}
+
 	return Promise.resolve(rpcError(`fake ledger: unhandled rpc "${fn}"`));
 }
 
@@ -2016,6 +2409,50 @@ function makeBalancesQuery() {
 		},
 		order(_col: string, opts?: { ascending?: boolean }) {
 			orderAsc = opts?.ascending !== false;
+			return builder;
+		},
+		then<TResult1 = unknown, TResult2 = never>(
+			onFulfilled?: ((value: ReturnType<typeof compute>) => TResult1 | PromiseLike<TResult1>) | null,
+			onRejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
+		) {
+			return Promise.resolve(compute()).then(onFulfilled, onRejected);
+		}
+	};
+	return builder;
+}
+
+/**
+ * Just enough of a `coin_transactions` read to drive migrate.ts's
+ * loadLoggedRefunds (`.select(...).eq('category_id', ...).in('student_email',
+ * [...])`) -- the VERIFY step's already-refunded detection. Admin-scoped in
+ * the real schema; the harness is admin-only, so no scoping here.
+ */
+function makeTransactionsQuery() {
+	let eqCategory: string | null = null;
+	let inEmails: string[] | null = null;
+
+	function compute() {
+		const rows: { student_email: string; amount: number; note: string | null }[] = [];
+		for (const [email, s] of ledger.entries()) {
+			if (inEmails && !inEmails.includes(email)) continue;
+			for (const t of s.txns) {
+				if (eqCategory && t.category_id !== eqCategory) continue;
+				rows.push({ student_email: email, amount: t.amount, note: t.note });
+			}
+		}
+		return { data: rows, error: null };
+	}
+
+	const builder = {
+		select(_cols: string) {
+			return builder;
+		},
+		eq(col: string, val: string) {
+			if (col === 'category_id') eqCategory = val;
+			return builder;
+		},
+		in(col: string, values: string[]) {
+			if (col === 'student_email') inEmails = values;
 			return builder;
 		},
 		then<TResult1 = unknown, TResult2 = never>(

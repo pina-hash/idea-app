@@ -1,36 +1,38 @@
 <script lang="ts">
+	import MigrateWizard from '$lib/coin-desk/MigrateWizard.svelte';
+	import type { PageData } from './$types';
+
+	let { data }: { data: PageData } = $props();
+
 	/**
-	 * Placeholder only. The legacy Sheets migration wizard lands here in the
-	 * next phase of the coin-system consolidation; this route exists now so
-	 * the sub-nav is complete and the URL is settled before anything is built
-	 * against it. No functionality, no data loading, no writes.
+	 * The PULL transport: a POST to this route's own server endpoint, which
+	 * fetches the published CSVs + the coin-ledger contracts server-side and
+	 * creates the batch. Injected into the wizard (the harness answers it
+	 * from a fixture instead).
 	 */
+	async function pull() {
+		try {
+			const res = await fetch('/coin-desk/migrate/pull', { method: 'POST' });
+			const body = (await res.json()) as
+				| { ok: true; batch: PageData['batch']; warnings: string[] }
+				| { ok: false; error: string };
+			if (!body.ok) return { ok: false as const, error: body.error };
+			return { ok: true as const, batch: body.batch!, warnings: body.warnings };
+		} catch {
+			return { ok: false as const, error: 'The pull endpoint did not answer.' };
+		}
+	}
 </script>
 
 <svelte:head>
 	<title>Migrate // Coin Desk</title>
 </svelte:head>
 
-<section class="card">
-	<h2>Legacy Sheets migration</h2>
-	<p class="note">
-		The migration wizard for bringing balances over from the old Google Sheets ledger lands here in
-		the next phase. Nothing here writes anything yet.
-	</p>
-	<p class="note">
-		Until then, a legacy balance is attached the same way it always has been: look the student up
-		under <a href="/coin-desk/students">Students</a> and apply one signed adjustment for whatever
-		their old balance was, with the reason recorded. No conversion math, and it works whether or not
-		that email has ever signed in.
-	</p>
-</section>
-
-<style>
-	h2 {
-		margin-top: 0;
-	}
-	.note {
-		color: var(--dim);
-		font-size: 0.9rem;
-	}
-</style>
+<MigrateWizard
+	supabase={data.supabase}
+	profiles={data.profiles}
+	initialBatch={data.batch}
+	initialMappings={data.savedMappings}
+	configured={data.migrateConfigured}
+	{pull}
+/>

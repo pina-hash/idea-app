@@ -8,10 +8,21 @@
 	import RolesManager from '$lib/coin-desk/RolesManager.svelte';
 	import CategoriesManager from '$lib/coin-desk/CategoriesManager.svelte';
 	import PayoutManager from '$lib/coin-desk/PayoutManager.svelte';
+	import MigrateWizard from '$lib/coin-desk/MigrateWizard.svelte';
 	import type { CoinDeskAreaId } from '$lib/coin-desk/nav';
 	import type { CoinCategory } from '$lib/coin-desk';
 	import type { CoinSectionRow } from '$lib/coin-desk/sections';
-	import { createFakeLedger, listSections, listRoleDefinitions, listCategories } from './fake-ledger';
+	import type { ImportBatchRow } from '$lib/coin-desk/migrate';
+	import {
+		createFakeLedger,
+		listSections,
+		listRoleDefinitions,
+		listCategories,
+		latestImportBatch,
+		listImportMappings,
+		migrateFixturePull,
+		SAMPLE_STUDENTS
+	} from './fake-ledger';
 
 	/**
 	 * Dev harness: mirrors the /coin-desk ROUTE GROUP -- the same sub-nav
@@ -92,7 +103,20 @@
 	 *    against a candidate from LOG, come back WITHOUT reloading, and hit
 	 *    "Pay All" -- the amount actually paid matches the NEW balance, not
 	 *    the stale one the list is still showing.
-	 *  - MIGRATE -- placeholder only, the wizard lands there next phase.
+	 *  - MIGRATE -- the legacy Sheets import wizard against a fixture pull
+	 *    (CSV text parsed through the REAL migrate.ts parsers). PULL shows
+	 *    the counts (8 students, 18 transactions, 3 contracts); MAP prefills
+	 *    "Rivera, Alex" / "Kim, Jordan" from profile matches, a pattern chip
+	 *    fills the four unmapped student rows live, the two External rows
+	 *    (one a partial name, "Colin") take any-domain hand entries, and a
+	 *    duplicate email or a blank row blocks Continue; PREVIEW reconciles
+	 *    every row to 0 diff and flags the three eating-pass purchasers;
+	 *    COMMIT renders the per-student results (Kim, Jordan imports net
+	 *    negative on purpose); VERIFY reconciles against the fake ledger
+	 *    (batch-scoped, so the pre-seeded live balances of healthy.student /
+	 *    debt.student do not read as mismatches) and one click logs each
+	 *    eating-pass refund, disabling itself. Rollback under Commit removes
+	 *    exactly the batch's rows and re-arms the whole flow.
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
 
@@ -100,6 +124,34 @@
 	let sectionsApplied = $state(true);
 	let rolesApplied = $state(true);
 	let contractsApplied = $state(true);
+	let importApplied = $state(true);
+
+	/** The harness's PULL transport: the fixture parsed through the real
+	 * parsers, stored through the same create-batch RPC the endpoint calls. */
+	async function harnessPull(): Promise<
+		{ ok: true; batch: ImportBatchRow; warnings: string[] } | { ok: false; error: string }
+	> {
+		const raw = migrateFixturePull();
+		const resp = (await supabase.rpc('coin_admin_create_import_batch', { p_raw: raw })) as {
+			data: { batch_id: string } | null;
+			error: { message: string } | null;
+		};
+		if (resp.error || !resp.data) {
+			return { ok: false, error: resp.error?.message ?? 'create batch failed' };
+		}
+		return {
+			ok: true,
+			batch: {
+				id: resp.data.batch_id,
+				raw,
+				pulled_at: new Date().toISOString(),
+				committed_at: null,
+				committed_by: null,
+				report: null
+			},
+			warnings: ['Dev harness: fixture data parsed through the real CSV parsers, not a live pull.']
+		};
+	}
 
 	let area = $state<CoinDeskAreaId>('log');
 
@@ -151,6 +203,10 @@
 		<input type="checkbox" bind:checked={contractsApplied} />
 		Migration 0077 (contracts) applied
 	</label>
+	<label>
+		<input type="checkbox" bind:checked={importApplied} />
+		Migration 0084 (legacy import) applied
+	</label>
 </div>
 
 <main class="coin-desk-page">
@@ -161,7 +217,7 @@
 
 	<CoinDeskNav active={area} onSelect={(next) => (area = next)} />
 
-	{#key `${area}:${migrationApplied}:${sectionsApplied}:${rolesApplied}:${contractsApplied}`}
+	{#key `${area}:${migrationApplied}:${sectionsApplied}:${rolesApplied}:${contractsApplied}:${importApplied}`}
 		{#if area === 'log'}
 			<LogView
 				categories={categoriesFor()}
@@ -186,13 +242,14 @@
 			<CategoriesManager {supabase} bind:categories={categoriesState} configured={migrationApplied} />
 			<PayoutManager {supabase} configured={migrationApplied} />
 		{:else}
-			<section class="card">
-				<h2>Legacy Sheets migration</h2>
-				<p class="note">
-					Placeholder only, mirroring /coin-desk/migrate -- the migration wizard lands here in the
-					next phase. Nothing here writes anything.
-				</p>
-			</section>
+			<MigrateWizard
+				{supabase}
+				profiles={SAMPLE_STUDENTS}
+				initialBatch={importApplied ? latestImportBatch() : null}
+				initialMappings={importApplied ? listImportMappings() : []}
+				configured={importApplied}
+				pull={harnessPull}
+			/>
 		{/if}
 	{/key}
 </main>

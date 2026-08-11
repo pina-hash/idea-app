@@ -1,0 +1,72 @@
+Name,Section,Wage,Awarded,Fines,Spent,Coin Balance,Paid Out,Bank Balance,Debt
+"Ambrose, Elijah",IDEA-113,1,4,2,0,2,0,3,0
+"Chavarria, Ray",IDEA-113,1,27,13,12,2,12,0,0
+"de la Loza, Joseph",IDEA-113,1,8,0,0,8,0,1,0
+"Delgadillo, Seth",IDEA-113,1,111,0,44,67,4,22,0
+"Klinman, Haden",IDEA-113,1,35,0,10,25,0,22,0
+"Morales, Gael",IDEA-113,1,5,0,0,5,0,4,0
+"Morales, James",IDEA-113,1,38,0,33,5,0,6,0
+"Perez, Matthew",IDEA-113,1,17,2,0,15,0,6,0
+"Rendon, Ruben",IDEA-113,1,12,0,0,12,0,10,0
+"Romo, Julian",IDEA-113,1,20,0,0,20,0,8,0
+"Abajian, Jivan",IDEA-208-1,1,0,0,0,0,0,0,0
+"Amezola, Dominic",IDEA-208-1,1,0,0,0,0,0,0,0
+"Barrie, James",IDEA-208-1,1,0,0,0,0,0,0,0
+"Camarillo, Jacob",IDEA-208-1,1,0,32,0,-32,0,0,32
+"Castro, Clark",IDEA-208-1,1,0,0,0,0,0,0,0
+"Gutierrez, Alejandro",IDEA-208-1,1,14,0,0,14,0,0,0
+"Hernandez, Ruben",IDEA-208-1,1,0,0,0,0,0,0,0
+"Jette-Kouri, Abraham",IDEA-208-1,1,101,0,50,51,0,3,0
+"Mendez, Nathaniel",IDEA-208-1,1,0,0,0,0,0,0,0
+"Mercado, Enrique",IDEA-208-1,1,0,2,0,-2,0,0,2
+"Nguyen, Vi",IDEA-208-1,1,1,0,0,1,0,0,0
+"Palacio, Leonardo",IDEA-208-1,1,14,0,0,14,0,0,0
+"Pedraza, Santino",IDEA-208-1,1,0,41,0,-41,0,0,41
+"Plazas, Andrew",IDEA-208-1,1,0,0,0,0,0,0,0
+"Rivera, Sebastian",IDEA-208-1,1,4,0,0,4,0,4,0
+"Rosas-Garcia, Sebastian",IDEA-208-1,1,2,0,0,2,0,0,0
+"Rutherford, Isaac",IDEA-208-1,1,0,0,0,0,0,0,0
+"Serbin, Valentino",IDEA-208-1,1,0,0,0,0,0,0,0
+"Takahashi, Justice",IDEA-208-1,1,0,0,0,0,0,0,0
+"Veneziano, Ezio",IDEA-208-1,1,57,0,62,-5,2,0,0
+"Yang, Pok Wai David",IDEA-208-1,1,104,0,0,104,0,0,0
+"Adalin, Nicolas",IDEA-208-2,1,14,0,7,7,0,7,0
+"Cardenas, Damian",IDEA-208-2,1,23,0,0,23,0,8,0
+"Cini, Justin",IDEA-208-2,1,9,4,5,0,1,0,0
+"Ciriano, Maxwell",IDEA-208-2,1,9,1,7,1,0,3,0
+"Diaz, Joshua",IDEA-208-2,1,11,0,6,5,0,3,0
+"Johnson, Devin",IDEA-208-2,1,10,5,0,5,0,0,0
+"Kooyenga, Lucas",IDEA-208-2,1,2,14,0,-12,0,1,12
+"Macias, Isaac",IDEA-208-2,1,10,0,0,10,0,3,0
+"Mose, Joaquin",IDEA-208-2,1,2,0,0,2,0,1,0
+"Oliver, Peter",IDEA-208-2,1,12,0,4,8,0,4,0
+"Peraza, Ayden",IDEA-208-2,1,5,0,0,5,0,1,0
+"Perez, Enrique",IDEA-208-2,1,14,0,0,14,0,5,0
+"Villanueva, Noah",IDEA-208-2,1,14,0,14,0,0,2,0
+"Villasenor, Jacob",IDEA-208-2,1,4,0,3,1,0,1,0
+"Alvarado, Angel",IDEA-304,1,38,0,0,38,0,0,0
+"Arteaga, Seraj",IDEA-304,1,114,0,0,114,0,2,0
+"Ayala, Brandon",IDEA-304,1,32,2,14,16,0,0,0
+"Estevez, Andrew",IDEA-304,1,3,2,0,1,0,0,0
+"Fernandez, Liam",IDEA-304,1,2,0,0,2,0,0,0
+"Garcia, Daniel",IDEA-304,1,4,4,0,0,0,0,0
+"Gonzalez, Diego S.",IDEA-304,1,63,0,0,63,0,2,0
+"Johnson, Xolani",IDEA-304,1,3,0,0,3,0,0,0
+"Nunez, Ivan",IDEA-304,1,2,0,0,2,0,0,0
+"Valdez, Jacob",IDEA-304,1,14,0,0,14,0,0,0
+"Barrios, Aidan",IDEA-403,1,64,5,52,7,0,2,0
+"Frausto, Oscar",IDEA-403,1,6,0,0,6,0,2,0
+"Gomez, David",IDEA-403,1,18,0,14,4,0,4,0
+"Hasenbein, Jhonen",IDEA-403,1,5,0,0,5,0,4,0
+"Lagos, Joshua",IDEA-403,1,4,0,1,3,0,3,0
+"Navarro, Alexander",IDEA-403,1,4,0,0,4,0,1,0
+"Payan, Cristian",IDEA-403,1,5,5,0,0,0,3,0
+"Phaneuf, Andrew",IDEA-403,1,20,0,17,3,0,3,0
+"Smith, Francis",IDEA-403,1,11,0,0,11,0,3,0
+Colin,External,1,9,0,0,9,0,9,0
+"Bushman, Henry",External,1,2,0,0,2,0,2,0
+"Garcia, Mathias",External,1,1,0,0,1,0,1,0
+"Araiza Basica, Alexander",External,1,0,0,0,0,0,0,0
+"Becker, Grant",External,1,0,5,0,-5,0,0,5
+Lance Yip,External,1,2,0,0,2,0,2,0
+Azad Arteaga,External,1,1,0,0,1,0,1,0
