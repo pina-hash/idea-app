@@ -101,7 +101,8 @@ const authedPrefixes = [
 	'/greenline',
 	'/coin-balance',
 	'/contracts',
-	'/notebook'
+	'/notebook',
+	'/classroom'
 ];
 
 const authGuard: Handle = async ({ event, resolve }) => {

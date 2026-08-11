@@ -215,6 +215,11 @@
 			<path d="M5 24a11 11 0 1122 0z" /><path d="M16 24l5.5-7" /><circle cx="16" cy="24" r="1.6" />
 		{:else if id === 'courses'}
 			<path d="M7 6h18v20H7z" /><path d="M11 12h10M11 16h10M11 20h6" />
+		{:else if id === 'classroom'}
+			<!-- Mortarboard over a class list: your classes in one place. -->
+			<path d="M16 5L3 11l13 6 13-6z" />
+			<path d="M9 14.5V21c0 1.6 3.1 3 7 3s7-1.4 7-3v-6.5" />
+			<path d="M29 11v7" />
 		{:else if id === 'notebook'}
 			<!-- Bound notebook with a camera lens on the cover: pages you photograph. -->
 			<path d="M8 5h16a2 2 0 012 2v18a2 2 0 01-2 2H8z" /><path d="M8 5a2 2 0 00-2 2v18a2 2 0 002 2" />

@@ -105,6 +105,16 @@ export const APPS: SiteApp[] = [
 		]
 	},
 	{
+		id: 'classroom',
+		label: 'Classroom',
+		prefixes: [
+			'src/routes/classroom/',
+			'src/lib/classroom/',
+			'src/routes/dev/classroom/'
+		],
+		contains: ['classroom']
+	},
+	{
 		id: 'portal',
 		label: 'IDEA Portal',
 		// Catch-all: the homepage, shell, auth, config, and anything unclaimed.

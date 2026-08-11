@@ -165,6 +165,20 @@ export const PORTAL_APPS: PortalApp[] = [
 		theme: { primary: '#78B870', secondary: '#5ABDA8' }
 	},
 	{
+		id: 'classroom',
+		title: 'Classroom',
+		sub: 'Your classes: announcements, assignments, and due dates from your teachers.',
+		icon: 'classroom',
+		href: '/classroom',
+		group: 'class',
+		cta: 'Open',
+		requiresAuth: true,
+		// The shared brass/gold scheme, stated explicitly (the notebook card's
+		// lesson: omitting `theme` falls back to a green-led card, not the
+		// uniform gold --acc convention).
+		theme: { primary: '#C8A848', secondary: '#78B870' }
+	},
+	{
 		id: 'courses',
 		title: 'Courses & Assignments',
 		sub: 'The 2026-27 curriculum, your pinned class, and every open assignment.',
