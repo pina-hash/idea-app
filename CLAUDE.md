@@ -451,24 +451,27 @@ rule is a direct transcription of
   - **Contract Completion / Competition Winnings:** `variable` pricing --
     the admin enters the whole amount at logging time, never a lookup, per
     the prompt's own instruction.
-- **Admin tool:** `/admin` (0067's roster page) gained an "IDEA Coin
-  balances" card, open to any admin (not owner-gated): look up a balance by
-  email (`coin_admin_lookup`, returning balance, wage tier, eating-pass
-  status, and recent history in one round trip) and apply a signed adjustment
-  with a required reason (`coin_admin_adjust_balance`, a thin wrapper over
-  `coin_log_transaction` under the `balance_correction` adjustment category).
-  This is also how a legacy Sheets balance gets attached: whatever the old
-  balance was becomes the adjustment amount, no conversion math, and it works
-  whether or not that email has ever signed in.
+- **Balance lookup + signed adjustment** (`coin_admin_lookup` returning
+  balance, wage tier, eating-pass status and recent history in one round
+  trip; `coin_admin_adjust_balance`, a thin wrapper over
+  `coin_log_transaction` under the `balance_correction` adjustment category,
+  with a required reason). Open to any admin, not owner-gated. This is also
+  how a legacy Sheets balance gets attached: whatever the old balance was
+  becomes the adjustment amount, no conversion math, and it works whether or
+  not that email has ever signed in. **It shipped as an "IDEA Coin balances"
+  card on `/admin` (0067's roster page) and MOVED to
+  `/coin-desk/students`** in the route-group pass below -- the RPCs are
+  untouched, only the surface moved, and `/admin` keeps a short pointer card
+  in its place. Nothing else on `/admin` changed.
 - **Day-to-day entry tool: `/coin-desk`.** The real logging surface this
   migration's own comments flagged as a later pass -- a NEW route, not a
   change to `/coin-entry`, `static/coins/index.html`, or any
   `/api/coin-ledger/*` route, which stay exactly as they were (the old
   Sheets ledger's teacher-role gate is untouched). Admin-gated the `/admin`
-  way (`+page.server.ts` calls `isAdmin()`, 404 for anyone else, not in
-  `authedPrefixes` so a probe learns nothing), and identical for every
-  admin -- there is no owner-only step, matching "admin is site-wide
-  already."
+  way (`isAdmin()`, 404 for anyone else, not in `authedPrefixes` so a probe
+  learns nothing), and identical for every admin -- there is no owner-only
+  step, matching "admin is site-wide already." **It is a ROUTE GROUP now, not
+  one page; see "Coin Desk route group" below for the current structure.**
   - **Every write is a call to an EXISTING 0070 RPC, never a direct table
     write, because there is no direct write path to route around: 0070
     grants `coin_transactions` `select` only and puts no trigger on it, so
@@ -579,8 +582,8 @@ rule is a direct transcription of
        hours: 2i¢") reading as if 3.0 could go either way.
 - **Admin balance tool is single-email only, currently.** Both
   `coin_admin_lookup` and `coin_admin_adjust_balance` take exactly one
-  `p_email`; there is no bulk/multi-email path in the RPCs or in the
-  `/admin` UI. Worth revisiting once real onboarding volume makes
+  `p_email`; there is no bulk/multi-email path in the RPCs or in the UI
+  (now `/coin-desk/students`). Worth revisiting once real onboarding volume makes
   one-at-a-time linking slow, but that is a follow-up, not something this
   foundation pass solves.
 - **Two correctness bugs found and fixed before this migration was ever
@@ -1369,6 +1372,105 @@ rule is a direct transcription of
     been applied anywhere, verified via the dev harness (`fake-ledger.ts`
     extended to mirror the RPCs' behavior) and by reading the RPC bodies
     directly.
+
+## Coin Desk route group (Phase 1 of the coin-system consolidation)
+
+`/coin-desk` was one long scrolling page mounting every manager component at
+once. It is a ROUTE GROUP now: same components, same RPCs, same rules -- a
+UI/route reorganization with NO schema change, no new migration, and no
+behavior change to any RPC. `static/coins/index.html`, `coin-entry.html`,
+`/api/coin-ledger/*` and `src/lib/server/coin-ledger.ts` are untouched, as is
+the homepage launcher card (still `/coin-desk`, so bookmarks and muscle
+memory keep working -- the Log view kept the group's root URL for exactly
+that reason).
+
+- **The admin gate is hoisted to `+layout.server.ts`** and applies to the
+  WHOLE group. Same gate as before (`isAdmin()`, 404 -- not a redirect -- for
+  a signed-in non-admin AND for an anonymous visitor, deliberately still out
+  of `authedPrefixes` so a probe learns nothing), just stated once instead of
+  per page: a new area cannot ship ungated by forgetting to copy the check.
+  Verified by curl on all six routes signed out. UI gating stays convenience;
+  every write RPC is `is_admin()`-gated itself, which is the real boundary.
+- **`+layout.svelte` carries the persistent chrome** (header, hero,
+  sub-nav, version footer) and `+page.svelte` per area renders only its own
+  cards. The one CSS subtlety: card spacing lives in the layout as
+  `.coin-desk-page > :global(.card)`, because Svelte's scoping cannot reach
+  a card rendered by a child route's own component -- without `:global` every
+  area would have to repeat the rule.
+- **`src/lib/coin-desk/nav.ts`** is the area registry (plain data, the
+  `curriculum.ts` / `portal-apps.ts` convention: id, label, href, blurb) and
+  `CoinDeskNav.svelte` renders it in ONE of two modes -- real `<a href>`
+  links for the layout (active state derived from `page.url.pathname` via
+  `areaForPath`, so it is never tracked in state), or buttons driven by an
+  `onSelect` callback for the dev harness, which has no router. One
+  component, so the real nav and the harness can never drift on what areas
+  exist.
+- **The areas.** `/coin-desk` = **Log**, the primary day-to-day view:
+  student lookup + summary, `DebtPaymentPanel` (unchanged, still mounted
+  under the summary and ONLY while balance < 0), and the full logging flow
+  including the Single student / Section toggle -- and nothing else.
+  `/coin-desk/students` = `SectionManager` plus the balance lookup/adjust
+  tool MOVED off `/admin` (see above) as `BalanceAdminPanel.svelte`.
+  `/coin-desk/contracts` = `ContractsManager`. `/coin-desk/roles` =
+  `RolesManager`. `/coin-desk/economy` = `CategoriesManager` then
+  `PayoutManager`. `/coin-desk/migrate` = a PLACEHOLDER card only; the
+  legacy Sheets migration wizard lands there in the next phase, and the
+  route exists now so the URL is settled before anything is built on it.
+- **PER-ROUTE DATA LOADING REPLACES THE OLD `$bindable` COUPLING, and that
+  is the structural point of the split.** The single page owned one
+  `sections` array bound two-way into `SectionManager` so a mutation there
+  was instantly visible to the bulk-log picker, and one `categories` array
+  bound into `CategoriesManager` the same way. There is no shared mutable
+  state across routes now: each `+page.server.ts` loads exactly what its
+  area needs (Log gets ACTIVE sections only, since an archived section is
+  not a bulk-log target; Students gets EVERY section, since archiving is
+  reversible and an archived one still has to be reactivatable; Economy gets
+  every LOGGABLE category regardless of active state, since retired rows
+  have to stay visible there; Log gets the same loggable list and filters to
+  active for its dropdowns). A create or retire on Economy shows up on Log
+  at that route's next load rather than through shared state --
+  browser-verified. The `$bindable` props on `SectionManager` /
+  `CategoriesManager` are unchanged; they simply write back into a local on
+  their own route now.
+- **The manager components moved by reference, not rewrite.** Only their
+  doc comments were corrected where they described the old single-page
+  wiring. The former `CoinDeskTool.svelte` is DELETED; its lookup +
+  debt-panel + logging half was extracted verbatim into
+  `LogView.svelte` (which additionally takes `sections` as a plain
+  read-only prop, not the old bindable one), and its header/hero/footer
+  became the layout.
+- **Fail-soft banners survive PER AREA**, each on the route that owns it:
+  0070 on Log and Economy, 0073 on Students and inside Log's Section mode,
+  0074/0076 on Roles, 0077 on Contracts.
+- **Dev harness `/dev/coin-desk`** (404 in production, no auth/Supabase)
+  mirrors the group: the REAL `CoinDeskNav` in callback mode switching
+  between the same real components per area, each seeded the way its own
+  route's load seeds it, against the same `fake-ledger.ts`. That fake ledger
+  gained `coin_admin_adjust_balance`, implemented the way the REAL one is
+  DEFINED -- a thin hand-off to its own `coin_log_transaction` case under
+  `balance_correction` -- rather than a second copy of the rules.
+- **Verified** in the harness with zero console errors throughout: every nav
+  item renders its own area with the right active state and blurb; on Log a
+  full lookup -> log -> refreshed-summary cycle for a flat category
+  (Disruptive Behavior, 42 -> 39i¢, the success notice surviving the
+  post-write refresh), a formula category (Perfect Score, 75pt -> the
+  previewed and charged 3i¢), and Section mode against the seeded sophomore
+  section (2 students, both +1i¢), with the debt panel appearing pre-filled
+  at exactly the debt for the seeded in-debt student and disappearing the
+  moment it was paid to 0i¢; on Students a roster expand, a lookup, and a
+  real SIGNED (-15i¢) adjustment with its required reason landing a
+  `Balance Correction / Refund` row; Contracts rendering all five seeded
+  claim states with claimant names and share previews and filtering to
+  Completed; Roles rendering a pending application with its real question
+  text, live capacity chip and MC correctness badge; Economy creating a real
+  category that then appeared in Log's dropdown on that route's next load,
+  beside a live payout candidate list; Migrate rendering its placeholder;
+  and all seven fail-soft banners appearing on their own areas when the
+  migration toggles are switched off. `npm run check`: 0 errors, 0 new
+  warnings. `npm test`: 220/220. **NOT verified: the live Supabase project**
+  -- same placeholder-`.env` caveat as every other coin-economy change; the
+  signed-in render of the real routes needs a real admin session, so only
+  the anonymous 404 on all six was checked here.
 
 ## 2026-27 curriculum
 

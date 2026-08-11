@@ -12,14 +12,13 @@
 	/**
 	 * Section management: create/edit sections (reusing curriculum.ts's class
 	 * list as the canonical id source, see sections.ts), archive them, and
-	 * assign/remove students by email. Factored out of CoinDeskTool.svelte the
-	 * same way it is factored out of /coin-desk, so a dev harness can mount
-	 * this against a fake ledger too.
+	 * assign/remove students by email. Its own component, so /coin-desk/students
+	 * and the dev harness mount the identical thing.
 	 *
 	 * `sections` is bindable: every mutation here refetches the list and
-	 * writes it back up, so the bulk-log section picker in CoinDeskTool.svelte
-	 * always reads the current roster/section state with no separate refresh
-	 * wiring.
+	 * writes it back up. That used to feed the bulk-log section picker on the
+	 * old single-page tool; since the route-group split each area loads its
+	 * own copy, so the binding now only keeps THIS card's own list current.
 	 */
 	let {
 		supabase,

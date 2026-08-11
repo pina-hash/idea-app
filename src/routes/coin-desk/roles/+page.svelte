@@ -1,18 +1,17 @@
 <script lang="ts">
-	import LogView from '$lib/coin-desk/LogView.svelte';
+	import RolesManager from '$lib/coin-desk/RolesManager.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head>
-	<title>Coin Desk // IDEA</title>
+	<title>Roles // Coin Desk</title>
 </svelte:head>
 
-<LogView
-	categories={data.categories}
+<RolesManager
 	supabase={data.supabase}
-	configured={data.configured}
+	roleDefinitions={data.roleDefinitions}
 	sections={data.sections}
-	sectionsConfigured={data.sectionsConfigured}
+	configured={data.rolesConfigured}
 />

@@ -4,7 +4,7 @@
 	/**
 	 * Dedicated debt-payment logging, distinct from the generic category
 	 * dropdown below (which also lists "Debt Payment" as an ordinary option --
-	 * this panel is a shortcut, not the only door). Mounted in CoinDeskTool.svelte
+	 * this panel is a shortcut, not the only door). Mounted in LogView.svelte
 	 * right under the student summary card, and ONLY while the looked-up
 	 * student's balance is negative -- a student with no debt has nothing
 	 * for this panel to do, so it stays out of the way entirely rather than

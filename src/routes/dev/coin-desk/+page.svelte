@@ -1,97 +1,98 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import CoinDeskTool from '$lib/coin-desk/CoinDeskTool.svelte';
+	import CoinDeskNav from '$lib/coin-desk/CoinDeskNav.svelte';
+	import LogView from '$lib/coin-desk/LogView.svelte';
+	import SectionManager from '$lib/coin-desk/SectionManager.svelte';
+	import BalanceAdminPanel from '$lib/coin-desk/BalanceAdminPanel.svelte';
+	import ContractsManager from '$lib/coin-desk/ContractsManager.svelte';
+	import RolesManager from '$lib/coin-desk/RolesManager.svelte';
+	import CategoriesManager from '$lib/coin-desk/CategoriesManager.svelte';
+	import PayoutManager from '$lib/coin-desk/PayoutManager.svelte';
+	import type { CoinDeskAreaId } from '$lib/coin-desk/nav';
+	import type { CoinCategory } from '$lib/coin-desk';
+	import type { CoinSectionRow } from '$lib/coin-desk/sections';
 	import { createFakeLedger, listSections, listRoleDefinitions, listCategories } from './fake-ledger';
 
 	/**
-	 * Dev harness: mounts the real CoinDeskTool against an in-memory ledger
-	 * (fake-ledger.ts) shaped like 0070's real enforcement, plus 0073's
-	 * sections/bulk-log RPCs, 0074's roles/ratio-cap RPCs, and 0077's
-	 * contracts RPCs. Try:
-	 *  - Contracts: five seeded contracts cover every status -- "Rewire the
-	 *    LED strip" (open, one existing claimant, room for more), "Deep-clean
-	 *    and inventory the fastener bins" (full), "Sophomore section supply
-	 *    restock" (section-restricted to eng1h-sophomore), "Label the storage
-	 *    bins" (completed, already paid), "Order more filament" (cancelled,
-	 *    its one claim still visible as history). Post a new one, Complete a
-	 *    contract with 3+ claimants to see the rounded even split, Cancel one
-	 *    with a claim on it (no payout, claim stays), Reset a claimed-but-
-	 *    open one back to zero claims. The REAL concurrency guarantee (two
-	 *    students racing the last slot) is proven separately against genuine
-	 *    Postgres connections in tests/coin-contracts.test.ts -- this mock
-	 *    cannot meaningfully re-demonstrate that property, see its own header.
-	 *  - "healthy.student" -> a clean lookup, log a flat fine or a range award
-	 *  - "debt.student" -> negative balance; any purchase-kind category is
-	 *    refused with the debt message until an award clears it
-	 *  - "pass.student" -> an active Eating Pass with 1 strike already; log
-	 *    Eating Violation twice more to watch it auto-revoke on strike 3, then
-	 *    try Eating Pass again post-revoke (full price, no discount)
-	 *  - Quality Desktop Background / Correct Answer in Class twice in a row
-	 *    on any student -> the calendar-boundary cap refusal
-	 *  - Extra Credit near/at the 21pt cap on "pass.student" (already at 15pt)
-	 *  - Pay Raise on any student, then Weekly Wage -- watch the wage tier
-	 *    change but the award amount stay flat (the documented gap)
-	 *  - type a name with no match ("zzz") to see the graceful no-match note
-	 *  - Sections: two seeded ("Engineering I Honors (Sophomore)" via a real
-	 *    curriculum.ts id, and a custom "Period 3 Makeup Group") each holding
-	 *    a couple of the sample students. Add/edit/archive a section, paste
-	 *    emails to assign, remove a roster row, then switch "Log a
-	 *    transaction" to Section mode and bulk-log Weekly Wage (flat) or
-	 *    Above and Beyond (range) against one -- watch the per-student results
-	 *    list, including a debt refusal for "debt.student" without blocking
-	 *    the rest of the section
-	 *  - Roles: a third seeded section, "Ratio Cap Demo (10 students)", holds
-	 *    two PENDING Shop Steward applications. Shop Steward's ratio (3 per
-	 *    ~25 students) computes a cap of exactly 1 for this 10-student
-	 *    section. In the Roles card: Approve the first application ("one
-	 *    under the cap" succeeds, 0 held < cap 1); Approve the second right
-	 *    after and watch it get refused inline ("an application at exactly
-	 *    the cap", 1 held >= cap 1) -- the application stays pending, nothing
-	 *    is lost. Expand "Ratio Cap Demo" under Current holders by section,
-	 *    revoke the first Shop Steward, then go back and Approve the still-
-	 *    pending second application -- it now succeeds (revoking freed the
-	 *    slot). Log an application of your own against any student already
-	 *    assigned to a section (pick a role and watch its REAL question bank
-	 *    load dynamically -- MC as radio options, written as free text, and
-	 *    Quartermaster has none configured yet so it renders no fields at
-	 *    all); try one with no section assigned to see the "assign one
-	 *    first" refusal. Approving pre-fills an expiration from the role's
-	 *    suggested duration (90 days here), always editable before or after
-	 *    submitting. Set a holder's expiration to a past date under Current
-	 *    holders ("expiration" -> pick a date -> save) and watch it read
-	 *    "expired" immediately, with no reload or timer needed, and drop out
-	 *    of both the ratio count and "Pay Weekly Role Stipend"'s payout;
-	 *    re-applying and re-approving the same student for the same role
-	 *    then succeeds again, auto-closing the lapsed row in the same step
-	 *    (shown as "expired" there too, distinct from a manual "revoked").
-	 *    Once at least one role holder exists, "Pay Weekly Role Stipend"
-	 *    bulk-logs the 2i¢ award against exactly the ACTIVE current holders
-	 *    (filterable by role/section), never the whole section and never an
-	 *    expired or revoked one
-	 *  - Payout (0079): "healthy.student" starts with a positive 42i¢ balance
-	 *    -- it appears in the Payout list. Click "Pay" to zero it out (logged
-	 *    as "Coin Payout"), or add a fresh fine/award against a candidate via
-	 *    "Log a transaction" BEFORE clicking Pay All, then confirm the amount
-	 *    actually paid matches the NEW balance, not the one the list showed
-	 *    when it loaded -- the race the feature exists to close. Once every
-	 *    balance clears, the list reads "No student currently has a positive
-	 *    balance."
-	 *  - Categories (0080): create a new flat/range/per_unit/variable
-	 *    category in the Categories card -- it appears in the "Log a
-	 *    transaction" dropdown immediately, no reload. Retire it and watch it
-	 *    disappear from that dropdown while any transaction that already used
-	 *    it (log one first, then retire) still shows its real name in the
-	 *    student's history. The pricing-model select only ever offers the
-	 *    four creatable shapes -- 'formula' is not an option, and the
-	 *    boundary note above the form explains why.
-	 *  - Debt Payment (0081): look up "debt.student" (starts at -8i¢) -- a
-	 *    dedicated amber "Debt payment" card appears under the student
-	 *    summary, pre-filled with the exact debt (8i¢), editable, with no
-	 *    cap. Pay less than the debt (still negative afterward, panel stays),
-	 *    exactly the debt (panel disappears, balance is 0), or more than the
-	 *    debt (balance goes positive, panel disappears too). It is also just
-	 *    an ordinary category in the ledger's own dropdown, tagged distinctly
-	 *    from "Physical Coin Submission".
+	 * Dev harness: mirrors the /coin-desk ROUTE GROUP -- the same sub-nav
+	 * (the real CoinDeskNav in its callback mode, since this harness has no
+	 * router) driving the same real components per area, all against an
+	 * in-memory ledger (fake-ledger.ts) shaped like 0070's real enforcement,
+	 * plus 0073's sections/bulk-log RPCs, 0074/0076's roles RPCs, 0077's
+	 * contracts RPCs, 0079's payout RPCs and 0080/0081's category + debt
+	 * work. No auth, no live Supabase project.
+	 *
+	 * Per-area data is loaded HERE the way each route's own +page.server.ts
+	 * loads it (Log gets active sections only; Students gets every section;
+	 * Economy gets every loggable category, active or not), so the harness
+	 * exercises the same per-route loading rule the real group uses instead
+	 * of one shared blob.
+	 *
+	 * Things to try:
+	 *  - LOG -- "healthy.student" -> a clean lookup, log a flat fine or a
+	 *    range award; "debt.student" -> negative balance, so any
+	 *    purchase-kind category is refused with the debt message until an
+	 *    award clears it, AND a dedicated amber "Debt payment" card (0081)
+	 *    appears under the summary pre-filled with the exact debt (8i¢),
+	 *    editable, no cap -- pay less (panel stays), exactly (panel goes,
+	 *    balance 0), or more (balance positive, panel goes).
+	 *    "pass.student" -> an active Eating Pass with 1 strike already; log
+	 *    Eating Violation twice more to watch it auto-revoke on strike 3,
+	 *    then try Eating Pass again post-revoke (full price). Quality
+	 *    Desktop Background / Correct Answer in Class twice in a row -> the
+	 *    calendar-boundary cap refusal. Extra Credit near/at the 21pt cap on
+	 *    "pass.student" (already at 15pt). Pay Raise then Weekly Wage --
+	 *    watch the wage tier change but the award stay flat (the documented
+	 *    gap). Type a name with no match ("zzz") for the graceful no-match
+	 *    note. Switch to Section mode and bulk-log Weekly Wage (flat) or
+	 *    Above and Beyond (range) -- watch the per-student results list,
+	 *    including a debt refusal for "debt.student" that never blocks the
+	 *    rest of the section.
+	 *  - STUDENTS -- two seeded sections ("Engineering I Honors (Sophomore)"
+	 *    via a real curriculum.ts id, and a custom "Period 3 Makeup Group"),
+	 *    plus "Ratio Cap Demo (10 students)" for the roles area. Add/edit/
+	 *    archive a section, paste emails to assign, remove a roster row.
+	 *    Below it, the balance tool MOVED here from /admin: look any email
+	 *    up (signed in or not) and apply a signed adjustment with a required
+	 *    reason -- the same coin_admin_lookup / coin_admin_adjust_balance
+	 *    RPCs, unchanged.
+	 *  - CONTRACTS -- five seeded contracts cover every status: "Rewire the
+	 *    LED strip" (open, one claimant, room for more), "Deep-clean and
+	 *    inventory the fastener bins" (full), "Sophomore section supply
+	 *    restock" (section-restricted), "Label the storage bins" (completed,
+	 *    already paid), "Order more filament" (cancelled, its one claim
+	 *    still visible as history). Post one, Complete a contract with 3+
+	 *    claimants to see the rounded even split, Cancel one with a claim on
+	 *    it (no payout, claim stays), Reset a claimed-but-open one. The REAL
+	 *    concurrency guarantee (two students racing the last slot) is proven
+	 *    separately against genuine Postgres connections in
+	 *    tests/coin-contracts.test.ts -- this mock cannot re-demonstrate it.
+	 *  - ROLES -- "Ratio Cap Demo (10 students)" holds two PENDING Shop
+	 *    Steward applications, and Shop Steward's ratio (3 per ~25 students)
+	 *    computes a cap of exactly 1 there. Approve the first (0 held < cap
+	 *    1) and it succeeds; approve the second and watch it refused inline
+	 *    (1 held >= cap 1) while staying pending. Expand that section under
+	 *    "Current holders by section", revoke the first, then approve the
+	 *    still-pending second -- it now succeeds. Log an application against
+	 *    a student already in a section (pick a role and watch its REAL
+	 *    question bank load: MC as radios, written as free text, and
+	 *    Quartermaster deliberately has none). Approving pre-fills an
+	 *    expiration from the role's suggested duration (90 days); set one to
+	 *    a past date and it reads "expired" immediately, dropping out of the
+	 *    ratio count and the stipend payout. "Pay Weekly Role Stipend"
+	 *    bulk-logs 2i¢ against exactly the ACTIVE holders, never the section.
+	 *  - ECONOMY -- create a flat/range/per_unit/variable category and it
+	 *    appears in Log's dropdown on that route's next load; retire one and
+	 *    it disappears there while any transaction that already used it
+	 *    still shows its real name in history. The pricing-model select only
+	 *    ever offers the four creatable shapes -- 'formula' is not an
+	 *    option, and the boundary note above the form says why. Below it,
+	 *    Payout (0079): "healthy.student" starts positive (42i¢) so appears
+	 *    in the list; "Pay" zeroes it. The decisive check: log a fresh fine
+	 *    against a candidate from LOG, come back WITHOUT reloading, and hit
+	 *    "Pay All" -- the amount actually paid matches the NEW balance, not
+	 *    the stale one the list is still showing.
+	 *  - MIGRATE -- placeholder only, the wizard lands there next phase.
 	 */
 	const supabase = createFakeLedger() as unknown as SupabaseClient;
 
@@ -99,6 +100,38 @@
 	let sectionsApplied = $state(true);
 	let rolesApplied = $state(true);
 	let contractsApplied = $state(true);
+
+	let area = $state<CoinDeskAreaId>('log');
+
+	// Mirrors each route's own load. Recomputed when the migration toggles
+	// flip (the {#key} below remounts the area), the way a real navigation
+	// re-runs that route's load.
+	function categoriesFor(): CoinCategory[] {
+		return migrationApplied ? listCategories() : [];
+	}
+	function allSections(): CoinSectionRow[] {
+		return sectionsApplied ? listSections() : [];
+	}
+	function activeSections(): CoinSectionRow[] {
+		return allSections().filter((s) => s.active);
+	}
+
+	// SectionManager / CategoriesManager both take a $bindable list; these are
+	// where those writes land, exactly as on the real routes. Re-seeded from
+	// the fake ledger whenever the area or a migration toggle changes -- the
+	// way arriving at a real route re-runs that route's own load.
+	let sectionsState = $state<CoinSectionRow[]>([]);
+	let categoriesState = $state<CoinCategory[]>([]);
+
+	$effect(() => {
+		// Tracked: the area and the toggles. The reseed functions read plain
+		// module state, so this cannot re-trigger itself.
+		void area;
+		void sectionsApplied;
+		void migrationApplied;
+		sectionsState = allSections();
+		categoriesState = categoriesFor();
+	});
 </script>
 
 <div class="dev-toolbar">
@@ -120,18 +153,49 @@
 	</label>
 </div>
 
-{#key migrationApplied}
-	<CoinDeskTool
-		categories={migrationApplied ? listCategories() : []}
-		{supabase}
-		configured={migrationApplied}
-		sections={sectionsApplied ? listSections() : []}
-		sectionsConfigured={sectionsApplied}
-		roleDefinitions={rolesApplied ? listRoleDefinitions() : []}
-		rolesConfigured={rolesApplied}
-		contractsConfigured={contractsApplied}
-	/>
-{/key}
+<main class="coin-desk-page">
+	<section class="hero">
+		<div class="eyebrow">IDEA // Coin Desk (dev harness)</div>
+		<h1>Coin desk</h1>
+	</section>
+
+	<CoinDeskNav active={area} onSelect={(next) => (area = next)} />
+
+	{#key `${area}:${migrationApplied}:${sectionsApplied}:${rolesApplied}:${contractsApplied}`}
+		{#if area === 'log'}
+			<LogView
+				categories={categoriesFor()}
+				{supabase}
+				configured={migrationApplied}
+				sections={activeSections()}
+				sectionsConfigured={sectionsApplied}
+			/>
+		{:else if area === 'students'}
+			<SectionManager {supabase} bind:sections={sectionsState} configured={sectionsApplied} />
+			<BalanceAdminPanel {supabase} />
+		{:else if area === 'contracts'}
+			<ContractsManager {supabase} sections={activeSections()} configured={contractsApplied} />
+		{:else if area === 'roles'}
+			<RolesManager
+				{supabase}
+				roleDefinitions={rolesApplied ? listRoleDefinitions() : []}
+				sections={activeSections()}
+				configured={rolesApplied}
+			/>
+		{:else if area === 'economy'}
+			<CategoriesManager {supabase} bind:categories={categoriesState} configured={migrationApplied} />
+			<PayoutManager {supabase} configured={migrationApplied} />
+		{:else}
+			<section class="card">
+				<h2>Legacy Sheets migration</h2>
+				<p class="note">
+					Placeholder only, mirroring /coin-desk/migrate -- the migration wizard lands here in the
+					next phase. Nothing here writes anything.
+				</p>
+			</section>
+		{/if}
+	{/key}
+</main>
 
 <style>
 	.dev-toolbar {
@@ -152,5 +216,20 @@
 		align-items: center;
 		gap: 0.4rem;
 		cursor: pointer;
+	}
+	.coin-desk-page {
+		max-width: 52rem;
+		margin: 0 auto;
+		padding: 0 1.2rem 3rem;
+	}
+	.coin-desk-page > :global(.card) {
+		margin-bottom: 1.1rem;
+	}
+	.coin-desk-page h2 {
+		margin-top: 0;
+	}
+	.note {
+		color: var(--dim);
+		font-size: 0.9rem;
 	}
 </style>

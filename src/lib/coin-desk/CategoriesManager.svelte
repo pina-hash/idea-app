@@ -13,14 +13,16 @@
 	/**
 	 * Create a new coin category (flat / range / per_unit / variable only --
 	 * see category-admin.ts for why 'formula' is a hard boundary, not a
-	 * missing feature), or retire/reactivate an existing one. Factored out of
-	 * CoinDeskTool.svelte the same way SectionManager / RolesManager /
-	 * ContractsManager are, so a dev harness can mount this against a fake
-	 * ledger too.
+	 * missing feature), or retire/reactivate an existing one. Its own
+	 * component, the SectionManager / RolesManager / ContractsManager
+	 * convention, so /coin-desk/economy and the dev harness mount the
+	 * identical thing.
 	 *
-	 * `categories` is bindable: CoinDeskTool owns it, and every mutation here
-	 * writes it back so the logging dropdowns immediately reflect a new
-	 * category or a freshly retired one, with no separate refresh wiring.
+	 * `categories` is bindable: the mounting page owns it, and every mutation
+	 * here writes it back so this card's own list stays current with no
+	 * separate refresh wiring. (The Log area loads its own copy on its own
+	 * route since the route-group split, so a create/retire here shows up
+	 * there on that route's next load, not through shared state.)
 	 */
 	let {
 		supabase,

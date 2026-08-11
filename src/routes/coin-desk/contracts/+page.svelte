@@ -1,18 +1,16 @@
 <script lang="ts">
-	import LogView from '$lib/coin-desk/LogView.svelte';
+	import ContractsManager from '$lib/coin-desk/ContractsManager.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
 </script>
 
 <svelte:head>
-	<title>Coin Desk // IDEA</title>
+	<title>Contracts // Coin Desk</title>
 </svelte:head>
 
-<LogView
-	categories={data.categories}
+<ContractsManager
 	supabase={data.supabase}
-	configured={data.configured}
 	sections={data.sections}
-	sectionsConfigured={data.sectionsConfigured}
+	configured={data.contractsConfigured}
 />

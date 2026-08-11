@@ -1,13 +1,5 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
-	import VersionBadge from '$lib/VersionBadge.svelte';
-	import SectionManager from './SectionManager.svelte';
-	import RolesManager from './RolesManager.svelte';
-	import ContractsManager from './ContractsManager.svelte';
-	import PayoutManager from './PayoutManager.svelte';
-	import CategoriesManager from './CategoriesManager.svelte';
 	import DebtPaymentPanel from './DebtPaymentPanel.svelte';
 	import {
 		EXTRA_CREDIT_GRADING_CATEGORIES,
@@ -29,53 +21,44 @@
 		type BulkLogResponse,
 		type CoinSectionRow
 	} from './sections';
-	import type { CoinRoleDefinition } from './roles';
 
 	/**
-	 * The real interactive tool, factored out of /coin-desk so a dev harness
-	 * can mount the SAME component against a fake in-memory ledger (the
-	 * FspTechSelection / FrcInterestForm convention) -- everything below is
-	 * presentation + RPC calls, no admin-gating logic (that stays server-side
-	 * in +page.server.ts, which is the real boundary regardless of what this
+	 * The Log area of /coin-desk: find a student, read their summary, pay off
+	 * a debt, and log a transaction (single student or a whole section).
+	 * Extracted verbatim from the former CoinDeskTool.svelte when /coin-desk
+	 * became a route group -- everything here is presentation + RPC calls, no
+	 * admin-gating logic (that stays server-side in the group's
+	 * +layout.server.ts, which is the real boundary regardless of what this
 	 * component renders).
+	 *
+	 * `sections` is a PLAIN, read-only prop now, deliberately not the old
+	 * $bindable one: section management lives on its own route
+	 * (/coin-desk/students), so there is no shared mutable state to keep in
+	 * sync -- each route loads what it needs in its own load.
 	 */
 	let {
-		categories: initialCategories,
+		categories,
 		supabase,
 		configured = true,
-		sections: initialSections = [],
-		sectionsConfigured = true,
-		roleDefinitions = [],
-		rolesConfigured = true,
-		contractsConfigured = true
+		sections = [],
+		sectionsConfigured = true
 	}: {
 		categories: CoinCategory[];
 		supabase: SupabaseClient;
 		configured?: boolean;
 		sections?: CoinSectionRow[];
 		sectionsConfigured?: boolean;
-		roleDefinitions?: CoinRoleDefinition[];
-		rolesConfigured?: boolean;
-		contractsConfigured?: boolean;
 	} = $props();
 
-	// Owned here (not just passed through) so SectionManager's mutations --
-	// bound two-way -- are immediately visible to the bulk-log section picker
-	// below, with no separate refetch wiring between the two.
-	let sections = $state<CoinSectionRow[]>(initialSections);
-
-	// Same doctrine, for categories: CategoriesManager (0080) binds this
-	// two-way, so a newly created or retired category is immediately visible
-	// everywhere below with no separate refresh. `categories` here is every
-	// LOGGABLE category regardless of active state (+page.server.ts's own
-	// query already excludes the loggable=false mechanism rows, e.g. the
-	// system-inserted Eating Pass revoke event); `selectableCategories` is
-	// the active-only subset every dropdown below actually offers.
-	let categories = $state<CoinCategory[]>(initialCategories);
+	// The load already filters to loggable categories; this is the active-only
+	// subset every dropdown below offers (a retired category stays readable in
+	// history but can never be logged again).
 	const selectableCategories = $derived(categories.filter((c) => c.active !== false));
 
 	// ---------------------------------------------------------------------
-	// Student lookup (coin_admin_lookup, reused as-is -- same RPC /admin uses)
+	// Student lookup (coin_admin_lookup -- the same RPC the balance tool on
+	// /coin-desk/students uses, returning balance, wage tier, Eating Pass
+	// status and recent history in one round trip)
 	// ---------------------------------------------------------------------
 	interface CoinTxn {
 		id: string;
@@ -480,340 +463,166 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Coin Desk // IDEA</title>
-</svelte:head>
-
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
-		<a class="btn secondary" href="/admin">Site Admins</a>
-		<a class="btn secondary" href="/dashboard">Dashboard</a>
-		<a class="btn secondary" href="/">&lsaquo; Home</a>
-		<ProfileMenu />
-	</div>
-</div>
-
-<main class="coin-desk-page">
-	<section class="hero">
-		<div class="eyebrow">IDEA // Coin Desk</div>
-		<h1>Coin entry</h1>
-		<p class="lead">
-			The day-to-day tool for logging fines, awards, and purchases against the real Supabase coin
-			ledger (migration 0070) -- a new tool at a new route. It does not touch
-			<strong>/coin-entry</strong>, the Sheets-backed leaderboard, or any
-			<strong>/api/coin-ledger/*</strong> route; those keep working exactly as they always have.
-			Works identically for any admin -- there is no owner-only step here.
+{#if !configured}
+	<section class="card">
+		<p class="feedback error">
+			Migration 0070 does not appear to be applied yet -- the category list came back empty. Apply it
+			in the Supabase SQL editor, then reload this page.
 		</p>
 	</section>
+{/if}
 
-	{#if !configured}
-		<section class="card">
-			<p class="feedback error">
-				Migration 0070 does not appear to be applied yet -- the category list came back empty.
-				Apply it in the Supabase SQL editor, then reload this page.
-			</p>
-		</section>
-	{/if}
-
-	<SectionManager {supabase} bind:sections configured={sectionsConfigured} />
-
-	<RolesManager {supabase} {roleDefinitions} {sections} configured={rolesConfigured} />
-
-	<ContractsManager {supabase} {sections} configured={contractsConfigured} />
-
-	<PayoutManager {supabase} {configured} />
-
-	<CategoriesManager {supabase} bind:categories {configured} />
-
-	<section class="card">
-		<h2>Find a student</h2>
-		<p class="note">
-			A balance can exist for an email that has never signed in, so a plain email always works.
-			Typing a name searches signed-in students for a shortcut -- if nobody matches, that just
-			means they have not signed in yet; enter their email directly.
-		</p>
-		{#if lookupError}<p class="feedback error">{lookupError}</p>{/if}
-		<div class="add-row search-row">
-			<div class="search-wrap">
-				<input
-					type="email"
-					placeholder="Student name or student@boscotech.net"
-					autocomplete="off"
-					bind:value={studentEmail}
-					oninput={onEmailInput}
-					onfocus={() => (showSuggestions = true)}
-					onblur={() => setTimeout(() => (showSuggestions = false), 150)}
-					onkeydown={(e) => {
-						if (e.key === 'Enter') runLookup();
-						if (e.key === 'Escape') showSuggestions = false;
-					}}
-				/>
-				{#if showSuggestions && studentEmail.trim().length >= 2}
-					<div class="suggestions">
-						{#if searching}
-							<div class="suggestion-empty">Searching&hellip;</div>
-						{:else if suggestions.length}
-							{#each suggestions as s (s.id)}
-								<button type="button" class="suggestion" onmousedown={() => pickSuggestion(s)}>
-									<span class="suggestion-name">{studentLabel(s)}</span>
-									<span class="suggestion-email">{s.email}</span>
-								</button>
-							{/each}
-						{:else}
-							<div class="suggestion-empty">
-								No signed-in students match. They may not have logged in yet -- you can still log
-								against their email directly.
-							</div>
-						{/if}
-					</div>
-				{/if}
-			</div>
-			<button
-				class="btn secondary"
-				disabled={lookupBusy || !studentEmail.trim()}
-				onclick={() => runLookup()}
-			>
-				Look up
-			</button>
-		</div>
-	</section>
-
-	{#if lookup}
-		<section class="card">
-			<h2>Student summary</h2>
-			<div class="coin-summary">
-				<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}i¢</div>
-				<div class="coin-meta">
-					<span>{lookup.email}</span>
-					<span>wage tier {lookup.wage_tier}</span>
-					<span>
-						eating pass:
-						{lookup.eating_pass_active
-							? `active (${lookup.eating_pass_strikes} strike${lookup.eating_pass_strikes === 1 ? '' : 's'})`
-							: 'none'}
-					</span>
-				</div>
-			</div>
-
-			{#if lookup.recent_transactions.length}
-				<div class="rows coin-rows">
-					{#each lookup.recent_transactions as t (t.id)}
-						<div class="row">
-							<div class="who">
-								<span class="email">{t.category_name}</span>
-							</div>
-							<div class="meta">
-								{#if t.note}<span class="note-text">{t.note}</span>{/if}
-								<span class="since">by {t.actor_email} &middot; {when(t.created_at)}</span>
-							</div>
-							<div class="actions">
-								<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
-									{t.amount > 0 ? '+' : ''}{t.amount}i¢
-								</span>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{:else}
-				<p class="note">No transactions logged yet for this email.</p>
-			{/if}
-		</section>
-
-		<DebtPaymentPanel {supabase} email={lookup.email} balance={lookup.balance} onLogged={() => runLookup(true)} />
-	{/if}
-
-	{#snippet amountFields(cat: CoinCategory)}
-		{#if cat.pricing_model === 'flat'}
-			<p class="preview">Fixed amount: {cat.amount}i¢</p>
-		{:else if cat.pricing_model === 'range'}
-			<div class="field-row">
-				<label for="range-input">
-					Amount ({cat.min_amount}-{cat.max_amount}i¢)
-				</label>
-				<input
-					id="range-input"
-					type="number"
-					min={cat.min_amount}
-					max={cat.max_amount}
-					step="1"
-					bind:value={rangeAmount}
-				/>
-			</div>
-		{:else if cat.pricing_model === 'variable'}
-			<div class="field-row">
-				<label for="var-input">
-					{cat.kind === 'adjustment' ? 'Adjustment amount (+/-)' : 'Amount (i¢)'}
-				</label>
-				<input id="var-input" type="number" step="1" bind:value={variableAmount} />
-			</div>
-		{/if}
-	{/snippet}
-
-	<section class="card">
-		<h2>Log a transaction</h2>
-
-		<div class="mode-toggle">
-			<button type="button" class:active={logMode === 'student'} onclick={() => setMode('student')}>
-				Single student
-			</button>
-			<button type="button" class:active={logMode === 'section'} onclick={() => setMode('section')}>
-				Section
-			</button>
-		</div>
-
-		{#if logMode === 'student'}
-			{#if !lookup}
-				<p class="note">Look up a student above first.</p>
-			{:else}
-				{#if entryError}<p class="feedback error">{entryError}</p>{/if}
-				{#if entryNotice}<p class="feedback notice">{entryNotice}</p>{/if}
-
-				<div class="field-row">
-					<label for="category-select">Category</label>
-					<select id="category-select" bind:value={selectedCategoryId} onchange={onCategoryChange}>
-						<option value="" disabled selected>Choose a category&hellip;</option>
-						{#each KIND_ORDER as kind (kind)}
-							{@const inKind = categoryOptions.filter((c) => c.kind === kind)}
-							{#if inKind.length}
-								<optgroup label={KIND_LABELS[kind]}>
-									{#each inKind as c (c.id)}
-										<option value={c.id}>{c.name} &mdash; {priceHint(c)}</option>
-									{/each}
-								</optgroup>
-							{/if}
+<section class="card">
+	<h2>Find a student</h2>
+	<p class="note">
+		A balance can exist for an email that has never signed in, so a plain email always works. Typing
+		a name searches signed-in students for a shortcut -- if nobody matches, that just means they
+		have not signed in yet; enter their email directly.
+	</p>
+	{#if lookupError}<p class="feedback error">{lookupError}</p>{/if}
+	<div class="add-row search-row">
+		<div class="search-wrap">
+			<input
+				type="email"
+				placeholder="Student name or student@boscotech.net"
+				autocomplete="off"
+				bind:value={studentEmail}
+				oninput={onEmailInput}
+				onfocus={() => (showSuggestions = true)}
+				onblur={() => setTimeout(() => (showSuggestions = false), 150)}
+				onkeydown={(e) => {
+					if (e.key === 'Enter') runLookup();
+					if (e.key === 'Escape') showSuggestions = false;
+				}}
+			/>
+			{#if showSuggestions && studentEmail.trim().length >= 2}
+				<div class="suggestions">
+					{#if searching}
+						<div class="suggestion-empty">Searching&hellip;</div>
+					{:else if suggestions.length}
+						{#each suggestions as s (s.id)}
+							<button type="button" class="suggestion" onmousedown={() => pickSuggestion(s)}>
+								<span class="suggestion-name">{studentLabel(s)}</span>
+								<span class="suggestion-email">{s.email}</span>
+							</button>
 						{/each}
-					</select>
-				</div>
-
-				{#if category}
-					{#if category.notes}
-						<p class="note category-note">{category.notes}</p>
-					{/if}
-
-					{#if category.id === 'perfect_score_graded_work'}
-						<div class="field-row">
-							<label for="points-input">Points the work was worth</label>
-							<input id="points-input" type="number" min="1" step="1" bind:value={pointsInput} />
-						</div>
-						{#if pointsInput}
-							<p class="preview">Preview: {perfectScorePreview(num(pointsInput))}i¢</p>
-						{/if}
-					{:else if category.id === 'pay_raise'}
-						<p class="preview">
-							Current tier {lookup.wage_tier}. This purchase raises it to {lookup.wage_tier + 1} for
-							{payRaisePreview(lookup.wage_tier)}i¢ (the server re-checks the tier and the exact
-							cost at submit time).
-						</p>
-					{:else if category.id === 'property_damage_careless'}
-						<div class="field-row">
-							<label for="cost-input">Repair/replacement cost ($)</label>
-							<input
-								id="cost-input"
-								type="number"
-								min="0"
-								step="0.01"
-								bind:value={costDollarsInput}
-							/>
-						</div>
-						{#if costDollarsInput}
-							<p class="preview">Preview: {propertyDamagePreview(num(costDollarsInput))}i¢</p>
-						{/if}
-					{:else if category.id === 'three_d_printing'}
-						<div class="field-row">
-							<label for="grams-input">Grams (slicer's reported weight)</label>
-							<input id="grams-input" type="number" min="0" step="1" bind:value={gramsInput} />
-						</div>
-						<div class="field-row">
-							<label for="hours-input">Print time (hours)</label>
-							<input id="hours-input" type="number" min="0" step="0.1" bind:value={hoursInput} />
-						</div>
-						<label class="checkbox-row">
-							<input type="checkbox" bind:checked={overnight} />
-							Printed overnight (no time charge)
-						</label>
-						{#if gramsInput || hoursInput}
-							{@const preview = threeDPrintingPreview(num(gramsInput), num(hoursInput), overnight)}
-							<p class="preview">
-								Preview: {preview.total}i¢ (material {preview.material}i¢ + time {preview.time}i¢)
-							</p>
-						{/if}
-					{:else if category.id === 'extra_credit'}
-						<div class="field-row">
-							<label for="ec-points-input">Points</label>
-							<input id="ec-points-input" type="number" min="1" step="1" bind:value={pointsInput} />
-						</div>
-						<div class="field-row">
-							<label for="ec-category-select">Grading category</label>
-							<select id="ec-category-select" bind:value={gradingCategory}>
-								<option value="" disabled selected>Choose&hellip;</option>
-								{#each EXTRA_CREDIT_GRADING_CATEGORIES as g (g.id)}
-									<option value={g.id}>{g.label}</option>
-								{/each}
-							</select>
-						</div>
-						{#if pointsInput}
-							<p class="preview">Preview: {Math.round(num(pointsInput) * (category.amount ?? 0))}i¢</p>
-						{/if}
-					{:else if category.pricing_model === 'per_unit'}
-						<div class="field-row">
-							<label for="qty-input">Quantity ({category.unit_label})</label>
-							<input id="qty-input" type="number" min="0" step="any" bind:value={quantityInput} />
-						</div>
-						{#if quantityInput}
-							<p class="preview">
-								Preview: {Math.round(num(quantityInput) * (category.amount ?? 0))}i¢
-							</p>
-						{/if}
 					{:else}
-						{@render amountFields(category)}
+						<div class="suggestion-empty">
+							No signed-in students match. They may not have logged in yet -- you can still log
+							against their email directly.
+						</div>
 					{/if}
-
-					<div class="field-row">
-						<label for="note-input">
-							Note{noteRequired ? ' (required)' : ' (optional)'}
-						</label>
-						<input id="note-input" type="text" maxlength="500" bind:value={noteText} />
-					</div>
-
-					<div class="btn-row">
-						<button class="btn" disabled={!canSubmit} onclick={submitEntry}>
-							{entryBusy ? 'Logging…' : 'Log transaction'}
-						</button>
-					</div>
-				{/if}
+				</div>
 			{/if}
-		{:else if !sectionsConfigured}
-			<p class="feedback error">
-				Migration 0073 does not appear to be applied yet -- sections are unavailable.
-			</p>
-		{:else}
-			<p class="note">
-				Logs the SAME category and amount against every student in the section, in one server-side
-				call -- scoped to flat, range, and uniform-amount variable categories (Weekly Wage and
-				similar). Extra Credit, 3D Printing, and the other per-student categories need real
-				per-student input and are not bulk-loggable yet.
-			</p>
-			{#if bulkError}<p class="feedback error">{bulkError}</p>{/if}
+		</div>
+		<button
+			class="btn secondary"
+			disabled={lookupBusy || !studentEmail.trim()}
+			onclick={() => runLookup()}
+		>
+			Look up
+		</button>
+	</div>
+</section>
 
-			<div class="field-row">
-				<label for="section-select">Section</label>
-				<select id="section-select" bind:value={selectedSectionId}>
-					<option value="" disabled selected>Choose a section&hellip;</option>
-					{#each sections.filter((s) => s.active) as s (s.id)}
-						<option value={s.id}>
-							{sectionDisplayName(s)} ({s.student_count} student{s.student_count === 1 ? '' : 's'})
-						</option>
-					{/each}
-				</select>
-				{#if !sections.some((s) => s.active)}
-					<p class="note">No active sections yet -- add one above.</p>
-				{/if}
+{#if lookup}
+	<section class="card">
+		<h2>Student summary</h2>
+		<div class="coin-summary">
+			<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}i¢</div>
+			<div class="coin-meta">
+				<span>{lookup.email}</span>
+				<span>wage tier {lookup.wage_tier}</span>
+				<span>
+					eating pass:
+					{lookup.eating_pass_active
+						? `active (${lookup.eating_pass_strikes} strike${lookup.eating_pass_strikes === 1 ? '' : 's'})`
+						: 'none'}
+				</span>
 			</div>
+		</div>
+
+		{#if lookup.recent_transactions.length}
+			<div class="rows coin-rows">
+				{#each lookup.recent_transactions as t (t.id)}
+					<div class="row">
+						<div class="who">
+							<span class="email">{t.category_name}</span>
+						</div>
+						<div class="meta">
+							{#if t.note}<span class="note-text">{t.note}</span>{/if}
+							<span class="since">by {t.actor_email} &middot; {when(t.created_at)}</span>
+						</div>
+						<div class="actions">
+							<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
+								{t.amount > 0 ? '+' : ''}{t.amount}i¢
+							</span>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<p class="note">No transactions logged yet for this email.</p>
+		{/if}
+	</section>
+
+	<DebtPaymentPanel
+		{supabase}
+		email={lookup.email}
+		balance={lookup.balance}
+		onLogged={() => runLookup(true)}
+	/>
+{/if}
+
+{#snippet amountFields(cat: CoinCategory)}
+	{#if cat.pricing_model === 'flat'}
+		<p class="preview">Fixed amount: {cat.amount}i¢</p>
+	{:else if cat.pricing_model === 'range'}
+		<div class="field-row">
+			<label for="range-input">
+				Amount ({cat.min_amount}-{cat.max_amount}i¢)
+			</label>
+			<input
+				id="range-input"
+				type="number"
+				min={cat.min_amount}
+				max={cat.max_amount}
+				step="1"
+				bind:value={rangeAmount}
+			/>
+		</div>
+	{:else if cat.pricing_model === 'variable'}
+		<div class="field-row">
+			<label for="var-input">
+				{cat.kind === 'adjustment' ? 'Adjustment amount (+/-)' : 'Amount (i¢)'}
+			</label>
+			<input id="var-input" type="number" step="1" bind:value={variableAmount} />
+		</div>
+	{/if}
+{/snippet}
+
+<section class="card">
+	<h2>Log a transaction</h2>
+
+	<div class="mode-toggle">
+		<button type="button" class:active={logMode === 'student'} onclick={() => setMode('student')}>
+			Single student
+		</button>
+		<button type="button" class:active={logMode === 'section'} onclick={() => setMode('section')}>
+			Section
+		</button>
+	</div>
+
+	{#if logMode === 'student'}
+		{#if !lookup}
+			<p class="note">Look up a student above first.</p>
+		{:else}
+			{#if entryError}<p class="feedback error">{entryError}</p>{/if}
+			{#if entryNotice}<p class="feedback notice">{entryNotice}</p>{/if}
 
 			<div class="field-row">
-				<label for="bulk-category-select">Category</label>
-				<select id="bulk-category-select" bind:value={selectedCategoryId} onchange={onCategoryChange}>
+				<label for="category-select">Category</label>
+				<select id="category-select" bind:value={selectedCategoryId} onchange={onCategoryChange}>
 					<option value="" disabled selected>Choose a category&hellip;</option>
 					{#each KIND_ORDER as kind (kind)}
 						{@const inKind = categoryOptions.filter((c) => c.kind === kind)}
@@ -833,70 +642,198 @@
 					<p class="note category-note">{category.notes}</p>
 				{/if}
 
-				{@render amountFields(category)}
+				{#if category.id === 'perfect_score_graded_work'}
+					<div class="field-row">
+						<label for="points-input">Points the work was worth</label>
+						<input id="points-input" type="number" min="1" step="1" bind:value={pointsInput} />
+					</div>
+					{#if pointsInput}
+						<p class="preview">Preview: {perfectScorePreview(num(pointsInput))}i¢</p>
+					{/if}
+				{:else if category.id === 'pay_raise'}
+					<p class="preview">
+						Current tier {lookup.wage_tier}. This purchase raises it to {lookup.wage_tier + 1} for
+						{payRaisePreview(lookup.wage_tier)}i¢ (the server re-checks the tier and the exact cost
+						at submit time).
+					</p>
+				{:else if category.id === 'property_damage_careless'}
+					<div class="field-row">
+						<label for="cost-input">Repair/replacement cost ($)</label>
+						<input
+							id="cost-input"
+							type="number"
+							min="0"
+							step="0.01"
+							bind:value={costDollarsInput}
+						/>
+					</div>
+					{#if costDollarsInput}
+						<p class="preview">Preview: {propertyDamagePreview(num(costDollarsInput))}i¢</p>
+					{/if}
+				{:else if category.id === 'three_d_printing'}
+					<div class="field-row">
+						<label for="grams-input">Grams (slicer's reported weight)</label>
+						<input id="grams-input" type="number" min="0" step="1" bind:value={gramsInput} />
+					</div>
+					<div class="field-row">
+						<label for="hours-input">Print time (hours)</label>
+						<input id="hours-input" type="number" min="0" step="0.1" bind:value={hoursInput} />
+					</div>
+					<label class="checkbox-row">
+						<input type="checkbox" bind:checked={overnight} />
+						Printed overnight (no time charge)
+					</label>
+					{#if gramsInput || hoursInput}
+						{@const preview = threeDPrintingPreview(num(gramsInput), num(hoursInput), overnight)}
+						<p class="preview">
+							Preview: {preview.total}i¢ (material {preview.material}i¢ + time {preview.time}i¢)
+						</p>
+					{/if}
+				{:else if category.id === 'extra_credit'}
+					<div class="field-row">
+						<label for="ec-points-input">Points</label>
+						<input id="ec-points-input" type="number" min="1" step="1" bind:value={pointsInput} />
+					</div>
+					<div class="field-row">
+						<label for="ec-category-select">Grading category</label>
+						<select id="ec-category-select" bind:value={gradingCategory}>
+							<option value="" disabled selected>Choose&hellip;</option>
+							{#each EXTRA_CREDIT_GRADING_CATEGORIES as g (g.id)}
+								<option value={g.id}>{g.label}</option>
+							{/each}
+						</select>
+					</div>
+					{#if pointsInput}
+						<p class="preview">Preview: {Math.round(num(pointsInput) * (category.amount ?? 0))}i¢</p>
+					{/if}
+				{:else if category.pricing_model === 'per_unit'}
+					<div class="field-row">
+						<label for="qty-input">Quantity ({category.unit_label})</label>
+						<input id="qty-input" type="number" min="0" step="any" bind:value={quantityInput} />
+					</div>
+					{#if quantityInput}
+						<p class="preview">
+							Preview: {Math.round(num(quantityInput) * (category.amount ?? 0))}i¢
+						</p>
+					{/if}
+				{:else}
+					{@render amountFields(category)}
+				{/if}
 
 				<div class="field-row">
-					<label for="bulk-note-input">
+					<label for="note-input">
 						Note{noteRequired ? ' (required)' : ' (optional)'}
 					</label>
-					<input id="bulk-note-input" type="text" maxlength="500" bind:value={noteText} />
+					<input id="note-input" type="text" maxlength="500" bind:value={noteText} />
 				</div>
 
 				<div class="btn-row">
-					<button class="btn" disabled={!canSubmitBulk} onclick={submitBulk}>
-						{bulkBusy ? 'Logging…' : 'Log to section'}
+					<button class="btn" disabled={!canSubmit} onclick={submitEntry}>
+						{entryBusy ? 'Logging…' : 'Log transaction'}
 					</button>
 				</div>
 			{/if}
-
-			{#if bulkResponse}
-				<p class="feedback notice">
-					Logged against {bulkResponse.total} student{bulkResponse.total === 1 ? '' : 's'}:
-					{bulkResponse.succeeded} succeeded, {bulkResponse.refused} refused.
-				</p>
-				<div class="rows bulk-rows">
-					{#each bulkResponse.results as r (r.email)}
-						<div class="row">
-							<div class="who">
-								<span class="email">{r.email}</span>
-							</div>
-							<div class="actions">
-								{#if r.ok}
-									<span class="txn-pos">
-										{typeof r.amount === 'number'
-											? `${r.amount > 0 ? '+' : ''}${r.amount}i¢`
-											: 'logged'}
-									</span>
-								{:else}
-									<span class="txn-neg">{reasonMessage(r)}</span>
-								{/if}
-							</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
 		{/if}
-	</section>
+	{:else if !sectionsConfigured}
+		<p class="feedback error">
+			Migration 0073 does not appear to be applied yet -- sections are unavailable.
+		</p>
+	{:else}
+		<p class="note">
+			Logs the SAME category and amount against every student in the section, in one server-side
+			call -- scoped to flat, range, and uniform-amount variable categories (Weekly Wage and
+			similar). Extra Credit, 3D Printing, and the other per-student categories need real
+			per-student input and are not bulk-loggable yet.
+		</p>
+		{#if bulkError}<p class="feedback error">{bulkError}</p>{/if}
 
-	<footer class="page-footer">
-		<VersionBadge app="coins" />
-	</footer>
-</main>
+		<div class="field-row">
+			<label for="section-select">Section</label>
+			<select id="section-select" bind:value={selectedSectionId}>
+				<option value="" disabled selected>Choose a section&hellip;</option>
+				{#each sections as s (s.id)}
+					<option value={s.id}>
+						{sectionDisplayName(s)} ({s.student_count} student{s.student_count === 1 ? '' : 's'})
+					</option>
+				{/each}
+			</select>
+			{#if !sections.length}
+				<p class="note">
+					No active sections yet -- add one under <a href="/coin-desk/students">Students</a>.
+				</p>
+			{/if}
+		</div>
+
+		<div class="field-row">
+			<label for="bulk-category-select">Category</label>
+			<select id="bulk-category-select" bind:value={selectedCategoryId} onchange={onCategoryChange}>
+				<option value="" disabled selected>Choose a category&hellip;</option>
+				{#each KIND_ORDER as kind (kind)}
+					{@const inKind = categoryOptions.filter((c) => c.kind === kind)}
+					{#if inKind.length}
+						<optgroup label={KIND_LABELS[kind]}>
+							{#each inKind as c (c.id)}
+								<option value={c.id}>{c.name} &mdash; {priceHint(c)}</option>
+							{/each}
+						</optgroup>
+					{/if}
+				{/each}
+			</select>
+		</div>
+
+		{#if category}
+			{#if category.notes}
+				<p class="note category-note">{category.notes}</p>
+			{/if}
+
+			{@render amountFields(category)}
+
+			<div class="field-row">
+				<label for="bulk-note-input">
+					Note{noteRequired ? ' (required)' : ' (optional)'}
+				</label>
+				<input id="bulk-note-input" type="text" maxlength="500" bind:value={noteText} />
+			</div>
+
+			<div class="btn-row">
+				<button class="btn" disabled={!canSubmitBulk} onclick={submitBulk}>
+					{bulkBusy ? 'Logging…' : 'Log to section'}
+				</button>
+			</div>
+		{/if}
+
+		{#if bulkResponse}
+			<p class="feedback notice">
+				Logged against {bulkResponse.total} student{bulkResponse.total === 1 ? '' : 's'}:
+				{bulkResponse.succeeded} succeeded, {bulkResponse.refused} refused.
+			</p>
+			<div class="rows bulk-rows">
+				{#each bulkResponse.results as r (r.email)}
+					<div class="row">
+						<div class="who">
+							<span class="email">{r.email}</span>
+						</div>
+						<div class="actions">
+							{#if r.ok}
+								<span class="txn-pos">
+									{typeof r.amount === 'number'
+										? `${r.amount > 0 ? '+' : ''}${r.amount}i¢`
+										: 'logged'}
+								</span>
+							{:else}
+								<span class="txn-neg">{reasonMessage(r)}</span>
+							{/if}
+						</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+	{/if}
+</section>
 
 <style>
-	.coin-desk-page {
-		max-width: 52rem;
-		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
-	}
-	.coin-desk-page > .card {
-		margin-bottom: 1.1rem;
-	}
-	.coin-desk-page h2 {
+	h2 {
 		margin-top: 0;
-	}
-	.lead strong {
-		color: var(--white);
 	}
 	.feedback {
 		font-family: 'Share Tech Mono', monospace;
@@ -1151,10 +1088,5 @@
 		gap: 0.85rem;
 		flex-wrap: wrap;
 		margin-top: 0.4rem;
-	}
-	.page-footer {
-		margin-top: 2rem;
-		display: flex;
-		justify-content: center;
 	}
 </style>

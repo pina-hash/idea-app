@@ -20,85 +20,6 @@
 	let notice = $state('');
 	let confirmRevoke = $state<string | null>(null);
 
-	/**
-	 * IDEA Coin balance lookup/adjustment (0070). Any admin may use this, not
-	 * just the owner -- is_admin() is the real gate on the RPCs themselves.
-	 * This is the "attach a balance to an email regardless of login status"
-	 * tool from docs/coin-economy Part 8: coin_admin_lookup /
-	 * coin_admin_adjust_balance both work purely off the email string, with
-	 * no requirement that the account has ever signed in.
-	 */
-	interface CoinTxn {
-		id: string;
-		category_id: string;
-		category_name: string;
-		amount: number;
-		quantity: number | null;
-		note: string | null;
-		actor_email: string;
-		created_at: string;
-	}
-	interface CoinLookup {
-		email: string;
-		balance: number;
-		wage_tier: number;
-		eating_pass_active: boolean;
-		eating_pass_strikes: number;
-		recent_transactions: CoinTxn[];
-	}
-
-	let coinEmail = $state('');
-	let coinBusy = $state(false);
-	let coinError = $state('');
-	let coinNotice = $state('');
-	let coinLookup = $state<CoinLookup | null>(null);
-	let adjustAmount = $state('');
-	let adjustNote = $state('');
-
-	async function coinLookupRun() {
-		const target = coinEmail.trim().toLowerCase();
-		if (!target) return;
-		coinError = '';
-		coinNotice = '';
-		coinBusy = true;
-		const resp = await data.supabase.rpc('coin_admin_lookup', { p_email: target });
-		coinBusy = false;
-		if (resp.error) {
-			coinError = resp.error.message;
-			coinLookup = null;
-			return;
-		}
-		coinLookup = resp.data as CoinLookup;
-	}
-
-	async function coinAdjust() {
-		const target = coinEmail.trim().toLowerCase();
-		const amt = Number(adjustAmount);
-		if (!target || !Number.isFinite(amt) || amt === 0 || !adjustNote.trim()) return;
-		coinError = '';
-		coinNotice = '';
-		coinBusy = true;
-		const resp = await data.supabase.rpc('coin_admin_adjust_balance', {
-			p_email: target,
-			p_amount: Math.round(amt),
-			p_note: adjustNote.trim()
-		});
-		coinBusy = false;
-		if (resp.error) {
-			coinError = resp.error.message;
-			return;
-		}
-		const r = resp.data as { ok: boolean; reason?: string; balance?: number };
-		if (!r.ok) {
-			coinError = r.reason === 'debt' ? `Balance is negative (${r.balance}i¢); adjustments still apply.` : (r.reason ?? 'Adjustment refused.');
-		} else {
-			coinNotice = `Applied ${amt > 0 ? '+' : ''}${Math.round(amt)}i¢ to ${target}. New balance: ${r.balance}i¢.`;
-			adjustAmount = '';
-			adjustNote = '';
-			await coinLookupRun();
-		}
-	}
-
 	async function run(fn: () => PromiseLike<{ error: { message: string } | null }>, done: string) {
 		errorMsg = '';
 		notice = '';
@@ -249,81 +170,15 @@
 	{/if}
 
 	<section class="card">
-		<h2>IDEA Coin balances</h2>
+		<h2>IDEA Coin</h2>
 		<p class="note">
-			Look up or adjust a student's coin balance by email, whether or not they've signed in yet.
-			The balance is derived from the transaction ledger (migration 0070); this does not touch the
-			old Sheets-based ledger or coin-entry.html.
+			Balance lookup and signed adjustments now live with the rest of the coin tools, under
+			Students on the coin desk -- the RPCs are unchanged, only the surface moved.
 		</p>
-		{#if coinError}<p class="feedback error">{coinError}</p>{/if}
-		{#if coinNotice}<p class="feedback notice">{coinNotice}</p>{/if}
 		<div class="add-row">
-			<input
-				type="email"
-				placeholder="student@boscotech.net"
-				bind:value={coinEmail}
-				onkeydown={(e) => {
-					if (e.key === 'Enter') coinLookupRun();
-				}}
-			/>
-			<button class="btn secondary" disabled={coinBusy || !coinEmail.trim()} onclick={coinLookupRun}>
-				Look up
-			</button>
+			<a class="btn secondary" href="/coin-desk/students">Balances &amp; adjustments</a>
+			<a class="btn secondary" href="/coin-desk">Coin desk</a>
 		</div>
-
-		{#if coinLookup}
-			<div class="coin-summary">
-				<div class="coin-balance" class:negative={coinLookup.balance < 0}>
-					{coinLookup.balance}i¢
-				</div>
-				<div class="coin-meta">
-					<span>{coinLookup.email}</span>
-					<span>wage tier {coinLookup.wage_tier}</span>
-					<span>
-						eating pass:
-						{coinLookup.eating_pass_active ? `active (${coinLookup.eating_pass_strikes} strike${coinLookup.eating_pass_strikes === 1 ? '' : 's'})` : 'none'}
-					</span>
-				</div>
-			</div>
-
-			<div class="add-row">
-				<input type="number" step="1" placeholder="+/- i¢" bind:value={adjustAmount} />
-				<input type="text" maxlength="500" placeholder="Reason (required)" bind:value={adjustNote} />
-				<button
-					class="btn"
-					disabled={coinBusy ||
-						!Number.isFinite(Number(adjustAmount)) ||
-						Number(adjustAmount) === 0 ||
-						!adjustNote.trim()}
-					onclick={coinAdjust}
-				>
-					Apply adjustment
-				</button>
-			</div>
-
-			{#if coinLookup.recent_transactions.length}
-				<div class="rows coin-rows">
-					{#each coinLookup.recent_transactions as t (t.id)}
-						<div class="row">
-							<div class="who">
-								<span class="email">{t.category_name}</span>
-							</div>
-							<div class="meta">
-								{#if t.note}<span class="note-text">{t.note}</span>{/if}
-								<span class="since">by {t.actor_email} · {when(t.created_at)}</span>
-							</div>
-							<div class="actions">
-								<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
-									{t.amount > 0 ? '+' : ''}{t.amount}i¢
-								</span>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{:else}
-				<p class="note">No transactions logged yet for this email.</p>
-			{/if}
-		{/if}
 	</section>
 
 	<section class="card">
@@ -502,43 +357,6 @@
 	.note {
 		color: var(--dim);
 		font-size: 0.9rem;
-	}
-	.coin-summary {
-		display: flex;
-		align-items: baseline;
-		gap: 1rem;
-		flex-wrap: wrap;
-		margin: 0.6rem 0 0.8rem;
-		padding: 0.6rem 0.8rem;
-		border: 1px solid var(--line, rgba(0, 255, 65, 0.25));
-		border-radius: 6px;
-	}
-	.coin-balance {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 1.4rem;
-		color: var(--green);
-	}
-	.coin-balance.negative {
-		color: var(--amber);
-	}
-	.coin-meta {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.8rem;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--dim);
-	}
-	.coin-rows {
-		margin-top: 0.6rem;
-	}
-	.txn-neg {
-		color: var(--amber);
-		font-family: 'Share Tech Mono', monospace;
-	}
-	.txn-pos {
-		color: var(--green);
-		font-family: 'Share Tech Mono', monospace;
 	}
 	.page-footer {
 		margin-top: 2rem;

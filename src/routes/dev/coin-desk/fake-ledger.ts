@@ -1010,6 +1010,27 @@ async function handleRpc(
 		);
 	}
 
+	/**
+	 * 0070's admin adjustment, mirrored the way the real one is DEFINED: a
+	 * thin wrapper that hands straight off to coin_log_transaction under the
+	 * 'balance_correction' adjustment category, so every rule (and every
+	 * refusal shape) stays in the one implementation rather than gaining a
+	 * second copy here. Drives the balance tool on /coin-desk/students.
+	 */
+	if (fn === 'coin_admin_adjust_balance') {
+		return handleRpc(
+			'coin_log_transaction',
+			{
+				p_email: email,
+				p_category_id: 'balance_correction',
+				p_amount: params.p_amount,
+				p_quantity: null,
+				p_note: params.p_note
+			},
+			getCurrentStudentEmail
+		);
+	}
+
 	if (fn === 'coin_log_perfect_score') {
 		const points = Number(params.p_points);
 		if (!Number.isFinite(points) || points <= 0) return Promise.resolve(rpcError('Enter the number of points the graded work was worth.'));
