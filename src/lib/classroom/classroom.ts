@@ -23,8 +23,27 @@ export interface ClassroomSection {
 	label: string;
 	block: string | null;
 	teacher_email: string;
+	/**
+	 * 0083's archive flag. Optional so a pre-0083 read (or the view-as payload
+	 * of an older deployment) still types; absent reads as active.
+	 */
+	active?: boolean;
 	/** Embedded course row (normalized from the PostgREST embed key). */
 	course: ClassroomCourse | null;
+}
+
+/**
+ * One attached file (0083). The bytes live in the school shared drive; this is
+ * metadata plus the id the proxy route resolves. `attachmentSrc` is the only
+ * place a URL for it is built -- never a drive.google.com link, which would
+ * only render for someone who personally has access to that folder.
+ */
+export interface ClassroomAttachment {
+	id: string;
+	filename: string;
+	mime_type: string;
+	size_bytes?: number | null;
+	sort_order?: number;
 }
 
 export interface ClassroomEnrollment {
@@ -46,6 +65,7 @@ export interface ClassroomPost {
 	published: boolean;
 	created_at: string;
 	updated_at: string;
+	attachments?: ClassroomAttachment[];
 }
 
 export interface AssignmentResource {
@@ -70,6 +90,7 @@ export interface ClassroomAssignment {
 	created_at: string;
 	updated_at: string;
 	resources: AssignmentResource[];
+	attachments?: ClassroomAttachment[];
 }
 
 // ---------------------------------------------------------------------------
@@ -79,7 +100,14 @@ export interface ClassroomAssignment {
 // ---------------------------------------------------------------------------
 
 export function normalizeSectionRow(row: Record<string, unknown>): ClassroomSection {
-	const embed = row.classroom_courses as ClassroomCourse | ClassroomCourse[] | null | undefined;
+	// `classroom_courses` is the PostgREST embed key; `course` is what the 0083
+	// view_as RPCs build, since a jsonb payload has no embed convention to
+	// follow. Accepting both is what lets ONE normalizer serve every read.
+	const embed = (row.classroom_courses ?? row.course) as
+		| ClassroomCourse
+		| ClassroomCourse[]
+		| null
+		| undefined;
 	const course = Array.isArray(embed) ? (embed[0] ?? null) : (embed ?? null);
 	return {
 		id: String(row.id),
@@ -87,15 +115,93 @@ export function normalizeSectionRow(row: Record<string, unknown>): ClassroomSect
 		label: String(row.label),
 		block: (row.block as string | null) ?? null,
 		teacher_email: String(row.teacher_email),
+		active: (row.active as boolean | undefined) ?? true,
 		course
 	};
 }
 
+function normalizeAttachments(row: Record<string, unknown>): ClassroomAttachment[] {
+	const embed = (row.classroom_attachments ?? row.attachments) as
+		| ClassroomAttachment[]
+		| null
+		| undefined;
+	return [...(embed ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+}
+
+export function normalizePostRow(row: Record<string, unknown>): ClassroomPost {
+	const attachments = normalizeAttachments(row);
+	const { classroom_attachments: _drop, ...rest } = row;
+	return { ...(rest as unknown as Omit<ClassroomPost, 'attachments'>), attachments };
+}
+
 export function normalizeAssignmentRow(row: Record<string, unknown>): ClassroomAssignment {
 	const embed = row.classroom_assignment_resources as AssignmentResource[] | null | undefined;
-	const resources = [...(embed ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-	const { classroom_assignment_resources: _drop, ...rest } = row;
-	return { ...(rest as unknown as Omit<ClassroomAssignment, 'resources'>), resources };
+	const resources = [...(embed ?? (row.resources as AssignmentResource[] | undefined) ?? [])].sort(
+		(a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
+	);
+	const attachments = normalizeAttachments(row);
+	const {
+		classroom_assignment_resources: _dropResources,
+		classroom_attachments: _dropAttachments,
+		...rest
+	} = row;
+	return {
+		...(rest as unknown as Omit<ClassroomAssignment, 'resources' | 'attachments'>),
+		resources,
+		attachments
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Attachments
+// ---------------------------------------------------------------------------
+
+/**
+ * The ONE place an attachment URL is built. Always the app's own proxy, never
+ * a drive.google.com link: the files live in a restricted school shared drive,
+ * so a direct link renders only for someone who personally has access to that
+ * folder. `viewAs` carries the impersonated student's email so the proxy can
+ * answer as THAT student would be answered (0083; admin-gated server-side).
+ */
+export function attachmentSrc(attachmentId: string, viewAs?: string | null): string {
+	const local = localAttachmentUrls.get(attachmentId);
+	if (local) return local;
+	const base = `/api/classroom/attachment/${attachmentId}`;
+	return viewAs ? `${base}?as=${encodeURIComponent(viewAs)}` : base;
+}
+
+/**
+ * DEV-HARNESS ONLY (the greenline registerDecalImage convention). /dev/classroom
+ * has no Drive and no session, so an "upload" there registers an object URL for
+ * the file it just took and the previews are real rather than broken-image
+ * fallbacks. The map is empty on every real deployment -- nothing outside the
+ * harness ever calls this -- so attachmentSrc's production answer is unchanged.
+ */
+const localAttachmentUrls = new Map<string, string>();
+
+export function registerLocalAttachmentUrl(attachmentId: string, url: string): void {
+	localAttachmentUrls.set(attachmentId, url);
+}
+
+/** Mirrors the server's INLINE_TYPES image half: what gets a thumbnail. */
+const PREVIEW_TYPES = new Set([
+	'image/jpeg',
+	'image/png',
+	'image/webp',
+	'image/gif',
+	'image/heic',
+	'image/heif'
+]);
+
+export function isImageAttachment(a: ClassroomAttachment): boolean {
+	return PREVIEW_TYPES.has((a.mime_type ?? '').toLowerCase());
+}
+
+export function formatBytes(size: number | null | undefined): string {
+	if (size == null || Number.isNaN(size)) return '';
+	if (size < 1024) return `${size} B`;
+	if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
+	return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 // ---------------------------------------------------------------------------
@@ -345,14 +451,70 @@ export interface AssignmentInput {
 	resources: { label: string; url: string }[];
 }
 
-export interface ClassroomManageTransports {
-	upsertCourse(code: string, title: string): Promise<TxResult<{ courseId: string; created: boolean }>>;
+/**
+ * What the shared composer needs, and nothing more. Split out from the console
+ * set so the SAME composer can be mounted on the class page and the assignment
+ * detail page (where there is no roster, no CSV import and no section setup) --
+ * there is exactly one content editor in this module, reused, never a second
+ * one written per surface.
+ *
+ * The create/update calls hand back the ids they touched, because attachments
+ * are uploaded AFTER the row exists (the file id lives in the row) and a
+ * multi-section publish produces N ids the same file has to land on.
+ */
+export interface ClassroomComposerTransports {
+	createPost(
+		sectionIds: string[],
+		body: string,
+		title: string | null,
+		published: boolean
+	): Promise<TxResult<{ ids: string[] }>>;
+	updatePost(
+		id: string,
+		body: string,
+		title: string | null,
+		published: boolean | null
+	): Promise<TxResult<{ ids: string[] }>>;
+	createAssignment(
+		sectionIds: string[],
+		input: AssignmentInput,
+		published: boolean
+	): Promise<TxResult<{ ids: string[] }>>;
+	updateAssignment(
+		id: string,
+		input: AssignmentInput,
+		published: boolean | null
+	): Promise<TxResult<{ ids: string[] }>>;
+	/** One upload, N owner rows (see the 0083 header). */
+	uploadAttachment(
+		ownerKind: 'post' | 'assignment',
+		ownerIds: string[],
+		file: File
+	): Promise<TxResult<undefined>>;
+	deleteAttachment(id: string): Promise<TxResult<undefined>>;
+	// Delete sits here rather than in the console-only set because it belongs
+	// wherever the content is SHOWN -- deleting an announcement is a thought
+	// someone has while looking at it.
+	deletePost(id: string): Promise<TxResult<undefined>>;
+	deleteAssignment(id: string): Promise<TxResult<undefined>>;
+}
+
+export interface ClassroomManageTransports extends ClassroomComposerTransports {
+	upsertCourse(
+		code: string,
+		title: string,
+		active?: boolean,
+		id?: string | null
+	): Promise<TxResult<{ courseId: string; created: boolean }>>;
 	upsertSection(
 		courseId: string,
 		label: string,
 		block: string | null,
-		id?: string | null
+		id?: string | null,
+		teacherEmail?: string | null
 	): Promise<TxResult<{ sectionId: string }>>;
+	setSectionActive(id: string, active: boolean): Promise<TxResult<undefined>>;
+	deleteSection(id: string, confirmLabel: string): Promise<TxResult<SectionDeleteResult>>;
 	reloadSections(): Promise<TxResult<{ sections: ClassroomSection[]; courses: ClassroomCourse[] }>>;
 	loadRoster(sectionId: string): Promise<TxResult<ClassroomEnrollment[]>>;
 	setEnrollment(
@@ -361,34 +523,40 @@ export interface ClassroomManageTransports {
 		name: string | null,
 		active: boolean
 	): Promise<TxResult<undefined>>;
+	updateEnrollment(
+		sectionId: string,
+		email: string,
+		newEmail: string | null,
+		name: string | null
+	): Promise<TxResult<{ ok: boolean; reason?: string }>>;
 	importRoster(rows: RosterRow[]): Promise<TxResult<ImportSummary>>;
 	loadContent(
 		sectionId: string
 	): Promise<TxResult<{ posts: ClassroomPost[]; assignments: ClassroomAssignment[] }>>;
-	createPost(
-		sectionIds: string[],
-		body: string,
-		title: string | null,
-		published: boolean
-	): Promise<TxResult<undefined>>;
-	updatePost(
-		id: string,
-		body: string,
-		title: string | null,
-		published: boolean | null
-	): Promise<TxResult<undefined>>;
-	deletePost(id: string): Promise<TxResult<undefined>>;
-	createAssignment(
-		sectionIds: string[],
-		input: AssignmentInput,
-		published: boolean
-	): Promise<TxResult<undefined>>;
-	updateAssignment(
-		id: string,
-		input: AssignmentInput,
-		published: boolean | null
-	): Promise<TxResult<undefined>>;
-	deleteAssignment(id: string): Promise<TxResult<undefined>>;
+}
+
+/**
+ * classroom_delete_section's answer. `ok: false` with `reason: 'not_empty'` is
+ * the DESIGNED path, not an error: a section holding posts, assignments or
+ * enrollments is never deleted, and the counts come back so the UI can say what
+ * would have been lost and offer to archive instead.
+ */
+export interface SectionDeleteResult {
+	ok: boolean;
+	reason?: string;
+	posts?: number;
+	assignments?: number;
+	enrollments?: number;
+}
+
+/** Plain-language summary of a refused section delete. */
+export function sectionDeleteBlockedLabel(r: SectionDeleteResult): string {
+	const parts: string[] = [];
+	if (r.posts) parts.push(`${r.posts} post${r.posts === 1 ? '' : 's'}`);
+	if (r.assignments) parts.push(`${r.assignments} assignment${r.assignments === 1 ? '' : 's'}`);
+	if (r.enrollments)
+		parts.push(`${r.enrollments} enrolled student${r.enrollments === 1 ? '' : 's'}`);
+	return parts.join(', ');
 }
 
 /** Human-readable reason for a refused import row. */

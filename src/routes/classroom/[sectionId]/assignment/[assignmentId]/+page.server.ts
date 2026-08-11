@@ -1,5 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { normalizeAssignmentRow, normalizeSectionRow } from '$lib/classroom/classroom';
+import { ASSIGNMENT_SELECT, SECTION_SELECT } from '$lib/classroom/transports';
+import { driveConfigured } from '$lib/server/notebook-drive';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -13,16 +15,10 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	if (!claims) redirect(303, '/');
 
 	const [{ data: sectionRow }, { data: asgRow }, { data: manages }] = await Promise.all([
-		supabase
-			.from('classroom_sections')
-			.select('id, course_id, label, block, teacher_email, classroom_courses(id, code, title, active)')
-			.eq('id', params.sectionId)
-			.maybeSingle(),
+		supabase.from('classroom_sections').select(SECTION_SELECT).eq('id', params.sectionId).maybeSingle(),
 		supabase
 			.from('classroom_assignments')
-			.select(
-				'id, section_id, group_id, title, description, points, due_at, category, author_email, author_name, published, created_at, updated_at, classroom_assignment_resources(id, label, url, sort_order)'
-			)
+			.select(ASSIGNMENT_SELECT)
 			.eq('id', params.assignmentId)
 			.eq('section_id', params.sectionId)
 			.maybeSingle(),
@@ -33,7 +29,8 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
-		assignment: normalizeAssignmentRow(asgRow as Record<string, unknown>),
-		canManage: manages === true
+		assignment: normalizeAssignmentRow(asgRow as unknown as Record<string, unknown>),
+		canManage: manages === true,
+		attachmentsEnabled: driveConfigured()
 	};
 };

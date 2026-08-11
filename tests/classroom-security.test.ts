@@ -35,7 +35,8 @@ const MIGRATIONS = [
 	'0003_profile_section.sql',
 	'0020_profiles_identity.sql',
 	'0067_admin_tier.sql',
-	'0082_classroom.sql'
+	'0082_classroom.sql',
+	'0083_classroom_management.sql'
 ] as const;
 
 let db: TestDb;
@@ -517,18 +518,7 @@ describe('teacher-of-record boundary', () => {
 		expect(err.message).toMatch(/teacher of record|site admin/i);
 	});
 
-	test('a teacher cannot reassign their section to someone else, or take over a foreign one', async () => {
-		const reassign = await captureError(() =>
-			rpc(teacherA.id, 'public.classroom_upsert_section($1::uuid, $2, $3, $4, $5::uuid)', [
-				courseId,
-				'Period 1',
-				null,
-				teacherB.email,
-				sectionA
-			])
-		);
-		expect(reassign.message).toMatch(/site admin/i);
-
+	test('a teacher cannot take over a foreign section', async () => {
 		const takeover = await captureError(() =>
 			rpc(teacherB.id, 'public.classroom_upsert_section($1::uuid, $2, $3, $4, $5::uuid)', [
 				courseId,
@@ -652,6 +642,477 @@ describe('roster import', () => {
 	});
 });
 
+// ---------------------------------------------------------------------------
+// 0083: attachments, section lifecycle, enrollment corrections, view-as.
+// ---------------------------------------------------------------------------
+
+describe('attachments (0083)', () => {
+	let pubPost: string;
+	let draftPost: string;
+	let foreignPost: string;
+	let pubAttachment: string;
+	let draftAttachment: string;
+	let foreignAttachment: string;
+
+	beforeAll(async () => {
+		pubPost = (await createPost(teacherA.id, [sectionA], 'Bring goggles.', 'Lab day')).post_ids[0];
+		draftPost = (await createPost(teacherA.id, [sectionA], 'Not ready.', 'Draft', false)).post_ids[0];
+		foreignPost = (await createPost(teacherB.id, [sectionB], 'P2 only.', 'Notice')).post_ids[0];
+
+		const add = (userId: string, ownerId: string, file: string) =>
+			rpc<{ attachments: { id: string }[] }>(
+				userId,
+				'public.classroom_add_attachment($1, $2::uuid[], $3, $4, $5)',
+				['post', [ownerId], file, 'handout.pdf', 'application/pdf']
+			);
+		pubAttachment = (await add(teacherA.id, pubPost, 'drive-pub')).attachments[0].id;
+		draftAttachment = (await add(teacherA.id, draftPost, 'drive-draft')).attachments[0].id;
+		foreignAttachment = (await add(teacherB.id, foreignPost, 'drive-foreign')).attachments[0].id;
+	});
+
+	test('an attachment is visible exactly where its PARENT is', async () => {
+		// The enrolled student sees the published post's file...
+		const mine = await db.asUser(studentA.id, (q) =>
+			q<{ id: string }>('select id from public.classroom_attachments where id = $1', [
+				pubAttachment
+			])
+		);
+		expect(mine.rows).toHaveLength(1);
+
+		// ...and neither the DRAFT's nor another section's, by list or by id.
+		for (const id of [draftAttachment, foreignAttachment]) {
+			const hidden = await db.asUser(studentA.id, (q) =>
+				q('select id from public.classroom_attachments where id = $1', [id])
+			);
+			expect(hidden.rows, id).toHaveLength(0);
+		}
+		const all = await db.asUser(studentA.id, (q) =>
+			q<{ id: string }>('select id from public.classroom_attachments')
+		);
+		expect(all.rows.map((r) => r.id)).toEqual([pubAttachment]);
+	});
+
+	test('un-publishing the parent closes its attachments in the same statement', async () => {
+		await rpc(teacherA.id, 'public.classroom_update_post($1::uuid, $2, $3, $4)', [
+			pubPost,
+			'Bring goggles.',
+			'Lab day',
+			false
+		]);
+		const hidden = await db.asUser(studentA.id, (q) =>
+			q('select id from public.classroom_attachments where id = $1', [pubAttachment])
+		);
+		expect(hidden.rows).toHaveLength(0);
+
+		await rpc(teacherA.id, 'public.classroom_update_post($1::uuid, $2, $3, $4)', [
+			pubPost,
+			'Bring goggles.',
+			'Lab day',
+			true
+		]);
+		const back = await db.asUser(studentA.id, (q) =>
+			q('select id from public.classroom_attachments where id = $1', [pubAttachment])
+		);
+		expect(back.rows).toHaveLength(1);
+	});
+
+	test('nobody has a direct write path to classroom_attachments', async () => {
+		const attempts: [string, unknown[]][] = [
+			[
+				`insert into public.classroom_attachments (post_id, drive_file_id, filename, mime_type, uploaded_by)
+				 values ($1, 'x', 'x', 'image/png', 'x@y')`,
+				[pubPost]
+			],
+			[`update public.classroom_attachments set filename = 'hacked' where id = $1`, [pubAttachment]],
+			[`delete from public.classroom_attachments where id = $1`, [pubAttachment]]
+		];
+		for (const user of [studentA, teacherA, owner]) {
+			for (const [text, params] of attempts) {
+				const err = await captureError(() => db.asUser(user.id, (q) => q(text, params)));
+				expect(err.code, `${user.email} ${text}`).toBe('42501');
+			}
+		}
+	});
+
+	test('a student cannot attach, and a teacher cannot attach to a foreign section', async () => {
+		const byStudent = await captureError(() =>
+			rpc(studentA.id, 'public.classroom_add_attachment($1, $2::uuid[], $3, $4, $5)', [
+				'post',
+				[pubPost],
+				'drive-hack',
+				'hack.pdf',
+				'application/pdf'
+			])
+		);
+		expect(byStudent.message).toMatch(/teacher of record|site admin/i);
+
+		const byForeign = await captureError(() =>
+			rpc(teacherB.id, 'public.classroom_add_attachment($1, $2::uuid[], $3, $4, $5)', [
+				'post',
+				[pubPost],
+				'drive-hack',
+				'hack.pdf',
+				'application/pdf'
+			])
+		);
+		expect(byForeign.message).toMatch(/teacher of record|site admin/i);
+	});
+
+	test('a multi-target attach naming one foreign owner lands NOTHING', async () => {
+		const before = await db.sql<{ n: string }>(
+			'select count(*) as n from public.classroom_attachments'
+		);
+		const err = await captureError(() =>
+			rpc(teacherA.id, 'public.classroom_add_attachment($1, $2::uuid[], $3, $4, $5)', [
+				'post',
+				[pubPost, foreignPost],
+				'drive-partial',
+				'partial.pdf',
+				'application/pdf'
+			])
+		);
+		expect(err.message).toMatch(/teacher of record|site admin/i);
+		const after = await db.sql<{ n: string }>(
+			'select count(*) as n from public.classroom_attachments'
+		);
+		expect(after.rows[0].n).toBe(before.rows[0].n);
+	});
+
+	test('only a manager can delete an attachment, and the orphan report is honest', async () => {
+		for (const user of [studentA, teacherB]) {
+			const err = await captureError(() =>
+				rpc(user.id, 'public.classroom_delete_attachment($1::uuid)', [pubAttachment])
+			);
+			expect(err.message, user.email).toMatch(/teacher of record|site admin/i);
+		}
+
+		// Two rows, ONE Drive file (the multi-section publish shape).
+		const shared = await rpc<{ attachments: { id: string }[] }>(
+			teacherA.id,
+			'public.classroom_add_attachment($1, $2::uuid[], $3, $4, $5)',
+			['post', [pubPost, draftPost], 'drive-shared', 'shared.pdf', 'application/pdf']
+		);
+		const first = await rpc<{ orphaned: boolean }>(
+			teacherA.id,
+			'public.classroom_delete_attachment($1::uuid)',
+			[shared.attachments[0].id]
+		);
+		expect(first.orphaned).toBe(false);
+		const second = await rpc<{ orphaned: boolean }>(
+			teacherA.id,
+			'public.classroom_delete_attachment($1::uuid)',
+			[shared.attachments[1].id]
+		);
+		expect(second.orphaned).toBe(true);
+	});
+
+	test('deleting a post reports the Drive files it just orphaned', async () => {
+		const post = (await createPost(teacherA.id, [sectionA], 'temp')).post_ids[0];
+		await rpc(teacherA.id, 'public.classroom_add_attachment($1, $2::uuid[], $3, $4, $5)', [
+			'post',
+			[post],
+			'drive-sweep-me',
+			'sweep.pdf',
+			'application/pdf'
+		]);
+		const res = await rpc<{ orphaned_drive_file_ids: string[] }>(
+			teacherA.id,
+			'public.classroom_delete_post($1::uuid)',
+			[post]
+		);
+		expect(res.orphaned_drive_file_ids).toEqual(['drive-sweep-me']);
+	});
+});
+
+describe('section lifecycle (0083)', () => {
+	test('a section holding anything is REFUSED, with the counts, and survives', async () => {
+		const res = await rpc<{
+			ok: boolean;
+			reason: string;
+			posts: number;
+			assignments: number;
+			enrollments: number;
+		}>(teacherA.id, 'public.classroom_delete_section($1::uuid, $2)', [sectionA, 'Period 1']);
+
+		expect(res.ok).toBe(false);
+		expect(res.reason).toBe('not_empty');
+		expect(res.posts + res.assignments + res.enrollments).toBeGreaterThan(0);
+
+		const still = await db.sql('select 1 from public.classroom_sections where id = $1', [sectionA]);
+		expect(still.rows).toHaveLength(1);
+	});
+
+	test('an EMPTY section deletes -- but only with its label typed back', async () => {
+		const empty = (
+			await rpc<{ section_id: string }>(
+				teacherA.id,
+				'public.classroom_upsert_section($1::uuid, $2)',
+				[courseId, 'Period 7 (mistyped)']
+			)
+		).section_id;
+
+		const wrong = await captureError(() =>
+			rpc(teacherA.id, 'public.classroom_delete_section($1::uuid, $2)', [empty, 'Period 7'])
+		);
+		expect(wrong.message).toMatch(/type the section label/i);
+		const survived = await db.sql('select 1 from public.classroom_sections where id = $1', [empty]);
+		expect(survived.rows).toHaveLength(1);
+
+		// Case and surrounding whitespace are forgiven; the words are not.
+		const ok = await rpc<{ ok: boolean }>(
+			teacherA.id,
+			'public.classroom_delete_section($1::uuid, $2)',
+			[empty, '  period 7 (MISTYPED) ']
+		);
+		expect(ok.ok).toBe(true);
+		const gone = await db.sql('select 1 from public.classroom_sections where id = $1', [empty]);
+		expect(gone.rows).toHaveLength(0);
+	});
+
+	test('a student and a foreign teacher can neither archive nor delete a section', async () => {
+		for (const user of [studentA, teacherB]) {
+			const archive = await captureError(() =>
+				rpc(user.id, 'public.classroom_set_section_active($1::uuid, $2)', [sectionA, false])
+			);
+			expect(archive.message, user.email).toMatch(/teacher of record|site admin/i);
+
+			const del = await captureError(() =>
+				rpc(user.id, 'public.classroom_delete_section($1::uuid, $2)', [sectionA, 'Period 1'])
+			);
+			expect(del.message, user.email).toMatch(/teacher of record|site admin/i);
+		}
+	});
+
+	test('archiving is soft: the roster and content are untouched', async () => {
+		const before = await db.sql<{ n: string }>(
+			'select count(*) as n from public.classroom_posts where section_id = $1',
+			[sectionA]
+		);
+		await rpc(teacherA.id, 'public.classroom_set_section_active($1::uuid, $2)', [sectionA, false]);
+		const flag = await db.sql<{ active: boolean }>(
+			'select active from public.classroom_sections where id = $1',
+			[sectionA]
+		);
+		expect(flag.rows[0].active).toBe(false);
+		const after = await db.sql<{ n: string }>(
+			'select count(*) as n from public.classroom_posts where section_id = $1',
+			[sectionA]
+		);
+		expect(after.rows[0].n).toBe(before.rows[0].n);
+
+		await rpc(teacherA.id, 'public.classroom_set_section_active($1::uuid, $2)', [sectionA, true]);
+	});
+
+	test('a teacher may hand their own section over, but still cannot take a foreign one', async () => {
+		const spare = (
+			await rpc<{ section_id: string }>(
+				teacherA.id,
+				'public.classroom_upsert_section($1::uuid, $2)',
+				[courseId, 'Period 8']
+			)
+		).section_id;
+
+		// Giving away access you already hold is not an escalation...
+		const handed = await rpc<{ teacher_email: string }>(
+			teacherA.id,
+			'public.classroom_upsert_section($1::uuid, $2, $3, $4, $5::uuid)',
+			[courseId, 'Period 8', null, teacherB.email, spare]
+		);
+		expect(handed.teacher_email).toBe(teacherB.email);
+
+		// ...and the giver loses it immediately, which is the proof it was real.
+		const backAgain = await captureError(() =>
+			rpc(teacherA.id, 'public.classroom_upsert_section($1::uuid, $2, $3, $4, $5::uuid)', [
+				courseId,
+				'Period 8',
+				null,
+				teacherA.email,
+				spare
+			])
+		);
+		expect(backAgain.message).toMatch(/teacher of record|site admin/i);
+
+		// A section can never land on a student or an outside address.
+		const toStudent = await captureError(() =>
+			rpc(teacherB.id, 'public.classroom_upsert_section($1::uuid, $2, $3, $4, $5::uuid)', [
+				courseId,
+				'Period 8',
+				null,
+				studentA.email,
+				spare
+			])
+		);
+		expect(toStudent.message).toMatch(/@boscotech\.edu/i);
+
+		await rpc(teacherB.id, 'public.classroom_delete_section($1::uuid, $2)', [spare, 'Period 8']);
+	});
+});
+
+describe('enrollment corrections (0083)', () => {
+	test('a typo is fixed IN PLACE, lowercased, with nothing left behind', async () => {
+		await rpc(teacherA.id, 'public.classroom_set_enrollment($1::uuid, $2, $3)', [
+			sectionA,
+			'typo@boscotech.net',
+			'Ty Po'
+		]);
+
+		const res = await rpc<{ ok: boolean; student_email: string }>(
+			teacherA.id,
+			'public.classroom_update_enrollment($1::uuid, $2, $3, $4)',
+			[sectionA, 'typo@boscotech.net', '  Fixed@BoscoTech.net ', 'Fixed Name']
+		);
+		expect(res).toMatchObject({ ok: true, student_email: 'fixed@boscotech.net' });
+
+		const old = await db.sql('select 1 from public.classroom_enrollments where student_email = $1', [
+			'typo@boscotech.net'
+		]);
+		expect(old.rows).toHaveLength(0);
+
+		const fixed = await db.sql<{ display_name: string }>(
+			'select display_name from public.classroom_enrollments where section_id = $1 and student_email = $2',
+			[sectionA, 'fixed@boscotech.net']
+		);
+		expect(fixed.rows[0].display_name).toBe('Fixed Name');
+	});
+
+	test('correcting onto an email already on the roster is refused, not merged', async () => {
+		const res = await rpc<{ ok: boolean; reason: string }>(
+			teacherA.id,
+			'public.classroom_update_enrollment($1::uuid, $2, $3, $4)',
+			[sectionA, 'fixed@boscotech.net', studentA.email, null]
+		);
+		expect(res).toMatchObject({ ok: false, reason: 'already_enrolled' });
+
+		const both = await db.sql<{ n: string }>(
+			'select count(*) as n from public.classroom_enrollments where section_id = $1 and student_email in ($2, $3)',
+			[sectionA, 'fixed@boscotech.net', studentA.email]
+		);
+		expect(both.rows[0].n).toBe('2');
+	});
+
+	test('a student and a foreign teacher cannot correct a roster row', async () => {
+		for (const user of [studentA, teacherB]) {
+			const err = await captureError(() =>
+				rpc(user.id, 'public.classroom_update_enrollment($1::uuid, $2, $3, $4)', [
+					sectionA,
+					studentA.email,
+					'hijack@boscotech.net',
+					null
+				])
+			);
+			expect(err.message, user.email).toMatch(/teacher of record|site admin/i);
+		}
+	});
+});
+
+describe('view as student (0083) -- admin only, read only', () => {
+	test('every view_as RPC refuses a student AND a plain teacher', async () => {
+		const calls: [string, unknown[]][] = [
+			['public.classroom_view_as_students()', []],
+			['public.classroom_view_as_sections($1)', [studentA.email]],
+			['public.classroom_view_as_section($1, $2::uuid)', [studentA.email, sectionA]],
+			[
+				'public.classroom_view_as_assignment($1, $2::uuid, $3::uuid)',
+				[studentA.email, sectionA, asgAPub]
+			],
+			[
+				'public.classroom_view_as_can_read_attachment($1, $2::uuid)',
+				[studentA.email, '00000000-0000-0000-0000-000000000000']
+			]
+		];
+		for (const user of [studentA, teacherA, teacherB]) {
+			for (const [call, params] of calls) {
+				const err = await captureError(() => rpc(user.id, call, params));
+				expect(err.message, `${user.email} ${call}`).toMatch(/only a site admin/i);
+			}
+		}
+	});
+
+	test('the admin sees the STUDENT\'s classes, not their own reach', async () => {
+		const sections = await rpc<{ id: string }[]>(owner.id, 'public.classroom_view_as_sections($1)', [
+			studentA.email
+		]);
+		expect(sections.map((s) => s.id)).toEqual([sectionA]);
+
+		// The owner can read sectionB directly; as this student they must not.
+		const foreign = await rpc(owner.id, 'public.classroom_view_as_section($1, $2::uuid)', [
+			studentA.email,
+			sectionB
+		]);
+		expect(foreign).toBeNull();
+	});
+
+	test('drafts are absent from the impersonated view even though the admin can read them', async () => {
+		const direct = await db.asUser(owner.id, (q) =>
+			q('select id from public.classroom_posts where id = $1', [postADraft])
+		);
+		expect(direct.rows).toHaveLength(1); // the admin genuinely can
+
+		const view = await rpc<{ posts: { id: string }[]; assignments: { id: string }[] }>(
+			owner.id,
+			'public.classroom_view_as_section($1, $2::uuid)',
+			[studentA.email, sectionA]
+		);
+		expect(view.posts.map((p) => p.id)).not.toContain(postADraft);
+		expect(view.assignments.map((a) => a.id)).not.toContain(asgADraft);
+		expect(view.assignments.map((a) => a.id)).toContain(asgAPub);
+
+		// The draft assignment is 404-shaped through the assignment view too.
+		const draft = await rpc(
+			owner.id,
+			'public.classroom_view_as_assignment($1, $2::uuid, $3::uuid)',
+			[studentA.email, sectionA, asgADraft]
+		);
+		expect(draft).toBeNull();
+	});
+
+	test('a DEACTIVATED enrollment drops the class out of the impersonated view', async () => {
+		await rpc(teacherA.id, 'public.classroom_set_enrollment($1::uuid, $2, $3, $4)', [
+			sectionA,
+			studentA.email,
+			null,
+			false
+		]);
+		const none = await rpc<{ id: string }[]>(owner.id, 'public.classroom_view_as_sections($1)', [
+			studentA.email
+		]);
+		expect(none).toHaveLength(0);
+
+		await rpc(teacherA.id, 'public.classroom_set_enrollment($1::uuid, $2, $3, $4)', [
+			sectionA,
+			studentA.email,
+			null,
+			true
+		]);
+		const back = await rpc<{ id: string }[]>(owner.id, 'public.classroom_view_as_sections($1)', [
+			studentA.email
+		]);
+		expect(back).toHaveLength(1);
+	});
+
+	test('there is NO view_as write function at all -- read-only is structural', async () => {
+		const { rows } = await db.sql<{ proname: string }>(
+			`select proname from pg_proc
+			  where proname like 'classroom_view_as%'
+			  order by proname`
+		);
+		expect(rows.map((r) => r.proname).sort()).toEqual([
+			'classroom_view_as_assignment',
+			'classroom_view_as_can_read_attachment',
+			'classroom_view_as_section',
+			'classroom_view_as_sections',
+			'classroom_view_as_students'
+		]);
+		// Every one of them is declared STABLE, so none can write even by mistake.
+		const { rows: volatility } = await db.sql<{ proname: string; provolatile: string }>(
+			`select proname, provolatile from pg_proc where proname like 'classroom_view_as%'`
+		);
+		for (const r of volatility) {
+			expect(r.provolatile, r.proname).toBe('s');
+		}
+	});
+});
+
 describe('anon boundary', () => {
 	test('anon has no EXECUTE on any classroom write RPC and no SELECT on any classroom table', async () => {
 		const fns = [
@@ -664,7 +1125,18 @@ describe('anon boundary', () => {
 			'public.classroom_delete_post(uuid)',
 			'public.classroom_create_assignment(uuid[], text, text, integer, timestamptz, text, boolean, jsonb)',
 			'public.classroom_update_assignment(uuid, text, text, integer, timestamptz, text, boolean, jsonb)',
-			'public.classroom_delete_assignment(uuid)'
+			'public.classroom_delete_assignment(uuid)',
+			// 0083
+			'public.classroom_set_section_active(uuid, boolean)',
+			'public.classroom_delete_section(uuid, text)',
+			'public.classroom_update_enrollment(uuid, text, text, text)',
+			'public.classroom_add_attachment(text, uuid[], text, text, text, bigint)',
+			'public.classroom_delete_attachment(uuid)',
+			'public.classroom_view_as_students()',
+			'public.classroom_view_as_sections(text)',
+			'public.classroom_view_as_section(text, uuid)',
+			'public.classroom_view_as_assignment(text, uuid, uuid)',
+			'public.classroom_view_as_can_read_attachment(text, uuid)'
 		];
 		for (const fn of fns) {
 			const { rows } = await db.sql<{ ok: boolean }>(
@@ -680,7 +1152,8 @@ describe('anon boundary', () => {
 			'classroom_enrollments',
 			'classroom_posts',
 			'classroom_assignments',
-			'classroom_assignment_resources'
+			'classroom_assignment_resources',
+			'classroom_attachments'
 		];
 		for (const t of tables) {
 			const { rows } = await db.sql<{ sel: boolean; ins: boolean; upd: boolean; del: boolean }>(

@@ -2,31 +2,78 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
+	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		authorLabel,
 		formatDue,
 		sectionTitle,
 		shortWhen,
 		type ClassroomAssignment,
+		type ClassroomComposerTransports,
 		type ClassroomSection
 	} from '$lib/classroom/classroom';
 
 	/**
-	 * One assignment: description, due date, points, category, and resource
-	 * links. Presentation only. The clearly-marked ENGINE SLOT below is where
-	 * the interactive assignment engine and the submission UI mount in a later
-	 * bundle -- it renders a placeholder card today so the layout (and the
-	 * mount point) is already settled.
+	 * One assignment: description, due date, points, category, resource links
+	 * and attached files. The clearly-marked ENGINE SLOT below is where the
+	 * interactive assignment engine and the submission UI mount in a later
+	 * bundle -- it renders a placeholder card today so the layout (and the mount
+	 * point) is already settled.
+	 *
+	 * The section's teacher of record (or an admin) can edit or delete the
+	 * assignment right here, through the SHARED ContentComposer, rather than
+	 * having to find it again in the console.
 	 */
 	let {
 		section,
 		assignment,
-		canManage = false
+		canManage = false,
+		transports = null,
+		attachmentsEnabled = true,
+		basePath = '/classroom',
+		viewAs = null,
+		onchanged = null,
+		ondeleted = null
 	}: {
 		section: ClassroomSection;
 		assignment: ClassroomAssignment;
 		canManage?: boolean;
+		/** Omitted (null) on every read-only surface, view-as included. */
+		transports?: ClassroomComposerTransports | null;
+		attachmentsEnabled?: boolean;
+		basePath?: string;
+		viewAs?: string | null;
+		onchanged?: (() => void | Promise<void>) | null;
+		/** The assignment is gone -- the route navigates back to the class. */
+		ondeleted?: (() => void | Promise<void>) | null;
 	} = $props();
+
+	let editing = $state(false);
+	let armDelete = $state(false);
+	let busy = $state(false);
+	let error = $state<string | null>(null);
+
+	const editable = $derived(canManage && !!transports);
+
+	async function remove() {
+		if (!transports) return;
+		// Two-step confirm, the gauntlet-room-delete convention.
+		if (!armDelete) {
+			armDelete = true;
+			return;
+		}
+		armDelete = false;
+		busy = true;
+		error = null;
+		const res = await transports.deleteAssignment(assignment.id);
+		busy = false;
+		if (!res.ok) {
+			error = res.message;
+			return;
+		}
+		await ondeleted?.();
+	}
 
 	function hostOf(url: string): string {
 		try {
@@ -44,7 +91,7 @@
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
-		<a class="btn secondary" href={`/classroom/${section.id}`}>&lsaquo; {sectionTitle(section)}</a>
+		<a class="btn secondary" href={`${basePath}/${section.id}`}>&lsaquo; {sectionTitle(section)}</a>
 		<ProfileMenu />
 	</div>
 </div>
@@ -65,7 +112,38 @@
 			{#if assignment.points != null}<span class="chip">{assignment.points} pts</span>{/if}
 			{#if assignment.category}<span class="chip">{assignment.category}</span>{/if}
 		</div>
+		{#if editable}
+			<div class="owner-actions">
+				<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => (editing = !editing)}>
+					{editing ? 'Close editor' : 'Edit assignment'}
+				</button>
+				<button type="button" class="btn secondary tiny danger" disabled={busy} onclick={remove}>
+					{armDelete ? 'Really delete?' : 'Delete assignment'}
+				</button>
+			</div>
+		{/if}
+		{#if error}<p class="feedback error">{error}</p>{/if}
 	</section>
+
+	{#if editable && editing}
+		<section class="card">
+			<h2>Edit</h2>
+			{#key assignment.id}
+				<ContentComposer
+					mode="edit"
+					{assignment}
+					attachments={assignment.attachments ?? []}
+					transports={transports!}
+					{attachmentsEnabled}
+					onsaved={async () => {
+						editing = false;
+						await onchanged?.();
+					}}
+					oncancel={() => (editing = false)}
+				/>
+			{/key}
+		</section>
+	{/if}
 
 	{#if assignment.description.trim()}
 		<section class="card">
@@ -93,6 +171,13 @@
 					</li>
 				{/each}
 			</ul>
+		</section>
+	{/if}
+
+	{#if assignment.attachments?.length}
+		<section class="card">
+			<h2>Attached files</h2>
+			<AttachmentList attachments={assignment.attachments} {viewAs} />
 		</section>
 	{/if}
 
@@ -213,6 +298,30 @@
 		font-size: 0.65rem;
 		color: var(--dim);
 		white-space: nowrap;
+	}
+	.owner-actions {
+		display: flex;
+		gap: 0.35rem;
+		flex-wrap: wrap;
+		margin-top: 0.7rem;
+	}
+	.btn.tiny,
+	.btn.secondary.tiny {
+		font-size: 0.65rem;
+		padding: 0.28rem 0.6rem;
+	}
+	.btn.danger {
+		color: var(--crimson);
+		border-color: var(--crimson);
+	}
+	.feedback.error {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.78rem;
+		color: var(--amber);
+		border: 1px solid var(--amber);
+		border-radius: 5px;
+		padding: 0.4rem 0.65rem;
+		margin: 0.6rem 0 0;
 	}
 	.engine-slot {
 		border-style: dashed;

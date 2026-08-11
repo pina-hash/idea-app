@@ -17,11 +17,16 @@
 	let {
 		ready = true,
 		isStaff = false,
-		sections
+		sections,
+		basePath = '/classroom',
+		homeHref = '/'
 	}: {
 		ready?: boolean;
 		isStaff?: boolean;
 		sections: ClassroomSection[];
+		/** Link root -- rewritten under /classroom/view-as/<email>. */
+		basePath?: string;
+		homeHref?: string;
 	} = $props();
 
 	const ordered = $derived(sortSections(sections));
@@ -34,7 +39,7 @@
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
-		<a class="btn secondary" href="/">&lsaquo; Home</a>
+		<a class="btn secondary" href={homeHref}>&lsaquo; Home</a>
 		<ProfileMenu />
 	</div>
 </div>
@@ -80,7 +85,7 @@
 	{:else}
 		<div class="class-grid">
 			{#each ordered as s (s.id)}
-				<a class="class-card" href={`/classroom/${s.id}`}>
+				<a class="class-card" href={`${basePath}/${s.id}`}>
 					<span class="class-icon" aria-hidden="true">
 						<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
 							<path d="M16 6L3 12l13 6 13-6z" />

@@ -4,14 +4,18 @@
 	import ClassPage from '$lib/classroom/ClassPage.svelte';
 	import AssignmentDetail from '$lib/classroom/AssignmentDetail.svelte';
 	import ManageConsole from '$lib/classroom/ManageConsole.svelte';
+	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
+	import { registerLocalAttachmentUrl } from '$lib/classroom/classroom';
 	import type {
 		ClassroomAssignment,
+		ClassroomAttachment,
 		ClassroomCourse,
 		ClassroomEnrollment,
 		ClassroomManageTransports,
 		ClassroomPost,
 		ClassroomSection,
-		ImportSummary
+		ImportSummary,
+		SectionDeleteResult
 	} from '$lib/classroom/classroom';
 
 	/**
@@ -146,36 +150,98 @@
 
 	const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 
+	/**
+	 * Attachments, mirrored in memory. The harness cannot reach Drive, so an
+	 * "upload" records the metadata and hands back an object URL the same <img>
+	 * the real proxy would feed -- enough to drive the paste flow, the staged
+	 * list, the previews and the remove path end to end without credentials.
+	 */
+	function attachTo(kind: 'post' | 'assignment', ids: string[], file: File) {
+		const url = URL.createObjectURL(file);
+		for (const id of ids) {
+			const row: ClassroomAttachment = {
+				id: nid('att'),
+				filename: file.name,
+				mime_type: file.type || 'application/octet-stream',
+				size_bytes: file.size,
+				sort_order: 1
+			};
+			registerLocalAttachmentUrl(row.id, url);
+			if (kind === 'post') {
+				posts = posts.map((p) =>
+					p.id === id ? { ...p, attachments: [...(p.attachments ?? []), row] } : p
+				);
+			} else {
+				assignments = assignments.map((a) =>
+					a.id === id ? { ...a, attachments: [...(a.attachments ?? []), row] } : a
+				);
+			}
+		}
+	}
+
 	const transports: ClassroomManageTransports = {
-		async upsertCourse(code, title) {
-			note('upsertCourse', { code, title });
+		async upsertCourse(code, title, active = true, id = null) {
+			note('upsertCourse', { code, title, active, id });
 			const norm = code.trim().toUpperCase();
 			if (norm.length < 2) return { ok: false, message: 'A course code (2-40 characters) is required.' };
+			if (id) {
+				if (!title.trim()) return { ok: false, message: 'A course title is required.' };
+				courses = courses.map((c) =>
+					c.id === id ? { ...c, code: norm, title: title.trim(), active } : c
+				);
+				return { ok: true, data: { courseId: id, created: false } };
+			}
 			const existing = courses.find((c) => c.code === norm);
 			if (existing) return { ok: true, data: { courseId: existing.id, created: false } };
 			if (!title.trim()) return { ok: false, message: 'A course title is required.' };
-			const id = nid('c');
-			courses = [...courses, { id, code: norm, title: title.trim(), active: true }];
-			return { ok: true, data: { courseId: id, created: true } };
+			const made = nid('c');
+			courses = [...courses, { id: made, code: norm, title: title.trim(), active: true }];
+			return { ok: true, data: { courseId: made, created: true } };
 		},
-		async upsertSection(courseId, label, block) {
-			note('upsertSection', { courseId, label, block });
+		async upsertSection(courseId, label, block, id = null, teacherEmail = null) {
+			note('upsertSection', { courseId, label, block, id, teacherEmail });
 			if (!label.trim()) return { ok: false, message: 'A section label is required.' };
 			if (!courses.some((c) => c.id === courseId))
 				return { ok: false, message: 'That course does not exist.' };
 			if (
 				sections.some(
-					(s) => s.course_id === courseId && s.label.toLowerCase() === label.trim().toLowerCase()
+					(s) =>
+						s.id !== id &&
+						s.course_id === courseId &&
+						s.label.toLowerCase() === label.trim().toLowerCase()
 				)
 			) {
 				return { ok: false, message: `That course already has a section labelled "${label.trim()}".` };
 			}
-			const id = nid('s');
+			const teacher = (teacherEmail ?? '').trim().toLowerCase();
+			if (teacher && !teacher.endsWith('@boscotech.edu')) {
+				return {
+					ok: false,
+					message: `The teacher of record must be a @boscotech.edu account (got "${teacher}").`
+				};
+			}
+			if (id) {
+				sections = sections.map((s) =>
+					s.id === id
+						? { ...s, label: label.trim(), block, teacher_email: teacher || s.teacher_email }
+						: s
+				);
+				return { ok: true, data: { sectionId: id } };
+			}
+			const made = nid('s');
 			sections = [
 				...sections,
-				{ id, course_id: courseId, label: label.trim(), block, teacher_email: TEACHER, course: null }
+				{
+					id: made,
+					course_id: courseId,
+					label: label.trim(),
+					block,
+					teacher_email: teacher || TEACHER,
+					active: true,
+					course: null
+				}
 			];
-			return { ok: true, data: { sectionId: id } };
+			return { ok: true, data: { sectionId: made } };
 		},
 		async reloadSections() {
 			return { ok: true, data: { sections: ownSections, courses: [...courses] } };
@@ -300,22 +366,21 @@
 			}
 			const group = nid('g');
 			const now = new Date().toISOString();
-			posts = [
-				...posts,
-				...sectionIds.map((sectionId) => ({
-					id: nid('p'),
-					section_id: sectionId,
-					group_id: group,
-					title: title?.trim() || null,
-					body: body.trim(),
-					author_email: TEACHER,
-					author_name: 'T. Vargas',
-					published,
-					created_at: now,
-					updated_at: now
-				}))
-			];
-			return { ok: true, data: undefined };
+			const made = sectionIds.map((sectionId) => ({
+				id: nid('p'),
+				section_id: sectionId,
+				group_id: group,
+				title: title?.trim() || null,
+				body: body.trim(),
+				author_email: TEACHER,
+				author_name: 'T. Vargas',
+				published,
+				created_at: now,
+				updated_at: now,
+				attachments: [] as ClassroomAttachment[]
+			}));
+			posts = [...posts, ...made];
+			return { ok: true, data: { ids: made.map((p) => p.id) } };
 		},
 		async updatePost(id, body, title, published) {
 			note('updatePost', { id, title, published });
@@ -331,7 +396,7 @@
 						}
 					: p
 			);
-			return { ok: true, data: undefined };
+			return { ok: true, data: { ids: [id] } };
 		},
 		async deletePost(id) {
 			note('deletePost', { id });
@@ -350,26 +415,25 @@
 			}
 			const group = nid('g');
 			const now = new Date().toISOString();
-			assignments = [
-				...assignments,
-				...sectionIds.map((sectionId) => ({
-					id: nid('a'),
-					section_id: sectionId,
-					group_id: group,
-					title: input.title.trim(),
-					description: input.description,
-					points: input.points,
-					due_at: input.dueAt,
-					category: input.category,
-					author_email: TEACHER,
-					author_name: 'T. Vargas',
-					published,
-					created_at: now,
-					updated_at: now,
-					resources: input.resources.map((r, i) => ({ ...r, id: nid('r'), sort_order: i + 1 }))
-				}))
-			];
-			return { ok: true, data: undefined };
+			const made = sectionIds.map((sectionId) => ({
+				id: nid('a'),
+				section_id: sectionId,
+				group_id: group,
+				title: input.title.trim(),
+				description: input.description,
+				points: input.points,
+				due_at: input.dueAt,
+				category: input.category,
+				author_email: TEACHER,
+				author_name: 'T. Vargas',
+				published,
+				created_at: now,
+				updated_at: now,
+				resources: input.resources.map((r, i) => ({ ...r, id: nid('r'), sort_order: i + 1 })),
+				attachments: [] as ClassroomAttachment[]
+			}));
+			assignments = [...assignments, ...made];
+			return { ok: true, data: { ids: made.map((a) => a.id) } };
 		},
 		async updateAssignment(id, input, published) {
 			note('updateAssignment', { id, title: input.title, published });
@@ -390,11 +454,76 @@
 						}
 					: a
 			);
-			return { ok: true, data: undefined };
+			return { ok: true, data: { ids: [id] } };
 		},
 		async deleteAssignment(id) {
 			note('deleteAssignment', { id });
 			assignments = assignments.filter((a) => a.id !== id);
+			return { ok: true, data: undefined };
+		},
+		async setSectionActive(id, active) {
+			note('setSectionActive', { id, active });
+			sections = sections.map((s) => (s.id === id ? { ...s, active } : s));
+			return { ok: true, data: undefined };
+		},
+		async deleteSection(id, confirmLabel) {
+			note('deleteSection', { id, confirmLabel });
+			const section = sections.find((s) => s.id === id);
+			if (!section) return { ok: false, message: 'That section does not exist.' };
+			const blocked: SectionDeleteResult = {
+				ok: false,
+				reason: 'not_empty',
+				posts: posts.filter((p) => p.section_id === id).length,
+				assignments: assignments.filter((a) => a.section_id === id).length,
+				enrollments: enrollments.filter((e) => e.section_id === id).length
+			};
+			if (blocked.posts || blocked.assignments || blocked.enrollments) {
+				return { ok: true, data: blocked };
+			}
+			if (confirmLabel.trim().toLowerCase() !== section.label.trim().toLowerCase()) {
+				return { ok: false, message: `Type the section label ("${section.label}") to confirm deletion.` };
+			}
+			sections = sections.filter((s) => s.id !== id);
+			return { ok: true, data: { ok: true } };
+		},
+		async updateEnrollment(sectionId, email, newEmail, name) {
+			note('updateEnrollment', { sectionId, email, newEmail, name });
+			const next = (newEmail ?? email).trim().toLowerCase();
+			if (!EMAIL_RE.test(next)) return { ok: false, message: 'Enter a valid student email address.' };
+			if (
+				next !== email &&
+				enrollments.some((e) => e.section_id === sectionId && e.student_email === next)
+			) {
+				return { ok: true, data: { ok: false, reason: 'already_enrolled' } };
+			}
+			enrollments = enrollments.map((e) =>
+				e.section_id === sectionId && e.student_email === email
+					? { ...e, student_email: next, display_name: name?.trim() || e.display_name }
+					: e
+			);
+			return { ok: true, data: { ok: true } };
+		},
+		async uploadAttachment(ownerKind, ownerIds, file) {
+			note('uploadAttachment', {
+				ownerKind,
+				ownerIds,
+				name: file.name,
+				type: file.type,
+				size: file.size
+			});
+			attachTo(ownerKind, ownerIds, file);
+			return { ok: true, data: undefined };
+		},
+		async deleteAttachment(id) {
+			note('deleteAttachment', { id });
+			posts = posts.map((p) => ({
+				...p,
+				attachments: (p.attachments ?? []).filter((a) => a.id !== id)
+			}));
+			assignments = assignments.map((a) => ({
+				...a,
+				attachments: (a.attachments ?? []).filter((x) => x.id !== id)
+			}));
 			return { ok: true, data: undefined };
 		}
 	};
@@ -410,6 +539,23 @@
 	);
 	const detailAssignment = $derived(assignments.find((a) => a.id === 'a-1') ?? publishedAsgs1[0]);
 
+	// --- View-as-student slices ------------------------------------------
+	// Mirrors what the 0083 view_as RPCs return: the student's ACTIVE
+	// enrollments only, PUBLISHED content only.
+	const VIEW_AS_EMAIL = 'alice@boscotech.net';
+	const viewAsSections = $derived(
+		enrollments
+			.filter((e) => e.student_email === VIEW_AS_EMAIL && e.active)
+			.map((e) => sections.find((s) => s.id === e.section_id))
+			.filter((s): s is ClassroomSection => !!s)
+			.map(withCourse)
+	);
+	const viewAsPosts = $derived(posts.filter((p) => p.section_id === 's-1' && p.published));
+	const viewAsAssignments = $derived(
+		assignments.filter((a) => a.section_id === 's-1' && a.published)
+	);
+	const viewAsBase = `/dev/classroom`;
+
 	const VIEWS = [
 		['home', 'Student home'],
 		['home-empty', 'Home: no classes'],
@@ -419,8 +565,12 @@
 		['class-teacher', 'Class page (teacher)'],
 		['class-empty', 'Class page: empty'],
 		['assignment', 'Assignment detail'],
+		['assignment-teacher', 'Assignment detail (teacher)'],
 		['manage', 'Manage console'],
-		['manage-notready', 'Manage: migration unapplied']
+		['manage-notready', 'Manage: migration unapplied'],
+		['viewas-home', 'View as: My Classes'],
+		['viewas-class', 'View as: class'],
+		['viewas-assignment', 'View as: assignment']
 	] as const;
 	type ViewId = (typeof VIEWS)[number][0];
 	const initial = page.url.searchParams.get('view') as ViewId | null;
@@ -456,6 +606,7 @@
 		posts={posts.filter((p) => p.section_id === 's-1')}
 		assignments={assignments.filter((a) => a.section_id === 's-1')}
 		canManage={true}
+		{transports}
 	/>
 {:else if view === 'class-empty'}
 	<ClassPage section={section2} posts={[]} assignments={[]} />
@@ -464,6 +615,45 @@
 		<AssignmentDetail section={section1} assignment={detailAssignment} />
 	{:else}
 		<p class="harness-note">The sample assignment was deleted in the manage view.</p>
+	{/if}
+{:else if view === 'assignment-teacher'}
+	{#if detailAssignment}
+		<AssignmentDetail
+			section={section1}
+			assignment={detailAssignment}
+			canManage={true}
+			{transports}
+		/>
+	{:else}
+		<p class="harness-note">The sample assignment was deleted in the manage view.</p>
+	{/if}
+{:else if view === 'viewas-home'}
+	<ImpersonationBanner email={VIEW_AS_EMAIL} displayName="Alice Alvarez" exitHref={viewAsBase} />
+	<MyClasses sections={viewAsSections} basePath={viewAsBase} homeHref={viewAsBase} />
+{:else if view === 'viewas-class'}
+	<ImpersonationBanner email={VIEW_AS_EMAIL} displayName="Alice Alvarez" exitHref={viewAsBase} />
+	<ClassPage
+		section={section1}
+		posts={viewAsPosts}
+		assignments={viewAsAssignments}
+		canManage={false}
+		transports={null}
+		basePath={viewAsBase}
+		viewAs={VIEW_AS_EMAIL}
+	/>
+{:else if view === 'viewas-assignment'}
+	<ImpersonationBanner email={VIEW_AS_EMAIL} displayName="Alice Alvarez" exitHref={viewAsBase} />
+	{#if viewAsAssignments[0]}
+		<AssignmentDetail
+			section={section1}
+			assignment={viewAsAssignments[0]}
+			canManage={false}
+			transports={null}
+			basePath={viewAsBase}
+			viewAs={VIEW_AS_EMAIL}
+		/>
+	{:else}
+		<p class="harness-note">No published assignment in this section.</p>
 	{/if}
 {:else if view === 'manage'}
 	<ManageConsole

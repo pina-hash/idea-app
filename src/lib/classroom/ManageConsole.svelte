@@ -2,13 +2,13 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		emailLocal,
 		formatDue,
 		importReasonLabel,
-		isoToLocalInput,
-		localInputToIso,
 		parseRosterCsv,
+		sectionDeleteBlockedLabel,
 		sectionTitle,
 		shortWhen,
 		sortSections,
@@ -22,23 +22,31 @@
 	} from '$lib/classroom/classroom';
 
 	/**
-	 * The teacher console: courses + sections setup, the post/assignment
-	 * composer with multi-section publish, and per-section roster (with CSV
-	 * import) + content management. Presentation + orchestration only -- every
-	 * server call goes through the INJECTED transports (the ReviewConsole
-	 * convention), so /dev/classroom mounts this same component against an
-	 * in-memory store. The transports are thin callers of the 0082 SECURITY
-	 * DEFINER RPCs; nothing here is a boundary.
+	 * The teacher console: courses + sections setup and lifecycle, the shared
+	 * content composer with multi-section publish, and per-section roster (with
+	 * CSV import + in-place corrections) and content management.
+	 *
+	 * Presentation + orchestration only -- every server call goes through the
+	 * INJECTED transports (the ReviewConsole convention), so /dev/classroom
+	 * mounts this same component against an in-memory store. The transports are
+	 * thin callers of the 0082/0083 SECURITY DEFINER RPCs; nothing here is a
+	 * boundary. The content editor itself is ContentComposer, the SAME component
+	 * the class page and the assignment page mount.
 	 */
 	let {
 		ready = true,
 		email,
+		isAdmin = false,
+		attachmentsEnabled = true,
 		initialSections,
 		initialCourses,
 		transports
 	}: {
 		ready?: boolean;
 		email: string;
+		/** Unlocks course editing (0082 makes course metadata admin-only). */
+		isAdmin?: boolean;
+		attachmentsEnabled?: boolean;
 		initialSections: ClassroomSection[];
 		initialCourses: ClassroomCourse[];
 		transports: ClassroomManageTransports;
@@ -53,6 +61,10 @@
 	// svelte-ignore state_referenced_locally
 	let courses = $state<ClassroomCourse[]>([...initialCourses]);
 	const orderedSections = $derived(sortSections(sections));
+	// Archived sections stay in the list (and keep every tool) but drop out of
+	// the publish targets: posting new work into a class that is over is a
+	// mistake, not a workflow.
+	const publishTargets = $derived(orderedSections.filter((s) => s.active !== false));
 
 	// --- Setup card -----------------------------------------------------
 	let newCourseCode = $state('');
@@ -113,125 +125,38 @@
 		setupBusy = false;
 	}
 
-	// --- Composer ---------------------------------------------------------
-	let composerKind = $state<'post' | 'assignment'>('post');
-	let editing = $state<{ kind: 'post' | 'assignment'; id: string; sectionId: string } | null>(null);
-	let postTitle = $state('');
-	let postBody = $state('');
-	let asgTitle = $state('');
-	let asgDescription = $state('');
-	// bind:value on <input type="number"> COERCES to a number (the
-	// ReviewConsole unit-field lesson), so this is string | number and every
-	// read goes through String().
-	let asgPoints = $state<string | number>('');
-	let asgDue = $state('');
-	let asgCategory = $state('');
-	let resources = $state<{ label: string; url: string }[]>([]);
-	let targets = $state<Record<string, boolean>>({});
-	let composerBusy = $state(false);
-	let composerMsg = $state<Msg>(null);
+	// --- Course editing (admin only) --------------------------------------
+	let courseEditId = $state<string | null>(null);
+	let courseCode = $state('');
+	let courseTitle = $state('');
+	let courseActive = $state(true);
+	let courseMsg = $state<Msg>(null);
+	let courseBusy = $state(false);
 
-	const targetIds = $derived(orderedSections.filter((s) => targets[s.id]).map((s) => s.id));
-
-	function resetComposer() {
-		editing = null;
-		postTitle = '';
-		postBody = '';
-		asgTitle = '';
-		asgDescription = '';
-		asgPoints = '';
-		asgDue = '';
-		asgCategory = '';
-		resources = [];
-		composerMsg = null;
+	function startEditCourse(c: ClassroomCourse) {
+		courseEditId = courseEditId === c.id ? null : c.id;
+		courseCode = c.code;
+		courseTitle = c.title;
+		courseActive = c.active;
+		courseMsg = null;
 	}
 
-	function assignmentInput() {
-		const rawPoints = String(asgPoints ?? '').trim();
-		const pts = rawPoints === '' ? null : Number.parseInt(rawPoints, 10);
-		return {
-			title: asgTitle,
-			description: asgDescription,
-			points: Number.isNaN(pts as number) ? null : pts,
-			dueAt: localInputToIso(asgDue),
-			category: asgCategory.trim() || null,
-			resources: resources
-				.map((r) => ({ label: r.label.trim(), url: r.url.trim() }))
-				.filter((r) => r.url !== '')
-		};
-	}
-
-	async function submitComposer(publish: boolean) {
-		if (composerBusy) return;
-		composerBusy = true;
-		composerMsg = null;
-		try {
-			await runSubmit(publish);
-		} finally {
-			// Whatever happens, the buttons come back -- a stuck busy flag is a
-			// silently wedged console (found live: the number-input coercion
-			// throw left both buttons disabled forever).
-			composerBusy = false;
-		}
-	}
-
-	async function runSubmit(publish: boolean) {
-		let res;
-		if (editing) {
-			res =
-				editing.kind === 'post'
-					? await transports.updatePost(editing.id, postBody, postTitle.trim() || null, publish)
-					: await transports.updateAssignment(editing.id, assignmentInput(), publish);
-		} else if (targetIds.length === 0) {
-			res = { ok: false as const, message: 'Pick at least one section to publish to.' };
-		} else {
-			res =
-				composerKind === 'post'
-					? await transports.createPost(targetIds, postBody, postTitle.trim() || null, publish)
-					: await transports.createAssignment(targetIds, assignmentInput(), publish);
-		}
+	async function saveCourse() {
+		if (!courseEditId || courseBusy) return;
+		courseBusy = true;
+		const res = await transports.upsertCourse(courseCode, courseTitle, courseActive, courseEditId);
 		if (res.ok) {
-			const what = (editing?.kind ?? composerKind) === 'post' ? 'Post' : 'Assignment';
-			const where = editing
-				? 'updated'
-				: `${publish ? 'published' : 'saved as a draft'} to ${targetIds.length} section${targetIds.length === 1 ? '' : 's'}`;
-			const text = `${what} ${editing ? (publish ? 'updated and published' : 'updated (draft)') : where}.`;
-			// Reset FIRST, then set the confirmation: resetComposer() clears
-			// composerMsg, so the other order flashes the success away on the
-			// same tick (the coin-desk runLookup lesson).
-			resetComposer();
-			composerMsg = { ok: true, text };
-			if (selectedSectionId) await loadSelectedContent();
+			courseMsg = { ok: true, text: `${courseCode.trim().toUpperCase()} saved.` };
+			courseEditId = null;
+			await refreshSections();
 		} else {
-			composerMsg = { ok: false, text: res.message };
+			courseMsg = { ok: false, text: res.message };
 		}
-	}
-
-	function startEditPost(p: ClassroomPost) {
-		composerKind = 'post';
-		editing = { kind: 'post', id: p.id, sectionId: p.section_id };
-		postTitle = p.title ?? '';
-		postBody = p.body;
-		composerMsg = null;
-		document.getElementById('classroom-composer')?.scrollIntoView({ block: 'start' });
-	}
-
-	function startEditAssignment(a: ClassroomAssignment) {
-		composerKind = 'assignment';
-		editing = { kind: 'assignment', id: a.id, sectionId: a.section_id };
-		asgTitle = a.title;
-		asgDescription = a.description;
-		asgPoints = a.points == null ? '' : String(a.points);
-		asgDue = isoToLocalInput(a.due_at);
-		asgCategory = a.category ?? '';
-		resources = a.resources.map((r) => ({ label: r.label, url: r.url }));
-		composerMsg = null;
-		document.getElementById('classroom-composer')?.scrollIntoView({ block: 'start' });
+		courseBusy = false;
 	}
 
 	// --- Selected section: roster + content -------------------------------
 	let selectedSectionId = $state<string | null>(null);
-	const selectedSection = $derived(sections.find((s) => s.id === selectedSectionId) ?? null);
 	let roster = $state<ClassroomEnrollment[]>([]);
 	let posts = $state<ClassroomPost[]>([]);
 	let assignments = $state<ClassroomAssignment[]>([]);
@@ -247,6 +172,8 @@
 		selectedSectionId = id;
 		panelMsg = null;
 		armDelete = null;
+		sectionEditId = null;
+		armSectionDelete = null;
 		await Promise.all([loadSelectedRoster(), loadSelectedContent()]);
 	}
 
@@ -268,9 +195,125 @@
 		}
 	}
 
-	// Roster add + toggle
+	// --- Composer ---------------------------------------------------------
+	let composerKind = $state<'post' | 'assignment'>('post');
+	let editing = $state<{ kind: 'post' | 'assignment'; id: string; sectionId: string } | null>(null);
+	// Remount key: switching edit targets rebuilds the composer with the right
+	// initial values rather than reaching into it imperatively.
+	const composerKey = $derived(editing ? `${editing.kind}:${editing.id}` : 'new');
+	const editingPost = $derived(
+		editing?.kind === 'post' ? (posts.find((p) => p.id === editing?.id) ?? null) : null
+	);
+	const editingAssignment = $derived(
+		editing?.kind === 'assignment' ? (assignments.find((a) => a.id === editing?.id) ?? null) : null
+	);
+
+	function startEdit(kind: 'post' | 'assignment', id: string, sectionId: string) {
+		editing = { kind, id, sectionId };
+		document.getElementById('classroom-composer')?.scrollIntoView({ block: 'start' });
+	}
+
+	async function onComposerSaved() {
+		editing = null;
+		if (selectedSectionId) await loadSelectedContent();
+		await refreshSections();
+	}
+
+	// --- Section editing / archiving / deletion ---------------------------
+	let sectionEditId = $state<string | null>(null);
+	let editLabel = $state('');
+	let editBlock = $state('');
+	let editTeacher = $state('');
+	let armSectionDelete = $state<string | null>(null);
+	let deleteConfirmText = $state('');
+	let deleteBlocked = $state<string | null>(null);
+
+	function startEditSection(s: ClassroomSection) {
+		sectionEditId = sectionEditId === s.id ? null : s.id;
+		editLabel = s.label;
+		editBlock = s.block ?? '';
+		editTeacher = s.teacher_email;
+		panelMsg = null;
+	}
+
+	async function saveSection(s: ClassroomSection) {
+		if (panelBusy) return;
+		panelBusy = true;
+		const res = await transports.upsertSection(
+			s.course_id,
+			editLabel,
+			editBlock.trim() || null,
+			s.id,
+			editTeacher.trim().toLowerCase() || null
+		);
+		if (res.ok) {
+			panelMsg = { ok: true, text: 'Section saved.' };
+			sectionEditId = null;
+			await refreshSections();
+		} else {
+			panelMsg = { ok: false, text: res.message };
+		}
+		panelBusy = false;
+	}
+
+	async function toggleSectionActive(s: ClassroomSection) {
+		if (panelBusy) return;
+		panelBusy = true;
+		const res = await transports.setSectionActive(s.id, s.active === false);
+		if (res.ok) {
+			panelMsg = {
+				ok: true,
+				text: s.active === false ? 'Section reactivated.' : 'Section archived.'
+			};
+			await refreshSections();
+		} else {
+			panelMsg = { ok: false, text: res.message };
+		}
+		panelBusy = false;
+	}
+
+	/**
+	 * Two-step, and the second step is a TYPED label -- mirrored from the RPC,
+	 * which enforces it server-side, so the button can never be enabled on input
+	 * the database would reject.
+	 */
+	function armDeleteSection(s: ClassroomSection) {
+		if (armSectionDelete === s.id) {
+			armSectionDelete = null;
+			return;
+		}
+		armSectionDelete = s.id;
+		deleteConfirmText = '';
+		deleteBlocked = null;
+	}
+
+	async function confirmDeleteSection(s: ClassroomSection) {
+		if (panelBusy) return;
+		panelBusy = true;
+		deleteBlocked = null;
+		const res = await transports.deleteSection(s.id, deleteConfirmText);
+		if (!res.ok) {
+			panelMsg = { ok: false, text: res.message };
+		} else if (res.data.ok === false) {
+			// The designed path, not an error: the section holds real work, so it
+			// is never deleted. Say exactly what would have been lost and point at
+			// archiving, which keeps all of it.
+			deleteBlocked = sectionDeleteBlockedLabel(res.data);
+		} else {
+			armSectionDelete = null;
+			selectedSectionId = null;
+			panelMsg = { ok: true, text: `Section "${s.label}" deleted.` };
+			await refreshSections();
+		}
+		panelBusy = false;
+	}
+
+	// --- Roster add / edit / toggle ---------------------------------------
 	let addEmail = $state('');
 	let addName = $state('');
+	let rosterEditEmail = $state<string | null>(null);
+	let rosterNewEmail = $state('');
+	let rosterNewName = $state('');
 
 	async function addStudent() {
 		if (!selectedSectionId || panelBusy) return;
@@ -289,6 +332,40 @@
 			await loadSelectedRoster();
 		} else {
 			panelMsg = { ok: false, text: res.message };
+		}
+		panelBusy = false;
+	}
+
+	function startEditEnrollment(e: ClassroomEnrollment) {
+		rosterEditEmail = rosterEditEmail === e.student_email ? null : e.student_email;
+		rosterNewEmail = e.student_email;
+		rosterNewName = e.display_name;
+		panelMsg = null;
+	}
+
+	async function saveEnrollment(e: ClassroomEnrollment) {
+		if (!selectedSectionId || panelBusy) return;
+		panelBusy = true;
+		const res = await transports.updateEnrollment(
+			selectedSectionId,
+			e.student_email,
+			rosterNewEmail.trim().toLowerCase() || null,
+			rosterNewName.trim() || null
+		);
+		if (!res.ok) {
+			panelMsg = { ok: false, text: res.message };
+		} else if (res.data.ok === false) {
+			panelMsg = {
+				ok: false,
+				text:
+					res.data.reason === 'already_enrolled'
+						? `${rosterNewEmail.trim().toLowerCase()} is already on this roster.`
+						: 'That correction was refused.'
+			};
+		} else {
+			panelMsg = { ok: true, text: 'Enrollment updated.' };
+			rosterEditEmail = null;
+			await loadSelectedRoster();
 		}
 		panelBusy = false;
 	}
@@ -377,7 +454,7 @@
 		const res =
 			kind === 'post' ? await transports.deletePost(id) : await transports.deleteAssignment(id);
 		if (!res.ok) panelMsg = { ok: false, text: res.message };
-		if (editing?.id === id) resetComposer();
+		if (editing?.id === id) editing = null;
 		await loadSelectedContent();
 		panelBusy = false;
 	}
@@ -390,6 +467,9 @@
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
+		{#if isAdmin}
+			<a class="btn secondary" href="/classroom/view-as">View as student</a>
+		{/if}
 		<a class="btn secondary" href="/classroom">&lsaquo; My Classes</a>
 		<ProfileMenu />
 	</div>
@@ -472,137 +552,96 @@
 			{#if setupMsg}
 				<p class="feedback" class:ok={setupMsg.ok} class:error={!setupMsg.ok}>{setupMsg.text}</p>
 			{/if}
-		</section>
 
-		<!-- 2. Composer -->
-		<section class="card" id="classroom-composer">
-			<h2>{editing ? `Edit ${editing.kind}` : 'Compose'}</h2>
-			{#if !editing}
-				<div class="kind-toggle" role="tablist" aria-label="Content type">
-					<button
-						type="button"
-						class="kind"
-						class:active={composerKind === 'post'}
-						onclick={() => (composerKind = 'post')}
-					>
-						Announcement
-					</button>
-					<button
-						type="button"
-						class="kind"
-						class:active={composerKind === 'assignment'}
-						onclick={() => (composerKind = 'assignment')}
-					>
-						Assignment
-					</button>
-				</div>
-			{:else}
+			{#if isAdmin}
+				<h3>Edit courses (admin)</h3>
 				<p class="note">
-					Editing the copy in <strong>{sectionTitle(sections.find((s) => s.id === editing?.sectionId) ?? sections[0] ?? { id: '', course_id: '', label: '?', block: null, teacher_email: '', course: null })}</strong>.
-					A multi-section publish made one copy per section; edits apply to this one.
-					<button type="button" class="linklike" onclick={resetComposer}>Cancel editing</button>
+					Course code, title and the active flag are shared catalog metadata, so only a site admin
+					can change them -- a rename lands on every teacher's sections at once.
 				</p>
-			{/if}
-
-			{#if (editing?.kind ?? composerKind) === 'post'}
-				<label>
-					<span>Title (optional)</span>
-					<input type="text" bind:value={postTitle} placeholder="Welcome to class" />
-				</label>
-				<label>
-					<span>Announcement</span>
-					<textarea rows="4" bind:value={postBody} placeholder="Share something with your class..."
-					></textarea>
-				</label>
-			{:else}
-				<label>
-					<span>Title</span>
-					<input type="text" bind:value={asgTitle} placeholder="Bridge sketch" />
-				</label>
-				<label>
-					<span>Instructions (plain text)</span>
-					<textarea rows="5" bind:value={asgDescription} placeholder="What to do, step by step..."
-					></textarea>
-				</label>
-				<div class="field-row">
-					<label>
-						<span>Points</span>
-						<input type="number" min="0" max="10000" bind:value={asgPoints} placeholder="20" />
-					</label>
-					<label>
-						<span>Due date</span>
-						<input type="datetime-local" bind:value={asgDue} />
-					</label>
-					<label>
-						<span>Grading category</span>
-						<input type="text" bind:value={asgCategory} placeholder="Unit Labs" />
-					</label>
-				</div>
-				<div class="resources-editor">
-					<span class="mini-label">Linked materials</span>
-					{#each resources as r, i (i)}
-						<div class="resource-row">
-							<input type="text" placeholder="Label" bind:value={r.label} />
-							<input type="url" placeholder="https://..." bind:value={r.url} />
-							<button
-								type="button"
-								class="btn secondary tiny"
-								aria-label="Remove resource"
-								onclick={() => (resources = resources.filter((_, j) => j !== i))}
-							>
-								&times;
+				<div class="course-rows">
+					{#each courses as c (c.id)}
+						<div class="course-row">
+							<span class="course-main">
+								<span class="course-code">{c.code}</span>
+								<span class="course-title">{c.title}</span>
+								{#if !c.active}<span class="draft-chip">Inactive</span>{/if}
+							</span>
+							<button type="button" class="btn secondary tiny" onclick={() => startEditCourse(c)}>
+								{courseEditId === c.id ? 'Close' : 'Edit'}
 							</button>
 						</div>
-					{/each}
-					<button
-						type="button"
-						class="btn secondary tiny"
-						onclick={() => (resources = [...resources, { label: '', url: '' }])}
-					>
-						+ Add link
-					</button>
-				</div>
-			{/if}
-
-			{#if !editing}
-				<div class="target-picker">
-					<span class="mini-label">Publish to</span>
-					{#if orderedSections.length === 0}
-						<p class="note">Create a section above first.</p>
-					{:else}
-						<div class="target-list">
-							{#each orderedSections as s (s.id)}
-								<label class="target-check">
-									<input type="checkbox" bind:checked={targets[s.id]} />
-									<span>{sectionTitle(s)}</span>
+						{#if courseEditId === c.id}
+							<form
+								class="inline-form"
+								onsubmit={(e) => {
+									e.preventDefault();
+									saveCourse();
+								}}
+							>
+								<label>
+									<span>Code</span>
+									<input type="text" bind:value={courseCode} required />
 								</label>
-							{/each}
-						</div>
-					{/if}
+								<label>
+									<span>Title</span>
+									<input type="text" bind:value={courseTitle} required />
+								</label>
+								<label class="check-row">
+									<input type="checkbox" bind:checked={courseActive} />
+									<span>Active</span>
+								</label>
+								<button class="btn tiny" type="submit" disabled={courseBusy}>Save course</button>
+							</form>
+						{/if}
+					{/each}
 				</div>
-			{/if}
-
-			<div class="composer-actions">
-				<button class="btn" type="button" disabled={composerBusy} onclick={() => submitComposer(true)}>
-					{editing ? 'Save & publish' : 'Publish'}
-				</button>
-				<button
-					class="btn secondary"
-					type="button"
-					disabled={composerBusy}
-					onclick={() => submitComposer(false)}
-				>
-					Save draft
-				</button>
-			</div>
-			{#if composerMsg}
-				<p class="feedback" class:ok={composerMsg.ok} class:error={!composerMsg.ok}>
-					{composerMsg.text}
-				</p>
+				{#if courseMsg}
+					<p class="feedback" class:ok={courseMsg.ok} class:error={!courseMsg.ok}>{courseMsg.text}</p>
+				{/if}
 			{/if}
 		</section>
 
-		<!-- 3. Sections: roster + content -->
+		<!-- 2. Composer (the SHARED editor, also mounted on the class pages) -->
+		<section class="card" id="classroom-composer">
+			<h2>{editing ? `Edit ${editing.kind}` : 'Compose'}</h2>
+			{#if editing}
+				<p class="note">
+					Editing the copy in
+					<strong>
+						{sectionTitle(
+							sections.find((s) => s.id === editing?.sectionId) ?? {
+								id: '',
+								course_id: '',
+								label: '?',
+								block: null,
+								teacher_email: '',
+								course: null
+							}
+						)}
+					</strong>.
+					A multi-section publish made one copy per section; edits apply to this one.
+					<button type="button" class="linklike" onclick={() => (editing = null)}>
+						Cancel editing
+					</button>
+				</p>
+			{/if}
+			{#key composerKey}
+				<ContentComposer
+					mode={editing ? 'edit' : 'create'}
+					bind:kind={composerKind}
+					sections={editing ? [] : publishTargets}
+					post={editingPost}
+					assignment={editingAssignment}
+					attachments={editingPost?.attachments ?? editingAssignment?.attachments ?? []}
+					{transports}
+					{attachmentsEnabled}
+					onsaved={onComposerSaved}
+				/>
+			{/key}
+		</section>
+
+		<!-- 3. Sections: settings, roster, content -->
 		<section class="card">
 			<h2>Your sections</h2>
 			{#if orderedSections.length === 0}
@@ -616,6 +655,7 @@
 						<button type="button" class="section-head" onclick={() => selectSection(s.id)}>
 							<span class="section-name">{sectionTitle(s)}</span>
 							{#if s.block}<span class="section-block-chip">{s.block}</span>{/if}
+							{#if s.active === false}<span class="draft-chip">Archived</span>{/if}
 							<span class="section-caret">{selectedSectionId === s.id ? '▾' : '▸'}</span>
 						</button>
 
@@ -625,6 +665,86 @@
 									<p class="feedback" class:ok={panelMsg.ok} class:error={!panelMsg.ok}>
 										{panelMsg.text}
 									</p>
+								{/if}
+
+								<h3>Section settings</h3>
+								<div class="section-actions">
+									<button type="button" class="btn secondary tiny" onclick={() => startEditSection(s)}>
+										{sectionEditId === s.id ? 'Close' : 'Edit details'}
+									</button>
+									<button
+										type="button"
+										class="btn secondary tiny"
+										disabled={panelBusy}
+										onclick={() => toggleSectionActive(s)}
+									>
+										{s.active === false ? 'Reactivate' : 'Archive'}
+									</button>
+									<button
+										type="button"
+										class="btn secondary tiny danger"
+										disabled={panelBusy}
+										onclick={() => armDeleteSection(s)}
+									>
+										{armSectionDelete === s.id ? 'Cancel delete' : 'Delete section'}
+									</button>
+								</div>
+
+								{#if sectionEditId === s.id}
+									<form
+										class="inline-form"
+										onsubmit={(e) => {
+											e.preventDefault();
+											saveSection(s);
+										}}
+									>
+										<label>
+											<span>Section label</span>
+											<input type="text" bind:value={editLabel} required />
+										</label>
+										<label>
+											<span>Block / period</span>
+											<input type="text" bind:value={editBlock} />
+										</label>
+										<label>
+											<span>Teacher of record</span>
+											<input type="email" bind:value={editTeacher} required />
+										</label>
+										<p class="note">
+											Handing the section to another @boscotech.edu teacher removes it from
+											your own list -- only they (or an admin) can hand it back.
+										</p>
+										<button class="btn tiny" type="submit" disabled={panelBusy}>Save section</button>
+									</form>
+								{/if}
+
+								{#if armSectionDelete === s.id}
+									<div class="danger-zone">
+										<p class="note">
+											Deleting a section is only possible when it is completely empty. If it
+											holds posts, assignments or students, archive it instead -- that keeps
+											every record and takes it out of the publish targets.
+										</p>
+										<label>
+											<span>Type the section label ("{s.label}") to confirm</span>
+											<input type="text" bind:value={deleteConfirmText} placeholder={s.label} />
+										</label>
+										<button
+											class="btn tiny danger"
+											type="button"
+											disabled={panelBusy ||
+												deleteConfirmText.trim().toLowerCase() !== s.label.trim().toLowerCase()}
+											onclick={() => confirmDeleteSection(s)}
+										>
+											Delete this section
+										</button>
+										{#if deleteBlocked}
+											<p class="feedback error">
+												Not deleted -- this section still holds {deleteBlocked}. Archive it
+												instead, or remove that content first.
+											</p>
+										{/if}
+									</div>
 								{/if}
 
 								<h3>Roster</h3>
@@ -638,15 +758,46 @@
 											<div class="roster-row" class:inactive={!e.active}>
 												<span class="roster-name">{e.display_name}</span>
 												<span class="roster-email">{e.student_email}</span>
-												<button
-													type="button"
-													class="btn secondary tiny"
-													disabled={panelBusy}
-													onclick={() => toggleActive(e)}
-												>
-													{e.active ? 'Deactivate' : 'Reactivate'}
-												</button>
+												<span class="roster-actions">
+													<button
+														type="button"
+														class="btn secondary tiny"
+														disabled={panelBusy}
+														onclick={() => startEditEnrollment(e)}
+													>
+														{rosterEditEmail === e.student_email ? 'Close' : 'Edit'}
+													</button>
+													<button
+														type="button"
+														class="btn secondary tiny"
+														disabled={panelBusy}
+														onclick={() => toggleActive(e)}
+													>
+														{e.active ? 'Deactivate' : 'Reactivate'}
+													</button>
+												</span>
 											</div>
+											{#if rosterEditEmail === e.student_email}
+												<form
+													class="inline-form"
+													onsubmit={(ev) => {
+														ev.preventDefault();
+														saveEnrollment(e);
+													}}
+												>
+													<label>
+														<span>Email (fix a typo)</span>
+														<input type="email" bind:value={rosterNewEmail} required />
+													</label>
+													<label>
+														<span>Display name</span>
+														<input type="text" bind:value={rosterNewName} />
+													</label>
+													<button class="btn tiny" type="submit" disabled={panelBusy}>
+														Save correction
+													</button>
+												</form>
+											{/if}
 										{/each}
 									</div>
 								{/if}
@@ -720,10 +871,15 @@
 														{p.title ?? p.body.slice(0, 60)}
 														{#if !p.published}<span class="draft-chip">Draft</span>{/if}
 													</span>
-													<span class="content-when">{shortWhen(p.created_at)}</span>
+													<span class="content-when">
+														{shortWhen(p.created_at)}
+														{#if p.attachments?.length}
+															&nbsp;&middot; {p.attachments.length} file{p.attachments.length === 1 ? '' : 's'}
+														{/if}
+													</span>
 												</span>
 												<span class="content-actions">
-													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEditPost(p)}>Edit</button>
+													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEdit('post', p.id, p.section_id)}>Edit</button>
 													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => togglePostPublished(p)}>
 														{p.published ? 'Unpublish' : 'Publish'}
 													</button>
@@ -752,10 +908,13 @@
 														Due {formatDue(a.due_at)}
 														{#if a.points != null}&nbsp;&middot; {a.points} pts{/if}
 														{#if a.category}&nbsp;&middot; {a.category}{/if}
+														{#if a.attachments?.length}
+															&nbsp;&middot; {a.attachments.length} file{a.attachments.length === 1 ? '' : 's'}
+														{/if}
 													</span>
 												</span>
 												<span class="content-actions">
-													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEditAssignment(a)}>Edit</button>
+													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEdit('assignment', a.id, a.section_id)}>Edit</button>
 													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => toggleAssignmentPublished(a)}>
 														{a.published ? 'Unpublish' : 'Publish'}
 													</button>
@@ -860,8 +1019,7 @@
 		gap: 0.25rem;
 		margin-bottom: 0.5rem;
 	}
-	label > span,
-	.mini-label {
+	label > span {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
@@ -888,75 +1046,69 @@
 	select:focus {
 		outline: 1px solid var(--focus-ring);
 	}
-	.field-row {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-		gap: 0.6rem;
-	}
-	.kind-toggle {
-		display: flex;
-		gap: 0.4rem;
-		margin-bottom: 0.8rem;
-	}
-	.kind {
-		appearance: none;
-		background: var(--bg2);
-		border: 1px solid var(--line);
-		border-radius: 999px;
-		color: var(--dim);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		padding: 0.3rem 0.9rem;
-		cursor: pointer;
-	}
-	.kind.active {
-		color: var(--green);
-		border-color: var(--line-strong);
-	}
-	.resources-editor {
+	.inline-form {
 		display: flex;
 		flex-direction: column;
-		gap: 0.4rem;
-		margin: 0.4rem 0 0.6rem;
+		gap: 0.2rem;
+		padding: 0.6rem 0.7rem;
+		margin: 0.3rem 0 0.6rem;
+		border: 1px solid var(--line-strong);
+		border-radius: 6px;
+		background: var(--bg2);
 	}
-	.resource-row {
-		display: grid;
-		grid-template-columns: minmax(6rem, 1fr) minmax(8rem, 2fr) auto;
-		gap: 0.4rem;
-		align-items: center;
+	.inline-form .btn {
+		align-self: flex-start;
 	}
-	.target-picker {
-		margin: 0.6rem 0;
-	}
-	.target-list {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.4rem 0.9rem;
-		margin-top: 0.35rem;
-	}
-	.target-check {
-		display: flex;
+	.check-row {
 		flex-direction: row;
 		align-items: center;
-		gap: 0.35rem;
-		margin: 0;
-		cursor: pointer;
+		gap: 0.4rem;
 	}
-	.target-check input {
+	.check-row input {
 		width: auto;
 		accent-color: var(--green);
 	}
-	.target-check span {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
-		color: var(--white);
-		letter-spacing: 0;
-	}
-	.composer-actions {
+	.section-actions {
 		display: flex;
+		gap: 0.35rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.4rem;
+	}
+	.danger-zone {
+		border: 1px solid var(--crimson);
+		border-radius: 6px;
+		padding: 0.6rem 0.7rem;
+		margin-bottom: 0.6rem;
+	}
+	.course-rows {
+		display: flex;
+		flex-direction: column;
+	}
+	.course-row {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		padding: 0.35rem 0;
+		border-bottom: 1px solid var(--line);
+	}
+	.course-main {
+		display: flex;
+		align-items: center;
 		gap: 0.5rem;
 		flex-wrap: wrap;
-		margin-top: 0.4rem;
+		min-width: 0;
+	}
+	.course-code {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--gold);
+	}
+	.course-title {
+		font-size: 0.9rem;
+	}
+	.course-row button {
+		margin-left: auto;
 	}
 	.btn.tiny,
 	.btn.secondary.tiny {
@@ -988,6 +1140,7 @@
 		color: var(--white);
 		cursor: pointer;
 		text-align: left;
+		flex-wrap: wrap;
 	}
 	.section-name {
 		font-weight: 700;
@@ -1039,8 +1192,11 @@
 		color: var(--dim);
 		overflow-wrap: anywhere;
 	}
-	.roster-row button {
+	.roster-actions {
 		margin-left: auto;
+		display: flex;
+		gap: 0.3rem;
+		flex-wrap: wrap;
 	}
 	.add-row {
 		display: grid;
@@ -1123,12 +1279,12 @@
 		justify-content: center;
 	}
 	@media (max-width: 560px) {
-		.add-row,
-		.resource-row {
+		.add-row {
 			grid-template-columns: 1fr;
 		}
 		.content-actions,
-		.roster-row button {
+		.roster-actions,
+		.course-row button {
 			margin-left: 0;
 		}
 	}

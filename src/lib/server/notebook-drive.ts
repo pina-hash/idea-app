@@ -277,21 +277,99 @@ export async function renameNotebookFile(fileId: string, filename: string): Prom
 }
 
 /**
- * Uploads one photo into the notebook shared-drive folder and returns the
- * Drive file id. Throws with a readable message on any failure; the caller
- * decides how to surface it.
+ * Finds (or creates) a folder by name inside `parentId`, defaulting to the
+ * notebook folder, and returns its id.
+ *
+ * WHY IT EXISTS: the classroom module keeps its attachments in their own
+ * subfolder of the same shared-drive folder, so the admin browsing that folder
+ * by eye is not looking at notebook photos and lesson handouts interleaved. It
+ * is create-if-missing rather than another hardcoded id because the folder does
+ * not exist yet on any deployment and minting one by hand per environment is a
+ * setup step that will be forgotten.
+ *
+ * Cached per (parent, name) for the process: folder ids are stable, and a cold
+ * serverless invocation paying one extra list call is cheaper than every upload
+ * paying it. Both calls carry supportsAllDrives + includeItemsFromAllDrives,
+ * without which a shared-drive-nested folder is invisible to the plain
+ * endpoints (the module header's rule, which applies to LOOKUPS too -- a search
+ * missing that flag silently returns nothing and this would create a duplicate
+ * folder on every call).
  */
-export async function uploadNotebookPhoto(opts: {
+const folderCache = new Map<string, string>();
+
+export async function ensureDriveSubfolder(name: string, parentId?: string): Promise<string> {
+	if (!driveConfigured()) {
+		throw new Error('The Drive integration is not configured.');
+	}
+	const parent = parentId || notebookFolderId();
+	const cacheKey = `${parent}/${name}`;
+	const cached = folderCache.get(cacheKey);
+	if (cached) return cached;
+
+	const escaped = name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+	const query =
+		`'${parent}' in parents and name = '${escaped}' ` +
+		`and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+	const search = `${DRIVE_ENDPOINTS.files}?q=${encodeURIComponent(query)}` +
+		'&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id)&pageSize=1';
+
+	const listAttempt = (token: string) =>
+		fetch(search, { headers: { authorization: `Bearer ${token}` } });
+	let res = await listAttempt(await accessToken());
+	if (res.status === 401) res = await listAttempt(await accessToken(true));
+	if (res.ok) {
+		const body = (await res.json()) as { files?: { id?: string }[] };
+		const found = body.files?.[0]?.id;
+		if (found) {
+			folderCache.set(cacheKey, found);
+			return found;
+		}
+	}
+
+	const createAttempt = (token: string) =>
+		fetch(`${DRIVE_ENDPOINTS.files}?supportsAllDrives=true&fields=id`, {
+			method: 'POST',
+			headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name,
+				mimeType: 'application/vnd.google-apps.folder',
+				parents: [parent]
+			})
+		});
+	let made = await createAttempt(await accessToken());
+	if (made.status === 401) made = await createAttempt(await accessToken(true));
+	if (!made.ok) {
+		const detail = (await made.text().catch(() => '')).slice(0, 300);
+		throw new Error(`Drive folder create failed (${made.status}): ${detail}`);
+	}
+	const created = (await made.json()) as { id?: string };
+	if (!created.id) throw new Error('Drive folder create returned no id.');
+	folderCache.set(cacheKey, created.id);
+	return created.id;
+}
+
+/**
+ * Uploads one file into a shared-drive folder (the notebook folder by default)
+ * and returns the Drive file id. The generic form behind uploadNotebookPhoto:
+ * same auth, same token cache, same one-shot 401 re-mint, same
+ * supportsAllDrives -- the classroom attachment route reuses it rather than
+ * standing up a second Drive client.
+ */
+export async function uploadDriveFile(opts: {
 	bytes: Uint8Array;
 	mimeType: string;
 	filename: string;
+	parentId?: string;
 }): Promise<string> {
 	if (!driveConfigured()) {
 		throw new Error('The notebook Drive integration is not configured.');
 	}
 
 	const boundary = `nb-${randomUUID()}`;
-	const metadata = JSON.stringify({ name: opts.filename, parents: [notebookFolderId()] });
+	const metadata = JSON.stringify({
+		name: opts.filename,
+		parents: [opts.parentId || notebookFolderId()]
+	});
 	const head = new TextEncoder().encode(
 		`--${boundary}\r\ncontent-type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
 			`--${boundary}\r\ncontent-type: ${opts.mimeType}\r\n\r\n`
@@ -327,6 +405,15 @@ export async function uploadNotebookPhoto(opts: {
 		throw new Error('Drive upload returned no file id.');
 	}
 	return uploaded.id;
+}
+
+/** The notebook's own upload: uploadDriveFile into the notebook folder. */
+export async function uploadNotebookPhoto(opts: {
+	bytes: Uint8Array;
+	mimeType: string;
+	filename: string;
+}): Promise<string> {
+	return uploadDriveFile(opts);
 }
 
 /**
@@ -375,6 +462,22 @@ export interface NotebookFileDownload {
  * straight through.
  */
 export async function downloadNotebookFile(fileId: string): Promise<NotebookFileDownload> {
+	return downloadDriveFile(fileId, SERVABLE_IMAGE_TYPES);
+}
+
+/**
+ * The generic download behind downloadNotebookFile. `servable` is the caller's
+ * OWN allowlist of content types it is willing to echo back, because what is
+ * safe to serve depends on the surface: the notebook only ever holds photos,
+ * while a classroom attachment is legitimately a PDF. Anything outside the
+ * caller's list is typed application/octet-stream (inert) rather than trusted
+ * from Drive -- these bytes leave from the app's own origin, where a response
+ * typed text/html would run as same-origin script.
+ */
+export async function downloadDriveFile(
+	fileId: string,
+	servable: ReadonlySet<string>
+): Promise<NotebookFileDownload> {
 	if (!driveConfigured()) {
 		throw new Error('The notebook Drive integration is not configured.');
 	}
@@ -406,7 +509,7 @@ export async function downloadNotebookFile(fileId: string): Promise<NotebookFile
 	const raw = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
 	return {
 		body: res.body,
-		contentType: SERVABLE_IMAGE_TYPES.has(raw) ? raw : 'application/octet-stream',
+		contentType: servable.has(raw) ? raw : 'application/octet-stream',
 		contentLength: res.headers.get('content-length')
 	};
 }
@@ -416,6 +519,10 @@ export async function downloadNotebookFile(fileId: string): Promise<NotebookFile
  * follow-up RPC insert fails. Swallows every error: cleanup must never mask
  * the original failure, and a stray file in the shared drive is harmless.
  */
+export async function deleteDriveFile(fileId: string): Promise<void> {
+	return deleteNotebookFile(fileId);
+}
+
 export async function deleteNotebookFile(fileId: string): Promise<void> {
 	try {
 		if (!driveConfigured() || !fileId) return;
