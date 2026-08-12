@@ -435,19 +435,10 @@ rule is a direct transcription of
     reads the current tier, charges `40 * current tier` (1->2 = 40i¢,
     2->3 = 80i¢, ...; per both source docs' own worked examples, which their
     "40i¢ x new tier" prose shorthand does not literally match -- the
-    examples are the authority), and persists the new tier. **The wage tier
-    is currently DECORATIVE, not consulted anywhere.** `weekly_wage` is a
-    plain `flat` category priced at 1i¢ regardless of tier, and no code path
-    -- generic or dedicated -- reads `coin_wage_tiers` when logging a
-    Weekly Wage award. A Pay Raise purchase records a real cost and a real
-    tier bump, but nothing yet pays it out. **Re-confirmed on a 2026-08 audit
-    pass, now that `/coin-desk` (the entry tool this gap used to be attributed
-    to not existing yet) is real and shipped:** the gap is still there.
-    `/coin-desk`'s Weekly Wage entry reads `wage_tier` only to preview a Pay
-    Raise's cost, never to size a Weekly Wage award. Making the wage
-    tier-aware (paying `1i¢ x tier`, or whatever the intended scaling is) is
-    real, scoped, still-undone work -- not a side effect of the entry tool
-    not existing, since it now does.
+    examples are the authority), and persists the new tier. **The tier is
+    what Weekly Wage is PAID AT since `0087`, see "Weekly Wage pays the
+    student's own tier" below; it was decorative for six migrations before
+    that.**
   - **Contract Completion / Competition Winnings:** `variable` pricing --
     the admin enters the whole amount at logging time, never a lookup, per
     the prompt's own instruction.
@@ -1636,6 +1627,49 @@ existing exports are untouched; nothing deactivates the Sheets system.
   never been applied anywhere, and the real end-to-end run (live pull
   through the deployed endpoint, real commit, real refunds) is a
   deploy-then-verify step for an admin session on ideabosco.com.
+
+### Weekly Wage pays the student's own tier (`0087`)
+
+Migration `0087_coin_weekly_wage_tier.sql` (apply manually after `0086`)
+closes a gap open since `0070`: `coin_wage_tiers` was real and
+`coin_log_pay_raise` charged a real cost and persisted a real tier bump, but
+nothing ever paid it out -- `weekly_wage` stayed a plain `flat` 1i&cent;
+category regardless of tier, on every code path, generic or dedicated. A
+2026-08 audit pass re-confirmed the gap was still there even once `/coin-desk`
+existed (its Weekly Wage entry read `wage_tier` only to preview a Pay Raise's
+cost, never to size a Weekly Wage award).
+
+- **The stored `amount` stays the BASE rate; the tier multiplies it.** The
+  source docs' Pay Raise pricing ("a permanent +1i&cent;/week against a
+  ~130-week horizon") only makes sense if tier 1 pays the 1i&cent; base and
+  each raise adds another 1i&cent;/week -- i.e. the rate IS `base x tier`, not
+  a flat 1i&cent; regardless. Re-pricing the base later needs no schema
+  change: `coin_categories.amount` for `weekly_wage` is still just "1".
+- **Implemented as a special case inside the `flat` branch of
+  `coin_log_transaction` (0070's generic RPC), not a new `pricing_model`, a
+  `formula` category, or a dedicated RPC.** `isBulkEligible`
+  (`src/lib/coin-desk/sections.ts`) only admits flat/range/variable for bulk
+  logging, and `coin_bulk_log_section` (0073) reimplements no pricing at all
+  -- it just calls `coin_log_transaction` once per student. Keeping Weekly
+  Wage `flat` means a section-wide Weekly Wage log pays each student at
+  THEIR OWN tier in one round trip, for free, which a single
+  "amount typed once for the section" bulk model could never express
+  otherwise. Mirrors how 0070 already special-cases `eating_pass` /
+  `eating_violation` by category id in the same function.
+- **No `coin_wage_tiers` row means tier 1**, and the function does not
+  provision one on a Weekly Wage log -- the row is owned by
+  `coin_log_pay_raise` alone; deriving "no row = base rate" is correct and
+  needs no write.
+- The RPC response gains a `wage_tier` field (null for every other category)
+  so a caller can show what rate was actually applied without a second read.
+  `src/lib/coin-desk.ts` exports `WEEKLY_WAGE_CATEGORY_ID` +
+  `weeklyWagePreview()` so `LogView.svelte`'s flat-amount preview (single
+  student and section mode) and the dev harness's `fake-ledger.ts` mirror the
+  same math instead of re-deriving it.
+- **NOT verified: the live Supabase project** -- same placeholder-`.env`
+  caveat as every other coin-economy migration; 0087 has never been applied
+  anywhere. Verified via `/dev/coin-desk` (`fake-ledger.ts`'s flat-pricing
+  branch mirrors the tier multiply) and by reading the RPC body directly.
 
 ## 2026-27 curriculum
 

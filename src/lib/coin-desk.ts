@@ -153,6 +153,26 @@ export function payRaisePreview(currentTier: number): number {
 	return 40 * currentTier;
 }
 
+/**
+ * The one category id whose flat `amount` is a BASE rate rather than the whole
+ * price: Weekly Wage pays base x the student's own wage tier, which is what a
+ * Pay Raise buys (0084). Named here so the UI and the fake ledger both branch
+ * on one constant instead of a loose string.
+ */
+export const WEEKLY_WAGE_CATEGORY_ID = 'weekly_wage';
+
+/**
+ * Preview only -- coin_log_transaction (0084) reads the tier itself and its
+ * answer is always the authoritative one. A student with no coin_wage_tiers
+ * row is tier 1, so this floors at 1 exactly like the SQL does.
+ */
+export function weeklyWagePreview(
+	baseAmount: number | null | undefined,
+	tier: number | null | undefined
+): number {
+	return (baseAmount ?? 0) * Math.max(1, tier ?? 1);
+}
+
 export interface StudentSuggestion {
 	id: string;
 	email: string;

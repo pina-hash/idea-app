@@ -1072,6 +1072,13 @@ async function handleRpc(
 		let signed: number | undefined;
 		if (cat.pricing_model === 'flat') {
 			magnitude = cat.amount ?? 0;
+			// Mirrors 0084: Weekly Wage's stored amount is a BASE rate the
+			// student's own wage tier multiplies. Nested here rather than in the
+			// bulk handler for the same reason the SQL puts it here -- the bulk
+			// handler recurses into this case, so it inherits per-student tiers.
+			if (cat.id === 'weekly_wage') {
+				magnitude = (cat.amount ?? 0) * Math.max(1, s.wageTier ?? 1);
+			}
 		} else if (cat.pricing_model === 'range') {
 			const amt = Number(params.p_amount);
 			if (!Number.isFinite(amt) || amt < (cat.min_amount ?? 0) || amt > (cat.max_amount ?? 0)) {

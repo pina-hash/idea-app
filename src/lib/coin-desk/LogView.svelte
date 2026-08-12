@@ -12,6 +12,8 @@
 		sanitizeSearchTerm,
 		studentLabel,
 		threeDPrintingPreview,
+		weeklyWagePreview,
+		WEEKLY_WAGE_CATEGORY_ID,
 		type CoinCategory,
 		type StudentSuggestion
 	} from '$lib/coin-desk';
@@ -576,7 +578,29 @@
 
 {#snippet amountFields(cat: CoinCategory)}
 	{#if cat.pricing_model === 'flat'}
-		<p class="preview">Fixed amount: {cat.amount}i¢</p>
+		{#if cat.id === WEEKLY_WAGE_CATEGORY_ID}
+			<!--
+				Weekly Wage's stored amount is a BASE rate the student's own wage
+				tier multiplies (0087). In section mode there is no single tier to
+				preview -- each student is paid at theirs, which is exactly why the
+				bulk logger nests into coin_log_transaction per student.
+			-->
+			{#if logMode === 'section'}
+				<p class="preview">
+					{cat.amount}i&cent; x each student's own wage tier. Paid per student, so a
+					raised tier is honored without splitting the section.
+				</p>
+			{:else if lookup}
+				<p class="preview">
+					Amount: {weeklyWagePreview(cat.amount, lookup.wage_tier)}i&cent;
+					({cat.amount}i&cent; base x wage tier {lookup.wage_tier})
+				</p>
+			{:else}
+				<p class="preview">{cat.amount}i&cent; x the student's wage tier.</p>
+			{/if}
+		{:else}
+			<p class="preview">Fixed amount: {cat.amount}i¢</p>
+		{/if}
 	{:else if cat.pricing_model === 'range'}
 		<div class="field-row">
 			<label for="range-input">
