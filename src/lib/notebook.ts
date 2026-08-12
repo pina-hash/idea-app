@@ -46,6 +46,12 @@ export interface NotebookEntry {
 	id: string;
 	session_id: string | null;
 	section_id: string | null;
+	/**
+	 * The student's own filing (0088), or null for unfiled. Organization only:
+	 * nothing about who may read an entry, what it counts for, or how it is
+	 * reviewed depends on it -- see $lib/notebook-folders.
+	 */
+	folder_id: string | null;
 	custom_label: string | null;
 	upload_timestamp: string;
 	status: NotebookStatus;
@@ -334,4 +340,6 @@ export type NoteSaveResult = { ok: true } | { ok: false; error: string };
 export interface NotePayload {
 	content: TiptapNode;
 	custom_label: string | null;
+	/** Which folder to file it into (0088); null is Unfiled. */
+	folder_id: string | null;
 }

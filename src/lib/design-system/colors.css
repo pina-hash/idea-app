@@ -71,4 +71,22 @@
 	--nb-ok: color-mix(in srgb, var(--teal) 72%, #0e2417); /* success text on light */
 	--nb-error: color-mix(in srgb, var(--crimson) 76%, #2b100d); /* error text on light */
 	--nb-warn: color-mix(in srgb, var(--amber) 78%, #2b1a08); /* warning text on light */
+
+	/* Folder colours (0088). A student's own filing tags, so this is the one
+	   --nb-* set that is DECORATIVE rather than semantic -- it must never be
+	   read as status, and the six are picked to sit quietly on paper at
+	   readable contrast (all >= 4.5:1 on --nb-bg) while staying clearly apart
+	   from each other. The names mirror the CHECK constraint in 0088 and the
+	   FOLDER_COLORS list in $lib/notebook-folders; edit all three together.
+	   `gold` is deliberately --nb-accent-ink rather than a seventh hue: a
+	   folder a student wants to stand out should borrow the platform thread,
+	   not compete with it. -------------------------------------------------- */
+	--nb-folder-slate: #5b6672;
+	--nb-folder-gold: var(--nb-accent-ink);
+	--nb-folder-sage: #55704c;
+	--nb-folder-clay: #9c5334;
+	--nb-folder-sky: #38668f;
+	--nb-folder-plum: #74497a;
+	/* The fallback for an unfiled entry and for a folder saved with no colour. */
+	--nb-folder-none: var(--nb-ink-faint);
 }

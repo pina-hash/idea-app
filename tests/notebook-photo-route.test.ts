@@ -50,6 +50,15 @@ let drive: Server;
 const PHOTO_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0xff, 0xd9]);
 /** A file id the mock Drive deliberately fails, to exercise the 502 branch. */
 const BROKEN_FILE_ID = 'drive-file-that-drive-cannot-serve';
+/**
+ * DIFFERENT bytes from PHOTO_BYTES, so a ?size=thumb response can be told
+ * apart from the full-size one rather than merely counted.
+ */
+const THUMB_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 42, 42, 0xff, 0xd9]);
+/** A file Drive has not rendered a thumbnail for yet -- the fallback case. */
+const NO_THUMB_FILE_ID = 'drive-file-with-no-rendition-yet';
+/** Every thumbnail path the route actually fetched, for the size assertion. */
+const thumbRequests: string[] = [];
 
 let alice: SeededUser; // owns the entry under test
 let bob: SeededUser; // a different student, no relationship to it whatsoever
@@ -59,6 +68,7 @@ let admin: SeededUser; // the 0067 chair tier
 
 let alicePhotoId: string; // the photo every case below asks for
 let alicePhotoBrokenId: string; // same entry, but its file id 500s at Drive
+let alicePhotoNoThumbId: string; // same entry, but Drive has no rendition for it
 let bobPhotoId: string; // bob's own photo, for the mirror-image check
 
 beforeAll(async () => {
@@ -70,11 +80,40 @@ beforeAll(async () => {
 			res.end(JSON.stringify({ access_token: 'test-access-token', expires_in: 3600 }));
 			return;
 		}
+		// The rendition Drive generates for an image, fetched by the ?size=thumb
+		// branch. Served from its own path so a test can tell which of the two
+		// the route actually asked for. A PREFIX match, because the route
+		// rewrites Drive's own `=s220` size suffix onto the path before
+		// fetching -- thumbRequests records what it settled on.
+		if (url.pathname.startsWith('/thumb')) {
+			thumbRequests.push(url.pathname);
+			res.writeHead(200, {
+				'content-type': 'image/jpeg',
+				'content-length': String(THUMB_BYTES.length)
+			});
+			res.end(Buffer.from(THUMB_BYTES));
+			return;
+		}
 		if (url.pathname.startsWith('/files/')) {
 			const fileId = decodeURIComponent(url.pathname.slice('/files/'.length));
 			if (fileId === BROKEN_FILE_ID) {
 				res.writeHead(500, { 'content-type': 'text/plain' });
 				res.end('drive is having a moment');
+				return;
+			}
+			// A metadata read (no alt=media) is the thumbnail lookup. Every file
+			// reports a thumbnailLink EXCEPT NO_THUMB_FILE_ID, which stands for
+			// the ordinary case of a photo Drive has not rendered yet.
+			if (!url.searchParams.has('alt')) {
+				const port = (drive.address() as AddressInfo).port;
+				res.writeHead(200, { 'content-type': 'application/json' });
+				res.end(
+					JSON.stringify(
+						fileId === NO_THUMB_FILE_ID
+							? {}
+							: { thumbnailLink: `http://127.0.0.1:${port}/thumb=s220` }
+					)
+				);
 				return;
 			}
 			res.writeHead(200, {
@@ -144,6 +183,13 @@ beforeAll(async () => {
 	);
 	alicePhotoBrokenId = aliceBroken[0].id;
 
+	const { rows: aliceNoThumb } = await db.sql<{ id: string }>(
+		`insert into public.notebook_entry_photos (entry_id, drive_file_id, variant, sequence_order)
+		 values ($1, $2, 'original', 3) returning id`,
+		[aliceEntry[0].id, NO_THUMB_FILE_ID]
+	);
+	alicePhotoNoThumbId = aliceNoThumb[0].id;
+
 	const { rows: bobEntry } = await db.sql<{ id: string }>(
 		`insert into public.notebook_entries (student_id, section_id, custom_label)
 		 values ($1, $2, 'Bob notes') returning id`,
@@ -204,10 +250,15 @@ function supabaseFor(userId: string) {
 	};
 }
 
-/** Calls the REAL route handler the way SvelteKit would. */
-function callRoute(photoId: string, userId: string | null): Promise<Response> {
+/**
+ * Calls the REAL route handler the way SvelteKit would -- `url` included,
+ * because a real RequestEvent always carries one and the route reads its
+ * query for the ?size=thumb branch.
+ */
+function callRoute(photoId: string, userId: string | null, query = ''): Promise<Response> {
 	return (GET as unknown as (event: unknown) => Promise<Response>)({
 		params: { photo_id: photoId },
+		url: new URL(`http://localhost/api/notebook/photo/${photoId}${query}`),
 		locals: {
 			supabase: userId ? supabaseFor(userId) : null,
 			claims: userId ? { sub: userId, role: 'authenticated' } : null
@@ -285,6 +336,7 @@ describe('GET /api/notebook/photo/[photo_id]', () => {
 		// route must reject the shape first.
 		const res = await (GET as unknown as (event: unknown) => Promise<Response>)({
 			params: { photo_id: 'not-a-uuid' },
+			url: new URL('http://localhost/api/notebook/photo/not-a-uuid'),
 			locals: {
 				supabase: {
 					from() {
@@ -308,5 +360,48 @@ describe('GET /api/notebook/photo/[photo_id]', () => {
 	it('still 404s that same broken photo for a stranger, before reaching Drive', async () => {
 		const res = await callRoute(alicePhotoBrokenId, bob.id);
 		expect(res.status).toBe(404);
+	});
+});
+
+/**
+ * ?size=thumb (0088) serves Drive's own small rendition, for the collapsed
+ * feed's tiles. The claim worth pinning is not that it is smaller -- it is
+ * that it is applied strictly AFTER authorization and can only ever shrink a
+ * response, never produce one that would otherwise have been refused.
+ */
+describe('GET /api/notebook/photo/[photo_id]?size=thumb', () => {
+	it('serves the thumbnail rendition, not the full file', async () => {
+		thumbRequests.length = 0;
+		const res = await callRoute(alicePhotoId, alice.id, '?size=thumb');
+		expect(res.status).toBe(200);
+		const body = new Uint8Array(await res.arrayBuffer());
+		expect([...body]).toEqual([...THUMB_BYTES]);
+		// Drive's own link carries `=s220`; the route asks for the size the
+		// feed renders at instead, which is the whole reason it rewrites it.
+		expect(thumbRequests).toEqual(['/thumb=s400']);
+		// And the full-size route is genuinely still the other one.
+		const full = await callRoute(alicePhotoId, alice.id);
+		expect([...new Uint8Array(await full.arrayBuffer())]).toEqual([...PHOTO_BYTES]);
+	});
+
+	it('falls back to the full image when Drive has no rendition yet', async () => {
+		// The ordinary state for a photo uploaded seconds ago. A missing
+		// thumbnail must never mean a missing photo.
+		const res = await callRoute(alicePhotoNoThumbId, alice.id, '?size=thumb');
+		expect(res.status).toBe(200);
+		expect([...new Uint8Array(await res.arrayBuffer())]).toEqual([...PHOTO_BYTES]);
+	});
+
+	it('grants nothing: a stranger is refused with size=thumb exactly as without', async () => {
+		// The decisive one. If the parameter were read before the RLS query --
+		// or opened any path around it -- this is where it would show.
+		expect((await callRoute(alicePhotoId, bob.id, '?size=thumb')).status).toBe(404);
+		expect((await callRoute(alicePhotoId, null, '?size=thumb')).status).toBe(401);
+		expect((await callRoute(randomUUID(), alice.id, '?size=thumb')).status).toBe(404);
+	});
+
+	it('still 502s a genuinely broken file rather than silently serving nothing', async () => {
+		const res = await callRoute(alicePhotoBrokenId, alice.id, '?size=thumb');
+		expect(res.status).toBe(502);
 	});
 });

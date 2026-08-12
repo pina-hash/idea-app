@@ -515,6 +515,73 @@ export async function downloadDriveFile(
 }
 
 /**
+ * Reads Drive's OWN small rendition of a file, for the collapsed notebook
+ * feed's thumbnails (0088).
+ *
+ * WHY NOT JUST SERVE THE FULL FILE SMALLER. A collapsed feed asks for one
+ * image per entry; at a few megabytes each that is the exact cost the
+ * collapsed view exists to remove, and CSS sizing does not make a download
+ * smaller. Drive already generates a rendition for every image it stores, so
+ * this asks for that instead of generating one -- no image library, no
+ * serverless memory, nothing new to keep in sync.
+ *
+ * WHY IT STILL COMES THROUGH THIS SERVER. `thumbnailLink` is a real Google URL
+ * requiring real Google credentials, so handing it to a student's browser
+ * would fail for exactly the people the proxy was built for (only staff have
+ * access to the shared drive). It is fetched here, with the school account's
+ * token, and the bytes are what the caller gets.
+ *
+ * FAILURE IS NOT AN ERROR. A file with no rendition yet -- Drive generates
+ * them asynchronously, so a photo uploaded seconds ago legitimately has none
+ * -- returns null, and the route falls back to the full image. A thumbnail is
+ * an optimization; a missing one must never mean a missing photo.
+ */
+export async function downloadNotebookThumbnail(
+	fileId: string,
+	size = 400
+): Promise<NotebookFileDownload | null> {
+	if (!driveConfigured() || !fileId) return null;
+
+	try {
+		const meta = (token: string) =>
+			fetch(
+				`${DRIVE_ENDPOINTS.files}/${encodeURIComponent(fileId)}` +
+					'?supportsAllDrives=true&fields=thumbnailLink',
+				{ headers: { authorization: `Bearer ${token}` } }
+			);
+
+		let res = await meta(await accessToken());
+		if (res.status === 401) res = await meta(await accessToken(true));
+		if (!res.ok) return null;
+
+		const link = ((await res.json()) as { thumbnailLink?: string }).thumbnailLink;
+		if (!link) return null;
+
+		// Drive's link carries its own size suffix (=s220); replacing it asks
+		// for the size this feed actually renders at on a 2x screen.
+		const sized = link.replace(/=s\d+(-[a-z]+)?$/i, `=s${size}`);
+
+		const fetchThumb = (token: string) =>
+			fetch(sized, { headers: { authorization: `Bearer ${token}` } });
+		let thumb = await fetchThumb(await accessToken());
+		if (thumb.status === 401) thumb = await fetchThumb(await accessToken(true));
+		if (!thumb.ok || !thumb.body) return null;
+
+		const raw = (thumb.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+		// Same rule as the full-size path: these bytes leave from this app's
+		// own origin, so an unexpected type is served inert rather than trusted.
+		return {
+			body: thumb.body,
+			contentType: SERVABLE_IMAGE_TYPES.has(raw) ? raw : 'application/octet-stream',
+			contentLength: thumb.headers.get('content-length')
+		};
+	} catch {
+		// Any failure at all falls back to the full image; see above.
+		return null;
+	}
+}
+
+/**
  * Best-effort delete, used ONLY to clean up an orphaned upload when the
  * follow-up RPC insert fails. Swallows every error: cleanup must never mask
  * the original failure, and a stray file in the shared drive is harmless.

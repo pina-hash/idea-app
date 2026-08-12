@@ -110,6 +110,13 @@
 				<span>{stampLabel(entry.upload_timestamp)}</span>
 				<!-- Logical pages: an original + its corrected variant count once. -->
 				<span>{photoCountLabel(photoPages(entry.photos).length)}</span>
+				{#if entry.folder_name}
+					<!-- Where the STUDENT filed it (0088). Context only: filing is
+					     their own organizing scheme and carries no meaning for
+					     review, but knowing an entry sits in "Gearbox build"
+					     often says what the page is of. -->
+					<span class="filed" data-testid="review-folder">Filed under {entry.folder_name}</span>
+				{/if}
 				{#if cell.entry_count > 1}
 					<span class="also">{cell.entry_count} entries for this check-in; showing the latest</span>
 				{/if}
@@ -234,6 +241,12 @@
 	}
 	.also {
 		color: var(--nb-accent-ink);
+	}
+	/* Deliberately quiet: the student's filing is context, never a review
+	   signal, so it must not read as one. */
+	.filed {
+		color: var(--nb-ink-faint);
+		font-style: italic;
 	}
 	.callout {
 		display: grid;

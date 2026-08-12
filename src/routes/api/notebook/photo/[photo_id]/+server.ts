@@ -1,5 +1,9 @@
 import { json } from '@sveltejs/kit';
-import { downloadNotebookFile, driveConfigured } from '$lib/server/notebook-drive';
+import {
+	downloadNotebookFile,
+	downloadNotebookThumbnail,
+	driveConfigured
+} from '$lib/server/notebook-drive';
 import { UUID_RE } from '$lib/server/notebook-upload';
 import type { RequestHandler } from './$types';
 
@@ -35,7 +39,7 @@ import type { RequestHandler } from './$types';
  *  authorization linger, and `private` keeps it out of any shared proxy. */
 const CACHE_CONTROL = 'private, max-age=60';
 
-export const GET: RequestHandler = async ({ params, locals: { supabase, claims } }) => {
+export const GET: RequestHandler = async ({ params, url, locals: { supabase, claims } }) => {
 	if (!claims) {
 		return json({ error: 'You must be signed in.' }, { status: 401 });
 	}
@@ -68,9 +72,28 @@ export const GET: RequestHandler = async ({ params, locals: { supabase, claims }
 		return new Response('Not found', { status: 404 });
 	}
 
+	/**
+	 * `?size=thumb` serves Drive's own small rendition (0088), for the
+	 * collapsed feed's tiles. It is applied strictly AFTER the authorization
+	 * above -- a thumbnail is the same photo, so it answers to exactly the
+	 * same policies -- and it falls back to the full image whenever Drive has
+	 * no rendition to give, which is the normal state for a photo uploaded
+	 * moments ago. So the parameter can only ever make a response smaller,
+	 * never make one appear that would otherwise have been refused.
+	 */
 	let file;
+	if (url.searchParams.get('size') === 'thumb') {
+		try {
+			file = (await downloadNotebookThumbnail(fileId)) ?? undefined;
+		} catch {
+			// downloadNotebookThumbnail already swallows its own failures; this
+			// is belt-and-braces so a thumbnail can never fail a request that
+			// the full-size path below would have answered.
+		}
+	}
+
 	try {
-		file = await downloadNotebookFile(fileId);
+		if (!file) file = await downloadNotebookFile(fileId);
 	} catch (e) {
 		// The caller IS allowed to see this photo; Drive just did not give it
 		// to us (hiccup, revoked token, file removed out from under the row).

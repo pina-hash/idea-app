@@ -2,26 +2,21 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
-	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import PhotoStager from '$lib/notebook/PhotoStager.svelte';
 	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
-	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
+	import NotebookEntryCard from '$lib/notebook/NotebookEntryCard.svelte';
+	import FolderRail from '$lib/notebook/FolderRail.svelte';
+	import FolderManager from '$lib/notebook/FolderManager.svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { clearPendingCapture, fitForUpload, takePendingCapture } from '$lib/notebook/camera';
 	import '$lib/notebook/notebook-theme.css';
 	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
 	import {
-		entryTitle,
-		flagReasonLabel,
-		isUntitled,
 		nearestOutstanding,
 		newestFirst,
-		orderedPhotos,
 		outstandingSessions,
 		photoCountLabel,
-		photoPages,
 		sessionMeta,
-		showsStatus,
-		statusLabel,
 		todayIso,
 		type AddPhotoResult,
 		type CreateEntryResult,
@@ -31,6 +26,19 @@
 		type NotePayload,
 		type StagedPhoto
 	} from '$lib/notebook';
+	import {
+		ENTRY_FILTERS,
+		applyQuery,
+		folderCounts,
+		foldersInOrder,
+		groupByDate,
+		queryIsActive,
+		suggestedFolder,
+		type EntryFilterId,
+		type FolderSelection,
+		type FolderTransports,
+		type NotebookFolder
+	} from '$lib/notebook-folders';
 
 	/**
 	 * The whole student-facing notebook screen, factored out of /notebook so a
@@ -41,38 +49,47 @@
 	 * entry and every later photo joins it; a corrected version rides
 	 * immediately after its own original so the pair lands on adjacent
 	 * sequence numbers, which is the adjacency photoPages() groups back into
-	 * one page. The five transports are injected, so the real page points them
-	 * at the API routes while the harness answers in memory -- that split is
-	 * what lets the orchestration itself be exercised with no network.
+	 * one page. Every transport is injected, so the real page points them at
+	 * the API routes and 0088's RPCs while the harness answers in memory --
+	 * that split is what lets the orchestration itself be exercised with no
+	 * network. The same sequencing serves the top form AND every entry card,
+	 * which is why addPhotosToEntry lives here and is passed down rather than
+	 * being reimplemented per card.
 	 *
-	 * AN ENTRY IS SOMETHING YOU KEEP ADDING TO. Every entry in the feed can
-	 * take another photo or another note without starting a new one, through
-	 * the same PhotoStager and NoteEditor the top form uses; the capture flow
-	 * exists once, in PhotoStager, and both places mount it.
+	 * IT OWNS WHAT IS SHOWN. Folder selection, search, filters, which entries
+	 * are expanded, what is selected for a bulk move and how much of the feed
+	 * is rendered all live here, so the rail, the toolbar and the feed can
+	 * never disagree about the answer. One entry's own rendering is
+	 * NotebookEntryCard's business.
 	 *
-	 * EDITING A NOTE IS OFFERED ONLY ON A FREE-FORM ENTRY -- a scheduled
-	 * check-in is reviewed work, and rewriting it after the fact would change
-	 * what an instructor read. That is 0078's notebook_edit_note refusing it;
-	 * hiding the control here is the courtesy, not the rule.
+	 * COLLAPSED BY DEFAULT, and that is the change this file exists for. Every
+	 * entry used to render at full column width with every page photo, so a
+	 * term's worth of notebook was an unusable scroll. Entries now open one at
+	 * a time, on purpose.
 	 */
 
 	let {
 		entries,
 		sessions,
+		folders = [],
 		sectionLabel = null,
 		canReview = false,
 		configured = true,
 		notesReady = true,
+		foldersReady = true,
 		uploadReady = true,
 		createEntry,
 		addPhoto,
 		createNote,
 		addNote,
 		editNote,
-		onUploaded
+		folderTransports,
+		onChanged
 	}: {
 		entries: NotebookEntry[];
 		sessions: NotebookSession[];
+		/** The student's own folders (0088). Empty is a normal state. */
+		folders?: NotebookFolder[];
 		/** The student's own class, when they have pinned one. */
 		sectionLabel?: string | null;
 		/** Instructor of at least one section, or a site admin (0067 chair tier). */
@@ -86,6 +103,13 @@
 		 */
 		notesReady?: boolean;
 		/**
+		 * 0088 applied. False turns FILING off the same way: the rail, the
+		 * folder pickers and the bulk move go, and the feed -- collapsing,
+		 * search, filters and all -- keeps working, because none of that
+		 * needed the migration.
+		 */
+		foldersReady?: boolean;
+		/**
 		 * The Drive integration is configured server-side; false disables PHOTO
 		 * submits only. A note needs no Drive, so the note path stays usable.
 		 */
@@ -95,8 +119,10 @@
 		createNote: (payload: NotePayload) => Promise<CreateEntryResult>;
 		addNote: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
 		editNote: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
-		/** Called after a successful save so the page can refresh its data. */
-		onUploaded?: () => void;
+		/** Folder writes (0088). Omitted when foldersReady is false. */
+		folderTransports?: FolderTransports;
+		/** Called after any successful save so the page can refresh its data. */
+		onChanged?: () => void;
 	} = $props();
 
 	// ---- new-entry form state ----------------------------------------------
@@ -113,6 +139,9 @@
 	let freeMode = $state<'photos' | 'note'>('photos');
 	/** A short TITLE for the entry. Since 0078 it is never the note's text. */
 	let title = $state('');
+	/** Which folder this entry will be filed into; null is Unfiled. */
+	let folderChoice = $state<string | null>(null);
+	let folderTouched = $state(false);
 	let noteDraft = $state<TiptapNode | null>(null);
 	let staged = $state<StagedPhoto[]>([]);
 	let stagerSettling = $state(false);
@@ -126,6 +155,7 @@
 
 	const open = $derived(outstandingSessions(sessions, entries));
 	const feed = $derived(newestFirst(entries));
+	const orderedFolders = $derived(foldersInOrder(folders));
 	/** The note tier exists on the free-form path ONLY, and only once 0078 is applied. */
 	const noteOnly = $derived(selectedSession === null && freeMode === 'note' && notesReady);
 	const canSubmit = $derived(
@@ -146,6 +176,16 @@
 		if (sessionTouched && !stale) return;
 		sessionTouched = false;
 		selectedSession = nearestOutstanding(sessions, entries, todayIso())?.id ?? null;
+	});
+
+	// Filing several entries into one folder in a row is the common case, so
+	// the picker follows the last entry the student filed until they say
+	// otherwise. A folder that has since been deleted falls back to Unfiled
+	// rather than sending a stale id the RPC would refuse.
+	$effect(() => {
+		if (folderTouched) return;
+		const suggested = suggestedFolder(feed);
+		folderChoice = suggested && folders.some((f) => f.id === suggested) ? suggested : null;
 	});
 
 	function chooseSession(id: string | null) {
@@ -177,12 +217,19 @@
 	 */
 	$effect(() => {
 		const pending = takePendingCapture() as
-			| { session?: string | null; mode?: 'photos' | 'note'; title?: string; entryId?: string }
+			| {
+					session?: string | null;
+					mode?: 'photos' | 'note';
+					title?: string;
+					folder?: string | null;
+					entryId?: string;
+			  }
 			| null;
 		if (!pending) return;
 		if (pending.entryId) {
-			// They were adding to an existing entry, not starting a new one.
-			panel = { entryId: pending.entryId, kind: 'photos' };
+			// They were adding to an existing entry, not starting a new one, so
+			// put them back inside it rather than at the top form.
+			expanded.add(pending.entryId);
 		} else {
 			if (pending.session !== undefined) {
 				sessionTouched = true;
@@ -190,6 +237,10 @@
 			}
 			if (pending.mode) freeMode = pending.mode;
 			if (typeof pending.title === 'string') title = pending.title;
+			if (pending.folder !== undefined) {
+				folderTouched = true;
+				folderChoice = pending.folder;
+			}
 		}
 		recoveryNote =
 			'Your photo did not make it back from the camera app, which can happen when the phone is low on memory. Everything you typed is still here. Please take the photo again.';
@@ -202,6 +253,10 @@
 		noteDraft = null;
 		noteKey += 1;
 		recoveryNote = null;
+		// Deliberately NOT the folder: the next entry almost always belongs
+		// where the last one went, and the suggestion effect re-derives it from
+		// what was just saved.
+		folderTouched = false;
 	}
 
 	/**
@@ -240,10 +295,11 @@
 		photo: StagedPhoto,
 		num: number,
 		total: number,
+		report: (message: string) => void,
 		skipOriginal = false
 	): Promise<{ originalOk: boolean; enhancedOk: boolean }> {
 		if (!skipOriginal) {
-			progress = total > 1 ? `Uploading photo ${num} of ${total}...` : 'Uploading...';
+			report(total > 1 ? `Uploading photo ${num} of ${total}...` : 'Uploading...');
 			const form = new FormData();
 			form.set('photo', await prepared(photo.file));
 			form.set('entry_id', entryId);
@@ -251,7 +307,7 @@
 			if (!(await addPhoto(form)).ok) return { originalOk: false, enhancedOk: true };
 		}
 		if (!photo.enhanced) return { originalOk: true, enhancedOk: true };
-		progress = `Uploading corrected photo ${num}...`;
+		report(`Uploading corrected photo ${num}...`);
 		const form = new FormData();
 		form.set('photo', await prepared(photo.enhanced));
 		form.set('entry_id', entryId);
@@ -262,6 +318,40 @@
 	/** "photo 2" / "photos 2, 4" -- shared by both save paths. */
 	function photoList(nums: number[]): string {
 		return `${nums.length === 1 ? 'photo' : 'photos'} ${nums.join(', ')}`;
+	}
+
+	/**
+	 * Every staged photo onto an EXISTING entry. Injected into each card, so
+	 * the pairing rule above has exactly one implementation whether the photos
+	 * are joining a brand-new entry or one from three weeks ago.
+	 */
+	async function addPhotosToEntry(
+		entryId: string,
+		photos: StagedPhoto[],
+		report: (message: string) => void
+	): Promise<{ ok: boolean; error?: string }> {
+		const total = photos.length;
+		const failed: number[] = [];
+		const failedEnhanced: number[] = [];
+		for (let i = 0; i < total; i++) {
+			const result = await uploadPair(entryId, photos[i], i + 1, total, report);
+			if (!result.originalOk) failed.push(i + 1);
+			else if (!result.enhancedOk) failedEnhanced.push(i + 1);
+		}
+		if (failed.length === total) {
+			return { ok: false, error: `That ${total === 1 ? 'photo' : 'set of photos'} did not upload. Try again.` };
+		}
+		errorMsg = null;
+		successMsg = failed.length
+			? `Added ${total - failed.length} of ${total} photos; ${photoList(failed)} did not upload.`
+			: `Added ${photoCountLabel(total - failed.length)} to this entry.`;
+		if (failedEnhanced.length) {
+			successMsg += ` The corrected version of ${photoList(
+				failedEnhanced
+			)} did not upload; the original is saved.`;
+		}
+		onChanged?.();
+		return { ok: true };
 	}
 
 	async function submit(e: SubmitEvent) {
@@ -283,7 +373,8 @@
 			if (noteOnly) {
 				const saved = await createNote({
 					content: noteDraft as TiptapNode,
-					custom_label: title.trim() || null
+					custom_label: title.trim() || null,
+					folder_id: folderChoice
 				});
 				if (!saved.ok) {
 					errorMsg = saved.error;
@@ -291,7 +382,7 @@
 				}
 				successMsg = 'Note saved.';
 				resetForm();
-				onUploaded?.();
+				onChanged?.();
 				return;
 			}
 
@@ -303,6 +394,7 @@
 			if (selectedSession) first.set('session_id', selectedSession);
 			const trimmed = title.trim();
 			if (!selectedSession && trimmed) first.set('custom_label', trimmed);
+			if (folderChoice) first.set('folder_id', folderChoice);
 
 			const created = await createEntry(first);
 			if (!created.ok) {
@@ -321,6 +413,7 @@
 					staged[i],
 					i + 1,
 					staged.length,
+					(m) => (progress = m),
 					i === 0
 				);
 				if (!result.originalOk) failed.push(i + 1);
@@ -343,7 +436,7 @@
 				}
 			}
 			resetForm();
-			onUploaded?.();
+			onChanged?.();
 		} catch (err) {
 			errorMsg = (err as Error).message || 'The upload failed to send.';
 		} finally {
@@ -352,115 +445,184 @@
 		}
 	}
 
-	// ---- adding to an existing entry ---------------------------------------
-
-	/** At most one entry panel is open at a time, so one set of state serves. */
-	let panel = $state<{ entryId: string; kind: 'photos' | 'note' } | null>(null);
-	let panelStaged = $state<StagedPhoto[]>([]);
-	let panelSettling = $state(false);
-	let panelStager = $state<ReturnType<typeof PhotoStager> | null>(null);
-	let panelNote = $state<TiptapNode | null>(null);
-	let panelBusy = $state(false);
-	let panelProgress = $state('');
-	let panelError = $state<string | null>(null);
-	let panelNoteKey = $state(0);
-
-	function togglePanel(entryId: string, kind: 'photos' | 'note') {
-		if (panelBusy) return;
-		if (panel && panel.entryId === entryId && panel.kind === kind) {
-			closePanel();
-			return;
-		}
-		panel = { entryId, kind };
-		panelStaged = [];
-		panelNote = null;
-		panelError = null;
-		panelNoteKey += 1;
-	}
-
-	function closePanel() {
-		panel = null;
-		panelStaged = [];
-		panelNote = null;
-		panelError = null;
-		panelProgress = '';
-	}
-
-	async function savePanelPhotos(entryId: string) {
-		if (panelBusy || !panelStaged.length) return;
-		panelBusy = true;
-		panelError = null;
-		errorMsg = null;
-		successMsg = null;
-		const total = panelStaged.length;
-		try {
-			const failed: number[] = [];
-			const failedEnhanced: number[] = [];
-			for (let i = 0; i < total; i++) {
-				panelProgress = total > 1 ? `Uploading photo ${i + 1} of ${total}...` : 'Uploading...';
-				const result = await uploadPair(entryId, panelStaged[i], i + 1, total);
-				if (!result.originalOk) failed.push(i + 1);
-				else if (!result.enhancedOk) failedEnhanced.push(i + 1);
-			}
-			if (failed.length === total) {
-				panelError = `That ${total === 1 ? 'photo' : 'set of photos'} did not upload. Try again.`;
-				return;
-			}
-			successMsg = failed.length
-				? `Added ${total - failed.length} of ${total} photos; ${photoList(failed)} did not upload.`
-				: `Added ${photoCountLabel(total - failed.length)} to this entry.`;
-			if (failedEnhanced.length) {
-				successMsg += ` The corrected version of ${photoList(
-					failedEnhanced
-				)} did not upload; the original is saved.`;
-			}
-			panelStager?.reset();
-			closePanel();
-			onUploaded?.();
-		} catch (err) {
-			panelError = (err as Error).message || 'The upload failed to send.';
-		} finally {
-			panelBusy = false;
-			panelProgress = '';
-		}
-	}
-
-	async function savePanelNote(entryId: string) {
-		if (panelBusy || !tiptapHasText(panelNote)) return;
-		panelBusy = true;
-		panelError = null;
-		errorMsg = null;
-		successMsg = null;
-		try {
-			const result = await addNote(entryId, panelNote as TiptapNode);
-			if (!result.ok) {
-				panelError = result.error;
-				return;
-			}
-			successMsg = 'Note added to this entry.';
-			closePanel();
-			onUploaded?.();
-		} catch (err) {
-			panelError = (err as Error).message || 'The note failed to save.';
-		} finally {
-			panelBusy = false;
-		}
-	}
-
 	/** EntryNotes hands back a saved revision; the feed then reloads. */
 	async function saveNoteEdit(noteId: string, doc: TiptapNode): Promise<NoteSaveResult> {
 		const result = await editNote(noteId, doc);
 		if (result.ok) {
 			successMsg = 'Note updated. The earlier version is still on this entry.';
-			onUploaded?.();
+			onChanged?.();
 		}
 		return result;
 	}
 
-	function when(iso: string): string {
-		const d = new Date(iso);
-		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+	async function saveNoteToEntry(entryId: string, doc: TiptapNode): Promise<NoteSaveResult> {
+		const result = await addNote(entryId, doc);
+		if (result.ok) {
+			successMsg = 'Note added to this entry.';
+			onChanged?.();
+		}
+		return result;
 	}
+
+	// ---- organizing: folders, search, filters, selection --------------------
+
+	let selection = $state<FolderSelection>('all');
+	let search = $state('');
+	let filters = $state<EntryFilterId[]>([]);
+	let managerOpen = $state(false);
+	let folderBusy = $state(false);
+
+	const counts = $derived(folderCounts(feed));
+	const query = $derived({ selection, search, filters });
+	const visible = $derived(applyQuery(feed, query));
+	const narrowed = $derived(queryIsActive(query));
+
+	// A selection whose folder is deleted (or which was never in this
+	// student's list) falls back to everything rather than showing an empty
+	// feed with no explanation.
+	$effect(() => {
+		if (selection === 'all' || selection === 'unfiled') return;
+		if (!folders.some((f) => f.id === selection)) selection = 'all';
+	});
+
+	function toggleFilter(id: EntryFilterId) {
+		filters = filters.includes(id) ? filters.filter((f) => f !== id) : [...filters, id];
+	}
+
+	function clearQuery() {
+		selection = 'all';
+		search = '';
+		filters = [];
+	}
+
+	// ---- expansion ----------------------------------------------------------
+
+	/**
+	 * Which entries are open. Collapsed is the default for everything, which
+	 * is the whole point of the view; expansion is per visit and deliberately
+	 * not persisted -- coming back to a notebook you left with fifteen entries
+	 * open would put you back where you started.
+	 */
+	const expanded = new SvelteSet<string>();
+
+	function toggleEntry(id: string) {
+		if (expanded.has(id)) expanded.delete(id);
+		else expanded.add(id);
+	}
+
+	function expandAll() {
+		for (const e of visible) expanded.add(e.id);
+	}
+
+	function collapseAll() {
+		expanded.clear();
+	}
+
+	// ---- bulk selection -----------------------------------------------------
+
+	let selectMode = $state(false);
+	const picked = new SvelteSet<string>();
+	let moveTarget = $state('');
+	let bulkError = $state<string | null>(null);
+
+	function togglePick(id: string, on: boolean) {
+		if (on) picked.add(id);
+		else picked.delete(id);
+	}
+
+	function exitSelectMode() {
+		selectMode = false;
+		picked.clear();
+		moveTarget = '';
+		bulkError = null;
+	}
+
+	/**
+	 * One call for the whole selection: 0088's notebook_move_entries takes an
+	 * array, so a handful of entries move in one transaction rather than in a
+	 * client-side loop that can stop halfway with nobody able to say how much
+	 * of it landed.
+	 */
+	async function moveSelected() {
+		if (!folderTransports || folderBusy || picked.size === 0) return;
+		folderBusy = true;
+		bulkError = null;
+		try {
+			const ids = [...picked];
+			const result = await folderTransports.moveEntries(ids, moveTarget === '' ? null : moveTarget);
+			if (!result.ok) {
+				bulkError = result.error;
+				return;
+			}
+			const target = moveTarget === '' ? 'Unfiled' : (orderedFolders.find((f) => f.id === moveTarget)?.name ?? 'that folder');
+			successMsg = `Moved ${ids.length === 1 ? '1 entry' : `${ids.length} entries`} to ${target}.`;
+			exitSelectMode();
+			onChanged?.();
+		} finally {
+			folderBusy = false;
+		}
+	}
+
+	async function moveOne(entryId: string, folderId: string | null) {
+		if (!folderTransports) return { ok: false as const, error: 'Folders are not available.' };
+		folderBusy = true;
+		try {
+			const result = await folderTransports.moveEntries([entryId], folderId);
+			if (result.ok) onChanged?.();
+			return result;
+		} finally {
+			folderBusy = false;
+		}
+	}
+
+	async function saveFolder(input: Parameters<FolderTransports['saveFolder']>[0]) {
+		if (!folderTransports) return { ok: false as const, error: 'Folders are not available.' };
+		folderBusy = true;
+		try {
+			const result = await folderTransports.saveFolder(input);
+			if (result.ok) onChanged?.();
+			return result;
+		} finally {
+			folderBusy = false;
+		}
+	}
+
+	async function deleteFolder(id: string) {
+		if (!folderTransports) return { ok: false as const, error: 'Folders are not available.' };
+		folderBusy = true;
+		try {
+			const result = await folderTransports.deleteFolder(id);
+			if (result.ok) {
+				if (selection === id) selection = 'all';
+				onChanged?.();
+			}
+			return result;
+		} finally {
+			folderBusy = false;
+		}
+	}
+
+	// ---- how much of the feed is rendered -----------------------------------
+
+	/**
+	 * A RENDER limit, not a query limit. Search and filters run over the whole
+	 * notebook (see notebook-folders.ts), which is what a student means by
+	 * "find it"; what actually hurt was painting hundreds of entries, and that
+	 * is what this bounds. Resets whenever the query changes, so narrowing to
+	 * a folder does not leave you scrolled past the end of it.
+	 */
+	const PAGE = 30;
+	let shown = $state(PAGE);
+	$effect(() => {
+		void selection;
+		void search;
+		void filters;
+		shown = PAGE;
+	});
+
+	const rendered = $derived(visible.slice(0, shown));
+	const groups = $derived(groupByDate(rendered));
+	const more = $derived(Math.max(0, visible.length - rendered.length));
 </script>
 
 <svelte:head>
@@ -510,8 +672,9 @@
 			<h2>Notebook is not available yet</h2>
 			<p class="note">
 				The notebook tables are not in place on this project yet. Apply migration
-				<code>0069_notebook.sql</code> (plus <code>0071</code>, <code>0075</code> and
-				<code>0078_notebook_entry_notes.sql</code>) in the Supabase SQL editor, then reload.
+				<code>0069_notebook.sql</code> (plus <code>0071</code>, <code>0075</code>,
+				<code>0078_notebook_entry_notes.sql</code> and
+				<code>0088_notebook_folders.sql</code>) in the Supabase SQL editor, then reload.
 			</p>
 		</section>
 	{:else}
@@ -538,6 +701,13 @@
 					Written notes are not available on this project yet. Apply migration
 					<code>0078_notebook_entry_notes.sql</code> in the Supabase SQL editor. Photos work
 					as normal.
+				</p>
+			{/if}
+			{#if !foldersReady}
+				<p class="feedback error" data-testid="nb-folders-unavailable">
+					Folders are not available on this project yet. Apply migration
+					<code>0088_notebook_folders.sql</code> in the Supabase SQL editor. Everything else
+					works as normal.
 				</p>
 			{/if}
 			{#if recoveryNote}
@@ -632,6 +802,39 @@
 					</label>
 				{/if}
 
+				<!-- Filing is offered on BOTH tiers: which folder an entry lives
+				     in is the student's own view of their notebook, and has
+				     nothing to do with whether an instructor asked for the page. -->
+				{#if foldersReady}
+					<label class="field label-field folder-field">
+						<span>Folder <span class="optional">(optional)</span></span>
+						<select
+							bind:value={folderChoice}
+							disabled={busy}
+							data-testid="new-entry-folder"
+							onchange={() => (folderTouched = true)}
+						>
+							<option value={null}>Unfiled</option>
+							{#each orderedFolders as f (f.id)}
+								<option value={f.id}>{f.name}</option>
+							{/each}
+						</select>
+						<span class="hint">
+							{#if orderedFolders.length}
+								We start you off wherever you filed last.
+							{:else}
+								You have no folders yet.
+							{/if}
+							<button
+								type="button"
+								class="inline-link"
+								onclick={() => (managerOpen = true)}
+								disabled={busy}>Manage folders</button
+							>
+						</span>
+					</label>
+				{/if}
+
 				{#if noteOnly}
 					<div class="field note-field">
 						<span class="photo-label">Note</span>
@@ -650,7 +853,12 @@
 						bind:settling={stagerSettling}
 						disabled={busy}
 						{uploadReady}
-						captureContext={{ session: selectedSession, mode: freeMode, title }}
+						captureContext={{
+							session: selectedSession,
+							mode: freeMode,
+							title,
+							folder: folderChoice
+						}}
 					/>
 				{/if}
 
@@ -674,157 +882,171 @@
 					No entries yet. Photograph a page or write a note above and it will show up here.
 				</p>
 			{:else}
-				<ol class="entries">
-					{#each feed as entry (entry.id)}
-						{@const photos = orderedPhotos(entry)}
-						{@const notes = entry.notes ?? []}
-						{@const freeForm = entry.session_id === null}
-						{@const openPanel = panel && panel.entryId === entry.id ? panel.kind : null}
-						<li class="entry" class:flagged={entry.status === 'flagged'}>
-							<header class="entry-head">
-								<h3 class="entry-title" class:untitled={isUntitled(entry)}>{entryTitle(entry)}</h3>
-								<div class="entry-meta">
-									<span class="stamp">{when(entry.upload_timestamp)}</span>
-									<span class="dot" aria-hidden="true">·</span>
-									<!-- Logical pages, so an original + its corrected variant count
-									     once; identical to the row count for all-original entries. -->
-									<span>{photoCountLabel(photoPages(photos).length)}</span>
-									{#if notes.length}
-										<span class="dot" aria-hidden="true">·</span>
-										<span data-testid="note-count">
-											{new Set(notes.map((n) => n.note_id)).size === 1
-												? '1 note'
-												: `${new Set(notes.map((n) => n.note_id)).size} notes`}
-										</span>
-									{/if}
-									{#if showsStatus(entry.status)}
-										<span
-											class="status"
-											class:warn={entry.status === 'flagged'}
-											class:pending={entry.status === 'pending_review'}
-										>
-											{statusLabel(entry.status)}
-										</span>
-									{/if}
-								</div>
-								{#if entry.session}
-									<p class="entry-session">
-										{sessionMeta(entry.session)}
-									</p>
-								{/if}
-							</header>
+				{#if foldersReady && managerOpen && folderTransports}
+					<FolderManager
+						{folders}
+						counts={counts as Map<string, number>}
+						busy={folderBusy}
+						onSave={saveFolder}
+						onDelete={deleteFolder}
+						onClose={() => (managerOpen = false)}
+					/>
+				{/if}
 
-							{#if entry.status === 'flagged' && (entry.flag_reason || entry.instructor_comment)}
-								<div class="callout">
-									{#if entry.flag_reason}
-										<strong>{flagReasonLabel(entry.flag_reason)}.</strong>
-									{/if}
-									{#if entry.instructor_comment}
-										<span>{entry.instructor_comment}</span>
-									{/if}
-									<span class="callout-hint">Add another photo below to send it back for review.</span>
-								</div>
-							{/if}
+				{#if foldersReady}
+					<FolderRail
+						{folders}
+						{counts}
+						{selection}
+						onSelect={(next) => (selection = next)}
+						onManage={folderTransports ? () => (managerOpen = !managerOpen) : undefined}
+					/>
+				{/if}
 
-							<NotebookPhotos {photos} label={entryTitle(entry)} />
+				<div class="toolbar">
+					<label class="search">
+						<span class="sr-only">Search your notebook</span>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+							<circle cx="11" cy="11" r="7" />
+							<path d="M20 20l-3.5-3.5" />
+						</svg>
+						<input
+							type="search"
+							bind:value={search}
+							placeholder="Search titles and notes"
+							data-testid="nb-search"
+						/>
+					</label>
 
-							{#if notes.length}
-								<div class="entry-notes">
-									<!-- canEdit is TWO conditions: a check-in's notes are never
-									     editable (0078 refuses it), and with the migration
-									     unapplied nothing can be saved at all. -->
-									<EntryNotes {notes} canEdit={freeForm && notesReady} onSave={saveNoteEdit} />
-								</div>
-							{/if}
+					<div class="chips" role="group" aria-label="Filters">
+						{#each ENTRY_FILTERS as f (f.id)}
+							<button
+								type="button"
+								class="chip-toggle"
+								class:on={filters.includes(f.id)}
+								aria-pressed={filters.includes(f.id)}
+								title={f.hint}
+								data-testid="filter-{f.id}"
+								onclick={() => toggleFilter(f.id)}
+							>
+								{f.label}
+							</button>
+						{/each}
+					</div>
 
-							<!-- Adding to THIS entry rather than starting a new one. -->
-							<div class="entry-add">
-								<div class="entry-add-actions">
-									<button
-										type="button"
-										class="add-btn"
-										data-testid="add-photos"
-										aria-pressed={openPanel === 'photos'}
-										disabled={panelBusy || !uploadReady}
-										onclick={() => togglePanel(entry.id, 'photos')}
-									>
-										{openPanel === 'photos' ? 'Cancel' : 'Add photos'}
-									</button>
-									{#if notesReady}
-										<button
-											type="button"
-											class="add-btn"
-											data-testid="add-note"
-											aria-pressed={openPanel === 'note'}
-											disabled={panelBusy}
-											onclick={() => togglePanel(entry.id, 'note')}
-										>
-											{openPanel === 'note' ? 'Cancel' : 'Add a note'}
-										</button>
-									{/if}
-									{#if !freeForm && notes.length}
-										<span class="add-hint" data-testid="no-edit-hint">
-											Notes on a check-in cannot be edited. Add another instead.
-										</span>
-									{/if}
-								</div>
+					<div class="tools">
+						<span class="result-count" data-testid="result-count">
+							{visible.length === entries.length
+								? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`
+								: `${visible.length} of ${entries.length}`}
+						</span>
+						{#if narrowed}
+							<button type="button" class="inline-link" onclick={clearQuery}>Clear</button>
+						{/if}
+						<button
+							type="button"
+							class="inline-link"
+							data-testid="expand-toggle"
+							onclick={() => (expanded.size ? collapseAll() : expandAll())}
+						>
+							{expanded.size ? 'Collapse all' : 'Expand all'}
+						</button>
+						{#if foldersReady && folderTransports}
+							<button
+								type="button"
+								class="inline-link"
+								data-testid="select-toggle"
+								onclick={() => (selectMode ? exitSelectMode() : (selectMode = true))}
+							>
+								{selectMode ? 'Done' : 'Select'}
+							</button>
+						{/if}
+					</div>
+				</div>
 
-								{#if openPanel === 'photos'}
-									<div class="entry-panel" data-testid="panel-photos">
-										{#if panelError}
-											<p class="feedback error" role="alert">{panelError}</p>
-										{/if}
-										<PhotoStager
-											bind:this={panelStager}
-											bind:staged={panelStaged}
-											bind:settling={panelSettling}
-											disabled={panelBusy}
+				{#if selectMode}
+					<div class="bulk" data-testid="bulk-bar">
+						<span class="bulk-count">
+							{picked.size === 0
+								? 'Select entries to move'
+								: `${picked.size} selected`}
+						</span>
+						<label class="bulk-move">
+							<span class="sr-only">Move selected entries to</span>
+							<select bind:value={moveTarget} disabled={folderBusy || picked.size === 0}>
+								<option value="">Unfiled</option>
+								{#each orderedFolders as f (f.id)}
+									<option value={f.id}>{f.name}</option>
+								{/each}
+							</select>
+						</label>
+						<button
+							type="button"
+							class="btn small"
+							data-testid="bulk-move"
+							disabled={folderBusy || picked.size === 0}
+							onclick={moveSelected}
+						>
+							{folderBusy ? 'Moving...' : 'Move'}
+						</button>
+						{#if picked.size}
+							<button type="button" class="inline-link" onclick={() => picked.clear()}>
+								Clear selection
+							</button>
+						{/if}
+					</div>
+					{#if bulkError}
+						<p class="feedback error" role="alert">{bulkError}</p>
+					{/if}
+				{/if}
+
+				{#if visible.length === 0}
+					<p class="note empty-state" data-testid="no-matches">
+						Nothing here matches what you are looking for.
+						<button type="button" class="inline-link" onclick={clearQuery}>Clear the filters</button>
+					</p>
+				{:else}
+					{#each groups as group (group.key)}
+						<div class="group">
+							<h3 class="group-head">{group.label}</h3>
+							<ol class="entries">
+								{#each group.entries as entry (entry.id)}
+									<li>
+										<NotebookEntryCard
+											{entry}
+											{folders}
+											collapsed={!expanded.has(entry.id)}
+											onToggle={() => toggleEntry(entry.id)}
+											{selectMode}
+											selected={picked.has(entry.id)}
+											onSelectChange={(on) => togglePick(entry.id, on)}
 											{uploadReady}
-											captureContext={{ entryId: entry.id }}
-											testPrefix="nbe"
+											{notesReady}
+											foldersReady={foldersReady && !!folderTransports}
+											onAddPhotos={addPhotosToEntry}
+											onAddNote={saveNoteToEntry}
+											onEditNote={saveNoteEdit}
+											onMove={moveOne}
 										/>
-										<div class="actions">
-											<button
-												type="button"
-												class="btn"
-												disabled={panelBusy || !panelStaged.length || panelSettling}
-												onclick={() => savePanelPhotos(entry.id)}
-											>
-												{panelBusy ? 'Saving...' : 'Add to this entry'}
-											</button>
-											{#if panelProgress}<span class="progress">{panelProgress}</span>{/if}
-										</div>
-									</div>
-								{:else if openPanel === 'note'}
-									<div class="entry-panel" data-testid="panel-note">
-										{#if panelError}
-											<p class="feedback error" role="alert">{panelError}</p>
-										{/if}
-										{#key panelNoteKey}
-											<NoteEditor
-												onchange={(doc) => (panelNote = doc)}
-												disabled={panelBusy}
-												autofocus
-												label="New note"
-												placeholder="What did you work through?"
-											/>
-										{/key}
-										<div class="actions">
-											<button
-												type="button"
-												class="btn"
-												disabled={panelBusy || !tiptapHasText(panelNote)}
-												onclick={() => savePanelNote(entry.id)}
-											>
-												{panelBusy ? 'Saving...' : 'Add this note'}
-											</button>
-										</div>
-									</div>
-								{/if}
-							</div>
-						</li>
+									</li>
+								{/each}
+							</ol>
+						</div>
 					{/each}
-				</ol>
+
+					{#if more > 0}
+						<div class="more">
+							<button
+								type="button"
+								class="btn secondary"
+								data-testid="show-older"
+								onclick={() => (shown += PAGE)}
+							>
+								Show older ({more} more)
+							</button>
+						</div>
+					{/if}
+				{/if}
 			{/if}
 		</section>
 	{/if}
@@ -967,12 +1189,17 @@
 		font-size: 0.8rem;
 		margin-top: 0.3rem;
 	}
-	/* The shared .field class is a ROW flex; everything in here stacks. */
-	.note-field {
+	/* The shared .field class is a ROW flex; these stack. */
+	.note-field,
+	.folder-field {
 		margin-top: 1rem;
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
+	}
+	.folder-field select {
+		font: inherit;
+		max-width: 20rem;
 	}
 	.photo-label {
 		display: block;
@@ -991,140 +1218,188 @@
 		font-variant-numeric: tabular-nums;
 		color: var(--nb-ink-faint);
 	}
-
-	/* ---- my entries: the editorial feed. Generous air between entries, the
-	   photo as the dominant element, restrained chrome around it. ---- */
-	.entries {
-		list-style: none;
+	.inline-link {
+		border: none;
+		background: none;
 		padding: 0;
-		margin: 0;
-		display: grid;
-		gap: 2.6rem;
+		font: inherit;
+		font-size: inherit;
+		color: var(--nb-accent-ink);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		cursor: pointer;
 	}
-	.entry {
-		border-top: 1px solid var(--nb-hairline);
-		padding-top: 1.8rem;
+	.inline-link:hover:not(:disabled) {
+		color: var(--nb-ink);
 	}
-	.entry:first-child {
-		border-top: none;
-		padding-top: 0;
+	.inline-link:disabled {
+		opacity: 0.5;
+		cursor: default;
 	}
-	.entry-head {
-		margin-bottom: 0.8rem;
+
+	/* ---- toolbar ---- */
+	.toolbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.6rem;
+		padding-bottom: 0.9rem;
+		margin-bottom: 0.4rem;
+		border-bottom: 1px solid var(--nb-hairline);
 	}
-	.entry-title {
-		margin: 0 0 0.3rem;
-		font-size: 1.28rem;
-		letter-spacing: -0.01em;
-	}
-	.entry-title.untitled {
-		color: var(--nb-ink-faint);
-		font-style: italic;
-		font-weight: 500;
-	}
-	.entry-meta {
+	.search {
+		flex: 1 1 14rem;
+		min-width: 0;
 		display: flex;
 		align-items: center;
 		gap: 0.45rem;
-		flex-wrap: wrap;
-		font-size: 0.78rem;
-		font-variant-numeric: tabular-nums;
-		color: var(--nb-ink-faint);
-	}
-	.dot {
-		color: var(--nb-hairline-strong);
-	}
-	.status {
-		padding: 0.1rem 0.55rem;
+		padding: 0.35rem 0.7rem;
+		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
-		border: 1px solid currentColor;
-		text-transform: uppercase;
-		letter-spacing: 0.07em;
-		font-size: 0.64rem;
-		font-weight: 600;
-	}
-	/* The flag status carries the gold thread; awaiting-review stays a quiet gray. */
-	.status.warn {
-		color: var(--nb-accent-ink);
-	}
-	.status.pending {
-		color: var(--nb-ink-soft);
-	}
-	.entry-session {
-		margin: 0.3rem 0 0;
-		font-size: 0.78rem;
+		background: var(--nb-surface);
 		color: var(--nb-ink-faint);
 	}
-	.callout {
-		border-left: 2px solid var(--nb-accent);
-		padding: 0.55rem 0.8rem;
-		margin: 0 0 0.8rem;
-		background: var(--nb-accent-wash);
-		border-radius: 0 var(--nb-radius-control) var(--nb-radius-control) 0;
-		font-size: 0.88rem;
-		display: grid;
-		gap: 0.2rem;
+	.search:focus-within {
+		border-color: var(--nb-accent);
 	}
-	.callout strong {
-		color: var(--nb-accent-ink);
+	.search svg {
+		width: 0.95rem;
+		height: 0.95rem;
+		flex: 0 0 auto;
 	}
-	.callout-hint {
-		color: var(--nb-ink-soft);
-		font-size: 0.8rem;
+	.search input {
+		flex: 1 1 auto;
+		min-width: 0;
+		border: none;
+		background: none;
+		padding: 0;
+		font: inherit;
+		font-size: 0.86rem;
+		color: var(--nb-ink);
 	}
-	.entry-notes {
-		margin-top: 1.2rem;
+	.search input:focus {
+		outline: none;
 	}
-
-	/* ---- adding to an existing entry ---- */
-	.entry-add {
-		margin-top: 1.1rem;
-	}
-	.entry-add-actions {
+	.chips {
 		display: flex;
-		align-items: center;
-		gap: 0.8rem;
+		gap: 0.35rem;
 		flex-wrap: wrap;
 	}
-	.add-btn {
-		padding: 0.3rem 0.8rem;
+	.chip-toggle {
+		padding: 0.28rem 0.66rem;
 		border: 1px solid var(--nb-hairline-strong);
 		border-radius: 999px;
 		background: var(--nb-surface);
 		color: var(--nb-ink-soft);
 		font: inherit;
 		font-size: 0.76rem;
-		font-weight: 600;
 		cursor: pointer;
+		white-space: nowrap;
 	}
-	.add-btn:hover:not(:disabled) {
-		border-color: var(--nb-accent);
-		color: var(--nb-accent-ink);
+	.chip-toggle:hover {
+		border-color: var(--nb-ink-faint);
 	}
-	.add-btn[aria-pressed='true'] {
+	.chip-toggle.on {
 		border-color: var(--nb-accent);
 		background: var(--nb-accent-wash);
 		color: var(--nb-accent-ink);
+		font-weight: 600;
 	}
-	.add-btn:disabled {
-		opacity: 0.5;
-		cursor: default;
+	.tools {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		font-size: 0.78rem;
+		margin-left: auto;
 	}
-	.add-hint {
-		font-size: 0.74rem;
+	.result-count {
 		color: var(--nb-ink-faint);
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
-	.entry-panel {
-		margin-top: 0.9rem;
-		padding: 0.9rem;
-		border: 1px solid var(--nb-hairline);
+
+	/* ---- bulk selection ---- */
+	.bulk {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+		flex-wrap: wrap;
+		padding: 0.55rem 0.75rem;
+		margin: 0.6rem 0 0.2rem;
+		border: 1px solid var(--nb-accent);
+		background: var(--nb-accent-wash);
 		border-radius: var(--nb-radius-control);
-		background: var(--nb-surface-dim);
+		font-size: 0.82rem;
+	}
+	.bulk-count {
+		font-weight: 600;
+		color: var(--nb-ink);
+	}
+	.bulk-move select {
+		font: inherit;
+		font-size: 0.8rem;
+		padding: 0.2rem 0.4rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface);
+	}
+	:global(.nb-root .btn.small) {
+		padding: 0.28rem 0.8rem;
+		font-size: 0.78rem;
+	}
+
+	/* ---- the feed ---- */
+	.group {
+		margin-top: 1.3rem;
+	}
+	.group-head {
+		font-size: 0.7rem;
+		font-weight: 700;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--nb-ink-faint);
+		margin: 0 0 0.4rem;
+	}
+	.entries {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: grid;
+		gap: 0.35rem;
+	}
+	/* A grid item's automatic minimum size is its MIN-CONTENT, and a collapsed
+	   entry's row is a nowrap flex line, so without this each <li> refuses to
+	   shrink below the untruncated title -- which on a phone forces the whole
+	   page wider than the viewport rather than ellipsizing. The ellipsis on
+	   .row-title cannot help: overflow:hidden does not reduce what an element
+	   contributes to min-content. */
+	.entries > li {
+		min-width: 0;
+	}
+	.more {
+		margin-top: 1.4rem;
+		display: flex;
+		justify-content: center;
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
 	}
 
 	@media (max-width: 540px) {
 		.quick-picks {
 			grid-template-columns: 1fr;
+		}
+		.tools {
+			margin-left: 0;
+			width: 100%;
 		}
 	}
 </style>

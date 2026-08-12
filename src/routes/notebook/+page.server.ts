@@ -3,6 +3,7 @@ import { driveConfigured } from '$lib/server/notebook-drive';
 import { notebookAccess } from '$lib/server/notebook-access';
 import { sectionById } from '$lib/curriculum';
 import type { NotebookEntry, NotebookSession } from '$lib/notebook';
+import type { NotebookFolder } from '$lib/notebook-folders';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -50,6 +51,13 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename )`;
 	const NOTES_SELECT = `${BASE_SELECT},
 		 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at )`;
+	/**
+	 * folder_id (0088) degrades the SAME way and for the same reason: an
+	 * unknown COLUMN also fails the whole select, so a project sitting between
+	 * 0078 and 0088 would show a blank notebook rather than one without
+	 * folders. Tried widest-first, then dropped one capability at a time.
+	 */
+	const FULL_SELECT = `${NOTES_SELECT}, folder_id`;
 
 	const read = (select: string) =>
 		supabase
@@ -57,8 +65,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			.select(select)
 			.order('upload_timestamp', { ascending: false });
 
-	let { data: entryRows, error: entryError } = await read(NOTES_SELECT);
-	const notesReady = !entryError;
+	let { data: entryRows, error: entryError } = await read(FULL_SELECT);
+	let notesReady = !entryError;
+	let foldersReady = !entryError;
+	if (entryError) {
+		({ data: entryRows, error: entryError } = await read(NOTES_SELECT));
+		notesReady = !entryError;
+		foldersReady = false;
+	}
 	if (entryError) {
 		({ data: entryRows, error: entryError } = await read(BASE_SELECT));
 	}
@@ -71,6 +85,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			id: row.id as string,
 			session_id: (row.session_id as string | null) ?? null,
 			section_id: (row.section_id as string | null) ?? null,
+			folder_id: (row.folder_id as string | null) ?? null,
 			custom_label: (row.custom_label as string | null) ?? null,
 			upload_timestamp: row.upload_timestamp as string,
 			status: row.status as NotebookEntry['status'],
@@ -113,9 +128,27 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		}
 	}
 
+	/**
+	 * The caller's own folders (0088). A plain RLS-scoped select with no
+	 * `.eq('student_id', ...)`: "students read own notebook folders" is what
+	 * does the filtering, exactly as it does for entries above. An error here
+	 * means 0088 is not applied, which is already known from the entry select
+	 * -- this just leaves the list empty rather than failing the page.
+	 */
+	let folders: NotebookFolder[] = [];
+	if (configured && foldersReady) {
+		const { data: folderRows, error: folderError } = await supabase
+			.from('notebook_folders')
+			.select('id, name, color, created_at');
+		if (folderError) foldersReady = false;
+		else folders = (folderRows ?? []) as NotebookFolder[];
+	}
+
 	return {
 		configured,
 		notesReady,
+		foldersReady,
+		folders,
 		// The Drive integration is server-only; the UI just needs to know
 		// whether a submit could possibly succeed, so it can say so up front
 		// rather than failing at the end of a photo upload.

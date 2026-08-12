@@ -50,11 +50,15 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	const sessionId = formText(form, 'session_id');
 	const sectionId = formText(form, 'section_id');
 	const customLabel = formText(form, 'custom_label');
+	const folderId = formText(form, 'folder_id');
 	if (sessionId && !UUID_RE.test(sessionId)) {
 		return json({ error: 'session_id must be a uuid.' }, { status: 400 });
 	}
 	if (sectionId && !UUID_RE.test(sectionId)) {
 		return json({ error: 'section_id must be a uuid.' }, { status: 400 });
+	}
+	if (folderId && !UUID_RE.test(folderId)) {
+		return json({ error: 'folder_id must be a uuid.' }, { status: 400 });
 	}
 	// 0071: no label required; a fully unlabeled free entry is valid.
 
@@ -97,14 +101,31 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: (e as Error).message || 'Drive upload failed.' }, { status: 502 });
 	}
 
-	const { data, error } = await supabase.rpc('notebook_create_entry', {
+	/**
+	 * p_folder_id is named ONLY when a folder was actually asked for. On a
+	 * project where 0088 has not been applied by hand yet -- a real state, not
+	 * a hypothetical -- notebook_create_entry still has its six-argument
+	 * signature, and naming a seventh unconditionally would leave PostgREST
+	 * unable to resolve the function and break photo uploads entirely. The UI
+	 * can only offer a folder once 0088 is applied, so the branch that needs
+	 * the new signature is exactly the branch that has it.
+	 *
+	 * Passed THROUGH, never checked here: the RPC refuses a folder that is not
+	 * the caller's own, and the composite FK makes filing into somebody else's
+	 * unrepresentable either way. A refusal deletes the just-uploaded file
+	 * exactly like every other refusal below.
+	 */
+	const args: Record<string, unknown> = {
 		p_student_id: claims.sub,
 		p_drive_file_id: fileId,
 		p_session_id: sessionId,
 		p_section_id: sectionId,
 		p_custom_label: customLabel,
 		p_original_filename: originalFilename
-	});
+	};
+	if (folderId) args.p_folder_id = folderId;
+
+	const { data, error } = await supabase.rpc('notebook_create_entry', args);
 	if (error) {
 		await deleteNotebookFile(fileId);
 		return json({ error: error.message }, { status: 400 });

@@ -78,6 +78,12 @@
 		status: NotebookStatus;
 		flag_reason: NotebookFlagReason | null;
 		instructor_comment: string | null;
+		/**
+		 * The student's own filing (0088), shown to staff as context. Optional
+		 * here so the existing fixtures keep meaning "unfiled" without being
+		 * rewritten -- which is also the real pre-0088 state.
+		 */
+		folder_name?: string | null;
 		photos: NotebookPhoto[];
 		/** Written notes (0078). The review panel renders them read-only. */
 		notes: NotebookNoteRow[];
@@ -157,8 +163,15 @@
 				)
 			]
 		),
-		// Ben: one LATE, one FLAGGED, one missing -> 2 of 3, 1 flag.
-		mk('e-4', 'stu-2', 'sec-a', 'ses-a1', '2026-08-06T20:15:00Z', 'compliant', [photo('p-4', 1, 'late-brief.jpg')]),
+		// Ben: one LATE, one FLAGGED, one missing -> 2 of 3, 1 flag. The late
+		// one carries a folder, so the staff-facing "Filed under" context (0088)
+		// renders on one entry and is absent on every other -- both states.
+		{
+			...mk('e-4', 'stu-2', 'sec-a', 'ses-a1', '2026-08-06T20:15:00Z', 'compliant', [
+				photo('p-4', 1, 'late-brief.jpg')
+			]),
+			folder_name: 'Gearbox build'
+		},
 		{
 			...mk('e-5', 'stu-2', 'sec-a', 'ses-a2', '2026-08-05T14:00:00Z', 'flagged', [photo('p-5', 1)]),
 			flag_reason: 'illegible',

@@ -1,0 +1,692 @@
+<script lang="ts">
+	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
+	import PhotoStager from '$lib/notebook/PhotoStager.svelte';
+	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
+	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
+	import EntryThumb from '$lib/notebook/EntryThumb.svelte';
+	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
+	import {
+		entryTitle,
+		flagReasonLabel,
+		isUntitled,
+		orderedPhotos,
+		photoCountLabel,
+		photoPages,
+		sessionMeta,
+		showsStatus,
+		statusLabel,
+		type NoteSaveResult,
+		type NotebookEntry,
+		type StagedPhoto
+	} from '$lib/notebook';
+	import {
+		entryPreview,
+		folderById,
+		foldersInOrder,
+		type FolderResult,
+		type NotebookFolder
+	} from '$lib/notebook-folders';
+
+	/**
+	 * ONE ENTRY, either as a collapsed tab or as the full card.
+	 *
+	 * Extracted out of NotebookView (which owned every entry inline and was
+	 * already 1100 lines before folders, search and selection landed on it), so
+	 * that file goes back to being about orchestration -- what to show, in what
+	 * order -- while this one is about a single entry.
+	 *
+	 * COLLAPSED IS A REAL VIEW, NOT A HIDDEN ONE. The tab carries a thumbnail,
+	 * the title, the note's opening words, the date, the counts, its folder and
+	 * its status, which between them answer "is this the one I am looking for"
+	 * without expanding anything. That is the whole point: the old feed put
+	 * every page at full column width, so twenty entries was a scroll and forty
+	 * was unusable.
+	 *
+	 * THE PANEL STATE IS THIS CARD'S OWN. NotebookView used to hold one
+	 * "which panel is open" for the whole feed; per-card is both simpler and
+	 * better -- with entries collapsed, a panel can only exist inside an
+	 * expanded card anyway, and two open at once is harmless.
+	 *
+	 * SEQUENCING IS STILL NOT THIS CARD'S BUSINESS. Which upload creates what,
+	 * and how a corrected photo lands adjacent to its own original, is one
+	 * rule and it stays in NotebookView; this calls the injected `onAddPhotos`
+	 * with the staged set and reports what comes back.
+	 */
+
+	let {
+		entry,
+		folders,
+		collapsed,
+		onToggle,
+		selectMode = false,
+		selected = false,
+		onSelectChange,
+		uploadReady = true,
+		notesReady = true,
+		foldersReady = true,
+		onAddPhotos,
+		onAddNote,
+		onEditNote,
+		onMove
+	}: {
+		entry: NotebookEntry;
+		folders: NotebookFolder[];
+		collapsed: boolean;
+		onToggle: () => void;
+		selectMode?: boolean;
+		selected?: boolean;
+		onSelectChange?: (next: boolean) => void;
+		uploadReady?: boolean;
+		notesReady?: boolean;
+		/** 0088 applied; false hides filing without touching anything else. */
+		foldersReady?: boolean;
+		onAddPhotos: (
+			entryId: string,
+			staged: StagedPhoto[],
+			onProgress: (message: string) => void
+		) => Promise<{ ok: boolean; error?: string; notice?: string }>;
+		onAddNote: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		onEditNote: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		onMove: (entryId: string, folderId: string | null) => Promise<FolderResult>;
+	} = $props();
+
+	const photos = $derived(orderedPhotos(entry));
+	const pages = $derived(photoPages(photos));
+	const notes = $derived(entry.notes ?? []);
+	/** Distinct logical notes, not revisions: an edit is not a second note. */
+	const noteCount = $derived(new Set(notes.map((n) => n.note_id)).size);
+	const freeForm = $derived(entry.session_id === null);
+	const title = $derived(entryTitle(entry));
+	const preview = $derived(entryPreview(entry));
+	const folder = $derived(folderById(folders, entry.folder_id));
+	const orderedFolders = $derived(foldersInOrder(folders));
+
+	// ---- adding to this entry ----------------------------------------------
+
+	let panel = $state<'photos' | 'note' | null>(null);
+	let staged = $state<StagedPhoto[]>([]);
+	let settling = $state(false);
+	let stager = $state<ReturnType<typeof PhotoStager> | null>(null);
+	let noteDraft = $state<TiptapNode | null>(null);
+	let busy = $state(false);
+	let progress = $state('');
+	let error = $state<string | null>(null);
+	let noteKey = $state(0);
+	let moveError = $state<string | null>(null);
+	let moving = $state(false);
+
+	function togglePanel(kind: 'photos' | 'note') {
+		if (busy) return;
+		panel = panel === kind ? null : kind;
+		staged = [];
+		noteDraft = null;
+		error = null;
+		noteKey += 1;
+	}
+
+	async function savePhotos() {
+		if (busy || !staged.length) return;
+		busy = true;
+		error = null;
+		try {
+			const result = await onAddPhotos(entry.id, staged, (m) => (progress = m));
+			if (!result.ok) {
+				error = result.error ?? 'The upload failed.';
+				return;
+			}
+			stager?.reset();
+			panel = null;
+			staged = [];
+		} catch (err) {
+			error = (err as Error).message || 'The upload failed to send.';
+		} finally {
+			busy = false;
+			progress = '';
+		}
+	}
+
+	async function saveNote() {
+		if (busy || !tiptapHasText(noteDraft)) return;
+		busy = true;
+		error = null;
+		try {
+			const result = await onAddNote(entry.id, noteDraft as TiptapNode);
+			if (!result.ok) {
+				error = result.error;
+				return;
+			}
+			panel = null;
+			noteDraft = null;
+		} catch (err) {
+			error = (err as Error).message || 'The note failed to save.';
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function move(value: string) {
+		if (moving) return;
+		moving = true;
+		moveError = null;
+		try {
+			const result = await onMove(entry.id, value === '' ? null : value);
+			if (!result.ok) moveError = result.error;
+		} finally {
+			moving = false;
+		}
+	}
+
+	function when(iso: string): string {
+		const d = new Date(iso);
+		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+	}
+
+	/** Short form for the collapsed row, where the full stamp is too much. */
+	function shortWhen(iso: string): string {
+		const d = new Date(iso);
+		if (Number.isNaN(d.getTime())) return '';
+		return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+	}
+</script>
+
+<div class="entry" class:flagged={entry.status === 'flagged'} class:open={!collapsed}>
+	<div class="row">
+		{#if selectMode}
+			<label class="pick">
+				<input
+					type="checkbox"
+					checked={selected}
+					data-testid="entry-select"
+					onchange={(e) => onSelectChange?.(e.currentTarget.checked)}
+				/>
+				<span class="sr-only">Select {title}</span>
+			</label>
+		{/if}
+
+		<button
+			type="button"
+			class="disclosure"
+			aria-expanded={!collapsed}
+			data-testid="entry-disclosure"
+			onclick={onToggle}
+		>
+			<EntryThumb {entry} size={collapsed ? 56 : 44} />
+
+			<span class="row-main">
+				<span class="row-title" class:untitled={isUntitled(entry)}>{title}</span>
+				{#if collapsed && preview}
+					<span class="row-preview">{preview}</span>
+				{/if}
+				<span class="row-meta">
+					<span class="stamp">{collapsed ? shortWhen(entry.upload_timestamp) : when(entry.upload_timestamp)}</span>
+					{#if pages.length}
+						<span class="dot" aria-hidden="true">·</span>
+						<span>{photoCountLabel(pages.length)}</span>
+					{/if}
+					{#if noteCount}
+						<span class="dot" aria-hidden="true">·</span>
+						<span data-testid="note-count">{noteCount === 1 ? '1 note' : `${noteCount} notes`}</span>
+					{/if}
+					<!-- Gated on foldersReady as well as on having one: with 0088
+					     unapplied the load cannot return folder_id at all, so this
+					     would never fire in practice -- but a component that
+					     renders filing while filing is turned off is one stale
+					     prop away from lying, and the guard costs nothing. -->
+					{#if foldersReady && folder}
+						<span
+							class="folder-chip"
+							style="--dot: var(--nb-folder-{folder.color ?? 'none'})"
+							data-testid="entry-folder"
+						>
+							{folder.name}
+						</span>
+					{/if}
+					{#if showsStatus(entry.status)}
+						<span
+							class="status"
+							class:warn={entry.status === 'flagged'}
+							class:pending={entry.status === 'pending_review'}
+						>
+							{statusLabel(entry.status)}
+						</span>
+					{/if}
+				</span>
+			</span>
+
+			<span class="chev" aria-hidden="true">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M6 9l6 6 6-6" />
+				</svg>
+			</span>
+		</button>
+	</div>
+
+	{#if !collapsed}
+		<div class="body">
+			{#if entry.session}
+				<p class="entry-session">{sessionMeta(entry.session)}</p>
+			{/if}
+
+			{#if entry.status === 'flagged' && (entry.flag_reason || entry.instructor_comment)}
+				<div class="callout">
+					{#if entry.flag_reason}
+						<strong>{flagReasonLabel(entry.flag_reason)}.</strong>
+					{/if}
+					{#if entry.instructor_comment}
+						<span>{entry.instructor_comment}</span>
+					{/if}
+					<span class="callout-hint">Add another photo below to send it back for review.</span>
+				</div>
+			{/if}
+
+			<NotebookPhotos {photos} label={title} />
+
+			{#if notes.length}
+				<div class="entry-notes">
+					<!-- canEdit is TWO conditions: a check-in's notes are never
+					     editable (0078 refuses it), and with the migration
+					     unapplied nothing can be saved at all. -->
+					<EntryNotes {notes} canEdit={freeForm && notesReady} onSave={onEditNote} />
+				</div>
+			{/if}
+
+			<div class="entry-add">
+				<div class="entry-add-actions">
+					<button
+						type="button"
+						class="add-btn"
+						data-testid="add-photos"
+						aria-pressed={panel === 'photos'}
+						disabled={busy || !uploadReady}
+						onclick={() => togglePanel('photos')}
+					>
+						{panel === 'photos' ? 'Cancel' : 'Add photos'}
+					</button>
+					{#if notesReady}
+						<button
+							type="button"
+							class="add-btn"
+							data-testid="add-note"
+							aria-pressed={panel === 'note'}
+							disabled={busy}
+							onclick={() => togglePanel('note')}
+						>
+							{panel === 'note' ? 'Cancel' : 'Add a note'}
+						</button>
+					{/if}
+
+					{#if foldersReady}
+						<label class="move" data-testid="entry-move">
+							<span class="move-label">Folder</span>
+							<select
+								value={entry.folder_id ?? ''}
+								disabled={moving || busy}
+								onchange={(e) => move(e.currentTarget.value)}
+							>
+								<option value="">Unfiled</option>
+								{#each orderedFolders as f (f.id)}
+									<option value={f.id}>{f.name}</option>
+								{/each}
+							</select>
+						</label>
+					{/if}
+
+					{#if !freeForm && notes.length}
+						<span class="add-hint" data-testid="no-edit-hint">
+							Notes on a check-in cannot be edited. Add another instead.
+						</span>
+					{/if}
+				</div>
+
+				{#if moveError}
+					<p class="feedback error" role="alert">{moveError}</p>
+				{/if}
+
+				{#if panel === 'photos'}
+					<div class="entry-panel" data-testid="panel-photos">
+						{#if error}
+							<p class="feedback error" role="alert">{error}</p>
+						{/if}
+						<PhotoStager
+							bind:this={stager}
+							bind:staged
+							bind:settling
+							disabled={busy}
+							{uploadReady}
+							captureContext={{ entryId: entry.id }}
+							testPrefix="nbe"
+						/>
+						<div class="actions">
+							<button
+								type="button"
+								class="btn"
+								disabled={busy || !staged.length || settling}
+								onclick={savePhotos}
+							>
+								{busy ? 'Saving...' : 'Add to this entry'}
+							</button>
+							{#if progress}<span class="progress">{progress}</span>{/if}
+						</div>
+					</div>
+				{:else if panel === 'note'}
+					<div class="entry-panel" data-testid="panel-note">
+						{#if error}
+							<p class="feedback error" role="alert">{error}</p>
+						{/if}
+						{#key noteKey}
+							<NoteEditor
+								onchange={(doc) => (noteDraft = doc)}
+								disabled={busy}
+								autofocus
+								label="New note"
+								placeholder="What did you work through?"
+							/>
+						{/key}
+						<div class="actions">
+							<button
+								type="button"
+								class="btn"
+								disabled={busy || !tiptapHasText(noteDraft)}
+								onclick={saveNote}
+							>
+								{busy ? 'Saving...' : 'Add this note'}
+							</button>
+						</div>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
+</div>
+
+<style>
+	.entry {
+		border: 1px solid transparent;
+		border-radius: var(--nb-radius);
+		/* Belt-and-braces with `.entries > li { min-width: 0 }` in the feed:
+		   whatever this card is placed inside, it must be allowed to narrow
+		   past the nowrap row below rather than push its container wider. */
+		min-width: 0;
+	}
+	/* An expanded entry is a raised card; a collapsed one is a row in a list,
+	   so a long feed reads as a list rather than as a stack of boxes. */
+	.entry.open {
+		border-color: var(--nb-hairline);
+		background: var(--nb-surface);
+		box-shadow: var(--nb-shadow);
+		padding: 0.2rem 0.9rem 1rem;
+	}
+	.row {
+		display: flex;
+		align-items: stretch;
+		gap: 0.5rem;
+		min-width: 0;
+	}
+	/* The box itself stays small, but the LABEL is the hit target and is padded
+	   out to a thumb-sized one -- this is the control a student taps repeatedly
+	   while sorting a backlog on a phone. */
+	.pick {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 2.75rem;
+		padding: 0 0.2rem;
+		cursor: pointer;
+	}
+	.pick input {
+		width: 1.15rem;
+		height: 1.15rem;
+		accent-color: var(--nb-accent-ink);
+		cursor: pointer;
+	}
+
+	.disclosure {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		text-align: left;
+		padding: 0.6rem 0.35rem;
+		border: none;
+		background: none;
+		font: inherit;
+		color: inherit;
+		cursor: pointer;
+		border-radius: var(--nb-radius-control);
+	}
+	.disclosure:hover {
+		background: var(--nb-surface-dim);
+	}
+	.entry.open .disclosure:hover {
+		background: transparent;
+	}
+
+	.row-main {
+		flex: 1 1 auto;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.14rem;
+	}
+	.row-title {
+		font-weight: 700;
+		font-size: 1.02rem;
+		line-height: 1.25;
+		letter-spacing: -0.01em;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.entry.open .row-title {
+		font-size: 1.2rem;
+		white-space: normal;
+	}
+	.row-title.untitled {
+		color: var(--nb-ink-faint);
+		font-style: italic;
+		font-weight: 500;
+	}
+	.row-preview {
+		font-size: 0.82rem;
+		color: var(--nb-ink-soft);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.row-meta {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+		font-size: 0.74rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
+	}
+	.dot {
+		color: var(--nb-hairline-strong);
+	}
+	.folder-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3em;
+		padding: 0.05rem 0.45rem 0.05rem 0.4rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: 999px;
+		color: var(--nb-ink-soft);
+		max-width: 11rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.folder-chip::before {
+		content: '';
+		width: 0.45em;
+		height: 0.45em;
+		border-radius: 50%;
+		background: var(--dot, var(--nb-folder-none));
+		flex: 0 0 auto;
+	}
+	.status {
+		padding: 0.1rem 0.5rem;
+		border-radius: 999px;
+		border: 1px solid currentColor;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		font-size: 0.62rem;
+		font-weight: 600;
+	}
+	/* The flag status carries the gold thread; awaiting-review stays a quiet gray. */
+	.status.warn {
+		color: var(--nb-accent-ink);
+	}
+	.status.pending {
+		color: var(--nb-ink-soft);
+	}
+
+	.chev {
+		flex: 0 0 auto;
+		color: var(--nb-ink-faint);
+		display: grid;
+		place-items: center;
+		width: 1.4rem;
+	}
+	.chev svg {
+		width: 1.1rem;
+		height: 1.1rem;
+		transition: transform 0.15s ease;
+	}
+	.entry.open .chev svg {
+		transform: rotate(180deg);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.chev svg {
+			transition: none;
+		}
+	}
+
+	.body {
+		padding: 0.3rem 0.35rem 0;
+	}
+	.entry-session {
+		margin: 0 0 0.7rem;
+		font-size: 0.78rem;
+		color: var(--nb-ink-faint);
+	}
+	.callout {
+		border-left: 2px solid var(--nb-accent);
+		padding: 0.55rem 0.8rem;
+		margin: 0 0 0.8rem;
+		background: var(--nb-accent-wash);
+		border-radius: 0 var(--nb-radius-control) var(--nb-radius-control) 0;
+		font-size: 0.88rem;
+		display: grid;
+		gap: 0.2rem;
+	}
+	.callout strong {
+		color: var(--nb-accent-ink);
+	}
+	.callout-hint {
+		color: var(--nb-ink-soft);
+		font-size: 0.8rem;
+	}
+	.entry-notes {
+		margin-top: 1.2rem;
+	}
+
+	.entry-add {
+		margin-top: 1.1rem;
+	}
+	.entry-add-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+	}
+	.add-btn {
+		padding: 0.3rem 0.8rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: 999px;
+		background: var(--nb-surface);
+		color: var(--nb-ink-soft);
+		font: inherit;
+		font-size: 0.76rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.add-btn:hover:not(:disabled) {
+		border-color: var(--nb-accent);
+		color: var(--nb-accent-ink);
+	}
+	.add-btn[aria-pressed='true'] {
+		border-color: var(--nb-accent);
+		background: var(--nb-accent-wash);
+		color: var(--nb-accent-ink);
+	}
+	.add-btn:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.move {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.76rem;
+		color: var(--nb-ink-faint);
+	}
+	.move select {
+		font: inherit;
+		font-size: 0.76rem;
+		padding: 0.24rem 0.4rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: 999px;
+		background: var(--nb-surface);
+		color: var(--nb-ink-soft);
+		max-width: 11rem;
+	}
+	.add-hint {
+		font-size: 0.74rem;
+		color: var(--nb-ink-faint);
+	}
+	.entry-panel {
+		margin-top: 0.9rem;
+		padding: 0.9rem;
+		border: 1px solid var(--nb-hairline);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface-dim);
+	}
+	.actions {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		margin-top: 1.1rem;
+		flex-wrap: wrap;
+	}
+	.progress {
+		font-size: 0.8rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
+	}
+	.feedback {
+		font-size: 0.84rem;
+		padding: 0.55rem 0.8rem;
+		border-radius: var(--nb-radius-control);
+		margin: 0.7rem 0 0;
+	}
+	.feedback.error {
+		color: var(--nb-error);
+		border: 1px solid color-mix(in srgb, var(--nb-error) 40%, transparent);
+		background: color-mix(in srgb, var(--nb-error) 5%, transparent);
+	}
+	.sr-only {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		padding: 0;
+		margin: -1px;
+		overflow: hidden;
+		clip: rect(0, 0, 0, 0);
+		white-space: nowrap;
+		border: 0;
+	}
+</style>

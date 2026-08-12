@@ -95,6 +95,12 @@ export interface ReviewEntry {
 	status: NotebookStatus;
 	flag_reason: NotebookFlagReason | null;
 	instructor_comment: string | null;
+	/**
+	 * The name of the folder the STUDENT filed this in (0088), or null when it
+	 * is unfiled or 0088 is not applied. Context only -- filing is the
+	 * student's own organizing scheme and no review rule reads it.
+	 */
+	folder_name: string | null;
 	photos: NotebookPhoto[];
 	/**
 	 * Every revision of every written note on the entry (0078). Read-only

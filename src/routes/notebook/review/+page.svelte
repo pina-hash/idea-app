@@ -80,17 +80,22 @@
 			const BASE = `id, student_id, session_id, custom_label, upload_timestamp, status, flag_reason,
 					 instructor_comment,
 					 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename )`;
+			const NOTES = `${BASE},
+					 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at )`;
+			// The folder name (0088) is readable to staff through 0088's own
+			// "section staff read notebook folders" policy, which delegates to
+			// notebook_can_read_entry -- so an instructor who may read this
+			// entry may read what it was filed under, and nobody else can.
+			const FULL = `${NOTES}, notebook_folders ( name )`;
 			const read = (select: string) =>
 				data.supabase.from('notebook_entries').select(select).eq('id', entryId).maybeSingle();
 
-			// The written-note embed (0078) degrades on its own: on a project
-			// where it is not applied yet, PostgREST rejects the whole select for
-			// an unknown relationship, and an instructor should still be able to
-			// review the photos.
-			let { data: row, error } = await read(
-				`${BASE},
-					 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at )`
-			);
+			// Each embed degrades on its OWN: on a project where 0078 or 0088 is
+			// not applied yet, PostgREST rejects the whole select for an unknown
+			// relationship, and an instructor should still be able to review the
+			// photos. Widest first, then one capability at a time.
+			let { data: row, error } = await read(FULL);
+			if (error) ({ data: row, error } = await read(NOTES));
 			if (error) ({ data: row, error } = await read(BASE));
 			if (error) return fail(error, 'Could not load that entry.');
 			if (!row) return { ok: false, error: 'That entry is no longer available.' };
@@ -106,6 +111,7 @@
 					status: r.status as ReviewEntry['status'],
 					flag_reason: (r.flag_reason as NotebookFlagReason | null) ?? null,
 					instructor_comment: (r.instructor_comment as string | null) ?? null,
+					folder_name: (r.notebook_folders as { name?: string } | null)?.name ?? null,
 					photos: (r.notebook_entry_photos as NotebookPhoto[]) ?? [],
 					notes: (r.notebook_entry_notes as ReviewEntry['notes']) ?? []
 				}

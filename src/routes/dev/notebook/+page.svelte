@@ -9,6 +9,7 @@
 		NotePayload
 	} from '$lib/notebook';
 	import type { NoteDoc, NotebookNoteRow, TiptapNode } from '$lib/notebook-notes';
+	import type { FolderResult, FolderTransports, NotebookFolder } from '$lib/notebook-folders';
 
 	/**
 	 * Dev harness: mounts the REAL NotebookView with the five save transports
@@ -41,7 +42,15 @@
 	let account = $state<Account>('student');
 	let configured = $state(true);
 	let notesReady = $state(true);
+	let foldersReady = $state(true);
 	let uploadReady = $state(true);
+	/**
+	 * Pads the student's feed past the 30-entry render limit, so "Show older",
+	 * the date-group headings on older buckets and the search-over-everything
+	 * guarantee (a match beyond the rendered window must still be findable)
+	 * are drivable rather than argued about.
+	 */
+	let bulk = $state(false);
 	let log = $state<string[]>([]);
 
 	/**
@@ -124,6 +133,7 @@
 			id: 'e-1',
 			session_id: 'ses-3',
 			section_id: 'sec-1',
+			folder_id: 'f-2',
 			custom_label: null,
 			upload_timestamp: '2026-07-29T15:42:00Z',
 			status: 'compliant',
@@ -147,6 +157,7 @@
 			id: 'e-2',
 			session_id: null,
 			section_id: null,
+			folder_id: 'f-1',
 			custom_label: 'Gearbox ratio worksheet',
 			upload_timestamp: '2026-08-02T19:10:00Z',
 			status: 'flagged',
@@ -161,6 +172,7 @@
 			id: 'e-3',
 			session_id: null,
 			section_id: null,
+			folder_id: 'f-1',
 			custom_label: 'Motor mount iteration 2',
 			upload_timestamp: '2026-08-04T11:05:00Z',
 			status: 'pending_review',
@@ -178,6 +190,7 @@
 			id: 'e-6',
 			session_id: null,
 			section_id: null,
+			folder_id: 'f-3',
 			custom_label: 'Chassis build log',
 			upload_timestamp: '2026-07-20T09:00:00Z',
 			status: 'compliant',
@@ -237,6 +250,7 @@
 			id: 'e-4',
 			session_id: null,
 			section_id: null,
+			folder_id: null,
 			custom_label: null,
 			upload_timestamp: '2026-08-06T08:30:00Z',
 			status: 'compliant',
@@ -254,6 +268,7 @@
 			id: 'e-5',
 			session_id: null,
 			section_id: null,
+			folder_id: null,
 			custom_label: null,
 			upload_timestamp: '2026-08-07T16:55:00Z',
 			status: 'compliant',
@@ -270,6 +285,7 @@
 			id: 'i-1',
 			session_id: null,
 			section_id: null,
+			folder_id: null,
 			custom_label: 'Shop layout notes',
 			upload_timestamp: '2026-08-07T09:00:00Z',
 			status: 'compliant',
@@ -281,13 +297,48 @@
 		}
 	];
 
+	/**
+	 * Filler spread back over four months, so the older date buckets ("Last
+	 * week", the month headings, "Older") have something in them and the
+	 * render limit has something to limit. One of them carries a distinctive
+	 * word ("theodolite") far past the rendered window, which is what makes
+	 * "search covers the WHOLE notebook, not the loaded page" a real check.
+	 */
+	const FILLER: NotebookEntry[] = Array.from({ length: 40 }, (_, i) => {
+		const day = new Date('2026-08-09T12:00:00Z');
+		day.setDate(day.getDate() - (i + 12));
+		return {
+			id: `f-e-${i}`,
+			session_id: null,
+			section_id: null,
+			folder_id: i % 3 === 0 ? 'f-1' : null,
+			custom_label: i === 34 ? 'Surveying with the theodolite' : `Bench notes ${i + 1}`,
+			upload_timestamp: day.toISOString(),
+			status: 'compliant' as const,
+			flag_reason: null,
+			instructor_comment: null,
+			session: null,
+			photos: i % 2 === 0 ? [photo(`f-p-${i}`, 1, `bench-${i}.jpg`)] : [],
+			notes:
+				i % 2 === 0
+					? []
+					: [note(`f-n-${i}`, `f-e-${i}`, `f-n-${i}`, 1, p(`Bench work, day ${i + 1}.`), day.toISOString())]
+		};
+	});
+
 	// Live copies so a fake save can actually append to the feed.
 	let studentEntries = $state<NotebookEntry[]>([...STUDENT_ENTRIES]);
 	let instructorEntries = $state<NotebookEntry[]>([...INSTRUCTOR_ENTRIES]);
 	let plainEntries = $state<NotebookEntry[]>([]);
 
 	const entries = $derived(
-		account === 'student' ? studentEntries : account === 'instructor' ? instructorEntries : plainEntries
+		account === 'student'
+			? bulk
+				? [...studentEntries, ...FILLER]
+				: studentEntries
+			: account === 'instructor'
+				? instructorEntries
+				: plainEntries
 	);
 	const sessions = $derived(account === 'student' ? SESSIONS : []);
 	const sectionLabel = $derived(account === 'student' ? 'Engineering I Honors' : null);
@@ -341,6 +392,87 @@
 		received.push({ route, fields, file });
 	}
 
+	// ---- folders (0088) ------------------------------------------------------
+
+	/**
+	 * An in-memory mirror of 0088's own semantics, not a convenient
+	 * approximation: the duplicate-name check is case- and whitespace-
+	 * insensitive like the unique index, deleting a folder UNFILES its entries
+	 * rather than removing them, and a move takes an ARRAY the same way
+	 * notebook_move_entries does. Those are exactly the behaviours the UI has
+	 * to render correctly, so a fake that skipped them would prove nothing.
+	 */
+	let studentFolders = $state<NotebookFolder[]>([
+		{ id: 'f-1', name: 'Gearbox build', color: 'clay', created_at: '2026-07-01T00:00:00Z' },
+		{ id: 'f-2', name: 'Design work', color: 'sky', created_at: '2026-07-02T00:00:00Z' },
+		{ id: 'f-3', name: 'Chassis', color: 'sage', created_at: '2026-07-03T00:00:00Z' }
+	]);
+	let instructorFolders = $state<NotebookFolder[]>([]);
+	let plainFolders = $state<NotebookFolder[]>([]);
+
+	const folders = $derived(
+		account === 'student'
+			? studentFolders
+			: account === 'instructor'
+				? instructorFolders
+				: plainFolders
+	);
+
+	function updateFolders(fn: (list: NotebookFolder[]) => NotebookFolder[]) {
+		if (account === 'student') studentFolders = fn(studentFolders);
+		else if (account === 'instructor') instructorFolders = fn(instructorFolders);
+		else plainFolders = fn(plainFolders);
+	}
+
+	const norm = (s: string) => s.trim().toLowerCase();
+
+	const folderTransports: FolderTransports = {
+		async saveFolder(input): Promise<FolderResult> {
+			log = [
+				...log,
+				`RPC notebook_upsert_folder  p_name=${JSON.stringify(input.name)} p_color=${JSON.stringify(
+					input.color
+				)} p_folder_id=${JSON.stringify(input.id)}`
+			];
+			const name = input.name.trim();
+			// The unique index, restated: same name ignoring case and edges.
+			if (folders.some((f) => norm(f.name) === norm(name) && f.id !== input.id)) {
+				return { ok: false, error: 'You already have a folder with that name.' };
+			}
+			if (input.id) {
+				updateFolders((list) =>
+					list.map((f) => (f.id === input.id ? { ...f, name, color: input.color } : f))
+				);
+			} else {
+				updateFolders((list) => [
+					...list,
+					{ id: `fx-${++seq}`, name, color: input.color, created_at: new Date().toISOString() }
+				]);
+			}
+			return { ok: true };
+		},
+
+		async deleteFolder(id): Promise<FolderResult> {
+			log = [...log, `RPC notebook_delete_folder  p_folder_id=${JSON.stringify(id)}`];
+			// Unfiles first, in the same step, exactly as the RPC does -- the
+			// entries survive, only the filing goes.
+			update((list) => list.map((e) => (e.folder_id === id ? { ...e, folder_id: null } : e)));
+			updateFolders((list) => list.filter((f) => f.id !== id));
+			return { ok: true };
+		},
+
+		async moveEntries(entryIds, folderId): Promise<FolderResult> {
+			log = [
+				...log,
+				`RPC notebook_move_entries  p_entry_ids=${JSON.stringify(
+					entryIds
+				)} p_folder_id=${JSON.stringify(folderId)}`
+			];
+			update((list) => list.map((e) => (entryIds.includes(e.id) ? { ...e, folder_id: folderId } : e)));
+			return { ok: true };
+		}
+	};
+
 	/** The REAL sanitizer, behind a dev-only endpoint. */
 	async function normalize(content: TiptapNode): Promise<NoteDoc | { error: string }> {
 		const res = await fetch('/dev/notebook/normalize', {
@@ -363,6 +495,7 @@
 			id,
 			session_id: sessionId,
 			section_id: session ? session.section_id : null,
+			folder_id: (form.get('folder_id') as string | null) ?? null,
 			custom_label: (form.get('custom_label') as string | null) ?? null,
 			upload_timestamp: new Date().toISOString(),
 			status: 'compliant',
@@ -390,7 +523,9 @@
 	async function createNote(payload: NotePayload): Promise<CreateEntryResult> {
 		log = [
 			...log,
-			`POST /api/notebook/note  custom_label=${JSON.stringify(payload.custom_label)} content=<editor doc>`
+			`POST /api/notebook/note  custom_label=${JSON.stringify(
+				payload.custom_label
+			)} folder_id=${JSON.stringify(payload.folder_id)} content=<editor doc>`
 		];
 		const doc = await normalize(payload.content);
 		if ('error' in doc) return { ok: false, error: doc.error };
@@ -400,6 +535,7 @@
 			id,
 			session_id: null,
 			section_id: null,
+			folder_id: payload.folder_id,
 			custom_label: payload.custom_label,
 			upload_timestamp: new Date().toISOString(),
 			status: 'compliant',
@@ -516,7 +652,9 @@
 	</label>
 	<label><input type="checkbox" bind:checked={configured} /> 0069 applied</label>
 	<label><input type="checkbox" bind:checked={notesReady} /> 0078 applied</label>
+	<label><input type="checkbox" bind:checked={foldersReady} data-testid="sim-0088" /> 0088 applied</label>
 	<label><input type="checkbox" bind:checked={uploadReady} /> Drive configured</label>
+	<label><input type="checkbox" bind:checked={bulk} data-testid="sim-bulk" /> 40 more entries</label>
 	<button type="button" onclick={() => (log = [])}>clear log</button>
 	<span class="tag" data-testid="can-review">canReview={canReview}</span>
 </div>
@@ -531,16 +669,19 @@
 	<NotebookView
 		{entries}
 		{sessions}
+		{folders}
 		{sectionLabel}
 		{canReview}
 		{configured}
 		{notesReady}
+		{foldersReady}
 		{uploadReady}
 		{createEntry}
 		{addPhoto}
 		{createNote}
 		{addNote}
 		{editNote}
+		folderTransports={foldersReady ? folderTransports : undefined}
 	/>
 {/key}
 

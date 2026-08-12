@@ -60,8 +60,12 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 
 	const customLabel = text('custom_label');
 	const sectionId = text('section_id');
+	const folderId = text('folder_id');
 	if (sectionId && !UUID_RE.test(sectionId)) {
 		return json({ error: 'section_id must be a uuid.' }, { status: 400 });
+	}
+	if (folderId && !UUID_RE.test(folderId)) {
+		return json({ error: 'folder_id must be a uuid.' }, { status: 400 });
 	}
 	if (customLabel && customLabel.length > 200) {
 		return json({ error: 'Titles are capped at 200 characters.' }, { status: 400 });
@@ -74,11 +78,31 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: note.error }, { status: 400 });
 	}
 
-	const { data, error } = await supabase.rpc('notebook_create_note_entry', {
+	/**
+	 * p_folder_id is added ONLY when a folder was actually asked for, and that
+	 * is a deploy-ordering rule rather than a tidiness one. Migrations here are
+	 * applied by hand, so a project sitting on 0078 with 0088 not yet run is a
+	 * real state -- and there notebook_create_note_entry still has its old
+	 * three-argument signature, so naming a fourth parameter unconditionally
+	 * would make PostgREST fail to resolve the function at all and break note
+	 * saving outright. Omitted, the call matches either version.
+	 *
+	 * A folder can only be requested once the UI has folders to offer, which
+	 * means 0088 is applied; so the branch that needs the new signature is
+	 * exactly the branch that has it.
+	 *
+	 * The value is passed THROUGH, never checked here: the RPC refuses a folder
+	 * that is not the caller's own, and 0088's composite FK makes filing into
+	 * someone else's unrepresentable regardless.
+	 */
+	const args: Record<string, unknown> = {
 		p_content: note.doc,
 		p_custom_label: customLabel,
 		p_section_id: sectionId
-	});
+	};
+	if (folderId) args.p_folder_id = folderId;
+
+	const { data, error } = await supabase.rpc('notebook_create_note_entry', args);
 	if (error) {
 		return json({ error: error.message }, { status: 400 });
 	}
