@@ -4466,6 +4466,18 @@ and filtering that go with them are UI and needed no schema.
   action on it: `on delete set null` would need PG15's column-list form to
   avoid nulling the not-null `student_id`, and the delete RPC spells the
   teardown out instead (the `tournament_delete` convention).
+- **`notebook_folders_id_student_key` is added CONDITIONALLY (a `do $$` guard on
+  `pg_constraint`), not dropped and re-added like every other constraint in the
+  file** -- and this bit in practice on the first real apply. The entries'
+  composite FK DEPENDS on that unique index, so the second run of a
+  drop-then-add raises `2BP01: cannot drop constraint ... because other objects
+  depend on it` and aborts the rest of the migration. Postgres has no
+  `add constraint if not exists`, hence the guard. Migrations here are pasted
+  in by hand, so a re-run is ordinary -- someone re-pastes, or a first attempt
+  failed partway and gets retried -- and a migration that only works once fails
+  exactly then, with the schema half-built. Pinned by an idempotency test that
+  re-executes the real file and re-checks the FK and the RPC overload counts
+  afterwards; reverting the guard reproduces the original 2BP01 error.
 - **Zero client write grants**, as everywhere else in the notebook. Four RPCs,
   none of which takes a student id at all -- the caller is `auth.uid()`, so
   "you can only touch your own" is a property of the signatures:
@@ -11468,7 +11480,7 @@ SILENTLY -- ones where a regression breaks nothing visible.
   extension fallback accept anything reddens the refusal test, and removing
   the fallback entirely (the pre-fix behaviour) reddens the two acceptance
   tests, with the file restored byte-identical afterwards.
-- **`tests/notebook-folders.test.ts`** (27 assertions, the notebook chain plus
+- **`tests/notebook-folders.test.ts`** (28 assertions, the notebook chain plus
   `0088`) covers exactly three things, each of which fails SILENTLY: whose
   folder an entry can be filed into (the COMPOSITE foreign key, asserted with
   RLS out of the way entirely -- running as the connection owner, so nothing
@@ -11480,7 +11492,9 @@ SILENTLY -- ones where a regression breaks nothing visible.
   functions and a dev harness, and pulling them in would dilute what a red run
   means. Mutation-checked BOTH ways: degrading the composite FK to a plain
   `(id)` reference reddens 2 tests, opening the staff read policy to
-  `using (true)` reddens 5; migration restored byte-identical.
+  `using (true)` reddens 5; migration restored byte-identical. It also asserts
+  the file RE-APPLIES cleanly over its own objects, which is the one guarantee
+  here that broke in the field rather than in review.
 - **One assertion exists purely to keep the rest honest:** the suite asserts
   that `instructorA` and a plain `@boscotech.edu` account are NOT admins. Given
   0067's naming trap, if `teacher` ever silently re-acquired privilege every

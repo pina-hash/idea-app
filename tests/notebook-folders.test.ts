@@ -31,6 +31,8 @@
 // applied (tests/db/harness.ts); every client call runs as `authenticated`
 // with the request.jwt.claims GUC set, the way PostgREST issues one.
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	MIGRATIONS,
@@ -495,5 +497,49 @@ describe('filing at creation actually files', () => {
 			[ids]
 		);
 		expect(check.rows[0].n).toBe('3');
+	});
+});
+
+/**
+ * Migrations here are applied BY HAND in the Supabase SQL editor, so a second
+ * run is an ordinary thing that happens -- somebody re-pastes the file, or a
+ * first attempt failed partway and gets retried. A migration that only works
+ * once fails at exactly that moment, with the schema half-built.
+ *
+ * This is not hypothetical: the first cut of 0088 used the drop-then-add
+ * pattern for `notebook_folders_id_student_key`, which the entries' composite
+ * foreign key depends on, so re-running it raised 2BP01 and aborted the rest
+ * of the file.
+ */
+describe('the migration re-applies cleanly over its own objects', () => {
+	it('runs a second time, and the schema still behaves', async () => {
+		const path = fileURLToPath(
+			new URL('../supabase/migrations/0088_notebook_folders.sql', import.meta.url)
+		);
+		await expect(db.sql(readFileSync(path, 'utf8'))).resolves.toBeDefined();
+
+		// Not merely "it did not throw": the guarantees the file exists for have
+		// to survive the re-run, with real filed rows already in the table.
+		const filed = await db.sql<{ n: string }>(
+			`select count(*)::text as n from public.notebook_entries where folder_id is not null`
+		);
+		expect(Number(filed.rows[0].n)).toBeGreaterThan(0);
+
+		// The composite FK is still the composite one.
+		await expect(
+			db.sql(`update public.notebook_entries set folder_id = $1 where student_id = $2`, [
+				bensFolder,
+				ada.id
+			])
+		).rejects.toMatchObject({ code: '23503' });
+
+		// And still exactly one of each creating RPC.
+		const { rows } = await db.sql<{ n: string }>(
+			`select count(*)::text as n from pg_proc p
+			 join pg_namespace n on n.oid = p.pronamespace
+			 where n.nspname = 'public'
+			   and p.proname in ('notebook_create_entry', 'notebook_create_note_entry')`
+		);
+		expect(Number(rows[0].n)).toBe(2);
 	});
 });

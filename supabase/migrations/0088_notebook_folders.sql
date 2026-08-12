@@ -68,10 +68,25 @@ create table if not exists public.notebook_folders (
 -- What the entries' composite FK points at (the notebook_sessions
 -- (id, section_id) idiom). Redundant with the primary key on its own, and
 -- that is fine: it exists so the pair is referenceable.
-alter table public.notebook_folders
-	drop constraint if exists notebook_folders_id_student_key;
-alter table public.notebook_folders
-	add constraint notebook_folders_id_student_key unique (id, student_id);
+--
+-- ADDED CONDITIONALLY RATHER THAN DROPPED AND RE-ADDED, unlike every other
+-- constraint in this file. Once notebook_entries_folder_owner_fkey below
+-- exists it DEPENDS on this unique index, so a re-run of the usual
+-- drop-then-add pattern fails outright ("cannot drop constraint ... because
+-- other objects depend on it") and takes the rest of the migration with it.
+-- Postgres has no `add constraint if not exists`, hence the guard.
+do $$
+begin
+	if not exists (
+		select 1 from pg_constraint
+		where conrelid = 'public.notebook_folders'::regclass
+		  and conname = 'notebook_folders_id_student_key'
+	) then
+		alter table public.notebook_folders
+			add constraint notebook_folders_id_student_key unique (id, student_id);
+	end if;
+end
+$$;
 
 -- One folder name per student, case- and whitespace-insensitively: two folders
 -- called "Gearbox" and "gearbox " are the same idea typed twice, and having
