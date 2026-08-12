@@ -65,6 +65,12 @@ export interface TestDb {
 	readonly sql: QueryFn;
 	/** Runs as `authenticated` with auth.uid() = userId, the way a client does. */
 	asUser<T>(userId: string, fn: (q: QueryFn) => Promise<T>): Promise<T>;
+	/**
+	 * Runs as `anon` with NO jwt claims — a signed-out request through
+	 * PostgREST. What a public surface must actually be tested against, since
+	 * `authenticated` carries grants `anon` does not.
+	 */
+	asAnon<T>(fn: (q: QueryFn) => Promise<T>): Promise<T>;
 	stop(): Promise<void>;
 }
 
@@ -181,7 +187,21 @@ export async function startTestDb(migrationFiles: readonly string[] = MIGRATIONS
 		}
 	};
 
-	return { sql, asUser, stop };
+	/** The signed-out counterpart of asUser: role `anon`, no claims at all. */
+	const asAnon = async <T>(fn: (q: QueryFn) => Promise<T>): Promise<T> => {
+		const client = await pool.connect();
+		try {
+			await client.query(`select set_config('request.jwt.claims', '', false)`);
+			await client.query('set role anon');
+			const q: QueryFn = (text, params) => client.query(text, params as unknown[]);
+			return await fn(q);
+		} finally {
+			await client.query('reset role').catch(() => {});
+			client.release();
+		}
+	};
+
+	return { sql, asUser, asAnon, stop };
 }
 
 export interface SeededUser {

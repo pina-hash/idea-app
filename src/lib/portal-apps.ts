@@ -97,50 +97,21 @@ export const PORTAL_APPS: PortalApp[] = [
 		adminOnly: true,
 		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
-	{
-		id: 'coin-balance',
-		title: 'My Coin Balance',
-		sub: 'Your balance, transaction history, wage tier, and Eating Pass status (0070).',
-		icon: 'coin-balance',
-		href: '/coin-balance',
-		group: 'tools',
-		cta: 'View',
-		requiresAuth: true,
-		theme: { primary: '#C8A848', secondary: '#78B870' }
-	},
-	{
-		id: 'contracts',
-		title: 'Contracts',
-		sub: 'Browse and claim posted jobs; the payout splits across whoever claims it (0077).',
-		icon: 'coin-entry',
-		href: '/contracts',
-		group: 'tools',
-		cta: 'Browse',
-		requiresAuth: true,
-		theme: { primary: '#C8A848', secondary: '#78B870' }
-	},
+	// TWO coin cards, deliberately. The Ledger is the single student hub again
+	// — balance, leaderboard, transactions, analytics, contracts and roles all
+	// live on it — so the separate My Coin Balance and Contracts cards were
+	// removed rather than duplicating parts of it in the launcher (both routes
+	// redirect there). Coin Entry is gone from the launcher too: it writes only
+	// to the frozen Sheets ledger, and Coin Desk is the entry tool.
 	{
 		id: 'coins',
 		title: 'IDEA Coin Ledger',
-		sub: 'Old Google Sheets ledger. Frozen since Coin Desk launched — see My Coin Balance for your real balance.',
+		sub: 'Your balance, the leaderboard, every transaction, open contracts, and role applications.',
 		icon: 'coins',
 		href: '/coins/index.html',
 		group: 'tools',
 		cta: 'View live',
-		legacy: true,
 		theme: { primary: '#C8A848', secondary: '#78B870' }
-	},
-	{
-		id: 'coin-entry',
-		title: 'Coin Entry',
-		sub: 'Legacy entry tool. Writes to the old Sheets ledger only, never the real balances — use Coin Desk instead.',
-		icon: 'coin-entry',
-		href: '/coin-entry',
-		group: 'tools',
-		cta: 'Open',
-		adminOnly: true,
-		legacy: true,
-		theme: { primary: '#C8A848', secondary: '#D08030' }
 	},
 	{
 		id: 'dashboard',

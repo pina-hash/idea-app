@@ -279,6 +279,17 @@
 											<span class="since">{r.student_email}</span>
 										</div>
 										<div class="actions">
+											<!-- Read-only look at this student's own coin
+											     screens. Not impersonation: it renders the
+											     student components from the admin-read RPCs
+											     this session already holds, with every
+											     mutating control removed. -->
+											<a
+												class="mini"
+												href={`/coin-desk/preview?student=${encodeURIComponent(r.student_email)}`}
+											>
+												preview as student
+											</a>
 											<button
 												class="mini danger"
 												onclick={() => removeStudent(s.id, r.student_email)}
@@ -488,6 +499,11 @@
 		font-size: 0.68rem;
 		padding: 0.15rem 0.5rem;
 		cursor: pointer;
+		/* The preview control is an <a>, so the shared chrome has to hold for
+		   a link as well as a button. */
+		text-decoration: none;
+		display: inline-block;
+		line-height: 1.5;
 	}
 	.mini:hover:not(:disabled) {
 		color: var(--white);

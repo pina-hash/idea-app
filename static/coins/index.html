@@ -1196,6 +1196,35 @@ body::after {
 .badge-cancelled  { color: var(--red);   border: 1px solid rgba(255,68,68,0.4); }
 .contract-contractors { font-size: 0.68rem; color: var(--dim); letter-spacing: 0.04em; }
 .contract-notes-text  { font-size: 0.65rem; color: var(--dim); margin-top: 0.5rem; font-style: italic; line-height: 1.5; }
+/* Claim control. Styled from this file's own local tokens, matching the
+   role modal's submit button and status messages, so the contracts tab
+   gains a function without gaining a second visual language. */
+.contract-claim-row { margin-top: 0.7rem; }
+.contract-claim-btn {
+  /* min-height, not just padding: this is the one tappable control on the
+     contracts tab and a phone is where it will mostly be used. */
+  width: 100%; padding: 0.5rem 0.7rem; min-height: 44px; cursor: pointer;
+  font-family: 'Share Tech Mono', monospace; font-size: 0.62rem;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--green); background: rgba(0,255,65,0.07);
+  border: 1px solid rgba(0,255,65,0.35); border-radius: 3px;
+  transition: background 0.15s, color 0.15s;
+}
+.contract-claim-btn:hover:not(:disabled) { background: rgba(0,255,65,0.16); color: var(--white); }
+.contract-claim-btn:disabled { opacity: 0.45; cursor: default; }
+.contract-claim-msg {
+  margin-top: 0.45rem; padding: 0.4rem 0.55rem; border-radius: 3px;
+  font-size: 0.6rem; line-height: 1.45;
+}
+.contract-claim-msg.info    { color: var(--dim);   background: rgba(74,122,82,0.08); border: 1px solid rgba(74,122,82,0.25); }
+.contract-claim-msg.success { color: var(--green); background: rgba(0,255,65,0.07);  border: 1px solid rgba(0,255,65,0.3); }
+.contract-claim-msg.error   { color: var(--red);   background: rgba(255,68,68,0.07); border: 1px solid rgba(255,68,68,0.3); }
+.contract-mine-badge {
+  display: inline-block; margin-left: 0.4rem; padding: 0.1rem 0.4rem;
+  font-family: 'Share Tech Mono', monospace; font-size: 0.5rem;
+  letter-spacing: 0.09em; text-transform: uppercase; border-radius: 2px;
+  color: var(--gold); background: rgba(200,255,0,0.08); border: 1px solid rgba(200,255,0,0.35);
+}
 .contract-rate-label  { font-size: 0.6rem; color: var(--dim); margin-top: 0.15rem; }
 .shimmer-overlay { position: absolute; inset: 0; border-radius: 6px; pointer-events: none; overflow: hidden; z-index: 0; }
 .shimmer-overlay::after {
@@ -1443,19 +1472,8 @@ body::after {
 <div class="page-wrap">
   <div class="page-eyebrow">IDEA Pathway &mdash; Don Bosco Technical Institute</div>
   <h1 class="page-title">IDEA <span class="accent">Coin</span> Ledger</h1>
-  <p class="page-sub">Live leaderboard and transaction history. Read-only. Refreshes every 60 seconds.</p>
+  <p class="page-sub">Live balances, transactions, contracts, and roles. Refreshes every 60 seconds.</p>
   <div class="print-header" id="print-header"></div>
-
-  <div class="legacy-warn" role="alert">
-    <span class="legacy-warn-icon" aria-hidden="true">&#9888;</span>
-    <div class="legacy-warn-text">
-      <strong>This page shows the old Google Sheets ledger, not your current balance</strong>
-      Real coin activity has been logging to a new system since Coin Desk launched, and this
-      page has no way to see any of it &mdash; balances and transactions here are frozen at
-      whatever the old Sheets ledger last recorded. For your actual balance and history, use
-      <a href="/coin-balance">My Coin Balance</a> instead.
-    </div>
-  </div>
 
   <div class="meta-row">
     <span class="last-updated" id="last-updated">Fetching data&hellip;</span>
@@ -1719,18 +1737,28 @@ body::after {
 </footer>
 
 <script>
-const SUMMARY_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHVkr4mLhBYvO6tDjQxC-nFoc5rKG0CRySci77ac2a1bM4oDSGJef5McBYlhI6nXE2dlfgCy7UuRbn/pub?gid=631308186&single=true&output=csv";
-const TRANSACTIONS_CSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTHVkr4mLhBYvO6tDjQxC-nFoc5rKG0CRySci77ac2a1bM4oDSGJef5McBYlhI6nXE2dlfgCy7UuRbn/pub?gid=1105564658&single=true&output=csv";
-const LEADERBOARD_URL = 'https://mrpina-dev.github.io/IDEA/coins/';
-// Same-origin, read-only proxy. This page is public, so it reaches the ledger
-// through /api/coin-ledger/public, which allows an allowlist of read actions
-// only and attaches the server-only COIN_API_KEY. The Apps Script /exec URL is
-// no longer in this file, and no write goes through this constant: applying for
-// a role posts to /api/coin-ledger/apply, which requires a session.
-const CONTRACTS_API = "/api/coin-ledger/public";
-const APPLY_API = "/api/coin-ledger/apply";
-const APPLY_SIGNIN_URL = "/api/coin-ledger/signin";
+// ── Data layer ───────────────────────────────────────
+// This page reads the real Supabase coin economy through /api/coin/*, a
+// same-origin read-only surface with its own action allowlist. No Google
+// Sheets URL, and no Apps Script endpoint, remains anywhere in this file.
+//
+// NOTHING THAT COMES BACK THROUGH THESE ENDPOINTS CONTAINS AN EMAIL ADDRESS.
+// This is a public page over an email-keyed schema, so per-student detail is
+// addressed by an opaque server-minted id (the `Student Id` column below),
+// never by an address — see migration 0089's header for the whole rule.
+const SUMMARY_CSV      = "/api/coin/public?action=summary";
+const TRANSACTIONS_CSV = "/api/coin/public?action=transactions";
+const COIN_API         = "/api/coin/public";
+const ME_API           = "/api/coin/me";
+const CLAIM_API        = "/api/coin/claim";
+const APPLY_API        = "/api/coin/role-apply";
+const APPLY_SIGNIN_URL = "/api/coin/signin";
+const LEADERBOARD_URL  = 'https://ideabosco.com/coins/index.html';
 
+// Fallback only. The server sends the real per-section colors
+// (coin_sections.color) as an action=sections map, and those win; these stay
+// for a section that has none set — which includes every legacy section id
+// the 2026-08 import carried over.
 const SECTION_COLORS = {
   'IDEA-113':   '#00FF41',
   'IDEA-208-1': '#C8FF00',
@@ -1759,6 +1787,12 @@ let txnDateTo = '';
 let loaded = false;
 let rolesData = [];
 let studentRoleMap = {};
+// Who is looking at the page, from /api/coin/me. Null until resolved; a
+// signed-out visitor resolves to { signedIn: false } and every signed-in
+// control below stays hidden.
+let coinMe = null;
+let myClaimIds = [];
+let sectionColorMap = {};
 
 // ── CSV Parsing ──────────────────────────────────────
 function parseCSVRow(line) {
@@ -1836,6 +1870,11 @@ async function fetchData() {
       fetch(SUMMARY_CSV + '&_=' + Date.now(), { cache: 'no-store' }),
       fetch(TRANSACTIONS_CSV + '&_=' + Date.now(), { cache: 'no-store' })
     ]);
+    // A failed read answers with a JSON error body, which parseCSV would
+    // happily turn into a nonsense row -- and the page would then stamp a
+    // fresh "Last updated" over an empty board. Fall into the catch instead,
+    // so a real outage reads as one.
+    if (!sRes.ok || !tRes.ok) throw new Error('coin read failed');
     summaryData = parseCSV(await sRes.text());
     txnData = parseCSV(await tRes.text());
 
@@ -1873,23 +1912,53 @@ async function fetchData() {
   }
 }
 
+// Who is signed in. Resolved once per load, before contracts render, so the
+// claim control knows whether to draw itself.
+async function fetchMe() {
+  try {
+    const res = await fetch(ME_API + '?_=' + Date.now(), { cache: 'no-store' });
+    coinMe = await res.json();
+  } catch(_) { coinMe = { signedIn: false }; }
+  return coinMe;
+}
+
 async function fetchContractsData() {
   try {
-    const ts = Date.now();
-    const [cRes, chRes] = await Promise.all([
-      fetch(CONTRACTS_API + '?action=contracts&_=' + ts, { cache: 'no-store' }),
-      fetch(CONTRACTS_API + '?action=contractHistory&_=' + ts, { cache: 'no-store' })
-    ]);
-    try { contractsData = await cRes.json(); } catch(e) { contractsData = []; }
-    try { contractHistoryData = await chRes.json(); } catch(e) { contractHistoryData = []; }
+    const res = await fetch(COIN_API + '?action=contracts&_=' + Date.now(), { cache: 'no-store' });
+    try { contractsData = await res.json(); } catch(e) { contractsData = []; }
+    if (!Array.isArray(contractsData)) contractsData = [];
+    // The History sub-tab is a view over the same rows, not a second feed:
+    // a cancelled contract IS the history entry the old Sheets board kept
+    // separately, so it is derived here rather than fetched.
+    contractHistoryData = contractsData
+      .filter(c => c.status === 'Cancelled')
+      .map(c => ({
+        name: c.name,
+        eventType: 'Cancelled',
+        date: c.dateCancelled || '',
+        contractors: c.contractors || '',
+        payout: c.totalPayout,
+        notes: c.cancelReason || c.notes || ''
+      }));
     renderContracts();
     document.getElementById('contracts-loading').style.display = 'none';
   } catch (err) { /* fail silently — contracts tab shows stale or empty */ }
 }
 
+// Which contracts the signed-in visitor is already on. Signed out, this is
+// simply an empty list and no "you're on this" marker is ever drawn.
+async function fetchMyClaims() {
+  if (!coinMe || !coinMe.signedIn) { myClaimIds = []; return; }
+  try {
+    const res = await fetch(CLAIM_API + '?_=' + Date.now(), { cache: 'no-store' });
+    const data = await res.json();
+    myClaimIds = Array.isArray(data && data.contractIds) ? data.contractIds : [];
+  } catch(_) { myClaimIds = []; }
+}
+
 async function fetchReasonsGuide() {
   try {
-    const res = await fetch(CONTRACTS_API + '?action=getReasons&_=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch(COIN_API + '?action=reasons&_=' + Date.now(), { cache: 'no-store' });
     const data = await res.json();
     reasonsGuideData = Array.isArray(data) ? data : (data && Array.isArray(data.reasons) ? data.reasons : []);
     renderGuideModal();
@@ -1898,16 +1967,36 @@ async function fetchReasonsGuide() {
 
 async function fetchRolesData() {
   try {
-    const res = await fetch(CONTRACTS_API + '?action=getRoles&_=' + Date.now(), { cache: 'no-store' });
+    const res = await fetch(COIN_API + '?action=roles&_=' + Date.now(), { cache: 'no-store' });
     const data = await res.json();
     rolesData = Array.isArray(data) ? data : [];
     if (loaded) renderLeaderboard();
   } catch(_) {}
 }
 
+// The real per-section colors. Merged OVER the hardcoded fallback map above,
+// so a section the server has no color for keeps the page's own.
+async function fetchSectionColors() {
+  try {
+    const res = await fetch(COIN_API + '?action=sections&_=' + Date.now(), { cache: 'no-store' });
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      data.forEach(r => { if (r && r.section && r.color) sectionColorMap[r.section] = r.color; });
+    }
+    if (loaded) renderLeaderboard();
+  } catch(_) {}
+}
+
+function sectionColor(section) {
+  return sectionColorMap[section] || SECTION_COLORS[section] || '#4A7A52';
+}
+
+// Tier-aware, per 0087: the summary's Wage column already carries this
+// student's own base x tier rate, so the hub can never report a weekly wage
+// that disagrees with what Coin Desk actually pays.
 function weeklyPayFor(wName) {
   const wRow = summaryData.find(r => (pick(r)('Name', 'Student', 'Full Name') || '').trim() === wName);
-  const base = wRow ? (parseFloat(pick(wRow)('Weekly Wage', 'Wage', 'Base Wage', 'Weekly Pay') || 0)) : 0;
+  const base = wRow ? (parseFloat(pick(wRow)('Wage', 'Weekly Wage', 'Base Wage', 'Weekly Pay') || 0)) : 0;
   return base + (studentRoleMap[wName] ? 1 : 0);
 }
 
@@ -2074,6 +2163,8 @@ function contractCardHTML(c) {
   const notes = c.notes || '';
   const statusBadgeClass = status === 'In Progress' ? 'badge-inprogress' : status === 'Completed' ? 'badge-completed' : status === 'Cancelled' ? 'badge-cancelled' : 'badge-open';
   const shimmer = tier === 'legendary' ? '<div class="shimmer-overlay"></div>' : '';
+  const mine = !!(c.id && myClaimIds.indexOf(c.id) !== -1);
+  const claimHtml = claimControlHTML(c);
   return `<div class="contract-card ${tier}">
     ${shimmer}
     <div style="position:relative;z-index:1;">
@@ -2082,11 +2173,65 @@ function contractCardHTML(c) {
       <div class="contract-name-display ${tier}">${escHtml(name)}</div>
       <div class="contract-meta-row">
         <span class="contract-status-badge ${statusBadgeClass}">${escHtml(status)}</span>
+        ${mine ? '<span class="contract-mine-badge">You’re on this</span>' : ''}
         ${contractors ? `<span class="contract-contractors">&#9672; ${escHtml(contractors)}</span>` : ''}
       </div>
       ${notes ? `<div class="contract-notes-text">${escHtml(notes)}</div>` : ''}
+      ${claimHtml}
     </div>
   </div>`;
+}
+
+// The claim control renders ONLY for a signed-in student looking at a
+// contract that is still claimable. A signed-out visitor sees the tab exactly
+// as it rendered before this existed — no button, no prompt, no placeholder.
+function claimControlHTML(c) {
+  const id = c.id || '';
+  if (!id) return '';
+  const signedIn = !!(coinMe && coinMe.signedIn && coinMe.isStudent);
+  if (!signedIn) return '';
+  const status = c.status || 'Open';
+  if (status === 'Completed' || status === 'Cancelled') return '';
+  if (myClaimIds.indexOf(id) !== -1) return '';
+  const full = (parseInt(c.claimedCount, 10) || 0) >= (parseInt(c.maxContractors, 10) || 1);
+  if (full) return '<div class="contract-claim-row"><div class="contract-claim-msg info">All slots are taken.</div></div>';
+  return '<div class="contract-claim-row" data-claim-row="' + escHtml(id) + '">' +
+    '<button class="contract-claim-btn" data-claim="' + escHtml(id) + '">Claim this contract</button>' +
+    '</div>';
+}
+
+const CLAIM_REFUSALS = {
+  full:            'All slots were taken before your claim landed.',
+  wrong_section:   'This contract is only open to another section.',
+  already_claimed: 'You are already on this contract.',
+  not_open:        'This contract is no longer open.',
+  not_signed_in:   'Sign in with your school account to claim a contract.'
+};
+
+async function claimContract(id, btn) {
+  const row = btn.closest('.contract-claim-row');
+  btn.disabled = true;
+  btn.textContent = 'Claiming…';
+  let data;
+  try {
+    const res = await fetch(CLAIM_API, {
+      method: 'POST', cache: 'no-store',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contractId: id })
+    });
+    data = await res.json();
+  } catch(e) {
+    data = { ok: false, reason: 'error' };
+  }
+  if (data && data.ok) {
+    // A claim can legitimately lose a race for the last slot between the
+    // click and the response, so the board is re-read rather than guessed at.
+    await fetchMyClaims();
+    await fetchContractsData();
+    return;
+  }
+  const msg = (data && CLAIM_REFUSALS[data.reason]) || 'Could not claim this contract. Please try again.';
+  if (row) row.innerHTML = '<div class="contract-claim-msg error">' + escHtml(msg) + '</div>';
 }
 
 // ── Leaderboard ──────────────────────────────────────
@@ -2182,7 +2327,7 @@ function renderLeaderboard() {
     card.className = 'coin-card' + (isNeg ? ' negative' : '');
     card.style.transitionDelay = Math.min(i * 0.04, 0.6) + 's';
 
-    const secColor = SECTION_COLORS[section] || '#4A7A52';
+    const secColor = sectionColor(section);
     const [r, g, b] = hexToRgb(secColor);
     card.style.setProperty('--sec-rgb', r + ',' + g + ',' + b);
     card.style.setProperty('--sec-border-col', 'rgba(' + r + ',' + g + ',' + b + ',0.6)');
@@ -2254,7 +2399,7 @@ function openDrawer(row) {
 
   const badgeEl = document.getElementById('drawer-section-badge');
   badgeEl.textContent = section;
-  const sc = SECTION_COLORS[section] || '#4A7A52';
+  const sc = sectionColor(section);
   badgeEl.style.cssText = 'color:' + sc + ';border:1px solid ' + sc + '55;background:' + sc + '11';
 
   let statsHtml =
@@ -2270,22 +2415,30 @@ function openDrawer(row) {
   const wPay = weeklyPayFor(name);
   if (wPay > 0)
     statsHtml += drawerStatHtml('Weekly Pay', wPay + ' i¢/wk', 'var(--teal)');
+  const wTier = parseFloat(p('Wage Tier') || 0);
+  if (wTier > 0)
+    statsHtml += drawerStatHtml('Wage Tier', 'Tier ' + fmtNum(wTier), 'var(--cyan)');
   document.getElementById('drawer-stats').innerHTML = statsHtml;
 
-  const studentTxns = txnData.filter(r =>
-    (pick(r)('Name', 'Student', 'Full Name') || '').trim().toLowerCase() === name.toLowerCase()
-  );
-  drawerTxns = studentTxns.map(r => {
-    const rp = pick(r);
-    const dateStr = rp('Date / Time', 'Date/Time', 'Date', 'Timestamp') || '';
-    return {
-      date:    dateStr || '-',
-      dateObj: dateStr ? new Date(dateStr) : new Date(0),
-      amount:  parseFloat(rp('Amount') || 0),
-      type:    rp('Type', 'Transaction Type') || '-',
-      reason:  rp('Reason', 'Description', 'Note') || '-'
-    };
-  });
+  // History comes from the per-student endpoint, addressed by the OPAQUE id
+  // the summary carries — not by filtering the global feed on a display name,
+  // which two students can legitimately share. Falls back to the name filter
+  // only if a row somehow has no id.
+  const studentId = (p('Student Id') || '').trim();
+  drawerTxns = txnData
+    .filter(r => (pick(r)('Name', 'Student', 'Full Name') || '').trim().toLowerCase() === name.toLowerCase())
+    .map(r => {
+      const rp = pick(r);
+      const dateStr = rp('Date / Time', 'Date/Time', 'Date', 'Timestamp') || '';
+      return {
+        date:    dateStr || '-',
+        dateObj: dateStr ? new Date(dateStr) : new Date(0),
+        amount:  parseFloat(rp('Amount') || 0),
+        type:    rp('Type', 'Transaction Type') || '-',
+        reason:  rp('Reason', 'Description', 'Note') || '-'
+      };
+    });
+  if (studentId) loadDrawerDetail(studentId, statsHtml);
   drawerSortCol = 'date';
   drawerSortDir = 'desc';
   renderDrawerTxns();
@@ -2295,8 +2448,44 @@ function openDrawer(row) {
 }
 
 function closeDrawer() {
+  drawerStudentId = '';
   document.getElementById('student-drawer').classList.remove('open');
   document.getElementById('drawer-overlay').classList.remove('open');
+}
+
+let drawerStudentId = '';
+
+// Per-student detail, fetched by the opaque id. Adds the two facts the
+// leaderboard feed does not carry — whether an Eating Pass is currently held,
+// and this student's own authoritative history — into the existing stats
+// layout. The STRIKE COUNT is deliberately not part of the public payload:
+// see migration 0089's disclosure boundary.
+async function loadDrawerDetail(studentId, baseStatsHtml) {
+  drawerStudentId = studentId;
+  let detail;
+  try {
+    const res = await fetch(COIN_API + '?action=student&student=' + encodeURIComponent(studentId) + '&_=' + Date.now(), { cache: 'no-store' });
+    detail = await res.json();
+  } catch(_) { return; }
+  // The drawer may have been closed, or reopened on someone else, while this
+  // was in flight.
+  if (drawerStudentId !== studentId || !detail || detail.ok !== true) return;
+
+  let statsHtml = baseStatsHtml;
+  if (detail.eating_pass_held)
+    statsHtml += drawerStatHtml('Eating Pass', 'Held', 'var(--gold)');
+  document.getElementById('drawer-stats').innerHTML = statsHtml;
+
+  if (Array.isArray(detail.history)) {
+    drawerTxns = detail.history.map(h => ({
+      date:    h.occurred_at || '-',
+      dateObj: h.occurred_at ? new Date(h.occurred_at) : new Date(0),
+      amount:  parseFloat(h.amount || 0),
+      type:    h.type || '-',
+      reason:  h.reason || '-'
+    }));
+    renderDrawerTxns();
+  }
 }
 
 let drawerTxns = [];
@@ -2659,7 +2848,7 @@ function renderAnalytics() {
   const maxAvg = Math.max(...sectionAvgs.map(s => s.avg), 1);
   let standingsHtml = '';
   sectionAvgs.forEach(({ sec, avg }) => {
-    const color = SECTION_COLORS[sec] || '#4A7A52';
+    const color = sectionColor(sec);
     const pct   = Math.max(0, (avg / maxAvg) * 100).toFixed(1);
     standingsHtml +=
       '<div class="standings-row">' +
@@ -2739,7 +2928,7 @@ function renderAnalytics() {
     raHtml = '<div class="recently-active-list">' +
       recentList.map(({ name, dateStr, type }) => {
         const sec   = studentSections[name] || '—';
-        const color = SECTION_COLORS[sec] || 'var(--dim)';
+        const color = sectionColorMap[sec] || SECTION_COLORS[sec] || 'var(--dim)';
         const dShort = dateStr.slice(0, 10);
         return '<div class="ra-item">' +
           '<div class="ra-name">' + escHtml(name) + '</div>' +
@@ -2971,11 +3160,27 @@ document.getElementById('print-header').textContent =
 // ── Fetch on load + auto-refresh ──────────────────────
 fetchData();
 setInterval(fetchData, 60000);
-fetchContractsData();
-setInterval(fetchContractsData, 60000);
+// Identity resolves BEFORE the first contracts render, so the board never
+// flashes without its claim controls for a signed-in student.
+(async () => {
+  await fetchMe();
+  await fetchMyClaims();
+  await fetchContractsData();
+})();
+setInterval(async () => { await fetchMyClaims(); await fetchContractsData(); }, 60000);
 fetchReasonsGuide();
 fetchRolesData();
 setInterval(fetchRolesData, 60000);
+fetchSectionColors();
+
+// One delegated listener for every claim button, so a re-rendered board never
+// needs its handlers rebinding.
+document.addEventListener('click', (e) => {
+  const btn = e.target && e.target.closest ? e.target.closest('[data-claim]') : null;
+  if (!btn) return;
+  e.preventDefault();
+  claimContract(btn.getAttribute('data-claim'), btn);
+});
 
 // ── Background Particles ──────────────────────────────
 const canvas = document.getElementById('bg-canvas');
@@ -3138,7 +3343,7 @@ else canvas.style.display = 'none';
   const closeBtn  = document.getElementById('role-modal-close');
   const openBtn   = document.getElementById('apply-role-btn');
 
-  // `applicantName` is whatever /api/coin-ledger/apply told us the SERVER
+  // `applicantName` is whatever /api/coin/me told us the SERVER
   // resolved from the visitor's own session. It is display only: the submit
   // sends no student name at all, and the server resolves the applicant again
   // for itself. There is deliberately no name picker any more — picking a
@@ -3183,7 +3388,7 @@ else canvas.style.display = 'none';
   async function resolveApplicant() {
     let info;
     try {
-      const res = await fetch(APPLY_API, { cache: 'no-store' });
+      const res = await fetch(ME_API + '?_=' + Date.now(), { cache: 'no-store' });
       info = await res.json();
     } catch(e) {
       renderIdentityNotice('<div class="role-status error">Could not reach the coin ledger. Please try again.</div>');
@@ -3193,25 +3398,28 @@ else canvas.style.display = 'none';
 
     if (!info || !info.signedIn) {
       renderIdentityNotice(
-        '<p class="role-note">Applying for a role holds 1 i¢ from your own balance, so you have to be signed in as yourself.</p>' +
+        '<p class="role-note">An application is filed under your own name, so you have to be signed in as yourself.</p>' +
         '<a class="role-submit-btn" style="display:block;text-align:center;text-decoration:none" href="' + APPLY_SIGNIN_URL + '">Sign in with your school account</a>'
       );
       return;
     }
-    if (!info.eligible) {
-      renderIdentityNotice('<div class="role-status error">' + escHtml(info.error || 'You cannot apply right now.') + '</div>');
+    if (!info.isStudent) {
+      renderIdentityNotice('<div class="role-status error">Only students can apply for a coin role.</div>');
       return;
     }
 
-    applicantName = info.student || '';
+    applicantName = info.name || '';
     renderApplyForm(applicantName, info.section || '');
   }
 
   function renderApplyForm(name, serverSection) {
     const body = document.getElementById('role-modal-body');
 
+    // The application fee is 0 i¢ on purpose (0074): the answers are the
+    // gate, not payment. The only coin tied to a role is the recurring
+    // Weekly Role Stipend once you hold one.
     body.innerHTML =
-      '<p class="role-note">Costs 1 i¢ to apply. Refunded if you\'re selected.</p>' +
+      '<p class="role-note">Free to apply. Your answers are what get read.</p>' +
       '<div class="role-field">' +
         '<label class="role-field-label">Applying As</label>' +
         '<div class="role-option selected" style="cursor:default">' + escHtml(name) + '</div>' +
@@ -3269,7 +3477,7 @@ else canvas.style.display = 'none';
 
     statusMsg.innerHTML = '';
     roleOptions.innerHTML = openRoles.map(r =>
-      '<button class="role-option" data-role="' + escHtml(r.role) + '">' +
+      '<button class="role-option" data-role="' + escHtml(r.roleId || r.role) + '">' +
         escHtml(r.role) + ' — ' + r.open + ' slot' + (r.open !== 1 ? 's' : '') + ' open' +
       '</button>'
     ).join('');
@@ -3297,7 +3505,7 @@ else canvas.style.display = 'none';
     if (!qs) return;
     qs.innerHTML = '<div style="color:var(--dim);font-size:0.68rem;padding:0.65rem 0;letter-spacing:0.04em;">Loading questions…</div>';
     try {
-      const res  = await fetch(CONTRACTS_API + '?action=getRoleQuestions&role=' + encodeURIComponent(role) + '&_=' + Date.now(), { cache: 'no-store' });
+      const res  = await fetch(COIN_API + '?action=roleQuestions&role=' + encodeURIComponent(role) + '&_=' + Date.now(), { cache: 'no-store' });
       const data = await res.json();
       applyQuestions = Array.isArray(data) ? data : [];
     } catch(e) {
@@ -3311,7 +3519,15 @@ else canvas.style.display = 'none';
   function renderQuestions() {
     const qs = document.getElementById('role-questions-section');
     if (!qs) return;
-    if (!applyQuestions.length) { qs.innerHTML = ''; checkSubmitReady(); return; }
+    // A role with no configured questions is a LEGITIMATE state, not an
+    // error: the real quiz text is maintained by hand in the database and is
+    // never committed to this repo (0076). Say so, and let the application
+    // through.
+    if (!applyQuestions.length) {
+      qs.innerHTML = '<div class="role-status info">No application questions have been set for this role yet — you can apply without them.</div>';
+      checkSubmitReady();
+      return;
+    }
     let html = '<div class="role-questions-wrap">';
     applyQuestions.forEach((q, i) => {
       html += '<div class="role-question-item">';
@@ -3320,9 +3536,13 @@ else canvas.style.display = 'none';
         html += '<div class="role-mc-options">';
         (q.options || []).forEach((opt, oi) => {
           const id = 'rq_' + i + '_' + oi;
+          // The value is the option's INDEX, not its text: the server
+          // records `selected_option_index` and scores it against the
+          // question's own answer key, so sending the label back would be
+          // unusable (and, being NaN, would read as no answer at all).
           html +=
             '<label class="role-mc-label" for="' + id + '">' +
-              '<input type="radio" name="rq_' + i + '" value="' + escHtml(opt) + '" id="' + id + '" class="role-mc-input">' +
+              '<input type="radio" name="rq_' + i + '" value="' + oi + '" id="' + id + '" class="role-mc-input">' +
               '<span class="role-mc-text">' + escHtml(opt) + '</span>' +
             '</label>';
         });
@@ -3343,10 +3563,11 @@ else canvas.style.display = 'none';
   function checkSubmitReady() {
     const submitBtn = document.getElementById('role-submit-btn');
     if (!submitBtn) return;
-    if (!applicantName || !selectedRole || !applyQuestions.length) {
+    if (!applicantName || !selectedRole) {
       submitBtn.disabled = true;
       return;
     }
+    if (!applyQuestions.length) { submitBtn.disabled = false; return; }
     const allAnswered = applyQuestions.every((q, i) => {
       if (q.type === 'MC') {
         return !!document.querySelector('input[name="rq_' + i + '"]:checked');
@@ -3358,6 +3579,18 @@ else canvas.style.display = 'none';
     submitBtn.disabled = !allAnswered;
   }
 
+  const APPLY_REFUSALS = {
+    not_signed_in:     'Sign in with your school account to apply.',
+    not_a_student:     'Only students can apply for a coin role.',
+    unknown_role:      'That role is not open for applications.',
+    no_section:        'You are not on a coin roster yet — ask your instructor to add you.',
+    already_holds_role:'You already hold this role.'
+  };
+  function applyRefusal(data) {
+    if (!data) return 'Submission failed. Please try again.';
+    return APPLY_REFUSALS[data.reason] || data.message || 'Submission failed. Please try again.';
+  }
+
   async function submitApplication() {
     if (!applicantName || !selectedRole) return;
     const submitBtn = document.getElementById('role-submit-btn');
@@ -3365,32 +3598,38 @@ else canvas.style.display = 'none';
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting…';
     try {
+      // Each answer is keyed to the question it answers, which is what lets
+      // the server snapshot it (question text, options, which one was
+      // correct) at submission time instead of live-joining a question bank
+      // that is hand-edited outside migrations.
       const answers = applyQuestions.map((q, i) => {
         if (q.type === 'MC') {
           const checked = document.querySelector('input[name="rq_' + i + '"]:checked');
-          return { answer: checked ? checked.value : '' };
-        } else {
-          const ta = document.getElementById('rq_free_' + i);
-          return { answer: ta ? ta.value.trim() : '' };
+          return {
+            question_id: q.questionId,
+            selected_option_index: checked ? parseInt(checked.value, 10) : null
+          };
         }
+        const ta = document.getElementById('rq_free_' + i);
+        return { question_id: q.questionId, written_answer: ta ? ta.value.trim() : '' };
       });
       // No student name is sent. The server resolves who is applying from the
-      // session cookie this request carries, which is the whole fix: there is
-      // no field here a visitor could point at somebody else.
+      // session cookie this request carries, which is the whole point: there
+      // is no field here a visitor could point at somebody else.
       const res  = await fetch(APPLY_API, {
         method: 'POST',
         cache: 'no-store',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ role: selectedRole, answers: answers })
+        body: JSON.stringify({ roleId: selectedRole, answers: answers })
       });
       const data = await res.json();
-      if (data.success) {
-        statusMsg.innerHTML = '<div class="role-status success">Application submitted. 1 i¢ held — you\'ll get it back if you\'re chosen.</div>';
+      if (data && data.ok) {
+        statusMsg.innerHTML = '<div class="role-status success">Application submitted. Your instructor reviews it from Coin Desk.</div>';
         submitBtn.style.display = 'none';
         await Promise.all([fetchData(), fetchRolesData()]);
         setTimeout(closeModal, 3000);
       } else {
-        statusMsg.innerHTML = '<div class="role-status error">' + escHtml(data.error || 'Submission failed. Please try again.') + '</div>';
+        statusMsg.innerHTML = '<div class="role-status error">' + escHtml(applyRefusal(data)) + '</div>';
         submitBtn.disabled = false;
         submitBtn.textContent = 'Submit Application';
       }

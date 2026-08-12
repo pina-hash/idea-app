@@ -30,13 +30,29 @@
 		configured = true,
 		email,
 		initialContracts = [],
-		initialMyClaimIds = []
+		initialMyClaimIds = [],
+		readOnly = false
 	}: {
-		supabase: SupabaseClient;
+		supabase?: SupabaseClient;
 		configured?: boolean;
 		email: string | null;
 		initialContracts?: PublicContractRow[];
 		initialMyClaimIds?: string[];
+		/**
+		 * PREVIEW MODE (/coin-desk/preview). The component renders exactly what
+		 * the student would see and is structurally unable to write: every
+		 * claim control is absent from the markup, `claimContract` returns
+		 * immediately, and the on-mount refresh is skipped -- that refresh
+		 * reads coin_contract_claims, which under RLS would answer with the
+		 * ADMIN'S OWN claims, i.e. the wrong person's board.
+		 *
+		 * This is deliberately NOT impersonation: nothing swaps a session,
+		 * mints a token, or changes who the caller is. The rows come from
+		 * admin-read RPCs the admin already holds, and this guard is what keeps
+		 * a write from ever being issued as the admin while the screen says
+		 * "student".
+		 */
+		readOnly?: boolean;
 	} = $props();
 
 	let contracts = $state<PublicContractRow[]>(initialContracts);
@@ -45,6 +61,7 @@
 	let refreshing = $state(false);
 
 	async function refresh() {
+		if (readOnly || !supabase) return;
 		refreshing = true;
 		const [contractsResp, statusResp, claimsResp] = await Promise.all([
 			supabase
@@ -91,6 +108,10 @@
 	let claimFeedback = $state<Record<string, { ok: boolean; message: string }>>({});
 
 	async function claimContract(id: string) {
+		// Second line of defence behind the markup guard below: there is no
+		// path from a preview render to a write, even if a control were ever
+		// rendered by mistake.
+		if (readOnly || !supabase) return;
 		claimBusy = { ...claimBusy, [id]: true };
 		const { [id]: _cleared, ...rest } = claimFeedback;
 		claimFeedback = rest;
@@ -123,7 +144,9 @@
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
-		<a class="btn secondary" href="/coin-balance">My Coin Balance</a>
+		<!-- The Ledger, not /coin-balance: that route is a redirect to this
+		     same page now, and pointing at the redirect would just add a hop. -->
+		<a class="btn secondary" href="/coins/index.html">IDEA Coin Ledger</a>
 		<a class="btn secondary" href="/">&lsaquo; Home</a>
 		<ProfileMenu />
 	</div>
@@ -203,15 +226,17 @@
 									<span class={feedback.ok ? 'txn-pos' : 'txn-neg'}>{feedback.message}</span>
 								{/if}
 							</div>
-							<div class="actions">
-								<button
-									class="btn secondary"
-									disabled={full || claimBusy[c.id]}
-									onclick={() => claimContract(c.id)}
-								>
-									{claimBusy[c.id] ? 'Claiming…' : full ? 'Full' : 'Claim'}
-								</button>
-							</div>
+							{#if !readOnly}
+								<div class="actions">
+									<button
+										class="btn secondary"
+										disabled={full || claimBusy[c.id]}
+										onclick={() => claimContract(c.id)}
+									>
+										{claimBusy[c.id] ? 'Claiming…' : full ? 'Full' : 'Claim'}
+									</button>
+								</div>
+							{/if}
 						</div>
 					{/each}
 				</div>

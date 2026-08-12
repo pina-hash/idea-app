@@ -1,88 +1,18 @@
 import { redirect } from '@sveltejs/kit';
-import {
-	sumBalance,
-	withCategoryNames,
-	type CoinBalanceTransaction,
-	type EatingPassStatus
-} from '$lib/coin-balance';
 import type { PageServerLoad } from './$types';
 
 /**
- * The student-facing counterpart to /coin-desk: a signed-in student's own
- * IDEA Coin balance, transaction history, wage tier, and Eating Pass status.
- * Gated to signed-in @boscotech.net students specifically -- not admin-only
- * (/coin-desk, /admin) and not public (/coin-entry's teacher gate). An
- * anonymous visitor or a signed-in non-student is redirected to `/`: the
- * hooks.server.ts standard signed-out handling for anonymous, extended here
- * to also cover "signed in but the wrong role" the same way /dashboard
- * redirects a non-admin teacher away.
+ * `/coin-balance` folded into the IDEA Coin Ledger.
  *
- * Balance and history run as the CALLER'S OWN session (locals.supabase, the
- * per-request cookie-scoped client hooks.server.ts sets up for every
- * request) with no `.eq('student_email', ...)` filter and no RPC call at
- * all: coin_transactions and coin_wage_tiers (0070) already grant a signed-in
- * user SELECT on their own rows via `student_email = current_user_email() or
- * is_admin()`, so the filtering IS the RLS policy, not application code.
- * This is deliberately the opposite of /coin-desk and /admin, which both go
- * through coin_admin_lookup (an is_admin()-gated RPC) -- this route
- * exercises the student read path those policies were built for, and never
- * touches coin_admin_lookup or any other admin RPC.
+ * The Ledger at `/coins/index.html` is the single student hub again — it
+ * carries the balance, the leaderboard, the transaction log, analytics,
+ * contracts and roles together, which is what it always was — so a separate
+ * balance page is a second place for the same fact to be right or wrong.
  *
- * Eating Pass status IS one RPC call: `coin_my_eating_pass_status()` (0072),
- * a no-parameter wrapper that resolves the caller's own identity internally
- * and calls the existing coin_eating_pass_active / coin_eating_pass_strikes
- * functions directly -- those two were never granted to `authenticated`
- * (only their SECURITY DEFINER callers could reach them), and this page
- * trusts that one answer rather than re-deriving the rule in TypeScript.
+ * This stays as a redirect rather than a delete because the URL is in
+ * bookmarks and muscle memory. `CoinBalanceView.svelte` is deliberately KEPT:
+ * `/coin-desk/preview` mounts it to show an admin what a student sees.
  */
-export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
-	if (!claims) redirect(303, '/');
-
-	const { data: profile } = await supabase
-		.from('profiles')
-		.select('role, email, display_name, full_name')
-		.eq('id', claims.sub)
-		.maybeSingle();
-
-	if (profile?.role !== 'student') redirect(303, '/');
-
-	const [
-		{ data: categories, error: catError },
-		{ data: transactions, error: txError },
-		{ data: wageRow, error: wageError },
-		{ data: passStatus, error: passError }
-	] = await Promise.all([
-		supabase.from('coin_categories').select('id, name'),
-		supabase
-			.from('coin_transactions')
-			.select('id, category_id, amount, quantity, note, meta, created_at')
-			.order('created_at', { ascending: false }),
-		supabase.from('coin_wage_tiers').select('tier').maybeSingle(),
-		supabase.rpc('coin_my_eating_pass_status')
-	]);
-
-	// Fails soft: 0070 not applied yet reads as a clearly-flagged "ledger not
-	// available" page rather than a crashed one (the /coin-desk convention).
-	const configured = !catError && !txError;
-
-	const rows = (transactions ?? []) as CoinBalanceTransaction[];
-
-	// Fails soft the same way: 0072 not applied yet (but 0070 is) reads as
-	// "no pass held" rather than a crashed page.
-	const eatingPass: EatingPassStatus = passError
-		? { active: false, strikes: 0 }
-		: (passStatus as EatingPassStatus);
-
-	return {
-		configured,
-		email: profile?.email ?? claims.email ?? null,
-		displayName: profile?.display_name || profile?.full_name || null,
-		balance: sumBalance(rows),
-		transactions: withCategoryNames(rows, categories ?? []),
-		// No row yet (never bought a Pay Raise) means the base tier, 1 -- the
-		// same default coin_wage_tiers.tier's column default expresses, and
-		// what coin_admin_lookup itself falls back to.
-		wageTier: wageError ? null : (wageRow?.tier ?? 1),
-		eatingPass
-	};
+export const load: PageServerLoad = async () => {
+	redirect(308, '/coins/index.html');
 };
