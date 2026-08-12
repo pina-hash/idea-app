@@ -8,8 +8,15 @@
 	import AppLauncher from '$lib/AppLauncher.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import HomeTour from '$lib/tour/HomeTour.svelte';
-	import FspHomeSection from '$lib/fsp/FspHomeSection.svelte';
-	import { markItemOpened } from '$lib/fsp/item-opens';
+	import ClassroomFeed from '$lib/classroom/ClassroomFeed.svelte';
+	import {
+		buildFeed,
+		readFeedPrefs,
+		toggleCollapsed,
+		type ClassroomFeedPrefs,
+		type FeedSubmission
+	} from '$lib/classroom/feed';
+	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 	import {
 		computeStreak,
 		levelFromXp,
@@ -22,13 +29,9 @@
 	import { modeById } from '$lib/gauntlet';
 	import { ADMIN_OWNER_EMAIL } from '$lib/admin';
 	import {
-		sectionsByYear,
 		sectionById,
-		summerProgram,
 		selfSelectOptions,
-		activeCourseCount,
-		type Section,
-		type Assignment
+		activeCourseCount
 	} from '$lib/curriculum';
 
 	let { data } = $props();
@@ -59,35 +62,39 @@
 		return { level, streak, nextUp };
 	});
 
-	const yearGroups = sectionsByYear();
-	const fsp = summerProgram();
 	const pickerGroups = selfSelectOptions();
 	const courseCount = activeCourseCount();
 
-	// FSP pinned-section items: the section's own material rows plus the FRC
-	// interest form, plus the teacher-only Live Question Feed. The FspHomeSection
-	// component groups them under thin dividers; order here is not significant.
-	const fspItems = $derived([
-		...(fsp?.assignments ?? []),
-		{ slug: 'frc-interest', title: 'FRC Interest Form', href: '/fsp/frc-interest' } as Assignment,
-		...(isTeacher
-			? [{ slug: 'fsp-live', title: 'Live Question Feed', href: '/fsp/live' } as Assignment]
-			: []),
-		{ slug: 'course-archive', title: 'Course Archive (2025-26)', href: '/archive' } as Assignment
-	]);
-
-	// Per-student first-open state for the FSP items (0048). The server load
-	// supplies the persisted set; `locallyOpened` overlays this session's optimistic
-	// first-opens so a dot fills the instant the link is clicked. Their union drives
-	// the progress dots.
-	let locallyOpened = $state(new Set<string>());
-	const fspOpenedSet = $derived(
-		new Set<string>([...((data.fspOpened as string[]) ?? []), ...locallyOpened])
+	// The classroom feed: one card per class, ranked by what each one is asking
+	// of you right now. RLS already decided what came back; buildFeed only ranks
+	// it, and `isAdmin` mirrors classroom_manages_section so the card asks the
+	// teacher's question rather than the student's.
+	const now = new Date();
+	const classroomFeeds = $derived(
+		buildFeed({
+			sections: (data.feedSections ?? []) as ClassroomSection[],
+			items: (data.feedItems ?? []) as ClassroomItem[],
+			submissions: (data.feedSubmissions ?? []) as FeedSubmission[],
+			myEmail: (claims?.email as string | undefined) ?? '',
+			isAdmin,
+			now
+		})
 	);
-	const onOpenFspItem = (slug: string) => {
-		if (!claims || fspOpenedSet.has(slug)) return; // signed-in, first-open only
-		locallyOpened = new Set([...locallyOpened, slug]);
-		void markItemOpened(supabase, claims.sub, slug);
+
+	// Collapse state, persisted per USER in profiles.preferences.classroomFeed
+	// (the AppLauncher pattern), so a folded class stays folded on their phone
+	// too. Optimistic locally so the arrow turns on the click, not on the round
+	// trip.
+	let feedPrefs = $state<ClassroomFeedPrefs>({});
+	$effect(() => {
+		feedPrefs = readFeedPrefs(profile?.preferences);
+	});
+	const toggleFeedCard = async (sectionId: string) => {
+		const next = toggleCollapsed(feedPrefs, sectionId);
+		feedPrefs = next;
+		if (!claims) return;
+		const merged = { ...(profile?.preferences ?? {}), classroomFeed: next };
+		await supabase.from('profiles').update({ preferences: merged }).eq('id', claims.sub);
 	};
 
 	let loading = $state(false);
@@ -212,15 +219,10 @@
 		changelogBtn?.addEventListener('click', toggleChangelog);
 		cleanups.push(() => changelogBtn?.removeEventListener('click', toggleChangelog));
 
-		// Delegated (not per-node) so it still works on cards that mount later,
-		// like the pinned "Your class" card that only appears once a signed-in
-		// student picks a section.
-		const onCollapsibleClick = (e: MouseEvent) => {
-			const header = (e.target as HTMLElement).closest('.course-header.collapsible');
-			header?.closest('.course-card')?.classList.toggle('collapsed');
-		};
-		document.addEventListener('click', onCollapsibleClick);
-		cleanups.push(() => document.removeEventListener('click', onCollapsibleClick));
+		// NOTE: the old delegated collapse listener is gone with the legacy class
+		// cards. The feed's cards own their own collapse through a real <button>
+		// with aria-expanded; a document-level listener would double-toggle
+		// against it, so do not reintroduce one here.
 
 		const canvas = document.getElementById('bg-canvas') as HTMLCanvasElement | null;
 		const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -318,56 +320,6 @@
 	<meta property="og:type" content="website" />
 </svelte:head>
 
-{#snippet sectionCard(s: Section, pinned: boolean, extraRows: Assignment[] = [])}
-	<div class="course-card section-card" class:pinned>
-		<div class="course-header collapsible">
-			<div class="course-header-left">
-				<div class="course-id">{s.course}</div>
-				<div class="course-updated">{s.title}</div>
-			</div>
-			<div class="course-meta">
-				{#if pinned}<span class="course-badge badge-grade">Your class</span>{/if}
-				<span class="course-badge badge-block">{s.yearLabel}</span>
-				<span class="section-meta">{s.instructor} &middot; {s.term}</span>
-				{#if s.status === 'live'}
-					<span class="assignment-status status-live">Live</span>
-				{/if}
-				{#if s.isNew}<span class="badge-new">New</span>{/if}
-			</div>
-			<span class="course-collapse-arrow">&#9662;</span>
-		</div>
-		<div class="assignment-list">
-			{#if (s.assignments && s.assignments.length) || extraRows.length}
-				{#each [...(s.assignments ?? []), ...extraRows] as a (a.slug)}
-					<a class="assignment-item linked" href={a.href ?? `/assignments/${a.slug}`}>
-						<div class="assignment-left">
-							<div class="assignment-dot dot-live"></div>
-							<div class="assignment-name">{a.title}</div>
-						</div>
-						<div class="assignment-right">
-							<span class="assignment-status status-live">Open</span>
-						</div>
-					</a>
-				{/each}
-			{:else}
-				<div class="empty-state">
-					<div class="empty-icon">[ ]</div>
-					<div class="empty-text">
-						{#if s.status === 'live'}
-							{s.note ?? 'Live now.'}
-							{#if s.href}
-								<a class="text-btn inline" href={s.href}>View class hub &rsaquo;</a>
-							{/if}
-						{:else}
-							Assignments will appear here when posted.
-						{/if}
-					</div>
-				</div>
-			{/if}
-		</div>
-	</div>
-{/snippet}
-
 <div class="legacy-index surface-machined">
 	<div id="scroll-bar"></div>
 	<canvas id="bg-canvas"></canvas>
@@ -433,18 +385,36 @@
 		</div>
 	</section>
 
-	{#if fsp}
-		<div class="courses" style="margin-top:2.5rem">
-			<div class="year-label">Incoming Freshman</div>
-			<FspHomeSection
-				section={fsp}
-				items={fspItems}
-				{signedIn}
-				openedSet={fspOpenedSet}
-				onOpen={onOpenFspItem}
+	<div class="courses" style="margin-top:2.5rem" data-tour="classes">
+		<div class="year-label">Your Classes</div>
+		{#if signedIn}
+			<ClassroomFeed
+				feeds={classroomFeeds}
+				collapsed={feedPrefs.collapsed ?? []}
+				onToggle={toggleFeedCard}
+				ready={data.classroomReady !== false}
+				{now}
 			/>
-		</div>
-	{/if}
+		{:else}
+			<div class="course-card section-card feed-card">
+				<div class="empty-state">
+					<div class="empty-icon">[ ]</div>
+					<div class="empty-text">
+						Sign in with your Bosco Tech account to see your classes: announcements, what is due,
+						and work that has been handed back.
+						<button
+							class="text-btn inline"
+							type="button"
+							onclick={() => signInWithGoogle()}
+							disabled={loading}
+						>
+							Sign in
+						</button>
+					</div>
+				</div>
+			</div>
+		{/if}
+	</div>
 
 	<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
 
@@ -490,18 +460,26 @@
 
 	<div class="divider" id="your-class" data-tour="your-class" style="margin-top:2.5rem">
 		<div class="divider-line"></div>
-		<div class="divider-label">Courses &amp; Assignments</div>
+		<div class="divider-label">Your Pathway Year</div>
 		<div class="divider-line"></div>
 	</div>
 
+	<!-- Self-selection only. Class CONTENT lives in IDEA Classroom (the feed
+	     above); this is the pathway-year tag that pins to the header chip and
+	     that other surfaces read off `profiles.section_id`. -->
 	<div class="courses">
 		{#if signedIn && !isTeacher}
 			{#if mySection && !changing}
-				<div class="yourclass-head">
-					<span class="yourclass-eyebrow">Your class</span>
-					<button class="text-btn" type="button" onclick={() => (changing = true)}>Change class</button>
+				<div class="course-card picker-card">
+					<div class="picker-head">
+						<span>Your class</span>
+						<button class="text-btn" type="button" onclick={() => (changing = true)}>Change class</button>
+					</div>
+					<p class="picker-note">
+						{mySection.course} &middot; {mySection.title} &middot; {mySection.instructor}
+						&middot; {mySection.term}
+					</p>
 				</div>
-				{@render sectionCard(mySection, true)}
 			{:else}
 				<div class="course-card picker-card">
 					<div class="picker-head">
@@ -510,7 +488,9 @@
 							<button class="text-btn" type="button" onclick={() => (changing = false)}>Cancel</button>
 						{/if}
 					</div>
-					<p class="picker-note">Pick your section so it pins to the top. You can change it anytime.</p>
+					<p class="picker-note">
+						Pick your pathway year so it shows in the header. You can change it anytime.
+					</p>
 					{#each pickerGroups as group (group.label)}
 						<div class="picker-group">
 							<div class="picker-group-label">{group.label}</div>
@@ -550,19 +530,10 @@
 				<p>
 					<button class="text-btn inline" type="button" onclick={() => signInWithGoogle()} disabled={loading}>
 						Sign in
-					</button> to pin your class to the top and save your progress.
+					</button> to pin your pathway year and save your progress.
 				</p>
 			</div>
 		{/if}
-
-		{#each yearGroups as group (group.year)}
-			{#if group.sections.length}
-				<div class="year-label">{group.yearLabel}</div>
-				{#each group.sections as s (s.id)}
-					{@render sectionCard(s, false)}
-				{/each}
-			{/if}
-		{/each}
 	</div>
 
 	<div class="changelog-wrap">
@@ -631,6 +602,7 @@
 		<div class="footer-logo">IDEA - Integrated Design, Engineering &amp; Art</div>
 		<div class="footer-sub">Don Bosco Technical Institute &bull; Rosemead, CA</div>
 		<a class="footer-archive" href="/archive">Course archive (2025-26) &rsaquo;</a>
+		<a class="footer-archive" href="/fsp/archive">Freshman Summer Program archive &rsaquo;</a>
 		<div class="footer-version"><VersionBadge app="portal" /></div>
 	</footer>
 </div>

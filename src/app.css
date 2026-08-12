@@ -2570,11 +2570,6 @@ a:hover {
 	width: 20px;
 	height: 20px;
 }
-.legacy-index .assignment-icon-thumb.icon-pulse {
-	border-color: color-mix(in srgb, var(--crimson) 35%, transparent);
-	background: color-mix(in srgb, var(--crimson) 8%, transparent);
-	color: var(--crimson);
-}
 .legacy-index .assignment-dot {
 	width: 6px;
 	height: 6px;
@@ -2627,119 +2622,96 @@ a:hover {
 }
 
 /* ==========================================================================
-   FSP homepage section (the pinned "Incoming Freshman" card). Adds HUD-style
-   corner brackets, a faint drifting CAD grid backdrop, thin group dividers, a
-   live pulse on the Live items, and per-item opened progress dots — all on top
-   of the shared .course-card / .assignment-item chrome. Colors come only from
-   existing tokens; --acc aliases --gold (the same brass accent AppLauncher's
-   .app-card uses) for the bracket line, so no new color is introduced.
+   Home-page classroom feed. Deliberately layered on the SAME .course-card /
+   .assignment-item chrome the retired legacy class cards used, so the home page
+   reads as one surface rather than two systems; only the collapse control and
+   the right-side flags are new.
+
+   The header is a real <button> now (it was a bare <div> driven by a delegated
+   document listener, which was mouse-only and silent to assistive tech), so it
+   needs the usual button reset to keep looking like the row it replaced.
    ========================================================================== */
-.legacy-index .fsp-home-card {
-	/* Reuse the AppLauncher --acc token name for the bracket accent. */
-	--acc: var(--gold);
-	/* Lit machined-HUD surface instead of a flat fill or a busy texture: a soft
-	   brass glow bleeds from the top (where the corner brackets sit) into the
-	   green plate and darkens toward the base, so the card reads as a raised,
-	   edge-lit panel that sits on the site backdrop rather than clashing with it. */
-	background:
-		radial-gradient(
-			135% 90% at 50% -15%,
-			color-mix(in srgb, var(--acc) 10%, transparent),
-			transparent 55%
-		),
-		linear-gradient(
-			180deg,
-			color-mix(in srgb, var(--bg2) 85%, #000) 0%,
-			var(--bg1) 44%,
-			color-mix(in srgb, var(--bg0) 80%, #000) 100%
-		);
-	border-color: color-mix(in srgb, var(--acc) 20%, var(--line));
+.legacy-index button.course-header {
+	width: 100%;
+	font: inherit;
+	color: inherit;
+	text-align: left;
+	background: var(--bg2);
+	border: 0;
+	border-bottom: 1px solid var(--line);
+	cursor: pointer;
+	appearance: none;
 }
-/* Let the card's lit gradient run continuously through the header (drop the flat
-   bg2 bar) so the whole panel reads as one edge-lit surface. */
-.legacy-index .fsp-home-card .course-header {
-	background: transparent;
+.legacy-index button.course-header:hover {
+	background: color-mix(in srgb, var(--green) 4%, var(--bg2));
 }
-/* HUD corner brackets: two-sided L marks in the --acc (brass) accent. */
-.legacy-index .fsp-home-card .hud-corner {
-	position: absolute;
-	width: 13px;
-	height: 13px;
-	z-index: 2;
-	pointer-events: none;
-	border: 0 solid color-mix(in srgb, var(--acc) 70%, transparent);
+.legacy-index button.course-header:focus-visible {
+	outline: 2px solid var(--green);
+	outline-offset: -2px;
 }
-.legacy-index .fsp-home-card .hud-corner.tl {
-	top: 6px;
-	left: 6px;
-	border-top-width: 1px;
-	border-left-width: 1px;
+
+/* The row's right-side indicator: what to do about this item. Tones come only
+   from existing tokens, and --crimson is deliberately absent -- it stays
+   reserved for LIVE/REC/error, and this surface carries no live state. */
+.legacy-index .feed-flag {
+	font-size: 0.58rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	font-family: 'Share Tech Mono', monospace;
+	padding: 0.2rem 0.5rem;
+	border-radius: 2px;
+	white-space: nowrap;
+	border: 1px solid transparent;
 }
-.legacy-index .fsp-home-card .hud-corner.tr {
-	top: 6px;
-	right: 6px;
-	border-top-width: 1px;
-	border-right-width: 1px;
+.legacy-index .feed-flag.tone-attention {
+	color: var(--amber);
+	border-color: color-mix(in srgb, var(--amber) 30%, transparent);
+	background: color-mix(in srgb, var(--amber) 6%, transparent);
 }
-.legacy-index .fsp-home-card .hud-corner.bl {
-	bottom: 6px;
-	left: 6px;
-	border-bottom-width: 1px;
-	border-left-width: 1px;
-}
-.legacy-index .fsp-home-card .hud-corner.br {
-	bottom: 6px;
-	right: 6px;
-	border-bottom-width: 1px;
-	border-right-width: 1px;
-}
-/* Pulsing LIVE indicator (crimson, the reserved LIVE/REC status color; matches
-   the crimson pulse icon-thumb on the same rows). Static rows get no pulse. */
-.legacy-index .live-pulse {
-	width: 7px;
-	height: 7px;
-	border-radius: 50%;
-	flex-shrink: 0;
-	background: var(--crimson);
-	box-shadow: 0 0 6px color-mix(in srgb, var(--crimson) 70%, transparent);
-	animation: fsp-live-pulse 1.6s ease-in-out infinite;
-}
-@keyframes fsp-live-pulse {
-	0%,
-	100% {
-		transform: scale(1);
-		opacity: 0.9;
-	}
-	50% {
-		transform: scale(1.55);
-		opacity: 0.35;
-	}
-}
-/* Per-item opened progress: hollow ring until opened, then a filled green check
-   (green = the achievement/complete state, per the token roles). */
-.legacy-index .open-progress {
-	width: 17px;
-	height: 17px;
-	border-radius: 50%;
-	flex-shrink: 0;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	border: 1px solid var(--gear);
-	color: transparent;
-	transition:
-		border-color 0.2s,
-		background 0.2s;
-}
-.legacy-index .open-progress.done {
-	border-color: var(--green);
-	background: color-mix(in srgb, var(--green) 18%, transparent);
+.legacy-index .feed-flag.tone-good {
 	color: var(--green);
-	box-shadow: var(--glow-green);
+	border-color: color-mix(in srgb, var(--green) 30%, transparent);
+	background: color-mix(in srgb, var(--green) 6%, transparent);
 }
-.legacy-index .open-progress svg {
-	width: 11px;
-	height: 11px;
+.legacy-index .feed-flag.tone-info {
+	color: var(--cyan);
+	border-color: color-mix(in srgb, var(--cyan) 30%, transparent);
+	background: color-mix(in srgb, var(--cyan) 6%, transparent);
+}
+.legacy-index .feed-flag.tone-note {
+	color: var(--gold);
+	border-color: color-mix(in srgb, var(--gold) 30%, transparent);
+	background: color-mix(in srgb, var(--gold) 6%, transparent);
+}
+.legacy-index .feed-flag.tone-muted {
+	color: var(--dim);
+	border-color: color-mix(in srgb, var(--dim) 25%, transparent);
+}
+
+/* The standing-reference shelf: present, and visibly not competing with the
+   ranked work above it. */
+.legacy-index .feed-shelf-label {
+	padding: 0.7rem 1.5rem 0.2rem;
+	font-size: 0.56rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	font-family: 'Share Tech Mono', monospace;
+	color: var(--dim);
+	border-top: 1px solid var(--line);
+}
+.legacy-index .feed-more {
+	display: block;
+	padding: 0.75rem 1.5rem;
+	font-size: 0.62rem;
+	letter-spacing: 0.1em;
+	text-transform: uppercase;
+	font-family: 'Share Tech Mono', monospace;
+	color: var(--gold);
+	text-decoration: none;
+	border-top: 1px solid var(--line);
+}
+.legacy-index .feed-more:hover {
+	color: var(--green);
 }
 
 .legacy-index .empty-state {
@@ -3114,12 +3086,12 @@ a:hover {
 	.legacy-index .assignment-item {
 		padding: 0.75rem 1rem;
 	}
-	/* FSP rows: tighten the icon/name gap so the card never crowds or forces
+	/* Feed rows: tighten the icon/name gap so the card never crowds or forces
 	   awkward wrapping on narrow phones. */
-	.legacy-index .fsp-home-card .assignment-left {
+	.legacy-index .feed-card .assignment-left {
 		gap: 0.6rem;
 	}
-	.legacy-index .fsp-home-card .assignment-right {
+	.legacy-index .feed-card .assignment-right {
 		gap: 0.7rem;
 	}
 	.legacy-index .changelog-wrap {
@@ -3139,10 +3111,6 @@ a:hover {
 	.legacy-index .hero-stat .value,
 	.legacy-index .step-num,
 	.legacy-index .promo-icon {
-		animation: none;
-	}
-	/* Freeze the FSP live pulse; the crimson dot stays solid. */
-	.legacy-index .live-pulse {
 		animation: none;
 	}
 }

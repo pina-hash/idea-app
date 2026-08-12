@@ -1,13 +1,23 @@
 /**
- * 2026-27 IDEA curriculum: the single source of truth for what courses exist,
- * their per-year sections, and the discontinued courses now in the archive.
+ * 2026-27 IDEA curriculum: the SELF-SELECTION CATALOG.
+ *
+ * SCOPE, since the home page stopped rendering class cards: this file is the
+ * list a student picks their pathway year from, and the lookup that turns a
+ * stored `profiles.section_id` back into something readable (the header chip).
+ * It does NOT own class content any more -- announcements, assignments and
+ * materials all live in IDEA CLASSROOM (migrations 0082/0083/0085/0086), which
+ * is what the home page feed and /classroom read. The `assignments` arrays
+ * below are legacy and are no longer rendered anywhere.
+ *
+ * NOTHING HERE IS DELETED even though the cards are gone: every id is a value
+ * that may already be stored in a real `profiles.section_id`, `summer-2026`
+ * included, and removing one would orphan those rows and break `sectionById`
+ * for the students holding it. The Freshman Summer Program itself has
+ * concluded; its materials are preserved at /fsp/archive.
  *
  * This module is PLAIN DATA with no `?raw` / `$lib/legacy` imports, so it is
  * safe to import into client components without dragging legacy HTML (the
  * 428 KB VANGUARD game, assignment bodies) into the browser bundle.
- *
- * New 2026-27 courses have no assignment content yet; their cards render a
- * "coming soon" state until assignments are added.
  */
 
 export type Term = 'T1' | 'T2' | 'T3' | 'S1' | 'Summer';
@@ -164,34 +174,12 @@ export function sectionById(id: string | null | undefined): Section | undefined 
 	return SECTIONS.find((s) => s.id === id);
 }
 
-/**
- * The Freshman Summer Program section, rendered as a regular class card pinned
- * to the top of the course listing (it is a pre-enrollment summer program for
- * incoming students). Its material rows link to the FSP tools directly.
- */
-export function summerProgram(): Section | undefined {
-	return SECTIONS.find((s) => s.term === 'Summer');
-}
-
-export interface YearGroup {
-	year: Year;
-	yearLabel: string;
-	sections: Section[];
-}
-
-/**
- * The curriculum grid: school-year sections grouped by year (1-4). The Summer
- * program is excluded here because it is surfaced separately via
- * {@link summerProgram}.
- */
-export function sectionsByYear(): YearGroup[] {
-	const years: Year[] = [1, 2, 3, 4];
-	return years.map((year) => ({
-		year,
-		yearLabel: YEAR_LABELS[year],
-		sections: SECTIONS.filter((s) => s.year === year && s.term !== 'Summer')
-	}));
-}
+// `summerProgram()` and `sectionsByYear()` used to live here. They existed
+// only to build the home page's FSP card and its year-grouped course grid, both
+// of which the classroom feed replaced -- so they went with the markup they
+// served rather than lingering as exports nothing calls. The DATA they read is
+// all still above, and `sectionById` still resolves every id including
+// `summer-2026`.
 
 export interface SelectOptionGroup {
 	label: string;

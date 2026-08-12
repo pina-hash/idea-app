@@ -16,6 +16,16 @@
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
+import { normalizeItemRow, normalizeSectionRow } from '../src/lib/classroom/classroom';
+import {
+	buildFeed,
+	emptyMessage,
+	isActionable,
+	isAwaitingGrade,
+	URGENT_LIMIT,
+	type FeedSubmission,
+	type SectionFeed
+} from '../src/lib/classroom/feed';
 
 const MIGRATIONS = [
 	'0001_profiles.sql',
@@ -717,5 +727,343 @@ describe('grading gates and files', () => {
 		expect(await count('...')).toBe(0);
 		expect(await count('')).toBe(0);
 		expect(await count('Ends mid')).toBe(1);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// The home-page classroom feed (src/lib/classroom/feed.ts)
+//
+// The feed replaced the retired legacy class cards on the home page. It runs
+// the SAME three RLS-scoped reads for everybody -- sections, items,
+// submissions -- with no role branch and no student_email filter anywhere, so
+// what a card can possibly show is decided entirely by the policies. That is
+// the property worth pinning: a ranking bug shows the wrong item, but a
+// SCOPING bug puts another student's grade on somebody else's home page and
+// looks completely normal to the person it happens to.
+//
+// So these tests do not hand buildFeed a fixture. They read through the real
+// policies AS each user, exactly the way the page load does, and rank whatever
+// came back.
+// ---------------------------------------------------------------------------
+
+describe('home-page classroom feed', () => {
+	// A fixed clock, so "due in 3 days" is a fact about the data rather than
+	// about when the suite happens to run.
+	const NOW = new Date('2026-10-15T12:00:00Z');
+	const OVERDUE_AT = '2026-10-10T07:00:00Z';
+	const SOON_AT = '2026-10-18T07:00:00Z';
+	const LATER_AT = '2026-12-01T07:00:00Z';
+
+	let feedOverdue: string; // P1 assignment, past due, alice never handed in
+	let feedSoon: string; // P1 assignment, due in 3 days, not handed in
+	let feedLater: string; // P1 assignment, due in 7 weeks -- must NOT rank
+	let feedReturned: string; // P1 assignment, graded and released, unseen
+	let feedSeen: string; // P1 assignment, released AND opened afterwards
+	let feedMaterial: string; // P1 material, pinned -- the standing shelf
+	let feedDraft: string; // P1 draft -- teacher-only
+	let feedPinnedPost: string; // P1 pinned announcement -- ranks, but is not a task
+	let feedP9: string; // P9 assignment, nothing to do with alice
+	let emptySection: string; // enrolled, nothing posted
+
+	const mkItem = (
+		userId: string,
+		kind: 'post' | 'assignment' | 'material',
+		sections: string[],
+		title: string,
+		opts: { dueAt?: string | null; published?: boolean; pinned?: boolean; points?: number } = {}
+	) =>
+		rpc<{ item_id: string }>(
+			userId,
+			"public.classroom_create_item($1, $2::uuid[], $3, $4, $5, $6::timestamptz, null, $7, '[]'::jsonb, $8)",
+			[
+				kind,
+				sections,
+				title,
+				'Body.',
+				opts.points ?? (kind === 'assignment' ? 10 : null),
+				opts.dueAt ?? null,
+				opts.published ?? true,
+				opts.pinned ?? false
+			]
+		);
+
+	/**
+	 * The three reads the home page load performs, run as `user` against the
+	 * real policies and assembled into exactly the shape buildFeed consumes.
+	 * Nothing here filters by owner: every restriction below comes from RLS.
+	 */
+	async function feedInputs(user: SeededUser) {
+		return db.asUser(user.id, async (q) => {
+			const sections = (
+				await q<Record<string, unknown>>(
+					`select s.id, s.course_id, s.label, s.block, s.teacher_email, s.active,
+					        jsonb_build_object('id', c.id, 'code', c.code, 'title', c.title, 'active', c.active) as course
+					   from public.classroom_sections s
+					   join public.classroom_courses c on c.id = s.course_id`
+				)
+			).rows;
+			const itemRows = (
+				await q<Record<string, unknown>>(
+					`select id, kind, title, body, points, due_at, category, author_email, author_name,
+					        published, pinned, sort_order, first_published_at, edited_at, created_at, updated_at
+					   from public.classroom_items`
+				)
+			).rows;
+			const postings = (
+				await q<{ item_id: string; section_id: string }>(
+					'select item_id, section_id from public.classroom_postings'
+				)
+			).rows;
+			const views = (
+				await q<{ item_id: string; viewed_at: string }>(
+					'select item_id, viewed_at from public.classroom_item_views'
+				)
+			).rows;
+			const submissions = (
+				await q<FeedSubmission>(
+					`select item_id, student_email, state, submitted_at, returned_at, graded_at
+					   from public.classroom_submissions`
+				)
+			).rows;
+			const items = itemRows.map((row) =>
+				normalizeItemRow({
+					...row,
+					classroom_postings: postings
+						.filter((p) => p.item_id === row.id)
+						.map((p) => ({ section_id: p.section_id })),
+					classroom_item_views: views
+						.filter((v) => v.item_id === row.id)
+						.map((v) => ({ viewed_at: v.viewed_at }))
+				})
+			);
+			return { sections: sections.map(normalizeSectionRow), items, submissions };
+		});
+	}
+
+	async function feedFor(user: SeededUser, isAdmin = false) {
+		const input = await feedInputs(user);
+		return { input, feeds: buildFeed({ ...input, myEmail: user.email, isAdmin, now: NOW }) };
+	}
+
+	const titlesFor = (feeds: SectionFeed[], sectionId: string) =>
+		feeds.find((f) => f.section.id === sectionId)?.urgent.map((e) => e.item.title) ?? [];
+	const reasonsFor = (feeds: SectionFeed[], sectionId: string) =>
+		feeds.find((f) => f.section.id === sectionId)?.urgent.map((e) => e.reason) ?? [];
+
+	beforeAll(async () => {
+		feedOverdue = (
+			await mkItem(teacherA.id, 'assignment', [p1], 'Feed overdue', { dueAt: OVERDUE_AT })
+		).item_id;
+		feedSoon = (await mkItem(teacherA.id, 'assignment', [p1], 'Feed soon', { dueAt: SOON_AT }))
+			.item_id;
+		feedLater = (await mkItem(teacherA.id, 'assignment', [p1], 'Feed later', { dueAt: LATER_AT }))
+			.item_id;
+		feedReturned = (await mkItem(teacherA.id, 'assignment', [p1], 'Feed returned')).item_id;
+		feedSeen = (await mkItem(teacherA.id, 'assignment', [p1], 'Feed seen')).item_id;
+		feedMaterial = (await mkItem(teacherA.id, 'material', [p1], 'Feed syllabus', { pinned: true }))
+			.item_id;
+		feedDraft = (
+			await mkItem(teacherA.id, 'assignment', [p1], 'Feed draft', { published: false })
+		).item_id;
+		feedPinnedPost = (
+			await mkItem(teacherA.id, 'post', [p1], 'Feed pinned notice', { pinned: true })
+		).item_id;
+		feedP9 = (await mkItem(teacherB.id, 'assignment', [p9], 'Feed P9 only')).item_id;
+
+		emptySection = (
+			await rpc<{ section_id: string }>(
+				teacherA.id,
+				'public.classroom_upsert_section($1::uuid, $2, $3)',
+				[courseId, 'Period 4', null]
+			)
+		).section_id;
+		await rpc(teacherA.id, 'public.classroom_set_enrollment($1::uuid, $2, $3, $4)', [
+			emptySection,
+			alice.email,
+			'Alice Alvarez',
+			true
+		]);
+
+		const rubric = [{ id: 'r1', criterion: 'Done', points: 10 }];
+		for (const item of [feedReturned, feedSeen]) {
+			await rpc(teacherA.id, 'public.classroom_set_rubric($1::uuid, $2::jsonb)', [
+				item,
+				JSON.stringify(rubric)
+			]);
+			await addFile(alice.id, item, `drive-${item.slice(0, 8)}`);
+			await submit(alice.id, item);
+			await grade(teacherA.id, item, alice.email, { r1: 9 }, 'Nice work.', true);
+		}
+		// One of the two is then OPENED, so "returned" can be told apart from
+		// "returned and already read" -- the only thing stopping the badge
+		// sticking to a grade the student has already looked at.
+		await rpc(alice.id, 'public.classroom_mark_item_viewed($1::uuid)', [feedSeen]);
+
+		// Bruno hands the overdue one in, so the teacher has a real grading queue
+		// and alice's own card must not change because of it.
+		await addFile(bruno.id, feedOverdue, 'drive-bruno-feed');
+		await submit(bruno.id, feedOverdue);
+	}, 120_000);
+
+	test('a student sees only their own classes, and no draft', async () => {
+		const { input, feeds } = await feedFor(alice);
+		expect(feeds.map((f) => f.section.id).sort()).toEqual([p1, emptySection].sort());
+		expect(feeds.some((f) => f.manages)).toBe(false);
+
+		const ids = input.items.map((i) => i.id);
+		expect(ids).not.toContain(feedDraft);
+		expect(ids).not.toContain(feedP9);
+		expect(feeds.flatMap((f) => f.urgent.map((e) => e.item.id))).not.toContain(feedP9);
+	});
+
+	test("a student's feed never carries a classmate's submission state", async () => {
+		const { input } = await feedFor(alice);
+		expect(input.submissions.length).toBeGreaterThan(0);
+		expect(input.submissions.every((s) => s.student_email === alice.email)).toBe(true);
+		expect(input.submissions.some((s) => s.student_email === bruno.email)).toBe(false);
+
+		// The decisive direction: bruno really did hand something in, so the row
+		// exists and alice's read is genuinely scoped rather than merely empty.
+		const teacherView = await feedInputs(teacherA);
+		expect(
+			teacherView.submissions.some(
+				(s) => s.student_email === bruno.email && s.item_id === feedOverdue
+			)
+		).toBe(true);
+	});
+
+	test('a teacher never reaches a student who is not in their class', async () => {
+		const { input } = await feedFor(teacherB);
+		expect(input.sections.map((s) => s.id)).toEqual([p9]);
+		expect(input.submissions.some((s) => s.student_email === alice.email)).toBe(false);
+	});
+
+	test('the student ranking is urgency, not recency', async () => {
+		const { feeds } = await feedFor(alice);
+		const titles = titlesFor(feeds, p1);
+
+		// These were created NEWEST-LAST, so a recency sort would put "Feed seen"
+		// near the top and the overdue one near the bottom.
+		expect(titles.slice(0, 3)).toEqual(['Feed overdue', 'Feed returned', 'Feed soon']);
+		expect(reasonsFor(feeds, p1).slice(0, 3)).toEqual(['overdue', 'returned', 'due-soon']);
+
+		// A grade already opened is finished business, and a deadline seven weeks
+		// out is not this week's problem.
+		expect(titles).not.toContain('Feed seen');
+		expect(titles).not.toContain('Feed later');
+	});
+
+	test('a pinned syllabus stays reachable without competing with the work', async () => {
+		const { input, feeds } = await feedFor(alice);
+		const p1Feed = feeds.find((f) => f.section.id === p1)!;
+		expect(p1Feed.standing.map((e) => e.item.id)).toContain(feedMaterial);
+		expect(p1Feed.urgent.map((e) => e.item.id)).not.toContain(feedMaterial);
+
+		// Uncapped, so the lowest-ranked entries are visible for the comparison.
+		// A pinned ANNOUNCEMENT does rank -- it is worth seeing -- but it is not
+		// a task, so it must never inflate the "N to do" chip.
+		const full = buildFeed({
+			...input,
+			myEmail: alice.email,
+			now: NOW,
+			urgentLimit: 50
+		}).find((f) => f.section.id === p1)!;
+		expect(full.urgent.find((e) => e.item.id === feedPinnedPost)?.reason).toBe('pinned');
+		expect(isActionable('pinned')).toBe(false);
+		expect(full.actionCount).toBe(full.urgent.filter((e) => isActionable(e.reason)).length);
+		expect(full.actionCount).toBeLessThan(full.urgent.length);
+	});
+
+	test('the card is a summary: the cap hides rows, never the count', async () => {
+		const { input } = await feedFor(alice);
+		const at = (limit: number) =>
+			buildFeed({ ...input, myEmail: alice.email, now: NOW, urgentLimit: limit }).find(
+				(f) => f.section.id === p1
+			)!;
+		const full = at(50);
+		const capped = at(2);
+
+		expect(full.urgent.length).toBeGreaterThan(2);
+		expect(capped.urgent.length).toBe(2);
+		expect(capped.hiddenCount).toBe(full.urgent.length - 2);
+		// The chip counts everything the class is asking for, including what the
+		// cap left out -- otherwise folding a card would understate the work.
+		expect(capped.actionCount).toBe(full.actionCount);
+		expect(capped.actionCount).toBeGreaterThan(capped.urgent.length);
+		// And the shipped default is the one the page actually uses.
+		expect(at(URGENT_LIMIT).urgent.length).toBeLessThanOrEqual(URGENT_LIMIT);
+	});
+
+	test('the teacher feed answers a different question: grading first, then drafts', async () => {
+		const { feeds } = await feedFor(teacherA);
+		const p1Feed = feeds.find((f) => f.section.id === p1)!;
+		expect(p1Feed.manages).toBe(true);
+
+		const top = p1Feed.urgent[0];
+		expect(top.reason).toBe('ungraded');
+		expect(top.item.id).toBe(feedOverdue);
+		expect(top.count).toBe(1);
+
+		// A teacher's own draft is a task, and only they can see it at all.
+		expect(p1Feed.urgent.find((e) => e.item.id === feedDraft)?.reason).toBe('draft');
+
+		// "Returned" and "overdue" are the student's framing, never the teacher's.
+		expect(p1Feed.urgent.map((e) => e.reason)).not.toContain('returned');
+		expect(p1Feed.urgent.map((e) => e.reason)).not.toContain('overdue');
+	});
+
+	test('a resubmission after a grade goes back into the queue', () => {
+		const graded: FeedSubmission = {
+			item_id: 'x',
+			student_email: alice.email,
+			state: 'submitted',
+			submitted_at: '2026-10-14T00:00:00Z',
+			graded_at: '2026-10-13T00:00:00Z',
+			returned_at: '2026-10-13T00:00:00Z'
+		};
+		// Handed in AFTER it was graded: a bare "graded_at is null" check would
+		// drop this student out of the queue with no visible symptom.
+		expect(isAwaitingGrade(graded)).toBe(true);
+		expect(isAwaitingGrade({ ...graded, submitted_at: '2026-10-12T00:00:00Z' })).toBe(false);
+		expect(isAwaitingGrade({ ...graded, state: 'returned' })).toBe(false);
+	});
+
+	test('enrolled with nothing posted reads as empty, not as broken', async () => {
+		const { feeds } = await feedFor(alice);
+		const empty = feeds.find((f) => f.section.id === emptySection)!;
+		expect(empty.totalItems).toBe(0);
+		expect(empty.urgent).toEqual([]);
+		expect(empty.standing).toEqual([]);
+		expect(emptyMessage(empty)).toContain('Nothing posted');
+
+		const teacherEmpty = (await feedFor(teacherA)).feeds.find(
+			(f) => f.section.id === emptySection
+		)!;
+		expect(teacherEmpty.manages).toBe(true);
+		expect(emptyMessage(teacherEmpty)).toContain('Nothing posted');
+	});
+
+	test('the admin tier gets the teacher framing everywhere, with no role branch', async () => {
+		const { feeds } = await feedFor(owner, true);
+		expect(feeds.length).toBeGreaterThanOrEqual(3);
+		expect(feeds.every((f) => f.manages)).toBe(true);
+	});
+
+	test('signed out, every read the feed makes is refused outright', async () => {
+		for (const table of [
+			'classroom_sections',
+			'classroom_items',
+			'classroom_postings',
+			'classroom_submissions',
+			'classroom_item_views'
+		]) {
+			const err = await captureError(() =>
+				db.asAnon((q) => q(`select * from public.${table}`))
+			);
+			expect(err.code, table).toBe('42501');
+		}
+		expect(buildFeed({ sections: [], items: [], submissions: [], myEmail: '', now: NOW })).toEqual(
+			[]
+		);
 	});
 });

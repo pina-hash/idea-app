@@ -49,9 +49,12 @@ ability, it is not required to browse the portal.
   dashboard is. See the "IDEA // GAUNTLET" and "FRC Training track" sections
   below.
 - **Students have no separate dashboard:** the **homepage `/` is the student
-  dashboard**. A signed-in student self-selects their 2026-27 class once; it is
-  stored in `profiles.section_id` and pinned at the top of `/` (and shown as a
-  chip in the header). See "2026-27 curriculum" below.
+  dashboard**, and what sits at the top of it is the **IDEA Classroom feed** --
+  one collapsible card per class they are enrolled in, ranked by what each is
+  asking of them right now. A signed-in student also self-selects their 2026-27
+  pathway year once; it is stored in `profiles.section_id` and shown as a chip
+  in the header. See "Home page: the live IDEA Classroom feed" and "2026-27
+  curriculum" below.
 - **Homepage app launcher:** the old stacked promo callouts are replaced by a
   curated app grid (`src/lib/AppLauncher.svelte`, registry + layout helpers in
   `src/lib/portal-apps.ts`): groups Games / Tools / Class, teacher-only tools
@@ -59,9 +62,10 @@ ability, it is not required to browse the portal.
   default (unconfigured) view is the clean curated grouping; signed-in users
   can pin favorites, reorder within groups, collapse groups, and toggle a
   compact view, persisted to `profiles.preferences.homepage` (anonymous
-  visitors can collapse/compact for the session only, unsaved). The old "next
-  live course" promo callout above the launcher is retired; the pinned FSP
-  section (see "2026-27 curriculum" below) now sits in that spot instead.
+  visitors can collapse/compact for the session only, unsaved). The slot above
+  the launcher holds the **IDEA Classroom feed** (see "Home page: the live IDEA
+  Classroom feed" below) -- previously the pinned FSP card, and before that a
+  "next live course" promo callout, both retired.
   **Uniform card chrome
   (no per-card accent):** every launcher tile uses ONE shared design-system
   accent (brass/gold) via the `--acc*` CSS vars on `.app-card` in
@@ -71,8 +75,7 @@ ability, it is not required to browse the portal.
   classes were removed because a per-card color read as an unrelated identity
   hue on tools it did not belong to, e.g. violet on the teacher dashboard).
   `--crimson` stays reserved for status. Cards carry the machined
-  `var(--bevel-raised)` and press on `:active`. FSP is NOT a launcher app: it
-  is a regular class card in the course listing (see "2026-27 curriculum").
+  `var(--bevel-raised)` and press on `:active`.
   **Legacy tools (`PortalApp.legacy`):** a tool superseded by a newer one but
   still reachable (bookmarks, muscle memory) sets `legacy: true` rather than
   being removed from the registry. It renders with a dashed border, reduced
@@ -1909,27 +1912,32 @@ the route group's existing `+layout.server.ts` 404. The screen itself is
   after 0088, then spot-check with two real accounts that the drawer carries
   no strike count and that a student can only claim and apply as themselves.
 
-## 2026-27 curriculum
+## 2026-27 curriculum (the SELF-SELECTION CATALOG)
 
-`src/lib/curriculum.ts` is the single source of truth for the live curriculum. It
-is **plain data** (no `?raw`/`$lib/legacy` imports) so it is safe in the client
-bundle.
+`src/lib/curriculum.ts` is **plain data** (no `?raw`/`$lib/legacy` imports) so it
+is safe in the client bundle.
 
-- `SECTIONS`: every section. Sections of the same course are modeled separately
-  (e.g. `eng1h-sophomore` vs `eng1h-senior`) so a student sees their own. Each has
-  an `id`, `course`, `title`, `year` (1-4), `instructor`, `term`, `status`, and an
-  optional `assignments` list (empty for the new courses until content exists).
-  The **Freshman Summer Program** (`summer-2026`) is the `status: 'live'`
-  section pinned atop the homepage (see below); its title/dates are
-  placeholders to fill in.
-- Helpers: `sectionsByYear()` (the curriculum grid), `summerProgram()` (the
-  FSP section), `sectionById()`, `selfSelectOptions()` (the picker),
-  `activeCourseCount()`.
+**SCOPE, since the home page stopped rendering class cards:** this file is the
+list a student picks their pathway year from, and the lookup that turns a stored
+`profiles.section_id` back into something readable. It does **not** own class
+content -- announcements, assignments and materials live in IDEA CLASSROOM
+(0082/0083/0085/0086), which the home-page feed and `/classroom` read. See
+"Home page: the live IDEA Classroom feed" below.
+
+- `SECTIONS`: every section, including `summer-2026` (the concluded Freshman
+  Summer Program, archived at `/fsp/archive`). **Nothing here is ever deleted:**
+  every id may already sit in a real `profiles.section_id`, and removing one
+  would orphan those rows and break `sectionById`. The `assignments` arrays are
+  legacy and render nowhere.
+- Helpers: `sectionById()`, `selfSelectOptions()` (the picker),
+  `activeCourseCount()`. `summerProgram()` and `sectionsByYear()` were removed
+  with the markup they served.
 - **Per-student class:** a signed-in student self-selects a section on `/`; the
   page writes `profiles.section_id` via the browser Supabase client (allowed by
-  the `update own profile` RLS policy) and pins that section. `section_id` is
-  free-form text (a `Section.id`), intentionally not a FK, so the curriculum can
-  change in code without a migration. Column added by `0003_profile_section.sql`.
+  the `update own profile` RLS policy) and it shows as the header chip.
+  `section_id` is free-form text (a `Section.id`), intentionally not a FK, so the
+  curriculum can change in code without a migration. Column added by
+  `0003_profile_section.sql`.
 - **Archive:** the discontinued 2025-26 courses (IDEA-113/208/303/403) live as
   `ARCHIVE_COURSES` in the same file and render on `/archive`
   (`src/routes/archive/+page.svelte`), linked discreetly from the homepage footer.
@@ -11160,115 +11168,133 @@ entry points.
 - **`/fsp/class`** (the FSP class-materials page) links to this tool under a
   "Pulse Check" divider, card id "Pathway Pulse".
 
-## FSP as a regular class card (the `/fsp` hub is retired)
+## Home page: the live IDEA Classroom feed (the legacy class cards are retired)
 
-FSP is surfaced as a **standard class card pinned to the top of the
-homepage**, not a special hub or a launcher app. The `summer-2026` section
-(`curriculum.ts`) renders via `summerProgram()` in its own "Incoming Freshman"
-band between the hero stats and the APPS block (`src/routes/+page.svelte`,
-replacing the old "next live course" promo callout there), formatted
-identically to every other section card, with material rows that use
-the optional `Assignment.href` to link directly to the FSP tools:
-`FSP Presentations` (no href, see `FspPresentationsPanel` below), `Course Info`
-(no href, see `FspCourseInfoPanel` below), `Live Q&A` -> `/fsp/ask`,
-`SolidWorks Add-In` -> `/fsp/class`. It is no longer a `portal-apps.ts` launcher
-app (that entry was removed), and the old role-routing hub page
-`/fsp/+page.svelte` was DELETED — `/fsp/day1`, `/fsp/live`, `/fsp/ask`, and
-`/fsp/class` are intact and reached directly (bare `/fsp` no longer resolves).
-**Teachers get a fifth item, `Live Question Feed` -> `/fsp/live`**, appended
-client-side in `+page.svelte` (added to the FSP item list gated on the existing
-`isTeacher` derived value), never written into `curriculum.ts` itself since that
-file is plain client-safe data with no role awareness; students never see the
-item.
+The home page's pre-classroom class-content system is **gone**. That system was
+the pinned FSP card plus the six empty year-grouped course cards, all rendered
+from hardcoded `curriculum.ts` data through a local `sectionCard` snippet, with
+per-slug icon and ordering lookup tables in `FspHomeSection.svelte`. In its
+place, a signed-in user's home page opens onto their real classes.
 
-- **FSP section is its own component, not the shared `sectionCard` snippet.**
-  The pinned FSP card renders through `src/lib/fsp/FspHomeSection.svelte`
-  (factored out so `/dev/fsp-home` mounts the exact same component, the
-  FspTechSelection/FrcInterestForm convention); every OTHER course still uses the
-  homepage's local `sectionCard` snippet (which no longer carries the FSP-only
-  icon glyphs — those moved into the component). The component takes the FSP
-  `Section`, the full ordered item list (section assignments + the FRC interest
-  form + the teacher-only Live Question Feed + a Course Archive row linking to
-  `/archive`), `signedIn`, an `openedSet`, and an `onOpen(slug)` callback; it is
-  rendering-only, the page owns the open-state and the write. Enhancements over
-  the flat list (all styled in `app.css` under `.legacy-index .fsp-home-card`,
-  colors only from existing tokens):
-  - **Single flat list, no section headers.** Items render in one list kept in a
-    sensible fixed `ORDER` (presentations, the two live items adjacent, tools,
-    the form, then the archive row last); any slug not in `ORDER` sorts to the
-    end (stable) so nothing is dropped. (An earlier labeled-group-divider version
-    was removed as bulk.)
-  - **Inline-SVG icon glyphs** (32-40px tinted/bordered square) per row by kind:
-    deck (presentations), pulse (live), plugin (add-in), book (rulebook),
-    clipboard (form), archive (course archive). The pulse-kind badge tints
-    `--crimson`; the rest `--green`.
-  - **HUD corner brackets** (four two-sided L marks) in `--acc` (aliased to
-    `--gold`, the same brass accent AppLauncher's `.app-card` uses; no new color).
-  - **Lit machined-panel surface** (no texture layer). The card's own background
-    is a soft brass top-glow (`--acc`, near the brackets) over a vertical
-    `--bg2 -> --bg1 -> --bg0` sheen that darkens toward the base, with the header
-    bar made transparent so the whole panel reads as ONE edge-lit surface, plus a
-    faint `--acc`-tinted border. Two earlier backdrops (a CAD graph-paper grid,
-    then a mint-dot particulate field) were both removed for clashing with the
-    site's scanline/particle background; there is no separate backdrop element.
-  - **Live pulse** (`.live-pulse`): a pulsing `--crimson` dot on the two Live
-    items only (matching their crimson icon badge, the reserved LIVE/REC color;
-    the wave/pulse indicator is semantically a live state). Static rows get none;
-    freezes under `prefers-reduced-motion` (solid dot stays).
-  - **Opened progress dots** (`.open-progress`): signed-in only; a hollow `--gear`
-    ring until the item is opened, then a filled `--green` check.
-  - **`FSP Presentations` opens a panel, not a page.** The row has no `href`
-    (`curriculum.ts`); `FspHomeSection` special-cases its slug
-    (`fsp-presentations`) so the click is intercepted (`preventDefault`, the
-    `open-state` first-open callback still fires) and it mounts
-    `src/lib/fsp/FspPresentationsPanel.svelte` instead of navigating. That
-    component is a green-on-black modal (styled like `FspStudentPreview`) with
-    three tabs (Day 1/2/3), each embedding that day's Google Slides deck via
-    the public `/embed?start=false&loop=false&delayms=3000` URL (no auth, no
-    per-day route — distinct from the Claude Design archive viewers at
-    `/fsp/day1` / `/fsp/day2`, which are untouched). A tab's iframe mounts only
-    on first view (lazy) and stays mounted after that (tab-switch just
-    toggles CSS visibility, so switching back never re-loads it). Because a
-    blocked Google Slides share can render an in-frame "you need access" page
-    WITHOUT ever firing the iframe's `error` event, failure can't be reliably
-    detected: a plain "Open in Google Slides ↗" link is therefore always shown
-    under every tab's iframe, never gated behind error detection, so the deck
-    is always reachable even if the embed is silently broken.
-  - **`Course Info` is the same panel pattern with static text, no embed.** The
-    row (slug `fsp-course-info`, also no `href`) opens
-    `src/lib/fsp/FspCourseInfoPanel.svelte` — identical modal chrome and tab
-    mechanics to `FspPresentationsPanel` (same `--green`/`--gold`/`--cyan`/
-    `--line` tokens from the design-system layer `app.css` imports), but each
-    tab is plain `Course[]` data (title, italic tagline, body paragraph,
-    bullet list) rendered directly, so there is no lazy-mount, load-status, or
-    fallback-link machinery — nothing external to fail. `FspHomeSection`
-    generalizes the panel-slug dispatch to a `PANEL_OPENERS` map
-    (`slug -> () => void`) rather than a single hardcoded slug, so a third
-    panel-opening row is a one-line addition. Tabs: IDEA114 (Engineering
-    Foundations), IDEA209H (Engineering I Honors), IDEA210H (Engineering
-    Applications Honors) — course-overview copy for prospective FSP students,
-    unrelated to the live `curriculum.ts` section data.
-- **Open-state tracking (`0048_fsp_item_opens.sql`, apply manually after 0047):**
-  per-student first-open state for each of the FSP items, persisted so
-  progress follows a student across devices (the tour-state intent from 0045).
-  `fsp_item_opens` is keyed `(user_id, item_id)` where `item_id` is the item's
-  curriculum slug (text, not a FK). This is a self-write, not a staff cross-user
-  write, so it uses direct RLS-scoped policies, NO RPC: a student reads and
-  inserts only their own rows (`auth.uid() = user_id`), and there is deliberately
-  NO update/delete grant (first-open is permanent). `src/lib/fsp/item-opens.ts`
-  is the client seam (`loadItemOpens` reads the set; `markItemOpened` is an
-  insert-only upsert with `ignoreDuplicates`, so a repeat open is a silent
-  no-op), fail-soft to empty/ignored before the migration is applied.
-  `+page.server.ts` loads the signed-in student's opened set; `+page.svelte`
-  overlays this session's optimistic first-opens and fires `markItemOpened` on
-  the OPEN click (first-open only) while the link still navigates. The dev
-  harness `/dev/fsp-home` (404 in production, no auth/Supabase) mounts the real
-  `FspHomeSection` with the open-state stubbed as local component state.
-- **`/fsp/class`** still hosts the pawn/dogtag add-in download, install steps,
-  project cards, 3-day overview, and the Pulse Check link (the former `/fsp`
-  class page). Its header now links back to `/` (Home) since the hub is gone.
-  The curriculum `summer-2026` section's `href` also points at `/fsp/class`
-  (used by the empty-state "View class hub" link on the pinned homepage card).
+- **What was deleted:** `src/lib/fsp/FspHomeSection.svelte`, the `sectionCard`
+  snippet and the year-grouped course grid in `src/routes/+page.svelte`,
+  `/dev/fsp-home`, and the now-dead `summerProgram()` / `sectionsByYear()` /
+  `YearGroup` exports from `curriculum.ts`. The `.fsp-home-card`, `.live-pulse`
+  and `.open-progress` CSS went with them.
+- **`curriculum.ts` KEEPS EVERY SECTION ENTRY, `summer-2026` included.** Each id
+  is a value that may already sit in a real `profiles.section_id`; deleting one
+  would orphan those rows and break `sectionById`. The file is now explicitly
+  the **self-selection catalog** (which pathway year a student tags themselves
+  with, shown as the header chip) and nothing else -- **classroom owns class
+  content**. Its `assignments` arrays are legacy and render nowhere.
+- **`fsp_item_opens` (0048) and its migration are untouched and now UNREAD.**
+  The module stays, no caller imports it, and the home page load no longer
+  queries it. Nothing was dropped.
+
+### The feed
+
+`src/lib/classroom/feed.ts` is the pure ranking layer (no Svelte, no Supabase --
+the classroom.ts convention) and `src/lib/classroom/ClassroomFeed.svelte` is the
+presentation, mounted by `src/routes/+page.svelte` inside `.legacy-index` so it
+**reuses the retired cards' own chrome** (`.course-card`, `.assignment-item`, the
+badge row) and the page reads as one surface rather than two systems.
+
+- **Three RLS-scoped reads, no role branch, no `student_email` filter anywhere**
+  (`+page.server.ts`, the /coin-balance doctrine): `classroom_sections`,
+  `classroom_items` (with its postings and own view stamp), and
+  `classroom_submissions`. The two `.in(...)` filters are about PAYLOAD SIZE, not
+  privacy -- dropping them would leak nothing, the policies still answer
+  correctly. **feed.ts therefore never filters for privacy; it only decides
+  RANK.**
+- **`manages` mirrors `classroom_manages_section`** (teacher of record, or
+  admin) from data already loaded, rather than one RPC per section. It only
+  decides which QUESTION the card answers, so getting it wrong shows a teacher
+  the student framing, never another section's rows.
+- **Ranked by urgency, not recency**, because the class page is already a
+  reverse-chronological stream and repeating it here would say nothing
+  actionable. Student order: `overdue` -> `returned` (a released grade not
+  opened since it was released, from `classroom_item_views` vs `returned_at`) ->
+  `due-soon` (7 days) -> `unsubmitted` -> `updated` -> `pinned`. Teacher order:
+  `ungraded` -> `draft` -> `due-soon` -> `pinned`.
+- **`isAwaitingGrade` is not "graded_at is null".** A resubmission after a
+  return is submitted AGAIN with the old `graded_at` still on the row, so the
+  naive check would silently drop every resubmission out of the grading queue;
+  it compares `submitted_at > graded_at`.
+- **Materials are a SEPARATE standing shelf**, never ranked against work: a
+  syllabus is needed all year and acted on approximately never. A pinned
+  material goes to the shelf; a pinned ANNOUNCEMENT still ranks (lowest) because
+  it is worth seeing. An UPDATED material does rank -- a changed syllabus is
+  news. `actionCount` (the header chip) counts only actionable reasons and
+  counts PAST the display cap, so folding a card never understates the work.
+- **Kind glyphs** (`ICON_KINDS` in the component, the legacy approach): one mark
+  per kind -- announcement / assignment / material. Deliberately **no live-state
+  indicator and no first-open progress dots**; `classroom_item_views` stays
+  consumed only by the Updated badge. Tones use existing tokens only and
+  `--crimson` is deliberately absent (reserved for LIVE/REC/error).
+- **`now` is threaded, not defaulted per call.** The component takes the same
+  `Date` the caller gave `buildFeed`; a component reading its own `new Date()`
+  silently disagreed with the ranking it was rendering (found in the harness).
+- **States:** signed out renders a sign-in card where the FSP card used to be;
+  enrolled-but-nothing-posted and caught-up read differently on purpose; a
+  pre-0082 backend fails soft to a flagged card.
+
+### Collapse: fixed, and persisted per user
+
+The legacy cards collapsed through a **document-level click listener on a bare
+`<div>`** -- mouse-only and invisible to assistive tech. That listener is gone
+from `+page.svelte` and **must not be reintroduced**: it would double-toggle
+against the feed's own control. Each feed header is a real
+`<button type="button">` with `aria-expanded` and `aria-controls`, in the natural
+tab order, with the arrow `aria-hidden`; `.legacy-index button.course-header`
+carries the button reset. Collapse persists to
+**`profiles.preferences.classroomFeed`** (the AppLauncher `preferences.homepage`
+pattern), so it follows the user across devices and needed no migration. The
+archived surfaces carry no collapse control at all rather than inheriting the
+bug.
+
+### Harness + tests
+
+`/dev/home-feed` (404 in production, no auth/Supabase) mounts the REAL
+`ClassroomFeed` inside `.legacy-index` and drives it through the REAL
+`buildFeed`, with student / teacher / no-classes / migrations-off modes; its
+fixtures MIRROR RLS (a student's items exclude drafts, their submissions exclude
+classmates') rather than pretending feed.ts filters. Tests live in
+`tests/classroom-engine.test.ts` (which already applies 0086): they do NOT hand
+`buildFeed` a fixture -- they read through the real policies AS each user,
+exactly the way the page load does, and rank whatever came back. Mutation-checked
+three ways (letting pinned materials rank, the naive `isAwaitingGrade`, demoting
+the `overdue` rank) -- each reddens exactly one test.
+
+## FSP is archived (the programme has concluded)
+
+The Freshman Summer Program is over. It is **archived, not migrated into
+classroom**: it was pre-enrollment content for students who did not yet have
+accounts, which is exactly the audience classroom's enrollment-keyed model
+cannot serve, so there was nothing to move.
+
+- **`/fsp/archive`** is the read-only home for the preserved content, following
+  the precedent of `/archive` and the `/assignments/<slug>` endpoint. Public and
+  session-blind, no writes, no collapse control. It mounts the ORIGINAL
+  `FspPresentationsPanel` (all three Google Slides decks) and
+  `FspCourseInfoPanel` (the three course-description records) unchanged, and
+  lists every item the retired card carried, each tagged `Still active`,
+  `Archived` or `Open`. `src/lib/fsp/archive.ts` holds that item list (it used to
+  be assembled across `curriculum.ts` and the home page) so the archive owns its
+  own contents. Linked from the home footer, `/archive` and `/fsp/class`.
+- **EVERY FSP ROUTE STILL RESOLVES** -- QR codes printed for the sessions are in
+  circulation: `/fsp/class`, `/fsp/ask`, `/fsp/live`, `/fsp/frc-interest` (+
+  `/admin`), `/fsp/day1`, `/fsp/day2`, `/archive`, `/assignments/*`.
+- **`FSP_CONCLUDED` in `src/lib/fsp/archive.ts` is a FLAG, not deleted code,
+  because FSP is ANNUAL.** While true, `/fsp/ask` renders a "Session finished"
+  card in place of the question form and `/fsp/live` shows a concluded banner
+  above the record of what was asked. Flipping it back to `false` re-opens both
+  surfaces next summer with nothing to restore.
+- **Two things carry on unchanged and are marked `Still active`:** the
+  SolidWorks add-in hub at `/fsp/class` with its `/downloads/fsp-pawn-addin.zip`
+  (a real tool with use beyond FSP), and `/fsp/frc-interest` (recruiting runs all
+  year).
+- `site-manifest.ts`: the `archive` app now claims `src/routes/fsp/archive/` and
+  `src/lib/fsp/archive.ts`; `classroom` claims `src/routes/dev/home-feed/`.
 
 ## FSP live Q&A
 

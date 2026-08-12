@@ -2,6 +2,8 @@ import { dev } from '$app/environment';
 import { error } from '@sveltejs/kit';
 import type { JwtPayload } from '@supabase/supabase-js';
 import type { PageLoad } from './$types';
+import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
+import type { FeedSubmission } from '$lib/classroom/feed';
 import { makeStubSupabase, profileForMode, type TourHarnessMode } from './store.svelte';
 
 /**
@@ -51,6 +53,12 @@ export const load: PageLoad = async ({ url }) => {
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		supabase: makeStubSupabase() as any,
 		gauntletNudge: null,
-		fspOpened: [] as string[]
+		// The tour harness is about the spotlight steps, not the classroom feed:
+		// an empty feed renders the "no classes yet" card, which is a valid state
+		// and keeps the tour's targets where they are.
+		classroomReady: true,
+		feedSections: [] as ClassroomSection[],
+		feedItems: [] as ClassroomItem[],
+		feedSubmissions: [] as FeedSubmission[]
 	};
 };

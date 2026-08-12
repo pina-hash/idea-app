@@ -45,6 +45,7 @@
 	<header>
 		<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 		<div class="header-right">
+			<a class="auth-link" href="/fsp/archive">FSP archive</a>
 			<a class="auth-link" href="/">&lsaquo; Home</a>
 			<ProfileMenu />
 		</div>
@@ -53,7 +54,11 @@
 	<section class="hero">
 		<div class="hero-eyebrow">Incoming Freshman &middot; Summer</div>
 		<h1>IDEA <span class="accent">FSP</span></h1>
-		<p class="hero-sub">Freshman Summer Program. Runs before the regular school year.</p>
+		<p class="hero-sub">
+			The add-in below is still supported and still the current download. The summer programme it
+			was built for has finished &mdash; its materials are in the
+			<a href="/fsp/archive">FSP archive</a>.
+		</p>
 	</section>
 
 	<div class="courses">

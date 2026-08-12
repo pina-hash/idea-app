@@ -13,6 +13,18 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-12",
+			"title": "Your classes are on the front page now",
+			"body": "Sign in and the IDEA home page opens straight onto your classes. Each class gets a card showing what it is actually asking of you right now, most urgent first: work that is past due, grades that have come back and you have not opened yet, anything due in the next week, and work you have not handed in. Your syllabus and other reference material sit further down the card under Reference, so they stay easy to find without pushing your deadlines out of sight. Teachers see the same cards from the other side: work waiting to be graded, drafts not posted yet, and what is due soon. Fold a class shut if you want it out of the way and it stays that way, on every device you sign in on.",
+			"tags": ["Home", "Classwork"]
+		},
+		{
+			"date": "2026-08-12",
+			"title": "The Freshman Summer Program has wrapped up",
+			"body": "Summer is over, so the FSP box has come off the front page. Nothing has been thrown away: the slide decks from all three days, the course descriptions, the rulebook and the rest are kept together at ideabosco.com/fsp/archive, and every link and QR code from the summer still works. Two things are carrying on as normal -- the SolidWorks add-in is still supported and still downloadable, and the FRC interest form is still open, because Team 5669 recruits all year.",
+			"tags": ["Home"]
+		},
+		{
 			"date": "2026-08-11",
 			"title": "Hand work in from the assignment page",
 			"body": "Assignments now have a real hand-in: attach files or photos (your phone camera works), then Submit. Until your teacher starts grading you can Unsubmit to keep working, and when work is returned you can revise and resubmit. Some assignments are now fully interactive -- you type answers, fill tables, attach photo evidence and tick checklists right on the page, everything saves by itself as you type, and the page lists exactly what is still missing before Submit will go through.",

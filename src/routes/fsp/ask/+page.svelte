@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import { FSP_CONCLUDED } from '$lib/fsp/archive';
 
 	/**
 	 * /fsp/ask — the audience-facing question box for FSP live sessions. Reached
@@ -118,7 +119,21 @@
 </svelte:head>
 
 <div class="ask-root">
-	{#if !signedIn}
+	{#if FSP_CONCLUDED}
+		<div class="center">
+			<div class="card">
+				<h1>Session finished</h1>
+				<p>
+					The Freshman Summer Program has finished, so there is no live session taking questions
+					right now. Thanks to everyone who asked one.
+				</p>
+				<a class="primary link-btn" href="/fsp/archive">See the FSP archive</a>
+				<p class="fine">
+					Looking for your classes? They live in <a href="/classroom">IDEA Classroom</a>.
+				</p>
+			</div>
+		</div>
+	{:else if !signedIn}
 		<div class="center">
 			<div class="card">
 				<h1>Ask a Question</h1>
@@ -265,6 +280,11 @@
 		color: var(--green, #00ff41);
 		cursor: pointer;
 		min-height: 48px;
+	}
+	.link-btn {
+		display: inline-block;
+		text-align: center;
+		text-decoration: none;
 	}
 	.primary:hover:not(:disabled) {
 		background: rgba(0, 255, 65, 0.22);

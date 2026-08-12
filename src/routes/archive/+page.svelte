@@ -71,6 +71,7 @@
 
 	<footer>
 		<div class="footer-logo">IDEA - Integrated Design, Engineering &amp; Art</div>
+		<a class="footer-archive" href="/fsp/archive">Freshman Summer Program archive &rsaquo;</a>
 		<a class="footer-archive" href="/">&lsaquo; Back to home</a>
 		<div class="footer-version"><VersionBadge app="archive" /></div>
 	</footer>

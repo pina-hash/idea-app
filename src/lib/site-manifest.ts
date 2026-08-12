@@ -76,7 +76,9 @@ export const APPS: SiteApp[] = [
 	{
 		id: 'archive',
 		label: 'Archive',
-		prefixes: ['src/routes/archive/']
+		// Both archives: the discontinued 2025-26 courses, and the concluded
+		// Freshman Summer Program (its decks, course info and item list).
+		prefixes: ['src/routes/archive/', 'src/routes/fsp/archive/', 'src/lib/fsp/archive.ts']
 	},
 	{
 		id: 'dashboard',
@@ -112,6 +114,8 @@ export const APPS: SiteApp[] = [
 			'src/lib/classroom/',
 			'src/routes/api/classroom/',
 			'src/routes/dev/classroom/',
+			// The home-page class feed harness.
+			'src/routes/dev/home-feed/',
 			// The student-facing update log's content file (see updates.ts).
 			'classroom-updates.json'
 		],

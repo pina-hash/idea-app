@@ -4,6 +4,7 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import FspLiveFeed from '$lib/fsp/FspLiveFeed.svelte';
 	import FspStudentPreview from '$lib/fsp/FspStudentPreview.svelte';
+	import { FSP_CONCLUDED } from '$lib/fsp/archive';
 
 	/**
 	 * /fsp/live — the standalone Q&A display, projected during FSP live sessions.
@@ -158,6 +159,13 @@
 				</button>
 			</div>
 		</header>
+
+		{#if FSP_CONCLUDED}
+			<p class="concluded">
+				The Freshman Summer Program has finished, so nothing new arrives here. What is below is the
+				record of what was asked. <a href="/fsp/archive">FSP archive &rsaquo;</a>
+			</p>
+		{/if}
 
 		{#if feedError}<p class="err bannErr">{feedError}</p>{/if}
 
@@ -336,6 +344,18 @@
 	}
 	.bannErr {
 		padding: 0.4rem 1.2rem;
+	}
+	.concluded {
+		margin: 0;
+		padding: 0.55rem 1.2rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.8rem;
+		color: var(--gold, #c8ff00);
+		background: rgba(200, 255, 0, 0.06);
+		border-bottom: 1px solid rgba(200, 255, 0, 0.2);
+	}
+	.concluded a {
+		color: var(--cyan, #00f0ff);
 	}
 
 	/* ---- Widescreen layout: session panel + feed ---- */
