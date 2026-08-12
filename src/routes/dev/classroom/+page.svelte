@@ -7,6 +7,7 @@
 	import UpdatesPage from '$lib/classroom/UpdatesPage.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
+	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import { registerLocalAttachmentUrl } from '$lib/classroom/classroom';
 	import type {
 		ClassroomAttachment,
@@ -21,6 +22,25 @@
 		LinkPreview,
 		SectionDeleteResult
 	} from '$lib/classroom/classroom';
+	import {
+		filesByBlockCount,
+		gatedModuleIds,
+		registerLocalSubmissionFileUrl,
+		responsesMap,
+		rubricFromSpec,
+		specUnmet,
+		validateSpec,
+		type AssignmentEngineTransports,
+		type AssignmentSpec,
+		type AssignmentTeacherTransports,
+		type ModuleApprovalRow,
+		type ResponseRow,
+		type ResponseValue,
+		type RubricCriterion,
+		type StudentEngineData,
+		type SubmissionFileRow,
+		type SubmissionRow
+	} from '$lib/classroom/assignment-spec';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
@@ -588,6 +608,430 @@
 		}
 	};
 
+	// --- Assignment engine (0086), mirrored in memory -----------------------
+	// The REAL pure layer does the thinking (validateSpec, specUnmet,
+	// rubricFromSpec); this store only mirrors the 0086 state rules closely
+	// enough to reach every refusal shape the surfaces render. The real
+	// enforcement is tests/classroom-engine.test.ts against real Postgres.
+
+	const STUDENT_EMAIL = 'alice@boscotech.net';
+
+	const SEED_SPEC: AssignmentSpec = {
+		schemaVersion: 1,
+		meta: {
+			assignmentId: 'idea100-bridge-01',
+			title: 'Bridge Sketch Worksheet',
+			totalPoints: 20,
+			gradingCategory: 'Unit Labs'
+		},
+		modules: [
+			{
+				id: 'm1',
+				title: 'Three Views',
+				points: 8,
+				aiLevel: 0,
+				intro: 'Sketch the truss bridge from three views before you touch CAD.',
+				blocks: [
+					{
+						type: 'instructions',
+						content: '1. Front, top, side.\n2. Label every member.\n3. Use a straightedge.'
+					},
+					{
+						type: 'textField',
+						id: 'f1',
+						prompt: 'Which view was hardest to get right, and why?',
+						minSentences: 3,
+						maxSentences: 5
+					},
+					{
+						type: 'table',
+						id: 't1',
+						columns: [
+							{ key: 'member', label: 'Member', tip: 'Member — the truss member name.' },
+							{ key: 'loading', label: 'Loading', tip: 'Loading — tension or compression.' }
+						],
+						minRows: 3
+					}
+				],
+				rubric: [
+					{ criterion: 'All three views complete and labeled', points: 5 },
+					{ criterion: 'Hardest-view reflection is specific', points: 3 }
+				]
+			},
+			{
+				id: 'm2',
+				title: 'Photo Evidence',
+				points: 6,
+				blocks: [
+					{ type: 'imageZone', id: 'z1', minImages: 2, captions: true },
+					{ type: 'checklist', id: 'c1', items: ['Sketch dated', 'Name on every page'] }
+				],
+				rubric: [{ criterion: 'Photos legible and captioned', points: 6 }]
+			},
+			{
+				id: 'm3',
+				title: 'Design Reflection',
+				points: 6,
+				blocks: [
+					{
+						type: 'textField',
+						id: 'f2',
+						prompt: 'Where would this bridge fail first under load? Explain.',
+						minSentences: 2
+					}
+				],
+				rubric: [{ criterion: 'Failure prediction is reasoned', points: 6 }]
+			}
+		],
+		declarations: { academicIntegrity: true },
+		approvalGate: { afterModule: 'm2', label: 'Instructor Approval Required' }
+	};
+
+	const ENGINE_ITEM = 'i-3';
+	let engineSpec = $state<AssignmentSpec | null>(SEED_SPEC);
+	let engineRubric = $state<RubricCriterion[] | null>(rubricFromSpec(SEED_SPEC));
+	let engSubmissions = $state<SubmissionRow[]>([]);
+	let engResponses = $state<ResponseRow[]>([]);
+	let engFiles = $state<SubmissionFileRow[]>([]);
+	let engApprovals = $state<ModuleApprovalRow[]>([]);
+
+	const SAMPLE_IMG =
+		'data:image/svg+xml;utf8,' +
+		encodeURIComponent(
+			'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220"><rect width="320" height="220" fill="#101a12"/><path d="M20 180 L80 60 L140 180 L200 60 L260 180 Z" fill="none" stroke="#00FF41" stroke-width="5"/><text x="20" y="205" fill="#7a8" font-size="14" font-family="monospace">bridge sketch</text></svg>'
+		);
+
+	function ensureSubmission(email: string): SubmissionRow {
+		let row = engSubmissions.find((s) => s.item_id === ENGINE_ITEM && s.student_email === email);
+		if (!row) {
+			row = {
+				id: nid('sub'),
+				item_id: ENGINE_ITEM,
+				student_email: email,
+				state: 'draft',
+				submitted_at: null,
+				returned_at: null,
+				rubric_scores: null,
+				score: null,
+				teacher_comment: null,
+				graded_by: null,
+				graded_at: null
+			};
+			engSubmissions = [...engSubmissions, row];
+		}
+		return row;
+	}
+	function patchSubmission(email: string, over: Partial<SubmissionRow>) {
+		ensureSubmission(email);
+		engSubmissions = engSubmissions.map((s) =>
+			s.item_id === ENGINE_ITEM && s.student_email === email ? { ...s, ...over } : s
+		);
+	}
+	function subOf(email: string): SubmissionRow | null {
+		return (
+			engSubmissions.find((s) => s.item_id === ENGINE_ITEM && s.student_email === email) ?? null
+		);
+	}
+	function responsesOf(email: string): ResponseRow[] {
+		return engResponses.filter((r) => r.item_id === ENGINE_ITEM && r.student_email === email);
+	}
+	function filesOf(email: string): SubmissionFileRow[] {
+		const sub = subOf(email);
+		return sub ? engFiles.filter((f) => f.submission_id === sub.id) : [];
+	}
+	function approvalsOf(email: string): ModuleApprovalRow[] {
+		return engApprovals.filter((a) => a.item_id === ENGINE_ITEM && a.student_email === email);
+	}
+	function seedFile(email: string, blockId: string | null, caption: string | null, name: string) {
+		const sub = ensureSubmission(email);
+		const row: SubmissionFileRow = {
+			id: nid('sf'),
+			submission_id: sub.id,
+			block_id: blockId,
+			caption,
+			filename: name,
+			mime_type: 'image/svg+xml',
+			size_bytes: 4200,
+			sort_order: engFiles.filter((f) => f.submission_id === sub.id).length + 1
+		};
+		registerLocalSubmissionFileUrl(row.id, SAMPLE_IMG);
+		engFiles = [...engFiles, row];
+		return row;
+	}
+
+	// Seed CARLA as a complete, submitted student so the grading console has
+	// real work to grade the moment it opens.
+	{
+		patchSubmission('carla@boscotech.net', {
+			state: 'submitted',
+			submitted_at: hoursFromNow(-20)
+		});
+		engResponses = [
+			{
+				item_id: ENGINE_ITEM,
+				student_email: 'carla@boscotech.net',
+				block_id: 'f1',
+				value: {
+					text: 'The side view was hardest. The diagonals overlap there. I had to redraw it twice.'
+				}
+			},
+			{
+				item_id: ENGINE_ITEM,
+				student_email: 'carla@boscotech.net',
+				block_id: 't1',
+				value: {
+					rows: [
+						{ member: 'Top chord', loading: 'Compression' },
+						{ member: 'Bottom chord', loading: 'Tension' },
+						{ member: 'Diagonal', loading: 'Tension' }
+					]
+				}
+			},
+			{
+				item_id: ENGINE_ITEM,
+				student_email: 'carla@boscotech.net',
+				block_id: 'c1',
+				value: { checked: [true, true] }
+			},
+			{
+				item_id: ENGINE_ITEM,
+				student_email: 'carla@boscotech.net',
+				block_id: 'f2',
+				value: { text: 'The center bottom chord carries the most tension. It fails first.' }
+			},
+			{
+				item_id: ENGINE_ITEM,
+				student_email: 'carla@boscotech.net',
+				block_id: '@declaration',
+				value: { checked: [true] }
+			}
+		];
+		seedFile('carla@boscotech.net', 'z1', 'Front view', 'front-view.svg');
+		seedFile('carla@boscotech.net', 'z1', 'Side view', 'side-view.svg');
+		engApprovals = [
+			{
+				item_id: ENGINE_ITEM,
+				student_email: 'carla@boscotech.net',
+				module_id: 'm2',
+				approved_by: TEACHER,
+				approved_at: hoursFromNow(-22)
+			}
+		];
+	}
+
+	function buildStudentData(email: string): StudentEngineData {
+		return {
+			spec: engineSpec,
+			rubric: engineRubric,
+			submission: subOf(email),
+			responses: responsesOf(email),
+			files: filesOf(email),
+			approvals: approvalsOf(email)
+		};
+	}
+
+	function blockIn(spec: AssignmentSpec, blockId: string) {
+		for (const mod of spec.modules) {
+			for (const b of mod.blocks) {
+				if ('id' in b && b.id === blockId) return { mod, block: b };
+			}
+		}
+		return null;
+	}
+
+	const engineTransports: AssignmentEngineTransports = {
+		async saveResponse(itemId, blockId, value) {
+			note('saveResponse', { itemId, blockId, value });
+			if (!engineSpec) return { ok: false, message: 'This assignment has no interactive spec.' };
+			if (subOf(STUDENT_EMAIL)?.state === 'submitted') {
+				return { ok: true, data: { ok: false, reason: 'locked' } };
+			}
+			if (blockId !== '@declaration') {
+				const found = blockIn(engineSpec, blockId);
+				if (!found) return { ok: false, message: `Unknown block "${blockId}".` };
+				const gated = gatedModuleIds(engineSpec);
+				const approved = approvalsOf(STUDENT_EMAIL).some(
+					(a) => a.module_id === engineSpec?.approvalGate?.afterModule
+				);
+				if (gated.includes(found.mod.id) && !approved) {
+					return {
+						ok: true,
+						data: { ok: false, reason: 'approval_pending', module_id: found.mod.id }
+					};
+				}
+			}
+			const existing = engResponses.find(
+				(r) =>
+					r.item_id === ENGINE_ITEM && r.student_email === STUDENT_EMAIL && r.block_id === blockId
+			);
+			if (existing) {
+				engResponses = engResponses.map((r) => (r === existing ? { ...r, value } : r));
+			} else {
+				engResponses = [
+					...engResponses,
+					{ item_id: ENGINE_ITEM, student_email: STUDENT_EMAIL, block_id: blockId, value }
+				];
+			}
+			return { ok: true, data: { ok: true } };
+		},
+		async submitAssignment(itemId) {
+			note('submitAssignment', { itemId });
+			const sub = subOf(STUDENT_EMAIL);
+			if (sub?.state === 'submitted') {
+				return { ok: true, data: { ok: false, reason: 'already_submitted' } };
+			}
+			if (engineSpec) {
+				const unmet = specUnmet(
+					engineSpec,
+					responsesMap(responsesOf(STUDENT_EMAIL)),
+					filesByBlockCount(filesOf(STUDENT_EMAIL)),
+					approvalsOf(STUDENT_EMAIL)
+				);
+				if (unmet.length) {
+					return { ok: true, data: { ok: false, reason: 'incomplete', unmet } };
+				}
+			} else if (filesOf(STUDENT_EMAIL).length === 0) {
+				return { ok: true, data: { ok: false, reason: 'nothing_attached' } };
+			}
+			patchSubmission(STUDENT_EMAIL, { state: 'submitted', submitted_at: new Date().toISOString() });
+			return { ok: true, data: { ok: true, state: 'submitted' } };
+		},
+		async unsubmitAssignment(itemId) {
+			note('unsubmitAssignment', { itemId });
+			const sub = subOf(STUDENT_EMAIL);
+			if (!sub || sub.state !== 'submitted') {
+				return { ok: true, data: { ok: false, reason: 'not_submitted' } };
+			}
+			if (sub.graded_at) {
+				return { ok: true, data: { ok: false, reason: 'graded' } };
+			}
+			patchSubmission(STUDENT_EMAIL, { state: 'draft' });
+			return { ok: true, data: { ok: true, state: 'draft' } };
+		},
+		async uploadSubmissionFile(itemId, file, blockId = null, caption = null) {
+			note('uploadSubmissionFile', { itemId, name: file.name, blockId, caption });
+			if (subOf(STUDENT_EMAIL)?.state === 'submitted') {
+				return { ok: true, data: { reason: 'locked' } };
+			}
+			const sub = ensureSubmission(STUDENT_EMAIL);
+			const row: SubmissionFileRow = {
+				id: nid('sf'),
+				submission_id: sub.id,
+				block_id: blockId ?? null,
+				caption: caption ?? null,
+				filename: file.name,
+				mime_type: file.type || 'application/octet-stream',
+				size_bytes: file.size,
+				sort_order: engFiles.filter((f) => f.submission_id === sub.id).length + 1
+			};
+			registerLocalSubmissionFileUrl(row.id, URL.createObjectURL(file));
+			engFiles = [...engFiles, row];
+			return { ok: true, data: { file: row } };
+		},
+		async deleteSubmissionFile(fileId) {
+			note('deleteSubmissionFile', { fileId });
+			if (subOf(STUDENT_EMAIL)?.state === 'submitted') {
+				return { ok: true, data: { ok: false, reason: 'locked' } };
+			}
+			engFiles = engFiles.filter((f) => f.id !== fileId);
+			return { ok: true, data: { ok: true } };
+		},
+		async setFileCaption(fileId, caption) {
+			note('setFileCaption', { fileId, caption });
+			engFiles = engFiles.map((f) => (f.id === fileId ? { ...f, caption } : f));
+			return { ok: true, data: { ok: true } };
+		},
+		async reloadStudent() {
+			note('reloadStudent', {});
+			return { ok: true, data: buildStudentData(STUDENT_EMAIL) };
+		}
+	};
+
+	const teacherEngineTransports: AssignmentTeacherTransports = {
+		async setSpec(itemId, spec) {
+			note('setSpec', { itemId, removed: spec == null });
+			if (spec == null) {
+				engineSpec = null;
+				return { ok: true, data: undefined };
+			}
+			const result = validateSpec(spec);
+			if (!result.spec) {
+				return { ok: false, message: result.errors[0] ?? 'Invalid spec.' };
+			}
+			engineSpec = result.spec;
+			return { ok: true, data: undefined };
+		},
+		async setRubric(itemId, criteria) {
+			note('setRubric', { itemId, count: criteria?.length ?? 0 });
+			engineRubric = criteria;
+			return { ok: true, data: undefined };
+		},
+		async gradeSubmission(itemId, studentEmail, scores, comment, release) {
+			note('gradeSubmission', { itemId, studentEmail, scores, comment, release });
+			if (!engineRubric?.length) {
+				return { ok: false, message: 'Create a rubric for this assignment before grading.' };
+			}
+			for (const [key, value] of Object.entries(scores)) {
+				const crit = engineRubric.find((c) => c.id === key);
+				if (!crit) return { ok: false, message: `Score key "${key}" is not a rubric criterion.` };
+				if (value < 0 || value > crit.points) {
+					return {
+						ok: false,
+						message: `The score for "${crit.criterion}" must be between 0 and ${crit.points}.`
+					};
+				}
+			}
+			const missing = engineRubric.filter((c) => scores[c.id] == null).map((c) => c.id);
+			if (release && missing.length) {
+				return { ok: true, data: { ok: false, reason: 'incomplete_scores', missing } };
+			}
+			const total = Object.values(scores).reduce((sum, v) => sum + v, 0);
+			ensureSubmission(studentEmail);
+			patchSubmission(studentEmail, {
+				rubric_scores: scores,
+				score: total,
+				teacher_comment: comment,
+				graded_by: TEACHER,
+				graded_at: new Date().toISOString(),
+				...(release ? { state: 'returned' as const, returned_at: new Date().toISOString() } : {})
+			});
+			return { ok: true, data: { ok: true, score: total, state: release ? 'returned' : subOf(studentEmail)?.state } };
+		},
+		async approveModule(itemId, studentEmail, moduleId, approved) {
+			note('approveModule', { itemId, studentEmail, moduleId, approved });
+			engApprovals = engApprovals.filter(
+				(a) =>
+					!(a.item_id === ENGINE_ITEM && a.student_email === studentEmail && a.module_id === moduleId)
+			);
+			if (approved) {
+				engApprovals = [
+					...engApprovals,
+					{
+						item_id: ENGINE_ITEM,
+						student_email: studentEmail,
+						module_id: moduleId,
+						approved_by: TEACHER,
+						approved_at: new Date().toISOString()
+					}
+				];
+			}
+			return { ok: true, data: undefined };
+		},
+		async loadGrading(itemId, sectionId) {
+			note('loadGrading', { itemId, sectionId });
+			return {
+				ok: true,
+				data: {
+					roster: enrollments.filter((e) => e.section_id === sectionId),
+					submissions: engSubmissions.filter((s) => s.item_id === itemId),
+					responses: engResponses.filter((r) => r.item_id === itemId),
+					files: engFiles,
+					approvals: engApprovals.filter((a) => a.item_id === itemId)
+				}
+			};
+		}
+	};
+
 	/**
 	 * Link previews, answered from a fixture. The real endpoint fetches the page
 	 * server-side; the harness has no network, so this proves the CARD renders
@@ -721,6 +1165,8 @@
 		['class-empty', 'Class page: empty'],
 		['item', 'Item detail'],
 		['item-teacher', 'Item detail (teacher)'],
+		['assignment', 'Assignment engine (student)'],
+		['grade', 'Grading console'],
 		['manage', 'Manage console'],
 		['manage-notready', 'Manage: migration unapplied'],
 		['updates', 'Update log'],
@@ -806,6 +1252,36 @@
 			{transports}
 			{fetchPreview}
 			{submitFeedback}
+			spec={engineSpec}
+			rubric={engineRubric}
+			teacherTransports={teacherEngineTransports}
+			gradeHref="/dev/classroom?view=grade"
+		/>
+	{:else}
+		<p class="harness-note">The sample item was deleted in another view.</p>
+	{/if}
+{:else if view === 'assignment'}
+	{#if detailItem}
+		<ItemDetail
+			section={section1}
+			item={detailItem}
+			{transports}
+			{fetchPreview}
+			{submitFeedback}
+			engine={buildStudentData(STUDENT_EMAIL)}
+			{engineTransports}
+		/>
+	{:else}
+		<p class="harness-note">The sample item was deleted in another view.</p>
+	{/if}
+{:else if view === 'grade'}
+	{#if detailItem}
+		<GradingConsole
+			section={section1}
+			item={detailItem}
+			spec={engineSpec}
+			rubric={engineRubric}
+			transports={teacherEngineTransports}
 		/>
 	{:else}
 		<p class="harness-note">The sample item was deleted in another view.</p>

@@ -135,6 +135,17 @@ export function classroomFolderId(): Promise<string> {
 }
 
 /**
+ * Student submission files get their OWN subfolder beside the handouts one --
+ * the same "not interleaved when browsed by eye" doctrine that split classroom
+ * attachments off the notebook pages in the first place.
+ */
+export const SUBMISSIONS_FOLDER_NAME = 'IDEA Classroom submissions';
+
+export function submissionsFolderId(): Promise<string> {
+	return ensureDriveSubfolder(SUBMISSIONS_FOLDER_NAME);
+}
+
+/**
  * The human-readable Drive filename, the notebookDriveFilename convention:
  * {date}_{course-section}_{owner-kind}_{original-stem}_{short-id}.{ext}. The
  * database only ever stores the file id, so this is presentation for whoever

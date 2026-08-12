@@ -4,6 +4,8 @@
 	import {
 		classroomFeedbackSubmit,
 		createClassroomTransports,
+		createEngineTransports,
+		createTeacherEngineTransports,
 		fetchLinkPreviewClient
 	} from '$lib/classroom/transports';
 	import type { PageData } from './$types';
@@ -16,6 +18,10 @@
 	const transports = createClassroomTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
+	// svelte-ignore state_referenced_locally
+	const engineTransports = createEngineTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const teacherTransports = createTeacherEngineTransports(data.supabase);
 </script>
 
 <ItemDetail
@@ -27,6 +33,12 @@
 	{transports}
 	{submitFeedback}
 	fetchPreview={fetchLinkPreviewClient}
+	engine={data.engine}
+	{engineTransports}
+	spec={data.spec}
+	rubric={data.rubric}
+	teacherTransports={data.canManage ? teacherTransports : null}
+	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}
 />

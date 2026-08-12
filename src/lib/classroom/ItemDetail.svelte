@@ -2,10 +2,20 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
+	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
+	import SpecImport from '$lib/classroom/SpecImport.svelte';
+	import type {
+		AssignmentEngineTransports,
+		AssignmentSpec,
+		AssignmentTeacherTransports,
+		RubricCriterion,
+		StudentEngineData
+	} from '$lib/classroom/assignment-spec';
 	import {
 		authorLabel,
 		editedWhen,
@@ -48,7 +58,13 @@
 		fetchPreview = null,
 		submitFeedback = null,
 		onchanged = null,
-		ondeleted = null
+		ondeleted = null,
+		engine = null,
+		engineTransports = null,
+		spec = null,
+		rubric = null,
+		teacherTransports = null,
+		gradeHref = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -62,6 +78,14 @@
 		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 		onchanged?: (() => void | Promise<void>) | null;
 		ondeleted?: (() => void) | null;
+		/** The STUDENT engine slice + its transports (assignments only). */
+		engine?: StudentEngineData | null;
+		engineTransports?: AssignmentEngineTransports | null;
+		/** The teacher tools' data + transports (assignments only). */
+		spec?: AssignmentSpec | null;
+		rubric?: RubricCriterion[] | null;
+		teacherTransports?: AssignmentTeacherTransports | null;
+		gradeHref?: string | null;
 	} = $props();
 
 	let editing = $state(false);
@@ -247,13 +271,42 @@
 	{/if}
 
 	{#if item.kind === 'assignment'}
-		<section class="card engine-slot">
-			<h2 class="section-label">Submission</h2>
-			<p class="note">
-				Handing work in from here arrives in a later release. For now, follow the instructions
-				above.
-			</p>
-		</section>
+		{#if canManage && teacherTransports}
+			<section class="card engine-tools">
+				<h2 class="section-label">Assignment engine</h2>
+				<SpecImport itemId={item.id} {spec} transports={teacherTransports} onchanged={() => onchanged?.()} />
+				<hr class="tool-rule" />
+				<RubricBuilder
+					itemId={item.id}
+					criteria={rubric}
+					{spec}
+					transports={teacherTransports}
+					onchanged={() => onchanged?.()}
+				/>
+				{#if gradeHref}
+					<hr class="tool-rule" />
+					<a class="btn tiny" href={gradeHref}>Open grading console</a>
+				{/if}
+			</section>
+		{:else if engine && engineTransports}
+			<section class="engine-host">
+				<h2 class="section-label">Your work</h2>
+				{#key item.id}
+					<AssignmentEngine {item} data={engine} transports={engineTransports} uploadEnabled={attachmentsEnabled} />
+				{/key}
+			</section>
+		{:else}
+			<section class="card engine-slot">
+				<h2 class="section-label">Submission</h2>
+				<p class="note">
+					{#if viewAs}
+						Submission tools are hidden while viewing as a student.
+					{:else}
+						Handing work in from here is not available right now.
+					{/if}
+				</p>
+			</section>
+		{/if}
 	{/if}
 
 	<ClassroomFeedback
@@ -326,6 +379,23 @@
 	}
 	.engine-slot {
 		border-style: dashed;
+	}
+	.engine-tools {
+		display: flex;
+		flex-direction: column;
+		gap: 0.6rem;
+	}
+	.tool-rule {
+		border: none;
+		border-top: 1px solid var(--line);
+		margin: 0.1rem 0;
+		width: 100%;
+	}
+	.engine-host {
+		margin-bottom: 0.9rem;
+	}
+	.engine-tools .btn.tiny {
+		align-self: flex-start;
 	}
 	.note {
 		color: var(--dim);

@@ -18,6 +18,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { submitFeedback, type FeedbackEntry } from '$lib/feedback/feedback';
 import {
+	normalizeSubmissionRow,
+	type AssignmentEngineTransports,
+	type AssignmentTeacherTransports,
+	type EngineOpResult,
+	type ModuleApprovalRow,
+	type ResponseRow,
+	type StudentEngineData,
+	type SubmissionFileRow
+} from './assignment-spec';
+import {
 	normalizeItemRow,
 	normalizeSectionRow,
 	type ClassroomCourse,
@@ -158,6 +168,221 @@ async function deleteItem(id: string): Promise<TxResult<undefined>> {
 	} catch (e) {
 		return { ok: false, message: (e as Error).message || 'Delete failed.' };
 	}
+}
+
+const SUBMISSION_SELECT =
+	'id, item_id, student_email, state, submitted_at, returned_at, rubric_scores, score, ' +
+	'teacher_comment, graded_by, graded_at, updated_at';
+
+const SUBMISSION_FILE_SELECT =
+	'id, submission_id, block_id, caption, filename, mime_type, size_bytes, sort_order';
+
+function opResult(res: unknown): { ok: true; data: EngineOpResult } {
+	return { ok: true, data: (res ?? { ok: true }) as EngineOpResult };
+}
+
+/**
+ * The student half of the assignment engine: autosave, files, submit,
+ * unsubmit. Reads are RLS-scoped selects with NO student_email filter (the
+ * /coin-balance doctrine -- the policy IS the filter); writes are the 0086
+ * SECURITY DEFINER RPCs, which resolve the caller themselves.
+ */
+export function createEngineTransports(supabase: SupabaseClient): AssignmentEngineTransports {
+	return {
+		async saveResponse(itemId, blockId, value) {
+			const { data: res, error } = await supabase.rpc('classroom_save_response', {
+				p_item_id: itemId,
+				p_block_id: blockId,
+				p_value: value
+			});
+			if (error) return fail(error);
+			return opResult(res);
+		},
+		async submitAssignment(itemId) {
+			const { data: res, error } = await supabase.rpc('classroom_submit_assignment', {
+				p_item_id: itemId
+			});
+			if (error) return fail(error);
+			return opResult(res);
+		},
+		async unsubmitAssignment(itemId) {
+			const { data: res, error } = await supabase.rpc('classroom_unsubmit_assignment', {
+				p_item_id: itemId
+			});
+			if (error) return fail(error);
+			return opResult(res);
+		},
+		async uploadSubmissionFile(itemId, file, blockId = null, caption = null) {
+			const form = new FormData();
+			form.set('file', file, file.name);
+			form.set('item_id', itemId);
+			if (blockId) form.set('block_id', blockId);
+			if (caption) form.set('caption', caption);
+			try {
+				const res = await fetch('/api/classroom/submission-file', { method: 'POST', body: form });
+				const body = (await res.json().catch(() => null)) as
+					| { error?: string; reason?: string; file?: SubmissionFileRow }
+					| null;
+				if (!res.ok) {
+					return { ok: false, message: body?.error ?? `Upload failed (${res.status}).` };
+				}
+				return { ok: true, data: { file: body?.file, reason: body?.reason } };
+			} catch (e) {
+				return { ok: false, message: (e as Error).message || 'Upload failed.' };
+			}
+		},
+		async deleteSubmissionFile(fileId) {
+			try {
+				const res = await fetch(`/api/classroom/submission-file/${fileId}`, { method: 'DELETE' });
+				const body = (await res.json().catch(() => null)) as
+					| { error?: string; reason?: string }
+					| null;
+				if (!res.ok) {
+					return { ok: false, message: body?.error ?? `Remove failed (${res.status}).` };
+				}
+				return { ok: true, data: (body ?? { ok: true }) as EngineOpResult };
+			} catch (e) {
+				return { ok: false, message: (e as Error).message || 'Remove failed.' };
+			}
+		},
+		async setFileCaption(fileId, caption) {
+			const { data: res, error } = await supabase.rpc('classroom_set_submission_file_caption', {
+				p_id: fileId,
+				p_caption: caption
+			});
+			if (error) return fail(error);
+			return opResult(res);
+		},
+		async reloadStudent(itemId) {
+			const data = await loadStudentEngineData(supabase, itemId);
+			if (!data) return { ok: false, message: 'Could not reload this assignment.' };
+			return { ok: true, data };
+		}
+	};
+}
+
+/**
+ * The caller's OWN engine slice for one assignment. Every select here is
+ * RLS-scoped with no student filter; for a student the policies return exactly
+ * their own rows. (A manager would legitimately read every student's rows
+ * through the same policies -- which is why this is only ever called for the
+ * non-manager view; the grading console loads per-item data explicitly.)
+ */
+export async function loadStudentEngineData(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<StudentEngineData | null> {
+	const [specRes, rubricRes, submissionRes, responsesRes, filesRes, approvalsRes] =
+		await Promise.all([
+			supabase.from('classroom_assignment_specs').select('spec').eq('item_id', itemId).maybeSingle(),
+			supabase.from('classroom_rubrics').select('criteria').eq('item_id', itemId).maybeSingle(),
+			supabase.from('classroom_submissions').select(SUBMISSION_SELECT).eq('item_id', itemId).maybeSingle(),
+			supabase
+				.from('classroom_responses')
+				.select('item_id, student_email, block_id, value, updated_at')
+				.eq('item_id', itemId),
+			supabase
+				.from('classroom_submission_files')
+				.select(`${SUBMISSION_FILE_SELECT}, classroom_submissions!inner(item_id)`)
+				.eq('classroom_submissions.item_id', itemId)
+				.order('sort_order'),
+			supabase
+				.from('classroom_module_approvals')
+				.select('item_id, student_email, module_id, approved_by, approved_at')
+				.eq('item_id', itemId)
+		]);
+	// The spec/rubric miss is an ordinary state; a TABLE-level error (0086 not
+	// applied) reads as "no engine" and the caller falls soft.
+	if (specRes.error && submissionRes.error) return null;
+	return {
+		spec: (specRes.data?.spec as StudentEngineData['spec']) ?? null,
+		rubric: (rubricRes.data?.criteria as StudentEngineData['rubric']) ?? null,
+		submission: submissionRes.data
+			? normalizeSubmissionRow(submissionRes.data as unknown as Record<string, unknown>)
+			: null,
+		responses: (responsesRes.data ?? []) as ResponseRow[],
+		files: (filesRes.data ?? []) as SubmissionFileRow[],
+		approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
+	};
+}
+
+/** The teacher half: spec import, rubric, grading, the approval gate. */
+export function createTeacherEngineTransports(
+	supabase: SupabaseClient
+): AssignmentTeacherTransports {
+	return {
+		async setSpec(itemId, spec) {
+			const { error } = await supabase.rpc('classroom_set_assignment_spec', {
+				p_item_id: itemId,
+				p_spec: spec
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		async setRubric(itemId, criteria) {
+			const { error } = await supabase.rpc('classroom_set_rubric', {
+				p_item_id: itemId,
+				p_criteria: criteria
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		async gradeSubmission(itemId, studentEmail, scores, comment, release) {
+			const { data: res, error } = await supabase.rpc('classroom_grade_submission', {
+				p_item_id: itemId,
+				p_student_email: studentEmail,
+				p_scores: scores,
+				p_comment: comment,
+				p_return: release
+			});
+			if (error) return fail(error);
+			return opResult(res);
+		},
+		async approveModule(itemId, studentEmail, moduleId, approved) {
+			const { error } = await supabase.rpc('classroom_approve_module', {
+				p_item_id: itemId,
+				p_student_email: studentEmail,
+				p_module_id: moduleId,
+				p_approved: approved
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		async loadGrading(itemId, sectionId) {
+			const [rosterRes, submissionsRes, responsesRes, filesRes, approvalsRes] =
+				await Promise.all([
+					supabase
+						.from('classroom_enrollments')
+						.select('section_id, student_email, display_name, active, updated_at')
+						.eq('section_id', sectionId)
+						.order('display_name'),
+					supabase.from('classroom_submissions').select(SUBMISSION_SELECT).eq('item_id', itemId),
+					supabase
+						.from('classroom_responses')
+						.select('item_id, student_email, block_id, value, updated_at')
+						.eq('item_id', itemId),
+					supabase
+						.from('classroom_submission_files')
+						.select(`${SUBMISSION_FILE_SELECT}, classroom_submissions!inner(item_id)`)
+						.eq('classroom_submissions.item_id', itemId)
+						.order('sort_order'),
+					supabase
+						.from('classroom_module_approvals')
+						.select('item_id, student_email, module_id, approved_by, approved_at')
+						.eq('item_id', itemId)
+				]);
+			if (rosterRes.error) return fail(rosterRes.error);
+			return {
+				ok: true,
+				data: {
+					roster: (rosterRes.data ?? []) as ClassroomEnrollment[],
+					submissions: ((submissionsRes.data ?? []) as unknown as Record<string, unknown>[]).map(
+						normalizeSubmissionRow
+					),
+					responses: (responsesRes.data ?? []) as ResponseRow[],
+					files: (filesRes.data ?? []) as SubmissionFileRow[],
+					approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
+				}
+			};
+		}
+	};
 }
 
 export function createClassroomTransports(supabase: SupabaseClient): ClassroomManageTransports {

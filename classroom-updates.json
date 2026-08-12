@@ -14,6 +14,18 @@
 	"entries": [
 		{
 			"date": "2026-08-11",
+			"title": "Hand work in from the assignment page",
+			"body": "Assignments now have a real hand-in: attach files or photos (your phone camera works), then Submit. Until your teacher starts grading you can Unsubmit to keep working, and when work is returned you can revise and resubmit. Some assignments are now fully interactive -- you type answers, fill tables, attach photo evidence and tick checklists right on the page, everything saves by itself as you type, and the page lists exactly what is still missing before Submit will go through.",
+			"tags": ["Assignments"]
+		},
+		{
+			"date": "2026-08-11",
+			"title": "Rubrics and returned grades",
+			"body": "Assignments can show their rubric up front, so you can see how the points break down before you start. When your teacher returns your work you will see your score, the points per rubric line, and their comment right on the assignment page.",
+			"tags": ["Assignments", "Grades"]
+		},
+		{
+			"date": "2026-08-11",
 			"title": "One post, every class -- edits now reach all of them",
 			"body": "An announcement, assignment or material posted to more than one class used to become a separate copy per class, so fixing a typo only fixed it in one place. There is one shared copy now: your teacher edits it once and every class it was posted to sees the change straight away.",
 			"tags": ["Classwork", "Stream"]
