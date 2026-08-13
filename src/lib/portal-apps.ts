@@ -90,19 +90,20 @@ export const PORTAL_APPS: PortalApp[] = [
 		id: 'coin-desk',
 		title: 'Coin Desk',
 		sub: 'Log fines, awards, and purchases against the real coin ledger (0070). Admin tool.',
-		icon: 'coin-entry',
+		icon: 'coin-desk',
 		href: '/coin-desk',
 		group: 'tools',
 		cta: 'Open',
 		adminOnly: true,
 		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
-	// TWO coin cards, deliberately. The Ledger is the single student hub again
-	// — balance, leaderboard, transactions, analytics, contracts and roles all
-	// live on it — so the separate My Coin Balance and Contracts cards were
-	// removed rather than duplicating parts of it in the launcher (both routes
-	// redirect there). Coin Entry is gone from the launcher too: it writes only
-	// to the frozen Sheets ledger, and Coin Desk is the entry tool.
+	// TWO coin cards, deliberately, and there is no third. The Ledger is the
+	// single student hub — balance, leaderboard, transactions, analytics,
+	// contracts and roles all live on it — so the separate My Coin Balance and
+	// Contracts cards were removed rather than duplicating parts of it in the
+	// launcher (both routes redirect there). The old Sheets entry tool is
+	// retired outright (see docs/coin-economy/archive/legacy-system/);
+	// Coin Desk is the entry tool.
 	{
 		id: 'coins',
 		title: 'IDEA Coin Ledger',

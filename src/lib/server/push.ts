@@ -7,7 +7,8 @@
  * Keys: PUBLIC_VAPID_PUBLIC_KEY ($env/dynamic/public, also used by the
  * browser to subscribe) + VAPID_PRIVATE_KEY ($env/dynamic/private,
  * server-only). Both unset -> pushConfigured() is false and every send is a
- * clean no-op, never a build break (the COIN_API_KEY convention). Reads and
+ * clean no-op, never a build break: a missing credential degrades, it does
+ * not break the build, the way SUPABASE_SERVICE_ROLE_KEY does. Reads and
  * the pair-claim write use the service-role key: push_subscriptions is
  * own-row-select under RLS and pair_notified_at has no client write path.
  *

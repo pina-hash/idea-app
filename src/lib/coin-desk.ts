@@ -1,9 +1,10 @@
 /**
  * IDEA Coin economy entry tool: plain data + pure helpers (client-safe, the
  * curriculum.ts convention). This is the day-to-day admin tool for logging
- * fines, awards, and purchases against migration 0070's real Supabase ledger
- * -- a NEW route (/coin-desk), separate from the legacy Sheets-backed
- * /coin-entry and its coin-ledger API, which this never touches.
+ * fines, awards, and purchases against migration 0070's real Supabase ledger,
+ * which is the sole system of record. It replaced a Google Sheets / Apps
+ * Script ledger, retired in August 2026 and archived unchanged under
+ * docs/coin-economy/archive/legacy-system/.
  *
  * ENFORCEMENT LIVES ENTIRELY IN THE RPCs, NOT A TRIGGER. 0070 puts no
  * trigger on coin_transactions and grants no client insert/update/delete on

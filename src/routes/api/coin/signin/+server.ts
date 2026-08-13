@@ -16,9 +16,10 @@ import type { RequestHandler } from './$types';
  * skip that and the callback would fail; here the verifier is written through
  * the cookie adapter configured in `hooks.server.ts` and rides the redirect.
  *
- * This is a copy of `/api/coin-ledger/signin`, not a reuse of it: that route
- * belongs to the legacy Apps Script surface Phase 4 removes wholesale, and the
- * Ledger must not still be pointing into it when that happens.
+ * This began as a copy of the legacy Apps Script surface's own sign-in route
+ * rather than a reuse of it, deliberately, so that surface could later be
+ * retired wholesale without the Ledger still pointing into it. It has been:
+ * see docs/coin-economy/archive/legacy-system/.
  */
 export const GET: RequestHandler = async ({ url, locals: { supabase } }) => {
 	const { data, error } = await supabase.auth.signInWithOAuth({

@@ -1,7 +1,8 @@
 /**
  * Server-side Google Drive integration for the digital notebook ($lib/server,
- * so SvelteKit refuses to bundle any of this client-side -- the coin-ledger /
- * push convention). Photo BYTES live in a folder inside a Google Shared
+ * so SvelteKit refuses to bundle any of this client-side -- the one-egress-
+ * point convention $lib/server/push.ts also follows). Photo BYTES live in a
+ * folder inside a Google Shared
  * Drive; Postgres stores only the returned Drive file id (0069).
  *
  * AUTH IS OAUTH ON BEHALF OF A REAL BOSCO TECH ACCOUNT, not a service
@@ -34,8 +35,8 @@
  * supportsAllDrives=true; the plain endpoints pretend shared-drive content
  * does not exist and writes into a shared-drive-nested folder fail without
  * it. The current folder is the default below; GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID
- * only needs setting if the folder ever moves (the COIN_LEDGER_URL
- * convention).
+ * only needs setting if the folder ever moves -- the literal in the code is
+ * the working value, the env var is the override.
  *
  * ONE EGRESS POINT: this module is the only code that reads the OAuth client
  * secret or the refresh token. The connect routes call driveConsentUrl() /

@@ -34,11 +34,10 @@ ability, it is not required to browse the portal.
   leaderboard (`/coins/`), and the tournament section (`/tournaments`: list +
   live brackets, viewable and realtime-updating with no session; see "IDEA
   Tournaments" below). Future public pages slot into this tier.
-- **Gated tier (login required):** the **teacher-only** dashboard `/dashboard`
-  and the teacher-only coin entry tool (`/coin-entry`). Anonymous users are
-  redirected off `/dashboard` by `hooks.server.ts`; non-teacher signed-in users
-  are redirected to `/` by `dashboard/+page.server.ts` (the role lives in
-  `profiles`, so the teacher check happens in the load).
+- **Gated tier (login required):** the **teacher-only** dashboard `/dashboard`.
+  Anonymous users are redirected off it by `hooks.server.ts`; non-teacher
+  signed-in users are redirected to `/` by `dashboard/+page.server.ts` (the role
+  lives in `profiles`, so the teacher check happens in the load).
 - **Signed-in tier (any role):** the **GAUNTLET** CAD skills dojo at
   `/gauntlet` and the **FRC Training** track at `/frc` are open to any
   authenticated user, student or teacher. This is a second gated tier:
@@ -82,11 +81,11 @@ ability, it is not required to browse the portal.
   opacity, and an amber "Legacy" badge next to its title (`.app-card.legacy`,
   `.legacy-badge` in `AppLauncher.svelte`) -- deliberately not a per-card
   accent override, per the uniform-chrome rule above. `coins` (IDEA Coin
-  Ledger) and `coin-entry` were the first cards flagged this way. **Both
-  flags are GONE as of Phase 3** (see "The Ledger is the live student hub
-  again"): the Ledger reads the real economy now and is no longer legacy, and
-  the `coin-entry` card was removed from the launcher entirely, so `legacy`
-  currently has no user. The mechanism stays for the next tool that needs it.
+  Ledger) and the old Sheets coin-entry tool were the first cards flagged this
+  way. **Both flags are GONE as of Phase 3** (see "The Ledger is the live
+  student hub again"): the Ledger reads the real economy now and is no longer
+  legacy, and the entry-tool card was removed from the launcher entirely (the
+  tool itself was retired in Phase 4), so `legacy` currently has no user. The mechanism stays for the next tool that needs it.
   It is presentational only and carries no access or write implications.
 - **Optional sign-in:** the landing page header has a Google sign-in control.
   Signing in is additive: it unlocks signed-in features (VANGUARD cloud saves,
@@ -130,7 +129,7 @@ ability, it is not required to browse the portal.
     appears is that helper's PRE-0067 FALLBACK (when the RPC is missing, matched
     on the `PGRST202` code ALONE so a runtime error inside `is_admin()` fails
     closed rather than open) and the homepage's staff-vs-student branch.
-  - **What is admin-only:** `/dashboard`, `/coin-entry` + `/api/coin-ledger/*`,
+  - **What is admin-only:** `/dashboard`, `/coin-desk`,
     `/admin`, the notebook Drive connect flow (`/admin/drive-connect` + its
     callback), GAUNTLET authoring / room hosting / the author-capture macro, FRC
     completion overrides and gate reviews, the FSP FRC-interest roster,
@@ -232,20 +231,11 @@ response, never a build break):
   `push_subscriptions` (own-row RLS) and claims `pair_notified_at` (no client
   write path). Set it in the Vercel project env for production. Nothing else
   may read it, and it must never gain a `PUBLIC_` prefix.
-- `COIN_API_KEY` — the shared key this server attaches to every IDEA Coin ledger
-  call. Read ONLY by `src/lib/server/coin-ledger.ts` (see "IDEA Coin ledger"
-  below). Never `PUBLIC_`. **Set it in the Vercel project env**; until it is set,
-  `ledgerConfigured()` is false and every `/api/coin-ledger/*` route answers 503,
-  so the coin tools do not function at all. **Do NOT read this as "the Apps
-  Script requires the key" — that is unverified.** Whether the deployed Code.gs
-  actually refuses keyless callers, and whether it reads the key under the
-  parameter name we send it (`key`), is the single highest-value open question in
-  `docs/audits/2026-07-security-audit.md` (out-of-repo review item 2). The
-  server-side gate is worthless if the script still answers anyone, because the
-  old `/exec` URL is in this repo's git history permanently.
-- `COIN_LEDGER_URL` — optional override for the ledger's deployed `/exec` URL;
-  the current deployment is the default in that same module, so this only needs
-  setting if the script is redeployed.
+- **RETIRED: `COIN_API_KEY` and `COIN_LEDGER_URL`.** They configured the Google
+  Sheets / Apps Script coin ledger, which is retired (see "IDEA Coin ledger:
+  RETIRED" below). Nothing reads them; **remove both from the Vercel project
+  env**. What they did is recorded in
+  `docs/coin-economy/archive/legacy-system/README.md`.
 - `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` +
   `GOOGLE_DRIVE_REFRESH_TOKEN` — the digital notebook's photo storage (see
   "Digital notebook" below). Auth is OAUTH ON BEHALF OF A REAL BOSCO TECH
@@ -259,7 +249,7 @@ response, never a build break):
   two `/api/notebook/*` routes answer 503 "not configured" and nothing else
   is affected. Optional `GOOGLE_DRIVE_NOTEBOOK_FOLDER_ID` overrides the
   target folder — a folder INSIDE the shared drive, whose current id is the
-  module default (the `COIN_LEDGER_URL` convention). Setup steps are in
+  module default, the env var being only an override. Setup steps are in
   `.env.example`. Set all of them in the Vercel project env; never `PUBLIC_`.
 - `VAPID_PRIVATE_KEY` — signs every Web Push send (tournament match alerts).
   Read ONLY by `src/lib/server/push.ts`. Its public half is
@@ -274,78 +264,48 @@ response, never a build break):
 
 See `.env.example`. **Never hardcode keys.** Never commit `.env`.
 
-## IDEA Coin ledger
+## IDEA Coin ledger: RETIRED (2026-08-12)
 
-The coin ledger is a Google Apps Script web app outside this repo. **No browser
-ever calls its `/exec` endpoint directly.** Every call originates on the
-SvelteKit server, which attaches the server-only `COIN_API_KEY`.
+The IDEA Coin economy ran on a **Google Sheets / Apps Script ledger** from its
+start until August 2026. That system is **retired**. Its entire history -- 71
+students, 216 transactions, 12 contracts -- was imported into Supabase under
+`0084_coin_legacy_import.sql`, reconciled in production, and the public Ledger
+was moved onto Supabase under `0089`. **Supabase is the sole system of record
+for IDEA Coins.** There is no side-by-side state and no second ledger.
 
-- **One egress point:** `src/lib/server/coin-ledger.ts` is the only module that
-  knows the endpoint. It lives under `$lib/server`, which SvelteKit refuses to
-  bundle into client code, so neither the URL nor the key can reach a browser.
-  `callLedger` attaches the key; `forwardableParams` strips any client-supplied
-  `action` or `key` so a caller can never smuggle in a second action or
-  override the key. The key rides as a QUERY PARAM (`COIN_API_KEY_PARAM`,
-  currently `key`) because an Apps Script `doGet(e)` can read only
-  `e.parameter`, never a request header — if Code.gs uses another name, that
-  one constant is the fix.
-- **Three routes, three different questions about the caller:**
-  - `/api/coin-ledger/teacher` — the teacher entry tool's single path for every
-    call it makes, reads and writes alike. Gated on the signed-in user's
-    `profiles.role`, read server-side (the `/coin-entry` and `/dashboard`
-    lookup, since the role is not in the JWT). **This session check is the
-    security boundary.** The tool's 4-digit PIN pad is retained as a UI-only
-    confirmation for shared classroom devices and is not a boundary; its hash
-    is committed and is public.
-  - `/api/coin-ledger/public` — no session (the coin leaderboard at
-    `/coins/index.html` is public tier), restricted to the read-only
-    `PUBLIC_LEDGER_ACTIONS` allowlist. Never add a write action to it.
-  - `/api/coin-ledger/apply` — role applications. **There is no `student`
-    parameter**: the applicant is resolved from the caller's own session by
-    `resolveApplicant` (session required, `profiles.role = 'student'`, then
-    `profiles.full_name` — the Google-provided name, deliberately NOT the
-    user-editable `display_name` — matched against the ledger roster by
-    comparing name TOKEN SETS, so "Last, First" and "First Last" agree). Zero
-    or multiple matches is a REFUSAL, never a fallback to a client value. The
-    public page shows "Applying as *name*" and has no name picker.
-  - `/api/coin-ledger/signin` starts OAuth for that static page (which has no
-    Supabase client) via the SERVER client, so the PKCE verifier
-    `/auth/callback` needs actually gets stored.
-- **The two legacy pages hold no endpoint, only a same-origin path.** This was
-  the FIRST place the legacy-HTML freeze was deliberately lifted, and only for
-  the network layer: `coin-entry.html`'s `API` and `coins/index.html`'s
-  `CONTRACTS_API` constants, plus the role modal's identity handling. Do not
-  take it as licence to edit those files generally. (`coins/index.html` no
-  longer calls `/api/coin-ledger/*` at all as of Phase 3 -- see "The Ledger is
-  the live student hub again", which is a THIRD, separately-scoped lift.
-  `coin-entry.html` still does.)
-- **Both legacy pages carry an unmissable, non-dismissible warning against the
-  new economy, added as a SECOND deliberate lift of the freeze** (still not
-  licence to edit these files generally -- this is the exact scope of the
-  lift, same as the network-layer one above). Real activity has been logging
-  to the new `0070` economy since `/coin-desk` launched; these two pages
-  cannot see any of it, and `coin-entry.html` writes ONLY to the old Sheets
-  ledger, never to `coin_transactions`.
-  - `coins/index.html`: **this banner is REMOVED as of Phase 3** -- that page
-    reads the real economy now, so the warning it carried is no longer true.
-    It was an amber `.legacy-warn` as the first child of `.page-wrap`, styled
-    from the file's own local `--amber`/`--gold` tokens rather than the
-    app-shell's design-system ones (a separate document with its own CSS
-    scope), stating the ledger was frozen and pointing at `/coin-balance`.
-    Only `coin-entry.html`'s warning below still stands.
-  - `coin-entry.html`: a red `.legacy-warn` (more urgent, since this tool
-    writes) is the first child of `#s-home .screen-body` -- the actual home
-    screen, which is what renders whether or not the PIN screen is shown (a
-    returning session with a valid `AUTH_KEY` skips the PIN entirely and
-    activates `#s-home` directly, so the home screen is the one placement that
-    is never skippable). States that anything logged here never reaches the
-    new system and links to `/coin-desk`.
-  - Both are served-content edits only (`rewriteLegacyLinks`/version-badge
-    injection cannot help here since `coins/index.html` has no serving
-    endpoint at all, per the static pattern above), not a new pattern: plain
-    inline banners using each file's own existing local color tokens.
-- Background and residual limitations: `docs/audits/2026-07-security-audit.md`,
-  findings F2, F3 and F11.
+- **The code is ARCHIVED, not deleted:**
+  `docs/coin-economy/archive/legacy-system/` holds the whole retired layer
+  unchanged, at its original relative paths -- `coin-ledger.ts` (the single
+  Apps Script egress point), the four `/api/coin-ledger/*` proxy routes,
+  `coin-entry.html` and its `/coin-entry` route, the `/coin-desk/migrate`
+  wizard and its pull endpoint, a copy of the Ledger page as it stood BEFORE
+  the Phase 3 Supabase swap, and the parse test that pinned the import. `docs/`
+  is not served and is not on any import path, so those files cannot route, be
+  imported, be served, or run. Its README explains what each one did.
+  **They are historical reference only and must never be reintroduced.**
+- **The DATA snapshot** is the sibling `docs/coin-economy/archive/` (the
+  verbatim 2026-08-11 pull: both CSVs plus the contracts JSON).
+- **`COIN_API_KEY` and `COIN_LEDGER_URL` are gone** from the code, from
+  `.env.example`, and should be removed from the Vercel project env. Nothing
+  reads them. What they did is recorded in the archive README.
+- **`0084`'s schema and RPCs stay LIVE**, including `coin_admin_rollback_import`
+  and the verbatim batch snapshot in `coin_import_batches.raw` -- they are the
+  archival record and the safety valve. Only the surface changed:
+  **rollback and reconciliation are SQL-editor-only operations now**, run by
+  hand in Supabase, since the wizard that drove them is archived.
+- **Two deactivation steps live OUTSIDE this repo** and are done by hand:
+  disabling the Apps Script deployment (the `/exec` URL is permanently in this
+  repo's git history, so disabling the deployment -- not secrecy -- is what
+  retires it) and un-publishing the Google Sheet.
+- **VANGUARD's Apps Script backend is a DIFFERENT deployment and stays live**
+  (leaderboard, telemetry, feedback, suggestions, reached from
+  `src/lib/legacy/vanguard/index.html`). Check the script id before touching
+  any Apps Script reference.
+- Background: `docs/audits/2026-07-security-audit.md`, findings F2, F3 and F11,
+  all **closed by this retirement** -- including the residual out-of-repo
+  question about whether `Code.gs` enforced the key, which a disabled
+  deployment makes moot.
+
 
 ## IDEA Coin economy (Supabase foundation, `0070`)
 
@@ -355,11 +315,10 @@ Migration `0070_coin_economy.sql` (apply manually after `0069`) is
 **schema, pricing, and enforcement only** -- it shipped with no entry UI of
 its own. That gap has since closed: `/coin-desk` (documented at length
 further down, "Day-to-day entry tool") is the real day-to-day logging
-surface built on this schema in a later pass. The two systems still run
-fully side by side, though -- `coin-entry.html`, `static/coins/index.html`,
-`/api/coin-ledger/*`, and `src/lib/server/coin-ledger.ts` remain untouched
-and unwired to this schema; retiring the old Sheets ledger in favor of this
-one is a separate, not-yet-made decision. Every category name, price, and
+surface built on this schema in a later pass. **The side-by-side period is
+OVER:** the old Sheets ledger ran alongside this schema until Phase 4
+retired it (2026-08-12), and this schema is the sole system of record now.
+Every category name, price, and
 rule is a direct transcription of
 `docs/coin-economy/idea_coin_economy_draft_v3.md` and
 `idea_coin_quick_reference.md` -- read those before changing a price.
@@ -464,10 +423,9 @@ rule is a direct transcription of
   untouched, only the surface moved, and `/admin` keeps a short pointer card
   in its place. Nothing else on `/admin` changed.
 - **Day-to-day entry tool: `/coin-desk`.** The real logging surface this
-  migration's own comments flagged as a later pass -- a NEW route, not a
-  change to `/coin-entry`, `static/coins/index.html`, or any
-  `/api/coin-ledger/*` route, which stay exactly as they were (the old
-  Sheets ledger's teacher-role gate is untouched). Admin-gated the `/admin`
+  migration's own comments flagged as a later pass -- a NEW route, built
+  beside the then-live Sheets tooling rather than by changing it (that
+  tooling has since been retired outright). Admin-gated the `/admin`
   way (`isAdmin()`, 404 for anyone else, not in `authedPrefixes` so a probe
   learns nothing), and identical for every admin -- there is no owner-only
   step, matching "admin is site-wide already." **It is a ROUTE GROUP now, not
@@ -807,9 +765,9 @@ rule is a direct transcription of
     below).** The doc references "The Role Questions sheet already has a
     full application quiz written for all four roles" -- that quiz's actual
     question TEXT lived in the legacy Google Sheet behind
-    `getRoleQuestions`/`submitRoleApplication`
-    (`src/lib/server/coin-ledger.ts`,
-    `src/routes/api/coin-ledger/apply/+server.ts`), outside this repo. This
+    `getRoleQuestions`/`submitRoleApplication` (the retired Apps Script
+    layer, archived under
+    `docs/coin-economy/archive/legacy-system/`), outside this repo. This
     migration originally shipped a hardcoded stand-in
     (`src/lib/coin-desk/roles.ts`'s `ROLE_APPLICATION_QUESTIONS`, two
     free-response prompts per role) so an admin could log a real
@@ -1387,8 +1345,8 @@ rule is a direct transcription of
 `/coin-desk` was one long scrolling page mounting every manager component at
 once. It is a ROUTE GROUP now: same components, same RPCs, same rules -- a
 UI/route reorganization with NO schema change, no new migration, and no
-behavior change to any RPC. `static/coins/index.html`, `coin-entry.html`,
-`/api/coin-ledger/*` and `src/lib/server/coin-ledger.ts` are untouched, as is
+behavior change to any RPC. The then-live Sheets tooling was untouched by it
+(and has since been retired), as is
 the homepage launcher card (still `/coin-desk`, so bookmarks and muscle
 memory keep working -- the Log view kept the group's root URL for exactly
 that reason).
@@ -1422,10 +1380,12 @@ that reason).
   tool MOVED off `/admin` (see above) as `BalanceAdminPanel.svelte`.
   `/coin-desk/contracts` = `ContractsManager`. `/coin-desk/roles` =
   `RolesManager`. `/coin-desk/economy` = `CategoriesManager` then
-  `PayoutManager`. `/coin-desk/migrate` = the legacy Sheets migration
-  wizard (Phase 2, `MigrateWizard.svelte` + migration 0084 -- see "Legacy
-  Sheets migration" below; it shipped as a placeholder in this Phase 1
-  pass so the URL was settled first).
+  `PayoutManager`. **There was a sixth, `/coin-desk/migrate`** -- the
+  one-time legacy Sheets import wizard (Phase 2, `MigrateWizard.svelte` +
+  migration 0084) -- **retired in Phase 4** once the import was done and the
+  Sheets system it read from was gone; the area is out of `nav.ts` and the
+  wizard is archived under `docs/coin-economy/archive/legacy-system/`.
+  0084's RPCs are still live as SQL-editor operations.
 - **PER-ROUTE DATA LOADING REPLACES THE OLD `$bindable` COUPLING, and that
   is the structural point of the split.** The single page owned one
   `sections` array bound two-way into `SectionManager` so a mutation there
@@ -1488,9 +1448,11 @@ Migration `0084_coin_legacy_import.sql` (apply manually after 0083) plus the
 real `/coin-desk/migrate` wizard: the old Google Sheets ledger's history (71
 students, 216 transactions, the contract postings, as of the 2026-08-11 pull)
 migrates into the 0070+ economy -- name-keyed data mapped to emails, fully
-reconciled, idempotent, and reversible. `static/coins/index.html`,
-`coin-entry.html`, `/api/coin-ledger/*`, and `src/lib/server/coin-ledger.ts`'s
-existing exports are untouched; nothing deactivates the Sheets system.
+reconciled, idempotent, and reversible. It deactivated nothing at the time --
+the Sheets system kept running beside it, and Phase 4 retired it later
+(2026-08-12), archiving the wizard described below alongside it. **The 0084
+schema and every RPC here are still LIVE**; only the wizard is gone, so
+rollback and reconciliation are SQL-editor operations now.
 
 - **DOCTRINE: RAW INSERTS, NEVER `coin_log_transaction`.** Imported rows are
   HISTORY, not new events, so `coin_admin_import_legacy` writes
@@ -1558,20 +1520,22 @@ existing exports are untouched; nothing deactivates the Sheets system.
   comparison would read any of it as a mismatch; the totals block reports
   the FULL live balances (circulation/debt, the eyeball-against-the-old-page
   numbers) separately.
-- **The wizard (`src/lib/coin-desk/MigrateWizard.svelte`,
-  `src/lib/coin-desk/migrate.ts` for the pure layer):** five sequential
+- **The wizard (`MigrateWizard.svelte` + `migrate.ts` for the pure layer;
+  ARCHIVED in Phase 4 under `docs/coin-economy/archive/legacy-system/`, since
+  its PULL step ran through the retired Apps Script egress and the import it
+  existed to perform is done):** five sequential
   steps on one stepper, resumable via the draft table + batch rows (a
   committed batch resumes at Verify). PULL is a server endpoint
   (`/coin-desk/migrate/pull/+server.ts`) fetching the two published CSV URLs
   (server-side constants carried from `static/coins/index.html`, which stays
   frozen) plus the contracts via the existing `callLedger` egress
-  (`contracts` + `contractHistory`; unset `COIN_API_KEY` degrades to zero
-  contracts with a warning, never a block) -- **the endpoint re-checks
+  (`contracts` + `contractHistory`; an unconfigured ledger key degraded to
+  zero contracts with a warning, never a block) -- **the endpoint re-checks
   `isAdmin` itself, because `+server.ts` routes never run the group's layout
   gate**. MAP is all names in one table (the union of summary, transaction,
   and contractor names -- exactly the 71 in the real data): profile
   token-set prefill (the resolveApplicant idea restated client-side in
-  migrate.ts, since coin-ledger.ts is `$lib/server`), a pattern picker
+  migrate.ts, since the ledger module was `$lib/server`), a pattern picker
   ({first}.{last} etc.) applied live to all still-unmapped rows, hand
   editing, per-row status chips, the 7 'External'-section rows as their own
   group with the domain rule relaxed per row; unmapped rows, duplicate
@@ -1595,7 +1559,9 @@ existing exports are untouched; nothing deactivates the Sheets system.
   README with the refresh rule); the wizard's PULL step reminds that the
   archive should be refreshed if a live pull ever differs. The parse layer
   is additionally pinned AGAINST that real archived data by
-  `tests/coin-legacy-parse.test.ts` (pure, no DB): 71/216/12 counts, all
+  `coin-legacy-parse.test.ts` (pure, no DB; ARCHIVED in Phase 4 alongside the
+  parse layer it tests, so it no longer runs -- the SQL suite below is still
+  live): 71/216/12 counts, all
   types known, universal 0-diff reconciliation through the real helpers,
   the 40/50/50 eating passes, 7 External rows, and the pattern generator
   against the roster's real name shapes ("de la Loza, Joseph",
@@ -1696,9 +1662,9 @@ economy now instead of the frozen Google Sheets export, and is once more what
 it always was: ONE hub carrying balance, leaderboard, transaction log,
 analytics, contracts and roles together. Migration
 `0089_coin_public_ledger.sql`, apply manually after `0088`. **Nothing about
-the legacy Sheets/Apps Script system is deactivated here** -- `coin-entry.html`,
-`/api/coin-ledger/*` and `src/lib/server/coin-ledger.ts` are untouched and
-still work; retiring them is Phase 4.
+the legacy Sheets/Apps Script system was deactivated here** -- it kept working
+alongside this change. **Phase 4 has since retired it** (2026-08-12); see
+"IDEA Coin ledger: RETIRED" above.
 
 - **Its visual design did not change, on purpose.** This is a data-layer swap
   behind unchanged markup plus the few additions below, styled with the
@@ -1773,8 +1739,8 @@ grants:
 
 ### The `/api/coin/` layer
 
-A NEW namespace (`/api/coin-ledger/*` is untouched; Phase 4 removes it).
-`src/lib/server/coin-public.ts` is the one shaping module and
+A NEW namespace, built beside the legacy proxy routes, which Phase 4 has
+since retired. `src/lib/server/coin-public.ts` is the one shaping module and
 `/api/coin/public` the one read route, with a hard action allowlist --
 the same two-independent-checks discipline the old proxy used. **There is no
 service-role client anywhere in this path**: every read runs as the caller's
@@ -1817,7 +1783,7 @@ Type, Reason`), so the page edit stayed near-trivial.
 
 `portal-apps.ts` carries only **IDEA Coin Ledger** (public, legacy flag and
 stale sub copy removed) and **Coin Desk** (admin). The `coin-balance`,
-`contracts` and `coin-entry` cards are gone. `/coin-balance` and `/contracts`
+`contracts` and legacy coin-entry cards are gone. `/coin-balance` and `/contracts`
 are 308 REDIRECTS to the Ledger and were removed from `authedPrefixes` --
 they must be reachable anonymously or the guard would bounce a visitor to `/`
 before the redirect. `CoinBalanceView.svelte` and `ContractsView.svelte` are
@@ -2512,24 +2478,29 @@ the references resolve:
 3. **Exact-path legacy redirects (`hooks.server.ts`).** Old base-path
    directory links that have no home here are redirected (308), scoped to the
    exact path so they never shadow the mirrored icon files (which are served
-   directly and never reach the hook): `/IDEA/` -> `/`, `/IDEA/coins/` ->
-   `/coins/`, `/IDEA/entry/` -> `/coin-entry`.
+   directly and never reach the hook): `/IDEA/` -> `/` and `/IDEA/coins/` ->
+   `/coins/`. There was a third, `/IDEA/entry/` -> `/coin-entry`; it went with
+   the retired Sheets entry tool, so that old link now 404s.
 
 When adding more legacy HTML, check its references against this: mirrored icons
 (absolute or bare) resolve, `.html` cross-links get rewritten, the three base
-paths redirect; anything else (per-page assets, the deferred coin-entry PWA
-manifest) does not and should be flagged.
+paths redirect; anything else (per-page assets, for instance) does not and
+should be flagged.
 
 ### Role-gated endpoint pattern (specific role required)
 
 A variant of the gated pattern that also checks the user's role. The role lives
 in `profiles`, not the JWT, so the endpoint looks it up via `locals.supabase`.
 
-- Example: `src/routes/coin-entry/+server.ts` serves the legacy coin entry tool
-  (`src/lib/legacy/coin-entry.html`) to teachers only. Signed out -> `/`;
-  signed in non-teacher -> `/`; teacher -> the HTML.
-- The dashboard link to it renders only for teachers, but the endpoint is the
-  real guard (UI gating is convenience, not security).
+- Example: `src/routes/fsp/frc-interest/admin/+page.server.ts` gates the FRC
+  interest roster to teachers only. Signed out -> `/`; signed in non-teacher ->
+  `/`; teacher -> the page. `/dashboard` is the other instance of the same
+  lookup. (The original example was the legacy coin entry tool's endpoint,
+  retired in Phase 4 and archived under
+  `docs/coin-economy/archive/legacy-system/`.)
+- A link to a role-gated surface renders only for the right role, but the
+  server-side check is the real guard (UI gating is convenience, not
+  security).
 
 ## IDEA // GAUNTLET (CAD skills dojo)
 
@@ -3242,8 +3213,8 @@ notifications, rewards, or banner customization yet; those are later phases.
   authenticated; the live bracket is a spectator surface with no login.
   `/tournaments` is deliberately NOT in `authedPrefixes`. `/tournaments/new`
   (session required) and `/tournaments/[id]/host` (a `tournament_hosts` row
-  required) gate themselves in their own `+page.server.ts` (the `/coin-entry`
-  pattern), redirecting non-hosts to the public view; that gating is
+  required) gate themselves in their own `+page.server.ts` (the
+  role-gated-load pattern, `/dashboard`), redirecting non-hosts to the public view; that gating is
   convenience only, the RPCs are the boundary. There is NO client write path
   anywhere (no insert/update/delete grant or policy): every mutation is a
   SECURITY DEFINER `tournament_*` RPC that re-checks the caller server-side
@@ -3727,7 +3698,7 @@ notifications, rewards, or banner customization yet; those are later phases.
     the control as a SIBLING beneath it, never nested inside the anchor (a
     button in an `<a>` is invalid markup and its clicks would navigate). The
     list load now also reports `isTeacher` (a `profiles` lookup, the
-    `/coin-entry` pattern) and the host load a `rewardLedgerCount` (a
+    role-gated-load pattern) and the host load a `rewardLedgerCount` (a
     head-only count) so the warning can say what will be lost.
   - **Verified:** 0062-0066 applied UNMODIFIED to a real embedded Postgres and
     integration-tested with **38 assertions**: a fully played tournament
@@ -3903,7 +3874,8 @@ arrives in later sessions and should not need to touch this layer again.
   stay visible.
 - **Drive:** photo bytes live in a folder inside a Google Shared Drive, never
   Postgres. `src/lib/server/notebook-drive.ts` is the one egress point (the
-  coin-ledger convention) and the ONLY code that reads the credentials.
+  ONE-MODULE-KNOWS-THE-CREDENTIAL convention `src/lib/server/push.ts` also
+  follows) and the ONLY code that reads the credentials.
   **Auth is OAuth on behalf of a real Bosco Tech account, not a service
   account** (supersedes the original service-account module): the shared
   drive blocks outside identities, which a service account is by definition,
@@ -5184,7 +5156,7 @@ assignment engine and file submission are later bundles that attach by FK to
 `classroom_assignments (id)` with no schema rework (an assignment is one row
 PER SECTION, so a student's submission references their own section's row).
 
-- **Keyed by lowercased email, not user id** -- the coin-ledger convention
+- **Keyed by lowercased email, not user id** -- the coin-economy convention
   (0070/0073): `classroom_enrollments` PK is `(section_id, student_email)`, so
   a roster imports before a student has ever signed in and their classes are
   simply there on first login. `classroom_sections.teacher_email` applies the
@@ -8876,7 +8848,7 @@ on one side of the world.
     the portal's EXISTING role model — no new auth: the role comes from the
     Google sign-in email domain (`role_for_email`, @boscotech.edu -> teacher)
     and lives in `profiles`, so it is looked up server-side exactly like
-    `/coin-entry` and `/dashboard`. Everyone else gets a **404, deliberately
+    `/dashboard`. Everyone else gets a **404, deliberately
     not the redirect those two use**: 404 is what the path has always
     returned and tells a probing student nothing. The route stays unlinked
     from every nav surface. **`/dev` must NOT be added to `authedPrefixes`** —
@@ -11252,14 +11224,14 @@ will not have Bosco Tech accounts.
   identical component against a fake endpoint), wired to the real insert by
   `src/routes/fsp/frc-interest/+page.svelte`.
 - **`/fsp/frc-interest/admin`** is the teacher-only roster:
-  `+page.server.ts` gates the same way `/coin-entry` and `/dashboard` do
+  `+page.server.ts` gates the same way `/dashboard` does
   (role lives in `profiles`, looked up server-side; signed out or non-teacher
   redirects to `/`). The table itself is `src/lib/fsp/FrcInterestAdmin.svelte`
   (sortable by submission date, defaults newest-first, no edit/delete for
   v1), shared with the dev harness the same way.
 - **Neither route is in `authedPrefixes`** (`hooks.server.ts`): the base form
   must stay reachable signed-out, and the admin roster gates itself in its own
-  `+page.server.ts`, exactly like `/coin-entry`.
+  `+page.server.ts`, exactly like `/dashboard`.
 - **Dev harness `/dev/fsp-frc-interest`** (404 in production, no auth /
   Supabase): mounts the real `FrcInterestForm` (signed-out vs. signed-in
   email-prefill entry states, a fake logged submit endpoint) and the real

@@ -14,7 +14,7 @@ import type { RequestHandler } from './$types';
  * Why a SvelteKit wrapper rather than a Database Webhook / pg_net: the send
  * needs the server-only VAPID private key and web-push's crypto, which cannot
  * run in Postgres, and this repo already does server-triggered side effects
- * from SvelteKit server routes (the coin-ledger + track-publish idiom) -- no
+ * from SvelteKit server routes (the greenline-track-publish idiom) -- no
  * Edge Function deploy surface exists here. Wrapping the RPC call (instead of
  * having the browser fire a separate "now notify" request after it) makes the
  * notification part of the same server request as the mutation, so a host tab

@@ -32,10 +32,9 @@
 		<div class="eyebrow">IDEA // Coin Desk</div>
 		<h1>Coin desk</h1>
 		<p class="lead">
-			The day-to-day tool for the real Supabase coin ledger (migration 0070). It does not touch
-			<strong>/coin-entry</strong>, the Sheets-backed leaderboard, or any
-			<strong>/api/coin-ledger/*</strong> route; those keep working exactly as they always have.
-			Works identically for any admin -- there is no owner-only step here.
+			The day-to-day tool for the IDEA Coin economy (migration 0070), which is now the sole
+			system of record: the old Google Sheets ledger is retired and its history has been
+			imported here. Works identically for any admin -- there is no owner-only step here.
 		</p>
 	</section>
 
@@ -61,9 +60,6 @@
 	 */
 	.coin-desk-page > :global(.card) {
 		margin-bottom: 1.1rem;
-	}
-	.lead strong {
-		color: var(--white);
 	}
 	.page-footer {
 		margin-top: 2rem;

@@ -11,8 +11,10 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
  */
 const legacyPaths: Record<string, string> = {
 	'/IDEA/': '/',
-	'/IDEA/coins/': '/coins/',
-	'/IDEA/entry/': '/coin-entry'
+	'/IDEA/coins/': '/coins/'
+	// `/IDEA/entry/` used to redirect to the Sheets-backed coin entry tool. That
+	// tool is retired (see docs/coin-economy/archive/legacy-system/), so the old
+	// link now falls through to a 404 rather than pointing at nothing.
 };
 
 const legacyRedirects: Handle = async ({ event, resolve }) => {

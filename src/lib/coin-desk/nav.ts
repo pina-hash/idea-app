@@ -14,13 +14,7 @@ export interface CoinDeskArea {
 	blurb: string;
 }
 
-export type CoinDeskAreaId =
-	| 'log'
-	| 'students'
-	| 'contracts'
-	| 'roles'
-	| 'economy'
-	| 'migrate';
+export type CoinDeskAreaId = 'log' | 'students' | 'contracts' | 'roles' | 'economy';
 
 export const COIN_DESK_AREAS: CoinDeskArea[] = [
 	{
@@ -52,13 +46,13 @@ export const COIN_DESK_AREAS: CoinDeskArea[] = [
 		label: 'Economy',
 		href: '/coin-desk/economy',
 		blurb: 'The category price list, and paying out positive balances.'
-	},
-	{
-		id: 'migrate',
-		label: 'Migrate',
-		href: '/coin-desk/migrate',
-		blurb: 'Bringing legacy Sheets balances into this ledger.'
 	}
+	// There was a sixth area, Migrate: the one-time wizard that pulled the legacy
+	// Google Sheets ledger into this one. That import ran, reconciled, and is
+	// done, and the Sheets system it read from is retired, so the wizard went
+	// with it (docs/coin-economy/archive/legacy-system/). The 0084 import schema
+	// and its RPCs are still live -- including the rollback -- but they are
+	// reached from the Supabase SQL editor now, not from a page here.
 ];
 
 /**

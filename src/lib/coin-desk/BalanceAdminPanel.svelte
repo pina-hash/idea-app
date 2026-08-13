@@ -114,8 +114,8 @@
 	<h2>Balances &amp; adjustments</h2>
 	<p class="note">
 		Look up or adjust a student's coin balance by email, whether or not they have signed in yet. The
-		balance is derived from the transaction ledger (migration 0070); this does not touch the old
-		Sheets-based ledger or coin-entry.html.
+		balance is derived from the transaction ledger (migration 0070), which is the sole system of
+		record -- every legacy Sheets balance was imported into it.
 	</p>
 	{#if errorMsg}<p class="feedback error">{errorMsg}</p>{/if}
 	{#if notice}<p class="feedback notice">{notice}</p>{/if}

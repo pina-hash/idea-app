@@ -9,7 +9,6 @@
  * bundling every file's contents, and the requested file's HTML is loaded on
  * demand by the gated endpoint.
  */
-import coinEntryHtmlRaw from './coin-entry.html?raw';
 import vanguardHtmlRaw from './vanguard/index.html?raw';
 
 const modules = import.meta.glob('./assignments/*.html', {
@@ -35,9 +34,6 @@ export async function loadAssignmentHtml(slug: string): Promise<string | null> {
 	if (!entry) return null;
 	return entry[1]();
 }
-
-/** Raw HTML of the teacher-only coin entry tool (legacy `entry/index.html`). */
-export const coinEntryHtml: string = coinEntryHtmlRaw;
 
 /**
  * Raw HTML of the VANGUARD game. Served verbatim (no `rewriteLegacyLinks`) by

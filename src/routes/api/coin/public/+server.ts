@@ -9,8 +9,8 @@ import type { RequestHandler } from './$types';
  * No session is required — the Ledger is public tier by design — and the
  * action ALLOWLIST is what keeps this from being a general proxy onto the
  * economy: an action outside `PUBLIC_COIN_ACTIONS` is refused here regardless
- * of what the database would have done with it, the same two-independent-
- * checks discipline `/api/coin-ledger/public` already used.
+ * of what the database would have done with it -- two independent checks, the
+ * discipline the retired Apps Script proxy this replaced also used.
  *
  * Every read runs as the CALLER'S OWN client (anonymous in the normal case)
  * against `anon`-granted SECURITY DEFINER RPCs. There is deliberately NO

@@ -201,7 +201,7 @@
 		<img class="frc-icon-img" src={frcIcon} width="516" height="309" alt="FIRST Robotics Competition" />
 	{:else}
 	<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		{#if id === 'coin-entry'}
+		{#if id === 'coin-desk'}
 			<!-- IDEA Coin (i¢) with an award "+", so it reads as awarding coins. -->
 			<circle cx="13" cy="17" r="9.5" />
 			<text x="13" y="17.5" text-anchor="middle" dominant-baseline="central" fill="currentColor" stroke="none" style="font:700 9px 'Share Tech Mono', monospace">i&#162;</text>

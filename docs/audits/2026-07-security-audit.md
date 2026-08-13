@@ -82,8 +82,8 @@ Each finding is in exactly one category:
 | # | Finding | Severity | Category | Outside step still needed (category 2 only) |
 |---|---|---|---|---|
 | F1 | VANGUARD leaderboard submission | Critical | **3** | — |
-| F2 | Coin entry PIN verified in the browser | Critical | **3** | — |
-| F3 | Coin ledger endpoint disclosed publicly, public page writes to it | Critical | **2** | (a) Set `COIN_API_KEY` in the Vercel project env and redeploy. (b) Paste-and-redeploy the coin ledger Code.gs so it **requires** the key on every action, under the parameter name `key`. |
+| F2 | Coin entry PIN verified in the browser | Critical | **CLOSED 2026-08-12** | — (the tool is retired; see the closure note below) |
+| F3 | Coin ledger endpoint disclosed publicly, public page writes to it | Critical | **CLOSED 2026-08-12** | — (the deployment is disabled; see the closure note below) |
 | F4 | GAUNTLET ranked answer key disclosed to the anonymous caller | High | **2** | Apply `0061_gauntlet_target_disclosure.sql` by hand in the Supabase SQL editor, after `0060`. Until it is applied, both RPCs still return the target and failing submits are still free. |
 | F5 | GREENLINE race results, leaderboard, Ignition Credits | Medium | **3** | — |
 | F6 | VANGUARD cloud save, run history, run checkpoint | Low–medium | **3** | — |
@@ -91,7 +91,7 @@ Each finding is in exactly one category:
 | F8 | FSP tools writing to Apps Script with client-side-only domain checks | Medium | **3** | — |
 | F9 | Open redirect on the OAuth callback | Low | **3** | — |
 | F10 | The three "Unrestricted" GAUNTLET views | Low | **2** | Apply `0060_gauntlet_view_scoping.sql` by hand in the Supabase SQL editor, after `0059`. |
-| F11 | Coin ledger calls moved server-side, role applications given an identity | — | **2** | Set `COIN_API_KEY` in the Vercel project env and redeploy. Until it is set, `callLedger` returns 503 and the coin tools do not function at all. See also F3(b): the gate only holds if Code.gs enforces the key. |
+| F11 | Coin ledger calls moved server-side, role applications given an identity | — | **CLOSED 2026-08-12** | — (the whole Apps Script layer is retired; see the closure note below) |
 | P2-A | Portal sign-in not restricted to the school Workspace domain | — | **3** | — |
 | P2-B | Staff and student distinction | Informational | **1** | — |
 | P2-C | Login experience fragmented across five patterns | — | **3** | — |
@@ -337,7 +337,7 @@ player names that any anonymous party can write. Rendering escapes correctly
 it means the integrity of what executes in the VANGUARD page depends on the Apps
 Script always JSON-encoding its output correctly.
 
-## F2. IDEA Coin entry tool: 4-digit PIN, verified in the browser. Critical. *(partly addressed — see F11: the boundary is now a server-side teacher check; the PIN is retained as a UI-only step and its hash is still public.)*
+## F2. IDEA Coin entry tool: 4-digit PIN, verified in the browser. Critical. *(**CLOSED 2026-08-12** — the tool itself is retired; see the closure note at the end of F11. Previously: partly addressed — see F11: the boundary is now a server-side teacher check; the PIN is retained as a UI-only step and its hash is still public.)*
 
 **Where:** `src/lib/legacy/coin-entry.html`, `PIN_HASH` at line 2631,
 `attemptUnlock()` at line 2676.
@@ -384,7 +384,7 @@ kiosk device rather than a defence against students. It fails at that job too,
 but the more important point is that the teacher-role gate protects the page and
 not the endpoint, which F3 covers.
 
-## F3. The coin ledger's endpoint is disclosed publicly, and the public page already writes to it. Critical. *(repo-side half addressed — see F11: no browser calls the endpoint now, and role applications resolve the applicant from the session. The out-of-repo review below is still required.)*
+## F3. The coin ledger's endpoint is disclosed publicly, and the public page already writes to it. Critical. *(**CLOSED 2026-08-12** — the disclosed deployment is disabled; see the closure note at the end of F11. Previously: repo-side half addressed — see F11: no browser calls the endpoint now, and role applications resolve the applicant from the session. The out-of-repo review below is still required.)*
 
 **Where:** `static/coins/index.html` line 1693 (`CONTRACTS_API`), and
 `src/lib/legacy/coin-entry.html` line 1649 (`API`). The two values are the same
@@ -934,7 +934,7 @@ it after `0059` and confirm on a live project that a member still sees the full
 roster and board, and that a signed-in non-member querying either view with a
 valid `room_id` now gets zero rows.
 
-## F11. Coin ledger calls moved server-side, and role applications given an identity. *(follow-up pass; closes the repo-side half of F2 and F3. No migration.)*
+## F11. Coin ledger calls moved server-side, and role applications given an identity. *(**CLOSED 2026-08-12** — see the closure note at the end of this finding. Previously: follow-up pass; closes the repo-side half of F2 and F3. No migration.)*
 
 **Where:** new `src/lib/server/coin-ledger.ts`, new routes under
 `src/routes/api/coin-ledger/` (`public`, `teacher`, `apply`, `signin`), and one
@@ -1072,6 +1072,27 @@ classmate ("Maria Garcia" vs "Mario Garcia"), and the three refusals (not on the
 roster, duplicate rows, single token). Not verifiable here: the live signed-in
 teacher and student flows, and anything about Code.gs, which needs `COIN_API_KEY`
 set and a real Google session.
+
+### Closure note for F2, F3 and F11 — 2026-08-12
+
+**All three are closed, by retirement rather than by repair.** The Google
+Sheets / Apps Script coin ledger no longer exists as a live system: its history
+was migrated into Supabase under `0084_coin_legacy_import.sql` and reconciled in
+production, the public Ledger was moved onto Supabase under `0089`, and the
+whole Apps Script layer — `coin-ledger.ts`, the four `/api/coin-ledger/*`
+routes, `coin-entry.html` and the `/coin-entry` route — was archived unchanged
+to `docs/coin-economy/archive/legacy-system/`, where it cannot route, be
+imported, be served, or run. `COIN_API_KEY` and `COIN_LEDGER_URL` are removed
+from the configuration.
+
+That disposes of each finding at its root: the browser-verified PIN (F2) is gone
+with the tool it gated, and the disclosed `/exec` endpoint (F3) answers nothing
+once the deployment is disabled. **The one residual out-of-repo question — whether
+the deployed `Code.gs` actually enforced the key, under the parameter name `key`
+— is now moot**, because a disabled deployment answers no caller, keyed or
+keyless. That was the right question while the script was live; it is not worth
+answering now. Disabling the Apps Script deployment and un-publishing the Sheet
+are the two remaining manual steps, recorded in the archive's README.
 
 ---
 
@@ -1219,7 +1240,14 @@ response as script; and whether any delete or edit action exists that would allo
 removing the known fabricated entry, or would allow a student to remove
 legitimate entries.
 
-**2. IDEA Coin ledger script** (`AKfycby_p-lI...`, now referenced only from
+**2. IDEA Coin ledger script** — ***RESOLVED 2026-08-12 BY RETIREMENT, NOT BY
+REVIEW.** The coin system is entirely Supabase now and this script's deployment
+is disabled, so every question below is moot: a disabled deployment answers no
+caller, keyed or keyless. See the closure note at the end of F11 and
+`docs/coin-economy/archive/legacy-system/README.md`. Item 1 above, VANGUARD, is
+a separate deployment and still stands. The original text follows.*
+
+(`AKfycby_p-lI...`, at the time referenced only from
 `src/lib/server/coin-ledger.ts`, which is never served to a browser — see F11;
 it was at `src/lib/legacy/coin-entry.html:1649` and, publicly, at
 `static/coins/index.html:1693`). This is the higher-value review of the two,

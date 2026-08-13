@@ -5,7 +5,7 @@
 	/**
 	 * /fsp/frc-interest/admin — teacher-only roster of FRC interest form
 	 * submissions. Gated server-side in +page.server.ts (role lives in
-	 * `profiles`, checked there, same pattern as /coin-entry and /dashboard).
+	 * `profiles`, checked there, same pattern as /dashboard).
 	 * The table itself is $lib/fsp/FrcInterestAdmin.svelte, shared with the dev
 	 * harness.
 	 */

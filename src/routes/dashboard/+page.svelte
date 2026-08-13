@@ -468,22 +468,13 @@
 		</div>
 	</div>
 
-	<div class="divider" style="margin-top:2.5rem">
-		<div class="divider-line"></div>
-		<div class="divider-label">Teacher Tools</div>
-		<div class="divider-line"></div>
-	</div>
-
-	<a class="promo-callout nextlive" href="/coin-entry">
-		<div class="promo-left">
-			<div class="promo-icon">&#9679;</div>
-			<div>
-				<div class="promo-title">Coin Entry</div>
-				<div class="promo-sub">Award IDEA Coins to students.</div>
-			</div>
-		</div>
-		<div class="promo-cta">Open &rsaquo;</div>
-	</a>
+	<!--
+		The "Teacher Tools" section held exactly one item, the Sheets-backed Coin
+		Entry tool, which is retired (see docs/coin-economy/archive/legacy-system/).
+		Coin logging is Coin Desk's job now and that is an ADMIN tool, linked from
+		/admin rather than here, so the section went with the tool instead of
+		leaving a heading over nothing or a link most teachers would 404 on.
+	-->
 
 	<div class="divider" style="margin-top:2.5rem">
 		<div class="divider-line"></div>

@@ -72,7 +72,7 @@
 		<div class="eyebrow">IDEA // Administration</div>
 		<h1>Site admins</h1>
 		<p class="lead">
-			Admins hold every privileged capability on the portal: role assignment, the coin entry tool,
+			Admins hold every privileged capability on the portal: role assignment, the coin desk,
 			student contact rosters, GAUNTLET authoring, FRC grading, content moderation and permanent
 			deletion. A <strong>@boscotech.edu</strong> account on its own gets none of that.
 		</p>

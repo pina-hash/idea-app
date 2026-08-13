@@ -33,3 +33,14 @@ authoritative record of what was actually imported.
 rows after this snapshot), refresh this archive** by re-downloading the same
 URLs and committing the new dated files beside these; do not edit these in
 place. The wizard's PULL step shows this reminder with the live counts.
+
+## The live system was deactivated on 2026-08-12
+
+That refresh rule is now historical: the import ran, reconciled, and the
+Google Sheets / Apps Script ledger these files came from was retired on
+**2026-08-12**. There is no live pull to differ from any more, so these
+files are the final state of the old system and are frozen.
+
+The wizard that read them is archived beside this directory, in
+`legacy-system/` — see its README for what each retired file did and why the
+`0084` import schema and its RPCs (including the rollback) are still live.
