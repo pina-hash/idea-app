@@ -27,6 +27,7 @@ import {
 	type StudentEngineData,
 	type SubmissionFileRow
 } from './assignment-spec';
+import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
@@ -87,6 +88,11 @@ export const SECTION_SELECT =
  */
 export const ITEM_SELECT =
 	'id, kind, title, body, points, due_at, category, author_email, author_name, published, ' +
+	// NOTE: `is_public` (0092) is DELIBERATELY NOT HERE. Migrations are applied
+	// by hand, so a deployment sitting between 0091 and 0092 is a real state,
+	// and PostgREST refuses the WHOLE select for one unknown column -- naming it
+	// here would blank every classroom read until 0092 landed. The item detail
+	// page fetches it on its own, fail-soft, and only for a manager.
 	'pinned, sort_order, first_published_at, edited_at, created_at, updated_at, ' +
 	'classroom_item_resources(id, label, url, sort_order), ' +
 	'classroom_attachments(id, filename, mime_type, size_bytes, sort_order), ' +
@@ -408,6 +414,34 @@ export async function loadStudentEngineData(
 }
 
 /** The teacher half: spec import, rubric, grading, the approval gate. */
+/**
+ * The reference-document half of the teacher tools (0092). Its own factory
+ * rather than two more methods on the assignment engine's: an assignment and a
+ * material are different kinds, the RPCs refuse each other's kind server-side,
+ * and a material page has no business carrying grading transports it can never
+ * call.
+ */
+export function createReferenceTransports(supabase: SupabaseClient): ReferenceTransports {
+	return {
+		async setReferenceSpec(itemId, spec) {
+			const { error } = await supabase.rpc('classroom_set_reference_spec', {
+				p_item_id: itemId,
+				p_spec: spec
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		async setPublic(itemId, isPublic) {
+			const { data, error } = await supabase.rpc('classroom_set_item_public', {
+				p_item_id: itemId,
+				p_public: isPublic
+			});
+			return error
+				? fail(error)
+				: { ok: true, data: (data ?? { ok: true }) as PublicToggleResult };
+		}
+	};
+}
+
 export function createTeacherEngineTransports(
 	supabase: SupabaseClient
 ): AssignmentTeacherTransports {

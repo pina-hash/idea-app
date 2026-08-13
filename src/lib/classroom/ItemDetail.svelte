@@ -7,8 +7,11 @@
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
+	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
+	import ReferenceTools from '$lib/classroom/ReferenceTools.svelte';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImport from '$lib/classroom/SpecImport.svelte';
+	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
 	import type {
 		AssignmentEngineTransports,
 		AssignmentSpec,
@@ -65,7 +68,9 @@
 		spec = null,
 		rubric = null,
 		teacherTransports = null,
-		gradeHref = null
+		gradeHref = null,
+		referenceSpec = null,
+		referenceTransports = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -87,6 +92,13 @@
 		rubric?: RubricCriterion[] | null;
 		teacherTransports?: AssignmentTeacherTransports | null;
 		gradeHref?: string | null;
+		/**
+		 * The reference document on a MATERIAL (0092), when it has one. Present
+		 * = this material renders as a structured document; absent = it renders
+		 * its written details exactly as every material always has.
+		 */
+		referenceSpec?: ReferenceSpec | null;
+		referenceTransports?: ReferenceTransports | null;
 	} = $props();
 
 	let editing = $state(false);
@@ -205,6 +217,7 @@
 		<p class="chip-line">
 			{#if item.pinned}<span class="chip pin-chip">Pinned</span>{/if}
 			{#if canManage && !item.published}<span class="draft-chip">Draft</span>{/if}
+			{#if canManage && item.is_public}<span class="chip pin-chip">Public link</span>{/if}
 			{#if showUpdated}<span class="chip updated-chip">Updated</span>{/if}
 		</p>
 		{#if item.edited_at}
@@ -252,7 +265,14 @@
 		</section>
 	{/if}
 
-	{#if item.body.trim()}
+	<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
+	     renders its written details exactly as every material always has, which
+	     is what keeps every pre-0092 material untouched. -->
+	{#if referenceSpec}
+		<section class="card ref-card">
+			<ReferenceDoc spec={referenceSpec} {fetchPreview} showHeader={false} />
+		</section>
+	{:else if item.body.trim()}
 		<section class="card">
 			<h2 class="section-label">
 				{item.kind === 'assignment' ? 'Instructions' : 'Details'}
@@ -304,6 +324,20 @@
 					resolveSrc={(a) => instructorAttachmentSrc(a.id)}
 				/>
 			{/if}
+		</section>
+	{/if}
+
+	{#if item.kind === 'material' && canManage && referenceTransports}
+		<section class="card engine-tools">
+			<h2 class="section-label">Reference document</h2>
+			<ReferenceTools
+				itemId={item.id}
+				spec={referenceSpec}
+				isPublic={item.is_public === true}
+				attachmentCount={item.attachments.length}
+				transports={referenceTransports}
+				onchanged={() => onchanged?.()}
+			/>
 		</section>
 	{/if}
 
@@ -437,6 +471,9 @@
 	}
 	.engine-slot {
 		border-style: dashed;
+	}
+	.ref-card {
+		padding-top: 0.6rem;
 	}
 	.engine-tools {
 		display: flex;

@@ -120,6 +120,13 @@ export interface SpecModule {
 
 export interface AssignmentSpec {
 	schemaVersion: 1;
+	/**
+	 * Schema v2's discriminator. ABSENT MEANS ASSIGNMENT: every pre-v2 spec file
+	 * has no `kind` at all, so the default is what keeps them valid and
+	 * unchanged. See reference-spec.ts's `specKind`, which owns that rule, and
+	 * _classroom_check_spec (0092), which applies it identically in SQL.
+	 */
+	kind?: 'assignment';
 	meta: SpecMeta;
 	modules: SpecModule[];
 	declarations?: { academicIntegrity?: boolean };
@@ -232,6 +239,8 @@ export function sentenceState(count: number, min: number | undefined): SentenceS
 // Spec validation (the friendly half; _classroom_check_spec is the boundary)
 // ---------------------------------------------------------------------------
 
+import { specKind } from './reference-spec';
+
 const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 
 export function validateSpec(raw: unknown): { spec: AssignmentSpec | null; errors: string[] } {
@@ -243,6 +252,20 @@ export function validateSpec(raw: unknown): { spec: AssignmentSpec | null; error
 		return fail();
 	}
 	const spec = raw as Record<string, unknown>;
+	// The v2 discriminator, checked FIRST so a reference document pasted into
+	// the assignment importer says what it actually is instead of drowning in
+	// "needs a modules array". An absent `kind` is an assignment (see the type).
+	const kind = specKind(raw);
+	if (kind === 'reference') {
+		errors.push(
+			'That is a reference document (kind: "reference"). Attach it to a Material, not an assignment.'
+		);
+		return fail();
+	}
+	if (kind === null) {
+		errors.push('kind must be "assignment" or "reference" when present.');
+		return fail();
+	}
 	if (spec.schemaVersion !== 1) {
 		errors.push('Unsupported schemaVersion (this engine reads schema v1).');
 	}

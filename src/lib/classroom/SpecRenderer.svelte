@@ -1,6 +1,6 @@
 <script lang="ts">
+	import AiLevelBadge from '$lib/classroom/AiLevelBadge.svelte';
 	import {
-		AI_LEVELS,
 		countSentences,
 		filesByBlockCount,
 		gatedModuleIds,
@@ -211,11 +211,10 @@
 				<h3 class="module-title">{mod.title}</h3>
 			</div>
 			<div class="module-chips">
-				{#if mod.aiLevel != null && AI_LEVELS[mod.aiLevel]}
-					<span class="chip ai-chip" title={AI_LEVELS[mod.aiLevel].blurb}>
-						{AI_LEVELS[mod.aiLevel].label}
-					</span>
-				{/if}
+				<!-- The SHARED badge (AiLevelBadge): the reference documents' AI
+				     level lookup mounts the same component, so a student sees an
+				     identical badge in both places by construction. -->
+					<AiLevelBadge level={mod.aiLevel} />
 				<span class="chip points-chip">{mod.points} pts</span>
 				{#if !readonly && completion.total > 0 && !gated}
 					<span class="chip done-chip" class:complete={completion.done === completion.total}>
@@ -464,10 +463,6 @@
 		padding: 0.08rem 0.5rem;
 		color: var(--dim);
 		white-space: nowrap;
-	}
-	.ai-chip {
-		color: var(--cyan);
-		border-color: var(--cyan);
 	}
 	.points-chip {
 		color: var(--gold);

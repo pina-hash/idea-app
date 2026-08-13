@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-13",
+			"title": "Class materials can be real documents now",
+			"body": "A material your teacher posts can open as a proper document with tabs across the top instead of one long page. Tap a tab to jump to that part, and the address bar keeps your place, so a link to one section takes you straight there. Some documents include a grade estimator you can type your own scores into (nothing you type is saved or sent anywhere) and a lookup for what AI use is allowed on a given kind of work. Printing works too: Ctrl+P gives you the whole document in order, not just the tab you were on. Your teacher can also give one of these documents a link that works without signing in, so you can hand it to a parent.",
+			"tags": ["Classwork"]
+		},
+		{
 			"date": "2026-08-12",
 			"title": "Teachers can attach private materials to classwork",
 			"body": "Teachers can now attach answer keys, facilitation notes, and other private files or links to any post, assignment, or material. Those stay visible only to that class's teachers and staff -- nothing changes on your side, and you will never see them or know they are there.",

@@ -42,7 +42,20 @@ function dispositionFor(mime: string, filename: string): string {
 }
 
 export const GET: RequestHandler = async ({ params, url, locals: { supabase, claims } }) => {
-	if (!claims) {
+	/**
+	 * THE PUBLIC BRANCH (`?public=1`). The printed syllabus goes home for a
+	 * parent signature, so the attachments on a PUBLIC MATERIAL have to serve
+	 * with no session. It is a genuinely separate path, not the check below
+	 * skipped: the row is resolved by classroom_public_attachment (0092), which
+	 * answers only for an attachment whose item is a published, public material.
+	 * So `?public=1` can only ever NARROW what this route will hand over -- an
+	 * ordinary class handout, another section's file, an instructor-only file
+	 * (a different table entirely) and a private material's attachment all read
+	 * as 404 here whether or not anyone is signed in.
+	 */
+	const wantsPublic = url.searchParams.get('public') === '1';
+
+	if (!claims && !wantsPublic) {
 		return json({ error: 'You must be signed in.' }, { status: 401 });
 	}
 	if (!driveConfigured()) {
@@ -52,6 +65,17 @@ export const GET: RequestHandler = async ({ params, url, locals: { supabase, cla
 	const id = params.attachment_id;
 	if (!id || !UUID_RE.test(id)) {
 		return new Response('Not found', { status: 404 });
+	}
+
+	if (wantsPublic) {
+		const { data, error } = await supabase.rpc('classroom_public_attachment', {
+			p_attachment_id: id
+		});
+		const row = (data ?? null) as { drive_file_id?: string; filename?: string; mime_type?: string } | null;
+		if (error || !row?.drive_file_id) {
+			return new Response('Not found', { status: 404 });
+		}
+		return serveDriveFile(row.drive_file_id, row.filename ?? 'attachment', row.mime_type ?? '');
 	}
 
 	/**
@@ -89,9 +113,23 @@ export const GET: RequestHandler = async ({ params, url, locals: { supabase, cla
 		return new Response('Not found', { status: 404 });
 	}
 
+	return serveDriveFile(row.drive_file_id, row.filename ?? 'attachment', row.mime_type ?? '');
+};
+
+/**
+ * Stream the bytes. Reached ONLY after a caller has proved they may see this
+ * file -- through their own RLS-scoped read, the view-as RPC, or the public
+ * one. Factored out so the authenticated and public branches cannot drift on
+ * the content-type allowlist or the headers.
+ */
+async function serveDriveFile(
+	driveFileId: string,
+	filename: string,
+	storedMime: string
+): Promise<Response> {
 	let file;
 	try {
-		file = await downloadDriveFile(row.drive_file_id, INLINE_TYPES);
+		file = await downloadDriveFile(driveFileId, INLINE_TYPES);
 	} catch (e) {
 		// The caller IS allowed to see this file; Drive just did not give it to
 		// us. 502 rather than 404 so the two stay distinguishable in logs.
@@ -101,7 +139,7 @@ export const GET: RequestHandler = async ({ params, url, locals: { supabase, cla
 	// Drive reports the stored type; the ROW's type is what was validated at
 	// upload. Prefer the row when Drive's answer was rejected by the allowlist,
 	// so an ordinary Office document still downloads under its real name.
-	const stored = (row.mime_type ?? '').toLowerCase();
+	const stored = storedMime.toLowerCase();
 	const contentType =
 		file.contentType === 'application/octet-stream' && INLINE_TYPES.has(stored)
 			? stored
@@ -111,12 +149,12 @@ export const GET: RequestHandler = async ({ params, url, locals: { supabase, cla
 		'content-type': contentType,
 		'cache-control': CACHE_CONTROL,
 		'x-content-type-options': 'nosniff',
-		'content-disposition': dispositionFor(contentType, row.filename ?? 'attachment')
+		'content-disposition': dispositionFor(contentType, filename)
 	});
 	if (file.contentLength) headers.set('content-length', file.contentLength);
 
 	return new Response(file.body, { headers });
-};
+}
 
 /**
  * Removes one attachment row. The RPC re-checks classroom_manages_section, and

@@ -17,7 +17,9 @@
 	 */
 	let {
 		link,
-		fetchPreview = null
+		fetchPreview = null,
+		fallbackLabel = null,
+		note = null
 	}: {
 		link: ItemLink;
 		/**
@@ -26,6 +28,14 @@
 		 * also the honest server-rendered state before hydration.
 		 */
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
+		/**
+		 * ALWAYS DISPLAYED when set, whether or not metadata fetched -- reference
+		 * documents' linkCard blocks require one. The syllabus links to specific
+		 * purchasable parts, and when a retailer listing dies the part number has
+		 * to still be readable on the page.
+		 */
+		fallbackLabel?: string | null;
+		note?: string | null;
 	} = $props();
 
 	let preview = $state<LinkPreview | null>(null);
@@ -73,7 +83,9 @@
 	{/if}
 	<span class="lp-body">
 		<span class="lp-title">{heading}</span>
+		{#if fallbackLabel}<span class="lp-fallback">{fallbackLabel}</span>{/if}
 		<span class="lp-host">{subtitle}</span>
+		{#if note}<span class="lp-note">{note}</span>{/if}
 		{#if preview?.ok && preview.description}
 			<span class="lp-desc">{preview.description}</span>
 		{/if}
@@ -130,6 +142,17 @@
 		font-size: 0.64rem;
 		color: var(--cyan);
 		overflow-wrap: anywhere;
+	}
+	.lp-fallback {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		color: var(--gold);
+		overflow-wrap: anywhere;
+	}
+	.lp-note {
+		font-size: 0.76rem;
+		color: var(--dim);
+		line-height: 1.4;
 	}
 	.lp-desc {
 		font-size: 0.78rem;

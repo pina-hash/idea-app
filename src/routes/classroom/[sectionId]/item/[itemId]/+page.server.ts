@@ -7,6 +7,7 @@ import {
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
+import { validateReferenceSpec, type ReferenceSpec } from '$lib/classroom/reference-spec';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import type { PageServerLoad } from './$types';
 
@@ -53,6 +54,36 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		[item] = await mergeInstructorMaterials(supabase, [item]);
 	}
 
+	/**
+	 * The reference document on a material (0092), and -- for a manager only --
+	 * the public flag the toggle reads.
+	 *
+	 * BOTH ARE THEIR OWN QUERIES RATHER THAN COLUMNS ON ITEM_SELECT, and that is
+	 * a deploy-ordering rule, not tidiness: migrations here are applied by hand,
+	 * so a deployment sitting between 0091 and 0092 is a real state, and
+	 * PostgREST refuses an ENTIRE select for one unknown column. Naming
+	 * `is_public` in the shared select would blank every classroom read until
+	 * 0092 landed. Failing soft here costs a manager the toggle and nothing else.
+	 */
+	let referenceSpec: ReferenceSpec | null = null;
+	if (item.kind === 'material') {
+		const { data: refRow } = await supabase
+			.from('classroom_reference_specs')
+			.select('spec')
+			.eq('item_id', item.id)
+			.maybeSingle();
+		const validated = validateReferenceSpec(refRow?.spec ?? null);
+		referenceSpec = validated.spec;
+		if (canManage) {
+			const { data: flagRow } = await supabase
+				.from('classroom_items')
+				.select('is_public')
+				.eq('id', item.id)
+				.maybeSingle();
+			item = { ...item, is_public: (flagRow as { is_public?: boolean } | null)?.is_public === true };
+		}
+	}
+
 	let engine: Awaited<ReturnType<typeof loadStudentEngineData>> = null;
 	let spec: AssignmentSpec | null = null;
 	let rubric: RubricCriterion[] | null = null;
@@ -77,6 +108,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		attachmentsEnabled: driveConfigured(),
 		engine,
 		spec,
-		rubric
+		rubric,
+		referenceSpec
 	};
 };

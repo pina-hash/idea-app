@@ -182,6 +182,17 @@
 	</section>
 
 	<section class="card">
+		<h2>Short links</h2>
+		<p class="note">
+			The short paths printed on QR codes -- <strong>/209h</strong> and its siblings. The paper
+			does not change, so the row here is what re-points a document that moved.
+		</p>
+		<div class="add-row">
+			<a class="btn secondary" href="/admin/links">Manage short links</a>
+		</div>
+	</section>
+
+	<section class="card">
 		<h2>Digital notebook · Google Drive</h2>
 		<p class="note">
 			Notebook photo uploads act as a real school Google account (the shared drive blocks outside

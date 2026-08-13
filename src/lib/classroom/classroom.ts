@@ -88,6 +88,15 @@ export interface ClassroomItem {
 	author_name: string | null;
 	published: boolean;
 	pinned: boolean;
+	/**
+	 * 0092's public flag. A MATERIAL may be readable with no session at all --
+	 * the printed syllabus goes home for a parent signature, and a parent has no
+	 * school account. False on every other kind by CHECK constraint. The flag
+	 * alone opens nothing: the public read is one narrow RPC
+	 * (classroom_public_reference), never a loosened policy. Optional so a
+	 * pre-0092 read still types.
+	 */
+	is_public?: boolean;
 	sort_order: number;
 	/** Null while it has only ever been a draft. */
 	first_published_at: string | null;
@@ -173,6 +182,7 @@ export function normalizeItemRow(row: Record<string, unknown>): ClassroomItem {
 		author_name: (row.author_name as string | null) ?? null,
 		published: row.published !== false,
 		pinned: row.pinned === true,
+		is_public: row.is_public === true,
 		sort_order: Number(row.sort_order ?? 0),
 		first_published_at: (row.first_published_at as string | null) ?? null,
 		edited_at: (row.edited_at as string | null) ?? null,
@@ -203,6 +213,20 @@ export function attachmentSrc(attachmentId: string, viewAs?: string | null): str
 	if (local) return local;
 	const base = `/api/classroom/attachment/${attachmentId}`;
 	return viewAs ? `${base}?as=${encodeURIComponent(viewAs)}` : base;
+}
+
+/**
+ * URL for an attachment on a PUBLIC material, for the signed-out reference
+ * viewer. `?public=1` asks the proxy for its public branch, which resolves the
+ * row through classroom_public_attachment (0092) -- a function that answers
+ * ONLY for an attachment belonging to a published, public material. The flag
+ * can therefore only ever NARROW what the route will serve: it never bypasses a
+ * check, it swaps in a strictly stricter one.
+ */
+export function publicAttachmentSrc(attachmentId: string): string {
+	const local = localAttachmentUrls.get(attachmentId);
+	if (local) return local;
+	return `/api/classroom/attachment/${attachmentId}?public=1`;
 }
 
 /**

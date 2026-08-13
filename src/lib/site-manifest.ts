@@ -108,6 +108,10 @@ export const APPS: SiteApp[] = [
 			'src/lib/classroom/',
 			'src/routes/api/classroom/',
 			'src/routes/dev/classroom/',
+			// The public reference viewer (a signed-out surface, so it sits
+			// outside /classroom -- see CLAUDE.md) and its harness.
+			'src/routes/reference/',
+			'src/routes/dev/classroom-reference/',
 			// The home-page class feed harness.
 			'src/routes/dev/home-feed/',
 			// The student-facing update log's content file (see updates.ts).
