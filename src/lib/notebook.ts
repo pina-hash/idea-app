@@ -9,7 +9,13 @@
  * lives in 0069/0071's RLS and RPCs; nothing here re-implements any of it.
  */
 
-import { docSummary, noteThreads, type NotebookNoteRow, type TiptapNode } from '$lib/notebook-notes';
+import {
+	docSummary,
+	docText,
+	noteThreads,
+	type NotebookNoteRow,
+	type TiptapNode
+} from '$lib/notebook-notes';
 
 export type NotebookStatus = 'compliant' | 'flagged' | 'pending_review';
 
@@ -52,6 +58,13 @@ export interface NotebookEntry {
 	 * reviewed depends on it -- see $lib/notebook-folders.
 	 */
 	folder_id: string | null;
+	/**
+	 * When the student pinned this entry, or null (0091). A TIMESTAMP rather
+	 * than a flag so several pinned entries have a stable order among
+	 * themselves. Global to the entry, never per-folder: a pinned entry rides
+	 * to the top of All, of Unfiled, and of its own folder alike.
+	 */
+	pinned_at: string | null;
 	custom_label: string | null;
 	upload_timestamp: string;
 	status: NotebookStatus;
@@ -163,6 +176,127 @@ export function flagReasonLabel(reason: NotebookFlagReason | null): string | nul
  */
 export function newestFirst(entries: NotebookEntry[]): NotebookEntry[] {
 	return [...entries].sort((a, b) => b.upload_timestamp.localeCompare(a.upload_timestamp));
+}
+
+// ---------------------------------------------------------------------------
+// Pinning + sort order (0091)
+// ---------------------------------------------------------------------------
+
+export function isPinned(entry: NotebookEntry): boolean {
+	return !!entry.pinned_at;
+}
+
+/**
+ * How the feed is ordered UNDER the pins.
+ *
+ * `newest` is the notebook's original and still default order: the entry's
+ * own upload_timestamp. `activity` is the most recent of that, its newest
+ * note revision, and its newest photo -- so an older entry someone added to
+ * yesterday surfaces above an untouched newer one, which is how a notebook
+ * that gets revisited actually reads.
+ */
+export type EntrySort = 'newest' | 'activity';
+
+export const ENTRY_SORTS: { id: EntrySort; label: string }[] = [
+	{ id: 'newest', label: 'Newest first' },
+	{ id: 'activity', label: 'Recent activity' }
+];
+
+/**
+ * entry id -> last_activity_at, as the notebook_entry_activity view (0091)
+ * returned it.
+ *
+ * THE TIMESTAMP IS COMPUTED IN THE DATABASE, over every note revision and
+ * every photo of every entry the caller can read -- not here, and not over
+ * the handful of entries the feed happens to be painting. The feed renders a
+ * capped number of entries while search and sort cover the whole notebook
+ * (the same reasoning that made a render limit right and server-side
+ * pagination wrong), so a sort key derived from what is on screen would be a
+ * sort over the wrong set.
+ */
+export type ActivityMap = ReadonlyMap<string, string>;
+
+/** Falls back to the entry's own stamp: pre-0091, every entry sorts as it always did. */
+export function entryActivityAt(entry: NotebookEntry, activity?: ActivityMap): string {
+	return activity?.get(entry.id) ?? entry.upload_timestamp;
+}
+
+/** Parsed, not string-compared: the two stamps come from different queries. */
+function stampMs(iso: string): number {
+	const t = Date.parse(iso);
+	return Number.isNaN(t) ? 0 : t;
+}
+
+/**
+ * PINNED FIRST, then whichever order was asked for.
+ *
+ * Pins sit above the sort rather than inside it, in every view -- that is
+ * what makes a pin mean "keep this where I can reach it" instead of "pretend
+ * this is recent". Among themselves pinned entries run most-recently-pinned
+ * first.
+ */
+export function sortEntries(
+	entries: NotebookEntry[],
+	sort: EntrySort = 'newest',
+	activity?: ActivityMap
+): NotebookEntry[] {
+	const key = (e: NotebookEntry) =>
+		sort === 'activity' ? entryActivityAt(e, activity) : e.upload_timestamp;
+	return [...entries].sort((a, b) => {
+		if (a.pinned_at && !b.pinned_at) return -1;
+		if (b.pinned_at && !a.pinned_at) return 1;
+		if (a.pinned_at && b.pinned_at && a.pinned_at !== b.pinned_at) {
+			return stampMs(b.pinned_at) - stampMs(a.pinned_at);
+		}
+		return stampMs(key(b)) - stampMs(key(a));
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Copy an entry as plain text
+// ---------------------------------------------------------------------------
+
+/** What a copy-to-clipboard action hands back, and what a pin RPC returns. */
+export type EntryActionResult = { ok: true } | { ok: false; error: string };
+
+function copyDate(iso: string): string {
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return '';
+	return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+}
+
+/**
+ * One entry as plain text, for the clipboard: its title (when it has a real
+ * one), its date, and every note in written order.
+ *
+ * NOTES ARE THE CURRENT REVISION ONLY. An entry's history is a record of how
+ * the writing changed, which is exactly what somebody pasting it into a lab
+ * report or an email does not want; noteThreads already resolves "what this
+ * note says now", so this reuses it rather than re-deciding.
+ *
+ * PHOTOS CANNOT COME ALONG -- the clipboard gets text -- but silently
+ * dropping them would make a page of photographed work paste as an empty
+ * entry, so their COUNT is stated instead.
+ */
+export function entryPlainText(entry: NotebookEntry): string {
+	const parts: string[] = [];
+	const head: string[] = [];
+
+	const title = entryTitle(entry);
+	if (title !== UNTITLED_ENTRY) head.push(title);
+	const when = copyDate(entry.upload_timestamp);
+	if (when) head.push(when);
+	if (head.length) parts.push(head.join('\n'));
+
+	for (const thread of noteThreads(entry.notes ?? [])) {
+		const text = docText(thread.current.content);
+		if (text) parts.push(text);
+	}
+
+	const pages = photoPages(orderedPhotos(entry)).length;
+	if (pages) parts.push(`[${photoCountLabel(pages)}, not included]`);
+
+	return parts.join('\n\n');
 }
 
 /** Photos in upload order, so a multi-page entry reads page 1 first. */

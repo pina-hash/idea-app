@@ -11,15 +11,23 @@
 	import { clearPendingCapture, fitForUpload, takePendingCapture } from '$lib/notebook/camera';
 	import '$lib/notebook/notebook-theme.css';
 	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
+	import NotebookThemeToggle from '$lib/notebook/NotebookThemeToggle.svelte';
+	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import {
+		ENTRY_SORTS,
+		entryActivityAt,
+		isPinned,
 		nearestOutstanding,
-		newestFirst,
 		outstandingSessions,
 		photoCountLabel,
 		sessionMeta,
+		sortEntries,
 		todayIso,
+		type ActivityMap,
 		type AddPhotoResult,
 		type CreateEntryResult,
+		type EntryActionResult,
+		type EntrySort,
 		type NoteSaveResult,
 		type NotebookEntry,
 		type NotebookSession,
@@ -77,6 +85,8 @@
 		configured = true,
 		notesReady = true,
 		foldersReady = true,
+		pinsReady = true,
+		activity = [],
 		uploadReady = true,
 		createEntry,
 		addPhoto,
@@ -84,6 +94,7 @@
 		addNote,
 		editNote,
 		folderTransports,
+		setPinned,
 		onChanged
 	}: {
 		entries: NotebookEntry[];
@@ -110,6 +121,18 @@
 		 */
 		foldersReady?: boolean;
 		/**
+		 * 0091 applied. False turns PINNING and the activity sort off together
+		 * -- they are one migration -- and the feed keeps its original order.
+		 */
+		pinsReady?: boolean;
+		/**
+		 * notebook_entry_activity (0091), one row per entry the caller can
+		 * read. Computed in the DATABASE over every note revision and photo,
+		 * not here: the feed paints a capped number of entries while sorting
+		 * has to cover the whole notebook.
+		 */
+		activity?: { id: string; last_activity_at: string }[];
+		/**
 		 * The Drive integration is configured server-side; false disables PHOTO
 		 * submits only. A note needs no Drive, so the note path stays usable.
 		 */
@@ -121,6 +144,8 @@
 		editNote: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
 		/** Folder writes (0088). Omitted when foldersReady is false. */
 		folderTransports?: FolderTransports;
+		/** The one pin write (0091). Omitted when pinsReady is false. */
+		setPinned?: (entryId: string, pinned: boolean) => Promise<EntryActionResult>;
 		/** Called after any successful save so the page can refresh its data. */
 		onChanged?: () => void;
 	} = $props();
@@ -154,7 +179,18 @@
 	let recoveryNote = $state<string | null>(null);
 
 	const open = $derived(outstandingSessions(sessions, entries));
-	const feed = $derived(newestFirst(entries));
+
+	/** How the feed is ordered under the pins. Not persisted: it is a way of
+	    looking at the notebook for a minute, not a setting. */
+	let sort = $state<EntrySort>('newest');
+	const activityMap = $derived<ActivityMap>(
+		new Map(activity.map((row) => [row.id, row.last_activity_at]))
+	);
+	/** Which stamp a date heading is about, so the groups follow the sort. */
+	const groupStamp = $derived((entry: NotebookEntry) =>
+		sort === 'activity' ? entryActivityAt(entry, activityMap) : entry.upload_timestamp
+	);
+	const feed = $derived(sortEntries(entries, sort, activityMap));
 	const orderedFolders = $derived(foldersInOrder(folders));
 	/** The note tier exists on the free-form path ONLY, and only once 0078 is applied. */
 	const noteOnly = $derived(selectedSession === null && freeMode === 'note' && notesReady);
@@ -602,6 +638,19 @@
 		}
 	}
 
+	/**
+	 * Pinning goes through the injected write and then reloads, exactly the
+	 * way filing does: the pin order is the server's answer (0091 keeps an
+	 * existing stamp on a re-pin), so guessing it here could disagree with
+	 * where the entry actually lands.
+	 */
+	async function pinEntry(entryId: string, pinned: boolean): Promise<EntryActionResult> {
+		if (!setPinned) return { ok: false, error: 'Pinning is not available.' };
+		const result = await setPinned(entryId, pinned);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
 	// ---- how much of the feed is rendered -----------------------------------
 
 	/**
@@ -617,11 +666,32 @@
 		void selection;
 		void search;
 		void filters;
+		void sort;
 		shown = PAGE;
 	});
 
 	const rendered = $derived(visible.slice(0, shown));
-	const groups = $derived(groupByDate(rendered));
+
+	/**
+	 * PINNED ENTRIES GET THEIR OWN GROUP rather than being dropped into
+	 * whichever date heading they happen to belong under. sortEntries has
+	 * already floated them to the front; leaving them there would file a
+	 * September page under "Today" or open the feed with an "Older" heading,
+	 * which is a heading that lies about what is beneath it.
+	 */
+	// Gated on pinsReady as well as on being pinned, the same guard the folder
+	// chip carries: with 0091 unapplied the load cannot return pinned_at at
+	// all, so this would never fire in practice -- but a feed that renders a
+	// "Pinned" heading while offering no way to unpin anything is one stale
+	// prop away from lying, and the guard costs nothing.
+	const pinnedRendered = $derived(pinsReady ? rendered.filter(isPinned) : []);
+	const restRendered = $derived(pinsReady ? rendered.filter((entry) => !isPinned(entry)) : rendered);
+	const groups = $derived([
+		...(pinnedRendered.length
+			? [{ key: 'pinned', label: 'Pinned', entries: pinnedRendered }]
+			: []),
+		...groupByDate(restRendered, new Date(), groupStamp)
+	]);
 	const more = $derived(Math.max(0, visible.length - rendered.length));
 </script>
 
@@ -639,10 +709,11 @@
 
 <!-- .nb-root scopes the notebook's editorial light theme (notebook-theme.css)
      and keeps it out of every other surface. -->
-<div class="nb-root">
+<div class="nb-root" data-nb-theme={notebookThemeAttr()}>
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
+		<NotebookThemeToggle />
 		<a class="btn secondary" href="/">&lsaquo; Home</a>
 		<ProfileMenu />
 	</div>
@@ -673,8 +744,9 @@
 			<p class="note">
 				The notebook tables are not in place on this project yet. Apply migration
 				<code>0069_notebook.sql</code> (plus <code>0071</code>, <code>0075</code>,
-				<code>0078_notebook_entry_notes.sql</code> and
-				<code>0088_notebook_folders.sql</code>) in the Supabase SQL editor, then reload.
+				<code>0078_notebook_entry_notes.sql</code>, <code>0088_notebook_folders.sql</code>
+				and <code>0091_notebook_pin_and_activity.sql</code>) in the Supabase SQL editor,
+				then reload.
 			</p>
 		</section>
 	{:else}
@@ -935,6 +1007,16 @@
 					</div>
 
 					<div class="tools">
+						{#if pinsReady}
+							<label class="sort">
+								<span class="sr-only">Sort entries by</span>
+								<select bind:value={sort} data-testid="sort-select">
+									{#each ENTRY_SORTS as option (option.id)}
+										<option value={option.id}>{option.label}</option>
+									{/each}
+								</select>
+							</label>
+						{/if}
 						<span class="result-count" data-testid="result-count">
 							{visible.length === entries.length
 								? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`
@@ -1023,10 +1105,12 @@
 											{uploadReady}
 											{notesReady}
 											foldersReady={foldersReady && !!folderTransports}
+											pinsReady={pinsReady && !!setPinned}
 											onAddPhotos={addPhotosToEntry}
 											onAddNote={saveNoteToEntry}
 											onEditNote={saveNoteEdit}
 											onMove={moveOne}
+											onPin={pinEntry}
 										/>
 									</li>
 								{/each}
@@ -1316,6 +1400,14 @@
 		color: var(--nb-ink-faint);
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
+	}
+	/* Quiet: the sort is a way of looking at the feed, not a heading over it. */
+	.sort select {
+		font-size: 0.78rem;
+		padding: 0.25rem 0.4rem;
+		border-color: var(--nb-hairline);
+		background: var(--nb-surface);
+		color: var(--nb-ink-soft);
 	}
 
 	/* ---- bulk selection ---- */

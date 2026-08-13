@@ -20,6 +20,13 @@
  * ink band because the AnimatedLogo emblem and ProfileMenu are drawn for
  * dark ground, and the PhotoCorrector overlay stays dark so the drag quad
  * and handles keep their contrast over arbitrary photos.
+ *
+ * THERE ARE TWO PALETTES NOW, and this file belongs to NEITHER. Dark mode is
+ * a second set of values for the same --nb-* tokens (colors.css / effects.css,
+ * keyed off prefers-color-scheme and the data-nb-theme attribute this file's
+ * .nb-root carries), so every rule below is written once and holds in both.
+ * That is the rule to keep: a component or a skin rule that needs to know
+ * which palette is showing is a rule that should have been a token.
  */
 
 .nb-root {
@@ -153,8 +160,8 @@
 	padding: 0.6rem 1.15rem;
 }
 .nb-root .btn:hover {
-	background: #3a352c;
-	border-color: #3a352c;
+	background: var(--nb-ink-hover);
+	border-color: var(--nb-ink-hover);
 	color: var(--nb-bg);
 	box-shadow: none;
 	text-shadow: none;

@@ -62,6 +62,7 @@
 	--nb-ink: #26221b; /* primary text: near-black with warmth */
 	--nb-ink-soft: #57524a; /* secondary text */
 	--nb-ink-faint: #8b857a; /* muted meta: timestamps, captions, hints */
+	--nb-ink-hover: #3a352c; /* the ink button, pressed-on-hover */
 	--nb-hairline: #e8e5dd; /* barely-there borders */
 	--nb-hairline-strong: #d8d4c9;
 	--nb-masthead: #211f1a; /* dark header band: the emblem + ProfileMenu are drawn for dark ground */
@@ -88,5 +89,97 @@
 	--nb-folder-sky: #38668f;
 	--nb-folder-plum: #74497a;
 	/* The fallback for an unfiled entry and for a folder saved with no colour. */
+	--nb-folder-none: var(--nb-ink-faint);
+}
+
+/* --- Notebook DARK palette --------------------------------------------------
+   The SAME editorial room at night, not the platform's terminal aesthetic.
+   The notebook was deliberately given a light editorial identity distinct
+   from VANGUARD and GAUNTLET, and this keeps that character: a WARM dark
+   ground (a hue with the light theme's own ink in it, never cooled
+   graphite), the same generous rhythm, the same gold thread, and body type
+   that is warm off-white rather than stark.
+
+   It is a SECOND PALETTE, not a set of component overrides: every token below
+   already exists above, so nothing in notebook-theme.css or in any of the 16
+   notebook components has to know which one is showing.
+
+   TWO SELECTORS, ONE PALETTE -- KEEP THEM IN STEP. The media query is the
+   default (a student who has never touched the toggle follows their device,
+   with no JS involved and so no flash of the wrong theme on first paint);
+   the attribute is the explicit override, and it is written so each wins in
+   its own direction -- data-nb-theme="light" opts out of a dark OS, and
+   data-nb-theme="dark" opts in from a light one. Adding a token means adding
+   it to BOTH blocks.
+
+   ON THE ACCENT, since the light theme's note here is the reverse: raw
+   #c8a848 measures ~2.2:1 on the light ground and had to be deepened to
+   #8a6d24 to read as text. On this ground it measures ~7.9:1, so the dark
+   theme's accent-ink IS the platform gold, undeepened -- nothing about the
+   light theme's correction carried over, and none of it was assumed to.
+   Every value below was measured against --nb-bg, not adapted by eye:
+   ink 15.3:1, ink-soft 9.9:1, ink-faint 5.3:1, and all six folder colours
+   between 7.7:1 and 9.4:1 (the light palette's own >= 4.5:1 rule).
+   ------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+	.nb-root:not([data-nb-theme='light']) {
+		--nb-bg: #16140f;
+		--nb-surface: #201d16;
+		--nb-surface-dim: #0f0d09;
+		--nb-ink: #f0ebdd;
+		--nb-ink-soft: #c3bba8;
+		--nb-ink-faint: #918a79;
+		--nb-ink-hover: #ded8c7;
+		--nb-hairline: #2e2a21;
+		--nb-hairline-strong: #423c31;
+		--nb-masthead: #0f0d09;
+		--nb-accent-ink: var(--nb-accent);
+		--nb-accent-wash: rgba(200, 168, 72, 0.18);
+		--nb-ok: color-mix(in srgb, var(--teal) 62%, #dff5e6);
+		--nb-error: color-mix(in srgb, var(--crimson) 66%, #ffe0e0);
+		--nb-warn: color-mix(in srgb, var(--amber) 68%, #ffeccf);
+		--nb-folder-slate: #a6b4c2;
+		--nb-folder-sage: #9dc491;
+		--nb-folder-clay: #e09873;
+		--nb-folder-sky: #86b6de;
+		--nb-folder-plum: #c79ecd;
+		/* RE-DECLARED, not inherited, and this is not tidiness. A custom
+		   property's var() is substituted where the property is DECLARED, so
+		   the :root versions of these two computed against the LIGHT
+		   accent-ink and ink-faint and then inherited that resolved colour
+		   down here -- leaving a gold folder dot at 3.8:1 on the dark ground
+		   while every other colour was fine. Found by measuring, not by
+		   reading. Any future --nb-* token defined as var(<another --nb-*>)
+		   has to be repeated in both dark blocks for the same reason. */
+		--nb-folder-gold: var(--nb-accent-ink);
+		--nb-folder-none: var(--nb-ink-faint);
+	}
+}
+
+.nb-root[data-nb-theme='dark'] {
+	--nb-bg: #16140f;
+	--nb-surface: #201d16;
+	--nb-surface-dim: #0f0d09;
+	--nb-ink: #f0ebdd;
+	--nb-ink-soft: #c3bba8;
+	--nb-ink-faint: #918a79;
+	--nb-ink-hover: #ded8c7;
+	--nb-hairline: #2e2a21;
+	--nb-hairline-strong: #423c31;
+	--nb-masthead: #0f0d09;
+	--nb-accent-ink: var(--nb-accent);
+	--nb-accent-wash: rgba(200, 168, 72, 0.18);
+	--nb-ok: color-mix(in srgb, var(--teal) 62%, #dff5e6);
+	--nb-error: color-mix(in srgb, var(--crimson) 66%, #ffe0e0);
+	--nb-warn: color-mix(in srgb, var(--amber) 68%, #ffeccf);
+	--nb-folder-slate: #a6b4c2;
+	--nb-folder-sage: #9dc491;
+	--nb-folder-clay: #e09873;
+	--nb-folder-sky: #86b6de;
+	--nb-folder-plum: #c79ecd;
+	/* See the note in the media-query block above: these two must be
+	   re-declared, not inherited. */
+	--nb-folder-gold: var(--nb-accent-ink);
 	--nb-folder-none: var(--nb-ink-faint);
 }

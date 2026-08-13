@@ -6,6 +6,8 @@
 	import SessionManager from '$lib/notebook/SessionManager.svelte';
 	import SectionGrid from '$lib/notebook/SectionGrid.svelte';
 	import EntryReview from '$lib/notebook/EntryReview.svelte';
+	import NotebookThemeToggle from '$lib/notebook/NotebookThemeToggle.svelte';
+	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import '$lib/notebook/notebook-theme.css';
 	import { todayIso } from '$lib/notebook';
 	import {
@@ -257,12 +259,14 @@
 	<title>Section review // IDEA Notebook</title>
 </svelte:head>
 
-<!-- .nb-root scopes the notebook's editorial light theme (notebook-theme.css);
-     the review console lives in the same room as the student feed. -->
-<div class="nb-root">
+<!-- .nb-root scopes the notebook's editorial theme (notebook-theme.css) and,
+     through data-nb-theme, which of its two palettes is showing; the review
+     console lives in the same room as the student feed, in both lights. -->
+<div class="nb-root" data-nb-theme={notebookThemeAttr()}>
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
+		<NotebookThemeToggle />
 		<a class="btn secondary" href="/notebook">&lsaquo; My Notebook</a>
 		<ProfileMenu />
 	</div>

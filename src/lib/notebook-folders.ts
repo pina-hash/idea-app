@@ -301,14 +301,24 @@ export function groupKeyFor(iso: string, now: Date): { key: string; label: strin
 
 /**
  * Bucket an ALREADY-ORDERED list, preserving its order within and between
- * groups. It never re-sorts: the feed's order is newestFirst's business, and
+ * groups. It never re-sorts: the feed's order is sortEntries' business, and
  * grouping that also sorted would be a second, silently competing opinion
  * about it.
+ *
+ * `stampOf` is WHICH date a bucket is about, and it has to follow the sort
+ * for the headings to mean anything: under "recent activity" an entry sits
+ * where it was last touched, so bucketing it by its creation date would put
+ * an entry written on today under "October". Default is the entry's own
+ * upload stamp, which is what "newest first" orders by.
  */
-export function groupByDate(entries: NotebookEntry[], now: Date = new Date()): EntryGroup[] {
+export function groupByDate(
+	entries: NotebookEntry[],
+	now: Date = new Date(),
+	stampOf: (entry: NotebookEntry) => string = (entry) => entry.upload_timestamp
+): EntryGroup[] {
 	const groups: EntryGroup[] = [];
 	for (const entry of entries) {
-		const { key, label } = groupKeyFor(entry.upload_timestamp, now);
+		const { key, label } = groupKeyFor(stampOf(entry), now);
 		const last = groups[groups.length - 1];
 		if (last && last.key === key) last.entries.push(entry);
 		else groups.push({ key, label, entries: [entry] });

@@ -50,3 +50,19 @@
 	--nb-radius: 10px; /* cards, panels */
 	--nb-radius-control: 6px; /* buttons, inputs, picks */
 }
+
+/* The dark palette's counterpart (see the DARK block in colors.css for the
+   two-selectors-one-palette rule these follow). A shadow tinted with the
+   light theme's ink is invisible on a dark ground, so the raised card would
+   read as flat: this is a true shade instead, deeper and tighter, doing the
+   lifting the paper shadow does on white. Radii are unchanged -- the room's
+   proportions do not depend on the light. */
+@media (prefers-color-scheme: dark) {
+	.nb-root:not([data-nb-theme='light']) {
+		--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
+	}
+}
+
+.nb-root[data-nb-theme='dark'] {
+	--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
+}

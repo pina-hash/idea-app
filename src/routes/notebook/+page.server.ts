@@ -57,7 +57,14 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	 * 0078 and 0088 would show a blank notebook rather than one without
 	 * folders. Tried widest-first, then dropped one capability at a time.
 	 */
-	const FULL_SELECT = `${NOTES_SELECT}, folder_id`;
+	const FOLDER_SELECT = `${NOTES_SELECT}, folder_id`;
+	/**
+	 * pinned_at (0091) is its OWN rung rather than riding on the folder one:
+	 * a project with 0088 applied and 0091 not is a real state, and folding
+	 * the two together would drop folders to add a pin column that is not
+	 * there yet.
+	 */
+	const FULL_SELECT = `${FOLDER_SELECT}, pinned_at`;
 
 	const read = (select: string) =>
 		supabase
@@ -68,6 +75,13 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	let { data: entryRows, error: entryError } = await read(FULL_SELECT);
 	let notesReady = !entryError;
 	let foldersReady = !entryError;
+	let pinsReady = !entryError;
+	if (entryError) {
+		({ data: entryRows, error: entryError } = await read(FOLDER_SELECT));
+		notesReady = !entryError;
+		foldersReady = !entryError;
+		pinsReady = false;
+	}
 	if (entryError) {
 		({ data: entryRows, error: entryError } = await read(NOTES_SELECT));
 		notesReady = !entryError;
@@ -86,6 +100,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			session_id: (row.session_id as string | null) ?? null,
 			section_id: (row.section_id as string | null) ?? null,
 			folder_id: (row.folder_id as string | null) ?? null,
+			pinned_at: (row.pinned_at as string | null) ?? null,
 			custom_label: (row.custom_label as string | null) ?? null,
 			upload_timestamp: row.upload_timestamp as string,
 			status: row.status as NotebookEntry['status'],
@@ -144,10 +159,31 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		else folders = (folderRows ?? []) as NotebookFolder[];
 	}
 
+	/**
+	 * WHEN EACH ENTRY WAS LAST TOUCHED (0091), for the "recent activity" sort.
+	 *
+	 * A SECOND QUERY, and deliberately not something the feed derives from the
+	 * rows above. The view computes it in the database over every note
+	 * revision and every photo of every readable entry, which is the whole
+	 * point: the feed paints a capped number of entries while sorting has to
+	 * cover the entire notebook. Another plain RLS-scoped select -- the view is
+	 * security_invoker, so it can return nothing the entries select could not.
+	 */
+	let activity: { id: string; last_activity_at: string }[] = [];
+	if (configured && pinsReady) {
+		const { data: activityRows, error: activityError } = await supabase
+			.from('notebook_entry_activity')
+			.select('id, last_activity_at');
+		if (activityError) pinsReady = false;
+		else activity = (activityRows ?? []) as { id: string; last_activity_at: string }[];
+	}
+
 	return {
 		configured,
 		notesReady,
 		foldersReady,
+		pinsReady,
+		activity,
 		folders,
 		// The Drive integration is server-only; the UI just needs to know
 		// whether a submit could possibly succeed, so it can say so up front

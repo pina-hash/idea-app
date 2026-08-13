@@ -5,9 +5,12 @@
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
 	import EntryThumb from '$lib/notebook/EntryThumb.svelte';
 	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
+	import { onDestroy } from 'svelte';
 	import {
+		entryPlainText,
 		entryTitle,
 		flagReasonLabel,
+		isPinned,
 		isUntitled,
 		orderedPhotos,
 		photoCountLabel,
@@ -15,6 +18,7 @@
 		sessionMeta,
 		showsStatus,
 		statusLabel,
+		type EntryActionResult,
 		type NoteSaveResult,
 		type NotebookEntry,
 		type StagedPhoto
@@ -64,10 +68,12 @@
 		uploadReady = true,
 		notesReady = true,
 		foldersReady = true,
+		pinsReady = true,
 		onAddPhotos,
 		onAddNote,
 		onEditNote,
-		onMove
+		onMove,
+		onPin
 	}: {
 		entry: NotebookEntry;
 		folders: NotebookFolder[];
@@ -80,6 +86,8 @@
 		notesReady?: boolean;
 		/** 0088 applied; false hides filing without touching anything else. */
 		foldersReady?: boolean;
+		/** 0091 applied; false hides pinning without touching anything else. */
+		pinsReady?: boolean;
 		onAddPhotos: (
 			entryId: string,
 			staged: StagedPhoto[],
@@ -88,6 +96,7 @@
 		onAddNote: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
 		onEditNote: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
 		onMove: (entryId: string, folderId: string | null) => Promise<FolderResult>;
+		onPin?: (entryId: string, pinned: boolean) => Promise<EntryActionResult>;
 	} = $props();
 
 	const photos = $derived(orderedPhotos(entry));
@@ -114,6 +123,66 @@
 	let noteKey = $state(0);
 	let moveError = $state<string | null>(null);
 	let moving = $state(false);
+
+	// ---- pin + copy ---------------------------------------------------------
+
+	/** Gated on pinsReady for the same reason the folder chip is: no pin
+	    indicator while there is no way to pin or unpin anything. */
+	const pinned = $derived(pinsReady && isPinned(entry));
+
+	let pinning = $state(false);
+	/**
+	 * `copied` and `copyNote` are the VISIBLE confirmation: the clipboard
+	 * write succeeds silently by design, so an action with no feedback reads
+	 * as a dead button. Both clear on a timer.
+	 */
+	let copied = $state(false);
+	let copyNote = $state<string | null>(null);
+	let copyTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function flashCopy(ok: boolean, note: string | null) {
+		copied = ok;
+		copyNote = note;
+		if (copyTimer) clearTimeout(copyTimer);
+		copyTimer = setTimeout(() => {
+			copied = false;
+			copyNote = null;
+			copyTimer = null;
+		}, 2400);
+	}
+
+	onDestroy(() => {
+		if (copyTimer) clearTimeout(copyTimer);
+	});
+
+	async function togglePin() {
+		if (!onPin || pinning) return;
+		pinning = true;
+		try {
+			const result = await onPin(entry.id, !pinned);
+			// The feed reloads on success, so `pinned` follows the row rather
+			// than being guessed here.
+			if (!result.ok) flashCopy(false, result.error);
+		} finally {
+			pinning = false;
+		}
+	}
+
+	async function copyEntry() {
+		const text = entryPlainText(entry);
+		try {
+			// The async Clipboard API only: the old execCommand path needs a
+			// live selection and a hidden textarea, and every browser this
+			// runs on has had writeText for years.
+			await navigator.clipboard.writeText(text);
+			flashCopy(true, 'Copied');
+		} catch {
+			// A denied permission or an insecure origin, neither of which the
+			// student can do anything about from here -- so say what happened
+			// rather than failing silently.
+			flashCopy(false, 'Could not copy');
+		}
+	}
 
 	function togglePanel(kind: 'photos' | 'note') {
 		if (busy) return;
@@ -189,7 +258,12 @@
 	}
 </script>
 
-<div class="entry" class:flagged={entry.status === 'flagged'} class:open={!collapsed}>
+<div
+	class="entry"
+	class:flagged={entry.status === 'flagged'}
+	class:open={!collapsed}
+	class:pinned
+>
 	<div class="row">
 		{#if selectMode}
 			<label class="pick">
@@ -259,6 +333,63 @@
 				</svg>
 			</span>
 		</button>
+
+		<!-- SIBLINGS of the disclosure, never inside it: a button nested in a
+		     button is invalid markup and its clicks would toggle the row. The
+		     group sits in .row, which renders in BOTH states, so pinning and
+		     copying are one click away collapsed or expanded. -->
+		<div class="tools">
+			{#if copyNote}
+				<span class="tool-note" class:ok={copied} role="status">{copyNote}</span>
+			{/if}
+			{#if pinsReady && onPin}
+				<button
+					type="button"
+					class="tool"
+					class:on={pinned}
+					aria-pressed={pinned}
+					disabled={pinning}
+					title={pinned ? 'Unpin this entry' : 'Pin this entry to the top'}
+					aria-label={pinned ? `Unpin ${title}` : `Pin ${title} to the top`}
+					data-testid="entry-pin"
+					onclick={togglePin}
+				>
+					<svg
+						viewBox="0 0 24 24"
+						fill={pinned ? 'currentColor' : 'none'}
+						stroke="currentColor"
+						stroke-width="1.7"
+						aria-hidden="true"
+					>
+						<path
+							d="M9 3.6h6l-.7 5.1 3 2.6v1.5H6.7v-1.5l3-2.6z"
+							stroke-linejoin="round"
+						/>
+						<path d="M12 12.8V20.4" stroke-linecap="round" fill="none" />
+					</svg>
+				</button>
+			{/if}
+			<button
+				type="button"
+				class="tool"
+				class:on={copied}
+				title="Copy this entry’s text"
+				aria-label="Copy {title} as text"
+				data-testid="entry-copy"
+				onclick={copyEntry}
+			>
+				{#if copied}
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+						<path d="M5 12.6l4.4 4.4L19 7.4" stroke-linecap="round" stroke-linejoin="round" />
+					</svg>
+				{:else}
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+						<rect x="9" y="9" width="11" height="11.5" rx="2" />
+						<path d="M15.4 5.6a2 2 0 0 0-2-1.6H6a2 2 0 0 0-2 2v7.4a2 2 0 0 0 1.6 2" />
+					</svg>
+				{/if}
+			</button>
+		</div>
 	</div>
 
 	{#if !collapsed}
@@ -542,6 +673,72 @@
 	}
 	.status.pending {
 		color: var(--nb-ink-soft);
+	}
+
+	/* --- pin + copy --------------------------------------------------------
+	   A quiet pair at the end of the row. They sit outside the disclosure so
+	   they work in both states, and they stay muted until they mean something:
+	   the pin only takes the gold thread once the entry is actually pinned. */
+	.tools {
+		flex: 0 0 auto;
+		display: flex;
+		align-items: center;
+		gap: 0.15rem;
+		padding-right: 0.1rem;
+	}
+	.tool {
+		display: grid;
+		place-items: center;
+		/* 44px, the same thumb-sized target the select checkbox is padded to:
+		   this is a control a student taps on a phone. */
+		width: 2.75rem;
+		height: 2.75rem;
+		padding: 0;
+		border: none;
+		border-radius: var(--nb-radius-control);
+		background: none;
+		color: var(--nb-ink-faint);
+		cursor: pointer;
+		transition:
+			color 0.15s ease,
+			background 0.15s ease;
+	}
+	.tool:hover:not(:disabled) {
+		color: var(--nb-ink);
+		background: var(--nb-surface-dim);
+	}
+	.tool.on {
+		color: var(--nb-accent-ink);
+	}
+	.tool:disabled {
+		cursor: default;
+		opacity: 0.5;
+	}
+	.tool svg {
+		width: 1.15rem;
+		height: 1.15rem;
+	}
+	.tool-note {
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.02em;
+		color: var(--nb-error);
+		white-space: nowrap;
+	}
+	.tool-note.ok {
+		color: var(--nb-accent-ink);
+	}
+
+	/* The collapsed tab's own pin indicator: the filled glyph says it, and
+	   this edge says it from across a scrolling feed without adding a chip to
+	   an already-dense meta row. */
+	.entry.pinned {
+		border-left: 3px solid var(--nb-accent);
+		border-radius: var(--nb-radius);
+		padding-left: 0.35rem;
+	}
+	.entry.pinned.open {
+		padding-left: 0.85rem;
 	}
 
 	.chev {

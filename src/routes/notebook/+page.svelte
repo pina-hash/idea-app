@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
-	import type { AddPhotoResult, CreateEntryResult, NoteSaveResult, NotePayload } from '$lib/notebook';
+	import type {
+		AddPhotoResult,
+		CreateEntryResult,
+		EntryActionResult,
+		NoteSaveResult,
+		NotePayload
+	} from '$lib/notebook';
 	import type { TiptapNode } from '$lib/notebook-notes';
 	import type { FolderResult, FolderTransports } from '$lib/notebook-folders';
 
@@ -126,6 +132,16 @@
 			return { ok: true };
 		}
 	};
+
+	/** The pin write (0091), direct to the RPC for the same reason as above. */
+	async function setPinned(entryId: string, pinned: boolean): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_set_entry_pinned', {
+			p_entry_id: entryId,
+			p_pinned: pinned
+		});
+		if (error) return rpcFail(error, 'Could not change that pin.');
+		return { ok: true };
+	}
 </script>
 
 <NotebookView
@@ -137,6 +153,8 @@
 	configured={data.configured}
 	notesReady={data.notesReady}
 	foldersReady={data.foldersReady}
+	pinsReady={data.pinsReady}
+	activity={data.activity}
 	uploadReady={data.uploadReady}
 	{createEntry}
 	{addPhoto}
@@ -144,5 +162,6 @@
 	{addNote}
 	{editNote}
 	{folderTransports}
+	{setPinned}
 	onChanged={() => invalidateAll()}
 />

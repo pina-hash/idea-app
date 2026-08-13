@@ -3,6 +3,7 @@
 	import type {
 		AddPhotoResult,
 		CreateEntryResult,
+		EntryActionResult,
 		NoteSaveResult,
 		NotebookEntry,
 		NotebookSession,
@@ -43,6 +44,7 @@
 	let configured = $state(true);
 	let notesReady = $state(true);
 	let foldersReady = $state(true);
+	let pinsReady = $state(true);
 	let uploadReady = $state(true);
 	/**
 	 * Pads the student's feed past the 30-entry render limit, so "Show older",
@@ -134,6 +136,7 @@
 			session_id: 'ses-3',
 			section_id: 'sec-1',
 			folder_id: 'f-2',
+			pinned_at: null,
 			custom_label: null,
 			upload_timestamp: '2026-07-29T15:42:00Z',
 			status: 'compliant',
@@ -158,6 +161,7 @@
 			session_id: null,
 			section_id: null,
 			folder_id: 'f-1',
+			pinned_at: null,
 			custom_label: 'Gearbox ratio worksheet',
 			upload_timestamp: '2026-08-02T19:10:00Z',
 			status: 'flagged',
@@ -173,6 +177,7 @@
 			session_id: null,
 			section_id: null,
 			folder_id: 'f-1',
+			pinned_at: null,
 			custom_label: 'Motor mount iteration 2',
 			upload_timestamp: '2026-08-04T11:05:00Z',
 			status: 'pending_review',
@@ -191,6 +196,7 @@
 			session_id: null,
 			section_id: null,
 			folder_id: 'f-3',
+			pinned_at: null,
 			custom_label: 'Chassis build log',
 			upload_timestamp: '2026-07-20T09:00:00Z',
 			status: 'compliant',
@@ -251,6 +257,7 @@
 			session_id: null,
 			section_id: null,
 			folder_id: null,
+			pinned_at: null,
 			custom_label: null,
 			upload_timestamp: '2026-08-06T08:30:00Z',
 			status: 'compliant',
@@ -269,6 +276,7 @@
 			session_id: null,
 			section_id: null,
 			folder_id: null,
+			pinned_at: null,
 			custom_label: null,
 			upload_timestamp: '2026-08-07T16:55:00Z',
 			status: 'compliant',
@@ -286,6 +294,7 @@
 			session_id: null,
 			section_id: null,
 			folder_id: null,
+			pinned_at: null,
 			custom_label: 'Shop layout notes',
 			upload_timestamp: '2026-08-07T09:00:00Z',
 			status: 'compliant',
@@ -312,6 +321,7 @@
 			session_id: null,
 			section_id: null,
 			folder_id: i % 3 === 0 ? 'f-1' : null,
+			pinned_at: null,
 			custom_label: i === 34 ? 'Surveying with the theodolite' : `Bench notes ${i + 1}`,
 			upload_timestamp: day.toISOString(),
 			status: 'compliant' as const,
@@ -319,22 +329,49 @@
 			instructor_comment: null,
 			session: null,
 			photos: i % 2 === 0 ? [photo(`f-p-${i}`, 1, `bench-${i}.jpg`)] : [],
+			// The theodolite entry is deliberately OLD (about six weeks back,
+			// well past the render limit in newest-first order) and carries a
+			// note written days ago. Under "recent activity" it has to climb
+			// over three dozen newer entries, which is what makes the sort
+			// provably a sort over the WHOLE notebook rather than over the
+			// thirty entries being painted.
 			notes:
-				i % 2 === 0
-					? []
-					: [note(`f-n-${i}`, `f-e-${i}`, `f-n-${i}`, 1, p(`Bench work, day ${i + 1}.`), day.toISOString())]
+				i === 34
+					? [
+							note(
+								`f-n-${i}`,
+								`f-e-${i}`,
+								`f-n-${i}`,
+								1,
+								p('Re-shot the theodolite setup and re-measured.'),
+								'2026-08-09T11:00:00Z'
+							)
+						]
+					: i % 2 === 0
+						? []
+						: [
+								note(
+									`f-n-${i}`,
+									`f-e-${i}`,
+									`f-n-${i}`,
+									1,
+									p(`Bench work, day ${i + 1}.`),
+									day.toISOString()
+								)
+							]
 		};
 	});
 
 	// Live copies so a fake save can actually append to the feed.
 	let studentEntries = $state<NotebookEntry[]>([...STUDENT_ENTRIES]);
+	let fillerEntries = $state<NotebookEntry[]>([...FILLER]);
 	let instructorEntries = $state<NotebookEntry[]>([...INSTRUCTOR_ENTRIES]);
 	let plainEntries = $state<NotebookEntry[]>([]);
 
 	const entries = $derived(
 		account === 'student'
 			? bulk
-				? [...studentEntries, ...FILLER]
+				? [...studentEntries, ...fillerEntries]
 				: studentEntries
 			: account === 'instructor'
 				? instructorEntries
@@ -496,6 +533,7 @@
 			session_id: sessionId,
 			section_id: session ? session.section_id : null,
 			folder_id: (form.get('folder_id') as string | null) ?? null,
+			pinned_at: null,
 			custom_label: (form.get('custom_label') as string | null) ?? null,
 			upload_timestamp: new Date().toISOString(),
 			status: 'compliant',
@@ -536,6 +574,7 @@
 			session_id: null,
 			section_id: null,
 			folder_id: payload.folder_id,
+			pinned_at: null,
 			custom_label: payload.custom_label,
 			upload_timestamp: new Date().toISOString(),
 			status: 'compliant',
@@ -628,6 +667,50 @@
 		);
 		return { ok: true };
 	}
+
+	// ---- pinning + activity (0091) -----------------------------------------
+
+	function pinIn(list: NotebookEntry[], id: string, pinned: boolean): NotebookEntry[] {
+		return list.map((e) =>
+			e.id === id
+				? { ...e, pinned_at: pinned ? new Date().toISOString() : null }
+				: e
+		);
+	}
+
+	/**
+	 * Mirrors notebook_set_entry_pinned: one entry, the caller's own, and a
+	 * timestamp rather than a flag. Every list is swept because the harness
+	 * holds four of them and an entry lives in exactly one.
+	 */
+	async function setPinned(entryId: string, pinned: boolean): Promise<EntryActionResult> {
+		log = [
+			...log,
+			`RPC notebook_set_entry_pinned p_entry_id=${JSON.stringify(entryId)} p_pinned=${pinned}`
+		];
+		studentEntries = pinIn(studentEntries, entryId, pinned);
+		fillerEntries = pinIn(fillerEntries, entryId, pinned);
+		instructorEntries = pinIn(instructorEntries, entryId, pinned);
+		plainEntries = pinIn(plainEntries, entryId, pinned);
+		return { ok: true };
+	}
+
+	/**
+	 * What notebook_entry_activity returns, computed here the way the VIEW
+	 * computes it: the latest of the entry's own stamp and its note revisions.
+	 * The one honest gap is photos -- a real row carries created_at and the
+	 * harness's NotebookPhoto shape has none (the feed never renders it), so
+	 * a photo added here does not move the stamp. Notes are what the sort is
+	 * really about and they are exact.
+	 */
+	const activity = $derived(
+		entries.map((entry) => ({
+			id: entry.id,
+			last_activity_at: [entry.upload_timestamp, ...entry.notes.map((n) => n.created_at)].reduce(
+				(a, b) => (a > b ? a : b)
+			)
+		}))
+	);
 </script>
 
 <svelte:head><title>dev // notebook</title></svelte:head>
@@ -653,6 +736,7 @@
 	<label><input type="checkbox" bind:checked={configured} /> 0069 applied</label>
 	<label><input type="checkbox" bind:checked={notesReady} /> 0078 applied</label>
 	<label><input type="checkbox" bind:checked={foldersReady} data-testid="sim-0088" /> 0088 applied</label>
+	<label><input type="checkbox" bind:checked={pinsReady} data-testid="sim-0091" /> 0091 applied</label>
 	<label><input type="checkbox" bind:checked={uploadReady} /> Drive configured</label>
 	<label><input type="checkbox" bind:checked={bulk} data-testid="sim-bulk" /> 40 more entries</label>
 	<button type="button" onclick={() => (log = [])}>clear log</button>
@@ -675,6 +759,8 @@
 		{configured}
 		{notesReady}
 		{foldersReady}
+		{pinsReady}
+		{activity}
 		{uploadReady}
 		{createEntry}
 		{addPhoto}
@@ -682,6 +768,7 @@
 		{addNote}
 		{editNote}
 		folderTransports={foldersReady ? folderTransports : undefined}
+		setPinned={pinsReady ? setPinned : undefined}
 	/>
 {/key}
 
