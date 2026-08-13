@@ -2,9 +2,16 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import DebtPaymentPanel from './DebtPaymentPanel.svelte';
 	import {
+		balanceFor,
+		DEFAULT_MEDIUM,
+		effectiveMedium,
 		EXTRA_CREDIT_GRADING_CATEGORIES,
+		FORCED_MEDIUM,
 		KIND_LABELS,
 		KIND_ORDER,
+		MEDIA,
+		MEDIUM_HINTS,
+		MEDIUM_LABELS,
 		payRaisePreview,
 		perfectScorePreview,
 		priceHint,
@@ -15,6 +22,7 @@
 		weeklyWagePreview,
 		WEEKLY_WAGE_CATEGORY_ID,
 		type CoinCategory,
+		type CoinMedium,
 		type StudentSuggestion
 	} from '$lib/coin-desk';
 	import {
@@ -67,6 +75,7 @@
 		category_id: string;
 		category_name: string;
 		amount: number;
+		medium: CoinMedium;
 		quantity: number | null;
 		note: string | null;
 		actor_email: string;
@@ -74,7 +83,10 @@
 	}
 	interface CoinLookup {
 		email: string;
+		/** The TOTAL. The two media below decompose it and always sum to it. */
 		balance: number;
+		physical_balance: number;
+		digital_balance: number;
 		wage_tier: number;
 		eating_pass_active: boolean;
 		eating_pass_strikes: number;
@@ -183,6 +195,25 @@
 	let overnight = $state(false);
 	let noteText = $state('');
 
+	/**
+	 * WHICH BALANCE THIS ENTRY MOVES (0096). Defaults to physical, because
+	 * physical coins are the primary system -- digital is the exception for a
+	 * student who was not there to be handed any. Deliberately NOT reset by
+	 * onCategoryChange(): an admin logging a session's worth of entries for
+	 * one absent student sets it once, and having it snap back to physical
+	 * between categories is exactly how the wrong balance gets credited.
+	 */
+	let medium = $state<CoinMedium>(DEFAULT_MEDIUM);
+
+	/**
+	 * What the server will ACTUALLY use. Physical Coin Submission is forced to
+	 * physical whatever is chosen (it is a correction of the physical record,
+	 * never a deposit into digital), so the picker says so rather than
+	 * offering a choice that would be silently ignored.
+	 */
+	const forcedMedium = $derived(category ? FORCED_MEDIUM[category.id] : undefined);
+	const activeMedium = $derived(category ? effectiveMedium(category.id, medium) : medium);
+
 	function resetEntryFields() {
 		selectedCategoryId = '';
 		rangeAmount = '';
@@ -224,6 +255,49 @@
 	let logMode = $state<'student' | 'section'>('student');
 	let selectedSectionId = $state('');
 
+	/**
+	 * PER-STUDENT MEDIUM OVERRIDES for a section run (0096). The real
+	 * workflow this exists for: a section's Weekly Wage is ONE physical pass
+	 * with the two students who were absent flipped to digital before
+	 * submitting -- one round trip, not a physical run followed by two
+	 * single-student digital entries.
+	 *
+	 * Keyed by lowercased email, exactly what coin_bulk_log_section's
+	 * p_medium_overrides expects. An email in here that is not on the roster
+	 * comes back in `unmatched_overrides` rather than being silently dropped,
+	 * so a stale one after a roster change is visible.
+	 */
+	let mediumOverrides = $state<Record<string, CoinMedium>>({});
+	let sectionRoster = $state<string[]>([]);
+	let rosterBusy = $state(false);
+
+	/** The section's roster, so the override list has real names to offer. */
+	async function loadSectionRoster(sectionId: string) {
+		mediumOverrides = {};
+		sectionRoster = [];
+		if (!sectionId) return;
+		rosterBusy = true;
+		const resp = await supabase.rpc('coin_admin_list_section_students', {
+			p_section_id: sectionId
+		});
+		rosterBusy = false;
+		if (resp.error) return;
+		sectionRoster = ((resp.data ?? []) as { student_email: string }[]).map((r) => r.student_email);
+	}
+
+	function toggleOverride(email: string) {
+		const current = mediumOverrides[email] ?? medium;
+		const flipped: CoinMedium = current === 'physical' ? 'digital' : 'physical';
+		if (flipped === medium) {
+			const { [email]: _dropped, ...rest } = mediumOverrides;
+			mediumOverrides = rest;
+		} else {
+			mediumOverrides = { ...mediumOverrides, [email]: flipped };
+		}
+	}
+
+	const overrideCount = $derived(Object.keys(mediumOverrides).length);
+
 	const categoryOptions = $derived(
 		logMode === 'section' ? selectableCategories.filter(isBulkEligible) : selectableCategories
 	);
@@ -233,6 +307,8 @@
 		logMode = mode;
 		selectedCategoryId = '';
 		selectedSectionId = '';
+		mediumOverrides = {};
+		sectionRoster = [];
 		onCategoryChange();
 	}
 
@@ -316,6 +392,7 @@
 	function reasonMessage(r: {
 		reason?: string;
 		balance?: number;
+		medium?: string;
 		cap_period?: string;
 		used_points?: number;
 		cap_points?: number;
@@ -324,7 +401,7 @@
 	}): string {
 		switch (r.reason) {
 			case 'debt':
-				return `Blocked: balance is negative (${r.balance}i¢) -- purchases are locked until it clears.`;
+				return `Blocked: the ${r.medium ?? ''} balance is negative (${r.balance}i¢) -- ${r.medium ?? ''} purchases are locked until it clears. The other balance is unaffected.`;
 			case 'cap_reached':
 				return `Blocked: already logged the max for this ${r.cap_period === 'day' ? 'day' : 'calendar month'}.`;
 			case 'pass_already_active':
@@ -345,20 +422,30 @@
 		entryBusy = true;
 		const email = lookup.email;
 
+		// EVERY call names p_medium. 0096 dropped the old arity of each of
+		// these six RPCs before recreating it, so the parameter is not
+		// optional in practice -- a client that omitted it would resolve
+		// against a signature that no longer exists.
 		let resp: { data: unknown; error: { message: string } | null };
 		if (category.id === 'perfect_score_graded_work') {
 			resp = await supabase.rpc('coin_log_perfect_score', {
 				p_email: email,
 				p_points: Math.round(num(pointsInput)),
-				p_note: noteOrNull()
+				p_note: noteOrNull(),
+				p_medium: medium
 			});
 		} else if (category.id === 'pay_raise') {
-			resp = await supabase.rpc('coin_log_pay_raise', { p_email: email, p_note: noteOrNull() });
+			resp = await supabase.rpc('coin_log_pay_raise', {
+				p_email: email,
+				p_note: noteOrNull(),
+				p_medium: medium
+			});
 		} else if (category.id === 'property_damage_careless') {
 			resp = await supabase.rpc('coin_log_property_damage_careless', {
 				p_email: email,
 				p_cost_dollars: num(costDollarsInput),
-				p_note: noteText.trim()
+				p_note: noteText.trim(),
+				p_medium: medium
 			});
 		} else if (category.id === 'three_d_printing') {
 			resp = await supabase.rpc('coin_log_three_d_printing', {
@@ -366,14 +453,16 @@
 				p_grams: num(gramsInput),
 				p_hours: num(hoursInput),
 				p_overnight: overnight,
-				p_note: noteOrNull()
+				p_note: noteOrNull(),
+				p_medium: medium
 			});
 		} else if (category.id === 'extra_credit') {
 			resp = await supabase.rpc('coin_log_extra_credit', {
 				p_email: email,
 				p_points: Math.round(num(pointsInput)),
 				p_grading_category: gradingCategory,
-				p_note: noteOrNull()
+				p_note: noteOrNull(),
+				p_medium: medium
 			});
 		} else {
 			resp = await supabase.rpc('coin_log_transaction', {
@@ -386,7 +475,8 @@
 							? Math.round(num(variableAmount))
 							: null,
 				p_quantity: category.pricing_model === 'per_unit' ? num(quantityInput) : null,
-				p_note: noteOrNull()
+				p_note: noteOrNull(),
+				p_medium: medium
 			});
 		}
 
@@ -446,7 +536,9 @@
 					: category.pricing_model === 'variable'
 						? Math.round(num(variableAmount))
 						: null,
-			p_note: noteOrNull()
+			p_note: noteOrNull(),
+			p_medium: medium,
+			p_medium_overrides: mediumOverrides
 		});
 		bulkBusy = false;
 		if (resp.error) {
@@ -532,6 +624,16 @@
 		<h2>Student summary</h2>
 		<div class="coin-summary">
 			<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}i¢</div>
+			<div class="medium-split">
+				<span class="split-cell" class:negative={lookup.physical_balance < 0}>
+					<span class="split-label">physical</span>
+					<span class="split-value">{lookup.physical_balance}i&cent;</span>
+				</span>
+				<span class="split-cell" class:negative={lookup.digital_balance < 0}>
+					<span class="split-label">digital</span>
+					<span class="split-value">{lookup.digital_balance}i&cent;</span>
+				</span>
+			</div>
 			<div class="coin-meta">
 				<span>{lookup.email}</span>
 				<span>wage tier {lookup.wage_tier}</span>
@@ -556,6 +658,9 @@
 							<span class="since">by {t.actor_email} &middot; {when(t.created_at)}</span>
 						</div>
 						<div class="actions">
+							<span class="medium-chip" class:digital={t.medium === 'digital'}>
+								{t.medium === 'digital' ? 'digital' : 'physical'}
+							</span>
 							<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
 								{t.amount > 0 ? '+' : ''}{t.amount}i¢
 							</span>
@@ -571,10 +676,38 @@
 	<DebtPaymentPanel
 		{supabase}
 		email={lookup.email}
-		balance={lookup.balance}
+		physicalBalance={lookup.physical_balance}
+		digitalBalance={lookup.digital_balance}
 		onLogged={() => runLookup(true)}
 	/>
 {/if}
+
+{#snippet mediumPicker()}
+	<div class="field-row">
+		<span class="field-label">Which balance</span>
+		{#if forcedMedium}
+			<p class="preview">
+				Always {MEDIUM_LABELS[forcedMedium]}. This category credits physical coins the student
+				already holds that the record is missing -- it is a correction of the physical record, not
+				a deposit into digital. There is no path from physical into digital.
+			</p>
+		{:else}
+			<div class="medium-toggle">
+				{#each MEDIA as m (m)}
+					<button type="button" class:active={medium === m} onclick={() => (medium = m)}>
+						{MEDIUM_LABELS[m]}
+					</button>
+				{/each}
+			</div>
+			<p class="hint">{MEDIUM_HINTS[medium]}</p>
+			{#if logMode === 'student' && lookup}
+				<p class="preview">
+					{MEDIUM_LABELS[activeMedium]} balance right now: {balanceFor(lookup, activeMedium)}i&cent;
+				</p>
+			{/if}
+		{/if}
+	</div>
+{/snippet}
 
 {#snippet amountFields(cat: CoinCategory)}
 	{#if cat.pricing_model === 'flat'}
@@ -744,6 +877,8 @@
 					{@render amountFields(category)}
 				{/if}
 
+				{@render mediumPicker()}
+
 				<div class="field-row">
 					<label for="note-input">
 						Note{noteRequired ? ' (required)' : ' (optional)'}
@@ -773,7 +908,11 @@
 
 		<div class="field-row">
 			<label for="section-select">Section</label>
-			<select id="section-select" bind:value={selectedSectionId}>
+			<select
+				id="section-select"
+				bind:value={selectedSectionId}
+				onchange={() => loadSectionRoster(selectedSectionId)}
+			>
 				<option value="" disabled selected>Choose a section&hellip;</option>
 				{#each sections as s (s.id)}
 					<option value={s.id}>
@@ -812,6 +951,41 @@
 
 			{@render amountFields(category)}
 
+			{@render mediumPicker()}
+
+			{#if !forcedMedium}
+				<div class="field-row">
+					<span class="field-label">
+						Per-student exceptions
+						{overrideCount ? ` (${overrideCount})` : ''}
+					</span>
+					<p class="hint">
+						The whole section is logged as {MEDIUM_LABELS[medium]}. Flip anyone who was absent (or
+						present) to the other balance -- it all goes in one server-side pass, not a second run.
+					</p>
+					{#if rosterBusy}
+						<p class="note">Loading roster&hellip;</p>
+					{:else if !sectionRoster.length}
+						<p class="note">No students on this section's roster yet.</p>
+					{:else}
+						<div class="override-grid">
+							{#each sectionRoster as email (email)}
+								{@const rowMedium = mediumOverrides[email] ?? medium}
+								<button
+									type="button"
+									class="override-chip"
+									class:flipped={!!mediumOverrides[email]}
+									onclick={() => toggleOverride(email)}
+								>
+									<span class="override-email">{email}</span>
+									<span class="override-medium">{MEDIUM_LABELS[rowMedium]}</span>
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
+
 			<div class="field-row">
 				<label for="bulk-note-input">
 					Note{noteRequired ? ' (required)' : ' (optional)'}
@@ -828,9 +1002,18 @@
 
 		{#if bulkResponse}
 			<p class="feedback notice">
-				Logged against {bulkResponse.total} student{bulkResponse.total === 1 ? '' : 's'}:
-				{bulkResponse.succeeded} succeeded, {bulkResponse.refused} refused.
+				Logged against {bulkResponse.total} student{bulkResponse.total === 1 ? '' : 's'} as
+				{bulkResponse.medium ?? medium}: {bulkResponse.succeeded} succeeded, {bulkResponse.refused} refused.
 			</p>
+			{#if bulkResponse.unmatched_overrides?.length}
+				<p class="feedback error">
+					{bulkResponse.unmatched_overrides.length} per-student exception{bulkResponse
+						.unmatched_overrides.length === 1
+						? ''
+						: 's'} matched nobody on the roster and did nothing:
+					{bulkResponse.unmatched_overrides.join(', ')}
+				</p>
+			{/if}
 			<div class="rows bulk-rows">
 				{#each bulkResponse.results as r (r.email)}
 					<div class="row">
@@ -838,6 +1021,9 @@
 							<span class="email">{r.email}</span>
 						</div>
 						<div class="actions">
+							{#if r.medium}
+								<span class="medium-chip" class:digital={r.medium === 'digital'}>{r.medium}</span>
+							{/if}
 							{#if r.ok}
 								<span class="txn-pos">
 									{typeof r.amount === 'number'
@@ -986,6 +1172,108 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		color: var(--dim);
+	}
+	.medium-split {
+		display: flex;
+		gap: 0.9rem;
+		flex-wrap: wrap;
+	}
+	.split-cell {
+		display: flex;
+		flex-direction: column;
+		gap: 0.05rem;
+	}
+	.split-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--dim);
+	}
+	.split-value {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.95rem;
+		color: var(--cyan);
+	}
+	.split-cell.negative .split-value {
+		color: var(--amber);
+	}
+	.medium-chip {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.58rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--dim);
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 0.05rem 0.3rem;
+		margin-right: 0.5rem;
+	}
+	.medium-chip.digital {
+		color: var(--cyan);
+		border-color: var(--cyan);
+	}
+	.medium-toggle {
+		display: flex;
+		gap: 0.4rem;
+	}
+	.medium-toggle button {
+		background: var(--bg0);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		color: var(--dim);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		padding: 0.3rem 0.8rem;
+		cursor: pointer;
+	}
+	.medium-toggle button.active {
+		color: var(--bg0);
+		background: var(--cyan);
+		border-color: var(--cyan);
+	}
+	.field-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--green);
+	}
+	.hint {
+		color: var(--dim);
+		font-size: 0.78rem;
+		margin: 0;
+	}
+	.override-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		margin-top: 0.2rem;
+	}
+	.override-chip {
+		display: flex;
+		align-items: baseline;
+		gap: 0.4rem;
+		background: var(--bg0);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		color: var(--white);
+		font-family: 'Rajdhani', sans-serif;
+		font-size: 0.85rem;
+		padding: 0.25rem 0.5rem;
+		cursor: pointer;
+	}
+	.override-chip.flipped {
+		border-color: var(--cyan);
+	}
+	.override-medium {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.6rem;
+		text-transform: uppercase;
+		color: var(--dim);
+	}
+	.override-chip.flipped .override-medium {
+		color: var(--cyan);
 	}
 	.rows {
 		display: flex;

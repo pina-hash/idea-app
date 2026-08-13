@@ -1,7 +1,7 @@
 <script lang="ts">
 	import CoinBalanceView from '$lib/coin-balance/CoinBalanceView.svelte';
 	import {
-		sumBalance,
+		sumBalances,
 		withCategoryNames,
 		type CoinBalanceTransaction,
 		type EatingPassStatus
@@ -42,24 +42,31 @@
 		{ id: 'balance_correction', name: 'Balance Correction / Refund' }
 	];
 
+	/**
+	 * Sample rows carry a MEDIUM (0096). Defaulting to physical here mirrors
+	 * the logging default, and the explicit digital rows below are what make
+	 * the two-balance split render as something other than a copy of the
+	 * total.
+	 */
 	function tx(
 		id: string,
 		category_id: string,
 		amount: number,
 		created_at: string,
 		note: string | null = null,
-		meta: Record<string, unknown> | null = null
+		meta: Record<string, unknown> | null = null,
+		medium: 'physical' | 'digital' = 'physical'
 	): CoinBalanceTransaction {
-		return { id, category_id, amount, quantity: null, note, created_at, meta };
+		return { id, category_id, amount, medium, quantity: null, note, created_at, meta };
 	}
 
 	const POPULATED: CoinBalanceTransaction[] = [
-		tx('9', 'balance_correction', 10, '2026-08-06T15:00:00Z', 'Legacy Sheets balance carried over'),
+		tx('9', 'balance_correction', 10, '2026-08-06T15:00:00Z', 'Legacy Sheets balance carried over', null, 'digital'),
 		tx('8', 'pay_raise', -40, '2026-08-05T18:20:00Z'),
 		tx('7', 'eating_violation', -5, '2026-08-05T12:05:00Z', null, { strike: true }),
-		tx('6', 'eating_pass', -150, '2026-08-04T09:00:00Z'),
+		tx('6', 'eating_pass', -150, '2026-08-04T09:00:00Z', null, null, 'digital'),
 		tx('5', 'correct_answer_in_class', 1, '2026-08-03T14:10:00Z'),
-		tx('4', 'above_and_beyond', 2, '2026-08-01T16:45:00Z', 'Helped a classmate debug their code'),
+		tx('4', 'above_and_beyond', 2, '2026-08-01T16:45:00Z', 'Helped a classmate debug their code', null, 'digital'),
 		tx('3', 'shop_safety_violation', -12, '2026-07-30T11:15:00Z', 'No safety glasses at the bandsaw'),
 		tx('2', 'weekly_wage', 1, '2026-07-28T08:00:00Z'),
 		tx('1', 'weekly_wage', 1, '2026-07-21T08:00:00Z')
@@ -92,7 +99,7 @@
 	);
 	const configured = $derived(scenario !== 'unconfigured');
 	const displayTx = $derived(withCategoryNames(rows, CATEGORIES));
-	const balance = $derived(sumBalance(rows));
+	const balances = $derived(sumBalances(rows));
 	const eatingPass = $derived(EATING_PASS[scenario]);
 	const wageTier = $derived(scenario === 'populated' ? 2 : 1);
 </script>
@@ -114,7 +121,9 @@
 		{configured}
 		email="student@boscotech.net"
 		displayName="Test Student"
-		{balance}
+		balance={balances.balance}
+	physicalBalance={balances.physical_balance}
+	digitalBalance={balances.digital_balance}
 		transactions={displayTx}
 		{wageTier}
 		{eatingPass}

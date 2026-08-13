@@ -49,7 +49,10 @@ export const leaderboard = [
 		balance: 155,
 		debt: 0,
 		weekly_wage: 3,
-		wage_tier: 3
+		wage_tier: 3,
+		// 0096: the two media always sum to `balance`.
+		physical_balance: 120,
+		digital_balance: 35
 	},
 	{
 		student_id: ID_GRACE,
@@ -62,7 +65,9 @@ export const leaderboard = [
 		balance: -74,
 		debt: 74,
 		weekly_wage: 1,
-		wage_tier: 1
+		wage_tier: 1,
+		physical_balance: 6,
+		digital_balance: -80
 	},
 	{
 		student_id: ID_WALKUP,
@@ -75,7 +80,9 @@ export const leaderboard = [
 		balance: 40,
 		debt: 0,
 		weekly_wage: 2,
-		wage_tier: 2
+		wage_tier: 2,
+		physical_balance: 0,
+		digital_balance: 40
 	}
 ];
 
@@ -117,6 +124,8 @@ export const studentDetail: Record<string, Record<string, unknown>> = {
 		name: 'Lovelace, Ada',
 		section: 'IDEA-113',
 		balance: 155,
+		physical_balance: 120,
+		digital_balance: 35,
 		wage_tier: 3,
 		weekly_wage: 3,
 		eating_pass_held: true,
@@ -128,6 +137,8 @@ export const studentDetail: Record<string, Record<string, unknown>> = {
 		name: 'Hopper, Grace',
 		section: 'IDEA-208-1',
 		balance: -74,
+		physical_balance: 6,
+		digital_balance: -80,
 		wage_tier: 1,
 		weekly_wage: 1,
 		eating_pass_held: false,
@@ -139,6 +150,8 @@ export const studentDetail: Record<string, Record<string, unknown>> = {
 		name: 'de la Loza, Joseph',
 		section: 'IDEA-304',
 		balance: 40,
+		physical_balance: 0,
+		digital_balance: 40,
 		wage_tier: 2,
 		weekly_wage: 2,
 		eating_pass_held: false,

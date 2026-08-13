@@ -17,11 +17,15 @@
  *    `parseCSV` and its contract/reason/role renderers are unchanged legacy
  *    code, so the summary and transaction feeds are emitted as CSV under the
  *    EXACT column headers that page already looks for, and the JSON feeds
- *    keep the field names it already reads. Where a legacy column has no
- *    meaning in the Supabase economy — `Bank Balance` and `Debt` were
- *    physical-coin bookkeeping — the honest equivalent is served (one net
- *    balance; debt is that balance being negative) rather than a fabricated
- *    number.
+ *    keep the field names it already reads. `Debt` is the total balance being
+ *    negative. `Bank Balance` was empty until 0096 gave the economy a second
+ *    balance to put there — see the summary case for the mapping.
+ *
+ * THE PAGE IS NOT EDITED BY THIS MODULE, and 0096 deliberately did not edit it
+ * either: it recomputes its own figures client-side from these columns, and a
+ * separate display pass owns the drawer, the analytics buckets, and how an
+ * amount renders. `medium` is available on the per-student and transaction
+ * RPCs for that pass; the CSV shape here is unchanged.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -86,6 +90,8 @@ interface LeaderboardRow {
 	debt: number;
 	weekly_wage: number;
 	wage_tier: number;
+	physical_balance: number;
+	digital_balance: number;
 }
 
 interface TransactionRow {
@@ -163,13 +169,21 @@ export async function readCoinPublic(
 						r.awarded,
 						r.fines,
 						r.spent,
+						// `Coin Balance` is the TOTAL (physical coins in hand plus
+						// digital) since 0096 -- one number for "how much IDEA
+						// Coin does this student have", which is what the column
+						// has always meant to a reader.
 						r.balance,
 						r.paid_out,
-						// No physical-coin bank in this system. Left EMPTY rather
-						// than zeroed: the page only renders the stat when the
-						// value parses as a positive number, so empty is how it
-						// correctly shows nothing.
-						'',
+						// `Bank Balance` was a legacy physical-coin column 0089
+						// deliberately served EMPTY, because the Supabase economy
+						// had one balance and nothing to put there. It has one
+						// now: the DIGITAL balance -- the part that is banked
+						// rather than in hand. The page renders this stat only
+						// when it parses as a POSITIVE number, so a zero or
+						// negative digital balance correctly shows nothing, and
+						// the slot lights up with no edit to that page.
+						r.digital_balance,
 						r.debt,
 						r.wage_tier,
 						r.student_id

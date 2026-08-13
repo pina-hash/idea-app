@@ -15,28 +15,44 @@
 	 * SectionManager / RolesManager / ContractsManager are, so a dev harness
 	 * can mount this against a fake ledger too.
 	 *
-	 * The list itself is a plain read of the coin_balances view (0070) --
-	 * every admin already sees every row there (its RLS predicate is
-	 * `student_email = current_user_email() or is_admin()`), so no new RPC
-	 * is needed just to LIST candidates. Paying is different: both actions
-	 * below call a migration 0079 RPC that re-reads the CURRENT balance
-	 * server-side at the moment it writes, never the balance this list
-	 * happened to show when it loaded -- see payout.ts.
+	 * The list itself is a plain read of the coin_balances view (0070, three
+	 * columns since 0096) -- every admin already sees every row there (its RLS
+	 * predicate is `student_email = current_user_email() or is_admin()`), so
+	 * no new RPC is needed just to LIST candidates. Paying is different: both
+	 * actions below call a migration 0079/0096 RPC that re-reads the CURRENT
+	 * digital balance server-side at the moment it writes, never the balance
+	 * this list happened to show when it loaded -- see payout.ts.
+	 *
+	 * THE LIST IS FILTERED ON digital_balance, NOT balance. Since 0096 a
+	 * payout is a digital -> physical TRANSFER, so a student whose whole
+	 * positive total is physical has nothing to convert and must not appear
+	 * here -- filtering on the total would offer to "pay" coins already in
+	 * their hand.
 	 */
 	let { supabase, configured = true }: { supabase: SupabaseClient; configured?: boolean } = $props();
 
 	let candidates = $state<CoinPayoutCandidate[]>([]);
 	let listBusy = $state(false);
 	let listError = $state('');
+	/**
+	 * Per-row partial amount. Empty = pay the full digital balance.
+	 *
+	 * Typed `string | number` because `bind:value` on `<input type="number">`
+	 * COERCES to a number -- the trap this codebase has now hit three times
+	 * (ReviewConsole's unit field, ClassroomManage's points field). Typing it
+	 * as `string` compiles fine and then throws at runtime on `.trim()`,
+	 * which leaves the Pay button stuck on "Paying…" with no visible error.
+	 */
+	let partialAmounts = $state<Record<string, string | number>>({});
 
 	async function loadCandidates() {
 		listBusy = true;
 		listError = '';
 		const resp = await supabase
 			.from('coin_balances')
-			.select('student_email, balance, last_activity_at')
-			.gt('balance', 0)
-			.order('balance', { ascending: false });
+			.select('student_email, balance, physical_balance, digital_balance, last_activity_at')
+			.gt('digital_balance', 0)
+			.order('digital_balance', { ascending: false });
 		if (resp.error) {
 			listBusy = false;
 			listError = resp.error.message;
@@ -45,6 +61,8 @@
 		const rows = (resp.data ?? []) as {
 			student_email: string;
 			balance: number;
+			physical_balance: number;
+			digital_balance: number;
 			last_activity_at: string | null;
 		}[];
 		const emails = rows.map((r) => r.student_email);
@@ -73,6 +91,8 @@
 		candidates = rows.map((r) => ({
 			student_email: r.student_email,
 			balance: r.balance,
+			physical_balance: r.physical_balance,
+			digital_balance: r.digital_balance,
 			last_activity_at: r.last_activity_at,
 			display_name: names.get(r.student_email)?.display_name ?? null,
 			full_name: names.get(r.student_email)?.full_name ?? null
@@ -94,11 +114,37 @@
 		return note.trim() || null;
 	}
 
+	/**
+	 * A blank amount box means the FULL digital balance -- p_amount stays null
+	 * and the RPC resolves it from the ledger itself, which is the pre-0096
+	 * behaviour and the one that cannot go stale. A typed amount is a partial
+	 * withdrawal; the server still refuses anything above what is actually
+	 * digital at the moment it writes.
+	 */
+	function partialFor(email: string): number | null {
+		const raw = String(partialAmounts[email] ?? '').trim();
+		if (!raw) return null;
+		const n = Number(raw);
+		return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+	}
+
 	async function payOne(email: string) {
 		payingEmail = email;
 		payError = '';
 		lastResponse = null;
-		const resp = await supabase.rpc('coin_payout_student', { p_email: email, p_note: noteOrNull() });
+		let resp: { data: unknown; error: { message: string } | null };
+		try {
+			resp = await supabase.rpc('coin_payout_student', {
+				p_email: email,
+				p_note: noteOrNull(),
+				p_amount: partialFor(email)
+			});
+		} catch (e) {
+			// Never leave the row stuck on "Paying…" with nothing on screen.
+			payingEmail = null;
+			payError = e instanceof Error ? e.message : String(e);
+			return;
+		}
 		payingEmail = null;
 		if (resp.error) {
 			payError = resp.error.message;
@@ -112,6 +158,7 @@
 			refused: r.ok ? 0 : 1,
 			results: [{ email, ...r } as CoinPayoutResult]
 		};
+		partialAmounts[email] = '';
 		await loadCandidates();
 	}
 
@@ -119,10 +166,12 @@
 	 * ONE round trip to coin_bulk_payout (0079) -- not a client-side loop
 	 * calling payOne() per row. That matters for exactly the race this
 	 * feature exists to close: the RPC re-derives its own roster (every
-	 * student with a positive balance RIGHT NOW) and re-reads each
-	 * student's balance again immediately before writing, so it can never
-	 * pay a stale amount even if a fine or award lands mid-run against a
-	 * student further down the list. See 0079's migration header.
+	 * student with a positive DIGITAL balance RIGHT NOW) and re-reads each
+	 * student's digital balance again immediately before writing, so it can
+	 * never pay a stale amount even if a fine or award lands mid-run against
+	 * a student further down the list. Pay All is always a FULL payout per
+	 * student; a partial one is a per-row decision, so it lives on the row.
+	 * See 0079's and 0096's migration headers.
 	 */
 	async function payAll() {
 		payAllBusy = true;
@@ -135,6 +184,7 @@
 			return;
 		}
 		lastResponse = resp.data as CoinBulkPayoutResponse;
+		partialAmounts = {};
 		await loadCandidates();
 	}
 
@@ -148,11 +198,17 @@
 <section class="card payout-manager">
 	<h2>Payout</h2>
 	<p class="note">
-		Every student with a positive balance, ready to convert to physical coins in one click --
-		logged as the same "Coin Payout" category the single-student flow below already uses. Pay All
-		re-derives the whole list and re-reads each balance server-side at the moment it writes, so a
-		fine or award landed by another admin in between is always reflected in the amount actually
-		paid, never a stale one.
+		Every student with a positive DIGITAL balance, ready to convert to physical coins. A payout is
+		a transfer, not a drain: it debits digital and credits physical by the same amount, so the
+		student's total does not change -- the coins changed form. Leave an amount blank to pay the
+		whole digital balance, or type one for a partial withdrawal. Pay All re-derives the whole list
+		and re-reads each digital balance server-side at the moment it writes, so a fine or award
+		landed by another admin in between is always reflected in the amount actually paid, never a
+		stale one.
+	</p>
+	<p class="note">
+		This is the ONLY path between the two balances, and it runs one way. There is no deposit from
+		physical back into digital.
 	</p>
 
 	{#if !configured}
@@ -177,7 +233,7 @@
 		{#if listBusy && !candidates.length}
 			<p class="note">Loading&hellip;</p>
 		{:else if !candidates.length}
-			<p class="note">No student currently has a positive balance.</p>
+			<p class="note">No student currently has a positive digital balance to convert.</p>
 		{:else}
 			<div class="rows payout-rows">
 				{#each candidates as c (c.student_email)}
@@ -189,9 +245,22 @@
 							<span class="since">
 								{c.student_email}{c.last_activity_at ? ` · last activity ${when(c.last_activity_at)}` : ''}
 							</span>
+							<span class="since">
+								holds {c.physical_balance}i&cent; physical &middot; total {c.balance}i&cent;
+							</span>
 						</div>
 						<div class="actions">
-							<span class="balance">{c.balance}i&cent;</span>
+							<span class="balance">{c.digital_balance}i&cent;</span>
+							<input
+								class="partial"
+								type="number"
+								min="1"
+								max={c.digital_balance}
+								step="1"
+								placeholder="all"
+								aria-label="Partial payout amount for {c.student_email}"
+								bind:value={partialAmounts[c.student_email]}
+							/>
 							<button
 								class="mini"
 								disabled={payingEmail === c.student_email || payAllBusy}
@@ -226,6 +295,7 @@
 							{#if r.ok}
 								<span class="txn-pos">
 									{typeof r.amount === 'number' ? `${Math.abs(r.amount)}i¢ paid` : 'paid'}
+									{r.partial ? ' (partial)' : ''}
 								</span>
 							{:else}
 								<span class="txn-neg">{payoutRefusalMessage(r)}</span>
@@ -331,6 +401,20 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.95rem;
 		color: var(--green);
+	}
+	.partial {
+		width: 5rem;
+		background: var(--bg0);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		color: var(--white);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		padding: 0.2rem 0.35rem;
+	}
+	.partial:focus {
+		outline: 2px solid var(--cyan);
+		outline-offset: 1px;
 	}
 	.mini {
 		background: none;

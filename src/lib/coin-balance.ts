@@ -18,10 +18,20 @@
  * answer, it does not recompute it.
  */
 
+import type { CoinBalances, CoinMedium } from '$lib/coin-desk';
+
 export interface CoinBalanceTransaction {
 	id: string;
 	category_id: string;
 	amount: number;
+	/**
+	 * Which balance this row moved (0096). Optional so a row read from a
+	 * pre-0096 backend, or a hand-written fixture that predates the column,
+	 * still typechecks -- `undefined` is treated as 'digital' by
+	 * `sumBalances` below, which is exactly what the backfill decided every
+	 * pre-0096 row meant.
+	 */
+	medium?: CoinMedium;
 	quantity: number | null;
 	note: string | null;
 	created_at: string;
@@ -55,10 +65,30 @@ export interface EatingPassStatus {
 }
 
 /**
- * Sum of every row's signed amount -- the same arithmetic `coin_balances`
- * (the derived view) performs, over rows the student's own RLS policy
- * already scoped to their own email.
+ * The three numbers, summed the way `coin_balances` (the derived view) sums
+ * them since 0096 -- total, physical, digital -- over rows the student's own
+ * RLS policy already scoped to their own email.
+ *
+ * A row with no `medium` counts as DIGITAL, which is the backfill's own rule
+ * for every pre-0096 row (the single balance was always the digital one), so
+ * this and the view agree on a mixed-vintage list.
+ */
+export function sumBalances(transactions: CoinBalanceTransaction[]): CoinBalances {
+	let physical = 0;
+	let digital = 0;
+	for (const t of transactions) {
+		if (t.medium === 'physical') physical += t.amount;
+		else digital += t.amount;
+	}
+	return { balance: physical + digital, physical_balance: physical, digital_balance: digital };
+}
+
+/**
+ * The TOTAL alone, for callers that genuinely only want one number. Kept as a
+ * thin wrapper over sumBalances rather than a second reduce, so there is one
+ * implementation of the arithmetic here and it can never disagree with the
+ * per-medium one beside it.
  */
 export function sumBalance(transactions: CoinBalanceTransaction[]): number {
-	return transactions.reduce((sum, t) => sum + t.amount, 0);
+	return sumBalances(transactions).balance;
 }

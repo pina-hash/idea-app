@@ -62,6 +62,8 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 			displayName: null,
 			configured: true,
 			balance: 0,
+			physicalBalance: 0,
+			digitalBalance: 0,
 			transactions: [],
 			wageTier: null,
 			eatingPass: { active: false, strikes: 0 } as EatingPassStatus,
@@ -80,6 +82,8 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 
 	const detail = (lookup ?? {}) as {
 		balance?: number;
+		physical_balance?: number;
+		digital_balance?: number;
 		wage_tier?: number;
 		eating_pass_active?: boolean;
 		eating_pass_strikes?: number;
@@ -110,6 +114,8 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 		// The RPC's own total, not a sum of `recent_transactions` -- that list
 		// is capped at 25 rows, so summing it would understate a busy account.
 		balance: lookupError ? 0 : (detail.balance ?? 0),
+		physicalBalance: lookupError ? 0 : (detail.physical_balance ?? 0),
+		digitalBalance: lookupError ? 0 : (detail.digital_balance ?? 0),
 		transactions: withCategoryNames(rows, categories ?? []),
 		wageTier: detail.wage_tier ?? 1,
 		eatingPass: {

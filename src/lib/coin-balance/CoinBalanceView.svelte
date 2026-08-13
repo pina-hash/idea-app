@@ -17,6 +17,8 @@
 		email,
 		displayName,
 		balance,
+		physicalBalance = 0,
+		digitalBalance = 0,
 		transactions,
 		wageTier,
 		eatingPass
@@ -24,7 +26,10 @@
 		configured?: boolean;
 		email: string | null;
 		displayName: string | null;
+		/** The TOTAL: physical coins in hand plus digital balance. */
 		balance: number;
+		physicalBalance?: number;
+		digitalBalance?: number;
 		transactions: DisplayTransaction[];
 		wageTier: number | null;
 		eatingPass: EatingPassStatus;
@@ -71,6 +76,16 @@
 			<h2>Summary</h2>
 			<div class="coin-summary">
 				<div class="coin-balance" class:negative={balance < 0}>{balance}i&cent;</div>
+				<div class="medium-split">
+					<span class="split-cell" class:negative={physicalBalance < 0}>
+						<span class="split-label">physical coins</span>
+						<span class="split-value">{physicalBalance}i&cent;</span>
+					</span>
+					<span class="split-cell" class:negative={digitalBalance < 0}>
+						<span class="split-label">digital</span>
+						<span class="split-value">{digitalBalance}i&cent;</span>
+					</span>
+				</div>
 				<div class="coin-meta">
 					{#if displayName || email}
 						<span>{displayName ?? email}</span>
@@ -107,6 +122,9 @@
 								<span class="since">{when(t.created_at)}</span>
 							</div>
 							<div class="actions">
+								<span class="medium-chip" class:digital={t.medium === 'digital'}>
+									{t.medium === 'digital' ? 'digital' : 'physical'}
+								</span>
 								<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
 									{t.amount > 0 ? '+' : ''}{t.amount}i&cent;
 								</span>
@@ -187,6 +205,46 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		color: var(--dim);
+	}
+	.medium-split {
+		display: flex;
+		gap: 0.9rem;
+		flex-wrap: wrap;
+	}
+	.split-cell {
+		display: flex;
+		flex-direction: column;
+		gap: 0.05rem;
+	}
+	.split-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--dim);
+	}
+	.split-value {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.95rem;
+		color: var(--cyan);
+	}
+	.split-cell.negative .split-value {
+		color: var(--amber);
+	}
+	.medium-chip {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.58rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--dim);
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 0.05rem 0.3rem;
+		margin-right: 0.5rem;
+	}
+	.medium-chip.digital {
+		color: var(--cyan);
+		border-color: var(--cyan);
 	}
 	.strike-chip {
 		font-family: 'Share Tech Mono', monospace;

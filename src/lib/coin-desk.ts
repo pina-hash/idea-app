@@ -23,6 +23,47 @@
 export type CoinKind = 'fine' | 'award' | 'purchase' | 'adjustment';
 export type CoinPricingModel = 'flat' | 'range' | 'per_unit' | 'variable' | 'formula';
 
+/**
+ * WHICH BALANCE A TRANSACTION MOVED (0096). Physical coins are the primary
+ * system -- thousands exist and are handed to students -- and digital exists
+ * so an absent student can still be awarded. So this is a property of the
+ * TRANSACTION, never of the category: the real legacy data has Weekly Wage
+ * 34 physical / 9 digital, Contract Completion 8 / 5, Above and Beyond 15 / 1.
+ * Every logging RPC takes `p_medium` and defaults to 'physical'.
+ */
+export type CoinMedium = 'physical' | 'digital';
+
+export const DEFAULT_MEDIUM: CoinMedium = 'physical';
+
+export const MEDIA: CoinMedium[] = ['physical', 'digital'];
+
+export const MEDIUM_LABELS: Record<CoinMedium, string> = {
+	physical: 'Physical',
+	digital: 'Digital'
+};
+
+/** What the admin is actually choosing between, in the entry form. */
+export const MEDIUM_HINTS: Record<CoinMedium, string> = {
+	physical: 'Coins handed over in person.',
+	digital: 'Credited to the digital balance (an absent student, or a withdrawal later).'
+};
+
+/**
+ * The three numbers every balance-shaped payload now carries. `balance` keeps
+ * its name and means the TOTAL; the two media decompose it and always sum to
+ * it. Server-derived in all three cases -- nothing here recomputes them.
+ */
+export interface CoinBalances {
+	balance: number;
+	physical_balance: number;
+	digital_balance: number;
+}
+
+/** Reads one medium out of a balances payload. */
+export function balanceFor(b: CoinBalances, medium: CoinMedium): number {
+	return medium === 'physical' ? b.physical_balance : b.digital_balance;
+}
+
 export interface CoinCategory {
 	id: string;
 	name: string;
@@ -161,6 +202,23 @@ export function payRaisePreview(currentTier: number): number {
  * on one constant instead of a loose string.
  */
 export const WEEKLY_WAGE_CATEGORY_ID = 'weekly_wage';
+
+/**
+ * Categories whose medium is FIXED by the server, whatever a caller passes
+ * (0096). Physical Coin Submission is an admin correction of the PHYSICAL
+ * record -- "credit coins this student demonstrably holds that the ledger is
+ * missing" -- and is emphatically NOT a deposit path from physical into
+ * digital; there is no such path. coin_log_transaction forces it, so this
+ * lookup only decides whether the UI offers a choice that would be ignored.
+ */
+export const FORCED_MEDIUM: Record<string, CoinMedium> = {
+	physical_coin_submission: 'physical'
+};
+
+/** The medium actually used for a category, once the server's rule is applied. */
+export function effectiveMedium(categoryId: string, chosen: CoinMedium): CoinMedium {
+	return FORCED_MEDIUM[categoryId] ?? chosen;
+}
 
 /**
  * Preview only -- coin_log_transaction (0084) reads the tier itself and its

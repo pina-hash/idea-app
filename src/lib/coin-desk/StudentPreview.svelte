@@ -27,6 +27,8 @@
 		displayName: string | null;
 		configured: boolean;
 		balance: number;
+		physicalBalance: number;
+		digitalBalance: number;
 		transactions: DisplayTransaction[];
 		wageTier: number | null;
 		eatingPass: EatingPassStatus;
@@ -87,6 +89,8 @@
 			email={data.email}
 			displayName={data.displayName}
 			balance={data.balance}
+			physicalBalance={data.physicalBalance}
+			digitalBalance={data.digitalBalance}
 			transactions={data.transactions}
 			wageTier={data.wageTier}
 			eatingPass={data.eatingPass}

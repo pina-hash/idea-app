@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import { DEFAULT_MEDIUM, MEDIA, MEDIUM_LABELS, type CoinMedium } from '$lib/coin-desk';
 
 	/**
 	 * Balance lookup + signed adjustment by email, MOVED here from /admin
@@ -25,6 +26,7 @@
 		category_id: string;
 		category_name: string;
 		amount: number;
+		medium: CoinMedium;
 		quantity: number | null;
 		note: string | null;
 		actor_email: string;
@@ -33,11 +35,16 @@
 	interface CoinLookup {
 		email: string;
 		balance: number;
+		physical_balance: number;
+		digital_balance: number;
 		wage_tier: number;
 		eating_pass_active: boolean;
 		eating_pass_strikes: number;
 		recent_transactions: CoinTxn[];
 	}
+
+	/** Which balance an adjustment corrects (0096). Defaults to physical. */
+	let adjustMedium = $state<CoinMedium>(DEFAULT_MEDIUM);
 
 	let coinEmail = $state('');
 	let busy = $state(false);
@@ -73,14 +80,21 @@
 		const resp = await supabase.rpc('coin_admin_adjust_balance', {
 			p_email: target,
 			p_amount: Math.round(amt),
-			p_note: adjustNote.trim()
+			p_note: adjustNote.trim(),
+			p_medium: adjustMedium
 		});
 		busy = false;
 		if (resp.error) {
 			errorMsg = resp.error.message;
 			return;
 		}
-		const r = resp.data as { ok: boolean; reason?: string; balance?: number };
+		const r = resp.data as {
+			ok: boolean;
+			reason?: string;
+			balance?: number;
+			physical_balance?: number;
+			digital_balance?: number;
+		};
 		if (!r.ok) {
 			errorMsg =
 				r.reason === 'debt'
@@ -88,7 +102,8 @@
 					: (r.reason ?? 'Adjustment refused.');
 			return;
 		}
-		notice = `Applied ${amt > 0 ? '+' : ''}${Math.round(amt)}i¢ to ${target}. New balance: ${r.balance}i¢.`;
+		const now = adjustMedium === 'physical' ? r.physical_balance : r.digital_balance;
+		notice = `Applied ${amt > 0 ? '+' : ''}${Math.round(amt)}i¢ to ${target}'s ${adjustMedium} balance. It now reads ${now}i¢ (total ${r.balance}i¢).`;
 		adjustAmount = '';
 		adjustNote = '';
 		// Refresh, WITHOUT clearing the confirmation above -- the coin-desk
@@ -136,6 +151,16 @@
 	{#if lookup}
 		<div class="coin-summary">
 			<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}i¢</div>
+			<div class="medium-split">
+				<span class="split-cell" class:negative={lookup.physical_balance < 0}>
+					<span class="split-label">physical</span>
+					<span class="split-value">{lookup.physical_balance}i&cent;</span>
+				</span>
+				<span class="split-cell" class:negative={lookup.digital_balance < 0}>
+					<span class="split-label">digital</span>
+					<span class="split-value">{lookup.digital_balance}i&cent;</span>
+				</span>
+			</div>
 			<div class="coin-meta">
 				<span>{lookup.email}</span>
 				<span>wage tier {lookup.wage_tier}</span>
@@ -149,10 +174,21 @@
 		</div>
 
 		<div class="add-row">
+			<div class="medium-toggle">
+				{#each MEDIA as m (m)}
+					<button type="button" class:active={adjustMedium === m} onclick={() => (adjustMedium = m)}>
+						{MEDIUM_LABELS[m]}
+					</button>
+				{/each}
+			</div>
 			<input type="number" step="1" placeholder="+/- i¢" bind:value={adjustAmount} />
 			<input type="text" maxlength="500" placeholder="Reason (required)" bind:value={adjustNote} />
 			<button class="btn" disabled={!canAdjust} onclick={applyAdjustment}>Apply adjustment</button>
 		</div>
+		<p class="note">
+			An adjustment corrects ONE balance. Physical is the primary system; pick Digital only when
+			correcting the digital record.
+		</p>
 
 		{#if lookup.recent_transactions.length}
 			<div class="rows coin-rows">
@@ -166,6 +202,9 @@
 							<span class="since">by {t.actor_email} &middot; {when(t.created_at)}</span>
 						</div>
 						<div class="actions">
+							<span class="medium-chip" class:digital={t.medium === 'digital'}>
+								{t.medium === 'digital' ? 'digital' : 'physical'}
+							</span>
 							<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
 								{t.amount > 0 ? '+' : ''}{t.amount}i¢
 							</span>
@@ -243,6 +282,65 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		color: var(--dim);
+	}
+	.medium-split {
+		display: flex;
+		gap: 0.9rem;
+		flex-wrap: wrap;
+	}
+	.split-cell {
+		display: flex;
+		flex-direction: column;
+		gap: 0.05rem;
+	}
+	.split-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--dim);
+	}
+	.split-value {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.95rem;
+		color: var(--cyan);
+	}
+	.split-cell.negative .split-value {
+		color: var(--amber);
+	}
+	.medium-chip {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.58rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--dim);
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 0.05rem 0.3rem;
+		margin-right: 0.5rem;
+	}
+	.medium-chip.digital {
+		color: var(--cyan);
+		border-color: var(--cyan);
+	}
+	.medium-toggle {
+		display: flex;
+		gap: 0.3rem;
+	}
+	.medium-toggle button {
+		background: var(--bg0);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		color: var(--dim);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		padding: 0.35rem 0.7rem;
+		cursor: pointer;
+	}
+	.medium-toggle button.active {
+		color: var(--bg0);
+		background: var(--cyan);
+		border-color: var(--cyan);
 	}
 	.rows {
 		display: flex;

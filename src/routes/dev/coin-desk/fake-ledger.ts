@@ -1,4 +1,4 @@
-import type { CoinCategory, StudentSuggestion } from '$lib/coin-desk';
+import { FORCED_MEDIUM, type CoinCategory, type CoinMedium, type StudentSuggestion } from '$lib/coin-desk';
 import type { CoinSectionRow, CoinSectionStudentRow } from '$lib/coin-desk/sections';
 import type { CoinRoleDefinition, QuizQuestionType } from '$lib/coin-desk/roles';
 
@@ -276,6 +276,8 @@ interface Txn {
 	category_id: string;
 	category_name: string;
 	amount: number;
+	/** Which balance this row moved (0096). Absent reads as digital. */
+	medium?: CoinMedium;
 	quantity: number | null;
 	note: string | null;
 	actor_email: string;
@@ -286,10 +288,72 @@ interface Txn {
 }
 
 interface StudentState {
-	balance: number;
 	wageTier: number;
 	ecUsedPoints: number;
 	txns: Txn[];
+}
+
+/**
+ * THE BALANCE IS DERIVED HERE TOO, exactly as it is in the database (0070's
+ * coin_balances view, three columns since 0096). It used to be a stored
+ * scalar on StudentState, which was fine while there was one number and
+ * became a real hazard the moment there were three -- a stored triple can
+ * drift from the transaction list this harness also keeps, and then the
+ * harness would be verifying something the server would never do.
+ *
+ * A row with no `medium` counts as DIGITAL, which is the 0096 backfill's own
+ * rule for every pre-0096 row.
+ */
+function balancesOf(email: string): { balance: number; physical_balance: number; digital_balance: number } {
+	const s = stateFor(email);
+	let physical = 0;
+	let digital = 0;
+	for (const t of s.txns) {
+		if (t.medium === 'physical') physical += t.amount;
+		else digital += t.amount;
+	}
+	return { balance: physical + digital, physical_balance: physical, digital_balance: digital };
+}
+
+/** One medium's balance -- what the per-medium debt lockout reads. */
+function balanceOfMedium(email: string, medium: CoinMedium): number {
+	const b = balancesOf(email);
+	return medium === 'physical' ? b.physical_balance : b.digital_balance;
+}
+
+/** Normalizes and validates a p_medium parameter the way 0096's RPCs do. */
+function mediumParam(params: Record<string, unknown>): CoinMedium {
+	const raw = String(params.p_medium ?? 'physical').toLowerCase().trim();
+	if (raw !== 'physical' && raw !== 'digital') {
+		throw new Error(`Coin medium must be "physical" or "digital" (got "${raw}").`);
+	}
+	return raw;
+}
+
+/**
+ * A bulk run's medium plus its per-student override map, mirroring 0096's
+ * _coin_normalize_media: one resolver both bulk handlers share, so they can
+ * never disagree about what an override means. A bad override VALUE throws,
+ * exactly like the real one -- a run that would guess is worse than a run
+ * that refuses.
+ */
+function normalizeMedia(params: Record<string, unknown>): {
+	run: CoinMedium;
+	overrides: Record<string, CoinMedium>;
+} {
+	const run = mediumParam(params);
+	const raw = (params.p_medium_overrides ?? {}) as Record<string, unknown>;
+	const overrides: Record<string, CoinMedium> = {};
+	for (const [key, value] of Object.entries(raw)) {
+		const v = String(value ?? '').toLowerCase().trim();
+		if (v !== 'physical' && v !== 'digital') {
+			throw new Error(
+				`Per-student medium override for "${key}" must be "physical" or "digital" (got "${value}").`
+			);
+		}
+		overrides[key.toLowerCase().trim()] = v;
+	}
+	return { run, overrides };
 }
 
 /**
@@ -310,8 +374,20 @@ const NAME_ONLY_CATEGORIES: Pick<CoinCategory, 'id' | 'name'>[] = [
 	{ id: 'legacy_award', name: 'Legacy Award (Sheets)' },
 	{ id: 'legacy_fine', name: 'Legacy Fine (Sheets)' },
 	{ id: 'legacy_purchase', name: 'Legacy Purchase (Sheets)' },
-	{ id: 'legacy_payout', name: 'Legacy Payout (Sheets)' }
+	{ id: 'legacy_payout', name: 'Legacy Payout (Sheets)' },
+	// 0096's system-only physical half of a payout transfer: loggable = false,
+	// so it never enters the dropdown, but every payout writes one and the
+	// history has to resolve its name.
+	{ id: 'payout_physical_credit', name: 'Coin Payout (physical credit)' }
 ];
+
+/**
+ * Category ids the real schema marks `loggable = false` -- mechanisms and
+ * system-inserted events that coin_log_transaction refuses by name. Hand-
+ * logging payout_physical_credit would mint physical coins out of nothing,
+ * which is exactly the deposit path this model does not have.
+ */
+const NON_LOGGABLE = new Set(['eating_pass_revoked', 'mint_tampering_unknown', 'payout_physical_credit']);
 /**
  * Mutable (unlike SAMPLE_CATEGORIES itself): 0080's coin_admin_create_category
  * / coin_admin_set_category_active RPCs both need somewhere to write a new
@@ -340,6 +416,8 @@ export function listCategories(): CoinCategory[] {
 
 const ledger = new Map<string, StudentState>();
 let txnSeq = 0;
+/** Shared by the two rows of a payout transfer (0096). */
+let transferSeq = 0;
 
 /**
  * In-memory mirror of 0073's coin_sections / coin_section_students. Emails
@@ -470,25 +548,34 @@ export function listSections(): CoinSectionRow[] {
 function stateFor(email: string): StudentState {
 	let s = ledger.get(email);
 	if (!s) {
-		s = { balance: 0, wageTier: 1, ecUsedPoints: 0, txns: [] };
+		s = { wageTier: 1, ecUsedPoints: 0, txns: [] };
 		ledger.set(email, s);
 	}
 	return s;
 }
 
-function insert(email: string, categoryId: string, signed: number, quantity: number | null, note: string | null, meta: Record<string, unknown> = {}): Txn {
+function insert(
+	email: string,
+	categoryId: string,
+	signed: number,
+	quantity: number | null,
+	note: string | null,
+	meta: Record<string, unknown> = {},
+	medium: CoinMedium = 'physical'
+): Txn {
 	const s = stateFor(email);
 	const txn: Txn = {
 		id: `t${++txnSeq}`,
 		category_id: categoryId,
 		category_name: categoryNameFor(categoryId),
 		amount: signed,
+		medium,
 		quantity,
 		note,
 		actor_email: 'admin@boscotech.edu',
 		created_at: new Date().toISOString()
 	};
-	s.balance += signed;
+	// No stored balance to bump: balancesOf() derives all three from txns.
 	s.txns.unshift(txn);
 	if (categoryId === 'eating_violation' && meta.strike) (txn as unknown as { meta: unknown }).meta = meta;
 	return txn;
@@ -545,8 +632,13 @@ function rpcError(message: string) {
  */
 export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'admin@boscotech.edu') {
 	// Seed a few students so every refusal path is reachable without setup clicks.
+	// The seeded balances are DERIVED from these rows now, exactly as the real
+	// view derives them -- there is no stored scalar to keep in step. Each
+	// seed therefore carries an opening `balance_correction`, and the split
+	// across the two media is deliberate: every student below is reachable in
+	// both, so the per-medium debt lockout and the payout transfer both have
+	// something real to act on without setup clicks.
 	ledger.set('healthy.student@boscotech.net', {
-		balance: 42,
 		wageTier: 1,
 		ecUsedPoints: 0,
 		txns: [
@@ -555,15 +647,40 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 				category_id: 'weekly_wage',
 				category_name: 'Weekly Wage',
 				amount: 1,
+				medium: 'physical',
 				quantity: null,
 				note: null,
 				actor_email: 'admin@boscotech.edu',
 				created_at: new Date(Date.now() - 86400000 * 3).toISOString()
+			},
+			{
+				id: 't0b',
+				category_id: 'balance_correction',
+				category_name: 'Balance Correction / Refund',
+				amount: 15,
+				medium: 'physical',
+				quantity: null,
+				note: 'opening physical coins',
+				actor_email: 'admin@boscotech.edu',
+				created_at: new Date(Date.now() - 86400000 * 4).toISOString()
+			},
+			{
+				id: 't0c',
+				category_id: 'balance_correction',
+				category_name: 'Balance Correction / Refund',
+				amount: 26,
+				medium: 'digital',
+				quantity: null,
+				note: 'opening digital balance',
+				actor_email: 'admin@boscotech.edu',
+				created_at: new Date(Date.now() - 86400000 * 4).toISOString()
 			}
 		]
 	});
+	// Digital debt while holding physical coins -- the exact case the
+	// per-medium lockout exists for: digital purchases are blocked, physical
+	// ones are not.
 	ledger.set('debt.student@boscotech.net', {
-		balance: -8,
 		wageTier: 1,
 		ecUsedPoints: 0,
 		txns: [
@@ -572,6 +689,7 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 				category_id: 'shop_safety_violation',
 				category_name: 'Shop Safety Violation',
 				amount: -12,
+				medium: 'digital',
 				quantity: null,
 				note: null,
 				actor_email: 'admin@boscotech.edu',
@@ -582,10 +700,22 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 				category_id: 'above_and_beyond',
 				category_name: 'Above and Beyond',
 				amount: 4,
+				medium: 'digital',
 				quantity: null,
 				note: 'helped a classmate debug their sketch',
 				actor_email: 'admin@boscotech.edu',
 				created_at: new Date(Date.now() - 3600000).toISOString()
+			},
+			{
+				id: 't-3',
+				category_id: 'physical_coin_submission',
+				category_name: 'Physical Coin Submission',
+				amount: 20,
+				medium: 'physical',
+				quantity: null,
+				note: 'coins already in hand',
+				actor_email: 'admin@boscotech.edu',
+				created_at: new Date(Date.now() - 7200000).toISOString()
 			}
 		]
 	});
@@ -595,6 +725,7 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 			category_id: 'eating_pass',
 			category_name: 'Eating Pass',
 			amount: -150,
+			medium: 'digital',
 			quantity: null,
 			note: null,
 			actor_email: 'admin@boscotech.edu',
@@ -605,14 +736,37 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 			category_id: 'eating_violation',
 			category_name: 'Eating Violation',
 			amount: -5,
+			medium: 'digital',
 			quantity: null,
 			note: 'left wrapper at the station',
 			actor_email: 'admin@boscotech.edu',
 			created_at: new Date(Date.now() - 86400000 * 2).toISOString()
+		},
+		{
+			id: 't-p0',
+			category_id: 'balance_correction',
+			category_name: 'Balance Correction / Refund',
+			amount: 300,
+			medium: 'digital',
+			quantity: null,
+			note: 'opening digital balance',
+			actor_email: 'admin@boscotech.edu',
+			created_at: new Date(Date.now() - 86400000 * 6).toISOString()
+		},
+		{
+			id: 't-p0b',
+			category_id: 'balance_correction',
+			category_name: 'Balance Correction / Refund',
+			amount: 50,
+			medium: 'physical',
+			quantity: null,
+			note: 'opening physical coins',
+			actor_email: 'admin@boscotech.edu',
+			created_at: new Date(Date.now() - 86400000 * 6).toISOString()
 		}
 	];
 	(passTxns[1] as unknown as { meta: unknown }).meta = { strike: true };
-	ledger.set('pass.student@boscotech.net', { balance: 195, wageTier: 2, ecUsedPoints: 15, txns: passTxns });
+	ledger.set('pass.student@boscotech.net', { wageTier: 2, ecUsedPoints: 15, txns: passTxns });
 
 	// Seed two sections: one keyed to a real curriculum.ts Section.id (so
 	// sectionDisplayName() resolves it from the curriculum, not the stored
@@ -942,7 +1096,7 @@ async function handleRpc(
 		return Promise.resolve(
 			ok({
 				email,
-				balance: s.balance,
+				...balancesOf(email),
 				wage_tier: s.wageTier,
 				eating_pass_active: eatingPassActive(email),
 				eating_pass_strikes: eatingPassStrikes(email),
@@ -955,10 +1109,16 @@ async function handleRpc(
 		const categoryId = String(params.p_category_id);
 		const cat = catById.get(categoryId);
 		if (!cat) return Promise.resolve(rpcError(`Unknown coin category "${categoryId}".`));
-		if (cat.active === false) return Promise.resolve(rpcError(`"${cat.name}" cannot be logged directly.`));
+		if (cat.active === false || NON_LOGGABLE.has(categoryId)) {
+			return Promise.resolve(rpcError(`"${cat.name}" cannot be logged directly.`));
+		}
 		if (cat.pricing_model === 'formula' || categoryId === 'extra_credit') {
 			return Promise.resolve(rpcError(`"${cat.name}" needs its dedicated logging function.`));
 		}
+		// Physical Coin Submission is a correction of the PHYSICAL record and
+		// is forced, whatever the caller passed -- a digital one would be the
+		// deposit path this model does not have (0096).
+		const medium: CoinMedium = FORCED_MEDIUM[categoryId] ?? mediumParam(params);
 		const s = stateFor(email);
 		const note = (params.p_note as string | null) ?? null;
 		let magnitude: number;
@@ -1003,8 +1163,14 @@ async function handleRpc(
 		if (capReached(email, cat)) {
 			return Promise.resolve(refused('cap_reached', { cap_period: cat.cap_period }));
 		}
-		if (cat.kind === 'purchase' && s.balance < 0) {
-			return Promise.resolve(refused('debt', { balance: s.balance }));
+		// PER-MEDIUM debt lockout (0096): only the balance this purchase
+		// actually spends can block it. A student in digital debt can still
+		// spend physical coins they are holding.
+		const mediumBalance = balanceOfMedium(email, medium);
+		if (cat.kind === 'purchase' && mediumBalance < 0) {
+			return Promise.resolve(
+				refused('debt', { medium, balance: mediumBalance, medium_balance: mediumBalance })
+			);
 		}
 
 		let strike = false;
@@ -1016,16 +1182,23 @@ async function handleRpc(
 			meta.strike = strike;
 		}
 
-		insert(email, categoryId, signed, params.p_quantity as number | null, note, meta);
+		insert(email, categoryId, signed, params.p_quantity as number | null, note, meta, medium);
 
 		if (strike && eatingPassStrikes(email) >= 3) {
 			insert(email, 'eating_pass_revoked', 0, null, 'Automatically revoked: third eating-pass violation since this pass was purchased.', {
 				strikes: eatingPassStrikes(email)
-			});
+			}, medium);
 		}
 
 		return Promise.resolve(
-			ok({ transaction_id: `t${txnSeq}`, category_id: categoryId, amount: signed, strike, balance: stateFor(email).balance })
+			ok({
+				transaction_id: `t${txnSeq}`,
+				category_id: categoryId,
+				amount: signed,
+				medium,
+				strike,
+				...balancesOf(email)
+			})
 		);
 	}
 
@@ -1044,7 +1217,8 @@ async function handleRpc(
 				p_category_id: 'balance_correction',
 				p_amount: params.p_amount,
 				p_quantity: null,
-				p_note: params.p_note
+				p_note: params.p_note,
+				p_medium: params.p_medium
 			},
 			getCurrentStudentEmail
 		);
@@ -1054,19 +1228,22 @@ async function handleRpc(
 		const points = Number(params.p_points);
 		if (!Number.isFinite(points) || points <= 0) return Promise.resolve(rpcError('Enter the number of points the graded work was worth.'));
 		const amount = Math.max(1, Math.round(points / 25));
-		insert(email, 'perfect_score_graded_work', amount, points, (params.p_note as string | null) ?? null, {});
-		return Promise.resolve(ok({ amount, balance: stateFor(email).balance }));
+		const medium = mediumParam(params);
+		insert(email, 'perfect_score_graded_work', amount, points, (params.p_note as string | null) ?? null, {}, medium);
+		return Promise.resolve(ok({ amount, medium, ...balancesOf(email) }));
 	}
 
 	if (fn === 'coin_log_pay_raise') {
 		const s = stateFor(email);
-		if (s.balance < 0) return Promise.resolve(refused('debt', { balance: s.balance }));
+		const medium = mediumParam(params);
+		const owed = balanceOfMedium(email, medium);
+		if (owed < 0) return Promise.resolve(refused('debt', { medium, balance: owed }));
 		const previousTier = s.wageTier;
 		const newTier = previousTier + 1;
 		const cost = 40 * previousTier;
-		insert(email, 'pay_raise', -cost, null, (params.p_note as string | null) ?? null, {});
+		insert(email, 'pay_raise', -cost, null, (params.p_note as string | null) ?? null, {}, medium);
 		s.wageTier = newTier;
-		return Promise.resolve(ok({ previous_tier: previousTier, new_tier: newTier, cost, balance: s.balance }));
+		return Promise.resolve(ok({ previous_tier: previousTier, new_tier: newTier, cost, medium, ...balancesOf(email) }));
 	}
 
 	if (fn === 'coin_log_property_damage_careless') {
@@ -1077,8 +1254,9 @@ async function handleRpc(
 		const base = 3;
 		const exchange = Math.round(cost / 0.25);
 		const amount = base + exchange;
-		insert(email, 'property_damage_careless', -amount, cost, note, {});
-		return Promise.resolve(ok({ amount: -amount, base, exchange, balance: stateFor(email).balance }));
+		const medium = mediumParam(params);
+		insert(email, 'property_damage_careless', -amount, cost, note, {}, medium);
+		return Promise.resolve(ok({ amount: -amount, base, exchange, medium, ...balancesOf(email) }));
 	}
 
 	if (fn === 'coin_log_three_d_printing') {
@@ -1087,13 +1265,14 @@ async function handleRpc(
 		const overnight = params.p_overnight === true;
 		if (!Number.isFinite(grams) || grams < 0) return Promise.resolve(rpcError("Enter the slicer's reported weight in grams."));
 		if (!Number.isFinite(hours) || hours < 0) return Promise.resolve(rpcError("Enter the slicer's reported print time in hours."));
-		const s = stateFor(email);
-		if (s.balance < 0) return Promise.resolve(refused('debt', { balance: s.balance }));
+		const medium = mediumParam(params);
+		const owed = balanceOfMedium(email, medium);
+		if (owed < 0) return Promise.resolve(refused('debt', { medium, balance: owed }));
 		const material = Math.round(grams / 10);
 		const time = overnight ? 0 : hours < 1 ? 0 : hours < 3 ? 2 : hours < 6 ? 4 : 6;
 		const amount = material + time;
-		insert(email, 'three_d_printing', -amount, grams, (params.p_note as string | null) ?? null, {});
-		return Promise.resolve(ok({ amount: -amount, material_ic: material, time_ic: time, balance: s.balance }));
+		insert(email, 'three_d_printing', -amount, grams, (params.p_note as string | null) ?? null, {}, medium);
+		return Promise.resolve(ok({ amount: -amount, material_ic: material, time_ic: time, medium, ...balancesOf(email) }));
 	}
 
 	if (fn === 'coin_log_extra_credit') {
@@ -1110,9 +1289,11 @@ async function handleRpc(
 				refused('cap_exceeded', { cap_points: cap, used_points: s.ecUsedPoints, remaining_points: Math.max(cap - s.ecUsedPoints, 0) })
 			);
 		}
-		if (s.balance < 0) return Promise.resolve(refused('debt', { balance: s.balance }));
+		const medium = mediumParam(params);
+		const owed = balanceOfMedium(email, medium);
+		if (owed < 0) return Promise.resolve(refused('debt', { medium, balance: owed }));
 		const cost = Math.round(2 * points);
-		insert(email, 'extra_credit', -cost, points, (params.p_note as string | null) ?? null, {});
+		insert(email, 'extra_credit', -cost, points, (params.p_note as string | null) ?? null, {}, medium);
 		s.ecUsedPoints += points;
 		return Promise.resolve(
 			ok({
@@ -1121,42 +1302,63 @@ async function handleRpc(
 				used_points: s.ecUsedPoints,
 				cap_points: cap,
 				remaining_points: Math.max(cap - s.ecUsedPoints, 0),
-				balance: s.balance
+				medium,
+				...balancesOf(email)
 			})
 		);
 	}
 
 	// -----------------------------------------------------------------------
-	// Bulk payout (0079). Mirrors coin_payout_student / coin_bulk_payout: both
-	// re-read the target's balance FRESH (from `ledger`, the same source
-	// coin_admin_lookup and coin_log_transaction already read) at the moment
-	// they run, never a client-supplied amount -- see that migration's header.
+	// Payout (0079, a TRANSFER since 0096). coin_payout_student debits the
+	// DIGITAL balance and credits the PHYSICAL one by the same amount, as two
+	// linked rows sharing a transfer id -- so the total does not move. Both
+	// RPCs re-read the target's digital balance FRESH (from `ledger`, the same
+	// source coin_admin_lookup and coin_log_transaction already read) at the
+	// moment they run, never a client-supplied amount.
 	// -----------------------------------------------------------------------
 
 	if (fn === 'coin_payout_student') {
-		const s = stateFor(email);
-		if (s.balance <= 0) return Promise.resolve(refused('no_balance', { balance: s.balance }));
+		const digital = balanceOfMedium(email, 'digital');
+		if (digital <= 0) {
+			return Promise.resolve(refused('no_balance', { digital_balance: digital, balance: digital }));
+		}
+		const requested = params.p_amount == null ? digital : Math.round(Number(params.p_amount));
+		if (!Number.isFinite(requested) || requested <= 0) {
+			return Promise.resolve(rpcError('A payout amount must be positive.'));
+		}
+		if (requested > digital) {
+			return Promise.resolve(
+				refused('amount_exceeds_digital', { requested, digital_balance: digital, balance: digital })
+			);
+		}
 		const note = (params.p_note as string | null)?.trim() || 'Coin payout.';
-		// Reuses the SAME coin_log_transaction path the single-student "Coin
-		// Payout" category entry already goes through -- no second write path.
-		return handleRpc('coin_log_transaction', {
-			p_email: email,
-			p_category_id: 'coin_payout',
-			p_amount: s.balance,
-			p_quantity: null,
-			p_note: note
-		});
+		const transferId = `xf${++transferSeq}`;
+		const meta = { transfer_id: transferId, transfer_amount: requested };
+		// Both halves through insert(), the way the real RPC goes through
+		// _coin_insert twice: a transfer is not a priced event, so there is no
+		// category price to look up and no rule that applies to it.
+		const debit = insert(email, 'coin_payout', -requested, null, note, { ...meta, transfer_side: 'digital_debit' }, 'digital');
+		insert(email, 'payout_physical_credit', requested, null, note, { ...meta, transfer_side: 'physical_credit' }, 'physical');
+		return Promise.resolve(
+			ok({
+				transaction_id: debit.id,
+				transfer_id: transferId,
+				amount: requested,
+				partial: params.p_amount != null && requested < digital,
+				...balancesOf(email)
+			})
+		);
 	}
 
 	if (fn === 'coin_bulk_payout') {
 		// Roster is read fresh here, at the top of the loop -- but it is
 		// coin_payout_student, called once per student BELOW, that re-reads
-		// that one student's balance again immediately before writing, so a
-		// fine or award landing on a not-yet-reached student mid-loop is
-		// still picked up correctly.
-		const targets = Array.from(ledger.entries())
-			.filter(([, s]) => s.balance > 0)
-			.map(([e]) => e)
+		// that one student's DIGITAL balance again immediately before writing,
+		// so a fine or award landing on a not-yet-reached student mid-loop is
+		// still picked up correctly. Positive DIGITAL, not positive total: a
+		// student holding only physical coins has nothing to convert.
+		const targets = Array.from(ledger.keys())
+			.filter((e) => balanceOfMedium(e, 'digital') > 0)
 			.sort();
 		const results: Record<string, unknown>[] = [];
 		let succeeded = 0;
@@ -1386,6 +1588,8 @@ async function handleRpc(
 			}
 		}
 
+		const media = normalizeMedia(params);
+
 		const emails = Array.from(sectionStudents.entries())
 			.filter(([, sid]) => sid === sectionId)
 			.map(([e]) => e)
@@ -1397,22 +1601,26 @@ async function handleRpc(
 			// Reuses the SAME coin_log_transaction handling every single-student
 			// log goes through -- no duplicated business rule, exactly mirroring
 			// how the real coin_bulk_log_section nests the real coin_log_transaction.
+			const rowMedium = media.overrides[studentEmail] ?? media.run;
 			const single = await handleRpc('coin_log_transaction', {
 				p_email: studentEmail,
 				p_category_id: categoryId,
 				p_amount: params.p_amount,
 				p_quantity: null,
-				p_note: note
+				p_note: note,
+				p_medium: rowMedium
 			});
 			const data = single.error ? { ok: false, reason: 'error', message: single.error.message } : single.data;
 			if ((data as { ok?: boolean }).ok) succeeded += 1;
-			results.push({ email: studentEmail, ...(data as Record<string, unknown>) });
+			results.push({ email: studentEmail, medium: rowMedium, ...(data as Record<string, unknown>) });
 		}
 
 		return Promise.resolve(
 			ok({
 				section_id: sectionId,
 				category_id: categoryId,
+				medium: media.run,
+				unmatched_overrides: Object.keys(media.overrides).filter((e) => !emails.includes(e)),
 				total: results.length,
 				succeeded,
 				refused: results.length - succeeded,
@@ -1739,28 +1947,33 @@ async function handleRpc(
 			)
 		).sort();
 
+		const media = normalizeMedia(params);
 		const results: Record<string, unknown>[] = [];
 		let succeeded = 0;
 		for (const studentEmail of emails) {
 			// The SAME single-student RPC coin_bulk_log_section already nests --
 			// no duplicated business rule, exactly mirroring the real
 			// coin_bulk_log_role_stipend's nested coin_log_transaction call.
+			const rowMedium = media.overrides[studentEmail] ?? media.run;
 			const single = await handleRpc('coin_log_transaction', {
 				p_email: studentEmail,
 				p_category_id: 'weekly_role_stipend',
 				p_amount: null,
 				p_quantity: null,
-				p_note: note
+				p_note: note,
+				p_medium: rowMedium
 			});
 			const data = single.error ? { ok: false, reason: 'error', message: single.error.message } : single.data;
 			if ((data as { ok?: boolean }).ok) succeeded += 1;
-			results.push({ email: studentEmail, ...(data as Record<string, unknown>) });
+			results.push({ email: studentEmail, medium: rowMedium, ...(data as Record<string, unknown>) });
 		}
 
 		return Promise.resolve(
 			ok({
 				role_id: roleId,
 				section_id: sectionId,
+				medium: media.run,
+				unmatched_overrides: Object.keys(media.overrides).filter((e) => !emails.includes(e)),
 				total: results.length,
 				succeeded,
 				refused: results.length - succeeded,
@@ -2005,24 +2218,45 @@ function makeProfilesQuery() {
 }
 
 /**
- * Mirrors 0070's coin_balances view (a pure sum over coin_transactions),
- * enough to drive PayoutManager's listing read end to end: `.gt('balance',
- * 0)` + `.order('balance', ...)`, no RPC involved, matching the real
- * migration's own "admin already sees every row here" doctrine.
+ * Mirrors 0070's coin_balances view (a pure sum over coin_transactions,
+ * three columns since 0096), enough to drive PayoutManager's listing read end
+ * to end -- which now filters and orders on `digital_balance`, not `balance`,
+ * since a payout converts the digital half only. The column names the caller
+ * passes to `.gt()` / `.order()` are HONOURED here rather than assumed, so
+ * the harness would notice if the component started reading the wrong one.
  */
 function makeBalancesQuery() {
+	let gtCol = 'balance';
 	let gtVal: number | null = null;
+	let orderCol = 'balance';
 	let orderAsc = true;
 
+	type BalanceRow = {
+		student_email: string;
+		balance: number;
+		physical_balance: number;
+		digital_balance: number;
+		last_activity_at: string | null;
+		transaction_count: number;
+	};
+	const pick = (r: BalanceRow, col: string): number =>
+		col === 'digital_balance'
+			? r.digital_balance
+			: col === 'physical_balance'
+				? r.physical_balance
+				: r.balance;
+
 	function compute() {
-		let rows = Array.from(ledger.entries()).map(([studentEmail, s]) => ({
+		let rows: BalanceRow[] = Array.from(ledger.entries()).map(([studentEmail, s]) => ({
 			student_email: studentEmail,
-			balance: s.balance,
+			...balancesOf(studentEmail),
 			last_activity_at: s.txns[0]?.created_at ?? null,
 			transaction_count: s.txns.length
 		}));
-		if (gtVal !== null) rows = rows.filter((r) => r.balance > (gtVal as number));
-		rows.sort((a, b) => (orderAsc ? a.balance - b.balance : b.balance - a.balance));
+		if (gtVal !== null) rows = rows.filter((r) => pick(r, gtCol) > (gtVal as number));
+		rows.sort((a, b) =>
+			orderAsc ? pick(a, orderCol) - pick(b, orderCol) : pick(b, orderCol) - pick(a, orderCol)
+		);
 		return { data: rows, error: null };
 	}
 
@@ -2030,11 +2264,13 @@ function makeBalancesQuery() {
 		select(_cols: string) {
 			return builder;
 		},
-		gt(_col: string, val: number) {
+		gt(col: string, val: number) {
+			gtCol = col;
 			gtVal = val;
 			return builder;
 		},
-		order(_col: string, opts?: { ascending?: boolean }) {
+		order(col: string, opts?: { ascending?: boolean }) {
+			orderCol = col;
 			orderAsc = opts?.ascending !== false;
 			return builder;
 		},
