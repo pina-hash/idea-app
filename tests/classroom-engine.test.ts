@@ -36,7 +36,8 @@ const MIGRATIONS = [
 	'0082_classroom.sql',
 	'0083_classroom_management.sql',
 	'0085_classroom_canonical_items.sql',
-	'0086_classroom_assignment_engine.sql'
+	'0086_classroom_assignment_engine.sql',
+	'0095_classroom_leveled_rubrics.sql'
 ] as const;
 
 let db: TestDb;
@@ -110,13 +111,30 @@ function grade(
 	email: string,
 	scores: Record<string, number>,
 	comment: string | null,
-	release: boolean
+	release: boolean,
+	criterionComments: Record<string, string> | null = null
 ) {
 	return rpc<{ ok: boolean; reason?: string; score?: number; state?: string; missing?: string[] }>(
 		userId,
-		'public.classroom_grade_submission($1::uuid, $2, $3::jsonb, $4, $5)',
-		[itemId, email, JSON.stringify(scores), comment, release]
+		'public.classroom_grade_submission($1::uuid, $2, $3::jsonb, $4, $5, $6::jsonb)',
+		[
+			itemId,
+			email,
+			JSON.stringify(scores),
+			comment,
+			release,
+			criterionComments ? JSON.stringify(criterionComments) : null
+		]
 	);
+}
+
+/** Three levels: full credit, half, nothing -- the shape v1.1 requires. */
+function levels(max: number) {
+	return [
+		{ points: max, label: 'Complete', descriptor: 'Everything asked for is present and correct.' },
+		{ points: Math.round(max / 2), label: 'Developing', descriptor: 'Some of it is present, or present but wrong.' },
+		{ points: 0, label: 'Absent', descriptor: 'Not attempted.' }
+	];
 }
 
 const SPEC = {
@@ -141,7 +159,7 @@ const SPEC = {
 					minRows: 2
 				}
 			],
-			rubric: [{ criterion: 'Method explained with evidence', points: 10 }]
+			rubric: [{ id: 'c1', criterion: 'Method explained with evidence', levels: levels(10) }]
 		},
 		{
 			id: 'm2',
@@ -151,14 +169,14 @@ const SPEC = {
 				{ type: 'imageZone', id: 'z1', minImages: 1, captions: true },
 				{ type: 'checklist', id: 'c1', items: ['Tool zeroed', 'Bench cleared'] }
 			],
-			rubric: [{ criterion: 'Evidence complete', points: 10 }]
+			rubric: [{ id: 'c1', criterion: 'Evidence complete', levels: levels(10) }]
 		},
 		{
 			id: 'm3',
 			title: 'Reflect',
 			points: 10,
 			blocks: [{ type: 'textField', id: 'f2', prompt: 'Reflect on the process.', minSentences: 1 }],
-			rubric: [{ criterion: 'Reflection', points: 10 }]
+			rubric: [{ id: 'c1', criterion: 'Reflection', levels: levels(10) }]
 		}
 	],
 	declarations: { academicIntegrity: true },
@@ -166,9 +184,9 @@ const SPEC = {
 };
 
 const RUBRIC = [
-	{ id: 'm1-r1', criterion: 'Observe: Method explained with evidence', points: 10 },
-	{ id: 'm2-r1', criterion: 'Evidence: Evidence complete', points: 10 },
-	{ id: 'm3-r1', criterion: 'Reflect: Reflection', points: 10 }
+	{ id: 'm1-r1', criterion: 'Observe: Method explained with evidence', levels: levels(10) },
+	{ id: 'm2-r1', criterion: 'Evidence: Evidence complete', levels: levels(10) },
+	{ id: 'm3-r1', criterion: 'Reflect: Reflection', levels: levels(10) }
 ];
 
 function setSpec(userId: string, itemId: string, spec: unknown) {
@@ -261,7 +279,7 @@ describe('spec validation (the RPC is the boundary)', () => {
 
 	test('a rubric that does not sum to its module points is rejected', async () => {
 		const bad = structuredClone(SPEC);
-		bad.modules[0].rubric = [{ criterion: 'Half only', points: 5 }];
+		bad.modules[0].rubric = [{ id: 'c1', criterion: 'Half only', levels: levels(5) }];
 		const err = await captureError(() => setSpec(teacherA.id, worksheet, bad));
 		expect(err.message).toMatch(/rubric sums to 5 but the module is worth 10/);
 	});
@@ -323,10 +341,10 @@ describe('spec validation (the RPC is the boundary)', () => {
 		const bad = await captureError(() =>
 			rpc(teacherA.id, 'public.classroom_set_rubric($1::uuid, $2::jsonb)', [
 				worksheet,
-				JSON.stringify([{ id: 'c1', criterion: 'No points row' }])
+				JSON.stringify([{ id: 'c1', criterion: 'No levels row' }])
 			])
 		);
-		expect(bad.message).toMatch(/points between 0 and 1000/);
+		expect(bad.message).toMatch(/needs levels/);
 
 		const res = await rpc(teacherA.id, 'public.classroom_set_rubric($1::uuid, $2::jsonb)', [
 			worksheet,
@@ -517,7 +535,9 @@ describe('submit preflight and states', () => {
 		expect(resubmit.ok).toBe(true);
 
 		// Draft grade lands (not released) -> unsubmit is no longer the student's call.
-		const draft = await grade(teacherA.id, worksheet, alice.email, { 'm1-r1': 8 }, null, false);
+		const draft = await grade(teacherA.id, worksheet, alice.email, { 'm1-r1': 8 }, null, false, {
+			'm1-r1': 'Between levels: method is sound but one step is unevidenced.'
+		});
 		expect(draft.ok).toBe(true);
 		const refused = await rpc<{ ok: boolean; reason?: string }>(
 			alice.id,
@@ -534,7 +554,8 @@ describe('submit preflight and states', () => {
 			alice.email,
 			{ 'm1-r1': 8 },
 			'Half graded',
-			true
+			true,
+			{ 'm1-r1': 'Between levels: one step unevidenced.' }
 		);
 		expect(incomplete).toMatchObject({ ok: false, reason: 'incomplete_scores' });
 		expect(incomplete.missing).toEqual(['m2-r1', 'm3-r1']);
@@ -545,7 +566,11 @@ describe('submit preflight and states', () => {
 			alice.email,
 			{ 'm1-r1': 8, 'm2-r1': 10, 'm3-r1': 7.5 },
 			'Solid work. Tighten the reflection.',
-			true
+			true,
+			{
+				'm1-r1': 'Between levels: one step unevidenced.',
+				'm3-r1': 'Between levels: reflection is specific but short.'
+			}
 		);
 		expect(released.ok).toBe(true);
 		expect(Number(released.score)).toBe(25.5);
@@ -615,12 +640,12 @@ describe('grading gates and files', () => {
 			owner.id,
 			worksheet,
 			alice.email,
-			{ 'm1-r1': 9, 'm2-r1': 9, 'm3-r1': 9 },
+			{ 'm1-r1': 10, 'm2-r1': 5, 'm3-r1': 10 },
 			null,
 			false
 		);
 		expect(res.ok).toBe(true);
-		expect(Number(res.score)).toBe(27);
+		expect(Number(res.score)).toBe(25);
 	});
 
 	test('file rows are scoped exactly like the work they evidence', async () => {
@@ -692,7 +717,7 @@ describe('grading gates and files', () => {
 			'classroom_delete_submission_file(uuid)',
 			'classroom_submit_assignment(uuid)',
 			'classroom_unsubmit_assignment(uuid)',
-			'classroom_grade_submission(uuid, text, jsonb, text, boolean)',
+			'classroom_grade_submission(uuid, text, jsonb, text, boolean, jsonb)',
 			'classroom_approve_module(uuid, text, text, boolean)'
 		];
 		for (const fn of fns) {
@@ -884,7 +909,7 @@ describe('home-page classroom feed', () => {
 			true
 		]);
 
-		const rubric = [{ id: 'r1', criterion: 'Done', points: 10 }];
+		const rubric = [{ id: 'r1', criterion: 'Done', levels: levels(10) }];
 		for (const item of [feedReturned, feedSeen]) {
 			await rpc(teacherA.id, 'public.classroom_set_rubric($1::uuid, $2::jsonb)', [
 				item,
@@ -892,7 +917,7 @@ describe('home-page classroom feed', () => {
 			]);
 			await addFile(alice.id, item, `drive-${item.slice(0, 8)}`);
 			await submit(alice.id, item);
-			await grade(teacherA.id, item, alice.email, { r1: 9 }, 'Nice work.', true);
+			await grade(teacherA.id, item, alice.email, { r1: 10 }, 'Nice work.', true);
 		}
 		// One of the two is then OPENED, so "returned" can be told apart from
 		// "returned and already read" -- the only thing stopping the badge

@@ -37,7 +37,8 @@ const MIGRATIONS = [
 	'0085_classroom_canonical_items.sql',
 	'0086_classroom_assignment_engine.sql',
 	'0090_classroom_instructor_materials.sql',
-	'0092_classroom_reference_specs.sql'
+	'0092_classroom_reference_specs.sql',
+	'0095_classroom_leveled_rubrics.sql'
 ] as const;
 
 const FILE_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3, 4]);

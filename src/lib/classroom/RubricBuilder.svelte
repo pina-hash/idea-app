@@ -1,19 +1,35 @@
 <script lang="ts">
 	import {
+		criterionIncomplete,
+		criterionIssues,
+		criterionMax,
+		MAX_LEVELS,
+		MIN_LEVELS,
 		rubricFromSpec,
 		rubricTotal,
 		type AssignmentSpec,
 		type AssignmentTeacherTransports,
-		type RubricCriterion
+		type RubricCriterion,
+		type RubricLevel
 	} from '$lib/classroom/assignment-spec';
 
 	/**
-	 * The rubric builder: ordered criteria, each with points and optional
-	 * leveled descriptors. Saved as ONE full-set replacement through
-	 * classroom_set_rubric (validated in SQL); for a spec-driven assignment
-	 * "Generate from spec" flattens the module rubrics into criteria, which are
-	 * then ordinary editable rows -- generation is a starting point, never a
-	 * lock.
+	 * The rubric builder: ordered criteria, each an ordered list of LEVELS with
+	 * points, a short label and a descriptor. Saved as ONE full-set replacement
+	 * through classroom_set_rubric (validated and stamped in SQL); for a
+	 * spec-driven assignment "Generate from spec" carries the authored levels
+	 * through, which are then ordinary editable rows -- generation is a starting
+	 * point, never a lock.
+	 *
+	 * THE TOP LEVEL IS THE MAXIMUM. There is deliberately no separate "criterion
+	 * points" field to keep in step with it: the server re-derives `points` from
+	 * levels[0] on every save, so a second input could only ever disagree.
+	 *
+	 * A criterion that does not yet satisfy the constraints (three or four
+	 * levels, top = maximum, bottom = 0, strictly descending, every level
+	 * labelled and described) is saveable but flagged UNFINISHED, here and
+	 * everywhere it is rendered. That is what the flat-to-leveled migration
+	 * produces, and it must be visible rather than silent.
 	 */
 	let {
 		itemId,
@@ -38,21 +54,35 @@
 	let nextId = $state(1);
 
 	const total = $derived(rubricTotal(rows));
+	const unfinished = $derived(rows.filter((r) => criterionIssues(r).length > 0).length);
+	const savedUnfinished = $derived((criteria ?? []).filter(criterionIncomplete).length);
+
+	function blankCriterion(): RubricCriterion {
+		nextId += 1;
+		return {
+			id: `c${Date.now().toString(36)}-${nextId}`,
+			criterion: '',
+			points: 10,
+			levels: [
+				{ points: 10, label: 'Complete', descriptor: '' },
+				{ points: 6, label: 'Developing', descriptor: '' },
+				{ points: 0, label: 'Absent', descriptor: '' }
+			]
+		};
+	}
 
 	function startEdit(from: RubricCriterion[]) {
-		rows = structuredClone($state.snapshot(from) as RubricCriterion[]);
+		rows = structuredClone($state.snapshot(from) as RubricCriterion[]).map((r) => ({
+			...r,
+			levels: r.levels ?? []
+		}));
 		editing = true;
 		error = null;
 		notice = null;
 	}
 
-	function freshId(): string {
-		nextId += 1;
-		return `c${Date.now().toString(36)}-${nextId}`;
-	}
-
 	function addRow() {
-		rows = [...rows, { id: freshId(), criterion: '', points: 5 }];
+		rows = [...rows, blankCriterion()];
 	}
 
 	function removeRow(index: number) {
@@ -67,20 +97,55 @@
 		rows = next;
 	}
 
+	/** Keeps `points` (the criterion maximum) in step with the top level. */
+	function syncMax(index: number) {
+		rows[index] = { ...rows[index], points: criterionMax(rows[index]) };
+	}
+
+	/**
+	 * Adds the next level DOWN, keeping the set descending without hand-editing.
+	 * Where it goes depends on whether the criterion already has a bottom:
+	 *   * bottom is 0 -> slot in ABOVE it, at the midpoint (the fresh-criterion
+	 *     case, where the ladder is already closed).
+	 *   * no zero yet -> APPEND below, and close at 0 once there are two levels
+	 *     already (the MIGRATED case, which starts as a lone top level -- an
+	 *     insert-above there would push the author's own top level down a rung).
+	 */
 	function addLevel(index: number) {
 		const levels = rows[index].levels ?? [];
-		rows[index] = { ...rows[index], levels: [...levels, { label: '', description: '' }] };
+		if (levels.length >= MAX_LEVELS) return;
+		const last = levels[levels.length - 1];
+		const closed = levels.length > 0 && Number(last?.points) === 0;
+		const blank = (points: number): RubricLevel => ({
+			points: Math.max(0, points),
+			label: '',
+			descriptor: ''
+		});
+		if (!levels.length) {
+			rows[index] = { ...rows[index], levels: [blank(criterionMax(rows[index]))] };
+			return;
+		}
+		if (!closed) {
+			const next = levels.length >= 2 ? 0 : Math.round(Number(last.points) / 2);
+			rows[index] = { ...rows[index], levels: [...levels, blank(next)] };
+			return;
+		}
+		const above = levels[levels.length - 2];
+		const cut = levels.length - 1;
+		const next = blank(Math.round(Number(above?.points ?? levels[0].points) / 2));
+		rows[index] = { ...rows[index], levels: [...levels.slice(0, cut), next, ...levels.slice(cut)] };
 	}
 
 	function removeLevel(index: number, li: number) {
 		const levels = (rows[index].levels ?? []).filter((_, i) => i !== li);
-		rows[index] = { ...rows[index], levels: levels.length ? levels : undefined };
+		rows[index] = { ...rows[index], levels };
+		syncMax(index);
 	}
 
 	function generate() {
 		if (!spec) return;
-		startEdit(rubricFromSpec(spec));
-		notice = 'Generated from the spec’s module rubrics -- edit freely, then save.';
+		startEdit(rubricFromSpec(spec, criteria));
+		notice = 'Generated from the spec’s leveled criteria -- edit freely, then save.';
 	}
 
 	async function save() {
@@ -94,8 +159,8 @@
 				error = 'Every criterion needs text.';
 				return;
 			}
-			if (!(row.points >= 0)) {
-				error = 'Every criterion needs points (0 or more).';
+			if (!row.levels?.length) {
+				error = `"${row.criterion.trim()}" needs at least one level.`;
 				return;
 			}
 		}
@@ -103,14 +168,12 @@
 		const payload = rows.map((r) => ({
 			...r,
 			criterion: r.criterion.trim(),
-			points: Number(r.points),
-			levels: r.levels
-				?.filter((l) => l.label.trim())
-				.map((l) => ({
-					label: l.label.trim(),
-					...(l.points != null && !Number.isNaN(Number(l.points)) ? { points: Number(l.points) } : {}),
-					...(l.description?.trim() ? { description: l.description.trim() } : {})
-				}))
+			points: criterionMax(r),
+			levels: (r.levels ?? []).map((l) => ({
+				points: Number(l.points) || 0,
+				label: l.label.trim(),
+				descriptor: l.descriptor?.trim() ?? ''
+			}))
 		}));
 		const res = await transports.setRubric(itemId, payload as RubricCriterion[]);
 		busy = false;
@@ -119,7 +182,9 @@
 			return;
 		}
 		editing = false;
-		notice = 'Rubric saved. Students can see it on the assignment.';
+		notice = unfinished
+			? `Rubric saved with ${unfinished} criteri${unfinished === 1 ? 'on' : 'a'} still unfinished.`
+			: 'Rubric saved. Students can see it on the assignment.';
 		await onchanged?.();
 	}
 
@@ -151,11 +216,17 @@
 				No rubric yet -- grading needs one.
 			{/if}
 		</p>
+		{#if savedUnfinished}
+			<p class="warn-line">
+				{savedUnfinished} criteri{savedUnfinished === 1 ? 'on' : 'a'} still needs its levels written.
+				Until then a grader has to override to reach most scores.
+			</p>
+		{/if}
 		<span class="actions">
 			<button
 				type="button"
 				class="btn secondary tiny"
-				onclick={() => startEdit(criteria ?? [{ id: 'overall', criterion: 'Overall', points: 10 }])}
+				onclick={() => startEdit(criteria?.length ? criteria : [blankCriterion()])}
 			>
 				{criteria?.length ? 'Edit rubric' : 'Build rubric'}
 			</button>
@@ -170,8 +241,14 @@
 		</span>
 	{:else}
 		<div class="editor">
+			<p class="rule">
+				Each criterion needs {MIN_LEVELS} or {MAX_LEVELS} levels. The top level is the
+				criterion maximum, the bottom level is 0, and each level is worth less than the one
+				above it.
+			</p>
 			{#each rows as row, i (row.id)}
-				<div class="crit-row">
+				{@const issues = criterionIssues(row)}
+				<div class="crit-row" class:unfinished={issues.length > 0}>
 					<div class="crit-main">
 						<input
 							type="text"
@@ -179,35 +256,66 @@
 							placeholder="Criterion"
 							bind:value={row.criterion}
 						/>
-						<input
-							type="number"
-							class="crit-points"
-							min="0"
-							max="1000"
-							step="0.5"
-							bind:value={row.points}
-							aria-label="Points"
-						/>
+						<span class="crit-max">max {criterionMax(row)}</span>
 						<span class="crit-ops">
 							<button type="button" title="Move up" onclick={() => moveRow(i, -1)} disabled={i === 0}>↑</button>
 							<button type="button" title="Move down" onclick={() => moveRow(i, 1)} disabled={i === rows.length - 1}>↓</button>
-							<button type="button" title="Remove" onclick={() => removeRow(i)}>✕</button>
+							<button type="button" title="Remove criterion" onclick={() => removeRow(i)}>✕</button>
 						</span>
 					</div>
 					{#each row.levels ?? [] as level, li (li)}
 						<div class="level-row">
-							<input type="text" class="level-label" placeholder="Level label (e.g. Full credit)" bind:value={level.label} />
-							<input type="text" class="level-desc" placeholder="Descriptor" bind:value={level.description} />
-							<button type="button" class="level-remove" title="Remove level" onclick={() => removeLevel(i, li)}>✕</button>
+							<input
+								type="number"
+								class="level-points"
+								min="0"
+								max="1000"
+								step="0.5"
+								bind:value={level.points}
+								oninput={() => syncMax(i)}
+								aria-label={`Level ${li + 1} points`}
+							/>
+							<input
+								type="text"
+								class="level-label"
+								placeholder="Label (e.g. Complete)"
+								bind:value={level.label}
+								aria-label={`Level ${li + 1} label`}
+							/>
+							<input
+								type="text"
+								class="level-desc"
+								placeholder="What this level looks like"
+								bind:value={level.descriptor}
+								aria-label={`Level ${li + 1} descriptor`}
+							/>
+							<button
+								type="button"
+								class="level-remove"
+								title="Remove level"
+								aria-label={`Remove level ${li + 1}`}
+								onclick={() => removeLevel(i, li)}>✕</button
+							>
 						</div>
 					{/each}
-					<button type="button" class="add-level" onclick={() => addLevel(i)}>+ level descriptor</button>
+					{#if (row.levels?.length ?? 0) < MAX_LEVELS}
+						<button type="button" class="add-level" onclick={() => addLevel(i)}>+ level</button>
+					{/if}
+					{#if issues.length}
+						<p class="issues">{issues.join(' ')}</p>
+					{/if}
 				</div>
 			{/each}
 			<span class="actions">
 				<button type="button" class="btn secondary tiny" onclick={addRow}>Add criterion</button>
 				<span class="total">Total: {total} pts</span>
 			</span>
+			{#if unfinished}
+				<p class="warn-line">
+					{unfinished} criteri{unfinished === 1 ? 'on is' : 'a are'} unfinished. You can save and
+					come back -- they stay flagged for you and for students until the levels are written.
+				</p>
+			{/if}
 			<span class="actions">
 				<button type="button" class="btn tiny" disabled={busy} onclick={save}>Save rubric</button>
 				<button type="button" class="btn secondary tiny" onclick={() => (editing = false)}>Cancel</button>
@@ -230,6 +338,16 @@
 	}
 	.line.none {
 		color: var(--dim);
+	}
+	.rule {
+		margin: 0;
+		font-size: 0.76rem;
+		color: var(--dim);
+	}
+	.warn-line {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--amber);
 	}
 	.actions {
 		display: flex;
@@ -259,6 +377,9 @@
 		flex-direction: column;
 		gap: 0.35rem;
 	}
+	.crit-row.unfinished {
+		border-color: var(--amber);
+	}
 	.crit-main {
 		display: flex;
 		gap: 0.35rem;
@@ -276,15 +397,11 @@
 		font-size: 0.9rem;
 		padding: 0.3rem 0.45rem;
 	}
-	.crit-points {
-		width: 4.4rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--gold);
+	.crit-max {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.8rem;
-		padding: 0.3rem 0.35rem;
+		font-size: 0.68rem;
+		color: var(--gold);
+		white-space: nowrap;
 	}
 	.crit-ops {
 		display: flex;
@@ -297,8 +414,8 @@
 		border-radius: 4px;
 		color: var(--dim);
 		font-size: 0.7rem;
-		width: 1.45rem;
-		height: 1.45rem;
+		width: 1.75rem;
+		height: 1.75rem;
 		cursor: pointer;
 	}
 	.crit-ops button:hover:not(:disabled) {
@@ -313,13 +430,19 @@
 		display: flex;
 		gap: 0.35rem;
 		align-items: center;
+		flex-wrap: wrap;
+	}
+	.level-points {
+		width: 4rem;
+		color: var(--gold) !important;
+		font-family: 'Share Tech Mono', monospace !important;
 	}
 	.level-label {
-		flex: 0 1 11rem;
-		min-width: 0;
+		flex: 0 1 9rem;
+		min-width: 6rem;
 	}
 	.level-desc {
-		flex: 1 1 10rem;
+		flex: 3 1 14rem;
 		min-width: 0;
 	}
 	.level-row input {
@@ -328,16 +451,19 @@
 		border-radius: 4px;
 		color: var(--white);
 		font-family: 'Rajdhani', sans-serif;
-		font-size: 0.8rem;
-		padding: 0.25rem 0.4rem;
+		font-size: 0.82rem;
+		padding: 0.3rem 0.4rem;
 	}
 	.level-remove {
 		appearance: none;
-		background: none;
-		border: none;
+		background: var(--bg2);
+		border: 1px solid var(--line);
+		border-radius: 4px;
 		color: var(--dim);
 		cursor: pointer;
 		font-size: 0.7rem;
+		width: 1.75rem;
+		height: 1.75rem;
 	}
 	.level-remove:hover {
 		color: var(--crimson);
@@ -351,7 +477,12 @@
 		font-size: 0.64rem;
 		text-align: left;
 		cursor: pointer;
-		padding: 0;
+		padding: 0.2rem 0;
+	}
+	.issues {
+		margin: 0;
+		font-size: 0.72rem;
+		color: var(--amber);
 	}
 	.total {
 		font-family: 'Share Tech Mono', monospace;
@@ -372,5 +503,18 @@
 	.feedback.ok {
 		color: var(--green);
 		border: 1px solid var(--line-strong);
+	}
+	@media (max-width: 640px) {
+		.level-label,
+		.level-desc {
+			flex: 1 1 100%;
+		}
+		/* Real touch targets on a phone; the desktop layout keeps the compact
+		   squares, which are pointer-sized already. */
+		.crit-ops button,
+		.level-remove {
+			width: 2.75rem;
+			height: 2.75rem;
+		}
 	}
 </style>

@@ -47,7 +47,8 @@ const MIGRATIONS = [
 	'0085_classroom_canonical_items.sql',
 	'0086_classroom_assignment_engine.sql',
 	'0090_classroom_instructor_materials.sql',
-	'0092_classroom_reference_specs.sql'
+	'0092_classroom_reference_specs.sql',
+	'0095_classroom_leveled_rubrics.sql'
 ] as const;
 
 let db: TestDb;
@@ -109,7 +110,17 @@ const ASSIGNMENT_SPEC_V1 = {
 			title: 'Model it',
 			points: 10,
 			blocks: [{ type: 'textField', id: 'why', prompt: 'Why that shape?', minSentences: 2 }],
-			rubric: [{ criterion: 'Reasoning', points: 10 }]
+			rubric: [
+				{
+					id: 'c1',
+					criterion: 'Reasoning',
+					levels: [
+						{ points: 10, label: 'Complete', descriptor: 'Names the load path and the shape that carries it.' },
+						{ points: 5, label: 'Developing', descriptor: 'Names one of the two.' },
+						{ points: 0, label: 'Absent', descriptor: 'Not attempted.' }
+					]
+				}
+			]
 		}
 	]
 };

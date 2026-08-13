@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-13",
+			"title": "Rubrics now tell you what each score means",
+			"body": "The rubric on an assignment used to give you a criterion and a number. Now every criterion lists its levels -- full marks, partway, and nothing -- each with the points it is worth and a sentence describing what that level actually looks like. You can read all of it before you start, so you know what full marks means rather than guessing. When your work comes back, the level you were given is ticked on each criterion, so you can see exactly which description matched your work and what the next one up would have taken. If your teacher scores you between two levels, they have to say why, and that note comes back to you with the grade. Your teachers are still filling in level descriptions on some older rubrics; those criteria are marked so you can tell.",
+			"tags": ["Classwork", "Grades"]
+		},
+		{
+			"date": "2026-08-13",
 			"title": "Your notebook knows your classes",
 			"body": "The digital notebook is connected to your real classes now. The check-ins your teacher schedules show up as quick picks when you add an entry, and they come from the classes you are actually in rather than the pathway year you picked for yourself. If you join a class partway through the term, its check-ins appear straight away. Nothing you have already written changes, and you can still add a free-form entry or a note with no check-in attached.",
 			"tags": ["Notebook"]

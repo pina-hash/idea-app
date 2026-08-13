@@ -296,7 +296,12 @@
 				Returned{submission.score != null ? ` -- ${submission.score} / ${outOf} pts` : ''}
 			</h3>
 			{#if rubric?.length}
-				<RubricView criteria={rubric} scores={submission.rubric_scores ?? {}} title="Rubric breakdown" />
+				<RubricView
+					criteria={rubric}
+					scores={submission.rubric_scores ?? {}}
+					comments={submission.criterion_comments ?? null}
+					title="Rubric breakdown"
+				/>
 			{/if}
 			{#if submission.teacher_comment}
 				<p class="grade-comment">

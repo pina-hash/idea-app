@@ -23,8 +23,11 @@
 		SectionDeleteResult
 	} from '$lib/classroom/classroom';
 	import {
+		criterionIssues,
+		criterionMax,
 		filesByBlockCount,
 		gatedModuleIds,
+		isOverrideScore,
 		registerLocalSubmissionFileUrl,
 		responsesMap,
 		rubricFromSpec,
@@ -731,8 +734,25 @@
 					}
 				],
 				rubric: [
-					{ criterion: 'All three views complete and labeled', points: 5 },
-					{ criterion: 'Hardest-view reflection is specific', points: 3 }
+					{
+						id: 'views',
+						criterion: 'All three views complete and labeled',
+						levels: [
+							{ points: 5, label: 'Complete', descriptor: 'All three views drawn to scale with every member labeled.' },
+							{ points: 3, label: 'Proficient', descriptor: 'All three views drawn; two or three members unlabeled.' },
+							{ points: 1, label: 'Developing', descriptor: 'One or two views drawn, or labeling largely missing.' },
+							{ points: 0, label: 'Absent', descriptor: 'No views drawn, or not attempted.' }
+						]
+					},
+					{
+						id: 'reflection',
+						criterion: 'Hardest-view reflection is specific',
+						levels: [
+							{ points: 3, label: 'Specific', descriptor: 'Names the view and the exact feature that made it hard.' },
+							{ points: 2, label: 'General', descriptor: 'Names the view but not what made it hard.' },
+							{ points: 0, label: 'Absent', descriptor: 'No reflection, or unrelated to the sketch.' }
+						]
+					}
 				]
 			},
 			{
@@ -743,7 +763,18 @@
 					{ type: 'imageZone', id: 'z1', minImages: 2, captions: true },
 					{ type: 'checklist', id: 'c1', items: ['Sketch dated', 'Name on every page'] }
 				],
-				rubric: [{ criterion: 'Photos legible and captioned', points: 6 }]
+				rubric: [
+					{
+						id: 'photos',
+						criterion: 'Photos legible and captioned',
+						levels: [
+							{ points: 6, label: 'Complete', descriptor: 'Both photos in focus, whole sketch in frame, both captioned.' },
+							{ points: 4, label: 'Proficient', descriptor: 'Both photos usable; one caption missing or unclear.' },
+							{ points: 2, label: 'Developing', descriptor: 'One usable photo, or captions missing entirely.' },
+							{ points: 0, label: 'Absent', descriptor: 'No photos attached.' }
+						]
+					}
+				]
 			},
 			{
 				id: 'm3',
@@ -757,7 +788,17 @@
 						minSentences: 2
 					}
 				],
-				rubric: [{ criterion: 'Failure prediction is reasoned', points: 6 }]
+				rubric: [
+					{
+						id: 'failure',
+						criterion: 'Failure prediction is reasoned',
+						levels: [
+							{ points: 6, label: 'Reasoned', descriptor: 'Names a member and the loading that would fail it.' },
+							{ points: 3, label: 'Partial', descriptor: 'Names a member with no loading reason, or the reverse.' },
+							{ points: 0, label: 'Absent', descriptor: 'No prediction, or a guess with no reasoning.' }
+						]
+					}
+				]
 			}
 		],
 		declarations: { academicIntegrity: true },
@@ -766,7 +807,20 @@
 
 	const ENGINE_ITEM = 'i-3';
 	let engineSpec = $state<AssignmentSpec | null>(SEED_SPEC);
-	let engineRubric = $state<RubricCriterion[] | null>(rubricFromSpec(SEED_SPEC));
+	// The generated rubric, with the LAST criterion left in the state the
+	// flat-to-leveled migration produces: its old descriptor as the top level and
+	// nothing beneath it, flagged incomplete. That is the one shape the builder,
+	// the grading console and the student rubric all have to render honestly.
+	const SEED_RUBRIC: RubricCriterion[] = rubricFromSpec(SEED_SPEC).map((c, i, all) =>
+		i === all.length - 1
+			? {
+					...c,
+					levels: [{ points: c.points, label: 'Full credit', descriptor: 'Failure prediction is reasoned.' }],
+					incomplete: true
+				}
+			: c
+	);
+	let engineRubric = $state<RubricCriterion[] | null>(SEED_RUBRIC);
 	let engSubmissions = $state<SubmissionRow[]>([]);
 	let engResponses = $state<ResponseRow[]>([]);
 	let engFiles = $state<SubmissionFileRow[]>([]);
@@ -789,6 +843,7 @@
 				submitted_at: null,
 				returned_at: null,
 				rubric_scores: null,
+				criterion_comments: null,
 				score: null,
 				teacher_comment: null,
 				graded_by: null,
@@ -1040,23 +1095,46 @@
 		},
 		async setRubric(itemId, criteria) {
 			note('setRubric', { itemId, count: criteria?.length ?? 0 });
-			engineRubric = criteria;
+			// Mirrors _classroom_normalize_rubric: the maximum comes from the top
+			// level and `incomplete` is stamped by the server, never by the client.
+			engineRubric =
+				criteria?.map((c) => ({
+					...c,
+					points: criterionMax(c),
+					incomplete: criterionIssues({ ...c, points: criterionMax(c) }).length > 0
+				})) ?? null;
 			return { ok: true, data: undefined };
 		},
-		async gradeSubmission(itemId, studentEmail, scores, comment, release) {
-			note('gradeSubmission', { itemId, studentEmail, scores, comment, release });
+		async gradeSubmission(itemId, studentEmail, scores, comment, release, criterionComments) {
+			note('gradeSubmission', { itemId, studentEmail, scores, comment, release, criterionComments });
 			if (!engineRubric?.length) {
 				return { ok: false, message: 'Create a rubric for this assignment before grading.' };
 			}
 			for (const [key, value] of Object.entries(scores)) {
 				const crit = engineRubric.find((c) => c.id === key);
 				if (!crit) return { ok: false, message: `Score key "${key}" is not a rubric criterion.` };
-				if (value < 0 || value > crit.points) {
+				if (value < 0 || value > criterionMax(crit)) {
 					return {
 						ok: false,
-						message: `The score for "${crit.criterion}" must be between 0 and ${crit.points}.`
+						message: `The score for "${crit.criterion}" must be between 0 and ${criterionMax(crit)}.`
 					};
 				}
+			}
+			// The override rule, mirroring the RPC: a score matching no level needs
+			// a comment on that criterion, on EVERY write and not only on release.
+			const notes = Object.fromEntries(
+				Object.entries(criterionComments ?? {})
+					.map(([k, v]) => [k, (v ?? '').trim()])
+					.filter(([, v]) => v)
+			);
+			const uncommented = engineRubric
+				.filter((c) => isOverrideScore(c, scores[c.id]) && !notes[c.id])
+				.map((c) => c.id);
+			if (uncommented.length) {
+				return {
+					ok: true,
+					data: { ok: false, reason: 'override_needs_comment', missing: uncommented }
+				};
 			}
 			const missing = engineRubric.filter((c) => scores[c.id] == null).map((c) => c.id);
 			if (release && missing.length) {
@@ -1066,6 +1144,7 @@
 			ensureSubmission(studentEmail);
 			patchSubmission(studentEmail, {
 				rubric_scores: scores,
+				criterion_comments: notes,
 				score: total,
 				teacher_comment: comment,
 				graded_by: TEACHER,

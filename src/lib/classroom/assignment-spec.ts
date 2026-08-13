@@ -101,10 +101,24 @@ export type SpecBlock =
 /** A block that stores something under its id (everything but instructions/calc). */
 export type InteractiveBlock = TextFieldBlock | TableBlock | ImageZoneBlock | ChecklistBlock;
 
-export interface SpecRubricRow {
-	criterion: string;
+/**
+ * One level of a spec rubric criterion (schema v1.1). `points` is required --
+ * the top level's points ARE the criterion maximum, which is what v1.1 dropped
+ * the flat `points` field in favour of.
+ */
+export interface SpecRubricLevel {
 	points: number;
-	descriptor?: string;
+	label: string;
+	descriptor: string;
+}
+
+export interface SpecRubricRow {
+	/** Authored id, used for the generated criterion id when present. */
+	id?: string;
+	criterion: string;
+	levels: SpecRubricLevel[];
+	/** v1.0's flat maximum. Accepted only when it agrees with the top level. */
+	points?: number;
 }
 
 export interface SpecModule {
@@ -164,6 +178,8 @@ export interface SubmissionRow {
 	submitted_at: string | null;
 	returned_at: string | null;
 	rubric_scores: Record<string, number> | null;
+	/** {criterionId: comment}: required on an override, optional otherwise. */
+	criterion_comments: Record<string, string> | null;
 	score: number | null;
 	teacher_comment: string | null;
 	graded_by: string | null;
@@ -205,17 +221,103 @@ export type ResponseValue = {
 	checked?: boolean[];
 };
 
+/**
+ * A LEVELED rubric criterion (migration 0095). The grader picks a level rather
+ * than typing a number, which is what makes three sections taught by two
+ * instructors grade the same work the same way.
+ *
+ * THE CONSTRAINTS, enforced by _classroom_check_levels in SQL and mirrored here
+ * by criterionIssues: three or four levels, the top level worth the criterion
+ * maximum, the bottom level 0, points strictly descending, every level carrying
+ * a label and a descriptor.
+ *
+ * `incomplete` is SERVER-DERIVED (the normalizer stamps it and discards whatever
+ * a client sent), so it is a flag to render, never one to author: a criterion
+ * migrated from the flat format has only its top level until somebody writes the
+ * rest, and this is what makes that visible instead of silent.
+ */
 export interface RubricLevel {
+	points: number;
 	label: string;
-	points?: number;
-	description?: string;
+	descriptor?: string;
 }
 
 export interface RubricCriterion {
 	id: string;
 	criterion: string;
+	/** The maximum. Always equals levels[0].points; the server re-derives it. */
 	points: number;
-	levels?: RubricLevel[];
+	levels: RubricLevel[];
+	incomplete?: boolean;
+}
+
+/** Per-criterion grader comments: required on an override, keyed by criterion id. */
+export type CriterionComments = Record<string, string>;
+
+export const MIN_LEVELS = 3;
+export const MAX_LEVELS = 4;
+
+/** A criterion's maximum is its top level, always. */
+export function criterionMax(c: { points?: number; levels?: RubricLevel[] }): number {
+	const top = c.levels?.[0]?.points;
+	return typeof top === 'number' ? top : (c.points ?? 0);
+}
+
+/**
+ * Which level a score lands on, or -1 for an OVERRIDE. Derived from the number
+ * alone (points are strictly descending, so at most one level can match), which
+ * is exactly how classroom_grade_submission decides -- there is no stored level
+ * index to drift out of step with an edited rubric.
+ */
+export function levelIndexForScore(
+	c: Pick<RubricCriterion, 'levels'>,
+	score: number | null | undefined
+): number {
+	if (score == null || Number.isNaN(Number(score))) return -1;
+	return (c.levels ?? []).findIndex((l) => Number(l.points) === Number(score));
+}
+
+export function isOverrideScore(
+	c: Pick<RubricCriterion, 'levels'>,
+	score: number | null | undefined
+): boolean {
+	return score != null && !Number.isNaN(Number(score)) && levelIndexForScore(c, score) < 0;
+}
+
+/**
+ * The level constraints as a list of plain-language problems -- empty means the
+ * criterion is COMPLETE. The friendly half of _classroom_check_levels; the SQL
+ * is the boundary, and the two must agree.
+ */
+export function criterionIssues(c: RubricCriterion): string[] {
+	const issues: string[] = [];
+	const levels = c.levels ?? [];
+	if (levels.length < MIN_LEVELS || levels.length > MAX_LEVELS) {
+		issues.push(`Needs ${MIN_LEVELS} or ${MAX_LEVELS} levels (it has ${levels.length}).`);
+	}
+	const max = criterionMax(c);
+	levels.forEach((l, i) => {
+		if (typeof l.points !== 'number' || Number.isNaN(l.points)) {
+			issues.push(`Level ${i + 1} needs a point value.`);
+		}
+		if (!l.label?.trim()) issues.push(`Level ${i + 1} needs a label.`);
+		if (!l.descriptor?.trim()) issues.push(`Level ${i + 1} needs a descriptor.`);
+		if (i > 0 && Number(l.points) >= Number(levels[i - 1].points)) {
+			issues.push(`Level ${i + 1} must be worth less than the level above it.`);
+		}
+	});
+	if (levels.length && Number(levels[levels.length - 1].points) !== 0) {
+		issues.push('The bottom level must be worth 0.');
+	}
+	if (levels.length && Number(levels[0].points) !== max) {
+		issues.push('The top level must equal the criterion maximum.');
+	}
+	return issues;
+}
+
+/** Server-stamped when present; otherwise recomputed, so an unsaved edit reads right. */
+export function criterionIncomplete(c: RubricCriterion): boolean {
+	return c.incomplete ?? criterionIssues(c).length > 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -394,19 +496,53 @@ export function validateSpec(raw: unknown): { spec: AssignmentSpec | null; error
 			}
 		});
 
+		// Rubric criteria are LEVELED (schema v1.1). A criterion's maximum is its
+		// TOP level's points, and a flat criterion is refused BY NAME -- the
+		// message has to say which one, since a spec carries many.
 		const rubric = mod.rubric;
 		const modPoints = typeof mod.points === 'number' ? mod.points : 0;
 		if (Array.isArray(rubric) && rubric.length > 0) {
 			let sum = 0;
+			// A criterion with no readable maximum contributes 0, which would make
+			// the sum check fire as a second, misleading error on top of the real
+			// one. (SQL never shows both -- it raises on the first problem.)
+			let unreadable = false;
 			rubric.forEach((r, ri) => {
 				const row = r as Record<string, unknown>;
-				if (!String(row.criterion ?? '').trim() || typeof row.points !== 'number' || row.points < 0) {
-					errors.push(`Module "${name}" rubric row ${ri + 1} needs a criterion and points >= 0.`);
-				} else {
-					sum += row.points;
+				const critName = String(row.criterion ?? '').trim();
+				const where = `Module "${name}" rubric criterion ${critName ? `"${critName}"` : `${ri + 1}`}`;
+				if (!critName) {
+					errors.push(`Module "${name}" rubric row ${ri + 1} needs a criterion.`);
+					unreadable = true;
+					return;
 				}
+				const levels = row.levels;
+				if (!Array.isArray(levels) || levels.length === 0) {
+					errors.push(
+						`${where} has no levels. Schema v1.1 requires leveled criteria: three or four levels, the top level worth the criterion maximum and the bottom level 0. Flat criteria are no longer valid.`
+					);
+					unreadable = true;
+					return;
+				}
+				const top = (levels[0] as Record<string, unknown>)?.points;
+				if (typeof top !== 'number' || top < 0 || top > 1000) {
+					errors.push(`${where} level 1 needs a point value between 0 and 1000.`);
+					unreadable = true;
+					return;
+				}
+				if (row.points != null && Number(row.points) !== top) {
+					errors.push(`${where} has points ${row.points} but its top level is worth ${top}.`);
+				}
+				const asCriterion: RubricCriterion = {
+					id: String(row.id ?? `r${ri + 1}`),
+					criterion: critName,
+					points: top,
+					levels: levels as RubricLevel[]
+				};
+				for (const issue of criterionIssues(asCriterion)) errors.push(`${where}: ${issue}`);
+				sum += top;
 			});
-			if (sum !== modPoints) {
+			if (!unreadable && sum !== modPoints) {
 				errors.push(`Module "${name}" rubric sums to ${sum} but the module is worth ${modPoints} points.`);
 			}
 		} else if (modPoints > 0) {
@@ -603,28 +739,51 @@ function shorten(text: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * The auto-generated rubric: the spec's module rubrics flattened into ordered
- * criteria (editable afterwards like any hand-built rubric). Ids are stable
- * per (module, row) so re-generating after a spec tweak keeps existing scores
- * aligned where the rows survived.
+ * The auto-generated rubric: the spec's module rubrics as ordered criteria,
+ * LEVELS AND ALL (editable afterwards like any hand-built rubric).
+ *
+ * IDS ARE STABLE ACROSS REGENERATION, which is what keeps already-entered
+ * scores aligned: an authored criterion id wins, positional `<module>-r<n>` is
+ * the fallback, and `previous` (the rubric being replaced) pins the id already
+ * in use for that same slot -- so re-generating after a spec gained authored ids
+ * does not orphan the scores keyed under the old positional ones.
  */
-export function rubricFromSpec(spec: AssignmentSpec): RubricCriterion[] {
+export function rubricFromSpec(
+	spec: AssignmentSpec,
+	previous?: RubricCriterion[] | null
+): RubricCriterion[] {
 	const criteria: RubricCriterion[] = [];
+	let slot = 0;
 	for (const mod of spec.modules) {
 		(mod.rubric ?? []).forEach((row, index) => {
+			const authored = String(row.id ?? '').trim();
+			const positional = `${mod.id}-r${index + 1}`;
+			const existing = previous?.[slot]?.id;
+			const generated = authored ? `${mod.id}-${authored}` : positional;
+			// Keep the id already in play for this slot when it is one WE could
+			// have generated before -- never when the author picked it by hand for
+			// a different criterion.
+			const id =
+				existing && (existing === generated || existing === positional) ? existing : generated;
+			const levels = (row.levels ?? []).map((l) => ({
+				points: Number(l.points),
+				label: l.label,
+				descriptor: l.descriptor
+			}));
 			criteria.push({
-				id: `${mod.id}-r${index + 1}`,
+				id,
 				criterion: `${mod.title}: ${row.criterion}`,
-				points: row.points,
-				levels: row.descriptor ? [{ label: 'Full credit', description: row.descriptor }] : undefined
+				points: criterionMax({ points: row.points, levels }),
+				levels
 			});
+			slot += 1;
 		});
 	}
 	return criteria;
 }
 
 export function rubricTotal(criteria: RubricCriterion[]): number {
-	return criteria.reduce((sum, c) => sum + (c.points || 0), 0);
+	return criteria.reduce((sum, c) => sum + (criterionMax(c) || 0), 0);
 }
 
 export function scoresTotal(
@@ -726,6 +885,7 @@ export function normalizeSubmissionRow(row: Record<string, unknown>): Submission
 		submitted_at: (row.submitted_at as string | null) ?? null,
 		returned_at: (row.returned_at as string | null) ?? null,
 		rubric_scores: (row.rubric_scores as Record<string, number> | null) ?? null,
+		criterion_comments: (row.criterion_comments as Record<string, string> | null) ?? null,
 		score: row.score == null ? null : Number(row.score),
 		teacher_comment: (row.teacher_comment as string | null) ?? null,
 		graded_by: (row.graded_by as string | null) ?? null,
@@ -823,7 +983,9 @@ export interface AssignmentTeacherTransports {
 		studentEmail: string,
 		scores: Record<string, number>,
 		comment: string | null,
-		release: boolean
+		release: boolean,
+		/** Per-criterion comments. The server REQUIRES one for every override. */
+		criterionComments?: CriterionComments | null
 	): Promise<TxResult<EngineOpResult>>;
 	approveModule(
 		itemId: string,

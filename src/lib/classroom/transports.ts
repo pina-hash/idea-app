@@ -277,9 +277,28 @@ async function deleteItem(id: string): Promise<TxResult<undefined>> {
 	}
 }
 
-const SUBMISSION_SELECT =
+const SUBMISSION_SELECT_BASE =
 	'id, item_id, student_email, state, submitted_at, returned_at, rubric_scores, score, ' +
 	'teacher_comment, graded_by, graded_at, updated_at';
+
+/** criterion_comments arrives with 0095. */
+const SUBMISSION_SELECT = `${SUBMISSION_SELECT_BASE}, criterion_comments`;
+
+/**
+ * Submissions, degrading to the pre-0095 column list when that migration has
+ * not been applied yet -- migrations here are pasted in by hand, so a deploy
+ * sitting between two of them is a real state, and one unknown column would
+ * otherwise blank an entire assignment (the notebook loader's widen-then-degrade
+ * chain).
+ */
+async function selectSubmissions(supabase: SupabaseClient, itemId: string, one: boolean) {
+	const run = (columns: string) => {
+		const q = supabase.from('classroom_submissions').select(columns).eq('item_id', itemId);
+		return one ? q.maybeSingle() : q;
+	};
+	const full = await run(SUBMISSION_SELECT);
+	return full.error ? await run(SUBMISSION_SELECT_BASE) : full;
+}
 
 const SUBMISSION_FILE_SELECT =
 	'id, submission_id, block_id, caption, filename, mime_type, size_bytes, sort_order';
@@ -383,7 +402,7 @@ export async function loadStudentEngineData(
 		await Promise.all([
 			supabase.from('classroom_assignment_specs').select('spec').eq('item_id', itemId).maybeSingle(),
 			supabase.from('classroom_rubrics').select('criteria').eq('item_id', itemId).maybeSingle(),
-			supabase.from('classroom_submissions').select(SUBMISSION_SELECT).eq('item_id', itemId).maybeSingle(),
+			selectSubmissions(supabase, itemId, true),
 			supabase
 				.from('classroom_responses')
 				.select('item_id, student_email, block_id, value, updated_at')
@@ -460,13 +479,14 @@ export function createTeacherEngineTransports(
 			});
 			return error ? fail(error) : { ok: true, data: undefined };
 		},
-		async gradeSubmission(itemId, studentEmail, scores, comment, release) {
+		async gradeSubmission(itemId, studentEmail, scores, comment, release, criterionComments) {
 			const { data: res, error } = await supabase.rpc('classroom_grade_submission', {
 				p_item_id: itemId,
 				p_student_email: studentEmail,
 				p_scores: scores,
 				p_comment: comment,
-				p_return: release
+				p_return: release,
+				p_criterion_comments: criterionComments ?? {}
 			});
 			if (error) return fail(error);
 			return opResult(res);
@@ -488,7 +508,7 @@ export function createTeacherEngineTransports(
 						.select('section_id, student_email, display_name, active, updated_at')
 						.eq('section_id', sectionId)
 						.order('display_name'),
-					supabase.from('classroom_submissions').select(SUBMISSION_SELECT).eq('item_id', itemId),
+					selectSubmissions(supabase, itemId, false),
 					supabase
 						.from('classroom_responses')
 						.select('item_id, student_email, block_id, value, updated_at')

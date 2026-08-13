@@ -4,8 +4,12 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import {
+		criterionIncomplete,
+		criterionMax,
 		gateApproved,
 		gradesCsv,
+		isOverrideScore,
+		levelIndexForScore,
 		rubricTotal,
 		scoresTotal,
 		submissionFileSrc,
@@ -55,6 +59,12 @@
 	let loadError = $state<string | null>(null);
 	let selectedEmail = $state<string | null>(null);
 	let scores = $state<Record<string, number | null>>({});
+	/** Per-criterion comments. The server REQUIRES one on every override. */
+	let critComments = $state<Record<string, string>>({});
+	/** Which criteria have the between-levels input open (UI only). */
+	let overrideOpen = $state<Record<string, boolean>>({});
+	/** Criterion ids the server refused for a missing override comment. */
+	let needComment = $state<string[]>([]);
 	let comment = $state('');
 	let busy = $state(false);
 	let gradeError = $state<string | null>(null);
@@ -88,11 +98,34 @@
 		selectedEmail = student.email;
 		gradeError = null;
 		gradeNotice = null;
+		needComment = [];
 		comment = student.submission?.teacher_comment ?? '';
 		const saved = student.submission?.rubric_scores ?? {};
-		scores = Object.fromEntries(
-			(rubric ?? []).map((c) => [c.id, saved[c.id] ?? null])
+		const notes = student.submission?.criterion_comments ?? {};
+		scores = Object.fromEntries((rubric ?? []).map((c) => [c.id, saved[c.id] ?? null]));
+		critComments = Object.fromEntries((rubric ?? []).map((c) => [c.id, notes[c.id] ?? '']));
+		// A saved score that matches no level IS an override, so its input opens
+		// on its own -- the state is read back from the number, never stored.
+		overrideOpen = Object.fromEntries(
+			(rubric ?? []).map((c) => [c.id, isOverrideScore(c, saved[c.id])])
 		);
+	}
+
+	function pickLevel(c: RubricCriterion, points: number) {
+		scores = { ...scores, [c.id]: points };
+		overrideOpen = { ...overrideOpen, [c.id]: false };
+		needComment = needComment.filter((id) => id !== c.id);
+	}
+
+	function toggleOverride(c: RubricCriterion) {
+		const open = !overrideOpen[c.id];
+		overrideOpen = { ...overrideOpen, [c.id]: open };
+		if (!open && isOverrideScore(c, scores[c.id])) {
+			// Closing the override clears the off-level score rather than leaving
+			// a number behind that no level explains.
+			scores = { ...scores, [c.id]: null };
+			needComment = needComment.filter((id) => id !== c.id);
+		}
 	}
 
 	function statusChip(s: StudentWork): { label: string; cls: string } {
@@ -109,10 +142,14 @@
 		if (!selected || !rubric) return;
 		gradeError = null;
 		gradeNotice = null;
+		needComment = [];
 		const payload: Record<string, number> = {};
+		const notes: Record<string, string> = {};
 		for (const c of rubric) {
 			const v = scores[c.id];
 			if (v != null && !Number.isNaN(Number(v))) payload[c.id] = Number(v);
+			const note = (critComments[c.id] ?? '').trim();
+			if (note) notes[c.id] = note;
 		}
 		busy = true;
 		const res = await transports.gradeSubmission(
@@ -120,7 +157,8 @@
 			selected.email,
 			payload,
 			comment.trim() || null,
-			release
+			release,
+			notes
 		);
 		busy = false;
 		if (!res.ok) {
@@ -128,6 +166,14 @@
 			return;
 		}
 		if (res.data.ok === false) {
+			if (res.data.reason === 'override_needs_comment') {
+				needComment = res.data.missing ?? [];
+				gradeError =
+					needComment.length === 1
+						? 'Say why you scored between levels (1 criterion still needs a comment).'
+						: `Say why you scored between levels (${needComment.length} criteria still need a comment).`;
+				return;
+			}
 			gradeError =
 				res.data.reason === 'incomplete_scores'
 					? `Score every criterion before returning (${res.data.missing?.length ?? 0} left).`
@@ -316,28 +362,77 @@
 					{#if rubric?.length}
 						<div class="card score-card">
 							<h3 class="section-label">Rubric score</h3>
+							<!-- Grading is a LEVEL CHOICE, not a typed number: every level's
+							     descriptor stays on screen so the decision is made against the
+							     written standard, and the level's points are what apply. -->
 							{#each rubric as c (c.id)}
-								<div class="score-row">
-									<span class="score-crit">{c.criterion}</span>
-									<span class="score-input">
-										<input
-											type="number"
-											min="0"
-											max={c.points}
-											step="0.5"
-											bind:value={scores[c.id]}
-											aria-label={`Score for ${c.criterion}`}
-										/>
-										<span class="score-out">/ {c.points}</span>
-									</span>
+								{@const max = criterionMax(c)}
+								{@const chosen = levelIndexForScore(c, scores[c.id])}
+								{@const override = isOverrideScore(c, scores[c.id])}
+								{@const missingNote = needComment.includes(c.id)}
+								<div class="score-row" class:override class:flagged={missingNote}>
+									<div class="score-head">
+										<span class="score-crit">{c.criterion}</span>
+										<span class="score-value" class:override>
+											{scores[c.id] ?? '—'} / {max}
+											{#if override}<span class="override-chip">Override</span>{/if}
+										</span>
+									</div>
+									{#if criterionIncomplete(c)}
+										<p class="score-unfinished">
+											This criterion’s levels are unfinished, so most scores need an override.
+										</p>
+									{/if}
+									<div class="level-picker" role="group" aria-label={`Levels for ${c.criterion}`}>
+										{#each c.levels ?? [] as level, li (li)}
+											<button
+												type="button"
+												class="level-btn"
+												class:picked={li === chosen}
+												aria-pressed={li === chosen}
+												onclick={() => pickLevel(c, level.points)}
+											>
+												<span class="level-top">
+													<span class="level-points">{level.points}</span>
+													<span class="level-label">{level.label}</span>
+												</span>
+												{#if level.descriptor}
+													<span class="level-desc">{level.descriptor}</span>
+												{/if}
+											</button>
+										{/each}
+									</div>
+									<button type="button" class="override-toggle" onclick={() => toggleOverride(c)}>
+										{overrideOpen[c.id] ? 'Use a level instead' : 'Score between levels'}
+									</button>
+									{#if overrideOpen[c.id]}
+										<div class="override-box">
+											<span class="score-input">
+												<input
+													type="number"
+													min="0"
+													max={max}
+													step="0.5"
+													bind:value={scores[c.id]}
+													aria-label={`Score for ${c.criterion}`}
+												/>
+												<span class="score-out">/ {max}</span>
+											</span>
+											<textarea
+												class="crit-comment"
+												rows="2"
+												placeholder="Why this score and not a level? (required)"
+												aria-label={`Comment on ${c.criterion}`}
+												bind:value={critComments[c.id]}
+											></textarea>
+										</div>
+									{:else if critComments[c.id]}
+										<p class="score-note">{critComments[c.id]}</p>
+									{/if}
+									{#if missingNote}
+										<p class="score-flag">A comment is required to score between levels.</p>
+									{/if}
 								</div>
-								{#if c.levels?.length}
-									<p class="score-levels">
-										{c.levels
-											.map((l) => `${l.label}${l.points != null ? ` (${l.points})` : ''}${l.description ? `: ${l.description}` : ''}`)
-											.join(' · ')}
-									</p>
-								{/if}
 							{/each}
 							<div class="score-total">Total: {liveTotal} / {outOf} pts</div>
 							<label class="comment-label" for="grade-comment">Comment to the student</label>
@@ -533,15 +628,135 @@
 	}
 	.score-row {
 		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 0.6rem;
-		padding: 0.3rem 0;
+		flex-direction: column;
+		gap: 0.3rem;
+		padding: 0.5rem 0 0.6rem;
 		border-bottom: 1px solid var(--line);
+		border-left: 2px solid transparent;
+	}
+	.score-row.override {
+		border-left-color: var(--amber);
+		padding-left: 0.5rem;
+	}
+	.score-row.flagged {
+		border-left-color: var(--crimson);
+		padding-left: 0.5rem;
+	}
+	.score-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 0.6rem;
 	}
 	.score-crit {
 		font-size: 0.88rem;
 		min-width: 0;
+	}
+	.score-value {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.78rem;
+		color: var(--green);
+		white-space: nowrap;
+	}
+	.score-value.override {
+		color: var(--amber);
+	}
+	.override-chip {
+		font-size: 0.58rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		border: 1px solid var(--amber);
+		border-radius: 999px;
+		padding: 0.05rem 0.4rem;
+		margin-left: 0.3rem;
+	}
+	.level-picker {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.level-btn {
+		appearance: none;
+		display: flex;
+		flex-direction: column;
+		gap: 0.12rem;
+		width: 100%;
+		text-align: left;
+		background: var(--bg2);
+		border: 1px solid var(--line);
+		border-radius: 5px;
+		color: var(--white);
+		font-family: 'Rajdhani', sans-serif;
+		padding: 0.4rem 0.55rem;
+		min-height: 2.75rem;
+		cursor: pointer;
+	}
+	.level-btn:hover {
+		border-color: var(--line-strong);
+	}
+	.level-btn.picked {
+		border-color: var(--green);
+		background: var(--bg0);
+	}
+	.level-top {
+		display: flex;
+		align-items: baseline;
+		gap: 0.4rem;
+	}
+	.level-points {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--gold);
+		min-width: 1.6rem;
+	}
+	.level-label {
+		font-size: 0.85rem;
+	}
+	.level-desc {
+		font-size: 0.76rem;
+		color: var(--dim);
+	}
+	.override-toggle {
+		appearance: none;
+		background: none;
+		border: none;
+		color: var(--cyan);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		text-align: left;
+		padding: 0.35rem 0;
+		cursor: pointer;
+	}
+	.override-box {
+		display: flex;
+		flex-direction: column;
+		gap: 0.3rem;
+	}
+	.crit-comment {
+		width: 100%;
+		box-sizing: border-box;
+		background: var(--bg0);
+		border: 1px solid var(--amber);
+		border-radius: 5px;
+		color: var(--white);
+		font-family: 'Rajdhani', sans-serif;
+		font-size: 0.85rem;
+		padding: 0.35rem 0.5rem;
+	}
+	.score-note {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--dim);
+	}
+	.score-flag {
+		margin: 0;
+		font-size: 0.76rem;
+		color: var(--crimson);
+	}
+	.score-unfinished {
+		margin: 0;
+		font-size: 0.74rem;
+		color: var(--amber);
 	}
 	.score-input {
 		display: flex;
@@ -565,11 +780,6 @@
 	}
 	.score-out {
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.72rem;
-		color: var(--dim);
-	}
-	.score-levels {
-		margin: 0.15rem 0 0.3rem;
 		font-size: 0.72rem;
 		color: var(--dim);
 	}
