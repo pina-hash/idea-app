@@ -33,18 +33,16 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	MIGRATIONS,
+	createClassroomSection,
 	createUser,
+	enrollStudent,
 	startTestDb,
 	type SeededUser,
 	type TestDb
 } from './db/harness';
 
 /** The notebook chain, plus folders, plus pinning. */
-const CHAIN = [
-	...MIGRATIONS,
-	'0088_notebook_folders.sql',
-	'0091_notebook_pin_and_activity.sql'
-] as const;
+const CHAIN = [...MIGRATIONS, '0091_notebook_pin_and_activity.sql'] as const;
 
 const MIGRATION_PATH = fileURLToPath(
 	new URL('../supabase/migrations/0091_notebook_pin_and_activity.sql', import.meta.url)
@@ -97,15 +95,23 @@ beforeAll(async () => {
 	instructor = await createUser(db, 'instructor@boscotech.edu', 'Ines Tructor');
 	outsider = await createUser(db, 'outsider@boscotech.edu', 'Otto Sider');
 
-	const section = await db.sql<{ id: string }>(
-		`insert into public.notebook_sections (course_id, section_label, instructor_id)
-		 values ('eng1h-sophomore', 'Period 2', $1) returning id`,
-		[instructor.id]
-	);
-	sectionId = section.rows[0].id;
-	await db.sql(`update public.profiles set section_id = 'eng1h-sophomore' where id = $1`, [
-		ada.id
-	]);
+	// Since 0094 the notebook hangs off a CLASSROOM section, and "the
+	// instructor" is its teacher of record. Enrollment moved with it: the old
+	// `profiles.section_id = 'eng1h-sophomore'` line here was the 0003
+	// self-selected-class model the notebook no longer reads.
+	sectionId = await createClassroomSection(db, {
+		as: instructor,
+		courseCode: 'ENG1H',
+		courseTitle: 'Engineering I Honors',
+		label: 'Period 2',
+		teacherEmail: instructor.email
+	});
+	await enrollStudent(db, {
+		as: instructor,
+		sectionId,
+		email: ada.email,
+		displayName: 'Pike, Ada'
+	});
 }, 120_000);
 
 afterAll(async () => {

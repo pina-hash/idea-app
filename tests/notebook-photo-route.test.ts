@@ -39,7 +39,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
+import {
+	createClassroomSection,
+	createUser,
+	startTestDb,
+	type SeededUser,
+	type TestDb
+} from './db/harness';
 import { DRIVE_ENDPOINTS } from '../src/lib/server/notebook-drive';
 import { GET } from '../src/routes/api/notebook/photo/[photo_id]/+server';
 
@@ -151,16 +157,24 @@ beforeAll(async () => {
 		admin.email
 	]);
 
-	const { rows: secA } = await db.sql<{ id: string }>(
-		`insert into public.notebook_sections (course_id, section_label, instructor_id)
-		 values ('eng1h-sophomore', 'Period 2', $1) returning id`,
-		[instructorA.id]
-	);
-	const { rows: secB } = await db.sql<{ id: string }>(
-		`insert into public.notebook_sections (course_id, section_label, instructor_id)
-		 values ('eng1h-senior', 'Period 5', $1) returning id`,
-		[instructorB.id]
-	);
+	// Since 0094 these are CLASSROOM sections and "the instructor" is the
+	// teacher of record. Each creates their own, which 0082 allows any staff
+	// account to do -- neither needs (or has) the admin tier.
+	const sectionAId = await createClassroomSection(db, {
+		as: instructorA,
+		courseCode: 'ENG1H',
+		courseTitle: 'Engineering I Honors',
+		label: 'Period 2',
+		teacherEmail: instructorA.email
+	});
+	const sectionBId = await createClassroomSection(db, {
+		as: instructorB,
+		courseCode: 'ENG1H',
+		label: 'Period 5',
+		teacherEmail: instructorB.email
+	});
+	const secA = [{ id: sectionAId }];
+	const secB = [{ id: sectionBId }];
 
 	// Alice's entry lives in section A, which is what gives instructorA (and
 	// only instructorA) a route to it.

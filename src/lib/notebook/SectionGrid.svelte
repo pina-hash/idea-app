@@ -44,8 +44,13 @@
 	const index = $derived(cellIndex(grid));
 	const summaries = $derived(summarize(grid));
 
-	function cellFor(studentId: string, sessionId: string): GridCell | undefined {
-		return index.get(`${studentId}|${sessionId}`);
+	/**
+	 * Keyed on the roster's `student_key`, not the uuid: since 0094 a student
+	 * who is enrolled but has never signed in has no uuid at all, and every one
+	 * of them would otherwise share the key "null|<session>".
+	 */
+	function cellFor(studentKey: string, sessionId: string): GridCell | undefined {
+		return index.get(`${studentKey}|${sessionId}`);
 	}
 
 	function cellTitle(cell: GridCell): string {
@@ -96,10 +101,17 @@
 					</tr>
 				</thead>
 				<tbody>
-					{#each summaries as summary (summary.student.id)}
+					{#each summaries as summary (summary.student.student_key)}
 						<tr>
 							<th scope="row" class="name-col">
 								<span class="student-name">{summary.student.name}</span>
+								{#if !summary.student.enrolled}
+									<span
+										class="left-class"
+										title="No longer on this class's roster. Their row stays so the work they filed here is not hidden."
+										>left</span
+									>
+								{/if}
 								{#if summary.student.free_entries > 0}
 									<span
 										class="free"
@@ -109,7 +121,7 @@
 								{/if}
 							</th>
 							{#each sessions as session (session.id)}
-								{@const cell = cellFor(summary.student.id, session.id)}
+								{@const cell = cellFor(summary.student.student_key, session.id)}
 								<td>
 									{#if cell && hasEntry(cell)}
 										<button
@@ -234,6 +246,23 @@
 		display: block;
 		font-size: 0.7rem;
 		color: var(--nb-ink-faint);
+	}
+	/*
+	 * Roster context, never a review signal -- so it borrows the same muted
+	 * treatment as `.free` rather than any of the six status colours, which
+	 * are a locked contract.
+	 */
+	.left-class {
+		display: inline-block;
+		margin-left: 0.35rem;
+		padding: 0 0.3rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: 3px;
+		font-size: 0.62rem;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--nb-ink-faint);
+		font-weight: 500;
 	}
 	.session-col {
 		min-width: 5.4rem;

@@ -22,7 +22,14 @@
 // rest of this repo covers it. Adding it here would dilute what a red run means.
 
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
+import {
+	createClassroomSection,
+	createUser,
+	enrollStudent,
+	startTestDb,
+	type SeededUser,
+	type TestDb
+} from './db/harness';
 
 let db: TestDb;
 
@@ -107,21 +114,40 @@ beforeAll(async () => {
 	alice = await createUser(db, 'alice@boscotech.net', 'Alice Alvarez');
 	bob = await createUser(db, 'bob@boscotech.net', 'Bob Brandt');
 
-	// Sections are admin-created (assigning instructor power is admin-tier
-	// trust), so this runs as the owner.
-	const sections = await db.asUser(owner.id, async (q) => {
-		const a = await q<{ result: { section_id: string } }>(
-			'select public.notebook_admin_upsert_section($1, $2, $3) as result',
-			['eng1h-sophomore', 'Period 2 lab', instructorA.id]
-		);
-		const b = await q<{ result: { section_id: string } }>(
-			'select public.notebook_admin_upsert_section($1, $2, $3) as result',
-			['eng1h-senior', 'Period 5 lab', instructorB.id]
-		);
-		return { a: a.rows[0].result.section_id, b: b.rows[0].result.section_id };
+	// Since 0094 a notebook section IS a classroom section, and "the
+	// instructor" is its teacher of record. Assigning one to somebody else is
+	// admin-only in 0082, so this runs as the owner.
+	sectionA = await createClassroomSection(db, {
+		as: owner,
+		courseCode: 'ENG1H',
+		courseTitle: 'Engineering I Honors',
+		label: 'Period 2 lab',
+		teacherEmail: instructorA.email
 	});
-	sectionA = sections.a;
-	sectionB = sections.b;
+	sectionB = await createClassroomSection(db, {
+		as: owner,
+		courseCode: 'ENG1H',
+		label: 'Period 5 lab',
+		teacherEmail: instructorB.email
+	});
+	await enrollStudent(db, {
+		as: instructorA,
+		sectionId: sectionA,
+		email: alice.email,
+		displayName: 'Alvarez, Alice'
+	});
+	await enrollStudent(db, {
+		as: instructorA,
+		sectionId: sectionA,
+		email: bob.email,
+		displayName: 'Brandt, Bob'
+	});
+	await enrollStudent(db, {
+		as: instructorB,
+		sectionId: sectionB,
+		email: bob.email,
+		displayName: 'Brandt, Bob'
+	});
 
 	// Sessions are created by the section's own instructor.
 	sessionA = (

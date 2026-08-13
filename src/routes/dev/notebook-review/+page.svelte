@@ -45,21 +45,28 @@
 	/** A reviewer who is not yet the instructor of anything. */
 	let noSections = $state(false);
 
-	const INSTRUCTOR_ID = 'u-instr';
-	const CHAIR_ID = 'u-chair';
+	// Staff identity is an EMAIL since 0094 (classroom_sections.teacher_email),
+	// so the old instructor/chair uuids are gone with the check that used them.
+	const INSTRUCTOR_EMAIL = 'ines.tructor@boscotech.edu';
 
+	// Since 0094 these are CLASSROOM sections (0082) and "the instructor" is the
+	// teacher of record, matched by email rather than by uuid.
 	const SECTIONS: ReviewSection[] = [
 		{
 			id: 'sec-a',
-			course_id: 'eng1h-sophomore',
-			section_label: 'Engineering I Honors · P2',
-			instructor_id: INSTRUCTOR_ID
+			course_code: 'ENG1H',
+			course_title: 'Engineering I Honors',
+			label: 'Period 2',
+			block: 'B',
+			teacher_email: INSTRUCTOR_EMAIL
 		},
 		{
 			id: 'sec-b',
-			course_id: 'eng1h-senior',
-			section_label: 'Engineering I Honors · P4',
-			instructor_id: 'u-someone-else'
+			course_code: 'ENG1H',
+			course_title: 'Engineering I Honors',
+			label: 'Period 4',
+			block: null,
+			teacher_email: 'someone.else@boscotech.edu'
 		}
 	];
 
@@ -88,12 +95,17 @@
 		/** Written notes (0078). The review panel renders them read-only. */
 		notes: NotebookNoteRow[];
 	}
+	/**
+	 * A roster row. Since 0094 enrollment is a classroom_enrollments row keyed
+	 * by EMAIL, and `id` is null for a student who has been enrolled but has
+	 * never signed in -- a normal state a real roster reaches every August.
+	 */
 	interface StoreStudent {
-		id: string;
+		id: string | null;
 		name: string;
 		email: string;
-		/** profiles.section_id -- enrollment is the loose 0003 match on course_id. */
-		course_id: string | null;
+		/** The section they are ACTIVELY enrolled in, or null once they leave. */
+		section_id: string | null;
 	}
 
 	let sessions = $state<StoreSession[]>([
@@ -105,13 +117,17 @@
 	]);
 
 	const STUDENTS: StoreStudent[] = [
-		{ id: 'stu-1', name: 'Ana Ruiz', email: 'ana.ruiz@boscotech.net', course_id: 'eng1h-sophomore' },
-		{ id: 'stu-2', name: 'Ben Okafor', email: 'ben.okafor@boscotech.net', course_id: 'eng1h-sophomore' },
-		{ id: 'stu-3', name: 'Chloe Tran', email: 'chloe.tran@boscotech.net', course_id: 'eng1h-sophomore' },
-		// Transferred out: NOT enrolled any more, but holds entries in sec-a, so
-		// the RPC's roster UNION must keep them visible.
-		{ id: 'stu-4', name: 'Dev Patel', email: 'dev.patel@boscotech.net', course_id: 'eng1h-senior' },
-		{ id: 'stu-5', name: 'Eli Moreno', email: 'eli.moreno@boscotech.net', course_id: 'eng1h-senior' }
+		{ id: 'stu-1', name: 'Ruiz, Ana', email: 'ana.ruiz@boscotech.net', section_id: 'sec-a' },
+		{ id: 'stu-2', name: 'Okafor, Ben', email: 'ben.okafor@boscotech.net', section_id: 'sec-a' },
+		{ id: 'stu-3', name: 'Tran, Chloe', email: 'chloe.tran@boscotech.net', section_id: 'sec-a' },
+		// Transferred out: NOT on the active roster any more, but holds entries in
+		// sec-a, so the RPC's roster UNION must keep them visible (flagged as no
+		// longer enrolled).
+		{ id: 'stu-4', name: 'Patel, Dev', email: 'dev.patel@boscotech.net', section_id: 'sec-b' },
+		{ id: 'stu-5', name: 'Moreno, Eli', email: 'eli.moreno@boscotech.net', section_id: 'sec-b' },
+		// ON THE ROSTER, NEVER SIGNED IN. No account, so no uuid at all -- the
+		// state that makes the grid's row key the email rather than the id.
+		{ id: null, name: 'Newcomer, Dana', email: 'dana.newcomer@boscotech.net', section_id: 'sec-a' }
 	];
 
 	function photo(
@@ -249,13 +265,12 @@
 
 	// ---- the RPC's own rules, mirrored -------------------------------------
 
-	const actorId = $derived(viewer === 'chair' ? CHAIR_ID : INSTRUCTOR_ID);
 	const isChair = $derived(viewer === 'chair');
 
-	/** `public.is_admin() or public.notebook_is_section_instructor(section)` */
+	/** `public.classroom_manages_section(section)` -- teacher of record or admin. */
 	function mayManage(sectionId: string): boolean {
 		if (isChair) return true;
-		return SECTIONS.some((s) => s.id === sectionId && s.instructor_id === actorId);
+		return SECTIONS.some((s) => s.id === sectionId && s.teacher_email === INSTRUCTOR_EMAIL);
 	}
 
 	/** The RPC's LA-calendar-date comparison against session_date. */
@@ -275,23 +290,28 @@
 					a.session_label.localeCompare(b.session_label)
 			);
 
-		// Roster: enrolled UNION anyone holding entries or excusals here.
+		// Roster (0094): the section's ACTIVE enrollments UNION anyone holding
+		// entries or excusals here, keyed by email because a roster row may have
+		// no account behind it.
 		const sectionSessionIds = new Set(sessions.filter((s) => s.section_id === sectionId).map((s) => s.id));
 		const roster: GridStudent[] = STUDENTS.filter(
 			(p) =>
-				p.course_id === section.course_id ||
-				entries.some((e) => e.student_id === p.id && e.section_id === sectionId) ||
-				EXCUSALS.some((x) => x.student_id === p.id && sectionSessionIds.has(x.session_id))
+				p.section_id === sectionId ||
+				(p.id !== null &&
+					(entries.some((e) => e.student_id === p.id && e.section_id === sectionId) ||
+						EXCUSALS.some((x) => x.student_id === p.id && sectionSessionIds.has(x.session_id))))
 		)
 			.map((p) => ({
+				student_key: p.email || String(p.id),
 				id: p.id,
 				name: p.name,
 				email: p.email,
+				enrolled: p.section_id === sectionId,
 				free_entries: entries.filter(
-					(e) => e.student_id === p.id && e.section_id === sectionId && e.session_id === null
+					(e) => p.id !== null && e.student_id === p.id && e.section_id === sectionId && e.session_id === null
 				).length
 			}))
-			.sort((a, b) => a.name.localeCompare(b.name));
+			.sort((a, b) => a.name.localeCompare(b.name) || a.student_key.localeCompare(b.student_key));
 
 		const cells: GridCell[] = [];
 		for (const student of roster) {
@@ -304,6 +324,7 @@
 					(x) => x.student_id === student.id && x.session_id === session.id
 				);
 				cells.push({
+					student_key: student.student_key,
 					student_id: student.id,
 					session_id: session.id,
 					status: latest ? latest.status : excused ? 'excused' : 'missing',
@@ -486,7 +507,11 @@
 
 	/** Exactly what the route's load hands the console: scoped per viewer. */
 	const visibleSections = $derived(
-		noSections ? [] : isChair ? SECTIONS : SECTIONS.filter((s) => s.instructor_id === actorId)
+		noSections
+			? []
+			: isChair
+				? SECTIONS
+				: SECTIONS.filter((s) => s.teacher_email === INSTRUCTOR_EMAIL)
 	);
 
 	// ---- CSV preview: the real buildCsv over the same store ----------------

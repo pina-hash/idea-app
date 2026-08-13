@@ -1,7 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import { notebookAccess } from '$lib/server/notebook-access';
-import { sectionById } from '$lib/curriculum';
 import type { NotebookEntry, NotebookSession } from '$lib/notebook';
 import type { NotebookFolder } from '$lib/notebook-folders';
 import type { PageServerLoad } from './$types';
@@ -30,10 +29,7 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
-	const [{ data: profile }, access] = await Promise.all([
-		supabase.from('profiles').select('section_id').eq('id', claims.sub).maybeSingle(),
-		notebookAccess(supabase, claims.sub)
-	]);
+	const access = await notebookAccess(supabase, claims.sub, claims.email as string | undefined);
 
 	/**
 	 * Written notes (0078) are selected through their own embed, and their
@@ -117,22 +113,47 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	});
 
 	/**
-	 * The student's scheduled check-ins. Enrollment is the loose 0003/0069
-	 * model: profiles.section_id is a free-form curriculum Section.id, and a
-	 * notebook_sections row claims it as course_id -- so a student may map to
-	 * more than one notebook section (two lab periods of one class), and the
-	 * `.in()` below deliberately keeps all of them. No pinned class means no
-	 * quick picks, which is a valid state, not an error: the free-form path
-	 * still works.
+	 * The student's scheduled check-ins, from their REAL classes (0094).
+	 *
+	 * This replaces the loose 0003/0069 model, where enrollment was
+	 * profiles.section_id -- a free-form curriculum string the student picked
+	 * themselves -- matched against a notebook_sections.course_id. It is a
+	 * roster now: their teacher enrolled them.
+	 *
+	 * NO `.eq()` ON EITHER SELECT, and that is deliberate rather than lax.
+	 * 0082's "classroom sections readable to members" already scopes
+	 * classroom_sections to sections the caller manages or is actively enrolled
+	 * in, so the filtering IS the RLS policy -- the same /coin-balance doctrine
+	 * the entry select above follows. A teacher reading their own notebook
+	 * legitimately gets their own sections' check-ins here too.
 	 */
 	let sessions: NotebookSession[] = [];
-	const courseId = (profile?.section_id as string | null) ?? null;
-	if (configured && courseId) {
+	let sectionLabel: string | null = null;
+	if (configured) {
 		const { data: sectionRows } = await supabase
-			.from('notebook_sections')
-			.select('id')
-			.eq('course_id', courseId);
-		const sectionIds = (sectionRows ?? []).map((s) => (s as { id: string }).id);
+			.from('classroom_sections')
+			.select('id, label, classroom_courses ( code )');
+
+		interface SectionRow {
+			id: string;
+			label: string;
+			classroom_courses: { code: string } | { code: string }[] | null;
+		}
+		const rows = (sectionRows ?? []) as SectionRow[];
+
+		// The header chip. It used to name the student's SELF-SELECTED pathway
+		// year (profiles.section_id through curriculum.ts); it names their real
+		// classes now, which is what the check-ins below actually come from.
+		const names = rows.map((r) => {
+			const course = Array.isArray(r.classroom_courses)
+				? r.classroom_courses[0]
+				: r.classroom_courses;
+			return [course?.code, r.label].filter(Boolean).join(' · ');
+		});
+		sectionLabel =
+			names.length === 0 ? null : names.length === 1 ? names[0] : `${names.length} classes`;
+
+		const sectionIds = rows.map((r) => r.id);
 		if (sectionIds.length) {
 			const { data: sessionRows } = await supabase
 				.from('notebook_sessions')
@@ -189,7 +210,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		// whether a submit could possibly succeed, so it can say so up front
 		// rather than failing at the end of a photo upload.
 		uploadReady: driveConfigured(),
-		sectionLabel: courseId ? (sectionById(courseId)?.title ?? courseId) : null,
+		sectionLabel,
 		canReview: access.canReview,
 		entries,
 		sessions

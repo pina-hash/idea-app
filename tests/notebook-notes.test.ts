@@ -17,7 +17,13 @@
 // exactly the way PostgREST issues a call.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
+import {
+	createClassroomSection,
+	createUser,
+	startTestDb,
+	type SeededUser,
+	type TestDb
+} from './db/harness';
 
 let db: TestDb;
 let student: SeededUser;
@@ -35,12 +41,15 @@ beforeAll(async () => {
 	other = await createUser(db, 'devon.hale@boscotech.net', 'Devon Hale');
 	teacher = await createUser(db, 'chair@boscotech.edu', 'Dana Chair');
 
-	const section = await db.sql<{ id: string }>(
-		`insert into public.notebook_sections (course_id, section_label, instructor_id)
-		 values ('eng1h-sophomore', 'Period 2', $1) returning id`,
-		[teacher.id]
-	);
-	sectionId = section.rows[0].id;
+	// Since 0094 the notebook hangs off a CLASSROOM section, and "the
+	// instructor" is its teacher of record. Created through the real 0082 RPC.
+	sectionId = await createClassroomSection(db, {
+		as: teacher,
+		courseCode: 'ENG1H',
+		courseTitle: 'Engineering I Honors',
+		label: 'Period 2',
+		teacherEmail: teacher.email
+	});
 
 	const session = await db.sql<{ id: string }>(
 		`insert into public.notebook_sessions (section_id, unit_number, session_date, session_label)
@@ -456,7 +465,11 @@ describe('privileges', () => {
 		const { rows } = await db.sql<{ fn: string; ok: boolean }>(
 			`select fn, has_function_privilege('anon', fn, 'execute') as ok
 			   from (values
-			     ('public.notebook_create_note_entry(jsonb, text, uuid)'),
+			     -- The 4-arg signature is the one that ships: 0088 dropped 0078's
+			     -- 3-arg version outright when it added the folder. This suite used
+			     -- to pin the dead one, which only passed because 0088 was not in
+			     -- its chain.
+			     ('public.notebook_create_note_entry(jsonb, text, uuid, uuid)'),
 			     ('public.notebook_add_note(uuid, jsonb)'),
 			     ('public.notebook_edit_note(uuid, jsonb)')
 			   ) as t(fn)`

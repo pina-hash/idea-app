@@ -20,7 +20,13 @@
 // testing it.
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
+import {
+	createClassroomSection,
+	createUser,
+	startTestDb,
+	type SeededUser,
+	type TestDb
+} from './db/harness';
 import { POST } from '../src/routes/api/notebook/note/+server';
 
 let db: TestDb;
@@ -38,12 +44,15 @@ beforeAll(async () => {
 	student = await createUser(db, 'ramona.pike@boscotech.net', 'Ramona Pike');
 	const teacher = await createUser(db, 'chair@boscotech.edu', 'Dana Chair');
 
-	const section = await db.sql<{ id: string }>(
-		`insert into public.notebook_sections (course_id, section_label, instructor_id)
-		 values ('eng1h-sophomore', 'Period 2', $1) returning id`,
-		[teacher.id]
-	);
-	sectionId = section.rows[0].id;
+	// Since 0094 the notebook hangs off a CLASSROOM section, and "the
+	// instructor" is its teacher of record. Created through the real 0082 RPC.
+	sectionId = await createClassroomSection(db, {
+		as: teacher,
+		courseCode: 'ENG1H',
+		courseTitle: 'Engineering I Honors',
+		label: 'Period 2',
+		teacherEmail: teacher.email
+	});
 }, 120_000);
 
 afterAll(async () => {

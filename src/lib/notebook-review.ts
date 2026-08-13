@@ -7,10 +7,11 @@
  * cannot run in a dev harness with no backend.
  *
  * NOTHING HERE RE-DERIVES A RULE THE DATA LAYER ALREADY OWNS. In particular
- * the ROSTER is not computed here: 0069's `notebook_get_section_grid`
- * already resolved enrollment (profiles.section_id matching the section's
- * course_id, UNION anyone holding entries or excusals in it, so transfers
- * stay visible) and this file only reads the `students` array it returns.
+ * the ROSTER is not computed here: `notebook_get_section_grid` already
+ * resolved it (since 0094, the section's ACTIVE classroom_enrollments UNION
+ * anyone holding entries or excusals in it, so a student who left mid-term
+ * keeps the work they filed) and this file only reads the `students` array it
+ * returns.
  * The same goes for on-time (the RPC compares the upload's date in
  * America/Los_Angeles against session_date) and for which entry a cell
  * shows (the latest upload). Who may see any of it is RLS's job, and
@@ -24,17 +25,28 @@ import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/not
 import type { NotebookNoteRow } from '$lib/notebook-notes';
 
 // ---------------------------------------------------------------------------
-// 1. The shapes `notebook_get_section_grid` actually returns (0069). These
-//    mirror the RPC's jsonb_build_object calls key for key; read the
-//    migration, not this file, if the two ever disagree.
+// 1. The shapes `notebook_get_section_grid` actually returns (0069, reshaped
+//    by 0094). These mirror the RPC's jsonb_build_object calls key for key;
+//    read the migration, not this file, if the two ever disagree.
 // ---------------------------------------------------------------------------
 
-/** A notebook_sections row, as the picker and the grid header need it. */
+/**
+ * A CLASSROOM section (0082), as the picker and the grid header need it. The
+ * notebook has no section table of its own since 0094, so this is the same row
+ * `/classroom` shows -- which is the point: one answer to "what class is this".
+ */
 export interface ReviewSection {
 	id: string;
-	course_id: string;
-	section_label: string;
-	instructor_id: string;
+	course_code: string;
+	course_title: string;
+	label: string;
+	block: string | null;
+	teacher_email: string;
+}
+
+/** "IDEA209H · Period 2" -- how a section reads wherever it is named. */
+export function sectionName(section: ReviewSection): string {
+	return [section.course_code, section.label].filter(Boolean).join(' · ') || 'Section';
 }
 
 export interface GridSession {
@@ -45,9 +57,23 @@ export interface GridSession {
 }
 
 export interface GridStudent {
-	id: string;
+	/**
+	 * THE ROW KEY, and the reason it is not `id`. The roster is email-keyed
+	 * (classroom_enrollments) since 0094, and a student who has been enrolled
+	 * but has never signed in has no account and therefore no `id` at all --
+	 * two of them would collide on a null key. `student_key` is the email where
+	 * there is one and the uuid otherwise, so it is always present and stable.
+	 */
+	student_key: string;
+	/** null = on the roster, no account yet. Every cell of theirs is missing. */
+	id: string | null;
 	name: string;
-	email: string;
+	email: string | null;
+	/**
+	 * false = they hold work in this section but are no longer on its active
+	 * roster. Their row stays so the work they filed does not vanish.
+	 */
+	enrolled: boolean;
 	/**
 	 * Session-less entries this student filed in this section. They have no
 	 * column in the grid (nothing to line them up against) but the RPC
@@ -64,7 +90,9 @@ export interface GridStudent {
 export type GridCellStatus = NotebookStatus | 'excused' | 'missing';
 
 export interface GridCell {
-	student_id: string;
+	/** Matches GridStudent.student_key; the uuid may be absent, this never is. */
+	student_key: string;
+	student_id: string | null;
 	session_id: string;
 	status: GridCellStatus;
 	entry_id: string | null;
@@ -177,9 +205,13 @@ export function hasEntry(cell: GridCell): boolean {
 	return cell.entry_id !== null;
 }
 
-/** `${student_id}|${session_id}` -> cell, for O(1) table lookup. */
+/**
+ * `${student_key}|${session_id}` -> cell, for O(1) table lookup. Keyed on
+ * student_key rather than the uuid because the uuid is nullable since 0094 --
+ * every never-signed-in student would otherwise index as "null|<session>".
+ */
 export function cellIndex(grid: SectionGrid): Map<string, GridCell> {
-	return new Map(grid.cells.map((c) => [`${c.student_id}|${c.session_id}`, c]));
+	return new Map(grid.cells.map((c) => [`${c.student_key}|${c.session_id}`, c]));
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +268,7 @@ export function summarize(grid: SectionGrid): StudentSummary[] {
 		let flagged = 0;
 
 		for (const session of grid.sessions) {
-			const cell = index.get(`${student.id}|${session.id}`);
+			const cell = index.get(`${student.student_key}|${session.id}`);
 			if (!cell) continue;
 			if (cell.entry_id) covered++;
 			if (cell.excused) excused++;
@@ -290,7 +322,12 @@ const CSV_HEADERS = [
 	'Flags: appears reconstructed',
 	'Flags: other',
 	'Excused sessions',
-	'Free entries'
+	'Free entries',
+	// Appended, never inserted, so every existing column keeps its position.
+	// A student who left the class mid-term still has a row (their filed work
+	// is real), and a teacher pasting these into a gradebook needs to see that
+	// before they do.
+	'Still enrolled'
 ];
 
 /**
@@ -324,16 +361,17 @@ export function buildCsv(grid: SectionGrid): string {
 			String(s.flags.appears_reconstructed),
 			String(s.flags.other),
 			String(s.excused),
-			String(s.student.free_entries)
+			String(s.student.free_entries),
+			s.student.enrolled ? 'yes' : 'no'
 		]);
 	}
 
 	return '﻿' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
 }
 
-/** `notebook-eng1h-sophomore-unit-3-2026-08-09.csv` */
+/** `notebook-idea209h-period-2-unit-3-2026-08-09.csv` */
 export function csvFilename(grid: SectionGrid, today: string): string {
-	const slug = (grid.section.course_id || 'section')
+	const slug = (sectionName(grid.section) || 'section')
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-|-$/g, '');

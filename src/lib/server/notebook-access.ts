@@ -4,15 +4,19 @@ import { isAdmin } from '$lib/server/admin';
 /**
  * Who may reach the notebook's SECTION REVIEW surface.
  *
- * There are two staff tiers in 0069 and this reuses both rather than
- * inventing a third:
+ * There are two staff tiers and this reuses both rather than inventing a
+ * third:
  *
- *   * INSTRUCTOR -- has a notebook_sections row naming them as instructor_id.
- *     This is the notebook's own idea of staff, and it is exactly what
- *     `notebook_is_section_instructor()` asks inside every RLS policy and
- *     RPC. The read below is the same question from the app side:
- *     notebook_sections is readable by any signed-in user (0069), so no new
- *     RPC or grant is needed to ask it.
+ *   * INSTRUCTOR -- the TEACHER OF RECORD of at least one classroom section
+ *     (0082's `classroom_sections.teacher_email`). Since 0094 that is the
+ *     notebook's only idea of an instructor: `notebook_sections.instructor_id`
+ *     is gone, and every notebook policy and RPC asks
+ *     `classroom_manages_section()`, which asks this same question. The read
+ *     below is the app-side version of it -- a plain filter on teacher_email,
+ *     NOT `select from classroom_sections limit 1`, because that table is
+ *     readable by enrolled STUDENTS too (0082's
+ *     "classroom sections readable to members") and an unfiltered probe would
+ *     hand every student the review link.
  *   * CHAIR -- the 0067 ADMIN tier, via the one server helper `isAdmin()`.
  *     Note the naming trap documented in CLAUDE.md: `role === 'teacher'` is
  *     NOT an admin check and is deliberately not used here.
@@ -29,17 +33,41 @@ export interface NotebookAccess {
 	isChair: boolean;
 	/** Either tier: the "Section review" link renders for this. */
 	canReview: boolean;
+	/**
+	 * The caller's own lowercased email, resolved once here so the review load
+	 * can scope its section list without asking again. Empty when unknown.
+	 */
+	email: string;
 }
 
 export async function notebookAccess(
 	supabase: SupabaseClient,
-	userId: string
+	userId: string,
+	claimedEmail?: string | null
 ): Promise<NotebookAccess> {
-	const [{ data: taught, error }, chair] = await Promise.all([
-		supabase.from('notebook_sections').select('id').eq('instructor_id', userId).limit(1),
+	// profiles.email is the copy written at signup; the JWT claim is the live
+	// one. Either identifies the caller, and classroom_sections.teacher_email is
+	// stored lowercased (0082 CHECK), so both are lowercased before use.
+	const [{ data: profile }, chair] = await Promise.all([
+		supabase.from('profiles').select('email').eq('id', userId).maybeSingle(),
 		isAdmin(supabase, userId)
 	]);
 
-	const isInstructor = !error && (taught?.length ?? 0) > 0;
-	return { isInstructor, isChair: chair, canReview: isInstructor || chair };
+	const email = (
+		(profile?.email as string | null) ??
+		claimedEmail ??
+		''
+	).toLowerCase().trim();
+
+	let isInstructor = false;
+	if (email) {
+		const { data: taught, error } = await supabase
+			.from('classroom_sections')
+			.select('id')
+			.eq('teacher_email', email)
+			.limit(1);
+		isInstructor = !error && (taught?.length ?? 0) > 0;
+	}
+
+	return { isInstructor, isChair: chair, canReview: isInstructor || chair, email };
 }

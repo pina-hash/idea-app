@@ -27,6 +27,15 @@
 // notebook_entry_notes and its three write RPCs; it is purely additive (a new
 // table and new functions), so it changes nothing an earlier suite reads.
 //
+// THE CHAIN GREW IN 0094, and it had to. That migration wires the notebook's
+// sections and roster onto IDEA Classroom, so 0082 (classroom_sections,
+// classroom_enrollments, classroom_manages_section) is now a real dependency
+// of the notebook rather than a neighbouring feature -- and 0088 comes with
+// it, because 0094 recreates notebook_create_entry from ITS latest definition,
+// the one that writes notebook_entries.folder_id. A suite that wants 0091 on
+// top still passes its own list; what changed is only that "the notebook
+// chain" is a longer thing than it was.
+//
 // Startup runs initdb + a migration pass and takes a few seconds; the suite
 // pays that once per file (beforeAll), not per test.
 
@@ -52,7 +61,10 @@ export const MIGRATIONS = [
 	'0070_coin_economy.sql',
 	'0071_notebook_optional_label.sql',
 	'0075_notebook_optional_photo.sql',
-	'0078_notebook_entry_notes.sql'
+	'0078_notebook_entry_notes.sql',
+	'0082_classroom.sql',
+	'0088_notebook_folders.sql',
+	'0094_notebook_classroom_sections.sql'
 ] as const;
 
 export type QueryFn = <R extends pg.QueryResultRow = pg.QueryResultRow>(
@@ -226,4 +238,55 @@ export async function createUser(
 		[email, fullName]
 	);
 	return { id: rows[0].id, email };
+}
+
+/**
+ * A CLASSROOM section for the notebook to hang off, created through the real
+ * 0082 RPCs rather than by raw insert -- the same reason the harness applies
+ * real migrations instead of asserting what the SQL text says. The course is
+ * create-or-get, so several sections can share one code.
+ *
+ * `admin` runs it because assigning a section to someone else is admin-only in
+ * 0082; a teacher creating their OWN section may run it themselves.
+ */
+export async function createClassroomSection(
+	db: TestDb,
+	opts: {
+		as: SeededUser;
+		courseCode: string;
+		courseTitle?: string;
+		label: string;
+		teacherEmail: string;
+	}
+): Promise<string> {
+	return db.asUser(opts.as.id, async (q) => {
+		const course = await q<{ result: { course_id: string } }>(
+			'select public.classroom_upsert_course($1, $2) as result',
+			[opts.courseCode, opts.courseTitle ?? opts.courseCode]
+		);
+		const section = await q<{ result: { section_id: string } }>(
+			'select public.classroom_upsert_section($1, $2, $3, $4) as result',
+			[course.rows[0].result.course_id, opts.label, null, opts.teacherEmail]
+		);
+		return section.rows[0].result.section_id;
+	});
+}
+
+/**
+ * Puts a student on a section's roster. The email is the key (0082), so this
+ * works for an account that does not exist yet -- which is exactly the state
+ * the notebook grid has to survive.
+ */
+export async function enrollStudent(
+	db: TestDb,
+	opts: { as: SeededUser; sectionId: string; email: string; displayName: string; active?: boolean }
+): Promise<void> {
+	await db.asUser(opts.as.id, (q) =>
+		q('select public.classroom_set_enrollment($1, $2, $3, $4)', [
+			opts.sectionId,
+			opts.email,
+			opts.displayName,
+			opts.active ?? true
+		])
+	);
 }

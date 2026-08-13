@@ -13,6 +13,7 @@
 	import {
 		buildCsv,
 		csvFilename,
+		sectionName,
 		unitsOf,
 		type GridCell,
 		type GridSession,
@@ -305,7 +306,7 @@
 				<span>Section</span>
 				<select bind:value={sectionId}>
 					{#each sections as s (s.id)}
-						<option value={s.id}>{s.section_label} · {s.course_id}</option>
+						<option value={s.id}>{sectionName(s)}{s.block ? ` · ${s.block}` : ''}</option>
 					{/each}
 				</select>
 			</label>
@@ -369,7 +370,7 @@
 					<strong>excused</strong> session is reported in its own column rather than folded into
 					that fraction, so raise the score by hand where an excusal explains a gap.
 					{#if section}
-						Exporting {section.section_label}, {grid.unit_number === null
+						Exporting {sectionName(section)}, {grid.unit_number === null
 							? 'all units'
 							: `unit ${grid.unit_number}`}.
 					{/if}

@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	MIGRATIONS,
+	createClassroomSection,
 	createUser,
 	startTestDb,
 	type SeededUser,
@@ -43,7 +44,7 @@ import {
 } from './db/harness';
 
 /** The notebook chain, plus folders. */
-const CHAIN = [...MIGRATIONS, '0088_notebook_folders.sql'] as const;
+const CHAIN = [...MIGRATIONS] as const;
 
 let db: TestDb;
 let ada: SeededUser; // student
@@ -86,12 +87,15 @@ beforeAll(async () => {
 	outsider = await createUser(db, 'outsider@boscotech.edu', 'Otto Sider');
 	chair = await createUser(db, 'apina@boscotech.edu', 'A Pina'); // the pinned owner
 
-	const section = await db.sql<{ id: string }>(
-		`insert into public.notebook_sections (course_id, section_label, instructor_id)
-		 values ('eng1h-sophomore', 'Period 2', $1) returning id`,
-		[instructor.id]
-	);
-	sectionId = section.rows[0].id;
+	// Since 0094 the notebook hangs off a CLASSROOM section, and "the
+	// instructor" is its teacher of record. Created through the real 0082 RPC.
+	sectionId = await createClassroomSection(db, {
+		as: instructor,
+		courseCode: 'ENG1H',
+		courseTitle: 'Engineering I Honors',
+		label: 'Period 2',
+		teacherEmail: instructor.email
+	});
 
 	gearbox = await newFolder(ada, 'Gearbox build', 'clay');
 	empty = await newFolder(ada, 'Nothing in here');
