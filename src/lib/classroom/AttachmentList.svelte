@@ -22,16 +22,23 @@
 		attachments,
 		viewAs = null,
 		onremove = null,
-		removing = null
+		removing = null,
+		resolveSrc = null
 	}: {
 		attachments: ClassroomAttachment[];
 		viewAs?: string | null;
 		/** Teacher-only; omitted entirely on the student-facing views. */
 		onremove?: ((a: ClassroomAttachment) => void) | null;
 		removing?: string | null;
+		/**
+		 * Overrides how a source URL is built -- for the instructor-only list,
+		 * which goes through its OWN proxy (no ?as= support at all) rather than
+		 * the student-facing one attachmentSrc builds.
+		 */
+		resolveSrc?: ((a: ClassroomAttachment) => string) | null;
 	} = $props();
 
-	const srcOf = (a: ClassroomAttachment) => attachmentSrc(a.id, viewAs);
+	const srcOf = (a: ClassroomAttachment) => resolveSrc?.(a) ?? attachmentSrc(a.id, viewAs);
 
 	// A broken fetch is an ordinary outcome (an expired session, a Drive
 	// hiccup), so a failed image falls back to the file row rather than a

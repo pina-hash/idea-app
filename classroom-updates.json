@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-12",
+			"title": "Teachers can attach private materials to classwork",
+			"body": "Teachers can now attach answer keys, facilitation notes, and other private files or links to any post, assignment, or material. Those stay visible only to that class's teachers and staff -- nothing changes on your side, and you will never see them or know they are there.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-12",
 			"title": "Your classes are on the front page now",
 			"body": "Sign in and the IDEA home page opens straight onto your classes. Each class gets a card showing what it is actually asking of you right now, most urgent first: work that is past due, grades that have come back and you have not opened yet, anything due in the next week, and work you have not handed in. Your syllabus and other reference material sit further down the card under Reference, so they stay easy to find without pushing your deadlines out of sight. Teachers see the same cards from the other side: work waiting to be graded, drafts not posted yet, and what is due soon. Fold a class shut if you want it out of the way and it stays that way, on every device you sign in on.",
 			"tags": ["Home", "Classwork"]

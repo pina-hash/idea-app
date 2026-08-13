@@ -30,11 +30,13 @@ import {
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
+	type ClassroomAttachment,
 	type ClassroomCourse,
 	type ClassroomEnrollment,
 	type ClassroomItem,
 	type ClassroomManageTransports,
 	type ImportSummary,
+	type ItemLink,
 	type LinkPreview,
 	type SectionDeleteResult,
 	type TxResult
@@ -146,6 +148,105 @@ async function deleteAttachment(id: string): Promise<TxResult<undefined>> {
 	} catch (e) {
 		return { ok: false, message: (e as Error).message || 'Remove failed.' };
 	}
+}
+
+/**
+ * The instructor-only counterpart of uploadAttachment/deleteAttachment (0090):
+ * same shape, a DIFFERENT route (/api/classroom/instructor-attachment), whose
+ * proxy has no ?as= support at all -- there is nothing view-as-student could
+ * ever be pointed at here.
+ */
+async function uploadInstructorAttachment(itemId: string, file: File): Promise<TxResult<undefined>> {
+	const form = new FormData();
+	form.set('file', file, file.name);
+	form.set('item_id', itemId);
+	try {
+		const res = await fetch('/api/classroom/instructor-attachment', { method: 'POST', body: form });
+		if (!res.ok) {
+			const body = (await res.json().catch(() => null)) as { error?: string } | null;
+			return { ok: false, message: body?.error ?? `Upload failed (${res.status}).` };
+		}
+		return { ok: true, data: undefined };
+	} catch (e) {
+		return { ok: false, message: (e as Error).message || 'Upload failed.' };
+	}
+}
+
+async function deleteInstructorAttachment(id: string): Promise<TxResult<undefined>> {
+	try {
+		const res = await fetch(`/api/classroom/instructor-attachment/${id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			const body = (await res.json().catch(() => null)) as { error?: string } | null;
+			return { ok: false, message: body?.error ?? `Remove failed (${res.status}).` };
+		}
+		return { ok: true, data: undefined };
+	} catch (e) {
+		return { ok: false, message: (e as Error).message || 'Remove failed.' };
+	}
+}
+
+const INSTRUCTOR_ATTACHMENT_SELECT = 'id, item_id, filename, mime_type, size_bytes, sort_order';
+const INSTRUCTOR_RESOURCE_SELECT = 'id, item_id, label, url, sort_order';
+
+/**
+ * Fetches instructor-only attachments + links for a batch of items and merges
+ * them in. NEVER called for a non-manager: every server load that reads
+ * `canManage === true` calls this explicitly, and every other read simply
+ * never does -- so a student's item read never even carries the query, and
+ * `instructorAttachments`/`instructorLinks` stay `undefined` for them (RLS
+ * would also return nothing, but the caller is not supposed to ask).
+ */
+export async function mergeInstructorMaterials(
+	supabase: SupabaseClient,
+	items: ClassroomItem[]
+): Promise<ClassroomItem[]> {
+	if (!items.length) return items;
+	const ids = items.map((i) => i.id);
+	const [attRes, linkRes] = await Promise.all([
+		supabase
+			.from('classroom_instructor_attachments')
+			.select(INSTRUCTOR_ATTACHMENT_SELECT)
+			.in('item_id', ids)
+			.order('sort_order'),
+		supabase
+			.from('classroom_instructor_resources')
+			.select(INSTRUCTOR_RESOURCE_SELECT)
+			.in('item_id', ids)
+			.order('sort_order')
+	]);
+
+	const attByItem = new Map<string, ClassroomAttachment[]>();
+	for (const row of (attRes.data ?? []) as Record<string, unknown>[]) {
+		const key = String(row.item_id);
+		const list = attByItem.get(key) ?? [];
+		list.push({
+			id: String(row.id),
+			filename: String(row.filename),
+			mime_type: String(row.mime_type),
+			size_bytes: (row.size_bytes as number | null) ?? null,
+			sort_order: Number(row.sort_order ?? 0)
+		});
+		attByItem.set(key, list);
+	}
+
+	const linksByItem = new Map<string, ItemLink[]>();
+	for (const row of (linkRes.data ?? []) as Record<string, unknown>[]) {
+		const key = String(row.item_id);
+		const list = linksByItem.get(key) ?? [];
+		list.push({
+			id: String(row.id),
+			label: String(row.label),
+			url: String(row.url),
+			sort_order: Number(row.sort_order ?? 0)
+		});
+		linksByItem.set(key, list);
+	}
+
+	return items.map((i) => ({
+		...i,
+		instructorAttachments: attByItem.get(i.id) ?? [],
+		instructorLinks: linksByItem.get(i.id) ?? []
+	}));
 }
 
 /**
@@ -472,7 +573,9 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 		async loadContent(sectionId) {
 			const { items, error } = await itemsForSection(supabase, sectionId);
 			if (error) return fail(error);
-			return { ok: true, data: { items } };
+			// The manage console is teacher-only for the whole route, so every
+			// item it lists gets its instructor-only materials merged in.
+			return { ok: true, data: { items: await mergeInstructorMaterials(supabase, items) } };
 		},
 		async createItem(kind, sectionIds, input, published) {
 			const { data: res, error } = await supabase.rpc('classroom_create_item', {
@@ -542,6 +645,15 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 			return error ? fail(error) : { ok: true, data: undefined };
 		},
 		uploadAttachment,
-		deleteAttachment
+		deleteAttachment,
+		uploadInstructorAttachment,
+		deleteInstructorAttachment,
+		async setInstructorResources(itemId, links) {
+			const { error } = await supabase.rpc('classroom_set_instructor_resources', {
+				p_item_id: itemId,
+				p_resources: links
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		}
 	};
 }

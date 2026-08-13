@@ -4,6 +4,7 @@
 	import {
 		ITEM_KINDS,
 		formatBytes,
+		instructorAttachmentSrc,
 		isPreviewableFile,
 		isoToLocalInput,
 		localInputToIso,
@@ -135,12 +136,78 @@
 	onDestroy(() => {
 		for (const url of previewUrls.values()) URL.revokeObjectURL(url);
 		previewUrls.clear();
+		for (const url of instructorPreviewUrls.values()) URL.revokeObjectURL(url);
+		instructorPreviewUrls.clear();
 	});
 
 	function previewOf(file: File): string | null {
 		// previewRev is read so the template re-evaluates when the map changes.
 		void previewRev;
 		return previewUrls.get(file) ?? null;
+	}
+
+	// --- Instructor-only materials (0090) ----------------------------------
+	// Same staging shape as the student-facing files above, kept as its OWN
+	// state rather than a flag on the shared arrays: this section is teacher
+	// eyes only, so its data must never end up in the same list a student-
+	// facing renderer could iterate by accident.
+	// svelte-ignore state_referenced_locally
+	let instructorLinks = $state<{ label: string; url: string }[]>(
+		(item?.instructorLinks ?? []).map((r) => ({ label: r.label, url: r.url }))
+	);
+	// svelte-ignore state_referenced_locally
+	let instructorExisting = $state([...(item?.instructorAttachments ?? [])]);
+	let instructorStaged = $state<File[]>([]);
+	let instructorRemovingId = $state<string | null>(null);
+
+	const instructorPreviewUrls = new Map<File, string>();
+	let instructorPreviewRev = $state(0);
+
+	$effect(() => {
+		let made = false;
+		for (const file of instructorStaged) {
+			if (!instructorPreviewUrls.has(file) && isPreviewableFile(file)) {
+				instructorPreviewUrls.set(file, URL.createObjectURL(file));
+				made = true;
+			}
+		}
+		for (const [file, url] of instructorPreviewUrls) {
+			if (!instructorStaged.includes(file)) {
+				URL.revokeObjectURL(url);
+				instructorPreviewUrls.delete(file);
+				made = true;
+			}
+		}
+		if (made) instructorPreviewRev += 1;
+	});
+
+	function instructorPreviewOf(file: File): string | null {
+		void instructorPreviewRev;
+		return instructorPreviewUrls.get(file) ?? null;
+	}
+
+	function stageInstructorFiles(files: FileList | File[] | null) {
+		if (!files || !attachmentsEnabled) return;
+		const next = Array.from(files).filter((f) => f.size > 0);
+		if (next.length) instructorStaged = [...instructorStaged, ...next];
+	}
+
+	function pickInstructorFiles(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		stageInstructorFiles(input.files);
+		input.value = '';
+	}
+
+	async function removeInstructorExisting(a: { id: string }) {
+		if (instructorRemovingId) return;
+		instructorRemovingId = a.id;
+		const res = await transports.deleteInstructorAttachment(a.id);
+		instructorRemovingId = null;
+		if (res.ok) {
+			instructorExisting = instructorExisting.filter((x) => x.id !== a.id);
+		} else {
+			msg = { ok: false, text: res.message };
+		}
 	}
 
 	// --- Linkage (edit mode) ----------------------------------------------
@@ -305,28 +372,44 @@
 			return;
 		}
 
-		// The item exists; NOW the staged files can be attached to it.
-		let attachNote = '';
-		if (staged.length && res.data.itemId) {
-			const failures: string[] = [];
-			for (const file of staged) {
-				const up = await transports.uploadAttachment(res.data.itemId, file);
-				if (!up.ok) failures.push(`${file.name}: ${up.message}`);
-			}
-			staged = [];
-			if (failures.length) {
-				// The content DID save. Saying so and naming the files that did not
-				// upload is the honest report; claiming the whole thing failed would
-				// send a teacher back to retype something already published.
-				msg = {
-					ok: false,
-					text: `Saved, but ${failures.length} file${failures.length === 1 ? '' : 's'} did not attach -- ${failures.join('; ')}`
-				};
-				onsaved({ kind: editingKind, published: publish, text: '' });
-				return;
-			}
-			attachNote = ' Files attached.';
+		// The item exists; NOW the staged files -- and the instructor-only
+		// materials, which are never part of createItem/updateItem's own
+		// payload -- can be attached to it. All failures are collected together
+		// so one report covers everything, not just the student-facing half.
+		const itemId = res.data.itemId;
+		const hadFiles = staged.length > 0 || instructorStaged.length > 0;
+		const failures: string[] = [];
+
+		for (const file of staged) {
+			const up = await transports.uploadAttachment(itemId, file);
+			if (!up.ok) failures.push(`${file.name}: ${up.message}`);
 		}
+		staged = [];
+
+		for (const file of instructorStaged) {
+			const up = await transports.uploadInstructorAttachment(itemId, file);
+			if (!up.ok) failures.push(`instructor file "${file.name}": ${up.message}`);
+		}
+		instructorStaged = [];
+
+		const instructorLinksClean = instructorLinks
+			.map((r) => ({ label: r.label.trim(), url: r.url.trim() }))
+			.filter((r) => r.url !== '');
+		const linksRes = await transports.setInstructorResources(itemId, instructorLinksClean);
+		if (!linksRes.ok) failures.push(`instructor links: ${linksRes.message}`);
+
+		if (failures.length) {
+			// The content DID save. Saying so and naming what did not is the
+			// honest report; claiming the whole thing failed would send a
+			// teacher back to retype something already published.
+			msg = {
+				ok: false,
+				text: `Saved, but ${failures.length} item${failures.length === 1 ? '' : 's'} did not save -- ${failures.join('; ')}`
+			};
+			onsaved({ kind: editingKind, published: publish, text: '' });
+			return;
+		}
+		const attachNote = hadFiles ? ' Files attached.' : '';
 
 		const what = ITEM_KINDS.find((k) => k.id === editingKind)?.label ?? 'Item';
 		const where =
@@ -344,6 +427,7 @@
 			due = '';
 			category = '';
 			links = [];
+			instructorLinks = [];
 		}
 		msg = { ok: true, text };
 		onsaved({ kind: editingKind, published: publish, text });
@@ -475,6 +559,82 @@
 			{/if}
 		</div>
 	{/if}
+
+	<div class="instructor-editor">
+		<span class="mini-label instructor-label">
+			<span class="lock-glyph" aria-hidden="true">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+					<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
+					<path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+				</svg>
+			</span>
+			Instructor only
+		</span>
+		<p class="hint">
+			Answer keys, facilitation notes, source files. Visible only to this item's teachers of
+			record and admins -- students never see this section or know it exists.
+		</p>
+
+		<div class="resources-editor">
+			{#each instructorLinks as r, i (i)}
+				<div class="resource-row">
+					<input type="text" placeholder="Label" bind:value={r.label} />
+					<input type="url" placeholder="https://..." bind:value={r.url} />
+					<button
+						type="button"
+						class="btn secondary tiny"
+						aria-label="Remove instructor link"
+						onclick={() => (instructorLinks = instructorLinks.filter((_, j) => j !== i))}
+					>
+						&times;
+					</button>
+				</div>
+			{/each}
+			<button
+				type="button"
+				class="btn secondary tiny"
+				onclick={() => (instructorLinks = [...instructorLinks, { label: '', url: '' }])}
+			>
+				+ Add instructor link
+			</button>
+		</div>
+
+		{#if attachmentsEnabled}
+			<input type="file" multiple class="file-input" onchange={pickInstructorFiles} />
+			{#if instructorStaged.length}
+				<ul class="staged">
+					{#each instructorStaged as f, i (i)}
+						{@const url = instructorPreviewOf(f)}
+						<li class="staged-item" class:has-preview={!!url}>
+							{#if url}
+								<img class="staged-thumb" src={url} alt={f.name} />
+							{/if}
+							<span class="staged-meta">
+								<span class="staged-name">{f.name}</span>
+								<span class="staged-size">{formatBytes(f.size)}</span>
+								<button
+									type="button"
+									class="btn secondary tiny"
+									onclick={() => (instructorStaged = instructorStaged.filter((_, j) => j !== i))}
+								>
+									&times;
+								</button>
+							</span>
+						</li>
+					{/each}
+				</ul>
+				<p class="hint">Uploads when you save.</p>
+			{/if}
+			{#if mode === 'edit' && instructorExisting.length}
+				<AttachmentList
+					attachments={instructorExisting}
+					onremove={removeInstructorExisting}
+					removing={instructorRemovingId}
+					resolveSrc={(a) => instructorAttachmentSrc(a.id)}
+				/>
+			{/if}
+		{/if}
+	</div>
 
 	{#if mode === 'create'}
 		<div class="target-picker">
@@ -635,6 +795,36 @@
 		flex-direction: column;
 		gap: 0.35rem;
 		margin: 0.5rem 0 0.6rem;
+	}
+	/* Dashed border + gold accent: the same "this is not ordinary content"
+	   treatment the engine-slot / draft-chip pattern uses, applied to a
+	   section that is private rather than incomplete. */
+	.instructor-editor {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		margin: 0.7rem 0;
+		padding: 0.7rem 0.8rem;
+		border: 1px dashed var(--gold);
+		border-radius: 6px;
+	}
+	.instructor-editor .resources-editor {
+		margin: 0.2rem 0 0.3rem;
+	}
+	.instructor-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		color: var(--gold);
+	}
+	.lock-glyph {
+		display: inline-flex;
+		width: 0.85rem;
+		height: 0.85rem;
+	}
+	.lock-glyph svg {
+		width: 100%;
+		height: 100%;
 	}
 	.resource-row {
 		display: grid;

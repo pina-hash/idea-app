@@ -1,6 +1,6 @@
 import { error, redirect } from '@sveltejs/kit';
 import { normalizeSectionRow } from '$lib/classroom/classroom';
-import { SECTION_SELECT, itemsForSection } from '$lib/classroom/transports';
+import { SECTION_SELECT, itemsForSection, mergeInstructorMaterials } from '$lib/classroom/transports';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import type { PageServerLoad } from './$types';
 
@@ -38,9 +38,13 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 
 	const canManage = manages === true;
 	let sections: ReturnType<typeof normalizeSectionRow>[] = [];
+	let items = content.items;
 	if (canManage) {
 		const { data } = await supabase.from('classroom_sections').select(SECTION_SELECT);
 		sections = ((data ?? []) as Record<string, unknown>[]).map(normalizeSectionRow);
+		// Instructor-only materials (0090) are fetched ONLY for a manager -- a
+		// student's read never even asks the question, let alone gets an answer.
+		items = await mergeInstructorMaterials(supabase, items);
 	}
 
 	return {
@@ -48,6 +52,6 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		canManage,
 		sections,
 		attachmentsEnabled: driveConfigured(),
-		items: content.items
+		items
 	};
 };

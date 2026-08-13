@@ -113,6 +113,8 @@
 			attachments: [],
 			postings: [{ section_id: 's-1' }],
 			viewed_at: null,
+			instructorAttachments: [],
+			instructorLinks: [],
 			...over
 		};
 	}
@@ -152,7 +154,16 @@
 				{ id: 'r-1', label: 'Truss design guide', url: 'https://example.com/truss-guide', sort_order: 1 },
 				{ id: 'r-2', label: 'Sketching rubric', url: 'https://example.com/rubric', sort_order: 2 }
 			],
-			postings: [{ section_id: 's-1' }, { section_id: 's-2' }]
+			postings: [{ section_id: 's-1' }, { section_id: 's-2' }],
+			// Seeded instructor-only material (0090): a teacher opening this item
+			// should see these immediately, and a student (or view-as-student)
+			// never should.
+			instructorAttachments: [
+				{ id: 'iatt-1', filename: 'bridge-sketch-answer-key.pdf', mime_type: 'application/pdf', size_bytes: 84213, sort_order: 1 }
+			],
+			instructorLinks: [
+				{ id: 'ir-1', label: 'Grading notes (internal)', url: 'https://example.com/grading-notes', sort_order: 1 }
+			]
 		}),
 		item({
 			id: 'i-4',
@@ -237,6 +248,25 @@
 		attachmentUrls.set(row.id, url);
 		items = items.map((i) =>
 			i.id === itemId ? { ...i, attachments: [...i.attachments, row] } : i
+		);
+	}
+
+	/** Same idea as attachTo, for the instructor-only list (0090). */
+	function attachInstructorTo(itemId: string, file: File) {
+		const url = URL.createObjectURL(file);
+		const row: ClassroomAttachment = {
+			id: nid('iatt'),
+			filename: file.name,
+			mime_type: file.type || 'application/octet-stream',
+			size_bytes: file.size,
+			sort_order: 1
+		};
+		registerLocalAttachmentUrl(row.id, url);
+		attachmentUrls.set(row.id, url);
+		items = items.map((i) =>
+			i.id === itemId
+				? { ...i, instructorAttachments: [...(i.instructorAttachments ?? []), row] }
+				: i
 		);
 	}
 
@@ -512,7 +542,13 @@
 				// re-uploading anything.
 				attachments: source.attachments.map((a) => ({ ...a, id: nid('att') })),
 				links: source.links.map((r) => ({ ...r, id: nid('r') })),
-				postings: source.postings.map((p) => ({ ...p }))
+				postings: source.postings.map((p) => ({ ...p })),
+				// Instructor-only materials (0090) carry over the same way.
+				instructorAttachments: (source.instructorAttachments ?? []).map((a) => ({
+					...a,
+					id: nid('iatt')
+				})),
+				instructorLinks: (source.instructorLinks ?? []).map((r) => ({ ...r, id: nid('ir') }))
 			};
 			// The copy's attachment rows point at the SAME bytes, so the harness
 			// registers the same object URL under the new row ids.
@@ -521,6 +557,13 @@
 				if (url) {
 					registerLocalAttachmentUrl(copy.attachments[index].id, url);
 					attachmentUrls.set(copy.attachments[index].id, url);
+				}
+			});
+			(source.instructorAttachments ?? []).forEach((a, index) => {
+				const url = attachmentUrls.get(a.id);
+				if (url) {
+					registerLocalAttachmentUrl(copy.instructorAttachments![index].id, url);
+					attachmentUrls.set(copy.instructorAttachments![index].id, url);
 				}
 			});
 			items = [...items, copy];
@@ -604,6 +647,40 @@
 				...i,
 				attachments: i.attachments.filter((a) => a.id !== id)
 			}));
+			return { ok: true, data: undefined };
+		},
+		async uploadInstructorAttachment(itemId, file) {
+			note('uploadInstructorAttachment', { itemId, name: file.name, type: file.type, size: file.size });
+			const current = items.find((i) => i.id === itemId);
+			if (!current || !managesItem(current)) {
+				return {
+					ok: false,
+					message: 'Only the teacher of record for every class this is posted to can attach instructor-only files here.'
+				};
+			}
+			attachInstructorTo(itemId, file);
+			return { ok: true, data: undefined };
+		},
+		async deleteInstructorAttachment(id) {
+			note('deleteInstructorAttachment', { id });
+			items = items.map((i) => ({
+				...i,
+				instructorAttachments: (i.instructorAttachments ?? []).filter((a) => a.id !== id)
+			}));
+			return { ok: true, data: undefined };
+		},
+		async setInstructorResources(itemId, links) {
+			note('setInstructorResources', { itemId, count: links.length });
+			const current = items.find((i) => i.id === itemId);
+			if (!current || !managesItem(current)) {
+				return {
+					ok: false,
+					message: 'Only the teacher of record for every class this is posted to can edit instructor-only materials.'
+				};
+			}
+			patch(itemId, {
+				instructorLinks: links.map((r, i) => ({ ...r, id: nid('ir'), sort_order: i + 1 }))
+			});
 			return { ok: true, data: undefined };
 		}
 	};

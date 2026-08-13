@@ -1,6 +1,11 @@
 import { error, redirect } from '@sveltejs/kit';
 import { normalizeItemRow, normalizeSectionRow } from '$lib/classroom/classroom';
-import { ITEM_SELECT, SECTION_SELECT, loadStudentEngineData } from '$lib/classroom/transports';
+import {
+	ITEM_SELECT,
+	SECTION_SELECT,
+	loadStudentEngineData,
+	mergeInstructorMaterials
+} from '$lib/classroom/transports';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import type { PageServerLoad } from './$types';
@@ -37,12 +42,15 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 
 	if (!sectionRow || !itemRow) error(404, 'Not found');
 
-	const item = normalizeItemRow(itemRow as unknown as Record<string, unknown>);
+	let item = normalizeItemRow(itemRow as unknown as Record<string, unknown>);
 	const canManage = manages === true;
 	let sections: ReturnType<typeof normalizeSectionRow>[] = [];
 	if (canManage) {
 		const { data } = await supabase.from('classroom_sections').select(SECTION_SELECT);
 		sections = ((data ?? []) as Record<string, unknown>[]).map(normalizeSectionRow);
+		// Instructor-only materials (0090), manager reads only -- see
+		// mergeInstructorMaterials for why this is never fetched for a student.
+		[item] = await mergeInstructorMaterials(supabase, [item]);
 	}
 
 	let engine: Awaited<ReturnType<typeof loadStudentEngineData>> = null;

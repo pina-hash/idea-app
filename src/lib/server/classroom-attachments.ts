@@ -146,6 +146,22 @@ export function submissionsFolderId(): Promise<string> {
 }
 
 /**
+ * Instructor-only material (answer keys, facilitation guides, setup notes)
+ * gets its own subfolder NESTED INSIDE the classroom attachments folder --
+ * "under the existing classroom parent" -- rather than a sibling of it under
+ * the notebook root. It is the one classroom Drive folder no student-facing
+ * link ever points at; keeping it visually and structurally apart from the
+ * handouts folder (rather than merely a different upload flow writing into
+ * the same place) is what makes an admin browsing by eye unable to confuse
+ * the two.
+ */
+export const INSTRUCTOR_MATERIALS_FOLDER_NAME = 'Instructor only';
+
+export async function instructorMaterialsFolderId(): Promise<string> {
+	return ensureDriveSubfolder(INSTRUCTOR_MATERIALS_FOLDER_NAME, await classroomFolderId());
+}
+
+/**
  * The human-readable Drive filename, the notebookDriveFilename convention:
  * {date}_{course-section}_{owner-kind}_{original-stem}_{short-id}.{ext}. The
  * database only ever stores the file id, so this is presentation for whoever

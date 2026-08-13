@@ -101,6 +101,17 @@ export interface ClassroomItem {
 	postings: ClassroomPosting[];
 	/** The caller's own last-viewed stamp (0085 classroom_item_views). */
 	viewed_at?: string | null;
+	/**
+	 * Instructor-only attachments and links (0090) -- answer keys,
+	 * facilitation guides, setup notes, source files. `undefined` means "not
+	 * loaded for this read": every server load fetches these ONLY when the
+	 * caller manages the item, so a student's item never even carries the
+	 * query, let alone the data. An empty array means loaded and genuinely
+	 * empty. Every renderer of these two fields gates on `canManage` as well
+	 * -- undefined vs [] is a loading detail, never the security boundary.
+	 */
+	instructorAttachments?: ClassroomAttachment[];
+	instructorLinks?: ItemLink[];
 }
 
 export const ITEM_KINDS: { id: ClassroomItemKind; label: string; blurb: string }[] = [
@@ -192,6 +203,18 @@ export function attachmentSrc(attachmentId: string, viewAs?: string | null): str
 	if (local) return local;
 	const base = `/api/classroom/attachment/${attachmentId}`;
 	return viewAs ? `${base}?as=${encodeURIComponent(viewAs)}` : base;
+}
+
+/**
+ * URL for an INSTRUCTOR-ONLY attachment (0090) -- its OWN proxy, never the
+ * student-facing one above. Deliberately takes no `viewAs`: that route has no
+ * ?as= support at all, on purpose, so there is nothing here to accidentally
+ * wire up for a surface (view-as-student) that must never reach it.
+ */
+export function instructorAttachmentSrc(attachmentId: string): string {
+	const local = localAttachmentUrls.get(attachmentId);
+	if (local) return local;
+	return `/api/classroom/instructor-attachment/${attachmentId}`;
 }
 
 /**
@@ -639,6 +662,20 @@ export interface ClassroomComposerTransports {
 	setOrder(itemIds: string[]): Promise<TxResult<undefined>>;
 	uploadAttachment(itemId: string, file: File): Promise<TxResult<undefined>>;
 	deleteAttachment(id: string): Promise<TxResult<undefined>>;
+	/**
+	 * Instructor-only materials (0090). The upload/delete pair mirrors the
+	 * student-facing one exactly; the link set is a full replacement, the
+	 * `links` (p_resources) convention. Every one of these re-checks that the
+	 * caller manages every class the item is posted to -- these transports are
+	 * only ever handed to a component already gated on `canManage`, but the
+	 * real boundary is the RPC, not that gate.
+	 */
+	uploadInstructorAttachment(itemId: string, file: File): Promise<TxResult<undefined>>;
+	deleteInstructorAttachment(id: string): Promise<TxResult<undefined>>;
+	setInstructorResources(
+		itemId: string,
+		links: { label: string; url: string }[]
+	): Promise<TxResult<undefined>>;
 	/** Student-owned; a no-op for a teacher looking at their own class. */
 	markViewed(itemId: string): Promise<TxResult<undefined>>;
 }

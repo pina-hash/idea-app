@@ -12,6 +12,7 @@
 		editedWhen,
 		emailLocal,
 		formatDue,
+		instructorAttachmentSrc,
 		isUpdatedForViewer,
 		itemKindLabel,
 		itemTitle,
@@ -266,6 +267,32 @@
 	{/if}
 	{#if item.attachments.length}
 		<AttachmentList attachments={item.attachments} {viewAs} />
+	{/if}
+	{#if canManage && ((item.instructorLinks?.length ?? 0) > 0 || (item.instructorAttachments?.length ?? 0) > 0)}
+		<div class="instructor-note-box">
+			<span class="instructor-note-label">
+				<span class="lock-glyph" aria-hidden="true">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
+						<path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+					</svg>
+				</span>
+				Instructor only
+			</span>
+			{#if item.instructorLinks?.length}
+				<div class="link-list">
+					{#each item.instructorLinks as l (l.id ?? l.url)}
+						<LinkPreviewCard link={l} {fetchPreview} />
+					{/each}
+				</div>
+			{/if}
+			{#if item.instructorAttachments?.length}
+				<AttachmentList
+					attachments={item.instructorAttachments}
+					resolveSrc={(a) => instructorAttachmentSrc(a.id)}
+				/>
+			{/if}
+		</div>
 	{/if}
 	{#if item.edited_at}
 		<p class="edited-line">Updated {editedWhen(item.edited_at)}</p>
@@ -579,6 +606,30 @@
 		flex-direction: column;
 		gap: 0.4rem;
 		margin-top: 0.6rem;
+	}
+	.instructor-note-box {
+		margin-top: 0.6rem;
+		padding: 0.6rem 0.7rem;
+		border: 1px dashed var(--gold);
+		border-radius: 6px;
+	}
+	.instructor-note-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		color: var(--gold);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		letter-spacing: 0.06em;
+	}
+	.lock-glyph {
+		display: inline-flex;
+		width: 0.8rem;
+		height: 0.8rem;
+	}
+	.lock-glyph svg {
+		width: 100%;
+		height: 100%;
 	}
 	.work-group {
 		margin-bottom: 1rem;

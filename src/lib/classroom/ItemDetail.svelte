@@ -20,6 +20,7 @@
 		authorLabel,
 		editedWhen,
 		formatDue,
+		instructorAttachmentSrc,
 		isUpdatedForViewer,
 		itemKindLabel,
 		itemTitle,
@@ -97,6 +98,14 @@
 
 	const editable = $derived(canManage && !!transports);
 	const showUpdated = $derived(!seen && isUpdatedForViewer(item));
+	// instructorAttachments/instructorLinks are only ever loaded (non-undefined)
+	// for a manager's own read (see transports.ts's mergeInstructorMaterials),
+	// but this section ALSO gates on canManage directly -- a belt-and-braces
+	// rule, not a redundancy: undefined vs [] is a loading detail, never the
+	// security boundary.
+	const instructorAttachments = $derived(canManage ? (item.instructorAttachments ?? []) : []);
+	const instructorLinks = $derived(canManage ? (item.instructorLinks ?? []) : []);
+	const hasInstructorMaterial = $derived(instructorAttachments.length > 0 || instructorLinks.length > 0);
 	const alsoIn = $derived(
 		item.postings
 			.filter((p) => p.section_id !== section.id)
@@ -270,6 +279,34 @@
 		</section>
 	{/if}
 
+	{#if canManage && hasInstructorMaterial}
+		<section class="card instructor-card">
+			<h2 class="section-label instructor-section-label">
+				<span class="lock-glyph" aria-hidden="true">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
+						<path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+					</svg>
+				</span>
+				Instructor only
+			</h2>
+			<p class="note instructor-note">Visible only to this item's teachers of record and admins.</p>
+			{#if instructorLinks.length}
+				<div class="link-list">
+					{#each instructorLinks as l (l.id ?? l.url)}
+						<LinkPreviewCard link={l} {fetchPreview} />
+					{/each}
+				</div>
+			{/if}
+			{#if instructorAttachments.length}
+				<AttachmentList
+					attachments={instructorAttachments}
+					resolveSrc={(a) => instructorAttachmentSrc(a.id)}
+				/>
+			{/if}
+		</section>
+	{/if}
+
 	{#if item.kind === 'assignment'}
 		{#if canManage && teacherTransports}
 			<section class="card engine-tools">
@@ -365,6 +402,27 @@
 	}
 	.card {
 		margin-bottom: 0.9rem;
+	}
+	.instructor-card {
+		border: 1px dashed var(--gold);
+	}
+	.instructor-section-label {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		color: var(--gold);
+	}
+	.instructor-note {
+		margin: 0 0 0.6rem;
+	}
+	.lock-glyph {
+		display: inline-flex;
+		width: 0.85rem;
+		height: 0.85rem;
+	}
+	.lock-glyph svg {
+		width: 100%;
+		height: 100%;
 	}
 	.card-actions {
 		display: flex;
