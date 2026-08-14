@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-14",
+			"title": "Bigger presentations now make it into class",
+			"body": "Some of the decks your teachers wanted to put on an assignment were too big to upload, and the upload simply failed part way with nothing to show for it. That is fixed: a presentation now goes up in one piece however big it is, including ones with video in them, and there is a progress bar while it uploads so your teacher can see it working instead of guessing. If the wifi drops or they change their mind, they can stop it and start again without leaving half a deck behind. For you nothing changes about how a deck opens or looks -- there are just fewer that never arrived. If a presentation you were told about is missing from an item, it is worth telling your teacher, because it may be one that failed to upload before this.",
+			"tags": ["Classes"]
+		},
+		{
+			"date": "2026-08-14",
 			"title": "Slide decks now open right in your class",
 			"body": "When your teacher puts a presentation on an assignment, announcement or material, it now opens inside IDEA Classroom instead of being a file you have to download. Open the item and tap the presentation at the top: it fills the screen, and the left and right arrow keys move between slides just like they do when your teacher is presenting. There is a full-screen button for when you want nothing else on the screen, and a slide list if you want to see what is coming up. It works on a phone as well as a laptop. Nothing about this is something to hand in -- a deck is there to read and go back to, and it stays available for as long as the item does.",
 			"tags": ["Classes"]

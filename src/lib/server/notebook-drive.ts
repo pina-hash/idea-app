@@ -443,6 +443,170 @@ export async function uploadDriveFile(opts: {
 	return uploaded.id;
 }
 
+/**
+ * Opens a Google RESUMABLE UPLOAD SESSION and returns the session URI, for the
+ * ONE case where the bytes must not pass through this server: a classroom deck
+ * zip, which is tens of megabytes and dies at Vercel's ~4.5 MB request-body cap
+ * long before any of our code runs (0102).
+ *
+ * WHAT THE CALLER IS ABOUT TO HAND A BROWSER, stated plainly because it is the
+ * security decision this function embodies:
+ *
+ *   * The session URI authorizes exactly one thing -- writing bytes into the
+ *     ONE file this call is creating, with the name, type and parent fixed HERE,
+ *     server-side. A resumable PUT carries a body and a Content-Range and
+ *     nothing else: it cannot rename the file, move it, read it back, or touch
+ *     any other object in the shared drive.
+ *   * It is NOT the refresh token and NOT an access token. It carries no scope,
+ *     and it cannot be presented to any other Drive endpoint.
+ *   * ITS LIFETIME IS NOT OURS TO SET. The Drive API exposes no TTL parameter
+ *     on a resumable session; Google documents the URI as valid for about a
+ *     week and there is no narrower option. That is why 0102 keeps its own,
+ *     much shorter window and a single-use claim: the URI's worth is capped at
+ *     "fill one already-authorized upload slot", and the slot is what expires.
+ *
+ * A caller that wants the upload to stop early DELETEs the session URI (Google
+ * discards a session on DELETE), which is what the browser does on cancel.
+ */
+export async function startResumableUpload(opts: {
+	filename: string;
+	mimeType: string;
+	parentId: string;
+	sizeBytes: number;
+}): Promise<string> {
+	if (!driveConfigured()) {
+		throw new Error('The notebook Drive integration is not configured.');
+	}
+
+	const attempt = (token: string) =>
+		fetch(`${DRIVE_ENDPOINTS.upload}?uploadType=resumable&supportsAllDrives=true&fields=id`, {
+			method: 'POST',
+			headers: {
+				authorization: `Bearer ${token}`,
+				'content-type': 'application/json; charset=UTF-8',
+				// Google uses these to size the session up front; they are hints,
+				// and the Content-Range on the final chunk is what is authoritative.
+				'x-upload-content-type': opts.mimeType,
+				'x-upload-content-length': String(opts.sizeBytes)
+			},
+			body: JSON.stringify({ name: opts.filename, parents: [opts.parentId] })
+		});
+
+	let res = await attempt(await accessToken());
+	if (res.status === 401) res = await attempt(await accessToken(true));
+	if (!res.ok) {
+		const detail = (await res.text().catch(() => '')).slice(0, 300);
+		throw new Error(`Drive upload session failed (${res.status}): ${detail}`);
+	}
+	const location = res.headers.get('location');
+	if (!location) {
+		throw new Error('Drive upload session returned no Location header.');
+	}
+	return location;
+}
+
+export interface DriveFileMeta {
+	id: string;
+	name: string;
+	mimeType: string;
+	/** Bytes, or 0 when Drive reports none (a Google-native doc, never ours). */
+	size: number;
+	parents: string[];
+}
+
+/**
+ * One file's Drive METADATA -- name, parents, size, type.
+ *
+ * The deck ingest route is the reason it exists: a client-supplied file id
+ * proves nothing on its own, so ingestion checks that the file's NAME and
+ * PARENT are the ones this server set when it opened the upload session. Both
+ * are fixed by startResumableUpload above and a resumable PUT cannot change
+ * either, so together they are what actually binds a file id to an authorized
+ * upload.
+ */
+export async function getDriveFileMeta(fileId: string): Promise<DriveFileMeta> {
+	if (!driveConfigured()) {
+		throw new Error('The notebook Drive integration is not configured.');
+	}
+	if (!fileId) throw new Error('A Drive file id is required.');
+
+	const attempt = (token: string) =>
+		fetch(
+			`${DRIVE_ENDPOINTS.files}/${encodeURIComponent(fileId)}` +
+				'?supportsAllDrives=true&fields=id,name,mimeType,size,parents',
+			{ headers: { authorization: `Bearer ${token}` } }
+		);
+
+	let res = await attempt(await accessToken());
+	if (res.status === 401) res = await attempt(await accessToken(true));
+	if (!res.ok) {
+		const detail = (await res.text().catch(() => '')).slice(0, 300);
+		throw new Error(`Drive metadata read failed (${res.status}): ${detail}`);
+	}
+	const body = (await res.json()) as {
+		id?: string;
+		name?: string;
+		mimeType?: string;
+		size?: string;
+		parents?: string[];
+	};
+	return {
+		id: body.id ?? fileId,
+		name: body.name ?? '',
+		mimeType: body.mimeType ?? '',
+		size: Number(body.size ?? 0) || 0,
+		parents: Array.isArray(body.parents) ? body.parents : []
+	};
+}
+
+/**
+ * A BYTE RANGE of one Drive file, inclusive at both ends -- the primitive the
+ * deck unpacker reads a zip through.
+ *
+ * WHY RANGED RATHER THAN THE WHOLE FILE. A zip's index lives in its last few
+ * kilobytes, and every entry's bytes are at a known offset, so an unpacker
+ * never needs the archive in memory at once -- it needs the tail, then one
+ * entry at a time. Downloading a 150 MB deck zip into a serverless function
+ * and then holding every unpacked file beside it is exactly the runaway-memory
+ * failure this avoids: peak here is the largest SINGLE file, not the archive.
+ */
+export async function readDriveFileRange(
+	fileId: string,
+	start: number,
+	endInclusive: number
+): Promise<Uint8Array> {
+	if (!driveConfigured()) {
+		throw new Error('The notebook Drive integration is not configured.');
+	}
+	if (!fileId) throw new Error('A Drive file id is required.');
+	if (endInclusive < start) return new Uint8Array(0);
+
+	const attempt = (token: string) =>
+		fetch(
+			`${DRIVE_ENDPOINTS.files}/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`,
+			{
+				headers: {
+					authorization: `Bearer ${token}`,
+					range: `bytes=${start}-${endInclusive}`
+				}
+			}
+		);
+
+	let res = await attempt(await accessToken());
+	if (res.status === 401) res = await attempt(await accessToken(true));
+	// 206 is the expected answer; a server that ignores Range answers 200 with
+	// the WHOLE file, which would silently defeat the point, so slice defensively.
+	if (!res.ok) {
+		const detail = (await res.text().catch(() => '')).slice(0, 300);
+		throw new Error(`Drive range read failed (${res.status}): ${detail}`);
+	}
+	const all = new Uint8Array(await res.arrayBuffer());
+	if (res.status === 200 && all.length > endInclusive - start + 1) {
+		return all.slice(start, endInclusive + 1);
+	}
+	return all;
+}
+
 /** The notebook's own upload: uploadDriveFile into the notebook folder. */
 export async function uploadNotebookPhoto(opts: {
 	bytes: Uint8Array;

@@ -49,14 +49,20 @@ import { randomUUID } from 'node:crypto';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
 import { DRIVE_ENDPOINTS } from '../src/lib/server/notebook-drive';
 import {
+	DECK_LIMITS,
 	deckFileMime,
+	deckUploadName,
 	extractSlides,
 	IMAGE_STATE_FILE,
 	normalizeDeckPath,
+	planDeck,
 	planDeckFromZip,
+	readDeckFile,
 	THUMBNAIL_FILE
 } from '../src/lib/server/classroom-decks';
+import { memoryZipSource } from '../src/lib/server/deck-zip';
 import { GET } from '../src/routes/api/classroom/deck/[deck_id]/[...path]/+server';
+import { POST as INGEST } from '../src/routes/api/classroom/deck/+server';
 
 const MIGRATIONS = [
 	'0001_profiles.sql',
@@ -68,7 +74,8 @@ const MIGRATIONS = [
 	'0083_classroom_management.sql',
 	'0085_classroom_canonical_items.sql',
 	'0090_classroom_instructor_materials.sql',
-	'0101_classroom_decks.sql'
+	'0101_classroom_decks.sql',
+	'0102_classroom_deck_uploads.sql'
 ] as const;
 
 let db: TestDb;
@@ -248,17 +255,111 @@ function replaceDeck(
 	);
 }
 
+/**
+ * The mock Drive's state. `staged` is what a browser's direct upload would have
+ * left in the deck uploads folder; the ingest route reads its metadata, then its
+ * bytes by range, then deletes it.
+ */
+interface StagedFile {
+	name: string;
+	parents: string[];
+	bytes: Uint8Array;
+	/** Overrides what the metadata reports, for the size-cap case. */
+	reportedSize?: number;
+}
+const staged = new Map<string, StagedFile>();
+const driveDeleted: string[] = [];
+const driveUploaded: string[] = [];
+let driveSeq = 0;
+
+function stageZip(fileId: string, name: string, parents: string[], bytes: Uint8Array): string {
+	staged.set(fileId, { name, parents, bytes });
+	return fileId;
+}
+
+/**
+ * Folder ids are DERIVED FROM THE FOLDER'S NAME rather than being one stub id
+ * for everything, so "the file is in the deck uploads folder" is a real check
+ * here: the decks folder and the uploads folder come back different, which is
+ * what lets the parent assertion below fail if the route stopped making it.
+ */
+function folderIdFor(name: string): string {
+	return `folder::${name}`;
+}
+
 beforeAll(async () => {
 	drive = createServer((req, res) => {
 		const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+		const json = (body: unknown, status = 200) => {
+			res.writeHead(status, { 'content-type': 'application/json' });
+			res.end(JSON.stringify(body));
+		};
+
 		if (url.pathname === '/token') {
-			res.writeHead(200, { 'content-type': 'application/json' });
-			res.end(JSON.stringify({ access_token: 'test-access-token', expires_in: 3600 }));
+			return json({ access_token: 'test-access-token', expires_in: 3600 });
+		}
+		// One file's bytes go up (multipart); the id is all the caller reads.
+		if (url.pathname === '/upload') {
+			const id = `uploaded-${++driveSeq}`;
+			driveUploaded.push(id);
+			req.resume();
+			req.on('end', () => json({ id }));
+			return;
+		}
+		// find-or-create a named folder
+		if (url.pathname === '/files' && req.method === 'GET') {
+			const name = /name = '([^']*)'/.exec(url.searchParams.get('q') ?? '')?.[1] ?? 'unknown';
+			return json({ files: [{ id: folderIdFor(name) }] });
+		}
+		if (url.pathname === '/files' && req.method === 'POST') {
+			req.resume();
+			req.on('end', () => json({ id: `created-folder-${++driveSeq}` }));
 			return;
 		}
 		if (url.pathname.startsWith('/files/')) {
-			// Drive routinely reports a .js or a .json as text/plain; the route is
-			// expected to prefer the type recorded at ingest.
+			const id = decodeURIComponent(url.pathname.slice('/files/'.length));
+			if (req.method === 'DELETE') {
+				driveDeleted.push(id);
+				res.writeHead(204);
+				res.end();
+				return;
+			}
+			const file = staged.get(id);
+			if (url.searchParams.get('alt') === 'media') {
+				if (file) {
+					// The ranged read the unpacker uses. Answered as 206 with only
+					// the requested slice, exactly as Drive answers it.
+					const range = /bytes=(\d+)-(\d+)/.exec(req.headers.range ?? '');
+					const start = range ? Number(range[1]) : 0;
+					const end = range ? Math.min(Number(range[2]), file.bytes.length - 1) : file.bytes.length - 1;
+					const slice = file.bytes.subarray(start, end + 1);
+					res.writeHead(range ? 206 : 200, {
+						'content-type': 'application/zip',
+						'content-length': String(slice.length)
+					});
+					res.end(Buffer.from(slice));
+					return;
+				}
+				// Drive routinely reports a .js or a .json as text/plain; the route
+				// is expected to prefer the type recorded at ingest.
+				res.writeHead(200, {
+					'content-type': 'text/plain',
+					'content-length': String(FILE_BYTES.length)
+				});
+				res.end(Buffer.from(FILE_BYTES));
+				return;
+			}
+			if (url.searchParams.get('fields')?.includes('parents')) {
+				if (!file) return json({ error: 'not found' }, 404);
+				return json({
+					id,
+					name: file.name,
+					mimeType: 'application/zip',
+					size: String(file.reportedSize ?? file.bytes.length),
+					parents: file.parents
+				});
+			}
+			// The proxy's plain download.
 			res.writeHead(200, {
 				'content-type': 'text/plain',
 				'content-length': String(FILE_BYTES.length)
@@ -333,8 +434,9 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe('unpacking a deck export', () => {
-	it('KEEPS the hidden .image-slots.state.json', () => {
-		const res = planDeckFromZip(exportZip());
+	it('KEEPS the hidden .image-slots.state.json', async () => {
+		const zip = exportZip();
+		const res = await planDeckFromZip(zip);
 		expect(res.ok).toBe(true);
 		if (!res.ok) return;
 
@@ -344,33 +446,36 @@ describe('unpacking a deck export', () => {
 		expect(res.plan.hasStateFile).toBe(true);
 		expect(res.plan.warnings.join(' ')).not.toContain(IMAGE_STATE_FILE);
 
-		// And its bytes are the real ones, not an empty placeholder.
+		// And its bytes are the real ones, not an empty placeholder. Read the way
+		// the ingest route reads them -- one file at a time, out of the archive --
+		// so the dotfile survives the LAZY path as well as the plan.
 		const state = res.plan.files.find((f) => f.path === IMAGE_STATE_FILE)!;
-		expect(new TextDecoder().decode(state.bytes)).toContain('"s":2.4');
+		const read = await readDeckFile(memoryZipSource(zip), state);
+		expect(new TextDecoder().decode(read.bytes)).toContain('"s":2.4');
 	});
 
-	it('warns loudly when the state file is missing, and still ingests', () => {
+	it('warns loudly when the state file is missing, and still ingests', async () => {
 		const zip = makeZip([
 			{ name: 'index.html', bytes: text(DECK_HTML) },
 			{ name: 'deck-stage.js', bytes: text('// stage') }
 		]);
-		const res = planDeckFromZip(zip);
+		const res = await planDeckFromZip(zip);
 		expect(res.ok).toBe(true);
 		if (!res.ok) return;
 		expect(res.plan.hasStateFile).toBe(false);
 		expect(res.plan.warnings.some((w) => w.includes(IMAGE_STATE_FILE))).toBe(true);
 	});
 
-	it('strips the wrapper folder so the entry sits at the deck root', () => {
-		const res = planDeckFromZip(exportZip('My Deck v3/'));
+	it('strips the wrapper folder so the entry sits at the deck root', async () => {
+		const res = await planDeckFromZip(exportZip('My Deck v3/'));
 		expect(res.ok).toBe(true);
 		if (!res.ok) return;
 		expect(res.plan.entryPath).toBe('index.html');
 		expect(res.plan.files.map((f) => f.path)).toContain('_ds/idea/styles.css');
 	});
 
-	it('skips the standalone and template renderings', () => {
-		const res = planDeckFromZip(exportZip());
+	it('skips the standalone and template renderings', async () => {
+		const res = await planDeckFromZip(exportZip());
 		expect(res.ok).toBe(true);
 		if (!res.ok) return;
 		const paths = res.plan.files.map((f) => f.path);
@@ -379,9 +484,9 @@ describe('unpacking a deck export', () => {
 		expect(res.plan.entryPath).toBe('index.html');
 	});
 
-	it('refuses a traversing entry rather than storing it', () => {
+	it('refuses a traversing entry rather than storing it', async () => {
 		for (const bad of ['../evil.html', 'a/../../evil.html', '/etc/passwd', 'C:/windows/x.html']) {
-			const res = planDeckFromZip(
+			const res = await planDeckFromZip(
 				makeZip([
 					{ name: 'index.html', bytes: text(DECK_HTML) },
 					{ name: bad, bytes: text('x') }
@@ -389,6 +494,32 @@ describe('unpacking a deck export', () => {
 			);
 			expect(res.ok, bad).toBe(false);
 		}
+	});
+
+	/**
+	 * The plan describes the whole deck; holding every file's bytes in it is
+	 * what the ranged read exists to avoid, and a "convenience" field carrying
+	 * them would quietly restore the memory ceiling the raised limits removed.
+	 */
+	it('plans from the index alone -- no file bytes in the plan', async () => {
+		const res = await planDeckFromZip(exportZip());
+		expect(res.ok).toBe(true);
+		if (!res.ok) return;
+		for (const file of res.plan.files) {
+			expect(file).not.toHaveProperty('bytes');
+			expect(file.size).toBe(file.entry.uncompressedSize);
+		}
+		expect(res.plan.totalBytes).toBe(res.plan.files.reduce((n, f) => n + f.size, 0));
+	});
+
+	it('refuses an archive past the size cap before reading it', async () => {
+		const zip = exportZip();
+		const huge = { size: DECK_LIMITS.maxZipBytes + 1, read: async () => new Uint8Array(0) };
+		const res = await planDeck(huge);
+		expect(res.ok).toBe(false);
+		if (!res.ok) expect(res.error).toContain('capped at');
+		// ...and the same archive one byte under the cap is read normally.
+		expect((await planDeck(memoryZipSource(zip))).ok).toBe(true);
 	});
 
 	it('treats a backslash as a separator, then still refuses traversal through it', () => {
@@ -400,17 +531,17 @@ describe('unpacking a deck export', () => {
 		expect(normalizeDeckPath(THUMBNAIL_FILE)).toBe(THUMBNAIL_FILE);
 	});
 
-	it('asks which page to open when the zip is ambiguous, and honours the answer', () => {
+	it('asks which page to open when the zip is ambiguous, and honours the answer', async () => {
 		const zip = makeZip([
 			{ name: 'index.html', bytes: text(DECK_HTML) },
 			{ name: 'notes.html', bytes: text('<html></html>') }
 		]);
-		const res = planDeckFromZip(zip);
+		const res = await planDeckFromZip(zip);
 		expect(res.ok).toBe(false);
 		if (res.ok) return;
 		expect(res.candidates).toEqual(expect.arrayContaining(['index.html', 'notes.html']));
 
-		const chosen = planDeckFromZip(zip, 'notes.html');
+		const chosen = await planDeckFromZip(zip, 'notes.html');
 		expect(chosen.ok).toBe(true);
 		if (chosen.ok) expect(chosen.plan.entryPath).toBe('notes.html');
 	});
@@ -852,5 +983,423 @@ describe('GET /api/classroom/deck/[deck_id]/[...path]', () => {
 		const fake = await callGet(pubDeck, 'no-such-file.html', studentB.id);
 		expect(real.status).toBe(fake.status);
 		expect(await real.text()).toBe(await fake.text());
+	});
+});
+
+// ---------------------------------------------------------------------------
+// 7. The DIRECT-TO-DRIVE upload path (0102).
+//
+// A deck zip no longer passes through our own server -- it could not, at 23.5 MB
+// against a ~4.5 MB platform cap -- so what has to hold is no longer "did the
+// multipart body arrive" but "is this file id one this caller was actually
+// authorized to have produced". That is answered in two independent places, and
+// both are asserted here:
+//
+//   the SLOT   an authorization row, spendable once, that carries the item;
+//   the FILE   its Drive NAME and PARENT, set by the server when it opened the
+//              session and unchangeable by a resumable PUT.
+//
+// Neither is sufficient alone, which is why widening either is a real leak: the
+// slot alone would let a teacher point ingestion at any file in the shared
+// drive, and the name alone would let anyone who guessed a slot id ingest
+// someone else's upload.
+// ---------------------------------------------------------------------------
+
+/**
+ * A supabase stand-in that forwards `.rpc()` to the real function in NAMED
+ * notation, as the caller's own session -- so a route naming a parameter the
+ * shipped function does not have fails here rather than passing. jsonb
+ * arguments are serialized because that is what PostgREST puts on the wire;
+ * handing node-postgres a JS array would make an array literal, not jsonb.
+ */
+function ingestSupabase(userId: string) {
+	return {
+		async rpc(name: string, args: Record<string, unknown>) {
+			const entries = Object.entries(args ?? {});
+			const call = `public.${name}(${entries
+				.map(([key], i) => `${key} => $${i + 1}`)
+				.join(', ')})`;
+			try {
+				return await db.asUser(userId, async (q) => {
+					const { rows } = await q<{ result: unknown }>(
+						`select ${call} as result`,
+						entries.map(([, v]) =>
+							v !== null && typeof v === 'object' ? JSON.stringify(v) : v
+						)
+					);
+					return { data: rows[0]?.result ?? null, error: null };
+				});
+			} catch (error) {
+				return { data: null, error: { message: (error as Error).message } };
+			}
+		}
+	};
+}
+
+function callIngest(userId: string | null, body: Record<string, unknown>): Promise<Response> {
+	return (INGEST as unknown as (event: unknown) => Promise<Response>)({
+		request: new Request('http://localhost/api/classroom/deck', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		}),
+		locals: {
+			supabase: userId ? ingestSupabase(userId) : null,
+			claims: userId ? { sub: userId, role: 'authenticated' } : null
+		}
+	});
+}
+
+/** Opens a real slot through the real RPC. */
+async function openSlot(userId: string, itemId: string): Promise<string> {
+	const res = await rpc<{ upload_id: string }>(
+		userId,
+		'public.classroom_deck_upload_start($1::uuid)',
+		[itemId]
+	);
+	return res.upload_id;
+}
+
+const UPLOADS_FOLDER = folderIdFor('IDEA Classroom deck uploads');
+
+describe('authorizing one direct-to-Drive upload', () => {
+	it('refuses a student and a foreign teacher, and allows the teacher of record', async () => {
+		expect((await captureError(() => openSlot(studentA.id, pubItem))).message).toContain(
+			'teacher of record'
+		);
+		expect((await captureError(() => openSlot(teacherB.id, pubItem))).message).toContain(
+			'teacher of record'
+		);
+		expect(await openSlot(teacherA.id, pubItem)).toMatch(/^[0-9a-f-]{36}$/);
+	});
+
+	it('takes the stricter EVERY-posted-section bar, not ANY', async () => {
+		// teacherC is teacher of record for sectionC only; sharedItem is posted to
+		// sectionA AND sectionC, so a deck there changes what A sees too.
+		expect((await captureError(() => openSlot(teacherC.id, sharedItem))).message).toContain(
+			'teacher of record'
+		);
+		expect(await openSlot(owner.id, sharedItem)).toBeTruthy();
+	});
+
+	it('refuses an item that does not exist', async () => {
+		expect((await captureError(() => openSlot(teacherA.id, randomUUID()))).message).toContain(
+			'does not exist'
+		);
+	});
+
+	it('grants no write path to the table for a student, a teacher OR an admin', async () => {
+		for (const user of [studentA, teacherA, owner]) {
+			for (const sql of [
+				`insert into public.classroom_deck_uploads (item_id, created_by) values ('${pubItem}', 'x')`,
+				`update public.classroom_deck_uploads set claimed_at = now()`,
+				`delete from public.classroom_deck_uploads`
+			]) {
+				const err = await captureError(() => db.asUser(user.id, (q) => q(sql)));
+				expect(err.message, `${user.email}: ${sql}`).toContain('permission denied');
+			}
+		}
+	});
+
+	it('shows a slot to its own maker and to nobody else', async () => {
+		const id = await openSlot(teacherA.id, pubItem);
+		const mine = await db.asUser(
+			teacherA.id,
+			async (q) => (await q('select id from public.classroom_deck_uploads where id = $1', [id])).rows
+		);
+		expect(mine).toHaveLength(1);
+		for (const other of [teacherB, owner, studentA]) {
+			const theirs = await db.asUser(
+				other.id,
+				async (q) =>
+					(await q('select id from public.classroom_deck_uploads where id = $1', [id])).rows
+			);
+			expect(theirs, other.email).toHaveLength(0);
+		}
+	});
+
+	it('grants anon nothing at all', async () => {
+		const { rows } = await db.sql<{ fn: string; ok: boolean }>(
+			`select p.proname as fn,
+			        has_function_privilege('anon', p.oid, 'EXECUTE') as ok
+			 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+			 where n.nspname = 'public' and p.proname like 'classroom_deck_upload%'`
+		);
+		expect(rows.length).toBeGreaterThanOrEqual(3);
+		for (const row of rows) expect(row.ok, row.fn).toBe(false);
+		const table = await db.sql<{ ok: boolean }>(
+			"select has_table_privilege('anon', 'public.classroom_deck_uploads', 'SELECT') as ok"
+		);
+		expect(table.rows[0].ok).toBe(false);
+	});
+});
+
+describe('spending an upload slot', () => {
+	it('claims once, reports the item from the ROW, and refuses a second claim', async () => {
+		const id = await openSlot(teacherA.id, pubItem);
+		const first = await rpc<{ ok: boolean; item_id: string }>(
+			teacherA.id,
+			'public.classroom_deck_upload_claim($1::uuid, $2)',
+			[id, 'file-once']
+		);
+		expect(first.ok).toBe(true);
+		expect(first.item_id).toBe(pubItem);
+
+		const second = await rpc<{ ok: boolean; reason: string }>(
+			teacherA.id,
+			'public.classroom_deck_upload_claim($1::uuid, $2)',
+			[id, 'file-once-again']
+		);
+		expect(second.ok).toBe(false);
+		expect(second.reason).toBe('already_used');
+	});
+
+	it("reads as not_found for somebody else's slot, and for one that never existed", async () => {
+		const id = await openSlot(teacherA.id, pubItem);
+		for (const user of [teacherB, owner, studentA]) {
+			const res = await rpc<{ ok: boolean; reason: string }>(
+				user.id,
+				'public.classroom_deck_upload_claim($1::uuid, $2)',
+				[id, `file-${user.email}`]
+			);
+			expect(res.ok, user.email).toBe(false);
+			expect(res.reason, user.email).toBe('not_found');
+		}
+		const missing = await rpc<{ reason: string }>(
+			teacherA.id,
+			'public.classroom_deck_upload_claim($1::uuid, $2)',
+			[randomUUID(), 'file-missing']
+		);
+		expect(missing.reason).toBe('not_found');
+		// The slot survived every one of those attempts.
+		const mine = await rpc<{ ok: boolean }>(
+			teacherA.id,
+			'public.classroom_deck_upload_claim($1::uuid, $2)',
+			[id, 'file-mine']
+		);
+		expect(mine.ok).toBe(true);
+	});
+
+	it('refuses an expired slot', async () => {
+		const id = await openSlot(teacherA.id, pubItem);
+		await db.sql(
+			"update public.classroom_deck_uploads set expires_at = now() - interval '1 minute' where id = $1",
+			[id]
+		);
+		const res = await rpc<{ ok: boolean; reason: string }>(
+			teacherA.id,
+			'public.classroom_deck_upload_claim($1::uuid, $2)',
+			[id, 'file-late']
+		);
+		expect(res.ok).toBe(false);
+		expect(res.reason).toBe('expired');
+	});
+
+	it('cancels an unspent slot, and a cancel after the claim changes nothing', async () => {
+		const cancelled = await openSlot(teacherA.id, pubItem);
+		const cancelRes = await rpc<{ cancelled: boolean }>(
+			teacherA.id,
+			'public.classroom_deck_upload_cancel($1::uuid)',
+			[cancelled]
+		);
+		expect(cancelRes.cancelled).toBe(true);
+		const res = await rpc<{ reason: string }>(
+			teacherA.id,
+			'public.classroom_deck_upload_claim($1::uuid, $2)',
+			[cancelled, 'file-cancelled']
+		);
+		expect(res.reason).toBe('cancelled');
+
+		const spent = await openSlot(teacherA.id, pubItem);
+		await rpc(teacherA.id, 'public.classroom_deck_upload_claim($1::uuid, $2)', [spent, 'file-spent']);
+		const after = await rpc<{ cancelled: boolean }>(
+			teacherA.id,
+			'public.classroom_deck_upload_cancel($1::uuid)',
+			[spent]
+		);
+		expect(after.cancelled).toBe(false);
+	});
+
+	it('lets one Drive file back at most one claim', async () => {
+		const a = await openSlot(teacherA.id, pubItem);
+		const b = await openSlot(teacherA.id, pubItem);
+		await rpc(teacherA.id, 'public.classroom_deck_upload_claim($1::uuid, $2)', [a, 'file-shared']);
+		const err = await captureError(() =>
+			rpc(teacherA.id, 'public.classroom_deck_upload_claim($1::uuid, $2)', [b, 'file-shared'])
+		);
+		expect(err.message).toContain('classroom_deck_uploads_file_idx');
+	});
+});
+
+describe('POST /api/classroom/deck (ingest from Drive)', () => {
+	it('ingests a real staged zip, keeps the hidden state file, and sweeps the zip', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Ingest me')).item_id;
+		const uploadId = await openSlot(teacherA.id, item);
+		const fileId = stageZip(
+			`staged-${uploadId}`,
+			deckUploadName(uploadId),
+			[UPLOADS_FOLDER],
+			exportZip()
+		);
+
+		const res = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as {
+			ok: boolean;
+			file_count: number;
+			has_state_file: boolean;
+			entry_path: string;
+		};
+		expect(body.ok).toBe(true);
+		expect(body.entry_path).toBe('index.html');
+		// The regression this whole feature has to survive: an image rendering
+		// uncropped looks plausible, not broken.
+		expect(body.has_state_file).toBe(true);
+
+		const paths = await db.asUser(teacherA.id, async (q) =>
+			(
+				await q<{ path: string }>(
+					`select f.path from public.classroom_deck_files f
+					 join public.classroom_decks d on d.id = f.deck_id where d.item_id = $1`,
+					[item]
+				)
+			).rows.map((r) => r.path)
+		);
+		expect(paths).toContain(IMAGE_STATE_FILE);
+		expect(paths).toContain('_ds/idea/styles.css');
+		expect(paths).not.toContain('IDEA FSP Deck (standalone).html');
+
+		// The staged archive is transient and is cleaned up on the way out.
+		expect(driveDeleted).toContain(fileId);
+	});
+
+	it('REFUSES a file id that upload did not produce, and does not delete it', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Foreign file')).item_id;
+
+		// Right folder, wrong name -- i.e. some other file in the staging folder.
+		const wrongName = stageZip('someone-elses-file', 'not-mine.zip', [UPLOADS_FOLDER], exportZip());
+		const slotA = await openSlot(teacherA.id, item);
+		const res1 = await callIngest(teacherA.id, { upload_id: slotA, drive_file_id: wrongName });
+		expect(res1.status).toBe(400);
+		expect(((await res1.json()) as { error: string }).error).toContain('not produced by this upload');
+
+		// Right name, wrong folder -- a file anywhere else in the shared drive.
+		const slotB = await openSlot(teacherA.id, item);
+		const wrongParent = stageZip(
+			'elsewhere-in-the-drive',
+			deckUploadName(slotB),
+			[folderIdFor('IDEA Classroom decks')],
+			exportZip()
+		);
+		const res2 = await callIngest(teacherA.id, { upload_id: slotB, drive_file_id: wrongParent });
+		expect(res2.status).toBe(400);
+
+		// Neither was touched: a forged id must never become a way to destroy an
+		// arbitrary file in the shared drive.
+		expect(driveDeleted).not.toContain(wrongName);
+		expect(driveDeleted).not.toContain(wrongParent);
+		// And nothing was stored against the item.
+		const decks = await db.asUser(
+			teacherA.id,
+			async (q) =>
+				(await q('select id from public.classroom_decks where item_id = $1', [item])).rows
+		);
+		expect(decks).toHaveLength(0);
+	});
+
+	it("refuses another teacher's slot, and refuses a student outright", async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Not yours')).item_id;
+		const uploadId = await openSlot(teacherA.id, item);
+		const fileId = stageZip(
+			`staged-borrowed-${uploadId}`,
+			deckUploadName(uploadId),
+			[UPLOADS_FOLDER],
+			exportZip()
+		);
+
+		for (const user of [teacherB, studentA]) {
+			const res = await callIngest(user.id, { upload_id: uploadId, drive_file_id: fileId });
+			expect(res.status, user.email).toBe(400);
+			expect(((await res.json()) as { reason: string }).reason, user.email).toBe('not_found');
+		}
+		// Untouched, so the real owner can still use it.
+		const mine = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		expect(mine.status).toBe(200);
+	});
+
+	it('still refuses a traversing zip on the new path, and stores nothing', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Traversal')).item_id;
+		const uploadId = await openSlot(teacherA.id, item);
+		const fileId = stageZip(
+			`staged-evil-${uploadId}`,
+			deckUploadName(uploadId),
+			[UPLOADS_FOLDER],
+			makeZip([
+				{ name: 'index.html', bytes: text(DECK_HTML) },
+				{ name: '../escaped.html', bytes: text('<html>nope</html>') }
+			])
+		);
+		const res = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		expect(res.status).toBe(400);
+		expect(((await res.json()) as { error: string }).error).toContain('not a safe path');
+
+		const decks = await db.asUser(
+			teacherA.id,
+			async (q) =>
+				(await q('select id from public.classroom_decks where item_id = $1', [item])).rows
+		);
+		expect(decks).toHaveLength(0);
+		// Ours, and spent: cleaned up even though the ingest failed.
+		expect(driveDeleted).toContain(fileId);
+	});
+
+	it('hands the entry-page question back when the zip is ambiguous', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Ambiguous')).item_id;
+		const uploadId = await openSlot(teacherA.id, item);
+		const fileId = stageZip(
+			`staged-ambig-${uploadId}`,
+			deckUploadName(uploadId),
+			[UPLOADS_FOLDER],
+			makeZip([
+				{ name: 'index.html', bytes: text(DECK_HTML) },
+				{ name: 'handout.html', bytes: text('<html></html>') }
+			])
+		);
+		const res = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		expect(res.status).toBe(400);
+		expect(((await res.json()) as { candidates: string[] }).candidates).toEqual(
+			expect.arrayContaining(['index.html', 'handout.html'])
+		);
+	});
+
+	it('refuses a staged file past the size cap before reading a byte of it', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Too big')).item_id;
+		const uploadId = await openSlot(teacherA.id, item);
+		const fileId = `staged-huge-${uploadId}`;
+		// Only its REPORTED size matters: the route refuses on the metadata.
+		staged.set(fileId, {
+			name: deckUploadName(uploadId),
+			parents: [UPLOADS_FOLDER],
+			bytes: new Uint8Array(0),
+			reportedSize: DECK_LIMITS.maxZipBytes + 1
+		});
+		const res = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		expect(res.status).toBe(413);
+		staged.delete(fileId);
+	});
+
+	it('refuses anonymously, and refuses a malformed id without reaching Drive', async () => {
+		const anon = await callIngest(null, { upload_id: randomUUID(), drive_file_id: 'abcdefgh' });
+		expect(anon.status).toBe(401);
+		const badSlot = await callIngest(teacherA.id, {
+			upload_id: 'not-a-uuid',
+			drive_file_id: 'abcdefgh'
+		});
+		expect(badSlot.status).toBe(400);
+		const badFile = await callIngest(teacherA.id, {
+			upload_id: randomUUID(),
+			drive_file_id: '../../etc/passwd'
+		});
+		expect(badFile.status).toBe(400);
 	});
 });

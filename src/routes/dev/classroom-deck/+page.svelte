@@ -8,6 +8,7 @@
 		type DeckTransports,
 		type DeckUploadResult
 	} from '$lib/classroom/deck';
+	import { DeckUploadCancelled, uploadZipToDrive } from '$lib/classroom/deck-upload';
 
 	/**
 	 * /dev/classroom-deck -- the deck harness (404 in production, no auth, no
@@ -26,8 +27,22 @@
 	 */
 
 	type Mode = 'normal' | 'no-state' | 'ambiguous' | 'traversal';
+	interface IngestBody {
+		deck: ClassroomDeck;
+		warnings: string[];
+		paths: string[];
+	}
+
+	/**
+	 * A pad big enough to force several chunks through the shipping uploader
+	 * (its chunk is 8 MiB), so progress across a chunk boundary and cancelling
+	 * mid-transfer are exercised rather than assumed. The committed deck alone
+	 * is ~3 MB and goes up in one request.
+	 */
+	const PAD_BYTES = 36 * 1024 * 1024;
 
 	let mode = $state<Mode>('normal');
+	let large = $state(false);
 	let view = $state<'panel' | 'viewer'>('panel');
 	let deck = $state<ClassroomDeck | null>(null);
 	let log = $state<string[]>([]);
@@ -49,55 +64,81 @@
 	}
 
 	/**
-	 * The harness's transports. `uploadDeck` ignores the File it is handed and
-	 * ingests the fixture instead -- there is no real zip to pick in a browser
-	 * that has not got one -- but everything downstream (the refusal shapes, the
-	 * candidate prompt, the warnings) is the real thing coming back from the
-	 * real planner.
+	 * The harness's transports, which follow the SAME THREE STEPS the real ones
+	 * do -- authorize, upload the bytes direct, then ingest the file that upload
+	 * produced -- against a stand-in session instead of Drive.
+	 *
+	 * `uploadDeck` ignores the File it is handed (a browser has no real export to
+	 * pick) and downloads the fixture zip instead, but from there the bytes are
+	 * REAL and make the whole round trip: the SHIPPING uploader chunks them, the
+	 * stand-in session reassembles them, and the SHIPPING planner unpacks what
+	 * actually arrived. So the progress arithmetic, the cancel, and the "no
+	 * residue" claim are measured rather than mocked.
 	 */
 	const transports: DeckTransports = {
-		async uploadDeck(_itemId, _file, entryPath): Promise<DeckUploadResult> {
+		async uploadDeck(_itemId, _file, options): Promise<DeckUploadResult> {
+			const { entryPath = null, onProgress, signal } = options ?? {};
 			const nextId = `dev-deck-${++deckSeq}`;
-			const res = await fetch('/dev/classroom-deck/ingest', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
-					id: nextId,
-					withoutStateFile: mode === 'no-state',
-					ambiguous: mode === 'ambiguous',
-					traversal: mode === 'traversal',
-					entryPath
-				})
-			});
-			const body = await res.json();
-			if (!body.ok) {
-				note(`refused: ${body.error}`);
-				return { ok: false, message: body.error, candidates: body.candidates ?? [] };
+			let uploadId: string | null = null;
+			try {
+				onProgress?.({ phase: 'preparing', loaded: 0, total: 0 });
+
+				const params = new URLSearchParams();
+				if (mode === 'no-state') params.set('state', 'off');
+				if (mode === 'ambiguous') params.set('ambiguous', '1');
+				if (mode === 'traversal') params.set('traversal', '1');
+				if (large) params.set('pad', String(PAD_BYTES));
+				const zipRes = await fetch(`/dev/classroom-deck/fixture?${params}`);
+				const zip = await zipRes.blob();
+				const file = new File([zip], 'IDEA FSP Day 2.zip', { type: 'application/zip' });
+				note(`fixture zip: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+
+				const openRes = await fetch('/dev/classroom-deck/upload', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ upload_id: `up-${deckSeq}`, size_bytes: file.size })
+				});
+				const open = await openRes.json();
+				uploadId = open.upload_id as string;
+
+				const driveFileId = await uploadZipToDrive({
+					uploadUrl: open.upload_url,
+					file,
+					signal,
+					onProgress: (p) => onProgress?.({ phase: 'uploading', ...p })
+				});
+				note(`uploaded, file id ${driveFileId}`);
+
+				onProgress?.({ phase: 'processing', loaded: file.size, total: file.size });
+				const res = await fetch('/dev/classroom-deck/ingest', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						id: nextId,
+						upload_id: uploadId,
+						drive_file_id: driveFileId,
+						entryPath
+					})
+				});
+				uploadId = null;
+				const body = await res.json();
+				if (!body.ok) {
+					note(`refused: ${body.error}`);
+					return { ok: false, message: body.error, candidates: body.candidates ?? [] };
+				}
+				return finish(nextId, body);
+			} catch (e) {
+				if (e instanceof DeckUploadCancelled) {
+					note('upload cancelled -- nothing stored');
+					return { ok: false, cancelled: true, message: 'Upload cancelled.' };
+				}
+				note(`failed: ${(e as Error).message}`);
+				return { ok: false, message: (e as Error).message };
+			} finally {
+				if (uploadId) {
+					void fetch(`/dev/classroom-deck/upload/${uploadId}`, { method: 'DELETE' }).catch(() => {});
+				}
 			}
-			clearLocalDeckUrls(nextId);
-			registerLocalDeckUrl(
-				nextId,
-				body.deck.entry_path,
-				`/dev/classroom-deck/f/${nextId}/${body.deck.entry_path.split('/').map(encodeURIComponent).join('/')}`
-			);
-			if (body.deck.thumbnail_path) {
-				registerLocalDeckUrl(
-					nextId,
-					body.deck.thumbnail_path,
-					`/dev/classroom-deck/f/${nextId}/${body.deck.thumbnail_path}`
-				);
-			}
-			deck = body.deck as ClassroomDeck;
-			deckId = nextId;
-			paths = body.paths as string[];
-			note(`ingested ${body.deck.file_count} files, state file: ${body.deck.has_state_file}`);
-			return {
-				ok: true,
-				message: 'ok',
-				warnings: body.warnings,
-				replaced: false,
-				fileCount: body.deck.file_count
-			};
 		},
 		async deleteDeck() {
 			deck = null;
@@ -107,6 +148,34 @@
 			return { ok: true, message: 'removed' };
 		}
 	};
+
+	/** Registers the ingested deck's local URLs and shows it, as the panel expects. */
+	function finish(nextId: string, body: IngestBody): DeckUploadResult {
+		clearLocalDeckUrls(nextId);
+		registerLocalDeckUrl(
+			nextId,
+			body.deck.entry_path,
+			`/dev/classroom-deck/f/${nextId}/${body.deck.entry_path.split('/').map(encodeURIComponent).join('/')}`
+		);
+		if (body.deck.thumbnail_path) {
+			registerLocalDeckUrl(
+				nextId,
+				body.deck.thumbnail_path,
+				`/dev/classroom-deck/f/${nextId}/${body.deck.thumbnail_path}`
+			);
+		}
+		deck = body.deck;
+		deckId = nextId;
+		paths = body.paths;
+		note(`ingested ${body.deck.file_count} files, state file: ${body.deck.has_state_file}`);
+		return {
+			ok: true,
+			message: 'ok',
+			warnings: body.warnings,
+			replaced: false,
+			fileCount: body.deck.file_count
+		};
+	}
 
 	const stateFile = $derived(paths.find((p) => p === '.image-slots.state.json') ?? null);
 </script>
@@ -133,6 +202,10 @@
 					<option value="ambiguous">two candidate entry pages</option>
 					<option value="traversal">contains ../escaped.html</option>
 				</select>
+			</label>
+			<label class="row">
+				<input type="checkbox" bind:checked={large} />
+				pad to ~{Math.round(PAD_BYTES / 1024 / 1024)} MB (multi-chunk upload)
 			</label>
 			{#if deck}
 				<button class="btn secondary" onclick={() => (view = 'viewer')}>Open viewer</button>
@@ -191,6 +264,11 @@
 		align-items: flex-end;
 		flex-wrap: wrap;
 		margin: 1rem 0;
+	}
+	.controls label.row {
+		flex-direction: row;
+		align-items: center;
+		gap: 0.45rem;
 	}
 	.controls label {
 		display: flex;

@@ -29,6 +29,7 @@ import {
 } from './assignment-spec';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
 import { normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
+import { DeckUploadCancelled, uploadZipToDrive } from './deck-upload';
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
@@ -223,21 +224,71 @@ export async function loadItemDeck(
 }
 
 /**
- * Uploads a deck zip. Unlike uploadAttachment this carries the REFUSAL DETAIL
- * back rather than only a message: a zip with several plausible entry pages is
- * answered with the candidates, and the panel asks which one instead of the
- * server guessing.
+ * Uploads a deck zip in three steps: ask the server to AUTHORIZE one upload,
+ * send the bytes STRAIGHT TO DRIVE, then tell the server which file to ingest.
+ * The zip never passes through our own server, which is what took deck uploads
+ * off Vercel's ~4.5 MB request-body cap (0102).
+ *
+ * Unlike uploadAttachment this carries the REFUSAL DETAIL back rather than only
+ * a message: a zip with several plausible entry pages is answered with the
+ * candidates, and the panel asks which one instead of the server guessing. The
+ * answer comes back as `entryPath`, and re-ingesting then needs a fresh upload
+ * -- the slot was spent on the first attempt -- which is why this path starts
+ * over from the session rather than reusing the last one.
  */
 export const deckTransports: DeckTransports = {
-	async uploadDeck(itemId, file, entryPath) {
-		const form = new FormData();
-		form.set('file', file, file.name);
-		form.set('item_id', itemId);
-		if (entryPath) form.set('entry_path', entryPath);
+	async uploadDeck(itemId, file, options) {
+		const { entryPath = null, onProgress, signal } = options ?? {};
+		let uploadId: string | null = null;
 		try {
-			const res = await fetch('/api/classroom/deck', { method: 'POST', body: form });
+			onProgress?.({ phase: 'preparing', loaded: 0, total: file.size });
+
+			// 1. Authorize. Refused here means the caller may not touch this
+			//    item's deck, and nothing has reached Drive.
+			const openRes = await fetch('/api/classroom/deck/upload-session', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ item_id: itemId, size_bytes: file.size })
+			});
+			const open = (await openRes.json().catch(() => null)) as
+				| { error?: string; upload_id?: string; upload_url?: string }
+				| null;
+			if (!openRes.ok || !open?.upload_id || !open?.upload_url) {
+				return { ok: false, message: open?.error ?? `Upload failed (${openRes.status}).` };
+			}
+			uploadId = open.upload_id;
+
+			// 2. The bytes, browser to Google.
+			const driveFileId = await uploadZipToDrive({
+				uploadUrl: open.upload_url,
+				file,
+				signal,
+				onProgress: (p) => onProgress?.({ phase: 'uploading', ...p })
+			});
+
+			// 3. Ingest. The server re-checks who is asking, proves the file id
+			//    came from the session it opened, and unpacks it.
+			onProgress?.({ phase: 'processing', loaded: file.size, total: file.size });
+			const res = await fetch('/api/classroom/deck', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({
+					upload_id: uploadId,
+					drive_file_id: driveFileId,
+					title: file.name.replace(/\.zip$/i, '').trim().slice(0, 200) || 'Presentation',
+					entry_path: entryPath
+				})
+			});
+			// The slot is spent either way now; nothing left to cancel.
+			uploadId = null;
 			const body = (await res.json().catch(() => null)) as
-				| { error?: string; candidates?: string[]; warnings?: string[]; replaced?: boolean; file_count?: number }
+				| {
+						error?: string;
+						candidates?: string[];
+						warnings?: string[];
+						replaced?: boolean;
+						file_count?: number;
+				  }
 				| null;
 			if (!res.ok) {
 				return {
@@ -254,7 +305,18 @@ export const deckTransports: DeckTransports = {
 				fileCount: body?.file_count ?? 0
 			};
 		} catch (e) {
+			if (e instanceof DeckUploadCancelled) {
+				return { ok: false, cancelled: true, message: 'Upload cancelled.' };
+			}
 			return { ok: false, message: (e as Error).message || 'Upload failed.' };
+		} finally {
+			// An unspent slot is closed rather than left to sit for its two
+			// hours. Best-effort: the slot authorizes nothing on its own.
+			if (uploadId) {
+				void fetch(`/api/classroom/deck/upload-session?upload_id=${encodeURIComponent(uploadId)}`, {
+					method: 'DELETE'
+				}).catch(() => {});
+			}
 		}
 	},
 	async deleteDeck(itemId) {

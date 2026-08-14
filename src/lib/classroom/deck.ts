@@ -112,12 +112,52 @@ export interface DeckUploadResult {
 	warnings?: string[];
 	replaced?: boolean;
 	fileCount?: number;
+	/** The uploader stopped it on purpose; not a failure to report as one. */
+	cancelled?: boolean;
+}
+
+/**
+ * THREE PHASES, because a deck upload is three genuinely different waits and a
+ * bar that cannot tell them apart looks stuck twice.
+ *
+ * `preparing` is the round trip that authorizes the upload; `uploading` is the
+ * one that takes minutes on school wifi and is the only phase with real
+ * byte counts; `processing` is the server unpacking the zip and writing thirty
+ * files to Drive, which reports no progress of its own and is honest about it.
+ */
+export interface DeckUploadProgress {
+	phase: 'preparing' | 'uploading' | 'processing';
+	loaded: number;
+	total: number;
+}
+
+export interface DeckUploadOptions {
+	/** The answer to a previous ambiguous-entry refusal. */
+	entryPath?: string | null;
+	onProgress?: (progress: DeckUploadProgress) => void;
+	/** Aborts the transfer AND tells Drive to discard what it has. */
+	signal?: AbortSignal;
 }
 
 export interface DeckTransports {
-	/** `entryPath` is the answer to a previous ambiguous-entry refusal. */
-	uploadDeck(itemId: string, file: File, entryPath?: string | null): Promise<DeckUploadResult>;
+	uploadDeck(itemId: string, file: File, options?: DeckUploadOptions): Promise<DeckUploadResult>;
 	deleteDeck(itemId: string): Promise<{ ok: boolean; message: string }>;
+}
+
+/** "12.4 MB of 23.5 MB", for the progress line. */
+export function deckProgressLabel(progress: DeckUploadProgress): string {
+	if (progress.phase === 'preparing') return 'Preparing upload...';
+	if (progress.phase === 'processing') return 'Unpacking the deck...';
+	const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
+	return progress.total > 0
+		? `Uploading ${mb(progress.loaded)} of ${mb(progress.total)}`
+		: 'Uploading...';
+}
+
+/** 0-100, or null while a phase has nothing measurable to report. */
+export function deckProgressPercent(progress: DeckUploadProgress): number | null {
+	if (progress.phase !== 'uploading' || progress.total <= 0) return null;
+	return Math.max(0, Math.min(100, Math.round((progress.loaded / progress.total) * 100)));
 }
 
 /** "12 files · 3.4 MB", for the manage line under a deck's title. */

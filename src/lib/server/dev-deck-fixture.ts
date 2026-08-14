@@ -21,7 +21,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { planDeckFromZip, type DeckPlan } from './classroom-decks';
+import { planDeck, readDeckFile, type DeckPlan } from './classroom-decks';
+import { memoryZipSource } from './deck-zip';
 
 const DECK_DIR = fileURLToPath(new URL('../../../static/fsp/day2', import.meta.url));
 
@@ -146,6 +147,13 @@ export interface FixtureOptions {
 	ambiguous?: boolean;
 	/** Add an entry that tries to climb out of the deck root. */
 	traversal?: boolean;
+	/**
+	 * Pad the archive with one big media file, so the harness can drive a REAL
+	 * multi-chunk transfer. The committed deck is ~3 MB, which the uploader
+	 * sends in a single chunk -- and a single chunk exercises neither the
+	 * progress arithmetic across chunk boundaries nor cancelling part way.
+	 */
+	padBytes?: number;
 }
 
 export function buildFixtureZip(opts: FixtureOptions = {}): Uint8Array {
@@ -189,6 +197,14 @@ export function buildFixtureZip(opts: FixtureOptions = {}): Uint8Array {
 			bytes: new TextEncoder().encode('<html>nope</html>')
 		});
 	}
+	if (opts.padBytes && opts.padBytes > 0) {
+		// Not zeros: the entries are STORED, so this is only about giving the
+		// transfer real weight, but a recognisable pattern makes a truncated or
+		// mis-ordered chunk visible if one ever survives to ingest.
+		const pad = new Uint8Array(opts.padBytes);
+		for (let i = 0; i < pad.length; i++) pad[i] = (i * 31 + (i >> 11)) & 0xff;
+		entries.push({ name: `${root}uploads/large-media.bin`, bytes: pad });
+	}
 
 	return makeZip(entries);
 }
@@ -207,17 +223,92 @@ export interface StoredDeck {
  */
 const decks = new Map<string, StoredDeck>();
 
-export function ingestFixture(id: string, opts: FixtureOptions & { entryPath?: string | null } = {}) {
-	const zip = buildFixtureZip(opts);
-	const result = planDeckFromZip(zip, opts.entryPath ?? null);
+/**
+ * The harness's stand-in for a Google resumable upload session.
+ *
+ * It exists so /dev/classroom-deck can drive the REAL client uploader
+ * (`uploadZipToDrive`) rather than a mock of it: same chunking, same
+ * Content-Range arithmetic, same 308-and-Range resume, same cancel. Same-origin
+ * on purpose -- the `Range` header a cross-origin Google response may or may
+ * not expose is always readable here, which is the one behaviour the harness
+ * cannot be authoritative about (see the module note in deck-upload.ts).
+ *
+ * It also mirrors the production BINDING: a "file id" is minted by the session
+ * itself when the last byte lands, so an ingest naming any other id is refused
+ * exactly the way the real route refuses one whose Drive name and parent are
+ * not the ones the server set.
+ */
+interface DevUploadSession {
+	id: string;
+	total: number;
+	received: Uint8Array;
+	fileId: string | null;
+}
+
+const uploads = new Map<string, DevUploadSession>();
+
+export function devUploadStart(id: string, total: number): void {
+	uploads.set(id, { id, total, received: new Uint8Array(total), fileId: null });
+}
+
+export function devUploadSession(id: string): DevUploadSession | undefined {
+	return uploads.get(id);
+}
+
+export function devUploadCancel(id: string): void {
+	uploads.delete(id);
+}
+
+/** Writes one chunk. Returns how many contiguous bytes are now held. */
+export function devUploadChunk(id: string, start: number, bytes: Uint8Array): number | null {
+	const session = uploads.get(id);
+	if (!session) return null;
+	session.received.set(bytes, start);
+	const end = start + bytes.length;
+	if (end >= session.total && !session.fileId) {
+		session.fileId = `devfile-${id}`;
+	}
+	return end;
+}
+
+export function devUploadedBytes(id: string): Uint8Array | null {
+	const session = uploads.get(id);
+	return session?.fileId ? session.received : null;
+}
+
+/**
+ * Ingests bytes that were actually UPLOADED, the way the real route ingests the
+ * staged zip out of Drive -- rather than rebuilding the fixture server-side and
+ * pretending a transfer happened.
+ */
+export async function ingestUploadedZip(
+	id: string,
+	zip: Uint8Array,
+	entryPath?: string | null
+) {
+	return ingestZip(id, zip, entryPath ?? null);
+}
+
+export async function ingestFixture(
+	id: string,
+	opts: FixtureOptions & { entryPath?: string | null } = {}
+) {
+	return ingestZip(id, buildFixtureZip(opts), opts.entryPath ?? null);
+}
+
+async function ingestZip(id: string, zip: Uint8Array, entryPath: string | null) {
+	// The same two steps the real ingest route takes: plan from the archive's
+	// index, then read each file's bytes when it is that file's turn.
+	const source = memoryZipSource(zip);
+	const result = await planDeck(source, entryPath);
 	if (!result.ok) return result;
 
-	decks.set(id, {
-		id,
-		title: 'IDEA FSP Day 2',
-		plan: result.plan,
-		byPath: new Map(result.plan.files.map((f) => [f.path, { bytes: f.bytes, mimeType: f.mimeType }]))
-	});
+	const byPath = new Map<string, { bytes: Uint8Array; mimeType: string }>();
+	for (const file of result.plan.files) {
+		byPath.set(file.path, await readDeckFile(source, file));
+	}
+
+	decks.set(id, { id, title: 'IDEA FSP Day 2', plan: result.plan, byPath });
 	return result;
 }
 

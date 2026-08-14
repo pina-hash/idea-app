@@ -1,10 +1,13 @@
 <script lang="ts">
 	import {
+		deckProgressLabel,
+		deckProgressPercent,
 		deckSizeLine,
 		deckThumbnailSrc,
 		deckViewerHref,
 		type ClassroomDeck,
-		type DeckTransports
+		type DeckTransports,
+		type DeckUploadProgress
 	} from '$lib/classroom/deck';
 
 	/**
@@ -51,10 +54,18 @@
 	let candidates = $state<string[]>([]);
 	let chosenEntry = $state<string>('');
 	let input = $state<HTMLInputElement | null>(null);
+	/**
+	 * A deck is tens of megabytes on school wifi, so the wait is long enough
+	 * that "Uploading..." alone reads as a hang. Cancelling aborts the transfer
+	 * AND tells Drive to discard what it has, so nothing is left behind.
+	 */
+	let progress = $state<DeckUploadProgress | null>(null);
+	let aborter: AbortController | null = null;
 
 	const editable = $derived(canManage && !!transports);
 	const href = $derived(deckViewerHref(basePath, sectionId, itemId));
 	const thumb = $derived(deck ? deckThumbnailSrc(deck) : null);
+	const percent = $derived(progress ? deckProgressPercent(progress) : null);
 
 	async function send(file: File, entryPath: string | null) {
 		if (!transports) return;
@@ -62,14 +73,25 @@
 		error = null;
 		notice = null;
 		warnings = [];
-		const res = await transports.uploadDeck(itemId, file, entryPath);
+		progress = { phase: 'preparing', loaded: 0, total: file.size };
+		aborter = new AbortController();
+		const res = await transports.uploadDeck(itemId, file, {
+			entryPath,
+			signal: aborter.signal,
+			onProgress: (p) => (progress = p)
+		});
 		busy = false;
+		progress = null;
+		aborter = null;
 		if (!res.ok) {
-			error = res.message;
-			candidates = res.candidates ?? [];
+			// A cancel is the uploader's own decision, not a failure to explain.
+			error = res.cancelled ? null : res.message;
+			notice = res.cancelled ? 'Upload cancelled.' : null;
+			candidates = res.cancelled ? [] : (res.candidates ?? []);
 			chosenEntry = candidates[0] ?? '';
 			// Hold the file only while there is a question to answer with it.
 			pending = candidates.length ? file : null;
+			if (res.cancelled && input) input.value = '';
 			return;
 		}
 		pending = null;
@@ -80,6 +102,10 @@
 			: `Deck uploaded (${res.fileCount ?? 0} files).`;
 		if (input) input.value = '';
 		await onchanged?.();
+	}
+
+	function cancelUpload() {
+		aborter?.abort();
 	}
 
 	function onpick(event: Event) {
@@ -167,6 +193,30 @@
 					</button>
 				{/if}
 			</div>
+			{#if progress}
+				<div class="deck-progress">
+					<div
+						class="deck-bar"
+						role="progressbar"
+						aria-label="Deck upload"
+						aria-valuemin="0"
+						aria-valuemax="100"
+						aria-valuenow={percent ?? undefined}
+					>
+						<span
+							class="deck-bar-fill"
+							class:indeterminate={percent === null}
+							style={percent === null ? '' : `width: ${percent}%`}
+						></span>
+					</div>
+					<div class="deck-progress-line">
+						<span>{deckProgressLabel(progress)}{percent === null ? '' : ` · ${percent}%`}</span>
+						{#if progress.phase !== 'processing'}
+							<button type="button" class="deck-cancel" onclick={cancelUpload}>Cancel</button>
+						{/if}
+					</div>
+				</div>
+			{/if}
 			{#if !deck}
 				<p class="deck-hint">
 					Export the deck from Claude Design as a project HTML zip and upload it here. Keep hidden
@@ -291,6 +341,69 @@
 	.deck-remove:disabled {
 		color: var(--ice);
 		cursor: default;
+	}
+	.deck-progress {
+		margin-top: 0.7rem;
+	}
+	.deck-bar {
+		height: 6px;
+		border-radius: 999px;
+		background: var(--bg1);
+		border: 1px solid var(--line);
+		overflow: hidden;
+	}
+	.deck-bar-fill {
+		display: block;
+		height: 100%;
+		background: var(--gold);
+		transition: width 0.2s linear;
+	}
+	/* The server's unpacking phase reports nothing; a sweep says "working". */
+	.deck-bar-fill.indeterminate {
+		width: 35%;
+		animation: deck-sweep 1.2s ease-in-out infinite;
+	}
+	@keyframes deck-sweep {
+		0% {
+			margin-left: -35%;
+		}
+		100% {
+			margin-left: 100%;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.deck-bar-fill.indeterminate {
+			width: 100%;
+			animation: none;
+			opacity: 0.4;
+		}
+	}
+	.deck-progress-line {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem;
+		margin-top: 0.35rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		color: var(--dim);
+	}
+	.deck-cancel {
+		appearance: none;
+		background: none;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		color: var(--dim);
+		font: inherit;
+		padding: 0 0.9rem;
+		cursor: pointer;
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
+	}
+	.deck-cancel:hover {
+		color: var(--white);
+		border-color: var(--gold);
 	}
 	.deck-hint,
 	.deck-warn,

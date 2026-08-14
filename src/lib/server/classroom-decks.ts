@@ -32,25 +32,49 @@
  *    independent refusals of a traversing path (this module, then the CHECK
  *    constraint + write RPC in 0101, then the serving route's own resolution).
  *
- * SIZE, AND THE PLATFORM CEILING NOBODY HERE CAN RAISE. The caps below are
- * about memory and zip bombs. On Vercel the binding limit is lower and is not
- * ours: a serverless function's request body is capped at ~4.5 MB, so a deck
- * zip past that is refused by the platform before this code runs at all. That
- * is worth knowing before blaming the upload route -- the `(standalone).html`
- * variant an export ships is usually most of the weight, and it is skipped
- * here anyway, so re-zipping without it is the practical answer.
+ * SIZE. The zip no longer passes through this server at all: the browser
+ * uploads it straight to Drive and hands the ingest route a file id (0102),
+ * which is what took the ceiling off Vercel's ~4.5 MB request-body cap -- a
+ * limit that is not ours and that every real 23.5 MB export died at. So the
+ * caps below are once again about what they say they are, memory and zip
+ * bombs, and they are set for a real deck carrying video.
+ *
+ * MEMORY IS BOUNDED BY THE LARGEST FILE, NOT THE ARCHIVE. `planDeck` reads
+ * through a `ZipSource` (deck-zip.ts) rather than a buffer: the directory comes
+ * out of the archive's tail, and each entry's bytes are read, uploaded and
+ * released one at a time. Nothing ever holds the whole zip, let alone the zip
+ * plus everything it unpacks to. The remaining ceiling is not memory but
+ * FUNCTION DURATION -- a 150 MB deck is downloaded from Drive in pieces and
+ * pushed back file by file, so a serverless request has to survive that round
+ * trip; that, rather than any number here, is what would bite first if these
+ * caps were raised much further.
  */
 
-import { ensureDriveSubfolder } from './notebook-drive';
+import { ensureDriveSubfolder, readDriveFileRange } from './notebook-drive';
 import { classroomFolderId } from './classroom-attachments';
-import { readZipEntries, ZipError, type ZipLimits } from './deck-zip';
+import {
+	memoryZipSource,
+	readZipDirectory,
+	readZipEntryBytes,
+	ZipError,
+	type ZipDirEntry,
+	type ZipLimits,
+	type ZipSource
+} from './deck-zip';
 
-/** Guards against a hostile or accidental archive; see the header on Vercel. */
+/**
+ * Guards against a hostile or accidental archive, and nothing else -- see the
+ * header for why these are no longer about the transport.
+ *
+ * maxEntries is 500 to match the cap classroom_replace_deck enforces on the
+ * manifest it is handed; the other three are sized for a deck with embedded
+ * video, with the per-file cap doubling as the inflate bomb guard.
+ */
 export const DECK_LIMITS: ZipLimits & { maxZipBytes: number } = {
-	maxZipBytes: 48 * 1024 * 1024,
+	maxZipBytes: 150 * 1024 * 1024,
 	maxEntries: 500,
-	maxFileBytes: 24 * 1024 * 1024,
-	maxTotalBytes: 96 * 1024 * 1024
+	maxFileBytes: 96 * 1024 * 1024,
+	maxTotalBytes: 300 * 1024 * 1024
 };
 
 /** Decks live in their own subfolder under the existing classroom parent. */
@@ -58,6 +82,36 @@ export const DECKS_FOLDER_NAME = 'IDEA Classroom decks';
 
 export async function decksFolderId(): Promise<string> {
 	return ensureDriveSubfolder(DECKS_FOLDER_NAME, await classroomFolderId());
+}
+
+/**
+ * Where a browser's direct upload LANDS, before it is unpacked: a staging
+ * folder of its own, sibling to the unpacked decks.
+ *
+ * Its own folder for two reasons. Whoever browses the shared drive by eye sees
+ * transient archives kept apart from the deck trees themselves, the same
+ * doctrine that split classroom attachments off the notebook photos; and, more
+ * load-bearing, ingestion REQUIRES a claimed file to sit here (0102). A file
+ * id naming anything outside this folder is refused, so the folder is half of
+ * what binds a client-supplied id to an upload this server actually authorized.
+ */
+export const DECK_UPLOADS_FOLDER_NAME = 'IDEA Classroom deck uploads';
+
+export async function deckUploadsFolderId(): Promise<string> {
+	return ensureDriveSubfolder(DECK_UPLOADS_FOLDER_NAME, await classroomFolderId());
+}
+
+/**
+ * The name the server gives the file a browser is about to upload.
+ *
+ * SERVER-SET AND UNFORGEABLE, which is the point: the name is fixed in the
+ * resumable session's metadata, and a resumable PUT carries bytes and a
+ * Content-Range only -- it cannot rename the file it is filling. So a file
+ * whose name is this, in the uploads folder, is a file THAT upload session
+ * created, and ingestion checks exactly that before it reads a byte.
+ */
+export function deckUploadName(uploadId: string): string {
+	return `deckupload_${uploadId}.zip`;
 }
 
 /**
@@ -291,8 +345,14 @@ export function extractSlides(html: string, cap = 200): DeckSlide[] {
 
 export interface DeckFilePlan {
 	path: string;
-	bytes: Uint8Array;
-	mimeType: string;
+	/**
+	 * WHERE the bytes are, not the bytes. A plan describes a whole deck; holding
+	 * every file's contents in it is what the ZipSource read exists to avoid.
+	 * Pass this to readDeckFile when it is that file's turn to be uploaded.
+	 */
+	entry: ZipDirEntry;
+	/** Uncompressed size, from the archive's own directory. */
+	size: number;
 }
 
 export interface DeckPlan {
@@ -332,27 +392,38 @@ function isRootHtml(path: string): boolean {
 }
 
 /**
- * Reads a deck zip and works out what to store.
+ * Reads a deck zip's INDEX and works out what to store.
+ *
+ * Reads bytes for exactly one file, the entry HTML, because the slide labels
+ * come out of it; everything else is decided from names and sizes, and each
+ * file's contents are read later, one at a time, by readDeckFile.
  *
  * ENTRY DETECTION IS ALLOWED TO GIVE UP. With exactly one plausible root HTML
  * it picks it; with several it refuses and hands back the candidates so the
  * uploader can choose, rather than guessing and silently hosting the wrong
  * rendering of the deck. `preferredEntry` is that choice coming back.
  */
-export function planDeckFromZip(
-	zipBytes: Uint8Array,
+export async function planDeck(
+	source: ZipSource,
 	preferredEntry?: string | null
-): DeckPlanResult {
-	let raw;
+): Promise<DeckPlanResult> {
+	if (source.size > DECK_LIMITS.maxZipBytes) {
+		return {
+			ok: false,
+			error: `Deck uploads are capped at ${Math.floor(DECK_LIMITS.maxZipBytes / 1024 / 1024)} MB.`
+		};
+	}
+
+	let raw: ZipDirEntry[];
 	try {
-		raw = readZipEntries(zipBytes, DECK_LIMITS);
+		raw = await readZipDirectory(source, DECK_LIMITS);
 	} catch (e) {
 		if (e instanceof ZipError) return { ok: false, error: e.message };
 		return { ok: false, error: `Could not read that zip: ${(e as Error).message}` };
 	}
 
 	// Normalize + refuse escapes BEFORE anything is grouped or stripped.
-	const normalized: { path: string; bytes: Uint8Array }[] = [];
+	const normalized: { path: string; entry: ZipDirEntry }[] = [];
 	for (const entry of raw) {
 		const path = normalizeDeckPath(entry.name);
 		if (path === null) {
@@ -361,11 +432,11 @@ export function planDeckFromZip(
 				error: `"${entry.name}" is not a safe path for a deck file. A deck may not contain absolute paths or refer outside its own folder.`
 			};
 		}
-		normalized.push({ path, bytes: entry.bytes });
+		normalized.push({ path, entry });
 	}
 
 	const stripped = stripCommonRoot(normalized.map((f) => f.path));
-	const files = normalized.map((f, i) => ({ path: stripped[i], bytes: f.bytes }));
+	const files = normalized.map((f, i) => ({ path: stripped[i], entry: f.entry }));
 
 	// Stripping cannot introduce an illegal path, but it CAN reveal a
 	// duplicate, and a duplicate would make the stored manifest ambiguous.
@@ -422,7 +493,18 @@ export function planDeckFromZip(
 		? THUMBNAIL_FILE
 		: (files.map((f) => f.path).find((p) => p.endsWith(`/${THUMBNAIL_FILE}`)) ?? null);
 
-	const entryBytes = files.find((f) => f.path === entryPath)!.bytes;
+	// The ONE file this function reads: the entry page carries the slide labels.
+	let entryBytes: Uint8Array;
+	try {
+		entryBytes = await readZipEntryBytes(
+			source,
+			files.find((f) => f.path === entryPath)!.entry,
+			DECK_LIMITS
+		);
+	} catch (e) {
+		if (e instanceof ZipError) return { ok: false, error: e.message };
+		return { ok: false, error: `Could not read that zip: ${(e as Error).message}` };
+	}
 	const slides = extractSlides(new TextDecoder('utf-8', { fatal: false }).decode(entryBytes));
 	if (!slides.length) {
 		warnings.push('No labelled slides were found in this deck, so it opens without a slide list.');
@@ -440,8 +522,8 @@ export function planDeckFromZip(
 
 	const planned: DeckFilePlan[] = keep.map((f) => ({
 		path: f.path,
-		bytes: f.bytes,
-		mimeType: deckFileMime(f.path, f.bytes)
+		entry: f.entry,
+		size: f.entry.uncompressedSize
 	}));
 
 	return {
@@ -452,56 +534,67 @@ export function planDeckFromZip(
 			hasStateFile,
 			slides,
 			files: planned,
-			totalBytes: planned.reduce((n, f) => n + f.bytes.length, 0),
+			totalBytes: planned.reduce((n, f) => n + f.size, 0),
 			warnings,
 			entryCandidates: candidates
 		}
 	};
 }
 
-export interface DeckZipField {
-	bytes: Uint8Array;
-	filename: string;
+/**
+ * One planned file's bytes and the content type they will be stored under.
+ *
+ * Called when it is that file's turn -- the caller uploads it and lets the
+ * bytes go, so the whole deck is never resident at once. The MIME is decided
+ * HERE rather than in the plan because a file with no usable extension
+ * (`.thumbnail`) needs a look at its first bytes to be typed at all.
+ */
+export async function readDeckFile(
+	source: ZipSource,
+	file: DeckFilePlan
+): Promise<{ bytes: Uint8Array; mimeType: string }> {
+	const bytes = await readZipEntryBytes(source, file.entry, DECK_LIMITS);
+	return { bytes, mimeType: deckFileMime(file.path, bytes) };
+}
+
+/** The in-memory form, for callers that genuinely hold the whole archive. */
+export function planDeckFromZip(
+	zipBytes: Uint8Array,
+	preferredEntry?: string | null
+): Promise<DeckPlanResult> {
+	return planDeck(memoryZipSource(zipBytes), preferredEntry);
 }
 
 /**
- * Validates the "file" form field of a deck upload.
+ * At or below this, the staged zip is pulled down ONCE and read from memory;
+ * above it, every read is a ranged request against Drive.
  *
- * The media type is checked LOOSELY on purpose. Browsers type a .zip as
- * application/zip, application/x-zip-compressed, or -- routinely -- nothing at
- * all, and `File.type` is REQUIRED to be empty when the platform has no
- * mapping (the notebook's HEIC lesson). Refusing on that string would reject
- * real uploads, and it would prove nothing anyway: the archive is PARSED a few
- * lines later, which is a far stronger check than any label.
+ * The hybrid is deliberate and is about round trips, not correctness. Ranged
+ * reading costs roughly two requests per file, which on an ordinary ~30-file
+ * deck is 60 round trips to Google to save memory that was never at risk. A
+ * typical export is well under this line and takes the single-download path; a
+ * deck carrying video is over it and pays the round trips to keep peak memory
+ * at one file rather than the whole archive.
  */
-export async function readDeckZipForm(
-	form: FormData
-): Promise<DeckZipField | { error: string; status: number }> {
-	const file = form.get('file');
-	if (!(file instanceof File) || file.size === 0) {
-		return { error: 'Attach the deck zip as the "file" form field.', status: 400 };
-	}
-	if (file.size > DECK_LIMITS.maxZipBytes) {
-		return {
-			error: `Deck uploads are capped at ${Math.floor(DECK_LIMITS.maxZipBytes / 1024 / 1024)} MB.`,
-			status: 413
-		};
-	}
-	const name = (file.name ?? '').trim();
-	const declared = file.type.trim().toLowerCase();
-	const looksZip =
-		/\.zip$/i.test(name) ||
-		declared === 'application/zip' ||
-		declared === 'application/x-zip-compressed' ||
-		declared === 'multipart/x-zip' ||
-		declared === '' ||
-		declared === 'application/octet-stream';
-	if (!looksZip) {
-		return { error: 'A deck is uploaded as a .zip of its exported project folder.', status: 400 };
+const ZIP_IN_MEMORY_MAX = 32 * 1024 * 1024;
+
+/**
+ * Reads the staged upload out of Drive: whole, or by range, per the note above.
+ * `size` is Drive's own reported size, so the choice is made before a byte
+ * moves.
+ */
+export async function driveZipSource(fileId: string, size: number): Promise<ZipSource> {
+	if (size <= ZIP_IN_MEMORY_MAX) {
+		return memoryZipSource(await readDriveFileRange(fileId, 0, Math.max(0, size - 1)));
 	}
 	return {
-		bytes: new Uint8Array(await file.arrayBuffer()),
-		filename: name || 'deck.zip'
+		size,
+		async read(offset: number, length: number) {
+			const start = Math.max(0, Math.min(offset, size));
+			const end = Math.min(start + length, size) - 1;
+			if (end < start) return new Uint8Array(0);
+			return readDriveFileRange(fileId, start, end);
+		}
 	};
 }
 
