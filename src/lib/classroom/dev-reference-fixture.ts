@@ -53,6 +53,74 @@ export const SAMPLE_REFERENCE: ReferenceSpec = {
 			]
 		},
 		{
+			slug: 'handbook',
+			title: 'Handbook',
+			blurb:
+				'The block-markup exercise: every structure the renderer parses, plus the three things it must refuse to turn into markup.',
+			blocks: [
+				{
+					type: 'instructions',
+					content: [
+						'### Unit 1 -- Measurement',
+						'',
+						'Read this before the first lab. It is long on purpose: this section is the one to scroll halfway down before switching tabs.',
+						'',
+						'#### What you will do',
+						'',
+						'You will measure a machined part three ways and argue about which number to trust. Bring a **pencil**, not a pen, and *write down what you actually read* rather than what you expected.',
+						'',
+						'- Measure the same feature three times.',
+						'- Record every reading, including the one you think is wrong.',
+						'    - A discarded reading is still data.',
+						'    - Say why you discarded it.',
+						'- Compare against the drawing, not against your neighbour.',
+						'',
+						'#### The order of operations',
+						'',
+						'1. Zero the instrument.',
+						'2. Measure.',
+						'    1. Read the main scale first.',
+						'    2. Then the vernier.',
+						'3. Record before you move on.',
+						'',
+						'> Precision is how closely your readings agree with each other. Accuracy is how closely they agree with the truth. You can be precisely wrong.',
+						'',
+						'Nominal dimensions in the drawing set are written like `12.70 ±0.05`, and a tolerance callout that reads `MMC` means something specific -- the [GD&T reference](https://ideabosco.com/gauntlet) has the full symbol set.',
+						'',
+						'### Unit 2 -- Fits',
+						'',
+						'A clearance fit always leaves a gap; an interference fit never does. The arithmetic is the same either way:',
+						'',
+						'```',
+						'clearance = hole_size - shaft_size',
+						'  max clearance = hole_max - shaft_min',
+						'  min clearance = hole_min - shaft_max',
+						'```',
+						'',
+						'#### Where people go wrong',
+						'',
+						'- Mixing the two ends of each tolerance band.',
+						'- Reporting a negative clearance as a clearance.',
+						'- Rounding before the last step.',
+						'',
+						'Ask early. The whole point of a shop class is that someone who has done it before is standing ten feet away.'
+					].join('\n')
+				},
+				{
+					type: 'callout',
+					variant: 'info',
+					title: 'Renderer note (dev fixture only)',
+					content: [
+						'The three lines below are hostile input. None of them may become an element, a URL, or a handler -- they render as the literal text they are.',
+						'',
+						'- Raw HTML: <script>alert("xss")</script> and <b>bold?</b>',
+						'- An image with a handler: <img src=x onerror="alert(1)">',
+						'- A javascript: link: [click me](javascript:alert(1))'
+					].join('\n')
+				}
+			]
+		},
+		{
 			slug: 'grading',
 			title: 'Grading',
 			blocks: [

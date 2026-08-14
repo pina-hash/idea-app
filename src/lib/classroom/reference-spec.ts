@@ -606,13 +606,44 @@ export interface InlineRun {
 	text: string;
 	bold?: boolean;
 	italic?: boolean;
+	/** `code`, rendered as a <code> element -- never as markup. */
+	code?: boolean;
 	/** http/https/mailto only; anything else keeps its TEXT and loses the link. */
 	href?: string;
 }
 
+export interface MarkdownList {
+	ordered: boolean;
+	items: MarkdownListItem[];
+}
+
+export interface MarkdownListItem {
+	runs: InlineRun[];
+	/**
+	 * ONE level of nesting, deliberately. A deeper indent folds into this same
+	 * level rather than growing an arbitrary tree: a reference document is a
+	 * syllabus, not an outline editor, and an unbounded depth is a rendering
+	 * and a legibility problem with no author asking for it.
+	 */
+	child?: MarkdownList | null;
+}
+
+/**
+ * The block vocabulary the renderer walks.
+ *
+ * A HEADING IS ONLY EVER LEVEL 3 OR 4. h1 is the document title and h2 is the
+ * section title, both owned by ReferenceDoc, so an authored `#` can never
+ * outrank them: 1-3 hashes clamp to 3 and 4-6 clamp to 4. Clamping rather than
+ * refusing is what guarantees no literal hash marks ever leak into body copy,
+ * which is the bug this replaced. Authored headings are also never given an
+ * id -- SECTION SLUGS ARE THE ONLY ANCHOR CONTRACT (see the header).
+ */
 export type MarkdownNode =
+	| { type: 'heading'; level: 3 | 4; runs: InlineRun[] }
 	| { type: 'paragraph'; runs: InlineRun[] }
-	| { type: 'list'; ordered: boolean; items: InlineRun[][] };
+	| ({ type: 'list' } & MarkdownList)
+	| { type: 'quote'; paragraphs: InlineRun[][] }
+	| { type: 'code'; text: string; lang?: string };
 
 const SAFE_HREF_RE = /^(https?:|mailto:)/i;
 
@@ -621,29 +652,64 @@ export function safeHref(url: string): string | undefined {
 	return SAFE_HREF_RE.test(trimmed) ? trimmed : undefined;
 }
 
-/** `**bold**`, `*italic*`, `[label](url)`. Anything else is literal text. */
+/**
+ * `` `code` ``, `**bold**`, `*italic*`, `[label](url)`. Anything else is
+ * literal text -- including anything that looks like HTML, which the renderer
+ * puts through Svelte's own escaping and therefore cannot become an element,
+ * an attribute, or a handler.
+ *
+ * Code is FIRST in the alternation so a backticked span wins over emphasis
+ * inside it; the whole span becomes one literal run.
+ */
 export function parseInline(text: string): InlineRun[] {
 	const runs: InlineRun[] = [];
-	const pattern = /\*\*([^*]+)\*\*|\*([^*]+)\*|\[([^\]]+)\]\(([^)\s]+)\)/g;
+	const pattern = /`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*|\[([^\]]+)\]\(([^)\s]+)\)/g;
 	let last = 0;
 	let match: RegExpExecArray | null;
 	while ((match = pattern.exec(text)) !== null) {
 		if (match.index > last) runs.push({ text: text.slice(last, match.index) });
-		if (match[1] != null) runs.push({ text: match[1], bold: true });
-		else if (match[2] != null) runs.push({ text: match[2], italic: true });
-		else runs.push({ text: match[3], href: safeHref(match[4]) });
+		if (match[1] != null) runs.push({ text: match[1], code: true });
+		else if (match[2] != null) runs.push({ text: match[2], bold: true });
+		else if (match[3] != null) runs.push({ text: match[3], italic: true });
+		else runs.push({ text: match[4], href: safeHref(match[5]) });
 		last = match.index + match[0].length;
 	}
 	if (last < text.length) runs.push({ text: text.slice(last) });
 	return runs.length ? runs : [{ text }];
 }
 
-/** Paragraphs, plus `- ` / `* ` bullet lists and `1. ` numbered lists. */
+const HEADING_RE = /^(#{1,6})\s+(.*)$/;
+const QUOTE_RE = /^>\s?(.*)$/;
+const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})\s*([A-Za-z0-9_+-]*)\s*$/;
+const ITEM_RE = /^(\s*)(?:([-*+])|(\d+)[.)])\s+(.*)$/;
+
+/** A tab counts as four columns when deciding whether an item is nested. */
+function indentWidth(prefix: string): number {
+	return prefix.replace(/\t/g, '    ').length;
+}
+
+/**
+ * Block-level markdown: headings, paragraphs, ordered and unordered lists with
+ * one level of nesting, blockquotes, and fenced code -- plus the inline set
+ * above.
+ *
+ * IT PRODUCES TYPED NODES, NOT HTML, AND THAT IS THE SECURITY MODEL. There is
+ * no sanitizer here to get wrong: MarkdownText walks these into real Svelte
+ * elements, which escape their own text by construction, and the only href
+ * that survives is one safeHref accepted. So raw HTML, a javascript: url and an
+ * onerror attribute in authored content are all inert by the same mechanism --
+ * they are never markup in the first place (the notebook note-content
+ * doctrine). Anything unrecognised stays literal text; an author who wants to
+ * SHOW markup uses a code fence.
+ */
 export function parseMarkdown(body: string): MarkdownNode[] {
 	const nodes: MarkdownNode[] = [];
 	const lines = (body ?? '').replace(/\r\n/g, '\n').split('\n');
+
 	let paragraph: string[] = [];
-	let list: { ordered: boolean; items: string[] } | null = null;
+	let list: MarkdownList | null = null;
+	let quote: string[] | null = null;
+	let fence: { marker: string; lang: string; lines: string[] } | null = null;
 
 	const flushParagraph = () => {
 		if (!paragraph.length) return;
@@ -652,38 +718,113 @@ export function parseMarkdown(body: string): MarkdownNode[] {
 	};
 	const flushList = () => {
 		if (!list) return;
-		nodes.push({
-			type: 'list',
-			ordered: list.ordered,
-			items: list.items.map((i) => parseInline(i))
-		});
+		nodes.push({ type: 'list', ordered: list.ordered, items: list.items });
 		list = null;
+	};
+	const flushQuote = () => {
+		if (!quote) return;
+		const paragraphs: InlineRun[][] = [];
+		let buffer: string[] = [];
+		for (const line of quote) {
+			if (line.trim()) buffer.push(line.trim());
+			else if (buffer.length) {
+				paragraphs.push(parseInline(buffer.join(' ')));
+				buffer = [];
+			}
+		}
+		if (buffer.length) paragraphs.push(parseInline(buffer.join(' ')));
+		if (paragraphs.length) nodes.push({ type: 'quote', paragraphs });
+		quote = null;
+	};
+	const flushFence = () => {
+		if (!fence) return;
+		nodes.push({
+			type: 'code',
+			text: fence.lines.join('\n'),
+			...(fence.lang ? { lang: fence.lang } : {})
+		});
+		fence = null;
+	};
+	const flushAll = () => {
+		flushParagraph();
+		flushList();
+		flushQuote();
 	};
 
 	for (const line of lines) {
+		const fenced = FENCE_RE.exec(line);
+
+		// Inside a fence NOTHING is markup: only a closing fence of the same
+		// character ends it, and an unterminated fence still emits at EOF.
+		if (fence) {
+			if (fenced && fenced[1][0] === fence.marker) flushFence();
+			else fence.lines.push(line);
+			continue;
+		}
+		if (fenced) {
+			flushAll();
+			fence = { marker: fenced[1][0], lang: fenced[2] ?? '', lines: [] };
+			continue;
+		}
+
 		const trimmed = line.trim();
 		if (!trimmed) {
+			// A blank line ends a paragraph but NOT a list: a loose list (items
+			// separated by blank lines) is still one list, and splitting it into
+			// several would put a gap and a fresh marker sequence mid-list.
+			flushParagraph();
+			if (quote) quote.push('');
+			continue;
+		}
+
+		const heading = HEADING_RE.exec(trimmed);
+		if (heading) {
+			flushAll();
+			nodes.push({
+				type: 'heading',
+				level: heading[1].length <= 3 ? 3 : 4,
+				runs: parseInline(heading[2].trim())
+			});
+			continue;
+		}
+
+		const quoted = QUOTE_RE.exec(trimmed);
+		if (quoted) {
 			flushParagraph();
 			flushList();
+			(quote ??= []).push(quoted[1]);
 			continue;
 		}
-		const bullet = /^[-*]\s+(.*)$/.exec(trimmed);
-		const numbered = /^\d+[.)]\s+(.*)$/.exec(trimmed);
-		if (bullet || numbered) {
+		flushQuote();
+
+		const item = ITEM_RE.exec(line);
+		if (item) {
 			flushParagraph();
-			const ordered = !!numbered;
-			if (!list || list.ordered !== ordered) {
-				flushList();
-				list = { ordered, items: [] };
+			const ordered = item[2] == null;
+			const runs = parseInline(item[4].trim());
+			const nested = indentWidth(item[1]) >= 2;
+			const parent = list?.items[list.items.length - 1];
+			if (nested && parent) {
+				if (!parent.child || parent.child.ordered !== ordered) {
+					parent.child = { ordered, items: [] };
+				}
+				parent.child.items.push({ runs });
+			} else {
+				if (!list || list.ordered !== ordered) {
+					flushList();
+					list = { ordered, items: [] };
+				}
+				list.items.push({ runs });
 			}
-			list.items.push((bullet ? bullet[1] : numbered![1]).trim());
 			continue;
 		}
+
 		flushList();
 		paragraph.push(trimmed);
 	}
-	flushParagraph();
-	flushList();
+
+	flushFence();
+	flushAll();
 	return nodes;
 }
 

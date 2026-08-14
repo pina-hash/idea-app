@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-13",
+			"title": "Reference pages like the syllabus are easier to read and move around",
+			"body": "The syllabus and other reference pages used to be one long block of grey text, and switching tabs threw you back to the top of the page. Both are fixed. Headings, numbered and bulleted lists, quotes and highlighted terms now show up the way they were written instead of as raw text, so a long section has visible structure. Lines are shorter, which is easier on the eyes, while tables and card links still use the full width. Tables read as tables, the boxes for notes and warnings look different from each other, and anything marked Required is now impossible to miss -- which matters on the pages your parents read. Switching tabs keeps the tab bar exactly where it is and starts you at the top of the new section, and your browser's back and forward buttons now move between tabs instead of leaving the page. On a phone, wide tables stack instead of sliding sideways. Printing still gives you the whole document, every section, in order.",
+			"tags": ["Reference", "Syllabus"]
+		},
+		{
+			"date": "2026-08-13",
 			"title": "Your Documentation Check grade shows up with the rest of your work",
 			"body": "The Documentation Check on your engineering notebook used to be graded off to the side. It is an assignment in your class now, so when your teacher returns it you see the score, the rubric and their comment in the same place as everything else, and it counts toward your grade the same way. One criterion is filled in straight from your notebook -- how many of the unit's check-ins you actually filed something for -- and the note attached to it shows the count your teacher was looking at, including any sessions you were excused from. The other three are still judged by your teacher reading your notebook. If a criterion looks wrong, that note tells you exactly what it was counted from, which is the thing to ask about.",
 			"tags": ["Notebook", "Grades"]
