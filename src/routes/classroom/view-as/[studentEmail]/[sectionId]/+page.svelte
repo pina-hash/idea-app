@@ -23,5 +23,6 @@
 	submitFeedback={null}
 	fetchPreview={fetchLinkPreviewClient}
 	basePath={base}
+	notebookHref={`${base}/notebook`}
 	viewAs={data.studentEmail}
 />

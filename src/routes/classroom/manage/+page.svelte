@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ManageConsole from '$lib/classroom/ManageConsole.svelte';
 	import { classroomFeedbackSubmit, createClassroomTransports } from '$lib/classroom/transports';
+	import type { ReviewTransports, SectionGrid } from '$lib/notebook-review';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -16,6 +17,30 @@
 	const transports = createClassroomTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
+
+	/**
+	 * The notebook compliance element's one read: the SAME
+	 * `notebook_get_section_grid` call `/notebook/review` makes, with the same
+	 * signature, so there is no second grid query and no second copy of who may
+	 * run one -- that RPC asks `classroom_manages_section` itself.
+	 *
+	 * A refusal or a missing table is reported inside the element and nowhere
+	 * else, so a project without the notebook migrations simply shows the rest
+	 * of the section panel as it always did.
+	 */
+	const loadNotebookGrid: ReviewTransports['loadGrid'] = async (sectionId, unitNumber) => {
+		const { data: result, error } = await data.supabase.rpc('notebook_get_section_grid', {
+			p_section_id: sectionId,
+			p_unit_number: unitNumber
+		});
+		if (error) {
+			return {
+				ok: false,
+				error: error.message?.trim() || 'Could not read this class’s notebook compliance.'
+			};
+		}
+		return { ok: true, value: result as SectionGrid };
+	};
 </script>
 
 <ManageConsole
@@ -26,5 +51,6 @@
 	initialSections={data.sections}
 	initialCourses={data.courses}
 	{transports}
+	{loadNotebookGrid}
 	{submitFeedback}
 />

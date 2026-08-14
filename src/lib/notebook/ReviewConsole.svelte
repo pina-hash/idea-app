@@ -45,11 +45,24 @@
 		sections,
 		isChair,
 		configured = true,
+		initialSectionId = null,
 		transports,
 		docCheck = null
 	}: {
 		sections: ReviewSection[];
 		isChair: boolean;
+		/**
+		 * Which section to open on, from `?section=` -- so a class page can link
+		 * straight into its own grid rather than dropping the instructor on
+		 * whichever section happens to sort first.
+		 *
+		 * The CALLER validates it against the list it is passing; an id that is
+		 * not in `sections` falls through to the default below, which is the
+		 * same stale-selection rule the picker already applies. It changes only
+		 * which section is preselected, never which the viewer may reach --
+		 * notebook_get_section_grid decides that.
+		 */
+		initialSectionId?: string | null;
 		/** 0069 applied; false renders the fail-soft card instead of a broken page. */
 		configured?: boolean;
 		transports: ReviewTransports;
@@ -62,7 +75,10 @@
 		docCheck?: DocCheckTransports | null;
 	} = $props();
 
-	let sectionId = $state<string | null>(null);
+	// Seeded ONCE, then owned by the picker: a later navigation within the
+	// console must not be yanked back to the id the URL arrived with.
+	// svelte-ignore state_referenced_locally
+	let sectionId = $state<string | null>(initialSectionId);
 	let unit = $state<number | null>(null);
 	/** null = "all units"; otherwise the selected unit number. */
 	let unitChoice = $state<string>('all');

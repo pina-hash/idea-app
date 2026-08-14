@@ -351,6 +351,7 @@
 	sections={data.sections}
 	isChair={data.isChair}
 	configured={data.configured}
+	initialSectionId={data.initialSectionId}
 	{transports}
 	docCheck={data.docCheckReady ? docCheckTransports : null}
 />

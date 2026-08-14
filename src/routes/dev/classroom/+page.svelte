@@ -44,6 +44,7 @@
 		type SubmissionFileRow,
 		type SubmissionRow
 	} from '$lib/classroom/assignment-spec';
+	import type { GridCell, ReviewTransports, SectionGrid } from '$lib/notebook-review';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
@@ -1337,6 +1338,108 @@
 	let view = $state<ViewId>(initial && VIEWS.some(([v]) => v === initial) ? initial : 'home');
 
 	const emptySection = $derived(withCourse({ ...section2, id: 's-empty' }));
+
+	// --- Notebook compliance (the manage console's per-section element) ----
+	//
+	// Mirrors notebook_get_section_grid's OWN payload shape and its OWN
+	// refusal: a section the caller does not manage raises, and the console
+	// has to report that in place rather than pretend. The summary itself is
+	// computed by the REAL gridSummary/summarize/cellDisplay in the component.
+	let notebookApplied = $state(true);
+	/**
+	 * Fault injection for the one path the fixture cannot otherwise reach: the
+	 * console lists a section whose grid the RPC then REFUSES (its teacher of
+	 * record changed, say). The element has to report that in place rather than
+	 * render an empty compliance panel that reads as "nobody has done anything".
+	 */
+	let notebookRefuses = $state(false);
+	const NB_GRIDS: Record<string, SectionGrid> = {
+		's-1': {
+			section: {
+				id: 's-1',
+				course_code: 'IDEA209H',
+				course_title: 'Engineering Design',
+				label: 'Period 1',
+				block: 'A',
+				teacher_email: TEACHER
+			},
+			unit_number: null,
+			generated_at: '2026-08-13T18:00:00Z',
+			sessions: [
+				{ id: 'ns-1', unit_number: 3, session_date: '2026-08-08', session_label: 'Bearing teardown' },
+				{ id: 'ns-2', unit_number: 3, session_date: '2026-08-10', session_label: 'Shaft stackup' },
+				{ id: 'ns-3', unit_number: 4, session_date: '2026-08-12', session_label: 'Gearbox build' }
+			],
+			students: [
+				{ student_key: 'alice@boscotech.net', id: 'u-a', name: 'Alvarez, Alice', email: 'alice@boscotech.net', enrolled: true, free_entries: 2 },
+				{ student_key: 'ben@boscotech.net', id: 'u-b', name: 'Okafor, Ben', email: 'ben@boscotech.net', enrolled: true, free_entries: 0 },
+				{ student_key: 'chloe@boscotech.net', id: 'u-c', name: 'Tran, Chloe', email: 'chloe@boscotech.net', enrolled: true, free_entries: 1 },
+				{ student_key: 'dev@boscotech.net', id: null, name: 'Devi, Priya', email: 'dev@boscotech.net', enrolled: true, free_entries: 0 }
+			],
+			cells: [
+				nbCell('alice@boscotech.net', 'u-a', 'ns-1', 'compliant', { on_time: true, entry: 'e1' }),
+				nbCell('alice@boscotech.net', 'u-a', 'ns-2', 'compliant', { on_time: true, entry: 'e2' }),
+				nbCell('alice@boscotech.net', 'u-a', 'ns-3', 'compliant', { on_time: true, entry: 'e3' }),
+				nbCell('ben@boscotech.net', 'u-b', 'ns-1', 'compliant', { on_time: false, entry: 'e4' }),
+				nbCell('ben@boscotech.net', 'u-b', 'ns-2', 'flagged', { on_time: true, entry: 'e5', flag: 'illegible' }),
+				nbCell('ben@boscotech.net', 'u-b', 'ns-3', 'missing', {}),
+				nbCell('chloe@boscotech.net', 'u-c', 'ns-1', 'compliant', { on_time: true, entry: 'e6' }),
+				nbCell('chloe@boscotech.net', 'u-c', 'ns-2', 'excused', { excused: true }),
+				nbCell('chloe@boscotech.net', 'u-c', 'ns-3', 'pending_review', { on_time: true, entry: 'e7' }),
+				nbCell('dev@boscotech.net', null, 'ns-1', 'missing', {}),
+				nbCell('dev@boscotech.net', null, 'ns-2', 'missing', {}),
+				nbCell('dev@boscotech.net', null, 'ns-3', 'missing', {})
+			]
+		},
+		's-2': {
+			section: {
+				id: 's-2',
+				course_code: 'IDEA209H',
+				course_title: 'Engineering Design',
+				label: 'Period 2',
+				block: 'B',
+				teacher_email: TEACHER
+			},
+			unit_number: null,
+			generated_at: '2026-08-13T18:00:00Z',
+			sessions: [],
+			students: [],
+			cells: []
+		}
+	};
+
+	function nbCell(
+		key: string,
+		id: string | null,
+		session: string,
+		status: GridCell['status'],
+		opts: { on_time?: boolean; entry?: string; excused?: boolean; flag?: GridCell['flag_reason'] }
+	): GridCell {
+		return {
+			student_key: key,
+			student_id: id,
+			session_id: session,
+			status,
+			entry_id: opts.entry ?? null,
+			entry_count: opts.entry ? 1 : 0,
+			upload_timestamp: opts.entry ? '2026-08-09T15:00:00Z' : null,
+			on_time: opts.on_time ?? null,
+			excused: opts.excused ?? false,
+			flag_reason: opts.flag ?? null
+		};
+	}
+
+	const loadNotebookGrid: ReviewTransports['loadGrid'] = async (sectionId) => {
+		const grid = notebookRefuses ? undefined : NB_GRIDS[sectionId];
+		if (!grid) {
+			// Verbatim what notebook_get_section_grid raises.
+			return {
+				ok: false,
+				error: 'Only the section instructor or a site admin can view the notebook grid.'
+			};
+		}
+		return { ok: true, value: grid };
+	};
 </script>
 
 <svelte:head>
@@ -1350,6 +1453,14 @@
 			{label}
 		</button>
 	{/each}
+	<label class="harness-toggle">
+		<input type="checkbox" bind:checked={notebookApplied} data-testid="sim-notebook" />
+		notebook migrations applied
+	</label>
+	<label class="harness-toggle">
+		<input type="checkbox" bind:checked={notebookRefuses} data-testid="sim-notebook-refuses" />
+		grid refuses this section
+	</label>
 </div>
 
 {#if view === 'home'}
@@ -1367,6 +1478,7 @@
 		{transports}
 		{fetchPreview}
 		{submitFeedback}
+		notebookHref="/dev/notebook"
 	/>
 {:else if view === 'class-teacher'}
 	<ClassPage
@@ -1377,6 +1489,7 @@
 		{transports}
 		{fetchPreview}
 		{submitFeedback}
+		notebookHref="/dev/notebook-review?section=s-1"
 	/>
 {:else if view === 'class2-teacher'}
 	<ClassPage
@@ -1461,6 +1574,7 @@
 		submitFeedback={null}
 		{fetchPreview}
 		basePath={viewAsBase}
+		notebookHref="/dev/notebook?viewas=1"
 		viewAs={VIEW_AS_EMAIL}
 	/>
 {:else if view === 'viewas-item'}
@@ -1485,6 +1599,7 @@
 		initialSections={ownSections}
 		initialCourses={courses}
 		{transports}
+		loadNotebookGrid={notebookApplied ? loadNotebookGrid : null}
 		{submitFeedback}
 	/>
 {:else if view === 'manage-notready'}
@@ -1535,6 +1650,14 @@
 		font-size: 0.62rem;
 		padding: 0.22rem 0.6rem;
 		cursor: pointer;
+	}
+	.harness-toggle {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		color: var(--dim);
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
 	}
 	.harness-view.active {
 		color: var(--green);

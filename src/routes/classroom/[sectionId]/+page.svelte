@@ -19,6 +19,18 @@
 	const transports = createClassroomTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
+
+	/**
+	 * The notebook door for whoever is looking. A manager of this section gets
+	 * the review console already scoped to it -- `notebook_get_section_grid`
+	 * asks `classroom_manages_section`, the same question `canManage` is, so
+	 * the link can never offer a grid the database would refuse. Everyone else
+	 * reading this page is an actively enrolled student, and theirs is their
+	 * own notebook.
+	 */
+	const notebookHref = $derived(
+		data.canManage ? `/notebook/review?section=${data.section.id}` : '/notebook'
+	);
 </script>
 
 <ClassPage
@@ -29,6 +41,7 @@
 	attachmentsEnabled={data.attachmentsEnabled}
 	{transports}
 	{submitFeedback}
+	{notebookHref}
 	fetchPreview={fetchLinkPreviewClient}
 	onchanged={() => invalidateAll()}
 />

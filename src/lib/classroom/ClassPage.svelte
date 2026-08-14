@@ -49,6 +49,7 @@
 		transports = null,
 		attachmentsEnabled = true,
 		basePath = '/classroom',
+		notebookHref = null,
 		viewAs = null,
 		fetchPreview = null,
 		submitFeedback = null,
@@ -64,6 +65,19 @@
 		attachmentsEnabled?: boolean;
 		/** Link root -- rewritten under /classroom/view-as/<email>. */
 		basePath?: string;
+		/**
+		 * The digital notebook, for whoever is looking. It sits on the same
+		 * `.section-line` as the existing Manage link because that line is
+		 * already where this page names the OTHER surfaces this class has --
+		 * a new card or tab would be a second pattern for the same job.
+		 *
+		 * Which notebook it points at is the CALLER's to decide, because only
+		 * the route knows: a manager wants their section's review console, a
+		 * student wants their own notebook, and a view-as preview wants the
+		 * read-only notebook under its own basePath. `canManage` alone is what
+		 * words the link. Null renders nothing.
+		 */
+		notebookHref?: string | null;
 		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
 		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
@@ -322,6 +336,11 @@
 			{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
 			{#if canManage}
 				&nbsp;&middot; <a class="manage-link" href="/classroom/manage">Manage</a>
+			{/if}
+			{#if notebookHref}
+				&nbsp;&middot; <a class="manage-link" href={notebookHref} data-testid="class-notebook-link">
+					{canManage ? 'Notebook review' : 'My notebook'}
+				</a>
 			{/if}
 		</p>
 	</section>

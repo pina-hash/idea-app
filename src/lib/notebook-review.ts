@@ -312,6 +312,62 @@ export function completionLabel(summary: StudentSummary): string {
 	return `${summary.covered} of ${summary.total}`;
 }
 
+/**
+ * The whole section at a glance: one tally per cell state, plus the students
+ * who are behind or flagged.
+ *
+ * WHY A SUMMARY AND NOT THE GRID. This is what the Classroom manage console
+ * shows inside an expanded section panel, and the grid proper does not belong
+ * there: it is a wide table that scrolls horizontally in its own container,
+ * sized for a dedicated console, and it only earns that width because every
+ * cell is a button into an entry-review panel -- which is review work, not
+ * "how is this class doing". The panel it would sit in is a 52rem column
+ * already holding section settings, a roster and a content list. So the
+ * console answers the question a manager has WHILE managing the class, and
+ * links through for the answer they have to act on.
+ *
+ * IT RE-DERIVES NOTHING. The tallies come from `cellDisplay` and the
+ * per-student figures from `summarize`, which are the same two functions the
+ * grid itself renders through, over the same `notebook_get_section_grid`
+ * payload -- so the console and the console-you-click-into cannot disagree
+ * about what a cell means.
+ */
+export interface GridSummary {
+	sessions: number;
+	students: number;
+	/** Cells per display state, keyed exactly as CELL_STATES is. */
+	counts: Record<CellDisplay, number>;
+	/** Cells that are neither on time nor excused -- what "behind" totals to. */
+	outstanding: number;
+	/** Students with a flagged cell or an incomplete count, worst first. */
+	attention: StudentSummary[];
+}
+
+export function gridSummary(grid: SectionGrid): GridSummary {
+	const counts = Object.fromEntries(CELL_STATES.map((s) => [s.key, 0])) as Record<
+		CellDisplay,
+		number
+	>;
+	for (const cell of grid.cells) counts[cellDisplay(cell)]++;
+
+	const attention = summarize(grid)
+		.filter((s) => s.flagged > 0 || s.covered < s.total)
+		.sort(
+			(a, b) =>
+				b.flagged - a.flagged ||
+				b.total - b.covered - (a.total - a.covered) ||
+				a.student.name.localeCompare(b.student.name)
+		);
+
+	return {
+		sessions: grid.sessions.length,
+		students: grid.students.length,
+		counts,
+		outstanding: counts.late + counts.pending_review + counts.flagged + counts.missing,
+		attention
+	};
+}
+
 // ---------------------------------------------------------------------------
 // 4. Session management + review transports
 // ---------------------------------------------------------------------------

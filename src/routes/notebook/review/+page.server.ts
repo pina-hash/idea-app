@@ -39,7 +39,7 @@ import type { PageServerLoad } from './$types';
  * Fails soft in one direction only: with the notebook migrations unapplied the
  * page renders a clearly-flagged "not available yet" card instead of crashing.
  */
-export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
+export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
 	const access = await notebookAccess(supabase, claims.sub, claims.email as string | undefined);
@@ -86,11 +86,24 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		};
 	});
 
+	/**
+	 * `?section=` -- how a class page links straight into its own grid.
+	 *
+	 * Validated against the list ABOVE rather than passed through, so a made-up
+	 * or foreign id simply falls back to the default section instead of
+	 * preselecting one whose grid would then answer with a refusal. That is
+	 * courtesy, not a boundary: `notebook_get_section_grid` refuses a section
+	 * the caller neither teaches nor administers whatever this says.
+	 */
+	const asked = url.searchParams.get('section');
+	const initialSectionId = sections.some((s) => s.id === asked) ? asked : null;
+
 	return {
 		isInstructor: access.isInstructor,
 		isChair: access.isChair,
 		configured: !sectionError,
 		docCheckReady: !unitLinkProbe.error,
+		initialSectionId,
 		sections
 	};
 };

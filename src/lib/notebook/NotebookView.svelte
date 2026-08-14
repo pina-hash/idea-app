@@ -88,6 +88,8 @@
 		pinsReady = true,
 		activity = [],
 		uploadReady = true,
+		readOnly = false,
+		homeHref = '/',
 		createEntry,
 		addPhoto,
 		createNote,
@@ -137,11 +139,25 @@
 		 * submits only. A note needs no Drive, so the note path stays usable.
 		 */
 		uploadReady?: boolean;
-		createEntry: (form: FormData) => Promise<CreateEntryResult>;
-		addPhoto: (form: FormData) => Promise<AddPhotoResult>;
-		createNote: (payload: NotePayload) => Promise<CreateEntryResult>;
-		addNote: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
-		editNote: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		/**
+		 * READ-ONLY PREVIEW (view-as-student). Removes the "Add an entry" form
+		 * outright and stops every write handler before it can call anything.
+		 *
+		 * IT IS BELT AND BRACES, NOT THE MECHANISM. A read-only surface is one
+		 * that is handed NO transports at all -- every write prop below is
+		 * optional and its absence removes the control it drives, right down
+		 * into each entry card -- so there is nothing to execute even if a
+		 * control leaked through. This flag exists so the intent is stated
+		 * once at the top rather than inferred from six omitted props.
+		 */
+		readOnly?: boolean;
+		/** Where "Home" goes -- rewritten under /classroom/view-as/<email>. */
+		homeHref?: string;
+		createEntry?: (form: FormData) => Promise<CreateEntryResult>;
+		addPhoto?: (form: FormData) => Promise<AddPhotoResult>;
+		createNote?: (payload: NotePayload) => Promise<CreateEntryResult>;
+		addNote?: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		editNote?: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
 		/** Folder writes (0088). Omitted when foldersReady is false. */
 		folderTransports?: FolderTransports;
 		/** The one pin write (0091). Omitted when pinsReady is false. */
@@ -334,6 +350,7 @@
 		report: (message: string) => void,
 		skipOriginal = false
 	): Promise<{ originalOk: boolean; enhancedOk: boolean }> {
+		if (!addPhoto) return { originalOk: false, enhancedOk: true };
 		if (!skipOriginal) {
 			report(total > 1 ? `Uploading photo ${num} of ${total}...` : 'Uploading...');
 			const form = new FormData();
@@ -366,6 +383,7 @@
 		photos: StagedPhoto[],
 		report: (message: string) => void
 	): Promise<{ ok: boolean; error?: string }> {
+		if (readOnly || !addPhoto) return { ok: false, error: 'This is a read-only preview.' };
 		const total = photos.length;
 		const failed: number[] = [];
 		const failedEnhanced: number[] = [];
@@ -392,7 +410,8 @@
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
-		if (busy || !canSubmit) return;
+		if (readOnly || busy || !canSubmit) return;
+		if (noteOnly ? !createNote : !createEntry) return;
 		busy = true;
 		errorMsg = null;
 		successMsg = null;
@@ -407,7 +426,7 @@
 			// It never carries a session -- the mode is only reachable on the
 			// free-form path, and a check-in still requires a page.
 			if (noteOnly) {
-				const saved = await createNote({
+				const saved = await createNote!({
 					content: noteDraft as TiptapNode,
 					custom_label: title.trim() || null,
 					folder_id: folderChoice
@@ -440,7 +459,7 @@
 			if (!selectedSession && trimmed) first.set('custom_label', trimmed);
 			if (folderChoice) first.set('folder_id', folderChoice);
 
-			const created = await createEntry(first);
+			const created = await createEntry!(first);
 			if (!created.ok) {
 				errorMsg = created.error;
 				return;
@@ -491,6 +510,7 @@
 
 	/** EntryNotes hands back a saved revision; the feed then reloads. */
 	async function saveNoteEdit(noteId: string, doc: TiptapNode): Promise<NoteSaveResult> {
+		if (readOnly || !editNote) return { ok: false, error: 'This is a read-only preview.' };
 		const result = await editNote(noteId, doc);
 		if (result.ok) {
 			successMsg = 'Note updated. The earlier version is still on this entry.';
@@ -500,6 +520,7 @@
 	}
 
 	async function saveNoteToEntry(entryId: string, doc: TiptapNode): Promise<NoteSaveResult> {
+		if (readOnly || !addNote) return { ok: false, error: 'This is a read-only preview.' };
 		const result = await addNote(entryId, doc);
 		if (result.ok) {
 			successMsg = 'Note added to this entry.';
@@ -653,7 +674,7 @@
 	 * where the entry actually lands.
 	 */
 	async function pinEntry(entryId: string, pinned: boolean): Promise<EntryActionResult> {
-		if (!setPinned) return { ok: false, error: 'Pinning is not available.' };
+		if (readOnly || !setPinned) return { ok: false, error: 'Pinning is not available.' };
 		const result = await setPinned(entryId, pinned);
 		if (result.ok) onChanged?.();
 		return result;
@@ -722,7 +743,7 @@
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 	<div class="header-right">
 		<NotebookThemeToggle />
-		<a class="btn secondary" href="/">&lsaquo; Home</a>
+		<a class="btn secondary" href={homeHref}>&lsaquo; Home</a>
 		<ProfileMenu />
 	</div>
 </div>
@@ -759,8 +780,9 @@
 		</section>
 	{:else}
 		<!-- ---------------------------------------------------------------- -->
-		<!-- Add an entry                                                      -->
+		<!-- Add an entry -- omitted entirely on a read-only preview            -->
 		<!-- ---------------------------------------------------------------- -->
+		{#if !readOnly}
 		<section class="card">
 			<h2>Add an entry</h2>
 
@@ -950,6 +972,7 @@
 				</div>
 			</form>
 		</section>
+		{/if}
 
 		<!-- ---------------------------------------------------------------- -->
 		<!-- My entries                                                        -->
@@ -959,7 +982,11 @@
 
 			{#if entries.length === 0}
 				<p class="note empty-state">
-					No entries yet. Photograph a page or write a note above and it will show up here.
+					{#if readOnly}
+						Nothing in this notebook yet.
+					{:else}
+						No entries yet. Photograph a page or write a note above and it will show up here.
+					{/if}
 				</p>
 			{:else}
 				{#if foldersReady && managerOpen && folderTransports}
@@ -1102,6 +1129,15 @@
 							<ol class="entries">
 								{#each group.entries as entry (entry.id)}
 									<li>
+										<!--
+											foldersReady / pinsReady say the MIGRATION is applied, so
+											the folder chip and the pin indicator render from them.
+											Whether the card offers a CONTROL is a SEPARATE question,
+											answered by the presence of onMove / onPin -- which is
+											what lets a read-only preview report a student's own
+											filing and pins truthfully while offering no way to
+											change either.
+										-->
 										<NotebookEntryCard
 											{entry}
 											{folders}
@@ -1112,13 +1148,13 @@
 											onSelectChange={(on) => togglePick(entry.id, on)}
 											{uploadReady}
 											{notesReady}
-											foldersReady={foldersReady && !!folderTransports}
-											pinsReady={pinsReady && !!setPinned}
-											onAddPhotos={addPhotosToEntry}
-											onAddNote={saveNoteToEntry}
-											onEditNote={saveNoteEdit}
-											onMove={moveOne}
-											onPin={pinEntry}
+											{foldersReady}
+											{pinsReady}
+											onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
+											onAddNote={addNote ? saveNoteToEntry : undefined}
+											onEditNote={editNote ? saveNoteEdit : undefined}
+											onMove={folderTransports ? moveOne : undefined}
+											onPin={setPinned ? pinEntry : undefined}
 										/>
 									</li>
 								{/each}

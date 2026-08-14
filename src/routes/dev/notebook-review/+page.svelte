@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
 	import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
 	import type { NoteDoc, NotebookNoteRow } from '$lib/notebook-notes';
@@ -639,6 +640,17 @@
 				: SECTIONS.filter((s) => s.teacher_email === INSTRUCTOR_EMAIL)
 	);
 
+	/**
+	 * `?section=` -- the deep link a class page uses. Validated against the
+	 * list this viewer is being offered, exactly as the real load validates it,
+	 * so a foreign id preselects nothing rather than a section the grid would
+	 * refuse.
+	 */
+	const askedSection = $derived.by(() => {
+		const asked = page.url.searchParams.get('section');
+		return visibleSections.some((s) => s.id === asked) ? asked : null;
+	});
+
 	// ---- Documentation Check (0097 + Classroom's grading RPC), mirrored -----
 	//
 	// The store reproduces the rules the UI is written against, not a stub that
@@ -864,6 +876,7 @@
 		sections={visibleSections}
 		{isChair}
 		{configured}
+		initialSectionId={askedSection}
 		{transports}
 		docCheck={docCheckReady ? docCheckTransports : null}
 	/>

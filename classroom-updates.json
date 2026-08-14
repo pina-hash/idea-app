@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-13",
+			"title": "Your notebook is one click from your class page",
+			"body": "Every class page now carries a link straight to your engineering notebook, next to the class and teacher at the top. You no longer have to go back out to the home screen to get to it. Nothing about the notebook itself changed -- same entries, same folders, same pinned pages -- there is just a door to it from the class it belongs to. Your teachers get a link from the same spot into the review side, so when they are looking at your class they can see how the notebook check-ins are going without hunting for it.",
+			"tags": ["Notebook", "Classes"]
+		},
+		{
+			"date": "2026-08-13",
 			"title": "Reference pages like the syllabus are easier to read and move around",
 			"body": "The syllabus and other reference pages used to be one long block of grey text, and switching tabs threw you back to the top of the page. Both are fixed. Headings, numbered and bulleted lists, quotes and highlighted terms now show up the way they were written instead of as raw text, so a long section has visible structure. Lines are shorter, which is easier on the eyes, while tables and card links still use the full width. Tables read as tables, the boxes for notes and warnings look different from each other, and anything marked Required is now impossible to miss -- which matters on the pages your parents read. Switching tabs keeps the tab bar exactly where it is and starts you at the top of the new section, and your browser's back and forward buttons now move between tabs instead of leaving the page. On a phone, wide tables stack instead of sliding sideways. Printing still gives you the whole document, every section, in order.",
 			"tags": ["Reference", "Syllabus"]

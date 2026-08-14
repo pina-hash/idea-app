@@ -55,6 +55,13 @@
 	 * and how a corrected photo lands adjacent to its own original, is one
 	 * rule and it stays in NotebookView; this calls the injected `onAddPhotos`
 	 * with the staged set and reports what comes back.
+	 *
+	 * READ-ONLY IS THE ABSENCE OF A TRANSPORT, not a flag. Every write handler
+	 * is optional; an omitted one removes its control from the markup AND
+	 * leaves the handler with nothing to call, so a surface that hands in no
+	 * transports (view-as-student) cannot write even if a control leaked
+	 * through. That is the ContractsView `readOnly` idea taken one step
+	 * further -- there is no boolean to get wrong.
 	 */
 
 	let {
@@ -88,16 +95,25 @@
 		foldersReady?: boolean;
 		/** 0091 applied; false hides pinning without touching anything else. */
 		pinsReady?: boolean;
-		onAddPhotos: (
+		/** Omitted on a read-only surface: no control, and nothing to call. */
+		onAddPhotos?: (
 			entryId: string,
 			staged: StagedPhoto[],
 			onProgress: (message: string) => void
 		) => Promise<{ ok: boolean; error?: string; notice?: string }>;
-		onAddNote: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
-		onEditNote: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
-		onMove: (entryId: string, folderId: string | null) => Promise<FolderResult>;
+		onAddNote?: (entryId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		onEditNote?: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
+		onMove?: (entryId: string, folderId: string | null) => Promise<FolderResult>;
 		onPin?: (entryId: string, pinned: boolean) => Promise<EntryActionResult>;
 	} = $props();
+
+	/**
+	 * What this card may DO, derived from which transports it was handed. Each
+	 * gates both a control and its handler, so the two can never disagree.
+	 */
+	const canAddPhotos = $derived(!!onAddPhotos);
+	const canAddNote = $derived(!!onAddNote);
+	const canMove = $derived(foldersReady && !!onMove);
 
 	const photos = $derived(orderedPhotos(entry));
 	const pages = $derived(photoPages(photos));
@@ -126,8 +142,13 @@
 
 	// ---- pin + copy ---------------------------------------------------------
 
-	/** Gated on pinsReady for the same reason the folder chip is: no pin
-	    indicator while there is no way to pin or unpin anything. */
+	/**
+	 * Gated on pinsReady for the same reason the folder chip is: with 0091
+	 * unapplied `pinned_at` cannot arrive at all, so there is nothing to show.
+	 * NOT gated on `onPin` -- a read-only preview must report a student's own
+	 * pins accurately while offering no control, so "is it pinned" and "can I
+	 * unpin it" are deliberately two questions.
+	 */
 	const pinned = $derived(pinsReady && isPinned(entry));
 
 	let pinning = $state(false);
@@ -194,7 +215,7 @@
 	}
 
 	async function savePhotos() {
-		if (busy || !staged.length) return;
+		if (busy || !staged.length || !onAddPhotos) return;
 		busy = true;
 		error = null;
 		try {
@@ -215,7 +236,7 @@
 	}
 
 	async function saveNote() {
-		if (busy || !tiptapHasText(noteDraft)) return;
+		if (busy || !tiptapHasText(noteDraft) || !onAddNote) return;
 		busy = true;
 		error = null;
 		try {
@@ -234,7 +255,7 @@
 	}
 
 	async function move(value: string) {
-		if (moving) return;
+		if (moving || !onMove) return;
 		moving = true;
 		moveError = null;
 		try {
@@ -417,23 +438,33 @@
 					<!-- canEdit is TWO conditions: a check-in's notes are never
 					     editable (0078 refuses it), and with the migration
 					     unapplied nothing can be saved at all. -->
-					<EntryNotes {notes} canEdit={freeForm && notesReady} onSave={onEditNote} />
+					<!-- The third condition is the read-only one: with no save
+					     transport there is no edit control, and EntryNotes has
+					     nothing to call either. -->
+					<EntryNotes
+						{notes}
+						canEdit={freeForm && notesReady && !!onEditNote}
+						onSave={onEditNote}
+					/>
 				</div>
 			{/if}
 
+			{#if canAddPhotos || (notesReady && canAddNote) || canMove}
 			<div class="entry-add">
 				<div class="entry-add-actions">
-					<button
-						type="button"
-						class="add-btn"
-						data-testid="add-photos"
-						aria-pressed={panel === 'photos'}
-						disabled={busy || !uploadReady}
-						onclick={() => togglePanel('photos')}
-					>
-						{panel === 'photos' ? 'Cancel' : 'Add photos'}
-					</button>
-					{#if notesReady}
+					{#if canAddPhotos}
+						<button
+							type="button"
+							class="add-btn"
+							data-testid="add-photos"
+							aria-pressed={panel === 'photos'}
+							disabled={busy || !uploadReady}
+							onclick={() => togglePanel('photos')}
+						>
+							{panel === 'photos' ? 'Cancel' : 'Add photos'}
+						</button>
+					{/if}
+					{#if notesReady && canAddNote}
 						<button
 							type="button"
 							class="add-btn"
@@ -446,7 +477,7 @@
 						</button>
 					{/if}
 
-					{#if foldersReady}
+					{#if canMove}
 						<label class="move" data-testid="entry-move">
 							<span class="move-label">Folder</span>
 							<select
@@ -526,6 +557,7 @@
 					</div>
 				{/if}
 			</div>
+			{/if}
 		</div>
 	{/if}
 </div>

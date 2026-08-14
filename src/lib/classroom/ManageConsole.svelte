@@ -23,6 +23,13 @@
 		type ClassroomSection,
 		type ImportSummary
 	} from '$lib/classroom/classroom';
+	import {
+		CELL_STATES,
+		completionLabel,
+		gridSummary,
+		type GridSummary,
+		type ReviewTransports
+	} from '$lib/notebook-review';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
@@ -45,6 +52,7 @@
 		initialSections,
 		initialCourses,
 		transports,
+		loadNotebookGrid = null,
 		submitFeedback = null
 	}: {
 		ready?: boolean;
@@ -55,6 +63,19 @@
 		initialSections: ClassroomSection[];
 		initialCourses: ClassroomCourse[];
 		transports: ClassroomManageTransports;
+		/**
+		 * The notebook's own grid read, for the compliance element in each
+		 * section panel. Deliberately the SAME signature the review console's
+		 * `ReviewTransports['loadGrid']` has, wired to the same
+		 * `notebook_get_section_grid` call -- there is no second grid query,
+		 * and no second copy of who may run one (that RPC asks
+		 * classroom_manages_section itself, so a section this console should
+		 * not show is refused by the database, not by this component).
+		 *
+		 * Null omits the element entirely, which is the fail-soft state on a
+		 * deployment where the notebook migrations are not applied.
+		 */
+		loadNotebookGrid?: ReviewTransports['loadGrid'] | null;
 		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 	} = $props();
 
@@ -179,7 +200,33 @@
 		armDelete = null;
 		sectionEditId = null;
 		armSectionDelete = null;
-		await Promise.all([loadSelectedRoster(), loadSelectedContent()]);
+		await Promise.all([loadSelectedRoster(), loadSelectedContent(), loadSelectedNotebook()]);
+	}
+
+	// --- Notebook compliance (a summary; the console is one click away) ----
+	let notebook = $state<GridSummary | null>(null);
+	let notebookError = $state<string | null>(null);
+	let notebookLoading = $state(false);
+
+	/**
+	 * Lazily, when the panel opens, exactly like the roster and the content
+	 * list. A failure is reported IN PLACE rather than through `panelMsg`: the
+	 * notebook is a neighbouring feature and its absence must never read as a
+	 * problem with the section settings above it.
+	 */
+	async function loadSelectedNotebook() {
+		notebook = null;
+		notebookError = null;
+		if (!selectedSectionId || !loadNotebookGrid) return;
+		notebookLoading = true;
+		try {
+			// null = every unit, which is what "how is this class doing" means.
+			const res = await loadNotebookGrid(selectedSectionId, null);
+			if (res.ok) notebook = gridSummary(res.value);
+			else notebookError = res.error;
+		} finally {
+			notebookLoading = false;
+		}
 	}
 
 	async function loadSelectedRoster() {
@@ -857,6 +904,79 @@
 									{/if}
 								</details>
 
+								{#if loadNotebookGrid}
+									<h3>Notebook compliance</h3>
+									{#if notebookLoading}
+										<p class="note">Loading...</p>
+									{:else if notebookError}
+										<p class="note" data-testid="nb-compliance-error">{notebookError}</p>
+									{:else if notebook}
+										{#if notebook.sessions === 0}
+											<p class="note empty-state" data-testid="nb-compliance-empty">
+												No notebook check-ins are scheduled for this class yet.
+												<a class="linklike" href={`/notebook/review?section=${s.id}`}>
+													Add one in the review console
+												</a>.
+											</p>
+										{:else}
+											<p class="nb-line" data-testid="nb-compliance-line">
+												{notebook.students}
+												{notebook.students === 1 ? 'student' : 'students'} &middot;
+												{notebook.sessions}
+												{notebook.sessions === 1 ? 'check-in' : 'check-ins'} &middot;
+												<strong>{notebook.outstanding}</strong> outstanding
+											</p>
+											<!-- Glyph AND label on every tally, and both come from
+											     CELL_STATES -- the same registry the grid's own cells
+											     and legend read, so the two can never diverge on what
+											     a state is called or looks like. -->
+											<div class="nb-tallies">
+												{#each CELL_STATES as state (state.key)}
+													<span
+														class="nb-tally nb-{state.key}"
+														title={state.hint}
+														data-testid="nb-tally-{state.key}"
+													>
+														<span class="nb-glyph" aria-hidden="true">{state.glyph}</span>
+														{state.label}
+														<strong>{notebook.counts[state.key]}</strong>
+													</span>
+												{/each}
+											</div>
+											{#if notebook.attention.length}
+												<details class="nb-attention">
+													<summary>
+														{notebook.attention.length}
+														{notebook.attention.length === 1 ? 'student needs' : 'students need'}
+														a look
+													</summary>
+													{#each notebook.attention as row (row.student.student_key)}
+														<p class="nb-student" data-testid="nb-attention-row">
+															<span class="nb-student-name">{row.student.name}</span>
+															<span class="nb-student-meta">
+																{completionLabel(row)}
+																{#if row.flagged}&nbsp;&middot; {row.flagged} flagged{/if}
+																{#if row.excused}&nbsp;&middot; {row.excused} excused{/if}
+																{#if !row.student.enrolled}&nbsp;&middot; left{/if}
+															</span>
+														</p>
+													{/each}
+												</details>
+											{:else}
+												<p class="note" data-testid="nb-all-clear">
+													Everyone is up to date on every check-in.
+												</p>
+											{/if}
+											<p class="note">
+												<a class="linklike" href={`/notebook/review?section=${s.id}`}>
+													Open the review console
+												</a>
+												to read entries, flag work and grade the Documentation Check.
+											</p>
+										{/if}
+									{/if}
+								{/if}
+
 								<h3>Posted here</h3>
 								{#if items.length === 0}
 									<p class="note empty-state">Nothing posted to this section yet.</p>
@@ -979,6 +1099,86 @@
 		font: inherit;
 		text-decoration: underline;
 	}
+	/* Notebook compliance -- a summary, deliberately not the grid. The state
+	   colours are the platform tokens the grid's own cells use, so the two
+	   read the same; the layout is a chip row rather than a table because a
+	   52rem panel is not where a wide scrolling grid belongs. */
+	.nb-line {
+		color: var(--dim);
+		font-size: 0.85rem;
+		margin: 0 0 0.5rem;
+	}
+	.nb-line strong {
+		color: var(--white);
+	}
+	.nb-tallies {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+		margin-bottom: 0.6rem;
+	}
+	.nb-tally {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 0.3rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		letter-spacing: 0.04em;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		padding: 0.15rem 0.55rem;
+		color: var(--dim);
+	}
+	.nb-tally strong {
+		color: var(--white);
+	}
+	.nb-glyph {
+		font-size: 0.8rem;
+	}
+	.nb-on_time .nb-glyph {
+		color: var(--green);
+	}
+	.nb-late .nb-glyph {
+		color: var(--amber);
+	}
+	.nb-pending_review .nb-glyph {
+		color: var(--cyan);
+	}
+	.nb-flagged .nb-glyph {
+		color: var(--crimson);
+	}
+	.nb-excused .nb-glyph {
+		color: var(--ice);
+	}
+	.nb-missing .nb-glyph {
+		color: var(--dim);
+	}
+	.nb-attention {
+		margin-bottom: 0.6rem;
+	}
+	.nb-attention summary {
+		cursor: pointer;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		color: var(--amber);
+	}
+	.nb-student {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: baseline;
+		margin: 0.3rem 0 0;
+		padding-left: 0.6rem;
+	}
+	.nb-student-name {
+		font-size: 0.85rem;
+	}
+	.nb-student-meta {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		color: var(--dim);
+	}
+
 	/* Setup */
 	.setup-grid {
 		display: grid;

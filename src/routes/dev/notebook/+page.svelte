@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
+	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
 	import type {
 		AddPhotoResult,
 		CreateEntryResult,
@@ -53,6 +55,8 @@
 	 * are drivable rather than argued about.
 	 */
 	let bulk = $state(false);
+	/** The read-only preview an admin gets at /classroom/view-as/<email>/notebook. */
+	let viewAs = $state(page.url.searchParams.get('viewas') === '1');
 	let log = $state<string[]>([]);
 
 	/**
@@ -739,6 +743,10 @@
 	<label><input type="checkbox" bind:checked={pinsReady} data-testid="sim-0091" /> 0091 applied</label>
 	<label><input type="checkbox" bind:checked={uploadReady} /> Drive configured</label>
 	<label><input type="checkbox" bind:checked={bulk} data-testid="sim-bulk" /> 40 more entries</label>
+	<!-- Mirrors /classroom/view-as/<email>/notebook exactly: readOnly plus NO
+	     write transports at all, so what renders here is what an admin
+	     previewing a student's notebook renders. -->
+	<label><input type="checkbox" bind:checked={viewAs} data-testid="sim-view-as" /> view as student (read-only)</label>
 	<button type="button" onclick={() => (log = [])}>clear log</button>
 	<span class="tag" data-testid="can-review">canReview={canReview}</span>
 </div>
@@ -747,28 +755,37 @@
 	<pre class="dev-log" data-testid="dev-log">{log.join('\n')}</pre>
 {/if}
 
+{#if viewAs}
+	<ImpersonationBanner
+		email="ada.lovelace@boscotech.net"
+		displayName="Ada Lovelace"
+		exitHref="/dev/notebook"
+	/>
+{/if}
+
 <!-- Keyed on the simulated platform so switching remounts the component and
      its capture-path detection runs again from scratch. -->
-{#key platform}
+{#key `${platform}|${viewAs}`}
 	<NotebookView
 		{entries}
 		{sessions}
 		{folders}
 		{sectionLabel}
-		{canReview}
+		canReview={viewAs ? false : canReview}
 		{configured}
 		{notesReady}
 		{foldersReady}
 		{pinsReady}
 		{activity}
-		{uploadReady}
-		{createEntry}
-		{addPhoto}
-		{createNote}
-		{addNote}
-		{editNote}
-		folderTransports={foldersReady ? folderTransports : undefined}
-		setPinned={pinsReady ? setPinned : undefined}
+		uploadReady={viewAs ? false : uploadReady}
+		readOnly={viewAs}
+		createEntry={viewAs ? undefined : createEntry}
+		addPhoto={viewAs ? undefined : addPhoto}
+		createNote={viewAs ? undefined : createNote}
+		addNote={viewAs ? undefined : addNote}
+		editNote={viewAs ? undefined : editNote}
+		folderTransports={!viewAs && foldersReady ? folderTransports : undefined}
+		setPinned={!viewAs && pinsReady ? setPinned : undefined}
 	/>
 {/key}
 
