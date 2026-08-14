@@ -1,0 +1,129 @@
+/**
+ * Presentation decks on classroom items (0101): the client-safe half.
+ *
+ * A deck is a Claude Design "Project HTML" export -- an entry page plus its
+ * whole sibling tree -- stored file by file and served back under one per-deck
+ * prefix so its own relative references resolve untouched. Nothing here builds
+ * a path INTO a deck other than the entry and the thumbnail: every other file
+ * is asked for by the deck's own HTML, relative to the entry, which is the
+ * point of serving the tree as a unit.
+ */
+
+export interface DeckSlide {
+	index: number;
+	label: string;
+}
+
+export interface ClassroomDeck {
+	id: string;
+	item_id: string;
+	title: string;
+	/** The page the viewer opens, relative to the deck root. */
+	entry_path: string;
+	/** The export's own `.thumbnail`, when it shipped one. */
+	thumbnail_path: string | null;
+	file_count: number;
+	total_bytes: number;
+	/**
+	 * Whether `.image-slots.state.json` came with the upload. FALSE means every
+	 * image the author cropped or panned by hand renders uncropped -- a failure
+	 * that looks plausible rather than broken, which is exactly why it is
+	 * surfaced rather than left to be noticed.
+	 */
+	has_state_file: boolean;
+	/** Slide LABELS only. Speaker notes are never extracted or stored. */
+	slides: DeckSlide[];
+	created_at?: string;
+}
+
+/**
+ * The ONE place a URL into a deck is built. Always this app's own proxy, never
+ * a drive.google.com link -- the files live in a restricted school shared
+ * drive, so a direct link renders only for someone who personally has access
+ * to that folder.
+ *
+ * The path is emitted SEGMENT-ENCODED: a deck path legitimately contains
+ * slashes (they are the tree), so encodeURIComponent on the whole thing would
+ * turn `_ds/x/styles.css` into one impossible filename.
+ */
+export function deckFileSrc(deckId: string, path: string): string {
+	const local = localDeckUrls.get(`${deckId}/${path}`);
+	if (local) return local;
+	const encoded = path.split('/').map(encodeURIComponent).join('/');
+	return `/api/classroom/deck/${deckId}/${encoded}`;
+}
+
+export function deckEntrySrc(deck: ClassroomDeck): string {
+	return deckFileSrc(deck.id, deck.entry_path);
+}
+
+export function deckThumbnailSrc(deck: ClassroomDeck): string | null {
+	return deck.thumbnail_path ? deckFileSrc(deck.id, deck.thumbnail_path) : null;
+}
+
+/** The viewer, under whichever base path the caller is rendering in. */
+export function deckViewerHref(basePath: string, sectionId: string, itemId: string): string {
+	return `${basePath}/${sectionId}/item/${itemId}/deck`;
+}
+
+/**
+ * DEV-HARNESS ONLY (the registerLocalAttachmentUrl convention). /dev/classroom
+ * has no Drive and no session, so an "upload" there registers object URLs for
+ * the files it just unpacked and the viewer shows a real deck. The map is empty
+ * on every real deployment -- nothing outside the harness ever calls this -- so
+ * deckFileSrc's production answer is unchanged.
+ */
+const localDeckUrls = new Map<string, string>();
+
+export function registerLocalDeckUrl(deckId: string, path: string, url: string): void {
+	localDeckUrls.set(`${deckId}/${path}`, url);
+}
+
+export function clearLocalDeckUrls(deckId: string): void {
+	for (const key of [...localDeckUrls.keys()]) {
+		if (key.startsWith(`${deckId}/`)) localDeckUrls.delete(key);
+	}
+}
+
+export function normalizeDeckRow(row: Record<string, unknown> | null | undefined): ClassroomDeck | null {
+	if (!row || !row.id) return null;
+	const slides = Array.isArray(row.slides) ? (row.slides as DeckSlide[]) : [];
+	return {
+		id: String(row.id),
+		item_id: String(row.item_id ?? ''),
+		title: String(row.title ?? 'Presentation'),
+		entry_path: String(row.entry_path ?? ''),
+		thumbnail_path: (row.thumbnail_path as string | null) ?? null,
+		file_count: Number(row.file_count ?? 0),
+		total_bytes: Number(row.total_bytes ?? 0),
+		has_state_file: row.has_state_file === true,
+		slides: slides
+			.filter((s) => s && typeof s.label === 'string')
+			.map((s, i) => ({ index: Number(s.index ?? i), label: String(s.label) })),
+		created_at: (row.created_at as string | undefined) ?? undefined
+	};
+}
+
+export interface DeckUploadResult {
+	ok: boolean;
+	message: string;
+	/** When the zip offered several plausible entry pages, they land here. */
+	candidates?: string[];
+	warnings?: string[];
+	replaced?: boolean;
+	fileCount?: number;
+}
+
+export interface DeckTransports {
+	/** `entryPath` is the answer to a previous ambiguous-entry refusal. */
+	uploadDeck(itemId: string, file: File, entryPath?: string | null): Promise<DeckUploadResult>;
+	deleteDeck(itemId: string): Promise<{ ok: boolean; message: string }>;
+}
+
+/** "12 files · 3.4 MB", for the manage line under a deck's title. */
+export function deckSizeLine(deck: ClassroomDeck): string {
+	const files = `${deck.file_count} file${deck.file_count === 1 ? '' : 's'}`;
+	const mb = deck.total_bytes / 1024 / 1024;
+	const size = mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(deck.total_bytes / 1024))} KB`;
+	return `${files} · ${size}`;
+}

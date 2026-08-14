@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-14",
+			"title": "Slide decks now open right in your class",
+			"body": "When your teacher puts a presentation on an assignment, announcement or material, it now opens inside IDEA Classroom instead of being a file you have to download. Open the item and tap the presentation at the top: it fills the screen, and the left and right arrow keys move between slides just like they do when your teacher is presenting. There is a full-screen button for when you want nothing else on the screen, and a slide list if you want to see what is coming up. It works on a phone as well as a laptop. Nothing about this is something to hand in -- a deck is there to read and go back to, and it stays available for as long as the item does.",
+			"tags": ["Classes"]
+		},
+		{
+			"date": "2026-08-14",
 			"title": "Notebook check-ins now show up in your class",
 			"body": "Your notebook check-ins appear in the class stream, alongside announcements and assignments, on the day they are for. Each one tells you where you stand on it -- filed, not filed yet, excused, or needs another look -- and tapping it takes you to your notebook with that check-in already picked, so you can go straight to adding the page. The notebook link at the top of the class page now carries a number when something still needs you: check-ins you have not filed, plus any your teacher flagged. If there is no number, you are up to date. A check-in is still a notebook thing, not a second assignment: there is nothing to hand in here and nothing to grade here. Your Documentation Check is still the one graded piece for the unit, exactly as before.",
 			"tags": ["Notebook", "Classes"]

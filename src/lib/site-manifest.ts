@@ -117,6 +117,8 @@ export const APPS: SiteApp[] = [
 			'src/routes/dev/classroom-reference/',
 			// The home-page class feed harness.
 			'src/routes/dev/home-feed/',
+			// Presentation decks (0101): the deck harness.
+			'src/routes/dev/classroom-deck/',
 			// The student-facing update log's content file (see updates.ts).
 			'classroom-updates.json'
 		],

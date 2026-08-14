@@ -350,6 +350,41 @@ export async function ensureDriveSubfolder(name: string, parentId?: string): Pro
 }
 
 /**
+ * Creates a folder unconditionally and returns its id -- no lookup, no cache.
+ *
+ * WHY IT IS NOT ensureDriveSubfolder. That one is find-or-create for folders
+ * with STABLE names ("IDEA Classroom attachments"), and caches the answer for
+ * the process. A deck's folder is per UPLOAD and carries a random suffix, so a
+ * lookup can only ever miss, and caching every one of them would grow a map
+ * nothing reads again. Same auth, same one-shot 401 re-mint, same
+ * supportsAllDrives (without which a shared-drive-nested parent is invisible).
+ */
+export async function createDriveFolder(name: string, parentId: string): Promise<string> {
+	if (!driveConfigured()) {
+		throw new Error('The Drive integration is not configured.');
+	}
+	const attempt = (token: string) =>
+		fetch(`${DRIVE_ENDPOINTS.files}?supportsAllDrives=true&fields=id`, {
+			method: 'POST',
+			headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+			body: JSON.stringify({
+				name,
+				mimeType: 'application/vnd.google-apps.folder',
+				parents: [parentId]
+			})
+		});
+	let res = await attempt(await accessToken());
+	if (res.status === 401) res = await attempt(await accessToken(true));
+	if (!res.ok) {
+		const detail = (await res.text().catch(() => '')).slice(0, 300);
+		throw new Error(`Drive folder create failed (${res.status}): ${detail}`);
+	}
+	const created = (await res.json()) as { id?: string };
+	if (!created.id) throw new Error('Drive folder create returned no id.');
+	return created.id;
+}
+
+/**
  * Uploads one file into a shared-drive folder (the notebook folder by default)
  * and returns the Drive file id. The generic form behind uploadNotebookPhoto:
  * same auth, same token cache, same one-shot 401 re-mint, same

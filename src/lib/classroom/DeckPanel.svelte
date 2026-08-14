@@ -1,0 +1,347 @@
+<script lang="ts">
+	import {
+		deckSizeLine,
+		deckThumbnailSrc,
+		deckViewerHref,
+		type ClassroomDeck,
+		type DeckTransports
+	} from '$lib/classroom/deck';
+
+	/**
+	 * The deck on one classroom item: how a student opens it, and how a teacher
+	 * puts one there, replaces it, or takes it away.
+	 *
+	 * WHY THIS LIVES ON THE ITEM PAGE AND NOT IN THE COMPOSER. A deck upload is
+	 * not a field on a form -- it unpacks a whole tree and comes back with things
+	 * the uploader has to read (a missing `.image-slots.state.json` means every
+	 * hand-framed image will render uncropped; a zip with several plausible entry
+	 * pages needs a choice; duplicate renderings get skipped). Those want somewhere
+	 * to be said. They also want an item that already EXISTS, since a deck is
+	 * stored against the canonical item id -- the same reason attachments upload
+	 * after the create call rather than with it.
+	 *
+	 * FOLLOWS THE CANONICAL ITEM: one deck per item, so every class the item is
+	 * posted to sees the same deck, and replacing it replaces it everywhere at once.
+	 */
+	let {
+		deck = null,
+		itemId,
+		sectionId,
+		basePath = '/classroom',
+		canManage = false,
+		transports = null,
+		onchanged = null
+	}: {
+		deck?: ClassroomDeck | null;
+		itemId: string;
+		sectionId: string;
+		basePath?: string;
+		canManage?: boolean;
+		transports?: DeckTransports | null;
+		onchanged?: (() => void | Promise<void>) | null;
+	} = $props();
+
+	let busy = $state(false);
+	let error = $state<string | null>(null);
+	let warnings = $state<string[]>([]);
+	let notice = $state<string | null>(null);
+	let armRemove = $state(false);
+	/** Kept so an entry-page choice can resubmit the SAME zip, not a re-pick. */
+	let pending = $state<File | null>(null);
+	let candidates = $state<string[]>([]);
+	let chosenEntry = $state<string>('');
+	let input = $state<HTMLInputElement | null>(null);
+
+	const editable = $derived(canManage && !!transports);
+	const href = $derived(deckViewerHref(basePath, sectionId, itemId));
+	const thumb = $derived(deck ? deckThumbnailSrc(deck) : null);
+
+	async function send(file: File, entryPath: string | null) {
+		if (!transports) return;
+		busy = true;
+		error = null;
+		notice = null;
+		warnings = [];
+		const res = await transports.uploadDeck(itemId, file, entryPath);
+		busy = false;
+		if (!res.ok) {
+			error = res.message;
+			candidates = res.candidates ?? [];
+			chosenEntry = candidates[0] ?? '';
+			// Hold the file only while there is a question to answer with it.
+			pending = candidates.length ? file : null;
+			return;
+		}
+		pending = null;
+		candidates = [];
+		warnings = res.warnings ?? [];
+		notice = res.replaced
+			? `Deck replaced (${res.fileCount ?? 0} files).`
+			: `Deck uploaded (${res.fileCount ?? 0} files).`;
+		if (input) input.value = '';
+		await onchanged?.();
+	}
+
+	function onpick(event: Event) {
+		const file = (event.currentTarget as HTMLInputElement).files?.[0];
+		if (file) void send(file, null);
+	}
+
+	function confirmEntry() {
+		if (pending && chosenEntry) void send(pending, chosenEntry);
+	}
+
+	async function remove() {
+		if (!transports) return;
+		if (!armRemove) {
+			armRemove = true;
+			return;
+		}
+		armRemove = false;
+		busy = true;
+		error = null;
+		notice = null;
+		const res = await transports.deleteDeck(itemId);
+		busy = false;
+		if (!res.ok) {
+			error = res.message;
+			return;
+		}
+		warnings = [];
+		notice = 'Deck removed.';
+		await onchanged?.();
+	}
+</script>
+
+{#if deck || editable}
+	<section class="card deck-card">
+		<h2>Presentation</h2>
+
+		{#if deck}
+			<a class="deck-open" {href}>
+				{#if thumb}
+					<img class="deck-thumb" src={thumb} alt="" loading="lazy" />
+				{:else}
+					<span class="deck-thumb placeholder" aria-hidden="true">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+							<rect x="2.5" y="4" width="19" height="13" rx="1.5" />
+							<path d="M12 17v3M8.5 20h7" />
+						</svg>
+					</span>
+				{/if}
+				<span class="deck-open-text">
+					<span class="deck-name">{deck.title}</span>
+					<span class="deck-meta">
+						{#if deck.slides.length}{deck.slides.length} slides · {/if}Open presentation
+					</span>
+				</span>
+			</a>
+
+			{#if canManage}
+				<p class="deck-sub">{deckSizeLine(deck)}</p>
+				{#if !deck.has_state_file}
+					<p class="deck-warn">
+						This deck was uploaded without its <code>.image-slots.state.json</code> file, so any
+						image cropped or panned by hand shows uncropped. Re-export the project with hidden
+						files included and upload it again to restore the framing.
+					</p>
+				{/if}
+			{/if}
+		{/if}
+
+		{#if editable}
+			<div class="deck-actions">
+				<label class="deck-upload">
+					<input
+						bind:this={input}
+						type="file"
+						accept=".zip,application/zip,application/x-zip-compressed"
+						disabled={busy}
+						onchange={onpick}
+					/>
+					<span class="btn secondary">{busy ? 'Uploading...' : deck ? 'Replace deck' : 'Upload a deck'}</span>
+				</label>
+				{#if deck}
+					<button type="button" class="deck-remove" disabled={busy} onclick={remove}>
+						{armRemove ? 'Tap again to remove' : 'Remove'}
+					</button>
+				{/if}
+			</div>
+			{#if !deck}
+				<p class="deck-hint">
+					Export the deck from Claude Design as a project HTML zip and upload it here. Keep hidden
+					files in the zip: the image framing lives in one.
+				</p>
+			{/if}
+		{/if}
+
+		{#if error}<p class="deck-error">{error}</p>{/if}
+
+		{#if candidates.length}
+			<div class="deck-choose">
+				<p>Which page opens this deck?</p>
+				{#each candidates as candidate (candidate)}
+					<label class="deck-choice">
+						<input type="radio" name="deck-entry" value={candidate} bind:group={chosenEntry} />
+						<span>{candidate}</span>
+					</label>
+				{/each}
+				<button type="button" class="btn secondary" disabled={busy || !chosenEntry} onclick={confirmEntry}>
+					Use this page
+				</button>
+			</div>
+		{/if}
+
+		{#if notice}<p class="deck-notice">{notice}</p>{/if}
+		{#each warnings as warning (warning)}
+			<p class="deck-warn">{warning}</p>
+		{/each}
+	</section>
+{/if}
+
+<style>
+	.deck-card {
+		margin-top: 1rem;
+	}
+	.deck-open {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		text-decoration: none;
+		border: 1px solid var(--line);
+		border-radius: 8px;
+		padding: 0.6rem;
+		background: var(--bg2);
+		min-width: 0;
+	}
+	.deck-open:hover {
+		border-color: var(--gold);
+	}
+	.deck-thumb {
+		flex: none;
+		width: 7.5rem;
+		height: 4.3rem;
+		object-fit: cover;
+		border-radius: 5px;
+		background: var(--bg1);
+		border: 1px solid var(--line);
+	}
+	.deck-thumb.placeholder {
+		display: grid;
+		place-items: center;
+		color: var(--gold);
+	}
+	.deck-thumb.placeholder svg {
+		width: 1.7rem;
+		height: 1.7rem;
+	}
+	.deck-open-text {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		min-width: 0;
+	}
+	.deck-name {
+		color: var(--white);
+		font-size: 0.98rem;
+		overflow-wrap: anywhere;
+	}
+	.deck-meta,
+	.deck-sub {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		color: var(--dim);
+	}
+	.deck-sub {
+		margin: 0.4rem 0 0;
+	}
+	.deck-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		align-items: center;
+		margin-top: 0.7rem;
+	}
+	.deck-upload input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+		pointer-events: none;
+	}
+	.deck-upload {
+		display: inline-flex;
+		cursor: pointer;
+	}
+	.deck-remove {
+		appearance: none;
+		background: none;
+		border: 1px solid var(--line);
+		border-radius: 999px;
+		color: var(--crimson);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.66rem;
+		padding: 0 0.9rem;
+		cursor: pointer;
+		/* Stated as a box: padding plus a 0.66rem line box lands at 33px. */
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
+	}
+	.deck-remove:disabled {
+		color: var(--ice);
+		cursor: default;
+	}
+	.deck-hint,
+	.deck-warn,
+	.deck-error,
+	.deck-notice {
+		margin: 0.6rem 0 0;
+		font-size: 0.8rem;
+		line-height: 1.45;
+	}
+	.deck-hint {
+		color: var(--dim);
+	}
+	.deck-warn {
+		color: var(--amber);
+	}
+	.deck-error {
+		color: var(--crimson);
+	}
+	.deck-notice {
+		color: var(--green);
+	}
+	.deck-warn code {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.74rem;
+	}
+	.deck-choose {
+		margin-top: 0.7rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		align-items: flex-start;
+	}
+	.deck-choose p {
+		margin: 0;
+		font-size: 0.82rem;
+		color: var(--white);
+	}
+	.deck-choice {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+		font-size: 0.82rem;
+		color: var(--white);
+		overflow-wrap: anywhere;
+		/* Comfortable on a phone without a second rule for touch. */
+		padding: 0.35rem 0;
+	}
+	@media (max-width: 520px) {
+		.deck-thumb {
+			width: 5.4rem;
+			height: 3.1rem;
+		}
+	}
+</style>

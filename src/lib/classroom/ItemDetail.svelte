@@ -6,12 +6,14 @@
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
+	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
 	import ReferenceTools from '$lib/classroom/ReferenceTools.svelte';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImport from '$lib/classroom/SpecImport.svelte';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
+	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type {
 		AssignmentEngineTransports,
 		AssignmentSpec,
@@ -70,7 +72,9 @@
 		teacherTransports = null,
 		gradeHref = null,
 		referenceSpec = null,
-		referenceTransports = null
+		referenceTransports = null,
+		deck = null,
+		deckTransports = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -99,6 +103,16 @@
 		 */
 		referenceSpec?: ReferenceSpec | null;
 		referenceTransports?: ReferenceTransports | null;
+		/**
+		 * The item's presentation deck (0101). Null = it has none; a manager
+		 * still gets the upload control, a student gets nothing at all.
+		 * DELIBERATELY NOT PASSED IN VIEW-AS: classroom_view_as_section's payload
+		 * carries no deck, exactly as it carries no notebook check-in, so the
+		 * panel simply does not render there rather than an admin's own read
+		 * being shown under a student's name.
+		 */
+		deck?: ClassroomDeck | null;
+		deckTransports?: DeckTransports | null;
 	} = $props();
 
 	let editing = $state(false);
@@ -264,6 +278,20 @@
 			{/if}
 		</section>
 	{/if}
+
+	<!-- The deck sits ABOVE the written content on purpose: when an item has one
+	     it is the thing the class is looking at, and the instructions are what
+	     goes with it. Renders nothing at all for a student on an item with no
+	     deck. -->
+	<DeckPanel
+		{deck}
+		itemId={item.id}
+		sectionId={section.id}
+		{basePath}
+		{canManage}
+		transports={deckTransports}
+		{onchanged}
+	/>
 
 	<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
 	     renders its written details exactly as every material always has, which

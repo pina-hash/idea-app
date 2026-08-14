@@ -7,6 +7,7 @@
 		createEngineTransports,
 		createReferenceTransports,
 		createTeacherEngineTransports,
+		deckTransports,
 		fetchLinkPreviewClient
 	} from '$lib/classroom/transports';
 	import type { PageData } from './$types';
@@ -43,6 +44,8 @@
 	teacherTransports={data.canManage ? teacherTransports : null}
 	referenceSpec={data.referenceSpec}
 	referenceTransports={data.canManage ? referenceTransports : null}
+	deck={data.deck}
+	deckTransports={data.canManage ? deckTransports : null}
 	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}

@@ -28,6 +28,7 @@ import {
 	type SubmissionFileRow
 } from './assignment-spec';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
+import { normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
@@ -190,6 +191,87 @@ async function deleteInstructorAttachment(id: string): Promise<TxResult<undefine
 		return { ok: false, message: (e as Error).message || 'Remove failed.' };
 	}
 }
+
+export const DECK_SELECT =
+	'id, item_id, title, entry_path, thumbnail_path, file_count, total_bytes, has_state_file, slides, created_at';
+
+/**
+ * The deck on one item (0101), RLS-scoped like every other read here.
+ *
+ * ITS OWN QUERY RATHER THAN A JOIN ON ITEM_SELECT, and that is a deploy-ordering
+ * rule rather than tidiness: migrations here are applied by hand, so a
+ * deployment sitting between 0100 and 0101 is a real state, and PostgREST
+ * refuses an ENTIRE select for one unknown relationship. Naming decks in the
+ * shared item select would blank every classroom read until 0101 landed.
+ * Failing soft here costs the deck panel and nothing else -- the 0092 reference
+ * spec is loaded for exactly the same reason.
+ */
+export async function loadItemDeck(
+	supabase: SupabaseClient,
+	itemId: string
+): Promise<ClassroomDeck | null> {
+	try {
+		const { data } = await supabase
+			.from('classroom_decks')
+			.select(DECK_SELECT)
+			.eq('item_id', itemId)
+			.maybeSingle();
+		return normalizeDeckRow(data as Record<string, unknown> | null);
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Uploads a deck zip. Unlike uploadAttachment this carries the REFUSAL DETAIL
+ * back rather than only a message: a zip with several plausible entry pages is
+ * answered with the candidates, and the panel asks which one instead of the
+ * server guessing.
+ */
+export const deckTransports: DeckTransports = {
+	async uploadDeck(itemId, file, entryPath) {
+		const form = new FormData();
+		form.set('file', file, file.name);
+		form.set('item_id', itemId);
+		if (entryPath) form.set('entry_path', entryPath);
+		try {
+			const res = await fetch('/api/classroom/deck', { method: 'POST', body: form });
+			const body = (await res.json().catch(() => null)) as
+				| { error?: string; candidates?: string[]; warnings?: string[]; replaced?: boolean; file_count?: number }
+				| null;
+			if (!res.ok) {
+				return {
+					ok: false,
+					message: body?.error ?? `Upload failed (${res.status}).`,
+					candidates: body?.candidates ?? []
+				};
+			}
+			return {
+				ok: true,
+				message: 'Deck uploaded.',
+				warnings: body?.warnings ?? [],
+				replaced: body?.replaced === true,
+				fileCount: body?.file_count ?? 0
+			};
+		} catch (e) {
+			return { ok: false, message: (e as Error).message || 'Upload failed.' };
+		}
+	},
+	async deleteDeck(itemId) {
+		try {
+			const res = await fetch(`/api/classroom/deck?item_id=${encodeURIComponent(itemId)}`, {
+				method: 'DELETE'
+			});
+			if (!res.ok) {
+				const body = (await res.json().catch(() => null)) as { error?: string } | null;
+				return { ok: false, message: body?.error ?? `Remove failed (${res.status}).` };
+			}
+			return { ok: true, message: 'Deck removed.' };
+		} catch (e) {
+			return { ok: false, message: (e as Error).message || 'Remove failed.' };
+		}
+	}
+};
 
 const INSTRUCTOR_ATTACHMENT_SELECT = 'id, item_id, filename, mime_type, size_bytes, sort_order';
 const INSTRUCTOR_RESOURCE_SELECT = 'id, item_id, label, url, sort_order';

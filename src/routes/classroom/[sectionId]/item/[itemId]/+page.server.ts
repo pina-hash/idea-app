@@ -3,6 +3,7 @@ import { normalizeItemRow, normalizeSectionRow } from '$lib/classroom/classroom'
 import {
 	ITEM_SELECT,
 	SECTION_SELECT,
+	loadItemDeck,
 	loadStudentEngineData,
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
@@ -84,6 +85,15 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		}
 	}
 
+	/**
+	 * The item's presentation deck (0101), if it has one. RLS-scoped, so this
+	 * asks the same question the serving proxy will ask for every one of the
+	 * deck's ~30 files -- a student who cannot read the item gets null here and
+	 * 404s there. Its own query for the deploy-ordering reason loadItemDeck
+	 * documents.
+	 */
+	const deck = await loadItemDeck(supabase, item.id);
+
 	let engine: Awaited<ReturnType<typeof loadStudentEngineData>> = null;
 	let spec: AssignmentSpec | null = null;
 	let rubric: RubricCriterion[] | null = null;
@@ -106,6 +116,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		canManage,
 		sections,
 		attachmentsEnabled: driveConfigured(),
+		deck,
 		engine,
 		spec,
 		rubric,
