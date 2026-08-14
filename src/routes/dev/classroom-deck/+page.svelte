@@ -27,6 +27,13 @@
 	 */
 
 	type Mode = 'normal' | 'no-state' | 'ambiguous' | 'traversal';
+	/**
+	 * Fault injection for the DIAGNOSIS half. Every one of these looks like
+	 * "something went wrong" from a browser unless it is named, which is the
+	 * whole reason the codes exist -- and none of them can be produced locally
+	 * without asking the server to misbehave on purpose.
+	 */
+	type Fault = 'none' | 'fail-files' | 'hang-files' | 'interrupt-once';
 	interface IngestBody {
 		deck: ClassroomDeck;
 		warnings: string[];
@@ -42,6 +49,7 @@
 	const PAD_BYTES = 36 * 1024 * 1024;
 
 	let mode = $state<Mode>('normal');
+	let fault = $state<Fault>('none');
 	let large = $state(false);
 	let view = $state<'panel' | 'viewer'>('panel');
 	let deck = $state<ClassroomDeck | null>(null);
@@ -63,23 +71,66 @@
 		log = [line, ...log].slice(0, 12);
 	}
 
+	/** One ingest stage, with the same timeout and failure taxonomy the real one uses. */
+	const STAGE_TIMEOUT_MS = 6000;
+
+	async function stage(
+		payload: Record<string, unknown>,
+		signal?: AbortSignal
+	): Promise<Record<string, unknown>> {
+		const controller = new AbortController();
+		let timedOut = false;
+		const timer = setTimeout(() => {
+			timedOut = true;
+			controller.abort();
+		}, STAGE_TIMEOUT_MS);
+		const onAbort = () => controller.abort();
+		signal?.addEventListener('abort', onAbort, { once: true });
+		try {
+			const res = await fetch('/dev/classroom-deck/ingest', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(payload),
+				signal: controller.signal
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				return { failed: true, code: body.code ?? `http_${res.status}`, error: body.error, body };
+			}
+			return body;
+		} catch (e) {
+			if (signal?.aborted && !timedOut) throw new DeckUploadCancelled();
+			return {
+				failed: true,
+				code: timedOut ? 'ingest_timeout' : 'ingest_network',
+				error: timedOut
+					? `The server did not answer within ${STAGE_TIMEOUT_MS / 1000}s.`
+					: `The connection to the server dropped. (${(e as Error).message})`
+			};
+		} finally {
+			clearTimeout(timer);
+			signal?.removeEventListener('abort', onAbort);
+		}
+	}
+
 	/**
-	 * The harness's transports, which follow the SAME THREE STEPS the real ones
-	 * do -- authorize, upload the bytes direct, then ingest the file that upload
-	 * produced -- against a stand-in session instead of Drive.
+	 * The harness's transports, which follow the SAME STAGES the real ones do --
+	 * authorize, upload the bytes direct, then drive begin / files x N / finish
+	 * -- against a stand-in session instead of Drive.
 	 *
 	 * `uploadDeck` ignores the File it is handed (a browser has no real export to
 	 * pick) and downloads the fixture zip instead, but from there the bytes are
 	 * REAL and make the whole round trip: the SHIPPING uploader chunks them, the
 	 * stand-in session reassembles them, and the SHIPPING planner unpacks what
-	 * actually arrived. So the progress arithmetic, the cancel, and the "no
-	 * residue" claim are measured rather than mocked.
+	 * actually arrived. So the progress arithmetic, the cancel, the resumption
+	 * and the "no residue" claim are measured rather than mocked.
 	 */
 	const transports: DeckTransports = {
 		async uploadDeck(_itemId, _file, options): Promise<DeckUploadResult> {
 			const { entryPath = null, onProgress, signal } = options ?? {};
 			const nextId = `dev-deck-${++deckSeq}`;
 			let uploadId: string | null = null;
+			let jobId: string | null = null;
 			try {
 				onProgress?.({ phase: 'preparing', loaded: 0, total: 0 });
 
@@ -109,24 +160,87 @@
 				});
 				note(`uploaded, file id ${driveFileId}`);
 
-				onProgress?.({ phase: 'processing', loaded: file.size, total: file.size });
-				const res = await fetch('/dev/classroom-deck/ingest', {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({
-						id: nextId,
-						upload_id: uploadId,
-						drive_file_id: driveFileId,
-						entryPath
-					})
-				});
+				// --- begin ---------------------------------------------------
+				onProgress?.({ phase: 'unpacking', loaded: 0, total: 0 });
+				const begun = await stage(
+					{ stage: 'begin', id: nextId, upload_id: uploadId, drive_file_id: driveFileId, entryPath },
+					signal
+				);
 				uploadId = null;
-				const body = await res.json();
-				if (!body.ok) {
-					note(`refused: ${body.error}`);
-					return { ok: false, message: body.error, candidates: body.candidates ?? [] };
+				if (begun.failed || !begun.ok) {
+					note(`refused: ${begun.error}`);
+					// A refusal's detail rides in the response BODY, which the
+					// failure wrapper carries under `body` -- the real transport
+					// reads it from exactly there, and an entry-page question with
+					// no candidates is a dead end for the uploader.
+					const detail = ((begun.body as Record<string, unknown>) ?? begun) as Record<
+						string,
+						unknown
+					>;
+					return {
+						ok: false,
+						code: (begun.code as string) ?? undefined,
+						message: String(begun.error ?? detail.error ?? 'refused'),
+						candidates: (detail.candidates as string[]) ?? []
+					};
 				}
-				return finish(nextId, body);
+				jobId = String(begun.job_id);
+				const total = Number(begun.total_files ?? 0);
+				const warnings = (begun.warnings as string[]) ?? [];
+				note(`begin: job ${jobId}, ${total} files planned`);
+
+				// --- files x N -----------------------------------------------
+				let done = 0;
+				let interrupted = false;
+				onProgress?.({ phase: 'unpacking', loaded: 0, total });
+				for (let call = 0; call < total + 12; call++) {
+					const injectInterrupt = fault === 'interrupt-once' && !interrupted;
+					if (injectInterrupt) interrupted = true;
+					let step = await stage(
+						{
+							stage: 'files',
+							job_id: jobId,
+							fail: fault === 'fail-files',
+							hang: fault === 'hang-files',
+							interrupt: injectInterrupt
+						},
+						signal
+					);
+					// A transport-shaped failure is retried, because every stage
+					// is resumable -- which is exactly what makes the injected
+					// interruption recoverable rather than fatal.
+					for (
+						let retry = 0;
+						retry < 3 &&
+						step.failed === true &&
+						(step.code === 'ingest_network' ||
+							step.code === 'ingest_timeout' ||
+							step.code === 'drive_upload');
+						retry++
+					) {
+						note(`stage failed (${step.code}) -- retrying`);
+						if (fault === 'fail-files' || fault === 'hang-files') break;
+						await new Promise((r) => setTimeout(r, 200));
+						step = await stage({ stage: 'files', job_id: jobId }, signal);
+					}
+					if (step.failed === true) {
+						note(`gave up: ${step.code}`);
+						return { ok: false, code: step.code as string, message: String(step.error) };
+					}
+					done = Number(step.files_done ?? done);
+					onProgress?.({ phase: 'unpacking', loaded: done, total });
+					note(`unpacked ${done}/${total}`);
+					if (step.complete === true) break;
+				}
+
+				// --- finish ---------------------------------------------------
+				onProgress?.({ phase: 'storing', loaded: total, total });
+				const stored = await stage({ stage: 'finish', job_id: jobId }, signal);
+				if (stored.failed === true || !stored.ok) {
+					return { ok: false, code: stored.code as string, message: String(stored.error) };
+				}
+				jobId = null;
+				return finish(nextId, stored as unknown as IngestBody, warnings);
 			} catch (e) {
 				if (e instanceof DeckUploadCancelled) {
 					note('upload cancelled -- nothing stored');
@@ -137,6 +251,14 @@
 			} finally {
 				if (uploadId) {
 					void fetch(`/dev/classroom-deck/upload/${uploadId}`, { method: 'DELETE' }).catch(() => {});
+				}
+				if (jobId) {
+					note('abandoning the job -- nothing partial is kept');
+					void fetch('/dev/classroom-deck/ingest', {
+						method: 'POST',
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ stage: 'abort', job_id: jobId })
+					}).catch(() => {});
 				}
 			}
 		},
@@ -150,7 +272,7 @@
 	};
 
 	/** Registers the ingested deck's local URLs and shows it, as the panel expects. */
-	function finish(nextId: string, body: IngestBody): DeckUploadResult {
+	function finish(nextId: string, body: IngestBody, warnings: string[] = []): DeckUploadResult {
 		clearLocalDeckUrls(nextId);
 		registerLocalDeckUrl(
 			nextId,
@@ -171,7 +293,9 @@
 		return {
 			ok: true,
 			message: 'ok',
-			warnings: body.warnings,
+			warnings: [...warnings, ...(body.warnings ?? [])].filter(
+				(w, i, all) => all.indexOf(w) === i
+			),
 			replaced: false,
 			fileCount: body.deck.file_count
 		};
@@ -201,6 +325,15 @@
 					<option value="no-state">WITHOUT .image-slots.state.json</option>
 					<option value="ambiguous">two candidate entry pages</option>
 					<option value="traversal">contains ../escaped.html</option>
+				</select>
+			</label>
+			<label>
+				inject a fault
+				<select bind:value={fault}>
+					<option value="none">none</option>
+					<option value="interrupt-once">interrupt one files stage (then resume)</option>
+					<option value="fail-files">files stage answers 502</option>
+					<option value="hang-files">files stage never answers (client timeout)</option>
 				</select>
 			</label>
 			<label class="row">

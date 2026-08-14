@@ -504,12 +504,23 @@
 				return { ok: false, message: 'A title is required.' };
 			}
 			const now = new Date().toISOString();
+			// Links are COMPARED, not counted as present (0104): the composer
+			// always sends them, so "an array arrived" would mark every save an
+			// edit -- including one whose only real change was an instructor-only
+			// answer key, which no student may see.
+			const linksChanged =
+				input.links.length !== current.links.length ||
+				input.links.some(
+					(r, i) =>
+						(r.label || r.url) !== current.links[i].label || r.url !== current.links[i].url
+				);
 			const changed =
 				(input.title?.trim() || '') !== (current.title ?? '') ||
 				input.body !== current.body ||
 				input.points !== current.points ||
 				input.dueAt !== current.due_at ||
-				(input.category ?? '') !== (current.category ?? '');
+				(input.category ?? '') !== (current.category ?? '') ||
+				linksChanged;
 			patch(id, {
 				title: input.title?.trim() || null,
 				body: input.body,
@@ -521,8 +532,12 @@
 					current.first_published_at ?? ((published ?? current.published) ? now : null),
 				// Only a content change to something already published is an edit.
 				edited_at: changed && current.first_published_at ? now : current.edited_at,
-				updated_at: now,
-				links: input.links.map((r, i) => ({ ...r, id: nid('r'), sort_order: i + 1 }))
+				updated_at: changed || (published ?? current.published) !== current.published ? now : current.updated_at,
+				// Unchanged links keep their ROWS: rewriting them would mint new
+				// ids, which ride in a student's own read of the item.
+				links: linksChanged
+					? input.links.map((r, i) => ({ ...r, id: nid('r'), sort_order: i + 1 }))
+					: current.links
 			});
 			return { ok: true, data: { itemId: id } };
 		},

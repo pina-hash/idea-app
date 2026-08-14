@@ -46,6 +46,14 @@
 
 	let busy = $state(false);
 	let error = $state<string | null>(null);
+	/**
+	 * WHICH failure this was. Shown because a deck upload's failure modes are
+	 * indistinguishable from the outside otherwise -- a chunk Drive rejected, a
+	 * response the browser was not allowed to read, an ingest call that never
+	 * answered, one that ran out of time -- and someone reporting a broken
+	 * upload from a real classroom has no server log to send along with it.
+	 */
+	let errorCode = $state<string | null>(null);
 	let warnings = $state<string[]>([]);
 	let notice = $state<string | null>(null);
 	let armRemove = $state(false);
@@ -71,6 +79,7 @@
 		if (!transports) return;
 		busy = true;
 		error = null;
+		errorCode = null;
 		notice = null;
 		warnings = [];
 		progress = { phase: 'preparing', loaded: 0, total: file.size };
@@ -86,6 +95,7 @@
 		if (!res.ok) {
 			// A cancel is the uploader's own decision, not a failure to explain.
 			error = res.cancelled ? null : res.message;
+			errorCode = res.cancelled ? null : (res.code ?? null);
 			notice = res.cancelled ? 'Upload cancelled.' : null;
 			candidates = res.cancelled ? [] : (res.candidates ?? []);
 			chosenEntry = candidates[0] ?? '';
@@ -126,6 +136,7 @@
 		armRemove = false;
 		busy = true;
 		error = null;
+		errorCode = null;
 		notice = null;
 		const res = await transports.deleteDeck(itemId);
 		busy = false;
@@ -211,7 +222,7 @@
 					</div>
 					<div class="deck-progress-line">
 						<span>{deckProgressLabel(progress)}{percent === null ? '' : ` · ${percent}%`}</span>
-						{#if progress.phase !== 'processing'}
+						{#if progress.phase === 'preparing' || progress.phase === 'uploading'}
 							<button type="button" class="deck-cancel" onclick={cancelUpload}>Cancel</button>
 						{/if}
 					</div>
@@ -225,7 +236,12 @@
 			{/if}
 		{/if}
 
-		{#if error}<p class="deck-error">{error}</p>{/if}
+		{#if error}
+			<p class="deck-error">
+				{error}
+				{#if errorCode}<span class="deck-code">({errorCode})</span>{/if}
+			</p>
+		{/if}
 
 		{#if candidates.length}
 			<div class="deck-choose">
@@ -421,6 +437,12 @@
 	}
 	.deck-error {
 		color: var(--crimson);
+	}
+	.deck-code {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		color: var(--dim);
+		white-space: nowrap;
 	}
 	.deck-notice {
 		color: var(--green);

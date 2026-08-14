@@ -6663,6 +6663,237 @@ advantage would be for decks the new path handles anyway.
   is handled). Apply `0102` by hand after `0101`, then upload a real large
   export and check that the deck renders framed.
 
+## An "Updated" badge means a student missed something (`0104`)
+
+Migration `0104_classroom_edit_visibility.sql` (apply manually after `0103`)
+plus one client change. Nothing about instructor-only materials (`0090`) or
+what a student may READ changed; what changed is when the badge fires.
+
+### The bug, and the shape of it
+
+`0085` decided a published item had been edited with
+`v_changed := ... or p_resources is not null` -- **"the caller sent a links
+array" rather than "the links changed"** -- and `ContentComposer.itemInput()`
+builds `links` on every save. So EVERY save through the composer stamped
+`edited_at`, whatever did or did not move.
+
+**Which leaked instructor-only work.** `classroom_add_instructor_attachment` /
+`classroom_set_instructor_resources` touch nothing on `classroom_items`, so on
+their own they were already silent (asserted, not assumed -- see the suite).
+But the composer attaches them AFTER saving the item, so adding an answer key
+ran `classroom_update_item` first and stamped it -- and every student in every
+class the item is posted to was shown "Updated" (ClassPage, ItemDetail, and the
+home feed's `updated` rank) pointing at content they cannot open, are not meant
+to know exists, and would find unchanged. It fails in the direction nothing
+catches: nothing errors, nothing looks wrong to the teacher who caused it, and
+the cost is that the badge stops being worth opening.
+
+### The fix, at the layer that owns the timestamp
+
+Not "the composer should send less": a caller reaches this RPC through PostgREST
+with any payload it likes, and what a badge MEANS belongs where its timestamp is
+written.
+
+- **Resources are COMPARED**, by `_classroom_resources_changed`, which
+  normalizes an incoming array exactly the way `_classroom_write_resources`
+  stores one (url trimmed, label defaulting to the url and capped at 200,
+  position from the array's order) so the two cannot disagree about what "the
+  same links" are. Deliberately NOT a validator: a malformed array still reaches
+  the writer and is refused there with its own message, and reads as *different*
+  in the meantime -- the safe direction.
+- **Unchanged resources are not REWRITTEN.** `_classroom_write_resources` is
+  delete-then-insert, so rewriting identical links mints new
+  `classroom_item_resources` ids -- and `ITEM_SELECT` embeds those rows BY ID, so
+  a student's own read carries them. "Changes nothing student-visible" has to
+  include the ids.
+- **A save that changes nothing leaves `updated_at` alone too**, so the row is
+  byte-identical rather than merely visually identical. Publishing still moves
+  it (it is a change to the row) while still not counting as an edit.
+- **Client half: a `datetime-local` value has no seconds**, so re-encoding an
+  untouched due date through the input LOSES them, which the server can only
+  read as a real change. `dueToSend()` sends an untouched field back exactly as
+  stored. Small, and the one remaining way an instructor-only save could still
+  have stamped an assignment.
+
+### Verified
+
+- **`tests/classroom-edit-visibility.test.ts` (9 tests)**, on real embedded
+  Postgres. The headline assertion is not a field check: it reads the student's
+  WHOLE view through the REAL `ITEM_SELECT` over the REAL policies (the
+  PostgREST shim), serializes it, and requires it byte-identical across an
+  instructor-only change -- badge included. A field check would have passed
+  while the resource rows underneath were being re-minted. Also: the home feed
+  not ranking it `updated`, no timestamp moving on a no-op save, the link ids
+  surviving, and every instructor-only write path leaving the whole
+  `classroom_items` row byte-identical (`to_jsonb(i.*)`).
+- **Kept honest by its second block**: every assertion above would also pass if
+  `edited_at` were never written at all, so a real body change, and a link
+  added / removed / relabelled / retargeted / REORDERED, each still raise it.
+- **MUTATION-CHECKED BOTH WAYS.** Restoring `0085`'s `or p_resources is not
+  null` reddens exactly the 4 tests in block 1; making a links change never
+  stamp reddens the link test; `v_changed := false` reddens 2. `0104` restored
+  byte-identical (md5-checked) and re-verified green.
+- **Browser-verified** in `/dev/classroom` (whose `updateItem` stub was
+  aligned with the shipped rule -- it never modelled the bug, which is part of
+  why it went unnoticed): two consecutive instructor-only saves on a published
+  assignment left the student's "Last updated Aug 14, 2:21 PM" identical and
+  raised no Updated badge, with the instructor material invisible throughout and
+  0 trapped window errors.
+- **NOT verified: the live Supabase project.** The local `.env` is the
+  placeholder project, so `0104` has never been applied anywhere. Apply it by
+  hand after `0103` and check with two real accounts that adding an answer key
+  to a published assignment leaves the student's view alone.
+
+## Deck ingestion runs in stages (`0105`)
+
+Migration `0105_classroom_deck_ingest.sql` (apply manually after `0104`) plus a
+rewritten ingest route and client driver. **What is STORED is unchanged**: same
+planner, same skipped standalone/template renderings, same hidden
+`.image-slots.state.json`, same refused traversal, same
+`classroom_replace_deck` writing the same manifest. Only WHEN the work happens
+moved.
+
+### What failed, and it was not the transport
+
+A real 43 MB deck uploaded every chunk to Drive successfully, reached 100%, and
+then failed. `0102`'s direct-to-Drive transport works; the failure is after it.
+Ingestion downloaded the staged zip from Drive and pushed every file BACK to
+Drive inside ONE request -- for a deck carrying three 5-8 MB gifs that is well
+over a minute of round trips to Google, past the serverless function's DURATION
+limit. `0101` had already bounded MEMORY to one file; duration is a different
+ceiling and it is the platform's, not ours to raise.
+
+### Stages the CLIENT drives
+
+`POST /api/classroom/deck` dispatches on `stage`:
+
+- **begin** -- claim the slot, prove the Drive file's name and parent, plan the
+  archive, create the deck folder, open a job. Bounded: reads the zip's
+  directory and one HTML file.
+- **files** -- store as many planned files as fit in this request's own budget,
+  record them, report progress. Called until complete.
+- **finish** -- hand the accumulated manifest to `classroom_replace_deck`, sweep
+  the deck this one replaced, delete the staged zip.
+- **abort** -- sweep the deck folder and the staged zip.
+
+**TWO BOUNDS PER STAGE, and the second is not redundant.** `STAGE_BUDGET_MS`
+(8000, deliberately well under any plausible limit -- the only cost of being
+conservative is another round trip) and `STAGE_MAX_FILES` (12), because a deck
+of hundreds of tiny files costs two Drive round trips each and almost no bytes,
+so it runs long while every byte-based bound stays slack. At least one batch
+always runs, so a single file bigger than the budget still makes progress.
+
+### The job, and why it is not a second authorization
+
+`classroom_deck_ingest_jobs` holds the plan, the manifest so far, and
+`files_done`. It can only be minted against an upload slot (`0102`) this caller
+has already SPENT on this exact Drive file, and `_classroom_deck_job` re-asks
+`_classroom_manages_item` on EVERY stage -- which matters more than it did
+before, because ingestion now spans minutes and several requests and a teacher
+can lose a section while one runs. "Not yours" and "no such job" answer
+identically (the `0102` claim convention). Zero client write grants; own-row
+SELECT only.
+
+**RESUMPTION IS EXACT, not approximate.** A stage that stored files and died
+before recording them leaves bytes on Drive that nothing knows about. So each
+file is stored under `deckStagedDriveFilename(index, path)` -- a pure function
+of the plan -- and `stage_open` marks a stage that never reported back; the next
+stage LISTS the folder once (`listDriveFolderFiles`, new, paged) and ADOPTS
+anything already there by name instead of uploading it twice. The index prefix
+is what guarantees uniqueness: `deckDriveFilename` truncates at 240 characters,
+so two deep paths sharing a long prefix could otherwise be adopted as each
+other.
+
+**CLEANUP IS THE FOLDER.** Abandoning a job reports the deck folder and the
+staged zip for the route to delete, and deleting the FOLDER takes every file
+under it -- recorded or not -- which is what makes "a failed ingest leaves no
+orphan" true rather than nearly true. A second `begin` on the same item
+abandons any earlier live job and reports ITS ids too, so a teacher who gave up
+halfway and started again leaves nothing behind.
+
+### Diagnosis: every failure is named
+
+The client reported one generic message, so the four things that all look like
+"the connection dropped" were indistinguishable from a browser with no server
+logs. `DeckUploadError` now carries a `code`, everything logs under one
+`[deck upload]` console prefix, and `DeckPanel` shows the code beside the
+message:
+
+`chunk_status` (a status the protocol does not use, with the range and whether
+it was the LAST chunk) · `chunk_network` (status 0 -- a dropped connection and a
+refused CORS preflight are indistinguishable from here, and it SAYS so rather
+than picking one) · `chunk_timeout` (`xhr.timeout` is now actually set, at 10
+minutes: generous, because cutting a slow-but-working chunk short is worse than
+the hang, but a request that never settles had no bound at all) ·
+`headers_blocked` (a 308 whose `Range` is unreadable -- non-fatal on its own,
+and STICKY, so a later failure is relabelled with the real diagnosis) ·
+`no_file_id` / `not_confirmed` · `ingest_network` / `ingest_timeout` (our own
+60s timeout per stage, so a platform-killed request cannot hang a tab) /
+`ingest_status` with the server's own code.
+
+**A `files` stage is retried on a transport failure and NOT on a refusal** -- a
+refusal is an answer -- which is safe precisely because every stage is
+resumable.
+
+### Verified
+
+- **`tests/classroom-decks.test.ts` (63 tests**, chain + `0104` + `0105`). The
+  headline derives the expected manifest INDEPENDENTLY -- the shipping planner
+  over the same archive -- and requires the staged run to have stored exactly
+  that, with plan ORDER asserted where it is observable (each file's Drive
+  name). Plus: a stage rolled back to the state a killed request leaves
+  (bytes on Drive, nothing recorded) resuming to the same manifest **with the
+  folder holding no duplicates**; an abandoned job leaving no deck, no folder
+  and no file; a second upload sweeping the first attempt's folder; `finish`
+  refusing an incomplete job; every stage refusing a foreign teacher and a
+  student; no write path for student/teacher/admin and no anon grant.
+- **MUTATION-CHECKED.** The job policy at `using (true)` and at `using (false)`
+  each redden exactly the read-scoping test; dropping the `created_by` filter
+  from `_classroom_deck_job` reddens the ownership test; **removing the
+  adoption listing leaves the folder holding 42 files where the manifest is 30**
+  -- the duplicates it exists to prevent. Migration and route restored
+  byte-identical (md5-checked).
+- `npm run check`: 0 errors, 36 warnings (the same 36 as HEAD). `npm test`:
+  **782/782 across 34 files** (was 764/33).
+- **Browser-verified** in `/dev/classroom-deck`, whose harness now drives the
+  SAME four stages and gained fault injectors (a stage that 502s, one that never
+  answers, one that stores files and dies before recording them) plus
+  `?status=` / `?noRange=1` on the chunk endpoint -- these failures cannot be
+  produced by a well-behaved same-origin stand-in, and they are the ones the
+  live report was about. A **39 MB** zip went up in chunks and unpacked across
+  **five** stages (`4/20 → 8/20 → 12/20 → 16/20 → 20/20`) to a 20-file deck; the
+  interrupted stage was retried and completed; the two injected failures read
+  as `drive_upload` and `ingest_timeout` in the panel, distinctly. Driving the
+  shipping uploader directly produced `chunk_status` (503, with range and
+  `isLast`), `chunk_network` (status 0, last chunk) and `headers_blocked`
+  (carrying `originalCode: chunk_network` and naming the CORS exposure). **The
+  regression that matters held**: the deck renders with its framing intact --
+  `frc-arena` at `left: 38% / top: 57%`, `frc-robot-action` 68%/41%,
+  `robot-2026` 45%/54%, matching the authored `{s, x, y}` exactly. Traversal
+  still refused by name, the ambiguous-entry question still asked and answered
+  (`handout.html` stored as the entry), the no-state warning still surfaced.
+  0 trapped window errors throughout.
+- **A REAL FINDING worth keeping.** A server that rejects a chunk BEFORE reading
+  its body makes the browser abandon the send, and the status never becomes
+  readable -- so it surfaces as `chunk_network`, not `chunk_status`. That is a
+  plausible reading of the original report, and it is why the harness's injector
+  drains the body first: otherwise it would produce the wrong failure and prove
+  the wrong thing.
+- **NOT verified: the live Supabase project, real Drive, and screenshots.** The
+  local `.env` is the placeholder project, so `0105` has never been applied and
+  no stage has ever talked to real Drive. **Apply `0104` then `0105` by hand
+  BEFORE deploying** -- the client names `stage`, and against the old route
+  every deck upload would fail at `begin`.
+- **WHAT TO WATCH ON THE NEXT LIVE ATTEMPT.** The progress line should read
+  "Unpacking N of M files" and CLIMB; if it sticks at one number the stage
+  budget is not being reached and the bound to look at is `STAGE_MAX_FILES`. If
+  it fails, the code in the panel is the diagnosis: `ingest_timeout` means a
+  stage still outruns the platform (lower `STAGE_BUDGET_MS`), `ingest_network`
+  means the request died rather than answered, `drive_upload` means Drive
+  refused a file, `chunk_*` means the failure is back in the transport after
+  all, and `headers_blocked` means Google is not exposing `Range` to this
+  browser. The console carries the same under `[deck upload]` with the numbers.
+
 ## Check-ins in the class stream (code-only; NO migration)
 
 A notebook check-in appears in its class's Stream, alongside announcements and

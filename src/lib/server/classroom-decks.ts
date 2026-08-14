@@ -608,6 +608,25 @@ export function deckDriveFilename(path: string): string {
 	return path.replace(/\//g, '__').slice(0, 240) || 'deck-file';
 }
 
+/**
+ * The Drive name one planned file is stored under during a STAGED ingest
+ * (0105), prefixed with its position in the plan.
+ *
+ * THE PREFIX IS WHAT MAKES RESUMPTION EXACT. A staged ingest is several
+ * requests, and one killed between storing a file and recording it would leave
+ * a stray the next attempt duplicates. Because the name is a pure function of
+ * the plan, the next stage can list the folder once and ADOPT anything already
+ * there instead of uploading it twice -- so a resumed deck ends up with exactly
+ * the manifest and nothing beside it.
+ *
+ * The index (not just the path) is what guarantees uniqueness: deckDriveFilename
+ * truncates at 240 characters, so two deeply nested paths sharing a long prefix
+ * could otherwise collide and have one adopted as the other.
+ */
+export function deckStagedDriveFilename(index: number, path: string): string {
+	return `${String(index).padStart(3, '0')}__${deckDriveFilename(path).slice(0, 200)}`;
+}
+
 /** The per-deck Drive subfolder name: readable, and unique per upload. */
 export function deckFolderName(itemId: string, stamp = new Date()): string {
 	const date = new Intl.DateTimeFormat('en-CA', {

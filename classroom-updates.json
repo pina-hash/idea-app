@@ -14,6 +14,18 @@
 	"entries": [
 		{
 			"date": "2026-08-14",
+			"title": "\"Updated\" on a class item now always means something changed for you",
+			"body": "The Updated tag on an announcement, assignment or material is meant to tell you that your teacher changed something you should read again. It was appearing on items where nothing you can see had changed -- so opening one told you nothing, and after a few of those the tag stops being worth trusting. It now appears only when the title, the description, the points, the due date or the links actually changed. If your teacher saves an item without changing any of that, nothing about it moves for you at all, and it will not push its way back to the top of your list on the home page. Nothing you have already read has been marked unread by this.",
+			"tags": ["Classes"]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Really big presentations finish uploading now",
+			"body": "Large decks -- the ones with several animations or videos in them -- could get all the way to the end of the upload and then fail, so the presentation never appeared on the item. They now unpack a few files at a time instead of all at once, which is what they were running out of time on, and the progress bar counts the files as it goes so your teacher can see it working rather than watching a bar that has stopped. If something does go wrong, it says what went wrong instead of just \"something failed\", and it can pick up where it left off rather than starting the whole upload again. A presentation that fails halfway now leaves nothing behind. Nothing changes about how a deck looks or opens for you.",
+			"tags": ["Classes"]
+		},
+		{
+			"date": "2026-08-14",
 			"title": "Bigger presentations now make it into class",
 			"body": "Some of the decks your teachers wanted to put on an assignment were too big to upload, and the upload simply failed part way with nothing to show for it. That is fixed: a presentation now goes up in one piece however big it is, including ones with video in them, and there is a progress bar while it uploads so your teacher can see it working instead of guessing. If the wifi drops or they change their mind, they can stop it and start again without leaving half a deck behind. For you nothing changes about how a deck opens or looks -- there are just fewer that never arrived. If a presentation you were told about is missing from an item, it is worth telling your teacher, because it may be one that failed to upload before this.",
 			"tags": ["Classes"]

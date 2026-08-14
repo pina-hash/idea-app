@@ -505,6 +505,61 @@ export async function startResumableUpload(opts: {
 	return location;
 }
 
+/**
+ * Every file directly inside one folder, as {id, name}.
+ *
+ * WHY IT EXISTS: staged deck ingestion (0105) uploads a deck across several
+ * requests, and a request that dies between storing a file and recording it
+ * would otherwise leave a stray that the next attempt duplicates. Each deck file
+ * is given a DETERMINISTIC name, so listing the folder once when resuming turns
+ * "did this already go up?" into a lookup -- the stray is adopted rather than
+ * re-uploaded, and the folder ends up holding exactly the manifest.
+ *
+ * Paged, because a deck may carry up to 500 files and Drive's default page is
+ * 100. Same auth, same one-shot 401 re-mint, and both flags the module header
+ * insists on -- without includeItemsFromAllDrives a shared-drive folder lists
+ * EMPTY, which here would read as "nothing uploaded yet" and silently duplicate
+ * the whole deck.
+ */
+export async function listDriveFolderFiles(
+	folderId: string
+): Promise<{ id: string; name: string }[]> {
+	if (!driveConfigured()) {
+		throw new Error('The notebook Drive integration is not configured.');
+	}
+	if (!folderId) throw new Error('A Drive folder id is required.');
+
+	const out: { id: string; name: string }[] = [];
+	let pageToken: string | null = null;
+	// A bound rather than a while(true): 5 x 200 covers the 500-file cap.
+	for (let page = 0; page < 5; page++) {
+		const query = `'${folderId.replace(/'/g, "\\'")}' in parents and trashed = false`;
+		const url =
+			`${DRIVE_ENDPOINTS.files}?q=${encodeURIComponent(query)}` +
+			'&supportsAllDrives=true&includeItemsFromAllDrives=true' +
+			'&fields=nextPageToken,files(id,name)&pageSize=200' +
+			(pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '');
+
+		const attempt = (token: string) => fetch(url, { headers: { authorization: `Bearer ${token}` } });
+		let res = await attempt(await accessToken());
+		if (res.status === 401) res = await attempt(await accessToken(true));
+		if (!res.ok) {
+			const detail = (await res.text().catch(() => '')).slice(0, 300);
+			throw new Error(`Drive folder list failed (${res.status}): ${detail}`);
+		}
+		const body = (await res.json()) as {
+			files?: { id?: string; name?: string }[];
+			nextPageToken?: string;
+		};
+		for (const f of body.files ?? []) {
+			if (f.id && f.name) out.push({ id: f.id, name: f.name });
+		}
+		pageToken = body.nextPageToken ?? null;
+		if (!pageToken) break;
+	}
+	return out;
+}
+
 export interface DriveFileMeta {
 	id: string;
 	name: string;

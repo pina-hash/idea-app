@@ -107,6 +107,15 @@ export function normalizeDeckRow(row: Record<string, unknown> | null | undefined
 export interface DeckUploadResult {
 	ok: boolean;
 	message: string;
+	/**
+	 * WHICH failure this was, when it failed. A deck upload has several failure
+	 * modes that all read as "something went wrong" -- a chunk rejected by
+	 * Drive, a response CORS will not let the browser read, an ingest request
+	 * that never answered, one that ran out of time -- and on a deployment
+	 * whose server logs are not to hand, telling them apart is the whole
+	 * diagnosis. Shown to the uploader alongside the message.
+	 */
+	code?: string;
 	/** When the zip offered several plausible entry pages, they land here. */
 	candidates?: string[];
 	warnings?: string[];
@@ -117,16 +126,18 @@ export interface DeckUploadResult {
 }
 
 /**
- * THREE PHASES, because a deck upload is three genuinely different waits and a
- * bar that cannot tell them apart looks stuck twice.
+ * FOUR PHASES, because a deck upload is four genuinely different waits and a
+ * bar that cannot tell them apart looks stuck three times.
  *
  * `preparing` is the round trip that authorizes the upload; `uploading` is the
- * one that takes minutes on school wifi and is the only phase with real
- * byte counts; `processing` is the server unpacking the zip and writing thirty
- * files to Drive, which reports no progress of its own and is honest about it.
+ * one that takes minutes on school wifi, counted in bytes; `unpacking` is the
+ * server storing the deck's files, counted in FILES because that is what the
+ * staged ingest actually reports back (0105) -- it used to be one opaque wait
+ * that could not say whether it was moving; `storing` is the last, short call
+ * that writes the manifest.
  */
 export interface DeckUploadProgress {
-	phase: 'preparing' | 'uploading' | 'processing';
+	phase: 'preparing' | 'uploading' | 'unpacking' | 'storing';
 	loaded: number;
 	total: number;
 }
@@ -144,10 +155,15 @@ export interface DeckTransports {
 	deleteDeck(itemId: string): Promise<{ ok: boolean; message: string }>;
 }
 
-/** "12.4 MB of 23.5 MB", for the progress line. */
+/** "12.4 MB of 23.5 MB" / "Unpacking 14 of 31 files", for the progress line. */
 export function deckProgressLabel(progress: DeckUploadProgress): string {
 	if (progress.phase === 'preparing') return 'Preparing upload...';
-	if (progress.phase === 'processing') return 'Unpacking the deck...';
+	if (progress.phase === 'storing') return 'Saving the deck...';
+	if (progress.phase === 'unpacking') {
+		return progress.total > 0
+			? `Unpacking ${progress.loaded} of ${progress.total} files`
+			: 'Unpacking the deck...';
+	}
 	const mb = (n: number) => `${(n / 1024 / 1024).toFixed(1)} MB`;
 	return progress.total > 0
 		? `Uploading ${mb(progress.loaded)} of ${mb(progress.total)}`
@@ -156,7 +172,8 @@ export function deckProgressLabel(progress: DeckUploadProgress): string {
 
 /** 0-100, or null while a phase has nothing measurable to report. */
 export function deckProgressPercent(progress: DeckUploadProgress): number | null {
-	if (progress.phase !== 'uploading' || progress.total <= 0) return null;
+	if (progress.phase !== 'uploading' && progress.phase !== 'unpacking') return null;
+	if (progress.total <= 0) return null;
 	return Math.max(0, Math.min(100, Math.round((progress.loaded / progress.total) * 100)));
 }
 

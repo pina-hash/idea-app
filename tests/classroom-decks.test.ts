@@ -51,6 +51,7 @@ import { DRIVE_ENDPOINTS } from '../src/lib/server/notebook-drive';
 import {
 	DECK_LIMITS,
 	deckFileMime,
+	deckStagedDriveFilename,
 	deckUploadName,
 	extractSlides,
 	IMAGE_STATE_FILE,
@@ -75,7 +76,9 @@ const MIGRATIONS = [
 	'0085_classroom_canonical_items.sql',
 	'0090_classroom_instructor_materials.sql',
 	'0101_classroom_decks.sql',
-	'0102_classroom_deck_uploads.sql'
+	'0102_classroom_deck_uploads.sql',
+	'0104_classroom_edit_visibility.sql',
+	'0105_classroom_deck_ingest.sql'
 ] as const;
 
 let db: TestDb;
@@ -272,6 +275,36 @@ const driveDeleted: string[] = [];
 const driveUploaded: string[] = [];
 let driveSeq = 0;
 
+/**
+ * Everything the mock Drive is holding, by id.
+ *
+ * Names and parents are tracked (rather than the id alone) because staged
+ * ingestion depends on both: a resumed stage LISTS the deck folder and adopts
+ * anything already there by name, and abandoning a job deletes the FOLDER to
+ * take its contents with it. Neither claim is checkable against a mock that
+ * only counts uploads.
+ */
+interface DriveObject {
+	name: string;
+	parent: string;
+	isFolder: boolean;
+}
+const driveObjects = new Map<string, DriveObject>();
+
+/** Files whose parent folder is `folderId` and which have not been deleted. */
+function driveChildren(folderId: string): { id: string; name: string }[] {
+	return [...driveObjects.entries()]
+		.filter(([, o]) => o.parent === folderId)
+		.map(([id, o]) => ({ id, name: o.name }));
+}
+
+/** Reads {name, parents} out of a Drive multipart upload body. */
+function parseUploadMeta(body: string): { name: string; parent: string } {
+	const name = /"name"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(body)?.[1] ?? '';
+	const parent = /"parents"\s*:\s*\[\s*"([^"]*)"/.exec(body)?.[1] ?? '';
+	return { name: name.replace(/\\(.)/g, '$1'), parent };
+}
+
 function stageZip(fileId: string, name: string, parents: string[], bytes: Uint8Array): string {
 	staged.set(fileId, { name, parents, bytes });
 	return fileId;
@@ -298,28 +331,61 @@ beforeAll(async () => {
 		if (url.pathname === '/token') {
 			return json({ access_token: 'test-access-token', expires_in: 3600 });
 		}
-		// One file's bytes go up (multipart); the id is all the caller reads.
+		// One file's bytes go up (multipart); the id is all the caller reads,
+		// but the NAME and PARENT are recorded so the folder listing below can
+		// answer honestly.
 		if (url.pathname === '/upload') {
 			const id = `uploaded-${++driveSeq}`;
 			driveUploaded.push(id);
-			req.resume();
-			req.on('end', () => json({ id }));
+			let body = '';
+			req.setEncoding('latin1');
+			req.on('data', (c: string) => {
+				if (body.length < 4096) body += c;
+			});
+			req.on('end', () => {
+				const meta = parseUploadMeta(body);
+				driveObjects.set(id, { ...meta, isFolder: false });
+				json({ id });
+			});
 			return;
 		}
-		// find-or-create a named folder
 		if (url.pathname === '/files' && req.method === 'GET') {
-			const name = /name = '([^']*)'/.exec(url.searchParams.get('q') ?? '')?.[1] ?? 'unknown';
+			const q = url.searchParams.get('q') ?? '';
+			// A folder LISTING: "'<id>' in parents and trashed = false", with no
+			// name clause. This is what a resumed ingest stage asks.
+			const parents = /^'([^']*)' in parents and trashed = false$/.exec(q)?.[1];
+			if (parents !== undefined) {
+				return json({ files: driveChildren(parents) });
+			}
+			// find-or-create a named folder
+			const name = /name = '([^']*)'/.exec(q)?.[1] ?? 'unknown';
 			return json({ files: [{ id: folderIdFor(name) }] });
 		}
 		if (url.pathname === '/files' && req.method === 'POST') {
-			req.resume();
-			req.on('end', () => json({ id: `created-folder-${++driveSeq}` }));
+			let body = '';
+			req.setEncoding('utf8');
+			req.on('data', (c: string) => (body += c));
+			req.on('end', () => {
+				const id = `created-folder-${++driveSeq}`;
+				const meta = parseUploadMeta(body);
+				driveObjects.set(id, { ...meta, isFolder: true });
+				json({ id });
+			});
 			return;
 		}
 		if (url.pathname.startsWith('/files/')) {
 			const id = decodeURIComponent(url.pathname.slice('/files/'.length));
 			if (req.method === 'DELETE') {
 				driveDeleted.push(id);
+				// Deleting a FOLDER takes its contents with it, which is the whole
+				// mechanism the "a failed ingest leaves no orphan" claim rests on.
+				if (driveObjects.get(id)?.isFolder) {
+					for (const child of driveChildren(id)) {
+						driveObjects.delete(child.id);
+						driveDeleted.push(child.id);
+					}
+				}
+				driveObjects.delete(id);
 				res.writeHead(204);
 				res.end();
 				return;
@@ -1050,6 +1116,57 @@ function callIngest(userId: string | null, body: Record<string, unknown>): Promi
 	});
 }
 
+/**
+ * Drives the REAL route through every stage, exactly as the shipping client
+ * does: begin, then files until complete, then finish.
+ *
+ * `stopAfter` cuts the drive short at a given number of `files` calls, which is
+ * how the interrupted-stage and cleanup cases are produced -- there is no other
+ * way to have a real request stop halfway.
+ */
+async function runIngest(
+	userId: string,
+	body: Record<string, unknown>,
+	opts: { stopAfter?: number } = {}
+): Promise<{
+	status: number;
+	body: Record<string, unknown>;
+	jobId: string | null;
+	stageCalls: number;
+}> {
+	const begun = await callIngest(userId, body);
+	const begunBody = (await begun.json()) as Record<string, unknown>;
+	if (begun.status !== 200) {
+		return { status: begun.status, body: begunBody, jobId: null, stageCalls: 0 };
+	}
+	const jobId = String(begunBody.job_id);
+	const total = Number(begunBody.total_files ?? 0);
+	const warnings = begunBody.warnings;
+
+	let calls = 0;
+	for (let i = 0; i < total + 4; i++) {
+		if (opts.stopAfter !== undefined && calls >= opts.stopAfter) {
+			return { status: 202, body: { ...begunBody, incomplete: true }, jobId, stageCalls: calls };
+		}
+		const step = await callIngest(userId, { stage: 'files', job_id: jobId });
+		calls += 1;
+		const stepBody = (await step.json()) as Record<string, unknown>;
+		if (step.status !== 200) {
+			return { status: step.status, body: stepBody, jobId, stageCalls: calls };
+		}
+		if (stepBody.complete === true) break;
+	}
+
+	const stored = await callIngest(userId, { stage: 'finish', job_id: jobId });
+	const storedBody = (await stored.json()) as Record<string, unknown>;
+	return {
+		status: stored.status,
+		body: { ...begunBody, ...storedBody, warnings },
+		jobId,
+		stageCalls: calls
+	};
+}
+
 /** Opens a real slot through the real RPC. */
 async function openSlot(userId: string, itemId: string): Promise<string> {
 	const res = await rpc<{ upload_id: string }>(
@@ -1242,9 +1359,9 @@ describe('POST /api/classroom/deck (ingest from Drive)', () => {
 			exportZip()
 		);
 
-		const res = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const res = await runIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as {
+		const body = res.body as unknown as {
 			ok: boolean;
 			file_count: number;
 			has_state_file: boolean;
@@ -1323,8 +1440,9 @@ describe('POST /api/classroom/deck (ingest from Drive)', () => {
 			expect(((await res.json()) as { reason: string }).reason, user.email).toBe('not_found');
 		}
 		// Untouched, so the real owner can still use it.
-		const mine = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const mine = await runIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
 		expect(mine.status).toBe(200);
+		expect(mine.body.ok).toBe(true);
 	});
 
 	it('still refuses a traversing zip on the new path, and stores nothing', async () => {
@@ -1388,6 +1506,12 @@ describe('POST /api/classroom/deck (ingest from Drive)', () => {
 		staged.delete(fileId);
 	});
 
+	it('rejects an unknown stage rather than guessing at one', async () => {
+		const res = await callIngest(teacherA.id, { stage: 'sideways', job_id: randomUUID() });
+		expect(res.status).toBe(400);
+		expect(((await res.json()) as { error: string }).error).toContain('Unknown deck upload stage');
+	});
+
 	it('refuses anonymously, and refuses a malformed id without reaching Drive', async () => {
 		const anon = await callIngest(null, { upload_id: randomUUID(), drive_file_id: 'abcdefgh' });
 		expect(anon.status).toBe(401);
@@ -1401,5 +1525,333 @@ describe('POST /api/classroom/deck (ingest from Drive)', () => {
 			drive_file_id: '../../etc/passwd'
 		});
 		expect(badFile.status).toBe(400);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// STAGED INGESTION (0105)
+//
+// Unpacking a deck means downloading the archive from Drive and pushing every
+// file back to it, which for a real export is minutes of round trips -- past a
+// serverless function's DURATION limit, so the old one-shot request was killed
+// mid-flight and the browser saw a dropped connection after an upload that had
+// actually worked. The work is now split across as many requests as it takes.
+//
+// THE THING THAT MUST NOT HAVE CHANGED is what ends up stored. So the headline
+// assertion below does not check that staging "worked": it derives the expected
+// manifest INDEPENDENTLY, from the shipping planner over the same archive, and
+// requires the staged run to have stored exactly that -- same paths, same
+// order, same content types -- which is what the single-request path stored.
+//
+// The other cases are the states only staging can reach: a stage that died
+// before recording (its files are on Drive and nothing knows), a job given up
+// on partway (its folder must go, with everything under it), and a second
+// attempt on the same item (the first attempt's folder must not survive it).
+// ---------------------------------------------------------------------------
+
+/** A deck with enough files to need several stages (STAGE_MAX_FILES is 12). */
+function bigExportZip(count = 30): Uint8Array {
+	const entries = [
+		{ name: 'index.html', bytes: text(DECK_HTML) },
+		{ name: IMAGE_STATE_FILE, bytes: text('{"hero":{"u":"data:,x","s":2.4,"x":-12,"y":7}}') }
+	];
+	for (let i = entries.length; i < count; i++) {
+		entries.push({ name: `uploads/asset-${i}.png`, bytes: PNG });
+	}
+	return makeZip(entries);
+}
+
+/**
+ * Every file stored against an item's deck.
+ *
+ * BY PATH, because the path is the manifest's identity -- it is what the unique
+ * constraint is on and what the proxy resolves -- and the table carries no
+ * ordering column to compare against. Plan ORDER is asserted separately, and
+ * more directly, through the Drive names each file was stored under.
+ */
+async function storedManifest(
+	userId: string,
+	itemId: string
+): Promise<{ path: string; mime_type: string; drive_file_id: string }[]> {
+	return db.asUser(userId, async (q) =>
+		(
+			await q<{ path: string; mime_type: string; drive_file_id: string }>(
+				`select f.path, f.mime_type, f.drive_file_id from public.classroom_deck_files f
+				 join public.classroom_decks d on d.id = f.deck_id
+				 where d.item_id = $1 order by f.path`,
+				[itemId]
+			)
+		).rows
+	);
+}
+
+async function stageZipFor(userId: string, itemId: string, zip: Uint8Array) {
+	const uploadId = await openSlot(userId, itemId);
+	const fileId = stageZip(`staged-${uploadId}`, deckUploadName(uploadId), [UPLOADS_FOLDER], zip);
+	return { uploadId, fileId };
+}
+
+describe('staged deck ingestion', () => {
+	it('stores exactly the manifest the planner planned, across several stages', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Staged')).item_id;
+		const zip = bigExportZip();
+		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, zip);
+
+		// The expectation, derived independently of the route: what the SHIPPING
+		// planner says this archive contains, with each file typed the way
+		// readDeckFile types it.
+		const planned = await planDeckFromZip(zip);
+		if (!planned.ok) throw new Error(planned.error);
+		const source = memoryZipSource(zip);
+		const expected: { path: string; mime_type: string }[] = [];
+		for (const file of planned.plan.files) {
+			expected.push({ path: file.path, mime_type: (await readDeckFile(source, file)).mimeType });
+		}
+
+		const run = await runIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		expect(run.status).toBe(200);
+		expect(run.body.ok).toBe(true);
+		// It genuinely staged rather than doing everything in one request.
+		expect(run.stageCalls).toBeGreaterThan(1);
+		expect(run.body.file_count).toBe(expected.length);
+
+		const manifest = await storedManifest(teacherA.id, item);
+		expect(manifest.map(({ path, mime_type }) => ({ path, mime_type }))).toEqual(
+			[...expected].sort((a, b) => a.path.localeCompare(b.path))
+		);
+		// The hidden state file is in it, as it is on every other path.
+		expect(manifest.map((f) => f.path)).toContain(IMAGE_STATE_FILE);
+
+		// PLAN ORDER, asserted where it is actually observable: each file was
+		// stored under the name its POSITION in the plan produces, which is what
+		// lets a resumed stage adopt it instead of uploading it twice.
+		const byPath = new Map(manifest.map((f) => [f.path, f.drive_file_id]));
+		planned.plan.files.forEach((file, index) => {
+			const driveId = byPath.get(file.path);
+			expect(driveId, file.path).toBeTruthy();
+			expect(driveObjects.get(driveId as string)?.name, file.path).toBe(
+				deckStagedDriveFilename(index, file.path)
+			);
+		});
+
+		// And the staged archive was swept once the deck landed.
+		expect(driveDeleted).toContain(fileId);
+	});
+
+	it('resumes a stage that stored files and died before recording them', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Interrupted')).item_id;
+		const zip = bigExportZip();
+		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, zip);
+
+		const begun = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const begunBody = (await begun.json()) as { job_id: string; total_files: number };
+		const jobId = begunBody.job_id;
+
+		const first = await callIngest(teacherA.id, { stage: 'files', job_id: jobId });
+		const firstBody = (await first.json()) as { files_done: number };
+		expect(firstBody.files_done).toBeGreaterThan(0);
+
+		// EXACTLY the state a killed request leaves: the bytes are on Drive and
+		// nothing recorded them, so the job still believes it has none of them
+		// and its stage is still open. Rolled back here rather than at the
+		// route, because that is where the state actually lives.
+		const { rows: jobRows } = await db.sql<{ drive_folder_id: string }>(
+			`update public.classroom_deck_ingest_jobs
+			 set files_done = 0, manifest = '[]'::jsonb, stage_open = true
+			 where id = $1 returning drive_folder_id`,
+			[jobId]
+		);
+		const folderId = jobRows[0].drive_folder_id;
+		expect(driveChildren(folderId).length).toBeGreaterThan(0);
+
+		// Drive it the rest of the way.
+		for (let i = 0; i < begunBody.total_files + 4; i++) {
+			const step = await callIngest(teacherA.id, { stage: 'files', job_id: jobId });
+			expect(step.status).toBe(200);
+			if (((await step.json()) as { complete: boolean }).complete) break;
+		}
+		const stored = await callIngest(teacherA.id, { stage: 'finish', job_id: jobId });
+		expect(stored.status).toBe(200);
+
+		const manifest = await storedManifest(teacherA.id, item);
+		expect(manifest).toHaveLength(begunBody.total_files);
+		// THE POINT: the already-uploaded files were ADOPTED, not uploaded a
+		// second time, so the folder holds the manifest and nothing beside it.
+		expect(driveChildren(folderId)).toHaveLength(begunBody.total_files);
+		// Every stored id really is one of the folder's files.
+		const ids = new Set(driveChildren(folderId).map((f) => f.id));
+		const rows = await db.asUser(teacherA.id, async (q) =>
+			(
+				await q<{ drive_file_id: string }>(
+					`select f.drive_file_id from public.classroom_deck_files f
+					 join public.classroom_decks d on d.id = f.deck_id where d.item_id = $1`,
+					[item]
+				)
+			).rows
+		);
+		for (const row of rows) expect(ids.has(row.drive_file_id)).toBe(true);
+	});
+
+	it('leaves no partial deck and no orphaned files when a job is abandoned', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Abandoned')).item_id;
+		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, bigExportZip());
+
+		// Stop after one stage: real files are on Drive and the deck does not
+		// exist yet, which is the state a failure partway leaves.
+		const partial = await runIngest(
+			teacherA.id,
+			{ upload_id: uploadId, drive_file_id: fileId },
+			{ stopAfter: 1 }
+		);
+		const jobId = partial.jobId as string;
+		const { rows } = await db.sql<{ drive_folder_id: string; files_done: number }>(
+			'select drive_folder_id, files_done from public.classroom_deck_ingest_jobs where id = $1',
+			[jobId]
+		);
+		const folderId = rows[0].drive_folder_id;
+		expect(rows[0].files_done).toBeGreaterThan(0);
+		expect(rows[0].files_done).toBeLessThan(30);
+		const partialFiles = driveChildren(folderId).map((f) => f.id);
+		expect(partialFiles.length).toBeGreaterThan(0);
+
+		const aborted = await callIngest(teacherA.id, { stage: 'abort', job_id: jobId });
+		expect(aborted.status).toBe(200);
+
+		// Nothing was stored...
+		const decks = await db.asUser(
+			teacherA.id,
+			async (q) => (await q('select id from public.classroom_decks where item_id = $1', [item])).rows
+		);
+		expect(decks).toHaveLength(0);
+		// ...the folder went, taking every file under it...
+		expect(driveDeleted).toContain(folderId);
+		for (const id of partialFiles) expect(driveDeleted, id).toContain(id);
+		expect(driveChildren(folderId)).toHaveLength(0);
+		// ...and so did the staged archive.
+		expect(driveDeleted).toContain(fileId);
+	});
+
+	it('sweeps an earlier unfinished attempt when the same item is uploaded again', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Second attempt')).item_id;
+		const first = await stageZipFor(teacherA.id, item, bigExportZip());
+		const abandoned = await runIngest(
+			teacherA.id,
+			{ upload_id: first.uploadId, drive_file_id: first.fileId },
+			{ stopAfter: 1 }
+		);
+		const { rows } = await db.sql<{ drive_folder_id: string }>(
+			'select drive_folder_id from public.classroom_deck_ingest_jobs where id = $1',
+			[abandoned.jobId]
+		);
+		const strandedFolder = rows[0].drive_folder_id;
+		expect(driveChildren(strandedFolder).length).toBeGreaterThan(0);
+
+		// A second upload, driven to completion. The teacher never cancelled the
+		// first, so nothing but this can clean it up.
+		const second = await stageZipFor(teacherA.id, item, exportZip());
+		const run = await runIngest(teacherA.id, {
+			upload_id: second.uploadId,
+			drive_file_id: second.fileId
+		});
+		expect(run.status).toBe(200);
+
+		expect(driveDeleted).toContain(strandedFolder);
+		expect(driveChildren(strandedFolder)).toHaveLength(0);
+		const { rows: state } = await db.sql<{ state: string }>(
+			'select state from public.classroom_deck_ingest_jobs where id = $1',
+			[abandoned.jobId]
+		);
+		expect(state[0].state).toBe('abandoned');
+	});
+
+	it('refuses to store a job that has not finished unpacking', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Half done')).item_id;
+		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, bigExportZip());
+		const partial = await runIngest(
+			teacherA.id,
+			{ upload_id: uploadId, drive_file_id: fileId },
+			{ stopAfter: 1 }
+		);
+		const early = await callIngest(teacherA.id, { stage: 'finish', job_id: partial.jobId });
+		expect(early.status).toBe(400);
+		expect(((await early.json()) as { reason: string }).reason).toBe('incomplete');
+		const decks = await db.asUser(
+			teacherA.id,
+			async (q) => (await q('select id from public.classroom_decks where item_id = $1', [item])).rows
+		);
+		expect(decks).toHaveLength(0);
+		await callIngest(teacherA.id, { stage: 'abort', job_id: partial.jobId });
+	});
+
+	it('lets nobody but the job owner continue or store it', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Not your job')).item_id;
+		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, exportZip());
+		const begun = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const jobId = ((await begun.json()) as { job_id: string }).job_id;
+
+		for (const user of [teacherB, teacherC, studentA]) {
+			for (const stage of ['files', 'finish', 'abort']) {
+				const res = await callIngest(user.id, { stage, job_id: jobId });
+				expect(res.status, `${user.email} ${stage}`).toBe(400);
+				expect(((await res.json()) as { error: string }).error, user.email).toContain(
+					'could not be found'
+				);
+			}
+		}
+		// Untouched: the owner can still finish it.
+		for (let i = 0; i < 6; i++) {
+			const step = await callIngest(teacherA.id, { stage: 'files', job_id: jobId });
+			if (((await step.json()) as { complete: boolean }).complete) break;
+		}
+		expect((await callIngest(teacherA.id, { stage: 'finish', job_id: jobId })).status).toBe(200);
+	});
+
+	it('shows a job to its own maker and to nobody else', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Own job only')).item_id;
+		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, exportZip());
+		const begun = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const jobId = ((await begun.json()) as { job_id: string }).job_id;
+
+		const mine = await db.asUser(
+			teacherA.id,
+			async (q) =>
+				(await q('select id from public.classroom_deck_ingest_jobs where id = $1', [jobId])).rows
+		);
+		expect(mine).toHaveLength(1);
+		// The admin included: this row is a transient record of one person's
+		// upload, not shared classroom state.
+		for (const other of [teacherB, teacherC, owner, studentA]) {
+			const theirs = await db.asUser(
+				other.id,
+				async (q) =>
+					(await q('select id from public.classroom_deck_ingest_jobs where id = $1', [jobId])).rows
+			);
+			expect(theirs, other.email).toHaveLength(0);
+		}
+		await callIngest(teacherA.id, { stage: 'abort', job_id: jobId });
+	});
+
+	it('grants no write path to the job table, and anon nothing at all', async () => {
+		for (const user of [studentA, teacherA, owner]) {
+			for (const sql of [
+				`insert into public.classroom_deck_ingest_jobs (upload_id, item_id, created_by, title, drive_zip_file_id, drive_folder_id, plan, total_files) values (gen_random_uuid(), '${pubItem}', 'x', 't', 'z', 'f', '{}'::jsonb, 1)`,
+				`update public.classroom_deck_ingest_jobs set state = 'done'`,
+				`delete from public.classroom_deck_ingest_jobs`
+			]) {
+				const err = await captureError(() => db.asUser(user.id, (q) => q(sql)));
+				expect(err.message, `${user.email}: ${sql}`).toContain('permission denied');
+			}
+		}
+		const { rows } = await db.sql<{ fn: string; ok: boolean }>(
+			`select p.proname as fn, has_function_privilege('anon', p.oid, 'EXECUTE') as ok
+			 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+			 where n.nspname = 'public' and p.proname like 'classroom_deck_ingest%'`
+		);
+		expect(rows.length).toBeGreaterThanOrEqual(5);
+		for (const row of rows) expect(row.ok, row.fn).toBe(false);
+		const table = await db.sql<{ ok: boolean }>(
+			"select has_table_privilege('anon', 'public.classroom_deck_ingest_jobs', 'SELECT') as ok"
+		);
+		expect(table.rows[0].ok).toBe(false);
 	});
 });

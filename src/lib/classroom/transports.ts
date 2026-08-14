@@ -29,7 +29,12 @@ import {
 } from './assignment-spec';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
 import { normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
-import { DeckUploadCancelled, uploadZipToDrive } from './deck-upload';
+import {
+	DeckUploadCancelled,
+	logDeckUpload,
+	uploadZipToDrive,
+	type DeckUploadError
+} from './deck-upload';
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
@@ -224,10 +229,110 @@ export async function loadItemDeck(
 }
 
 /**
- * Uploads a deck zip in three steps: ask the server to AUTHORIZE one upload,
- * send the bytes STRAIGHT TO DRIVE, then tell the server which file to ingest.
+ * One call to the ingest route, with every way it can fail told apart.
+ *
+ * A fetch that rejects, a fetch that runs out of time and a response that
+ * carries an error status are three different diagnoses -- and on a deployment
+ * whose server logs are not to hand they are the ONLY diagnosis available -- so
+ * each comes back under its own code rather than as one "something went wrong".
+ * The timeout is ours: a request the platform kills mid-flight can otherwise
+ * hang a browser tab indefinitely, which is exactly what a stuck progress bar
+ * looks like.
+ */
+interface StageFailure {
+	failed: true;
+	code: string;
+	message: string;
+	status?: number;
+	body?: Record<string, unknown> | null;
+}
+
+async function deckStage(
+	payload: Record<string, unknown>,
+	opts: { timeoutMs: number; signal?: AbortSignal }
+): Promise<Record<string, unknown> | StageFailure> {
+	const controller = new AbortController();
+	let timedOut = false;
+	const timer = setTimeout(() => {
+		timedOut = true;
+		controller.abort();
+	}, opts.timeoutMs);
+	const onAbort = () => controller.abort();
+	opts.signal?.addEventListener('abort', onAbort, { once: true });
+
+	try {
+		const res = await fetch('/api/classroom/deck', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(payload),
+			signal: controller.signal
+		});
+		const body = (await res.json().catch(() => null)) as Record<string, unknown> | null;
+		if (!res.ok) {
+			const failure: StageFailure = {
+				failed: true,
+				code: String(body?.code ?? `http_${res.status}`),
+				message: String(body?.error ?? `The server refused this step (${res.status}).`),
+				status: res.status,
+				body
+			};
+			logDeckUpload(`ingest stage "${payload.stage}" refused`, {
+				status: res.status,
+				code: failure.code,
+				reason: body?.reason,
+				message: failure.message
+			});
+			return failure;
+		}
+		return body ?? {};
+	} catch (e) {
+		if (opts.signal?.aborted && !timedOut) throw new DeckUploadCancelled();
+		const failure: StageFailure = timedOut
+			? {
+					failed: true,
+					code: 'ingest_timeout',
+					message: `The server did not answer within ${Math.round(opts.timeoutMs / 1000)}s while ${payload.stage === 'begin' ? 'reading the deck' : 'storing the deck'}.`
+				}
+			: {
+					failed: true,
+					code: 'ingest_network',
+					message: `The connection to the server dropped while ${payload.stage === 'begin' ? 'reading the deck' : 'storing the deck'}.`
+				};
+		logDeckUpload(`ingest stage "${payload.stage}" failed`, {
+			code: failure.code,
+			message: (e as Error).message
+		});
+		return failure;
+	} finally {
+		clearTimeout(timer);
+		opts.signal?.removeEventListener('abort', onAbort);
+	}
+}
+
+function isFailure(v: Record<string, unknown> | StageFailure): v is StageFailure {
+	return (v as StageFailure).failed === true;
+}
+
+/** How long any one ingest call may take before we call it hung. */
+const STAGE_TIMEOUT_MS = 60_000;
+/** A `files` stage is resumable by construction, so a blip is worth retrying. */
+const STAGE_RETRIES = 3;
+
+/**
+ * Uploads a deck zip: ask the server to AUTHORIZE one upload, send the bytes
+ * STRAIGHT TO DRIVE, then drive the server through UNPACKING IT IN STAGES.
+ *
  * The zip never passes through our own server, which is what took deck uploads
- * off Vercel's ~4.5 MB request-body cap (0102).
+ * off Vercel's ~4.5 MB request-body cap (0102). Unpacking is then split across
+ * as many requests as it takes (0105), because storing a 43 MB deck's files back
+ * to Drive is minutes of round trips and a single request is killed at the
+ * platform's duration limit long before it finishes -- which is what a browser
+ * saw as "the connection dropped" after an upload that had actually worked.
+ *
+ * THE CLIENT IS THE THING THAT MAKES IT FINISH. Each `files` call does what fits
+ * in its own budget and reports how far it got; this loops until complete, so a
+ * request lost along the way costs one retry rather than the whole deck. Every
+ * step is resumable, so a retry is safe by construction.
  *
  * Unlike uploadAttachment this carries the REFUSAL DETAIL back rather than only
  * a message: a zip with several plausible entry pages is answered with the
@@ -240,6 +345,7 @@ export const deckTransports: DeckTransports = {
 	async uploadDeck(itemId, file, options) {
 		const { entryPath = null, onProgress, signal } = options ?? {};
 		let uploadId: string | null = null;
+		let jobId: string | null = null;
 		try {
 			onProgress?.({ phase: 'preparing', loaded: 0, total: file.size });
 
@@ -254,7 +360,15 @@ export const deckTransports: DeckTransports = {
 				| { error?: string; upload_id?: string; upload_url?: string }
 				| null;
 			if (!openRes.ok || !open?.upload_id || !open?.upload_url) {
-				return { ok: false, message: open?.error ?? `Upload failed (${openRes.status}).` };
+				logDeckUpload('upload session refused', {
+					status: openRes.status,
+					message: open?.error
+				});
+				return {
+					ok: false,
+					code: 'session_refused',
+					message: open?.error ?? `Upload failed (${openRes.status}).`
+				};
 			}
 			uploadId = open.upload_id;
 
@@ -266,55 +380,116 @@ export const deckTransports: DeckTransports = {
 				onProgress: (p) => onProgress?.({ phase: 'uploading', ...p })
 			});
 
-			// 3. Ingest. The server re-checks who is asking, proves the file id
-			//    came from the session it opened, and unpacks it.
-			onProgress?.({ phase: 'processing', loaded: file.size, total: file.size });
-			const res = await fetch('/api/classroom/deck', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({
+			// 3. Begin: the server re-checks who is asking, proves the file id
+			//    came from the session it opened, and reads the archive's index.
+			onProgress?.({ phase: 'unpacking', loaded: 0, total: 0 });
+			const begun = await deckStage(
+				{
+					stage: 'begin',
 					upload_id: uploadId,
 					drive_file_id: driveFileId,
 					title: file.name.replace(/\.zip$/i, '').trim().slice(0, 200) || 'Presentation',
 					entry_path: entryPath
-				})
-			});
+				},
+				{ timeoutMs: STAGE_TIMEOUT_MS, signal }
+			);
 			// The slot is spent either way now; nothing left to cancel.
 			uploadId = null;
-			const body = (await res.json().catch(() => null)) as
-				| {
-						error?: string;
-						candidates?: string[];
-						warnings?: string[];
-						replaced?: boolean;
-						file_count?: number;
-				  }
-				| null;
-			if (!res.ok) {
+			if (isFailure(begun)) {
 				return {
 					ok: false,
-					message: body?.error ?? `Upload failed (${res.status}).`,
-					candidates: body?.candidates ?? []
+					code: begun.code,
+					message: begun.message,
+					candidates: (begun.body?.candidates as string[] | undefined) ?? []
 				};
 			}
+			jobId = String(begun.job_id ?? '') || null;
+			const total = Number(begun.total_files ?? 0);
+			const warnings = (begun.warnings as string[] | undefined) ?? [];
+			if (!jobId) {
+				return { ok: false, code: 'begin_failed', message: 'The server did not start unpacking.' };
+			}
+
+			// 4. Files, until the plan is exhausted. Each call is bounded by the
+			//    server's own budget, so this is where a big deck's time goes.
+			let done = 0;
+			onProgress?.({ phase: 'unpacking', loaded: 0, total });
+			// A generous bound rather than a while(true): one call per file is
+			// the worst case, and this can never spin.
+			for (let call = 0; call < total + STAGE_RETRIES * 4 + 4; call++) {
+				let step = await deckStage(
+					{ stage: 'files', job_id: jobId },
+					{ timeoutMs: STAGE_TIMEOUT_MS, signal }
+				);
+				// Only a TRANSPORT failure is retried: a refusal is an answer.
+				for (
+					let retry = 0;
+					retry < STAGE_RETRIES &&
+					isFailure(step) &&
+					(step.code === 'ingest_network' || step.code === 'ingest_timeout');
+					retry++
+				) {
+					await new Promise((r) => setTimeout(r, 500 * 2 ** retry));
+					step = await deckStage(
+						{ stage: 'files', job_id: jobId },
+						{ timeoutMs: STAGE_TIMEOUT_MS, signal }
+					);
+				}
+				if (isFailure(step)) return { ok: false, code: step.code, message: step.message };
+
+				const next = Number(step.files_done ?? done);
+				if (next <= done && step.complete !== true) {
+					// No progress and not finished: stop rather than loop.
+					return {
+						ok: false,
+						code: 'no_progress',
+						message: 'The server stopped making progress unpacking this deck.'
+					};
+				}
+				done = next;
+				onProgress?.({ phase: 'unpacking', loaded: done, total });
+				if (step.complete === true) break;
+			}
+
+			// 5. Store the manifest. Short, and the only step that writes rows.
+			onProgress?.({ phase: 'storing', loaded: total, total });
+			const stored = await deckStage(
+				{ stage: 'finish', job_id: jobId },
+				{ timeoutMs: STAGE_TIMEOUT_MS, signal }
+			);
+			if (isFailure(stored)) return { ok: false, code: stored.code, message: stored.message };
+			jobId = null;
+
 			return {
 				ok: true,
 				message: 'Deck uploaded.',
-				warnings: body?.warnings ?? [],
-				replaced: body?.replaced === true,
-				fileCount: body?.file_count ?? 0
+				warnings,
+				replaced: stored.replaced === true,
+				fileCount: Number(stored.file_count ?? 0)
 			};
 		} catch (e) {
 			if (e instanceof DeckUploadCancelled) {
 				return { ok: false, cancelled: true, message: 'Upload cancelled.' };
 			}
-			return { ok: false, message: (e as Error).message || 'Upload failed.' };
+			const err = e as DeckUploadError;
+			logDeckUpload('upload failed', { code: err.code, detail: err.detail, message: err.message });
+			return { ok: false, code: err.code, message: err.message || 'Upload failed.' };
 		} finally {
 			// An unspent slot is closed rather than left to sit for its two
 			// hours. Best-effort: the slot authorizes nothing on its own.
 			if (uploadId) {
 				void fetch(`/api/classroom/deck/upload-session?upload_id=${encodeURIComponent(uploadId)}`, {
 					method: 'DELETE'
+				}).catch(() => {});
+			}
+			// An unfinished job holds a Drive folder of half a deck and the
+			// staged zip. Abandoning it sweeps BOTH, so a failure leaves no
+			// partial deck and nothing orphaned.
+			if (jobId) {
+				void fetch('/api/classroom/deck', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ stage: 'abort', job_id: jobId })
 				}).catch(() => {});
 			}
 		}

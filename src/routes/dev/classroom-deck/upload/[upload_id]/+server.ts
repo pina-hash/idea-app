@@ -14,6 +14,17 @@ import type { RequestHandler } from './$types';
  * It exists so the harness exercises the SHIPPING uploader -- its chunking, its
  * progress arithmetic, its resume-after-failure and its cancel -- rather than a
  * mock that would agree with whatever the uploader happened to do.
+ *
+ * TWO FAULT INJECTORS, for the failures a well-behaved same-origin stand-in can
+ * never produce and which are exactly the ones a real upload dies of:
+ *
+ *   ?status=NNN   answer a chunk with a status the protocol does not use
+ *   ?noRange=1    answer 308 with NO `Range` header -- what a cross-origin
+ *                 Google response looks like when CORS does not expose it
+ *
+ * The second is the important one. It is indistinguishable from a dropped
+ * connection unless it is named, and naming it is the difference between
+ * diagnosing a live deployment and guessing at it.
  */
 
 function parseRange(header: string | null): { start: number; end: number; total: number } | null {
@@ -27,12 +38,25 @@ function isStatusQuery(header: string | null): boolean {
 	return !!header && /^bytes \*\/\d+$/.test(header.trim());
 }
 
-export const PUT: RequestHandler = async ({ params, request }) => {
+export const PUT: RequestHandler = async ({ params, request, url }) => {
 	if (!dev) error(404, 'Not found');
 
 	const id = params.upload_id;
 	const session = devUploadSession(id);
 	if (!session) return new Response('Not found', { status: 404 });
+
+	const forcedStatus = Number(url.searchParams.get('status') ?? 0);
+	if (forcedStatus >= 400) {
+		// The body is DRAINED first, deliberately. A server that answers before
+		// reading the request body makes the browser abandon the send, and the
+		// status never becomes readable at all -- which surfaces as
+		// `chunk_network` rather than `chunk_status`. That is a real and
+		// separate failure (and a plausible reading of the live report), so this
+		// injector produces the one it says it does.
+		await request.arrayBuffer();
+		return new Response('Injected upload failure.', { status: forcedStatus });
+	}
+	const hideRange = url.searchParams.get('noRange') === '1';
 
 	const rangeHeader = request.headers.get('content-range');
 
@@ -43,7 +67,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 				headers: { 'content-type': 'application/json' }
 			});
 		}
-		return new Response(null, { status: 308, headers: { range: 'bytes=0-0' } });
+		return new Response(null, { status: 308, headers: hideRange ? {} : { range: 'bytes=0-0' } });
 	}
 
 	const range = parseRange(rangeHeader);
@@ -60,7 +84,7 @@ export const PUT: RequestHandler = async ({ params, request }) => {
 	}
 	return new Response(null, {
 		status: 308,
-		headers: { range: `bytes=0-${received - 1}` }
+		headers: hideRange ? {} : { range: `bytes=0-${received - 1}` }
 	});
 };
 

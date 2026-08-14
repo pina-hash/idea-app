@@ -278,6 +278,20 @@
 		}
 	}
 
+	/**
+	 * The due date as it should be SENT.
+	 *
+	 * A `datetime-local` value has no seconds, so re-encoding an untouched due
+	 * date through the input loses them -- which the server can only read as a
+	 * real change, stamping `edited_at` and showing every student an "Updated"
+	 * badge for a save that only added, say, an instructor-only answer key. So
+	 * a field nobody touched is sent back exactly as it was stored.
+	 */
+	function dueToSend(): string | null {
+		if (mode === 'edit' && item && isoToLocalInput(item.due_at) === due) return item.due_at;
+		return localInputToIso(due);
+	}
+
 	function itemInput() {
 		const rawPoints = String(points ?? '').trim();
 		const pts = rawPoints === '' ? null : Number.parseInt(rawPoints, 10);
@@ -287,7 +301,7 @@
 			// Points and a due date are assignment vocabulary; sending them on
 			// another kind is refused server-side, so they are dropped here.
 			points: isAssignment && !Number.isNaN(pts as number) ? pts : null,
-			dueAt: isAssignment ? localInputToIso(due) : null,
+			dueAt: isAssignment ? dueToSend() : null,
 			category: category.trim() || null,
 			links: links
 				.map((r) => ({ label: r.label.trim(), url: r.url.trim() }))

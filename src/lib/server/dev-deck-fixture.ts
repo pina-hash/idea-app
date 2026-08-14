@@ -289,6 +289,126 @@ export async function ingestUploadedZip(
 	return ingestZip(id, zip, entryPath ?? null);
 }
 
+// ---------------------------------------------------------------------------
+// Staged ingestion (0105), mirrored for the harness.
+// ---------------------------------------------------------------------------
+
+/**
+ * The harness's stand-in for a `classroom_deck_ingest_jobs` row.
+ *
+ * It exists so /dev/classroom-deck drives the SAME four stages the real client
+ * drives -- begin, files (repeatedly), finish -- rather than a single call that
+ * would prove nothing about the shape that matters. `filesPerStage` is small on
+ * purpose: the real server stops on a TIME budget, which a local in-memory
+ * unpack would never reach, so the harness bounds by COUNT instead and the
+ * progress bar has the same several-calls-to-finish behaviour to report.
+ */
+interface DevJob {
+	id: string;
+	deckId: string;
+	zip: Uint8Array;
+	plan: DeckPlan;
+	filesDone: number;
+	byPath: Map<string, { bytes: Uint8Array; mimeType: string }>;
+	state: 'uploading' | 'done' | 'abandoned';
+	stageOpen: boolean;
+}
+
+const jobs = new Map<string, DevJob>();
+let jobSeq = 0;
+
+export const DEV_FILES_PER_STAGE = 4;
+
+export async function devIngestBegin(
+	deckId: string,
+	zip: Uint8Array,
+	entryPath: string | null
+): Promise<
+	| { ok: true; jobId: string; total: number; warnings: string[]; entryPath: string }
+	| { ok: false; error: string; candidates?: string[] }
+> {
+	const result = await planDeck(memoryZipSource(zip), entryPath);
+	if (!result.ok) return { ok: false, error: result.error, candidates: result.candidates };
+	const id = `dev-job-${++jobSeq}`;
+	jobs.set(id, {
+		id,
+		deckId,
+		zip,
+		plan: result.plan,
+		filesDone: 0,
+		byPath: new Map(),
+		state: 'uploading',
+		stageOpen: false
+	});
+	return {
+		ok: true,
+		jobId: id,
+		total: result.plan.files.length,
+		warnings: result.plan.warnings,
+		entryPath: result.plan.entryPath
+	};
+}
+
+/**
+ * Stores the next slice. `interrupt` reproduces a stage that stored files and
+ * died before recording them -- the case resumption exists for -- by leaving
+ * the stage OPEN and reporting no progress.
+ */
+export async function devIngestFiles(
+	jobId: string,
+	opts: { interrupt?: boolean } = {}
+): Promise<{ ok: boolean; reason?: string; filesDone?: number; total?: number; complete?: boolean }> {
+	const job = jobs.get(jobId);
+	if (!job) return { ok: false, reason: 'not_found' };
+	if (job.state !== 'uploading') return { ok: false, reason: job.state };
+
+	const source = memoryZipSource(job.zip);
+	const slice = job.plan.files.slice(job.filesDone, job.filesDone + DEV_FILES_PER_STAGE);
+	for (const file of slice) {
+		job.byPath.set(file.path, await readDeckFile(source, file));
+	}
+	if (opts.interrupt) {
+		// The bytes are stored; nothing is recorded. Exactly what a killed
+		// request leaves behind, and the next call has to cope with it.
+		job.stageOpen = true;
+		return { ok: false, reason: 'interrupted', filesDone: job.filesDone, total: job.plan.files.length };
+	}
+	job.filesDone += slice.length;
+	job.stageOpen = false;
+	return {
+		ok: true,
+		filesDone: job.filesDone,
+		total: job.plan.files.length,
+		complete: job.filesDone >= job.plan.files.length
+	};
+}
+
+export function devIngestFinish(jobId: string): { ok: boolean; reason?: string; deck?: StoredDeck } {
+	const job = jobs.get(jobId);
+	if (!job) return { ok: false, reason: 'not_found' };
+	if (job.state !== 'uploading') return { ok: false, reason: job.state };
+	if (job.filesDone < job.plan.files.length) return { ok: false, reason: 'incomplete' };
+	const deck: StoredDeck = {
+		id: job.deckId,
+		title: 'IDEA FSP Day 2',
+		plan: job.plan,
+		byPath: job.byPath
+	};
+	decks.set(job.deckId, deck);
+	job.state = 'done';
+	return { ok: true, deck };
+}
+
+export function devIngestAbort(jobId: string): void {
+	const job = jobs.get(jobId);
+	if (job && job.state === 'uploading') {
+		job.state = 'abandoned';
+		// Nothing partial survives: the harness's equivalent of deleting the
+		// deck's Drive folder.
+		job.byPath.clear();
+	}
+}
+
 export async function ingestFixture(
 	id: string,
 	opts: FixtureOptions & { entryPath?: string | null } = {}
