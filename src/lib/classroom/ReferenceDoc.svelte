@@ -342,10 +342,19 @@
 		display: flex;
 		gap: 0.2rem;
 		overflow-x: auto;
-		scrollbar-width: thin;
+		/* The bar still scrolls -- by drag, wheel, touch, and by the effect above
+		   when the active tab is off-screen -- but its scrollbar is hidden. On
+		   Windows it renders as a permanent full-width trough under the rail,
+		   which is louder than the tabs it sits beneath; the edge fade
+		   (.tab-rail.scrollable::after) is what says there are more tabs. */
+		scrollbar-width: none;
+		-ms-overflow-style: none;
 		-webkit-overflow-scrolling: touch;
 		scroll-snap-type: x proximity;
 		padding-bottom: 0;
+	}
+	.tabs::-webkit-scrollbar {
+		display: none;
 	}
 	.tab-rail.scrollable::after {
 		content: '';
