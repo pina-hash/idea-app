@@ -9,6 +9,7 @@
 		type SectionFeed
 	} from '$lib/classroom/feed';
 	import type { ClassroomItemKind } from '$lib/classroom/classroom';
+	import { sectionLabelText, sectionBlockText } from '$lib/section-label';
 
 	/**
 	 * The home-page classroom feed: one collapsible card per class, showing what
@@ -148,9 +149,9 @@
 					<div class="course-updated">{feed.section.course?.title ?? sectionTitle(feed.section)}</div>
 				</div>
 				<div class="course-meta">
-					<span class="course-badge badge-block">{feed.section.label}</span>
+					<span class="course-badge badge-block">{sectionLabelText(feed.section.label)}</span>
 					<span class="section-meta">
-						{#if feed.section.block}{feed.section.block} &middot; {/if}
+						{#if sectionBlockText(feed.section.block)}{sectionBlockText(feed.section.block)} &middot; {/if}
 						{feed.manages ? 'You teach this' : emailLocal(feed.section.teacher_email)}
 					</span>
 					{#if summary}

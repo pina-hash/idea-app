@@ -23,6 +23,7 @@
 
 import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
 import type { NotebookNoteRow } from '$lib/notebook-notes';
+import { formatSectionLabel } from '$lib/section-label';
 
 // ---------------------------------------------------------------------------
 // 1. The shapes `notebook_get_section_grid` actually returns (0069, reshaped
@@ -44,9 +45,10 @@ export interface ReviewSection {
 	teacher_email: string;
 }
 
-/** "IDEA209H · Period 2" -- how a section reads wherever it is named. */
+/** "IDEA209H · Section 1 · Block 2" -- how a section reads wherever it is named. */
 export function sectionName(section: ReviewSection): string {
-	return [section.course_code, section.label].filter(Boolean).join(' · ') || 'Section';
+	const name = formatSectionLabel(section.label, section.block);
+	return [section.course_code, name].filter(Boolean).join(' · ') || 'Section';
 }
 
 export interface GridSession {

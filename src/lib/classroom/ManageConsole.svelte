@@ -653,7 +653,6 @@
 					<div class="section-block" class:open={selectedSectionId === s.id}>
 						<button type="button" class="section-head" onclick={() => selectSection(s.id)}>
 							<span class="section-name">{sectionTitle(s)}</span>
-							{#if s.block}<span class="section-block-chip">{s.block}</span>{/if}
 							{#if s.active === false}<span class="draft-chip">Archived</span>{/if}
 							<span class="section-caret">{selectedSectionId === s.id ? '▾' : '▸'}</span>
 						</button>
@@ -1130,14 +1129,6 @@
 	.section-name {
 		font-weight: 700;
 		font-size: 0.95rem;
-	}
-	.section-block-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		color: var(--dim);
-		border: 1px solid var(--line);
-		border-radius: 999px;
-		padding: 0.02rem 0.45rem;
 	}
 	.section-caret {
 		margin-left: auto;

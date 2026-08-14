@@ -300,7 +300,7 @@
 				<span>Section</span>
 				<select bind:value={sectionId}>
 					{#each sections as s (s.id)}
-						<option value={s.id}>{sectionName(s)}{s.block ? ` · ${s.block}` : ''}</option>
+						<option value={s.id}>{sectionName(s)}</option>
 					{/each}
 				</select>
 			</label>

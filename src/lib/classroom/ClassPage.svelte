@@ -26,6 +26,7 @@
 		type LinkPreview
 	} from '$lib/classroom/classroom';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
+	import { formatSectionLabel } from '$lib/section-label';
 
 	/**
 	 * One class: the Stream view (announcements + assignments, pinned first,
@@ -316,7 +317,7 @@
 		<div class="eyebrow">{section.course?.code ?? 'IDEA // Classroom'}</div>
 		<h1>{section.course?.title ?? section.label}</h1>
 		<p class="section-line">
-			{section.label}{#if section.block}&nbsp;&middot; {section.block}{/if}
+			{formatSectionLabel(section.label, section.block)}
 			&nbsp;&middot; {emailLocal(section.teacher_email)}
 			{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
 			{#if canManage}

@@ -11,6 +11,8 @@
  * at" -- there is only one, and editing it changes every class at once.
  */
 
+import { formatSectionLabel } from '$lib/section-label';
+
 // ---------------------------------------------------------------------------
 // Row types (mirroring 0085's tables; embeds normalized by the helpers below)
 // ---------------------------------------------------------------------------
@@ -321,7 +323,8 @@ export function authorLabel(name: string | null, email: string): string {
 }
 
 export function sectionTitle(s: ClassroomSection): string {
-	return s.course ? `${s.course.code} · ${s.label}` : s.label;
+	const name = formatSectionLabel(s.label, s.block);
+	return s.course ? `${s.course.code} · ${name}` : name;
 }
 
 /** Course code + label ordering, with numeric-aware labels (Period 2 < Period 10). */

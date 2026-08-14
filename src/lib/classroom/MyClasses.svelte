@@ -6,6 +6,7 @@
 	import { sectionTitle, sortSections, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
 	import { recentUpdates, updateDateLabel } from '$lib/classroom/updates';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
+	import { formatSectionLabel } from '$lib/section-label';
 
 	/**
 	 * The classroom home: one card per section the caller can see (their
@@ -103,7 +104,7 @@
 						<span class="class-code">{s.course?.code ?? 'CLASS'}</span>
 						<span class="class-title">{s.course?.title ?? sectionTitle(s)}</span>
 						<span class="class-meta">
-							{s.label}{#if s.block}&nbsp;&middot; {s.block}{/if}
+							{formatSectionLabel(s.label, s.block)}
 							&nbsp;&middot; {emailLocal(s.teacher_email)}
 						</span>
 					</span>
