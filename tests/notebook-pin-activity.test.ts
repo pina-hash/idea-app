@@ -41,8 +41,17 @@ import {
 	type TestDb
 } from './db/harness';
 
-/** The notebook chain, plus folders, plus pinning. */
-const CHAIN = [...MIGRATIONS, '0091_notebook_pin_and_activity.sql'] as const;
+/**
+ * The notebook chain with pinning spliced in at its real place in history --
+ * BEFORE 0098, which is the last entry of the shared chain. Appending it would
+ * apply 0091 after a later migration, which is not an ordering anyone will ever
+ * run for real.
+ */
+const CHAIN = [
+	...MIGRATIONS.filter((m) => m !== '0098_notebook_session_postings.sql'),
+	'0091_notebook_pin_and_activity.sql',
+	'0098_notebook_session_postings.sql'
+] as const;
 
 const MIGRATION_PATH = fileURLToPath(
 	new URL('../supabase/migrations/0091_notebook_pin_and_activity.sql', import.meta.url)

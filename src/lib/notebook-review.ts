@@ -56,6 +56,16 @@ export interface GridSession {
 	unit_number: number;
 	session_date: string;
 	session_label: string;
+	/**
+	 * Every section this check-in runs in (0098). ONE canonical check-in can be
+	 * posted to several sections, so the grid's own column list is a filtered
+	 * view of it -- this is the full set, for the "posted to" line.
+	 *
+	 * Optional because the caller may not have asked for it: the grid RPC
+	 * reports it, and so does the manager's own load, but a surface that only
+	 * needs column headers has no use for it.
+	 */
+	section_ids?: string[];
 }
 
 export interface GridStudent {
@@ -316,10 +326,19 @@ export function completionLabel(summary: StudentSummary): string {
 // A second export of the same grade in a different shape is exactly the kind
 // of duplicate that quietly stops matching.
 
-/** What `notebook_admin_upsert_session` takes; `id` null creates. */
+/**
+ * What `notebook_admin_upsert_session` takes; `id` null creates.
+ *
+ * `section_ids` is the FULL set the check-in should run in, not a delta: the
+ * RPC reconciles its postings against it (0098), exactly as
+ * `classroom_set_reward_rules` and friends take a full replacement. The UI
+ * only ever sends the current set on an edit, so the destructive half of that
+ * reconcile is never reached by accident -- adding and removing a section are
+ * their own explicit actions below.
+ */
 export interface SessionInput {
 	id: string | null;
-	section_id: string;
+	section_ids: string[];
 	unit_number: number;
 	session_date: string;
 	session_label: string;
@@ -342,6 +361,23 @@ export interface ReviewTransports {
 	loadSessions: (sectionId: string) => Promise<ReviewResult<GridSession[]>>;
 	saveSession: (input: SessionInput) => Promise<ReviewResult<{ session_id: string }>>;
 	deleteSession: (sessionId: string) => Promise<ReviewResult<{ detached_entries: number }>>;
+	/** Run an existing check-in in more sections too (0098). */
+	addSessionSections: (
+		sessionId: string,
+		sectionIds: string[]
+	) => Promise<ReviewResult<{ added: number }>>;
+	/**
+	 * Stop running it in ONE section. `ok: false` with `reason: 'last_posting'`
+	 * is the designed answer for the only-class case, not an error -- and the
+	 * entries filed against it in that section are DETACHED, never destroyed,
+	 * which is what `detached_entries` reports.
+	 */
+	removeSessionSection: (
+		sessionId: string,
+		sectionId: string
+	) => Promise<
+		ReviewResult<{ ok: boolean; reason?: string; detached_entries?: number; remaining?: number }>
+	>;
 	loadGrid: (sectionId: string, unitNumber: number | null) => Promise<ReviewResult<SectionGrid>>;
 	loadEntry: (entryId: string) => Promise<ReviewResult<ReviewEntry>>;
 	flagEntry: (

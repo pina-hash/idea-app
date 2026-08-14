@@ -153,16 +153,16 @@ beforeAll(async () => {
 	sessionA = (
 		await db.asUser(instructorA.id, (q) =>
 			q<{ result: { session_id: string } }>(
-				'select public.notebook_admin_upsert_session($1, $2, $3, $4) as result',
-				[sectionA, 3, '2026-10-14', 'Bearing teardown']
+				'select public.notebook_admin_upsert_session($1::uuid[], $2, $3, $4) as result',
+				[[sectionA], 3, '2026-10-14', 'Bearing teardown']
 			)
 		)
 	).rows[0].result.session_id;
 	sessionB = (
 		await db.asUser(instructorB.id, (q) =>
 			q<{ result: { session_id: string } }>(
-				'select public.notebook_admin_upsert_session($1, $2, $3, $4) as result',
-				[sectionB, 1, '2026-10-15', 'Capstone kickoff']
+				'select public.notebook_admin_upsert_session($1::uuid[], $2, $3, $4) as result',
+				[[sectionB], 1, '2026-10-15', 'Capstone kickoff']
 			)
 		)
 	).rows[0].result.session_id;

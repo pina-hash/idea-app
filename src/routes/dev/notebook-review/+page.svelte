@@ -87,9 +87,12 @@
 
 	// ---- the in-memory database -------------------------------------------
 
-	interface StoreSession extends GridSession {
-		section_id: string;
-	}
+	/**
+	 * Since 0098 a check-in is ONE canonical record with a posting per section,
+	 * so the store holds the full set rather than a single owner. GridSession
+	 * already carries `section_ids`, so nothing is added here at all.
+	 */
+	type StoreSession = GridSession & { section_ids: string[] };
 	interface StoreEntry {
 		id: string;
 		student_id: string;
@@ -124,11 +127,13 @@
 	}
 
 	let sessions = $state<StoreSession[]>([
-		{ id: 'ses-a1', section_id: 'sec-a', unit_number: 3, session_date: '2026-08-03', session_label: 'Design brief' },
-		{ id: 'ses-a2', section_id: 'sec-a', unit_number: 3, session_date: '2026-08-05', session_label: 'Shaft stackup calcs' },
-		{ id: 'ses-a3', section_id: 'sec-a', unit_number: 3, session_date: '2026-08-07', session_label: 'Bearing teardown' },
-		{ id: 'ses-a4', section_id: 'sec-a', unit_number: 2, session_date: '2026-07-28', session_label: 'Shop safety walk' },
-		{ id: 'ses-b1', section_id: 'sec-b', unit_number: 3, session_date: '2026-08-04', session_label: 'Gear train sketch' }
+		{ id: 'ses-a1', section_ids: ['sec-a'], unit_number: 3, session_date: '2026-08-03', session_label: 'Design brief' },
+		// SHARED ACROSS BOTH SECTIONS: the case the whole change exists for.
+		// One record, one date, a column in each of the two grids.
+		{ id: 'ses-a2', section_ids: ['sec-a', 'sec-b'], unit_number: 3, session_date: '2026-08-05', session_label: 'Shaft stackup calcs' },
+		{ id: 'ses-a3', section_ids: ['sec-a'], unit_number: 3, session_date: '2026-08-07', session_label: 'Bearing teardown' },
+		{ id: 'ses-a4', section_ids: ['sec-a'], unit_number: 2, session_date: '2026-07-28', session_label: 'Shop safety walk' },
+		{ id: 'ses-b1', section_ids: ['sec-b'], unit_number: 3, session_date: '2026-08-04', session_label: 'Gear train sketch' }
 	]);
 
 	const STUDENTS: StoreStudent[] = [
@@ -234,7 +239,11 @@
 			custom_label: 'Shop layout notes'
 		},
 		// Section B, so the chair has something to switch to.
-		mk('e-10', 'stu-5', 'sec-b', 'ses-b1', '2026-08-04T17:00:00Z', 'compliant', [photo('p-10', 1)])
+		mk('e-10', 'stu-5', 'sec-b', 'ses-b1', '2026-08-04T17:00:00Z', 'compliant', [photo('p-10', 1)]),
+		// Filed by a sec-b student against the SHARED check-in (ses-a2). It has
+		// to stay on sec-b's grid and off sec-a's, and it is what unposting
+		// sec-b must detach rather than destroy.
+		mk('e-11', 'stu-4', 'sec-b', 'ses-a2', '2026-08-05T18:20:00Z', 'compliant', [photo('p-11', 1)])
 	]);
 
 	function mk(
@@ -288,6 +297,23 @@
 		return SECTIONS.some((s) => s.id === sectionId && s.teacher_email === INSTRUCTOR_EMAIL);
 	}
 
+	/**
+	 * 0098's _notebook_detach_session_entries: entries filed against a check-in
+	 * are DETACHED, never deleted -- session_id nulled, custom_label backfilled
+	 * from the check-in's own label. `sectionId` null = every section (delete),
+	 * otherwise just that one (unpost, or a reconcile that drops it).
+	 */
+	function detachFrom(session: StoreSession, sectionId: string | null): number {
+		let detached = 0;
+		entries = entries.map((e) => {
+			if (e.session_id !== session.id) return e;
+			if (sectionId !== null && e.section_id !== sectionId) return e;
+			detached++;
+			return { ...e, session_id: null, custom_label: e.custom_label ?? session.session_label };
+		});
+		return detached;
+	}
+
 	/** The RPC's LA-calendar-date comparison against session_date. */
 	function onTime(uploadIso: string, sessionDate: string): boolean {
 		const day = new Date(uploadIso).toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
@@ -297,7 +323,11 @@
 	function buildGrid(sectionId: string, unitNumber: number | null): SectionGrid {
 		const section = SECTIONS.find((s) => s.id === sectionId)!;
 		const sessionRows = sessions
-			.filter((s) => s.section_id === sectionId && (unitNumber === null || s.unit_number === unitNumber))
+			.filter(
+				(s) =>
+					s.section_ids.includes(sectionId) &&
+					(unitNumber === null || s.unit_number === unitNumber)
+			)
 			.sort(
 				(a, b) =>
 					a.session_date.localeCompare(b.session_date) ||
@@ -308,7 +338,9 @@
 		// Roster (0094): the section's ACTIVE enrollments UNION anyone holding
 		// entries or excusals here, keyed by email because a roster row may have
 		// no account behind it.
-		const sectionSessionIds = new Set(sessions.filter((s) => s.section_id === sectionId).map((s) => s.id));
+		const sectionSessionIds = new Set(
+			sessions.filter((s) => s.section_ids.includes(sectionId)).map((s) => s.id)
+		);
 		const roster: GridStudent[] = STUDENTS.filter(
 			(p) =>
 				p.section_id === sectionId ||
@@ -332,7 +364,15 @@
 		for (const student of roster) {
 			for (const session of sessionRows) {
 				const mine = entries
-					.filter((e) => e.student_id === student.id && e.session_id === session.id)
+					// SCOPED TO THIS SECTION, which the single-section model got
+					// for free: a shared check-in also holds the other class's
+					// entries, and they belong on that class's grid.
+					.filter(
+						(e) =>
+							e.student_id === student.id &&
+							e.session_id === session.id &&
+							e.section_id === sectionId
+					)
 					.sort((a, b) => b.upload_timestamp.localeCompare(a.upload_timestamp));
 				const latest = mine[0];
 				const excused = EXCUSALS.some(
@@ -357,7 +397,7 @@
 			section,
 			unit_number: unitNumber,
 			generated_at: new Date().toISOString(),
-			sessions: sessionRows.map(({ section_id: _s, ...rest }) => rest),
+			sessions: sessionRows,
 			students: roster,
 			cells
 		};
@@ -371,34 +411,53 @@
 
 	const transports: ReviewTransports = {
 		async loadSessions(sectionId) {
-			note(`select notebook_sessions where section_id=${JSON.stringify(sectionId)}`);
+			note(`select notebook_session_postings where section_id=${JSON.stringify(sectionId)}`);
 			return {
 				ok: true,
-				value: sessions
-					.filter((s) => s.section_id === sectionId)
-					.map(({ section_id: _s, ...rest }) => rest)
+				// Every section each one runs in, not just the one asked about --
+				// what the real transport's two-step read is for.
+				value: sessions.filter((s) => s.section_ids.includes(sectionId)).map((s) => ({ ...s }))
 			};
 		},
 
 		async saveSession(input) {
 			note(`rpc notebook_admin_upsert_session ${JSON.stringify(input)}`);
-			if (!mayManage(input.section_id)) {
+			// ALL-OR-NOTHING over every target, the real _notebook_check_session_targets.
+			if (input.section_ids.length === 0) {
+				return { ok: false, error: 'Select at least one section for this check-in.' };
+			}
+			if (!input.section_ids.every(mayManage)) {
 				return {
 					ok: false,
-					error: 'Only the section instructor or a site admin can manage notebook sessions.'
+					error: 'You are not the teacher of record for one of the selected sections.'
 				};
 			}
 			if (input.session_label.trim() === '') {
 				return { ok: false, error: 'A session label is required.' };
 			}
 			if (input.id) {
+				const existing = sessions.find((s) => s.id === input.id);
+				if (!existing) return { ok: false, error: 'That session does not exist.' };
+				// Editing needs EVERY section it runs in, not just the ones
+				// being listed -- otherwise reconcile-to-mine would be a way to
+				// seize a shared check-in.
+				if (!existing.section_ids.every(mayManage)) {
+					return {
+						ok: false,
+						error:
+							'Only the teacher of record for every section this check-in runs in can edit it.'
+					};
+				}
+				const dropped = existing.section_ids.filter((id) => !input.section_ids.includes(id));
+				for (const id of dropped) detachFrom(existing, id);
 				sessions = sessions.map((s) =>
 					s.id === input.id
 						? {
 								...s,
 								unit_number: input.unit_number,
 								session_date: input.session_date,
-								session_label: input.session_label
+								session_label: input.session_label,
+								section_ids: [...input.section_ids]
 							}
 						: s
 				);
@@ -409,7 +468,7 @@
 				...sessions,
 				{
 					id,
-					section_id: input.section_id,
+					section_ids: [...input.section_ids],
 					unit_number: input.unit_number,
 					session_date: input.session_date,
 					session_label: input.session_label
@@ -418,24 +477,75 @@
 			return { ok: true, value: { session_id: id } };
 		},
 
+		async addSessionSections(sessionId, sectionIds) {
+			note(
+				`rpc notebook_add_session_postings ${JSON.stringify({ p_session_id: sessionId, p_section_ids: sectionIds })}`
+			);
+			const session = sessions.find((s) => s.id === sessionId);
+			if (!session) return { ok: false, error: 'That session does not exist.' };
+			if (!session.section_ids.every(mayManage)) {
+				return {
+					ok: false,
+					error:
+						'Only the teacher of record for every section this check-in runs in can add another.'
+				};
+			}
+			if (!sectionIds.every(mayManage)) {
+				return {
+					ok: false,
+					error: 'You are not the teacher of record for one of the selected sections.'
+				};
+			}
+			const added = sectionIds.filter((id) => !session.section_ids.includes(id));
+			sessions = sessions.map((s) =>
+				s.id === sessionId ? { ...s, section_ids: [...s.section_ids, ...added] } : s
+			);
+			return { ok: true, value: { added: added.length } };
+		},
+
+		async removeSessionSection(sessionId, sectionId) {
+			note(
+				`rpc notebook_remove_session_posting ${JSON.stringify({ p_session_id: sessionId, p_section_id: sectionId })}`
+			);
+			const session = sessions.find((s) => s.id === sessionId);
+			if (!session || !session.section_ids.includes(sectionId)) {
+				return { ok: false, error: 'That check-in does not run in that section.' };
+			}
+			// THE WEAKER PERMISSION, deliberately: taking your own class off a
+			// shared check-in needs only that section.
+			if (!mayManage(sectionId)) {
+				return {
+					ok: false,
+					error: "Only the section's teacher of record or a site admin can remove it."
+				};
+			}
+			if (session.section_ids.length <= 1) {
+				return { ok: true, value: { ok: false, reason: 'last_posting' } };
+			}
+			const detached = detachFrom(session, sectionId);
+			sessions = sessions.map((s) =>
+				s.id === sessionId
+					? { ...s, section_ids: s.section_ids.filter((id) => id !== sectionId) }
+					: s
+			);
+			return {
+				ok: true,
+				value: { ok: true, detached_entries: detached, remaining: session.section_ids.length - 1 }
+			};
+		},
+
 		async deleteSession(sessionId) {
 			note(`rpc notebook_admin_delete_session ${JSON.stringify({ p_session_id: sessionId })}`);
 			const session = sessions.find((s) => s.id === sessionId);
 			if (!session) return { ok: false, error: 'That session does not exist.' };
-			if (!mayManage(session.section_id)) {
+			if (!session.section_ids.every(mayManage)) {
 				return {
 					ok: false,
-					error: 'Only the section instructor or a site admin can delete notebook sessions.'
+					error:
+						'Only the teacher of record for every section this check-in runs in can delete it.'
 				};
 			}
-			// Entries are DETACHED, never deleted: session_id nulled and
-			// custom_label backfilled from the session's own label.
-			let detached = 0;
-			entries = entries.map((e) => {
-				if (e.session_id !== sessionId) return e;
-				detached++;
-				return { ...e, session_id: null, custom_label: e.custom_label ?? session.session_label };
-			});
+			const detached = detachFrom(session, null);
 			sessions = sessions.filter((s) => s.id !== sessionId);
 			return { ok: true, value: { detached_entries: detached } };
 		},

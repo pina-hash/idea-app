@@ -38,6 +38,13 @@ export interface NotebookPhoto {
 /** A notebook_sessions row: an instructor-scheduled required check-in. */
 export interface NotebookSession {
 	id: string;
+	/**
+	 * WHICH OF THE STUDENT'S OWN CLASSES this check-in arrived through -- the
+	 * posting's section, not a property of the check-in. Since 0098 one
+	 * canonical check-in can run in several sections, so a student sees it once
+	 * per class of theirs it runs in, and this is what the entry gets filed
+	 * under.
+	 */
 	section_id: string;
 	unit_number: number;
 	session_date: string;

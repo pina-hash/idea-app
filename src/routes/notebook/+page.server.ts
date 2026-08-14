@@ -155,12 +155,41 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 
 		const sectionIds = rows.map((r) => r.id);
 		if (sectionIds.length) {
+			// Since 0098 a check-in is a canonical record plus one posting per
+			// section, so the student's own classes are matched through the
+			// POSTING -- which is also what carries the section this entry will
+			// be filed under when a shared check-in runs in more than one of
+			// them. `!inner` makes the posting the row, so a check-in shared
+			// with a class they are not in still arrives named for theirs.
 			const { data: sessionRows } = await supabase
-				.from('notebook_sessions')
-				.select('id, section_id, unit_number, session_date, session_label')
+				.from('notebook_session_postings')
+				.select(
+					'section_id, notebook_sessions!inner ( id, unit_number, session_date, session_label )'
+				)
 				.in('section_id', sectionIds)
-				.order('session_date', { ascending: false });
-			sessions = (sessionRows ?? []) as NotebookSession[];
+				.order('session_date', { ascending: false, referencedTable: 'notebook_sessions' });
+
+			interface PostingRow {
+				section_id: string;
+				notebook_sessions: {
+					id: string;
+					unit_number: number;
+					session_date: string;
+					session_label: string;
+				} | null;
+			}
+			sessions = ((sessionRows ?? []) as unknown as PostingRow[])
+				.filter((r): r is PostingRow & { notebook_sessions: NonNullable<PostingRow['notebook_sessions']> } =>
+					Boolean(r.notebook_sessions)
+				)
+				.map((r) => ({
+					id: r.notebook_sessions.id,
+					section_id: r.section_id,
+					unit_number: r.notebook_sessions.unit_number,
+					session_date: r.notebook_sessions.session_date,
+					session_label: r.notebook_sessions.session_label
+				}))
+				.sort((a, b) => b.session_date.localeCompare(a.session_date));
 		}
 	}
 

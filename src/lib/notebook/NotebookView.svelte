@@ -427,7 +427,15 @@
 			// own name, so the UI must not re-impose a required-title rule.
 			const first = new FormData();
 			first.set('photo', await prepared(staged[0].file));
-			if (selectedSession) first.set('session_id', selectedSession);
+			if (selectedSession) {
+				first.set('session_id', selectedSession);
+				// Which class this entry is for. Since 0098 one check-in can run
+				// in several, and the picked one already knows which of the
+				// student's own classes it came from -- so it is named rather
+				// than left for the server to infer.
+				const picked = sessions.find((s) => s.id === selectedSession);
+				if (picked?.section_id) first.set('section_id', picked.section_id);
+			}
 			const trimmed = title.trim();
 			if (!selectedSession && trimmed) first.set('custom_label', trimmed);
 			if (folderChoice) first.set('folder_id', folderChoice);

@@ -143,8 +143,18 @@ async function visibleEntryIds(userId: string): Promise<string[]> {
 	});
 }
 
+/**
+ * THROUGH 0094 AND NO FURTHER, deliberately. This file is about what 0094 did
+ * at the moment it ran -- it re-executes 0094's own file over the live schema
+ * at the end -- and 0098 later replaces the single-section shape it asserts
+ * (notebook_sessions.section_id, and the composite key that referenced it).
+ * Booting past it would change the subject; 0098's own guarantees are pinned by
+ * tests/notebook-session-postings.test.ts.
+ */
+const CHAIN = MIGRATIONS.filter((m) => m !== '0098_notebook_session_postings.sql');
+
 beforeAll(async () => {
-	db = await startTestDb();
+	db = await startTestDb(CHAIN);
 
 	owner = await createUser(db, 'apina@boscotech.edu', 'Site Owner');
 	teacherA = await createUser(db, 'jbuilder@boscotech.edu', 'J Builder');

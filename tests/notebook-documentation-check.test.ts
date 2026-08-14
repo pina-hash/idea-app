@@ -77,7 +77,8 @@ const MIGRATIONS = [
 	'0088_notebook_folders.sql',
 	'0094_notebook_classroom_sections.sql',
 	'0095_classroom_leveled_rubrics.sql',
-	'0097_notebook_documentation_check.sql'
+	'0097_notebook_documentation_check.sql',
+	'0098_notebook_session_postings.sql'
 ] as const;
 
 const MIGRATION_0097 = readFileSync(
@@ -241,8 +242,8 @@ beforeAll(async () => {
 	for (const [n, label] of ['Design brief', 'Bench test', 'Teardown', 'Writeup'].entries()) {
 		const res = await rpc<{ session_id: string }>(
 			teacherA.id,
-			'public.notebook_admin_upsert_session($1::uuid, $2::integer, $3::date, $4, null)',
-			[p1, 1, `2026-09-0${n + 1}`, label]
+			'public.notebook_admin_upsert_session($1::uuid[], $2::integer, $3::date, $4, null)',
+			[[p1], 1, `2026-09-0${n + 1}`, label]
 		);
 		sessionIds.push(res.session_id);
 	}

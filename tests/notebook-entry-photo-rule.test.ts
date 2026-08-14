@@ -44,12 +44,15 @@ beforeAll(async () => {
 		teacherEmail: teacher.email
 	});
 
-	const session = await db.sql<{ id: string }>(
-		`insert into public.notebook_sessions (section_id, unit_number, session_date, session_label)
-		 values ($1, 3, current_date, 'Bearing teardown') returning id`,
-		[sectionId]
+	// Since 0098 a check-in is a canonical row plus one posting per section,
+	// so it is seeded through the real RPC rather than by hand.
+	const session = await db.asUser(teacher.id, (q) =>
+		q<{ result: { session_id: string } }>(
+			'select public.notebook_admin_upsert_session($1::uuid[], $2, $3, $4) as result',
+			[[sectionId], 3, '2026-10-14', 'Bearing teardown']
+		)
 	);
-	sessionId = session.rows[0].id;
+	sessionId = session.rows[0].result.session_id;
 }, 120_000);
 
 afterAll(async () => {

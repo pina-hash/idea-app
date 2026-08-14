@@ -240,6 +240,23 @@
 		return result;
 	}
 
+	async function addSessionSections(id: string, sectionIds: string[]) {
+		const result = await transports.addSessionSections(id, sectionIds);
+		if (result.ok) await refresh();
+		return result;
+	}
+
+	async function removeSessionSection(id: string, target: string) {
+		const result = await transports.removeSessionSection(id, target);
+		// Refetch on a real removal only: `ok: false` is the last-posting
+		// refusal, which changed nothing.
+		if (result.ok && result.value.ok) {
+			closeEntry();
+			await refresh();
+		}
+		return result;
+	}
+
 	const openStudent = $derived.by(() => {
 		const cell = openCell;
 		return cell ? grid?.students.find((s) => s.id === cell.student_id) : undefined;
@@ -325,7 +342,15 @@
 		{/if}
 
 		{#if sectionId}
-			<SessionManager {sectionId} {sessions} onSave={saveSession} onDelete={deleteSession} />
+			<SessionManager
+				{sectionId}
+				{sections}
+				{sessions}
+				onSave={saveSession}
+				onDelete={deleteSession}
+				onAddSections={addSessionSections}
+				onRemoveSection={removeSessionSection}
+			/>
 		{/if}
 
 		{#if grid}

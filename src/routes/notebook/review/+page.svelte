@@ -39,21 +39,49 @@
 
 	const transports: ReviewTransports = {
 		async loadSessions(sectionId) {
-			// A plain RLS-scoped select, not an RPC: notebook_sessions is
-			// readable by any signed-in user (0069), which is also why the grid
-			// itself is the thing that gates section access, not this.
+			// Plain RLS-scoped selects, not an RPC: notebook_sessions and its
+			// postings are readable by any signed-in user (0069, 0098), which is
+			// also why the grid itself is what gates section access, not this.
+			//
+			// The embed carries EVERY section each check-in runs in, not just
+			// this one -- filtering the embed would answer "which of these did I
+			// ask about", which is the one thing the "posted to" line must not
+			// say. So the postings are read first, then the check-ins by id.
+			const posted = await data.supabase
+				.from('notebook_session_postings')
+				.select('session_id')
+				.eq('section_id', sectionId);
+			if (posted.error) return fail(posted.error, 'Could not load this section’s check-ins.');
+
+			const ids = (posted.data ?? []).map((r) => r.session_id as string);
+			if (ids.length === 0) return { ok: true, value: [] };
+
 			const { data: rows, error } = await data.supabase
 				.from('notebook_sessions')
-				.select('id, unit_number, session_date, session_label')
-				.eq('section_id', sectionId)
+				.select(
+					'id, unit_number, session_date, session_label, notebook_session_postings ( section_id )'
+				)
+				.in('id', ids)
 				.order('session_date');
 			if (error) return fail(error, 'Could not load this section’s check-ins.');
-			return { ok: true, value: (rows ?? []) as GridSession[] };
+
+			const value = ((rows ?? []) as unknown as Record<string, unknown>[]).map(
+				(row): GridSession => ({
+					id: row.id as string,
+					unit_number: Number(row.unit_number),
+					session_date: row.session_date as string,
+					session_label: row.session_label as string,
+					section_ids: ((row.notebook_session_postings ?? []) as { section_id: string }[]).map(
+						(p) => p.section_id
+					)
+				})
+			);
+			return { ok: true, value };
 		},
 
 		async saveSession(input: SessionInput) {
 			const { data: result, error } = await data.supabase.rpc('notebook_admin_upsert_session', {
-				p_section_id: input.section_id,
+				p_section_ids: input.section_ids,
 				p_unit_number: input.unit_number,
 				p_session_date: input.session_date,
 				p_session_label: input.session_label,
@@ -69,6 +97,27 @@
 			});
 			if (error) return fail(error, 'Could not delete that check-in.');
 			return { ok: true, value: result as { detached_entries: number } };
+		},
+
+		async addSessionSections(sessionId, sectionIds) {
+			const { data: result, error } = await data.supabase.rpc('notebook_add_session_postings', {
+				p_session_id: sessionId,
+				p_section_ids: sectionIds
+			});
+			if (error) return fail(error, 'Could not add that check-in to those classes.');
+			return { ok: true, value: result as { added: number } };
+		},
+
+		async removeSessionSection(sessionId, sectionId) {
+			const { data: result, error } = await data.supabase.rpc(
+				'notebook_remove_session_posting',
+				{ p_session_id: sessionId, p_section_id: sectionId }
+			);
+			if (error) return fail(error, 'Could not remove that check-in from that class.');
+			return {
+				ok: true,
+				value: result as { ok: boolean; reason?: string; detached_entries?: number }
+			};
 		},
 
 		async loadGrid(sectionId, unitNumber) {

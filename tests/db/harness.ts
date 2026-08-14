@@ -36,6 +36,14 @@
 // top still passes its own list; what changed is only that "the notebook
 // chain" is a longer thing than it was.
 //
+// AND IN 0098, for the same kind of reason: check-ins became multi-section
+// (one canonical notebook_sessions row, one notebook_session_postings row per
+// section -- 0085's Classroom split applied again), which changes the shape
+// every notebook suite seeds against. notebook_admin_upsert_session takes a
+// uuid[] now, notebook_sessions has no section_id column, and the entries'
+// composite key points at the postings table. Leaving it out would leave every
+// other notebook suite testing a schema that no longer exists.
+//
 // Startup runs initdb + a migration pass and takes a few seconds; the suite
 // pays that once per file (beforeAll), not per test.
 
@@ -64,7 +72,8 @@ export const MIGRATIONS = [
 	'0078_notebook_entry_notes.sql',
 	'0082_classroom.sql',
 	'0088_notebook_folders.sql',
-	'0094_notebook_classroom_sections.sql'
+	'0094_notebook_classroom_sections.sql',
+	'0098_notebook_session_postings.sql'
 ] as const;
 
 export type QueryFn = <R extends pg.QueryResultRow = pg.QueryResultRow>(
