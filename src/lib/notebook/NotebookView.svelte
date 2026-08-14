@@ -88,6 +88,7 @@
 		foldersReady = true,
 		pinsReady = true,
 		sessionsReady = true,
+		initialCheckIn = null,
 		activity = [],
 		uploadReady = true,
 		readOnly = false,
@@ -131,6 +132,19 @@
 		 * label, which they already do for a free entry.
 		 */
 		sessionsReady?: boolean;
+		/**
+		 * A check-in to open already selected -- the deep link an IDEA Classroom
+		 * stream card arrives on. Already validated by the caller against this
+		 * student's own check-ins, so it can only name one of `sessions`.
+		 *
+		 * It is read ONCE, at setup: a deep link is a one-time intent, not a
+		 * setting, and after the first render the student's own picks own the
+		 * form. It applies only while the check-in is still OUTSTANDING -- landing
+		 * on one they have already filed against would quietly aim the next upload
+		 * at a covered check-in, which is the same reason the default effect below
+		 * treats a covered pick as stale.
+		 */
+		initialCheckIn?: { sessionId: string; sectionId: string } | null;
 		/**
 		 * 0078 applied. False turns the WRITTEN NOTE half off on its own --
 		 * photos keep working -- rather than blanking a notebook because one
@@ -190,9 +204,37 @@
 
 	// ---- new-entry form state ----------------------------------------------
 
+	/**
+	 * The deep link, resolved ONCE at setup rather than in an effect.
+	 *
+	 * Reading props during initialization is deliberate: this is a one-time
+	 * intent carried in the URL, and seeding `sessionTouched` here is what makes
+	 * the nearest-outstanding default effect below stand down for it (it bails on
+	 * a touched, non-stale pick). Doing it in an effect instead would race that
+	 * one for no benefit.
+	 */
+	// svelte-ignore state_referenced_locally
+	const linkedPick =
+		initialCheckIn &&
+		outstandingSessions(sessions, entries).some(
+			(s) => s.id === initialCheckIn.sessionId && s.section_id === initialCheckIn.sectionId
+		)
+			? initialCheckIn
+			: null;
+
 	/** `null` is the deliberate free-form path: no session, title optional. */
-	let selectedSession = $state<string | null>(null);
-	let sessionTouched = $state(false);
+	let selectedSession = $state<string | null>(linkedPick?.sessionId ?? null);
+	/**
+	 * WHICH CLASS the picked check-in arrived through. Held beside the id rather
+	 * than looked up from it, because one canonical check-in can be posted to
+	 * several classes (0098) and a student in two of them has two postings with
+	 * the SAME id -- `sessions.find(s => s.id === ...)` would silently resolve to
+	 * whichever sorted first, filing the entry under a class the student did not
+	 * pick. The pair is what `notebook_entries` keys on, so the pair is what the
+	 * form holds.
+	 */
+	let selectedSectionId = $state<string | null>(linkedPick?.sectionId ?? null);
+	let sessionTouched = $state(linkedPick !== null);
 	/**
 	 * Free-form only: photos (the original path, unchanged and the default) or
 	 * a written note with no photo at all. Held as a plain preference and read
@@ -249,7 +291,9 @@
 		const stale = selectedSession !== null && !open.some((s) => s.id === selectedSession);
 		if (sessionTouched && !stale) return;
 		sessionTouched = false;
-		selectedSession = nearestOutstanding(sessions, entries, todayIso())?.id ?? null;
+		const next = nearestOutstanding(sessions, entries, todayIso());
+		selectedSession = next?.id ?? null;
+		selectedSectionId = next?.section_id ?? null;
 	});
 
 	// Filing several entries into one folder in a row is the common case, so
@@ -262,9 +306,12 @@
 		folderChoice = suggested && folders.some((f) => f.id === suggested) ? suggested : null;
 	});
 
-	function chooseSession(id: string | null) {
+	/** Takes the PAIR, so pressing one of two postings of a shared check-in
+	    files under the class whose button was pressed. */
+	function chooseSession(id: string | null, sectionId: string | null = null) {
 		sessionTouched = true;
 		selectedSession = id;
+		selectedSectionId = id ? sectionId : null;
 	}
 
 	function chooseMode(mode: 'photos' | 'note') {
@@ -293,6 +340,7 @@
 		const pending = takePendingCapture() as
 			| {
 					session?: string | null;
+					section?: string | null;
 					mode?: 'photos' | 'note';
 					title?: string;
 					folder?: string | null;
@@ -308,6 +356,15 @@
 			if (pending.session !== undefined) {
 				sessionTouched = true;
 				selectedSession = pending.session;
+				// Restored as the PAIR. A marker written before this field existed
+				// carries no section, so it falls back to the first posting of that
+				// check-in -- which is the only answer available and the right one
+				// whenever there is just the one.
+				selectedSectionId =
+					pending.section ??
+					(pending.session
+						? (sessions.find((s) => s.id === pending.session)?.section_id ?? null)
+						: null);
 			}
 			if (pending.mode) freeMode = pending.mode;
 			if (typeof pending.title === 'string') title = pending.title;
@@ -470,12 +527,17 @@
 			first.set('photo', await prepared(staged[0].file));
 			if (selectedSession) {
 				first.set('session_id', selectedSession);
-				// Which class this entry is for. Since 0098 one check-in can run
-				// in several, and the picked one already knows which of the
-				// student's own classes it came from -- so it is named rather
-				// than left for the server to infer.
-				const picked = sessions.find((s) => s.id === selectedSession);
-				if (picked?.section_id) first.set('section_id', picked.section_id);
+				// Which class this entry is for. Since 0098 one check-in can run in
+				// several, so the section is taken from the PICK rather than looked
+				// up from the id -- a lookup would resolve a shared check-in to
+				// whichever posting sorted first, which may not be the class whose
+				// button was pressed. Falling back to the lookup covers a pick made
+				// before this field existed; a null lets the server resolve it
+				// (_notebook_resolve_session_section), which is right when there is
+				// only one posting and refuses honestly when there is not.
+				const sectionId =
+					selectedSectionId ?? sessions.find((s) => s.id === selectedSession)?.section_id ?? null;
+				if (sectionId) first.set('section_id', sectionId);
 			}
 			const trimmed = title.trim();
 			if (!selectedSession && trimmed) first.set('custom_label', trimmed);
@@ -868,13 +930,20 @@
 					<legend>What is this for?</legend>
 					{#if open.length}
 						<div class="quick-picks">
-							{#each open as s (s.id)}
+							<!-- Keyed on the PAIR, not the check-in id. One canonical
+							     check-in posted to two of this student's classes arrives
+							     as two postings sharing an id (0098), which a bare `s.id`
+							     key would reject as a duplicate -- and they are genuinely
+							     two picks, because the entry is filed under one class or
+							     the other. -->
+							{#each open as s (`${s.id}:${s.section_id}`)}
+								{@const picked = selectedSession === s.id && selectedSectionId === s.section_id}
 								<button
 									type="button"
 									class="pick"
-									class:selected={selectedSession === s.id}
-									aria-pressed={selectedSession === s.id}
-									onclick={() => chooseSession(s.id)}
+									class:selected={picked}
+									aria-pressed={picked}
+									onclick={() => chooseSession(s.id, s.section_id)}
 								>
 									<span class="pick-label">{s.session_label}</span>
 									<span class="pick-meta">{sessionMeta(s)}</span>
@@ -1004,6 +1073,7 @@
 						{uploadReady}
 						captureContext={{
 							session: selectedSession,
+							section: selectedSectionId,
 							mode: freeMode,
 							title,
 							folder: folderChoice

@@ -124,11 +124,26 @@ interface LoadResult {
 	sectionLabel: string | null;
 	canReview: boolean;
 	uploadReady: boolean;
+	initialCheckIn: { sessionId: string; sectionId: string } | null;
 }
 
-/** Calls the REAL load the way SvelteKit would, for `user` against `database`. */
-function runLoad(database: TestDb, keys: Awaited<ReturnType<typeof loadForeignKeys>>, user: SeededUser) {
+/**
+ * Calls the REAL load the way SvelteKit would, for `user` against `database`.
+ *
+ * `query` is the page's own URL search string. It is a real URL rather than a
+ * bare object because the load reads `url.searchParams` -- the deep link an
+ * IDEA Classroom check-in card arrives on -- and handing it something
+ * searchParams-shaped would test this file's idea of the event instead of
+ * SvelteKit's.
+ */
+function runLoad(
+	database: TestDb,
+	keys: Awaited<ReturnType<typeof loadForeignKeys>>,
+	user: SeededUser,
+	query = ''
+) {
 	return (load as unknown as (event: unknown) => Promise<LoadResult>)({
+		url: new URL(`http://localhost/notebook${query}`),
 		locals: {
 			supabase: createPostgrestShim(database, keys, user.id),
 			claims: { sub: user.id, email: user.email, role: 'authenticated' }
@@ -317,6 +332,53 @@ describe('the real load against the full chain (0069 through 0099)', () => {
 		const asBob = await runLoad(db, fks, bob);
 		expect(asBob.configured).toBe(true);
 		expect(asBob.entries).toEqual([]);
+	});
+
+	/**
+	 * `?checkin=&section=` -- the deep link an IDEA Classroom stream card
+	 * arrives on. It is resolved against `sessions`, the list this load just
+	 * built from the student's OWN classes, so the interesting property is not
+	 * that a real id resolves but that anything else lands on null: a URL
+	 * parameter must not be able to point the page at a check-in it was not
+	 * already offering.
+	 */
+	describe('the check-in deep link', () => {
+		it('resolves a check-in the student really has', async () => {
+			const linked = await runLoad(db, fks, alice, `?checkin=${checkInId}&section=${sectionId}`);
+			expect(linked.initialCheckIn).toEqual({ sessionId: checkInId, sectionId });
+		});
+
+		it('is absent when nothing is asked for', () => {
+			expect(result.initialCheckIn).toBeNull();
+		});
+
+		it('refuses a check-in that is not this student’s', async () => {
+			// A real check-in, in a class Bob is not in. He can see the row (0069
+			// makes notebook_sessions readable), which is exactly why the load
+			// validates against HIS OWN sessions rather than against existence.
+			const bob = await createUser(db, 'bo@boscotech.net', 'Bo Brooks');
+			const asBob = await runLoad(db, fks, bob, `?checkin=${checkInId}&section=${sectionId}`);
+			expect(asBob.sessions).toEqual([]);
+			expect(asBob.initialCheckIn).toBeNull();
+		});
+
+		it('refuses an id that names nothing, without failing the page', async () => {
+			const junk = await runLoad(
+				db,
+				fks,
+				alice,
+				'?checkin=00000000-0000-0000-0000-000000000000&section=nonsense'
+			);
+			expect(junk.initialCheckIn).toBeNull();
+			// The page still loaded normally around it.
+			expect(junk.configured).toBe(true);
+			expect(junk.sessions).toHaveLength(1);
+		});
+
+		it('falls back to the check-in’s only posting when no section is named', async () => {
+			const noSection = await runLoad(db, fks, alice, `?checkin=${checkInId}`);
+			expect(noSection.initialCheckIn).toEqual({ sessionId: checkInId, sectionId });
+		});
 	});
 });
 

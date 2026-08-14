@@ -14,6 +14,14 @@
 	markViewed, so looking at a class as a student never writes a view row in
 	their name. `viewAs` rides into the attachment URLs so the proxy answers as
 	this student would be answered rather than as the admin driving the page.
+
+	NO checkIns EITHER, deliberately. This page's whole payload comes from
+	`classroom_view_as_section`, which returns items only -- and a check-in
+	STATUS is per student, so showing one here would mean either reading the
+	admin's own notebook rows under the student's name (wrong) or a new
+	view-as RPC (real scope, and 0099's own rule is that view-as reads are one
+	admin-gated function, never an assembled query). The notebook link still
+	points into the impersonated notebook, which is where that state lives.
 -->
 <ClassPage
 	section={data.section}

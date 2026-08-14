@@ -364,19 +364,32 @@ export function createPostgrestShim(db: TestDb, fks: readonly ForeignKey[], user
 				}
 			};
 		},
+		/**
+		 * A function call in NAMED notation, which is what PostgREST does: it
+		 * matches the JSON body's keys to the function's parameter names rather
+		 * than to their positions. Building it the same way is what lets a test
+		 * catch a caller that named a parameter the shipped function does not
+		 * have -- exactly the failure the 0096 signature trap describes, where a
+		 * defaulted trailing parameter leaves two overloads and the call stops
+		 * resolving.
+		 */
 		async rpc(name: string, args?: Record<string, unknown>) {
-			if (args && Object.keys(args).length) {
-				throw new Error(`The shim only models no-argument RPCs; ${name} was given arguments.`);
-			}
+			const entries = Object.entries(args ?? {});
+			const call = entries.length
+				? `public.${quote(name)}(${entries
+						.map(([key], i) => `${quote(key)} => $${i + 1}`)
+						.join(', ')})`
+				: `public.${quote(name)}()`;
 			try {
 				const rows = await db.asUser(
 					userId,
-					async (q) => (await q(`select public.${quote(name)}() as result`)).rows
+					async (q) => (await q(`select ${call} as result`, entries.map(([, v]) => v))).rows
 				);
 				return { data: (rows[0] as { result: unknown } | undefined)?.result ?? null, error: null };
 			} catch (error) {
-				// PostgREST reports a function that does not exist as PGRST202,
-				// which $lib/server/admin.ts matches on by code.
+				// PostgREST reports a function that does not exist -- including one
+				// whose arguments do not match any overload -- as PGRST202, which
+				// $lib/server/admin.ts matches on by code.
 				return { data: null, error: { code: 'PGRST202', message: (error as Error).message } };
 			}
 		}

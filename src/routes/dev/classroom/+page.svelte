@@ -9,6 +9,7 @@
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import { registerLocalAttachmentUrl } from '$lib/classroom/classroom';
+	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 	import type {
 		ClassroomAttachment,
 		ClassroomCourse,
@@ -44,7 +45,12 @@
 		type SubmissionFileRow,
 		type SubmissionRow
 	} from '$lib/classroom/assignment-spec';
-	import type { GridCell, ReviewTransports, SectionGrid } from '$lib/notebook-review';
+	import {
+		gridSummary,
+		type GridCell,
+		type ReviewTransports,
+		type SectionGrid
+	} from '$lib/notebook-review';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
 
 	/**
@@ -1339,6 +1345,79 @@
 
 	const emptySection = $derived(withCourse({ ...section2, id: 's-empty' }));
 
+	// --- Notebook check-ins in the class stream (0098) ---------------------
+	//
+	// What the class page load hands ClassPage. The session ids match the
+	// notebook grid fixture below on purpose, so the student's own cards and
+	// the teacher's compliance summary are telling one story about one class.
+	//
+	// The first one is posted to BOTH Period 1 and Period 2 (the multi-section
+	// case 0098 exists for) and carries a DIFFERENT status in each -- Alice has
+	// filed it in P1 and not in P2 -- which is the state a per-student, per-class
+	// status has to be able to represent.
+	const CHECK_INS: Record<string, ClassCheckIn[]> = {
+		's-1': [
+			{
+				session_id: 'ns-1',
+				section_id: 's-1',
+				unit_number: 3,
+				session_date: '2026-08-08',
+				session_label: 'Bearing teardown',
+				status: 'filed',
+				flag_reason: null
+			},
+			{
+				session_id: 'ns-2',
+				section_id: 's-1',
+				unit_number: 3,
+				session_date: '2026-08-10',
+				session_label: 'Shaft stackup',
+				status: 'flagged',
+				flag_reason: 'illegible'
+			},
+			{
+				session_id: 'ns-3',
+				section_id: 's-1',
+				unit_number: 4,
+				session_date: '2026-08-12',
+				session_label: 'Gearbox build',
+				status: 'missing',
+				flag_reason: null
+			}
+		],
+		's-2': [
+			{
+				session_id: 'ns-1',
+				section_id: 's-2',
+				unit_number: 3,
+				session_date: '2026-08-08',
+				session_label: 'Bearing teardown',
+				status: 'missing',
+				flag_reason: null
+			},
+			{
+				session_id: 'ns-4',
+				section_id: 's-2',
+				unit_number: 4,
+				session_date: '2026-08-14',
+				session_label: 'Motor mount sketch',
+				status: 'excused',
+				flag_reason: null
+			}
+		]
+	};
+
+	/** The same rows a MANAGER gets: no personal status on any of them. */
+	const asManager = (rows: ClassCheckIn[]): ClassCheckIn[] =>
+		rows.map((c) => ({ ...c, status: null, flag_reason: null }));
+
+	/**
+	 * Off = what the class page gets on a project without the notebook
+	 * migrations, or in a class with nothing scheduled: an empty list and no
+	 * badge. The stream must read exactly as it did before this feature existed.
+	 */
+	let checkInsApplied = $state(true);
+
 	// --- Notebook compliance (the manage console's per-section element) ----
 	//
 	// Mirrors notebook_get_section_grid's OWN payload shape and its OWN
@@ -1461,6 +1540,10 @@
 		<input type="checkbox" bind:checked={notebookRefuses} data-testid="sim-notebook-refuses" />
 		grid refuses this section
 	</label>
+	<label class="harness-toggle">
+		<input type="checkbox" bind:checked={checkInsApplied} data-testid="sim-check-ins" />
+		class has check-ins
+	</label>
 </div>
 
 {#if view === 'home'}
@@ -1475,6 +1558,7 @@
 	<ClassPage
 		section={section1}
 		items={inSection('s-1', true)}
+		checkIns={checkInsApplied ? CHECK_INS['s-1'] : []}
 		{transports}
 		{fetchPreview}
 		{submitFeedback}
@@ -1486,6 +1570,8 @@
 		items={inSection('s-1', false)}
 		sections={ownSections}
 		canManage={true}
+		checkIns={checkInsApplied ? asManager(CHECK_INS['s-1']) : []}
+		sectionOutstanding={checkInsApplied ? gridSummary(NB_GRIDS['s-1']).outstanding : null}
 		{transports}
 		{fetchPreview}
 		{submitFeedback}
@@ -1497,14 +1583,25 @@
 		items={inSection('s-2', false)}
 		sections={ownSections}
 		canManage={true}
+		checkIns={checkInsApplied ? asManager(CHECK_INS['s-2']) : []}
+		sectionOutstanding={checkInsApplied ? gridSummary(NB_GRIDS['s-2']).outstanding : null}
 		{transports}
 		{fetchPreview}
 		{submitFeedback}
+		notebookHref="/dev/notebook-review?section=s-2"
 	/>
 {:else if view === 'class2'}
-	<ClassPage section={section2} items={inSection('s-2', true)} {transports} {fetchPreview} />
+	<ClassPage
+		section={section2}
+		items={inSection('s-2', true)}
+		checkIns={checkInsApplied ? CHECK_INS['s-2'] : []}
+		{transports}
+		{fetchPreview}
+		notebookHref="/dev/notebook"
+	/>
 {:else if view === 'class-empty'}
-	<ClassPage section={emptySection} items={[]} />
+	<!-- No check-ins at all: the class page must read exactly as it always did. -->
+	<ClassPage section={emptySection} items={[]} notebookHref="/dev/notebook" />
 {:else if view === 'item'}
 	{#if detailItem}
 		<ItemDetail section={section1} item={detailItem} {transports} {fetchPreview} {submitFeedback} />

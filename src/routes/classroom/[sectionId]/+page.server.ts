@@ -1,8 +1,63 @@
 import { error, redirect } from '@sveltejs/kit';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { normalizeSectionRow } from '$lib/classroom/classroom';
 import { SECTION_SELECT, itemsForSection, mergeInstructorMaterials } from '$lib/classroom/transports';
+import { checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins';
+import { NOTEBOOK_POSTING_SELECT } from '$lib/notebook-selects';
+import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import type { PageServerLoad } from './$types';
+
+/**
+ * The check-ins scheduled for THIS class (0098), without anybody's status.
+ *
+ * `notebook_session_postings` and `notebook_sessions` are both readable by any
+ * signed-in user (`using (true)`) and carry nothing private -- a check-in id
+ * beside a class id, and a label with a date. The `.eq` is what scopes this to
+ * one class, and it is a scoping filter rather than a privacy one; the STATUS
+ * reads below are where privacy actually lives.
+ *
+ * Reuses NOTEBOOK_POSTING_SELECT rather than writing a second select string:
+ * that one names an embedded resource, PostgREST resolves embeds against real
+ * foreign keys, and tests/notebook-page-load.test.ts already holds it against
+ * the live catalog. A private copy here would be a second assertion about the
+ * schema with nothing checking it -- which is exactly how the /notebook load
+ * came to embed a key 0098 had removed.
+ */
+interface PostingRow {
+	section_id: string;
+	notebook_sessions: {
+		id: string;
+		unit_number: number;
+		session_date: string;
+		session_label: string;
+	} | null;
+}
+
+async function sectionCheckIns(
+	supabase: SupabaseClient,
+	sectionId: string
+): Promise<Omit<ClassCheckIn, 'status' | 'flag_reason'>[] | null> {
+	const { data, error: postingError } = await supabase
+		.from('notebook_session_postings')
+		.select(NOTEBOOK_POSTING_SELECT)
+		.eq('section_id', sectionId);
+	// null means "the notebook is not here", which the page renders as no
+	// check-ins at all rather than as an error -- migrations are applied by hand,
+	// so a deploy without them is a real state.
+	if (postingError) return null;
+	return ((data ?? []) as unknown as PostingRow[])
+		.filter((r): r is PostingRow & { notebook_sessions: NonNullable<PostingRow['notebook_sessions']> } =>
+			Boolean(r.notebook_sessions)
+		)
+		.map((r) => ({
+			session_id: r.notebook_sessions.id,
+			section_id: r.section_id,
+			unit_number: r.notebook_sessions.unit_number,
+			session_date: r.notebook_sessions.session_date,
+			session_label: r.notebook_sessions.session_label
+		}));
+}
 
 /**
  * One class: Stream + Classwork. Every read runs as the CALLER'S OWN session
@@ -20,6 +75,13 @@ import type { PageServerLoad } from './$types';
  * `sections` is loaded only for a manager: it is what the composer's LINKAGE
  * controls offer ("also post to...") and what the "also posted to" line names,
  * and a student has no use for either.
+ *
+ * NOTEBOOK CHECK-INS (0098) ride along as a SECOND SOURCE, merged into the
+ * stream by the page. They cannot ride the item query: they live in
+ * `notebook_session_postings` + `notebook_sessions`, which have no foreign key
+ * to `classroom_items`, so there is nothing for PostgREST to embed through.
+ * That is the same reason they are not, and must not become, a gradeable
+ * Classroom item -- see $lib/classroom/class-check-ins.
  */
 export const load: PageServerLoad = async ({ params, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
@@ -31,9 +93,10 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		.maybeSingle();
 	if (!sectionRow) error(404, 'Not found');
 
-	const [{ data: manages }, content] = await Promise.all([
+	const [{ data: manages }, content, checkInRows] = await Promise.all([
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId }),
-		itemsForSection(supabase, params.sectionId)
+		itemsForSection(supabase, params.sectionId),
+		sectionCheckIns(supabase, params.sectionId)
 	]);
 
 	const canManage = manages === true;
@@ -47,11 +110,115 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		items = await mergeInstructorMaterials(supabase, items);
 	}
 
+	/**
+	 * WHERE THE VIEWER STANDS ON EACH CHECK-IN.
+	 *
+	 * A STUDENT gets their own status, from two reads that are pinned to them
+	 * TWO independent ways:
+	 *
+	 *   1. RLS. `notebook_entries` is own-rows-or-section-staff and
+	 *      `notebook_session_excusals` is own-row-or-section-staff, so a student
+	 *      asking these questions can only be answered about themselves. That is
+	 *      the boundary, and it is the database's.
+	 *   2. `.eq('student_id', ...)`. NOT a substitute for the policy and not the
+	 *      usual /coin-balance shape -- it is here because these two policies
+	 *      legitimately return OTHER people's rows to a different caller (a
+	 *      teacher of this section), and a page that computed "my status" from
+	 *      whatever came back would be right only for as long as the branch below
+	 *      stayed correct. Attribution and authorization are different jobs; this
+	 *      filter does the first one.
+	 *
+	 * A MANAGER takes neither read. Their own policy would hand them the whole
+	 * class, and there is no personal status for a teacher on their own class's
+	 * check-in anyway -- `status: null` is what says so, and it is what stops a
+	 * card claiming a state assembled from somebody else's work.
+	 *
+	 * A STUDENT'S OWN OUTSTANDING COUNT IS NOT RETURNED HERE. It is derived from
+	 * this same `checkIns` array by the page (outstandingCheckIns), so the badge
+	 * and the cards it summarizes read one list and cannot disagree.
+	 * `sectionOutstanding` is the manager's number and only ever theirs.
+	 */
+	let checkIns: ClassCheckIn[] = [];
+	let sectionOutstanding: number | null = null;
+
+	if (checkInRows?.length && !canManage) {
+		const sessionIds = checkInRows.map((c) => c.session_id);
+		const [{ data: entryRows }, { data: excusalRows }] = await Promise.all([
+			supabase
+				.from('notebook_entries')
+				.select('session_id, status, flag_reason')
+				.eq('student_id', claims.sub)
+				.eq('section_id', params.sectionId)
+				.in('session_id', sessionIds),
+			supabase
+				.from('notebook_session_excusals')
+				.select('session_id')
+				.eq('student_id', claims.sub)
+				.in('session_id', sessionIds)
+		]);
+
+		type EntryRow = {
+			session_id: string;
+			status: 'compliant' | 'flagged' | 'pending_review';
+			flag_reason: ClassCheckIn['flag_reason'];
+		};
+		// A student may hold SEVERAL entries against one check-in (nothing forbids
+		// adding a second page). The one that decides the status is the one that
+		// still wants something: a flag outranks anything else, then an awaited
+		// review, then filed -- the same precedence cellDisplay uses on the grid.
+		const rank: Record<EntryRow['status'], number> = { flagged: 0, pending_review: 1, compliant: 2 };
+		const bySession = new Map<string, EntryRow>();
+		for (const row of (entryRows ?? []) as EntryRow[]) {
+			const held = bySession.get(row.session_id);
+			if (!held || rank[row.status] < rank[held.status]) bySession.set(row.session_id, row);
+		}
+		const excused = new Set(
+			((excusalRows ?? []) as { session_id: string }[]).map((r) => r.session_id)
+		);
+
+		checkIns = checkInRows.map((c) => {
+			const entry = bySession.get(c.session_id);
+			return {
+				...c,
+				status: checkInStatus(entry, excused.has(c.session_id)),
+				flag_reason: entry?.status === 'flagged' ? (entry.flag_reason ?? null) : null
+			};
+		});
+	} else if (checkInRows?.length) {
+		checkIns = checkInRows.map((c) => ({ ...c, status: null, flag_reason: null }));
+
+		/**
+		 * The manager's own number: how much notebook work this CLASS is behind
+		 * on, which is the question a teacher looking at their class page has --
+		 * "my status" is not one they can have.
+		 *
+		 * It is `notebook_get_section_grid` + `gridSummary`, the SAME call and the
+		 * same summarizer the manage console's compliance element already uses
+		 * (0099), so the two surfaces cannot report different totals for the same
+		 * class. The RPC asks `classroom_manages_section` itself, which is the
+		 * same question `canManage` is, so this can never offer a grid the
+		 * database would refuse.
+		 *
+		 * The cost is honest: it returns the whole roster x check-ins grid to
+		 * count part of it. It runs only for a manager, only on their own class's
+		 * page, and fails soft to no badge at all -- and a lighter count would
+		 * mean re-deriving the roster and the cell rules outside the one function
+		 * that owns them.
+		 */
+		const { data: grid, error: gridError } = await supabase.rpc('notebook_get_section_grid', {
+			p_section_id: params.sectionId,
+			p_unit_number: null
+		});
+		if (!gridError && grid) sectionOutstanding = gridSummary(grid as SectionGrid).outstanding;
+	}
+
 	return {
 		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		canManage,
 		sections,
 		attachmentsEnabled: driveConfigured(),
-		items
+		items,
+		checkIns,
+		sectionOutstanding
 	};
 };

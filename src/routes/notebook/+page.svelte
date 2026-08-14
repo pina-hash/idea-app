@@ -156,6 +156,7 @@
 	foldersReady={data.foldersReady}
 	pinsReady={data.pinsReady}
 	sessionsReady={data.sessionsReady}
+	initialCheckIn={data.initialCheckIn}
 	activity={data.activity}
 	uploadReady={data.uploadReady}
 	{createEntry}

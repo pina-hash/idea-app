@@ -110,6 +110,25 @@
 			unit_number: 2,
 			session_date: '2026-07-29',
 			session_label: 'Design brief + sketches'
+		},
+		// THE SHARED CHECK-IN: one canonical check-in (0098) posted to two of
+		// this student's own classes, so the load emits it twice with the SAME
+		// id. Two genuinely different picks -- the entry is filed under one class
+		// or the other -- which is why the quick-picks key on the PAIR and the
+		// deep link carries both ids.
+		{
+			id: 'ses-4',
+			section_id: 'sec-1',
+			unit_number: 4,
+			session_date: '2026-08-11',
+			session_label: 'Gearbox build (both periods)'
+		},
+		{
+			id: 'ses-4',
+			section_id: 'sec-2',
+			unit_number: 4,
+			session_date: '2026-08-11',
+			session_label: 'Gearbox build (both periods)'
 		}
 	];
 
@@ -405,6 +424,27 @@
 				}))
 	);
 	const sessions = $derived(account === 'student' && sessionsReady ? SESSIONS : []);
+
+	/**
+	 * The deep link a Classroom stream card arrives on, driven from this page's
+	 * own URL exactly as the real route drives it from the server load --
+	 * `?checkin=ses-4&section=sec-2` opens the notebook with that class's
+	 * posting of the shared check-in already picked.
+	 *
+	 * Validated against `sessions` here for the same reason the real load
+	 * validates against it there: the parameter may only ever name something
+	 * this student was already being offered.
+	 */
+	const askedCheckIn = page.url.searchParams.get('checkin');
+	const askedSection = page.url.searchParams.get('section');
+	const initialCheckIn = $derived.by(() => {
+		if (!askedCheckIn) return null;
+		const match =
+			(askedSection
+				? sessions.find((s) => s.id === askedCheckIn && s.section_id === askedSection)
+				: null) ?? sessions.find((s) => s.id === askedCheckIn);
+		return match ? { sessionId: match.id, sectionId: match.section_id } : null;
+	});
 	const sectionLabel = $derived(account === 'student' ? 'Engineering I Honors' : null);
 	const canReview = $derived(account === 'instructor');
 
@@ -804,6 +844,7 @@
 		{configured}
 		{photosReady}
 		{sessionsReady}
+		{initialCheckIn}
 		{notesReady}
 		{foldersReady}
 		{pinsReady}

@@ -41,7 +41,7 @@ import type { PageServerLoad } from './$types';
  * had repointed the key that embed resolved through (see $lib/notebook-selects).
  * One stale probe blanked a working feature.
  */
-export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
+export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
 	const access = await notebookAccess(supabase, claims.sub, claims.email as string | undefined);
@@ -287,8 +287,39 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		else activity = (activityRows ?? []) as { id: string; last_activity_at: string }[];
 	}
 
+	/**
+	 * `?checkin=<session>&section=<class>` -- the deep link an IDEA Classroom
+	 * stream card arrives on, so the upload flow opens already pointed at the
+	 * check-in the student clicked.
+	 *
+	 * VALIDATED AGAINST `sessions`, WHICH IS THE POINT. That list is the
+	 * student's OWN classes' check-ins, assembled above from RLS-scoped reads,
+	 * so an id naming a check-in that is not theirs simply finds no match and
+	 * preselects nothing -- the same shape /notebook/review uses for its own
+	 * `?section=`. The parameter can therefore only ever pick something the page
+	 * was already going to offer; it grants no reach of its own.
+	 *
+	 * BOTH ids matter. Since 0098 an entry is filed against a (check-in, class)
+	 * PAIR, and a student enrolled in two classes that share a check-in has two
+	 * postings to choose between. The class page knows which one the student was
+	 * looking at; matching on the pair is what carries that through. A missing
+	 * or unmatched `section` falls back to the first posting of that check-in,
+	 * which is exactly right in the ordinary case of one.
+	 */
+	const askedCheckIn = url.searchParams.get('checkin');
+	const askedSection = url.searchParams.get('section');
+	let initialCheckIn: { sessionId: string; sectionId: string } | null = null;
+	if (askedCheckIn) {
+		const match =
+			(askedSection
+				? sessions.find((s) => s.id === askedCheckIn && s.section_id === askedSection)
+				: null) ?? sessions.find((s) => s.id === askedCheckIn);
+		if (match) initialCheckIn = { sessionId: match.id, sectionId: match.section_id };
+	}
+
 	return {
 		configured,
+		initialCheckIn,
 		photosReady,
 		notesReady,
 		foldersReady,

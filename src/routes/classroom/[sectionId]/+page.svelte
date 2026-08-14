@@ -39,6 +39,8 @@
 	sections={data.sections}
 	canManage={data.canManage}
 	attachmentsEnabled={data.attachmentsEnabled}
+	checkIns={data.checkIns}
+	sectionOutstanding={data.sectionOutstanding}
 	{transports}
 	{submitFeedback}
 	{notebookHref}

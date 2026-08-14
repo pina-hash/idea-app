@@ -19,12 +19,22 @@
 		reorderedIds,
 		sectionTitle,
 		shortWhen,
-		streamItems,
 		type ClassroomComposerTransports,
 		type ClassroomItem,
 		type ClassroomSection,
 		type LinkPreview
 	} from '$lib/classroom/classroom';
+	import {
+		checkInHref,
+		checkInMeta,
+		checkInStatusLabel,
+		checkInTone,
+		outstandingBadge,
+		outstandingCheckIns,
+		streamEntries,
+		type ClassCheckIn
+	} from '$lib/classroom/class-check-ins';
+	import { flagReasonLabel } from '$lib/notebook';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
 	import { formatSectionLabel } from '$lib/section-label';
 
@@ -50,6 +60,8 @@
 		attachmentsEnabled = true,
 		basePath = '/classroom',
 		notebookHref = null,
+		checkIns = [],
+		sectionOutstanding = null,
 		viewAs = null,
 		fetchPreview = null,
 		submitFeedback = null,
@@ -78,6 +90,24 @@
 		 * words the link. Null renders nothing.
 		 */
 		notebookHref?: string | null;
+		/**
+		 * The notebook check-ins scheduled for this class (0098), each carrying
+		 * the VIEWER'S OWN status -- or a null status for a manager, who has none.
+		 *
+		 * They render in the stream beside announcements and assignments, as a
+		 * NOTICE that links into the notebook. A check-in is not a
+		 * `classroom_items` row and never becomes one here: it has no submission,
+		 * no rubric and no grade on this page, because the unit it belongs to is
+		 * already graded exactly once as a Documentation Check assignment (0097).
+		 */
+		checkIns?: ClassCheckIn[];
+		/**
+		 * A MANAGER'S count: how much notebook work this whole class is behind on,
+		 * from the same grid the manage console summarizes. Null for a student --
+		 * theirs is derived from `checkIns` instead, so the badge and the cards
+		 * under it read one list.
+		 */
+		sectionOutstanding?: number | null;
 		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
 		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
@@ -98,8 +128,23 @@
 	 */
 	let seen = $state<Record<string, boolean>>({});
 
-	const stream = $derived(streamItems(items));
+	/**
+	 * Items and check-ins in ONE list, ordered by streamEntries -- not a second
+	 * section stacked above or below, which would read as a bolted-on system and
+	 * would bury a check-in under a term of announcements. Item order is
+	 * `streamItems`' own and is not recomputed; see class-check-ins.ts.
+	 */
+	const stream = $derived(streamEntries(items, checkIns));
 	const groups = $derived(classworkGroups(items));
+
+	/**
+	 * The count beside the notebook link. A manager's is the class's, a student's
+	 * is their own and comes from the very cards below -- and zero renders
+	 * NOTHING, because absence is the right signal for nothing due.
+	 */
+	const outstanding = $derived(
+		outstandingBadge(canManage ? sectionOutstanding : outstandingCheckIns(checkIns))
+	);
 	/** Controls appear only where BOTH the section allows it and a write path exists. */
 	const editable = $derived(canManage && !!transports);
 	const editingItem = $derived(items.find((i) => i.id === editing) ?? null);
@@ -255,6 +300,46 @@
 	{/if}
 {/snippet}
 
+{#snippet checkInCard(checkIn: ClassCheckIn)}
+	{@const href = canManage ? notebookHref : notebookHref && checkInHref(checkIn, notebookHref)}
+	<article class="card stream-card check-in-card">
+		<div class="stream-head">
+			<span class="checkin-flag">Notebook check-in</span>
+			<span class="stream-when">{checkInMeta(checkIn)}</span>
+			{#if checkIn.status}
+				<span class="chip tone-{checkInTone(checkIn.status)}" data-testid="check-in-status">
+					{checkInStatusLabel(checkIn.status)}
+				</span>
+			{/if}
+		</div>
+
+		{#snippet body()}
+			<h2 class="stream-title">{checkIn.session_label}</h2>
+			<p class="asg-meta">
+				{#if canManage}
+					Recorded in the notebook, not handed in here
+				{:else if checkIn.status === 'missing'}
+					Photograph your page and file it in your notebook
+				{:else if checkIn.status === 'flagged'}
+					{flagReasonLabel(checkIn.flag_reason) ?? 'Flagged'} &middot; add to your entry
+				{:else if checkIn.status === 'awaiting_review'}
+					Your teacher is looking at this
+				{:else if checkIn.status === 'excused'}
+					You do not need to file this one
+				{:else}
+					Filed in your notebook
+				{/if}
+			</p>
+		{/snippet}
+
+		{#if href}
+			<a class="stream-link" {href} data-testid="check-in-link">{@render body()}</a>
+		{:else}
+			{@render body()}
+		{/if}
+	</article>
+{/snippet}
+
 {#snippet editorFor(item: ClassroomItem)}
 	{#if editable && editing === item.id}
 		{#key item.id}
@@ -340,6 +425,15 @@
 			{#if notebookHref}
 				&nbsp;&middot; <a class="manage-link" href={notebookHref} data-testid="class-notebook-link">
 					{canManage ? 'Notebook review' : 'My notebook'}
+					{#if outstanding !== null}
+						<span
+							class="outstanding-badge"
+							data-testid="notebook-outstanding"
+							title={canManage
+								? 'Check-ins this class is behind on'
+								: 'Check-ins that still need something from you'}>{outstanding}</span
+						>
+					{/if}
 				</a>
 			{/if}
 		</p>
@@ -383,44 +477,49 @@
 				</p>
 			</section>
 		{:else}
-			{#each stream as item (item.id)}
-				<article class="card stream-card" class:pinned={item.pinned}>
-					<div class="stream-head">
+			{#each stream as entry (entry.key)}
+				{#if entry.kind === 'check-in'}
+					{@render checkInCard(entry.checkIn)}
+				{:else}
+					{@const item = entry.item}
+					<article class="card stream-card" class:pinned={item.pinned}>
+						<div class="stream-head">
+							{#if item.kind === 'assignment'}
+								<span class="asg-flag">Assignment</span>
+							{:else}
+								<span class="stream-author">{authorLabel(item.author_name, item.author_email)}</span>
+							{/if}
+							<span class="stream-when">{shortWhen(item.created_at)}</span>
+							{@render badges(item)}
+							{@render manageActions(item, null)}
+						</div>
+
 						{#if item.kind === 'assignment'}
-							<span class="asg-flag">Assignment</span>
+							<a class="stream-link" href={`${basePath}/${section.id}/item/${item.id}`}>
+								<h2 class="stream-title">{itemTitle(item)}</h2>
+								<p class="asg-meta">
+									Due {formatDue(item.due_at)}
+									{#if item.points != null}&nbsp;&middot; {item.points} pts{/if}
+									{#if item.category}&nbsp;&middot; {item.category}{/if}
+								</p>
+							</a>
 						{:else}
-							<span class="stream-author">{authorLabel(item.author_name, item.author_email)}</span>
+							{#if item.title}<h2 class="stream-title">{item.title}</h2>{/if}
+							<p class="stream-body">{item.body}</p>
 						{/if}
-						<span class="stream-when">{shortWhen(item.created_at)}</span>
-						{@render badges(item)}
-						{@render manageActions(item, null)}
-					</div>
 
-					{#if item.kind === 'assignment'}
-						<a class="stream-link" href={`${basePath}/${section.id}/item/${item.id}`}>
-							<h2 class="stream-title">{itemTitle(item)}</h2>
-							<p class="asg-meta">
-								Due {formatDue(item.due_at)}
-								{#if item.points != null}&nbsp;&middot; {item.points} pts{/if}
-								{#if item.category}&nbsp;&middot; {item.category}{/if}
+						{#if canManage && alsoIn(item).length}
+							<p class="also-line">
+								Also posted to {alsoIn(item)
+									.map((s) => sectionTitle(s))
+									.join(', ')}
 							</p>
-						</a>
-					{:else}
-						{#if item.title}<h2 class="stream-title">{item.title}</h2>{/if}
-						<p class="stream-body">{item.body}</p>
-					{/if}
+						{/if}
 
-					{#if canManage && alsoIn(item).length}
-						<p class="also-line">
-							Also posted to {alsoIn(item)
-								.map((s) => sectionTitle(s))
-								.join(', ')}
-						</p>
-					{/if}
-
-					{@render extras(item)}
-					{@render editorFor(item)}
-				</article>
+						{@render extras(item)}
+						{@render editorFor(item)}
+					</article>
+				{/if}
 			{/each}
 		{/if}
 	{:else if groups.length === 0}
@@ -613,6 +712,48 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		color: var(--dim);
+	}
+	/* A check-in is a notice, not an item: it borrows the stream card so the
+	   feed reads as one surface, and marks itself apart with a dashed edge
+	   rather than a colour of its own. */
+	.check-in-card {
+		border-style: dashed;
+	}
+	.checkin-flag {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.65rem;
+		letter-spacing: 0.08em;
+		color: var(--cyan);
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		padding: 0.08rem 0.4rem;
+	}
+	/* Status tones reuse the module's existing palette; crimson stays reserved
+	   for LIVE/REC/error and never appears here. */
+	.chip.tone-attention {
+		color: var(--amber);
+		border-color: var(--amber);
+	}
+	.chip.tone-good {
+		color: var(--green);
+		border-color: var(--green);
+	}
+	.chip.tone-muted {
+		color: var(--dim);
+	}
+	/* The one number on the hero line. It renders only when it is non-zero, so
+	   it is always saying something. */
+	.outstanding-badge {
+		display: inline-block;
+		margin-left: 0.25rem;
+		min-width: 1.05rem;
+		text-align: center;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		color: var(--bg0);
+		background: var(--gold);
+		border-radius: 999px;
+		padding: 0.02rem 0.32rem;
 	}
 	.also-line,
 	.edited-line {
