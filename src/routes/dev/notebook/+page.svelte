@@ -44,6 +44,14 @@
 	type Account = 'student' | 'instructor' | 'plain';
 	let account = $state<Account>('student');
 	let configured = $state(true);
+	/**
+	 * The two capabilities that are about a READ rather than a migration: the
+	 * photos embed and the check-in reads. Both degrade on their own so a
+	 * failure there costs that feature instead of blanking the notebook, which
+	 * is exactly what a single `configured` used to do.
+	 */
+	let photosReady = $state(true);
+	let sessionsReady = $state(true);
 	let notesReady = $state(true);
 	let foldersReady = $state(true);
 	let pinsReady = $state(true);
@@ -372,7 +380,7 @@
 	let instructorEntries = $state<NotebookEntry[]>([...INSTRUCTOR_ENTRIES]);
 	let plainEntries = $state<NotebookEntry[]>([]);
 
-	const entries = $derived(
+	const rawEntries = $derived(
 		account === 'student'
 			? bulk
 				? [...studentEntries, ...fillerEntries]
@@ -381,7 +389,22 @@
 				? instructorEntries
 				: plainEntries
 	);
-	const sessions = $derived(account === 'student' ? SESSIONS : []);
+	/**
+	 * The photos and check-in toggles strip the DATA as well as flipping the
+	 * flag, exactly as the real load does when one of those reads fails --
+	 * otherwise the harness would show a banner over content the page could not
+	 * actually have.
+	 */
+	const entries = $derived(
+		photosReady && sessionsReady
+			? rawEntries
+			: rawEntries.map((entry) => ({
+					...entry,
+					photos: photosReady ? entry.photos : [],
+					session: sessionsReady ? entry.session : null
+				}))
+	);
+	const sessions = $derived(account === 'student' && sessionsReady ? SESSIONS : []);
 	const sectionLabel = $derived(account === 'student' ? 'Engineering I Honors' : null);
 	const canReview = $derived(account === 'instructor');
 
@@ -738,6 +761,12 @@
 		</select>
 	</label>
 	<label><input type="checkbox" bind:checked={configured} /> 0069 applied</label>
+	<label
+		><input type="checkbox" bind:checked={photosReady} data-testid="sim-photos" /> photos readable</label
+	>
+	<label
+		><input type="checkbox" bind:checked={sessionsReady} data-testid="sim-sessions" /> check-ins readable</label
+	>
 	<label><input type="checkbox" bind:checked={notesReady} /> 0078 applied</label>
 	<label><input type="checkbox" bind:checked={foldersReady} data-testid="sim-0088" /> 0088 applied</label>
 	<label><input type="checkbox" bind:checked={pinsReady} data-testid="sim-0091" /> 0091 applied</label>
@@ -773,6 +802,8 @@
 		{sectionLabel}
 		canReview={viewAs ? false : canReview}
 		{configured}
+		{photosReady}
+		{sessionsReady}
 		{notesReady}
 		{foldersReady}
 		{pinsReady}

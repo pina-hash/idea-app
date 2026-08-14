@@ -151,9 +151,11 @@
 	sectionLabel={data.sectionLabel}
 	canReview={data.canReview}
 	configured={data.configured}
+	photosReady={data.photosReady}
 	notesReady={data.notesReady}
 	foldersReady={data.foldersReady}
 	pinsReady={data.pinsReady}
+	sessionsReady={data.sessionsReady}
 	activity={data.activity}
 	uploadReady={data.uploadReady}
 	{createEntry}

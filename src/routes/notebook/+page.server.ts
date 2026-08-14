@@ -2,6 +2,11 @@ import { redirect } from '@sveltejs/kit';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import { notebookAccess } from '$lib/server/notebook-access';
 import type { NotebookEntry, NotebookSession } from '$lib/notebook';
+import {
+	NOTEBOOK_ENTRY_SELECTS,
+	NOTEBOOK_POSTING_SELECT,
+	NOTEBOOK_SESSION_SELECT
+} from '$lib/notebook-selects';
 import type { NotebookFolder } from '$lib/notebook-folders';
 import type { PageServerLoad } from './$types';
 
@@ -23,8 +28,18 @@ import type { PageServerLoad } from './$types';
  * the ones that exist (notebook_create_entry / notebook_add_photo) are
  * reached only through the two API routes, untouched by this session.
  *
- * Fails soft in one direction only: with 0069 unapplied the page renders a
- * clearly-flagged "not available yet" card instead of crashing.
+ * FAILING SOFT IS PER CAPABILITY, NOT ONE BOOLEAN FOR THE WHOLE PAGE. Only
+ * `configured` hides the notebook, and it is decided on the NARROWEST probe
+ * there is -- 0069's own scalar columns, no embedded resource of any kind --
+ * so it can only ever mean what the card it drives claims: the notebook tables
+ * are not there. Everything layered on top (photos, notes, folders, pins,
+ * check-ins) reports itself, and a broken one costs that feature and says so.
+ *
+ * That split is the lesson from a real false negative: a single `configured`
+ * derived from a select that embedded `notebook_sessions` reported "the
+ * notebook tables are not in place" on a fully-migrated project, because 0098
+ * had repointed the key that embed resolved through (see $lib/notebook-selects).
+ * One stale probe blanked a working feature.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
@@ -32,62 +47,52 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	const access = await notebookAccess(supabase, claims.sub, claims.email as string | undefined);
 
 	/**
-	 * Written notes (0078) are selected through their own embed, and their
-	 * absence degrades on its OWN rather than taking the page with it: on a
-	 * project where 0069 is applied but 0078 is not, PostgREST rejects the
-	 * whole select for an unknown relationship, which would blank a notebook
-	 * full of perfectly readable photos. So the notes join is dropped and the
-	 * read retried, and `notesReady` turns the note UI off with an explanation
-	 * instead. Migrations here are applied by hand, so a deploy sitting
-	 * between two of them is a real state, not a hypothetical one.
+	 * WIDEST FIRST, DROPPING ONE CAPABILITY PER RUNG. Migrations here are
+	 * applied by hand, so a deploy sitting between two of them is a real state,
+	 * not a hypothetical one -- and an unknown column or an unresolvable embed
+	 * fails the WHOLE select, so a single wide read would blank a notebook full
+	 * of perfectly readable entries over one missing extra. The rungs and what
+	 * each one adds live in $lib/notebook-selects.
 	 */
-	const BASE_SELECT = `id, session_id, section_id, custom_label, upload_timestamp, status, flag_reason,
-		 instructor_comment,
-		 notebook_sessions ( session_label, unit_number, session_date ),
-		 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename )`;
-	const NOTES_SELECT = `${BASE_SELECT},
-		 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at )`;
-	/**
-	 * folder_id (0088) degrades the SAME way and for the same reason: an
-	 * unknown COLUMN also fails the whole select, so a project sitting between
-	 * 0078 and 0088 would show a blank notebook rather than one without
-	 * folders. Tried widest-first, then dropped one capability at a time.
-	 */
-	const FOLDER_SELECT = `${NOTES_SELECT}, folder_id`;
-	/**
-	 * pinned_at (0091) is its OWN rung rather than riding on the folder one:
-	 * a project with 0088 applied and 0091 not is a real state, and folding
-	 * the two together would drop folders to add a pin column that is not
-	 * there yet.
-	 */
-	const FULL_SELECT = `${FOLDER_SELECT}, pinned_at`;
-
 	const read = (select: string) =>
 		supabase
 			.from('notebook_entries')
 			.select(select)
 			.order('upload_timestamp', { ascending: false });
 
-	let { data: entryRows, error: entryError } = await read(FULL_SELECT);
-	let notesReady = !entryError;
-	let foldersReady = !entryError;
-	let pinsReady = !entryError;
-	if (entryError) {
-		({ data: entryRows, error: entryError } = await read(FOLDER_SELECT));
-		notesReady = !entryError;
-		foldersReady = !entryError;
-		pinsReady = false;
-	}
-	if (entryError) {
-		({ data: entryRows, error: entryError } = await read(NOTES_SELECT));
-		notesReady = !entryError;
-		foldersReady = false;
-	}
-	if (entryError) {
-		({ data: entryRows, error: entryError } = await read(BASE_SELECT));
+	let entryRows: unknown[] | null = null;
+	let entryError: unknown = null;
+	/**
+	 * Every capability starts unavailable and is turned ON by the rung that
+	 * carries it succeeding -- so a capability can only be reported present
+	 * because a read that actually included it came back, never by default.
+	 */
+	const ready: Record<string, boolean> = { pins: false, folders: false, notes: false, photos: false };
+	for (const rung of NOTEBOOK_ENTRY_SELECTS) {
+		const result = await read(rung.select);
+		entryRows = result.data as unknown[] | null;
+		entryError = result.error;
+		if (!entryError) {
+			// This rung carries its own capability and every narrower one below it.
+			let reached = false;
+			for (const r of NOTEBOOK_ENTRY_SELECTS) {
+				if (r === rung) reached = true;
+				if (reached && r.capability) ready[r.capability] = true;
+			}
+			break;
+		}
 	}
 
+	/**
+	 * The ONLY thing that hides the page, and it is answered by the last rung:
+	 * 0069's own columns, no embed. False here means `notebook_entries` itself
+	 * is unreadable, which is exactly what the card says.
+	 */
 	const configured = !entryError;
+	const photosReady = ready.photos;
+	let notesReady = ready.notes;
+	let foldersReady = ready.folders;
+	let pinsReady = ready.pins;
 
 	const entries: NotebookEntry[] = (entryRows ?? []).map((r) => {
 		const row = r as unknown as Record<string, unknown>;
@@ -102,7 +107,10 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			status: row.status as NotebookEntry['status'],
 			flag_reason: (row.flag_reason as NotebookEntry['flag_reason']) ?? null,
 			instructor_comment: (row.instructor_comment as string | null) ?? null,
-			session: (row.notebook_sessions as NotebookEntry['session']) ?? null,
+			// Filled in below from its own read, never an embed: since 0098 there
+			// is no foreign key between notebook_entries and notebook_sessions for
+			// PostgREST to resolve one through.
+			session: null,
 			photos: (row.notebook_entry_photos as NotebookEntry['photos']) ?? [],
 			// Every revision, not just the current one: the feed shows a note's
 			// history, and which revision counts is derived (noteThreads), never
@@ -111,6 +119,53 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			notes: (row.notebook_entry_notes as NotebookEntry['notes']) ?? []
 		};
 	});
+
+	/**
+	 * WHICH CHECK-IN EACH LINKED ENTRY WAS FILED AGAINST -- a SEPARATE read,
+	 * and it has to be one.
+	 *
+	 * This used to ride the entry select as `notebook_sessions ( ... )`, which
+	 * PostgREST resolved through the composite key `notebook_entries` carried to
+	 * `notebook_sessions (id, section_id)`. 0098 repointed that key at
+	 * `notebook_session_postings`, leaving no key between the two tables at all,
+	 * so the embed became unresolvable and took every rung of the chain above
+	 * down with it. Read on its own it cannot: `notebook_sessions` is readable
+	 * by any signed-in user (0069, `using (true)`), so this is a plain
+	 * RLS-scoped select and the id list is a payload bound, not a privacy one.
+	 */
+	let sessionsReady = configured;
+	if (configured) {
+		const linkedIds = [
+			...new Set(entries.map((e) => e.session_id).filter((id): id is string => Boolean(id)))
+		];
+		if (linkedIds.length) {
+			const { data: sessionRows, error: sessionError } = await supabase
+				.from('notebook_sessions')
+				.select(NOTEBOOK_SESSION_SELECT)
+				.in('id', linkedIds);
+			if (sessionError) sessionsReady = false;
+			else {
+				const byId = new Map(
+					((sessionRows ?? []) as unknown as {
+						id: string;
+						session_label: string;
+						unit_number: number;
+						session_date: string;
+					}[]).map((s) => [
+						s.id,
+						{
+							session_label: s.session_label,
+							unit_number: s.unit_number,
+							session_date: s.session_date
+						}
+					])
+				);
+				for (const entry of entries) {
+					entry.session = entry.session_id ? (byId.get(entry.session_id) ?? null) : null;
+				}
+			}
+		}
+	}
 
 	/**
 	 * The student's scheduled check-ins, from their REAL classes (0094).
@@ -126,13 +181,18 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	 * in, so the filtering IS the RLS policy -- the same /coin-balance doctrine
 	 * the entry select above follows. A teacher reading their own notebook
 	 * legitimately gets their own sections' check-ins here too.
+	 *
+	 * Both reads are part of the SAME capability as the labels above -- "your
+	 * classes and their check-ins" -- so a failure in either says so through
+	 * `sessionsReady` rather than being swallowed into an empty list.
 	 */
 	let sessions: NotebookSession[] = [];
 	let sectionLabel: string | null = null;
 	if (configured) {
-		const { data: sectionRows } = await supabase
+		const { data: sectionRows, error: sectionError } = await supabase
 			.from('classroom_sections')
 			.select('id, label, classroom_courses ( code )');
+		if (sectionError) sessionsReady = false;
 
 		interface SectionRow {
 			id: string;
@@ -161,13 +221,12 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 			// be filed under when a shared check-in runs in more than one of
 			// them. `!inner` makes the posting the row, so a check-in shared
 			// with a class they are not in still arrives named for theirs.
-			const { data: sessionRows } = await supabase
+			const { data: sessionRows, error: postingError } = await supabase
 				.from('notebook_session_postings')
-				.select(
-					'section_id, notebook_sessions!inner ( id, unit_number, session_date, session_label )'
-				)
+				.select(NOTEBOOK_POSTING_SELECT)
 				.in('section_id', sectionIds)
 				.order('session_date', { ascending: false, referencedTable: 'notebook_sessions' });
+			if (postingError) sessionsReady = false;
 
 			interface PostingRow {
 				section_id: string;
@@ -230,9 +289,11 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 
 	return {
 		configured,
+		photosReady,
 		notesReady,
 		foldersReady,
 		pinsReady,
+		sessionsReady,
 		activity,
 		folders,
 		// The Drive integration is server-only; the UI just needs to know

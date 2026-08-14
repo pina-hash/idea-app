@@ -53,13 +53,28 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	// Human-readable Drive name; the entry exists here, so its label (session
 	// label when linked, else the custom label) and short-id are read up front.
 	// Best-effort reads: a failure only degrades the NAME, never the upload.
+	// TWO READS, NOT AN EMBED. Since 0098 there is no foreign key between
+	// notebook_entries and notebook_sessions -- the entry's composite key points
+	// at notebook_session_postings now -- so PostgREST cannot resolve a
+	// `notebook_sessions ( ... )` embed here and would reject the whole select.
+	// notebook_sessions is readable by any signed-in user (0069), so the
+	// follow-up needs no filter of its own.
 	const identifier = await driveIdentifierFor(supabase, claims);
 	const { data: entryRow } = await supabase
 		.from('notebook_entries')
-		.select('custom_label, notebook_sessions(label)')
+		.select('custom_label, session_id')
 		.eq('id', entryId)
 		.maybeSingle();
-	const sessionLabel = (entryRow?.notebook_sessions as { label?: string } | null)?.label ?? null;
+	let sessionLabel: string | null = null;
+	const sessionId = (entryRow?.session_id as string | null) ?? null;
+	if (sessionId) {
+		const { data: sessionRow } = await supabase
+			.from('notebook_sessions')
+			.select('session_label')
+			.eq('id', sessionId)
+			.maybeSingle();
+		sessionLabel = (sessionRow?.session_label as string | null) ?? null;
+	}
 	const label = sessionLabel ?? (entryRow?.custom_label as string | null) ?? null;
 
 	const originalFilename = read.photo.name?.trim() || null;

@@ -83,9 +83,11 @@
 		sectionLabel = null,
 		canReview = false,
 		configured = true,
+		photosReady = true,
 		notesReady = true,
 		foldersReady = true,
 		pinsReady = true,
+		sessionsReady = true,
 		activity = [],
 		uploadReady = true,
 		readOnly = false,
@@ -107,8 +109,28 @@
 		sectionLabel?: string | null;
 		/** Instructor of at least one section, or a site admin (0067 chair tier). */
 		canReview?: boolean;
-		/** 0069 applied; false renders the fail-soft card instead of a broken page. */
+		/**
+		 * `notebook_entries` itself is readable -- 0069 applied. THE ONLY FLAG
+		 * THAT HIDES THE PAGE, and it is answered by the narrowest probe the load
+		 * can make (that table's own columns, no embedded resource), so it can
+		 * only ever mean what the card it drives says. Everything layered on top
+		 * reports itself through its own flag below; a broken one costs that
+		 * feature, never the notebook.
+		 */
 		configured?: boolean;
+		/**
+		 * The photos embed resolved. False leaves every entry with an empty photo
+		 * list -- titles, notes, filing and the feed all keep working -- rather
+		 * than reporting the whole notebook missing over one relationship.
+		 */
+		photosReady?: boolean;
+		/**
+		 * The check-in reads (0094/0098) answered: which scheduled check-in each
+		 * linked entry belongs to, and the quick-picks for the student's classes.
+		 * False leaves the picks empty and entry titles falling back to their own
+		 * label, which they already do for a free entry.
+		 */
+		sessionsReady?: boolean;
 		/**
 		 * 0078 applied. False turns the WRITTEN NOTE half off on its own --
 		 * photos keep working -- rather than blanking a notebook because one
@@ -771,14 +793,39 @@
 		<section class="card">
 			<h2>Notebook is not available yet</h2>
 			<p class="note">
-				The notebook tables are not in place on this project yet. Apply migration
-				<code>0069_notebook.sql</code> (plus <code>0071</code>, <code>0075</code>,
-				<code>0078_notebook_entry_notes.sql</code>, <code>0088_notebook_folders.sql</code>
-				and <code>0091_notebook_pin_and_activity.sql</code>) in the Supabase SQL editor,
-				then reload.
+				<code>notebook_entries</code> could not be read on this project, so the notebook
+				tables are not in place yet. Apply <code>0069_notebook.sql</code> and the
+				migrations that follow it in the Supabase SQL editor, then reload. Everything
+				layered on top of it reports itself separately, so this card means the base
+				table specifically.
 			</p>
 		</section>
 	{:else}
+		<!--
+			The two capabilities that are about the WHOLE feed rather than the
+			compose form, so they sit outside it and show on a read-only preview
+			too: a reviewer looking at a student's notebook needs to know a photo
+			list is empty because a read failed, not because the student wrote
+			nothing.
+		-->
+		{#if !photosReady}
+			<section class="card">
+				<p class="feedback error" data-testid="nb-photos-unavailable">
+					Photos could not be loaded on this project, so entries are showing without
+					them. Everything else works as normal.
+				</p>
+			</section>
+		{/if}
+		{#if !sessionsReady}
+			<section class="card">
+				<p class="feedback error" data-testid="nb-sessions-unavailable">
+					Scheduled check-ins could not be loaded, so entries filed against one show
+					their own title instead and there are no check-ins to pick from. Everything
+					else works as normal.
+				</p>
+			</section>
+		{/if}
+
 		<!-- ---------------------------------------------------------------- -->
 		<!-- Add an entry -- omitted entirely on a read-only preview            -->
 		<!-- ---------------------------------------------------------------- -->
