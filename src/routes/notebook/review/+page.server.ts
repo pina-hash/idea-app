@@ -51,7 +51,16 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		.order('label');
 	if (!access.isChair) query = query.eq('teacher_email', access.email);
 
-	const { data, error: sectionError } = await query;
+	// Is 0097 applied? Migrations here are pasted in by hand, so a deploy
+	// sitting between two of them is a real state -- and the Documentation
+	// Check panel is the ONLY thing that depends on this one. A head-count
+	// probe rather than a version table (the notebook's own fail-soft
+	// convention): unapplied, the panel simply does not render and the grid,
+	// the check-in manager and every review action are untouched.
+	const [{ data, error: sectionError }, unitLinkProbe] = await Promise.all([
+		query,
+		supabase.from('notebook_unit_items').select('section_id', { count: 'exact', head: true })
+	]);
 
 	interface Row {
 		id: string;
@@ -81,6 +90,7 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		isInstructor: access.isInstructor,
 		isChair: access.isChair,
 		configured: !sectionError,
+		docCheckReady: !unitLinkProbe.error,
 		sections
 	};
 };

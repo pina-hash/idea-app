@@ -9,6 +9,15 @@
 		SectionGrid,
 		SessionInput
 	} from '$lib/notebook-review';
+	import type { RubricCriterion } from '$lib/classroom/assignment-spec';
+	import type {
+		DocCheckResult,
+		DocCheckSubmission,
+		DocCheckTransports,
+		GradeOutcome,
+		LinkableItem,
+		UnitItemLink
+	} from '$lib/notebook-documentation-check';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -137,6 +146,156 @@
 			return { ok: true, value: undefined };
 		}
 	};
+
+	/**
+	 * The Documentation Check's own transports (0097). Same doctrine as above:
+	 * every call runs as the caller's own session, so RLS and each RPC's own
+	 * check decide the answer.
+	 *
+	 * TWO OF THESE ARE CLASSROOM'S, NOT THE NOTEBOOK'S, ON PURPOSE.
+	 * `classroom_set_rubric` and `classroom_grade_submission` are called here
+	 * exactly as `/classroom/.../grade` calls them, because a Documentation
+	 * Check IS a Classroom assignment -- a notebook-side copy of either would
+	 * be a second implementation of the rubric validation, the override rule
+	 * and the release gate.
+	 */
+	const docCheckTransports: DocCheckTransports = {
+		async load(sectionId, unitNumber) {
+			// The link, RLS-scoped to whoever manages the section (0097). A
+			// missing row is the ordinary unlinked state, not an error.
+			const linkRes = await data.supabase
+				.from('notebook_unit_items')
+				.select('section_id, unit_number, item_id')
+				.eq('section_id', sectionId)
+				.eq('unit_number', unitNumber)
+				.maybeSingle();
+			// 0097 unapplied: the panel is not rendered at all in that case (the
+			// load reports it), so a table error here is a real one.
+			if (linkRes.error) {
+				return { ok: false, error: linkRes.error.message || 'Could not read the unit link.' };
+			}
+			const link = (linkRes.data as UnitItemLink | null) ?? null;
+
+			// Every assignment posted to this section: what the picker offers,
+			// and what 0097 will accept. The !inner embed IS the "posted to this
+			// section" filter, so the picker can never offer something the link
+			// RPC would refuse.
+			const candidateRes = await data.supabase
+				.from('classroom_items')
+				.select('id, title, points, classroom_postings!inner(section_id)')
+				.eq('classroom_postings.section_id', sectionId)
+				.eq('kind', 'assignment')
+				.order('title');
+			const candidates = ((candidateRes.data ?? []) as unknown as Record<string, unknown>[]).map(
+				(row): LinkableItem => ({
+					id: String(row.id),
+					title: (row.title as string | null) ?? 'Untitled assignment',
+					points: row.points == null ? null : Number(row.points)
+				})
+			);
+
+			if (!link) {
+				return {
+					ok: true,
+					value: { link, item: null, rubric: null, submissions: {}, candidates }
+				};
+			}
+
+			const [itemRes, rubricRes, submissionRes] = await Promise.all([
+				data.supabase
+					.from('classroom_items')
+					.select('id, title, points')
+					.eq('id', link.item_id)
+					.maybeSingle(),
+				data.supabase
+					.from('classroom_rubrics')
+					.select('criteria')
+					.eq('item_id', link.item_id)
+					.maybeSingle(),
+				// No .eq('student_email', ...) anywhere: classroom_submissions is
+				// already scoped to own-rows-or-reviewer, so the filtering IS the
+				// policy (the /coin-balance doctrine).
+				data.supabase
+					.from('classroom_submissions')
+					.select(
+						'student_email, state, score, rubric_scores, criterion_comments, teacher_comment, graded_at, returned_at'
+					)
+					.eq('item_id', link.item_id)
+			]);
+
+			const itemRow = itemRes.data as Record<string, unknown> | null;
+			const submissions: Record<string, DocCheckSubmission> = {};
+			for (const row of (submissionRes.data ?? []) as unknown as DocCheckSubmission[]) {
+				submissions[String(row.student_email).toLowerCase()] = {
+					...row,
+					score: row.score == null ? null : Number(row.score)
+				};
+			}
+
+			return {
+				ok: true,
+				value: {
+					link,
+					item: itemRow
+						? {
+								id: String(itemRow.id),
+								title: (itemRow.title as string | null) ?? 'Untitled assignment',
+								points: itemRow.points == null ? null : Number(itemRow.points)
+							}
+						: null,
+					rubric: (rubricRes.data?.criteria as RubricCriterion[] | undefined) ?? null,
+					submissions,
+					candidates
+				}
+			};
+		},
+
+		async linkItem(sectionId, unitNumber, itemId) {
+			const { error } = await data.supabase.rpc('notebook_link_unit_item', {
+				p_section_id: sectionId,
+				p_unit_number: unitNumber,
+				p_item_id: itemId
+			});
+			if (error) return docFail(error, 'Could not link that assignment.');
+			return { ok: true, value: undefined };
+		},
+
+		async unlinkItem(sectionId, unitNumber) {
+			const { error } = await data.supabase.rpc('notebook_unlink_unit_item', {
+				p_section_id: sectionId,
+				p_unit_number: unitNumber
+			});
+			if (error) return docFail(error, 'Could not unlink that assignment.');
+			return { ok: true, value: undefined };
+		},
+
+		async installRubric(itemId, criteria) {
+			const { error } = await data.supabase.rpc('classroom_set_rubric', {
+				p_item_id: itemId,
+				p_criteria: criteria
+			});
+			if (error) return docFail(error, 'Could not save the rubric.');
+			return { ok: true, value: undefined };
+		},
+
+		async gradeSubmission(itemId, studentEmail, scores, comment, release, criterionComments) {
+			const { data: result, error } = await data.supabase.rpc('classroom_grade_submission', {
+				p_item_id: itemId,
+				p_student_email: studentEmail,
+				p_scores: scores,
+				p_comment: comment,
+				p_return: release,
+				p_criterion_comments: criterionComments
+			});
+			if (error) return docFail(error, 'Could not save that grade.');
+			return { ok: true, value: result as GradeOutcome };
+		}
+	};
+
+	function docFail(err: unknown, fallback: string): DocCheckResult<never> {
+		const message = (err as { message?: string } | null)?.message?.trim();
+		return { ok: false, error: message || fallback };
+	}
 </script>
 
 <ReviewConsole
@@ -144,4 +303,5 @@
 	isChair={data.isChair}
 	configured={data.configured}
 	{transports}
+	docCheck={data.docCheckReady ? docCheckTransports : null}
 />

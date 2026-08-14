@@ -3,7 +3,6 @@
 	import type { NotebookFlagReason, NotebookPhoto, NotebookStatus } from '$lib/notebook';
 	import type { NoteDoc, NotebookNoteRow } from '$lib/notebook-notes';
 	import {
-		buildCsv,
 		type GridCell,
 		type GridSession,
 		type GridStudent,
@@ -13,6 +12,20 @@
 		type ReviewTransports,
 		type SectionGrid
 	} from '$lib/notebook-review';
+	import {
+		criterionMax,
+		levelIndexForScore,
+		type RubricCriterion
+	} from '$lib/classroom/assignment-spec';
+	import type {
+		DocCheckData,
+		DocCheckResult,
+		DocCheckSubmission,
+		DocCheckTransports,
+		GradeOutcome,
+		LinkableItem,
+		UnitItemLink
+	} from '$lib/notebook-documentation-check';
 
 	/**
 	 * Dev harness: mounts the REAL ReviewConsole (and with it the real
@@ -42,6 +55,8 @@
 	let log = $state<string[]>([]);
 	/** 0069 unapplied (the fail-soft card), the /dev/notebook toggle. */
 	let configured = $state(true);
+	/** 0097 unapplied: the Documentation Check panel is simply absent. */
+	let docCheckReady = $state(true);
 	/** A reviewer who is not yet the instructor of anything. */
 	let noSections = $state(false);
 
@@ -514,20 +529,185 @@
 				: SECTIONS.filter((s) => s.teacher_email === INSTRUCTOR_EMAIL)
 	);
 
-	// ---- CSV preview: the real buildCsv over the same store ----------------
+	// ---- Documentation Check (0097 + Classroom's grading RPC), mirrored -----
+	//
+	// The store reproduces the rules the UI is written against, not a stub that
+	// always says yes: which assignments a section may be graded on, the
+	// composite "posted to this section" requirement 0097's FK enforces, and --
+	// the important one -- classroom_can_review_submission, so
+	// "a teacher of one class cannot grade another class's student" is
+	// demonstrable here rather than assumed. Grades land in the same
+	// {itemId|email} shape classroom_submissions holds them in.
 
-	let csvSection = $state('sec-a');
-	let csvUnit = $state('3');
-	const csvText = $derived.by(() => {
-		if (!mayManage(csvSection)) return '(this viewer may not read that section)';
-		return buildCsv(buildGrid(csvSection, csvUnit === 'all' ? null : Number(csvUnit)));
-	});
+	interface StoreItem extends LinkableItem {
+		kind: 'assignment' | 'material';
+		/** classroom_postings: which sections this one canonical item is in. */
+		section_ids: string[];
+	}
 
-	// Console hook, so the CSV and the grid can be asserted programmatically.
+	const ITEMS: StoreItem[] = [
+		{ id: 'itm-doc3', title: 'Unit 3 Documentation Check', points: 25, kind: 'assignment', section_ids: ['sec-a'] },
+		{ id: 'itm-gearbox', title: 'Gearbox teardown writeup', points: 40, kind: 'assignment', section_ids: ['sec-a'] },
+		{ id: 'itm-syllabus', title: 'Course syllabus', points: null, kind: 'material', section_ids: ['sec-a'] },
+		{ id: 'itm-doc-b', title: 'Unit 3 Documentation Check (P4)', points: 25, kind: 'assignment', section_ids: ['sec-b'] }
+	];
+
+	let docLinks = $state<UnitItemLink[]>([]);
+	let docRubrics = $state<Record<string, RubricCriterion[]>>({});
+	let docSubmissions = $state<Record<string, DocCheckSubmission>>({});
+
+	function docFail(message: string): DocCheckResult<never> {
+		return { ok: false, error: message };
+	}
+
+	/** `classroom_can_review_submission(item, email)`, mirrored exactly. */
+	function mayReview(itemId: string, email: string): boolean {
+		const item = ITEMS.find((i) => i.id === itemId);
+		if (!item) return false;
+		return item.section_ids.some(
+			(sid) =>
+				mayManage(sid) &&
+				STUDENTS.some((s) => s.email === email && s.section_id === sid)
+		);
+	}
+
+	const docCheckTransports: DocCheckTransports = {
+		async load(sectionId, unitNumber) {
+			log = [...log, `docCheck.load(${sectionId}, ${unitNumber})`];
+			if (!mayManage(sectionId)) return docFail('Only the section instructor or a site admin can view this.');
+			const link = docLinks.find((l) => l.section_id === sectionId && l.unit_number === unitNumber) ?? null;
+			const candidates: LinkableItem[] = ITEMS.filter(
+				(i) => i.kind === 'assignment' && i.section_ids.includes(sectionId)
+			).map((i) => ({ id: i.id, title: i.title, points: i.points }));
+			const item = link ? (ITEMS.find((i) => i.id === link.item_id) ?? null) : null;
+			const submissions: Record<string, DocCheckSubmission> = {};
+			if (item) {
+				for (const [key, row] of Object.entries(docSubmissions)) {
+					if (key.startsWith(`${item.id}|`)) submissions[row.student_email] = row;
+				}
+			}
+			const value: DocCheckData = {
+				link,
+				item: item ? { id: item.id, title: item.title, points: item.points } : null,
+				rubric: item ? (docRubrics[item.id] ?? null) : null,
+				submissions,
+				candidates
+			};
+			return { ok: true, value };
+		},
+
+		async linkItem(sectionId, unitNumber, itemId) {
+			log = [...log, `notebook_link_unit_item(${sectionId}, ${unitNumber}, ${itemId})`];
+			if (!mayManage(sectionId)) {
+				return docFail('Only the section instructor or a site admin can link a Documentation Check.');
+			}
+			const item = ITEMS.find((i) => i.id === itemId);
+			if (!item) return docFail('That classwork item does not exist.');
+			if (item.kind !== 'assignment') {
+				return docFail(`A Documentation Check has to be an assignment; ${item.kind} cannot be graded.`);
+			}
+			if (!item.section_ids.includes(sectionId)) {
+				return docFail('That assignment is not posted to this class, so this class cannot be graded on it.');
+			}
+			docLinks = [
+				...docLinks.filter((l) => !(l.section_id === sectionId && l.unit_number === unitNumber)),
+				{ section_id: sectionId, unit_number: unitNumber, item_id: itemId }
+			];
+			return { ok: true, value: undefined };
+		},
+
+		async unlinkItem(sectionId, unitNumber) {
+			log = [...log, `notebook_unlink_unit_item(${sectionId}, ${unitNumber})`];
+			if (!mayManage(sectionId)) return docFail('Only the section instructor or a site admin can unlink this.');
+			docLinks = docLinks.filter((l) => !(l.section_id === sectionId && l.unit_number === unitNumber));
+			return { ok: true, value: undefined };
+		},
+
+		async installRubric(itemId, criteria) {
+			log = [...log, `classroom_set_rubric(${itemId}, ${criteria.length} criteria)`];
+			docRubrics = { ...docRubrics, [itemId]: criteria };
+			return { ok: true, value: undefined };
+		},
+
+		async gradeSubmission(itemId, studentEmail, scores, comment, release, criterionComments) {
+			log = [
+				...log,
+				`classroom_grade_submission(${itemId}, ${studentEmail}, ${JSON.stringify(scores)}, ${JSON.stringify(comment)}, ${release}, ${JSON.stringify(criterionComments)})`
+			];
+			if (!mayReview(itemId, studentEmail)) {
+				return docFail("Only a teacher of record for this student's class can grade this.");
+			}
+			const criteria = docRubrics[itemId];
+			if (!criteria?.length) return docFail('Create a rubric for this assignment before grading.');
+
+			// The 0095 rules the panel must render: an off-level score needs a
+			// comment, and a release needs every criterion scored.
+			const uncommented: string[] = [];
+			const missing: string[] = [];
+			let total = 0;
+			for (const c of criteria) {
+				const value = scores[c.id];
+				if (value == null) {
+					missing.push(c.id);
+					continue;
+				}
+				if (value < 0 || value > criterionMax(c)) {
+					return docFail(`The score for "${c.criterion}" must be between 0 and ${criterionMax(c)}.`);
+				}
+				total += value;
+				if (levelIndexForScore(c, value) < 0 && !(criterionComments[c.id] ?? '').trim()) {
+					uncommented.push(c.id);
+				}
+			}
+			for (const key of Object.keys(scores)) {
+				if (!criteria.some((c) => c.id === key)) {
+					return docFail(`Score key "${key}" is not a rubric criterion.`);
+				}
+			}
+			if (uncommented.length) {
+				const outcome: GradeOutcome = { ok: false, reason: 'override_needs_comment', missing: uncommented };
+				return { ok: true, value: outcome };
+			}
+			if (release && missing.length) {
+				const outcome: GradeOutcome = { ok: false, reason: 'incomplete_scores', missing };
+				return { ok: true, value: outcome };
+			}
+
+			const now = new Date().toISOString();
+			const prior = docSubmissions[`${itemId}|${studentEmail}`];
+			docSubmissions = {
+				...docSubmissions,
+				[`${itemId}|${studentEmail}`]: {
+					student_email: studentEmail,
+					state: release ? 'returned' : (prior?.state ?? 'draft'),
+					score: total,
+					rubric_scores: { ...scores },
+					criterion_comments: { ...criterionComments },
+					teacher_comment: comment,
+					graded_at: now,
+					returned_at: release ? now : (prior?.returned_at ?? null)
+				}
+			};
+			const outcome: GradeOutcome = { ok: true, score: total, state: release ? 'returned' : 'draft' };
+			return { ok: true, value: outcome };
+		}
+	};
+
+	// Console hook, so the grid and the Documentation Check store can be
+	// asserted programmatically.
 	$effect(() => {
 		(window as unknown as Record<string, unknown>).__notebookReview = {
 			buildGrid,
-			buildCsv,
+			docCheckTransports,
+			get docLinks() {
+				return docLinks;
+			},
+			get docRubrics() {
+				return docRubrics;
+			},
+			get docSubmissions() {
+				return docSubmissions;
+			},
 			/**
 			 * The same object the console is driving. Exposed so the SCOPING can
 			 * be shown to be a real refusal -- an instructor asking the transport
@@ -561,6 +741,7 @@
 		</select>
 	</label>
 	<label><input type="checkbox" bind:checked={configured} /> 0069 applied</label>
+	<label><input type="checkbox" bind:checked={docCheckReady} /> 0097 applied</label>
 	<label><input type="checkbox" bind:checked={noSections} /> no sections</label>
 	<span class="hint">
 		sections offered: {visibleSections.map((s) => s.id).join(', ') || '(none)'}
@@ -569,29 +750,14 @@
 </div>
 
 {#key viewer}
-	<ReviewConsole sections={visibleSections} {isChair} {configured} {transports} />
+	<ReviewConsole
+		sections={visibleSections}
+		{isChair}
+		{configured}
+		{transports}
+		docCheck={docCheckReady ? docCheckTransports : null}
+	/>
 {/key}
-
-<section class="panel">
-	<h2>CSV preview (the real buildCsv over the same store)</h2>
-	<div class="csv-controls">
-		<label>
-			section
-			<select bind:value={csvSection}>
-				{#each SECTIONS as s (s.id)}<option value={s.id}>{s.id}</option>{/each}
-			</select>
-		</label>
-		<label>
-			unit
-			<select bind:value={csvUnit}>
-				<option value="all">all</option>
-				<option value="2">2</option>
-				<option value="3">3</option>
-			</select>
-		</label>
-	</div>
-	<pre>{csvText}</pre>
-</section>
 
 <section class="panel">
 	<h2>Transport log</h2>
@@ -625,8 +791,7 @@
 		gap: 0.35rem;
 	}
 	.harness-bar select,
-	.harness-bar button,
-	.csv-controls select {
+	.harness-bar button {
 		background: var(--bg0);
 		color: var(--white);
 		border: 1px solid var(--line);
@@ -651,23 +816,6 @@
 		font-size: 0.85rem;
 		margin: 0 0 0.5rem;
 		color: var(--gold);
-	}
-	.csv-controls {
-		display: flex;
-		gap: 1rem;
-		margin-bottom: 0.6rem;
-	}
-	.csv-controls label {
-		display: flex;
-		align-items: center;
-		gap: 0.35rem;
-		color: var(--dim);
-	}
-	pre {
-		white-space: pre-wrap;
-		word-break: break-word;
-		color: var(--cyan);
-		margin: 0;
 	}
 	ol {
 		margin: 0;

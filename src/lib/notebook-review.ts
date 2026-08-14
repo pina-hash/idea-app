@@ -235,23 +235,28 @@ export interface StudentSummary {
 	covered: number;
 	/** Sessions in the selected unit -- the denominator. */
 	total: number;
-	/** Sessions excused. Reported separately; see `suggestedScore`. */
+	/** Sessions excused. Reported separately; see `presenceScore`. */
 	excused: number;
 	/** Cells currently flagged. */
 	flagged: number;
 	flags: Record<NotebookFlagReason, number>;
 	/**
-	 * covered / total x 7, rounded. A STARTING POINT, never the grade -- the
-	 * CSV carries a blank column for the real one.
+	 * covered / total x 7, rounded: the PRESENCE criterion of the
+	 * Documentation Check rubric, pre-filled from real data.
 	 *
-	 * "Covered" counts an entry and nothing else, which is the formula as
-	 * specified. It deliberately does NOT credit an excusal: rather than
-	 * silently fold a judgement call into the arithmetic, the excused count
-	 * is reported in its own column so the instructor can see exactly why a
-	 * suggestion looks low and raise it by hand. With no sessions at all the
-	 * suggestion is 0 (there is nothing to be present for).
+	 * "Covered" counts an entry and nothing else. It deliberately does NOT
+	 * credit an excusal: rather than silently fold a judgement call into the
+	 * arithmetic, the excused count is reported separately and rides along as
+	 * the score's own evidence comment (see notebook-documentation-check.ts),
+	 * so a low number is always explainable and the instructor can raise it by
+	 * hand. With no sessions at all it is 0 -- there is nothing to be present
+	 * for.
+	 *
+	 * It is a PRE-FILL, never a grade. Nothing auto-submits; the instructor
+	 * saves it, alongside the three criteria only a person can judge, through
+	 * classroom_grade_submission like any other assignment.
 	 */
-	suggestedScore: number;
+	presenceScore: number;
 }
 
 export function summarize(grid: SectionGrid): StudentSummary[] {
@@ -285,7 +290,7 @@ export function summarize(grid: SectionGrid): StudentSummary[] {
 			excused,
 			flagged,
 			flags,
-			suggestedScore: total === 0 ? 0 : Math.round((covered / total) * PRESENCE_POINTS)
+			presenceScore: total === 0 ? 0 : Math.round((covered / total) * PRESENCE_POINTS)
 		};
 	});
 }
@@ -296,92 +301,18 @@ export function completionLabel(summary: StudentSummary): string {
 }
 
 // ---------------------------------------------------------------------------
-// 4. CSV export
+// 4. Session management + review transports
 // ---------------------------------------------------------------------------
-
-/**
- * This repo has no prior CSV export to match -- searched before inventing
- * one; the only "csv" hits anywhere are inside SVG data URLs. So this is the
- * first, and the shape below is the convention any later one should follow:
- * a single header row, RFC 4180 quoting, CRLF line endings and a UTF-8 BOM
- * (both so Excel opens it correctly, the BOM specifically so accented
- * student names survive).
- */
-
-const CSV_HEADERS = [
-	'Student',
-	'Email',
-	'Sessions covered',
-	'Total sessions',
-	`Suggested presence score (of ${PRESENCE_POINTS})`,
-	'Final score',
-	'Flagged entries',
-	'Flags: not dated',
-	'Flags: illegible',
-	'Flags: insufficient detail',
-	'Flags: appears reconstructed',
-	'Flags: other',
-	'Excused sessions',
-	'Free entries',
-	// Appended, never inserted, so every existing column keeps its position.
-	// A student who left the class mid-term still has a row (their filed work
-	// is real), and a teacher pasting these into a gradebook needs to see that
-	// before they do.
-	'Still enrolled'
-];
-
-/**
- * RFC 4180 quoting, plus a leading apostrophe on anything a spreadsheet
- * would evaluate as a formula. That guard is not theoretical: a student's
- * `display_name` is user-editable and lands in this file, which a teacher
- * then opens in Excel.
- */
-export function csvCell(value: string | number): string {
-	const raw = String(value ?? '');
-	const guarded = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
-	return /[",\r\n]/.test(guarded) ? `"${guarded.replace(/"/g, '""')}"` : guarded;
-}
-
-export function buildCsv(grid: SectionGrid): string {
-	const rows = [CSV_HEADERS];
-
-	for (const s of summarize(grid)) {
-		rows.push([
-			s.student.name,
-			s.student.email ?? '',
-			String(s.covered),
-			String(s.total),
-			String(s.suggestedScore),
-			// Deliberately blank: the instructor fills the real score in by hand.
-			'',
-			String(s.flagged),
-			String(s.flags.not_dated),
-			String(s.flags.illegible),
-			String(s.flags.insufficient_detail),
-			String(s.flags.appears_reconstructed),
-			String(s.flags.other),
-			String(s.excused),
-			String(s.student.free_entries),
-			s.student.enrolled ? 'yes' : 'no'
-		]);
-	}
-
-	return '﻿' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
-}
-
-/** `notebook-idea209h-period-2-unit-3-2026-08-09.csv` */
-export function csvFilename(grid: SectionGrid, today: string): string {
-	const slug = (sectionName(grid.section) || 'section')
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, '-')
-		.replace(/^-|-$/g, '');
-	const unit = grid.unit_number === null ? 'all-units' : `unit-${grid.unit_number}`;
-	return `notebook-${slug || 'section'}-${unit}-${today}.csv`;
-}
-
-// ---------------------------------------------------------------------------
-// 5. Session management + review transports
-// ---------------------------------------------------------------------------
+//
+// THE NOTEBOOK HAS NO CSV EXPORT OF ITS OWN ANY MORE. It used to write one --
+// per-student counts, a suggested presence score and a blank column for the
+// real grade -- because a Documentation Check had nowhere else to land. Since
+// 0097 a notebook unit is linked to a Classroom assignment, the grade is
+// written by classroom_grade_submission into classroom_submissions like every
+// other assignment's, and it exports through the ONE FACTS-ready CSV in
+// assignment-spec.ts (`gradesCsv`) alongside the rest of that student's work.
+// A second export of the same grade in a different shape is exactly the kind
+// of duplicate that quietly stops matching.
 
 /** What `notebook_admin_upsert_session` takes; `id` null creates. */
 export interface SessionInput {

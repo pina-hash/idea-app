@@ -96,6 +96,7 @@ export const APPS: SiteApp[] = [
 			'src/routes/notebook/',
 			'src/lib/notebook/',
 			'src/lib/notebook.ts',
+			'src/lib/notebook-documentation-check.ts',
 			'src/routes/api/notebook/',
 			'src/routes/dev/notebook/'
 		]

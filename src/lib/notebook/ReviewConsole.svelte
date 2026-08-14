@@ -6,13 +6,11 @@
 	import SessionManager from '$lib/notebook/SessionManager.svelte';
 	import SectionGrid from '$lib/notebook/SectionGrid.svelte';
 	import EntryReview from '$lib/notebook/EntryReview.svelte';
+	import DocumentationCheck from '$lib/notebook/DocumentationCheck.svelte';
 	import NotebookThemeToggle from '$lib/notebook/NotebookThemeToggle.svelte';
 	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import '$lib/notebook/notebook-theme.css';
-	import { todayIso } from '$lib/notebook';
 	import {
-		buildCsv,
-		csvFilename,
 		sectionName,
 		unitsOf,
 		type GridCell,
@@ -22,6 +20,7 @@
 		type SectionGrid as SectionGridData,
 		type ReviewEntry
 	} from '$lib/notebook-review';
+	import type { DocCheckTransports } from '$lib/notebook-documentation-check';
 
 	/**
 	 * The whole instructor review screen, factored out of /notebook/review so
@@ -46,13 +45,21 @@
 		sections,
 		isChair,
 		configured = true,
-		transports
+		transports,
+		docCheck = null
 	}: {
 		sections: ReviewSection[];
 		isChair: boolean;
 		/** 0069 applied; false renders the fail-soft card instead of a broken page. */
 		configured?: boolean;
 		transports: ReviewTransports;
+		/**
+		 * The Documentation Check panel's own transports (0097). Null omits the
+		 * panel entirely, which is the fail-soft state on a deployment where
+		 * 0097 is not applied yet -- the grid, the check-in manager and every
+		 * review action are untouched by its absence.
+		 */
+		docCheck?: DocCheckTransports | null;
 	} = $props();
 
 	let sectionId = $state<string | null>(null);
@@ -233,19 +240,6 @@
 		return result;
 	}
 
-	function exportCsv() {
-		if (!grid) return;
-		const blob = new Blob([buildCsv(grid)], { type: 'text/csv;charset=utf-8' });
-		const url = URL.createObjectURL(blob);
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = csvFilename(grid, todayIso());
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-		URL.revokeObjectURL(url);
-	}
-
 	const openStudent = $derived.by(() => {
 		const cell = openCell;
 		return cell ? grid?.students.find((s) => s.id === cell.student_id) : undefined;
@@ -320,14 +314,6 @@
 				</select>
 			</label>
 			<div class="picker-actions">
-				<button
-					type="button"
-					class="btn secondary"
-					onclick={exportCsv}
-					disabled={!grid || grid.students.length === 0}
-				>
-					Export CSV
-				</button>
 				{#if loading}<span class="loading">Loading...</span>{/if}
 			</div>
 		</section>
@@ -361,21 +347,14 @@
 				/>
 			{/if}
 
-			<section class="card scoring">
-				<h2>About the suggested score</h2>
-				<p class="note">
-					The CSV suggests a presence score out of 7 as
-					<strong>sessions covered / total sessions x 7</strong>, rounded, and leaves the final
-					score column blank for you. Covered means an entry was filed, whatever its status. An
-					<strong>excused</strong> session is reported in its own column rather than folded into
-					that fraction, so raise the score by hand where an excusal explains a gap.
-					{#if section}
-						Exporting {sectionName(section)}, {grid.unit_number === null
-							? 'all units'
-							: `unit ${grid.unit_number}`}.
-					{/if}
-				</p>
-			</section>
+			{#if docCheck && section}
+				<DocumentationCheck
+					{section}
+					unitNumber={grid.unit_number}
+					{grid}
+					transports={docCheck}
+				/>
+			{/if}
 		{/if}
 	{/if}
 
@@ -445,18 +424,11 @@
 		color: var(--nb-ink-soft);
 		font-size: 0.88rem;
 	}
-	.note strong {
-		color: var(--nb-ink);
-	}
 	.msg {
 		margin: 0;
 		font-size: 0.9rem;
 	}
 	.msg.error {
 		color: var(--nb-error);
-	}
-	.scoring h2 {
-		margin: 0 0 0.3rem;
-		font-size: 1rem;
 	}
 </style>

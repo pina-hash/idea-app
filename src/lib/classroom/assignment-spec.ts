@@ -814,10 +814,12 @@ export function submissionEditable(state: SubmissionState | null | undefined): b
 }
 
 // ---------------------------------------------------------------------------
-// The FACTS export. One row per roster student, LAST-NAME alphabetical:
-// Last, First, Score, Out of. RFC 4180 quoting, CRLF, UTF-8 BOM (the notebook
-// review CSV's conventions), and the same formula-injection guard -- names are
-// user-editable and this file gets opened in Excel.
+// The FACTS export, and since 0097 the ONE export path for a grade in this
+// app: the notebook's own CSV is gone, and a Documentation Check exports from
+// here like any other assignment. One row per roster student, LAST-NAME
+// alphabetical: Last, First, Score, Out of. RFC 4180 quoting, CRLF, UTF-8 BOM,
+// and a formula-injection guard -- names are user-editable and this file gets
+// opened in Excel.
 // ---------------------------------------------------------------------------
 
 export interface GradeCsvRow {

@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-13",
+			"title": "Your Documentation Check grade shows up with the rest of your work",
+			"body": "The Documentation Check on your engineering notebook used to be graded off to the side. It is an assignment in your class now, so when your teacher returns it you see the score, the rubric and their comment in the same place as everything else, and it counts toward your grade the same way. One criterion is filled in straight from your notebook -- how many of the unit's check-ins you actually filed something for -- and the note attached to it shows the count your teacher was looking at, including any sessions you were excused from. The other three are still judged by your teacher reading your notebook. If a criterion looks wrong, that note tells you exactly what it was counted from, which is the thing to ask about.",
+			"tags": ["Notebook", "Grades"]
+		},
+		{
+			"date": "2026-08-13",
 			"title": "Rubrics now tell you what each score means",
 			"body": "The rubric on an assignment used to give you a criterion and a number. Now every criterion lists its levels -- full marks, partway, and nothing -- each with the points it is worth and a sentence describing what that level actually looks like. You can read all of it before you start, so you know what full marks means rather than guessing. When your work comes back, the level you were given is ticked on each criterion, so you can see exactly which description matched your work and what the next one up would have taken. If your teacher scores you between two levels, they have to say why, and that note comes back to you with the grade. Your teachers are still filling in level descriptions on some older rubrics; those criteria are marked so you can tell.",
 			"tags": ["Classwork", "Grades"]
