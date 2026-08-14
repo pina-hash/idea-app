@@ -627,11 +627,11 @@
 			<div class="medium-split">
 				<span class="split-cell" class:negative={lookup.physical_balance < 0}>
 					<span class="split-label">physical</span>
-					<span class="split-value">{lookup.physical_balance}i&cent;</span>
+					<span class="split-value">{lookup.physical_balance}i¢</span>
 				</span>
 				<span class="split-cell" class:negative={lookup.digital_balance < 0}>
 					<span class="split-label">digital</span>
-					<span class="split-value">{lookup.digital_balance}i&cent;</span>
+					<span class="split-value">{lookup.digital_balance}i¢</span>
 				</span>
 			</div>
 			<div class="coin-meta">
@@ -702,7 +702,7 @@
 			<p class="hint">{MEDIUM_HINTS[medium]}</p>
 			{#if logMode === 'student' && lookup}
 				<p class="preview">
-					{MEDIUM_LABELS[activeMedium]} balance right now: {balanceFor(lookup, activeMedium)}i&cent;
+					{MEDIUM_LABELS[activeMedium]} balance right now: {balanceFor(lookup, activeMedium)}i¢
 				</p>
 			{/if}
 		{/if}
@@ -720,16 +720,16 @@
 			-->
 			{#if logMode === 'section'}
 				<p class="preview">
-					{cat.amount}i&cent; x each student's own wage tier. Paid per student, so a
+					{cat.amount}i¢ x each student's own wage tier. Paid per student, so a
 					raised tier is honored without splitting the section.
 				</p>
 			{:else if lookup}
 				<p class="preview">
-					Amount: {weeklyWagePreview(cat.amount, lookup.wage_tier)}i&cent;
-					({cat.amount}i&cent; base x wage tier {lookup.wage_tier})
+					Amount: {weeklyWagePreview(cat.amount, lookup.wage_tier)}i¢
+					({cat.amount}i¢ base x wage tier {lookup.wage_tier})
 				</p>
 			{:else}
-				<p class="preview">{cat.amount}i&cent; x the student's wage tier.</p>
+				<p class="preview">{cat.amount}i¢ x the student's wage tier.</p>
 			{/if}
 		{:else}
 			<p class="preview">Fixed amount: {cat.amount}i¢</p>

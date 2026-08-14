@@ -276,24 +276,24 @@
 
 			{#if newPricingModel === 'flat'}
 				<div class="field-row">
-					<label for="new-cat-amount">Amount (i&cent;)</label>
+					<label for="new-cat-amount">Amount (i¢)</label>
 					<input id="new-cat-amount" type="number" min="0" step="1" bind:value={newAmount} />
 				</div>
 			{:else if newPricingModel === 'range'}
 				<div class="field-row-group">
 					<div class="field-row">
-						<label for="new-cat-min">Min (i&cent;)</label>
+						<label for="new-cat-min">Min (i¢)</label>
 						<input id="new-cat-min" type="number" min="0" step="1" bind:value={newMinAmount} />
 					</div>
 					<div class="field-row">
-						<label for="new-cat-max">Max (i&cent;)</label>
+						<label for="new-cat-max">Max (i¢)</label>
 						<input id="new-cat-max" type="number" min="0" step="1" bind:value={newMaxAmount} />
 					</div>
 				</div>
 			{:else if newPricingModel === 'per_unit'}
 				<div class="field-row-group">
 					<div class="field-row">
-						<label for="new-cat-rate">Rate (i&cent; per unit)</label>
+						<label for="new-cat-rate">Rate (i¢ per unit)</label>
 						<input id="new-cat-rate" type="number" min="0" step="1" bind:value={newAmount} />
 					</div>
 					<div class="field-row">

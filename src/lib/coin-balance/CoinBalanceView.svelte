@@ -75,15 +75,15 @@
 		<section class="card">
 			<h2>Summary</h2>
 			<div class="coin-summary">
-				<div class="coin-balance" class:negative={balance < 0}>{balance}i&cent;</div>
+				<div class="coin-balance" class:negative={balance < 0}>{balance}i¢</div>
 				<div class="medium-split">
 					<span class="split-cell" class:negative={physicalBalance < 0}>
 						<span class="split-label">physical coins</span>
-						<span class="split-value">{physicalBalance}i&cent;</span>
+						<span class="split-value">{physicalBalance}i¢</span>
 					</span>
 					<span class="split-cell" class:negative={digitalBalance < 0}>
 						<span class="split-label">digital</span>
-						<span class="split-value">{digitalBalance}i&cent;</span>
+						<span class="split-value">{digitalBalance}i¢</span>
 					</span>
 				</div>
 				<div class="coin-meta">
@@ -126,7 +126,7 @@
 									{t.medium === 'digital' ? 'digital' : 'physical'}
 								</span>
 								<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
-									{t.amount > 0 ? '+' : ''}{t.amount}i&cent;
+									{t.amount > 0 ? '+' : ''}{t.amount}i¢
 								</span>
 							</div>
 						</div>

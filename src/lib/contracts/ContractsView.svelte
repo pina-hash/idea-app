@@ -185,7 +185,7 @@
 							</div>
 							<div class="meta">
 								<span class="since">
-									{c.payout_amount}i&cent; total &middot; {c.claimed_count}/{c.max_contractors} claimed
+									{c.payout_amount}i¢ total &middot; {c.claimed_count}/{c.max_contractors} claimed
 									&middot; claimed {when(c.created_at)}
 								</span>
 								{#if c.description}<span class="note-text">{c.description}</span>{/if}
@@ -219,7 +219,7 @@
 							</div>
 							<div class="meta">
 								<span class="since">
-									{c.payout_amount}i&cent; total &middot; {c.claimed_count}/{c.max_contractors} claimed
+									{c.payout_amount}i¢ total &middot; {c.claimed_count}/{c.max_contractors} claimed
 								</span>
 								{#if c.description}<span class="note-text">{c.description}</span>{/if}
 								{#if feedback}

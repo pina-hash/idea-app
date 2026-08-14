@@ -426,7 +426,7 @@
 	<h2>Roles</h2>
 	<p class="note">
 		Shop Steward, Quartermaster, Safety Officer, and Lab Tech -- section-scoped ratio caps keyed
-		off the real coin_sections roster (0073), not a separate headcount. Application fee is 0i&cent;
+		off the real coin_sections roster (0073), not a separate headcount. Application fee is 0i¢
 		on purpose: the free-response answer is the real gate, checked here by an admin, not a
 		payment. The ratio cap is enforced when an application is APPROVED, not when it's submitted.
 		A role can also carry an expiration -- a holder stops counting toward capacity the moment it
@@ -700,7 +700,7 @@
 		<div class="sub-panel">
 			<h3>Pay Weekly Role Stipend</h3>
 			<p class="note small">
-				Logs the 2i&cent;/week stipend against every student who CURRENTLY holds a role (active,
+				Logs the 2i¢/week stipend against every student who CURRENTLY holds a role (active,
 				not expired), filtered by role and/or section if set -- never against a whole section's
 				enrollment (see the note above "Log a transaction" &rarr; Section mode, which deliberately
 				excludes this category).

@@ -154,11 +154,11 @@
 			<div class="medium-split">
 				<span class="split-cell" class:negative={lookup.physical_balance < 0}>
 					<span class="split-label">physical</span>
-					<span class="split-value">{lookup.physical_balance}i&cent;</span>
+					<span class="split-value">{lookup.physical_balance}i¢</span>
 				</span>
 				<span class="split-cell" class:negative={lookup.digital_balance < 0}>
 					<span class="split-label">digital</span>
-					<span class="split-value">{lookup.digital_balance}i&cent;</span>
+					<span class="split-value">{lookup.digital_balance}i¢</span>
 				</span>
 			</div>
 			<div class="coin-meta">

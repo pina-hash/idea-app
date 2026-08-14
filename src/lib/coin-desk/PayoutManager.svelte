@@ -246,11 +246,11 @@
 								{c.student_email}{c.last_activity_at ? ` · last activity ${when(c.last_activity_at)}` : ''}
 							</span>
 							<span class="since">
-								holds {c.physical_balance}i&cent; physical &middot; total {c.balance}i&cent;
+								holds {c.physical_balance}i¢ physical &middot; total {c.balance}i¢
 							</span>
 						</div>
 						<div class="actions">
-							<span class="balance">{c.digital_balance}i&cent;</span>
+							<span class="balance">{c.digital_balance}i¢</span>
 							<input
 								class="partial"
 								type="number"

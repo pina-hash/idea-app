@@ -435,7 +435,7 @@
 			distinct payout-loss acknowledgment is required first whenever the tournament has any reward
 			ledger rows, and only a host or a teacher gets through. The RPC enforces all of it
 			server-side; this form only keeps the button off input the server would reject. This sim's
-			ledger currently totals {deleteRewardCoins} coins across {deleteRewardEntries} entries ({deleteRewardCount}
+			ledger currently totals {deleteRewardCoins}i¢ across {deleteRewardEntries} entries ({deleteRewardCount}
 			rows) -- play a bracket forward (below) to grow it.
 		</p>
 		<div class="controls">

@@ -138,7 +138,7 @@
 		<p class="debt-line">
 			{#each inDebt as m (m)}
 				<span class="debt-entry">
-					Owes <span class="debt-amount">{m === 'physical' ? physicalDebt : digitalDebt}i&cent;</span>
+					Owes <span class="debt-amount">{m === 'physical' ? physicalDebt : digitalDebt}i¢</span>
 					{MEDIUM_LABELS[m].toLowerCase()}
 				</span>
 			{/each}
@@ -162,7 +162,7 @@
 		<div class="field-row-group">
 			<div class="field-row">
 				<label for="debt-amount-input">
-					Payment amount (i&cent;, {MEDIUM_LABELS[medium].toLowerCase()})
+					Payment amount (i¢, {MEDIUM_LABELS[medium].toLowerCase()})
 				</label>
 				<input
 					id="debt-amount-input"

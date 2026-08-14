@@ -13,19 +13,23 @@
  *    `student_id` those RPCs mint. Adding a field here that carries an
  *    address would defeat the whole design — don't.
  *
- * 2. THE OUTPUT SHAPE IS THE PAGE'S EXISTING SHAPE. The Ledger's own
- *    `parseCSV` and its contract/reason/role renderers are unchanged legacy
- *    code, so the summary and transaction feeds are emitted as CSV under the
- *    EXACT column headers that page already looks for, and the JSON feeds
- *    keep the field names it already reads. `Debt` is the total balance being
- *    negative. `Bank Balance` was empty until 0096 gave the economy a second
- *    balance to put there — see the summary case for the mapping.
+ * 2. THE OUTPUT SHAPE IS CSV BECAUSE THE PAGE PARSES CSV. The Ledger's own
+ *    `parseCSV` reads by HEADER NAME, so the two feeds below are emitted as
+ *    CSV under names that page looks for, and the JSON feeds keep the field
+ *    names it already reads. `Debt` is the total balance being negative.
  *
- * THE PAGE IS NOT EDITED BY THIS MODULE, and 0096 deliberately did not edit it
- * either: it recomputes its own figures client-side from these columns, and a
- * separate display pass owns the drawer, the analytics buckets, and how an
- * amount renders. `medium` is available on the per-student and transaction
- * RPCs for that pass; the CSV shape here is unchanged.
+ * SINCE 0096 THE ECONOMY HAS TWO BALANCES, AND SINCE 0103 THIS LAYER SERVES
+ * BOTH OF THEM RATHER THAN LEAVING THE PAGE TO INFER ONE. `Coin Balance` is
+ * the TOTAL; `Physical Balance` (coins in the student's hand) and
+ * `Digital Balance` (the part held in the system) are its two components and
+ * always sum to it. They replace `Bank Balance`, the empty legacy slot 0089
+ * served and 0096 temporarily borrowed for the digital figure — a stand-in
+ * that only ever rendered when it was positive.
+ *
+ * The transaction feed carries `Medium` and `Transfer Id` for the same reason:
+ * a payout is TWO linked rows sharing one transfer id, and the page collapses
+ * that pair into the single event it was. Inferring the pairing from names and
+ * timestamps would be guesswork over a key that is already stored.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -100,6 +104,8 @@ interface TransactionRow {
 	amount: number;
 	type: string;
 	reason: string;
+	medium: string | null;
+	transfer_id: string | null;
 }
 
 interface ContractRow {
@@ -157,7 +163,8 @@ export async function readCoinPublic(
 						'Spent',
 						'Coin Balance',
 						'Paid Out',
-						'Bank Balance',
+						'Physical Balance',
+						'Digital Balance',
 						'Debt',
 						'Wage Tier',
 						'Student Id'
@@ -175,14 +182,13 @@ export async function readCoinPublic(
 						// has always meant to a reader.
 						r.balance,
 						r.paid_out,
-						// `Bank Balance` was a legacy physical-coin column 0089
-						// deliberately served EMPTY, because the Supabase economy
-						// had one balance and nothing to put there. It has one
-						// now: the DIGITAL balance -- the part that is banked
-						// rather than in hand. The page renders this stat only
-						// when it parses as a POSITIVE number, so a zero or
-						// negative digital balance correctly shows nothing, and
-						// the slot lights up with no edit to that page.
+						// The two components of that total, served explicitly
+						// since 0103. Both are signed and both are always sent:
+						// a negative physical balance is a real state (a student
+						// fined past what they were holding) and the page shows
+						// it rather than hiding it, unlike the positive-only
+						// `Bank Balance` stand-in these replace.
+						r.physical_balance,
 						r.digital_balance,
 						r.debt,
 						r.wage_tier,
@@ -201,8 +207,19 @@ export async function readCoinPublic(
 			return {
 				contentType: 'text/csv; charset=utf-8',
 				body: toCsv(
-					['Date / Time', 'Name', 'Amount', 'Type', 'Reason'],
-					rows.map((r) => [ledgerDate(r.occurred_at), r.name, r.amount, r.type, r.reason])
+					['Date / Time', 'Name', 'Amount', 'Type', 'Reason', 'Medium', 'Transfer Id'],
+					rows.map((r) => [
+						ledgerDate(r.occurred_at),
+						r.name,
+						// The STORED SIGNED amount, never an absolute value: the
+						// sign is the ledger's, and the page renders it rather
+						// than reconstructing one from the type string.
+						r.amount,
+						r.type,
+						r.reason,
+						r.medium ?? '',
+						r.transfer_id ?? ''
+					])
 				)
 			};
 		}

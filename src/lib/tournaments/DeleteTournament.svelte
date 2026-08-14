@@ -128,9 +128,9 @@
 			<label class="ack">
 				<input type="checkbox" bind:checked={payoutBoxChecked} />
 				<span>
-					I understand this permanently erases the record of {rewardCoins} coin{rewardCoins === 1
-						? ''
-						: 's'} paid to {rewardEntries} {rewardEntries === 1 ? 'entry' : 'entries'}.
+					I understand this permanently erases the record of {rewardCoins}i¢ paid to
+					{rewardEntries}
+					{rewardEntries === 1 ? 'entry' : 'entries'}.
 				</span>
 			</label>
 			{#if error}<p class="err">{error}</p>{/if}

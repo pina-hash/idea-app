@@ -23,6 +23,7 @@
   --ice: #88DDFF;
   --red: #FF4444;
   --blue: #4488FF;
+  --violet: #B47CFF;
   --glow-green: 0 0 10px rgba(0,255,65,0.8), 0 0 28px rgba(0,255,65,0.3);
   --glow-gold: 0 0 10px rgba(200,255,0,0.8), 0 0 28px rgba(200,255,0,0.3);
   --glow-cyan: 0 0 10px rgba(0,240,255,0.8), 0 0 28px rgba(0,240,255,0.3);
@@ -490,9 +491,15 @@ nav a.active { color: var(--gold); text-shadow: var(--glow-gold); }
 .txn-amount {
   font-family: 'Orbitron', sans-serif; font-size: 0.7rem; font-weight: 600; white-space: nowrap;
 }
+/* An amount's colour follows its OWN STORED SIGN and its kind, never a
+   whitelist of type strings: a +40 correction is a credit and must read as
+   one. `adjustment` and `transfer` carry their badge's colour so a row is
+   one idea from end to end. */
 .txn-amount.positive { color: var(--green); }
 .txn-amount.negative { color: #FF4444; }
 .txn-amount.purchase { color: var(--amber); }
+.txn-amount.adjustment { color: var(--violet); }
+.txn-amount.transfer { color: var(--blue); }
 .txn-reason { color: var(--dim); font-size: 0.63rem; }
 
 .type-badge {
@@ -501,12 +508,24 @@ nav a.active { color: var(--gold); text-shadow: var(--glow-gold); }
   padding: 0.2rem 0.5rem; border-radius: 2px; white-space: nowrap;
 }
 .type-award  { color: var(--green); border: 1px solid rgba(0,255,65,0.35); background: rgba(0,255,65,0.07); }
-.type-award-held { color: #C8FF00; border: 1px solid rgba(200,255,0,0.35); background: rgba(200,255,0,0.07); }
 .type-fine   { color: var(--red);   border: 1px solid rgba(255,68,68,0.35); background: rgba(255,68,68,0.07); }
 .type-purchase { color: var(--amber); border: 1px solid rgba(255,140,0,0.35); background: rgba(255,140,0,0.07); }
 .type-payout { color: var(--blue);  border: 1px solid rgba(68,136,255,0.35); background: rgba(68,136,255,0.07); }
+/* Adjustment has its own identity rather than falling through to the grey
+   catch-all, which read as an error state on what is usually a correction in
+   the student's favour. Violet is the one palette colour carrying no other
+   meaning here (green award, red fine, amber purchase, blue payout). */
+.type-adjustment { color: var(--violet); border: 1px solid rgba(180,124,255,0.35); background: rgba(180,124,255,0.07); }
 .type-other    { color: var(--dim);   border: 1px solid rgba(74,122,82,0.3);  background: transparent; }
-.type-fine-owed { color: var(--amber); border: 1px solid rgba(255,140,0,0.35); background: rgba(255,140,0,0.07); }
+
+/* The medium a transaction landed in, shown beside the amount. Deliberately
+   quiet: it answers "which of my coins are these" without competing with the
+   number. */
+.txn-medium {
+  display: block; font-family: 'Share Tech Mono', monospace;
+  font-size: 0.5rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--dim); font-weight: 400; margin-top: 0.1rem;
+}
 
 /* ── Pagination ─────────────────────────────────────── */
 .txn-pagination {
@@ -1589,10 +1608,9 @@ body::after {
       <select class="txn-type-select" id="txn-type-filter">
         <option value="">All Types</option>
         <option value="Award">Award</option>
-        <option value="Award - Held">Award - Held</option>
         <option value="Fine">Fine</option>
-        <option value="Fine - Owed">Fine - Owed</option>
         <option value="Purchase">Purchase</option>
+        <option value="Adjustment">Adjustment</option>
         <option value="Payout">Payout</option>
       </select>
       <div class="date-filter-wrap">
@@ -1770,7 +1788,11 @@ const TXN_PAGE_SIZE = 50;
 
 // ── State ────────────────────────────────────────────
 let summaryData = [];
+// The raw parsed transaction CSV, and the normalized view every surface below
+// actually reads. See normalizeTxnRows: the only difference is that a payout's
+// two stored halves are collapsed into the one event they were.
 let txnData = [];
+let txnRows = [];
 let contractsData = [];
 let contractHistoryData = [];
 let reasonsGuideData = [];
@@ -1853,14 +1875,103 @@ function txnDateObj(r) {
 }
 function typeBadgeClass(type) {
   switch ((type || '').toLowerCase()) {
-    case 'award':         return 'type-award';
-    case 'award - held':  return 'type-award-held';
-    case 'fine - owed':   return 'type-fine-owed';
-    case 'fine':          return 'type-fine';
-    case 'purchase':      return 'type-purchase';
-    case 'payout':   return 'type-payout';
-    default:         return 'type-other';
+    case 'award':      return 'type-award';
+    case 'fine':       return 'type-fine';
+    case 'purchase':   return 'type-purchase';
+    case 'payout':     return 'type-payout';
+    case 'adjustment': return 'type-adjustment';
+    default:           return 'type-other';
   }
+}
+
+// ── How an amount renders ────────────────────────────
+//
+// THE SIGN COMES FROM THE STORED AMOUNT, ALWAYS. The type string chooses the
+// badge and nothing else. Reconstructing a sign from a whitelist of type
+// strings is what made a +40 balance correction render as a red -40: the
+// ledger's own sign was thrown away with Math.abs and a fresh one guessed.
+//
+// A transfer is the one row with no sign at all: a payout moves coins from
+// digital to physical, so nothing was gained or lost and a + or a - would be
+// a lie in either direction.
+function amountDisplay(amount, type, isTransfer) {
+  const n = Number(amount) || 0;
+  if (isTransfer) {
+    return { cls: 'transfer', text: fmtNum(Math.abs(n)) };
+  }
+  const t = (type || '').toLowerCase();
+  let cls;
+  if (t === 'adjustment')   cls = 'adjustment';
+  else if (n > 0)           cls = 'positive';
+  else if (t === 'purchase') cls = 'purchase';
+  else                      cls = 'negative';
+  return { cls: cls, text: (n > 0 ? '+' : n < 0 ? '-' : '') + fmtNum(Math.abs(n)) };
+}
+
+const MEDIUM_LABELS = { physical: 'Physical', digital: 'Digital' };
+function mediumLabel(m) {
+  return MEDIUM_LABELS[(m || '').toLowerCase()] || '';
+}
+
+/** The quiet line under an amount: which coins these are, or where they moved. */
+function mediumNote(medium, from, to, isTransfer) {
+  if (isTransfer) {
+    const f = mediumLabel(from);
+    const t = mediumLabel(to);
+    if (f && t) return f + ' &rarr; ' + t;
+    return f || t || '';
+  }
+  return mediumLabel(medium);
+}
+
+/**
+ * A PAYOUT IS TWO STORED ROWS SHARING ONE TRANSFER ID -- a digital debit and
+ * an equal physical credit -- because that is what the ledger records: the
+ * coins changed form, they did not go anywhere. To a reader it is ONE
+ * withdrawal, so the pair is collapsed here, once, into the row every surface
+ * below then renders, filters, sorts and counts.
+ *
+ * The id is the real key and it is already stored, so nothing here pairs rows
+ * by guessing at matching names, timestamps and amounts. A backend without
+ * migration 0103 sends no transfer id at all; every row then passes through
+ * untouched, which is the pre-0103 rendering -- two rows instead of one, but
+ * each still carrying its own honest sign.
+ */
+function normalizeTxnRows(rows) {
+  const out = [];
+  const byTransfer = {};
+  (rows || []).forEach(row => {
+    const p = pick(row);
+    const transferId = String(p('Transfer Id') || '').trim();
+    if (!transferId) { out.push(row); return; }
+
+    const amount = parseFloat(p('Amount') || 0) || 0;
+    const medium = String(p('Medium') || '').trim().toLowerCase();
+    let pair = byTransfer[transferId];
+    if (!pair) {
+      pair = {
+        'Date / Time': p('Date / Time', 'Date/Time', 'Date', 'Timestamp') || '',
+        'Name':        p('Name', 'Student', 'Full Name') || '',
+        'Amount':      0,
+        'Type':        'Payout',
+        'Reason':      p('Reason', 'Description', 'Note') || '',
+        'Transfer Id': transferId,
+        _transfer: true,
+        _from: '',
+        _to: ''
+      };
+      byTransfer[transferId] = pair;
+      out.push(pair);
+    }
+    // Each half names one end of the move: the debited medium is where the
+    // coins came from, the credited one is where they landed. Only one half
+    // reaching the feed (a row limit can cut between them) still reads
+    // correctly, with one end of the arrow unknown rather than a wrong sign.
+    if (amount < 0) pair._from = medium;
+    else if (amount > 0) pair._to = medium;
+    pair['Amount'] = Math.max(pair['Amount'], Math.abs(amount));
+  });
+  return out;
 }
 
 // ── Fetch ────────────────────────────────────────────
@@ -1877,12 +1988,13 @@ async function fetchData() {
     if (!sRes.ok || !tRes.ok) throw new Error('coin read failed');
     summaryData = parseCSV(await sRes.text());
     txnData = parseCSV(await tRes.text());
+    txnRows = normalizeTxnRows(txnData);
 
     summaryData.sort((a, b) => {
       const calcBal = r => (parseFloat(pick(r)('Awarded') || 0) - parseFloat(pick(r)('Fines') || 0));
       return calcBal(b) - calcBal(a);
     });
-    txnData.sort((a, b) => {
+    txnRows.sort((a, b) => {
       const da = txnDateObj(a) || new Date(0);
       const db = txnDateObj(b) || new Date(0);
       return db - da;
@@ -2062,7 +2174,7 @@ function updateStatsBar() {
   const ratio = totalFines > 0 ? (totalAwarded / totalFines).toFixed(1) + ':1' : 'No Fines';
   document.getElementById('stat-circulation').textContent = fmtNum(circulation);
   document.getElementById('stat-debt').textContent = fmtNum(totalDebt);
-  document.getElementById('stat-txns').textContent = txnData.length.toLocaleString();
+  document.getElementById('stat-txns').textContent = txnRows.length.toLocaleString();
   document.getElementById('stat-ratio').textContent = ratio;
 }
 
@@ -2292,7 +2404,7 @@ function renderLeaderboard() {
     });
   });
   const eatingPassMap = {};
-  txnData.forEach(r => {
+  txnRows.forEach(r => {
     const rp = pick(r);
     if ((rp('Type', 'Transaction Type') || '').toLowerCase() !== 'purchase') return;
     const reason = (rp('Reason', 'Description', 'Note') || '').trim();
@@ -2320,7 +2432,13 @@ function renderLeaderboard() {
     const fines          = parseFloat(p('Fines') || 0);
     const spent          = parseFloat(p('Spent') || 0);
     const lifetimeEarned = awarded - fines;
-    const coinBal        = lifetimeEarned - spent;
+    // The server's total where it sends one (0103); the same identity as a
+    // fallback. See openDrawer for why the two agree.
+    const serverBal      = parseFloat(p('Coin Balance'));
+    const coinBal        = isNaN(serverBal) ? lifetimeEarned - spent : serverBal;
+    const physicalBal    = parseFloat(p('Physical Balance'));
+    const digitalBal     = parseFloat(p('Digital Balance'));
+    const hasSplit       = !isNaN(physicalBal) && !isNaN(digitalBal);
     const isNeg          = lifetimeEarned < 0;
 
     const card = document.createElement('div');
@@ -2362,7 +2480,13 @@ function renderLeaderboard() {
           '<span class="coin-meta-label">Lifetime</span>' +
           '<span class="coin-meta-value" style="color:var(--green)">' + (lifetimeEarned >= 0 ? '+' : '') + fmtNum(lifetimeEarned) + '</span>' +
         '</div>' +
-        (spent > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Balance</span><span class="coin-meta-value" style="color:' + (coinBal >= 0 ? 'var(--gold)' : 'var(--red)') + '">' + fmtNum(coinBal) + '</span></div>' : '') +
+        // The balance a student actually holds, and the two media it is made
+        // of. Always shown, unlike the old spent-gated single figure: "how
+        // much do I have and how much of it is in my hand" is the question
+        // this board is opened to answer.
+        '<div class="coin-meta-item"><span class="coin-meta-label">Balance</span><span class="coin-meta-value" style="color:' + (coinBal >= 0 ? 'var(--gold)' : 'var(--red)') + '">' + fmtNum(coinBal) + '</span></div>' +
+        (hasSplit ? '<div class="coin-meta-item"><span class="coin-meta-label">Physical</span><span class="coin-meta-value" style="color:' + (physicalBal >= 0 ? 'var(--ice)' : 'var(--red)') + '">' + fmtNum(physicalBal) + '</span></div>' : '') +
+        (hasSplit ? '<div class="coin-meta-item"><span class="coin-meta-label">Digital</span><span class="coin-meta-value" style="color:' + (digitalBal >= 0 ? 'var(--cyan)' : 'var(--red)') + '">' + fmtNum(digitalBal) + '</span></div>' : '') +
         (fines > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Awards</span><span class="coin-meta-value" style="color:var(--green)">+' + fmtNum(awarded) + '</span></div>' : '') +
         (fines > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Fines</span><span class="coin-meta-value" style="color:var(--red)">-' + fmtNum(fines) + '</span></div>' : '') +
         (spent > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Spent</span><span class="coin-meta-value" style="color:var(--amber)">-' + fmtNum(spent) + '</span></div>' : '') +
@@ -2391,8 +2515,18 @@ function openDrawer(row) {
   const spent   = parseFloat(p('Spent') || 0);
   const debt    = parseFloat(p('Debt') || 0);
   const lifetimeEarned = awarded - fines;
-  const coinBalance    = awarded - fines - spent;
-  const bankBal = parseFloat(p('Bank Balance', 'Bank Bal', 'Bank') || NaN);
+  // The server sends the authoritative total; the client identity is the
+  // fallback for a feed that predates it. Both agree, because a transfer is
+  // excluded from awarded AND spent (0103) and so cancels out of
+  // `awarded - fines - spent` exactly as it cancels out of the real balance.
+  const serverBalance  = parseFloat(p('Coin Balance'));
+  const coinBalance    = isNaN(serverBalance) ? awarded - fines - spent : serverBalance;
+  // The two components of that total. Both are real, signed numbers: a
+  // negative physical balance means a student was fined past what they were
+  // holding, and hiding it would be a nicer-looking lie.
+  const physicalBal = parseFloat(p('Physical Balance'));
+  const digitalBal  = parseFloat(p('Digital Balance'));
+  const hasSplit    = !isNaN(physicalBal) && !isNaN(digitalBal);
 
   const nameEl = document.getElementById('drawer-student-name');
   nameEl.textContent = name;
@@ -2402,14 +2536,20 @@ function openDrawer(row) {
   const sc = sectionColor(section);
   badgeEl.style.cssText = 'color:' + sc + ';border:1px solid ' + sc + '55;background:' + sc + '11';
 
+  // Total first, then its two components: one balance is the headline and
+  // "which of these coins are in my hand" is answered right beside it.
   let statsHtml =
+    drawerStatHtml('Total Balance', fmtNum(coinBalance) + ' i¢', coinBalance < 0 ? 'var(--red)' : 'var(--gold)');
+  if (hasSplit) {
+    statsHtml +=
+      drawerStatHtml('Physical (in hand)', fmtNum(physicalBal) + ' i¢', physicalBal < 0 ? 'var(--red)' : 'var(--ice)') +
+      drawerStatHtml('Digital (in system)', fmtNum(digitalBal) + ' i¢', digitalBal < 0 ? 'var(--red)' : 'var(--cyan)');
+  }
+  statsHtml +=
     drawerStatHtml('Lifetime Earned', fmtNum(lifetimeEarned) + ' i¢', 'var(--green)') +
-    drawerStatHtml('Coin Balance', fmtNum(coinBalance) + ' i¢', coinBalance < 0 ? 'var(--red)' : 'var(--gold)') +
     drawerStatHtml('Awarded', '+' + fmtNum(awarded), 'var(--green)') +
     drawerStatHtml('Fines', '-' + fmtNum(fines), 'var(--red)') +
     drawerStatHtml('Spent', '-' + fmtNum(spent), 'var(--amber)');
-  if (!isNaN(bankBal) && bankBal > 0)
-    statsHtml += drawerStatHtml('Bank Bal', fmtNum(bankBal) + ' i¢', 'var(--cyan)');
   if (debt > 0)
     statsHtml += drawerStatHtml('Debt', fmtNum(debt), 'var(--red)');
   const wPay = weeklyPayFor(name);
@@ -2425,7 +2565,7 @@ function openDrawer(row) {
   // which two students can legitimately share. Falls back to the name filter
   // only if a row somehow has no id.
   const studentId = (p('Student Id') || '').trim();
-  drawerTxns = txnData
+  drawerTxns = txnRows
     .filter(r => (pick(r)('Name', 'Student', 'Full Name') || '').trim().toLowerCase() === name.toLowerCase())
     .map(r => {
       const rp = pick(r);
@@ -2435,7 +2575,12 @@ function openDrawer(row) {
         dateObj: dateStr ? new Date(dateStr) : new Date(0),
         amount:  parseFloat(rp('Amount') || 0),
         type:    rp('Type', 'Transaction Type') || '-',
-        reason:  rp('Reason', 'Description', 'Note') || '-'
+        reason:  rp('Reason', 'Description', 'Note') || '-',
+        medium:  rp('Medium') || '',
+        // Already collapsed by normalizeTxnRows; the flags just ride through.
+        transfer: !!r._transfer,
+        from:    r._from || '',
+        to:      r._to || ''
       };
     });
   if (studentId) loadDrawerDetail(studentId, statsHtml);
@@ -2477,15 +2622,61 @@ async function loadDrawerDetail(studentId, baseStatsHtml) {
   document.getElementById('drawer-stats').innerHTML = statsHtml;
 
   if (Array.isArray(detail.history)) {
-    drawerTxns = detail.history.map(h => ({
-      date:    h.occurred_at || '-',
-      dateObj: h.occurred_at ? new Date(h.occurred_at) : new Date(0),
-      amount:  parseFloat(h.amount || 0),
-      type:    h.type || '-',
-      reason:  h.reason || '-'
-    }));
+    drawerTxns = collapseHistory(detail.history);
     renderDrawerTxns();
   }
+}
+
+/**
+ * normalizeTxnRows' transfer collapse, over the drawer's own per-student
+ * history -- which arrives as JSON from the per-student endpoint rather than
+ * as CSV, so it is the same rule against a different shape. A student looking
+ * at their own withdrawal should see the one thing that happened, not a debit
+ * and a credit that cancel.
+ */
+function collapseHistory(history) {
+  const out = [];
+  const byTransfer = {};
+  (history || []).forEach(h => {
+    const dateStr = h.occurred_at || '';
+    const amount  = parseFloat(h.amount || 0) || 0;
+    const medium  = String(h.medium || '').toLowerCase();
+    const transferId = String(h.transfer_id || '').trim();
+    if (!transferId) {
+      out.push({
+        date:    dateStr || '-',
+        dateObj: dateStr ? new Date(dateStr) : new Date(0),
+        amount:  amount,
+        type:    h.type || '-',
+        reason:  h.reason || '-',
+        medium:  medium,
+        transfer: false,
+        from: '',
+        to: ''
+      });
+      return;
+    }
+    let pair = byTransfer[transferId];
+    if (!pair) {
+      pair = {
+        date:    dateStr || '-',
+        dateObj: dateStr ? new Date(dateStr) : new Date(0),
+        amount:  0,
+        type:    'Payout',
+        reason:  h.reason || '-',
+        medium:  '',
+        transfer: true,
+        from: '',
+        to: ''
+      };
+      byTransfer[transferId] = pair;
+      out.push(pair);
+    }
+    if (amount < 0) pair.from = medium;
+    else if (amount > 0) pair.to = medium;
+    pair.amount = Math.max(pair.amount, Math.abs(amount));
+  });
+  return out;
 }
 
 let drawerTxns = [];
@@ -2522,11 +2713,9 @@ function renderDrawerTxns() {
     '</tr></thead><tbody>';
 
   sorted.forEach(t => {
-    const typeLower = t.type.toLowerCase();
-    const isPos = ['award', 'award - held', 'payout'].includes(typeLower);
-    const amtClass  = isPos ? 'positive' : typeLower === 'purchase' ? 'purchase' : 'negative';
-    const amtPrefix = isPos ? '+' : '-';
-    const shortType = { 'award - held': 'HELD', 'fine - owed': 'OWED' }[typeLower] || t.type;
+    const amt  = amountDisplay(t.amount, t.type, t.transfer);
+    const note = mediumNote(t.medium, t.from, t.to, t.transfer);
+    const shortType = t.transfer ? 'Withdrawal' : t.type;
     const parts = String(t.date).split(' ');
     let dDate = parts[0] || String(t.date);
     const dTime = parts[1] || '';
@@ -2534,8 +2723,9 @@ function renderDrawerTxns() {
     if (ymd) dDate = ymd[1];
     html += '<tr>' +
       '<td class="txn-date">' + escHtml(dDate) + (dTime ? '<br><span class="t">' + escHtml(dTime) + '</span>' : '') + '</td>' +
-      '<td class="txn-amount ' + amtClass + '">' + amtPrefix + fmtNum(Math.abs(t.amount)) + '</td>' +
-      '<td><span class="type-badge ' + typeBadgeClass(t.type) + '" title="' + escHtml(t.type) + '">' + escHtml(shortType) + '</span></td>' +
+      '<td class="txn-amount ' + amt.cls + '">' + amt.text +
+        (note ? '<span class="txn-medium">' + note + '</span>' : '') + '</td>' +
+      '<td><span class="type-badge ' + typeBadgeClass(t.type) + '" title="' + escHtml(shortType) + '">' + escHtml(shortType) + '</span></td>' +
       '<td class="txn-reason">' + escHtml(t.reason) + '</td>' +
       '</tr>';
   });
@@ -2557,7 +2747,7 @@ function renderTransactions() {
   const tbody   = document.getElementById('txn-tbody');
   const countEl = document.getElementById('txn-count');
 
-  let filtered = txnData.filter(row => {
+  let filtered = txnRows.filter(row => {
     const p    = pick(row);
     const name = (p('Name', 'Student', 'Full Name') || '').toLowerCase();
     const type = p('Type', 'Transaction Type') || '';
@@ -2636,17 +2826,16 @@ function renderTransactions() {
       const amount = parseFloat(p('Amount') || 0);
       const type   = p('Type', 'Transaction Type') || '—';
       const reason = p('Reason', 'Description', 'Note') || '—';
-      const typeLower = type.toLowerCase();
-      const isPositiveTxn = ['award', 'award - held', 'payout'].includes(typeLower);
-      const amtClass  = isPositiveTxn ? 'positive' : typeLower === 'purchase' ? 'purchase' : 'negative';
-      const amtPrefix = isPositiveTxn ? '+' : '-';
+      const amt    = amountDisplay(amount, type, row._transfer);
+      const note   = mediumNote(p('Medium'), row._from, row._to, row._transfer);
+      const label  = row._transfer ? 'Withdrawal' : type;
       const tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="txn-date">'  + escHtml(date)   + '</td>' +
         '<td class="txn-name">'  + escHtml(name)   + '</td>' +
-        '<td class="txn-amount ' + amtClass + '">' +
-          amtPrefix + fmtNum(Math.abs(amount)) + '</td>' +
-        '<td><span class="type-badge ' + typeBadgeClass(type) + '">' + escHtml(type) + '</span></td>' +
+        '<td class="txn-amount ' + amt.cls + '">' + amt.text +
+          (note ? '<span class="txn-medium">' + note + '</span>' : '') + '</td>' +
+        '<td><span class="type-badge ' + typeBadgeClass(type) + '">' + escHtml(label) + '</span></td>' +
         '<td class="txn-reason">' + escHtml(reason) + '</td>';
       tbody.appendChild(tr);
     });
@@ -2706,24 +2895,37 @@ function renderAnalytics() {
   const lastSunday = new Date(thisMonday); lastSunday.setDate(lastSunday.getDate() - 1);
   lastSunday.setHours(23, 59, 59, 999);
 
-  let thisAwarded = 0, thisFines = 0, thisTxns = 0;
-  let lastAwarded = 0, lastFines = 0, lastTxns = 0;
+  let thisAwarded = 0, thisFines = 0, thisAdjust = 0, thisTxns = 0;
+  let lastAwarded = 0, lastFines = 0, lastAdjust = 0, lastTxns = 0;
 
-  txnData.forEach(r => {
+  txnRows.forEach(r => {
     const dt = txnDateObj(r);
     if (!dt) return;
     const type   = (pick(r)('Type', 'Transaction Type') || '').toLowerCase();
-    const amount = Math.abs(parseFloat(pick(r)('Amount') || 0));
+    const signed = parseFloat(pick(r)('Amount') || 0) || 0;
+    const amount = Math.abs(signed);
+    // A transfer moved coins between two media the same student already
+    // held, so it belongs in none of these totals. (Collapsed transfers are
+    // typed Payout and excluded by that alone; the flag also covers a feed
+    // that predates migration 0103 and sends the halves untagged.)
     if (dt >= thisMonday && dt <= now) {
       thisTxns++;
-      if (type === 'award' || type === 'award - held') thisAwarded += amount;
-      if (type === 'fine'  || type === 'fine - owed')  thisFines   += amount;
+      if (r._transfer) return;
+      if (type === 'award')      thisAwarded += amount;
+      if (type === 'fine')       thisFines   += amount;
+      // Adjustments run both ways, so this is a NET figure -- an absolute
+      // one would report a correction and its reversal as activity.
+      if (type === 'adjustment') thisAdjust  += signed;
     } else if (dt >= lastMonday && dt <= lastSunday) {
       lastTxns++;
-      if (type === 'award' || type === 'award - held') lastAwarded += amount;
-      if (type === 'fine'  || type === 'fine - owed')  lastFines   += amount;
+      if (r._transfer) return;
+      if (type === 'award')      lastAwarded += amount;
+      if (type === 'fine')       lastFines   += amount;
+      if (type === 'adjustment') lastAdjust  += signed;
     }
   });
+
+  const signedNum = (n) => (n > 0 ? '+' : '') + fmtNum(n);
 
   function wDelta(a, b) {
     if (a > b) return '<span class="delta-up">&#9650;</span>';
@@ -2742,32 +2944,38 @@ function renderAnalytics() {
     '<div class="weekly-wrap">' +
     '<div class="weekly-col">' +
       '<div class="weekly-col-title">This Week</div>' +
-      wRow('Coins Awarded',       fmtNum(thisAwarded), wDelta(thisAwarded, lastAwarded)) +
-      wRow('Fines Issued',        fmtNum(thisFines),   wDelta(thisFines,   lastFines))   +
-      wRow('Transactions Logged', thisTxns,            wDelta(thisTxns,    lastTxns))    +
+      wRow('Coins Awarded',       fmtNum(thisAwarded),   wDelta(thisAwarded, lastAwarded)) +
+      wRow('Fines Issued',        fmtNum(thisFines),     wDelta(thisFines,   lastFines))   +
+      wRow('Adjustments (net)',   signedNum(thisAdjust), wDelta(thisAdjust,  lastAdjust))  +
+      wRow('Transactions Logged', thisTxns,              wDelta(thisTxns,    lastTxns))    +
     '</div>' +
     '<div class="weekly-col">' +
       '<div class="weekly-col-title">Last Week</div>' +
-      wRow('Coins Awarded',       fmtNum(lastAwarded), wDelta(lastAwarded, thisAwarded)) +
-      wRow('Fines Issued',        fmtNum(lastFines),   wDelta(lastFines,   thisFines))   +
-      wRow('Transactions Logged', lastTxns,            wDelta(lastTxns,    thisTxns))    +
+      wRow('Coins Awarded',       fmtNum(lastAwarded),   wDelta(lastAwarded, thisAwarded)) +
+      wRow('Fines Issued',        fmtNum(lastFines),     wDelta(lastFines,   thisFines))   +
+      wRow('Adjustments (net)',   signedNum(lastAdjust), wDelta(lastAdjust,  thisAdjust))  +
+      wRow('Transactions Logged', lastTxns,              wDelta(lastTxns,    thisTxns))    +
     '</div></div>';
 
   // ── Transaction Breakdown ─────────────────────────
-  const TYPES = ['Award', 'Fine', 'Purchase', 'Payout'];
+  // Adjustment is here because it is on every row above: a breakdown that
+  // silently omits a type disagrees with the log it is summarizing.
+  const TYPES = ['Award', 'Fine', 'Purchase', 'Adjustment', 'Payout'];
   const typeStats = TYPES.map(t => {
-    const rows = txnData.filter(r => (pick(r)('Type', 'Transaction Type') || '').toLowerCase() === t.toLowerCase());
+    const rows = txnRows.filter(r => (pick(r)('Type', 'Transaction Type') || '').toLowerCase() === t.toLowerCase());
     return { t, count: rows.length, total: rows.reduce((s, r) => s + parseFloat(pick(r)('Amount') || 0), 0) };
   }).sort((a, b) => b.count - a.count);
 
   let tblHtml = '<table class="breakdown-table"><thead><tr><th>Type</th><th>Count</th><th>Total</th></tr></thead><tbody>';
   typeStats.forEach(({ t, count, total }) => {
+    // Same rule as every row above: the sign is the stored one, and a payout
+    // total is the amount MOVED between two media, so it carries no sign at
+    // all rather than reading as income.
+    const amt = amountDisplay(total, t, t === 'Payout');
     tblHtml +=
       '<tr><td><span class="type-badge ' + typeBadgeClass(t) + '">' + t + '</span></td>' +
       '<td style="font-family:\'Orbitron\',sans-serif;font-size:0.7rem;color:var(--ice)">' + count + '</td>' +
-      '<td style="font-family:\'Orbitron\',sans-serif;font-size:0.68rem;font-weight:600;color:' +
-        (total >= 0 ? 'var(--green)' : 'var(--red)') + '">' +
-        (total >= 0 ? '+' : '') + fmtNum(total) + '</td></tr>';
+      '<td class="txn-amount ' + amt.cls + '" style="font-size:0.68rem">' + amt.text + '</td></tr>';
   });
   tblHtml += '</tbody></table>';
   document.getElementById('analytics-breakdown-table').innerHTML = tblHtml;
@@ -2775,7 +2983,7 @@ function renderAnalytics() {
   function topReasons(typeStrs) {
     const types = (Array.isArray(typeStrs) ? typeStrs : [typeStrs]).map(t => t.toLowerCase());
     const freq = {};
-    txnData.forEach(r => {
+    txnRows.forEach(r => {
       if (!types.includes((pick(r)('Type', 'Transaction Type') || '').toLowerCase())) return;
       const rsn = (pick(r)('Reason', 'Description', 'Note') || '').trim();
       if (rsn) freq[rsn] = (freq[rsn] || 0) + 1;
@@ -2793,9 +3001,9 @@ function renderAnalytics() {
   }
   document.getElementById('analytics-reasons').innerHTML =
     '<div class="reason-group"><div class="reason-group-title">Top Fine Reasons</div>' +
-    reasonsHtml(topReasons(['Fine', 'Fine - Owed']), 'var(--red)') + '</div>' +
+    reasonsHtml(topReasons(['Fine']), 'var(--red)') + '</div>' +
     '<div class="reason-group"><div class="reason-group-title">Top Award Reasons</div>' +
-    reasonsHtml(topReasons(['Award', 'Award - Held']), 'var(--green)') + '</div>';
+    reasonsHtml(topReasons(['Award']), 'var(--green)') + '</div>';
 
   // ── Student Spotlights ────────────────────────────
   const sData = summaryData.map(r => ({
@@ -2811,7 +3019,7 @@ function renderAnalytics() {
     return sData.reduce((best, s) => s[field] > best[field] ? s : best, sData[0]);
   }
   const actMap = {};
-  txnData.forEach(r => {
+  txnRows.forEach(r => {
     const n = (pick(r)('Name', 'Student', 'Full Name') || '').trim();
     if (n) actMap[n] = (actMap[n] || 0) + 1;
   });
@@ -2864,7 +3072,7 @@ function renderAnalytics() {
 
   // ── Activity Over Time ────────────────────────────
   const dateMap = {};
-  txnData.forEach(r => {
+  txnRows.forEach(r => {
     const dt = txnDateObj(r);
     if (!dt) return;
     const key = dt.getFullYear() + '-' +
@@ -2902,7 +3110,7 @@ function renderAnalytics() {
   // ── Recently Active (last 7 days) ─────────────────
   const sevenAgo = new Date(now); sevenAgo.setDate(sevenAgo.getDate() - 7); sevenAgo.setHours(0,0,0,0);
   const recentMap = {};
-  txnData.forEach(r => {
+  txnRows.forEach(r => {
     const dt = txnDateObj(r);
     if (!dt || dt < sevenAgo) return;
     const dateStr = pick(r)('Date / Time', 'Date/Time', 'Date', 'Timestamp') || '';
