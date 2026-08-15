@@ -4,7 +4,12 @@ import type { JwtPayload } from '@supabase/supabase-js';
 import type { PageLoad } from './$types';
 import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
 import type { FeedSubmission } from '$lib/classroom/feed';
-import { makeStubSupabase, profileForMode, type TourHarnessMode } from './store.svelte';
+import {
+	makeStubSupabase,
+	profileForMode,
+	seedPreferences,
+	type TourHarnessMode
+} from './store.svelte';
 
 /**
  * Dev-only harness for the first-time spotlight tour: mounts the REAL home
@@ -38,6 +43,17 @@ export const load: PageLoad = async ({ url }) => {
 	if (!dev) error(404, 'Not found');
 	const raw = url.searchParams.get('mode') as TourHarnessMode | null;
 	const mode: TourHarnessMode = raw && MODES.includes(raw) ? raw : 'student';
+	// ?prefs=<json> seeds profiles.preferences BEFORE the profile is built, so a
+	// stored layout (including a pre-migration v1 one) is present on a genuinely
+	// cold mount rather than pushed in after the launcher has already read it.
+	const seed = url.searchParams.get('prefs');
+	if (seed) {
+		try {
+			seedPreferences(JSON.parse(seed) as Record<string, unknown>);
+		} catch {
+			/* malformed seed: leave the store as it is */
+		}
+	}
 	const profile = profileForMode(mode);
 	// Shaped like a validated Supabase JWT so the mock satisfies the home
 	// page's PageData; only `sub` and `email` are actually read.

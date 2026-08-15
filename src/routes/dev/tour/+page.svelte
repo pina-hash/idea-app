@@ -1,7 +1,8 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { TOUR_SEEN_KEY } from '$lib/tour/orientation';
 	import HomePage from '../../+page.svelte';
-	import { store } from './store.svelte';
+	import { store, seedPreferences } from './store.svelte';
 
 	/**
 	 * Manual verification harness for the first-time spotlight tour (dev-only,
@@ -29,9 +30,23 @@
 		}
 		store.tourCompletedAt = null;
 		store.pathway = null;
+		store.preferences = {};
 		store.log = [];
 		location.reload();
 	};
+
+	/**
+	 * Scripted-drive hook for the app launcher: seed a stored layout (including a
+	 * pre-migration v1 one) and read back what the component actually wrote,
+	 * without a database. Dev harness only.
+	 */
+	onMount(() => {
+		(window as unknown as Record<string, unknown>).__tourHarness = {
+			seedPreferences,
+			prefs: () => JSON.parse(JSON.stringify(store.preferences)),
+			log: () => [...store.log]
+		};
+	});
 </script>
 
 <svelte:head><title>Tour harness</title></svelte:head>

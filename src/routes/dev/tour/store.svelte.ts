@@ -13,9 +13,22 @@ export const store = $state({
 	tourCompletedAt: null as string | null,
 	/** Mutated by the stub client's pathway writes (picker mode). */
 	pathway: null as string | null,
+	/**
+	 * Mutated by the stub client's `preferences` writes, so the app launcher's
+	 * saved layout, sort mode and usage counters behave like a persisted profile
+	 * within the session -- which is the only way to check that a reorder or an
+	 * open actually stuck. Seedable from the harness page (see `seedPreferences`)
+	 * so a pre-migration v1 layout can be loaded and watched migrate.
+	 */
+	preferences: {} as Record<string, unknown>,
 	/** Human-readable log of every write the stub client received. */
 	log: [] as string[]
 });
+
+/** Replace the mock profile's stored preferences (harness setup, not a write). */
+export function seedPreferences(next: Record<string, unknown>) {
+	store.preferences = next;
+}
 
 export function profileForMode(mode: TourHarnessMode): UserProfile | null {
 	if (mode === 'anon') return null;
@@ -31,7 +44,7 @@ export function profileForMode(mode: TourHarnessMode): UserProfile | null {
 		// 'picker' starts with no pathway so the REAL root-layout PathwayPicker
 		// shows first and the tour has to wait for it.
 		pathway: mode === 'picker' ? store.pathway : (store.pathway ?? 'IDEA'),
-		preferences: {},
+		preferences: store.preferences,
 		tour_completed_at: mode === 'done' ? '2026-07-01T00:00:00.000Z' : store.tourCompletedAt
 	};
 }
@@ -50,6 +63,8 @@ export function makeStubSupabase() {
 							if ('tour_completed_at' in patch)
 								store.tourCompletedAt = patch.tour_completed_at as string | null;
 							if ('pathway' in patch) store.pathway = patch.pathway as string | null;
+							if ('preferences' in patch)
+								store.preferences = patch.preferences as Record<string, unknown>;
 							note(`update ${table} ${JSON.stringify(patch)}`);
 							return {
 								// Awaitable like the real builder, and .select()-able for
