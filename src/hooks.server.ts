@@ -8,17 +8,32 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
  * Redirects old GitHub Pages base-path links to their new homes. Scoped to the
  * exact directory paths only, so the mirrored `static/IDEA/<icon>.png` files
  * (which are served directly and never reach this hook) are not shadowed.
+ *
+ * KEYED WITHOUT THE TRAILING SLASH, WHICH IS THE WHOLE REASON THIS WORKS.
+ * SvelteKit normalizes `/IDEA/` to `/IDEA` and issues its own redirect BEFORE
+ * a hook ever sees the request, so a map keyed on `/IDEA/` could never match
+ * and every one of these links 404'd: `/IDEA/` -> `/IDEA` -> 404, and
+ * `/IDEA/coins/` -> `/coins/` -> `/coins` -> 404. Measured, not assumed.
+ *
+ * The targets carry the explicit `index.html` for the same reason the Ledger's
+ * own nav does: the Vite dev server does not resolve a bare directory to its
+ * index (404) even though Vercel does, so a bare `/coins/` target would have
+ * moved the 404 rather than removed it.
  */
 const legacyPaths: Record<string, string> = {
-	'/IDEA/': '/',
-	'/IDEA/coins/': '/coins/'
+	'/IDEA': '/',
+	'/IDEA/coins': '/coins/index.html'
 	// `/IDEA/entry/` used to redirect to the Sheets-backed coin entry tool. That
 	// tool is retired (see docs/coin-economy/archive/legacy-system/), so the old
 	// link now falls through to a 404 rather than pointing at nothing.
 };
 
 const legacyRedirects: Handle = async ({ event, resolve }) => {
-	const target = legacyPaths[event.url.pathname];
+	// Tolerate either spelling: the with-slash form is what old printed links
+	// actually carry, and it is only SvelteKit's own normalization that usually
+	// strips it before this runs.
+	const path = event.url.pathname.replace(/\/+$/, '') || '/';
+	const target = legacyPaths[path];
 	if (target) {
 		redirect(308, target);
 	}

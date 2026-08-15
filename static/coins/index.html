@@ -1453,7 +1453,11 @@ body::after {
   <div class="qr-box">
     <div class="qr-title">Scan to View Leaderboard</div>
     <div id="qr-code-render"></div>
-    <div class="qr-url">https://mrpina-dev.github.io/IDEA/coins/</div>
+    <!-- Filled from LEADERBOARD_URL when the QR renders, so the printed
+         caption can never again name a different address than the code
+         encodes -- which is exactly how it came to advertise a GitHub Pages
+         URL that had not existed since this page moved into idea-app. -->
+    <div class="qr-url" id="qr-url"></div>
     <button class="qr-close-btn" id="qr-close">CLOSE</button>
   </div>
 </div>
@@ -1477,11 +1481,15 @@ body::after {
 <button id="back-to-top">↑ TOP</button>
 
 <header>
-  <a class="logo" href="/IDEA/">IDEA.</a>
+  <!-- This page's own routes on ideabosco.com. They were the old GitHub Pages
+       base path (/IDEA/...) until 0107; `/coins/index.html` rather than
+       `/coins/` because the Vite dev server does not resolve a bare directory
+       to its index (404) even though Vercel does. -->
+  <a class="logo" href="/">IDEA.</a>
   <div class="header-right">
     <nav>
-      <a href="/IDEA/">Portal</a>
-      <a href="/IDEA/coins/" class="active">Coins</a>
+      <a href="/">Portal</a>
+      <a href="/coins/index.html" class="active">Coins</a>
     </nav>
     <div class="header-year">2025 - 2026</div>
     <button class="share-btn" id="share-btn">&#9654; SHARE</button>
@@ -1569,11 +1577,11 @@ body::after {
           <hr class="stats-info-divider">
           <div class="stats-info-block">
             <div class="stats-info-name" style="color:var(--green)">Lifetime Earned</div>
-            <div class="stats-info-desc">Awarded coins minus fines. Determines your leaderboard rank. Spending coins does not affect this number.</div>
+            <div class="stats-info-desc">Awarded coins minus fines. Determines your leaderboard rank. Spending coins does not affect this number, and neither does a refund or any other balance correction.</div>
           </div>
           <div class="stats-info-block">
             <div class="stats-info-name" style="color:var(--gold)">Coin Balance</div>
-            <div class="stats-info-desc">Your current economic standing. Awarded minus fines minus spent. Reflects how many coins you effectively own right now.</div>
+            <div class="stats-info-desc">Your current economic standing. Awarded minus fines minus spent, plus any adjustments. Reflects how many coins you effectively own right now.</div>
           </div>
           <div class="stats-info-block">
             <div class="stats-info-name" style="color:var(--green)">Net Awards</div>
@@ -1586,6 +1594,10 @@ body::after {
           <div class="stats-info-block">
             <div class="stats-info-name" style="color:var(--amber)">Net Spent</div>
             <div class="stats-info-desc">Total coins spent on purchases across all time.</div>
+          </div>
+          <div class="stats-info-block">
+            <div class="stats-info-name" style="color:var(--violet)">Adjustments</div>
+            <div class="stats-info-desc">Refunds and other corrections to your record, added up with their own signs. They move your balance but are neither earnings nor spending, so they never change your Lifetime Earned rank. Shown only if you have any.</div>
           </div>
         </div>
       </div>
@@ -1751,7 +1763,7 @@ body::after {
 
 <footer>
   <div class="footer-logo">IDEA &mdash; Integrated Design, Engineering &amp; Art</div>
-  <div class="footer-sub">Don Bosco Technical Institute &bull; Rosemead, CA &bull; mrpina-dev.github.io/IDEA</div>
+  <div class="footer-sub">Don Bosco Technical Institute &bull; Rosemead, CA &bull; ideabosco.com</div>
 </footer>
 
 <script>
@@ -2431,11 +2443,16 @@ function renderLeaderboard() {
     const awarded        = parseFloat(p('Awarded') || 0);
     const fines          = parseFloat(p('Fines') || 0);
     const spent          = parseFloat(p('Spent') || 0);
+    // Refunds and other corrections, in their own bucket since 0107 and out of
+    // both Awarded and Spent. Lifetime Earned therefore no longer counts a
+    // refund as an earning -- which matters here, because it is what this
+    // board's default sort ranks by.
+    const adjustments    = parseFloat(p('Adjustments') || 0);
     const lifetimeEarned = awarded - fines;
     // The server's total where it sends one (0103); the same identity as a
     // fallback. See openDrawer for why the two agree.
     const serverBal      = parseFloat(p('Coin Balance'));
-    const coinBal        = isNaN(serverBal) ? lifetimeEarned - spent : serverBal;
+    const coinBal        = isNaN(serverBal) ? lifetimeEarned - spent + adjustments : serverBal;
     const physicalBal    = parseFloat(p('Physical Balance'));
     const digitalBal     = parseFloat(p('Digital Balance'));
     const hasSplit       = !isNaN(physicalBal) && !isNaN(digitalBal);
@@ -2490,6 +2507,9 @@ function renderLeaderboard() {
         (fines > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Awards</span><span class="coin-meta-value" style="color:var(--green)">+' + fmtNum(awarded) + '</span></div>' : '') +
         (fines > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Fines</span><span class="coin-meta-value" style="color:var(--red)">-' + fmtNum(fines) + '</span></div>' : '') +
         (spent > 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Net Spent</span><span class="coin-meta-value" style="color:var(--amber)">-' + fmtNum(spent) + '</span></div>' : '') +
+        // Only when there is one, so the common case stays uncluttered. Violet
+        // is the Adjustment type's own colour everywhere else on this page.
+        (adjustments !== 0 ? '<div class="coin-meta-item"><span class="coin-meta-label">Adjustments</span><span class="coin-meta-value" style="color:var(--violet)">' + (adjustments > 0 ? '+' : '') + fmtNum(adjustments) + '</span></div>' : '') +
       '</div>';
 
     card.addEventListener('click', () => openDrawer(row));
@@ -2513,14 +2533,19 @@ function openDrawer(row) {
   const awarded = parseFloat(p('Awarded') || 0);
   const fines   = parseFloat(p('Fines') || 0);
   const spent   = parseFloat(p('Spent') || 0);
+  // Adjustments are their own bucket since 0107 -- out of awarded and out of
+  // spent whatever their sign, so they have to come back into the identity
+  // below or a refunded student's balance would read short.
+  const adjustments = parseFloat(p('Adjustments') || 0);
   const debt    = parseFloat(p('Debt') || 0);
   const lifetimeEarned = awarded - fines;
   // The server sends the authoritative total; the client identity is the
   // fallback for a feed that predates it. Both agree, because a transfer is
   // excluded from awarded AND spent (0103) and so cancels out of
-  // `awarded - fines - spent` exactly as it cancels out of the real balance.
+  // `awarded - fines - spent` exactly as it cancels out of the real balance,
+  // and because an adjustment is excluded from both and added back here.
   const serverBalance  = parseFloat(p('Coin Balance'));
-  const coinBalance    = isNaN(serverBalance) ? awarded - fines - spent : serverBalance;
+  const coinBalance    = isNaN(serverBalance) ? awarded - fines - spent + adjustments : serverBalance;
   // The two components of that total. Both are real, signed numbers: a
   // negative physical balance means a student was fined past what they were
   // holding, and hiding it would be a nicer-looking lie.
@@ -2550,6 +2575,10 @@ function openDrawer(row) {
     drawerStatHtml('Awarded', '+' + fmtNum(awarded), 'var(--green)') +
     drawerStatHtml('Fines', '-' + fmtNum(fines), 'var(--red)') +
     drawerStatHtml('Spent', '-' + fmtNum(spent), 'var(--amber)');
+  // Only when there is one. Violet is the Adjustment type's own colour on the
+  // transaction rows below, so the figure and the rows it sums agree by sight.
+  if (adjustments !== 0)
+    statsHtml += drawerStatHtml('Adjustments', (adjustments > 0 ? '+' : '') + fmtNum(adjustments) + ' i¢', 'var(--violet)');
   if (debt > 0)
     statsHtml += drawerStatHtml('Debt', fmtNum(debt), 'var(--red)');
   const wPay = weeklyPayFor(name);
@@ -3304,6 +3333,7 @@ document.getElementById('share-btn').addEventListener('click', () => {
   document.getElementById('qr-modal').classList.add('open');
   if (!qrGenerated) {
     qrGenerated = true;
+    document.getElementById('qr-url').textContent = LEADERBOARD_URL;
     try {
       new QRCode(document.getElementById('qr-code-render'), {
         text: LEADERBOARD_URL,

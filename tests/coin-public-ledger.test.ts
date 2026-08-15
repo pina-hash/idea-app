@@ -246,9 +246,21 @@ describe('no public payload contains an email address', () => {
 		});
 		expect(first.student_id).toBe(second.student_id);
 		expect(first.student_id).toMatch(/^[0-9a-f]{32}$/);
-		// It cannot be the email, nor a trivial encoding of one.
-		expect(first.student_id).not.toContain('ada');
-		expect(Buffer.from(first.student_id, 'hex').toString('utf8')).not.toContain('@');
+		// It cannot be the email, nor a trivial encoding of one. Decoded as
+		// latin1, which is byte-preserving -- utf8 replaces every invalid
+		// sequence with U+FFFD, so a substring search over it is searching
+		// mangled text.
+		//
+		// LOOKING FOR THE ADDRESS, NOT FOR AN '@'. The id is md5(salt || email),
+		// i.e. 16 UNIFORMLY RANDOM bytes, and one of them is 0x40 ('@') about 6%
+		// of the time -- so the older bare-'@' form of this assertion failed
+		// roughly one run in sixteen, at random, on a salt that is regenerated
+		// every time the migration is applied. Measured, and reproduced.
+		const decoded = Buffer.from(first.student_id, 'hex').toString('latin1');
+		for (const needle of [studentA.email, 'ada.lovelace', 'lovelace', 'boscotech']) {
+			expect(decoded.toLowerCase()).not.toContain(needle.toLowerCase());
+			expect(first.student_id).not.toContain(needle.toLowerCase());
+		}
 	});
 
 	test('the id salt is unreadable by anon, authenticated, and an admin', async () => {

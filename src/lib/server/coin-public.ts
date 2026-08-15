@@ -30,6 +30,13 @@
  * a payout is TWO linked rows sharing one transfer id, and the page collapses
  * that pair into the single event it was. Inferring the pairing from names and
  * timestamps would be guesswork over a key that is already stored.
+ *
+ * SINCE 0107 THERE IS A FOURTH BUCKET, `Adjustments`. An adjustment-kind row
+ * is a correction of the record, not something earned or spent, so it is out
+ * of `Awarded` and out of `Spent` whatever its sign, and its signed total is
+ * its own column. The identity the page reconciles with is therefore
+ * `Awarded - Fines - Spent + Adjustments = Coin Balance`, and Lifetime Earned
+ * (`Awarded - Fines`) no longer counts a refund as an earning.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -89,6 +96,7 @@ interface LeaderboardRow {
 	awarded: number;
 	fines: number;
 	spent: number;
+	adjustments: number;
 	paid_out: number;
 	balance: number;
 	debt: number;
@@ -161,6 +169,7 @@ export async function readCoinPublic(
 						'Awarded',
 						'Fines',
 						'Spent',
+						'Adjustments',
 						'Coin Balance',
 						'Paid Out',
 						'Physical Balance',
@@ -176,6 +185,12 @@ export async function readCoinPublic(
 						r.awarded,
 						r.fines,
 						r.spent,
+						// Adjustment-kind rows, at their STORED SIGN, in their own
+						// bucket since 0107 -- excluded from `Awarded` and `Spent`
+						// so a refund can no longer read as an earning and climb
+						// the Lifetime Earned board. Always sent; the page renders
+						// it only when it is nonzero.
+						r.adjustments,
 						// `Coin Balance` is the TOTAL (physical coins in hand plus
 						// digital) since 0096 -- one number for "how much IDEA
 						// Coin does this student have", which is what the column

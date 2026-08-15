@@ -42,14 +42,19 @@ export const leaderboard = [
 		student_id: ID_ADA,
 		name: 'Lovelace, Ada',
 		section: 'IDEA-113',
-		// 0103: `awarded` and `spent` EXCLUDE Ada's 40i¢ withdrawal. Its two
-		// halves are +40 physical and -40 digital, so the pre-0103 figures
-		// would have read 254 and 80 for coins that only changed form -- and
-		// the page's own `awarded - fines - spent` would still have landed on
-		// 155, which is exactly why the inflation was invisible.
-		awarded: 214,
+		// TWO exclusions apply to Ada, and she is here because they have to
+		// compose. 0103: `awarded` and `spent` EXCLUDE her 40i¢ WITHDRAWAL,
+		// whose halves are +40 physical and -40 digital. 0107: they also
+		// exclude her +40 REFUND, which is an adjustment-kind row and so is
+		// neither earned nor spent -- it is the 40 in `adjustments` below.
+		// Pre-0107 `awarded` read 214 here, and her Lifetime Earned headline
+		// read 195 for coins she was handed back rather than earned.
+		awarded: 174,
 		fines: 19,
 		spent: 40,
+		// A refund, at its stored sign. Ada and Grace carry opposite signs and
+		// Joseph carries none, so the harness shows all three states at once.
+		adjustments: 40,
 		// A withdrawal IS counted here: this is how much has left the digital
 		// balance as coins in hand.
 		paid_out: 40,
@@ -67,7 +72,11 @@ export const leaderboard = [
 		section: 'IDEA-208-1',
 		awarded: 88,
 		fines: 12,
-		spent: 150,
+		// Pre-0107 this read 150: her -15 CLAWBACK fell into `spent`, because
+		// that bucket was "any negative that is not a fine", so a correction
+		// read as a purchase.
+		spent: 135,
+		adjustments: -15,
 		paid_out: 0,
 		balance: -74,
 		debt: 74,
@@ -86,6 +95,9 @@ export const leaderboard = [
 		awarded: 40,
 		fines: 0,
 		spent: 0,
+		// No correction of any kind: the control that keeps "the Adjustments
+		// figure appears only when it is nonzero" from being unfalsifiable.
+		adjustments: 0,
 		paid_out: 0,
 		balance: 40,
 		debt: 0,
