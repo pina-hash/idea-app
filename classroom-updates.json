@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-14",
+			"title": "Big presentations no longer fail on the last piece",
+			"body": "A large presentation is sent up in pieces, and the very last piece is the one that tells Google the file is complete. That last piece was failing on some uploads, so a deck that had reached 100% still never arrived -- which is a frustrating way to lose ten minutes of waiting. The last piece is now sent exactly the way it is supposed to be, and if it does fail, the upload asks how much actually arrived and carries on from there instead of giving up. It also checks that the finished file is the size it should be, so a presentation can never half-arrive and then open as something broken. If it still cannot finish, the message now says which piece failed and how much had arrived, which is what your teacher can pass on when reporting it. Nothing changes about how a deck looks or opens for you.",
+			"tags": ["Classes"]
+		},
+		{
+			"date": "2026-08-14",
 			"title": "\"Updated\" on a class item now always means something changed for you",
 			"body": "The Updated tag on an announcement, assignment or material is meant to tell you that your teacher changed something you should read again. It was appearing on items where nothing you can see had changed -- so opening one told you nothing, and after a few of those the tag stops being worth trusting. It now appears only when the title, the description, the points, the due date or the links actually changed. If your teacher saves an item without changing any of that, nothing about it moves for you at all, and it will not push its way back to the top of your list on the home page. Nothing you have already read has been marked unread by this.",
 			"tags": ["Classes"]

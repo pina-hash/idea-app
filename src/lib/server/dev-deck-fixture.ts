@@ -242,13 +242,48 @@ interface DevUploadSession {
 	id: string;
 	total: number;
 	received: Uint8Array;
+	/**
+	 * How many CONTIGUOUS bytes from 0 the session holds -- what Google's own
+	 * `Range: bytes=0-N` reports, and therefore what the status query has to be
+	 * able to answer honestly. Kept rather than derived so a chunk that is
+	 * rejected before its body is read leaves this exactly where it was, which
+	 * is the state a resumed upload has to recover from.
+	 */
+	held: number;
 	fileId: string | null;
+	/** Fault injection: refuse the FINAL chunk this many more times. */
+	failLast: number;
+	/**
+	 * Whether that refusal READS THE BODY FIRST, which decides what the browser
+	 * is even able to see:
+	 *
+	 *   true  -- drain, then answer 503. A real, readable status: the uploader
+	 *            gets `chunk_status` and its own recovery runs.
+	 *   false -- answer without reading, so the browser abandons the send and
+	 *            sees status 0 (`chunk_network`), the live report's shape.
+	 *
+	 * MEASURED, and the reason this flag exists at all: Chrome TRANSPARENTLY
+	 * RETRIES an idempotent PUT whose connection is reset before any response
+	 * byte arrives, so a one-shot reset is absorbed below our code and cannot be
+	 * observed from the page at all -- the upload simply succeeds, with one
+	 * request in the network log. A readable status is therefore the only way to
+	 * drive the uploader's own resume path from a browser.
+	 */
+	failLastDrain: boolean;
 }
 
 const uploads = new Map<string, DevUploadSession>();
 
-export function devUploadStart(id: string, total: number): void {
-	uploads.set(id, { id, total, received: new Uint8Array(total), fileId: null });
+export function devUploadStart(id: string, total: number, failLast = 0, failLastDrain = true): void {
+	uploads.set(id, {
+		id,
+		total,
+		received: new Uint8Array(total),
+		held: 0,
+		fileId: null,
+		failLast,
+		failLastDrain
+	});
 }
 
 export function devUploadSession(id: string): DevUploadSession | undefined {
@@ -259,21 +294,47 @@ export function devUploadCancel(id: string): void {
 	uploads.delete(id);
 }
 
-/** Writes one chunk. Returns how many contiguous bytes are now held. */
+/**
+ * Writes one chunk. Returns how many contiguous bytes are now held.
+ *
+ * A chunk that does not start where the session left off is IGNORED rather than
+ * written into a hole, which is what Google does too -- and is what makes the
+ * status query's answer meaningful after a failed resume.
+ */
 export function devUploadChunk(id: string, start: number, bytes: Uint8Array): number | null {
 	const session = uploads.get(id);
 	if (!session) return null;
+	if (start > session.held) return session.held;
 	session.received.set(bytes, start);
-	const end = start + bytes.length;
-	if (end >= session.total && !session.fileId) {
+	session.held = Math.max(session.held, start + bytes.length);
+	if (session.held >= session.total && !session.fileId) {
 		session.fileId = `devfile-${id}`;
 	}
-	return end;
+	return session.held;
+}
+
+/**
+ * One injected refusal of the final chunk, consumed. Returns how to refuse it,
+ * or null to let the chunk through. See `failLastDrain` for why the two
+ * flavours are not interchangeable.
+ */
+export function devUploadTakeFinalFailure(id: string): { drain: boolean } | null {
+	const session = uploads.get(id);
+	if (!session || !(session.failLast > 0)) return null;
+	session.failLast -= 1;
+	return { drain: session.failLastDrain };
 }
 
 export function devUploadedBytes(id: string): Uint8Array | null {
 	const session = uploads.get(id);
 	return session?.fileId ? session.received : null;
+}
+
+/** What a finalize response reports: the id AND the stored length. */
+export function devUploadFinalized(id: string): { id: string; size: number } | null {
+	const session = uploads.get(id);
+	if (!session?.fileId) return null;
+	return { id: session.fileId, size: session.held };
 }
 
 /**

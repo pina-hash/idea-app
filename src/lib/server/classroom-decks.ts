@@ -77,6 +77,19 @@ export const DECK_LIMITS: ZipLimits & { maxZipBytes: number } = {
 	maxTotalBytes: 300 * 1024 * 1024
 };
 
+/**
+ * The content type a deck upload session is opened with, and the SAME value the
+ * browser puts on every chunk PUT.
+ *
+ * One constant because those two have to agree: a chunk whose Content-Type
+ * contradicts the session's `X-Upload-Content-Type` is a candidate for
+ * rejection at the moment Drive finalizes the file -- the one request in a
+ * chunked upload where the two are reconciled. The browser is HANDED this by
+ * /api/classroom/deck/upload-session rather than guessing from the File, whose
+ * type for a .zip is `application/x-zip-compressed` on Windows Chrome.
+ */
+export const DECK_ZIP_MIME = 'application/zip';
+
 /** Decks live in their own subfolder under the existing classroom parent. */
 export const DECKS_FOLDER_NAME = 'IDEA Classroom decks';
 

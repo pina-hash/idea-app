@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { driveConfigured, startResumableUpload } from '$lib/server/notebook-drive';
 import {
 	DECK_LIMITS,
+	DECK_ZIP_MIME,
 	deckUploadName,
 	deckUploadsFolderId
 } from '$lib/server/classroom-decks';
@@ -82,7 +83,7 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	try {
 		uploadUrl = await startResumableUpload({
 			filename: deckUploadName(slot.upload_id),
-			mimeType: 'application/zip',
+			mimeType: DECK_ZIP_MIME,
 			parentId: await deckUploadsFolderId(),
 			sizeBytes: size
 		});
@@ -96,6 +97,10 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		ok: true,
 		upload_id: slot.upload_id,
 		upload_url: uploadUrl,
+		// Handed BACK rather than assumed by the browser: every chunk PUT carries
+		// this exact value, so it can never contradict the X-Upload-Content-Type
+		// the session above was opened with. See DECK_ZIP_MIME.
+		content_type: DECK_ZIP_MIME,
 		expires_at: slot.expires_at ?? null
 	});
 };

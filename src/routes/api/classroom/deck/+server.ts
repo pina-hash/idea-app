@@ -62,9 +62,11 @@ import type { RequestHandler } from './$types';
  *      request, so a claim cannot be redirected at a second item.
  *   2. THE FILE. Its Drive name and parent must be the ones this server set
  *      when it opened the session (deckUploadName, in the deck uploads folder).
- *      A resumable PUT carries bytes and a Content-Range only, so neither is
- *      something a client can produce -- which is what makes "this file id came
- *      from that upload session" checkable at all.
+ *      A resumable PUT carries bytes, a Content-Range and a Content-Type only,
+ *      so neither is something a client can produce -- which is what makes
+ *      "this file id came from that upload session" checkable at all.
+ *      ITS LENGTH is checked too: an upload that finalized short would reach
+ *      the planner as a truncated archive and be reported as "not a zip".
  *
  * A file that fails check 2 is left completely alone. Deleting it would turn a
  * forged id into a way to destroy an arbitrary file in the shared drive.
@@ -211,6 +213,32 @@ async function begin(supabase: Supa, body: Record<string, unknown>): Promise<Res
 		// NOT deleted: this file is not ours to remove (see the header).
 		return json(
 			{ error: 'That file was not produced by this upload. Start the upload again.', code: 'foreign_file' },
+			{ status: 400 }
+		);
+	}
+	// DID THE UPLOAD ACTUALLY FINISH? Asked here because this is the first point
+	// with real Drive credentials and no CORS in the way -- the browser confirms
+	// the same figure from the finalize response, but a browser that could not
+	// read that response is precisely the failure this exists for. A short file
+	// would otherwise reach the planner as a truncated archive and be reported
+	// as "not a zip", which sends whoever is reading it looking in the wrong
+	// place. The client's number is not trusted for anything; only a
+	// DISAGREEMENT is acted on.
+	const claimedSize = Number(body.size_bytes ?? 0);
+	if (Number.isFinite(claimedSize) && claimedSize > 0 && meta.size !== claimedSize) {
+		// Ours to remove (the name and parent are the ones this server set) and
+		// of no use to anyone: the slot is spent, so the next attempt opens a
+		// new one.
+		await deleteDriveFile(driveFileId);
+		return json(
+			{
+				error:
+					`Drive stored ${meta.size} bytes of the ${claimedSize} that were sent, so the upload did not finish. ` +
+					'Try uploading the deck again.',
+				code: 'size_mismatch',
+				stored_bytes: meta.size,
+				sent_bytes: claimedSize
+			},
 			{ status: 400 }
 		);
 	}

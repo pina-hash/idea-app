@@ -116,6 +116,13 @@ export interface DeckUploadResult {
 	 * diagnosis. Shown to the uploader alongside the message.
 	 */
 	code?: string;
+	/**
+	 * The numbers behind a transport failure -- which chunk, what byte range,
+	 * the declared total, whether it was the final chunk, and what Drive said it
+	 * was holding when asked. Rendered as one compact line so a report from a
+	 * real classroom carries the facts instead of "something dropped".
+	 */
+	detail?: Record<string, unknown>;
 	/** When the zip offered several plausible entry pages, they land here. */
 	candidates?: string[];
 	warnings?: string[];
@@ -175,6 +182,39 @@ export function deckProgressPercent(progress: DeckUploadProgress): number | null
 	if (progress.phase !== 'uploading' && progress.phase !== 'unpacking') return null;
 	if (progress.total <= 0) return null;
 	return Math.max(0, Math.min(100, Math.round((progress.loaded / progress.total) * 100)));
+}
+
+/**
+ * The one line under a failed upload that a bug report can be built from.
+ *
+ * "chunk 6/6 · bytes 41943040-43102947/43102948 · final · Drive held 41943040".
+ * Deliberately the raw figures rather than prose: whoever reads it next is
+ * comparing them against Drive, and rounding them to megabytes would lose the
+ * off-by-one that would be the point of reading them at all. Returns null when
+ * there is nothing worth showing, so an ordinary refusal grows no noise.
+ */
+export function deckUploadDetailLine(detail: Record<string, unknown> | null | undefined): string | null {
+	if (!detail) return null;
+	const num = (key: string): number | null => {
+		const value = detail[key];
+		return typeof value === 'number' && Number.isFinite(value) ? value : null;
+	};
+	const parts: string[] = [];
+	const index = num('chunkIndex');
+	const start = num('chunkStart');
+	const end = num('chunkEnd');
+	const total = num('declaredTotal');
+	if (index !== null) parts.push(`chunk ${index + 1}`);
+	if (start !== null && end !== null && total !== null) parts.push(`bytes ${start}-${end}/${total}`);
+	if (detail.isLastChunk === true) parts.push('final chunk');
+	const received = num('driveReceived');
+	const query = typeof detail.statusQuery === 'string' ? detail.statusQuery : null;
+	if (received !== null) parts.push(`Drive held ${received}`);
+	else if (query === 'unreadable') parts.push('Drive progress unreadable');
+	else if (query === 'failed') parts.push('Drive could not be asked');
+	const stored = num('storedSize');
+	if (stored !== null && total !== null) parts.push(`stored ${stored}/${total}`);
+	return parts.length ? parts.join(' · ') : null;
 }
 
 /** "12 files · 3.4 MB", for the manage line under a deck's title. */

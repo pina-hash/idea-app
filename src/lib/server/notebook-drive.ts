@@ -454,9 +454,9 @@ export async function uploadDriveFile(opts: {
  *
  *   * The session URI authorizes exactly one thing -- writing bytes into the
  *     ONE file this call is creating, with the name, type and parent fixed HERE,
- *     server-side. A resumable PUT carries a body and a Content-Range and
- *     nothing else: it cannot rename the file, move it, read it back, or touch
- *     any other object in the shared drive.
+ *     server-side. A resumable PUT carries a body, a Content-Range and a
+ *     Content-Type and nothing else: it cannot rename the file, move it, read
+ *     it back, or touch any other object in the shared drive.
  *   * It is NOT the refresh token and NOT an access token. It carries no scope,
  *     and it cannot be presented to any other Drive endpoint.
  *   * ITS LIFETIME IS NOT OURS TO SET. The Drive API exposes no TTL parameter
@@ -479,13 +479,22 @@ export async function startResumableUpload(opts: {
 	}
 
 	const attempt = (token: string) =>
-		fetch(`${DRIVE_ENDPOINTS.upload}?uploadType=resumable&supportsAllDrives=true&fields=id`, {
+		// `fields=id,size` rather than `fields=id`: the finalize response is the
+		// browser's ONLY chance to confirm the upload landed at the length it set
+		// out to send, and a deck that finalized short would otherwise reach
+		// ingestion as a corrupt zip rather than as a failed upload with numbers
+		// in it. $lib/classroom/deck-upload.ts reads both fields.
+		fetch(`${DRIVE_ENDPOINTS.upload}?uploadType=resumable&supportsAllDrives=true&fields=id,size`, {
 			method: 'POST',
 			headers: {
 				authorization: `Bearer ${token}`,
 				'content-type': 'application/json; charset=UTF-8',
 				// Google uses these to size the session up front; they are hints,
 				// and the Content-Range on the final chunk is what is authoritative.
+				// THE BROWSER SENDS NEITHER, and sends no Content-Type or
+				// Authorization on its chunk PUTs either: the session URI is the
+				// credential and the content type was settled here, so a chunk
+				// carries a Content-Range and a body and nothing else.
 				'x-upload-content-type': opts.mimeType,
 				'x-upload-content-length': String(opts.sizeBytes)
 			},

@@ -357,7 +357,7 @@ export const deckTransports: DeckTransports = {
 				body: JSON.stringify({ item_id: itemId, size_bytes: file.size })
 			});
 			const open = (await openRes.json().catch(() => null)) as
-				| { error?: string; upload_id?: string; upload_url?: string }
+				| { error?: string; upload_id?: string; upload_url?: string; content_type?: string }
 				| null;
 			if (!openRes.ok || !open?.upload_id || !open?.upload_url) {
 				logDeckUpload('upload session refused', {
@@ -372,10 +372,19 @@ export const deckTransports: DeckTransports = {
 			}
 			uploadId = open.upload_id;
 
-			// 2. The bytes, browser to Google.
+			// 2. The bytes, browser to Google. `declaredSize` is the length the
+			//    session above was opened for: the same number has to appear in
+			//    the session's X-Upload-Content-Length and in every chunk's
+			//    Content-Range total, and passing it explicitly is what makes a
+			//    file measured twice a named failure rather than a short upload.
 			const driveFileId = await uploadZipToDrive({
 				uploadUrl: open.upload_url,
 				file,
+				declaredSize: file.size,
+				// The SESSION's type, not the File's -- see chunkRequestHeaders.
+				// The fallback matches what the server opens the session with; a
+				// server old enough not to send it opened one with the same value.
+				contentType: open.content_type ?? 'application/zip',
 				signal,
 				onProgress: (p) => onProgress?.({ phase: 'uploading', ...p })
 			});
@@ -388,6 +397,11 @@ export const deckTransports: DeckTransports = {
 					stage: 'begin',
 					upload_id: uploadId,
 					drive_file_id: driveFileId,
+					// What the browser believes it uploaded. NOT trusted for
+					// anything -- the server compares it against Drive's own
+					// metadata and acts on a DISAGREEMENT, which is how a
+					// truncated upload reads as one instead of as a corrupt zip.
+					size_bytes: file.size,
 					title: file.name.replace(/\.zip$/i, '').trim().slice(0, 200) || 'Presentation',
 					entry_path: entryPath
 				},
@@ -400,6 +414,11 @@ export const deckTransports: DeckTransports = {
 					ok: false,
 					code: begun.code,
 					message: begun.message,
+					// A size disagreement carries the two figures; anything else
+					// carries nothing and renders no detail line.
+					detail: begun.body?.stored_bytes
+						? { storedSize: begun.body.stored_bytes, declaredTotal: begun.body.sent_bytes }
+						: undefined,
 					candidates: (begun.body?.candidates as string[] | undefined) ?? []
 				};
 			}
@@ -473,7 +492,12 @@ export const deckTransports: DeckTransports = {
 			}
 			const err = e as DeckUploadError;
 			logDeckUpload('upload failed', { code: err.code, detail: err.detail, message: err.message });
-			return { ok: false, code: err.code, message: err.message || 'Upload failed.' };
+			return {
+				ok: false,
+				code: err.code,
+				message: err.message || 'Upload failed.',
+				detail: err.detail
+			};
 		} finally {
 			// An unspent slot is closed rather than left to sit for its two
 			// hours. Best-effort: the slot authorizes nothing on its own.

@@ -33,7 +33,13 @@
 	 * whole reason the codes exist -- and none of them can be produced locally
 	 * without asking the server to misbehave on purpose.
 	 */
-	type Fault = 'none' | 'fail-files' | 'hang-files' | 'interrupt-once';
+	type Fault =
+		| 'none'
+		| 'fail-files'
+		| 'hang-files'
+		| 'interrupt-once'
+		| 'fail-last-chunk'
+		| 'fail-last-chunk-hard';
 	interface IngestBody {
 		deck: ClassroomDeck;
 		warnings: string[];
@@ -147,7 +153,23 @@
 				const openRes = await fetch('/dev/classroom-deck/upload', {
 					method: 'POST',
 					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({ upload_id: `up-${deckSeq}`, size_bytes: file.size })
+					body: JSON.stringify({
+						upload_id: `up-${deckSeq}`,
+						size_bytes: file.size,
+						// The live failure, reproduced. ONE refusal answered with a
+						// readable status drives the uploader's own recovery (ask
+						// Drive where it got to, resume from that answer); refusing
+						// every attempt WITHOUT reading the body is the live
+						// report's exact shape -- an abandoned send, status 0 --
+						// and shows what it reports when recovery cannot work.
+						// Measured, and the reason the recoverable one is readable:
+						// Chrome transparently retries an idempotent PUT whose
+						// connection resets before any response, so a one-shot
+						// reset never reaches this code at all.
+						fail_last:
+							fault === 'fail-last-chunk' ? 1 : fault === 'fail-last-chunk-hard' ? 99 : 0,
+						fail_last_drain: fault === 'fail-last-chunk'
+					})
 				});
 				const open = await openRes.json();
 				uploadId = open.upload_id as string;
@@ -155,6 +177,8 @@
 				const driveFileId = await uploadZipToDrive({
 					uploadUrl: open.upload_url,
 					file,
+					declaredSize: file.size,
+					contentType: open.content_type ?? 'application/zip',
 					signal,
 					onProgress: (p) => onProgress?.({ phase: 'uploading', ...p })
 				});
@@ -246,8 +270,14 @@
 					note('upload cancelled -- nothing stored');
 					return { ok: false, cancelled: true, message: 'Upload cancelled.' };
 				}
-				note(`failed: ${(e as Error).message}`);
-				return { ok: false, message: (e as Error).message };
+				const err = e as { code?: string; detail?: Record<string, unknown>; message?: string };
+				note(`failed: ${err.code ?? '?'} -- ${err.message}`);
+				return {
+					ok: false,
+					code: err.code,
+					detail: err.detail,
+					message: err.message ?? 'Upload failed.'
+				};
 			} finally {
 				if (uploadId) {
 					void fetch(`/dev/classroom-deck/upload/${uploadId}`, { method: 'DELETE' }).catch(() => {});
@@ -331,6 +361,8 @@
 				inject a fault
 				<select bind:value={fault}>
 					<option value="none">none</option>
+					<option value="fail-last-chunk">final chunk refused once, 503 (then recovers)</option>
+					<option value="fail-last-chunk-hard">final chunk always refused, no answer</option>
 					<option value="interrupt-once">interrupt one files stage (then resume)</option>
 					<option value="fail-files">files stage answers 502</option>
 					<option value="hang-files">files stage never answers (client timeout)</option>
