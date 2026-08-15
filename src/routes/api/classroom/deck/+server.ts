@@ -3,17 +3,18 @@ import {
 	createDriveFolder,
 	deleteDriveFile,
 	driveConfigured,
-	getDriveFileMeta,
 	listDriveFolderFiles,
 	uploadDriveFile
 } from '$lib/server/notebook-drive';
 import {
-	DECK_LIMITS,
+	DECK_UPLOAD_MAX_ZIP_BYTES,
+	DECK_ZIP_MIME,
 	deckFolderName,
-	decksFolderId,
 	deckStagedDriveFilename,
 	deckUploadName,
+	deckUploadSizeIssue,
 	deckUploadsFolderId,
+	decksFolderId,
 	driveZipSource,
 	planDeck,
 	readDeckFile,
@@ -23,58 +24,59 @@ import { UUID_RE } from '$lib/server/notebook-upload';
 import type { RequestHandler } from './$types';
 
 /**
- * Ingests (POST) or removes (DELETE) the presentation deck on one canonical
+ * Attaches (POST) or removes (DELETE) the presentation deck on one canonical
  * classroom item.
  *
- * THE ZIP NEVER PASSES THROUGH HERE. The browser uploads it straight to Drive
- * against a session this server opened (/api/classroom/deck/upload-session,
- * 0102) and POSTs only the resulting file id -- which is what lifted deck
- * uploads off Vercel's ~4.5 MB request-body cap, a limit every real export died
- * at.
+ * THE ZIP GOES THROUGH THIS SERVER, not straight to Drive. A direct-to-Drive
+ * transport shipped once (0102) specifically to get the zip off Vercel's
+ * ~4.5 MB request-body cap, and it did not survive contact with a real
+ * classroom: live testing found the browser could not reach Google's
+ * chunked-upload endpoint at ALL in this environment, for a small deck in one
+ * chunk exactly as much as a large one across several. That is environmental,
+ * not a bug in the chunking or the headers, and every OTHER upload in this
+ * app already goes through the server for the same reason -- the Drive
+ * credentials live here. So the deck zip is capped at
+ * DECK_UPLOAD_MAX_ZIP_BYTES (refused client-side before anything is sent; see
+ * $lib/classroom/deck) and posted as one ordinary multipart form, the
+ * classroom-attachment shape. A deck whose kept files are over that limit,
+ * almost always because it carries a gif or a video, needs that media pulled
+ * out of the deck and attached to the item separately -- the platform's own
+ * body cap has no workaround from here.
  *
- * INGESTION IS STAGED, AND NO SINGLE REQUEST HAS TO FINISH IT (0105). Unpacking
- * means downloading the archive from Drive and pushing every file back to it,
- * which for a 43 MB deck carrying three multi-megabyte gifs is comfortably past
- * a serverless function's DURATION limit -- so the old one-shot POST was killed
- * mid-flight and the browser saw a dropped connection after an upload that had
- * genuinely succeeded. Raising that limit is not available; it is the
- * platform's. So the work is split into stages the CLIENT drives:
+ * ONE MULTIPART CALL therefore does everything a single request now CAN do
+ * in one round trip: authorize the caller against the item
+ * (classroom_deck_upload_start), write the zip to Drive on their behalf, bind
+ * that file to the authorization (classroom_deck_upload_claim), plan the
+ * archive, and open a staged ingest job.
  *
- *   begin   claim the slot, prove the file, plan the archive, make the folder,
- *           open a job. Bounded: it reads the zip's directory and one HTML file.
- *   files   store as many of the planned files as fit in this request's own
- *           time budget, record them, report progress. Called until complete.
- *   finish  hand the accumulated manifest to classroom_replace_deck, sweep the
- *           deck this one replaced, and delete the staged zip.
- *   abort   give up: sweep the deck folder (which takes every file stored under
- *           it, recorded or not) and the staged zip.
+ * INGESTION IS STILL STAGED FROM THERE, AND THAT PART IS UNCHANGED (0105).
+ * Unpacking means reading the staged archive back out of Drive and pushing
+ * every file to it again, which for a real export carrying several
+ * multi-megabyte assets is comfortably past a serverless function's DURATION
+ * limit -- a genuinely different ceiling from the request-BODY cap the upload
+ * itself works around, and not one raising the upload path could ever fix.
+ * So the unpack work is still split into stages the CLIENT drives:
+ *
+ *   upload  (multipart/form-data) authorize, write the zip to Drive, plan the
+ *           archive, open the job. Bounded: it reads the zip's directory and
+ *           one HTML file.
+ *   files   (application/json) store as many of the planned files as fit in
+ *           this request's own time budget, record them, report progress.
+ *           Called until complete.
+ *   finish  hand the accumulated manifest to classroom_replace_deck, sweep
+ *           the deck this one replaced, and delete the staged zip.
+ *   abort   give up: sweep the deck folder (which takes every file stored
+ *           under it, recorded or not) and the staged zip.
  *
  * WHAT IS STORED IS UNCHANGED. Same planner, same skipped standalone/template
  * renderings, same hidden `.image-slots.state.json`, same refusal of a
  * traversing path, same classroom_replace_deck writing the same manifest.
  *
- * A CLIENT-SUPPLIED FILE ID IS NOT TRUSTED, and two independent things have to
- * agree before a byte is read:
- *
- *   1. THE SLOT. classroom_deck_upload_claim spends the caller's own
- *      authorization row -- once, before it expires -- and hands back the item
- *      it was opened for. The ingest TARGET comes from that row, never from the
- *      request, so a claim cannot be redirected at a second item.
- *   2. THE FILE. Its Drive name and parent must be the ones this server set
- *      when it opened the session (deckUploadName, in the deck uploads folder).
- *      A resumable PUT carries bytes, a Content-Range and a Content-Type only,
- *      so neither is something a client can produce -- which is what makes
- *      "this file id came from that upload session" checkable at all.
- *      ITS LENGTH is checked too: an upload that finalized short would reach
- *      the planner as a truncated archive and be reported as "not a zip".
- *
- * A file that fails check 2 is left completely alone. Deleting it would turn a
- * forged id into a way to destroy an arbitrary file in the shared drive.
- *
- * AUTHORIZATION IS THE RPCs'. Every stage re-asks _classroom_manages_item, and
- * classroom_replace_deck asks again when the deck finally lands -- which matters
- * more now than it did before, because ingestion spans minutes and several
- * requests and a teacher can lose a section while one runs.
+ * AUTHORIZATION IS THE RPCs'. `upload` re-checks _classroom_manages_item
+ * through classroom_deck_upload_start, and every later stage re-asks it again
+ * through _classroom_deck_job / classroom_replace_deck -- which matters
+ * because unpacking a large deck can span several requests, and a teacher can
+ * lose a section while one runs.
  */
 
 /**
@@ -108,6 +110,16 @@ const STAGE_MAX_FILES = 12;
 const UPLOAD_CONCURRENCY = 4;
 const UPLOAD_BATCH_BYTES = 24 * 1024 * 1024;
 
+/**
+ * How large the WHOLE request body may be before it is refused without even
+ * being parsed -- the zip cap plus a margin for the multipart envelope
+ * (boundaries, the item_id/title/entry_path fields). The platform's own body
+ * cap normally catches an oversize request first (see the module header);
+ * this is the belt to that platform's braces, and what stops a large body
+ * from being buffered into memory here at all.
+ */
+const MAX_REQUEST_BYTES = DECK_UPLOAD_MAX_ZIP_BYTES + 128 * 1024;
+
 interface PlannedFile extends DeckFilePlan {
 	/** Position in the whole plan; the Drive name is derived from it. */
 	index: number;
@@ -136,14 +148,11 @@ async function sweep(fileIds: (string | null | undefined)[]): Promise<void> {
 	await Promise.all(fileIds.filter((id): id is string => !!id).map((id) => deleteDriveFile(id)));
 }
 
-/** Drive ids are opaque but well-formed; a wild string never reaches Google. */
-const DRIVE_ID_RE = /^[A-Za-z0-9_-]{6,200}$/;
-
 const CLAIM_REFUSALS: Record<string, string> = {
-	not_found: 'That upload could not be found. Start the upload again.',
-	already_used: 'That upload has already been used. Start the upload again.',
-	cancelled: 'That upload was cancelled. Start the upload again.',
-	expired: 'That upload took too long and expired. Start the upload again.',
+	not_found: 'That upload could not be found. Try uploading the deck again.',
+	already_used: 'That upload has already been used. Try uploading the deck again.',
+	cancelled: 'That upload was cancelled. Try uploading the deck again.',
+	expired: 'That upload took too long and expired. Try uploading the deck again.',
 	not_allowed:
 		'Only the teacher of record for every class this is posted to can attach a deck here.'
 };
@@ -170,117 +179,114 @@ interface StoredPlan {
 }
 
 // ---------------------------------------------------------------------------
-// begin
+// upload -- authorize, write to Drive, plan, open the job. ONE request.
 // ---------------------------------------------------------------------------
 
-async function begin(supabase: Supa, body: Record<string, unknown>): Promise<Response> {
-	const uploadId = String(body.upload_id ?? '').trim();
-	if (!UUID_RE.test(uploadId)) {
-		return json({ error: 'upload_id must be a uuid.', code: 'bad_request' }, { status: 400 });
-	}
-	const driveFileId = String(body.drive_file_id ?? '').trim();
-	if (!DRIVE_ID_RE.test(driveFileId)) {
-		return json({ error: 'drive_file_id is not a Drive file id.', code: 'bad_request' }, { status: 400 });
-	}
-
-	// --- 1. Spend the slot -------------------------------------------------
-	const claim = await supabase.rpc('classroom_deck_upload_claim', {
-		p_upload_id: uploadId,
-		p_drive_file_id: driveFileId
-	});
-	if (claim.error) {
-		return json({ error: claim.error.message, code: 'claim_failed' }, { status: 400 });
-	}
-	const claimed = (claim.data ?? {}) as { ok?: boolean; reason?: string; item_id?: string };
-	if (!claimed.ok || !claimed.item_id) {
-		const reason = claimed.reason ?? 'not_found';
-		return json(
-			{ error: CLAIM_REFUSALS[reason] ?? 'That upload could not be used.', reason, code: 'claim_refused' },
-			{ status: reason === 'not_allowed' ? 403 : 400 }
-		);
-	}
-	const itemId = claimed.item_id;
-
-	// --- 2. Prove the file is the one that slot created --------------------
-	let meta;
-	try {
-		meta = await getDriveFileMeta(driveFileId);
-	} catch (e) {
-		return json({ error: (e as Error).message || 'Drive read failed.', code: 'drive_read' }, { status: 502 });
-	}
-	const stagingFolder = await deckUploadsFolderId();
-	if (meta.name !== deckUploadName(uploadId) || !meta.parents.includes(stagingFolder)) {
-		// NOT deleted: this file is not ours to remove (see the header).
-		return json(
-			{ error: 'That file was not produced by this upload. Start the upload again.', code: 'foreign_file' },
-			{ status: 400 }
-		);
-	}
-	// DID THE UPLOAD ACTUALLY FINISH? Asked here because this is the first point
-	// with real Drive credentials and no CORS in the way -- the browser confirms
-	// the same figure from the finalize response, but a browser that could not
-	// read that response is precisely the failure this exists for. A short file
-	// would otherwise reach the planner as a truncated archive and be reported
-	// as "not a zip", which sends whoever is reading it looking in the wrong
-	// place. The client's number is not trusted for anything; only a
-	// DISAGREEMENT is acted on.
-	const claimedSize = Number(body.size_bytes ?? 0);
-	if (Number.isFinite(claimedSize) && claimedSize > 0 && meta.size !== claimedSize) {
-		// Ours to remove (the name and parent are the ones this server set) and
-		// of no use to anyone: the slot is spent, so the next attempt opens a
-		// new one.
-		await deleteDriveFile(driveFileId);
+async function upload(supa: Supa, request: Request): Promise<Response> {
+	const contentLength = Number(request.headers.get('content-length') ?? 0);
+	if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
 		return json(
 			{
-				error:
-					`Drive stored ${meta.size} bytes of the ${claimedSize} that were sent, so the upload did not finish. ` +
-					'Try uploading the deck again.',
-				code: 'size_mismatch',
-				stored_bytes: meta.size,
-				sent_bytes: claimedSize
-			},
-			{ status: 400 }
-		);
-	}
-	if (meta.size > DECK_LIMITS.maxZipBytes) {
-		await deleteDriveFile(driveFileId);
-		return json(
-			{
-				error: `Deck uploads are capped at ${Math.floor(DECK_LIMITS.maxZipBytes / 1024 / 1024)} MB.`,
+				error: deckUploadSizeIssue(contentLength) ?? 'That upload is too large.',
 				code: 'too_large'
 			},
 			{ status: 413 }
 		);
 	}
 
-	// From here the staged zip is ours: every failing path below deletes it,
-	// and the job takes responsibility for it once one exists.
+	let form: FormData;
+	try {
+		form = await request.formData();
+	} catch {
+		return json({ error: 'Expected multipart/form-data.', code: 'bad_request' }, { status: 400 });
+	}
+
+	const itemId = String(form.get('item_id') ?? '').trim();
+	if (!UUID_RE.test(itemId)) {
+		return json({ error: 'item_id must be a uuid.', code: 'bad_request' }, { status: 400 });
+	}
+	const file = form.get('file');
+	if (!(file instanceof File) || file.size === 0) {
+		return json({ error: 'Attach the deck zip as the "file" form field.', code: 'bad_request' }, { status: 400 });
+	}
+	const sizeIssue = deckUploadSizeIssue(file.size);
+	if (sizeIssue) {
+		return json({ error: sizeIssue, code: 'too_large' }, { status: 413 });
+	}
+	const preferredEntry = String(form.get('entry_path') ?? '').trim() || null;
+	const title = String(form.get('title') ?? '').trim().slice(0, 200) || 'Presentation';
+
+	// --- 1. Authorize. Refused here means the caller may not touch this
+	//    item's deck, and nothing has reached Drive. -------------------------
+	const started = await supa.rpc('classroom_deck_upload_start', { p_item_id: itemId });
+	if (started.error) {
+		return json({ error: started.error.message, code: 'session_refused' }, { status: 400 });
+	}
+	const slot = (started.data ?? {}) as { ok?: boolean; upload_id?: string };
+	if (!slot.upload_id) {
+		return json({ error: 'Could not authorize that upload.', code: 'session_refused' }, { status: 400 });
+	}
+	const uploadId = slot.upload_id;
+
+	// --- 2. The bytes, through THIS server, to Drive -------------------------
+	let driveFileId: string;
+	try {
+		const bytes = new Uint8Array(await file.arrayBuffer());
+		driveFileId = await uploadDriveFile({
+			bytes,
+			mimeType: DECK_ZIP_MIME,
+			filename: deckUploadName(uploadId),
+			parentId: await deckUploadsFolderId()
+		});
+	} catch (e) {
+		await supa.rpc('classroom_deck_upload_cancel', { p_upload_id: uploadId }).catch(() => {});
+		return json({ error: (e as Error).message || 'Drive upload failed.', code: 'drive_upload' }, { status: 502 });
+	}
+
+	// --- 3. Claim the slot: binds it to the file, re-checks authority --------
+	const claim = await supa.rpc('classroom_deck_upload_claim', {
+		p_upload_id: uploadId,
+		p_drive_file_id: driveFileId
+	});
+	if (claim.error) {
+		await sweep([driveFileId]);
+		return json({ error: claim.error.message, code: 'claim_failed' }, { status: 400 });
+	}
+	const claimed = (claim.data ?? {}) as { ok?: boolean; reason?: string; item_id?: string };
+	if (!claimed.ok || !claimed.item_id) {
+		await sweep([driveFileId]);
+		const reason = claimed.reason ?? 'not_found';
+		return json(
+			{ error: CLAIM_REFUSALS[reason] ?? 'That upload could not be used.', reason, code: 'claim_refused' },
+			{ status: reason === 'not_allowed' ? 403 : 400 }
+		);
+	}
+	const authorizedItemId = claimed.item_id;
+
+	// --- 4. Plan (0101's unpacker, unchanged), fold, open the job -----------
 	let folderId: string | null = null;
 	try {
-		// --- 3. Plan (0101's unpacker, unchanged) --------------------------
-		const preferredEntry = String(body.entry_path ?? '').trim() || null;
-		const source = await driveZipSource(driveFileId, meta.size);
+		const source = await driveZipSource(driveFileId, file.size);
 		const planned = await planDeck(source, preferredEntry);
 		if (!planned.ok) {
 			// A zip with several plausible entry pages is not an error the
 			// uploader can act on without knowing which pages they were: hand
 			// the candidates back so the surface can ask rather than guess.
-			await deleteDriveFile(driveFileId);
+			await sweep([driveFileId]);
 			return json(
 				{ error: planned.error, candidates: planned.candidates ?? [], code: 'plan_refused' },
 				{ status: 400 }
 			);
 		}
 		const plan = planned.plan;
-		const title = String(body.title ?? '').trim().slice(0, 200) || 'Presentation';
 
-		// --- 4. A fresh folder per upload ----------------------------------
-		// Fresh, never reused: a replace has to be able to sweep the OLD tree
-		// wholesale, and the two decks briefly coexist until finish runs.
+		// A fresh folder per upload. Fresh, never reused: a replace has to be
+		// able to sweep the OLD tree wholesale, and the two decks briefly
+		// coexist until finish runs.
 		try {
-			folderId = await createDriveFolder(deckFolderName(itemId), await decksFolderId());
+			folderId = await createDriveFolder(deckFolderName(authorizedItemId), await decksFolderId());
 		} catch (e) {
-			await deleteDriveFile(driveFileId);
+			await sweep([driveFileId]);
 			return json(
 				{ error: (e as Error).message || 'Drive folder create failed.', code: 'drive_folder' },
 				{ status: 502 }
@@ -293,12 +299,11 @@ async function begin(supabase: Supa, body: Record<string, unknown>): Promise<Res
 			hasStateFile: plan.hasStateFile,
 			slides: plan.slides,
 			warnings: plan.warnings,
-			zipSize: meta.size,
+			zipSize: file.size,
 			files: plan.files.map((f) => ({ path: f.path, entry: f.entry, size: f.size }))
 		};
 
-		// --- 5. Open the job -----------------------------------------------
-		const { data, error } = await supabase.rpc('classroom_deck_ingest_begin', {
+		const { data, error } = await supa.rpc('classroom_deck_ingest_begin', {
 			p_upload_id: uploadId,
 			p_drive_file_id: driveFileId,
 			p_drive_folder_id: folderId,
@@ -324,7 +329,7 @@ async function begin(supabase: Supa, body: Record<string, unknown>): Promise<Res
 			ok: true,
 			stage: 'begin',
 			job_id: job.job_id ?? null,
-			item_id: itemId,
+			item_id: authorizedItemId,
 			total_files: job.total_files ?? stored.files.length,
 			entry_path: plan.entryPath,
 			has_state_file: plan.hasStateFile,
@@ -338,16 +343,16 @@ async function begin(supabase: Supa, body: Record<string, unknown>): Promise<Res
 }
 
 // ---------------------------------------------------------------------------
-// files
+// files -- unchanged from the staged-ingest design (0105).
 // ---------------------------------------------------------------------------
 
-async function files(supabase: Supa, body: Record<string, unknown>): Promise<Response> {
+async function files(supa: Supa, body: Record<string, unknown>): Promise<Response> {
 	const jobId = String(body.job_id ?? '').trim();
 	if (!UUID_RE.test(jobId)) {
 		return json({ error: 'job_id must be a uuid.', code: 'bad_request' }, { status: 400 });
 	}
 
-	const claim = await supabase.rpc('classroom_deck_ingest_claim_stage', { p_job_id: jobId });
+	const claim = await supa.rpc('classroom_deck_ingest_claim_stage', { p_job_id: jobId });
 	if (claim.error) {
 		return json({ error: claim.error.message, code: 'stage_refused' }, { status: 400 });
 	}
@@ -448,7 +453,7 @@ async function files(supabase: Supa, body: Record<string, unknown>): Promise<Res
 		// it on the next attempt would be waste. Anything it did not get to
 		// record goes with the folder if the job is abandoned.
 		if (uploaded.length) {
-			await supabase.rpc('classroom_deck_ingest_record', { p_job_id: jobId, p_files: uploaded });
+			await supa.rpc('classroom_deck_ingest_record', { p_job_id: jobId, p_files: uploaded });
 		}
 		return json(
 			{ error: (e as Error).message || 'Drive upload failed.', code: 'drive_upload' },
@@ -456,7 +461,7 @@ async function files(supabase: Supa, body: Record<string, unknown>): Promise<Res
 		);
 	}
 
-	const { data, error } = await supabase.rpc('classroom_deck_ingest_record', {
+	const { data, error } = await supa.rpc('classroom_deck_ingest_record', {
 		p_job_id: jobId,
 		p_files: uploaded
 	});
@@ -488,16 +493,16 @@ async function files(supabase: Supa, body: Record<string, unknown>): Promise<Res
 }
 
 // ---------------------------------------------------------------------------
-// finish
+// finish -- unchanged from the staged-ingest design (0105).
 // ---------------------------------------------------------------------------
 
-async function finish(supabase: Supa, body: Record<string, unknown>): Promise<Response> {
+async function finish(supa: Supa, body: Record<string, unknown>): Promise<Response> {
 	const jobId = String(body.job_id ?? '').trim();
 	if (!UUID_RE.test(jobId)) {
 		return json({ error: 'job_id must be a uuid.', code: 'bad_request' }, { status: 400 });
 	}
 
-	const { data, error } = await supabase.rpc('classroom_deck_ingest_finish', { p_job_id: jobId });
+	const { data, error } = await supa.rpc('classroom_deck_ingest_finish', { p_job_id: jobId });
 	if (error) {
 		return json({ error: error.message, code: 'finish_failed' }, { status: 400 });
 	}
@@ -539,15 +544,15 @@ async function finish(supabase: Supa, body: Record<string, unknown>): Promise<Re
 }
 
 // ---------------------------------------------------------------------------
-// abort
+// abort -- unchanged from the staged-ingest design (0105).
 // ---------------------------------------------------------------------------
 
-async function abort(supabase: Supa, body: Record<string, unknown>): Promise<Response> {
+async function abort(supa: Supa, body: Record<string, unknown>): Promise<Response> {
 	const jobId = String(body.job_id ?? '').trim();
 	if (!UUID_RE.test(jobId)) {
 		return json({ error: 'job_id must be a uuid.', code: 'bad_request' }, { status: 400 });
 	}
-	const { data, error } = await supabase.rpc('classroom_deck_ingest_abandon', { p_job_id: jobId });
+	const { data, error } = await supa.rpc('classroom_deck_ingest_abandon', { p_job_id: jobId });
 	if (error) {
 		return json({ error: error.message, code: 'abort_failed' }, { status: 400 });
 	}
@@ -571,13 +576,20 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		);
 	}
 
-	const body = ((await request.json().catch(() => null)) ?? {}) as Record<string, unknown>;
-	const stage = String(body.stage ?? 'begin').trim() || 'begin';
 	const supa = supabase as unknown as Supa;
+	const contentType = request.headers.get('content-type') ?? '';
+
+	// The whole authorize + write-to-Drive + plan sequence is ONE multipart
+	// request; everything after it (files/finish/abort) is JSON, the same
+	// stage-dispatch shape 0105 always used.
+	if (contentType.toLowerCase().includes('multipart/form-data')) {
+		return upload(supa, request);
+	}
+
+	const body = ((await request.json().catch(() => null)) ?? {}) as Record<string, unknown>;
+	const stage = String(body.stage ?? '').trim();
 
 	switch (stage) {
-		case 'begin':
-			return begin(supa, body);
 		case 'files':
 			return files(supa, body);
 		case 'finish':
@@ -585,7 +597,10 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		case 'abort':
 			return abort(supa, body);
 		default:
-			return json({ error: `Unknown deck upload stage "${stage}".`, code: 'bad_request' }, { status: 400 });
+			return json(
+				{ error: `Unknown deck upload stage "${stage || '(none)'}".`, code: 'bad_request' },
+				{ status: 400 }
+			);
 	}
 };
 

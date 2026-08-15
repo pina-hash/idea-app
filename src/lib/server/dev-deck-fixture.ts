@@ -148,10 +148,12 @@ export interface FixtureOptions {
 	/** Add an entry that tries to climb out of the deck root. */
 	traversal?: boolean;
 	/**
-	 * Pad the archive with one big media file, so the harness can drive a REAL
-	 * multi-chunk transfer. The committed deck is ~3 MB, which the uploader
-	 * sends in a single chunk -- and a single chunk exercises neither the
-	 * progress arithmetic across chunk boundaries nor cancelling part way.
+	 * Pad the archive with one big media file. The committed deck is ~3 MB;
+	 * padding it PAST DECK_UPLOAD_MAX_ZIP_BYTES (4 MB) is what lets the
+	 * harness demonstrate the real client-side size refusal against real
+	 * bytes, rather than asserting the pure size-check function in
+	 * isolation. It also still exercises real upload progress for anything
+	 * under the cap.
 	 */
 	padBytes?: number;
 }
@@ -223,135 +225,13 @@ export interface StoredDeck {
  */
 const decks = new Map<string, StoredDeck>();
 
-/**
- * The harness's stand-in for a Google resumable upload session.
- *
- * It exists so /dev/classroom-deck can drive the REAL client uploader
- * (`uploadZipToDrive`) rather than a mock of it: same chunking, same
- * Content-Range arithmetic, same 308-and-Range resume, same cancel. Same-origin
- * on purpose -- the `Range` header a cross-origin Google response may or may
- * not expose is always readable here, which is the one behaviour the harness
- * cannot be authoritative about (see the module note in deck-upload.ts).
- *
- * It also mirrors the production BINDING: a "file id" is minted by the session
- * itself when the last byte lands, so an ingest naming any other id is refused
- * exactly the way the real route refuses one whose Drive name and parent are
- * not the ones the server set.
- */
-interface DevUploadSession {
-	id: string;
-	total: number;
-	received: Uint8Array;
-	/**
-	 * How many CONTIGUOUS bytes from 0 the session holds -- what Google's own
-	 * `Range: bytes=0-N` reports, and therefore what the status query has to be
-	 * able to answer honestly. Kept rather than derived so a chunk that is
-	 * rejected before its body is read leaves this exactly where it was, which
-	 * is the state a resumed upload has to recover from.
-	 */
-	held: number;
-	fileId: string | null;
-	/** Fault injection: refuse the FINAL chunk this many more times. */
-	failLast: number;
-	/**
-	 * Whether that refusal READS THE BODY FIRST, which decides what the browser
-	 * is even able to see:
-	 *
-	 *   true  -- drain, then answer 503. A real, readable status: the uploader
-	 *            gets `chunk_status` and its own recovery runs.
-	 *   false -- answer without reading, so the browser abandons the send and
-	 *            sees status 0 (`chunk_network`), the live report's shape.
-	 *
-	 * MEASURED, and the reason this flag exists at all: Chrome TRANSPARENTLY
-	 * RETRIES an idempotent PUT whose connection is reset before any response
-	 * byte arrives, so a one-shot reset is absorbed below our code and cannot be
-	 * observed from the page at all -- the upload simply succeeds, with one
-	 * request in the network log. A readable status is therefore the only way to
-	 * drive the uploader's own resume path from a browser.
-	 */
-	failLastDrain: boolean;
-}
-
-const uploads = new Map<string, DevUploadSession>();
-
-export function devUploadStart(id: string, total: number, failLast = 0, failLastDrain = true): void {
-	uploads.set(id, {
-		id,
-		total,
-		received: new Uint8Array(total),
-		held: 0,
-		fileId: null,
-		failLast,
-		failLastDrain
-	});
-}
-
-export function devUploadSession(id: string): DevUploadSession | undefined {
-	return uploads.get(id);
-}
-
-export function devUploadCancel(id: string): void {
-	uploads.delete(id);
-}
-
-/**
- * Writes one chunk. Returns how many contiguous bytes are now held.
- *
- * A chunk that does not start where the session left off is IGNORED rather than
- * written into a hole, which is what Google does too -- and is what makes the
- * status query's answer meaningful after a failed resume.
- */
-export function devUploadChunk(id: string, start: number, bytes: Uint8Array): number | null {
-	const session = uploads.get(id);
-	if (!session) return null;
-	if (start > session.held) return session.held;
-	session.received.set(bytes, start);
-	session.held = Math.max(session.held, start + bytes.length);
-	if (session.held >= session.total && !session.fileId) {
-		session.fileId = `devfile-${id}`;
-	}
-	return session.held;
-}
-
-/**
- * One injected refusal of the final chunk, consumed. Returns how to refuse it,
- * or null to let the chunk through. See `failLastDrain` for why the two
- * flavours are not interchangeable.
- */
-export function devUploadTakeFinalFailure(id: string): { drain: boolean } | null {
-	const session = uploads.get(id);
-	if (!session || !(session.failLast > 0)) return null;
-	session.failLast -= 1;
-	return { drain: session.failLastDrain };
-}
-
-export function devUploadedBytes(id: string): Uint8Array | null {
-	const session = uploads.get(id);
-	return session?.fileId ? session.received : null;
-}
-
-/** What a finalize response reports: the id AND the stored length. */
-export function devUploadFinalized(id: string): { id: string; size: number } | null {
-	const session = uploads.get(id);
-	if (!session?.fileId) return null;
-	return { id: session.fileId, size: session.held };
-}
-
-/**
- * Ingests bytes that were actually UPLOADED, the way the real route ingests the
- * staged zip out of Drive -- rather than rebuilding the fixture server-side and
- * pretending a transfer happened.
- */
-export async function ingestUploadedZip(
-	id: string,
-	zip: Uint8Array,
-	entryPath?: string | null
-) {
-	return ingestZip(id, zip, entryPath ?? null);
-}
-
 // ---------------------------------------------------------------------------
 // Staged ingestion (0105), mirrored for the harness.
+//
+// The zip arrives in ONE multipart POST now (the production shape is
+// unchanged from here on: authorize + write-to-Drive + plan collapsed into a
+// single request, then `files`/`finish`/`abort` unchanged) -- there is no
+// separate upload-session step to emulate any more.
 // ---------------------------------------------------------------------------
 
 /**

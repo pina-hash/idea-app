@@ -50,9 +50,9 @@ import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harn
 import { DRIVE_ENDPOINTS } from '../src/lib/server/notebook-drive';
 import {
 	DECK_LIMITS,
+	DECK_UPLOAD_MAX_ZIP_BYTES,
 	deckFileMime,
 	deckStagedDriveFilename,
-	deckUploadName,
 	extractSlides,
 	IMAGE_STATE_FILE,
 	normalizeDeckPath,
@@ -259,18 +259,13 @@ function replaceDeck(
 }
 
 /**
- * The mock Drive's state. `staged` is what a browser's direct upload would have
- * left in the deck uploads folder; the ingest route reads its metadata, then its
- * bytes by range, then deletes it.
+ * The mock Drive's state. There is no separate "staged" bucket any more: the
+ * server writes the uploaded zip to Drive itself now (through the exact same
+ * generic upload endpoint every deck FILE goes through), so a driveObject
+ * carries its own bytes when anything needs to read them back -- which is
+ * true of the staged zip (planning + every `files` stage re-reads it) and
+ * true of nothing else here.
  */
-interface StagedFile {
-	name: string;
-	parents: string[];
-	bytes: Uint8Array;
-	/** Overrides what the metadata reports, for the size-cap case. */
-	reportedSize?: number;
-}
-const staged = new Map<string, StagedFile>();
 const driveDeleted: string[] = [];
 const driveUploaded: string[] = [];
 let driveSeq = 0;
@@ -288,6 +283,8 @@ interface DriveObject {
 	name: string;
 	parent: string;
 	isFolder: boolean;
+	/** Present for an uploaded FILE whose bytes something needs to read back. */
+	bytes?: Uint8Array;
 }
 const driveObjects = new Map<string, DriveObject>();
 
@@ -305,9 +302,26 @@ function parseUploadMeta(body: string): { name: string; parent: string } {
 	return { name: name.replace(/\\(.)/g, '$1'), parent };
 }
 
-function stageZip(fileId: string, name: string, parents: string[], bytes: Uint8Array): string {
-	staged.set(fileId, { name, parents, bytes });
-	return fileId;
+/**
+ * Pulls the FILE BYTES back out of a Drive multipart-related upload body,
+ * given the exact boundary the request declared. `uploadDriveFile` always
+ * produces the same three-part shape (JSON metadata, then the file, then the
+ * closing boundary), so splitting on the boundary token yields exactly those
+ * parts; the file part still carries its own `content-type` header line
+ * ahead of a blank line, which is stripped the same way an HTTP body is.
+ */
+function parseUploadFileBytes(body: string, boundary: string): Uint8Array | undefined {
+	if (!boundary) return undefined;
+	const parts = body.split(`--${boundary}`);
+	const filePart = parts[2];
+	if (!filePart) return undefined;
+	const headerEnd = filePart.indexOf('\r\n\r\n');
+	if (headerEnd === -1) return undefined;
+	// The trailing "\r\n" before the next boundary token is not file content.
+	const raw = filePart.slice(headerEnd + 4, filePart.length - 2);
+	const bytes = new Uint8Array(raw.length);
+	for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i) & 0xff;
+	return bytes;
 }
 
 /**
@@ -332,19 +346,24 @@ beforeAll(async () => {
 			return json({ access_token: 'test-access-token', expires_in: 3600 });
 		}
 		// One file's bytes go up (multipart); the id is all the caller reads,
-		// but the NAME and PARENT are recorded so the folder listing below can
-		// answer honestly.
+		// but the NAME, PARENT and BYTES are all recorded -- the name and
+		// parent so the folder listing below can answer honestly, the bytes
+		// because the server now writes the STAGED ZIP through this exact
+		// same endpoint and has to be able to read it back (planning, and
+		// every `files` stage) exactly as it would read a real Drive file.
 		if (url.pathname === '/upload') {
 			const id = `uploaded-${++driveSeq}`;
 			driveUploaded.push(id);
+			const boundary = /boundary=([^;]+)/.exec(req.headers['content-type'] ?? '')?.[1] ?? '';
 			let body = '';
 			req.setEncoding('latin1');
 			req.on('data', (c: string) => {
-				if (body.length < 4096) body += c;
+				body += c;
 			});
 			req.on('end', () => {
 				const meta = parseUploadMeta(body);
-				driveObjects.set(id, { ...meta, isFolder: false });
+				const bytes = parseUploadFileBytes(body, boundary);
+				driveObjects.set(id, { ...meta, isFolder: false, bytes });
 				json({ id });
 			});
 			return;
@@ -390,15 +409,15 @@ beforeAll(async () => {
 				res.end();
 				return;
 			}
-			const file = staged.get(id);
+			const obj = driveObjects.get(id);
 			if (url.searchParams.get('alt') === 'media') {
-				if (file) {
+				if (obj?.bytes) {
 					// The ranged read the unpacker uses. Answered as 206 with only
 					// the requested slice, exactly as Drive answers it.
 					const range = /bytes=(\d+)-(\d+)/.exec(req.headers.range ?? '');
 					const start = range ? Number(range[1]) : 0;
-					const end = range ? Math.min(Number(range[2]), file.bytes.length - 1) : file.bytes.length - 1;
-					const slice = file.bytes.subarray(start, end + 1);
+					const end = range ? Math.min(Number(range[2]), obj.bytes.length - 1) : obj.bytes.length - 1;
+					const slice = obj.bytes.subarray(start, end + 1);
 					res.writeHead(range ? 206 : 200, {
 						'content-type': 'application/zip',
 						'content-length': String(slice.length)
@@ -407,23 +426,15 @@ beforeAll(async () => {
 					return;
 				}
 				// Drive routinely reports a .js or a .json as text/plain; the route
-				// is expected to prefer the type recorded at ingest.
+				// is expected to prefer the type recorded at ingest. Also what a
+				// fabricated (never-really-uploaded) drive_file_id, as replaceDeck
+				// uses, answers with.
 				res.writeHead(200, {
 					'content-type': 'text/plain',
 					'content-length': String(FILE_BYTES.length)
 				});
 				res.end(Buffer.from(FILE_BYTES));
 				return;
-			}
-			if (url.searchParams.get('fields')?.includes('parents')) {
-				if (!file) return json({ error: 'not found' }, 404);
-				return json({
-					id,
-					name: file.name,
-					mimeType: 'application/zip',
-					size: String(file.reportedSize ?? file.bytes.length),
-					parents: file.parents
-				});
 			}
 			// The proxy's plain download.
 			res.writeHead(200, {
@@ -1053,22 +1064,17 @@ describe('GET /api/classroom/deck/[deck_id]/[...path]', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7. The DIRECT-TO-DRIVE upload path (0102).
+// 7. Uploading a deck zip and the 0102 authorization it rides on.
 //
-// A deck zip no longer passes through our own server -- it could not, at 23.5 MB
-// against a ~4.5 MB platform cap -- so what has to hold is no longer "did the
-// multipart body arrive" but "is this file id one this caller was actually
-// authorized to have produced". That is answered in two independent places, and
-// both are asserted here:
-//
-//   the SLOT   an authorization row, spendable once, that carries the item;
-//   the FILE   its Drive NAME and PARENT, set by the server when it opened the
-//              session and unchangeable by a resumable PUT.
-//
-// Neither is sufficient alone, which is why widening either is a real leak: the
-// slot alone would let a teacher point ingestion at any file in the shared
-// drive, and the name alone would let anyone who guessed a slot id ingest
-// someone else's upload.
+// The zip goes through THIS server now (a genuine environmental finding, not a
+// preference: live testing found the browser could not reach Google's
+// chunked-upload endpoint at all, for a small deck as much as a large one), so
+// the upload is one ordinary multipart POST, capped at DECK_UPLOAD_MAX_ZIP_BYTES
+// and refused before anything is sent if it is over. `classroom_deck_uploads`
+// (0102) still authorizes and records each attempt -- `classroom_deck_upload_start`
+// / `_claim` / `_cancel` are UNCHANGED and are what the server's own upload
+// handler calls internally, so their direct RPC-level coverage below still
+// matters even though nothing browser-side calls them any more.
 // ---------------------------------------------------------------------------
 
 /**
@@ -1102,6 +1108,7 @@ function ingestSupabase(userId: string) {
 	};
 }
 
+/** One JSON-body call to a `files` / `finish` / `abort` stage -- unchanged shape. */
 function callIngest(userId: string | null, body: Record<string, unknown>): Promise<Response> {
 	return (INGEST as unknown as (event: unknown) => Promise<Response>)({
 		request: new Request('http://localhost/api/classroom/deck', {
@@ -1116,17 +1123,55 @@ function callIngest(userId: string | null, body: Record<string, unknown>): Promi
 	});
 }
 
+/** Builds the multipart form a real browser sends: item_id, an optional title
+ * / entry_path, and the zip itself as the "file" field. */
+function uploadForm(
+	itemId: string,
+	zip: Uint8Array,
+	opts: { title?: string; entryPath?: string; filename?: string } = {}
+): FormData {
+	const form = new FormData();
+	form.set('item_id', itemId);
+	if (opts.title) form.set('title', opts.title);
+	if (opts.entryPath) form.set('entry_path', opts.entryPath);
+	form.set('file', new File([zip as BlobPart], opts.filename ?? 'deck.zip', { type: 'application/zip' }));
+	return form;
+}
+
+/** POSTs a multipart form to the real route, as the given user (or nobody). */
+function callUpload(userId: string | null, form: FormData): Promise<Response> {
+	return (INGEST as unknown as (event: unknown) => Promise<Response>)({
+		request: new Request('http://localhost/api/classroom/deck', { method: 'POST', body: form }),
+		locals: {
+			supabase: userId ? ingestSupabase(userId) : null,
+			claims: userId ? { sub: userId, role: 'authenticated' } : null
+		}
+	});
+}
+
+/** A real multipart upload for `itemId`, exactly what the shipping client sends. */
+function beginUpload(
+	userId: string,
+	itemId: string,
+	zip: Uint8Array,
+	opts: { title?: string; entryPath?: string } = {}
+): Promise<Response> {
+	return callUpload(userId, uploadForm(itemId, zip, opts));
+}
+
 /**
- * Drives the REAL route through every stage, exactly as the shipping client
- * does: begin, then files until complete, then finish.
+ * Drives `files` until complete, then `finish`, given an ALREADY-STARTED
+ * upload's raw Response -- separated from runIngest below so a test that
+ * needs to inspect state right after the multipart upload (before `finish`
+ * sweeps the staged zip) can do so without duplicating the stage loop.
  *
  * `stopAfter` cuts the drive short at a given number of `files` calls, which is
  * how the interrupted-stage and cleanup cases are produced -- there is no other
  * way to have a real request stop halfway.
  */
-async function runIngest(
+async function driveIngestStages(
 	userId: string,
-	body: Record<string, unknown>,
+	begun: Response,
 	opts: { stopAfter?: number } = {}
 ): Promise<{
 	status: number;
@@ -1134,7 +1179,6 @@ async function runIngest(
 	jobId: string | null;
 	stageCalls: number;
 }> {
-	const begun = await callIngest(userId, body);
 	const begunBody = (await begun.json()) as Record<string, unknown>;
 	if (begun.status !== 200) {
 		return { status: begun.status, body: begunBody, jobId: null, stageCalls: 0 };
@@ -1167,7 +1211,26 @@ async function runIngest(
 	};
 }
 
-/** Opens a real slot through the real RPC. */
+/**
+ * Drives the REAL route through every stage, exactly as the shipping client
+ * does: ONE multipart upload, then `files` until complete, then `finish`.
+ */
+async function runIngest(
+	userId: string,
+	itemId: string,
+	zip: Uint8Array,
+	opts: { stopAfter?: number; entryPath?: string } = {}
+): Promise<{
+	status: number;
+	body: Record<string, unknown>;
+	jobId: string | null;
+	stageCalls: number;
+}> {
+	const begun = await beginUpload(userId, itemId, zip, { entryPath: opts.entryPath });
+	return driveIngestStages(userId, begun, opts);
+}
+
+/** Opens a real slot through the real RPC -- still exactly what the server's own upload handler calls internally. */
 async function openSlot(userId: string, itemId: string): Promise<string> {
 	const res = await rpc<{ upload_id: string }>(
 		userId,
@@ -1179,7 +1242,7 @@ async function openSlot(userId: string, itemId: string): Promise<string> {
 
 const UPLOADS_FOLDER = folderIdFor('IDEA Classroom deck uploads');
 
-describe('authorizing one direct-to-Drive upload', () => {
+describe('authorizing one deck upload (0102, called by the server itself now)', () => {
 	it('refuses a student and a foreign teacher, and allows the teacher of record', async () => {
 		expect((await captureError(() => openSlot(studentA.id, pubItem))).message).toContain(
 			'teacher of record'
@@ -1348,18 +1411,19 @@ describe('spending an upload slot', () => {
 	});
 });
 
-describe('POST /api/classroom/deck (ingest from Drive)', () => {
-	it('ingests a real staged zip, keeps the hidden state file, and sweeps the zip', async () => {
+describe('POST /api/classroom/deck (multipart upload + staged ingest)', () => {
+	it('ingests a real zip in one multipart upload, keeps the hidden state file, and sweeps the staged zip', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Ingest me')).item_id;
-		const uploadId = await openSlot(teacherA.id, item);
-		const fileId = stageZip(
-			`staged-${uploadId}`,
-			deckUploadName(uploadId),
-			[UPLOADS_FOLDER],
-			exportZip()
-		);
+		const before = driveUploaded.length;
 
-		const res = await runIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		// Split so the staged zip's Drive placement can be checked BEFORE
+		// `finish` sweeps it: it is the ONE file this call's own upload step
+		// wrote, ahead of any per-file upload the `files` stage makes.
+		const begun = await beginUpload(teacherA.id, item, exportZip());
+		const stagedId = driveUploaded[before];
+		expect(driveObjects.get(stagedId)?.parent).toBe(UPLOADS_FOLDER);
+
+		const res = await driveIngestStages(teacherA.id, begun);
 		expect(res.status).toBe(200);
 		const body = res.body as unknown as {
 			ok: boolean;
@@ -1386,78 +1450,63 @@ describe('POST /api/classroom/deck (ingest from Drive)', () => {
 		expect(paths).toContain('_ds/idea/styles.css');
 		expect(paths).not.toContain('IDEA FSP Deck (standalone).html');
 
-		// The staged archive is transient and is cleaned up on the way out.
-		expect(driveDeleted).toContain(fileId);
+		// The staged archive was cleaned up on the way out.
+		expect(driveDeleted).toContain(stagedId);
 	});
 
-	it('REFUSES a file id that upload did not produce, and does not delete it', async () => {
-		const item = (await createItem(teacherA.id, [sectionA], 'Foreign file')).item_id;
+	it('refuses the upload for a student and a foreign teacher, and anonymously -- and reaches Drive for none of them', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'No access')).item_id;
+		const before = driveUploaded.length;
 
-		// Right folder, wrong name -- i.e. some other file in the staging folder.
-		const wrongName = stageZip('someone-elses-file', 'not-mine.zip', [UPLOADS_FOLDER], exportZip());
-		const slotA = await openSlot(teacherA.id, item);
-		const res1 = await callIngest(teacherA.id, { upload_id: slotA, drive_file_id: wrongName });
-		expect(res1.status).toBe(400);
-		expect(((await res1.json()) as { error: string }).error).toContain('not produced by this upload');
+		for (const user of [studentA, teacherB]) {
+			const res = await callUpload(user.id, uploadForm(item, exportZip()));
+			expect(res.status, user.email).toBeGreaterThanOrEqual(400);
+			expect(((await res.json()) as { error: string }).error, user.email).toContain(
+				'teacher of record'
+			);
+		}
+		const anon = await callUpload(null, uploadForm(item, exportZip()));
+		expect(anon.status).toBe(401);
 
-		// Right name, wrong folder -- a file anywhere else in the shared drive.
-		const slotB = await openSlot(teacherA.id, item);
-		const wrongParent = stageZip(
-			'elsewhere-in-the-drive',
-			deckUploadName(slotB),
-			[folderIdFor('IDEA Classroom decks')],
-			exportZip()
-		);
-		const res2 = await callIngest(teacherA.id, { upload_id: slotB, drive_file_id: wrongParent });
-		expect(res2.status).toBe(400);
-
-		// Neither was touched: a forged id must never become a way to destroy an
-		// arbitrary file in the shared drive.
-		expect(driveDeleted).not.toContain(wrongName);
-		expect(driveDeleted).not.toContain(wrongParent);
-		// And nothing was stored against the item.
+		expect(driveUploaded.length).toBe(before);
 		const decks = await db.asUser(
 			teacherA.id,
-			async (q) =>
-				(await q('select id from public.classroom_decks where item_id = $1', [item])).rows
+			async (q) => (await q('select id from public.classroom_decks where item_id = $1', [item])).rows
 		);
 		expect(decks).toHaveLength(0);
 	});
 
-	it("refuses another teacher's slot, and refuses a student outright", async () => {
-		const item = (await createItem(teacherA.id, [sectionA], 'Not yours')).item_id;
-		const uploadId = await openSlot(teacherA.id, item);
-		const fileId = stageZip(
-			`staged-borrowed-${uploadId}`,
-			deckUploadName(uploadId),
-			[UPLOADS_FOLDER],
-			exportZip()
-		);
+	it('refuses an oversize zip before writing anything to Drive', async () => {
+		const item = (await createItem(teacherA.id, [sectionA], 'Too big')).item_id;
+		const before = driveUploaded.length;
+		const huge = new Uint8Array(DECK_UPLOAD_MAX_ZIP_BYTES + 1024);
 
-		for (const user of [teacherB, studentA]) {
-			const res = await callIngest(user.id, { upload_id: uploadId, drive_file_id: fileId });
-			expect(res.status, user.email).toBe(400);
-			expect(((await res.json()) as { reason: string }).reason, user.email).toBe('not_found');
-		}
-		// Untouched, so the real owner can still use it.
-		const mine = await runIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
-		expect(mine.status).toBe(200);
-		expect(mine.body.ok).toBe(true);
+		const res = await callUpload(teacherA.id, uploadForm(item, huge));
+		expect(res.status).toBe(413);
+		expect(((await res.json()) as { code: string }).code).toBe('too_large');
+
+		// Refused before anything reached Drive -- this is the platform-body-cap
+		// rule enforced server-side, not a slow rejection after the fact.
+		expect(driveUploaded.length).toBe(before);
+		const decks = await db.asUser(
+			teacherA.id,
+			async (q) => (await q('select id from public.classroom_decks where item_id = $1', [item])).rows
+		);
+		expect(decks).toHaveLength(0);
 	});
 
-	it('still refuses a traversing zip on the new path, and stores nothing', async () => {
+	it('refuses a traversing zip and cleans up the staged file it wrote', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Traversal')).item_id;
-		const uploadId = await openSlot(teacherA.id, item);
-		const fileId = stageZip(
-			`staged-evil-${uploadId}`,
-			deckUploadName(uploadId),
-			[UPLOADS_FOLDER],
+		const before = driveUploaded.length;
+
+		const res = await beginUpload(
+			teacherA.id,
+			item,
 			makeZip([
 				{ name: 'index.html', bytes: text(DECK_HTML) },
 				{ name: '../escaped.html', bytes: text('<html>nope</html>') }
 			])
 		);
-		const res = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
 		expect(res.status).toBe(400);
 		expect(((await res.json()) as { error: string }).error).toContain('not a safe path');
 
@@ -1468,42 +1517,24 @@ describe('POST /api/classroom/deck (ingest from Drive)', () => {
 		);
 		expect(decks).toHaveLength(0);
 		// Ours, and spent: cleaned up even though the ingest failed.
-		expect(driveDeleted).toContain(fileId);
+		const stagedId = driveUploaded[before];
+		expect(driveDeleted).toContain(stagedId);
 	});
 
 	it('hands the entry-page question back when the zip is ambiguous', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Ambiguous')).item_id;
-		const uploadId = await openSlot(teacherA.id, item);
-		const fileId = stageZip(
-			`staged-ambig-${uploadId}`,
-			deckUploadName(uploadId),
-			[UPLOADS_FOLDER],
+		const res = await beginUpload(
+			teacherA.id,
+			item,
 			makeZip([
 				{ name: 'index.html', bytes: text(DECK_HTML) },
 				{ name: 'handout.html', bytes: text('<html></html>') }
 			])
 		);
-		const res = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
 		expect(res.status).toBe(400);
 		expect(((await res.json()) as { candidates: string[] }).candidates).toEqual(
 			expect.arrayContaining(['index.html', 'handout.html'])
 		);
-	});
-
-	it('refuses a staged file past the size cap before reading a byte of it', async () => {
-		const item = (await createItem(teacherA.id, [sectionA], 'Too big')).item_id;
-		const uploadId = await openSlot(teacherA.id, item);
-		const fileId = `staged-huge-${uploadId}`;
-		// Only its REPORTED size matters: the route refuses on the metadata.
-		staged.set(fileId, {
-			name: deckUploadName(uploadId),
-			parents: [UPLOADS_FOLDER],
-			bytes: new Uint8Array(0),
-			reportedSize: DECK_LIMITS.maxZipBytes + 1
-		});
-		const res = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
-		expect(res.status).toBe(413);
-		staged.delete(fileId);
 	});
 
 	it('rejects an unknown stage rather than guessing at one', async () => {
@@ -1512,19 +1543,25 @@ describe('POST /api/classroom/deck (ingest from Drive)', () => {
 		expect(((await res.json()) as { error: string }).error).toContain('Unknown deck upload stage');
 	});
 
-	it('refuses anonymously, and refuses a malformed id without reaching Drive', async () => {
-		const anon = await callIngest(null, { upload_id: randomUUID(), drive_file_id: 'abcdefgh' });
+	it('refuses a malformed item_id and a missing file without reaching Drive', async () => {
+		const before = driveUploaded.length;
+
+		const badItem = await callUpload(teacherA.id, uploadForm('not-a-uuid', exportZip()));
+		expect(badItem.status).toBe(400);
+
+		const noFile = new FormData();
+		noFile.set('item_id', pubItem);
+		const missingFile = await callUpload(teacherA.id, noFile);
+		expect(missingFile.status).toBe(400);
+
+		expect(driveUploaded.length).toBe(before);
+	});
+
+	it('refuses anonymously on the JSON stages too, and a malformed job id without reaching Drive', async () => {
+		const anon = await callIngest(null, { stage: 'files', job_id: randomUUID() });
 		expect(anon.status).toBe(401);
-		const badSlot = await callIngest(teacherA.id, {
-			upload_id: 'not-a-uuid',
-			drive_file_id: 'abcdefgh'
-		});
-		expect(badSlot.status).toBe(400);
-		const badFile = await callIngest(teacherA.id, {
-			upload_id: randomUUID(),
-			drive_file_id: '../../etc/passwd'
-		});
-		expect(badFile.status).toBe(400);
+		const badJob = await callIngest(teacherA.id, { stage: 'files', job_id: 'not-a-uuid' });
+		expect(badJob.status).toBe(400);
 	});
 });
 
@@ -1585,17 +1622,10 @@ async function storedManifest(
 	);
 }
 
-async function stageZipFor(userId: string, itemId: string, zip: Uint8Array) {
-	const uploadId = await openSlot(userId, itemId);
-	const fileId = stageZip(`staged-${uploadId}`, deckUploadName(uploadId), [UPLOADS_FOLDER], zip);
-	return { uploadId, fileId };
-}
-
 describe('staged deck ingestion', () => {
 	it('stores exactly the manifest the planner planned, across several stages', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Staged')).item_id;
 		const zip = bigExportZip();
-		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, zip);
 
 		// The expectation, derived independently of the route: what the SHIPPING
 		// planner says this archive contains, with each file typed the way
@@ -1608,7 +1638,8 @@ describe('staged deck ingestion', () => {
 			expected.push({ path: file.path, mime_type: (await readDeckFile(source, file)).mimeType });
 		}
 
-		const run = await runIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const before = driveUploaded.length;
+		const run = await runIngest(teacherA.id, item, zip);
 		expect(run.status).toBe(200);
 		expect(run.body.ok).toBe(true);
 		// It genuinely staged rather than doing everything in one request.
@@ -1635,15 +1666,15 @@ describe('staged deck ingestion', () => {
 		});
 
 		// And the staged archive was swept once the deck landed.
-		expect(driveDeleted).toContain(fileId);
+		const stagedId = driveUploaded[before];
+		expect(driveDeleted).toContain(stagedId);
 	});
 
 	it('resumes a stage that stored files and died before recording them', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Interrupted')).item_id;
 		const zip = bigExportZip();
-		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, zip);
 
-		const begun = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const begun = await beginUpload(teacherA.id, item, zip);
 		const begunBody = (await begun.json()) as { job_id: string; total_files: number };
 		const jobId = begunBody.job_id;
 
@@ -1694,15 +1725,11 @@ describe('staged deck ingestion', () => {
 
 	it('leaves no partial deck and no orphaned files when a job is abandoned', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Abandoned')).item_id;
-		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, bigExportZip());
+		const before = driveUploaded.length;
 
 		// Stop after one stage: real files are on Drive and the deck does not
 		// exist yet, which is the state a failure partway leaves.
-		const partial = await runIngest(
-			teacherA.id,
-			{ upload_id: uploadId, drive_file_id: fileId },
-			{ stopAfter: 1 }
-		);
+		const partial = await runIngest(teacherA.id, item, bigExportZip(), { stopAfter: 1 });
 		const jobId = partial.jobId as string;
 		const { rows } = await db.sql<{ drive_folder_id: string; files_done: number }>(
 			'select drive_folder_id, files_done from public.classroom_deck_ingest_jobs where id = $1',
@@ -1728,17 +1755,13 @@ describe('staged deck ingestion', () => {
 		for (const id of partialFiles) expect(driveDeleted, id).toContain(id);
 		expect(driveChildren(folderId)).toHaveLength(0);
 		// ...and so did the staged archive.
-		expect(driveDeleted).toContain(fileId);
+		const stagedId = driveUploaded[before];
+		expect(driveDeleted).toContain(stagedId);
 	});
 
 	it('sweeps an earlier unfinished attempt when the same item is uploaded again', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Second attempt')).item_id;
-		const first = await stageZipFor(teacherA.id, item, bigExportZip());
-		const abandoned = await runIngest(
-			teacherA.id,
-			{ upload_id: first.uploadId, drive_file_id: first.fileId },
-			{ stopAfter: 1 }
-		);
+		const abandoned = await runIngest(teacherA.id, item, bigExportZip(), { stopAfter: 1 });
 		const { rows } = await db.sql<{ drive_folder_id: string }>(
 			'select drive_folder_id from public.classroom_deck_ingest_jobs where id = $1',
 			[abandoned.jobId]
@@ -1748,11 +1771,7 @@ describe('staged deck ingestion', () => {
 
 		// A second upload, driven to completion. The teacher never cancelled the
 		// first, so nothing but this can clean it up.
-		const second = await stageZipFor(teacherA.id, item, exportZip());
-		const run = await runIngest(teacherA.id, {
-			upload_id: second.uploadId,
-			drive_file_id: second.fileId
-		});
+		const run = await runIngest(teacherA.id, item, exportZip());
 		expect(run.status).toBe(200);
 
 		expect(driveDeleted).toContain(strandedFolder);
@@ -1766,12 +1785,7 @@ describe('staged deck ingestion', () => {
 
 	it('refuses to store a job that has not finished unpacking', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Half done')).item_id;
-		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, bigExportZip());
-		const partial = await runIngest(
-			teacherA.id,
-			{ upload_id: uploadId, drive_file_id: fileId },
-			{ stopAfter: 1 }
-		);
+		const partial = await runIngest(teacherA.id, item, bigExportZip(), { stopAfter: 1 });
 		const early = await callIngest(teacherA.id, { stage: 'finish', job_id: partial.jobId });
 		expect(early.status).toBe(400);
 		expect(((await early.json()) as { reason: string }).reason).toBe('incomplete');
@@ -1785,8 +1799,7 @@ describe('staged deck ingestion', () => {
 
 	it('lets nobody but the job owner continue or store it', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Not your job')).item_id;
-		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, exportZip());
-		const begun = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const begun = await beginUpload(teacherA.id, item, exportZip());
 		const jobId = ((await begun.json()) as { job_id: string }).job_id;
 
 		for (const user of [teacherB, teacherC, studentA]) {
@@ -1808,8 +1821,7 @@ describe('staged deck ingestion', () => {
 
 	it('shows a job to its own maker and to nobody else', async () => {
 		const item = (await createItem(teacherA.id, [sectionA], 'Own job only')).item_id;
-		const { uploadId, fileId } = await stageZipFor(teacherA.id, item, exportZip());
-		const begun = await callIngest(teacherA.id, { upload_id: uploadId, drive_file_id: fileId });
+		const begun = await beginUpload(teacherA.id, item, exportZip());
 		const jobId = ((await begun.json()) as { job_id: string }).job_id;
 
 		const mine = await db.asUser(

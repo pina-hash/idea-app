@@ -1,78 +1,52 @@
 import { json, error } from '@sveltejs/kit';
 import { dev } from '$app/environment';
-import {
-	devIngestAbort,
-	devIngestBegin,
-	devIngestFiles,
-	devIngestFinish,
-	devUploadedBytes,
-	devUploadSession
-} from '$lib/server/dev-deck-fixture';
+import { devIngestAbort, devIngestBegin, devIngestFiles, devIngestFinish } from '$lib/server/dev-deck-fixture';
 import type { RequestHandler } from './$types';
 
 /**
  * Dev harness only (404 in production, no auth, no Supabase, no Drive):
- * unpacks the zip the browser actually UPLOADED, through the SHIPPING planner,
- * IN THE SAME FOUR STAGES the real route uses (0105).
- *
- * It mirrors the production ingest route's binding as well as its unpacking: a
- * file id is minted by the upload session itself, so naming any other one is
- * refused here exactly as a file whose Drive name and parent are not the ones
- * the server set is refused there.
+ * unpacks a REAL zip through the SHIPPING planner, in the SAME shape the real
+ * route now uses -- ONE multipart request combining authorize + write-to-Drive
+ * + plan (mirrored here as one call straight into devIngestBegin, since there
+ * is no auth or Drive to authorize against), then the JSON `files` / `finish`
+ * / `abort` stages (0105), unchanged.
  *
  * Two fault injectors exist because their symptoms are what this endpoint's
- * whole diagnosis story is about and neither can be produced locally otherwise:
- * `fail` makes a stage answer 502, and `hang` makes it never answer at all, so
- * the client's own timeout is the thing that ends it. See
- * $lib/server/dev-deck-fixture.
+ * whole diagnosis story is about and neither can be produced locally
+ * otherwise: `fail` makes a stage answer 502, and `hang` makes it never answer
+ * at all, so the client's own timeout is the thing that ends it. Both work on
+ * every stage, INCLUDING the initial multipart upload -- the real server can
+ * fail there too (a Drive write that errors, for instance), and the harness
+ * has to be able to show what that looks like, and that nothing partial is
+ * left behind. See $lib/server/dev-deck-fixture.
  */
 export const POST: RequestHandler = async ({ request }) => {
 	if (!dev) error(404, 'Not found');
 
-	const body = (await request.json().catch(() => ({}))) as {
-		stage?: string;
-		id?: string;
-		job_id?: string;
-		upload_id?: string;
-		drive_file_id?: string;
-		entryPath?: string | null;
-		/** Fault injection, harness only. */
-		fail?: boolean;
-		hang?: boolean;
-		interrupt?: boolean;
-	};
+	const contentType = request.headers.get('content-type') ?? '';
 
-	if (body.hang) {
-		// Never answers. The client's own timeout is what has to end this, and
-		// that it reads as `ingest_timeout` rather than a generic failure is the
-		// point of injecting it.
-		await new Promise(() => {});
-	}
-	if (body.fail) {
-		return json({ ok: false, error: 'Injected server failure.', code: 'drive_upload' }, { status: 502 });
-	}
-
-	const stage = body.stage ?? 'begin';
-
-	if (stage === 'begin') {
-		const deckId = body.id ?? 'dev-deck';
-		const uploadId = String(body.upload_id ?? '');
-		const session = devUploadSession(uploadId);
-		if (!session) {
-			return json({ ok: false, error: 'That upload could not be found.' }, { status: 400 });
+	if (contentType.toLowerCase().includes('multipart/form-data')) {
+		const form = await request.formData().catch(() => null);
+		if (!form) {
+			return json({ ok: false, error: 'Expected multipart/form-data.' }, { status: 400 });
 		}
-		if (!session.fileId || session.fileId !== body.drive_file_id) {
-			return json(
-				{ ok: false, error: 'That file was not produced by this upload.' },
-				{ status: 400 }
-			);
+		if (form.get('hang') === '1') {
+			// Never answers. The client's own timeout has to end this.
+			await new Promise(() => {});
 		}
-		const zip = devUploadedBytes(uploadId);
-		if (!zip) {
-			return json({ ok: false, error: 'That upload never finished.' }, { status: 400 });
+		if (form.get('fail') === '1') {
+			return json({ ok: false, error: 'Injected server failure.', code: 'drive_upload' }, { status: 502 });
 		}
 
-		const res = await devIngestBegin(deckId, zip, body.entryPath ?? null);
+		const deckId = String(form.get('id') ?? 'dev-deck');
+		const entryPath = String(form.get('entry_path') ?? '') || null;
+		const file = form.get('file');
+		if (!(file instanceof File)) {
+			return json({ ok: false, error: 'A zip file is required.' }, { status: 400 });
+		}
+		const zip = new Uint8Array(await file.arrayBuffer());
+
+		const res = await devIngestBegin(deckId, zip, entryPath);
 		if (!res.ok) {
 			return json(
 				{ ok: false, error: res.error, candidates: res.candidates ?? [], code: 'plan_refused' },
@@ -89,6 +63,23 @@ export const POST: RequestHandler = async ({ request }) => {
 		});
 	}
 
+	const body = (await request.json().catch(() => ({}))) as {
+		stage?: string;
+		job_id?: string;
+		/** Fault injection, harness only. */
+		fail?: boolean;
+		hang?: boolean;
+		interrupt?: boolean;
+	};
+
+	if (body.hang) {
+		await new Promise(() => {});
+	}
+	if (body.fail) {
+		return json({ ok: false, error: 'Injected server failure.', code: 'drive_upload' }, { status: 502 });
+	}
+
+	const stage = body.stage ?? '';
 	const jobId = String(body.job_id ?? '');
 
 	if (stage === 'files') {

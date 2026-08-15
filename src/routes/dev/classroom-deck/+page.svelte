@@ -3,12 +3,14 @@
 	import DeckViewer from '$lib/classroom/DeckViewer.svelte';
 	import {
 		clearLocalDeckUrls,
+		deckUploadSizeIssue,
+		DECK_UPLOAD_MAX_ZIP_BYTES,
 		registerLocalDeckUrl,
 		type ClassroomDeck,
 		type DeckTransports,
 		type DeckUploadResult
 	} from '$lib/classroom/deck';
-	import { DeckUploadCancelled, uploadZipToDrive } from '$lib/classroom/deck-upload';
+	import { DeckUploadCancelled, postDeckZip } from '$lib/classroom/deck-upload';
 
 	/**
 	 * /dev/classroom-deck -- the deck harness (404 in production, no auth, no
@@ -21,6 +23,12 @@
 	 * relative fetches -- `.image-slots.state.json` included -- resolve exactly
 	 * as they do live.
 	 *
+	 * IT DRIVES THE REAL `postDeckZip` UPLOADER (deck-upload.ts), pointed at
+	 * `/dev/classroom-deck/ingest` instead of the production route: the same
+	 * multipart POST, the same real upload progress via XHR, the same parsing
+	 * of the server's response. Only the endpoint is a stand-in, since this
+	 * harness has no session and no Drive to authorize an upload against.
+	 *
 	 * THE REGRESSION IT EXISTS FOR: the "without the hidden state file" toggle.
 	 * An unframed image looks plausible rather than broken, so the only way to
 	 * see the difference is to have both readings side by side.
@@ -31,15 +39,11 @@
 	 * Fault injection for the DIAGNOSIS half. Every one of these looks like
 	 * "something went wrong" from a browser unless it is named, which is the
 	 * whole reason the codes exist -- and none of them can be produced locally
-	 * without asking the server to misbehave on purpose.
+	 * without asking the server to misbehave on purpose. `fail-upload` /
+	 * `hang-upload` hit the single combined multipart request; the other three
+	 * hit the `files` stage of unpacking, unchanged from before.
 	 */
-	type Fault =
-		| 'none'
-		| 'fail-files'
-		| 'hang-files'
-		| 'interrupt-once'
-		| 'fail-last-chunk'
-		| 'fail-last-chunk-hard';
+	type Fault = 'none' | 'fail-upload' | 'hang-upload' | 'fail-files' | 'hang-files' | 'interrupt-once';
 	interface IngestBody {
 		deck: ClassroomDeck;
 		warnings: string[];
@@ -47,16 +51,16 @@
 	}
 
 	/**
-	 * A pad big enough to force several chunks through the shipping uploader
-	 * (its chunk is 8 MiB), so progress across a chunk boundary and cancelling
-	 * mid-transfer are exercised rather than assumed. The committed deck alone
-	 * is ~3 MB and goes up in one request.
+	 * Padded past DECK_UPLOAD_MAX_ZIP_BYTES on purpose: the "oversize" toggle
+	 * below exists to demonstrate the real client-side size refusal against
+	 * real bytes, not to exercise a chunked transfer (there is no more
+	 * chunking -- a deck upload is one request now, capped at a few MB).
 	 */
-	const PAD_BYTES = 36 * 1024 * 1024;
+	const PAD_BYTES = DECK_UPLOAD_MAX_ZIP_BYTES + 1024 * 1024;
 
 	let mode = $state<Mode>('normal');
 	let fault = $state<Fault>('none');
-	let large = $state(false);
+	let oversize = $state(false);
 	let view = $state<'panel' | 'viewer'>('panel');
 	let deck = $state<ClassroomDeck | null>(null);
 	let log = $state<string[]>([]);
@@ -77,7 +81,7 @@
 		log = [line, ...log].slice(0, 12);
 	}
 
-	/** One ingest stage, with the same timeout and failure taxonomy the real one uses. */
+	/** One `files`/`finish`/`abort` stage call, the SAME failure taxonomy the real one uses. */
 	const STAGE_TIMEOUT_MS = 6000;
 
 	async function stage(
@@ -120,22 +124,22 @@
 	}
 
 	/**
-	 * The harness's transports, which follow the SAME STAGES the real ones do --
-	 * authorize, upload the bytes direct, then drive begin / files x N / finish
-	 * -- against a stand-in session instead of Drive.
+	 * The harness's transports, which follow the SAME SHAPE the real ones do --
+	 * one multipart upload (authorize + write-to-Drive + plan, folded into one
+	 * request against the real deployment), then drive files x N / finish
+	 * against a stand-in ingest endpoint instead of Drive.
 	 *
 	 * `uploadDeck` ignores the File it is handed (a browser has no real export to
 	 * pick) and downloads the fixture zip instead, but from there the bytes are
-	 * REAL and make the whole round trip: the SHIPPING uploader chunks them, the
-	 * stand-in session reassembles them, and the SHIPPING planner unpacks what
-	 * actually arrived. So the progress arithmetic, the cancel, the resumption
-	 * and the "no residue" claim are measured rather than mocked.
+	 * REAL and make the whole round trip: the SHIPPING `postDeckZip` posts them
+	 * with real XHR progress, the stand-in endpoint stores what actually
+	 * arrived, and the SHIPPING planner unpacks it. So the progress arithmetic,
+	 * the cancel, and the "no residue" claim are measured rather than mocked.
 	 */
 	const transports: DeckTransports = {
 		async uploadDeck(_itemId, _file, options): Promise<DeckUploadResult> {
 			const { entryPath = null, onProgress, signal } = options ?? {};
 			const nextId = `dev-deck-${++deckSeq}`;
-			let uploadId: string | null = null;
 			let jobId: string | null = null;
 			try {
 				onProgress?.({ phase: 'preparing', loaded: 0, total: 0 });
@@ -144,73 +148,48 @@
 				if (mode === 'no-state') params.set('state', 'off');
 				if (mode === 'ambiguous') params.set('ambiguous', '1');
 				if (mode === 'traversal') params.set('traversal', '1');
-				if (large) params.set('pad', String(PAD_BYTES));
+				if (oversize) params.set('pad', String(PAD_BYTES));
 				const zipRes = await fetch(`/dev/classroom-deck/fixture?${params}`);
 				const zip = await zipRes.blob();
 				const file = new File([zip], 'IDEA FSP Day 2.zip', { type: 'application/zip' });
-				note(`fixture zip: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
+				note(`fixture zip: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
-				const openRes = await fetch('/dev/classroom-deck/upload', {
-					method: 'POST',
-					headers: { 'content-type': 'application/json' },
-					body: JSON.stringify({
-						upload_id: `up-${deckSeq}`,
-						size_bytes: file.size,
-						// The live failure, reproduced. ONE refusal answered with a
-						// readable status drives the uploader's own recovery (ask
-						// Drive where it got to, resume from that answer); refusing
-						// every attempt WITHOUT reading the body is the live
-						// report's exact shape -- an abandoned send, status 0 --
-						// and shows what it reports when recovery cannot work.
-						// Measured, and the reason the recoverable one is readable:
-						// Chrome transparently retries an idempotent PUT whose
-						// connection resets before any response, so a one-shot
-						// reset never reaches this code at all.
-						fail_last:
-							fault === 'fail-last-chunk' ? 1 : fault === 'fail-last-chunk-hard' ? 99 : 0,
-						fail_last_drain: fault === 'fail-last-chunk'
-					})
-				});
-				const open = await openRes.json();
-				uploadId = open.upload_id as string;
+				// EXACTLY the check DeckPanel and the real transport run before
+				// sending anything -- driven here too, over real bytes, so the
+				// "refused before it is attempted" claim is measured rather than
+				// assumed.
+				const sizeIssue = deckUploadSizeIssue(file.size);
+				if (sizeIssue) {
+					note(`refused before sending: over the limit`);
+					return { ok: false, code: 'too_large', message: sizeIssue };
+				}
 
-				const driveFileId = await uploadZipToDrive({
-					uploadUrl: open.upload_url,
-					file,
-					declaredSize: file.size,
-					contentType: open.content_type ?? 'application/zip',
+				const form = new FormData();
+				form.set('id', nextId);
+				if (entryPath) form.set('entry_path', entryPath);
+				if (fault === 'fail-upload') form.set('fail', '1');
+				if (fault === 'hang-upload') form.set('hang', '1');
+				form.set('file', file, file.name);
+
+				const started = await postDeckZip({
+					form,
+					total: file.size,
 					signal,
-					onProgress: (p) => onProgress?.({ phase: 'uploading', ...p })
+					onProgress: (loaded) => onProgress?.({ phase: 'uploading', loaded, total: file.size }),
+					url: '/dev/classroom-deck/ingest'
 				});
-				note(`uploaded, file id ${driveFileId}`);
-
-				// --- begin ---------------------------------------------------
-				onProgress?.({ phase: 'unpacking', loaded: 0, total: 0 });
-				const begun = await stage(
-					{ stage: 'begin', id: nextId, upload_id: uploadId, drive_file_id: driveFileId, entryPath },
-					signal
-				);
-				uploadId = null;
-				if (begun.failed || !begun.ok) {
-					note(`refused: ${begun.error}`);
-					// A refusal's detail rides in the response BODY, which the
-					// failure wrapper carries under `body` -- the real transport
-					// reads it from exactly there, and an entry-page question with
-					// no candidates is a dead end for the uploader.
-					const detail = ((begun.body as Record<string, unknown>) ?? begun) as Record<
-						string,
-						unknown
-					>;
+				if (!started.ok) {
+					note(`refused: ${started.message}`);
 					return {
 						ok: false,
-						code: (begun.code as string) ?? undefined,
-						message: String(begun.error ?? detail.error ?? 'refused'),
-						candidates: (detail.candidates as string[]) ?? []
+						code: started.code,
+						message: started.message,
+						candidates: started.candidates ?? []
 					};
 				}
-				jobId = String(begun.job_id);
-				const total = Number(begun.total_files ?? 0);
-				const warnings = (begun.warnings as string[]) ?? [];
+				jobId = started.jobId;
+				const total = started.totalFiles;
+				const warnings = started.warnings;
 				note(`begin: job ${jobId}, ${total} files planned`);
 
 				// --- files x N -----------------------------------------------
@@ -270,18 +249,10 @@
 					note('upload cancelled -- nothing stored');
 					return { ok: false, cancelled: true, message: 'Upload cancelled.' };
 				}
-				const err = e as { code?: string; detail?: Record<string, unknown>; message?: string };
+				const err = e as { code?: string; message?: string };
 				note(`failed: ${err.code ?? '?'} -- ${err.message}`);
-				return {
-					ok: false,
-					code: err.code,
-					detail: err.detail,
-					message: err.message ?? 'Upload failed.'
-				};
+				return { ok: false, code: err.code, message: err.message ?? 'Upload failed.' };
 			} finally {
-				if (uploadId) {
-					void fetch(`/dev/classroom-deck/upload/${uploadId}`, { method: 'DELETE' }).catch(() => {});
-				}
 				if (jobId) {
 					note('abandoning the job -- nothing partial is kept');
 					void fetch('/dev/classroom-deck/ingest', {
@@ -343,8 +314,8 @@
 	<main class="wrap">
 		<h1>Classroom deck harness</h1>
 		<p class="sub">
-			Ingests the real committed deck (static/fsp/day2) through the shipping unpacker. No auth, no
-			Supabase, no Drive.
+			Ingests the real committed deck (static/fsp/day2) through the shipping unpacker, uploaded
+			through the shipping <code>postDeckZip</code> transport. No auth, no Supabase, no Drive.
 		</p>
 
 		<div class="controls">
@@ -361,16 +332,16 @@
 				inject a fault
 				<select bind:value={fault}>
 					<option value="none">none</option>
-					<option value="fail-last-chunk">final chunk refused once, 503 (then recovers)</option>
-					<option value="fail-last-chunk-hard">final chunk always refused, no answer</option>
+					<option value="fail-upload">the combined upload request answers 502</option>
+					<option value="hang-upload">the combined upload request never answers (client timeout)</option>
 					<option value="interrupt-once">interrupt one files stage (then resume)</option>
 					<option value="fail-files">files stage answers 502</option>
 					<option value="hang-files">files stage never answers (client timeout)</option>
 				</select>
 			</label>
 			<label class="row">
-				<input type="checkbox" bind:checked={large} />
-				pad to ~{Math.round(PAD_BYTES / 1024 / 1024)} MB (multi-chunk upload)
+				<input type="checkbox" bind:checked={oversize} />
+				oversize -- pad past the {Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB upload limit
 			</label>
 			{#if deck}
 				<button class="btn secondary" onclick={() => (view = 'viewer')}>Open viewer</button>

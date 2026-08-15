@@ -9,6 +9,38 @@
  * point of serving the tree as a unit.
  */
 
+/**
+ * A deck zip has to fit inside ONE serverless request body: the upload now
+ * goes through OUR server (which then does the Drive write on the caller's
+ * behalf), and Vercel caps a request body at roughly 4.5 MB. This mirrors
+ * the exact same figure classroom attachments already use for the exact
+ * same reason (src/lib/server/classroom-attachments.ts, MAX_ATTACHMENT_BYTES)
+ * -- "roughly" is not a number to cut close to, so this stays comfortably
+ * under it with room for the multipart envelope.
+ *
+ * Mirrored server-side by $lib/server/classroom-decks.ts, which imports this
+ * exact constant rather than a second copy of the number: the client refuses
+ * an oversize file before it ever leaves the browser, and the server refuses
+ * it again if that check is ever bypassed.
+ */
+export const DECK_UPLOAD_MAX_ZIP_BYTES = 4 * 1024 * 1024;
+
+/**
+ * The message shown to a student choosing an oversize deck, and the ONE
+ * place it is written -- so the client's up-front refusal and the server's
+ * defense-in-depth refusal say the same thing. Returns null when the file
+ * fits.
+ */
+export function deckUploadSizeIssue(bytes: number): string | null {
+	if (bytes <= DECK_UPLOAD_MAX_ZIP_BYTES) return null;
+	const mb = (n: number) => (n / 1024 / 1024).toFixed(1);
+	return (
+		`This deck zip is ${mb(bytes)} MB, over the ${mb(DECK_UPLOAD_MAX_ZIP_BYTES)} MB limit for a ` +
+		'single upload. Remove large media (gifs, video) from the deck and attach it to the item ' +
+		'separately instead, then upload the deck zip again.'
+	);
+}
+
 export interface DeckSlide {
 	index: number;
 	label: string;
@@ -109,20 +141,13 @@ export interface DeckUploadResult {
 	message: string;
 	/**
 	 * WHICH failure this was, when it failed. A deck upload has several failure
-	 * modes that all read as "something went wrong" -- a chunk rejected by
-	 * Drive, a response CORS will not let the browser read, an ingest request
-	 * that never answered, one that ran out of time -- and on a deployment
+	 * modes that all read as "something went wrong" -- an oversize zip refused
+	 * before anything is sent, a connection that drops mid-upload, a step of
+	 * the server's own unpacking that ran out of time -- and on a deployment
 	 * whose server logs are not to hand, telling them apart is the whole
 	 * diagnosis. Shown to the uploader alongside the message.
 	 */
 	code?: string;
-	/**
-	 * The numbers behind a transport failure -- which chunk, what byte range,
-	 * the declared total, whether it was the final chunk, and what Drive said it
-	 * was holding when asked. Rendered as one compact line so a report from a
-	 * real classroom carries the facts instead of "something dropped".
-	 */
-	detail?: Record<string, unknown>;
 	/** When the zip offered several plausible entry pages, they land here. */
 	candidates?: string[];
 	warnings?: string[];
@@ -136,12 +161,13 @@ export interface DeckUploadResult {
  * FOUR PHASES, because a deck upload is four genuinely different waits and a
  * bar that cannot tell them apart looks stuck three times.
  *
- * `preparing` is the round trip that authorizes the upload; `uploading` is the
- * one that takes minutes on school wifi, counted in bytes; `unpacking` is the
- * server storing the deck's files, counted in FILES because that is what the
- * staged ingest actually reports back (0105) -- it used to be one opaque wait
- * that could not say whether it was moving; `storing` is the last, short call
- * that writes the manifest.
+ * `preparing` is the (near-instant) client-side size check and form assembly;
+ * `uploading` is the one POST to our own server, counted in bytes -- capped at
+ * a few MB, so this is now the SHORT phase; `unpacking` is the server storing
+ * the deck's files back out to Drive, counted in FILES because that is what
+ * the staged ingest actually reports back (0105) -- a real export can carry
+ * enough files that this is the phase that actually takes a while now;
+ * `storing` is the last, short call that writes the manifest.
  */
 export interface DeckUploadProgress {
 	phase: 'preparing' | 'uploading' | 'unpacking' | 'storing';
@@ -153,7 +179,14 @@ export interface DeckUploadOptions {
 	/** The answer to a previous ambiguous-entry refusal. */
 	entryPath?: string | null;
 	onProgress?: (progress: DeckUploadProgress) => void;
-	/** Aborts the transfer AND tells Drive to discard what it has. */
+	/**
+	 * Aborts the browser's own upload request. Since the whole authorize +
+	 * write-to-Drive + plan sequence happens inside ONE server request that
+	 * only runs once the request body has fully arrived, cancelling before
+	 * that finishes means the server never starts any of it -- there is
+	 * nothing left over to clean up on the Drive side, unlike the old
+	 * direct-to-Drive session this replaced.
+	 */
 	signal?: AbortSignal;
 }
 
@@ -182,39 +215,6 @@ export function deckProgressPercent(progress: DeckUploadProgress): number | null
 	if (progress.phase !== 'uploading' && progress.phase !== 'unpacking') return null;
 	if (progress.total <= 0) return null;
 	return Math.max(0, Math.min(100, Math.round((progress.loaded / progress.total) * 100)));
-}
-
-/**
- * The one line under a failed upload that a bug report can be built from.
- *
- * "chunk 6/6 · bytes 41943040-43102947/43102948 · final · Drive held 41943040".
- * Deliberately the raw figures rather than prose: whoever reads it next is
- * comparing them against Drive, and rounding them to megabytes would lose the
- * off-by-one that would be the point of reading them at all. Returns null when
- * there is nothing worth showing, so an ordinary refusal grows no noise.
- */
-export function deckUploadDetailLine(detail: Record<string, unknown> | null | undefined): string | null {
-	if (!detail) return null;
-	const num = (key: string): number | null => {
-		const value = detail[key];
-		return typeof value === 'number' && Number.isFinite(value) ? value : null;
-	};
-	const parts: string[] = [];
-	const index = num('chunkIndex');
-	const start = num('chunkStart');
-	const end = num('chunkEnd');
-	const total = num('declaredTotal');
-	if (index !== null) parts.push(`chunk ${index + 1}`);
-	if (start !== null && end !== null && total !== null) parts.push(`bytes ${start}-${end}/${total}`);
-	if (detail.isLastChunk === true) parts.push('final chunk');
-	const received = num('driveReceived');
-	const query = typeof detail.statusQuery === 'string' ? detail.statusQuery : null;
-	if (received !== null) parts.push(`Drive held ${received}`);
-	else if (query === 'unreadable') parts.push('Drive progress unreadable');
-	else if (query === 'failed') parts.push('Drive could not be asked');
-	const stored = num('storedSize');
-	if (stored !== null && total !== null) parts.push(`stored ${stored}/${total}`);
-	return parts.length ? parts.join(' · ') : null;
 }
 
 /** "12 files · 3.4 MB", for the manage line under a deck's title. */

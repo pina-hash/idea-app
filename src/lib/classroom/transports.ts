@@ -28,13 +28,8 @@ import {
 	type SubmissionFileRow
 } from './assignment-spec';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
-import { normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
-import {
-	DeckUploadCancelled,
-	logDeckUpload,
-	uploadZipToDrive,
-	type DeckUploadError
-} from './deck-upload';
+import { deckUploadSizeIssue, normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
+import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError } from './deck-upload';
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
@@ -287,16 +282,17 @@ async function deckStage(
 		return body ?? {};
 	} catch (e) {
 		if (opts.signal?.aborted && !timedOut) throw new DeckUploadCancelled();
+		const doing = payload.stage === 'finish' ? 'storing the deck' : 'unpacking the deck';
 		const failure: StageFailure = timedOut
 			? {
 					failed: true,
 					code: 'ingest_timeout',
-					message: `The server did not answer within ${Math.round(opts.timeoutMs / 1000)}s while ${payload.stage === 'begin' ? 'reading the deck' : 'storing the deck'}.`
+					message: `The server did not answer within ${Math.round(opts.timeoutMs / 1000)}s while ${doing}.`
 				}
 			: {
 					failed: true,
 					code: 'ingest_network',
-					message: `The connection to the server dropped while ${payload.stage === 'begin' ? 'reading the deck' : 'storing the deck'}.`
+					message: `The connection to the server dropped while ${doing}.`
 				};
 		logDeckUpload(`ingest stage "${payload.stage}" failed`, {
 			code: failure.code,
@@ -319,118 +315,71 @@ const STAGE_TIMEOUT_MS = 60_000;
 const STAGE_RETRIES = 3;
 
 /**
- * Uploads a deck zip: ask the server to AUTHORIZE one upload, send the bytes
- * STRAIGHT TO DRIVE, then drive the server through UNPACKING IT IN STAGES.
+ * Uploads a deck zip: ONE multipart POST to our own server (which authorizes
+ * the caller, writes the zip to Drive, and reads the archive's index), then
+ * drives the server through UNPACKING IT IN STAGES.
  *
- * The zip never passes through our own server, which is what took deck uploads
- * off Vercel's ~4.5 MB request-body cap (0102). Unpacking is then split across
- * as many requests as it takes (0105), because storing a 43 MB deck's files back
- * to Drive is minutes of round trips and a single request is killed at the
- * platform's duration limit long before it finishes -- which is what a browser
- * saw as "the connection dropped" after an upload that had actually worked.
+ * The zip is capped at DECK_UPLOAD_MAX_ZIP_BYTES and refused up front,
+ * client-side, if it is over -- see deckUploadSizeIssue in ./deck. Unpacking
+ * is split across as many requests as it takes (0105), because storing a
+ * real export's files back out to Drive is minutes of round trips and a
+ * single request is killed at the platform's duration limit long before it
+ * finishes -- which is what a browser sees as "the connection dropped" after
+ * an upload that had actually worked.
  *
- * THE CLIENT IS THE THING THAT MAKES IT FINISH. Each `files` call does what fits
- * in its own budget and reports how far it got; this loops until complete, so a
- * request lost along the way costs one retry rather than the whole deck. Every
- * step is resumable, so a retry is safe by construction.
+ * THE CLIENT IS THE THING THAT MAKES UNPACKING FINISH. Each `files` call does
+ * what fits in its own budget and reports how far it got; this loops until
+ * complete, so a request lost along the way costs one retry rather than the
+ * whole deck. Every step is resumable, so a retry is safe by construction.
  *
- * Unlike uploadAttachment this carries the REFUSAL DETAIL back rather than only
- * a message: a zip with several plausible entry pages is answered with the
- * candidates, and the panel asks which one instead of the server guessing. The
- * answer comes back as `entryPath`, and re-ingesting then needs a fresh upload
- * -- the slot was spent on the first attempt -- which is why this path starts
- * over from the session rather than reusing the last one.
+ * Unlike uploadAttachment this carries the REFUSAL DETAIL back rather than
+ * only a message: a zip with several plausible entry pages is answered with
+ * the candidates, and the panel asks which one instead of the server
+ * guessing. The answer comes back as `entryPath`, and re-ingesting then needs
+ * a fresh upload -- the caller's slot was spent on the first attempt -- which
+ * is why this path re-sends the zip rather than reusing anything.
  */
 export const deckTransports: DeckTransports = {
 	async uploadDeck(itemId, file, options) {
 		const { entryPath = null, onProgress, signal } = options ?? {};
-		let uploadId: string | null = null;
+
+		const sizeIssue = deckUploadSizeIssue(file.size);
+		if (sizeIssue) {
+			// Refused before anything is sent: this is the "do not attempt an
+			// upload the platform will reject" rule, not a server round trip.
+			return { ok: false, code: 'too_large', message: sizeIssue };
+		}
+
 		let jobId: string | null = null;
 		try {
 			onProgress?.({ phase: 'preparing', loaded: 0, total: file.size });
 
-			// 1. Authorize. Refused here means the caller may not touch this
-			//    item's deck, and nothing has reached Drive.
-			const openRes = await fetch('/api/classroom/deck/upload-session', {
-				method: 'POST',
-				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ item_id: itemId, size_bytes: file.size })
-			});
-			const open = (await openRes.json().catch(() => null)) as
-				| { error?: string; upload_id?: string; upload_url?: string; content_type?: string }
-				| null;
-			if (!openRes.ok || !open?.upload_id || !open?.upload_url) {
-				logDeckUpload('upload session refused', {
-					status: openRes.status,
-					message: open?.error
-				});
-				return {
-					ok: false,
-					code: 'session_refused',
-					message: open?.error ?? `Upload failed (${openRes.status}).`
-				};
-			}
-			uploadId = open.upload_id;
+			const form = new FormData();
+			form.set('item_id', itemId);
+			form.set('title', file.name.replace(/\.zip$/i, '').trim().slice(0, 200) || 'Presentation');
+			if (entryPath) form.set('entry_path', entryPath);
+			form.set('file', file, file.name);
 
-			// 2. The bytes, browser to Google. `declaredSize` is the length the
-			//    session above was opened for: the same number has to appear in
-			//    the session's X-Upload-Content-Length and in every chunk's
-			//    Content-Range total, and passing it explicitly is what makes a
-			//    file measured twice a named failure rather than a short upload.
-			const driveFileId = await uploadZipToDrive({
-				uploadUrl: open.upload_url,
-				file,
-				declaredSize: file.size,
-				// The SESSION's type, not the File's -- see chunkRequestHeaders.
-				// The fallback matches what the server opens the session with; a
-				// server old enough not to send it opened one with the same value.
-				contentType: open.content_type ?? 'application/zip',
+			const started = await postDeckZip({
+				form,
+				total: file.size,
 				signal,
-				onProgress: (p) => onProgress?.({ phase: 'uploading', ...p })
+				onProgress: (loaded) => onProgress?.({ phase: 'uploading', loaded, total: file.size })
 			});
-
-			// 3. Begin: the server re-checks who is asking, proves the file id
-			//    came from the session it opened, and reads the archive's index.
-			onProgress?.({ phase: 'unpacking', loaded: 0, total: 0 });
-			const begun = await deckStage(
-				{
-					stage: 'begin',
-					upload_id: uploadId,
-					drive_file_id: driveFileId,
-					// What the browser believes it uploaded. NOT trusted for
-					// anything -- the server compares it against Drive's own
-					// metadata and acts on a DISAGREEMENT, which is how a
-					// truncated upload reads as one instead of as a corrupt zip.
-					size_bytes: file.size,
-					title: file.name.replace(/\.zip$/i, '').trim().slice(0, 200) || 'Presentation',
-					entry_path: entryPath
-				},
-				{ timeoutMs: STAGE_TIMEOUT_MS, signal }
-			);
-			// The slot is spent either way now; nothing left to cancel.
-			uploadId = null;
-			if (isFailure(begun)) {
+			if (!started.ok) {
 				return {
 					ok: false,
-					code: begun.code,
-					message: begun.message,
-					// A size disagreement carries the two figures; anything else
-					// carries nothing and renders no detail line.
-					detail: begun.body?.stored_bytes
-						? { storedSize: begun.body.stored_bytes, declaredTotal: begun.body.sent_bytes }
-						: undefined,
-					candidates: (begun.body?.candidates as string[] | undefined) ?? []
+					code: started.code,
+					message: started.message,
+					candidates: started.candidates ?? []
 				};
 			}
-			jobId = String(begun.job_id ?? '') || null;
-			const total = Number(begun.total_files ?? 0);
-			const warnings = (begun.warnings as string[] | undefined) ?? [];
-			if (!jobId) {
-				return { ok: false, code: 'begin_failed', message: 'The server did not start unpacking.' };
-			}
+			jobId = started.jobId;
+			const total = started.totalFiles;
+			const warnings = started.warnings;
 
-			// 4. Files, until the plan is exhausted. Each call is bounded by the
-			//    server's own budget, so this is where a big deck's time goes.
+			// Files, until the plan is exhausted. Each call is bounded by the
+			// server's own budget, so this is where a big deck's time goes.
 			let done = 0;
 			onProgress?.({ phase: 'unpacking', loaded: 0, total });
 			// A generous bound rather than a while(true): one call per file is
@@ -470,7 +419,7 @@ export const deckTransports: DeckTransports = {
 				if (step.complete === true) break;
 			}
 
-			// 5. Store the manifest. Short, and the only step that writes rows.
+			// Store the manifest. Short, and the only step that writes rows.
 			onProgress?.({ phase: 'storing', loaded: total, total });
 			const stored = await deckStage(
 				{ stage: 'finish', job_id: jobId },
@@ -492,20 +441,8 @@ export const deckTransports: DeckTransports = {
 			}
 			const err = e as DeckUploadError;
 			logDeckUpload('upload failed', { code: err.code, detail: err.detail, message: err.message });
-			return {
-				ok: false,
-				code: err.code,
-				message: err.message || 'Upload failed.',
-				detail: err.detail
-			};
+			return { ok: false, code: err.code, message: err.message || 'Upload failed.' };
 		} finally {
-			// An unspent slot is closed rather than left to sit for its two
-			// hours. Best-effort: the slot authorizes nothing on its own.
-			if (uploadId) {
-				void fetch(`/api/classroom/deck/upload-session?upload_id=${encodeURIComponent(uploadId)}`, {
-					method: 'DELETE'
-				}).catch(() => {});
-			}
 			// An unfinished job holds a Drive folder of half a deck and the
 			// staged zip. Abandoning it sweeps BOTH, so a failure leaves no
 			// partial deck and nothing orphaned.

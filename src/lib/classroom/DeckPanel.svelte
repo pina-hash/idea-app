@@ -1,10 +1,11 @@
 <script lang="ts">
 	import {
+		DECK_UPLOAD_MAX_ZIP_BYTES,
 		deckProgressLabel,
 		deckProgressPercent,
 		deckSizeLine,
 		deckThumbnailSrc,
-		deckUploadDetailLine,
+		deckUploadSizeIssue,
 		deckViewerHref,
 		type ClassroomDeck,
 		type DeckTransports,
@@ -55,13 +56,6 @@
 	 * upload from a real classroom has no server log to send along with it.
 	 */
 	let errorCode = $state<string | null>(null);
-	/**
-	 * And the NUMBERS behind it, when the failure was in the transfer: which
-	 * chunk, its byte range, the declared total, whether it was the final one,
-	 * and what Drive said it was holding. A live report of "the last chunk
-	 * failed" is unactionable without them.
-	 */
-	let errorDetail = $state<string | null>(null);
 	let warnings = $state<string[]>([]);
 	let notice = $state<string | null>(null);
 	let armRemove = $state(false);
@@ -85,12 +79,25 @@
 
 	async function send(file: File, entryPath: string | null) {
 		if (!transports) return;
-		busy = true;
 		error = null;
 		errorCode = null;
-		errorDetail = null;
 		notice = null;
 		warnings = [];
+
+		// Refused before anything is sent, not just before it succeeds: a zip
+		// over the limit is never going to reach the server, so there is
+		// nothing to show "Uploading..." for.
+		const sizeIssue = deckUploadSizeIssue(file.size);
+		if (sizeIssue) {
+			error = sizeIssue;
+			errorCode = 'too_large';
+			pending = null;
+			candidates = [];
+			if (input) input.value = '';
+			return;
+		}
+
+		busy = true;
 		progress = { phase: 'preparing', loaded: 0, total: file.size };
 		aborter = new AbortController();
 		const res = await transports.uploadDeck(itemId, file, {
@@ -105,7 +112,6 @@
 			// A cancel is the uploader's own decision, not a failure to explain.
 			error = res.cancelled ? null : res.message;
 			errorCode = res.cancelled ? null : (res.code ?? null);
-			errorDetail = res.cancelled ? null : deckUploadDetailLine(res.detail);
 			notice = res.cancelled ? 'Upload cancelled.' : null;
 			candidates = res.cancelled ? [] : (res.candidates ?? []);
 			chosenEntry = candidates[0] ?? '';
@@ -147,7 +153,6 @@
 		busy = true;
 		error = null;
 		errorCode = null;
-		errorDetail = null;
 		notice = null;
 		const res = await transports.deleteDeck(itemId);
 		busy = false;
@@ -242,7 +247,9 @@
 			{#if !deck}
 				<p class="deck-hint">
 					Export the deck from Claude Design as a project HTML zip and upload it here. Keep hidden
-					files in the zip: the image framing lives in one.
+					files in the zip: the image framing lives in one. Deck uploads are capped at
+					{Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB -- if the deck has gifs or video,
+					remove them from the deck and attach them to the item separately instead.
 				</p>
 			{/if}
 		{/if}
@@ -252,7 +259,6 @@
 				{error}
 				{#if errorCode}<span class="deck-code">({errorCode})</span>{/if}
 			</p>
-			{#if errorDetail}<p class="deck-detail">{errorDetail}</p>{/if}
 		{/if}
 
 		{#if candidates.length}
@@ -455,14 +461,6 @@
 		font-size: 0.7rem;
 		color: var(--dim);
 		white-space: nowrap;
-	}
-	.deck-detail {
-		margin: 0.25rem 0 0;
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		color: var(--dim);
-		/* Raw figures, so they wrap on a phone rather than being cut off. */
-		overflow-wrap: anywhere;
 	}
 	.deck-notice {
 		color: var(--green);

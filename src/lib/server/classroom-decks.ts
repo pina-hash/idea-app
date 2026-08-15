@@ -32,22 +32,40 @@
  *    independent refusals of a traversing path (this module, then the CHECK
  *    constraint + write RPC in 0101, then the serving route's own resolution).
  *
- * SIZE. The zip no longer passes through this server at all: the browser
- * uploads it straight to Drive and hands the ingest route a file id (0102),
- * which is what took the ceiling off Vercel's ~4.5 MB request-body cap -- a
- * limit that is not ours and that every real 23.5 MB export died at. So the
- * caps below are once again about what they say they are, memory and zip
- * bombs, and they are set for a real deck carrying video.
+ * THE UPLOAD ZIP GOES THROUGH THIS SERVER AGAIN, and 0102's direct-to-Drive
+ * transport is RETIRED. That path handed the browser a Google resumable
+ * upload session and had it write the zip straight to Drive, specifically to
+ * get around Vercel's ~4.5 MB serverless request-body cap. It never survived
+ * contact with reality: live testing found the browser could not reach
+ * Google's chunked-upload endpoint at all in this environment, for a small
+ * deck in one chunk as much as a large one across several. That is an
+ * environmental failure, not a bug in the transport, and every other upload
+ * in this app already goes through the server for the credentials' sake --
+ * so a deck upload is capped at DECK_UPLOAD_MAX_ZIP_BYTES (see
+ * $lib/classroom/deck, the client-safe half of this rule) and posted here as
+ * an ordinary multipart form, exactly like a classroom attachment. A deck
+ * whose kept files exceed that -- almost always because it carries a gif or a
+ * video -- has to have that media pulled out and attached to the item
+ * separately; there is no way around the platform's body cap from here.
+ *
+ * ONCE THE ZIP HAS ARRIVED, NOTHING ELSE CHANGED. It still lands in Drive's
+ * OWN deck-uploads staging folder and hands off into the exact same staged
+ * ingestion (0105) a direct-to-Drive upload used to feed: `begin` plans the
+ * archive and opens a job, `files` stores as many planned files as fit in one
+ * request's time budget (called until the plan is exhausted), `finish` hands
+ * the manifest to classroom_replace_deck. That staging exists for a real
+ * reason unrelated to how the zip arrived -- storing a deck's files back out
+ * to Drive one at a time is minutes of round trips for a real export, well
+ * past a single serverless request's DURATION limit -- and is untouched here.
  *
  * MEMORY IS BOUNDED BY THE LARGEST FILE, NOT THE ARCHIVE. `planDeck` reads
  * through a `ZipSource` (deck-zip.ts) rather than a buffer: the directory comes
  * out of the archive's tail, and each entry's bytes are read, uploaded and
  * released one at a time. Nothing ever holds the whole zip, let alone the zip
- * plus everything it unpacks to. The remaining ceiling is not memory but
- * FUNCTION DURATION -- a 150 MB deck is downloaded from Drive in pieces and
- * pushed back file by file, so a serverless request has to survive that round
- * trip; that, rather than any number here, is what would bite first if these
- * caps were raised much further.
+ * plus everything it unpacks to. DECK_LIMITS below still guards the UNPACKED
+ * shape of the archive (per-file and total uncompressed bytes, entry count) --
+ * a zip-bomb guard that stays relevant even at a few megabytes of INPUT, since
+ * DEFLATE can still expand a small, highly repetitive stream a long way.
  */
 
 import { ensureDriveSubfolder, readDriveFileRange } from './notebook-drive';
@@ -61,6 +79,14 @@ import {
 	type ZipLimits,
 	type ZipSource
 } from './deck-zip';
+
+/**
+ * The upload-request size cap AND its message are ONE client-safe source of
+ * truth (deckUploadSizeIssue in $lib/classroom/deck), re-exported here rather
+ * than duplicated so the server's defense-in-depth check says exactly what
+ * the client's up-front refusal already said.
+ */
+export { DECK_UPLOAD_MAX_ZIP_BYTES, deckUploadSizeIssue } from '$lib/classroom/deck';
 
 /**
  * Guards against a hostile or accidental archive, and nothing else -- see the
@@ -77,17 +103,7 @@ export const DECK_LIMITS: ZipLimits & { maxZipBytes: number } = {
 	maxTotalBytes: 300 * 1024 * 1024
 };
 
-/**
- * The content type a deck upload session is opened with, and the SAME value the
- * browser puts on every chunk PUT.
- *
- * One constant because those two have to agree: a chunk whose Content-Type
- * contradicts the session's `X-Upload-Content-Type` is a candidate for
- * rejection at the moment Drive finalizes the file -- the one request in a
- * chunked upload where the two are reconciled. The browser is HANDED this by
- * /api/classroom/deck/upload-session rather than guessing from the File, whose
- * type for a .zip is `application/x-zip-compressed` on Windows Chrome.
- */
+/** The content type the uploaded zip is stored under in Drive's staging folder. */
 export const DECK_ZIP_MIME = 'application/zip';
 
 /** Decks live in their own subfolder under the existing classroom parent. */
@@ -98,15 +114,15 @@ export async function decksFolderId(): Promise<string> {
 }
 
 /**
- * Where a browser's direct upload LANDS, before it is unpacked: a staging
- * folder of its own, sibling to the unpacked decks.
+ * Where the uploaded zip LANDS, before it is unpacked: a staging folder of
+ * its own, sibling to the unpacked decks.
  *
- * Its own folder for two reasons. Whoever browses the shared drive by eye sees
+ * Its own folder because whoever browses the shared drive by eye sees
  * transient archives kept apart from the deck trees themselves, the same
- * doctrine that split classroom attachments off the notebook photos; and, more
- * load-bearing, ingestion REQUIRES a claimed file to sit here (0102). A file
- * id naming anything outside this folder is refused, so the folder is half of
- * what binds a client-supplied id to an upload this server actually authorized.
+ * doctrine that split classroom attachments off the notebook photos.
+ * `classroom_deck_uploads` (0102) still authorizes and records one row per
+ * upload here, even though the server writes the file itself now rather than
+ * handing a browser a session to fill -- see the module header.
  */
 export const DECK_UPLOADS_FOLDER_NAME = 'IDEA Classroom deck uploads';
 
@@ -115,13 +131,9 @@ export async function deckUploadsFolderId(): Promise<string> {
 }
 
 /**
- * The name the server gives the file a browser is about to upload.
- *
- * SERVER-SET AND UNFORGEABLE, which is the point: the name is fixed in the
- * resumable session's metadata, and a resumable PUT carries bytes and a
- * Content-Range only -- it cannot rename the file it is filling. So a file
- * whose name is this, in the uploads folder, is a file THAT upload session
- * created, and ingestion checks exactly that before it reads a byte.
+ * The name the staged zip is stored under, keyed to the upload authorization
+ * row (0102's `classroom_deck_uploads.id`) that RPC minted for this caller
+ * and this item -- readable, and unique per upload.
  */
 export function deckUploadName(uploadId: string): string {
 	return `deckupload_${uploadId}.zip`;
