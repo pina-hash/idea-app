@@ -1,0 +1,347 @@
+/* IDEA Print Standards v1.0 - reference sheet / handout rendering
+   Accent: idea-green print value #146B2A */
+
+/* Margins are supplied by the renderer (0.75in all sides). Declaring them here
+   would override that and collapse the footer band. */
+@page { size: letter; }
+
+:root {
+  --accent: #146B2A;
+  --ink: #000000;
+  --rule: #999999;
+  --soft: #F1F5F1;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+  color: var(--ink);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 12pt;
+  line-height: 1.36;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+p, li { orphans: 2; widows: 2; }
+p { margin: 0 0 5pt 0; }
+strong { font-weight: 700; }
+
+/* ---------- Header band ---------- */
+.bandtop {
+  display: flex;
+  align-items: flex-start;
+  gap: 14pt;
+}
+.bandtop img {
+  height: 46pt;
+  width: auto;
+  flex: 0 0 auto;
+  margin-top: 1pt;
+}
+.bandtop .titles { flex: 1 1 auto; }
+
+.band {
+  border-bottom: 3pt solid var(--accent);
+  padding-bottom: 5pt;
+  margin-bottom: 10pt;
+}
+.band h1 {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 17pt;
+  line-height: 1.1;
+  margin: 0 0 3pt 0;
+  letter-spacing: 0.01em;
+}
+.band .sub {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 11pt;
+  margin: 0 0 5pt 0;
+}
+.band .meta {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8.6pt;
+  line-height: 1.36;
+  letter-spacing: 0.02em;
+}
+.band .meta span::after { content: "  |  "; }
+.band .meta span:last-child::after { content: ""; }
+
+/* ---------- Sections ---------- */
+h2 {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 12pt;
+  margin: 10pt 0 4pt 0;
+  padding-bottom: 2pt;
+  border-bottom: 1pt solid var(--accent);
+  break-after: avoid;
+  page-break-after: avoid;
+}
+h2 .num {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9pt;
+  color: var(--accent);
+  margin-right: 6pt;
+}
+h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 9.8pt;
+  margin: 10pt 0 3pt 0;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+h4 {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  font-size: 11pt;
+  margin: 8pt 0 2pt 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+ul, ol { margin: 0 0 7pt 0; padding-left: 15pt; }
+li { margin-bottom: 2pt; }
+
+/* ---------- Tables ---------- */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 3pt 0 6pt 0;
+  font-size: 11pt;
+  line-height: 1.4;
+}
+thead { display: table-header-group; }
+th {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 8.4pt;
+  text-align: left;
+  border-bottom: 1.5pt solid var(--accent);
+  padding: 2pt 5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+td {
+  border-bottom: 0.5pt solid var(--rule);
+  padding: 3pt 5pt;
+  vertical-align: top;
+}
+tr.total td {
+  font-weight: 700;
+  border-top: 1.5pt solid var(--accent);
+  border-bottom: none;
+}
+.num-col { text-align: right; white-space: nowrap; }
+.mono { font-family: 'Share Tech Mono', monospace; font-size: 9.2pt; }
+
+/* ---------- Callout ---------- */
+.callout {
+  border-left: 3pt solid var(--accent);
+  background: var(--soft);
+  padding: 6pt 9pt;
+  margin: 6pt 0;
+}
+.callout p:last-child { margin-bottom: 0; }
+
+/* ---------- Level / anchor blocks ---------- */
+.levels { margin: 4pt 0 8pt 0; }
+.levels tr td:first-child {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9pt;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.anchor {
+  border: 0.75pt solid var(--rule);
+  border-left: 3pt solid var(--accent);
+  padding: 5pt 9pt 2pt 9pt;
+  margin: 6pt 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.anchor h3 { margin-top: 0; }
+.anchor { font-size: 10.6pt; line-height: 1.27; }
+.anchor p { margin-bottom: 4pt; }
+.anchor ul { margin-bottom: 4pt; }
+.anchor li { margin-bottom: 1pt; }
+.anchor .tag { margin-top: 4pt; }
+.tag {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8.2pt;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  display: block;
+  margin-top: 5pt;
+}
+.say {
+  border-left: 2pt solid var(--rule);
+  padding-left: 8pt;
+  margin: 4pt 0 6pt 0;
+  font-style: italic;
+}
+
+/* ---------- Signature / acknowledgment ---------- */
+.sigline {
+  border-bottom: 0.75pt solid var(--ink);
+  display: inline-block;
+  min-height: 20pt;
+}
+.sigrow { margin: 14pt 0 0 0; font-size: 9.5pt; }
+.sigrow .lbl {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8pt;
+  letter-spacing: 0.03em;
+  display: block;
+  margin-top: 2pt;
+}
+.two-col { display: flex; gap: 18pt; }
+.two-col > div { flex: 1; }
+
+.pagebreak { break-before: page; page-break-before: always; }
+
+/* ---------- Page frame ---------- */
+.page { padding: 0; }
+.docfoot {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8pt;
+  color: #444;
+  border-top: 0.75pt solid var(--rule);
+  margin-top: 14pt;
+  padding-top: 4pt;
+}
+.fillin {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9.6pt;
+  background: #E4EDE4;
+  padding: 0 3pt;
+  border-bottom: 0.75pt solid var(--accent);
+}
+
+.breakbefore { break-before: page; page-break-before: always; }
+
+/* Run-in rule blocks */
+.rule-item { margin: 0 0 6pt 0; }
+.rule-item .rh {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.tight li { margin-bottom: 2pt; }
+.note { font-size: 11pt; }
+
+/* ---------- Compact two-column list ---------- */
+.cols2 {
+  column-count: 2;
+  column-gap: 20pt;
+  margin: 3pt 0 6pt 0;
+}
+.cols2 .row {
+  break-inside: avoid;
+  display: flex;
+  justify-content: space-between;
+  gap: 8pt;
+  border-bottom: 0.5pt solid var(--rule);
+  padding: 2pt 0;
+  font-size: 10.8pt;
+}
+.cols2 .row .c {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9.2pt;
+  white-space: nowrap;
+  padding-top: 1pt;
+}
+h4 + p { margin-top: 0; }
+
+/* ---------- Platform cards ---------- */
+table.cards {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 9pt 0;
+  margin: 5pt -9pt 8pt -9pt;
+  width: calc(100% + 18pt);
+}
+table.cards td.card {
+  width: 50%;
+  border: 0.75pt solid var(--rule);
+  border-left: 3pt solid var(--accent);
+  padding: 6pt 9pt 7pt 9pt;
+  vertical-align: top;
+}
+.card h4 { margin: 0 0 1pt 0; font-size: 10.5pt; }
+.card .url {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8.6pt;
+  letter-spacing: 0.01em;
+  display: block;
+  margin-bottom: 4pt;
+  color: var(--accent);
+}
+.card p { margin: 0 0 4pt 0; font-size: 10.7pt; line-height: 1.33; }
+.card p:last-child { margin-bottom: 0; }
+
+/* ---------- Numbered rules ---------- */
+.rules { counter-reset: rulenum; }
+.rules .rule-item { position: relative; padding-left: 19pt; }
+.rules .rule-item::before {
+  counter-increment: rulenum;
+  content: counter(rulenum);
+  position: absolute;
+  left: 0;
+  top: 0.5pt;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 9.5pt;
+  color: var(--accent);
+}
+
+/* ---------- Key dates strip ---------- */
+.dates {
+  display: flex;
+  gap: 0;
+  margin: 4pt 0 8pt 0;
+  border-top: 1.5pt solid var(--accent);
+  border-bottom: 0.5pt solid var(--rule);
+  break-inside: avoid;
+}
+.dates div {
+  flex: 1 1 0;
+  padding: 5pt 7pt 5pt 0;
+}
+.dates .d {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 9pt;
+  font-weight: 700;
+  display: block;
+}
+.dates .l { font-size: 10pt; line-height: 1.25; display: block; }
+
+/* ---------- Compact rubric table ---------- */
+table.mini { font-size: 10.7pt; margin: 4pt 0 6pt 0; }
+table.mini td { padding: 2.5pt 5pt; }
+
+.keep { break-inside: avoid; page-break-inside: avoid; }
+
+/* ---------- QR block ---------- */
+table.qrrow { width: 100%; border-collapse: collapse; margin: 6pt 0 0 0; }
+table.qrrow td { border: none; padding: 0; vertical-align: top; }
+table.qrrow td.qrcell { width: 74pt; padding-right: 11pt; }
+table.qrrow img { width: 68pt; height: 68pt; display: block; }
+table.qrrow .qcap {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 8pt;
+  line-height: 1.35;
+  text-align: center;
+  margin-top: 2pt;
+  display: block;
+}
