@@ -12,6 +12,14 @@ export interface TourStep {
 	title: string;
 	/** Short body copy. Keep it under 2 sentences. */
 	body: string;
+	/**
+	 * Let the reader click the spotlighted control while the callout is open.
+	 * The engine pauses page interaction behind a transparent click-catcher by
+	 * default; an interactive step lifts that catcher for the duration of the
+	 * step ONLY, so a step that says "click it now" can mean it. Every other
+	 * step keeps the pause. Off by default.
+	 */
+	interactive?: boolean;
 }
 
 /**

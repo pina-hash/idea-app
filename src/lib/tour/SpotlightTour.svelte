@@ -16,7 +16,11 @@
 	 * - Keyboard: Esc closes, Enter / ArrowRight advances, ArrowLeft goes back.
 	 * - Narrow viewports stack the callout below the target at full width.
 	 * - Page interaction is paused behind a click-catcher while the tour is open
-	 *   (scrolling still works; the wheel is not captured).
+	 *   (scrolling still works; the wheel is not captured). A step marked
+	 *   `interactive` lifts that catcher for its own duration, so the reader can
+	 *   click the control it is pointing at; the catcher returns on the next
+	 *   step. If that click navigates or starts an OAuth redirect, the tour needs
+	 *   no teardown of its own -- the page is leaving.
 	 */
 	let {
 		steps,
@@ -184,8 +188,15 @@
 
 {#if step}
 	<!-- Transparent click-catcher: pauses page interaction while the tour is
-	     open (the spotlight's giant shadow supplies the visible dim). -->
-	<div class="tour-backdrop" class:dim={!rect} aria-hidden="true"></div>
+	     open (the spotlight's giant shadow supplies the visible dim). An
+	     interactive step turns it into a pass-through so the highlighted control
+	     receives the click instead of this layer. -->
+	<div
+		class="tour-backdrop"
+		class:dim={!rect}
+		class:pass-through={step.interactive}
+		aria-hidden="true"
+	></div>
 	<div class="tour-spot" class:animate={animating} style={spotStyle} aria-hidden="true"></div>
 	<div
 		class="tour-callout"
@@ -224,6 +235,13 @@
 	}
 	.tour-backdrop.dim {
 		background: rgba(3, 9, 5, 0.72);
+	}
+	/* An interactive step: the catcher stays mounted (it still carries the dim
+	   in the target-less case) but stops receiving pointer events, so the
+	   spotlighted control underneath is genuinely clickable. Scoped to the step,
+	   never global -- every other step keeps the interaction pause. */
+	.tour-backdrop.pass-through {
+		pointer-events: none;
 	}
 	.tour-spot {
 		position: fixed;
