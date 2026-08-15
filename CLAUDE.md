@@ -57,10 +57,12 @@ ability, it is not required to browse the portal.
 - **Students have no separate dashboard:** the **homepage `/` is the student
   dashboard**, and what sits at the top of it is the **IDEA Classroom feed** --
   one collapsible card per class they are enrolled in, ranked by what each is
-  asking of them right now. A signed-in student also self-selects their 2026-27
-  pathway year once; it is stored in `profiles.section_id` and shown as a chip
-  in the header. See "Home page: the live IDEA Classroom feed" and "2026-27
-  curriculum" below.
+  asking of them right now. The header chip beside it names their REAL class,
+  read from the same `classroom_sections` the feed already loaded (one class
+  names itself, several collapse to a count, staff get none) and links to
+  `/classroom`. **The self-selected pathway-year picker that used to feed that
+  chip is GONE** -- see "The pathway-year picker is retired" below. See "Home
+  page: the live IDEA Classroom feed" and "2026-27 curriculum" below.
 - **Homepage app launcher:** the old stacked promo callouts are replaced by a
   curated app grid (`src/lib/AppLauncher.svelte`, registry + layout helpers in
   `src/lib/portal-apps.ts`): groups Games / Tools / Class, teacher-only tools
@@ -190,6 +192,13 @@ ability, it is not required to browse the portal.
   one-time first-login picker, mounted once in the root layout: it renders
   only for a signed-in STUDENT with no pathway, persists the choice, and never
   prompts again ("Choose later" hides it for the browser session only).
+  **"Choose later" is a real secondary BUTTON, not a bare link.** It was the
+  dimmest token, the smallest size on the card and underlined, next to six
+  bright identity tiles and a bordered confirm -- so it read as disabled. It now
+  matches confirm's size and uppercase treatment and carries a 1px neutral
+  border on a transparent fill, with only colour saying "secondary": measured
+  12.09:1 on the panel (against confirm's green-plus-fill-plus-border), 44px
+  tall like confirm. Skipping is a legitimate choice and has to look like one.
   **Color discipline:** MSET red `#FF2E2E` is identity only, never a status
   color; the reserved status crimson `#FF3355` (LIVE / REC / error) is never
   an identity color. Dev harness: `/dev/pathways` (404 in production) renders
@@ -2696,15 +2705,16 @@ page: printed material outside this repo still carries those paths.
   Chrome extension was unavailable this session, so the visual claims above are
   measured computed-style and DOM reads, not an eyeball.
 
-## 2026-27 curriculum (the SELF-SELECTION CATALOG)
+## 2026-27 curriculum (a LOOKUP, no longer a picker)
 
 `src/lib/curriculum.ts` is **plain data** (no `?raw`/`$lib/legacy` imports) so it
 is safe in the client bundle.
 
-**SCOPE, since the home page stopped rendering class cards:** this file is the
-list a student picks their pathway year from, and the lookup that turns a stored
-`profiles.section_id` back into something readable. It does **not** own class
-content -- announcements, assignments and materials live in IDEA CLASSROOM
+**SCOPE, narrowed again now that the picker is retired:** this file is the course
+catalog behind the hero's course count and the `/archive` listing, plus the
+lookup that turns a stored `profiles.section_id` back into something readable
+for anyone who still needs to. It does **not** own class content --
+announcements, assignments and materials live in IDEA CLASSROOM
 (0082/0083/0085/0086), which the home-page feed and `/classroom` read. See
 "Home page: the live IDEA Classroom feed" below.
 
@@ -2713,15 +2723,19 @@ content -- announcements, assignments and materials live in IDEA CLASSROOM
   every id may already sit in a real `profiles.section_id`, and removing one
   would orphan those rows and break `sectionById`. The `assignments` arrays are
   legacy and render nowhere.
-- Helpers: `sectionById()`, `selfSelectOptions()` (the picker),
-  `activeCourseCount()`. `summerProgram()` and `sectionsByYear()` were removed
-  with the markup they served.
-- **Per-student class:** a signed-in student self-selects a section on `/`; the
-  page writes `profiles.section_id` via the browser Supabase client (allowed by
-  the `update own profile` RLS policy) and it shows as the header chip.
-  `section_id` is free-form text (a `Section.id`), intentionally not a FK, so the
-  curriculum can change in code without a migration. Column added by
-  `0003_profile_section.sql`.
+- Helpers: `sectionById()`, `selfSelectOptions()`, `activeCourseCount()`.
+  `summerProgram()` and `sectionsByYear()` were removed with the markup they
+  served. **`selfSelectOptions()` now has NO caller** -- it is kept because it is
+  the one description of how the catalog groups by year, and the next surface
+  that needs to offer a section will want it.
+- **`activeCourseCount()` excludes a CONCLUDED programme.** It counts distinct
+  course CODES (three IDEA 209H sections are one course) with `term === 'Summer'`
+  filtered out, because the FSP ran and finished. That is why the hero reads 4
+  and not 5. The FSP section entry itself stays in `SECTIONS`.
+- **Per-student class: NOT this file any more.** `profiles.section_id` is a
+  free-form `Section.id`, intentionally not a FK (`0003_profile_section.sql`),
+  and it is now WRITTEN BY NOTHING -- see "The pathway-year picker is retired"
+  below.
 - **Archive:** the discontinued 2025-26 courses (IDEA-113/208/303/403) live as
   `ARCHIVE_COURSES` in the same file and render on `/archive`
   (`src/routes/archive/+page.svelte`), linked discreetly from the homepage footer.
@@ -9017,9 +9031,19 @@ unmistakable), `cardGrid` (2-4 cards, one column on a phone), `linkCard`, and
 ALWAYS IN THE DOM** -- an inactive tab is hidden with CSS, never omitted with
 `{#if}` -- because the print stylesheet expands all of them and a section that
 never rendered cannot be printed. The tab rail is sticky, laid out left to
-right, and scrolls HORIZONTALLY on a phone (with an edge fade and 44px targets)
+right, and scrolls HORIZONTALLY on a phone (with edge fades and 44px targets)
 rather than wrapping or collapsing into a menu.
 
+- **BOTH EDGES FADE, each gated on its own end having more tabs behind it.**
+  `.tab-rail.fade-start::before` and `.tab-rail.fade-end::after` are set from
+  `scrollLeft` / `scrollWidth` / `clientWidth` inside the EXISTING measurement
+  effect, so the same ResizeObserver and `scroll` listener drive them and no
+  second observer exists. The old single right fade appeared whenever the rail
+  overflowed at all, so it kept pointing right at the end of the strip and never
+  said anything had scrolled off to the left. Scrollbar stays hidden (a Windows
+  trough is louder than the tabs); NO arrows and NO paging buttons. Measured at
+  start / middle / end / back-to-start / no-overflow, the two fades come and go
+  independently and both vanish once everything fits.
 - **`reveal()` is scheduled on rAF-OR-TIMEOUT, never rAF alone** (the
   DrawingViewer rule). A backgrounded or throttled window never ticks
   requestAnimationFrame, so the rAF-only version landed on the right tab and
@@ -14774,10 +14798,10 @@ place, a signed-in user's home page opens onto their real classes.
   and `.open-progress` CSS went with them.
 - **`curriculum.ts` KEEPS EVERY SECTION ENTRY, `summer-2026` included.** Each id
   is a value that may already sit in a real `profiles.section_id`; deleting one
-  would orphan those rows and break `sectionById`. The file is now explicitly
-  the **self-selection catalog** (which pathway year a student tags themselves
-  with, shown as the header chip) and nothing else -- **classroom owns class
-  content**. Its `assignments` arrays are legacy and render nowhere.
+  would orphan those rows and break `sectionById`. It was the **self-selection
+  catalog** until the picker was retired (below); it is a course catalog and a
+  lookup now -- **classroom owns class content**. Its `assignments` arrays are
+  legacy and render nowhere.
 - **`fsp_item_opens` (0048) and its migration are untouched and now UNREAD.**
   The module stays, no caller imports it, and the home page load no longer
   queries it. Nothing was dropped.
@@ -14855,6 +14879,53 @@ classmates') rather than pretending feed.ts filters. Tests live in
 exactly the way the page load does, and rank whatever came back. Mutation-checked
 three ways (letting pinned materials rank, the naive `isAwaitingGrade`, demoting
 the `overdue` rank) -- each reddens exactly one test.
+
+## The pathway-year picker is retired (and two launcher cards with it)
+
+The home page's "Your Pathway Year" divider, its picker card, the pinned-class
+summary, the staff note and the signed-out note are all **gone**, along with the
+`#your-class` anchor and the `data-tour="your-class"` hook. The GAUNTLET
+"continue / next best" nudge strip went in the same pass.
+
+- **WHY IT COULD GO WITHOUT MIGRATING ANYTHING: the value it wrote had exactly
+  two readers, both on the page that wrote it.** An audit of every
+  `profiles.section_id` reference found the header chip and the picker's own
+  selected-state highlight, and nothing else. Classroom reads
+  `classroom_enrollments`; the notebook stopped reading it at `0094`; the coin
+  economy never could (`0073`'s header says so outright, since a self-selected
+  value only exists for a student who has already signed in). Every other
+  `section_id` in the codebase belongs to a DIFFERENT table.
+- **`profiles.section_id` IS NOT DROPPED and `SECTIONS` IS NOT TRIMMED.** The
+  column keeps every stored value, `sectionById` still resolves every id, and no
+  row is orphaned. What changed is that **nothing writes it any more** -- there
+  is no longer a `profiles` update for `section_id` anywhere in `src/`. Treat it
+  as historical data until something deliberately picks it up again.
+- **The header chip is rebuilt on REAL enrollment, with no new query.** It reads
+  `data.feedSections` -- the `classroom_sections` the home load already fetches
+  for the feed -- so one class renders `sectionTitle()` (`IDEA 209H · Period 2 ·
+  Block B`), several render `N classes`, and the link goes to `/classroom`.
+  **Staff get no chip at all**, because for an admin that list is every section
+  in the school and "your class" would be a lie. The alternative in the brief was
+  to delete the chip outright; it was kept because the data was already there and
+  a new query was never needed.
+- **Two launcher cards removed** (`portal-apps.ts`): **Courses & Assignments**,
+  whose `href` was `#your-class` -- a same-page anchor to a section that had not
+  held courses or assignments since the classroom feed landed -- and **Course
+  Archive**, which is reference material rather than something to launch.
+  `/archive` ITSELF IS UNTOUCHED and still 200s; it is still linked from the home
+  footer, `/fsp/archive`, and the dashboard callout. Their two now-unused
+  `appIcon` branches went with them (the `archive` icon id in
+  `src/lib/fsp/archive.ts` is a DIFFERENT registry and is unaffected).
+- **The GAUNTLET nudge strip is gone**: its markup, the `.nudge-*` block in
+  `src/app.css`, and the `challenges` query + `gauntletNudge` bundle in the home
+  server load. `suggestNext`, `modeHref` and `SuggestibleChallenge` were deleted
+  from `progression.ts` (verified importerless first; the `MODES` import went
+  with `modeHref`). `xpFromProgression` / `levelFromXp` / `computeStreak` STAY --
+  `/gauntlet` and its leaderboard still use them, and that route runs
+  `gauntlet_progression` for itself, so the RPC is not orphaned.
+- **Dead CSS swept with it:** the `.legacy-index .picker-*` / `.teacher-note` /
+  `.signin-note` rules. `.courses` and `.course-card` stay -- the classroom feed
+  still uses them. (The FSP components' own scoped `.picker-head` is unrelated.)
 
 ## FSP is archived (the programme has concluded)
 
@@ -15104,13 +15175,30 @@ A reusable spotlight tour system plus the portal's first-time walkthrough.
   never 'auto', under reduced motion (the site's global scroll-behavior:smooth
   would win otherwise). Page interaction is paused behind a click-catcher
   while open; scrolling still works.
+- **INTERACTIVE STEPS: `TourStep.interactive` lets ONE step hand its click
+  through.** The pause above is a transparent `.tour-backdrop` at z-index 1100
+  with default `pointer-events`, and it covers the whole viewport -- the page
+  cannot outrank it, because `.legacy-index` sets `position: relative;
+  z-index: 1` and so confines its own `z-index: 100` header to a context that
+  sits at 1. So a step whose copy says "click it now" got a control the reader
+  could not click. A step marked `interactive` adds `.pass-through`
+  (`pointer-events: none`) to the backdrop **for that step only**; every other
+  step keeps the pause byte-for-byte. The spotlight ring was already
+  `pointer-events: none` and was never the blocker. If the click navigates or
+  starts an OAuth redirect the tour needs no teardown -- the page is leaving.
+  Verified both directions with real trusted CDP clicks: on the interactive
+  sign-in step the button's own handler ran and the callout stayed open; on a
+  non-interactive step a real click on an app-card link did not navigate.
 - **Content:** `src/lib/tour/orientation.ts`, two phases in one continuous
-  flow: `signin` (pre-auth, one step on the header Google control) and `home`
-  (post-auth walk: hero, apps grid, courses section, closing with the
-  VANGUARD, GAUNTLET, and IDEA Coin entry points; spotlights only, no
-  navigation). Targets are stable `data-tour` attributes on the home page and
-  the AppLauncher cards (an app pinned AND grouped matches twice;
-  querySelector's first match, the pinned row, wins).
+  flow: `signin` (pre-auth, ONE step, the only `interactive` one, on the header
+  Google control) and `home` (post-auth walk: hero, the class feed, the app
+  grid, then four app cards -- Notebook, Coin Ledger, GAUNTLET, GREENLINE;
+  spotlights only, no navigation). Targets are stable `data-tour` attributes on
+  the home page and the AppLauncher cards (an app pinned AND grouped matches
+  twice; querySelector's first match, the pinned row, wins).
+  **`data-tour="apps"` is on `.launcher-groups`, the wrapper around the card
+  grids, NOT the `.launcher-bar` title strip** -- the step talks about the
+  cards, so it has to ring the cards.
 - **Trigger (`src/lib/tour/HomeTour.svelte`, mounted on `/` outside the page
   wrapper):** an anonymous visitor with no `idea_tour_seen` localStorage flag
   auto-gets phase A once; a signed-in user whose
@@ -15128,7 +15216,11 @@ A reusable spotlight tour system plus the portal's first-time walkthrough.
   the REAL home page with a mock session and a stub client whose writes show
   in an on-screen log. Modes: `anon` (phase A auto-launch), `student`
   (phase B auto-launch), `done` (no auto-launch, replay only), `picker`
-  (pathway picker first, tour waits). Reset button clears every flag.
+  (pathway picker first, tour waits). Reset button clears every flag. A
+  signed-in mode is handed ONE fixture `classroom_sections` row -- it moves no
+  tour step (every target sits on a wrapper that renders either way) and exists
+  so the header class chip, which reads those same sections, has something real
+  to name.
 
 ## Version + changelog substrate
 
@@ -15154,6 +15246,18 @@ app(s) it touched and classifies a change type from its subject
   show a badge without editing frozen legacy internals.
 - **Homepage changelog:** newest-first over the full history, with filters by
   page/app, change type, and date range. Renders from `virtual:site-versions`.
+  **GROUPED BY MONTH, and there is NO cap anywhere in the chain** -- not in the
+  `git log` call, not in the emitted module, not in the render. `logMonths` is a
+  single pass over `filteredLog` inserting headings; because git log already
+  returns newest-first, both the months and the entries inside them come out in
+  order for free. The filters still run over the whole array and the `X / Y`
+  count still measures all of it (verified: 413 / 413 unfiltered, 24 / 413 for
+  one app, 0 / 413 with the empty-state row). The month heading is
+  `position: sticky` inside the scroll box with an opaque `--bg1` fill and
+  negative side margins, so entries scroll behind it rather than through it, and
+  it is deliberately QUIETER than the entries (0.6rem dim uppercase against the
+  entries' 0.72rem and their cyan dates). The box is `max-height: max(420px,
+  70vh)`, not the old flat 360px.
 - **Vercel:** set `VERCEL_DEEP_CLONE=true` in the project env so builds clone
   the full git history (otherwise versions derive from the shallow-clone
   depth; everything fails soft).
