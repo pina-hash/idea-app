@@ -5065,6 +5065,29 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
   test -- but it means dropping the `!inner` embed to "simplify" the query
   would silently leave a single point of failure that the suite would not
   catch, because the surviving policy still denies.
+- **EVERY CONTROL ON AN ENTRY ROW CARRIES A VISIBLE WORD, AND FILING IS ONE OF
+  THEM.** The `.tools` group is a SIBLING of the disclosure button (a button
+  inside a button is invalid markup and its clicks would toggle the row), so it
+  renders in BOTH the collapsed and expanded states -- which is the point:
+  - **Filing moved out of the expanded body into the row.** `notebook_move_entries`
+    was reachable only from a `<select>` at the foot of an expanded card, under
+    the photos and the notes, so discovering that an existing entry could be
+    filed meant opening one and scrolling past everything in it. The control is
+    a labelled `Folder` pill in the row now, showing the entry's own folder (or
+    `Unfiled`); the folder's colour rides the select's LEFT BORDER, since a
+    native select cannot draw a dot inside itself. The meta-row folder CHIP is
+    now the read-only counterpart and renders only when `canMove` is false --
+    one indicator, and it is a control wherever it can be. The bulk-select path
+    is untouched.
+  - **Pin and Copy carry their words** (`Pin`/`Pinned`, `Copy`/`Copied`) beside
+    their glyphs. They were bare icons with a `title`, i.e. learnable only by
+    hovering, which a phone cannot do at all.
+  - **THE COST IS A SECOND LINE ON A PHONE, TAKEN DELIBERATELY.** Three labelled
+    controls plus a readable title do not fit one line under 42rem, so `.row`
+    wraps and `.tools` takes its own. Shrinking the words back out is what
+    created the problem this fixes.
+  - `moveError` renders OUTSIDE `.row`, because a move started from a collapsed
+    entry has no expanded body to report into.
 - **Launcher card** `notebook` in `portal-apps.ts` (Class group,
   `requiresAuth`, NOT `adminOnly` -- every signed-in user sees it) with a
   new `notebook` icon case in `AppLauncher.svelte`. It declares
@@ -7524,6 +7547,42 @@ migration, RPC, `notebook-drive.ts`, or `/api/notebook/*` route.
   `entry_count`. `src/lib/notebook-review.ts` is the client-safe pure layer
   (row shapes mirroring the RPC's jsonb key for key, cell display state and
   the completion arithmetic; the CSV that used to live here went with `0097`).
+- **THE OPEN ENTRY SITS BESIDE THE GRID, NOT UNDER IT.** Grading a section is
+  dozens of round trips between a cell and the page it opens, and the panel used
+  to render below the whole grid -- click a cell, scroll down for the photo,
+  scroll back up for the next one, every time. `.review-split` puts the grid and
+  the panel in two columns while an entry is open (>= 62rem) with the panel
+  `position: sticky; top: 0.75rem` and its own scroll, so the next cell is
+  reachable however far down the roster it is. Deliberately NOT an overlay:
+  covering the grid defeats the point, which is moving from cell to cell.
+  - **Narrow screens dock it to the bottom instead** (`sticky; bottom: 0`, 55vh,
+    its own scroll). Sticky rather than fixed, so it is bounded by the split and
+    releases at the end of it instead of sitting over the Documentation Check
+    panel for the whole page.
+  - **The docked sheet needs the grid to buy its own height back**
+    (`padding-bottom` on `.grid-col`, narrow only): the sheet covers the foot of
+    the grid, and at the end of the document there is nothing left to scroll, so
+    without it the last rows sit permanently underneath and the one thing the
+    sheet exists to allow is the one thing it prevents.
+  - `min-width: 0` on both columns is load-bearing -- a grid item's automatic
+    minimum is its min-content, so the wide table would otherwise push the split
+    wider than the page instead of scrolling inside its own column.
+  - **THE DENSITY AND GLYPH CONTRACT IS UNCHANGED AND WAS MEASURED, NOT
+    ASSUMED:** cell box 30.39px (1.9rem), Share Tech Mono 14.4px, radius 4px, td
+    padding 5.6/6.4px, row heights, and all six glyphs with their exact colours
+    and border styles compare byte-identical with the panel open and closed.
+- **What the grid DOES is said in words, once, above it.** That a cell opens
+  something, and that a student's name opens their whole notebook, were both
+  discoverable only by hovering (a `title` ending "click to open") or by
+  clicking and finding out. `.grid-hint` states both; the name-link underline is
+  ALWAYS on rather than on hover, since the row is otherwise indistinguishable
+  from the plain names beside it, which genuinely are not links. Inline borders
+  sit inside the line box, so no row height moved. The hint's second sentence is
+  gated on any student actually having a link (0106 refuses one who has left).
+- **The cells themselves stay glyph-only, on purpose** -- that is the locked
+  contract. Their meaning is carried by the always-visible legend (six
+  glyph-to-word rows) and their action by the hint above; do not put words in a
+  cell to satisfy a label audit.
 - **Cell states are a COLOUR AND A GLYPH, never colour alone:** on time
   (green ✓), late (amber ⤴), awaiting review (cyan ○), flagged (crimson !,
   the reserved error status), excused (dashed ice E), missing (dashed –),
@@ -7539,6 +7598,15 @@ migration, RPC, `notebook-drive.ts`, or `/api/notebook/*` route.
   hatch, page captions) and both now mount it, so the two cannot drift. One
   prop differs: `lazy` is false in the review panel, which mounts on demand
   and must paint at once, and true in the student's long scrolling feed.
+- **Destructive actions say what they cost, and the check-in delete was the one
+  that did not.** Removing a check-in from ONE class has always stated that the
+  entries filed against it are kept and relabelled; DELETING it -- which takes it
+  off every class it runs in -- said only "Delete this check-in?", so the more
+  destructive of the two read as the safer. It now names the class count and the
+  same consequence. Folder delete (`FolderManager`) already stated it, and its
+  Name and Colour captions are visible now rather than screen-reader-only: a row
+  of bare swatches whose only description was a tooltip is the one control a
+  label cannot be left off.
 - **Flag AND resolve both ship.** The task asked only for flagging, but
   0069 describes `notebook_resolve_entry` as what "closes the review loop"
   after a student resubmits, and an instructor who can flag with no way to

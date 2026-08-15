@@ -288,7 +288,16 @@
 						</div>
 						<div class="session-actions">
 							{#if confirmDelete === session.id}
-								<span class="confirm-hint">Delete this check-in?</span>
+								<!-- The sibling "remove from one class" confirm has always
+							     said what happens to the work; this one, which takes
+							     the check-in off EVERY class it runs in, said only
+							     "Delete this check-in?" -- so the more destructive of
+							     the two read as the safer. -->
+							<span class="confirm-hint">
+								Delete it from {postedTo(session).length > 1
+									? `all ${postedTo(session).length} classes`
+									: 'this class'}? Entries already filed against it are kept and relabelled.
+							</span>
 								<button
 									type="button"
 									class="btn danger"

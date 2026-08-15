@@ -69,3 +69,14 @@ export const NOTEBOOK_THEME_LABELS: Record<NotebookTheme, string> = {
 	light: 'Light',
 	dark: 'Dark'
 };
+
+/**
+ * The same three states as a word short enough to sit ON the control, so the
+ * masthead button is not a bare glyph whose meaning only a tooltip carries.
+ * The full phrase above stays the accessible name and the tooltip.
+ */
+export const NOTEBOOK_THEME_SHORT: Record<NotebookTheme, string> = {
+	system: 'Auto',
+	light: 'Light',
+	dark: 'Dark'
+};

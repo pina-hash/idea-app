@@ -327,7 +327,11 @@
 					     would never fire in practice -- but a component that
 					     renders filing while filing is turned off is one stale
 					     prop away from lying, and the guard costs nothing. -->
-					{#if foldersReady && folder}
+					<!-- Read-only surfaces ONLY. Where filing is offered, the
+					     control in .tools below is the single indicator, and showing
+					     the name twice in one row would read as two different
+					     things. -->
+					{#if foldersReady && !canMove && folder}
 						<span
 							class="folder-chip"
 							style="--dot: var(--nb-folder-{folder.color ?? 'none'})"
@@ -357,12 +361,48 @@
 
 		<!-- SIBLINGS of the disclosure, never inside it: a button nested in a
 		     button is invalid markup and its clicks would toggle the row. The
-		     group sits in .row, which renders in BOTH states, so pinning and
-		     copying are one click away collapsed or expanded. -->
+		     group sits in .row, which renders in BOTH states, so filing, pinning
+		     and copying are one click away collapsed or expanded.
+
+		     EVERY CONTROL HERE CARRIES ITS OWN VISIBLE WORD. Pin and copy used
+		     to be bare glyphs with a `title`, which means the only way to learn
+		     what they do is to hover one -- unavailable on the phones most of
+		     these students are on, and invisible to anyone who never thinks to
+		     try. The icon is the shorthand you learn second, not the label. -->
 		<div class="tools">
 			{#if copyNote}
 				<span class="tool-note" class:ok={copied} role="status">{copyNote}</span>
 			{/if}
+
+			<!-- FILING LIVES IN THE ROW, so it is offered on a collapsed entry as
+			     well as an expanded one. It used to sit at the foot of the
+			     expanded card under the photos and the notes, which means a
+			     student had to open an entry and scroll past everything in it to
+			     discover that filing an existing entry was possible at all. The
+			     folder's own colour rides the select's left edge, so the cue the
+			     chip used to carry survives a control a native select cannot
+			     draw a dot inside. -->
+			{#if canMove}
+				<label
+					class="folder-pick"
+					data-testid="entry-move"
+					style="--dot: var(--nb-folder-{folder?.color ?? 'none'})"
+				>
+					<span class="folder-pick-label">Folder</span>
+					<select
+						aria-label="Folder for {title}"
+						value={entry.folder_id ?? ''}
+						disabled={moving || busy}
+						onchange={(e) => move(e.currentTarget.value)}
+					>
+						<option value="">Unfiled</option>
+						{#each orderedFolders as f (f.id)}
+							<option value={f.id}>{f.name}</option>
+						{/each}
+					</select>
+				</label>
+			{/if}
+
 			{#if pinsReady && onPin}
 				<button
 					type="button"
@@ -388,13 +428,14 @@
 						/>
 						<path d="M12 12.8V20.4" stroke-linecap="round" fill="none" />
 					</svg>
+					<span class="tool-label">{pinned ? 'Pinned' : 'Pin'}</span>
 				</button>
 			{/if}
 			<button
 				type="button"
 				class="tool"
 				class:on={copied}
-				title="Copy this entry’s text"
+				title="Copy this entry’s title, date and notes as plain text"
 				aria-label="Copy {title} as text"
 				data-testid="entry-copy"
 				onclick={copyEntry}
@@ -409,9 +450,17 @@
 						<path d="M15.4 5.6a2 2 0 0 0-2-1.6H6a2 2 0 0 0-2 2v7.4a2 2 0 0 0 1.6 2" />
 					</svg>
 				{/if}
+				<span class="tool-label">{copied ? 'Copied' : 'Copy'}</span>
 			</button>
 		</div>
 	</div>
+
+	<!-- Outside .row, so a move started from a COLLAPSED entry can still report
+	     what went wrong: the old error line lived in the expanded body, which is
+	     exactly where the control no longer is. -->
+	{#if moveError}
+		<p class="row-error" role="alert">{moveError}</p>
+	{/if}
 
 	{#if !collapsed}
 		<div class="body">
@@ -449,7 +498,7 @@
 				</div>
 			{/if}
 
-			{#if canAddPhotos || (notesReady && canAddNote) || canMove}
+			{#if canAddPhotos || (notesReady && canAddNote)}
 			<div class="entry-add">
 				<div class="entry-add-actions">
 					{#if canAddPhotos}
@@ -477,32 +526,12 @@
 						</button>
 					{/if}
 
-					{#if canMove}
-						<label class="move" data-testid="entry-move">
-							<span class="move-label">Folder</span>
-							<select
-								value={entry.folder_id ?? ''}
-								disabled={moving || busy}
-								onchange={(e) => move(e.currentTarget.value)}
-							>
-								<option value="">Unfiled</option>
-								{#each orderedFolders as f (f.id)}
-									<option value={f.id}>{f.name}</option>
-								{/each}
-							</select>
-						</label>
-					{/if}
-
 					{#if !freeForm && notes.length}
 						<span class="add-hint" data-testid="no-edit-hint">
 							Notes on a check-in cannot be edited. Add another instead.
 						</span>
 					{/if}
 				</div>
-
-				{#if moveError}
-					<p class="feedback error" role="alert">{moveError}</p>
-				{/if}
 
 				{#if panel === 'photos'}
 					<div class="entry-panel" data-testid="panel-photos">
@@ -707,8 +736,8 @@
 		color: var(--nb-ink-soft);
 	}
 
-	/* --- pin + copy --------------------------------------------------------
-	   A quiet pair at the end of the row. They sit outside the disclosure so
+	/* --- folder + pin + copy ------------------------------------------------
+	   A quiet group at the end of the row. They sit outside the disclosure so
 	   they work in both states, and they stay muted until they mean something:
 	   the pin only takes the gold thread once the entry is actually pinned. */
 	.tools {
@@ -719,13 +748,16 @@
 		padding-right: 0.1rem;
 	}
 	.tool {
-		display: grid;
-		place-items: center;
-		/* 44px, the same thumb-sized target the select checkbox is padded to:
-		   this is a control a student taps on a phone. */
-		width: 2.75rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.3rem;
+		/* 44px TALL, the same thumb-sized target the select checkbox is padded
+		   to; the width now follows the word, since this is a control a student
+		   taps on a phone and must be able to read without hovering it. */
+		min-width: 2.75rem;
 		height: 2.75rem;
-		padding: 0;
+		padding: 0 0.55rem;
 		border: none;
 		border-radius: var(--nb-radius-control);
 		background: none;
@@ -734,6 +766,63 @@
 		transition:
 			color 0.15s ease,
 			background 0.15s ease;
+	}
+	.tool-label {
+		font-size: 0.72rem;
+		font-weight: 600;
+		letter-spacing: 0.01em;
+		white-space: nowrap;
+	}
+
+	/* The filing control. Styled as a pill so it reads as one thing with the
+	   two buttons beside it, and carrying the folder's own colour on its left
+	   edge -- the one cue the chip it replaced had that a native select cannot
+	   draw inside itself. */
+	.folder-pick {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		height: 2.75rem;
+		padding: 0 0.2rem 0 0.45rem;
+		color: var(--nb-ink-faint);
+		cursor: pointer;
+	}
+	.folder-pick-label {
+		font-size: 0.72rem;
+		font-weight: 600;
+		white-space: nowrap;
+	}
+	.folder-pick select {
+		font: inherit;
+		font-size: 0.74rem;
+		max-width: 8.5rem;
+		padding: 0.3rem 0.35rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-left: 3px solid var(--dot, var(--nb-folder-none));
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface);
+		color: var(--nb-ink-soft);
+		cursor: pointer;
+	}
+	.folder-pick select:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.folder-pick:hover .folder-pick-label,
+	.folder-pick:focus-within .folder-pick-label {
+		color: var(--nb-ink);
+	}
+	.folder-pick select:focus-visible {
+		outline: none;
+		border-color: var(--nb-accent);
+	}
+	.row-error {
+		margin: 0 0 0.5rem;
+		padding: 0.4rem 0.6rem;
+		font-size: 0.8rem;
+		color: var(--nb-error);
+		border: 1px solid color-mix(in srgb, var(--nb-error) 40%, transparent);
+		border-radius: var(--nb-radius-control);
 	}
 	.tool:hover:not(:disabled) {
 		color: var(--nb-ink);
@@ -856,23 +945,6 @@
 		opacity: 0.5;
 		cursor: default;
 	}
-	.move {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.76rem;
-		color: var(--nb-ink-faint);
-	}
-	.move select {
-		font: inherit;
-		font-size: 0.76rem;
-		padding: 0.24rem 0.4rem;
-		border: 1px solid var(--nb-hairline-strong);
-		border-radius: 999px;
-		background: var(--nb-surface);
-		color: var(--nb-ink-soft);
-		max-width: 11rem;
-	}
 	.add-hint {
 		font-size: 0.74rem;
 		color: var(--nb-ink-faint);
@@ -917,5 +989,27 @@
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
 		border: 0;
+	}
+
+	/*
+	 * Below this width three labelled controls and a readable title cannot
+	 * share one line, so the group takes its own. A DELIBERATE TRADE: a
+	 * collapsed row on a phone is taller than it was, and in exchange filing,
+	 * pinning and copying are legible rather than three grey glyphs. Shrinking
+	 * the words back out is what created the problem this pass exists to fix.
+	 */
+	@media (max-width: 42rem) {
+		.row {
+			flex-wrap: wrap;
+		}
+		.tools {
+			flex: 1 0 100%;
+			justify-content: flex-end;
+			padding: 0 0.1rem 0.3rem 0;
+			gap: 0.1rem;
+		}
+		.folder-pick select {
+			max-width: 7rem;
+		}
 	}
 </style>

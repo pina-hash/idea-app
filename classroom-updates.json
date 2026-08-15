@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-14",
+			"title": "Filing an entry into a folder is one tap from the entry itself",
+			"body": "Moving an entry into a folder was possible before, but only if you opened the entry and scrolled past the photos and the notes to a small box at the bottom, so most people never found it. Every entry in your notebook now carries its folder on the row itself, open or closed: it shows which folder the entry is in (or Unfiled), and changing it is one tap with nothing to open first. The two buttons beside it say Pin and Copy in words now, instead of being symbols you had to hover to identify. Nothing about how folders work has changed, and picking several entries at once to move them together still works exactly as it did.",
+			"tags": ["Notebook"]
+		},
+		{
+			"date": "2026-08-14",
 			"title": "You can write a note on a check-in as you photograph it",
 			"body": "A notebook check-in still needs a photo of the page -- that has not changed. But until now the photo was all you could send, so if there was something worth saying about it (what you measured, what went wrong, what you would try next) you had to save the entry first and then come back and add it. There is now an optional Note box on the same screen, right under where you pick your photos. Write in it or leave it empty; either way the entry saves the same. Like the photo, a note on a check-in cannot be edited once it is saved, but you can always add another note to the same entry afterwards.",
 			"tags": ["Notebook"]

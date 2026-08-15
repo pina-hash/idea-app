@@ -57,6 +57,15 @@
 	const sessions = $derived(sessionsInOrder(grid.sessions));
 	const index = $derived(cellIndex(grid));
 	const summaries = $derived(summarize(grid));
+	/**
+	 * Whether the hint should mention the name link at all. It is per-student
+	 * (0106 refuses a student who has left the class, and a read-only mount
+	 * passes no `studentHref`), so a blanket sentence would promise something
+	 * this particular roster may not offer.
+	 */
+	const anyStudentLink = $derived(
+		!!studentHref && grid.students.some((s) => studentHref(s) !== null)
+	);
 
 	/**
 	 * Keyed on the roster's `student_key`, not the uuid: since 0094 a student
@@ -79,7 +88,20 @@
 
 <section class="card grid-card">
 	<header class="grid-head">
-		<h2>Compliance grid</h2>
+		<div class="grid-title">
+			<h2>Compliance grid</h2>
+			<!--
+				What this grid DOES was previously only discoverable by hovering a
+				cell and reading "click to open" at the end of a tooltip, or by
+				clicking one and finding out. Two capabilities, said once, in
+				plain words, where someone opening this page for the first time
+				will read them.
+			-->
+			<p class="grid-hint">
+				Click any cell that has an entry to open it beside the grid.{#if anyStudentLink}{' '}Click
+					a student's name to read their whole notebook.{/if}
+			</p>
+		</div>
 		<ul class="legend">
 			{#each CELL_STATES as state (state.key)}
 				<li title={state.hint}>
@@ -205,6 +227,16 @@
 	.grid-head h2 {
 		margin: 0;
 	}
+	.grid-title {
+		display: grid;
+		gap: 0.2rem;
+	}
+	.grid-hint {
+		margin: 0;
+		max-width: 34rem;
+		font-size: 0.78rem;
+		color: var(--nb-ink-soft);
+	}
 	.legend {
 		list-style: none;
 		display: flex;
@@ -269,10 +301,17 @@
 	/* The one gold thread this console already uses for links and active
 	   states; the six status colours stay a locked contract and are not
 	   borrowed here. */
+	/*
+	 * The underline is ALWAYS on. It used to appear on hover, which means the
+	 * only way to find out a name opens something was to put a mouse on it --
+	 * and the row is otherwise indistinguishable from the plain names beside
+	 * it, which are genuinely not links. Inline borders sit inside the line
+	 * box, so the row height is unchanged.
+	 */
 	.student-link {
 		color: var(--nb-accent-ink);
 		text-decoration: none;
-		border-bottom: 1px solid transparent;
+		border-bottom: 1px solid color-mix(in srgb, currentColor 45%, transparent);
 	}
 	.student-link:hover,
 	.student-link:focus-visible {

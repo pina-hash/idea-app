@@ -395,28 +395,54 @@
 		{/if}
 
 		{#if grid}
-			<SectionGrid
-				{grid}
-				selectedEntryId={openEntryId}
-				onOpen={openFromCell}
-				studentHref={studentNotebookHref}
-			/>
+			<!--
+				THE PANEL SITS BESIDE THE GRID, NOT UNDER IT.
 
-			{#if entryLoading}
-				<section class="card"><p class="note">Loading entry...</p></section>
-			{:else if entryError}
-				<section class="card"><p class="msg error" role="alert">{entryError}</p></section>
-			{:else if openEntry && openCell}
-				<EntryReview
-					entry={openEntry}
-					cell={openCell}
-					student={openStudent}
-					session={openSession}
-					onFlag={flagEntry}
-					onResolve={resolveEntry}
-					onClose={closeEntry}
-				/>
-			{/if}
+				Grading a section is dozens of round trips between a cell and the
+				page it opens, and the panel used to render below the whole grid:
+				click a cell, scroll down to see the photo, scroll back up for the
+				next one, every time. So the console splits into two columns while
+				an entry is open -- the grid keeps its own column and stays fully
+				interactive, and the panel is STICKY, which is what makes the next
+				cell reachable without scrolling however far down the roster it is.
+
+				Deliberately not an overlay: covering the grid would defeat the
+				whole point, which is moving from cell to cell.
+
+				Narrow screens have no room for two columns, so there the panel
+				docks to the BOTTOM of the viewport instead (still sticky, still in
+				flow, so it can never trap the page) and the grid scrolls above it.
+			-->
+			<div class="review-split" class:with-panel={openEntryId !== null}>
+				<div class="grid-col">
+					<SectionGrid
+						{grid}
+						selectedEntryId={openEntryId}
+						onOpen={openFromCell}
+						studentHref={studentNotebookHref}
+					/>
+				</div>
+
+				{#if openEntryId !== null}
+					<aside class="entry-col" aria-label="Open entry">
+						{#if entryLoading}
+							<section class="card"><p class="note">Loading entry...</p></section>
+						{:else if entryError}
+							<section class="card"><p class="msg error" role="alert">{entryError}</p></section>
+						{:else if openEntry && openCell}
+							<EntryReview
+								entry={openEntry}
+								cell={openCell}
+								student={openStudent}
+								session={openSession}
+								onFlag={flagEntry}
+								onResolve={resolveEntry}
+								onClose={closeEntry}
+							/>
+						{/if}
+					</aside>
+				{/if}
+			</div>
 
 			{#if docCheck && section}
 				<DocumentationCheck
@@ -448,6 +474,66 @@
 		align-items: flex-end;
 		gap: 1rem;
 		flex-wrap: wrap;
+	}
+
+	/* One column until a panel is open, so nothing about the grid changes
+	   while nobody is reviewing. */
+	.review-split {
+		display: grid;
+		gap: 1.1rem;
+		align-items: start;
+	}
+	/* min-width: 0 is load-bearing on BOTH: a grid item's automatic minimum is
+	   its min-content, so without it the wide table would push the split wider
+	   than the page instead of scrolling inside its own column. */
+	.grid-col,
+	.entry-col {
+		min-width: 0;
+	}
+
+	/* Narrow: the panel docks to the bottom edge and the grid scrolls behind
+	   it. Sticky rather than fixed, so it is bounded by the split it belongs
+	   to and releases at the end of it -- a fixed sheet would sit over the
+	   Documentation Check panel below for the whole page. */
+	.review-split.with-panel .entry-col {
+		position: sticky;
+		bottom: 0;
+		z-index: 2;
+		max-height: var(--nb-sheet-h, 55vh);
+		overflow-y: auto;
+		border-radius: var(--nb-radius);
+		box-shadow: 0 -6px 24px rgba(20, 16, 8, 0.18);
+	}
+	/*
+	 * The docked sheet covers the foot of the grid, and at the end of the
+	 * document there is nothing left to scroll -- so without this the last rows
+	 * sit permanently underneath it and the one thing the sheet exists to allow
+	 * (going to the next cell) is the one thing it prevents. The padding buys
+	 * exactly the sheet's own height back, so every row can be brought above
+	 * it. Only while a panel is open, so a closed grid ends where it ends.
+	 */
+	.review-split.with-panel .grid-col {
+		padding-bottom: calc(var(--nb-sheet-h, 55vh) + 1rem);
+	}
+
+	@media (min-width: 62rem) {
+		.review-split.with-panel {
+			grid-template-columns: minmax(0, 1fr) minmax(21rem, 27rem);
+		}
+		.review-split.with-panel .entry-col {
+			position: sticky;
+			top: 0.75rem;
+			bottom: auto;
+			/* Its own scroll, so a tall page of photos never pushes the panel
+			   taller than the viewport it is pinned to. */
+			max-height: calc(100vh - 1.5rem);
+			box-shadow: none;
+		}
+		/* Two columns: the panel is beside the grid, not over it, so the grid
+		   needs no room bought back. */
+		.review-split.with-panel .grid-col {
+			padding-bottom: 0;
+		}
 	}
 	.field {
 		display: grid;

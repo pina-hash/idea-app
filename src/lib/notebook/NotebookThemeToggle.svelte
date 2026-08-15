@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		NOTEBOOK_THEME_LABELS,
+		NOTEBOOK_THEME_SHORT,
 		cycleNotebookTheme,
 		notebookTheme
 	} from '$lib/notebook/notebook-theme.svelte';
@@ -19,6 +20,13 @@
 
 	const theme = $derived(notebookTheme());
 	const label = $derived(NOTEBOOK_THEME_LABELS[theme]);
+	/**
+	 * A sun in a dark masthead is ambiguous twice over -- it could mean "you
+	 * are in light mode" or "press to go light" -- and a tooltip is not an
+	 * answer on a phone. The word says which state you are in; the fact that
+	 * it is a button says it can be changed.
+	 */
+	const short = $derived(NOTEBOOK_THEME_SHORT[theme]);
 </script>
 
 <button
@@ -56,6 +64,7 @@
 			</svg>
 		{/if}
 	</span>
+	<span class="nb-theme-word">{short}</span>
 	<span class="sr-only">{label}</span>
 </button>
 
@@ -65,11 +74,12 @@
 	   rather than for the page -- the same reasoning as the header's own
 	   .btn.secondary override in notebook-theme.css. */
 	.nb-theme {
-		display: inline-grid;
-		place-items: center;
-		width: 2.4rem;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		min-width: 2.4rem;
 		height: 2.4rem;
-		padding: 0;
+		padding: 0 0.5rem;
 		border: 1px solid rgba(234, 230, 216, 0.32);
 		border-radius: var(--nb-radius-control);
 		background: transparent;
@@ -89,6 +99,14 @@
 	.glyph {
 		display: grid;
 		place-items: center;
+		flex: 0 0 auto;
+	}
+	.nb-theme-word {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		white-space: nowrap;
 	}
 	.glyph svg {
 		width: 1.15rem;
@@ -104,5 +122,21 @@
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
 		border: 0;
+	}
+
+	/*
+	 * On a phone the review console's masthead has one item more than the
+	 * feed's and the pair no longer fits on one line. Where something has to
+	 * give it is the GLYPH, not the word -- a sun that could equally mean "you
+	 * are in light mode" or "press for light mode" is the half that was never
+	 * carrying the meaning.
+	 */
+	@media (max-width: 30rem) {
+		.glyph {
+			display: none;
+		}
+		.nb-theme {
+			padding: 0 0.45rem;
+		}
 	}
 </style>

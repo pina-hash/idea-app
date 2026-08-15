@@ -182,8 +182,13 @@
 	>
 		<span class="editor-title">{editing ? 'Rename this folder' : 'New folder'}</span>
 
+		<!-- Both captions were screen-reader-only. The name field at least had a
+		     placeholder; the colour row was a line of bare swatches whose only
+		     description was a tooltip, so what it was for was invisible to
+		     anyone not hovering it -- and it is a row of colours, which is the
+		     one thing a label cannot be left to. -->
 		<label class="field">
-			<span class="sr-only">Folder name</span>
+			<span class="field-label">Name</span>
 			<input
 				type="text"
 				bind:value={draftName}
@@ -195,7 +200,7 @@
 		</label>
 
 		<fieldset class="colors">
-			<legend class="sr-only">Folder colour</legend>
+			<legend class="field-label">Colour <span class="optional">(optional)</span></legend>
 			<button
 				type="button"
 				class="swatch none"
@@ -391,8 +396,31 @@
 		padding: 0;
 		margin: 0 0 0.8rem;
 		display: flex;
+		align-items: center;
 		gap: 0.4rem;
 		flex-wrap: wrap;
+	}
+	.field-label {
+		display: block;
+		padding: 0;
+		margin-bottom: 0.25rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--nb-ink-faint);
+	}
+	legend.field-label {
+		/* A legend is not a flex item, so it needs to claim the whole first
+		   line itself rather than sitting in the swatch run. */
+		float: left;
+		width: 100%;
+		margin-bottom: 0.35rem;
+	}
+	.optional {
+		text-transform: none;
+		letter-spacing: 0;
+		font-weight: 400;
 	}
 	.swatch {
 		width: 1.5rem;

@@ -1228,7 +1228,11 @@
 					<div class="tools">
 						{#if pinsReady}
 							<label class="sort">
-								<span class="sr-only">Sort entries by</span>
+								<!-- Visible, where it was screen-reader-only: the
+								     select's own text ("Newest first") describes an
+								     ORDER without saying that changing it is what this
+								     control is for. -->
+								<span class="sort-label">Sort</span>
 								<select bind:value={sort} data-testid="sort-select">
 									{#each ENTRY_SORTS as option (option.id)}
 										<option value={option.id}>{option.label}</option>
@@ -1630,6 +1634,15 @@
 		white-space: nowrap;
 	}
 	/* Quiet: the sort is a way of looking at the feed, not a heading over it. */
+	.sort {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+	}
+	.sort-label {
+		color: var(--nb-ink-faint);
+		white-space: nowrap;
+	}
 	.sort select {
 		font-size: 0.78rem;
 		padding: 0.25rem 0.4rem;
