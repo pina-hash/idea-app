@@ -60,6 +60,11 @@
 	 *  of pinning -- which reads as a small jump on every tab click. */
 	let railHeight = $state(0);
 	let scrollable = $state(false);
+	/** Fades, one per edge, each shown only when there is actually something that
+	 *  way: left once the strip is scrolled off its start, right until it reaches
+	 *  the end. Both derive from the same scroll measurement below. */
+	let fadeStart = $state(false);
+	let fadeEnd = $state(false);
 
 	function sectionEl(slug: string): HTMLElement | null {
 		if (typeof document === 'undefined') return null;
@@ -200,15 +205,23 @@
 	});
 
 	/**
-	 * Does the bar actually overflow? Drives the "more tabs that way" fade. Also
-	 * measures the rail, which .ref-body's min-height needs exactly.
+	 * Does the bar actually overflow, and which way is there more of it? Drives
+	 * both "more tabs that way" fades. Also measures the rail, which
+	 * .ref-body's min-height needs exactly.
+	 *
+	 * The 2px slack on the overflow test absorbs sub-pixel layout; the 1px slack
+	 * on each edge test does the same for a fractional scrollLeft, which is what
+	 * a trackpad and the active-tab scroll above both produce.
 	 */
 	$effect(() => {
 		const bar = tabBar;
 		const rail = railEl;
 		if (!bar || !rail || typeof ResizeObserver === 'undefined') return;
 		const measure = () => {
-			scrollable = bar.scrollWidth > bar.clientWidth + 2;
+			const overflow = bar.scrollWidth - bar.clientWidth;
+			scrollable = overflow > 2;
+			fadeStart = scrollable && bar.scrollLeft > 1;
+			fadeEnd = scrollable && bar.scrollLeft < overflow - 1;
 			railHeight = rail.offsetHeight;
 		};
 		measure();
@@ -248,7 +261,7 @@
 		<!-- Pinned to the top of the document and left-to-right, scrolling
 		     horizontally on a phone rather than wrapping or collapsing into a
 		     menu: a student has to be able to SEE that more tabs exist. -->
-		<div class="tab-rail" class:scrollable bind:this={railEl}>
+		<div class="tab-rail" class:fade-start={fadeStart} class:fade-end={fadeEnd} bind:this={railEl}>
 			<div class="tabs" role="tablist" aria-label="Sections" bind:this={tabBar}>
 				{#each spec.sections as section (section.slug)}
 					<button
@@ -345,8 +358,8 @@
 		/* The bar still scrolls -- by drag, wheel, touch, and by the effect above
 		   when the active tab is off-screen -- but its scrollbar is hidden. On
 		   Windows it renders as a permanent full-width trough under the rail,
-		   which is louder than the tabs it sits beneath; the edge fade
-		   (.tab-rail.scrollable::after) is what says there are more tabs. */
+		   which is louder than the tabs it sits beneath; the edge fades
+		   (.tab-rail.fade-start / .fade-end) are what say there are more tabs. */
 		scrollbar-width: none;
 		-ms-overflow-style: none;
 		-webkit-overflow-scrolling: touch;
@@ -356,14 +369,25 @@
 	.tabs::-webkit-scrollbar {
 		display: none;
 	}
-	.tab-rail.scrollable::after {
+	/* One fade per edge, each gated on its own end actually having more tabs
+	   behind it -- so scrolling to the end drops the right fade instead of
+	   pointing at nothing, and the left one only appears once there is something
+	   back that way. */
+	.tab-rail.fade-start::before,
+	.tab-rail.fade-end::after {
 		content: '';
 		position: absolute;
-		right: 0;
 		top: 0.35rem;
 		bottom: 1px;
 		width: 2.2rem;
 		pointer-events: none;
+	}
+	.tab-rail.fade-start::before {
+		left: 0;
+		background: linear-gradient(to left, transparent, var(--bg0) 78%);
+	}
+	.tab-rail.fade-end::after {
+		right: 0;
 		background: linear-gradient(to right, transparent, var(--bg0) 78%);
 	}
 	.tab {
