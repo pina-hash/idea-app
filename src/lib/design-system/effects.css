@@ -58,11 +58,20 @@
    lifting the paper shadow does on white. Radii are unchanged -- the room's
    proportions do not depend on the light. */
 @media (prefers-color-scheme: dark) {
-	.nb-root:not([data-nb-theme='light']) {
+	/* `:not([data-nb-theme])` = "no explicit choice"; see the matching note in
+	   colors.css for why it is not `:not([data-nb-theme='light'])`. */
+	.nb-root:not([data-nb-theme]) {
 		--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
 	}
 }
 
 .nb-root[data-nb-theme='dark'] {
+	--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
+}
+
+/* The IDEA palette takes the same true shade: a shadow tinted with either
+   theme's ink is invisible on a dark ground. Radii are shared by all three --
+   the room's proportions do not depend on the light. */
+.nb-root[data-nb-theme='idea'] {
 	--nb-shadow: 0 1px 2px rgba(0, 0, 0, 0.55), 0 10px 28px rgba(0, 0, 0, 0.42); /* @kind other */
 }

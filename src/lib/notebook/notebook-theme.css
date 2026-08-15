@@ -21,12 +21,15 @@
  * dark ground, and the PhotoCorrector overlay stays dark so the drag quad
  * and handles keep their contrast over arbitrary photos.
  *
- * THERE ARE TWO PALETTES NOW, and this file belongs to NEITHER. Dark mode is
- * a second set of values for the same --nb-* tokens (colors.css / effects.css,
- * keyed off prefers-color-scheme and the data-nb-theme attribute this file's
- * .nb-root carries), so every rule below is written once and holds in both.
- * That is the rule to keep: a component or a skin rule that needs to know
- * which palette is showing is a rule that should have been a token.
+ * THERE ARE THREE PALETTES NOW (light, dark, IDEA) and this file belongs to
+ * NONE of them. Each is a set of values for the same --nb-* tokens
+ * (colors.css / effects.css, keyed off prefers-color-scheme and the
+ * data-nb-theme attribute this file's .nb-root carries), so every rule below
+ * is written once and holds in all three. That is the rule to keep: a
+ * component or a skin rule that needs to know which palette is showing is a
+ * rule that should have been a token. Adding the IDEA palette needed exactly
+ * one edit in this file -- .eyebrow, which had to stop assuming the accent and
+ * the meta line are the same colour -- and no component edits at all.
  */
 
 .nb-root {
@@ -89,7 +92,11 @@
 	font-weight: 600;
 	letter-spacing: 0.18em;
 	text-transform: uppercase;
-	color: var(--nb-accent-ink);
+	/* The meta line above a heading. On light and dark this token resolves
+	   straight back to --nb-accent-ink, so both render exactly what they
+	   always did; on IDEA it is where the gold thread lives while the accent
+	   itself is green. */
+	color: var(--nb-meta-accent);
 	text-shadow: none;
 }
 .nb-root .lead {
@@ -104,6 +111,13 @@
 .nb-root .app-header {
 	background: var(--nb-masthead);
 	border-bottom: none;
+	/* The masthead has to OUT-STACK `main`. Both sit at z-index 1 inside
+	   .nb-root's stacking context and `main` comes later in the document, so
+	   it wins the tie and paints over anything the header hangs below itself
+	   -- which is every dropdown the masthead owns, the appearance menu
+	   included. Costs nothing else: the header is not sticky, so the two only
+	   overlap where such a panel is open. */
+	z-index: 2;
 }
 .nb-root .app-header .btn.secondary {
 	color: var(--white);

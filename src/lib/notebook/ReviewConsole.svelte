@@ -313,8 +313,8 @@
 </svelte:head>
 
 <!-- .nb-root scopes the notebook's editorial theme (notebook-theme.css) and,
-     through data-nb-theme, which of its two palettes is showing; the review
-     console lives in the same room as the student feed, in both lights. -->
+     through data-nb-theme, which of its three palettes is showing; the review
+     console lives in the same room as the student feed, in every light. -->
 <div class="nb-root" data-nb-theme={notebookThemeAttr()}>
 <div class="app-header">
 	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>

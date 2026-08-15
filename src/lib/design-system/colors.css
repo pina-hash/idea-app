@@ -69,6 +69,13 @@
 	--nb-accent: var(--gold); /* the platform thread: aged brass, sparingly */
 	--nb-accent-ink: #8a6d24; /* brass deepened for links / active text on light */
 	--nb-accent-wash: rgba(200, 168, 72, 0.13); /* active-state fill */
+	/* The eyebrow -- the meta line that sits above a heading. On the light and
+	   dark palettes it IS the accent, which is why this was written inline as
+	   --nb-accent-ink until the IDEA palette needed the two to part company
+	   (there the accent is green and the eyebrow stays the platform's brass).
+	   Splitting it costs those two palettes nothing: both resolve it straight
+	   back to their own accent-ink, so what they render is unchanged. */
+	--nb-meta-accent: var(--nb-accent-ink);
 	--nb-ok: color-mix(in srgb, var(--teal) 72%, #0e2417); /* success text on light */
 	--nb-error: color-mix(in srgb, var(--crimson) 76%, #2b100d); /* error text on light */
 	--nb-warn: color-mix(in srgb, var(--amber) 78%, #2b1a08); /* warning text on light */
@@ -122,8 +129,16 @@
    between 7.7:1 and 9.4:1 (the light palette's own >= 4.5:1 rule).
    ------------------------------------------------------------------------- */
 
+/* THE SELECTOR IS `:not([data-nb-theme])`, i.e. "no explicit choice", and that
+   narrowing is what lets a THIRD palette exist. It used to read
+   `:not([data-nb-theme='light'])`, which also matches data-nb-theme='idea' --
+   so under a dark OS the IDEA surfaces would have been handed the dark
+   palette's warm browns on top of their own greens, decided by nothing but
+   source order. Explicit dark has always had its own block below, so this is
+   behaviour-preserving for both existing palettes: no-attribute still follows
+   the OS, ='dark' is still served by that block, ='light' still opts out. */
 @media (prefers-color-scheme: dark) {
-	.nb-root:not([data-nb-theme='light']) {
+	.nb-root:not([data-nb-theme]) {
 		--nb-bg: #16140f;
 		--nb-surface: #201d16;
 		--nb-surface-dim: #0f0d09;
@@ -154,6 +169,7 @@
 		   has to be repeated in both dark blocks for the same reason. */
 		--nb-folder-gold: var(--nb-accent-ink);
 		--nb-folder-none: var(--nb-ink-faint);
+		--nb-meta-accent: var(--nb-accent-ink);
 	}
 }
 
@@ -178,8 +194,97 @@
 	--nb-folder-clay: #e09873;
 	--nb-folder-sky: #86b6de;
 	--nb-folder-plum: #c79ecd;
-	/* See the note in the media-query block above: these two must be
-	   re-declared, not inherited. */
+	/* See the note in the media-query block above: these must be re-declared,
+	   not inherited. */
 	--nb-folder-gold: var(--nb-accent-ink);
+	--nb-folder-none: var(--nb-ink-faint);
+	--nb-meta-accent: var(--nb-accent-ink);
+}
+
+/* --- Notebook IDEA palette ---------------------------------------------------
+   The same editorial room in the program's own colours: a RECOLOUR, not a
+   reskin. Every rule in notebook-theme.css and all 16 notebook components are
+   untouched, so the spacing, the type stack, the whitespace and the layout are
+   the light and dark themes' -- only these values differ. Nothing here reaches
+   for Orbitron, Rajdhani or the GAUNTLET chrome; this is the notebook wearing
+   IDEA green, not the notebook becoming a terminal.
+
+   ONE SELECTOR, deliberately, where dark has two: IDEA is OPT-IN ONLY. It is
+   never reachable from prefers-color-scheme, so a student who has expressed no
+   preference still gets the light/dark pair exactly as before and can only
+   arrive here by choosing it.
+
+   Ground is a green-black rather than dark's warm near-black, and the two are
+   genuinely different rooms: this sits at oklch hue 165 against dark's ~85.
+   The neutral ladder is not eyeballed -- it reproduces dark's own lightness
+   steps at that hue, which is why the ratios land within 0.2 of dark's
+   throughout (ink 16.35 vs dark's 15.45, ink-soft 9.82 vs 9.63, ink-faint 5.42
+   vs 5.36, hairline 1.34 vs 1.29). Measured against --nb-bg:
+
+     ink 16.35   ink-soft 9.82   ink-faint 5.42   ink-hover 13.14
+     accent 13.59   gold 8.16   ok 9.14   error 7.52   warn 8.52
+     folders 7.9-9.6, all clear of the light palette's own >= 4.5 rule
+
+   THE ACCENT IS THE ONE VALUE THAT WAS NOT A FREE CHOICE, and it is worth
+   knowing why before anyone "calms it down". The review grid's six status
+   colours are a locked contract, and they are platform tokens, so they are
+   identical in all three palettes -- which also means an accent has to stay
+   clear of all six AT ONCE. Two of them bracket the green family: --green
+   #78b870 (on time) at oklch hue 142 and --cyan #5abda8 (awaiting review) at
+   hue 178. A restrained mint sits BETWEEN them: the obvious candidate
+   #5dcaa5 lands 12.1 from the green and only 5.6 from the cyan, which would
+   make a link in the sticky student column read as the marker in the cell
+   beside it. Hue offers no way out (the corridor is 36 degrees wide and both
+   ends are occupied) and dropping chroma walks into --ice #a9bcab instead. The
+   only free axis is lightness, upward, which is why this is a brighter mint
+   than the room's other colours rather than a quiet one:
+
+     accent vs --green 15.95   --cyan 15.75   --ice 20.01
+              --gear 30.48    --amber 50.42   --crimson 69.71   (CIEDE2000)
+
+   The bar is 15.18 -- the separation between --green and --cyan themselves,
+   i.e. the discrimination the grid ALREADY asks of a reader, for two colours
+   in the same role in adjacent cells. The accent clears it against all six,
+   in an easier task (underlined sans text, not a mono glyph in a chip). Chroma
+   is 0.15 against raw #00FF41's 0.28, so the full IDEA green stays where the
+   brief put it: small high-emphasis marks only, never a surface.
+   ------------------------------------------------------------------------- */
+
+.nb-root[data-nb-theme='idea'] {
+	--nb-bg: #0b1410; /* green-black page */
+	--nb-surface: #101c16; /* lifted green-black: cards, sticky column */
+	--nb-surface-dim: #060e09; /* recessed: pickers, forms, staged rows */
+	--nb-ink: #e8f2ec; /* pale green-white body */
+	--nb-ink-soft: #abc1b4;
+	--nb-ink-faint: #7a8f83;
+	--nb-ink-hover: #ccdcd2;
+	--nb-hairline: #232f28;
+	--nb-hairline-strong: #324139;
+	--nb-masthead: #060e09;
+	/* Green leads: links, active states, status text. */
+	--nb-accent: #6cf4b5;
+	--nb-accent-ink: var(--nb-accent);
+	--nb-accent-wash: rgba(108, 244, 181, 0.15);
+	/* Gold stays the secondary thread, on the meta line above a heading --
+	   the one place the platform's own headers already read brass. Pinned to
+	   --gold rather than to --nb-accent-ink, which is green here. */
+	--nb-meta-accent: var(--gold);
+	--nb-ok: color-mix(in srgb, var(--teal) 60%, #dff5e6);
+	--nb-error: color-mix(in srgb, var(--crimson) 66%, #ffe0e0);
+	--nb-warn: color-mix(in srgb, var(--amber) 68%, #ffeccf);
+	/* Carried over from the dark palette unchanged, on purpose: a folder is a
+	   student's own filing tag and should be the same colour whichever dark
+	   room they are in. All six re-measure at 7.9-9.6 on this ground. */
+	--nb-folder-slate: #a6b4c2;
+	--nb-folder-sage: #9dc491;
+	--nb-folder-clay: #e09873;
+	--nb-folder-sky: #86b6de;
+	--nb-folder-plum: #c79ecd;
+	/* The var()-resolves-where-declared trap, in its third form. Neither of
+	   these may be inherited: --nb-folder-gold would follow the accent and
+	   turn a GOLD folder green (and collide with both the accent and the
+	   on-time glyph), and --nb-folder-none would carry the light palette's
+	   faint ink. Both are stated outright. */
+	--nb-folder-gold: var(--gold);
 	--nb-folder-none: var(--nb-ink-faint);
 }
