@@ -201,9 +201,16 @@ export function selfSelectOptions(): SelectOptionGroup[] {
 	return groups;
 }
 
-/** Total distinct course codes offered in 2026-27 (for the hero stat). */
+/**
+ * Distinct course codes still being offered, for the hero stat. ACTIVE here
+ * means the programme has not concluded: the Freshman Summer Program ran and
+ * finished (its materials live at /fsp/archive), so its code is excluded even
+ * though the section entry stays in SECTIONS for every stored section_id that
+ * still points at it. Counting codes, not sections, is deliberate -- the three
+ * IDEA 209H sections are one course.
+ */
 export function activeCourseCount(): number {
-	return new Set(SECTIONS.map((s) => s.course)).size;
+	return new Set(SECTIONS.filter((s) => s.term !== 'Summer').map((s) => s.course)).size;
 }
 
 // ---------------------------------------------------------------------------
