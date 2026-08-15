@@ -24,13 +24,13 @@ import type { PageServerLoad } from './$types';
  * Everything fails soft to `classroomReady: false` before 0082/0085/0086 are
  * applied, so the home page renders a clearly-flagged card rather than crashing.
  *
- * GAUNTLET nudge: the 0021 progression aggregates plus the published challenge
- * catalog, for the "continue / next best" card. Anonymous visitors get null.
+ * There is no GAUNTLET read here any more: the "continue / next best" strip that
+ * needed `gauntlet_progression` and the published challenge catalog is gone from
+ * the home page, and /gauntlet still runs that RPC for itself.
  */
 export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => {
 	if (!claims) {
 		return {
-			gauntletNudge: null,
 			classroomReady: true,
 			feedSections: [],
 			feedItems: [],
@@ -38,18 +38,12 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 		};
 	}
 
-	const [{ data: progression }, { data: challenges }, { data: sectionRows, error: sectionError }] =
-		await Promise.all([
-			supabase.rpc('gauntlet_progression'),
-			supabase.from('challenges').select('id, mode, title, difficulty').eq('published', true),
-			supabase.from('classroom_sections').select(SECTION_SELECT)
-		]);
-
-	const gauntletNudge = progression ? { progression, challenges: challenges ?? [] } : null;
+	const { data: sectionRows, error: sectionError } = await supabase
+		.from('classroom_sections')
+		.select(SECTION_SELECT);
 
 	if (sectionError) {
 		return {
-			gauntletNudge,
 			classroomReady: false,
 			feedSections: [],
 			feedItems: [],
@@ -63,7 +57,6 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	const sectionIds = sections.map((s) => s.id);
 	if (!sectionIds.length) {
 		return {
-			gauntletNudge,
 			classroomReady: true,
 			feedSections: [],
 			feedItems: [],
@@ -95,7 +88,6 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	}
 
 	return {
-		gauntletNudge,
 		classroomReady: true,
 		feedSections: sections,
 		feedItems: items,

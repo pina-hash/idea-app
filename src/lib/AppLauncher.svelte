@@ -213,8 +213,6 @@
 			<path d="M22 9h6M22 14h6M22 19h4" />
 		{:else if id === 'dashboard'}
 			<path d="M5 24a11 11 0 1122 0z" /><path d="M16 24l5.5-7" /><circle cx="16" cy="24" r="1.6" />
-		{:else if id === 'courses'}
-			<path d="M7 6h18v20H7z" /><path d="M11 12h10M11 16h10M11 20h6" />
 		{:else if id === 'classroom'}
 			<!-- Mortarboard over a class list: your classes in one place. -->
 			<path d="M16 5L3 11l13 6 13-6z" />
@@ -225,8 +223,6 @@
 			<path d="M8 5h16a2 2 0 012 2v18a2 2 0 01-2 2H8z" /><path d="M8 5a2 2 0 00-2 2v18a2 2 0 002 2" />
 			<path d="M6 11h4M6 16h4M6 21h4" />
 			<circle cx="17" cy="16" r="4" />
-		{:else if id === 'archive'}
-			<path d="M5 7h22v6H5z" /><path d="M7 13v12h18V13" /><path d="M13 18h6" />
 		{:else if id === 'tournament'}
 			<!-- Double-elim bracket: two pairs converging into a final node. -->
 			<path d="M4 6h6M4 12h6M10 6v6M10 9h4" />

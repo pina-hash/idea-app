@@ -10,7 +10,7 @@
  * punitive reset, and there are no artificial pressure timers. Coins are
  * deferred and deliberately absent.
  */
-import { MODES, type GauntletModeId } from '$lib/gauntlet';
+import { type GauntletModeId } from '$lib/gauntlet';
 
 export interface ModeProgress {
 	total: number;
@@ -251,35 +251,7 @@ export const BADGES: Badge[] = [
 	}
 ];
 
-// ---------------------------------------------------------------------------
-// Next-best suggestion: the lowest-difficulty published challenge you have
-// not cleared yet, preferring the mode you played most recently.
-// ---------------------------------------------------------------------------
-
-export interface SuggestibleChallenge {
-	id: string;
-	mode: GauntletModeId;
-	title: string;
-	difficulty: number;
-}
-
-export function modeHref(mode: GauntletModeId): string {
-	return MODES.find((m) => m.id === mode)?.href ?? '/gauntlet';
-}
-
-export function suggestNext(
-	challenges: SuggestibleChallenge[],
-	clearedIds: string[],
-	preferMode?: GauntletModeId | null
-): SuggestibleChallenge | null {
-	const cleared = new Set(clearedIds);
-	const open = challenges
-		.filter((c) => !cleared.has(c.id))
-		.sort((a, b) => a.difficulty - b.difficulty || a.title.localeCompare(b.title));
-	if (!open.length) return null;
-	if (preferMode) {
-		const inMode = open.find((c) => c.mode === preferMode);
-		if (inMode) return inMode;
-	}
-	return open[0];
-}
+// The next-best suggestion (`suggestNext` / `modeHref` / `SuggestibleChallenge`)
+// lived here for the home page's GAUNTLET "continue" strip. That strip is gone
+// and nothing else imported them, so they went with it. The dojo's own
+// next-challenge pick is src/lib/gauntlet/next-challenge.ts.

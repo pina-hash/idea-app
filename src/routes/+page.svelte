@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { entries as changelog } from 'virtual:site-versions';
 	import { APPS, CHANGE_TYPES, appLabel, changeTypeLabel } from '$lib/site-manifest';
@@ -16,23 +15,8 @@
 		type ClassroomFeedPrefs,
 		type FeedSubmission
 	} from '$lib/classroom/feed';
-	import type { ClassroomItem, ClassroomSection } from '$lib/classroom/classroom';
-	import {
-		computeStreak,
-		levelFromXp,
-		modeHref,
-		suggestNext,
-		xpFromProgression,
-		type ProgressionPayload,
-		type SuggestibleChallenge
-	} from '$lib/gauntlet/progression';
-	import { modeById } from '$lib/gauntlet';
-	import { ADMIN_OWNER_EMAIL } from '$lib/admin';
-	import {
-		sectionById,
-		selfSelectOptions,
-		activeCourseCount
-	} from '$lib/curriculum';
+	import { sectionTitle, type ClassroomItem, type ClassroomSection } from '$lib/classroom/classroom';
+	import { activeCourseCount } from '$lib/curriculum';
 
 	let { data } = $props();
 	let { supabase, claims, userProfile: profile } = $derived(data);
@@ -43,27 +27,24 @@
 	// gets), isAdmin = may actually use the privileged tools.
 	const isTeacher = $derived(profile?.role === 'teacher');
 	const isAdmin = $derived(data.isAdmin === true);
-	const mySection = $derived(sectionById(profile?.section_id));
 
-	// GAUNTLET "continue / next best" nudge (signed-in only; null pre-0021).
-	const nudge = $derived.by(() => {
-		const raw = data.gauntletNudge as {
-			progression: ProgressionPayload;
-			challenges: SuggestibleChallenge[];
-		} | null;
-		if (!raw) return null;
-		const p = raw.progression;
-		const level = levelFromXp(xpFromProgression(p));
-		const streak = computeStreak(p.practice_days, p.today);
-		const nextUp = suggestNext(raw.challenges, p.cleared_ids);
-		// Nothing to say to someone who has never entered the dojo and has
-		// nothing published to try; the launcher card covers discovery.
-		if (!p.attempted_ids.length && !nextUp) return null;
-		return { level, streak, nextUp };
-	});
-
-	const pickerGroups = selfSelectOptions();
 	const courseCount = activeCourseCount();
+
+	// Header class chip. It used to name the student's SELF-SELECTED pathway year
+	// (profiles.section_id through curriculum.ts); it names their REAL class now,
+	// read from the same sections the classroom feed below already loaded -- no
+	// extra query and no join. One class names itself; several collapse to a
+	// count, because the chip is one line and picking one of them would be a
+	// guess. Staff get no chip: for an admin this list is every section in the
+	// school, so "your class" would be a lie.
+	const myClasses = $derived((data.feedSections ?? []) as ClassroomSection[]);
+	const classChip = $derived(
+		signedIn && !isTeacher && myClasses.length
+			? myClasses.length === 1
+				? sectionTitle(myClasses[0])
+				: `${myClasses.length} classes`
+			: null
+	);
 
 	// The classroom feed: one card per class, ranked by what each one is asking
 	// of you right now. RLS already decided what came back; buildFeed only ranks
@@ -102,8 +83,6 @@
 	// The first-time orientation tour (auto-launch lives inside HomeTour); the
 	// header's "Take the tour" control replays it manually at any time.
 	let homeTour: ReturnType<typeof HomeTour> | undefined = $state();
-	let savingSection = $state(false);
-	let changing = $state(false);
 
 	// Changelog filters: by page/app, by change type, by date range.
 	let filterApp = $state('all');
@@ -144,24 +123,8 @@
 		}
 	};
 
-	const chooseSection = async (id: string) => {
-		if (!claims) return;
-		savingSection = true;
-		errorMessage = '';
-		const { error } = await supabase.from('profiles').update({ section_id: id }).eq('id', claims.sub);
-		if (error) {
-			errorMessage = error.message;
-			savingSection = false;
-			return;
-		}
-		changing = false;
-		await invalidateAll();
-		savingSection = false;
-	};
-
-	// Browser-only chrome: scroll bar, card fade-in, collapsible cards, the
-	// changelog toggle, and the particle canvas. (The 2026-27 course rows carry
-	// their state in markup, so no status JS is needed here.)
+	// Browser-only chrome: scroll bar, card fade-in, the changelog toggle, and
+	// the particle canvas.
 	onMount(() => {
 		const cleanups: Array<() => void> = [];
 
@@ -327,8 +290,8 @@
 	<header>
 		<a class="logo logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
 		<div class="header-right">
-			{#if mySection}
-				<a class="class-chip" href="#your-class">{mySection.course} &middot; {mySection.instructor}</a>
+			{#if classChip}
+				<a class="class-chip" href="/classroom">{classChip}</a>
 			{/if}
 			<button class="auth-link tour-link" type="button" onclick={() => homeTour?.start()}>
 				Take the tour
@@ -417,124 +380,6 @@
 	</div>
 
 	<AppLauncher onRequireSignIn={(next) => signInWithGoogle(next)} />
-
-	{#if nudge}
-		<div class="nudge-card">
-			<div class="nudge-left">
-				<span class="nudge-eyebrow">IDEA // GAUNTLET</span>
-				<div class="nudge-stats">
-					<span class="nudge-stat">
-						<span class="nudge-value">LVL {nudge.level.level}</span>
-						<span class="nudge-label">{nudge.level.name} &middot; {nudge.level.xp} XP</span>
-					</span>
-					<span class="nudge-stat">
-						<span class="nudge-value" class:live={nudge.streak.state === 'active'}>
-							{nudge.streak.current} day{nudge.streak.current === 1 ? '' : 's'}
-						</span>
-						<span class="nudge-label">
-							{nudge.streak.state === 'restore'
-								? 'Practice today to keep your streak'
-								: nudge.streak.state === 'alive'
-									? 'Practice today to extend it'
-									: 'Practice streak'}
-						</span>
-					</span>
-				</div>
-			</div>
-			{#if nudge.nextUp}
-				<a class="nudge-cta" href="{modeHref(nudge.nextUp.mode)}/{nudge.nextUp.id}">
-					<span class="nudge-cta-label">
-						{nudge.streak.state === 'active' ? 'Keep going' : 'Continue'} &middot;
-						{modeById(nudge.nextUp.mode)?.name}
-					</span>
-					<span class="nudge-cta-title">{nudge.nextUp.title} &#9658;</span>
-				</a>
-			{:else}
-				<a class="nudge-cta" href="/gauntlet">
-					<span class="nudge-cta-label">All published challenges cleared</span>
-					<span class="nudge-cta-title">Enter the dojo &#9658;</span>
-				</a>
-			{/if}
-		</div>
-	{/if}
-
-	<div class="divider" id="your-class" data-tour="your-class" style="margin-top:2.5rem">
-		<div class="divider-line"></div>
-		<div class="divider-label">Your Pathway Year</div>
-		<div class="divider-line"></div>
-	</div>
-
-	<!-- Self-selection only. Class CONTENT lives in IDEA Classroom (the feed
-	     above); this is the pathway-year tag that pins to the header chip and
-	     that other surfaces read off `profiles.section_id`. -->
-	<div class="courses">
-		{#if signedIn && !isTeacher}
-			{#if mySection && !changing}
-				<div class="course-card picker-card">
-					<div class="picker-head">
-						<span>Your class</span>
-						<button class="text-btn" type="button" onclick={() => (changing = true)}>Change class</button>
-					</div>
-					<p class="picker-note">
-						{mySection.course} &middot; {mySection.title} &middot; {mySection.instructor}
-						&middot; {mySection.term}
-					</p>
-				</div>
-			{:else}
-				<div class="course-card picker-card">
-					<div class="picker-head">
-						<span>{mySection ? 'Change your class' : 'Choose your class'}</span>
-						{#if mySection}
-							<button class="text-btn" type="button" onclick={() => (changing = false)}>Cancel</button>
-						{/if}
-					</div>
-					<p class="picker-note">
-						Pick your pathway year so it shows in the header. You can change it anytime.
-					</p>
-					{#each pickerGroups as group (group.label)}
-						<div class="picker-group">
-							<div class="picker-group-label">{group.label}</div>
-							<div class="picker-options">
-								{#each group.sections as s (s.id)}
-									<button
-										class="picker-option"
-										class:selected={mySection?.id === s.id}
-										type="button"
-										disabled={savingSection}
-										onclick={() => chooseSection(s.id)}
-									>
-										<span class="picker-course">{s.course}</span>
-										<span class="picker-detail">{s.instructor} &middot; {s.term}</span>
-									</button>
-								{/each}
-							</div>
-						</div>
-					{/each}
-				</div>
-			{/if}
-		{:else if signedIn && isTeacher}
-			<div class="course-card teacher-note">
-				{#if isAdmin}
-					<p>
-						You are signed in as staff. Use the <a href="/dashboard">Dashboard</a> for admin tools.
-					</p>
-				{:else}
-					<p>
-						You are signed in as staff. Admin tools are limited to site admins; contact
-						{ADMIN_OWNER_EMAIL} if you need access.
-					</p>
-				{/if}
-			</div>
-		{:else}
-			<div class="course-card signin-note">
-				<p>
-					<button class="text-btn inline" type="button" onclick={() => signInWithGoogle()} disabled={loading}>
-						Sign in
-					</button> to pin your pathway year and save your progress.
-				</p>
-			</div>
-		{/if}
-	</div>
 
 	<div class="changelog-wrap">
 		<div class="divider" style="padding:0;margin-bottom:1.5rem">

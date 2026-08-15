@@ -150,16 +150,9 @@ export const PORTAL_APPS: PortalApp[] = [
 		// uniform gold --acc convention).
 		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
-	{
-		id: 'courses',
-		title: 'Courses & Assignments',
-		sub: 'The 2026-27 curriculum, your pinned class, and every open assignment.',
-		icon: 'courses',
-		href: '#your-class',
-		group: 'class',
-		cta: 'Browse',
-		theme: { primary: '#78B870', secondary: '#C8A848' }
-	},
+	// NO "Courses & Assignments" card. It pointed at #your-class, a same-page
+	// anchor on a section that no longer held either -- class content lives in
+	// IDEA Classroom, which the `classroom` card above already opens.
 	{
 		id: 'frc',
 		title: 'FRC Training',
@@ -190,17 +183,10 @@ export const PORTAL_APPS: PortalApp[] = [
 		// what the coin cards already use), so this is the documented uniform
 		// accent, not a new per-card color.
 		theme: { primary: '#C8A848', secondary: '#78B870' }
-	},
-	{
-		id: 'archive',
-		title: 'Course Archive',
-		sub: 'Discontinued 2025-26 courses, kept for reference.',
-		icon: 'archive',
-		href: '/archive',
-		group: 'class',
-		cta: 'Open',
-		theme: { primary: '#849080', secondary: '#78B870' }
 	}
+	// NO "Course Archive" card either: /archive is reference material, not
+	// something to launch. The route is untouched and still reached from the home
+	// footer, the FSP archive, and the dashboard callout.
 ];
 
 /** The per-user homepage layout stored at `profiles.preferences.homepage`. */
