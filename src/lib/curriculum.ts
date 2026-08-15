@@ -20,6 +20,8 @@
  * 428 KB VANGUARD game, assignment bodies) into the browser bundle.
  */
 
+import { FSP_CONCLUDED } from './fsp/archive';
+
 export type Term = 'T1' | 'T2' | 'T3' | 'S1' | 'Summer';
 export type Year = 1 | 2 | 3 | 4;
 export type SectionStatus = 'live' | 'upcoming' | 'planned';
@@ -208,9 +210,15 @@ export function selfSelectOptions(): SelectOptionGroup[] {
  * though the section entry stays in SECTIONS for every stored section_id that
  * still points at it. Counting codes, not sections, is deliberate -- the three
  * IDEA 209H sections are one course.
+ *
+ * Excludes by the FSP_CONCLUDED flag, not by `term === 'Summer'`: a term label
+ * says when a course runs, not whether it has finished, so keying on it here
+ * would silently misreport the moment a summer programme runs live again.
  */
 export function activeCourseCount(): number {
-	return new Set(SECTIONS.filter((s) => s.term !== 'Summer').map((s) => s.course)).size;
+	return new Set(
+		SECTIONS.filter((s) => !(s.id === 'summer-2026' && FSP_CONCLUDED)).map((s) => s.course)
+	).size;
 }
 
 // ---------------------------------------------------------------------------
