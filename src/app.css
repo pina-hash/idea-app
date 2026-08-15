@@ -2722,11 +2722,33 @@ a:hover {
 	border-radius: 3px;
 	box-shadow: var(--bevel-raised);
 	padding: 1rem 1.5rem;
-	max-height: 360px;
+	/* Tall enough to read a real run of entries rather than roughly ten, with a
+	   floor so a short viewport still gets a usable box. */
+	max-height: max(420px, 70vh);
 	overflow-y: auto;
 }
 .legacy-index .changelog-body.open {
 	display: block;
+}
+/* Month heading: portal chrome, deliberately quieter than the entries under it.
+   Sticks to the top of the scroll box while its own month is in view, so the
+   negative margins + opaque fill are what stop entries showing through as they
+   scroll behind it. */
+.legacy-index .cl-month {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	margin: 0 -1.5rem;
+	padding: 0.5rem 1.5rem 0.35rem;
+	background: var(--bg1);
+	border-bottom: 1px solid rgba(135, 148, 124, 0.14);
+	font-size: 0.6rem;
+	letter-spacing: 0.18em;
+	text-transform: uppercase;
+	color: var(--dim);
+}
+.legacy-index .cl-month ~ .cl-month {
+	margin-top: 0.7rem;
 }
 .legacy-index .changelog-entry {
 	display: flex;

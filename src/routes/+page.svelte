@@ -108,6 +108,43 @@
 		filterTo = '';
 	};
 
+	const MONTH_NAMES = [
+		'January',
+		'February',
+		'March',
+		'April',
+		'May',
+		'June',
+		'July',
+		'August',
+		'September',
+		'October',
+		'November',
+		'December'
+	];
+
+	/**
+	 * The filtered log cut into months for the headings. `entries` arrives
+	 * newest-first from git log, so a single pass keeps both the months and the
+	 * entries inside them in order. This groups, it never CAPS: the filters above
+	 * still run over the whole array and `filteredLog.length` still counts all of
+	 * it, so there is no slice and no pagination anywhere in this panel.
+	 */
+	const logMonths = $derived.by(() => {
+		const months: { key: string; label: string; entries: typeof filteredLog }[] = [];
+		for (const entry of filteredLog) {
+			const key = entry.iso.slice(0, 7);
+			let month = months[months.length - 1];
+			if (!month || month.key !== key) {
+				const name = MONTH_NAMES[Number(key.slice(5, 7)) - 1];
+				month = { key, label: name ? `${name} ${key.slice(0, 4)}` : 'Undated', entries: [] };
+				months.push(month);
+			}
+			month.entries.push(entry);
+		}
+		return months;
+	});
+
 	const signInWithGoogle = async (next = '/') => {
 		loading = true;
 		errorMessage = '';
@@ -419,17 +456,20 @@
 					{/if}
 					<span class="cl-count">{filteredLog.length} / {changelog.length}</span>
 				</div>
-				{#each filteredLog as entry (entry.sha)}
-					<div class="changelog-entry">
-						<span class="changelog-date">{entry.date}</span>
-						<span class="changelog-note">{entry.note}</span>
-						<span class="cl-tags">
-							{#each entry.apps as a (a)}
-								<span class="cl-tag">{appLabel(a)}</span>
-							{/each}
-							<span class="cl-tag cl-type cl-type-{entry.type}">{changeTypeLabel(entry.type)}</span>
-						</span>
-					</div>
+				{#each logMonths as month (month.key)}
+					<div class="cl-month">{month.label}</div>
+					{#each month.entries as entry (entry.sha)}
+						<div class="changelog-entry">
+							<span class="changelog-date">{entry.date}</span>
+							<span class="changelog-note">{entry.note}</span>
+							<span class="cl-tags">
+								{#each entry.apps as a (a)}
+									<span class="cl-tag">{appLabel(a)}</span>
+								{/each}
+								<span class="cl-tag cl-type cl-type-{entry.type}">{changeTypeLabel(entry.type)}</span>
+							</span>
+						</div>
+					{/each}
 				{:else}
 					<div class="changelog-entry">
 						<span class="changelog-note">No updates match these filters.</span>
