@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-15",
+			"title": "The app grid is one list you can arrange yourself",
+			"body": "The apps on the home page are no longer split into Games, Tools and Class headings. They are one grid, starting with Classroom and your notebook, and they fit on screen without scrolling now. You can sort them by what you use most or what you opened last, drag a card by the handle on its left to put it exactly where you want it, or star an app to keep it at the front. Hit Customize to see the handles and stars. Whatever you set is saved to your account, so it looks the same on the school computers and on your phone. If you had already rearranged your apps, your arrangement carried over.",
+			"tags": ["Classes"]
+		},
+		{
+			"date": "2026-08-15",
 			"title": "The home page names your real class, and the tour was rewritten",
 			"body": "The chip at the top of the home page used to show a class you picked for yourself from a list. It shows your actual class now, the one your teacher enrolled you in, and clicking it takes you to Classroom. Because of that, the \"Your Pathway Year\" section at the bottom of the home page is gone -- there is nothing left to choose there, and nothing you set before has been lost. Two cards came off the app grid as well: \"Courses & Assignments\", which only scrolled you back down the same page, and \"Course Archive\", which is still linked at the very bottom of the home page. The guided tour has been rewritten to match, and on the first step you can now click Sign in without closing the tour card first.",
 			"tags": ["Classes"]

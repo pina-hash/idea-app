@@ -63,23 +63,22 @@ ability, it is not required to browse the portal.
   `/classroom`. **The self-selected pathway-year picker that used to feed that
   chip is GONE** -- see "The pathway-year picker is retired" below. See "Home
   page: the live IDEA Classroom feed" and "2026-27 curriculum" below.
-- **Homepage app launcher:** the old stacked promo callouts are replaced by a
-  curated app grid (`src/lib/AppLauncher.svelte`, registry + layout helpers in
-  `src/lib/portal-apps.ts`): groups Games / Tools / Class, teacher-only tools
-  filtered by role, the GAUNTLET card offering sign-in when anonymous. The
-  default (unconfigured) view is the clean curated grouping; signed-in users
-  can pin favorites, reorder within groups, collapse groups, and toggle a
-  compact view, persisted to `profiles.preferences.homepage` (anonymous
-  visitors can collapse/compact for the session only, unsaved). The slot above
-  the launcher holds the **IDEA Classroom feed** (see "Home page: the live IDEA
-  Classroom feed" below) -- previously the pinned FSP card, and before that a
-  "next live course" promo callout, both retired.
+- **Homepage app launcher:** the old stacked promo callouts are replaced by ONE
+  FLAT app grid (`src/lib/AppLauncher.svelte`, registry + layout helpers in
+  `src/lib/portal-apps.ts`), admin-only tools filtered by role and the GAUNTLET
+  card offering sign-in when anonymous. **There are no Games / Tools / Class
+  sections any more** -- see "The app grid is one flat list" below for the sort
+  modes, drag-to-reorder, pinning and usage telemetry that replaced them, and
+  for how a v1 per-group layout migrates. The slot above the launcher holds the
+  **IDEA Classroom feed** (see "Home page: the live IDEA Classroom feed" below)
+  -- previously the pinned FSP card, and before that a "next live course" promo
+  callout, both retired.
   **Uniform card chrome
   (no per-card accent):** every launcher tile uses ONE shared design-system
   accent (brass/gold) via the `--acc*` CSS vars on `.app-card` in
   `AppLauncher.svelte`; there is deliberately no per-card `accent` field.
-  Cards are differentiated by name, tagline, status badge, and section group,
-  never by an arbitrary per-card color (the old `AppAccent` field + `.acc-*`
+  Cards are differentiated by name, tagline and status badge, never by an
+  arbitrary per-card color (the old `AppAccent` field + `.acc-*`
   classes were removed because a per-card color read as an unrelated identity
   hue on tools it did not belong to, e.g. violet on the teacher dashboard).
   `--crimson` stays reserved for status. Cards carry the machined
@@ -656,7 +655,7 @@ rule is a direct transcription of
   its third strike (active reads false, strikes still reads 3 -- "since the
   last purchase", exactly like the SQL), the empty-history state, and the
   pre-0070 fail-soft state. Linked from the homepage app launcher
-  (`portal-apps.ts`, `coin-balance`, Tools group, `requiresAuth`, not
+  (`portal-apps.ts`, `coin-balance`, `requiresAuth`, not
   `adminOnly`) beside the public coin leaderboard and the two admin coin
   tools. **NOT verified: a real non-admin session against a live project** --
   this repo's `.env` points at a placeholder Supabase project
@@ -4141,7 +4140,7 @@ notifications, rewards, or banner customization yet; those are later phases.
   `/tournaments/[id]` (public live view + registration / invite accept +
   thumbnail upload), `/tournaments/[id]/host` (console: phase moves, pool
   generation, entries + seeding, invites + co-hosts, qual results, match
-  start/submit/correct). Launcher card in `portal-apps.ts` (Games group,
+  start/submit/correct). Launcher card in `portal-apps.ts` (
   public) and app `tournaments` in `site-manifest.ts`.
 - **Verified:** the migration file was applied UNMODIFIED to a real embedded
   Postgres (Supabase-shaped auth/storage/publication stubs) and
@@ -5298,7 +5297,7 @@ existing 0069/0071 data layer as it stands, and touches NOTHING in
     created the problem this fixes.
   - `moveError` renders OUTSIDE `.row`, because a move started from a collapsed
     entry has no expanded body to report into.
-- **Launcher card** `notebook` in `portal-apps.ts` (Class group,
+- **Launcher card** `notebook` in `portal-apps.ts` (
   `requiresAuth`, NOT `adminOnly` -- every signed-in user sees it) with a
   new `notebook` icon case in `AppLauncher.svelte`. It declares
   `theme: { primary: '#C8A848', secondary: '#78B870' }` -- the `--gold` /
@@ -8221,7 +8220,7 @@ PER SECTION, so a student's submission references their own section's row).
   RPCs on `data.supabase`, the harness answers in memory). Class cards carry
   the ONE shared gold accent (`--acc` = `--gold`, measured `rgb(200,168,72)`
   on icon/code/CTA), never a per-card color; the homepage launcher card
-  (`classroom`, Class group, `requiresAuth`) declares the brass/gold `theme`
+  (`classroom`, `requiresAuth`) declares the brass/gold `theme`
   explicitly per the notebook card's lesson. Registered in
   `site-manifest.ts` (own version badge, `contains: ['classroom']`).
 - **Two real bugs found in the browser during verification, both invisible to
@@ -14880,6 +14879,82 @@ exactly the way the page load does, and rank whatever came back. Mutation-checke
 three ways (letting pinned materials rank, the naive `isAwaitingGrade`, demoting
 the `overdue` rank) -- each reddens exactly one test.
 
+## The app grid is one flat list
+
+The launcher's Games / Tools / Class sections are gone, and with them
+`AppGroupId`, `APP_GROUPS`, `PortalApp.group`, the per-group order map, the
+collapsed-group set and `orderedGroupApps`. At a dozen cards the headers cost a
+third of the launcher's height to say what the card titles already said, and
+they made "reorder" mean "reorder within your group" -- which is not what anyone
+wants from a launcher.
+
+- **THE REGISTRY'S ARRAY ORDER IS THE CURATED DEFAULT ORDER**, and it is the
+  fallback every other mode resolves ties and unknowns against. Class work
+  first, then the personal record, then the economy, then training and games:
+  Classroom, My Notebook, IDEA Coin Ledger, GAUNTLET, FRC Training, GREENLINE,
+  VANGUARD, Tournaments, then the three admin tools. `visibleApps` additionally
+  STABLY PARTITIONS admin-only cards to the end, so an admin entry written
+  mid-array still sorts after every student-facing one.
+- **Four sort modes** (`AppSortMode`, a quiet `<select>` in the toolbar):
+  `default` (curated), `used` (open count desc), `recent` (last-opened desc,
+  never-opened after everything opened), `custom` (the dragged order). The mode
+  persists in the same prefs blob. **Switching modes never destroys the stored
+  custom order** -- `order` and `sort` are separate keys, so leaving Custom and
+  coming back restores exactly what was dragged.
+- **PINNING MOVES A CARD, IT NEVER DUPLICATES ONE.** Pinned apps used to render
+  twice, once in a "Pinned" row and again in their group; now `arrangeApps`
+  hoists them to the front of the single grid, in PIN order (not the active
+  sort, so the pinned block holds still while the mode changes underneath it),
+  and the card carries a small gold star. Every app appears exactly once.
+- **Drag to reorder, native HTML5 DnD, no dependency** -- the
+  `PieceChainBuilder` pattern: ONLY the grip is `draggable`, so the card's own
+  link and its text stay usable, and the card the drag is over is marked
+  `.dropinto`. Grips appear in customize mode only; the up/down buttons remain
+  the keyboard path and write the SAME flat order. **Any manual reorder switches
+  the mode to `custom`** -- including the arrows, since a reorder that left the
+  mode on `used` would visibly do nothing. The order written is the order the
+  user was LOOKING at, so rearranging while sorted by most-used snapshots that
+  view. A pinned card dragged below an unpinned one is still hoisted back to the
+  front, which is inherent to pins always leading.
+- **Compact is the DEFAULT view.** `prefs.compact` absent reads as TRUE; only an
+  explicit `false` gives the roomy cards. Customize mode takes the roomy TRACK
+  width even while compact (`.app-grid.compact.customizing`), because the grip
+  plus three tool buttons otherwise squeeze the title into breaking mid-word
+  ("MY NOTEB OOK") -- found in the browser, not in review.
+- **USAGE TELEMETRY, the first in the app** (the audit's "would require new
+  instrumentation"): `prefs.usage` is `{ [appId]: { count, last } }`, written
+  from `appClick` -- the ONE funnel both card variants already pass through, so
+  neither can be missed. It is FIRE AND FORGET (never awaited, so it cannot
+  delay the navigation already underway) and `silent` (no "Saving..." flash on a
+  page that is leaving). `recordUsage` spreads the CURRENT in-memory prefs, so a
+  usage write can never clobber a layout change the user just made. Anonymous
+  visitors keep the early return: nothing recorded, nothing persisted.
+  **Accepted cost:** a write still in flight when the page unloads is lost,
+  which for a launch counter is fine. **Contention watch:** usage and layout
+  share the one `homepage` JSONB, which is what the audit flagged. Nothing has
+  shown up in practice; if it does, say so rather than silently moving storage.
+- **v1 PREFS MIGRATE ON READ, in code, with no DB migration.**
+  `readHomepagePrefs` detects the old shape by `order` being an OBJECT rather
+  than an array, flattens it by walking the legacy groups in the order their
+  sections used to render (games, tools, class) and concatenating each group's
+  saved ids, drops `collapsed`, keeps pins and `compact`, and filters ids for
+  apps that no longer exist. A migrated order also sets `sort: 'custom'` -- the
+  user HAD arranged their grid, and leaving the mode at `default` would keep
+  their arrangement in storage while quietly ignoring it. A v1 user who never
+  reordered has no order to migrate and lands on the curated default. The new
+  flat shape is written back on the next persist.
+- **Verified in a browser** against the real component and the real pure layer
+  (`/dev/tour`, whose stub client now persists `preferences` and takes a
+  `?prefs=<json>` seed so a v1 layout can be cold-loaded and watched migrate):
+  a v1 blob with per-group order + pins + `compact: false` rendered 8 cards, no
+  duplicates, pins marked and hoisted, `sort` on custom, comfortable view, zero
+  group headers, and the next write replaced it with the flat shape while a
+  sibling `classroomFeed` preference key survived. Real clicks recorded
+  4/2/1/3 opens and produced correct, DIFFERENT Most-used and Recent orders.
+  Signed out: customize is reachable, arrows reorder for the session, and
+  **nothing is written** (empty prefs, zero write-log entries) including after
+  opening an app.
+
 ## The pathway-year picker is retired (and two launcher cards with it)
 
 The home page's "Your Pathway Year" divider, its picker card, the pinned-class
@@ -15196,9 +15271,10 @@ A reusable spotlight tour system plus the portal's first-time walkthrough.
   spotlights only, no navigation). Targets are stable `data-tour` attributes on
   the home page and the AppLauncher cards (an app pinned AND grouped matches
   twice; querySelector's first match, the pinned row, wins).
-  **`data-tour="apps"` is on `.launcher-groups`, the wrapper around the card
-  grids, NOT the `.launcher-bar` title strip** -- the step talks about the
-  cards, so it has to ring the cards.
+  **`data-tour="apps"` is on `.app-grid` itself, NOT the `.launcher-bar` title
+  strip** -- the step talks about the cards, so it has to ring the cards. (It
+  briefly sat on a `.launcher-groups` wrapper; the flat grid made that wrapper
+  unnecessary.)
 - **Trigger (`src/lib/tour/HomeTour.svelte`, mounted on `/` outside the page
   wrapper):** an anonymous visitor with no `idea_tour_seen` localStorage flag
   auto-gets phase A once; a signed-in user whose
