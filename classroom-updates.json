@@ -25,12 +25,6 @@
 			"tags": ["Classes"]
 		},
 		{
-			"date": "2026-08-15",
-			"title": "The home page names your real class, and the tour was rewritten",
-			"body": "The chip at the top of the home page used to show a class you picked for yourself from a list. It shows your actual class now, the one your teacher enrolled you in, and clicking it takes you to Classroom. Because of that, the \"Your Pathway Year\" section at the bottom of the home page is gone -- there is nothing left to choose there, and nothing you set before has been lost. Two cards came off the app grid as well: \"Courses & Assignments\", which only scrolled you back down the same page, and \"Course Archive\", which is still linked at the very bottom of the home page. The guided tour has been rewritten to match, and on the first step you can now click Sign in without closing the tour card first.",
-			"tags": ["Classes"]
-		},
-		{
 			"date": "2026-08-14",
 			"title": "Presentation uploads go a different way in, and have a size limit",
 			"body": "Attaching a slide deck to an assignment, announcement or material (something only your teacher does) now goes straight through our own server instead of being sent to Google separately first. It turned out the separate route did not actually work reliably here, so this is the more dependable path -- the same one every other file in the class already used. The tradeoff: a deck now has to be under about 4 MB to upload, which most decks are, but ones with a gif or a video in them usually are not. If your teacher's deck has media like that, they will need to pull it out of the deck and attach it to the item on its own instead. Nothing changes about how a presentation opens or looks for you once it is there.",
