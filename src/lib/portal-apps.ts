@@ -2,15 +2,19 @@
  * Portal app launcher registry: the homepage's curated app grid. PLAIN DATA +
  * pure helpers (client-safe, like curriculum.ts).
  *
- * The default (unconfigured) view is the curated grouping below. Signed-in
- * users can customize: pin favorites, reorder within groups, collapse groups,
- * and toggle a compact view. That layout persists in
+ * ONE FLAT GRID, no sections. The Games / Tools / Class headers and the
+ * per-group ordering they implied are gone: with a dozen cards the headers cost
+ * a third of the vertical space to say something the card titles already said,
+ * and they made "reorder" mean "reorder within your group", which is not what
+ * anyone wants from a launcher. The registry order below IS the curated default
+ * order, and every sort mode is a reordering of that one list.
+ *
+ * Signed-in users customize on top of it: pin favorites, drag to reorder, pick a
+ * sort mode, and toggle a compact view. That layout persists in
  * `profiles.preferences.homepage` (the Phase 2 preferences JSONB), shaped as
  * {@link HomepagePrefs}; helpers here apply it without ever losing apps (an
- * app missing from a saved order still renders, appended in curated order).
+ * app missing from a saved order still renders, in its curated position).
  */
-
-export type AppGroupId = 'games' | 'tools' | 'class';
 
 export interface PortalApp {
 	id: string;
@@ -19,7 +23,6 @@ export interface PortalApp {
 	/** Icon id rendered by the launcher (line-art SVG). */
 	icon: string;
 	href: string;
-	group: AppGroupId;
 	/** Card CTA label. */
 	cta: string;
 	/** Needs a session to enter (the card offers sign-in when anonymous). */
@@ -37,64 +40,43 @@ export interface PortalApp {
 	legacy?: boolean;
 }
 
-export const APP_GROUPS: { id: AppGroupId; label: string }[] = [
-	{ id: 'games', label: 'Games' },
-	{ id: 'tools', label: 'Tools' },
-	{ id: 'class', label: 'Class' }
-];
-
+/**
+ * THE CURATED DEFAULT ORDER IS THIS ARRAY'S ORDER. Class work first, then the
+ * personal record, then the economy, then training and games; admin tools last.
+ * `visibleApps` additionally guarantees the admin block sorts after every
+ * student-facing card whatever position an admin entry is written in here.
+ */
 export const PORTAL_APPS: PortalApp[] = [
 	{
-		id: 'vanguard',
-		title: 'IDEA // VANGUARD',
-		sub: 'Top-down arcade shooter. Clear the sectors, chain your combos, and chase the high score.',
-		icon: 'vanguard',
-		href: '/vanguard/',
-		group: 'games',
-		cta: 'Play',
-		theme: { primary: '#00FF41', secondary: '#C8FF00' }
-	},
-	{
-		id: 'gauntlet',
-		title: 'IDEA // GAUNTLET',
-		sub: 'CAD skills dojo. Read drawings, model against the clock, and climb the boards.',
-		icon: 'gauntlet',
-		href: '/gauntlet',
-		group: 'games',
-		cta: 'Enter',
-		requiresAuth: true,
-		theme: { primary: '#00FF41', secondary: '#00F0FF' }
-	},
-	{
-		id: 'greenline',
-		title: 'IDEA // GREENLINE',
-		sub: 'Combat racing under the floodlights. Build your machine, run Proving Ground 07, and hold the line.',
-		icon: 'greenline',
-		href: '/greenline',
-		group: 'games',
-		cta: 'Race',
-		requiresAuth: true,
-		theme: { primary: '#2AE57E', secondary: '#CFDAE2' }
-	},
-	{
-		id: 'tournaments',
-		title: 'Tournaments',
-		sub: 'Live double-elimination brackets: register, qualify, and follow every match in real time.',
-		icon: 'tournament',
-		href: '/tournaments',
-		group: 'games',
-		cta: 'View',
-		theme: { primary: '#00FF41', secondary: '#C8A848' }
-	},
-	{
-		id: 'coin-desk',
-		title: 'Coin Desk',
-		sub: 'Log fines, awards, and purchases against the real coin ledger (0070). Admin tool.',
-		icon: 'coin-desk',
-		href: '/coin-desk',
-		group: 'tools',
+		id: 'classroom',
+		title: 'Classroom',
+		sub: 'Your classes: announcements, assignments, and due dates from your teachers.',
+		icon: 'classroom',
+		href: '/classroom',
 		cta: 'Open',
-		adminOnly: true,
+		requiresAuth: true,
+		// The shared brass/gold scheme, stated explicitly (the notebook card's
+		// lesson: omitting `theme` falls back to a green-led card, not the
+		// uniform gold --acc convention).
+		theme: { primary: '#C8A848', secondary: '#78B870' }
+	},
+	{
+		id: 'notebook',
+		title: 'My Notebook',
+		sub: 'Photograph your engineering notebook pages and keep every entry in one place.',
+		icon: 'notebook',
+		href: '/notebook',
+		cta: 'Open',
+		// Every signed-in account, whatever their role: a notebook is a
+		// personal record, not a student-only surface.
+		requiresAuth: true,
+		// The shared brass/gold scheme, stated explicitly rather than left to
+		// the snippet's fallback. Omitting `theme` does NOT yield the gold
+		// `--acc` convention: appCard's fallback is `var(--green)` primary, so
+		// an unthemed card renders green-led. These are the design-system
+		// --gold / --green tokens themselves (the .app-card CSS default, and
+		// what the coin cards already use), so this is the documented uniform
+		// accent, not a new per-card color.
 		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
 	// TWO coin cards, deliberately, and there is no third. The Ledger is the
@@ -110,8 +92,65 @@ export const PORTAL_APPS: PortalApp[] = [
 		sub: 'Your balance, the leaderboard, every transaction, open contracts, and role applications.',
 		icon: 'coins',
 		href: '/coins/index.html',
-		group: 'tools',
 		cta: 'View live',
+		theme: { primary: '#C8A848', secondary: '#78B870' }
+	},
+	{
+		id: 'gauntlet',
+		title: 'IDEA // GAUNTLET',
+		sub: 'CAD skills dojo. Read drawings, model against the clock, and climb the boards.',
+		icon: 'gauntlet',
+		href: '/gauntlet',
+		cta: 'Enter',
+		requiresAuth: true,
+		theme: { primary: '#00FF41', secondary: '#00F0FF' }
+	},
+	{
+		id: 'frc',
+		title: 'FRC Training',
+		sub: 'The Team 5669 training track: CAD, mechanisms, controls, strategy, and drive team.',
+		icon: 'frc',
+		href: '/frc',
+		cta: 'Enter',
+		requiresAuth: true,
+		theme: { primary: '#ED1C24', secondary: '#0066B3' }
+	},
+	{
+		id: 'greenline',
+		title: 'IDEA // GREENLINE',
+		sub: 'Combat racing under the floodlights. Build your machine, run Proving Ground 07, and hold the line.',
+		icon: 'greenline',
+		href: '/greenline',
+		cta: 'Race',
+		requiresAuth: true,
+		theme: { primary: '#2AE57E', secondary: '#CFDAE2' }
+	},
+	{
+		id: 'vanguard',
+		title: 'IDEA // VANGUARD',
+		sub: 'Top-down arcade shooter. Clear the sectors, chain your combos, and chase the high score.',
+		icon: 'vanguard',
+		href: '/vanguard/',
+		cta: 'Play',
+		theme: { primary: '#00FF41', secondary: '#C8FF00' }
+	},
+	{
+		id: 'tournaments',
+		title: 'Tournaments',
+		sub: 'Live double-elimination brackets: register, qualify, and follow every match in real time.',
+		icon: 'tournament',
+		href: '/tournaments',
+		cta: 'View',
+		theme: { primary: '#00FF41', secondary: '#C8A848' }
+	},
+	{
+		id: 'coin-desk',
+		title: 'Coin Desk',
+		sub: 'Log fines, awards, and purchases against the real coin ledger (0070). Admin tool.',
+		icon: 'coin-desk',
+		href: '/coin-desk',
+		cta: 'Open',
+		adminOnly: true,
 		theme: { primary: '#C8A848', secondary: '#78B870' }
 	},
 	{
@@ -120,7 +159,6 @@ export const PORTAL_APPS: PortalApp[] = [
 		sub: 'Roles, pathways, and the content review queues.',
 		icon: 'dashboard',
 		href: '/dashboard',
-		group: 'tools',
 		cta: 'Open',
 		adminOnly: true,
 		theme: { primary: '#78B870', secondary: '#5ABDA8' }
@@ -131,102 +169,145 @@ export const PORTAL_APPS: PortalApp[] = [
 		sub: 'Who can administer the portal. Owner manages the list.',
 		icon: 'dashboard',
 		href: '/admin',
-		group: 'tools',
 		cta: 'Open',
 		adminOnly: true,
 		theme: { primary: '#78B870', secondary: '#5ABDA8' }
-	},
-	{
-		id: 'classroom',
-		title: 'Classroom',
-		sub: 'Your classes: announcements, assignments, and due dates from your teachers.',
-		icon: 'classroom',
-		href: '/classroom',
-		group: 'class',
-		cta: 'Open',
-		requiresAuth: true,
-		// The shared brass/gold scheme, stated explicitly (the notebook card's
-		// lesson: omitting `theme` falls back to a green-led card, not the
-		// uniform gold --acc convention).
-		theme: { primary: '#C8A848', secondary: '#78B870' }
-	},
-	// NO "Courses & Assignments" card. It pointed at #your-class, a same-page
-	// anchor on a section that no longer held either -- class content lives in
-	// IDEA Classroom, which the `classroom` card above already opens.
-	{
-		id: 'frc',
-		title: 'FRC Training',
-		sub: 'The Team 5669 training track: CAD, mechanisms, controls, strategy, and drive team.',
-		icon: 'frc',
-		href: '/frc',
-		group: 'class',
-		cta: 'Enter',
-		requiresAuth: true,
-		theme: { primary: '#ED1C24', secondary: '#0066B3' }
-	},
-	{
-		id: 'notebook',
-		title: 'My Notebook',
-		sub: 'Photograph your engineering notebook pages and keep every entry in one place.',
-		icon: 'notebook',
-		href: '/notebook',
-		group: 'class',
-		cta: 'Open',
-		// Every signed-in account, whatever their role: a notebook is a
-		// personal record, not a student-only surface.
-		requiresAuth: true,
-		// The shared brass/gold scheme, stated explicitly rather than left to
-		// the snippet's fallback. Omitting `theme` does NOT yield the gold
-		// `--acc` convention: appCard's fallback is `var(--green)` primary, so
-		// an unthemed card renders green-led. These are the design-system
-		// --gold / --green tokens themselves (the .app-card CSS default, and
-		// what the coin cards already use), so this is the documented uniform
-		// accent, not a new per-card color.
-		theme: { primary: '#C8A848', secondary: '#78B870' }
 	}
-	// NO "Course Archive" card either: /archive is reference material, not
-	// something to launch. The route is untouched and still reached from the home
-	// footer, the FSP archive, and the dashboard callout.
+	// NO "Courses & Assignments" card (it pointed at #your-class, a same-page
+	// anchor on a section that no longer held either) and NO "Course Archive"
+	// card (/archive is reference material, not something to launch; the route is
+	// untouched and still reached from the home footer, the FSP archive, and the
+	// dashboard callout).
 ];
+
+/** How the grid is ordered. `custom` is the user's own dragged order. */
+export type AppSortMode = 'default' | 'used' | 'recent' | 'custom';
+
+export const APP_SORT_MODES: { id: AppSortMode; label: string }[] = [
+	{ id: 'default', label: 'Default order' },
+	{ id: 'used', label: 'Most used' },
+	{ id: 'recent', label: 'Recently opened' },
+	{ id: 'custom', label: 'Custom order' }
+];
+
+/** One app's launch history, written from the launcher's click funnel. */
+export interface AppUsage {
+	/** Times opened. */
+	count: number;
+	/** ISO timestamp of the most recent open. */
+	last: string;
+}
 
 /** The per-user homepage layout stored at `profiles.preferences.homepage`. */
 export interface HomepagePrefs {
-	/** Pinned app ids, in pin order (rendered as a top "Pinned" row). */
+	/** Pinned app ids, in pin order. Pinned apps sort to the front of the grid. */
 	pinned?: string[];
-	/** Per-group explicit app order (unknown ids ignored, missing appended). */
-	order?: Partial<Record<AppGroupId, string[]>>;
-	/** Collapsed group ids. */
-	collapsed?: AppGroupId[];
-	/** Compact cards (icon + title row only). */
+	/**
+	 * The custom order as ONE flat list of app ids (v2). Unknown ids are ignored
+	 * and apps missing from it keep their curated position, so the list never
+	 * needs maintaining when the registry changes.
+	 */
+	order?: string[];
+	/** Active sort mode; absent reads as 'default'. */
+	sort?: AppSortMode;
+	/**
+	 * Compact cards (icon + title row only). ABSENT READS AS TRUE -- compact is
+	 * the default view, so only an explicit `false` gives the roomy cards.
+	 */
+	compact?: boolean;
+	/** Per-app launch history, keyed by app id. Feeds the 'used' and 'recent' sorts. */
+	usage?: Record<string, AppUsage>;
+}
+
+/**
+ * The v1 shape, kept only so {@link readHomepagePrefs} can migrate it. v1 stored
+ * a per-group order map and a collapsed-group set, both of which the flat grid
+ * has no use for.
+ */
+interface LegacyHomepagePrefs {
+	pinned?: string[];
+	order?: Record<string, string[]>;
+	collapsed?: string[];
 	compact?: boolean;
 }
 
+/** The v1 group ids, in the order their sections used to render. */
+const LEGACY_GROUP_ORDER = ['games', 'tools', 'class'];
+
+/**
+ * Read the stored layout, MIGRATING THE v1 SHAPE IN CODE (no DB migration, and
+ * nothing is rewritten until the next persist happens to fire).
+ *
+ * v1's per-group order becomes one flat list by walking the groups in the order
+ * their sections used to render and concatenating each group's saved ids. That
+ * preserves every within-group choice the user made, which is the only ordering
+ * information v1 actually held. `collapsed` is dropped -- there are no groups to
+ * collapse. Pins survive untouched.
+ *
+ * A migrated order also sets `sort: 'custom'`: the user HAD arranged their grid,
+ * and leaving the mode at 'default' would keep their arrangement in storage
+ * while quietly ignoring it. A v1 user who never reordered has no order to
+ * migrate and lands on the curated default, same as a brand-new one.
+ */
 export function readHomepagePrefs(preferences: unknown): HomepagePrefs {
 	if (!preferences || typeof preferences !== 'object') return {};
 	const hp = (preferences as Record<string, unknown>).homepage;
 	if (!hp || typeof hp !== 'object') return {};
-	return hp as HomepagePrefs;
-}
 
-/** The apps visible to this visitor (admin tools only for admins). */
-export function visibleApps(isAdmin: boolean): PortalApp[] {
-	return PORTAL_APPS.filter((a) => !a.adminOnly || isAdmin);
+	const raw = hp as HomepagePrefs & LegacyHomepagePrefs;
+	// v2 already: a flat array (or no order at all).
+	if (!raw.order || Array.isArray(raw.order)) return raw as HomepagePrefs;
+
+	const grouped = raw.order as Record<string, string[]>;
+	const flat: string[] = [];
+	const seen = new Set<string>();
+	// Ids for apps that no longer exist are dropped HERE rather than only being
+	// ignored at render, so a retired card cannot sit in the stored order waiting
+	// to reappear in a position the user never chose if its id is ever reused.
+	const known = new Set(PORTAL_APPS.map((a) => a.id));
+	for (const group of LEGACY_GROUP_ORDER) {
+		for (const id of grouped[group] ?? []) {
+			if (typeof id === 'string' && known.has(id) && !seen.has(id)) {
+				seen.add(id);
+				flat.push(id);
+			}
+		}
+	}
+
+	const migrated: HomepagePrefs = {
+		pinned: raw.pinned,
+		compact: raw.compact,
+		usage: raw.usage
+	};
+	if (flat.length) {
+		migrated.order = flat;
+		migrated.sort = raw.sort ?? 'custom';
+	} else if (raw.sort) {
+		migrated.sort = raw.sort;
+	}
+	return migrated;
 }
 
 /**
- * Order a group's visible apps by the saved order, keeping any app the saved
- * order does not know about (appended in curated order) and dropping ids that
- * no longer exist.
+ * The apps visible to this visitor, in curated order.
+ *
+ * Admin tools are filtered out for everyone else and, for an admin, are STABLY
+ * PARTITIONED to the end: the default order puts the tools a student uses first,
+ * whatever position an admin entry happens to occupy in the registry.
  */
-export function orderedGroupApps(
-	apps: PortalApp[],
-	group: AppGroupId,
-	prefs: HomepagePrefs
-): PortalApp[] {
-	const inGroup = apps.filter((a) => a.group === group);
-	const saved = prefs.order?.[group];
-	if (!saved?.length) return inGroup;
-	const byId = new Map(inGroup.map((a) => [a.id, a]));
+export function visibleApps(isAdmin: boolean): PortalApp[] {
+	const visible = PORTAL_APPS.filter((a) => !a.adminOnly || isAdmin);
+	return [...visible.filter((a) => !a.adminOnly), ...visible.filter((a) => a.adminOnly)];
+}
+
+/**
+ * Apply a saved flat order: known ids first in their saved order, then every
+ * app the saved order does not mention, in curated order. Ids that no longer
+ * exist are dropped.
+ */
+function applyCustomOrder(apps: PortalApp[], saved: string[] | undefined): PortalApp[] {
+	if (!saved?.length) return apps;
+	const byId = new Map(apps.map((a) => [a.id, a]));
 	const ordered: PortalApp[] = [];
 	for (const id of saved) {
 		const app = byId.get(id);
@@ -235,12 +316,83 @@ export function orderedGroupApps(
 			byId.delete(id);
 		}
 	}
-	for (const app of inGroup) if (byId.has(app.id)) ordered.push(app);
+	for (const app of apps) if (byId.has(app.id)) ordered.push(app);
 	return ordered;
 }
 
-/** The pinned apps, in pin order, from whatever is visible. */
-export function pinnedApps(apps: PortalApp[], prefs: HomepagePrefs): PortalApp[] {
-	const byId = new Map(apps.map((a) => [a.id, a]));
-	return (prefs.pinned ?? []).map((id) => byId.get(id)).filter((a): a is PortalApp => !!a);
+/**
+ * Sort the visible apps by the active mode. `apps` must already be in curated
+ * order, which is what every mode falls back to for ties and for apps with no
+ * history -- so a fresh account sees the curated grid under every mode.
+ */
+export function sortApps(
+	apps: PortalApp[],
+	prefs: HomepagePrefs,
+	mode: AppSortMode
+): PortalApp[] {
+	if (mode === 'custom') return applyCustomOrder(apps, prefs.order);
+	if (mode === 'default') return apps;
+
+	const usage = prefs.usage ?? {};
+	const curated = new Map(apps.map((a, i) => [a.id, i]));
+	const rank = (a: PortalApp) => curated.get(a.id) ?? 0;
+
+	if (mode === 'used') {
+		return [...apps].sort((a, b) => {
+			const d = (usage[b.id]?.count ?? 0) - (usage[a.id]?.count ?? 0);
+			return d !== 0 ? d : rank(a) - rank(b);
+		});
+	}
+	// 'recent': anything opened, newest first; everything never opened after it,
+	// in curated order. Comparing the ISO strings directly is safe -- they are
+	// all UTC and fixed-width, so lexical order IS chronological order.
+	return [...apps].sort((a, b) => {
+		const la = usage[a.id]?.last ?? '';
+		const lb = usage[b.id]?.last ?? '';
+		if (la !== lb) return la < lb ? 1 : -1;
+		return rank(a) - rank(b);
+	});
+}
+
+/**
+ * The grid as rendered: sorted by the active mode, with pinned apps hoisted to
+ * the front IN PIN ORDER. Pin order is used rather than the active sort so the
+ * pinned block holds still while the mode changes underneath it. Every app
+ * appears EXACTLY ONCE -- pinning moves a card, it never duplicates it.
+ */
+export function arrangeApps(
+	apps: PortalApp[],
+	prefs: HomepagePrefs,
+	mode: AppSortMode
+): PortalApp[] {
+	const sorted = sortApps(apps, prefs, mode);
+	const pinnedIds = prefs.pinned ?? [];
+	if (!pinnedIds.length) return sorted;
+	const byId = new Map(sorted.map((a) => [a.id, a]));
+	const front: PortalApp[] = [];
+	for (const id of pinnedIds) {
+		const app = byId.get(id);
+		if (app) {
+			front.push(app);
+			byId.delete(id);
+		}
+	}
+	return [...front, ...sorted.filter((a) => byId.has(a.id))];
+}
+
+/**
+ * Record one open. Pure and MERGING: it spreads the prefs it was handed, so a
+ * usage write carries whatever layout is currently in hand rather than replacing
+ * it with a stale copy.
+ */
+export function recordUsage(prefs: HomepagePrefs, id: string, at: Date): HomepagePrefs {
+	const usage = prefs.usage ?? {};
+	const prev = usage[id];
+	return {
+		...prefs,
+		usage: {
+			...usage,
+			[id]: { count: (prev?.count ?? 0) + 1, last: at.toISOString() }
+		}
+	};
 }

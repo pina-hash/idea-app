@@ -11,22 +11,22 @@
 	// compact mark that fits the launcher's square icon slot.
 	import frcIcon from '$lib/frc/assets/frc-icon.png';
 	import {
-		APP_GROUPS,
-		orderedGroupApps,
-		pinnedApps,
+		APP_SORT_MODES,
+		arrangeApps,
 		readHomepagePrefs,
+		recordUsage,
 		visibleApps,
-		type AppGroupId,
+		type AppSortMode,
 		type HomepagePrefs,
 		type PortalApp
 	} from '$lib/portal-apps';
 
 	/**
-	 * The homepage app launcher: curated groups (Games / Tools / Class) by
-	 * default, optionally customized per user (pin favorites, reorder within a
-	 * group, collapse groups, compact view). Signed-in layouts persist to
+	 * The homepage app launcher: ONE flat grid in curated order, optionally
+	 * customized per user (pin favorites, drag to reorder, sort by most used or
+	 * recently opened, compact view). Signed-in layouts persist to
 	 * `profiles.preferences.homepage`; anonymous visitors get the clean curated
-	 * default (collapse/compact still work for the session, unsaved).
+	 * default and can rearrange for the session only, unsaved.
 	 */
 	let { onRequireSignIn }: { onRequireSignIn: (next: string) => void } = $props();
 
@@ -47,21 +47,34 @@
 	let saveError = $state('');
 
 	const apps = $derived(visibleApps(isAdmin));
-	const pinned = $derived(pinnedApps(apps, prefs));
-	const compact = $derived(!!prefs.compact);
+	const sortMode = $derived<AppSortMode>(prefs.sort ?? 'default');
+	// Compact is the DEFAULT view: absent reads as true, only an explicit false
+	// gives the roomy cards back.
+	const compact = $derived(prefs.compact !== false);
+	const arranged = $derived(arrangeApps(apps, prefs, sortMode));
+	const pinnedIds = $derived(new Set(prefs.pinned ?? []));
 
-	const persist = async (next: HomepagePrefs) => {
+	/**
+	 * `silent` is for the usage write: it is fire-and-forget during a navigation,
+	 * so it must not flash "Saving..." or leave an error where the user is about
+	 * to not be.
+	 */
+	const persist = async (next: HomepagePrefs, opts: { silent?: boolean } = {}) => {
 		prefs = next;
 		if (!claims) return; // anonymous: session-only, nothing to save
-		saving = true;
-		saveError = '';
+		if (!opts.silent) {
+			saving = true;
+			saveError = '';
+		}
 		const merged = { ...(profile?.preferences ?? {}), homepage: next };
 		const { error } = await supabase
 			.from('profiles')
 			.update({ preferences: merged })
 			.eq('id', claims.sub);
-		if (error) saveError = error.message;
-		saving = false;
+		if (!opts.silent) {
+			if (error) saveError = error.message;
+			saving = false;
+		}
 	};
 
 	const togglePin = (id: string) => {
@@ -72,31 +85,89 @@
 		});
 	};
 
-	const move = (group: AppGroupId, id: string, dir: -1 | 1) => {
-		const ids = orderedGroupApps(apps, group, prefs).map((a) => a.id);
+	/**
+	 * Write a new flat order and switch to Custom.
+	 *
+	 * The order written is the order the user was LOOKING at, so rearranging while
+	 * sorted by most-used snapshots that view and then keeps it. Switching away to
+	 * another mode leaves this stored list alone; switching back to Custom
+	 * restores it.
+	 */
+	const applyOrder = (ids: string[]) => persist({ ...prefs, order: ids, sort: 'custom' });
+
+	/** The keyboard path; writes the same flat order the grip does. */
+	const move = (id: string, dir: -1 | 1) => {
+		const ids = arranged.map((a) => a.id);
 		const i = ids.indexOf(id);
 		const j = i + dir;
 		if (i === -1 || j < 0 || j >= ids.length) return;
 		[ids[i], ids[j]] = [ids[j], ids[i]];
-		persist({ ...prefs, order: { ...(prefs.order ?? {}), [group]: ids } });
+		applyOrder(ids);
 	};
 
-	const toggleCollapse = (group: AppGroupId) => {
-		const cur = prefs.collapsed ?? [];
-		persist({
-			...prefs,
-			collapsed: cur.includes(group) ? cur.filter((g) => g !== group) : [...cur, group]
-		});
-	};
+	const setSort = (mode: AppSortMode) => persist({ ...prefs, sort: mode });
 
-	const toggleCompact = () => persist({ ...prefs, compact: !prefs.compact });
+	const toggleCompact = () => persist({ ...prefs, compact: !compact });
+
+	/**
+	 * Record an open. FIRE AND FORGET: never awaited, so it cannot delay the
+	 * navigation that is already underway (the cost is that a write still in
+	 * flight when the page unloads is lost, which for a usage counter is fine).
+	 * Merges over the CURRENT in-memory prefs, so it can never clobber a layout
+	 * change the user just made.
+	 */
+	const noteOpen = (id: string) => {
+		if (!claims) return; // anonymous: nothing recorded, nothing persisted
+		void persist(recordUsage(prefs, id, new Date()), { silent: true });
+	};
 
 	const appClick = (e: MouseEvent, app: PortalApp) => {
 		if (app.requiresAuth && !signedIn) {
 			e.preventDefault();
 			onRequireSignIn(app.href);
+			return; // refused, not opened
 		}
+		noteOpen(app.id);
 	};
+
+	/* ---- drag to reorder (native DnD, initiated only from the grip) ----
+	   The PieceChainBuilder pattern: only the grip is draggable, so the card's
+	   own link and its text stay usable, and the row the card would land on is
+	   marked while the drag is live. */
+	let dragFrom = $state<number | null>(null);
+	let dragOver = $state<number | null>(null);
+
+	function onDragStart(e: DragEvent, i: number) {
+		dragFrom = i;
+		dragOver = i;
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'move';
+			// Firefox refuses to start a drag without payload.
+			e.dataTransfer.setData('text/plain', String(i));
+		}
+	}
+	function onDragOver(e: DragEvent, i: number) {
+		if (dragFrom === null) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+		dragOver = i;
+	}
+	function onDrop(e: DragEvent, i: number) {
+		if (dragFrom === null) return;
+		e.preventDefault();
+		const ids = arranged.map((a) => a.id);
+		if (dragFrom !== i) {
+			const [moved] = ids.splice(dragFrom, 1);
+			ids.splice(i, 0, moved);
+			applyOrder(ids);
+		}
+		dragFrom = null;
+		dragOver = null;
+	}
+	function onDragEnd() {
+		dragFrom = null;
+		dragOver = null;
+	}
 
 	/**
 	 * Per-theme card interior texture (background-image), keyed off the card's
@@ -169,14 +240,16 @@
 			{ threshold: 0.15 }
 		);
 
-		// Stagger is per section group (each .app-grid), so a card's delay is its
-		// index within its own group, not a global running count.
+		// One grid now, so the stagger is a single walk. It is CAPPED at eight
+		// steps: the sections used to bound it to a handful of cards each, and an
+		// uncapped walk over a dozen would leave the last card waiting most of a
+		// second.
 		document.querySelectorAll<HTMLElement>('.launcher .app-grid').forEach((grid) => {
 			grid.querySelectorAll<HTMLElement>('.app-card').forEach((card, i) => {
 				card.style.opacity = '0';
 				card.style.transform = 'translateY(18px)';
 				card.style.transition = 'opacity 0.45s ease-out, transform 0.45s ease-out';
-				card.style.transitionDelay = i * 60 + 'ms';
+				card.style.transitionDelay = Math.min(i, 8) * 60 + 'ms';
 				observer.observe(card);
 			});
 		});
@@ -234,33 +307,57 @@
 	{/if}
 {/snippet}
 
-{#snippet appCard(app: PortalApp, group: AppGroupId | null)}
+{#snippet appCard(app: PortalApp, i: number)}
 	{@const primary = app.theme?.primary ?? 'var(--green)'}
 	{@const secondary = app.theme?.secondary ?? 'var(--gold)'}
 	{@const tex = cardTexture(primary, secondary)}
 	{@const accStyle = `--acc-primary:${primary};--acc-secondary:${secondary};--card-texture:${tex.image};--card-texture-size:${tex.size};`}
+	{@const isPinned = pinnedIds.has(app.id)}
 	{#if customizing}
-		<div class="app-card static" class:compact class:legacy={app.legacy} style={accStyle} data-tour={app.id}>
+		<div
+			class="app-card static"
+			class:compact
+			class:legacy={app.legacy}
+			class:dragging={dragFrom === i}
+			class:dropinto={dragFrom !== null && dragOver === i && dragFrom !== i}
+			style={accStyle}
+			data-tour={app.id}
+			data-app={app.id}
+			role="listitem"
+			ondragover={(e) => onDragOver(e, i)}
+			ondrop={(e) => onDrop(e, i)}
+		>
 			<span class="app-strip"></span>
+			<!-- Only the grip is draggable: a draggable card would fight the card's
+			     own link and swallow text selection. Decorative for assistive tech --
+			     the up/down buttons beside it are the keyboard path. -->
+			<span
+				class="app-grip"
+				aria-hidden="true"
+				title="Drag to reorder"
+				draggable="true"
+				data-grip={app.id}
+				ondragstart={(e) => onDragStart(e, i)}
+				ondragend={onDragEnd}
+			>&#10283;</span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title-row">
 					<span class="app-title">{app.title}</span>
+					{#if isPinned}<span class="pin-mark" title="Pinned">&#9733;</span>{/if}
 					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
 				</span>
 				{#if !compact}<span class="app-sub">{app.sub}</span>{/if}
 			</span>
 			<span class="app-tools">
-				{#if group}
-					<button type="button" title="Move up" aria-label="Move {app.title} up" onclick={() => move(group, app.id, -1)}>&#9650;</button>
-					<button type="button" title="Move down" aria-label="Move {app.title} down" onclick={() => move(group, app.id, 1)}>&#9660;</button>
-				{/if}
+				<button type="button" title="Move up" aria-label="Move {app.title} up" onclick={() => move(app.id, -1)}>&#9650;</button>
+				<button type="button" title="Move down" aria-label="Move {app.title} down" onclick={() => move(app.id, 1)}>&#9660;</button>
 				<button
 					type="button"
 					class="pin"
-					class:pinned={(prefs.pinned ?? []).includes(app.id)}
-					title={(prefs.pinned ?? []).includes(app.id) ? 'Unpin' : 'Pin to top'}
-					aria-label="{(prefs.pinned ?? []).includes(app.id) ? 'Unpin' : 'Pin'} {app.title}"
+					class:pinned={isPinned}
+					title={isPinned ? 'Unpin' : 'Pin to top'}
+					aria-label="{isPinned ? 'Unpin' : 'Pin'} {app.title}"
 					onclick={() => togglePin(app.id)}
 				>&#9733;</button>
 			</span>
@@ -274,12 +371,14 @@
 			onclick={(e) => appClick(e, app)}
 			style={accStyle}
 			data-tour={app.id}
+			data-app={app.id}
 		>
 			<span class="app-strip"></span>
 			<span class="app-icon" class:frc-icon={app.id === 'frc'}>{@render appIcon(app.icon)}</span>
 			<span class="app-text">
 				<span class="app-title-row">
 					<span class="app-title">{app.title}</span>
+					{#if isPinned}<span class="pin-mark" title="Pinned">&#9733;</span>{/if}
 					{#if app.legacy}<span class="legacy-badge">Legacy</span>{/if}
 				</span>
 				{#if !compact}
@@ -302,65 +401,52 @@
 		<span class="launcher-actions">
 			{#if saving}<span class="launcher-note">Saving...</span>{/if}
 			{#if saveError}<span class="launcher-err">{saveError}</span>{/if}
+			<!-- A sort picker, not a hero element: a native select styled to match
+			     the two buttons beside it. -->
+			<select
+				class="bar-select"
+				aria-label="Sort apps"
+				value={sortMode}
+				onchange={(e) => setSort(e.currentTarget.value as AppSortMode)}
+			>
+				{#each APP_SORT_MODES as m (m.id)}
+					<option value={m.id}>{m.label}</option>
+				{/each}
+			</select>
 			<button type="button" class="bar-btn" onclick={toggleCompact}>
 				{compact ? 'Comfortable view' : 'Compact view'}
 			</button>
-			{#if signedIn}
-				<button type="button" class="bar-btn" class:active={customizing} onclick={() => (customizing = !customizing)}>
-					{customizing ? 'Done' : 'Customize'}
-				</button>
-			{/if}
+			<button type="button" class="bar-btn" class:active={customizing} onclick={() => (customizing = !customizing)}>
+				{customizing ? 'Done' : 'Customize'}
+			</button>
 		</span>
 	</div>
 
-	<!-- The tour points at the CARDS, not the title/actions strip above them, so
-	     the hook sits on the wrapper around every grid. -->
-	<div class="launcher-groups" data-tour="apps">
-	{#if pinned.length}
-		<div class="group-head">
-			<span class="group-label pinned-label">&#9733; Pinned</span>
-			<span class="group-line"></span>
-		</div>
-		<div class="app-grid" class:compact>
-			{#each pinned as app (app.id)}
-				{@render appCard(app, null)}
-			{/each}
-		</div>
-	{/if}
-
-	{#each APP_GROUPS as group (group.id)}
-		{@const groupApps = orderedGroupApps(apps, group.id, prefs)}
-		{@const isCollapsed = (prefs.collapsed ?? []).includes(group.id)}
-		{#if groupApps.length}
-			<div class="group-head">
-				<button
-					type="button"
-					class="group-toggle"
-					aria-expanded={!isCollapsed}
-					onclick={() => toggleCollapse(group.id)}
-				>
-					<span class="group-slash" aria-hidden="true">//</span>
-					<span class="group-label">{group.label}</span>
-					<span class="group-line"></span>
-					<span class="group-count">{groupApps.length}</span>
-					<span class="group-chev" class:closed={isCollapsed} aria-hidden="true">&#9662;</span>
-				</button>
-			</div>
-			{#if !isCollapsed}
-				<div class="app-grid" class:compact>
-					{#each groupApps as app (app.id)}
-						{@render appCard(app, group.id)}
-					{/each}
-				</div>
-			{/if}
-		{/if}
-	{/each}
+	<!-- The tour points at the CARDS, not the title/actions strip above them.
+	     While customizing, every child is a static reorderable div rather than a
+	     link, so the grid is a real list and each card a listitem -- which is both
+	     honest for assistive tech and what gives the drop targets their role. -->
+	<div
+		class="app-grid"
+		class:compact
+		class:customizing
+		data-tour="apps"
+		role={customizing ? 'list' : undefined}
+	>
+		{#each arranged as app, i (app.id)}
+			{@render appCard(app, i)}
+		{/each}
 	</div>
 
 	{#if customizing}
 		<p class="launcher-hint">
-			Star an app to pin it to the top. Arrows reorder within a group. Your layout saves to your
-			profile.
+			Drag a card by its handle to reorder it, or use the arrows. Star an app to pin it to the
+			front.
+			{#if signedIn}
+				Your layout saves to your profile.
+			{:else}
+				Sign in to save your layout; changes last for this visit only.
+			{/if}
 		</p>
 	{/if}
 </section>
@@ -422,63 +508,24 @@
 		color: var(--green);
 		border-color: rgba(0, 255, 65, 0.4);
 	}
-	.group-head {
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-		margin: 1.1rem 0 0.7rem;
-	}
-	.group-toggle {
-		display: flex;
-		align-items: center;
-		width: 100%;
-		gap: 0.45rem;
-		background: none;
-		border: none;
-		padding: 0;
-		cursor: pointer;
-	}
-	/* House `//` motif leading each section label, in dimmed cyan. */
-	.group-slash {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		letter-spacing: 0.1em;
-		color: var(--cyan);
-		opacity: 0.7;
-	}
-	.group-label {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		letter-spacing: 0.18em;
+	/* The sort picker sits with the buttons and reads as one of them. */
+	.bar-select {
+		font-family: 'Orbitron', sans-serif;
+		font-size: 0.55rem;
+		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		color: var(--dim);
+		background: var(--bg1);
+		border: 1px solid rgba(74, 122, 82, 0.3);
+		border-radius: 2px;
+		padding: 0.3rem 0.5rem;
+		cursor: pointer;
+		transition: color 0.2s, border-color 0.2s;
 	}
-	.group-toggle:hover .group-label {
+	.bar-select:hover,
+	.bar-select:focus-visible {
 		color: var(--green);
-	}
-	.pinned-label {
-		color: var(--gold);
-		text-shadow: var(--glow-gold);
-	}
-	.group-count {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
-		color: rgba(74, 122, 82, 0.8);
-	}
-	.group-chev {
-		font-size: 0.65rem;
-		color: var(--dim);
-		transition: transform 0.25s ease;
-	}
-	.group-chev.closed {
-		transform: rotate(-90deg);
-	}
-	.group-line {
-		flex: 1;
-		height: 1px;
-		background: var(--line);
-		margin: 0 0.75rem;
-		align-self: center;
+		border-color: rgba(0, 255, 65, 0.4);
 	}
 	.app-grid {
 		display: grid;
@@ -488,6 +535,13 @@
 	.app-grid.compact {
 		grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
 		gap: 0.6rem;
+	}
+	/* Customizing adds a grip and three tool buttons to every row. At the compact
+	   track width that leaves the title so little room it breaks mid-word
+	   ("MY NOTEB OOK"), so the cards keep their compact HEIGHT but take the roomy
+	   track while the controls are on screen. */
+	.app-grid.compact.customizing {
+		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
 	}
 	.app-card {
 		/* Per-card accent, set inline from PortalApp.theme (primary/secondary);
@@ -695,6 +749,38 @@
 		border-color: rgba(200, 255, 0, 0.5);
 		text-shadow: 0 0 6px rgba(200, 255, 0, 0.6);
 	}
+	/* A pinned app now appears ONCE, in place, marked -- rather than a second
+	   time in a separate pinned row. */
+	.pin-mark {
+		font-size: 0.6rem;
+		line-height: 1;
+		color: var(--gold);
+		text-shadow: 0 0 6px rgba(200, 168, 72, 0.55);
+		flex-shrink: 0;
+	}
+	.app-grip {
+		flex-shrink: 0;
+		font-size: 0.85rem;
+		line-height: 1;
+		color: var(--dim);
+		cursor: grab;
+		user-select: none;
+		padding: 0 0.1rem;
+	}
+	.app-grip:active {
+		cursor: grabbing;
+	}
+	.app-card.static:hover .app-grip {
+		color: var(--green);
+	}
+	.app-card.dragging {
+		opacity: 0.4;
+	}
+	/* Where the dragged card would land. */
+	.app-card.dropinto {
+		border-color: var(--acc-line-strong);
+		box-shadow: inset 0 0 0 1px var(--acc-hover-glow);
+	}
 	.launcher-hint {
 		margin-top: 0.8rem;
 		font-family: 'Share Tech Mono', monospace;
@@ -712,8 +798,8 @@
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.app-card,
-		.group-chev,
 		.bar-btn,
+		.bar-select,
 		.app-tools button {
 			transition: none;
 		}
