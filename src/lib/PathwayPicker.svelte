@@ -254,6 +254,9 @@
 		border: 1px solid var(--line-strong, rgba(0, 255, 65, 0.35));
 		border-radius: 4px;
 		padding: 0.55rem 1.1rem;
+		/* Matches the secondary control beside it, so the action row reads as one
+		   pair rather than two mismatched heights. */
+		min-height: 44px;
 		cursor: pointer;
 	}
 	.pwp-confirm:hover:not(:disabled) {
@@ -266,18 +269,33 @@
 		cursor: default;
 		box-shadow: none;
 	}
+	/* A real secondary BUTTON, not a bare link. At the dimmest token, smallest
+	   size and underlined it read as disabled next to six bright pathway tiles
+	   and a bordered confirm -- so it matches confirm's size and uppercase
+	   treatment and carries its own border, and only the colour says
+	   "secondary". Bone text clears AA on the panel; the neutral border keeps it
+	   clearly below the green confirm. */
 	.pwp-later {
 		font-family: var(--font-mono, 'Share Tech Mono', monospace);
-		font-size: 0.64rem;
-		letter-spacing: 0.08em;
-		color: var(--dim, #4a7a52);
-		background: none;
-		border: none;
-		cursor: pointer;
-		text-decoration: underline;
-	}
-	.pwp-later:hover {
+		font-size: 0.72rem;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
 		color: var(--white, #e8ffe8);
+		background: none;
+		border: 1px solid var(--line, rgba(0, 255, 65, 0.15));
+		border-radius: 4px;
+		padding: 0.55rem 1.1rem;
+		min-height: 44px;
+		cursor: pointer;
+		transition: border-color 0.15s ease, background 0.15s ease;
+	}
+	.pwp-later:hover:not(:disabled) {
+		border-color: var(--dim, #849080);
+		background: rgba(255, 255, 255, 0.05);
+	}
+	.pwp-later:disabled {
+		color: var(--dim, #849080);
+		cursor: default;
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.pwp-option {
