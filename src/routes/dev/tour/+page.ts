@@ -24,6 +24,16 @@ export const prerender = false;
 
 const MODES: TourHarnessMode[] = ['anon', 'student', 'done', 'picker'];
 
+const HARNESS_SECTION: ClassroomSection = {
+	id: 'dev-section-1',
+	course_id: 'dev-course-1',
+	label: 'Period 2',
+	block: 'B',
+	teacher_email: 'pina@boscotech.edu',
+	active: true,
+	course: { id: 'dev-course-1', code: 'IDEA 209H', title: 'Engineering I Honors', active: true }
+};
+
 export const load: PageLoad = async ({ url }) => {
 	if (!dev) error(404, 'Not found');
 	const raw = url.searchParams.get('mode') as TourHarnessMode | null;
@@ -52,12 +62,12 @@ export const load: PageLoad = async ({ url }) => {
 		userProfile: profile,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		supabase: makeStubSupabase() as any,
-		gauntletNudge: null,
-		// The tour harness is about the spotlight steps, not the classroom feed:
-		// an empty feed renders the "no classes yet" card, which is a valid state
-		// and keeps the tour's targets where they are.
+		// One section for a signed-in mode, none when anonymous. The tour's own
+		// targets sit on the wrapper either way, so this does not move a single
+		// step; it is here so the header class chip -- which reads these same
+		// sections -- has something real to name.
 		classroomReady: true,
-		feedSections: [] as ClassroomSection[],
+		feedSections: (profile ? [HARNESS_SECTION] : []) as ClassroomSection[],
 		feedItems: [] as ClassroomItem[],
 		feedSubmissions: [] as FeedSubmission[]
 	};

@@ -3,8 +3,9 @@
  * walkthrough (PLAIN DATA, client-safe). Two phases in one continuous flow:
  *
  *   'signin' (pre-auth):  one step on the header's Google sign-in control.
- *   'home'   (post-auth): a short walk through the home screen, closing with
- *                         the VANGUARD, GAUNTLET, and IDEA Coin entry points.
+ *   'home'   (post-auth): a short walk through the home screen -- the hero, the
+ *                         class feed, the app grid -- closing on four app cards
+ *                         (Notebook, Coin Ledger, GAUNTLET, GREENLINE).
  *
  * HomeTour.svelte decides which phase auto-launches (anonymous visitors get
  * 'signin', a signed-in first-timer gets 'home'); the manual "Take the tour"
@@ -33,43 +34,52 @@ export const ORIENTATION_STEPS: OrientationStep[] = [
 	{
 		phase: 'signin',
 		target: '[data-tour="signin"]',
+		// The one step that asks for a click, so it is the one step that lets the
+		// reader through to the control it is pointing at.
+		interactive: true,
 		title: 'Sign in with Google',
-		body: 'Use your Bosco Tech Google account, the same one you use for school. Signing in unlocks cloud saves, your class, and your progress.'
+		body: 'Use your Bosco Tech Google account, the same one you use for school. Signing in loads your classes, saves your work, and keeps your progress on every device. Go ahead and click it now.'
 	},
 	{
 		phase: 'home',
 		target: '[data-tour="hero"]',
 		title: 'Welcome to IDEA',
-		body: 'This is the IDEA portal, home base for courses, games, and team tools. Everything starts on this page.'
+		body: 'This is the IDEA portal. Classes, coursework, training, and games all live here, and everything you do is tied to your account.'
+	},
+	{
+		phase: 'home',
+		target: '[data-tour="classes"]',
+		title: 'Your classes',
+		body: 'Announcements, assignments, and due dates from your teachers. Open a class to see what is posted and what is due next.'
 	},
 	{
 		phase: 'home',
 		target: '[data-tour="apps"]',
 		title: 'Apps',
-		body: 'Every portal app lives in the grid below, grouped by Games, Tools, and Class. Sign in to pin favorites and reorder them with Customize.'
+		body: 'Everything else in one grid. Drag a card to move it, pin the ones you use most, or sort by what you have opened recently.'
 	},
 	{
 		phase: 'home',
-		target: '[data-tour="your-class"]',
-		title: 'Courses and assignments',
-		body: 'The 2026-27 curriculum and every open assignment live in this section. Pick your class once and it pins to the top.'
-	},
-	{
-		phase: 'home',
-		target: '[data-tour="vanguard"]',
-		title: 'IDEA // VANGUARD',
-		body: 'The arcade shooter. Clear sectors, chain combos, and chase the leaderboard.'
-	},
-	{
-		phase: 'home',
-		target: '[data-tour="gauntlet"]',
-		title: 'IDEA // GAUNTLET',
-		body: 'The CAD skills dojo. Train SolidWorks against the clock and climb the boards.'
+		target: '[data-tour="notebook"]',
+		title: 'My Notebook',
+		body: 'Photograph your engineering notebook pages and keep every entry in one place.'
 	},
 	{
 		phase: 'home',
 		target: '[data-tour="coins"]',
 		title: 'IDEA Coin Ledger',
-		body: 'Live coin balances, transactions, and rankings across all sections.'
+		body: 'Your balance, every transaction, the leaderboard, open contracts, and role applications.'
+	},
+	{
+		phase: 'home',
+		target: '[data-tour="gauntlet"]',
+		title: 'IDEA // GAUNTLET',
+		body: 'The CAD skills dojo. Timed modeling, drawing reading, and GD&T, with a leaderboard on every challenge.'
+	},
+	{
+		phase: 'home',
+		target: '[data-tour="greenline"]',
+		title: 'IDEA // GREENLINE',
+		body: 'Build a machine, take it to Proving Ground 07, and race it under the floodlights.'
 	}
 ];

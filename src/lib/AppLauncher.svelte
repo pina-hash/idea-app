@@ -301,7 +301,7 @@
 {/snippet}
 
 <section class="launcher" aria-label="Portal apps">
-	<div class="launcher-bar" data-tour="apps">
+	<div class="launcher-bar">
 		<span class="launcher-title">Apps</span>
 		<span class="launcher-actions">
 			{#if saving}<span class="launcher-note">Saving...</span>{/if}
@@ -317,6 +317,9 @@
 		</span>
 	</div>
 
+	<!-- The tour points at the CARDS, not the title/actions strip above them, so
+	     the hook sits on the wrapper around every grid. -->
+	<div class="launcher-groups" data-tour="apps">
 	{#if pinned.length}
 		<div class="group-head">
 			<span class="group-label pinned-label">&#9733; Pinned</span>
@@ -356,6 +359,7 @@
 			{/if}
 		{/if}
 	{/each}
+	</div>
 
 	{#if customizing}
 		<p class="launcher-hint">
