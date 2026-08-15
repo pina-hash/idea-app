@@ -32,12 +32,26 @@
 	let {
 		grid,
 		selectedEntryId = null,
-		onOpen
+		onOpen,
+		studentHref
 	}: {
 		grid: SectionGrid;
 		/** The cell currently expanded below, highlighted in place. */
 		selectedEntryId?: string | null;
 		onOpen: (cell: GridCell) => void;
+		/**
+		 * Where this student's whole notebook lives, or null when this viewer
+		 * cannot open it -- which is a real case, not a formality: since 0106 the
+		 * instructor tier is keyed on an ACTIVE enrollment, so a student who has
+		 * left the class (the `left` chip below) keeps their row and their filed
+		 * cells but has no full-notebook view for this instructor. Returning null
+		 * renders the name as plain text rather than a link into a 404.
+		 *
+		 * The DECISION is the caller's; this component only renders it. Omitting
+		 * the prop entirely leaves every name plain, which is what the dev harness
+		 * and any future read-only mount get for free.
+		 */
+		studentHref?: (student: SectionGrid['students'][number]) => string | null;
 	} = $props();
 
 	const sessions = $derived(sessionsInOrder(grid.sessions));
@@ -102,9 +116,19 @@
 				</thead>
 				<tbody>
 					{#each summaries as summary (summary.student.student_key)}
+						{@const href = studentHref?.(summary.student) ?? null}
 						<tr>
 							<th scope="row" class="name-col">
-								<span class="student-name">{summary.student.name}</span>
+								{#if href}
+									<a
+										class="student-name student-link"
+										{href}
+										title="Open {summary.student.name}'s whole notebook, including entries with no check-in"
+										>{summary.student.name}</a
+									>
+								{:else}
+									<span class="student-name">{summary.student.name}</span>
+								{/if}
 								{#if !summary.student.enrolled}
 									<span
 										class="left-class"
@@ -241,6 +265,18 @@
 	}
 	.student-name {
 		color: var(--nb-ink);
+	}
+	/* The one gold thread this console already uses for links and active
+	   states; the six status colours stay a locked contract and are not
+	   borrowed here. */
+	.student-link {
+		color: var(--nb-accent-ink);
+		text-decoration: none;
+		border-bottom: 1px solid transparent;
+	}
+	.student-link:hover,
+	.student-link:focus-visible {
+		border-bottom-color: currentColor;
 	}
 	.free {
 		display: block;

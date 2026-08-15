@@ -250,18 +250,29 @@ describe('RLS: a student sees their own notebook and nobody else’s', () => {
 	});
 });
 
-describe('RLS: staff visibility is scoped to the section they actually teach', () => {
-	test('an instructor reads their own section’s entries and no others', async () => {
+describe('RLS: staff visibility is scoped to the students they actually teach', () => {
+	/**
+	 * REWRITTEN BY 0106, and the change is the feature rather than a loosening
+	 * that slipped through. Staff access used to ask "does this ENTRY belong to a
+	 * section I manage", which no free-form entry can ever satisfy; it now also
+	 * asks "is this student on a roster I teach". So the unit of visibility is
+	 * the STUDENT, and bob -- enrolled in both sections -- is genuinely a student
+	 * of both instructors, who each see his whole notebook. What has not moved is
+	 * the boundary either side of him: alice is in section A only, and section
+	 * B's instructor still cannot read a row of hers by list or by id.
+	 */
+	test('an instructor reads their own students’ entries and no others', async () => {
 		const visible = await visibleEntryIds(instructorA.id);
-		expect(visible).toEqual([aliceEntry, aliceFreeEntry, bobEntry].sort());
+		expect(visible).toEqual([aliceEntry, aliceFreeEntry, bobEntry, bobEntryOtherSection].sort());
 
-		// The decisive one: bob's OTHER entry is the same student, a section this
-		// instructor does not teach.
-		expect(visible).not.toContain(bobEntryOtherSection);
-		expect(await canReadEntryById(instructorA.id, bobEntryOtherSection)).toBe(false);
+		// Bob is theirs, so his other class's work is theirs to read too.
+		expect(await canReadEntryById(instructorA.id, bobEntryOtherSection)).toBe(true);
 
-		expect(await visibleEntryIds(instructorB.id)).toEqual([bobEntryOtherSection]);
+		// The decisive one, unchanged: alice is not on section B's roster, and no
+		// entry of hers -- section-linked or free -- reaches its instructor.
+		expect(await visibleEntryIds(instructorB.id)).toEqual([bobEntry, bobEntryOtherSection].sort());
 		expect(await canReadEntryById(instructorB.id, aliceEntry)).toBe(false);
+		expect(await canReadEntryById(instructorB.id, aliceFreeEntry)).toBe(false);
 	});
 
 	test('a staff account teaching no section sees nothing', async () => {
@@ -272,9 +283,12 @@ describe('RLS: staff visibility is scoped to the section they actually teach', (
 		expect(await visiblePhotoCount(unattachedStaff.id, aliceEntry)).toBe(0);
 	});
 
-	test('an instructor reads the photos of their own section’s entries only', async () => {
+	test('an instructor reads the photos of their own students’ entries only', async () => {
+		// Photos delegate to notebook_can_read_entry rather than restating who
+		// staff are, so they track the entries above exactly -- which is the
+		// property worth pinning here, not the counts themselves.
 		expect(await visiblePhotoCount(instructorA.id, aliceEntry)).toBeGreaterThan(0);
-		expect(await visiblePhotoCount(instructorA.id, bobEntryOtherSection)).toBe(0);
+		expect(await visiblePhotoCount(instructorA.id, bobEntryOtherSection)).toBeGreaterThan(0);
 		expect(await visiblePhotoCount(instructorB.id, aliceEntry)).toBe(0);
 	});
 });

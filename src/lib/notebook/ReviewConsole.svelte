@@ -106,6 +106,31 @@
 		grid?.cells.find((c) => c.entry_id !== null && c.entry_id === openEntryId) ?? null
 	);
 
+	/**
+	 * Where a student's WHOLE notebook lives -- the free-form entries the grid
+	 * cannot show, since a cell is by definition a check-in.
+	 *
+	 * It MIRRORS `notebook_review_student_notebook`'s own guard rather than
+	 * guessing: that RPC admits the chair for anyone, and an instructor only for
+	 * a student with an ACTIVE enrollment in a section they teach. The grid's
+	 * roster deliberately also carries students who have LEFT but filed work
+	 * here (0094), and for those the RPC refuses -- so an instructor gets no
+	 * link rather than a link into a 404. Their filed work is still reachable
+	 * cell by cell, which is what that roster rule was protecting.
+	 *
+	 * A student with no account yet still gets a link: their notebook is
+	 * genuinely empty and the page says so, which is a real answer rather than a
+	 * permission problem, and hiding it would look like the same thing.
+	 *
+	 * COURTESY, NOT A BOUNDARY. The RPC re-checks every caller regardless of
+	 * what this returns.
+	 */
+	function studentNotebookHref(student: SectionGridData['students'][number]): string | null {
+		if (!student.email) return null;
+		if (!isChair && !student.enrolled) return null;
+		return `/notebook/review/student/${encodeURIComponent(student.email)}`;
+	}
+
 	const section = $derived(sections.find((s) => s.id === sectionId) ?? null);
 	const units = $derived(unitsOf(sessions));
 
@@ -370,7 +395,12 @@
 		{/if}
 
 		{#if grid}
-			<SectionGrid {grid} selectedEntryId={openEntryId} onOpen={openFromCell} />
+			<SectionGrid
+				{grid}
+				selectedEntryId={openEntryId}
+				onOpen={openFromCell}
+				studentHref={studentNotebookHref}
+			/>
 
 			{#if entryLoading}
 				<section class="card"><p class="note">Loading entry...</p></section>

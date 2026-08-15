@@ -151,7 +151,15 @@ async function visibleEntryIds(userId: string): Promise<string[]> {
  * Booting past it would change the subject; 0098's own guarantees are pinned by
  * tests/notebook-session-postings.test.ts.
  */
-const CHAIN = MIGRATIONS.filter((m) => m !== '0098_notebook_session_postings.sql');
+const CHAIN = MIGRATIONS.filter(
+	(m) =>
+		m !== '0098_notebook_session_postings.sql' &&
+		// Same reasoning, one migration later: 0106 replaces the section-scoped
+		// staff predicate this file exists to pin with an enrollment-based union,
+		// so applying it here would change the subject. 0106's own guarantees are
+		// pinned by tests/notebook-instructor-access.test.ts.
+		m !== '0106_notebook_instructor_student_access.sql'
+);
 
 beforeAll(async () => {
 	db = await startTestDb(CHAIN);

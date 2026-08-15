@@ -48,8 +48,14 @@ import {
 } from './db/harness';
 
 const POSTINGS_FILE = '0098_notebook_session_postings.sql';
-/** Everything up to but NOT including 0098: the world as it was. */
-const CHAIN_BEFORE = MIGRATIONS.filter((m) => m !== POSTINGS_FILE);
+/**
+ * Everything up to but NOT including 0098: the world as it was. 0106 is dropped
+ * for the same reason and then some -- it lands two migrations LATER, so
+ * applying it in this "before" half would not be the world as it was at all.
+ */
+const CHAIN_BEFORE = MIGRATIONS.filter(
+	(m) => m !== POSTINGS_FILE && m !== '0106_notebook_instructor_student_access.sql'
+);
 const POSTINGS_SQL = readFileSync(
 	fileURLToPath(new URL(`../supabase/migrations/${POSTINGS_FILE}`, import.meta.url)),
 	'utf8'

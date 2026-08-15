@@ -274,6 +274,24 @@
 	const orderedFolders = $derived(foldersInOrder(folders));
 	/** The note tier exists on the free-form path ONLY, and only once 0078 is applied. */
 	const noteOnly = $derived(selectedSession === null && freeMode === 'note' && notesReady);
+	/**
+	 * A check-in can carry writing TOO -- the photo requirement is unchanged and
+	 * `notebook_create_entry` still refuses a session-linked entry without one.
+	 *
+	 * This closes a UI gap, not a data-layer one: `notebook_add_note` (0078) has
+	 * always taken an entry id and checked only ownership, and every entry card
+	 * already offers "Add a note" whatever tier it is on. What was missing was
+	 * doing it in the SAME action as the upload, which matters here and not on
+	 * the free path -- a free entry can simply be saved as a note instead, while
+	 * a check-in must have a page, so there was no way to photograph it and say
+	 * something about it in one go.
+	 *
+	 * OFFERED ONLY, NEVER REQUIRED: it is absent from `canSubmit` below, so a
+	 * photo alone still saves exactly as it always did.
+	 */
+	const checkInNote = $derived(
+		selectedSession !== null && notesReady && !readOnly && !!addNote
+	);
 	const canSubmit = $derived(
 		noteOnly
 			? tiptapHasText(noteDraft)
@@ -377,12 +395,23 @@
 			'Your photo did not make it back from the camera app, which can happen when the phone is low on memory. Everything you typed is still here. Please take the photo again.';
 	});
 
-	function resetForm() {
+	/**
+	 * `keepNote` is for the one case where clearing would destroy something the
+	 * student cannot get back: the entry and its photos saved but the note did
+	 * not. A photo that fails to upload is still a file on their phone; a
+	 * cleared note is gone. Keeping it means NOT bumping `noteKey` either --
+	 * the editor is left mounted with exactly what they typed, rather than
+	 * remounted and re-seeded, which is also why nothing has to round-trip
+	 * through `NoteEditor`'s `value`.
+	 */
+	function resetForm(keepNote = false) {
 		staged = [];
 		stager?.reset();
 		title = '';
-		noteDraft = null;
-		noteKey += 1;
+		if (!keepNote) {
+			noteDraft = null;
+			noteKey += 1;
+		}
 		recoveryNote = null;
 		// Deliberately NOT the folder: the next entry almost always belongs
 		// where the last one went, and the suggestion effect re-derives it from
@@ -549,6 +578,22 @@
 				return;
 			}
 
+			// The check-in's optional note, written in the same action. It goes
+			// FIRST, immediately after the entry exists: it is one cheap call
+			// against several slow uploads, so sending it now is what keeps the
+			// student's own words from being the thing lost to a dropped
+			// connection halfway through the photos.
+			//
+			// A failure here is reported and does not abort the upload -- the
+			// entry and its photos are real either way, and the note can be added
+			// again from the entry itself.
+			let noteFailed = false;
+			if (checkInNote && tiptapHasText(noteDraft)) {
+				progress = 'Saving your note...';
+				const savedNote = await addNote!(created.entryId, noteDraft as TiptapNode);
+				noteFailed = !savedNote.ok;
+			}
+
 			// Failures are reported honestly rather than rolled back: the entry
 			// and its first photo really do exist, and the student can add the
 			// rest from the entry itself.
@@ -582,7 +627,12 @@
 					)} did not upload; the original is saved.`;
 				}
 			}
-			resetForm();
+			if (noteFailed) {
+				errorMsg =
+					(errorMsg ? errorMsg + ' ' : '') +
+					'Your note did not save, so it is still in the box below. Add it to the entry from its own card.';
+			}
+			resetForm(noteFailed);
 			onChanged?.();
 		} catch (err) {
 			errorMsg = (err as Error).message || 'The upload failed to send.';
@@ -1053,18 +1103,7 @@
 					</label>
 				{/if}
 
-				{#if noteOnly}
-					<div class="field note-field">
-						<span class="photo-label">Note</span>
-						{#key noteKey}
-							<NoteEditor onchange={(doc) => (noteDraft = doc)} disabled={busy} />
-						{/key}
-						<span class="hint">
-							Write as much as you like. You can add photos to this entry later, and come back
-							and edit this note whenever you want.
-						</span>
-					</div>
-				{:else}
+				{#if !noteOnly}
 					<PhotoStager
 						bind:this={stager}
 						bind:staged
@@ -1079,6 +1118,34 @@
 							folder: folderChoice
 						}}
 					/>
+				{/if}
+
+				<!--
+					ONE editor for both jobs, in one block on purpose. Rendering a
+					second instance inside a `{:else}` would put it at a different
+					position in the DOM, so switching between "write a note" and a
+					check-in would remount Tiptap and silently drop whatever the
+					student had typed. Here the position and the `{#key}` are
+					unchanged across that switch, so the draft survives it.
+				-->
+				{#if noteOnly || checkInNote}
+					<div class="field note-field">
+						<span class="photo-label">
+							Note {#if !noteOnly}<span class="optional">(optional)</span>{/if}
+						</span>
+						{#key noteKey}
+							<NoteEditor onchange={(doc) => (noteDraft = doc)} disabled={busy} />
+						{/key}
+						<span class="hint">
+							{#if noteOnly}
+								Write as much as you like. You can add photos to this entry later, and come back
+								and edit this note whenever you want.
+							{:else}
+								Anything worth saying about this page. It is saved with the entry, and like the
+								photo it cannot be edited afterwards, though you can always add another note.
+							{/if}
+						</span>
+					</div>
 				{/if}
 
 				<div class="actions">

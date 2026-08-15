@@ -61,7 +61,11 @@ const MIGRATIONS = [
 	'0091_notebook_pin_and_activity.sql',
 	'0094_notebook_classroom_sections.sql',
 	'0098_notebook_session_postings.sql',
-	'0099_notebook_view_as.sql'
+	'0099_notebook_view_as.sql',
+	// 0106 moved this payload into a shared helper and left the guard alone, so
+	// every assertion below is the regression check on that extraction: same
+	// admin-only door, byte-for-byte the same notebook behind it.
+	'0106_notebook_instructor_student_access.sql'
 ] as const;
 
 const MIGRATION_0099 = readFileSync(

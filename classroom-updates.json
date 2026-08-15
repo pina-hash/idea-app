@@ -14,6 +14,18 @@
 	"entries": [
 		{
 			"date": "2026-08-14",
+			"title": "You can write a note on a check-in as you photograph it",
+			"body": "A notebook check-in still needs a photo of the page -- that has not changed. But until now the photo was all you could send, so if there was something worth saying about it (what you measured, what went wrong, what you would try next) you had to save the entry first and then come back and add it. There is now an optional Note box on the same screen, right under where you pick your photos. Write in it or leave it empty; either way the entry saves the same. Like the photo, a note on a check-in cannot be edited once it is saved, but you can always add another note to the same entry afterwards.",
+			"tags": ["Notebook"]
+		},
+		{
+			"date": "2026-08-14",
+			"title": "Your teacher can now read your whole notebook, not just your check-ins",
+			"body": "Your teachers could only ever see notebook entries you filed against one of their check-ins. Anything you wrote or photographed on your own -- a free entry with no check-in attached -- was invisible to them, which meant most of a notebook could not be looked at or given credit for. A teacher can now open your whole notebook from their class list, including your own entries and notes. Two things to know. Only teachers whose class you are currently in can do this, and only for you -- not for anyone else's students. And it is read-only: they cannot change, delete or add anything to your notebook. Nothing you have written has moved or been altered.",
+			"tags": ["Notebook"]
+		},
+		{
+			"date": "2026-08-14",
 			"title": "Big presentations no longer fail on the last piece",
 			"body": "A large presentation is sent up in pieces, and the very last piece is the one that tells Google the file is complete. That last piece was failing on some uploads, so a deck that had reached 100% still never arrived -- which is a frustrating way to lose ten minutes of waiting. The last piece is now sent exactly the way it is supposed to be, and if it does fail, the upload asks how much actually arrived and carries on from there instead of giving up. It also checks that the finished file is the size it should be, so a presentation can never half-arrive and then open as something broken. If it still cannot finish, the message now says which piece failed and how much had arrived, which is what your teacher can pass on when reporting it. Nothing changes about how a deck looks or opens for you.",
 			"tags": ["Classes"]
