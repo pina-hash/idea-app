@@ -4,6 +4,8 @@
 	import {
 		classroomFeedbackSubmit,
 		createClassroomTransports,
+		createTeacherEngineTransports,
+		deckTransports,
 		fetchLinkPreviewClient
 	} from '$lib/classroom/transports';
 	import type { PageData } from './$types';
@@ -19,6 +21,13 @@
 	const transports = createClassroomTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
+	/**
+	 * So a deck or a spec can be attached while editing an item from the stream,
+	 * not only from the item's own page. Both are re-authorized by the route and
+	 * the RPC behind them; handing them in is what turns the controls on.
+	 */
+	// svelte-ignore state_referenced_locally
+	const teacherTransports = createTeacherEngineTransports(data.supabase);
 
 	/**
 	 * The notebook door for whoever is looking. A manager of this section gets
@@ -42,6 +51,8 @@
 	checkIns={data.checkIns}
 	sectionOutstanding={data.sectionOutstanding}
 	{transports}
+	{deckTransports}
+	{teacherTransports}
 	{submitFeedback}
 	{notebookHref}
 	fetchPreview={fetchLinkPreviewClient}

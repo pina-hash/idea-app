@@ -24,6 +24,8 @@
  * node type it does not name simply does not survive normalization.
  */
 
+import { safeHref, tiptapHasText, type TiptapNode } from '$lib/rich-text';
+
 /** One run of inline text. The absent-means-off flags keep stored docs small. */
 export interface NoteInline {
 	text: string;
@@ -117,22 +119,17 @@ export function noteThreads(rows: NotebookNoteRow[]): NoteThread[] {
 }
 
 /**
- * Link schemes a note may carry. Checked at normalization AND again at
- * render: the renderer must stay safe for a doc that reached the database by
- * some other door.
+ * Link schemes a note may carry, and the check that enforces them -- at
+ * normalization AND again at render, since the renderer must stay safe for a
+ * doc that reached the database by some other door.
+ *
+ * MOVED to $lib/rich-text and re-exported here, so every existing importer is
+ * untouched. It is the one security-relevant decision the whole rich-text path
+ * makes (a typed document cannot express a script tag, so an href is the only
+ * place hostile input has to go), and the classroom's item bodies need the
+ * identical rule -- two copies is two places to fix.
  */
-const SAFE_SCHEMES = ['http://', 'https://', 'mailto:'];
-
-export function safeHref(href: string | undefined | null): string | null {
-	const trimmed = (href ?? '').trim();
-	if (!trimmed) return null;
-	const lower = trimmed.toLowerCase();
-	if (!SAFE_SCHEMES.some((s) => lower.startsWith(s))) return null;
-	// A control character in a URL is only ever an attempt to smuggle a
-	// scheme past the prefix check above.
-	if ([...trimmed].some((c) => c.charCodeAt(0) <= 0x20 || c.charCodeAt(0) === 0x7f)) return null;
-	return trimmed;
-}
+export { safeHref };
 
 /** Every run in a block, whatever kind it is. */
 function blockRuns(block: NoteBlock): NoteInline[][] {
@@ -177,28 +174,12 @@ export function docSummary(doc: NoteDoc, max = 70): string {
 // which is pure display and safe to ship to the client.
 // ---------------------------------------------------------------------------
 
-/** A ProseMirror-shaped node, loose enough for both directions. */
-export interface TiptapNode {
-	type: string;
-	text?: string;
-	attrs?: Record<string, unknown>;
-	marks?: { type: string; attrs?: Record<string, unknown> }[];
-	content?: TiptapNode[];
-}
-
 /**
- * Does an editor document contain any text at all?
- *
- * The editor is never empty structurally -- ProseMirror always holds at least
- * one paragraph -- so "is there anything to save" has to look at the text. The
- * server decides for real (normalizeNoteDoc refuses an empty note); this is
- * only what keeps the Save button honest while someone is typing.
+ * The editor's own node shape, and "is there anything to save" -- both shared
+ * with every other rich-text surface, both re-exported so this module's
+ * importers never need to know they moved.
  */
-export function tiptapHasText(node: TiptapNode | null | undefined): boolean {
-	if (!node || typeof node !== 'object') return false;
-	if (typeof node.text === 'string' && node.text.trim() !== '') return true;
-	return (node.content ?? []).some(tiptapHasText);
-}
+export { tiptapHasText, type TiptapNode };
 
 function runToTiptap(run: NoteInline): TiptapNode | null {
 	if (!run.text) return null;

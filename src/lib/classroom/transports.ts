@@ -39,6 +39,7 @@ import {
 	type ClassroomItem,
 	type ClassroomManageTransports,
 	type ImportSummary,
+	type ItemInput,
 	type ItemLink,
 	type LinkPreview,
 	type SectionDeleteResult,
@@ -101,6 +102,36 @@ export const ITEM_SELECT =
 	'classroom_postings(id, section_id), ' +
 	'classroom_item_views(viewed_at)';
 
+/**
+ * ITEM_SELECT plus 0108's rich body.
+ *
+ * Its own constant, and never the default, for the reason spelled out above:
+ * PostgREST refuses the WHOLE select for one unknown column, so naming
+ * `body_doc` unconditionally would blank every classroom read on a deployment
+ * sitting between 0107 and 0108. `selectItemsWithDoc` tries this one and falls
+ * back, which is the same widen-then-degrade shape `selectSubmissions` uses
+ * for 0095's column and the notebook's loader uses for its whole chain.
+ */
+export const ITEM_SELECT_RICH = `${ITEM_SELECT}, body_doc`;
+
+/**
+ * Run an item query with the rich body if the backend has it, without if not.
+ *
+ * Takes a FUNCTION OF THE SELECT STRING rather than a finished query because
+ * every call site appends its own filtered `posted_in` embed -- the shared part
+ * is which columns to ask for, not what to ask about. A failure of the rich
+ * attempt costs one extra round trip on a pre-0108 backend and nothing at all
+ * afterwards; degrading loses the FORMATTING for that read, never the body,
+ * since `body` is still the plain-text projection and `itemBodyDoc` converts it.
+ */
+export async function selectItemsWithDoc<T extends { error: { message?: string } | null }>(
+	run: (select: string) => PromiseLike<T>
+): Promise<T> {
+	const rich = await run(ITEM_SELECT_RICH);
+	if (!rich.error) return rich;
+	return await run(ITEM_SELECT);
+}
+
 function fail(error: { message?: string } | null): { ok: false; message: string } {
 	return { ok: false, message: error?.message ?? 'Something went wrong.' };
 }
@@ -118,11 +149,13 @@ export async function itemsForSection(
 	supabase: SupabaseClient,
 	sectionId: string
 ): Promise<{ items: ClassroomItem[]; error: { message?: string } | null }> {
-	const { data, error } = await supabase
-		.from('classroom_items')
-		.select(`${ITEM_SELECT}, posted_in:classroom_postings!inner(section_id)`)
-		.eq('posted_in.section_id', sectionId)
-		.order('created_at', { ascending: false });
+	const { data, error } = await selectItemsWithDoc((select) =>
+		supabase
+			.from('classroom_items')
+			.select(`${select}, posted_in:classroom_postings!inner(section_id)`)
+			.eq('posted_in.section_id', sectionId)
+			.order('created_at', { ascending: false })
+	);
 	return {
 		items: ((data ?? []) as unknown as Record<string, unknown>[]).map(normalizeItemRow),
 		error
@@ -536,6 +569,58 @@ export async function mergeInstructorMaterials(
 }
 
 /**
+ * Creating and editing an item go through a ROUTE rather than the RPC directly,
+ * for the same class of reason deleting one does: there is server-side work in
+ * the way. The body is an authored rich document now, and turning the editor's
+ * arbitrary output into the closed stored shape is a normalization step that
+ * must not be something a client could skip or replace -- so it runs in
+ * /api/classroom/item, under `$lib/server`, and this is a thin caller of it.
+ *
+ * The RPC still runs under the caller's own cookie session inside that handler,
+ * so teacher-of-record and every other authority rule are untouched, and a
+ * refusal comes back as the database's own message for a component to render.
+ */
+async function saveItem(payload: {
+	mode: 'create' | 'update';
+	id?: string;
+	kind?: string;
+	sectionIds?: string[];
+	input: ItemInput;
+	published: boolean | null;
+}): Promise<TxResult<{ itemId: string }>> {
+	try {
+		const res = await fetch('/api/classroom/item', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				mode: payload.mode,
+				id: payload.id,
+				kind: payload.kind,
+				sectionIds: payload.sectionIds,
+				published: payload.published,
+				title: payload.input.title,
+				bodyDoc: payload.input.bodyDoc,
+				points: payload.input.points,
+				dueAt: payload.input.dueAt,
+				category: payload.input.category,
+				links: payload.input.links
+			})
+		});
+		const body = (await res.json().catch(() => null)) as
+			| { error?: string; item_id?: string }
+			| null;
+		if (!res.ok) {
+			return { ok: false, message: body?.error ?? `Save failed (${res.status}).` };
+		}
+		const itemId = body?.item_id ?? payload.id;
+		if (!itemId) return { ok: false, message: 'Save failed.' };
+		return { ok: true, data: { itemId } };
+	} catch (e) {
+		return { ok: false, message: (e as Error).message || 'Save failed.' };
+	}
+}
+
+/**
  * Deleting content goes through a ROUTE, not the RPC directly: the cascade
  * takes the attachment rows with it, and the Drive blobs they were the last
  * reference to have to be swept server-side (see /api/classroom/delete-content).
@@ -911,34 +996,9 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 			// item it lists gets its instructor-only materials merged in.
 			return { ok: true, data: { items: await mergeInstructorMaterials(supabase, items) } };
 		},
-		async createItem(kind, sectionIds, input, published) {
-			const { data: res, error } = await supabase.rpc('classroom_create_item', {
-				p_kind: kind,
-				p_section_ids: sectionIds,
-				p_title: input.title,
-				p_body: input.body,
-				p_points: input.points,
-				p_due_at: input.dueAt,
-				p_category: input.category,
-				p_published: published,
-				p_resources: input.links
-			});
-			if (error) return fail(error);
-			return { ok: true, data: { itemId: (res as { item_id: string }).item_id } };
-		},
-		async updateItem(id, input, published) {
-			const { error } = await supabase.rpc('classroom_update_item', {
-				p_id: id,
-				p_title: input.title,
-				p_body: input.body,
-				p_points: input.points,
-				p_due_at: input.dueAt,
-				p_category: input.category,
-				p_published: published,
-				p_resources: input.links
-			});
-			return error ? fail(error) : { ok: true, data: { itemId: id } };
-		},
+		createItem: (kind, sectionIds, input, published) =>
+			saveItem({ mode: 'create', kind, sectionIds, input, published }),
+		updateItem: (id, input, published) => saveItem({ mode: 'update', id, input, published }),
 		deleteItem,
 		async duplicateItem(id) {
 			const { data: res, error } = await supabase.rpc('classroom_duplicate_item', {

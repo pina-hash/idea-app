@@ -9,6 +9,8 @@
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
 	import { registerLocalAttachmentUrl } from '$lib/classroom/classroom';
+	import type { ItemDoc } from '$lib/classroom/classroom-doc';
+	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 	import type {
 		ClassroomAttachment,
@@ -103,10 +105,37 @@
 		{ section_id: 's-2', student_email: 'alice@boscotech.net', display_name: 'Alice Alvarez', active: true }
 	]);
 
+	/**
+	 * The REAL sanitizer, reached over the wire.
+	 *
+	 * A harness that re-implemented it would be testing its own copy; this way
+	 * the browser pass genuinely exercises `normalizeItemDoc` -- which is the
+	 * only way "a pasted list survives" and "a script node is dropped" mean
+	 * anything here. See /dev/classroom/normalize.
+	 */
+	async function normalizeBody(
+		bodyDoc: unknown
+	): Promise<{ ok: true; body: string; doc: ItemDoc } | { ok: false; error: string }> {
+		try {
+			const res = await fetch('/dev/classroom/normalize', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ bodyDoc })
+			});
+			const out = (await res.json()) as
+				| { ok: true; body: string; doc: ItemDoc }
+				| { ok: false; error: string };
+			return out;
+		} catch (e) {
+			return { ok: false, error: (e as Error).message || 'Could not read that body.' };
+		}
+	}
+
 	function item(over: Partial<ClassroomItem> & { id: string; kind: ClassroomItem['kind'] }): ClassroomItem {
 		return {
 			title: null,
 			body: '',
+			body_doc: null,
 			points: null,
 			due_at: null,
 			category: null,
@@ -459,10 +488,15 @@
 		},
 		async createItem(kind, sectionIds, input, published) {
 			note('createItem', { kind, sectionIds, title: input.title, published });
+			// The REAL sanitizer, over the wire, exactly as the real route runs
+			// it -- so what this harness stores and renders is what production
+			// would have stored (the /dev/notebook/normalize convention).
+			const shaped = await normalizeBody(input.bodyDoc);
+			if (!shaped.ok) return { ok: false, message: shaped.error };
 			if (kind !== 'post' && !input.title?.trim()) {
 				return { ok: false, message: 'A title is required.' };
 			}
-			if (kind === 'post' && !input.body.trim()) {
+			if (kind === 'post' && !shaped.body.trim()) {
 				return { ok: false, message: 'The announcement needs a body.' };
 			}
 			if (sectionIds.some((id) => sections.find((s) => s.id === id)?.teacher_email !== TEACHER)) {
@@ -476,7 +510,8 @@
 				id: nid('i'),
 				kind,
 				title: input.title?.trim() || null,
-				body: input.body,
+				body: shaped.body,
+				body_doc: shaped.doc,
 				points: kind === 'assignment' ? input.points : null,
 				due_at: kind === 'assignment' ? input.dueAt : null,
 				category: input.category,
@@ -492,6 +527,8 @@
 		},
 		async updateItem(id, input, published) {
 			note('updateItem', { id, title: input.title, published });
+			const shaped = await normalizeBody(input.bodyDoc);
+			if (!shaped.ok) return { ok: false, message: shaped.error };
 			const current = items.find((i) => i.id === id);
 			if (!current) return { ok: false, message: 'That item does not exist.' };
 			if (!managesItem(current)) {
@@ -516,14 +553,16 @@
 				);
 			const changed =
 				(input.title?.trim() || '') !== (current.title ?? '') ||
-				input.body !== current.body ||
+				shaped.body !== current.body ||
+				JSON.stringify(shaped.doc) !== JSON.stringify(current.body_doc ?? []) ||
 				input.points !== current.points ||
 				input.dueAt !== current.due_at ||
 				(input.category ?? '') !== (current.category ?? '') ||
 				linksChanged;
 			patch(id, {
 				title: input.title?.trim() || null,
-				body: input.body,
+				body: shaped.body,
+				body_doc: shaped.doc,
 				points: current.kind === 'assignment' ? input.points : null,
 				due_at: current.kind === 'assignment' ? input.dueAt : null,
 				category: input.category,
@@ -1101,6 +1140,63 @@
 		}
 	};
 
+	/**
+	 * An in-memory deck upload, with its real failure shapes selectable.
+	 *
+	 * The composer stages a zip and applies it after the item exists, so the
+	 * paths worth driving here are the ones that are hard to reach by accident:
+	 * a plain success, a refusal (does the staged file SURVIVE so a second save
+	 * retries it?), and the "which page opens this deck?" question, which the
+	 * server asks rather than guessing.
+	 */
+	let deckOutcome = $state<'ok' | 'fail' | 'entry'>('ok');
+	let deckByItem = $state<Record<string, ClassroomDeck>>({});
+
+	const fakeDeckTransports: DeckTransports = {
+		async uploadDeck(itemId, file, options) {
+			note('uploadDeck', { itemId, file: file.name, entryPath: options?.entryPath ?? null });
+			options?.onProgress?.({ phase: 'uploading', loaded: file.size, total: file.size });
+			options?.onProgress?.({ phase: 'unpacking', loaded: 3, total: 6 });
+			if (deckOutcome === 'fail') {
+				return { ok: false, code: 'drive_upload', message: 'Drive refused a file in this deck.' };
+			}
+			if (deckOutcome === 'entry' && !options?.entryPath) {
+				return {
+					ok: false,
+					code: 'ambiguous_entry',
+					message: 'This zip has more than one page that could open it.',
+					candidates: ['index.html', 'handout.html']
+				};
+			}
+			const replaced = !!deckByItem[itemId];
+			deckByItem = {
+				...deckByItem,
+				[itemId]: {
+					id: nid('dk'),
+					item_id: itemId,
+					title: file.name.replace(/\.zip$/i, ''),
+					entry_path: options?.entryPath ?? 'index.html',
+					thumbnail_path: null,
+					file_count: 6,
+					total_bytes: file.size,
+					has_state_file: true,
+					slides: [
+						{ index: 0, label: 'Title' },
+						{ index: 1, label: 'Task' }
+					]
+				}
+			};
+			return { ok: true, message: 'Deck uploaded.', replaced, fileCount: 6, warnings: [] };
+		},
+		async deleteDeck(itemId) {
+			note('deleteDeck', { itemId });
+			const next = { ...deckByItem };
+			delete next[itemId];
+			deckByItem = next;
+			return { ok: true, message: 'Deck removed.' };
+		}
+	};
+
 	const teacherEngineTransports: AssignmentTeacherTransports = {
 		async setSpec(itemId, spec) {
 			note('setSpec', { itemId, removed: spec == null });
@@ -1559,6 +1655,14 @@
 		<input type="checkbox" bind:checked={checkInsApplied} data-testid="sim-check-ins" />
 		class has check-ins
 	</label>
+	<label class="harness-toggle">
+		deck upload
+		<select bind:value={deckOutcome} data-testid="sim-deck-outcome">
+			<option value="ok">succeeds</option>
+			<option value="fail">fails</option>
+			<option value="entry">asks which page</option>
+		</select>
+	</label>
 </div>
 
 {#if view === 'home'}
@@ -1711,6 +1815,8 @@
 		initialSections={ownSections}
 		initialCourses={courses}
 		{transports}
+		deckTransports={fakeDeckTransports}
+		teacherTransports={teacherEngineTransports}
 		loadNotebookGrid={notebookApplied ? loadNotebookGrid : null}
 		{submitFeedback}
 	/>

@@ -1,6 +1,11 @@
 <script lang="ts">
 	import ManageConsole from '$lib/classroom/ManageConsole.svelte';
-	import { classroomFeedbackSubmit, createClassroomTransports } from '$lib/classroom/transports';
+	import {
+		classroomFeedbackSubmit,
+		createClassroomTransports,
+		createTeacherEngineTransports,
+		deckTransports
+	} from '$lib/classroom/transports';
 	import type { ReviewTransports, SectionGrid } from '$lib/notebook-review';
 	import type { PageData } from './$types';
 
@@ -17,6 +22,14 @@
 	const transports = createClassroomTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
+	/**
+	 * A deck and an assignment spec can be attached from the composer itself,
+	 * so the console hands it those transports too. Both are re-authorized
+	 * server-side by the route and the RPC they call -- the console is
+	 * teacher-only, but that gate is convenience and these are plumbing.
+	 */
+	// svelte-ignore state_referenced_locally
+	const teacherTransports = createTeacherEngineTransports(data.supabase);
 
 	/**
 	 * The notebook compliance element's one read: the SAME
@@ -51,6 +64,8 @@
 	initialSections={data.sections}
 	initialCourses={data.courses}
 	{transports}
+	{deckTransports}
+	{teacherTransports}
 	{loadNotebookGrid}
 	{submitFeedback}
 />

@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { normalizeItemRow, normalizeSectionRow } from '$lib/classroom/classroom';
 import {
-	ITEM_SELECT,
+	selectItemsWithDoc,
 	SECTION_SELECT,
 	loadItemDeck,
 	loadStudentEngineData,
@@ -33,12 +33,14 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 
 	const [{ data: sectionRow }, { data: itemRow }, { data: manages }] = await Promise.all([
 		supabase.from('classroom_sections').select(SECTION_SELECT).eq('id', params.sectionId).maybeSingle(),
-		supabase
-			.from('classroom_items')
-			.select(`${ITEM_SELECT}, posted_in:classroom_postings!inner(section_id)`)
-			.eq('id', params.itemId)
-			.eq('posted_in.section_id', params.sectionId)
-			.maybeSingle(),
+		selectItemsWithDoc((select) =>
+			supabase
+				.from('classroom_items')
+				.select(`${select}, posted_in:classroom_postings!inner(section_id)`)
+				.eq('id', params.itemId)
+				.eq('posted_in.section_id', params.sectionId)
+				.maybeSingle()
+		),
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId })
 	]);
 

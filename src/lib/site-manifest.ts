@@ -119,6 +119,11 @@ export const APPS: SiteApp[] = [
 			'src/routes/dev/home-feed/',
 			// Presentation decks (0101): the deck harness.
 			'src/routes/dev/classroom-deck/',
+			// Rich item bodies (0108): the server-side sanitizer. Its client-safe
+			// half is under src/lib/classroom/; the shared link-scheme primitive
+			// in src/lib/rich-text.ts is deliberately NOT claimed here, since the
+			// notebook's written notes use it too.
+			'src/lib/server/classroom-doc.ts',
 			// The student-facing update log's content file (see updates.ts).
 			'classroom-updates.json'
 		],

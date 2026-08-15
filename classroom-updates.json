@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-15",
+			"title": "Instructions can have headings, lists and links",
+			"body": "Assignment instructions, announcements and material descriptions are properly formatted now. Your teacher can use headings, bulleted and numbered lists, bold, italic and links, so a set of steps reads as a set of steps instead of one long paragraph. Everything already posted still says exactly what it said before, and it looks the same everywhere -- on the class stream, on the assignment's own page, and on your phone.",
+			"tags": ["Classwork", "Announcements"]
+		},
+		{
+			"date": "2026-08-15",
 			"title": "Your notebook comes in IDEA green now",
 			"body": "The notebook has a third look beside the light and dark ones: a green-black theme in the program's own colours. Use the appearance button at the top of your notebook to pick it. There are four choices now -- Match my device, Light, Dark and IDEA -- and whichever you pick is remembered on that device. If you have not picked one, your phone or computer still decides between light and dark, the way it always has; IDEA only turns up if you choose it. Everything else is exactly where it was, and your teacher's review grid reads the same in all three.",
 			"tags": ["Notebook"]

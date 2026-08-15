@@ -12,6 +12,7 @@
  */
 
 import { formatSectionLabel } from '$lib/section-label';
+import type { ItemDoc, TiptapNode } from '$lib/classroom/classroom-doc';
 
 // ---------------------------------------------------------------------------
 // Row types (mirroring 0085's tables; embeds normalized by the helpers below)
@@ -82,7 +83,21 @@ export interface ClassroomItem {
 	id: string;
 	kind: ClassroomItemKind;
 	title: string | null;
+	/**
+	 * The body's PLAIN-TEXT projection -- still the column an announcement's
+	 * fallback title, the home feed and the 20,000-character cap all read, and
+	 * still what renders when `body_doc` is not available.
+	 */
 	body: string;
+	/**
+	 * The body as an authored RICH DOCUMENT (0108). `undefined` means the read
+	 * did not carry it (a deployment between 0107 and 0108, whose select
+	 * degrades rather than blanking every classroom read); null or empty means
+	 * the item genuinely has no body. Never read this directly to render --
+	 * `itemBodyDoc` in classroom-doc.ts is what falls back to converting the
+	 * plain text, so every surface gets the same answer.
+	 */
+	body_doc?: ItemDoc | null;
 	points: number | null;
 	due_at: string | null;
 	category: string | null;
@@ -177,6 +192,10 @@ export function normalizeItemRow(row: Record<string, unknown>): ClassroomItem {
 		kind: (row.kind as ClassroomItemKind) ?? 'post',
 		title: (row.title as string | null) ?? null,
 		body: (row.body as string | null) ?? '',
+		// Absent (the column was not selected) and null (no document) are kept
+		// apart: undefined means "this read could not tell", which is what the
+		// render-time fallback keys on.
+		body_doc: 'body_doc' in row ? ((row.body_doc as ItemDoc | null) ?? null) : undefined,
 		points: (row.points as number | null) ?? null,
 		due_at: (row.due_at as string | null) ?? null,
 		category: (row.category as string | null) ?? null,
@@ -645,10 +664,18 @@ export interface ImportSummary {
 	results: ImportRowResult[];
 }
 
-/** Everything authored on the canonical record. */
+/**
+ * Everything authored on the canonical record.
+ *
+ * `bodyDoc` is the EDITOR'S OWN document, untrusted and unnormalized -- the
+ * save route sanitizes it and derives the plain-text `body` from the result,
+ * so a caller never sends both and the two can never be handed in disagreeing.
+ * There is deliberately no `body: string` here any more: an input carrying its
+ * own plain text beside a document is an input that can lie.
+ */
 export interface ItemInput {
 	title: string | null;
-	body: string;
+	bodyDoc: TiptapNode | ItemDoc | null;
 	points: number | null;
 	dueAt: string | null;
 	category: string | null;

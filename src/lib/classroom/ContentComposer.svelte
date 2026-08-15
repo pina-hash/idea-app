@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
+	import DeckStager from '$lib/classroom/DeckStager.svelte';
+	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
+	import SpecImport from '$lib/classroom/SpecImport.svelte';
+	import { itemBodyDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
+	import type { AssignmentSpec, AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
+	import type { ClassroomDeck, DeckTransports, DeckUploadProgress } from '$lib/classroom/deck';
 	import {
 		ITEM_KINDS,
 		formatBytes,
@@ -33,10 +39,24 @@
 	 * of the SECURITY DEFINER RPCs -- nothing here is a boundary, and a refusal
 	 * comes back as text to render.
 	 *
-	 * ATTACHMENT SEQUENCING is the one genuinely ordered bit: an attachment row
-	 * stores a Drive file id against an item id, so the item has to EXIST first.
-	 * Files are therefore staged locally and uploaded after the create/update
-	 * RPC hands back the id it touched.
+	 * ATTACHMENT SEQUENCING is the one genuinely ordered bit: everything that
+	 * attaches to an item is stored against its id, so the item has to EXIST
+	 * first. Files, instructor-only files, a presentation deck and an assignment
+	 * spec are therefore all STAGED locally and applied after the create/update
+	 * call hands back the id it touched.
+	 *
+	 * EVERY ATTACHMENT TYPE IS AVAILABLE HERE, on create as well as edit, and
+	 * that is the point rather than a convenience. A deck and a spec used to be
+	 * reachable only by saving an item and then going and finding it again on
+	 * its own page -- and nothing in this form said either was possible, which
+	 * is a discoverability failure rather than a missing feature. Waiting for
+	 * the id is a sequencing problem, so it is solved by sequencing.
+	 *
+	 * A STAGED THING THAT FAILS TO APPLY IS KEPT, NOT DISCARDED. If the item
+	 * itself refuses to save, nothing is touched at all. If the item saves and
+	 * an upload then fails, the report says exactly what did not land and the
+	 * staged file stays in the form, so saving again retries it instead of
+	 * asking someone to find the zip a second time.
 	 */
 	let {
 		mode = 'create',
@@ -46,6 +66,10 @@
 		transports,
 		attachmentsEnabled = true,
 		compact = false,
+		deck = null,
+		deckTransports = null,
+		spec = null,
+		teacherTransports = null,
 		onsaved,
 		oncancel = null
 	}: {
@@ -59,6 +83,14 @@
 		attachmentsEnabled?: boolean;
 		/** Inline placement (class page / item detail) vs the console card. */
 		compact?: boolean;
+		/** The deck already on the item being edited, when it has one. */
+		deck?: ClassroomDeck | null;
+		/** Absent = this surface cannot do decks; the section hides entirely. */
+		deckTransports?: DeckTransports | null;
+		/** The spec already on the assignment being edited, when it has one. */
+		spec?: AssignmentSpec | null;
+		/** Absent = this surface cannot do specs; the section hides entirely. */
+		teacherTransports?: AssignmentTeacherTransports | null;
 		onsaved: (info: { kind: ClassroomItemKind; published: boolean; text: string }) => void;
 		oncancel?: (() => void) | null;
 	} = $props();
@@ -68,14 +100,31 @@
 	const editingKind = $derived<ClassroomItemKind>(mode === 'edit' ? (item?.kind ?? 'post') : kind);
 	const isAssignment = $derived(editingKind === 'assignment');
 	const needsTitle = $derived(editingKind !== 'post');
+	const bodyLabel = $derived(
+		editingKind === 'post'
+			? 'Announcement'
+			: editingKind === 'material'
+				? 'Description'
+				: 'Instructions'
+	);
 
 	// Seeded once from the row being edited; the parent REMOUNTS this component
 	// (a keyed block) when the edit target changes, so there is no effect
 	// resetting fields underneath someone who is typing.
 	// svelte-ignore state_referenced_locally
 	let title = $state(item?.title ?? '');
+	/**
+	 * The body as the EDITOR's own document.
+	 *
+	 * Seeded through `itemBodyDoc`, which falls back to converting the stored
+	 * plain text -- so an item authored before rich text existed, or read from a
+	 * backend without 0108, opens with its real paragraphs in the editor rather
+	 * than blank. What gets SENT is this, untouched: the save route sanitizes it
+	 * and derives the plain-text column from the result.
+	 */
 	// svelte-ignore state_referenced_locally
-	let body = $state(item?.body ?? '');
+	const seedDoc = item ? itemBodyDoc(item) : [];
+	let bodyDoc = $state<TiptapNode | null>(null);
 	// bind:value on <input type="number"> COERCES to a number (the ReviewConsole
 	// unit-field lesson), so this is string | number and every read goes through
 	// String().
@@ -93,6 +142,20 @@
 	let targets = $state<Record<string, boolean>>({});
 	let busy = $state(false);
 	let msg = $state<Msg>(null);
+	/** Bumped to remount the editor empty after a create (see runSubmit). */
+	let editorSeed = $state(0);
+	/**
+	 * The item this composer has ALREADY created, while it is still on screen.
+	 *
+	 * Only set when a create succeeded but something staged after it did not --
+	 * the state the failure message invites someone to "save again" from. Without
+	 * it that second save would run `createItem` a second time and quietly post a
+	 * DUPLICATE of an item that already exists, which is exactly what following
+	 * the instruction produced before this existed (found in the browser: one
+	 * retry, two items). Cleared the moment a save fully succeeds, so an ordinary
+	 * next post creates a new item as it always has.
+	 */
+	let createdItemId = $state<string | null>(null);
 
 	// --- Attachments ------------------------------------------------------
 	// A local copy so a removal shows immediately without the parent having to
@@ -210,6 +273,55 @@
 		}
 	}
 
+	// --- Presentation deck (0101/0102/0105), staged --------------------------
+	// The zip waits here until the item exists. Everything the upload reports
+	// back -- progress, refusals, the "which page opens this deck?" question,
+	// the missing-state-file warning -- is surfaced on the stager rather than
+	// folded into the composer's own one-line message, because those are things
+	// the uploader has to READ, not just an outcome.
+	let stagedDeck = $state<File | null>(null);
+	let deckEntryPath = $state<string | null>(null);
+	let deckCandidates = $state<string[]>([]);
+	let deckProgress = $state<DeckUploadProgress | null>(null);
+	let deckError = $state<string | null>(null);
+	let deckErrorCode = $state<string | null>(null);
+	let deckWarnings = $state<string[]>([]);
+	let deckNotice = $state<string | null>(null);
+	let deckRemoving = $state(false);
+	// svelte-ignore state_referenced_locally
+	let currentDeck = $state<ClassroomDeck | null>(deck);
+
+	const deckEnabled = $derived(!!deckTransports);
+
+	async function removeDeck() {
+		if (!deckTransports || !item) return;
+		deckRemoving = true;
+		deckError = null;
+		const res = await deckTransports.deleteDeck(item.id);
+		deckRemoving = false;
+		if (!res.ok) {
+			deckError = res.message;
+			return;
+		}
+		currentDeck = null;
+		deckNotice = 'Deck removed.';
+	}
+
+	// --- Assignment spec (0086), staged --------------------------------------
+	// Only an assignment can carry one, and only a surface that was handed the
+	// teacher transports can offer it.
+	let stagedSpec = $state<unknown | null>(null);
+	let stagedSpecSummary = $state<AssignmentSpec | null>(null);
+	// svelte-ignore state_referenced_locally
+	let currentSpec = $state<AssignmentSpec | null>(spec);
+
+	const specEnabled = $derived(!!teacherTransports && isAssignment);
+
+	function stageSpec(raw: unknown | null) {
+		stagedSpec = raw;
+		stagedSpecSummary = (raw as AssignmentSpec | null) ?? null;
+	}
+
 	// --- Linkage (edit mode) ----------------------------------------------
 	const postedSectionIds = $derived(new Set((item?.postings ?? []).map((p) => p.section_id)));
 	const postedSections = $derived(sections.filter((s) => postedSectionIds.has(s.id)));
@@ -297,7 +409,10 @@
 		const pts = rawPoints === '' ? null : Number.parseInt(rawPoints, 10);
 		return {
 			title: title.trim() || null,
-			body,
+			// The editor's document, exactly as it produced it. Null before the
+			// editor has mounted, which the route reads as an empty body -- the
+			// same thing an untouched form has always sent.
+			bodyDoc,
 			// Points and a due date are assignment vocabulary; sending them on
 			// another kind is refused server-side, so they are dropped here.
 			points: isAssignment && !Number.isNaN(pts as number) ? pts : null,
@@ -375,6 +490,9 @@
 		let res;
 		if (mode === 'edit') {
 			res = await transports.updateItem(item!.id, itemInput(), publish);
+		} else if (createdItemId) {
+			// A retry after a partially-failed create: update what exists.
+			res = await transports.updateItem(createdItemId, itemInput(), publish);
 		} else if (targetIds.length === 0) {
 			res = { ok: false as const, message: 'Pick at least one class to post to.' };
 		} else {
@@ -386,25 +504,37 @@
 			return;
 		}
 
-		// The item exists; NOW the staged files -- and the instructor-only
-		// materials, which are never part of createItem/updateItem's own
-		// payload -- can be attached to it. All failures are collected together
-		// so one report covers everything, not just the student-facing half.
+		// The item exists; NOW everything that hangs off its id can be applied --
+		// the staged files, the instructor-only materials (never part of
+		// createItem/updateItem's own payload), the deck and the spec. All
+		// failures are collected together so one report covers everything.
+		//
+		// ANYTHING THAT FAILS STAYS STAGED. Only what actually landed is cleared,
+		// so saving again retries the rest rather than asking a teacher to go and
+		// find the same file a second time.
 		const itemId = res.data.itemId;
 		const hadFiles = staged.length > 0 || instructorStaged.length > 0;
 		const failures: string[] = [];
 
+		const keptFiles: File[] = [];
 		for (const file of staged) {
 			const up = await transports.uploadAttachment(itemId, file);
-			if (!up.ok) failures.push(`${file.name}: ${up.message}`);
+			if (!up.ok) {
+				failures.push(`${file.name}: ${up.message}`);
+				keptFiles.push(file);
+			}
 		}
-		staged = [];
+		staged = keptFiles;
 
+		const keptInstructorFiles: File[] = [];
 		for (const file of instructorStaged) {
 			const up = await transports.uploadInstructorAttachment(itemId, file);
-			if (!up.ok) failures.push(`instructor file "${file.name}": ${up.message}`);
+			if (!up.ok) {
+				failures.push(`instructor file "${file.name}": ${up.message}`);
+				keptInstructorFiles.push(file);
+			}
 		}
-		instructorStaged = [];
+		instructorStaged = keptInstructorFiles;
 
 		const instructorLinksClean = instructorLinks
 			.map((r) => ({ label: r.label.trim(), url: r.url.trim() }))
@@ -412,18 +542,82 @@
 		const linksRes = await transports.setInstructorResources(itemId, instructorLinksClean);
 		if (!linksRes.ok) failures.push(`instructor links: ${linksRes.message}`);
 
+		let deckAttached = false;
+		if (stagedDeck && deckTransports) {
+			deckError = null;
+			deckErrorCode = null;
+			deckNotice = null;
+			deckWarnings = [];
+			deckCandidates = [];
+			const up = await deckTransports.uploadDeck(itemId, stagedDeck, {
+				entryPath: deckEntryPath,
+				onProgress: (p) => (deckProgress = p)
+			});
+			deckProgress = null;
+			if (up.ok) {
+				stagedDeck = null;
+				deckEntryPath = null;
+				deckAttached = true;
+				deckWarnings = up.warnings ?? [];
+				deckNotice = up.replaced
+					? `Deck replaced (${up.fileCount ?? 0} files).`
+					: `Deck uploaded (${up.fileCount ?? 0} files).`;
+			} else {
+				// Kept, deliberately: the zip is still in the form and the reason
+				// is on the stager. A deck that needs its entry page chosen is the
+				// clearest case -- the answer is a radio button away and the next
+				// save carries it.
+				deckError = up.message;
+				deckErrorCode = up.code ?? null;
+				deckCandidates = up.candidates ?? [];
+				deckEntryPath = deckCandidates[0] ?? null;
+				failures.push(
+					deckCandidates.length
+						? 'the deck needs its entry page chosen below'
+						: `deck: ${up.message}`
+				);
+			}
+		}
+
+		let specAttached = false;
+		if (stagedSpec !== null && teacherTransports) {
+			const attach = await teacherTransports.setSpec(itemId, stagedSpec as AssignmentSpec);
+			if (attach.ok) {
+				currentSpec = stagedSpecSummary;
+				stagedSpec = null;
+				stagedSpecSummary = null;
+				specAttached = true;
+			} else {
+				// Kept for the same reason: the JSON is validated and in hand, and
+				// re-pasting it would be the worst possible ask.
+				failures.push(`spec: ${attach.message}`);
+			}
+		}
+
 		if (failures.length) {
 			// The content DID save. Saying so and naming what did not is the
 			// honest report; claiming the whole thing failed would send a
 			// teacher back to retype something already published.
+			//
+			// Remember WHICH item, so "save again" retries the attachments on it
+			// rather than creating a second copy of content that already exists.
+			if (mode === 'create') createdItemId = itemId;
 			msg = {
 				ok: false,
-				text: `Saved, but ${failures.length} item${failures.length === 1 ? '' : 's'} did not save -- ${failures.join('; ')}`
+				text:
+					`Saved, but ${failures.length} thing${failures.length === 1 ? '' : 's'} did not: ` +
+					// A server refusal usually ends in a full stop of its own, so
+					// the sentence that follows must not add a second one.
+					`${failures.map((f) => f.replace(/\.\s*$/, '')).join('; ')}. ` +
+					'What is left is still here -- save again to retry.'
 			};
 			onsaved({ kind: editingKind, published: publish, text: '' });
 			return;
 		}
-		const attachNote = hadFiles ? ' Files attached.' : '';
+		const attachNote =
+			(hadFiles ? ' Files attached.' : '') +
+			(deckAttached ? ' Deck attached.' : '') +
+			(specAttached ? ' Spec attached.' : '');
 
 		const what = ITEM_KINDS.find((k) => k.id === editingKind)?.label ?? 'Item';
 		const where =
@@ -435,13 +629,23 @@
 		const text = `${what} ${where}.${attachNote}`;
 
 		if (mode === 'create') {
+			// Everything landed, so the next post is a genuinely new item.
+			createdItemId = null;
 			title = '';
-			body = '';
 			points = '';
 			due = '';
 			category = '';
 			links = [];
 			instructorLinks = [];
+			currentDeck = null;
+			currentSpec = null;
+			deckNotice = null;
+			deckWarnings = [];
+			// The editor is remounted by bumping its key rather than reset
+			// through it: `bodyDoc` is what the parent holds, and a keyed
+			// remount is the one way to be sure the two agree afterwards.
+			bodyDoc = null;
+			editorSeed += 1;
 		}
 		msg = { ok: true, text };
 		onsaved({ kind: editingKind, published: publish, text });
@@ -473,22 +677,22 @@
 			placeholder={editingKind === 'material' ? 'Course syllabus' : 'Bridge sketch'}
 		/>
 	</label>
-	<label>
-		<span>
-			{editingKind === 'post'
-				? 'Announcement'
-				: editingKind === 'material'
-					? 'Description'
-					: 'Instructions'}
-		</span>
-		<textarea
-			rows={compact ? 3 : 4}
-			bind:value={body}
-			placeholder={editingKind === 'post'
-				? 'Share something with your class...'
-				: 'What this is, and what to do with it...'}
-		></textarea>
-	</label>
+	<div class="body-field">
+		<span class="mini-label">{bodyLabel}</span>
+		{#key editorSeed}
+			<RichTextEditor
+				value={seedDoc}
+				label={bodyLabel}
+				{compact}
+				disabled={busy}
+				onchange={(doc) => (bodyDoc = doc)}
+				onready={(doc) => (bodyDoc = doc)}
+				placeholder={editingKind === 'post'
+					? 'Share something with your class...'
+					: 'What this is, and what to do with it...'}
+			/>
+		{/key}
+	</div>
 
 	{#if isAssignment}
 		<div class="field-row">
@@ -650,6 +854,39 @@
 		{/if}
 	</div>
 
+	<!-- A deck and a spec attach to the item's id, so both are STAGED here and
+	     applied the moment the save returns one. Available on create and edit
+	     alike: needing to save first and come back was the whole problem. -->
+	{#if deckEnabled}
+		<DeckStager
+			bind:file={stagedDeck}
+			bind:entryPath={deckEntryPath}
+			deck={currentDeck}
+			candidates={deckCandidates}
+			progress={deckProgress}
+			error={deckError}
+			errorCode={deckErrorCode}
+			warnings={deckWarnings}
+			notice={deckNotice}
+			busy={busy}
+			removing={deckRemoving}
+			onremove={mode === 'edit' && item ? removeDeck : null}
+		/>
+	{/if}
+
+	{#if specEnabled}
+		<div class="spec-field">
+			<span class="mini-label">Interactive spec</span>
+			<SpecImport
+				itemId={mode === 'edit' && item ? item.id : null}
+				spec={currentSpec}
+				staged={stagedSpecSummary}
+				transports={teacherTransports}
+				onstage={stageSpec}
+			/>
+		</div>
+	{/if}
+
 	{#if mode === 'create'}
 		<div class="target-picker">
 			<span class="mini-label">Post to</span>
@@ -754,8 +991,7 @@
 		letter-spacing: 0.06em;
 		color: var(--dim);
 	}
-	input,
-	textarea {
+	input {
 		background: var(--bg2);
 		border: 1px solid var(--line);
 		border-radius: 5px;
@@ -766,15 +1002,10 @@
 		width: 100%;
 		min-width: 0;
 	}
-	.composer.compact input,
-	.composer.compact textarea {
+	.composer.compact input {
 		background: var(--bg1);
 	}
-	textarea {
-		resize: vertical;
-	}
-	input:focus,
-	textarea:focus {
+	input:focus {
 		outline: 1px solid var(--focus-ring);
 	}
 	.field-row {
@@ -804,11 +1035,16 @@
 		border-color: var(--line-strong);
 	}
 	.resources-editor,
-	.attach-editor {
+	.attach-editor,
+	.body-field,
+	.spec-field {
 		display: flex;
 		flex-direction: column;
 		gap: 0.35rem;
 		margin: 0.5rem 0 0.6rem;
+	}
+	.body-field {
+		gap: 0.25rem;
 	}
 	/* Dashed border + gold accent: the same "this is not ordinary content"
 	   treatment the engine-slot / draft-chip pattern uses, applied to a

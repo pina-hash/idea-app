@@ -7,6 +7,7 @@
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
+	import ItemBody from '$lib/classroom/ItemBody.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
 	import ReferenceTools from '$lib/classroom/ReferenceTools.svelte';
@@ -270,6 +271,10 @@
 						{sections}
 						transports={transports!}
 						{attachmentsEnabled}
+						{deck}
+						{deckTransports}
+						{spec}
+						{teacherTransports}
 						compact
 						onsaved={saved}
 						oncancel={() => (editing = false)}
@@ -305,7 +310,7 @@
 			<h2 class="section-label">
 				{item.kind === 'assignment' ? 'Instructions' : 'Details'}
 			</h2>
-			<p class="body-text">{item.body}</p>
+			<ItemBody {item} />
 		</section>
 	{/if}
 
@@ -450,12 +455,6 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
-	}
-	.body-text {
-		margin: 0;
-		white-space: pre-wrap;
-		line-height: 1.6;
-		font-size: 0.95rem;
 	}
 	.link-list {
 		display: flex;

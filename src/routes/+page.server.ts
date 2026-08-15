@@ -1,5 +1,5 @@
 import { normalizeItemRow, normalizeSectionRow, sortSections } from '$lib/classroom/classroom';
-import { ITEM_SELECT, SECTION_SELECT } from '$lib/classroom/transports';
+import { SECTION_SELECT, selectItemsWithDoc } from '$lib/classroom/transports';
 import type { FeedSubmission } from '$lib/classroom/feed';
 import type { PageServerLoad } from './$types';
 
@@ -67,11 +67,13 @@ export const load: PageServerLoad = async ({ locals: { supabase, claims } }) => 
 	// The section filter rides an aliased INNER embed, never the unaliased
 	// `classroom_postings` one, which must keep listing every class an item is
 	// posted to (the itemsForSection reasoning, applied across many sections).
-	const { data: itemRows } = await supabase
-		.from('classroom_items')
-		.select(`${ITEM_SELECT}, posted_in:classroom_postings!inner(section_id)`)
-		.in('posted_in.section_id', sectionIds)
-		.order('created_at', { ascending: false });
+	const { data: itemRows } = await selectItemsWithDoc((select) =>
+		supabase
+			.from('classroom_items')
+			.select(`${select}, posted_in:classroom_postings!inner(section_id)`)
+			.in('posted_in.section_id', sectionIds)
+			.order('created_at', { ascending: false })
+	);
 
 	const items = ((itemRows ?? []) as unknown as Record<string, unknown>[]).map(normalizeItemRow);
 

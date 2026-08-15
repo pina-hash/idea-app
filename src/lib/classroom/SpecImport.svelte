@@ -13,19 +13,40 @@
 	 * The validation here is the FRIENDLY copy; the RPC re-validates in SQL
 	 * regardless (calc rejection, point sums, rubric sums, unique ids), so a
 	 * spec this component never saw still cannot land invalid.
+	 *
+	 * TWO MODES, ONE COMPONENT. With an `itemId` it attaches immediately, which
+	 * is what the item page has always done. With `itemId` NULL -- the composer,
+	 * creating an assignment that does not exist yet -- it STAGES instead,
+	 * handing the validated JSON back through `onstage` for the composer to
+	 * attach the moment the create call returns an id. The validation, the error
+	 * list and the summary line are identical in both, because they are the same
+	 * code: a teacher importing a spec while writing the assignment must not be
+	 * shown a different, second-best version of this flow.
 	 */
 	let {
-		itemId,
+		itemId = null,
 		spec = null,
-		transports,
+		transports = null,
+		staged = null,
+		onstage = null,
 		onchanged = null
 	}: {
-		itemId: string;
+		/** Null while the assignment does not exist yet: stage rather than attach. */
+		itemId?: string | null;
 		/** The currently attached spec, if any. */
 		spec: AssignmentSpec | null;
-		transports: AssignmentTeacherTransports;
+		/** Required to attach; unused (and absent) in staging mode. */
+		transports?: AssignmentTeacherTransports | null;
+		/** A spec already staged for the next save, in staging mode. */
+		staged?: AssignmentSpec | null;
+		/** Staging mode's counterpart to attaching: hands back the raw JSON. */
+		onstage?: ((raw: unknown | null) => void) | null;
 		onchanged?: (() => void | Promise<void>) | null;
 	} = $props();
+
+	const stagingMode = $derived(!itemId);
+	/** What the summary line describes: attached, or waiting to be. */
+	const shown = $derived(staged ?? spec);
 
 	let open = $state(false);
 	let raw = $state('');
@@ -61,6 +82,20 @@
 
 	async function attach() {
 		if (!parsed) return;
+
+		// Staging: the assignment does not exist yet, so there is nothing to
+		// attach TO. The composer holds this and attaches it after the create
+		// call, which is the only moment an item id exists.
+		if (!itemId || !transports) {
+			onstage?.(JSON.parse(raw));
+			notice = 'Spec ready. It attaches when you save.';
+			open = false;
+			raw = '';
+			parsed = null;
+			errors = [];
+			return;
+		}
+
 		busy = true;
 		notice = null;
 		const res = await transports.setSpec(itemId, JSON.parse(raw));
@@ -84,6 +119,13 @@
 			return;
 		}
 		armRemove = false;
+
+		if (!itemId || !transports) {
+			onstage?.(null);
+			notice = 'Spec removed.';
+			return;
+		}
+
 		busy = true;
 		const res = await transports.setSpec(itemId, null);
 		busy = false;
@@ -97,13 +139,14 @@
 </script>
 
 <div class="spec-import">
-	{#if spec}
+	{#if shown}
 		<p class="spec-line">
 			<span class="ok-dot"></span>
-			Interactive spec attached: <strong>{spec.meta.title}</strong>
+			{staged ? 'Interactive spec ready:' : 'Interactive spec attached:'}
+			<strong>{shown.meta.title}</strong>
 			<span class="spec-meta">
-				{spec.meta.assignmentId} · {spec.modules.length} module{spec.modules.length === 1 ? '' : 's'} ·
-				{spec.meta.totalPoints} pts
+				{shown.meta.assignmentId} · {shown.modules.length} module{shown.modules.length === 1 ? '' : 's'} ·
+				{shown.meta.totalPoints} pts{staged ? ' · attaches on save' : ''}
 			</span>
 		</p>
 	{:else}
@@ -112,9 +155,9 @@
 
 	<span class="actions">
 		<button type="button" class="btn secondary tiny" onclick={() => (open = !open)}>
-			{open ? 'Close import' : spec ? 'Replace spec' : 'Import spec'}
+			{open ? 'Close import' : shown ? 'Replace spec' : 'Import spec'}
 		</button>
-		{#if spec}
+		{#if shown}
 			<button type="button" class="btn secondary tiny danger" disabled={busy} onclick={remove}>
 				{armRemove ? 'Really remove?' : 'Remove spec'}
 			</button>
@@ -144,7 +187,7 @@
 					Validate
 				</button>
 				<button type="button" class="btn tiny" disabled={!parsed || busy} onclick={attach}>
-					Attach spec
+					{stagingMode ? 'Use this spec' : 'Attach spec'}
 				</button>
 			</span>
 			{#if errors.length}

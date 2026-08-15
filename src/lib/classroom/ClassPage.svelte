@@ -5,7 +5,10 @@
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
+	import ItemBody from '$lib/classroom/ItemBody.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
+	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
+	import type { DeckTransports } from '$lib/classroom/deck';
 	import {
 		authorLabel,
 		classworkGroups,
@@ -65,6 +68,8 @@
 		viewAs = null,
 		fetchPreview = null,
 		submitFeedback = null,
+		deckTransports = null,
+		teacherTransports = null,
 		onchanged = null
 	}: {
 		section: ClassroomSection;
@@ -111,6 +116,13 @@
 		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
 		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
+		/**
+		 * Handed straight to the composer so a deck and a spec can be attached
+		 * while editing from the stream, not only from the item's own page.
+		 * Absent = that surface simply does not offer them.
+		 */
+		deckTransports?: DeckTransports | null;
+		teacherTransports?: AssignmentTeacherTransports | null;
 		onchanged?: (() => void | Promise<void>) | null;
 	} = $props();
 
@@ -349,6 +361,8 @@
 				{sections}
 				transports={transports!}
 				{attachmentsEnabled}
+				{deckTransports}
+				{teacherTransports}
 				compact
 				onsaved={saved}
 				oncancel={() => (editing = null)}
@@ -505,7 +519,7 @@
 							</a>
 						{:else}
 							{#if item.title}<h2 class="stream-title">{item.title}</h2>{/if}
-							<p class="stream-body">{item.body}</p>
+							<ItemBody {item} compact />
 						{/if}
 
 						{#if canManage && alsoIn(item).length}
@@ -691,12 +705,6 @@
 	.stream-title {
 		margin: 0.1rem 0 0.3rem;
 		font-size: 1.05rem;
-	}
-	.stream-body {
-		margin: 0;
-		white-space: pre-wrap;
-		line-height: 1.55;
-		font-size: 0.95rem;
 	}
 	.asg-flag {
 		font-family: 'Share Tech Mono', monospace;

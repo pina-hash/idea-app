@@ -16,14 +16,23 @@
 	 * The deck on one classroom item: how a student opens it, and how a teacher
 	 * puts one there, replaces it, or takes it away.
 	 *
-	 * WHY THIS LIVES ON THE ITEM PAGE AND NOT IN THE COMPOSER. A deck upload is
-	 * not a field on a form -- it unpacks a whole tree and comes back with things
-	 * the uploader has to read (a missing `.image-slots.state.json` means every
-	 * hand-framed image will render uncropped; a zip with several plausible entry
-	 * pages needs a choice; duplicate renderings get skipped). Those want somewhere
-	 * to be said. They also want an item that already EXISTS, since a deck is
-	 * stored against the canonical item id -- the same reason attachments upload
-	 * after the create call rather than with it.
+	 * WHY THIS LIVES ON THE ITEM PAGE. A deck upload is not a field on a form --
+	 * it unpacks a whole tree and comes back with things the uploader has to read
+	 * (a missing `.image-slots.state.json` means every hand-framed image will
+	 * render uncropped; a zip with several plausible entry pages needs a choice;
+	 * duplicate renderings get skipped). Those want somewhere to be said. They
+	 * also want an item that already EXISTS, since a deck is stored against the
+	 * canonical item id.
+	 *
+	 * IT IS NO LONGER THE ONLY DOOR, and the paragraph above overstated the case.
+	 * Being reachable only from here meant a teacher had to save an item and then
+	 * go and find it again, with nothing in the composer saying a deck was even
+	 * possible -- a discoverability failure rather than a missing feature. Since
+	 * 0108 the composer stages a zip and uploads it the moment the create call
+	 * returns an id (DeckStager.svelte), which is how attachments have always
+	 * worked. This panel stays as the item page's own surface: the viewer link,
+	 * the thumbnail, and the standalone replace flow, all of which need the item
+	 * and the one section this page is being read under.
 	 *
 	 * FOLLOWS THE CANONICAL ITEM: one deck per item, so every class the item is
 	 * posted to sees the same deck, and replacing it replaces it everywhere at once.

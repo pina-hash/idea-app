@@ -4,6 +4,9 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
+	import { itemBodyDoc } from '$lib/classroom/classroom-doc';
+	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
+	import type { DeckTransports } from '$lib/classroom/deck';
 	import {
 		emailLocal,
 		formatDue,
@@ -52,6 +55,8 @@
 		initialSections,
 		initialCourses,
 		transports,
+		deckTransports = null,
+		teacherTransports = null,
 		loadNotebookGrid = null,
 		submitFeedback = null
 	}: {
@@ -63,6 +68,13 @@
 		initialSections: ClassroomSection[];
 		initialCourses: ClassroomCourse[];
 		transports: ClassroomManageTransports;
+		/**
+		 * Passed straight to the composer so a deck and an assignment spec can be
+		 * attached while the item is being written, rather than only after saving
+		 * it and finding it again on its own page. Absent = not offered here.
+		 */
+		deckTransports?: DeckTransports | null;
+		teacherTransports?: AssignmentTeacherTransports | null;
 		/**
 		 * The notebook's own grid read, for the compliance element in each
 		 * section panel. Deliberately the SAME signature the review console's
@@ -469,7 +481,11 @@
 			item.id,
 			{
 				title: item.title,
-				body: item.body,
+				// The item's OWN document, re-sent untouched. Publishing is not an
+				// edit, so the body must come back exactly as it went in --
+				// re-deriving it from the plain text here would flatten every
+				// heading and list the moment somebody clicked publish.
+				bodyDoc: itemBodyDoc(item),
 				points: item.points,
 				dueAt: item.due_at,
 				category: item.category,
@@ -682,6 +698,8 @@
 					item={editingItem}
 					{transports}
 					{attachmentsEnabled}
+					{deckTransports}
+					{teacherTransports}
 					onsaved={onComposerSaved}
 				/>
 			{/key}
