@@ -1,7 +1,18 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { normalizeSectionRow } from '$lib/classroom/classroom';
-import { SECTION_SELECT, itemsForSection, mergeInstructorMaterials } from '$lib/classroom/transports';
+import {
+	collapsedGroups,
+	normalizeSectionRow,
+	readClassViewPrefs,
+	studentWorkMap,
+	type SubmissionSummary
+} from '$lib/classroom/classroom';
+import {
+	SECTION_SELECT,
+	itemsForSection,
+	loadCourseUnits,
+	mergeInstructorMaterials
+} from '$lib/classroom/transports';
 import { checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins';
 import { NOTEBOOK_POSTING_SELECT } from '$lib/notebook-selects';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
@@ -99,6 +110,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		sectionCheckIns(supabase, params.sectionId)
 	]);
 
+	const section = normalizeSectionRow(sectionRow as Record<string, unknown>);
 	const canManage = manages === true;
 	let sections: ReturnType<typeof normalizeSectionRow>[] = [];
 	let items = content.items;
@@ -212,12 +224,57 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		if (!gridError && grid) sectionOutstanding = gridSummary(grid as SectionGrid).outstanding;
 	}
 
+	/**
+	 * THE UNITS THIS CLASS'S CONTENT IS GROUPED BY (0111).
+	 *
+	 * A fact about the COURSE, so it is read by course id and every section of it
+	 * gets the same answer -- which is the whole reason an item posted to three
+	 * sections on identical pacing is filed once. Fails soft to an empty list,
+	 * which renders exactly as a course with no units does: one chronological
+	 * list, the view this page had before units existed.
+	 */
+	const units = await loadCourseUnits(supabase, section.course_id);
+
+	/**
+	 * WHERE THE STUDENT THEMSELVES STANDS ON EACH ASSIGNMENT.
+	 *
+	 * One RLS-scoped select with NO student filter (the /coin-balance doctrine --
+	 * `classroom_submissions` is own-row-or-reviewer, so the policy IS the
+	 * filter). It is deliberately NOT run for a manager: their own policy would
+	 * legitimately hand them the whole class's rows, and a teacher has no personal
+	 * standing on their own assignment. `work` is empty for them, which is what
+	 * makes the row render no status chip at all rather than somebody else's.
+	 */
+	let work: Record<string, ReturnType<typeof studentWorkMap>[string]> = {};
+	if (!canManage) {
+		const assignmentIds = items.filter((i) => i.kind === 'assignment').map((i) => i.id);
+		if (assignmentIds.length) {
+			const { data: rows } = await supabase
+				.from('classroom_submissions')
+				.select('item_id, state, score')
+				.in('item_id', assignmentIds);
+			work = studentWorkMap((rows ?? []) as SubmissionSummary[]);
+		}
+	}
+
+	// Which unit groups this user keeps folded (profiles.preferences, the home
+	// feed's pattern). Absent reads as nothing folded.
+	const { data: profile } = await supabase
+		.from('profiles')
+		.select('preferences')
+		.eq('id', claims.sub)
+		.maybeSingle();
+
 	return {
-		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
+		section,
 		canManage,
 		sections,
 		attachmentsEnabled: driveConfigured(),
 		items,
+		units,
+		work,
+		collapsed: collapsedGroups(readClassViewPrefs(profile?.preferences), params.sectionId),
+		preferences: (profile?.preferences ?? {}) as Record<string, unknown>,
 		checkIns,
 		sectionOutstanding
 	};

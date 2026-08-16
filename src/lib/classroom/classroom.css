@@ -54,6 +54,19 @@ body:has(.cr-root) .bg-fx {
 .cr-root .app-header {
 	background: var(--surface-1);
 	border-bottom: 1px solid var(--hairline);
+	/*
+	 * ABOVE `main`, and this is load-bearing rather than tidy. Both this and the
+	 * page's `main` sit at `z-index: 1` inside `.cr-root`'s own stacking context,
+	 * and `main` comes later in the document -- so it WON the tie and painted over
+	 * anything the masthead dropped below itself, however high that panel's own
+	 * z-index was (it is trapped inside this element's context).
+	 *
+	 * Found by hit-testing the section switcher's menu at phone width: the rows
+	 * were visible and three of them were not clickable. The notebook's theme
+	 * picker hit exactly this; every masthead dropdown in the module benefits.
+	 */
+	position: relative;
+	z-index: 2;
 }
 
 /* --- Typography -----------------------------------------------------------

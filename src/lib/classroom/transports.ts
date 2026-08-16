@@ -40,7 +40,10 @@ import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError }
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
+	normalizeUnitRow,
 	type ClassroomAttachment,
+	type ClassroomUnit,
+	type ClassroomUnitTransports,
 	type ClassroomCourse,
 	type ClassroomEnrollment,
 	type ClassroomItem,
@@ -133,6 +136,20 @@ export const ITEM_SELECT_RICH = `${ITEM_SELECT}, body_doc`;
 export const ITEM_SELECT_SCHEDULED = `${ITEM_SELECT_RICH}, publish_at`;
 
 /**
+ * ITEM_SELECT_SCHEDULED plus 0111's unit -- the widest rung.
+ *
+ * Its own rung for the reason the chain exists: 0110 and 0111 are applied by
+ * hand and separately, so a deployment carrying one and not the other is a real
+ * state, and PostgREST refuses the WHOLE select for one unknown column. Asking
+ * for everything at once would cost a project on 0110 its rich body and its
+ * schedule to add a column it does not have. Degrading here costs the GROUPING
+ * for that read and nothing else: `classGroups` treats an item with no unit
+ * column as unfiled, so the class view falls back to the one chronological list
+ * it had before units existed.
+ */
+export const ITEM_SELECT_UNITS = `${ITEM_SELECT_SCHEDULED}, unit_id`;
+
+/**
  * Run an item query with the rich body if the backend has it, without if not.
  *
  * Takes a FUNCTION OF THE SELECT STRING rather than a finished query because
@@ -145,6 +162,8 @@ export const ITEM_SELECT_SCHEDULED = `${ITEM_SELECT_RICH}, publish_at`;
 export async function selectItemsWithDoc<T extends { error: { message?: string } | null }>(
 	run: (select: string) => PromiseLike<T>
 ): Promise<T> {
+	const units = await run(ITEM_SELECT_UNITS);
+	if (!units.error) return units;
 	const scheduled = await run(ITEM_SELECT_SCHEDULED);
 	if (!scheduled.error) return scheduled;
 	const rich = await run(ITEM_SELECT_RICH);
@@ -1050,6 +1069,79 @@ export function createTeacherEngineTransports(
 					approvals: (approvalsRes.data ?? []) as ModuleApprovalRow[]
 				}
 			};
+		}
+	};
+}
+
+export const UNIT_SELECT = 'id, course_id, name, sort_order';
+
+/**
+ * A course's units (0111), RLS-scoped like every other read here.
+ *
+ * FAILS SOFT TO AN EMPTY LIST, which is the same answer a course with no units
+ * gives: migrations are pasted in by hand, so a deployment sitting between 0110
+ * and 0111 is a real state, and a class view must not break because it cannot
+ * group. With no units the view is one chronological list, which is exactly what
+ * it was before units existed.
+ */
+export async function loadCourseUnits(
+	supabase: SupabaseClient,
+	courseId: string | null | undefined
+): Promise<ClassroomUnit[]> {
+	if (!courseId) return [];
+	try {
+		const { data, error } = await supabase
+			.from('classroom_units')
+			.select(UNIT_SELECT)
+			.eq('course_id', courseId)
+			.order('sort_order');
+		if (error) return [];
+		return ((data ?? []) as Record<string, unknown>[]).map(normalizeUnitRow);
+	} catch {
+		return [];
+	}
+}
+
+/** Thin callers of 0111's four SECURITY DEFINER RPCs. */
+export function createUnitTransports(supabase: SupabaseClient): ClassroomUnitTransports {
+	return {
+		async upsertUnit(courseId, name, id = null) {
+			const args: Record<string, unknown> = { p_course_id: courseId, p_name: name };
+			if (id) args.p_id = id;
+			const { data, error } = await supabase.rpc('classroom_upsert_unit', args);
+			if (error) return fail(error);
+			const res = (data ?? {}) as { ok?: boolean; unit_id?: string; created?: boolean; reason?: string };
+			return {
+				ok: true,
+				data: {
+					unitId: res.unit_id ?? null,
+					created: res.created === true,
+					duplicate: res.ok === false && res.reason === 'duplicate_name'
+				}
+			};
+		},
+		async deleteUnit(id) {
+			const { data, error } = await supabase.rpc('classroom_delete_unit', { p_id: id });
+			if (error) return fail(error);
+			return { ok: true, data: { unfiled: Number((data as { unfiled?: number })?.unfiled ?? 0) } };
+		},
+		async setUnitOrder(courseId, unitIds) {
+			const { error } = await supabase.rpc('classroom_set_unit_order', {
+				p_course_id: courseId,
+				p_unit_ids: unitIds
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
+		},
+		async setItemUnit(itemId, unitId) {
+			const { data, error } = await supabase.rpc('classroom_set_item_unit', {
+				p_item_id: itemId,
+				p_unit_id: unitId
+			});
+			if (error) return fail(error);
+			return { ok: true, data: (data ?? { ok: true }) as { ok: boolean; reason?: string } };
+		},
+		async reloadUnits(courseId) {
+			return { ok: true, data: await loadCourseUnits(supabase, courseId) };
 		}
 	};
 }

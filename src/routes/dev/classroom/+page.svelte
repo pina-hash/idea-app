@@ -2,14 +2,23 @@
 	import '$lib/classroom/classroom.css';
 	import { page } from '$app/state';
 	import MyClasses from '$lib/classroom/MyClasses.svelte';
-	import ClassPage from '$lib/classroom/ClassPage.svelte';
+	import ClassView from '$lib/classroom/ClassView.svelte';
+	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
-	import ManageConsole from '$lib/classroom/ManageConsole.svelte';
+	import AdminConsole from '$lib/classroom/AdminConsole.svelte';
+	import PeoplePanel from '$lib/classroom/PeoplePanel.svelte';
+	import GradesPanel from '$lib/classroom/GradesPanel.svelte';
 	import UpdatesPage from '$lib/classroom/UpdatesPage.svelte';
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
-	import { isScheduled, registerLocalAttachmentUrl } from '$lib/classroom/classroom';
+	import {
+		assignmentStandings,
+		isScheduled,
+		registerLocalAttachmentUrl,
+		studentWorkMap
+	} from '$lib/classroom/classroom';
+	import { activeTab, classroomCrumbs, locateClassroom, sectionTabs } from '$lib/classroom/nav';
 	import type { ItemDoc } from '$lib/classroom/classroom-doc';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
@@ -20,6 +29,8 @@
 		ClassroomItem,
 		ClassroomManageTransports,
 		ClassroomSection,
+		ClassroomUnit,
+		ClassroomUnitTransports,
 		FeedbackRow,
 		FeedbackStatus,
 		ImportSummary,
@@ -99,6 +110,20 @@
 	}
 	const ownSections = $derived(sections.filter((s) => s.teacher_email === TEACHER).map(withCourse));
 
+	/**
+	 * Units (0111), mirroring the real semantics: COURSE-scoped, so both Period 1
+	 * and Period 2 of IDEA100 offer the same three and an item posted to both is
+	 * filed once. The duplicate-name refusal and the unfile-on-delete behaviour
+	 * are mirrored too, since those are what the panel renders.
+	 */
+	let units = $state<ClassroomUnit[]>([
+		{ id: 'u-1', course_id: 'c-1', name: 'Unit 1 · Sketching', sort_order: 1 },
+		{ id: 'u-2', course_id: 'c-1', name: 'Unit 2 · Bridges', sort_order: 2 },
+		{ id: 'u-3', course_id: 'c-1', name: 'Rotation 1 · Shop', sort_order: 3 }
+	]);
+	const unitsFor = (courseId: string | undefined) =>
+		units.filter((u) => u.course_id === courseId);
+
 	let enrollments = $state<ClassroomEnrollment[]>([
 		{ section_id: 's-1', student_email: 'alice@boscotech.net', display_name: 'Alice Alvarez', active: true },
 		{ section_id: 's-1', student_email: 'ben@boscotech.net', display_name: 'Ben Okafor', active: false },
@@ -144,6 +169,7 @@
 			author_name: 'T. Vargas',
 			published: true,
 			pinned: false,
+			unit_id: null,
 			sort_order: 0,
 			first_published_at: daysFromNow(-3),
 			edited_at: null,
@@ -249,6 +275,29 @@
 			created_at: daysFromNow(-20),
 			updated_at: daysFromNow(-20),
 			first_published_at: daysFromNow(-20)
+		}),
+		// Two more assignments so a student's own four states -- returned,
+		// submitted, in progress, not started -- are all on screen at once.
+		item({
+			id: 'i-8',
+			kind: 'assignment',
+			title: 'Truss load calculations',
+			body: 'Work the three load cases.',
+			points: 25,
+			due_at: daysFromNow(3),
+			category: 'Unit Labs',
+			created_at: daysFromNow(-5),
+			updated_at: daysFromNow(-5)
+		}),
+		item({
+			id: 'i-9',
+			kind: 'assignment',
+			title: 'Shop safety quiz',
+			body: 'Ten questions on the safety rules.',
+			points: 15,
+			due_at: daysFromNow(9),
+			created_at: daysFromNow(-6),
+			updated_at: daysFromNow(-6)
 		})
 	]);
 
@@ -316,6 +365,74 @@
 			(p) => sections.find((s) => s.id === p.section_id)?.teacher_email === TEACHER
 		);
 	}
+
+	/**
+	 * 0111's four RPCs, mirrored: the duplicate-name refusal, delete unfiling
+	 * rather than deleting, the full-list reorder, and the wrong_course refusal
+	 * when a unit's course is not one the item is posted into.
+	 */
+	const unitTransports: ClassroomUnitTransports = {
+		async upsertUnit(courseId, name, id = null) {
+			note('upsertUnit', { courseId, name, id });
+			const trimmed = name.trim();
+			const clash = units.some(
+				(u) =>
+					u.course_id === courseId &&
+					u.name.trim().toLowerCase() === trimmed.toLowerCase() &&
+					u.id !== id
+			);
+			if (clash) return { ok: true, data: { unitId: null, created: false, duplicate: true } };
+			if (!id) {
+				const unitId = nid('u');
+				const next = Math.max(0, ...unitsFor(courseId).map((u) => u.sort_order)) + 1;
+				units = [...units, { id: unitId, course_id: courseId, name: trimmed, sort_order: next }];
+				return { ok: true, data: { unitId, created: true, duplicate: false } };
+			}
+			units = units.map((u) => (u.id === id ? { ...u, name: trimmed } : u));
+			return { ok: true, data: { unitId: id, created: false, duplicate: false } };
+		},
+		async deleteUnit(id) {
+			note('deleteUnit', { id });
+			const unfiled = items.filter((i) => i.unit_id === id).length;
+			items = items.map((i) => (i.unit_id === id ? { ...i, unit_id: null } : i));
+			units = units.filter((u) => u.id !== id);
+			return { ok: true, data: { unfiled } };
+		},
+		async setUnitOrder(courseId, unitIds) {
+			note('setUnitOrder', { courseId, unitIds });
+			units = units.map((u) =>
+				u.course_id === courseId && unitIds.includes(u.id)
+					? { ...u, sort_order: unitIds.indexOf(u.id) + 1 }
+					: u
+			);
+			return { ok: true, data: undefined };
+		},
+		async setItemUnit(itemId, unitId) {
+			note('setItemUnit', { itemId, unitId });
+			const target = items.find((i) => i.id === itemId);
+			if (!target) return { ok: false, message: 'That item does not exist.' };
+			if (!managesItem(target)) {
+				return {
+					ok: false,
+					message: 'Only the teacher of record for every class this is posted to can file it.'
+				};
+			}
+			if (unitId) {
+				const unit = units.find((u) => u.id === unitId);
+				const courses = target.postings.map(
+					(p) => sections.find((s) => s.id === p.section_id)?.course_id
+				);
+				if (!unit || !courses.includes(unit.course_id)) {
+					return { ok: true, data: { ok: false, reason: 'wrong_course' } };
+				}
+			}
+			items = items.map((i) => (i.id === itemId ? { ...i, unit_id: unitId } : i));
+			return { ok: true, data: { ok: true } };
+		},
+		async reloadUnits(courseId) {
+			return { ok: true, data: unitsFor(courseId) };
+		}
+	};
 
 	const transports: ClassroomManageTransports = {
 		async upsertCourse(code, title, active = true, id = null) {
@@ -916,7 +1033,56 @@
 			: c
 	);
 	let engineRubric = $state<RubricCriterion[] | null>(SEED_RUBRIC);
-	let engSubmissions = $state<SubmissionRow[]>([]);
+	/**
+	 * Seeded so the class view shows a student ALL FOUR of their own states at
+	 * once -- returned with a score, submitted, in progress, and (by having no
+	 * row at all, on 'i-3') not started. The engine views filter to ENGINE_ITEM
+	 * and are unaffected by the two rows for other assignments.
+	 */
+	let engSubmissions = $state<SubmissionRow[]>([
+		{
+			id: 'sub-seed-1',
+			item_id: 'i-4',
+			student_email: 'alice@boscotech.net',
+			state: 'returned',
+			submitted_at: daysFromNow(-3),
+			returned_at: daysFromNow(-1),
+			rubric_scores: null,
+			criterion_comments: null,
+			score: 9,
+			teacher_comment: 'Neat work.',
+			graded_by: TEACHER,
+			graded_at: daysFromNow(-1)
+		},
+		{
+			id: 'sub-seed-2',
+			item_id: 'i-8',
+			student_email: 'alice@boscotech.net',
+			state: 'submitted',
+			submitted_at: daysFromNow(-1),
+			returned_at: null,
+			rubric_scores: null,
+			criterion_comments: null,
+			score: null,
+			teacher_comment: null,
+			graded_by: null,
+			graded_at: null
+		},
+		{
+			id: 'sub-seed-3',
+			item_id: 'i-9',
+			student_email: 'alice@boscotech.net',
+			state: 'draft',
+			submitted_at: null,
+			returned_at: null,
+			rubric_scores: null,
+			criterion_comments: null,
+			score: null,
+			teacher_comment: null,
+			graded_by: null,
+			graded_at: null
+		}
+	]);
 	let engResponses = $state<ResponseRow[]>([]);
 	let engFiles = $state<SubmissionFileRow[]>([]);
 	let engApprovals = $state<ModuleApprovalRow[]>([]);
@@ -1475,8 +1641,11 @@
 		['item-teacher', 'Item detail (teacher)'],
 		['assignment', 'Assignment engine (student)'],
 		['grade', 'Grading console'],
-		['manage', 'Manage console'],
-		['manage-notready', 'Manage: migration unapplied'],
+		['people', 'People tab'],
+		['grades', 'Grades tab'],
+		['admin', 'Courses & setup'],
+		['admin-notready', 'Setup: migration unapplied'],
+		['shell', 'Shell + switcher'],
 		['updates', 'Update log'],
 		['feedback', 'Feedback console'],
 		['feedback-notready', 'Feedback: unapplied'],
@@ -1561,6 +1730,52 @@
 	 * migrations, or in a class with nothing scheduled: an empty list and no
 	 * badge. The stream must read exactly as it did before this feature existed.
 	 */
+	/**
+	 * 0111 applied or not. OFF is the fail-soft state a deployment between 0110
+	 * and 0111 genuinely has: no units, no unit controls, and the class view
+	 * falling back to the one chronological list it had before they existed.
+	 */
+	let unitsApplied = $state(true);
+
+	/**
+	 * Folded groups, per section, held here because the real page persists them
+	 * to profiles.preferences and the harness has no profile.
+	 */
+	let devCollapsed = $state<string[]>([]);
+	function toggleGroup(groupId: string) {
+		devCollapsed = devCollapsed.includes(groupId)
+			? devCollapsed.filter((id) => id !== groupId)
+			: [...devCollapsed, groupId];
+	}
+
+	/** The student's own standing, through the REAL studentWorkMap. */
+	const studentWork = $derived(
+		studentWorkMap(
+			engSubmissions
+				.filter((s) => s.student_email === STUDENT_EMAIL)
+				.map((s) => ({ item_id: s.item_id, state: s.state, score: s.score }))
+		)
+	);
+	const rosterSize = (sectionId: string) =>
+		enrollments.filter((e) => e.section_id === sectionId && e.active).length;
+
+	// The shell view drives the REAL nav module off a pathname picked here.
+	const SHELL_PATHS = [
+		'/classroom',
+		'/classroom/s-1',
+		'/classroom/s-1/people',
+		'/classroom/s-1/grades',
+		'/classroom/s-1/item/i-3',
+		'/classroom/s-1/item/i-3/grade',
+		'/classroom/s-2',
+		'/classroom/admin',
+		'/classroom/updates'
+	];
+	let shellPath = $state('/classroom/s-1');
+	let shellManages = $state(true);
+	const shellLoc = $derived(locateClassroom(shellPath));
+	const shellTab = $derived(activeTab(shellLoc));
+
 	let checkInsApplied = $state(true);
 
 	// --- Notebook compliance (the manage console's per-section element) ----
@@ -1695,6 +1910,10 @@
 		class has check-ins
 	</label>
 	<label class="harness-toggle">
+		<input type="checkbox" bind:checked={unitsApplied} data-testid="sim-units" />
+		units (0111) applied
+	</label>
+	<label class="harness-toggle">
 		deck upload
 		<select bind:value={deckOutcome} data-testid="sim-deck-outcome">
 			<option value="ok">succeeds</option>
@@ -1713,9 +1932,13 @@
 {:else if view === 'home-notready'}
 	<MyClasses sections={[]} ready={false} />
 {:else if view === 'class'}
-	<ClassPage
+	<ClassView
 		section={section1}
 		items={inSection('s-1', true)}
+		units={unitsApplied ? unitsFor('c-1') : []}
+		work={studentWork}
+		collapsed={devCollapsed}
+		onToggleGroup={toggleGroup}
 		checkIns={checkInsApplied ? CHECK_INS['s-1'] : []}
 		{transports}
 		{fetchPreview}
@@ -1723,11 +1946,15 @@
 		notebookHref="/dev/notebook"
 	/>
 {:else if view === 'class-teacher'}
-	<ClassPage
+	<ClassView
 		section={section1}
 		items={inSection('s-1', false)}
 		sections={ownSections}
 		canManage={true}
+		units={unitsApplied ? unitsFor('c-1') : []}
+		unitTransports={unitsApplied ? unitTransports : null}
+		collapsed={devCollapsed}
+		onToggleGroup={toggleGroup}
 		checkIns={checkInsApplied ? asManager(CHECK_INS['s-1']) : []}
 		sectionOutstanding={checkInsApplied ? gridSummary(NB_GRIDS['s-1']).outstanding : null}
 		{transports}
@@ -1736,11 +1963,15 @@
 		notebookHref="/dev/notebook-review?section=s-1"
 	/>
 {:else if view === 'class2-teacher'}
-	<ClassPage
+	<ClassView
 		section={section2}
 		items={inSection('s-2', false)}
 		sections={ownSections}
 		canManage={true}
+		units={unitsApplied ? unitsFor('c-1') : []}
+		unitTransports={unitsApplied ? unitTransports : null}
+		collapsed={devCollapsed}
+		onToggleGroup={toggleGroup}
 		checkIns={checkInsApplied ? asManager(CHECK_INS['s-2']) : []}
 		sectionOutstanding={checkInsApplied ? gridSummary(NB_GRIDS['s-2']).outstanding : null}
 		{transports}
@@ -1749,9 +1980,12 @@
 		notebookHref="/dev/notebook-review?section=s-2"
 	/>
 {:else if view === 'class2'}
-	<ClassPage
+	<ClassView
 		section={section2}
 		items={inSection('s-2', true)}
+		units={unitsApplied ? unitsFor('c-1') : []}
+		collapsed={devCollapsed}
+		onToggleGroup={toggleGroup}
 		checkIns={checkInsApplied ? CHECK_INS['s-2'] : []}
 		{transports}
 		{fetchPreview}
@@ -1759,7 +1993,7 @@
 	/>
 {:else if view === 'class-empty'}
 	<!-- No check-ins at all: the class page must read exactly as it always did. -->
-	<ClassPage section={emptySection} items={[]} notebookHref="/dev/notebook" />
+	<ClassView section={emptySection} items={[]} notebookHref="/dev/notebook" />
 {:else if view === 'item'}
 	{#if detailItem}
 		<ItemDetail section={section1} item={detailItem} {transports} {fetchPreview} {submitFeedback} />
@@ -1818,10 +2052,10 @@
 	<FeedbackConsole ready={false} rows={[]} setStatus={setFeedbackStatus} />
 {:else if view === 'viewas-home'}
 	<ImpersonationBanner email={VIEW_AS_EMAIL} displayName="Alice Alvarez" exitHref={viewAsBase} />
-	<MyClasses sections={viewAsSections} basePath={viewAsBase} homeHref={viewAsBase} />
+	<MyClasses sections={viewAsSections} basePath={viewAsBase} />
 {:else if view === 'viewas-class'}
 	<ImpersonationBanner email={VIEW_AS_EMAIL} displayName="Alice Alvarez" exitHref={viewAsBase} />
-	<ClassPage
+	<ClassView
 		section={section1}
 		items={inSection('s-1', true)}
 		canManage={false}
@@ -1848,25 +2082,84 @@
 	{:else}
 		<p class="harness-note">No published item in this section.</p>
 	{/if}
-{:else if view === 'manage'}
-	<ManageConsole
+{:else if view === 'admin'}
+	<AdminConsole
 		email={TEACHER}
+		isAdmin={true}
 		initialSections={ownSections}
 		initialCourses={courses}
 		{transports}
-		deckTransports={fakeDeckTransports}
-		teacherTransports={teacherEngineTransports}
-		loadNotebookGrid={notebookApplied ? loadNotebookGrid : null}
 		{submitFeedback}
 	/>
-{:else if view === 'manage-notready'}
-	<ManageConsole
+{:else if view === 'admin-notready'}
+	<AdminConsole
 		ready={false}
 		email={TEACHER}
 		initialSections={[]}
 		initialCourses={[]}
 		{transports}
 	/>
+{:else if view === 'people'}
+	<PeoplePanel
+		section={section1}
+		roster={enrollments.filter((e) => e.section_id === 's-1')}
+		{transports}
+		loadNotebookGrid={notebookApplied ? loadNotebookGrid : null}
+		{submitFeedback}
+	/>
+{:else if view === 'grades'}
+	<GradesPanel
+		section={section1}
+		standings={assignmentStandings(
+			inSection('s-1', false),
+			engSubmissions.map((s) => ({ item_id: s.item_id, state: s.state, score: s.score ?? null })),
+			rosterSize('s-1')
+		)}
+		{submitFeedback}
+	/>
+{:else if view === 'shell'}
+	<!--
+		The REAL shell, driven through the REAL nav module against a pathname the
+		harness picks -- so the switcher, the crumbs and the tabs are the ones
+		production renders, with no router involved.
+	-->
+	<label class="harness-toggle shell-path">
+		pathname
+		<select bind:value={shellPath} data-testid="shell-path">
+			{#each SHELL_PATHS as p (p)}
+				<option value={p}>{p}</option>
+			{/each}
+		</select>
+	</label>
+	<ClassroomShell
+		sections={ownSections}
+		currentSectionId={shellLoc.sectionId}
+		crumbs={classroomCrumbs(shellLoc, {
+			section: shellLoc.sectionId === 's-2' ? 'IDEA100 · Period 2' : 'IDEA100 · Period 1',
+			item: 'Bridge load test'
+		})}
+		tabs={shellLoc.sectionId ? sectionTabs(shellLoc.sectionId) : []}
+		tab={shellTab}
+		canManage={shellManages}
+		isStaff={true}
+		isAdmin={true}
+	>
+		<main class="classroom-page">
+			<section class="hero">
+				<div class="eyebrow">DEV</div>
+				<h1>Shell</h1>
+				<p class="lead">
+					The page a route would render sits here. Switch the pathname above to watch the
+					breadcrumbs and tabs follow it, and untick "teacher of this class" to see a student's
+					view of the same URL.
+				</p>
+				<label class="harness-toggle">
+					<input type="checkbox" bind:checked={shellManages} data-testid="shell-manages" />
+					teacher of this class
+				</label>
+			</section>
+		</main>
+	</ClassroomShell>
 {/if}
 
 <div class="harness-log">

@@ -339,11 +339,18 @@ describe('the read degrades instead of blanking', () => {
 		};
 		const res = await selectItemsWithDoc(pre0108);
 		expect(res.error).toBeNull();
-		expect(asked).toHaveLength(3);
+		// The walk goes WIDEST FIRST and gives up exactly one column at a time,
+		// ending on the plain select. Asserted as a shape rather than a count, so
+		// adding a rung for the next migration's column (0111's `unit_id` was the
+		// first to prove the point) cannot break a test about degrading.
+		const withPublish = asked.filter((s) => s.includes('publish_at'));
+		const withDoc = asked.filter((s) => s.includes('body_doc'));
 		expect(asked[0]).toContain('publish_at');
-		expect(asked[1]).toContain('body_doc');
-		expect(asked[1]).not.toContain('publish_at');
-		expect(asked[2]).not.toContain('body_doc');
+		expect(withPublish).toEqual(asked.slice(0, withPublish.length));
+		expect(withDoc.length).toBeGreaterThan(withPublish.length);
+		expect(withDoc).toEqual(asked.slice(0, withDoc.length));
+		expect(asked[asked.length - 1]).not.toContain('body_doc');
+		expect(asked[asked.length - 1]).not.toContain('publish_at');
 		// And the row still renders, from the plain text.
 		const item = normalizeItemRow((res.data as Record<string, unknown>[])[0]);
 		expect(item.body_doc).toBeUndefined();
@@ -365,8 +372,11 @@ describe('the read degrades instead of blanking', () => {
 				: { data: [{ id: 'i-1', body: 'x', body_doc: [] }], error: null };
 		});
 		expect(res.error).toBeNull();
-		expect(asked).toHaveLength(2);
-		expect(asked[1]).toContain('body_doc');
+		// Every rung naming publish_at was refused; the one that answered still
+		// carried body_doc. That is the guarantee, whatever the chain's length.
+		expect(asked.filter((s) => s.includes('publish_at')).length).toBeGreaterThan(0);
+		expect(asked[asked.length - 1]).toContain('body_doc');
+		expect(asked[asked.length - 1]).not.toContain('publish_at');
 		const item = normalizeItemRow((res.data as Record<string, unknown>[])[0]);
 		expect(item.body_doc).toEqual([]);
 		// Absent, not null: a read that could not tell must not read as "scheduled

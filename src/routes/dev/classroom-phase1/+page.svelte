@@ -4,7 +4,7 @@
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
-	import ManageConsole from '$lib/classroom/ManageConsole.svelte';
+	import ClassView from '$lib/classroom/ClassView.svelte';
 	import RevisionHistory from '$lib/classroom/RevisionHistory.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import '$lib/classroom/classroom.css';
@@ -1204,18 +1204,21 @@
 				</label>
 			</div>
 			<section class="card">
-				<h2>Export failure chip, in the REAL manage console</h2>
+				<h2>Export failure chip, in the REAL class view</h2>
 				<p class="note">
-					"Bridge stackup" carries a recorded export failure, so its row shows the amber chip,
-					the reason, and Retry. Untick the toggle and retry: a successful export clears the
-					chip on the spot, with no reload. Every other row says nothing at all -- an item that
-					exported cleanly, or never exported, has nothing to report.
+					"Bridge stackup" carries a recorded export failure, so its row shows the amber chip;
+					expanding the row shows the reason and Retry. Untick the toggle and retry: a
+					successful export clears the chip on the spot, with no reload. Every other row says
+					nothing at all -- an item that exported cleanly, or never exported, has nothing to
+					report. (The chip moved here from the retired manage console, which is where a
+					manager used to see their content listed.)
 				</p>
 			</section>
-			<ManageConsole
-				email={TEACHER}
-				initialSections={sections}
-				initialCourses={courses}
+			<ClassView
+				section={sections[0]}
+				items={items.filter((i) => i.postings.some((p) => p.section_id === sections[0].id))}
+				{sections}
+				canManage={true}
 				transports={manageTransports}
 				teacherTransports={teacherTransports}
 				{loadExportStatuses}

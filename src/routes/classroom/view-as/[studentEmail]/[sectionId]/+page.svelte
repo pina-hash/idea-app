@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ClassPage from '$lib/classroom/ClassPage.svelte';
+	import ClassView from '$lib/classroom/ClassView.svelte';
 	import { fetchLinkPreviewClient } from '$lib/classroom/transports';
 	import type { PageData } from './$types';
 
@@ -22,8 +22,13 @@
 	view-as RPC (real scope, and 0099's own rule is that view-as reads are one
 	admin-gated function, never an assembled query). The notebook link still
 	points into the impersonated notebook, which is where that state lives.
+
+	NO units and NO work either, for exactly the same reason: both would be the
+	ADMIN'S OWN read rendered under a student's name. With no units the view is
+	one chronological list, which is what a class with no units authored looks
+	like anyway -- degraded, never wrong.
 -->
-<ClassPage
+<ClassView
 	section={data.section}
 	items={data.items}
 	canManage={false}

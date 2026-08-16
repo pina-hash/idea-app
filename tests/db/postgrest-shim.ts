@@ -44,7 +44,7 @@ export interface ShimError {
 /** One parsed piece of a select string: a plain column, or an embedded resource. */
 type SelectNode =
 	| { kind: 'column'; name: string }
-	| { kind: 'embed'; name: string; inner: SelectNode[]; inner_join: boolean };
+	| { kind: 'embed'; name: string; table: string; inner: SelectNode[]; inner_join: boolean };
 
 /**
  * Splits at commas that are OUTSIDE parentheses, so an embed's own column list
@@ -75,12 +75,21 @@ export function parseSelect(select: string): SelectNode[] {
 		const close = token.lastIndexOf(')');
 		if (close < open) throw new Error(`Unbalanced parentheses in select: ${token}`);
 		// `name`, `name!inner`, `name!fk_name` -- the hint after `!` is either the
-		// inner-join marker or a disambiguating constraint name.
+		// inner-join marker or a disambiguating constraint name -- and
+		// `alias:name`, which is how a select names the SAME table twice. The
+		// classroom item read does exactly that (`posted_in:classroom_postings
+		// !inner`, so the section filter can restrict the parent rows without
+		// trimming the unaliased posting LIST beside it), so an alias that parsed
+		// as part of the table name meant that read resolved to nothing at all.
 		const head = token.slice(0, open).trim();
-		const [name, ...hints] = head.split('!').map((s) => s.trim());
+		const [named, ...hints] = head.split('!').map((s) => s.trim());
+		const colon = named.indexOf(':');
+		const alias = colon === -1 ? named : named.slice(0, colon).trim();
+		const table = colon === -1 ? named : named.slice(colon + 1).trim();
 		return {
 			kind: 'embed',
-			name,
+			name: alias,
+			table,
 			inner: parseSelect(token.slice(open + 1, close)),
 			inner_join: hints.includes('inner')
 		} as const;
@@ -93,7 +102,7 @@ export function embeddedTables(select: string): string[] {
 	const walk = (nodes: SelectNode[]) => {
 		for (const node of nodes) {
 			if (node.kind !== 'embed') continue;
-			out.push(node.name);
+			out.push(node.table);
 			walk(node.inner);
 		}
 	};
@@ -175,7 +184,17 @@ function projection(
 	table: string,
 	alias: string,
 	nodes: SelectNode[],
-	depth: number
+	depth: number,
+	/**
+	 * Filters written against an EMBEDDED resource (`.eq('posted_in.section_id',
+	 * x)`), keyed by the embed's own alias. PostgREST applies these to the
+	 * embedded rows, and -- because the embed is `!inner` -- that restricts the
+	 * parent rows too. Both halves are applied below, so a parent with no
+	 * matching child drops out exactly as it does in production.
+	 */
+	embedFilters: Record<string, Filter[]> = {},
+	/** ONE shared, mutable list, so placeholder numbers stay sequential. */
+	params: unknown[] = []
 ): { fields: string[]; jsonArgs: string[]; innerJoins: string[] } {
 	const fields: string[] = [];
 	const jsonArgs: string[] = [];
@@ -188,11 +207,11 @@ function projection(
 			continue;
 		}
 
-		const rel = relationshipBetween(fks, table, node.name);
+		const rel = relationshipBetween(fks, table, node.table);
 		if (!rel) throw new UnresolvableEmbed(table, node.name);
 
 		const childAlias = `e${depth}_${fields.length}`;
-		const child = projection(fks, node.name, childAlias, node.inner, depth + 1);
+		const child = projection(fks, node.table, childAlias, node.inner, depth + 1, embedFilters, params);
 		const on =
 			rel.kind === 'many-to-one'
 				? rel.fk.srcCols
@@ -201,18 +220,29 @@ function projection(
 				: rel.fk.srcCols
 						.map((c, i) => `${childAlias}.${quote(c)} = ${alias}.${quote(rel.fk.tgtCols[i])}`)
 						.join(' and ');
+		// A filter written against this embed narrows the embedded rows AND, via
+		// the inner join below, the parent rows.
+		const own = embedFilters[node.name] ?? [];
+		const extra = own.map((f) => {
+			params.push(f.value);
+			return f.op === 'in'
+				? `${childAlias}.${quote(f.column)} = any($${params.length})`
+				: `${childAlias}.${quote(f.column)} = $${params.length}`;
+		});
+		const where = [on, ...extra].join(' and ');
+
 		const object = `json_build_object(${child.jsonArgs.join(', ')})`;
 		const expr =
 			rel.kind === 'many-to-one'
-				? `(select ${object} from public.${quote(node.name)} ${childAlias} where ${on} limit 1)`
+				? `(select ${object} from public.${quote(node.table)} ${childAlias} where ${where} limit 1)`
 				: `(select coalesce(json_agg(${object}), '[]'::json)
-				      from public.${quote(node.name)} ${childAlias} where ${on})`;
+				      from public.${quote(node.table)} ${childAlias} where ${where})`;
 
 		fields.push(`${expr} as ${quote(node.name)}`);
 		jsonArgs.push(`'${node.name}', ${expr}`);
 		if (node.inner_join) {
 			innerJoins.push(
-				`exists (select 1 from public.${quote(node.name)} ${childAlias}_x where ${on.replaceAll(
+				`exists (select 1 from public.${quote(node.table)} ${childAlias}_x where ${where.replaceAll(
 					`${childAlias}.`,
 					`${childAlias}_x.`
 				)})`
@@ -289,15 +319,34 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 		let sql: string;
 		const params: unknown[] = [];
 		try {
+			// A filter naming `alias.column` belongs to that EMBED, not to this
+			// table -- `.eq('posted_in.section_id', x)` is how the classroom item
+			// read scopes itself to one class.
+			const embedFilters: Record<string, Filter[]> = {};
+			const ownFilters: Filter[] = [];
+			for (const filter of this.filters) {
+				const dot = filter.column.indexOf('.');
+				if (dot === -1) {
+					ownFilters.push(filter);
+					continue;
+				}
+				const alias = filter.column.slice(0, dot);
+				(embedFilters[alias] ??= []).push({
+					...filter,
+					column: filter.column.slice(dot + 1)
+				});
+			}
 			const { jsonArgs, innerJoins } = projection(
 				this.fks,
 				this.table,
 				't',
 				parseSelect(this.select),
-				0
+				0,
+				embedFilters,
+				params
 			);
 			const where: string[] = [...innerJoins];
-			for (const filter of this.filters) {
+			for (const filter of ownFilters) {
 				params.push(filter.value);
 				where.push(
 					filter.op === 'eq'

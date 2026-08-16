@@ -215,7 +215,28 @@ function itemStamp(item: ClassroomItem): number {
  * `classroom_items` column, and a check-in is not one.
  */
 export function streamEntries(items: ClassroomItem[], checkIns: ClassCheckIn[]): StreamEntry[] {
-	const ordered = streamItems(items);
+	return mergeCheckIns(streamItems(items), checkIns);
+}
+
+/**
+ * The insertion half on its own: check-ins merged into a list of items that is
+ * ALREADY in the order its caller wants.
+ *
+ * Split out from `streamEntries` because that function's first half is
+ * `streamItems`, which DROPS MATERIALS -- right for the Stream it was written
+ * for (a syllabus resurfacing at the top of a feed is what pinning was for) and
+ * wrong for the unit-grouped class view, where a material is ordinary content
+ * that has to appear in its group. Reusing the whole thing there made every
+ * material silently vanish from the page, which is exactly the kind of bug a
+ * browser pass exists to catch.
+ *
+ * `streamEntries` keeps its exact behaviour by calling this with the list
+ * `streamItems` produces.
+ */
+export function mergeCheckIns(
+	ordered: ClassroomItem[],
+	checkIns: ClassCheckIn[]
+): StreamEntry[] {
 	const entries: StreamEntry[] = ordered.map((item) => ({
 		kind: 'item' as const,
 		key: `item:${item.id}`,

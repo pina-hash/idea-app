@@ -1,6 +1,4 @@
 <script lang="ts">
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import { CLASSROOM_UPDATES, updateDateLabel } from '$lib/classroom/updates';
@@ -26,14 +24,11 @@
 	<title>What's new // IDEA Classroom</title>
 </svelte:head>
 
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
-		<a class="btn secondary" href="/classroom">&lsaquo; My Classes</a>
-		<ProfileMenu />
-	</div>
-</div>
-
+<!--
+	NO MASTHEAD HERE. Every /classroom page renders inside the persistent shell
+	(src/routes/classroom/+layout.svelte), which owns the logo, the section
+	switcher and the breadcrumb trail back up.
+-->
 <main class="classroom-page">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Classroom</div>

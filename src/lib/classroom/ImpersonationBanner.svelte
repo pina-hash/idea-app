@@ -14,7 +14,7 @@
 	let {
 		email,
 		displayName = null,
-		exitHref = '/classroom/manage'
+		exitHref = '/classroom/admin'
 	}: {
 		email: string;
 		displayName?: string | null;

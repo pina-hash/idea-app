@@ -1,6 +1,4 @@
 <script lang="ts">
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import type { PageData } from './$types';
 
@@ -20,14 +18,7 @@
 	<title>View as student // IDEA Classroom</title>
 </svelte:head>
 
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
-		<a class="btn secondary" href="/classroom/manage">&lsaquo; Manage</a>
-		<ProfileMenu />
-	</div>
-</div>
-
+<!-- The shell owns the masthead; under view-as it renders in minimal mode. -->
 <main class="viewas-page">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Classroom &middot; admin</div>
@@ -52,7 +43,7 @@
 			</label>
 			{#if data.students.length === 0}
 				<p class="note">
-					No active enrollments yet. Import a roster in <a href="/classroom/manage">Manage</a> first.
+					No active enrollments yet. Import a roster on a class's People tab first.
 				</p>
 			{:else if shown.length === 0}
 				<p class="note">No student matches "{filter}".</p>
@@ -88,9 +79,6 @@
 	.note {
 		color: var(--text-2);
 		font-size: 0.9rem;
-	}
-	.note a {
-		color: var(--gold);
 	}
 	.filter {
 		display: flex;

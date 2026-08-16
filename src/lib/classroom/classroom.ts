@@ -77,6 +77,41 @@ export interface ClassroomPosting {
 	section_id: string;
 }
 
+/**
+ * A teacher-defined group of a course's content ("Unit 1", "Rotation 3"),
+ * from 0111.
+ *
+ * Scoped to the COURSE, not the section, and the reason is the same one that put
+ * the assignment on the canonical item: IDEA209H runs three sections on
+ * identical pacing, so "Unit 1" is a fact about the course and an item posted to
+ * all three is filed once. See the migration header for the full reasoning and
+ * the one accepted degradation (an item posted across two different courses).
+ */
+export interface ClassroomUnit {
+	id: string;
+	course_id: string;
+	name: string;
+	sort_order: number;
+}
+
+export function normalizeUnitRow(row: Record<string, unknown>): ClassroomUnit {
+	return {
+		id: String(row.id),
+		course_id: String(row.course_id),
+		name: String(row.name ?? ''),
+		sort_order: Number(row.sort_order ?? 0)
+	};
+}
+
+/** Manual order first; a unit never placed by hand sorts behind those that were. */
+export function sortUnits(units: ClassroomUnit[]): ClassroomUnit[] {
+	return [...units].sort(
+		(a, b) =>
+			(a.sort_order || Number.MAX_SAFE_INTEGER) - (b.sort_order || Number.MAX_SAFE_INTEGER) ||
+			a.name.localeCompare(b.name, undefined, { numeric: true })
+	);
+}
+
 export type ClassroomItemKind = 'post' | 'assignment' | 'material';
 
 export interface ClassroomItem {
@@ -123,6 +158,14 @@ export interface ClassroomItem {
 	 * scheduling existed genuinely is.
 	 */
 	publish_at?: string | null;
+	/**
+	 * 0111's unit. A column on the CANONICAL record, never on a posting, so an
+	 * item posted to three classes is filed once and all three read the same
+	 * answer by construction. `undefined` means the read did not carry the column
+	 * (a deployment between 0110 and 0111, whose select degrades rather than
+	 * blanking every classroom read); null means genuinely unfiled.
+	 */
+	unit_id?: string | null;
 	sort_order: number;
 	/** Null while it has only ever been a draft. */
 	first_published_at: string | null;
@@ -217,6 +260,10 @@ export function normalizeItemRow(row: Record<string, unknown>): ClassroomItem {
 		// pre-0109 read cannot tell, and `isScheduled` treats "cannot tell" as
 		// live rather than guessing.
 		publish_at: 'publish_at' in row ? ((row.publish_at as string | null) ?? null) : undefined,
+		// Absent and null kept apart for the same reason: a pre-0111 read cannot
+		// tell, and every unfiled item would otherwise be indistinguishable from
+		// a read that simply did not ask.
+		unit_id: 'unit_id' in row ? ((row.unit_id as string | null) ?? null) : undefined,
 		sort_order: Number(row.sort_order ?? 0),
 		first_published_at: (row.first_published_at as string | null) ?? null,
 		edited_at: (row.edited_at as string | null) ?? null,
@@ -488,56 +535,267 @@ export function streamItems(items: ClassroomItem[]): ClassroomItem[] {
 	return [...withOrder(pinned, newestFirst), ...withOrder(rest, newestFirst)];
 }
 
-export type ClassworkGroupId = 'pinned' | 'upcoming' | 'materials' | 'undated' | 'past';
+/**
+ * The id the group of unfiled content carries. Not a uuid, so it can never
+ * collide with a real unit id, and never sent to a write path -- `unitIdFor`
+ * below is what turns a picker's value back into the null the RPC takes.
+ */
+export const UNFILED_GROUP_ID = 'unfiled';
 
-export interface ClassworkGroup {
-	id: ClassworkGroupId;
+export interface ClassGroup {
+	id: string;
+	/** Null for the unfiled group; a real unit otherwise. */
+	unit: ClassroomUnit | null;
 	label: string;
 	items: ClassroomItem[];
 }
 
 /**
- * Classwork: pinned first (any kind), then assignments by due date, with
- * materials in their own shelf. Empty groups are omitted.
+ * A class's content, grouped by the units its teacher authored.
  *
- * Every group is independently reorderable, and the RPC is handed the group's
- * ids in the order they are rendered here -- so what gets stored is always
- * exactly the order somebody was looking at.
+ * This REPLACES the Stream/Classwork pair. Both showed the same items in two
+ * orderings: Stream duplicated the home feed, which already ranks by urgency and
+ * does it better, and Classwork grouped by due-date buckets these courses are
+ * not organized into. The grouping is the teacher's own now.
+ *
+ * ORDER: units in their manual order, then the unfiled group LAST -- the
+ * authored structure is the spine of the page, and newly posted content must not
+ * push Unit 1 down. What is urgent is the home feed's question, not this page's.
+ *
+ * WITHIN a group: pinned first, then manual order, then newest first -- the
+ * same rule `streamItems` has always applied, so a class with no units yet reads
+ * exactly as the Stream did.
+ *
+ * `includeEmptyUnits` is the manager's view: an empty unit is structure they are
+ * about to file into, and it has to be visible to be a drop target. For a
+ * student it is noise, so it is omitted.
  */
-export function classworkGroups(
+export function classGroups(
 	items: ClassroomItem[],
-	now: Date = new Date()
-): ClassworkGroup[] {
-	const relevant = items.filter((i) => i.kind === 'assignment' || i.kind === 'material');
-	const pinned: ClassroomItem[] = [];
-	const upcoming: ClassroomItem[] = [];
-	const materials: ClassroomItem[] = [];
-	const undated: ClassroomItem[] = [];
-	const past: ClassroomItem[] = [];
-
-	for (const i of relevant) {
-		if (i.pinned) pinned.push(i);
-		else if (i.kind === 'material') materials.push(i);
-		else if (!i.due_at) undated.push(i);
-		else if (Date.parse(i.due_at) < now.getTime()) past.push(i);
-		else upcoming.push(i);
+	units: ClassroomUnit[],
+	opts: { includeEmptyUnits?: boolean; unfiledLabel?: string } = {}
+): ClassGroup[] {
+	const byUnit = new Map<string, ClassroomItem[]>();
+	const unfiled: ClassroomItem[] = [];
+	const known = new Set(units.map((u) => u.id));
+	for (const item of items) {
+		const id = item.unit_id;
+		// A unit id this reader cannot see (or a pre-0111 read, which carries no
+		// column at all) is treated as unfiled rather than dropped: an item must
+		// always appear somewhere.
+		if (id && known.has(id)) {
+			const list = byUnit.get(id) ?? [];
+			list.push(item);
+			byUnit.set(id, list);
+		} else {
+			unfiled.push(item);
+		}
 	}
 
-	const byDueAsc = (a: ClassroomItem, b: ClassroomItem) =>
-		Date.parse(a.due_at ?? '') - Date.parse(b.due_at ?? '');
-	const byDueDesc = (a: ClassroomItem, b: ClassroomItem) =>
-		Date.parse(b.due_at ?? '') - Date.parse(a.due_at ?? '');
-
-	const groups: ClassworkGroup[] = [];
-	if (pinned.length) groups.push({ id: 'pinned', label: 'Pinned', items: withOrder(pinned, newestFirst) });
-	if (upcoming.length)
-		groups.push({ id: 'upcoming', label: 'Upcoming', items: withOrder(upcoming, byDueAsc) });
-	if (materials.length)
-		groups.push({ id: 'materials', label: 'Materials', items: withOrder(materials, newestFirst) });
-	if (undated.length)
-		groups.push({ id: 'undated', label: 'No due date', items: withOrder(undated, newestFirst) });
-	if (past.length) groups.push({ id: 'past', label: 'Past due', items: withOrder(past, byDueDesc) });
+	const groups: ClassGroup[] = [];
+	for (const unit of sortUnits(units)) {
+		const list = byUnit.get(unit.id) ?? [];
+		if (!list.length && !opts.includeEmptyUnits) continue;
+		groups.push({
+			id: unit.id,
+			unit,
+			label: unit.name,
+			items: orderedForGroup(list)
+		});
+	}
+	if (unfiled.length || !groups.length) {
+		groups.push({
+			id: UNFILED_GROUP_ID,
+			unit: null,
+			label: opts.unfiledLabel ?? 'Not in a unit',
+			items: orderedForGroup(unfiled)
+		});
+	}
 	return groups;
+}
+
+/** Pinned first, then the teacher's manual order, then newest. */
+function orderedForGroup(items: ClassroomItem[]): ClassroomItem[] {
+	const pinned = items.filter((i) => i.pinned);
+	const rest = items.filter((i) => !i.pinned);
+	return [...withOrder(pinned, newestFirst), ...withOrder(rest, newestFirst)];
+}
+
+/** A picker's value back to what the RPC takes: the unfiled sentinel is null. */
+export function unitIdFor(value: string): string | null {
+	return !value || value === UNFILED_GROUP_ID ? null : value;
+}
+
+// ---------------------------------------------------------------------------
+// Which unit groups this user keeps folded
+//
+// Stored per USER in `profiles.preferences.classroomUnits`, the same free-form
+// JSONB the launcher keeps its homepage layout in and the home feed keeps its
+// collapsed class cards in -- so a folded unit stays folded on their phone, and
+// it needed no migration.
+//
+// KEYED BY SECTION AND GROUP TOGETHER. A unit belongs to the course, so its id
+// is the same in every section of it; without the section in the key, folding
+// "Unit 1" in Period 2 would fold it in Period 4 as well, which is a fold
+// nobody asked for on a page they were not looking at.
+// ---------------------------------------------------------------------------
+
+export interface ClassViewPrefs {
+	collapsed?: string[];
+}
+
+function groupKey(sectionId: string, groupId: string): string {
+	return `${sectionId}::${groupId}`;
+}
+
+export function readClassViewPrefs(preferences: unknown): ClassViewPrefs {
+	if (!preferences || typeof preferences !== 'object') return {};
+	const raw = (preferences as Record<string, unknown>).classroomUnits;
+	if (!raw || typeof raw !== 'object') return {};
+	const collapsed = (raw as Record<string, unknown>).collapsed;
+	return {
+		collapsed: Array.isArray(collapsed) ? collapsed.filter((c) => typeof c === 'string') : []
+	};
+}
+
+/** The group ids folded in ONE section, which is all that section's view needs. */
+export function collapsedGroups(prefs: ClassViewPrefs, sectionId: string): string[] {
+	const prefix = `${sectionId}::`;
+	return (prefs.collapsed ?? [])
+		.filter((k) => k.startsWith(prefix))
+		.map((k) => k.slice(prefix.length));
+}
+
+export function toggleGroupCollapsed(
+	prefs: ClassViewPrefs,
+	sectionId: string,
+	groupId: string
+): ClassViewPrefs {
+	const key = groupKey(sectionId, groupId);
+	const cur = prefs.collapsed ?? [];
+	return {
+		...prefs,
+		collapsed: cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]
+	};
+}
+
+// ---------------------------------------------------------------------------
+// A student's own standing on one assignment
+// ---------------------------------------------------------------------------
+
+export type WorkState = 'not-started' | 'in-progress' | 'submitted' | 'returned';
+
+export interface StudentWork {
+	state: WorkState;
+	/** Released score, and only ever on a returned submission. */
+	score: number | null;
+}
+
+/** The submission columns this needs, and nothing more. */
+export interface SubmissionSummary {
+	item_id: string;
+	state: string;
+	score: number | null;
+}
+
+/**
+ * Where each of the caller's own assignments stands, keyed by item id.
+ *
+ * Reads whatever the RLS-scoped submissions select returned -- for a student the
+ * policy answers with exactly their own rows, so there is no filter here and
+ * none is wanted (the /coin-balance doctrine). Never called for a manager: their
+ * own policy would hand them the whole class, and a teacher has no personal
+ * standing on their own assignment.
+ *
+ * NO ROW AT ALL IS "not started", which is the honest reading: 0086 creates the
+ * submission row the moment a response is saved or a file uploaded, so its
+ * absence means nothing has been done.
+ */
+export function studentWorkMap(rows: SubmissionSummary[]): Record<string, StudentWork> {
+	const out: Record<string, StudentWork> = {};
+	for (const row of rows) {
+		const state: WorkState =
+			row.state === 'returned' ? 'returned' : row.state === 'submitted' ? 'submitted' : 'in-progress';
+		out[row.item_id] = { state, score: state === 'returned' ? (row.score ?? null) : null };
+	}
+	return out;
+}
+
+export function workStateLabel(work: StudentWork, points: number | null): string {
+	switch (work.state) {
+		case 'returned':
+			return work.score == null
+				? 'Returned'
+				: points == null
+					? `Returned · ${work.score}`
+					: `Returned · ${work.score}/${points}`;
+		case 'submitted':
+			return 'Submitted';
+		case 'in-progress':
+			return 'In progress';
+		default:
+			return 'Not started';
+	}
+}
+
+/**
+ * Where ONE assignment's grading stands, for the Grades tab.
+ *
+ * Every number is a count over rows the caller could already read: a manager
+ * reads their own class's submissions through classroom_can_review_submission,
+ * which is the same policy the grading console itself runs under. Nothing here
+ * is privileged and nothing new is exposed -- it is the list somebody used to
+ * assemble by opening every assignment in turn.
+ */
+export interface AssignmentStanding {
+	item: ClassroomItem;
+	/** Handed in and not yet returned -- the number that means "do something". */
+	awaiting: number;
+	returned: number;
+	/** Started but not handed in. */
+	inProgress: number;
+	/** Actively enrolled students, the denominator. */
+	roster: number;
+}
+
+/** Tally submissions per assignment. Pure, so the shape is checkable on its own. */
+export function assignmentStandings(
+	items: ClassroomItem[],
+	submissions: SubmissionSummary[],
+	rosterSize: number
+): AssignmentStanding[] {
+	const byItem = new Map<string, SubmissionSummary[]>();
+	for (const row of submissions) {
+		const list = byItem.get(row.item_id) ?? [];
+		list.push(row);
+		byItem.set(row.item_id, list);
+	}
+	return items
+		.filter((i) => i.kind === 'assignment')
+		.map((item) => {
+			const rows = byItem.get(item.id) ?? [];
+			return {
+				item,
+				awaiting: rows.filter((r) => r.state === 'submitted').length,
+				returned: rows.filter((r) => r.state === 'returned').length,
+				inProgress: rows.filter((r) => r.state !== 'submitted' && r.state !== 'returned').length,
+				roster: rosterSize
+			};
+		});
+}
+
+/** Existing tones only -- crimson stays reserved for LIVE/REC/error. */
+export function workStateTone(state: WorkState): 'good' | 'attention' | 'muted' | 'info' {
+	switch (state) {
+		case 'returned':
+			return 'good';
+		case 'submitted':
+			return 'info';
+		case 'in-progress':
+			return 'attention';
+		default:
+			return 'muted';
+	}
 }
 
 /**
@@ -647,6 +905,53 @@ export function parseRosterCsv(text: string): { rows: RosterRow[]; errors: strin
 			continue;
 		}
 		rows.push({ email: email.toLowerCase(), name, course_code, section_label });
+	}
+	if (!rows.length && !errors.length) errors.push('No student rows found.');
+	return { rows, errors };
+}
+
+/**
+ * The SECTION-scoped importer: the CSV carries only who, and the class it lands
+ * in comes from the page you are standing on.
+ *
+ * A roster pasted into one class's People tab should not have to repeat that
+ * class's course code and label on every row -- that was only ever needed by the
+ * old global console, which could not know which section a row meant. Extra
+ * columns are ignored rather than refused, so a file exported for the 4-column
+ * importer still works here.
+ *
+ * It maps onto the SAME RosterRow the SAME classroom_import_roster RPC takes, so
+ * this adds no write path and no authority: a row naming a section the caller
+ * does not teach is refused server-side exactly as it always was.
+ */
+export function parseSectionRosterCsv(
+	text: string,
+	courseCode: string,
+	sectionLabel: string
+): { rows: RosterRow[]; errors: string[] } {
+	const records = parseCsvRecords(text);
+	const rows: RosterRow[] = [];
+	const errors: string[] = [];
+	if (!records.length) return { rows, errors: ['No rows found.'] };
+
+	let start = 0;
+	const first = records[0].join(',').toLowerCase();
+	if (first.includes('email') || !first.includes('@')) start = 1;
+
+	for (let i = start; i < records.length; i++) {
+		const cells = records[i].map((c) => c.trim());
+		const email = cells[0] ?? '';
+		if (!email) continue;
+		if (!email.includes('@')) {
+			errors.push(`Row ${i + 1}: "${email}" is not an email address.`);
+			continue;
+		}
+		rows.push({
+			email: email.toLowerCase(),
+			name: cells[1] ?? '',
+			course_code: courseCode,
+			section_label: sectionLabel
+		});
 	}
 	if (!rows.length && !errors.length) errors.push('No student rows found.');
 	return { rows, errors };
@@ -790,13 +1095,40 @@ export interface ClassroomComposerTransports {
 	markViewed(itemId: string): Promise<TxResult<undefined>>;
 }
 
-export interface ClassroomManageTransports extends ClassroomComposerTransports {
-	upsertCourse(
-		code: string,
-		title: string,
-		active?: boolean,
+/**
+ * Units (0111). Its OWN interface rather than four more methods on the composer
+ * set: a unit is a fact about the COURSE, the class view can be handed a null
+ * here and simply not offer the controls, and that null is also the fail-soft
+ * state on a deployment where 0111 has not been applied yet.
+ */
+export interface ClassroomUnitTransports {
+	/** Null id creates; a set id renames. `duplicate` is the designed refusal. */
+	upsertUnit(
+		courseId: string,
+		name: string,
 		id?: string | null
-	): Promise<TxResult<{ courseId: string; created: boolean }>>;
+	): Promise<TxResult<{ unitId: string | null; created: boolean; duplicate: boolean }>>;
+	deleteUnit(id: string): Promise<TxResult<{ unfiled: number }>>;
+	setUnitOrder(courseId: string, unitIds: string[]): Promise<TxResult<undefined>>;
+	/** Null unit unfiles. `wrong_course` is the designed refusal. */
+	setItemUnit(
+		itemId: string,
+		unitId: string | null
+	): Promise<TxResult<{ ok: boolean; reason?: string }>>;
+	/** Re-read the course's units after a change. */
+	reloadUnits(courseId: string): Promise<TxResult<ClassroomUnit[]>>;
+}
+
+/**
+ * One class's own settings and roster -- what the People tab needs, and nothing
+ * more.
+ *
+ * ITS OWN INTERFACE because these moved OUT of the global console and INTO the
+ * section they belong to: managing a class is done while standing in it, not
+ * from a separate page listing every class you teach. The methods are unchanged
+ * callers of the same 0082/0083 RPCs; only where they are mounted moved.
+ */
+export interface ClassroomPeopleTransports {
 	upsertSection(
 		courseId: string,
 		label: string,
@@ -806,7 +1138,6 @@ export interface ClassroomManageTransports extends ClassroomComposerTransports {
 	): Promise<TxResult<{ sectionId: string }>>;
 	setSectionActive(id: string, active: boolean): Promise<TxResult<undefined>>;
 	deleteSection(id: string, confirmLabel: string): Promise<TxResult<SectionDeleteResult>>;
-	reloadSections(): Promise<TxResult<{ sections: ClassroomSection[]; courses: ClassroomCourse[] }>>;
 	loadRoster(sectionId: string): Promise<TxResult<ClassroomEnrollment[]>>;
 	setEnrollment(
 		sectionId: string,
@@ -821,6 +1152,30 @@ export interface ClassroomManageTransports extends ClassroomComposerTransports {
 		name: string | null
 	): Promise<TxResult<{ ok: boolean; reason?: string }>>;
 	importRoster(rows: RosterRow[]): Promise<TxResult<ImportSummary>>;
+}
+
+/** Courses and section creation -- the genuinely cross-cutting half. */
+export interface ClassroomAdminTransports {
+	upsertCourse(
+		code: string,
+		title: string,
+		active?: boolean,
+		id?: string | null
+	): Promise<TxResult<{ courseId: string; created: boolean }>>;
+	upsertSection(
+		courseId: string,
+		label: string,
+		block: string | null,
+		id?: string | null,
+		teacherEmail?: string | null
+	): Promise<TxResult<{ sectionId: string }>>;
+	reloadSections(): Promise<TxResult<{ sections: ClassroomSection[]; courses: ClassroomCourse[] }>>;
+}
+
+export interface ClassroomManageTransports
+	extends ClassroomComposerTransports,
+		ClassroomPeopleTransports,
+		ClassroomAdminTransports {
 	loadContent(sectionId: string): Promise<TxResult<{ items: ClassroomItem[] }>>;
 }
 

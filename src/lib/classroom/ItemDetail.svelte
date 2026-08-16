@@ -1,6 +1,4 @@
 <script lang="ts">
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
@@ -219,14 +217,11 @@
 	<title>{itemTitle(item)} // {sectionTitle(section)}</title>
 </svelte:head>
 
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
-		<a class="btn secondary" href={`${basePath}/${section.id}`}>&lsaquo; {sectionTitle(section)}</a>
-		<ProfileMenu />
-	</div>
-</div>
-
+<!--
+	NO MASTHEAD HERE. Every /classroom page renders inside the persistent shell
+	(src/routes/classroom/+layout.svelte), which owns the logo, the section
+	switcher and the breadcrumb trail back up.
+-->
 <main class="classroom-page">
 	<section class="hero">
 		<div class="eyebrow">{itemKindLabel(item.kind)}</div>

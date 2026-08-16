@@ -25,7 +25,6 @@
 	ready={data.ready}
 	sections={data.sections}
 	basePath={base}
-	homeHref="/classroom/view-as"
 />
 
 <style>

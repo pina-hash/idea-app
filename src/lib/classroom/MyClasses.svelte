@@ -1,6 +1,4 @@
 <script lang="ts">
-	import ProfileMenu from '$lib/ProfileMenu.svelte';
-	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import { sectionTitle, sortSections, emailLocal, type ClassroomSection } from '$lib/classroom/classroom';
@@ -23,7 +21,6 @@
 		isStaff = false,
 		sections,
 		basePath = '/classroom',
-		homeHref = '/',
 		submitFeedback = null
 	}: {
 		ready?: boolean;
@@ -31,7 +28,6 @@
 		sections: ClassroomSection[];
 		/** Link root -- rewritten under /classroom/view-as/<email>. */
 		basePath?: string;
-		homeHref?: string;
 		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 	} = $props();
 
@@ -43,14 +39,12 @@
 	<title>Classroom // IDEA</title>
 </svelte:head>
 
-<div class="app-header">
-	<a class="wordmark logo-mark" href="/" aria-label="IDEA home"><AnimatedLogo width={104} /></a>
-	<div class="header-right">
-		<a class="btn secondary" href={homeHref}>&lsaquo; Home</a>
-		<ProfileMenu />
-	</div>
-</div>
-
+<!--
+	NO MASTHEAD HERE. Every /classroom page renders inside the persistent shell
+	(src/routes/classroom/+layout.svelte), which owns the logo, the section
+	switcher and the trail back up -- so a page can no longer disagree with its
+	neighbours about how you leave it.
+-->
 <main class="classroom-page">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Classroom</div>
@@ -60,7 +54,7 @@
 		</p>
 		{#if isStaff}
 			<p class="staff-line">
-				<a class="btn" href="/classroom/manage">Manage classes</a>
+				<a class="btn secondary" href="/classroom/admin">Courses &amp; setup</a>
 			</p>
 		{/if}
 	</section>
@@ -77,8 +71,8 @@
 			{#if isStaff}
 				<h2>No sections yet</h2>
 				<p class="note">
-					You have no sections yet. Head to <a href="/classroom/manage">Manage classes</a> to
-					create your courses and sections, then import your roster.
+					You have no sections yet. Head to <a href="/classroom/admin">Courses &amp; setup</a> to
+					create your courses and sections; each class's roster is then on its own People tab.
 				</p>
 			{:else}
 				<h2>No classes yet</h2>

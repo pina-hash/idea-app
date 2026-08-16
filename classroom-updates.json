@@ -13,6 +13,30 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-16",
+			"title": "Your class is one list now, grouped into units",
+			"body": "The Stream and Classwork tabs are gone. They showed the same things twice, in two orders, and neither matched the way your classes actually run. A class is now a single list grouped into the units your teacher set up -- Unit 1, Unit 2, Rotation 1 -- in their order, with anything not filed yet in a clearly marked group at the bottom. Announcements sit in the list alongside assignments and materials, marked by kind so you can tell them apart at a glance. You can fold a unit shut to get it out of the way, and it stays folded next time you open the class, on your phone too.",
+			"tags": ["Classwork", "Announcements"]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "Every assignment shows where you stand",
+			"body": "Each assignment in your class list now says whether you have not started it, have it in progress, have submitted it, or have had it returned -- and a returned one shows the score right there. No more opening things one at a time to find out what you still owe.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "Shorter rows, so a full class fits on a screen",
+			"body": "Each announcement, assignment and material is one compact line carrying its kind, title, due date, status and whether it has files or links attached. Tap the arrow at the left to open one up in place, or the title to go to its full page. A class with thirty things in it is now something you can scan instead of scroll through.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-16",
+			"title": "Switch between your classes from anywhere",
+			"body": "Every classroom page now has your class list in the top bar. Whichever class, assignment or page you are on, the class you are in is named up there and every other class is one tap away -- no more going back to My Classes and starting again. Underneath it, a trail shows where you are and takes you back up a level.",
+			"tags": ["Classwork", "Announcements"]
+		},
+		{
 			"date": "2026-08-15",
 			"title": "The classroom is easier on the eyes",
 			"body": "Your classes, your classwork and the reference documents now sit on a quieter, darker background with the scan lines turned off, so a page of instructions is the loudest thing on screen instead of the page around it. Green is kept for buttons you press, the tab you are on and work that is finished, which makes those easier to pick out. Nothing moved and nothing is missing -- it is the same classroom, just calmer to read for a while.",
