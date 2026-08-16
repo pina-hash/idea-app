@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ReviewConsole from '$lib/notebook/ReviewConsole.svelte';
 	import type { NotebookFlagReason, NotebookPhoto } from '$lib/notebook';
+	import { REVIEW_ENTRY_SELECTS } from '$lib/notebook-selects';
 	import type {
 		GridSession,
 		ReviewEntry,
@@ -135,26 +136,22 @@
 			// via notebook_can_read_entry. No .eq('student_id', ...) filter and
 			// no RPC -- the filtering IS the policy (the /coin-balance and
 			// /notebook doctrine).
-			const BASE = `id, student_id, session_id, custom_label, upload_timestamp, status, flag_reason,
-					 instructor_comment,
-					 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename )`;
-			const NOTES = `${BASE},
-					 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at )`;
-			// The folder name (0088) is readable to staff through 0088's own
-			// "section staff read notebook folders" policy, which delegates to
-			// notebook_can_read_entry -- so an instructor who may read this
-			// entry may read what it was filed under, and nobody else can.
-			const FULL = `${NOTES}, notebook_folders ( name )`;
+			//
+			// The select strings themselves live in $lib/notebook-selects, where
+			// the student feed's do, so the embeds they name are held against the
+			// real catalog by tests/notebook-page-load.test.ts rather than by
+			// nothing at all.
 			const read = (select: string) =>
 				data.supabase.from('notebook_entries').select(select).eq('id', entryId).maybeSingle();
 
-			// Each embed degrades on its OWN: on a project where 0078 or 0088 is
-			// not applied yet, PostgREST rejects the whole select for an unknown
-			// relationship, and an instructor should still be able to review the
-			// photos. Widest first, then one capability at a time.
-			let { data: row, error } = await read(FULL);
-			if (error) ({ data: row, error } = await read(NOTES));
-			if (error) ({ data: row, error } = await read(BASE));
+			// Widest first, then one capability at a time -- see the array's own
+			// comment for why each embed has to degrade on its own.
+			let row: unknown = null;
+			let error: unknown = null;
+			for (const select of REVIEW_ENTRY_SELECTS) {
+				({ data: row, error } = await read(select));
+				if (!error) break;
+			}
 			if (error) return fail(error, 'Could not load that entry.');
 			if (!row) return { ok: false, error: 'That entry is no longer available.' };
 			const r = row as unknown as Record<string, unknown>;

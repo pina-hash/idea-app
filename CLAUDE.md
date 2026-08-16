@@ -8827,6 +8827,106 @@ reads `rgb(18,26,18)` with `.bg-fx` running.
   Browser pane does not composite, so every visual claim above is a measured DOM
   or computed-style read.
 
+## The view-as preview catches up with 0108 and 0111 (`0113`)
+
+Migration `0113_classroom_view_as_body_doc_units.sql` (apply manually after
+`0112`) plus one prop on the view-as class page. **What the payload CONTAINS
+changed; who may read it did not.**
+
+### One cause, two symptoms, both live in production
+
+`_classroom_item_json` (`0085`) is a HAND-WRITTEN KEY LIST, and two later
+migrations added columns to `classroom_items` without it. A payload that is
+merely INCOMPLETE fails silently by construction -- `normalizeItemRow` reads
+both of these with an `in`-guard, so an absent key degrades quietly instead of
+erroring, which is exactly why this survived two migrations.
+
+- **`0108`'s `body_doc`.** Missing, so `ItemBody` fell through to
+  `docFromPlainText` over the plain-text projection -- and `docText` writes ONE
+  LINE PER LIST ITEM while `docFromPlainText` splits on BLANK lines only, so a
+  bulleted list rendered as one run-on paragraph. The same visible symptom the
+  `formatting_dropped` warning exists for, with nothing dropped and nothing to
+  warn about: the document was stored the whole time.
+- **`0111`'s `unit_id`.** Missing, so every item read as unfiled and
+  `classGroups` put the class in one list under no unit header.
+
+### Every caller checked before recreating it
+
+`_classroom_item_json` is defined ONCE (`0085`) and never redefined; it carries
+no grant, so it is reachable only from inside the two definer functions that
+call it. Both are read-only view-as RPCs, both last recreated in `0109`:
+
+- **`classroom_view_as_section`** -- recreated here, for the units half only;
+  its item aggregate is `0109`'s, unchanged.
+- **`classroom_view_as_item`** -- deliberately NOT recreated. It returns the
+  function's result verbatim, so it picks both keys up the moment `0113` runs,
+  which fixes the run-on-paragraph bug on the view-as ITEM page for free.
+
+### The units ride the RPC because a client query would be the wrong read
+
+The page mounted `ClassView` with no `units` prop, and its comment was right:
+an admin-side units query is the ADMIN'S OWN read rendered under a student's
+name -- the rule that also keeps check-ins and per-student work off that page,
+and `0099`'s general rule that a view-as read is ONE admin-gated function, never
+an assembled query. So the fix is in the payload, not the client.
+
+**It discloses nothing new either way**, which is worth stating rather than
+assuming: `classroom_units` is `grant select to authenticated` under a
+`using (true)` policy (`0111` -- a unit is a name in the shared course catalog),
+so the student's read of this course's units and the admin's are the same rows.
+FAITHFULNESS is what carries this, not secrecy. Scoped to the section's own
+course off the row the guard already resolved, so it cannot widen past the one
+class being previewed. An older backend omits the key and the view falls back to
+one chronological list -- degraded, never wrong.
+
+## The review console's select ladder joins the shared module (code-only)
+
+`/notebook/review` hand-wrote a three-rung PostgREST ladder inline, naming
+`notebook_entry_photos`, `notebook_entry_notes` and `notebook_folders` as
+embeds. `src/lib/notebook-selects.ts` exists precisely because an embed is an
+assertion about the SCHEMA that nothing type-checks, and this ladder sat outside
+it with no coverage at all -- the same position the student feed's ladder was in
+on the day `0098` repointed a key out from under its `notebook_sessions` embed
+and the page reported the notebook missing on a database that had it.
+
+- **It is a genuinely DIFFERENT select, not a wider copy**, so it gets its own
+  exports (`REVIEW_ENTRY_PHOTOS_SELECT` / `_NOTES_SELECT` / `_FULL_SELECT` +
+  `REVIEW_ENTRY_SELECTS`) rather than being folded into the feed's rungs: it
+  reads ONE entry by id, carries `student_id`, and resolves the folder's NAME
+  through an embed where the student's own view reads the bare `folder_id`.
+- **Behaviour is unchanged**: same three selects, same widest-first order, same
+  degrade-one-capability-at-a-time reason. The route's explicit
+  `FULL -> NOTES -> BASE` chain is a loop over the array now.
+- **`tests/notebook-page-load.test.ts` gained the catalog assertion** the ladder
+  never had, held against the REAL foreign keys and kept honest by pinning the
+  exact set of three relations (so a parser returning nothing cannot pass it
+  vacuously, and a dropped embed shows up too).
+
+### Verified
+
+- `npx svelte-check`: **0 errors, 36 warnings** (the same 36 as HEAD). Note the
+  generated route types are stale after adding a load key -- run
+  `npx svelte-kit sync` first or it reports a phantom `units` error.
+- `npx vitest run --no-file-parallelism`: **1066/1066 across 44 files**
+  (was 1065/44 -- the new assertion is the difference exactly).
+- **The new test was PROVEN TO FAIL before it was called passing, twice.**
+  Repointing the folder embed at `notebook_sessions` -- the real `0098`-class
+  regression, a table `notebook_entries` provably has no key to -- reddens
+  exactly it, with the PGRST200 explanation; DROPPING the notes embed reddens
+  the same test through the honesty check instead. Module restored
+  byte-identical (md5 `8c0bd85353df54db710b80b486012c74`) and re-verified green
+  after each.
+- **NOT verified: the live Supabase project, and nothing was checked in a
+  browser.** The local `.env` is the placeholder project, so `0113` has never
+  been applied anywhere. Both changed paths need a real session to exercise --
+  view-as is admin-gated and the review console's transports are the real
+  browser client (the `/dev/notebook-review` harness answers from an in-memory
+  store, so it does not touch these select strings at all). **Apply `0113` by
+  hand after `0112`**, then check with a real admin that a bulleted item reads
+  as a list in the preview and that items sit under their unit headers.
+- **No `classroom-updates.json` entry**, deliberately: both changes are staff
+  tooling and neither alters what a student sees.
+
 ## Check-ins in the class stream (code-only; NO migration)
 
 A notebook check-in appears in its class's Stream, alongside announcements and

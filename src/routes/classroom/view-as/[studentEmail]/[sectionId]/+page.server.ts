@@ -1,5 +1,11 @@
 import { error } from '@sveltejs/kit';
-import { normalizeItemRow, normalizeSectionRow, type ClassroomItem } from '$lib/classroom/classroom';
+import {
+	normalizeItemRow,
+	normalizeSectionRow,
+	normalizeUnitRow,
+	type ClassroomItem,
+	type ClassroomUnit
+} from '$lib/classroom/classroom';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -9,6 +15,14 @@ import type { PageServerLoad } from './$types';
  * the function's, never assembled here, so this page cannot accidentally show
  * more than the student would get. It also carries that student's own
  * last-viewed stamp, so the "Updated" badges read as THEY see them.
+ *
+ * Since 0113 it also carries the course's UNITS, in the same payload and behind
+ * the same guard. That is deliberately not a second query here: a units read
+ * issued from this page would be the admin's own read rendered under a
+ * student's name, which is the rule that keeps check-ins and per-student work
+ * off this page too. An older backend simply omits the key and the view falls
+ * back to one chronological list, which is what a course with no units looks
+ * like anyway -- degraded, never wrong.
  *
  * A null result means "not enrolled, or no such section", which is exactly the
  * 404 the student's own load would produce.
@@ -26,10 +40,12 @@ export const load: PageServerLoad = async ({ params, locals: { supabase } }) => 
 	const payload = data as {
 		section: Record<string, unknown>;
 		items: Record<string, unknown>[];
+		units?: Record<string, unknown>[];
 	};
 
 	return {
 		section: normalizeSectionRow(payload.section),
-		items: (payload.items ?? []).map(normalizeItemRow) as ClassroomItem[]
+		items: (payload.items ?? []).map(normalizeItemRow) as ClassroomItem[],
+		units: (payload.units ?? []).map(normalizeUnitRow) as ClassroomUnit[]
 	};
 };

@@ -51,7 +51,8 @@ import {
 import {
 	NOTEBOOK_ENTRY_SELECTS,
 	NOTEBOOK_POSTING_SELECT,
-	NOTEBOOK_SESSION_SELECT
+	NOTEBOOK_SESSION_SELECT,
+	REVIEW_ENTRY_SELECTS
 } from '../src/lib/notebook-selects';
 import type { NotebookEntry, NotebookSession } from '../src/lib/notebook';
 import type { NotebookFolder } from '../src/lib/notebook-folders';
@@ -238,6 +239,35 @@ describe('the shipped select strings against the real schema', () => {
 		// Kept honest: a parser that quietly returned nothing would pass the loop
 		// above without checking anything at all.
 		expect(new Set(seen)).toEqual(new Set(['notebook_entry_photos', 'notebook_entry_notes']));
+	});
+
+	/**
+	 * The instructor console's per-entry read (`/notebook/review`), which named
+	 * its three embeds inline in the route and so had none of the coverage
+	 * above -- the same position the feed's ladder was in on the day 0098 broke
+	 * it. It is a DIFFERENT select (one entry by id, `student_id`, and the
+	 * folder's NAME through an embed rather than the bare `folder_id`), so it
+	 * needs its own assertion rather than riding on the feed's.
+	 */
+	it('embeds only tables the review console entry read is related to', () => {
+		const seen: string[] = [];
+		for (const select of REVIEW_ENTRY_SELECTS) {
+			for (const table of embeddedTables(select)) {
+				seen.push(table);
+				expect(
+					relationshipBetween(fks, 'notebook_entries', table),
+					`the /notebook/review entry select embeds ${table}, but no foreign key ` +
+						`relates it to notebook_entries -- PostgREST would answer PGRST200 and ` +
+						`the console would report the entry unavailable`
+				).not.toBeNull();
+			}
+		}
+		// Kept honest the same way: names the three relations this read depends
+		// on, so a parser returning nothing cannot pass the loop vacuously, and
+		// an embed quietly added or dropped shows up here.
+		expect(new Set(seen)).toEqual(
+			new Set(['notebook_entry_photos', 'notebook_entry_notes', 'notebook_folders'])
+		);
 	});
 
 	it('reads check-in labels through a table that IS related, not an embed', () => {

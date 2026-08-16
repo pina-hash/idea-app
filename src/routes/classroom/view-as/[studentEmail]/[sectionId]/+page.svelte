@@ -23,14 +23,20 @@
 	admin-gated function, never an assembled query). The notebook link still
 	points into the impersonated notebook, which is where that state lives.
 
-	NO units and NO work either, for exactly the same reason: both would be the
-	ADMIN'S OWN read rendered under a student's name. With no units the view is
-	one chronological list, which is what a class with no units authored looks
-	like anyway -- degraded, never wrong.
+	UNITS DO RENDER, and they arrive the only way they may: inside the view-as
+	RPC's own payload (0113), behind the guard that already covers the items. An
+	admin-side units query from this page would be the ADMIN'S OWN read rendered
+	under a student's name -- the objection above, which is why this was one
+	ungrouped list until the payload could carry them. An older backend omits the
+	key and it falls back to that same list: degraded, never wrong.
+
+	NO work, still, for exactly that reason -- per-student standing has no
+	admin-gated read to come from.
 -->
 <ClassView
 	section={data.section}
 	items={data.items}
+	units={data.units}
 	canManage={false}
 	transports={null}
 	submitFeedback={null}
