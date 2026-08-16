@@ -449,7 +449,11 @@ describe('the renderer is the third gate', () => {
 		for (const file of [
 			'src/lib/classroom/ItemBody.svelte',
 			'src/lib/classroom/RichTextEditor.svelte',
-			'src/lib/classroom/DeckStager.svelte',
+			// DeckStager.svelte was here and is DELETED -- the composer's staged
+			// deck panel duplicated the item page's own. Removed from this list
+			// rather than left to fail, which is the list doing its job: an
+			// explicit enumeration notices a file leaving, where a glob would
+			// quietly cover one fewer thing.
 			'src/lib/classroom/ContentComposer.svelte',
 			'src/lib/classroom/classroom-doc.ts',
 			'src/lib/server/classroom-doc.ts'

@@ -740,7 +740,7 @@ async function saveItem(payload: {
 	sectionIds?: string[];
 	input: ItemInput;
 	published: boolean | null;
-}): Promise<TxResult<{ itemId: string }>> {
+}): Promise<TxResult<{ itemId: string; formattingDropped?: boolean }>> {
 	try {
 		const res = await fetch('/api/classroom/item', {
 			method: 'POST',
@@ -761,7 +761,7 @@ async function saveItem(payload: {
 			})
 		});
 		const body = (await res.json().catch(() => null)) as
-			| { error?: string; item_id?: string }
+			| { error?: string; item_id?: string; formatting_dropped?: boolean }
 			| null;
 		if (!res.ok) {
 			return { ok: false, message: body?.error ?? `Save failed (${res.status}).` };
@@ -774,7 +774,7 @@ async function saveItem(payload: {
 		// answered "nothing to export" rather than being filtered here -- one
 		// place decides what is exportable, and it is the one with the data.
 		pingClassroomExport(itemId);
-		return { ok: true, data: { itemId } };
+		return { ok: true, data: { itemId, formattingDropped: body?.formatting_dropped === true } };
 	} catch (e) {
 		return { ok: false, message: (e as Error).message || 'Save failed.' };
 	}

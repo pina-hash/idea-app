@@ -228,10 +228,14 @@
 		<h1>{itemTitle(item)}</h1>
 		<p class="meta-line">
 			{#if item.kind === 'assignment'}
-				Due {formatDue(item.due_at)}
-				{#if item.points != null}&nbsp;&middot; {item.points} pts{/if}
-				{#if item.category}&nbsp;&middot; {item.category}{/if}
-				&nbsp;&middot;
+				<!-- NO DUE SEGMENT WHEN THERE IS NO DUE DATE. `formatDue(null)` is
+				     "No due date", which reads as a value in a list of values and
+				     rendered as the sentence "Due No due date". An assignment with
+				     no deadline simply has nothing to say here, so it says
+				     nothing -- the label and its value come or go together. -->
+				{#if item.due_at}Due {formatDue(item.due_at)}&nbsp;&middot;{/if}
+				{#if item.points != null}{item.points} pts&nbsp;&middot;{/if}
+				{#if item.category}{item.category}&nbsp;&middot;{/if}
 			{/if}
 			Posted {shortWhen(item.created_at)} by {authorLabel(item.author_name, item.author_email)}
 		</p>
@@ -277,10 +281,6 @@
 						{sections}
 						transports={transports!}
 						{attachmentsEnabled}
-						{deck}
-						{deckTransports}
-						{spec}
-						{teacherTransports}
 						compact
 						onsaved={saved}
 						oncancel={() => (editing = false)}

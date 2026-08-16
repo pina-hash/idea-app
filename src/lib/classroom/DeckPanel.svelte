@@ -24,15 +24,14 @@
 	 * also want an item that already EXISTS, since a deck is stored against the
 	 * canonical item id.
 	 *
-	 * IT IS NO LONGER THE ONLY DOOR, and the paragraph above overstated the case.
-	 * Being reachable only from here meant a teacher had to save an item and then
-	 * go and find it again, with nothing in the composer saying a deck was even
-	 * possible -- a discoverability failure rather than a missing feature. Since
-	 * 0108 the composer stages a zip and uploads it the moment the create call
-	 * returns an id (DeckStager.svelte), which is how attachments have always
-	 * worked. This panel stays as the item page's own surface: the viewer link,
-	 * the thumbnail, and the standalone replace flow, all of which need the item
-	 * and the one section this page is being read under.
+	 * IT IS THE ONLY DOOR AGAIN, on purpose. The composer briefly staged a zip of
+	 * its own and uploaded it once the save returned an id -- which put a second
+	 * deck panel on screen, with its own copy of the explanation, every time the
+	 * editor was open on an item page that was already showing this one. That
+	 * staging is gone. A deck is not a field on a form: it has its own long
+	 * transfer, its own progress, its own refusals and its own questions, none of
+	 * which the composer's save waits for, so putting it behind an edit mode only
+	 * ever added a step. Managing a deck from here needs no editor at all.
 	 *
 	 * FOLLOWS THE CANONICAL ITEM: one deck per item, so every class the item is
 	 * posted to sees the same deck, and replacing it replaces it everywhere at once.
@@ -255,10 +254,10 @@
 			{/if}
 			{#if !deck}
 				<p class="deck-hint">
-					Export the deck from Claude Design as a project HTML zip and upload it here. Keep hidden
-					files in the zip: the image framing lives in one. Deck uploads are capped at
-					{Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB -- if the deck has gifs or video,
-					remove them from the deck and attach them to the item separately instead.
+					Export from Claude Design as a project HTML zip with hidden files included -- the image
+					framing lives in one of them. Uploads are capped at
+					{Math.floor(DECK_UPLOAD_MAX_ZIP_BYTES / 1024 / 1024)} MB, so attach gifs and video to the
+					item separately instead of embedding them.
 				</p>
 			{/if}
 		{/if}

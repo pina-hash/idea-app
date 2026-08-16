@@ -98,6 +98,13 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	const published = body.published === null ? null : body.published === true;
 
 	/**
+	 * Did the chain below have to give up the rich document to get the save
+	 * through? Set only when the weaker call then SUCCEEDED, so a genuine
+	 * refusal is never also reported as lost formatting.
+	 */
+	let formattingDropped = false;
+
+	/**
 	 * Two OPTIONAL parameters, two migrations, applied by hand and separately --
 	 * so this drops them one at a time rather than all at once. Dropping both on
 	 * the first refusal would cost a project that HAS 0108 its rich body to work
@@ -117,6 +124,19 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 			if (isMissingSignature(res.error) && 'p_body_doc' in rest) {
 				const { p_body_doc: _alsoDropped, ...bare } = rest;
 				res = await supabase.rpc(fn, bare);
+				// DROPPING THIS ONE COSTS THE TEACHER SOMETHING THEY CAN SEE, so it
+				// is reported rather than absorbed. Every other rung of this chain
+				// gives up a field nobody typed; this rung gives up the document --
+				// the save still succeeds and `body` still carries every word, but
+				// the lists, headings and emphasis are gone from what students read,
+				// and `docFromPlainText` renders the result as flat paragraphs.
+				//
+				// It was silent, and that is how a real assignment reached a class
+				// with its bulleted list rendered as one run-on paragraph while the
+				// composer reported a clean save. The formatting is not recoverable
+				// from the text column afterwards, so saying so at the moment it
+				// happens is the only chance anyone gets to notice.
+				if (!res.error) formattingDropped = true;
 			}
 		}
 		return res;
@@ -139,7 +159,7 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 			p_publish_at: publishAt
 		});
 		if (error) return json({ error: error.message ?? 'Save failed.' }, { status: 400 });
-		return json({ ok: true, item_id: id });
+		return json({ ok: true, item_id: id, formatting_dropped: formattingDropped });
 	}
 
 	const kind = typeof body.kind === 'string' ? body.kind : '';
@@ -166,5 +186,5 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 
 	const itemId = (data as { item_id?: string } | null)?.item_id;
 	if (!itemId) return json({ error: 'The item was not created.' }, { status: 400 });
-	return json({ ok: true, item_id: itemId });
+	return json({ ok: true, item_id: itemId, formatting_dropped: formattingDropped });
 };

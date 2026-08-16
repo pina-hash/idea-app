@@ -51,6 +51,30 @@ body:has(.cr-root) .bg-fx {
 	display: none;
 }
 
+/* THE CANVAS ITSELF, and this is what `.cr-root`'s own background could never
+   reach. `body { background: var(--bg0) }` (app.css) is the portal's green
+   machined plate, and a body background PROPAGATES TO THE CANVAS -- the paint
+   behind the whole viewport, including every pixel the document does not
+   cover. `.cr-root` is `min-height: 100vh`, which covers the viewport once and
+   nothing else, so the green showed up in all the places the canvas is
+   visible and the wrapper is not:
+
+     * the last child's bottom margin, which COLLAPSES out through `.cr-root`
+       (it has no bottom padding or border to stop it) and so lands outside
+       the painted box -- the strip under the footer;
+     * overscroll / rubber-banding past either end of a scrolled page;
+     * the gap on mobile when the URL bar retracts and the real viewport grows
+       past the 100vh the wrapper was sized against.
+
+   Painting the canvas is the fix for all three at once, rather than three
+   guesses at padding. Same `:has()` scoping as the rule above, so it reaches
+   /classroom and /reference and no other route -- and `.cr-root` keeps its own
+   background, which is what covers the page while this covers everything
+   around it. */
+body:has(.cr-root) {
+	background: var(--surface-0);
+}
+
 .cr-root .app-header {
 	background: var(--surface-1);
 	border-bottom: 1px solid var(--hairline);
@@ -116,7 +140,7 @@ body:has(.cr-root) .bg-fx {
 
 /* --- The mono micro-label ------------------------------------------------
    The small tracked caption above a field or a group. Was written out
-   verbatim in ContentComposer, DeckStager and ManageConsole. */
+   verbatim in ContentComposer and ManageConsole. */
 .cr-root .mini-label {
 	font-family: 'Share Tech Mono', monospace;
 	font-size: 0.68rem;

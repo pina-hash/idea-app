@@ -34,13 +34,20 @@
 // (`v_changed := false`) reddened the four tests that require a REAL edit to
 // raise the badge. 0104 was restored byte-identical afterwards and this file
 // re-run fully green.
+//
+// THE LAST BLOCK IN THIS FILE covers the same guarantee one step earlier, and
+// was added after an "Updated" chip was reported on a draft that had never been
+// posted: `isUpdatedForViewer` asked only whether `edited_at` was set, so a row
+// carrying one with `first_published_at` still null was badged for a class that
+// had never seen it. Mutation-checked the same way -- removing the
+// `first_published_at` guard reddens exactly that one test and nothing else.
 
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { createUser, startTestDb, type SeededUser, type TestDb } from './db/harness';
 import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
 import { ITEM_SELECT } from '../src/lib/classroom/transports';
-import { normalizeItemRow, isUpdatedForViewer } from '../src/lib/classroom/classroom';
+import { normalizeItemRow, isUpdatedForViewer, type ClassroomItem } from '../src/lib/classroom/classroom';
 import { buildFeed } from '../src/lib/classroom/feed';
 
 const MIGRATIONS = [
@@ -383,5 +390,74 @@ describe('every instructor-only write path leaves classroom_items alone', () => 
 
 		// And the student's own view never moved through any of it.
 		expect(await badgeShowing(item)).toBe(false);
+	});
+});
+
+/**
+ * The badge is student-facing change signalling, so an item no student has ever
+ * been able to see cannot have one. `first_published_at` is the right question:
+ * 0085 stamps it once, the first time an item is published, and never clears
+ * it -- so an item pulled BACK to draft keeps its badge, which is correct,
+ * because a class has already seen what changed.
+ *
+ * Pure assertions over `isUpdatedForViewer` rather than round trips, because
+ * the rows below include one the RPCs deliberately cannot produce: 0104 only
+ * stamps `edited_at` on an item that has been published, so a draft carrying
+ * one is exactly the row this guard exists to catch if it ever arrives by
+ * another path. Reported from production as an "Updated" chip on a draft that
+ * had never been posted.
+ */
+describe('the Updated badge and an item that has never been published', () => {
+	const row = (over: Partial<ClassroomItem>): ClassroomItem =>
+		normalizeItemRow({
+			id: 'i-1',
+			kind: 'post',
+			body: '',
+			author_email: 'teach@boscotech.edu',
+			published: true,
+			sort_order: 0,
+			created_at: '2026-08-01T00:00:00Z',
+			updated_at: '2026-08-01T00:00:00Z',
+			...over
+		} as Record<string, unknown>);
+
+	it('does not badge an edited item that has never been published', () => {
+		expect(
+			isUpdatedForViewer(
+				row({ published: false, first_published_at: null, edited_at: '2026-08-15T00:00:00Z' })
+			)
+		).toBe(false);
+	});
+
+	it('still badges an edited item that HAS been published and not since viewed', () => {
+		expect(
+			isUpdatedForViewer(
+				row({ first_published_at: '2026-08-02T00:00:00Z', edited_at: '2026-08-15T00:00:00Z' })
+			)
+		).toBe(true);
+	});
+
+	it('keeps badging an item pulled back to draft after a class had seen it', () => {
+		expect(
+			isUpdatedForViewer(
+				row({
+					published: false,
+					first_published_at: '2026-08-02T00:00:00Z',
+					edited_at: '2026-08-15T00:00:00Z'
+				})
+			)
+		).toBe(true);
+	});
+
+	it('does not badge a published item edited BEFORE the student last viewed it', () => {
+		expect(
+			isUpdatedForViewer(
+				row({
+					first_published_at: '2026-08-02T00:00:00Z',
+					edited_at: '2026-08-10T00:00:00Z',
+					viewed_at: '2026-08-12T00:00:00Z'
+				})
+			)
+		).toBe(false);
 	});
 });

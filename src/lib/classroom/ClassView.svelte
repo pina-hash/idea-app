@@ -683,8 +683,6 @@
 						{sections}
 						transports={transports!}
 						{attachmentsEnabled}
-						{deckTransports}
-						{teacherTransports}
 						compact
 						onsaved={saved}
 						oncancel={() => (editing = null)}
@@ -790,8 +788,6 @@
 						initialTargets={[section.id]}
 						transports={transports!}
 						{attachmentsEnabled}
-						{deckTransports}
-						{teacherTransports}
 						compact
 						onsaved={created}
 						oncancel={() => (composing = false)}

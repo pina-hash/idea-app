@@ -18,6 +18,7 @@
 	import { itemBodyDoc, type ItemDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
 	import type { AssignmentSpec, AssignmentTeacherTransports, RubricCriterion } from '$lib/classroom/assignment-spec';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
+	import type { DeckTransports } from '$lib/classroom/deck';
 	import type {
 		ContentRevision,
 		ExportOutcome,
@@ -129,6 +130,29 @@
 		}
 	];
 
+	/**
+	 * RICH's own plain-text projection -- what `docText` writes into
+	 * `classroom_items.body`, one line per block and per list item.
+	 *
+	 * Rendered with no `body_doc`, this is the exact production symptom: the
+	 * heading, the paragraph and every list item run together into a single
+	 * paragraph, because the fallback splits on BLANK lines and there are none.
+	 * Kept in the harness so the broken state can be looked at beside the
+	 * correct one rather than described.
+	 */
+	const DEGRADED_TEXT = [
+		'Before you start',
+		'Read the whole brief before touching the CAD file. Reference: the tolerance table.',
+		'Bring',
+		'A ruler',
+		'Graph paper',
+		'Your notebook',
+		'Steps',
+		'Measure twice',
+		'Cut once',
+		'Log the result in your notebook'
+	].join('\n');
+
 	let items = $state<ClassroomItem[]>([
 		mk({
 			id: 'i-rich',
@@ -157,6 +181,27 @@
 			body: 'Not finished. Do not post.',
 			published: false,
 			first_published_at: null
+		}),
+		/**
+		 * BOTH CHIP DEFECTS IN ONE ITEM, which is also a realistic shape: a
+		 * teacher drafting an assignment, revising it twice before it goes out,
+		 * and not having settled on a deadline.
+		 *
+		 * `edited_at` is set with `first_published_at` NULL, which used to render
+		 * an "Updated" badge on something no student had ever seen; and there is
+		 * no `due_at`, which used to render the sentence "Due No due date".
+		 */
+		mk({
+			id: 'i-unposted',
+			kind: 'assignment',
+			title: 'Unposted draft, no deadline yet',
+			body: 'Still being written.',
+			points: 15,
+			category: 'Unit Labs',
+			due_at: null,
+			published: false,
+			first_published_at: null,
+			edited_at: iso(-1)
 		}),
 		mk({
 			id: 'i-sched',
@@ -424,8 +469,11 @@
 
 	/** The detail view as a STUDENT sees it: no tools, and the hand-in slot. */
 	let asStudent = $state(false);
+	let detailUnposted = $state(false);
 	const editItem = $derived(items.find((i) => i.id === 'i-rich') ?? items[0]);
-	const detailItem = $derived(items.find((i) => i.id === 'i-rich') ?? items[0]);
+	const detailItem = $derived(
+		items.find((i) => i.id === (detailUnposted ? 'i-unposted' : 'i-rich')) ?? items[0]
+	);
 
 	// --- Migrated components -------------------------------------------------
 	const SPEC: AssignmentSpec = {
@@ -895,6 +943,23 @@
 		}
 	} as unknown as ClassroomManageTransports;
 
+	/**
+	 * Enough for the item page's own Presentation card to render its manage
+	 * controls. Uploading is not driven here -- /dev/classroom-deck owns the real
+	 * ingest -- this exists so the panel COUNT is browser-verifiable with the
+	 * editor open.
+	 */
+	const deckTransports = {
+		async uploadDeck(itemId: string) {
+			note('deck.uploadDeck', { itemId });
+			return { ok: false as const, message: 'Not driven in this harness.' };
+		},
+		async deleteDeck(itemId: string) {
+			note('deck.deleteDeck', { itemId });
+			return { ok: true as const, message: 'Deck removed.' };
+		}
+	} as unknown as DeckTransports;
+
 	const referenceTransports = {
 		// setReferenceSpec, not setSpec: that is the name on ReferenceTransports,
 		// and the harness's old stub had it wrong -- hidden by the `as unknown as`
@@ -968,7 +1033,6 @@
 					{sections}
 					initialTargets={['s-1']}
 					transports={composerTransports}
-					teacherTransports={teacherTransports}
 					onsaved={(info) => note('onsaved', info)}
 				/>
 			</section>
@@ -985,7 +1049,6 @@
 						item={editItem}
 						{sections}
 						transports={composerTransports}
-						teacherTransports={teacherTransports}
 						compact
 						onsaved={(info) => note('onsaved', info)}
 						oncancel={() => note('oncancel', {})}
@@ -1025,8 +1088,27 @@
 		{:else if view === 'bodies'}
 			<section class="card">
 				<h2>Rich body</h2>
+				<p class="note">
+					Every mark and block the shape supports, in one body: h3, h4, bold, italic, a safe link,
+					a bulleted list, a numbered list, and a list nested inside a list (which flattens into
+					its parent by design). This must render as real &lt;ul&gt; / &lt;ol&gt; / &lt;li&gt;
+					elements with visible markers.
+				</p>
 				<div data-testid="body-rich">
 					<ItemBody item={items.find((i) => i.id === 'i-rich')!} />
+				</div>
+			</section>
+			<section class="card">
+				<h2>The SAME body with no stored document -- the reported bug</h2>
+				<p class="note">
+					`body_doc` absent (a backend without 0108, so the save route degraded past
+					`p_body_doc`). `docText` writes one line per block and per list item; the render-time
+					fallback splits on BLANK lines only, so the whole body collapses into one run-on
+					paragraph -- no breaks, no markers. Nothing here can recover it: the markers were never
+					in the text.
+				</p>
+				<div class="rendered" data-testid="body-degraded">
+					<ItemBody item={{ body: DEGRADED_TEXT }} />
 				</div>
 			</section>
 			<section class="card">
@@ -1089,8 +1171,22 @@
 		{:else if view === 'detail'}
 			<div class="toggles">
 				<label><input type="checkbox" bind:checked={asStudent} /> as a student (no tools)</label>
+				<label>
+					<input type="checkbox" bind:checked={detailUnposted} /> an unposted draft with no deadline
+				</label>
 			</div>
-			{#key asStudent}
+			<p class="note">
+				With the second box ticked: NO "Updated" chip (nothing has ever been posted, so nothing can
+				have been missed) and NO due segment at all (rather than the sentence "Due No due date").
+				The Draft chip and the points still render.
+			</p>
+			<p class="note">
+				OPEN THE EDITOR AND COUNT THE PANELS. There must be exactly ONE Presentation card and ONE
+				Assignment engine card on this page, both page-level, whether the editor is open or shut.
+				The composer used to render a deck panel and a spec panel of its own, which put two of each
+				on screen with near-identical explanatory text and no way to tell which one to use.
+			</p>
+			{#key `${asStudent}-${detailItem.id}`}
 				{#if asStudent}
 					<!-- No transports and no engine: the hand-in slot's own copy, which
 					     used to read "not available right now" and so as an outage. -->
@@ -1114,6 +1210,7 @@
 						spec={SPEC}
 						{rubric}
 						{revisionTransports}
+						deckTransports={deckTransports}
 						onchanged={() => note('onchanged', {})}
 					/>
 				{/if}

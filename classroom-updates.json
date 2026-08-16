@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-16",
+			"title": "Assignment pages read a little cleaner",
+			"body": "Two small things on an assignment page. An assignment with no deadline no longer says \"Due No due date\" -- if there is no deadline, the page just does not mention one, and a real due date still shows exactly as before. And the strip of the old green background that showed under the bottom of every class page is gone, so the page sits on one colour from top to bottom.",
+			"tags": ["Assignments"]
+		},
+		{
+			"date": "2026-08-16",
 			"title": "Your class is one list now, grouped into units",
 			"body": "The Stream and Classwork tabs are gone. They showed the same things twice, in two orders, and neither matched the way your classes actually run. A class is now a single list grouped into the units your teacher set up -- Unit 1, Unit 2, Rotation 1 -- in their order, with anything not filed yet in a clearly marked group at the bottom. Announcements sit in the list alongside assignments and materials, marked by kind so you can tell them apart at a glance. You can fold a unit shut to get it out of the way, and it stays folded next time you open the class, on your phone too.",
 			"tags": ["Classwork", "Announcements"]

@@ -492,6 +492,23 @@ export function localInputToIso(value: string): string | null {
  */
 export function isUpdatedForViewer(item: ClassroomItem): boolean {
 	if (!item.edited_at) return false;
+	// NEVER PUBLISHED, SO THERE IS NOTHING TO HAVE MISSED. The badge is
+	// student-facing change signalling -- "this changed since you last read it"
+	// -- and an item that has never gone live has not been read by anyone. A
+	// draft edited twice before it is first posted was showing "Updated" to the
+	// teacher writing it, which is noise at best and, on the day it is finally
+	// published, a signal pointing at nothing.
+	//
+	// `first_published_at` is exactly the right question: 0085 stamps it once,
+	// the first time an item is published, and never clears it. So an item that
+	// was published and later pulled back to draft KEEPS its badge, which is
+	// correct -- a class has seen it, and what they saw has changed.
+	//
+	// This mirrors the rule `classroom_update_item` already applies on the way
+	// in: `edited_at` is only stamped when `first_published_at is not null`. The
+	// two agree now; before this, a row could carry `edited_at` from some other
+	// path and be badged for a draft nobody had ever seen.
+	if (!item.first_published_at) return false;
 	if (!item.viewed_at) return true;
 	return Date.parse(item.edited_at) > Date.parse(item.viewed_at);
 }
@@ -1044,18 +1061,35 @@ export function scheduleLabel(item: { publish_at?: string | null }): string {
  * The create call hands back the id it made, because attachments are uploaded
  * AFTER the row exists (the file id lives in a row keyed on it).
  */
+/**
+ * What a successful item save reports back.
+ *
+ * `formattingDropped` is true only when the save route had to fall back past
+ * `p_body_doc` to get through -- a backend without 0108 -- and the weaker call
+ * then succeeded. The content IS saved and no word is missing; what is gone is
+ * the DOCUMENT, so lists, headings and emphasis render as flat paragraphs from
+ * the plain-text column and cannot be recovered from it afterwards. The
+ * composer says so rather than reporting a clean save, which is how a real
+ * assignment reached a class with its bulleted list run together into one
+ * paragraph and nobody found out until a student read it.
+ */
+export interface ItemSaved {
+	itemId: string;
+	formattingDropped?: boolean;
+}
+
 export interface ClassroomComposerTransports {
 	createItem(
 		kind: ClassroomItemKind,
 		sectionIds: string[],
 		input: ItemInput,
 		published: boolean
-	): Promise<TxResult<{ itemId: string }>>;
+	): Promise<TxResult<ItemSaved>>;
 	updateItem(
 		id: string,
 		input: ItemInput,
 		published: boolean | null
-	): Promise<TxResult<{ itemId: string }>>;
+	): Promise<TxResult<ItemSaved>>;
 	deleteItem(id: string): Promise<TxResult<undefined>>;
 	/** New independent draft; attachments carried by reference, not re-upload. */
 	duplicateItem(id: string): Promise<TxResult<{ itemId: string }>>;

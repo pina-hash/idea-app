@@ -1,12 +1,8 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
-	import DeckStager from '$lib/classroom/DeckStager.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
-	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import { itemBodyDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
-	import type { AssignmentSpec, AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
-	import type { ClassroomDeck, DeckTransports, DeckUploadProgress } from '$lib/classroom/deck';
 	import {
 		ITEM_KINDS,
 		formatBytes,
@@ -41,22 +37,32 @@
 	 *
 	 * ATTACHMENT SEQUENCING is the one genuinely ordered bit: everything that
 	 * attaches to an item is stored against its id, so the item has to EXIST
-	 * first. Files, instructor-only files, a presentation deck and an assignment
-	 * spec are therefore all STAGED locally and applied after the create/update
-	 * call hands back the id it touched.
-	 *
-	 * EVERY ATTACHMENT TYPE IS AVAILABLE HERE, on create as well as edit, and
-	 * that is the point rather than a convenience. A deck and a spec used to be
-	 * reachable only by saving an item and then going and finding it again on
-	 * its own page -- and nothing in this form said either was possible, which
-	 * is a discoverability failure rather than a missing feature. Waiting for
-	 * the id is a sequencing problem, so it is solved by sequencing.
+	 * first. Files and instructor-only files are therefore STAGED locally and
+	 * applied after the create/update call hands back the id it touched.
 	 *
 	 * A STAGED THING THAT FAILS TO APPLY IS KEPT, NOT DISCARDED. If the item
 	 * itself refuses to save, nothing is touched at all. If the item saves and
 	 * an upload then fails, the report says exactly what did not land and the
 	 * staged file stays in the form, so saving again retries it instead of
-	 * asking someone to find the zip a second time.
+	 * asking someone to find the file a second time.
+	 *
+	 * WHAT THIS FORM DOES NOT OWN: the PRESENTATION DECK and the ASSIGNMENT
+	 * SPEC. Both were staged here for a while, and both are gone -- not moved,
+	 * removed, because the item page already had a card for each. That left two
+	 * deck panels and two spec panels on screen whenever the editor was open,
+	 * with near-identical explanatory text, and no way to tell which one the
+	 * teacher was meant to use.
+	 *
+	 * The page-level cards are the survivors, and they are the right ones. A
+	 * deck upload is a multi-minute chunked transfer that reports progress,
+	 * refuses on size, asks which page opens the deck and warns about a missing
+	 * state file; a spec is validated, previewed with the real renderer and
+	 * published on its own. Neither participates in this form's save, so
+	 * neither belongs behind an edit mode: both can be managed on the item page
+	 * without opening the editor at all, which is a step FEWER than staging
+	 * them here ever was. The only thing lost is attaching one in the same
+	 * gesture that creates the item -- save first, then attach, on the page
+	 * that then exists.
 	 */
 	let {
 		mode = 'create',
@@ -67,10 +73,6 @@
 		transports,
 		attachmentsEnabled = true,
 		compact = false,
-		deck = null,
-		deckTransports = null,
-		spec = null,
-		teacherTransports = null,
 		onsaved,
 		oncancel = null
 	}: {
@@ -92,14 +94,6 @@
 		attachmentsEnabled?: boolean;
 		/** Inline placement (class page / item detail) vs the console card. */
 		compact?: boolean;
-		/** The deck already on the item being edited, when it has one. */
-		deck?: ClassroomDeck | null;
-		/** Absent = this surface cannot do decks; the section hides entirely. */
-		deckTransports?: DeckTransports | null;
-		/** The spec already on the assignment being edited, when it has one. */
-		spec?: AssignmentSpec | null;
-		/** Absent = this surface cannot do specs; the section hides entirely. */
-		teacherTransports?: AssignmentTeacherTransports | null;
 		onsaved: (info: { kind: ClassroomItemKind; published: boolean; text: string }) => void;
 		oncancel?: (() => void) | null;
 	} = $props();
@@ -290,55 +284,6 @@
 		} else {
 			msg = { ok: false, text: res.message };
 		}
-	}
-
-	// --- Presentation deck (0101/0102/0105), staged --------------------------
-	// The zip waits here until the item exists. Everything the upload reports
-	// back -- progress, refusals, the "which page opens this deck?" question,
-	// the missing-state-file warning -- is surfaced on the stager rather than
-	// folded into the composer's own one-line message, because those are things
-	// the uploader has to READ, not just an outcome.
-	let stagedDeck = $state<File | null>(null);
-	let deckEntryPath = $state<string | null>(null);
-	let deckCandidates = $state<string[]>([]);
-	let deckProgress = $state<DeckUploadProgress | null>(null);
-	let deckError = $state<string | null>(null);
-	let deckErrorCode = $state<string | null>(null);
-	let deckWarnings = $state<string[]>([]);
-	let deckNotice = $state<string | null>(null);
-	let deckRemoving = $state(false);
-	// svelte-ignore state_referenced_locally
-	let currentDeck = $state<ClassroomDeck | null>(deck);
-
-	const deckEnabled = $derived(!!deckTransports);
-
-	async function removeDeck() {
-		if (!deckTransports || !item) return;
-		deckRemoving = true;
-		deckError = null;
-		const res = await deckTransports.deleteDeck(item.id);
-		deckRemoving = false;
-		if (!res.ok) {
-			deckError = res.message;
-			return;
-		}
-		currentDeck = null;
-		deckNotice = 'Deck removed.';
-	}
-
-	// --- Assignment spec (0086), staged --------------------------------------
-	// Only an assignment can carry one, and only a surface that was handed the
-	// teacher transports can offer it.
-	let stagedSpec = $state<unknown | null>(null);
-	let stagedSpecSummary = $state<AssignmentSpec | null>(null);
-	// svelte-ignore state_referenced_locally
-	let currentSpec = $state<AssignmentSpec | null>(spec);
-
-	const specEnabled = $derived(!!teacherTransports && isAssignment);
-
-	function stageSpec(raw: unknown | null) {
-		stagedSpec = raw;
-		stagedSpecSummary = (raw as AssignmentSpec | null) ?? null;
 	}
 
 	// --- Linkage (edit mode) ----------------------------------------------
@@ -564,9 +509,9 @@
 		}
 
 		// The item exists; NOW everything that hangs off its id can be applied --
-		// the staged files, the instructor-only materials (never part of
-		// createItem/updateItem's own payload), the deck and the spec. All
-		// failures are collected together so one report covers everything.
+		// the staged files and the instructor-only materials (never part of
+		// createItem/updateItem's own payload). All failures are collected
+		// together so one report covers everything.
 		//
 		// ANYTHING THAT FAILS STAYS STAGED. Only what actually landed is cleared,
 		// so saving again retries the rest rather than asking a teacher to go and
@@ -574,6 +519,19 @@
 		const itemId = res.data.itemId;
 		const hadFiles = staged.length > 0 || instructorStaged.length > 0;
 		const failures: string[] = [];
+
+		// The save route had to fall back past the rich body to get through, so
+		// the words are stored and the FORMATTING is not. Reported as a failure
+		// rather than a footnote: it is the one thing here that silently changed
+		// what a class will read, and it cannot be recovered from the text
+		// column afterwards, so the only useful moment to say it is now.
+		if (res.data.formattingDropped) {
+			failures.push(
+				'formatting (lists, headings, bold) was not saved -- this classroom is running an ' +
+					'older database that cannot store it. The text is safe; ask an admin to apply the ' +
+					'pending migration, then re-apply the formatting'
+			);
+		}
 
 		/**
 		 * Uploads run CONCURRENTLY, and both lists at once.
@@ -633,58 +591,6 @@
 			if (!linksRes.ok) failures.push(`instructor links: ${linksRes.message}`);
 		}
 
-		let deckAttached = false;
-		if (stagedDeck && deckTransports) {
-			deckError = null;
-			deckErrorCode = null;
-			deckNotice = null;
-			deckWarnings = [];
-			deckCandidates = [];
-			const up = await deckTransports.uploadDeck(itemId, stagedDeck, {
-				entryPath: deckEntryPath,
-				onProgress: (p) => (deckProgress = p)
-			});
-			deckProgress = null;
-			if (up.ok) {
-				stagedDeck = null;
-				deckEntryPath = null;
-				deckAttached = true;
-				deckWarnings = up.warnings ?? [];
-				deckNotice = up.replaced
-					? `Deck replaced (${up.fileCount ?? 0} files).`
-					: `Deck uploaded (${up.fileCount ?? 0} files).`;
-			} else {
-				// Kept, deliberately: the zip is still in the form and the reason
-				// is on the stager. A deck that needs its entry page chosen is the
-				// clearest case -- the answer is a radio button away and the next
-				// save carries it.
-				deckError = up.message;
-				deckErrorCode = up.code ?? null;
-				deckCandidates = up.candidates ?? [];
-				deckEntryPath = deckCandidates[0] ?? null;
-				failures.push(
-					deckCandidates.length
-						? 'the deck needs its entry page chosen below'
-						: `deck: ${up.message}`
-				);
-			}
-		}
-
-		let specAttached = false;
-		if (stagedSpec !== null && teacherTransports) {
-			const attach = await teacherTransports.setSpec(itemId, stagedSpec as AssignmentSpec);
-			if (attach.ok) {
-				currentSpec = stagedSpecSummary;
-				stagedSpec = null;
-				stagedSpecSummary = null;
-				specAttached = true;
-			} else {
-				// Kept for the same reason: the JSON is validated and in hand, and
-				// re-pasting it would be the worst possible ask.
-				failures.push(`spec: ${attach.message}`);
-			}
-		}
-
 		if (failures.length) {
 			// The content DID save. Saying so and naming what did not is the
 			// honest report; claiming the whole thing failed would send a
@@ -705,10 +611,7 @@
 			onsaved({ kind: editingKind, published: publish, text: '' });
 			return;
 		}
-		const attachNote =
-			(hadFiles ? ' Files attached.' : '') +
-			(deckAttached ? ' Deck attached.' : '') +
-			(specAttached ? ' Spec attached.' : '');
+		const attachNote = hadFiles ? ' Files attached.' : '';
 
 		const what = ITEM_KINDS.find((k) => k.id === editingKind)?.label ?? 'Item';
 		const goLive = scheduledAhead ? new Date(localInputToIso(publishAt) ?? '').toLocaleString() : '';
@@ -736,10 +639,6 @@
 			category = '';
 			links = [];
 			instructorLinks = [];
-			currentDeck = null;
-			currentSpec = null;
-			deckNotice = null;
-			deckWarnings = [];
 			// The editor is remounted by bumping its key rather than reset
 			// through it: `bodyDoc` is what the parent holds, and a keyed
 			// remount is the one way to be sure the two agree afterwards.
@@ -953,39 +852,8 @@
 		{/if}
 	</div>
 
-	<!-- A deck and a spec attach to the item's id, so both are STAGED here and
-	     applied the moment the save returns one. Available on create and edit
-	     alike: needing to save first and come back was the whole problem. -->
-	{#if deckEnabled}
-		<DeckStager
-			bind:file={stagedDeck}
-			bind:entryPath={deckEntryPath}
-			deck={currentDeck}
-			candidates={deckCandidates}
-			progress={deckProgress}
-			error={deckError}
-			errorCode={deckErrorCode}
-			warnings={deckWarnings}
-			notice={deckNotice}
-			busy={busy}
-			removing={deckRemoving}
-			onremove={mode === 'edit' && item ? removeDeck : null}
-		/>
-	{/if}
-
-	{#if specEnabled}
-		<div class="spec-field">
-			<span class="mini-label">Interactive spec</span>
-			<SpecImporter
-				kind="assignment"
-				itemId={mode === 'edit' && item ? item.id : null}
-				spec={currentSpec}
-				staged={stagedSpecSummary}
-				transports={teacherTransports}
-				onstage={stageSpec}
-			/>
-		</div>
-	{/if}
+	<!-- NO DECK PANEL AND NO SPEC PANEL HERE. Both are owned by the item page's
+	     own cards; see the note at the top of this component for why. -->
 
 	{#if mode === 'create'}
 		<div class="target-picker">
@@ -1173,8 +1041,7 @@
 	}
 	.resources-editor,
 	.attach-editor,
-	.body-field,
-	.spec-field {
+	.body-field {
 		display: flex;
 		flex-direction: column;
 		gap: 0.35rem;
