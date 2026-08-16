@@ -14,6 +14,24 @@
 	"entries": [
 		{
 			"date": "2026-08-15",
+			"title": "The classroom is easier on the eyes",
+			"body": "Your classes, your classwork and the reference documents now sit on a quieter, darker background with the scan lines turned off, so a page of instructions is the loudest thing on screen instead of the page around it. Green is kept for buttons you press, the tab you are on and work that is finished, which makes those easier to pick out. Nothing moved and nothing is missing -- it is the same classroom, just calmer to read for a while.",
+			"tags": ["Classwork", "Announcements"]
+		},
+		{
+			"date": "2026-08-15",
+			"title": "A material with a reference document keeps its description",
+			"body": "When your teacher attaches a full reference document to a material -- a syllabus, a standards sheet -- anything they had written on the material itself used to disappear behind it. That description now shows above the document, where it introduces what you are about to read.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-15",
+			"title": "Assignments say clearly when there is nothing to hand in here",
+			"body": "An assignment with no online hand-in used to say submission was \"not available right now\", which sounded like something was broken and left people waiting for a form. It now says plainly that this assignment has no online hand-in and to follow the instructions above, where your teacher has said how to turn it in.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-15",
 			"title": "Instructions can have headings, lists and links",
 			"body": "Assignment instructions, announcements and material descriptions are properly formatted now. Your teacher can use headings, bulleted and numbered lists, bold, italic and links, so a set of steps reads as a set of steps instead of one long paragraph. Everything already posted still says exactly what it said before, and it looks the same everywhere -- on the class stream, on the assignment's own page, and on your phone.",
 			"tags": ["Classwork", "Announcements"]

@@ -119,6 +119,8 @@ export const APPS: SiteApp[] = [
 			'src/routes/dev/home-feed/',
 			// Presentation decks (0101): the deck harness.
 			'src/routes/dev/classroom-deck/',
+			// Phase 1 (0109): scheduling + the calm surfaces, and its harness.
+			'src/routes/dev/classroom-phase1/',
 			// Rich item bodies (0108): the server-side sanitizer. Its client-safe
 			// half is under src/lib/classroom/; the shared link-scheme primitive
 			// in src/lib/rich-text.ts is deliberately NOT claimed here, since the
