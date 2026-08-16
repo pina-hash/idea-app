@@ -182,6 +182,11 @@
 </main>
 
 <style>
+	/* Spacing only: the look lives in classroom.css. */
+	.feedback {
+		margin: 0 0 0.8rem;
+	}
+
 	.fb-page {
 		max-width: 48rem;
 		margin: 0 auto;
@@ -191,14 +196,14 @@
 		display: flex;
 		gap: 0.4rem;
 		flex-wrap: wrap;
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-4);
 	}
 	.filter {
 		appearance: none;
-		background: var(--bg2);
-		border: 1px solid var(--line);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
-		color: var(--dim);
+		color: var(--text-2);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.7rem;
 		padding: 0.28rem 0.8rem;
@@ -217,7 +222,7 @@
 	.fb-head {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		margin-bottom: 0.4rem;
 	}
@@ -227,14 +232,14 @@
 		font-size: 0.62rem;
 		text-transform: uppercase;
 		letter-spacing: 0.06em;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.02rem 0.5rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.fb-status.status-new {
-		color: var(--green);
-		border-color: var(--green);
+		color: var(--cyan);
+		border-color: var(--cyan);
 	}
 	.fb-status.status-seen {
 		color: var(--cyan);
@@ -248,11 +253,11 @@
 	.fb-when {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.64rem;
-		color: var(--dim);
+		color: var(--text-2);
 		margin-left: auto;
 	}
 	.fb-message {
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-2);
 		white-space: pre-wrap;
 		line-height: 1.55;
 		font-size: 0.95rem;
@@ -271,7 +276,7 @@
 	.fb-email {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.fb-actions {
 		margin-left: auto;
@@ -280,31 +285,15 @@
 		flex-wrap: wrap;
 	}
 	.fb-review {
-		margin: 0.5rem 0 0;
+		margin: var(--space-2) 0 0;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.note {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.9rem;
 		margin: 0;
-	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		border-radius: 5px;
-		padding: 0.4rem 0.65rem;
-		margin: 0 0 0.8rem;
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
 	}
 	.page-footer {
 		margin-top: 1.4rem;

@@ -44,15 +44,15 @@
 <style>
 	.nb-noaccount {
 		max-width: 47rem;
-		margin: 1rem auto 0;
+		margin: var(--space-4) auto 0;
 		padding: 0.7rem 1rem;
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		background: var(--bg2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
 		font-size: 0.9rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.nb-noaccount strong {
-		color: var(--white);
+		color: var(--text-1);
 	}
 </style>

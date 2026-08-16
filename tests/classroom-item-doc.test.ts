@@ -21,7 +21,7 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { itemBodyColumns, normalizeItemDoc } from '../src/lib/server/classroom-doc';
 import { selectItemsWithDoc } from '../src/lib/classroom/transports';
-import { normalizeItemRow } from '../src/lib/classroom/classroom';
+import { isScheduled, normalizeItemRow } from '../src/lib/classroom/classroom';
 import {
 	ITEM_BODY_MAX_CHARS,
 	docFromPlainText,
@@ -324,7 +324,7 @@ describe('content authored before rich text existed', () => {
 });
 
 describe('the read degrades instead of blanking', () => {
-	it('asks for the document, and falls back to the plain select when it is not there', async () => {
+	it('walks down to the plain select on a backend with neither column', async () => {
 		// PostgREST refuses the WHOLE select for one unknown column, so naming
 		// `body_doc` unconditionally would blank EVERY classroom read on a
 		// deployment sitting between 0107 and 0108. A degrade that threw, or one
@@ -333,29 +333,94 @@ describe('the read degrades instead of blanking', () => {
 		const asked: string[] = [];
 		const pre0108 = async (select: string) => {
 			asked.push(select);
-			return select.includes('body_doc')
+			return select.includes('body_doc') || select.includes('publish_at')
 				? { data: null, error: { message: 'column classroom_items.body_doc does not exist' } }
 				: { data: [{ id: 'i-1', body: 'Old body.' }], error: null };
 		};
 		const res = await selectItemsWithDoc(pre0108);
 		expect(res.error).toBeNull();
-		expect(asked).toHaveLength(2);
-		expect(asked[0]).toContain('body_doc');
-		expect(asked[1]).not.toContain('body_doc');
+		expect(asked).toHaveLength(3);
+		expect(asked[0]).toContain('publish_at');
+		expect(asked[1]).toContain('body_doc');
+		expect(asked[1]).not.toContain('publish_at');
+		expect(asked[2]).not.toContain('body_doc');
 		// And the row still renders, from the plain text.
 		const item = normalizeItemRow((res.data as Record<string, unknown>[])[0]);
 		expect(item.body_doc).toBeUndefined();
 		expect(itemBodyDoc(item)).toEqual([{ type: 'p', runs: [{ text: 'Old body.' }] }]);
 	});
 
-	it('asks once when the column is there', async () => {
+	/**
+	 * THE RUNGS ARE SEPARATE FOR THIS CASE. 0108 and 0109 are applied by hand and
+	 * separately, so a project carrying one and not the other is a real state --
+	 * and a chain that dropped both columns on the first refusal would cost such
+	 * a project its RICH BODY to work around a column it does not have.
+	 */
+	it('keeps the rich body on a backend that has 0108 but not 0109', async () => {
 		const asked: string[] = [];
 		const res = await selectItemsWithDoc(async (select) => {
 			asked.push(select);
-			return { data: [{ id: 'i-1', body: 'x', body_doc: [] }], error: null };
+			return select.includes('publish_at')
+				? { data: null, error: { message: 'column classroom_items.publish_at does not exist' } }
+				: { data: [{ id: 'i-1', body: 'x', body_doc: [] }], error: null };
+		});
+		expect(res.error).toBeNull();
+		expect(asked).toHaveLength(2);
+		expect(asked[1]).toContain('body_doc');
+		const item = normalizeItemRow((res.data as Record<string, unknown>[])[0]);
+		expect(item.body_doc).toEqual([]);
+		// Absent, not null: a read that could not tell must not read as "scheduled
+		// for never" -- `isScheduled` treats it as live, which is what it is.
+		expect(item.publish_at).toBeUndefined();
+	});
+
+	it('asks once when both columns are there', async () => {
+		const asked: string[] = [];
+		const res = await selectItemsWithDoc(async (select) => {
+			asked.push(select);
+			return { data: [{ id: 'i-1', body: 'x', body_doc: [], publish_at: null }], error: null };
 		});
 		expect(asked).toHaveLength(1);
 		expect(res.error).toBeNull();
+	});
+});
+
+/**
+ * The three states, and the one that is a function of the clock.
+ *
+ * These are DISPLAY predicates -- what a student can actually read is decided
+ * by `_classroom_item_live` in the database at the moment of the read (0109).
+ * They are pinned here because getting them wrong shows a teacher the wrong
+ * chip, and because the absent-column case has to read as LIVE rather than as
+ * anything else.
+ */
+describe('scheduled state', () => {
+	const at = (iso: string) => new Date(iso);
+	const NOW = at('2026-08-15T12:00:00Z');
+
+	it('is scheduled only while published with a future stamp', () => {
+		expect(isScheduled({ published: true, publish_at: '2026-08-16T12:00:00Z' }, NOW)).toBe(true);
+		expect(isScheduled({ published: true, publish_at: '2026-08-14T12:00:00Z' }, NOW)).toBe(false);
+		expect(isScheduled({ published: true, publish_at: null }, NOW)).toBe(false);
+	});
+
+	it('a draft is never scheduled, whatever stamp it carries', () => {
+		// published=false wins outright: a draft with a future go-live is still a
+		// draft, and calling it "Scheduled" would promise something nothing will
+		// deliver -- no job flips `published`.
+		expect(isScheduled({ published: false, publish_at: '2026-08-16T12:00:00Z' }, NOW)).toBe(false);
+	});
+
+	it('reads a column the backend never sent as live', () => {
+		expect(isScheduled({ published: true }, NOW)).toBe(false);
+	});
+
+	it('does not trip on a stamp that is exactly now', () => {
+		expect(isScheduled({ published: true, publish_at: NOW.toISOString() }, NOW)).toBe(false);
+	});
+
+	it('ignores an unparseable stamp rather than hiding the item', () => {
+		expect(isScheduled({ published: true, publish_at: 'not a date' }, NOW)).toBe(false);
 	});
 });
 

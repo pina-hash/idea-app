@@ -94,8 +94,8 @@
 
 <style>
 	.rubric {
-		border: 1px solid var(--line);
-		border-radius: 6px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 		overflow: hidden;
 	}
 	.rubric-head {
@@ -104,8 +104,8 @@
 		align-items: baseline;
 		gap: 0.6rem;
 		padding: 0.45rem 0.7rem;
-		background: var(--bg2);
-		border-bottom: 1px solid var(--line);
+		background: var(--surface-2);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.rubric-title {
 		font-family: 'Share Tech Mono', monospace;
@@ -122,7 +122,7 @@
 	}
 	.criterion {
 		padding: 0.45rem 0.7rem;
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.criterion:last-child {
 		border-bottom: none;
@@ -139,11 +139,11 @@
 	.criterion-points {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
-		color: var(--dim);
+		color: var(--text-2);
 		white-space: nowrap;
 	}
 	.criterion-points.scored {
-		color: var(--green);
+		color: var(--text-1);
 	}
 	.criterion-points.override {
 		color: var(--amber);
@@ -160,12 +160,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.1rem;
-		border-left: 2px solid var(--line);
+		border-left: 2px solid var(--hairline);
 		padding: 0.2rem 0 0.2rem 0.5rem;
 	}
 	.level.chosen {
 		border-left-color: var(--green);
-		background: var(--bg2);
+		background: var(--surface-2);
 		border-radius: 0 4px 4px 0;
 	}
 	.level-head {
@@ -185,11 +185,11 @@
 	}
 	.level-label {
 		font-size: 0.8rem;
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.level-desc {
 		font-size: 0.76rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.override-line,
 	.crit-note,
@@ -202,7 +202,7 @@
 		color: var(--amber);
 	}
 	.crit-note {
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.note-label {
 		font-family: 'Share Tech Mono', monospace;

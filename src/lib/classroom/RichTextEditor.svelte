@@ -219,27 +219,99 @@
 		editor?.chain().focus().toggleHeading({ level }).run();
 	}
 
+	// --- Links ---------------------------------------------------------------
 	/**
-	 * Links use a prompt rather than a popover on purpose: a floating panel to
-	 * type a URL into is a lot of surface for something used once in a while,
-	 * and this editor is mounted inline on pages that are already dense.
+	 * A small inline popover, not `window.prompt`.
+	 *
+	 * The prompt was a native modal in the middle of the screen for a field
+	 * belonging to a toolbar button, and it blocks the page while it is open --
+	 * so the text being linked is not even visible while its address is typed.
+	 * This is the same control drawn in the editor's own language, anchored to
+	 * the button that opened it.
+	 *
 	 * `mailto:` is offered as-is; a bare domain gets https:// so the common case
 	 * does not silently produce a dead link.
 	 */
-	function toggleLink() {
+	let linkOpen = $state(false);
+	let linkValue = $state('');
+	let linkInput = $state<HTMLInputElement | null>(null);
+	let linkWrap = $state<HTMLElement | null>(null);
+
+	function normalizeHref(raw: string): string | null {
+		const trimmed = raw.trim();
+		if (!trimmed || trimmed === 'https://') return null;
+		return /^(https?:\/\/|mailto:)/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+	}
+
+	function openLink() {
 		const e = editor;
 		if (!e) return;
+		// Already on a link: one click removes it, which is what the button's own
+		// title has always said. The popover is for MAKING one.
 		if (e.isActive('link')) {
 			e.chain().focus().unsetLink().run();
 			return;
 		}
-		const raw = window.prompt('Link address', 'https://');
-		if (raw === null) return;
-		const trimmed = raw.trim();
-		if (!trimmed || trimmed === 'https://') return;
-		const href = /^(https?:\/\/|mailto:)/i.test(trimmed) ? trimmed : `https://${trimmed}`;
-		e.chain().focus().extendMarkRange('link').setLink({ href }).run();
+		linkValue = 'https://';
+		linkOpen = true;
 	}
+
+	function closeLink(refocus = true) {
+		linkOpen = false;
+		if (refocus) editor?.chain().focus().run();
+	}
+
+	function applyLink() {
+		const e = editor;
+		const href = normalizeHref(linkValue);
+		if (!e || !href) {
+			closeLink();
+			return;
+		}
+		// An empty selection would set a stored mark and look like nothing
+		// happened, so the address becomes its own link text -- the outcome
+		// someone who typed a URL into a link box is asking for either way.
+		if (e.state.selection.empty) {
+			e.chain()
+				.focus()
+				.insertContent([{ type: 'text', text: href, marks: [{ type: 'link', attrs: { href } }] }])
+				// Stop the mark carrying on into whatever is typed next.
+				.unsetMark('link')
+				.run();
+		} else {
+			e.chain().focus().extendMarkRange('link').setLink({ href }).run();
+		}
+		linkOpen = false;
+	}
+
+	function onLinkKey(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			applyLink();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			closeLink();
+		}
+	}
+
+	// Dismiss on POINTERDOWN, not click, and ignore a target already detached
+	// from the document -- the ProfileMenu trap: the very press that opens this
+	// would otherwise be seen by the handler and close it again.
+	$effect(() => {
+		if (!linkOpen) return;
+		const onDown = (event: PointerEvent) => {
+			const target = event.target as Node | null;
+			if (!target || !target.isConnected) return;
+			if (linkWrap?.contains(target)) return;
+			closeLink(false);
+		};
+		document.addEventListener('pointerdown', onDown, true);
+		return () => document.removeEventListener('pointerdown', onDown, true);
+	});
+
+	$effect(() => {
+		if (linkOpen) linkInput?.focus();
+	});
 </script>
 
 <div class="rt-editor" class:disabled class:compact>
@@ -295,14 +367,32 @@
 			onclick={() => run('toggleOrderedList')}>1. List</button
 		>
 		<span class="sep" aria-hidden="true"></span>
-		<button
-			type="button"
-			class:on={active.link}
-			aria-pressed={active.link}
-			title={active.link ? 'Remove link' : 'Add a link'}
-			disabled={disabled || !editor}
-			onclick={toggleLink}>Link</button
-		>
+		<span class="link-wrap" bind:this={linkWrap}>
+			<button
+				type="button"
+				class:on={active.link}
+				aria-pressed={active.link}
+				aria-expanded={linkOpen}
+				title={active.link ? 'Remove link' : 'Add a link'}
+				disabled={disabled || !editor}
+				onclick={openLink}>Link</button
+			>
+			{#if linkOpen}
+				<span class="link-pop" role="group" aria-label="Link address">
+					<input
+						bind:this={linkInput}
+						bind:value={linkValue}
+						type="url"
+						class="link-input"
+						placeholder="https://"
+						aria-label="Link address"
+						onkeydown={onLinkKey}
+					/>
+					<button type="button" class="link-go" onclick={applyLink}>Add</button>
+					<button type="button" class="link-cancel" onclick={() => closeLink()}>Cancel</button>
+				</span>
+			{/if}
+		</span>
 	</div>
 
 	<!-- resize: vertical on the SCROLLER, so dragging the corner grows the
@@ -322,9 +412,9 @@
 
 <style>
 	.rt-editor {
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		background: var(--bg2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
 		overflow: hidden;
 	}
 	.rt-editor.disabled {
@@ -336,8 +426,8 @@
 		gap: 0.2rem;
 		flex-wrap: wrap;
 		padding: 0.3rem 0.35rem;
-		border-bottom: 1px solid var(--line);
-		background: var(--bg1);
+		border-bottom: 1px solid var(--hairline);
+		background: var(--surface-1);
 	}
 	.rt-toolbar button {
 		min-width: 2.2rem;
@@ -345,16 +435,16 @@
 		min-height: 2.75rem;
 		padding: 0.2rem 0.5rem;
 		border: 1px solid transparent;
-		border-radius: 4px;
+		border-radius: var(--radius-card);
 		background: none;
-		color: var(--dim);
+		color: var(--text-2);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		cursor: pointer;
 	}
 	.rt-toolbar button:hover:not(:disabled) {
 		border-color: var(--line-strong);
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.rt-toolbar button.on {
 		border-color: var(--line-strong);
@@ -367,8 +457,64 @@
 	.sep {
 		width: 1px;
 		height: 1.1rem;
-		background: var(--line);
+		background: var(--hairline);
 		margin: 0 0.15rem;
+	}
+	/* The popover is a SIBLING of the button inside a positioned wrapper, never
+	   nested in it: a control inside a button is invalid markup and its clicks
+	   would fire the button underneath. */
+	.link-wrap {
+		position: relative;
+		display: inline-flex;
+	}
+	.link-pop {
+		position: absolute;
+		top: calc(100% + 0.25rem);
+		left: 0;
+		z-index: 5;
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-1);
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+	}
+	.link-input {
+		width: 15rem;
+		max-width: 52vw;
+		min-width: 0;
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		color: var(--text-1);
+		font-family: 'Rajdhani', sans-serif;
+		font-size: 0.9rem;
+		padding: 0.3rem 0.45rem;
+	}
+	.link-input:focus {
+		outline: 1px solid var(--focus-ring);
+	}
+	.link-pop button {
+		min-width: 0;
+		min-height: 2.2rem;
+		white-space: nowrap;
+	}
+	.link-pop .link-go {
+		color: var(--green);
+		border-color: var(--line-strong);
+	}
+	/* The popover overflows a toolbar that wraps, so on a narrow screen it is
+	   pinned to the editor's own width instead of the button's left edge. */
+	@media (max-width: 30rem) {
+		.link-pop {
+			left: auto;
+			right: 0;
+		}
+		.link-input {
+			width: 9rem;
+		}
 	}
 	.rt-surface {
 		position: relative;
@@ -376,7 +522,7 @@
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.95rem;
 		line-height: 1.6;
-		color: var(--white);
+		color: var(--text-1);
 		/* Generous by default: an instructions field that shows three lines is
 		   the reason the old textarea was unusable for real assignments. */
 		min-height: 15rem;
@@ -409,7 +555,7 @@
 	.rt-surface :global(.rt-input h4) {
 		font-family: 'Share Tech Mono', monospace;
 		letter-spacing: 0.04em;
-		color: var(--green);
+		color: var(--text-1);
 		margin: 1.1rem 0 0.4rem;
 	}
 	.rt-surface :global(.rt-input h3) {
@@ -418,7 +564,7 @@
 	}
 	.rt-surface :global(.rt-input h4) {
 		font-size: 0.74rem;
-		color: var(--dim);
+		color: var(--text-2);
 		margin-top: 0.9rem;
 	}
 	.rt-surface :global(.rt-input a) {
@@ -430,7 +576,7 @@
 		position: absolute;
 		top: 0.55rem;
 		left: 0.7rem;
-		color: var(--dim);
+		color: var(--text-2);
 		pointer-events: none;
 	}
 	.rt-note {

@@ -91,7 +91,7 @@
 	.item-body {
 		font-size: 0.98rem;
 		line-height: 1.6;
-		color: var(--white);
+		color: var(--text-1);
 		/* A pasted URL with no spaces must not widen the column it sits in. */
 		overflow-wrap: anywhere;
 	}
@@ -118,11 +118,11 @@
 	.item-body h4 {
 		font-family: 'Share Tech Mono', monospace;
 		letter-spacing: 0.04em;
-		color: var(--green);
+		color: var(--text-1);
 		margin: 1.1rem 0 0.4rem;
 	}
 	.item-body h4 {
-		color: var(--dim);
+		color: var(--text-2);
 		margin-top: 0.9rem;
 	}
 	.item-body h3 {

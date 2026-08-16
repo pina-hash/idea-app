@@ -159,8 +159,8 @@
 	/* A PANEL is what makes keyValue / dataTable / calc read as objects rather
 	   than as more prose: a raised surface with a hairline, not a rule. */
 	.rb-panel {
-		background: var(--bg1);
-		border: 1px solid var(--line);
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		padding: var(--space-4);
 	}
@@ -190,9 +190,9 @@
 		font-size: 0.66rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--dim);
+		color: var(--text-2);
 		padding: 0.4rem 0;
-		border-top: 1px solid var(--line);
+		border-top: 1px solid var(--hairline);
 	}
 	.rb-kv dd {
 		margin: 0;
@@ -200,7 +200,7 @@
 		line-height: 1.45;
 		overflow-wrap: anywhere;
 		padding: 0.35rem 0;
-		border-top: 1px solid var(--line);
+		border-top: 1px solid var(--hairline);
 	}
 	/* The first row needs no rule above it -- the panel edge is already there. */
 	.rb-kv dt:first-of-type,
@@ -233,7 +233,7 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
-		background: var(--bg2);
+		background: var(--surface-2);
 		border-bottom: 1px solid var(--line-strong);
 		padding: var(--space-2) var(--space-3);
 		font-weight: 400;
@@ -248,7 +248,7 @@
 	}
 	/* QUIET separation: a hairline between rows, no grid, no zebra. */
 	.rb-dt td {
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 		padding: var(--space-2) var(--space-3);
 		font-size: 0.88rem;
 		line-height: 1.5;
@@ -260,7 +260,7 @@
 	.rb-dt-caption {
 		margin: var(--space-2) 0 0;
 		font-size: 0.76rem;
-		color: var(--dim);
+		color: var(--text-2);
 		line-height: 1.45;
 	}
 
@@ -272,29 +272,29 @@
 	.rb-callout {
 		display: block;
 		max-width: var(--rb-measure);
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-left-width: 3px;
 		border-radius: var(--radius-card);
 		padding: var(--space-3) var(--space-4);
-		background: var(--bg1);
+		background: var(--surface-1);
 	}
 	.rb-callout-body {
 		min-width: 0;
 	}
 	.rb-callout.v-info {
 		border-left-color: var(--cyan);
-		background: color-mix(in srgb, var(--cyan) 5%, var(--bg1));
+		background: color-mix(in srgb, var(--cyan) 5%, var(--surface-1));
 	}
 	.rb-callout.v-warn {
 		border-left-color: var(--amber);
-		background: color-mix(in srgb, var(--amber) 7%, var(--bg1));
+		background: color-mix(in srgb, var(--amber) 7%, var(--surface-1));
 	}
 	/* Heavier on every axis at once -- rule, fill, glow and a tag that reads as
 	   a stamp rather than a label. */
 	.rb-callout.v-required {
 		border-color: var(--gold);
 		border-left-width: 5px;
-		background: color-mix(in srgb, var(--gold) 11%, var(--bg1));
+		background: color-mix(in srgb, var(--gold) 11%, var(--surface-1));
 		box-shadow: var(--glow-gold);
 	}
 	.rb-callout-tag {
@@ -334,13 +334,13 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
-		background: var(--bg1);
+		background: var(--surface-1);
 		box-shadow: var(--bevel-raised);
 		padding: var(--space-3);
 		text-decoration: none;
-		color: var(--white);
+		color: var(--text-1);
 		min-width: 0;
 	}
 	a.rb-card {
@@ -360,7 +360,7 @@
 	}
 	.rb-card-body {
 		font-size: 0.82rem;
-		color: var(--dim);
+		color: var(--text-2);
 		line-height: 1.45;
 	}
 
@@ -378,7 +378,7 @@
 		align-items: flex-start;
 		gap: var(--space-3);
 		padding: var(--space-3);
-		background: var(--bg1);
+		background: var(--surface-1);
 		border-radius: var(--radius-card);
 		box-shadow: var(--bevel-raised);
 	}
@@ -415,7 +415,7 @@
 		}
 		.rb-kv dt {
 			padding-bottom: 0;
-			border-top: 1px solid var(--line);
+			border-top: 1px solid var(--hairline);
 		}
 		.rb-kv dd {
 			padding-top: 0.1rem;
@@ -449,9 +449,9 @@
 			white-space: nowrap;
 		}
 		.rb-dt tbody tr {
-			border: 1px solid var(--line);
+			border: 1px solid var(--hairline);
 			border-radius: var(--radius-card);
-			background: var(--bg2);
+			background: var(--surface-2);
 			padding: var(--space-2) var(--space-3);
 		}
 		.rb-dt tbody tr + tr {
@@ -459,7 +459,7 @@
 		}
 		.rb-dt td {
 			border-bottom: none;
-			padding: 0.25rem 0;
+			padding: var(--space-1) 0;
 			display: grid;
 			grid-template-columns: minmax(0, 6.5rem) 1fr;
 			gap: var(--space-3);
@@ -471,7 +471,7 @@
 			font-size: 0.6rem;
 			letter-spacing: 0.08em;
 			text-transform: uppercase;
-			color: var(--dim);
+			color: var(--text-2);
 		}
 		.rb-dt tbody tr:last-child td {
 			border-bottom: none;

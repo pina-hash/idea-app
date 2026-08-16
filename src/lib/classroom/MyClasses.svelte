@@ -190,21 +190,11 @@
 	.staff-line {
 		margin: 0.8rem 0 0;
 	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.8rem;
-		padding: 0.45rem 0.7rem;
-		border-radius: 5px;
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-	}
 	.empty-card h2 {
 		margin-top: 0;
 	}
 	.note {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.9rem;
 		line-height: 1.5;
 	}
@@ -224,11 +214,11 @@
 		flex-direction: column;
 		gap: 0.55rem;
 		padding: 1rem 1.05rem 0.9rem;
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 8px;
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 		text-decoration: none;
-		color: var(--white);
+		color: var(--text-1);
 		transition:
 			border-color 0.15s ease,
 			transform 0.1s ease;
@@ -245,9 +235,9 @@
 		display: grid;
 		place-items: center;
 		color: var(--acc);
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		background: var(--bg2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
 	}
 	.class-icon svg {
 		width: 1.5rem;
@@ -273,7 +263,7 @@
 	.class-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.class-cta {
 		margin-top: auto;
@@ -282,7 +272,7 @@
 		color: var(--acc);
 	}
 	.page-footer {
-		margin-top: 2rem;
+		margin-top: var(--space-6);
 		display: flex;
 		justify-content: center;
 	}

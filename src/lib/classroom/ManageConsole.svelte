@@ -4,16 +4,17 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
-	import { itemBodyDoc } from '$lib/classroom/classroom-doc';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
 	import type { DeckTransports } from '$lib/classroom/deck';
 	import {
 		emailLocal,
 		formatDue,
 		importReasonLabel,
+		isScheduled,
 		itemKindLabel,
 		itemTitle,
 		parseRosterCsv,
+		scheduleLabel,
 		sectionDeleteBlockedLabel,
 		sectionTitle,
 		shortWhen,
@@ -266,9 +267,21 @@
 	const composerKey = $derived(editingId ?? 'new');
 	const editingItem = $derived(items.find((i) => i.id === editingId) ?? null);
 
+	/**
+	 * Open the editor ON THE ROW, not at the top of the page.
+	 *
+	 * It used to set the target and then scroll to the shared composer card
+	 * above the section list, which on a real console is a screen or two up --
+	 * so editing the fourth item of a class threw you away from the list you
+	 * were working through, and closing the editor left you there. The composer
+	 * is the same component either way; the only question was where it renders,
+	 * and the answer is: beside the thing being edited.
+	 *
+	 * That also makes the top card unambiguously the COMPOSE card. It no longer
+	 * has two jobs, so it no longer has to explain which one it is doing.
+	 */
 	function startEdit(id: string) {
-		editingId = id;
-		document.getElementById('classroom-composer')?.scrollIntoView({ block: 'start' });
+		editingId = editingId === id ? null : id;
 	}
 
 	async function onComposerSaved() {
@@ -477,22 +490,13 @@
 	async function togglePublished(item: ClassroomItem) {
 		if (panelBusy) return;
 		panelBusy = true;
-		const res = await transports.updateItem(
-			item.id,
-			{
-				title: item.title,
-				// The item's OWN document, re-sent untouched. Publishing is not an
-				// edit, so the body must come back exactly as it went in --
-				// re-deriving it from the plain text here would flatten every
-				// heading and list the moment somebody clicked publish.
-				bodyDoc: itemBodyDoc(item),
-				points: item.points,
-				dueAt: item.due_at,
-				category: item.category,
-				links: item.links.map((r) => ({ label: r.label, url: r.url }))
-			},
-			!item.published
-		);
+		// A NARROW WRITE (0109). This used to call `updateItem` with the item's
+		// entire content re-sent -- title, body, document, points, due date,
+		// category and every link -- to change one boolean, which made a publish
+		// only as safe as this console's copy of the row. `classroom_set_published`
+		// touches `published` and nothing else, so there is no content to get
+		// wrong and nothing that could stamp `edited_at`.
+		const res = await transports.setPublished(item.id, !item.published);
 		if (!res.ok) panelMsg = { ok: false, text: res.message };
 		await loadSelectedContent();
 		panelBusy = false;
@@ -678,24 +682,17 @@
 			{/if}
 		</section>
 
-		<!-- 2. Composer (the SHARED editor, also mounted on the class pages) -->
+		<!-- 2. Compose (the SHARED editor, also mounted on the class pages).
+		     Create only: an EDIT opens on its own row further down, so this card
+		     has exactly one job. -->
 		<section class="card" id="classroom-composer">
-			<h2>{editingItem ? `Edit ${itemKindLabel(editingItem.kind).toLowerCase()}` : 'Compose'}</h2>
-			{#if editingItem}
-				<p class="note">
-					Editing the one shared copy of <strong>{itemTitle(editingItem)}</strong>. Every class it
-					is posted to sees the change; use the linkage controls below to add or remove a class.
-					<button type="button" class="linklike" onclick={() => (editingId = null)}>
-						Cancel editing
-					</button>
-				</p>
-			{/if}
+			<h2>Compose</h2>
 			{#key composerKey}
 				<ContentComposer
-					mode={editingItem ? 'edit' : 'create'}
+					mode="create"
 					bind:kind={composerKind}
-					sections={editingItem ? orderedSections : publishTargets}
-					item={editingItem}
+					sections={publishTargets}
+					initialTargets={selectedSectionId ? [selectedSectionId] : []}
 					{transports}
 					{attachmentsEnabled}
 					{deckTransports}
@@ -1001,13 +998,19 @@
 								{:else}
 									<div class="content-rows">
 										{#each items as item (item.id)}
-											<div class="content-row">
+											<div class="content-row" class:editing={editingId === item.id}>
 												<span class="content-main">
 													<span class="content-title">
 														{itemTitle(item)}
 														<span class="kind-chip">{itemKindLabel(item.kind)}</span>
 														{#if item.pinned}<span class="kind-chip pinned">Pinned</span>{/if}
-														{#if !item.published}<span class="draft-chip">Draft</span>{/if}
+														{#if !item.published}
+															<span class="draft-chip">Draft</span>
+														{:else if isScheduled(item)}
+															<span class="sched-chip" title="Goes live {scheduleLabel(item)}">
+																Scheduled &middot; {scheduleLabel(item)}
+															</span>
+														{/if}
 													</span>
 													<span class="content-when">
 														{#if item.kind === 'assignment'}
@@ -1026,7 +1029,9 @@
 													</span>
 												</span>
 												<span class="content-actions">
-													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEdit(item.id)}>Edit</button>
+													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEdit(item.id)}>
+														{editingId === item.id ? 'Close' : 'Edit'}
+													</button>
 													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => togglePublished(item)}>
 														{item.published ? 'Unpublish' : 'Publish'}
 													</button>
@@ -1038,6 +1043,28 @@
 														{armDelete === item.id ? 'Really delete?' : 'Delete'}
 													</button>
 												</span>
+												{#if editingId === item.id && editingItem}
+													<div class="row-editor">
+														<p class="note">
+															Editing the one shared copy. Every class it is posted to sees the
+															change; the linkage controls below add or remove a class.
+														</p>
+														{#key composerKey}
+															<ContentComposer
+																mode="edit"
+																sections={orderedSections}
+																item={editingItem}
+																{transports}
+																{attachmentsEnabled}
+																{deckTransports}
+																{teacherTransports}
+																compact
+																onsaved={onComposerSaved}
+																oncancel={() => (editingId = null)}
+															/>
+														{/key}
+													</div>
+												{/if}
 											</div>
 										{/each}
 									</div>
@@ -1062,6 +1089,11 @@
 </main>
 
 <style>
+	/* Spacing only: the look lives in classroom.css. */
+	.feedback {
+		margin: 0.6rem 0 0;
+	}
+
 	.manage-page {
 		max-width: 52rem;
 		margin: 0 auto;
@@ -1082,25 +1114,10 @@
 		color: var(--cyan);
 	}
 	.lead strong {
-		color: var(--white);
-	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		padding: 0.4rem 0.65rem;
-		border-radius: 5px;
-		margin: 0.6rem 0 0;
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
+		color: var(--text-1);
 	}
 	.note {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.85rem;
 		line-height: 1.5;
 	}
@@ -1122,12 +1139,12 @@
 	   read the same; the layout is a chip row rather than a table because a
 	   52rem panel is not where a wide scrolling grid belongs. */
 	.nb-line {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.85rem;
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-2);
 	}
 	.nb-line strong {
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.nb-tallies {
 		display: flex;
@@ -1142,13 +1159,13 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
 		letter-spacing: 0.04em;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.15rem 0.55rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.nb-tally strong {
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.nb-glyph {
 		font-size: 0.8rem;
@@ -1166,10 +1183,10 @@
 		color: var(--crimson);
 	}
 	.nb-excused .nb-glyph {
-		color: var(--ice);
+		color: var(--text-3);
 	}
 	.nb-missing .nb-glyph {
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.nb-attention {
 		margin-bottom: 0.6rem;
@@ -1183,7 +1200,7 @@
 	.nb-student {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		align-items: baseline;
 		margin: 0.3rem 0 0;
 		padding-left: 0.6rem;
@@ -1194,22 +1211,22 @@
 	.nb-student-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 
 	/* Setup */
 	.setup-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-		gap: 1rem;
+		gap: var(--space-4);
 	}
 	.setup-form {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		padding: 0.7rem 0.8rem;
-		border: 1px solid var(--line);
-		border-radius: 6px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 	}
 	.setup-form h3 {
 		margin: 0;
@@ -1218,22 +1235,22 @@
 	label {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
-		margin-bottom: 0.5rem;
+		gap: var(--space-1);
+		margin-bottom: var(--space-2);
 	}
 	label > span {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	input,
 	textarea,
 	select {
-		background: var(--bg2);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--white);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.95rem;
 		padding: 0.45rem 0.6rem;
@@ -1255,8 +1272,8 @@
 		padding: 0.6rem 0.7rem;
 		margin: 0.3rem 0 0.6rem;
 		border: 1px solid var(--line-strong);
-		border-radius: 6px;
-		background: var(--bg2);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
 	}
 	.inline-form .btn {
 		align-self: flex-start;
@@ -1278,7 +1295,7 @@
 	}
 	.danger-zone {
 		border: 1px solid var(--crimson);
-		border-radius: 6px;
+		border-radius: var(--radius-card);
 		padding: 0.6rem 0.7rem;
 		margin-bottom: 0.6rem;
 	}
@@ -1292,12 +1309,12 @@
 		gap: 0.6rem;
 		flex-wrap: wrap;
 		padding: 0.35rem 0;
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.course-main {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		min-width: 0;
 	}
@@ -1312,20 +1329,11 @@
 	.course-row button {
 		margin-left: auto;
 	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
-	}
-	.btn.danger {
-		color: var(--crimson);
-		border-color: var(--crimson);
-	}
 	/* Sections list */
 	.section-block {
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		margin-bottom: 0.5rem;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		margin-bottom: var(--space-2);
 	}
 	.section-block.open {
 		border-color: var(--line-strong);
@@ -1339,7 +1347,7 @@
 		align-items: center;
 		gap: 0.6rem;
 		padding: 0.6rem 0.8rem;
-		color: var(--white);
+		color: var(--text-1);
 		cursor: pointer;
 		text-align: left;
 		flex-wrap: wrap;
@@ -1350,7 +1358,7 @@
 	}
 	.section-caret {
 		margin-left: auto;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.section-panel {
 		padding: 0 0.8rem 0.8rem;
@@ -1366,14 +1374,14 @@
 		gap: 0.6rem;
 		flex-wrap: wrap;
 		padding: 0.35rem 0;
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.roster-row:last-child {
 		border-bottom: none;
 	}
 	.roster-row.inactive .roster-name,
 	.roster-row.inactive .roster-email {
-		color: var(--ice);
+		color: var(--text-3);
 		text-decoration: line-through;
 	}
 	.roster-name {
@@ -1383,7 +1391,7 @@
 	.roster-email {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		color: var(--dim);
+		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
 	.roster-actions {
@@ -1397,12 +1405,12 @@
 		grid-template-columns: minmax(10rem, 2fr) minmax(7rem, 1.5fr) auto;
 		gap: 0.4rem;
 		align-items: center;
-		margin-top: 0.5rem;
+		margin-top: var(--space-2);
 	}
 	.csv-import {
 		margin-top: 0.7rem;
-		border: 1px dashed var(--line);
-		border-radius: 6px;
+		border: 1px dashed var(--hairline);
+		border-radius: var(--radius-card);
 		padding: 0.5rem 0.7rem;
 	}
 	.csv-import summary {
@@ -1429,10 +1437,24 @@
 		gap: 0.6rem;
 		flex-wrap: wrap;
 		padding: 0.45rem 0;
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.content-row:last-child {
 		border-bottom: none;
+	}
+	/* The editor is a full-width child of the row's own flex line, so it opens
+	   BELOW the row it belongs to rather than beside it -- and the row keeps its
+	   place in the list, which is the whole point of not scrolling away. */
+	.row-editor {
+		flex-basis: 100%;
+		min-width: 0;
+		margin: var(--space-2) 0 var(--space-3);
+	}
+	.content-row.editing {
+		background: var(--green-tint);
+		border-radius: var(--radius-card);
+		padding-left: var(--space-2);
+		padding-right: var(--space-2);
 	}
 	.content-main {
 		display: flex;
@@ -1451,7 +1473,7 @@
 	.content-when {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.content-actions {
 		margin-left: auto;
@@ -1459,28 +1481,8 @@
 		gap: 0.3rem;
 		flex-wrap: wrap;
 	}
-	.draft-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
-		color: var(--amber);
-		border: 1px solid var(--amber);
-		border-radius: 999px;
-		padding: 0.02rem 0.4rem;
-	}
-	.kind-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.6rem;
-		color: var(--cyan);
-		border: 1px solid var(--line);
-		border-radius: 999px;
-		padding: 0.02rem 0.4rem;
-	}
-	.kind-chip.pinned {
-		color: var(--gold);
-		border-color: var(--gold);
-	}
 	.page-footer {
-		margin-top: 2rem;
+		margin-top: var(--space-6);
 		display: flex;
 		justify-content: center;
 	}

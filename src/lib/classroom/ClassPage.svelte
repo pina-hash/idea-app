@@ -16,10 +16,12 @@
 		emailLocal,
 		formatDue,
 		instructorAttachmentSrc,
+		isScheduled,
 		isUpdatedForViewer,
 		itemKindLabel,
 		itemTitle,
 		reorderedIds,
+		scheduleLabel,
 		sectionTitle,
 		shortWhen,
 		type ClassroomComposerTransports,
@@ -127,6 +129,17 @@
 	} = $props();
 
 	let tab: 'stream' | 'classwork' = $state('stream');
+	/**
+	 * The create composer, opened from this class page.
+	 *
+	 * Posting to a class was only possible from the manage console -- a
+	 * different page, with a checklist of every class the teacher runs, reached
+	 * from a link in the hero. Standing in a class and wanting to post to it is
+	 * the ordinary case, so the composer opens here with THIS class already
+	 * ticked (see `initialTargets`). Collapsed by default: a student never sees
+	 * it, and a teacher reading the stream should not have a form in the way.
+	 */
+	let composing = $state(false);
 	let editing = $state<string | null>(null);
 	let armDelete = $state<string | null>(null);
 	let busy = $state(false);
@@ -265,6 +278,12 @@
 		editing = null;
 		await onchanged?.();
 	}
+
+	async function created(info: { text: string }) {
+		composing = false;
+		if (info.text) notice = info.text;
+		await onchanged?.();
+	}
 </script>
 
 {#snippet badges(item: ClassroomItem)}
@@ -273,7 +292,7 @@
 			<span aria-hidden="true">&#9679;</span> Pinned
 		</span>
 	{/if}
-	{#if canManage && !item.published}<span class="draft-chip">Draft</span>{/if}
+	{#if canManage && !item.published}<span class="draft-chip">Draft</span>{:else if canManage && isScheduled(item)}<span class="sched-chip" title="Students see this from {scheduleLabel(item)}">Scheduled &middot; {scheduleLabel(item)}</span>{/if}
 	{#if updated(item)}<span class="chip updated-chip">Updated</span>{/if}
 {/snippet}
 
@@ -460,6 +479,38 @@
 		<p class="feedback ok">{notice}</p>
 	{/if}
 
+	{#if editable}
+		<section class="card compose-card">
+			<div class="compose-head">
+				<h2 class="compose-title">Post to this class</h2>
+				<button
+					type="button"
+					class="btn secondary tiny"
+					aria-expanded={composing}
+					onclick={() => (composing = !composing)}
+				>
+					{composing ? 'Close' : 'New post'}
+				</button>
+			</div>
+			{#if composing}
+				{#key composing}
+					<ContentComposer
+						mode="create"
+						{sections}
+						initialTargets={[section.id]}
+						transports={transports!}
+						{attachmentsEnabled}
+						{deckTransports}
+						{teacherTransports}
+						compact
+						onsaved={created}
+						oncancel={() => (composing = false)}
+					/>
+				{/key}
+			{/if}
+		</section>
+	{/if}
+
 	<div class="tabs" role="tablist" aria-label="Class views">
 		<button
 			type="button"
@@ -600,6 +651,11 @@
 </main>
 
 <style>
+	/* Spacing only: the look lives in classroom.css. */
+	.feedback {
+		margin: 0 0 0.8rem;
+	}
+
 	.classroom-page {
 		max-width: 46rem;
 		margin: 0 auto;
@@ -608,23 +664,37 @@
 	.section-line {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.75rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.manage-link {
 		color: var(--gold);
 	}
+	.compose-card {
+		margin-bottom: var(--space-4);
+	}
+	.compose-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+		flex-wrap: wrap;
+	}
+	.compose-title {
+		margin: 0;
+		font-size: 1rem;
+	}
 	.tabs {
 		display: flex;
 		gap: 0.4rem;
-		margin: 0 0 1rem;
-		border-bottom: 1px solid var(--line);
+		margin: 0 0 var(--space-4);
+		border-bottom: 1px solid var(--hairline);
 	}
 	.tab {
 		appearance: none;
 		background: none;
 		border: none;
 		border-bottom: 2px solid transparent;
-		color: var(--dim);
+		color: var(--text-2);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.8rem;
 		padding: 0.5rem 0.9rem;
@@ -635,31 +705,16 @@
 		border-bottom-color: var(--green);
 	}
 	.note {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.9rem;
 	}
 	.empty-state {
 		padding: 0.6rem 0;
 	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		border-radius: 5px;
-		padding: 0.4rem 0.65rem;
-		margin: 0 0 0.8rem;
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
-	}
 	.stream-card {
 		display: block;
 		margin-bottom: 0.9rem;
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.stream-card.pinned {
 		border-color: var(--line-strong);
@@ -692,15 +747,7 @@
 	.stream-when {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		color: var(--dim);
-	}
-	.draft-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		color: var(--amber);
-		border: 1px solid var(--amber);
-		border-radius: 999px;
-		padding: 0.02rem 0.45rem;
+		color: var(--text-2);
 	}
 	.stream-title {
 		margin: 0.1rem 0 0.3rem;
@@ -711,15 +758,15 @@
 		font-size: 0.65rem;
 		letter-spacing: 0.08em;
 		color: var(--gold);
-		border: 1px solid var(--line);
-		border-radius: 4px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 		padding: 0.08rem 0.4rem;
 	}
 	.asg-meta {
 		margin: 0;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	/* A check-in is a notice, not an item: it borrows the stream card so the
 	   feed reads as one surface, and marks itself apart with a dashed edge
@@ -732,8 +779,8 @@
 		font-size: 0.65rem;
 		letter-spacing: 0.08em;
 		color: var(--cyan);
-		border: 1px solid var(--line);
-		border-radius: 4px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 		padding: 0.08rem 0.4rem;
 	}
 	/* Status tones reuse the module's existing palette; crimson stays reserved
@@ -747,28 +794,28 @@
 		border-color: var(--green);
 	}
 	.chip.tone-muted {
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	/* The one number on the hero line. It renders only when it is non-zero, so
 	   it is always saying something. */
 	.outstanding-badge {
 		display: inline-block;
-		margin-left: 0.25rem;
+		margin-left: var(--space-1);
 		min-width: 1.05rem;
 		text-align: center;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--bg0);
+		color: var(--surface-0);
 		background: var(--gold);
 		border-radius: 999px;
 		padding: 0.02rem 0.32rem;
 	}
 	.also-line,
 	.edited-line {
-		margin: 0.5rem 0 0;
+		margin: var(--space-2) 0 0;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.link-list {
 		display: flex;
@@ -780,7 +827,7 @@
 		margin-top: 0.6rem;
 		padding: 0.6rem 0.7rem;
 		border: 1px dashed var(--gold);
-		border-radius: 6px;
+		border-radius: var(--radius-card);
 	}
 	.instructor-note-label {
 		display: inline-flex;
@@ -801,10 +848,10 @@
 		height: 100%;
 	}
 	.work-group {
-		margin-bottom: 1rem;
+		margin-bottom: var(--space-4);
 	}
 	.group-label {
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-2);
 		font-size: 0.85rem;
 		font-family: 'Share Tech Mono', monospace;
 		letter-spacing: 0.08em;
@@ -816,7 +863,7 @@
 		flex-direction: column;
 	}
 	.work-item {
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 		padding-bottom: 0.3rem;
 	}
 	.work-item:last-child {
@@ -829,7 +876,7 @@
 		flex-wrap: wrap;
 		padding: 0.55rem 0.2rem;
 		text-decoration: none;
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.work-row:hover .work-title {
 		color: var(--gold);
@@ -851,7 +898,7 @@
 	.work-due {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.work-due.overdue {
 		color: var(--amber);
@@ -866,7 +913,7 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.65rem;
 		color: var(--cyan);
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.08rem 0.5rem;
 		white-space: nowrap;
@@ -878,17 +925,8 @@
 		border-color: var(--gold);
 	}
 	.updated-chip {
-		color: var(--green);
-		border-color: var(--green);
-	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
-	}
-	.btn.danger {
-		color: var(--crimson);
-		border-color: var(--crimson);
+		color: var(--cyan);
+		border-color: var(--cyan);
 	}
 	.page-footer {
 		margin-top: 1.4rem;

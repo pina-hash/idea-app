@@ -337,12 +337,12 @@
 		font-size: 0.88rem;
 	}
 	.line.none {
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.rule {
 		margin: 0;
 		font-size: 0.76rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.warn-line {
 		margin: 0;
@@ -355,23 +355,14 @@
 		align-items: center;
 		flex-wrap: wrap;
 	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
-	}
-	.btn.danger {
-		color: var(--crimson);
-		border-color: var(--crimson);
-	}
 	.editor {
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
 	}
 	.crit-row {
-		border: 1px solid var(--line);
-		border-radius: 6px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 		padding: 0.45rem 0.55rem;
 		display: flex;
 		flex-direction: column;
@@ -389,10 +380,10 @@
 	.crit-text {
 		flex: 1 1 12rem;
 		min-width: 0;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--white);
+		background: var(--surface-0);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.9rem;
 		padding: 0.3rem 0.45rem;
@@ -409,17 +400,17 @@
 	}
 	.crit-ops button {
 		appearance: none;
-		background: var(--bg2);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--dim);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-2);
 		font-size: 0.7rem;
 		width: 1.75rem;
 		height: 1.75rem;
 		cursor: pointer;
 	}
 	.crit-ops button:hover:not(:disabled) {
-		color: var(--green);
+		color: var(--text-1);
 		border-color: var(--line-strong);
 	}
 	.crit-ops button:disabled {
@@ -446,20 +437,20 @@
 		min-width: 0;
 	}
 	.level-row input {
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--white);
+		background: var(--surface-0);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.82rem;
 		padding: 0.3rem 0.4rem;
 	}
 	.level-remove {
 		appearance: none;
-		background: var(--bg2);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--dim);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-2);
 		cursor: pointer;
 		font-size: 0.7rem;
 		width: 1.75rem;
@@ -488,21 +479,6 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		color: var(--gold);
-	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		border-radius: 5px;
-		padding: 0.4rem 0.65rem;
-		margin: 0;
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
 	}
 	@media (max-width: 640px) {
 		.level-label,

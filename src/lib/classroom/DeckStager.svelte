@@ -203,16 +203,10 @@
 		gap: 0.35rem;
 		margin: 0.6rem 0;
 	}
-	.mini-label {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.68rem;
-		letter-spacing: 0.06em;
-		color: var(--dim);
-	}
 	.line {
 		margin: 0;
 		font-size: 0.85rem;
-		color: var(--white);
+		color: var(--text-1);
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
@@ -229,11 +223,11 @@
 	.meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.64rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.hint {
 		margin: 0;
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.78rem;
 		line-height: 1.45;
 	}
@@ -277,7 +271,7 @@
 	.code {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		color: var(--dim);
+		color: var(--text-2);
 		margin-left: 0.3rem;
 	}
 	.warn code {
@@ -287,8 +281,8 @@
 	.bar {
 		height: 6px;
 		border-radius: 999px;
-		background: var(--bg1);
-		border: 1px solid var(--line);
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
 		overflow: hidden;
 	}
 	.fill {
@@ -323,10 +317,10 @@
 	}
 	.choice {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		align-items: center;
 		font-size: 0.82rem;
-		color: var(--white);
+		color: var(--text-1);
 		overflow-wrap: anywhere;
 		padding: 0.3rem 0;
 		cursor: pointer;
@@ -334,9 +328,5 @@
 	.choice input {
 		width: auto;
 		accent-color: var(--green);
-	}
-	:global(.btn.tiny.danger) {
-		color: var(--crimson);
-		border-color: var(--crimson);
 	}
 </style>

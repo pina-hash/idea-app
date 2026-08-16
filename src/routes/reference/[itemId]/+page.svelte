@@ -60,7 +60,7 @@
 		font-size: 0.68rem;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.files {
 		list-style: none;

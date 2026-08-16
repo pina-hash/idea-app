@@ -27,9 +27,11 @@
 		editedWhen,
 		formatDue,
 		instructorAttachmentSrc,
+		isScheduled,
 		isUpdatedForViewer,
 		itemKindLabel,
 		itemTitle,
+		scheduleLabel,
 		sectionTitle,
 		shortWhen,
 		type ClassroomComposerTransports,
@@ -231,7 +233,7 @@
 		</p>
 		<p class="chip-line">
 			{#if item.pinned}<span class="chip pin-chip">Pinned</span>{/if}
-			{#if canManage && !item.published}<span class="draft-chip">Draft</span>{/if}
+			{#if canManage && !item.published}<span class="draft-chip">Draft</span>{:else if canManage && isScheduled(item)}<span class="sched-chip" title="Students see this from {scheduleLabel(item)}">Scheduled &middot; {scheduleLabel(item)}</span>{/if}
 			{#if canManage && item.is_public}<span class="chip pin-chip">Public link</span>{/if}
 			{#if showUpdated}<span class="chip updated-chip">Updated</span>{/if}
 		</p>
@@ -300,17 +302,27 @@
 
 	<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
 	     renders its written details exactly as every material always has, which
-	     is what keeps every pre-0092 material untouched. -->
-	{#if referenceSpec}
-		<section class="card ref-card">
-			<ReferenceDoc spec={referenceSpec} {fetchPreview} showHeader={false} />
-		</section>
-	{:else if item.body.trim()}
+	     is what keeps every pre-0092 material untouched.
+
+	     THE WRITTEN BODY IS NOT SWALLOWED BY THE DOCUMENT. It used to be: the
+	     two were an if/else, so attaching a reference document silently hid
+	     whatever the teacher had already written on the item -- with no warning,
+	     and no way to see it again short of detaching the document. They answer
+	     different questions ("what is this and why am I being given it" vs. the
+	     reference itself), so the body goes ABOVE, where it reads as the
+	     introduction it is. -->
+	{#if item.body.trim()}
 		<section class="card">
 			<h2 class="section-label">
 				{item.kind === 'assignment' ? 'Instructions' : 'Details'}
 			</h2>
 			<ItemBody {item} />
+		</section>
+	{/if}
+
+	{#if referenceSpec}
+		<section class="card ref-card">
+			<ReferenceDoc spec={referenceSpec} {fetchPreview} showHeader={false} />
 		</section>
 	{/if}
 
@@ -401,12 +413,17 @@
 			</section>
 		{:else}
 			<section class="card engine-slot">
-				<h2 class="section-label">Submission</h2>
+				<h2 class="section-label">Handing this in</h2>
 				<p class="note">
 					{#if viewAs}
 						Submission tools are hidden while viewing as a student.
 					{:else}
-						Handing work in from here is not available right now.
+						<!-- NOT "not available right now", which read as an outage and left a
+						     student waiting for a form that was never coming. This assignment
+						     genuinely has no online hand-in; the instructions say where the
+						     work goes. -->
+						This assignment has no online hand-in. Follow the instructions above --
+						your teacher has said there how to turn this one in.
 					{/if}
 				</p>
 			</section>
@@ -430,6 +447,11 @@
 </main>
 
 <style>
+	/* Spacing only: the look lives in classroom.css. */
+	.feedback {
+		margin: 0 0 0.8rem;
+	}
+
 	.classroom-page {
 		max-width: 46rem;
 		margin: 0 auto;
@@ -439,7 +461,7 @@
 	.edited-line {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
-		color: var(--dim);
+		color: var(--text-2);
 		margin: 0.2rem 0 0;
 	}
 	.chip-line {
@@ -449,7 +471,7 @@
 		margin: 0.4rem 0 0;
 	}
 	.section-label {
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-2);
 		font-size: 0.85rem;
 		font-family: 'Share Tech Mono', monospace;
 		letter-spacing: 0.08em;
@@ -491,10 +513,10 @@
 		flex-wrap: wrap;
 	}
 	.also-line {
-		margin: 0.5rem 0 0;
+		margin: var(--space-2) 0 0;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.engine-slot {
 		border-style: dashed;
@@ -509,7 +531,7 @@
 	}
 	.tool-rule {
 		border: none;
-		border-top: 1px solid var(--line);
+		border-top: 1px solid var(--hairline);
 		margin: 0.1rem 0;
 		width: 100%;
 	}
@@ -520,38 +542,15 @@
 		align-self: flex-start;
 	}
 	.note {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.9rem;
 		margin: 0;
-	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		border-radius: 5px;
-		padding: 0.4rem 0.65rem;
-		margin: 0 0 0.8rem;
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
-	}
-	.draft-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		color: var(--amber);
-		border: 1px solid var(--amber);
-		border-radius: 999px;
-		padding: 0.02rem 0.45rem;
 	}
 	.chip {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.65rem;
 		color: var(--cyan);
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.08rem 0.5rem;
 		white-space: nowrap;
@@ -561,17 +560,8 @@
 		border-color: var(--gold);
 	}
 	.updated-chip {
-		color: var(--green);
-		border-color: var(--green);
-	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
-	}
-	.btn.danger {
-		color: var(--crimson);
-		border-color: var(--crimson);
+		color: var(--cyan);
+		border-color: var(--cyan);
 	}
 	.page-footer {
 		margin-top: 1.4rem;

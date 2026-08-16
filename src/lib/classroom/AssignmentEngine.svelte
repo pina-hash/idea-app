@@ -432,6 +432,11 @@
 </div>
 
 <style>
+	/* Spacing only: the look lives in classroom.css. */
+	.feedback {
+		margin: 0 0 0.8rem;
+	}
+
 	.engine {
 		display: flex;
 		flex-direction: column;
@@ -446,10 +451,10 @@
 	.state-chip {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.1rem 0.55rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.state-chip.submitted {
 		color: var(--cyan);
@@ -462,7 +467,7 @@
 	.status-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.save-state.saving {
 		color: var(--amber);
@@ -477,7 +482,7 @@
 		margin-bottom: 0.9rem;
 	}
 	.section-label {
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-2);
 		font-size: 0.8rem;
 		font-family: 'Share Tech Mono', monospace;
 		letter-spacing: 0.08em;
@@ -513,7 +518,7 @@
 		border-color: var(--cyan);
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		align-items: flex-start;
 	}
 	.locked-line {
@@ -522,7 +527,7 @@
 	}
 	.file-list {
 		list-style: none;
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-2);
 		padding: 0;
 		display: flex;
 		flex-direction: column;
@@ -531,7 +536,7 @@
 	.file-row {
 		display: flex;
 		align-items: baseline;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		font-size: 0.88rem;
 	}
@@ -541,13 +546,13 @@
 	.file-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.file-remove {
 		appearance: none;
 		background: none;
 		border: none;
-		color: var(--dim);
+		color: var(--text-2);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
 		cursor: pointer;
@@ -564,18 +569,13 @@
 	.file-actions label {
 		cursor: pointer;
 	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
-	}
 	.declaration-card {
 		border-color: var(--gold);
 	}
 	.check-item {
 		display: flex;
 		align-items: flex-start;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		font-size: 0.88rem;
 		cursor: pointer;
 	}
@@ -594,7 +594,7 @@
 		padding-left: 1.2rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: var(--space-1);
 	}
 	.unmet-list li {
 		font-size: 0.85rem;
@@ -610,27 +610,11 @@
 	.submit-hint {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.note {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.82rem;
 		margin: 0 0 0.4rem;
-	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		border-radius: 5px;
-		padding: 0.4rem 0.65rem;
-		margin: 0 0 0.8rem;
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-		margin-top: 0.5rem;
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
 	}
 </style>

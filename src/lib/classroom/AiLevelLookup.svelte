@@ -58,7 +58,7 @@
 	.picker {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: var(--space-1);
 		min-width: 0;
 	}
 	.picker-label {
@@ -66,16 +66,16 @@
 		font-size: 0.62rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	select {
 		width: 100%;
 		min-width: 0;
 		box-sizing: border-box;
-		background: var(--bg2);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--white);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.95rem;
 		padding: 0.45rem 0.6rem;
@@ -86,17 +86,17 @@
 		border-color: var(--line-strong);
 	}
 	.detail {
-		border: 1px solid var(--line);
-		border-radius: 6px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 		padding: 0.7rem 0.8rem;
-		background: var(--bg2);
+		background: var(--surface-2);
 	}
 	.detail-head {
 		display: flex;
 		align-items: baseline;
 		gap: 0.6rem;
 		flex-wrap: wrap;
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--space-2);
 	}
 	h4 {
 		margin: 0;
@@ -113,7 +113,7 @@
 		font-size: 0.62rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		color: var(--dim);
+		color: var(--text-2);
 		padding-top: 0.15rem;
 	}
 	.ok-term {
@@ -128,7 +128,7 @@
 		line-height: 1.5;
 	}
 	.example {
-		color: var(--dim);
+		color: var(--text-2);
 		font-style: italic;
 	}
 	@media (max-width: 480px) {

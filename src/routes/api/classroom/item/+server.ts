@@ -47,6 +47,7 @@ interface SaveBody {
 	bodyDoc?: unknown;
 	points?: unknown;
 	dueAt?: unknown;
+	publishAt?: unknown;
 	category?: unknown;
 	links?: unknown;
 }
@@ -91,14 +92,41 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	const category = typeof body.category === 'string' ? body.category : null;
 	const points = typeof body.points === 'number' && Number.isFinite(body.points) ? body.points : null;
 	const dueAt = typeof body.dueAt === 'string' && body.dueAt !== '' ? body.dueAt : null;
+	const publishAt =
+		typeof body.publishAt === 'string' && body.publishAt !== '' ? body.publishAt : null;
 	const links = Array.isArray(body.links) ? body.links : [];
 	const published = body.published === null ? null : body.published === true;
+
+	/**
+	 * Two OPTIONAL parameters, two migrations, applied by hand and separately --
+	 * so this drops them one at a time rather than all at once. Dropping both on
+	 * the first refusal would cost a project that HAS 0108 its rich body to work
+	 * around a missing 0109. The order is newest-first, matching the read chain
+	 * in `selectItemsWithDoc`.
+	 *
+	 * Each retry is gated on PGRST202 ALONE (see `isMissingSignature`): a genuine
+	 * refusal -- a caller who does not manage one of the target sections, a body
+	 * over the cap -- must surface as itself, never be silently retried into a
+	 * weaker call that then succeeds.
+	 */
+	async function callWithDegrade(fn: 'classroom_create_item' | 'classroom_update_item', args: Record<string, unknown>) {
+		let res = await supabase.rpc(fn, args);
+		if (isMissingSignature(res.error) && 'p_publish_at' in args) {
+			const { p_publish_at: _dropped, ...rest } = args;
+			res = await supabase.rpc(fn, rest);
+			if (isMissingSignature(res.error) && 'p_body_doc' in rest) {
+				const { p_body_doc: _alsoDropped, ...bare } = rest;
+				res = await supabase.rpc(fn, bare);
+			}
+		}
+		return res;
+	}
 
 	if (mode === 'update') {
 		const id = typeof body.id === 'string' ? body.id : '';
 		if (!id) return json({ error: 'Which item?' }, { status: 400 });
 
-		const args: Record<string, unknown> = {
+		const { error } = await callWithDegrade('classroom_update_item', {
 			p_id: id,
 			p_title: title,
 			p_body: shaped.body,
@@ -107,15 +135,9 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 			p_category: category,
 			p_published: published,
 			p_resources: links,
-			p_body_doc: shaped.doc
-		};
-		let { error } = await supabase.rpc('classroom_update_item', args);
-		if (isMissingSignature(error)) {
-			// Pre-0108: save the plain text so the teacher does not lose the
-			// edit, and let the formatting land once the migration is applied.
-			delete args.p_body_doc;
-			({ error } = await supabase.rpc('classroom_update_item', args));
-		}
+			p_body_doc: shaped.doc,
+			p_publish_at: publishAt
+		});
 		if (error) return json({ error: error.message ?? 'Save failed.' }, { status: 400 });
 		return json({ ok: true, item_id: id });
 	}
@@ -127,7 +149,7 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		return json({ error: 'Pick at least one class to post to.' }, { status: 400 });
 	}
 
-	const args: Record<string, unknown> = {
+	const { data, error } = await callWithDegrade('classroom_create_item', {
 		p_kind: kind,
 		p_section_ids: sectionIds,
 		p_title: title,
@@ -137,13 +159,9 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		p_category: category,
 		p_published: published !== false,
 		p_resources: links,
-		p_body_doc: shaped.doc
-	};
-	let { data, error } = await supabase.rpc('classroom_create_item', args);
-	if (isMissingSignature(error)) {
-		delete args.p_body_doc;
-		({ data, error } = await supabase.rpc('classroom_create_item', args));
-	}
+		p_body_doc: shaped.doc,
+		p_publish_at: publishAt
+	});
 	if (error) return json({ error: error.message ?? 'Save failed.' }, { status: 400 });
 
 	const itemId = (data as { item_id?: string } | null)?.item_id;

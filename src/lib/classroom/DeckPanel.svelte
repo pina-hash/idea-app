@@ -294,17 +294,17 @@
 
 <style>
 	.deck-card {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 	}
 	.deck-open {
 		display: flex;
 		align-items: center;
 		gap: 0.8rem;
 		text-decoration: none;
-		border: 1px solid var(--line);
-		border-radius: 8px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 		padding: 0.6rem;
-		background: var(--bg2);
+		background: var(--surface-2);
 		min-width: 0;
 	}
 	.deck-open:hover {
@@ -315,9 +315,9 @@
 		width: 7.5rem;
 		height: 4.3rem;
 		object-fit: cover;
-		border-radius: 5px;
-		background: var(--bg1);
-		border: 1px solid var(--line);
+		border-radius: var(--radius-card);
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
 	}
 	.deck-thumb.placeholder {
 		display: grid;
@@ -335,7 +335,7 @@
 		min-width: 0;
 	}
 	.deck-name {
-		color: var(--white);
+		color: var(--text-1);
 		font-size: 0.98rem;
 		overflow-wrap: anywhere;
 	}
@@ -343,7 +343,7 @@
 	.deck-sub {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.deck-sub {
 		margin: 0.4rem 0 0;
@@ -351,7 +351,7 @@
 	.deck-actions {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		align-items: center;
 		margin-top: 0.7rem;
 	}
@@ -369,7 +369,7 @@
 	.deck-remove {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		color: var(--crimson);
 		font-family: 'Share Tech Mono', monospace;
@@ -382,7 +382,7 @@
 		align-items: center;
 	}
 	.deck-remove:disabled {
-		color: var(--ice);
+		color: var(--text-3);
 		cursor: default;
 	}
 	.deck-progress {
@@ -391,8 +391,8 @@
 	.deck-bar {
 		height: 6px;
 		border-radius: 999px;
-		background: var(--bg1);
-		border: 1px solid var(--line);
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
 		overflow: hidden;
 	}
 	.deck-bar-fill {
@@ -429,14 +429,14 @@
 		margin-top: 0.35rem;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.deck-cancel {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
-		color: var(--dim);
+		color: var(--text-2);
 		font: inherit;
 		padding: 0 0.9rem;
 		cursor: pointer;
@@ -445,7 +445,7 @@
 		align-items: center;
 	}
 	.deck-cancel:hover {
-		color: var(--white);
+		color: var(--text-1);
 		border-color: var(--gold);
 	}
 	.deck-hint,
@@ -457,7 +457,7 @@
 		line-height: 1.45;
 	}
 	.deck-hint {
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.deck-warn {
 		color: var(--amber);
@@ -468,7 +468,7 @@
 	.deck-code {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.7rem;
-		color: var(--dim);
+		color: var(--text-2);
 		white-space: nowrap;
 	}
 	.deck-notice {
@@ -488,14 +488,14 @@
 	.deck-choose p {
 		margin: 0;
 		font-size: 0.82rem;
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.deck-choice {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		align-items: center;
 		font-size: 0.82rem;
-		color: var(--white);
+		color: var(--text-1);
 		overflow-wrap: anywhere;
 		/* Comfortable on a phone without a second rule for touch. */
 		padding: 0.35rem 0;

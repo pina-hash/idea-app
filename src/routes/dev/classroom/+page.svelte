@@ -8,7 +8,7 @@
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
-	import { registerLocalAttachmentUrl } from '$lib/classroom/classroom';
+	import { isScheduled, registerLocalAttachmentUrl } from '$lib/classroom/classroom';
 	import type { ItemDoc } from '$lib/classroom/classroom-doc';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
@@ -519,6 +519,7 @@
 				created_at: now,
 				updated_at: now,
 				first_published_at: published ? now : null,
+				publish_at: input.publishAt ?? null,
 				links: input.links.map((r, i) => ({ ...r, id: nid('r'), sort_order: i + 1 })),
 				postings: sectionIds.map((section_id) => ({ section_id }))
 			});
@@ -559,6 +560,7 @@
 				input.dueAt !== current.due_at ||
 				(input.category ?? '') !== (current.category ?? '') ||
 				linksChanged;
+			const wasLive = isScheduled(current) ? false : current.published;
 			patch(id, {
 				title: input.title?.trim() || null,
 				body: shaped.body,
@@ -567,11 +569,20 @@
 				due_at: current.kind === 'assignment' ? input.dueAt : null,
 				category: input.category,
 				published: published ?? current.published,
+				publish_at: input.publishAt ?? null,
 				first_published_at:
 					current.first_published_at ?? ((published ?? current.published) ? now : null),
-				// Only a content change to something already published is an edit.
-				edited_at: changed && current.first_published_at ? now : current.edited_at,
-				updated_at: changed || (published ?? current.published) !== current.published ? now : current.updated_at,
+				// Only a content change to something that was LIVE is an edit (0109).
+				// An immediately-posted item has no publish_at, so `wasLive` reduces
+				// to `published` and this is exactly the rule 0104 shipped; a
+				// scheduled item edited before go-live stamps nothing.
+				edited_at: changed && current.first_published_at && wasLive ? now : current.edited_at,
+				updated_at:
+					changed ||
+					(published ?? current.published) !== current.published ||
+					(input.publishAt ?? null) !== (current.publish_at ?? null)
+						? now
+						: current.updated_at,
 				// Unchanged links keep their ROWS: rewriting them would mint new
 				// ids, which ride in a student's own read of the item.
 				links: linksChanged
@@ -660,6 +671,28 @@
 			}
 			patch(itemId, { postings: current.postings.filter((p) => p.section_id !== sectionId) });
 			return { ok: true, data: { ok: true } };
+		},
+		async setPublished(itemId, published) {
+			note('setPublished', { itemId, published });
+			const current = items.find((i) => i.id === itemId);
+			if (!current) return { ok: false, message: 'That item does not exist.' };
+			if (!managesItem(current)) {
+				return {
+					ok: false,
+					message: 'Only the teacher of record for every class this is posted to can change it.'
+				};
+			}
+			// NARROW, exactly like 0109: `published` and its first-publish stamp,
+			// nothing else. It cannot touch content, so it cannot stamp edited_at.
+			const now = new Date().toISOString();
+			if (published !== current.published) {
+				patch(itemId, {
+					published,
+					first_published_at: current.first_published_at ?? (published ? now : null),
+					updated_at: now
+				});
+			}
+			return { ok: true, data: undefined };
 		},
 		async setPinned(itemId, pinned) {
 			note('setPinned', { itemId, pinned });

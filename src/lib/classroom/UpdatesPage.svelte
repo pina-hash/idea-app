@@ -82,7 +82,7 @@
 	.update-head {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		margin-bottom: 0.3rem;
 	}
@@ -94,8 +94,8 @@
 	.chip {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--dim);
-		border: 1px solid var(--line);
+		color: var(--text-2);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.02rem 0.45rem;
 	}
@@ -109,7 +109,7 @@
 		font-size: 0.95rem;
 	}
 	.note {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.9rem;
 		margin: 0;
 	}

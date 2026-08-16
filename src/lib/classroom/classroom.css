@@ -1,0 +1,184 @@
+/* ==========================================================================
+   IDEA Classroom: the shared surface layer.
+
+   WHAT THIS IS FOR. Every rule here was previously written out once per
+   component -- `.feedback` and its two variants in eleven files, `.btn.tiny`
+   sizing in ten, `.btn.danger` in six, the mono micro-label in three -- and
+   several of the copies had already drifted apart (a `.feedback` with
+   `margin: 0` beside one with `margin: 0 0 0.8rem`, a `.draft-chip` at
+   0.6rem beside one at 0.62rem). They are all the same control; they are
+   written once now, and a component that wants one just uses the class.
+
+   IT IS LOADED ONCE, by src/routes/classroom/+layout.svelte and
+   src/routes/reference/+layout.svelte, and everything is scoped under
+   `.cr-root` -- the wrapper those layouts put around the page. Nothing here
+   can reach GAUNTLET, VANGUARD, the home screen or the coin surfaces, which
+   is the whole reason it is a scoped stylesheet rather than additions to
+   app.css.
+
+   THE CONSOLIDATION IS ALSO WHAT RETIRES THE `:global()` ESCAPES. A component
+   styling `.btn.tiny` had to write `:global(.btn.tiny)` because `.btn` is an
+   app-shell class its own scoped CSS cannot see. Those escapes leaked out of
+   the component by definition; here the same rule is deliberately global
+   within the classroom and nowhere else.
+
+   COLOUR DISCIPLINE, restated where it is enforced: --green is for primary
+   actions, active navigation, focus, success and completion. Not for static
+   labels, not for quiet borders, not for decoration. Gold keeps instructor-
+   only marking and the required callout. Amber, cyan, teal and crimson keep
+   their existing semantic roles.
+   ========================================================================== */
+
+/* --- The room -------------------------------------------------------------
+   The classroom sits on the calm surfaces rather than the portal's green
+   machined plate. `.cr-root` is opaque and above the root layout's fixed
+   .bg-fx overlay for the same reason .nb-root and .frc-root are: a page of
+   sustained reading should not have scanlines drifting under it.
+   ------------------------------------------------------------------------ */
+.cr-root {
+	position: relative;
+	z-index: 1;
+	background: var(--surface-0);
+	min-height: 100vh;
+}
+
+/* The scanline + vignette overlay is a SIBLING of this wrapper's ancestor, so
+   no scoped rule can reach it -- it is suppressed from the document instead,
+   conditioned on a classroom page actually being on screen. The `:has()` form
+   is the established one here (TvStage does the same for the tournament
+   projector view), and it keeps every other route untouched. */
+body:has(.cr-root) .bg-fx {
+	display: none;
+}
+
+.cr-root .app-header {
+	background: var(--surface-1);
+	border-bottom: 1px solid var(--hairline);
+}
+
+/* --- Typography -----------------------------------------------------------
+   Orbitron is the page title and the brand mark ONLY. Below that: Rajdhani at
+   500-600 for UI labels and controls, 400-500 for reading text, and Share
+   Tech Mono for data values, ids and timestamps.
+   ------------------------------------------------------------------------ */
+.cr-root h1 {
+	font-family: 'Orbitron', sans-serif;
+	font-weight: 700;
+	letter-spacing: 0.01em;
+}
+.cr-root h2,
+.cr-root h3,
+.cr-root h4 {
+	font-family: 'Rajdhani', sans-serif;
+	font-weight: 600;
+	color: var(--text-1);
+}
+/* The app shell prefixes every h2 with a glowing green `// `. It is chrome for
+   a terminal, and this is a page someone reads -- the same neutralization the
+   notebook and FRC themes apply. */
+.cr-root h2::before {
+	content: none;
+}
+/* Links are cyan here, not green: a link is not a primary action, and green
+   is spent on the things that are. The app shell's hover glow goes with it. */
+.cr-root a {
+	color: var(--cyan);
+}
+.cr-root a:hover {
+	text-shadow: none;
+	text-decoration: underline;
+}
+/* ...except a real button that happens to be an anchor, which keeps its own
+   treatment. */
+.cr-root a.btn {
+	color: inherit;
+	text-decoration: none;
+}
+
+/* --- Cards and panels ---------------------------------------------------- */
+.cr-root .card {
+	background: var(--surface-1);
+	border: 1px solid var(--hairline);
+}
+
+/* --- The mono micro-label ------------------------------------------------
+   The small tracked caption above a field or a group. Was written out
+   verbatim in ContentComposer, DeckStager and ManageConsole. */
+.cr-root .mini-label {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.68rem;
+	letter-spacing: 0.06em;
+	color: var(--text-2);
+}
+
+/* --- Feedback lines -------------------------------------------------------
+   `margin` is deliberately NOT set here: the eleven copies disagreed about it
+   precisely because it belongs to the layout around the message, not to the
+   message. A component that needs spacing sets its own.
+   ------------------------------------------------------------------------ */
+.cr-root .feedback {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.78rem;
+	line-height: 1.5;
+	padding: var(--space-2) 0.65rem;
+	border-radius: var(--radius-card);
+	border: 1px solid var(--hairline);
+}
+.cr-root .feedback.ok {
+	color: var(--green);
+	border-color: var(--line-strong);
+}
+.cr-root .feedback.error {
+	color: var(--amber);
+	border-color: var(--amber);
+}
+
+/* --- Buttons -------------------------------------------------------------- */
+.cr-root .btn.tiny,
+.cr-root .btn.secondary.tiny {
+	font-size: 0.65rem;
+	padding: 0.28rem 0.6rem;
+}
+.cr-root .btn.danger,
+.cr-root .btn.tiny.danger {
+	color: var(--crimson);
+	border-color: var(--crimson);
+}
+
+/* --- Status chips ---------------------------------------------------------
+   One shape, three meanings. Draft and Scheduled are both "students cannot
+   see this yet", which is why they share amber -- the difference is whether
+   anything will change that on its own, and that is what the words say.
+   ------------------------------------------------------------------------ */
+.cr-root .draft-chip,
+.cr-root .sched-chip,
+.cr-root .kind-chip {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.62rem;
+	letter-spacing: 0.04em;
+	border: 1px solid var(--hairline);
+	border-radius: 999px;
+	padding: 0.02rem 0.45rem;
+	white-space: nowrap;
+}
+.cr-root .draft-chip,
+.cr-root .sched-chip {
+	color: var(--amber);
+	border-color: var(--amber);
+}
+.cr-root .kind-chip {
+	color: var(--text-2);
+}
+/* Pinned is the one chip that marks a teacher's own deliberate choice, so it
+   borrows the gold thread rather than the accent. */
+.cr-root .kind-chip.pinned {
+	color: var(--gold);
+	border-color: var(--gold);
+}
+
+/* --- Selected / emphasised rows ------------------------------------------
+   `--green-tint` is what lets a row read as chosen without spending the
+   accent on a surface. */
+.cr-root .is-selected {
+	background: var(--green-tint);
+}

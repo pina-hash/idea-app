@@ -122,7 +122,7 @@
 	}
 	.md :global(.md-h3) {
 		font-size: 0.78rem;
-		color: var(--green);
+		color: var(--text-1);
 	}
 	.md :global(.md-h4) {
 		margin-top: var(--space-3);
@@ -147,7 +147,7 @@
 		font-size: 0.93rem;
 	}
 	.md :global(li)::marker {
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	/* One level of nesting: inset, and visibly a sub-list. */
 	.md :global(li > ul),
@@ -160,18 +160,18 @@
 	}
 
 	.md :global(strong) {
-		color: var(--white);
+		color: var(--text-1);
 		font-weight: 700;
 	}
 	.md :global(em) {
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.md :global(code) {
 		font-family: var(--font-mono);
 		font-size: 0.86em;
 		color: var(--gold);
-		background: var(--bg2);
-		border: 1px solid var(--line);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-chip);
 		padding: 0.05em 0.3em;
 		overflow-wrap: anywhere;
@@ -183,13 +183,13 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-2);
-		color: var(--dim);
+		color: var(--text-2);
 		font-style: italic;
 	}
 
 	.md :global(pre) {
-		background: var(--bg2);
-		border: 1px solid var(--line);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		padding: var(--space-3);
 		overflow-x: auto;
@@ -199,7 +199,7 @@
 		background: none;
 		border: none;
 		padding: 0;
-		color: var(--white);
+		color: var(--text-1);
 		font-size: 0.8rem;
 		line-height: 1.5;
 		white-space: pre;

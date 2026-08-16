@@ -114,6 +114,15 @@ export interface ClassroomItem {
 	 * pre-0092 read still types.
 	 */
 	is_public?: boolean;
+	/**
+	 * 0109's go-live time. THREE STATES, and only two columns express them:
+	 * `published: false` is a draft; `published: true` with a FUTURE
+	 * `publish_at` is scheduled and invisible to students; `published: true`
+	 * with a null or past one is live. Optional so a pre-0109 read still types,
+	 * and absent reads as live -- which is what every item authored before
+	 * scheduling existed genuinely is.
+	 */
+	publish_at?: string | null;
 	sort_order: number;
 	/** Null while it has only ever been a draft. */
 	first_published_at: string | null;
@@ -204,6 +213,10 @@ export function normalizeItemRow(row: Record<string, unknown>): ClassroomItem {
 		published: row.published !== false,
 		pinned: row.pinned === true,
 		is_public: row.is_public === true,
+		// Absent and null are kept apart for the same reason body_doc is: a
+		// pre-0109 read cannot tell, and `isScheduled` treats "cannot tell" as
+		// live rather than guessing.
+		publish_at: 'publish_at' in row ? ((row.publish_at as string | null) ?? null) : undefined,
 		sort_order: Number(row.sort_order ?? 0),
 		first_published_at: (row.first_published_at as string | null) ?? null,
 		edited_at: (row.edited_at as string | null) ?? null,
@@ -678,8 +691,42 @@ export interface ItemInput {
 	bodyDoc: TiptapNode | ItemDoc | null;
 	points: number | null;
 	dueAt: string | null;
+	/** 0109. Null = visible the moment it is published, the pre-0109 behaviour. */
+	publishAt?: string | null;
 	category: string | null;
 	links: { label: string; url: string }[];
+}
+
+/**
+ * Is this item published but not yet visible to students?
+ *
+ * DISPLAY ONLY. What a student can actually read is decided in the database,
+ * by the same condition, at the moment of the read -- so a page left open past
+ * a go-live moment can be wrong about a chip and never about access. A read
+ * that did not select the column (`undefined`) reads as live, which is exactly
+ * what an item authored before scheduling existed is.
+ */
+export function isScheduled(
+	item: { published: boolean; publish_at?: string | null },
+	now: Date = new Date()
+): boolean {
+	if (!item.published || !item.publish_at) return false;
+	const at = Date.parse(item.publish_at);
+	return Number.isFinite(at) && at > now.getTime();
+}
+
+/** "Goes live Fri, Aug 21, 8:00 AM" -- the chip's own tooltip and the row line. */
+export function scheduleLabel(item: { publish_at?: string | null }): string {
+	if (!item.publish_at) return '';
+	const at = new Date(item.publish_at);
+	if (Number.isNaN(at.getTime())) return '';
+	return at.toLocaleString(undefined, {
+		weekday: 'short',
+		month: 'short',
+		day: 'numeric',
+		hour: 'numeric',
+		minute: '2-digit'
+	});
 }
 
 /**
@@ -712,6 +759,15 @@ export interface ClassroomComposerTransports {
 		itemId: string,
 		sectionId: string
 	): Promise<TxResult<{ ok: boolean; reason?: string }>>;
+	/**
+	 * Flip `published` and NOTHING else (0109).
+	 *
+	 * Publishing used to go through `updateItem` with the item's whole content
+	 * re-sent to change one boolean, which made the flip only as safe as the
+	 * console's copy of the row. This is a narrow write: it cannot touch
+	 * content, so it cannot stamp `edited_at`.
+	 */
+	setPublished(itemId: string, published: boolean): Promise<TxResult<undefined>>;
 	setPinned(itemId: string, pinned: boolean): Promise<TxResult<undefined>>;
 	setOrder(itemIds: string[]): Promise<TxResult<undefined>>;
 	uploadAttachment(itemId: string, file: File): Promise<TxResult<undefined>>;

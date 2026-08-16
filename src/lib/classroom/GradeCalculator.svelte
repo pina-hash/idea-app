@@ -107,7 +107,7 @@
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 		color: var(--cyan);
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 		padding: 0.3rem 0.4rem;
 		font-weight: 400;
 	}
@@ -118,7 +118,7 @@
 	}
 	.calc-table td,
 	.calc-table th[scope='row'] {
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 		padding: 0.3rem 0.4rem;
 		font-size: 0.88rem;
 	}
@@ -133,10 +133,10 @@
 	.score {
 		width: 5rem;
 		box-sizing: border-box;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--white);
+		background: var(--surface-0);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.85rem;
 		padding: 0.28rem 0.4rem;
@@ -170,7 +170,7 @@
 		margin: 0;
 		display: flex;
 		align-items: baseline;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.overall-label {
@@ -178,22 +178,22 @@
 		font-size: 0.65rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.overall-value {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 1.3rem;
-		color: var(--green);
+		color: var(--text-1);
 	}
 	.overall-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.disclaimer {
 		margin: 0;
 		font-size: 0.78rem;
-		color: var(--dim);
+		color: var(--text-2);
 		line-height: 1.45;
 	}
 	@media print {

@@ -460,6 +460,11 @@
 </main>
 
 <style>
+	/* Spacing only: the look lives in classroom.css. */
+	.feedback {
+		margin: 0.4rem 0;
+	}
+
 	.grading-page {
 		max-width: 62rem;
 		margin: 0 auto;
@@ -468,7 +473,7 @@
 	.meta-line {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
-		color: var(--dim);
+		color: var(--text-2);
 		margin: 0.2rem 0 0;
 	}
 	.console {
@@ -486,7 +491,7 @@
 		}
 	}
 	.section-label {
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-2);
 		font-size: 0.8rem;
 		font-family: 'Share Tech Mono', monospace;
 		letter-spacing: 0.08em;
@@ -497,13 +502,13 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: baseline;
-		gap: 0.5rem;
+		gap: var(--space-2);
 	}
 	.csv-hint {
-		margin: 0 0 0.5rem;
+		margin: 0 0 var(--space-2);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.roster-list {
 		list-style: none;
@@ -511,7 +516,7 @@
 		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: var(--space-1);
 	}
 	.roster-row {
 		appearance: none;
@@ -519,11 +524,11 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		gap: 0.5rem;
-		background: var(--bg2);
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		color: var(--white);
+		gap: var(--space-2);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.9rem;
 		padding: 0.4rem 0.55rem;
@@ -535,7 +540,7 @@
 		border-color: var(--line-strong);
 	}
 	.roster-row.active {
-		background: var(--bg0);
+		background: var(--surface-0);
 	}
 	.roster-row.inactive {
 		opacity: 0.6;
@@ -547,10 +552,10 @@
 	.roster-chip {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.6rem;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.06rem 0.45rem;
-		color: var(--dim);
+		color: var(--text-2);
 		white-space: nowrap;
 	}
 	.roster-chip.submitted {
@@ -587,7 +592,7 @@
 		margin: 0.15rem 0 0;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.gate-row {
 		display: flex;
@@ -620,7 +625,7 @@
 	.file-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--dim);
+		color: var(--text-2);
 		margin-left: 0.4rem;
 	}
 	.score-card {
@@ -631,16 +636,16 @@
 		flex-direction: column;
 		gap: 0.3rem;
 		padding: 0.5rem 0 0.6rem;
-		border-bottom: 1px solid var(--line);
+		border-bottom: 1px solid var(--hairline);
 		border-left: 2px solid transparent;
 	}
 	.score-row.override {
 		border-left-color: var(--amber);
-		padding-left: 0.5rem;
+		padding-left: var(--space-2);
 	}
 	.score-row.flagged {
 		border-left-color: var(--crimson);
-		padding-left: 0.5rem;
+		padding-left: var(--space-2);
 	}
 	.score-head {
 		display: flex;
@@ -655,7 +660,7 @@
 	.score-value {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.78rem;
-		color: var(--green);
+		color: var(--text-1);
 		white-space: nowrap;
 	}
 	.score-value.override {
@@ -673,7 +678,7 @@
 	.level-picker {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: var(--space-1);
 	}
 	.level-btn {
 		appearance: none;
@@ -682,10 +687,10 @@
 		gap: 0.12rem;
 		width: 100%;
 		text-align: left;
-		background: var(--bg2);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--white);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		padding: 0.4rem 0.55rem;
 		min-height: 2.75rem;
@@ -696,7 +701,7 @@
 	}
 	.level-btn.picked {
 		border-color: var(--green);
-		background: var(--bg0);
+		background: var(--surface-0);
 	}
 	.level-top {
 		display: flex;
@@ -714,7 +719,7 @@
 	}
 	.level-desc {
 		font-size: 0.76rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.override-toggle {
 		appearance: none;
@@ -735,10 +740,10 @@
 	.crit-comment {
 		width: 100%;
 		box-sizing: border-box;
-		background: var(--bg0);
+		background: var(--surface-0);
 		border: 1px solid var(--amber);
-		border-radius: 5px;
-		color: var(--white);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.85rem;
 		padding: 0.35rem 0.5rem;
@@ -746,7 +751,7 @@
 	.score-note {
 		margin: 0;
 		font-size: 0.78rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.score-flag {
 		margin: 0;
@@ -766,10 +771,10 @@
 	}
 	.score-input input {
 		width: 4.2rem;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		color: var(--green);
+		background: var(--surface-0);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.85rem;
 		padding: 0.25rem 0.35rem;
@@ -781,7 +786,7 @@
 	.score-out {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.score-total {
 		margin: 0.6rem 0;
@@ -796,29 +801,24 @@
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
-		margin-bottom: 0.25rem;
+		margin-bottom: var(--space-1);
 	}
 	.comment {
 		width: 100%;
 		box-sizing: border-box;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--white);
+		background: var(--surface-0);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.9rem;
 		padding: 0.4rem 0.55rem;
-		margin-bottom: 0.5rem;
+		margin-bottom: var(--space-2);
 	}
 	.grade-actions {
 		display: flex;
 		gap: 0.4rem;
 		flex-wrap: wrap;
-	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
 	}
 	.warn-card {
 		border-color: var(--amber);
@@ -829,23 +829,8 @@
 		font-size: 0.88rem;
 	}
 	.note {
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.85rem;
-	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		border-radius: 5px;
-		padding: 0.4rem 0.65rem;
-		margin: 0.4rem 0;
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
 	}
 	.page-footer {
 		margin-top: 1.4rem;

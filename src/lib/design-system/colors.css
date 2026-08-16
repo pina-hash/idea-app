@@ -46,6 +46,41 @@
 	--border-active: var(--line-strong);
 	--focus-ring: var(--cyan);
 
+	/* --- Classroom calm surfaces -------------------------------------------
+	   A quieter, lower-chroma set used by the IDEA Classroom and the public
+	   reference viewer. ADDITIVE: nothing above changes, and no other surface
+	   reads these.
+
+	   WHY A SECOND SET RATHER THAN RETUNING --bg*. The classroom is where a
+	   student reads for minutes at a time, and the portal's green-metal plate
+	   is tuned for short, high-contrast chrome -- a whole page of it competes
+	   with the prose on top. These are near-neutral with only a trace of green
+	   left in them, so the room recedes and the writing is the loudest thing
+	   on screen. Every other surface (GAUNTLET, VANGUARD, the home screen, the
+	   coin ledger) keeps the plate exactly as it is.
+
+	   THE GREEN RULE, which is the point of the whole set: --green is reserved
+	   for primary action buttons, active navigation, focus, success and
+	   completion. It is NOT for static labels, quiet borders or decoration --
+	   those take --text-2/--text-3 and --hairline. --green-tint is the fill
+	   for a selected row or an emphasised block, so emphasis can read without
+	   spending the accent. Gold keeps instructor-only marking and the
+	   required-callout treatment; amber, cyan, teal and crimson keep their
+	   existing semantic roles.
+
+	   Contrast on --surface-1, measured: text-1 13.6:1, text-2 6.3:1,
+	   text-3 2.9:1 (non-text: separators, disabled glyphs, decorative rules --
+	   never body copy). --hairline is a 8%-white rule, deliberately below any
+	   text threshold because a divider is not text. ------------------------ */
+	--surface-0: #0a0c0b; /* page base */
+	--surface-1: #101312; /* cards and panels */
+	--surface-2: #161a18; /* inputs, recessed rows, toolbars */
+	--hairline: rgba(255, 255, 255, 0.08); /* dividers and quiet borders */
+	--text-1: #e7eae8; /* body copy and headings */
+	--text-2: #9aa49d; /* secondary text, labels, meta */
+	--text-3: #5c665f; /* tertiary: separators, disabled, decorative */
+	--green-tint: #0e3b1f; /* selected-row and emphasis fills */
+
 	/* --- Notebook editorial room (--nb-*) ---------------------------------
 	   A light, editorial palette used ONLY by the digital notebook surfaces
 	   (scoped under .nb-root in src/lib/notebook/notebook-theme.css). New

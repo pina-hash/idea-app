@@ -223,7 +223,7 @@
 		flex-wrap: wrap;
 	}
 	.spec-line.none {
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.ok-dot {
 		width: 0.5rem;
@@ -235,21 +235,12 @@
 	.spec-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.actions {
 		display: flex;
 		gap: 0.35rem;
 		flex-wrap: wrap;
-	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
-	}
-	.btn.danger {
-		color: var(--crimson);
-		border-color: var(--crimson);
 	}
 	.import-body {
 		display: flex;
@@ -263,10 +254,10 @@
 	.paste {
 		width: 100%;
 		box-sizing: border-box;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--white);
+		background: var(--surface-0);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		line-height: 1.45;
@@ -291,16 +282,5 @@
 		margin: 0;
 		font-size: 0.82rem;
 		color: var(--green);
-	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		border-radius: 5px;
-		padding: 0.4rem 0.65rem;
-		margin: 0;
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
 	}
 </style>

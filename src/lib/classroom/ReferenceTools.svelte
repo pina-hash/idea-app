@@ -274,7 +274,7 @@
 		flex-wrap: wrap;
 	}
 	.spec-line.none {
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.ok-dot {
 		width: 0.5rem;
@@ -286,31 +286,22 @@
 	.spec-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.slug-line {
 		margin: 0;
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.actions {
 		display: flex;
 		gap: 0.35rem;
 		flex-wrap: wrap;
 		align-items: center;
-	}
-	.btn.tiny,
-	.btn.secondary.tiny {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
-	}
-	.btn.danger {
-		color: var(--crimson);
-		border-color: var(--crimson);
 	}
 	.import-body {
 		display: flex;
@@ -324,10 +315,10 @@
 	.paste {
 		width: 100%;
 		box-sizing: border-box;
-		background: var(--bg0);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--white);
+		background: var(--surface-0);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		line-height: 1.45;
@@ -353,20 +344,9 @@
 		font-size: 0.82rem;
 		color: var(--green);
 	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		border-radius: 5px;
-		padding: 0.4rem 0.65rem;
-		margin: 0;
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
-	}
 	.tool-rule {
 		border: none;
-		border-top: 1px solid var(--line);
+		border-top: 1px solid var(--hairline);
 		margin: 0.1rem 0;
 		width: 100%;
 	}
@@ -379,7 +359,7 @@
 	.public-state {
 		margin: 0;
 		font-size: 0.85rem;
-		color: var(--dim);
+		color: var(--text-2);
 		display: flex;
 		align-items: baseline;
 		gap: 0.45rem;
@@ -390,10 +370,10 @@
 		font-size: 0.62rem;
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.06rem 0.5rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.state-tag.on {
 		color: var(--gold);
@@ -401,7 +381,7 @@
 	}
 	.confirm {
 		border: 1px solid var(--gold);
-		border-radius: 6px;
+		border-radius: var(--radius-card);
 		padding: 0.65rem 0.75rem;
 		display: flex;
 		flex-direction: column;
@@ -418,9 +398,9 @@
 		margin: 0;
 		font-size: 0.82rem;
 		line-height: 1.5;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.confirm-body strong {
-		color: var(--white);
+		color: var(--text-1);
 	}
 </style>

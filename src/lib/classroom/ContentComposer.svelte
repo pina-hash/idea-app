@@ -62,6 +62,7 @@
 		mode = 'create',
 		kind = $bindable('post'),
 		sections = [],
+		initialTargets = [],
 		item = null,
 		transports,
 		attachmentsEnabled = true,
@@ -77,6 +78,14 @@
 		kind?: ClassroomItemKind;
 		/** Every section the caller manages: publish targets, and linkage on edit. */
 		sections?: ClassroomSection[];
+		/**
+		 * Sections pre-checked under "Post to" on create. The class page passes
+		 * the class being looked at, because posting from inside a class means
+		 * posting TO it -- having to find it again in a checklist is a step that
+		 * only exists because the composer had no idea where it was mounted.
+		 * Still fully editable: this is a default, never a restriction.
+		 */
+		initialTargets?: string[];
 		item?: ClassroomItem | null;
 		transports: ClassroomComposerTransports;
 		/** False when Drive is unconfigured: the file controls hide entirely. */
@@ -134,12 +143,22 @@
 	let due = $state(isoToLocalInput(item?.due_at ?? null));
 	// svelte-ignore state_referenced_locally
 	let category = $state(item?.category ?? '');
+	/**
+	 * When this should become visible to students. Empty = the moment it is
+	 * posted, which is what every item before scheduling existed did and still
+	 * does. See `scheduleToSend` for why an untouched value is not re-encoded.
+	 */
+	// svelte-ignore state_referenced_locally
+	let publishAt = $state(isoToLocalInput(item?.publish_at ?? null));
 	// svelte-ignore state_referenced_locally
 	let links = $state<{ label: string; url: string }[]>(
 		(item?.links ?? []).map((r) => ({ label: r.label, url: r.url }))
 	);
 
-	let targets = $state<Record<string, boolean>>({});
+	// svelte-ignore state_referenced_locally
+	let targets = $state<Record<string, boolean>>(
+		Object.fromEntries(initialTargets.map((id) => [id, true]))
+	);
 	let busy = $state(false);
 	let msg = $state<Msg>(null);
 	/** Bumped to remount the editor empty after a create (see runSubmit). */
@@ -404,6 +423,45 @@
 		return localInputToIso(due);
 	}
 
+	/** The same untouched-field rule as `dueToSend`, for the go-live time. */
+	function scheduleToSend(): string | null {
+		if (mode === 'edit' && item && isoToLocalInput(item.publish_at ?? null) === publishAt) {
+			return item.publish_at ?? null;
+		}
+		return localInputToIso(publishAt);
+	}
+
+	/**
+	 * Is the time in the box still in the future?
+	 *
+	 * Only used to WORD the button. Whether an item is actually live is the
+	 * database's answer, computed at read time from the stored stamp -- nothing
+	 * here decides it, and a page left open past the go-live moment can only be
+	 * wrong about a label.
+	 */
+	const scheduledAhead = $derived.by(() => {
+		const iso = localInputToIso(publishAt);
+		if (!iso) return false;
+		const at = Date.parse(iso);
+		return Number.isFinite(at) && at > Date.now();
+	});
+
+	/**
+	 * Has the instructor-only link list moved since this form opened?
+	 *
+	 * Compared against what the ITEM carried, not against a snapshot of the
+	 * form's own state, so a create (no item) writes only when there is
+	 * something to write. Position is part of the stored row, so the comparison
+	 * is order-sensitive on purpose.
+	 */
+	function instructorLinksChanged(next: { label: string; url: string }[]): boolean {
+		const before = (item?.instructorLinks ?? [])
+			.map((r) => ({ label: (r.label ?? '').trim(), url: (r.url ?? '').trim() }))
+			.filter((r) => r.url !== '');
+		if (before.length !== next.length) return true;
+		return before.some((r, i) => r.label !== next[i].label || r.url !== next[i].url);
+	}
+
 	function itemInput() {
 		const rawPoints = String(points ?? '').trim();
 		const pts = rawPoints === '' ? null : Number.parseInt(rawPoints, 10);
@@ -417,6 +475,7 @@
 			// another kind is refused server-side, so they are dropped here.
 			points: isAssignment && !Number.isNaN(pts as number) ? pts : null,
 			dueAt: isAssignment ? dueToSend() : null,
+			publishAt: scheduleToSend(),
 			category: category.trim() || null,
 			links: links
 				.map((r) => ({ label: r.label.trim(), url: r.url.trim() }))
@@ -516,31 +575,63 @@
 		const hadFiles = staged.length > 0 || instructorStaged.length > 0;
 		const failures: string[] = [];
 
-		const keptFiles: File[] = [];
-		for (const file of staged) {
-			const up = await transports.uploadAttachment(itemId, file);
-			if (!up.ok) {
-				failures.push(`${file.name}: ${up.message}`);
-				keptFiles.push(file);
+		/**
+		 * Uploads run CONCURRENTLY, and both lists at once.
+		 *
+		 * They were sequential, so attaching five photos to an assignment took
+		 * five round trips end to end -- each one a whole multipart POST plus a
+		 * Drive write -- with the save button spinning throughout. They are
+		 * independent writes against an item that already exists, so nothing
+		 * about them was ordered; the loop was just the shape it was written in.
+		 *
+		 * Every upload is individually caught, so one that THROWS cannot reject
+		 * the batch and discard the results of the others -- that would lose the
+		 * per-file reporting this whole block exists for, and take the "anything
+		 * that fails stays staged" guarantee with it. `Promise.all` preserves
+		 * order, so the failure list still reads in the order the files were
+		 * picked.
+		 */
+		const settle = async (file: File, run: Promise<{ ok: boolean; message?: string }>) => {
+			try {
+				return { file, res: await run };
+			} catch (e) {
+				return { file, res: { ok: false, message: (e as Error).message || 'Upload failed.' } };
 			}
-		}
-		staged = keptFiles;
+		};
+		const [fileResults, instructorResults] = await Promise.all([
+			Promise.all(staged.map((f) => settle(f, transports.uploadAttachment(itemId, f)))),
+			Promise.all(
+				instructorStaged.map((f) => settle(f, transports.uploadInstructorAttachment(itemId, f)))
+			)
+		]);
 
-		const keptInstructorFiles: File[] = [];
-		for (const file of instructorStaged) {
-			const up = await transports.uploadInstructorAttachment(itemId, file);
-			if (!up.ok) {
-				failures.push(`instructor file "${file.name}": ${up.message}`);
-				keptInstructorFiles.push(file);
-			}
+		for (const { file, res: up } of fileResults) {
+			if (!up.ok) failures.push(`${file.name}: ${up.message}`);
 		}
-		instructorStaged = keptInstructorFiles;
+		staged = fileResults.filter((r) => !r.res.ok).map((r) => r.file);
 
+		for (const { file, res: up } of instructorResults) {
+			if (!up.ok) failures.push(`instructor file "${file.name}": ${up.message}`);
+		}
+		instructorStaged = instructorResults.filter((r) => !r.res.ok).map((r) => r.file);
+
+		/**
+		 * The instructor links are written only when they actually CHANGED.
+		 *
+		 * `classroom_set_instructor_resources` is a full-set replacement, so
+		 * calling it on every save deleted and re-inserted the same rows every
+		 * time -- new row ids for identical content, on a save that never touched
+		 * them (adding a file, fixing a typo in the body). Emptying the list is a
+		 * real change and still writes, which is the case a naive
+		 * "only when non-empty" check would silently drop.
+		 */
 		const instructorLinksClean = instructorLinks
 			.map((r) => ({ label: r.label.trim(), url: r.url.trim() }))
 			.filter((r) => r.url !== '');
-		const linksRes = await transports.setInstructorResources(itemId, instructorLinksClean);
-		if (!linksRes.ok) failures.push(`instructor links: ${linksRes.message}`);
+		if (instructorLinksChanged(instructorLinksClean)) {
+			const linksRes = await transports.setInstructorResources(itemId, instructorLinksClean);
+			if (!linksRes.ok) failures.push(`instructor links: ${linksRes.message}`);
+		}
 
 		let deckAttached = false;
 		if (stagedDeck && deckTransports) {
@@ -620,12 +711,19 @@
 			(specAttached ? ' Spec attached.' : '');
 
 		const what = ITEM_KINDS.find((k) => k.id === editingKind)?.label ?? 'Item';
+		const goLive = scheduledAhead ? new Date(localInputToIso(publishAt) ?? '').toLocaleString() : '';
 		const where =
 			mode === 'edit'
 				? publish
-					? 'updated -- every class it is posted to sees the change'
+					? scheduledAhead
+						? `updated -- students see it from ${goLive}`
+						: 'updated -- every class it is posted to sees the change'
 					: 'updated (draft)'
-				: `${publish ? 'posted' : 'saved as a draft'} to ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`;
+				: publish
+					? scheduledAhead
+						? `scheduled for ${goLive} in ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`
+						: `posted to ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`
+					: `saved as a draft to ${targetIds.length} class${targetIds.length === 1 ? '' : 'es'}`;
 		const text = `${what} ${where}.${attachNote}`;
 
 		if (mode === 'create') {
@@ -634,6 +732,7 @@
 			title = '';
 			points = '';
 			due = '';
+			publishAt = '';
 			category = '';
 			links = [];
 			instructorLinks = [];
@@ -949,9 +1048,28 @@
 		</div>
 	{/if}
 
+	<div class="schedule-field">
+		<label class="schedule-label">
+			<span class="mini-label">Schedule for (optional)</span>
+			<input type="datetime-local" bind:value={publishAt} />
+		</label>
+		<p class="hint">
+			{#if scheduledAhead}
+				Students see this from {new Date(localInputToIso(publishAt) ?? '').toLocaleString()}. Until
+				then it is yours alone -- you can keep editing it, and no one is told it changed.
+			{:else}
+				Leave empty to post immediately. Set a future time and students see it then, not before.
+			{/if}
+		</p>
+	</div>
+
 	<div class="composer-actions">
 		<button class="btn" type="button" disabled={busy} onclick={() => submit(true)}>
-			{mode === 'edit' ? 'Save & publish' : 'Post'}
+			{#if mode === 'edit'}
+				{scheduledAhead ? 'Save & schedule' : 'Save & publish'}
+			{:else}
+				{scheduledAhead ? 'Schedule' : 'Post now'}
+			{/if}
 		</button>
 		<button class="btn secondary" type="button" disabled={busy} onclick={() => submit(false)}>
 			Save draft
@@ -968,34 +1086,40 @@
 </div>
 
 <style>
+	/* Spacing only: the look lives in classroom.css. */
+	.feedback {
+		margin: 0.6rem 0 0;
+	}
+
 	.composer {
 		display: block;
 	}
 	.composer.compact {
 		border: 1px solid var(--line-strong);
-		border-radius: 6px;
+		border-radius: var(--radius-card);
 		padding: 0.8rem 0.9rem;
 		margin-top: 0.7rem;
-		background: var(--bg2);
+		background: var(--surface-2);
 	}
 	label {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
-		margin-bottom: 0.5rem;
+		gap: var(--space-1);
+		margin-bottom: var(--space-2);
 	}
-	label > span,
-	.mini-label {
+	/* Field captions read as the shared micro-label without every one of them
+	   having to carry the class. */
+	label > span {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	input {
-		background: var(--bg2);
-		border: 1px solid var(--line);
-		border-radius: 5px;
-		color: var(--white);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		color: var(--text-1);
 		font-family: 'Rajdhani', sans-serif;
 		font-size: 0.95rem;
 		padding: 0.45rem 0.6rem;
@@ -1003,7 +1127,7 @@
 		min-width: 0;
 	}
 	.composer.compact input {
-		background: var(--bg1);
+		background: var(--surface-1);
 	}
 	input:focus {
 		outline: 1px solid var(--focus-ring);
@@ -1021,10 +1145,10 @@
 	}
 	.kind {
 		appearance: none;
-		background: var(--bg2);
-		border: 1px solid var(--line);
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
-		color: var(--dim);
+		color: var(--text-2);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.72rem;
 		padding: 0.3rem 0.9rem;
@@ -1033,6 +1157,18 @@
 	.kind.active {
 		color: var(--green);
 		border-color: var(--line-strong);
+	}
+	.schedule-field {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		margin: var(--space-3) 0 var(--space-2);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--hairline);
+	}
+	.schedule-label {
+		margin-bottom: 0;
+		max-width: 18rem;
 	}
 	.resources-editor,
 	.attach-editor,
@@ -1044,7 +1180,7 @@
 		margin: 0.5rem 0 0.6rem;
 	}
 	.body-field {
-		gap: 0.25rem;
+		gap: var(--space-1);
 	}
 	/* Dashed border + gold accent: the same "this is not ordinary content"
 	   treatment the engine-slot / draft-chip pattern uses, applied to a
@@ -1056,7 +1192,7 @@
 		margin: 0.7rem 0;
 		padding: 0.7rem 0.8rem;
 		border: 1px dashed var(--gold);
-		border-radius: 6px;
+		border-radius: var(--radius-card);
 	}
 	.instructor-editor .resources-editor {
 		margin: 0.2rem 0 0.3rem;
@@ -1084,16 +1220,16 @@
 	}
 	.hint {
 		margin: 0;
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.78rem;
 		line-height: 1.45;
 	}
 	kbd {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		padding: 0 0.25rem;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		padding: 0 var(--space-1);
 		color: var(--cyan);
 	}
 	.file-input {
@@ -1113,7 +1249,7 @@
 	.staged-item {
 		display: flex;
 		flex-direction: column;
-		gap: 0.25rem;
+		gap: var(--space-1);
 		min-width: 0;
 		max-width: 100%;
 	}
@@ -1125,9 +1261,9 @@
 		width: 100%;
 		height: 6.5rem;
 		object-fit: contain;
-		background: var(--bg1);
-		border: 1px solid var(--line);
-		border-radius: 5px;
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 	}
 	.staged-meta {
 		display: flex;
@@ -1143,13 +1279,13 @@
 	.staged-size {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.target-picker {
 		margin: 0.6rem 0;
 	}
 	.linkage {
-		border-top: 1px solid var(--line);
+		border-top: 1px solid var(--hairline);
 		padding-top: 0.6rem;
 	}
 	.posted-list {
@@ -1163,16 +1299,16 @@
 	.posted-list li {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 	}
 	.posted-name {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.75rem;
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.posted-name.muted {
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.target-list {
 		display: flex;
@@ -1195,38 +1331,14 @@
 	.target-check span {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.75rem;
-		color: var(--white);
+		color: var(--text-1);
 		letter-spacing: 0;
 	}
 	.composer-actions {
 		display: flex;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		margin-top: 0.4rem;
-	}
-	.feedback {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		padding: 0.4rem 0.65rem;
-		border-radius: 5px;
-		margin: 0.6rem 0 0;
-	}
-	.feedback.ok {
-		color: var(--green);
-		border: 1px solid var(--line-strong);
-	}
-	.feedback.error {
-		color: var(--amber);
-		border: 1px solid var(--amber);
-	}
-	:global(.btn.tiny),
-	:global(.btn.secondary.tiny) {
-		font-size: 0.65rem;
-		padding: 0.28rem 0.6rem;
-	}
-	:global(.btn.tiny.danger) {
-		color: var(--crimson);
-		border-color: var(--crimson);
 	}
 	@media (max-width: 560px) {
 		.resource-row {

@@ -42,7 +42,7 @@
 		gap: 0.7rem;
 		flex-wrap: wrap;
 		padding: 0.45rem 1rem;
-		background: var(--bg2);
+		background: var(--surface-2);
 		border-bottom: 1px solid var(--amber);
 	}
 	.imp-tag {
@@ -63,18 +63,18 @@
 	}
 	.imp-who strong {
 		font-size: 0.9rem;
-		color: var(--white);
+		color: var(--text-1);
 	}
 	.imp-email {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
-		color: var(--dim);
+		color: var(--text-2);
 		overflow-wrap: anywhere;
 	}
 	.imp-note {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.64rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 	.imp-exit {
 		margin-left: auto;

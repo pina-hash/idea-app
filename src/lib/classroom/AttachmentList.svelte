@@ -94,7 +94,7 @@
 		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		gap: var(--space-2);
 	}
 	.attach-row {
 		display: flex;
@@ -105,10 +105,10 @@
 	.attach-preview {
 		display: block;
 		max-width: 100%;
-		border: 1px solid var(--line);
-		border-radius: 6px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 		overflow: hidden;
-		background: var(--bg2);
+		background: var(--surface-2);
 		line-height: 0;
 	}
 	.attach-preview img {
@@ -122,7 +122,7 @@
 	.attach-meta {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		min-width: 0;
 	}
@@ -130,7 +130,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.4rem;
-		color: var(--white);
+		color: var(--text-1);
 		text-decoration: none;
 		font-size: 0.88rem;
 		overflow-wrap: anywhere;
@@ -146,8 +146,8 @@
 		display: grid;
 		place-items: center;
 		color: var(--gold);
-		border: 1px solid var(--line);
-		border-radius: 4px;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
 	}
 	.attach-glyph svg {
 		width: 0.85rem;
@@ -156,13 +156,13 @@
 	.attach-size {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.64rem;
-		color: var(--dim);
+		color: var(--text-2);
 		white-space: nowrap;
 	}
 	.attach-remove {
 		appearance: none;
 		background: none;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		color: var(--crimson);
 		font-family: 'Share Tech Mono', monospace;
@@ -171,7 +171,7 @@
 		cursor: pointer;
 	}
 	.attach-remove:disabled {
-		color: var(--ice);
+		color: var(--text-3);
 		cursor: default;
 	}
 </style>

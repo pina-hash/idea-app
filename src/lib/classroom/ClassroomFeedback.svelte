@@ -73,9 +73,9 @@
 		gap: 0.4rem;
 		appearance: none;
 		background: none;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
-		color: var(--dim);
+		color: var(--text-2);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
 		letter-spacing: 0.06em;
@@ -83,7 +83,7 @@
 		cursor: pointer;
 	}
 	.cf-trigger:hover {
-		color: var(--green);
+		color: var(--text-1);
 		border-color: var(--line-strong);
 	}
 	.cf-glyph {
@@ -100,11 +100,11 @@
 	   ancestor, so the portal palette is handed to it here rather than the
 	   component growing a per-app branch. */
 	.cf-scrim-host {
-		--fb-bg: var(--bg1);
-		--fb-panel: var(--bg2);
-		--fb-ink: var(--white);
-		--fb-dim: var(--dim);
-		--fb-line: var(--line);
+		--fb-bg: var(--surface-1);
+		--fb-panel: var(--surface-2);
+		--fb-ink: var(--text-1);
+		--fb-dim: var(--text-2);
+		--fb-line: var(--hairline);
 		--fb-accent: var(--green);
 	}
 </style>

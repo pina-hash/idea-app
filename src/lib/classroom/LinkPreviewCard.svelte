@@ -98,11 +98,11 @@
 		align-items: center;
 		gap: 0.7rem;
 		padding: 0.5rem 0.6rem;
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		background: var(--bg2);
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
 		text-decoration: none;
-		color: var(--white);
+		color: var(--text-1);
 		min-width: 0;
 	}
 	.lp:hover {
@@ -115,10 +115,10 @@
 		flex: none;
 		width: 4.6rem;
 		height: 3.2rem;
-		border-radius: 4px;
+		border-radius: var(--radius-card);
 		overflow: hidden;
-		background: var(--bg1);
-		border: 1px solid var(--line);
+		background: var(--surface-1);
+		border: 1px solid var(--hairline);
 		line-height: 0;
 	}
 	.lp-thumb img {
@@ -151,12 +151,12 @@
 	}
 	.lp-note {
 		font-size: 0.76rem;
-		color: var(--dim);
+		color: var(--text-2);
 		line-height: 1.4;
 	}
 	.lp-desc {
 		font-size: 0.78rem;
-		color: var(--dim);
+		color: var(--text-2);
 		line-height: 1.4;
 		/* Two lines is a summary; more is the article, which they can open. */
 		display: -webkit-box;

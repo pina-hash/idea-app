@@ -115,6 +115,17 @@ export const ITEM_SELECT =
 export const ITEM_SELECT_RICH = `${ITEM_SELECT}, body_doc`;
 
 /**
+ * ITEM_SELECT_RICH plus 0109's go-live stamp -- the widest rung.
+ *
+ * ITS OWN RUNG, not folded into the one above, for the reason the chain exists
+ * at all: 0108 and 0109 are applied by hand and separately, so a deployment
+ * carrying one and not the other is a real state. Asking for both columns
+ * together would mean a project on 0108 alone loses the RICH BODY too, to add
+ * a column it does not have -- degrading strictly more than it had to.
+ */
+export const ITEM_SELECT_SCHEDULED = `${ITEM_SELECT_RICH}, publish_at`;
+
+/**
  * Run an item query with the rich body if the backend has it, without if not.
  *
  * Takes a FUNCTION OF THE SELECT STRING rather than a finished query because
@@ -127,6 +138,8 @@ export const ITEM_SELECT_RICH = `${ITEM_SELECT}, body_doc`;
 export async function selectItemsWithDoc<T extends { error: { message?: string } | null }>(
 	run: (select: string) => PromiseLike<T>
 ): Promise<T> {
+	const scheduled = await run(ITEM_SELECT_SCHEDULED);
+	if (!scheduled.error) return scheduled;
 	const rich = await run(ITEM_SELECT_RICH);
 	if (!rich.error) return rich;
 	return await run(ITEM_SELECT);
@@ -602,6 +615,7 @@ async function saveItem(payload: {
 				bodyDoc: payload.input.bodyDoc,
 				points: payload.input.points,
 				dueAt: payload.input.dueAt,
+				publishAt: payload.input.publishAt ?? null,
 				category: payload.input.category,
 				links: payload.input.links
 			})
@@ -1022,6 +1036,13 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 			});
 			if (error) return fail(error);
 			return { ok: true, data: res as { ok: boolean; reason?: string } };
+		},
+		async setPublished(itemId, published) {
+			const { error } = await supabase.rpc('classroom_set_published', {
+				p_item_id: itemId,
+				p_published: published
+			});
+			return error ? fail(error) : { ok: true, data: undefined };
 		},
 		async setPinned(itemId, pinned) {
 			const { error } = await supabase.rpc('classroom_set_item_pinned', {

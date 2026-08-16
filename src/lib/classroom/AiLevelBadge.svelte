@@ -40,10 +40,10 @@
 	.chip {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
-		border: 1px solid var(--line);
+		border: 1px solid var(--hairline);
 		border-radius: 999px;
 		padding: 0.08rem 0.5rem;
-		color: var(--dim);
+		color: var(--text-2);
 		white-space: nowrap;
 	}
 	.ai-chip {
@@ -52,6 +52,6 @@
 	}
 	.ai-blurb {
 		font-size: 0.8rem;
-		color: var(--dim);
+		color: var(--text-2);
 	}
 </style>

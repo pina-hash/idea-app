@@ -323,9 +323,9 @@
 		line-height: 1.15;
 	}
 	.ref-sub {
-		margin: 0.25rem 0 0;
+		margin: var(--space-1) 0 0;
 		font-size: 1rem;
-		color: var(--dim);
+		color: var(--text-2);
 		max-width: var(--rb-measure);
 	}
 	.ref-meta {
@@ -346,7 +346,7 @@
 		position: sticky;
 		top: 0;
 		z-index: 5;
-		background: var(--bg0);
+		background: var(--surface-0);
 		border-bottom: 1px solid var(--line-strong);
 		margin: 0 0 var(--space-5);
 		padding-top: 0.35rem;
@@ -384,11 +384,11 @@
 	}
 	.tab-rail.fade-start::before {
 		left: 0;
-		background: linear-gradient(to left, transparent, var(--bg0) 78%);
+		background: linear-gradient(to left, transparent, var(--surface-0) 78%);
 	}
 	.tab-rail.fade-end::after {
 		right: 0;
-		background: linear-gradient(to right, transparent, var(--bg0) 78%);
+		background: linear-gradient(to right, transparent, var(--surface-0) 78%);
 	}
 	.tab {
 		appearance: none;
@@ -399,7 +399,7 @@
 		border: 1px solid transparent;
 		border-bottom: none;
 		border-radius: var(--radius-card) var(--radius-card) 0 0;
-		color: var(--dim);
+		color: var(--text-2);
 		font-family: var(--font-mono);
 		font-size: 0.72rem;
 		letter-spacing: 0.06em;
@@ -410,15 +410,15 @@
 		white-space: nowrap;
 	}
 	.tab:hover {
-		color: var(--white);
-		background: var(--bg1);
+		color: var(--text-1);
+		background: var(--surface-1);
 	}
 	/* ACTIVE STATE: a filled tab joined to the body by a break in the rail's own
 	   underline, plus a solid green cap. The old version differed only in text
 	   colour, which is not findable at a glance across seven tabs. */
 	.tab.active {
 		color: var(--green);
-		background: var(--bg1);
+		background: var(--surface-1);
 		border-color: var(--line-strong);
 		font-weight: 700;
 	}
@@ -441,7 +441,7 @@
 		right: 0;
 		bottom: -1px;
 		height: 1px;
-		background: var(--bg1);
+		background: var(--surface-1);
 	}
 	.tab:focus-visible {
 		outline: 2px solid var(--focus-ring, var(--cyan));
@@ -476,7 +476,7 @@
 	.ref-doc:not(.tabbed) .ref-section + .ref-section {
 		margin-top: var(--space-6);
 		padding-top: var(--space-5);
-		border-top: 1px solid var(--line);
+		border-top: 1px solid var(--hairline);
 	}
 	/* Heading and blurb are ONE group, so the block gap sits below the pair
 	   rather than between them. */
@@ -492,7 +492,7 @@
 	}
 	.section-blurb {
 		margin: 0;
-		color: var(--dim);
+		color: var(--text-2);
 		font-size: 0.92rem;
 		line-height: 1.55;
 		max-width: var(--rb-measure);
