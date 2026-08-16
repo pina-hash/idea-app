@@ -1,0 +1,132 @@
+[
+  {
+    "id": "m1-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 6,
+        "descriptor": "All four required samples have a recorded shape, a named volume technique, every measurement that technique needs, a volume in cm3, and a mass in grams."
+      },
+      {
+        "label": "Proficient",
+        "points": 4,
+        "descriptor": "All four required samples are measured, with one sample missing its shape, its named technique, or one required dimension."
+      },
+      {
+        "label": "Developing",
+        "points": 2,
+        "descriptor": "Two or three samples are completely measured, or all four are present with volume or mass missing on more than one."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Fewer than two samples are measured, or no measurements are recorded."
+      }
+    ],
+    "points": 6,
+    "criterion": "Measurement: Dimensional and mass data",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 4,
+        "descriptor": "Every dimension and mass is recorded to the full resolution the instrument reads, trailing zeros are retained where they are significant, and the calculated volume carries the same precision as its inputs, on all four samples."
+      },
+      {
+        "label": "Proficient",
+        "points": 3,
+        "descriptor": "Recorded to instrument resolution on all four samples, with precision dropped or digits added beyond the instrument's reading on one or two individual values."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "Recorded to instrument resolution on two or three samples, or resolution is correct throughout but values are rounded to different precision from one sample to the next."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Values are recorded without regard to instrument resolution, or fewer than two samples carry usable precision."
+      }
+    ],
+    "points": 4,
+    "criterion": "Measurement: Significant figures and instrument resolution",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c3",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 4,
+        "descriptor": "Density is computed for all four required samples, each showing the mass and volume values being divided, with the result stated in g/cm3."
+      },
+      {
+        "label": "Proficient",
+        "points": 3,
+        "descriptor": "All four are computed with the division shown, with one arithmetic error or one unit stated incorrectly."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "Two or three samples are computed with the division shown, or all four appear as results only with no division shown."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Fewer than two densities are computed, or no density values are given."
+      }
+    ],
+    "points": 4,
+    "criterion": "Density, Comparison, and Hypothesis: Density calculation",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c4",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 3,
+        "descriptor": "Each of the four required samples is compared against a published density from a named source, with percent error computed and written as a number."
+      },
+      {
+        "label": "Proficient",
+        "points": 2,
+        "descriptor": "All four are compared against a published value, with the source unnamed on one or more samples, or percent error missing on one sample."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Fewer than four samples are compared against a published value, or no percent error is computed."
+      }
+    ],
+    "points": 3,
+    "criterion": "Density, Comparison, and Hypothesis: Published comparison and percent error",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c5",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 3,
+        "descriptor": "An identification is named for each of the four required samples, and each names both the measured density and the published density it was matched to."
+      },
+      {
+        "label": "Proficient",
+        "points": 2,
+        "descriptor": "An identification is named for all four samples, with the supporting density values missing on one or more of them."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Fewer than four samples are identified, or identifications are given with no reference to density."
+      }
+    ],
+    "points": 3,
+    "criterion": "Density, Comparison, and Hypothesis: Initial identification hypothesis",
+    "incomplete": false
+  }
+]
