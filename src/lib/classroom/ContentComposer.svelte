@@ -178,6 +178,13 @@
 	let staged = $state<File[]>([]);
 	let removingId = $state<string | null>(null);
 	let pasteHint = $state<string | null>(null);
+	/**
+	 * Live upload progress (0..1) for a staged file, keyed by its position in
+	 * `staged`/`instructorStaged` AT THE MOMENT the upload batch starts --
+	 * both arrays are only reassigned once the whole batch settles, so an
+	 * index is a stable key for the duration of the upload itself.
+	 */
+	let uploadProgress = $state<Record<string, number>>({});
 
 	/**
 	 * Object URLs for staged files, so a picked or pasted image shows as a
@@ -556,12 +563,30 @@
 				return { file, res: { ok: false, message: (e as Error).message || 'Upload failed.' } };
 			}
 		};
+		uploadProgress = {};
 		const [fileResults, instructorResults] = await Promise.all([
-			Promise.all(staged.map((f) => settle(f, transports.uploadAttachment(itemId, f)))),
 			Promise.all(
-				instructorStaged.map((f) => settle(f, transports.uploadInstructorAttachment(itemId, f)))
+				staged.map((f, i) =>
+					settle(
+						f,
+						transports.uploadAttachment(itemId, f, (frac) => {
+							uploadProgress = { ...uploadProgress, [`file:${i}`]: frac };
+						})
+					)
+				)
+			),
+			Promise.all(
+				instructorStaged.map((f, i) =>
+					settle(
+						f,
+						transports.uploadInstructorAttachment(itemId, f, (frac) => {
+							uploadProgress = { ...uploadProgress, [`instructor:${i}`]: frac };
+						})
+					)
+				)
 			)
 		]);
+		uploadProgress = {};
 
 		for (const { file, res: up } of fileResults) {
 			if (!up.ok) failures.push(`${file.name}: ${up.message}`);
@@ -748,6 +773,7 @@
 				<ul class="staged">
 					{#each staged as f, i (i)}
 						{@const url = previewOf(f)}
+						{@const progress = uploadProgress[`file:${i}`]}
 						<li class="staged-item" class:has-preview={!!url}>
 							{#if url}
 								<!-- object-fit: contain, never cover: cropping to fill would
@@ -757,13 +783,20 @@
 							<span class="staged-meta">
 								<span class="staged-name">{f.name}</span>
 								<span class="staged-size">{formatBytes(f.size)}</span>
-								<button
-									type="button"
-									class="btn secondary tiny"
-									onclick={() => (staged = staged.filter((_, j) => j !== i))}
-								>
-									&times;
-								</button>
+								{#if busy && progress !== undefined}
+									<span class="upload-bar" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin="0" aria-valuemax="100">
+										<span class="upload-bar-fill" style={`width: ${Math.round(progress * 100)}%`}></span>
+									</span>
+									<span class="upload-pct">{Math.round(progress * 100)}%</span>
+								{:else}
+									<button
+										type="button"
+										class="btn secondary tiny"
+										onclick={() => (staged = staged.filter((_, j) => j !== i))}
+									>
+										&times;
+									</button>
+								{/if}
 							</span>
 						</li>
 					{/each}
@@ -821,6 +854,7 @@
 				<ul class="staged">
 					{#each instructorStaged as f, i (i)}
 						{@const url = instructorPreviewOf(f)}
+						{@const progress = uploadProgress[`instructor:${i}`]}
 						<li class="staged-item" class:has-preview={!!url}>
 							{#if url}
 								<img class="staged-thumb" src={url} alt={f.name} />
@@ -828,13 +862,20 @@
 							<span class="staged-meta">
 								<span class="staged-name">{f.name}</span>
 								<span class="staged-size">{formatBytes(f.size)}</span>
-								<button
-									type="button"
-									class="btn secondary tiny"
-									onclick={() => (instructorStaged = instructorStaged.filter((_, j) => j !== i))}
-								>
-									&times;
-								</button>
+								{#if busy && progress !== undefined}
+									<span class="upload-bar" role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin="0" aria-valuemax="100">
+										<span class="upload-bar-fill" style={`width: ${Math.round(progress * 100)}%`}></span>
+									</span>
+									<span class="upload-pct">{Math.round(progress * 100)}%</span>
+								{:else}
+									<button
+										type="button"
+										class="btn secondary tiny"
+										onclick={() => (instructorStaged = instructorStaged.filter((_, j) => j !== i))}
+									>
+										&times;
+									</button>
+								{/if}
 							</span>
 						</li>
 					{/each}
@@ -1148,6 +1189,27 @@
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
 		color: var(--text-2);
+	}
+	.upload-bar {
+		display: inline-block;
+		width: 4.5rem;
+		height: 0.4rem;
+		border-radius: 999px;
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		overflow: hidden;
+	}
+	.upload-bar-fill {
+		display: block;
+		height: 100%;
+		background: var(--green);
+		transition: width 0.15s ease-out;
+	}
+	.upload-pct {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.6rem;
+		color: var(--text-2);
+		min-width: 2.2rem;
 	}
 	.target-picker {
 		margin: 0.6rem 0;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
+	import SubmissionFileList from '$lib/classroom/SubmissionFileList.svelte';
 	import {
 		criterionIncomplete,
 		criterionMax,
@@ -10,7 +11,6 @@
 		levelIndexForScore,
 		rubricTotal,
 		scoresTotal,
-		submissionFileSrc,
 		submissionStateLabel,
 		type AssignmentSpec,
 		type AssignmentTeacherTransports,
@@ -20,7 +20,6 @@
 		studentWorkRows
 	}	from '$lib/classroom/assignment-spec';
 	import {
-		formatBytes,
 		itemTitle,
 		sectionTitle,
 		type ClassroomItem,
@@ -310,140 +309,145 @@
 						</button>
 					</div>
 
-					{#if spec && gateModule}
-						{@const approved = gateApproved(spec, selected.approvals)}
-						<div class="card gate-row" class:approved>
-							<span class="gate-text">
-								{spec.approvalGate?.label ?? 'Instructor approval'}:
-								{approved ? ' approved' : ' not yet approved'}
-							</span>
-							<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => setGate(!approved)}>
-								{approved ? 'Withdraw approval' : 'Approve'}
-							</button>
-						</div>
-					{/if}
-
-					{#if selected.files.filter((f) => !f.block_id).length}
-						<div class="card">
-							<h3 class="section-label">Files handed in</h3>
-							<ul class="file-list">
-								{#each selected.files.filter((f) => !f.block_id) as f (f.id)}
-									<li>
-										<a href={submissionFileSrc(f.id)} target="_blank" rel="noopener noreferrer">{f.filename}</a>
-										<span class="file-meta">{formatBytes(f.size_bytes)}</span>
-									</li>
-								{/each}
-							</ul>
-						</div>
-					{/if}
-
-					{#if spec}
-						<h3 class="section-label responses-label">Responses</h3>
-						{#key selected.email}
-							<SpecRenderer
-								{spec}
-								initialValues={Object.fromEntries(
-									selected.responses.map((r) => [r.block_id, r.value ?? {}])
-								)}
-								files={selected.files}
-								readonly
-								approved={gateApproved(spec, selected.approvals)}
-							/>
-						{/key}
-					{:else if !selected.files.length}
-						<p class="note card">Nothing handed in yet.</p>
-					{/if}
-
-					{#if rubric?.length}
-						<div class="card score-card">
-							<h3 class="section-label">Rubric score</h3>
-							<!-- Grading is a LEVEL CHOICE, not a typed number: every level's
-							     descriptor stays on screen so the decision is made against the
-							     written standard, and the level's points are what apply. -->
-							{#each rubric as c (c.id)}
-								{@const max = criterionMax(c)}
-								{@const chosen = levelIndexForScore(c, scores[c.id])}
-								{@const override = isOverrideScore(c, scores[c.id])}
-								{@const missingNote = needComment.includes(c.id)}
-								<div class="score-row" class:override class:flagged={missingNote}>
-									<div class="score-head">
-										<span class="score-crit">{c.criterion}</span>
-										<span class="score-value" class:override>
-											{scores[c.id] ?? '—'} / {max}
-											{#if override}<span class="override-chip">Override</span>{/if}
-										</span>
-									</div>
-									{#if criterionIncomplete(c)}
-										<p class="score-unfinished">
-											This criterion’s levels are unfinished, so most scores need an override.
-										</p>
-									{/if}
-									<div class="level-picker" role="group" aria-label={`Levels for ${c.criterion}`}>
-										{#each c.levels ?? [] as level, li (li)}
-											<button
-												type="button"
-												class="level-btn"
-												class:picked={li === chosen}
-												aria-pressed={li === chosen}
-												onclick={() => pickLevel(c, level.points)}
-											>
-												<span class="level-top">
-													<span class="level-points">{level.points}</span>
-													<span class="level-label">{level.label}</span>
-												</span>
-												{#if level.descriptor}
-													<span class="level-desc">{level.descriptor}</span>
-												{/if}
-											</button>
-										{/each}
-									</div>
-									<button type="button" class="override-toggle" onclick={() => toggleOverride(c)}>
-										{overrideOpen[c.id] ? 'Use a level instead' : 'Score between levels'}
+					<!--
+						SIDE BY SIDE: the work (left) and the rubric (right) each scroll
+						on their own, so scoring never means scrolling away from what is
+						being scored. Below ~900px this collapses to one stacked column
+						(the .console.split breakpoint's own convention).
+					-->
+					<div class="work-split" class:has-rubric={!!rubric?.length}>
+						<div class="work-col work-left">
+							{#if spec && gateModule}
+								{@const approved = gateApproved(spec, selected.approvals)}
+								<div class="card gate-row" class:approved>
+									<span class="gate-text">
+										{spec.approvalGate?.label ?? 'Instructor approval'}:
+										{approved ? ' approved' : ' not yet approved'}
+									</span>
+									<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => setGate(!approved)}>
+										{approved ? 'Withdraw approval' : 'Approve'}
 									</button>
-									{#if overrideOpen[c.id]}
-										<div class="override-box">
-											<span class="score-input">
-												<input
-													type="number"
-													min="0"
-													max={max}
-													step="0.5"
-													bind:value={scores[c.id]}
-													aria-label={`Score for ${c.criterion}`}
-												/>
-												<span class="score-out">/ {max}</span>
-											</span>
-											<textarea
-												class="crit-comment"
-												rows="2"
-												placeholder="Why this score and not a level? (required)"
-												aria-label={`Comment on ${c.criterion}`}
-												bind:value={critComments[c.id]}
-											></textarea>
-										</div>
-									{:else if critComments[c.id]}
-										<p class="score-note">{critComments[c.id]}</p>
-									{/if}
-									{#if missingNote}
-										<p class="score-flag">A comment is required to score between levels.</p>
-									{/if}
 								</div>
-							{/each}
-							<div class="score-total">Total: {liveTotal} / {outOf} pts</div>
-							<label class="comment-label" for="grade-comment">Comment to the student</label>
-							<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
-							{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
-							{#if gradeNotice}<p class="feedback ok">{gradeNotice}</p>{/if}
-							<span class="grade-actions">
-								<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => grade(false)}>
-									Save draft
-								</button>
-								<button type="button" class="btn tiny" disabled={busy} onclick={() => grade(true)}>
-									Return to student
-								</button>
-							</span>
+							{/if}
+
+							{#if selected.files.filter((f) => !f.block_id).length}
+								<div class="card">
+									<h3 class="section-label">Files handed in</h3>
+									<SubmissionFileList files={selected.files.filter((f) => !f.block_id)} />
+								</div>
+							{/if}
+
+							{#if spec}
+								<h3 class="section-label responses-label">Responses</h3>
+								{#key selected.email}
+									<SpecRenderer
+										{spec}
+										initialValues={Object.fromEntries(
+											selected.responses.map((r) => [r.block_id, r.value ?? {}])
+										)}
+										files={selected.files}
+										readonly
+										approved={gateApproved(spec, selected.approvals)}
+									/>
+								{/key}
+							{:else if !selected.files.length}
+								<p class="note card">Nothing handed in yet.</p>
+							{/if}
 						</div>
-					{/if}
+
+						{#if rubric?.length}
+							<div class="work-col work-right">
+								<div class="card score-card">
+									<h3 class="section-label">Rubric score</h3>
+									<!-- Grading is a LEVEL CHOICE, not a typed number: every level's
+									     descriptor stays on screen so the decision is made against the
+									     written standard, and the level's points are what apply. -->
+									{#each rubric as c (c.id)}
+										{@const max = criterionMax(c)}
+										{@const chosen = levelIndexForScore(c, scores[c.id])}
+										{@const override = isOverrideScore(c, scores[c.id])}
+										{@const missingNote = needComment.includes(c.id)}
+										<div class="score-row" class:override class:flagged={missingNote}>
+											<div class="score-head">
+												<span class="score-crit">{c.criterion}</span>
+												<span class="score-value" class:override>
+													{scores[c.id] ?? '—'} / {max}
+													{#if override}<span class="override-chip">Override</span>{/if}
+												</span>
+											</div>
+											{#if criterionIncomplete(c)}
+												<p class="score-unfinished">
+													This criterion’s levels are unfinished, so most scores need an override.
+												</p>
+											{/if}
+											<div class="level-picker" role="group" aria-label={`Levels for ${c.criterion}`}>
+												{#each c.levels ?? [] as level, li (li)}
+													<button
+														type="button"
+														class="level-btn"
+														class:picked={li === chosen}
+														aria-pressed={li === chosen}
+														onclick={() => pickLevel(c, level.points)}
+													>
+														<span class="level-top">
+															<span class="level-points">{level.points}</span>
+															<span class="level-label">{level.label}</span>
+														</span>
+														{#if level.descriptor}
+															<span class="level-desc">{level.descriptor}</span>
+														{/if}
+													</button>
+												{/each}
+											</div>
+											<button type="button" class="override-toggle" onclick={() => toggleOverride(c)}>
+												{overrideOpen[c.id] ? 'Use a level instead' : 'Score between levels'}
+											</button>
+											{#if overrideOpen[c.id]}
+												<div class="override-box">
+													<span class="score-input">
+														<input
+															type="number"
+															min="0"
+															max={max}
+															step="0.5"
+															bind:value={scores[c.id]}
+															aria-label={`Score for ${c.criterion}`}
+														/>
+														<span class="score-out">/ {max}</span>
+													</span>
+													<textarea
+														class="crit-comment"
+														rows="2"
+														placeholder="Why this score and not a level? (required)"
+														aria-label={`Comment on ${c.criterion}`}
+														bind:value={critComments[c.id]}
+													></textarea>
+												</div>
+											{:else if critComments[c.id]}
+												<p class="score-note">{critComments[c.id]}</p>
+											{/if}
+											{#if missingNote}
+												<p class="score-flag">A comment is required to score between levels.</p>
+											{/if}
+										</div>
+									{/each}
+									<div class="score-total">Total: {liveTotal} / {outOf} pts</div>
+									<label class="comment-label" for="grade-comment">Comment to the student</label>
+									<textarea id="grade-comment" class="comment" rows="3" bind:value={comment}></textarea>
+									{#if gradeError}<p class="feedback error">{gradeError}</p>{/if}
+									{#if gradeNotice}<p class="feedback ok">{gradeNotice}</p>{/if}
+									<span class="grade-actions">
+										<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => grade(false)}>
+											Save draft
+										</button>
+										<button type="button" class="btn tiny" disabled={busy} onclick={() => grade(true)}>
+											Return to student
+										</button>
+									</span>
+								</div>
+							</div>
+						{/if}
+					</div>
 				</section>
 			{/if}
 		</div>
@@ -589,6 +593,41 @@
 		font-size: 0.66rem;
 		color: var(--text-2);
 	}
+	/* Side by side: the work (left) and the rubric (right), each independently
+	   scrollable, so scoring never means losing sight of the other. Without a
+	   rubric yet this stays one column (has-rubric is off), matching the old
+	   single-column layout exactly. */
+	.work-split {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.work-split.has-rubric {
+		display: grid;
+		grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+		gap: 0.9rem;
+		align-items: start;
+	}
+	.work-col {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.work-split.has-rubric .work-col {
+		max-height: calc(100vh - 11rem);
+		overflow-y: auto;
+		padding-right: 0.3rem;
+	}
+	@media (max-width: 900px) {
+		.work-split.has-rubric {
+			grid-template-columns: 1fr;
+		}
+		.work-split.has-rubric .work-col {
+			max-height: none;
+			overflow-y: visible;
+			padding-right: 0;
+		}
+	}
 	.gate-row {
 		display: flex;
 		justify-content: space-between;
@@ -605,23 +644,6 @@
 	}
 	.responses-label {
 		margin: 0.2rem 0 0.5rem;
-	}
-	.file-list {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-	.file-list a {
-		overflow-wrap: anywhere;
-	}
-	.file-meta {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		color: var(--text-2);
-		margin-left: 0.4rem;
 	}
 	.score-card {
 		border-color: var(--line-strong);

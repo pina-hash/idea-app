@@ -37,6 +37,7 @@ import {
 } from './revisions';
 import { deckUploadSizeIssue, normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
 import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError } from './deck-upload';
+import { postFormWithProgress } from './upload-progress';
 import {
 	normalizeItemRow,
 	normalizeSectionRow,
@@ -315,15 +316,18 @@ export async function itemsForSection(
 	};
 }
 
-async function uploadAttachment(itemId: string, file: File): Promise<TxResult<undefined>> {
+async function uploadAttachment(
+	itemId: string,
+	file: File,
+	onProgress?: (fraction: number) => void
+): Promise<TxResult<undefined>> {
 	const form = new FormData();
 	form.set('file', file, file.name);
 	form.set('item_id', itemId);
 	try {
-		const res = await fetch('/api/classroom/attachment', { method: 'POST', body: form });
-		if (!res.ok) {
-			const body = (await res.json().catch(() => null)) as { error?: string } | null;
-			return { ok: false, message: body?.error ?? `Upload failed (${res.status}).` };
+		const { status, body } = await postFormWithProgress('/api/classroom/attachment', form, onProgress);
+		if (status < 200 || status >= 300) {
+			return { ok: false, message: (body?.error as string | undefined) ?? `Upload failed (${status}).` };
 		}
 		return { ok: true, data: undefined };
 	} catch (e) {
@@ -350,15 +354,22 @@ async function deleteAttachment(id: string): Promise<TxResult<undefined>> {
  * proxy has no ?as= support at all -- there is nothing view-as-student could
  * ever be pointed at here.
  */
-async function uploadInstructorAttachment(itemId: string, file: File): Promise<TxResult<undefined>> {
+async function uploadInstructorAttachment(
+	itemId: string,
+	file: File,
+	onProgress?: (fraction: number) => void
+): Promise<TxResult<undefined>> {
 	const form = new FormData();
 	form.set('file', file, file.name);
 	form.set('item_id', itemId);
 	try {
-		const res = await fetch('/api/classroom/instructor-attachment', { method: 'POST', body: form });
-		if (!res.ok) {
-			const body = (await res.json().catch(() => null)) as { error?: string } | null;
-			return { ok: false, message: body?.error ?? `Upload failed (${res.status}).` };
+		const { status, body } = await postFormWithProgress(
+			'/api/classroom/instructor-attachment',
+			form,
+			onProgress
+		);
+		if (status < 200 || status >= 300) {
+			return { ok: false, message: (body?.error as string | undefined) ?? `Upload failed (${status}).` };
 		}
 		return { ok: true, data: undefined };
 	} catch (e) {
@@ -863,19 +874,21 @@ export function createEngineTransports(supabase: SupabaseClient): AssignmentEngi
 			if (error) return fail(error);
 			return opResult(res);
 		},
-		async uploadSubmissionFile(itemId, file, blockId = null, caption = null) {
+		async uploadSubmissionFile(itemId, file, blockId = null, caption = null, onProgress) {
 			const form = new FormData();
 			form.set('file', file, file.name);
 			form.set('item_id', itemId);
 			if (blockId) form.set('block_id', blockId);
 			if (caption) form.set('caption', caption);
 			try {
-				const res = await fetch('/api/classroom/submission-file', { method: 'POST', body: form });
-				const body = (await res.json().catch(() => null)) as
-					| { error?: string; reason?: string; file?: SubmissionFileRow }
-					| null;
-				if (!res.ok) {
-					return { ok: false, message: body?.error ?? `Upload failed (${res.status}).` };
+				const { status, body: raw } = await postFormWithProgress(
+					'/api/classroom/submission-file',
+					form,
+					onProgress
+				);
+				const body = raw as { error?: string; reason?: string; file?: SubmissionFileRow } | null;
+				if (status < 200 || status >= 300) {
+					return { ok: false, message: body?.error ?? `Upload failed (${status}).` };
 				}
 				return { ok: true, data: { file: body?.file, reason: body?.reason } };
 			} catch (e) {

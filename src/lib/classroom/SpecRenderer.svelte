@@ -4,6 +4,7 @@
 		countSentences,
 		filesByBlockCount,
 		gatedModuleIds,
+		isSubmissionFileImage,
 		moduleCompletion,
 		sentenceState,
 		submissionFileSrc,
@@ -41,7 +42,8 @@
 		onvalue = null,
 		onupload = null,
 		ondeletefile = null,
-		oncaption = null
+		oncaption = null,
+		uploadingProgress = null
 	}: {
 		spec: AssignmentSpec;
 		initialValues: Record<string, ResponseValue>;
@@ -56,6 +58,9 @@
 		onupload?: ((blockId: string, files: File[]) => void | Promise<void>) | null;
 		ondeletefile?: ((fileId: string) => void | Promise<void>) | null;
 		oncaption?: ((fileId: string, caption: string) => void | Promise<void>) | null;
+		/** Live progress for the file uploading right now, whichever block it
+		 *  belongs to (the parent uploads one file at a time). */
+		uploadingProgress?: { blockId: string | null; name: string; fraction: number } | null;
 	} = $props();
 
 	// Local working copy, seeded ONCE per mount by design ($state.snapshot
@@ -197,7 +202,7 @@
 	}
 
 	function isImage(f: SubmissionFileRow): boolean {
-		return (f.mime_type ?? '').toLowerCase().startsWith('image/');
+		return isSubmissionFileImage(f);
 	}
 </script>
 
@@ -254,7 +259,10 @@
 								oninput={(e) => setText(block.id, (e.currentTarget as HTMLTextAreaElement).value)}
 							></textarea>
 						{/if}
-						<span class="counter {counter.state}">{counter.label}</span>
+						<span class="counter {counter.state}">
+							<span class="counter-dot" aria-hidden="true"></span>
+							{counter.label}
+						</span>
 					</div>
 				{:else if block.type === 'table'}
 					{@const rows = tableRows(block)}
@@ -383,6 +391,15 @@
 										<input type="file" accept="image/*" multiple hidden onchange={(e) => pickZoneFiles(block, e)} />
 									</label>
 								</div>
+								{#if uploadingProgress && uploadingProgress.blockId === block.id}
+									<p class="upload-status">
+										Uploading {uploadingProgress.name}...
+										<span class="upload-bar" role="progressbar" aria-valuenow={Math.round(uploadingProgress.fraction * 100)} aria-valuemin="0" aria-valuemax="100">
+											<span class="upload-bar-fill" style={`width: ${Math.round(uploadingProgress.fraction * 100)}%`}></span>
+										</span>
+										{Math.round(uploadingProgress.fraction * 100)}%
+									</p>
+								{/if}
 							{:else}
 								<p class="note">Photo uploads are not configured on this deployment.</p>
 							{/if}
@@ -529,18 +546,35 @@
 		margin: 0;
 	}
 	.counter {
-		display: inline-block;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
 		margin-top: var(--space-1);
+		padding: 0.14rem 0.55rem;
+		border-radius: 999px;
+		border: 1px solid var(--hairline);
+		background: var(--surface-0);
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
+		font-size: 0.72rem;
+		font-weight: 600;
 		color: var(--text-2);
+	}
+	.counter-dot {
+		width: 0.4rem;
+		height: 0.4rem;
+		flex: none;
+		border-radius: 50%;
+		background: currentColor;
 	}
 	.counter.below {
 		color: var(--amber);
+		border-color: var(--amber);
+		background: color-mix(in srgb, var(--amber) 12%, var(--surface-0));
 	}
-	.counter.met,
-	.counter.met.below {
+	.counter.met {
 		color: var(--green);
+		border-color: var(--green);
+		background: color-mix(in srgb, var(--green) 12%, var(--surface-0));
 	}
 	.tips {
 		margin: 0 0 0.4rem;
@@ -717,6 +751,29 @@
 		color: var(--text-2);
 		font-size: 0.8rem;
 		margin: 0.3rem 0 0;
+	}
+	.upload-status {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0.4rem 0 0;
+		font-size: 0.78rem;
+		color: var(--text-2);
+	}
+	.upload-bar {
+		display: inline-block;
+		width: 6rem;
+		height: 0.4rem;
+		border-radius: 999px;
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		overflow: hidden;
+	}
+	.upload-bar-fill {
+		display: block;
+		height: 100%;
+		background: var(--green);
+		transition: width 0.15s ease-out;
 	}
 	.gate-card {
 		margin-bottom: 0.9rem;

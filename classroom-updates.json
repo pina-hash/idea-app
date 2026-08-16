@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-16",
+			"title": "Better sentence counting, file previews, and a faster grading view",
+			"body": "The sentence counter on short-answer questions used to get confused by decimals, abbreviations and \"...\", so a few numbers could count as several sentences. It reads accurately now, and the count is shown as a small badge that is easy to spot at a glance. Any photo or document you or your teacher attaches now shows as a real image thumbnail, or a clear PDF / DOC / ZIP label if it is not a photo -- click to open it full size. Uploading a file now shows a live progress bar instead of going blank while it sends. And in the grading view, teachers see a student's work and the rubric side by side, each scrolling on its own, so scoring never means losing your place.",
+			"tags": ["Classwork", "Grading"]
+		},
+		{
+			"date": "2026-08-16",
 			"title": "Assignment pages read a little cleaner",
 			"body": "Two small things on an assignment page. An assignment with no deadline no longer says \"Due No due date\" -- if there is no deadline, the page just does not mention one, and a real due date still shows exactly as before. And the strip of the old green background that showed under the bottom of every class page is gone, so the page sits on one colour from top to bottom.",
 			"tags": ["Assignments"]

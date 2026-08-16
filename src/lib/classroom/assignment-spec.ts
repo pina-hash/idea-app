@@ -12,9 +12,11 @@
  * suite pins the server side.
  *
  * THE SENTENCE RULE (countSentences) is mirrored by _classroom_sentence_count
- * in 0086: split on runs of . ! ? and count the pieces containing a letter or
- * digit. Change both together or the live counter will disagree with the
- * server's submit preflight.
+ * (re-defined in 0112): before splitting on runs of . ! ? , protect periods
+ * that are not real sentence ends -- decimal points, ellipses, and common
+ * abbreviations -- then count the pieces containing a letter or digit. Change
+ * both together or the live counter will disagree with the server's submit
+ * preflight.
  */
 
 // ---------------------------------------------------------------------------
@@ -324,8 +326,28 @@ export function criterionIncomplete(c: RubricCriterion): boolean {
 // Sentence counting (mirrors _classroom_sentence_count exactly)
 // ---------------------------------------------------------------------------
 
+// A comma-separated period is real, but these never end a sentence. Keep in
+// sync with the alternation in _classroom_sentence_count.
+const SENTENCE_ABBREVIATIONS =
+	'mr|mrs|ms|dr|prof|sr|jr|st|vs|etc|approx|fig|vol|ed|eds|al';
+const ABBREV_RE = new RegExp(`\\b(${SENTENCE_ABBREVIATIONS})\\.`, 'gi');
+
+/** \x01 marks a period that is NOT a sentence break, cleared before splitting. */
 export function countSentences(text: string | null | undefined): number {
-	return (text ?? '').split(/[.!?]+/).filter((s) => /[A-Za-z0-9]/.test(s)).length;
+	let s = text ?? '';
+	// An ellipsis is a pause, not a full stop -- collapse any run of 2+ dots.
+	s = s.replace(/\.{2,}/g, '\x01');
+	// A period between two digits is a decimal point (3.5, 3.3.3.3), never a
+	// sentence end.
+	s = s.replace(/(\d)\.(?=\d)/g, '$1\x01');
+	// "e.g." and "i.e." carry an internal period too -- collapse the whole
+	// token before the generic abbreviation pass, or that inner period would
+	// still read as a break.
+	s = s.replace(/\be\.g\./gi, 'eg\x01');
+	s = s.replace(/\bi\.e\./gi, 'ie\x01');
+	// Common titles and abbreviations never end a sentence either.
+	s = s.replace(ABBREV_RE, '$1\x01');
+	return s.split(/[.!?]+/).filter((piece) => /[A-Za-z0-9]/.test(piece)).length;
 }
 
 export type SentenceState = 'empty' | 'below' | 'met';
@@ -959,7 +981,8 @@ export interface AssignmentEngineTransports {
 		itemId: string,
 		file: File,
 		blockId?: string | null,
-		caption?: string | null
+		caption?: string | null,
+		onProgress?: (fraction: number) => void
 	): Promise<TxResult<{ file?: SubmissionFileRow; reason?: string }>>;
 	deleteSubmissionFile(fileId: string): Promise<TxResult<EngineOpResult>>;
 	setFileCaption(fileId: string, caption: string): Promise<TxResult<EngineOpResult>>;
@@ -1051,4 +1074,11 @@ export function registerLocalSubmissionFileUrl(fileId: string, url: string): voi
 
 export function submissionFileSrc(fileId: string): string {
 	return localFileUrls.get(fileId) ?? `/api/classroom/submission-file/${fileId}`;
+}
+
+/** The ONE image-type check for a submission file (SpecRenderer's imageZone
+ *  blocks and SubmissionFileList's plain hand-ins both read this, so they can
+ *  never disagree about what gets a thumbnail). */
+export function isSubmissionFileImage(f: SubmissionFileRow): boolean {
+	return (f.mime_type ?? '').toLowerCase().startsWith('image/');
 }

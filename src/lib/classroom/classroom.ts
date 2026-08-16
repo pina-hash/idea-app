@@ -365,6 +365,57 @@ export function formatBytes(size: number | null | undefined): string {
 	return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Mime-type prefix -> a short badge for the non-image type indicator. */
+const MIME_KIND_LABELS: [prefix: string, label: string][] = [
+	['application/pdf', 'PDF'],
+	['application/vnd.ms-excel', 'XLS'],
+	['application/vnd.openxmlformats-officedocument.spreadsheetml', 'XLS'],
+	['application/vnd.ms-powerpoint', 'PPT'],
+	['application/vnd.openxmlformats-officedocument.presentationml', 'PPT'],
+	['application/msword', 'DOC'],
+	['application/vnd.openxmlformats-officedocument.wordprocessingml', 'DOC'],
+	['application/zip', 'ZIP'],
+	['application/x-zip-compressed', 'ZIP'],
+	['text/csv', 'CSV'],
+	['text/plain', 'TXT'],
+	['video/', 'VIDEO'],
+	['audio/', 'AUDIO']
+];
+/** Filename extension -> the same badge, for a file whose mime type is empty
+ *  or generic (application/octet-stream) -- the notebook camera lesson: a
+ *  browser can legitimately fail to type a file. */
+const EXT_KIND_LABELS: Record<string, string> = {
+	pdf: 'PDF',
+	doc: 'DOC',
+	docx: 'DOC',
+	xls: 'XLS',
+	xlsx: 'XLS',
+	csv: 'CSV',
+	ppt: 'PPT',
+	pptx: 'PPT',
+	zip: 'ZIP',
+	txt: 'TXT',
+	mp4: 'VIDEO',
+	mov: 'VIDEO',
+	mp3: 'AUDIO',
+	wav: 'AUDIO'
+};
+
+/**
+ * A short, clear type indicator for a non-image file (PDF / DOC / ZIP / ...),
+ * falling back to the extension, then to FILE. Shared by every attachment /
+ * submission-file list so a document reads as what it is at a glance instead
+ * of a generic paper glyph.
+ */
+export function fileKindLabel(filename: string, mimeType: string | null | undefined): string {
+	const mime = (mimeType ?? '').toLowerCase();
+	for (const [prefix, label] of MIME_KIND_LABELS) {
+		if (mime.startsWith(prefix)) return label;
+	}
+	const ext = (filename ?? '').split('.').pop()?.toLowerCase() ?? '';
+	return EXT_KIND_LABELS[ext] ?? 'FILE';
+}
+
 // ---------------------------------------------------------------------------
 // Link previews (0085 bundle; fetched server-side, see /api/classroom/link-preview)
 // ---------------------------------------------------------------------------
@@ -1109,7 +1160,11 @@ export interface ClassroomComposerTransports {
 	setPublished(itemId: string, published: boolean): Promise<TxResult<undefined>>;
 	setPinned(itemId: string, pinned: boolean): Promise<TxResult<undefined>>;
 	setOrder(itemIds: string[]): Promise<TxResult<undefined>>;
-	uploadAttachment(itemId: string, file: File): Promise<TxResult<undefined>>;
+	uploadAttachment(
+		itemId: string,
+		file: File,
+		onProgress?: (fraction: number) => void
+	): Promise<TxResult<undefined>>;
 	deleteAttachment(id: string): Promise<TxResult<undefined>>;
 	/**
 	 * Instructor-only materials (0090). The upload/delete pair mirrors the
@@ -1119,7 +1174,11 @@ export interface ClassroomComposerTransports {
 	 * only ever handed to a component already gated on `canManage`, but the
 	 * real boundary is the RPC, not that gate.
 	 */
-	uploadInstructorAttachment(itemId: string, file: File): Promise<TxResult<undefined>>;
+	uploadInstructorAttachment(
+		itemId: string,
+		file: File,
+		onProgress?: (fraction: number) => void
+	): Promise<TxResult<undefined>>;
 	deleteInstructorAttachment(id: string): Promise<TxResult<undefined>>;
 	setInstructorResources(
 		itemId: string,

@@ -306,6 +306,19 @@
 		log = [`${call} ${JSON.stringify(args)}`, ...log].slice(0, 60);
 	}
 
+	/**
+	 * A fake upload with real, staggered progress -- the harness has no wire to
+	 * report actual bytes over, but every real upload transport now takes an
+	 * `onProgress` callback, so this is what makes that path browser-verifiable
+	 * without a live server.
+	 */
+	async function simulateUpload(onProgress?: (fraction: number) => void) {
+		for (const step of [0.15, 0.35, 0.6, 0.85, 1]) {
+			await new Promise((r) => setTimeout(r, 90));
+			onProgress?.(step);
+		}
+	}
+
 	const EMAIL_RE = /^[^@\s]+@[^@\s]+$/;
 
 	function patch(id: string, over: Partial<ClassroomItem>) {
@@ -851,8 +864,9 @@
 			sections = sections.filter((s) => s.id !== id);
 			return { ok: true, data: { ok: true } };
 		},
-		async uploadAttachment(itemId, file) {
+		async uploadAttachment(itemId, file, onProgress) {
 			note('uploadAttachment', { itemId, name: file.name, type: file.type, size: file.size });
+			await simulateUpload(onProgress);
 			attachTo(itemId, file);
 			return { ok: true, data: undefined };
 		},
@@ -864,7 +878,7 @@
 			}));
 			return { ok: true, data: undefined };
 		},
-		async uploadInstructorAttachment(itemId, file) {
+		async uploadInstructorAttachment(itemId, file, onProgress) {
 			note('uploadInstructorAttachment', { itemId, name: file.name, type: file.type, size: file.size });
 			const current = items.find((i) => i.id === itemId);
 			if (!current || !managesItem(current)) {
@@ -873,6 +887,7 @@
 					message: 'Only the teacher of record for every class this is posted to can attach instructor-only files here.'
 				};
 			}
+			await simulateUpload(onProgress);
 			attachInstructorTo(itemId, file);
 			return { ok: true, data: undefined };
 		},
@@ -1301,11 +1316,12 @@
 			patchSubmission(STUDENT_EMAIL, { state: 'draft' });
 			return { ok: true, data: { ok: true, state: 'draft' } };
 		},
-		async uploadSubmissionFile(itemId, file, blockId = null, caption = null) {
+		async uploadSubmissionFile(itemId, file, blockId = null, caption = null, onProgress) {
 			note('uploadSubmissionFile', { itemId, name: file.name, blockId, caption });
 			if (subOf(STUDENT_EMAIL)?.state === 'submitted') {
 				return { ok: true, data: { reason: 'locked' } };
 			}
+			await simulateUpload(onProgress);
 			const sub = ensureSubmission(STUDENT_EMAIL);
 			const row: SubmissionFileRow = {
 				id: nid('sf'),

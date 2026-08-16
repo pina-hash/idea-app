@@ -1,6 +1,7 @@
 <script lang="ts">
 	import {
 		attachmentSrc,
+		fileKindLabel,
 		formatBytes,
 		isImageAttachment,
 		type ClassroomAttachment
@@ -62,12 +63,9 @@
 				{/if}
 				<span class="attach-meta">
 					<a class="attach-name" href={srcOf(a)} target="_blank" rel="noopener noreferrer">
-						<span class="attach-glyph" aria-hidden="true">
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-								<path d="M14 3v5h5" />
-								<path d="M19 8v11a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2h7z" />
-							</svg>
-						</span>
+						{#if !isImageAttachment(a)}
+							<span class="attach-glyph" aria-hidden="true">{fileKindLabel(a.filename, a.mime_type)}</span>
+						{/if}
 						{a.filename}
 					</a>
 					{#if a.size_bytes}<span class="attach-size">{formatBytes(a.size_bytes)}</span>{/if}
@@ -141,17 +139,17 @@
 	}
 	.attach-glyph {
 		flex: none;
-		width: 1.4rem;
-		height: 1.4rem;
-		display: grid;
-		place-items: center;
+		display: inline-flex;
+		align-items: center;
+		height: 1.3rem;
+		padding: 0 0.35rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.6rem;
+		font-weight: 600;
+		letter-spacing: 0.03em;
 		color: var(--gold);
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
-	}
-	.attach-glyph svg {
-		width: 0.85rem;
-		height: 0.85rem;
 	}
 	.attach-size {
 		font-family: 'Share Tech Mono', monospace;

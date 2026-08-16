@@ -1,6 +1,7 @@
 <script lang="ts">
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import RubricView from '$lib/classroom/RubricView.svelte';
+	import SubmissionFileList from '$lib/classroom/SubmissionFileList.svelte';
 	import {
 		DECLARATION_BLOCK_ID,
 		DECLARATION_TEXT,
@@ -9,7 +10,6 @@
 		rubricTotal,
 		specUnmet,
 		submissionEditable,
-		submissionFileSrc,
 		submissionStateLabel,
 		unmetLabel,
 		type AssignmentEngineTransports,
@@ -18,7 +18,7 @@
 		type SubmissionFileRow,
 		type UnmetEntry
 	} from '$lib/classroom/assignment-spec';
-	import { formatBytes, type ClassroomItem } from '$lib/classroom/classroom';
+	import type { ClassroomItem } from '$lib/classroom/classroom';
 
 	/**
 	 * The student half of the assignment engine, mounted in the item detail
@@ -155,24 +155,38 @@
 	// ------------------------------------------------------------------
 	// Files
 	// ------------------------------------------------------------------
+	/** Live progress for whichever file is uploading right now (uploads here
+	 *  run one at a time), shown beside the block it belongs to -- the plain
+	 *  "Your files" list (blockId null) or an imageZone in SpecRenderer. */
+	let uploadingProgress = $state<{ blockId: string | null; name: string; fraction: number } | null>(
+		null
+	);
+
 	async function uploadFiles(blockId: string | null, list: File[]) {
 		uploadError = null;
-		for (const file of list) {
-			const res = await transports.uploadSubmissionFile(item.id, file, blockId);
-			if (!res.ok) {
-				uploadError = res.message;
-				return;
+		try {
+			for (const file of list) {
+				uploadingProgress = { blockId, name: file.name, fraction: 0 };
+				const res = await transports.uploadSubmissionFile(item.id, file, blockId, null, (frac) => {
+					uploadingProgress = { blockId, name: file.name, fraction: frac };
+				});
+				if (!res.ok) {
+					uploadError = res.message;
+					return;
+				}
+				if (res.data.reason) {
+					uploadError =
+						res.data.reason === 'locked'
+							? 'This is submitted, so files are locked. Unsubmit to keep working.'
+							: 'That file was not accepted.';
+					return;
+				}
+				if (res.data.file) {
+					engine.files = [...engine.files, res.data.file as SubmissionFileRow];
+				}
 			}
-			if (res.data.reason) {
-				uploadError =
-					res.data.reason === 'locked'
-						? 'This is submitted, so files are locked. Unsubmit to keep working.'
-						: 'That file was not accepted.';
-				return;
-			}
-			if (res.data.file) {
-				engine.files = [...engine.files, res.data.file as SubmissionFileRow];
-			}
+		} finally {
+			uploadingProgress = null;
 		}
 	}
 
@@ -334,6 +348,7 @@
 				locked={!editable}
 				{approved}
 				{uploadEnabled}
+				{uploadingProgress}
 				onvalue={queueSave}
 				onupload={(blockId, list) => uploadFiles(blockId, list)}
 				ondeletefile={removeFile}
@@ -345,20 +360,18 @@
 	<!-- Plain file hand-in (every assignment) -->
 	<section class="card">
 		<h3 class="section-label">{spec ? 'Extra files (optional)' : 'Your files'}</h3>
-		{#if plainFiles.length}
-			<ul class="file-list">
-				{#each plainFiles as f (f.id)}
-					<li class="file-row">
-						<a href={submissionFileSrc(f.id)} target="_blank" rel="noopener noreferrer">{f.filename}</a>
-						<span class="file-meta">{formatBytes(f.size_bytes)}</span>
-						{#if editable}
-							<button type="button" class="file-remove" onclick={() => removeFile(f.id)}>Remove</button>
-						{/if}
-					</li>
-				{/each}
-			</ul>
-		{:else}
-			<p class="note">Nothing attached yet.</p>
+		<SubmissionFileList
+			files={plainFiles}
+			onremove={editable ? (f) => removeFile(f.id) : null}
+		/>
+		{#if uploadingProgress && uploadingProgress.blockId === null}
+			<p class="upload-status">
+				Uploading {uploadingProgress.name}...
+				<span class="upload-bar" role="progressbar" aria-valuenow={Math.round(uploadingProgress.fraction * 100)} aria-valuemin="0" aria-valuemax="100">
+					<span class="upload-bar-fill" style={`width: ${Math.round(uploadingProgress.fraction * 100)}%`}></span>
+				</span>
+				{Math.round(uploadingProgress.fraction * 100)}%
+			</p>
 		{/if}
 		{#if editable}
 			{#if uploadEnabled}
@@ -525,42 +538,6 @@
 		margin: 0;
 		font-size: 0.9rem;
 	}
-	.file-list {
-		list-style: none;
-		margin: 0 0 var(--space-2);
-		padding: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 0.3rem;
-	}
-	.file-row {
-		display: flex;
-		align-items: baseline;
-		gap: var(--space-2);
-		flex-wrap: wrap;
-		font-size: 0.88rem;
-	}
-	.file-row a {
-		overflow-wrap: anywhere;
-	}
-	.file-meta {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		color: var(--text-2);
-	}
-	.file-remove {
-		appearance: none;
-		background: none;
-		border: none;
-		color: var(--text-2);
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.62rem;
-		cursor: pointer;
-		padding: 0;
-	}
-	.file-remove:hover {
-		color: var(--crimson);
-	}
 	.file-actions {
 		display: flex;
 		gap: 0.4rem;
@@ -616,5 +593,28 @@
 		color: var(--text-2);
 		font-size: 0.82rem;
 		margin: 0 0 0.4rem;
+	}
+	.upload-status {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0.4rem 0;
+		font-size: 0.78rem;
+		color: var(--text-2);
+	}
+	.upload-bar {
+		display: inline-block;
+		width: 6rem;
+		height: 0.4rem;
+		border-radius: 999px;
+		background: var(--surface-2);
+		border: 1px solid var(--hairline);
+		overflow: hidden;
+	}
+	.upload-bar-fill {
+		display: block;
+		height: 100%;
+		background: var(--green);
+		transition: width 0.15s ease-out;
 	}
 </style>
