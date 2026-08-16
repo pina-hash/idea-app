@@ -1,0 +1,718 @@
+{
+  "kind": "reference",
+  "meta": {
+    "theme": "idea-green",
+    "title": "IDEA209H Digital Syllabus",
+    "course": "IDEA209H",
+    "subtitle": "Engineering I Honors · Fall 2026",
+    "referenceId": "idea209h-syllabus",
+    "buildVersion": "v3"
+  },
+  "sections": [
+    {
+      "slug": "start",
+      "title": "Start Here",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "A laboratory engineering course. You spend most of it on your feet, at a bench or a machine, with a caliper in your hand.\n\nThe unit order is deliberate: you learn to make things before anyone asks you to design them, so your design decisions stay anchored to what the equipment can hold. Every number gets justified, every result measured, every claim defended out loud. About 65% of class time is hands-on."
+        },
+        {
+          "type": "keyValue",
+          "items": [
+            {
+              "label": "Term",
+              "value": "Aug 17 to Dec 11, 2026"
+            },
+            {
+              "label": "Final exam",
+              "value": "Monday, December 14"
+            },
+            {
+              "label": "UC A-G",
+              "value": "Area D (Science), honors designation"
+            },
+            {
+              "label": "Grades",
+              "value": "10, 11, 12"
+            },
+            {
+              "label": "Prerequisite",
+              "value": "IDEA114 recommended"
+            },
+            {
+              "label": "Co-requisite",
+              "value": "Integrated Math II, required"
+            }
+          ]
+        },
+        {
+          "rows": [
+            {
+              "date": "Mon, Aug 17",
+              "what": "First day"
+            },
+            {
+              "date": "Fri, Aug 21",
+              "what": "Signed acknowledgment due"
+            },
+            {
+              "date": "Sun, Nov 15",
+              "what": "Open House"
+            },
+            {
+              "date": "Fri, Dec 11",
+              "what": "Last instructional day"
+            },
+            {
+              "date": "Mon, Dec 14",
+              "what": "Final exam"
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "date",
+              "label": "Date"
+            },
+            {
+              "key": "what",
+              "label": "What"
+            }
+          ]
+        },
+        {
+          "type": "keyValue",
+          "items": [
+            {
+              "label": "Mr. Pina",
+              "value": "apina@boscotech.edu"
+            },
+            {
+              "label": "Mr. Cosso, senior section",
+              "value": "wcosso@boscotech.edu"
+            },
+            {
+              "label": "Hours",
+              "value": "On campus by 7:30, all lunch, until 4:30"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "Assignment and checkpoint due dates live in IDEA Classroom. When this page and the printed syllabus disagree, this page is current."
+        },
+        {
+          "type": "instructions",
+          "content": "The printed syllabus goes home for a parent or guardian signature, due **Friday, August 21**. Students 18 or older may sign both sections themselves."
+        }
+      ]
+    },
+    {
+      "slug": "semester",
+      "title": "The Semester",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Five units, then a written final. Each unit carries one lab, one assignment, and one documentation check."
+        },
+        {
+          "rows": [
+            {
+              "u": "1",
+              "focus": "Identify materials by testing them. Size hardware to real loads.",
+              "title": "Materials and Mechanical Hardware"
+            },
+            {
+              "u": "2",
+              "focus": "Certify on every machine, then rotate five fabrication stations.",
+              "title": "Manufacturing Processes"
+            },
+            {
+              "u": "3",
+              "focus": "Design it, make it, measure how close it came.",
+              "title": "Design for Manufacturability"
+            },
+            {
+              "u": "4",
+              "focus": "Build a full mechanism from a requirement spec, then test it.",
+              "title": "Mechanism Design and Documentation"
+            },
+            {
+              "u": "5",
+              "focus": "Four teams, four mechanisms, one working platform.",
+              "title": "Integrated Design Challenge"
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "u",
+              "label": "Unit"
+            },
+            {
+              "key": "title",
+              "label": "Title"
+            },
+            {
+              "key": "focus",
+              "label": "What you do"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "### Unit 1. Materials and Mechanical Hardware\n\nProperties of metals and polymers, each tied to a real failure mode. Fasteners, bearings, shafts, sprockets, gears, and belt and chain drives for function, sizing, and selection logic.\n\n**Lab.** Identify unlabeled samples by testing them: density from measured mass and dimensions, then appearance as a second independent line of evidence, then stress and strain sizing.\n\n**Assignment.** A loading scenario worked end to end. Forces, torques, gear ratios, shaft loads, components chosen from real catalogs, a sourced bill of materials, and a defense in front of the class."
+        },
+        {
+          "type": "instructions",
+          "content": "### Unit 2. Manufacturing Processes\n\nAdvanced safety certification on every machine at this level, then five stations running concurrently: CNC router, xTool laser, mill, lathe, Bambu H2D. Drawings are provided so your attention is on execution, not design.\n\n**Lab.** Measure every specified feature on all five parts, record deviation from nominal, and rank the processes by dimensional reliability using your own error data.\n\n**Assignment.** A manufacturing portfolio: the parts, the notebook entries, and a walkthrough of the most significant process decision at each station."
+        },
+        {
+          "type": "instructions",
+          "content": "### Unit 3. Design for Manufacturability\n\nYou design the part in SolidWorks and then make it. Complete ANSI drawing packages with GD and T, section and detail views, assemblies with purchased hardware. Every decision references the process data you generated in Unit 2.\n\n**Lab.** Design a pair of mating parts for a specified fit, predict whether it will be achieved, then measure and find out where any deviation came from.\n\n**Assignment.** A manufacturability analysis against a hypothesis you wrote before fabricating, closed by a design review you answer without reading from your notes."
+        },
+        {
+          "type": "instructions",
+          "content": "### Unit 4. Mechanism Design and Documentation\n\nA complete system from a performance requirement spec, no provided design. Candidates evaluated against weighted criteria before detailed design. Force, torque, power transmission, sizing, and factor of safety justify every decision. Every revision captured in an engineering change order.\n\n**Lab.** Write your own test procedure, apply the load, record in real time, and calculate percent error against your predictions.\n\n**Assignment.** A formal engineering analysis document, the mechanism itself, and a design review."
+        },
+        {
+          "type": "instructions",
+          "content": "### Unit 5. Integrated Design Challenge\n\nFour teams, one radio-controlled mobile platform: drivetrain, feeding and staging, elevation and positioning, payload interaction. Each team works to an interface spec, so interface compliance is a requirement alongside performance. Electronics are provided pre-configured.\n\n**Lab.** All four mechanisms assembled and run together for the first time. Standalone versus integrated performance is the data that matters.\n\n**Assignment.** An individual post-challenge analysis report, with notebook entries documenting your daily contributions."
+        },
+        {
+          "type": "callout",
+          "title": "How Unit 5 teams work",
+          "content": "**Teams are formed by your instructor**, not chosen. Placement comes from a skills analysis so each team carries the proficiency its mechanism needs. You will not always work with your friends, and that is the point.\n\n**Two peer evaluations**, one at the midpoint and one at the end. Five items each, about two minutes. The midpoint one matters most, because it is the only one that can still change how your team works.\n\n**What peer evaluation affects.** It produces a contribution factor between **0.85 and 1.00**, applied only to the **team's 150 points**. Your individual 100 points and your notebook entries are never touched by peer data. The floor exists so a social dynamic cannot gut someone's grade.\n\nThe factor is computed by a stated rule, not a judgment call, and it is the same rule in every section.",
+          "variant": "info"
+        },
+        {
+          "type": "callout",
+          "title": "Final exam, Monday December 14",
+          "content": "One class period, individual, written. Material and hardware selection from first principles. A process selection problem. A mechanism force and torque analysis. A dimensional inspection dataset where you classify each error as design, process, or measurement. A fit and tolerance interface problem.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "grading",
+      "title": "Grading",
+      "blocks": [
+        {
+          "rows": [
+            {
+              "pts": "200",
+              "weight": "20%",
+              "category": "Unit Labs",
+              "structure": "4 at 50"
+            },
+            {
+              "pts": "400",
+              "weight": "25%",
+              "category": "Unit Assignments",
+              "structure": "4 at 100"
+            },
+            {
+              "pts": "100",
+              "weight": "10%",
+              "category": "Engineering Documentation",
+              "structure": "4 at 25"
+            },
+            {
+              "pts": "250",
+              "weight": "25%",
+              "category": "Integrated Design Challenge",
+              "structure": "Team 150, individual 100"
+            },
+            {
+              "pts": "100",
+              "weight": "20%",
+              "category": "Final Exam",
+              "structure": "5 problem types at 20"
+            },
+            {
+              "pts": "1,050",
+              "weight": "100%",
+              "category": "Semester total",
+              "structure": ""
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "category",
+              "label": "Category"
+            },
+            {
+              "key": "weight",
+              "label": "Weight"
+            },
+            {
+              "key": "structure",
+              "label": "Structure"
+            },
+            {
+              "key": "pts",
+              "label": "Pts"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "Point values are absolute. Each category is weighted from real totals, so a 20-point checkpoint inside a 50-point lab counts for exactly what it is worth.\n\nLetter grades and GPA weighting follow the school's scale. **FACTS is the official gradebook.** Anything here is accurate but unofficial."
+        },
+        {
+          "tool": "gradeCalculator",
+          "type": "calc",
+          "config": {
+            "categories": [
+              {
+                "name": "Unit Labs",
+                "weight": 20,
+                "pointsPossible": 200
+              },
+              {
+                "name": "Unit Assignments",
+                "weight": 25,
+                "pointsPossible": 400
+              },
+              {
+                "name": "Engineering Documentation",
+                "weight": 10,
+                "pointsPossible": 100
+              },
+              {
+                "name": "Integrated Design Challenge",
+                "weight": 25,
+                "pointsPossible": 250
+              },
+              {
+                "name": "Final Exam",
+                "weight": 20,
+                "pointsPossible": 100
+              }
+            ],
+            "disclaimer": "An estimate. FACTS is the official gradebook, and nothing you enter here is saved or submitted."
+          }
+        },
+        {
+          "type": "instructions",
+          "content": "### How work is scored\n\n**Rubrics are checklists with leveled descriptors.** You can read exactly what earns full credit before you start, and your instructor selects the level your work matches rather than judging how close it came.\n\n**Large deliverables are staged into checkpoints.** Unit 1's lab runs in three stages. Same 50 points either way. Staging means an error costs you the day it happens instead of surfacing inside a finished report.\n\n**Nothing is scored twice.** Notebook quality is graded once, in Engineering Documentation."
+        },
+        {
+          "type": "callout",
+          "title": "Extra credit",
+          "content": "Capped at 2% of semester points, about 21 points, purchased with IDEA Coins at 2 coins per point. That is the only extra credit in this course. No extra assignment, no rounding, no end-of-semester exceptions.",
+          "variant": "info"
+        },
+        {
+          "type": "callout",
+          "title": "Honors designation",
+          "content": "UC adds one grade point per semester of an approved honors course, so an A counts as 5 instead of 4. The cap is 8 semesters across grades 10 and 11, and no more than 4 of those from grade 10. A D or F earns no extra point.\n\nYou may drop the honors designation and take this as a standard 4-point course. Same class, same seat, same work. Only the transcript changes. **Talk to your counselor first**, since the tradeoff depends on your whole schedule.",
+          "variant": "info"
+        }
+      ]
+    },
+    {
+      "slug": "rules",
+      "title": "Rules",
+      "blocks": [
+        {
+          "type": "callout",
+          "title": "Deadlines are firm",
+          "content": "There are no extensions. A checkpoint due before the next stage begins is due then because the next stage is built on it.\n\n**Excused absence.** Your due date moves by the number of **school days** you were out, counted from the day you return. Automatic once the absence is on record; you do not have to ask.\n\n**Late work is accepted with a penalty.** It is scored on what you actually submitted, then reduced:\n\n- **10%** within 5 school days of the deadline\n- **20%** after that, until the unit's grades are returned\n- Nothing is accepted once the unit's grades are returned\n\n**Checkpoints are excluded.** A checkpoint gates the next stage, and the next stage already happened. A missed checkpoint is not made up; you work forward from wherever you are.\n\nThere is no assigned homework, but unfinished classwork gets finished outside of class.",
+          "variant": "warn"
+        },
+        {
+          "type": "callout",
+          "title": "Defend it or fix it",
+          "content": "Every unit assignment ends with you presenting your rationale and defending it. Any number, any decision, any selection is fair game, from your instructor or another student.\n\n**A value or decision you cannot defend must be corrected before it earns credit in that section.** A correction, not a penalty and not an extension. Due the same day, through IDEA Classroom by end of day if it cannot be resolved live.",
+          "variant": "required"
+        },
+        {
+          "type": "instructions",
+          "content": "The same loading scenario can produce more than one valid solution. Which one you defend depends on the trade-offs you prioritized, and naming them is the point.\n\nThis is also why calculation checkpoints come first. By the time you are on the spot, your arithmetic is already checked, and what gets challenged is your judgment."
+        },
+        {
+          "type": "callout",
+          "title": "If you miss your presentation day",
+          "content": "Defend at the next session if there is time. If there is not, you may defend during office hours, scheduled with your instructor in advance. An office hours defense is not a walk-in.",
+          "variant": "info"
+        },
+        {
+          "type": "instructions",
+          "content": "### IDEA Coins\n\nIDEA Coins are the pathway's classroom currency, earned through participation and contribution across IDEA. In this course their only academic use is buying extra credit at **2 coins per point**, capped at 2% of semester points, about 21 points.\n\nYou can see your balance and spend coins in the IDEA Coin Ledger on ideabosco.com. Coins buy nothing else in this course: no deadline extensions, no rubric adjustments, no exemptions."
+        }
+      ]
+    },
+    {
+      "slug": "ai-policy",
+      "title": "AI Policy",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "AI is allowed. It is not allowed to replace learning the material. Two rules hold at every level."
+        },
+        {
+          "type": "callout",
+          "title": "1. Verify before you trust it",
+          "content": "AI is never the source. Anything that looks like a fact gets checked against the real thing first.\n\n- **Calculations** get redone independently, units carried, magnitude sanity-checked.\n- **Published specs** get checked against the actual datasheet. AI's memory of a spec is not the spec.\n- **Claims** get confirmed to be real and to say what they are claimed to say.\n- **Designs** get checked that they close, meet the load, and manufacture as drawn.",
+          "variant": "required"
+        },
+        {
+          "type": "callout",
+          "title": "2. Explain it or it does not count",
+          "content": "Any instructor can ask you to explain any part of what you submitted, in your own words, at any time. If you cannot, it gets corrected before it earns credit.\n\nThis is not a new rule. It is the defense you already have to pass. Leaning on AI without understanding it fails the defense the same way bad arithmetic does.",
+          "variant": "required"
+        },
+        {
+          "rows": [
+            {
+              "level": "0 OFF",
+              "means": "No AI in producing the work.",
+              "where": "Notebook, timed work, defenses, exams"
+            },
+            {
+              "level": "1 COACH",
+              "means": "Tutor only. Generates no part of your answer.",
+              "where": "Reflection and self-assessment"
+            },
+            {
+              "level": "2 ASSIST",
+              "means": "Can generate, draft, search. You verify and defend all of it.",
+              "where": "Most of this course"
+            },
+            {
+              "level": "3 OPEN",
+              "means": "Unrestricted. Only when directing AI well is the graded skill.",
+              "where": "CAD and design work"
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "level",
+              "label": "Level"
+            },
+            {
+              "key": "means",
+              "label": "What it means"
+            },
+            {
+              "key": "where",
+              "label": "Where it shows up"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "### Look up your work\n\nThe badge on the assignment always governs if it differs from this."
+        },
+        {
+          "tool": "aiLevelLookup",
+          "type": "calc",
+          "config": {
+            "entries": [
+              {
+                "level": 2,
+                "example": "\"Here is my free body diagram and my setup. Run these numbers and flag anything odd.\" Then redo it yourself and check units and magnitude.",
+                "workType": "Force, torque, and gear ratio calculations",
+                "permitted": "Working the arithmetic, checking your algebra, exploring an approach you are unsure about.",
+                "notPermitted": "Submitting a number you have not verified independently or cannot explain."
+              },
+              {
+                "level": 2,
+                "example": "Work a clearance fit, then confirm it against what the equipment actually held in Unit 2.",
+                "workType": "Tolerance and fit calculations",
+                "permitted": "Computing limits and allowances, checking your fit class, exploring alternatives.",
+                "notPermitted": "Submitting a fit you cannot justify against the process capability you measured."
+              },
+              {
+                "level": 2,
+                "example": "Ask for candidate bearings for your load and shaft size, then open every candidate's real catalog page before it enters your bill of materials.",
+                "workType": "Component and material selection",
+                "permitted": "Searching catalogs, narrowing candidates, drafting the justification.",
+                "notPermitted": "Citing a spec you have not opened. AI's memory of a datasheet is not a datasheet."
+              },
+              {
+                "level": 2,
+                "example": "Draft the discussion from your measured results, then rewrite anything you would not say out loud in a defense.",
+                "workType": "Lab reports and written conclusions",
+                "permitted": "Drafting, restructuring, tightening your writing.",
+                "notPermitted": "Submitting a conclusion you could not have reached from your own data."
+              },
+              {
+                "level": 2,
+                "example": "Write the hypothesis yourself, then use AI to tighten the write-up after inspection.",
+                "workType": "Manufacturability analysis",
+                "permitted": "Drafting, organizing findings, checking your reasoning.",
+                "notPermitted": "Generating predictions you did not make before you fabricated."
+              },
+              {
+                "level": 3,
+                "example": "Any workflow you like, as long as you can say why every dimension is what it is.",
+                "workType": "SolidWorks and CAD work",
+                "permitted": "Everything. Directing the tool well is part of the skill.",
+                "notPermitted": "Nothing, except the design still has to close, meet the load, and be explainable."
+              },
+              {
+                "level": 1,
+                "example": "\"What does this rubric criterion actually mean?\" then write your own answer.",
+                "workType": "Self-assessment and reflection",
+                "permitted": "Asking what a criterion means, or how to think about your own performance.",
+                "notPermitted": "Having AI write the reflection. The point is your judgment about your own work."
+              },
+              {
+                "level": 0,
+                "example": "None. Write what you observed, when you observed it.",
+                "workType": "Notebook entries",
+                "permitted": "Nothing. Entries are handwritten at the bench while you work.",
+                "notPermitted": "Any AI involvement, including cleaning up wording afterward."
+              },
+              {
+                "level": 0,
+                "example": "None. You answer in your own words or correct it afterward.",
+                "workType": "Presentations and design reviews",
+                "permitted": "Nothing during the defense itself.",
+                "notPermitted": "Reading from generated notes, or any assistance while being questioned."
+              },
+              {
+                "level": 0,
+                "example": "None.",
+                "workType": "The final exam",
+                "permitted": "Nothing.",
+                "notPermitted": "Any AI use."
+              }
+            ]
+          }
+        },
+        {
+          "type": "callout",
+          "title": "Why calculation is ASSIST here",
+          "content": "Setting the problem up is the skill: which forces matter, which relationship applies, what a reasonable answer looks like. Once the setup is right, AI running the arithmetic is a calculator. The checkpoints test the setup and the defense tests whether you understood it.\n\nThis is deliberately different from the pathway default, which puts calculation at COACH. If you compare notes with a student in another IDEA course, that is why.",
+          "variant": "info"
+        },
+        {
+          "type": "instructions",
+          "content": "### Disclosure\n\nEvery assignment ends with one pick: did not use it / talked through a concept or checked finished work / generated, drafted, or searched and verified it / other. Anything past the first opens one or two short lines on how you used it and what you checked it against. A normal box on the assignment, not a confession."
+        },
+        {
+          "type": "callout",
+          "title": "If you get it wrong",
+          "content": "More AI than the level allows, or a missed disclosure, means you redo the affected part. That is it.\n\nIt becomes an academic integrity matter only when both are true: you did not disclose it **and** you cannot explain it when asked. Two different failures, and the difference between them is the entire policy.",
+          "variant": "warn"
+        },
+        {
+          "type": "instructions",
+          "content": "Any platform is fine; the rules do not change based on which tool you opened. One practical note: **most consumer AI services require account holders to be at least 18.** Check before you sign up. If you are under 18, use what your school account provides."
+        },
+        {
+          "type": "instructions",
+          "content": "### Academic integrity, beyond AI\n\nThe two AI rules are a specific case of a general one: **the work you submit is yours, and you can account for all of it.**\n\n- **Collaboration is encouraged; copying is not.** Talking through an approach with someone is how engineers work. Submitting their numbers, their drawing, or their sentences is not.\n- **Cite anything you did not derive.** A value from a datasheet, a handbook table, or a catalog gets its source named. That is engineering practice, not a formality.\n- **Exams and timed work are individual and closed.** No collaboration, no notes beyond what is stated, no AI.\n\nThe consequence is the same everywhere in this course: if you cannot account for it, it does not earn credit until you can."
+        }
+      ]
+    },
+    {
+      "slug": "platform",
+      "title": "Platform",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Everything in IDEA runs through **ideabosco.com**. Sign in with your boscotech.net Google account."
+        },
+        {
+          "type": "cardGrid",
+          "cards": [
+            {
+              "url": "https://ideabosco.com/classroom",
+              "body": "Assignments are posted, opened, worked in, and submitted here. Work saves as you go. Due dates, grades, and comments live here too.",
+              "title": "IDEA Classroom"
+            },
+            {
+              "url": "https://ideabosco.com/notebook",
+              "body": "Photograph your handwritten pages and upload them. Entries attach to a lab or testing session, which is what makes them gradeable.",
+              "title": "The Notebook"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "### The Notebook\n\nDocumentation is a daily practice here, not something you catch up on later.\n\n- Write in the physical notebook **while you work**, then photograph and upload.\n- A correction tool squares the photo and cleans contrast, so an angled shot still reads.\n- One entry holds several photos plus typed notes.\n- **Nothing is deleted or overwritten.** Editing a note creates a new revision; a re-upload adds to the entry.\n- **Upload time is server-recorded and not editable.** That is what backs writing entries as you work.\n- Pin entries you return to, and create free-form entries attached to no class. Use it for FRC or personal projects. Ungraded, and yours."
+        },
+        {
+          "type": "instructions",
+          "content": "### Documentation Check, 25 points per unit"
+        },
+        {
+          "rows": [
+            {
+              "pts": "7",
+              "criterion": "An entry exists for every lab and testing session"
+            },
+            {
+              "pts": "6",
+              "criterion": "Entries hold raw data as recorded, not reconstructed afterward"
+            },
+            {
+              "pts": "6",
+              "criterion": "Entries are dated and legible"
+            },
+            {
+              "pts": "6",
+              "criterion": "Another student could reconstruct your work from them alone"
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "criterion",
+              "label": "Criterion"
+            },
+            {
+              "key": "pts",
+              "label": "Pts"
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "Judged on technical specificity: the parameter set you used and why, not a general description. In Unit 5, entries also record what you personally designed, fabricated, or analyzed each day."
+        }
+      ]
+    },
+    {
+      "slug": "materials",
+      "title": "Materials",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### Bring every day\n\n- A notebook. Purpose-made engineering notebook preferred, any bound notebook works.\n- A pen or pencil.\n- A calculator.\n- A device that reaches ideabosco.com."
+        },
+        {
+          "type": "callout",
+          "title": "Required purchase: respirator",
+          "content": "**3M 7500 Series half facepiece** with **3M 60926 cartridges.** About $45 to $65 together, and the one item you must own to work in the shop regularly.\n\n**Size matters more than anything else.** 7501 small, 7502 medium, 7503 large. Buy the size that fits your face, not the size a friend bought. We check the seal in class before you use it, because a respirator that does not seal does not protect you.\n\n**Buy the 60926 specifically.** Do not substitute a particulate-only filter.",
+          "variant": "required"
+        },
+        {
+          "type": "linkCard",
+          "links": [
+            {
+              "url": "https://www.amazon.com/3M-Respirator-7503-Respiratory-Protection/dp/B008MCUULW/",
+              "fallbackLabel": "3M 7500 Series half facepiece. Sizes 7501 small, 7502 medium, 7503 large."
+            },
+            {
+              "url": "https://www.amazon.com/dp/B009POHLRC",
+              "fallbackLabel": "3M 60926 multi-gas, vapor and P100 combination cartridge. Exact part number."
+            }
+          ]
+        },
+        {
+          "type": "instructions",
+          "content": "**Why this combination.** One purchase covering every operation in the shop, so you are never wearing the wrong protection for the job in front of you.\n\n- **P100** handles metal fume from laser welding on the MetalFab, plus particulate from grinding, sanding, and machining.\n- **The gas and vapor side** handles formaldehyde off lasered MDF and plywood, organic vapors from adhesives and solvents, and acid gases off cut plastics.\n\nA disposable dust mask covers none of the vapor hazards."
+        },
+        {
+          "type": "callout",
+          "title": "If you forget it or it breaks",
+          "content": "The shop keeps **three loaner respirators**. Borrow one for the day you forget. They are shared, which is the single best argument for owning your own.\n\n**No shop work without one.** Not a punishment, just the rule. If yours breaks, tell me and we will sort it out; do not work around it.",
+          "variant": "info"
+        },
+        {
+          "type": "instructions",
+          "content": "### Recommended purchases\n\nIDEA provides basic safety gear and required tools at all times, so none of this is mandatory. Owning your own is recommended for fit, sanitation, and convenience, and it lasts all four years."
+        },
+        {
+          "rows": [
+            {
+              "cost": "$8-20",
+              "item": "Safety glasses",
+              "spec": "ANSI Z87.1+, anti-fog"
+            },
+            {
+              "cost": "$10-20",
+              "item": "Hearing protection",
+              "spec": "NRR 25+"
+            },
+            {
+              "cost": "$15-25",
+              "item": "Digital caliper",
+              "spec": "6 in, 0.01 mm"
+            },
+            {
+              "cost": "$8-12",
+              "item": "Engineering notebook",
+              "spec": "Quad-ruled, 100+ pages"
+            },
+            {
+              "cost": "$8-15",
+              "item": "Fine point markers",
+              "spec": "Milwaukee Inkzall or equivalent"
+            },
+            {
+              "cost": "$15-25",
+              "item": "Shop apron or lab coat",
+              "spec": ""
+            },
+            {
+              "cost": "$10-20",
+              "item": "Tape measure",
+              "spec": "25 ft, auto-lock"
+            },
+            {
+              "cost": "$8-12",
+              "item": "USB flash drive",
+              "spec": "64 GB or larger"
+            }
+          ],
+          "type": "dataTable",
+          "columns": [
+            {
+              "key": "item",
+              "label": "Item"
+            },
+            {
+              "key": "spec",
+              "label": "Spec"
+            },
+            {
+              "key": "cost",
+              "label": "Cost"
+            }
+          ]
+        },
+        {
+          "type": "callout",
+          "title": "What it costs",
+          "content": "About **$70 to $130** for the recommended list, or **$115 to $195** including the required respirator. Amazon, Home Depot, Costco, or Harbor Freight carry all of it.\n\n**If cost is a problem, come see me.** That is a real offer and it stays between us.",
+          "variant": "info"
+        },
+        {
+          "type": "instructions",
+          "content": "### References\n\n*Machine Elements in Mechanical Design* (Mott). *Manufacturing Processes 4-5* (Virasak). *Machinery's Handbook*, 32nd ed. MatWeb and McMaster-Carr. SolidWorks, Aspire, xTool Studio, Bambu Studio, Bambu Suite."
+        },
+        {
+          "type": "instructions",
+          "content": "### Accommodations\n\nIf you have a documented accommodation, bring it to me in the first two weeks and it will be honored in full. Counseling can help you start that process if you do not have documentation yet.\n\nIf something about how this course runs is a barrier and you are not sure it counts as an accommodation, come talk to me anyway."
+        }
+      ]
+    },
+    {
+      "slug": "safety",
+      "title": "Safety",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Not negotiable and not graded on a curve. Unit 2 carries a full certification on every machine at this level. These are the standing rules from day one.\n\n- Eye protection any time **anyone** nearby is cutting, grinding, or machining.\n- Closed-toe shoes. No loose clothing or jewelry. Long hair tied back.\n- No machine runs until you are trained on it and cleared for that session.\n- Bench grinder: tool rest gap checked, guards in place, work held firmly, no side grinding, no gloves.\n- Hearing protection where called for. Bluetooth headphones and earbuds do not count.\n- Horseplay is removal from the shop for the day. No warning."
+        },
+        {
+          "type": "callout",
+          "title": "Report everything",
+          "content": "Every injury, near miss, and damaged tool, immediately, including your own mistakes.\n\nReporting one is never a problem. Hiding one is.",
+          "variant": "warn"
+        }
+      ]
+    }
+  ],
+  "navigation": "tabs",
+  "schemaVersion": 2
+}
