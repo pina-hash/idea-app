@@ -114,7 +114,9 @@ export interface StagedPhoto {
  */
 export const UNTITLED_ENTRY = 'Untitled entry';
 
-export function entryTitle(entry: NotebookEntry): string {
+export function entryTitle(
+	entry: Pick<NotebookEntry, 'session' | 'custom_label' | 'photos' | 'notes'>
+): string {
 	const session = entry.session?.session_label?.trim();
 	if (session) return session;
 	const custom = entry.custom_label?.trim();

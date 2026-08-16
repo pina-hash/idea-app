@@ -95,8 +95,13 @@
 									{/if}
 								</span>
 								<span class="grade-meta">
-									Due {formatDue(s.item.due_at)}
-									{#if s.item.points != null}&nbsp;&middot; {s.item.points} pts{/if}
+									<!-- NO DUE SEGMENT WHEN THERE IS NO DUE DATE, matching ItemDetail:
+									     formatDue(null) is "No due date", which reads as a real value
+									     and renders the sentence "Due No due date". Trailing (not
+									     leading) separator, so a due-less assignment with points
+									     never opens on a dangling middot. -->
+									{#if s.item.due_at}Due {formatDue(s.item.due_at)}&nbsp;&middot;{/if}
+									{#if s.item.points != null}{s.item.points} pts{/if}
 								</span>
 							</span>
 							<span class="grade-chips">

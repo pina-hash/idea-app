@@ -50,6 +50,54 @@
 	-webkit-font-smoothing: auto;
 }
 
+/* The scanline + vignette overlay is a SIBLING of this wrapper's ancestor, so
+   no scoped rule can reach it -- suppressed from the document instead, the
+   classroom.css convention (TvStage does the same for the tournament
+   projector view). Despite the comment above claiming ".nb-root" is "above
+   the .bg-fx overlay", no such rule ever existed here; z-index ordering only
+   hides it where .nb-root's own box actually covers it. */
+body:has(.nb-root) .bg-fx {
+	display: none;
+}
+
+/* THE CANVAS ITSELF. `body { background: var(--bg0) }` (app.css) is the
+   portal's green machined plate, and a body background PROPAGATES TO THE
+   CANVAS -- the paint behind the whole viewport, including every pixel the
+   document does not cover. `.nb-root` is `min-height: 100vh`, which covers
+   the viewport once and nothing else, so the green showed through wherever
+   the canvas is visible and the wrapper is not: the last child's bottom
+   margin collapsing out through `.nb-root` (no bottom padding/border to stop
+   it), overscroll/rubber-banding past either end of a scrolled page, and the
+   gap on mobile when the URL bar retracts and the real viewport grows past
+   the 100vh the wrapper was sized against. Painting the canvas fixes all
+   three at once, exactly as classroom.css does for `.cr-root`; `.nb-root`
+   keeps its own background, which is what covers the page while this covers
+   everything around it. */
+body:has(.nb-root) {
+	background: var(--nb-bg);
+}
+
+/* --nb-bg's dark and IDEA VALUES are declared only inside .nb-root's own
+   selectors below, and a custom property redefined on a descendant cannot
+   cascade UP to `body`, its ancestor -- inheritance only flows down. So the
+   `body:has(.nb-root) { background: var(--nb-bg) }` rule above resolves
+   against the `:root` LIGHT default in every palette unless --nb-bg is
+   re-declared somewhere `body` can see it too. Mirroring it here, against the
+   identical selector conditions the palette blocks below use (the file's own
+   "keep two selectors in step" discipline, now three), is what keeps the
+   canvas matching whichever palette .nb-root is actually showing. */
+@media (prefers-color-scheme: dark) {
+	:root:has(.nb-root:not([data-nb-theme])) {
+		--nb-bg: #16140f;
+	}
+}
+:root:has(.nb-root[data-nb-theme='dark']) {
+	--nb-bg: #16140f;
+}
+:root:has(.nb-root[data-nb-theme='idea']) {
+	--nb-bg: #0b1410;
+}
+
 /* --- Type ---------------------------------------------------------------- */
 
 .nb-root h1,

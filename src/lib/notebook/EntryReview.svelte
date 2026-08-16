@@ -1,7 +1,13 @@
 <script lang="ts">
 	import NotebookPhotos from '$lib/notebook/NotebookPhotos.svelte';
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
-	import { flagReasonLabel, photoCountLabel, photoPages, type NotebookFlagReason } from '$lib/notebook';
+	import {
+		entryTitle,
+		flagReasonLabel,
+		photoCountLabel,
+		photoPages,
+		type NotebookFlagReason
+	} from '$lib/notebook';
 	import {
 		FLAG_REASONS,
 		cellDisplay,
@@ -67,8 +73,28 @@
 		notice = null;
 	});
 
+	// entryTitle() is the same five-fallback derivation the student's own card
+	// uses (session label -> custom_label -> photo filename -> first note's
+	// opening words -> "Untitled entry"), trimmed and truthiness-tested rather
+	// than nullish-tested. The inline version this replaced showed the literal
+	// word "Entry" for anything past session/custom_label, and a blank title
+	// for an empty-string custom_label. ReviewEntry carries only `session_id`,
+	// not an embedded session object, so the shape entryTitle needs is built
+	// here from the `session` prop already resolved by the caller -- no query
+	// change, entryTitle's own parameter type is narrowed to just what it reads.
 	const title = $derived(
-		session?.session_label ?? entry.custom_label ?? 'Entry'
+		entryTitle({
+			session: session
+				? {
+						session_label: session.session_label,
+						unit_number: session.unit_number,
+						session_date: session.session_date
+					}
+				: null,
+			custom_label: entry.custom_label,
+			photos: entry.photos,
+			notes: entry.notes
+		})
 	);
 
 	async function flag() {

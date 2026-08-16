@@ -554,7 +554,10 @@
 					<span class="row-meta">
 						<span class="row-kind">{itemKindLabel(item.kind)}</span>
 						{#if item.kind === 'assignment'}
-							&middot; Due {formatDue(item.due_at)}
+							<!-- NO DUE SEGMENT WHEN THERE IS NO DUE DATE, matching ItemDetail:
+							     formatDue(null) is "No due date", which reads as a real value
+							     and renders the sentence "Due No due date". -->
+							{#if item.due_at}&middot; Due {formatDue(item.due_at)}{/if}
 							{#if item.points != null}&nbsp;&middot; {item.points} pts{/if}
 						{:else}
 							&middot; {shortWhen(item.created_at)}

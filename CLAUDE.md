@@ -16935,6 +16935,23 @@ SILENTLY -- ones where a regression breaks nothing visible.
   finishing. Report what you verified. svelte-check passing is necessary but not
   sufficient. Harness routes stay in the repo as regression tools.
 
+### Interface standards (standing rules for every app surface)
+
+- **Desktop is a first-class layout.** Every surface needs a real layout above
+  1024px; master-detail is the default for list-plus-detail surfaces. A single
+  narrow column at every width is a defect, not a simplification.
+- **An instructor's view of student-facing content is the student view plus
+  edit affordances, through the same render path.** Instructor-only content
+  belongs in a visually distinct region, never a parallel re-derivation of what
+  the student sees.
+- **A preview path must read through the same payload as the thing it
+  previews.** A preview built from a second, hand-shaped read can drift from
+  what it claims to show.
+- **Everything an item needs is attachable at creation, on one surface.** Do
+  not make an author save first and come back to attach the rest.
+- **Interface changes are verified at a desktop width of at least 1440px and
+  at 375px.** A pass at one end is not a pass.
+
 ## Scope guardrails
 
 Phase 1 (done) was the **foundation**: Google login, profiles/roles backend,
