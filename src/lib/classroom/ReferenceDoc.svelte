@@ -36,12 +36,26 @@
 		/** False where the host page's own hero already carries the title (the
 		 *  classroom item page), so it is not printed twice. */
 		showHeader = true,
+		/**
+		 * PREVIEW MODE: this document is being shown INSIDE another page (the
+		 * spec importer's live preview), not served as the page itself.
+		 *
+		 * It turns off the two things that are correct for a document that owns
+		 * its page and wrong for one that does not: the location hash (a preview
+		 * must not rewrite the URL of the page it is embedded in, nor answer the
+		 * host's own back button) and the scroll management (holdRail and reveal
+		 * both move the WINDOW, which from inside a panel means yanking the
+		 * editor out from under whoever is typing in it). Tabs still switch;
+		 * they just stop being addressable and stop scrolling anything.
+		 */
+		preview = false,
 		/** Extra chrome the host wants under the title (attachments, a back link). */
 		aside = null
 	}: {
 		spec: ReferenceSpec;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
 		showHeader?: boolean;
+		preview?: boolean;
 		aside?: import('svelte').Snippet | null;
 	} = $props();
 
@@ -82,7 +96,7 @@
 	 * pane runs hidden, and the rAF-only version simply did nothing there.
 	 */
 	function reveal(slug: string) {
-		if (typeof window === 'undefined') return;
+		if (typeof window === 'undefined' || preview) return;
 		// The section may have been display:none a tick ago (tabs mode), so wait
 		// for the layout that follows the state change before measuring it.
 		let done = false;
@@ -116,7 +130,7 @@
 	 * `scroll-behavior: smooth`, which would otherwise animate this.
 	 */
 	function holdRail() {
-		if (typeof window === 'undefined' || !tabbed || !railAnchor) return;
+		if (typeof window === 'undefined' || preview || !tabbed || !railAnchor) return;
 		const anchorTop = Math.max(0, railAnchor.getBoundingClientRect().top + window.scrollY);
 		const target = Math.min(window.scrollY, anchorTop);
 		if (Math.abs(target - window.scrollY) < 0.5) return;
@@ -161,7 +175,7 @@
 
 	function selectTab(slug: string) {
 		setActive(slug);
-		if (typeof window !== 'undefined') {
+		if (typeof window !== 'undefined' && !preview) {
 			// pushState, not replaceState and not a hash assignment: back and
 			// forward must move between tabs rather than leaving the document, and
 			// a hash assignment would make the browser jump to the section itself.
@@ -172,7 +186,7 @@
 	}
 
 	$effect(() => {
-		if (typeof window === 'undefined') return;
+		if (typeof window === 'undefined' || preview) return;
 		// The COLD-LOAD half of the deep-link contract.
 		applyInitialHash();
 		// Both, because a same-document fragment traversal fires hashchange while

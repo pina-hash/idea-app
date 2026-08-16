@@ -3,7 +3,7 @@
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
 	import DeckStager from '$lib/classroom/DeckStager.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
-	import SpecImport from '$lib/classroom/SpecImport.svelte';
+	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import { itemBodyDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
 	import type { AssignmentSpec, AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
 	import type { ClassroomDeck, DeckTransports, DeckUploadProgress } from '$lib/classroom/deck';
@@ -976,7 +976,8 @@
 	{#if specEnabled}
 		<div class="spec-field">
 			<span class="mini-label">Interactive spec</span>
-			<SpecImport
+			<SpecImporter
+				kind="assignment"
 				itemId={mode === 'edit' && item ? item.id : null}
 				spec={currentSpec}
 				staged={stagedSpecSummary}

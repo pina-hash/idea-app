@@ -34,7 +34,13 @@
 		type GridSummary,
 		type ReviewTransports
 	} from '$lib/notebook-review';
+	import {
+		exportFailed,
+		type ExportOutcome,
+		type ItemExportStatus
+	} from '$lib/classroom/revisions';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
+	import type { TxResult } from '$lib/classroom/classroom';
 
 	/**
 	 * The teacher console: courses + sections setup and lifecycle, the shared
@@ -59,6 +65,8 @@
 		deckTransports = null,
 		teacherTransports = null,
 		loadNotebookGrid = null,
+		loadExportStatuses = null,
+		retryExport = null,
 		submitFeedback = null
 	}: {
 		ready?: boolean;
@@ -89,6 +97,28 @@
 		 * deployment where the notebook migrations are not applied.
 		 */
 		loadNotebookGrid?: ReviewTransports['loadGrid'] | null;
+		/**
+		 * The GitHub export's last outcome for a batch of items (0110).
+		 *
+		 * A CALLBACK rather than a map prop, and shaped like loadNotebookGrid for
+		 * the same reason: this console loads a section's content lazily when the
+		 * panel is opened, so nothing up front knows which items to ask about. Its
+		 * own query rather than columns on the shared item select, for the
+		 * deploy-ordering reason ITEM_SELECT documents at length -- naming 0110's
+		 * columns there would blank every classroom read until 0110 landed.
+		 *
+		 * Null omits the chips entirely, which is the fail-soft state on a
+		 * deployment where 0110 is not applied.
+		 */
+		loadExportStatuses?:
+			| ((itemIds: string[]) => Promise<Record<string, ItemExportStatus>>)
+			| null;
+		/**
+		 * Retry one item's export. Null hides the action -- a deployment with no
+		 * GITHUB_EXPORT_TOKEN never exports, never records a failure, and so has
+		 * nothing to retry.
+		 */
+		retryExport?: ((itemId: string) => Promise<TxResult<ExportOutcome>>) | null;
 		submitFeedback?: ((entry: FeedbackEntry) => Promise<{ error: string | null }>) | null;
 	} = $props();
 
@@ -254,6 +284,7 @@
 		const res = await transports.loadContent(selectedSectionId);
 		if (res.ok) {
 			items = res.data.items;
+			await refreshExportStatuses();
 		} else {
 			panelMsg = { ok: false, text: res.message };
 		}
@@ -482,6 +513,82 @@
 			};
 		}
 		importBusy = false;
+	}
+
+	/**
+	 * Export outcomes seen since the page loaded, layered OVER the loaded map.
+	 *
+	 * A retry has to change the chip without a page reload, and the loaded map
+	 * is a snapshot from the server load -- so a successful retry writes its
+	 * answer here and the derived lookup prefers it. Not a mutation of the prop:
+	 * the load stays the source of truth for everything this session has not
+	 * touched.
+	 */
+	let exportOverrides = $state<Record<string, ItemExportStatus>>({});
+	let retryingExport = $state<string | null>(null);
+
+	/** What the last load reported, before anything this session retried. */
+	let exportStatuses = $state<Record<string, ItemExportStatus>>({});
+
+	function exportStatusFor(itemId: string): ItemExportStatus | null {
+		return exportOverrides[itemId] ?? exportStatuses[itemId] ?? null;
+	}
+
+	/**
+	 * Refreshes the chips for whatever is currently listed. Called after content
+	 * loads, and never on its own: an item id this console is not showing has no
+	 * chip to put a status on.
+	 */
+	async function refreshExportStatuses() {
+		if (!loadExportStatuses || !items.length) return;
+		exportStatuses = await loadExportStatuses(items.map((i) => i.id));
+		// A fresh read supersedes anything retried against the previous one.
+		exportOverrides = {};
+	}
+
+	async function doRetryExport(item: ClassroomItem) {
+		if (!retryExport || retryingExport) return;
+		retryingExport = item.id;
+		const res = await retryExport(item.id);
+		retryingExport = null;
+		const previous = exportStatusFor(item.id);
+		if (!res.ok) {
+			exportOverrides = {
+				...exportOverrides,
+				[item.id]: { ...(previous ?? blankExport()), lastExportError: res.message }
+			};
+			return;
+		}
+		const outcome = res.data;
+		if (outcome.status === 'ok') {
+			exportOverrides = {
+				...exportOverrides,
+				[item.id]: {
+					slug: outcome.slug,
+					lastExportAt: new Date().toISOString(),
+					lastExportSha: outcome.sha,
+					lastExportError: null
+				}
+			};
+			return;
+		}
+		if (outcome.status === 'skipped') {
+			// Nothing to export is not a failure, so the chip goes away rather
+			// than being replaced with a different complaint.
+			exportOverrides = {
+				...exportOverrides,
+				[item.id]: { ...(previous ?? blankExport()), lastExportError: null }
+			};
+			return;
+		}
+		exportOverrides = {
+			...exportOverrides,
+			[item.id]: { ...(previous ?? blankExport()), lastExportError: outcome.error }
+		};
+	}
+
+	function blankExport(): ItemExportStatus {
+		return { slug: null, lastExportAt: null, lastExportSha: null, lastExportError: null };
 	}
 
 	// Content actions. Publishing a DRAFT publishes it in every class it is
@@ -1027,6 +1134,27 @@
 															&nbsp;&middot; {item.attachments.length} file{item.attachments.length === 1 ? '' : 's'}
 														{/if}
 													</span>
+													<!-- QUIET, and only when there is something wrong. An item that has
+													     never exported, or exported cleanly, says nothing at all: absence
+													     is the right signal for "no problem", and a green "exported" chip
+													     on every row would be noise on the one screen that lists them all. -->
+													{#if exportFailed(exportStatusFor(item.id))}
+														<span class="export-fail" data-testid="export-fail-{item.id}">
+															<span class="export-chip">Export failed</span>
+															<span class="export-why">{exportStatusFor(item.id)?.lastExportError}</span>
+															{#if retryExport}
+																<button
+																	type="button"
+																	class="btn secondary tiny"
+																	disabled={retryingExport === item.id}
+																	data-testid="export-retry-{item.id}"
+																	onclick={() => doRetryExport(item)}
+																>
+																	{retryingExport === item.id ? 'Retrying…' : 'Retry'}
+																</button>
+															{/if}
+														</span>
+													{/if}
 												</span>
 												<span class="content-actions">
 													<button type="button" class="btn secondary tiny" disabled={panelBusy} onclick={() => startEdit(item.id)}>
@@ -1364,6 +1492,34 @@
 		padding: 0 0.8rem 0.8rem;
 	}
 	.roster-rows,
+	/* The export chip sits on its own line under the item meta, so a long
+	   GitHub message wraps inside the row instead of widening it. Amber, this
+	   palette’s "needs attention" -- crimson stays reserved for live and error
+	   states proper, and a failed export is neither: the content itself saved. */
+	.export-fail {
+		display: flex;
+		align-items: baseline;
+		gap: 0.4rem;
+		flex-wrap: wrap;
+		margin-top: 0.15rem;
+	}
+	.export-chip {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		letter-spacing: 0.04em;
+		border: 1px solid var(--amber);
+		border-radius: 999px;
+		padding: 0.02rem 0.45rem;
+		color: var(--amber);
+		white-space: nowrap;
+	}
+	.export-why {
+		font-size: 0.72rem;
+		color: var(--text-2);
+		min-width: 0;
+		overflow-wrap: anywhere;
+	}
+
 	.content-rows {
 		display: flex;
 		flex-direction: column;

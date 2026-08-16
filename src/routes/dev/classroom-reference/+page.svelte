@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '$lib/classroom/classroom.css';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
-	import ReferenceTools from '$lib/classroom/ReferenceTools.svelte';
+	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import ShortLinkManager from '$lib/ShortLinkManager.svelte';
 	import { SAMPLE_REFERENCE } from '$lib/classroom/dev-reference-fixture';
 	import {
@@ -21,7 +21,7 @@
 	/**
 	 * Dev harness for the reference-document system (404 in production, no auth,
 	 * no Supabase, no network). It mounts the REAL components -- ReferenceDoc,
-	 * ReferenceTools, ShortLinkManager -- against in-memory transports, so every
+	 * SpecImporter, ShortLinkManager -- against in-memory transports, so every
 	 * interaction verified here is the shipping one.
 	 *
 	 * The public/private BOUNDARY is deliberately not simulated here: it is
@@ -221,7 +221,8 @@
 	{:else if view === 'tools'}
 		<section class="card">
 			<h2 class="section-label">Reference document</h2>
-			<ReferenceTools
+			<SpecImporter
+				kind="reference"
 				itemId="item-1"
 				spec={attached}
 				{isPublic}

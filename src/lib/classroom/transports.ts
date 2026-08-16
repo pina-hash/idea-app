@@ -28,6 +28,13 @@ import {
 	type SubmissionFileRow
 } from './assignment-spec';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
+import {
+	normalizeRevisionHistory,
+	type ExportOutcome,
+	type ItemExportStatus,
+	type RevisionTarget,
+	type RevisionTransports
+} from './revisions';
 import { deckUploadSizeIssue, normalizeDeckRow, type ClassroomDeck, type DeckTransports } from './deck';
 import { DeckUploadCancelled, logDeckUpload, postDeckZip, type DeckUploadError } from './deck-upload';
 import {
@@ -147,6 +154,120 @@ export async function selectItemsWithDoc<T extends { error: { message?: string }
 
 function fail(error: { message?: string } | null): { ok: false; message: string } {
 	return { ok: false, message: error?.message ?? 'Something went wrong.' };
+}
+
+/**
+ * Asks the server to push this item's spec to the repo, and DOES NOT WAIT.
+ *
+ * Fire-and-forget on purpose, and called only after a write has already
+ * succeeded: the export is best-effort and must never make a save feel slower
+ * or fail one. It is its own request rather than work tacked onto the write
+ * because a serverless function is torn down once it has responded, so a
+ * background task started inside the save may simply never run -- see the
+ * route's own header.
+ *
+ * Every failure is swallowed here because there is nothing useful to do with
+ * one at this point: the outcome is recorded on the item server-side and shown
+ * as a quiet chip with a Retry in the manage console, which is where someone is
+ * actually looking.
+ */
+export function pingClassroomExport(itemId: string): void {
+	void fetch('/api/classroom/export', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ item_id: itemId })
+	}).catch(() => {});
+}
+
+/** The same call, awaited: the manage console's Retry, where someone is waiting. */
+export async function runClassroomExport(itemId: string): Promise<TxResult<ExportOutcome>> {
+	try {
+		const res = await fetch('/api/classroom/export', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ item_id: itemId })
+		});
+		const body = (await res.json().catch(() => null)) as (ExportOutcome & { error?: string }) | null;
+		if (!res.ok) return { ok: false, message: body?.error ?? `Export failed (${res.status}).` };
+		if (!body) return { ok: false, message: 'The export gave no answer.' };
+		return { ok: true, data: body };
+	} catch (e) {
+		return { ok: false, message: (e as Error).message || 'Export failed.' };
+	}
+}
+
+/**
+ * The revision history for one item (0110).
+ *
+ * The RPC rather than a plain select because `head_revisions` -- the LIVE
+ * version number per target -- is derived, and every caller needs it to say
+ * "r3 of 4". It re-asks the same authorization question the table's own policy
+ * asks, so this widens nothing.
+ *
+ * Fails soft to an EMPTY history when 0110 is not applied: migrations here are
+ * pasted in by hand, so a deployment sitting between two of them is a real
+ * state, and an item page must not break because it cannot show a panel.
+ */
+export function createRevisionTransports(supabase: SupabaseClient): RevisionTransports {
+	return {
+		async load(itemId) {
+			const { data, error } = await supabase.rpc('classroom_item_revisions', {
+				p_item_id: itemId
+			});
+			if (error) return fail(error);
+			return { ok: true, data: normalizeRevisionHistory(data) };
+		},
+		async restore(revisionId) {
+			const { data, error } = await supabase.rpc('classroom_restore_revision', {
+				p_revision_id: revisionId
+			});
+			if (error) return fail(error);
+			const res = (data ?? {}) as { target?: string; restored?: number; changed?: boolean };
+			return {
+				ok: true,
+				data: {
+					target: res.target as RevisionTarget,
+					restored: Number(res.restored ?? 0),
+					changed: res.changed === true
+				}
+			};
+		}
+	};
+}
+
+/**
+ * Export bookkeeping for a batch of items, keyed by item id.
+ *
+ * ITS OWN QUERY rather than columns on ITEM_SELECT, for the deploy-ordering
+ * reason that constant documents at length: PostgREST refuses an ENTIRE select
+ * for one unknown column, so naming 0110's four columns in the shared select
+ * would blank every classroom read until 0110 landed. Failing soft here costs
+ * the failure chip and nothing else.
+ */
+export async function loadExportStatuses(
+	supabase: SupabaseClient,
+	itemIds: readonly string[]
+): Promise<Record<string, ItemExportStatus>> {
+	if (!itemIds.length) return {};
+	try {
+		const { data, error } = await supabase
+			.from('classroom_items')
+			.select('id, export_slug, last_export_at, last_export_sha, last_export_error')
+			.in('id', itemIds as string[]);
+		if (error) return {};
+		const out: Record<string, ItemExportStatus> = {};
+		for (const row of (data ?? []) as Record<string, unknown>[]) {
+			out[String(row.id)] = {
+				slug: (row.export_slug as string | null) ?? null,
+				lastExportAt: (row.last_export_at as string | null) ?? null,
+				lastExportSha: (row.last_export_sha as string | null) ?? null,
+				lastExportError: (row.last_export_error as string | null) ?? null
+			};
+		}
+		return out;
+	} catch {
+		return {};
+	}
 }
 
 /**
@@ -628,6 +749,12 @@ async function saveItem(payload: {
 		}
 		const itemId = body?.item_id ?? payload.id;
 		if (!itemId) return { ok: false, message: 'Save failed.' };
+		// The item's own content moved, which changes the exported metadata
+		// (title, posted sections) even when the spec itself did not. The server
+		// skips anything carrying no spec, so an announcement's save pings and is
+		// answered "nothing to export" rather than being filtered here -- one
+		// place decides what is exportable, and it is the one with the data.
+		pingClassroomExport(itemId);
 		return { ok: true, data: { itemId } };
 	} catch (e) {
 		return { ok: false, message: (e as Error).message || 'Save failed.' };
@@ -826,7 +953,9 @@ export function createReferenceTransports(supabase: SupabaseClient): ReferenceTr
 				p_item_id: itemId,
 				p_spec: spec
 			});
-			return error ? fail(error) : { ok: true, data: undefined };
+			if (error) return fail(error);
+			pingClassroomExport(itemId);
+			return { ok: true, data: undefined };
 		},
 		async setPublic(itemId, isPublic) {
 			const { data, error } = await supabase.rpc('classroom_set_item_public', {
@@ -849,14 +978,20 @@ export function createTeacherEngineTransports(
 				p_item_id: itemId,
 				p_spec: spec
 			});
-			return error ? fail(error) : { ok: true, data: undefined };
+			if (error) return fail(error);
+			pingClassroomExport(itemId);
+			return { ok: true, data: undefined };
 		},
 		async setRubric(itemId, criteria) {
 			const { error } = await supabase.rpc('classroom_set_rubric', {
 				p_item_id: itemId,
 				p_criteria: criteria
 			});
-			return error ? fail(error) : { ok: true, data: undefined };
+			if (error) return fail(error);
+			// The rubric is part of what an assignment IS, so it rides the same
+			// export -- a rubric edit alone still changes the exported folder.
+			pingClassroomExport(itemId);
+			return { ok: true, data: undefined };
 		},
 		async gradeSubmission(itemId, studentEmail, scores, comment, release, criterionComments) {
 			const { data: res, error } = await supabase.rpc('classroom_grade_submission', {
@@ -1042,7 +1177,13 @@ export function createClassroomTransports(supabase: SupabaseClient): ClassroomMa
 				p_item_id: itemId,
 				p_published: published
 			});
-			return error ? fail(error) : { ok: true, data: undefined };
+			if (error) return fail(error);
+			// "On publish", per the brief. Unpublishing pings too and lands
+			// nothing new -- the export is idempotent, and deliberately does NOT
+			// delete the exported folder: the repo is a record of what was
+			// authored, not a mirror of what is currently visible to a class.
+			pingClassroomExport(itemId);
+			return { ok: true, data: undefined };
 		},
 		async setPinned(itemId, pinned) {
 			const { error } = await supabase.rpc('classroom_set_item_pinned', {

@@ -4,8 +4,9 @@
 	import ItemDetail from '$lib/classroom/ItemDetail.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
-	import SpecImport from '$lib/classroom/SpecImport.svelte';
-	import ReferenceTools from '$lib/classroom/ReferenceTools.svelte';
+	import ManageConsole from '$lib/classroom/ManageConsole.svelte';
+	import RevisionHistory from '$lib/classroom/RevisionHistory.svelte';
+	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import '$lib/classroom/classroom.css';
 	import {
 		isScheduled,
@@ -17,6 +18,15 @@
 	import { itemBodyDoc, type ItemDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
 	import type { AssignmentSpec, AssignmentTeacherTransports, RubricCriterion } from '$lib/classroom/assignment-spec';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
+	import type {
+		ContentRevision,
+		ExportOutcome,
+		ItemExportStatus,
+		RevisionHistory as RevisionHistoryData,
+		RevisionTarget,
+		RevisionTransports
+	} from '$lib/classroom/revisions';
+	import type { ClassroomCourse, ClassroomManageTransports } from '$lib/classroom/classroom';
 
 	/**
 	 * Phase 1 harness. See +page.ts for what it covers and why it is separate
@@ -371,7 +381,17 @@
 	};
 
 	// --- Views ---------------------------------------------------------------
-	type View = 'compose' | 'edit' | 'editor' | 'bodies' | 'rows' | 'detail' | 'migrated';
+	type View =
+		| 'compose'
+		| 'edit'
+		| 'editor'
+		| 'bodies'
+		| 'rows'
+		| 'detail'
+		| 'importer'
+		| 'history'
+		| 'export'
+		| 'migrated';
 	let view = $state<View>('compose');
 	const VIEWS: { id: View; label: string }[] = [
 		{ id: 'compose', label: 'Composer (create)' },
@@ -380,7 +400,10 @@
 		{ id: 'bodies', label: 'ItemBody' },
 		{ id: 'rows', label: 'Draft / Scheduled / Live' },
 		{ id: 'detail', label: 'ItemDetail shell' },
-		{ id: 'migrated', label: 'Migrated components' }
+		{ id: 'importer', label: 'Spec importer' },
+		{ id: 'history', label: 'Revision history' },
+		{ id: 'export', label: 'Export chip' },
+		{ id: 'migrated', label: 'Other tools' }
 	];
 
 	// --- Rich editor round trip ---------------------------------------------
@@ -443,8 +466,16 @@
 	]);
 
 	const teacherTransports = {
-		async setSpec(itemId: string, spec: AssignmentSpec) {
-			note('setSpec', { itemId, title: spec?.meta?.title });
+		async setSpec(itemId: string, spec: AssignmentSpec | null) {
+			note('setSpec', { itemId, title: spec?.meta?.title, cleared: spec === null });
+			if (refuseServer) {
+				// The SERVER'S refusal, in the server's own words. The importer has
+				// to render this in the same list as its own validation problems.
+				return {
+					ok: false as const,
+					message: 'Module "measure" rubric must sum to the module points (12).'
+				};
+			}
 			return { ok: true as const, data: undefined };
 		},
 		async setRubric(itemId: string, criteria: RubricCriterion[]) {
@@ -467,9 +498,415 @@
 		]
 	} as unknown as ReferenceSpec;
 
+	// --- Phase 2: the consolidated importer ---------------------------------
+	//
+	// The samples below are REAL: each one passes the shipping validator (a
+	// harness whose "valid" sample is not actually valid proves nothing about
+	// the flow it is demonstrating). The invalid ones each break a DIFFERENT
+	// rule, so the problem list is exercised rather than one message rendered
+	// twice.
+	let importerKind = $state<'assignment' | 'reference'>('assignment');
+	let refuseServer = $state(false);
+
+	const VALID_ASSIGNMENT = JSON.stringify(
+		{
+			schemaVersion: 1,
+			meta: {
+				assignmentId: 'idea209h-bridge-stackup',
+				title: 'Bridge stackup',
+				totalPoints: 20
+			},
+			modules: [
+				{
+					id: 'measure',
+					title: 'Measure the span',
+					points: 12,
+					aiLevel: 1,
+					blocks: [
+						{ type: 'instructions', content: 'Measure the span at three points and record each.' },
+						{
+							id: 'span-notes',
+							type: 'textField',
+							prompt: 'What did you measure, and where?',
+							minSentences: 2,
+							maxSentences: 5
+						},
+						{
+							id: 'span-table',
+							type: 'table',
+							prompt: 'Readings',
+							minRows: 3,
+							columns: [
+								{ key: 'point', label: 'Point' },
+								{ key: 'mm', label: 'Reading (mm)' }
+							]
+						}
+					],
+					rubric: [
+						{
+							id: 'accuracy',
+							criterion: 'Accuracy',
+							levels: [
+								{ label: 'Full', points: 12, descriptor: 'Every reading within tolerance.' },
+								{ label: 'Partial', points: 7, descriptor: 'Most readings within tolerance.' },
+								{ label: 'None', points: 0, descriptor: 'Not attempted.' }
+							]
+						}
+					]
+				},
+				{
+					id: 'conclude',
+					title: 'Draw a conclusion',
+					points: 8,
+					blocks: [
+						{ type: 'instructions', content: 'Say what the stackup means for the build.' },
+						{
+							id: 'conclusion',
+							type: 'textField',
+							prompt: 'What does the stackup mean?',
+							minSentences: 3
+						}
+					],
+					rubric: [
+						{
+							id: 'reasoning',
+							criterion: 'Reasoning',
+							levels: [
+								{ label: 'Full', points: 8, descriptor: 'Conclusion follows from the data.' },
+								{ label: 'Partial', points: 5, descriptor: 'Partly supported.' },
+								{ label: 'None', points: 0, descriptor: 'Not attempted.' }
+							]
+						}
+					]
+				}
+			]
+		},
+		null,
+		2
+	);
+
+	const VALID_REFERENCE = JSON.stringify(
+		{
+			schemaVersion: 2,
+			kind: 'reference',
+			meta: { referenceId: 'idea209h-syllabus', title: 'IDEA209H syllabus' },
+			navigation: 'tabs',
+			sections: [
+				{
+					slug: 'grading',
+					title: 'Grading',
+					blocks: [
+						{
+							type: 'instructions',
+							content: 'Work is graded against the rubric on each assignment.'
+						},
+						{
+							type: 'keyValue',
+							items: [
+								{ label: 'Labs', value: '40%' },
+								{ label: 'Documentation', value: '25%' }
+							]
+						}
+					]
+				},
+				{
+					slug: 'materials',
+					title: 'Materials',
+					blocks: [
+						{
+							type: 'callout',
+							variant: 'required',
+							title: 'Bring these',
+							content: 'A 150mm caliper and a bound notebook.'
+						}
+					]
+				}
+			]
+		},
+		null,
+		2
+	);
+
+	/** Points that do not add up, a duplicate block id, and a bad AI level. */
+	const INVALID_ASSIGNMENT = JSON.stringify(
+		{
+			schemaVersion: 1,
+			meta: { assignmentId: 'broken', title: 'Broken', totalPoints: 50 },
+			modules: [
+				{
+					id: 'one',
+					title: 'One',
+					points: 10,
+					aiLevel: 9,
+					blocks: [{ id: 'dup', type: 'textField', prompt: 'A?' }]
+				},
+				{
+					id: 'two',
+					title: 'Two',
+					points: 10,
+					blocks: [{ id: 'dup', type: 'textField', prompt: 'B?' }]
+				}
+			]
+		},
+		null,
+		2
+	);
+
+	/** A reference document carrying points, which references may never have. */
+	const INVALID_REFERENCE = JSON.stringify(
+		{
+			schemaVersion: 2,
+			kind: 'reference',
+			meta: { referenceId: 'broken', title: 'Broken' },
+			sections: [
+				{
+					slug: 'Bad Slug',
+					title: 'Bad',
+					points: 10,
+					blocks: [{ type: 'instructions', content: 'x' }]
+				}
+			]
+		},
+		null,
+		2
+	);
+
+	const sampleValid = $derived(importerKind === 'reference' ? VALID_REFERENCE : VALID_ASSIGNMENT);
+	const sampleInvalid = $derived(
+		importerKind === 'reference' ? INVALID_REFERENCE : INVALID_ASSIGNMENT
+	);
+
+	async function copySample(text: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			note('sample.copied', { chars: text.length });
+		} catch {
+			note('sample.copy-failed', {});
+		}
+	}
+
+	// --- Phase 2: revision history ------------------------------------------
+	//
+	// A chain across THREE targets with a real restore in it, because the point
+	// of the panel is that those interleave into one list.
+	let revSeq = 0;
+	const rid = () => 'rev-' + ++revSeq;
+	const SPEC_R1 = rid();
+
+	let revisionRows = $state<ContentRevision[]>([
+		{
+			id: SPEC_R1,
+			target: 'assignment_spec',
+			revision: 1,
+			payload: JSON.parse(VALID_ASSIGNMENT),
+			author_email: TEACHER,
+			author_name: 'T. Vargas',
+			supersedes_id: null,
+			restored_from_id: null,
+			created_at: iso(-9, 10)
+		},
+		{
+			id: rid(),
+			target: 'item',
+			revision: 1,
+			payload: {
+				title: 'Bridge stackup',
+				body: 'Measure the span and report what it means for the build.',
+				body_doc: null,
+				points: 20,
+				due_at: iso(-2),
+				category: 'Labs',
+				publish_at: null
+			},
+			author_email: TEACHER,
+			author_name: 'T. Vargas',
+			supersedes_id: null,
+			restored_from_id: null,
+			created_at: iso(-6, 14)
+		},
+		{
+			id: rid(),
+			target: 'rubric',
+			revision: 1,
+			payload: [
+				{
+					id: 'accuracy',
+					criterion: 'Accuracy',
+					points: 20,
+					levels: [
+						{ label: 'Full', points: 20, descriptor: 'Within tolerance.' },
+						{ label: 'None', points: 0, descriptor: 'Not attempted.' }
+					]
+				}
+			],
+			author_email: 'a.pina@boscotech.edu',
+			author_name: 'A. Pina',
+			supersedes_id: null,
+			restored_from_id: null,
+			created_at: iso(-4, 9)
+		},
+		{
+			// The RESTORE marker: what restoring spec r1 displaced.
+			id: rid(),
+			target: 'assignment_spec',
+			revision: 2,
+			payload: JSON.parse(INVALID_ASSIGNMENT),
+			author_email: TEACHER,
+			author_name: 'T. Vargas',
+			supersedes_id: SPEC_R1,
+			restored_from_id: SPEC_R1,
+			created_at: iso(-1, 11)
+		}
+	]);
+
+	function headRevisions(): Partial<Record<RevisionTarget, number>> {
+		const heads: Partial<Record<RevisionTarget, number>> = {};
+		for (const r of revisionRows) {
+			const current = heads[r.target] ?? 0;
+			if (r.revision + 1 > current) heads[r.target] = r.revision + 1;
+		}
+		return heads;
+	}
+
+	const revisionTransports: RevisionTransports = {
+		async load(itemId) {
+			note('revisions.load', { itemId });
+			return {
+				ok: true,
+				data: {
+					revisions: [...revisionRows],
+					head_revisions: headRevisions()
+				} as RevisionHistoryData
+			};
+		},
+		async restore(revisionId) {
+			const source = revisionRows.find((r) => r.id === revisionId);
+			note('revisions.restore', { revisionId, target: source?.target });
+			if (!source) return { ok: false, message: 'That revision does not exist.' };
+			// Mirrors the RPC: the CURRENT head is snapshotted, and the new row
+			// carries restored_from_id. The head itself lives outside this list.
+			const sameTarget = revisionRows.filter((r) => r.target === source.target);
+			const head = Math.max(...sameTarget.map((r) => r.revision));
+			const prev = sameTarget.find((r) => r.revision === head);
+			revisionRows = [
+				...revisionRows,
+				{
+					id: rid(),
+					target: source.target,
+					revision: head + 1,
+					payload: prev?.payload ?? source.payload,
+					author_email: TEACHER,
+					author_name: 'T. Vargas',
+					supersedes_id: prev?.id ?? null,
+					restored_from_id: revisionId,
+					created_at: new Date().toISOString()
+				}
+			];
+			return { ok: true, data: { target: source.target, restored: source.revision, changed: true } };
+		}
+	};
+
+	// --- Phase 2: the export failure chip ------------------------------------
+	let exportWillFail = $state(true);
+	const exportStatuses: Record<string, ItemExportStatus> = {
+		'i-rich': {
+			slug: 'bridge-stackup',
+			lastExportAt: iso(-2, 8),
+			lastExportSha: 'a1b2c3d',
+			lastExportError: 'GitHub 401: Bad credentials'
+		}
+	};
+
+	async function loadExportStatuses(itemIds: string[]) {
+		note('export.loadStatuses', { count: itemIds.length });
+		return exportStatuses;
+	}
+
+	async function retryExport(itemId: string) {
+		note('export.retry', { itemId, willFail: exportWillFail });
+		await new Promise((r) => setTimeout(r, 220));
+		if (exportWillFail) {
+			return {
+				ok: true as const,
+				data: {
+					status: 'failed',
+					error: 'GitHub 403: Resource not accessible by personal access token',
+					slug: 'bridge-stackup'
+				} as ExportOutcome
+			};
+		}
+		return {
+			ok: true as const,
+			data: {
+				status: 'ok',
+				sha: 'f00dcafe',
+				slug: 'bridge-stackup',
+				path: 'materials/idea209h/bridge-stackup',
+				unchanged: false,
+				files: ['materials/idea209h/bridge-stackup/assignment.json']
+			} as ExportOutcome
+		};
+	}
+
+	const courses: ClassroomCourse[] = [
+		{ id: 'c-1', code: 'IDEA209H', title: 'Engineering Design', active: true }
+	];
+
+	/**
+	 * Enough of the manage transports to mount the REAL console. Everything the
+	 * export chip does not touch answers plausibly and logs; the chip and its
+	 * Retry are what this view exists to drive.
+	 */
+	const manageTransports = {
+		...composerTransports,
+		async upsertCourse() {
+			return { ok: true as const, data: { courseId: 'c-1', created: false } };
+		},
+		async upsertSection() {
+			return { ok: true as const, data: { sectionId: 's-1' } };
+		},
+		async setSectionActive() {
+			return { ok: true as const, data: undefined };
+		},
+		async deleteSection() {
+			return {
+				ok: true as const,
+				data: { ok: false, reason: 'not_empty', items: 3, enrollments: 12 }
+			};
+		},
+		async reloadSections() {
+			return { ok: true as const, data: { sections, courses } };
+		},
+		async loadRoster() {
+			return { ok: true as const, data: [] };
+		},
+		async setEnrollment() {
+			return { ok: true as const, data: undefined };
+		},
+		async updateEnrollment() {
+			return { ok: true as const, data: { ok: true } };
+		},
+		async importRoster() {
+			return { ok: true as const, data: { total: 0, succeeded: 0, refused: 0, results: [] } };
+		},
+		async loadContent() {
+			note('manage.loadContent', {});
+			return { ok: true as const, data: { items } };
+		}
+	} as unknown as ClassroomManageTransports;
+
 	const referenceTransports = {
-		async setSpec(itemId: string, spec: ReferenceSpec | null) {
-			note('reference.setSpec', { itemId, cleared: spec === null });
+		// setReferenceSpec, not setSpec: that is the name on ReferenceTransports,
+		// and the harness's old stub had it wrong -- hidden by the `as unknown as`
+		// cast, so the control simply did nothing when pressed.
+		async setReferenceSpec(itemId: string, spec: ReferenceSpec | null) {
+			note('reference.setReferenceSpec', { itemId, cleared: spec === null });
+			if (refuseServer) {
+				return {
+					ok: false as const,
+					message: 'Section "grading" slug is already used by another section.'
+				};
+			}
 			return { ok: true as const, data: undefined };
 		},
 		async setPublic(itemId: string, isPublic: boolean) {
@@ -676,26 +1113,115 @@
 						referenceTransports={referenceTransports}
 						spec={SPEC}
 						{rubric}
+						{revisionTransports}
 						onchanged={() => note('onchanged', {})}
 					/>
 				{/if}
 			{/key}
-		{:else}
+		{:else if view === 'importer'}
+			<div class="toggles">
+				<label>
+					kind
+					<select bind:value={importerKind} data-testid="importer-kind">
+						<option value="assignment">assignment</option>
+						<option value="reference">reference</option>
+					</select>
+				</label>
+				<label>
+					<input type="checkbox" bind:checked={refuseServer} data-testid="refuse-server" />
+					server refuses the publish
+				</label>
+			</div>
 			<section class="card">
-				<h2>SpecImport</h2>
-				<SpecImport itemId="i-rich" spec={SPEC} staged={null} transports={teacherTransports} onstage={(raw) => note('spec.onstage', { staged: raw !== null })} />
+				<h2>One importer, both kinds</h2>
+				<p class="note">
+					Open the import panel, paste one of the samples below, and watch: validation runs on
+					its own after a short pause, problems list inline, the preview renders with the REAL
+					student renderer, and Publish stays enabled while you keep typing. There is no
+					Validate button, and a keystroke never disarms the commit.
+				</p>
+				{#key importerKind}
+					<SpecImporter
+						kind={importerKind}
+						itemId={importerKind === 'reference' ? 'i-live' : 'i-rich'}
+						spec={importerKind === 'reference' ? REFERENCE : SPEC}
+						isPublic={false}
+						attachmentCount={2}
+						transports={importerKind === 'reference' ? referenceTransports : teacherTransports}
+						onchanged={() => note('importer.onchanged', { kind: importerKind })}
+					/>
+				{/key}
 			</section>
 			<section class="card">
-				<h2>ReferenceTools</h2>
-				<ReferenceTools
-					itemId="i-live"
-					spec={REFERENCE}
-					isPublic={false}
-					attachmentCount={0}
-					transports={referenceTransports}
-					onchanged={() => note('reference.onchanged', {})}
+				<h2>Staging (the composer, before the item exists)</h2>
+				<p class="note">
+					`itemId` null: nothing to attach to yet, so Publish reads "Use this spec" and hands
+					the JSON back through `onstage` instead of calling an RPC.
+				</p>
+				<SpecImporter
+					kind="assignment"
+					itemId={null}
+					spec={null}
+					staged={null}
+					onstage={(raw) => note('importer.onstage', { staged: raw !== null })}
 				/>
 			</section>
+			<section class="card">
+				<h2>Samples</h2>
+				<div class="row">
+					<button type="button" class="btn secondary tiny" onclick={() => copySample(sampleValid)}>
+						Copy valid {importerKind}
+					</button>
+					<button type="button" class="btn secondary tiny" onclick={() => copySample(sampleInvalid)}>
+						Copy invalid {importerKind}
+					</button>
+				</div>
+				<h3>Valid</h3>
+				<pre class="dump" data-testid="sample-valid">{sampleValid}</pre>
+				<h3>Invalid</h3>
+				<pre class="dump" data-testid="sample-invalid">{sampleInvalid}</pre>
+			</section>
+		{:else if view === 'history'}
+			<section class="card">
+				<h2>Revision history</h2>
+				<p class="note">
+					Four entries across THREE targets in one chronological list, newest first. The
+					assignment-spec r2 entry was displaced by a RESTORE, so it says so rather than
+					leaving a reader to infer it. Restoring appends a new entry -- the chain only ever
+					grows.
+				</p>
+				<RevisionHistory
+					itemId="i-rich"
+					transports={revisionTransports}
+					onchanged={() => note('history.onchanged', {})}
+				/>
+			</section>
+		{:else if view === 'export'}
+			<div class="toggles">
+				<label>
+					<input type="checkbox" bind:checked={exportWillFail} data-testid="export-will-fail" />
+					the retry fails again
+				</label>
+			</div>
+			<section class="card">
+				<h2>Export failure chip, in the REAL manage console</h2>
+				<p class="note">
+					"Bridge stackup" carries a recorded export failure, so its row shows the amber chip,
+					the reason, and Retry. Untick the toggle and retry: a successful export clears the
+					chip on the spot, with no reload. Every other row says nothing at all -- an item that
+					exported cleanly, or never exported, has nothing to report.
+				</p>
+			</section>
+			<ManageConsole
+				email={TEACHER}
+				initialSections={sections}
+				initialCourses={courses}
+				transports={manageTransports}
+				teacherTransports={teacherTransports}
+				{loadExportStatuses}
+				{retryExport}
+			/>
+		{:else}
 			<section class="card">
 				<h2>RubricBuilder</h2>
 				<RubricBuilder

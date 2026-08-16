@@ -126,6 +126,10 @@ export const APPS: SiteApp[] = [
 			// in src/lib/rich-text.ts is deliberately NOT claimed here, since the
 			// notebook's written notes use it too.
 			'src/lib/server/classroom-doc.ts',
+			// Phase 2 (0110): the GitHub spec export's one egress point. Its
+			// client-safe types live in src/lib/classroom/revisions.ts, already
+			// claimed by the prefix above.
+			'src/lib/server/classroom-export.ts',
 			// The student-facing update log's content file (see updates.ts).
 			'classroom-updates.json'
 		],

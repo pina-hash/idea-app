@@ -213,13 +213,6 @@
 		flex-wrap: wrap;
 		overflow-wrap: anywhere;
 	}
-	.ok-dot {
-		width: 0.5rem;
-		height: 0.5rem;
-		border-radius: 50%;
-		background: var(--green);
-		flex: none;
-	}
 	.meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.64rem;

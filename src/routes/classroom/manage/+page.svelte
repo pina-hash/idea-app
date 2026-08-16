@@ -4,7 +4,9 @@
 		classroomFeedbackSubmit,
 		createClassroomTransports,
 		createTeacherEngineTransports,
-		deckTransports
+		deckTransports,
+		loadExportStatuses as loadExportStatusesFor,
+		runClassroomExport
 	} from '$lib/classroom/transports';
 	import type { ReviewTransports, SectionGrid } from '$lib/notebook-review';
 	import type { PageData } from './$types';
@@ -41,6 +43,13 @@
 	 * else, so a project without the notebook migrations simply shows the rest
 	 * of the section panel as it always did.
 	 */
+	/**
+	 * The GitHub export's last outcome for the items currently listed (0110).
+	 * Its own read, fail-soft to an empty map, so a deployment without 0110
+	 * shows no chips rather than breaking the console.
+	 */
+	const loadExportStatuses = (itemIds: string[]) => loadExportStatusesFor(data.supabase, itemIds);
+
 	const loadNotebookGrid: ReviewTransports['loadGrid'] = async (sectionId, unitNumber) => {
 		const { data: result, error } = await data.supabase.rpc('notebook_get_section_grid', {
 			p_section_id: sectionId,
@@ -67,5 +76,7 @@
 	{deckTransports}
 	{teacherTransports}
 	{loadNotebookGrid}
+	{loadExportStatuses}
+	retryExport={runClassroomExport}
 	{submitFeedback}
 />

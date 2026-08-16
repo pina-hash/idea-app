@@ -176,9 +176,110 @@ body:has(.cr-root) .bg-fx {
 	border-color: var(--gold);
 }
 
+/* THE SCHEDULED CHIP MAY WRAP ON A PHONE, and must.
+   It is the one chip carrying a whole timestamp ("Scheduled · Aug 18, 9:00 AM"),
+   which measures ~200px -- so `white-space: nowrap`, right everywhere there is
+   room, pushed the manage console's content row 4px past a 375px viewport and
+   gave the whole page a horizontal scrollbar. Measured while verifying Phase 2;
+   the chip predates it, and nothing about the overflow pointed at this chip
+   rather than at the row it sits in. Keeping the phrase on one line is a
+   nicety; not scrolling the page sideways is not. */
+@media (max-width: 32rem) {
+	.cr-root .sched-chip {
+		white-space: normal;
+	}
+}
+
 /* --- Selected / emphasised rows ------------------------------------------
    `--green-tint` is what lets a row read as chosen without spending the
    accent on a surface. */
 .cr-root .is-selected {
 	background: var(--green-tint);
+}
+
+/* --- Teacher tool panels --------------------------------------------------
+   The shared furniture of the spec importer, the rubric builder and the deck
+   panel. Every one of these was written out per component before the two
+   importers were consolidated -- `.spec-line` and `.ok-dot` in two files,
+   `.paste` in two, the error list in two, `.tool-rule` in two -- which is the
+   same drift this stylesheet was created to end. A component that wants one
+   uses the class.
+
+   `.tool-actions` deliberately carries no margin, for the reason `.feedback`
+   carries none: spacing belongs to the layout around a control group, and the
+   copies disagreed about it precisely because of that.
+   ------------------------------------------------------------------------ */
+.cr-root .tool-actions {
+	display: flex;
+	gap: 0.35rem;
+	flex-wrap: wrap;
+	align-items: center;
+}
+
+/* The one-line "this is what is attached" summary above a tool's controls. */
+.cr-root .spec-line {
+	margin: 0;
+	font-size: 0.88rem;
+	display: flex;
+	align-items: baseline;
+	gap: 0.4rem;
+	flex-wrap: wrap;
+}
+.cr-root .spec-line.none {
+	color: var(--text-2);
+}
+.cr-root .ok-dot {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: var(--green);
+	align-self: center;
+	flex: none;
+}
+.cr-root .spec-meta {
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.66rem;
+	color: var(--text-2);
+}
+
+/* A mono paste area for authored JSON. Not a general textarea rule: prose
+   fields (the rich editor, a caption) must stay in the reading face. */
+.cr-root .paste {
+	width: 100%;
+	box-sizing: border-box;
+	background: var(--surface-0);
+	border: 1px solid var(--hairline);
+	border-radius: var(--radius-card);
+	color: var(--text-1);
+	font-family: 'Share Tech Mono', monospace;
+	font-size: 0.72rem;
+	line-height: 1.45;
+	padding: 0.5rem 0.6rem;
+	resize: vertical;
+}
+.cr-root .paste:focus {
+	outline: none;
+	border-color: var(--line-strong);
+}
+
+/* Validation problems. Amber, which is this palette's "you need to fix
+   something" -- crimson stays reserved for live/error states proper. */
+.cr-root .problem-list {
+	margin: 0;
+	padding-left: 1.2rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+.cr-root .problem-list li {
+	font-size: 0.8rem;
+	color: var(--amber);
+}
+
+/* The hairline between two tools stacked in one card. */
+.cr-root .tool-rule {
+	border: none;
+	border-top: 1px solid var(--hairline);
+	margin: 0.1rem 0;
+	width: 100%;
 }

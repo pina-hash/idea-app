@@ -6,6 +6,7 @@
 		createClassroomTransports,
 		createEngineTransports,
 		createReferenceTransports,
+		createRevisionTransports,
 		createTeacherEngineTransports,
 		deckTransports,
 		fetchLinkPreviewClient
@@ -26,6 +27,8 @@
 	const teacherTransports = createTeacherEngineTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const referenceTransports = createReferenceTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const revisionTransports = createRevisionTransports(data.supabase);
 </script>
 
 <ItemDetail
@@ -46,6 +49,7 @@
 	referenceTransports={data.canManage ? referenceTransports : null}
 	deck={data.deck}
 	deckTransports={data.canManage ? deckTransports : null}
+	revisionTransports={data.canManage ? revisionTransports : null}
 	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}

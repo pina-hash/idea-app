@@ -10,10 +10,11 @@
 	import ItemBody from '$lib/classroom/ItemBody.svelte';
 	import LinkPreviewCard from '$lib/classroom/LinkPreviewCard.svelte';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
-	import ReferenceTools from '$lib/classroom/ReferenceTools.svelte';
+	import RevisionHistory from '$lib/classroom/RevisionHistory.svelte';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
-	import SpecImport from '$lib/classroom/SpecImport.svelte';
+	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
+	import type { RevisionTransports } from '$lib/classroom/revisions';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type {
 		AssignmentEngineTransports,
@@ -77,7 +78,8 @@
 		referenceSpec = null,
 		referenceTransports = null,
 		deck = null,
-		deckTransports = null
+		deckTransports = null,
+		revisionTransports = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -116,6 +118,13 @@
 		 */
 		deck?: ClassroomDeck | null;
 		deckTransports?: DeckTransports | null;
+		/**
+		 * The item's content history (0110). Manager-only, and absent rather
+		 * than empty where it does not apply -- view-as carries none, exactly as
+		 * it carries no deck: previewing what a STUDENT sees must not include a
+		 * teacher's drafts.
+		 */
+		revisionTransports?: RevisionTransports | null;
 	} = $props();
 
 	let editing = $state(false);
@@ -375,7 +384,8 @@
 	{#if item.kind === 'material' && canManage && referenceTransports}
 		<section class="card engine-tools">
 			<h2 class="section-label">Reference document</h2>
-			<ReferenceTools
+			<SpecImporter
+				kind="reference"
 				itemId={item.id}
 				spec={referenceSpec}
 				isPublic={item.is_public === true}
@@ -390,7 +400,13 @@
 		{#if canManage && teacherTransports}
 			<section class="card engine-tools">
 				<h2 class="section-label">Assignment engine</h2>
-				<SpecImport itemId={item.id} {spec} transports={teacherTransports} onchanged={() => onchanged?.()} />
+				<SpecImporter
+					kind="assignment"
+					itemId={item.id}
+					{spec}
+					transports={teacherTransports}
+					onchanged={() => onchanged?.()}
+				/>
 				<hr class="tool-rule" />
 				<RubricBuilder
 					itemId={item.id}
@@ -428,6 +444,16 @@
 				</p>
 			</section>
 		{/if}
+	{/if}
+
+	{#if canManage && revisionTransports}
+		<section class="card">
+			<RevisionHistory
+				itemId={item.id}
+				transports={revisionTransports}
+				onchanged={() => onchanged?.()}
+			/>
+		</section>
 	{/if}
 
 	<ClassroomFeedback
@@ -528,12 +554,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.6rem;
-	}
-	.tool-rule {
-		border: none;
-		border-top: 1px solid var(--hairline);
-		margin: 0.1rem 0;
-		width: 100%;
 	}
 	.engine-host {
 		margin-bottom: 0.9rem;
