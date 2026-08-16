@@ -5719,6 +5719,15 @@ and filtering that go with them are UI and needed no schema.
   Postgres and they starve each other's `beforeAll`. HEAD fails the same way (9
   files). Run DB suites with `--no-file-parallelism`; all 8 notebook suites pass
   that way (165/165).
+- **`npm run build` note (pre-existing, machine-level, NOT a code failure):** on
+  Windows the build compiles fully and then dies in the Vercel adapter's
+  `closeBundle` with `EPERM` writing
+  `.vercel/output/functions/![-]\catchall.func` -- a path Windows cannot create.
+  Confirmed identical at `8586064` (pre-Phase-2), and it survives deleting
+  `.vercel` and `.svelte-kit/output`. It does NOT stop the build from doing the
+  one check a build is wanted for here: SvelteKit's illegal-import pass runs
+  during compile, so a `$lib/server` leak into client code still fails loudly
+  before this point. Vercel builds on Linux and is unaffected.
 
 ## Digital notebook (pinning, activity sort, dark mode, copy, `0091`)
 
