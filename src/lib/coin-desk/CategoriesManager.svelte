@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { KIND_LABELS, KIND_ORDER, priceHint, type CoinCategory, type CoinKind } from '$lib/coin-desk';
+	import { COIN_SYMBOL } from '$lib/coin-format';
 	import {
 		CREATABLE_PRICING_MODELS,
 		KIND_LABELS_SHORT,
@@ -276,24 +277,24 @@
 
 			{#if newPricingModel === 'flat'}
 				<div class="field-row">
-					<label for="new-cat-amount">Amount (i¢)</label>
+					<label for="new-cat-amount">Amount ({COIN_SYMBOL})</label>
 					<input id="new-cat-amount" type="number" min="0" step="1" bind:value={newAmount} />
 				</div>
 			{:else if newPricingModel === 'range'}
 				<div class="field-row-group">
 					<div class="field-row">
-						<label for="new-cat-min">Min (i¢)</label>
+						<label for="new-cat-min">Min ({COIN_SYMBOL})</label>
 						<input id="new-cat-min" type="number" min="0" step="1" bind:value={newMinAmount} />
 					</div>
 					<div class="field-row">
-						<label for="new-cat-max">Max (i¢)</label>
+						<label for="new-cat-max">Max ({COIN_SYMBOL})</label>
 						<input id="new-cat-max" type="number" min="0" step="1" bind:value={newMaxAmount} />
 					</div>
 				</div>
 			{:else if newPricingModel === 'per_unit'}
 				<div class="field-row-group">
 					<div class="field-row">
-						<label for="new-cat-rate">Rate (i¢ per unit)</label>
+						<label for="new-cat-rate">Rate ({COIN_SYMBOL} per unit)</label>
 						<input id="new-cat-rate" type="number" min="0" step="1" bind:value={newAmount} />
 					</div>
 					<div class="field-row">

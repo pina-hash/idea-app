@@ -4,6 +4,7 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import { COIN_SYMBOL } from '$lib/coin-format';
 	import {
 		CONTRACT_STATUS_LABELS,
 		claimRefusalMessage,
@@ -185,7 +186,7 @@
 							</div>
 							<div class="meta">
 								<span class="since">
-									{c.payout_amount}i¢ total &middot; {c.claimed_count}/{c.max_contractors} claimed
+									{c.payout_amount}{COIN_SYMBOL} total &middot; {c.claimed_count}/{c.max_contractors} claimed
 									&middot; claimed {when(c.created_at)}
 								</span>
 								{#if c.description}<span class="note-text">{c.description}</span>{/if}
@@ -219,7 +220,7 @@
 							</div>
 							<div class="meta">
 								<span class="since">
-									{c.payout_amount}i¢ total &middot; {c.claimed_count}/{c.max_contractors} claimed
+									{c.payout_amount}{COIN_SYMBOL} total &middot; {c.claimed_count}/{c.max_contractors} claimed
 								</span>
 								{#if c.description}<span class="note-text">{c.description}</span>{/if}
 								{#if feedback}

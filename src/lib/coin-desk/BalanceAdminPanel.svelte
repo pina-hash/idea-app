@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import CoinTransactionRows from '$lib/coin-balance/CoinTransactionRows.svelte';
+	import { coins, COIN_SYMBOL, signedCoins } from '$lib/coin-format';
 	import { DEFAULT_MEDIUM, MEDIA, MEDIUM_LABELS, type CoinMedium } from '$lib/coin-desk';
 
 	/**
@@ -19,7 +21,18 @@
 	 * is "correct what is already there", and the adjustment is a different,
 	 * rarer action with a required reason.
 	 */
-	let { supabase }: { supabase: SupabaseClient } = $props();
+	let {
+		supabase,
+		categoryKinds = {}
+	}: {
+		supabase: SupabaseClient;
+		/**
+		 * category id -> coin_categories.kind, from the page's own load. Without
+		 * it every non-payout row reads as an adjustment (see coinTxnType), so
+		 * the page passes it rather than this panel guessing.
+		 */
+		categoryKinds?: Record<string, string>;
+	} = $props();
 
 	interface CoinTxn {
 		id: string;
@@ -27,6 +40,8 @@
 		category_name: string;
 		amount: number;
 		medium: CoinMedium;
+		/** Both halves of a payout carry it (0096); the pair renders as one row. */
+		transfer_id: string | null;
 		quantity: number | null;
 		note: string | null;
 		actor_email: string;
@@ -98,12 +113,12 @@
 		if (!r.ok) {
 			errorMsg =
 				r.reason === 'debt'
-					? `Balance is negative (${r.balance}i¢); adjustments still apply.`
+					? `Balance is negative (${r.balance}${COIN_SYMBOL}); adjustments still apply.`
 					: (r.reason ?? 'Adjustment refused.');
 			return;
 		}
 		const now = adjustMedium === 'physical' ? r.physical_balance : r.digital_balance;
-		notice = `Applied ${amt > 0 ? '+' : ''}${Math.round(amt)}i¢ to ${target}'s ${adjustMedium} balance. It now reads ${now}i¢ (total ${r.balance}i¢).`;
+		notice = `Applied ${amt > 0 ? '+' : ''}${Math.round(amt)}${COIN_SYMBOL} to ${target}'s ${adjustMedium} balance. It now reads ${now}${COIN_SYMBOL} (total ${r.balance}${COIN_SYMBOL}).`;
 		adjustAmount = '';
 		adjustNote = '';
 		// Refresh, WITHOUT clearing the confirmation above -- the coin-desk
@@ -150,15 +165,15 @@
 
 	{#if lookup}
 		<div class="coin-summary">
-			<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}i¢</div>
+			<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}{COIN_SYMBOL}</div>
 			<div class="medium-split">
 				<span class="split-cell" class:negative={lookup.physical_balance < 0}>
 					<span class="split-label">physical</span>
-					<span class="split-value">{lookup.physical_balance}i¢</span>
+					<span class="split-value">{lookup.physical_balance}{COIN_SYMBOL}</span>
 				</span>
 				<span class="split-cell" class:negative={lookup.digital_balance < 0}>
 					<span class="split-label">digital</span>
-					<span class="split-value">{lookup.digital_balance}i¢</span>
+					<span class="split-value">{lookup.digital_balance}{COIN_SYMBOL}</span>
 				</span>
 			</div>
 			<div class="coin-meta">
@@ -181,7 +196,7 @@
 					</button>
 				{/each}
 			</div>
-			<input type="number" step="1" placeholder="+/- i¢" bind:value={adjustAmount} />
+			<input type="number" step="1" placeholder="+/- {COIN_SYMBOL}" bind:value={adjustAmount} />
 			<input type="text" maxlength="500" placeholder="Reason (required)" bind:value={adjustNote} />
 			<button class="btn" disabled={!canAdjust} onclick={applyAdjustment}>Apply adjustment</button>
 		</div>
@@ -190,31 +205,11 @@
 			correcting the digital record.
 		</p>
 
-		{#if lookup.recent_transactions.length}
-			<div class="rows coin-rows">
-				{#each lookup.recent_transactions as t (t.id)}
-					<div class="row">
-						<div class="who">
-							<span class="email">{t.category_name}</span>
-						</div>
-						<div class="meta">
-							{#if t.note}<span class="note-text">{t.note}</span>{/if}
-							<span class="since">by {t.actor_email} &middot; {when(t.created_at)}</span>
-						</div>
-						<div class="actions">
-							<span class="medium-chip" class:digital={t.medium === 'digital'}>
-								{t.medium === 'digital' ? 'digital' : 'physical'}
-							</span>
-							<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
-								{t.amount > 0 ? '+' : ''}{t.amount}i¢
-							</span>
-						</div>
-					</div>
-				{/each}
-			</div>
-		{:else}
-			<p class="note">No transactions logged yet for this email.</p>
-		{/if}
+		<CoinTransactionRows
+			transactions={lookup.recent_transactions}
+			kinds={categoryKinds}
+			showActor
+		/>
 	{/if}
 </section>
 
@@ -308,21 +303,6 @@
 	.split-cell.negative .split-value {
 		color: var(--amber);
 	}
-	.medium-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.58rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--dim);
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		padding: 0.05rem 0.3rem;
-		margin-right: 0.5rem;
-	}
-	.medium-chip.digital {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
 	.medium-toggle {
 		display: flex;
 		gap: 0.3rem;
@@ -341,59 +321,5 @@
 		color: var(--bg0);
 		background: var(--cyan);
 		border-color: var(--cyan);
-	}
-	.rows {
-		display: flex;
-		flex-direction: column;
-	}
-	.coin-rows {
-		margin-top: 0.6rem;
-	}
-	.row {
-		display: flex;
-		align-items: center;
-		gap: 0.8rem;
-		flex-wrap: wrap;
-		padding: 0.5rem 0;
-		border-bottom: 1px solid var(--line);
-	}
-	.row:last-child {
-		border-bottom: none;
-	}
-	.who {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		min-width: 14rem;
-	}
-	.email {
-		font-weight: 700;
-		color: var(--white);
-	}
-	.meta {
-		display: flex;
-		flex-direction: column;
-		gap: 0.1rem;
-		min-width: 0;
-	}
-	.note-text {
-		font-size: 0.85rem;
-		color: var(--dim);
-	}
-	.since {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		color: var(--dim);
-	}
-	.actions {
-		margin-left: auto;
-	}
-	.txn-neg {
-		color: var(--amber);
-		font-family: 'Share Tech Mono', monospace;
-	}
-	.txn-pos {
-		color: var(--green);
-		font-family: 'Share Tech Mono', monospace;
 	}
 </style>

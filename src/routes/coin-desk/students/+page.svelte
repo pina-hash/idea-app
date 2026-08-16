@@ -21,4 +21,4 @@
 
 <SectionManager supabase={data.supabase} bind:sections configured={data.sectionsConfigured} />
 
-<BalanceAdminPanel supabase={data.supabase} />
+<BalanceAdminPanel supabase={data.supabase} categoryKinds={data.categoryKinds} />

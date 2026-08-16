@@ -1,6 +1,7 @@
 import { FORCED_MEDIUM, type CoinCategory, type CoinMedium, type StudentSuggestion } from '$lib/coin-desk';
 import type { CoinSectionRow, CoinSectionStudentRow } from '$lib/coin-desk/sections';
 import type { CoinRoleDefinition, QuizQuestionType } from '$lib/coin-desk/roles';
+import { COIN_SYMBOL } from '$lib/coin-format';
 
 /**
  * In-memory stand-in for the 0070 Supabase schema, mirroring its actual
@@ -24,12 +25,12 @@ export const SAMPLE_CATEGORIES: CoinCategory[] = [
 	{ id: 'off_task_device_use', name: 'Off-Task Device Use', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 2, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'unauthorized_printing', name: 'Unauthorized Printing', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 2, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'classroom_standards_violation', name: 'Classroom Standards Violation', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 1, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
-	{ id: 'property_damage_careless', name: 'Property Damage (Careless)', kind: 'fine', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'property_damage_careless', semester_point_cap: null, cap_period: null, cap_count: null, notes: '3i¢ flat plus 1i¢ per $0.25 of repair/replacement cost.' },
+	{ id: 'property_damage_careless', name: 'Property Damage (Careless)', kind: 'fine', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'property_damage_careless', semester_point_cap: null, cap_period: null, cap_count: null, notes: `3${COIN_SYMBOL} flat plus 1${COIN_SYMBOL} per $0.25 of repair/replacement cost.` },
 	{ id: 'property_damage_first_accident', name: 'Property Damage (First Accident)', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 0, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'No charge for a first accidental incident in a semester; logged, not billed.' },
 	{ id: 'property_damage_repeat_accident', name: 'Property Damage (Repeat Accident)', kind: 'fine', scope: 'core', pricing_model: 'flat', amount: 5, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 
 	{ id: 'highest_grade_weekly', name: 'Highest Grade in Section (Weekly)', kind: 'award', scope: 'core', pricing_model: 'flat', amount: 1, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
-	{ id: 'perfect_score_graded_work', name: 'Perfect Score on Graded Work', kind: 'award', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'perfect_score', semester_point_cap: null, cap_period: null, cap_count: null, notes: 'round(points / 25)i¢, minimum 1i¢.' },
+	{ id: 'perfect_score_graded_work', name: 'Perfect Score on Graded Work', kind: 'award', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'perfect_score', semester_point_cap: null, cap_period: null, cap_count: null, notes: `round(points / 25)${COIN_SYMBOL}, minimum 1${COIN_SYMBOL}.` },
 	{ id: 'quality_desktop_background', name: 'Quality Desktop Background', kind: 'award', scope: 'core', pricing_model: 'flat', amount: 3, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: 'month', cap_count: 1, notes: 'Once per calendar month, resetting on the 1st.' },
 	{ id: 'above_and_beyond', name: 'Above and Beyond', kind: 'award', scope: 'core', pricing_model: 'range', amount: null, min_amount: 1, max_amount: 3, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Instructor discretion.' },
 	{ id: 'weekly_role_stipend', name: 'Weekly Role Stipend', kind: 'award', scope: '209h', pricing_model: 'flat', amount: 2, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
@@ -47,10 +48,10 @@ export const SAMPLE_CATEGORIES: CoinCategory[] = [
 	{ id: 'extra_credit', name: 'Extra Credit', kind: 'purchase', scope: '209h', pricing_model: 'per_unit', amount: 2, min_amount: null, max_amount: null, unit_label: 'point', formula_key: null, semester_point_cap: 21, cap_period: null, cap_count: null, notes: 'Restricted to Unit Labs, Unit Assignments, and Documentation checks.' },
 	{ id: 'platform_cosmetic_unlock', name: 'Platform Cosmetic Unlock', kind: 'purchase', scope: 'core', pricing_model: 'range', amount: null, min_amount: 15, max_amount: 25, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'coin_payout', name: 'Coin Payout', kind: 'purchase', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Converts digital balance to physical coins handed over.' },
-	{ id: 'three_d_printing', name: '3D Printing', kind: 'purchase', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'three_d_printing', semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Material 1i¢/10g + a time band.' },
+	{ id: 'three_d_printing', name: '3D Printing', kind: 'purchase', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'three_d_printing', semester_point_cap: null, cap_period: null, cap_count: null, notes: `Material 1${COIN_SYMBOL}/10g + a time band.` },
 	{ id: 'text_printing', name: 'Text Printing (B&W, per 4 pages)', kind: 'purchase', scope: 'core', pricing_model: 'per_unit', amount: 1, min_amount: null, max_amount: null, unit_label: '4 pages', formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: null },
 	{ id: 'song_request', name: 'Song Request', kind: 'purchase', scope: 'core', pricing_model: 'flat', amount: 3, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Approval-gated: nothing plays until reviewed.' },
-	{ id: 'pay_raise', name: 'Pay Raise', kind: 'purchase', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'pay_raise', semester_point_cap: null, cap_period: null, cap_count: null, notes: '40i¢ x the tier being left; permanently raises the wage tier.' },
+	{ id: 'pay_raise', name: 'Pay Raise', kind: 'purchase', scope: 'core', pricing_model: 'formula', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: 'pay_raise', semester_point_cap: null, cap_period: null, cap_count: null, notes: `40${COIN_SYMBOL} x the tier being left; permanently raises the wage tier.` },
 
 	{ id: 'balance_correction', name: 'Balance Correction / Refund', kind: 'adjustment', scope: 'core', pricing_model: 'variable', amount: null, min_amount: null, max_amount: null, unit_label: null, formula_key: null, semester_point_cap: null, cap_period: null, cap_count: null, notes: 'Admin-entered, signed amount with a required reason.' }
 ];
@@ -282,6 +283,13 @@ interface Txn {
 	note: string | null;
 	actor_email: string;
 	created_at: string;
+	/**
+	 * Shared by the two rows of a payout (0096). A COLUMN, not just a meta
+	 * key, because that is what coin_admin_lookup actually selects -- the
+	 * harness carried it only inside `meta`, so the pair could not be
+	 * recognised here even though it could be in production.
+	 */
+	transfer_id?: string | null;
 	/** Sparse, like the real jsonb: the eating-violation strike flag, and the
 	 * legacy import's batch tag (0084). */
 	meta?: Record<string, unknown>;
@@ -573,12 +581,50 @@ function insert(
 		quantity,
 		note,
 		actor_email: 'admin@boscotech.edu',
-		created_at: new Date().toISOString()
+		created_at: new Date().toISOString(),
+		transfer_id: (meta.transfer_id as string | undefined) ?? null
 	};
 	// No stored balance to bump: balancesOf() derives all three from txns.
 	s.txns.unshift(txn);
 	if (categoryId === 'eating_violation' && meta.strike) (txn as unknown as { meta: unknown }).meta = meta;
 	return txn;
+}
+
+/**
+ * The two stored rows of one withdrawal, as coin_payout_student writes them:
+ * a digital debit and an equal physical credit sharing one transfer id.
+ */
+function payoutPair(transferId: string, amount: number, daysAgo: number): Txn[] {
+	const at = new Date(Date.now() - 86400000 * daysAgo).toISOString();
+	const meta = { transfer_id: transferId, transfer_amount: amount };
+	return [
+		{
+			id: transferId + '-d',
+			category_id: 'coin_payout',
+			category_name: 'Coin Payout',
+			amount: -amount,
+			medium: 'digital',
+			quantity: null,
+			note: null,
+			actor_email: 'admin@boscotech.edu',
+			created_at: at,
+			transfer_id: transferId,
+			meta: { ...meta, transfer_side: 'digital_debit' }
+		},
+		{
+			id: transferId + '-p',
+			category_id: 'payout_physical_credit',
+			category_name: 'Coin Payout (physical credit)',
+			amount,
+			medium: 'physical',
+			quantity: null,
+			note: null,
+			actor_email: 'admin@boscotech.edu',
+			created_at: at,
+			transfer_id: transferId,
+			meta: { ...meta, transfer_side: 'physical_credit' }
+		}
+	];
 }
 
 function eatingPassActive(email: string): boolean {
@@ -674,7 +720,13 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 				note: 'opening digital balance',
 				actor_email: 'admin@boscotech.edu',
 				created_at: new Date(Date.now() - 86400000 * 4).toISOString()
-			}
+			},
+			// TWO earlier withdrawals, each stored as the pair it really is and
+			// sharing a timestamp with the other. One payout renders a single row
+			// whether the pairing key is right or merges everything; two at the
+			// same instant are what tell those apart.
+			...payoutPair('xf-seed-1', 6, 2),
+			...payoutPair('xf-seed-2', 4, 2)
 		]
 	});
 	// Digital debt while holding physical coins -- the exact case the
@@ -1135,7 +1187,7 @@ async function handleRpc(
 		} else if (cat.pricing_model === 'range') {
 			const amt = Number(params.p_amount);
 			if (!Number.isFinite(amt) || amt < (cat.min_amount ?? 0) || amt > (cat.max_amount ?? 0)) {
-				return Promise.resolve(rpcError(`"${cat.name}" must be between ${cat.min_amount}i¢ and ${cat.max_amount}i¢.`));
+				return Promise.resolve(rpcError(`"${cat.name}" must be between ${cat.min_amount}${COIN_SYMBOL} and ${cat.max_amount}${COIN_SYMBOL}.`));
 			}
 			magnitude = amt;
 		} else if (cat.pricing_model === 'per_unit') {
@@ -1575,7 +1627,7 @@ async function handleRpc(
 		if (cat.pricing_model === 'range') {
 			const amt = Number(params.p_amount);
 			if (!Number.isFinite(amt) || amt < (cat.min_amount ?? 0) || amt > (cat.max_amount ?? 0)) {
-				return Promise.resolve(rpcError(`"${cat.name}" must be between ${cat.min_amount}i¢ and ${cat.max_amount}i¢.`));
+				return Promise.resolve(rpcError(`"${cat.name}" must be between ${cat.min_amount}${COIN_SYMBOL} and ${cat.max_amount}${COIN_SYMBOL}.`));
 			}
 		} else if (cat.pricing_model === 'variable') {
 			const amt = Number(params.p_amount);

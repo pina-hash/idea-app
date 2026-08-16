@@ -2,6 +2,8 @@
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
+	import CoinTransactionRows from '$lib/coin-balance/CoinTransactionRows.svelte';
+	import { coins } from '$lib/coin-format';
 	import type { DisplayTransaction, EatingPassStatus } from '$lib/coin-balance';
 
 	/**
@@ -20,6 +22,7 @@
 		physicalBalance = 0,
 		digitalBalance = 0,
 		transactions,
+		categoryKinds = {},
 		wageTier,
 		eatingPass
 	}: {
@@ -31,14 +34,12 @@
 		physicalBalance?: number;
 		digitalBalance?: number;
 		transactions: DisplayTransaction[];
+		/** coin_categories.kind by id -- see CoinTransactionRows. */
+		categoryKinds?: Record<string, string>;
 		wageTier: number | null;
 		eatingPass: EatingPassStatus;
 	} = $props();
 
-	function when(iso: string): string {
-		const d = new Date(iso);
-		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
-	}
 </script>
 
 <svelte:head>
@@ -75,15 +76,15 @@
 		<section class="card">
 			<h2>Summary</h2>
 			<div class="coin-summary">
-				<div class="coin-balance" class:negative={balance < 0}>{balance}i¢</div>
+				<div class="coin-balance" class:negative={balance < 0}>{coins(balance)}</div>
 				<div class="medium-split">
 					<span class="split-cell" class:negative={physicalBalance < 0}>
 						<span class="split-label">physical coins</span>
-						<span class="split-value">{physicalBalance}i¢</span>
+						<span class="split-value">{coins(physicalBalance)}</span>
 					</span>
 					<span class="split-cell" class:negative={digitalBalance < 0}>
 						<span class="split-label">digital</span>
-						<span class="split-value">{digitalBalance}i¢</span>
+						<span class="split-value">{coins(digitalBalance)}</span>
 					</span>
 				</div>
 				<div class="coin-meta">
@@ -110,34 +111,11 @@
 
 		<section class="card">
 			<h2>Transaction history</h2>
-			{#if transactions.length}
-				<div class="rows coin-rows">
-					{#each transactions as t (t.id)}
-						<div class="row">
-							<div class="who">
-								<span class="reason">{t.category_name}</span>
-							</div>
-							<div class="meta">
-								{#if t.note}<span class="note-text">{t.note}</span>{/if}
-								<span class="since">{when(t.created_at)}</span>
-							</div>
-							<div class="actions">
-								<span class="medium-chip" class:digital={t.medium === 'digital'}>
-									{t.medium === 'digital' ? 'digital' : 'physical'}
-								</span>
-								<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
-									{t.amount > 0 ? '+' : ''}{t.amount}i¢
-								</span>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{:else}
-				<p class="note empty-state">
-					No transactions yet. Once an admin logs a fine, award, or purchase against your
-					account, it will show up here.
-				</p>
-			{/if}
+			<CoinTransactionRows
+				{transactions}
+				kinds={categoryKinds}
+				emptyMessage="No transactions yet. Once an admin logs a fine, award, or purchase against your account, it will show up here."
+			/>
 		</section>
 	{/if}
 
@@ -171,13 +149,6 @@
 	.feedback.error {
 		color: var(--amber);
 		border: 1px solid var(--amber);
-	}
-	.note {
-		color: var(--dim);
-		font-size: 0.9rem;
-	}
-	.empty-state {
-		padding: 0.6rem 0;
 	}
 	.coin-summary {
 		display: flex;
@@ -231,21 +202,6 @@
 	.split-cell.negative .split-value {
 		color: var(--amber);
 	}
-	.medium-chip {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.58rem;
-		letter-spacing: 0.06em;
-		text-transform: uppercase;
-		color: var(--dim);
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		padding: 0.05rem 0.3rem;
-		margin-right: 0.5rem;
-	}
-	.medium-chip.digital {
-		color: var(--cyan);
-		border-color: var(--cyan);
-	}
 	.strike-chip {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.65rem;
@@ -254,60 +210,6 @@
 		border-radius: 999px;
 		padding: 0.05rem 0.45rem;
 		margin-left: 0.3rem;
-	}
-	.rows {
-		display: flex;
-		flex-direction: column;
-	}
-	.coin-rows {
-		margin-top: 0.2rem;
-	}
-	.row {
-		display: flex;
-		align-items: center;
-		gap: 0.8rem;
-		flex-wrap: wrap;
-		padding: 0.5rem 0;
-		border-bottom: 1px solid var(--line);
-	}
-	.row:last-child {
-		border-bottom: none;
-	}
-	.who {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		min-width: 14rem;
-	}
-	.reason {
-		font-weight: 700;
-		color: var(--white);
-	}
-	.meta {
-		display: flex;
-		flex-direction: column;
-		gap: 0.1rem;
-		min-width: 0;
-	}
-	.note-text {
-		font-size: 0.85rem;
-		color: var(--dim);
-	}
-	.since {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		color: var(--dim);
-	}
-	.actions {
-		margin-left: auto;
-	}
-	.txn-neg {
-		color: var(--amber);
-		font-family: 'Share Tech Mono', monospace;
-	}
-	.txn-pos {
-		color: var(--green);
-		font-family: 'Share Tech Mono', monospace;
 	}
 	.page-footer {
 		margin-top: 2rem;

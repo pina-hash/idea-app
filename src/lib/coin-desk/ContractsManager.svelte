@@ -10,6 +10,7 @@
 		type ContractStatus
 	} from './contracts';
 	import { sectionDisplayName, type CoinSectionRow } from './sections';
+	import { COIN_SYMBOL } from '$lib/coin-format';
 
 	/**
 	 * Contracts admin: post a job, watch students self-claim it, complete it
@@ -159,7 +160,7 @@
 			...completeFeedback,
 			[c.id]: {
 				ok: true,
-				message: `Paid ${r.share}i¢ to each of ${r.claimant_count} claimant${r.claimant_count === 1 ? '' : 's'} (${r.succeeded} succeeded).`
+				message: `Paid ${r.share}${COIN_SYMBOL} to each of ${r.claimant_count} claimant${r.claimant_count === 1 ? '' : 's'} (${r.succeeded} succeeded).`
 			}
 		};
 		await loadContracts();
@@ -260,7 +261,7 @@
 				></textarea>
 			</div>
 			<div class="field-row">
-				<label for="contract-payout">Payout (i¢, split evenly across whoever claims it)</label>
+				<label for="contract-payout">Payout ({COIN_SYMBOL}, split evenly across whoever claims it)</label>
 				<input id="contract-payout" type="number" min="1" step="1" bind:value={newPayout} />
 			</div>
 			<div class="field-row">
@@ -279,7 +280,7 @@
 
 			<div class="guideline">
 				<p class="note small">
-					Guideline only, never enforced: ~1i¢/hour, +50% for specialized skill over general
+					Guideline only, never enforced: ~1{COIN_SYMBOL}/hour, +50% for specialized skill over general
 					labor (docs Part 3). Payout above is always a free amount you type in.
 				</p>
 				<div class="guideline-row">
@@ -290,7 +291,7 @@
 						Specialized skill (+50%)
 					</label>
 					{#if guidelinePreview !== null}
-						<span class="preview">suggests {guidelinePreview}i¢</span>
+						<span class="preview">suggests {guidelinePreview}{COIN_SYMBOL}</span>
 					{/if}
 				</div>
 			</div>
@@ -336,7 +337,7 @@
 							</div>
 							<div class="meta">
 								<span class="since">
-									{c.payout_amount}i¢ total &middot; {c.claimed_count}/{c.max_contractors} claimed
+									{c.payout_amount}{COIN_SYMBOL} total &middot; {c.claimed_count}/{c.max_contractors} claimed
 									&middot; {sectionLabel(c.section_id)} &middot; posted {when(c.created_at)} by {c.created_by}
 								</span>
 								{#if c.description}<span class="note-text">{c.description}</span>{/if}
@@ -352,7 +353,7 @@
 											{claimantLabel(claimant)}
 											{#if c.status === 'open' || c.status === 'full'}
 												<span class="preview-inline">
-													&rarr; {contractSharePreview(c.payout_amount, c.claimed_count)}i¢ if completed now
+													&rarr; {contractSharePreview(c.payout_amount, c.claimed_count)}{COIN_SYMBOL} if completed now
 												</span>
 											{/if}
 										</span>

@@ -14,6 +14,8 @@
  * regression that leaked it would still look clean in the harness.
  */
 
+import { COIN_SYMBOL } from '$lib/coin-format';
+
 export interface DevFixtureState {
 	signedIn: boolean;
 	isStudent: boolean;
@@ -56,8 +58,9 @@ export const leaderboard = [
 		// Joseph carries none, so the harness shows all three states at once.
 		adjustments: 40,
 		// A withdrawal IS counted here: this is how much has left the digital
-		// balance as coins in hand.
-		paid_out: 40,
+		// balance as coins in hand. Ada has THREE (40 + 25 + 15) -- see the
+		// transaction list for why more than one matters.
+		paid_out: 80,
 		balance: 155,
 		debt: 0,
 		weekly_wage: 3,
@@ -110,8 +113,18 @@ export const leaderboard = [
 	}
 ];
 
-/** The one transfer in the fixture: Ada's 40i¢ withdrawal, as two linked rows. */
+/**
+ * THREE separate withdrawals by the SAME student, each two linked rows.
+ *
+ * More than one on purpose, and two of them on the SAME TIMESTAMP. A single
+ * payout cannot tell a correct collapse from one that merges every withdrawal a
+ * student has ever made -- both render one row -- so the fixture that had only
+ * Ada's 40 could not have caught the pairing key being wrong. Same-instant
+ * siblings additionally rule out any grouping that leans on the date.
+ */
 const TRANSFER_ADA = '77777777-7777-4777-8777-777777777777';
+const TRANSFER_ADA_2 = '88888888-8888-4888-8888-888888888888';
+const TRANSFER_ADA_3 = '99999999-9999-4999-8999-999999999999';
 
 function daysAgo(n: number): string {
 	const d = new Date();
@@ -143,7 +156,14 @@ export const transactions = [
 	{ occurred_at: daysAgo(8), name: 'Hopper, Grace', amount: 1, type: 'Award', reason: 'Weekly Wage', medium: 'digital', transfer_id: null },
 	{ occurred_at: daysAgo(9), name: 'Lovelace, Ada', amount: -40, type: 'Payout', reason: 'Coin Payout', medium: 'digital', transfer_id: TRANSFER_ADA },
 	{ occurred_at: daysAgo(9), name: 'Lovelace, Ada', amount: 40, type: 'Payout', reason: 'Coin Payout (physical credit)', medium: 'physical', transfer_id: TRANSFER_ADA },
-	{ occurred_at: daysAgo(10), name: 'Hopper, Grace', amount: -10, type: 'Fine', reason: 'Property Damage (Careless)', medium: 'physical', transfer_id: null }
+	{ occurred_at: daysAgo(10), name: 'Hopper, Grace', amount: -10, type: 'Fine', reason: 'Property Damage (Careless)', medium: 'physical', transfer_id: null },
+	// Two more withdrawals, SHARING A TIMESTAMP with each other and differing
+	// only by transfer id -- the discriminator between collapsing a pair and
+	// collapsing everything.
+	{ occurred_at: daysAgo(5), name: 'Lovelace, Ada', amount: -25, type: 'Payout', reason: 'Coin Payout', medium: 'digital', transfer_id: TRANSFER_ADA_2 },
+	{ occurred_at: daysAgo(5), name: 'Lovelace, Ada', amount: 25, type: 'Payout', reason: 'Coin Payout (physical credit)', medium: 'physical', transfer_id: TRANSFER_ADA_2 },
+	{ occurred_at: daysAgo(5), name: 'Lovelace, Ada', amount: -15, type: 'Payout', reason: 'Coin Payout', medium: 'digital', transfer_id: TRANSFER_ADA_3 },
+	{ occurred_at: daysAgo(5), name: 'Lovelace, Ada', amount: 15, type: 'Payout', reason: 'Coin Payout (physical credit)', medium: 'physical', transfer_id: TRANSFER_ADA_3 }
 ];
 
 // Enough filler to push the log past the page's 50-row page size, so
@@ -205,12 +225,12 @@ export const studentDetail: Record<string, Record<string, unknown>> = {
 };
 
 export const reasons = [
-	{ type: 'Award', reason: 'Weekly Wage', detail: '1 i¢ — paid at your own wage tier', sort_order: 1 },
-	{ type: 'Award', reason: 'Above and Beyond', detail: '1-3 i¢', sort_order: 2 },
-	{ type: 'Fine', reason: 'Disruptive Behavior', detail: '2 i¢', sort_order: 1 },
+	{ type: 'Award', reason: 'Weekly Wage', detail: `1 ${COIN_SYMBOL} — paid at your own wage tier`, sort_order: 1 },
+	{ type: 'Award', reason: 'Above and Beyond', detail: `1-3 ${COIN_SYMBOL}`, sort_order: 2 },
+	{ type: 'Fine', reason: 'Disruptive Behavior', detail: `2 ${COIN_SYMBOL}`, sort_order: 1 },
 	{ type: 'Fine', reason: 'Property Damage (Careless)', detail: 'Calculated', sort_order: 2 },
-	{ type: 'Purchase', reason: 'Eating Pass', detail: '150 i¢', sort_order: 1 },
-	{ type: 'Purchase', reason: 'Song Request', detail: '10 i¢', sort_order: 2 }
+	{ type: 'Purchase', reason: 'Eating Pass', detail: `150 ${COIN_SYMBOL}`, sort_order: 1 },
+	{ type: 'Purchase', reason: 'Song Request', detail: `10 ${COIN_SYMBOL}`, sort_order: 2 }
 ];
 
 export const contracts = [

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { onMount } from 'svelte';
+	import { COIN_SYMBOL } from '$lib/coin-format';
 	import {
 		payoutCandidateLabel,
 		payoutRefusalMessage,
@@ -246,11 +247,11 @@
 								{c.student_email}{c.last_activity_at ? ` · last activity ${when(c.last_activity_at)}` : ''}
 							</span>
 							<span class="since">
-								holds {c.physical_balance}i¢ physical &middot; total {c.balance}i¢
+								holds {c.physical_balance}{COIN_SYMBOL} physical &middot; total {c.balance}{COIN_SYMBOL}
 							</span>
 						</div>
 						<div class="actions">
-							<span class="balance">{c.digital_balance}i¢</span>
+							<span class="balance">{c.digital_balance}{COIN_SYMBOL}</span>
 							<input
 								class="partial"
 								type="number"
@@ -294,7 +295,7 @@
 						<div class="actions">
 							{#if r.ok}
 								<span class="txn-pos">
-									{typeof r.amount === 'number' ? `${Math.abs(r.amount)}i¢ paid` : 'paid'}
+									{typeof r.amount === 'number' ? `${Math.abs(r.amount)}{COIN_SYMBOL} paid` : 'paid'}
 									{r.partial ? ' (partial)' : ''}
 								</span>
 							{:else}

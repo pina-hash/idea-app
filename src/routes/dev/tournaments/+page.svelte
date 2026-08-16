@@ -23,6 +23,7 @@
 		type Tournament
 	} from '$lib/tournaments/tournaments';
 	import { hasStyle, type EntryStyle, type EntryStyleDraft } from '$lib/tournaments/entry-styles';
+	import { COIN_SYMBOL } from '$lib/coin-format';
 	import {
 		buildSim,
 		buildQualSample,
@@ -435,7 +436,7 @@
 			distinct payout-loss acknowledgment is required first whenever the tournament has any reward
 			ledger rows, and only a host or a teacher gets through. The RPC enforces all of it
 			server-side; this form only keeps the button off input the server would reject. This sim's
-			ledger currently totals {deleteRewardCoins}i¢ across {deleteRewardEntries} entries ({deleteRewardCount}
+			ledger currently totals {deleteRewardCoins}{COIN_SYMBOL} across {deleteRewardEntries} entries ({deleteRewardCount}
 			rows) -- play a bracket forward (below) to grow it.
 		</p>
 		<div class="controls">

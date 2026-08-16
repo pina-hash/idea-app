@@ -30,6 +30,7 @@
 		physicalBalance: number;
 		digitalBalance: number;
 		transactions: DisplayTransaction[];
+		categoryKinds: Record<string, string>;
 		wageTier: number | null;
 		eatingPass: EatingPassStatus;
 		contracts: PublicContractRow[];
@@ -92,6 +93,7 @@
 			physicalBalance={data.physicalBalance}
 			digitalBalance={data.digitalBalance}
 			transactions={data.transactions}
+			categoryKinds={data.categoryKinds}
 			wageTier={data.wageTier}
 			eatingPass={data.eatingPass}
 		/>

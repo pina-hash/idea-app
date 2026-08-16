@@ -1,3 +1,7 @@
+<script lang="ts">
+	import { COIN_SYMBOL } from '$lib/coin-format';
+</script>
+
 <!--
 	IDEA Coin Ledger homepage mark: the recognizable IDEA Coin (an "i¢" struck on
 	a rimmed coin) doing a slow face-on flip about its vertical axis, matching
@@ -19,7 +23,7 @@
 			text-anchor="middle"
 			dominant-baseline="central"
 			fill="currentColor"
-			stroke="none">i&#162;</text
+			stroke="none">{COIN_SYMBOL}</text
 		>
 	</g>
 </svg>

@@ -1531,9 +1531,9 @@ body::after {
   </div>
 
   <div class="guide-callout" id="guide-callout-btn" role="button" tabindex="0" aria-label="Open i¢ Guide">
-    <span class="guide-callout-coin">i&#162;</span>
+    <span class="guide-callout-coin">i¢</span>
     <div class="guide-callout-center">
-      <span class="guide-callout-title">i&#162; Guide</span>
+      <span class="guide-callout-title">i¢ Guide</span>
       <span class="guide-callout-sub">Awards, purchases, fines, and everything in between.</span>
     </div>
     <span class="guide-callout-cta">VIEW GUIDE &#x25B8;</span>
@@ -1718,7 +1718,7 @@ body::after {
 <div class="guide-modal-backdrop" id="guide-modal-backdrop">
   <div class="guide-modal">
     <div class="guide-modal-header">
-      <span class="guide-modal-title">i&#162; Guide</span>
+      <span class="guide-modal-title">i¢ Guide</span>
       <button class="guide-modal-close" id="guide-modal-close">&#x2715;</button>
     </div>
     <div class="guide-modal-controls">
@@ -1797,6 +1797,19 @@ const SECTION_COLORS = {
   'IDEA-403':   '#FF88CC',
 };
 const TXN_PAGE_SIZE = 50;
+
+/**
+ * THE CURRENCY SYMBOL, once.
+ *
+ * This page is a standalone file and cannot import $lib/coin-format, so it
+ * carries its own copy -- but ONE copy, which is the point: the symbol had been
+ * written three ways across the app (the raw character, the numeric entity
+ * inside SVG text, and an escape) with nothing tying them together.
+ * tests/coin-symbol.test.ts asserts this literal matches COIN_SYMBOL and that
+ * neither spelling of it appears loose in any coin source file, so the two
+ * cannot drift apart without a test going red.
+ */
+const COIN_SYMBOL = 'i¢';
 
 // ── State ────────────────────────────────────────────
 let summaryData = [];
@@ -2293,7 +2306,7 @@ function contractCardHTML(c) {
     ${shimmer}
     <div style="position:relative;z-index:1;">
       <div class="tier-badge ${tier}">${escHtml(label)}</div>
-      <div class="contract-payout-display ${tier}">${payout} i&#162;${rateLabel ? `<span class="contract-rate-label"> ${escHtml(rateLabel)}</span>` : ''}</div>
+      <div class="contract-payout-display ${tier}">${payout} ${COIN_SYMBOL}${rateLabel ? `<span class="contract-rate-label"> ${escHtml(rateLabel)}</span>` : ''}</div>
       <div class="contract-name-display ${tier}">${escHtml(name)}</div>
       <div class="contract-meta-row">
         <span class="contract-status-badge ${statusBadgeClass}">${escHtml(status)}</span>
@@ -2564,26 +2577,26 @@ function openDrawer(row) {
   // Total first, then its two components: one balance is the headline and
   // "which of these coins are in my hand" is answered right beside it.
   let statsHtml =
-    drawerStatHtml('Total Balance', fmtNum(coinBalance) + ' i¢', coinBalance < 0 ? 'var(--red)' : 'var(--gold)');
+    drawerStatHtml('Total Balance', fmtNum(coinBalance) + ' ' + COIN_SYMBOL, coinBalance < 0 ? 'var(--red)' : 'var(--gold)');
   if (hasSplit) {
     statsHtml +=
-      drawerStatHtml('Physical (in hand)', fmtNum(physicalBal) + ' i¢', physicalBal < 0 ? 'var(--red)' : 'var(--ice)') +
-      drawerStatHtml('Digital (in system)', fmtNum(digitalBal) + ' i¢', digitalBal < 0 ? 'var(--red)' : 'var(--cyan)');
+      drawerStatHtml('Physical (in hand)', fmtNum(physicalBal) + ' ' + COIN_SYMBOL, physicalBal < 0 ? 'var(--red)' : 'var(--ice)') +
+      drawerStatHtml('Digital (in system)', fmtNum(digitalBal) + ' ' + COIN_SYMBOL, digitalBal < 0 ? 'var(--red)' : 'var(--cyan)');
   }
   statsHtml +=
-    drawerStatHtml('Lifetime Earned', fmtNum(lifetimeEarned) + ' i¢', 'var(--green)') +
+    drawerStatHtml('Lifetime Earned', fmtNum(lifetimeEarned) + ' ' + COIN_SYMBOL, 'var(--green)') +
     drawerStatHtml('Awarded', '+' + fmtNum(awarded), 'var(--green)') +
     drawerStatHtml('Fines', '-' + fmtNum(fines), 'var(--red)') +
     drawerStatHtml('Spent', '-' + fmtNum(spent), 'var(--amber)');
   // Only when there is one. Violet is the Adjustment type's own colour on the
   // transaction rows below, so the figure and the rows it sums agree by sight.
   if (adjustments !== 0)
-    statsHtml += drawerStatHtml('Adjustments', (adjustments > 0 ? '+' : '') + fmtNum(adjustments) + ' i¢', 'var(--violet)');
+    statsHtml += drawerStatHtml('Adjustments', (adjustments > 0 ? '+' : '') + fmtNum(adjustments) + ' ' + COIN_SYMBOL, 'var(--violet)');
   if (debt > 0)
     statsHtml += drawerStatHtml('Debt', fmtNum(debt), 'var(--red)');
   const wPay = weeklyPayFor(name);
   if (wPay > 0)
-    statsHtml += drawerStatHtml('Weekly Pay', wPay + ' i¢/wk', 'var(--teal)');
+    statsHtml += drawerStatHtml('Weekly Pay', wPay + ' ' + COIN_SYMBOL + '/wk', 'var(--teal)');
   const wTier = parseFloat(p('Wage Tier') || 0);
   if (wTier > 0)
     statsHtml += drawerStatHtml('Wage Tier', 'Tier ' + fmtNum(wTier), 'var(--cyan)');
@@ -2924,8 +2937,8 @@ function renderAnalytics() {
   const lastSunday = new Date(thisMonday); lastSunday.setDate(lastSunday.getDate() - 1);
   lastSunday.setHours(23, 59, 59, 999);
 
-  let thisAwarded = 0, thisFines = 0, thisAdjust = 0, thisTxns = 0;
-  let lastAwarded = 0, lastFines = 0, lastAdjust = 0, lastTxns = 0;
+  let thisAwarded = 0, thisFines = 0, thisSpent = 0, thisAdjust = 0, thisTxns = 0;
+  let lastAwarded = 0, lastFines = 0, lastSpent = 0, lastAdjust = 0, lastTxns = 0;
 
   txnRows.forEach(r => {
     const dt = txnDateObj(r);
@@ -2934,14 +2947,21 @@ function renderAnalytics() {
     const signed = parseFloat(pick(r)('Amount') || 0) || 0;
     const amount = Math.abs(signed);
     // A transfer moved coins between two media the same student already
-    // held, so it belongs in none of these totals. (Collapsed transfers are
-    // typed Payout and excluded by that alone; the flag also covers a feed
-    // that predates migration 0103 and sends the halves untagged.)
+    // held, so it belongs in none of these totals -- which is why PAYOUT is
+    // the one type with no row here while every other type has one. (Collapsed
+    // transfers are typed Payout and excluded by that alone; the flag also
+    // covers a feed that predates migration 0103 and sends the halves
+    // untagged.)
     if (dt >= thisMonday && dt <= now) {
       thisTxns++;
       if (r._transfer) return;
       if (type === 'award')      thisAwarded += amount;
       if (type === 'fine')       thisFines   += amount;
+      // PURCHASES were the type this panel silently omitted. The breakdown
+      // below lists all five, so a reader comparing the two found a week's
+      // spending in one and not the other -- the same complaint 0107 fixed for
+      // adjustments, in the other half of the same tab.
+      if (type === 'purchase')   thisSpent   += amount;
       // Adjustments run both ways, so this is a NET figure -- an absolute
       // one would report a correction and its reversal as activity.
       if (type === 'adjustment') thisAdjust  += signed;
@@ -2950,6 +2970,7 @@ function renderAnalytics() {
       if (r._transfer) return;
       if (type === 'award')      lastAwarded += amount;
       if (type === 'fine')       lastFines   += amount;
+      if (type === 'purchase')   lastSpent   += amount;
       if (type === 'adjustment') lastAdjust  += signed;
     }
   });
@@ -2975,6 +2996,7 @@ function renderAnalytics() {
       '<div class="weekly-col-title">This Week</div>' +
       wRow('Coins Awarded',       fmtNum(thisAwarded),   wDelta(thisAwarded, lastAwarded)) +
       wRow('Fines Issued',        fmtNum(thisFines),     wDelta(thisFines,   lastFines))   +
+      wRow('Coins Spent',         fmtNum(thisSpent),     wDelta(thisSpent,   lastSpent))   +
       wRow('Adjustments (net)',   signedNum(thisAdjust), wDelta(thisAdjust,  lastAdjust))  +
       wRow('Transactions Logged', thisTxns,              wDelta(thisTxns,    lastTxns))    +
     '</div>' +
@@ -2982,6 +3004,7 @@ function renderAnalytics() {
       '<div class="weekly-col-title">Last Week</div>' +
       wRow('Coins Awarded',       fmtNum(lastAwarded),   wDelta(lastAwarded, thisAwarded)) +
       wRow('Fines Issued',        fmtNum(lastFines),     wDelta(lastFines,   thisFines))   +
+      wRow('Coins Spent',         fmtNum(lastSpent),     wDelta(lastSpent,   thisSpent))   +
       wRow('Adjustments (net)',   signedNum(lastAdjust), wDelta(lastAdjust,  thisAdjust))  +
       wRow('Transactions Logged', lastTxns,              wDelta(lastTxns,    thisTxns))    +
     '</div></div>';
@@ -3093,7 +3116,7 @@ function renderAnalytics() {
       '<div class="standings-bar-wrap">' +
         '<div class="standings-bar" style="width:' + pct + '%;background:' + color + ';opacity:0.8"></div>' +
       '</div>' +
-      '<div class="standings-value">' + fmtNum(Math.round(avg)) + ' i&#162;</div>' +
+      '<div class="standings-value">' + fmtNum(Math.round(avg)) + ' ' + COIN_SYMBOL + '</div>' +
       '</div>';
   });
   document.getElementById('analytics-standings').innerHTML =

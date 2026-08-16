@@ -23,6 +23,7 @@
 	 * server is still the one enforcing it.
 	 */
 	import type { Tournament } from './tournaments';
+	import { COIN_SYMBOL } from '$lib/coin-format';
 
 	let {
 		tournament,
@@ -128,7 +129,7 @@
 			<label class="ack">
 				<input type="checkbox" bind:checked={payoutBoxChecked} />
 				<span>
-					I understand this permanently erases the record of {rewardCoins}i¢ paid to
+					I understand this permanently erases the record of {rewardCoins}{COIN_SYMBOL} paid to
 					{rewardEntries}
 					{rewardEntries === 1 ? 'entry' : 'entries'}.
 				</span>

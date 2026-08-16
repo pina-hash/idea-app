@@ -26,6 +26,8 @@
  * contracts.ts convention) -- it never talks to Supabase itself.
  */
 
+import { COIN_SYMBOL } from '$lib/coin-format';
+
 export interface CoinPayoutCandidate {
 	student_email: string;
 	/** Total (physical + digital). Shown for context; never what is paid. */
@@ -86,11 +88,11 @@ export function payoutRefusalMessage(r: {
 }): string {
 	switch (r.reason) {
 		case 'no_balance':
-			return `Nothing to pay -- digital balance is ${r.digital_balance ?? r.balance ?? 0}i¢ right now.`;
+			return `Nothing to pay -- digital balance is ${r.digital_balance ?? r.balance ?? 0}${COIN_SYMBOL} right now.`;
 		case 'amount_exceeds_digital':
-			return `Blocked: asked for ${r.requested}i¢ but only ${r.digital_balance}i¢ is digital.`;
+			return `Blocked: asked for ${r.requested}${COIN_SYMBOL} but only ${r.digital_balance}${COIN_SYMBOL} is digital.`;
 		case 'debt':
-			return `Blocked: balance is negative (${r.balance}i¢).`;
+			return `Blocked: balance is negative (${r.balance}${COIN_SYMBOL}).`;
 		case 'error':
 			return r.message ? `Error: ${r.message}` : 'An unexpected error occurred.';
 		default:

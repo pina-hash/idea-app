@@ -134,6 +134,12 @@
 	let sectionsState = $state<CoinSectionRow[]>([]);
 	let categoriesState = $state<CoinCategory[]>([]);
 
+	/** What the real /coin-desk/students load reads off coin_categories: the
+	 *  kind is what tells a correction apart from an ordinary award or fine. */
+	const harnessCategoryKinds = $derived(
+		Object.fromEntries(categoriesState.map((c) => [c.id, c.kind])) as Record<string, string>
+	);
+
 	$effect(() => {
 		// Tracked: the area and the toggles. The reseed functions read plain
 		// module state, so this cannot re-trigger itself.
@@ -183,7 +189,7 @@
 			/>
 		{:else if area === 'students'}
 			<SectionManager {supabase} bind:sections={sectionsState} configured={sectionsApplied} />
-			<BalanceAdminPanel {supabase} />
+			<BalanceAdminPanel {supabase} categoryKinds={harnessCategoryKinds} />
 		{:else if area === 'contracts'}
 			<ContractsManager {supabase} sections={activeSections()} configured={contractsApplied} />
 		{:else if area === 'roles'}

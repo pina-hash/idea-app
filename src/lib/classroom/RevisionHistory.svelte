@@ -300,6 +300,27 @@
 	.restore-note {
 		margin: 0;
 	}
+
+	/**
+	 * RESTORE IS A 44px TARGET, unlike the .btn.tiny controls it sits beside.
+	 *
+	 * It is a two-step destructive control -- it replaces what a class is
+	 * currently reading with an older version -- so it does not get the 23px
+	 * house size the row's other actions use. Scoped HERE, to this button, on
+	 * purpose: `.btn.tiny` is the classroom's shared control size and lives in
+	 * classroom.css, where changing it would inflate every Edit, Publish, Pin
+	 * and Copy in the manage console to match. The exception is the button, not
+	 * the class.
+	 *
+	 * `:global` because .btn is an app-shell class this component's scoped CSS
+	 * cannot otherwise reach; the selector is anchored inside .tool-actions so
+	 * it can affect nothing outside this panel.
+	 */
+	.tool-actions :global(.btn.tiny) {
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
+	}
 	.payload {
 		margin: 0;
 		background: var(--surface-0);

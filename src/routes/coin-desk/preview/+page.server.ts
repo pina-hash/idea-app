@@ -65,6 +65,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 			physicalBalance: 0,
 			digitalBalance: 0,
 			transactions: [],
+			categoryKinds: {} as Record<string, string>,
 			wageTier: null,
 			eatingPass: { active: false, strikes: 0 } as EatingPassStatus,
 			contracts: [] as PublicContractRow[],
@@ -76,7 +77,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 	const [{ data: lookup, error: lookupError }, { data: categories }, { data: contractRows }] =
 		await Promise.all([
 			supabase.rpc('coin_admin_lookup', { p_email: email }),
-			supabase.from('coin_categories').select('id, name'),
+			supabase.from('coin_categories').select('id, name, kind'),
 			supabase.rpc('coin_admin_list_contracts')
 		]);
 
@@ -117,6 +118,11 @@ export const load: PageServerLoad = async ({ url, locals: { supabase } }) => {
 		physicalBalance: lookupError ? 0 : (detail.physical_balance ?? 0),
 		digitalBalance: lookupError ? 0 : (detail.digital_balance ?? 0),
 		transactions: withCategoryNames(rows, categories ?? []),
+		// A row's kind is what tells a balance CORRECTION apart from an ordinary
+		// award or fine; without it every non-payout row reads as a correction.
+		categoryKinds: Object.fromEntries(
+			((categories ?? []) as { id: string; kind?: string }[]).map((c) => [c.id, c.kind ?? ''])
+		) as Record<string, string>,
 		wageTier: detail.wage_tier ?? 1,
 		eatingPass: {
 			active: detail.eating_pass_active === true,

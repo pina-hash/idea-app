@@ -17,6 +17,7 @@
 		type RoleQuizQuestion
 	} from './roles';
 	import { sectionDisplayName, type CoinSectionRow } from './sections';
+	import { COIN_SYMBOL } from '$lib/coin-format';
 
 	/**
 	 * Roles admin: Shop Steward / Quartermaster / Safety Officer / Lab Tech
@@ -70,7 +71,7 @@
 			case 'ratio_cap_reached':
 				return `Blocked: role at capacity (${r.held}/${r.cap} filled for this section).`;
 			case 'debt':
-				return `Blocked: balance is negative (${r.balance}i¢) -- purchases are locked until it clears.`;
+				return `Blocked: balance is negative (${r.balance}${COIN_SYMBOL}) -- purchases are locked until it clears.`;
 			case 'cap_reached':
 				return `Blocked: already logged the max for this ${r.cap_period === 'day' ? 'day' : 'calendar month'}.`;
 			case 'error':
@@ -426,7 +427,7 @@
 	<h2>Roles</h2>
 	<p class="note">
 		Shop Steward, Quartermaster, Safety Officer, and Lab Tech -- section-scoped ratio caps keyed
-		off the real coin_sections roster (0073), not a separate headcount. Application fee is 0i¢
+		off the real coin_sections roster (0073), not a separate headcount. Application fee is 0{COIN_SYMBOL}
 		on purpose: the free-response answer is the real gate, checked here by an admin, not a
 		payment. The ratio cap is enforced when an application is APPROVED, not when it's submitted.
 		A role can also carry an expiration -- a holder stops counting toward capacity the moment it
@@ -700,7 +701,7 @@
 		<div class="sub-panel">
 			<h3>Pay Weekly Role Stipend</h3>
 			<p class="note small">
-				Logs the 2i¢/week stipend against every student who CURRENTLY holds a role (active,
+				Logs the 2{COIN_SYMBOL}/week stipend against every student who CURRENTLY holds a role (active,
 				not expired), filtered by role and/or section if set -- never against a whole section's
 				enrollment (see the note above "Log a transaction" &rarr; Section mode, which deliberately
 				excludes this category).
@@ -741,7 +742,7 @@
 							<div class="actions">
 								{#if r.ok}
 									<span class="txn-pos">
-										{typeof r.amount === 'number' ? `${r.amount > 0 ? '+' : ''}${r.amount}i¢` : 'logged'}
+										{typeof r.amount === 'number' ? `${r.amount > 0 ? '+' : ''}${r.amount}{COIN_SYMBOL}` : 'logged'}
 									</span>
 								{:else}
 									<span class="txn-neg">{reasonMessage(r)}</span>

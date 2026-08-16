@@ -18,6 +18,7 @@
  */
 
 import type { CoinKind, CoinPricingModel } from '$lib/coin-desk';
+import { COIN_SYMBOL } from '$lib/coin-format';
 
 export type CreatablePricingModel = Exclude<CoinPricingModel, 'formula'>;
 
@@ -46,23 +47,23 @@ export const KIND_LABELS_SHORT: Record<CoinKind, string> = {
  */
 export const PRICE_BAND_GUIDANCE: Record<CoinKind, string[]> = {
 	fine: [
-		'Classroom Standards Violation -- 1i¢',
-		'Unauthorized Printing / Off-Task Device Use / Long Bathroom Break -- 2i¢',
-		'3D Printer Not Reset / Disruptive Behavior -- 3i¢',
-		'Classmate Trust Violation / Eating Violation / Leaving Without Permission -- 5i¢',
-		'Shop Safety Violation / Shop Not Cleaned Up / Coin Theft / Mint Tampering (Known) -- 12i¢'
+		`Classroom Standards Violation -- 1${COIN_SYMBOL}`,
+		`Unauthorized Printing / Off-Task Device Use / Long Bathroom Break -- 2${COIN_SYMBOL}`,
+		`3D Printer Not Reset / Disruptive Behavior -- 3${COIN_SYMBOL}`,
+		`Classmate Trust Violation / Eating Violation / Leaving Without Permission -- 5${COIN_SYMBOL}`,
+		`Shop Safety Violation / Shop Not Cleaned Up / Coin Theft / Mint Tampering (Known) -- 12${COIN_SYMBOL}`
 	],
 	award: [
-		'Correct Answer in Class / Highest Grade in Section (Weekly) / Weekly Wage -- 1i¢',
-		'Above and Beyond -- 1-3i¢ (range)',
-		'Quality Desktop Background -- 3i¢',
-		'Weekly Role Stipend -- 2i¢ (209H only)'
+		`Correct Answer in Class / Highest Grade in Section (Weekly) / Weekly Wage -- 1${COIN_SYMBOL}`,
+		`Above and Beyond -- 1-3${COIN_SYMBOL} (range)`,
+		`Quality Desktop Background -- 3${COIN_SYMBOL}`,
+		`Weekly Role Stipend -- 2${COIN_SYMBOL} (209H only)`
 	],
 	purchase: [
-		'Text Printing -- 1i¢ per 4 pages',
-		'Song Request -- 3i¢',
-		'Platform Cosmetic Unlock -- 15-25i¢ (range)',
-		'Eating Pass -- 150i¢'
+		`Text Printing -- 1${COIN_SYMBOL} per 4 pages`,
+		`Song Request -- 3${COIN_SYMBOL}`,
+		`Platform Cosmetic Unlock -- 15-25${COIN_SYMBOL} (range)`,
+		`Eating Pass -- 150${COIN_SYMBOL}`
 	],
 	adjustment: ['Balance Correction / Refund -- admin-entered, signed, a reason is required']
 };

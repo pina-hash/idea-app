@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import { MEDIUM_LABELS, type CoinMedium } from '$lib/coin-desk';
+	import { COIN_SYMBOL } from '$lib/coin-format';
 
 	/**
 	 * Dedicated debt-payment logging, distinct from the generic category
@@ -126,7 +127,7 @@
 			return;
 		}
 		const now = medium === 'physical' ? r.physical_balance : r.digital_balance;
-		notice = `Logged +${r.amount}i¢ against the ${medium} balance. It now reads ${now}i¢.`;
+		notice = `Logged +${r.amount}${COIN_SYMBOL} against the ${medium} balance. It now reads ${now}${COIN_SYMBOL}.`;
 		amountTouched = false;
 		await onLogged();
 	}
@@ -138,7 +139,7 @@
 		<p class="debt-line">
 			{#each inDebt as m (m)}
 				<span class="debt-entry">
-					Owes <span class="debt-amount">{m === 'physical' ? physicalDebt : digitalDebt}i¢</span>
+					Owes <span class="debt-amount">{m === 'physical' ? physicalDebt : digitalDebt}{COIN_SYMBOL}</span>
 					{MEDIUM_LABELS[m].toLowerCase()}
 				</span>
 			{/each}
@@ -162,7 +163,7 @@
 		<div class="field-row-group">
 			<div class="field-row">
 				<label for="debt-amount-input">
-					Payment amount (i¢, {MEDIUM_LABELS[medium].toLowerCase()})
+					Payment amount ({COIN_SYMBOL}, {MEDIUM_LABELS[medium].toLowerCase()})
 				</label>
 				<input
 					id="debt-amount-input"

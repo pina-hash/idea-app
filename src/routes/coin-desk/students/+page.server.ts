@@ -11,10 +11,21 @@ import type { PageServerLoad } from './$types';
  * has to stay visible and reactivatable here.
  */
 export const load: PageServerLoad = async ({ locals: { supabase } }) => {
-	const { data: sections, error: sectionsError } = await supabase.rpc('coin_admin_list_sections');
+	const [{ data: sections, error: sectionsError }, { data: categories }] = await Promise.all([
+		supabase.rpc('coin_admin_list_sections'),
+		// Just the kinds, for the balance panel's transaction rows: a row's kind
+		// is what tells a BALANCE CORRECTION apart from an ordinary award or
+		// fine. EVERY category, not just loggable ones -- a student's history
+		// keeps rows logged under a category that has since been retired, and
+		// those must still read correctly.
+		supabase.from('coin_categories').select('id, kind')
+	]);
 
 	return {
 		sections: (sections ?? []) as CoinSectionRow[],
+		categoryKinds: Object.fromEntries(
+			((categories ?? []) as { id: string; kind: string }[]).map((c) => [c.id, c.kind])
+		) as Record<string, string>,
 		// Fails soft: 0073 not applied yet reads as an empty, clearly-flagged
 		// section list rather than a crashed page. The balance tool below it
 		// only needs 0070 and keeps working either way.

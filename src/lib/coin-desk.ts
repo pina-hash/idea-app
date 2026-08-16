@@ -20,6 +20,8 @@
  * response is always the real, authoritative answer.
  */
 
+import { COIN_SYMBOL } from '$lib/coin-format';
+
 export type CoinKind = 'fine' | 'award' | 'purchase' | 'adjustment';
 export type CoinPricingModel = 'flat' | 'range' | 'per_unit' | 'variable' | 'formula';
 
@@ -128,11 +130,11 @@ export const EXTRA_CREDIT_GRADING_CATEGORIES: { id: string; label: string }[] = 
 function formulaHint(key: string | null): string {
 	switch (key) {
 		case 'perfect_score':
-			return 'round(points / 25)i¢, min 1i¢';
+			return `round(points / 25)${COIN_SYMBOL}, min 1${COIN_SYMBOL}`;
 		case 'pay_raise':
-			return '40i¢ x current tier';
+			return `40${COIN_SYMBOL} x current tier`;
 		case 'property_damage_careless':
-			return '3i¢ + 1i¢ per $0.25 of cost';
+			return `3${COIN_SYMBOL} + 1${COIN_SYMBOL} per $0.25 of cost`;
 		case 'three_d_printing':
 			return 'material + time band';
 		default:
@@ -143,15 +145,15 @@ function formulaHint(key: string | null): string {
 /** Short price description for the category dropdown. Display only. */
 export function priceHint(cat: CoinCategory): string {
 	if (cat.id === 'extra_credit') {
-		return `${cat.amount}i¢/${cat.unit_label ?? 'unit'}, capped ${cat.semester_point_cap ?? '?'}pt/semester`;
+		return `${cat.amount}${COIN_SYMBOL}/${cat.unit_label ?? 'unit'}, capped ${cat.semester_point_cap ?? '?'}pt/semester`;
 	}
 	switch (cat.pricing_model) {
 		case 'flat':
-			return `${cat.amount}i¢`;
+			return `${cat.amount}${COIN_SYMBOL}`;
 		case 'range':
-			return `${cat.min_amount}-${cat.max_amount}i¢`;
+			return `${cat.min_amount}-${cat.max_amount}${COIN_SYMBOL}`;
 		case 'per_unit':
-			return `${cat.amount}i¢/${cat.unit_label ?? 'unit'}`;
+			return `${cat.amount}${COIN_SYMBOL}/${cat.unit_label ?? 'unit'}`;
 		case 'variable':
 			return 'amount you enter';
 		case 'formula':

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { SupabaseClient } from '@supabase/supabase-js';
+	import CoinTransactionRows from '$lib/coin-balance/CoinTransactionRows.svelte';
+	import { coins, COIN_SYMBOL, signedCoins } from '$lib/coin-format';
 	import DebtPaymentPanel from './DebtPaymentPanel.svelte';
 	import {
 		balanceFor,
@@ -65,6 +67,17 @@
 	// history but can never be logged again).
 	const selectableCategories = $derived(categories.filter((c) => c.active !== false));
 
+	/**
+	 * category id -> kind, for the history rows. Built from the list this view
+	 * ALREADY loads rather than fetched again, so what a row is called and what
+	 * it is styled as come from the same place. Retired categories are included
+	 * on purpose: a student's history keeps rows logged under one, and a
+	 * correction must still read as a correction after its category is retired.
+	 */
+	const categoryKinds = $derived(
+		Object.fromEntries(categories.map((c) => [c.id, c.kind])) as Record<string, string>
+	);
+
 	// ---------------------------------------------------------------------
 	// Student lookup (coin_admin_lookup -- the same RPC the balance tool on
 	// /coin-desk/students uses, returning balance, wage tier, Eating Pass
@@ -76,6 +89,13 @@
 		category_name: string;
 		amount: number;
 		medium: CoinMedium;
+		/**
+		 * Set on BOTH halves of a payout (0096). Declared here because it is
+		 * what CoinTransactionRows pairs on -- the RPC has always returned it
+		 * and this type simply ignored it, so a withdrawal rendered as two
+		 * unrelated rows with opposite signs.
+		 */
+		transfer_id: string | null;
 		quantity: number | null;
 		note: string | null;
 		actor_email: string;
@@ -401,7 +421,7 @@
 	}): string {
 		switch (r.reason) {
 			case 'debt':
-				return `Blocked: the ${r.medium ?? ''} balance is negative (${r.balance}i¢) -- ${r.medium ?? ''} purchases are locked until it clears. The other balance is unaffected.`;
+				return `Blocked: the ${r.medium ?? ''} balance is negative (${r.balance}${COIN_SYMBOL}) -- ${r.medium ?? ''} purchases are locked until it clears. The other balance is unaffected.`;
 			case 'cap_reached':
 				return `Blocked: already logged the max for this ${r.cap_period === 'day' ? 'day' : 'calendar month'}.`;
 			case 'pass_already_active':
@@ -498,20 +518,23 @@
 	function successMessage(cat: CoinCategory, r: Record<string, unknown>): string {
 		const balance = typeof r.balance === 'number' ? r.balance : undefined;
 		if (cat.id === 'pay_raise') {
-			return `Wage tier raised ${r.previous_tier} -> ${r.new_tier} for ${r.cost}i¢. New balance: ${balance}i¢.`;
+			return `Wage tier raised ${r.previous_tier} -> ${r.new_tier} for ${r.cost}${COIN_SYMBOL}. New balance: ${balance}${COIN_SYMBOL}.`;
 		}
 		if (cat.id === 'extra_credit') {
-			return `Logged ${r.points}pt (${r.cost}i¢). ${r.used_points}/${r.cap_points}pt used this semester. New balance: ${balance}i¢.`;
+			return `Logged ${r.points}pt (${r.cost}${COIN_SYMBOL}). ${r.used_points}/${r.cap_points}pt used this semester. New balance: ${balance}${COIN_SYMBOL}.`;
 		}
 		if (cat.id === 'three_d_printing') {
-			return `Logged ${r.amount}i¢ (material ${r.material_ic}i¢ + time ${r.time_ic}i¢). New balance: ${balance}i¢.`;
+			return `Logged ${r.amount}${COIN_SYMBOL} (material ${r.material_ic}${COIN_SYMBOL} + time ${r.time_ic}${COIN_SYMBOL}). New balance: ${balance}${COIN_SYMBOL}.`;
 		}
 		if (cat.id === 'property_damage_careless') {
-			return `Logged ${r.amount}i¢ (${r.base}i¢ base + ${r.exchange}i¢ repair cost). New balance: ${balance}i¢.`;
+			return `Logged ${r.amount}${COIN_SYMBOL} (${r.base}${COIN_SYMBOL} base + ${r.exchange}${COIN_SYMBOL} repair cost). New balance: ${balance}${COIN_SYMBOL}.`;
 		}
 		const amt = typeof r.amount === 'number' ? r.amount : null;
 		const strikeNote = r.strike === true ? ' -- flagged as an Eating Pass strike.' : '';
-		return `Logged "${cat.name}" for ${amt !== null ? `${amt > 0 ? '+' : ''}${amt}i¢` : 'the entered amount'}. New balance: ${balance}i¢.${strikeNote}`;
+		// `balance` matches the four branches above deliberately: the RPC may
+		// omit it, and this line is not the place to start differing from its
+		// siblings about how that reads.
+		return `Logged "${cat.name}" for ${amt !== null ? signedCoins(amt) : 'the entered amount'}. New balance: ${balance}${COIN_SYMBOL}.${strikeNote}`;
 	}
 
 	/**
@@ -623,15 +646,15 @@
 	<section class="card">
 		<h2>Student summary</h2>
 		<div class="coin-summary">
-			<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}i¢</div>
+			<div class="coin-balance" class:negative={lookup.balance < 0}>{lookup.balance}{COIN_SYMBOL}</div>
 			<div class="medium-split">
 				<span class="split-cell" class:negative={lookup.physical_balance < 0}>
 					<span class="split-label">physical</span>
-					<span class="split-value">{lookup.physical_balance}i¢</span>
+					<span class="split-value">{lookup.physical_balance}{COIN_SYMBOL}</span>
 				</span>
 				<span class="split-cell" class:negative={lookup.digital_balance < 0}>
 					<span class="split-label">digital</span>
-					<span class="split-value">{lookup.digital_balance}i¢</span>
+					<span class="split-value">{lookup.digital_balance}{COIN_SYMBOL}</span>
 				</span>
 			</div>
 			<div class="coin-meta">
@@ -646,31 +669,11 @@
 			</div>
 		</div>
 
-		{#if lookup.recent_transactions.length}
-			<div class="rows coin-rows">
-				{#each lookup.recent_transactions as t (t.id)}
-					<div class="row">
-						<div class="who">
-							<span class="email">{t.category_name}</span>
-						</div>
-						<div class="meta">
-							{#if t.note}<span class="note-text">{t.note}</span>{/if}
-							<span class="since">by {t.actor_email} &middot; {when(t.created_at)}</span>
-						</div>
-						<div class="actions">
-							<span class="medium-chip" class:digital={t.medium === 'digital'}>
-								{t.medium === 'digital' ? 'digital' : 'physical'}
-							</span>
-							<span class:txn-neg={t.amount < 0} class:txn-pos={t.amount > 0}>
-								{t.amount > 0 ? '+' : ''}{t.amount}i¢
-							</span>
-						</div>
-					</div>
-				{/each}
-			</div>
-		{:else}
-			<p class="note">No transactions logged yet for this email.</p>
-		{/if}
+		<CoinTransactionRows
+			transactions={lookup.recent_transactions}
+			kinds={categoryKinds}
+			showActor
+		/>
 	</section>
 
 	<DebtPaymentPanel
@@ -702,7 +705,7 @@
 			<p class="hint">{MEDIUM_HINTS[medium]}</p>
 			{#if logMode === 'student' && lookup}
 				<p class="preview">
-					{MEDIUM_LABELS[activeMedium]} balance right now: {balanceFor(lookup, activeMedium)}i¢
+					{MEDIUM_LABELS[activeMedium]} balance right now: {balanceFor(lookup, activeMedium)}{COIN_SYMBOL}
 				</p>
 			{/if}
 		{/if}
@@ -720,24 +723,24 @@
 			-->
 			{#if logMode === 'section'}
 				<p class="preview">
-					{cat.amount}i¢ x each student's own wage tier. Paid per student, so a
+					{cat.amount}{COIN_SYMBOL} x each student's own wage tier. Paid per student, so a
 					raised tier is honored without splitting the section.
 				</p>
 			{:else if lookup}
 				<p class="preview">
-					Amount: {weeklyWagePreview(cat.amount, lookup.wage_tier)}i¢
-					({cat.amount}i¢ base x wage tier {lookup.wage_tier})
+					Amount: {weeklyWagePreview(cat.amount, lookup.wage_tier)}{COIN_SYMBOL}
+					({cat.amount}{COIN_SYMBOL} base x wage tier {lookup.wage_tier})
 				</p>
 			{:else}
-				<p class="preview">{cat.amount}i¢ x the student's wage tier.</p>
+				<p class="preview">{cat.amount}{COIN_SYMBOL} x the student's wage tier.</p>
 			{/if}
 		{:else}
-			<p class="preview">Fixed amount: {cat.amount}i¢</p>
+			<p class="preview">Fixed amount: {cat.amount}{COIN_SYMBOL}</p>
 		{/if}
 	{:else if cat.pricing_model === 'range'}
 		<div class="field-row">
 			<label for="range-input">
-				Amount ({cat.min_amount}-{cat.max_amount}i¢)
+				Amount ({cat.min_amount}-{cat.max_amount}{COIN_SYMBOL})
 			</label>
 			<input
 				id="range-input"
@@ -751,7 +754,7 @@
 	{:else if cat.pricing_model === 'variable'}
 		<div class="field-row">
 			<label for="var-input">
-				{cat.kind === 'adjustment' ? 'Adjustment amount (+/-)' : 'Amount (i¢)'}
+				{cat.kind === 'adjustment' ? 'Adjustment amount (+/-)' : 'Amount ({COIN_SYMBOL})'}
 			</label>
 			<input id="var-input" type="number" step="1" bind:value={variableAmount} />
 		</div>
@@ -805,12 +808,12 @@
 						<input id="points-input" type="number" min="1" step="1" bind:value={pointsInput} />
 					</div>
 					{#if pointsInput}
-						<p class="preview">Preview: {perfectScorePreview(num(pointsInput))}i¢</p>
+						<p class="preview">Preview: {perfectScorePreview(num(pointsInput))}{COIN_SYMBOL}</p>
 					{/if}
 				{:else if category.id === 'pay_raise'}
 					<p class="preview">
 						Current tier {lookup.wage_tier}. This purchase raises it to {lookup.wage_tier + 1} for
-						{payRaisePreview(lookup.wage_tier)}i¢ (the server re-checks the tier and the exact cost
+						{payRaisePreview(lookup.wage_tier)}{COIN_SYMBOL} (the server re-checks the tier and the exact cost
 						at submit time).
 					</p>
 				{:else if category.id === 'property_damage_careless'}
@@ -825,7 +828,7 @@
 						/>
 					</div>
 					{#if costDollarsInput}
-						<p class="preview">Preview: {propertyDamagePreview(num(costDollarsInput))}i¢</p>
+						<p class="preview">Preview: {propertyDamagePreview(num(costDollarsInput))}{COIN_SYMBOL}</p>
 					{/if}
 				{:else if category.id === 'three_d_printing'}
 					<div class="field-row">
@@ -843,7 +846,7 @@
 					{#if gramsInput || hoursInput}
 						{@const preview = threeDPrintingPreview(num(gramsInput), num(hoursInput), overnight)}
 						<p class="preview">
-							Preview: {preview.total}i¢ (material {preview.material}i¢ + time {preview.time}i¢)
+							Preview: {preview.total}{COIN_SYMBOL} (material {preview.material}{COIN_SYMBOL} + time {preview.time}{COIN_SYMBOL})
 						</p>
 					{/if}
 				{:else if category.id === 'extra_credit'}
@@ -861,7 +864,7 @@
 						</select>
 					</div>
 					{#if pointsInput}
-						<p class="preview">Preview: {Math.round(num(pointsInput) * (category.amount ?? 0))}i¢</p>
+						<p class="preview">Preview: {Math.round(num(pointsInput) * (category.amount ?? 0))}{COIN_SYMBOL}</p>
 					{/if}
 				{:else if category.pricing_model === 'per_unit'}
 					<div class="field-row">
@@ -870,7 +873,7 @@
 					</div>
 					{#if quantityInput}
 						<p class="preview">
-							Preview: {Math.round(num(quantityInput) * (category.amount ?? 0))}i¢
+							Preview: {Math.round(num(quantityInput) * (category.amount ?? 0))}{COIN_SYMBOL}
 						</p>
 					{/if}
 				{:else}
@@ -1027,7 +1030,7 @@
 							{#if r.ok}
 								<span class="txn-pos">
 									{typeof r.amount === 'number'
-										? `${r.amount > 0 ? '+' : ''}${r.amount}i¢`
+										? `${r.amount > 0 ? '+' : ''}${r.amount}{COIN_SYMBOL}`
 										: 'logged'}
 								</span>
 							{:else}
@@ -1279,9 +1282,6 @@
 		display: flex;
 		flex-direction: column;
 	}
-	.coin-rows {
-		margin-top: 0.2rem;
-	}
 	.row {
 		display: flex;
 		align-items: center;
@@ -1302,21 +1302,6 @@
 	.email {
 		font-weight: 700;
 		color: var(--white);
-	}
-	.meta {
-		display: flex;
-		flex-direction: column;
-		gap: 0.1rem;
-		min-width: 0;
-	}
-	.note-text {
-		font-size: 0.85rem;
-		color: var(--dim);
-	}
-	.since {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.65rem;
-		color: var(--dim);
 	}
 	.actions {
 		margin-left: auto;
