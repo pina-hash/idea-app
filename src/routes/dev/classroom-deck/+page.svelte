@@ -1,4 +1,5 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
 	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
 	import DeckViewer from '$lib/classroom/DeckViewer.svelte';
 	import {
@@ -304,9 +305,14 @@
 
 	const stateFile = $derived(paths.find((p) => p === '.image-slots.state.json') ?? null);
 </script>
-
 <svelte:head><title>dev // classroom deck</title></svelte:head>
 
+<!-- The classroom's own room, so this harness shows what production shows.
+     Without it these components render on the portal's green plate with the
+     scanline overlay behind them -- the surfaces they were deliberately moved
+     OFF -- and a harness that renders in the wrong room is a harness nobody
+     can trust for a visual check. -->
+<div class="cr-root">
 {#if view === 'viewer' && deck}
 	<DeckViewer {deck} backHref="#" backLabel="Back to the harness" />
 	<button class="escape" onclick={() => (view = 'panel')}>close viewer</button>
@@ -383,6 +389,7 @@
 		{/if}
 	</main>
 {/if}
+</div>
 
 <style>
 	.wrap {

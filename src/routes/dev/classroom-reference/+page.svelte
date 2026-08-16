@@ -1,4 +1,5 @@
 <script lang="ts">
+	import '$lib/classroom/classroom.css';
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
 	import ReferenceTools from '$lib/classroom/ReferenceTools.svelte';
 	import ShortLinkManager from '$lib/ShortLinkManager.svelte';
@@ -175,9 +176,14 @@
 		}
 	};
 </script>
-
 <svelte:head><title>dev // classroom reference</title></svelte:head>
 
+<!-- The classroom's own room, so this harness shows what production shows.
+     Without it these components render on the portal's green plate with the
+     scanline overlay behind them -- the surfaces they were deliberately moved
+     OFF -- and a harness that renders in the wrong room is a harness nobody
+     can trust for a visual check. -->
+<div class="cr-root">
 <div class="app-header">
 	<span class="wordmark">IDEA</span>
 	<span class="dev-tag">dev harness // reference documents</span>
@@ -237,6 +243,7 @@
 		<ShortLinkManager links={linkRows} transports={linkTransports} />
 	{/if}
 </main>
+</div>
 
 <style>
 	.dev-page {

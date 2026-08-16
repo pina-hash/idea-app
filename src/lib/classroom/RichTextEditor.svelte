@@ -421,6 +421,9 @@
 		opacity: 0.6;
 	}
 	.rt-toolbar {
+		/* Positioned so the link popover can anchor to the TOOLBAR at narrow
+		   widths rather than to its own button -- see .link-pop below. */
+		position: relative;
 		display: flex;
 		align-items: center;
 		gap: 0.2rem;
@@ -498,22 +501,36 @@
 	}
 	.link-pop button {
 		min-width: 0;
-		min-height: 2.2rem;
 		white-space: nowrap;
 	}
 	.link-pop .link-go {
 		color: var(--green);
 		border-color: var(--line-strong);
 	}
-	/* The popover overflows a toolbar that wraps, so on a narrow screen it is
-	   pinned to the editor's own width instead of the button's left edge. */
+	/**
+	 * NARROW SCREENS ANCHOR TO THE TOOLBAR, NOT TO THE BUTTON.
+	 *
+	 * The toolbar WRAPS at phone width, so the Link button can sit anywhere
+	 * along it -- and a popover anchored to that button runs off whichever edge
+	 * the button happens to be near. Measured at 375px before this rule: left
+	 * -82px, i.e. unreachable and not even scrollable to. (The same trap the
+	 * notebook's theme picker hit, and the same fix: drop the wrapper out of the
+	 * positioning chain so the containing block becomes something that spans the
+	 * width, and measure the insets from THAT.)
+	 */
 	@media (max-width: 30rem) {
+		.link-wrap {
+			position: static;
+		}
 		.link-pop {
-			left: auto;
-			right: 0;
+			left: 0.35rem;
+			right: 0.35rem;
+			flex-wrap: wrap;
 		}
 		.link-input {
-			width: 9rem;
+			width: auto;
+			max-width: none;
+			flex: 1 1 8rem;
 		}
 	}
 	.rt-surface {
