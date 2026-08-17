@@ -43,6 +43,7 @@
 		basePath = '/classroom',
 		canManage = false,
 		transports = null,
+		mode = 'full',
 		onchanged = null
 	}: {
 		deck?: ClassroomDeck | null;
@@ -51,6 +52,22 @@
 		basePath?: string;
 		canManage?: boolean;
 		transports?: DeckTransports | null;
+		/**
+		 * WHICH HALF OF THIS PANEL TO RENDER, and the split exists because the two
+		 * halves belong to different people.
+		 *
+		 * A deck is CONTENT: a student with one opens it, so the open link reads
+		 * in the item's own flow. Uploading, replacing and removing one is
+		 * management, so it reads in the item page's instructor inspector. Folding
+		 * both into one card would have forced a choice between hiding a student's
+		 * deck and putting an upload control in the middle of their reading.
+		 *
+		 * `full` is what every caller had before this prop existed and is
+		 * unchanged: both halves, one card. `view` is the open link alone (nothing
+		 * at all without a deck, whatever the caller may manage). `manage` is the
+		 * controls alone (nothing at all without both `canManage` and transports).
+		 */
+		mode?: 'full' | 'view' | 'manage';
 		onchanged?: (() => void | Promise<void>) | null;
 	} = $props();
 
@@ -84,6 +101,14 @@
 	const href = $derived(deckViewerHref(basePath, sectionId, itemId));
 	const thumb = $derived(deck ? deckThumbnailSrc(deck) : null);
 	const percent = $derived(progress ? deckProgressPercent(progress) : null);
+
+	/**
+	 * Which halves this mount is responsible for. `showManage` keeps `editable`
+	 * inside it, so no mode can render a control a caller was not authorized for
+	 * -- picking `manage` on a student's page renders nothing at all.
+	 */
+	const showView = $derived(mode !== 'manage' && !!deck);
+	const showManage = $derived(mode !== 'view' && editable);
 
 	async function send(file: File, entryPath: string | null) {
 		if (!transports) return;
@@ -174,11 +199,15 @@
 	}
 </script>
 
-{#if deck || editable}
-	<section class="card deck-card">
-		<h2>Presentation</h2>
+{#if showView || showManage}
+	<section class="deck-card" class:card={mode !== 'manage'} data-testid="deck-panel-{mode}">
+		{#if mode === 'manage'}
+			<h3 class="deck-manage-label">Presentation deck</h3>
+		{:else}
+			<h2>Presentation</h2>
+		{/if}
 
-		{#if deck}
+		{#if showView && deck}
 			<a class="deck-open" {href}>
 				{#if thumb}
 					<img class="deck-thumb" src={thumb} alt="" loading="lazy" />
@@ -197,20 +226,23 @@
 					</span>
 				</span>
 			</a>
+		{/if}
 
-			{#if canManage}
-				<p class="deck-sub">{deckSizeLine(deck)}</p>
-				{#if !deck.has_state_file}
-					<p class="deck-warn">
-						This deck was uploaded without its <code>.image-slots.state.json</code> file, so any
-						image cropped or panned by hand shows uncropped. Re-export the project with hidden
-						files included and upload it again to restore the framing.
-					</p>
-				{/if}
+		{#if showManage && deck}
+			<p class="deck-sub">
+				{deckSizeLine(deck)}
+				{#if mode === 'manage'}&middot; <a class="deck-inline-open" {href}>Open presentation</a>{/if}
+			</p>
+			{#if !deck.has_state_file}
+				<p class="deck-warn">
+					This deck was uploaded without its <code>.image-slots.state.json</code> file, so any
+					image cropped or panned by hand shows uncropped. Re-export the project with hidden
+					files included and upload it again to restore the framing.
+				</p>
 			{/if}
 		{/if}
 
-		{#if editable}
+		{#if showManage}
 			<div class="deck-actions">
 				<label class="deck-upload">
 					<input
@@ -262,14 +294,17 @@
 			{/if}
 		{/if}
 
-		{#if error}
+		<!-- Every one of these is set only by an action `showManage` gates, so this
+		     is a statement of that rather than a new restriction: in `view` mode
+		     there is nothing that could have set them. -->
+		{#if showManage && error}
 			<p class="deck-error">
 				{error}
 				{#if errorCode}<span class="deck-code">({errorCode})</span>{/if}
 			</p>
 		{/if}
 
-		{#if candidates.length}
+		{#if showManage && candidates.length}
 			<div class="deck-choose">
 				<p>Which page opens this deck?</p>
 				{#each candidates as candidate (candidate)}
@@ -284,16 +319,36 @@
 			</div>
 		{/if}
 
-		{#if notice}<p class="deck-notice">{notice}</p>{/if}
-		{#each warnings as warning (warning)}
-			<p class="deck-warn">{warning}</p>
-		{/each}
+		{#if showManage && notice}<p class="deck-notice">{notice}</p>{/if}
+		{#if showManage}
+			{#each warnings as warning (warning)}
+				<p class="deck-warn">{warning}</p>
+			{/each}
+		{/if}
 	</section>
 {/if}
 
 <style>
 	.deck-card {
 		margin-top: var(--space-4);
+	}
+	/* In `manage` mode the inspector supplies the surface, so this is a block
+	   inside a card rather than a card of its own. */
+	.deck-card:not(.card) {
+		margin-top: 0;
+	}
+	.deck-manage-label {
+		margin: 0 0 var(--space-2);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	/* The open link a manager keeps when the big student-facing one lives in the
+	   content flow instead of here. */
+	.deck-inline-open {
+		color: var(--cyan);
 	}
 	.deck-open {
 		display: flex;

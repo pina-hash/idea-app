@@ -19,6 +19,7 @@
 		courseLabel = null,
 		units = [],
 		transports,
+		chrome = true,
 		onchanged = null
 	}: {
 		courseId: string;
@@ -26,10 +27,19 @@
 		courseLabel?: string | null;
 		units?: ClassroomUnit[];
 		transports: ClassroomUnitTransports;
+		/**
+		 * FALSE when a caller has already spent a control on opening this: the
+		 * card, its title and its own open/close button are dropped, and the panel
+		 * renders expanded. The class view's sidebar toolbar does exactly that --
+		 * a whole card whose only job was to hold one button was most of a 26rem
+		 * pane's first screen, and two toggles for one panel is one too many.
+		 */
+		chrome?: boolean;
 		onchanged?: ((units: ClassroomUnit[]) => void) | null;
 	} = $props();
 
 	let open = $state(false);
+	const showing = $derived(!chrome || open);
 	let busy = $state(false);
 	let message = $state<{ ok: boolean; text: string } | null>(null);
 	let newName = $state('');
@@ -138,21 +148,23 @@
 	}
 </script>
 
-<section class="card unit-card">
-	<div class="unit-head">
-		<h2 class="unit-title">Units</h2>
-		<button
-			type="button"
-			class="btn secondary tiny"
-			aria-expanded={open}
-			data-testid="units-toggle"
-			onclick={() => (open = !open)}
-		>
-			{open ? 'Close' : ordered.length ? `Edit units (${ordered.length})` : 'Add units'}
-		</button>
-	</div>
+<section class="unit-card" class:card={chrome}>
+	{#if chrome}
+		<div class="unit-head">
+			<h2 class="unit-title">Units</h2>
+			<button
+				type="button"
+				class="btn secondary tiny"
+				aria-expanded={open}
+				data-testid="units-toggle"
+				onclick={() => (open = !open)}
+			>
+				{open ? 'Close' : ordered.length ? `Edit units (${ordered.length})` : 'Add units'}
+			</button>
+		</div>
+	{/if}
 
-	{#if open}
+	{#if showing}
 		<p class="note">
 			Units organize this class's content. They belong to
 			{courseLabel ? ` ${courseLabel}` : ' this course'}, so every section of it shows the same
@@ -250,6 +262,10 @@
 <style>
 	.unit-card {
 		margin-bottom: var(--space-4);
+	}
+	/* Without its own chrome the caller owns the surface and the spacing. */
+	.unit-card:not(.card) {
+		margin-bottom: 0;
 	}
 	.unit-head {
 		display: flex;

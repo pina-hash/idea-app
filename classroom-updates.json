@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-16",
+			"title": "The class list reads better beside what you are reading",
+			"body": "The list of everything in your class now fits the narrower column it sits in on a laptop: each item is two tidy lines -- its name, then when it is due and what it is worth -- with small markers showing how many files and links it has, instead of spilling onto extra lines. The class name at the top is smaller and out of the way, so you see more of the actual class before you scroll. Nothing was removed; it is the same list, just easier to run your eye down.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-16",
 			"title": "Your class list stays on screen while you read",
 			"body": "On a laptop or desktop, opening a class now keeps everything in that class in a list down the left while whatever you picked opens on the right. The row you are reading is marked, so you always know where you are, and the list keeps its place: units you folded stay folded, and you do not get scrolled back to the top every time you open something. Moving between assignments is a click instead of a click and a trip back. On a phone or tablet nothing changes -- you get the class list, then the thing you tapped, full width, the same as before.",
 			"tags": ["Classwork"]

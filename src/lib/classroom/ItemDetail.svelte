@@ -39,6 +39,7 @@
 		type LinkPreview
 	} from '$lib/classroom/classroom';
 	import type { FeedbackEntry } from '$lib/feedback/feedback';
+	import { itemInspector, toggleItemInspector } from '$lib/classroom/inspector.svelte';
 
 	/**
 	 * One classroom item in full: an assignment, a material, or an announcement
@@ -48,6 +49,28 @@
 	 * a `kind` now, so one page serves all three -- the differences are which
 	 * chips render (points and a due date are assignment vocabulary) and what the
 	 * engine slot says, not three copies of the same layout.
+	 *
+	 * THE GOVERNING RULE: AN INSTRUCTOR'S VIEW IS THE STUDENT VIEW PLUS EDIT
+	 * AFFORDANCES, NEVER A DIFFERENT ARRANGEMENT.
+	 *
+	 * So the reading order below is exactly the student's -- title and the chips
+	 * a student can see, the deck, the body, the reference document, links,
+	 * files, then the engine -- and every instructor-only affordance lives in ONE
+	 * inspector region above it. Before this, an instructor opening an item was
+	 * met with an actions card, a deck uploader, two spec importers, a rubric
+	 * builder and a revision history interleaved with the content, and could not
+	 * tell by looking what a student would actually be reading.
+	 *
+	 * THE INSPECTOR IS ONE `{#if canManage}`. Every block inside it keeps its own
+	 * original gate unchanged, so the region is a second, outer guard rather than
+	 * a replacement for any of them -- which is what makes "nothing
+	 * instructor-only escaped into the student path" checkable by reading one
+	 * line instead of nine.
+	 *
+	 * ONE DELIBERATE EXCEPTION, and it is the rule rather than a hole in it: the
+	 * DECK. A deck is content -- a student with one opens it -- so the open link
+	 * stays in the reading order for everybody and only its upload/replace/remove
+	 * controls move into the inspector. See DeckPanel's `mode` prop.
 	 *
 	 * OPENING THIS PAGE IS WHAT CLEARS THE "UPDATED" BADGE: the student is
 	 * looking at the current version, which is exactly what the badge was asking
@@ -149,6 +172,33 @@
 			.filter((s): s is ClassroomSection => !!s)
 	);
 
+	// --- The inspector ----------------------------------------------------
+	//
+	// Each of these mirrors, term for term, the gate the block it names already
+	// carried. Nothing here is the boundary: the boundary is the single
+	// `{#if canManage}` these all sit inside, plus each block's own unchanged
+	// condition. They exist so an inspector with nothing in it does not render
+	// an empty strip.
+	const canEditReference = $derived(item.kind === 'material' && canManage && !!referenceTransports);
+	const canEditAssignment = $derived(item.kind === 'assignment' && canManage && !!teacherTransports);
+	const canManageDeck = $derived(canManage && !!deckTransports);
+	const hasState = $derived(canManage && (!item.published || isScheduled(item) || item.is_public === true));
+	const hasInspector = $derived(
+		editable ||
+			hasInstructorMaterial ||
+			canEditReference ||
+			canEditAssignment ||
+			canManageDeck ||
+			hasState ||
+			!!revisionTransports
+	);
+	/**
+	 * Open state lives in a module (inspector.svelte.ts), NOT here: this
+	 * component is the page, so clicking through to another item remounts it and
+	 * a local `$state` would collapse the tools on every single item.
+	 */
+	const inspectorOpen = $derived(itemInspector.open);
+
 	$effect(() => {
 		const id = item.id;
 		const write = transports;
@@ -223,6 +273,208 @@
 	switcher and the breadcrumb trail back up.
 -->
 <main class="classroom-page">
+	<!--
+		THE INSPECTOR: every instructor-only affordance on this page, in one
+		region, above the content and visually apart from it.
+
+		ONE `{#if canManage}` GUARDS THE WHOLE THING. Each block inside keeps the
+		exact gate it carried before it moved here, so this is an added outer
+		guard, never a replacement for one.
+
+		Pinned at the top rather than beside the content: the detail pane is
+		already the narrower half of a two-pane shell at 1440px, and a third
+		column would leave neither the tools nor the reading enough room.
+	-->
+	{#if canManage && hasInspector}
+		<section class="inspector" data-testid="item-inspector">
+			<button
+				type="button"
+				class="insp-strip"
+				aria-expanded={inspectorOpen}
+				aria-controls="item-inspector-body"
+				data-testid="inspector-toggle"
+				onclick={toggleItemInspector}
+			>
+				<span class="insp-caret" aria-hidden="true">{inspectorOpen ? '▾' : '▸'}</span>
+				<span class="insp-glyph" aria-hidden="true">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+						<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
+						<path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+					</svg>
+				</span>
+				<span class="insp-label">Instructor tools</span>
+				<!-- STATE RIDES THE COLLAPSED STRIP, on purpose: whether a class can
+				     see this at all is the one thing a teacher must not have to
+				     expand anything to find out. -->
+				<span class="insp-state">
+					{#if !item.published}
+						<span class="draft-chip">Draft</span>
+					{:else if isScheduled(item)}
+						<span class="sched-chip" title="Students see this from {scheduleLabel(item)}"
+							>Scheduled &middot; {scheduleLabel(item)}</span
+						>
+					{/if}
+					{#if item.is_public}<span class="chip pin-chip">Public link</span>{/if}
+				</span>
+				<span class="insp-hint">{inspectorOpen ? 'Hide' : 'Show'}</span>
+			</button>
+
+			{#if inspectorOpen}
+				<div class="insp-body" id="item-inspector-body">
+					{#if error}<p class="feedback error">{error}</p>{/if}
+					{#if notice}<p class="feedback ok">{notice}</p>{/if}
+
+					{#if editable}
+						<div class="insp-block">
+							<span class="card-actions">
+								<button
+									type="button"
+									class="btn secondary tiny"
+									disabled={busy}
+									onclick={() => (editing = !editing)}
+								>
+									{editing ? 'Close editor' : 'Edit'}
+								</button>
+								<button type="button" class="btn secondary tiny" disabled={busy} onclick={togglePin}>
+									{item.pinned ? 'Unpin' : 'Pin'}
+								</button>
+								<button type="button" class="btn secondary tiny" disabled={busy} onclick={duplicate}
+									>Copy</button
+								>
+								<button
+									type="button"
+									class="btn secondary tiny danger"
+									disabled={busy}
+									onclick={remove}
+								>
+									{armDelete ? 'Really delete?' : 'Delete'}
+								</button>
+							</span>
+							{#if alsoIn.length}
+								<p class="also-line">
+									Also posted to {alsoIn.map((s) => sectionTitle(s)).join(', ')} -- one shared copy,
+									so an edit here changes all of them.
+								</p>
+							{/if}
+							{#if editing}
+								{#key item.id}
+									<ContentComposer
+										mode="edit"
+										{item}
+										{sections}
+										transports={transports!}
+										{attachmentsEnabled}
+										compact
+										onsaved={saved}
+										oncancel={() => (editing = false)}
+									/>
+								{/key}
+							{/if}
+						</div>
+					{/if}
+
+					{#if canManageDeck}
+						<!-- The CONTROLS only. The deck's own open link is content and
+						     stays in the reading order below, for a teacher exactly as
+						     for a student. -->
+						<div class="insp-block">
+							<DeckPanel
+								{deck}
+								itemId={item.id}
+								sectionId={section.id}
+								{basePath}
+								{canManage}
+								transports={deckTransports}
+								mode="manage"
+								{onchanged}
+							/>
+						</div>
+					{/if}
+
+					{#if canEditReference}
+						<div class="insp-block engine-tools">
+							<h2 class="section-label">Reference document</h2>
+							<SpecImporter
+								kind="reference"
+								itemId={item.id}
+								spec={referenceSpec}
+								isPublic={item.is_public === true}
+								attachmentCount={item.attachments.length}
+								transports={referenceTransports!}
+								onchanged={() => onchanged?.()}
+							/>
+						</div>
+					{/if}
+
+					{#if canEditAssignment}
+						<div class="insp-block engine-tools">
+							<h2 class="section-label">Assignment engine</h2>
+							<SpecImporter
+								kind="assignment"
+								itemId={item.id}
+								{spec}
+								transports={teacherTransports!}
+								onchanged={() => onchanged?.()}
+							/>
+							<hr class="tool-rule" />
+							<RubricBuilder
+								itemId={item.id}
+								criteria={rubric}
+								{spec}
+								transports={teacherTransports!}
+								onchanged={() => onchanged?.()}
+							/>
+							{#if gradeHref}
+								<hr class="tool-rule" />
+								<a class="btn tiny" href={gradeHref}>Open grading console</a>
+							{/if}
+						</div>
+					{/if}
+
+					{#if hasInstructorMaterial}
+						<div class="insp-block">
+							<h2 class="section-label instructor-section-label">
+								<span class="lock-glyph" aria-hidden="true">
+									<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+										<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
+										<path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+									</svg>
+								</span>
+								Instructor only
+							</h2>
+							<p class="note instructor-note">
+								Visible only to this item's teachers of record and admins.
+							</p>
+							{#if instructorLinks.length}
+								<div class="link-list">
+									{#each instructorLinks as l (l.id ?? l.url)}
+										<LinkPreviewCard link={l} {fetchPreview} />
+									{/each}
+								</div>
+							{/if}
+							{#if instructorAttachments.length}
+								<AttachmentList
+									attachments={instructorAttachments}
+									resolveSrc={(a) => instructorAttachmentSrc(a.id)}
+								/>
+							{/if}
+						</div>
+					{/if}
+
+					{#if revisionTransports}
+						<div class="insp-block">
+							<RevisionHistory
+								itemId={item.id}
+								transports={revisionTransports}
+								onchanged={() => onchanged?.()}
+							/>
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</section>
+	{/if}
+
 	<section class="hero">
 		<div class="eyebrow">{itemKindLabel(item.kind)}</div>
 		<h1>{itemTitle(item)}</h1>
@@ -239,70 +491,29 @@
 			{/if}
 			Posted {shortWhen(item.created_at)} by {authorLabel(item.author_name, item.author_email)}
 		</p>
-		<p class="chip-line">
-			{#if item.pinned}<span class="chip pin-chip">Pinned</span>{/if}
-			{#if canManage && !item.published}<span class="draft-chip">Draft</span>{:else if canManage && isScheduled(item)}<span class="sched-chip" title="Students see this from {scheduleLabel(item)}">Scheduled &middot; {scheduleLabel(item)}</span>{/if}
-			{#if canManage && item.is_public}<span class="chip pin-chip">Public link</span>{/if}
-			{#if showUpdated}<span class="chip updated-chip">Updated</span>{/if}
-		</p>
+		{#if item.pinned || showUpdated}
+			<p class="chip-line">
+				{#if item.pinned}<span class="chip pin-chip">Pinned</span>{/if}
+				{#if showUpdated}<span class="chip updated-chip">Updated</span>{/if}
+			</p>
+		{/if}
 		{#if item.edited_at}
 			<p class="edited-line">Last updated {editedWhen(item.edited_at)}</p>
 		{/if}
 	</section>
 
-	{#if error}<p class="feedback error">{error}</p>{/if}
-	{#if notice}<p class="feedback ok">{notice}</p>{/if}
-
-	{#if editable}
-		<section class="card actions-card">
-			<span class="card-actions">
-				<button type="button" class="btn secondary tiny" disabled={busy} onclick={() => (editing = !editing)}>
-					{editing ? 'Close editor' : 'Edit'}
-				</button>
-				<button type="button" class="btn secondary tiny" disabled={busy} onclick={togglePin}>
-					{item.pinned ? 'Unpin' : 'Pin'}
-				</button>
-				<button type="button" class="btn secondary tiny" disabled={busy} onclick={duplicate}>Copy</button>
-				<button type="button" class="btn secondary tiny danger" disabled={busy} onclick={remove}>
-					{armDelete ? 'Really delete?' : 'Delete'}
-				</button>
-			</span>
-			{#if alsoIn.length}
-				<p class="also-line">
-					Also posted to {alsoIn.map((s) => sectionTitle(s)).join(', ')} -- one shared copy, so an
-					edit here changes all of them.
-				</p>
-			{/if}
-			{#if editing}
-				{#key item.id}
-					<ContentComposer
-						mode="edit"
-						{item}
-						{sections}
-						transports={transports!}
-						{attachmentsEnabled}
-						compact
-						onsaved={saved}
-						oncancel={() => (editing = false)}
-					/>
-				{/key}
-			{/if}
-		</section>
-	{/if}
-
 	<!-- The deck sits ABOVE the written content on purpose: when an item has one
 	     it is the thing the class is looking at, and the instructions are what
-	     goes with it. Renders nothing at all for a student on an item with no
-	     deck. -->
-	<DeckPanel
-		{deck}
-		itemId={item.id}
-		sectionId={section.id}
-		{basePath}
-		{canManage}
-		transports={deckTransports}
-		{onchanged}
-	/>
+	     goes with it. `view` mode is the OPEN LINK ONLY -- the upload and
+	     removal controls are management and live in the inspector -- so this
+	     renders identically for a teacher and a student, and nothing at all on
+	     an item with no deck. -->
+	<!-- NO `canManage` AND NO TRANSPORTS. `view` mode could not render a control
+	     with them anyway (`showManage` is false by construction there), but not
+	     handing them over at all is what makes "nothing instructor-only renders
+	     in the content flow" true by inspection rather than by reading
+	     DeckPanel to check. -->
+	<DeckPanel {deck} itemId={item.id} sectionId={section.id} {basePath} mode="view" />
 
 	<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
 	     renders its written details exactly as every material always has, which
@@ -348,74 +559,18 @@
 		</section>
 	{/if}
 
-	{#if canManage && hasInstructorMaterial}
-		<section class="card instructor-card">
-			<h2 class="section-label instructor-section-label">
-				<span class="lock-glyph" aria-hidden="true">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-						<rect x="4.5" y="10.5" width="15" height="10" rx="1.5" />
-						<path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
-					</svg>
-				</span>
-				Instructor only
-			</h2>
-			<p class="note instructor-note">Visible only to this item's teachers of record and admins.</p>
-			{#if instructorLinks.length}
-				<div class="link-list">
-					{#each instructorLinks as l (l.id ?? l.url)}
-						<LinkPreviewCard link={l} {fetchPreview} />
-					{/each}
-				</div>
-			{/if}
-			{#if instructorAttachments.length}
-				<AttachmentList
-					attachments={instructorAttachments}
-					resolveSrc={(a) => instructorAttachmentSrc(a.id)}
-				/>
-			{/if}
-		</section>
-	{/if}
+	<!--
+		THE STUDENT'S OWN HAND-IN, and nothing else in this slot.
 
-	{#if item.kind === 'material' && canManage && referenceTransports}
-		<section class="card engine-tools">
-			<h2 class="section-label">Reference document</h2>
-			<SpecImporter
-				kind="reference"
-				itemId={item.id}
-				spec={referenceSpec}
-				isPublic={item.is_public === true}
-				attachmentCount={item.attachments.length}
-				transports={referenceTransports}
-				onchanged={() => onchanged?.()}
-			/>
-		</section>
-	{/if}
-
-	{#if item.kind === 'assignment'}
-		{#if canManage && teacherTransports}
-			<section class="card engine-tools">
-				<h2 class="section-label">Assignment engine</h2>
-				<SpecImporter
-					kind="assignment"
-					itemId={item.id}
-					{spec}
-					transports={teacherTransports}
-					onchanged={() => onchanged?.()}
-				/>
-				<hr class="tool-rule" />
-				<RubricBuilder
-					itemId={item.id}
-					criteria={rubric}
-					{spec}
-					transports={teacherTransports}
-					onchanged={() => onchanged?.()}
-				/>
-				{#if gradeHref}
-					<hr class="tool-rule" />
-					<a class="btn tiny" href={gradeHref}>Open grading console</a>
-				{/if}
-			</section>
-		{:else if engine && engineTransports}
+		`canManage` guards it because the engine slice is loaded only for a
+		non-manager (a manager's own RLS read would hand them every student's
+		rows), so a manager reaching the `{:else}` would be told this assignment
+		has no online hand-in -- which is not true, and is not a sentence to put
+		in front of the person who set it. Their window into it is the grading
+		console, in the inspector.
+	-->
+	{#if item.kind === 'assignment' && !canManage}
+		{#if engine && engineTransports}
 			<section class="engine-host">
 				<h2 class="section-label">Your work</h2>
 				{#key item.id}
@@ -439,16 +594,6 @@
 				</p>
 			</section>
 		{/if}
-	{/if}
-
-	{#if canManage && revisionTransports}
-		<section class="card">
-			<RevisionHistory
-				itemId={item.id}
-				transports={revisionTransports}
-				onchanged={() => onchanged?.()}
-			/>
-		</section>
 	{/if}
 
 	<ClassroomFeedback
@@ -478,6 +623,97 @@
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
 	}
+	/* The app-shell `.hero` is the LANDING hero: centred, with 4rem of air above
+	   it. This is a document opening inside a pane, so it reads from the left
+	   and starts near the top. */
+	.hero {
+		text-align: left;
+		padding: var(--space-4) 0 var(--space-3);
+	}
+
+	/* --- The instructor inspector ------------------------------------------
+	   GOLD AND DASHED, this module's own instructor-only marking (the same
+	   treatment the instructor-materials card carried before it moved inside),
+	   on the raised surface -- so it cannot be read as a card of student
+	   content whatever ends up in it. */
+	.inspector {
+		margin: var(--space-3) 0 var(--space-4);
+		border: 1px dashed var(--gold);
+		border-radius: var(--radius-card);
+		background: var(--surface-2);
+	}
+	.insp-strip {
+		appearance: none;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		width: 100%;
+		min-height: 44px;
+		padding: 0.35rem 0.6rem;
+		background: none;
+		border: none;
+		color: var(--gold);
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+	}
+	.insp-caret {
+		font-size: 0.7rem;
+		flex: none;
+	}
+	.insp-glyph {
+		display: inline-flex;
+		width: 0.85rem;
+		height: 0.85rem;
+		flex: none;
+	}
+	.insp-glyph svg {
+		width: 100%;
+		height: 100%;
+	}
+	.insp-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		flex: none;
+	}
+	/* The state chips take the slack and truncate, so a long "Scheduled ·
+	   <date>" never pushes the Show/Hide affordance off a narrow pane. */
+	.insp-state {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+	}
+	.insp-hint {
+		flex: none;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.64rem;
+		color: var(--text-2);
+	}
+	.insp-body {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+		padding: 0 0.6rem 0.7rem;
+	}
+	.insp-body .feedback {
+		margin: 0;
+	}
+	/* A plain block, NOT a second dashed gold box: the region already says whose
+	   these are, and nesting the marking would only shout. */
+	.insp-block {
+		border-top: 1px solid var(--hairline);
+		padding-top: var(--space-3);
+	}
+	.insp-block:first-child {
+		border-top: none;
+		padding-top: 0;
+	}
+
 	.meta-line,
 	.edited-line {
 		font-family: 'Share Tech Mono', monospace;
@@ -506,9 +742,6 @@
 	}
 	.card {
 		margin-bottom: 0.9rem;
-	}
-	.instructor-card {
-		border: 1px dashed var(--gold);
 	}
 	.instructor-section-label {
 		display: inline-flex;

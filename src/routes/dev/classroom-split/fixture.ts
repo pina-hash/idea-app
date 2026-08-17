@@ -10,6 +10,9 @@
  * number you can read rather than a claim.
  */
 import type { ClassroomItem, ClassroomSection, ClassroomUnit } from '$lib/classroom/classroom';
+import type { ClassroomDeck } from '$lib/classroom/deck';
+import type { ReferenceSpec } from '$lib/classroom/reference-spec';
+import { SAMPLE_REFERENCE } from '$lib/classroom/dev-reference-fixture';
 
 export const loads = { layout: 0, item: 0 };
 
@@ -65,13 +68,87 @@ function item(
 }
 
 /**
+ * THE CROWDED CASE, so "the row fits its two lines" and "the inspector holds
+ * everything" are measurements rather than assumptions.
+ *
+ * Every dimension that competes for the pane's width at once: a title far
+ * longer than 26rem can show, a pin, a due date, points, a category, files,
+ * links, an export failure's own chip -- plus, on the item page, a deck, a
+ * reference document, instructor-only material and a revision history, which
+ * between them are every block the inspector can hold.
+ */
+export const CROWDED_ID = 'i-crowded';
+
+export const DECK: ClassroomDeck = {
+	id: 'deck-1',
+	item_id: CROWDED_ID,
+	title: 'Truss geometry and load paths',
+	entry_path: 'index.html',
+	thumbnail_path: null,
+	file_count: 31,
+	total_bytes: 23_500_000,
+	has_state_file: false,
+	slides: [
+		{ index: 0, label: 'Why triangles' },
+		{ index: 1, label: 'Tension and compression' },
+		{ index: 2, label: 'Joints' }
+	]
+};
+
+export const REFERENCE: ReferenceSpec = SAMPLE_REFERENCE;
+
+/**
  * Enough rows that the navigation pane genuinely overflows its own height at
  * 1440x900 -- otherwise "the panes scroll independently" is untestable, because
  * neither of them scrolls.
  */
 export const ITEMS: ClassroomItem[] = [
 	item({ id: 'i-1', kind: 'post', title: 'Welcome to the bridge unit', unit_id: 'u-1' }),
-	item({ id: 'i-2', kind: 'material', title: 'Course syllabus', unit_id: 'u-1' }),
+	item({
+		id: CROWDED_ID,
+		kind: 'assignment',
+		title:
+			'Truss bridge analysis and member sizing, with the full stackup written up in your notebook',
+		unit_id: 'u-1',
+		pinned: true,
+		points: 40,
+		category: 'Unit Labs',
+		due_at: daysFromNow(4),
+		body: 'Work through the member sizing for the span you sketched, then justify every choice.',
+		links: [
+			{ id: 'l-1', label: 'Truss reference', url: 'https://example.com/truss' },
+			{ id: 'l-2', label: 'Load tables', url: 'https://example.com/loads' }
+		],
+		attachments: [
+			{ id: 'a-1', filename: 'truss-worksheet.pdf', mime_type: 'application/pdf' },
+			{ id: 'a-2', filename: 'span-photo.jpg', mime_type: 'image/jpeg' }
+		],
+		instructorLinks: [{ id: 'il-1', label: 'Answer key', url: 'https://example.com/key' }],
+		instructorAttachments: [
+			{ id: 'ia-1', filename: 'solutions.pdf', mime_type: 'application/pdf' }
+		]
+	}),
+	item({
+		id: 'i-2',
+		kind: 'material',
+		title: 'Course syllabus',
+		unit_id: 'u-1',
+		// A public material: the one item whose inspector strip carries the
+		// public-link chip, and the one that reaches the reference importer.
+		is_public: true,
+		attachments: [{ id: 'a-3', filename: 'syllabus.pdf', mime_type: 'application/pdf' }]
+	}),
+	// The two remaining strip states, so "state rides the collapsed strip" is a
+	// measurement rather than a claim about markup that never ran.
+	item({ id: 'i-draft', kind: 'assignment', title: 'Load testing writeup', published: false, points: 25, unit_id: 'u-2' }),
+	item({
+		id: 'i-sched',
+		kind: 'post',
+		title: 'Field trip details',
+		published: true,
+		publish_at: daysFromNow(5),
+		unit_id: 'u-2'
+	}),
 	...Array.from({ length: 14 }, (_, n) =>
 		item({
 			id: `i-${n + 3}`,

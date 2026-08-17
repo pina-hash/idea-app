@@ -1,6 +1,20 @@
 <script module lang="ts">
 	// Module scope, so it survives client-side navigation between child routes.
 	let mounts = 0;
+
+	/**
+	 * `?manage=1` LATCHES for the session. The row links are ordinary hrefs with
+	 * no query on them, so without this a client-side navigation would drop back
+	 * to the student view -- and every teacher-side claim measured after a click
+	 * would be measuring the wrong page. In production `canManage` comes from the
+	 * load, so there is nothing here to mirror.
+	 */
+	let manageLatch = false;
+	export function harnessManage(url: URL): boolean {
+		if (url.searchParams.get('manage') === '1') manageLatch = true;
+		if (url.searchParams.get('manage') === '0') manageLatch = false;
+		return manageLatch;
+	}
 </script>
 
 <script lang="ts">
@@ -18,9 +32,53 @@
 		sectionTabs
 	} from '$lib/classroom/nav';
 	import { itemById, loads } from '../fixture';
+	import type {
+		ClassroomComposerTransports,
+		ClassroomUnitTransports,
+		TxResult
+	} from '$lib/classroom/classroom';
 	import type { LayoutData } from './$types';
 
 	let { data, children }: { data: LayoutData; children: import('svelte').Snippet } = $props();
+
+	/**
+	 * `?manage=1` mounts the list AS A TEACHER, which is what makes the toolbar,
+	 * the row menu and the unit picker inside it measurable -- with no transports
+	 * every management control is correctly absent, so "the select is not in the
+	 * row any more" would be vacuously true. Read in the COMPONENT, never in a
+	 * load: the layout load taking a `url` dependency is exactly what the split
+	 * exists to avoid.
+	 */
+	const manage = $derived(harnessManage(page.url));
+
+	const ok = <T,>(value: T): Promise<TxResult<T>> => Promise.resolve({ ok: true, data: value });
+
+	/** Stubs. This harness is for geometry; /dev/classroom drives the writes. */
+	const transports: ClassroomComposerTransports = {
+		createItem: () => ok({ itemId: 'i-new', sectionIds: [], formattingDropped: false }),
+		updateItem: () => ok({ itemId: 'i-1', sectionIds: [], formattingDropped: false }),
+		deleteItem: () => ok(undefined),
+		duplicateItem: () => ok({ itemId: 'i-copy' }),
+		addPostings: () => ok({ added: 0 }),
+		removePosting: () => ok({ ok: true }),
+		setPublished: () => ok(undefined),
+		setPinned: () => ok(undefined),
+		setOrder: () => ok(undefined),
+		uploadAttachment: () => ok(undefined),
+		deleteAttachment: () => ok(undefined),
+		uploadInstructorAttachment: () => ok(undefined),
+		deleteInstructorAttachment: () => ok(undefined),
+		setInstructorResources: () => ok(undefined),
+		markViewed: () => ok(undefined)
+	};
+
+	const unitTransports: ClassroomUnitTransports = {
+		upsertUnit: () => ok({ unitId: 'u-new', created: true, duplicate: false }),
+		deleteUnit: () => ok({ unfiled: 0 }),
+		setUnitOrder: () => ok(undefined),
+		reloadUnits: () => ok(data.units),
+		setItemUnit: () => ok({ ok: true })
+	};
 
 	/**
 	 * The harness's own path rewritten to the real one, so `locateClassroom`,
@@ -91,6 +149,9 @@
 		units={data.units}
 		{selectedItemId}
 		{collapsed}
+		canManage={manage}
+		transports={manage ? transports : null}
+		unitTransports={manage ? unitTransports : null}
 		onToggleGroup={toggleGroup}
 		asPane={!!selectedItemId}
 		basePath="/dev/classroom-split"

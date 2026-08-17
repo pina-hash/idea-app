@@ -159,6 +159,7 @@
 	} = $props();
 
 	let composing = $state(false);
+	let unitsOpen = $state(false);
 	let editing = $state<string | null>(null);
 	let expanded = $state<Record<string, boolean>>({});
 	let openMenu = $state<string | null>(null);
@@ -460,7 +461,12 @@
 			<span aria-hidden="true">&#9679;</span> Pinned
 		</span>
 	{/if}
-	{#if canManage && !item.published}<span class="draft-chip">Draft</span>{:else if canManage && isScheduled(item)}<span class="sched-chip" title="Students see this from {scheduleLabel(item)}">Scheduled &middot; {scheduleLabel(item)}</span>{/if}
+	<!-- THE DATE IS IN THE TOOLTIP, NOT THE CHIP. `.sched-chip` carries a whole
+	     timestamp and is deliberately allowed to WRAP below 32rem (classroom.css,
+	     to stop it pushing a page sideways) -- which in a two-line row means a
+	     third line every time. The row's signal is that this is scheduled at all;
+	     the item page's own strip carries the date in full. -->
+	{#if canManage && !item.published}<span class="draft-chip">Draft</span>{:else if canManage && isScheduled(item)}<span class="sched-chip row-sched" title="Students see this from {scheduleLabel(item)}">Scheduled</span>{/if}
 	{#if updated(item)}<span class="chip updated-chip">Updated</span>{/if}
 {/snippet}
 
@@ -571,10 +577,53 @@
 				data-testid="row-open"
 			>
 				{@render kindGlyph(item.kind)}
+				<!--
+					TWO LINES, NEVER MORE. The title takes the slack and ellipsises;
+					the chips beside it keep their own width. Attachment and link
+					counts are small inline INDICATORS on that same line rather than a
+					row of pills on one of their own -- at 26rem, a third line per row
+					is ten rows a screen instead of eighteen.
+				-->
 				<span class="row-text">
 					<span class="row-title">
-						{itemTitle(item)}
+						<span class="row-name">{itemTitle(item)}</span>
+						{#if item.attachments.length || item.links.length}
+							<span class="row-inds" aria-hidden="true">
+								{#if item.attachments.length}
+									<span class="ind" data-testid="chip-files" title="{item.attachments.length} file{item.attachments.length === 1 ? '' : 's'} attached">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8L9.7 17.4a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8" />
+										</svg>{item.attachments.length}
+									</span>
+								{/if}
+								{#if item.links.length}
+									<span class="ind" data-testid="chip-links" title="{item.links.length} link{item.links.length === 1 ? '' : 's'}">
+										<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M10 13.5a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 4.8l-1.7 1.7" />
+											<path d="M14 10.5a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 19.2l1.7-1.7" />
+										</svg>{item.links.length}
+									</span>
+								{/if}
+							</span>
+							<!-- The counts read as text to assistive tech, where an icon and
+							     a bare number would not. -->
+							<span class="sr-only">
+								{#if item.attachments.length}{item.attachments.length} file{item.attachments.length === 1 ? '' : 's'} attached.{/if}
+								{#if item.links.length}{item.links.length} link{item.links.length === 1 ? '' : 's'}.{/if}
+							</span>
+						{/if}
+						{#if my}
+							<span class="chip tone-{workStateTone(my.state)}" data-testid="work-status">
+								{workStateLabel(my, item.points)}
+							</span>
+						{/if}
 						{@render badges(item)}
+						{#if exportFailed(exportStatusFor(item.id))}
+							<!-- QUIET, and only when something is wrong: an item that exported
+							     cleanly, or never exported, says nothing at all. Amber, this
+							     palette's "needs attention" -- the content itself saved. -->
+							<span class="chip export-chip" data-testid="export-fail-{item.id}">Export failed</span>
+						{/if}
 					</span>
 					<span class="row-meta">
 						<span class="row-kind">{itemKindLabel(item.kind)}</span>
@@ -590,58 +639,7 @@
 						{#if item.category}&nbsp;&middot; {item.category}{/if}
 					</span>
 				</span>
-				<span class="row-chips">
-					{#if my}
-						<span class="chip tone-{workStateTone(my.state)}" data-testid="work-status">
-							{workStateLabel(my, item.points)}
-						</span>
-					{/if}
-					{#if item.attachments.length}
-						<span class="chip icon-chip" title="{item.attachments.length} file{item.attachments.length === 1 ? '' : 's'} attached" data-testid="chip-files">
-							<span aria-hidden="true">
-								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.4 3.4 0 0 1 4.8 4.8L9.7 17.4a1.8 1.8 0 0 1-2.5-2.5l7.8-7.8" />
-								</svg>
-							</span>
-							{item.attachments.length}
-						</span>
-					{/if}
-					{#if exportFailed(exportStatusFor(item.id))}
-						<!-- QUIET, and only when something is wrong: an item that exported
-						     cleanly, or never exported, says nothing at all. Amber, this
-						     palette's "needs attention" -- the content itself saved. -->
-						<span class="chip export-chip" data-testid="export-fail-{item.id}">Export failed</span>
-					{/if}
-					{#if item.links.length}
-						<span class="chip icon-chip" title="{item.links.length} link{item.links.length === 1 ? '' : 's'}" data-testid="chip-links">
-							<span aria-hidden="true">
-								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-									<path d="M10 13.5a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 4.8l-1.7 1.7" />
-									<path d="M14 10.5a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 19.2l1.7-1.7" />
-								</svg>
-							</span>
-							{item.links.length}
-						</span>
-					{/if}
-				</span>
 			</a>
-
-			{#if editable && unitTransports}
-				<label class="unit-pick" title="File this into a unit">
-					<span class="sr-only">Unit for {itemTitle(item)}</span>
-					<select
-						value={item.unit_id ?? UNFILED_GROUP_ID}
-						disabled={busy}
-						data-testid="row-unit"
-						onchange={(e) => fileInto(item, (e.currentTarget as HTMLSelectElement).value)}
-					>
-						<option value={UNFILED_GROUP_ID}>No unit</option>
-						{#each orderedUnits as u (u.id)}
-							<option value={u.id}>{u.name}</option>
-						{/each}
-					</select>
-				</label>
-			{/if}
 
 			{#if editable}
 				<div class="row-menu">
@@ -657,7 +655,8 @@
 						<span aria-hidden="true">&#8942;</span>
 					</button>
 					{#if openMenu === item.id}
-						<div class="menu" role="menu" data-testid="row-menu-open">
+						<div class="menu" data-testid="row-menu-open">
+							<div role="menu">
 							<button type="button" role="menuitem" disabled={busy} onclick={() => toggleEdit(item.id)}>
 								{editing === item.id ? 'Close editor' : 'Edit'}
 							</button>
@@ -694,6 +693,33 @@
 							>
 								{armDelete === item.id ? 'Really delete?' : 'Delete'}
 							</button>
+							</div>
+							{#if unitTransports}
+								<!--
+									FILING LIVES HERE NOW. It is a management action, and it was
+									rendered AT REST in every row -- a select box per row, in a
+									pane with no width to spare, permanently. It is one of the
+									actions behind the one control the others are behind.
+
+									Outside the `role="menu"` group deliberately: a select is not
+									a menuitem, and the ARIA menu pattern has nowhere to put one.
+									The popover is the container; the group is what has the role.
+								-->
+								<label class="menu-unit">
+									<span class="menu-unit-label">Unit</span>
+									<select
+										value={item.unit_id ?? UNFILED_GROUP_ID}
+										disabled={busy}
+										data-testid="row-unit"
+										onchange={(e) => fileInto(item, (e.currentTarget as HTMLSelectElement).value)}
+									>
+										<option value={UNFILED_GROUP_ID}>No unit</option>
+										{#each orderedUnits as u (u.id)}
+											<option value={u.id}>{u.name}</option>
+										{/each}
+									</select>
+								</label>
+							{/if}
 						</div>
 					{/if}
 				</div>
@@ -733,20 +759,22 @@
 						<path d="M9 9h6M9 13h6M9 17h3" />
 					</svg>
 				</span>
+				<!-- The same two-line shape as an item row: name gives way, chip
+				     keeps its width. -->
 				<span class="row-text">
-					<span class="row-title">{checkIn.session_label}</span>
+					<span class="row-title">
+						<span class="row-name">{checkIn.session_label}</span>
+						{#if checkIn.status}
+							<span class="chip tone-{checkInTone(checkIn.status)}" data-testid="check-in-status">
+								{checkIn.status === 'flagged'
+									? (flagReasonLabel(checkIn.flag_reason) ?? checkInStatusLabel(checkIn.status))
+									: checkInStatusLabel(checkIn.status)}
+							</span>
+						{/if}
+					</span>
 					<span class="row-meta">
 						<span class="row-kind">Notebook check-in</span> &middot; {checkInMeta(checkIn)}
 					</span>
-				</span>
-				<span class="row-chips">
-					{#if checkIn.status}
-						<span class="chip tone-{checkInTone(checkIn.status)}" data-testid="check-in-status">
-							{checkIn.status === 'flagged'
-								? (flagReasonLabel(checkIn.flag_reason) ?? checkInStatusLabel(checkIn.status))
-								: checkInStatusLabel(checkIn.status)}
-						</span>
-					{/if}
 				</span>
 			{/snippet}
 			{#if href}
@@ -767,16 +795,38 @@
 	class="classroom-page"
 	aria-label={asPane ? 'Class content' : undefined}
 >
-	<section class="hero">
-		<div class="eyebrow">{section.course?.code ?? 'IDEA // Classroom'}</div>
-		<h1>{section.course?.title ?? section.label}</h1>
-		<p class="section-line">
-			{formatSectionLabel(section.label, section.block)}
-			&nbsp;&middot; {emailLocal(section.teacher_email)}
-			{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
+	<!--
+		A COMPACT, LEFT-ALIGNED HEADER, NOT A PAGE HERO.
+
+		This list is the navigation pane of a two-pane shell -- roughly 26rem --
+		and the app-shell `.hero` it used to wear is the LANDING hero: centred,
+		with 4rem of air above it. Centred text in a narrow column is the loudest
+		possible signal that a component was designed for a wider page, and the
+		class identity is already in the shell's breadcrumb trail and its section
+		switcher, so this says it once, quietly, at heading scale.
+
+		The heading is an h2 while a detail pane is open: the item beside it owns
+		the page's h1 then, and two of them is one too many.
+	-->
+	<header class="pane-head">
+		<svelte:element this={asPane ? 'h2' : 'h1'} class="pane-title">
+			{section.course?.title ?? section.label}
+		</svelte:element>
+		<p class="pane-meta-row">
+			<!-- TRUNCATES RATHER THAN WRAPS: a second and third line of course code,
+			     period, block and teacher is a header taking the top of the pane
+			     away from the content it is a header for. -->
+			<span class="pane-meta" title={`${section.course?.code ?? ''} ${formatSectionLabel(section.label, section.block)} · ${emailLocal(section.teacher_email)}`.trim()}>
+				{#if section.course?.code}<span class="pane-code">{section.course.code}</span>{/if}
+				{formatSectionLabel(section.label, section.block)}
+				&middot; {emailLocal(section.teacher_email)}
+				{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
+			</span>
 			{#if notebookHref}
-				&nbsp;&middot; <a class="manage-link" href={notebookHref} data-testid="class-notebook-link">
-					{canManage ? 'Notebook review' : 'My notebook'}
+				<!-- Outside the truncating span on purpose: it is a link, and a link
+				     that can be ellipsised away is a link nobody can press. -->
+				<a class="manage-link" href={notebookHref} data-testid="class-notebook-link">
+					{canManage ? 'Notebook' : 'My notebook'}
 					{#if outstanding !== null}
 						<span
 							class="outstanding-badge"
@@ -789,7 +839,7 @@
 				</a>
 			{/if}
 		</p>
-	</section>
+	</header>
 
 	{#if error}
 		<p class="feedback error">{error}</p>
@@ -798,21 +848,38 @@
 		<p class="feedback ok">{notice}</p>
 	{/if}
 
+	<!--
+		ONE TOOLBAR, NOT TWO CARDS. "Post to this class" and "Units" were a card
+		each, and between them a heading, a paragraph of chrome and two buttons
+		filled most of the pane's first screen before a single item appeared.
+		Each panel still opens exactly where it did, directly beneath.
+	-->
 	{#if editable}
-		<section class="card compose-card">
-			<div class="compose-head">
-				<h2 class="compose-title">Post to this class</h2>
+		<div class="pane-tools" data-testid="pane-tools">
+			<button
+				type="button"
+				class="btn secondary tiny"
+				aria-expanded={composing}
+				data-testid="new-post"
+				onclick={() => (composing = !composing)}
+			>
+				{composing ? 'Close' : 'New post'}
+			</button>
+			{#if unitTransports && section.course}
 				<button
 					type="button"
 					class="btn secondary tiny"
-					aria-expanded={composing}
-					data-testid="new-post"
-					onclick={() => (composing = !composing)}
+					aria-expanded={unitsOpen}
+					data-testid="units-toggle"
+					onclick={() => (unitsOpen = !unitsOpen)}
 				>
-					{composing ? 'Close' : 'New post'}
+					{unitsOpen ? 'Close units' : orderedUnits.length ? `Units (${orderedUnits.length})` : 'Add units'}
 				</button>
-			</div>
-			{#if composing}
+			{/if}
+		</div>
+
+		{#if composing}
+			<section class="card tool-panel">
 				{#key composing}
 					<ContentComposer
 						mode="create"
@@ -825,17 +892,20 @@
 						oncancel={() => (composing = false)}
 					/>
 				{/key}
-			{/if}
-		</section>
+			</section>
+		{/if}
 
-		{#if unitTransports && section.course}
-			<UnitManager
-				courseId={section.course.id}
-				courseLabel={section.course.code}
-				{units}
-				transports={unitTransports}
-				onchanged={() => onchanged?.()}
-			/>
+		{#if unitsOpen && unitTransports && section.course}
+			<section class="card tool-panel">
+				<UnitManager
+					courseId={section.course.id}
+					courseLabel={section.course.code}
+					{units}
+					transports={unitTransports}
+					chrome={false}
+					onchanged={() => onchanged?.()}
+				/>
+			</section>
 		{/if}
 	{/if}
 
@@ -924,13 +994,66 @@
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
 	}
-	.section-line {
+	/* --- The pane header ---------------------------------------------------
+	   Left-aligned and compact: this is a sidebar, and the class is already
+	   named in the breadcrumb trail and the section switcher above it. */
+	.pane-head {
+		padding: var(--space-3) 0 var(--space-2);
+	}
+	.pane-title {
+		margin: 0;
+		font-family: 'Rajdhani', sans-serif;
+		font-weight: 600;
+		font-size: 1.15rem;
+		line-height: 1.25;
+		letter-spacing: 0;
+		color: var(--text-1);
+		/* Two lines at most, then it stops -- a long course title must not push
+		   the list itself off the first screen. */
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+	}
+	.pane-meta-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.5rem;
+		margin: 0.15rem 0 0;
+		min-width: 0;
+	}
+	.pane-meta {
+		flex: 1 1 auto;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.75rem;
+		font-size: 0.68rem;
 		color: var(--text-2);
 	}
+	.pane-code {
+		color: var(--cyan);
+	}
 	.manage-link {
+		flex: none;
 		color: var(--gold);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.68rem;
+		white-space: nowrap;
+	}
+
+	/* --- The toolbar -------------------------------------------------------
+	   What used to be two full cards holding one button each. */
+	.pane-tools {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin-bottom: var(--space-3);
+	}
+	.tool-panel {
+		margin-bottom: var(--space-3);
 	}
 	.outstanding-badge {
 		display: inline-block;
@@ -943,20 +1066,6 @@
 		background: var(--gold);
 		border-radius: 999px;
 		padding: 0.02rem 0.32rem;
-	}
-	.compose-card {
-		margin-bottom: var(--space-4);
-	}
-	.compose-head {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: var(--space-3);
-		flex-wrap: wrap;
-	}
-	.compose-title {
-		margin: 0;
-		font-size: 1rem;
 	}
 	.note {
 		color: var(--text-2);
@@ -977,9 +1086,10 @@
 	.group-head {
 		appearance: none;
 		display: flex;
-		align-items: baseline;
+		align-items: center;
 		gap: 0.5rem;
 		width: 100%;
+		min-width: 0;
 		padding: 0.3rem 0.1rem;
 		background: none;
 		border: none;
@@ -990,17 +1100,26 @@
 		min-height: 40px;
 	}
 	.group-caret {
+		flex: none;
 		font-size: 0.7rem;
 		color: var(--text-2);
 	}
+	/* ONE LINE, TRUNCATING. A unit name is authored freely, and a two-line
+	   heading in a 26rem pane costs a row of content every time. */
 	.group-label {
+		flex: 1 1 auto;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.82rem;
+		font-size: 0.78rem;
 		letter-spacing: 0.08em;
 		text-transform: uppercase;
 		color: var(--cyan);
 	}
 	.group-count {
+		flex: none;
 		margin-left: auto;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.66rem;
@@ -1101,32 +1220,63 @@
 		min-width: 0;
 		flex: 1 1 auto;
 	}
+	/* TWO LINES MAXIMUM, and this rule is what holds that. `nowrap` plus a
+	   title that is the only shrinkable child: chips and indicators keep the
+	   width they need and the NAME gives way, ellipsised, rather than the line
+	   becoming two. */
 	.row-title {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		flex-wrap: wrap;
+		gap: 0.35rem;
+		flex-wrap: nowrap;
+		min-width: 0;
 		font-weight: 700;
-		font-size: 0.92rem;
+		font-size: 0.9rem;
 		line-height: 1.3;
+	}
+	.row-name {
+		flex: 1 1 auto;
+		min-width: 2.5rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.row-meta {
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.65rem;
 		color: var(--text-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.row-kind {
 		letter-spacing: 0.06em;
 		text-transform: uppercase;
 	}
-	.row-chips {
-		display: flex;
+	/* Counts as INDICATORS, not pills: a glyph and a number in the meta colour,
+	   no border and no padding, so two of them cost about 34px between them. */
+	.row-inds {
+		display: inline-flex;
 		align-items: center;
-		gap: 0.3rem;
-		flex-wrap: wrap;
+		gap: 0.35rem;
 		flex: none;
 	}
+	.ind {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.1rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.64rem;
+		font-weight: 400;
+		color: var(--text-2);
+	}
+	.ind svg {
+		width: 0.72rem;
+		height: 0.72rem;
+		display: block;
+	}
 	.chip {
+		flex: none;
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.62rem;
 		color: var(--cyan);
@@ -1135,16 +1285,10 @@
 		padding: 0.06rem 0.45rem;
 		white-space: nowrap;
 	}
-	.icon-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.2rem;
-		color: var(--text-2);
-	}
-	.icon-chip svg {
-		width: 0.72rem;
-		height: 0.72rem;
-		display: block;
+	/* One word, so it can never take the wrapping the shared rule allows it. */
+	.row-sched {
+		flex: none;
+		white-space: nowrap;
 	}
 	.pin-chip {
 		color: var(--gold);
@@ -1170,16 +1314,6 @@
 		color: var(--text-2);
 	}
 
-	.unit-pick {
-		flex: none;
-	}
-	.unit-pick select {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.66rem;
-		padding: 0.2rem 0.3rem;
-		max-width: 8.5rem;
-		min-height: 32px;
-	}
 	.sr-only {
 		position: absolute;
 		width: 1px;
@@ -1263,6 +1397,30 @@
 	.menu .danger:hover:not(:disabled) {
 		color: var(--crimson);
 	}
+	/* Filing, moved off the row. Its own control rather than a menuitem -- see
+	   the note at the markup. */
+	.menu-unit {
+		display: flex;
+		flex-direction: column;
+		gap: 0.2rem;
+		padding: 0.4rem 0.55rem 0.35rem;
+		border-top: 1px solid var(--hairline);
+		margin-top: 0.25rem;
+	}
+	.menu-unit-label {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.menu-unit select {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		padding: 0.2rem 0.3rem;
+		width: 100%;
+		min-height: 36px;
+	}
 
 	.row-detail {
 		padding: 0.2rem 0.2rem 0.7rem 2.05rem;
@@ -1331,25 +1489,17 @@
 	.detail-open a {
 		color: var(--gold);
 	}
+	/* Left, with everything else in the pane. */
 	.page-footer {
 		margin-top: 1.4rem;
 		display: flex;
-		justify-content: center;
+		justify-content: flex-start;
 	}
 
-	/* Phone: the row wraps its chips under the title rather than pushing the
-	   page wider. The expand control, the menu and the unit picker stay put. */
+	/* Phone: the row is the same two lines it is in the pane -- the title
+	   ellipsises rather than the line wrapping, which is what keeps the list
+	   scannable at 375px too. Only the detail's indent gives way. */
 	@media (max-width: 640px) {
-		.row-main {
-			flex-wrap: wrap;
-		}
-		.row-chips {
-			flex-basis: 100%;
-			padding-left: 1.7rem;
-		}
-		.unit-pick select {
-			max-width: 6rem;
-		}
 		.row-detail {
 			padding-left: 0.4rem;
 		}
