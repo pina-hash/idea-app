@@ -293,3 +293,41 @@ export const SAMPLE_REFERENCE: ReferenceSpec = {
 		}
 	]
 };
+
+/**
+ * A second, unrelated document -- same shape, DISJOINT slugs -- for the
+ * two-pane harness's own regression check: ReferenceDoc mounts once inside
+ * ItemDetail's persistent detail pane (see ClassSplit) and is never remounted
+ * between materials, so opening this document right after SAMPLE_REFERENCE
+ * changes `spec` under an already-mounted instance rather than creating a new
+ * one. If the active-slug clamp in ReferenceDoc ever regresses, this is what
+ * would show every section hidden at once with the tab strip stuck wherever
+ * the PREVIOUS document scrolled it.
+ */
+export const SAMPLE_REFERENCE_ALT: ReferenceSpec = {
+	schemaVersion: 2,
+	kind: 'reference',
+	meta: {
+		referenceId: 'sample-shop-rules',
+		title: 'Shop Floor Rules',
+		course: 'IDEA000'
+	},
+	navigation: 'tabs',
+	sections: [
+		{
+			slug: 'entry',
+			title: 'Entering the shop',
+			blocks: [{ type: 'instructions', content: 'Glasses on before you cross the yellow line.' }]
+		},
+		{
+			slug: 'tools',
+			title: 'Shared tools',
+			blocks: [{ type: 'instructions', content: 'Sign a tool back in before you leave for the day.' }]
+		},
+		{
+			slug: 'cleanup',
+			title: 'Cleanup',
+			blocks: [{ type: 'instructions', content: 'Sweep your own station; the last five minutes are for this.' }]
+		}
+	]
+};

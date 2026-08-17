@@ -29,6 +29,22 @@
 	 * scrollIntoView on a click -- doing so scrolled the window to the top of the
 	 * newly shown section, which (because every section starts at the same place,
 	 * inactive ones being display:none) means the top of the document.
+	 *
+	 * THE STRIP SCROLLS, IT NEVER OVERFLOWS ITS CONTAINER. `.tabs` is its own
+	 * overflow-x:auto box (scrollbar hidden, edge fades in its place), and
+	 * `active` is re-clamped to a real section of the CURRENT `spec` on every
+	 * prop change (see the effect right after selectTab()) -- load-bearing since
+	 * the classroom item page mounts this inside a persistent detail pane that
+	 * is NOT remounted between materials, so `spec` can change under an
+	 * already-mounted instance. Left unclamped, a stale `active` hides every
+	 * section at once and leaves the strip's scroll position wherever the
+	 * PREVIOUS document put it.
+	 *
+	 * KEYBOARD: roving tabindex, the standard tablist pattern (see
+	 * onTablistKeydown below) -- only the active tab sits in the normal Tab
+	 * order; arrow keys move focus and selection together, Home/End jump to the
+	 * ends, and the newly focused tab is scrolled into view by the same
+	 * keepActiveVisible() a click already runs.
 	 */
 	let {
 		spec,
@@ -185,6 +201,28 @@
 		}
 	}
 
+	/**
+	 * THE DOCUMENT CAN CHANGE UNDER US WITH NO REMOUNT. `active` is seeded once
+	 * from the FIRST `spec` this component ever saw ($state initializers run
+	 * only at construction), but the classroom item page mounts ReferenceDoc
+	 * inside a persistent detail pane (see ItemDetail) -- opening a different
+	 * material reuses the SAME component instance with a new `spec` prop rather
+	 * than remounting it. Left alone, `active` would keep naming a slug from the
+	 * PREVIOUS document: every section's `hidden` check compares against it, so
+	 * a slug that matches nothing hides every section at once, and the tab bar's
+	 * horizontal scroll position -- inherited from whatever the last document's
+	 * layout put it at -- can leave the strip looking clipped with no active tab
+	 * in it to scroll back to. (The importer's own preview avoids this by
+	 * remounting on every edit via `{#key parsed}`; the item page does not, so
+	 * the guard belongs here rather than at every call site.)
+	 *
+	 * Falls back to the first section, matching every other "no answer" default
+	 * in this file (a hash naming nothing, a hash naming an unknown slug).
+	 */
+	$effect(() => {
+		if (!slugs.includes(active)) active = slugs[0] ?? '';
+	});
+
 	$effect(() => {
 		if (typeof window === 'undefined' || preview) return;
 		// The COLD-LOAD half of the deep-link contract.
@@ -202,52 +240,135 @@
 	});
 
 	/**
-	 * Keep the active tab visible in a horizontally scrolled bar. Scrolls the BAR
-	 * by hand rather than calling scrollIntoView on the button, which scrolls
-	 * every scrollable ancestor including the window.
-	 */
-	$effect(() => {
-		const bar = tabBar;
-		const slug = active;
-		if (!bar) return;
-		const el = bar.querySelector<HTMLElement>(`[data-slug="${CSS.escape(slug)}"]`);
-		if (!el) return;
-		const b = bar.getBoundingClientRect();
-		const e = el.getBoundingClientRect();
-		if (e.left < b.left) bar.scrollLeft += e.left - b.left - 8;
-		else if (e.right > b.right) bar.scrollLeft += e.right - b.right + 8;
-	});
-
-	/**
 	 * Does the bar actually overflow, and which way is there more of it? Drives
 	 * both "more tabs that way" fades. Also measures the rail, which
 	 * .ref-body's min-height needs exactly.
 	 *
 	 * The 2px slack on the overflow test absorbs sub-pixel layout; the 1px slack
 	 * on each edge test does the same for a fractional scrollLeft, which is what
-	 * a trackpad and the active-tab scroll above both produce.
+	 * a trackpad and the active-tab scroll below both produce.
+	 *
+	 * A plain function, not an effect: reading `scrollWidth`/`clientWidth`/
+	 * `scrollLeft` right after WE move the scroll position ourselves (a tab
+	 * click, a keyboard move, a deep-link reveal) forces the browser to lay
+	 * those out synchronously and answers accurately at once, so every caller
+	 * that scrolls the bar on purpose calls this itself rather than waiting on
+	 * the native 'scroll' event below -- which exists for the one case this
+	 * component does NOT initiate: the reader's own trackpad/wheel/touch drag.
 	 */
+	function measureRail() {
+		const bar = tabBar;
+		const rail = railEl;
+		if (!bar || !rail) return;
+		const overflow = bar.scrollWidth - bar.clientWidth;
+		scrollable = overflow > 2;
+		fadeStart = scrollable && bar.scrollLeft > 1;
+		fadeEnd = scrollable && bar.scrollLeft < overflow - 1;
+		railHeight = rail.offsetHeight;
+	}
+
+	/**
+	 * Keep the active tab visible in a horizontally scrolled bar. Scrolls the BAR
+	 * by hand rather than calling scrollIntoView on the button, which scrolls
+	 * every scrollable ancestor including the window. A direct `scrollLeft`
+	 * write is always instant (scroll-behavior only governs scrollTo() /
+	 * scrollIntoView() / anchor navigation), so this needs no reduced-motion
+	 * gate of its own.
+	 */
+	function keepActiveVisible() {
+		const bar = tabBar;
+		if (!bar) return;
+		const el = bar.querySelector<HTMLElement>(`[data-slug="${CSS.escape(active)}"]`);
+		if (el) {
+			const b = bar.getBoundingClientRect();
+			const e = el.getBoundingClientRect();
+			if (e.left < b.left) bar.scrollLeft += e.left - b.left - 8;
+			else if (e.right > b.right) bar.scrollLeft += e.right - b.right + 8;
+		}
+		// The fades otherwise only catch up once the 'scroll' event this write
+		// queues gets around to firing.
+		measureRail();
+	}
+
+	$effect(() => {
+		// Reads `active` (the dependency) before touching the DOM.
+		void active;
+		keepActiveVisible();
+	});
+
+	// Real container resizes (a window resize, the pane resizing) -- set up
+	// once per pair of elements, since the elements themselves persist across a
+	// `spec` change (only their CHILDREN are re-diffed by the {#each} below).
+	// The 'scroll' listener is what catches scrolling WE did not initiate --
+	// the reader dragging the strip by hand.
 	$effect(() => {
 		const bar = tabBar;
 		const rail = railEl;
 		if (!bar || !rail || typeof ResizeObserver === 'undefined') return;
-		const measure = () => {
-			const overflow = bar.scrollWidth - bar.clientWidth;
-			scrollable = overflow > 2;
-			fadeStart = scrollable && bar.scrollLeft > 1;
-			fadeEnd = scrollable && bar.scrollLeft < overflow - 1;
-			railHeight = rail.offsetHeight;
-		};
-		measure();
-		const ro = new ResizeObserver(measure);
+		measureRail();
+		const ro = new ResizeObserver(measureRail);
 		ro.observe(bar);
 		ro.observe(rail);
-		bar.addEventListener('scroll', measure, { passive: true });
+		bar.addEventListener('scroll', measureRail, { passive: true });
 		return () => {
 			ro.disconnect();
-			bar.removeEventListener('scroll', measure);
+			bar.removeEventListener('scroll', measureRail);
 		};
 	});
+
+	// A CONTENT change with no box-size change on the bar -- swapping to a
+	// document with more or fewer sections -- is invisible to the
+	// ResizeObserver above, because `.tabs` is overflow-x:auto and so its OWN
+	// box never grows to fit its children. Re-measure explicitly whenever the
+	// set of tabs changes.
+	$effect(() => {
+		void slugs.length;
+		measureRail();
+	});
+
+	/**
+	 * ROVING TABINDEX, the standard WAI-ARIA tablist keyboard pattern -- no
+	 * existing tab-like control in this repo implements one (FeedbackConsole's
+	 * filter tabs and the FSP presentation deck's slide tabs both stop at
+	 * `role="tab"` with no keyboard handling), so this is the first and sets the
+	 * convention for reuse: exactly one tab (the active one) sits in the normal
+	 * Tab order at a time, and the arrow keys move both focus and the DOM
+	 * "position" among the rest. Automatic activation -- moving focus selects
+	 * the section immediately, matching a plain click -- since switching tabs
+	 * here is cheap (everything is already in the DOM) and a reader arrowing
+	 * through the strip expects to see each section as they go.
+	 */
+	function focusTab(slug: string) {
+		tabBar?.querySelector<HTMLElement>(`[data-slug="${CSS.escape(slug)}"]`)?.focus();
+	}
+
+	function goToTab(slug: string) {
+		selectTab(slug);
+		focusTab(slug);
+	}
+
+	function onTablistKeydown(event: KeyboardEvent) {
+		if (!slugs.length) return;
+		const i = slugs.indexOf(active);
+		switch (event.key) {
+			case 'ArrowRight':
+				event.preventDefault();
+				goToTab(slugs[(i + 1 + slugs.length) % slugs.length]);
+				break;
+			case 'ArrowLeft':
+				event.preventDefault();
+				goToTab(slugs[(i - 1 + slugs.length) % slugs.length]);
+				break;
+			case 'Home':
+				event.preventDefault();
+				goToTab(slugs[0]);
+				break;
+			case 'End':
+				event.preventDefault();
+				goToTab(slugs[slugs.length - 1]);
+				break;
+		}
+	}
 </script>
 
 <article
@@ -276,7 +397,14 @@
 		     horizontally on a phone rather than wrapping or collapsing into a
 		     menu: a student has to be able to SEE that more tabs exist. -->
 		<div class="tab-rail" class:fade-start={fadeStart} class:fade-end={fadeEnd} bind:this={railEl}>
-			<div class="tabs" role="tablist" aria-label="Sections" bind:this={tabBar}>
+			<div
+				class="tabs"
+				role="tablist"
+				aria-label="Sections"
+				bind:this={tabBar}
+				onkeydown={onTablistKeydown}
+				tabindex="-1"
+			>
 				{#each spec.sections as section (section.slug)}
 					<button
 						type="button"
@@ -286,6 +414,7 @@
 						data-slug={section.slug}
 						aria-selected={active === section.slug}
 						aria-controls={`ref-${section.slug}`}
+						tabindex={active === section.slug ? 0 : -1}
 						onclick={() => selectTab(section.slug)}
 					>
 						{section.title}

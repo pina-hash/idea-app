@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-16",
+			"title": "The syllabus tabs no longer get stuck",
+			"body": "On a laptop, a reference document with a lot of section tabs -- the syllabus is the main one -- could open with its tabs cut off, sometimes leaving no way to get back to the first one. The tab strip scrolls properly now, with a soft fade at either end telling you there is more that way, and it disappears once there is nothing left to scroll to. You can also move across the tabs with the keyboard: the arrow keys step between them, and Home and End jump straight to the first and last.",
+			"tags": ["Classwork", "Reference", "Syllabus"]
+		},
+		{
+			"date": "2026-08-16",
 			"title": "The class list reads better beside what you are reading",
 			"body": "The list of everything in your class now fits the narrower column it sits in on a laptop: each item is two tidy lines -- its name, then when it is due and what it is worth -- with small markers showing how many files and links it has, instead of spilling onto extra lines. The class name at the top is smaller and out of the way, so you see more of the actual class before you scroll. Nothing was removed; it is the same list, just easier to run your eye down.",
 			"tags": ["Classwork"]

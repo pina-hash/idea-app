@@ -7,7 +7,7 @@
 	import type { RevisionTransports } from '$lib/classroom/revisions';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
 	import { harnessManage } from '../../+layout.svelte';
-	import { DECK, REFERENCE } from '../../../fixture';
+	import { ALT_REFERENCE_ID, DECK, REFERENCE, REFERENCE_ALT } from '../../../fixture';
 	import type { PageData } from './$types';
 
 	/**
@@ -86,7 +86,7 @@
 	transports={manage ? transports : null}
 	deck={data.item.id === DECK.item_id ? DECK : null}
 	deckTransports={manage ? deckTransports : null}
-	referenceSpec={isMaterial ? REFERENCE : null}
+	referenceSpec={isMaterial ? (data.item.id === ALT_REFERENCE_ID ? REFERENCE_ALT : REFERENCE) : null}
 	referenceTransports={manage && isMaterial ? referenceTransports : null}
 	teacherTransports={manage && !isMaterial ? teacherTransports : null}
 	revisionTransports={manage ? revisionTransports : null}

@@ -12,7 +12,7 @@
 import type { ClassroomItem, ClassroomSection, ClassroomUnit } from '$lib/classroom/classroom';
 import type { ClassroomDeck } from '$lib/classroom/deck';
 import type { ReferenceSpec } from '$lib/classroom/reference-spec';
-import { SAMPLE_REFERENCE } from '$lib/classroom/dev-reference-fixture';
+import { SAMPLE_REFERENCE, SAMPLE_REFERENCE_ALT } from '$lib/classroom/dev-reference-fixture';
 
 export const loads = { layout: 0, item: 0 };
 
@@ -96,6 +96,10 @@ export const DECK: ClassroomDeck = {
 };
 
 export const REFERENCE: ReferenceSpec = SAMPLE_REFERENCE;
+/** The second document `item/[itemId]/+page.svelte` swaps in for
+ *  ALT_REFERENCE_ID -- see its own doc comment in dev-reference-fixture.ts. */
+export const ALT_REFERENCE_ID = 'i-2b';
+export const REFERENCE_ALT: ReferenceSpec = SAMPLE_REFERENCE_ALT;
 
 /**
  * Enough rows that the navigation pane genuinely overflows its own height at
@@ -137,6 +141,14 @@ export const ITEMS: ClassroomItem[] = [
 		// public-link chip, and the one that reaches the reference importer.
 		is_public: true,
 		attachments: [{ id: 'a-3', filename: 'syllabus.pdf', mime_type: 'application/pdf' }]
+	}),
+	item({
+		id: ALT_REFERENCE_ID,
+		kind: 'material',
+		title: 'Shop floor rules',
+		unit_id: 'u-1'
+		// Its own reference document (REFERENCE_ALT), disjoint slugs from i-2's --
+		// see ALT_REFERENCE_ID above and SAMPLE_REFERENCE_ALT's doc comment.
 	}),
 	// The two remaining strip states, so "state rides the collapsed strip" is a
 	// measurement rather than a claim about markup that never ran.
