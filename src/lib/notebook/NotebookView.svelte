@@ -8,7 +8,16 @@
 	import FolderRail from '$lib/notebook/FolderRail.svelte';
 	import FolderManager from '$lib/notebook/FolderManager.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { beforeNavigate } from '$app/navigation';
+	import ClassSplit from '$lib/shell/ClassSplit.svelte';
+	import { splitIsWide, watchSplitWidth } from '$lib/shell/split.svelte';
 	import { clearPendingCapture, fitForUpload, takePendingCapture } from '$lib/notebook/camera';
+	import {
+		NOTEBOOK_DISCARD_WARNING,
+		clampSelection,
+		notebookComposerHasWork,
+		selectedEntryOf
+	} from '$lib/notebook/notebook-shell';
 	import '$lib/notebook/notebook-theme.css';
 	import { tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
 	import NotebookThemeToggle from '$lib/notebook/NotebookThemeToggle.svelte';
@@ -70,10 +79,28 @@
 	 * never disagree about the answer. One entry's own rendering is
 	 * NotebookEntryCard's business.
 	 *
-	 * COLLAPSED BY DEFAULT, and that is the change this file exists for. Every
-	 * entry used to render at full column width with every page photo, so a
-	 * term's worth of notebook was an unusable scroll. Entries now open one at
-	 * a time, on purpose.
+	 * COLLAPSED BY DEFAULT. Every entry used to render at full column width with
+	 * every page photo, so a term's worth of notebook was an unusable scroll.
+	 * Entries open one at a time, on purpose.
+	 *
+	 * IT IS THE SAME TWO-PANE SHELL THE CLASS PAGE SITS ON, above 1024px:
+	 * $lib/shell/ClassSplit.svelte, one breakpoint, one gutter, one pane gap.
+	 * The navigation pane holds the folder rail, the filters and the list; the
+	 * detail pane holds the entry you picked, or the compose form, or -- when
+	 * neither -- a line saying so.
+	 *
+	 * BELOW THE BREAKPOINT NOTHING ABOUT THE OLD BEHAVIOUR CHANGES. The panes
+	 * stack to one column with the compose form on top and the feed under it,
+	 * and its entries expand IN PLACE exactly as they always have. That is
+	 * `narrow="stack"` in split.css doing the ordering, so the one instance of
+	 * the compose form -- staged File handles and all -- is never re-created by
+	 * crossing the breakpoint.
+	 *
+	 * THE COMPOSER IS NEVER UNMOUNTED BY A SELECTION. Opening an entry hides it
+	 * and shows the entry; the form, and everything staged in it, is still
+	 * there when the entry is closed. That is the whole reason it is a `class`
+	 * rather than an `{#if}`: staged photos exist nowhere but in this browser's
+	 * memory, and an `{#if}` would throw them away on a click.
 	 */
 
 	let {
@@ -201,6 +228,119 @@
 		/** Called after any successful save so the page can refresh its data. */
 		onChanged?: () => void;
 	} = $props();
+
+	// ---- the two panes ------------------------------------------------------
+
+	/**
+	 * Which entry is open in the detail pane. An ID, never the row itself: the
+	 * feed reloads after every save, so a captured object would leave the pane
+	 * describing the state the entry had BEFORE the thing just saved to it (the
+	 * trap ReferenceDoc shipped). `selectedEntryOf` resolves it against the
+	 * current list on every read, and the effect below clears a selection whose
+	 * entry has stopped existing.
+	 */
+	let selectedId = $state<string | null>(null);
+
+	/**
+	 * Whether the compose form is showing. Only meaningful above the breakpoint:
+	 * below it the form is the page's own first block and has always been there,
+	 * so `composerMounted` ignores this and the trigger that toggles it is not
+	 * rendered.
+	 */
+	let composing = $state(true);
+
+	// After hydration, so the first client render matches the server's.
+	$effect(() => watchSplitWidth());
+	const wide = $derived(splitIsWide());
+
+	const selectedEntry = $derived(selectedEntryOf(entries, selectedId));
+
+	$effect(() => {
+		const kept = clampSelection(entries, selectedId);
+		if (kept !== selectedId) selectedId = kept;
+	});
+
+	/**
+	 * The composer exists whenever this surface can write at all: above the
+	 * breakpoint while it is open, below it always. A read-only preview gets
+	 * none -- and gets no trigger either, so the detail pane opens on the empty
+	 * state, which is the whole of what that surface has to offer.
+	 */
+	const composerMounted = $derived(!readOnly && (!wide || composing));
+	/** The open entry only ever takes a pane; below the breakpoint it expands in place. */
+	const showEntry = $derived(wide && !!selectedEntry);
+	const showEmpty = $derived(wide && !selectedEntry && !composerMounted);
+	const detailHasContent = $derived(showEntry || composerMounted || showEmpty);
+
+	function selectEntry(id: string) {
+		// Deliberately NOT a discard: the composer stays mounted underneath, so
+		// there is nothing to warn about and nothing to lose.
+		selectedId = id;
+	}
+
+	/**
+	 * ONE guard for both ways staged work gets discarded: closing the composer,
+	 * and navigating off the notebook.
+	 */
+	function confirmDiscard(): boolean {
+		if (!composerMounted) return true;
+		if (!notebookComposerHasWork({ staged, title, noteDraft })) return true;
+		return window.confirm(`${NOTEBOOK_DISCARD_WARNING}\n\nDiscard it?`);
+	}
+
+	/**
+	 * "Discard it?" has to MEAN it. The staged photos and the typed title live
+	 * on this component, not inside the form's markup, so closing without
+	 * clearing them would keep them alive behind an unmounted form and hand them
+	 * straight back on the next open -- a second answer to a question already
+	 * answered. `resetForm` runs while the stager is still mounted, so its own
+	 * object URLs are released rather than leaked.
+	 */
+	function closeComposer() {
+		if (!confirmDiscard()) return;
+		resetForm();
+		composing = false;
+	}
+
+	/**
+	 * The navigation pane's only compose control. Bringing the form forward from
+	 * behind an open entry is not a close, so it deselects rather than toggling.
+	 */
+	function toggleComposer() {
+		if (composing && !selectedId) {
+			closeComposer();
+			return;
+		}
+		composing = true;
+		selectedId = null;
+	}
+
+	/**
+	 * Navigating away is the one discard path this component cannot see coming.
+	 *
+	 * Unlike the classroom's composer -- which is owned by a LAYOUT and so
+	 * survives every move inside its class -- this one is owned by a page, so
+	 * any navigation to a different route destroys it. The one exception is a
+	 * move within the SAME route (a query-string change, which SvelteKit serves
+	 * by re-running the load against the same component instance): the form
+	 * survives that, so warning about it would be a lie, and a lie people learn
+	 * to click through.
+	 *
+	 * `type: 'leave'` is the browser closing the tab or following an external
+	 * link; cancelling it there is what raises the native unload dialog, which
+	 * is the only warning a page is allowed to show at that point.
+	 */
+	beforeNavigate((nav) => {
+		if (!composerMounted) return;
+		if (!notebookComposerHasWork({ staged, title, noteDraft })) return;
+		if (nav.type === 'leave') {
+			nav.cancel();
+			return;
+		}
+		if (nav.to?.route.id && nav.to.route.id === nav.from?.route.id) return;
+		if (window.confirm(`${NOTEBOOK_DISCARD_WARNING}\n\nLeave anyway?`)) return;
+		nav.cancel();
+	});
 
 	// ---- new-entry form state ----------------------------------------------
 
@@ -882,75 +1022,277 @@
 	</div>
 </div>
 
-<main class="notebook-page">
-	<section class="hero">
-		<div class="eyebrow">IDEA // Notebook</div>
-		<h1>My Notebook</h1>
-		<p class="lead">
-			Photograph your engineering notebook pages and keep them here, and write down what you
-			worked through. Everything on this page is
-			<strong>yours</strong>: only you, your section instructor, and the department chair can see it.
-		</p>
-		<div class="hero-meta">
-			{#if sectionLabel}
-				<span class="chip">{sectionLabel}</span>
-			{/if}
-			{#if canReview}
-				<a class="chip chip-link" href="/notebook/review">Section review &rsaquo;</a>
+{#snippet navPane()}
+	<!--
+		THE NAVIGATION PANE: the folder rail, the filters and the list. Above the
+		breakpoint it is bounded by the pane's own frame, so it drops the card
+		chrome it wears at phone width (see .nb-pane-card below) -- a card inside
+		a frame is two boxes saying the same thing.
+	-->
+	<section class="card nb-pane-card" data-testid="nb-entries">
+		<div class="pane-head">
+			<h2>My entries</h2>
+			{#if !readOnly && wide}
+				<!--
+					THE PANE KEEPS ONLY THE TRIGGER. The form itself is far too wide for
+					26rem and takes the detail pane; this is the one control that opens
+					it. Below the breakpoint there is nothing to trigger -- the form is
+					the first block on the page, as it has always been -- so it is not
+					rendered there at all.
+				-->
+				<button
+					type="button"
+					class="btn secondary compose-trigger"
+					data-testid="nb-compose-trigger"
+					aria-pressed={composerMounted && !showEntry}
+					onclick={toggleComposer}
+				>
+					New entry
+				</button>
 			{/if}
 		</div>
-	</section>
 
-	{#if !configured}
-		<section class="card">
-			<h2>Notebook is not available yet</h2>
-			<p class="note">
-				<code>notebook_entries</code> could not be read on this project, so the notebook
-				tables are not in place yet. Apply <code>0069_notebook.sql</code> and the
-				migrations that follow it in the Supabase SQL editor, then reload. Everything
-				layered on top of it reports itself separately, so this card means the base
-				table specifically.
+		{#if entries.length === 0}
+			<p class="note empty-state">
+				{#if readOnly}
+					Nothing in this notebook yet.
+				{:else}
+					No entries yet. Photograph a page or write a note and it will show up here.
+				{/if}
 			</p>
-		</section>
-	{:else}
+		{:else}
+			{#if foldersReady && managerOpen && folderTransports}
+				<FolderManager
+					{folders}
+					counts={counts as Map<string, number>}
+					busy={folderBusy}
+					onSave={saveFolder}
+					onDelete={deleteFolder}
+					onClose={() => (managerOpen = false)}
+				/>
+			{/if}
+
+			{#if foldersReady}
+				<FolderRail
+					{folders}
+					{counts}
+					{selection}
+					onSelect={(next) => (selection = next)}
+					onManage={folderTransports ? () => (managerOpen = !managerOpen) : undefined}
+				/>
+			{/if}
+
+			<div class="toolbar">
+				<label class="search">
+					<span class="sr-only">Search your notebook</span>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+						<circle cx="11" cy="11" r="7" />
+						<path d="M20 20l-3.5-3.5" />
+					</svg>
+					<input
+						type="search"
+						bind:value={search}
+						placeholder="Search titles and notes"
+						data-testid="nb-search"
+					/>
+				</label>
+
+				<div class="chips" role="group" aria-label="Filters">
+					{#each ENTRY_FILTERS as f (f.id)}
+						<button
+							type="button"
+							class="chip-toggle"
+							class:on={filters.includes(f.id)}
+							aria-pressed={filters.includes(f.id)}
+							title={f.hint}
+							data-testid="filter-{f.id}"
+							onclick={() => toggleFilter(f.id)}
+						>
+							{f.label}
+						</button>
+					{/each}
+				</div>
+
+				<div class="tools">
+					{#if pinsReady}
+						<label class="sort">
+							<!-- Visible, where it was screen-reader-only: the
+							     select's own text ("Newest first") describes an
+							     ORDER without saying that changing it is what this
+							     control is for. -->
+							<span class="sort-label">Sort</span>
+							<select bind:value={sort} data-testid="sort-select">
+								{#each ENTRY_SORTS as option (option.id)}
+									<option value={option.id}>{option.label}</option>
+								{/each}
+							</select>
+						</label>
+					{/if}
+					<span class="result-count" data-testid="result-count">
+						{visible.length === entries.length
+							? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`
+							: `${visible.length} of ${entries.length}`}
+					</span>
+					{#if narrowed}
+						<button type="button" class="inline-link" onclick={clearQuery}>Clear</button>
+					{/if}
+					<!-- Nothing to expand above the breakpoint: the rows there open
+					     into the pane beside them rather than in place. -->
+					{#if !wide}
+						<button
+							type="button"
+							class="inline-link"
+							data-testid="expand-toggle"
+							onclick={() => (expanded.size ? collapseAll() : expandAll())}
+						>
+							{expanded.size ? 'Collapse all' : 'Expand all'}
+						</button>
+					{/if}
+					{#if foldersReady && folderTransports}
+						<button
+							type="button"
+							class="inline-link"
+							data-testid="select-toggle"
+							onclick={() => (selectMode ? exitSelectMode() : (selectMode = true))}
+						>
+							{selectMode ? 'Done' : 'Select'}
+						</button>
+					{/if}
+				</div>
+			</div>
+
+			{#if selectMode}
+				<div class="bulk" data-testid="bulk-bar">
+					<span class="bulk-count">
+						{picked.size === 0
+							? 'Select entries to move'
+							: `${picked.size} selected`}
+					</span>
+					<label class="bulk-move">
+						<span class="sr-only">Move selected entries to</span>
+						<select bind:value={moveTarget} disabled={folderBusy || picked.size === 0}>
+							<option value="">Unfiled</option>
+							{#each orderedFolders as f (f.id)}
+								<option value={f.id}>{f.name}</option>
+							{/each}
+						</select>
+					</label>
+					<button
+						type="button"
+						class="btn small"
+						data-testid="bulk-move"
+						disabled={folderBusy || picked.size === 0}
+						onclick={moveSelected}
+					>
+						{folderBusy ? 'Moving...' : 'Move'}
+					</button>
+					{#if picked.size}
+						<button type="button" class="inline-link" onclick={() => picked.clear()}>
+							Clear selection
+						</button>
+					{/if}
+				</div>
+				{#if bulkError}
+					<p class="feedback error" role="alert">{bulkError}</p>
+				{/if}
+			{/if}
+
+			{#if visible.length === 0}
+				<p class="note empty-state" data-testid="no-matches">
+					Nothing here matches what you are looking for.
+					<button type="button" class="inline-link" onclick={clearQuery}>Clear the filters</button>
+				</p>
+			{:else}
+				{#each groups as group (group.key)}
+					<div class="group">
+						<h3 class="group-head">{group.label}</h3>
+						<ol class="entries">
+							{#each group.entries as entry (entry.id)}
+								<li>
+									<!--
+										foldersReady / pinsReady say the MIGRATION is applied, so
+										the folder chip and the pin indicator render from them.
+										Whether the card offers a CONTROL is a SEPARATE question,
+										answered by the presence of onMove / onPin -- which is
+										what lets a read-only preview report a student's own
+										filing and pins truthfully while offering no way to
+										change either.
+									-->
+									<!--
+										THE VARIANT IS THE ONE THING THE VIEWPORT DECIDES IN JS
+										(see $lib/shell/split.svelte.ts). Above the breakpoint a
+										row is a compact list item that selects into the pane
+										beside it; below it, it is the full card that expands in
+										place, exactly as it always has.
+									-->
+									<NotebookEntryCard
+										{entry}
+										{folders}
+										variant={wide ? 'row' : 'full'}
+										current={selectedId === entry.id}
+										onOpen={() => selectEntry(entry.id)}
+										collapsed={!expanded.has(entry.id)}
+										onToggle={() => toggleEntry(entry.id)}
+										{selectMode}
+										selected={picked.has(entry.id)}
+										onSelectChange={(on) => togglePick(entry.id, on)}
+										{uploadReady}
+										{notesReady}
+										{foldersReady}
+										{pinsReady}
+										onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
+										onAddNote={addNote ? saveNoteToEntry : undefined}
+										onEditNote={editNote ? saveNoteEdit : undefined}
+										onMove={folderTransports ? moveOne : undefined}
+										onPin={setPinned ? pinEntry : undefined}
+									/>
+								</li>
+							{/each}
+						</ol>
+					</div>
+				{/each}
+
+				{#if more > 0}
+					<div class="more">
+						<button
+							type="button"
+							class="btn secondary"
+							data-testid="show-older"
+							onclick={() => (shown += PAGE)}
+						>
+							Show older ({more} more)
+						</button>
+					</div>
+				{/if}
+			{/if}
+		{/if}
+	</section>
+{/snippet}
+
+{#snippet detailPane()}
+	{#if composerMounted}
 		<!--
-			The two capabilities that are about the WHOLE feed rather than the
-			compose form, so they sit outside it and show on a read-only preview
-			too: a reviewer looking at a student's notebook needs to know a photo
-			list is empty because a read failed, not because the student wrote
-			nothing.
+			`class:behind` rather than `{#if}`: opening an entry HIDES this form, it
+			does not destroy it. Staged photos are File handles that exist nowhere
+			but in this browser's memory, so an {#if} here would throw them away on
+			a click, and the entry you clicked would be the last thing you saw
+			before losing them.
 		-->
-		{#if !photosReady}
-			<section class="card">
-				<p class="feedback error" data-testid="nb-photos-unavailable">
-					Photos could not be loaded on this project, so entries are showing without
-					them. Everything else works as normal.
-				</p>
-			</section>
-		{/if}
-		{#if !sessionsReady}
-			<section class="card">
-				<p class="feedback error" data-testid="nb-sessions-unavailable">
-					Scheduled check-ins could not be loaded, so entries filed against one show
-					their own title instead and there are no check-ins to pick from. Everything
-					else works as normal.
-				</p>
-			</section>
-		{/if}
+		<section class="card compose-card" class:behind={showEntry} data-testid="nb-compose">
+			<div class="pane-head">
+				<h2>Add an entry</h2>
+				{#if wide}
+					<button
+						type="button"
+						class="btn secondary compose-close"
+						data-testid="nb-compose-close"
+						onclick={closeComposer}
+					>
+						Close
+					</button>
+				{/if}
+			</div>
 
-		<!-- ---------------------------------------------------------------- -->
-		<!-- Add an entry -- omitted entirely on a read-only preview            -->
-		<!-- ---------------------------------------------------------------- -->
-		{#if !readOnly}
-		<section class="card">
-			<h2>Add an entry</h2>
-
-			{#if errorMsg}
-				<p class="feedback error" role="alert">{errorMsg}</p>
-			{/if}
-			{#if successMsg}
-				<p class="feedback ok" role="status">{successMsg}</p>
-			{/if}
 			{#if !uploadReady}
 				<p class="feedback error">
 					Photo storage is not configured on the server yet, so photo uploads are turned off.
@@ -1156,234 +1498,227 @@
 				</div>
 			</form>
 		</section>
-		{/if}
-
-		<!-- ---------------------------------------------------------------- -->
-		<!-- My entries                                                        -->
-		<!-- ---------------------------------------------------------------- -->
-		<section class="card">
-			<h2>My entries</h2>
-
-			{#if entries.length === 0}
-				<p class="note empty-state">
-					{#if readOnly}
-						Nothing in this notebook yet.
-					{:else}
-						No entries yet. Photograph a page or write a note above and it will show up here.
-					{/if}
-				</p>
-			{:else}
-				{#if foldersReady && managerOpen && folderTransports}
-					<FolderManager
-						{folders}
-						counts={counts as Map<string, number>}
-						busy={folderBusy}
-						onSave={saveFolder}
-						onDelete={deleteFolder}
-						onClose={() => (managerOpen = false)}
-					/>
-				{/if}
-
-				{#if foldersReady}
-					<FolderRail
-						{folders}
-						{counts}
-						{selection}
-						onSelect={(next) => (selection = next)}
-						onManage={folderTransports ? () => (managerOpen = !managerOpen) : undefined}
-					/>
-				{/if}
-
-				<div class="toolbar">
-					<label class="search">
-						<span class="sr-only">Search your notebook</span>
-						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-							<circle cx="11" cy="11" r="7" />
-							<path d="M20 20l-3.5-3.5" />
-						</svg>
-						<input
-							type="search"
-							bind:value={search}
-							placeholder="Search titles and notes"
-							data-testid="nb-search"
-						/>
-					</label>
-
-					<div class="chips" role="group" aria-label="Filters">
-						{#each ENTRY_FILTERS as f (f.id)}
-							<button
-								type="button"
-								class="chip-toggle"
-								class:on={filters.includes(f.id)}
-								aria-pressed={filters.includes(f.id)}
-								title={f.hint}
-								data-testid="filter-{f.id}"
-								onclick={() => toggleFilter(f.id)}
-							>
-								{f.label}
-							</button>
-						{/each}
-					</div>
-
-					<div class="tools">
-						{#if pinsReady}
-							<label class="sort">
-								<!-- Visible, where it was screen-reader-only: the
-								     select's own text ("Newest first") describes an
-								     ORDER without saying that changing it is what this
-								     control is for. -->
-								<span class="sort-label">Sort</span>
-								<select bind:value={sort} data-testid="sort-select">
-									{#each ENTRY_SORTS as option (option.id)}
-										<option value={option.id}>{option.label}</option>
-									{/each}
-								</select>
-							</label>
-						{/if}
-						<span class="result-count" data-testid="result-count">
-							{visible.length === entries.length
-								? `${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}`
-								: `${visible.length} of ${entries.length}`}
-						</span>
-						{#if narrowed}
-							<button type="button" class="inline-link" onclick={clearQuery}>Clear</button>
-						{/if}
-						<button
-							type="button"
-							class="inline-link"
-							data-testid="expand-toggle"
-							onclick={() => (expanded.size ? collapseAll() : expandAll())}
-						>
-							{expanded.size ? 'Collapse all' : 'Expand all'}
-						</button>
-						{#if foldersReady && folderTransports}
-							<button
-								type="button"
-								class="inline-link"
-								data-testid="select-toggle"
-								onclick={() => (selectMode ? exitSelectMode() : (selectMode = true))}
-							>
-								{selectMode ? 'Done' : 'Select'}
-							</button>
-						{/if}
-					</div>
-				</div>
-
-				{#if selectMode}
-					<div class="bulk" data-testid="bulk-bar">
-						<span class="bulk-count">
-							{picked.size === 0
-								? 'Select entries to move'
-								: `${picked.size} selected`}
-						</span>
-						<label class="bulk-move">
-							<span class="sr-only">Move selected entries to</span>
-							<select bind:value={moveTarget} disabled={folderBusy || picked.size === 0}>
-								<option value="">Unfiled</option>
-								{#each orderedFolders as f (f.id)}
-									<option value={f.id}>{f.name}</option>
-								{/each}
-							</select>
-						</label>
-						<button
-							type="button"
-							class="btn small"
-							data-testid="bulk-move"
-							disabled={folderBusy || picked.size === 0}
-							onclick={moveSelected}
-						>
-							{folderBusy ? 'Moving...' : 'Move'}
-						</button>
-						{#if picked.size}
-							<button type="button" class="inline-link" onclick={() => picked.clear()}>
-								Clear selection
-							</button>
-						{/if}
-					</div>
-					{#if bulkError}
-						<p class="feedback error" role="alert">{bulkError}</p>
-					{/if}
-				{/if}
-
-				{#if visible.length === 0}
-					<p class="note empty-state" data-testid="no-matches">
-						Nothing here matches what you are looking for.
-						<button type="button" class="inline-link" onclick={clearQuery}>Clear the filters</button>
-					</p>
-				{:else}
-					{#each groups as group (group.key)}
-						<div class="group">
-							<h3 class="group-head">{group.label}</h3>
-							<ol class="entries">
-								{#each group.entries as entry (entry.id)}
-									<li>
-										<!--
-											foldersReady / pinsReady say the MIGRATION is applied, so
-											the folder chip and the pin indicator render from them.
-											Whether the card offers a CONTROL is a SEPARATE question,
-											answered by the presence of onMove / onPin -- which is
-											what lets a read-only preview report a student's own
-											filing and pins truthfully while offering no way to
-											change either.
-										-->
-										<NotebookEntryCard
-											{entry}
-											{folders}
-											collapsed={!expanded.has(entry.id)}
-											onToggle={() => toggleEntry(entry.id)}
-											{selectMode}
-											selected={picked.has(entry.id)}
-											onSelectChange={(on) => togglePick(entry.id, on)}
-											{uploadReady}
-											{notesReady}
-											{foldersReady}
-											{pinsReady}
-											onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
-											onAddNote={addNote ? saveNoteToEntry : undefined}
-											onEditNote={editNote ? saveNoteEdit : undefined}
-											onMove={folderTransports ? moveOne : undefined}
-											onPin={setPinned ? pinEntry : undefined}
-										/>
-									</li>
-								{/each}
-							</ol>
-						</div>
-					{/each}
-
-					{#if more > 0}
-						<div class="more">
-							<button
-								type="button"
-								class="btn secondary"
-								data-testid="show-older"
-								onclick={() => (shown += PAGE)}
-							>
-								Show older ({more} more)
-							</button>
-						</div>
-					{/if}
-				{/if}
-			{/if}
-		</section>
 	{/if}
 
-	<VersionBadge app="portal" />
+	{#if showEntry && selectedEntry}
+		<!--
+			KEYED ON THE ENTRY, so moving from one to the next is a fresh card
+			rather than the previous one's card handed a new row: everything the
+			card owns itself -- an open add-photos panel, a staged photo in it, a
+			half-typed note -- belongs to the entry it was opened on and must not
+			follow the selection to the next one.
+		-->
+		{#key selectedEntry.id}
+			<div class="open-entry" data-testid="nb-open-entry" data-entry-id={selectedEntry.id}>
+				<NotebookEntryCard
+					entry={selectedEntry}
+					{folders}
+					variant="full"
+					collapsed={false}
+					onToggle={() => (selectedId = null)}
+					{uploadReady}
+					{notesReady}
+					{foldersReady}
+					{pinsReady}
+					onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
+					onAddNote={addNote ? saveNoteToEntry : undefined}
+					onEditNote={editNote ? saveNoteEdit : undefined}
+					onMove={folderTransports ? moveOne : undefined}
+					onPin={setPinned ? pinEntry : undefined}
+				/>
+			</div>
+		{/key}
+	{/if}
+
+	{#if showEmpty}
+		<p class="detail-empty" data-testid="nb-detail-empty">
+			{#if readOnly}
+				Pick an entry on the left to read it.
+			{:else}
+				Pick an entry on the left to read it, or start a new one.
+			{/if}
+		</p>
+	{/if}
+{/snippet}
+
+<main class="nb-shell">
+	<section class="hero nb-block">
+		<div class="eyebrow">IDEA // Notebook</div>
+		<h1>My Notebook</h1>
+		<p class="lead">
+			Photograph your engineering notebook pages and keep them here, and write down what you
+			worked through. Everything on this page is
+			<strong>yours</strong>: only you, your section instructor, and the department chair can see it.
+		</p>
+		<div class="hero-meta">
+			{#if sectionLabel}
+				<span class="chip">{sectionLabel}</span>
+			{/if}
+			{#if canReview}
+				<a class="chip chip-link" href="/notebook/review">Section review &rsaquo;</a>
+			{/if}
+		</div>
+	</section>
+
+	<!--
+		ONE NOTICE, ABOVE BOTH PANES. These are set from four different places --
+		a save from the form, photos or a note added to an open entry, a bulk
+		move from the list -- and each of those now happens in a different pane,
+		so a message rendered inside any one of them would be invisible from the
+		others. Above the split it is visible from either.
+	-->
+	{#if errorMsg || successMsg}
+		<div class="nb-block notice-strip">
+			{#if errorMsg}
+				<p class="feedback error" role="alert">{errorMsg}</p>
+			{/if}
+			{#if successMsg}
+				<p class="feedback ok" role="status">{successMsg}</p>
+			{/if}
+		</div>
+	{/if}
+
+	{#if !configured}
+		<section class="card nb-block">
+			<h2>Notebook is not available yet</h2>
+			<p class="note">
+				<code>notebook_entries</code> could not be read on this project, so the notebook
+				tables are not in place yet. Apply <code>0069_notebook.sql</code> and the
+				migrations that follow it in the Supabase SQL editor, then reload. Everything
+				layered on top of it reports itself separately, so this card means the base
+				table specifically.
+			</p>
+		</section>
+	{:else}
+		<!--
+			The two capabilities that are about the WHOLE feed rather than the
+			compose form, so they sit outside it and show on a read-only preview
+			too: a reviewer looking at a student's notebook needs to know a photo
+			list is empty because a read failed, not because the student wrote
+			nothing.
+		-->
+		{#if !photosReady}
+			<section class="card nb-block">
+				<p class="feedback error" data-testid="nb-photos-unavailable">
+					Photos could not be loaded on this project, so entries are showing without
+					them. Everything else works as normal.
+				</p>
+			</section>
+		{/if}
+		{#if !sessionsReady}
+			<section class="card nb-block">
+				<p class="feedback error" data-testid="nb-sessions-unavailable">
+					Scheduled check-ins could not be loaded, so entries filed against one show
+					their own title instead and there are no check-ins to pick from. Everything
+					else works as normal.
+				</p>
+			</section>
+		{/if}
+
+		<!--
+			`narrow="stack"`: below 1024px both panes render in one column with the
+			detail (the compose form) on top, which is what a phone's notebook has
+			always looked like. The classroom swaps instead, because there a detail
+			IS the page.
+		-->
+		<ClassSplit narrow="stack" hasDetail={detailHasContent} nav={navPane}>
+			{@render detailPane()}
+		</ClassSplit>
+	{/if}
+
+	<div class="nb-block">
+		<VersionBadge app="portal" />
+	</div>
 </main>
 </div>
 
 <style>
-	/* Editorial column: a touch narrower than the old technical page, with
-	   more air between cards. The photo stays the widest thing on screen. */
-	.notebook-page {
-		max-width: 47rem;
-		margin: 0 auto;
-		padding: 0 1.4rem 4.5rem;
+	/* --- the shell ----------------------------------------------------------
+	   ONE <main>, wrapping both panes, at every width. The classroom puts a
+	   landmark on whichever pane is the content because its two panes come from
+	   different route components; here one component owns both, so there is one
+	   landmark and it can never be the hidden one.
+
+	   EVERY BLOCK OUTSIDE THE SPLIT reads the split's own measure and the
+	   module's one gutter, so the hero, the notice strip and both panes start
+	   and end on exactly the same line. */
+	/* app.css caps every <main> at 880px and gives it its own side padding.
+	   Both are the single-column shell's, and this one spans the split. */
+	.nb-shell {
+		max-width: none;
+		padding: 3rem 0 4.5rem;
 	}
-	.notebook-page > .card {
+	.nb-block {
+		max-width: var(--measure-split);
+		margin: 0 auto;
+		padding: 0 var(--cr-gutter);
+		box-sizing: border-box;
+	}
+	.notice-strip {
+		margin-bottom: 1rem;
+	}
+	.notice-strip .feedback {
+		margin-bottom: 0.5rem;
+	}
+	/* The blocks outside the split keep the old card rhythm. */
+	.nb-block.card,
+	.nb-pane-card,
+	.compose-card {
 		margin-bottom: 1.6rem;
 	}
-	.notebook-page h2 {
+	.nb-shell h2 {
 		margin-top: 0;
+	}
+	.pane-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		margin-bottom: 0.9rem;
+	}
+	.pane-head h2 {
+		margin: 0;
+	}
+	.compose-trigger,
+	.compose-close {
+		flex: none;
+	}
+	/* Hidden, not unmounted -- see the markup. */
+	.compose-card.behind {
+		display: none;
+	}
+	.open-entry {
+		padding-bottom: 1.6rem;
+	}
+	.detail-empty {
+		margin: 0;
+		padding: 2.5rem 0.2rem;
+		color: var(--nb-ink-faint);
+		font-size: 0.92rem;
+	}
+
+	/* A pane's own narrow-width gutter is declared once for the ROOM, in
+	   notebook-theme.css, so both notebook screens get it from one place. */
+
+	@media (min-width: 1024px) {
+		/* The pane IS the frame above the breakpoint (split.css draws it), so the
+		   list drops the card chrome it wears at phone width rather than sitting
+		   as a second box inside the first. */
+		.nb-pane-card {
+			border: none;
+			background: none;
+			box-shadow: none;
+			padding: 0;
+			margin-bottom: 0;
+		}
+		/* A FORM IS NOT PROSE, and it is not a photograph either. The detail pane
+		   reaches ~920px at 1440, where a single-line text input stops being
+		   scannable -- the same cap the classroom's composer takes. The open
+		   ENTRY keeps the whole pane, because a notebook page wants every pixel. */
+		.compose-card {
+			max-width: var(--measure-form);
+		}
 	}
 	.lead strong {
 		color: var(--nb-ink);

@@ -54,8 +54,10 @@
 
 <style>
 	.back-strip {
-		max-width: 47rem;
+		max-width: var(--measure-split);
 		margin: 1rem auto 0;
+		padding-inline: var(--cr-gutter, 1rem);
+		box-sizing: border-box;
 		display: grid;
 		gap: 0.35rem;
 	}
@@ -73,9 +75,10 @@
 		color: var(--white);
 	}
 	.nb-noaccount {
-		max-width: 47rem;
+		max-width: var(--measure-split);
 		margin: 1rem auto 0;
-		padding: 0.7rem 1rem;
+		box-sizing: border-box;
+		padding: 0.7rem var(--cr-gutter, 1rem);
 		border: 1px solid var(--line);
 		border-radius: 6px;
 		background: var(--bg2);

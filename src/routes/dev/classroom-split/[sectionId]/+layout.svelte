@@ -40,7 +40,7 @@
 	import { page } from '$app/state';
 	import { beforeNavigate } from '$app/navigation';
 	import '$lib/classroom/classroom.css';
-	import ClassSplit from '$lib/classroom/ClassSplit.svelte';
+	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import ClassroomShell from '$lib/classroom/ClassroomShell.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';

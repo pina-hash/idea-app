@@ -1,0 +1,289 @@
+/* ==========================================================================
+   THE TWO-PANE MASTER-DETAIL SHELL, and the room properties it reads.
+
+   ONE SPLIT, ONE BREAKPOINT, THREE SURFACES. This started life inside
+   classroom.css for the class page; the notebook feed and the notebook's
+   review console mount the same shell now, so the geometry moved here rather
+   than being written a second and third time. $lib/shell/ClassSplit.svelte is
+   the component; this file is its geometry. Both classroom.css and
+   notebook-theme.css `@import` it, so every existing importer of either keeps
+   working unchanged.
+
+   THE PROPERTY NAMESPACE IS `--cr-*`, named for where it was first written.
+   Renaming it would touch every classroom surface and every assertion that
+   pins one, for no behaviour; the names are the shell's, and this header is
+   where that is written down.
+
+   A SURFACE THAT NEEDS A DIFFERENT ARRANGEMENT GETS A CLASS HERE, never a
+   second split: `narrow-stack` for what happens below the breakpoint,
+   `nav-wide` for how the columns divide above it. Both are opt-in, so the
+   classroom's computed geometry is exactly what it was.
+   ========================================================================== */
+
+/* --- The rooms ------------------------------------------------------------
+   Two wrappers mount this shell -- `.cr-root` (classroom + reference) and
+   `.nb-root` (the notebook) -- and these are the properties the geometry
+   below reads out of whichever one it finds itself in.
+   ------------------------------------------------------------------------ */
+.cr-root,
+.nb-root {
+	/* THE PAGE GUTTER, and it is ONE number for a whole module.
+	   The breadcrumb row, the tab bar, every single-column page and both panes
+	   of the split read this, so "the chrome lines up with the content" is a
+	   property of there being one declaration rather than of nine literals
+	   happening to agree. They did not: the chrome and the split were each
+	   pinned at 1.2rem while a page component added its own 1.2rem INSIDE the
+	   split's, so the detail pane's content sat 19px further in than the list
+	   beside it and 19px further in than the trail above both.
+	   Below the desktop breakpoint the split does not exist and the page is one
+	   narrow column, so it gets the tighter number. */
+	--cr-gutter: 1rem;
+
+	/* SCROLLBARS, ON THE STANDARD PROPERTIES, with the WebKit pseudo-elements
+	   below only as the fallback for engines that do not have them yet -- a
+	   browser with both ignores the pseudo-elements, which is the precedence
+	   this wants.
+
+	   `scrollbar-color` INHERITS, so declaring it once here reaches every
+	   scrolling region in the module. `scrollbar-width` DOES NOT (checked in
+	   the browser: the panes came back `auto` with only this rule), so it is
+	   set on the descendants too -- a universal selector rather than a list of
+	   regions, because the list is long, spread across a dozen components, and
+	   would silently stop covering the next region somebody adds. It is inert
+	   on an element that does not scroll.
+
+	   THE THUMB IS A NEUTRAL, not the accent -- each room names its own, since
+	   a bar tuned for the classroom's dark plate is invisible on the
+	   notebook's paper. Both are their palette's "tertiary / muted meta",
+	   which is what a scrollbar is; the accent is spent on primary actions,
+	   active navigation and focus.
+
+	   THIN AND QUIET, NEVER ABSENT: the panes, the switcher menu and several
+	   tables scroll with no other signal that they do, so `none` would remove
+	   the only affordance there is.
+
+	   ONE DELIBERATE EXCEPTION, and it keeps its own rule rather than being
+	   carved out here: ReferenceDoc's tab rail hides its scrollbar (a Windows
+	   trough under the rail is louder than the tabs above it) and says "there
+	   are more tabs" with an edge fade per end instead. Its own scoped
+	   declaration outranks this one, which is the right way round -- a region
+	   that has replaced the affordance may hide it; nothing else may. */
+	scrollbar-color: var(--cr-thumb) transparent;
+}
+
+.cr-root {
+	--cr-thumb: var(--text-3);
+	--cr-thumb-hover: var(--text-2);
+}
+.nb-root {
+	--cr-thumb: var(--nb-hairline-strong);
+	--cr-thumb-hover: var(--nb-ink-faint);
+}
+
+.cr-root,
+.cr-root *,
+.nb-root,
+.nb-root * {
+	scrollbar-width: thin;
+}
+
+.cr-root ::-webkit-scrollbar,
+.cr-root::-webkit-scrollbar,
+.nb-root ::-webkit-scrollbar,
+.nb-root::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+.cr-root ::-webkit-scrollbar-track,
+.cr-root::-webkit-scrollbar-track,
+.nb-root ::-webkit-scrollbar-track,
+.nb-root::-webkit-scrollbar-track {
+	background: transparent;
+}
+.cr-root ::-webkit-scrollbar-thumb,
+.cr-root::-webkit-scrollbar-thumb,
+.nb-root ::-webkit-scrollbar-thumb,
+.nb-root::-webkit-scrollbar-thumb {
+	background: var(--cr-thumb);
+	border-radius: 999px;
+	/* Inset from the track so the thumb reads as a bar rather than a fill,
+	   while the hit target stays the full 10px. */
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+.cr-root ::-webkit-scrollbar-thumb:hover,
+.cr-root::-webkit-scrollbar-thumb:hover,
+.nb-root ::-webkit-scrollbar-thumb:hover,
+.nb-root::-webkit-scrollbar-thumb:hover {
+	background: var(--cr-thumb-hover);
+	background-clip: padding-box;
+}
+.cr-root ::-webkit-scrollbar-corner,
+.cr-root::-webkit-scrollbar-corner,
+.nb-root ::-webkit-scrollbar-corner,
+.nb-root::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+@media (min-width: 1024px) {
+	.cr-root,
+	.nb-root {
+		--cr-gutter: 2rem;
+	}
+}
+
+/* --- The shell ------------------------------------------------------------
+   ONE SURFACE, master-detail: the list stays on screen on the left while the
+   thing you picked opens on the right. All this file decides is the geometry,
+   and the geometry is where the breakpoint lives: no state and no viewport
+   measurement chooses a pane, so the two widths cannot disagree about which
+   one is showing.
+
+   BELOW 1024px THIS IS THE SINGLE COLUMN THAT SHIPPED BEFORE IT EXISTED.
+   ------------------------------------------------------------------------ */
+.cr-split {
+	min-width: 0;
+}
+
+@media (max-width: 1023.98px) {
+	/* SWAP (the default): exactly one pane is on screen -- the list on the class
+	   page, the item on an item page -- at full width. The list is NEVER
+	   rendered beside a selected item at phone or tablet width, which is what
+	   `has-detail` says. */
+	.cr-split:not(.narrow-stack).has-detail .cr-nav {
+		display: none;
+	}
+	/* Nothing is open: the empty detail prompt is a desktop affordance and
+	   would be an empty panel under the list here, so it is not rendered. */
+	.cr-split:not(.narrow-stack):not(.has-detail) .cr-detail {
+		display: none;
+	}
+
+	/* STACK: both panes, in one column, detail first. The notebook's compose
+	   form lives in the detail pane and a phone has always shown it ABOVE the
+	   feed, so the two are ordered rather than swapped -- which also means the
+	   one instance of that form, staged File handles and all, is not re-created
+	   at either width. */
+	.cr-split.narrow-stack {
+		display: flex;
+		flex-direction: column;
+	}
+	.cr-split.narrow-stack > .cr-detail {
+		order: 1;
+	}
+	.cr-split.narrow-stack > .cr-nav {
+		order: 2;
+	}
+	/* Nothing in it: no empty panel above the list. */
+	.cr-split.narrow-stack:not(.has-detail) > .cr-detail {
+		display: none;
+	}
+}
+
+@media (min-width: 1024px) {
+	/* The chrome spans BOTH panes, so a trail and tabs above them line up with
+	   the split rather than with either half of it. `:has()` is the established
+	   tool here (see the .bg-fx suppressions in the two room stylesheets) and is
+	   what lets a rule set on the room respond to something a child rendered. */
+	.cr-root:has(.cr-split) {
+		--cr-measure: var(--measure-split);
+	}
+
+	.cr-split {
+		display: grid;
+		grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+		/* EXPLICIT, because `margin: 0 auto` below cancels the stretch a grid or
+		   flex item would otherwise get from its own parent: auto margins eat the
+		   free space instead, and the box falls back to shrink-to-fit. With two
+		   fat columns that is wider than the room anyway and nothing shows; with
+		   ONE (the nav-wide rule further down) the whole split shrink-wrapped its
+		   table and sat centred in a page it was supposed to span. */
+		width: 100%;
+		/* THE GAP BETWEEN THE PANES. 24px: below that the list's own card edges
+		   and the item's start reading as one column with a seam in it. */
+		gap: var(--space-5);
+		max-width: var(--measure-split);
+		margin: 0 auto;
+		padding: 0 var(--cr-gutter);
+		align-items: start;
+	}
+
+	/* THE MIRROR PROPORTION: a wide navigation beside a fixed-width detail. For
+	   a navigation surface that is a table you scan rather than a column of
+	   rows -- the review console's compliance grid, which needs the room and
+	   brings its own card, so the pane frame below is dropped for it. */
+	.cr-split.nav-wide {
+		grid-template-columns: minmax(0, 1fr) minmax(21rem, 27rem);
+	}
+
+	/* NOTHING OPEN: the wide navigation takes the whole width. A 26rem list is
+	   26rem whether or not something is open beside it, but a TABLE is the thing
+	   being scanned -- leaving it permanently narrowed against an empty column
+	   would cost the grid a third of its room for a panel nobody has asked for.
+	   Same rule the narrow widths already apply, one breakpoint up. */
+	.cr-split.nav-wide:not(.has-detail) {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.cr-split.nav-wide:not(.has-detail) > .cr-detail {
+		display: none;
+	}
+
+	/* EACH PANE IS ITS OWN SCROLL CONTAINER, so reading down a long item never
+	   moves the list and vice versa. The height is the viewport less the
+	   chrome above it; --cr-chrome-h is here to be tuned in one place rather
+	   than guessed at three call sites. */
+	.cr-split > .cr-nav,
+	.cr-split > .cr-detail {
+		--cr-chrome-h: 10.5rem;
+		min-width: 0;
+		max-height: calc(100vh - var(--cr-chrome-h));
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+
+	/* THE LIST PANE IS A BOUNDED REGION, and the hairline is what says so.
+	   It scrolls independently of the page and clips at its own edges, which is
+	   invisible on a transparent block -- and its 24px of internal padding, the
+	   thing that keeps content off those clip edges and out from under the
+	   scrollbar, then reads as a stray indent rather than as the pane's own
+	   inset. With the border it reads correctly, and the cards inside keep
+	   their own surface against it (the pane paints nothing, so it is a frame,
+	   not a second card under the first).
+	   The PANE'S BOX sits on the gutter, which is the alignment that matters:
+	   the chrome and both panes all start and end on the same line. */
+	.cr-split > .cr-nav {
+		/* The list FILLS its pane -- `none` is a legal max-width, so the pane
+		   sets the same custom property the page measure travels on rather than
+		   needing a rule that reaches inside a component. */
+		--cr-measure: none;
+		border: 1px solid var(--cr-pane-line, var(--hairline));
+		border-radius: var(--radius-card);
+		padding: var(--space-5);
+	}
+
+	/* A table brings its own card, so a frame around it would be a second one. */
+	.cr-split.nav-wide > .cr-nav {
+		border: none;
+		padding: 0;
+	}
+}
+
+/* --- The composer, in the detail pane ------------------------------------
+   Composing takes the pane the detail would have. A navigation pane is ~26rem
+   and a full authoring form does not fit in it -- it was never a question of
+   whether the form was too big, it was mounted in the wrong half.
+
+   BELOW THE BREAKPOINT it takes the full width exactly as a detail view does,
+   which is the `has-detail` rule above doing its existing job.
+   ------------------------------------------------------------------------ */
+.cr-detail-compose {
+	padding-bottom: var(--space-6);
+}
+
+/* The route's own page stays MOUNTED underneath, hidden, rather than being
+   swapped out: closing the composer puts you back on the item you were reading
+   with its scroll and its open panels intact, and the item's route never
+   changed in the first place. */
+.cr-detail-page[hidden] {
+	display: none;
+}

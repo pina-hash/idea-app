@@ -43,9 +43,10 @@
 
 <style>
 	.nb-noaccount {
-		max-width: 47rem;
+		max-width: var(--measure-split);
 		margin: var(--space-4) auto 0;
-		padding: 0.7rem 1rem;
+		padding: 0.7rem var(--cr-gutter, 1rem);
+		box-sizing: border-box;
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-card);
 		background: var(--surface-2);

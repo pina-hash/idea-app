@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { beforeNavigate, invalidateAll } from '$app/navigation';
-	import ClassSplit from '$lib/classroom/ClassSplit.svelte';
+	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {

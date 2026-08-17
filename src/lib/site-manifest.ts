@@ -123,6 +123,10 @@ export const APPS: SiteApp[] = [
 			'src/routes/dev/classroom-phase1/',
 			// The two-pane class shell's harness. Its own prefix because
 			// 'src/routes/dev/classroom/' does not match 'classroom-split'.
+			// The SHELL ITSELF (src/lib/shell/) is deliberately NOT claimed: the
+			// notebook feed and the notebook's review console mount the same
+			// split, so it belongs to no one app -- the same reasoning that keeps
+			// src/lib/rich-text.ts unclaimed below.
 			'src/routes/dev/classroom-split/',
 			// Rich item bodies (0108): the server-side sanitizer. Its client-safe
 			// half is under src/lib/classroom/; the shared link-scheme primitive

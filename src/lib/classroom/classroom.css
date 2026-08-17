@@ -27,7 +27,15 @@
    labels, not for quiet borders, not for decoration. Gold keeps instructor-
    only marking and the required callout. Amber, cyan, teal and crimson keep
    their existing semantic roles.
+
+   THE TWO-PANE SHELL IS NOT IN THIS FILE ANY MORE. The class page, the
+   notebook feed and the notebook's review console all mount the same split, so
+   its geometry -- and the gutter and scrollbar properties it reads -- live in
+   $lib/shell/split.css and are pulled in below. Everything that imports this
+   file keeps getting them; nothing else about this file changed.
    ========================================================================== */
+
+@import '../shell/split.css';
 
 /* --- The room -------------------------------------------------------------
    The classroom sits on the calm surfaces rather than the portal's green
@@ -53,86 +61,6 @@
 	   stylesheet rules on this element now, so specificity decides, and the
 	   more specific one is the split. */
 	--cr-measure: var(--cr-measure-route, var(--measure-page));
-
-	/* THE PAGE GUTTER, and it is ONE number for the whole module.
-	   The breadcrumb row, the tab bar, every single-column page and both panes
-	   of the split read this, so "the chrome lines up with the content" is a
-	   property of there being one declaration rather than of nine literals
-	   happening to agree. They did not: the chrome and the split were each
-	   pinned at 1.2rem while a page component added its own 1.2rem INSIDE the
-	   split's, so the detail pane's content sat 19px further in than the list
-	   beside it and 19px further in than the trail above both.
-	   Below the desktop breakpoint the split does not exist and the page is one
-	   narrow column, so it gets the tighter number. */
-	--cr-gutter: 1rem;
-
-	/* SCROLLBARS, ON THE STANDARD PROPERTIES, with the WebKit pseudo-elements
-	   below only as the fallback for engines that do not have them yet -- a
-	   browser with both ignores the pseudo-elements, which is the precedence
-	   this wants.
-
-	   `scrollbar-color` INHERITS, so declaring it once here reaches every
-	   scrolling region in the module. `scrollbar-width` DOES NOT (checked in
-	   the browser: the panes came back `auto` with only this rule), so it is
-	   set on the descendants too -- a universal selector rather than a list of
-	   regions, because the list is long, spread across nine components, and
-	   would silently stop covering the next region somebody adds. It is inert
-	   on an element that does not scroll.
-
-	   THE THUMB IS A NEUTRAL, not the accent. --text-3 is this palette's
-	   "tertiary: separators, disabled, decorative", which is what a scrollbar
-	   is; --green is spent on primary actions, active navigation and focus.
-
-	   THIN AND QUIET, NEVER ABSENT: the panes, the switcher menu and several
-	   tables scroll with no other signal that they do, so `none` would remove
-	   the only affordance there is.
-
-	   ONE DELIBERATE EXCEPTION, and it keeps its own rule rather than being
-	   carved out here: ReferenceDoc's tab rail hides its scrollbar (a Windows
-	   trough under the rail is louder than the tabs above it) and says "there
-	   are more tabs" with an edge fade per end instead. Its own scoped
-	   declaration outranks this one, which is the right way round -- a region
-	   that has replaced the affordance may hide it; nothing else may. */
-	scrollbar-color: var(--text-3) transparent;
-}
-
-.cr-root,
-.cr-root * {
-	scrollbar-width: thin;
-}
-
-.cr-root ::-webkit-scrollbar,
-.cr-root::-webkit-scrollbar {
-	width: 10px;
-	height: 10px;
-}
-.cr-root ::-webkit-scrollbar-track,
-.cr-root::-webkit-scrollbar-track {
-	background: transparent;
-}
-.cr-root ::-webkit-scrollbar-thumb,
-.cr-root::-webkit-scrollbar-thumb {
-	background: var(--text-3);
-	border-radius: 999px;
-	/* Inset from the track so the thumb reads as a bar rather than a fill,
-	   while the hit target stays the full 10px. */
-	border: 2px solid transparent;
-	background-clip: padding-box;
-}
-.cr-root ::-webkit-scrollbar-thumb:hover,
-.cr-root::-webkit-scrollbar-thumb:hover {
-	background: var(--text-2);
-	background-clip: padding-box;
-}
-.cr-root ::-webkit-scrollbar-corner,
-.cr-root::-webkit-scrollbar-corner {
-	background: transparent;
-}
-
-@media (min-width: 1024px) {
-	.cr-root {
-		--cr-gutter: 2rem;
-	}
 }
 
 /* The scanline + vignette overlay is a SIBLING of this wrapper's ancestor, so
@@ -415,89 +343,16 @@ body:has(.cr-root) {
 }
 
 /* --- The two-pane class shell --------------------------------------------
-   ONE CLASS, master-detail: the class content stays on screen on the left
-   while the thing you picked opens on the right. The structure is in
-   src/routes/classroom/[sectionId]/+layout.svelte -- ClassView is mounted by
-   the LAYOUT, which is what makes the list survive opening an item. All this
-   file decides is the geometry, and the geometry is where the breakpoint
-   lives: no state and no viewport measurement chooses a pane, so the two
-   widths cannot disagree about which one is showing.
+   THE GEOMETRY MOVED to $lib/shell/split.css (imported at the top of this
+   file), because the notebook feed and the notebook's review console mount the
+   same shell. What stays here is the part that is genuinely the CLASSROOM's:
+   how its own page components behave once they are inside a pane.
 
-   BELOW 1024px THIS IS THE SINGLE COLUMN THAT SHIPPED BEFORE IT EXISTED.
-   Exactly one pane is on screen -- the list on the class page, the item on an
-   item page -- at full width. The list is NEVER rendered beside a selected
-   item at phone or tablet width, which is what `has-detail` says.
+   The structure is src/routes/classroom/[sectionId]/+layout.svelte -- ClassView
+   is mounted by the LAYOUT, which is what makes the list survive opening an
+   item.
    ------------------------------------------------------------------------ */
-.cr-split {
-	min-width: 0;
-}
-
-@media (max-width: 1023.98px) {
-	/* An item is open: it is the page. */
-	.cr-split.has-detail .cr-nav {
-		display: none;
-	}
-	/* Nothing is open: the empty detail prompt is a desktop affordance and
-	   would be an empty panel under the list here, so it is not rendered. */
-	.cr-split:not(.has-detail) .cr-detail {
-		display: none;
-	}
-}
-
 @media (min-width: 1024px) {
-	/* The chrome spans BOTH panes, so the trail and the tabs line up with the
-	   split rather than with either half of it. `:has()` is the established
-	   tool in this file (see the .bg-fx suppression above) and is what lets a
-	   rule set on .cr-root respond to something a child layout rendered. */
-	.cr-root:has(.cr-split) {
-		--cr-measure: var(--measure-split);
-	}
-
-	.cr-split {
-		display: grid;
-		grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
-		/* THE GAP BETWEEN THE PANES. 24px: below that the list's own card edges
-		   and the item's start reading as one column with a seam in it. */
-		gap: var(--space-5);
-		max-width: var(--measure-split);
-		margin: 0 auto;
-		padding: 0 var(--cr-gutter);
-		align-items: start;
-	}
-
-	/* EACH PANE IS ITS OWN SCROLL CONTAINER, so reading down a long item never
-	   moves the list and vice versa. The height is the viewport less the
-	   masthead, trail and tabs above it; --cr-chrome-h is here to be tuned in
-	   one place rather than guessed at three call sites. */
-	.cr-split > .cr-nav,
-	.cr-split > .cr-detail {
-		--cr-chrome-h: 10.5rem;
-		min-width: 0;
-		max-height: calc(100vh - var(--cr-chrome-h));
-		overflow-y: auto;
-		overscroll-behavior: contain;
-	}
-
-	/* THE LIST PANE IS A BOUNDED REGION, and the hairline is what says so.
-	   It scrolls independently of the page and clips at its own edges, which is
-	   invisible on a transparent block -- and its 24px of internal padding, the
-	   thing that keeps content off those clip edges and out from under the
-	   scrollbar, then reads as a stray indent rather than as the pane's own
-	   inset. With the border it reads correctly, and the cards inside keep
-	   their own surface against it (the pane paints nothing, so it is a frame,
-	   not a second card under the first).
-	   The PANE'S BOX sits on the gutter, which is the alignment that matters:
-	   the trail, the tabs and both panes all start and end on the same line. */
-	.cr-split > .cr-nav {
-		/* The list FILLS its pane -- `none` is a legal max-width, so the pane
-		   sets the same custom property the page measure travels on rather than
-		   needing a rule that reaches inside a component. */
-		--cr-measure: none;
-		border: 1px solid var(--hairline);
-		border-radius: var(--radius-card);
-		padding: var(--space-5);
-	}
-
 	/* NEITHER PANE ADDS A SECOND GUTTER. The split already spent it; a page
 	   component's own padding-inline inside a pane is what put the item's
 	   content 19px further in than the list beside it. */
@@ -524,25 +379,4 @@ body:has(.cr-root) {
 	.cr-detail-compose {
 		max-width: var(--measure-form);
 	}
-}
-
-/* --- The composer, in the detail pane ------------------------------------
-   Composing takes the pane the item would have. The navigation pane is ~26rem
-   and a full authoring form does not fit in it -- it was never a question of
-   whether the form was too big, it was mounted in the wrong half.
-
-   BELOW THE BREAKPOINT it takes the full width exactly as an item view does,
-   which is the `has-detail` rule above doing its existing job: the layout
-   reports a detail is open while composing, so the list steps aside.
-   ------------------------------------------------------------------------ */
-.cr-detail-compose {
-	padding-bottom: var(--space-6);
-}
-
-/* The route's own page stays MOUNTED underneath, hidden, rather than being
-   swapped out: closing the composer puts you back on the item you were reading
-   with its scroll and its open panels intact, and the item's route never
-   changed in the first place. */
-.cr-detail-page[hidden] {
-	display: none;
 }

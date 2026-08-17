@@ -8,6 +8,7 @@
 	import EntryReview from '$lib/notebook/EntryReview.svelte';
 	import DocumentationCheck from '$lib/notebook/DocumentationCheck.svelte';
 	import NotebookThemeToggle from '$lib/notebook/NotebookThemeToggle.svelte';
+	import ClassSplit from '$lib/shell/ClassSplit.svelte';
 	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import '$lib/notebook/notebook-theme.css';
 	import {
@@ -325,6 +326,39 @@
 	</div>
 </div>
 
+{#snippet gridPane()}
+	{#if grid}
+		<SectionGrid
+			{grid}
+			selectedEntryId={openEntryId}
+			onOpen={openFromCell}
+			studentHref={studentNotebookHref}
+		/>
+	{/if}
+{/snippet}
+
+{#snippet entryPane()}
+	{#if openEntryId !== null}
+		<div class="entry-col" aria-label="Open entry">
+			{#if entryLoading}
+				<section class="card"><p class="note">Loading entry...</p></section>
+			{:else if entryError}
+				<section class="card"><p class="msg error" role="alert">{entryError}</p></section>
+			{:else if openEntry && openCell}
+				<EntryReview
+					entry={openEntry}
+					cell={openCell}
+					student={openStudent}
+					session={openSession}
+					onFlag={flagEntry}
+					onResolve={resolveEntry}
+					onClose={closeEntry}
+				/>
+			{/if}
+		</div>
+	{/if}
+{/snippet}
+
 <main class="review-page">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Notebook</div>
@@ -401,48 +435,21 @@
 				Grading a section is dozens of round trips between a cell and the
 				page it opens, and the panel used to render below the whole grid:
 				click a cell, scroll down to see the photo, scroll back up for the
-				next one, every time. So the console splits into two columns while
-				an entry is open -- the grid keeps its own column and stays fully
-				interactive, and the panel is STICKY, which is what makes the next
-				cell reachable without scrolling however far down the roster it is.
+				next one, every time.
 
-				Deliberately not an overlay: covering the grid would defeat the
-				whole point, which is moving from cell to cell.
+				IT IS THE SHARED SHELL NOW, on the same 1024px breakpoint everything
+				else in the module uses -- `navWidth="wide"`, because here the
+				NAVIGATION is the wide thing (a table you scan) and the detail is the
+				fixed-width panel. That is the mirror of the class page, not a second
+				split; the bespoke 992px arrangement it replaces, bottom-docked sheet
+				and all, is gone.
 
-				Narrow screens have no room for two columns, so there the panel
-				docks to the BOTTOM of the viewport instead (still sticky, still in
-				flow, so it can never trap the page) and the grid scrolls above it.
+				Deliberately not an overlay: covering the grid would defeat the whole
+				point, which is moving from cell to cell.
 			-->
-			<div class="review-split" class:with-panel={openEntryId !== null}>
-				<div class="grid-col">
-					<SectionGrid
-						{grid}
-						selectedEntryId={openEntryId}
-						onOpen={openFromCell}
-						studentHref={studentNotebookHref}
-					/>
-				</div>
-
-				{#if openEntryId !== null}
-					<aside class="entry-col" aria-label="Open entry">
-						{#if entryLoading}
-							<section class="card"><p class="note">Loading entry...</p></section>
-						{:else if entryError}
-							<section class="card"><p class="msg error" role="alert">{entryError}</p></section>
-						{:else if openEntry && openCell}
-							<EntryReview
-								entry={openEntry}
-								cell={openCell}
-								student={openStudent}
-								session={openSession}
-								onFlag={flagEntry}
-								onResolve={resolveEntry}
-								onClose={closeEntry}
-							/>
-						{/if}
-					</aside>
-				{/if}
-			</div>
+			<ClassSplit navWidth="wide" hasDetail={openEntryId !== null} nav={gridPane}>
+				{@render entryPane()}
+			</ClassSplit>
 
 			{#if docCheck && section}
 				<DocumentationCheck
@@ -460,14 +467,32 @@
 </div>
 
 <style>
-	/* Same room as the student feed (palette + type from .nb-root), but the
-	   console keeps its working density -- the grid is for scanning. */
+	/* Same room as the student feed (palette + type from .nb-root), and on the
+	   same shell: the chrome above the split and the two panes themselves all
+	   read ONE measure and ONE gutter, so they start and end on the same line.
+	   The console's old 76rem column is gone with its bespoke 992px split. */
 	.review-page {
-		max-width: 76rem;
-		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		/* app.css caps every <main> at 880px and gives it its own side padding;
+		   both belong to the single-column shell, and this one spans the split. */
+		max-width: none;
+		padding: 3rem 0;
 		display: grid;
 		gap: 1.1rem;
+	}
+	/* Every block this component RENDERS. It deliberately does not reach the
+	   split -- Svelte scopes `> *` to this component's own markup, and the split
+	   comes from another one -- which is right: `.cr-split` declares exactly
+	   these values itself above the breakpoint (split.css), and below it its
+	   panes take the room's own narrow gutter (notebook-theme.css). The three
+	   agree because they read the same two properties, not because they were
+	   typed the same. */
+	.review-page > * {
+		width: 100%;
+		min-width: 0;
+		max-width: var(--measure-split);
+		margin-inline: auto;
+		padding-inline: var(--cr-gutter);
+		box-sizing: border-box;
 	}
 	.pickers {
 		display: flex;
@@ -475,65 +500,8 @@
 		gap: 1rem;
 		flex-wrap: wrap;
 	}
-
-	/* One column until a panel is open, so nothing about the grid changes
-	   while nobody is reviewing. */
-	.review-split {
-		display: grid;
-		gap: 1.1rem;
-		align-items: start;
-	}
-	/* min-width: 0 is load-bearing on BOTH: a grid item's automatic minimum is
-	   its min-content, so without it the wide table would push the split wider
-	   than the page instead of scrolling inside its own column. */
-	.grid-col,
 	.entry-col {
 		min-width: 0;
-	}
-
-	/* Narrow: the panel docks to the bottom edge and the grid scrolls behind
-	   it. Sticky rather than fixed, so it is bounded by the split it belongs
-	   to and releases at the end of it -- a fixed sheet would sit over the
-	   Documentation Check panel below for the whole page. */
-	.review-split.with-panel .entry-col {
-		position: sticky;
-		bottom: 0;
-		z-index: 2;
-		max-height: var(--nb-sheet-h, 55vh);
-		overflow-y: auto;
-		border-radius: var(--nb-radius);
-		box-shadow: 0 -6px 24px rgba(20, 16, 8, 0.18);
-	}
-	/*
-	 * The docked sheet covers the foot of the grid, and at the end of the
-	 * document there is nothing left to scroll -- so without this the last rows
-	 * sit permanently underneath it and the one thing the sheet exists to allow
-	 * (going to the next cell) is the one thing it prevents. The padding buys
-	 * exactly the sheet's own height back, so every row can be brought above
-	 * it. Only while a panel is open, so a closed grid ends where it ends.
-	 */
-	.review-split.with-panel .grid-col {
-		padding-bottom: calc(var(--nb-sheet-h, 55vh) + 1rem);
-	}
-
-	@media (min-width: 62rem) {
-		.review-split.with-panel {
-			grid-template-columns: minmax(0, 1fr) minmax(21rem, 27rem);
-		}
-		.review-split.with-panel .entry-col {
-			position: sticky;
-			top: 0.75rem;
-			bottom: auto;
-			/* Its own scroll, so a tall page of photos never pushes the panel
-			   taller than the viewport it is pinned to. */
-			max-height: calc(100vh - 1.5rem);
-			box-shadow: none;
-		}
-		/* Two columns: the panel is beside the grid, not over it, so the grid
-		   needs no room bought back. */
-		.review-split.with-panel .grid-col {
-			padding-bottom: 0;
-		}
 	}
 	.field {
 		display: grid;

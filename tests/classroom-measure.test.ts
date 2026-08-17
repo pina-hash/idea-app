@@ -28,6 +28,16 @@ function read(path: string): string {
 }
 
 /**
+ * THE SHELL MOVED, AND THESE ASSERTIONS MOVED WITH IT. The two-pane geometry
+ * -- and the gutter and scrollbar properties it reads -- used to live in
+ * classroom.css; the notebook feed and the notebook's review console mount the
+ * same split now, so it is $lib/shell/split.css and classroom.css `@import`s
+ * it. Everything below is the same guarantee against the file that now carries
+ * it, which is the point of asserting it at all: one split, one breakpoint.
+ */
+const SPLIT_CSS = 'src/lib/shell/split.css';
+
+/**
  * Where each place's content measure is actually written. `item-deck` is
  * deliberately absent: DeckViewer is a full-screen viewer with no content
  * column at all, so there is no width for the chrome to agree with.
@@ -114,9 +124,7 @@ describe('the classroom chrome is as wide as the page under it', () => {
 		// The split's own measure is set by classroom.css, not by the router, and
 		// has to exist just the same.
 		expect(tokens).toMatch(/--measure-split:\s*\d/);
-		expect(read('src/lib/classroom/classroom.css')).toMatch(
-			/--cr-measure:\s*var\(--measure-split\)/
-		);
+		expect(read(SPLIT_CSS)).toMatch(/--cr-measure:\s*var\(--measure-split\)/);
 	});
 
 	it('view-as sets no measure, so its two differently-sized pages keep their own', () => {
@@ -153,8 +161,11 @@ const GUTTER_SURFACES = [
 ];
 
 describe('one page gutter, read by everything', () => {
-	it('is declared once, and at both widths', () => {
-		const css = read('src/lib/classroom/classroom.css');
+	it('is declared once, for both rooms, and at both widths', () => {
+		const css = read(SPLIT_CSS);
+		// ONE declaration, shared by the classroom and the notebook -- not one
+		// each, which is how two numbers that must agree stop agreeing.
+		expect(css).toMatch(/\.cr-root,\s*\.nb-root \{[\s\S]{0,4000}?--cr-gutter:\s*1rem/);
 		// The narrow default on .cr-root itself...
 		expect(css).toMatch(/--cr-gutter:\s*1rem/);
 		// ...widened at the desktop breakpoint, in the same file.
@@ -170,11 +181,14 @@ describe('one page gutter, read by everything', () => {
 	});
 
 	it('the split reads it, and the panes add no second gutter of their own', () => {
-		const css = read('src/lib/classroom/classroom.css');
+		const css = read(SPLIT_CSS);
 		expect(css).toMatch(/\.cr-split\s*\{[\s\S]*?padding:\s*0 var\(--cr-gutter\)/);
+		// classroom.css keeps only the part that is about ITS page components.
+		const classroom = read('src/lib/classroom/classroom.css');
+		expect(classroom).toMatch(/@import '\.\.\/shell\/split\.css';/);
 		// Both panes, not just the list -- the detail's own padding is what put
 		// the item's content on a different line from the list's.
-		expect(css).toMatch(
+		expect(classroom).toMatch(
 			/\.cr-split > \.cr-nav \.classroom-page,\s*\.cr-split > \.cr-detail \.classroom-page \{\s*padding-inline:\s*0;/
 		);
 	});
@@ -190,16 +204,18 @@ describe('one page gutter, read by everything', () => {
 	});
 
 	it('the list pane has real internal padding, so its content clears its own edges', () => {
-		const css = read('src/lib/classroom/classroom.css');
+		const css = read(SPLIT_CSS);
 		const pane = css.match(/\.cr-split > \.cr-nav \{[\s\S]*?\}/)?.[0] ?? '';
 		expect(pane).toMatch(/padding:\s*var\(--space-5\)/);
 		// And a boundary, so that inset reads as the pane's rather than as a
 		// stray indent against the trail above it.
-		expect(pane).toMatch(/border:\s*1px solid var\(--hairline\)/);
+		// The line is a per-room hook now (paper wants a lighter one than the
+		// plate), with the classroom's own token as the fallback.
+		expect(pane).toMatch(/border:\s*1px solid var\(--cr-pane-line, var\(--hairline\)\)/);
 	});
 
 	it('the gap between the panes comes from the scale', () => {
-		const css = read('src/lib/classroom/classroom.css');
+		const css = read(SPLIT_CSS);
 		expect(css).toMatch(/\.cr-split\s*\{[\s\S]*?gap:\s*var\(--space-5\)/);
 	});
 
@@ -216,10 +232,14 @@ describe('one page gutter, read by everything', () => {
  * both, since the standard properties simply win there.
  */
 describe('scrollbars', () => {
-	const css = () => read('src/lib/classroom/classroom.css');
+	const css = () => read(SPLIT_CSS);
 
 	it('uses the standard properties, and thin rather than hidden', () => {
-		expect(css()).toMatch(/scrollbar-color:\s*var\(--text-3\) transparent/);
+		// The thumb is named per room (a bar tuned for the dark plate is invisible
+		// on the notebook's paper); both are their palette's own neutral.
+		expect(css()).toMatch(/scrollbar-color:\s*var\(--cr-thumb\) transparent/);
+		expect(css()).toMatch(/\.cr-root \{\s*--cr-thumb:\s*var\(--text-3\)/);
+		expect(css()).toMatch(/\.nb-root \{\s*--cr-thumb:\s*var\(--nb-hairline-strong\)/);
 		expect(css()).toMatch(/scrollbar-width:\s*thin/);
 		expect(css()).not.toMatch(/\.cr-root[^{]*\{[^}]*scrollbar-width:\s*none/);
 	});
@@ -230,12 +250,17 @@ describe('scrollbars', () => {
 	 * has to reach the descendants explicitly.
 	 */
 	it('sets the width on descendants too, since that property does not inherit', () => {
-		expect(css()).toMatch(/\.cr-root,\s*\.cr-root \*\s*\{\s*scrollbar-width:\s*thin;\s*\}/);
+		expect(css()).toMatch(
+			/\.cr-root,\s*\.cr-root \*,\s*\.nb-root,\s*\.nb-root \*\s*\{\s*scrollbar-width:\s*thin;\s*\}/
+		);
 	});
 
 	it('keeps the WebKit rules as a fallback, on the descendant form', () => {
 		expect(css()).toMatch(/\.cr-root ::-webkit-scrollbar,/);
 		expect(css()).toMatch(/\.cr-root ::-webkit-scrollbar-thumb,/);
+		// Both rooms, or the notebook's panes get the platform default bar.
+		expect(css()).toMatch(/\.nb-root ::-webkit-scrollbar,/);
+		expect(css()).toMatch(/\.nb-root ::-webkit-scrollbar-thumb,/);
 		// Never a hidden bar: a zero-width scrollbar is the thing rule 14 forbids.
 		expect(css()).not.toMatch(/::-webkit-scrollbar[^{]*\{[^}]*width:\s*0/);
 	});

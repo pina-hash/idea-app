@@ -283,6 +283,35 @@
 			]
 		},
 		{
+			// THE CROWDED ROW, and the only reason it exists is the two-line
+			// contract: everything that can compete for the compact row's first
+			// line at once -- an absurdly long title, a PINNED chip, a status
+			// chip -- over a meta line already carrying a date, a photo count, a
+			// note count and a long folder name. If the row holds two lines here
+			// it holds two lines anywhere.
+			id: 'e-7',
+			session_id: null,
+			section_id: null,
+			folder_id: 'f-1',
+			pinned_at: '2026-08-08T12:00:00Z',
+			custom_label:
+				'Gearbox ratio worksheet, second pass, with the recalculated stage-two reduction and the bearing preload notes',
+			upload_timestamp: '2026-08-08T13:20:00Z',
+			status: 'flagged',
+			flag_reason: 'not_dated',
+			instructor_comment: 'Add the date to the top of each page.',
+			session: null,
+			photos: [
+				photo('p-9', 1, 'ratios-a.jpg'),
+				photo('p-10', 2, null, 'enhanced'),
+				photo('p-11', 3, 'ratios-b.jpg')
+			],
+			notes: [
+				note('n-7', 'e-7', 'n-7', 1, p('Stage two came out at 3.4:1, not 3.0.'), '2026-08-08T13:25:00Z'),
+				note('n-8', 'e-7', 'n-8', 1, p('Preload measured with the dial indicator.'), '2026-08-08T13:40:00Z')
+			]
+		},
+		{
 			// Title falls all the way back to the browser filename (0071).
 			id: 'e-4',
 			session_id: null,

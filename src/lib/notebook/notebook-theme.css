@@ -30,9 +30,35 @@
  * rule that should have been a token. Adding the IDEA palette needed exactly
  * one edit in this file -- .eyebrow, which had to stop assuming the accent and
  * the meta line are the same colour -- and no component edits at all.
+ *
+ * THE TWO-PANE SHELL IS SHARED, NOT REBUILT. Both notebook screens sit on the
+ * same split the class page does, so its geometry -- and the page gutter, pane
+ * gap and scrollbar treatment it reads -- are imported from $lib/shell/split.css
+ * rather than written a second time. That file declares them for `.nb-root` as
+ * well as `.cr-root`; this one supplies the notebook's own values for the two
+ * properties it leaves to the room (the scrollbar thumb and the pane frame).
  */
 
+@import '../shell/split.css';
+
+/* A PANE'S OWN GUTTER, BELOW THE BREAKPOINT ONLY, and declared once for the
+   room rather than in each screen: down there the split is a plain column that
+   spends no gutter of its own, so its content would otherwise sit on the
+   viewport edge. Above the breakpoint the split spends it and the nav pane's
+   inset is its own padding (split.css) -- adding a second one there is the
+   exact mistake the classroom's `padding-inline: 0` rules exist to undo. */
+@media (max-width: 1023.98px) {
+	.nb-root .cr-nav,
+	.nb-root .cr-detail {
+		padding: 0 var(--cr-gutter);
+	}
+}
+
 .nb-root {
+	/* The shell's two per-room hooks. Paper wants a warmer, lighter bar and a
+	   hairline frame than the classroom's plate does. */
+	--cr-pane-line: var(--nb-hairline);
+
 	--nb-font:
 		-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial,
 		sans-serif;

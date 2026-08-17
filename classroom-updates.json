@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-18",
+			"title": "Your notebook now opens beside your entries",
+			"body": "On a laptop or a desktop, the notebook you reach from your class page is now two columns: your entries stay on the left while whatever you pick opens on the right, so you can read one page and go straight to the next without scrolling back up to find the list. Starting a new entry takes that right-hand side too -- press New entry -- and if you click away to look at something, whatever you had already typed or photographed is still waiting there when you come back. On a phone nothing has changed: the form is at the top, your entries are under it, and tapping one opens it in place.",
+			"tags": ["Notebook"]
+		},
+		{
 			"date": "2026-08-17",
 			"title": "A little more room to breathe",
 			"body": "The class page had squeezed itself right up against the edge of the screen, and everything on it -- the trail across the top, the tabs, the class list, whatever you have open -- started and stopped in slightly different places. It all lines up now, with a proper margin down both sides, and the class list sits in its own bordered panel so it is clear where it ends and your reading begins. Things that belong together sit closer together, so the list is easier to scan. Scrollbars in the classroom are thinner and quieter too.",

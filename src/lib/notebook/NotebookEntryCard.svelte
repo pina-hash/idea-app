@@ -32,7 +32,28 @@
 	} from '$lib/notebook-folders';
 
 	/**
-	 * ONE ENTRY, either as a collapsed tab or as the full card.
+	 * ONE ENTRY, in one of two VARIANTS.
+	 *
+	 * `full` (the default) is everything below: the collapsed tab, the
+	 * expand-in-place body, the photos, the note thread, the add-photos and
+	 * add-note panels, and the folder / pin / copy tools. It is what a phone
+	 * shows -- unchanged, entry for entry -- and what the two-pane shell's
+	 * DETAIL pane shows for the entry you picked.
+	 *
+	 * `row` is the compact list item the NAVIGATION pane shows above the
+	 * breakpoint. Two lines, never more: a title with its state chips inline and
+	 * truncating, then one meta line whose counts are small inline indicators
+	 * with screen-reader text beside them -- the classroom's row contract,
+	 * because at 26rem a third line per entry is ten rows a screen instead of
+	 * eighteen. It renders NO expand affordance, NO note thread and NO editor of
+	 * any kind: clicking it selects into the detail pane, which carries all of
+	 * that plus every control this variant leaves out. Nothing is lost, because
+	 * the thing those controls act on is one click away and open.
+	 *
+	 * The two variants are one component rather than two because `full` is the
+	 * complete rendering and `row` is a strict subset of its top line -- and
+	 * because the next bundle folds EntryReview into `full`, which is a wrapper
+	 * only while there is one card to wrap.
 	 *
 	 * Extracted out of NotebookView (which owned every entry inline and was
 	 * already 1100 lines before folders, search and selection landed on it), so
@@ -67,6 +88,9 @@
 	let {
 		entry,
 		folders,
+		variant = 'full',
+		current = false,
+		onOpen,
 		collapsed,
 		onToggle,
 		selectMode = false,
@@ -84,8 +108,16 @@
 	}: {
 		entry: NotebookEntry;
 		folders: NotebookFolder[];
-		collapsed: boolean;
-		onToggle: () => void;
+		/** See the header: `full` is the whole card, `row` is the list item. */
+		variant?: 'row' | 'full';
+		/** `row` only: this is the entry open in the detail pane beside the list. */
+		current?: boolean;
+		/** `row` only: clicking the row asks for it to be opened. */
+		onOpen?: () => void;
+		/** `full` only. Ignored by `row`, which has nothing to expand. */
+		collapsed?: boolean;
+		/** `full` only, for the same reason. */
+		onToggle?: () => void;
 		selectMode?: boolean;
 		selected?: boolean;
 		onSelectChange?: (next: boolean) => void;
@@ -279,6 +311,102 @@
 	}
 </script>
 
+{#if variant === 'row'}
+	<!--
+		THE COMPACT ROW. Two lines, and the rule that holds it is the same one
+		ClassView's row uses: the line is `nowrap` and the NAME is the only
+		shrinkable child, so chips and indicators keep the width they need and the
+		title gives way, ellipsised, rather than the line becoming two.
+
+		No disclosure, no body, no note thread, no editor. The bulk-select
+		checkbox stays, because selecting a run of entries to re-file is done from
+		the list; every other control lives on the open entry.
+	-->
+	<div
+		class="entry entry-row"
+		class:flagged={entry.status === 'flagged'}
+		class:pinned
+		class:current
+	>
+		<div class="row">
+			{#if selectMode}
+				<label class="pick">
+					<input
+						type="checkbox"
+						checked={selected}
+						data-testid="entry-select"
+						onchange={(e) => onSelectChange?.(e.currentTarget.checked)}
+					/>
+					<span class="sr-only">Select {title}</span>
+				</label>
+			{/if}
+
+			<button
+				type="button"
+				class="disclosure row-open"
+				aria-current={current ? 'true' : undefined}
+				data-testid="entry-open"
+				data-selected={current ? 'true' : undefined}
+				onclick={() => onOpen?.()}
+			>
+				<EntryThumb {entry} size={40} />
+
+				<span class="row-main">
+					<span class="row-title">
+						<span class="row-name" class:untitled={isUntitled(entry)}>{title}</span>
+						{#if pinned}
+							<span class="chip pin-chip" data-testid="row-pinned">Pinned</span>
+						{/if}
+						{#if showsStatus(entry.status)}
+							<span
+								class="chip status"
+								class:warn={entry.status === 'flagged'}
+								class:pending={entry.status === 'pending_review'}
+							>
+								{statusLabel(entry.status)}
+							</span>
+						{/if}
+					</span>
+					<span class="row-meta">
+						<span class="stamp">{shortWhen(entry.upload_timestamp)}</span>
+						{#if pages.length}
+							<span class="ind" aria-hidden="true">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+									<rect x="3" y="5.5" width="18" height="14" rx="2" />
+									<circle cx="8.5" cy="10.5" r="1.6" />
+									<path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5" stroke-linejoin="round" />
+								</svg>{pages.length}
+							</span>
+						{/if}
+						{#if noteCount}
+							<span class="ind" aria-hidden="true" data-testid="note-count">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+									<path d="M5 4.5h11l3 3V19.5H5z" stroke-linejoin="round" />
+									<path d="M8 10h8M8 13.5h8M8 17h5" stroke-linecap="round" />
+								</svg>{noteCount}
+							</span>
+						{/if}
+						{#if foldersReady && folder}
+							<span
+								class="ind folder-ind"
+								style="--dot: var(--nb-folder-{folder.color ?? 'none'})"
+								data-testid="entry-folder"
+							>
+								<span class="folder-dot" aria-hidden="true"></span>{folder.name}
+							</span>
+						{/if}
+						<!-- The counts read as text to assistive tech, where a glyph and a
+						     bare number would not. -->
+						<span class="sr-only">
+							{#if pages.length}{photoCountLabel(pages.length)}.{/if}
+							{#if noteCount}{noteCount === 1 ? '1 note' : `${noteCount} notes`}.{/if}
+						</span>
+					</span>
+				</span>
+			</button>
+		</div>
+	</div>
+{:else}
 <div
 	class="entry"
 	class:flagged={entry.status === 'flagged'}
@@ -590,6 +718,7 @@
 		</div>
 	{/if}
 </div>
+{/if}
 
 <style>
 	.entry {
@@ -989,6 +1118,115 @@
 		clip: rect(0, 0, 0, 0);
 		white-space: nowrap;
 		border: 0;
+	}
+
+	/* --- the `row` variant --------------------------------------------------
+	   TWO LINES, HELD BY THE SAME RULE THE CLASSROOM'S ROW USES: `nowrap` on
+	   the title line with the NAME as the only shrinkable child, so a chip
+	   never wraps the line and a long title ellipsises instead. */
+	.entry-row {
+		border-radius: var(--nb-radius-control);
+	}
+	.entry-row .disclosure {
+		gap: 0.6rem;
+		padding: 0.45rem 0.4rem;
+		align-items: center;
+	}
+	.entry-row .row-title {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		flex-wrap: nowrap;
+		min-width: 0;
+		font-size: 0.92rem;
+		font-weight: 700;
+		line-height: 1.3;
+		/* The wrapper is a flex line now, so the ellipsis lives on .row-name. */
+		white-space: normal;
+		overflow: visible;
+	}
+	.entry-row .row-name {
+		flex: 1 1 auto;
+		min-width: 2.5rem;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.entry-row .row-name.untitled {
+		color: var(--nb-ink-faint);
+		font-style: italic;
+		font-weight: 500;
+	}
+	.entry-row .row-meta {
+		flex-wrap: nowrap;
+		gap: 0.5rem;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+	.entry-row .stamp {
+		flex: none;
+	}
+	/* Counts as INDICATORS, not pills: a glyph and a number in the meta colour,
+	   no border and no padding, so two of them cost about 34px between them. */
+	.entry-row .ind {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.15rem;
+		flex: none;
+	}
+	.entry-row .ind svg {
+		width: 0.78rem;
+		height: 0.78rem;
+		display: block;
+	}
+	.entry-row .folder-ind {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		flex: 0 1 auto;
+	}
+	.entry-row .folder-dot {
+		width: 0.45em;
+		height: 0.45em;
+		border-radius: 50%;
+		background: var(--dot, var(--nb-folder-none));
+		flex: 0 0 auto;
+	}
+	.entry-row .chip {
+		flex: none;
+		font-size: 0.6rem;
+		font-weight: 600;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		padding: 0.08rem 0.42rem;
+		border: 1px solid currentColor;
+		border-radius: 999px;
+		white-space: nowrap;
+	}
+	.entry-row .pin-chip,
+	.entry-row .status.warn {
+		color: var(--nb-accent-ink);
+	}
+	.entry-row .status.pending {
+		color: var(--nb-ink-soft);
+	}
+	/*
+	 * THE ROW YOU ARE READING, indicated the way the classroom indicates it: a
+	 * lifted surface plus a rule down its leading edge, never colour alone, with
+	 * aria-current on the control itself. Gold is the notebook's own thread for
+	 * an active state, where the classroom spends green.
+	 */
+	.entry-row.current {
+		background: var(--nb-surface-dim);
+		box-shadow: inset 3px 0 0 var(--nb-accent);
+	}
+	.entry-row.current .row-name {
+		color: var(--nb-accent-ink);
+	}
+	/* The pinned edge would fight the selected one; the chip carries it here. */
+	.entry-row.pinned {
+		border-left: none;
+		padding-left: 0;
 	}
 
 	/*
