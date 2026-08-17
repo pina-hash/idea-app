@@ -1,15 +1,13 @@
 import { error, redirect } from '@sveltejs/kit';
-import { normalizeItemRow, normalizeSectionRow } from '$lib/classroom/classroom';
+import { normalizeItemRow } from '$lib/classroom/classroom';
 import {
 	selectItemsWithDoc,
-	SECTION_SELECT,
 	loadItemDeck,
 	loadStudentEngineData,
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
 import type { AssignmentSpec, RubricCriterion } from '$lib/classroom/assignment-spec';
 import { validateReferenceSpec, type ReferenceSpec } from '$lib/classroom/reference-spec';
-import { driveConfigured } from '$lib/server/notebook-drive';
 import type { PageServerLoad } from './$types';
 
 /**
@@ -27,12 +25,22 @@ import type { PageServerLoad } from './$types';
  * student's rows -- the grading console loads those deliberately, this page
  * never should. Everything fails soft pre-0086: the engine section simply does
  * not render.
+ *
+ * WHAT THIS DELIBERATELY NO LONGER RETURNS: `section`, `canManage`, `sections`
+ * and `attachmentsEnabled`. They come from +layout.server.ts, which computes
+ * them identically for the same section, and page data merges over layout data
+ * -- so returning them here would only SHADOW the layout's copies with a second
+ * set of the same values. Two queries go with them: the section row (the layout
+ * already 404s an unreadable section, and the item's own posting join is what
+ * ties the item to it) and the full section list. The manages RPC stays,
+ * because this load BRANCHES on the answer -- reading it back off the layout
+ * would mean awaiting parent() and serializing behind the whole class load for
+ * one boolean.
  */
 export const load: PageServerLoad = async ({ params, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
-	const [{ data: sectionRow }, { data: itemRow }, { data: manages }] = await Promise.all([
-		supabase.from('classroom_sections').select(SECTION_SELECT).eq('id', params.sectionId).maybeSingle(),
+	const [{ data: itemRow }, { data: manages }] = await Promise.all([
 		selectItemsWithDoc((select) =>
 			supabase
 				.from('classroom_items')
@@ -44,14 +52,11 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		supabase.rpc('classroom_manages_section', { p_section_id: params.sectionId })
 	]);
 
-	if (!sectionRow || !itemRow) error(404, 'Not found');
+	if (!itemRow) error(404, 'Not found');
 
 	let item = normalizeItemRow(itemRow as unknown as Record<string, unknown>);
 	const canManage = manages === true;
-	let sections: ReturnType<typeof normalizeSectionRow>[] = [];
 	if (canManage) {
-		const { data } = await supabase.from('classroom_sections').select(SECTION_SELECT);
-		sections = ((data ?? []) as Record<string, unknown>[]).map(normalizeSectionRow);
 		// Instructor-only materials (0090), manager reads only -- see
 		// mergeInstructorMaterials for why this is never fetched for a student.
 		[item] = await mergeInstructorMaterials(supabase, [item]);
@@ -113,11 +118,7 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 	}
 
 	return {
-		section: normalizeSectionRow(sectionRow as Record<string, unknown>),
 		item,
-		canManage,
-		sections,
-		attachmentsEnabled: driveConfigured(),
 		deck,
 		engine,
 		spec,

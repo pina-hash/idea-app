@@ -29,6 +29,24 @@
 	--space-7: 2.5rem;
 	--space-8: 3.5rem;
 
+	/* --- Content measures (the max width of a page's content column) -------
+	   Named for the JOB the column does, the way the radii above are. Five
+	   different widths were previously written as literals across eleven
+	   files with nothing tying them together, so a page's chrome and the
+	   content under it could -- and did -- disagree about how wide the page
+	   was. Where two surfaces legitimately differ, that difference is one of
+	   these names rather than a number typed twice.
+
+	   The classroom reads these through `--cr-measure` (see classroom.css),
+	   which is what keeps the breadcrumbs and tabs on the same measure as
+	   whatever is beneath them. --------------------------------------------- */
+	--measure-reading: 46rem; /* one column of prose: an item, a changelog */
+	--measure-form: 48rem; /* a form or a short console */
+	--measure-panel: 52rem; /* stacked panels of settings */
+	--measure-page: 60rem; /* the standard listing page, and the default */
+	--measure-wide: 62rem; /* the widest single column: a dense work surface */
+	--measure-split: 92rem; /* both panes of a two-pane master-detail shell */
+
 	/* --- Blueprint grid backdrop (CAD viewport / drawing sheets) --- */
 	--blueprint-bg: #171f15;
 	--blueprint-grid:

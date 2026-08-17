@@ -104,6 +104,49 @@ export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 }
 
 /**
+ * HOW WIDE THE PAGE IS, answered in the same place as "where am I".
+ *
+ * The shell's breadcrumbs and tabs used to be pinned at 60rem while the content
+ * under them could be 46rem (an item) or 62rem (grading), so the chrome only
+ * lined up with the page on the routes that happened to be 60rem too. Both now
+ * read `--cr-measure`, and this is the one function that decides it -- the
+ * content measure a place wants, as a design-system token name.
+ *
+ * The two-pane shell is NOT decided here: whether a section route splits
+ * depends on the viewport, which is a media query's job, so classroom.css
+ * widens `--cr-measure` to `--measure-split` when a split is actually on
+ * screen. See the `.cr-split` rules there.
+ */
+export type ClassroomMeasure = 'reading' | 'form' | 'panel' | 'page' | 'wide';
+
+export function classroomMeasure(loc: ClassroomLocation): ClassroomMeasure | null {
+	switch (loc.place) {
+		case 'item':
+		case 'updates':
+			return 'reading';
+		case 'feedback':
+			return 'form';
+		case 'admin':
+			return 'panel';
+		case 'item-grade':
+			return 'wide';
+		/**
+		 * NULL, not a width. `view-as` is one place covering two genuinely
+		 * different pages -- the 46rem student picker and a full 60rem class page
+		 * rendered under somebody else's name -- and it runs the shell in minimal
+		 * mode, so it has no crumbs or tabs to align with anything. Every
+		 * component there keeps its own fallback, which is exactly what it had
+		 * before this existed.
+		 */
+		case 'view-as':
+		case 'other':
+			return null;
+		default:
+			return 'page';
+	}
+}
+
+/**
  * The trail back up, most general first. The last crumb has no href because you
  * are standing on it.
  *

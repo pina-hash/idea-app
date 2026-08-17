@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-16",
+			"title": "Your class list stays on screen while you read",
+			"body": "On a laptop or desktop, opening a class now keeps everything in that class in a list down the left while whatever you picked opens on the right. The row you are reading is marked, so you always know where you are, and the list keeps its place: units you folded stay folded, and you do not get scrolled back to the top every time you open something. Moving between assignments is a click instead of a click and a trip back. On a phone or tablet nothing changes -- you get the class list, then the thing you tapped, full width, the same as before.",
+			"tags": ["Classwork"]
+		},
+		{
+			"date": "2026-08-16",
 			"title": "Better sentence counting, file previews, and a faster grading view",
 			"body": "The sentence counter on short-answer questions used to get confused by decimals, abbreviations and \"...\", so a few numbers could count as several sentences. It reads accurately now, and the count is shown as a small badge that is easy to spot at a glance. Any photo or document you or your teacher attaches now shows as a real image thumbnail, or a clear PDF / DOC / ZIP label if it is not a photo -- click to open it full size. Uploading a file now shows a live progress bar instead of going blank while it sends. And in the grading view, teachers see a student's work and the rubric side by side, each scrolling on its own, so scoring never means losing your place.",
 			"tags": ["Classwork", "Grading"]

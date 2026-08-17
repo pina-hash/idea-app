@@ -6,6 +6,7 @@
 	import {
 		activeTab,
 		classroomCrumbs,
+		classroomMeasure,
 		locateClassroom,
 		sectionTabs
 	} from '$lib/classroom/nav';
@@ -56,9 +57,19 @@
 	 * the picker. (Leaving impersonation entirely is the banner's job.)
 	 */
 	const atPicker = $derived(page.url.pathname.replace(/\/+$/, '') === '/classroom/view-as');
+
+	/**
+	 * HOW WIDE THIS ROUTE IS, set once here so the shell's breadcrumbs and tabs
+	 * and the content beneath them read the SAME number. They used to be decided
+	 * in two places -- 60rem hardcoded in the shell, a different literal in each
+	 * page component -- so they only agreed on the pages that happened to be
+	 * 60rem. Null (view-as, an unrecognized path) sets nothing at all and every
+	 * component falls back to its own measure, which is what it had before.
+	 */
+	const measure = $derived(classroomMeasure(loc));
 </script>
 
-<div class="cr-root">
+<div class="cr-root" style={measure ? `--cr-measure-route: var(--measure-${measure})` : undefined}>
 	<ClassroomShell
 		sections={data.navSections ?? []}
 		currentSectionId={loc.sectionId}

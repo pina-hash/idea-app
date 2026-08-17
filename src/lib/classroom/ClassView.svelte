@@ -82,6 +82,8 @@
 		sectionOutstanding = null,
 		work = {},
 		collapsed = [],
+		selectedItemId = null,
+		asPane = false,
 		onToggleGroup = null,
 		viewAs = null,
 		fetchPreview = null,
@@ -116,6 +118,24 @@
 		work?: Record<string, StudentWork>;
 		/** Group ids this user keeps folded, persisted per user by the route. */
 		collapsed?: string[];
+		/**
+		 * The item open in the detail pane beside this list, marked here so the
+		 * two-pane shell says which row you are reading. Null on every surface
+		 * that is not a split -- a phone, view-as, the dev harness -- where there
+		 * is no detail pane for a row to correspond to.
+		 */
+		selectedItemId?: string | null;
+		/**
+		 * There is an open DETAIL PANE beside this list, so the list is no longer
+		 * the main content of the page.
+		 *
+		 * Purely a landmark switch, and it tracks the detail rather than the split
+		 * for a reason found at 375px: below the breakpoint the detail pane is the
+		 * only pane on screen when something is open, and the list is the only one
+		 * when nothing is. Keying on "is this a split" instead left the class page
+		 * on a phone with its one `<main>` inside the hidden pane.
+		 */
+		asPane?: boolean;
 		onToggleGroup?: ((groupId: string) => void | Promise<void>) | null;
 		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
@@ -531,8 +551,8 @@
 		canManage || item.kind !== 'assignment'
 			? null
 			: (work[item.id] ?? { state: 'not-started' as const, score: null })}
-	<li class="row-wrap" class:editing={editing === item.id}>
-		<div class="row" data-testid="item-row">
+	<li class="row-wrap" class:editing={editing === item.id} class:selected={selectedItemId === item.id}>
+		<div class="row" data-testid="item-row" data-selected={selectedItemId === item.id ? 'true' : undefined}>
 			<button
 				type="button"
 				class="row-expand"
@@ -544,7 +564,12 @@
 				<span aria-hidden="true">{expanded[item.id] ? '▾' : '▸'}</span>
 			</button>
 
-			<a class="row-main" href={`${basePath}/${section.id}/item/${item.id}`} data-testid="row-open">
+			<a
+				class="row-main"
+				href={`${basePath}/${section.id}/item/${item.id}`}
+				aria-current={selectedItemId === item.id ? 'page' : undefined}
+				data-testid="row-open"
+			>
 				{@render kindGlyph(item.kind)}
 				<span class="row-text">
 					<span class="row-title">
@@ -737,7 +762,11 @@
 	<title>{sectionTitle(section)} // IDEA Classroom</title>
 </svelte:head>
 
-<main class="classroom-page">
+<svelte:element
+	this={asPane ? 'section' : 'main'}
+	class="classroom-page"
+	aria-label={asPane ? 'Class content' : undefined}
+>
 	<section class="hero">
 		<div class="eyebrow">{section.course?.code ?? 'IDEA // Classroom'}</div>
 		<h1>{section.course?.title ?? section.label}</h1>
@@ -883,7 +912,7 @@
 	<footer class="page-footer">
 		<VersionBadge app="classroom" />
 	</footer>
-</main>
+</svelte:element>
 
 <style>
 	/* Spacing and the row system only: the surface look lives in classroom.css. */
@@ -891,7 +920,7 @@
 		margin: 0 0 0.8rem;
 	}
 	.classroom-page {
-		max-width: 60rem;
+		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
 	}
@@ -988,6 +1017,15 @@
 	}
 	.row-wrap:first-child {
 		border-top: none;
+	}
+	/* THE ROW YOU ARE READING, when a detail pane is open beside the list. Green
+	   is the discipline's own colour for active navigation and this is exactly
+	   that -- `.sec-tab.active` reads the same way one level up. Never colour
+	   alone: it is a rule plus a lifted surface, and the link itself carries
+	   aria-current="page". */
+	.row-wrap.selected {
+		background: var(--surface-2);
+		box-shadow: inset 3px 0 0 var(--green);
 	}
 	.empty-row {
 		padding: 0.3rem 0.1rem;

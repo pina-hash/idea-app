@@ -40,6 +40,19 @@
 	z-index: 1;
 	background: var(--surface-0);
 	min-height: 100vh;
+
+	/* HOW WIDE THE PAGE IS. The route's answer arrives as `--cr-measure-route`
+	   (set inline by src/routes/classroom/+layout.svelte from nav.ts's
+	   classroomMeasure) and is resolved into `--cr-measure` HERE, in the
+	   stylesheet, rather than being written to `--cr-measure` directly.
+
+	   THAT INDIRECTION IS LOAD-BEARING: an inline style beats every selector,
+	   `:has()` included, so a route that set `--cr-measure` itself could not be
+	   widened by the two-pane rule below -- which is exactly the bug it was
+	   written with (960px of chrome over a 1440px split). Both writers are
+	   stylesheet rules on this element now, so specificity decides, and the
+	   more specific one is the split. */
+	--cr-measure: var(--cr-measure-route, var(--measure-page));
 }
 
 /* The scanline + vignette overlay is a SIBLING of this wrapper's ancestor, so
@@ -319,4 +332,85 @@ body:has(.cr-root) {
 	border-top: 1px solid var(--hairline);
 	margin: 0.1rem 0;
 	width: 100%;
+}
+
+/* --- The two-pane class shell --------------------------------------------
+   ONE CLASS, master-detail: the class content stays on screen on the left
+   while the thing you picked opens on the right. The structure is in
+   src/routes/classroom/[sectionId]/+layout.svelte -- ClassView is mounted by
+   the LAYOUT, which is what makes the list survive opening an item. All this
+   file decides is the geometry, and the geometry is where the breakpoint
+   lives: no state and no viewport measurement chooses a pane, so the two
+   widths cannot disagree about which one is showing.
+
+   BELOW 1024px THIS IS THE SINGLE COLUMN THAT SHIPPED BEFORE IT EXISTED.
+   Exactly one pane is on screen -- the list on the class page, the item on an
+   item page -- at full width. The list is NEVER rendered beside a selected
+   item at phone or tablet width, which is what `has-detail` says.
+   ------------------------------------------------------------------------ */
+.cr-split {
+	min-width: 0;
+}
+
+@media (max-width: 1023.98px) {
+	/* An item is open: it is the page. */
+	.cr-split.has-detail .cr-nav {
+		display: none;
+	}
+	/* Nothing is open: the empty detail prompt is a desktop affordance and
+	   would be an empty panel under the list here, so it is not rendered. */
+	.cr-split:not(.has-detail) .cr-detail {
+		display: none;
+	}
+}
+
+@media (min-width: 1024px) {
+	/* The chrome spans BOTH panes, so the trail and the tabs line up with the
+	   split rather than with either half of it. `:has()` is the established
+	   tool in this file (see the .bg-fx suppression above) and is what lets a
+	   rule set on .cr-root respond to something a child layout rendered. */
+	.cr-root:has(.cr-split) {
+		--cr-measure: var(--measure-split);
+	}
+
+	.cr-split {
+		display: grid;
+		grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+		gap: var(--space-5);
+		max-width: var(--measure-split);
+		margin: 0 auto;
+		padding: 0 1.2rem;
+		align-items: start;
+	}
+
+	/* EACH PANE IS ITS OWN SCROLL CONTAINER, so reading down a long item never
+	   moves the list and vice versa. The height is the viewport less the
+	   masthead, trail and tabs above it; --cr-chrome-h is here to be tuned in
+	   one place rather than guessed at three call sites. */
+	.cr-split > .cr-nav,
+	.cr-split > .cr-detail {
+		--cr-chrome-h: 9.5rem;
+		min-width: 0;
+		max-height: calc(100vh - var(--cr-chrome-h));
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+
+	/* The list FILLS its pane -- `none` is a legal max-width, so the pane sets
+	   the same custom property the page measure travels on rather than needing
+	   a rule that reaches inside a component. */
+	.cr-split > .cr-nav {
+		--cr-measure: none;
+	}
+	.cr-split > .cr-nav .classroom-page {
+		padding-inline: 0;
+		padding-bottom: var(--space-5);
+	}
+
+	/* Prose keeps its reading measure inside the detail pane: the pane is far
+	   wider than a column of text should ever be, and widening the split must
+	   not widen the sentences. */
+	.cr-split > .cr-detail {
+		--cr-measure: var(--measure-reading);
+	}
 }

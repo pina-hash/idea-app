@@ -52,7 +52,9 @@ import {
 	type ClassCheckIn
 } from '../src/lib/classroom/class-check-ins';
 import type { ClassroomItem } from '../src/lib/classroom/classroom';
-import { load } from '../src/routes/classroom/[sectionId]/+page.server';
+// The class content load is a LAYOUT load now (the two-pane shell's navigation
+// pane has to outlive opening an item). Same function, same return.
+import { load } from '../src/routes/classroom/[sectionId]/+layout.server';
 
 /**
  * The chain the live project carries, up to and including the Documentation

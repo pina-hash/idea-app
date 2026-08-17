@@ -51,7 +51,7 @@
 
 <style>
 	.ref-page {
-		max-width: 48rem;
+		max-width: var(--cr-measure, var(--measure-form));
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
 	}

@@ -1,96 +1,63 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
-	import ClassView from '$lib/classroom/ClassView.svelte';
-	import {
-		readClassViewPrefs,
-		toggleGroupCollapsed,
-		type ClassViewPrefs
-	} from '$lib/classroom/classroom';
-	import {
-		classroomFeedbackSubmit,
-		createClassroomTransports,
-		createTeacherEngineTransports,
-		createUnitTransports,
-		deckTransports,
-		fetchLinkPreviewClient,
-		loadExportStatuses,
-		runClassroomExport
-	} from '$lib/classroom/transports';
+	import { sectionTitle } from '$lib/classroom/classroom';
 	import type { PageData } from './$types';
 
+	/**
+	 * THE DETAIL PANE BEFORE ANYTHING IS SELECTED.
+	 *
+	 * The class content itself moved up to +layout.svelte, where it is the
+	 * navigation pane and survives opening an item. What is left here is the
+	 * other half of the split: what a person sees on the right before they have
+	 * picked something.
+	 *
+	 * BELOW 1024px THIS IS NOT RENDERED AT ALL -- `.cr-split:not(.has-detail)
+	 * .cr-detail` is display:none there, so a phone gets the class list full
+	 * width exactly as it always has, with no empty panel under it. That is why
+	 * this carries nothing a reader would miss: it is a desktop-only prompt, not
+	 * a page.
+	 *
+	 * `section` comes from the layout load (page data and layout data merge), so
+	 * there is no second query behind this.
+	 */
 	let { data }: { data: PageData } = $props();
-
-	// The same transports the rest of the module uses. Handing them in is what
-	// turns the on-row controls on; every one of them is re-authorized by the RPC
-	// it calls, so this is plumbing, never a boundary.
-	// The Supabase client is ONE stable instance for the session, so capturing it
-	// once is the intent here, not a missed reactive read.
-	// svelte-ignore state_referenced_locally
-	const transports = createClassroomTransports(data.supabase);
-	// svelte-ignore state_referenced_locally
-	const unitTransports = createUnitTransports(data.supabase);
-	// svelte-ignore state_referenced_locally
-	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
-	// svelte-ignore state_referenced_locally
-	const teacherTransports = createTeacherEngineTransports(data.supabase);
-
-	/**
-	 * The notebook door for whoever is looking. A manager of this section gets the
-	 * review console already scoped to it -- `notebook_get_section_grid` asks
-	 * `classroom_manages_section`, the same question `canManage` is, so the link
-	 * can never offer a grid the database would refuse. Everyone else reading this
-	 * page is an actively enrolled student, and theirs is their own notebook.
-	 */
-	const notebookHref = $derived(
-		data.canManage ? `/notebook/review?section=${data.section.id}` : '/notebook'
-	);
-
-	/**
-	 * Folded units, optimistic locally so the caret turns on the click rather
-	 * than on the round trip -- the home feed's own pattern, including writing
-	 * the WHOLE preferences object back so a sibling key (the launcher's layout,
-	 * the feed's own collapse) is never clobbered.
-	 */
-	let prefs = $state<ClassViewPrefs>({});
-	let localCollapsed = $state<string[] | null>(null);
-	$effect(() => {
-		prefs = readClassViewPrefs(data.preferences);
-		localCollapsed = null;
-	});
-	const collapsed = $derived(localCollapsed ?? data.collapsed ?? []);
-
-	async function toggleGroup(groupId: string) {
-		const next = toggleGroupCollapsed(prefs, data.section.id, groupId);
-		prefs = next;
-		localCollapsed = collapsed.includes(groupId)
-			? collapsed.filter((id) => id !== groupId)
-			: [...collapsed, groupId];
-		if (!data.claims?.sub) return;
-		const merged = { ...(data.preferences ?? {}), classroomUnits: next };
-		await data.supabase.from('profiles').update({ preferences: merged }).eq('id', data.claims.sub);
-	}
 </script>
 
-<ClassView
-	section={data.section}
-	items={data.items}
-	units={data.units}
-	sections={data.sections}
-	canManage={data.canManage}
-	attachmentsEnabled={data.attachmentsEnabled}
-	checkIns={data.checkIns}
-	sectionOutstanding={data.sectionOutstanding}
-	work={data.work}
-	{collapsed}
-	onToggleGroup={toggleGroup}
-	{transports}
-	{unitTransports}
-	{deckTransports}
-	{teacherTransports}
-	{submitFeedback}
-	{notebookHref}
-	fetchPreview={fetchLinkPreviewClient}
-	loadExportStatuses={(ids) => loadExportStatuses(data.supabase, ids)}
-	retryExport={runClassroomExport}
-	onchanged={() => invalidateAll()}
-/>
+<svelte:head>
+	<title>{sectionTitle(data.section)} // IDEA Classroom</title>
+</svelte:head>
+
+<div class="empty-detail" data-testid="detail-empty">
+	<p class="lead">Nothing open yet</p>
+	<p class="hint">
+		Pick an announcement, assignment or material from the class to read it here.
+	</p>
+</div>
+
+<style>
+	.empty-detail {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-2);
+		min-height: 18rem;
+		padding: var(--space-6) var(--space-4);
+		text-align: center;
+		border: 1px dashed var(--hairline);
+		border-radius: var(--radius-card);
+	}
+	.lead {
+		margin: 0;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.82rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--text-2);
+	}
+	.hint {
+		margin: 0;
+		max-width: 26rem;
+		font-size: 0.9rem;
+		color: var(--text-3);
+	}
+</style>

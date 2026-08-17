@@ -47,7 +47,10 @@ import {
 	type ClassroomItem,
 	type ClassroomUnit
 } from '../src/lib/classroom/classroom';
-import { load as loadClass } from '../src/routes/classroom/[sectionId]/+page.server';
+// The class content load is a LAYOUT load now: it is the two-pane shell's
+// navigation pane and must survive opening an item, so it lives above the
+// page rather than on it. Same function, same return -- only its file moved.
+import { load as loadClass } from '../src/routes/classroom/[sectionId]/+layout.server';
 import { load as loadPeople } from '../src/routes/classroom/[sectionId]/people/+page.server';
 import { load as loadGrades } from '../src/routes/classroom/[sectionId]/grades/+page.server';
 

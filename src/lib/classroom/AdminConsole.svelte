@@ -314,7 +314,7 @@
 
 <style>
 	.classroom-page {
-		max-width: 52rem;
+		max-width: var(--cr-measure, var(--measure-panel));
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
 	}

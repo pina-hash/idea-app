@@ -17,7 +17,7 @@ import { checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins
 import { NOTEBOOK_POSTING_SELECT } from '$lib/notebook-selects';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import { driveConfigured } from '$lib/server/notebook-drive';
-import type { PageServerLoad } from './$types';
+import type { LayoutServerLoad } from './$types';
 
 /**
  * The check-ins scheduled for THIS class (0098), without anybody's status.
@@ -71,6 +71,23 @@ async function sectionCheckIns(
 }
 
 /**
+ * THE CLASS ITSELF, loaded ONCE for every route under /classroom/<section>.
+ *
+ * IT IS A LAYOUT LOAD BECAUSE THE CLASS CONTENT IS NAVIGATION, not a page. The
+ * section route is a two-pane master-detail shell above 1024px: the list of
+ * everything in the class stays on screen on the left while an item opens on
+ * the right. A page load would re-run on every item you opened and take the
+ * list -- and the reader's place in it -- with it.
+ *
+ * WHAT THAT COSTS AND WHY IT IS TAKEN. This now also runs on /people, /grades
+ * and the deck viewer, which do not use the list. It is paid ONCE per section
+ * visit, not per navigation: SvelteKit re-runs a layout load only when its own
+ * dependencies change, and `sectionId` does not change as you move around
+ * inside a class -- so browsing the class and then opening the roster is
+ * cheaper than it was, and only a cold direct hit on /people or /grades pays
+ * more. THIS LOAD MUST NEVER READ `url`: a dependency on the pathname would
+ * re-run it on every navigation and undo the whole point.
+ *
  * One class: Stream + Classwork. Every read runs as the CALLER'S OWN session
  * with no role branch -- RLS decides what comes back (a student load simply
  * never receives drafts or a foreign section, and the attachment, link and
@@ -94,7 +111,7 @@ async function sectionCheckIns(
  * That is the same reason they are not, and must not become, a gradeable
  * Classroom item -- see $lib/classroom/class-check-ins.
  */
-export const load: PageServerLoad = async ({ params, locals: { supabase, claims } }) => {
+export const load: LayoutServerLoad = async ({ params, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
 
 	const { data: sectionRow } = await supabase

@@ -465,7 +465,7 @@
 	}
 
 	.grading-page {
-		max-width: 62rem;
+		max-width: var(--cr-measure, var(--measure-wide));
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
 	}

@@ -121,6 +121,9 @@ export const APPS: SiteApp[] = [
 			'src/routes/dev/classroom-deck/',
 			// Phase 1 (0109): scheduling + the calm surfaces, and its harness.
 			'src/routes/dev/classroom-phase1/',
+			// The two-pane class shell's harness. Its own prefix because
+			// 'src/routes/dev/classroom/' does not match 'classroom-split'.
+			'src/routes/dev/classroom-split/',
 			// Rich item bodies (0108): the server-side sanitizer. Its client-safe
 			// half is under src/lib/classroom/; the shared link-scheme primitive
 			// in src/lib/rich-text.ts is deliberately NOT claimed here, since the

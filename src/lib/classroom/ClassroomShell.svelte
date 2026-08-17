@@ -311,8 +311,14 @@
 		background: var(--hairline);
 	}
 
+	/* THE CHROME IS AS WIDE AS THE PAGE UNDER IT. Both read `--cr-measure`,
+	   which src/routes/classroom/+layout.svelte sets once per route from
+	   nav.ts's `classroomMeasure` -- so the trail and the tabs line up with a
+	   46rem item and a 62rem grading console, not only with the 60rem pages
+	   they used to be pinned to. The fallback is what the dev harness (which
+	   mounts this with no layout) and view-as get. */
 	.crumbs {
-		max-width: 60rem;
+		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto;
 		padding: 0 1.2rem;
 	}
@@ -354,7 +360,7 @@
 	.sec-tabs {
 		display: flex;
 		gap: 0.3rem;
-		max-width: 60rem;
+		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto 0.9rem;
 		padding: 0 1.2rem;
 		border-bottom: 1px solid var(--hairline);
