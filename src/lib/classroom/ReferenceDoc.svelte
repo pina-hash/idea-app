@@ -2,6 +2,17 @@
 	import ReferenceBlock from '$lib/classroom/ReferenceBlock.svelte';
 	import type { LinkPreview } from '$lib/classroom/classroom';
 	import { slugFromHash, type ReferenceSpec } from '$lib/classroom/reference-spec';
+	import {
+		canScrollEnd,
+		canScrollStart,
+		dragCanStart,
+		dragPastSlop,
+		dragScrollLeft,
+		nudgeScrollTarget,
+		stripOverflows,
+		wheelStripScroll,
+		type StripMetrics
+	} from '$lib/classroom/tab-strip';
 
 	/**
 	 * A reference document rendered: sections as tabs (the default) or stacked.
@@ -31,7 +42,7 @@
 	 * inactive ones being display:none) means the top of the document.
 	 *
 	 * THE STRIP SCROLLS, IT NEVER OVERFLOWS ITS CONTAINER. `.tabs` is its own
-	 * overflow-x:auto box (scrollbar hidden, edge fades in its place), and
+	 * overflow-x:auto box, and
 	 * `active` is re-clamped to a real section of the CURRENT `spec` on every
 	 * prop change (see the effect right after selectTab()) -- load-bearing since
 	 * the classroom item page mounts this inside a persistent detail pane that
@@ -40,11 +51,39 @@
 	 * section at once and leaves the strip's scroll position wherever the
 	 * PREVIOUS document put it.
 	 *
+	 * THE STRIP IS OPERABLE WITHOUT SELECTING ANYTHING, and that is the whole
+	 * point of the controls below. It shipped once with none: the scrollbar was
+	 * hidden on the grounds that an edge fade replaced it, there were no scroll
+	 * buttons, no wheel handling and no drag -- so the only thing that moved the
+	 * strip was clicking a half-visible tab, which also changed what the reader
+	 * was reading, and tabs past the last one you could reach that way were
+	 * simply unreachable. A fade says "there is more"; it is not a control.
+	 * Four ways to move it now, none of which change the section:
+	 *
+	 *   - the SCROLLBAR, thin and quiet but present, inherited from the module's
+	 *     own treatment in $lib/shell/split.css rather than restyled here (the
+	 *     documented exception that used to hide it is gone from that file);
+	 *   - PREV/NEXT buttons at the strip's edges (nudge()), one strip-width less
+	 *     a tab's lead-in per press, disabled and faded at their own end;
+	 *   - the WHEEL over the strip (onRailWheel), vertical delta translated to
+	 *     horizontal -- and deliberately NOT swallowed once the strip is at the
+	 *     end in the wheel's direction, so the page keeps scrolling;
+	 *   - POINTER DRAG past a slop threshold (onRailPointerDown and friends),
+	 *     which cancels the click it would otherwise have fired so a drag never
+	 *     also picks a section, while a press that never travelled still does.
+	 *
+	 * TOUCH IS LEFT TO THE BROWSER on purpose: the drag handlers ignore
+	 * `pointerType === 'touch'`, because native touch scrolling is what gives
+	 * the strip its momentum and a 1:1 JS drag would replace it with one that
+	 * stops dead on release.
+	 *
 	 * KEYBOARD: roving tabindex, the standard tablist pattern (see
 	 * onTablistKeydown below) -- only the active tab sits in the normal Tab
 	 * order; arrow keys move focus and selection together, Home/End jump to the
 	 * ends, and the newly focused tab is scrolled into view by the same
-	 * keepActiveVisible() a click already runs.
+	 * keepActiveVisible() a click already runs. keepActiveVisible is still
+	 * wired, but it is no longer the only thing that can move the strip, which
+	 * is what it had become.
 	 */
 	let {
 		spec,
@@ -90,11 +129,16 @@
 	 *  of pinning -- which reads as a small jump on every tab click. */
 	let railHeight = $state(0);
 	let scrollable = $state(false);
-	/** Fades, one per edge, each shown only when there is actually something that
-	 *  way: left once the strip is scrolled off its start, right until it reaches
-	 *  the end. Both derive from the same scroll measurement below. */
-	let fadeStart = $state(false);
-	let fadeEnd = $state(false);
+	/** Is there anything past this edge? One measurement, one meaning, and the
+	 *  prev/next buttons are its only consumer -- each is rendered while the
+	 *  strip overflows at all, and disabled (and faded out of the way) once its
+	 *  own direction has nothing left to give. The two edge FADES this replaced
+	 *  said the same thing and could not act on it. */
+	let canStart = $state(false);
+	let canEnd = $state(false);
+	/** A pointer drag is in progress: the cursor changes, and it is what tells
+	 *  the click handler to swallow the click this drag would otherwise fire. */
+	let dragging = $state(false);
 
 	function sectionEl(slug: string): HTMLElement | null {
 		if (typeof document === 'undefined') return null;
@@ -241,7 +285,7 @@
 
 	/**
 	 * Does the bar actually overflow, and which way is there more of it? Drives
-	 * both "more tabs that way" fades. Also measures the rail, which
+	 * both prev/next buttons. Also measures the rail, which
 	 * .ref-body's min-height needs exactly.
 	 *
 	 * The 2px slack on the overflow test absorbs sub-pixel layout; the 1px slack
@@ -256,15 +300,139 @@
 	 * the native 'scroll' event below -- which exists for the one case this
 	 * component does NOT initiate: the reader's own trackpad/wheel/touch drag.
 	 */
+	/** The strip as the pure layer sees it. */
+	function metrics(bar: HTMLElement): StripMetrics {
+		return {
+			scrollLeft: bar.scrollLeft,
+			clientWidth: bar.clientWidth,
+			scrollWidth: bar.scrollWidth
+		};
+	}
+
 	function measureRail() {
 		const bar = tabBar;
 		const rail = railEl;
 		if (!bar || !rail) return;
-		const overflow = bar.scrollWidth - bar.clientWidth;
-		scrollable = overflow > 2;
-		fadeStart = scrollable && bar.scrollLeft > 1;
-		fadeEnd = scrollable && bar.scrollLeft < overflow - 1;
+		const m = metrics(bar);
+		scrollable = stripOverflows(m);
+		canStart = canScrollStart(m);
+		canEnd = canScrollEnd(m);
 		railHeight = rail.offsetHeight;
+	}
+
+	/**
+	 * PREV / NEXT. The rule -- and why it is a tab-aligned move rather than a
+	 * fixed step, which left seven tabs unreachable when it was one -- lives in
+	 * `nudgeScrollTarget` in $lib/classroom/tab-strip.ts, with the tabs handed
+	 * to it in the content-space coordinates it works in.
+	 *
+	 * A plain scrollLeft write, not scrollBy(): always instant, so the global
+	 * `scroll-behavior: smooth` in app.css cannot animate it and the measurement
+	 * afterwards is reading the position it just set.
+	 */
+	function nudge(dir: -1 | 1) {
+		const bar = tabBar;
+		if (!bar) return;
+		const view = bar.getBoundingClientRect();
+		const spans = Array.from(bar.querySelectorAll<HTMLElement>('.tab')).map((t) => {
+			const r = t.getBoundingClientRect();
+			return { start: r.left - view.left + bar.scrollLeft, end: r.right - view.left + bar.scrollLeft };
+		});
+		bar.scrollLeft = nudgeScrollTarget(metrics(bar), spans, dir);
+		measureRail();
+	}
+
+	/**
+	 * WHEEL OVER THE STRIP SCROLLS THE STRIP -- and stops doing so the moment it
+	 * has nothing left to give in that direction, which is what keeps it from
+	 * eating the page scroll. A reader wheeling down the page over a strip that
+	 * is already at its end must go on reading the page. Which axis is used and
+	 * where the edges are is `wheelStripScroll`'s decision.
+	 *
+	 * The listener is attached with `{ passive: false }` (see the effect below),
+	 * because a passive one cannot preventDefault and the page would scroll too.
+	 */
+	function onRailWheel(event: WheelEvent) {
+		const bar = tabBar;
+		if (!bar) return;
+		const outcome = wheelStripScroll(metrics(bar), event.deltaX, event.deltaY);
+		if (!outcome.consume) return;
+		event.preventDefault();
+		bar.scrollLeft = outcome.scrollLeft;
+		measureRail();
+	}
+
+	/**
+	 * POINTER DRAG, with a slop threshold, and MOUSE ONLY.
+	 *
+	 * Touch returns early: the browser's own touch scrolling (with
+	 * -webkit-overflow-scrolling and the platform's momentum) is better than
+	 * anything this could do by hand, and taking the pointer over would replace
+	 * a flick that coasts with a drag that stops dead.
+	 *
+	 * The slop is what keeps a tap a tap. Under DRAG_SLOP_PX the press has not
+	 * become a drag, nothing scrolls, and the click runs normally -- so tapping a
+	 * tab still selects it. Past it the strip scrolls and the click that follows
+	 * is cancelled in the capture phase, so a drag that happens to end over a tab
+	 * never also changes what the reader is reading.
+	 *
+	 * Pointer capture is taken only ONCE THE DRAG HAS STARTED, deliberately: a
+	 * capture set at pointerdown retargets the following click to the capturing
+	 * element in Chrome, which would stop every tab click from reaching its own
+	 * button. By then the click is one we are cancelling anyway.
+	 *
+	 * Both decisions -- may this press start a drag, and has it travelled far
+	 * enough to be one -- are `dragCanStart` / `dragPastSlop` in
+	 * $lib/classroom/tab-strip.ts.
+	 */
+	let dragId: number | null = null;
+	let dragFromX = 0;
+	let dragFromScroll = 0;
+	let swallowClick = false;
+
+	function onRailPointerDown(event: PointerEvent) {
+		const bar = tabBar;
+		// Cleared here as well as when a click consumes it: a drag released
+		// outside the window fires no click at all, and a stale flag would
+		// otherwise eat the next genuine tab click.
+		swallowClick = false;
+		if (!bar || !dragCanStart(event.pointerType, event.button, scrollable)) return;
+		dragId = event.pointerId;
+		dragFromX = event.clientX;
+		dragFromScroll = bar.scrollLeft;
+		dragging = false;
+	}
+
+	function onRailPointerMove(event: PointerEvent) {
+		const bar = tabBar;
+		if (!bar || dragId !== event.pointerId) return;
+		const dx = event.clientX - dragFromX;
+		if (!dragging) {
+			if (!dragPastSlop(dx)) return;
+			dragging = true;
+			try {
+				bar.setPointerCapture(event.pointerId);
+			} catch {
+				// A pointer that has already been released or cancelled: the drag
+				// still works, it just stops tracking outside the strip.
+			}
+		}
+		bar.scrollLeft = dragScrollLeft(metrics(bar), dragFromScroll, dx);
+		measureRail();
+	}
+
+	function onRailPointerEnd(event: PointerEvent) {
+		if (dragId !== event.pointerId) return;
+		swallowClick = dragging;
+		dragging = false;
+		dragId = null;
+	}
+
+	function onRailClickCapture(event: MouseEvent) {
+		if (!swallowClick) return;
+		swallowClick = false;
+		event.preventDefault();
+		event.stopPropagation();
 	}
 
 	/**
@@ -310,9 +478,26 @@
 		ro.observe(bar);
 		ro.observe(rail);
 		bar.addEventListener('scroll', measureRail, { passive: true });
+		// EVERY INTERACTION LISTENER IS ATTACHED BY HAND, not through Svelte's
+		// event attributes (the DrawingViewer rule): the wheel one needs
+		// `{ passive: false }` to be allowed to preventDefault at all, and the
+		// click one needs the CAPTURE phase to get in front of a tab's own
+		// onclick. Neither option is expressible as an attribute.
+		bar.addEventListener('wheel', onRailWheel, { passive: false });
+		bar.addEventListener('pointerdown', onRailPointerDown);
+		bar.addEventListener('pointermove', onRailPointerMove);
+		bar.addEventListener('pointerup', onRailPointerEnd);
+		bar.addEventListener('pointercancel', onRailPointerEnd);
+		bar.addEventListener('click', onRailClickCapture, { capture: true });
 		return () => {
 			ro.disconnect();
 			bar.removeEventListener('scroll', measureRail);
+			bar.removeEventListener('wheel', onRailWheel);
+			bar.removeEventListener('pointerdown', onRailPointerDown);
+			bar.removeEventListener('pointermove', onRailPointerMove);
+			bar.removeEventListener('pointerup', onRailPointerEnd);
+			bar.removeEventListener('pointercancel', onRailPointerEnd);
+			bar.removeEventListener('click', onRailClickCapture, { capture: true });
 		};
 	});
 
@@ -393,12 +578,48 @@
 
 	{#if tabbed}
 		<div class="rail-anchor" bind:this={railAnchor} aria-hidden="true"></div>
+		<!-- BELOW 40rem THIS IS A SELECT INSTEAD, and which one shows is decided
+		     entirely by the media query at the bottom of the stylesheet -- both are
+		     always in the DOM, so nothing here measures a viewport and the server
+		     and the client cannot disagree about which control exists. The
+		     measurement behind the breakpoint is in the picker's own comment. -->
+		<label class="tab-picker">
+			<span class="picker-label">Section</span>
+			<select
+				class="picker"
+				value={active}
+				onchange={(e) => selectTab((e.currentTarget as HTMLSelectElement).value)}
+			>
+				{#each spec.sections as section (section.slug)}
+					<option value={section.slug}>{section.title}</option>
+				{/each}
+			</select>
+		</label>
 		<!-- Pinned to the top of the document and left-to-right, scrolling
-		     horizontally on a phone rather than wrapping or collapsing into a
-		     menu: a student has to be able to SEE that more tabs exist. -->
-		<div class="tab-rail" class:fade-start={fadeStart} class:fade-end={fadeEnd} bind:this={railEl}>
+		     horizontally rather than wrapping: a student has to be able to SEE
+		     that more sections exist, and now to move the strip without picking
+		     one.
+		     BOTH BUTTONS ARE RENDERED WHENEVER THE STRIP OVERFLOWS, and the one
+		     with nothing behind it is disabled and faded rather than removed --
+		     dropping it out of the flow would resize the strip mid-scroll and
+		     shift every tab sideways the first time the reader moved it. -->
+		<div class="tab-rail" bind:this={railEl}>
+			{#if scrollable}
+				<button
+					type="button"
+					class="rail-nudge"
+					class:spent={!canStart}
+					disabled={!canStart}
+					aria-label="Scroll sections left"
+					data-nudge="prev"
+					onclick={() => nudge(-1)}
+				>
+					<span aria-hidden="true">&lsaquo;</span>
+				</button>
+			{/if}
 			<div
 				class="tabs"
+				class:dragging
 				role="tablist"
 				aria-label="Sections"
 				bind:this={tabBar}
@@ -421,6 +642,19 @@
 					</button>
 				{/each}
 			</div>
+			{#if scrollable}
+				<button
+					type="button"
+					class="rail-nudge"
+					class:spent={!canEnd}
+					disabled={!canEnd}
+					aria-label="Scroll sections right"
+					data-nudge="next"
+					onclick={() => nudge(1)}
+				>
+					<span aria-hidden="true">&rsaquo;</span>
+				</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -493,50 +727,89 @@
 		border-bottom: 1px solid var(--line-strong);
 		margin: 0 0 var(--space-5);
 		padding-top: 0.35rem;
+		/* The two nudge buttons take their own columns beside the strip rather
+		   than floating over it: a tab half under a button is a tab you cannot
+		   fully see or reliably click, which is the state this whole change
+		   exists to end. */
+		display: flex;
+		/* Aligned to the TAB ROW, not to the strip's whole box: the strip is now
+		   44px of tabs plus a ~10px scrollbar band, and a stretched button
+		   centres its chevron on the pair -- measured 5px below the tab labels
+		   beside it. */
+		align-items: flex-start;
 	}
 	.tabs {
 		display: flex;
 		gap: 0.2rem;
 		overflow-x: auto;
-		/* The bar still scrolls -- by drag, wheel, touch, and by the effect above
-		   when the active tab is off-screen -- but its scrollbar is hidden. On
-		   Windows it renders as a permanent full-width trough under the rail,
-		   which is louder than the tabs it sits beneath; the edge fades
-		   (.tab-rail.fade-start / .fade-end) are what say there are more tabs. */
-		scrollbar-width: none;
-		-ms-overflow-style: none;
+		flex: 1 1 auto;
+		min-width: 0;
 		-webkit-overflow-scrolling: touch;
-		scroll-snap-type: x proximity;
+		/* THE SCROLLBAR IS THE MODULE'S OWN, inherited from $lib/shell/split.css
+		   with nothing overridden here. It was hidden once (`scrollbar-width:
+		   none` plus a zero-size ::-webkit-scrollbar) on the grounds that the
+		   edge fades replaced the affordance; they did not -- a gradient cannot
+		   be dragged -- and it left a strip that scrolled with no way to scroll
+		   it. Thin and quiet, but present.
+		   NO SCROLL SNAP, and that is a measured decision rather than a
+		   simplification: with `scroll-snap-type: x proximity` any scroll
+		   shorter than the gap to the next tab boundary was snapped back to
+		   where it started, so small wheel deltas and short drags silently did
+		   nothing. The buttons land on sensible positions on their own. */
 		padding-bottom: 0;
+		/* The labels are uppercase mono navigation, not prose anyone copies, and
+		   a mouse drag that highlights them instead of scrolling reads as broken. */
+		user-select: none;
+		-webkit-user-select: none;
 	}
-	.tabs::-webkit-scrollbar {
-		display: none;
+	.tabs.dragging {
+		cursor: grabbing;
 	}
-	/* One fade per edge, each gated on its own end actually having more tabs
-	   behind it -- so scrolling to the end drops the right fade instead of
-	   pointing at nothing, and the left one only appears once there is something
-	   back that way. */
-	.tab-rail.fade-start::before,
-	.tab-rail.fade-end::after {
-		content: '';
-		position: absolute;
-		top: 0.35rem;
-		bottom: 1px;
-		width: 2.2rem;
+	/* PREV / NEXT. Quiet chrome in the rail's own register -- a mono chevron in
+	   the muted text colour, the tabs' own 44px target height -- because they are
+	   how you MOVE the strip, not what you pick from it; the green is spent on
+	   the active tab. `.spent` is the end of the strip in that direction: the
+	   button keeps its box (see the markup) and stops being an affordance. */
+	.rail-nudge {
+		appearance: none;
+		flex: none;
+		width: 2.75rem;
+		/* The tabs' own target height, so the two line up and the target is the
+		   full 44px in both directions. */
+		height: 44px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--surface-0);
+		border: 1px solid transparent;
+		border-radius: var(--radius-card);
+		color: var(--text-2);
+		font-family: var(--font-mono);
+		font-size: 1.1rem;
+		line-height: 1;
+		cursor: pointer;
+		transition: opacity 120ms ease;
+	}
+	.rail-nudge:hover:not(.spent) {
+		color: var(--text-1);
+		background: var(--surface-1);
+	}
+	.rail-nudge:focus-visible {
+		outline: 2px solid var(--focus-ring, var(--cyan));
+		outline-offset: -3px;
+	}
+	.rail-nudge.spent {
+		opacity: 0;
 		pointer-events: none;
 	}
-	.tab-rail.fade-start::before {
-		left: 0;
-		background: linear-gradient(to left, transparent, var(--surface-0) 78%);
-	}
-	.tab-rail.fade-end::after {
-		right: 0;
-		background: linear-gradient(to right, transparent, var(--surface-0) 78%);
+	@media (prefers-reduced-motion: reduce) {
+		.rail-nudge {
+			transition: none;
+		}
 	}
 	.tab {
 		appearance: none;
 		flex: none;
-		scroll-snap-align: start;
 		position: relative;
 		background: transparent;
 		border: 1px solid transparent;
@@ -575,16 +848,14 @@
 		background: var(--green);
 		border-radius: var(--radius-card) var(--radius-card) 0 0;
 	}
-	/* Cover the rail's underline under the active tab so it reads as one
-	   surface with the section below it. */
-	.tab.active::after {
-		content: '';
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: -1px;
-		height: 1px;
-		background: var(--surface-1);
+	/* THE ACTIVE TAB NO LONGER JOINS THE RAIL'S UNDERLINE, and it cannot: the
+	   scrollbar now occupies a band between the bottom of the tabs and the
+	   rail's bottom border, and a scrollbar gutter is not paintable by content,
+	   so the 1px `--surface-1` cover this used to draw would sit in the middle
+	   of the strip covering nothing. The filled surface and the green cap above
+	   are what mark the active tab; they were always the findable part. */
+	.tabs.dragging .tab {
+		cursor: grabbing;
 	}
 	.tab:focus-visible {
 		outline: 2px solid var(--focus-ring, var(--cyan));
@@ -641,13 +912,80 @@
 		max-width: var(--rb-measure);
 	}
 
-	@media (max-width: 600px) {
+	/* --- The phone control -----------------------------------------------
+	   BELOW 40rem THE STRIP BECOMES A LABELLED SELECT, and this is a measured
+	   decision rather than a preference.
+
+	   The prev/next buttons cost 88px of the strip -- MEASURED, both surfaces,
+	   at a 375px viewport: the public /reference page's strip goes 337 -> 249px
+	   and the classroom item page's (which pays for the page gutter AND the
+	   card's own padding) goes 293 -> 205px. In whole tabs that is 4 -> 3 on
+	   the public page and 3 -> 2 on the item page.
+
+	   The bar: a strip has to show at least THREE whole tabs -- the one you are
+	   on and a neighbour each side -- or it is a peephole rather than a strip,
+	   and paging through fourteen sections two labels at a time is worse than a
+	   native picker that shows all fourteen at once. The item page fails that at
+	   375px, so the phone gets the select.
+
+	   40rem, not 375px: at a 641px viewport the same item page shows 5 whole
+	   tabs, so the strip appears with real room rather than at the edge of the
+	   bar it just failed. This REVERSES the earlier "never collapse into a menu
+	   on a phone" note -- which was written when the strip had no controls at
+	   all, and a strip you cannot scroll is not a strip you can see more of.
+
+	   The tab type rule that used to live in a 600px block went with it: the
+	   strip does not render at that width any more, so it was dead. */
+	.tab-picker {
+		display: none;
+	}
+
+	@media (max-width: 40rem) {
 		.ref-title {
 			font-size: 1.35rem;
 		}
-		.tab {
+		.tab-rail {
+			display: none;
+		}
+		/* Sticky for the same reason the strip is: the reader has to be able to
+		   change section from anywhere in a long document without scrolling back
+		   to the top for the control. */
+		.tab-picker {
+			display: flex;
+			align-items: center;
+			gap: 0.5rem;
+			position: sticky;
+			top: 0;
+			z-index: 5;
+			background: var(--surface-0);
+			border-bottom: 1px solid var(--line-strong);
+			margin: 0 0 var(--space-5);
+			padding: 0.45rem 0 0.5rem;
+		}
+		.picker-label {
+			font-family: var(--font-mono);
 			font-size: 0.68rem;
-			padding: 0.6rem 0.7rem;
+			letter-spacing: 0.06em;
+			text-transform: uppercase;
+			color: var(--text-2);
+			flex: none;
+		}
+		.picker {
+			flex: 1 1 auto;
+			min-width: 0;
+			min-height: 44px;
+			background: var(--surface-1);
+			border: 1px solid var(--line-strong);
+			border-radius: var(--radius-card);
+			color: var(--green);
+			font-family: var(--font-mono);
+			font-size: 0.78rem;
+			font-weight: 700;
+			padding: 0.4rem 0.5rem;
+		}
+		.picker:focus-visible {
+			outline: 2px solid var(--focus-ring, var(--cyan));
+			outline-offset: -3px;
 		}
 	}
 
@@ -659,6 +997,7 @@
 	   ------------------------------------------------------------------- */
 	@media print {
 		.tab-rail,
+		.tab-picker,
 		.rail-anchor {
 			display: none;
 		}

@@ -331,3 +331,53 @@ export const SAMPLE_REFERENCE_ALT: ReferenceSpec = {
 		}
 	]
 };
+
+/**
+ * A document with enough sections to OVERFLOW THE STRIP at every width the
+ * viewer is verified at -- 14 of them, so the tab strip scrolls on a 1440px
+ * desktop inside the classroom item page's detail pane as well as on a phone.
+ *
+ * It exists because the operability of the strip's own controls (the scrollbar,
+ * the prev/next buttons, wheel, drag) cannot be verified on a document whose
+ * tabs all fit: with no overflow there is nothing to scroll and every
+ * assertion passes vacuously. SAMPLE_REFERENCE deliberately stays at the size
+ * that shows off the block types; this one is deliberately dull and long.
+ */
+export const OVERFLOW_REFERENCE: ReferenceSpec = {
+	schemaVersion: 2,
+	kind: 'reference',
+	meta: {
+		referenceId: 'sample-long-handbook',
+		title: 'Program Handbook',
+		subtitle: 'Fourteen sections, so the tab strip has to be scrolled',
+		course: 'IDEA000',
+		updated: 'August 2026'
+	},
+	navigation: 'tabs',
+	sections: [
+		['welcome', 'Welcome'],
+		['schedule', 'Schedule'],
+		['grading', 'Grading'],
+		['attendance', 'Attendance'],
+		['ai-policy', 'AI policy'],
+		['materials', 'Materials'],
+		['safety', 'Safety'],
+		['shop-rules', 'Shop rules'],
+		['notebook', 'Notebook'],
+		['competitions', 'Competitions'],
+		['field-trips', 'Field trips'],
+		['contact', 'Contact'],
+		['glossary', 'Glossary'],
+		['appendix', 'Appendix']
+	].map(([slug, title]) => ({
+		slug,
+		title,
+		blurb: `The ${title.toLowerCase()} section.`,
+		blocks: [
+			{
+				type: 'instructions' as const,
+				content: `Placeholder body for **${title}**. Long enough to be a real section, dull enough that nobody reads it twice.`
+			}
+		]
+	}))
+};

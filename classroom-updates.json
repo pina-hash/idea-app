@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-19",
+			"title": "The syllabus section tabs can actually be moved now",
+			"body": "The row of section tabs across the top of a reference document -- the syllabus is the one most of you use -- could scroll but gave you no way to scroll it. The only thing that moved it was tapping a tab you could half see, which also changed what you were reading, and some sections were left unreachable. It has real controls now: a scrollbar under the tabs, arrows at each end that move across about a screen's worth at a time, the mouse wheel or trackpad while you are over it, and you can just grab the strip and drag it. None of those change the section you are reading -- only tapping a tab does that. On a phone the row is replaced by a Section menu instead, which lists every section at once rather than showing you two at a time. Arrow keys, Home and End still work the way they did.",
+			"tags": ["Classwork"]
+		},
+		{
 			"date": "2026-08-18",
 			"title": "Your notebook now opens beside your entries",
 			"body": "On a laptop or a desktop, the notebook you reach from your class page is now two columns: your entries stay on the left while whatever you pick opens on the right, so you can read one page and go straight to the next without scrolling back up to find the list. Starting a new entry takes that right-hand side too -- press New entry -- and if you click away to look at something, whatever you had already typed or photographed is still waiting there when you come back. On a phone nothing has changed: the form is at the top, your entries are under it, and tapping one opens it in place.",

@@ -58,16 +58,19 @@
 	   which is what a scrollbar is; the accent is spent on primary actions,
 	   active navigation and focus.
 
-	   THIN AND QUIET, NEVER ABSENT: the panes, the switcher menu and several
-	   tables scroll with no other signal that they do, so `none` would remove
-	   the only affordance there is.
+	   THIN AND QUIET, NEVER ABSENT, AND THERE ARE NO EXCEPTIONS. There was one:
+	   ReferenceDoc's section tab strip hid its bar with its own scoped rule, on
+	   the grounds that an edge fade per end had replaced the affordance. It had
+	   not. The strip could scroll and offered nothing that scrolled it -- no
+	   bar, no buttons, no wheel handling, no drag -- so the only control was
+	   clicking a half-visible tab, which also changed the section, and tabs past
+	   that were unreachable. A gradient says there is more; it is not a control.
+	   The strip takes this treatment like every other region now, and has real
+	   controls besides (see ReferenceDoc's own header).
 
-	   ONE DELIBERATE EXCEPTION, and it keeps its own rule rather than being
-	   carved out here: ReferenceDoc's tab rail hides its scrollbar (a Windows
-	   trough under the rail is louder than the tabs above it) and says "there
-	   are more tabs" with an edge fade per end instead. Its own scoped
-	   declaration outranks this one, which is the right way round -- a region
-	   that has replaced the affordance may hide it; nothing else may. */
+	   So: a region may not hide its scrollbar here, and the "unless it has
+	   replaced the affordance" clause is gone with the one region that claimed
+	   it. Replacing an affordance means providing a control, not a hint. */
 	scrollbar-color: var(--cr-thumb) transparent;
 }
 

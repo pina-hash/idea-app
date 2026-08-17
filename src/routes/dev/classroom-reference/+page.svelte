@@ -3,7 +3,13 @@
 	import ReferenceDoc from '$lib/classroom/ReferenceDoc.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import ShortLinkManager from '$lib/ShortLinkManager.svelte';
-	import { SAMPLE_REFERENCE } from '$lib/classroom/dev-reference-fixture';
+	import { OVERFLOW_REFERENCE, SAMPLE_REFERENCE } from '$lib/classroom/dev-reference-fixture';
+	// The REAL public page component, mounted with fixture data. /reference/[itemId]
+	// resolves its document through one RPC against a live project, which this
+	// repo's placeholder .env cannot reach -- and the strip's width there is a
+	// property of THAT page's chrome and measure, not of this harness's. So the
+	// page itself is mounted rather than approximated.
+	import PublicReferencePage from '../../reference/[itemId]/+page.svelte';
 	import {
 		validateReferenceSpec,
 		type PublicToggleResult,
@@ -30,11 +36,17 @@
 	 * half is covered against a real Postgres in tests/classroom-reference.test.ts
 	 * and tests/classroom-reference-route.test.ts.
 	 */
-	type View = 'reader' | 'stacked' | 'item-plain' | 'item-ref' | 'tools' | 'links';
+	type View = 'reader' | 'stacked' | 'item-plain' | 'item-ref' | 'public' | 'tools' | 'links';
 	let view = $state<View>('reader');
 
 	let spec = $state<ReferenceSpec>(SAMPLE_REFERENCE);
-	let stackedSpec = $derived<ReferenceSpec>({ ...spec, navigation: 'stacked' });
+	/** The tab strip's own controls cannot be exercised on a document whose tabs
+	 *  all fit -- with no overflow every scroll assertion passes vacuously -- so
+	 *  the reader, the item page and the public page can all be pointed at a
+	 *  14-section document instead. */
+	let manyTabs = $state(false);
+	let shownSpec = $derived<ReferenceSpec>(manyTabs ? OVERFLOW_REFERENCE : spec);
+	let stackedSpec = $derived<ReferenceSpec>({ ...shownSpec, navigation: 'stacked' });
 
 	// ------------------------------------------------------------------
 	// A fake link-preview endpoint. One URL answers with metadata, the other
@@ -189,9 +201,14 @@
 	<span class="dev-tag">dev harness // reference documents</span>
 </div>
 
-<main class="dev-page">
+<!-- A DIV, not a <main>: the "Public page" view mounts the REAL
+     /reference/[itemId] page component, which brings its own <main> and its own
+     measure. Nesting one inside another would both be invalid and constrain the
+     page to this harness's 48rem, which is the one thing that view is here to
+     measure. -->
+<div class="dev-page" class:full={view === 'public' || view === 'item-plain' || view === 'item-ref'}>
 	<nav class="views">
-		{#each [['reader', 'Reader (tabs)'], ['stacked', 'Reader (stacked)'], ['item-plain', 'Material: no document'], ['item-ref', 'Material: with document'], ['tools', 'Teacher tools'], ['links', 'Short links']] as [id, label] (id)}
+		{#each [['reader', 'Reader (tabs)'], ['stacked', 'Reader (stacked)'], ['item-plain', 'Material: no document'], ['item-ref', 'Material: with document'], ['public', 'Public page (/reference)'], ['tools', 'Teacher tools'], ['links', 'Short links']] as [id, label] (id)}
 			<button
 				type="button"
 				class="btn secondary tiny"
@@ -203,20 +220,42 @@
 		{/each}
 	</nav>
 
+	{#if view === 'reader' || view === 'item-ref' || view === 'public'}
+		<label class="toggle">
+			<input type="checkbox" bind:checked={manyTabs} data-role="many-tabs" />
+			14 sections (the tab strip has to scroll)
+		</label>
+	{/if}
+
 	{#if view === 'reader'}
 		<p class="hint">
 			Deep links: try <code>/dev/classroom-reference#ai-policy</code> from a cold load, and the
 			<code>#materials</code> link card whose second target 404s.
 		</p>
-		<ReferenceDoc {spec} {fetchPreview} />
+		<ReferenceDoc spec={shownSpec} {fetchPreview} />
 	{:else if view === 'stacked'}
 		<ReferenceDoc spec={stackedSpec} {fetchPreview} />
 	{:else if view === 'item-plain' || view === 'item-ref'}
 		<ItemDetail
 			section={devSection}
 			item={devMaterial}
-			referenceSpec={view === 'item-ref' ? spec : null}
+			referenceSpec={view === 'item-ref' ? shownSpec : null}
 			{fetchPreview}
+		/>
+	{:else if view === 'public'}
+		<!-- The cast is the harness's, not the page's: PageData also carries the
+		     root layout's session data (a real SupabaseClient, claims, the profile),
+		     which a no-auth harness cannot produce. The page itself reads only
+		     `spec`, `attachments` and `title`, all of which are real here. -->
+		<PublicReferencePage
+			data={{
+				itemId: 'm-1',
+				title: shownSpec.meta.title,
+				spec: shownSpec,
+				attachments: [],
+				updatedAt: null,
+				specErrors: []
+			} as unknown as import('../../reference/[itemId]/$types').PageData}
 		/>
 	{:else if view === 'tools'}
 		<section class="card">
@@ -243,7 +282,7 @@
 	{:else}
 		<ShortLinkManager links={linkRows} transports={linkTransports} />
 	{/if}
-</main>
+</div>
 </div>
 
 <style>
@@ -251,6 +290,31 @@
 		max-width: 48rem;
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
+	}
+	/* A page component owns its own width and its own gutter; the harness must not
+	   cap it, or every width measured here is 38px narrower than the real route
+	   -- which on a phone is most of a tab. Measured: the item view read a 167px
+	   tab strip with this cap on and 207px with it off, the real route's figure. */
+	.dev-page.full {
+		max-width: none;
+		padding: 0 0 3rem;
+	}
+	.dev-page.full .views,
+	.dev-page.full .toggle {
+		max-width: 48rem;
+		margin-left: auto;
+		margin-right: auto;
+		padding: 0 1.2rem;
+	}
+	.toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		color: var(--dim);
+		margin: 0 0 0.7rem;
+		cursor: pointer;
 	}
 	.dev-tag {
 		font-family: 'Share Tech Mono', monospace;

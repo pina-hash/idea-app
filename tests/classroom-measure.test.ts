@@ -266,14 +266,24 @@ describe('scrollbars', () => {
 	});
 
 	/**
-	 * The one region allowed to hide its bar keeps its OWN rule, which outranks
-	 * the shared one -- and it has replaced the affordance with an edge fade per
-	 * end. A region that has not done that may not hide it.
+	 * THERE IS NO EXCEPTION ANY MORE, and this assertion is the inverse of the one
+	 * it replaced. The reference document's section tab strip used to hide its bar
+	 * with its own scoped rule, on the grounds that an edge fade per end had
+	 * replaced the affordance. It had not: the strip could scroll and offered
+	 * nothing that scrolled it, so tabs became unreachable. It takes the shared
+	 * treatment now and has real controls besides.
+	 *
+	 * The strip's own rules are covered in tests/classroom-tab-strip.test.ts; what
+	 * belongs here is that no region opts out of the module's scrollbar.
 	 */
-	it('the reference tab rail is the documented exception, with its own fades', () => {
-		const doc = read('src/lib/classroom/ReferenceDoc.svelte');
-		expect(doc).toMatch(/scrollbar-width:\s*none/);
-		expect(doc).toMatch(/\.tab-rail\.fade-start::before/);
-		expect(doc).toMatch(/\.tab-rail\.fade-end::after/);
+	it('has no region hiding its scrollbar, the reference tab strip included', () => {
+		const doc = read('src/lib/classroom/ReferenceDoc.svelte')
+			// Comments only, so the explanation of what was removed is not read as
+			// the thing it describes.
+			.replace(/\/\*[\s\S]*?\*\//g, '');
+		expect(doc).not.toMatch(/scrollbar-width:\s*none/);
+		expect(doc).not.toMatch(/::-webkit-scrollbar/);
+		expect(doc).not.toMatch(/fade-start/);
+		expect(doc).not.toMatch(/fade-end/);
 	});
 });
