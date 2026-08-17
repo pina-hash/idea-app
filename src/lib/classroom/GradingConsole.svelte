@@ -467,7 +467,7 @@
 	.grading-page {
 		max-width: var(--cr-measure, var(--measure-wide));
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
 	.meta-line {
 		font-family: 'Share Tech Mono', monospace;

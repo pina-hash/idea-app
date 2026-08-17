@@ -53,6 +53,86 @@
 	   stylesheet rules on this element now, so specificity decides, and the
 	   more specific one is the split. */
 	--cr-measure: var(--cr-measure-route, var(--measure-page));
+
+	/* THE PAGE GUTTER, and it is ONE number for the whole module.
+	   The breadcrumb row, the tab bar, every single-column page and both panes
+	   of the split read this, so "the chrome lines up with the content" is a
+	   property of there being one declaration rather than of nine literals
+	   happening to agree. They did not: the chrome and the split were each
+	   pinned at 1.2rem while a page component added its own 1.2rem INSIDE the
+	   split's, so the detail pane's content sat 19px further in than the list
+	   beside it and 19px further in than the trail above both.
+	   Below the desktop breakpoint the split does not exist and the page is one
+	   narrow column, so it gets the tighter number. */
+	--cr-gutter: 1rem;
+
+	/* SCROLLBARS, ON THE STANDARD PROPERTIES, with the WebKit pseudo-elements
+	   below only as the fallback for engines that do not have them yet -- a
+	   browser with both ignores the pseudo-elements, which is the precedence
+	   this wants.
+
+	   `scrollbar-color` INHERITS, so declaring it once here reaches every
+	   scrolling region in the module. `scrollbar-width` DOES NOT (checked in
+	   the browser: the panes came back `auto` with only this rule), so it is
+	   set on the descendants too -- a universal selector rather than a list of
+	   regions, because the list is long, spread across nine components, and
+	   would silently stop covering the next region somebody adds. It is inert
+	   on an element that does not scroll.
+
+	   THE THUMB IS A NEUTRAL, not the accent. --text-3 is this palette's
+	   "tertiary: separators, disabled, decorative", which is what a scrollbar
+	   is; --green is spent on primary actions, active navigation and focus.
+
+	   THIN AND QUIET, NEVER ABSENT: the panes, the switcher menu and several
+	   tables scroll with no other signal that they do, so `none` would remove
+	   the only affordance there is.
+
+	   ONE DELIBERATE EXCEPTION, and it keeps its own rule rather than being
+	   carved out here: ReferenceDoc's tab rail hides its scrollbar (a Windows
+	   trough under the rail is louder than the tabs above it) and says "there
+	   are more tabs" with an edge fade per end instead. Its own scoped
+	   declaration outranks this one, which is the right way round -- a region
+	   that has replaced the affordance may hide it; nothing else may. */
+	scrollbar-color: var(--text-3) transparent;
+}
+
+.cr-root,
+.cr-root * {
+	scrollbar-width: thin;
+}
+
+.cr-root ::-webkit-scrollbar,
+.cr-root::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+.cr-root ::-webkit-scrollbar-track,
+.cr-root::-webkit-scrollbar-track {
+	background: transparent;
+}
+.cr-root ::-webkit-scrollbar-thumb,
+.cr-root::-webkit-scrollbar-thumb {
+	background: var(--text-3);
+	border-radius: 999px;
+	/* Inset from the track so the thumb reads as a bar rather than a fill,
+	   while the hit target stays the full 10px. */
+	border: 2px solid transparent;
+	background-clip: padding-box;
+}
+.cr-root ::-webkit-scrollbar-thumb:hover,
+.cr-root::-webkit-scrollbar-thumb:hover {
+	background: var(--text-2);
+	background-clip: padding-box;
+}
+.cr-root ::-webkit-scrollbar-corner,
+.cr-root::-webkit-scrollbar-corner {
+	background: transparent;
+}
+
+@media (min-width: 1024px) {
+	.cr-root {
+		--cr-gutter: 2rem;
+	}
 }
 
 /* The scanline + vignette overlay is a SIBLING of this wrapper's ancestor, so
@@ -376,10 +456,12 @@ body:has(.cr-root) {
 	.cr-split {
 		display: grid;
 		grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+		/* THE GAP BETWEEN THE PANES. 24px: below that the list's own card edges
+		   and the item's start reading as one column with a seam in it. */
 		gap: var(--space-5);
 		max-width: var(--measure-split);
 		margin: 0 auto;
-		padding: 0 1.2rem;
+		padding: 0 var(--cr-gutter);
 		align-items: start;
 	}
 
@@ -389,22 +471,43 @@ body:has(.cr-root) {
 	   one place rather than guessed at three call sites. */
 	.cr-split > .cr-nav,
 	.cr-split > .cr-detail {
-		--cr-chrome-h: 9.5rem;
+		--cr-chrome-h: 10.5rem;
 		min-width: 0;
 		max-height: calc(100vh - var(--cr-chrome-h));
 		overflow-y: auto;
 		overscroll-behavior: contain;
 	}
 
-	/* The list FILLS its pane -- `none` is a legal max-width, so the pane sets
-	   the same custom property the page measure travels on rather than needing
-	   a rule that reaches inside a component. */
+	/* THE LIST PANE IS A BOUNDED REGION, and the hairline is what says so.
+	   It scrolls independently of the page and clips at its own edges, which is
+	   invisible on a transparent block -- and its 24px of internal padding, the
+	   thing that keeps content off those clip edges and out from under the
+	   scrollbar, then reads as a stray indent rather than as the pane's own
+	   inset. With the border it reads correctly, and the cards inside keep
+	   their own surface against it (the pane paints nothing, so it is a frame,
+	   not a second card under the first).
+	   The PANE'S BOX sits on the gutter, which is the alignment that matters:
+	   the trail, the tabs and both panes all start and end on the same line. */
 	.cr-split > .cr-nav {
+		/* The list FILLS its pane -- `none` is a legal max-width, so the pane
+		   sets the same custom property the page measure travels on rather than
+		   needing a rule that reaches inside a component. */
 		--cr-measure: none;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-card);
+		padding: var(--space-5);
+	}
+
+	/* NEITHER PANE ADDS A SECOND GUTTER. The split already spent it; a page
+	   component's own padding-inline inside a pane is what put the item's
+	   content 19px further in than the list beside it. */
+	.cr-split > .cr-nav .classroom-page,
+	.cr-split > .cr-detail .classroom-page {
+		padding-inline: 0;
 	}
 	.cr-split > .cr-nav .classroom-page {
-		padding-inline: 0;
-		padding-bottom: var(--space-5);
+		/* The pane's own padding is the bottom air now. */
+		padding-bottom: 0;
 	}
 
 	/* Prose keeps its reading measure inside the detail pane: the pane is far
@@ -413,4 +516,33 @@ body:has(.cr-root) {
 	.cr-split > .cr-detail {
 		--cr-measure: var(--measure-reading);
 	}
+
+	/* A FORM IS NOT PROSE. The composer fills the detail pane rather than the
+	   reading measure -- a row of three assignment fields and a posting
+	   checklist want the room -- but not the whole 900-odd pixels the pane can
+	   reach at 1440, where a single-line text input stops being scannable. */
+	.cr-detail-compose {
+		max-width: var(--measure-form);
+	}
+}
+
+/* --- The composer, in the detail pane ------------------------------------
+   Composing takes the pane the item would have. The navigation pane is ~26rem
+   and a full authoring form does not fit in it -- it was never a question of
+   whether the form was too big, it was mounted in the wrong half.
+
+   BELOW THE BREAKPOINT it takes the full width exactly as an item view does,
+   which is the `has-detail` rule above doing its existing job: the layout
+   reports a detail is open while composing, so the list steps aside.
+   ------------------------------------------------------------------------ */
+.cr-detail-compose {
+	padding-bottom: var(--space-6);
+}
+
+/* The route's own page stays MOUNTED underneath, hidden, rather than being
+   swapped out: closing the composer puts you back on the item you were reading
+   with its scroll and its open panels intact, and the item's route never
+   changed in the first place. */
+.cr-detail-page[hidden] {
+	display: none;
 }

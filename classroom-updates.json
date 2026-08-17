@@ -13,6 +13,12 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-17",
+			"title": "A little more room to breathe",
+			"body": "The class page had squeezed itself right up against the edge of the screen, and everything on it -- the trail across the top, the tabs, the class list, whatever you have open -- started and stopped in slightly different places. It all lines up now, with a proper margin down both sides, and the class list sits in its own bordered panel so it is clear where it ends and your reading begins. Things that belong together sit closer together, so the list is easier to scan. Scrollbars in the classroom are thinner and quieter too.",
+			"tags": ["Classwork"]
+		},
+		{
 			"date": "2026-08-16",
 			"title": "The syllabus tabs no longer get stuck",
 			"body": "On a laptop, a reference document with a lot of section tabs -- the syllabus is the main one -- could open with its tabs cut off, sometimes leaving no way to get back to the first one. The tab strip scrolls properly now, with a soft fade at either end telling you there is more that way, and it disappears once there is nothing left to scroll to. You can also move across the tabs with the keyboard: the arrow keys step between them, and Home and End jump straight to the first and last.",

@@ -124,3 +124,131 @@ describe('the classroom chrome is as wide as the page under it', () => {
 		expect(classroomMeasure(locateClassroom('/classroom/view-as/a@b.net/s-1'))).toBeNull();
 	});
 });
+
+/**
+ * THE CHROME AND THE CONTENT START AND END ON THE SAME LINE.
+ *
+ * Same shape of problem as the measure above, and the same reason it is a test
+ * rather than a comment: the gutter was NINE separate literals -- `1.2rem` in
+ * the trail, the tabs, the split, and every page component's own
+ * `.classroom-page` -- and they agreed only by having been typed the same. The
+ * one that did not agree was the pane pair, where a page component's padding
+ * landed INSIDE the split's, so the item's content sat 19px further in than
+ * the list beside it and 19px further in than the trail above both.
+ *
+ * There is one declaration now (`--cr-gutter` on `.cr-root`), and everything
+ * reads it. That is a five-word change away from drifting back, and nothing
+ * type-checks it, so it is asserted directly against the shipping source.
+ */
+const GUTTER_SURFACES = [
+	'src/lib/classroom/MyClasses.svelte',
+	'src/lib/classroom/ClassView.svelte',
+	'src/lib/classroom/PeoplePanel.svelte',
+	'src/lib/classroom/GradesPanel.svelte',
+	'src/lib/classroom/ItemDetail.svelte',
+	'src/lib/classroom/GradingConsole.svelte',
+	'src/lib/classroom/AdminConsole.svelte',
+	'src/lib/classroom/UpdatesPage.svelte',
+	'src/lib/classroom/FeedbackConsole.svelte'
+];
+
+describe('one page gutter, read by everything', () => {
+	it('is declared once, and at both widths', () => {
+		const css = read('src/lib/classroom/classroom.css');
+		// The narrow default on .cr-root itself...
+		expect(css).toMatch(/--cr-gutter:\s*1rem/);
+		// ...widened at the desktop breakpoint, in the same file.
+		expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]{0,200}--cr-gutter:\s*2rem/);
+	});
+
+	it('the trail and the tabs read it, and neither keeps a literal', () => {
+		const shell = read('src/lib/classroom/ClassroomShell.svelte');
+		const uses = shell.match(/padding:\s*0 var\(--cr-gutter[^)]*\)/g) ?? [];
+		expect(uses.length, 'the breadcrumb row and the tab bar').toBe(2);
+		// The phone override that used to put the chrome on its own line is gone.
+		expect(shell).not.toMatch(/padding-inline:\s*0\.9rem/);
+	});
+
+	it('the split reads it, and the panes add no second gutter of their own', () => {
+		const css = read('src/lib/classroom/classroom.css');
+		expect(css).toMatch(/\.cr-split\s*\{[\s\S]*?padding:\s*0 var\(--cr-gutter\)/);
+		// Both panes, not just the list -- the detail's own padding is what put
+		// the item's content on a different line from the list's.
+		expect(css).toMatch(
+			/\.cr-split > \.cr-nav \.classroom-page,\s*\.cr-split > \.cr-detail \.classroom-page \{\s*padding-inline:\s*0;/
+		);
+	});
+
+	it('every page surface reads it, and none still hardcodes 1.2rem', () => {
+		for (const file of GUTTER_SURFACES) {
+			const src = read(file);
+			expect(src, `${file} does not read --cr-gutter`).toMatch(
+				/padding:\s*0 var\(--cr-gutter, 1\.2rem\) 3rem/
+			);
+			expect(src, `${file} still carries a literal gutter`).not.toMatch(/padding:\s*0 1\.2rem/);
+		}
+	});
+
+	it('the list pane has real internal padding, so its content clears its own edges', () => {
+		const css = read('src/lib/classroom/classroom.css');
+		const pane = css.match(/\.cr-split > \.cr-nav \{[\s\S]*?\}/)?.[0] ?? '';
+		expect(pane).toMatch(/padding:\s*var\(--space-5\)/);
+		// And a boundary, so that inset reads as the pane's rather than as a
+		// stray indent against the trail above it.
+		expect(pane).toMatch(/border:\s*1px solid var\(--hairline\)/);
+	});
+
+	it('the gap between the panes comes from the scale', () => {
+		const css = read('src/lib/classroom/classroom.css');
+		expect(css).toMatch(/\.cr-split\s*\{[\s\S]*?gap:\s*var\(--space-5\)/);
+	});
+
+	it('the tab bar leaves a full step under it, not 0.9rem', () => {
+		const shell = read('src/lib/classroom/ClassroomShell.svelte');
+		expect(shell).toMatch(/\.sec-tabs\s*\{[\s\S]*?margin:\s*0 auto var\(--space-5\)/);
+	});
+});
+
+/**
+ * SCROLLBARS ARE STYLED WITH THE STANDARD PROPERTIES, and the WebKit
+ * pseudo-elements are the FALLBACK -- not the reverse. The pairing is easy to
+ * write the wrong way round and impossible to see in a browser that supports
+ * both, since the standard properties simply win there.
+ */
+describe('scrollbars', () => {
+	const css = () => read('src/lib/classroom/classroom.css');
+
+	it('uses the standard properties, and thin rather than hidden', () => {
+		expect(css()).toMatch(/scrollbar-color:\s*var\(--text-3\) transparent/);
+		expect(css()).toMatch(/scrollbar-width:\s*thin/);
+		expect(css()).not.toMatch(/\.cr-root[^{]*\{[^}]*scrollbar-width:\s*none/);
+	});
+
+	/**
+	 * `scrollbar-color` inherits and `scrollbar-width` does not (measured: with
+	 * only the .cr-root declaration both panes came back `auto`), so the width
+	 * has to reach the descendants explicitly.
+	 */
+	it('sets the width on descendants too, since that property does not inherit', () => {
+		expect(css()).toMatch(/\.cr-root,\s*\.cr-root \*\s*\{\s*scrollbar-width:\s*thin;\s*\}/);
+	});
+
+	it('keeps the WebKit rules as a fallback, on the descendant form', () => {
+		expect(css()).toMatch(/\.cr-root ::-webkit-scrollbar,/);
+		expect(css()).toMatch(/\.cr-root ::-webkit-scrollbar-thumb,/);
+		// Never a hidden bar: a zero-width scrollbar is the thing rule 14 forbids.
+		expect(css()).not.toMatch(/::-webkit-scrollbar[^{]*\{[^}]*width:\s*0/);
+	});
+
+	/**
+	 * The one region allowed to hide its bar keeps its OWN rule, which outranks
+	 * the shared one -- and it has replaced the affordance with an edge fade per
+	 * end. A region that has not done that may not hide it.
+	 */
+	it('the reference tab rail is the documented exception, with its own fades', () => {
+		const doc = read('src/lib/classroom/ReferenceDoc.svelte');
+		expect(doc).toMatch(/scrollbar-width:\s*none/);
+		expect(doc).toMatch(/\.tab-rail\.fade-start::before/);
+		expect(doc).toMatch(/\.tab-rail\.fade-end::after/);
+	});
+});

@@ -21,17 +21,34 @@
 	let {
 		hasDetail = false,
 		nav,
+		overlay = null,
 		children
 	}: {
 		/** Something is open in the detail pane. Below 1024px this is what chooses
 		 *  which single pane renders: the detail when true, the list when not. */
 		hasDetail?: boolean;
 		nav: import('svelte').Snippet;
+		/**
+		 * SOMETHING THAT IS NOT A ROUTE, TAKING THE DETAIL PANE. Today that is the
+		 * composer, which is layout-owned state rather than a page: it holds staged
+		 * Files, and a navigation would destroy them.
+		 *
+		 * The route's own page is kept MOUNTED underneath, hidden, rather than
+		 * being swapped out -- closing the overlay puts you back on the item you
+		 * were reading with its scroll and its open panels intact, and the item's
+		 * route never changed while the overlay was up.
+		 */
+		overlay?: import('svelte').Snippet | null;
 		children: import('svelte').Snippet;
 	} = $props();
 </script>
 
 <div class="cr-split" class:has-detail={hasDetail} data-testid="class-split">
 	<div class="cr-nav" data-testid="class-nav-pane">{@render nav()}</div>
-	<div class="cr-detail" data-testid="class-detail-pane">{@render children()}</div>
+	<div class="cr-detail" data-testid="class-detail-pane">
+		{#if overlay}
+			<div class="cr-detail-compose" data-testid="class-detail-overlay">{@render overlay()}</div>
+		{/if}
+		<div class="cr-detail-page" hidden={!!overlay}>{@render children()}</div>
+	</div>
 </div>

@@ -320,7 +320,7 @@
 	.crumbs {
 		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto;
-		padding: 0 1.2rem;
+		padding: 0 var(--cr-gutter, 1.2rem);
 	}
 	.crumbs ol {
 		display: flex;
@@ -357,12 +357,16 @@
 		color: var(--hairline);
 	}
 
+	/* THE TAB BAR IS THE LAST THING BEFORE THE CONTENT, so the space under it is
+	   the space between the chrome and the page -- and at 0.9rem it was the
+	   tightest gap on the whole screen, with the top of both panes crowding the
+	   rule above them. 24px, from the scale. */
 	.sec-tabs {
 		display: flex;
 		gap: 0.3rem;
 		max-width: var(--cr-measure, var(--measure-page));
-		margin: 0 auto 0.9rem;
-		padding: 0 1.2rem;
+		margin: 0 auto var(--space-5);
+		padding: 0 var(--cr-gutter, 1.2rem);
 		border-bottom: 1px solid var(--hairline);
 	}
 	.sec-tab {
@@ -400,9 +404,9 @@
 			left: auto;
 			right: 0;
 		}
-		.crumbs,
-		.sec-tabs {
-			padding-inline: 0.9rem;
-		}
+		/* No phone override for the trail and the tabs: `--cr-gutter` is already
+		   the narrow number below the desktop breakpoint, and a second literal
+		   here is exactly how the chrome came to sit on a different line from
+		   the content it sits above. */
 	}
 </style>

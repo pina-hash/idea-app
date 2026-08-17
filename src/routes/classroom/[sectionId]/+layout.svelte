@@ -1,17 +1,20 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { invalidateAll } from '$app/navigation';
+	import { beforeNavigate, invalidateAll } from '$app/navigation';
 	import ClassSplit from '$lib/classroom/ClassSplit.svelte';
 	import ClassView from '$lib/classroom/ClassView.svelte';
+	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		readClassViewPrefs,
 		toggleGroupCollapsed,
 		type ClassViewPrefs
 	} from '$lib/classroom/classroom';
-	import { locateClassroom } from '$lib/classroom/nav';
+	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
+	import { locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
 	import {
 		classroomFeedbackSubmit,
 		createClassroomTransports,
+		createReferenceTransports,
 		createTeacherEngineTransports,
 		createUnitTransports,
 		deckTransports,
@@ -64,6 +67,96 @@
 	const submitFeedback = classroomFeedbackSubmit(data.supabase, data.claims?.sub);
 	// svelte-ignore state_referenced_locally
 	const teacherTransports = createTeacherEngineTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const referenceTransports = createReferenceTransports(data.supabase);
+
+	/**
+	 * COMPOSING IS LAYOUT STATE, NOT A ROUTE, and that is the whole design.
+	 *
+	 * The composer holds STAGED FILE HANDLES -- a picked zip, a pasted
+	 * screenshot, an answer key -- which exist nowhere but in this browser's
+	 * memory. A route for composing would be destroyed by opening an item and
+	 * would take them with it; layout state survives every navigation inside
+	 * this class, which is exactly the span a teacher writes a post across.
+	 *
+	 * It takes the DETAIL PANE. It used to open inside the list, which since the
+	 * split is ~26rem wide, while the pane a full authoring form belongs in sat
+	 * empty beside it. The item underneath stays mounted and hidden, so closing
+	 * the composer puts you back on what you were reading -- and the item's
+	 * route never changed, so nothing reloads.
+	 */
+	let composing = $state(false);
+	let composerDirty = $state(false);
+	let composeNotice = $state<string | null>(null);
+
+	/**
+	 * ONE guard for every way work gets discarded: the toolbar's Close, the
+	 * form's own Cancel, and navigating out of the class. `beforeNavigate`
+	 * covers the browser's own unload too (see below), so there is no second
+	 * copy of the question anywhere.
+	 */
+	function confirmDiscard(): boolean {
+		if (!composing || !composerDirty) return true;
+		return window.confirm(`${COMPOSER_DISCARD_WARNING}\n\nDiscard it?`);
+	}
+
+	function closeComposer() {
+		if (!confirmDiscard()) return;
+		composerDirty = false;
+		composing = false;
+	}
+
+	function toggleComposer() {
+		if (composing) {
+			closeComposer();
+			return;
+		}
+		composeNotice = null;
+		composing = true;
+	}
+
+	/**
+	 * Navigating away is the one discard path this component cannot see coming,
+	 * so it is asked here rather than on a control.
+	 *
+	 * A move WITHIN this class's two-pane shell keeps the composer mounted --
+	 * clicking through items with a half-written post open is the point of
+	 * owning it here -- so it is not a discard and must not warn. `navKeepsComposer`
+	 * is the one place that distinction is written down.
+	 *
+	 * `type: 'leave'` is the browser closing the tab or following an external
+	 * link; cancelling it there is what raises the native unload dialog, which
+	 * is the only warning a page is allowed to show at that point.
+	 */
+	beforeNavigate((nav) => {
+		if (!composing || !composerDirty) return;
+		if (nav.type === 'leave') {
+			nav.cancel();
+			return;
+		}
+		const to = nav.to?.url.pathname;
+		if (to && navKeepsComposer(data.section.id, to)) return;
+		if (window.confirm(`${COMPOSER_DISCARD_WARNING}\n\nLeave anyway?`)) {
+			composerDirty = false;
+			composing = false;
+			return;
+		}
+		nav.cancel();
+	});
+
+	/**
+	 * A post that fully landed closes the composer and reports itself in the
+	 * list. One that PARTLY landed does not: `text` is empty exactly then, and
+	 * closing would throw away the staged file or deck the message has just
+	 * invited someone to save again. (The old inline composer closed on both,
+	 * which quietly lost the retry.)
+	 */
+	function composerSaved(info: { text: string }) {
+		if (!info.text) return;
+		composeNotice = info.text;
+		composerDirty = false;
+		composing = false;
+	}
 
 	/**
 	 * The notebook door for whoever is looking. A manager of this section gets the
@@ -120,7 +213,10 @@
 		work={data.work}
 		{collapsed}
 		{selectedItemId}
-		asPane={!!selectedItemId}
+		asPane={!!selectedItemId || composing}
+		{composing}
+		onCompose={data.canManage ? toggleComposer : null}
+		notice={composeNotice}
 		onToggleGroup={toggleGroup}
 		{transports}
 		{unitTransports}
@@ -135,8 +231,51 @@
 	/>
 {/snippet}
 
+{#snippet composer()}
+	<!-- Keyed on the OPEN, so a fresh compose is a fresh form and a close
+	     genuinely disposes the staged handles rather than leaving them to be
+	     re-adopted by the next one. -->
+	{#key composing}
+		<section class="card compose-card">
+			<h2 class="compose-title">New post</h2>
+			<ContentComposer
+				mode="create"
+				sections={data.sections}
+				initialTargets={[data.section.id]}
+				{transports}
+				{deckTransports}
+				{teacherTransports}
+				{referenceTransports}
+				attachmentsEnabled={data.attachmentsEnabled}
+				onsaved={composerSaved}
+				ondirtychange={(d) => (composerDirty = d)}
+				oncancel={closeComposer}
+			/>
+		</section>
+	{/key}
+{/snippet}
+
 {#if split}
-	<ClassSplit hasDetail={!!selectedItemId} nav={classList}>{@render children()}</ClassSplit>
+	<!-- `hasDetail` is what hides the list below the breakpoint, so composing
+	     reports one: a phone gets the composer full width exactly as it gets an
+	     item full width. -->
+	<ClassSplit
+		hasDetail={!!selectedItemId || composing}
+		nav={classList}
+		overlay={composing ? composer : null}
+	>
+		{@render children()}
+	</ClassSplit>
 {:else}
 	{@render children()}
 {/if}
+
+<style>
+	.compose-card {
+		padding: var(--space-5);
+	}
+	.compose-title {
+		margin: 0 0 var(--space-4);
+		font-size: 1.05rem;
+	}
+</style>

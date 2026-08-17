@@ -69,7 +69,7 @@
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-reading));
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
 	.update {
 		margin-bottom: 0.9rem;

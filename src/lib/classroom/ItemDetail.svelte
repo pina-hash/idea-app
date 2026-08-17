@@ -621,7 +621,7 @@
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-reading));
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
 	/* The app-shell `.hero` is the LANDING hero: centred, with 4rem of air above
 	   it. This is a document opening inside a pane, so it reads from the left

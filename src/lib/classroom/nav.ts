@@ -95,6 +95,25 @@ export function sectionTabs(sectionId: string, basePath = '/classroom'): Section
 	];
 }
 
+/**
+ * DOES THIS NAVIGATION KEEP THE COMPOSER ALIVE?
+ *
+ * The composer is owned by the SECTION LAYOUT, which is not remounted while you
+ * move around inside one class's two-pane shell -- so clicking through items
+ * with a half-written post open is fine, and warning about it would be a lie
+ * that quickly teaches people to click through the warning.
+ *
+ * Anything else unmounts it and takes the staged Files with it: another class,
+ * People, Grades, the grading console, the deck viewer, My Classes, the world
+ * outside /classroom. Those are the navigations worth stopping.
+ */
+export function navKeepsComposer(sectionId: string, pathname: string, basePath = '/classroom'): boolean {
+	const normalized = basePath === '/classroom' ? pathname : pathname.replace(basePath, '/classroom');
+	const loc = locateClassroom(normalized);
+	if (loc.sectionId !== sectionId) return false;
+	return loc.place === 'section' || loc.place === 'item';
+}
+
 /** Which tab a location sits on, or null when it is not a section-level route. */
 export function activeTab(loc: ClassroomLocation): SectionTabId | null {
 	if (loc.place === 'section') return 'class';

@@ -84,6 +84,9 @@
 		collapsed = [],
 		selectedItemId = null,
 		asPane = false,
+		composing = false,
+		onCompose = null,
+		notice = null,
 		onToggleGroup = null,
 		viewAs = null,
 		fetchPreview = null,
@@ -136,6 +139,27 @@
 		 * on a phone with its one `<main>` inside the hidden pane.
 		 */
 		asPane?: boolean;
+		/**
+		 * THE COMPOSER IS NOT MOUNTED HERE ANY MORE, and this pair is what is left
+		 * of it: the trigger, and the state the trigger reflects.
+		 *
+		 * It opened inside this list, which is a ~26rem navigation pane -- a full
+		 * authoring form (title, rich body, three assignment fields, links, two
+		 * file lists, a deck, a spec, a posting checklist, a schedule) does not
+		 * fit in it, and the pane it belongs in was sitting empty beside it. The
+		 * OWNER is the section layout, so the staged Files it holds survive
+		 * opening an item; a route-level component's would not.
+		 */
+		composing?: boolean;
+		/** Null on every read-only surface: no transports, no trigger. */
+		onCompose?: (() => void) | null;
+		/**
+		 * A message from an action the LIST did not run -- a post the composer
+		 * made in the pane beside it. Shown in the same place as this component's
+		 * own, which is BELOW the toolbar: it used to render above, so the primary
+		 * actions were pushed down the moment anything was posted.
+		 */
+		notice?: string | null;
 		onToggleGroup?: ((groupId: string) => void | Promise<void>) | null;
 		viewAs?: string | null;
 		fetchPreview?: ((url: string) => Promise<LinkPreview | null>) | null;
@@ -158,7 +182,6 @@
 		onchanged?: (() => void | Promise<void>) | null;
 	} = $props();
 
-	let composing = $state(false);
 	let unitsOpen = $state(false);
 	let editing = $state<string | null>(null);
 	let expanded = $state<Record<string, boolean>>({});
@@ -166,9 +189,12 @@
 	let armDelete = $state<string | null>(null);
 	let busy = $state(false);
 	let error = $state<string | null>(null);
-	let notice = $state<string | null>(null);
+	/** This list's own actions (pin, copy, file, delete); `notice` is the pane's. */
+	let localNotice = $state<string | null>(null);
 	let seen = $state<Record<string, boolean>>({});
 	let menuHost = $state<HTMLElement | null>(null);
+
+	const shownNotice = $derived(localNotice ?? notice);
 
 	const editable = $derived(canManage && !!transports);
 	const editingItem = $derived(items.find((i) => i.id === editing) ?? null);
@@ -266,14 +292,14 @@
 	async function run(fn: () => Promise<{ ok: boolean; message?: string }>, ok?: string) {
 		busy = true;
 		error = null;
-		notice = null;
+		localNotice = null;
 		const res = await fn();
 		busy = false;
 		if (!res.ok) {
 			error = res.message ?? 'Something went wrong.';
 			return false;
 		}
-		if (ok) notice = ok;
+		if (ok) localNotice = ok;
 		await onchanged?.();
 		return true;
 	}
@@ -310,7 +336,7 @@
 		}
 		await onchanged?.();
 		editing = res.data.itemId;
-		notice = 'Copied as a new draft. Edit it below, then post it.';
+		localNotice = 'Copied as a new draft. Edit it below, then post it.';
 	}
 
 	async function move(groupItems: ClassroomItem[], item: ClassroomItem, direction: -1 | 1) {
@@ -328,7 +354,7 @@
 		if ((item.unit_id ?? null) === target) return;
 		busy = true;
 		error = null;
-		notice = null;
+		localNotice = null;
 		const res = await unitTransports.setItemUnit(item.id, target);
 		busy = false;
 		if (!res.ok) {
@@ -350,17 +376,11 @@
 		openMenu = null;
 		armDelete = null;
 		error = null;
-		notice = null;
+		localNotice = null;
 	}
 
 	async function saved() {
 		editing = null;
-		await onchanged?.();
-	}
-
-	async function created(info: { text: string }) {
-		composing = false;
-		if (info.text) notice = info.text;
 		await onchanged?.();
 	}
 
@@ -822,9 +842,46 @@
 				&middot; {emailLocal(section.teacher_email)}
 				{#if section.active === false}&nbsp;&middot; <span class="draft-chip">Archived</span>{/if}
 			</span>
+		</p>
+	</header>
+
+	<!--
+		ONE ACTIONS ROW: what you can DO from this pane, in one place.
+
+		The notebook link used to sit at the far end of the meta line, competing
+		with a string that truncates -- a link squeezed by an ellipsis is a link
+		that moves as the class name changes. It is a destination, not metadata,
+		so it reads here beside the other things this pane can take you to, and
+		the meta line gets the whole width to truncate into.
+
+		The row renders for a student too (their own notebook is the one thing in
+		it), which is why it is not inside the `editable` branch.
+	-->
+	{#if editable || notebookHref}
+		<div class="pane-tools" data-testid="pane-tools">
+			{#if editable && onCompose}
+				<button
+					type="button"
+					class="btn secondary tiny"
+					aria-expanded={composing}
+					data-testid="new-post"
+					onclick={() => onCompose?.()}
+				>
+					{composing ? 'Close' : 'New post'}
+				</button>
+			{/if}
+			{#if editable && unitTransports && section.course}
+				<button
+					type="button"
+					class="btn secondary tiny"
+					aria-expanded={unitsOpen}
+					data-testid="units-toggle"
+					onclick={() => (unitsOpen = !unitsOpen)}
+				>
+					{unitsOpen ? 'Close units' : orderedUnits.length ? `Units (${orderedUnits.length})` : 'Add units'}
+				</button>
+			{/if}
 			{#if notebookHref}
-				<!-- Outside the truncating span on purpose: it is a link, and a link
-				     that can be ellipsised away is a link nobody can press. -->
 				<a class="manage-link" href={notebookHref} data-testid="class-notebook-link">
 					{canManage ? 'Notebook' : 'My notebook'}
 					{#if outstanding !== null}
@@ -838,75 +895,29 @@
 					{/if}
 				</a>
 			{/if}
-		</p>
-	</header>
+		</div>
+	{/if}
 
+	<!-- BELOW THE TOOLBAR, NEVER ABOVE IT. A status line that appears after an
+	     action must not push the actions themselves down the pane. -->
 	{#if error}
 		<p class="feedback error">{error}</p>
 	{/if}
-	{#if notice}
-		<p class="feedback ok">{notice}</p>
+	{#if shownNotice}
+		<p class="feedback ok" data-testid="pane-notice">{shownNotice}</p>
 	{/if}
 
-	<!--
-		ONE TOOLBAR, NOT TWO CARDS. "Post to this class" and "Units" were a card
-		each, and between them a heading, a paragraph of chrome and two buttons
-		filled most of the pane's first screen before a single item appeared.
-		Each panel still opens exactly where it did, directly beneath.
-	-->
-	{#if editable}
-		<div class="pane-tools" data-testid="pane-tools">
-			<button
-				type="button"
-				class="btn secondary tiny"
-				aria-expanded={composing}
-				data-testid="new-post"
-				onclick={() => (composing = !composing)}
-			>
-				{composing ? 'Close' : 'New post'}
-			</button>
-			{#if unitTransports && section.course}
-				<button
-					type="button"
-					class="btn secondary tiny"
-					aria-expanded={unitsOpen}
-					data-testid="units-toggle"
-					onclick={() => (unitsOpen = !unitsOpen)}
-				>
-					{unitsOpen ? 'Close units' : orderedUnits.length ? `Units (${orderedUnits.length})` : 'Add units'}
-				</button>
-			{/if}
-		</div>
-
-		{#if composing}
-			<section class="card tool-panel">
-				{#key composing}
-					<ContentComposer
-						mode="create"
-						{sections}
-						initialTargets={[section.id]}
-						transports={transports!}
-						{attachmentsEnabled}
-						compact
-						onsaved={created}
-						oncancel={() => (composing = false)}
-					/>
-				{/key}
-			</section>
-		{/if}
-
-		{#if unitsOpen && unitTransports && section.course}
-			<section class="card tool-panel">
-				<UnitManager
-					courseId={section.course.id}
-					courseLabel={section.course.code}
-					{units}
-					transports={unitTransports}
-					chrome={false}
-					onchanged={() => onchanged?.()}
-				/>
-			</section>
-		{/if}
+	{#if editable && unitsOpen && unitTransports && section.course}
+		<section class="card tool-panel">
+			<UnitManager
+				courseId={section.course.id}
+				courseLabel={section.course.code}
+				{units}
+				transports={unitTransports}
+				chrome={false}
+				onchanged={() => onchanged?.()}
+			/>
+		</section>
 	{/if}
 
 	<div bind:this={menuHost}>
@@ -985,20 +996,29 @@
 </svelte:element>
 
 <style>
-	/* Spacing and the row system only: the surface look lives in classroom.css. */
+	/* SPACING COMES FROM THE SCALE, NOT FROM LITERALS.
+	   Every top-level block in this pane -- the header, the actions row, the
+	   status line, the unit panel, the group cards -- used to be separated by
+	   its own hand-picked number, and they all landed within a few pixels of
+	   each other, which is why nothing in the pane read as GROUPED. They step
+	   through --space-* now: tight inside the header, one step out to the row
+	   of actions, two steps out to the content those actions act on. */
 	.feedback {
-		margin: 0 0 0.8rem;
+		margin: 0 0 var(--space-4);
 	}
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
 	/* --- The pane header ---------------------------------------------------
 	   Left-aligned and compact: this is a sidebar, and the class is already
-	   named in the breadcrumb trail and the section switcher above it. */
+	   named in the breadcrumb trail and the section switcher above it.
+	   NO padding above it: the pane's own inset is the air over the header, and
+	   a second one here is what made the top of the page simultaneously the
+	   loosest gap and the most cramped-looking part of it. */
 	.pane-head {
-		padding: var(--space-3) 0 var(--space-2);
+		padding: 0 0 var(--space-4);
 	}
 	.pane-title {
 		margin: 0;
@@ -1019,8 +1039,8 @@
 	.pane-meta-row {
 		display: flex;
 		align-items: baseline;
-		gap: 0.5rem;
-		margin: 0.15rem 0 0;
+		gap: var(--space-2);
+		margin: var(--space-1) 0 0;
 		min-width: 0;
 	}
 	.pane-meta {
@@ -1036,24 +1056,33 @@
 	.pane-code {
 		color: var(--cyan);
 	}
+	/* The notebook link, now a peer of the buttons in the actions row rather
+	   than the last thing on a truncating meta line. `margin-left: auto` puts it
+	   at the far end of the row, which is where a destination belongs beside
+	   two things that open panels. */
 	.manage-link {
 		flex: none;
+		margin-left: auto;
+		align-self: center;
 		color: var(--gold);
 		font-family: 'Share Tech Mono', monospace;
 		font-size: 0.68rem;
 		white-space: nowrap;
 	}
 
-	/* --- The toolbar -------------------------------------------------------
-	   What used to be two full cards holding one button each. */
+	/* --- The actions row ---------------------------------------------------
+	   What used to be two full cards holding one button each. A whole step out
+	   from the header above it and from the content below it, so it reads as
+	   its own band rather than as another line of the header. */
 	.pane-tools {
 		display: flex;
 		flex-wrap: wrap;
+		align-items: center;
 		gap: var(--space-2);
-		margin-bottom: var(--space-3);
+		margin-bottom: var(--space-5);
 	}
 	.tool-panel {
-		margin-bottom: var(--space-3);
+		margin-bottom: var(--space-5);
 	}
 	.outstanding-badge {
 		display: inline-block;
@@ -1073,12 +1102,14 @@
 		line-height: 1.5;
 	}
 	.empty-state {
-		padding: 0.6rem 0;
+		padding: var(--space-2) 0;
 	}
 
+	/* Unit groups are PEERS, so they sit a step closer to each other than the
+	   actions row sits to the first of them. */
 	.group-card {
-		margin-bottom: var(--space-3);
-		padding-block: 0.7rem;
+		margin-bottom: var(--space-4);
+		padding-block: var(--space-3);
 	}
 	/* A real button, in the tab order, with aria-expanded -- the collapse used to
 	   be a document-level click listener on a bare div, which no keyboard or

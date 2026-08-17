@@ -179,7 +179,7 @@
 	.classroom-page {
 		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
 	.staff-line {
 		margin: 0.8rem 0 0;

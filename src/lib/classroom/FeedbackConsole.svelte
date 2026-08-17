@@ -185,7 +185,7 @@
 	.fb-page {
 		max-width: var(--cr-measure, var(--measure-form));
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
 	}
 	.filters {
 		display: flex;

@@ -24,14 +24,15 @@
 	 * also want an item that already EXISTS, since a deck is stored against the
 	 * canonical item id.
 	 *
-	 * IT IS THE ONLY DOOR AGAIN, on purpose. The composer briefly staged a zip of
-	 * its own and uploaded it once the save returned an id -- which put a second
-	 * deck panel on screen, with its own copy of the explanation, every time the
-	 * editor was open on an item page that was already showing this one. That
-	 * staging is gone. A deck is not a field on a form: it has its own long
-	 * transfer, its own progress, its own refusals and its own questions, none of
-	 * which the composer's save waits for, so putting it behind an edit mode only
-	 * ever added a step. Managing a deck from here needs no editor at all.
+	 * IT IS THE ONLY DOOR ON AN ITEM THAT EXISTS, on purpose. The composer stages
+	 * a zip and uploads it once the create call returns an id -- but ONLY on
+	 * create, where there is no item page yet to own it. Offering it on EDIT too
+	 * is what put a second deck panel on screen, with its own copy of this
+	 * explanation, every time the editor was open on a page already showing this
+	 * one; that is the bug, and staging only where there is nothing to duplicate
+	 * is the fix. Everything below -- the long transfer, the progress, the
+	 * refusals, the entry-page question -- belongs to a deck that is being
+	 * replaced or removed, which needs no editor at all.
 	 *
 	 * FOLLOWS THE CANONICAL ITEM: one deck per item, so every class the item is
 	 * posted to sees the same deck, and replacing it replaces it everywhere at once.

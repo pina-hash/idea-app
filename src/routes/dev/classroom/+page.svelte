@@ -12,6 +12,7 @@
 	import FeedbackConsole from '$lib/classroom/FeedbackConsole.svelte';
 	import ImpersonationBanner from '$lib/classroom/ImpersonationBanner.svelte';
 	import GradingConsole from '$lib/classroom/GradingConsole.svelte';
+	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import {
 		assignmentStandings,
 		isScheduled,
@@ -21,6 +22,7 @@
 	import { activeTab, classroomCrumbs, locateClassroom, sectionTabs } from '$lib/classroom/nav';
 	import type { ItemDoc } from '$lib/classroom/classroom-doc';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
+	import type { ReferenceTransports } from '$lib/classroom/reference-spec';
 	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
 	import type {
 		ClassroomAttachment,
@@ -1413,6 +1415,18 @@
 		}
 	};
 
+	/** The reference half of the composer's staged spec, on a MATERIAL. */
+	const fakeReferenceTransports: ReferenceTransports = {
+		async setReferenceSpec(itemId, spec) {
+			note('setReferenceSpec', { itemId, removed: spec == null });
+			return { ok: true };
+		},
+		async setPublic(itemId, isPublic) {
+			note('setPublic', { itemId, isPublic });
+			return { ok: true, data: { ok: true, is_public: isPublic } };
+		}
+	};
+
 	const teacherEngineTransports: AssignmentTeacherTransports = {
 		async setSpec(itemId, spec) {
 			note('setSpec', { itemId, removed: spec == null });
@@ -1764,6 +1778,16 @@
 			: [...devCollapsed, groupId];
 	}
 
+	/**
+	 * The composer is owned by whoever mounts the list, not by the list -- the
+	 * real section layout puts it in the detail pane. This harness has one
+	 * column, so it renders it directly under the list; what matters here is
+	 * that the trigger and the form are still wired to each other exactly the
+	 * way the layout wires them.
+	 */
+	let devComposing = $state(false);
+	let devComposeNotice = $state<string | null>(null);
+
 	/** The student's own standing, through the REAL studentWorkMap. */
 	const studentWork = $derived(
 		studentWorkMap(
@@ -1974,10 +1998,42 @@
 		checkIns={checkInsApplied ? asManager(CHECK_INS['s-1']) : []}
 		sectionOutstanding={checkInsApplied ? gridSummary(NB_GRIDS['s-1']).outstanding : null}
 		{transports}
+		composing={devComposing}
+		onCompose={() => {
+			devComposeNotice = null;
+			devComposing = !devComposing;
+		}}
+		notice={devComposeNotice}
 		{fetchPreview}
 		{submitFeedback}
 		notebookHref="/dev/notebook-review?section=s-1"
 	/>
+	{#if devComposing}
+		<section class="card composer-host">
+			<h2>New post</h2>
+			<p class="harness-note">
+				The real layout mounts this in the DETAIL pane beside the list; there is one column here,
+				so it sits under it. Same trigger, same transports, same staged deck and spec.
+			</p>
+			{#key devComposing}
+				<ContentComposer
+					mode="create"
+					sections={ownSections}
+					initialTargets={['s-1']}
+					{transports}
+					deckTransports={fakeDeckTransports}
+					teacherTransports={teacherEngineTransports}
+					referenceTransports={fakeReferenceTransports}
+					onsaved={(info) => {
+						if (!info.text) return;
+						devComposeNotice = info.text;
+						devComposing = false;
+					}}
+					oncancel={() => (devComposing = false)}
+				/>
+			{/key}
+		</section>
+	{/if}
 {:else if view === 'class2-teacher'}
 	<ClassView
 		section={section2}
