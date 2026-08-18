@@ -9,7 +9,8 @@
 	import CategoriesManager from '$lib/coin-desk/CategoriesManager.svelte';
 	import PayoutManager from '$lib/coin-desk/PayoutManager.svelte';
 	import type { CoinDeskAreaId } from '$lib/coin-desk/nav';
-	import type { CoinCategory } from '$lib/coin-desk';
+	import type { CoinCategory, CoinDeskPrefs } from '$lib/coin-desk';
+	import '$lib/shell/split.css';
 	import type { CoinSectionRow } from '$lib/coin-desk/sections';
 	import {
 		createFakeLedger,
@@ -140,6 +141,20 @@
 		Object.fromEntries(categoriesState.map((c) => [c.id, c.kind])) as Record<string, string>
 	);
 
+	/**
+	 * `profiles.preferences.coinDesk`, standing in for the real route's
+	 * whole-blob spread-merge. Held in module-free component state so a
+	 * changed default survives an area switch inside the harness the way a
+	 * persisted one survives a reload -- and logged, so what the real route
+	 * would have written is visible.
+	 */
+	let prefs = $state<CoinDeskPrefs>({});
+	let prefsLog = $state<string[]>([]);
+	function onPrefs(next: CoinDeskPrefs) {
+		prefs = next;
+		prefsLog = [...prefsLog, JSON.stringify(next)].slice(-6);
+	}
+
 	$effect(() => {
 		// Tracked: the area and the toggles. The reseed functions read plain
 		// module state, so this cannot re-trigger itself.
@@ -170,6 +185,7 @@
 	</label>
 </div>
 
+<div class="cd-root">
 <main class="coin-desk-page">
 	<section class="hero">
 		<div class="eyebrow">IDEA // Coin Desk (dev harness)</div>
@@ -186,6 +202,8 @@
 				configured={migrationApplied}
 				sections={activeSections()}
 				sectionsConfigured={sectionsApplied}
+				{prefs}
+				{onPrefs}
 			/>
 		{:else if area === 'students'}
 			<SectionManager {supabase} bind:sections={sectionsState} configured={sectionsApplied} />
@@ -204,7 +222,12 @@
 			<PayoutManager {supabase} configured={migrationApplied} />
 		{/if}
 	{/key}
+
+	{#if prefsLog.length}
+		<p class="prefs-log" data-testid="cd-prefs-log">preferences.coinDesk &rarr; {prefsLog.at(-1)}</p>
+	{/if}
 </main>
+</div>
 
 <style>
 	.dev-toolbar {
@@ -227,9 +250,38 @@
 		cursor: pointer;
 	}
 	.coin-desk-page {
-		max-width: 52rem;
+		max-width: var(--cr-measure, 52rem);
 		margin: 0 auto;
-		padding: 0 1.2rem 3rem;
+		padding: 0 var(--cr-gutter, 1.2rem) 2rem;
+	}
+	/*
+	 * A MASTHEAD LINE, not a landing-page hero. The shared `.hero` is
+	 * `padding: 4rem 1rem 2.5rem` with a centred stack under it, which measured
+	 * 191px -- a fifth of a 900px viewport, above the split, on every load, on
+	 * a tool whose whole constraint is that the form fits without scrolling.
+	 * The eyebrow and the title say which tool this is on one row instead.
+	 */
+	.hero {
+		display: flex;
+		align-items: baseline;
+		gap: 0.7rem;
+		text-align: left;
+		padding: 0.9rem 0 0.5rem;
+	}
+	.hero :global(.eyebrow) {
+		display: inline-block;
+		margin-bottom: 0;
+	}
+	.hero h1 {
+		font-size: 1.15rem;
+		margin: 0;
+		letter-spacing: 0.04em;
+	}
+	.prefs-log {
+		color: var(--cyan);
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		margin-top: 0.8rem;
 	}
 	.coin-desk-page > :global(.card) {
 		margin-bottom: 1.1rem;

@@ -8,6 +8,7 @@
  */
 
 import { SECTIONS, sectionById, type Section } from '$lib/curriculum';
+import { FSP_CONCLUDED } from '$lib/fsp/archive';
 import type { CoinCategory, CoinPricingModel } from '$lib/coin-desk';
 
 export interface CoinSectionRow {
@@ -52,7 +53,12 @@ export interface BulkLogResult {
 
 export interface BulkLogResponse {
 	ok: boolean;
-	section_id: string;
+	/**
+	 * Only a SECTION run has one. Since 0115 coin_bulk_log_section is a thin
+	 * wrapper that adds this key back around what coin_bulk_log_students
+	 * returns, and a picked-students run has no section to name.
+	 */
+	section_id?: string;
 	category_id: string;
 	/** The RUN-level medium every student got unless overridden (0096). */
 	medium?: 'physical' | 'digital';
@@ -110,10 +116,59 @@ export function sectionDisplayName(section: { id: string; label: string | null }
 	return section.label || section.id;
 }
 
-/** Curriculum sections that don't already have a coin section, for the "add from curriculum" picker. */
+/**
+ * Curriculum sections offerable in the "add from curriculum" picker.
+ *
+ * THREE RULES, and the second and third are what this used to be missing --
+ * it filtered on "already has a coin section" alone, so the picker offered
+ * every row in the catalog including ones that are not a class anybody can be
+ * in yet, and one that has finished.
+ *
+ * 1. ALREADY HAS A COIN SECTION -> not offered. Unchanged.
+ *
+ * 2. `status: 'planned'` -> not offered. A planned section is a row in the
+ *    planning sheet, not a class with students in it; making a coin section
+ *    for one produces a roster nobody can be added to and a bulk-log target
+ *    that pays nobody. 'live' and 'upcoming' are both offered, because an
+ *    upcoming class is exactly the one an operator sets a roster up for
+ *    BEFORE it starts -- excluding it would make the picker useless for its
+ *    main job (every 2026-27 section is 'upcoming' today).
+ *
+ * 3. A CONCLUDED PROGRAMME -> not offered, keyed on the FSP_CONCLUDED flag
+ *    and NOT on `term === 'Summer'`. That is the rule curriculum.ts's own
+ *    activeCourseCount() already applies, with the reason written down
+ *    there: a term label says WHEN a course runs, not whether it has
+ *    finished, so gating on it would silently misreport the moment a summer
+ *    programme runs live again. The term is surfaced in the picker's label
+ *    instead (see termLabel below), where saying which term a class runs in
+ *    is exactly what it is for.
+ *
+ * NOTHING HERE TOUCHES LIVE DATA. This is which rows a picker OFFERS;
+ * archiving an existing coin section is an operator action against
+ * coin_sections.active, which this function cannot and does not reach.
+ */
 export function curriculumSectionOptions(existingIds: Iterable<string>): Section[] {
 	const used = new Set(existingIds);
-	return SECTIONS.filter((s) => !used.has(s.id));
+	return SECTIONS.filter((s) => !used.has(s.id) && isOfferableSection(s));
+}
+
+/**
+ * Rules 2 and 3 above, as a predicate over ONE section.
+ *
+ * Separate from the filter because the catalog holds no 'planned' section
+ * today, so a test written only against SECTIONS could not tell the status
+ * rule from its absence -- it would pass whether or not the rule was there.
+ * Against a constructed section it is a real check.
+ */
+export function isOfferableSection(section: Section): boolean {
+	if (section.status === 'planned') return false;
+	if (section.id === 'summer-2026' && FSP_CONCLUDED) return false;
+	return true;
+}
+
+/** The term a curriculum section runs in, for a picker row's own label. */
+export function termLabel(section: Section): string {
+	return section.term === 'Summer' ? 'Summer' : `Term ${section.term}`;
 }
 
 /**

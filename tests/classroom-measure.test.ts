@@ -160,16 +160,40 @@ const GUTTER_SURFACES = [
 	'src/lib/classroom/FeedbackConsole.svelte'
 ];
 
+/**
+ * The rooms split.css serves, read off its own gutter declaration. Derived
+ * rather than listed so the assertions below stay about the RULE (every room
+ * gets the same treatment) instead of about how many rooms there happen to be.
+ */
+function splitCssRooms(css: string): string[] {
+	const block = css.match(/((?:\.[a-z-]+,\s*)*\.[a-z-]+) \{\s*\/\* THE PAGE GUTTER/)?.[1] ?? '';
+	return block
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);
+}
+
 describe('one page gutter, read by everything', () => {
-	it('is declared once, for both rooms, and at both widths', () => {
+	it('is declared once, for every room, and at both widths', () => {
 		const css = read(SPLIT_CSS);
-		// ONE declaration, shared by the classroom and the notebook -- not one
-		// each, which is how two numbers that must agree stop agreeing.
-		expect(css).toMatch(/\.cr-root,\s*\.nb-root \{[\s\S]{0,4000}?--cr-gutter:\s*1rem/);
-		// The narrow default on .cr-root itself...
-		expect(css).toMatch(/--cr-gutter:\s*1rem/);
-		// ...widened at the desktop breakpoint, in the same file.
-		expect(css).toMatch(/@media \(min-width: 1024px\)[\s\S]{0,200}--cr-gutter:\s*2rem/);
+		// ONE declaration, shared by every room -- not one each, which is how two
+		// numbers that must agree stop agreeing. The selector list is READ from
+		// the file rather than spelled out, so adding a fourth room (the coin
+		// desk was the third) does not break this; what it still catches is a
+		// room declaring a gutter of its own.
+		const rooms = splitCssRooms(css);
+		expect(rooms.length).toBeGreaterThanOrEqual(3);
+		// One block, holding every room and the gutter together.
+		const block = css.match(/((?:\.[a-z-]+,\s*)*\.[a-z-]+) \{[\s\S]{0,4000}?--cr-gutter:\s*1rem/)?.[0] ?? '';
+		for (const room of rooms) {
+			expect(block, `${room} is missing from the shared gutter declaration`).toContain(room);
+		}
+		// ...widened at the desktop breakpoint, in the same file, for every room.
+		const wide =
+			css.match(/@media \(min-width: 1024px\) \{[\s\S]{0,400}?--cr-gutter:\s*2rem/)?.[0] ?? '';
+		for (const room of rooms) {
+			expect(wide, `${room} keeps the narrow gutter at desktop`).toContain(room);
+		}
 	});
 
 	it('the trail and the tabs read it, and neither keeps a literal', () => {
@@ -250,9 +274,24 @@ describe('scrollbars', () => {
 	 * has to reach the descendants explicitly.
 	 */
 	it('sets the width on descendants too, since that property does not inherit', () => {
-		expect(css()).toMatch(
-			/\.cr-root,\s*\.cr-root \*,\s*\.nb-root,\s*\.nb-root \*\s*\{\s*scrollbar-width:\s*thin;\s*\}/
-		);
+		// EVERY ROOM, in BOTH forms. Derived from the room list the gutter rule
+		// declares rather than hardcoded, so the thing this catches is the real
+		// regression: a room added to the property block above and forgotten
+		// here, whose panes then come back with the platform's default bar.
+		const rooms = splitCssRooms(css());
+		// Anchored on the FIRST room so the match cannot start halfway down the
+		// selector list and then pass by only containing the tail of it.
+		const block =
+			css().match(
+				new RegExp(`\\${rooms[0]},[^{]*\\*\\s*\\{\\s*scrollbar-width:\\s*thin;\\s*\\}`)
+			)?.[0] ?? '';
+		expect(block).not.toBe('');
+		for (const room of rooms) {
+			expect(block, `${room} is missing from the scrollbar-width rule`).toContain(`${room},`);
+			expect(block, `${room} descendants are missing from the scrollbar-width rule`).toContain(
+				`${room} *`
+			);
+		}
 	});
 
 	it('keeps the WebKit rules as a fallback, on the descendant form', () => {

@@ -1,13 +1,14 @@
 /* ==========================================================================
    THE TWO-PANE MASTER-DETAIL SHELL, and the room properties it reads.
 
-   ONE SPLIT, ONE BREAKPOINT, THREE SURFACES. This started life inside
-   classroom.css for the class page; the notebook feed and the notebook's
-   review console mount the same shell now, so the geometry moved here rather
-   than being written a second and third time. $lib/shell/ClassSplit.svelte is
-   the component; this file is its geometry. Both classroom.css and
-   notebook-theme.css `@import` it, so every existing importer of either keeps
-   working unchanged.
+   ONE SPLIT, ONE BREAKPOINT, FOUR SURFACES. This started life inside
+   classroom.css for the class page; the notebook feed, the notebook's review
+   console and the coin desk's logging surface mount the same shell now, so the
+   geometry moved here rather than being written four times.
+   $lib/shell/ClassSplit.svelte is the component; this file is its geometry.
+   classroom.css and notebook-theme.css `@import` it; the coin desk has no room
+   palette of its own (it sits on the portal's dark plate) and imports this
+   file directly from its layout.
 
    THE PROPERTY NAMESPACE IS `--cr-*`, named for where it was first written.
    Renaming it would touch every classroom surface and every assertion that
@@ -49,7 +50,8 @@
    below reads out of whichever one it finds itself in.
    ------------------------------------------------------------------------ */
 .cr-root,
-.nb-root {
+.nb-root,
+.cd-root {
 	/* THE PAGE GUTTER, and it is ONE number for a whole module.
 	   The breadcrumb row, the tab bar, every single-column page and both panes
 	   of the split read this, so "the chrome lines up with the content" is a
@@ -101,6 +103,12 @@
 	--cr-thumb: var(--text-3);
 	--cr-thumb-hover: var(--text-2);
 }
+/* The coin desk sits on the portal's own dark plate rather than bringing a
+   room palette, so it names the same neutral the classroom does. */
+.cd-root {
+	--cr-thumb: var(--text-3);
+	--cr-thumb-hover: var(--text-2);
+}
 .nb-root {
 	--cr-thumb: var(--nb-hairline-strong);
 	--cr-thumb-hover: var(--nb-ink-faint);
@@ -109,27 +117,35 @@
 .cr-root,
 .cr-root *,
 .nb-root,
-.nb-root * {
+.nb-root *,
+.cd-root,
+.cd-root * {
 	scrollbar-width: thin;
 }
 
 .cr-root ::-webkit-scrollbar,
 .cr-root::-webkit-scrollbar,
 .nb-root ::-webkit-scrollbar,
-.nb-root::-webkit-scrollbar {
+.nb-root::-webkit-scrollbar,
+.cd-root ::-webkit-scrollbar,
+.cd-root::-webkit-scrollbar {
 	width: 10px;
 	height: 10px;
 }
 .cr-root ::-webkit-scrollbar-track,
 .cr-root::-webkit-scrollbar-track,
 .nb-root ::-webkit-scrollbar-track,
-.nb-root::-webkit-scrollbar-track {
+.nb-root::-webkit-scrollbar-track,
+.cd-root ::-webkit-scrollbar-track,
+.cd-root::-webkit-scrollbar-track {
 	background: transparent;
 }
 .cr-root ::-webkit-scrollbar-thumb,
 .cr-root::-webkit-scrollbar-thumb,
 .nb-root ::-webkit-scrollbar-thumb,
-.nb-root::-webkit-scrollbar-thumb {
+.nb-root::-webkit-scrollbar-thumb,
+.cd-root ::-webkit-scrollbar-thumb,
+.cd-root::-webkit-scrollbar-thumb {
 	background: var(--cr-thumb);
 	border-radius: 999px;
 	/* Inset from the track so the thumb reads as a bar rather than a fill,
@@ -140,20 +156,25 @@
 .cr-root ::-webkit-scrollbar-thumb:hover,
 .cr-root::-webkit-scrollbar-thumb:hover,
 .nb-root ::-webkit-scrollbar-thumb:hover,
-.nb-root::-webkit-scrollbar-thumb:hover {
+.nb-root::-webkit-scrollbar-thumb:hover,
+.cd-root ::-webkit-scrollbar-thumb:hover,
+.cd-root::-webkit-scrollbar-thumb:hover {
 	background: var(--cr-thumb-hover);
 	background-clip: padding-box;
 }
 .cr-root ::-webkit-scrollbar-corner,
 .cr-root::-webkit-scrollbar-corner,
 .nb-root ::-webkit-scrollbar-corner,
-.nb-root::-webkit-scrollbar-corner {
+.nb-root::-webkit-scrollbar-corner,
+.cd-root ::-webkit-scrollbar-corner,
+.cd-root::-webkit-scrollbar-corner {
 	background: transparent;
 }
 
 @media (min-width: 1024px) {
 	.cr-root,
-	.nb-root {
+	.nb-root,
+	.cd-root {
 		--cr-gutter: 2rem;
 	}
 }
@@ -211,7 +232,8 @@
 	   the split rather than with either half of it. `:has()` is the established
 	   tool here (see the .bg-fx suppressions in the two room stylesheets) and is
 	   what lets a rule set on the room respond to something a child rendered. */
-	.cr-root:has(.cr-split) {
+	.cr-root:has(.cr-split),
+	.cd-root:has(.cr-split) {
 		--cr-measure: var(--measure-split);
 	}
 

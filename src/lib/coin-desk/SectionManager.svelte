@@ -2,6 +2,7 @@
 	import type { SupabaseClient } from '@supabase/supabase-js';
 	import {
 		curriculumSectionOptions,
+		termLabel,
 		parseEmailList,
 		sectionDisplayName,
 		type AssignResult,
@@ -366,7 +367,7 @@
 					<select id="curriculum-select" bind:value={pickedCurriculumId}>
 						<option value="" disabled selected>Choose a class&hellip;</option>
 						{#each availableCurriculumSections as c (c.id)}
-							<option value={c.id}>{c.course} — {c.title} ({c.yearLabel})</option>
+							<option value={c.id}>{c.course} — {c.title} ({c.yearLabel}, {termLabel(c)})</option>
 						{/each}
 					</select>
 					{#if !availableCurriculumSections.length}

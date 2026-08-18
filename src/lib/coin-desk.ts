@@ -256,3 +256,74 @@ export function studentLabel(s: StudentSuggestion): string {
 export function sanitizeSearchTerm(term: string): string {
 	return term.replace(/[%*,()]/g, '').trim();
 }
+
+// ---------------------------------------------------------------------------
+// Per-user coin desk preferences: `profiles.preferences.coinDesk`
+//
+// The FOURTH namespace in the same free-form JSONB the launcher keeps its
+// homepage layout in (`homepage`), the class view keeps its folded units in
+// (`classroomUnits`) and the home feed keeps its collapsed class cards in
+// (`classroomFeed`). Each one owns its own parser in its own feature module;
+// this is the coin desk's. That is why it needed no migration -- the column
+// already exists and the namespaces do not know about each other.
+//
+// THE WRITE IS A WHOLE-BLOB SPREAD-MERGE at the call site
+// (`{ ...(preferences ?? {}), coinDesk: next }`), never a targeted jsonb
+// update, so writing one namespace can never clobber a sibling.
+//
+// WHAT BELONGS HERE, and it is a narrow list on purpose: the two choices an
+// operator makes once and then wants to stop making. Which TARGET they log
+// against (one student or a whole section) and which BALANCE the entry moves.
+// Neither is a piece of data and neither changes what any RPC enforces -- the
+// server re-reads the medium it was handed and forces it for
+// physical_coin_submission regardless (FORCED_MEDIUM above), so a stored
+// preference can only ever pre-fill a control, never bypass a rule.
+//
+// WHAT DELIBERATELY DOES NOT: the last student, the last category, the last
+// amount. Those are the entry itself, and remembering them across sessions is
+// how the wrong student gets charged.
+// ---------------------------------------------------------------------------
+
+/** Log against one student, or against a whole section's roster. */
+export type CoinLogMode = 'student' | 'section';
+
+export const COIN_LOG_MODES: CoinLogMode[] = ['student', 'section'];
+
+export interface CoinDeskPrefs {
+	/** Which target the entry form opens on. Absent reads as 'student'. */
+	mode?: CoinLogMode;
+	/** Which balance the entry form opens on. Absent reads as DEFAULT_MEDIUM. */
+	medium?: CoinMedium;
+}
+
+/**
+ * Read the stored coin desk preferences out of a profile's `preferences` blob.
+ *
+ * VALUES ARE VALIDATED AGAINST THE UNIONS, not merely type-checked: an
+ * unrecognised mode or medium is DROPPED rather than passed through, so a
+ * hand-edited row (or a value written by an older client whose vocabulary has
+ * since changed) degrades to the documented default instead of putting the
+ * form into a state no branch renders. Everything here fails soft: a missing
+ * column, a null blob, a non-object namespace and a garbage value all read as
+ * "no preference".
+ */
+export function readCoinDeskPrefs(preferences: unknown): CoinDeskPrefs {
+	if (!preferences || typeof preferences !== 'object') return {};
+	const raw = (preferences as Record<string, unknown>).coinDesk;
+	if (!raw || typeof raw !== 'object') return {};
+	const src = raw as Record<string, unknown>;
+	const out: CoinDeskPrefs = {};
+	if (src.mode === 'student' || src.mode === 'section') out.mode = src.mode;
+	if (src.medium === 'physical' || src.medium === 'digital') out.medium = src.medium;
+	return out;
+}
+
+/** The mode the form opens on, with the documented default applied. */
+export function coinLogMode(prefs: CoinDeskPrefs): CoinLogMode {
+	return prefs.mode ?? 'student';
+}
+
+/** The medium the form opens on, with the documented default applied. */
+export function coinDefaultMedium(prefs: CoinDeskPrefs): CoinMedium {
+	return prefs.medium ?? DEFAULT_MEDIUM;
+}

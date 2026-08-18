@@ -878,6 +878,38 @@ export function createFakeLedger(getCurrentStudentEmail: () => string = () => 'a
 		sectionAssignedAt.set(demoEmail, now);
 	}
 
+	// A FULL-SIZE CLASS, for the one thing that can break the Log area's
+	// no-scroll rule: the roster. 44 is deliberately larger than any real IDEA
+	// section (the documented ones run 10-20) so the layout is measured past
+	// the case it has to survive, not at it. Bare emails with real display
+	// names, since only the name and the count matter here.
+	sections.set('full-class-demo', {
+		id: 'full-class-demo',
+		label: 'Full Class (44 students)',
+		color: '#78b870',
+		active: true,
+		note: 'Roster-size stress case for the no-scroll layout rule.',
+		created_by: 'admin@boscotech.edu',
+		created_at: now,
+		updated_at: now,
+		student_count: 0
+	});
+	const FULL_FIRST = ['Ada', 'Ben', 'Cleo', 'Dev', 'Eli', 'Faye', 'Gus', 'Hana', 'Ivan', 'Jo', 'Kai'];
+	const FULL_LAST = ['Alvarez', 'Bakker', 'Chen', 'Delgado'];
+	for (let i = 0; i < 44; i++) {
+		const first = FULL_FIRST[i % FULL_FIRST.length];
+		const last = FULL_LAST[Math.floor(i / FULL_FIRST.length) % FULL_LAST.length];
+		const email = `${first.toLowerCase()}.${last.toLowerCase()}@boscotech.net`;
+		sectionStudents.set(email, 'full-class-demo');
+		sectionAssignedAt.set(email, now);
+		SAMPLE_STUDENTS.push({
+			id: `full-${i}`,
+			email,
+			full_name: `${first} ${last}`,
+			display_name: `${last}, ${first}`
+		});
+	}
+
 	// Two pending Shop Steward applications for the SAME role + section.
 	// Approving the first is "one under the cap" (0 held < cap 1); approving
 	// the second right after is "an application at exactly the cap" (1 held
@@ -1608,56 +1640,65 @@ async function handleRpc(
 		return Promise.resolve(ok({ section_id: sectionId, results }));
 	}
 
-	if (fn === 'coin_bulk_log_section') {
-		const sectionId = String(params.p_section_id ?? '');
-		const categoryId = String(params.p_category_id ?? '');
+	/**
+	 * The shared bulk body, mirroring 0115: coin_bulk_log_students owns every
+	 * rule and coin_bulk_log_section resolves a roster and hands it over. Kept
+	 * as ONE function here for the same reason the migration keeps it as one --
+	 * two copies of "which categories can be bulk-logged" is how the harness
+	 * stops agreeing with the server it is standing in for.
+	 */
+	async function bulkLogStudents(
+		rawEmails: string[],
+		p: Record<string, unknown>
+	): Promise<{ data: unknown; error: { message: string } | null }> {
+		const categoryId = String(p.p_category_id ?? '');
 		const cat = catById.get(categoryId);
-		if (!sections.has(sectionId)) return Promise.resolve(rpcError(`Unknown coin section "${sectionId}".`));
-		if (!cat) return Promise.resolve(rpcError(`Unknown coin category "${categoryId}".`));
+		if (!cat) return rpcError(`Unknown coin category "${categoryId}".`);
 		if (cat.id === 'extra_credit') {
-			return Promise.resolve(rpcError('Extra Credit needs a per-student point count; it cannot be bulk-logged yet.'));
+			return rpcError('Extra Credit needs a per-student point count; it cannot be bulk-logged yet.');
 		}
 		if (!['flat', 'range', 'variable'].includes(cat.pricing_model)) {
-			return Promise.resolve(rpcError(`"${cat.name}" needs per-student input and cannot be bulk-logged yet.`));
+			return rpcError(`"${cat.name}" needs per-student input and cannot be bulk-logged yet.`);
 		}
-		// Shape validation up front, mirroring coin_bulk_log_section's own
-		// pre-loop checks: a config mistake fails once, clearly, instead of
-		// identically for every student.
-		const note = (params.p_note as string | null) ?? null;
+		// Shape validation up front, mirroring the RPC's own pre-loop checks: a
+		// config mistake fails once, clearly, instead of identically for every
+		// student.
+		const note = (p.p_note as string | null) ?? null;
 		if (cat.pricing_model === 'range') {
-			const amt = Number(params.p_amount);
+			const amt = Number(p.p_amount);
 			if (!Number.isFinite(amt) || amt < (cat.min_amount ?? 0) || amt > (cat.max_amount ?? 0)) {
-				return Promise.resolve(rpcError(`"${cat.name}" must be between ${cat.min_amount}${COIN_SYMBOL} and ${cat.max_amount}${COIN_SYMBOL}.`));
+				return rpcError(`"${cat.name}" must be between ${cat.min_amount}${COIN_SYMBOL} and ${cat.max_amount}${COIN_SYMBOL}.`);
 			}
 		} else if (cat.pricing_model === 'variable') {
-			const amt = Number(params.p_amount);
+			const amt = Number(p.p_amount);
 			if (cat.kind === 'adjustment') {
-				if (!Number.isFinite(amt) || amt === 0) return Promise.resolve(rpcError('A balance adjustment needs a non-zero amount.'));
-				if (!note) return Promise.resolve(rpcError('A balance adjustment needs a note explaining why.'));
+				if (!Number.isFinite(amt) || amt === 0) return rpcError('A balance adjustment needs a non-zero amount.');
+				if (!note) return rpcError('A balance adjustment needs a note explaining why.');
 			} else {
-				if (!Number.isFinite(amt) || amt <= 0) return Promise.resolve(rpcError(`"${cat.name}" needs a positive amount.`));
-				if (!note) return Promise.resolve(rpcError(`"${cat.name}" needs a note.`));
+				if (!Number.isFinite(amt) || amt <= 0) return rpcError(`"${cat.name}" needs a positive amount.`);
+				if (!note) return rpcError(`"${cat.name}" needs a note.`);
 			}
 		}
 
-		const media = normalizeMedia(params);
+		const media = normalizeMedia(p);
 
-		const emails = Array.from(sectionStudents.entries())
-			.filter(([, sid]) => sid === sectionId)
-			.map(([e]) => e)
-			.sort();
+		// Normalize, dedupe, sort -- exactly what 0115 does, so a picked set and
+		// a section roster come back in the same order.
+		const emails = [
+			...new Set(rawEmails.map((e) => String(e ?? '').trim().toLowerCase()).filter(Boolean))
+		].sort();
 
 		const results: Record<string, unknown>[] = [];
 		let succeeded = 0;
 		for (const studentEmail of emails) {
 			// Reuses the SAME coin_log_transaction handling every single-student
 			// log goes through -- no duplicated business rule, exactly mirroring
-			// how the real coin_bulk_log_section nests the real coin_log_transaction.
+			// how the real RPC nests the real coin_log_transaction.
 			const rowMedium = media.overrides[studentEmail] ?? media.run;
 			const single = await handleRpc('coin_log_transaction', {
 				p_email: studentEmail,
 				p_category_id: categoryId,
-				p_amount: params.p_amount,
+				p_amount: p.p_amount,
 				p_quantity: null,
 				p_note: note,
 				p_medium: rowMedium
@@ -1667,18 +1708,31 @@ async function handleRpc(
 			results.push({ email: studentEmail, medium: rowMedium, ...(data as Record<string, unknown>) });
 		}
 
-		return Promise.resolve(
-			ok({
-				section_id: sectionId,
-				category_id: categoryId,
-				medium: media.run,
-				unmatched_overrides: Object.keys(media.overrides).filter((e) => !emails.includes(e)),
-				total: results.length,
-				succeeded,
-				refused: results.length - succeeded,
-				results
-			})
-		);
+		return ok({
+			category_id: categoryId,
+			medium: media.run,
+			unmatched_overrides: Object.keys(media.overrides).filter((e) => !emails.includes(e)),
+			total: results.length,
+			succeeded,
+			refused: results.length - succeeded,
+			results
+		});
+	}
+
+	if (fn === 'coin_bulk_log_students') {
+		return bulkLogStudents((params.p_emails as string[]) ?? [], params);
+	}
+
+	if (fn === 'coin_bulk_log_section') {
+		const sectionId = String(params.p_section_id ?? '');
+		if (!sections.has(sectionId)) return Promise.resolve(rpcError(`Unknown coin section "${sectionId}".`));
+		const emails = Array.from(sectionStudents.entries())
+			.filter(([, sid]) => sid === sectionId)
+			.map(([e]) => e);
+		const res = await bulkLogStudents(emails, params);
+		if (res.error) return res;
+		// The wrapper adds `section_id` back, exactly as 0115's does.
+		return ok({ section_id: sectionId, ...(res.data as Record<string, unknown>) });
 	}
 
 	// -----------------------------------------------------------------------
