@@ -29,6 +29,7 @@ import {
 } from './db/harness';
 import { POST } from '../src/routes/api/notebook/note/+server';
 
+const FAKE_UUID = '11111111-2222-3333-4444-555555555555';
 let db: TestDb;
 let student: SeededUser;
 let sectionId: string;
@@ -249,6 +250,74 @@ describe('POST /api/notebook/note', () => {
 			[body.entry.entry_id]
 		);
 		expect(rows[0].section_id).toBe(sectionId);
+	});
+
+	it('carries a check-in through, so a text-only entry can answer one', async () => {
+		// The reported bug in one assertion: before 0114 this route had no
+		// session at all, so a check-in could only be answered with a photo.
+		const teacher = await createUser(db, 'jbuilder@boscotech.edu', 'J Builder');
+		const section = await createClassroomSection(db, {
+			as: teacher,
+			courseCode: 'ENG1H',
+			courseTitle: 'Engineering I Honors',
+			label: 'Period 3',
+			teacherEmail: teacher.email
+		});
+		const created = await db.asUser(teacher.id, (q) =>
+			q<{ result: { session_id: string } }>(
+				'select public.notebook_admin_upsert_session($1::uuid[], $2, $3, $4) as result',
+				[[section], 5, '2026-10-28', 'Belt tension']
+			)
+		);
+		const sessionId = created.rows[0].result.session_id;
+
+		const res = await callRoute(
+			{ content: editorDoc('No page to shoot yet; wrote the steps up instead.'), session_id: sessionId },
+			student.id
+		);
+		expect(res.status).toBe(200);
+		const body = (await res.json()) as { entry: { entry_id: string } };
+		const { rows } = await db.sql<{ session_id: string; section_id: string }>(
+			`select session_id, section_id from public.notebook_entries where id = $1`,
+			[body.entry.entry_id]
+		);
+		expect(rows[0].session_id).toBe(sessionId);
+		// Resolved server-side from the posting, not taken from the request.
+		expect(rows[0].section_id).toBe(section);
+		const photos = await db.sql<{ n: string }>(
+			`select count(*)::text as n from public.notebook_entry_photos where entry_id = $1`,
+			[body.entry.entry_id]
+		);
+		expect(photos.rows[0].n).toBe('0');
+	});
+
+	it('names p_session_id ONLY when a check-in was picked', async () => {
+		// THE DEPLOY-ORDERING RULE, and it is the p_folder_id rule for the
+		// p_folder_id reason: on a project still on 0113 the RPC has its
+		// four-argument signature, so naming a fifth unconditionally would leave
+		// PostgREST unable to resolve it and break EVERY note -- including the
+		// free-form ones that have nothing to do with a check-in.
+		const seen: string[][] = [];
+		const spy = {
+			async rpc(_fn: string, args: Record<string, unknown>) {
+				seen.push(Object.keys(args));
+				return { data: { entry_id: null }, error: null };
+			}
+		};
+		const call = (body: unknown) =>
+			(POST as unknown as (event: unknown) => Promise<Response>)({
+				request: new Request('http://localhost/api/notebook/note', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify(body)
+				}),
+				locals: { supabase: spy, claims: { sub: student.id, role: 'authenticated' } }
+			});
+
+		await call({ content: editorDoc('free-form') });
+		expect(seen[0]).not.toContain('p_session_id');
+		await call({ content: editorDoc('a check-in'), session_id: FAKE_UUID });
+		expect(seen[1]).toContain('p_session_id');
 	});
 
 	it('rejects a malformed id, a non-JSON body and an over-long title', async () => {

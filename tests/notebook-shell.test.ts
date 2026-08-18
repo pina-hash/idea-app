@@ -9,6 +9,7 @@ import {
 	selectedEntryOf
 } from '../src/lib/notebook/notebook-shell';
 import { SPLIT_MIN_PX } from '../src/lib/shell/split.svelte';
+import { REVEAL_VIEWPORT_FRACTION, shouldReveal } from '../src/lib/shell/reveal';
 import type { NotebookEntry, StagedPhoto } from '../src/lib/notebook';
 
 /**
@@ -338,6 +339,60 @@ describe('the shell is shared, not copied', () => {
 		expect(read('src/lib/notebook/notebook-theme.css')).toContain("@import '../shell/split.css';");
 	});
 
+	it('the notebook owns ONE scroll region, so no bar wraps another', () => {
+		// THE REGRESSION THIS PINS. The default pane geometry is viewport height
+		// less --cr-chrome-h, which is right when the split IS the page -- the
+		// classroom's is, with a breadcrumb and a tab bar above it and nothing
+		// below. The notebook's is not: ~355px of masthead and hero above, a
+		// version badge below, and on /classroom/view-as the whole thing is
+		// mounted inside the classroom's own shell. A viewport-height pane under
+		// that leaves the DOCUMENT scrolling too, which is two bars with one
+		// inside the other.
+		for (const file of [
+			'src/lib/notebook/NotebookView.svelte',
+			'src/lib/notebook/ReviewConsole.svelte'
+		]) {
+			// On the TAG, not anywhere in the file: the phrase appears in both
+			// components' comments, and an assertion a comment can satisfy cannot
+			// fail (the narrow="stack" assertion below learned this by mutation).
+			expect(read(file), `${file} does not hand the scroll to the page`).toMatch(
+				/<ClassSplit[\s\S]{0,200}?scroll="page"/
+			);
+		}
+		// ...and the classroom keeps the default, being the surface the default
+		// is correct for.
+		expect(read('src/routes/classroom/[sectionId]/+layout.svelte')).not.toContain('scroll=');
+	});
+
+	it('page-flow genuinely un-bounds both panes rather than moving the bar', () => {
+		// A sticky, internally-scrolling detail pane was the obvious shape and is
+		// NOT what shipped: it scrolls internally the moment it is taller than the
+		// screen, and the compose form is ~1200px against a 900px viewport, so
+		// that is its ordinary state. It would have answered a report about two
+		// scrollbars with two scrollbars. Nothing here may re-bound a pane -- and
+		// per the file's own rule, nothing may HIDE a bar either.
+		const block = split().slice(split().indexOf('.cr-split.page-flow'));
+		expect(block).toMatch(/max-height:\s*none/);
+		expect(block).toMatch(/overflow-y:\s*visible/);
+		expect(block).not.toMatch(/position:\s*sticky/);
+		expect(split()).not.toMatch(/scrollbar-width:\s*none/);
+		expect(split()).not.toMatch(/::-webkit-scrollbar\s*\{[^}]*display:\s*none/);
+	});
+
+	it('the folder rail stops being a scroller inside a scroller at desktop', () => {
+		// A horizontal chip strip is right for a full-width band on a phone, where
+		// vertical room is the scarce thing. In a 26rem navigation pane it was a
+		// bar nested in a bar, offering nothing the room below it gives for free.
+		const rail = read('src/lib/notebook/FolderRail.svelte');
+		const desktop = rail.slice(rail.indexOf(`@media (min-width: ${SPLIT_MIN_PX}px)`));
+		expect(desktop, 'the rail keeps a bar of its own inside the pane').toMatch(
+			/flex-wrap:\s*wrap/
+		);
+		expect(desktop).toMatch(/overflow-x:\s*visible/);
+		// The phone behaviour is what it always was.
+		expect(rail).toMatch(/overflow-x:\s*auto/);
+	});
+
 	it('the notebook stacks below the breakpoint rather than swapping', () => {
 		// The compose form has always been the first block on a phone's notebook,
 		// and the feed under it; swapping would hide the feed behind the form.
@@ -351,5 +406,55 @@ describe('the shell is shared, not copied', () => {
 		expect(split()).toMatch(/\.cr-split\.narrow-stack > \.cr-nav \{\s*order:\s*2;/);
 		// ...and the classroom's swap is unchanged, being the default.
 		expect(read('src/routes/classroom/[sectionId]/+layout.svelte')).not.toContain('narrow=');
+	});
+});
+
+describe('bringing the detail pane into view', () => {
+	/**
+	 * The cost of un-bounding the panes, paid in one place: with nothing pinned,
+	 * opening something from a row far down a long list renders it at the top of
+	 * a column already scrolled past, and the click reads as doing nothing.
+	 *
+	 * The half that fails SILENTLY is the other one -- scrolling when the pane
+	 * was already showing. That is a page yanking itself for no reason, and it
+	 * looks identical to a page that simply moved, so it is asserted here rather
+	 * than eyeballed.
+	 */
+	it('scrolls when the pane is above the viewport', () => {
+		expect(shouldReveal(-1, 900)).toBe(true);
+		expect(shouldReveal(-800, 900)).toBe(true);
+	});
+
+	it('scrolls when the pane is below the halfway line', () => {
+		expect(shouldReveal(900 * REVEAL_VIEWPORT_FRACTION + 1, 900)).toBe(true);
+		expect(shouldReveal(1200, 900)).toBe(true);
+	});
+
+	it('does NOT scroll a pane that is already showing', () => {
+		expect(shouldReveal(0, 900)).toBe(false);
+		expect(shouldReveal(232, 900)).toBe(false);
+		expect(shouldReveal(900 * REVEAL_VIEWPORT_FRACTION, 900)).toBe(false);
+	});
+
+	it('does nothing without a real viewport to measure against', () => {
+		// Server render, a detached element, a zero-height frame: none of those
+		// are a page that needs moving, and scrolling on them is not defensible
+		// as a default.
+		expect(shouldReveal(-100, 0)).toBe(false);
+		expect(shouldReveal(Number.NaN, 900)).toBe(false);
+		expect(shouldReveal(-100, Number.NaN)).toBe(false);
+	});
+
+	it('is what both notebook surfaces actually call', () => {
+		for (const file of [
+			'src/lib/notebook/NotebookView.svelte',
+			'src/lib/notebook/ReviewConsole.svelte'
+		]) {
+			const src = read(file);
+			expect(src, `${file} does not reveal its detail pane`).toContain('revealDetailPane(detailEl)');
+			// Bound rather than found by selector, so a page holding more than one
+			// split cannot reveal the wrong one.
+			expect(src).toMatch(/<ClassSplit[\s\S]{0,200}?bind:detailEl/);
+		}
 	});
 });

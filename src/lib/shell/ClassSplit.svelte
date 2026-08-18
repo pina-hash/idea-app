@@ -30,6 +30,8 @@
 		hasDetail = false,
 		narrow = 'swap',
 		navWidth = 'list',
+		scroll = 'panes',
+		detailEl = $bindable(null),
 		nav,
 		overlay = null,
 		children
@@ -66,6 +68,31 @@
 		 * variant supplies.
 		 */
 		navWidth?: 'list' | 'wide';
+		/**
+		 * WHO OWNS THE SCROLL above the breakpoint.
+		 *
+		 * `panes` (the default, and the classroom's) makes each pane its own
+		 * scroll container at viewport height less the chrome above it. It is
+		 * right when the split IS the page: a breadcrumb and a tab bar above,
+		 * nothing below.
+		 *
+		 * `page` leaves the scroll to the document and sticks the detail pane
+		 * beside a flowing list. It is right when the split is one thing on a
+		 * page that has its own chrome above and below it, or when the whole
+		 * surface is mounted inside somebody else's shell -- both of which are
+		 * true of the notebook, and neither of which any viewport arithmetic in
+		 * the stylesheet could know about. Getting this wrong is not subtle: a
+		 * viewport-height pane under 355px of chrome gives the page a second
+		 * scrollbar wrapped around the pane's own.
+		 */
+		scroll?: 'panes' | 'page';
+		/**
+		 * The detail pane's own element, for a surface that needs to bring it
+		 * into view (see $lib/shell/reveal.ts). Bound rather than found by
+		 * selector so a page holding more than one split cannot pick the wrong
+		 * one, and so the reference is typed.
+		 */
+		detailEl?: HTMLElement | null;
 		nav: import('svelte').Snippet;
 		/**
 		 * SOMETHING THAT IS NOT A ROUTE, TAKING THE DETAIL PANE. In the classroom
@@ -87,10 +114,11 @@
 	class:has-detail={hasDetail}
 	class:narrow-stack={narrow === 'stack'}
 	class:nav-wide={navWidth === 'wide'}
+	class:page-flow={scroll === 'page'}
 	data-testid="class-split"
 >
 	<div class="cr-nav" data-testid="class-nav-pane">{@render nav()}</div>
-	<div class="cr-detail" data-testid="class-detail-pane">
+	<div class="cr-detail" data-testid="class-detail-pane" bind:this={detailEl}>
 		{#if overlay}
 			<div class="cr-detail-compose" data-testid="class-detail-overlay">{@render overlay()}</div>
 		{/if}

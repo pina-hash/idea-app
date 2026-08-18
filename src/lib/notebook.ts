@@ -485,4 +485,12 @@ export interface NotePayload {
 	custom_label: string | null;
 	/** Which folder to file it into (0088); null is Unfiled. */
 	folder_id: string | null;
+	/**
+	 * The check-in this note ANSWERS (0114), or null for a free-form entry.
+	 * Carried as the PAIR the entry is keyed on: one canonical check-in runs in
+	 * several classes since 0098, so the section is the one whose button was
+	 * pressed rather than whichever posting a lookup would have found first.
+	 */
+	session_id?: string | null;
+	section_id?: string | null;
 }

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import ProfileMenu from '$lib/ProfileMenu.svelte';
 	import AnimatedLogo from '$lib/brand/AnimatedLogo.svelte';
 	import VersionBadge from '$lib/VersionBadge.svelte';
@@ -9,6 +9,7 @@
 	import DocumentationCheck from '$lib/notebook/DocumentationCheck.svelte';
 	import NotebookThemeToggle from '$lib/notebook/NotebookThemeToggle.svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
+	import { revealDetailPane } from '$lib/shell/reveal';
 	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import '$lib/notebook/notebook-theme.css';
 	import {
@@ -99,6 +100,8 @@
 	 * closes the panel rather than describing something that is gone.
 	 */
 	let openEntryId = $state<string | null>(null);
+	/** The split's detail pane, for revealDetailPane. See $lib/shell/reveal.ts. */
+	let detailEl = $state<HTMLElement | null>(null);
 	let openEntry = $state<ReviewEntry | null>(null);
 	let entryLoading = $state(false);
 	let entryError = $state<string | null>(null);
@@ -233,6 +236,12 @@
 		openEntry = null;
 		entryError = null;
 		entryLoading = true;
+		// The panel flows with the page (scroll="page"), so a cell clicked far
+		// down a long roster would otherwise open it above the grid and read as
+		// nothing happening. Revealed as soon as the pane EXISTS -- before the
+		// entry has loaded -- so the student is looking at the loading state
+		// rather than at the fetch finishing somewhere off-screen.
+		void tick().then(() => revealDetailPane(detailEl));
 		const result = await transports.loadEntry(entryId);
 		entryLoading = false;
 		// A second click while the first was in flight wins; drop the stale one.
@@ -447,7 +456,21 @@
 				Deliberately not an overlay: covering the grid would defeat the whole
 				point, which is moving from cell to cell.
 			-->
-			<ClassSplit navWidth="wide" hasDetail={openEntryId !== null} nav={gridPane}>
+			<!--
+				`scroll="page"`: the split is ONE card in a stack here (hero, pickers,
+				check-ins above it; Documentation Check below), so a viewport-height
+				grid pane left the page scrolling around a grid that scrolled inside
+				it. The page owns the scroll and the entry panel sticks -- which is
+				also exactly what this console did before it moved onto the shared
+				shell, and why the panel stays reachable from a cell forty rows down.
+			-->
+			<ClassSplit
+				navWidth="wide"
+				scroll="page"
+				bind:detailEl
+				hasDetail={openEntryId !== null}
+				nav={gridPane}
+			>
 				{@render entryPane()}
 			</ClassSplit>
 

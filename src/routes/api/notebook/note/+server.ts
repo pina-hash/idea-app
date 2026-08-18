@@ -4,8 +4,8 @@ import { UUID_RE } from '$lib/server/notebook-upload';
 import type { RequestHandler } from './$types';
 
 /**
- * Creates a notebook entry whose content is a WRITTEN NOTE -- no photo, no
- * session, an optional short title.
+ * Creates a notebook entry whose content is a WRITTEN NOTE -- no photo, an
+ * optional short title, and since 0114 an optional check-in it answers.
  *
  * WHY ITS OWN ROUTE rather than a branch in /api/notebook/upload: a note
  * shares exactly one step with a photo upload, the entry insert. Everything
@@ -23,11 +23,18 @@ import type { RequestHandler } from './$types';
  * else: it is optional here, capped by its own 200-character CHECK, and a
  * note with no title is the ordinary case.
  *
- * `session_id` is gone from this route's contract. A note entry is free-form
- * by definition -- a scheduled check-in exists because an instructor asked for
- * a page, and notebook_create_note_entry does not take a session at all. To
- * write a note ABOUT a check-in, add one to that entry via
- * /api/notebook/add-note.
+ * `session_id` IS BACK IN THIS ROUTE'S CONTRACT, and it reverses a decision
+ * this comment used to defend. The old reasoning was that a check-in exists
+ * because an instructor asked for a page, so a note could not be one -- which
+ * made a photo the only way to answer a check-in at all, and that is the bug
+ * reported on the first day of classes. A written entry with no photograph is
+ * legitimate work on every tier. 0114 gives notebook_create_note_entry a
+ * session parameter and resolves the section through the same
+ * _notebook_resolve_session_section notebook_create_entry uses, so a check-in
+ * note lands on exactly the (session, section) posting pair the composite FK
+ * accepts. Adding a note to an entry that already exists is still
+ * /api/notebook/add-note; this is for the entry whose whole content is the
+ * note.
  *
  * Authentication is the same as every other notebook write, with no exception:
  * the caller's real session is required (401 without one), and the RPC runs
@@ -37,7 +44,9 @@ import type { RequestHandler } from './$types';
  * JSON body:
  *   content       the editor's document (required; normalized before storage)
  *   custom_label  a short title for the entry (optional, <= 200 chars)
- *   section_id    uuid of a notebook_sections row (optional)
+ *   session_id    uuid of a notebook_sessions check-in (optional)
+ *   section_id    which class the entry is for (optional; with a session it
+ *                 must be one that check-in is posted to)
  */
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
@@ -59,8 +68,12 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	};
 
 	const customLabel = text('custom_label');
+	const sessionId = text('session_id');
 	const sectionId = text('section_id');
 	const folderId = text('folder_id');
+	if (sessionId && !UUID_RE.test(sessionId)) {
+		return json({ error: 'session_id must be a uuid.' }, { status: 400 });
+	}
 	if (sectionId && !UUID_RE.test(sectionId)) {
 		return json({ error: 'section_id must be a uuid.' }, { status: 400 });
 	}
@@ -101,6 +114,16 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		p_section_id: sectionId
 	};
 	if (folderId) args.p_folder_id = folderId;
+	/**
+	 * p_session_id follows p_folder_id's rule, for p_folder_id's reason: on a
+	 * project still on 0113, notebook_create_note_entry has its four-argument
+	 * signature, and naming a fifth unconditionally would leave PostgREST unable
+	 * to resolve the function and break EVERY note -- including the free-form
+	 * ones that have nothing to do with a check-in. Named only when a check-in
+	 * was actually picked, the call matches either version, and the one shape
+	 * that needs 0114 is the only one that asks for it.
+	 */
+	if (sessionId) args.p_session_id = sessionId;
 
 	const { data, error } = await supabase.rpc('notebook_create_note_entry', args);
 	if (error) {

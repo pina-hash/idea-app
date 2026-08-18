@@ -13,6 +13,18 @@
 	],
 	"entries": [
 		{
+			"date": "2026-08-20",
+			"title": "You can write a notebook entry without a photo",
+			"body": "If you did not have a page to photograph -- you left your notebook at home, you worked something out on the whiteboard, you want to say what you were thinking before you draw it up -- you can now just write it. Pick the check-in you are answering as usual, type into the box under the photos, and save. It counts as filed for that check-in exactly like a photographed page does, and your teacher sees what you wrote. You can also do both now: photograph the page AND say something about it in the same go, which was only possible on entries that were not attached to a check-in before. Nothing else changed -- a photo on its own still saves the way it always has. The only thing that is still refused is an entry with nothing in it at all, and it now tells you that either a photo or some writing will do.",
+			"tags": ["Notebook"]
+		},
+		{
+			"date": "2026-08-20",
+			"title": "One scrollbar in the notebook, not two",
+			"body": "The notebook had ended up with a scrollbar inside a scrollbar -- the page scrolled, and your list of entries scrolled separately inside it, so which one you got depended on where your pointer happened to be. There is one now: the page. The section review grid had the same problem and is fixed the same way. When you open an entry it comes to you rather than waiting somewhere further up the page, and the row of folder buttons wraps onto a second line on a big screen instead of sliding sideways.",
+			"tags": ["Notebook"]
+		},
+		{
 			"date": "2026-08-19",
 			"title": "The syllabus section tabs can actually be moved now",
 			"body": "The row of section tabs across the top of a reference document -- the syllabus is the one most of you use -- could scroll but gave you no way to scroll it. The only thing that moved it was tapping a tab you could half see, which also changed what you were reading, and some sections were left unreachable. It has real controls now: a scrollbar under the tabs, arrows at each end that move across about a screen's worth at a time, the mouse wheel or trackpad while you are over it, and you can just grab the strip and drag it. None of those change the section you are reading -- only tapping a tab does that. On a phone the row is replaced by a Section menu instead, which lists every section at once rather than showing you two at a time. Arrow keys, Home and End still work the way they did.",

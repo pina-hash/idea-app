@@ -16,8 +16,31 @@
 
    A SURFACE THAT NEEDS A DIFFERENT ARRANGEMENT GETS A CLASS HERE, never a
    second split: `narrow-stack` for what happens below the breakpoint,
-   `nav-wide` for how the columns divide above it. Both are opt-in, so the
-   classroom's computed geometry is exactly what it was.
+   `nav-wide` for how the columns divide above it, `page-flow` for who owns the
+   scroll. All three are opt-in, so the classroom's computed geometry is
+   exactly what it was.
+
+   WHO OWNS THE SCROLL, and it is the one decision a room genuinely cannot
+   share. The default is the classroom's: each pane is its own scroll container
+   sized at `100vh - --cr-chrome-h`, which is right EXACTLY WHEN THE SPLIT IS
+   THE PAGE -- the chrome above it is a breadcrumb and a tab bar, nothing sits
+   below it, and 10.5rem is what those measure. The notebook is neither: its
+   masthead, hero and version badge put ~355px above the split and ~100px
+   below it, so a viewport-height pane plus that chrome is taller than the
+   viewport and the DOCUMENT scrolls too. Two bars, one inside the other,
+   which is what a classroom reported after the first day of school.
+
+   AND IT CANNOT BE FIXED BY TUNING --cr-chrome-h, which is why `page-flow`
+   exists rather than a number. The notebook's chrome is not a constant: the
+   hero wraps, notices appear, fail-soft cards appear -- and `.nb-root` is not
+   even always the top of the page, since /classroom/view-as mounts the whole
+   notebook UNDER the classroom's own shell and impersonation banner. Any
+   viewport arithmetic written here would be wrong on that route by exactly
+   the height of somebody else's chrome.
+
+   So `page-flow` gives the scroll back to the document: neither pane bounds
+   itself, the page scrolls once, and the surface reveals its own detail pane
+   when something is opened in it. One region, at every width.
    ========================================================================== */
 
 /* --- The rooms ------------------------------------------------------------
@@ -253,7 +276,9 @@
 	   their own surface against it (the pane paints nothing, so it is a frame,
 	   not a second card under the first).
 	   The PANE'S BOX sits on the gutter, which is the alignment that matters:
-	   the chrome and both panes all start and end on the same line. */
+	   the chrome and both panes all start and end on the same line.
+	   Under `page-flow` it no longer clips, and the frame stays: it is then
+	   reading as what the list has always been, a bounded region on the page. */
 	.cr-split > .cr-nav {
 		/* The list FILLS its pane -- `none` is a legal max-width, so the pane
 		   sets the same custom property the page measure travels on rather than
@@ -268,6 +293,32 @@
 	.cr-split.nav-wide > .cr-nav {
 		border: none;
 		padding: 0;
+	}
+
+	/* --- page-flow: the DOCUMENT owns the scroll ---------------------------
+	   NEITHER PANE BOUNDS ITSELF, so the surface has exactly ONE scroll region
+	   at every width and nothing nested inside it duplicates the job.
+
+	   A STICKY, INTERNALLY-SCROLLING DETAIL PANE WAS TRIED FIRST AND IS NOT
+	   WHAT SHIPPED. It keeps the open thing beside the list for free, but it
+	   scrolls internally the moment it is taller than the screen -- and the
+	   notebook's compose form measures ~1200px against a 900px viewport, so
+	   that is its DEFAULT state, not an edge. It would have answered a report
+	   about two scrollbars with two scrollbars.
+
+	   THE COST IS PAID IN ONE PLACE, DELIBERATELY: with nothing pinned, opening
+	   something from a row far down a long list would render it at the top of a
+	   column already scrolled past, and the click would look like it did
+	   nothing. The surface brings its own detail pane into view instead (see
+	   revealDetailPane in NotebookView / ReviewConsole) -- an explicit response
+	   to an explicit click, rather than geometry that costs a scrollbar on every
+	   frame to cover one moment.
+	   ---------------------------------------------------------------------- */
+	.cr-split.page-flow > .cr-nav,
+	.cr-split.page-flow > .cr-detail {
+		max-height: none;
+		overflow-y: visible;
+		overscroll-behavior: auto;
 	}
 }
 

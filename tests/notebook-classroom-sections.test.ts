@@ -158,7 +158,11 @@ const CHAIN = MIGRATIONS.filter(
 		// staff predicate this file exists to pin with an enrollment-based union,
 		// so applying it here would change the subject. 0106's own guarantees are
 		// pinned by tests/notebook-instructor-access.test.ts.
-		m !== '0106_notebook_instructor_student_access.sql'
+		m !== '0106_notebook_instructor_student_access.sql' &&
+		// And 0114, which recreates notebook_create_entry against 0098's section
+		// resolver -- excluded above -- so applying it here would leave a check-in
+		// write calling a function this chain does not have.
+		m !== '0114_notebook_note_entry_session.sql'
 );
 
 beforeAll(async () => {

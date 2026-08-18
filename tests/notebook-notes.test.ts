@@ -468,11 +468,13 @@ describe('privileges', () => {
 		const { rows } = await db.sql<{ fn: string; ok: boolean }>(
 			`select fn, has_function_privilege('anon', fn, 'execute') as ok
 			   from (values
-			     -- The 4-arg signature is the one that ships: 0088 dropped 0078's
-			     -- 3-arg version outright when it added the folder. This suite used
-			     -- to pin the dead one, which only passed because 0088 was not in
-			     -- its chain.
-			     ('public.notebook_create_note_entry(jsonb, text, uuid, uuid)'),
+			     -- The 5-arg signature is the one that ships: each migration that
+			     -- added a parameter dropped the arity before it -- 0088 the 3-arg
+			     -- (folder), 0114 the 4-arg (check-in). Pinning a dead one passes
+			     -- for the wrong reason, which this line has been caught doing
+			     -- before, so it names the current one and fails loudly when the
+			     -- next parameter lands.
+			     ('public.notebook_create_note_entry(jsonb, text, uuid, uuid, uuid)'),
 			     ('public.notebook_add_note(uuid, jsonb)'),
 			     ('public.notebook_edit_note(uuid, jsonb)')
 			   ) as t(fn)`

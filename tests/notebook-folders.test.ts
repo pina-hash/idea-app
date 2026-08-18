@@ -43,8 +43,24 @@ import {
 	type TestDb
 } from './db/harness';
 
-/** The notebook chain, plus folders. */
-const CHAIN = [...MIGRATIONS] as const;
+/**
+ * The notebook chain, plus folders -- minus 0114.
+ *
+ * The re-apply test at the foot of this file pastes 0088 a SECOND time, which
+ * is the thing it exists to check. 0114 later drops 0088's four-argument
+ * notebook_create_note_entry and replaces it with a five-argument one, so
+ * re-pasting 0088 on top of 0114 puts the old arity back BESIDE the new one --
+ * two overloads differing by a defaulted trailing parameter, which PostgREST
+ * cannot resolve at all.
+ *
+ * That is a true fact about running migrations OUT OF ORDER, and it is not the
+ * subject here: 0088's idempotency is. Excluded rather than asserted around,
+ * the same way notebook-classroom-sections and notebook-session-postings drop
+ * the migrations that would change THEIR subject. 0114's own guarantees --
+ * including that exactly one arity survives -- are pinned by
+ * tests/notebook-text-only-entry.test.ts.
+ */
+const CHAIN = MIGRATIONS.filter((m) => m !== '0114_notebook_note_entry_session.sql');
 
 let db: TestDb;
 let ada: SeededUser; // student

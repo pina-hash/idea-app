@@ -54,7 +54,13 @@ const POSTINGS_FILE = '0098_notebook_session_postings.sql';
  * applying it in this "before" half would not be the world as it was at all.
  */
 const CHAIN_BEFORE = MIGRATIONS.filter(
-	(m) => m !== POSTINGS_FILE && m !== '0106_notebook_instructor_student_access.sql'
+	(m) =>
+		m !== POSTINGS_FILE &&
+		m !== '0106_notebook_instructor_student_access.sql' &&
+		// 0114 lands later still, and recreates notebook_create_entry against
+		// 0098's own section resolver -- the migration this half exists to be
+		// "before". Its guarantees are pinned by notebook-text-only-entry.
+		m !== '0114_notebook_note_entry_session.sql'
 );
 const POSTINGS_SQL = readFileSync(
 	fileURLToPath(new URL(`../supabase/migrations/${POSTINGS_FILE}`, import.meta.url)),

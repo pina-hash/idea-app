@@ -129,8 +129,12 @@ describe('notebook_create_entry: the photo is conditional on the tier', () => {
 	});
 
 	it('still REJECTS a session-linked entry with no photo', async () => {
+		// 0114 rewrote the MESSAGE and not the rule: this door's only content is
+		// a photo, so a call to it with none has nothing in it. What it may no
+		// longer do is name a Drive file id at a student, or imply a photo is the
+		// only way out -- writing is (see notebook-text-only-entry).
 		await expect(createEntry({ session: sessionId })).rejects.toThrow(
-			/Drive file id is required/i
+			/nothing in it.*write a note/i
 		);
 		// Rejected outright: no half-made entry left behind.
 		const { rows } = await db.sql<{ n: string }>(
@@ -141,11 +145,12 @@ describe('notebook_create_entry: the photo is conditional on the tier', () => {
 	});
 
 	it('rejects a session-linked entry with a label but no photo', async () => {
-		// A label is NOT a substitute on the session tier: the instructor asked
-		// for a page, and only the free tier accepts a label in place of one.
+		// A label is NOT a substitute on the session tier: a title says what an
+		// entry is called, not what is in it. Since 0114 the substitute for a
+		// photo is WRITING, and it goes through notebook_create_note_entry.
 		await expect(
 			createEntry({ session: sessionId, label: 'forgot my notebook' })
-		).rejects.toThrow(/Drive file id is required/i);
+		).rejects.toThrow(/nothing in it.*write a note/i);
 	});
 
 	it('still accepts a session-linked entry WITH a photo', async () => {
@@ -167,9 +172,13 @@ describe('notebook_create_entry: the photo is conditional on the tier', () => {
 	});
 
 	it('rejects a free entry with neither a photo nor a label', async () => {
-		await expect(createEntry({})).rejects.toThrow(/needs a photo or a label/i);
+		// 0114 rewrote the MESSAGE and not the rule -- and this door has three
+		// ways out to name, since a title satisfies it where a check-in needs
+		// real content.
+		await expect(createEntry({})).rejects.toThrow(/nothing in it/i);
+		await expect(createEntry({})).rejects.toThrow(/photo.*write.*title/i);
 		// Whitespace is not a label: btrim collapses it to nothing.
-		await expect(createEntry({ label: '   ' })).rejects.toThrow(/needs a photo or a label/i);
+		await expect(createEntry({ label: '   ' })).rejects.toThrow(/nothing in it/i);
 	});
 
 	it('still refuses to create an entry for someone else', async () => {

@@ -9,7 +9,9 @@
 	import FolderManager from '$lib/notebook/FolderManager.svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { beforeNavigate } from '$app/navigation';
+	import { tick } from 'svelte';
 	import ClassSplit from '$lib/shell/ClassSplit.svelte';
+	import { revealDetailPane } from '$lib/shell/reveal';
 	import { splitIsWide, watchSplitWidth } from '$lib/shell/split.svelte';
 	import { clearPendingCapture, fitForUpload, takePendingCapture } from '$lib/notebook/camera';
 	import {
@@ -272,10 +274,18 @@
 	const showEmpty = $derived(wide && !selectedEntry && !composerMounted);
 	const detailHasContent = $derived(showEntry || composerMounted || showEmpty);
 
+	/** The split's detail pane, for revealDetailPane. See $lib/shell/reveal.ts. */
+	let detailEl = $state<HTMLElement | null>(null);
+
 	function selectEntry(id: string) {
 		// Deliberately NOT a discard: the composer stays mounted underneath, so
 		// there is nothing to warn about and nothing to lose.
 		selectedId = id;
+		// The pane flows with the page (scroll="page"), so an entry opened from a
+		// row far down the feed would otherwise render above where the click
+		// happened and look like nothing happened at all. `tick` first: the pane
+		// has to hold the entry before its position means anything.
+		void tick().then(() => revealDetailPane(detailEl));
 	}
 
 	/**
@@ -375,13 +385,6 @@
 	 */
 	let selectedSectionId = $state<string | null>(linkedPick?.sectionId ?? null);
 	let sessionTouched = $state(linkedPick !== null);
-	/**
-	 * Free-form only: photos (the original path, unchanged and the default) or
-	 * a written note with no photo at all. Held as a plain preference and read
-	 * through `noteOnly` below, so picking a session can never leave the form
-	 * in a note mode that the session-linked path does not offer.
-	 */
-	let freeMode = $state<'photos' | 'note'>('photos');
 	/** A short TITLE for the entry. Since 0078 it is never the note's text. */
 	let title = $state('');
 	/** Which folder this entry will be filed into; null is Unfiled. */
@@ -412,31 +415,33 @@
 	);
 	const feed = $derived(sortEntries(entries, sort, activityMap));
 	const orderedFolders = $derived(foldersInOrder(folders));
-	/** The note tier exists on the free-form path ONLY, and only once 0078 is applied. */
-	const noteOnly = $derived(selectedSession === null && freeMode === 'note' && notesReady);
 	/**
-	 * A check-in can carry writing TOO -- the photo requirement is unchanged and
-	 * `notebook_create_entry` still refuses a session-linked entry without one.
+	 * ONE RULE, ON EVERY TIER: AN ENTRY NEEDS A PHOTO OR WRITING.
 	 *
-	 * This closes a UI gap, not a data-layer one: `notebook_add_note` (0078) has
-	 * always taken an entry id and checked only ownership, and every entry card
-	 * already offers "Add a note" whatever tier it is on. What was missing was
-	 * doing it in the SAME action as the upload, which matters here and not on
-	 * the free path -- a free entry can simply be saved as a note instead, while
-	 * a check-in must have a page, so there was no way to photograph it and say
-	 * something about it in one go.
+	 * What this replaced was an exclusive MODE picker -- "Photos" or "Write a
+	 * note" -- offered on the free-form path only. Two things followed from
+	 * that, and both were reported from a real classroom: a check-in showed a
+	 * photo stager and nothing else, so answering one in writing was impossible;
+	 * and on the free path the two halves could not be combined at all, so a
+	 * photographed page could not carry a sentence about it.
 	 *
-	 * OFFERED ONLY, NEVER REQUIRED: it is absent from `canSubmit` below, so a
-	 * photo alone still saves exactly as it always did.
+	 * Both boxes are always offered now and either one satisfies the form, which
+	 * is the same sentence the server enforces (0114). A mode toggle would be a
+	 * second, narrower statement of it, and the narrower one is what students
+	 * were stuck behind.
 	 */
-	const checkInNote = $derived(
-		selectedSession !== null && notesReady && !readOnly && !!addNote
-	);
-	const canSubmit = $derived(
-		noteOnly
-			? tiptapHasText(noteDraft)
-			: staged.length > 0 && !stagerSettling && uploadReady
-	);
+	const noteAllowed = $derived(notesReady && !readOnly && !!createNote && !!addNote);
+	const hasNote = $derived(noteAllowed && tiptapHasText(noteDraft));
+	const hasPhotos = $derived(staged.length > 0 && !stagerSettling && uploadReady);
+	/**
+	 * WHICH DOOR THIS SUBMISSION GOES THROUGH, derived from what is in the form
+	 * rather than from a mode the student had to choose in advance. No photos
+	 * and real text is a note entry (one call, entry and note in one
+	 * transaction); anything with a photo creates the entry from that photo and
+	 * the note rides along after it, exactly as a check-in note already did.
+	 */
+	const noteOnly = $derived(!hasPhotos && hasNote);
+	const canSubmit = $derived(hasPhotos || hasNote);
 
 	// Default to the outstanding session nearest today, and otherwise leave
 	// the student's own pick alone as `entries` refreshes underneath -- with
@@ -464,22 +469,31 @@
 		folderChoice = suggested && folders.some((f) => f.id === suggested) ? suggested : null;
 	});
 
+	/**
+	 * WHICH CLASS THE PICKED CHECK-IN IS FOR, resolved the same way for both
+	 * doors so a note and a photo filed against one check-in can never land in
+	 * different classes.
+	 *
+	 * Since 0098 one check-in can run in several classes, so the section is
+	 * taken from the PICK rather than looked up from the id -- a lookup would
+	 * resolve a shared check-in to whichever posting sorted first, which may not
+	 * be the class whose button was pressed. Falling back to the lookup covers a
+	 * pick made before that field existed; null lets the server resolve it
+	 * (_notebook_resolve_session_section), which is right when there is only one
+	 * posting and refuses honestly when there is not.
+	 */
+	function sectionForPick(): string | null {
+		return (
+			selectedSectionId ?? sessions.find((s) => s.id === selectedSession)?.section_id ?? null
+		);
+	}
+
 	/** Takes the PAIR, so pressing one of two postings of a shared check-in
 	    files under the class whose button was pressed. */
 	function chooseSession(id: string | null, sectionId: string | null = null) {
 		sessionTouched = true;
 		selectedSession = id;
 		selectedSectionId = id ? sectionId : null;
-	}
-
-	function chooseMode(mode: 'photos' | 'note') {
-		freeMode = mode;
-		// Staged photos are meaningless in note mode and would be silently
-		// dropped on submit; clearing them makes that visible instead.
-		if (mode === 'note') {
-			staged = [];
-			stager?.reset();
-		}
 	}
 
 	/**
@@ -524,7 +538,6 @@
 						? (sessions.find((s) => s.id === pending.session)?.section_id ?? null)
 						: null);
 			}
-			if (pending.mode) freeMode = pending.mode;
 			if (typeof pending.title === 'string') title = pending.title;
 			if (pending.folder !== undefined) {
 				folderTouched = true;
@@ -671,19 +684,24 @@
 
 		try {
 			// A note has no photo and so no sequencing at all: one call, done.
-			// It never carries a session -- the mode is only reachable on the
-			// free-form path, and a check-in still requires a page.
+			// SINCE 0114 IT CARRIES THE CHECK-IN when one is picked, which is the
+			// whole point of this pass -- a check-in answered in writing is a
+			// note entry filed against that check-in, not a refusal. The section
+			// comes from the PICK for the reason the photo path takes it from
+			// there too: a shared check-in has one id and several postings.
 			if (noteOnly) {
 				const saved = await createNote!({
 					content: noteDraft as TiptapNode,
 					custom_label: title.trim() || null,
-					folder_id: folderChoice
+					folder_id: folderChoice,
+					session_id: selectedSession,
+					section_id: selectedSession ? sectionForPick() : null
 				});
 				if (!saved.ok) {
 					errorMsg = saved.error;
 					return;
 				}
-				successMsg = 'Note saved.';
+				successMsg = selectedSession ? 'Check-in saved.' : 'Note saved.';
 				resetForm();
 				onChanged?.();
 				return;
@@ -696,16 +714,7 @@
 			first.set('photo', await prepared(staged[0].file));
 			if (selectedSession) {
 				first.set('session_id', selectedSession);
-				// Which class this entry is for. Since 0098 one check-in can run in
-				// several, so the section is taken from the PICK rather than looked
-				// up from the id -- a lookup would resolve a shared check-in to
-				// whichever posting sorted first, which may not be the class whose
-				// button was pressed. Falling back to the lookup covers a pick made
-				// before this field existed; a null lets the server resolve it
-				// (_notebook_resolve_session_section), which is right when there is
-				// only one posting and refuses honestly when there is not.
-				const sectionId =
-					selectedSectionId ?? sessions.find((s) => s.id === selectedSession)?.section_id ?? null;
+				const sectionId = sectionForPick();
 				if (sectionId) first.set('section_id', sectionId);
 			}
 			const trimmed = title.trim();
@@ -718,17 +727,18 @@
 				return;
 			}
 
-			// The check-in's optional note, written in the same action. It goes
-			// FIRST, immediately after the entry exists: it is one cheap call
-			// against several slow uploads, so sending it now is what keeps the
-			// student's own words from being the thing lost to a dropped
-			// connection halfway through the photos.
+			// The entry's optional note, written in the same action -- on ANY tier
+			// since the mode picker went, so a photographed page can carry a
+			// sentence about it. It goes FIRST, immediately after the entry
+			// exists: it is one cheap call against several slow uploads, so
+			// sending it now is what keeps the student's own words from being the
+			// thing lost to a dropped connection halfway through the photos.
 			//
 			// A failure here is reported and does not abort the upload -- the
 			// entry and its photos are real either way, and the note can be added
 			// again from the entry itself.
 			let noteFailed = false;
-			if (checkInNote && tiptapHasText(noteDraft)) {
+			if (hasNote) {
 				progress = 'Saving your note...';
 				const savedNote = await addNote!(created.entryId, noteDraft as TiptapNode);
 				noteFailed = !savedNote.ok;
@@ -1362,36 +1372,6 @@
 				</fieldset>
 
 				{#if selectedSession === null}
-					<!-- Free-form only. A scheduled check-in exists because an
-					     instructor asked for a page, so it never offers this. -->
-					<fieldset class="picker mode-picker">
-						<legend>How do you want to save it?</legend>
-						<div class="quick-picks">
-							<button
-								type="button"
-								class="pick"
-								class:selected={!noteOnly}
-								aria-pressed={!noteOnly}
-								onclick={() => chooseMode('photos')}
-							>
-								<span class="pick-label">Photos</span>
-								<span class="pick-meta">Shoot a page</span>
-							</button>
-							{#if notesReady}
-								<button
-									type="button"
-									class="pick"
-									class:selected={noteOnly}
-									aria-pressed={noteOnly}
-									onclick={() => chooseMode('note')}
-								>
-									<span class="pick-label">Write a note</span>
-									<span class="pick-meta">No photo needed</span>
-								</button>
-							{/if}
-						</div>
-					</fieldset>
-
 					<label class="field label-field">
 						<span>Title <span class="optional">(optional)</span></span>
 						<input
@@ -1402,12 +1382,8 @@
 							disabled={busy}
 						/>
 						<span class="hint">
-							{#if noteOnly}
-								A short name for this entry. Leave it blank and we will use the note's opening
-								words.
-							{:else}
-								Leave this blank and we will use the photo's own filename.
-							{/if}
+							Leave this blank and we will name the entry from your photo's filename, or from
+							the note's opening words.
 						</span>
 					</label>
 				{/if}
@@ -1445,57 +1421,69 @@
 					</label>
 				{/if}
 
-				{#if !noteOnly}
-					<PhotoStager
-						bind:this={stager}
-						bind:staged
-						bind:settling={stagerSettling}
-						disabled={busy}
-						{uploadReady}
-						captureContext={{
-							session: selectedSession,
-							section: selectedSectionId,
-							mode: freeMode,
-							title,
-							folder: folderChoice
-						}}
-					/>
-				{/if}
+				<!--
+					BOTH HALVES, ALWAYS, on both tiers. Either one on its own saves the
+					entry; the pair saves a photographed page with something written
+					about it. Nothing here is a mode, so nothing has to be chosen
+					before the student knows what they have.
+				-->
+				<PhotoStager
+					bind:this={stager}
+					bind:staged
+					bind:settling={stagerSettling}
+					disabled={busy}
+					{uploadReady}
+					captureContext={{
+						session: selectedSession,
+						section: selectedSectionId,
+						title,
+						folder: folderChoice
+					}}
+				/>
 
 				<!--
-					ONE editor for both jobs, in one block on purpose. Rendering a
-					second instance inside a `{:else}` would put it at a different
-					position in the DOM, so switching between "write a note" and a
-					check-in would remount Tiptap and silently drop whatever the
-					student had typed. Here the position and the `{#key}` are
-					unchanged across that switch, so the draft survives it.
+					ONE editor, in one block on purpose. Rendering a second instance
+					inside a branch would put it at a different position in the DOM, so
+					moving between a check-in and a free entry would remount Tiptap and
+					silently drop whatever the student had typed. Here the position and
+					the `{#key}` never change, so the draft survives every move the form
+					allows.
 				-->
-				{#if noteOnly || checkInNote}
+				{#if noteAllowed}
 					<div class="field note-field">
-						<span class="photo-label">
-							Note {#if !noteOnly}<span class="optional">(optional)</span>{/if}
-						</span>
+						<span class="photo-label">Write about it</span>
 						{#key noteKey}
 							<NoteEditor onchange={(doc) => (noteDraft = doc)} disabled={busy} />
 						{/key}
 						<span class="hint">
-							{#if noteOnly}
-								Write as much as you like. You can add photos to this entry later, and come back
-								and edit this note whenever you want.
-							{:else}
-								Anything worth saying about this page. It is saved with the entry, and like the
-								photo it cannot be edited afterwards, though you can always add another note.
-							{/if}
+							Write as much as you like. On its own this saves as the whole entry; alongside a
+							photo it is saved with it. You can add photos to an entry later, and come back and
+							edit your own writing whenever you want.
 						</span>
 					</div>
 				{/if}
 
 				<div class="actions">
 					<button class="btn" type="submit" disabled={busy || !canSubmit}>
-						{busy ? 'Saving...' : noteOnly ? 'Save note' : 'Save entry'}
+						{busy ? 'Saving...' : noteOnly ? 'Save what you wrote' : 'Save entry'}
 					</button>
 					{#if progress}<span class="progress">{progress}</span>{/if}
 				</div>
+				<!-- SAYS WHICH HALF IS MISSING, and never names photos alone: the
+				     student is being stopped by a rule with two ways to satisfy it,
+				     so both have to be on screen at the moment they are stopped. -->
+				{#if !canSubmit && !busy}
+					<p class="note submit-hint" data-testid="nb-submit-hint">
+						{#if !noteAllowed}
+							Add a photo to save this entry.
+						{:else if !uploadReady}
+							Photo uploads are unavailable on this deployment, so write something instead to
+							save this entry.
+						{:else}
+							Add a photo or write something to save this entry. Either one is enough.
+						{/if}
+					</p>
+				{/if}
 			</form>
 		</section>
 	{/if}
@@ -1620,8 +1608,23 @@
 			detail (the compose form) on top, which is what a phone's notebook has
 			always looked like. The classroom swaps instead, because there a detail
 			IS the page.
+
+			`scroll="page"`: ONE scrollbar. The masthead, hero and version badge
+			around this split put ~355px above it and ~100px below, so
+			viewport-height panes -- correct in the classroom, where the chrome is
+			a breadcrumb and a tab bar -- left the document scrolling as well, and
+			a bar inside a bar is what a classroom reported. The document owns it
+			here and the compose pane sticks beside the feed. It is also the only
+			answer that survives /classroom/view-as, which mounts this whole
+			component under the classroom's own shell and impersonation banner.
 		-->
-		<ClassSplit narrow="stack" hasDetail={detailHasContent} nav={navPane}>
+		<ClassSplit
+			narrow="stack"
+			scroll="page"
+			bind:detailEl
+			hasDetail={detailHasContent}
+			nav={navPane}
+		>
 			{@render detailPane()}
 		</ClassSplit>
 	{/if}
@@ -1827,8 +1830,10 @@
 	.no-sessions {
 		margin: 0;
 	}
-	.mode-picker .quick-picks {
-		grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+	.submit-hint {
+		margin: 0.5rem 0 0;
+		color: var(--nb-ink-faint);
+		font-size: 0.85rem;
 	}
 	.label-field .optional {
 		color: var(--nb-ink-faint);

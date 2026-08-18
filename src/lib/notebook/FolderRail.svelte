@@ -108,7 +108,13 @@
 <style>
 	/* A horizontal scrolling rail, not a sidebar: the notebook is a single
 	   narrow reading column and phone-first, and a sidebar would either eat
-	   that column or vanish at the width most of these students are on. */
+	   that column or vanish at the width most of these students are on.
+
+	   ABOVE THE SPLIT'S BREAKPOINT IT WRAPS INSTEAD, see the rule at the foot of
+	   this block. The horizontal scroll is right for a full-width strip on a
+	   phone, where vertical room is the scarce thing; inside a 26rem navigation
+	   pane it was a scrollbar nested in a scrollbar, offering nothing the room
+	   below it could not have given for free. */
 	.rail {
 		display: flex;
 		align-items: center;
@@ -153,6 +159,16 @@
 		background: var(--nb-accent-wash);
 		color: var(--nb-ink);
 		font-weight: 600;
+	}
+	/* One region, one scrollbar: in the pane there is vertical room, so the
+	   chips take a second line rather than a bar of their own. `overflow: visible`
+	   because `auto` on a wrapping flex row still reserves the bar's gutter. */
+	@media (min-width: 1024px) {
+		ul {
+			flex-wrap: wrap;
+			overflow-x: visible;
+			row-gap: 0.4rem;
+		}
 	}
 	.dot {
 		width: 0.55em;

@@ -650,25 +650,34 @@
 	}
 
 	/**
-	 * The note tier: no photo at all. Mirrors notebook_create_note_entry --
+	 * The note door: no photo at all. Mirrors notebook_create_note_entry --
 	 * content is required, the title is optional -- and appends an entry with
 	 * an EMPTY photos array, the state a note-only entry really has.
+	 *
+	 * SINCE 0114 IT ALSO CARRIES A CHECK-IN, and mirroring that is what makes
+	 * the text-only check-in drivable here: the entry it appends is
+	 * session-linked, so the feed titles it from the check-in and the review
+	 * grid would count it as filed, exactly as the real RPC's row does.
 	 */
 	async function createNote(payload: NotePayload): Promise<CreateEntryResult> {
 		log = [
 			...log,
 			`POST /api/notebook/note  custom_label=${JSON.stringify(
 				payload.custom_label
+			)} session_id=${JSON.stringify(payload.session_id ?? null)} section_id=${JSON.stringify(
+				payload.section_id ?? null
 			)} folder_id=${JSON.stringify(payload.folder_id)} content=<editor doc>`
 		];
 		const doc = await normalize(payload.content);
 		if ('error' in doc) return { ok: false, error: doc.error };
 		const id = `new-${++seq}`;
 		const noteId = `${id}-note`;
+		const noteSessionId = payload.session_id ?? null;
+		const noteSession = SESSIONS.find((s) => s.id === noteSessionId) ?? null;
 		const entry: NotebookEntry = {
 			id,
-			session_id: null,
-			section_id: null,
+			session_id: noteSessionId,
+			section_id: noteSession ? noteSession.section_id : (payload.section_id ?? null),
 			folder_id: payload.folder_id,
 			pinned_at: null,
 			custom_label: payload.custom_label,
@@ -676,7 +685,13 @@
 			status: 'compliant',
 			flag_reason: null,
 			instructor_comment: null,
-			session: null,
+			session: noteSession
+				? {
+						session_label: noteSession.session_label,
+						unit_number: noteSession.unit_number,
+						session_date: noteSession.session_date
+					}
+				: null,
 			photos: [],
 			notes: [note(noteId, id, noteId, 1, doc, new Date().toISOString())]
 		};

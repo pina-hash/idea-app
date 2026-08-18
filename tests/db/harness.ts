@@ -74,7 +74,8 @@ export const MIGRATIONS = [
 	'0088_notebook_folders.sql',
 	'0094_notebook_classroom_sections.sql',
 	'0098_notebook_session_postings.sql',
-	'0106_notebook_instructor_student_access.sql'
+	'0106_notebook_instructor_student_access.sql',
+	'0114_notebook_note_entry_session.sql'
 ] as const;
 
 export type QueryFn = <R extends pg.QueryResultRow = pg.QueryResultRow>(

@@ -239,8 +239,22 @@
 			]),
 			custom_label: 'Shop layout notes'
 		},
-		// Section B, so the chair has something to switch to.
-		mk('e-10', 'stu-5', 'sec-b', 'ses-b1', '2026-08-04T17:00:00Z', 'compliant', [photo('p-10', 1)]),
+		// Section B, so the chair has something to switch to -- and it is the
+		// TEXT-ONLY CHECK-IN (0114): an entry filed against a scheduled check-in
+		// whose whole content is writing. The grid counts ENTRIES, never photos,
+		// so its cell reads on-time exactly as a photographed one does; what it
+		// exercises is the panel, which must render the writing rather than the
+		// "no photos and no written notes" message.
+		mk('e-10', 'stu-5', 'sec-b', 'ses-b1', '2026-08-04T17:00:00Z', 'compliant', [], [
+			noteRow(
+				'n-4',
+				'e-10',
+				'n-4',
+				1,
+				'Left my notebook in the shop, so I wrote the belt-tension steps up here and will copy them across tomorrow.',
+				'2026-08-04T17:00:00Z'
+			)
+		]),
 		// Filed by a sec-b student against the SHARED check-in (ses-a2). It has
 		// to stay on sec-b's grid and off sec-a's, and it is what unposting
 		// sec-b must detach rather than destroy.
