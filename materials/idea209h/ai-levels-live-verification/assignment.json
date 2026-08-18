@@ -6,15 +6,14 @@
     "title": "AI Levels: Live Verification",
     "course": "IDEA209H",
     "dueDate": "2026-08-18",
-    "totalPoints": 20,
+    "totalPoints": 0,
     "assignmentId": "idea209h-u1-01",
-    "buildVersion": "v4",
+    "buildVersion": "v5",
     "headerFields": [
       "studentName",
       "date",
       "section"
-    ],
-    "gradingCategory": "Engineering Documentation"
+    ]
   },
   "modules": [
     {
@@ -25,13 +24,11 @@
         {
           "id": "f_tool",
           "type": "textField",
-          "points": 0,
           "prompt": "Which tool are you using?"
         },
         {
           "id": "f_v1",
           "type": "textField",
-          "points": 2,
           "prompt": "In one sentence: what does the video say actually gets automated?",
           "maxSentences": 2,
           "minSentences": 1
@@ -39,7 +36,6 @@
         {
           "id": "f_v2",
           "type": "textField",
-          "points": 2,
           "prompt": "The closing statement. What is the final claim it lands on?",
           "maxSentences": 3,
           "minSentences": 1
@@ -47,67 +43,12 @@
         {
           "id": "f_v3",
           "type": "textField",
-          "points": 2,
           "prompt": "The footnotes. What do they add or complicate about that claim?",
           "maxSentences": 3,
           "minSentences": 1
         }
       ],
-      "points": 6,
-      "rubric": [
-        {
-          "id": "c1",
-          "levels": [
-            {
-              "label": "Complete",
-              "points": 3,
-              "descriptor": "Both the automation question and the closing statement are answered, and the closing statement names a specific claim rather than a topic."
-            },
-            {
-              "label": "Proficient",
-              "points": 2,
-              "descriptor": "Both are answered, and the closing statement names the topic without stating the claim."
-            },
-            {
-              "label": "Developing",
-              "points": 1,
-              "descriptor": "One of the two is answered."
-            },
-            {
-              "label": "Absent",
-              "points": 0,
-              "descriptor": "Neither is answered."
-            }
-          ],
-          "criterion": "Video claims recorded"
-        },
-        {
-          "id": "c2",
-          "levels": [
-            {
-              "label": "Complete",
-              "points": 3,
-              "descriptor": "Names at least one specific thing the footnotes add or qualify, and states its effect on the claim written in the closing statement."
-            },
-            {
-              "label": "Proficient",
-              "points": 2,
-              "descriptor": "Names something the footnotes add or qualify, with no stated effect on the claim."
-            },
-            {
-              "label": "Developing",
-              "points": 1,
-              "descriptor": "Refers to the footnotes without naming anything specific from them."
-            },
-            {
-              "label": "Absent",
-              "points": 0,
-              "descriptor": "Not attempted."
-            }
-          ],
-          "criterion": "Footnotes engaged"
-        }
-      ],
+      "points": 0,
       "aiLevel": 0
     },
     {
@@ -122,41 +63,12 @@
         {
           "id": "f_d",
           "type": "textField",
-          "points": 4,
           "prompt": "Which one, and your answer.",
           "maxSentences": 4,
           "minSentences": 2
         }
       ],
-      "points": 4,
-      "rubric": [
-        {
-          "id": "c3",
-          "levels": [
-            {
-              "label": "Complete",
-              "points": 4,
-              "descriptor": "Names the question chosen, states a position, and gives at least one reason that applies to that question and not to the other two."
-            },
-            {
-              "label": "Proficient",
-              "points": 3,
-              "descriptor": "Names the question and states a position, with a reason that would apply to any of the three."
-            },
-            {
-              "label": "Developing",
-              "points": 2,
-              "descriptor": "States a position with no reason given."
-            },
-            {
-              "label": "Absent",
-              "points": 0,
-              "descriptor": "No question named, or no answer given."
-            }
-          ],
-          "criterion": "Position defended"
-        }
-      ],
+      "points": 0,
       "aiLevel": 0
     },
     {
@@ -171,7 +83,6 @@
         {
           "id": "t_levels",
           "type": "table",
-          "points": 5,
           "columns": [
             {
               "key": "level",
@@ -199,7 +110,6 @@
         {
           "id": "f_b4",
           "type": "textField",
-          "points": 3,
           "prompt": "Rows 3 and 4 ran at the same level on the same tool. One held up, one did not. What is different about the two questions?",
           "maxSentences": 4,
           "minSentences": 2
@@ -207,88 +117,12 @@
         {
           "id": "f_close",
           "type": "textField",
-          "points": 2,
           "prompt": "Checkpoint 1 is Friday and runs at ASSIST. Name one thing you will check before writing a density value down.",
           "maxSentences": 2,
           "minSentences": 1
         }
       ],
-      "points": 10,
-      "rubric": [
-        {
-          "id": "c4",
-          "levels": [
-            {
-              "label": "Complete",
-              "points": 5,
-              "descriptor": "All five rows filled. Every row names what came back and what it was checked against, and rows 3 and 4 each record a Y or an N."
-            },
-            {
-              "label": "Proficient",
-              "points": 3,
-              "descriptor": "All five rows filled, with one or more rows naming the AI tool in the checked-against cell instead of a source page."
-            },
-            {
-              "label": "Developing",
-              "points": 2,
-              "descriptor": "Three or four rows filled."
-            },
-            {
-              "label": "Absent",
-              "points": 0,
-              "descriptor": "Fewer than three rows filled."
-            }
-          ],
-          "criterion": "Verification table"
-        },
-        {
-          "id": "c5",
-          "levels": [
-            {
-              "label": "Complete",
-              "points": 3,
-              "descriptor": "States a difference between the two questions that refers to how specific or how current the requested fact is."
-            },
-            {
-              "label": "Proficient",
-              "points": 2,
-              "descriptor": "States that one answer held up and one did not, with a reason that does not distinguish the two questions."
-            },
-            {
-              "label": "Developing",
-              "points": 1,
-              "descriptor": "Names which row failed, with no reason given."
-            },
-            {
-              "label": "Absent",
-              "points": 0,
-              "descriptor": "Not attempted."
-            }
-          ],
-          "criterion": "Rows 3 and 4 compared"
-        },
-        {
-          "id": "c6",
-          "levels": [
-            {
-              "label": "Complete",
-              "points": 2,
-              "descriptor": "Names a specific source or a specific action to perform before recording a density value."
-            },
-            {
-              "label": "Developing",
-              "points": 1,
-              "descriptor": "Says the value will be checked, without naming a source or an action."
-            },
-            {
-              "label": "Absent",
-              "points": 0,
-              "descriptor": "Not attempted."
-            }
-          ],
-          "criterion": "Checkpoint 1 check named"
-        }
-      ],
+      "points": 0,
       "aiLevel": 3
     }
   ],
