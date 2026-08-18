@@ -8,7 +8,7 @@
     "dueDate": "2026-08-18",
     "totalPoints": 0,
     "assignmentId": "idea209h-u1-01",
-    "buildVersion": "v1",
+    "buildVersion": "v2",
     "headerFields": [
       "studentName",
       "date",
@@ -19,59 +19,34 @@
   "modules": [
     {
       "id": "m1",
-      "intro": "Ungraded. Nothing here affects your grade. It exists so you have a record of what you actually saw today, and so Friday's checkpoint is not the first time you check an AI answer against a real source.",
-      "title": "Tool and Video",
+      "intro": "Ungraded. Use any AI tool you have. If you need one: gemini.google.com (boscotech.net login), chat.deepseek.com, copilot.microsoft.com, duck.ai.",
+      "title": "Video",
       "blocks": [
-        {
-          "type": "instructions",
-          "content": "### Pick a tool\n\nUse anything you already have. If you do not have one, pick from these.\n\n| Tool | Where |\n|---|---|\n| Google Gemini | gemini.google.com, sign in with your boscotech.net account |\n| DeepSeek | chat.deepseek.com |\n| Microsoft Copilot | copilot.microsoft.com |\n| Duck.ai | duck.ai, no account needed |\n\nCheck the terms before you sign up for anything new."
-        },
         {
           "id": "f_tool",
           "type": "textField",
-          "prompt": "Which tool are you using today?"
-        },
-        {
-          "type": "instructions",
-          "content": "### While the video plays\n\nSix things to catch. Short answers. The last two are the ones the whole video is built toward, so do not pack up early."
+          "prompt": "Which tool are you using?"
         },
         {
           "id": "f_v1",
           "type": "textField",
-          "prompt": "ATMs automated counting cash. What happened to the number of tellers, and why?",
+          "prompt": "In one sentence: what does the video say actually gets automated?",
+          "maxSentences": 2,
           "minSentences": 1
         },
         {
           "id": "f_v2",
           "type": "textField",
-          "prompt": "Name one job in the video that disappeared and one that did not, both heavily automated.",
+          "prompt": "The closing statement. What is the final claim it lands on?",
+          "maxSentences": 3,
           "minSentences": 1
         },
         {
           "id": "f_v3",
           "type": "textField",
-          "prompt": "Which number in the video surprised you most? Write the number and why.",
-          "minSentences": 1
-        },
-        {
-          "id": "f_v4",
-          "type": "textField",
-          "prompt": "In one sentence: what does the video say actually gets automated?",
-          "minSentences": 1
-        },
-        {
-          "id": "f_v5",
-          "type": "textField",
-          "prompt": "The closing statement. What is the final claim the video lands on, in your own words?",
+          "prompt": "The footnotes. What do they add or complicate about that claim?",
           "maxSentences": 3,
           "minSentences": 1
-        },
-        {
-          "id": "f_v6",
-          "type": "textField",
-          "prompt": "The footnotes at the end. What do they add, qualify, or complicate about the claim you just wrote down?",
-          "maxSentences": 4,
-          "minSentences": 2
         }
       ],
       "points": 0,
@@ -79,18 +54,18 @@
     },
     {
       "id": "m2",
-      "intro": "Pick one question and write your answer before we start. You will be asked for it. None of these has a correct answer.",
+      "intro": "Pick one and answer it before we start. None of these has a correct answer.",
       "title": "Discussion",
       "blocks": [
         {
           "type": "instructions",
-          "content": "**D1.** Name a job where the task gets automated and the job does **not** grow. Why is yours different?\n\n**D2.** Elevator operator is gone. Airline pilot is not. Both jobs were heavily automated. What is the actual difference?\n\n**D3.** If most of today's jobs did not exist in 1940, can anyone predict which jobs go next? Including the video?\n\n**D4.** What part of an engineer's job is hardest to automate? What part is easiest? Defend both.\n\n**D5.** Argue against the video. What is the strongest case that this time really is different?"
+          "content": "**D1.** Elevator operator is gone. Airline pilot is not. Both were heavily automated. What is the actual difference?\n\n**D2.** What part of an engineer's job is hardest to automate? What part is easiest?\n\n**D3.** Argue against the video. What is the strongest case that this time really is different?"
         },
         {
           "id": "f_d",
           "type": "textField",
-          "prompt": "Which question did you pick, and what is your answer?",
-          "maxSentences": 5,
+          "prompt": "Which one, and your answer.",
+          "maxSentences": 4,
           "minSentences": 2
         }
       ],
@@ -99,16 +74,19 @@
     },
     {
       "id": "m3",
-      "intro": "You run every prompt yourself. Everyone is on a different tool, so your answers will not match your neighbor's. That is the point. Fill each row as the block runs, not after.",
+      "intro": "You run every prompt yourself. Everyone is on a different tool, so your answers will not match your neighbor's. That is the point. Fill each row as it runs.",
       "title": "Four Levels, Live",
       "blocks": [
+        {
+          "type": "instructions",
+          "content": "**1. OFF.** No AI. Find the density of 6061-T6 aluminum on matweb.com yourself. Every other row gets measured against this number.\n\n**2. COACH.** Ask: *Explain why two aluminum alloys can have nearly the same density but very different strength. Do not give me any specific numbers.*\n\n**3. ASSIST.** Ask: *What is the density of 6061-T6 aluminum in g/cm3?* Check it against row 1.\n\n**4. ASSIST.** Ask: *Give me the OnlineMetals part number and current price for a 1 inch diameter 6061-T6 aluminum round bar, 12 inches long.* Then open onlinemetals.com and search for it.\n\n**5. OPEN.** Ask: *I have four unlabeled metal and plastic samples, a caliper, a scale, and a graduated cylinder. Propose a procedure to identify each one.*"
+        },
         {
           "id": "t_levels",
           "type": "table",
           "columns": [
             {
               "key": "level",
-              "tip": "1 OFF, 2 COACH, 3 ASSIST, 4 ASSIST, 5 OPEN",
               "label": "Level"
             },
             {
@@ -117,17 +95,12 @@
             },
             {
               "key": "checked",
-              "tip": "The real page you opened, not the model.",
               "label": "Checked against"
             },
             {
               "key": "verified",
-              "tip": "Y or N.",
+              "tip": "Y or N",
               "label": "Verified?"
-            },
-            {
-              "key": "notes",
-              "label": "Notes"
             }
           ],
           "minRows": 5,
@@ -135,42 +108,22 @@
           "statusColumn": false
         },
         {
-          "type": "instructions",
-          "content": "### Block 1 · OFF · no AI\n\nNo AI. Go to matweb.com, find the density of **6061-T6 aluminum** yourself, and record the number and the page.\n\nThis is the number every other block gets measured against.\n\n### Block 2 · COACH · reasoning only, nothing to verify\n\n> Explain why two aluminum alloys can have nearly the same density but very different strength. Do not give me any specific numbers.\n\nDid a number show up anyway? Put it in Notes.\n\n### Block 3 · ASSIST · check against Block 1\n\n> What is the density of 6061-T6 aluminum in g/cm3?\n\n### Block 4 · ASSIST · check this one hard\n\n> Give me the OnlineMetals part number and current price for a 1 inch diameter 6061-T6 aluminum round bar, 12 inches long.\n\nOpen onlinemetals.com and search that exact product. Does the part number exist? Does the price match?\n\n### Block 5 · OPEN · AI drives\n\n> I have four unlabeled metal and plastic samples, a digital caliper, a precision scale, and a graduated cylinder. Propose a procedure to identify each one."
-        },
-        {
           "id": "f_b4",
           "type": "textField",
-          "prompt": "Blocks 3 and 4 ran at the same level on the same tool. One held up, one did not. What is different about the two questions?",
+          "prompt": "Rows 3 and 4 ran at the same level on the same tool. One held up, one did not. What is different about the two questions?",
           "maxSentences": 4,
           "minSentences": 2
         },
         {
-          "id": "f_b5",
-          "type": "textField",
-          "prompt": "Block 5. Answer this yourself, without asking the tool: why use displacement instead of just measuring the dimensions?",
-          "maxSentences": 3,
-          "minSentences": 1
-        }
-      ],
-      "points": 0,
-      "aiLevel": 3
-    },
-    {
-      "id": "m4",
-      "intro": "Unit 1 levels. ASSIST for Checkpoint 1, Checkpoint 2, and the material identification report. OFF for notebook entries and the presentation and defense.",
-      "title": "Before You Leave",
-      "blocks": [
-        {
           "id": "f_close",
           "type": "textField",
-          "prompt": "Checkpoint 1 is Friday and runs at ASSIST. Name one specific thing you will check before you write a density value down.",
+          "prompt": "Checkpoint 1 is Friday and runs at ASSIST. Name one thing you will check before writing a density value down.",
           "maxSentences": 2,
           "minSentences": 1
         }
       ],
       "points": 0,
-      "aiLevel": 0
+      "aiLevel": 3
     }
   ],
   "approvalGate": null,
