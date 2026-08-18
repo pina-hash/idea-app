@@ -27,6 +27,7 @@
 		RevisionTarget,
 		RevisionTransports
 	} from '$lib/classroom/revisions';
+	import { exportFailureMessage } from '$lib/classroom/revisions';
 	import type { ClassroomCourse, ClassroomManageTransports } from '$lib/classroom/classroom';
 
 	/**
@@ -861,7 +862,9 @@
 			slug: 'bridge-stackup',
 			lastExportAt: iso(-2, 8),
 			lastExportSha: 'a1b2c3d',
-			lastExportError: 'GitHub 401: Bad credentials'
+			// A COLLISION, which is the failure this surface exists for: the words
+		// have to say "press Retry" rather than reading like a rejected file.
+		lastExportError: exportFailureMessage('collision', 'GitHub 422: Reference cannot be updated')
 		}
 	};
 
@@ -878,8 +881,12 @@
 				ok: true as const,
 				data: {
 					status: 'failed',
-					error: 'GitHub 403: Resource not accessible by personal access token',
-					slug: 'bridge-stackup'
+					error: exportFailureMessage(
+						'refused',
+						'GitHub 403: Resource not accessible by personal access token'
+					),
+					slug: 'bridge-stackup',
+					kind: 'refused'
 				} as ExportOutcome
 			};
 		}

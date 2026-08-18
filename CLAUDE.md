@@ -8616,13 +8616,58 @@ material with only a written body is not a spec.
 
 - **ONE COMMIT, NOT ONE PER FILE.** The Contents API writes a file at a time
   and would land three commits for one save, all with the same message. The Git
-  Data API builds a tree and commits it once -- five requests whatever the file
+  Data API builds a tree and commits it once -- six requests whatever the file
   count, because a tree entry may carry its `content` inline. Path
   `materials/<courseId>/<item-slug>/`, `_shared` when postings span more than
   one course; message `classroom: <title> (<kind>) r<revision>`.
-- **IDEMPOTENT BY CONSTRUCTION**: the new tree is compared to the base commit's
-  and an identical one is not committed at all, so Retry adds nothing. Measured,
-  not asserted -- the mock GitHub returns a real tree sha derived from content.
+- **MAIN IS SHARED, AND THE EXPORT IS NOT ITS ONLY WRITER** (the `422` fix).
+  People commit to this repo all day and the export is itself a burst writer --
+  saving a spec, then its rubric, then publishing fires three exports at one
+  item -- so the branch moving between the head read and the ref update is the
+  ORDINARY case here, not a rare race. A push that read the head once and hoped
+  lost that race often, came back `GitHub 422: Reference cannot be updated`, and
+  looked permanent because Retry was one more single-shot attempt that lost it
+  again. **Retry was never rebuilding on a stale parent** -- it re-read the head
+  every time, measured against the pre-fix code; what it could not do was
+  survive losing the race twice. So each attempt now re-reads the head, re-bases
+  the tree on it, re-decides idempotency against it and commits with THAT head
+  as parent, up to **`EXPORT_MAX_ATTEMPTS` = 4** (one try, three rebuilds; each
+  attempt is six sequential round trips, so four fits a serverless invocation
+  and the patience of someone who just pressed Retry). The ref is also re-read
+  immediately before the update, which catches the common case a round trip
+  early but is NOT the guarantee -- only the update is atomic, so the 422 from
+  the PATCH is still what is handled. Backoff between rebuilds is jittered so
+  two exports of one item do not retry in step.
+- **`force` APPEARS NOWHERE IN THIS PATH AND MUST NOT.** These commits are
+  written unattended to a branch whose history exists nowhere else; an export
+  losing a race is never a reason to discard the commit that beat it. A test
+  asserts no request body in the whole sequence carries it.
+- **THE CHIP NAMES THE FAILURE CLASS**, because "GitHub 422: Reference cannot be
+  updated" reads to a teacher like their own content was rejected. A `collision`
+  says nothing was lost and to press Retry; a `refused` (branch protection, a
+  token without access) says retrying will not change it; a `network` says
+  neither; an `unknown` refusal is shown verbatim rather than confidently
+  mislabelled. Branch protection and a lost race are BOTH 422 from the same
+  endpoint and are told apart by GitHub's own words (`PROTECTION_MARKERS`),
+  checked before the status code -- a protection refusal must not be absorbed as
+  a race and retried three more times. `classroom_record_export` stores one text
+  column, so the class is encoded in the WORDS (`exportFailureMessage`) and read
+  back out of them (`classifyExportError`); a `kind` field alongside would not
+  survive the page reload that the chip has to.
+- **IDEMPOTENT AGAINST THE HEAD IT ENDED UP WITH**: the new tree is compared to
+  the base commit's and an identical one is not committed at all, re-decided on
+  every attempt -- the writer that beat us may have written exactly this content
+  (a duplicate export of the same item), and committing anyway would add an
+  empty commit per collision. Measured, not asserted -- the mock GitHub returns
+  a real tree sha derived from content. **CAVEAT, and it is a real one:** across
+  SEPARATE export invocations this almost never fires, because `material.json`
+  carries `exportedAt` and every export stamps it fresh, so the tree always
+  differs. `git log` shows the consequence -- six identical
+  `classroom: AI Levels: Live Verification (assignment) r1` commits in a row.
+  Within one push the files are fixed, so the rebuild loop above cannot multiply
+  commits; the duplication is per-save and predates it. Dropping `exportedAt`,
+  or moving it out of the committed file, would make Retry genuinely free --
+  deliberately NOT done here, since it changes the exported file format.
 - **The slug is ASSIGNED ONCE.** `classroom_record_export` refuses to overwrite
   an existing `export_slug`, so retitling a material does not move its folder
   and leave the old one behind as a second copy with nothing linking them.
@@ -8670,7 +8715,7 @@ material with only a written body is not a spec.
   weaker read bar reddens **1** -- and reddened **0** until the assertion was
   tightened, which is why that test now names the restore's own message.
   Migration restored byte-identical (md5-checked) each time.
-- **`tests/classroom-export.test.ts` (28 tests, pure)**: NO network and NO
+- **`tests/classroom-export.test.ts` (43 tests, pure)**: NO network and NO
   token -- the GitHub API is a mock that answers the Git Data endpoints the way
   GitHub does, including returning an unchanged tree sha for unchanged content,
   so the idempotency test is a measurement rather than an assertion about our
@@ -8678,6 +8723,44 @@ material with only a written body is not a spec.
   layout, the commit format, one-commit-for-three-files, no blob round trip,
   the bearer auth, **the token never appearing in an error message or stack**,
   the skip rules, and that a failure RESOLVES rather than throwing.
+- **THE MOCK NOW REFUSES A NON-FAST-FORWARD, and did not before.** Its PATCH
+  handler used to accept whatever sha it was handed and move the head to it, so
+  every test passed against a branch that could not move -- and the one
+  condition this repo produces constantly was the one the suite could not
+  express. A mock more permissive than the real thing does not fail loudly; it
+  certifies a bug. It now answers `422 Reference cannot be updated`, verbatim,
+  when a commit's parent is no longer the head, and `collide: {at, times}` is a
+  concurrent writer landing either inside the window (`trees`) or at the last
+  instant (`patch`, so the update itself is what 422s).
+- **REPRODUCED BEFORE IT WAS FIXED.** With the fix stashed, the collision case
+  threw `GitHub 422: Reference cannot be updated` from the PATCH -- the reported
+  string exactly. The same measurement settled what Retry was actually doing:
+  after ONE collision the pre-fix retry SUCCEEDED (commit parents `head-sha-0`
+  then `outside-sha-1` -- a fresh parent, not a remembered one), while against a
+  branch that moved on every attempt all four retries failed identically, each
+  on its own fresh parent. The defect was never stale state; it was one shot per
+  press.
+- **MUTATION-CHECKED TWELVE WAYS**, every new assertion earning its place:
+  removing the retry reddens 6; removing the pre-write re-read reddens 1;
+  deciding idempotency once instead of per attempt reddens 2; classifying a race
+  as a refusal reddens 2 and the reverse reddens 2; wording every failure alike
+  reddens 5; adding `force` reddens 1; throwing instead of recording reddens 6;
+  making the attach await the export reddens 1; misclassifying a dropped
+  connection reddens 1. Changing `EXPORT_MAX_ATTEMPTS` reddened **0** until the
+  bound was pinned to a literal -- the test had asserted the count against the
+  constant, so it agreed with any bound at all, including none.
+- **NOT VERIFIED AGAINST THE REAL API.** There is no `GITHUB_EXPORT_TOKEN` in
+  this environment, so the write path was never exercised against
+  api.github.com. Read-only calls WERE: `GET /git/ref/heads/main` and the commit
+  list confirm the repo, the branch, and 15 commits to main in one day from both
+  people and the app (two of them 10s apart). `GET /branches/main/protection`
+  needs auth and answered 401, so **whether main carries a protection rule is
+  unknown from here** -- if it does, the `refused` path is what a teacher will
+  see, and no amount of retrying is the answer. Also unproven: that the retry
+  loop recovers against a real concurrent writer, and GitHub's exact 422 body
+  for a non-fast-forward (the mock uses `Reference cannot be updated`, which is
+  the string the failure was reported with, and the exporter classifies any
+  unmarked 422 on the ref endpoint as a race regardless of wording).
 - `npm run check`: 0 errors, 36 warnings (the same 36 as HEAD). `npm test`:
   **956/956 across 40 files** (was 899/38 -- the two new suites are the
   difference exactly). Run DB suites with `--no-file-parallelism`, per the

@@ -48,7 +48,13 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	} catch (e) {
 		// The exporter records its own failures and returns them; reaching here
 		// means something outside that path broke (a malformed id refused by
-		// Postgres, say). Still not an error the caller can act on.
-		return json({ status: 'failed', error: (e as Error).message ?? 'The export failed.' });
+		// Postgres, say). Still not an error the caller can act on, and NOT one
+		// this build can classify -- 'unknown' is shown verbatim rather than
+		// described as a race or a refusal it may well not be.
+		return json({
+			status: 'failed',
+			error: (e as Error).message ?? 'The export failed.',
+			kind: 'unknown'
+		});
 	}
 };

@@ -44,9 +44,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 // The outcome type lives in the CLIENT-SAFE module and is imported here, not
 // declared here and imported there: a client module may never reach into
 // $lib/server, so types flow outward only. See revisions.ts.
-import type { ExportOutcome } from '$lib/classroom/revisions';
+import type { ExportOutcome, ExportFailureKind } from '$lib/classroom/revisions';
+// The failure WORDING is imported the same direction, and for the same reason it
+// is not duplicated here: the chip classifies a stored message by matching the
+// phrases this builder writes, so one file has to own both halves.
+import { exportFailureMessage } from '$lib/classroom/revisions';
 
-export type { ExportOutcome };
+export type { ExportOutcome, ExportFailureKind };
 
 /** The one repo this exports to. Direct to the default branch, no branches. */
 export const EXPORT_REPO = { owner: 'pina-hash', repo: 'idea-app', branch: 'main' } as const;
@@ -64,6 +68,8 @@ export interface ExportDeps {
 	fetchImpl?: typeof fetch;
 	apiBase?: string;
 	token?: string;
+	/** Injected so the collision backoff costs a test no wall-clock time. */
+	sleepImpl?: (ms: number) => Promise<void>;
 }
 
 /** Present only when the deployment is configured to export at all. */
@@ -186,81 +192,209 @@ export function exportCommitMessage(subject: {
 	return `classroom: ${title} (${subject.specKind}) r${subject.revision}`;
 }
 
-class GitHubError extends Error {}
+/**
+ * A refusal from GitHub, carrying enough to decide whether trying again is
+ * pointless or is exactly the right move.
+ *
+ * The message is GitHub's own text and the status, never the token and never
+ * the headers -- the teacher-facing sentence is composed later, at the point
+ * the outcome is recorded.
+ */
+class GitHubError extends Error {
+	constructor(
+		message: string,
+		readonly status: number,
+		readonly kind: ExportFailureKind
+	) {
+		super(message);
+	}
+}
+
+/**
+ * How many times ONE push may rebuild on a fresh head before it gives up.
+ *
+ * Four -- one first try and three rebuilds. Each attempt is six sequential
+ * round trips to GitHub, so four of them is a few seconds at worst, which fits
+ * inside a serverless invocation with room to spare and inside the patience of
+ * someone who just pressed Retry. Higher would mostly buy the ability to lose a
+ * race four times running to the SAME concurrent writer, which is a sign that
+ * something else is wrong and is better reported than absorbed; lower would not
+ * survive the ordinary case this repo actually produces, where saving a spec,
+ * its rubric and a publish fires three overlapping exports of one item.
+ */
+export const EXPORT_MAX_ATTEMPTS = 4;
+
+/**
+ * Phrases GitHub uses when a rule on the branch -- not a race -- is the reason.
+ *
+ * Matched BEFORE the status code, because branch protection and a lost race both
+ * come back 422 from the same endpoint, and only one of them is worth retrying.
+ * Anything not matched here that 422s on the ref endpoint is treated as a race,
+ * which is the safe way round: retrying against a protected branch costs three
+ * wasted requests and still reports honestly, while giving up on a race turns a
+ * two-second collision into a permanent failure with a chip on it.
+ */
+const PROTECTION_MARKERS = [
+	'protected branch',
+	'pull request',
+	'status check',
+	'required review',
+	'review is required',
+	'not authorized',
+	'repository rule'
+];
+
+function classifyRefusal(status: number, message: string, path: string): ExportFailureKind {
+	const text = message.toLowerCase();
+	if (PROTECTION_MARKERS.some((marker) => text.includes(marker))) return 'refused';
+	// Credentials and reach are settled facts, not timing.
+	if (status === 401 || status === 403 || status === 404) return 'refused';
+	// 422 on the UPDATE-REF endpoint, with nothing about a rule in it, is the
+	// non-fast-forward: the commit's parent is no longer the head, because the
+	// head moved after it was read. That is the whole of this bug.
+	if (status === 422 && path.includes('/git/ref')) return 'collision';
+	return 'unknown';
+}
 
 /**
  * Pushes a set of files to the export repo as ONE commit on the default branch.
  *
- * Five requests whatever the file count, because a tree entry may carry its
- * `content` inline -- there is no separate blob-creation round trip per file.
+ * MAIN IS SHARED, AND THIS IS NOT THE ONLY WRITER. People commit to this repo
+ * all day, and the export is itself a burst writer -- saving a spec, then its
+ * rubric, then publishing fires three of these at one item. So the branch moving
+ * between the head read and the ref update is the NORMAL case here, not a rare
+ * race, and a single-shot push loses that race often enough to look permanently
+ * broken from the outside.
+ *
+ * The answer is to rebuild, never to overwrite. Every attempt re-reads the head,
+ * re-bases the tree on it, re-decides whether there is anything to commit at all,
+ * and builds a commit whose parent IS the current head; the ref is read once more
+ * immediately before the update, so a moved branch is caught before a commit is
+ * pointed at it. `force` appears nowhere in this file and must not: these commits
+ * are written unattended to a branch whose history exists nowhere else, and an
+ * export losing a race is never a reason to discard somebody else's work.
  *
  * Returns `unchanged: true` when the resulting tree is byte-identical to the
- * branch's current one, having committed nothing. That is the whole idempotency
- * story: a retry of a push that already landed, or an export of content that
- * has not moved, is a no-op rather than an empty commit.
+ * branch's current one, having committed nothing -- re-decided on each attempt,
+ * because a tree that was a no-op against the head we read may be a real change
+ * against the head we ended up with, and the reverse.
  */
 export async function pushFilesToGitHub(opts: {
 	token: string;
 	files: readonly ExportFile[];
 	message: string;
 	deps?: ExportDeps;
-}): Promise<{ sha: string; unchanged: boolean }> {
+}): Promise<{ sha: string; unchanged: boolean; attempts: number }> {
 	const doFetch = opts.deps?.fetchImpl ?? fetch;
 	const base = opts.deps?.apiBase ?? GITHUB_API_BASE;
+	const sleep =
+		opts.deps?.sleepImpl ??
+		((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 	const { owner, repo, branch } = EXPORT_REPO;
 	const root = `${base}/repos/${owner}/${repo}`;
 
 	async function call<T>(path: string, init?: RequestInit): Promise<T> {
-		const res = await doFetch(`${root}${path}`, {
-			...init,
-			headers: {
-				accept: 'application/vnd.github+json',
-				authorization: `Bearer ${opts.token}`,
-				'content-type': 'application/json',
-				'x-github-api-version': '2022-11-28',
-				...(init?.headers as Record<string, string> | undefined)
-			}
-		});
+		let res: Response;
+		try {
+			res = await doFetch(`${root}${path}`, {
+				...init,
+				headers: {
+					accept: 'application/vnd.github+json',
+					authorization: `Bearer ${opts.token}`,
+					'content-type': 'application/json',
+					'x-github-api-version': '2022-11-28',
+					...(init?.headers as Record<string, string> | undefined)
+				}
+			});
+		} catch (e) {
+			// A transport failure is not a refusal and must not be described as one:
+			// nothing about the token or the branch is implicated by a dropped socket.
+			throw new GitHubError(
+				(e as Error)?.message || 'the request did not complete',
+				0,
+				'network'
+			);
+		}
 		if (!res.ok) {
 			const body = (await res.json().catch(() => null)) as { message?: string } | null;
+			const detail = body?.message ?? 'request refused';
 			// The status and GitHub's own message, never the token or the headers.
-			throw new GitHubError(`GitHub ${res.status}: ${body?.message ?? 'request refused'}`);
+			throw new GitHubError(
+				`GitHub ${res.status}: ${detail}`,
+				res.status,
+				classifyRefusal(res.status, detail, path)
+			);
 		}
 		return (await res.json()) as T;
 	}
 
-	const ref = await call<{ object: { sha: string } }>(`/git/ref/heads/${branch}`);
-	const headSha = ref.object.sha;
-	const headCommit = await call<{ tree: { sha: string } }>(`/git/commits/${headSha}`);
+	/** One whole read-build-commit-update sequence, from a FRESH head every time. */
+	async function attempt(): Promise<{ sha: string; unchanged: boolean }> {
+		const ref = await call<{ object: { sha: string } }>(`/git/ref/heads/${branch}`);
+		const headSha = ref.object.sha;
+		const headCommit = await call<{ tree: { sha: string } }>(`/git/commits/${headSha}`);
 
-	const tree = await call<{ sha: string }>('/git/trees', {
-		method: 'POST',
-		body: JSON.stringify({
-			base_tree: headCommit.tree.sha,
-			tree: opts.files.map((f) => ({
-				path: f.path,
-				mode: '100644',
-				type: 'blob',
-				content: f.content
-			}))
-		})
-	});
+		const tree = await call<{ sha: string }>('/git/trees', {
+			method: 'POST',
+			body: JSON.stringify({
+				base_tree: headCommit.tree.sha,
+				tree: opts.files.map((f) => ({
+					path: f.path,
+					mode: '100644',
+					type: 'blob',
+					content: f.content
+				}))
+			})
+		});
 
-	if (tree.sha === headCommit.tree.sha) {
-		return { sha: headSha, unchanged: true };
+		// Against THIS head. Re-asked on every attempt on purpose: whoever moved the
+		// branch may have written exactly this content (a duplicate export of the
+		// same item), in which case there is now nothing to commit -- and equally, a
+		// tree that matched the head we first read may be a real change against the
+		// one we have ended up building on.
+		if (tree.sha === headCommit.tree.sha) {
+			return { sha: headSha, unchanged: true };
+		}
+
+		const commit = await call<{ sha: string }>('/git/commits', {
+			method: 'POST',
+			body: JSON.stringify({ message: opts.message, tree: tree.sha, parents: [headSha] })
+		});
+
+		// IMMEDIATELY BEFORE THE WRITE. This does not close the window -- only the
+		// update itself is atomic, and the 422 below is still the authority -- but it
+		// catches the common case one round trip earlier, without pointing the branch
+		// at a commit whose parent has already stopped being the head.
+		const current = await call<{ object: { sha: string } }>(`/git/ref/heads/${branch}`);
+		if (current.object.sha !== headSha) {
+			throw new GitHubError(
+				`GitHub 422: ${branch} moved to ${current.object.sha.slice(0, 7)} while this export was being built`,
+				422,
+				'collision'
+			);
+		}
+
+		// NO `force`, here or anywhere. A non-fast-forward comes back 422 and is
+		// rebuilt above; it is never resolved by overwriting the ref.
+		await call(`/git/refs/heads/${branch}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ sha: commit.sha })
+		});
+
+		return { sha: commit.sha, unchanged: false };
 	}
 
-	const commit = await call<{ sha: string }>('/git/commits', {
-		method: 'POST',
-		body: JSON.stringify({ message: opts.message, tree: tree.sha, parents: [headSha] })
-	});
-
-	await call(`/git/refs/heads/${branch}`, {
-		method: 'PATCH',
-		body: JSON.stringify({ sha: commit.sha })
-	});
-
-	return { sha: commit.sha, unchanged: false };
+	for (let n = 1; ; n++) {
+		try {
+			return { ...(await attempt()), attempts: n };
+		} catch (e) {
+			const racing = e instanceof GitHubError && e.kind === 'collision';
+			if (!racing || n >= EXPORT_MAX_ATTEMPTS) throw e;
+			// Jittered, so two exports of the same item racing each other do not line
+			// their retries up and collide again in step.
+			await sleep(n * 120 + Math.floor(Math.random() * 120));
+		}
+	}
 }
 
 interface ItemRow {
@@ -384,15 +518,24 @@ export async function exportClassroomItem(
 			files: files.map((f) => f.path)
 		};
 	} catch (e) {
-		const message = e instanceof Error ? e.message : 'The export failed.';
+		const detail = e instanceof Error ? e.message : 'The export failed.';
+		// WHAT KIND OF WRONG, not just how wrong. The chip is the whole of what a
+		// teacher sees, and "GitHub 422: Reference cannot be updated" reads to them
+		// like their own content was rejected -- when it means a colleague committed
+		// two seconds earlier and Retry will land it. A refusal from a branch rule,
+		// which Retry will never clear, has to read differently again.
+		const kind: ExportFailureKind = e instanceof GitHubError ? e.kind : 'unknown';
+		const message = exportFailureMessage(kind, detail);
 		// Recorded, not thrown: the caller is a fire-and-forget ping and the
 		// teacher's own surface for this is the chip, not an exception.
 		await supabase.rpc('classroom_record_export', {
 			p_item_id: itemId,
 			p_slug: slug,
 			p_sha: null,
+			// The stored string is the only thing that survives a reload, so the
+			// class has to be legible IN it -- see exportFailureMessage.
 			p_error: message.slice(0, 400)
 		});
-		return { status: 'failed', error: message, slug };
+		return { status: 'failed', error: message, slug, kind };
 	}
 }

@@ -71,7 +71,23 @@ export interface RevisionTransports {
 export type ExportOutcome =
 	| { status: 'skipped'; reason: 'no_token' | 'no_spec' | 'not_found' }
 	| { status: 'ok'; sha: string; slug: string; path: string; unchanged: boolean; files: string[] }
-	| { status: 'failed'; error: string; slug: string | null };
+	| { status: 'failed'; error: string; slug: string | null; kind: ExportFailureKind };
+
+/**
+ * WHY AN EXPORT FAILED, coarsely enough to be worth different words.
+ *
+ * These are not shades of the same thing. A `collision` means someone else
+ * committed to main while this export was being assembled: nothing is wrong,
+ * nothing was lost, and pressing Retry genuinely fixes it. A `refused` means
+ * GitHub will not accept this write at all -- the token's access, or a rule on
+ * the branch -- and Retry will produce the identical refusal forever. Telling a
+ * teacher to retry something that cannot succeed, or telling them a two-second
+ * race needs an administrator, are both worse than saying nothing.
+ *
+ * `unknown` is deliberately kept rather than folded into one of the others: a
+ * refusal this build has never seen must not be described with confidence.
+ */
+export type ExportFailureKind = 'collision' | 'refused' | 'network' | 'unknown';
 
 /** Export bookkeeping, read separately from the item for deploy-ordering reasons. */
 export interface ItemExportStatus {
@@ -207,4 +223,69 @@ export function revisionAuthorLabel(rev: ContentRevision): string {
  */
 export function exportFailed(status: ItemExportStatus | null | undefined): boolean {
 	return !!status?.lastExportError;
+}
+
+/**
+ * The sentence a failure is RECORDED as, and the only thing the chip has to go
+ * on after a reload.
+ *
+ * `classroom_record_export` stores one text column, so the stored string is the
+ * whole durable channel -- a `kind` field alongside it would be lost the moment
+ * the page reloaded and the status came back from the database. So the class is
+ * encoded in words a teacher can read, and `classifyExportError` reads those
+ * same words back out. The two must be changed together, which is why they live
+ * in one file and share the marker constants below.
+ *
+ * GitHub's own text is kept in parentheses at the end. It is the only thing that
+ * makes a report actionable for whoever holds the token, and dropping it to keep
+ * the sentence tidy would trade a real diagnosis for a tidier one.
+ */
+const KIND_MARKERS = {
+	collision: 'another commit landed on main',
+	refused: 'github refused this export',
+	network: 'could not reach github'
+} as const;
+
+export function exportFailureMessage(kind: ExportFailureKind, detail: string): string {
+	const tail = detail ? ` (${detail})` : '';
+	switch (kind) {
+		case 'collision':
+			return `Another commit landed on main while this export was being written. Nothing was lost and nothing is wrong -- press Retry.${tail}`;
+		case 'refused':
+			return `GitHub refused this export outright, and retrying will not change that: the export token's access, or a protection rule on main, needs attention.${tail}`;
+		case 'network':
+			return `Could not reach GitHub. The content itself saved; press Retry once the connection is back.${tail}`;
+		default:
+			return detail || 'The export failed.';
+	}
+}
+
+/**
+ * The class of a failure read back OUT of a stored message.
+ *
+ * Matches only phrases this module itself writes, so a message that came from
+ * somewhere else -- an older build, a route's own catch -- classifies as
+ * `unknown` and is shown verbatim rather than being confidently mislabelled.
+ */
+export function classifyExportError(message: string | null | undefined): ExportFailureKind {
+	const text = (message ?? '').toLowerCase();
+	if (!text) return 'unknown';
+	for (const [kind, marker] of Object.entries(KIND_MARKERS)) {
+		if (text.includes(marker)) return kind as ExportFailureKind;
+	}
+	return 'unknown';
+}
+
+/** The chip's own word for a failure class. Amber either way; the words differ. */
+export function exportFailureLabel(kind: ExportFailureKind): string {
+	switch (kind) {
+		case 'collision':
+			return 'Export needs a retry';
+		case 'refused':
+			return 'Export refused';
+		case 'network':
+			return 'Export could not reach GitHub';
+		default:
+			return 'Export failed';
+	}
 }

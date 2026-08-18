@@ -33,8 +33,19 @@ import {
 	exportCourseDir,
 	exportSlug,
 	pushFilesToGitHub,
+	EXPORT_MAX_ATTEMPTS,
+	type ExportFile,
 	type ExportSubject
 } from '../src/lib/server/classroom-export';
+import {
+	classifyExportError,
+	exportFailureLabel,
+	exportFailureMessage
+} from '../src/lib/classroom/revisions';
+import {
+	createClassroomTransports,
+	createTeacherEngineTransports
+} from '../src/lib/classroom/transports';
 
 const API = 'https://mock.github.test';
 const TOKEN = 'ghp_not-a-real-token-0000';
@@ -52,12 +63,42 @@ interface Recorded {
  * and a ref update. That last property is the whole point -- it is what lets
  * the idempotency test be a real measurement rather than an assertion about
  * our own code talking to itself.
+ *
+ * IT REFUSES A NON-FAST-FORWARD, which the first version of this mock did not.
+ * The old PATCH handler accepted whatever sha it was handed and moved the head
+ * to it, so every test passed against a branch that could not move -- and the
+ * one condition this repo produces constantly, somebody else committing to main
+ * mid-export, was the one condition the suite could not express. A mock that is
+ * more permissive than the real thing does not fail loudly; it certifies a bug.
+ * So a commit whose parent is no longer the head is answered 422 "Reference
+ * cannot be updated", verbatim, exactly as api.github.com answers it.
+ *
+ * `collide` is the concurrent writer: `at: 'trees'` lands a commit in the
+ * window between the head read and the update (which is where the race
+ * actually happens), `at: 'patch'` lands it at the last possible instant, so
+ * the update itself is what comes back 422. Both are real; the second is the
+ * one no amount of re-reading beforehand can prevent.
  */
-function mockGitHub(opts: { existing?: Record<string, string>; failOn?: string; status?: number } = {}) {
+function mockGitHub(
+	opts: {
+		existing?: Record<string, string>;
+		failOn?: string;
+		status?: number;
+		message?: string;
+		collide?: { at: 'trees' | 'patch'; times: number; writes?: readonly ExportFile[] };
+	} = {}
+) {
 	const files = new Map<string, string>(Object.entries(opts.existing ?? {}));
 	const calls: Recorded[] = [];
+	/** Every commit object ever created, so the ref update can check its parent. */
+	const commits = new Map<
+		string,
+		{ parent: string | null; tree: string; staged: Map<string, string> }
+	>();
 	let headSha = 'head-sha-0';
 	let treeSha = treeShaFor(files);
+	let outsideWrites = 0;
+	let collisionsLeft = opts.collide?.times ?? 0;
 
 	function treeShaFor(map: Map<string, string>): string {
 		const flat = [...map.entries()].sort().map(([k, v]) => `${k}:${v}`).join('|');
@@ -69,6 +110,21 @@ function mockGitHub(opts: { existing?: Record<string, string>; failOn?: string; 
 		return String(h >>> 0);
 	}
 
+	/**
+	 * SOMEBODY ELSE COMMITS TO MAIN. The head moves and the tree moves with it;
+	 * nothing already on the branch is disturbed, which is the point -- the
+	 * export's job is to land on top of this, never to erase it.
+	 */
+	function outsideCommit() {
+		outsideWrites++;
+		for (const file of opts.collide?.writes ?? []) files.set(file.path, file.content);
+		if (!opts.collide?.writes) {
+			files.set(`other/${outsideWrites}.txt`, `someone else, commit ${outsideWrites}\n`);
+		}
+		headSha = `outside-sha-${outsideWrites}`;
+		treeSha = treeShaFor(files);
+	}
+
 	const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
 		const full = String(url);
 		const path = full.slice(API.length);
@@ -78,9 +134,12 @@ function mockGitHub(opts: { existing?: Record<string, string>; failOn?: string; 
 		calls.push({ method, path, body, auth: headers.authorization ?? null });
 
 		if (opts.failOn && path.includes(opts.failOn)) {
-			return new Response(JSON.stringify({ message: 'Resource not accessible by personal access token' }), {
-				status: opts.status ?? 403
-			});
+			return new Response(
+				JSON.stringify({
+					message: opts.message ?? 'Resource not accessible by personal access token'
+				}),
+				{ status: opts.status ?? 403 }
+			);
 		}
 
 		if (method === 'GET' && path.endsWith('/git/ref/heads/main')) {
@@ -97,14 +156,41 @@ function mockGitHub(opts: { existing?: Record<string, string>; failOn?: string; 
 			// Staged, not committed: a tree that is never referenced by a commit
 			// leaves the repo exactly as it was, which is what GitHub does too.
 			pending = next;
-			return json({ sha: treeShaFor(next) });
+			const sha = treeShaFor(next);
+			// The window. Computed BEFORE the outside commit lands, because the
+			// tree we asked for is built from the base we named, not from whatever
+			// main becomes a moment later.
+			if (opts.collide?.at === 'trees' && collisionsLeft > 0) {
+				collisionsLeft--;
+				outsideCommit();
+			}
+			return json({ sha });
 		}
 		if (method === 'POST' && path.endsWith('/git/commits')) {
-			return json({ sha: `commit-${calls.length}` });
+			const sha = `commit-${calls.length}`;
+			commits.set(sha, {
+				parent: ((body?.parents ?? []) as string[])[0] ?? null,
+				tree: String(body?.tree ?? ''),
+				staged: new Map(pending)
+			});
+			return json({ sha });
 		}
 		if (method === 'PATCH' && path.includes('/git/refs/heads/main')) {
-			headSha = String(body?.sha ?? headSha);
-			for (const [k, v] of pending) files.set(k, v);
+			if (opts.collide?.at === 'patch' && collisionsLeft > 0) {
+				collisionsLeft--;
+				outsideCommit();
+			}
+			const target = String(body?.sha ?? '');
+			const record = commits.get(target);
+			// THE REFUSAL THIS SUITE EXISTS FOR. No `force` is honoured, because
+			// the export must never send one: main's history lives nowhere else.
+			if (!record || record.parent !== headSha) {
+				return new Response(JSON.stringify({ message: 'Reference cannot be updated' }), {
+					status: 422
+				});
+			}
+			headSha = target;
+			for (const [k, v] of record.staged) files.set(k, v);
 			treeSha = treeShaFor(files);
 			return json({ object: { sha: headSha } });
 		}
@@ -117,7 +203,14 @@ function mockGitHub(opts: { existing?: Record<string, string>; failOn?: string; 
 		return new Response(JSON.stringify(value), { status: 200 });
 	}
 
-	return { fetchImpl, calls, files, deps: { fetchImpl, apiBase: API, token: TOKEN } };
+	return {
+		fetchImpl,
+		calls,
+		files,
+		head: () => headSha,
+		// No backoff in tests: the wait is real in production and pure cost here.
+		deps: { fetchImpl, apiBase: API, token: TOKEN, sleepImpl: async () => {} }
+	};
 }
 
 const SPEC = {
@@ -506,5 +599,346 @@ describe('what actually gets exported', () => {
 		const record = rpcs.find((r) => r.name === 'classroom_record_export');
 		expect(record?.args.p_error).toContain('GitHub 403');
 		expect(record?.args.p_sha).toBeNull();
+	});
+});
+/**
+ * THE BUG THIS SECTION EXISTS FOR.
+ *
+ * main is a shared branch with people committing to it all day, and the export
+ * is itself a burst writer -- saving a spec, then its rubric, then publishing
+ * fires three exports at one item. So the branch moving between the head read
+ * and the ref update is the ORDINARY case here, and a push that reads the head
+ * once and hopes loses that race often enough to look permanently broken: the
+ * chip said "GitHub 422: Reference cannot be updated" and Retry, being one more
+ * single-shot attempt, produced the identical refusal.
+ *
+ * Retry was never rebuilding on a stale parent -- it re-read the head every
+ * time, and a measurement against the pre-fix code confirmed it. What it could
+ * not do was survive losing the race again, which under a steady writer is
+ * every time. So the fix is not "read it fresh"; it is "keep rebuilding on
+ * whatever the head has become, a bounded number of times".
+ *
+ * FORCE IS NOT A FIX AND MUST NEVER APPEAR. These commits are written
+ * unattended to a branch whose history exists nowhere else; an export losing a
+ * race is never a reason to discard the commit that beat it.
+ */
+describe('when main moves under the export', () => {
+	it('rebuilds on the new head when a commit lands mid-export', async () => {
+		const gh = mockGitHub({ collide: { at: 'trees', times: 1 } });
+		const res = await pushFilesToGitHub({
+			token: TOKEN,
+			files: buildExportFiles(subject()),
+			message: 'classroom: Bridge stackup (assignment) r3',
+			deps: gh.deps
+		});
+
+		expect(res.unchanged).toBe(false);
+		expect(res.attempts).toBe(2);
+		// The whole point: the other commit is STILL THERE, and ours is on top.
+		expect(gh.files.get('other/1.txt')).toContain('someone else');
+		expect(gh.files.has('materials/idea209h/bridge-stackup/assignment.json')).toBe(true);
+	});
+
+	it('recovers when the ref update ITSELF comes back 422', async () => {
+		// The window a pre-write re-read cannot close: the branch moves after the
+		// check and before the update. Only the update is atomic, so the 422 has
+		// to be handled, not merely avoided.
+		const gh = mockGitHub({ collide: { at: 'patch', times: 1 } });
+		const res = await pushFilesToGitHub({
+			token: TOKEN,
+			files: buildExportFiles(subject()),
+			message: 'm',
+			deps: gh.deps
+		});
+		expect(res.unchanged).toBe(false);
+		expect(res.attempts).toBe(2);
+		expect(gh.calls.filter((c) => c.method === 'PATCH')).toHaveLength(2);
+	});
+
+	it('re-reads the ref immediately before every update', async () => {
+		const gh = mockGitHub();
+		await pushFilesToGitHub({
+			token: TOKEN,
+			files: buildExportFiles(subject()),
+			message: 'm',
+			deps: gh.deps
+		});
+		const refReads = gh.calls.filter((c) => c.method === 'GET' && c.path.endsWith('/git/ref/heads/main'));
+		// One to build on, one immediately before the write.
+		expect(refReads).toHaveLength(2);
+		const order = gh.calls.map((c) => `${c.method} ${c.path.split('/repos/pina-hash/idea-app')[1]}`);
+		expect(order[order.length - 2]).toBe('GET /git/ref/heads/main');
+		expect(order[order.length - 1]).toBe('PATCH /git/refs/heads/main');
+	});
+
+	it('NEVER sends force, however many times it has to rebuild', async () => {
+		// At the PATCH, so the update is genuinely re-attempted rather than being
+		// short-circuited by the pre-write re-read.
+		const gh = mockGitHub({ collide: { at: 'patch', times: 2 } });
+		await pushFilesToGitHub({
+			token: TOKEN,
+			files: buildExportFiles(subject()),
+			message: 'm',
+			deps: gh.deps
+		});
+		const updates = gh.calls.filter((c) => c.method === 'PATCH');
+		expect(updates).toHaveLength(3);
+		// Not on the ref update, and not smuggled into any other request either.
+		for (const call of gh.calls) expect(call.body ?? {}).not.toHaveProperty('force');
+	});
+
+	it('gives up after EXPORT_MAX_ATTEMPTS rather than trying forever', async () => {
+		// PINNED TO A LITERAL on purpose. Asserting the count against the constant
+		// would make this test agree with any bound at all, including none -- and
+		// the bound is a judgement about how long a serverless invocation may sit
+		// there losing a race, which is exactly the kind of thing that should not
+		// be changeable without a test saying so out loud.
+		expect(EXPORT_MAX_ATTEMPTS).toBe(4);
+		// A branch that moves on every single attempt is not a race this can win,
+		// and pretending otherwise would hold a serverless invocation open until
+		// it was killed. It is reported instead -- with words that say to retry.
+		const gh = mockGitHub({ collide: { at: 'trees', times: 99 } });
+		await expect(
+			pushFilesToGitHub({ token: TOKEN, files: buildExportFiles(subject()), message: 'm', deps: gh.deps })
+		).rejects.toThrow(/GitHub 422/);
+
+		const commits = gh.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/git/commits'));
+		expect(commits).toHaveLength(EXPORT_MAX_ATTEMPTS);
+		// Each one on a DIFFERENT parent: every attempt rebuilt from a fresh head
+		// rather than re-sending the same doomed commit.
+		const parents = commits.map((c) => ((c.body?.parents ?? []) as string[])[0]);
+		expect(new Set(parents).size).toBe(EXPORT_MAX_ATTEMPTS);
+	});
+
+	/**
+	 * IDEMPOTENCY IS RE-DECIDED AGAINST THE HEAD WE ENDED UP WITH, not the one we
+	 * first read. If the writer that beat us happened to write exactly this
+	 * content -- a duplicate export of the same item, which this app produces --
+	 * then there is now nothing to commit, and committing anyway would add an
+	 * empty commit for every collision.
+	 *
+	 * The converse direction (a tree that matched the FIRST head but not the
+	 * second) cannot be reached from here: matching the first head returns
+	 * `unchanged` before any commit exists to collide. The check still has to sit
+	 * inside the attempt for this case to work at all.
+	 */
+	it('commits nothing when the writer that beat us wrote exactly this content', async () => {
+		const files = buildExportFiles(subject());
+		const gh = mockGitHub({ collide: { at: 'trees', times: 1, writes: files } });
+		const res = await pushFilesToGitHub({ token: TOKEN, files, message: 'm', deps: gh.deps });
+
+		expect(res.unchanged).toBe(true);
+		expect(res.attempts).toBe(2);
+		const commits = gh.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/git/commits'));
+		// One built on the doomed first head; NONE on the second, because by then
+		// there was nothing left to say.
+		expect(commits).toHaveLength(1);
+	});
+
+	/**
+	 * A RULE ON THE BRANCH IS NOT A RACE. Both come back 422 from the same
+	 * endpoint, and retrying the first is right while retrying the second burns
+	 * three more requests to be told the identical thing. They are told apart by
+	 * GitHub's own words, and the wrong one must not be absorbed as the other.
+	 */
+	it('does not retry a branch-protection refusal', async () => {
+		const gh = mockGitHub({
+			failOn: '/git/refs/heads/main',
+			status: 422,
+			message: 'Changes must be made through a pull request.'
+		});
+		await expect(
+			pushFilesToGitHub({ token: TOKEN, files: buildExportFiles(subject()), message: 'm', deps: gh.deps })
+		).rejects.toThrow(/must be made through a pull request/);
+
+		expect(gh.calls.filter((c) => c.method === 'PATCH')).toHaveLength(1);
+	});
+});
+
+describe('what the chip is told', () => {
+	/**
+	 * `classroom_record_export` stores ONE text column, so after a reload the
+	 * stored sentence is the whole of what the chip has. The class of failure
+	 * therefore has to be legible in the words themselves, and readable back out
+	 * of them -- which is what ties exportFailureMessage and classifyExportError
+	 * together and why they live in one file.
+	 */
+	it('round-trips every failure class through the stored message', () => {
+		for (const kind of ['collision', 'refused', 'network'] as const) {
+			expect(classifyExportError(exportFailureMessage(kind, 'GitHub 422: whatever'))).toBe(kind);
+		}
+		// A message from anywhere else is not confidently labelled.
+		expect(classifyExportError('GitHub 500: Internal Server Error')).toBe('unknown');
+		expect(classifyExportError(null)).toBe('unknown');
+		expect(classifyExportError('')).toBe('unknown');
+	});
+
+	it('gives a lost race, a refusal and a JSON problem three different chips', () => {
+		const collision = exportFailureLabel(classifyExportError(exportFailureMessage('collision', '')));
+		const refused = exportFailureLabel(classifyExportError(exportFailureMessage('refused', '')));
+		const unknown = exportFailureLabel(classifyExportError('GitHub 400: Problems parsing JSON'));
+		expect(new Set([collision, refused, unknown]).size).toBe(3);
+		// The one a teacher can act on says so, and the one they cannot does not.
+		expect(exportFailureMessage('collision', '')).toMatch(/press Retry/i);
+		expect(exportFailureMessage('refused', '')).toMatch(/retrying will not change that/i);
+	});
+
+	it('records a collision as a transient race, not as a rejected file', async () => {
+		// At the PATCH, so the recorded sentence is built from GitHub's OWN 422 --
+		// 'Reference cannot be updated', the exact string this was reported as --
+		// rather than from the pre-write check's synthetic one.
+		const gh = mockGitHub({ collide: { at: 'patch', times: 99 } });
+		const { client, rpcs } = stubSupabase({
+			classroom_items: ITEM,
+			classroom_assignment_specs: { spec: SPEC },
+			classroom_postings: [],
+			revision_count: 0
+		});
+
+		const out = await exportClassroomItem(client, ITEM.id, gh.deps);
+		expect(out.status).toBe('failed');
+		if (out.status !== 'failed') return;
+		expect(out.kind).toBe('collision');
+		expect(out.error).toMatch(/Nothing was lost/);
+		// GitHub's own words are kept, because they are what makes a report
+		// actionable for whoever holds the token.
+		expect(out.error).toMatch(/GitHub 422: Reference cannot be updated/);
+		expect(out.error).not.toContain(TOKEN);
+
+		const record = rpcs.find((r) => r.name === 'classroom_record_export');
+		expect(String(record?.args.p_error)).toMatch(/press Retry/);
+		expect(String(record?.args.p_error).length).toBeLessThanOrEqual(400);
+	});
+
+	it('records a branch-protection refusal as one, and says retrying will not help', async () => {
+		const gh = mockGitHub({
+			failOn: '/git/refs/heads/main',
+			status: 422,
+			message: 'Protected branch update failed for refs/heads/main.'
+		});
+		const { client, rpcs } = stubSupabase({
+			classroom_items: ITEM,
+			classroom_assignment_specs: { spec: SPEC },
+			classroom_postings: [],
+			revision_count: 0
+		});
+
+		const out = await exportClassroomItem(client, ITEM.id, gh.deps);
+		expect(out.status === 'failed' && out.kind).toBe('refused');
+		expect(String(rpcs[0].args.p_error)).toMatch(/retrying will not change that/i);
+		expect(String(rpcs[0].args.p_error)).not.toMatch(/press Retry/);
+	});
+
+	it('records an unreachable GitHub as neither of those', async () => {
+		const deps = {
+			apiBase: API,
+			token: TOKEN,
+			sleepImpl: async () => {},
+			fetchImpl: (async () => {
+				throw new TypeError('fetch failed');
+			}) as unknown as typeof fetch
+		};
+		const { client } = stubSupabase({
+			classroom_items: ITEM,
+			classroom_assignment_specs: { spec: SPEC },
+			classroom_postings: [],
+			revision_count: 0
+		});
+		const out = await exportClassroomItem(client, ITEM.id, deps);
+		expect(out.status === 'failed' && out.kind).toBe('network');
+		expect(out.status === 'failed' && out.error).toMatch(/Could not reach GitHub/);
+	});
+});
+
+describe('Retry starts the whole sequence over', () => {
+	/**
+	 * The manage console's Retry is a fresh POST carrying nothing but the item
+	 * id, so the server re-reads the item, the spec, the postings AND the head.
+	 * Nothing is carried across, and nothing may be: a retry that rebuilt on a
+	 * remembered parent would turn one lost race into a failure that could never
+	 * clear, which is exactly what this bug was reported as.
+	 */
+	it('rebuilds on the CURRENT head, never on the parent the last attempt used', async () => {
+		const gh = mockGitHub({ collide: { at: 'trees', times: 1 } });
+		const fixture = {
+			classroom_items: ITEM,
+			classroom_assignment_specs: { spec: SPEC },
+			classroom_postings: [],
+			revision_count: 0
+		};
+
+		// Force the first call to exhaust its rebuilds, so the SECOND call is a
+		// genuine retry of a failure rather than a second happy path.
+		const failing = mockGitHub({ collide: { at: 'trees', times: 99 } });
+		const first = await exportClassroomItem(stubSupabase(fixture).client, ITEM.id, failing.deps);
+		expect(first.status).toBe('failed');
+
+		const second = await exportClassroomItem(stubSupabase(fixture).client, ITEM.id, gh.deps);
+		expect(second.status).toBe('ok');
+
+		const refReads = gh.calls.filter((c) => c.method === 'GET' && c.path.endsWith('/git/ref/heads/main'));
+		expect(refReads.length).toBeGreaterThan(0);
+		const landed = gh.calls.filter((c) => c.method === 'POST' && c.path.endsWith('/git/commits'));
+		expect(((landed[landed.length - 1].body?.parents ?? []) as string[])[0]).toBe('outside-sha-1');
+	});
+});
+
+describe('a failed export costs the export and nothing else', () => {
+	/**
+	 * THE ONE PROMISE. The spec is already written when the export is fired --
+	 * the RPC has returned, the revision is recorded -- and the ping is a
+	 * `void fetch(...)` whose rejection is swallowed. This measures that against
+	 * the REAL transport rather than trusting the comment above it: with the
+	 * export request failing outright, the attach still reports success.
+	 */
+	it('still attaches the spec when the export request fails', async () => {
+		const rpcs: string[] = [];
+		const supabase = {
+			rpc(name: string) {
+				rpcs.push(name);
+				return Promise.resolve({ data: null, error: null });
+			}
+		} as never;
+
+		let pinged = 0;
+		vi.stubGlobal('fetch', async () => {
+			pinged++;
+			throw new TypeError('fetch failed');
+		});
+		try {
+			const tx = createTeacherEngineTransports(supabase);
+			const attach = await tx.setSpec('i-1', SPEC as never);
+			const rubric = await tx.setRubric('i-1', [] as never);
+			const publish = await createClassroomTransports(supabase).setPublished('i-1', true);
+
+			expect(attach.ok).toBe(true);
+			expect(rubric.ok).toBe(true);
+			expect(publish.ok).toBe(true);
+			// The writes ran, in order, and the export was fired after each.
+			expect(rpcs).toEqual([
+				'classroom_set_assignment_spec',
+				'classroom_set_rubric',
+				'classroom_set_published'
+			]);
+			expect(pinged).toBe(3);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it('resolves rather than throwing when the branch will not budge', async () => {
+		const gh = mockGitHub({ collide: { at: 'trees', times: 99 } });
+		const { client, rpcs } = stubSupabase({
+			classroom_items: ITEM,
+			classroom_assignment_specs: { spec: SPEC },
+			classroom_postings: [],
+			revision_count: 0
+		});
+		// No rejection: the caller is a fire-and-forget ping, and a throw here
+		// would surface as a failed publish for content that is safely stored.
+		await expect(exportClassroomItem(client, ITEM.id, gh.deps)).resolves.toMatchObject({
+			status: 'failed'
+		});
+		expect(rpcs.find((r) => r.name === 'classroom_record_export')?.args.p_sha).toBeNull();
 	});
 });

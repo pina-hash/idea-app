@@ -8,7 +8,13 @@
 	import UnitManager from '$lib/classroom/UnitManager.svelte';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
 	import type { DeckTransports } from '$lib/classroom/deck';
-	import { exportFailed, type ExportOutcome, type ItemExportStatus } from '$lib/classroom/revisions';
+	import {
+		classifyExportError,
+		exportFailed,
+		exportFailureLabel,
+		type ExportOutcome,
+		type ItemExportStatus
+	} from '$lib/classroom/revisions';
 	import {
 		UNFILED_GROUP_ID,
 		authorLabel,
@@ -417,6 +423,19 @@
 		return { slug: null, lastExportAt: null, lastExportSha: null, lastExportError: null };
 	}
 
+	/**
+	 * The chip's word for whatever went wrong, read out of the STORED message.
+	 *
+	 * Classified from the text rather than from a field, because after a reload
+	 * the text is all there is -- `classroom_record_export` stores one column.
+	 * A collision and a refusal are different problems with different answers:
+	 * one of them is fixed by the button sitting right next to the chip, and
+	 * the other never will be.
+	 */
+	function exportChipLabel(itemId: string): string {
+		return exportFailureLabel(classifyExportError(exportStatusFor(itemId)?.lastExportError));
+	}
+
 	async function doRetryExport(item: ClassroomItem) {
 		if (!retryExport || retrying) return;
 		retrying = item.id;
@@ -543,7 +562,7 @@
 		{/if}
 		{#if canManage && exportFailed(exportStatusFor(item.id))}
 			<p class="export-line">
-				<span class="chip export-chip">Export failed</span>
+				<span class="chip export-chip">{exportChipLabel(item.id)}</span>
 				<span class="export-why">{exportStatusFor(item.id)?.lastExportError}</span>
 				{#if retryExport}
 					<button
@@ -641,8 +660,12 @@
 						{#if exportFailed(exportStatusFor(item.id))}
 							<!-- QUIET, and only when something is wrong: an item that exported
 							     cleanly, or never exported, says nothing at all. Amber, this
-							     palette's "needs attention" -- the content itself saved. -->
-							<span class="chip export-chip" data-testid="export-fail-{item.id}">Export failed</span>
+							     palette's "needs attention" -- the content itself saved. The WORD
+							     varies with the failure class: a lost race and a refused write
+							     want different things from the person reading the row. -->
+							<span class="chip export-chip" data-testid="export-fail-{item.id}">
+								{exportChipLabel(item.id)}
+							</span>
 						{/if}
 					</span>
 					<span class="row-meta">
