@@ -41,6 +41,29 @@
 	{/each}
 {/snippet}
 
+{#snippet tableBlock(headers: InlineRun[][], rows: InlineRun[][][])}
+	<div class="md-table-wrap">
+		<table class="md-table">
+			<thead>
+				<tr>
+					{#each headers as cell, ci (ci)}
+						<th scope="col">{@render inline(cell)}</th>
+					{/each}
+				</tr>
+			</thead>
+			<tbody>
+				{#each rows as row, ri (ri)}
+					<tr>
+						{#each row as cell, ci (ci)}
+							<td>{@render inline(cell)}</td>
+						{/each}
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+{/snippet}
+
 {#snippet listBlock(list: MarkdownList)}
 	{#if list.ordered}
 		<ol>
@@ -75,6 +98,8 @@
 			<p>{@render inline(node.runs)}</p>
 		{:else if node.type === 'list'}
 			{@render listBlock(node)}
+		{:else if node.type === 'table'}
+			{@render tableBlock(node.headers, node.rows)}
 		{:else if node.type === 'quote'}
 			<blockquote>
 				{#each node.paragraphs as para, pi (pi)}
@@ -205,6 +230,44 @@
 		white-space: pre;
 	}
 
+	/* A table is data to scan, not prose to read, so it takes the full width
+	   available rather than the reading measure -- the reference-document
+	   convention (rb-dt) applied here. The scroll lives on the wrapper, never
+	   the page, so a wide table cannot push a narrow column past its own
+	   width. */
+	.md :global(.md-table-wrap) {
+		overflow-x: auto;
+		max-width: 100%;
+	}
+	.md :global(.md-table) {
+		width: 100%;
+		border-collapse: collapse;
+		min-width: 20rem;
+	}
+	.md :global(.md-table th) {
+		text-align: left;
+		font-family: var(--font-mono);
+		font-size: 0.64rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--cyan);
+		background: var(--surface-2);
+		border-bottom: 1px solid var(--line-strong);
+		padding: var(--space-2) var(--space-3);
+		font-weight: 400;
+		white-space: nowrap;
+	}
+	.md :global(.md-table td) {
+		border-bottom: 1px solid var(--hairline);
+		padding: var(--space-2) var(--space-3);
+		font-size: 0.88rem;
+		line-height: 1.5;
+		vertical-align: top;
+	}
+	.md :global(.md-table tbody tr:last-child td) {
+		border-bottom: none;
+	}
+
 	@media print {
 		.md :global(.md-h3),
 		.md :global(.md-h4) {
@@ -219,6 +282,20 @@
 		.md :global(blockquote) {
 			border-left-color: #999;
 			color: #000;
+		}
+		.md :global(.md-table-wrap) {
+			overflow: visible;
+		}
+		.md :global(.md-table) {
+			min-width: 0;
+		}
+		.md :global(.md-table th) {
+			background: none;
+			color: #000;
+			border-bottom-color: #000;
+		}
+		.md :global(.md-table td) {
+			border-color: #bbb;
 		}
 	}
 </style>

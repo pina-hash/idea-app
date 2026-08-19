@@ -128,6 +128,13 @@ export interface SpecModule {
 	title: string;
 	points: number;
 	aiLevel?: number | null;
+	/**
+	 * Schema v2's module-specific AI context (docs/IDEA_MATERIAL_SPEC_v2.md):
+	 * one or two sentences on what this level means for THIS module's actual
+	 * work, surfaced on hover/focus of the AI badge in place of the generic
+	 * level rule. Absent falls back to that generic rule (AI_LEVELS' blurb).
+	 */
+	aiNote?: string | null;
 	intro?: string;
 	blocks: SpecBlock[];
 	rubric?: SpecRubricRow[];
@@ -437,6 +444,9 @@ export function validateSpec(raw: unknown): { spec: AssignmentSpec | null; error
 		}
 		if (mod.aiLevel != null && ![0, 1, 2, 3].includes(mod.aiLevel as number)) {
 			errors.push(`Module "${name}" aiLevel must be 0-3 or null.`);
+		}
+		if (mod.aiNote != null && typeof mod.aiNote !== 'string') {
+			errors.push(`Module "${name}" aiNote must be a string when present.`);
 		}
 
 		const blocks = mod.blocks;

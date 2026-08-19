@@ -637,13 +637,20 @@ export interface MarkdownListItem {
  * refusing is what guarantees no literal hash marks ever leak into body copy,
  * which is the bug this replaced. Authored headings are also never given an
  * id -- SECTION SLUGS ARE THE ONLY ANCHOR CONTRACT (see the header).
+ *
+ * A `table` node is a GFM-style pipe table: a header row of cells, each
+ * already run through `parseInline`, and zero or more body rows shaped to
+ * match the header's own column count (a short row is padded with an empty
+ * cell, a long one is truncated) -- so the renderer never has to guard a
+ * ragged row itself.
  */
 export type MarkdownNode =
 	| { type: 'heading'; level: 3 | 4; runs: InlineRun[] }
 	| { type: 'paragraph'; runs: InlineRun[] }
 	| ({ type: 'list' } & MarkdownList)
 	| { type: 'quote'; paragraphs: InlineRun[][] }
-	| { type: 'code'; text: string; lang?: string };
+	| { type: 'code'; text: string; lang?: string }
+	| { type: 'table'; headers: InlineRun[][]; rows: InlineRun[][][] };
 
 const SAFE_HREF_RE = /^(https?:|mailto:)/i;
 
@@ -682,15 +689,37 @@ const HEADING_RE = /^(#{1,6})\s+(.*)$/;
 const QUOTE_RE = /^>\s?(.*)$/;
 const FENCE_RE = /^\s{0,3}(`{3,}|~{3,})\s*([A-Za-z0-9_+-]*)\s*$/;
 const ITEM_RE = /^(\s*)(?:([-*+])|(\d+)[.)])\s+(.*)$/;
+const TABLE_DELIM_CELL_RE = /^:?-{1,}:?$/;
 
-/** A tab counts as four columns when deciding whether an item is nested. */
+/** A tab counts as four columns when deciding whether an item is nested, or
+ *  whether a line qualifies as an indented code block. */
 function indentWidth(prefix: string): number {
 	return prefix.replace(/\t/g, '    ').length;
 }
 
 /**
+ * Splits a pipe-delimited table row into trimmed cell strings. Strips one
+ * leading and one trailing `|` when present -- the usual `| a | b |` shape --
+ * but a bare `a | b` with no edge pipes is accepted too.
+ */
+function splitTableRow(line: string): string[] {
+	let t = line.trim();
+	if (t.startsWith('|')) t = t.slice(1);
+	if (t.endsWith('|')) t = t.slice(0, -1);
+	return t.split('|').map((c) => c.trim());
+}
+
+/** A GFM delimiter row: every cell is only `-`, with optional `:` alignment
+ *  markers at either end. This is what tells a real table from an ordinary
+ *  line that happens to contain a pipe. */
+function isTableDelimiterRow(cells: string[]): boolean {
+	return cells.length > 0 && cells.every((c) => TABLE_DELIM_CELL_RE.test(c));
+}
+
+/**
  * Block-level markdown: headings, paragraphs, ordered and unordered lists with
- * one level of nesting, blockquotes, and fenced code -- plus the inline set
+ * one level of nesting, blockquotes, pipe tables, and code blocks -- both
+ * fenced (` ``` `) and indented (4 spaces or a tab) -- plus the inline set
  * above.
  *
  * IT PRODUCES TYPED NODES, NOT HTML, AND THAT IS THE SECURITY MODEL. There is
@@ -710,6 +739,7 @@ export function parseMarkdown(body: string): MarkdownNode[] {
 	let list: MarkdownList | null = null;
 	let quote: string[] | null = null;
 	let fence: { marker: string; lang: string; lines: string[] } | null = null;
+	let codeIndent: string[] | null = null;
 
 	const flushParagraph = () => {
 		if (!paragraph.length) return;
@@ -745,13 +775,23 @@ export function parseMarkdown(body: string): MarkdownNode[] {
 		});
 		fence = null;
 	};
+	/** Trailing blank lines are not part of the block (CommonMark's rule for
+	 *  indented code); an empty accumulator (blank lines with nothing after
+	 *  them, which cannot actually happen given how it is opened) emits nothing. */
+	const flushCodeIndent = () => {
+		if (!codeIndent) return;
+		while (codeIndent.length && codeIndent[codeIndent.length - 1] === '') codeIndent.pop();
+		if (codeIndent.length) nodes.push({ type: 'code', text: codeIndent.join('\n') });
+		codeIndent = null;
+	};
 	const flushAll = () => {
 		flushParagraph();
 		flushList();
 		flushQuote();
 	};
 
-	for (const line of lines) {
+	for (let li = 0; li < lines.length; li++) {
+		const line = lines[li];
 		const fenced = FENCE_RE.exec(line);
 
 		// Inside a fence NOTHING is markup: only a closing fence of the same
@@ -763,8 +803,34 @@ export function parseMarkdown(body: string): MarkdownNode[] {
 		}
 		if (fenced) {
 			flushAll();
+			flushCodeIndent();
 			fence = { marker: fenced[1][0], lang: fenced[2] ?? '', lines: [] };
 			continue;
+		}
+
+		// An indented code block: 4+ columns of leading whitespace (a tab counts
+		// as 4). It can only START right after a blank line -- never interrupting
+		// an open paragraph, list or quote, which is what lets an indented list
+		// continuation or a deeply wrapped sentence keep working exactly as
+		// before -- and it swallows blank lines until a non-indented one closes
+		// it, which is why the check for STARTING one comes after the blank-line
+		// handling below rather than here.
+		const expanded = line.replace(/\t/g, '    ');
+		const indentCols = expanded.length - expanded.trimStart().length;
+		const blank = !line.trim();
+
+		if (codeIndent) {
+			if (blank) {
+				codeIndent.push('');
+				continue;
+			}
+			if (indentCols >= 4) {
+				codeIndent.push(expanded.slice(4));
+				continue;
+			}
+			// Falls through: this line ends the code block and is handled below
+			// exactly like any other line.
+			flushCodeIndent();
 		}
 
 		const trimmed = line.trim();
@@ -777,6 +843,12 @@ export function parseMarkdown(body: string): MarkdownNode[] {
 			continue;
 		}
 
+		if (indentCols >= 4 && !paragraph.length && !list && !quote) {
+			flushAll();
+			codeIndent = [expanded.slice(4)];
+			continue;
+		}
+
 		const heading = HEADING_RE.exec(trimmed);
 		if (heading) {
 			flushAll();
@@ -786,6 +858,38 @@ export function parseMarkdown(body: string): MarkdownNode[] {
 				runs: parseInline(heading[2].trim())
 			});
 			continue;
+		}
+
+		// A pipe table: a header row containing at least one '|' immediately
+		// followed by a delimiter row of only '-'/':'/'|' and whitespace. The
+		// look-ahead at the delimiter row is what tells a real table from an
+		// ordinary line that happens to contain a pipe.
+		if (trimmed.includes('|')) {
+			const headerCells = splitTableRow(trimmed);
+			const nextLine = li + 1 < lines.length ? lines[li + 1].trim() : '';
+			if (headerCells.length > 1 && nextLine.includes('|')) {
+				const delimCells = splitTableRow(nextLine);
+				if (delimCells.length === headerCells.length && isTableDelimiterRow(delimCells)) {
+					flushAll();
+					const bodyRows: string[][] = [];
+					let j = li + 2;
+					while (j < lines.length) {
+						const rowTrimmed = lines[j].trim();
+						if (!rowTrimmed || !rowTrimmed.includes('|')) break;
+						bodyRows.push(splitTableRow(rowTrimmed));
+						j++;
+					}
+					nodes.push({
+						type: 'table',
+						headers: headerCells.map((c) => parseInline(c)),
+						// Every row is shaped to the header's own column count, so the
+						// renderer never has to guard a short or ragged row itself.
+						rows: bodyRows.map((r) => headerCells.map((_, ci) => parseInline(r[ci] ?? '')))
+					});
+					li = j - 1;
+					continue;
+				}
+			}
 		}
 
 		const quoted = QUOTE_RE.exec(trimmed);
@@ -823,6 +927,7 @@ export function parseMarkdown(body: string): MarkdownNode[] {
 		paragraph.push(trimmed);
 	}
 
+	flushCodeIndent();
 	flushFence();
 	flushAll();
 	return nodes;

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import AiLevelBadge from '$lib/classroom/AiLevelBadge.svelte';
+	import InfoTip from '$lib/classroom/InfoTip.svelte';
+	import MarkdownText from '$lib/classroom/MarkdownText.svelte';
 	import {
 		countSentences,
 		filesByBlockCount,
@@ -218,8 +220,10 @@
 			<div class="module-chips">
 				<!-- The SHARED badge (AiLevelBadge): the reference documents' AI
 				     level lookup mounts the same component, so a student sees an
-				     identical badge in both places by construction. -->
-					<AiLevelBadge level={mod.aiLevel} />
+				     identical badge in both places by construction. `mod.aiNote`
+				     (schema v2) surfaces on hover/focus in place of the generic
+				     level rule when the module carries one. -->
+					<AiLevelBadge level={mod.aiLevel} note={mod.aiNote} />
 				<span class="chip points-chip">{mod.points} pts</span>
 				{#if !readonly && completion.total > 0 && !gated}
 					<span class="chip done-chip" class:complete={completion.done === completion.total}>
@@ -241,7 +245,13 @@
 
 			{#each mod.blocks as block, bi (blockKey(block, bi))}
 				{#if block.type === 'instructions'}
-					<div class="block instructions">{block.content}</div>
+					<!-- The SAME markdown renderer the reference documents' own
+					     instructions blocks use (both carry the identical
+					     `{type: 'instructions', content: string}` shape), so a
+					     module's markdown -- headings, bold, lists, tables, code --
+					     comes through as real elements rather than literal
+					     asterisks and hash marks. -->
+					<div class="block instructions"><MarkdownText body={block.content} /></div>
 				{:else if block.type === 'textField'}
 					{@const counter = counterFor(block)}
 					<div class="block">
@@ -267,19 +277,17 @@
 				{:else if block.type === 'table'}
 					{@const rows = tableRows(block)}
 					<div class="block">
-						{#if block.columns.some((c) => c.tip)}
-							<ul class="tips">
-								{#each block.columns.filter((c) => c.tip) as col (col.key)}
-									<li>{col.tip}</li>
-								{/each}
-							</ul>
-						{/if}
 						<div class="table-scroll">
 							<table class="entry-table">
 								<thead>
 									<tr>
+										<!-- Each column's tip is attached to its OWN header --
+										     visible on hover and on keyboard focus (InfoTip), and
+										     always visible in the print view, since print has no
+										     hover to reveal it -- rather than an unlabelled bullet
+										     list a student could not match back to a column. -->
 										{#each block.columns as col (col.key)}
-											<th title={col.tip ?? ''}>{col.label}</th>
+											<th><InfoTip tip={col.tip}>{col.label}</InfoTip></th>
 										{/each}
 										{#if canEdit}<th class="row-ops-head" aria-label="Row actions"></th>{/if}
 									</tr>
@@ -507,11 +515,6 @@
 	.block:last-child {
 		margin-bottom: 0;
 	}
-	.instructions {
-		white-space: pre-wrap;
-		line-height: 1.55;
-		font-size: 0.92rem;
-	}
 	.prompt {
 		display: block;
 		font-size: 0.9rem;
@@ -575,14 +578,6 @@
 		color: var(--green);
 		border-color: var(--green);
 		background: color-mix(in srgb, var(--green) 12%, var(--surface-0));
-	}
-	.tips {
-		margin: 0 0 0.4rem;
-		padding-left: 1.1rem;
-	}
-	.tips li {
-		font-size: 0.74rem;
-		color: var(--text-2);
 	}
 	.table-scroll {
 		overflow-x: auto;
