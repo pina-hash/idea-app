@@ -806,6 +806,72 @@
 		return { ok: true };
 	}
 
+	// ---- soft deletion + retitling (0116) -----------------------------------
+
+	/** Every list swept, the setPinned convention: an entry lives in exactly one. */
+	function updateAll(fn: (list: NotebookEntry[]) => NotebookEntry[]) {
+		studentEntries = fn(studentEntries);
+		fillerEntries = fn(fillerEntries);
+		instructorEntries = fn(instructorEntries);
+		plainEntries = fn(plainEntries);
+	}
+
+	/** notebook_delete_entry: refuses a reviewed entry, drops the row on success. */
+	async function deleteEntry(entryId: string): Promise<EntryActionResult> {
+		log = [...log, `RPC notebook_delete_entry p_entry_id=${JSON.stringify(entryId)}`];
+		const found = current().find((e) => e.id === entryId);
+		if (found?.status !== 'compliant' && found && found.instructor_comment) {
+			return {
+				ok: false,
+				error:
+					'Your instructor has already reviewed that entry, so it cannot be deleted here. Ask them to remove it for you.'
+			};
+		}
+		updateAll((list) => list.filter((e) => e.id !== entryId));
+		return { ok: true };
+	}
+
+	/** notebook_remove_photo: refuses to empty an entry with no note left. */
+	async function removePhoto(photoId: string): Promise<EntryActionResult> {
+		log = [...log, `RPC notebook_remove_photo p_photo_id=${JSON.stringify(photoId)}`];
+		const entry = current().find((e) => e.photos.some((p) => p.id === photoId));
+		if (!entry) return { ok: false, error: 'That photo does not exist or is not yours.' };
+		const remaining = entry.photos.filter((p) => p.id !== photoId).length;
+		if (remaining === 0 && entry.notes.length === 0) {
+			return { ok: false, error: 'That is the only thing in this entry. Delete the whole entry instead.' };
+		}
+		updateAll((list) =>
+			list.map((e) =>
+				e.id === entry.id
+					? { ...e, photos: e.photos.filter((p) => p.id !== photoId) }
+					: e
+			)
+		);
+		return { ok: true };
+	}
+
+	/** notebook_set_entry_label: refused on a check-in entry or an empty shell. */
+	async function setEntryLabel(entryId: string, label: string | null): Promise<EntryActionResult> {
+		log = [
+			...log,
+			`RPC notebook_set_entry_label p_entry_id=${JSON.stringify(entryId)} p_custom_label=${JSON.stringify(label)}`
+		];
+		const entry = current().find((e) => e.id === entryId);
+		if (!entry) return { ok: false, error: 'That entry does not exist or is not yours.' };
+		if (entry.session_id !== null) {
+			return {
+				ok: false,
+				error:
+					'This entry is filed against a scheduled check-in, so its title comes from the check-in and cannot be changed here.'
+			};
+		}
+		if (!label && entry.photos.length === 0 && entry.notes.length === 0) {
+			return { ok: false, error: 'That title is the only thing in this entry. Delete the whole entry instead.' };
+		}
+		updateAll((list) => list.map((e) => (e.id === entryId ? { ...e, custom_label: label } : e)));
+		return { ok: true };
+	}
+
 	/**
 	 * What notebook_entry_activity returns, computed here the way the VIEW
 	 * computes it: the latest of the entry's own stamp and its note revisions.
@@ -902,6 +968,9 @@
 		editNote={viewAs ? undefined : editNote}
 		folderTransports={!viewAs && foldersReady ? folderTransports : undefined}
 		setPinned={!viewAs && pinsReady ? setPinned : undefined}
+		deleteEntry={viewAs ? undefined : deleteEntry}
+		removePhoto={viewAs ? undefined : removePhoto}
+		setEntryLabel={viewAs ? undefined : setEntryLabel}
 	/>
 {/key}
 

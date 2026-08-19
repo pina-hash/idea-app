@@ -642,6 +642,20 @@
 					: e
 			);
 			return { ok: true, value: undefined };
+		},
+
+		async deleteEntry(entryId) {
+			note(`rpc notebook_staff_delete_entry ${JSON.stringify({ p_entry_id: entryId })}`);
+			const entry = entries.find((e) => e.id === entryId);
+			if (!entry) return { ok: false, error: 'That entry does not exist.' };
+			if (!mayManage(entry.section_id)) {
+				return {
+					ok: false,
+					error: 'That entry does not exist, or is not in a class you manage.'
+				};
+			}
+			entries = entries.filter((e) => e.id !== entryId);
+			return { ok: true, value: undefined };
 		}
 	};
 

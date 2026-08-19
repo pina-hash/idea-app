@@ -104,7 +104,10 @@
 		onAddNote,
 		onEditNote,
 		onMove,
-		onPin
+		onPin,
+		onDelete,
+		onRemovePhoto,
+		onRetitle
 	}: {
 		entry: NotebookEntry;
 		folders: NotebookFolder[];
@@ -137,6 +140,24 @@
 		onEditNote?: (noteId: string, doc: TiptapNode) => Promise<NoteSaveResult>;
 		onMove?: (entryId: string, folderId: string | null) => Promise<FolderResult>;
 		onPin?: (entryId: string, pinned: boolean) => Promise<EntryActionResult>;
+		/**
+		 * `full` variant only (0116, notebook_delete_entry). Omitted on a
+		 * read-only surface or once the entry has been reviewed -- the RPC
+		 * refuses the latter itself; this only removes the control where it can
+		 * never succeed at all.
+		 */
+		onDelete?: (entryId: string) => Promise<EntryActionResult>;
+		/**
+		 * A single photo (0116, notebook_remove_photo). Handed straight to
+		 * NotebookPhotos, whose own presence-gates-the-control rule this mirrors.
+		 */
+		onRemovePhoto?: (photoId: string) => Promise<EntryActionResult>;
+		/**
+		 * A free-form entry's own title (0116, notebook_set_entry_label). Never
+		 * offered on a check-in entry -- its title IS the check-in's label, and
+		 * the RPC refuses a session-linked entry outright.
+		 */
+		onRetitle?: (entryId: string, label: string | null) => Promise<EntryActionResult>;
 	} = $props();
 
 	/**
@@ -146,6 +167,7 @@
 	const canAddPhotos = $derived(!!onAddPhotos);
 	const canAddNote = $derived(!!onAddNote);
 	const canMove = $derived(foldersReady && !!onMove);
+	const canDelete = $derived(variant === 'full' && !!onDelete);
 
 	const photos = $derived(orderedPhotos(entry));
 	const pages = $derived(photoPages(photos));
@@ -153,6 +175,8 @@
 	/** Distinct logical notes, not revisions: an edit is not a second note. */
 	const noteCount = $derived(new Set(notes.map((n) => n.note_id)).size);
 	const freeForm = $derived(entry.session_id === null);
+	/** Never on a check-in: its title IS the check-in's label (0116). */
+	const canRetitle = $derived(freeForm && !!onRetitle);
 	const title = $derived(entryTitle(entry));
 	const preview = $derived(entryPreview(entry));
 	const folder = $derived(folderById(folders, entry.folder_id));
@@ -235,6 +259,63 @@
 			// rather than failing silently.
 			flashCopy(false, 'Could not copy');
 		}
+	}
+
+	// ---- delete + rename -----------------------------------------------------
+
+	/** Two-step confirm (the FolderManager convention): armed, then confirmed. */
+	let deleteArmed = $state(false);
+	let deleting = $state(false);
+	let deleteError = $state<string | null>(null);
+
+	async function deleteEntry() {
+		if (!onDelete || deleting) return;
+		if (!deleteArmed) {
+			deleteArmed = true;
+			deleteError = null;
+			return;
+		}
+		deleting = true;
+		deleteError = null;
+		const result = await onDelete(entry.id);
+		deleting = false;
+		if (!result.ok) {
+			deleteError = result.error;
+			deleteArmed = false;
+			return;
+		}
+		// The feed reloads and this card's entry stops existing; nothing else
+		// to do here.
+		deleteArmed = false;
+	}
+
+	let renaming = $state(false);
+	let titleDraft = $state('');
+	let retitling = $state(false);
+	let retitleError = $state<string | null>(null);
+
+	function startRename() {
+		renaming = true;
+		titleDraft = entry.custom_label ?? '';
+		retitleError = null;
+	}
+
+	function cancelRename() {
+		renaming = false;
+		retitleError = null;
+	}
+
+	async function saveTitle() {
+		if (!onRetitle || retitling) return;
+		retitling = true;
+		retitleError = null;
+		const result = await onRetitle(entry.id, titleDraft.trim() || null);
+		retitling = false;
+		if (!result.ok) {
+			retitleError = result.error;
+			return;
+		}
+		renaming = false;
 	}
 
 	function togglePanel(kind: 'photos' | 'note') {
@@ -580,6 +661,48 @@
 				{/if}
 				<span class="tool-label">{copied ? 'Copied' : 'Copy'}</span>
 			</button>
+
+			{#if canRetitle}
+				<button
+					type="button"
+					class="tool"
+					class:on={renaming}
+					aria-pressed={renaming}
+					disabled={retitling}
+					title="Rename this entry"
+					aria-label="Rename {title}"
+					data-testid="entry-rename"
+					onclick={() => (renaming ? cancelRename() : startRename())}
+				>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+						<path d="M4 20l1-4L16 5l3 3L8 19l-4 1z" stroke-linejoin="round" stroke-linecap="round" />
+					</svg>
+					<span class="tool-label">Rename</span>
+				</button>
+			{/if}
+
+			{#if canDelete}
+				<button
+					type="button"
+					class="tool danger"
+					disabled={deleting}
+					title="Delete this entry"
+					aria-label="Delete {title}"
+					data-testid="entry-delete"
+					onclick={deleteEntry}
+				>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+						<path
+							d="M5 6.5h14M9.5 6.5V4.7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.8M7 6.5l.8 12.3a1.5 1.5 0 0 0 1.5 1.4h5.4a1.5 1.5 0 0 0 1.5-1.4L17 6.5"
+							stroke-linecap="round"
+							stroke-linejoin="round"
+						/>
+					</svg>
+					<span class="tool-label">
+						{deleting ? 'Deleting...' : deleteArmed ? 'Confirm delete' : 'Delete'}
+					</span>
+				</button>
+			{/if}
 		</div>
 	</div>
 
@@ -588,6 +711,37 @@
 	     exactly where the control no longer is. -->
 	{#if moveError}
 		<p class="row-error" role="alert">{moveError}</p>
+	{/if}
+
+	{#if canRetitle && renaming}
+		<div class="rename-row" data-testid="entry-rename-form">
+			<label class="sr-only" for="rename-{entry.id}">Title for this entry</label>
+			<input
+				id="rename-{entry.id}"
+				type="text"
+				bind:value={titleDraft}
+				maxlength="200"
+				placeholder="e.g. Gearbox sketches"
+				disabled={retitling}
+			/>
+			<button type="button" class="btn" disabled={retitling} onclick={saveTitle}>
+				{retitling ? 'Saving...' : 'Save'}
+			</button>
+			<button type="button" class="link" disabled={retitling} onclick={cancelRename}>Cancel</button>
+		</div>
+		{#if retitleError}
+			<p class="row-error" role="alert">{retitleError}</p>
+		{/if}
+	{/if}
+
+	{#if canDelete && deleteArmed}
+		<p class="row-error" data-testid="entry-delete-confirm">
+			Delete "{title}"? This can't be undone here.
+			<button type="button" class="link" onclick={() => (deleteArmed = false)}>Cancel</button>
+		</p>
+	{/if}
+	{#if canDelete && deleteError}
+		<p class="row-error" role="alert">{deleteError}</p>
 	{/if}
 
 	{#if !collapsed}
@@ -608,21 +762,18 @@
 				</div>
 			{/if}
 
-			<NotebookPhotos {photos} label={title} />
+			<NotebookPhotos {photos} label={title} onRemove={onRemovePhoto} />
 
 			{#if notes.length}
 				<div class="entry-notes">
-					<!-- canEdit is TWO conditions: a check-in's notes are never
-					     editable (0078 refuses it), and with the migration
-					     unapplied nothing can be saved at all. -->
-					<!-- The third condition is the read-only one: with no save
-					     transport there is no edit control, and EntryNotes has
+					<!-- canEdit is NO LONGER gated on freeForm (0116 relaxed
+					     notebook_edit_note: a revision never overwrites what an
+					     instructor already reviewed, so a check-in's note is
+					     editable too). What is left is whether the migration is
+					     applied, and whether there is a save transport at all --
+					     with none, there is no edit control and EntryNotes has
 					     nothing to call either. -->
-					<EntryNotes
-						{notes}
-						canEdit={freeForm && notesReady && !!onEditNote}
-						onSave={onEditNote}
-					/>
+					<EntryNotes {notes} canEdit={notesReady && !!onEditNote} onSave={onEditNote} />
 				</div>
 			{/if}
 
@@ -652,12 +803,6 @@
 						>
 							{panel === 'note' ? 'Cancel' : 'Add a note'}
 						</button>
-					{/if}
-
-					{#if !freeForm && notes.length}
-						<span class="add-hint" data-testid="no-edit-hint">
-							Notes on a check-in cannot be edited. Add another instead.
-						</span>
 					{/if}
 				</div>
 
@@ -953,12 +1098,64 @@
 		border: 1px solid color-mix(in srgb, var(--nb-error) 40%, transparent);
 		border-radius: var(--nb-radius-control);
 	}
+	.rename-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+		margin: 0 0 0.6rem;
+		padding: 0.1rem 0.35rem;
+	}
+	.rename-row input {
+		flex: 1 1 12rem;
+		min-width: 8rem;
+		min-height: 2.75rem;
+		padding: 0.4rem 0.6rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface);
+		color: var(--nb-ink);
+		font: inherit;
+		font-size: 0.95rem;
+	}
+	.rename-row input:focus-visible {
+		outline: none;
+		border-color: var(--nb-accent);
+	}
+	.link {
+		min-height: 2.75rem;
+		min-width: 2.75rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		border: none;
+		background: none;
+		padding: 0 0.5rem;
+		font: inherit;
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: var(--nb-accent-ink);
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		cursor: pointer;
+	}
+	.link:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
 	.tool:hover:not(:disabled) {
 		color: var(--nb-ink);
 		background: var(--nb-surface-dim);
 	}
 	.tool.on {
 		color: var(--nb-accent-ink);
+	}
+	.tool.danger {
+		color: var(--nb-error);
+	}
+	.tool.danger:hover:not(:disabled) {
+		color: var(--nb-error);
+		background: color-mix(in srgb, var(--nb-error) 8%, transparent);
 	}
 	.tool:disabled {
 		cursor: default;
@@ -1073,10 +1270,6 @@
 	.add-btn:disabled {
 		opacity: 0.5;
 		cursor: default;
-	}
-	.add-hint {
-		font-size: 0.74rem;
-		color: var(--nb-ink-faint);
 	}
 	.entry-panel {
 		margin-top: 0.9rem;

@@ -70,10 +70,10 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	if (sessionId) {
 		const { data: session } = await supabase
 			.from('notebook_sessions')
-			.select('label')
+			.select('session_label')
 			.eq('id', sessionId)
 			.maybeSingle();
-		label = (session?.label as string | null) ?? customLabel;
+		label = (session?.session_label as string | null) ?? customLabel;
 	}
 
 	const originalFilename = read.photo.name?.trim() || null;

@@ -207,6 +207,14 @@
 			});
 			if (error) return fail(error, 'Could not accept that entry.');
 			return { ok: true, value: undefined };
+		},
+
+		async deleteEntry(entryId) {
+			const { error } = await data.supabase.rpc('notebook_staff_delete_entry', {
+				p_entry_id: entryId
+			});
+			if (error) return fail(error, 'Could not delete that entry.');
+			return { ok: true, value: undefined };
 		}
 	};
 

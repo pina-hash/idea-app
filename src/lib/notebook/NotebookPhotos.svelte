@@ -5,6 +5,7 @@
 		pagePhoto,
 		photoPages,
 		photoSrc,
+		type EntryActionResult,
 		type NotebookPhoto
 	} from '$lib/notebook';
 
@@ -35,7 +36,8 @@
 	let {
 		photos,
 		label,
-		lazy = true
+		lazy = true,
+		onRemove
 	}: {
 		photos: NotebookPhoto[];
 		label: string;
@@ -47,6 +49,16 @@
 		 * intersection observer.)
 		 */
 		lazy?: boolean;
+		/**
+		 * The one write this component makes (0116, notebook_remove_photo).
+		 * OMITTED = no control at all -- the read-only-preview and instructor
+		 * doctrine every other notebook transport follows: a control's presence
+		 * is the presence of something to call it with, never a separate flag.
+		 * The caller hands this in only when the viewer owns the entry and the
+		 * surface is writable, so EntryReview (read-only, someone else's entry)
+		 * simply never passes it.
+		 */
+		onRemove?: (photoId: string) => Promise<EntryActionResult>;
 	} = $props();
 
 	const pages = $derived(photoPages(photos));
@@ -66,6 +78,26 @@
 
 	function setVariant(key: string, original: boolean) {
 		showOriginal = { ...showOriginal, [key]: original };
+	}
+
+	/** Which photo's remove is armed (two-step, the FolderManager convention). */
+	let armed = $state<string | null>(null);
+	let removing = $state<string | null>(null);
+	let removeError = $state<Record<string, string>>({});
+
+	async function remove(photoId: string) {
+		if (!onRemove || removing) return;
+		if (armed !== photoId) {
+			armed = photoId;
+			return;
+		}
+		removing = photoId;
+		const { [photoId]: _dropped, ...rest } = removeError;
+		removeError = rest;
+		const result = await onRemove(photoId);
+		removing = null;
+		armed = null;
+		if (!result.ok) removeError = { ...removeError, [photoId]: result.error };
 	}
 </script>
 
@@ -125,6 +157,31 @@
 					{/if}
 					{#if photo.original_filename}
 						<span class="filename">{photo.original_filename}</span>
+					{/if}
+					{#if onRemove}
+						<button
+							type="button"
+							class="photo-remove"
+							data-testid="photo-remove"
+							disabled={removing === photo.id}
+							onclick={() => remove(photo.id)}
+						>
+							{removing === photo.id
+								? 'Removing...'
+								: armed === photo.id
+									? 'Confirm remove'
+									: 'Remove'}
+						</button>
+						{#if armed === photo.id}
+							<button type="button" class="photo-remove-cancel" onclick={() => (armed = null)}>
+								Cancel
+							</button>
+						{/if}
+					{/if}
+					{#if onRemove && removeError[photo.id]}
+						<span class="photo-remove-error" role="alert" data-testid="photo-remove-error">
+							{removeError[photo.id]}
+						</span>
 					{/if}
 				</figcaption>
 			</figure>
@@ -222,5 +279,48 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 		max-width: 22rem;
+	}
+	.photo-remove {
+		margin-left: auto;
+		min-height: 2.75rem;
+		min-width: 2.75rem;
+		padding: 0 0.7rem;
+		border: 1px solid var(--nb-hairline-strong);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface);
+		color: var(--nb-error);
+		font: inherit;
+		font-size: 0.74rem;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.photo-remove:hover:not(:disabled) {
+		border-color: var(--nb-error);
+	}
+	.photo-remove:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.photo-remove-cancel {
+		min-height: 2.75rem;
+		min-width: 2.75rem;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 0.5rem;
+		border: none;
+		background: none;
+		color: var(--nb-accent-ink);
+		font: inherit;
+		font-size: 0.74rem;
+		font-weight: 600;
+		text-decoration: underline;
+		text-underline-offset: 2px;
+		cursor: pointer;
+	}
+	.photo-remove-error {
+		flex-basis: 100%;
+		font-size: 0.78rem;
+		color: var(--nb-error);
 	}
 </style>

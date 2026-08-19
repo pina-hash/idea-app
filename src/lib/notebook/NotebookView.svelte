@@ -129,6 +129,9 @@
 		editNote,
 		folderTransports,
 		setPinned,
+		deleteEntry,
+		removePhoto,
+		setEntryLabel,
 		onChanged
 	}: {
 		entries: NotebookEntry[];
@@ -227,6 +230,12 @@
 		folderTransports?: FolderTransports;
 		/** The one pin write (0091). Omitted when pinsReady is false. */
 		setPinned?: (entryId: string, pinned: boolean) => Promise<EntryActionResult>;
+		/** A student removing their own entry (0116, notebook_delete_entry). */
+		deleteEntry?: (entryId: string) => Promise<EntryActionResult>;
+		/** A student removing one photo (0116, notebook_remove_photo). */
+		removePhoto?: (photoId: string) => Promise<EntryActionResult>;
+		/** A free-form entry's own title (0116, notebook_set_entry_label). */
+		setEntryLabel?: (entryId: string, label: string | null) => Promise<EntryActionResult>;
 		/** Called after any successful save so the page can refresh its data. */
 		onChanged?: () => void;
 	} = $props();
@@ -964,6 +973,34 @@
 		return result;
 	}
 
+	/**
+	 * The three 0116 writes, following the same shape: refuse read-only or a
+	 * missing transport, call it, reload on success. `clampSelection` (which
+	 * the effect above already runs on every `entries` change) is what closes
+	 * the detail pane on its own once a deleted entry drops out of the reload
+	 * -- nothing here has to clear `selectedId` by hand.
+	 */
+	async function deleteOne(entryId: string): Promise<EntryActionResult> {
+		if (readOnly || !deleteEntry) return { ok: false, error: 'Deleting is not available.' };
+		const result = await deleteEntry(entryId);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
+	async function removePhotoOne(photoId: string): Promise<EntryActionResult> {
+		if (readOnly || !removePhoto) return { ok: false, error: 'Removing photos is not available.' };
+		const result = await removePhoto(photoId);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
+	async function retitleOne(entryId: string, label: string | null): Promise<EntryActionResult> {
+		if (readOnly || !setEntryLabel) return { ok: false, error: 'Renaming is not available.' };
+		const result = await setEntryLabel(entryId, label);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
 	// ---- how much of the feed is rendered -----------------------------------
 
 	/**
@@ -1255,6 +1292,9 @@
 										onEditNote={editNote ? saveNoteEdit : undefined}
 										onMove={folderTransports ? moveOne : undefined}
 										onPin={setPinned ? pinEntry : undefined}
+										onDelete={deleteEntry ? deleteOne : undefined}
+										onRemovePhoto={removePhoto ? removePhotoOne : undefined}
+										onRetitle={setEntryLabel ? retitleOne : undefined}
 									/>
 								</li>
 							{/each}
@@ -1513,6 +1553,9 @@
 					onEditNote={editNote ? saveNoteEdit : undefined}
 					onMove={folderTransports ? moveOne : undefined}
 					onPin={setPinned ? pinEntry : undefined}
+					onDelete={deleteEntry ? deleteOne : undefined}
+					onRemovePhoto={removePhoto ? removePhotoOne : undefined}
+					onRetitle={setEntryLabel ? retitleOne : undefined}
 				/>
 			</div>
 		{/key}

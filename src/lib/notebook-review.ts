@@ -442,6 +442,14 @@ export interface ReviewTransports {
 		comment: string | null
 	) => Promise<ReviewResult>;
 	resolveEntry: (entryId: string, comment: string | null) => Promise<ReviewResult>;
+	/**
+	 * An instructor removing a student's entry (0116, notebook_staff_delete_entry).
+	 * OPTIONAL, the same presence-gates-the-control rule every notebook write
+	 * follows: the RPC itself re-checks classroom_manages_section, so omitting
+	 * this is the belt to that braces rather than the only thing standing in
+	 * the way.
+	 */
+	deleteEntry?: (entryId: string) => Promise<ReviewResult>;
 }
 
 /** Distinct unit numbers across a section's sessions, ascending. */

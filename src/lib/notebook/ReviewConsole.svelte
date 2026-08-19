@@ -275,6 +275,23 @@
 		return result;
 	}
 
+	/**
+	 * A DELETE closes the panel rather than reloading it: unlike a flag or a
+	 * resolve, there is no entry left to describe. The grid still needs a
+	 * refresh -- the cell this entry backed now reads missing.
+	 */
+	async function deleteEntry(entryId: string) {
+		if (!transports.deleteEntry) {
+			return { ok: false as const, error: 'Deleting is not available.' };
+		}
+		const result = await transports.deleteEntry(entryId);
+		if (result.ok) {
+			closeEntry();
+			await refresh();
+		}
+		return result;
+	}
+
 	async function saveSession(input: Parameters<ReviewTransports['saveSession']>[0]) {
 		const result = await transports.saveSession(input);
 		if (result.ok) await refresh();
@@ -361,6 +378,7 @@
 					session={openSession}
 					onFlag={flagEntry}
 					onResolve={resolveEntry}
+					onDelete={transports.deleteEntry ? deleteEntry : undefined}
 					onClose={closeEntry}
 				/>
 			{/if}

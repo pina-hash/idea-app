@@ -42,6 +42,7 @@
 		session,
 		onFlag,
 		onResolve,
+		onDelete,
 		onClose
 	}: {
 		entry: ReviewEntry;
@@ -54,6 +55,13 @@
 			comment: string | null
 		) => Promise<ReviewResult>;
 		onResolve: (entryId: string, comment: string | null) => Promise<ReviewResult>;
+		/**
+		 * An instructor removing this entry (0116, notebook_staff_delete_entry).
+		 * OMITTED for a non-manager -- ReviewConsole only ever hands this in when
+		 * its own transports carry one, which the RPC's own
+		 * classroom_manages_section check is the real boundary for regardless.
+		 */
+		onDelete?: (entryId: string) => Promise<ReviewResult>;
 		onClose: () => void;
 	} = $props();
 
@@ -62,6 +70,9 @@
 	let busy = $state(false);
 	let errorMsg = $state<string | null>(null);
 	let notice = $state<string | null>(null);
+	let deleteArmed = $state(false);
+	let deleting = $state(false);
+	let deleteError = $state<string | null>(null);
 
 	// A new entry resets the form, so a comment typed against one student's
 	// page can never be submitted against another's.
@@ -71,6 +82,8 @@
 		comment = '';
 		errorMsg = null;
 		notice = null;
+		deleteArmed = false;
+		deleteError = null;
 	});
 
 	// entryTitle() is the same five-fallback derivation the student's own card
@@ -123,6 +136,28 @@
 			return;
 		}
 		notice = 'Accepted. This entry now counts as recorded.';
+	}
+
+	/** Two-step confirm (the FolderManager convention), naming the student. */
+	async function deleteEntry() {
+		if (!onDelete || deleting) return;
+		if (!deleteArmed) {
+			deleteArmed = true;
+			deleteError = null;
+			return;
+		}
+		deleting = true;
+		deleteError = null;
+		const result = await onDelete(entry.id);
+		deleting = false;
+		if (!result.ok) {
+			deleteError = result.error;
+			deleteArmed = false;
+			return;
+		}
+		// onClose closes the panel; the caller (ReviewConsole) refreshes the
+		// grid, whose cell for this entry now reads missing.
+		onClose();
 	}
 </script>
 
@@ -212,6 +247,43 @@
 			"awaiting review".
 		</p>
 	</div>
+
+	{#if onDelete}
+		<div class="danger-zone" data-testid="entry-danger-zone">
+			<h3>Delete this entry</h3>
+			<p class="note">
+				Removes {student?.name ?? 'this student'}'s entry from the grid. The photos and Drive
+				files are not affected, but there is no way to bring the entry back from here.
+			</p>
+			{#if deleteArmed}
+				<p class="msg confirm" data-testid="entry-delete-confirm">
+					Delete {student?.name ?? 'this student'}'s "{title}"? This cannot be undone here.
+				</p>
+			{/if}
+			<div class="form-actions">
+				<button
+					type="button"
+					class="btn danger"
+					disabled={deleting}
+					data-testid="entry-delete"
+					onclick={deleteEntry}
+				>
+					{deleting ? 'Deleting...' : deleteArmed ? 'Confirm delete' : 'Delete entry'}
+				</button>
+				{#if deleteArmed}
+					<button
+						type="button"
+						class="btn secondary"
+						disabled={deleting}
+						onclick={() => (deleteArmed = false)}
+					>
+						Cancel
+					</button>
+				{/if}
+			</div>
+			{#if deleteError}<p class="msg error" role="alert">{deleteError}</p>{/if}
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -356,9 +428,42 @@
 	.msg.ok {
 		color: var(--nb-ok);
 	}
+	.msg.confirm {
+		color: var(--nb-error);
+		font-weight: 600;
+	}
 	.note {
 		margin: 0;
 		color: var(--nb-ink-soft);
 		font-size: 0.82rem;
+	}
+
+	/* VISUALLY SEPARATED from the flag/resolve form (a distinct card, a red
+	   heading), so "flag this" and "delete this student's work outright" are
+	   never one click apart on the same control cluster. */
+	.danger-zone {
+		display: grid;
+		gap: 0.6rem;
+		padding: 0.9rem;
+		border: 1px solid color-mix(in srgb, var(--nb-error) 35%, var(--nb-hairline));
+		border-radius: var(--nb-radius-control);
+		background: color-mix(in srgb, var(--nb-error) 4%, transparent);
+	}
+	.danger-zone h3 {
+		margin: 0;
+		font-size: 0.9rem;
+		color: var(--nb-error);
+	}
+	.btn.danger {
+		background: var(--nb-surface);
+		border-color: var(--nb-error);
+		color: var(--nb-error);
+	}
+	.btn.danger:hover:not(:disabled) {
+		background: var(--nb-error);
+		border-color: var(--nb-error);
+		color: var(--nb-surface);
+		box-shadow: none;
+		text-shadow: none;
 	}
 </style>

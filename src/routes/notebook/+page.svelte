@@ -142,6 +142,33 @@
 		if (error) return rpcFail(error, 'Could not change that pin.');
 		return { ok: true };
 	}
+
+	/**
+	 * The three 0116 corrections, direct to their RPCs for the same reason as
+	 * the folder writes above: each is one call with no server work of its own,
+	 * so a route would be a hop that adds nothing. Every message the RPCs raise
+	 * is written to be shown, so it is surfaced as-is via rpcFail.
+	 */
+	async function deleteEntry(entryId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_delete_entry', { p_entry_id: entryId });
+		if (error) return rpcFail(error, 'Could not delete that entry.');
+		return { ok: true };
+	}
+
+	async function removePhoto(photoId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_remove_photo', { p_photo_id: photoId });
+		if (error) return rpcFail(error, 'Could not remove that photo.');
+		return { ok: true };
+	}
+
+	async function setEntryLabel(entryId: string, label: string | null): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_set_entry_label', {
+			p_entry_id: entryId,
+			p_custom_label: label
+		});
+		if (error) return rpcFail(error, 'Could not save that title.');
+		return { ok: true };
+	}
 </script>
 
 <NotebookView
@@ -166,5 +193,8 @@
 	{editNote}
 	{folderTransports}
 	{setPinned}
+	{deleteEntry}
+	{removePhoto}
+	{setEntryLabel}
 	onChanged={() => invalidateAll()}
 />
