@@ -7,6 +7,7 @@
 		CreateEntryResult,
 		EntryActionResult,
 		NoteSaveResult,
+		NotebookDeletedEntry,
 		NotebookEntry,
 		NotebookSession,
 		NotePayload
@@ -55,6 +56,7 @@
 	let notesReady = $state(true);
 	let foldersReady = $state(true);
 	let pinsReady = $state(true);
+	let deletionReady = $state(true);
 	let uploadReady = $state(true);
 	/**
 	 * Pads the student's feed past the 30-entry render limit, so "Show older",
@@ -427,6 +429,55 @@
 	let fillerEntries = $state<NotebookEntry[]>([...FILLER]);
 	let instructorEntries = $state<NotebookEntry[]>([...INSTRUCTOR_ENTRIES]);
 	let plainEntries = $state<NotebookEntry[]>([]);
+
+	// ---- restore (0117): a graveyard, so deleteEntry has somewhere to put a
+	// row and restoreEntry has somewhere to find it. Real deletion is a stamp,
+	// not a removal, so this mirrors that instead of throwing the row away.
+	type TrashList = 'student' | 'instructor' | 'plain';
+	interface TrashRow {
+		listName: TrashList;
+		entry: NotebookEntry;
+		deletedAt: string;
+		deletedBy: 'self' | 'staff';
+	}
+	let trash = $state<TrashRow[]>([
+		// Pre-seeded so the "your instructor removed it" refusal is drivable
+		// without a second signed-in account.
+		{
+			listName: 'student',
+			deletedAt: '2026-08-09T14:00:00Z',
+			deletedBy: 'staff',
+			entry: {
+				id: 'e-trash-staff',
+				session_id: null,
+				section_id: 'sec-1',
+				folder_id: null,
+				pinned_at: null,
+				custom_label: 'Removed by the instructor',
+				upload_timestamp: '2026-08-01T09:00:00Z',
+				status: 'compliant',
+				flag_reason: null,
+				instructor_comment: null,
+				session: null,
+				photos: [],
+				notes: []
+			}
+		}
+	]);
+	const trashListFor = (): TrashList =>
+		account === 'student' ? 'student' : account === 'instructor' ? 'instructor' : 'plain';
+	const deletedEntries = $derived<NotebookDeletedEntry[]>(
+		trash
+			.filter((t) => t.listName === trashListFor())
+			.map((t) => ({
+				id: t.entry.id,
+				custom_label: t.entry.custom_label,
+				session: t.entry.session,
+				upload_timestamp: t.entry.upload_timestamp,
+				deleted_at: t.deletedAt,
+				restorable: t.deletedBy === 'self'
+			}))
+	);
 
 	const rawEntries = $derived(
 		account === 'student'
@@ -816,7 +867,7 @@
 		plainEntries = fn(plainEntries);
 	}
 
-	/** notebook_delete_entry: refuses a reviewed entry, drops the row on success. */
+	/** notebook_delete_entry: refuses a reviewed entry, TRASHES the row on success (0117 needs it back). */
 	async function deleteEntry(entryId: string): Promise<EntryActionResult> {
 		log = [...log, `RPC notebook_delete_entry p_entry_id=${JSON.stringify(entryId)}`];
 		const found = current().find((e) => e.id === entryId);
@@ -827,23 +878,72 @@
 					'Your instructor has already reviewed that entry, so it cannot be deleted here. Ask them to remove it for you.'
 			};
 		}
+		if (!found) return { ok: false, error: 'That entry does not exist or is not yours.' };
+		trash = [
+			...trash,
+			{
+				listName: trashListFor(),
+				entry: found,
+				deletedAt: new Date().toISOString(),
+				deletedBy: 'self'
+			}
+		];
 		updateAll((list) => list.filter((e) => e.id !== entryId));
 		return { ok: true };
 	}
 
-	/** notebook_remove_photo: refuses to empty an entry with no note left. */
+	/** notebook_restore_entry: refuses one deleted by staff, else puts the row back. */
+	async function restoreEntry(entryId: string): Promise<EntryActionResult> {
+		log = [...log, `RPC notebook_restore_entry p_entry_id=${JSON.stringify(entryId)}`];
+		const row = trash.find((t) => t.entry.id === entryId && t.listName === trashListFor());
+		if (!row) return { ok: false, error: 'That entry does not exist or is not yours.' };
+		if (row.deletedBy !== 'self') {
+			return {
+				ok: false,
+				error:
+					'Your instructor removed that entry, so you cannot restore it yourself. Ask them to restore it for you.'
+			};
+		}
+		trash = trash.filter((t) => t !== row);
+		updateAll((list) => [...list, row.entry]);
+		return { ok: true };
+	}
+
+	/** notebook_remove_photo: refuses to empty an entry with no note left; STAMPS removed_at (0117 needs it back). */
 	async function removePhoto(photoId: string): Promise<EntryActionResult> {
 		log = [...log, `RPC notebook_remove_photo p_photo_id=${JSON.stringify(photoId)}`];
 		const entry = current().find((e) => e.photos.some((p) => p.id === photoId));
 		if (!entry) return { ok: false, error: 'That photo does not exist or is not yours.' };
-		const remaining = entry.photos.filter((p) => p.id !== photoId).length;
+		const remaining = entry.photos.filter((p) => p.id !== photoId && !p.removed_at).length;
 		if (remaining === 0 && entry.notes.length === 0) {
 			return { ok: false, error: 'That is the only thing in this entry. Delete the whole entry instead.' };
 		}
 		updateAll((list) =>
 			list.map((e) =>
 				e.id === entry.id
-					? { ...e, photos: e.photos.filter((p) => p.id !== photoId) }
+					? {
+							...e,
+							photos: e.photos.map((p) =>
+								p.id === photoId ? { ...p, removed_at: new Date().toISOString() } : p
+							)
+						}
+					: e
+			)
+		);
+		return { ok: true };
+	}
+
+	/** notebook_restore_photo: clears removed_at. */
+	async function restorePhoto(photoId: string): Promise<EntryActionResult> {
+		log = [...log, `RPC notebook_restore_photo p_photo_id=${JSON.stringify(photoId)}`];
+		const entry = current().find((e) => e.photos.some((p) => p.id === photoId));
+		if (!entry) return { ok: false, error: 'That photo does not exist or is not yours.' };
+		const target = entry.photos.find((p) => p.id === photoId);
+		if (!target?.removed_at) return { ok: false, error: 'That photo has not been removed.' };
+		updateAll((list) =>
+			list.map((e) =>
+				e.id === entry.id
+					? { ...e, photos: e.photos.map((p) => (p.id === photoId ? { ...p, removed_at: null } : p)) }
 					: e
 			)
 		);
@@ -920,6 +1020,7 @@
 	<label><input type="checkbox" bind:checked={notesReady} /> 0078 applied</label>
 	<label><input type="checkbox" bind:checked={foldersReady} data-testid="sim-0088" /> 0088 applied</label>
 	<label><input type="checkbox" bind:checked={pinsReady} data-testid="sim-0091" /> 0091 applied</label>
+	<label><input type="checkbox" bind:checked={deletionReady} data-testid="sim-0117" /> 0116/0117 deletion readable</label>
 	<label><input type="checkbox" bind:checked={uploadReady} /> Drive configured</label>
 	<label><input type="checkbox" bind:checked={bulk} data-testid="sim-bulk" /> 40 more entries</label>
 	<!-- Mirrors /classroom/view-as/<email>/notebook exactly: readOnly plus NO
@@ -959,6 +1060,8 @@
 		{foldersReady}
 		{pinsReady}
 		{activity}
+		{deletionReady}
+		deletedEntries={deletionReady ? deletedEntries : []}
 		uploadReady={viewAs ? false : uploadReady}
 		readOnly={viewAs}
 		createEntry={viewAs ? undefined : createEntry}
@@ -971,6 +1074,8 @@
 		deleteEntry={viewAs ? undefined : deleteEntry}
 		removePhoto={viewAs ? undefined : removePhoto}
 		setEntryLabel={viewAs ? undefined : setEntryLabel}
+		restoreEntry={viewAs ? undefined : restoreEntry}
+		restorePhoto={viewAs ? undefined : restorePhoto}
 	/>
 {/key}
 

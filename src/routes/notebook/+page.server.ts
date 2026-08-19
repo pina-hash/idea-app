@@ -1,8 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import { notebookAccess } from '$lib/server/notebook-access';
-import type { NotebookEntry, NotebookSession } from '$lib/notebook';
+import type { NotebookDeletedEntry, NotebookEntry, NotebookSession } from '$lib/notebook';
 import {
+	NOTEBOOK_DELETED_SELECT,
 	NOTEBOOK_ENTRY_SELECTS,
 	NOTEBOOK_POSTING_SELECT,
 	NOTEBOOK_SESSION_SELECT
@@ -316,6 +317,79 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	}
 
 	/**
+	 * THE CALLER'S OWN DELETED ENTRIES (0117) -- A SEPARATE QUERY, not a relaxed
+	 * filter on the live read above. `entries` keeps excluding everything with a
+	 * `deleted_at` in every state this load can be in; this is the read a
+	 * surface asks for only when it deliberately wants to see what was removed.
+	 *
+	 * `.eq('student_id', claims.sub)` IS EXPLICIT here, unlike every other read
+	 * on this page. Every other list on /notebook relies on RLS alone (the
+	 * /coin-balance doctrine), which for a STAFF account genuinely returns rows
+	 * from every section they manage as well as their own -- an existing,
+	 * documented property of this page for a personal notebook. "The caller's
+	 * deleted entries" is a narrower, deliberate promise than that, so it is
+	 * stated as a filter rather than left to a policy that was written to be
+	 * broader.
+	 */
+	let deletedEntries: NotebookDeletedEntry[] = [];
+	if (configured && deletionReady) {
+		const { data: deletedRows, error: deletedError } = await supabase
+			.from('notebook_entries')
+			.select(NOTEBOOK_DELETED_SELECT)
+			.eq('student_id', claims.sub)
+			.not('deleted_at', 'is', null)
+			.order('deleted_at', { ascending: false });
+		if (!deletedError) {
+			const rows = (deletedRows ?? []) as unknown as {
+				id: string;
+				session_id: string | null;
+				custom_label: string | null;
+				upload_timestamp: string;
+				deleted_at: string;
+				deleted_by: string | null;
+			}[];
+			const linkedIds = [
+				...new Set(rows.map((r) => r.session_id).filter((id): id is string => Boolean(id)))
+			];
+			let sessionById = new Map<
+				string,
+				{ session_label: string; unit_number: number; session_date: string }
+			>();
+			if (linkedIds.length) {
+				const { data: sessionRows } = await supabase
+					.from('notebook_sessions')
+					.select(NOTEBOOK_SESSION_SELECT)
+					.in('id', linkedIds);
+				sessionById = new Map(
+					(
+						(sessionRows ?? []) as unknown as {
+							id: string;
+							session_label: string;
+							unit_number: number;
+							session_date: string;
+						}[]
+					).map((s) => [
+						s.id,
+						{
+							session_label: s.session_label,
+							unit_number: s.unit_number,
+							session_date: s.session_date
+						}
+					])
+				);
+			}
+			deletedEntries = rows.map((r) => ({
+				id: r.id,
+				custom_label: r.custom_label,
+				session: r.session_id ? (sessionById.get(r.session_id) ?? null) : null,
+				upload_timestamp: r.upload_timestamp,
+				deleted_at: r.deleted_at,
+				restorable: r.deleted_by === claims.sub
+			}));
+		}
+	}
+
+	/**
 	 * `?checkin=<session>&section=<class>` -- the deep link an IDEA Classroom
 	 * stream card arrives on, so the upload flow opens already pointed at the
 	 * check-in the student clicked.
@@ -355,6 +429,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 		pinsReady,
 		sessionsReady,
 		activity,
+		deletedEntries,
 		folders,
 		// The Drive integration is server-only; the UI just needs to know
 		// whether a submit could possibly succeed, so it can say so up front

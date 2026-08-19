@@ -53,6 +53,14 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		student: { email: string; display_name: string | null; user_id: string | null };
 		section_label: string | null;
 		entries: NotebookEntry[];
+		deleted_entries: {
+			id: string;
+			custom_label: string | null;
+			session: { session_label: string; unit_number: number; session_date: string } | null;
+			upload_timestamp: string;
+			deleted_at: string;
+			deleted_by: string | null;
+		}[];
 		folders: NotebookFolder[];
 		sessions: NotebookSession[];
 		activity: { id: string; last_activity_at: string }[];
@@ -62,6 +70,9 @@ export const load: PageServerLoad = async ({ params, locals: { supabase, claims 
 		student: payload.student,
 		sectionLabel: payload.section_label,
 		entries: payload.entries ?? [],
+		// 0117: deliberately not fed to NotebookView, whose `entries` must stay
+		// live-only -- this page renders its own separate Deleted section from it.
+		deletedEntries: payload.deleted_entries ?? [],
 		folders: payload.folders ?? [],
 		sessions: payload.sessions ?? [],
 		activity: payload.activity ?? []

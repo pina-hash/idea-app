@@ -169,6 +169,19 @@
 		if (error) return rpcFail(error, 'Could not save that title.');
 		return { ok: true };
 	}
+
+	/** The two 0117 restores, direct to their RPCs for the same reason as above. */
+	async function restoreEntry(entryId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_restore_entry', { p_entry_id: entryId });
+		if (error) return rpcFail(error, 'Could not restore that entry.');
+		return { ok: true };
+	}
+
+	async function restorePhoto(photoId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_restore_photo', { p_photo_id: photoId });
+		if (error) return rpcFail(error, 'Could not restore that photo.');
+		return { ok: true };
+	}
 </script>
 
 <NotebookView
@@ -185,6 +198,8 @@
 	sessionsReady={data.sessionsReady}
 	initialCheckIn={data.initialCheckIn}
 	activity={data.activity}
+	deletionReady={data.deletionReady}
+	deletedEntries={data.deletedEntries}
 	uploadReady={data.uploadReady}
 	{createEntry}
 	{addPhoto}
@@ -196,5 +211,7 @@
 	{deleteEntry}
 	{removePhoto}
 	{setEntryLabel}
+	{restoreEntry}
+	{restorePhoto}
 	onChanged={() => invalidateAll()}
 />

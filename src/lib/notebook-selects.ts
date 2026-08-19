@@ -93,6 +93,18 @@ export const NOTEBOOK_DELETION_SELECT = `id, session_id, section_id, custom_labe
  * `capability: null` on the last rung means "this one carries no capability of
  * its own" -- failing it is what `configured: false` means.
  */
+/**
+ * The caller's own DELETED entries (0117) -- a SEPARATE query, never a rung on
+ * the ladder above and never a relaxed filter on it. `NOTEBOOK_ENTRY_SELECTS`
+ * exists to read the LIVE feed and every rung of it excludes deleted rows on
+ * purpose; widening one of those filters to sometimes include them would put a
+ * deleted entry back into the one list this whole file exists to keep them out
+ * of. This constant is read only where a surface deliberately asks to see what
+ * was removed.
+ */
+export const NOTEBOOK_DELETED_SELECT =
+	'id, session_id, custom_label, upload_timestamp, deleted_at, deleted_by';
+
 export const NOTEBOOK_ENTRY_SELECTS = [
 	{ select: NOTEBOOK_DELETION_SELECT, capability: 'deletion' },
 	{ select: NOTEBOOK_FULL_SELECT, capability: 'pins' },

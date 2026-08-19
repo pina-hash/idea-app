@@ -15,6 +15,7 @@
 		orderedPhotos,
 		photoCountLabel,
 		photoPages,
+		removedPhotos,
 		sessionMeta,
 		showsStatus,
 		statusLabel,
@@ -107,7 +108,8 @@
 		onPin,
 		onDelete,
 		onRemovePhoto,
-		onRetitle
+		onRetitle,
+		onRestorePhoto
 	}: {
 		entry: NotebookEntry;
 		folders: NotebookFolder[];
@@ -158,6 +160,13 @@
 		 * the RPC refuses a session-linked entry outright.
 		 */
 		onRetitle?: (entryId: string, label: string | null) => Promise<EntryActionResult>;
+		/**
+		 * One removed photo, back (0117, notebook_restore_photo). OWNER ONLY --
+		 * this is never handed in on a staff-review or view-as surface, so the
+		 * disclosure it drives simply does not render there. Omitted removes the
+		 * disclosure's Restore control entirely, not just the count.
+		 */
+		onRestorePhoto?: (photoId: string) => Promise<EntryActionResult>;
 	} = $props();
 
 	/**
@@ -171,6 +180,8 @@
 
 	const photos = $derived(orderedPhotos(entry));
 	const pages = $derived(photoPages(photos));
+	/** Owner-only (0117): the entry's own removed photos, for the disclosure below. */
+	const removed = $derived(removedPhotos(entry.photos));
 	const notes = $derived(entry.notes ?? []);
 	/** Distinct logical notes, not revisions: an edit is not a second note. */
 	const noteCount = $derived(new Set(notes.map((n) => n.note_id)).size);
@@ -316,6 +327,20 @@
 			return;
 		}
 		renaming = false;
+	}
+
+	// ---- removed photos, restore (0117) --------------------------------------
+
+	let restoringPhotoId = $state<string | null>(null);
+	let restorePhotoErr = $state<string | null>(null);
+
+	async function restorePhotoOne(photoId: string) {
+		if (!onRestorePhoto || restoringPhotoId) return;
+		restoringPhotoId = photoId;
+		restorePhotoErr = null;
+		const result = await onRestorePhoto(photoId);
+		restoringPhotoId = null;
+		if (!result.ok) restorePhotoErr = result.error;
 	}
 
 	function togglePanel(kind: 'photos' | 'note') {
@@ -763,6 +788,36 @@
 			{/if}
 
 			<NotebookPhotos {photos} label={title} onRemove={onRemovePhoto} />
+
+			{#if onRestorePhoto && removed.length}
+				<details class="removed-photos" data-testid="removed-photos">
+					<summary>
+						{removed.length === 1 ? '1 removed photo' : `${removed.length} removed photos`}
+					</summary>
+					<ul>
+						{#each removed as photo (photo.id)}
+							<li>
+								<span class="removed-name">
+									{photo.original_filename ?? `Photo ${photo.sequence_order}`}
+								</span>
+								<span class="removed-when">Removed {when(photo.removed_at ?? '')}</span>
+								<button
+									type="button"
+									class="btn secondary restore-photo-btn"
+									disabled={restoringPhotoId === photo.id}
+									data-testid="restore-photo"
+									onclick={() => restorePhotoOne(photo.id)}
+								>
+									{restoringPhotoId === photo.id ? 'Restoring...' : 'Restore'}
+								</button>
+							</li>
+						{/each}
+					</ul>
+					{#if restorePhotoErr}
+						<p class="row-error" role="alert">{restorePhotoErr}</p>
+					{/if}
+				</details>
+			{/if}
 
 			{#if notes.length}
 				<div class="entry-notes">
@@ -1236,6 +1291,56 @@
 	}
 	.entry-notes {
 		margin-top: 1.2rem;
+	}
+
+	/* Closed by default: a page a student removed is not the first thing they
+	   came back to see, but it has to be reachable and restorable. */
+	.removed-photos {
+		margin-top: 1rem;
+	}
+	.removed-photos summary {
+		cursor: pointer;
+		font-size: 0.84rem;
+		font-weight: 600;
+		color: var(--nb-ink-soft);
+		min-height: 2.75rem;
+		display: flex;
+		align-items: center;
+	}
+	.removed-photos ul {
+		list-style: none;
+		margin: 0.3rem 0 0;
+		padding: 0;
+		display: grid;
+		gap: 0.4rem;
+	}
+	.removed-photos li {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		padding: 0.4rem 0.6rem;
+		border: 1px solid var(--nb-hairline);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface-dim);
+	}
+	.removed-name {
+		font-size: 0.84rem;
+		color: var(--nb-ink);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		max-width: 12rem;
+	}
+	.removed-when {
+		font-size: 0.72rem;
+		color: var(--nb-ink-faint);
+		margin-right: auto;
+	}
+	.restore-photo-btn {
+		min-height: 2.75rem;
+		flex: 0 0 auto;
 	}
 
 	.entry-add {

@@ -221,6 +221,18 @@ const FILTER_PREDICATES: Record<EntryFilterId, (e: NotebookEntry) => boolean> = 
 	checkins: (e) => e.session_id !== null
 };
 
+/**
+ * The "Recently deleted" toggle (0117), beside the filter chips above but
+ * deliberately NOT one of them: an EntryFilterId is a predicate over `entries`
+ * (the AND-composable chips narrow that list), and a deleted row is never in
+ * `entries` at all -- it is a separately-loaded list, so selecting this chip
+ * switches the pane to that list rather than filtering the current one.
+ */
+export const DELETED_FILTER = {
+	label: 'Recently deleted',
+	hint: 'Entries you or your instructor removed'
+} as const;
+
 export interface EntryQuery {
 	selection: FolderSelection;
 	search: string;

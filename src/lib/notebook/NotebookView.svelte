@@ -26,6 +26,7 @@
 	import { notebookThemeAttr } from '$lib/notebook/notebook-theme.svelte';
 	import {
 		ENTRY_SORTS,
+		deletedEntryTitle,
 		entryActivityAt,
 		isPinned,
 		nearestOutstanding,
@@ -40,12 +41,14 @@
 		type EntryActionResult,
 		type EntrySort,
 		type NoteSaveResult,
+		type NotebookDeletedEntry,
 		type NotebookEntry,
 		type NotebookSession,
 		type NotePayload,
 		type StagedPhoto
 	} from '$lib/notebook';
 	import {
+		DELETED_FILTER,
 		ENTRY_FILTERS,
 		applyQuery,
 		folderCounts,
@@ -119,6 +122,8 @@
 		sessionsReady = true,
 		initialCheckIn = null,
 		activity = [],
+		deletionReady = true,
+		deletedEntries = [],
 		uploadReady = true,
 		readOnly = false,
 		homeHref = '/',
@@ -132,6 +137,8 @@
 		deleteEntry,
 		removePhoto,
 		setEntryLabel,
+		restoreEntry,
+		restorePhoto,
 		onChanged
 	}: {
 		entries: NotebookEntry[];
@@ -203,6 +210,17 @@
 		 */
 		activity?: { id: string; last_activity_at: string }[];
 		/**
+		 * 0117 applied. False hides the "Recently deleted" chip outright -- the
+		 * same rung `deletionReady` in the +page.server.ts load reports, since
+		 * `deleted_at` does not exist on a project without it.
+		 */
+		deletionReady?: boolean;
+		/**
+		 * The caller's own DELETED entries (0117), from a query SEPARATE from
+		 * `entries` above -- see notebook-selects.ts. Empty is the ordinary state.
+		 */
+		deletedEntries?: NotebookDeletedEntry[];
+		/**
 		 * The Drive integration is configured server-side; false disables PHOTO
 		 * submits only. A note needs no Drive, so the note path stays usable.
 		 */
@@ -236,6 +254,17 @@
 		removePhoto?: (photoId: string) => Promise<EntryActionResult>;
 		/** A free-form entry's own title (0116, notebook_set_entry_label). */
 		setEntryLabel?: (entryId: string, label: string | null) => Promise<EntryActionResult>;
+		/**
+		 * Putting a deleted entry back (0117, notebook_restore_entry). Feeds the
+		 * "Recently deleted" list; omitted removes the control there and leaves
+		 * the refusal-only rows for anything deleted by staff.
+		 */
+		restoreEntry?: (entryId: string) => Promise<EntryActionResult>;
+		/**
+		 * Putting a removed photo back (0117, notebook_restore_photo). Handed
+		 * straight to each NotebookEntryCard's own removed-photos disclosure.
+		 */
+		restorePhoto?: (photoId: string) => Promise<EntryActionResult>;
 		/** Called after any successful save so the page can refresh its data. */
 		onChanged?: () => void;
 	} = $props();
@@ -1001,6 +1030,40 @@
 		return result;
 	}
 
+	/** A single removed photo, wired through to each card's own disclosure. */
+	async function restorePhotoOne(photoId: string): Promise<EntryActionResult> {
+		if (readOnly || !restorePhoto) return { ok: false, error: 'Restoring photos is not available.' };
+		const result = await restorePhoto(photoId);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
+	// ---- "Recently deleted" (0117) ------------------------------------------
+
+	/** The rail toggle: the nav pane's deleted-list view instead of the normal feed. */
+	let showingDeleted = $state(false);
+	let restoringId = $state<string | null>(null);
+	let restoreError = $state<string | null>(null);
+
+	async function restoreOne(entryId: string) {
+		if (readOnly || !restoreEntry || restoringId) return;
+		restoringId = entryId;
+		restoreError = null;
+		const result = await restoreEntry(entryId);
+		restoringId = null;
+		if (!result.ok) {
+			restoreError = result.error;
+			return;
+		}
+		successMsg = 'Entry restored.';
+		onChanged?.();
+	}
+
+	function deletedWhen(iso: string): string {
+		const d = new Date(iso);
+		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+	}
+
 	// ---- how much of the feed is rendered -----------------------------------
 
 	/**
@@ -1099,16 +1162,26 @@
 			{/if}
 		</div>
 
-		{#if entries.length === 0}
+		{#if entries.length === 0 && !showingDeleted}
 			<p class="note empty-state">
 				{#if readOnly}
 					Nothing in this notebook yet.
 				{:else}
 					No entries yet. Photograph a page or write a note and it will show up here.
 				{/if}
+				{#if deletionReady && deletedEntries.length > 0}
+					<button
+						type="button"
+						class="inline-link deleted-link"
+						data-testid="filter-deleted-empty"
+						onclick={() => (showingDeleted = true)}
+					>
+						{DELETED_FILTER.label} ({deletedEntries.length})
+					</button>
+				{/if}
 			</p>
 		{:else}
-			{#if foldersReady && managerOpen && folderTransports}
+			{#if !showingDeleted && foldersReady && managerOpen && folderTransports}
 				<FolderManager
 					{folders}
 					counts={counts as Map<string, number>}
@@ -1119,7 +1192,7 @@
 				/>
 			{/if}
 
-			{#if foldersReady}
+			{#if !showingDeleted && foldersReady}
 				<FolderRail
 					{folders}
 					{counts}
@@ -1130,36 +1203,62 @@
 			{/if}
 
 			<div class="toolbar">
-				<label class="search">
-					<span class="sr-only">Search your notebook</span>
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-						<circle cx="11" cy="11" r="7" />
-						<path d="M20 20l-3.5-3.5" />
-					</svg>
-					<input
-						type="search"
-						bind:value={search}
-						placeholder="Search titles and notes"
-						data-testid="nb-search"
-					/>
-				</label>
+				{#if !showingDeleted}
+					<label class="search">
+						<span class="sr-only">Search your notebook</span>
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+							<circle cx="11" cy="11" r="7" />
+							<path d="M20 20l-3.5-3.5" />
+						</svg>
+						<input
+							type="search"
+							bind:value={search}
+							placeholder="Search titles and notes"
+							data-testid="nb-search"
+						/>
+					</label>
+				{/if}
 
+				<!--
+					THE DELETED CHIP LIVES IN THE SAME .chips GROUP AS THE FOUR
+					AND-COMPOSABLE FILTERS ABOVE IT, but it is not one of them: it
+					is not unioned into EntryFilterId (see notebook-folders.ts), so
+					toggling it swaps the whole pane to a separately-loaded list
+					rather than narrowing `entries`, which never contains a
+					deleted row to narrow to begin with.
+				-->
 				<div class="chips" role="group" aria-label="Filters">
-					{#each ENTRY_FILTERS as f (f.id)}
+					{#if !showingDeleted}
+						{#each ENTRY_FILTERS as f (f.id)}
+							<button
+								type="button"
+								class="chip-toggle"
+								class:on={filters.includes(f.id)}
+								aria-pressed={filters.includes(f.id)}
+								title={f.hint}
+								data-testid="filter-{f.id}"
+								onclick={() => toggleFilter(f.id)}
+							>
+								{f.label}
+							</button>
+						{/each}
+					{/if}
+					{#if deletionReady}
 						<button
 							type="button"
-							class="chip-toggle"
-							class:on={filters.includes(f.id)}
-							aria-pressed={filters.includes(f.id)}
-							title={f.hint}
-							data-testid="filter-{f.id}"
-							onclick={() => toggleFilter(f.id)}
+							class="chip-toggle deleted-toggle"
+							class:on={showingDeleted}
+							aria-pressed={showingDeleted}
+							title={DELETED_FILTER.hint}
+							data-testid="filter-deleted"
+							onclick={() => (showingDeleted = !showingDeleted)}
 						>
-							{f.label}
+							{DELETED_FILTER.label}{#if deletedEntries.length} ({deletedEntries.length}){/if}
 						</button>
-					{/each}
+					{/if}
 				</div>
 
+				{#if !showingDeleted}
 				<div class="tools">
 					{#if pinsReady}
 						<label class="sort">
@@ -1206,7 +1305,55 @@
 						</button>
 					{/if}
 				</div>
+				{/if}
 			</div>
+
+			{#if showingDeleted}
+				<!--
+					THE DELETED VIEW: the caller's own removed entries (0117), from
+					`deletedEntries` -- a SEPARATE list that was never part of `entries`
+					and is never rendered through the normal NotebookEntryCard/groups
+					pipeline below. Every row carries a Restore control OR, when staff
+					removed it, an inline refusal -- never both, and never the folder,
+					pin, copy or delete controls a live entry offers.
+				-->
+				<div class="deleted-view" data-testid="deleted-list">
+					{#if deletedEntries.length === 0}
+						<p class="note empty-state" data-testid="deleted-empty">
+							Nothing here. Deleted entries stay for a while after you remove them.
+						</p>
+					{:else}
+						<ol class="entries deleted-entries">
+							{#each deletedEntries as entry (entry.id)}
+								<li class="deleted-row" data-testid="deleted-entry">
+									<div class="deleted-main">
+										<span class="deleted-title">{deletedEntryTitle(entry)}</span>
+										<span class="deleted-meta">Deleted {deletedWhen(entry.deleted_at)}</span>
+									</div>
+									{#if entry.restorable && restoreEntry}
+										<button
+											type="button"
+											class="btn secondary restore-btn"
+											disabled={restoringId === entry.id}
+											data-testid="restore-entry"
+											onclick={() => restoreOne(entry.id)}
+										>
+											{restoringId === entry.id ? 'Restoring...' : 'Restore'}
+										</button>
+									{:else}
+										<p class="deleted-refusal">
+											Your instructor removed this entry. Ask them to restore it for you.
+										</p>
+									{/if}
+								</li>
+							{/each}
+						</ol>
+					{/if}
+					{#if restoreError}
+						<p class="feedback error" role="alert">{restoreError}</p>
+					{/if}
+				</div>
+			{:else}
 
 			{#if selectMode}
 				<div class="bulk" data-testid="bulk-bar">
@@ -1295,6 +1442,7 @@
 										onDelete={deleteEntry ? deleteOne : undefined}
 										onRemovePhoto={removePhoto ? removePhotoOne : undefined}
 										onRetitle={setEntryLabel ? retitleOne : undefined}
+										onRestorePhoto={restorePhoto ? restorePhotoOne : undefined}
 									/>
 								</li>
 							{/each}
@@ -1314,6 +1462,7 @@
 						</button>
 					</div>
 				{/if}
+			{/if}
 			{/if}
 		{/if}
 	</section>
@@ -1556,6 +1705,7 @@
 					onDelete={deleteEntry ? deleteOne : undefined}
 					onRemovePhoto={removePhoto ? removePhotoOne : undefined}
 					onRetitle={setEntryLabel ? retitleOne : undefined}
+					onRestorePhoto={restorePhoto ? restorePhotoOne : undefined}
 				/>
 			</div>
 		{/key}
@@ -2004,6 +2154,20 @@
 		color: var(--nb-accent-ink);
 		font-weight: 600;
 	}
+	/* Taller than an ordinary filter chip on purpose: it is the one control in
+	   this row that switches the whole pane to a different list, and it needs a
+	   real touch target for that. */
+	.deleted-toggle {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.75rem;
+	}
+	.deleted-link {
+		display: inline-flex;
+		align-items: center;
+		min-height: 2.75rem;
+		margin-top: 0.3rem;
+	}
 	.tools {
 		display: flex;
 		align-items: center;
@@ -2096,6 +2260,54 @@
 		margin-top: 1.4rem;
 		display: flex;
 		justify-content: center;
+	}
+
+	/* ---- "Recently deleted" (0117) ------------------------------------------
+	   A deliberately plain list: no thumbnail, no folder chip, no expand -- a
+	   deleted row shows only what is needed to tell entries apart and to act on
+	   one, never the full-card controls a live entry offers. */
+	.deleted-view {
+		margin-top: 0.6rem;
+	}
+	.deleted-entries {
+		gap: 0.5rem;
+	}
+	.deleted-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		padding: 0.55rem 0.7rem;
+		border: 1px solid var(--nb-hairline);
+		border-radius: var(--nb-radius-control);
+		background: var(--nb-surface);
+	}
+	.deleted-main {
+		display: grid;
+		gap: 0.15rem;
+		min-width: 0;
+	}
+	.deleted-title {
+		font-weight: 600;
+		font-size: 0.94rem;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.deleted-meta {
+		font-size: 0.74rem;
+		color: var(--nb-ink-faint);
+	}
+	.deleted-refusal {
+		margin: 0;
+		font-size: 0.78rem;
+		color: var(--nb-ink-soft);
+		max-width: 18rem;
+	}
+	.restore-btn {
+		min-height: 2.75rem;
+		flex: 0 0 auto;
 	}
 	.sr-only {
 		position: absolute;

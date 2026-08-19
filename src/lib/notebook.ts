@@ -151,6 +151,41 @@ export function isUntitled(entry: NotebookEntry): boolean {
 	return entryTitle(entry) === UNTITLED_ENTRY;
 }
 
+/**
+ * One of the caller's own DELETED entries (0117): a deliberately smaller shape
+ * than `NotebookEntry`, since the two surfaces that render it -- the student's
+ * "Recently deleted" list and the per-student review page's staff Deleted
+ * section -- show a title, when it was deleted, and a Restore control, never
+ * the photos or notes it once carried.
+ */
+export interface NotebookDeletedEntry {
+	id: string;
+	custom_label: string | null;
+	session: Pick<NotebookSession, 'session_label' | 'unit_number' | 'session_date'> | null;
+	upload_timestamp: string;
+	deleted_at: string;
+	/**
+	 * OPTIONAL, and it means two different things when it is absent. The
+	 * student's own view sets it (true = deleted_by is themselves, so
+	 * notebook_restore_entry will work); the staff review page never sets it,
+	 * because a manager may always attempt notebook_staff_restore_entry
+	 * regardless of who removed the row -- the RPC's own gate is the real
+	 * boundary there, not this flag.
+	 */
+	restorable?: boolean;
+}
+
+/** Session label, else the entry's own title, else the placeholder -- entryTitle's first two steps, without photos or notes to fall through to. */
+export function deletedEntryTitle(
+	entry: Pick<NotebookDeletedEntry, 'session' | 'custom_label'>
+): string {
+	const session = entry.session?.session_label?.trim();
+	if (session) return session;
+	const custom = entry.custom_label?.trim();
+	if (custom) return custom;
+	return UNTITLED_ENTRY;
+}
+
 /** "bearing-teardown.jpg" -> "bearing-teardown"; extensionless names pass through. */
 export function stripExtension(name: string): string {
 	const dot = name.lastIndexOf('.');
@@ -335,6 +370,17 @@ export function entryPlainText(entry: NotebookEntry): string {
  */
 export function livePhotos(photos: NotebookPhoto[]): NotebookPhoto[] {
 	return photos.filter((p) => !p.removed_at);
+}
+
+/**
+ * The mirror of `livePhotos` (0117): the photos a student has removed from a
+ * still-live entry, for the "removed photos" disclosure on their own card.
+ * Kept BESIDE `photoPages`, never merged into it -- `photoPages` is what every
+ * surface renders an entry's pages from, and a removed photo must never
+ * reappear there just because a caller forgot to filter twice.
+ */
+export function removedPhotos(photos: NotebookPhoto[]): NotebookPhoto[] {
+	return photos.filter((p) => !!p.removed_at).sort((a, b) => a.sequence_order - b.sequence_order);
 }
 
 /** Photos in upload order, so a multi-page entry reads page 1 first. */

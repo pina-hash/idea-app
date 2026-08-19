@@ -263,7 +263,7 @@ function quote(identifier: string): string {
 
 interface Filter {
 	column: string;
-	op: 'eq' | 'in' | 'is';
+	op: 'eq' | 'in' | 'is' | 'not.is';
 	value: unknown;
 }
 
@@ -313,6 +313,25 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 			throw new Error(`Unsupported .is() operand: ${String(value)}`);
 		}
 		this.filters.push({ column, op: 'is', value });
+		return this;
+	}
+
+	/**
+	 * PostgREST's negated filter, `.not(column, 'is', value)` -- the mirror of
+	 * `.is()` above, and needed for exactly the case `.is()` was added for: a
+	 * soft-deletion read that wants the OPPOSITE of the exclusion every other
+	 * notebook query carries (0117's own "the caller's DELETED entries").
+	 * `is`/`not.is` are the only two `.not()` shapes any load under test uses;
+	 * anything else throws rather than being silently modelled wrong.
+	 */
+	not(column: string, operator: 'is', value: null | boolean) {
+		if (operator !== 'is') {
+			throw new Error(`Unsupported .not() operator: ${String(operator)}`);
+		}
+		if (value !== null && typeof value !== 'boolean') {
+			throw new Error(`Unsupported .not() operand: ${String(value)}`);
+		}
+		this.filters.push({ column, op: 'not.is', value });
 		return this;
 	}
 
@@ -367,12 +386,14 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 			);
 			const where: string[] = [...innerJoins];
 			for (const filter of ownFilters) {
-				if (filter.op === 'is') {
-					// No parameter: `is null` / `is true` / `is false` are operators
-					// over a literal, not a comparison against a bound value.
+				if (filter.op === 'is' || filter.op === 'not.is') {
+					// No parameter: `is null` / `is true` / `is false` (and their
+					// negations) are operators over a literal, not a comparison
+					// against a bound value.
 					const operand =
 						filter.value === null ? 'null' : filter.value === true ? 'true' : 'false';
-					where.push(`t.${quote(filter.column)} is ${operand}`);
+					const verb = filter.op === 'not.is' ? 'is not' : 'is';
+					where.push(`t.${quote(filter.column)} ${verb} ${operand}`);
 					continue;
 				}
 				params.push(filter.value);
