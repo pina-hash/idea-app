@@ -85,6 +85,18 @@ export interface NotebookEntry {
 	pinned_at: string | null;
 	custom_label: string | null;
 	upload_timestamp: string;
+	/**
+	 * When the student turned this entry in, or null for a DRAFT (0118).
+	 *
+	 * A draft is private: staff cannot read it, it is not presence on any grid,
+	 * and it counts as outstanding on the class page. It is the student's own
+	 * unfinished work, so it is in this feed and nowhere else.
+	 *
+	 * On a project without 0118 there is no such column and nothing can be a
+	 * draft, so the load reports it as turned in -- which is what every entry
+	 * made before drafts existed genuinely was.
+	 */
+	submitted_at: string | null;
 	status: NotebookStatus;
 	flag_reason: NotebookFlagReason | null;
 	instructor_comment: string | null;

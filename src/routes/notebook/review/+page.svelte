@@ -169,6 +169,23 @@
 			 * a real stamp.
 			 */
 			if (r.deleted_at) return { ok: false, error: 'That entry has been deleted.' };
+			/**
+			 * A DRAFT IS NOT REVIEWABLE, AND IS NOT NORMALLY EVEN READABLE (0118).
+			 * The staff SELECT policy excludes an unturned-in entry, so a draft
+			 * makes the read above come back with no row at all and the "no longer
+			 * available" line fires first -- this is the case where a cell went
+			 * stale under an open panel and the row was pulled back to a draft
+			 * between the grid load and the click.
+			 *
+			 * Kept anyway, and it is not belt-and-braces: `submitted_at` is
+			 * `undefined` on a narrower rung (where nothing can be a draft), so
+			 * this can only ever fire on a real null from a real 0118 read -- and
+			 * it makes the console SAY what happened rather than reporting an
+			 * unreadable row as a missing one, which are different things a
+			 * teacher would chase differently.
+			 */
+			if ('submitted_at' in r && r.submitted_at === null)
+				return { ok: false, error: 'That entry has been pulled back to a draft.' };
 			return {
 				ok: true,
 				value: {

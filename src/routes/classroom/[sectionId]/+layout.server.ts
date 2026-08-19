@@ -186,19 +186,39 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		 * anywhere, which is the worst shape this failure can take. So the
 		 * filtered read is tried first and the original is the fallback.
 		 */
-		const readEntries = async () => {
-			const base = () =>
+		/**
+		 * THREE RUNGS, WIDEST FIRST -- the notebook feed's own ladder rule, and
+		 * this read needs it for the same reason twice over. `submitted_at` does
+		 * not exist before 0118 and `deleted_at` does not before 0116, and
+		 * PostgREST rejects a select OR a filter naming an unknown column, so a
+		 * single wide read would come back empty on either older project and
+		 * every check-in on the page would silently read "missing" -- a wrong
+		 * answer with no error anywhere, which is the worst shape this can take.
+		 *
+		 * `drafts` rides back with the rows because the caller cannot tell an
+		 * absent column from a null one, and the two mean opposite things: on a
+		 * pre-0118 project every entry was turned in, so an unknown reads as
+		 * SUBMITTED, never as a draft.
+		 */
+		const readEntries = async (): Promise<{ rows: unknown[] | null; drafts: boolean }> => {
+			const base = (select: string) =>
 				supabase
 					.from('notebook_entries')
-					.select('session_id, status, flag_reason')
+					.select(select)
 					.eq('student_id', claims.sub)
 					.eq('section_id', params.sectionId)
 					.in('session_id', sessionIds);
-			const filtered = await base().is('deleted_at', null);
-			if (!filtered.error) return filtered;
-			return base();
+			const withDrafts = await base('session_id, status, flag_reason, submitted_at').is(
+				'deleted_at',
+				null
+			);
+			if (!withDrafts.error) return { rows: withDrafts.data, drafts: true };
+			const filtered = await base('session_id, status, flag_reason').is('deleted_at', null);
+			if (!filtered.error) return { rows: filtered.data, drafts: false };
+			const plain = await base('session_id, status, flag_reason');
+			return { rows: plain.data, drafts: false };
 		};
-		const [{ data: entryRows }, { data: excusalRows }] = await Promise.all([
+		const [{ rows: entryRows, drafts: draftsReady }, { data: excusalRows }] = await Promise.all([
 			readEntries(),
 			supabase
 				.from('notebook_session_excusals')
@@ -211,16 +231,30 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 			session_id: string;
 			status: 'compliant' | 'flagged' | 'pending_review';
 			flag_reason: ClassCheckIn['flag_reason'];
+			submitted_at?: string | null;
 		};
-		// A student may hold SEVERAL entries against one check-in (nothing forbids
-		// adding a second page). The one that decides the status is the one that
-		// still wants something: a flag outranks anything else, then an awaited
-		// review, then filed -- the same precedence cellDisplay uses on the grid.
-		const rank: Record<EntryRow['status'], number> = { flagged: 0, pending_review: 1, compliant: 2 };
+		/**
+		 * A student may hold SEVERAL entries against one check-in (nothing forbids
+		 * adding a second page). The one that decides the status is the one that
+		 * still wants something: a flag outranks anything else, then an awaited
+		 * review, then filed -- the same precedence cellDisplay uses on the grid.
+		 *
+		 * A DRAFT RANKS LAST, BELOW `filed` (0118). That is not a demotion of the
+		 * draft, it is what makes the pair read correctly: a student who turned
+		 * one page in and is still working on a second HAS filed this check-in,
+		 * and reporting the draft over the submitted entry would ask them to do
+		 * something they already did. A flagged entry still outranks a draft --
+		 * the instructor asking for another look is the more urgent of the two.
+		 */
+		const rank = { flagged: 0, pending_review: 1, compliant: 2, draft: 3 } as const;
+		// An UNKNOWN `submitted_at` (a narrower rung, where the column does not
+		// exist) reads as submitted, never as a draft -- see readEntries.
+		const isSubmitted = (row: EntryRow) => (draftsReady ? row.submitted_at !== null : true);
+		const rankOf = (row: EntryRow) => (isSubmitted(row) ? rank[row.status] : rank.draft);
 		const bySession = new Map<string, EntryRow>();
 		for (const row of (entryRows ?? []) as EntryRow[]) {
 			const held = bySession.get(row.session_id);
-			if (!held || rank[row.status] < rank[held.status]) bySession.set(row.session_id, row);
+			if (!held || rankOf(row) < rankOf(held)) bySession.set(row.session_id, row);
 		}
 		const excused = new Set(
 			((excusalRows ?? []) as { session_id: string }[]).map((r) => r.session_id)
@@ -230,8 +264,15 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 			const entry = bySession.get(c.session_id);
 			return {
 				...c,
-				status: checkInStatus(entry, excused.has(c.session_id)),
-				flag_reason: entry?.status === 'flagged' ? (entry.flag_reason ?? null) : null
+				status: checkInStatus(
+					entry ? { status: entry.status, submitted: isSubmitted(entry) } : entry,
+					excused.has(c.session_id)
+				),
+				// A DRAFT SHOWS NO FLAG REASON even if the row carries one: a flag is
+				// an instructor's note about work they were shown, and an entry
+				// pulled back to a draft is not that any more.
+				flag_reason:
+					entry?.status === 'flagged' && isSubmitted(entry) ? (entry.flag_reason ?? null) : null
 			};
 		});
 	} else if (checkInRows?.length) {

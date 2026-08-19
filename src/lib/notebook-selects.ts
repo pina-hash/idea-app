@@ -87,11 +87,37 @@ export const NOTEBOOK_DELETION_SELECT = `id, session_id, section_id, custom_labe
 	 folder_id, pinned_at, deleted_at`;
 
 /**
+ * + draft state (0118): `submitted_at`, null for an entry the student has not
+ * turned in yet.
+ *
+ * ITS OWN RUNG, BUT COMPOSED RATHER THAN WRITTEN OUT -- unlike the deletion rung
+ * above, this adds ONE COLUMN and widens no embed, so appending to the rung
+ * beneath leaves that rung byte-identical (the way `NOTEBOOK_FULL_SELECT`
+ * already composes on the folder one). A project with 0116 but not 0118 is a
+ * real state, and it degrades to exactly the notebook it had.
+ *
+ * THERE IS NO FILTER ON THIS RUNG, AND THAT IS THE POINT. Every other exclusion
+ * in this file keeps something OUT of the student's own feed; a draft is that
+ * student's unfinished work and belongs in it. The column is carried so the feed
+ * can SAY which entries are drafts. Where a draft is excluded is the staff-facing
+ * reads, and not one of them is here.
+ */
+export const NOTEBOOK_DRAFT_SELECT = `${NOTEBOOK_DELETION_SELECT}, submitted_at`;
+
+/**
  * Widest first; each entry names the capability its rung adds, so the load can
  * report exactly what it lost rather than one boolean for all of it.
  *
  * `capability: null` on the last rung means "this one carries no capability of
  * its own" -- failing it is what `configured: false` means.
+ *
+ * `excludeDeleted` SAYS WHETHER THIS RUNG CAN BE FILTERED ON `deleted_at`, and
+ * it is a per-rung FACT rather than something the load derives. It was derived
+ * once -- the load asked `capability === 'deletion'` -- and the next rung added
+ * above that one (drafts, 0118) silently stopped excluding deleted entries,
+ * because it is not the deletion rung even though it carries the column. Caught
+ * by tests/notebook-page-load.test.ts, which is why it is data now: a new rung
+ * has to answer the question rather than inherit a wrong answer by omission.
  */
 /**
  * The caller's own DELETED entries (0117) -- a SEPARATE query, never a rung on
@@ -106,12 +132,13 @@ export const NOTEBOOK_DELETED_SELECT =
 	'id, session_id, custom_label, upload_timestamp, deleted_at, deleted_by';
 
 export const NOTEBOOK_ENTRY_SELECTS = [
-	{ select: NOTEBOOK_DELETION_SELECT, capability: 'deletion' },
-	{ select: NOTEBOOK_FULL_SELECT, capability: 'pins' },
-	{ select: NOTEBOOK_FOLDER_SELECT, capability: 'folders' },
-	{ select: NOTEBOOK_NOTES_SELECT, capability: 'notes' },
-	{ select: NOTEBOOK_PHOTOS_SELECT, capability: 'photos' },
-	{ select: NOTEBOOK_SCALAR_SELECT, capability: null }
+	{ select: NOTEBOOK_DRAFT_SELECT, capability: 'drafts', excludeDeleted: true },
+	{ select: NOTEBOOK_DELETION_SELECT, capability: 'deletion', excludeDeleted: true },
+	{ select: NOTEBOOK_FULL_SELECT, capability: 'pins', excludeDeleted: false },
+	{ select: NOTEBOOK_FOLDER_SELECT, capability: 'folders', excludeDeleted: false },
+	{ select: NOTEBOOK_NOTES_SELECT, capability: 'notes', excludeDeleted: false },
+	{ select: NOTEBOOK_PHOTOS_SELECT, capability: 'photos', excludeDeleted: false },
+	{ select: NOTEBOOK_SCALAR_SELECT, capability: null, excludeDeleted: false }
 ] as const;
 
 /* -------------------------------------------------------------------------
@@ -177,7 +204,20 @@ export const REVIEW_ENTRY_DELETION_SELECT = `id, student_id, session_id, custom_
 	 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at ),
 	 notebook_folders ( name )`;
 
+/**
+ * + draft state (0118). One column, so it composes on the rung below.
+ *
+ * THE CONSOLE IS NOT WHERE A DRAFT IS KEPT OUT -- 0118's staff SELECT policy on
+ * `notebook_entries` is, and it is what makes this read come back EMPTY for a
+ * draft rather than merely unrendered. The column is carried so the refusal can
+ * be STATED rather than inferred from an empty result, which is the same reason
+ * `deleted_at` is on the rung below: from here those two failures look
+ * identical and mean different things.
+ */
+export const REVIEW_ENTRY_DRAFT_SELECT = `${REVIEW_ENTRY_DELETION_SELECT}, submitted_at`;
+
 export const REVIEW_ENTRY_SELECTS = [
+	REVIEW_ENTRY_DRAFT_SELECT,
 	REVIEW_ENTRY_DELETION_SELECT,
 	REVIEW_ENTRY_FULL_SELECT,
 	REVIEW_ENTRY_NOTES_SELECT,

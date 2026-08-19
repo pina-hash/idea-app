@@ -55,14 +55,19 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * of perfectly readable entries over one missing extra. The rungs and what
 	 * each one adds live in $lib/notebook-selects.
 	 *
-	 * THE DELETED FILTER RIDES THE WIDEST RUNG AND ONLY THE WIDEST RUNG (0116).
+	 * THE DELETED FILTER RIDES ONLY THE RUNGS THAT CARRY THE COLUMN (0116).
 	 * `deleted_at` does not exist on a project without 0116, and PostgREST fails
 	 * a select for an unknown column in a FILTER exactly as it does for one in
 	 * the column list -- so applying `.is('deleted_at', null)` unconditionally
 	 * would fail every rung, the scalar probe `configured` is decided on
 	 * included, and report a fully working notebook as missing. That is the 0098
-	 * failure verbatim. The rung the filter belongs to is the one that can ask
-	 * for the column at all.
+	 * failure verbatim.
+	 *
+	 * WHICH RUNGS THOSE ARE IS THE RUNG'S OWN `excludeDeleted`, NOT SOMETHING
+	 * DERIVED HERE. This asked `capability === 'deletion'` until 0118 added a
+	 * wider rung above it, which then carried `deleted_at` and quietly stopped
+	 * filtering on it -- deleted entries back in the feed, no error anywhere.
+	 * See $lib/notebook-selects.
 	 */
 	const read = (select: string, excludeDeleted: boolean) => {
 		const query = supabase
@@ -80,6 +85,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * because a read that actually included it came back, never by default.
 	 */
 	const ready: Record<string, boolean> = {
+		drafts: false,
 		deletion: false,
 		pins: false,
 		folders: false,
@@ -87,7 +93,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 		photos: false
 	};
 	for (const rung of NOTEBOOK_ENTRY_SELECTS) {
-		const result = await read(rung.select, rung.capability === 'deletion');
+		const result = await read(rung.select, rung.excludeDeleted);
 		entryRows = result.data as unknown[] | null;
 		entryError = result.error;
 		if (!entryError) {
@@ -118,6 +124,13 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * deleted on a database with no column to mark it in.
 	 */
 	const deletionReady = ready.deletion;
+	/**
+	 * Whether an entry can be a DRAFT at all (0118), which is the same question
+	 * as whether the widest rung came back. False means every entry is turned in
+	 * -- correct, because on a database with no `submitted_at` column there was
+	 * never any other way to make one.
+	 */
+	const draftsReady = ready.drafts;
 
 	const entries: NotebookEntry[] = (entryRows ?? []).map((r) => {
 		const row = r as unknown as Record<string, unknown>;
@@ -129,6 +142,18 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 			pinned_at: (row.pinned_at as string | null) ?? null,
 			custom_label: (row.custom_label as string | null) ?? null,
 			upload_timestamp: row.upload_timestamp as string,
+			/**
+			 * NOT `?? null` (0118), and the difference is the whole failure this
+			 * guards against. On a rung without the column the value is
+			 * `undefined`, and defaulting that to null would report EVERY entry
+			 * on a pre-0118 project as an unturned-in draft -- a notebook full of
+			 * turned-in work suddenly reading as nothing handed in. So the fall
+			 * back is the entry's own upload stamp, which is exactly what 0118's
+			 * backfill writes for the same rows.
+			 */
+			submitted_at: draftsReady
+				? ((row.submitted_at as string | null) ?? null)
+				: (row.upload_timestamp as string),
 			status: row.status as NotebookEntry['status'],
 			flag_reason: (row.flag_reason as NotebookEntry['flag_reason']) ?? null,
 			instructor_comment: (row.instructor_comment as string | null) ?? null,
@@ -422,6 +447,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	return {
 		configured,
 		initialCheckIn,
+		draftsReady,
 		deletionReady,
 		photosReady,
 		notesReady,

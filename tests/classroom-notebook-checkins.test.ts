@@ -86,17 +86,35 @@ const CHAIN = [
 	'0098_notebook_session_postings.sql',
 	'0106_notebook_instructor_student_access.sql',
 	'0114_notebook_note_entry_session.sql',
-	'0116_notebook_soft_delete.sql'
+	'0116_notebook_soft_delete.sql',
+	'0117_notebook_soft_delete_restore.sql',
+	'0118_notebook_draft_state.sql'
 ];
 
 /**
- * The same chain without 0116. A class page has to keep working on a project
- * that has every notebook table but not the newest migration -- and the status
- * read's `deleted_at` filter names a column that does not exist there, which
- * PostgREST rejects. Its fallback is hand-written, so it gets its own database
- * rather than being assumed to behave like the feed's rung loop.
+ * The same chain without 0116 (and therefore without what depends on it). A
+ * class page has to keep working on a project that has every notebook table but
+ * not the newest migrations -- and the status read's `deleted_at` filter names a
+ * column that does not exist there, which PostgREST rejects. Its fallback is
+ * hand-written, so it gets its own database rather than being assumed to behave
+ * like the feed's rung loop.
  */
-const PRE_SOFT_DELETE_CHAIN = CHAIN.filter((m) => m !== '0116_notebook_soft_delete.sql');
+const PRE_SOFT_DELETE_CHAIN = CHAIN.filter(
+	(m) =>
+		m !== '0116_notebook_soft_delete.sql' &&
+		m !== '0117_notebook_soft_delete_restore.sql' &&
+		m !== '0118_notebook_draft_state.sql'
+);
+
+/**
+ * The chain missing ONLY 0118. A project carrying soft deletion but not drafts
+ * is its own real state, and the status read's widest rung names
+ * `submitted_at` -- so it gets its own database too, rather than being assumed
+ * to behave like the pre-0116 one. What it has to prove is the direction that
+ * fails silently: an unknown column must read as TURNED IN, never as a draft,
+ * or every entry on a pre-0118 project would report as not handed in.
+ */
+const PRE_DRAFT_CHAIN = CHAIN.filter((m) => m !== '0118_notebook_draft_state.sql');
 
 let db: TestDb;
 let fks: Awaited<ReturnType<typeof loadForeignKeys>>;
@@ -451,6 +469,142 @@ describe('a class page on a project without 0116', () => {
 		// error anywhere -- a wrong answer nobody would go looking for.
 		const result = await runLoadOn(preSoftDelete, keys, s, sectionId);
 		expect(result.checkIns.find((c) => c.session_id === sessionId)!.status).toBe('filed');
+	}, 180_000);
+});
+
+// ---------------------------------------------------------------------------
+// 3b. Drafts (0118). THE LOAD-BEARING CASE IN THIS WHOLE FILE.
+//
+// Reporting an unturned-in entry as `filed` is the worst failure this feature
+// can produce: the student reads their class page, sees the check-in done, and
+// stops -- while the instructor's grid correctly reads `missing`, because a
+// draft is not presence. Nobody finds out until it is graded. So the class page
+// has to name a draft, and it has to count it as still owed.
+// ---------------------------------------------------------------------------
+
+describe('a draft is not filed', () => {
+	let draftCheckIn: string;
+	let preDraft: TestDb;
+
+	afterAll(async () => {
+		await preDraft?.stop();
+	});
+
+	it('reads as draft, not filed, and counts as outstanding', async () => {
+		draftCheckIn = await upsertSession(owner, [p1], 7, '2026-09-10', 'Draft check-in');
+
+		// Alice drafts against it; Bruno files against it. Same check-in, same
+		// class, two students -- so the assertion is a comparison and not a read
+		// that started answering with nothing.
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_create_entry($1, $2, $3, $4, null, $5, null, false)', [
+				alice.id,
+				'drive-alice-draft',
+				draftCheckIn,
+				p1,
+				'page.jpg'
+			])
+		);
+		await createEntry(bruno, draftCheckIn, p1);
+
+		const forAlice = await runLoad(alice, p1);
+		const forBruno = await runLoad(bruno, p1);
+		const aliceRow = forAlice.checkIns.find((c) => c.session_id === draftCheckIn)!;
+		const brunoRow = forBruno.checkIns.find((c) => c.session_id === draftCheckIn)!;
+
+		expect(aliceRow.status).toBe('draft');
+		expect(brunoRow.status).toBe('filed');
+		expect(isOutstanding(aliceRow.status)).toBe(true);
+		expect(isOutstanding(brunoRow.status)).toBe(false);
+	});
+
+	it('turns into filed when the student turns it in, and back again', async () => {
+		const entryId = (
+			await db.sql<{ id: string }>(
+				`select id from public.notebook_entries
+				 where student_id = $1 and session_id = $2 and section_id = $3`,
+				[alice.id, draftCheckIn, p1]
+			)
+		).rows[0].id;
+
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_submit_entry($1)', [entryId])
+		);
+		expect(
+			(await runLoad(alice, p1)).checkIns.find((c) => c.session_id === draftCheckIn)!.status
+		).toBe('filed');
+
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_unsubmit_entry($1)', [entryId])
+		);
+		expect(
+			(await runLoad(alice, p1)).checkIns.find((c) => c.session_id === draftCheckIn)!.status
+		).toBe('draft');
+	});
+
+	it('a SUBMITTED entry beside a draft still reads as filed', async () => {
+		// A student who turned one page in and is still working on a second HAS
+		// filed this check-in. Reporting the draft over it would ask them to redo
+		// something they already did -- which is the mirror of the failure above
+		// and just as wrong.
+		await createEntry(alice, draftCheckIn, p1);
+		const row = (await runLoad(alice, p1)).checkIns.find(
+			(c) => c.session_id === draftCheckIn
+		)!;
+		expect(row.status).toBe('filed');
+	});
+
+	it('does not raise the MANAGER a personal status, and counts the draft as work owed', async () => {
+		const { canManage, checkIns, sectionOutstanding } = await runLoad(teacher, p1);
+		expect(canManage).toBe(true);
+		for (const c of checkIns) expect(c.status).toBeNull();
+		// The manager's number comes from the grid, which excludes drafts -- so a
+		// student holding only a draft lands in it as outstanding for free.
+		expect(typeof sectionOutstanding).toBe('number');
+	});
+
+	it('reports every entry as FILED on a project without 0118', async () => {
+		// The direction that fails silently. An unknown `submitted_at` must read
+		// as turned in; defaulting it to null would report a notebook full of
+		// handed-in work as nothing handed in at all.
+		preDraft = await startTestDb(PRE_DRAFT_CHAIN);
+		const keys = await loadForeignKeys(preDraft);
+		const t = await createUser(preDraft, 'teacher@boscotech.edu', 'Terry Teacher');
+		const s = await createUser(preDraft, 'student@boscotech.net', 'Sam Student');
+		const sectionId = await createClassroomSection(preDraft, {
+			as: t,
+			courseCode: 'IDEA209H',
+			label: 'Period 8',
+			teacherEmail: t.email
+		});
+		await enrollStudent(preDraft, {
+			as: t,
+			sectionId,
+			email: s.email,
+			displayName: 'Student, Sam'
+		});
+		const sessionId = await preDraft.asUser(t.id, async (q) => {
+			const { rows } = await q<{ result: { session_id: string } }>(
+				'select public.notebook_admin_upsert_session($1::uuid[], $2, $3::date, $4) as result',
+				[[sectionId], 1, '2026-05-01', 'Pre-0118 check-in']
+			);
+			return rows[0].result.session_id;
+		});
+		await preDraft.asUser(s.id, (q) =>
+			q('select public.notebook_create_entry($1, $2, $3, $4, $5, $6)', [
+				s.id,
+				'drive-pre-0118',
+				sessionId,
+				sectionId,
+				null,
+				'page.jpg'
+			])
+		);
+
+		const result = await runLoadOn(preDraft, keys, s, sectionId);
+		const row = result.checkIns.find((c) => c.session_id === sessionId)!;
+		expect(row.status).toBe('filed');
+		expect(isOutstanding(row.status)).toBe(false);
 	}, 180_000);
 });
 

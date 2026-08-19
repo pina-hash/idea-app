@@ -23,6 +23,9 @@ function entry(over: Partial<NotebookEntry> = {}): NotebookEntry {
 		pinned_at: null,
 		custom_label: 'Gearbox ratios',
 		upload_timestamp: '2026-08-08T13:20:00Z',
+		// Turned in (0118). A fixture defaulting to a DRAFT would make every
+		// assertion here about the draft path by accident.
+		submitted_at: '2026-08-08T13:20:00Z',
 		status: 'compliant',
 		flag_reason: null,
 		instructor_comment: null,

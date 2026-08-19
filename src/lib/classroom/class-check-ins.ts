@@ -40,7 +40,13 @@ import { streamItems, type ClassroomItem } from '$lib/classroom/classroom';
  * as `filed`, and lateness stays a review question on the grid where it is
  * decided.
  */
-export type CheckInStatus = 'filed' | 'awaiting_review' | 'flagged' | 'excused' | 'missing';
+export type CheckInStatus =
+	| 'filed'
+	| 'draft'
+	| 'awaiting_review'
+	| 'flagged'
+	| 'excused'
+	| 'missing';
 
 /**
  * One check-in as one class sees it.
@@ -73,17 +79,46 @@ export interface ClassCheckIn {
 // ---------------------------------------------------------------------------
 
 /**
+ * One of the viewer's own entries against a check-in, as far as this module
+ * cares.
+ *
+ * `submitted` is separate from `status` because they answer different
+ * questions: `status` is the INSTRUCTOR's verdict on work they have seen, and
+ * `submitted` is whether they have been shown it at all (0118). A draft can
+ * carry any status the row happens to hold and none of them mean anything yet.
+ */
+export interface CheckInEntry {
+	status: 'compliant' | 'flagged' | 'pending_review';
+	/**
+	 * False for a draft. On a project without 0118 the caller passes TRUE,
+	 * because every entry there was turned in when it was made.
+	 */
+	submitted: boolean;
+}
+
+/**
  * The viewer's status for one check-in, from THEIR OWN entry and THEIR OWN
  * excusal.
  *
+ * A DRAFT IS ITS OWN STATUS, AND THAT IS THE LOAD-BEARING PART OF THIS
+ * FUNCTION. Reporting an unturned-in entry as `filed` is the worst failure this
+ * feature can produce: the student reads their class page, sees the check-in
+ * done, and stops -- while their instructor's grid correctly reads `missing`,
+ * because a draft is not presence. Nobody finds out until it is graded. So a
+ * draft is named, and it is named on the surface the student is most likely to
+ * check.
+ *
  * An entry beats an excusal on purpose: a student excused from a check-in who
  * filed one anyway has filed it, and reporting "excused" over their own work
- * would be telling them their page did not count.
+ * would be telling them their page did not count. A DRAFT does not beat an
+ * excusal -- there is nothing to count yet, and "excused" is the more useful
+ * thing to know.
  */
 export function checkInStatus(
-	entry: { status: 'compliant' | 'flagged' | 'pending_review' } | null | undefined,
+	entry: CheckInEntry | null | undefined,
 	excused: boolean
 ): CheckInStatus {
+	if (entry && !entry.submitted) return excused ? 'excused' : 'draft';
 	if (entry) {
 		if (entry.status === 'flagged') return 'flagged';
 		if (entry.status === 'pending_review') return 'awaiting_review';
@@ -94,6 +129,9 @@ export function checkInStatus(
 
 const STATUS_LABELS: Record<CheckInStatus, string> = {
 	filed: 'Filed',
+	// Names BOTH halves: that it exists, and that it has not gone anywhere yet.
+	// "Draft" alone reads as a state somebody else can see.
+	draft: 'Draft, not turned in',
 	awaiting_review: 'Awaiting review',
 	flagged: 'Needs another look',
 	excused: 'Excused',
@@ -112,6 +150,9 @@ export type CheckInTone = 'attention' | 'good' | 'info' | 'muted';
 
 const STATUS_TONES: Record<CheckInStatus, CheckInTone> = {
 	filed: 'good',
+	// The same tone as `missing`, because from the student's side it is the same
+	// obligation: this check-in still needs something from you.
+	draft: 'attention',
 	awaiting_review: 'info',
 	flagged: 'attention',
 	excused: 'muted',
@@ -127,6 +168,10 @@ export function checkInTone(status: CheckInStatus): CheckInTone {
  * not one:
  *
  *   - `missing`  -- nothing filed, so file a page.
+ *   - `draft`    -- a page exists and has not been turned in (0118), so turn it
+ *                   in. It counts for exactly the reason `missing` does: the
+ *                   instructor's grid reads it as nothing filed, so the student
+ *                   still owes this check-in something.
  *   - `flagged`  -- an entry exists but the instructor asked for another look,
  *                   so add to it. `notebook_add_photo` flipping a flagged entry
  *                   back to `pending_review` is that loop, in the database.
@@ -140,7 +185,7 @@ export function checkInTone(status: CheckInStatus): CheckInTone {
  * their own total comes from the grid (see the class page load).
  */
 export function isOutstanding(status: CheckInStatus | null): boolean {
-	return status === 'missing' || status === 'flagged';
+	return status === 'missing' || status === 'draft' || status === 'flagged';
 }
 
 export function outstandingCheckIns(checkIns: ClassCheckIn[]): number {

@@ -80,17 +80,35 @@ const FULL_CHAIN = [
 	'0099_notebook_view_as.sql',
 	'0106_notebook_instructor_student_access.sql',
 	'0114_notebook_note_entry_session.sql',
-	'0116_notebook_soft_delete.sql'
+	'0116_notebook_soft_delete.sql',
+	'0117_notebook_soft_delete_restore.sql',
+	'0118_notebook_draft_state.sql'
 ];
 
 /**
- * The same chain, one migration short. A project that has every notebook table
- * but not 0116 is a real state -- migrations here are pasted in by hand -- and
- * it is the state the soft-delete filter could break, because `deleted_at` is
- * not a column there and PostgREST rejects a filter naming one that does not
- * exist. That is the 0098 failure exactly: one filter blanking a working page.
+ * The same chain, short of soft deletion and everything after it. A project
+ * that has every notebook table but not 0116 is a real state -- migrations here
+ * are pasted in by hand -- and it is the state the soft-delete filter could
+ * break, because `deleted_at` is not a column there and PostgREST rejects a
+ * filter naming one that does not exist. That is the 0098 failure exactly: one
+ * filter blanking a working page.
  */
-const PRE_SOFT_DELETE_CHAIN = FULL_CHAIN.filter((m) => m !== '0116_notebook_soft_delete.sql');
+const PRE_SOFT_DELETE_CHAIN = FULL_CHAIN.filter(
+	(m) =>
+		m !== '0116_notebook_soft_delete.sql' &&
+		m !== '0117_notebook_soft_delete_restore.sql' &&
+		m !== '0118_notebook_draft_state.sql'
+);
+
+/**
+ * Short of 0118 ONLY: soft deletion applied, drafts not. Its own state and its
+ * own database, because the drafts rung is a separate assertion about the
+ * schema from the deletion one -- and the failure it guards against is the
+ * opposite direction to every other degrade here. An absent `submitted_at` must
+ * come back as TURNED IN; reading it as a draft would report a notebook full of
+ * handed-in work as nothing handed in.
+ */
+const PRE_DRAFT_CHAIN = FULL_CHAIN.filter((m) => m !== '0118_notebook_draft_state.sql');
 
 /**
  * A project with the notebook's DEPENDENCIES but not one notebook migration --
@@ -130,6 +148,7 @@ let keptPhotoId: string; // its live sibling: the control
  */
 interface LoadResult {
 	configured: boolean;
+	draftsReady: boolean;
 	deletionReady: boolean;
 	photosReady: boolean;
 	notesReady: boolean;
@@ -516,6 +535,89 @@ describe('soft deletion (0116) is excluded from the feed', () => {
 		expect(ids).not.toContain(deletedEntryId);
 		expect(ids.sort()).toEqual([freeEntryId, linkedEntryId].sort());
 	});
+});
+
+describe('the select ladder', () => {
+	it('marks every rung that carries deleted_at as one to filter on', async () => {
+		// THE RULE THIS PINS, and it has already been broken once: a rung whose
+		// select names `deleted_at` MUST also be filtered on it. 0118 added a
+		// widest rung above the deletion one; because the load keyed the filter on
+		// `capability === 'deletion'`, that new rung carried the column and
+		// silently stopped excluding deleted entries. Nothing errored -- deleted
+		// work simply came back into the feed.
+		//
+		// Asserted as an equivalence in BOTH directions, so neither a rung that
+		// filters on a column it does not have (which fails the whole select) nor
+		// one that has it and does not (the bug) can pass.
+		const { NOTEBOOK_ENTRY_SELECTS } = await import('../src/lib/notebook-selects');
+		for (const rung of NOTEBOOK_ENTRY_SELECTS) {
+			const carriesColumn = /(^|[\s,])deleted_at(\s|,|$)/.test(rung.select);
+			expect([rung.capability, carriesColumn]).toEqual([rung.capability, rung.excludeDeleted]);
+		}
+		// Kept honest: at least one rung of each kind, so an empty or
+		// all-one-way ladder cannot satisfy this vacuously.
+		expect(NOTEBOOK_ENTRY_SELECTS.some((r) => r.excludeDeleted)).toBe(true);
+		expect(NOTEBOOK_ENTRY_SELECTS.some((r) => !r.excludeDeleted)).toBe(true);
+	});
+});
+
+describe('drafts (0118) belong to the student and stay in their feed', () => {
+	let draftId: string;
+	let preDraft: TestDb;
+
+	afterAll(async () => {
+		await preDraft?.stop();
+	});
+
+	it('carries submitted_at, and a draft is NOT excluded from the owner’s own feed', async () => {
+		draftId = await db.asUser(alice.id, async (q) => {
+			const { rows } = await q<{ result: { entry_id: string } }>(
+				'select public.notebook_create_entry($1, $2, null, null, $3, null, null, false) as result',
+				[alice.id, 'drive-alice-draft', 'Half finished']
+			);
+			return rows[0].result.entry_id;
+		});
+
+		const result = await runLoad(db, fks, alice);
+		expect(result.draftsReady).toBe(true);
+		const draft = result.entries.find((e) => e.id === draftId);
+		// THERE: the draft is in the student's own feed, which is the whole point
+		// of one -- every other exclusion in this file keeps something out.
+		expect(draft).toBeDefined();
+		expect(draft!.submitted_at).toBeNull();
+		// And its turned-in neighbours carry a real stamp, so this is not a load
+		// that returns null for everything.
+		const live = result.entries.find((e) => e.id === freeEntryId)!;
+		expect(live.submitted_at).not.toBeNull();
+	});
+
+	it('reports every entry as turned in on a project without 0118', async () => {
+		preDraft = await startTestDb(PRE_DRAFT_CHAIN);
+		const keys = await loadForeignKeys(preDraft);
+		const student = await createUser(preDraft, 'alice@boscotech.net', 'Alice Alvarez');
+		await preDraft.asUser(student.id, (q) =>
+			q('select public.notebook_create_note_entry($1::jsonb, $2, null, null)', [
+				JSON.stringify([{ type: 'p', runs: [{ text: 'Still here.' }] }]),
+				'Pre-0118 entry'
+			])
+		);
+		const result = await runLoad(preDraft, keys, student);
+
+		expect(result.configured).toBe(true);
+		expect(result.draftsReady).toBe(false);
+		expect(result.entries).toHaveLength(1);
+		// THE DIRECTION THAT FAILS SILENTLY: an absent column defaults to the
+		// entry's own upload stamp, never to null. A null here would render every
+		// entry on a pre-0118 project as an unturned-in draft.
+		expect(result.entries[0].submitted_at).toBe(result.entries[0].upload_timestamp);
+		// Everything below the new rung is unaffected -- including 0116's, which
+		// is the rung immediately beneath it.
+		expect(result.deletionReady).toBe(true);
+		expect(result.photosReady).toBe(true);
+		expect(result.notesReady).toBe(true);
+		expect(result.foldersReady).toBe(true);
+		expect(result.pinsReady).toBe(true);
+	}, 180_000);
 });
 
 describe('a project with every notebook table but not 0116', () => {

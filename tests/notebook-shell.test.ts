@@ -52,6 +52,8 @@ function entry(over: Partial<NotebookEntry> = {}): NotebookEntry {
 		pinned_at: null,
 		custom_label: 'Gearbox ratios',
 		upload_timestamp: '2026-08-08T13:20:00Z',
+		// Turned in (0118), so nothing in this file is accidentally a draft case.
+		submitted_at: '2026-08-08T13:20:00Z',
 		status: 'compliant',
 		flag_reason: null,
 		instructor_comment: null,
@@ -532,59 +534,117 @@ describe('a removed photo is dropped wherever photos are rendered or counted', (
 });
 
 describe('the select ladders gained a rung rather than growing one', () => {
-	it('the feed ladder is widest-first with deletion on top and nothing below it edited', () => {
-		expect(NOTEBOOK_ENTRY_SELECTS.map((r) => r.capability)).toEqual([
-			'deletion',
-			'pins',
-			'folders',
-			'notes',
-			'photos',
-			null
-		]);
-		// The four rungs that predate 0116 are byte-identical to their own
-		// constants, so a project without 0116 reads exactly what it always did.
-		expect(NOTEBOOK_ENTRY_SELECTS[1].select).toBe(NOTEBOOK_FULL_SELECT);
-		expect(NOTEBOOK_ENTRY_SELECTS[2].select).toBe(NOTEBOOK_FOLDER_SELECT);
-		expect(NOTEBOOK_ENTRY_SELECTS[3].select).toBe(NOTEBOOK_NOTES_SELECT);
-		expect(NOTEBOOK_ENTRY_SELECTS[4].select).toBe(NOTEBOOK_PHOTOS_SELECT);
-		expect(NOTEBOOK_ENTRY_SELECTS[5].select).toBe(NOTEBOOK_SCALAR_SELECT);
-	});
-
-	it('only the widest rung names the two new columns', () => {
-		const [widest, ...rest] = NOTEBOOK_ENTRY_SELECTS;
-		expect(widest.select).toMatch(/deleted_at/);
-		expect(widest.select).toMatch(/removed_at/);
-		for (const rung of rest) {
-			expect(rung.select).not.toMatch(/deleted_at/);
-			expect(rung.select).not.toMatch(/removed_at/);
+	/**
+	 * GENERALIZED IN 0118, NOT WEAKENED. These four assertions used to spell the
+	 * ladder out position by position -- capability names in order, and each
+	 * pre-0116 rung compared to its own constant by index. Adding a rung
+	 * necessarily breaks that, which is the tests/classroom-measure.test.ts
+	 * situation exactly: an assertion that pins the CURRENT shape fails on every
+	 * legitimate extension and says nothing about the rule.
+	 *
+	 * So they assert the RULE now: rungs are widest-first, a rung names the
+	 * columns of the capability it adds and nothing wider, and no rung below a
+	 * capability's own is edited to carry it. That is what the ladder is FOR --
+	 * a project sitting between two hand-applied migrations reads exactly the
+	 * notebook it had -- and it stays true however many rungs are added.
+	 */
+	it('the feed ladder is widest-first, ending on the scalar probe', () => {
+		const selects = NOTEBOOK_ENTRY_SELECTS.map((r) => r.select);
+		// Strictly narrowing: each rung is shorter than the one above it. A rung
+		// that is not a narrowing of its predecessor is not a rung.
+		for (let i = 1; i < selects.length; i++) {
+			expect([i, selects[i].length < selects[i - 1].length]).toEqual([i, true]);
 		}
+		// The last rung carries no capability of its own -- failing it is what
+		// `configured: false` means -- and it is the scalar probe verbatim.
+		const last = NOTEBOOK_ENTRY_SELECTS[NOTEBOOK_ENTRY_SELECTS.length - 1];
+		expect(last.capability).toBeNull();
+		expect(last.select).toBe(NOTEBOOK_SCALAR_SELECT);
+		// Every rung that predates the two soft-delete/draft columns is still
+		// byte-identical to its own constant, whatever sits above it.
+		const byCapability = new Map(NOTEBOOK_ENTRY_SELECTS.map((r) => [r.capability, r.select]));
+		expect(byCapability.get('pins')).toBe(NOTEBOOK_FULL_SELECT);
+		expect(byCapability.get('folders')).toBe(NOTEBOOK_FOLDER_SELECT);
+		expect(byCapability.get('notes')).toBe(NOTEBOOK_NOTES_SELECT);
+		expect(byCapability.get('photos')).toBe(NOTEBOOK_PHOTOS_SELECT);
 	});
 
-	it('the review ladder did the same, and its old widest rung is untouched', () => {
-		expect(REVIEW_ENTRY_SELECTS[0]).toMatch(/deleted_at/);
-		expect(REVIEW_ENTRY_SELECTS[0]).toMatch(/removed_at/);
-		expect(REVIEW_ENTRY_SELECTS[1]).toBe(REVIEW_ENTRY_FULL_SELECT);
-		for (const select of REVIEW_ENTRY_SELECTS.slice(1)) {
+	it('a rung names only the columns of its own capability and wider', () => {
+		// The rule, stated as a boundary rather than as an index: everything at or
+		// above the rung that ADDS a column may name it, and nothing below may.
+		const index = (capability: string) =>
+			NOTEBOOK_ENTRY_SELECTS.findIndex((r) => r.capability === capability);
+		const deletion = index('deletion');
+		const drafts = index('drafts');
+		expect(deletion).toBeGreaterThanOrEqual(0);
+		expect(drafts).toBeGreaterThanOrEqual(0);
+		// Drafts is wider than deletion, so it sits above it.
+		expect(drafts).toBeLessThan(deletion);
+
+		NOTEBOOK_ENTRY_SELECTS.forEach((rung, i) => {
+			expect([rung.capability, 'deleted_at', /deleted_at/.test(rung.select)]).toEqual([
+				rung.capability,
+				'deleted_at',
+				i <= deletion
+			]);
+			expect([rung.capability, 'removed_at', /removed_at/.test(rung.select)]).toEqual([
+				rung.capability,
+				'removed_at',
+				i <= deletion
+			]);
+			expect([rung.capability, 'submitted_at', /submitted_at/.test(rung.select)]).toEqual([
+				rung.capability,
+				'submitted_at',
+				i <= drafts
+			]);
+		});
+	});
+
+	it('the review ladder follows the same rule, and its pre-0116 rungs are untouched', () => {
+		const selects = [...REVIEW_ENTRY_SELECTS];
+		for (let i = 1; i < selects.length; i++) {
+			expect([i, selects[i].length < selects[i - 1].length]).toEqual([i, true]);
+		}
+		// The widest carries every added column; the first rung that predates them
+		// is its own constant, byte-identical.
+		expect(selects[0]).toMatch(/deleted_at/);
+		expect(selects[0]).toMatch(/removed_at/);
+		expect(selects[0]).toMatch(/submitted_at/);
+		expect(selects).toContain(REVIEW_ENTRY_FULL_SELECT);
+		const oldest = selects.slice(selects.indexOf(REVIEW_ENTRY_FULL_SELECT));
+		for (const select of oldest) {
 			expect(select).not.toMatch(/deleted_at/);
 			expect(select).not.toMatch(/removed_at/);
+			expect(select).not.toMatch(/submitted_at/);
 		}
 	});
 
-	it('the feed load filters ONLY on the rung that can ask for the column', () => {
+	it('the feed load filters on the rung’s OWN excludeDeleted, not a derived guess', () => {
 		// The filter and the rung it belongs to live in two files, and the failure
 		// -- a working notebook reported as missing -- has no error anywhere.
+		//
+		// It asked `capability === 'deletion'` until 0118 added a rung above that
+		// one; the new rung carried `deleted_at` and silently stopped filtering on
+		// it, putting deleted entries back in the feed. So the load must read the
+		// rung's own flag, and tests/notebook-page-load.test.ts pins that the flag
+		// and the column agree.
 		const load = read('src/routes/notebook/+page.server.ts');
-		expect(load).toMatch(/rung\.capability === 'deletion'/);
+		expect(load).toMatch(/read\(rung\.select, rung\.excludeDeleted\)/);
+		expect(load).not.toMatch(/rung\.capability === 'deletion'/);
 		expect(load).toMatch(/excludeDeleted \? query\.is\('deleted_at', null\) : query/);
 	});
 
-	it('the class page falls back when the filter is refused', () => {
+	it('the class page falls back when a filter or a column is refused', () => {
 		const layout = read('src/routes/classroom/[sectionId]/+layout.server.ts');
 		expect(layout).toMatch(/\.is\('deleted_at', null\)/);
-		// The fallback, without which every card reads "missing" on a pre-0116
-		// project with nothing raised anywhere.
-		expect(layout).toMatch(/if \(!filtered\.error\) return filtered;/);
-		expect(layout).toMatch(/return base\(\);/);
+		// Widest first, and an UNFILTERED final read -- without which every card
+		// reads "missing" on an older project with nothing raised anywhere. Named
+		// by shape rather than by the exact line, so adding a rung to this ladder
+		// (0118 added one) does not have to edit this assertion.
+		expect(layout).toMatch(/if \(!withDrafts\.error\) return \{ rows: withDrafts\.data, drafts: true \}/);
+		expect(layout).toMatch(/if \(!filtered\.error\) return \{ rows: filtered\.data, drafts: false \}/);
+		expect(layout).toMatch(/const plain = await base\(/);
+		expect(layout).toMatch(/return \{ rows: plain\.data, drafts: false \}/);
 	});
 
 	it('the review console refuses to open a deleted entry', () => {
