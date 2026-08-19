@@ -1,0 +1,266 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 1,
+    "theme": "idea-green",
+    "title": "Unit 1 Lab, Checkpoint 1: Density and Measurement",
+    "course": "IDEA209H",
+    "dueDate": "2026-08-21",
+    "totalPoints": 20,
+    "assignmentId": "idea209h-u1lab-01",
+    "buildVersion": "v2",
+    "headerFields": [
+      "studentName",
+      "date",
+      "section"
+    ],
+    "gradingCategory": "Unit Labs"
+  },
+  "print": {
+    "linesPerSentence": 2
+  },
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "Measure the volume and mass of every required sample yourself. Choose the volume technique that fits each sample's geometry and hold the precision your instruments actually give you. Everything you need to do this is written below.",
+      "title": "Measurement",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### What you are doing\n\nSix numbered samples are in front of you. Each one is a real engineering material with its label removed. Your job is to measure each sample carefully enough that its density tells you what it is.\n\nYou are not guessing. Density is mass divided by volume, and every material has its own. Measure well and the number does the identifying for you.\n\n### The six candidates\n\nEvery sample is one of these:\n\n| Status | Material |\n|---|---|\n| Required | ASTM 1018 steel |\n| Required | 6061 aluminum |\n| Required | 304 stainless steel (ASTM A276) |\n| Required | Polycarbonate |\n| Bonus | ASTM B16 brass |\n| Bonus | Ti-6Al-4V titanium |\n\nSamples 5 and 6 are bonus. They earn IDEA Coins, not points. Attempt them only after 1 through 4 are finished.\n\n### Units, before anything else\n\n**Work in grams and centimeters.** Published density is reported in g/cm3. Record mass in kilograms or volume in mm3 and your comparison will be off by a factor of 1000.\n\n1 mL of displaced water = 1 cm3 exactly.\n\n### Step 1. Choose your volume technique\n\nLook at the sample's shape.\n\n- If it is a shape with a volume formula, use the **dimensional** technique. Record DIM.\n- If it is irregular, or too small to measure cleanly, use **displacement**. Record DISP.\n\n### Step 2a. Dimensional technique\n\nMeasure with the caliper, then apply the formula for that shape.\n\n| Shape | What to measure | Volume |\n|---|---|---|\n| Rectangular bar | length L, width W, height H | V = L x W x H |\n| Round rod | diameter D, length L | V = pi x (D/2)^2 x L |\n| Tube | outside D, inside d, length L | V = pi x ((D/2)^2 - (d/2)^2) x L |\n| Sheet or plate | length L, width W, thickness T | V = L x W x T |\n\nMeasure every dimension twice. If two readings disagree, re-seat the caliper and take a third.\n\n### Step 2b. Displacement technique\n\n1. Fill the graduated cylinder partway. Read the starting level and write it down.\n2. Slide the sample in. Do not drop it.\n3. Read the new level.\n4. Volume = ending level minus starting level.\n\nRead at the bottom of the curve the water makes, with your eye level with the line.\n\nIf the sample floats it is less dense than water, which is already useful information. Hold it under with a thin rod and note that you did.\n\n### Step 3. Mass\n\nZero the scale with nothing on it, place the sample, and record the reading in grams.\n\n### Step 4. Significant figures\n\nWrite down every digit the instrument shows you, including trailing zeros.\n\nIf the caliper reads 12.70 mm, write 12.70 mm. Writing 12.7 mm throws away a digit the instrument actually measured. If the scale reads 18.40 g, write 18.40 g.\n\nYour calculated volume should not carry more digits than the measurements it came from.\n\n### Worked example\n\nA round rod. The caliper reads D = 1.270 cm and L = 4.000 cm.\n\n    V = pi x (1.270 / 2)^2 x 4.000\n    V = pi x (0.635)^2 x 4.000\n    V = pi x 0.4032 x 4.000\n    V = 5.067 cm3\n\nThe scale reads 18.24 g.\n\nThat is everything Module 1 needs for one sample. The density itself comes in Module 2."
+        },
+        {
+          "id": "t1",
+          "type": "table",
+          "points": 10,
+          "columns": [
+            {
+              "key": "sample",
+              "tip": "Set letter and number as it appears on the tag, for example B-3. Never write a material name in this column.",
+              "label": "Sample"
+            },
+            {
+              "key": "shape",
+              "tip": "Rectangular bar, round rod, tube, sheet, or irregular.",
+              "label": "Shape"
+            },
+            {
+              "key": "technique",
+              "tip": "DIM if you used a volume formula, DISP if you used the graduated cylinder.",
+              "label": "Technique"
+            },
+            {
+              "key": "dims",
+              "tip": "Every number the technique required. For DIM, each dimension the formula needs. For DISP, the starting and ending water levels.",
+              "label": "Measurements taken, with units"
+            },
+            {
+              "key": "volume",
+              "tip": "Your calculated or displaced volume.",
+              "label": "Volume (cm3)"
+            },
+            {
+              "key": "mass",
+              "tip": "From the scale, in grams, carrying every digit it displays.",
+              "label": "Mass (g)"
+            }
+          ],
+          "minRows": 4,
+          "printRows": 6,
+          "rowImages": false,
+          "statusColumn": false
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "points": 6,
+              "descriptor": "All four required samples have a recorded shape, a named volume technique, every measurement that technique needs, a volume in cm3, and a mass in grams."
+            },
+            {
+              "label": "Proficient",
+              "points": 4,
+              "descriptor": "All four required samples are measured, with one sample missing its shape, its named technique, or one required dimension."
+            },
+            {
+              "label": "Developing",
+              "points": 2,
+              "descriptor": "Two or three samples are completely measured, or all four are present with volume or mass missing on more than one."
+            },
+            {
+              "label": "Absent",
+              "points": 0,
+              "descriptor": "Fewer than two samples are measured, or no measurements are recorded."
+            }
+          ],
+          "criterion": "Dimensional and mass data"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "points": 4,
+              "descriptor": "Every dimension and mass is recorded to the full resolution the instrument reads, trailing zeros are retained where they are significant, and the calculated volume carries the same precision as its inputs, on all four samples."
+            },
+            {
+              "label": "Proficient",
+              "points": 3,
+              "descriptor": "Recorded to instrument resolution on all four samples, with precision dropped or digits added beyond the instrument's reading on one or two individual values."
+            },
+            {
+              "label": "Developing",
+              "points": 1,
+              "descriptor": "Recorded to instrument resolution on two or three samples, or resolution is correct throughout but values are rounded to different precision from one sample to the next."
+            },
+            {
+              "label": "Absent",
+              "points": 0,
+              "descriptor": "Values are recorded without regard to instrument resolution, or fewer than two samples carry usable precision."
+            }
+          ],
+          "criterion": "Significant figures and instrument resolution"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "m2",
+      "intro": "Calculate density from your own measurements, compare each result against a published value you look up yourself, and state a first identification for every required sample based on that comparison.",
+      "title": "Density, Comparison, and Hypothesis",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "### Step 5. Calculate density\n\n    density = mass / volume\n\nUse your own numbers from Module 1, and write the division out rather than only the answer.\n\nContinuing the worked example: 18.24 g / 5.067 cm3 = 3.600 g/cm3\n\n### Step 6. Look up the published value\n\nPublished property values come from **MatWeb**, at matweb.com. OnlineMetals, Industrial Metal Supply, and McMaster-Carr sell material and list prices. They are not property databases, and some carry no property data for plastics at all.\n\nFinding a density on MatWeb:\n\n1. Search the material name, for example \"6061-T6 aluminum\".\n2. Open an entry from the results list.\n3. Find the Physical Properties section near the top.\n4. Density is listed in g/cc, which is the same thing as g/cm3.\n5. Write the value down and name the entry you used. Alloys have several entries for different tempers and conditions, and the numbers differ between them.\n\nLook up the candidates your measurement lands near, not all six.\n\n### Step 7. Percent error\n\n    percent error = |measured - published| / published x 100\n\nThe bars mean absolute value, so drop the minus sign if you get one.\n\nContinuing the example, against a published value of 3.55 g/cm3:\n\n    |3.600 - 3.55| / 3.55 x 100 = 0.05 / 3.55 x 100 = 1.4%\n\nA percent error of a few percent means your measurement and the published value agree. A percent error in the hundreds or thousands is a units problem, not a discovery. Check grams and cm3 before you check anything else.\n\n### Step 8. State your hypothesis\n\nFor each sample write which material you think it is, and give both numbers: your measured density and the published density you matched it to.\n\nDensity will not settle everything. Two aluminum alloys sit within a fraction of a percent of each other, and 1018 steel and 304 stainless are within a few percent. If two candidates are both plausible, say so and name both. Monday's lab gives you a second kind of evidence to break the tie.\n\nThe most accurate results in the class earn IDEA Coins."
+        },
+        {
+          "id": "t2",
+          "type": "table",
+          "points": 10,
+          "columns": [
+            {
+              "key": "sample",
+              "tip": "Same identifier you used in Module 1.",
+              "label": "Sample"
+            },
+            {
+              "key": "calc",
+              "tip": "Show the division with your actual numbers, for example 18.24 g / 5.067 cm3.",
+              "label": "Density calculation"
+            },
+            {
+              "key": "density",
+              "tip": "Your result, rounded to the precision your measurements support.",
+              "label": "Measured density (g/cm3)"
+            },
+            {
+              "key": "published",
+              "tip": "The value you looked up for the material you think this is.",
+              "label": "Published density (g/cm3)"
+            },
+            {
+              "key": "source",
+              "tip": "Name the MatWeb entry you used, including the temper or grade, since alloys have several.",
+              "label": "Source"
+            },
+            {
+              "key": "error",
+              "tip": "|measured - published| / published x 100.",
+              "label": "Percent error"
+            },
+            {
+              "key": "hypothesis",
+              "tip": "Which of the six candidates this is, supported by the two density values you just recorded.",
+              "label": "Material ID hypothesis"
+            }
+          ],
+          "minRows": 4,
+          "printRows": 6,
+          "rowImages": false,
+          "statusColumn": false
+        }
+      ],
+      "points": 10,
+      "rubric": [
+        {
+          "id": "c3",
+          "levels": [
+            {
+              "label": "Complete",
+              "points": 4,
+              "descriptor": "Density is computed for all four required samples, each showing the division using the student's own mass and volume values, with the result in g/cm3."
+            },
+            {
+              "label": "Proficient",
+              "points": 3,
+              "descriptor": "Density is computed for all four samples with the division shown on two or three of them, or shown on all four with one arithmetic error."
+            },
+            {
+              "label": "Developing",
+              "points": 1,
+              "descriptor": "Density is computed for two or three samples, or all four are given as results with no division shown anywhere."
+            },
+            {
+              "label": "Absent",
+              "points": 0,
+              "descriptor": "Fewer than two densities are computed, or the units are not mass over volume."
+            }
+          ],
+          "criterion": "Density calculation"
+        },
+        {
+          "id": "c4",
+          "levels": [
+            {
+              "label": "Complete",
+              "points": 3,
+              "descriptor": "All four required samples are compared against a published value with the source entry named, and percent error is computed for each."
+            },
+            {
+              "label": "Proficient",
+              "points": 2,
+              "descriptor": "All four are compared with percent error computed, with the source unnamed on one or more, or three of the four are complete."
+            },
+            {
+              "label": "Absent",
+              "points": 0,
+              "descriptor": "Fewer than three samples are compared against a published value, or no percent error is computed."
+            }
+          ],
+          "criterion": "Published comparison and percent error"
+        },
+        {
+          "id": "c5",
+          "levels": [
+            {
+              "label": "Complete",
+              "points": 3,
+              "descriptor": "An identification is named for each of the four required samples, and each names both the measured density and the published density it was matched to."
+            },
+            {
+              "label": "Proficient",
+              "points": 2,
+              "descriptor": "An identification is named for all four samples, with the supporting density values missing on one or more of them."
+            },
+            {
+              "label": "Absent",
+              "points": 0,
+              "descriptor": "Fewer than four samples are identified, or identifications are given with no reference to density."
+            }
+          ],
+          "criterion": "Initial identification hypothesis"
+        }
+      ],
+      "aiLevel": 2
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
