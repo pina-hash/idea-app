@@ -11,6 +11,7 @@
 	import RevisionHistory from '$lib/classroom/RevisionHistory.svelte';
 	import RubricBuilder from '$lib/classroom/RubricBuilder.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
+	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
 	import type { RevisionTransports } from '$lib/classroom/revisions';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
@@ -560,17 +561,39 @@
 	{/if}
 
 	<!--
-		THE STUDENT'S OWN HAND-IN, and nothing else in this slot.
+		THE ENGINE SLOT: a student's own hand-in, or -- same slot, same position
+		in the reading order -- a manager's read-only view of what that hand-in
+		looks like.
 
-		`canManage` guards it because the engine slice is loaded only for a
-		non-manager (a manager's own RLS read would hand them every student's
-		rows), so a manager reaching the `{:else}` would be told this assignment
-		has no online hand-in -- which is not true, and is not a sentence to put
-		in front of the person who set it. Their window into it is the grading
-		console, in the inspector.
+		A manager gets no `engine` (the STUDENT slice is only ever loaded for a
+		non-manager: their own RLS read would return every student's rows, which
+		this page must never do), so a manager reaching the old `{:else}` was
+		told this assignment has no online hand-in -- which is not true, and is
+		not a sentence to put in front of the person who set it. What they get
+		instead is the spec itself rendered by SpecRenderer's existing `readonly`
+		flag -- the same component and the same flag GradingConsole and
+		SpecImporter's preview already use for a look-but-do-not-touch render, so
+		this is a fourth caller of an existing contract, not a new one. No
+		`onvalue`/`onupload`/etc. are wired up, so there is no dispatch path for a
+		manager's input to reach a write -- readonly is presentational (`canEdit`
+		is `!locked && !readonly`) but every actual mutation still requires a
+		transport this view never receives.
+
+		Editing the spec is still only in the inspector (SpecImporter /
+		RubricBuilder); this only makes the already-loaded `spec` visible where a
+		student would read it.
 	-->
-	{#if item.kind === 'assignment' && !canManage}
-		{#if engine && engineTransports}
+	{#if item.kind === 'assignment'}
+		{#if canManage}
+			{#if spec}
+				<section class="engine-host">
+					<h2 class="section-label">Assignment</h2>
+					{#key item.id}
+						<SpecRenderer {spec} initialValues={{}} readonly uploadEnabled={false} />
+					{/key}
+				</section>
+			{/if}
+		{:else if engine && engineTransports}
 			<section class="engine-host">
 				<h2 class="section-label">Your work</h2>
 				{#key item.id}
