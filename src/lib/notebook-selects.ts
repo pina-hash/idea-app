@@ -62,6 +62,31 @@ export const NOTEBOOK_FOLDER_SELECT = `${NOTEBOOK_NOTES_SELECT}, folder_id`;
 export const NOTEBOOK_FULL_SELECT = `${NOTEBOOK_FOLDER_SELECT}, pinned_at`;
 
 /**
+ * + soft deletion (0116): `deleted_at` on the entry and `removed_at` on each
+ * photo, so the load can drop what has been removed.
+ *
+ * A NEW WIDEST RUNG, WRITTEN OUT IN FULL RATHER THAN COMPOSED ON TOP OF
+ * `NOTEBOOK_FULL_SELECT`, because it widens the PHOTO EMBED as well as the
+ * entry's own column list -- and every rung below it has to keep working
+ * byte-for-byte on a project where 0116 is not applied yet. That is the 0098
+ * lesson stated as a rule: a rung is a schema assertion, so a new capability
+ * gets a new rung and no existing one is edited.
+ *
+ * THE FILTER RIDES THIS RUNG AND ONLY THIS RUNG. `deleted_at` is not a column
+ * on a pre-0116 project, so a `.is('deleted_at', null)` applied unconditionally
+ * would fail EVERY rung -- including the scalar one `configured` is decided on
+ * -- and blank a working notebook over a migration that has not landed. The
+ * load asks `rung.capability === 'deletion'` and filters only then; on any
+ * narrower rung there is nothing marked deleted to exclude, because the column
+ * does not exist.
+ */
+export const NOTEBOOK_DELETION_SELECT = `id, session_id, section_id, custom_label,
+	 upload_timestamp, status, flag_reason, instructor_comment,
+	 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename, removed_at ),
+	 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at ),
+	 folder_id, pinned_at, deleted_at`;
+
+/**
  * Widest first; each entry names the capability its rung adds, so the load can
  * report exactly what it lost rather than one boolean for all of it.
  *
@@ -69,6 +94,7 @@ export const NOTEBOOK_FULL_SELECT = `${NOTEBOOK_FOLDER_SELECT}, pinned_at`;
  * its own" -- failing it is what `configured: false` means.
  */
 export const NOTEBOOK_ENTRY_SELECTS = [
+	{ select: NOTEBOOK_DELETION_SELECT, capability: 'deletion' },
 	{ select: NOTEBOOK_FULL_SELECT, capability: 'pins' },
 	{ select: NOTEBOOK_FOLDER_SELECT, capability: 'folders' },
 	{ select: NOTEBOOK_NOTES_SELECT, capability: 'notes' },
@@ -121,7 +147,26 @@ export const REVIEW_ENTRY_FULL_SELECT = `${REVIEW_ENTRY_NOTES_SELECT}, notebook_
  * is not applied, PostgREST rejects the WHOLE select for an unknown
  * relationship, and an instructor should still be able to review the photos.
  */
+/**
+ * + soft deletion (0116). Same rule as the feed's own widest rung above and for
+ * the same reason: it widens the photo embed as well as the entry's columns, so
+ * it is written out rather than composed, and every rung below it still works
+ * unchanged on a project without 0116.
+ *
+ * The console never FILTERS on these server-side -- it reads ONE entry by id
+ * that the grid has already excluded deleted rows from -- so it only has to be
+ * able to SEE the two stamps: a `deleted_at` that came back non-null means the
+ * cell went stale under an open panel, and a removed photo is dropped from the
+ * list it renders.
+ */
+export const REVIEW_ENTRY_DELETION_SELECT = `id, student_id, session_id, custom_label,
+	 upload_timestamp, status, flag_reason, instructor_comment, deleted_at,
+	 notebook_entry_photos ( id, drive_file_id, variant, sequence_order, original_filename, removed_at ),
+	 notebook_entry_notes ( id, entry_id, note_id, revision, content, created_at ),
+	 notebook_folders ( name )`;
+
 export const REVIEW_ENTRY_SELECTS = [
+	REVIEW_ENTRY_DELETION_SELECT,
 	REVIEW_ENTRY_FULL_SELECT,
 	REVIEW_ENTRY_NOTES_SELECT,
 	REVIEW_ENTRY_PHOTOS_SELECT

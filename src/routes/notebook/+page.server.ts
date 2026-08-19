@@ -53,12 +53,23 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * fails the WHOLE select, so a single wide read would blank a notebook full
 	 * of perfectly readable entries over one missing extra. The rungs and what
 	 * each one adds live in $lib/notebook-selects.
+	 *
+	 * THE DELETED FILTER RIDES THE WIDEST RUNG AND ONLY THE WIDEST RUNG (0116).
+	 * `deleted_at` does not exist on a project without 0116, and PostgREST fails
+	 * a select for an unknown column in a FILTER exactly as it does for one in
+	 * the column list -- so applying `.is('deleted_at', null)` unconditionally
+	 * would fail every rung, the scalar probe `configured` is decided on
+	 * included, and report a fully working notebook as missing. That is the 0098
+	 * failure verbatim. The rung the filter belongs to is the one that can ask
+	 * for the column at all.
 	 */
-	const read = (select: string) =>
-		supabase
+	const read = (select: string, excludeDeleted: boolean) => {
+		const query = supabase
 			.from('notebook_entries')
 			.select(select)
 			.order('upload_timestamp', { ascending: false });
+		return excludeDeleted ? query.is('deleted_at', null) : query;
+	};
 
 	let entryRows: unknown[] | null = null;
 	let entryError: unknown = null;
@@ -67,9 +78,15 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	 * carries it succeeding -- so a capability can only be reported present
 	 * because a read that actually included it came back, never by default.
 	 */
-	const ready: Record<string, boolean> = { pins: false, folders: false, notes: false, photos: false };
+	const ready: Record<string, boolean> = {
+		deletion: false,
+		pins: false,
+		folders: false,
+		notes: false,
+		photos: false
+	};
 	for (const rung of NOTEBOOK_ENTRY_SELECTS) {
-		const result = await read(rung.select);
+		const result = await read(rung.select, rung.capability === 'deletion');
 		entryRows = result.data as unknown[] | null;
 		entryError = result.error;
 		if (!entryError) {
@@ -93,6 +110,13 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	let notesReady = ready.notes;
 	let foldersReady = ready.folders;
 	let pinsReady = ready.pins;
+	/**
+	 * Whether deleted entries and removed photos are being EXCLUDED, which is the
+	 * same question as whether 0116 is applied. False means the notebook renders
+	 * exactly as it did before 0116, which is correct: nothing can be marked
+	 * deleted on a database with no column to mark it in.
+	 */
+	const deletionReady = ready.deletion;
 
 	const entries: NotebookEntry[] = (entryRows ?? []).map((r) => {
 		const row = r as unknown as Record<string, unknown>;
@@ -111,6 +135,10 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 			// is no foreign key between notebook_entries and notebook_sessions for
 			// PostgREST to resolve one through.
 			session: null,
+			// Removed photos (0116) are dropped by `livePhotos` at every render,
+			// count and copy site rather than here, so a surface that reads
+			// `entry.photos` straight cannot miss the filter. A read on a narrower
+			// rung carries no `removed_at` at all, and every photo is live.
 			photos: (row.notebook_entry_photos as NotebookEntry['photos']) ?? [],
 			// Every revision, not just the current one: the feed shows a note's
 			// history, and which revision counts is derived (noteThreads), never
@@ -320,6 +348,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	return {
 		configured,
 		initialCheckIn,
+		deletionReady,
 		photosReady,
 		notesReady,
 		foldersReady,

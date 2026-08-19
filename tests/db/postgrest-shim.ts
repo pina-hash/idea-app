@@ -263,7 +263,7 @@ function quote(identifier: string): string {
 
 interface Filter {
 	column: string;
-	op: 'eq' | 'in';
+	op: 'eq' | 'in' | 'is';
 	value: unknown;
 }
 
@@ -293,6 +293,26 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 
 	in(column: string, values: unknown[]) {
 		this.filters.push({ column, op: 'in', value: values });
+		return this;
+	}
+
+	/**
+	 * PostgREST's `is`, which is how a null test is expressed over the wire --
+	 * `.is('deleted_at', null)` is the soft-delete exclusion every notebook read
+	 * carries since 0116.
+	 *
+	 * It takes the `IS` operator's three real operands and refuses anything else,
+	 * because a shim that quietly accepted `.is(col, 'something')` would be
+	 * modelling a query PostgREST does not answer. A filter on a column that does
+	 * not exist still falls through to the SQL error below, which is exactly what
+	 * a project sitting between two hand-applied migrations produces -- and what
+	 * the loads' degrade paths are written against.
+	 */
+	is(column: string, value: null | boolean) {
+		if (value !== null && typeof value !== 'boolean') {
+			throw new Error(`Unsupported .is() operand: ${String(value)}`);
+		}
+		this.filters.push({ column, op: 'is', value });
 		return this;
 	}
 
@@ -347,6 +367,14 @@ class Query implements PromiseLike<{ data: unknown; error: ShimError | null }> {
 			);
 			const where: string[] = [...innerJoins];
 			for (const filter of ownFilters) {
+				if (filter.op === 'is') {
+					// No parameter: `is null` / `is true` / `is false` are operators
+					// over a literal, not a comparison against a bound value.
+					const operand =
+						filter.value === null ? 'null' : filter.value === true ? 'true' : 'false';
+					where.push(`t.${quote(filter.column)} is ${operand}`);
+					continue;
+				}
 				params.push(filter.value);
 				where.push(
 					filter.op === 'eq'

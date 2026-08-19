@@ -83,11 +83,24 @@ const CHAIN = [
 	'0094_notebook_classroom_sections.sql',
 	'0095_classroom_leveled_rubrics.sql',
 	'0097_notebook_documentation_check.sql',
-	'0098_notebook_session_postings.sql'
+	'0098_notebook_session_postings.sql',
+	'0106_notebook_instructor_student_access.sql',
+	'0114_notebook_note_entry_session.sql',
+	'0116_notebook_soft_delete.sql'
 ];
+
+/**
+ * The same chain without 0116. A class page has to keep working on a project
+ * that has every notebook table but not the newest migration -- and the status
+ * read's `deleted_at` filter names a column that does not exist there, which
+ * PostgREST rejects. Its fallback is hand-written, so it gets its own database
+ * rather than being assumed to behave like the feed's rung loop.
+ */
+const PRE_SOFT_DELETE_CHAIN = CHAIN.filter((m) => m !== '0116_notebook_soft_delete.sql');
 
 let db: TestDb;
 let fks: Awaited<ReturnType<typeof loadForeignKeys>>;
+let preSoftDelete: TestDb;
 
 let teacher: SeededUser;
 /** The pinned owner (0067). Excusing is admin-only, so it takes the chair. */
@@ -116,10 +129,19 @@ interface LoadResult {
 
 /** Calls the REAL class page load the way SvelteKit would. */
 function runLoad(user: SeededUser, sectionId: string): Promise<LoadResult> {
+	return runLoadOn(db, fks, user, sectionId);
+}
+
+function runLoadOn(
+	database: TestDb,
+	keys: Awaited<ReturnType<typeof loadForeignKeys>>,
+	user: SeededUser,
+	sectionId: string
+): Promise<LoadResult> {
 	return (load as unknown as (event: unknown) => Promise<LoadResult>)({
 		params: { sectionId },
 		locals: {
-			supabase: createPostgrestShim(db, fks, user.id),
+			supabase: createPostgrestShim(database, keys, user.id),
 			claims: { sub: user.id, email: user.email, role: 'authenticated' }
 		}
 	});
@@ -198,6 +220,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await db?.stop();
+	await preSoftDelete?.stop();
 });
 
 // ---------------------------------------------------------------------------
@@ -349,6 +372,86 @@ describe('a student sees their own status and nobody else’s', () => {
 		// unreadable, so the page 404s before any check-in read happens.
 		await expect(runLoad(other, p1)).rejects.toMatchObject({ status: 404 });
 	});
+
+	it('a DELETED entry stops counting as filed, and its neighbour does not move', async () => {
+		// Bruno filed against the solo check-in and Alice did not, so Bruno is the
+		// row that changes and Alice is the control that must not.
+		const before = await runLoad(bruno, p1);
+		const aliceBefore = await runLoad(alice, p1);
+		expect(before.checkIns.find((c) => c.session_id === soloCheckIn)!.status).toBe('filed');
+
+		const entryId = (
+			await db.sql<{ id: string }>(
+				`select id from public.notebook_entries
+				 where student_id = $1 and session_id = $2 and section_id = $3`,
+				[bruno.id, soloCheckIn, p1]
+			)
+		).rows[0].id;
+		await db.asUser(bruno.id, (q) =>
+			q('select public.notebook_delete_entry($1)', [entryId])
+		);
+
+		const after = await runLoad(bruno, p1);
+		const aliceAfter = await runLoad(alice, p1);
+		// GONE: the card reads missing again, and the count went up by one.
+		expect(after.checkIns.find((c) => c.session_id === soloCheckIn)!.status).toBe('missing');
+		expect(outstandingCheckIns(after.checkIns)).toBe(
+			outstandingCheckIns(before.checkIns) + 1
+		);
+		// THERE: Alice's own statuses are byte-identical, so this is Bruno's
+		// deletion and not a read that started answering with nothing.
+		expect(aliceAfter.checkIns.map((c) => [c.session_id, c.status])).toEqual(
+			aliceBefore.checkIns.map((c) => [c.session_id, c.status])
+		);
+		// The row is still in the table: soft, as promised.
+		expect(
+			await countRows('notebook_entries', `id = '${entryId}'`)
+		).toBe(1);
+	});
+});
+
+describe('a class page on a project without 0116', () => {
+	it('still reports a filed check-in as filed', async () => {
+		preSoftDelete = await startTestDb(PRE_SOFT_DELETE_CHAIN);
+		const keys = await loadForeignKeys(preSoftDelete);
+		const t = await createUser(preSoftDelete, 'teacher@boscotech.edu', 'Terry Teacher');
+		const s = await createUser(preSoftDelete, 'student@boscotech.net', 'Sam Student');
+		const sectionId = await createClassroomSection(preSoftDelete, {
+			as: t,
+			courseCode: 'IDEA209H',
+			label: 'Period 9',
+			teacherEmail: t.email
+		});
+		await enrollStudent(preSoftDelete, {
+			as: t,
+			sectionId,
+			email: s.email,
+			displayName: 'Student, Sam'
+		});
+		const sessionId = await preSoftDelete.asUser(t.id, async (q) => {
+			const { rows } = await q<{ result: { session_id: string } }>(
+				'select public.notebook_admin_upsert_session($1::uuid[], $2, $3::date, $4) as result',
+				[[sectionId], 1, '2026-05-01', 'Pre-0116 check-in']
+			);
+			return rows[0].result.session_id;
+		});
+		await preSoftDelete.asUser(s.id, (q) =>
+			q('select public.notebook_create_entry($1, $2, $3, $4, $5, $6)', [
+				s.id,
+				'drive-pre-0116',
+				sessionId,
+				sectionId,
+				null,
+				'page.jpg'
+			])
+		);
+
+		// The filtered read fails on the missing column; the fallback is what
+		// answers. Without it every card on the page would read "missing" with no
+		// error anywhere -- a wrong answer nobody would go looking for.
+		const result = await runLoadOn(preSoftDelete, keys, s, sectionId);
+		expect(result.checkIns.find((c) => c.session_id === sessionId)!.status).toBe('filed');
+	}, 180_000);
 });
 
 // ---------------------------------------------------------------------------

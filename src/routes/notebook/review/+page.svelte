@@ -155,6 +155,20 @@
 			if (error) return fail(error, 'Could not load that entry.');
 			if (!row) return { ok: false, error: 'That entry is no longer available.' };
 			const r = row as unknown as Record<string, unknown>;
+			/**
+			 * A DELETED ENTRY IS NOT REVIEWABLE (0116). The grid already excludes
+			 * them, so the only way to arrive here holding one is a cell that went
+			 * stale under an open panel -- a student removing an entry while its
+			 * instructor has it up. The row is still READABLE (0116 leaves
+			 * notebook_can_read_entry alone on purpose, so a reversal can show its
+			 * contents), which is exactly why the refusal has to be stated here
+			 * rather than assumed from an empty result.
+			 *
+			 * `deleted_at` is undefined on a narrower rung, where the column does
+			 * not exist and nothing can be deleted -- so this can only ever fire on
+			 * a real stamp.
+			 */
+			if (r.deleted_at) return { ok: false, error: 'That entry has been deleted.' };
 			return {
 				ok: true,
 				value: {
@@ -167,6 +181,9 @@
 					flag_reason: (r.flag_reason as NotebookFlagReason | null) ?? null,
 					instructor_comment: (r.instructor_comment as string | null) ?? null,
 					folder_name: (r.notebook_folders as { name?: string } | null)?.name ?? null,
+					// Removed photos are dropped by `livePhotos` wherever this list is
+					// rendered or counted (NotebookPhotos, photoPages), the same one
+					// filter the student's own feed goes through.
 					photos: (r.notebook_entry_photos as NotebookPhoto[]) ?? [],
 					notes: (r.notebook_entry_notes as ReviewEntry['notes']) ?? []
 				}

@@ -172,13 +172,34 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 
 	if (checkInRows?.length && !canManage) {
 		const sessionIds = checkInRows.map((c) => c.session_id);
+		/**
+		 * DELETED ENTRIES ARE EXCLUDED (0116), AND THE FILTER DEGRADES.
+		 *
+		 * Without the exclusion a student who removed a check-in entry would keep
+		 * reading as "filed" on their own class page -- and a deleted FLAGGED
+		 * entry would keep the card red for work that is no longer there.
+		 *
+		 * The retry is not caution: `deleted_at` does not exist before 0116, and
+		 * PostgREST rejects a filter on an unknown column, so a single filtered
+		 * read would come back empty on a pre-0116 project and every check-in on
+		 * the page would silently read "missing" -- a wrong answer with no error
+		 * anywhere, which is the worst shape this failure can take. So the
+		 * filtered read is tried first and the original is the fallback.
+		 */
+		const readEntries = async () => {
+			const base = () =>
+				supabase
+					.from('notebook_entries')
+					.select('session_id, status, flag_reason')
+					.eq('student_id', claims.sub)
+					.eq('section_id', params.sectionId)
+					.in('session_id', sessionIds);
+			const filtered = await base().is('deleted_at', null);
+			if (!filtered.error) return filtered;
+			return base();
+		};
 		const [{ data: entryRows }, { data: excusalRows }] = await Promise.all([
-			supabase
-				.from('notebook_entries')
-				.select('session_id, status, flag_reason')
-				.eq('student_id', claims.sub)
-				.eq('section_id', params.sectionId)
-				.in('session_id', sessionIds),
+			readEntries(),
 			supabase
 				.from('notebook_session_excusals')
 				.select('session_id')

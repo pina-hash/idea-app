@@ -54,11 +54,12 @@ import {
 	NOTEBOOK_SESSION_SELECT,
 	REVIEW_ENTRY_SELECTS
 } from '../src/lib/notebook-selects';
+import { livePhotos, photoPages } from '../src/lib/notebook';
 import type { NotebookEntry, NotebookSession } from '../src/lib/notebook';
 import type { NotebookFolder } from '../src/lib/notebook-folders';
 import { load } from '../src/routes/notebook/+page.server';
 
-/** The chain the LIVE project carries: 0069 through 0099, on its dependencies. */
+/** The chain the LIVE project carries: 0069 through 0116, on its dependencies. */
 const FULL_CHAIN = [
 	'0001_profiles.sql',
 	'0003_profile_section.sql',
@@ -76,8 +77,20 @@ const FULL_CHAIN = [
 	'0091_notebook_pin_and_activity.sql',
 	'0094_notebook_classroom_sections.sql',
 	'0098_notebook_session_postings.sql',
-	'0099_notebook_view_as.sql'
+	'0099_notebook_view_as.sql',
+	'0106_notebook_instructor_student_access.sql',
+	'0114_notebook_note_entry_session.sql',
+	'0116_notebook_soft_delete.sql'
 ];
+
+/**
+ * The same chain, one migration short. A project that has every notebook table
+ * but not 0116 is a real state -- migrations here are pasted in by hand -- and
+ * it is the state the soft-delete filter could break, because `deleted_at` is
+ * not a column there and PostgREST rejects a filter naming one that does not
+ * exist. That is the 0098 failure exactly: one filter blanking a working page.
+ */
+const PRE_SOFT_DELETE_CHAIN = FULL_CHAIN.filter((m) => m !== '0116_notebook_soft_delete.sql');
 
 /**
  * A project with the notebook's DEPENDENCIES but not one notebook migration --
@@ -95,6 +108,7 @@ const NO_NOTEBOOK_CHAIN = [
 
 let db: TestDb;
 let bare: TestDb;
+let preSoftDelete: TestDb;
 let fks: Awaited<ReturnType<typeof loadForeignKeys>>;
 
 let alice: SeededUser;
@@ -103,6 +117,9 @@ let sectionId: string;
 let checkInId: string;
 let linkedEntryId: string;
 let freeEntryId: string;
+let deletedEntryId: string; // must vanish from the feed
+let removedPhotoId: string; // must vanish from its entry's photo list
+let keptPhotoId: string; // its live sibling: the control
 
 /**
  * What the load hands the page. Written out rather than derived from
@@ -113,6 +130,7 @@ let freeEntryId: string;
  */
 interface LoadResult {
 	configured: boolean;
+	deletionReady: boolean;
 	photosReady: boolean;
 	notesReady: boolean;
 	foldersReady: boolean;
@@ -209,11 +227,44 @@ beforeAll(async () => {
 		await q('select public.notebook_upsert_folder($1, $2, $3)', ['Unit 3', 'gold', null]);
 		await q('select public.notebook_set_entry_pinned($1, true)', [freeEntryId]);
 	});
+
+	// A third entry, DELETED through the real RPC, and a second photo on the
+	// linked entry, REMOVED through the real RPC (0116). Both are the negative
+	// half of the assertions below; freeEntryId and the linked entry's first
+	// photo are the positive half.
+	deletedEntryId = await db.asUser(alice.id, async (q) => {
+		const { rows } = await q<{ result: { entry_id: string } }>(
+			'select public.notebook_create_entry($1, $2, null, null, $3, $4) as result',
+			[alice.id, 'drive-alice-deleted', 'Removed by mistake', 'IMG_0099.jpg']
+		);
+		return rows[0].result.entry_id;
+	});
+	await db.asUser(alice.id, (q) =>
+		q('select public.notebook_delete_entry($1)', [deletedEntryId])
+	);
+
+	keptPhotoId = (
+		await db.sql<{ id: string }>(
+			'select id from public.notebook_entry_photos where entry_id = $1',
+			[linkedEntryId]
+		)
+	).rows[0].id;
+	removedPhotoId = await db.asUser(alice.id, async (q) => {
+		const { rows } = await q<{ result: { photo_id: string } }>(
+			'select public.notebook_add_photo($1, $2, $3, $4) as result',
+			[linkedEntryId, 'drive-alice-page2', 'original', 'IMG_0043.jpg']
+		);
+		return rows[0].result.photo_id;
+	});
+	await db.asUser(alice.id, (q) =>
+		q('select public.notebook_remove_photo($1)', [removedPhotoId])
+	);
 }, 180_000);
 
 afterAll(async () => {
 	await db?.stop();
 	await bare?.stop();
+	await preSoftDelete?.stop();
 });
 
 /**
@@ -295,7 +346,7 @@ describe('the shipped select strings against the real schema', () => {
 	});
 });
 
-describe('the real load against the full chain (0069 through 0099)', () => {
+describe('the real load against the full chain (0069 through 0116)', () => {
 	let result: LoadResult;
 	beforeAll(async () => {
 		result = await runLoad(db, fks, alice);
@@ -304,6 +355,7 @@ describe('the real load against the full chain (0069 through 0099)', () => {
 	it('reports the notebook available, with every capability present', () => {
 		// The headline: this is the assertion that was false in production.
 		expect(result.configured).toBe(true);
+		expect(result.deletionReady).toBe(true);
 		expect(result.photosReady).toBe(true);
 		expect(result.notesReady).toBe(true);
 		expect(result.foldersReady).toBe(true);
@@ -312,6 +364,8 @@ describe('the real load against the full chain (0069 through 0099)', () => {
 	});
 
 	it('returns the student’s own entries, newest first', () => {
+		// The deleted one is absent -- see the soft-delete block below, which owns
+		// that claim and its positive control.
 		expect(result.entries.map((e) => e.id).sort()).toEqual([freeEntryId, linkedEntryId].sort());
 		const stamps = result.entries.map((e) => e.upload_timestamp);
 		expect([...stamps].sort().reverse()).toEqual(stamps);
@@ -331,9 +385,14 @@ describe('the real load against the full chain (0069 through 0099)', () => {
 
 	it('carries photos, notes, folders and the pin stamp', () => {
 		const linked = result.entries.find((e) => e.id === linkedEntryId);
-		expect(linked?.photos).toHaveLength(1);
-		expect(linked?.photos[0].drive_file_id).toBe('drive-alice-1');
-		expect(linked?.photos[0].original_filename).toBe('IMG_0042.jpg');
+		// Through `livePhotos`, which is what every surface renders and count
+		// goes through: the load carries the removed second page as a row too,
+		// and the shared filter is what makes this entry one page long. The claim
+		// is unchanged -- the photo the page shows is the real one.
+		const pages = livePhotos(linked?.photos ?? []);
+		expect(pages).toHaveLength(1);
+		expect(pages[0].drive_file_id).toBe('drive-alice-1');
+		expect(pages[0].original_filename).toBe('IMG_0042.jpg');
 
 		const free = result.entries.find((e) => e.id === freeEntryId);
 		expect(free?.notes).toHaveLength(1);
@@ -412,6 +471,87 @@ describe('the real load against the full chain (0069 through 0099)', () => {
 	});
 });
 
+describe('soft deletion (0116) is excluded from the feed', () => {
+	let result: LoadResult;
+	beforeAll(async () => {
+		result = await runLoad(db, fks, alice);
+	});
+
+	it('drops the deleted entry and keeps the live ones', async () => {
+		const ids = result.entries.map((e) => e.id);
+		const raw = await db.sql<{ n: string }>(
+			'select count(*) as n from public.notebook_entries where student_id = $1',
+			[alice.id]
+		);
+		// GONE...
+		expect(ids).not.toContain(deletedEntryId);
+		// ...THERE, both of them, so a load that simply returned nothing cannot
+		// pass this by accident.
+		expect(ids).toContain(freeEntryId);
+		expect(ids).toContain(linkedEntryId);
+		// And the row it dropped really is in the table: 3 stored, 2 shown.
+		expect(raw.rows[0].n).toBe('3');
+		expect(ids).toHaveLength(2);
+	});
+
+	it('drops the removed photo and keeps its live sibling', async () => {
+		const linked = result.entries.find((e) => e.id === linkedEntryId);
+		const stored = await db.sql<{ n: string }>(
+			'select count(*) as n from public.notebook_entry_photos where entry_id = $1',
+			[linkedEntryId]
+		);
+		// The load carries BOTH rows -- the exclusion is `livePhotos`, applied at
+		// every render, count and copy site -- so this asserts the stamp is
+		// present and that the shared filter drops exactly one of them.
+		expect(stored.rows[0].n).toBe('2');
+		const ids = (linked?.photos ?? []).map((p) => p.id);
+		expect(ids).toContain(keptPhotoId);
+		expect(ids).toContain(removedPhotoId);
+		expect(livePhotos(linked?.photos ?? []).map((p) => p.id)).toEqual([keptPhotoId]);
+		expect(photoPages(linked?.photos ?? [])).toHaveLength(1);
+	});
+
+	it('the activity list drops the deleted entry too', () => {
+		const ids = result.activity.map((a) => a.id);
+		expect(ids).not.toContain(deletedEntryId);
+		expect(ids.sort()).toEqual([freeEntryId, linkedEntryId].sort());
+	});
+});
+
+describe('a project with every notebook table but not 0116', () => {
+	let result: LoadResult;
+	beforeAll(async () => {
+		preSoftDelete = await startTestDb(PRE_SOFT_DELETE_CHAIN);
+		const keys = await loadForeignKeys(preSoftDelete);
+		const student = await createUser(preSoftDelete, 'alice@boscotech.net', 'Alice Alvarez');
+		await preSoftDelete.asUser(student.id, (q) =>
+			q('select public.notebook_create_note_entry($1::jsonb, $2, null, null)', [
+				JSON.stringify([{ type: 'p', runs: [{ text: 'Still here.' }] }]),
+				'Pre-0116 entry'
+			])
+		);
+		result = await runLoad(preSoftDelete, keys, student);
+	}, 180_000);
+
+	it('still loads, with the entry present and only the deletion capability off', () => {
+		// THE WHOLE POINT. A filter naming a column that does not exist fails the
+		// select, and an unconditional one would have failed every rung including
+		// the scalar probe -- reporting a working notebook as missing, which is
+		// the 0098 bug verbatim.
+		expect(result.configured).toBe(true);
+		expect(result.deletionReady).toBe(false);
+		expect(result.entries).toHaveLength(1);
+		expect(result.entries[0].custom_label).toBe('Pre-0116 entry');
+		// Every OTHER capability is unaffected: the rung below the new one carries
+		// them all, exactly as it did before 0116 existed.
+		expect(result.photosReady).toBe(true);
+		expect(result.notesReady).toBe(true);
+		expect(result.foldersReady).toBe(true);
+		expect(result.pinsReady).toBe(true);
+		expect(result.sessionsReady).toBe(true);
+	});
+});
+
 describe('a database that genuinely has no notebook tables', () => {
 	let result: LoadResult;
 	beforeAll(async () => {
@@ -427,6 +567,7 @@ describe('a database that genuinely has no notebook tables', () => {
 	});
 
 	it('leaves every capability off and every list empty', () => {
+		expect(result.deletionReady).toBe(false);
 		expect(result.photosReady).toBe(false);
 		expect(result.notesReady).toBe(false);
 		expect(result.foldersReady).toBe(false);

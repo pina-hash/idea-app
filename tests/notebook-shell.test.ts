@@ -10,7 +10,18 @@ import {
 } from '../src/lib/notebook/notebook-shell';
 import { SPLIT_MIN_PX } from '../src/lib/shell/split.svelte';
 import { REVEAL_VIEWPORT_FRACTION, shouldReveal } from '../src/lib/shell/reveal';
-import type { NotebookEntry, StagedPhoto } from '../src/lib/notebook';
+import { livePhotos, orderedPhotos, photoPages } from '../src/lib/notebook';
+import {
+	NOTEBOOK_ENTRY_SELECTS,
+	NOTEBOOK_FOLDER_SELECT,
+	NOTEBOOK_FULL_SELECT,
+	NOTEBOOK_NOTES_SELECT,
+	NOTEBOOK_PHOTOS_SELECT,
+	NOTEBOOK_SCALAR_SELECT,
+	REVIEW_ENTRY_SELECTS,
+	REVIEW_ENTRY_FULL_SELECT
+} from '../src/lib/notebook-selects';
+import type { NotebookEntry, NotebookPhoto, StagedPhoto } from '../src/lib/notebook';
 
 /**
  * THE NOTEBOOK ON THE TWO-PANE SHELL, asserted where it fails SILENTLY.
@@ -456,5 +467,128 @@ describe('bringing the detail pane into view', () => {
 			// split cannot reveal the wrong one.
 			expect(src).toMatch(/<ClassSplit[\s\S]{0,200}?bind:detailEl/);
 		}
+	});
+});
+
+
+/* ===========================================================================
+ * SOFT DELETION, CLIENT SIDE (0116).
+ *
+ * The database's own filters are covered against a real Postgres
+ * (tests/notebook-soft-delete.test.ts). These are the client's half of the same
+ * sweep: the one place a removed photo is dropped, and the ladder rule that
+ * keeps a pre-0116 project working.
+ * ======================================================================== */
+
+function photo(over: Partial<NotebookPhoto> = {}): NotebookPhoto {
+	return {
+		id: 'p-1',
+		drive_file_id: 'drive-1',
+		variant: 'original',
+		sequence_order: 1,
+		original_filename: 'page.jpg',
+		...over
+	};
+}
+
+describe('a removed photo is dropped wherever photos are rendered or counted', () => {
+	it('livePhotos keeps the live one and drops the removed one', () => {
+		const kept = photo({ id: 'live' });
+		const gone = photo({ id: 'gone', sequence_order: 2, removed_at: '2026-08-10T00:00:00Z' });
+		expect(livePhotos([kept, gone]).map((p) => p.id)).toEqual(['live']);
+	});
+
+	it('a photo with NO removed_at field at all is live -- the pre-0116 read', () => {
+		// A narrower rung of the ladder cannot select a column that does not
+		// exist, so `undefined` has to mean live or every photo on a pre-0116
+		// project would vanish.
+		const rows = [photo({ id: 'a' }), photo({ id: 'b', sequence_order: 2 })];
+		for (const row of rows) expect('removed_at' in row).toBe(false);
+		expect(livePhotos(rows).map((p) => p.id)).toEqual(['a', 'b']);
+	});
+
+	it('photoPages and orderedPhotos both go through it', () => {
+		const kept = photo({ id: 'live' });
+		const gone = photo({ id: 'gone', sequence_order: 2, removed_at: '2026-08-10T00:00:00Z' });
+		const third = photo({ id: 'third', sequence_order: 3 });
+
+		expect(photoPages([kept, gone, third]).map((p) => p.original?.id)).toEqual(['live', 'third']);
+		// Page NUMBERS close up: two pages, numbered 1 and 2, not 1 and 3.
+		expect(photoPages([kept, gone, third]).map((p) => p.page)).toEqual([1, 2]);
+		expect(orderedPhotos(entry({ photos: [kept, gone, third] })).map((p) => p.id)).toEqual([
+			'live',
+			'third'
+		]);
+	});
+
+	it('a removed ORIGINAL leaves its enhanced as its own page rather than vanishing', () => {
+		const original = photo({ id: 'orig', removed_at: '2026-08-10T00:00:00Z' });
+		const enhanced = photo({ id: 'enh', variant: 'enhanced', sequence_order: 2 });
+		const pages = photoPages([original, enhanced]);
+		expect(pages).toHaveLength(1);
+		expect(pages[0].original).toBeNull();
+		expect(pages[0].enhanced?.id).toBe('enh');
+	});
+});
+
+describe('the select ladders gained a rung rather than growing one', () => {
+	it('the feed ladder is widest-first with deletion on top and nothing below it edited', () => {
+		expect(NOTEBOOK_ENTRY_SELECTS.map((r) => r.capability)).toEqual([
+			'deletion',
+			'pins',
+			'folders',
+			'notes',
+			'photos',
+			null
+		]);
+		// The four rungs that predate 0116 are byte-identical to their own
+		// constants, so a project without 0116 reads exactly what it always did.
+		expect(NOTEBOOK_ENTRY_SELECTS[1].select).toBe(NOTEBOOK_FULL_SELECT);
+		expect(NOTEBOOK_ENTRY_SELECTS[2].select).toBe(NOTEBOOK_FOLDER_SELECT);
+		expect(NOTEBOOK_ENTRY_SELECTS[3].select).toBe(NOTEBOOK_NOTES_SELECT);
+		expect(NOTEBOOK_ENTRY_SELECTS[4].select).toBe(NOTEBOOK_PHOTOS_SELECT);
+		expect(NOTEBOOK_ENTRY_SELECTS[5].select).toBe(NOTEBOOK_SCALAR_SELECT);
+	});
+
+	it('only the widest rung names the two new columns', () => {
+		const [widest, ...rest] = NOTEBOOK_ENTRY_SELECTS;
+		expect(widest.select).toMatch(/deleted_at/);
+		expect(widest.select).toMatch(/removed_at/);
+		for (const rung of rest) {
+			expect(rung.select).not.toMatch(/deleted_at/);
+			expect(rung.select).not.toMatch(/removed_at/);
+		}
+	});
+
+	it('the review ladder did the same, and its old widest rung is untouched', () => {
+		expect(REVIEW_ENTRY_SELECTS[0]).toMatch(/deleted_at/);
+		expect(REVIEW_ENTRY_SELECTS[0]).toMatch(/removed_at/);
+		expect(REVIEW_ENTRY_SELECTS[1]).toBe(REVIEW_ENTRY_FULL_SELECT);
+		for (const select of REVIEW_ENTRY_SELECTS.slice(1)) {
+			expect(select).not.toMatch(/deleted_at/);
+			expect(select).not.toMatch(/removed_at/);
+		}
+	});
+
+	it('the feed load filters ONLY on the rung that can ask for the column', () => {
+		// The filter and the rung it belongs to live in two files, and the failure
+		// -- a working notebook reported as missing -- has no error anywhere.
+		const load = read('src/routes/notebook/+page.server.ts');
+		expect(load).toMatch(/rung\.capability === 'deletion'/);
+		expect(load).toMatch(/excludeDeleted \? query\.is\('deleted_at', null\) : query/);
+	});
+
+	it('the class page falls back when the filter is refused', () => {
+		const layout = read('src/routes/classroom/[sectionId]/+layout.server.ts');
+		expect(layout).toMatch(/\.is\('deleted_at', null\)/);
+		// The fallback, without which every card reads "missing" on a pre-0116
+		// project with nothing raised anywhere.
+		expect(layout).toMatch(/if \(!filtered\.error\) return filtered;/);
+		expect(layout).toMatch(/return base\(\);/);
+	});
+
+	it('the review console refuses to open a deleted entry', () => {
+		const console_ = read('src/routes/notebook/review/+page.svelte');
+		expect(console_).toMatch(/if \(r\.deleted_at\) return \{ ok: false/);
 	});
 });

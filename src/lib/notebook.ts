@@ -33,6 +33,17 @@ export interface NotebookPhoto {
 	variant: 'original' | 'enhanced';
 	sequence_order: number;
 	original_filename: string | null;
+	/**
+	 * When the student removed this photo, or null (0116). Soft: the row and the
+	 * Drive file both survive, so this is the only thing that says it is gone.
+	 *
+	 * OPTIONAL, and it means two different things when it is absent. `null` is a
+	 * live photo; `undefined` is a read that predates 0116 or ran against a
+	 * project without it -- there is nothing removed to exclude in that case,
+	 * because the column does not exist. `livePhotos` below treats both as live,
+	 * which is why every narrower rung of the select ladder keeps working.
+	 */
+	removed_at?: string | null;
 }
 
 /** A notebook_sessions row: an instructor-scheduled required check-in. */
@@ -308,9 +319,27 @@ export function entryPlainText(entry: NotebookEntry): string {
 	return parts.join('\n\n');
 }
 
+/**
+ * The photos that are still part of an entry (0116).
+ *
+ * THE ONE PLACE A REMOVED PHOTO IS DROPPED CLIENT-SIDE, and it is deliberately
+ * the narrowest function both other helpers below are built on rather than a
+ * filter each caller remembers: `photoPages` and `orderedPhotos` are what every
+ * surface goes through to render, count or copy an entry's photos, so filtering
+ * here covers all of them and a new consumer inherits it.
+ *
+ * A photo with NO `removed_at` field at all is live. That is the pre-0116 read
+ * (a narrower rung of the select ladder, which cannot ask for a column that is
+ * not there), and it is correct: nothing can have been removed on a project
+ * where nothing can be marked removed.
+ */
+export function livePhotos(photos: NotebookPhoto[]): NotebookPhoto[] {
+	return photos.filter((p) => !p.removed_at);
+}
+
 /** Photos in upload order, so a multi-page entry reads page 1 first. */
 export function orderedPhotos(entry: NotebookEntry): NotebookPhoto[] {
-	return [...entry.photos].sort((a, b) => a.sequence_order - b.sequence_order);
+	return livePhotos(entry.photos).sort((a, b) => a.sequence_order - b.sequence_order);
 }
 
 /**
@@ -335,7 +364,12 @@ export interface PhotoPage {
 }
 
 export function photoPages(photos: NotebookPhoto[]): PhotoPage[] {
-	const ordered = [...photos].sort((a, b) => a.sequence_order - b.sequence_order);
+	// Removed photos are dropped HERE as well as in orderedPhotos, and not only
+	// as belt-and-braces: several surfaces hand this function a photo list they
+	// read straight off an entry, so the pagination has to be able to stand on
+	// its own. A removed ORIGINAL whose 'enhanced' survives falls through to the
+	// orphan branch below, which is the honest rendering of that state.
+	const ordered = livePhotos(photos).sort((a, b) => a.sequence_order - b.sequence_order);
 	const pages: PhotoPage[] = [];
 	for (const p of ordered) {
 		const current = pages[pages.length - 1];
