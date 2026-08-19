@@ -1,28 +1,36 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import { execSync } from 'node:child_process';
 import { defineConfig, type Plugin } from 'vite';
-import { appsForCommit, classifyNote, APPS } from './src/lib/site-manifest';
+import { buildSiteVersions, GIT_LOG_FORMAT } from './src/lib/site-versions';
 
 /**
  * Version + changelog substrate: exposes `virtual:site-versions`, generated
- * from the FULL git commit history at build / dev-server start (so it updates
- * on every deploy with zero manual steps). Each commit is mapped to the
- * page(s)/app(s) it touched via the route-to-path manifest in
+ * from the git commit history at build / dev-server start (so it updates on
+ * every deploy with zero manual steps). Each commit is mapped to the page(s) /
+ * app(s) it touched via the route-to-path manifest in
  * `src/lib/site-manifest.ts`, and classified into a change type from its
- * subject. Per-app versions are derived from the count of commits touching
- * that app's paths, so a version bumps automatically whenever a deploy
- * includes commits for that app. Commit subjects are user-facing changelog
- * copy; write them as readable changelog lines.
+ * subject. Commit subjects are user-facing changelog copy; write them as
+ * readable changelog lines.
  *
- * On Vercel, set `VERCEL_DEEP_CLONE=true` so the build clones full history
- * (a shallow clone still works; versions then derive from the available
- * depth). No git at all fails soft to an empty changelog and 'dev' badges.
+ * THIS FILE ONLY GATHERS. Every rule about what the numbers MEAN -- how a log
+ * is parsed, when a commit count is a version and when it is not, which sha
+ * names the build -- lives in `src/lib/site-versions.ts`, which is pure and
+ * unit-tested. A build config is the one file in the repo a test cannot reach,
+ * so it holds nothing worth testing: it runs git, asks the environment two
+ * questions, and hands the answers over.
+ *
+ * WHETHER THE HISTORY IS COMPLETE IS PART OF THE ANSWER, NOT A DETAIL. Per-app
+ * versions are commit COUNTS, and a count taken over a shallow clone is a
+ * sliding window that moves BACKWARDS as unrelated commits land. Vercel
+ * shallow-clones by default, so `git rev-parse --is-shallow-repository` is
+ * asked on every build and the result travels with the data; a truncated
+ * history yields no version number at all rather than a smaller one. Set
+ * `VERCEL_DEEP_CLONE=true` on the project to restore them -- and the build says
+ * so, loudly, every time it has to withhold one.
  */
 function siteVersionsPlugin(): Plugin {
 	const virtualId = 'virtual:site-versions';
 	const resolvedId = '\0' + virtualId;
-	const REC = '\x1e';
-	const F = '\x1f';
 
 	return {
 		name: 'idea-site-versions',
@@ -32,70 +40,40 @@ function siteVersionsPlugin(): Plugin {
 		load(id) {
 			if (id !== resolvedId) return;
 
-			interface Entry {
-				sha: string;
-				date: string;
-				iso: string;
-				note: string;
-				type: string;
-				apps: string[];
-			}
-			let entries: Entry[] = [];
+			let raw = '';
+			let complete = false;
 			try {
-				const out = execSync(
-					`git log --no-merges --date=format:"%b %e, %Y" --pretty=format:"${REC}%h${F}%cd${F}%cI${F}%s" --name-only`,
+				raw = execSync(
+					`git log --no-merges --date=format:"%b %e, %Y" --pretty=format:"${GIT_LOG_FORMAT}" --name-only`,
 					{ encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
 				);
-				entries = out
-					.split(REC)
-					.map((record) => {
-						const lines = record.split('\n');
-						const [sha, date, iso, note] = (lines[0] ?? '').split(F);
-						const files = lines
-							.slice(1)
-							.map((l) => l.trim())
-							.filter(Boolean);
-						return {
-							sha: (sha ?? '').trim(),
-							date: (date ?? '').trim().replace(/\s+/g, ' '),
-							iso: (iso ?? '').trim().slice(0, 10),
-							note: (note ?? '').trim(),
-							type: classifyNote(note ?? ''),
-							apps: appsForCommit(files)
-						};
-					})
-					.filter((e) => e.sha.length > 0 && e.note.length > 0);
+				complete =
+					execSync('git rev-parse --is-shallow-repository', { encoding: 'utf8' }).trim() ===
+					'false';
 			} catch {
-				// No git history available (e.g. some CI checkouts): fail soft.
-				entries = [];
+				// No git history available (e.g. some CI checkouts): fail soft, but
+				// not silently -- see the warning below.
+				raw = '';
+				complete = false;
 			}
 
-			// Per-app version: commit count across the whole history (newest first,
-			// so the first hit per app is its latest commit).
-			const apps: Record<string, { version: string; count: number; lastSha: string; lastDate: string }> =
-				{};
-			for (const a of APPS) apps[a.id] = { version: 'v1.0', count: 0, lastSha: '', lastDate: '' };
-			for (const e of entries) {
-				for (const id of e.apps) {
-					const s = apps[id] ?? (apps[id] = { version: 'v1.0', count: 0, lastSha: '', lastDate: '' });
-					s.count += 1;
-					if (!s.lastSha) {
-						s.lastSha = e.sha;
-						s.lastDate = e.date;
-					}
-				}
-			}
-			for (const id of Object.keys(apps)) apps[id].version = `v1.${apps[id].count}`;
+			const site = buildSiteVersions(raw, {
+				complete,
+				envSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null
+			});
 
-			const deploy = {
-				sha: entries[0]?.sha ?? 'dev',
-				date: entries[0]?.date ?? ''
-			};
+			if (!complete) {
+				this.warn(
+					`[site-versions] ${raw ? 'shallow git clone' : 'no git history'}: build stamped ` +
+						`${site.deploy.sha} with NO version numbers. A commit count over a truncated ` +
+						`history decreases as commits land. Set VERCEL_DEEP_CLONE=true to restore them.`
+				);
+			}
 
 			return [
-				`export const entries = ${JSON.stringify(entries)};`,
-				`export const apps = ${JSON.stringify(apps)};`,
-				`export const deploy = ${JSON.stringify(deploy)};`
+				`export const entries = ${JSON.stringify(site.entries)};`,
+				`export const apps = ${JSON.stringify(site.apps)};`,
+				`export const deploy = ${JSON.stringify(site.deploy)};`
 			].join('\n');
 		}
 	};

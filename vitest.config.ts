@@ -16,10 +16,17 @@ import { fileURLToPath } from 'node:url';
  * .svelte files for every run costs a few hundred milliseconds against the
  * ~7 seconds each DB file already spends booting Postgres.
  *
- * The two aliases below are the minimum needed to import a REAL server route
+ * The aliases below are the minimum needed to import a REAL server route
  * handler (rather than a copy of it) into a test: SvelteKit's `$lib` path and
  * its `$env/dynamic/private` module. Nothing else from the app's build is
  * pulled in.
+ *
+ * `virtual:site-versions` is the third, and it is here for the same reason as
+ * the svelte plugin: the two surfaces that render the build stamp import that
+ * id, so without a stand-in neither can be imported and the one thing worth
+ * asserting about them -- that they render the SAME stamp -- cannot be
+ * asserted. The stub derives its data from the real `buildSiteVersions` rather
+ * than hard-coding a shape; see its own note.
  */
 export default defineConfig({
 	plugins: [svelte({ compilerOptions: { hmr: false } })],
@@ -28,6 +35,9 @@ export default defineConfig({
 			$lib: fileURLToPath(new URL('./src/lib', import.meta.url)),
 			'$env/dynamic/private': fileURLToPath(
 				new URL('./tests/stubs/env-dynamic-private.ts', import.meta.url)
+			),
+			'virtual:site-versions': fileURLToPath(
+				new URL('./tests/stubs/site-versions.ts', import.meta.url)
 			)
 		}
 	},

@@ -6,11 +6,17 @@
  * a tiny fixed, pointer-events-none chip so it can never block page content.
  */
 import { apps, deploy } from 'virtual:site-versions';
-import { appLabel } from '$lib/site-manifest';
+import { stampText } from '$lib/site-versions';
 
+/**
+ * THE SAME LINE THE SVELTE BADGE RENDERS, ASSEMBLED IN THE SAME PLACE. These
+ * two surfaces used to build the string independently, so one build could
+ * describe itself two ways depending on which page you were looking at.
+ * `stampText` is now the only assembler; this exists to name it for the
+ * injector below.
+ */
 export function versionLine(appId: string): string {
-	const info = apps[appId];
-	return `${appLabel(appId)} ${info?.version ?? 'v1.0'} · ${deploy.sha} · ${deploy.date || 'local build'}`;
+	return stampText(appId, apps, deploy);
 }
 
 const BADGE_STYLE = [

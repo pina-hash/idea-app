@@ -17945,12 +17945,45 @@ A reusable spotlight tour system plus the portal's first-time walkthrough.
 The site changelog AND every page's version are **auto-generated from git
 history** and never hand-edited. `vite.config.ts` exposes a
 `virtual:site-versions` module: at build / dev-server start it runs `git log
---name-only` over the **full history** and, using the route-to-path manifest in
+--name-only` and, using the route-to-path manifest in
 `src/lib/site-manifest.ts` (the `APPS` list: gauntlet, vanguard, coins,
 assignments, archive, dashboard, portal as catch-all), maps each commit to the
 app(s) it touched and classifies a change type from its subject
 (feature/fix/visual/content/docs/update).
 
+- **THE RULES LIVE IN `src/lib/site-versions.ts`, NOT IN THE BUILD CONFIG.**
+  `vite.config.ts` only gathers: it runs the two git commands, reads
+  `VERCEL_GIT_COMMIT_SHA`, and hands both to `buildSiteVersions`. Everything
+  deciding what the numbers MEAN -- parsing, whether a count is a version, which
+  sha names the build, how the line is assembled -- is pure and covered by
+  `tests/site-versions.test.ts`. A build config is the one file in the repo a
+  test cannot reach, so it holds nothing worth testing.
+- **A VERSION IS A COMMIT COUNT, SO IT IS ONLY TRUE OVER A COMPLETE HISTORY.**
+  Over a shallow clone the count is a window sliding along the history, and it
+  moves BACKWARDS as unrelated commits land: commits touching the app fall off
+  the back faster than new ones touching it arrive. So every build asks `git
+  rev-parse --is-shallow-repository`, and when the history is truncated it emits
+  `version: null` for EVERY app -- the stamp then reads `CLASSROOM · 462C79C ·
+  AUG 18, 2026`, with no number, and the build warns loudly each time it
+  withholds one. A number that can go backwards is worse than no number, because
+  it is trusted. Measured on this repo at a depth-10 clone (Vercel's default):
+  the pre-fix code produced `CLASSROOM V1.4 · 59DA3EA` and then `CLASSROOM V1.3
+  · 7DC192A` on two successive deploys -- the exact pair seen live, six minutes
+  apart, that set off this investigation.
+- **THE SHA IS THE PART THAT IS ALWAYS TRUE.** It comes from
+  `VERCEL_GIT_COMMIT_SHA` when the platform sets it, because that names the
+  commit the deployment was built from whatever the clone depth turned out to
+  be; otherwise from the log's head. The date is taken from the log ONLY when
+  the log's head IS that commit.
+- **ONE ASSEMBLER FOR THE LINE.** Both surfaces call `stampParts` / `stampText`;
+  neither builds the string itself any more. They used to, and two formatters is
+  two chances for one build to describe itself two ways. The test
+  server-renders the badge and compares it character for character with
+  `versionLine()`.
+- **A shallow clone's boundary commit is not a diff.** git grafts it to have no
+  parent, so `--name-only` prints its whole TREE, which would attribute one
+  commit to every app at once. Its file attribution is dropped when the history
+  is truncated; its subject stays, because the subject is real.
 - **Per-app versions:** `v1.N` where N is the count of commits touching that
   app's paths, so a version bumps automatically whenever a deploy includes
   commits for that app. `src/lib/VersionBadge.svelte` renders the chip
@@ -17977,8 +18010,19 @@ app(s) it touched and classifies a change type from its subject
   entries' 0.72rem and their cyan dates). The box is `max-height: max(420px,
   70vh)`, not the old flat 360px.
 - **Vercel:** set `VERCEL_DEEP_CLONE=true` in the project env so builds clone
-  the full git history (otherwise versions derive from the shallow-clone
-  depth; everything fails soft).
+  the full git history. **Until that is set, production carries no version
+  numbers at all** -- only the app label, the sha and the date. That is the
+  intended outcome, not a degradation: it is the shallow clone that cannot
+  support a version, and the sha still identifies the build exactly. The
+  homepage changelog is likewise only as deep as the clone.
+- **THE DEPLOY RATE IS ITS OWN HAZARD.** `src/lib/server/classroom-export.ts`
+  pushes a commit to `main` every time a classroom item is saved, and each push
+  is a production deploy. Saving a spec, then its rubric, then publishing is
+  three commits at one item. So two pages opened minutes apart can genuinely
+  come from two different deployments, and their shas will differ -- correctly.
+  Different shas on two routes mean different deploys, NOT a broken build; the
+  service worker (`static/push-sw.js`) has no fetch handler and caches nothing,
+  so it is never the explanation.
 
 Implication: **commit subjects are user-facing changelog copy.** Write them as
 readable changelog lines (the first line of every commit shows up on `/`). There
@@ -18043,10 +18087,16 @@ SILENTLY -- ones where a regression breaks nothing visible.
   plugin chain (which shells out to `git log` for the changelog substrate) would
   only add startup cost and failure modes. `tests/**/*.ts` is already inside the
   SvelteKit-generated tsconfig's `include`, so `npm run check` type-checks the
-  suite along with everything else. It carries exactly TWO aliases, the minimum
-  needed to import a REAL server route handler rather than a copy of it:
-  `$lib`, and `$env/dynamic/private` -> `tests/stubs/env-dynamic-private.ts`
-  (a live `process.env` read, which is faithfully what the real module does).
+  suite along with everything else. It carries THREE aliases, each the minimum
+  needed to import a REAL module rather than a copy of it: `$lib`;
+  `$env/dynamic/private` -> `tests/stubs/env-dynamic-private.ts` (a live
+  `process.env` read, which is faithfully what the real module does); and
+  `virtual:site-versions` -> `tests/stubs/site-versions.ts`, without which
+  neither surface that renders the build stamp can be imported at all, and the
+  one thing worth asserting about them -- that they render the SAME stamp --
+  cannot be asserted. That stub derives its data from the real
+  `buildSiteVersions` rather than hard-coding a shape, so it can never certify a
+  shape the build does not emit.
 - **The fixture is a REAL embedded Postgres with the REAL migration files
   applied, unmodified** (`tests/db/harness.ts`, the approach three prior
   verification passes on the notebook layer proved out and then threw away).

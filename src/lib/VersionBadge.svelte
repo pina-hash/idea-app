@@ -1,23 +1,33 @@
 <script lang="ts">
 	import { apps, deploy } from 'virtual:site-versions';
-	import { appLabel } from '$lib/site-manifest';
+	import { stampParts, stampTitle } from '$lib/site-versions';
 
 	/**
-	 * Auto-derived version chip for a page/app: `<label> v1.N` (bumps whenever a
-	 * deploy includes commits touching that app's paths, per site-manifest.ts)
-	 * plus the deploy short SHA and date. Never hand-edited.
+	 * The build stamp for a page/app: `<label> v1.N · <sha> · <date>`, all of it
+	 * derived at build time from the commit that was actually built. Never
+	 * hand-edited.
+	 *
+	 * THE SEGMENTS COME FROM `stampParts` AND NOTHING IS ADDED HERE. This
+	 * component and `versionLine()` (the same stamp, injected into the legacy
+	 * HTML endpoints serve) each used to assemble the line themselves, which is
+	 * two chances for the same build to describe itself two ways. All this owns
+	 * now is the separator's styling.
+	 *
+	 * THE VERSION SEGMENT CAN BE ABSENT, and that is the honest case, not a
+	 * degraded one: a version is a commit count, and a count over the shallow
+	 * clone a deploy usually gets moves backwards as commits land. When the
+	 * build could not see a whole history there is no number, the sha still says
+	 * exactly which build this is, and the title says why.
 	 */
 	let { app }: { app: string } = $props();
-	const info = $derived(apps[app]);
+	const parts = $derived(stampParts(app, apps, deploy));
 </script>
 
-<span class="version-badge" title="Version auto-derived from git history">
-	{appLabel(app)}
-	{info?.version ?? 'v1.0'}
-	<span class="sep">&middot;</span>
-	{deploy.sha}
-	<span class="sep">&middot;</span>
-	{deploy.date || 'local build'}
+<span class="version-badge" title={stampTitle(deploy)}>
+	{#each parts as part, i (i)}
+		{#if i > 0}<span class="sep">&middot;</span>{/if}
+		{part}
+	{/each}
 </span>
 
 <style>
