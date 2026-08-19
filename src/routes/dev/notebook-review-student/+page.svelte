@@ -1,15 +1,20 @@
 <script lang="ts">
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
-	import { deletedEntryTitle } from '$lib/notebook';
-	import type { NotebookDeletedEntry, NotebookEntry, NotebookSession } from '$lib/notebook';
+	import NotebookDeletedZone from '$lib/notebook/NotebookDeletedZone.svelte';
+	import NotebookNoAccountNotice from '$lib/notebook/NotebookNoAccountNotice.svelte';
+	import StudentReviewBackStrip from '$lib/notebook/StudentReviewBackStrip.svelte';
+	import type { EntryActionResult, NotebookDeletedEntry, NotebookEntry, NotebookSession } from '$lib/notebook';
 	import type { NotebookFolder } from '$lib/notebook-folders';
 
 	/**
 	 * Dev harness for /notebook/review/student/[studentEmail] (0106/0117):
 	 * one instructor teaching one student they may reach every fact about,
 	 * mounting the REAL NotebookView (read-only, no transports -- exactly what
-	 * the shipped route hands it) plus the SAME hand-rolled Deleted section the
-	 * route renders below it, over an in-memory fixture. No auth, no Supabase.
+	 * the shipped route hands it), the REAL StudentReviewBackStrip,
+	 * NotebookNoAccountNotice and NotebookDeletedZone the route renders around
+	 * it -- ONE implementation shared with that route for every one of them,
+	 * not a second copy of any of their markup -- over an in-memory fixture.
+	 * No auth, no Supabase.
 	 *
 	 * Mirrors the real +page.server.ts / +page.svelte SHAPE rather than
 	 * flattening it: a `student` record, `deletedEntries` kept SEPARATE from
@@ -192,7 +197,6 @@
 		studentId = id;
 		entries = makeEntries(id);
 		deletedEntries = makeDeletedEntries(id);
-		restoreError = null;
 		log = [];
 	}
 
@@ -209,26 +213,14 @@
 	 * `data.supabase.rpc('notebook_staff_restore_entry', { p_entry_id })` call
 	 * shape and arguments exactly -- every call is logged verbatim so "calling
 	 * it fires the right entry id" is checkable in the console/log panel, not
-	 * assumed.
+	 * assumed. NotebookDeletedZone owns its own in-flight/disabled state now;
+	 * this is only the transport.
 	 */
-	let restoringId = $state<string | null>(null);
-	let restoreError = $state<string | null>(null);
-
-	async function restoreOne(entryId: string) {
-		if (restoringId) return;
-		restoringId = entryId;
-		restoreError = null;
-		log = [
-			...log,
-			`rpc notebook_staff_restore_entry { p_entry_id: '${entryId}' }`
-		];
+	async function restoreEntry(entryId: string): Promise<EntryActionResult> {
+		log = [...log, `rpc notebook_staff_restore_entry { p_entry_id: '${entryId}' }`];
 		await new Promise((r) => setTimeout(r, 120));
 		const found = deletedEntries.find((e) => e.id === entryId);
-		restoringId = null;
-		if (!found) {
-			restoreError = 'Could not restore that entry.';
-			return;
-		}
+		if (!found) return { ok: false, error: 'Could not restore that entry.' };
 		deletedEntries = deletedEntries.filter((e) => e.id !== entryId);
 		entries = [
 			...entries,
@@ -249,11 +241,7 @@
 			}
 		];
 		log = [...log, `restored ${entryId} -> back in the live list`];
-	}
-
-	function when(iso: string): string {
-		const d = new Date(iso);
-		return Number.isNaN(d.getTime()) ? '' : d.toLocaleString();
+		return { ok: true };
 	}
 </script>
 
@@ -280,24 +268,13 @@
 	{/if}
 </div>
 
-<!-- Everything below this line mirrors the real
-     src/routes/notebook/review/student/[studentEmail]/+page.svelte verbatim. -->
+<!-- Everything below this line mounts the SAME components
+     src/routes/notebook/review/student/[studentEmail]/+page.svelte mounts. -->
 
-<div class="back-strip">
-	<a class="back" href="/notebook/review">&larr; Section review</a>
-	<p class="who">
-		Reading <strong>{student.display_name ?? student.email}</strong>'s notebook. This is their whole
-		notebook, including entries they filed outside your class. You cannot change anything here.
-	</p>
-</div>
+<StudentReviewBackStrip displayName={student.display_name} email={student.email} />
 
 {#if student.user_id === null}
-	<div class="nb-noaccount">
-		<p>
-			<strong>{student.display_name ?? student.email}</strong> is on the roster but has never signed
-			in, so there is no notebook to show yet. Their check-ins are waiting for them.
-		</p>
-	</div>
+	<NotebookNoAccountNotice displayName={student.display_name} email={student.email} />
 {/if}
 
 <NotebookView
@@ -312,37 +289,11 @@
 	homeHref="/notebook/review"
 />
 
-{#if deletedEntries.length > 0}
-	<section class="deleted-zone" data-testid="staff-deleted-zone">
-		<h2>Deleted</h2>
-		<p class="note">
-			Entries {student.display_name ?? student.email} removed from this notebook. Restoring one puts
-			it back exactly where it was.
-		</p>
-		<ul class="deleted-entries">
-			{#each deletedEntries as entry (entry.id)}
-				<li>
-					<div class="deleted-main">
-						<span class="deleted-title">{deletedEntryTitle(entry)}</span>
-						<span class="deleted-meta">Deleted {when(entry.deleted_at)}</span>
-					</div>
-					<button
-						type="button"
-						class="btn secondary restore-btn"
-						disabled={restoringId === entry.id}
-						data-testid="staff-restore-entry"
-						onclick={() => restoreOne(entry.id)}
-					>
-						{restoringId === entry.id ? 'Restoring...' : 'Restore'}
-					</button>
-				</li>
-			{/each}
-		</ul>
-		{#if restoreError}
-			<p class="msg error" role="alert">{restoreError}</p>
-		{/if}
-	</section>
-{/if}
+<NotebookDeletedZone
+	entries={deletedEntries}
+	studentName={student.display_name ?? student.email}
+	{restoreEntry}
+/>
 
 <style>
 	.dev-toolbar {
@@ -393,107 +344,5 @@
 		border-radius: 4px;
 		white-space: pre-wrap;
 		word-break: break-all;
-	}
-
-	.back-strip {
-		max-width: var(--measure-split);
-		margin: 1rem auto 0;
-		padding-inline: var(--cr-gutter, 1rem);
-		box-sizing: border-box;
-		display: grid;
-		gap: 0.35rem;
-	}
-	.back {
-		font-family: 'Share Tech Mono', monospace;
-		font-size: 0.78rem;
-		color: var(--gold);
-	}
-	.who {
-		margin: 0;
-		font-size: 0.85rem;
-		color: var(--dim);
-	}
-	.who strong {
-		color: var(--white);
-	}
-	.nb-noaccount {
-		max-width: var(--measure-split);
-		margin: 1rem auto 0;
-		box-sizing: border-box;
-		padding: 0.7rem var(--cr-gutter, 1rem);
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		background: var(--bg2);
-		font-size: 0.9rem;
-		color: var(--dim);
-	}
-	.nb-noaccount strong {
-		color: var(--white);
-	}
-
-	.deleted-zone {
-		max-width: var(--measure-split);
-		margin: 1.4rem auto 2rem;
-		box-sizing: border-box;
-		padding: 1rem var(--cr-gutter, 1rem);
-		border: 1px solid var(--line);
-		border-radius: 6px;
-		background: var(--bg2);
-		display: grid;
-		gap: 0.7rem;
-	}
-	.deleted-zone h2 {
-		margin: 0;
-		font-size: 1rem;
-		color: var(--gold);
-	}
-	.note {
-		margin: 0;
-		font-size: 0.85rem;
-		color: var(--dim);
-	}
-	.deleted-entries {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		display: grid;
-		gap: 0.5rem;
-	}
-	.deleted-entries li {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 0.8rem;
-		flex-wrap: wrap;
-		padding: 0.55rem 0.7rem;
-		border: 1px solid var(--line);
-		border-radius: 4px;
-		background: var(--bg0);
-	}
-	.deleted-main {
-		display: grid;
-		gap: 0.15rem;
-		min-width: 0;
-	}
-	.deleted-title {
-		font-weight: 600;
-		font-size: 0.92rem;
-		color: var(--white);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.deleted-meta {
-		font-size: 0.74rem;
-		color: var(--dim);
-	}
-	.restore-btn {
-		min-height: 2.75rem;
-		flex: 0 0 auto;
-	}
-	.msg.error {
-		margin: 0;
-		font-size: 0.82rem;
-		color: var(--amber);
 	}
 </style>
