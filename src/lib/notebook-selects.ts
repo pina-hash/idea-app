@@ -304,3 +304,26 @@ export const NOTEBOOK_SESSION_SELECT = 'id, session_label, unit_number, session_
  */
 export const NOTEBOOK_POSTING_SELECT =
 	'section_id, notebook_sessions!inner ( id, unit_number, session_date, session_label )';
+
+/**
+ * The same read, plus the ITEM the check-in hangs off in this class (0120).
+ *
+ * ITS OWN RUNG, not a widened `NOTEBOOK_POSTING_SELECT`: migrations are applied
+ * by hand, so a deployment sitting between 0119 and 0120 is a real state, and
+ * PostgREST rejects the WHOLE select when it names a column the schema does not
+ * have. Falling back to the narrow rung there costs exactly one capability --
+ * check-ins all keep their own stream rows, which is what they did last week --
+ * rather than costing the class page its check-ins entirely.
+ */
+export const NOTEBOOK_POSTING_ITEM_SELECT =
+	'section_id, item_id, notebook_sessions!inner ( id, unit_number, session_date, session_label )';
+
+/**
+ * Widest first. `capability: null` is the rung that carries none of its own:
+ * failing it means the notebook is not on this project at all, which the class
+ * page renders as no check-ins rather than as an error.
+ */
+export const NOTEBOOK_POSTING_SELECTS = [
+	{ select: NOTEBOOK_POSTING_ITEM_SELECT, capability: 'checkInItems' },
+	{ select: NOTEBOOK_POSTING_SELECT, capability: null }
+] as const;

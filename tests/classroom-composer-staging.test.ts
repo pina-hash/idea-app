@@ -40,6 +40,7 @@ function transports(over: Partial<StagedExtrasTransports> = {}): StagedExtrasTra
 		deck: { uploadDeck: async () => ({ ok: true, message: '' }), deleteDeck: async () => ({ ok: true, message: '' }) },
 		setSpec: async () => ({ ok: true }),
 		setReferenceSpec: async () => ({ ok: true }),
+		createCheckIn: async () => ({ ok: true }),
 		...over
 	};
 }
@@ -96,11 +97,11 @@ describe('which setter a staged document goes through', () => {
 		const setReferenceSpec = vi.fn(async () => ({ ok: true }));
 		const tx = transports({ setSpec, setReferenceSpec });
 
-		await applyStagedExtras('i-1', { deck: null, spec: SPEC, specKind: 'assignment' }, tx);
+		await applyStagedExtras('i-1', { deck: null, spec: SPEC, specKind: 'assignment', checkIn: null }, tx);
 		expect(setSpec).toHaveBeenCalledTimes(1);
 		expect(setReferenceSpec).not.toHaveBeenCalled();
 
-		await applyStagedExtras('i-2', { deck: null, spec: SPEC, specKind: 'reference' }, tx);
+		await applyStagedExtras('i-2', { deck: null, spec: SPEC, specKind: 'reference', checkIn: null }, tx);
 		expect(setReferenceSpec).toHaveBeenCalledTimes(1);
 		expect(setReferenceSpec).toHaveBeenCalledWith('i-2', SPEC);
 		expect(setSpec).toHaveBeenCalledTimes(1);
@@ -111,7 +112,7 @@ describe('which setter a staged document goes through', () => {
 		const setReferenceSpec = vi.fn(async () => ({ ok: true }));
 		const res = await applyStagedExtras(
 			'i-1',
-			{ deck: null, spec: SPEC, specKind: null },
+			{ deck: null, spec: SPEC, specKind: null, checkIn: null },
 			transports({ setSpec, setReferenceSpec })
 		);
 		expect(setSpec).not.toHaveBeenCalled();
@@ -124,7 +125,7 @@ describe('what survives a partial save', () => {
 	it('everything landing clears everything and reports nothing', async () => {
 		const res = await applyStagedExtras(
 			'i-1',
-			{ deck: file('deck.zip'), spec: SPEC, specKind: 'assignment' },
+			{ deck: file('deck.zip'), spec: SPEC, specKind: 'assignment', checkIn: null },
 			transports()
 		);
 		expect(res.failures).toEqual([]);
@@ -140,7 +141,7 @@ describe('what survives a partial save', () => {
 		const zip = file('truss.zip');
 		const res = await applyStagedExtras(
 			'i-1',
-			{ deck: zip, spec: SPEC, specKind: 'assignment' },
+			{ deck: zip, spec: SPEC, specKind: 'assignment', checkIn: null },
 			transports({
 				deck: {
 					uploadDeck: async () => ({ ok: false, message: 'Drive refused a file in this deck.' }),
@@ -160,7 +161,7 @@ describe('what survives a partial save', () => {
 		const zip = file('truss.zip');
 		const res = await applyStagedExtras(
 			'i-1',
-			{ deck: zip, spec: SPEC, specKind: 'reference' },
+			{ deck: zip, spec: SPEC, specKind: 'reference', checkIn: null },
 			transports({ setReferenceSpec: async () => ({ ok: false, message: 'The server refused that document.' }) })
 		);
 		expect(res.deck).toBeNull();
@@ -174,7 +175,7 @@ describe('what survives a partial save', () => {
 		const zip = file('truss.zip');
 		const res = await applyStagedExtras(
 			'i-1',
-			{ deck: zip, spec: SPEC, specKind: 'assignment' },
+			{ deck: zip, spec: SPEC, specKind: 'assignment', checkIn: null },
 			transports({
 				deck: {
 					uploadDeck: async () => ({ ok: false, message: 'Drive refused it.' }),
@@ -197,7 +198,7 @@ describe('what survives a partial save', () => {
 		const setSpec = vi.fn(async () => ({ ok: true }));
 		await applyStagedExtras(
 			'i-1',
-			{ deck: file('d.zip'), spec: SPEC, specKind: 'assignment' },
+			{ deck: file('d.zip'), spec: SPEC, specKind: 'assignment', checkIn: null },
 			transports({
 				deck: {
 					uploadDeck: async () => ({ ok: false, message: 'no' }),
@@ -213,7 +214,7 @@ describe('what survives a partial save', () => {
 		const zip = file('boom.zip');
 		const res = await applyStagedExtras(
 			'i-1',
-			{ deck: zip, spec: null, specKind: null },
+			{ deck: zip, spec: null, specKind: null, checkIn: null },
 			transports({
 				deck: {
 					uploadDeck: async () => {
@@ -230,7 +231,7 @@ describe('what survives a partial save', () => {
 	it('a cancelled upload reads as cancelled, not as a server refusal', async () => {
 		const res = await applyStagedExtras(
 			'i-1',
-			{ deck: file('d.zip'), spec: null, specKind: null },
+			{ deck: file('d.zip'), spec: null, specKind: null, checkIn: null },
 			transports({
 				deck: {
 					uploadDeck: async () => ({ ok: false, cancelled: true, message: '' }),
@@ -245,7 +246,7 @@ describe('what survives a partial save', () => {
 		const zip = file('d.zip');
 		const res = await applyStagedExtras(
 			'i-1',
-			{ deck: zip, spec: SPEC, specKind: 'assignment' },
+			{ deck: zip, spec: SPEC, specKind: 'assignment', checkIn: null },
 			transports({ deck: null, setSpec: null })
 		);
 		expect(res.deck).toBe(zip);
@@ -265,6 +266,96 @@ describe('the deck size cap', () => {
 	});
 });
 
+/**
+ * THE THIRD STAGED ATTACHABLE (0120). Its failure mode is the one this whole
+ * file exists for: a check-in that did not attach, cleared anyway, looks
+ * exactly like one that was never staged -- the teacher's post is up, the
+ * notebook requirement they typed is gone, and nobody finds out until the day
+ * the work was due.
+ */
+describe('a staged notebook check-in', () => {
+	const DRAFT = { unit_number: 3, session_date: '2026-09-04', session_label: 'Bearing teardown' };
+
+	it('is created against the item that now exists, and cleared', async () => {
+		const calls: { itemId: string; label: string }[] = [];
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: DRAFT },
+			transports({
+				createCheckIn: async (itemId, draft) => {
+					calls.push({ itemId, label: draft.session_label });
+					return { ok: true };
+				}
+			})
+		);
+		expect(calls).toEqual([{ itemId: 'i-1', label: 'Bearing teardown' }]);
+		expect(res.failures).toEqual([]);
+		expect(res.checkIn).toBeNull();
+	});
+
+	it('STAYS STAGED when the server refuses it, and is named by its own label', async () => {
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: DRAFT },
+			transports({ createCheckIn: async () => ({ ok: false, message: 'That class does not exist.' }) })
+		);
+		expect(res.checkIn).toEqual(DRAFT);
+		expect(res.failures).toHaveLength(1);
+		expect(res.failures[0]).toContain('Bearing teardown');
+		expect(res.failures[0]).toContain('That class does not exist.');
+	});
+
+	it('a throw is a refusal, not an unhandled rejection', async () => {
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: DRAFT },
+			transports({
+				createCheckIn: async () => {
+					throw new Error('Network died');
+				}
+			})
+		);
+		expect(res.checkIn).toEqual(DRAFT);
+		expect(res.failures[0]).toContain('Network died');
+	});
+
+	/**
+	 * A surface with no way to attach one says so instead of silently dropping
+	 * it -- the same answer the deck and the spec give when their transport is
+	 * absent, which is what makes "absence removes the control" safe to rely on.
+	 */
+	it('names it when attaching one is not available at all', async () => {
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: null, spec: null, specKind: null, checkIn: DRAFT },
+			transports({ createCheckIn: null })
+		);
+		expect(res.checkIn).toEqual(DRAFT);
+		expect(res.failures[0]).toContain('not available here');
+	});
+
+	/**
+	 * INDEPENDENT WRITES. A deck that fails must not stop the check-in from
+	 * being attempted, or a teacher who staged both would have to save three
+	 * times to find out about the second one.
+	 */
+	it('is attempted even when the deck before it failed, and only the failure stays', async () => {
+		const res = await applyStagedExtras(
+			'i-1',
+			{ deck: file('d.zip'), spec: null, specKind: null, checkIn: DRAFT },
+			transports({
+				deck: {
+					uploadDeck: async () => ({ ok: false, message: 'Drive refused it.' }),
+					deleteDeck: async () => ({ ok: true, message: '' })
+				}
+			})
+		);
+		expect(res.deck).not.toBeNull();
+		expect(res.checkIn).toBeNull();
+		expect(res.failures).toHaveLength(1);
+	});
+});
+
 describe('is there work in here to lose', () => {
 	const empty: ComposerDraft = {
 		title: '',
@@ -274,7 +365,8 @@ describe('is there work in here to lose', () => {
 		links: [],
 		instructorLinks: [],
 		deck: null,
-		spec: null
+		spec: null,
+		checkIn: null
 	};
 
 	it('a composer nobody has touched is not dirty', () => {
@@ -303,5 +395,11 @@ describe('is there work in here to lose', () => {
 		expect(composerHasWork({ ...empty, instructorFiles: 1 })).toBe(true);
 		expect(composerHasWork({ ...empty, deck: file('d.zip') })).toBe(true);
 		expect(composerHasWork({ ...empty, spec: SPEC })).toBe(true);
+		expect(
+			composerHasWork({
+				...empty,
+				checkIn: { unit_number: 3, session_date: '2026-09-04', session_label: 'Teardown' }
+			})
+		).toBe(true);
 	});
 });

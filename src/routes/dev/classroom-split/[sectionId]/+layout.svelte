@@ -31,8 +31,10 @@
 		updated: [] as string[],
 		decks: [] as { itemId: string; file: string }[],
 		specs: [] as { itemId: string; kind: string }[],
+		/** Check-ins created against an item (0120), in call order. */
+		checkIns: [] as { itemId: string; label: string; unit: number | string; date: string }[],
 		/** Injected failures, flipped from the console for the partial-failure case. */
-		fail: { deck: false, spec: false }
+		fail: { deck: false, spec: false, checkIn: false }
 	};
 </script>
 
@@ -46,6 +48,7 @@
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import { COMPOSER_DISCARD_WARNING } from '$lib/classroom/composer-staging';
 	import type { AssignmentTeacherTransports } from '$lib/classroom/assignment-spec';
+	import type { ClassCheckInTransports } from '$lib/classroom/class-check-ins';
 	import type { DeckTransports } from '$lib/classroom/deck';
 	import type { ReferenceTransports } from '$lib/classroom/reference-spec';
 	import { itemTitle, sectionTitle } from '$lib/classroom/classroom';
@@ -172,6 +175,36 @@
 			return { ok: true };
 		},
 		async setPublic() {
+			return { ok: true };
+		}
+	};
+
+	/**
+	 * THE THIRD STAGED ATTACHABLE (0120), answered in memory. It follows the
+	 * SPEC's pattern rather than the deck's: one call, no bytes, no progress --
+	 * so the only thing worth driving here is the pair of outcomes, and
+	 * `composeLog.fail.checkIn` is what makes the refusal reachable.
+	 */
+	const harnessCheckInTransports: ClassCheckInTransports = {
+		async createForItem(itemId, draft) {
+			if (composeLog.fail.checkIn) {
+				logCall('createItemCheckIn:failed', { itemId, label: draft.session_label });
+				return { ok: false, message: 'The server refused that check-in.' };
+			}
+			composeLog.checkIns = [
+				...composeLog.checkIns,
+				{
+					itemId,
+					label: draft.session_label,
+					unit: draft.unit_number,
+					date: draft.session_date
+				}
+			];
+			logCall('createItemCheckIn', { itemId, label: draft.session_label });
+			return { ok: true };
+		},
+		async unlink(sessionId, sectionId) {
+			logCall('unlinkCheckIn', { sessionId, sectionId });
 			return { ok: true };
 		}
 	};
@@ -313,11 +346,12 @@
 			updated: [...composeLog.updated],
 			decks: [...composeLog.decks],
 			specs: [...composeLog.specs],
+			checkIns: [...composeLog.checkIns],
 			calls: composeLog.calls.map((c) => c.fn),
 			fail: { ...composeLog.fail }
 		});
 		(window as unknown as Record<string, unknown>).__composeFail = (
-			next: Partial<{ deck: boolean; spec: boolean }>
+			next: Partial<{ deck: boolean; spec: boolean; checkIn: boolean }>
 		) => {
 			Object.assign(composeLog.fail, next);
 			return { ...composeLog.fail };
@@ -328,8 +362,10 @@
 			composeLog.updated = [];
 			composeLog.decks = [];
 			composeLog.specs = [];
+			composeLog.checkIns = [];
 			composeLog.fail.deck = false;
 			composeLog.fail.spec = false;
+			composeLog.fail.checkIn = false;
 		};
 		/** Whether a given path would keep the composer, through the real rule. */
 		(window as unknown as Record<string, unknown>).__navKeepsComposer = (path: string) =>
@@ -369,6 +405,7 @@
 				deckTransports={harnessDeckTransports}
 				teacherTransports={harnessTeacherTransports}
 				referenceTransports={harnessReferenceTransports}
+				checkInTransports={harnessCheckInTransports}
 				onsaved={composerSaved}
 				ondirtychange={(d) => (composerDirty = d)}
 				oncancel={closeComposer}

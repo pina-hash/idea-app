@@ -21,6 +21,7 @@
  */
 
 import type { ClassroomItemKind } from '$lib/classroom/classroom';
+import type { CheckInDraft } from '$lib/classroom/class-check-ins';
 import { deckUploadSizeIssue, type DeckTransports, type DeckUploadProgress } from '$lib/classroom/deck';
 
 /**
@@ -91,6 +92,16 @@ export interface StagedExtras {
 	spec: unknown | null;
 	/** Which setter the spec goes through; null means it is not applied at all. */
 	specKind: 'assignment' | 'reference' | null;
+	/**
+	 * A NOTEBOOK CHECK-IN TO HANG OFF THIS ITEM (0120), or null.
+	 *
+	 * The THIRD staged attachable, and it follows the spec's pattern rather than
+	 * the deck's on purpose: there are no bytes, so it is one RPC here -- no
+	 * endpoint, no multipart parse, no staged upload job, no progress to report.
+	 * What it shares with both is the two-phase shape, because the check-in
+	 * hangs off an item id that does not exist until the create call returns.
+	 */
+	checkIn: CheckInDraft | null;
 }
 
 export interface StagedExtrasTransports {
@@ -98,6 +109,14 @@ export interface StagedExtrasTransports {
 	setSpec: ((itemId: string, spec: unknown) => Promise<{ ok: boolean; message?: string }>) | null;
 	setReferenceSpec:
 		| ((itemId: string, spec: unknown) => Promise<{ ok: boolean; message?: string }>)
+		| null;
+	/**
+	 * Null where attaching one is not available: a project whose schema predates
+	 * 0120, or a surface with no manage rights. Absence removes the control the
+	 * same way it does for the other two.
+	 */
+	createCheckIn:
+		| ((itemId: string, draft: CheckInDraft) => Promise<{ ok: boolean; message?: string }>)
 		| null;
 }
 
@@ -112,14 +131,15 @@ export interface StagedExtrasResult {
 	 */
 	deck: File | null;
 	spec: unknown | null;
+	checkIn: CheckInDraft | null;
 }
 
 /**
- * Apply the staged deck and the staged spec to an item that now exists.
+ * Apply the staged deck, spec and check-in to an item that now exists.
  *
- * BOTH ARE ATTEMPTED even if the first fails: they are independent writes
+ * ALL THREE ARE ATTEMPTED even if the first fails: they are independent writes
  * against an item that already exists, and stopping at the first failure would
- * mean a teacher who staged both had to save three times to find out about the
+ * mean a teacher who staged two had to save three times to find out about the
  * second one. The deck goes first only because it is the long one, so its
  * progress is what the form reports while it runs.
  */
@@ -132,6 +152,7 @@ export async function applyStagedExtras(
 	const failures: string[] = [];
 	let deck = staged.deck;
 	let spec = staged.spec;
+	let checkIn = staged.checkIn;
 
 	if (deck) {
 		if (!transports.deck) {
@@ -177,7 +198,33 @@ export async function applyStagedExtras(
 		}
 	}
 
-	return { failures, deck, spec };
+	/**
+	 * THE CHECK-IN, last and cheapest: one RPC, no bytes, nothing to resume.
+	 *
+	 * It is named by its LABEL in a failure, not by "the check-in", because a
+	 * teacher who staged one has typed that label and will recognise it -- the
+	 * same reason the deck is named by its filename.
+	 */
+	if (checkIn) {
+		if (!transports.createCheckIn) {
+			failures.push('notebook check-in: attaching one is not available here');
+		} else {
+			let res: { ok: boolean; message?: string };
+			try {
+				res = await transports.createCheckIn(itemId, checkIn);
+			} catch (e) {
+				res = { ok: false, message: (e as Error).message || 'Save failed.' };
+			}
+			if (res.ok) {
+				checkIn = null;
+			} else {
+				const name = checkIn.session_label.trim() || 'untitled';
+				failures.push(`notebook check-in "${name}": ${res.message ?? 'could not be attached'}`);
+			}
+		}
+	}
+
+	return { failures, deck, spec, checkIn };
 }
 
 /**
@@ -203,6 +250,8 @@ export interface ComposerDraft {
 	instructorLinks: { url: string }[];
 	deck: File | null;
 	spec: unknown | null;
+	/** A staged notebook check-in (0120): typed work, so it counts. */
+	checkIn: CheckInDraft | null;
 }
 
 export function composerHasWork(draft: ComposerDraft): boolean {
@@ -211,6 +260,7 @@ export function composerHasWork(draft: ComposerDraft): boolean {
 	if (draft.files > 0 || draft.instructorFiles > 0) return true;
 	if (draft.deck) return true;
 	if (draft.spec != null) return true;
+	if (draft.checkIn) return true;
 	if (draft.links.some((r) => r.url.trim() !== '')) return true;
 	if (draft.instructorLinks.some((r) => r.url.trim() !== '')) return true;
 	return false;
@@ -218,4 +268,4 @@ export function composerHasWork(draft: ComposerDraft): boolean {
 
 /** The one wording, so the close confirm and the navigation confirm agree. */
 export const COMPOSER_DISCARD_WARNING =
-	'This post has unsaved work in it -- text, files, a deck or a spec. Leave and it is gone.';
+	'This post has unsaved work in it -- text, files, a deck, a spec or a check-in. Leave and it is gone.';

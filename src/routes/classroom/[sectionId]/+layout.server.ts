@@ -14,7 +14,7 @@ import {
 	mergeInstructorMaterials
 } from '$lib/classroom/transports';
 import { checkInStatus, type ClassCheckIn } from '$lib/classroom/class-check-ins';
-import { NOTEBOOK_POSTING_SELECT } from '$lib/notebook-selects';
+import { NOTEBOOK_POSTING_SELECTS } from '$lib/notebook-selects';
 import { gridSummary, type SectionGrid } from '$lib/notebook-review';
 import { driveConfigured } from '$lib/server/notebook-drive';
 import type { LayoutServerLoad } from './$types';
@@ -28,7 +28,7 @@ import type { LayoutServerLoad } from './$types';
  * one class, and it is a scoping filter rather than a privacy one; the STATUS
  * reads below are where privacy actually lives.
  *
- * Reuses NOTEBOOK_POSTING_SELECT rather than writing a second select string:
+ * Reuses NOTEBOOK_POSTING_SELECTS rather than writing a second select string:
  * that one names an embedded resource, PostgREST resolves embeds against real
  * foreign keys, and tests/notebook-page-load.test.ts already holds it against
  * the live catalog. A private copy here would be a second assertion about the
@@ -37,6 +37,8 @@ import type { LayoutServerLoad } from './$types';
  */
 interface PostingRow {
 	section_id: string;
+	/** 0120's column. Absent on the narrow rung, which is what null covers. */
+	item_id?: string | null;
 	notebook_sessions: {
 		id: string;
 		unit_number: number;
@@ -45,29 +47,55 @@ interface PostingRow {
 	} | null;
 }
 
+/**
+ * The check-ins, and whether this project can say which item each one hangs off.
+ *
+ * TWO RUNGS (NOTEBOOK_POSTING_SELECTS), widest first, for the reason every
+ * ladder here exists: migrations are pasted in by hand, so a deploy sitting
+ * between 0119 and 0120 is a real state and PostgREST rejects the whole select
+ * when it names `item_id` on a schema without it. Degrading costs exactly one
+ * capability -- every check-in keeps its own stream row, which is what they all
+ * did before 0120 -- rather than costing the page its check-ins.
+ *
+ * `linksReady` is what the page reads to know WHICH of those two worlds it is
+ * in. It starts false and is turned on only by the rung that actually carried
+ * the column succeeding.
+ */
 async function sectionCheckIns(
 	supabase: SupabaseClient,
 	sectionId: string
-): Promise<Omit<ClassCheckIn, 'status' | 'flag_reason'>[] | null> {
-	const { data, error: postingError } = await supabase
-		.from('notebook_session_postings')
-		.select(NOTEBOOK_POSTING_SELECT)
-		.eq('section_id', sectionId);
+): Promise<{
+	rows: Omit<ClassCheckIn, 'status' | 'flag_reason'>[];
+	linksReady: boolean;
+} | null> {
+	for (const rung of NOTEBOOK_POSTING_SELECTS) {
+		const { data, error: postingError } = await supabase
+			.from('notebook_session_postings')
+			.select(rung.select)
+			.eq('section_id', sectionId);
+		if (postingError) continue;
+		const rows = ((data ?? []) as unknown as PostingRow[])
+			.filter(
+				(r): r is PostingRow & { notebook_sessions: NonNullable<PostingRow['notebook_sessions']> } =>
+					Boolean(r.notebook_sessions)
+			)
+			.map((r) => ({
+				session_id: r.notebook_sessions.id,
+				section_id: r.section_id,
+				unit_number: r.notebook_sessions.unit_number,
+				session_date: r.notebook_sessions.session_date,
+				session_label: r.notebook_sessions.session_label,
+				// On the narrow rung the column was never asked for, so nothing is
+				// linked -- which is exactly the behaviour of a project without
+				// 0120, rather than a guess about one.
+				item_id: r.item_id ?? null
+			}));
+		return { rows, linksReady: rung.capability === 'checkInItems' };
+	}
 	// null means "the notebook is not here", which the page renders as no
 	// check-ins at all rather than as an error -- migrations are applied by hand,
 	// so a deploy without them is a real state.
-	if (postingError) return null;
-	return ((data ?? []) as unknown as PostingRow[])
-		.filter((r): r is PostingRow & { notebook_sessions: NonNullable<PostingRow['notebook_sessions']> } =>
-			Boolean(r.notebook_sessions)
-		)
-		.map((r) => ({
-			session_id: r.notebook_sessions.id,
-			section_id: r.section_id,
-			unit_number: r.notebook_sessions.unit_number,
-			session_date: r.notebook_sessions.session_date,
-			session_label: r.notebook_sessions.session_label
-		}));
+	return null;
 }
 
 /**
@@ -104,12 +132,18 @@ async function sectionCheckIns(
  * controls offer ("also post to...") and what the "also posted to" line names,
  * and a student has no use for either.
  *
- * NOTEBOOK CHECK-INS (0098) ride along as a SECOND SOURCE, merged into the
- * stream by the page. They cannot ride the item query: they live in
- * `notebook_session_postings` + `notebook_sessions`, which have no foreign key
- * to `classroom_items`, so there is nothing for PostgREST to embed through.
- * That is the same reason they are not, and must not become, a gradeable
- * Classroom item -- see $lib/classroom/class-check-ins.
+ * NOTEBOOK CHECK-INS (0098) ride along as a SECOND SOURCE, read separately and
+ * merged by the page. Since 0120 a posting can name the `classroom_items` row
+ * its check-in hangs off, and the page renders those ON that item instead of as
+ * their own stream row -- one row for the day's material and the notebook
+ * requirement that goes with it. The read stays separate anyway: it is the
+ * POSTING that carries the pointer, and the item query has no reason to grow a
+ * reverse embed for a block only the item page renders.
+ *
+ * WHAT HAS NOT CHANGED is that a check-in is not, and must not become, a
+ * gradeable Classroom item: that would be a second scoring path for work
+ * already graded once through `notebook_unit_items` -- see
+ * $lib/classroom/class-check-ins.
  */
 export const load: LayoutServerLoad = async ({ params, locals: { supabase, claims } }) => {
 	if (!claims) redirect(303, '/');
@@ -170,8 +204,8 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 	let checkIns: ClassCheckIn[] = [];
 	let sectionOutstanding: number | null = null;
 
-	if (checkInRows?.length && !canManage) {
-		const sessionIds = checkInRows.map((c) => c.session_id);
+	if (checkInRows?.rows.length && !canManage) {
+		const sessionIds = checkInRows.rows.map((c) => c.session_id);
 		/**
 		 * DELETED ENTRIES ARE EXCLUDED (0116), AND THE FILTER DEGRADES.
 		 *
@@ -260,7 +294,7 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 			((excusalRows ?? []) as { session_id: string }[]).map((r) => r.session_id)
 		);
 
-		checkIns = checkInRows.map((c) => {
+		checkIns = checkInRows.rows.map((c) => {
 			const entry = bySession.get(c.session_id);
 			return {
 				...c,
@@ -275,8 +309,8 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 					entry?.status === 'flagged' && isSubmitted(entry) ? (entry.flag_reason ?? null) : null
 			};
 		});
-	} else if (checkInRows?.length) {
-		checkIns = checkInRows.map((c) => ({ ...c, status: null, flag_reason: null }));
+	} else if (checkInRows?.rows.length) {
+		checkIns = checkInRows.rows.map((c) => ({ ...c, status: null, flag_reason: null }));
 
 		/**
 		 * The manager's own number: how much notebook work this CLASS is behind
@@ -302,6 +336,27 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		});
 		if (!gridError && grid) sectionOutstanding = gridSummary(grid as SectionGrid).outstanding;
 	}
+
+	/**
+	 * A CHECK-IN WHOSE ITEM THIS VIEWER CANNOT SEE KEEPS ITS OWN ROW.
+	 *
+	 * The failure this prevents is silent and total: attach a check-in to a
+	 * DRAFT or scheduled item and a student's `items` (RLS-filtered) does not
+	 * contain it, so the check-in would render on nothing at all -- gone from
+	 * the stream because it is linked, gone from the item because the item is
+	 * not there -- while their notebook and their teacher's grid both still
+	 * expect the work. Fail OPEN: the link is a presentation choice, and the
+	 * presentation it chooses is unavailable here, so it falls back to the one
+	 * that always works.
+	 *
+	 * It reads `items`, which is this load's own payload and therefore exactly
+	 * what the page will render -- not a second query with its own opinion about
+	 * visibility.
+	 */
+	const visibleItemIds = new Set(items.map((i) => i.id));
+	checkIns = checkIns.map((c) =>
+		c.item_id && !visibleItemIds.has(c.item_id) ? { ...c, item_id: null } : c
+	);
 
 	/**
 	 * THE UNITS THIS CLASS'S CONTENT IS GROUPED BY (0111).
@@ -355,6 +410,16 @@ export const load: LayoutServerLoad = async ({ params, locals: { supabase, claim
 		collapsed: collapsedGroups(readClassViewPrefs(profile?.preferences), params.sectionId),
 		preferences: (profile?.preferences ?? {}) as Record<string, unknown>,
 		checkIns,
+		/**
+		 * WHETHER THIS PROJECT CAN ATTACH A CHECK-IN TO AN ITEM (0120).
+		 *
+		 * False on a schema without the column, where every check-in reads as
+		 * unlinked -- which is the correct rendering, not a degraded one. What it
+		 * gates is the WRITE side: a manager is offered no "attach a check-in"
+		 * control on a project whose database would refuse it, and the item page
+		 * says so rather than failing when they press it.
+		 */
+		checkInLinksReady: checkInRows?.linksReady ?? false,
 		sectionOutstanding
 	};
 };

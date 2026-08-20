@@ -1206,6 +1206,10 @@ The two files have different jobs, and the split is the point.
   a bug.
 - **A student-facing surface never gains a second scoring path for work that is
   already graded once.** A notebook check-in is a notice with a link, not a
-  submittable item.
+  submittable item. **It may HANG OFF a classroom item** (0120: the posting
+  carries an `item_id`, so the day's material and its notebook requirement are
+  one row), and that changes only WHERE it renders -- it gains no points, no due
+  date, no submission and no rubric by being attached, and the unit is still
+  graded exactly once through `notebook_unit_items`.
 - The phase-by-phase scope history (Phases 1-5 and what each deferred) is in
   `docs/HISTORY.md` under "Scope guardrails".

@@ -46,7 +46,9 @@ import {
 } from './db/harness';
 import { createPostgrestShim, loadForeignKeys } from './db/postgrest-shim';
 import {
+	checkInsForItem,
 	isOutstanding,
+	mergeCheckIns,
 	outstandingCheckIns,
 	streamEntries,
 	type ClassCheckIn
@@ -88,8 +90,18 @@ const CHAIN = [
 	'0114_notebook_note_entry_session.sql',
 	'0116_notebook_soft_delete.sql',
 	'0117_notebook_soft_delete_restore.sql',
-	'0118_notebook_draft_state.sql'
+	'0118_notebook_draft_state.sql',
+	'0120_notebook_session_item_link.sql'
 ];
+
+/**
+ * The chain missing ONLY 0120. A deploy sitting between the two is a real state
+ * -- migrations are pasted in by hand -- and the posting select names `item_id`
+ * on its widest rung, which PostgREST rejects outright on a schema without it.
+ * What that has to degrade to is not "no check-ins": it is the arrangement they
+ * all had last week, every one of them its own row in the stream.
+ */
+const PRE_LINK_CHAIN = CHAIN.filter((m) => m !== '0120_notebook_session_item_link.sql');
 
 /**
  * The same chain without 0116 (and therefore without what depends on it). A
@@ -142,6 +154,8 @@ interface LoadResult {
 	canManage: boolean;
 	items: ClassroomItem[];
 	checkIns: ClassCheckIn[];
+	/** The 0120 ladder's own answer: could this project read the item link. */
+	checkInLinksReady: boolean;
 	sectionOutstanding: number | null;
 }
 
@@ -713,5 +727,216 @@ describe('a class with no check-ins', () => {
 		expect(entries.map((e) => (e.kind === 'item' ? e.item.id : null))).toEqual(
 			asStudent.items.map((i) => i.id)
 		);
+	});
+});
+
+// ---------------------------------------------------------------------------
+// A CHECK-IN THAT HANGS OFF A CLASSROOM ITEM (0120).
+//
+// BOTH SHAPES ARE LIVE AT ONCE, and that is the guarantee worth driving through
+// the real load: a posting with an item_id renders on that item and must NOT
+// also emit a stream row, while a posting without one is untouched. Getting the
+// first half right and the second half wrong is invisible in a screenshot of
+// either page -- you have to look at both at once, which is what this does.
+// ---------------------------------------------------------------------------
+
+describe('a check-in attached to a classroom item', () => {
+	let linkedCheckIn: string;
+	let looseCheckIn: string;
+	let material: string;
+	let preLink: TestDb;
+
+	afterAll(async () => {
+		await preLink?.stop();
+	});
+
+	beforeAll(async () => {
+		material = await db.asUser(teacher.id, async (q) => {
+			const { rows } = await q<{ result: { item_id: string } }>(
+				`select public.classroom_create_item(
+					p_kind => $1, p_section_ids => $2::uuid[], p_title => $3, p_body => $4,
+					p_published => true) as result`,
+				['material', [p1], 'Shop floor rules', 'Read before Thursday.']
+			);
+			return rows[0].result.item_id;
+		});
+
+		// Two check-ins in the same class on the same day: one attached to the
+		// material, one not. A comparison, not a single reading.
+		linkedCheckIn = await upsertSession(owner, [p1], 9, '2026-10-12', 'Shop floor pages');
+		looseCheckIn = await upsertSession(owner, [p1], 9, '2026-10-12', 'Bench log');
+		await db.asUser(teacher.id, (q) =>
+			q('select public.notebook_link_session_item($1::uuid, $2::uuid, $3::uuid)', [
+				linkedCheckIn,
+				p1,
+				material
+			])
+		);
+	});
+
+	it('the load reports the link, and the ladder says it could', async () => {
+		const data = await runLoad(alice, p1);
+		expect(data.checkInLinksReady).toBe(true);
+		const linked = data.checkIns.find((c) => c.session_id === linkedCheckIn)!;
+		const loose = data.checkIns.find((c) => c.session_id === looseCheckIn)!;
+		expect(linked.item_id).toBe(material);
+		expect(loose.item_id).toBeNull();
+	});
+
+	/** The split, through the SHIPPING functions the two surfaces call. */
+	it('renders on the item and NOT in the stream; the loose one is unchanged', async () => {
+		const data = await runLoad(alice, p1);
+		const entries = streamEntries(data.items, data.checkIns);
+		const streamed = entries
+			.filter((e) => e.kind === 'check-in')
+			.map((e) => (e.kind === 'check-in' ? e.checkIn.session_id : ''));
+
+		// ABSENT from the stream...
+		expect(streamed).not.toContain(linkedCheckIn);
+		// ...and the positive control beside it, so this cannot pass by the
+		// stream being empty: the unattached one is still there, and so is the
+		// item the linked one now hangs off.
+		expect(streamed).toContain(looseCheckIn);
+
+		// The CLASS PAGE's own merge, which is `mergeCheckIns` rather than
+		// `streamEntries` (that one starts by running the items through
+		// `streamItems`, which drops MATERIALS -- see its own header). Asserted
+		// through the function ClassView calls, so the positive control is the
+		// material's row on the surface this feature is about.
+		const grouped = mergeCheckIns(data.items, data.checkIns);
+		expect(
+			grouped.some((e) => e.kind === 'item' && e.item.id === material),
+			'the material itself is still a row'
+		).toBe(true);
+		const groupedCheckIns = grouped
+			.filter((e) => e.kind === 'check-in')
+			.map((e) => (e.kind === 'check-in' ? e.checkIn.session_id : ''));
+		expect(groupedCheckIns).not.toContain(linkedCheckIn);
+		expect(groupedCheckIns).toContain(looseCheckIn);
+
+		// ...and PRESENT on the item, with nothing else on it.
+		const onItem = checkInsForItem(data.checkIns, material);
+		expect(onItem.map((c) => c.session_id)).toEqual([linkedCheckIn]);
+		expect(checkInsForItem(data.checkIns, 'no-such-item')).toEqual([]);
+	});
+
+	/**
+	 * THE WORST FAILURE THIS FEATURE CAN PRODUCE, moved onto a new surface: a
+	 * student reads the item, sees the check-in, and it says filed when nothing
+	 * has been turned in. The status travels with the check-in, so the item's
+	 * block reads the same value the stream row would have -- but "the same
+	 * value" is exactly what a read that lost `submitted_at` would also appear
+	 * to do, so it is asserted on the linked one directly.
+	 */
+	it('a student with a DRAFT against a linked check-in reads as a draft, never filed', async () => {
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_create_entry($1, $2, $3, $4, null, $5, null, false)', [
+				alice.id,
+				'drive-alice-linked-draft',
+				linkedCheckIn,
+				p1,
+				'page.jpg'
+			])
+		);
+		// Bruno files properly against the SAME check-in: the control that makes
+		// "draft" a distinction rather than the only answer this path can give.
+		await createEntry(bruno, linkedCheckIn, p1);
+
+		const forAlice = await runLoad(alice, p1);
+		const forBruno = await runLoad(bruno, p1);
+		const aliceOnItem = checkInsForItem(forAlice.checkIns, material)[0];
+		const brunoOnItem = checkInsForItem(forBruno.checkIns, material)[0];
+
+		expect(aliceOnItem.status).toBe('draft');
+		expect(brunoOnItem.status).toBe('filed');
+		// It still counts as owed, on the item exactly as in the stream -- the
+		// badge and the block read one list.
+		expect(isOutstanding(aliceOnItem.status)).toBe(true);
+		expect(isOutstanding(brunoOnItem.status)).toBe(false);
+	});
+
+	/**
+	 * FAIL OPEN. Attach a check-in to a DRAFT item and a student's `items` does
+	 * not contain it (RLS), so a naive split would render it nowhere at all --
+	 * gone from the stream because it is linked, gone from the item because the
+	 * item is not there -- while the notebook and the grid both still expect the
+	 * work.
+	 */
+	it('keeps its stream row when the viewer cannot see the item it hangs off', async () => {
+		const draftItem = await db.asUser(teacher.id, async (q) => {
+			const { rows } = await q<{ result: { item_id: string } }>(
+				`select public.classroom_create_item(
+					p_kind => $1, p_section_ids => $2::uuid[], p_title => $3, p_body => $4,
+					p_published => false) as result`,
+				['material', [p1], 'Unpublished handout', 'Not yet.']
+			);
+			return rows[0].result.item_id;
+		});
+		const hidden = await upsertSession(owner, [p1], 9, '2026-10-13', 'Hidden handout pages');
+		await db.asUser(teacher.id, (q) =>
+			q('select public.notebook_link_session_item($1::uuid, $2::uuid, $3::uuid)', [
+				hidden,
+				p1,
+				draftItem
+			])
+		);
+
+		// The TEACHER can see the draft item, so for them it stays attached.
+		const asTeacher = await runLoad(teacher, p1);
+		expect(asTeacher.checkIns.find((c) => c.session_id === hidden)!.item_id).toBe(draftItem);
+
+		// The STUDENT cannot, so the link is dropped and the row comes back.
+		const asStudent = await runLoad(alice, p1);
+		expect(asStudent.items.some((i) => i.id === draftItem)).toBe(false);
+		expect(asStudent.checkIns.find((c) => c.session_id === hidden)!.item_id).toBeNull();
+		const streamed = streamEntries(asStudent.items, asStudent.checkIns)
+			.filter((e) => e.kind === 'check-in')
+			.map((e) => (e.kind === 'check-in' ? e.checkIn.session_id : ''));
+		expect(streamed).toContain(hidden);
+	});
+
+	/**
+	 * THE LADDER. On a project without 0120 the widest rung names a column that
+	 * does not exist, and PostgREST rejects the whole select -- so the fallback
+	 * has to be the arrangement every check-in had before it, not an empty page.
+	 */
+	it('degrades to every check-in in the stream on a project without 0120', async () => {
+		preLink = await startTestDb(PRE_LINK_CHAIN);
+		const keys = await loadForeignKeys(preLink);
+
+		const preTeacher = await createUser(preLink, 'tvargas@boscotech.edu', 'T. Vargas');
+		const preOwner = await createUser(preLink, 'apina@boscotech.edu', 'Site Owner');
+		const preAlice = await createUser(preLink, 'alice@boscotech.net', 'Alice Pike');
+		const section = await createClassroomSection(preLink, {
+			as: preTeacher,
+			courseCode: 'IDEA209H',
+			courseTitle: 'Engineering Design',
+			label: 'Period 9',
+			teacherEmail: preTeacher.email
+		});
+		await enrollStudent(preLink, {
+			as: preTeacher,
+			sectionId: section,
+			email: preAlice.email,
+			displayName: 'Pike, Alice'
+		});
+		await preLink.asUser(preOwner.id, (q) =>
+			q('select public.notebook_admin_upsert_session($1::uuid[], $2, $3::date, $4)', [
+				[section],
+				9,
+				'2026-10-12',
+				'Bench log'
+			])
+		);
+
+		const data = await runLoadOn(preLink, keys, preAlice, section);
+		// The capability reports itself OFF...
+		expect(data.checkInLinksReady).toBe(false);
+		// ...and the check-in is still here, unlinked, in the stream.
+		expect(data.checkIns).toHaveLength(1);
+		expect(data.checkIns[0].item_id).toBeNull();
+		expect(
+			streamEntries(data.items, data.checkIns).filter((e) => e.kind === 'check-in')
+		).toHaveLength(1);
 	});
 });

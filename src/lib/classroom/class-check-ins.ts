@@ -16,11 +16,32 @@
  * only "here is the check-in, here is where you stand on it, here is the door".
  *
  * WHY IT IS A SECOND SOURCE MERGED AT THE PAGE, NOT AN EXTENDED ITEM QUERY.
- * Check-ins live in `notebook_sessions` + `notebook_session_postings`, which
- * have no foreign key to `classroom_items` at all -- PostgREST has nothing to
- * resolve an embed through, so extending the stream query is not something the
- * schema permits even in principle. That constraint agrees with the one above:
- * the only way to put a check-in in the stream is as its own kind of thing.
+ * Check-ins live in `notebook_sessions` + `notebook_session_postings` and are
+ * read separately from the items, then merged here. That is a LOADING shape,
+ * not a claim about the schema: 0120 gave the POSTING an `item_id` pointing at
+ * `classroom_postings (item_id, section_id)`, so a foreign key now exists in
+ * one direction. What has not changed is the paragraph above -- a check-in
+ * still has no points, no due date, no submission and no rubric, and linking
+ * one to an item gives it none of them.
+ *
+ * (This header used to argue the reverse, on the grounds that no key existed
+ * to embed through. That was true of the schema it described and is not true
+ * of this one. The reason a check-in must not become a `classroom_items` kind
+ * is the SECOND SCORING PATH, above, which no amount of schema changes
+ * affects.)
+ *
+ * TWO SHAPES, BOTH LIVE, AND THE POSTING DECIDES WHICH.
+ *
+ *   - `item_id` null  -- the check-in is its own row in the class stream,
+ *                        exactly as every check-in was before 0120. Nothing
+ *                        was backfilled, so this is still most of them.
+ *   - `item_id` set   -- it stops emitting a row and renders as a block on
+ *                        that item, so the day's material and the notebook
+ *                        requirement that goes with it are one thing.
+ *
+ * `mergeCheckIns` is where that fork lives, once: a linked check-in cannot
+ * reach the stream through any caller, because the filter is inside the merge
+ * rather than at the four places that call it.
  */
 import type { NotebookFlagReason } from '$lib/notebook';
 import { streamItems, type ClassroomItem } from '$lib/classroom/classroom';
@@ -72,6 +93,20 @@ export interface ClassCheckIn {
 	status: CheckInStatus | null;
 	/** The viewer's own flag reason, when their own entry is flagged. */
 	flag_reason: NotebookFlagReason | null;
+	/**
+	 * THE CLASSROOM ITEM THIS CHECK-IN HANGS OFF IN THIS CLASS (0120), or null
+	 * for the shape every check-in had before it: its own row in the stream.
+	 *
+	 * It is the POSTING's column, so it is per-class exactly as `section_id` is
+	 * -- one canonical check-in can hang off a material in period 2 and stand on
+	 * its own in period 5, because the item is posted to one and not the other.
+	 *
+	 * REQUIRED, NOT OPTIONAL, and deliberately: every place that builds one of
+	 * these has to decide, and a project whose schema predates 0120 says so by
+	 * writing `null` rather than by leaving the field off and reading undefined
+	 * as "not linked" in some branches and "unknown" in others.
+	 */
+	item_id: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +228,94 @@ export function outstandingCheckIns(checkIns: ClassCheckIn[]): number {
 }
 
 // ---------------------------------------------------------------------------
+// Authoring one against an item (0120)
+// ---------------------------------------------------------------------------
+
+/**
+ * The three things a check-in IS: which unit it belongs to, the day it is for,
+ * and what it is called. Exactly `notebook_admin_upsert_session`'s authored
+ * fields minus the sections, which are not a decision here -- a check-in
+ * attached to an item runs where that item is posted, and asking twice is how
+ * the two come to disagree.
+ */
+export interface CheckInDraft {
+	unit_number: number | string;
+	/** YYYY-MM-DD, straight off a date input. */
+	session_date: string;
+	session_label: string;
+}
+
+/**
+ * WHY THE UNIT IS `number | string`: `bind:value` on `<input type="number">`
+ * coerces to a number, and an emptied field binds to the empty string. Typing
+ * it honestly here is what keeps a `.trim()` off a number (this repo's
+ * three-times trap) and lets the check below say "required" rather than
+ * throwing.
+ */
+export const CHECK_IN_UNIT_MIN = 0;
+export const CHECK_IN_UNIT_MAX = 1000;
+
+/**
+ * WHAT IS WRONG WITH THIS DRAFT, or null.
+ *
+ * It mirrors `notebook_admin_upsert_session`'s own three refusals rather than
+ * inventing a fourth: the RPC is the boundary and raises these exact
+ * conditions, and this exists so somebody staging one finds out while they are
+ * typing instead of after they press Post. Where the two could drift, the RPC
+ * wins -- which is why the numbers are named constants and the wording says the
+ * same thing the database does.
+ */
+export function checkInDraftIssue(draft: CheckInDraft): string | null {
+	const unit = typeof draft.unit_number === 'string' ? draft.unit_number.trim() : draft.unit_number;
+	if (unit === '' || unit === null || unit === undefined) return 'Give the check-in a unit number.';
+	const n = Number(unit);
+	if (!Number.isInteger(n) || n < CHECK_IN_UNIT_MIN || n > CHECK_IN_UNIT_MAX) {
+		return `Unit number must be a whole number between ${CHECK_IN_UNIT_MIN} and ${CHECK_IN_UNIT_MAX}.`;
+	}
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.session_date ?? '')) return 'Pick the day it is for.';
+	if (!(draft.session_label ?? '').trim()) return 'Give the check-in a name.';
+	return null;
+}
+
+/** The draft as the RPC wants it, once `checkInDraftIssue` has passed. */
+export function checkInDraftPayload(draft: CheckInDraft): {
+	unit_number: number;
+	session_date: string;
+	session_label: string;
+} {
+	return {
+		unit_number: Number(draft.unit_number),
+		session_date: draft.session_date,
+		session_label: draft.session_label.trim()
+	};
+}
+
+/**
+ * The two writes that move a check-in between its two shapes.
+ *
+ * INJECTED, like every other transport in this module, so the dev harnesses
+ * answer them in memory and the real route points them at the RPCs. Both are
+ * re-authorized inside the function they call (`classroom_manages_section`);
+ * handing them in is plumbing, never the boundary.
+ *
+ * ABSENCE REMOVES THE CONTROL, down through the components -- an item page
+ * given no transports has no attach and no detach to execute, which is what
+ * makes a student's read-only view structural rather than a discipline.
+ */
+export interface ClassCheckInTransports {
+	/** Create a check-in that belongs to this item, in every class it is posted to. */
+	createForItem: (
+		itemId: string,
+		draft: CheckInDraft
+	) => Promise<{ ok: boolean; message?: string }>;
+	/** Put one back in the class stream. The check-in and its entries are untouched. */
+	unlink: (
+		sessionId: string,
+		sectionId: string
+	) => Promise<{ ok: boolean; message?: string }>;
+}
+
+// ---------------------------------------------------------------------------
 // The deep link
 // ---------------------------------------------------------------------------
 
@@ -288,11 +411,17 @@ export function mergeCheckIns(
 		item
 	}));
 
-	if (!checkIns.length) return entries;
+	// A CHECK-IN ATTACHED TO AN ITEM (0120) HAS ALREADY BEEN RENDERED, on that
+	// item, and a row of its own beside it would be the two-rows-for-one-thing
+	// this exists to end. The filter is HERE rather than at the call sites so
+	// there is no caller that can forget it -- ClassView merges per unit group,
+	// the dev harness merges its fixture, and neither knows the rule.
+	const loose = streamCheckIns(checkIns);
+	if (!loose.length) return entries;
 
 	// Newest first, so equally-dated check-ins keep a stable, readable order and
 	// the insertion walk below never has to reconsider one it already placed.
-	const sorted = [...checkIns].sort(
+	const sorted = [...loose].sort(
 		(a, b) =>
 			checkInStamp(b) - checkInStamp(a) ||
 			a.session_label.localeCompare(b.session_label) ||
@@ -322,6 +451,37 @@ export function mergeCheckIns(
 	}
 
 	return entries;
+}
+
+// ---------------------------------------------------------------------------
+// The two shapes (0120)
+// ---------------------------------------------------------------------------
+
+/**
+ * THE CHECK-INS THAT STILL EMIT A STREAM ROW: the ones no item has claimed.
+ *
+ * Exported beside `mergeCheckIns` (which applies it) for the one caller that
+ * needs the same question without the merge -- "is this class empty", where a
+ * check-in rendered on an item is not an answer, because the item it renders
+ * on is already content on the page.
+ */
+export function streamCheckIns(checkIns: ClassCheckIn[]): ClassCheckIn[] {
+	return checkIns.filter((c) => !c.item_id);
+}
+
+/**
+ * THE CHECK-INS THAT HANG OFF ONE ITEM, for the block the item page renders.
+ *
+ * Plural because the payload is per-class and an item can carry more than one
+ * day's check-in in principle; the composer creates one at a time, and the
+ * block renders whatever it is handed rather than assuming a count.
+ *
+ * An empty item id answers empty rather than matching every unlinked check-in,
+ * which is the failure this shape makes easy to write by accident.
+ */
+export function checkInsForItem(checkIns: ClassCheckIn[], itemId: string): ClassCheckIn[] {
+	if (!itemId) return [];
+	return checkIns.filter((c) => c.item_id === itemId);
 }
 
 /** "Unit 3 · Oct 14" -- the check-in card's own meta line. */

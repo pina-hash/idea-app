@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
+	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import RichTextEditor from '$lib/classroom/RichTextEditor.svelte';
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
+	import type { CheckInDraft, ClassCheckInTransports } from '$lib/classroom/class-check-ins';
 	import { itemBodyDoc, type TiptapNode } from '$lib/classroom/classroom-doc';
 	import {
 		COMPOSER_DISCARD_WARNING,
@@ -90,6 +92,7 @@
 		deckTransports = null,
 		teacherTransports = null,
 		referenceTransports = null,
+		checkInTransports = null,
 		attachmentsEnabled = true,
 		compact = false,
 		onsaved,
@@ -118,6 +121,13 @@
 		deckTransports?: DeckTransports | null;
 		teacherTransports?: AssignmentTeacherTransports | null;
 		referenceTransports?: ReferenceTransports | null;
+		/**
+		 * Attaching a notebook check-in to what is being posted (0120). Null
+		 * where that is not available -- a project whose schema predates the
+		 * migration, or a caller without manage rights -- and its ABSENCE is what
+		 * removes the control, not a flag beside it.
+		 */
+		checkInTransports?: ClassCheckInTransports | null;
 		/** False when Drive is unconfigured: the file controls hide entirely. */
 		attachmentsEnabled?: boolean;
 		/** Inline placement (class page / item detail) vs the console card. */
@@ -225,6 +235,17 @@
 				(specKind === 'reference' && !!referenceTransports))
 	);
 	const canStageDeck = $derived(mode === 'create' && !!deckTransports);
+	/**
+	 * A STAGED CHECK-IN (0120): the third attachable, on the same create-only
+	 * terms as the other two. On an EDIT the item page owns it -- that is where
+	 * an existing one is shown and detached -- exactly as it owns the deck and
+	 * the spec once the item exists.
+	 */
+	let stagedCheckIn = $state<CheckInDraft | null>(null);
+	const canStageCheckIn = $derived(mode === 'create' && !!checkInTransports);
+	$effect(() => {
+		if (!canStageCheckIn) stagedCheckIn = null;
+	});
 	/** The staged JSON, re-read as the spec type the summary line wants. */
 	const stagedSpecShown = $derived(
 		stagedSpec == null ? null : (stagedSpec as AssignmentSpec | ReferenceSpec)
@@ -555,7 +576,8 @@
 			links,
 			instructorLinks,
 			deck: stagedDeck,
-			spec: stagedSpec
+			spec: stagedSpec,
+			checkIn: stagedCheckIn
 		})
 	);
 	$effect(() => {
@@ -661,6 +683,7 @@
 		const hadFiles = staged.length > 0 || instructorStaged.length > 0;
 		const hadDeck = !!stagedDeck;
 		const hadSpec = stagedSpec != null;
+		const hadCheckIn = stagedCheckIn != null;
 		const failures: string[] = [];
 
 		// The save route had to fall back past the rich body to get through, so
@@ -759,10 +782,10 @@
 		 * because the deck is the long one and its progress is what the form
 		 * reports while it goes.
 		 */
-		if (stagedDeck || stagedSpec != null) {
+		if (stagedDeck || stagedSpec != null || stagedCheckIn != null) {
 			const extras = await applyStagedExtras(
 				itemId,
-				{ deck: stagedDeck, spec: stagedSpec, specKind },
+				{ deck: stagedDeck, spec: stagedSpec, specKind, checkIn: stagedCheckIn },
 				{
 					deck: deckTransports,
 					setSpec: teacherTransports
@@ -770,6 +793,9 @@
 						: null,
 					setReferenceSpec: referenceTransports
 						? (id, spec) => referenceTransports.setReferenceSpec(id, spec as ReferenceSpec)
+						: null,
+					createCheckIn: checkInTransports
+						? (id, draft) => checkInTransports.createForItem(id, draft)
 						: null
 				},
 				(p) => (deckProgress = p)
@@ -777,6 +803,9 @@
 			deckProgress = null;
 			stagedDeck = extras.deck;
 			stagedSpec = extras.spec;
+			// Stays staged when it did not land, exactly like the other two: the
+			// failure message names it and saving again retries only what is left.
+			stagedCheckIn = extras.checkIn;
 			failures.push(...extras.failures);
 		}
 
@@ -805,7 +834,8 @@
 		const alsoLanded = [
 			hadFiles ? 'Files attached.' : '',
 			hadDeck ? 'Deck uploaded.' : '',
-			hadSpec ? (specKind === 'reference' ? 'Document attached.' : 'Spec attached.') : ''
+			hadSpec ? (specKind === 'reference' ? 'Document attached.' : 'Spec attached.') : '',
+			hadCheckIn ? 'Check-in scheduled.' : ''
 		].filter(Boolean);
 		const attachNote = alsoLanded.length ? ` ${alsoLanded.join(' ')}` : '';
 
@@ -839,6 +869,7 @@
 			// the complete list of what a fresh post starts from.
 			stagedDeck = null;
 			stagedSpec = null;
+			stagedCheckIn = null;
 			deckIssue = null;
 			// The editor is remounted by bumping its key rather than reset
 			// through it: `bodyDoc` is what the parent holds, and a keyed
@@ -1038,6 +1069,28 @@
 			{#if deckIssue}
 				<p class="feedback error" data-testid="staged-deck-issue">{deckIssue}</p>
 			{/if}
+		</div>
+	{/if}
+
+	<!--
+		THE CHECK-IN SITS WITH THEM, and for the same reason: "students photograph
+		their notes on this" is something this item IS, not a decision about where
+		or when it goes. It is the whole point of 0120 that the two are authored
+		together -- a teacher who has just written up the day's material should not
+		have to go to a different console to say the notebook work that goes with
+		it exists.
+	-->
+	{#if canStageCheckIn}
+		<div class="attach-editor">
+			<CheckInStager
+				label="Notebook check-in"
+				submitLabel="Attach check-in"
+				hint="Students photograph their notebook page against this. It appears on this item rather than as a separate row, and runs in every class you post to."
+				staged={stagedCheckIn}
+				busy={busy}
+				onstage={(draft) => (stagedCheckIn = draft)}
+				onremove={() => (stagedCheckIn = null)}
+			/>
 		</div>
 	{/if}
 

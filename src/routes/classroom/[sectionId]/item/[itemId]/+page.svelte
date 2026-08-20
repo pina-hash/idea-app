@@ -7,10 +7,12 @@
 		createEngineTransports,
 		createReferenceTransports,
 		createRevisionTransports,
+		createCheckInTransports,
 		createTeacherEngineTransports,
 		deckTransports,
 		fetchLinkPreviewClient
 	} from '$lib/classroom/transports';
+	import { checkInsForItem } from '$lib/classroom/class-check-ins';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -29,6 +31,18 @@
 	const referenceTransports = createReferenceTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const revisionTransports = createRevisionTransports(data.supabase);
+	// svelte-ignore state_referenced_locally
+	const checkInTransports = createCheckInTransports(data.supabase);
+
+	/**
+	 * THE CHECK-INS THAT HANG OFF THIS ITEM (0120), out of the class's own list.
+	 *
+	 * `data.checkIns` is the LAYOUT's -- page data merges over layout data, and
+	 * this route is a child of the class layout -- so the item page adds no
+	 * second query for something the class already loaded, and the two surfaces
+	 * cannot disagree about a student's status.
+	 */
+	const itemCheckIns = $derived(checkInsForItem(data.checkIns ?? [], data.item.id));
 </script>
 
 <ItemDetail
@@ -50,6 +64,8 @@
 	deck={data.deck}
 	deckTransports={data.canManage ? deckTransports : null}
 	revisionTransports={data.canManage ? revisionTransports : null}
+	checkIns={itemCheckIns}
+	checkInTransports={data.canManage && data.checkInLinksReady ? checkInTransports : null}
 	gradeHref={data.canManage ? `/classroom/${data.section.id}/item/${data.item.id}/grade` : null}
 	onchanged={() => invalidateAll()}
 	ondeleted={() => goto(`/classroom/${data.section.id}`)}

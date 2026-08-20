@@ -2,6 +2,7 @@
 	import VersionBadge from '$lib/VersionBadge.svelte';
 	import AssignmentEngine from '$lib/classroom/AssignmentEngine.svelte';
 	import AttachmentList from '$lib/classroom/AttachmentList.svelte';
+	import CheckInStager from '$lib/classroom/CheckInStager.svelte';
 	import ClassroomFeedback from '$lib/classroom/ClassroomFeedback.svelte';
 	import ContentComposer from '$lib/classroom/ContentComposer.svelte';
 	import DeckPanel from '$lib/classroom/DeckPanel.svelte';
@@ -13,6 +14,16 @@
 	import SpecImporter from '$lib/classroom/SpecImporter.svelte';
 	import SpecRenderer from '$lib/classroom/SpecRenderer.svelte';
 	import type { ReferenceSpec, ReferenceTransports } from '$lib/classroom/reference-spec';
+	import { flagReasonLabel } from '$lib/notebook';
+	import {
+		checkInHref,
+		checkInMeta,
+		checkInStatusLabel,
+		checkInTone,
+		type CheckInDraft,
+		type ClassCheckIn,
+		type ClassCheckInTransports
+	} from '$lib/classroom/class-check-ins';
 	import type { RevisionTransports } from '$lib/classroom/revisions';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type {
@@ -101,7 +112,9 @@
 		referenceTransports = null,
 		deck = null,
 		deckTransports = null,
-		revisionTransports = null
+		revisionTransports = null,
+		checkIns = [],
+		checkInTransports = null
 	}: {
 		section: ClassroomSection;
 		item: ClassroomItem;
@@ -147,6 +160,25 @@
 		 * teacher's drafts.
 		 */
 		revisionTransports?: RevisionTransports | null;
+		/**
+		 * THE NOTEBOOK CHECK-INS THAT HANG OFF THIS ITEM in this class (0120),
+		 * already narrowed by the caller (checkInsForItem). Each carries the
+		 * VIEWER'S OWN status, or null for a manager -- a teacher has no personal
+		 * standing on their own class's check-in.
+		 *
+		 * DELIBERATELY NOT PASSED IN VIEW-AS, exactly as the deck is not:
+		 * `classroom_view_as_section`'s payload carries no check-in, so the block
+		 * does not render there rather than an admin's own read appearing under a
+		 * student's name.
+		 */
+		checkIns?: ClassCheckIn[];
+		/**
+		 * Attaching one to this item and detaching it again. Null on a project
+		 * without 0120 and for anyone who cannot manage the class, and its
+		 * ABSENCE is what removes both controls -- the block still renders what
+		 * is there, read-only.
+		 */
+		checkInTransports?: ClassCheckInTransports | null;
 	} = $props();
 
 	let editing = $state(false);
@@ -183,6 +215,53 @@
 	const canEditReference = $derived(item.kind === 'material' && canManage && !!referenceTransports);
 	const canEditAssignment = $derived(item.kind === 'assignment' && canManage && !!teacherTransports);
 	const canManageDeck = $derived(canManage && !!deckTransports);
+	const canManageCheckIn = $derived(canManage && !!checkInTransports);
+
+	// --- The notebook check-in (0120) --------------------------------------
+	//
+	// One busy flag and one message for both writes, cleared in `finally` so a
+	// throw mid-attach cannot disable the controls for good.
+	let checkInBusy = $state(false);
+	let checkInError = $state<string | null>(null);
+	/** Two-step, because detaching moves where a student reads their obligation. */
+	let detaching = $state<string | null>(null);
+
+	async function attachCheckIn(draft: CheckInDraft) {
+		if (!checkInTransports || checkInBusy) return;
+		checkInBusy = true;
+		checkInError = null;
+		try {
+			const res = await checkInTransports.createForItem(item.id, draft);
+			if (!res.ok) {
+				checkInError = res.message ?? 'Could not attach that check-in.';
+				return;
+			}
+			await onchanged?.();
+		} catch (e) {
+			checkInError = (e as Error).message || 'Could not attach that check-in.';
+		} finally {
+			checkInBusy = false;
+		}
+	}
+
+	async function detachCheckIn(checkIn: ClassCheckIn) {
+		if (!checkInTransports || checkInBusy) return;
+		checkInBusy = true;
+		checkInError = null;
+		try {
+			const res = await checkInTransports.unlink(checkIn.session_id, checkIn.section_id);
+			if (!res.ok) {
+				checkInError = res.message ?? 'Could not detach that check-in.';
+				return;
+			}
+			detaching = null;
+			await onchanged?.();
+		} catch (e) {
+			checkInError = (e as Error).message || 'Could not detach that check-in.';
+		} finally {
+			checkInBusy = false;
+		}
+	}
 	const hasState = $derived(canManage && (!item.published || isScheduled(item) || item.is_public === true));
 	const hasInspector = $derived(
 		editable ||
@@ -190,6 +269,7 @@
 			canEditReference ||
 			canEditAssignment ||
 			canManageDeck ||
+			canManageCheckIn ||
 			hasState ||
 			!!revisionTransports
 	);
@@ -392,6 +472,76 @@
 						</div>
 					{/if}
 
+					{#if canManageCheckIn}
+						<!-- ATTACH AND DETACH, the management half. The check-in
+						     itself reads in the content flow above for everyone.
+						     Editing its date, its name or which classes it runs in
+						     stays in /notebook/review's SessionManager, which owns
+						     the check-in; this only decides what it hangs off. -->
+						<div class="insp-block">
+							{#if checkIns.length}
+								<h2 class="section-label">Notebook check-in</h2>
+								{#each checkIns as checkIn (checkIn.session_id)}
+									<p class="insp-line" data-testid="insp-check-in">
+										<strong>{checkIn.session_label}</strong>
+										<span class="ci-meta">{checkInMeta(checkIn)}</span>
+									</p>
+									{#if detaching === checkIn.session_id}
+										<!-- Names what it costs before the confirm: nothing is
+										     destroyed, and saying so is the honest version. -->
+										<p class="hint" data-testid="detach-warning">
+											It goes back to being its own row in the class. The check-in, and
+											every entry filed against it, stay exactly as they are.
+										</p>
+										<span class="ci-actions">
+											<button
+												type="button"
+												class="btn secondary tiny"
+												data-testid="detach-confirm"
+												disabled={checkInBusy}
+												onclick={() => detachCheckIn(checkIn)}
+											>
+												{checkInBusy ? 'Detaching...' : 'Yes, detach it'}
+											</button>
+											<button
+												type="button"
+												class="btn secondary tiny"
+												data-testid="detach-cancel"
+												disabled={checkInBusy}
+												onclick={() => (detaching = null)}
+											>
+												Keep it here
+											</button>
+										</span>
+									{:else}
+										<span class="ci-actions">
+											<button
+												type="button"
+												class="btn secondary tiny"
+												data-testid="detach-check-in"
+												disabled={checkInBusy}
+												onclick={() => (detaching = checkIn.session_id)}
+											>
+												Detach check-in
+											</button>
+										</span>
+									{/if}
+								{/each}
+							{:else}
+								<CheckInStager
+									label="Notebook check-in"
+									submitLabel={checkInBusy ? 'Attaching...' : 'Attach check-in'}
+									hint="Students photograph their notebook page against this. It appears on this item rather than as a separate row, and runs in every class this item is posted to."
+									busy={checkInBusy}
+									onstage={attachCheckIn}
+								/>
+							{/if}
+							{#if checkInError}
+								<p class="feedback error" data-testid="check-in-error">{checkInError}</p>
+							{/if}
+						</div>
+					{/if}
+
 					{#if canEditReference}
 						<div class="insp-block engine-tools">
 							<h2 class="section-label">Reference document</h2>
@@ -515,6 +665,53 @@
 	     in the content flow" true by inspection rather than by reading
 	     DeckPanel to check. -->
 	<DeckPanel {deck} itemId={item.id} sectionId={section.id} {basePath} mode="view" />
+
+	<!--
+		THE NOTEBOOK CHECK-IN THAT BELONGS TO THIS ITEM (0120), high in the
+		reading order because it is an OBLIGATION rather than a detail: what a
+		student has to do about this item, where the due date and points already
+		sit in the hero above.
+
+		THE CONTROLS ARE NOT HERE. This renders identically for a teacher and a
+		student -- attaching and detaching are management and live in the
+		inspector, exactly as the deck's upload does.
+
+		A MANAGER'S CHECK-IN CARRIES NO STATUS (`status: null`), so the chip
+		simply does not render for them rather than reporting a state assembled
+		from somebody else's work.
+	-->
+	{#if checkIns.length}
+		<section class="card ci-card" data-testid="item-check-ins">
+			<h2 class="section-label">
+				{checkIns.length === 1 ? 'Notebook check-in' : 'Notebook check-ins'}
+			</h2>
+			{#each checkIns as checkIn (checkIn.session_id)}
+				<div class="ci-row" data-testid="item-check-in">
+					<span class="ci-head">
+						<span class="ci-name">{checkIn.session_label}</span>
+						{#if checkIn.status}
+							<span
+								class="chip tone-{checkInTone(checkIn.status)}"
+								data-testid="item-check-in-status"
+							>
+								{checkIn.status === 'flagged'
+									? (flagReasonLabel(checkIn.flag_reason) ?? checkInStatusLabel(checkIn.status))
+									: checkInStatusLabel(checkIn.status)}
+							</span>
+						{/if}
+					</span>
+					<span class="ci-meta">{checkInMeta(checkIn)}</span>
+					<!-- The same door the stream row offers, carrying both ids: the
+					     upload flow files against a (check-in, class) PAIR, and a
+					     student in two classes that share one has two to choose
+					     between. This page knows which; the notebook cannot guess. -->
+					<a class="ci-link" href={checkInHref(checkIn)} data-testid="item-check-in-link">
+						{canManage ? 'Open the notebook' : 'Open your notebook'}
+					</a>
+				</div>
+			{/each}
+		</section>
+	{/if}
 
 	<!-- A MATERIAL WITH A REFERENCE DOCUMENT RENDERS THE DOCUMENT. Without one it
 	     renders its written details exactly as every material always has, which
@@ -749,6 +946,61 @@
 		gap: 0.4rem;
 		flex-wrap: wrap;
 		margin: 0.4rem 0 0;
+	}
+	/* --- The notebook check-in block (0120) --------------------------------
+	   `ci-` prefixed like every other component class here: app.css owns a
+	   global `.row` that is a flex ROW with its own padding, and an unprefixed
+	   name would inherit a layout this block never asked for. */
+	.ci-row {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2) var(--space-3);
+	}
+	.ci-row + .ci-row {
+		margin-top: var(--space-3);
+		padding-top: var(--space-3);
+		border-top: 1px solid var(--hairline);
+	}
+	.ci-head {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-width: 0;
+	}
+	.ci-name {
+		font-weight: 700;
+		font-size: 0.95rem;
+	}
+	.ci-meta {
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.7rem;
+		color: var(--text-2);
+	}
+	.ci-link {
+		margin-left: auto;
+		font-family: 'Share Tech Mono', monospace;
+		font-size: 0.72rem;
+		color: var(--gold);
+		white-space: nowrap;
+		/* A phone touches this. */
+		min-height: 44px;
+		display: inline-flex;
+		align-items: center;
+	}
+	.ci-actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+	}
+	.insp-line {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: var(--space-2);
+		margin: 0 0 var(--space-1);
+		font-size: 0.9rem;
 	}
 	.section-label {
 		margin: 0 0 var(--space-2);

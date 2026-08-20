@@ -13,6 +13,7 @@
 	import { locateClassroom, navKeepsComposer } from '$lib/classroom/nav';
 	import {
 		classroomFeedbackSubmit,
+		createCheckInTransports,
 		createClassroomTransports,
 		createReferenceTransports,
 		createTeacherEngineTransports,
@@ -69,6 +70,10 @@
 	const teacherTransports = createTeacherEngineTransports(data.supabase);
 	// svelte-ignore state_referenced_locally
 	const referenceTransports = createReferenceTransports(data.supabase);
+	// The composer's third staged attachable (0120). Handed in only where the
+	// schema can take it; `checkInLinksReady` is the load's own ladder answer.
+	// svelte-ignore state_referenced_locally
+	const checkInTransports = createCheckInTransports(data.supabase);
 
 	/**
 	 * COMPOSING IS LAYOUT STATE, NOT A ROUTE, and that is the whole design.
@@ -247,6 +252,7 @@
 				{teacherTransports}
 				{referenceTransports}
 				attachmentsEnabled={data.attachmentsEnabled}
+				checkInTransports={data.checkInLinksReady ? checkInTransports : null}
 				onsaved={composerSaved}
 				ondirtychange={(d) => (composerDirty = d)}
 				oncancel={closeComposer}

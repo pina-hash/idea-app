@@ -29,6 +29,11 @@ import {
 } from './assignment-spec';
 import type { PublicToggleResult, ReferenceTransports } from './reference-spec';
 import {
+	checkInDraftIssue,
+	checkInDraftPayload,
+	type ClassCheckInTransports
+} from './class-check-ins';
+import {
 	normalizeRevisionHistory,
 	type ExportOutcome,
 	type ItemExportStatus,
@@ -997,6 +1002,41 @@ export function createReferenceTransports(supabase: SupabaseClient): ReferenceTr
 			return error
 				? fail(error)
 				: { ok: true, data: (data ?? { ok: true }) as PublicToggleResult };
+		}
+	};
+}
+
+/**
+ * THE TWO CHECK-IN LINK WRITES (0120), and there are only two because the third
+ * thing you might expect -- editing the check-in itself -- already has a home:
+ * `/notebook/review`'s SessionManager owns the date, the label and which
+ * classes it runs in, exactly as it did before an item could claim one.
+ *
+ * `createForItem` is ONE round trip that creates the check-in and points every
+ * one of its postings at the item, because a client-side create-then-link loop
+ * can stop halfway with nobody able to say how much landed. The RPC calls
+ * `notebook_admin_upsert_session` and `notebook_link_session_item` itself.
+ */
+export function createCheckInTransports(supabase: SupabaseClient): ClassCheckInTransports {
+	return {
+		async createForItem(itemId, draft) {
+			const issue = checkInDraftIssue(draft);
+			if (issue) return { ok: false, message: issue };
+			const payload = checkInDraftPayload(draft);
+			const { error } = await supabase.rpc('notebook_create_item_check_in', {
+				p_item_id: itemId,
+				p_unit_number: payload.unit_number,
+				p_session_date: payload.session_date,
+				p_session_label: payload.session_label
+			});
+			return error ? fail(error) : { ok: true };
+		},
+		async unlink(sessionId, sectionId) {
+			const { error } = await supabase.rpc('notebook_unlink_session_item', {
+				p_session_id: sessionId,
+				p_section_id: sectionId
+			});
+			return error ? fail(error) : { ok: true };
 		}
 	};
 }

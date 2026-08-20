@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "A notebook check-in can live on the work it belongs to",
+			"body": "When your teacher sets up a notebook check-in for a particular post, assignment or handout, it now shows up ON that item instead of as a separate row further down the class. Open the item and you see the check-in right under the title: what it is called, which unit and day it is for, whether you have filed it, started a draft or not done it yet, and a link straight into your notebook with that check-in already picked. Check-ins that are not attached to anything keep their own row in the class exactly as before, and nothing about filing a page changes.",
+			"tags": ["Stream", "Classwork", "Notebook"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "The class page uses the whole screen now",
 			"body": "On a laptop or a desktop, opening a class used to give you a narrow strip of class content on the left and a mostly empty half-screen on the right waiting for you to pick something. The class now fills the width until you open something: your units sit side by side in two or three columns instead of one long list, so you can see far more of the class without scrolling. Pick a post or an assignment and the class slides back to the left exactly where it was, with the thing you opened beside it. Rows are a little tighter as well, so more fits on a screen. Nothing moved, nothing is hidden, and on a phone the class page looks and works the way it always has.",
 			"tags": ["Stream", "Classwork"]

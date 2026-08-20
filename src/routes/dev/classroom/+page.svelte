@@ -23,7 +23,15 @@
 	import type { ItemDoc } from '$lib/classroom/classroom-doc';
 	import type { ClassroomDeck, DeckTransports } from '$lib/classroom/deck';
 	import type { ReferenceTransports } from '$lib/classroom/reference-spec';
-	import type { ClassCheckIn } from '$lib/classroom/class-check-ins';
+	import {
+		checkInsForItem,
+		type ClassCheckIn,
+		type CheckInDraft,
+		type ClassCheckInTransports
+	} from '$lib/classroom/class-check-ins';
+
+	/** What the in-memory attach/detach was asked to do, for a console read. */
+	const checkInLog: Record<string, unknown>[] = [];
 	import type {
 		ClassroomAttachment,
 		ClassroomCourse,
@@ -1708,16 +1716,23 @@
 				session_date: '2026-08-08',
 				session_label: 'Bearing teardown',
 				status: 'filed',
-				flag_reason: null
+				flag_reason: null,
+				item_id: null
 			},
 			{
+				// ATTACHED TO AN ITEM (0120), which is the second shape: it is
+				// absent from the class stream below and renders on i-3's page
+				// instead. Deliberately the FLAGGED one, so the status a linked
+				// check-in carries is measurable on the item rather than only the
+				// easy "not filed yet" case.
 				session_id: 'ns-2',
 				section_id: 's-1',
 				unit_number: 3,
 				session_date: '2026-08-10',
 				session_label: 'Shaft stackup',
 				status: 'flagged',
-				flag_reason: 'illegible'
+				flag_reason: 'illegible',
+				item_id: 'i-3'
 			},
 			{
 				session_id: 'ns-3',
@@ -1726,7 +1741,8 @@
 				session_date: '2026-08-12',
 				session_label: 'Gearbox build',
 				status: 'missing',
-				flag_reason: null
+				flag_reason: null,
+				item_id: null
 			}
 		],
 		's-2': [
@@ -1737,7 +1753,8 @@
 				session_date: '2026-08-08',
 				session_label: 'Bearing teardown',
 				status: 'missing',
-				flag_reason: null
+				flag_reason: null,
+				item_id: null
 			},
 			{
 				session_id: 'ns-4',
@@ -1746,9 +1763,46 @@
 				session_date: '2026-08-14',
 				session_label: 'Motor mount sketch',
 				status: 'excused',
-				flag_reason: null
+				flag_reason: null,
+				item_id: null
 			}
 		]
+	};
+
+	$effect(() => {
+		(window as unknown as Record<string, unknown>).__checkInProbe = () => [...checkInLog];
+		(window as unknown as Record<string, unknown>).__checkInFail = (on: boolean) => {
+			harnessCheckInFail = on;
+			return harnessCheckInFail;
+		};
+	});
+
+	/**
+	 * The check-ins one item carries, through the SHIPPING splitter -- so the
+	 * harness cannot show a block the real page would not.
+	 */
+	const itemCheckIns = (sectionId: string, itemId: string) =>
+		checkInsApplied ? checkInsForItem(CHECK_INS[sectionId] ?? [], itemId) : [];
+
+	/**
+	 * Attach / detach, answered in memory. `harnessCheckInFail` is flipped from
+	 * the console (`window.__checkInFail(true)`) to drive the refusal path, which
+	 * is the half that has to leave the form's work where it was.
+	 */
+	let harnessCheckInFail = $state(false);
+	const harnessCheckInTransports: ClassCheckInTransports = {
+		async createForItem(itemId, draft) {
+			if (harnessCheckInFail) {
+				return { ok: false, message: 'The server refused that check-in.' };
+			}
+			checkInLog.push({ fn: 'createForItem', itemId, draft });
+			return { ok: true };
+		},
+		async unlink(sessionId, sectionId) {
+			if (harnessCheckInFail) return { ok: false, message: 'The server refused that.' };
+			checkInLog.push({ fn: 'unlink', sessionId, sectionId });
+			return { ok: true };
+		}
 	};
 
 	/** The same rows a MANAGER gets: no personal status on any of them. */
@@ -2068,7 +2122,17 @@
 	<ClassView section={emptySection} items={[]} notebookHref="/dev/notebook" />
 {:else if view === 'item'}
 	{#if detailItem}
-		<ItemDetail section={section1} item={detailItem} {transports} {fetchPreview} {submitFeedback} />
+		<!-- A STUDENT'S read of a linked check-in: the block renders, and no
+		     control on it does -- no transports were handed in, so there is no
+		     write to execute rather than one that is merely hidden. -->
+		<ItemDetail
+			section={section1}
+			item={detailItem}
+			{transports}
+			{fetchPreview}
+			{submitFeedback}
+			checkIns={itemCheckIns('s-1', detailItem.id)}
+		/>
 	{:else}
 		<p class="harness-note">The sample item was deleted in another view.</p>
 	{/if}
@@ -2085,6 +2149,8 @@
 			spec={engineSpec}
 			rubric={engineRubric}
 			teacherTransports={teacherEngineTransports}
+			checkIns={itemCheckIns('s-1', detailItem.id)}
+			checkInTransports={harnessCheckInTransports}
 			gradeHref="/dev/classroom?view=grade"
 		/>
 	{:else}

@@ -49,6 +49,7 @@
 		checkInMeta,
 		checkInStatusLabel,
 		checkInTone,
+		streamCheckIns,
 		outstandingBadge,
 		mergeCheckIns,
 		outstandingCheckIns,
@@ -222,6 +223,11 @@
 	 * notebook unit NUMBER against a freely-named classroom unit would be a guess
 	 * dressed up as a link. On a class with no units at all this is the whole
 	 * view, which is exactly the merged list the Stream used to be.
+	 *
+	 * A CHECK-IN ATTACHED TO AN ITEM (0120) IS NOT HERE AT ALL. It renders on
+	 * that item, in whatever unit the item is filed under, and `mergeCheckIns`
+	 * drops it -- so this list never has to know the rule, and no group can grow
+	 * a second row for something already on the page.
 	 */
 	function entriesFor(groupId: string, groupItems: ClassroomItem[]) {
 		return groupId === UNFILED_GROUP_ID
@@ -998,7 +1004,10 @@
 		{/each}
 	</div>
 
-	{#if !items.length && !checkIns.length}
+	<!-- `streamCheckIns`, not `checkIns`: one attached to an item (0120) is not
+	     an answer to "is this class empty", because the item it renders on is
+	     already content on this page. -->
+	{#if !items.length && !streamCheckIns(checkIns).length}
 		<section class="card">
 			<p class="note empty-state">
 				{#if canManage}

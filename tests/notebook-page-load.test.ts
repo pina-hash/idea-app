@@ -50,7 +50,9 @@ import {
 } from './db/postgrest-shim';
 import {
 	NOTEBOOK_ENTRY_SELECTS,
+	NOTEBOOK_POSTING_ITEM_SELECT,
 	NOTEBOOK_POSTING_SELECT,
+	NOTEBOOK_POSTING_SELECTS,
 	NOTEBOOK_SESSION_SELECT,
 	REVIEW_ENTRY_SELECTS
 } from '../src/lib/notebook-selects';
@@ -364,6 +366,19 @@ describe('the shipped select strings against the real schema', () => {
 		// The plain per-entry read names no embed at all, so nothing to resolve.
 		expect(embeddedTables(NOTEBOOK_SESSION_SELECT)).toEqual([]);
 		expect(embeddedTables(NOTEBOOK_POSTING_SELECT)).toEqual(['notebook_sessions']);
+		// The 0120 rung embeds the same one table and adds a scalar (item_id),
+		// so it is the same schema assertion one column wider -- and it is here
+		// because a select string naming an embed is an assertion about the
+		// FOREIGN KEYS that nothing else type-checks.
+		expect(embeddedTables(NOTEBOOK_POSTING_ITEM_SELECT)).toEqual(['notebook_sessions']);
+		// The ladder narrows strictly: the wide rung is the narrow one plus the
+		// column, so degrading can never cost an unrelated capability.
+		expect(NOTEBOOK_POSTING_SELECTS.map((r) => r.select)).toEqual([
+			NOTEBOOK_POSTING_ITEM_SELECT,
+			NOTEBOOK_POSTING_SELECT
+		]);
+		expect(NOTEBOOK_POSTING_ITEM_SELECT).toContain('item_id');
+		expect(NOTEBOOK_POSTING_SELECT).not.toContain('item_id');
 	});
 
 	it('would still catch the original bug: the old embed is unresolvable', async () => {
