@@ -35,14 +35,31 @@
 	 * outside this component and nothing here gates it). prefers-reduced-motion
 	 * falls back to an instant fade with no sweep.
 	 *
+	 * Pan/zoom itself is NOT implemented here. The transform arithmetic and the
+	 * gesture plumbing live in `$lib/panzoom` (extracted from this file, and
+	 * characterized against what it used to do, so a second room can mount the same
+	 * engine without pulling GAUNTLET in with it). This component owns the state the
+	 * engine reads and writes, plus everything around it: the chrome, the minimap,
+	 * the reveal, and the three content kinds.
+	 *
 	 * Layout: `.dv-controls` / `.dv-minimap` are SIBLINGS of `.dv-stage` (not its
 	 * children), so a click on a control never trips the stage's pointer-capture
 	 * pan. Interaction listeners are attached with addEventListener (NOT Svelte's
-	 * delegated `on:`), and styles are scoped with hardcoded token fallbacks, so
-	 * the live node keeps working after being moved into a Document PiP window.
+	 * delegated `on:`) -- the engine's for the same reason as this file's own
+	 * control-click handler -- and styles are scoped with hardcoded token
+	 * fallbacks, so the live node keeps working after being moved into a Document
+	 * PiP window.
 	 */
 	import type { FocusRegion } from '$lib/gauntlet';
 	import { loadPdfjs, isPdfRef } from '$lib/gauntlet/pdf';
+	import {
+		fitScale,
+		maxScale,
+		clampScale,
+		clampPan as clampPanOf,
+		fitView as fitViewOf
+	} from '$lib/panzoom/transform';
+	import { attachPanZoom, zoomCentre, type PanZoomHost } from '$lib/panzoom/controller';
 	import type { PDFDocumentProxy, PDFPageProxy } from 'pdfjs-dist';
 
 	let {
@@ -129,20 +146,46 @@
 	});
 	const ready = $derived(layout.W > 0 && layout.H > 0);
 
-	// Fit-all scale: the whole content (every sheet) inside the stage, with a dark
-	// margin so the sheets read as framed, never full-bleed.
-	const FIT = 0.92;
-	const sFit = $derived(W && H && ready ? Math.min(W / layout.W, H / layout.H) * FIT : 1);
-	const maxS = $derived(Math.max(sFit * 8, 3));
-	const clampScale = (v: number) => Math.min(maxS, Math.max(sFit, v));
+	// The transform arithmetic and the gesture plumbing both live in $lib/panzoom
+	// (extracted from this file, and characterized against what it used to do, so
+	// a second room can mount the same engine without pulling GAUNTLET in with
+	// it). What stays here is this component's own state, chrome and content
+	// handling. Fit-all: the whole content, every sheet, inside the stage with a
+	// dark margin, so the sheets read as framed rather than full-bleed.
+	const stageBox = $derived({ w: W, h: H });
+	const contentBox = $derived({ w: layout.W, h: layout.H });
+	const sFit = $derived(fitScale(stageBox, contentBox));
+	const maxS = $derived(maxScale(sFit));
+	const clampS = (v: number) => clampScale(v, { min: sFit, max: maxS });
 
-	// Keep the world pinned: centered on an axis it fits, edge-locked on overflow.
 	function clampPan() {
-		const ow = layout.W * s;
-		const oh = layout.H * s;
-		tx = ow <= W ? (W - ow) / 2 : Math.min(0, Math.max(W - ow, tx));
-		ty = oh <= H ? (H - oh) / 2 : Math.min(0, Math.max(H - oh, ty));
+		const v = clampPanOf({ s, tx, ty }, stageBox, contentBox);
+		tx = v.tx;
+		ty = v.ty;
 	}
+
+	/**
+	 * The engine reads and writes the view through this, so this component's
+	 * $state stays the one source of truth and everything derived from the
+	 * transform -- the minimap, the zoom readout, the PDF re-render gate -- keeps
+	 * tracking it.
+	 */
+	const panZoomHost: PanZoomHost = {
+		getView: () => ({ s, tx, ty }),
+		setView: (v) => {
+			s = v.s;
+			tx = v.tx;
+			ty = v.ty;
+		},
+		getStage: () => ({ w: W, h: H }),
+		setStage: (sz) => {
+			W = sz.w;
+			H = sz.h;
+		},
+		getContent: () => ({ w: layout.W, h: layout.H }),
+		isFitted: () => fitted,
+		onInteract: () => cancelAnim()
+	};
 
 	// --- Animated transform (chips / FIT animate the SAME shared transform) ----
 	// The tween ticks on requestAnimationFrame OR a timeout, whichever fires
@@ -191,12 +234,7 @@
 	}
 
 	function fitTransform() {
-		const ns = sFit;
-		return {
-			s: ns,
-			tx: (W - layout.W * ns) / 2,
-			ty: (H - layout.H * ns) / 2
-		};
+		return fitViewOf(stageBox, contentBox);
 	}
 
 	function fitView(animated = false) {
@@ -210,17 +248,12 @@
 		}
 	}
 
-	function zoomAt(factor: number, px: number, py: number) {
+	// The +/- controls and a wheel notch run the SAME arithmetic, so they cannot
+	// drift into disagreeing about a bound.
+	const zoomButton = (factor: number) => {
 		cancelAnim();
-		const ns = clampScale(s * factor);
-		if (ns === s) return;
-		tx = px - (px - tx) * (ns / s);
-		ty = py - (py - ty) * (ns / s);
-		s = ns;
-		clampPan();
-	}
-
-	const zoomButton = (factor: number) => zoomAt(factor, W / 2, H / 2);
+		panZoomHost.setView(zoomCentre(panZoomHost, factor));
+	};
 
 	function jumpTo(r: FocusRegion, i: number) {
 		const pageIdx = Math.max(0, Math.round(r.page ?? 0));
@@ -230,82 +263,11 @@
 		const mediaH = box.h - 2 * box.pad;
 		const cx = box.x + box.pad + (r.x + r.w / 2) * mediaW;
 		const cy = box.y + box.pad + (r.y + r.h / 2) * mediaH;
-		const ns = clampScale(Math.min(W / (r.w * mediaW), H / (r.h * mediaH)) * 0.8);
+		const ns = clampS(Math.min(W / (r.w * mediaW), H / (r.h * mediaH)) * 0.8);
 		animateTo(ns, W / 2 - cx * ns, H / 2 - cy * ns);
 		highlightIdx = i;
 		if (highlightTimer) clearTimeout(highlightTimer);
 		highlightTimer = setTimeout(() => (highlightIdx = -1), 1500);
-	}
-
-	// --- Pointer pan + two-finger pinch --------------------------------------
-	const pointers = new Map<number, { x: number; y: number }>();
-	let dragging = false;
-	let lastX = 0;
-	let lastY = 0;
-	let pinchDist = 0;
-
-	function onPointerDown(e: PointerEvent) {
-		if (!stageEl) return;
-		cancelAnim();
-		try {
-			stageEl.setPointerCapture(e.pointerId);
-		} catch {
-			/* no capture available; pan still works via the pointer events */
-		}
-		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-		if (pointers.size === 1) {
-			dragging = true;
-			lastX = e.clientX;
-			lastY = e.clientY;
-		} else if (pointers.size === 2) {
-			dragging = false;
-			const p = [...pointers.values()];
-			pinchDist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
-		}
-	}
-
-	function onPointerMove(e: PointerEvent) {
-		if (!pointers.has(e.pointerId)) return;
-		pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
-		if (pointers.size >= 2) {
-			const p = [...pointers.values()];
-			const dist = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
-			if (pinchDist > 0 && dist > 0 && stageEl) {
-				const rect = stageEl.getBoundingClientRect();
-				const midX = (p[0].x + p[1].x) / 2 - rect.left;
-				const midY = (p[0].y + p[1].y) / 2 - rect.top;
-				zoomAt(dist / pinchDist, midX, midY);
-			}
-			pinchDist = dist;
-			return;
-		}
-
-		if (!dragging) return;
-		tx += e.clientX - lastX;
-		ty += e.clientY - lastY;
-		lastX = e.clientX;
-		lastY = e.clientY;
-		clampPan();
-	}
-
-	function endPointer(e: PointerEvent) {
-		pointers.delete(e.pointerId);
-		if (pointers.size < 2) pinchDist = 0;
-		if (pointers.size === 0) dragging = false;
-		else if (pointers.size === 1) {
-			const p = [...pointers.values()][0];
-			dragging = true;
-			lastX = p.x;
-			lastY = p.y;
-		}
-	}
-
-	function onWheel(e: WheelEvent) {
-		if (!stageEl) return;
-		e.preventDefault();
-		const rect = stageEl.getBoundingClientRect();
-		zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX - rect.left, e.clientY - rect.top);
 	}
 
 	// All control clicks route through one delegated-by-data-attr handler attached
@@ -500,48 +462,19 @@
 		}
 	});
 
-	// Preserve the framed content across a stage resize (or a move into PiP):
-	// same scale, same world-point under the stage center.
-	function measureStage() {
-		if (!stageEl) return;
-		const r = stageEl.getBoundingClientRect();
-		W = r.width;
-		H = r.height;
-	}
-
+	// Pan/zoom (drag, pinch, wheel) and the stage ResizeObserver -- which measures
+	// once up front and then preserves the framed view across a resize or a move
+	// into PiP -- are the engine's. The control-click handler stays here because
+	// the controls are this component's chrome, and it is attached with
+	// addEventListener for the same reason the engine's listeners are: Svelte
+	// delegates to the main-document root, which a node moved into a PiP window
+	// cannot reach.
 	$effect(() => {
 		if (!stageEl) return;
-		measureStage();
-		const ro = new ResizeObserver(() => {
-			const oldW = W;
-			const oldH = H;
-			const cx = oldW && s ? (oldW / 2 - tx) / s : layout.W / 2;
-			const cy = oldH && s ? (oldH / 2 - ty) / s : layout.H / 2;
-			measureStage();
-			if (!fitted) return;
-			s = clampScale(s);
-			tx = W / 2 - cx * s;
-			ty = H / 2 - cy * s;
-			clampPan();
-		});
-		ro.observe(stageEl);
-		const wheelOpts = { passive: false } as AddEventListenerOptions;
-		const st = stageEl;
-		st.addEventListener('wheel', onWheel, wheelOpts);
-		st.addEventListener('pointerdown', onPointerDown);
-		st.addEventListener('pointermove', onPointerMove);
-		st.addEventListener('pointerup', endPointer);
-		st.addEventListener('pointercancel', endPointer);
-		st.addEventListener('lostpointercapture', endPointer);
+		const detach = attachPanZoom(stageEl, panZoomHost);
 		dvEl?.addEventListener('click', onClick);
 		return () => {
-			ro.disconnect();
-			st.removeEventListener('wheel', onWheel, wheelOpts);
-			st.removeEventListener('pointerdown', onPointerDown);
-			st.removeEventListener('pointermove', onPointerMove);
-			st.removeEventListener('pointerup', endPointer);
-			st.removeEventListener('pointercancel', endPointer);
-			st.removeEventListener('lostpointercapture', endPointer);
+			detach();
 			dvEl?.removeEventListener('click', onClick);
 			if (highlightTimer) clearTimeout(highlightTimer);
 			cancelAnim();
