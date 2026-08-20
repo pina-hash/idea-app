@@ -1,5 +1,6 @@
 <script lang="ts">
 	import NotebookView from '$lib/notebook/NotebookView.svelte';
+	import NotebookNoAccountNotice from '$lib/notebook/NotebookNoAccountNotice.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -21,12 +22,7 @@
 	what the student sees. `uploadReady` is false since no upload is offered.
 -->
 {#if data.student.user_id === null}
-	<div class="nb-noaccount">
-		<p>
-			<strong>{data.student.display_name ?? data.student.email}</strong> is on a roster but has
-			never signed in, so there is no notebook to show yet. Their check-ins are waiting for them.
-		</p>
-	</div>
+	<NotebookNoAccountNotice displayName={data.student.display_name} email={data.student.email} />
 {/if}
 
 <NotebookView
@@ -39,21 +35,5 @@
 	uploadReady={false}
 	readOnly
 	homeHref={base}
+	masthead={false}
 />
-
-<style>
-	.nb-noaccount {
-		max-width: var(--measure-split);
-		margin: var(--space-4) auto 0;
-		padding: 0.7rem var(--cr-gutter, 1rem);
-		box-sizing: border-box;
-		border: 1px solid var(--hairline);
-		border-radius: var(--radius-card);
-		background: var(--surface-2);
-		font-size: 0.9rem;
-		color: var(--text-2);
-	}
-	.nb-noaccount strong {
-		color: var(--text-1);
-	}
-</style>

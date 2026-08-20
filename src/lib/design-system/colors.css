@@ -96,7 +96,7 @@
 	--nb-surface-dim: #f2f1ea; /* recessed paper: pickers, forms, staged rows */
 	--nb-ink: #26221b; /* primary text: near-black with warmth */
 	--nb-ink-soft: #57524a; /* secondary text */
-	--nb-ink-faint: #8b857a; /* muted meta: timestamps, captions, hints */
+	--nb-ink-faint: #706b62; /* muted meta: timestamps, captions, hints */
 	--nb-ink-hover: #3a352c; /* the ink button, pressed-on-hover */
 	--nb-hairline: #e8e5dd; /* barely-there borders */
 	--nb-hairline-strong: #d8d4c9;

@@ -128,6 +128,7 @@
 		uploadReady = true,
 		readOnly = false,
 		homeHref = '/',
+		masthead = true,
 		historyReady = true,
 		viewerId,
 		createEntry,
@@ -254,6 +255,16 @@
 		readOnly?: boolean;
 		/** Where "Home" goes -- rewritten under /classroom/view-as/<email>. */
 		homeHref?: string;
+		/**
+		 * False removes the notebook's own masthead. The room still needs the
+		 * `.nb-root` wrapper and its theme -- that stays -- but a caller that
+		 * already sits inside another persistent bar (the view-as tree, under
+		 * ClassroomShell) would otherwise render two: the logo, the ProfileMenu
+		 * and a way back would both appear twice on one screen. `homeHref` still
+		 * has no effect when this is false, since there is no bar left to carry
+		 * the link.
+		 */
+		masthead?: boolean;
 		/**
 		 * A note can be DELETED and an entry can show a HISTORY (0119). False
 		 * turns both off the same way `deletionReady` turns off 0116/0117: no
@@ -1365,7 +1376,9 @@
 <!-- .nb-root scopes the notebook's editorial light theme (notebook-theme.css)
      and keeps it out of every other surface. -->
 <div class="nb-root" data-nb-theme={notebookThemeAttr()}>
-<NotebookMasthead backHref={homeHref} backLabel="Home" />
+{#if masthead}
+	<NotebookMasthead backHref={homeHref} backLabel="Home" />
+{/if}
 
 {#snippet navPane()}
 	<!--
