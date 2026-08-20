@@ -226,6 +226,69 @@
 			return { ok: true, value: undefined };
 		},
 
+		async acceptEntry(entryId) {
+			const { error } = await data.supabase.rpc('notebook_accept_entry', {
+				p_entry_id: entryId
+			});
+			if (error) return fail(error, 'Could not mark that entry reviewed.');
+			return { ok: true, value: undefined };
+		},
+
+		async unacceptEntry(entryId) {
+			const { error } = await data.supabase.rpc('notebook_unaccept_entry', {
+				p_entry_id: entryId
+			});
+			if (error) return fail(error, 'Could not undo that review.');
+			return { ok: true, value: undefined };
+		},
+
+		/**
+		 * LIVE UPDATES (0121 publishes these three tables). The gauntlet-room and
+		 * tournament pattern: ONE channel per section, named for it, torn down
+		 * with removeChannel.
+		 *
+		 * ONLY ONE OF THE THREE CAN CARRY A FILTER, and that is a fact about the
+		 * schema rather than an omission. `notebook_entries` has `section_id`, so
+		 * a class is only ever woken by its own entries. Photos and notes hang off
+		 * the ENTRY and have no section column, and a Realtime filter is a
+		 * comparison on the row itself -- there is no join to filter through. So
+		 * those two arrive for every row THIS CALLER MAY READ, which RLS has
+		 * already narrowed to the students of the sections they teach: at worst a
+		 * photo filed in their period 4 costs their period 2 grid one debounced
+		 * re-read, and no row anybody else's student wrote is ever delivered.
+		 *
+		 * The handler takes no payload deliberately -- see `subscribe` in
+		 * notebook-review.ts for why re-reading beats patching.
+		 */
+		subscribe(sectionId, onChange) {
+			const channel = data.supabase
+				.channel(`notebook-review-${sectionId}`)
+				.on(
+					'postgres_changes',
+					{
+						event: '*',
+						schema: 'public',
+						table: 'notebook_entries',
+						filter: `section_id=eq.${sectionId}`
+					},
+					() => onChange()
+				)
+				.on(
+					'postgres_changes',
+					{ event: '*', schema: 'public', table: 'notebook_entry_photos' },
+					() => onChange()
+				)
+				.on(
+					'postgres_changes',
+					{ event: '*', schema: 'public', table: 'notebook_entry_notes' },
+					() => onChange()
+				)
+				.subscribe();
+			return () => {
+				data.supabase.removeChannel(channel);
+			};
+		},
+
 		async deleteEntry(entryId) {
 			const { error } = await data.supabase.rpc('notebook_staff_delete_entry', {
 				p_entry_id: entryId

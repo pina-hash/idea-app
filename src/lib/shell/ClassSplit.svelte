@@ -30,6 +30,7 @@
 		hasDetail = false,
 		narrow = 'swap',
 		navWidth = 'list',
+		detailWidth = 'panel',
 		scroll = 'panes',
 		detailEl = $bindable(null),
 		nav,
@@ -64,8 +65,18 @@
 		 * been "the compose card, then your entries" in one column -- swapping
 		 * would hide the feed behind the form. The ordering is CSS (`order`), so
 		 * the one instance of the form is not re-created at either width.
+		 *
+		 * `stack-nav-first` is the same stack the other way up, for a surface
+		 * whose detail pane ALWAYS holds something but whose NAVIGATION is the
+		 * point of the screen. The review console is one: its grid is what an
+		 * instructor came for, and its detail pane always renders -- an entry, or
+		 * a line saying the cell the cursor is on is empty. Under `swap` that
+		 * always-true `hasDetail` would hide the grid behind a placeholder the
+		 * moment the page loaded on a phone; under `stack` it would put the
+		 * placeholder above it. Nav first is the only one of the three that shows
+		 * a phone the thing it opened the page for.
 		 */
-		narrow?: 'swap' | 'stack';
+		narrow?: 'swap' | 'stack' | 'stack-nav-first';
 		/**
 		 * HOW THE TWO COLUMNS DIVIDE above the breakpoint.
 		 *
@@ -82,6 +93,20 @@
 		 */
 		navWidth?: 'list' | 'wide';
 		/**
+		 * HOW MUCH ROOM THE DETAIL PANEL GETS in the `wide` orientation.
+		 *
+		 * `panel` (the default) is 21-27rem: a form beside a roster, which is
+		 * what the coin desk's logging surface is.
+		 *
+		 * `roomy` is 28-34rem, for a detail pane somebody READS rather than
+		 * fills in. The review console's entry panel is one: at 21rem its status
+		 * line wrapped to three rows and its page thumbnails fell to one per row,
+		 * so an instructor deciding whether to open a photograph was scrolling a
+		 * panel to find out. The nav is still the wide half; this only moves
+		 * where the two meet.
+		 */
+		detailWidth?: 'panel' | 'roomy';
+		/**
 		 * WHO OWNS THE SCROLL above the breakpoint.
 		 *
 		 * `panes` (the default, and the classroom's) makes each pane its own
@@ -97,8 +122,18 @@
 		 * the stylesheet could know about. Getting this wrong is not subtle: a
 		 * viewport-height pane under 355px of chrome gives the page a second
 		 * scrollbar wrapped around the pane's own.
+		 *
+		 * `fill` is `panes` with the arithmetic taken out: each pane is its own
+		 * scroll container at the height of WHATEVER BOX THE CALLER PUT THE
+		 * SPLIT IN, rather than at `100vh` less a constant. It is what a surface
+		 * that genuinely is a full-height application uses -- the review console,
+		 * which has to hold a grid and an open entry on screen together -- and it
+		 * is the only one of the three that cannot be wrong about somebody else's
+		 * chrome, because it never names a height. Below the breakpoint it is
+		 * `page`: a phone gets the document's own single scroll, not a 100dvh app
+		 * shell with two scrollers inside it.
 		 */
-		scroll?: 'panes' | 'page';
+		scroll?: 'panes' | 'page' | 'fill';
 		/**
 		 * The detail pane's own element, for a surface that needs to bring it
 		 * into view (see $lib/shell/reveal.ts). Bound rather than found by
@@ -125,9 +160,12 @@
 <div
 	class="cr-split"
 	class:has-detail={hasDetail}
-	class:narrow-stack={narrow === 'stack'}
+	class:narrow-stack={narrow === 'stack' || narrow === 'stack-nav-first'}
+	class:nav-first={narrow === 'stack-nav-first'}
 	class:nav-wide={navWidth === 'wide'}
+	class:detail-roomy={detailWidth === 'roomy'}
 	class:page-flow={scroll === 'page'}
+	class:fill-height={scroll === 'fill'}
 	data-testid="class-split"
 >
 	<div class="cr-nav" data-testid="class-nav-pane">{@render nav()}</div>

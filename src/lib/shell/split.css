@@ -179,6 +179,44 @@
 	}
 }
 
+/* --- The APPLICATION shell ------------------------------------------------
+   A room that IS the viewport: a bar of chrome that stays put, and one body
+   under it that gets the rest. It is the caller's half of `scroll="fill"` --
+   the bounded parent that variant needs -- and it is here rather than in a
+   component's scoped stylesheet for the reason everything else in this file
+   is: the breakpoint is written once.
+
+   ABOVE THE BREAKPOINT ONLY. Below it the room is an ordinary document that
+   scrolls, which is the right shape for a phone and the only shape that works
+   when a surface has more chrome than fits. Nothing here names a chrome
+   height: the bar measures itself and the body takes what is left, so a hero
+   that wraps or a notice that appears costs the body a row rather than
+   putting the page into a second scrollbar.
+
+   `100dvh` rather than `100vh`: on a phone-sized window the browser's own
+   collapsing chrome is exactly the difference, and this rule is inert there
+   anyway -- but a short desktop window and a tablet both read the dynamic
+   value correctly.
+   -------------------------------------------------------------------------- */
+.cr-app {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+.cr-app > .cr-app-body {
+	min-height: 0;
+}
+
+@media (min-width: 1024px) {
+	.cr-app {
+		height: 100dvh;
+		overflow: hidden;
+	}
+	.cr-app > .cr-app-body {
+		flex: 1 1 auto;
+	}
+}
+
 /* --- The shell ------------------------------------------------------------
    ONE SURFACE, master-detail: the list stays on screen on the left while the
    thing you picked opens on the right. All this file decides is the geometry,
@@ -225,6 +263,17 @@
 	.cr-split.narrow-stack:not(.has-detail) > .cr-detail {
 		display: none;
 	}
+
+	/* NAV FIRST: the same stack, the other way up. For a surface whose detail
+	   pane always holds something and whose navigation is what the screen is
+	   FOR -- the review console's grid. Ordering only; both panes are the same
+	   single instances at both widths, as above. */
+	.cr-split.narrow-stack.nav-first > .cr-nav {
+		order: 1;
+	}
+	.cr-split.narrow-stack.nav-first > .cr-detail {
+		order: 2;
+	}
 }
 
 @media (min-width: 1024px) {
@@ -269,6 +318,17 @@
 	   brings its own card, so the pane frame below is dropped for it. */
 	.cr-split.nav-wide {
 		grid-template-columns: minmax(0, 1fr) minmax(21rem, 27rem);
+	}
+
+	/* THE SAME MIRROR, with a detail pane somebody READS rather than fills in.
+	   Measured on the review console's entry panel: at 21rem its status line
+	   wrapped to three rows and the page thumbnails fell to one per row, so
+	   deciding whether a photograph was worth opening meant scrolling the panel
+	   that exists to answer that. 28rem is where both stop; 34rem is the cap,
+	   which at 1440px still leaves the grid ~50rem -- eight check-in columns and
+	   the roster, without a horizontal bar. */
+	.cr-split.nav-wide.detail-roomy {
+		grid-template-columns: minmax(0, 1fr) minmax(28rem, 34rem);
 	}
 
 	/* NOTHING OPEN: THE NAVIGATION TAKES THE WHOLE WIDTH, in both orientations.
@@ -389,6 +449,54 @@
 		max-height: none;
 		overflow-y: visible;
 		overscroll-behavior: auto;
+	}
+
+	/* --- fill-height: THE CALLER'S BOX OWNS THE HEIGHT ---------------------
+	   Each pane is its own scroll container, exactly as the default is -- but
+	   at 100% of whatever the split was put inside, rather than at `100vh`
+	   less a constant nobody can keep true.
+
+	   WHY IT IS NOT JUST A BETTER --cr-chrome-h. The constant is not wrong by
+	   a few pixels, it is wrong by a DIFFERENT amount per surface and per
+	   state: a hero that wraps, a fail-soft card that appears, a notice, or
+	   somebody else's impersonation banner above the whole room. Every one of
+	   those is invisible to a stylesheet. A parent that says "this split gets
+	   the rest of the column" is not, and the answer is then right by
+	   construction on every route and at every content length.
+
+	   THE CALLER'S HALF OF THE CONTRACT is a bounded parent -- a flex or grid
+	   column with a definite height and `min-height: 0` on this item. Without
+	   it `height: 100%` resolves against an auto height, the panes grow to
+	   their content, and the surface degrades to exactly `page-flow` rather
+	   than to anything broken.
+
+	   `align-items: stretch` REPLACES the shell's `start`, and it is what makes
+	   the two panes the same height as the row rather than as their own
+	   content -- which is the whole mechanism. It is scoped to this variant, so
+	   the classroom's `start` is untouched.
+	   ---------------------------------------------------------------------- */
+	.cr-split.fill-height {
+		height: 100%;
+		min-height: 0;
+		align-items: stretch;
+	}
+	.cr-split.fill-height > .cr-nav,
+	.cr-split.fill-height > .cr-detail {
+		max-height: none;
+		height: 100%;
+		min-height: 0;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+	/* THE PANE'S OWN CHILD MAY FILL IT, which is what lets a surface keep a
+	   header on screen while its BODY scrolls -- the review console's grid,
+	   whose column headers name the check-ins the cells under them belong to,
+	   and are worth nothing scrolled off the top. The child opts in by being a
+	   bounded layout; one that is not simply overflows the pane and the PANE
+	   scrolls, which is the rule above still doing its job.
+	   Only in this variant, and only the direct child. */
+	.cr-split.fill-height > .cr-nav > * {
+		max-height: 100%;
 	}
 }
 

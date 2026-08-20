@@ -22,27 +22,50 @@
 	} from '$lib/notebook-review';
 
 	/**
-	 * One entry, opened from a grid cell: its photos, and the flag control.
+	 * One entry, opened from a grid cell: ENOUGH TO DECIDE, and the two verdicts.
+	 *
+	 * WHAT THIS PANEL IS FOR, and it changed. It used to render the entry's
+	 * pages at full column width in a 21rem pane, which is neither: too small to
+	 * read handwriting from, and tall enough that acting on it meant scrolling
+	 * past it. The full-screen viewer is how a page is actually read (pan, zoom,
+	 * the corrected/original toggle), so this panel's job is to say what the
+	 * entry IS and let the instructor open it in one key press -- a strip of
+	 * page thumbnails, the status, the stamp, and the notes behind a disclosure.
+	 * It sits beside a grid the instructor is also looking at, and it fits on
+	 * screen with it.
+	 *
+	 * THREE VERDICTS, and they are three different sentences:
+	 *
+	 *   ACCEPT (0121)  "I have looked at this." Writes reviewed_by/reviewed_at
+	 *                  and nothing else -- not the status, not the flag, not the
+	 *                  comment -- so it is never a second grade on work the unit
+	 *                  is graded for once through the Documentation Check.
+	 *   FLAG (0069)    "This needs fixing", with a reason the student sees.
+	 *   CLEAR FLAG     notebook_resolve_entry: the flag comes off and the entry
+	 *                  goes back to compliant. Only offered on a flagged entry,
+	 *                  because it is the flag's own undo.
 	 *
 	 * Photos are rendered by the SAME NotebookPhotos the student's own feed
-	 * uses (proxy route, reserved height, per-photo retry, Drive escape
-	 * hatch), so what an instructor sees is what the student sees. `lazy` is
-	 * off here -- this panel mounts on demand and is expected to paint at
-	 * once, unlike a long scrolling feed.
+	 * uses, in its `strip` layout: same proxy, same pagination, same viewer.
 	 *
-	 * FLAG and RESOLVE are the two halves of the same loop and both ship:
-	 * 0069 describes `notebook_resolve_entry` as what "closes the review loop"
-	 * after a student resubmits, and an instructor who can flag with no way to
-	 * accept the fix is a trap. Both RPCs take the same tier (section
-	 * instructor or site admin) and enforce it themselves.
+	 * IT RESETS NOTHING ON ITS OWN. The console mounts this inside `{#key}` on
+	 * the entry id, so moving to another student destroys the instance and its
+	 * half-typed comment with it. That also means a LIVE reload of the same
+	 * entry -- another instructor's write arriving over realtime -- does not
+	 * throw away what this one is in the middle of typing, which an
+	 * id-watching effect could not tell apart.
 	 */
 	let {
 		entry,
 		cell,
 		student,
 		session,
+		reviewed = null,
+		focusRequest = null,
 		onFlag,
 		onResolve,
+		onAccept,
+		onUnaccept,
 		onDelete,
 		onDeleteNote,
 		onClose
@@ -51,12 +74,39 @@
 		cell: GridCell;
 		student: GridStudent | undefined;
 		session: GridSession | undefined;
+		/**
+		 * Has anybody looked at this entry (0121)? `null` means the question
+		 * cannot be answered here -- a database without 0121 -- and renders as
+		 * nothing rather than as "no".
+		 */
+		reviewed?: boolean | null;
+		/**
+		 * THE KEYBOARD REACHING INTO THIS PANEL. The console owns the keys and
+		 * this component owns the controls, so a press arrives as a request with
+		 * a nonce rather than as a DOM query across the boundary. The nonce is
+		 * what makes pressing the same key twice two events.
+		 */
+		focusRequest?: { target: 'flag' | 'pages'; nonce: number } | null;
 		onFlag: (
 			entryId: string,
 			reason: NotebookFlagReason,
 			comment: string | null
 		) => Promise<ReviewResult>;
 		onResolve: (entryId: string, comment: string | null) => Promise<ReviewResult>;
+		/**
+		 * Acknowledging (0121, notebook_accept_entry). OMITTED removes the
+		 * control entirely, which is the honest state on a deployment where 0121
+		 * is not applied -- and the console decides that from the grid payload
+		 * itself, so the button and the RPC cannot disagree.
+		 */
+		onAccept?: (entryId: string) => Promise<ReviewResult>;
+		/**
+		 * Taking it back (0121, notebook_unaccept_entry). It is not decoration:
+		 * while an entry is acknowledged the STUDENT can no longer delete it or
+		 * pull it back to a draft, so an accidental accept takes something away
+		 * from somebody who is not in the room.
+		 */
+		onUnaccept?: (entryId: string) => Promise<ReviewResult>;
 		/**
 		 * An instructor removing this entry (0116, notebook_staff_delete_entry).
 		 * OMITTED for a non-manager -- ReviewConsole only ever hands this in when
@@ -83,17 +133,14 @@
 	let deleting = $state(false);
 	let deleteError = $state<string | null>(null);
 
-	// A new entry resets the form, so a comment typed against one student's
-	// page can never be submitted against another's.
-	$effect(() => {
-		void entry.id;
-		reason = 'not_dated';
-		comment = '';
-		errorMsg = null;
-		notice = null;
-		deleteArmed = false;
-		deleteError = null;
-	});
+	/** The flag form is a disclosure: the common verdict is one button. */
+	let flagOpen = $state(false);
+	let dangerOpen = $state(false);
+	let reasonEl = $state<HTMLSelectElement | null>(null);
+	let wantReasonFocus = $state(false);
+
+	/** Which page the full-screen viewer is on; NotebookPhotos renders it. */
+	let viewerIndex = $state<number | null>(null);
 
 	/**
 	 * The LIVE notes on this entry (0119). Through `noteThreads` rather than
@@ -106,16 +153,25 @@
 	 * `ReviewEntry`), and staff restore is its own RPC on the grid's own tools.
 	 */
 	const noteCount = $derived(noteThreads(entry.notes ?? []).length);
+	const pageCount = $derived(photoPages(entry.photos).length);
+
+	/**
+	 * The notes disclosure opens itself on a NOTE-ONLY entry, and only there.
+	 * On a photo entry the pages are the thing to look at and the notes are
+	 * context; on an entry with no pages at all the notes ARE the entry, and
+	 * making somebody click to find that out is the panel failing at its one
+	 * job. Initialized rather than derived, so it stays wherever the instructor
+	 * puts it afterwards.
+	 */
+	// svelte-ignore state_referenced_locally
+	let notesOpen = $state(pageCount === 0 && noteCount > 0);
 
 	// entryTitle() is the same five-fallback derivation the student's own card
 	// uses (session label -> custom_label -> photo filename -> first note's
 	// opening words -> "Untitled entry"), trimmed and truthiness-tested rather
-	// than nullish-tested. The inline version this replaced showed the literal
-	// word "Entry" for anything past session/custom_label, and a blank title
-	// for an empty-string custom_label. ReviewEntry carries only `session_id`,
-	// not an embedded session object, so the shape entryTitle needs is built
-	// here from the `session` prop already resolved by the caller -- no query
-	// change, entryTitle's own parameter type is narrowed to just what it reads.
+	// than nullish-tested. ReviewEntry carries only `session_id`, not an
+	// embedded session object, so the shape entryTitle needs is built here from
+	// the `session` prop already resolved by the caller.
 	const title = $derived(
 		entryTitle({
 			session: session
@@ -131,18 +187,62 @@
 		})
 	);
 
+	/**
+	 * A KEY PRESS FROM THE CONSOLE. The nonce guard is a plain `let`, not
+	 * `$state`: it exists to stop one request being served twice, and making it
+	 * reactive would make this effect depend on its own write.
+	 */
+	let servedNonce = 0;
+	$effect(() => {
+		const request = focusRequest;
+		if (!request || request.nonce === servedNonce) return;
+		servedNonce = request.nonce;
+		// Deferred: this lands while Svelte is still settling the render that
+		// delivered the prop, and writing state there throws state_unsafe_mutation
+		// -- which surfaces as every button in the tree silently dying.
+		queueMicrotask(() => {
+			if (request.target === 'pages') {
+				if (pageCount > 0) viewerIndex = 0;
+				else notesOpen = true;
+				return;
+			}
+			flagOpen = true;
+			wantReasonFocus = true;
+		});
+	});
+
+	/**
+	 * Focus keyed on the ELEMENT, never on mount: the select does not exist
+	 * until the disclosure has opened, so focusing it from the handler above
+	 * would be a silent no-op.
+	 */
+	$effect(() => {
+		const el = reasonEl;
+		if (!el || !wantReasonFocus) return;
+		queueMicrotask(() => {
+			el.focus();
+			wantReasonFocus = false;
+		});
+	});
+
 	async function flag() {
 		if (busy) return;
 		busy = true;
 		errorMsg = null;
 		notice = null;
-		const result = await onFlag(entry.id, reason, comment.trim() || null);
-		busy = false;
-		if (!result.ok) {
-			errorMsg = result.error;
-			return;
+		// Cleared in `finally`: a throw mid-submit would otherwise disable every
+		// control on this panel for as long as it is open.
+		try {
+			const result = await onFlag(entry.id, reason, comment.trim() || null);
+			if (!result.ok) {
+				errorMsg = result.error;
+				return;
+			}
+			notice = 'Flagged. The student sees the reason on their own notebook.';
+			flagOpen = false;
+		} finally {
+			busy = false;
 		}
-		notice = 'Flagged. The student sees the reason on their own notebook.';
 	}
 
 	async function resolve() {
@@ -150,13 +250,43 @@
 		busy = true;
 		errorMsg = null;
 		notice = null;
-		const result = await onResolve(entry.id, comment.trim() || null);
-		busy = false;
-		if (!result.ok) {
-			errorMsg = result.error;
-			return;
+		try {
+			const result = await onResolve(entry.id, comment.trim() || null);
+			if (!result.ok) {
+				errorMsg = result.error;
+				return;
+			}
+			notice = 'Flag cleared. This entry reads as compliant again.';
+		} finally {
+			busy = false;
 		}
-		notice = 'Accepted. This entry now counts as recorded.';
+	}
+
+	async function accept() {
+		if (busy || !onAccept) return;
+		busy = true;
+		errorMsg = null;
+		notice = null;
+		try {
+			const result = await onAccept(entry.id);
+			if (!result.ok) errorMsg = result.error;
+		} finally {
+			busy = false;
+		}
+	}
+
+	async function unaccept() {
+		if (busy || !onUnaccept) return;
+		busy = true;
+		errorMsg = null;
+		notice = null;
+		try {
+			const result = await onUnaccept(entry.id);
+			if (!result.ok) errorMsg = result.error;
+			else notice = 'Marked unreviewed. The student can delete or pull it back again.';
+		} finally {
+			busy = false;
+		}
 	}
 
 	/** Two-step confirm (the FolderManager convention), naming the student. */
@@ -169,43 +299,51 @@
 		}
 		deleting = true;
 		deleteError = null;
-		const result = await onDelete(entry.id);
-		deleting = false;
-		if (!result.ok) {
-			deleteError = result.error;
-			deleteArmed = false;
-			return;
+		try {
+			const result = await onDelete(entry.id);
+			if (!result.ok) {
+				deleteError = result.error;
+				deleteArmed = false;
+				return;
+			}
+			// onClose closes the panel; the caller (ReviewConsole) refreshes the
+			// grid, whose cell for this entry now reads missing.
+			onClose();
+		} finally {
+			deleting = false;
 		}
-		// onClose closes the panel; the caller (ReviewConsole) refreshes the
-		// grid, whose cell for this entry now reads missing.
-		onClose();
 	}
 </script>
 
-<section class="card entry-panel">
+<section class="card entry-panel" data-testid="entry-panel">
 	<header class="entry-head">
-		<div>
+		<div class="head-text">
 			<div class="eyebrow">{student?.name ?? 'Student'}</div>
 			<h2>{title}</h2>
-			<p class="meta">
-				<span class="state {cellDisplay(cell)}">{cellLabel(cellDisplay(cell))}</span>
-				<span>{stampLabel(entry.upload_timestamp)}</span>
-				<!-- Logical pages: an original + its corrected variant count once. -->
-				<span>{photoCountLabel(photoPages(entry.photos).length)}</span>
-				{#if entry.folder_name}
-					<!-- Where the STUDENT filed it (0088). Context only: filing is
-					     their own organizing scheme and carries no meaning for
-					     review, but knowing an entry sits in "Gearbox build"
-					     often says what the page is of. -->
-					<span class="filed" data-testid="review-folder">Filed under {entry.folder_name}</span>
-				{/if}
-				{#if cell.entry_count > 1}
-					<span class="also">{cell.entry_count} entries for this check-in; showing the latest</span>
-				{/if}
-			</p>
 		</div>
-		<button type="button" class="btn secondary" onclick={onClose}>Close</button>
+		<button type="button" class="btn secondary tight" onclick={onClose}>Close</button>
 	</header>
+
+	<p class="meta">
+		<span class="state {cellDisplay(cell)}">{cellLabel(cellDisplay(cell))}</span>
+		{#if reviewed !== null}
+			<!-- WORD AND MARK, never a colour on its own: this is the one status
+			     on the panel that has no glyph cell in the grid to lean on. -->
+			<span class="state review" class:done={reviewed} data-testid="review-state">
+				{reviewed ? '✓ Reviewed' : '· Not reviewed'}
+			</span>
+		{/if}
+		<span>{stampLabel(entry.upload_timestamp)}</span>
+		<span>{photoCountLabel(pageCount)}</span>
+		{#if entry.folder_name}
+			<!-- Where the STUDENT filed it (0088). Context only: filing is their
+			     own organizing scheme and carries no meaning for review. -->
+			<span class="filed" data-testid="review-folder">Filed under {entry.folder_name}</span>
+		{/if}
+		{#if cell.entry_count > 1}
+			<span class="also">{cell.entry_count} entries; showing the latest</span>
+		{/if}
+	</p>
 
 	{#if entry.status === 'flagged' && (entry.flag_reason || entry.instructor_comment)}
 		<div class="callout">
@@ -214,33 +352,96 @@
 		</div>
 	{/if}
 
-	{#if entry.photos.length}
-		<NotebookPhotos photos={entry.photos} label={title} lazy={false} />
+	{#if pageCount}
+		<div class="pages">
+			<NotebookPhotos
+				photos={entry.photos}
+				label={title}
+				lazy={false}
+				layout="strip"
+				bind:viewerIndex
+			/>
+			<p class="hint">
+				Click a page, or press <kbd>Enter</kbd>, to read it full screen.
+			</p>
+		</div>
 	{:else if !noteCount}
 		<p class="empty">This entry has no photos and no written notes.</p>
 	{/if}
 
 	{#if noteCount}
-		<!-- The student's own words, rendered by the SAME component their feed
-		     uses. Read-only: `canEdit` is never set here, and 0078's
-		     notebook_edit_note refuses anyone but the note's owner regardless. -->
 		<section class="notes-block" data-testid="review-notes">
-			<h3>Written notes</h3>
-			<EntryNotes
-				notes={entry.notes}
-				compact
-				onStaffDelete={onDeleteNote}
-				subjectName={student?.name}
-			/>
+			<button
+				type="button"
+				class="disclosure"
+				aria-expanded={notesOpen}
+				aria-controls="review-notes-body"
+				onclick={() => (notesOpen = !notesOpen)}
+			>
+				<span class="caret" aria-hidden="true">{notesOpen ? '▾' : '▸'}</span>
+				Written notes ({noteCount})
+			</button>
+			<div id="review-notes-body" hidden={!notesOpen}>
+				<!-- The student's own words, rendered by the SAME component their
+				     feed uses. Read-only: `canEdit` is never set here, and 0078's
+				     notebook_edit_note refuses anyone but the note's owner. -->
+				<EntryNotes
+					notes={entry.notes}
+					compact
+					onStaffDelete={onDeleteNote}
+					subjectName={student?.name}
+				/>
+			</div>
 		</section>
 	{/if}
 
-	<div class="review-form">
-		<h3>Review</h3>
+	<div class="verdicts">
+		{#if onAccept && reviewed === false}
+			<button
+				type="button"
+				class="btn"
+				data-testid="entry-accept"
+				onclick={accept}
+				disabled={busy}
+			>
+				{busy ? 'Working...' : 'Accept'}<kbd>A</kbd>
+			</button>
+		{:else if onUnaccept && reviewed === true}
+			<button
+				type="button"
+				class="btn secondary"
+				data-testid="entry-unaccept"
+				onclick={unaccept}
+				disabled={busy}
+			>
+				{busy ? 'Working...' : 'Mark unreviewed'}
+			</button>
+		{/if}
+		<button
+			type="button"
+			class="btn secondary"
+			data-testid="entry-flag-toggle"
+			aria-expanded={flagOpen}
+			aria-controls="entry-flag-form"
+			onclick={() => (flagOpen = !flagOpen)}
+		>
+			Flag<kbd>F</kbd>
+		</button>
+		{#if entry.status !== 'compliant'}
+			<button type="button" class="btn secondary" onclick={resolve} disabled={busy}>
+				Clear flag
+			</button>
+		{/if}
+	</div>
+
+	{#if errorMsg}<p class="msg error" role="alert">{errorMsg}</p>{/if}
+	{#if notice}<p class="msg ok">{notice}</p>{/if}
+
+	<div class="review-form" id="entry-flag-form" hidden={!flagOpen}>
 		<div class="form-row">
 			<label class="field">
 				<span>Flag reason</span>
-				<select bind:value={reason}>
+				<select bind:value={reason} bind:this={reasonEl}>
 					{#each FLAG_REASONS as r (r)}
 						<option value={r}>{flagReasonLabel(r)}</option>
 					{/each}
@@ -248,26 +449,14 @@
 			</label>
 			<label class="field grow">
 				<span>Comment (optional)</span>
-				<input
-					type="text"
-					maxlength="2000"
-					placeholder="What needs fixing?"
-					bind:value={comment}
-				/>
+				<input type="text" maxlength="2000" placeholder="What needs fixing?" bind:value={comment} />
 			</label>
 		</div>
 		<div class="form-actions">
 			<button type="button" class="btn" onclick={flag} disabled={busy}>
 				{busy ? 'Working...' : 'Flag this entry'}
 			</button>
-			{#if entry.status !== 'compliant'}
-				<button type="button" class="btn secondary" onclick={resolve} disabled={busy}>
-					Accept it
-				</button>
-			{/if}
 		</div>
-		{#if errorMsg}<p class="msg error" role="alert">{errorMsg}</p>{/if}
-		{#if notice}<p class="msg ok">{notice}</p>{/if}
 		<p class="note">
 			Flagging asks the student to add another photo; their resubmission comes back here as
 			"awaiting review".
@@ -276,38 +465,49 @@
 
 	{#if onDelete}
 		<div class="danger-zone" data-testid="entry-danger-zone">
-			<h3>Delete this entry</h3>
-			<p class="note">
-				Removes {student?.name ?? 'this student'}'s entry from the grid. The photos and Drive
-				files are not affected, but there is no way to bring the entry back from here.
-			</p>
-			{#if deleteArmed}
-				<p class="msg confirm" data-testid="entry-delete-confirm">
-					Delete {student?.name ?? 'this student'}'s "{title}"? This cannot be undone here.
+			<button
+				type="button"
+				class="disclosure danger-toggle"
+				aria-expanded={dangerOpen}
+				aria-controls="entry-danger-body"
+				onclick={() => (dangerOpen = !dangerOpen)}
+			>
+				<span class="caret" aria-hidden="true">{dangerOpen ? '▾' : '▸'}</span>
+				Delete this entry
+			</button>
+			<div id="entry-danger-body" hidden={!dangerOpen}>
+				<p class="note">
+					Removes {student?.name ?? 'this student'}'s entry from the grid. The photos and Drive
+					files are not affected, but there is no way to bring the entry back from here.
 				</p>
-			{/if}
-			<div class="form-actions">
-				<button
-					type="button"
-					class="btn danger"
-					disabled={deleting}
-					data-testid="entry-delete"
-					onclick={deleteEntry}
-				>
-					{deleting ? 'Deleting...' : deleteArmed ? 'Confirm delete' : 'Delete entry'}
-				</button>
 				{#if deleteArmed}
+					<p class="msg confirm" data-testid="entry-delete-confirm">
+						Delete {student?.name ?? 'this student'}'s "{title}"? This cannot be undone here.
+					</p>
+				{/if}
+				<div class="form-actions">
 					<button
 						type="button"
-						class="btn secondary"
+						class="btn danger"
 						disabled={deleting}
-						onclick={() => (deleteArmed = false)}
+						data-testid="entry-delete"
+						onclick={deleteEntry}
 					>
-						Cancel
+						{deleting ? 'Deleting...' : deleteArmed ? 'Confirm delete' : 'Delete entry'}
 					</button>
-				{/if}
+					{#if deleteArmed}
+						<button
+							type="button"
+							class="btn secondary"
+							disabled={deleting}
+							onclick={() => (deleteArmed = false)}
+						>
+							Cancel
+						</button>
+					{/if}
+				</div>
+				{#if deleteError}<p class="msg error" role="alert">{deleteError}</p>{/if}
 			</div>
-			{#if deleteError}<p class="msg error" role="alert">{deleteError}</p>{/if}
 		</div>
 	{/if}
 </section>
@@ -315,26 +515,34 @@
 <style>
 	.entry-panel {
 		display: grid;
-		gap: var(--space-4);
+		gap: var(--space-3);
+		align-content: start;
 		border-color: var(--nb-hairline-strong);
 	}
 	.entry-head {
 		display: flex;
 		align-items: flex-start;
 		justify-content: space-between;
-		gap: var(--space-4);
-		flex-wrap: wrap;
+		gap: var(--space-3);
+	}
+	.head-text {
+		min-width: 0;
 	}
 	.entry-head h2 {
 		margin: var(--space-1) 0 0;
+		font-size: 1.1rem;
+	}
+	.btn.tight {
+		flex: 0 0 auto;
+		align-self: flex-start;
 	}
 	.meta {
 		display: flex;
-		gap: var(--space-3);
+		gap: var(--space-2);
 		flex-wrap: wrap;
 		align-items: center;
-		margin: var(--space-1) 0 0;
-		font-size: 0.76rem;
+		margin: 0;
+		font-size: 0.74rem;
 		font-variant-numeric: tabular-nums;
 		color: var(--text-3);
 	}
@@ -363,6 +571,18 @@
 	.state.missing {
 		color: var(--text-3);
 	}
+	/* The acknowledgement chip. Quiet until it is done: "not reviewed" is the
+	   ordinary state of most of a class and must not read as a problem, which
+	   is what borrowing the flag's crimson would have made it. */
+	/* --text-2, not --text-3: this chip carries a STATE somebody acts on, and
+	   the room's tertiary ink measures 3.66:1 on the light plate (the
+	   pre-existing --nb-ink-faint figure). Real copy takes the muted ink. */
+	.state.review {
+		color: var(--text-2);
+	}
+	.state.review.done {
+		color: var(--nb-ok);
+	}
 	.also {
 		color: var(--nb-accent-ink);
 	}
@@ -384,25 +604,88 @@
 	.callout strong {
 		color: var(--nb-accent-ink);
 	}
+	.pages {
+		display: grid;
+		gap: var(--space-2);
+	}
+	.hint {
+		margin: 0;
+		font-size: 0.74rem;
+		color: var(--text-2);
+	}
 	.empty {
 		color: var(--text-2);
 		font-size: 0.9rem;
 	}
-	.notes-block h3 {
-		margin: 0 0 var(--space-2);
-		font-size: 0.95rem;
+
+	/* A REAL BUTTON with aria-expanded, never a div with a click listener:
+	   that shape is mouse-only, invisible to assistive tech, and double-toggles
+	   against any control added later. */
+	.disclosure {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		width: 100%;
+		padding: var(--space-2) 0;
+		background: none;
+		border: none;
+		color: var(--text-1);
+		font-family: inherit;
+		font-size: 0.9rem;
+		font-weight: 600;
+		text-align: left;
+		cursor: pointer;
 	}
+	.disclosure:focus-visible {
+		outline: 2px solid var(--nb-accent);
+		outline-offset: 2px;
+	}
+	.caret {
+		color: var(--text-3);
+		font-size: 0.8rem;
+	}
+
+	.verdicts {
+		display: flex;
+		gap: var(--space-2);
+		flex-wrap: wrap;
+		align-items: center;
+	}
+	/* The key that does the same thing, ON the control that does it -- the
+	   legend in the console header says it once, and this says it where the
+	   hand already is. A tooltip would be neither discoverable nor reachable
+	   from a phone. */
+	.verdicts kbd {
+		margin-left: var(--space-2);
+		padding: 0.05em 0.35em;
+		border: 1px solid currentColor;
+		border-radius: 3px;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+		opacity: 0.75;
+	}
+	.hint kbd {
+		padding: 0.05em 0.3em;
+		border: 1px solid currentColor;
+		border-radius: 3px;
+		font-family: var(--font-mono);
+		font-size: 0.68rem;
+	}
+
 	.review-form {
 		display: grid;
 		gap: var(--space-2);
-		padding: var(--space-4);
+		padding: var(--space-3);
 		border: 1px solid var(--hairline);
 		border-radius: var(--radius-control);
 		background: var(--surface-2);
 	}
-	.review-form h3 {
-		margin: 0;
-		font-size: 0.95rem;
+	.review-form[hidden] {
+		display: none;
+	}
+	#review-notes-body[hidden],
+	#entry-danger-body[hidden] {
+		display: none;
 	}
 	.form-row {
 		display: flex;
@@ -414,7 +697,7 @@
 		gap: var(--space-1);
 	}
 	.field.grow {
-		flex: 1 1 16rem;
+		flex: 1 1 12rem;
 	}
 	.field span {
 		font-size: 0.7rem;
@@ -426,6 +709,7 @@
 	.field select,
 	.field input {
 		width: 100%;
+		min-width: 0;
 		padding: var(--space-2);
 		background: var(--surface-1);
 		border: 1px solid var(--nb-hairline-strong);
@@ -461,24 +745,25 @@
 	.note {
 		margin: 0;
 		color: var(--text-2);
-		font-size: 0.82rem;
+		font-size: 0.8rem;
 	}
 
-	/* VISUALLY SEPARATED from the flag/resolve form (a distinct card, a red
-	   heading), so "flag this" and "delete this student's work outright" are
-	   never one click apart on the same control cluster. */
+	/* VISUALLY SEPARATED from the verdicts, and now behind a disclosure as
+	   well: "flag this" and "delete this student's work outright" are never one
+	   click apart, and the destructive one is not even on screen until it is
+	   asked for. */
 	.danger-zone {
 		display: grid;
 		gap: var(--space-2);
-		padding: var(--space-4);
+		padding: var(--space-2) var(--space-3);
 		border: 1px solid color-mix(in srgb, var(--nb-error) 35%, var(--hairline));
 		border-radius: var(--radius-control);
 		background: color-mix(in srgb, var(--nb-error) 4%, transparent);
 	}
-	.danger-zone h3 {
-		margin: 0;
-		font-size: 0.9rem;
+	.danger-toggle {
 		color: var(--nb-error);
+		font-size: 0.85rem;
+		padding: 0;
 	}
 	.btn.danger {
 		background: var(--surface-1);

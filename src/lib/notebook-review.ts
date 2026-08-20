@@ -92,6 +92,15 @@ export interface GridStudent {
 	 * reports them so they are not invisible.
 	 */
 	free_entries: number;
+	/**
+	 * How many of those nobody has looked at yet (0121). OPTIONAL for the same
+	 * reason every field below marked so is: migrations here are applied BY
+	 * HAND, so a deployment sitting between 0120 and 0121 is a real state and
+	 * the key is simply absent from the payload on one. `undefined` means "this
+	 * database cannot answer that", which is a different thing from zero and is
+	 * rendered as nothing rather than as "all reviewed".
+	 */
+	free_entries_unreviewed?: number;
 }
 
 /**
@@ -114,6 +123,21 @@ export interface GridCell {
 	on_time: boolean | null;
 	excused: boolean;
 	flag_reason: NotebookFlagReason | null;
+	/**
+	 * Has anybody LOOKED at the entry this cell shows (0121)? null where there
+	 * is no entry; `undefined` on a database without 0121 applied, which is why
+	 * nothing reads this field directly -- `cellReviewed` is the one reader and
+	 * it collapses both to null, so "not applied" can never render as "not
+	 * reviewed" and put a to-do mark on every cell in the class.
+	 */
+	reviewed?: boolean | null;
+	reviewed_at?: string | null;
+	/**
+	 * Of `entry_count`, how many nobody has looked at (0121). It comes from the
+	 * RPC's own COUNTS read rather than from the shown entry, so a student with
+	 * four entries and one acknowledged reads 3, not 0.
+	 */
+	unreviewed_count?: number;
 }
 
 export interface SectionGrid {
@@ -215,6 +239,240 @@ export function cellLabel(display: CellDisplay): string {
 /** A cell is only clickable when there is an entry behind it to open. */
 export function hasEntry(cell: GridCell): boolean {
 	return cell.entry_id !== null;
+}
+
+/**
+ * HAS ANYBODY LOOKED AT THIS CELL'S ENTRY (0121), as a three-state answer.
+ *
+ * `true` acknowledged, `false` filed and waiting, `null` "no answer" -- which
+ * covers BOTH a cell with no entry and a database where 0121 is not applied
+ * yet. Collapsing those two into null is the point: migrations here are pasted
+ * in by hand, and a missing key read as `false` would put a to-do mark on every
+ * cell of every class on a deployment that simply cannot record acknowledgement
+ * at all.
+ *
+ * THIS IS THE ONE READER of `cell.reviewed`. Nothing else in the client touches
+ * the raw field, so the not-applied case is answered in one place.
+ */
+export function cellReviewed(cell: GridCell): boolean | null {
+	if (cell.entry_id === null) return null;
+	return cell.reviewed ?? null;
+}
+
+/**
+ * Can this database record an acknowledgement at all (0121)?
+ *
+ * THE PAYLOAD REPORTS ITS OWN CAPABILITY, which is the select-ladder rule
+ * applied to an RPC: rather than probing for the function or shipping a flag
+ * from the server load, the grid says so by carrying the key. A cell with no
+ * entry still carries `reviewed: null`, so the only payload this answers false
+ * for is one from a pre-0121 function -- or one with no cells at all, where
+ * there is nothing to acknowledge either way.
+ */
+export function gridReviewReady(grid: SectionGrid | null): boolean {
+	return !!grid && grid.cells.some((c) => c.reviewed !== undefined);
+}
+
+/** Cells filed against this check-in that nobody has looked at yet. */
+export function cellUnreviewedCount(cell: GridCell): number {
+	return cell.unreviewed_count ?? 0;
+}
+
+// ---------------------------------------------------------------------------
+// 2b. THE REVIEW CURSOR, and the keyboard that drives it.
+//
+// The console is a grid you walk. Everything below is PURE -- it takes a
+// payload and a position and answers with a position -- so the whole loop,
+// including the boundaries where the arrows stop, is testable with no DOM and
+// no backend. The component owns focus and scrolling; it owns no arithmetic.
+// ---------------------------------------------------------------------------
+
+/**
+ * WHERE THE REVIEWER IS, keyed the way every other lookup in this file is:
+ * `student_key` rather than the uuid (a student enrolled but never signed in
+ * has no uuid at all since 0094) and the session id.
+ */
+export interface GridCursor {
+	studentKey: string;
+	sessionId: string;
+}
+
+export type CursorMove = 'up' | 'down' | 'left' | 'right';
+
+/**
+ * The two axes IN THE ORDER THE TABLE RENDERS THEM -- rows from
+ * `grid.students`, which the RPC already sorted by name, and columns from
+ * `sessionsInOrder`, which is the same function the header row uses. Deriving
+ * both from the renderers rather than re-sorting here is what stops the cursor
+ * from walking in an order the eye does not see.
+ */
+export function cursorAxes(grid: SectionGrid): { students: string[]; sessions: string[] } {
+	return {
+		students: grid.students.map((s) => s.student_key),
+		sessions: sessionsInOrder(grid.sessions).map((s) => s.id)
+	};
+}
+
+/** The top-left cell, or null for a grid with no rows or no columns. */
+export function firstCursor(grid: SectionGrid): GridCursor | null {
+	const { students, sessions } = cursorAxes(grid);
+	if (students.length === 0 || sessions.length === 0) return null;
+	return { studentKey: students[0], sessionId: sessions[0] };
+}
+
+/**
+ * The cursor after a REFRESH, which is the case realtime makes ordinary: a
+ * student who left the roster, or a check-in that was deleted, must not leave
+ * the cursor pointing at a cell that is not on screen.
+ *
+ * IT KEEPS THE AXIS THAT SURVIVED. Losing a column keeps the student and moves
+ * to the nearest column rather than jumping to the top-left, because the row an
+ * instructor is working down is the thing they would have to find again.
+ */
+export function clampCursor(grid: SectionGrid, cursor: GridCursor | null): GridCursor | null {
+	const { students, sessions } = cursorAxes(grid);
+	if (students.length === 0 || sessions.length === 0) return null;
+	if (!cursor) return firstCursor(grid);
+	return {
+		studentKey: students.includes(cursor.studentKey) ? cursor.studentKey : students[0],
+		sessionId: sessions.includes(cursor.sessionId) ? cursor.sessionId : sessions[0]
+	};
+}
+
+/**
+ * One step. `null` means THE EDGE -- the caller leaves the cursor where it is.
+ *
+ * DELIBERATELY NOT WRAPPING. Rolling off the last student onto the first would
+ * make "hold the down arrow to the end of the class" a loop with no end, and
+ * the instructor's own sense of having finished is the only completion signal
+ * this screen has.
+ */
+export function moveCursor(
+	grid: SectionGrid,
+	cursor: GridCursor,
+	move: CursorMove
+): GridCursor | null {
+	const { students, sessions } = cursorAxes(grid);
+	const row = students.indexOf(cursor.studentKey);
+	const col = sessions.indexOf(cursor.sessionId);
+	if (row < 0 || col < 0) return clampCursor(grid, cursor);
+
+	const nextRow = move === 'up' ? row - 1 : move === 'down' ? row + 1 : row;
+	const nextCol = move === 'left' ? col - 1 : move === 'right' ? col + 1 : col;
+	if (nextRow < 0 || nextRow >= students.length) return null;
+	if (nextCol < 0 || nextCol >= sessions.length) return null;
+	return { studentKey: students[nextRow], sessionId: sessions[nextCol] };
+}
+
+/** The cell under the cursor, or undefined if the pair names no cell. */
+export function cursorCell(grid: SectionGrid, cursor: GridCursor | null): GridCell | undefined {
+	if (!cursor) return undefined;
+	return cellIndex(grid).get(`${cursor.studentKey}|${cursor.sessionId}`);
+}
+
+/**
+ * WHERE ACKNOWLEDGING SENDS YOU NEXT: down the SAME column to the next student
+ * whose entry nobody has looked at.
+ *
+ * Down the column rather than across the row because that is how the work
+ * arrives -- one check-in, thirty students -- and skipping the ones already
+ * done is what makes "review the rest of the class" a held-down arrow key
+ * rather than a hunt. It stops at the bottom rather than wrapping (the same
+ * rule `moveCursor` follows) and returns null when there is nothing left
+ * below, which the caller shows as "nothing further down this column".
+ */
+export function nextUnreviewed(grid: SectionGrid, cursor: GridCursor): GridCursor | null {
+	const { students, sessions } = cursorAxes(grid);
+	const row = students.indexOf(cursor.studentKey);
+	if (row < 0 || !sessions.includes(cursor.sessionId)) return null;
+	const index = cellIndex(grid);
+	for (let r = row + 1; r < students.length; r++) {
+		const cell = index.get(`${students[r]}|${cursor.sessionId}`);
+		if (cell && hasEntry(cell) && cellReviewed(cell) === false) {
+			return { studentKey: students[r], sessionId: cursor.sessionId };
+		}
+	}
+	return null;
+}
+
+/** Everything a key press can ask the console to do. */
+export type ReviewAction = CursorMove | 'accept' | 'flag' | 'pages' | 'close';
+
+export interface ReviewKeyHint {
+	/** What the legend prints in its <kbd>. */
+	keys: string;
+	label: string;
+	action: ReviewAction;
+}
+
+/**
+ * THE KEY LEGEND, and it is the SAME LIST the handler dispatches from.
+ *
+ * "Every key is discoverable in the interface" is a property of there being one
+ * array rather than of a printed list happening to match a switch statement.
+ * The console renders this; `reviewAction` resolves against it.
+ */
+export const REVIEW_KEYS: ReviewKeyHint[] = [
+	{ keys: '↑ ↓', label: 'Student', action: 'down' },
+	{ keys: '← →', label: 'Check-in', action: 'right' },
+	{ keys: 'A', label: 'Accept, next', action: 'accept' },
+	{ keys: 'F', label: 'Flag', action: 'flag' },
+	{ keys: 'Enter', label: 'Open pages', action: 'pages' },
+	{ keys: 'Esc', label: 'Close', action: 'close' }
+];
+
+/**
+ * A key press, resolved. `null` = not ours, and the event is left alone.
+ *
+ * MODIFIED PRESSES ARE NEVER OURS. Ctrl/Cmd/Alt combinations belong to the
+ * browser and the operating system, and swallowing Cmd+A ("select all") to mean
+ * "accept" is the kind of theft that makes a keyboard surface unusable rather
+ * than fast. Shift is allowed: a capital A is the same request.
+ */
+export function reviewAction(event: {
+	key: string;
+	ctrlKey?: boolean;
+	metaKey?: boolean;
+	altKey?: boolean;
+}): ReviewAction | null {
+	if (event.ctrlKey || event.metaKey || event.altKey) return null;
+	switch (event.key) {
+		case 'ArrowUp':
+			return 'up';
+		case 'ArrowDown':
+			return 'down';
+		case 'ArrowLeft':
+			return 'left';
+		case 'ArrowRight':
+			return 'right';
+		case 'Enter':
+			return 'pages';
+		case 'Escape':
+			return 'close';
+		default:
+			break;
+	}
+	const lower = event.key.toLowerCase();
+	if (lower === 'a') return 'accept';
+	if (lower === 'f') return 'flag';
+	return null;
+}
+
+/**
+ * IS THE PERSON TYPING? A single-letter shortcut over a screen that also has a
+ * comment box is how "insufficient detail" becomes an accept halfway through
+ * the word "flag".
+ *
+ * Pure, and takes the shape rather than the element, so the rule is testable
+ * without a DOM: any form control, anything contenteditable.
+ */
+export function isTypingTarget(target: {
+	tagName?: string;
+	isContentEditable?: boolean;
+}): boolean {
+	if (target.isContentEditable) return true;
+	const tag = (target.tagName ?? '').toLowerCase();
+	return tag === 'input' || tag === 'textarea' || tag === 'select';
 }
 
 /**
@@ -442,6 +700,43 @@ export interface ReviewTransports {
 		comment: string | null
 	) => Promise<ReviewResult>;
 	resolveEntry: (entryId: string, comment: string | null) => Promise<ReviewResult>;
+	/**
+	 * "I have looked at this and it is fine" (0121, notebook_accept_entry).
+	 * OPTIONAL, the presence-gates-the-control rule: a mount that omits it has
+	 * no accept key and no accept button, which is the honest state on a
+	 * deployment where 0121 is not applied. `gridReviewReady` is what the
+	 * console reads to decide, so the two cannot disagree.
+	 *
+	 * It writes reviewed_by/reviewed_at and NOTHING else -- not the status, not
+	 * the flag, not the comment -- so it is not a second grade on work the unit
+	 * is already graded for once.
+	 */
+	acceptEntry?: (entryId: string) => Promise<ReviewResult>;
+	/**
+	 * Taking that back (0121, notebook_unaccept_entry). It matters more than an
+	 * undo usually does: while an entry is acknowledged the STUDENT cannot
+	 * delete it or pull it back to a draft, so a misclick down a column of
+	 * thirty takes something away from somebody who is not in the room.
+	 */
+	unacceptEntry?: (entryId: string) => Promise<ReviewResult>;
+	/**
+	 * LIVE UPDATES: subscribe to this section's notebook rows and call
+	 * `onChange` when any of them move (0121 publishes notebook_entries, its
+	 * photos and its notes). Returns the teardown.
+	 *
+	 * OPTIONAL, AND THAT IS THE DEGRADE PATH RATHER THAN A FLAG. A mount that
+	 * omits it -- a socket that never connects, a dev harness, a deployment
+	 * without the publication -- gets exactly the console that shipped before:
+	 * the load-time fetch, and a refetch after every write. Realtime is an
+	 * UPDATE path here, never the read.
+	 *
+	 * It carries no payload on purpose. The console answers a change by
+	 * re-reading the grid through the same RPC it loaded with, so two
+	 * instructors working the same section converge on what the database says
+	 * instead of each patching a local copy from a row that arrived out of
+	 * order.
+	 */
+	subscribe?: (sectionId: string, onChange: () => void) => () => void;
 	/**
 	 * An instructor removing a student's entry (0116, notebook_staff_delete_entry).
 	 * OPTIONAL, the same presence-gates-the-control rule every notebook write

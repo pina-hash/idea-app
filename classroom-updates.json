@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "Your instructor can mark a notebook entry reviewed",
+			"body": "Until now the only thing an instructor could record on a notebook entry was a flag, so there was no way to tell an entry they had read and approved from one nobody had opened yet. They can now mark an entry as reviewed. It does not change your grade and it does not change what the entry says: it only records that somebody has looked at it. One thing does change for you. While an entry is marked reviewed you can no longer delete it yourself, and you can no longer pull it back to a draft, because it is part of a record your instructor is keeping. If you need it changed after that, ask them. They can undo the mark, and then it is yours to edit again. The class review screen and your own notebook also update on their own now, so work you turn in shows up for your instructor without either of you reloading the page.",
+			"tags": ["Notebook"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "Your notebook and your classes look like one place now",
 			"body": "The digital notebook used to be set in a different typeface, at a different size, with rounder corners and its own spacing, so moving between a class and your notebook felt like moving between two different apps. It now uses the same type, the same corners and the same spacing as the rest of the class site. Nothing moved and nothing is hidden. The light, dark and IDEA appearance settings are all still there and still do the same thing, and the switch is in the same place at the top of the notebook. The status squares on the section review grid have been recoloured so the tick, arrow, circle, bang, E and dash are properly readable on all three, which they were not on the light setting.",
 			"tags": ["Notebook", "Appearance"]

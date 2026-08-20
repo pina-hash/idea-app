@@ -8,6 +8,7 @@
 		type EntryActionResult,
 		type NotebookPhoto
 	} from '$lib/notebook';
+	import { photoThumbSrc } from '$lib/notebook-folders';
 	import PhotoViewer from '$lib/notebook/PhotoViewer.svelte';
 
 	/**
@@ -21,7 +22,8 @@
 	 * mounts this rather than keeping its own copy.
 	 *
 	 * Photos are the point of every screen that shows them: one per row at
-	 * full column width, never a thumbnail grid.
+	 * full column width, never a thumbnail grid. `layout="strip"` is the ONE
+	 * exception and it is not a contradiction of that -- see the prop.
 	 *
 	 * Since the pre-upload correction step, rows are grouped into LOGICAL
 	 * PAGES (photoPages in notebook.ts): an original plus its adjacent
@@ -38,10 +40,39 @@
 		photos,
 		label,
 		lazy = true,
+		layout = 'rows',
+		viewerIndex = $bindable(null),
 		onRemove
 	}: {
 		photos: NotebookPhoto[];
 		label: string;
+		/**
+		 * `rows` (the default, and everywhere a page is READ): one page per row
+		 * at full column width.
+		 *
+		 * `strip` is a row of page thumbnails, each opening the SAME full-screen
+		 * viewer at that page. It is for a surface whose job is deciding whether
+		 * to open a photograph rather than reading it -- the review console's
+		 * entry panel, where the instructor is looking at a grid at the same
+		 * time and the full-screen viewer is how handwriting actually gets read.
+		 * Rendering pages full width there costs a scroll per student for a
+		 * picture too small to read anyway.
+		 *
+		 * It is NOT a second renderer: same `photoPages` grouping, same viewer,
+		 * same proxy. What it drops is the per-page chrome that only makes sense
+		 * beside a full-size page (the corrected/original toggle, the filename,
+		 * the remove control) -- the viewer carries the first two, and `strip` is
+		 * never handed an `onRemove`.
+		 */
+		layout?: 'rows' | 'strip';
+		/**
+		 * WHICH PAGE THE FULL-SCREEN VIEWER IS ON; null is closed. Bindable so a
+		 * KEYBOARD can open it: the review console's "Enter opens the pages" key
+		 * has to reach the viewer from outside this component, and setting a
+		 * number is a contract, where reaching in to click a thumbnail would be a
+		 * DOM query across a component boundary.
+		 */
+		viewerIndex?: number | null;
 		/**
 		 * `loading="lazy"` is right in the student's long scrolling feed and
 		 * wrong in the review panel, which mounts on demand and is expected to
@@ -64,12 +95,12 @@
 
 	const pages = $derived(photoPages(photos));
 
-	/**
-	 * The full-screen viewer, opened by clicking a page's image. `null` = closed;
-	 * an index into `pages` opens that page. One viewer instance per
-	 * NotebookPhotos, so it appears on every surface this component does.
+	/*
+	 * The full-screen viewer is opened by clicking a page's image, and `null` =
+	 * closed. It used to be private state here; it is a bindable PROP now (see
+	 * above) so a keyboard outside this component can open it. The default is
+	 * still null, so every existing caller is unchanged and still owns nothing.
 	 */
-	let viewerIndex = $state<number | null>(null);
 
 	/** Per-page "show me the original" choice, keyed by pageKey. */
 	let showOriginal = $state<Record<string, boolean>>({});
@@ -109,7 +140,51 @@
 	}
 </script>
 
-{#if pages.length}
+{#if pages.length && layout === 'strip'}
+	<!--
+		THE DECISION SURFACE. One thumbnail per logical page, each opening the
+		same viewer at that page. It uses the proxy's THUMBNAIL variant
+		(photoThumbSrc, the collapsed-feed route), so a panel that repaints on
+		every arrow key press asks for kilobytes rather than for the megabytes a
+		full page costs -- which is the same reason the collapsed feed exists.
+	-->
+	<ul class="page-strip" data-testid="photo-strip">
+		{#each pages as page, pageIndex (pageKey(page))}
+			{@const photo = pagePhoto(page, false)}
+			<li>
+				<button
+					type="button"
+					class="strip-page"
+					data-testid="photo-open"
+					onclick={() => (viewerIndex = pageIndex)}
+					aria-label={pages.length > 1
+						? `Open ${label}, page ${page.page}, full screen`
+						: `Open ${label} full screen`}
+				>
+					{#if broken[photo.id]}
+						<!-- Not a broken tile: the page is still openable, and the
+						     viewer carries the retry and the Drive escape hatch. -->
+						<span class="strip-fallback" aria-hidden="true">
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+								<rect x="3" y="5" width="18" height="14" rx="2" />
+								<path d="M3 16l4.5-4.5 3 3L15 10l6 6" />
+							</svg>
+						</span>
+					{:else}
+						<img
+							src={photoThumbSrc(photo.id)}
+							alt=""
+							loading={lazy ? 'lazy' : 'eager'}
+							decoding="async"
+							onerror={() => (broken = { ...broken, [photo.id]: true })}
+						/>
+					{/if}
+					{#if pages.length > 1}<span class="strip-num" aria-hidden="true">{page.page}</span>{/if}
+				</button>
+			</li>
+		{/each}
+	</ul>
+{:else if pages.length}
 	<div class="photos">
 		{#each pages as page, pageIndex (pageKey(page))}
 			{@const key = pageKey(page)}
@@ -216,6 +291,77 @@
 />
 
 <style>
+	/* --- layout="strip" ----------------------------------------------------
+	   A row of page thumbnails that WRAPS rather than scrolling sideways: a
+	   horizontal scroller inside a panel inside a pane is a third bar in one
+	   corner of the screen, and an entry has single-figure pages, so wrapping
+	   costs at most a second row.
+
+	   4.5rem is a real measurement, not a round number: below it the page
+	   number stops being legible against a photograph of a page, and a
+	   handwritten sketch stops being distinguishable from a block of text --
+	   which is the only judgement this tile has to support.
+	   ---------------------------------------------------------------------- */
+	.page-strip {
+		list-style: none;
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		margin: 0;
+		padding: 0;
+	}
+	.strip-page {
+		position: relative;
+		display: block;
+		width: 4.5rem;
+		height: 4.5rem;
+		padding: 0;
+		border: 1px solid var(--hairline);
+		border-radius: var(--radius-control);
+		background: var(--surface-2);
+		overflow: hidden;
+		cursor: pointer;
+		color: var(--text-3);
+	}
+	.strip-page:hover,
+	.strip-page:focus-visible {
+		outline: none;
+		border-color: var(--nb-accent);
+		box-shadow: 0 0 0 2px var(--nb-accent-wash);
+	}
+	.strip-page img {
+		width: 100%;
+		height: 100%;
+		/* COVER, like the feed's tile and for the tile's reason: letterboxing a
+		   page into 72px spends most of it on nothing. The viewer is where a
+		   page is read, and it uses contain. */
+		object-fit: cover;
+		display: block;
+	}
+	.strip-fallback {
+		display: grid;
+		place-items: center;
+		width: 100%;
+		height: 100%;
+	}
+	.strip-fallback svg {
+		width: 42%;
+		height: 42%;
+	}
+	.strip-num {
+		position: absolute;
+		right: 2px;
+		bottom: 2px;
+		min-width: 1rem;
+		padding: 0.1em 0.3em;
+		border-radius: var(--radius-card);
+		background: rgba(38, 34, 27, 0.72);
+		color: #fff;
+		font-family: var(--font-mono);
+		font-size: 0.6rem;
+		line-height: 1.1;
+	}
+
 	/* Editorial framing: the photo floats on paper with a hairline frame and
 	   a wider gap between pages; captions are quiet gray sans. */
 	.photos {

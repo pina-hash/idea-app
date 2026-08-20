@@ -1,16 +1,19 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import {
 		CELL_STATES,
 		cellDisplay,
 		cellGlyph,
 		cellIndex,
 		cellLabel,
+		cellReviewed,
 		completionLabel,
 		hasEntry,
 		sessionsInOrder,
 		shortDate,
 		summarize,
 		type GridCell,
+		type GridCursor,
 		type SectionGrid
 	} from '$lib/notebook-review';
 
@@ -26,19 +29,40 @@
 	 *
 	 * Every cell state is a COLOUR AND A GLYPH, never colour alone, so the
 	 * grid is readable at a glance and still readable without colour vision.
-	 * A cell with no entry has nothing to open and is rendered as plain text
-	 * rather than a dead button.
+	 *
+	 * IT IS A GRID YOU WALK, NOT A LIST OF BUTTONS. There is one cursor; the
+	 * arrow keys move it, and the cell it is on is the only cell in the table
+	 * that is tabbable (a roving tabindex -- 240 stops would otherwise be
+	 * between the grid and everything after it). EVERY cell is focusable that
+	 * way, including the ones with nothing filed: those used to render as inert
+	 * text, which is right for a mouse and wrong for a cursor, since a student
+	 * who has filed nothing is exactly who an instructor is looking for. Opening
+	 * one shows what the console knows about it rather than nothing.
+	 *
+	 * THE ARITHMETIC IS NOT HERE. Which cell is next, where the edges are, and
+	 * which key means what all live in notebook-review.ts as pure functions, so
+	 * the whole loop is testable without a DOM. This component owns focus and
+	 * scrolling, and no rules.
 	 */
 	let {
 		grid,
 		selectedEntryId = null,
+		cursor = null,
 		onOpen,
+		onCursor,
 		studentHref
 	}: {
 		grid: SectionGrid;
-		/** The cell currently expanded below, highlighted in place. */
+		/** The cell currently open in the detail pane, highlighted in place. */
 		selectedEntryId?: string | null;
+		/**
+		 * WHERE THE REVIEWER IS. Owned by the console (it survives a refetch and
+		 * drives what the detail pane shows), rendered here.
+		 */
+		cursor?: GridCursor | null;
 		onOpen: (cell: GridCell) => void;
+		/** A click or an arrow moved the cursor. */
+		onCursor?: (cursor: GridCursor) => void;
 		/**
 		 * Where this student's whole notebook lives, or null when this viewer
 		 * cannot open it -- which is a real case, not a formality: since 0106 the
@@ -68,6 +92,14 @@
 	);
 
 	/**
+	 * Does this payload carry the acknowledgement dimension at all (0121)? On a
+	 * database without it the mark and its legend entry are simply absent, which
+	 * is the honest rendering: "nothing is marked" would be a lie about every
+	 * cell in the class.
+	 */
+	const reviewReady = $derived(grid.cells.some((c) => c.reviewed !== undefined));
+
+	/**
 	 * Keyed on the roster's `student_key`, not the uuid: since 0094 a student
 	 * who is enrolled but has never signed in has no uuid at all, and every one
 	 * of them would otherwise share the key "null|<session>".
@@ -76,32 +108,143 @@
 		return index.get(`${studentKey}|${sessionId}`);
 	}
 
+	const cursorKey = $derived(cursor ? `${cursor.studentKey}|${cursor.sessionId}` : null);
+
+	/**
+	 * THE FALLBACK TAB STOP. With a roving tabindex exactly one cell is
+	 * tabbable, and if the cursor is null (nothing has been picked yet) that
+	 * would be none -- a table the keyboard cannot enter at all. The first cell
+	 * takes the stop until a cursor exists.
+	 */
+	const firstKey = $derived(
+		grid.students.length && sessions.length
+			? `${grid.students[0].student_key}|${sessions[0].id}`
+			: null
+	);
+	const tabKey = $derived(cursorKey ?? firstKey);
+
+	/** Cell elements by key, so the cursor can follow the focus and the scroll. */
+	let cellEls: Record<string, HTMLButtonElement | null> = {};
+	let tableEl = $state<HTMLElement | null>(null);
+	/** The key the DOM focus was last moved to, so a refetch never re-moves it. */
+	let focusedKey: string | null = null;
+
+	/**
+	 * FOCUS FOLLOWS THE CURSOR, AND THE CONDITION IS THE WHOLE RULE.
+	 *
+	 * It moves when focus is ALREADY in the grid (the instructor is arrowing
+	 * through it) or when NOTHING has focus (they have pressed an arrow with
+	 * the page freshly loaded, and the grid is where that press belongs). It
+	 * does NOT move when focus is anywhere else -- which is what makes a live
+	 * update harmless: an entry filed by a student mid-review refetches the
+	 * grid, and if the instructor is typing a comment in the panel beside it,
+	 * or reading a photograph full screen, nothing may move. Scrolling is under
+	 * the same condition for the same reason.
+	 *
+	 * The `focusedKey` guard means a refetch that leaves the cursor where it was
+	 * re-runs this and does nothing at all.
+	 *
+	 * `untrack` around the DOM work: reading `cellEls` inside the tracked scope
+	 * would make this effect depend on a map it is also written to by every
+	 * `bind:this` in the table.
+	 */
+	$effect(() => {
+		const key = cursorKey;
+		if (!key) return;
+		untrack(() => {
+			if (key === focusedKey) return;
+			const el = cellEls[key];
+			if (!el) return;
+			const active = typeof document !== 'undefined' ? document.activeElement : null;
+			const inside = !!(tableEl && active && tableEl.contains(active));
+			const cold = !active || active === document.body;
+			if (!inside && !cold) return;
+			focusedKey = key;
+			el.focus();
+			// 'nearest' + instant: advancing down a class must bring the next row
+			// into view without animating (app.css sets a global smooth scroll,
+			// which a throttled window never finishes) and without recentring a
+			// row that is already on screen.
+			el.scrollIntoView({
+				block: 'nearest',
+				inline: 'nearest',
+				behavior: 'instant' as ScrollBehavior
+			});
+		});
+	});
+
+	/**
+	 * THE ROW THE INSTRUCTOR IS ON DOES NOT MOVE UNDER THEM.
+	 *
+	 * A live update can insert a row ABOVE the cursor -- a student from another
+	 * class files against a shared check-in and joins this roster (0094's union)
+	 * -- which pushes everything below it down by a row. The cursor still names
+	 * the same student and the same check-in, but the thing the eye is on has
+	 * slid, and in a class of thirty that is losing your place.
+	 *
+	 * So the cursor cell's VIEWPORT POSITION is measured before the update and
+	 * the scroller is nudged by the difference after it. `$effect.pre` is what
+	 * makes that possible: it runs before the DOM is patched, which is the only
+	 * moment the old position exists.
+	 *
+	 * WHAT IT CANNOT DO, and it is worth being plain about: a grid short enough
+	 * not to scroll has no offset to give back, so a row inserted above it does
+	 * move the rows under it by one row height. Nothing but a scroll can absorb
+	 * that, and inventing one would be worse than the shift.
+	 */
+	let anchorTop: number | null = null;
+	$effect.pre(() => {
+		void grid;
+		untrack(() => {
+			const el = cursorKey ? cellEls[cursorKey] : null;
+			anchorTop = el ? el.getBoundingClientRect().top : null;
+		});
+	});
+	$effect(() => {
+		void grid;
+		untrack(() => {
+			const previous = anchorTop;
+			anchorTop = null;
+			if (previous === null || !tableEl) return;
+			const el = cursorKey ? cellEls[cursorKey] : null;
+			if (!el) return;
+			const delta = el.getBoundingClientRect().top - previous;
+			if (Math.abs(delta) > 0.5) tableEl.scrollTop += delta;
+		});
+	});
+
+	function pick(studentKey: string, sessionId: string) {
+		focusedKey = `${studentKey}|${sessionId}`;
+		onCursor?.({ studentKey, sessionId });
+		const cell = cellFor(studentKey, sessionId);
+		if (cell) onOpen(cell);
+	}
+
 	function cellTitle(cell: GridCell): string {
 		const display = cellDisplay(cell);
 		const bits = [cellLabel(display)];
+		const reviewed = cellReviewed(cell);
+		if (reviewed === false) bits.push('not reviewed yet');
+		else if (reviewed === true) bits.push('reviewed');
 		if (cell.entry_count > 1) bits.push(`${cell.entry_count} entries, showing the latest`);
 		if (cell.excused && cell.entry_id) bits.push('also excused');
 		if (cell.entry_id) bits.push('click to open');
 		return bits.join(' · ');
 	}
+
+	/** The same sentence, for a screen reader, on every cell. */
+	function cellSpoken(cell: GridCell | undefined, studentName: string, sessionLabel: string): string {
+		if (!cell) return `${studentName}, ${sessionLabel}: nothing filed`;
+		const reviewed = cellReviewed(cell);
+		const state = cellLabel(cellDisplay(cell));
+		const review = reviewed === null ? '' : reviewed ? ', reviewed' : ', not reviewed';
+		return `${studentName}, ${sessionLabel}: ${state}${review}`;
+	}
 </script>
 
 <section class="card grid-card">
 	<header class="grid-head">
-		<div class="grid-title">
-			<h2>Compliance grid</h2>
-			<!--
-				What this grid DOES was previously only discoverable by hovering a
-				cell and reading "click to open" at the end of a tooltip, or by
-				clicking one and finding out. Two capabilities, said once, in
-				plain words, where someone opening this page for the first time
-				will read them.
-			-->
-			<p class="grid-hint">
-				Click any cell that has an entry to open it beside the grid.{#if anyStudentLink}{' '}Click
-					a student's name to read their whole notebook.{/if}
-			</p>
-		</div>
+		<h2>Compliance grid</h2>
 		<ul class="legend">
 			{#each CELL_STATES as state (state.key)}
 				<li title={state.hint}>
@@ -109,12 +252,23 @@
 					{state.label}
 				</li>
 			{/each}
+			{#if reviewReady}
+				<!-- NOT a seventh cell state: the six glyphs, their hues and the cell
+				     box are a locked contract. Acknowledgement is a separate question
+				     from what the cell says about the work, so it is a separate mark
+				     in a separate corner, and it carries a word here like the rest. -->
+				<li title="Filed, and nobody has looked at it yet.">
+					<span class="chip plain" aria-hidden="true"><span class="todo-dot"></span></span>
+					Not reviewed
+				</li>
+			{/if}
 		</ul>
 	</header>
 
 	{#if sessions.length === 0}
 		<p class="empty">
-			This unit has no check-ins scheduled, so there is nothing to grade against yet. Add one above.
+			This unit has no check-ins scheduled, so there is nothing to grade against yet. Add one in
+			Check-ins.
 		</p>
 	{:else if grid.students.length === 0}
 		<p class="empty">
@@ -122,7 +276,14 @@
 			homepage, or by filing an entry against it.
 		</p>
 	{:else}
-		<div class="table-scroll">
+		<!--
+			THE KEYS ARE NOT HANDLED HERE. The console listens on the window, so
+			the same press works whether focus is on a cell or on a control in the
+			panel beside it -- a loop that stopped at the pane boundary would not
+			be a loop. This element is bound only so the focus rule above can ask
+			whether focus is inside the table.
+		-->
+		<div class="table-scroll" bind:this={tableEl} data-testid="grid-scroll">
 			<table>
 				<thead>
 					<tr>
@@ -162,41 +323,41 @@
 									<span
 										class="free"
 										title="Entries filed in this section with no check-in attached. They are not counted in the grid."
-										>+{summary.student.free_entries} free</span
+										>+{summary.student.free_entries} free{#if summary.student.free_entries_unreviewed}<span
+												class="free-new">, {summary.student.free_entries_unreviewed} new</span
+											>{/if}</span
 									>
 								{/if}
 							</th>
 							{#each sessions as session (session.id)}
+								{@const key = `${summary.student.student_key}|${session.id}`}
 								{@const cell = cellFor(summary.student.student_key, session.id)}
+								{@const display = cell ? cellDisplay(cell) : 'missing'}
+								{@const todo = cell ? cellReviewed(cell) === false : false}
 								<td>
-									{#if cell && hasEntry(cell)}
-										<button
-											type="button"
-											class="cell {cellDisplay(cell)}"
-											class:selected={selectedEntryId !== null && cell.entry_id === selectedEntryId}
-											title={cellTitle(cell)}
-											onclick={() => onOpen(cell)}
+									<button
+										type="button"
+										class="cell {display}"
+										class:selected={selectedEntryId !== null &&
+											cell?.entry_id === selectedEntryId}
+										class:at-cursor={cursorKey === key}
+										class:empty-cell={!cell || !hasEntry(cell)}
+										tabindex={tabKey === key ? 0 : -1}
+										aria-current={cursorKey === key ? 'true' : undefined}
+										title={cell ? cellTitle(cell) : 'Nothing filed'}
+										bind:this={cellEls[key]}
+										onclick={() => pick(summary.student.student_key, session.id)}
+									>
+										<span aria-hidden="true">{cellGlyph(display)}</span>
+										{#if todo}
+											<span class="todo-dot" aria-hidden="true" data-testid="cell-todo"></span>
+										{/if}
+										<span class="sr-only"
+											>{cellSpoken(cell, summary.student.name, session.session_label)}</span
 										>
-											<span aria-hidden="true">{cellGlyph(cellDisplay(cell))}</span>
-											<span class="sr-only"
-												>{summary.student.name}, {session.session_label}: {cellLabel(
-													cellDisplay(cell)
-												)}</span
-											>
-											{#if cell.entry_count > 1}<span class="badge">{cell.entry_count}</span>{/if}
-										</button>
-									{:else if cell}
-										<span class="cell static {cellDisplay(cell)}" title={cellTitle(cell)}>
-											<span aria-hidden="true">{cellGlyph(cellDisplay(cell))}</span>
-											<span class="sr-only"
-												>{summary.student.name}, {session.session_label}: {cellLabel(
-													cellDisplay(cell)
-												)}</span
-											>
-										</span>
-									{:else}
-										<span class="cell static missing" aria-hidden="true">–</span>
-									{/if}
+										{#if cell && cell.entry_count > 1}<span class="badge">{cell.entry_count}</span
+											>{/if}
+									</button>
 								</td>
 							{/each}
 							<td class="count-col">
@@ -209,32 +370,41 @@
 				</tbody>
 			</table>
 		</div>
+		<p class="grid-hint">
+			Arrow keys move; the entry beside the grid follows.{#if anyStudentLink}{' '}Click a student's
+				name to read their whole notebook.{/if}
+		</p>
 	{/if}
 </section>
 
 <style>
+	/* THE CARD IS THE PANE'S HEIGHT and scrolls its BODY, not itself: the
+	   column headers name the check-ins the cells belong to and are worth
+	   nothing scrolled off the top. `minmax(0, 1fr)` on the table row is what
+	   lets the row shrink below its content -- `1fr` alone has an automatic
+	   minimum of min-content, which is the whole roster. In an unbounded parent
+	   (below the split's breakpoint, where the document scrolls) the same rule
+	   sizes to content and nothing scrolls internally at all. */
 	.grid-card {
 		display: grid;
-		gap: var(--space-4);
+		grid-template-rows: auto minmax(0, 1fr) auto;
+		gap: var(--space-3);
+		overflow: hidden;
 	}
 	.grid-head {
 		display: flex;
-		align-items: center;
+		align-items: baseline;
 		justify-content: space-between;
-		gap: var(--space-4);
+		gap: var(--space-3);
 		flex-wrap: wrap;
 	}
 	.grid-head h2 {
 		margin: 0;
-	}
-	.grid-title {
-		display: grid;
-		gap: var(--space-1);
+		font-size: 1.05rem;
 	}
 	.grid-hint {
 		margin: 0;
-		max-width: 34rem;
-		font-size: 0.78rem;
+		font-size: 0.74rem;
 		color: var(--text-2);
 	}
 	.legend {
@@ -263,13 +433,17 @@
 		font-size: 0.7rem;
 		line-height: 1;
 	}
+	.chip.plain {
+		border: 1px solid var(--hairline);
+	}
 	.empty {
 		color: var(--text-2);
 		font-size: 0.9rem;
 	}
 
 	.table-scroll {
-		overflow-x: auto;
+		overflow: auto;
+		min-height: 0;
 	}
 	table {
 		border-collapse: collapse;
@@ -286,6 +460,12 @@
 	thead th {
 		vertical-align: bottom;
 		border-bottom: 1px solid var(--nb-hairline-strong);
+		/* The column headers stay while the roster scrolls under them. They are
+		   the only thing that says which check-in a cell belongs to. */
+		position: sticky;
+		top: 0;
+		z-index: 2;
+		background: var(--surface-1);
 	}
 	.name-col {
 		text-align: left;
@@ -295,12 +475,12 @@
 		min-width: 11rem;
 		font-weight: 400;
 	}
+	thead .name-col {
+		z-index: 3;
+	}
 	.student-name {
 		color: var(--text-1);
 	}
-	/* The one gold thread this console already uses for links and active
-	   states; the six status colours stay a locked contract and are not
-	   borrowed here. */
 	/*
 	 * The underline is ALWAYS on. It used to appear on hover, which means the
 	 * only way to find out a name opens something was to put a mouse on it --
@@ -321,6 +501,11 @@
 		display: block;
 		font-size: 0.7rem;
 		color: var(--text-3);
+	}
+	/* The unreviewed half of that count, in the same muted register: it is a
+	   to-do, not a problem with the student. */
+	.free-new {
+		color: var(--nb-accent-ink);
 	}
 	/*
 	 * Roster context, never a review signal -- so it borrows the same muted
@@ -384,21 +569,32 @@
 		font-size: 0.9rem;
 		line-height: 1;
 		background: transparent;
-	}
-	button.cell {
 		cursor: pointer;
+	}
+	/* A cell with nothing filed is still a cursor stop and still opens (the
+	   panel says what the console knows about it), but it must not read as an
+	   action waiting to be taken. */
+	.cell.empty-cell {
+		cursor: default;
 	}
 	/* THE FOCUS RING WAS NOT BEING DRAWN. It was a hardcoded ink rgba tuned for
 	   paper, and it measured 1.02:1 on the dark plate and 1.03:1 on IDEA -- i.e.
 	   a keyboard user tabbing through the grid had no visible indicator at all in
 	   two of the three rooms, and 1.88:1 in the third. --nb-cell-ring is the
 	   room's own ink, so it follows the plate: 4.2:1 light, 8.9:1 dark. */
-	button.cell:hover,
-	button.cell:focus-visible {
+	.cell:hover,
+	.cell:focus-visible {
 		outline: none;
 		box-shadow: 0 0 0 2px var(--nb-cell-ring);
 	}
-	/* The open cell keeps the raw gold ring -- the accent thread, unchanged. */
+	/* WHERE THE CURSOR IS, drawn whether or not the grid has focus -- an
+	   instructor who clicks into the panel to type a comment must not lose
+	   their place in a class of thirty. The open cell keeps the gold ring; the
+	   two coincide almost always, and where they do not the gold wins by
+	   ordering. */
+	.cell.at-cursor {
+		box-shadow: 0 0 0 2px var(--nb-cell-ring);
+	}
 	.cell.selected {
 		box-shadow: 0 0 0 2px var(--gold);
 	}
@@ -467,6 +663,25 @@
 		background: transparent;
 		border: 1px dashed var(--nb-cell-missing-edge);
 		color: var(--nb-cell-missing);
+	}
+
+	/* NOT YET LOOKED AT (0121). A mark in its own corner rather than a seventh
+	   glyph or a seventh hue: what the cell says about the WORK and whether
+	   anybody has SEEN it are two questions, and the six-glyph vocabulary is a
+	   locked contract. It is a shape, and the cell's title and its screen-reader
+	   line both say the words, so it is never colour on its own. */
+	.todo-dot {
+		display: block;
+		width: 0.42rem;
+		height: 0.42rem;
+		border-radius: 999px;
+		background: var(--nb-accent-ink);
+	}
+	.cell .todo-dot {
+		position: absolute;
+		top: -0.15rem;
+		left: -0.15rem;
+		box-shadow: 0 0 0 1.5px var(--surface-1);
 	}
 
 	.badge {

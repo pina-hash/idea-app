@@ -110,6 +110,12 @@
 		 * rewritten -- which is also the real pre-0088 state.
 		 */
 		folder_name?: string | null;
+		/**
+		 * 0121's acknowledgement. Undefined on every seeded fixture, which is the
+		 * real state of a class nobody has started reviewing.
+		 */
+		reviewed_at?: string | null;
+		reviewed_by?: string | null;
 		photos: NotebookPhoto[];
 		/** Written notes (0078). The review panel renders them read-only. */
 		notes: NotebookNoteRow[];
@@ -371,7 +377,19 @@
 				enrolled: p.section_id === sectionId,
 				free_entries: entries.filter(
 					(e) => p.id !== null && e.student_id === p.id && e.section_id === sectionId && e.session_id === null
-				).length
+				).length,
+				...(reviewReady
+					? {
+							free_entries_unreviewed: entries.filter(
+								(e) =>
+									p.id !== null &&
+									e.student_id === p.id &&
+									e.section_id === sectionId &&
+									e.session_id === null &&
+									!e.reviewed_at
+							).length
+						}
+					: {})
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name) || a.student_key.localeCompare(b.student_key));
 
@@ -403,7 +421,21 @@
 					upload_timestamp: latest?.upload_timestamp ?? null,
 					on_time: latest ? onTime(latest.upload_timestamp, session.session_date) : null,
 					excused,
-					flag_reason: latest?.flag_reason ?? null
+					flag_reason: latest?.flag_reason ?? null,
+					// 0121'S THREE READS, MIRRORED -- and `unreviewed_count` comes
+					// from the COUNTS read (every entry in the cell) rather than
+					// from the shown one, which is the distinction the RPC makes and
+					// the one a badge that agreed with the cell would lose. Absent
+					// entirely with the toggle off: the key missing is what a
+					// pre-0121 database looks like, and the console has to read that
+					// as "cannot answer" rather than as "not reviewed".
+					...(reviewReady
+						? {
+								reviewed: latest ? !!latest.reviewed_at : null,
+								reviewed_at: latest?.reviewed_at ?? null,
+								unreviewed_count: mine.filter((e) => !e.reviewed_at).length
+							}
+						: {})
 				});
 			}
 		}
@@ -424,7 +456,76 @@
 
 	let nextId = 0;
 
-	const transports: ReviewTransports = {
+	// ---- LIVE UPDATES, mirrored --------------------------------------------
+	//
+	// THREE STATES, because "realtime is unavailable" is two different things
+	// and the console has to survive both:
+	//
+	//   on      the channel delivers. Every write to this store -- including a
+	//           second client's -- calls every listener, which is what the real
+	//           publication does (your own writes echo back too).
+	//   silent  the channel is registered and NOTHING EVER ARRIVES. A dead
+	//           socket, a missing publication row, a proxy eating websockets.
+	//           The console must still refetch after its own writes.
+	//   off     there is no `subscribe` transport at all -- an older deploy, or
+	//           a mount that never had one. The console must not show a live
+	//           indicator and must still work.
+	//
+	// The listeners are the channel. `subscribe` returning its own teardown is
+	// the same contract `removeChannel` gives the real one, and the log records
+	// both ends so a leak is visible rather than inferred.
+	type RealtimeMode = 'on' | 'silent' | 'off';
+	let realtime = $state<RealtimeMode>('on');
+	/** 0121 applied: the grid carries the reviewed dimension and accept works. */
+	let reviewReady = $state(true);
+	let listeners: (() => void)[] = [];
+	let emitted = $state(0);
+
+	function emitChange() {
+		if (realtime !== 'on') return;
+		emitted++;
+		for (const fn of [...listeners]) fn();
+	}
+
+	/**
+	 * A SECOND CLIENT. Not a fake event: it writes a real row into the same
+	 * store the console reads through, then fires the channel -- so what the
+	 * console does about it is what it would do about a student filing work.
+	 *
+	 * Eli is in the OTHER section and sorts FIRST by name, so filing here adds a
+	 * row at the TOP of the roster (0094's union keeps anyone holding entries in
+	 * the section). That is the case the requirement is about: the instructor's
+	 * own row must not move under them when somebody appears above it.
+	 */
+	function secondClientFiles(studentId: string, sessionId: string) {
+		const id = `e-live-${++nextId}`;
+		entries = [
+			...entries,
+			mk(id, studentId, 'sec-a', sessionId, new Date().toISOString(), 'compliant', [
+				photo(`p-${id}`, 1, 'filed-live.jpg')
+			])
+		];
+		note(`(second client) student ${studentId} filed ${id} against ${sessionId}`);
+		emitChange();
+	}
+
+	/** The OTHER instructor acknowledging something, to show convergence. */
+	function secondInstructorAccepts() {
+		const target = entries.find((e) => e.section_id === 'sec-a' && !e.reviewed_at);
+		if (!target) {
+			note('(second client) nothing left unreviewed in sec-a');
+			return;
+		}
+		entries = entries.map((e) =>
+			e.id === target.id
+				? { ...e, reviewed_at: new Date().toISOString(), reviewed_by: 'other-staff-uuid' }
+				: e
+		);
+		note(`(second client) other instructor accepted ${target.id}`);
+		emitChange();
+	}
+
+	const baseTransports: ReviewTransports = {
 		async loadSessions(sectionId) {
 			note(`select notebook_session_postings where section_id=${JSON.stringify(sectionId)}`);
 			return {
@@ -613,6 +714,7 @@
 					? { ...e, status: 'flagged', flag_reason: reason, instructor_comment: comment }
 					: e
 			);
+			emitChange();
 			return { ok: true, value: undefined };
 		},
 
@@ -641,6 +743,55 @@
 						}
 					: e
 			);
+			emitChange();
+			return { ok: true, value: undefined };
+		},
+
+		/**
+		 * 0121's notebook_accept_entry, refusals and all: the gate, the deleted
+		 * check, the draft check, and -- the one that matters for the panel --
+		 * status, flag_reason and instructor_comment untouched.
+		 */
+		async acceptEntry(entryId) {
+			note(`rpc notebook_accept_entry ${JSON.stringify({ p_entry_id: entryId })}`);
+			const entry = entries.find((e) => e.id === entryId);
+			if (!entry) return { ok: false, error: 'That entry does not exist.' };
+			if (!mayManage(entry.section_id)) {
+				return {
+					ok: false,
+					error: 'Only the section instructor or a site admin can review notebook entries.'
+				};
+			}
+			entries = entries.map((e) =>
+				e.id === entryId
+					? { ...e, reviewed_at: new Date().toISOString(), reviewed_by: 'staff-uuid' }
+					: e
+			);
+			emitChange();
+			return { ok: true, value: undefined };
+		},
+
+		/** 0121's notebook_unaccept_entry, including its flagged refusal. */
+		async unacceptEntry(entryId) {
+			note(`rpc notebook_unaccept_entry ${JSON.stringify({ p_entry_id: entryId })}`);
+			const entry = entries.find((e) => e.id === entryId);
+			if (!entry) return { ok: false, error: 'That entry does not exist.' };
+			if (!mayManage(entry.section_id)) {
+				return {
+					ok: false,
+					error: 'Only the section instructor or a site admin can review notebook entries.'
+				};
+			}
+			if (entry.status === 'flagged') {
+				return {
+					ok: false,
+					error: 'That entry is flagged, so it cannot be marked unreviewed. Resolve the flag instead.'
+				};
+			}
+			entries = entries.map((e) =>
+				e.id === entryId ? { ...e, reviewed_at: null, reviewed_by: null } : e
+			);
+			emitChange();
 			return { ok: true, value: undefined };
 		},
 
@@ -655,6 +806,7 @@
 				};
 			}
 			entries = entries.filter((e) => e.id !== entryId);
+			emitChange();
 			return { ok: true, value: undefined };
 		},
 
@@ -679,9 +831,33 @@
 						}
 					: e
 			);
+			emitChange();
 			return { ok: true, value: undefined };
+		},
+
+		subscribe(sectionId, onChange) {
+			note(`realtime subscribe channel=notebook-review-${sectionId}`);
+			const fn = onChange;
+			listeners = [...listeners, fn];
+			return () => {
+				note(`realtime removeChannel notebook-review-${sectionId}`);
+				listeners = listeners.filter((l) => l !== fn);
+			};
 		}
 	};
+
+	/**
+	 * `off` DROPS THE KEY rather than handing over a function that does nothing,
+	 * because that is the difference the console reads: an absent `subscribe` is
+	 * a mount with no live path and no live indicator, where a registered one
+	 * that never fires is a socket that is simply quiet. Both have to work, and
+	 * they are not the same state.
+	 */
+	const transports = $derived.by((): ReviewTransports => {
+		if (realtime !== 'off') return baseTransports;
+		const { subscribe: _dropped, ...rest } = baseTransports;
+		return rest;
+	});
 
 	/** Exactly what the route's load hands the console: scoped per viewer. */
 	const visibleSections = $derived(
@@ -702,6 +878,9 @@
 		const asked = page.url.searchParams.get('section');
 		return visibleSections.some((s) => s.id === asked) ? asked : null;
 	});
+
+	/** `?bare=1`: the console with none of the harness's own chrome. */
+	const bare = $derived(page.url.searchParams.get('bare') === '1');
 
 	// ---- Documentation Check (0097 + Classroom's grading RPC), mirrored -----
 	//
@@ -898,13 +1077,40 @@
 			get log() {
 				return log;
 			},
-			setViewer: (v: Viewer) => (viewer = v)
+			setViewer: (v: Viewer) => (viewer = v),
+			/**
+			 * THE LIVE PATH, drivable from a script. A verification run needs to
+			 * be able to write a row as somebody else and fire the channel at a
+			 * moment of its own choosing -- clicking a harness button works, but
+			 * only from a bar that bare mode hides.
+			 */
+			secondClientFiles,
+			secondInstructorAccepts,
+			setRealtime: (m: RealtimeMode) => (realtime = m),
+			setReviewReady: (v: boolean) => (reviewReady = v),
+			get realtime() {
+				return realtime;
+			},
+			get emitted() {
+				return emitted;
+			},
+			get listenerCount() {
+				return listeners.length;
+			}
 		};
 	});
 </script>
 
 <svelte:head><title>dev // notebook review</title></svelte:head>
 
+<!--
+	`?bare=1` hides the harness's OWN chrome. The console is a full-height
+	application above 1024px, so the bar and the log below it are the only
+	things that give this page a document scroll at all -- and measuring "the
+	console needs no scrolling" through them would be measuring the harness.
+	Bare mode is the shipping geometry, mounted by the shipping component.
+-->
+{#if !bare}
 <div class="harness-bar">
 	<strong>dev harness</strong>
 	<label>
@@ -916,12 +1122,32 @@
 	</label>
 	<label><input type="checkbox" bind:checked={configured} /> 0069 applied</label>
 	<label><input type="checkbox" bind:checked={docCheckReady} /> 0097 applied</label>
+	<label><input type="checkbox" bind:checked={reviewReady} /> 0121 applied</label>
 	<label><input type="checkbox" bind:checked={noSections} /> no sections</label>
+	<label>
+		realtime
+		<select bind:value={realtime} data-testid="realtime-mode">
+			<option value="on">on (delivers)</option>
+			<option value="silent">silent (dead socket)</option>
+			<option value="off">off (no transport)</option>
+		</select>
+	</label>
+	<button type="button" data-testid="second-client-new-row" onclick={() => secondClientFiles('stu-5', 'ses-a1')}
+		>2nd client: new student files</button
+	>
+	<button type="button" data-testid="second-client-fills" onclick={() => secondClientFiles('stu-3', 'ses-a1')}
+		>2nd client: Chloe files</button
+	>
+	<button type="button" data-testid="second-instructor-accepts" onclick={secondInstructorAccepts}
+		>2nd instructor accepts</button
+	>
 	<span class="hint">
-		sections offered: {visibleSections.map((s) => s.id).join(', ') || '(none)'}
+		sections offered: {visibleSections.map((s) => s.id).join(', ') || '(none)'} · events sent:
+		{emitted}
 	</span>
 	<button type="button" onclick={() => (log = [])}>clear log</button>
 </div>
+{/if}
 
 {#key viewer}
 	<ReviewConsole
@@ -934,6 +1160,7 @@
 	/>
 {/key}
 
+{#if !bare}
 <section class="panel">
 	<h2>Transport log</h2>
 	{#if log.length === 0}
@@ -944,6 +1171,7 @@
 		</ol>
 	{/if}
 </section>
+{/if}
 
 <style>
 	.harness-bar {

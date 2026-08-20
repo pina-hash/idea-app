@@ -582,8 +582,17 @@ inside the function fails closed rather than falling through to a weaker path.
 - `$lib/shell/ClassSplit` + `split.css` is the ONE two-pane master-detail shell
   (classroom, notebook feed, notebook review console, coin desk). **A surface
   needing a different arrangement gets a class or prop there, never a second
-  split.** Knobs: `scroll` (`panes` when the split IS the page, `page` when real
-  chrome sits above and below), `navWidth`, `narrow` (`swap` | `stack`), `overlay`.
+  split.** Knobs: `scroll` (`panes` when the split IS the page under a constant
+  chrome height, `page` when real chrome sits above and below or the surface is
+  mounted in somebody else's shell, `fill` when the caller gives the split a
+  bounded box and the panes take its height -- the only one that names no
+  viewport arithmetic), `navWidth`, `detailWidth` (`panel` | `roomy`), `narrow`
+  (`swap` | `stack` | `stack-nav-first`), `overlay`.
+- **A full-height surface is `.cr-app` + `.cr-app-body` around a `scroll="fill"`
+  split**, not a `100vh - <chrome>` calculation. The chrome height is not a
+  constant -- a hero wraps, a notice appears, someone else's banner sits above --
+  so the bar measures itself and the body takes what is left. Above 1024px only;
+  below it the document scrolls as it always did.
 - **NOTHING OPEN IS ONE PANE, at every width.** `hasDetail` false renders no detail
   pane and gives the navigation the whole measure; it is not a placeholder state.
   A surface whose detail pane always holds something (the notebook's compose form,
@@ -617,6 +626,11 @@ inside the function fails closed rather than falling through to a weaker path.
   LOCKED CONTRACT.** Verify byte-identical after any restyle. Do not put words in
   a cell to satisfy a label audit -- the always-visible legend and the hint above
   the grid carry the meaning.
+  - **A NEW DIMENSION GETS ITS OWN MARK, never a seventh glyph or a seventh hue.**
+    What a cell says about the WORK and whether anybody has SEEN it are different
+    questions; acknowledgement (0121) is a dot in its own corner, the way the
+    multi-entry count already was, and carries its word in the cell's title, its
+    screen-reader line and the legend.
   - **The six status COLOURS are per-palette (`--nb-cell-*`), and used not to be.**
     They were the portal's own tokens on the grounds that no scoped palette should
     reach them. Measured on the three notebook plates, that rule was costing the

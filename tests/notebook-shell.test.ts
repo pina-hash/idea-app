@@ -352,29 +352,63 @@ describe('the shell is shared, not copied', () => {
 		expect(read('src/lib/notebook/notebook-theme.css')).toContain("@import '../shell/split.css';");
 	});
 
-	it('the notebook owns ONE scroll region, so no bar wraps another', () => {
-		// THE REGRESSION THIS PINS. The default pane geometry is viewport height
-		// less --cr-chrome-h, which is right when the split IS the page -- the
-		// classroom's is, with a breadcrumb and a tab bar above it and nothing
-		// below. The notebook's is not: ~355px of masthead and hero above, a
-		// version badge below, and on /classroom/view-as the whole thing is
-		// mounted inside the classroom's own shell. A viewport-height pane under
-		// that leaves the DOCUMENT scrolling too, which is two bars with one
-		// inside the other.
-		for (const file of [
-			'src/lib/notebook/NotebookView.svelte',
-			'src/lib/notebook/ReviewConsole.svelte'
-		]) {
-			// On the TAG, not anywhere in the file: the phrase appears in both
-			// components' comments, and an assertion a comment can satisfy cannot
-			// fail (the narrow="stack" assertion below learned this by mutation).
-			expect(read(file), `${file} does not hand the scroll to the page`).toMatch(
-				/<ClassSplit[\s\S]{0,200}?scroll="page"/
+	it('no notebook surface takes the shell VIEWPORT ARITHMETIC, so no bar wraps another', () => {
+		// THE REGRESSION THIS PINS, AND THE RULE IT IS NOW STATED AS. The DEFAULT
+		// pane geometry is `100vh - --cr-chrome-h`, which is right when the split
+		// IS the page and the chrome above it is a known constant -- the
+		// classroom's is. The notebook's never is: a hero that wraps, notices,
+		// fail-soft cards, and on /classroom/view-as the whole thing mounted
+		// inside the classroom's own shell and impersonation banner. A
+		// viewport-height pane under any of that leaves the DOCUMENT scrolling
+		// too, which is two bars with one inside the other.
+		//
+		// The rule is therefore "not the default", not "always page-flow" -- the
+		// original spelling of this assertion, which naming a THIRD correct
+		// answer necessarily broke. Both surviving answers avoid the constant:
+		// `page` gives the scroll back to the document, and `fill` bounds the
+		// panes at the height of the box the caller put the split in, which is
+		// measured rather than assumed.
+		const surfaces = {
+			// Mounted under somebody else's shell in view-as, so it cannot bound
+			// itself at ALL: only the document knows how tall it is.
+			'src/lib/notebook/NotebookView.svelte': 'page',
+			// An application frame of its own (`cr-app`), so its parent has a real
+			// height to hand down and both panes can scroll inside it.
+			'src/lib/notebook/ReviewConsole.svelte': 'fill'
+		} as const;
+		for (const [file, mode] of Object.entries(surfaces)) {
+			const src = read(file);
+			// On the TAG, not anywhere in the file: the phrase appears in these
+			// components' comments too, and an assertion a comment can satisfy
+			// cannot fail (the narrow="stack" assertion below learned this by
+			// mutation).
+			expect(src, `${file} does not name a scroll mode`).toMatch(
+				new RegExp(`<ClassSplit[\\s\\S]{0,300}?scroll="${mode}"`)
 			);
+			expect(src, `${file} takes the default pane geometry`).not.toMatch(
+				/<ClassSplit[\s\S]{0,300}?scroll="panes"/
+			);
+			// And neither may write the arithmetic itself instead.
+			expect(src, `${file} does its own viewport arithmetic`).not.toMatch(/100vh|100dvh/);
 		}
 		// ...and the classroom keeps the default, being the surface the default
 		// is correct for.
 		expect(read('src/routes/classroom/[sectionId]/+layout.svelte')).not.toContain('scroll=');
+	});
+
+	it('fill-height names no viewport height, which is the whole point of it', () => {
+		// `fill` exists because --cr-chrome-h cannot be kept true: it is wrong by
+		// a DIFFERENT amount per surface and per state. A `100vh` that crept back
+		// into its own block would be the same bug wearing the fix's name.
+		const css = split();
+		const block = css.slice(css.indexOf('.cr-split.fill-height'));
+		expect(block).toMatch(/height:\s*100%/);
+		expect(block).not.toMatch(/100vh|--cr-chrome-h/);
+		// The one place a viewport height IS legitimate is the application frame
+		// the caller opts into, and it is dynamic (a phone's collapsing chrome).
+		const app = css.slice(css.indexOf('.cr-app'), css.indexOf('.cr-split {'));
+		expect(app).toMatch(/height:\s*100dvh/);
+		expect(app).not.toMatch(/100vh[^-]/);
 	});
 
 	it('page-flow genuinely un-bounds both panes rather than moving the bar', () => {
