@@ -1,23 +1,13 @@
 <script lang="ts">
 	/**
 	 * The empty detail pane, mirroring the real
-	 * src/routes/classroom/[sectionId]/+page.svelte. Below 1024px it is not
-	 * rendered at all -- the class list is the page there.
+	 * src/routes/classroom/[sectionId]/+page.svelte -- which is now empty, at
+	 * every width: nothing is open, so `.cr-split:not(.has-detail) .cr-detail`
+	 * does not render this pane at all and the class list has the whole measure.
+	 *
+	 * THE FILE STAYS because the real one does: a route needs a page, and this
+	 * is what the harness's own /dev/classroom-split/<id> resolves to. An empty
+	 * page here is the harness mirroring the shipping arrangement rather than a
+	 * stub standing in for it.
 	 */
 </script>
-
-<div class="empty-detail" data-testid="detail-empty">
-	<p class="hint">Pick something from the class to read it here.</p>
-</div>
-
-<style>
-	.empty-detail {
-		padding-top: var(--space-2);
-	}
-	.hint {
-		margin: 0;
-		max-width: 26rem;
-		font-size: 0.9rem;
-		color: var(--text-3);
-	}
-</style>

@@ -943,7 +943,12 @@
 		</section>
 	{/if}
 
-	<div bind:this={menuHost}>
+	<!--
+		THE STREAM. One column in the navigation pane, several across the width
+		when nothing is open beside it -- see `.stream` in the styles for the
+		measurement the column width comes from.
+	-->
+	<div class="stream" bind:this={menuHost}>
 		{#each groups as group (group.id)}
 			{@const entries = entriesFor(group.id, group.items)}
 			{@const folded = isCollapsed(group.id)}
@@ -1033,6 +1038,49 @@
 		max-width: var(--cr-measure, var(--measure-page));
 		margin: 0 auto;
 		padding: 0 var(--cr-gutter, 1.2rem) 3rem;
+
+		/* THE STREAM'S COLUMN, and the number is measured rather than picked.
+		   Driving the pane from 300px to 900px and counting ellipsised titles
+		   in the 20-row harness fixture: 240px of content clips all 20, 280px
+		   clips 4, 320px clips 3, 356px clips 1 -- and every width from 356px
+		   to 840px clips that same 1, the fixture's deliberately-overlong
+		   title, which needs 900px. So the row gains nothing above 356px and
+		   falls apart below ~280px, and 356px (22.25rem) is exactly the
+		   content width the row was designed against: the 26rem pane less its
+		   own padding and the card's.
+
+		   Using it as the column means a row is the SAME SHAPE in both states.
+		   Opening an item changes how many columns there are, not what a row
+		   looks like, which is most of why the change does not read as a
+		   navigation. */
+		--cr-stream-col: 22.25rem;
+	}
+
+	/* --- The stream --------------------------------------------------------
+	   AS MANY COLUMNS AS THE MEASURE HOLDS, which at the widths this ships at
+	   is one in the pane, two from 1024px and three from about 1245px (the
+	   arithmetic is floor((content + 24) / (356 + 24)), and the split's own
+	   92rem cap puts four out of reach).
+
+	   `auto-fit`, NOT `auto-fill`: a class with two units must not lay itself
+	   out in two columns and a void where a third would go. Empty tracks
+	   collapse and the groups that exist share the width.
+
+	   `min(..., 100%)` is what keeps the track from overflowing a pane
+	   narrower than one column -- a bare `minmax(22.25rem, 1fr)` in a 356px
+	   pane is a 356px box with a 22.25rem minimum inside it.
+
+	   ONE GROUP TAKES THE READING MEASURE rather than the whole 1300px, since
+	   there is nothing to put beside it and a row stretched that far puts its
+	   due date a screen away from its title. */
+	.stream {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(min(var(--cr-stream-col), 100%), 1fr));
+		gap: var(--space-3) var(--space-5);
+		align-items: start;
+	}
+	.stream:not(:has(> :nth-child(2))) {
+		max-width: var(--measure-reading);
 	}
 	/* --- The pane header ---------------------------------------------------
 	   Left-aligned and compact: this is a sidebar, and the class is already
@@ -1041,7 +1089,7 @@
 	   a second one here is what made the top of the page simultaneously the
 	   loosest gap and the most cramped-looking part of it. */
 	.pane-head {
-		padding: 0 0 var(--space-4);
+		padding: 0 0 var(--space-3);
 	}
 	.pane-title {
 		margin: 0;
@@ -1102,10 +1150,10 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: var(--space-2);
-		margin-bottom: var(--space-5);
+		margin-bottom: var(--space-4);
 	}
 	.tool-panel {
-		margin-bottom: var(--space-5);
+		margin-bottom: var(--space-4);
 	}
 	.outstanding-badge {
 		display: inline-block;
@@ -1129,10 +1177,20 @@
 	}
 
 	/* Unit groups are PEERS, so they sit a step closer to each other than the
-	   actions row sits to the first of them. */
+	   actions row sits to the first of them.
+
+	   NO MARGIN: the stream is a grid and its `gap` is the whole spacing rule
+	   now. `.card`'s own 1.25rem margin would add to the gap on the vertical
+	   axis (grid items do not collapse margins) and indent the columns on the
+	   horizontal one.
+
+	   THE INLINE PADDING IS 1rem, NOT `.card`'s 1.5rem. Measured: at the pane's
+	   356px the card was spending 48px -- 13.5% of the column -- on air beside
+	   rows that were already ellipsising their titles. 32px reads the same and
+	   gives the title 16px back. */
 	.group-card {
-		margin-bottom: var(--space-4);
-		padding-block: var(--space-3);
+		margin: 0;
+		padding: var(--space-2) var(--space-4);
 	}
 	/* A real button, in the tab order, with aria-expanded -- the collapse used to
 	   be a document-level click listener on a bare div, which no keyboard or
@@ -1230,13 +1288,18 @@
 	.row-expand.spacer {
 		cursor: default;
 	}
+	/* THE ROW'S OWN AIR, and the floor under it is the tap target rather than
+	   taste. Two lines measure 36.2px (18.7 + 0.8 + 16.6), so 0.3rem top and
+	   bottom lands the row at 45.8px -- still over the 44px minimum, and 4.8px
+	   a row cheaper than the 0.42rem it was, which is one more row on screen
+	   every ten. Anything tighter would have to give up the target. */
 	.row-main {
 		display: flex;
 		align-items: center;
 		gap: 0.55rem;
 		flex: 1 1 auto;
 		min-width: 0;
-		padding: 0.42rem 0.2rem;
+		padding: 0.3rem 0.2rem;
 		text-decoration: none;
 		color: var(--text-1);
 	}
@@ -1545,7 +1608,7 @@
 	}
 	/* Left, with everything else in the pane. */
 	.page-footer {
-		margin-top: 1.4rem;
+		margin-top: var(--space-4);
 		display: flex;
 		justify-content: flex-start;
 	}

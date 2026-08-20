@@ -46,6 +46,12 @@
 	--measure-page: 60rem; /* the standard listing page, and the default */
 	--measure-wide: 62rem; /* the widest single column: a dense work surface */
 	--measure-split: 92rem; /* both panes of a two-pane master-detail shell */
+	/* THE NAVIGATION PANE of that shell, while a detail is open beside it.
+	   A measure like the others: the list is a column of two-line rows, and
+	   this is how wide that column is. It is a token rather than a literal
+	   because more than one place needs the same number -- the split's grid,
+	   the width it animates between, and any surface sized to match the pane. */
+	--measure-nav: 26rem;
 
 	/* --- Blueprint grid backdrop (CAD viewport / drawing sheets) --- */
 	--blueprint-bg: #171f15;

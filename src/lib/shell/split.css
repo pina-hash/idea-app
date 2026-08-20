@@ -239,7 +239,14 @@
 
 	.cr-split {
 		display: grid;
-		grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+		/* THE NAVIGATION COLUMN'S WIDTH, as a property rather than a literal,
+		   because the "nothing open" rule below changes exactly this and the
+		   transition animates between the two values. The track LIST is the
+		   same two entries in both states on purpose: grid-template-columns
+		   interpolates only when the number of tracks matches, and a rule that
+		   dropped to a single track would snap. */
+		--cr-nav-w: var(--measure-nav);
+		grid-template-columns: minmax(0, var(--cr-nav-w)) minmax(0, 1fr);
 		/* EXPLICIT, because `margin: 0 auto` below cancels the stretch a grid or
 		   flex item would otherwise get from its own parent: auto margins eat the
 		   free space instead, and the box falls back to shrink-to-fit. With two
@@ -264,16 +271,57 @@
 		grid-template-columns: minmax(0, 1fr) minmax(21rem, 27rem);
 	}
 
-	/* NOTHING OPEN: the wide navigation takes the whole width. A 26rem list is
-	   26rem whether or not something is open beside it, but a TABLE is the thing
-	   being scanned -- leaving it permanently narrowed against an empty column
-	   would cost the grid a third of its room for a panel nobody has asked for.
-	   Same rule the narrow widths already apply, one breakpoint up. */
+	/* NOTHING OPEN: THE NAVIGATION TAKES THE WHOLE WIDTH, in both orientations.
+
+	   The wide orientation had this first, for a table: leaving the grid
+	   permanently narrowed against an empty column would cost it a third of its
+	   room for a panel nobody has asked for. The argument was never about
+	   tables. A 26rem list against an empty 921px column (measured at 1440) is
+	   most of a desktop screen spent rendering one sentence of placeholder,
+	   with the content it is a placeholder FOR crushed into the quarter beside
+	   it -- so the list takes the width until something is opened in it, and
+	   the surface inside the pane decides what to do with the room (see
+	   ClassView's stream, which lays its unit groups out in columns).
+
+	   THE DETAIL PANE IS NOT RENDERED, which is what "nothing is open" means at
+	   every width now: the narrow rules above already said so, and this is the
+	   same sentence one breakpoint up.
+
+	   TWO SHAPES, DELIBERATELY. The wide orientation drops to a single track,
+	   which is what it has always done. The default keeps both tracks and puts
+	   the whole width in the first, because that is the form the transition
+	   below can interpolate. */
 	.cr-split.nav-wide:not(.has-detail) {
 		grid-template-columns: minmax(0, 1fr);
 	}
-	.cr-split.nav-wide:not(.has-detail) > .cr-detail {
+	.cr-split:not(.nav-wide):not(.has-detail) {
+		--cr-nav-w: 100%;
+		/* No second column, so no gap to it: the 24px would otherwise sit at the
+		   right edge as dead space, and it animates to zero with the width. */
+		gap: 0;
+	}
+	.cr-split:not(.has-detail) > .cr-detail {
 		display: none;
+	}
+
+	/* OPENING SOMETHING IS NOT A PAGE CHANGE, and the width easing is what says
+	   so: the list narrows into its pane while the thing you picked takes the
+	   room it gave up, rather than the whole screen re-laying itself out in one
+	   frame. 180ms is under the threshold where a layout change reads as a
+	   navigation and long enough to be followed.
+
+	   ONLY THE DEFAULT ORIENTATION. The wide orientation's collapse changes the
+	   NUMBER of tracks, which interpolates discretely -- the flip would land at
+	   half the duration instead of immediately, which is a change to a surface
+	   that did not ask for one. It keeps its instant switch.
+
+	   Behind `prefers-reduced-motion`, like everything else that moves here. */
+	@media (prefers-reduced-motion: no-preference) {
+		.cr-split:not(.nav-wide) {
+			transition:
+				grid-template-columns 180ms ease-out,
+				gap 180ms ease-out;
+		}
 	}
 
 	/* EACH PANE IS ITS OWN SCROLL CONTAINER, so reading down a long item never

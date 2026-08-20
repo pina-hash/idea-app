@@ -71,8 +71,12 @@
 </main>
 
 <style>
+	/* The picker is one column of prose and a list of names, so it takes the
+	   reading measure BY NAME. It was the literal 46rem, which is the same
+	   number until somebody tunes the token and this page silently stops
+	   agreeing with the pages it links to. */
 	.viewas-page {
-		max-width: 46rem;
+		max-width: var(--measure-reading);
 		margin: 0 auto;
 		padding: 0 1.2rem 3rem;
 	}

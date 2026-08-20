@@ -584,6 +584,25 @@ inside the function fails closed rather than falling through to a weaker path.
   needing a different arrangement gets a class or prop there, never a second
   split.** Knobs: `scroll` (`panes` when the split IS the page, `page` when real
   chrome sits above and below), `navWidth`, `narrow` (`swap` | `stack`), `overlay`.
+- **NOTHING OPEN IS ONE PANE, at every width.** `hasDetail` false renders no detail
+  pane and gives the navigation the whole measure; it is not a placeholder state.
+  A surface whose detail pane always holds something (the notebook's compose form,
+  the coin desk's logging form) passes `hasDetail` and simply never collapses.
+  **The list is then responsible for USING the width** -- a fixed-width column
+  centred in the room it was just given is the same defect one level in. ClassView
+  lays its unit groups out in `auto-fit` columns for exactly this.
+- **A column count comes from measuring the content, not from round numbers.**
+  Drive the pane across a range and count what actually breaks (ellipsised titles,
+  wrapped rows); the column is the width above which the content stops gaining.
+  Prefer `auto-fit` over `auto-fill` so a class with two units gets two columns
+  rather than two and a void, and `minmax(min(<col>, 100%), 1fr)` so the same rule
+  is the single narrow column with no breakpoint of its own.
+- **Opening something must not read as a page change.** Where a selection changes
+  the geometry, ease the change (~180ms) rather than snapping the screen.
+  `grid-template-columns` interpolates ONLY when both states list the same number
+  of tracks -- a collapse that drops to one track flips discretely at half the
+  duration, which is worse than no transition. Keep the track count and move the
+  width. Behind `prefers-reduced-motion: no-preference`, like everything that moves.
 - **A pane that clips its overflow SATISFIES a no-scroll measurement by hiding the
   content.** Under `scroll="page"` the guarantee comes from the content genuinely
   fitting, which is what the rule means.
@@ -769,6 +788,14 @@ belong wherever the app's own behaviour is documented.
 - **CSS transitions are frozen at t=0**, so `getComputedStyle().color` on anything
   the global `a`/`.btn` transition covers reports the PRE-transition value forever.
   Inject `* { transition: none !important }` before asserting any computed colour.
+  **This is not only about colour: a transitioned LAYOUT property leaves the pane's
+  own layout stuck at the old value too** -- a split whose `grid-template-columns`
+  eases reported a 0px detail pane after opening one, which reads exactly like a
+  broken rule and is not one. Inject the same style before ANY geometry read on a
+  surface that animates, and note that the animation itself cannot be observed here.
+  Interpolability CAN be: `el.animate([from, to])`, `pause()`, then set
+  `currentTime` and read the computed value at several points -- a smooth ramp
+  proves the two values interpolate, a jump at 50% proves they are discrete.
 - **`loading="lazy"` images never request** -- the intersection observer never
   fires.
 - **`requestAnimationFrame` never fires while the pane's tab is hidden.** A Svelte

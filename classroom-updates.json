@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "The class page uses the whole screen now",
+			"body": "On a laptop or a desktop, opening a class used to give you a narrow strip of class content on the left and a mostly empty half-screen on the right waiting for you to pick something. The class now fills the width until you open something: your units sit side by side in two or three columns instead of one long list, so you can see far more of the class without scrolling. Pick a post or an assignment and the class slides back to the left exactly where it was, with the thing you opened beside it. Rows are a little tighter as well, so more fits on a screen. Nothing moved, nothing is hidden, and on a phone the class page looks and works the way it always has.",
+			"tags": ["Stream", "Classwork"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "You can write a notebook entry without a photo",
 			"body": "If you did not have a page to photograph -- you left your notebook at home, you worked something out on the whiteboard, you want to say what you were thinking before you draw it up -- you can now just write it. Pick the check-in you are answering as usual, type into the box under the photos, and save. It counts as filed for that check-in exactly like a photographed page does, and your teacher sees what you wrote. You can also do both now: photograph the page AND say something about it in the same go, which was only possible on entries that were not attached to a check-in before. Nothing else changed -- a photo on its own still saves the way it always has. The only thing that is still refused is an entry with nothing in it at all, and it now tells you that either a photo or some writing will do.",
 			"tags": ["Notebook"]

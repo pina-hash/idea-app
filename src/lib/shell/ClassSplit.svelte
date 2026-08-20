@@ -36,8 +36,19 @@
 		overlay = null,
 		children
 	}: {
-		/** Something is open in the detail pane. Below 1024px this is what chooses
-		 *  which single pane renders: the detail when true, the list when not. */
+		/**
+		 * Something is open in the detail pane.
+		 *
+		 * IT IS THE WHOLE ARRANGEMENT, at every width. False renders no detail
+		 * pane at all and gives the navigation the full measure; true is the two
+		 * panes. Below 1024px it additionally chooses which single pane is on
+		 * screen: the detail when true, the list when not.
+		 *
+		 * A surface whose detail pane always holds something -- the notebook
+		 * feed's compose form, the coin desk's logging form -- passes true and
+		 * simply never collapses, which is correct: there is no empty column to
+		 * reclaim.
+		 */
 		hasDetail?: boolean;
 		/**
 		 * WHAT HAPPENS BELOW THE BREAKPOINT, where there is only room for one
@@ -59,7 +70,9 @@
 		 * HOW THE TWO COLUMNS DIVIDE above the breakpoint.
 		 *
 		 * `list` (the default) is a 26rem navigation beside a wide detail: a list
-		 * of rows, and the one you picked.
+		 * of rows, and the one you picked. With nothing picked the list takes the
+		 * whole measure, and what it does with the room is the list's own
+		 * business (ClassView lays its unit groups out in columns).
 		 *
 		 * `wide` is the mirror -- a wide navigation beside a fixed-width detail
 		 * panel -- for a navigation surface that is a TABLE you scan rather than a

@@ -26,9 +26,16 @@ export const SECTION: ClassroomSection = {
 	course: { id: 'c-1', code: 'ENG1H', title: 'Engineering 1 Honors', active: true }
 };
 
+/**
+ * THREE UNITS, because the stream lays its groups out in COLUMNS when nothing
+ * is open beside it and the arrangement tops out at three. With two groups the
+ * third column never appears, so a two-unit fixture would measure a
+ * two-column layout and call it the whole mechanism.
+ */
 export const UNITS: ClassroomUnit[] = [
 	{ id: 'u-1', course_id: 'c-1', name: 'Unit 1 · Sketching', sort_order: 1 },
-	{ id: 'u-2', course_id: 'c-1', name: 'Unit 2 · Bridges', sort_order: 2 }
+	{ id: 'u-2', course_id: 'c-1', name: 'Unit 2 · Bridges', sort_order: 2 },
+	{ id: 'u-3', course_id: 'c-1', name: 'Unit 3 · Materials and testing', sort_order: 3 }
 ];
 
 function daysFromNow(n: number): string {
@@ -168,7 +175,7 @@ export const ITEMS: ClassroomItem[] = [
 			title: `Bridge sketch ${n + 1}`,
 			points: n % 3 === 0 ? 20 : null,
 			due_at: n % 3 === 0 ? daysFromNow(n) : null,
-			unit_id: n < 7 ? 'u-1' : 'u-2',
+			unit_id: n < 5 ? 'u-1' : n < 10 ? 'u-2' : 'u-3',
 			// Long ON PURPOSE: "the panes scroll independently" is untestable if
 			// neither pane overflows, so both are given more than they can show.
 			body:

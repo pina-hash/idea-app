@@ -3,21 +3,26 @@
 	import type { PageData } from './$types';
 
 	/**
-	 * THE DETAIL PANE BEFORE ANYTHING IS SELECTED.
+	 * THE DETAIL PANE BEFORE ANYTHING IS SELECTED, which is now a TITLE AND
+	 * NOTHING ELSE -- and the nothing is the point.
 	 *
-	 * The class content itself moved up to +layout.svelte, where it is the
-	 * navigation pane and survives opening an item. What is left here is the
-	 * other half of the split: what a person sees on the right before they have
-	 * picked something.
+	 * The class content itself lives in +layout.svelte, where it is the
+	 * navigation pane and survives opening an item. This page is the other half
+	 * of the split, and at every width `.cr-split:not(.has-detail) .cr-detail`
+	 * is `display: none`: the list takes the whole measure until something is
+	 * opened in it.
 	 *
-	 * BELOW 1024px THIS IS NOT RENDERED AT ALL -- `.cr-split:not(.has-detail)
-	 * .cr-detail` is display:none there, so a phone gets the class list full
-	 * width exactly as it always has, with no empty panel under it. That is why
-	 * this carries nothing a reader would miss: it is a desktop-only prompt, not
-	 * a page.
+	 * SO THE PROMPT THAT USED TO SIT HERE IS GONE, not hidden. It was a line of
+	 * quiet text asking somebody to pick something, which was a reasonable thing
+	 * to render into a 921px column that had nothing else in it; with the column
+	 * itself gone there is no surface for it and a hidden one would be a path
+	 * nothing can reach. The class list IS the answer to "what now".
 	 *
-	 * `section` comes from the layout load (page data and layout data merge), so
-	 * there is no second query behind this.
+	 * The route still needs its own page -- this is what makes
+	 * /classroom/<id> a page rather than a 404 -- and it still owns the tab
+	 * title, which is the one thing a detail pane cannot supply while there is
+	 * no detail. `section` comes from the layout load (page data and layout data
+	 * merge), so there is no second query behind it.
 	 */
 	let { data }: { data: PageData } = $props();
 </script>
@@ -25,25 +30,3 @@
 <svelte:head>
 	<title>{sectionTitle(data.section)} // IDEA Classroom</title>
 </svelte:head>
-
-<!--
-	AN ABSENCE, NOT A COMPONENT. This was a dashed box roughly as tall as the
-	whole class list beside it, which drew more attention than most of the items
-	it was asking somebody to pick. Nothing is open; the honest rendering of that
-	is a line of quiet text where the item would start.
--->
-<div class="empty-detail" data-testid="detail-empty">
-	<p class="hint">Pick something from the class to read it here.</p>
-</div>
-
-<style>
-	.empty-detail {
-		padding-top: var(--space-2);
-	}
-	.hint {
-		margin: 0;
-		max-width: 26rem;
-		font-size: 0.9rem;
-		color: var(--text-3);
-	}
-</style>

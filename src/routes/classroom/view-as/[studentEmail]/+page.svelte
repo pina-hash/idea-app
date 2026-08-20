@@ -28,8 +28,11 @@
 />
 
 <style>
+	/* Sits directly above the picker page's own column, so it reads the SAME
+	   token rather than a copy of its number -- the two lining up is the whole
+	   job of this rule. */
 	.viewas-nav {
-		max-width: 46rem;
+		max-width: var(--measure-reading);
 		margin: 0.9rem auto -0.5rem;
 		padding: 0 1.2rem;
 		font-family: 'Share Tech Mono', monospace;
