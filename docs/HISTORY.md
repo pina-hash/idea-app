@@ -19594,3 +19594,86 @@ RPCs drop; the two columns and the partial index drop. Dropping the columns
 loses every deletion stamp, which is a real loss of record -- clearing them
 (`update ... set deleted_at = null, deleted_by = null`) restores every note
 instead, and is the reversible half.
+
+## The removed-photo sweep reaches the last two client-side readers (code only)
+
+`0119`'s writeup named two PRE-EXISTING gaps in `0116`'s sweep and left them
+alone, because they belong to that migration rather than to note deletion. This
+bundle closes them. **No SQL, no migration, no schema change.**
+
+### WHAT WAS WRONG
+
+Both counted a REMOVED photo as present, where every other surface goes through
+`livePhotos`:
+
+- **`notebook-folders.ts`'s "Has photos" chip** (`e.photos.length > 0`) listed an
+  entry whose pages had all been removed, which then opened with nothing in it.
+  The `notes` predicate beside it had already been routed through `noteThreads`
+  by `0119`; this is the same fix on the same line of the same record.
+- **`EntryReview`'s `{#if entry.photos.length}`** mounted `NotebookPhotos` for an
+  entry with no live page. That component guards on `pages.length` and renders
+  NOTHING, and because the raw length won the branch, the `{:else if !noteCount}`
+  line -- "This entry has no photos and no written notes." -- never printed. An
+  instructor got a header and the flag form with an empty gap between them.
+
+**THE SECOND ONE IS REACHABLE, not defensive, and the path is worth recording**
+because two shell guards make it look impossible. `notebook_remove_photo` allows
+the last photo to go while a live note remains; `notebook_staff_delete_note`
+then deletes that note and carries NO shell guard of its own (the student's own
+`notebook_delete_note` does). So a SUBMITTED entry -- one staff can see, since
+every staff read filters `submitted_at is not null` -- reaches zero live photos
+and zero live notes through two ordinary, separately-reasonable actions. The
+review payload carries removed photos deliberately (`REVIEW_ENTRY_*` select
+`removed_at` and filter nothing), so `entry.photos` there really does hold them.
+
+### THE REST OF THE SWEEP
+
+`grep -rn "photos\.length" src/` turned up four more reads; two genuinely want
+the raw row count and are unchanged (`NotebookView`'s staged-upload progress
+counts local Files, not rows; the dev harness's `max+1` sequence mirrors the
+RPC, which numbers over removed rows too). The remaining one was the harness
+stubbing `notebook_set_entry_label`, whose real body counts
+`removed_at is null` -- a harness looser than the RPC lets a drive pass that the
+real page would refuse. Two inline `!p.removed_at` filters found beside it
+(`submitEntry`, `removePhoto`) now go through the one shared helper as well.
+
+### VERIFIED
+
+- **`tests/notebook-page-load.test.ts`: two new tests** driving the REAL load and
+  the REAL `applyQuery`. The fixture is built through the REAL RPCs in the shape
+  described above (create with a photo, add a note, `notebook_remove_photo`), so
+  the state under test is one the database actually permits.
+- **The expected value does not come from the client code**: the chip's whole
+  result is compared against the same question asked of Postgres directly
+  (`exists (... where removed_at is null)`), which also catches the draft `0118`
+  leaves behind. Three named assertions sit beside it (the emptied entry ABSENT,
+  the mixed entry PRESENT, the note-only entry still out), and the unfiltered
+  list is the positive control proving the absence is the chip narrowing.
+- **Mutation proof, permissive direction:** restoring `e.photos.length > 0`
+  reddens the new test (the chip returns 3 where the database says 2).
+  `src/lib/notebook-folders.ts` restored md5-identically and re-verified green.
+- **`EntryReview` was driven in a browser**, through `/dev/notebook-review`,
+  which gained a student row of its own (`Vega, Frankie`) carrying the two
+  shapes so no existing row's tally means something other than its comment says.
+  Both entries are filed against check-ins because this panel opens from a GRID
+  CELL and a free entry has no column. Measured: the mixed entry renders **1**
+  photo figure and reads "1 photo"; the emptied one renders **0** figures, no
+  notes block, and the "no photos and no written notes" line VISIBLE. Reverting
+  the gate to `entry.photos.length` and re-measuring the same cell reproduced the
+  bug exactly -- **0 figures and no line**, the panel going straight from the
+  header to the flag form. Restored md5-identically and re-measured.
+- **The chip was also driven end to end** at `/dev/notebook`: removing both pages
+  of a real entry through the real Remove control left **8 entries unfiltered and
+  7 under "Has photos"**, the emptied one the only one dropped.
+- `npx svelte-check`: **0 errors, 36 warnings** (the baseline).
+  `npx vitest run --no-file-parallelism`: **1497/1497 across 63 files**.
+- **NOT verified: the live Supabase project.** The local `.env` is the
+  placeholder project. Nothing here touches SQL, so there is nothing to apply.
+- **Left alone, and named so it is a decision rather than an oversight:**
+  `entryTitle`'s filename fallback still reads the raw photo list, so an entry
+  whose only page was removed keeps that page's filename as its title. Routing it
+  through `livePhotos` would flip such an entry to "Untitled entry" and change
+  what `isUntitled` reports to two shell guards, which is a behaviour change
+  rather than a sweep, and belongs with whoever wants that outcome.
+
+**Undoing it:** revert the four files. There is no migration and nothing applied.

@@ -5,6 +5,7 @@
 	import {
 		entryTitle,
 		flagReasonLabel,
+		livePhotos,
 		photoCountLabel,
 		photoPages,
 		type NotebookFlagReason
@@ -98,6 +99,16 @@
 	 * `ReviewEntry`), and staff restore is its own RPC on the grid's own tools.
 	 */
 	const noteCount = $derived(noteThreads(entry.notes ?? []).length);
+
+	/**
+	 * The LIVE photos on this entry (0116), for exactly the same reason as
+	 * `noteCount` above: a photo the student removed is still a row in
+	 * `entry.photos` carrying its `removed_at`, and `NotebookPhotos` filters it
+	 * out on the way to the screen. Keying the render on the raw length would
+	 * mount that component to draw nothing AND take the "no photos" line down
+	 * with it, on an entry whose pages have all been removed.
+	 */
+	const photoCount = $derived(livePhotos(entry.photos).length);
 
 	// entryTitle() is the same five-fallback derivation the student's own card
 	// uses (session label -> custom_label -> photo filename -> first note's
@@ -206,7 +217,7 @@
 		</div>
 	{/if}
 
-	{#if entry.photos.length}
+	{#if photoCount}
 		<NotebookPhotos photos={entry.photos} label={title} lazy={false} />
 	{:else if !noteCount}
 		<p class="empty">This entry has no photos and no written notes.</p>

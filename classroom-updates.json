@@ -14,6 +14,12 @@
 	"entries": [
 		{
 			"date": "2026-08-20",
+			"title": "\"Has photos\" now means photos you can still see",
+			"body": "If you took a page out of an entry, that entry used to keep showing up under the \"Has photos\" filter, and then open with no page in it. It does not any more: the filter lists entries that still have a page you can look at. The entry itself is untouched, and anything you wrote on it is still there. A page you took out is still under \"Removed photos\" on the entry if you want it back.",
+			"tags": ["Notebook"]
+		},
+		{
+			"date": "2026-08-20",
 			"title": "You can write a notebook entry without a photo",
 			"body": "If you did not have a page to photograph -- you left your notebook at home, you worked something out on the whiteboard, you want to say what you were thinking before you draw it up -- you can now just write it. Pick the check-in you are answering as usual, type into the box under the photos, and save. It counts as filed for that check-in exactly like a photographed page does, and your teacher sees what you wrote. You can also do both now: photograph the page AND say something about it in the same go, which was only possible on entries that were not attached to a check-in before. Nothing else changed -- a photo on its own still saves the way it always has. The only thing that is still refused is an entry with nothing in it at all, and it now tells you that either a photo or some writing will do.",
 			"tags": ["Notebook"]

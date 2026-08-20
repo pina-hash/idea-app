@@ -57,6 +57,7 @@ import {
 import { livePhotos, photoPages } from '../src/lib/notebook';
 import { deletedNoteThreads, noteThreads } from '../src/lib/notebook-notes';
 import type { NotebookEntry, NotebookSession } from '../src/lib/notebook';
+import { EMPTY_QUERY, applyQuery } from '../src/lib/notebook-folders';
 import type { NotebookFolder } from '../src/lib/notebook-folders';
 import { load } from '../src/routes/notebook/+page.server';
 
@@ -734,6 +735,101 @@ describe('note deletion (0119) reaches the feed, and degrades to nothing without
 		expect(result.foldersReady).toBe(true);
 		expect(result.pinsReady).toBe(true);
 	}, 180_000);
+});
+
+describe('the feed’s filter chips read LIVE content, not raw rows', () => {
+	// THE SHAPE THAT BROKE IT, and it is a state the real RPCs reach: an entry
+	// carrying one photo and one note. notebook_remove_photo refuses only when
+	// NOTHING would be left, so the note is what lets the last photo go -- and
+	// the row stays in `entry.photos` with a `removed_at` on it. "Has photos"
+	// then answered on the raw array length and returned an entry with no page
+	// to show, exactly as "Has notes" did before 0119 routed it through
+	// noteThreads. This is the client-side half of 0116's sweep; the server-side
+	// half is asserted above.
+	let emptiedEntryId: string;
+
+	it('"Has photos" drops an entry whose only photo was removed', async () => {
+		emptiedEntryId = await db.asUser(alice.id, async (q) => {
+			const { rows } = await q<{ result: { entry_id: string } }>(
+				'select public.notebook_create_entry($1, $2, null, null, $3, $4) as result',
+				[alice.id, 'drive-alice-emptied', 'Photographed then withdrawn', 'IMG_0100.jpg']
+			);
+			return rows[0].result.entry_id;
+		});
+		const onlyPhotoId = (
+			await db.sql<{ id: string }>(
+				'select id from public.notebook_entry_photos where entry_id = $1',
+				[emptiedEntryId]
+			)
+		).rows[0].id;
+		// The note is what makes the removal legal, and it is why this entry is
+		// still worth listing at all once the photo is gone.
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_add_note($1::uuid, $2::jsonb)', [
+				emptiedEntryId,
+				JSON.stringify([{ type: 'p', runs: [{ text: 'Reshot this page tomorrow.' }] }])
+			])
+		);
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_remove_photo($1)', [onlyPhotoId])
+		);
+
+		const result = await runLoad(db, fks, alice);
+		const emptied = result.entries.find((e) => e.id === emptiedEntryId);
+		// The row IS carried -- the student's own "removed photos" disclosure
+		// needs it -- so what follows is the filter's doing and not a short read.
+		expect(emptied?.photos).toHaveLength(1);
+		expect(emptied?.photos[0].removed_at).not.toBeNull();
+		expect(livePhotos(emptied?.photos ?? [])).toHaveLength(0);
+
+		// POSITIVE CONTROL: with no chip selected the entry is in the list, so the
+		// absence below is the chip narrowing and not the entry having vanished.
+		expect(applyQuery(result.entries, EMPTY_QUERY).map((e) => e.id)).toContain(emptiedEntryId);
+
+		const withPhotos = applyQuery(result.entries, { ...EMPTY_QUERY, filters: ['photos'] });
+		const ids = withPhotos.map((e) => e.id);
+		// ABSENT: nothing left to show...
+		expect(ids).not.toContain(emptiedEntryId);
+		// ...THERE: the linked entry, whose second page was removed and whose
+		// first was not, so the chip is not simply answering false for everyone.
+		expect(ids).toContain(linkedEntryId);
+		// ...and the note-only entry is out, as it always was.
+		expect(ids).not.toContain(freeEntryId);
+
+		// THE WHOLE SET, against an expectation the client code cannot produce:
+		// the same question asked of the database directly. A chip that dropped
+		// one entry too many (or that missed the draft 0118's block left behind,
+		// which does have a live photo) fails here rather than passing on the
+		// three named checks above.
+		const { rows: expected } = await db.sql<{ id: string }>(
+			`select e.id from public.notebook_entries e
+			 where e.student_id = $1 and e.deleted_at is null
+			   and exists (
+			     select 1 from public.notebook_entry_photos p
+			     where p.entry_id = e.id and p.removed_at is null
+			   )`,
+			[alice.id]
+		);
+		expect(ids.slice().sort()).toEqual(expected.map((r) => r.id).sort());
+	});
+
+	it('leaves the entry findable by every OTHER chip it still answers', async () => {
+		const result = await runLoad(db, fks, alice);
+		// The point of the fix is narrower than "hide it": the entry still has a
+		// note and is still a turned-in entry, and both chips must still find it.
+		// A predicate that dropped the entry outright would pass the test above.
+		expect(
+			applyQuery(result.entries, { ...EMPTY_QUERY, filters: ['notes'] }).map((e) => e.id)
+		).toContain(emptiedEntryId);
+		expect(
+			applyQuery(result.entries, { ...EMPTY_QUERY, filters: ['drafts'] }).map((e) => e.id)
+		).not.toContain(emptiedEntryId);
+
+		// Put the fixture back where the rest of this file left it.
+		await db.asUser(alice.id, (q) =>
+			q('select public.notebook_delete_entry($1)', [emptiedEntryId])
+		);
+	});
 });
 
 describe('a project with every notebook table but not 0116', () => {

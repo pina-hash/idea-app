@@ -12,6 +12,7 @@
 		NotebookSession,
 		NotePayload
 	} from '$lib/notebook';
+	import { livePhotos } from '$lib/notebook';
 	import { noteThreads } from '$lib/notebook-notes';
 	import type { NoteDoc, NotebookNoteRow, TiptapNode } from '$lib/notebook-notes';
 	import type { FolderResult, FolderTransports, NotebookFolder } from '$lib/notebook-folders';
@@ -958,7 +959,7 @@
 		log = [...log, `RPC notebook_remove_photo p_photo_id=${JSON.stringify(photoId)}`];
 		const entry = current().find((e) => e.photos.some((p) => p.id === photoId));
 		if (!entry) return { ok: false, error: 'That photo does not exist or is not yours.' };
-		const remaining = entry.photos.filter((p) => p.id !== photoId && !p.removed_at).length;
+		const remaining = livePhotos(entry.photos).filter((p) => p.id !== photoId).length;
 		// LIVE notes only (0119), the same clause the real RPC counts on. A
 		// harness whose guard is looser than the RPC's lets a drive pass that the
 		// real page would refuse, which is the one thing a harness must not do.
@@ -1012,7 +1013,10 @@
 					'This entry is filed against a scheduled check-in, so its title comes from the check-in and cannot be changed here.'
 			};
 		}
-		if (!label && entry.photos.length === 0 && noteThreads(entry.notes).length === 0) {
+		// LIVE photos only, as the RPC's own shell guard counts them
+		// (`removed_at is null`): an entry whose pages were all removed is a
+		// shell, and the raw length would let a title stand alone in it.
+		if (!label && livePhotos(entry.photos).length === 0 && noteThreads(entry.notes).length === 0) {
 			return { ok: false, error: 'That title is the only thing in this entry. Delete the whole entry instead.' };
 		}
 		updateAll((list) => list.map((e) => (e.id === entryId ? { ...e, custom_label: label } : e)));
@@ -1029,7 +1033,7 @@
 		if (found.submitted_at !== null) {
 			return { ok: false, error: 'That entry has already been turned in.' };
 		}
-		const photos = found.photos.filter((p) => !p.removed_at).length;
+		const photos = livePhotos(found.photos).length;
 		const notes = noteThreads(found.notes).length;
 		if (photos === 0 && notes === 0) {
 			return {

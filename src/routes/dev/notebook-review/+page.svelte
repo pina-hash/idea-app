@@ -148,7 +148,10 @@
 		{ id: 'stu-5', name: 'Moreno, Eli', email: 'eli.moreno@boscotech.net', section_id: 'sec-b' },
 		// ON THE ROSTER, NEVER SIGNED IN. No account, so no uuid at all -- the
 		// state that makes the grid's row key the email rather than the id.
-		{ id: null, name: 'Newcomer, Dana', email: 'dana.newcomer@boscotech.net', section_id: 'sec-a' }
+		{ id: null, name: 'Newcomer, Dana', email: 'dana.newcomer@boscotech.net', section_id: 'sec-a' },
+		// Carries the two REMOVED-PHOTO entries below, on their own row so no
+		// other student's tally means something different than its comment says.
+		{ id: 'stu-6', name: 'Vega, Frankie', email: 'frankie.vega@boscotech.net', section_id: 'sec-a' }
 	];
 
 	function photo(
@@ -164,6 +167,16 @@
 			sequence_order: seq,
 			original_filename: filename
 		};
+	}
+
+	/**
+	 * A photo the student removed (0116). The row is STILL in the payload --
+	 * the console's select carries `removed_at` and filters nothing server-side
+	 * -- so every count and render on this panel has to go through
+	 * `livePhotos`, which is the whole point of seeding one here.
+	 */
+	function removedPhoto(id: string, seq: number, filename: string | null = null): NotebookPhoto {
+		return { ...photo(id, seq, filename), removed_at: '2026-08-09T08:00:00Z' };
 	}
 
 	let entries = $state<StoreEntry[]>([
@@ -258,7 +271,69 @@
 		// Filed by a sec-b student against the SHARED check-in (ses-a2). It has
 		// to stay on sec-b's grid and off sec-a's, and it is what unposting
 		// sec-b must detach rather than destroy.
-		mk('e-11', 'stu-4', 'sec-b', 'ses-a2', '2026-08-05T18:20:00Z', 'compliant', [photo('p-11', 1)])
+		mk('e-11', 'stu-4', 'sec-b', 'ses-a2', '2026-08-05T18:20:00Z', 'compliant', [photo('p-11', 1)]),
+		// REMOVED PHOTOS (0116), the two shapes this panel has to tell apart, on a
+		// student of their own so no existing row's tally changes. Both are filed
+		// against check-ins because EntryReview opens from a GRID CELL -- a free
+		// entry has no column and could not be opened here at all.
+		//
+		// e-12: page 2 removed, page 1 still there. One page renders, and the count
+		// beside the title says one, through the same `livePhotos` the student's
+		// own feed uses.
+		{
+			...mk(
+				'e-12',
+				'stu-6',
+				'sec-a',
+				'ses-a1',
+				'2026-08-03T09:15:00Z',
+				'compliant',
+				[photo('p-12', 1, 'stackup-1.jpg'), removedPhoto('p-13', 2, 'stackup-2-blurred.jpg')],
+				[
+					noteRow(
+						'n-5',
+						'e-12',
+						'n-5',
+						1,
+						'Second page came out blurred, so I pulled it and will reshoot it.',
+						'2026-08-03T09:20:00Z'
+					)
+				]
+			),
+			custom_label: 'Stackup, page 1'
+		},
+		// e-13: NOTHING LIVE LEFT, and it is reachable rather than hypothetical.
+		// The student removed their only page (notebook_remove_photo allows that
+		// while a live note remains), and staff then deleted the note --
+		// notebook_staff_delete_note carries no shell guard, which is the one path
+		// to a submitted entry with no live photo and no live note. Keyed on the
+		// raw array length this panel rendered a header and an empty body; it has
+		// to say the entry has neither.
+		{
+			...mk(
+				'e-13',
+				'stu-6',
+				'sec-a',
+				'ses-a2',
+				'2026-08-05T10:00:00Z',
+				'compliant',
+				[removedPhoto('p-14', 1, 'reshoot-me.jpg')],
+				[
+					{
+						...noteRow(
+							'n-6',
+							'e-13',
+							'n-6',
+							1,
+							'Placeholder, will write this up.',
+							'2026-08-05T10:05:00Z'
+						),
+						deleted_at: '2026-08-06T11:00:00Z'
+					}
+				]
+			),
+			custom_label: 'Withdrawn page'
+		}
 	]);
 
 	function mk(
