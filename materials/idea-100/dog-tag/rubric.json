@@ -1,0 +1,155 @@
+[
+  {
+    "id": "m1-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 3,
+        "descriptor": "The outline is one closed loop with no gaps, no overlapping ends, and no leftover or stray entities inside the perimeter."
+      },
+      {
+        "label": "Proficient",
+        "points": 2,
+        "descriptor": "The outline is one closed loop, with one or two stray entities left behind in the sketch."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "The outline has a visible gap or overlapping ends at one location."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "No outline drawn, or the outline is open at more than one location."
+      }
+    ],
+    "points": 3,
+    "criterion": "Sketch the Outline: Closed outline",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 2,
+        "descriptor": "The hole is a closed circle set in from the outline with material visible all the way around it, and the entire design sits inside the square perimeter."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "The hole is closed but nearly touches the outline, or the hole is not closed, or part of the design crosses the square perimeter."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "No hole drawn."
+      }
+    ],
+    "points": 2,
+    "criterion": "Sketch the Outline: Hole and containment",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 3,
+        "descriptor": "The part is extruded and saved, and the exported DXF opens in xTool Studio showing the outline and the hole as two closed paths at the size drawn in SolidWorks."
+      },
+      {
+        "label": "Proficient",
+        "points": 2,
+        "descriptor": "The DXF opens with the outline and hole both present, but at a size that does not match the SolidWorks sketch."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "The DXF opens with geometry missing, or with more than the flat face exported."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "No extrude performed, or no DXF produced, or the file does not open."
+      }
+    ],
+    "points": 3,
+    "criterion": "Extrude and Export the DXF: Extrude and DXF export",
+    "incomplete": false
+  },
+  {
+    "id": "m3-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 2,
+        "descriptor": "Name plus at least one added element, text or image, is placed, and every added element sits fully inside the outline."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "A name is placed with nothing else added, or an added element crosses or touches the outline."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Nothing added to the imported shape."
+      }
+    ],
+    "points": 2,
+    "criterion": "Set Up the Job in xTool Studio: Personalization",
+    "incomplete": false
+  },
+  {
+    "id": "m3-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 3,
+        "descriptor": "Every feature carries a process, with cut assigned to the outline and the hole and score or engrave assigned to everything added."
+      },
+      {
+        "label": "Proficient",
+        "points": 2,
+        "descriptor": "Every feature carries a process, but cut is assigned to a feature other than the outline or the hole."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "One or more features carry no process."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "No processes assigned, or the machine was never set to xTool MetalFab."
+      }
+    ],
+    "points": 3,
+    "criterion": "Set Up the Job in xTool Studio: Process assignment",
+    "incomplete": false
+  },
+  {
+    "id": "m4-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 2,
+        "descriptor": "Names one specific change to the design and gives a reason tied to how the machine cuts, scores, or engraves it."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "Names a change with no reason, or gives a reason without naming a specific change, or gives a reason unrelated to the machine."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Not answered."
+      }
+    ],
+    "points": 2,
+    "criterion": "One Change: One change with a machine-based reason",
+    "incomplete": false
+  }
+]
