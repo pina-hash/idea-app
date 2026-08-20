@@ -8,6 +8,7 @@
 		type EntryActionResult,
 		type NotebookPhoto
 	} from '$lib/notebook';
+	import PhotoViewer from '$lib/notebook/PhotoViewer.svelte';
 
 	/**
 	 * The one way a notebook entry's photos are rendered anywhere in this app.
@@ -63,6 +64,13 @@
 
 	const pages = $derived(photoPages(photos));
 
+	/**
+	 * The full-screen viewer, opened by clicking a page's image. `null` = closed;
+	 * an index into `pages` opens that page. One viewer instance per
+	 * NotebookPhotos, so it appears on every surface this component does.
+	 */
+	let viewerIndex = $state<number | null>(null);
+
 	/** Per-page "show me the original" choice, keyed by pageKey. */
 	let showOriginal = $state<Record<string, boolean>>({});
 
@@ -103,7 +111,7 @@
 
 {#if pages.length}
 	<div class="photos">
-		{#each pages as page (pageKey(page))}
+		{#each pages as page, pageIndex (pageKey(page))}
 			{@const key = pageKey(page)}
 			{@const viewingOriginal = showOriginal[key] === true}
 			{@const photo = pagePhoto(page, viewingOriginal)}
@@ -128,12 +136,22 @@
 						</div>
 					</div>
 				{:else}
-					<img
-						src={`${photoSrc(photo.id)}${retryTick[photo.id] ? `?r=${retryTick[photo.id]}` : ''}`}
-						alt={pages.length > 1 ? `${label}, page ${page.page}` : label}
-						loading={lazy ? 'lazy' : 'eager'}
-						onerror={() => (broken = { ...broken, [photo.id]: true })}
-					/>
+					<button
+						type="button"
+						class="photo-open"
+						data-testid="photo-open"
+						onclick={() => (viewerIndex = pageIndex)}
+						aria-label={pages.length > 1
+							? `Open ${label}, page ${page.page}, full screen`
+							: `Open ${label} full screen`}
+					>
+						<img
+							src={`${photoSrc(photo.id)}${retryTick[photo.id] ? `?r=${retryTick[photo.id]}` : ''}`}
+							alt={pages.length > 1 ? `${label}, page ${page.page}` : label}
+							loading={lazy ? 'lazy' : 'eager'}
+							onerror={() => (broken = { ...broken, [photo.id]: true })}
+						/>
+					</button>
 				{/if}
 				<figcaption>
 					{#if pages.length > 1}Page {page.page}{/if}
@@ -189,6 +207,14 @@
 	</div>
 {/if}
 
+<PhotoViewer
+	{pages}
+	index={viewerIndex}
+	{label}
+	onIndex={(i) => (viewerIndex = i)}
+	onClose={() => (viewerIndex = null)}
+/>
+
 <style>
 	/* Editorial framing: the photo floats on paper with a hairline frame and
 	   a wider gap between pages; captions are quiet gray sans. */
@@ -198,6 +224,21 @@
 	}
 	.photo {
 		margin: 0;
+	}
+	.photo-open {
+		display: block;
+		width: 100%;
+		padding: 0;
+		border: none;
+		background: none;
+		font: inherit;
+		text-align: left;
+		cursor: zoom-in;
+		border-radius: 8px;
+	}
+	.photo-open:focus-visible {
+		outline: 2px solid var(--nb-accent-ink);
+		outline-offset: 2px;
 	}
 	.photo img {
 		display: block;
