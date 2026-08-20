@@ -1,0 +1,241 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 1,
+    "theme": "idea-green",
+    "title": "Unit 1 Lab, Checkpoint 2: Appearance-Based Identification",
+    "course": "IDEA209H",
+    "dueDate": "2026-08-24",
+    "totalPoints": 15,
+    "assignmentId": "idea209h-u1lab-02",
+    "buildVersion": "v3",
+    "headerFields": [
+      "studentName",
+      "date",
+      "section"
+    ],
+    "gradingCategory": "Unit Labs"
+  },
+  "print": {
+    "linesPerSentence": 2
+  },
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "Run four appearance tests on every required sample and record what you actually observe. Everything you need to run each test is written below.",
+      "title": "Appearance Testing",
+      "aiNote": "AI is off for this module. These are your own observations of the samples in front of you. Do not use AI to predict what a test should show before you run it.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Same six samples, same numbers, bare stock. Friday you used density. Today, appearance. Sample 3 is the same material it was Friday.\n\nSamples 5 and 6 are bonus, no points. Best-explained identifications earn IDEA Coins.\n\n### Before the grinder\n\n- Face shield over safety glasses. You are watching the spark stream.\n- One person at the machine, everyone else behind the line.\n- No gloves. No loose sleeves, lanyards, hair, or earbuds.\n- Face of the wheel, never the side. Light pressure.\n- Metal only. Polycarbonate never goes to the grinder.\n- Samples come off hot. No instructor in the room means no machine.\n\n### Color\n\nLay them side by side. Aluminum is the dullest silver, stainless brighter, titanium darker and grayer. Brass is yellow. Clear plastic is obvious.\n\n### Magnetism\n\n**NOT** no attraction · **SLIGHT** a weak pull that will not hold the magnet · **STRONG** it sticks.\n\nNot yes or no. The middle setting is what separates 304 stainless from 1018 steel.\n\n### Oxidation\n\nRed or brown rust is steel. White crusty film is aluminum. Green, blue, or dark tarnish is brass. Stainless and titanium ideally show none. Write \"none\" rather than leaving it blank.\n\n### Sparks\n\nMetal only. Light contact, watch the stream.\n\n| Stream | Material |\n|---|---|\n| Bright yellow, long, branching | Steel |\n| Bright white, brighter than steel | Titanium |\n| Short, sparse, dull orange-red | 304 stainless |\n| None | Aluminum, brass, all plastics |\n\n**No sparks is a result.** Record it."
+        },
+        {
+          "id": "t3",
+          "type": "table",
+          "points": 8,
+          "columns": [
+            {
+              "key": "sample",
+              "tip": "Set letter and number as it appears on the tag. Same numbering as Friday.",
+              "label": "Sample"
+            },
+            {
+              "key": "color",
+              "tip": "Describe it, or describe it relative to the other samples.",
+              "label": "Color"
+            },
+            {
+              "key": "oxidation",
+              "tip": "Describe what you see, or write none. Do not leave this blank.",
+              "label": "Oxidation"
+            },
+            {
+              "key": "magnetism",
+              "tip": "NOT, SLIGHT, or STRONG. Not yes or no.",
+              "label": "Magnetism"
+            },
+            {
+              "key": "sparks",
+              "tip": "Color and character of the stream, or none. Metal samples only.",
+              "label": "Sparks"
+            }
+          ],
+          "minRows": 4,
+          "printRows": 6,
+          "rowImages": false,
+          "statusColumn": false
+        }
+      ],
+      "points": 8,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 4, three observations",
+              "points": 5,
+              "descriptor": "All four required samples carry a described color, an oxidation entry including a stated absence where there is none, and one of the three magnetic settings."
+            },
+            {
+              "label": "Proficient",
+              "short": "1 bare label",
+              "points": 4,
+              "descriptor": "All four samples carry all three observations, with one entry giving a bare label rather than a description."
+            },
+            {
+              "label": "Developing",
+              "short": "2-3 samples, or 1 type missing",
+              "points": 2,
+              "descriptor": "Two or three samples carry all three observations, or all four are present with one observation type missing throughout."
+            },
+            {
+              "label": "Absent",
+              "short": "Under 2, or yes/no magnetism",
+              "points": 0,
+              "descriptor": "Fewer than two samples are observed, or magnetism is recorded as a yes or no rather than on the three-setting scale."
+            }
+          ],
+          "criterion": "Color, oxidation, and magnetic response"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All metals, stream described",
+              "points": 3,
+              "descriptor": "Every metal sample carries a spark result with the stream described, and samples that produced no sparks are recorded as such rather than left blank."
+            },
+            {
+              "label": "Proficient",
+              "short": "Undescribed, or blank no-spark",
+              "points": 2,
+              "descriptor": "Every metal sample carries a spark result, with the stream not described on one or more, or a no-spark result left blank."
+            },
+            {
+              "label": "Absent",
+              "short": "Missing entry, or untested",
+              "points": 0,
+              "descriptor": "One or more metal samples have no spark entry, or a result is recorded for a sample never taken to the grinder."
+            }
+          ],
+          "criterion": "Spark test record for the metal samples"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "m2",
+      "intro": "Set today's appearance evidence against Friday's density hypothesis for every required sample, name the observation that decided it, and give a refined identification.",
+      "title": "Evidence and Refined ID",
+      "aiNote": "AI may help you reason through evidence that conflicts, and check whether your logic holds. The verdict and the refined identification have to be your own, and you have to be able to defend why one observation outweighed another.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "Copy in Friday's hypothesis, then decide whether today's evidence agrees with it.\n\n**A conflict is not a mistake.** It is what happens when one test cannot separate two candidates.\n\n- Density cannot separate 6061 from most other aluminum alloys.\n- Density cannot reliably separate 1018 steel from 304 stainless.\n- Magnetism separates steel from stainless immediately.\n- The spark test separates steel from titanium.\n\nName the single observation that decided each sample, and why it separates those two candidates.\n\n\"It was magnetic\" is not enough. \"Strongly magnetic, and of the two candidates density left open, only 1018 steel is strongly magnetic\" is.\n\nThen write your refined identification, citing both a density result and an appearance result."
+        },
+        {
+          "id": "t4",
+          "type": "table",
+          "points": 7,
+          "columns": [
+            {
+              "key": "sample",
+              "tip": "Same identifier as Module 1.",
+              "label": "Sample"
+            },
+            {
+              "key": "prior",
+              "tip": "What you concluded on Friday from density alone.",
+              "label": "Checkpoint 1 hypothesis"
+            },
+            {
+              "key": "verdict",
+              "tip": "Agrees or conflicts with the density hypothesis.",
+              "label": "Appearance evidence"
+            },
+            {
+              "key": "decisive",
+              "tip": "Name one observation, and say why it separates these particular candidates.",
+              "label": "Which observation decided it, and why"
+            },
+            {
+              "key": "refined",
+              "tip": "Your identification now, citing both a density result and an appearance result.",
+              "label": "Refined ID"
+            }
+          ],
+          "minRows": 4,
+          "printRows": 4,
+          "rowImages": false,
+          "statusColumn": false
+        }
+      ],
+      "points": 7,
+      "rubric": [
+        {
+          "id": "c3",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 4, reason tied to test",
+              "points": 4,
+              "descriptor": "All four required samples carry the Checkpoint 1 hypothesis, an agrees or conflicts verdict, and a named deciding observation with a reason tied to that specific test."
+            },
+            {
+              "label": "Proficient",
+              "short": "1-2 generic reasons",
+              "points": 3,
+              "descriptor": "All four carry the hypothesis and the verdict, with the reason on one or two applying to any test rather than the one named."
+            },
+            {
+              "label": "Developing",
+              "short": "2-3 weighed, or none named",
+              "points": 1,
+              "descriptor": "Two or three samples are weighed, or all four carry a verdict with no deciding observation named."
+            },
+            {
+              "label": "Absent",
+              "short": "Under 2, or no CP1 carry",
+              "points": 0,
+              "descriptor": "Fewer than two samples are weighed, or the Checkpoint 1 hypothesis is not carried forward."
+            }
+          ],
+          "criterion": "Appearance weighed against the density hypothesis"
+        },
+        {
+          "id": "c4",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All 4, both evidence types",
+              "points": 3,
+              "descriptor": "A refined identification is given for all four required samples, each citing a density result and an appearance result."
+            },
+            {
+              "label": "Proficient",
+              "short": "1+ cites one type",
+              "points": 2,
+              "descriptor": "A refined identification is given for all four samples, citing only one evidence type on one or more of them."
+            },
+            {
+              "label": "Absent",
+              "short": "Under 4, or restated",
+              "points": 0,
+              "descriptor": "Fewer than four refined identifications are given, or identifications are restated from Checkpoint 1 with no appearance evidence cited."
+            }
+          ],
+          "criterion": "Refined hypothesis citing both evidence types"
+        }
+      ],
+      "aiLevel": 2
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
