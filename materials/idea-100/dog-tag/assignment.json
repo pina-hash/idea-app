@@ -1,0 +1,298 @@
+{
+  "kind": "assignment",
+  "meta": {
+    "unit": 1,
+    "theme": "idea-green",
+    "title": "Dogtag Design and Job Setup",
+    "course": "IDEA100",
+    "dueDate": "2026-08-21",
+    "totalPoints": 15,
+    "assignmentId": "idea100-dogtag-01",
+    "buildVersion": "v2",
+    "headerFields": [
+      "studentName",
+      "date",
+      "section"
+    ],
+    "gradingCategory": "Dogtag"
+  },
+  "print": {},
+  "modules": [
+    {
+      "id": "m1",
+      "intro": "The template gives you a 2.000 in square. Everything you draw lives inside it. The only thing that matters today is that your shape closes.",
+      "title": "Sketch the Outline",
+      "aiNote": "No AI on any part of this assignment. You are drawing in SolidWorks during a supervised period and the file is timestamped, so the setting itself sets the level.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "1. Download **dogtag_template.SLDPRT** from this assignment and open it in SolidWorks.\n2. In the FeatureManager design tree, right-click **Starter Sketch** and choose **Edit Sketch**.\n3. You will see a square perimeter, 2.000 in on a side. Your design stays inside it.\n4. Use line, arc, circle, and trim to build the outer shape of your tag. It has to end as one closed loop with no gaps.\n5. Add a circle for the chain hole. **No dimensions today.** Leave enough material between the hole and the outside edge that it reads like a real dogtag.\n6. Exit the sketch.\n\nSketch tools, relations, dragging, and trimming are in the **CAD Quick Reference** material. Go there first if you are stuck rather than waiting."
+        },
+        {
+          "id": "z1",
+          "type": "imageZone",
+          "points": 5,
+          "printAs": "sketch",
+          "captions": true,
+          "minImages": 1
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "One clean closed loop",
+              "points": 3,
+              "descriptor": "The outline is one closed loop with no gaps, no overlapping ends, and no leftover or stray entities inside the perimeter."
+            },
+            {
+              "label": "Proficient",
+              "short": "Closed, stray entities left",
+              "points": 2,
+              "descriptor": "The outline is one closed loop, with one or two stray entities left behind in the sketch."
+            },
+            {
+              "label": "Developing",
+              "short": "One gap or overlap",
+              "points": 1,
+              "descriptor": "The outline has a visible gap or overlapping ends at one location."
+            },
+            {
+              "label": "Absent",
+              "short": "Open or not attempted",
+              "points": 0,
+              "descriptor": "No outline drawn, or the outline is open at more than one location."
+            }
+          ],
+          "criterion": "Closed outline"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Hole clear, design contained",
+              "points": 2,
+              "descriptor": "The hole is a closed circle set in from the outline with material visible all the way around it, and the entire design sits inside the square perimeter."
+            },
+            {
+              "label": "Developing",
+              "short": "Hole tight, open, or outside",
+              "points": 1,
+              "descriptor": "The hole is closed but nearly touches the outline, or the hole is not closed, or part of the design crosses the square perimeter."
+            },
+            {
+              "label": "Absent",
+              "short": "No hole",
+              "points": 0,
+              "descriptor": "No hole drawn."
+            }
+          ],
+          "criterion": "Hole and containment"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "m2",
+      "intro": "SolidWorks made the geometry. The DXF is how that geometry gets handed to the laser. Check it before you leave SolidWorks, because a bad DXF is invisible until it is too late.",
+      "title": "Extrude and Export the DXF",
+      "aiNote": "No AI. This module is a fixed export procedure carried out on the machine in front of you.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "1. Features tab, **Boss Extrude**. Type **0.100 in** and confirm.\n2. Save the part to **[FOLDER PATH]**.\n3. Click the flat face of your tag to select it.\n4. **File, Save As**, navigate to **[FOLDER PATH]**, and set the file type to **DXF**.\n5. The export wizard picks up the face you already selected. Step through it and finish.\n6. Before you move on, confirm the DXF is **one closed outline with one hole**, nothing else."
+        },
+        {
+          "id": "z2",
+          "type": "imageZone",
+          "points": 3,
+          "printAs": "sketch",
+          "captions": true,
+          "minImages": 1
+        },
+        {
+          "id": "k2",
+          "type": "checklist",
+          "items": [
+            "Part file saved to the class folder",
+            "DXF file saved to the class folder"
+          ],
+          "points": 0
+        }
+      ],
+      "points": 3,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Outline and hole, right size",
+              "points": 3,
+              "descriptor": "The part is extruded and saved, and the exported DXF opens in xTool Studio showing the outline and the hole as two closed paths at the size drawn in SolidWorks."
+            },
+            {
+              "label": "Proficient",
+              "short": "Opens, wrong scale",
+              "points": 2,
+              "descriptor": "The DXF opens with the outline and hole both present, but at a size that does not match the SolidWorks sketch."
+            },
+            {
+              "label": "Developing",
+              "short": "Missing or extra geometry",
+              "points": 1,
+              "descriptor": "The DXF opens with geometry missing, or with more than the flat face exported."
+            },
+            {
+              "label": "Absent",
+              "short": "No usable DXF",
+              "points": 0,
+              "descriptor": "No extrude performed, or no DXF produced, or the file does not open."
+            }
+          ],
+          "criterion": "Extrude and DXF export"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "m3",
+      "intro": "SolidWorks makes geometry. xTool Studio makes a machine job. Same shape, different question: this is where you decide what the laser actually does to each line.",
+      "title": "Set Up the Job in xTool Studio",
+      "aiNote": "No AI. Everything in this module is done inside xTool Studio during class.",
+      "blocks": [
+        {
+          "type": "instructions",
+          "content": "1. Open **xTool Studio** and click **New Project**.\n2. On the right side of the screen, set the machine to **xTool MetalFab**.\n3. Click the **plus** icon on the right and import your DXF.\n4. Use the **text tool** to add your name. School appropriate only.\n5. You may also add an image. What engraves well and what does not is in the **CAD Quick Reference**.\n6. Assign **cut**, **score**, or **engrave** to every feature. Cut belongs on the outline and the hole, nothing else.\n7. Click **Process** in the bottom right to preview the toolpath. Check it.\n8. Save the project file to **[FOLDER PATH]**."
+        },
+        {
+          "id": "z3",
+          "type": "imageZone",
+          "points": 5,
+          "printAs": "sketch",
+          "captions": true,
+          "minImages": 1
+        },
+        {
+          "id": "k3",
+          "type": "checklist",
+          "items": [
+            "xTool project file saved to the class folder"
+          ],
+          "points": 0
+        }
+      ],
+      "points": 5,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Name plus one element, inside",
+              "points": 2,
+              "descriptor": "Name plus at least one added element, text or image, is placed, and every added element sits fully inside the outline."
+            },
+            {
+              "label": "Developing",
+              "short": "Name only, or crosses outline",
+              "points": 1,
+              "descriptor": "A name is placed with nothing else added, or an added element crosses or touches the outline."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing added",
+              "points": 0,
+              "descriptor": "Nothing added to the imported shape."
+            }
+          ],
+          "criterion": "Personalization"
+        },
+        {
+          "id": "c2",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "All assigned, cut on outline",
+              "points": 3,
+              "descriptor": "Every feature carries a process, with cut assigned to the outline and the hole and score or engrave assigned to everything added."
+            },
+            {
+              "label": "Proficient",
+              "short": "Cut on the wrong feature",
+              "points": 2,
+              "descriptor": "Every feature carries a process, but cut is assigned to a feature other than the outline or the hole."
+            },
+            {
+              "label": "Developing",
+              "short": "Some features unassigned",
+              "points": 1,
+              "descriptor": "One or more features carry no process."
+            },
+            {
+              "label": "Absent",
+              "short": "Nothing assigned",
+              "points": 0,
+              "descriptor": "No processes assigned, or the machine was never set to xTool MetalFab."
+            }
+          ],
+          "criterion": "Process assignment"
+        }
+      ],
+      "aiLevel": 0
+    },
+    {
+      "id": "m4",
+      "intro": "You watched the toolpath preview. Answer from what you saw.",
+      "title": "One Change",
+      "aiNote": "No AI. This is your own judgment about your own design, written in class.",
+      "blocks": [
+        {
+          "id": "f1",
+          "type": "textField",
+          "points": 2,
+          "prompt": "If you cut this tag again tomorrow, what is one thing you would change about the design, and why? Tie the reason to what the machine actually does: cut, score, or engrave.",
+          "maxSentences": 3,
+          "minSentences": 2
+        }
+      ],
+      "points": 2,
+      "rubric": [
+        {
+          "id": "c1",
+          "levels": [
+            {
+              "label": "Complete",
+              "short": "Specific change, machine reason",
+              "points": 2,
+              "descriptor": "Names one specific change to the design and gives a reason tied to how the machine cuts, scores, or engraves it."
+            },
+            {
+              "label": "Developing",
+              "short": "Change or reason, not both",
+              "points": 1,
+              "descriptor": "Names a change with no reason, or gives a reason without naming a specific change, or gives a reason unrelated to the machine."
+            },
+            {
+              "label": "Absent",
+              "short": "Not answered",
+              "points": 0,
+              "descriptor": "Not answered."
+            }
+          ],
+          "criterion": "One change with a machine-based reason"
+        }
+      ],
+      "aiLevel": 0
+    }
+  ],
+  "approvalGate": null,
+  "declarations": {
+    "academicIntegrity": true
+  },
+  "schemaVersion": 1
+}
