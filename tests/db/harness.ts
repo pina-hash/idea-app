@@ -44,16 +44,26 @@
 // composite key points at the postings table. Leaving it out would leave every
 // other notebook suite testing a schema that no longer exists.
 //
-// Startup runs initdb + a migration pass and takes a few seconds; the suite
-// pays that once per file (beforeAll), not per test.
+// HOW THE FIXTURE IS ISOLATED, which every test author here needs to know.
+// The embedded Postgres CLUSTER is booted once for the whole run by
+// `tests/db/cluster.ts` (vitest `globalSetup`). `startTestDb` does NOT boot a
+// server: it creates a brand-new DATABASE on that shared cluster, applies the
+// stub and the migrations to it, and drops it in `stop()`. So each call still
+// gets a private schema, private rows and private catalogs -- a file cannot
+// see anything a neighbour left behind -- while the 5.58s initdb is paid once
+// instead of 47 times. `tests/db-isolation-a.test.ts` and `-b` are the pair
+// that PROVE that rather than asserting it: one deliberately leaves rows
+// behind, the other fails if it can see them.
+//
+// A test file needs no setup for this. Call startTestDb() exactly as before.
 
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from 'node:net';
-import EmbeddedPostgres from 'embedded-postgres';
+import { randomBytes } from 'node:crypto';
 import pg from 'pg';
+import { inject } from 'vitest';
+import type { ClusterAddress } from './cluster';
 
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const MIGRATIONS_DIR = join(REPO_ROOT, 'supabase', 'migrations');
@@ -84,6 +94,12 @@ export type QueryFn = <R extends pg.QueryResultRow = pg.QueryResultRow>(
 ) => Promise<pg.QueryResult<R>>;
 
 export interface TestDb {
+	/**
+	 * The private database this handle owns on the shared cluster. Exposed so a
+	 * test can tell its own database apart from a neighbour's in pg_database;
+	 * tests/db-isolation-b.test.ts is the one that needs it.
+	 */
+	readonly databaseName: string;
 	/** Runs as the connection owner: bypasses RLS. Seeding and raw assertions. */
 	readonly sql: QueryFn;
 	/** Runs as `authenticated` with auth.uid() = userId, the way a client does. */
@@ -97,61 +113,83 @@ export interface TestDb {
 	stop(): Promise<void>;
 }
 
-async function freePort(): Promise<number> {
-	return new Promise((resolve, reject) => {
-		const server = createServer();
-		server.once('error', reject);
-		server.listen(0, '127.0.0.1', () => {
-			const address = server.address();
-			if (address === null || typeof address === 'string') {
-				server.close();
-				reject(new Error('Could not determine a free port.'));
-				return;
-			}
-			const { port } = address;
-			server.close(() => resolve(port));
-		});
+/**
+ * A name no other file can collide with, on a cluster every file shares.
+ * The counter alone would repeat across vitest worker processes, so the
+ * random half is what actually makes it unique; the counter and pid just
+ * make a stray database in a crashed run readable.
+ */
+let dbSequence = 0;
+function nextDatabaseName(): string {
+	dbSequence += 1;
+	const salt = randomBytes(6).toString('hex');
+	return `idea_test_${process.pid}_${dbSequence}_${salt}`;
+}
+
+/** A short-lived superuser connection to the maintenance database. */
+async function withMaintenance<T>(
+	cluster: ClusterAddress,
+	fn: (client: pg.Client) => Promise<T>
+): Promise<T> {
+	const client = new pg.Client({
+		host: cluster.host,
+		port: cluster.port,
+		user: cluster.user,
+		password: cluster.password,
+		database: cluster.maintenanceDatabase
 	});
+	await client.connect();
+	try {
+		return await fn(client);
+	} finally {
+		await client.end().catch(() => {});
+	}
 }
 
 /**
- * Boots Postgres, applies the stub then every migration in `migrationFiles`
- * (defaults to MIGRATIONS, the notebook chain), and returns the handle the
- * tests drive. Callers with a different dependency chain (a different
- * feature's own migrations) pass their own list rather than editing the
- * shared MIGRATIONS constant, which stays exactly what the notebook tests
- * need -- so extending the harness for a new feature can never change what
- * an existing suite applies.
+ * Creates a FRESH DATABASE on the shared cluster, applies the stub then every
+ * migration in `migrationFiles` (defaults to MIGRATIONS, the notebook chain)
+ * to it, and returns the handle the tests drive. Callers with a different
+ * dependency chain (a different feature's own migrations) pass their own list
+ * rather than editing the shared MIGRATIONS constant, which stays exactly what
+ * the notebook tests need -- so extending the harness for a new feature can
+ * never change what an existing suite applies.
+ *
+ * ISOLATION IS A SEPARATE DATABASE, NOT A SCHEMA AND NOT A TRANSACTION.
+ * A database is the only one of the three that costs nothing to reason about:
+ * separate catalogs, so a row, a sequence, a function or a policy left behind
+ * by one file is not reachable from another even by name.
+ *
+ *   - NOT a per-file SCHEMA: the migrations name `public`, `auth` and
+ *     `storage` literally and are applied verbatim (that is the whole point of
+ *     this fixture), so sharing a database would mean rewriting migration SQL
+ *     or bending `search_path` -- and pinning `search_path` is exactly what the
+ *     SECURITY DEFINER functions under test do, so the fixture would be
+ *     fighting the thing it exists to verify.
+ *   - NOT transactional rollback: `asUser` deliberately does not open a
+ *     transaction, because many tests assert that a statement is REJECTED and
+ *     one rejection poisons every statement after it inside a transaction.
+ *     Several suites also hold more than one connection at once (the pool runs
+ *     up to 4) and a few run DDL, neither of which survives being wrapped.
+ *
+ * The migrations run per database rather than being copied from a template.
+ * A template would save the measured 0.31s migration pass per file, against
+ * the 5.58s boot this change removes; paying it keeps the harness's stated
+ * guarantee literally true -- every test database has had the REAL migration
+ * files applied to it, in order, not a byte-copy of one that did.
  */
 export async function startTestDb(migrationFiles: readonly string[] = MIGRATIONS): Promise<TestDb> {
-	const dataDir = mkdtempSync(join(tmpdir(), 'idea-notebook-pg-'));
-	const port = await freePort();
+	const cluster = inject('pgCluster');
+	const database = nextDatabaseName();
 
-	const postgres = new EmbeddedPostgres({
-		databaseDir: dataDir,
-		user: 'postgres',
-		password: 'postgres',
-		port,
-		persistent: false,
-		// initdb and the postmaster are chatty on a cold start; the suite's own
-		// output is the signal, so only surface real failures.
-		onLog: () => {},
-		onError: (messageOrError) => {
-			const text = String(messageOrError);
-			// The postmaster logs its normal startup lines on stderr.
-			if (/FATAL|PANIC|could not/i.test(text)) console.error(text);
-		}
-	});
-
-	await postgres.initialise();
-	await postgres.start();
+	await withMaintenance(cluster, (client) => client.query(`create database "${database}"`));
 
 	const pool = new pg.Pool({
-		host: '127.0.0.1',
-		port,
-		user: 'postgres',
-		password: 'postgres',
-		database: 'postgres',
+		host: cluster.host,
+		port: cluster.port,
+		user: cluster.user,
+		password: cluster.password,
+		database,
 		max: 4
 	});
 
@@ -162,8 +200,12 @@ export async function startTestDb(migrationFiles: readonly string[] = MIGRATIONS
 		if (stopped) return;
 		stopped = true;
 		await pool.end().catch(() => {});
-		await postgres.stop().catch(() => {});
-		rmSync(dataDir, { recursive: true, force: true });
+		// WITH (FORCE) so a leaked client cannot wedge teardown; the cluster is
+		// thrown away at the end of the run either way, but a failure here would
+		// otherwise surface as an unrelated timeout in the NEXT file.
+		await withMaintenance(cluster, (client) =>
+			client.query(`drop database if exists "${database}" with (force)`)
+		).catch(() => {});
 	};
 
 	try {
@@ -224,7 +266,7 @@ export async function startTestDb(migrationFiles: readonly string[] = MIGRATIONS
 		}
 	};
 
-	return { sql, asUser, asAnon, stop };
+	return { databaseName: database, sql, asUser, asAnon, stop };
 }
 
 export interface SeededUser {

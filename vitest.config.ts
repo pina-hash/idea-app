@@ -1,6 +1,7 @@
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
+import IdeaSequencer from './tests/db/sequencer';
 
 /**
  * Deliberately standalone, NOT an extension of vite.config.ts: loading the
@@ -44,8 +45,18 @@ export default defineConfig({
 	test: {
 		environment: 'node',
 		include: ['tests/**/*.test.ts'],
-		// Each file boots its own embedded Postgres (initdb + a migration pass),
-		// so the setup hook needs far more than the 10s default.
+		// ONE embedded Postgres for the whole run, booted here rather than in
+		// each file's beforeAll. See tests/db/cluster.ts for why this is
+		// globalSetup and not a module-level cache.
+		globalSetup: ['./tests/db/cluster.ts'],
+		sequence: {
+			// Default order, except that the two halves of the isolation proof
+			// must run in order. See tests/db/sequencer.ts.
+			sequencer: IdeaSequencer
+		},
+		// Each file creates its own DATABASE on the shared cluster and applies
+		// the migration chain to it (~0.3s), but the hook budget stays generous:
+		// the first file also waits on the one-time cluster boot.
 		hookTimeout: 180_000,
 		testTimeout: 30_000
 	}

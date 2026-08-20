@@ -776,9 +776,11 @@ These have each cost a debugging session. They are not hypothetical.
 
 ### Machine and toolchain
 
-- **`npm test` cannot run all DB test files in parallel** -- each boots its own
-  embedded Postgres and they starve each other's `beforeAll`. Run
-  `npx vitest run --no-file-parallelism`.
+- **`npm test` must run with `--no-file-parallelism`.** DB files used to starve each
+  other's `beforeAll` because each booted its own embedded Postgres; they now share
+  ONE cluster (see Testing), which is the fix for that, not more concurrency. The
+  flag stays: a shared cluster is a shared resource, and serial files are what keep
+  each file's own database the only isolation question worth answering.
 - **`npm run build` dies on Windows in the Vercel adapter's `closeBundle` with
   `EPERM`** writing a path Windows cannot create. Machine-level and PRE-EXISTING,
   not a code failure; Vercel builds on Linux and is unaffected. It does NOT stop
@@ -812,7 +814,37 @@ These have each cost a debugging session. They are not hypothetical.
   unmodified** (`tests/db/harness.ts`). `tests/db/supabase-stub.sql` supplies only
   what lives OUTSIDE `supabase/migrations` (the roles, `auth.users`/`auth.uid()`,
   enough `storage`). **Nothing in the stub re-implements a migration**; if a
-  migration would fail on a real project, it fails here. ~7s startup per file.
+  migration would fail on a real project, it fails here.
+- **ONE cluster per RUN; one DATABASE per `startTestDb` call.** `tests/db/cluster.ts`
+  is a vitest `globalSetup` that boots a single embedded Postgres for the whole run.
+  `startTestDb` does not boot a server: it creates a fresh database on that cluster,
+  applies the stub and the requested chain to it, and drops it in `stop()`. Booting
+  per file cost a measured 5.49s x 48 = 263s of a 320s run; it is 5.7s once now.
+  **Write a test exactly as before** -- the `startTestDb()` signature is unchanged.
+- **ISOLATION IS THE DATABASE BOUNDARY**, chosen over the two alternatives on
+  purpose. A per-file SCHEMA would mean rewriting migration SQL (they name `public`,
+  `auth` and `storage` literally) or bending `search_path`, which is the very thing
+  the SECURITY DEFINER functions under test pin against. Transactional rollback
+  cannot work here because `asUser` deliberately runs outside a transaction: many
+  tests assert a statement is REJECTED, and one rejection poisons everything after
+  it. Separate databases mean separate catalogs, so nothing a file leaves behind is
+  reachable from another even by name.
+- **The migrations run per database rather than from a TEMPLATE**, and the number
+  says why: 50 `startTestDb` calls request 37 DISTINCT chains, so a template cache
+  would warm only 13 of them, at 0.28s each. Applying them keeps the fixture's
+  central claim literally true -- every test database has had the real migration
+  files applied to it, in order, not a byte-copy of one that did.
+- **That isolation is PROVEN, not asserted.** `tests/db-isolation-a.test.ts` leaves a
+  table, a profile row and a sequence behind and never stops its database;
+  `tests/db-isolation-b.test.ts` fails if it can see any of them, and first reads A's
+  leak directly off the cluster as a POSITIVE CONTROL so its three absence
+  assertions cannot pass vacuously. Verified by breaking it: pointing `startTestDb`
+  at one shared database reddens 5 of B's assertions, and the harness was restored
+  md5-identical. **A new isolation mechanism updates that pair or it is not proven.**
+- **`tests/db/sequencer.ts` pins ONLY that pair's order.** Vitest's default sequencer
+  orders files by FILE SIZE, so the proof would go vacuous the moment someone edited
+  a comment in it. Nothing else is reordered, and this is not a licence to write an
+  order-dependent test: every other file must pass in any order.
 - **`asUser(id, fn)` sets the `request.jwt.claims` GUC then `SET ROLE
   authenticated`** -- exactly what PostgREST does. **The role switch is
   load-bearing**: the connection role owns these tables and bypasses both RLS and
