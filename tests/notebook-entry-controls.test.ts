@@ -236,3 +236,85 @@ describe('the instructor delete control is absent for a non-manager', () => {
 		expect(markup).toContain('Ada Lovelace');
 	});
 });
+
+/**
+ * THE 0118 DRAFT-STATE CONTROLS, on the SAME gates-that-go-red convention as
+ * the three above: absent case, present case beside it, and the two must
+ * differ. `entry()`'s own default is TURNED IN (see its own comment), which
+ * is exactly why every "present" case here has to say `submitted_at: null`
+ * out loud rather than lean on the fixture.
+ */
+
+describe('the "Turn in" control is absent on a turned-in entry', () => {
+	const onSubmit = async () => ({ ok: true as const });
+
+	it('renders no control on an entry that has already been turned in, even with a transport in hand', () => {
+		const markup = cardHtml({ onSubmit });
+		expect(markup).not.toContain('data-testid="entry-turn-in"');
+	});
+
+	it('...and renders it on a DRAFT with the same transport, so the absence above is the submitted-state gate and not a missing feature', () => {
+		const markup = cardHtml({ entry: entry({ submitted_at: null }), onSubmit });
+		expect(markup).toContain('data-testid="entry-turn-in"');
+	});
+
+	it('offers nothing at all on a draft entry with no transport -- the read-only / non-owner case', () => {
+		const markup = cardHtml({ entry: entry({ submitted_at: null }), onSubmit: undefined });
+		expect(markup).not.toContain('data-testid="entry-turn-in"');
+	});
+});
+
+describe('the "Move to drafts" control is absent on a draft entry', () => {
+	const onUnsubmit = async () => ({ ok: true as const });
+
+	it('renders no control on a draft, even with a transport in hand', () => {
+		const markup = cardHtml({ entry: entry({ submitted_at: null }), onUnsubmit });
+		expect(markup).not.toContain('data-testid="entry-move-to-drafts"');
+	});
+
+	it('...and renders it on a TURNED-IN entry with the same transport, so the absence above is the draft-state gate and not a missing feature', () => {
+		const markup = cardHtml({ onUnsubmit });
+		expect(markup).toContain('data-testid="entry-move-to-drafts"');
+	});
+
+	it('offers nothing at all on a turned-in entry with no transport -- the read-only / non-owner case', () => {
+		const markup = cardHtml({ onUnsubmit: undefined });
+		expect(markup).not.toContain('data-testid="entry-move-to-drafts"');
+	});
+});
+
+describe('neither draft-state control ever renders on the row variant', () => {
+	const onSubmit = async () => ({ ok: true as const });
+	const onUnsubmit = async () => ({ ok: true as const });
+
+	it('a draft renders its Draft marker in the row variant, but never a Turn in control there', () => {
+		const markup = cardHtml({
+			entry: entry({ submitted_at: null }),
+			variant: 'row',
+			onSubmit
+		});
+		expect(markup).toContain('data-testid="row-draft"');
+		expect(markup).not.toContain('data-testid="entry-turn-in"');
+	});
+
+	it('a turned-in entry offers no Move to drafts control in the row variant either', () => {
+		const markup = cardHtml({ variant: 'row', onUnsubmit });
+		expect(markup).not.toContain('data-testid="entry-move-to-drafts"');
+	});
+});
+
+describe('the Draft marker is unmistakable, in both variants', () => {
+	it('a turned-in entry carries no Draft marker', () => {
+		expect(cardHtml({})).not.toContain('data-testid="entry-draft-chip"');
+		expect(cardHtml({ variant: 'row' })).not.toContain('data-testid="row-draft"');
+	});
+
+	it('...and a draft carries it in both, so the absence above is the submitted-state gate and not a missing marker', () => {
+		expect(cardHtml({ entry: entry({ submitted_at: null }) })).toContain(
+			'data-testid="entry-draft-chip"'
+		);
+		expect(
+			cardHtml({ entry: entry({ submitted_at: null }), variant: 'row' })
+		).toContain('data-testid="row-draft"');
+	});
+});

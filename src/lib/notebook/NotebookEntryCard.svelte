@@ -109,7 +109,9 @@
 		onDelete,
 		onRemovePhoto,
 		onRetitle,
-		onRestorePhoto
+		onRestorePhoto,
+		onSubmit,
+		onUnsubmit
 	}: {
 		entry: NotebookEntry;
 		folders: NotebookFolder[];
@@ -167,6 +169,21 @@
 		 * disclosure's Restore control entirely, not just the count.
 		 */
 		onRestorePhoto?: (photoId: string) => Promise<EntryActionResult>;
+		/**
+		 * `full` variant only, owner only (0118, notebook_submit_entry). Turns a
+		 * DRAFT in. Omitted on a read-only surface or for a viewer who does not
+		 * own the entry -- there is no other kind of surface this ever mounts on,
+		 * since a draft is invisible to everyone else in the first place.
+		 */
+		onSubmit?: (entryId: string) => Promise<EntryActionResult>;
+		/**
+		 * `full` variant only, owner only (0118, notebook_unsubmit_entry). Moves a
+		 * TURNED-IN entry back to a draft. The RPC itself refuses this once an
+		 * instructor has reviewed the entry; this control does not try to predict
+		 * that client-side (the `onDelete` precedent above) -- it stays offered
+		 * and the RPC's own refusal is what the student sees.
+		 */
+		onUnsubmit?: (entryId: string) => Promise<EntryActionResult>;
 	} = $props();
 
 	/**
@@ -177,6 +194,12 @@
 	const canAddNote = $derived(!!onAddNote);
 	const canMove = $derived(foldersReady && !!onMove);
 	const canDelete = $derived(variant === 'full' && !!onDelete);
+
+	/** submitted_at is null on a project without 0118 too, but only ever for a
+	    row created before it -- see NotebookEntry.submitted_at. */
+	const isDraft = $derived(entry.submitted_at === null);
+	const canTurnIn = $derived(variant === 'full' && isDraft && !!onSubmit);
+	const canMoveToDrafts = $derived(variant === 'full' && !isDraft && !!onUnsubmit);
 
 	const photos = $derived(orderedPhotos(entry));
 	const pages = $derived(photoPages(photos));
@@ -343,6 +366,35 @@
 		if (!result.ok) restorePhotoErr = result.error;
 	}
 
+	// ---- draft state (0118): turning in, and moving back ---------------------
+
+	let submitting = $state(false);
+	let submitErr = $state<string | null>(null);
+
+	/** No confirm: turning in is reversible (moveToDrafts undoes it), and a
+	    confirm on a reversible action just trains people to dismiss the ones
+	    that matter. */
+	async function turnIn() {
+		if (!onSubmit || submitting) return;
+		submitting = true;
+		submitErr = null;
+		const result = await onSubmit(entry.id);
+		submitting = false;
+		if (!result.ok) submitErr = result.error;
+	}
+
+	let unsubmitting = $state(false);
+	let unsubmitErr = $state<string | null>(null);
+
+	async function moveToDrafts() {
+		if (!onUnsubmit || unsubmitting) return;
+		unsubmitting = true;
+		unsubmitErr = null;
+		const result = await onUnsubmit(entry.id);
+		unsubmitting = false;
+		if (!result.ok) unsubmitErr = result.error;
+	}
+
 	function togglePanel(kind: 'photos' | 'note') {
 		if (busy) return;
 		panel = panel === kind ? null : kind;
@@ -460,6 +512,9 @@
 				<span class="row-main">
 					<span class="row-title">
 						<span class="row-name" class:untitled={isUntitled(entry)}>{title}</span>
+						{#if isDraft}
+							<span class="chip draft-chip" data-testid="row-draft">Draft</span>
+						{/if}
 						{#if pinned}
 							<span class="chip pin-chip" data-testid="row-pinned">Pinned</span>
 						{/if}
@@ -548,6 +603,9 @@
 				{/if}
 				<span class="row-meta">
 					<span class="stamp">{collapsed ? shortWhen(entry.upload_timestamp) : when(entry.upload_timestamp)}</span>
+					{#if isDraft}
+						<span class="draft-chip" data-testid="entry-draft-chip">Draft</span>
+					{/if}
 					{#if pages.length}
 						<span class="dot" aria-hidden="true">·</span>
 						<span>{photoCountLabel(pages.length)}</span>
@@ -635,6 +693,39 @@
 						{/each}
 					</select>
 				</label>
+			{/if}
+
+			{#if canTurnIn}
+				<button
+					type="button"
+					class="tool draft-action"
+					disabled={submitting}
+					title="Turn this entry in to your instructor"
+					aria-label="Turn in {title}"
+					data-testid="entry-turn-in"
+					onclick={turnIn}
+				>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+						<path d="M4 12.5l5 5L20 6" stroke-linecap="round" stroke-linejoin="round" />
+					</svg>
+					<span class="tool-label">{submitting ? 'Turning in...' : 'Turn in'}</span>
+				</button>
+			{/if}
+			{#if canMoveToDrafts}
+				<button
+					type="button"
+					class="tool"
+					disabled={unsubmitting}
+					title="Move this entry back to your drafts"
+					aria-label="Move {title} back to drafts"
+					data-testid="entry-move-to-drafts"
+					onclick={moveToDrafts}
+				>
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+						<path d="M12 19V5M6 10l6-6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+					</svg>
+					<span class="tool-label">{unsubmitting ? 'Moving...' : 'Move to drafts'}</span>
+				</button>
 			{/if}
 
 			{#if pinsReady && onPin}
@@ -736,6 +827,12 @@
 	     exactly where the control no longer is. -->
 	{#if moveError}
 		<p class="row-error" role="alert">{moveError}</p>
+	{/if}
+	{#if submitErr}
+		<p class="row-error" role="alert" data-testid="entry-turn-in-error">{submitErr}</p>
+	{/if}
+	{#if unsubmitErr}
+		<p class="row-error" role="alert" data-testid="entry-move-to-drafts-error">{unsubmitErr}</p>
 	{/if}
 
 	{#if canRetitle && renaming}
@@ -1064,6 +1161,19 @@
 	.status.pending {
 		color: var(--nb-ink-soft);
 	}
+	/* UNMISTAKABLE ON PURPOSE: a draft must never read as turned-in work, so it
+	   gets the warning thread rather than a neutral chip a reader could skim
+	   past. Same shape as .status so it reads as one family of markers. */
+	.draft-chip {
+		padding: 0.1rem 0.5rem;
+		border-radius: 999px;
+		border: 1px solid currentColor;
+		text-transform: uppercase;
+		letter-spacing: 0.07em;
+		font-size: 0.62rem;
+		font-weight: 700;
+		color: var(--nb-warn);
+	}
 
 	/* --- folder + pin + copy ------------------------------------------------
 	   A quiet group at the end of the row. They sit outside the disclosure so
@@ -1211,6 +1321,16 @@
 	.tool.danger:hover:not(:disabled) {
 		color: var(--nb-error);
 		background: color-mix(in srgb, var(--nb-error) 8%, transparent);
+	}
+	/* Turning a draft in is the primary thing to do with it, so it carries the
+	   same warning thread as the draft chip rather than sitting neutral among
+	   the quieter tools beside it. */
+	.tool.draft-action {
+		color: var(--nb-warn);
+	}
+	.tool.draft-action:hover:not(:disabled) {
+		color: var(--nb-warn);
+		background: color-mix(in srgb, var(--nb-warn) 8%, transparent);
 	}
 	.tool:disabled {
 		cursor: default;

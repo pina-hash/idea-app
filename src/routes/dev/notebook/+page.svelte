@@ -58,6 +58,7 @@
 	let pinsReady = $state(true);
 	let deletionReady = $state(true);
 	let uploadReady = $state(true);
+	let draftsReady = $state(true);
 	/**
 	 * Pads the student's feed past the 30-entry render limit, so "Show older",
 	 * the date-group headings on older buckets and the search-over-everything
@@ -354,6 +355,26 @@
 			session: null,
 			photos: [photo('p-7', 1, null)],
 			notes: []
+		},
+		{
+			// A DRAFT (0118): not yet turned in. Must show an unmistakable Draft
+			// marker, offer a Turn in control, and -- since 'ses-1' has no other
+			// entry against it -- keep that check-in showing as outstanding
+			// rather than reading as filed the moment a page is staged.
+			id: 'e-9',
+			session_id: 'ses-1',
+			section_id: 'sec-1',
+			folder_id: null,
+			pinned_at: null,
+			custom_label: null,
+			upload_timestamp: '2026-08-09T08:00:00Z',
+			submitted_at: null,
+			status: 'compliant',
+			flag_reason: null,
+			instructor_comment: null,
+			session: { session_label: 'Bearing teardown', unit_number: 3, session_date: '2026-08-08' },
+			photos: [photo('p-12', 1, 'bearing-1.jpg')],
+			notes: []
 		}
 	];
 
@@ -505,12 +526,16 @@
 	 * actually have.
 	 */
 	const entries = $derived(
-		photosReady && sessionsReady
+		photosReady && sessionsReady && draftsReady
 			? rawEntries
 			: rawEntries.map((entry) => ({
 					...entry,
 					photos: photosReady ? entry.photos : [],
-					session: sessionsReady ? entry.session : null
+					session: sessionsReady ? entry.session : null,
+					// Mirrors +page.server.ts exactly: an unknown submitted_at reads as
+					// SUBMITTED, never as a draft -- the entry's own upload stamp,
+					// which is what the real backfill would have written.
+					submitted_at: draftsReady ? entry.submitted_at : entry.upload_timestamp
 				}))
 	);
 	const sessions = $derived(account === 'student' && sessionsReady ? SESSIONS : []);
@@ -685,6 +710,10 @@
 		const file = form.get('photo') as File | null;
 		const sessionId = (form.get('session_id') as string | null) ?? null;
 		const session = SESSIONS.find((s) => s.id === sessionId) ?? null;
+		// Mirrors notebook_create_entry's p_submitted: absent (or anything but
+		// the literal string "false") turns the entry in, matching the real
+		// route's own reading of the form field.
+		const submitted = (form.get('submitted') as string | null) !== 'false';
 		const entry: NotebookEntry = {
 			id,
 			session_id: sessionId,
@@ -693,7 +722,7 @@
 			pinned_at: null,
 			custom_label: (form.get('custom_label') as string | null) ?? null,
 			upload_timestamp: new Date().toISOString(),
-			submitted_at: new Date().toISOString(),
+			submitted_at: submitted ? new Date().toISOString() : null,
 			status: 'compliant',
 			flag_reason: null,
 			instructor_comment: null,
@@ -736,6 +765,8 @@
 		const noteId = `${id}-note`;
 		const noteSessionId = payload.session_id ?? null;
 		const noteSession = SESSIONS.find((s) => s.id === noteSessionId) ?? null;
+		// Mirrors notebook_create_note_entry's p_submitted: absent means true.
+		const submitted = payload.submitted !== false;
 		const entry: NotebookEntry = {
 			id,
 			session_id: noteSessionId,
@@ -744,7 +775,7 @@
 			pinned_at: null,
 			custom_label: payload.custom_label,
 			upload_timestamp: new Date().toISOString(),
-			submitted_at: new Date().toISOString(),
+			submitted_at: submitted ? new Date().toISOString() : null,
 			status: 'compliant',
 			flag_reason: null,
 			instructor_comment: null,
@@ -984,6 +1015,49 @@
 		return { ok: true };
 	}
 
+	// ---- draft state (0118) --------------------------------------------------
+
+	/** notebook_submit_entry: refuses already-submitted and an empty entry, counting LIVE photos only. */
+	async function submitEntry(entryId: string): Promise<EntryActionResult> {
+		log = [...log, `RPC notebook_submit_entry p_entry_id=${JSON.stringify(entryId)}`];
+		const found = current().find((e) => e.id === entryId);
+		if (!found) return { ok: false, error: 'That entry does not exist or is not yours.' };
+		if (found.submitted_at !== null) {
+			return { ok: false, error: 'That entry has already been turned in.' };
+		}
+		const photos = found.photos.filter((p) => !p.removed_at).length;
+		const notes = found.notes.length;
+		if (photos === 0 && notes === 0) {
+			return {
+				ok: false,
+				error: 'This entry has nothing in it to turn in. Add a photo or write a note first.'
+			};
+		}
+		updateAll((list) =>
+			list.map((e) => (e.id === entryId ? { ...e, submitted_at: new Date().toISOString() } : e))
+		);
+		return { ok: true };
+	}
+
+	/** notebook_unsubmit_entry: refuses a reviewed entry (the deleteEntry precedent) and a draft. */
+	async function unsubmitEntry(entryId: string): Promise<EntryActionResult> {
+		log = [...log, `RPC notebook_unsubmit_entry p_entry_id=${JSON.stringify(entryId)}`];
+		const found = current().find((e) => e.id === entryId);
+		if (!found) return { ok: false, error: 'That entry does not exist or is not yours.' };
+		if (found.status !== 'compliant' && found.instructor_comment) {
+			return {
+				ok: false,
+				error:
+					'Your instructor has already reviewed that entry, so you cannot pull it back. Ask them if you need to change it.'
+			};
+		}
+		if (found.submitted_at === null) {
+			return { ok: false, error: 'That entry has not been turned in.' };
+		}
+		updateAll((list) => list.map((e) => (e.id === entryId ? { ...e, submitted_at: null } : e)));
+		return { ok: true };
+	}
+
 	/**
 	 * What notebook_entry_activity returns, computed here the way the VIEW
 	 * computes it: the latest of the entry's own stamp and its note revisions.
@@ -1033,6 +1107,7 @@
 	<label><input type="checkbox" bind:checked={foldersReady} data-testid="sim-0088" /> 0088 applied</label>
 	<label><input type="checkbox" bind:checked={pinsReady} data-testid="sim-0091" /> 0091 applied</label>
 	<label><input type="checkbox" bind:checked={deletionReady} data-testid="sim-0117" /> 0116/0117 deletion readable</label>
+	<label><input type="checkbox" bind:checked={draftsReady} data-testid="sim-0118" /> 0118 applied</label>
 	<label><input type="checkbox" bind:checked={uploadReady} /> Drive configured</label>
 	<label><input type="checkbox" bind:checked={bulk} data-testid="sim-bulk" /> 40 more entries</label>
 	<!-- Mirrors /classroom/view-as/<email>/notebook exactly: readOnly plus NO
@@ -1073,6 +1148,7 @@
 		{pinsReady}
 		{activity}
 		{deletionReady}
+		{draftsReady}
 		deletedEntries={deletionReady ? deletedEntries : []}
 		uploadReady={viewAs ? false : uploadReady}
 		readOnly={viewAs}
@@ -1088,6 +1164,8 @@
 		setEntryLabel={viewAs ? undefined : setEntryLabel}
 		restoreEntry={viewAs ? undefined : restoreEntry}
 		restorePhoto={viewAs ? undefined : restorePhoto}
+		submitEntry={!viewAs && draftsReady ? submitEntry : undefined}
+		unsubmitEntry={!viewAs && draftsReady ? unsubmitEntry : undefined}
 	/>
 {/key}
 

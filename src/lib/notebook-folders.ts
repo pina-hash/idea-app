@@ -201,7 +201,7 @@ export function matchesSearch(entry: NotebookEntry, query: string): boolean {
  * with AND, so "Photos" plus "Notes" means entries carrying both -- narrowing,
  * consistently, exactly like the search terms above.
  */
-export type EntryFilterId = 'attention' | 'photos' | 'notes' | 'checkins';
+export type EntryFilterId = 'attention' | 'photos' | 'notes' | 'checkins' | 'drafts';
 
 export const ENTRY_FILTERS: { id: EntryFilterId; label: string; hint: string }[] = [
 	{
@@ -212,13 +212,15 @@ export const ENTRY_FILTERS: { id: EntryFilterId; label: string; hint: string }[]
 	{ id: 'photos', label: 'Has photos', hint: 'Entries with at least one page photographed' },
 	{ id: 'notes', label: 'Has notes', hint: 'Entries you have written something on' },
 	{ id: 'checkins', label: 'Check-ins', hint: 'Entries filed against a scheduled check-in' }
+	// 'drafts' is deliberately NOT listed here -- see DRAFT_FILTER below.
 ];
 
 const FILTER_PREDICATES: Record<EntryFilterId, (e: NotebookEntry) => boolean> = {
 	attention: (e) => e.status === 'flagged' || e.status === 'pending_review',
 	photos: (e) => e.photos.length > 0,
 	notes: (e) => (e.notes?.length ?? 0) > 0,
-	checkins: (e) => e.session_id !== null
+	checkins: (e) => e.session_id !== null,
+	drafts: (e) => e.submitted_at === null
 };
 
 /**
@@ -231,6 +233,21 @@ const FILTER_PREDICATES: Record<EntryFilterId, (e: NotebookEntry) => boolean> = 
 export const DELETED_FILTER = {
 	label: 'Recently deleted',
 	hint: 'Entries you or your instructor removed'
+} as const;
+
+/**
+ * The "Drafts" toggle (0118), placed right after "Recently deleted" in the
+ * chips row. UNLIKE that one, this IS an ordinary EntryFilterId: a draft stays
+ * in `entries` (0118's own rule -- it "is in this feed and nowhere else"), so
+ * narrowing to it is a plain predicate, composable with search and the other
+ * chips exactly like `notes` or `photos`. It is rendered on its own, outside
+ * the `ENTRY_FILTERS` loop, only because -- unlike the other four -- it needs
+ * a readiness gate (`draftsReady`), which is the caller's to apply.
+ */
+export const DRAFT_FILTER = {
+	id: 'drafts' as const,
+	label: 'Drafts',
+	hint: 'Entries you have not turned in yet'
 } as const;
 
 export interface EntryQuery {

@@ -489,15 +489,41 @@ export function driveOpenUrl(driveFileId: string): string {
 	return `https://drive.google.com/file/d/${encodeURIComponent(driveFileId)}/view`;
 }
 
-/** A session the student has no entry against yet. */
+/**
+ * A session the student has no TURNED-IN entry against yet.
+ *
+ * A DRAFT DOES NOT COVER A CHECK-IN (0118). Before drafts existed, any entry
+ * at all meant the check-in was answered; a draft is not presence, so
+ * excluding it here is what keeps a check-in with only a draft against it
+ * showing as outstanding rather than silently reading as filed the moment a
+ * page is staged. `class-check-ins.ts`'s `isOutstanding` makes the identical
+ * call for the class page's own check-in cards -- both surfaces exist to
+ * answer "does this still need something from you", and a draft answers yes.
+ */
 export function outstandingSessions(
 	sessions: NotebookSession[],
-	entries: Pick<NotebookEntry, 'session_id'>[]
+	entries: Pick<NotebookEntry, 'session_id' | 'submitted_at'>[]
 ): NotebookSession[] {
-	const covered = new Set(entries.map((e) => e.session_id).filter(Boolean) as string[]);
+	const covered = new Set(
+		entries
+			.filter((e) => e.submitted_at !== null)
+			.map((e) => e.session_id)
+			.filter(Boolean) as string[]
+	);
 	return sessions
 		.filter((s) => !covered.has(s.id))
 		.sort((a, b) => b.session_date.localeCompare(a.session_date));
+}
+
+/** Whether this exact posting (session, section pair) has a DRAFT against it. */
+export function sessionHasDraft(
+	session: Pick<NotebookSession, 'id' | 'section_id'>,
+	entries: Pick<NotebookEntry, 'session_id' | 'section_id' | 'submitted_at'>[]
+): boolean {
+	return entries.some(
+		(e) =>
+			e.session_id === session.id && e.section_id === session.section_id && e.submitted_at === null
+	);
 }
 
 /** Whole days between two YYYY-MM-DD dates, ignoring time and zone entirely. */
@@ -515,7 +541,7 @@ function dayGap(isoDate: string, today: string): number {
  */
 export function nearestOutstanding(
 	sessions: NotebookSession[],
-	entries: Pick<NotebookEntry, 'session_id'>[],
+	entries: Pick<NotebookEntry, 'session_id' | 'submitted_at'>[],
 	today: string
 ): NotebookSession | null {
 	const open = outstandingSessions(sessions, entries);
@@ -585,4 +611,12 @@ export interface NotePayload {
 	 */
 	session_id?: string | null;
 	section_id?: string | null;
+	/**
+	 * Turn the entry in at creation (0118), default true. `false` makes a
+	 * DRAFT: `submitted_at` stays null, so it is private until the student
+	 * turns it in themselves. Omitted entirely by a caller that never asks for
+	 * a draft, which is what keeps this path working unchanged on a project
+	 * where 0118 has not been applied yet.
+	 */
+	submitted?: boolean;
 }

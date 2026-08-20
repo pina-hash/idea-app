@@ -182,6 +182,23 @@
 		if (error) return rpcFail(error, 'Could not restore that photo.');
 		return { ok: true };
 	}
+
+	/**
+	 * The two draft-state writes (0118), direct to their RPCs for the same
+	 * reason as the corrections above: each is one call with no server work of
+	 * its own, so a route would be a hop that adds nothing.
+	 */
+	async function submitEntry(entryId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_submit_entry', { p_entry_id: entryId });
+		if (error) return rpcFail(error, 'Could not turn in that entry.');
+		return { ok: true };
+	}
+
+	async function unsubmitEntry(entryId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_unsubmit_entry', { p_entry_id: entryId });
+		if (error) return rpcFail(error, 'Could not move that entry back to drafts.');
+		return { ok: true };
+	}
 </script>
 
 <NotebookView
@@ -196,6 +213,7 @@
 	foldersReady={data.foldersReady}
 	pinsReady={data.pinsReady}
 	sessionsReady={data.sessionsReady}
+	draftsReady={data.draftsReady}
 	initialCheckIn={data.initialCheckIn}
 	activity={data.activity}
 	deletionReady={data.deletionReady}
@@ -213,5 +231,7 @@
 	{setEntryLabel}
 	{restoreEntry}
 	{restorePhoto}
+	{submitEntry}
+	{unsubmitEntry}
 	onChanged={() => invalidateAll()}
 />

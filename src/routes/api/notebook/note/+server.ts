@@ -47,6 +47,7 @@ import type { RequestHandler } from './$types';
  *   session_id    uuid of a notebook_sessions check-in (optional)
  *   section_id    which class the entry is for (optional; with a session it
  *                 must be one that check-in is posted to)
+ *   submitted     false makes a DRAFT (0118); omitted or true turns it in
  */
 
 export const POST: RequestHandler = async ({ request, locals: { supabase, claims } }) => {
@@ -124,6 +125,15 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 	 * that needs 0114 is the only one that asks for it.
 	 */
 	if (sessionId) args.p_session_id = sessionId;
+	/**
+	 * p_submitted follows p_session_id's rule, for the identical reason: on a
+	 * project still on 0113, notebook_create_note_entry has no such parameter
+	 * at all, and naming it unconditionally would break every note, including
+	 * every free-form one that has nothing to do with a draft. Omitted (the
+	 * default, true) it matches either version; only a request for a DRAFT
+	 * needs 0118, and that is the one caller that names it.
+	 */
+	if (body.submitted === false) args.p_submitted = false;
 
 	const { data, error } = await supabase.rpc('notebook_create_note_entry', args);
 	if (error) {

@@ -22,6 +22,8 @@ import type { RequestHandler } from './$types';
  *   session_id    uuid of a notebook_sessions row (optional)
  *   section_id    uuid of a notebook_sections row (optional)
  *   custom_label  free-entry label (required when there is no session)
+ *   submitted     "false" makes a DRAFT (0118); omitted or any other value
+ *                 turns it in
  *
  * If the RPC refuses after the file already landed in Drive, the orphaned
  * file is deleted best-effort so refused submissions do not pile up there.
@@ -124,6 +126,15 @@ export const POST: RequestHandler = async ({ request, locals: { supabase, claims
 		p_original_filename: originalFilename
 	};
 	if (folderId) args.p_folder_id = folderId;
+	/**
+	 * p_submitted follows p_folder_id's rule, for p_folder_id's reason: on a
+	 * project still on 0117, notebook_create_entry has its seven-argument
+	 * signature (no p_submitted at all), and naming it unconditionally would
+	 * leave PostgREST unable to resolve the function and break EVERY upload.
+	 * Omitted (the default, true) it matches either version; only a request
+	 * for a DRAFT needs 0118, and that is the one case that names it.
+	 */
+	if (formText(form, 'submitted') === 'false') args.p_submitted = false;
 
 	const { data, error } = await supabase.rpc('notebook_create_entry', args);
 	if (error) {

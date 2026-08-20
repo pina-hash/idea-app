@@ -32,6 +32,7 @@
 		nearestOutstanding,
 		outstandingSessions,
 		photoCountLabel,
+		sessionHasDraft,
 		sessionMeta,
 		sortEntries,
 		todayIso,
@@ -49,6 +50,7 @@
 	} from '$lib/notebook';
 	import {
 		DELETED_FILTER,
+		DRAFT_FILTER,
 		ENTRY_FILTERS,
 		applyQuery,
 		folderCounts,
@@ -120,6 +122,7 @@
 		foldersReady = true,
 		pinsReady = true,
 		sessionsReady = true,
+		draftsReady = true,
 		initialCheckIn = null,
 		activity = [],
 		deletionReady = true,
@@ -139,6 +142,8 @@
 		setEntryLabel,
 		restoreEntry,
 		restorePhoto,
+		submitEntry,
+		unsubmitEntry,
 		onChanged
 	}: {
 		entries: NotebookEntry[];
@@ -203,6 +208,14 @@
 		 */
 		pinsReady?: boolean;
 		/**
+		 * 0118 applied. False means `submitted_at` cannot exist yet, so every
+		 * entry the load returns was turned in when it was made -- there is no
+		 * draft to compose, no Drafts filter, and no per-entry Turn in / Move to
+		 * drafts control, exactly the notebook this page rendered before drafts
+		 * existed.
+		 */
+		draftsReady?: boolean;
+		/**
 		 * notebook_entry_activity (0091), one row per entry the caller can
 		 * read. Computed in the DATABASE over every note revision and photo,
 		 * not here: the feed paints a capped number of entries while sorting
@@ -265,6 +278,15 @@
 		 * straight to each NotebookEntryCard's own removed-photos disclosure.
 		 */
 		restorePhoto?: (photoId: string) => Promise<EntryActionResult>;
+		/**
+		 * Turning a draft in (0118, notebook_submit_entry). Drives BOTH the
+		 * composer's own "Turn in" button and every draft entry card's own
+		 * control -- one implementation, so the two can never disagree about
+		 * what turning an entry in does.
+		 */
+		submitEntry?: (entryId: string) => Promise<EntryActionResult>;
+		/** Moving a turned-in entry back to a draft (0118, notebook_unsubmit_entry). */
+		unsubmitEntry?: (entryId: string) => Promise<EntryActionResult>;
 		/** Called after any successful save so the page can refresh its data. */
 		onChanged?: () => void;
 	} = $props();
@@ -438,6 +460,19 @@
 	let successMsg = $state<string | null>(null);
 	/** Set when a previous load's capture never came back (see camera.ts). */
 	let recoveryNote = $state<string | null>(null);
+	/**
+	 * THE ENTRY THIS COMPOSER SESSION CREATED AS A DRAFT, if it has (0118).
+	 *
+	 * Set the instant `createEntry`/`createNote` SUCCEEDS and never before, so
+	 * a second "Save draft" click in the same session can never call either of
+	 * them again -- it only ever ADDS to the entry this id names. That is the
+	 * whole guarantee: one retry, one entry, mirroring `saveTarget` in
+	 * `$lib/classroom/composer-staging.ts`, which exists for the identical
+	 * reason (a retry that recreates instead of updating is how one save
+	 * becomes two items). Cleared by `resetForm()`, which only ever runs once
+	 * everything currently staged has actually landed.
+	 */
+	let savedDraftId = $state<string | null>(null);
 
 	const open = $derived(outstandingSessions(sessions, entries));
 
@@ -480,6 +515,19 @@
 	 */
 	const noteOnly = $derived(!hasPhotos && hasNote);
 	const canSubmit = $derived(hasPhotos || hasNote);
+	/**
+	 * Turn in is available whenever there is fresh content to save, OR this
+	 * session already has a draft entry sitting behind `savedDraftId` -- even
+	 * with nothing new staged, there is still a real entry to turn in.
+	 */
+	const canTurnIn = $derived(canSubmit || !!savedDraftId);
+	/**
+	 * Save draft only ever asks "is there something NEW to save right now" --
+	 * a second click with nothing added since the first is a no-op the button
+	 * refuses rather than offers (`runSave` guards it too, this is only the
+	 * visible half of the same rule).
+	 */
+	const canSaveDraft = $derived(draftsReady && canSubmit);
 
 	// Default to the outstanding session nearest today, and otherwise leave
 	// the student's own pick alone as `entries` refreshes underneath -- with
@@ -608,6 +656,9 @@
 		// where the last one went, and the suggestion effect re-derives it from
 		// what was just saved.
 		folderTouched = false;
+		// The draft this session was continuing is done -- fully saved, or
+		// turned in. The NEXT save, if any, is a genuinely new entry.
+		savedDraftId = null;
 	}
 
 	/**
@@ -707,127 +758,257 @@
 		return { ok: true };
 	}
 
-	async function submit(e: SubmitEvent) {
-		e.preventDefault();
-		if (readOnly || busy || !canSubmit) return;
-		if (noteOnly ? !createNote : !createEntry) return;
+	/**
+	 * A note-only DRAFT save that has landed still leaves a real note behind on
+	 * the entry, so a second click of "Save draft" with nothing new typed has
+	 * nothing to add -- it must not re-send the same words as a second
+	 * revision. Clearing `noteDraft` the instant a save carries it is what
+	 * keeps that true for every path below, draft and turn-in alike.
+	 */
+
+	/**
+	 * Fresh create, note-only door (no photo, real text): notebook_create_note_entry.
+	 * Runs ONLY when `savedDraftId` is null -- see `runSave`.
+	 */
+	async function createFromNote(submitted: boolean) {
+		progress = 'Saving...';
+		// SINCE 0114 IT CARRIES THE CHECK-IN when one is picked, which is the
+		// whole point of that pass -- a check-in answered in writing is a note
+		// entry filed against that check-in, not a refusal. The section comes
+		// from the PICK for the reason the photo path takes it from there too: a
+		// shared check-in has one id and several postings.
+		const saved = await createNote!({
+			content: noteDraft as TiptapNode,
+			custom_label: title.trim() || null,
+			folder_id: folderChoice,
+			session_id: selectedSession,
+			section_id: selectedSession ? sectionForPick() : null,
+			submitted
+		});
+		if (!saved.ok) {
+			errorMsg = saved.error;
+			return;
+		}
+		if (submitted) {
+			successMsg = selectedSession ? 'Check-in saved.' : 'Note saved.';
+			resetForm();
+		} else {
+			// Remembered AT ONCE: the create succeeded, so nothing after this
+			// point may ever call createNote again in this composer session --
+			// only add to the entry this id names (the saveTarget guarantee).
+			savedDraftId = saved.entryId;
+			successMsg = 'Draft saved. Turn it in from its card whenever you are ready.';
+			noteDraft = null;
+			noteKey += 1;
+		}
+		onChanged?.();
+	}
+
+	/**
+	 * Fresh create, photo door: photo 1 creates the entry, the note (if any)
+	 * and the rest of the staged photos follow. Runs ONLY when `savedDraftId`
+	 * is null -- see `runSave`.
+	 *
+	 * TURN-IN KEEPS THE EXACT PRE-DRAFT BEHAVIOUR: whatever happens to the
+	 * note or the later photos, the form always resets and any recovery is
+	 * from the entry's own card, never a composer retry. A DRAFT SAVE DOES
+	 * NOT: it remembers the entry and clears only what actually landed, so a
+	 * retry click can finish the rest without ever calling createEntry again.
+	 */
+	async function createFromPhoto(submitted: boolean) {
+		// Photo 1 creates the entry. A blank title is sent as nothing at all:
+		// 0071 made it optional and the upload route falls back to the file's
+		// own name, so the UI must not re-impose a required-title rule.
+		progress = staged.length > 1 ? `Uploading photo 1 of ${staged.length}...` : 'Uploading...';
+		const first = new FormData();
+		first.set('photo', await prepared(staged[0].file));
+		if (selectedSession) {
+			first.set('session_id', selectedSession);
+			const sectionId = sectionForPick();
+			if (sectionId) first.set('section_id', sectionId);
+		}
+		const trimmed = title.trim();
+		if (!selectedSession && trimmed) first.set('custom_label', trimmed);
+		if (folderChoice) first.set('folder_id', folderChoice);
+		// Omitted when true (the default): a project without 0118 applied still
+		// has the old notebook_create_entry signature, and naming p_submitted
+		// unconditionally would leave PostgREST unable to resolve it -- the
+		// same rule p_folder_id already follows.
+		if (!submitted) first.set('submitted', 'false');
+
+		const created = await createEntry!(first);
+		if (!created.ok) {
+			errorMsg = created.error;
+			return;
+		}
+		// Remembered AT ONCE, whichever button was pressed: from this line on,
+		// nothing in this composer session may call createEntry again.
+		savedDraftId = created.entryId;
+
+		// The entry's optional note, written in the same action -- on ANY tier
+		// since the mode picker went, so a photographed page can carry a
+		// sentence about it. It goes FIRST, immediately after the entry exists:
+		// it is one cheap call against several slow uploads, so sending it now
+		// is what keeps the student's own words from being the thing lost to a
+		// dropped connection halfway through the photos.
+		let noteFailed = false;
+		if (hasNote) {
+			progress = 'Saving your note...';
+			const savedNote = await addNote!(created.entryId, noteDraft as TiptapNode);
+			noteFailed = !savedNote.ok;
+		}
+
+		const failed: number[] = [];
+		const failedEnhanced: number[] = [];
+		for (let i = 0; i < staged.length; i++) {
+			const result = await uploadPair(
+				created.entryId,
+				staged[i],
+				i + 1,
+				staged.length,
+				(m) => (progress = m),
+				i === 0
+			);
+			if (!result.originalOk) failed.push(i + 1);
+			else if (!result.enhancedOk) failedEnhanced.push(i + 1);
+		}
+
+		if (failed.length) {
+			errorMsg = `Saved your entry, but ${photoList(failed)} did not upload. Add ${
+				failed.length === 1 ? 'it' : 'them'
+			} again from this page.`;
+		} else {
+			successMsg = submitted
+				? staged.length === 1
+					? 'Entry saved.'
+					: `Entry saved with ${photoCountLabel(staged.length)}.`
+				: staged.length === 1
+					? 'Draft saved.'
+					: `Draft saved with ${photoCountLabel(staged.length)}.`;
+			if (failedEnhanced.length) {
+				successMsg += ` The corrected version of ${photoList(
+					failedEnhanced
+				)} did not upload; the original is saved.`;
+			}
+		}
+		if (noteFailed) {
+			errorMsg =
+				(errorMsg ? errorMsg + ' ' : '') +
+				'Your note did not save, so it is still in the box below. Add it to the entry from its own card.';
+		}
+
+		if (submitted) {
+			// Exactly the pre-0118 shape: reset regardless of a partial photo
+			// failure, recoverable from the card, never from here.
+			resetForm(noteFailed);
+		} else {
+			// A DRAFT: keep `savedDraftId` (it was set above) and clear only
+			// what actually landed, so a retry click can finish the rest --
+			// through `continueSaved` below -- without ever recreating the entry.
+			if (!failed.length) {
+				staged = [];
+				stager?.reset();
+			}
+			if (!noteFailed) {
+				noteDraft = null;
+				noteKey += 1;
+			}
+		}
+		onChanged?.();
+	}
+
+	/**
+	 * A RETRY, or a deliberate follow-up: `savedDraftId` already names a real
+	 * entry from an earlier save in this composer session, so this NEVER calls
+	 * createEntry or createNote -- it only adds whatever is staged now, and
+	 * turns the entry in when asked. This is the whole guarantee behind
+	 * "saving a draft twice must not create two entries".
+	 */
+	async function continueSaved(submitted: boolean) {
+		const entryId = savedDraftId as string;
+		let noteFailed = false;
+		if (hasNote) {
+			progress = 'Saving your note...';
+			const savedNote = await addNote!(entryId, noteDraft as TiptapNode);
+			noteFailed = !savedNote.ok;
+		}
+		const failed: number[] = [];
+		const failedEnhanced: number[] = [];
+		for (let i = 0; i < staged.length; i++) {
+			const result = await uploadPair(entryId, staged[i], i + 1, staged.length, (m) => (progress = m));
+			if (!result.originalOk) failed.push(i + 1);
+			else if (!result.enhancedOk) failedEnhanced.push(i + 1);
+		}
+
+		if (submitted) {
+			if (!submitEntry) {
+				errorMsg = 'Turning in an entry is not available here.';
+				return;
+			}
+			const res = await submitEntry(entryId);
+			if (!res.ok) {
+				errorMsg = res.error;
+				return;
+			}
+		}
+
+		if (failed.length) {
+			errorMsg = `${photoList(failed)} did not upload. Try again.`;
+			return;
+		}
+		if (noteFailed) {
+			errorMsg = 'Your note did not save, so it is still in the box above. Try again.';
+			return;
+		}
+		successMsg = submitted ? 'Entry turned in.' : 'Draft updated.';
+		if (failedEnhanced.length) {
+			successMsg += ` The corrected version of ${photoList(
+				failedEnhanced
+			)} did not upload; the original is saved.`;
+		}
+		resetForm();
+		onChanged?.();
+	}
+
+	/**
+	 * Both composer buttons, TURN IN when `submitted` is true and SAVE DRAFT
+	 * when it is false. `savedDraftId` decides the rest: null means create,
+	 * anything else means this session already made an entry and every save
+	 * from here on only ever adds to it -- `continueSaved` is the one and only
+	 * place that can be true, and it is never reachable from a fresh composer.
+	 */
+	async function runSave(submitted: boolean) {
+		if (readOnly || busy) return;
+		const continuing = !!savedDraftId;
+		if (!continuing && !canSubmit) return;
+		if (!continuing && (noteOnly ? !createNote : !createEntry)) return;
+		// A continuing draft with nothing new staged and no request to turn it
+		// in is a click with nothing to do.
+		if (continuing && !hasNote && staged.length === 0 && !submitted) return;
+
 		busy = true;
 		errorMsg = null;
 		successMsg = null;
-		progress = noteOnly
-			? 'Saving...'
-			: staged.length > 1
-				? `Uploading photo 1 of ${staged.length}...`
-				: 'Uploading...';
-
+		progress = 'Saving...';
 		try {
-			// A note has no photo and so no sequencing at all: one call, done.
-			// SINCE 0114 IT CARRIES THE CHECK-IN when one is picked, which is the
-			// whole point of this pass -- a check-in answered in writing is a
-			// note entry filed against that check-in, not a refusal. The section
-			// comes from the PICK for the reason the photo path takes it from
-			// there too: a shared check-in has one id and several postings.
-			if (noteOnly) {
-				const saved = await createNote!({
-					content: noteDraft as TiptapNode,
-					custom_label: title.trim() || null,
-					folder_id: folderChoice,
-					session_id: selectedSession,
-					section_id: selectedSession ? sectionForPick() : null
-				});
-				if (!saved.ok) {
-					errorMsg = saved.error;
-					return;
-				}
-				successMsg = selectedSession ? 'Check-in saved.' : 'Note saved.';
-				resetForm();
-				onChanged?.();
-				return;
-			}
-
-			// Photo 1 creates the entry. A blank title is sent as nothing at all:
-			// 0071 made it optional and the upload route falls back to the file's
-			// own name, so the UI must not re-impose a required-title rule.
-			const first = new FormData();
-			first.set('photo', await prepared(staged[0].file));
-			if (selectedSession) {
-				first.set('session_id', selectedSession);
-				const sectionId = sectionForPick();
-				if (sectionId) first.set('section_id', sectionId);
-			}
-			const trimmed = title.trim();
-			if (!selectedSession && trimmed) first.set('custom_label', trimmed);
-			if (folderChoice) first.set('folder_id', folderChoice);
-
-			const created = await createEntry!(first);
-			if (!created.ok) {
-				errorMsg = created.error;
-				return;
-			}
-
-			// The entry's optional note, written in the same action -- on ANY tier
-			// since the mode picker went, so a photographed page can carry a
-			// sentence about it. It goes FIRST, immediately after the entry
-			// exists: it is one cheap call against several slow uploads, so
-			// sending it now is what keeps the student's own words from being the
-			// thing lost to a dropped connection halfway through the photos.
-			//
-			// A failure here is reported and does not abort the upload -- the
-			// entry and its photos are real either way, and the note can be added
-			// again from the entry itself.
-			let noteFailed = false;
-			if (hasNote) {
-				progress = 'Saving your note...';
-				const savedNote = await addNote!(created.entryId, noteDraft as TiptapNode);
-				noteFailed = !savedNote.ok;
-			}
-
-			// Failures are reported honestly rather than rolled back: the entry
-			// and its first photo really do exist, and the student can add the
-			// rest from the entry itself.
-			const failed: number[] = [];
-			const failedEnhanced: number[] = [];
-			for (let i = 0; i < staged.length; i++) {
-				const result = await uploadPair(
-					created.entryId,
-					staged[i],
-					i + 1,
-					staged.length,
-					(m) => (progress = m),
-					i === 0
-				);
-				if (!result.originalOk) failed.push(i + 1);
-				else if (!result.enhancedOk) failedEnhanced.push(i + 1);
-			}
-
-			if (failed.length) {
-				errorMsg = `Saved your entry, but ${photoList(failed)} did not upload. Add ${
-					failed.length === 1 ? 'it' : 'them'
-				} again from this page.`;
-			} else {
-				successMsg =
-					staged.length === 1
-						? 'Entry saved.'
-						: `Entry saved with ${photoCountLabel(staged.length)}.`;
-				if (failedEnhanced.length) {
-					successMsg += ` The corrected version of ${photoList(
-						failedEnhanced
-					)} did not upload; the original is saved.`;
-				}
-			}
-			if (noteFailed) {
-				errorMsg =
-					(errorMsg ? errorMsg + ' ' : '') +
-					'Your note did not save, so it is still in the box below. Add it to the entry from its own card.';
-			}
-			resetForm(noteFailed);
-			onChanged?.();
+			if (continuing) await continueSaved(submitted);
+			else if (noteOnly) await createFromNote(submitted);
+			else await createFromPhoto(submitted);
 		} catch (err) {
-			errorMsg = (err as Error).message || 'The upload failed to send.';
+			errorMsg = (err as Error).message || 'The save failed to send.';
 		} finally {
 			busy = false;
 			progress = '';
 		}
+	}
+
+	async function onTurnInSubmit(e: SubmitEvent) {
+		e.preventDefault();
+		await runSave(true);
+	}
+
+	async function onSaveDraftClick() {
+		await runSave(false);
 	}
 
 	/** EntryNotes hands back a saved revision; the feed then reloads. */
@@ -1038,6 +1219,28 @@
 		return result;
 	}
 
+	/**
+	 * The two draft-state writes (0118), on the SAME shape and reused by BOTH
+	 * a card's own control AND the composer -- the composer's own retry logic
+	 * calls `submitEntry`/`unsubmitEntry` directly, since it already tracks
+	 * whether a call landed; a card has none of that state, so it goes through
+	 * the reload-on-success wrapper every other card write already uses.
+	 */
+	async function submitOne(entryId: string): Promise<EntryActionResult> {
+		if (readOnly || !submitEntry) return { ok: false, error: 'Turning in an entry is not available.' };
+		const result = await submitEntry(entryId);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
+	async function unsubmitOne(entryId: string): Promise<EntryActionResult> {
+		if (readOnly || !unsubmitEntry)
+			return { ok: false, error: 'Moving an entry back to drafts is not available.' };
+		const result = await unsubmitEntry(entryId);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
 	// ---- "Recently deleted" (0117) ------------------------------------------
 
 	/** The rail toggle: the nav pane's deleted-list view instead of the normal feed. */
@@ -1181,6 +1384,22 @@
 				{/if}
 			</p>
 		{:else}
+			<!--
+				A STUDENT WHOSE ONLY WORK IS A DRAFT still has entries (0118: "it is
+				in this feed and nowhere else"), so the branch above never fires for
+				them -- and without this, nothing here would say so either, which
+				would read as "no work at all" the moment the feed itself is scanned
+				rather than read entry by entry. Says it once, plainly, above the
+				feed; each entry's own Draft chip is what makes it unmistakable card
+				by card.
+			-->
+			{#if draftsReady && !showingDeleted && entries.length > 0 && entries.every((e) => e.submitted_at === null)}
+				<p class="note empty-state" data-testid="nb-all-drafts-note">
+					{readOnly
+						? 'Everything in this notebook is still a draft -- nothing has been turned in yet.'
+						: "Everything below is a draft. Add to it, then turn it in when you're ready."}
+				</p>
+			{/if}
 			{#if !showingDeleted && foldersReady && managerOpen && folderTransports}
 				<FolderManager
 					{folders}
@@ -1254,6 +1473,25 @@
 							onclick={() => (showingDeleted = !showingDeleted)}
 						>
 							{DELETED_FILTER.label}{#if deletedEntries.length} ({deletedEntries.length}){/if}
+						</button>
+					{/if}
+					<!--
+						DRAFTS, following the Recently deleted toggle it sits beside. Unlike
+						that one this IS an ordinary EntryFilterId (a draft never leaves
+						`entries`), so it stays out of the ENTRY_FILTERS loop above only
+						because it alone needs draftsReady to gate it.
+					-->
+					{#if !showingDeleted && draftsReady}
+						<button
+							type="button"
+							class="chip-toggle"
+							class:on={filters.includes(DRAFT_FILTER.id)}
+							aria-pressed={filters.includes(DRAFT_FILTER.id)}
+							title={DRAFT_FILTER.hint}
+							data-testid="filter-drafts"
+							onclick={() => toggleFilter(DRAFT_FILTER.id)}
+						>
+							{DRAFT_FILTER.label}
 						</button>
 					{/if}
 				</div>
@@ -1443,6 +1681,8 @@
 										onRemovePhoto={removePhoto ? removePhotoOne : undefined}
 										onRetitle={setEntryLabel ? retitleOne : undefined}
 										onRestorePhoto={restorePhoto ? restorePhotoOne : undefined}
+										onSubmit={submitEntry ? submitOne : undefined}
+										onUnsubmit={unsubmitEntry ? unsubmitOne : undefined}
 									/>
 								</li>
 							{/each}
@@ -1516,7 +1756,7 @@
 				<p class="feedback error" role="status" data-testid="nb-recovery">{recoveryNote}</p>
 			{/if}
 
-			<form onsubmit={submit}>
+			<form onsubmit={onTurnInSubmit}>
 				<fieldset class="picker">
 					<legend>What is this for?</legend>
 					{#if open.length}
@@ -1537,7 +1777,15 @@
 									onclick={() => chooseSession(s.id, s.section_id)}
 								>
 									<span class="pick-label">{s.session_label}</span>
-									<span class="pick-meta">{sessionMeta(s)}</span>
+									<span class="pick-meta">
+										{sessionMeta(s)}
+										<!-- A draft against this check-in is why it is still here
+										     rather than filed -- say so, so picking it again reads
+										     as "keep going" and not "start over". -->
+										{#if draftsReady && sessionHasDraft(s, entries)}
+											· <span data-testid="pick-draft">Draft in progress</span>
+										{/if}
+									</span>
 								</button>
 							{/each}
 							<button
@@ -1653,15 +1901,31 @@
 				{/if}
 
 				<div class="actions">
-					<button class="btn" type="submit" disabled={busy || !canSubmit}>
-						{busy ? 'Saving...' : noteOnly ? 'Save what you wrote' : 'Save entry'}
+					<button class="btn" type="submit" data-testid="nb-turn-in" disabled={busy || !canTurnIn}>
+						{busy ? 'Saving...' : 'Turn in'}
 					</button>
+					<!--
+						SAVE DRAFT IS BUTTON-TYPE, so pressing Enter in the form always
+						turns the entry in (the primary action) and never quietly saves a
+						draft instead.
+					-->
+					{#if draftsReady}
+						<button
+							type="button"
+							class="btn secondary"
+							data-testid="nb-save-draft"
+							disabled={busy || !canSaveDraft}
+							onclick={onSaveDraftClick}
+						>
+							{busy ? 'Saving...' : 'Save draft'}
+						</button>
+					{/if}
 					{#if progress}<span class="progress">{progress}</span>{/if}
 				</div>
 				<!-- SAYS WHICH HALF IS MISSING, and never names photos alone: the
 				     student is being stopped by a rule with two ways to satisfy it,
 				     so both have to be on screen at the moment they are stopped. -->
-				{#if !canSubmit && !busy}
+				{#if !canSubmit && !savedDraftId && !busy}
 					<p class="note submit-hint" data-testid="nb-submit-hint">
 						{#if !noteAllowed}
 							Add a photo to save this entry.
@@ -1671,6 +1935,11 @@
 						{:else}
 							Add a photo or write something to save this entry. Either one is enough.
 						{/if}
+					</p>
+				{/if}
+				{#if savedDraftId && !canSubmit && !busy}
+					<p class="note submit-hint" data-testid="nb-draft-pending">
+						This draft is saved. Turn it in when you are ready, or add more first.
 					</p>
 				{/if}
 			</form>
@@ -1706,6 +1975,8 @@
 					onRemovePhoto={removePhoto ? removePhotoOne : undefined}
 					onRetitle={setEntryLabel ? retitleOne : undefined}
 					onRestorePhoto={restorePhoto ? restorePhotoOne : undefined}
+					onSubmit={submitEntry ? submitOne : undefined}
+					onUnsubmit={unsubmitEntry ? unsubmitOne : undefined}
 				/>
 			</div>
 		{/key}
@@ -2061,6 +2332,13 @@
 		gap: 0.8rem;
 		margin-top: 1.1rem;
 		flex-wrap: wrap;
+	}
+	/* The shared .btn class pads to ~39px, under the 44px touch target these two
+	   need: turning an entry in and saving a draft are the two actions this
+	   whole form exists for. Scoped here rather than raised on .btn itself,
+	   which is used everywhere in the app at its existing size. */
+	.actions .btn {
+		min-height: 2.75rem;
 	}
 	.progress {
 		font-size: 0.8rem;
