@@ -240,20 +240,22 @@ remains as unranked supervised practice.** The original manual MVP is
   `target_volume_mm3 = target_volume_cm3 x 1000`) and a clearly-labeled
   placeholder drawing, marked `demo`. They served their purpose (exercising the
   flow end to end) and were removed once real content authoring existed; see
-  "Speedrun unit system + demo cleanup" in CLAUDE.md. Real challenges are
+  the "IDEA // GAUNTLET" entry in docs/HISTORY.md. Real challenges are
   authored from actual SolidWorks parts with the macro's Author capture mode,
   via the authoring tool.
 
 ### Drawing UX, series, and tutorials (`0022`, `0023`)
 
 Four additive Speedrun improvements that layer on the reveal-on-start model
-without touching scoring, timing, or the token flow (full detail in CLAUDE.md):
+without touching scoring, timing, or the token flow (full detail in the
+"IDEA // GAUNTLET" entry of docs/HISTORY.md):
 
 - **Interactive drawing viewer** (`DrawingViewer.svelte`): pan / zoom / fit with a
   minimap and an optional focus-region jump strip, replacing the click-to-zoom
   image inline and in the expanded lightbox. Reading fine detail on a complex
   drawing no longer means fighting the UI. Rebuilt around a **full-sheet PDF
-  contract** (see "PDF drawing contract" in CLAUDE.md): pdf.js renders one sheet
+  contract** (see the drawing-viewer bullets in
+  docs/HISTORY.md): pdf.js renders one sheet
   per page (multi-page supported), the drawing and the region hotspots share ONE
   pan/zoom transform so alignment holds at every zoom, and a sub-second CRT
   plotter scan-in plays on reveal (presentation only; reduced motion gets an
