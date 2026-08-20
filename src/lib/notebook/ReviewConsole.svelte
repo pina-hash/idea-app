@@ -292,6 +292,20 @@
 		return result;
 	}
 
+	/**
+	 * A note delete RELOADS the panel rather than closing it, unlike
+	 * `deleteEntry` above: the entry is still there, just missing one thread.
+	 * `afterReview` is the same reload `flagEntry`/`resolveEntry` already use.
+	 */
+	async function deleteNote(entryId: string, noteId: string) {
+		if (!transports.deleteNote) {
+			return { ok: false as const, error: 'Deleting notes is not available.' };
+		}
+		const result = await transports.deleteNote(noteId);
+		if (result.ok) await afterReview(entryId);
+		return result;
+	}
+
 	async function saveSession(input: Parameters<ReviewTransports['saveSession']>[0]) {
 		const result = await transports.saveSession(input);
 		if (result.ok) await refresh();
@@ -371,6 +385,7 @@
 			{:else if entryError}
 				<section class="card"><p class="msg error" role="alert">{entryError}</p></section>
 			{:else if openEntry && openCell}
+				{@const entryId = openEntry.id}
 				<EntryReview
 					entry={openEntry}
 					cell={openCell}
@@ -379,6 +394,9 @@
 					onFlag={flagEntry}
 					onResolve={resolveEntry}
 					onDelete={transports.deleteEntry ? deleteEntry : undefined}
+					onDeleteNote={
+						transports.deleteNote ? (noteId) => deleteNote(entryId, noteId) : undefined
+					}
 					onClose={closeEntry}
 				/>
 			{/if}

@@ -450,6 +450,12 @@ export interface ReviewTransports {
 	 * the way.
 	 */
 	deleteEntry?: (entryId: string) => Promise<ReviewResult>;
+	/**
+	 * An instructor removing one note thread (0119, notebook_staff_delete_note).
+	 * OPTIONAL, the same presence-gates-the-control rule `deleteEntry` follows:
+	 * the RPC re-checks classroom_manages_section itself.
+	 */
+	deleteNote?: (noteId: string) => Promise<ReviewResult>;
 }
 
 /** Distinct unit numbers across a section's sessions, ascending. */

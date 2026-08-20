@@ -60,6 +60,9 @@
 	let deletionReady = $state(true);
 	let uploadReady = $state(true);
 	let draftsReady = $state(true);
+	let historyReady = $state(true);
+	/** The "self" side of every deleted-note fixture below (0119). */
+	const VIEWER_ID = 'u-self';
 	/**
 	 * Pads the student's feed past the 30-entry render limit, so "Show older",
 	 * the date-group headings on older buckets and the search-over-everything
@@ -188,7 +191,22 @@
 					1,
 					p('Sketched three layouts before settling on the belt drive.'),
 					'2026-07-29T15:44:00Z'
-				)
+				),
+				// STAFF-DELETED (0119): the removed-notes disclosure must show the
+				// RPC's own refusal text here, never a Restore control -- the
+				// student cannot undo a delete that was not theirs.
+				{
+					...note(
+						'n-9',
+						'e-1',
+						'n-9',
+						1,
+						p('First pass at the tolerance stack, later found wrong.'),
+						'2026-07-29T15:50:00Z'
+					),
+					deleted_at: '2026-07-30T09:00:00Z',
+					deleted_by: 'u-staff'
+				}
 			]
 		},
 		{
@@ -287,7 +305,21 @@
 					1,
 					p('Two weeks later: the shim held. Moving on to the gearbox mounts.'),
 					'2026-08-09T10:30:00Z'
-				)
+				),
+				// SELF-DELETED (0119): restorable from the disclosure, and it
+				// carries the entry's own history entry too.
+				{
+					...note(
+						'n-11',
+						'e-6',
+						'n-11',
+						1,
+						p('Scrapped this measurement, wrong side of the chassis.'),
+						'2026-07-21T10:00:00Z'
+					),
+					deleted_at: '2026-07-21T10:05:00Z',
+					deleted_by: VIEWER_ID
+				}
 			]
 		},
 		{
@@ -527,7 +559,7 @@
 	 * actually have.
 	 */
 	const entries = $derived(
-		photosReady && sessionsReady && draftsReady
+		photosReady && sessionsReady && draftsReady && historyReady
 			? rawEntries
 			: rawEntries.map((entry) => ({
 					...entry,
@@ -536,7 +568,14 @@
 					// Mirrors +page.server.ts exactly: an unknown submitted_at reads as
 					// SUBMITTED, never as a draft -- the entry's own upload stamp,
 					// which is what the real backfill would have written.
-					submitted_at: draftsReady ? entry.submitted_at : entry.upload_timestamp
+					submitted_at: draftsReady ? entry.submitted_at : entry.upload_timestamp,
+					// 0119 unapplied: no deleted_at/deleted_by on a note (undefined, not
+					// null -- narrower rungs never asked for the column), and no
+					// reviewed_at on the entry.
+					reviewed_at: historyReady ? entry.reviewed_at : undefined,
+					notes: historyReady
+						? entry.notes
+						: entry.notes.map((n) => ({ ...n, deleted_at: undefined, deleted_by: undefined }))
 				}))
 	);
 	const sessions = $derived(account === 'student' && sessionsReady ? SESSIONS : []);
@@ -997,6 +1036,65 @@
 		return { ok: true };
 	}
 
+	/** notebook_delete_note: STAMPS deleted_at/deleted_by on every revision sharing the note_id (0119). */
+	async function deleteNote(noteId: string): Promise<EntryActionResult> {
+		log = [...log, `RPC notebook_delete_note p_note_id=${JSON.stringify(noteId)}`];
+		const entry = current().find((e) => e.notes.some((n) => n.note_id === noteId));
+		if (!entry) return { ok: false, error: 'That note does not exist or is not yours.' };
+		if (entry.notes.find((n) => n.note_id === noteId)?.deleted_at) {
+			return { ok: false, error: 'That note has already been deleted.' };
+		}
+		const remainingNotes = noteThreads(entry.notes).length - 1;
+		const remainingPhotos = entry.photos.filter((p) => !p.removed_at).length;
+		if (remainingNotes === 0 && remainingPhotos === 0 && entry.submitted_at !== null) {
+			return { ok: false, error: 'That is the only thing in this entry. Delete the whole entry instead.' };
+		}
+		updateAll((list) =>
+			list.map((e) =>
+				e.id === entry.id
+					? {
+							...e,
+							notes: e.notes.map((n) =>
+								n.note_id === noteId
+									? { ...n, deleted_at: new Date().toISOString(), deleted_by: VIEWER_ID }
+									: n
+							)
+						}
+					: e
+			)
+		);
+		return { ok: true };
+	}
+
+	/** notebook_restore_note: refuses a staff-deleted note. */
+	async function restoreNote(noteId: string): Promise<EntryActionResult> {
+		log = [...log, `RPC notebook_restore_note p_note_id=${JSON.stringify(noteId)}`];
+		const entry = current().find((e) => e.notes.some((n) => n.note_id === noteId));
+		if (!entry) return { ok: false, error: 'That note does not exist or is not yours.' };
+		const row = entry.notes.find((n) => n.note_id === noteId);
+		if (!row?.deleted_at) return { ok: false, error: 'That note has not been deleted.' };
+		if (row.deleted_by !== VIEWER_ID) {
+			return {
+				ok: false,
+				error:
+					'Your instructor removed that note, so you cannot restore it yourself. Ask them to restore it for you.'
+			};
+		}
+		updateAll((list) =>
+			list.map((e) =>
+				e.id === entry.id
+					? {
+							...e,
+							notes: e.notes.map((n) =>
+								n.note_id === noteId ? { ...n, deleted_at: null, deleted_by: null } : n
+							)
+						}
+					: e
+			)
+		);
+		return { ok: true };
+	}
+
 	/** notebook_set_entry_label: refused on a check-in entry or an empty shell. */
 	async function setEntryLabel(entryId: string, label: string | null): Promise<EntryActionResult> {
 		log = [
@@ -1112,6 +1210,7 @@
 	<label><input type="checkbox" bind:checked={pinsReady} data-testid="sim-0091" /> 0091 applied</label>
 	<label><input type="checkbox" bind:checked={deletionReady} data-testid="sim-0117" /> 0116/0117 deletion readable</label>
 	<label><input type="checkbox" bind:checked={draftsReady} data-testid="sim-0118" /> 0118 applied</label>
+	<label><input type="checkbox" bind:checked={historyReady} data-testid="sim-0119" /> 0119 applied</label>
 	<label><input type="checkbox" bind:checked={uploadReady} /> Drive configured</label>
 	<label><input type="checkbox" bind:checked={bulk} data-testid="sim-bulk" /> 40 more entries</label>
 	<!-- Mirrors /classroom/view-as/<email>/notebook exactly: readOnly plus NO
@@ -1156,6 +1255,8 @@
 		deletedEntries={deletionReady ? deletedEntries : []}
 		uploadReady={viewAs ? false : uploadReady}
 		readOnly={viewAs}
+		{historyReady}
+		viewerId={VIEWER_ID}
 		createEntry={viewAs ? undefined : createEntry}
 		addPhoto={viewAs ? undefined : addPhoto}
 		createNote={viewAs ? undefined : createNote}
@@ -1170,6 +1271,8 @@
 		restorePhoto={viewAs ? undefined : restorePhoto}
 		submitEntry={!viewAs && draftsReady ? submitEntry : undefined}
 		unsubmitEntry={!viewAs && draftsReady ? unsubmitEntry : undefined}
+		deleteNote={!viewAs && historyReady ? deleteNote : undefined}
+		restoreNote={!viewAs && historyReady ? restoreNote : undefined}
 	/>
 {/key}
 

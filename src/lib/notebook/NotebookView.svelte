@@ -130,6 +130,8 @@
 		uploadReady = true,
 		readOnly = false,
 		homeHref = '/',
+		historyReady = true,
+		viewerId,
 		createEntry,
 		addPhoto,
 		createNote,
@@ -144,6 +146,8 @@
 		restorePhoto,
 		submitEntry,
 		unsubmitEntry,
+		deleteNote,
+		restoreNote,
 		onChanged
 	}: {
 		entries: NotebookEntry[];
@@ -252,6 +256,20 @@
 		readOnly?: boolean;
 		/** Where "Home" goes -- rewritten under /classroom/view-as/<email>. */
 		homeHref?: string;
+		/**
+		 * A note can be DELETED and an entry can show a HISTORY (0119). False
+		 * turns both off the same way `deletionReady` turns off 0116/0117: no
+		 * delete or removed-notes disclosure inside any card's EntryNotes, no
+		 * entry-history disclosure -- exactly the notebook this page rendered
+		 * before 0119, on a project with no column to mark either in.
+		 */
+		historyReady?: boolean;
+		/**
+		 * The signed-in caller's own id (0119). Threaded down to each card's
+		 * EntryNotes, which is the only thing that reads it -- see
+		 * NotebookEntryCard's own doc for why.
+		 */
+		viewerId?: string;
 		createEntry?: (form: FormData) => Promise<CreateEntryResult>;
 		addPhoto?: (form: FormData) => Promise<AddPhotoResult>;
 		createNote?: (payload: NotePayload) => Promise<CreateEntryResult>;
@@ -287,6 +305,10 @@
 		submitEntry?: (entryId: string) => Promise<EntryActionResult>;
 		/** Moving a turned-in entry back to a draft (0118, notebook_unsubmit_entry). */
 		unsubmitEntry?: (entryId: string) => Promise<EntryActionResult>;
+		/** The owner removing one note thread (0119, notebook_delete_note). */
+		deleteNote?: (noteId: string) => Promise<EntryActionResult>;
+		/** The owner putting a self-deleted note back (0119, notebook_restore_note). */
+		restoreNote?: (noteId: string) => Promise<EntryActionResult>;
 		/** Called after any successful save so the page can refresh its data. */
 		onChanged?: () => void;
 	} = $props();
@@ -1241,6 +1263,25 @@
 		return result;
 	}
 
+	/**
+	 * The two 0119 note writes, on the same reload-on-success shape as every
+	 * other card write above. Threaded through each card's own EntryNotes.
+	 */
+	async function deleteNoteOne(noteId: string): Promise<EntryActionResult> {
+		if (readOnly || !deleteNote) return { ok: false, error: 'Deleting notes is not available.' };
+		const result = await deleteNote(noteId);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
+	async function restoreNoteOne(noteId: string): Promise<EntryActionResult> {
+		if (readOnly || !restoreNote)
+			return { ok: false, error: 'Restoring notes is not available.' };
+		const result = await restoreNote(noteId);
+		if (result.ok) onChanged?.();
+		return result;
+	}
+
 	// ---- "Recently deleted" (0117) ------------------------------------------
 
 	/** The rail toggle: the nav pane's deleted-list view instead of the normal feed. */
@@ -1672,6 +1713,8 @@
 										{notesReady}
 										{foldersReady}
 										{pinsReady}
+										{historyReady}
+										{viewerId}
 										onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
 										onAddNote={addNote ? saveNoteToEntry : undefined}
 										onEditNote={editNote ? saveNoteEdit : undefined}
@@ -1683,6 +1726,8 @@
 										onRestorePhoto={restorePhoto ? restorePhotoOne : undefined}
 										onSubmit={submitEntry ? submitOne : undefined}
 										onUnsubmit={unsubmitEntry ? unsubmitOne : undefined}
+										onDeleteNote={deleteNote ? deleteNoteOne : undefined}
+										onRestoreNote={restoreNote ? restoreNoteOne : undefined}
 									/>
 								</li>
 							{/each}
@@ -1966,6 +2011,8 @@
 					{notesReady}
 					{foldersReady}
 					{pinsReady}
+					{historyReady}
+					{viewerId}
 					onAddPhotos={addPhoto ? addPhotosToEntry : undefined}
 					onAddNote={addNote ? saveNoteToEntry : undefined}
 					onEditNote={editNote ? saveNoteEdit : undefined}
@@ -1977,6 +2024,8 @@
 					onRestorePhoto={restorePhoto ? restorePhotoOne : undefined}
 					onSubmit={submitEntry ? submitOne : undefined}
 					onUnsubmit={unsubmitEntry ? unsubmitOne : undefined}
+					onDeleteNote={deleteNote ? deleteNoteOne : undefined}
+					onRestoreNote={restoreNote ? restoreNoteOne : undefined}
 				/>
 			</div>
 		{/key}

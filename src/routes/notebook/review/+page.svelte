@@ -232,6 +232,14 @@
 			});
 			if (error) return fail(error, 'Could not delete that entry.');
 			return { ok: true, value: undefined };
+		},
+
+		async deleteNote(noteId) {
+			const { error } = await data.supabase.rpc('notebook_staff_delete_note', {
+				p_note_id: noteId
+			});
+			if (error) return fail(error, 'Could not delete that note.');
+			return { ok: true, value: undefined };
 		}
 	};
 

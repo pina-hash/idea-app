@@ -478,6 +478,7 @@ export const load: PageServerLoad = async ({ url, locals: { supabase, claims } }
 	return {
 		configured,
 		initialCheckIn,
+		viewerId: claims.sub,
 		historyReady,
 		draftsReady,
 		deletionReady,

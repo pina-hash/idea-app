@@ -44,6 +44,7 @@
 		onFlag,
 		onResolve,
 		onDelete,
+		onDeleteNote,
 		onClose
 	}: {
 		entry: ReviewEntry;
@@ -63,6 +64,13 @@
 		 * classroom_manages_section check is the real boundary for regardless.
 		 */
 		onDelete?: (entryId: string) => Promise<ReviewResult>;
+		/**
+		 * An instructor removing one note thread (0119, notebook_staff_delete_note),
+		 * in the same danger-zone treatment as `onDelete` above. Handed straight to
+		 * EntryNotes, which renders it per thread -- OMITTED for a non-manager the
+		 * same way `onDelete` is.
+		 */
+		onDeleteNote?: (noteId: string) => Promise<ReviewResult>;
 		onClose: () => void;
 	} = $props();
 
@@ -218,7 +226,12 @@
 		     notebook_edit_note refuses anyone but the note's owner regardless. -->
 		<section class="notes-block" data-testid="review-notes">
 			<h3>Written notes</h3>
-			<EntryNotes notes={entry.notes} compact />
+			<EntryNotes
+				notes={entry.notes}
+				compact
+				onStaffDelete={onDeleteNote}
+				subjectName={student?.name}
+			/>
 		</section>
 	{/if}
 

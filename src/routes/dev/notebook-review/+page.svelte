@@ -656,6 +656,30 @@
 			}
 			entries = entries.filter((e) => e.id !== entryId);
 			return { ok: true, value: undefined };
+		},
+
+		async deleteNote(noteId) {
+			note(`rpc notebook_staff_delete_note ${JSON.stringify({ p_note_id: noteId })}`);
+			const entry = entries.find((e) => e.notes.some((n) => n.note_id === noteId));
+			if (!entry || !mayManage(entry.section_id)) {
+				return { ok: false, error: 'That note does not exist, or is not one you manage.' };
+			}
+			if (entry.notes.find((n) => n.note_id === noteId)?.deleted_at) {
+				return { ok: false, error: 'That note has already been deleted.' };
+			}
+			entries = entries.map((e) =>
+				e.id === entry.id
+					? {
+							...e,
+							notes: e.notes.map((n) =>
+								n.note_id === noteId
+									? { ...n, deleted_at: new Date().toISOString(), deleted_by: 'staff-uuid' }
+									: n
+							)
+						}
+					: e
+			);
+			return { ok: true, value: undefined };
 		}
 	};
 

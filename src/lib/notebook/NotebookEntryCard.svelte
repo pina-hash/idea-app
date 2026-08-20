@@ -4,7 +4,8 @@
 	import NoteEditor from '$lib/notebook/NoteEditor.svelte';
 	import EntryNotes from '$lib/notebook/EntryNotes.svelte';
 	import EntryThumb from '$lib/notebook/EntryThumb.svelte';
-	import { noteThreads, tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
+	import { docSummary, noteThreads, tiptapHasText, type TiptapNode } from '$lib/notebook-notes';
+	import { entryTimeline, hasTimeline, type NotebookEvent } from '$lib/notebook-history';
 	import { onDestroy } from 'svelte';
 	import {
 		entryPlainText,
@@ -101,6 +102,8 @@
 		notesReady = true,
 		foldersReady = true,
 		pinsReady = true,
+		historyReady = true,
+		viewerId,
 		onAddPhotos,
 		onAddNote,
 		onEditNote,
@@ -111,7 +114,9 @@
 		onRetitle,
 		onRestorePhoto,
 		onSubmit,
-		onUnsubmit
+		onUnsubmit,
+		onDeleteNote,
+		onRestoreNote
 	}: {
 		entry: NotebookEntry;
 		folders: NotebookFolder[];
@@ -134,6 +139,20 @@
 		foldersReady?: boolean;
 		/** 0091 applied; false hides pinning without touching anything else. */
 		pinsReady?: boolean;
+		/**
+		 * 0119 applied: a note can be deleted, and this card can show a HISTORY
+		 * disclosure. False hides both -- no removed-notes disclosure inside
+		 * EntryNotes, no entry-history disclosure below -- exactly the card this
+		 * was before 0119, on a project with no column to mark either in.
+		 */
+		historyReady?: boolean;
+		/**
+		 * The signed-in caller's own id (0119). Threaded straight to EntryNotes,
+		 * which is the only thing that reads it: telling a self-deleted note
+		 * thread from a staff-deleted one, so the removed-notes disclosure offers
+		 * Restore on exactly the ones that would not refuse it.
+		 */
+		viewerId?: string;
 		/** Omitted on a read-only surface: no control, and nothing to call. */
 		onAddPhotos?: (
 			entryId: string,
@@ -184,6 +203,18 @@
 		 * and the RPC's own refusal is what the student sees.
 		 */
 		onUnsubmit?: (entryId: string) => Promise<EntryActionResult>;
+		/**
+		 * The owner removing one note thread (0119, notebook_delete_note). Handed
+		 * straight to EntryNotes, which mirrors it on exactly the notes `canEdit`
+		 * already governs.
+		 */
+		onDeleteNote?: (noteId: string) => Promise<EntryActionResult>;
+		/**
+		 * The owner putting a self-deleted note back (0119, notebook_restore_note).
+		 * Drives EntryNotes' own removed-notes disclosure; a staff-deleted thread
+		 * there shows the RPC's refusal instead, regardless of this transport.
+		 */
+		onRestoreNote?: (noteId: string) => Promise<EntryActionResult>;
 	} = $props();
 
 	/**
@@ -217,6 +248,17 @@
 	 */
 	const threads = $derived(noteThreads(notes));
 	const noteCount = $derived(threads.length);
+	/**
+	 * Whether ANYTHING belongs under the notes heading (0119): a live note, or
+	 * a removed one whose disclosure still needs somewhere to render. Without
+	 * this, deleting an entry's only note would drop the whole `.entry-notes`
+	 * block -- disclosure included -- the moment `noteCount` reached zero.
+	 */
+	const hasNoteContent = $derived(
+		noteCount > 0 || (historyReady && notes.some((n) => !!n.deleted_at))
+	);
+	const timeline = $derived(historyReady ? entryTimeline(entry) : []);
+	const showHistory = $derived(historyReady && hasTimeline(entry));
 	const freeForm = $derived(entry.session_id === null);
 	/** Never on a check-in: its title IS the check-in's label (0116). */
 	const canRetitle = $derived(freeForm && !!onRetitle);
@@ -475,6 +517,39 @@
 		const d = new Date(iso);
 		if (Number.isNaN(d.getTime())) return '';
 		return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+	}
+
+	/**
+	 * One line per event kind (0119). `entryTimeline` itself states no kind
+	 * beyond what a stamp already on the row can prove, so this only labels
+	 * what it hands back -- it invents nothing (a title change or a re-file has
+	 * no stamp and is silent here, exactly as $lib/notebook-history documents).
+	 */
+	function eventLabel(event: NotebookEvent): string {
+		switch (event.kind) {
+			case 'entry_created':
+				return 'Entry created';
+			case 'photo_added':
+				return `Added ${event.photo?.original_filename ?? 'a photo'}`;
+			case 'note_written':
+				return event.note
+					? `Wrote a note: "${docSummary(event.note.content, 50)}"`
+					: 'Wrote a note';
+			case 'note_edited':
+				return event.note
+					? `Edited a note: "${docSummary(event.note.content, 50)}"`
+					: 'Edited a note';
+			case 'entry_submitted':
+				return 'Turned in';
+			case 'entry_reviewed':
+				return 'Reviewed by your instructor';
+			case 'photo_removed':
+				return `Removed ${event.photo?.original_filename ?? 'a photo'}`;
+			case 'note_deleted':
+				return 'Removed a note';
+			case 'entry_deleted':
+				return 'Entry deleted';
+		}
 	}
 </script>
 
@@ -925,7 +1000,7 @@
 				</details>
 			{/if}
 
-			{#if noteCount}
+			{#if hasNoteContent}
 				<div class="entry-notes">
 					<!-- canEdit is NO LONGER gated on freeForm (0116 relaxed
 					     notebook_edit_note: a revision never overwrites what an
@@ -934,8 +1009,33 @@
 					     applied, and whether there is a save transport at all --
 					     with none, there is no edit control and EntryNotes has
 					     nothing to call either. -->
-					<EntryNotes {notes} canEdit={notesReady && !!onEditNote} onSave={onEditNote} />
+					<EntryNotes
+						{notes}
+						canEdit={notesReady && !!onEditNote}
+						onSave={onEditNote}
+						onDelete={historyReady ? onDeleteNote : undefined}
+						onRestore={historyReady ? onRestoreNote : undefined}
+						{viewerId}
+					/>
 				</div>
+			{/if}
+
+			{#if showHistory}
+				<!-- Closed by default, the same rule the removed-photos and
+				     removed-notes disclosures follow: what happened to this entry
+				     is not the first thing a returning student or an admin
+				     previewing it needs to see. -->
+				<details class="entry-history" data-testid="entry-history">
+					<summary>History</summary>
+					<ol class="history-list">
+						{#each timeline as event, i (i)}
+							<li>
+								<span class="stamp">{when(event.at)}</span>
+								<span class="event-label">{eventLabel(event)}</span>
+							</li>
+						{/each}
+					</ol>
+				</details>
 			{/if}
 
 			{#if canAddPhotos || (notesReady && canAddNote)}
@@ -1422,6 +1522,47 @@
 		margin-top: 1.2rem;
 	}
 
+	/* Closed by default (0119), the same rule as .removed-photos below. */
+	.entry-history {
+		margin-top: 1.2rem;
+	}
+	.entry-history summary {
+		cursor: pointer;
+		font-size: 0.84rem;
+		font-weight: 600;
+		color: var(--nb-ink-soft);
+		min-height: 2.75rem;
+		display: flex;
+		align-items: center;
+	}
+	.entry-history summary:hover {
+		color: var(--nb-accent-ink);
+	}
+	.history-list {
+		list-style: none;
+		margin: 0.5rem 0 0;
+		padding: 0;
+		display: grid;
+		gap: 0.5rem;
+		border-left: 1px dashed var(--nb-hairline-strong);
+	}
+	.history-list li {
+		display: flex;
+		align-items: baseline;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+		padding: 0 0 0 0.8rem;
+		font-size: 0.82rem;
+	}
+	.history-list .stamp {
+		flex: none;
+		font-variant-numeric: tabular-nums;
+		color: var(--nb-ink-faint);
+	}
+	.history-list .event-label {
+		color: var(--nb-ink-soft);
+	}
+
 	/* Closed by default: a page a student removed is not the first thing they
 	   came back to see, but it has to be reachable and restorable. */
 	.removed-photos {
@@ -1669,6 +1810,13 @@
 		}
 		.tools {
 			flex: 1 0 100%;
+			/* WRAP, not nowrap: this row can hold a folder pick plus up to five
+			   labelled buttons, and none of that fits one line at 375px. Without
+			   this the row pushed the whole card wider than the viewport instead
+			   of taking a second line -- a pre-existing bug found and left alone
+			   during the PhotoViewer bundle, fixed here alongside 0119's own new
+			   tool. */
+			flex-wrap: wrap;
 			justify-content: flex-end;
 			padding: 0 0.1rem 0.3rem 0;
 			gap: 0.1rem;

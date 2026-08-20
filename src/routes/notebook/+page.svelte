@@ -199,6 +199,19 @@
 		if (error) return rpcFail(error, 'Could not move that entry back to drafts.');
 		return { ok: true };
 	}
+
+	/** The two 0119 note writes, direct to their RPCs for the same reason as above. */
+	async function deleteNote(noteId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_delete_note', { p_note_id: noteId });
+		if (error) return rpcFail(error, 'Could not delete that note.');
+		return { ok: true };
+	}
+
+	async function restoreNote(noteId: string): Promise<EntryActionResult> {
+		const { error } = await data.supabase.rpc('notebook_restore_note', { p_note_id: noteId });
+		if (error) return rpcFail(error, 'Could not restore that note.');
+		return { ok: true };
+	}
 </script>
 
 <NotebookView
@@ -219,6 +232,8 @@
 	deletionReady={data.deletionReady}
 	deletedEntries={data.deletedEntries}
 	uploadReady={data.uploadReady}
+	historyReady={data.historyReady}
+	viewerId={data.viewerId}
 	{createEntry}
 	{addPhoto}
 	{createNote}
@@ -233,5 +248,7 @@
 	{restorePhoto}
 	{submitEntry}
 	{unsubmitEntry}
+	{deleteNote}
+	{restoreNote}
 	onChanged={() => invalidateAll()}
 />
