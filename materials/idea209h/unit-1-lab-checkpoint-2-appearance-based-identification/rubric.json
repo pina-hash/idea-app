@@ -1,0 +1,104 @@
+[
+  {
+    "id": "m1-c1",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 5,
+        "descriptor": "All four required samples carry a described color, an oxidation entry including a stated absence where there is none, and one of the three magnetic settings."
+      },
+      {
+        "label": "Proficient",
+        "points": 4,
+        "descriptor": "All four samples carry all three observations, with one entry giving a bare label rather than a description."
+      },
+      {
+        "label": "Developing",
+        "points": 2,
+        "descriptor": "Two or three samples carry all three observations, or all four are present with one observation type missing throughout."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Fewer than two samples are observed, or magnetism is recorded as a yes or no rather than on the three-setting scale."
+      }
+    ],
+    "points": 5,
+    "criterion": "Appearance Testing: Color, oxidation, and magnetic response",
+    "incomplete": false
+  },
+  {
+    "id": "m1-c2",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 3,
+        "descriptor": "Every metal sample carries a spark result with the stream described, and samples that produced no sparks are recorded as such rather than left blank."
+      },
+      {
+        "label": "Proficient",
+        "points": 2,
+        "descriptor": "Every metal sample carries a spark result, with the stream not described on one or more, or a no-spark result left blank."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "One or more metal samples have no spark entry, or a result is recorded for a sample never taken to the grinder."
+      }
+    ],
+    "points": 3,
+    "criterion": "Appearance Testing: Spark test record for the metal samples",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c3",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 4,
+        "descriptor": "All four required samples carry the Checkpoint 1 hypothesis, an agrees or conflicts verdict, and a named deciding observation with a reason tied to that specific test."
+      },
+      {
+        "label": "Proficient",
+        "points": 3,
+        "descriptor": "All four carry the hypothesis and the verdict, with the reason on one or two applying to any test rather than the one named."
+      },
+      {
+        "label": "Developing",
+        "points": 1,
+        "descriptor": "Two or three samples are weighed, or all four carry a verdict with no deciding observation named."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Fewer than two samples are weighed, or the Checkpoint 1 hypothesis is not carried forward."
+      }
+    ],
+    "points": 4,
+    "criterion": "Evidence and Refined ID: Appearance weighed against the density hypothesis",
+    "incomplete": false
+  },
+  {
+    "id": "m2-c4",
+    "levels": [
+      {
+        "label": "Complete",
+        "points": 3,
+        "descriptor": "A refined identification is given for all four required samples, each citing a density result and an appearance result."
+      },
+      {
+        "label": "Proficient",
+        "points": 2,
+        "descriptor": "A refined identification is given for all four samples, citing only one evidence type on one or more of them."
+      },
+      {
+        "label": "Absent",
+        "points": 0,
+        "descriptor": "Fewer than four refined identifications are given, or identifications are restated from Checkpoint 1 with no appearance evidence cited."
+      }
+    ],
+    "points": 3,
+    "criterion": "Evidence and Refined ID: Refined hypothesis citing both evidence types",
+    "incomplete": false
+  }
+]
